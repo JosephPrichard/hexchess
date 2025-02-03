@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 import models.GameState;
 import models.Player;
 import org.apache.commons.lang3.exception.ExceptionUtils;
-import infra.GameService;
+import services.GameService;
 
 import static utils.Globals.*;
 

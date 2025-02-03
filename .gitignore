@@ -41,4 +41,4 @@ build/
 
 .env
 
-/logging/app.log
+/logs/app.log

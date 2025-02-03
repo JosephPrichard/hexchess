@@ -1,4 +1,4 @@
-package infra;
+package services;
 
 import domain.ChessBoard;
 import models.GameState;

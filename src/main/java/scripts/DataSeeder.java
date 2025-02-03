@@ -3,9 +3,9 @@ package scripts;
 import lombok.AllArgsConstructor;
 import models.GameState;
 import org.apache.commons.dbutils.QueryRunner;
-import infra.HistoryDao;
-import infra.RemoteDict;
-import infra.UserDao;
+import services.HistoryDao;
+import services.RemoteDict;
+import services.UserDao;
 import utils.Config;
 
 import javax.sql.DataSource;
@@ -215,7 +215,7 @@ public class DataSeeder {
         var userDao = new UserDao(ds);
         var allUsers = userDao.getAll();
         var changeSets = allUsers.stream()
-            .map(entity -> new RemoteDict.EloChangeSet(entity.getId(), entity.getElo()))
+            .map(user -> new RemoteDict.EloChangeSet(user.getId(), user.getElo()))
             .toArray(RemoteDict.EloChangeSet[]::new);
         remoteDict.incrLeaderboardUser(changeSets);
     }

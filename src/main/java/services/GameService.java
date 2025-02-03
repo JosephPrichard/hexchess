@@ -1,9 +1,9 @@
-package infra;
+package services;
 
 import domain.Move;
 import lombok.AllArgsConstructor;
 import models.GameState;
-import models.HistoryEntity;
+import models.History;
 import models.Player;
 
 import java.util.Random;
@@ -120,7 +120,7 @@ public class GameService {
         try {
             var whiteId = state.getWhitePlayer().getId();
             var blackId = state.getBlackPlayer().getId();
-            var result = isWhiteWin ? HistoryEntity.WHITE_WIN : HistoryEntity.BLACK_WIN;
+            var result = isWhiteWin ? History.WHITE_WIN : History.BLACK_WIN;
             var winId = isWhiteWin ? whiteId : blackId;
             var loseId = isWhiteWin ? blackId : whiteId;
 

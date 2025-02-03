@@ -34,9 +34,11 @@ CREATE TABLE IF NOT EXISTS game_histories (
     loseElo NUMERIC);
 
 CREATE TABLE IF NOT EXISTS challenges (
-    challengerId INTEGER NOT NULL,
-    challengeeId INTEGER NOT NULL,
-    status INTEGER NOT NULL);
+    challengerId VARCHAR NOT NULL,
+    challengeeId VARCHAR NOT NULL,
+    status INTEGER NOT NULL,
+    madeOn TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (challengerId, challengeeId));
 
 -- Create indices.
 CREATE INDEX IF NOT EXISTS idxTrgmUsername ON users USING GIST (username gist_trgm_ops);
@@ -46,6 +48,8 @@ CREATE INDEX IF NOT EXISTS idxElo ON users(elo);
 CREATE INDEX IF NOT EXISTS idxWhiteId ON game_histories(whiteId, id);
 CREATE INDEX IF NOT EXISTS idxBlackId ON game_histories(blackId, id);
 CREATE INDEX IF NOT EXISTS idxBothIds ON game_histories(whiteId, blackId, id);
+
+CREATE INDEX IF NOT EXISTS idxChallengee ON challenges(challengeeId, madeOn);
 
 -- Create functions and procedures.
 CREATE FUNCTION probabilityWins(IN elo1 NUMERIC, IN elo2 NUMERIC)

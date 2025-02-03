@@ -2,14 +2,14 @@ package web;
 
 import com.github.jknack.handlebars.Handlebars;
 import com.zaxxer.hikari.HikariDataSource;
-import infra.HistoryDao;
-import infra.RemoteDict;
-import infra.UserDao;
+import services.HistoryDao;
+import services.RemoteDict;
+import services.UserDao;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import redis.clients.jedis.JedisPooled;
-import infra.*;
+import services.*;
 
 import java.io.IOException;
 import java.util.Map;

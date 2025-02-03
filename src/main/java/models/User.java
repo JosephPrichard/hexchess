@@ -15,7 +15,7 @@ import static utils.Globals.HTML_SAFELIST;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserEntity {
+public class User {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
     public static final float START_ELO = 1000f;
 
@@ -31,7 +31,7 @@ public class UserEntity {
     @EqualsAndHashCode.Exclude
     public Timestamp joinedOn;
 
-    public UserEntity(String id, String username, String country, float elo, int rank) {
+    public User(String id, String username, String country, float elo, int rank) {
         this(id, username, country, elo, elo, 0, 0, rank, null, null);
     }
 

@@ -1,8 +1,8 @@
-package infra;
+package services;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import models.HistoryEntity;
+import models.History;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.handlers.BeanHandler;
@@ -17,8 +17,8 @@ import static utils.Globals.LOGGER;
 
 public class HistoryDao {
 
-    private static final ResultSetHandler<HistoryEntity> HIST_MAPPER = new BeanHandler<>(HistoryEntity.class);
-    private static final ResultSetHandler<List<HistoryEntity>> HIST_LIST_MAPPER = new BeanListHandler<>(HistoryEntity.class);
+    private static final ResultSetHandler<History> HIST_MAPPER = new BeanHandler<>(History.class);
+    private static final ResultSetHandler<List<History>> HIST_LIST_MAPPER = new BeanListHandler<>(History.class);
 
     private final QueryRunner runner;
 
@@ -56,7 +56,7 @@ public class HistoryDao {
         }
     }
 
-    public HistoryEntity getHistory(long id) {
+    public History getHistory(long id) {
         var sql = """
             SELECT
                 h1.id,
@@ -76,16 +76,16 @@ public class HistoryDao {
             INNER JOIN users as u2 ON u2.id = h1.blackId
             WHERE h1.id = ?""";
         try {
-            var results = runner.query(sql, HIST_MAPPER, id);
-            LOGGER.info("Selected history for id={}", id);
-            return results;
+            var history = runner.query(sql, HIST_MAPPER, id);
+            LOGGER.info("Selected history={} for id={}", history, id);
+            return history;
         } catch (SQLException ex) {
             LOGGER.error("Failed to select history for id={}", id);
             throw new RuntimeException(ex);
         }
     }
 
-    public List<HistoryEntity> getUserHistories(String userId, Long afterId, int perPage) {
+    public List<History> getUserHistories(String userId, Long afterId, int perPage) {
         if (userId == null) {
             throw new RuntimeException("Expected userId to be non null");
         }
@@ -120,9 +120,9 @@ public class HistoryDao {
         params.add(perPage);
 
         try {
-            var results = runner.query(sql, HIST_LIST_MAPPER, params.toArray());
-            LOGGER.info("Selected user histories page for userId={}, afterId={}", userId, afterId);
-            return results;
+            var histories = runner.query(sql, HIST_LIST_MAPPER, params.toArray());
+            LOGGER.info("Selected user histories={} page for userId={}, afterId={}", histories, userId, afterId);
+            return histories;
         } catch (SQLException ex) {
             LOGGER.info("Failed to select user histories page for userId={}, afterId={}", userId, afterId);
             throw new RuntimeException(ex);

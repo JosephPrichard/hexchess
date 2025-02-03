@@ -8,9 +8,9 @@ import io.jooby.test.MockRouter;
 import models.Player;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import infra.GameService;
-import infra.RemoteDict;
-import infra.UserDao;
+import services.GameService;
+import services.RemoteDict;
+import services.UserDao;
 
 import java.util.concurrent.atomic.AtomicReference;
 

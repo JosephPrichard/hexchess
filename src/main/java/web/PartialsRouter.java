@@ -3,7 +3,7 @@ package web;
 import io.jooby.Jooby;
 import io.jooby.MediaType;
 import io.jooby.StatusCode;
-import models.HistoryEntity;
+import models.History;
 
 public class PartialsRouter extends Jooby {
 
@@ -33,7 +33,7 @@ public class PartialsRouter extends Jooby {
                 return "";
             }
 
-            historyList.forEach(HistoryEntity::sanitize);
+            historyList.forEach(History::sanitize);
 
             var template = templates.getHistoryListTemplate();
             return template.apply(historyList);

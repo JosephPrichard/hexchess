@@ -1,10 +1,10 @@
-package infra;
+package services;
 
 import at.favre.lib.crypto.bcrypt.BCrypt;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import models.RankedUser;
-import models.UserEntity;
+import models.User;
 import org.apache.commons.dbutils.DbUtils;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
@@ -26,8 +26,8 @@ import static utils.Globals.LOGGER;
 
 public class UserDao {
 
-    private static final ResultSetHandler<UserEntity> USER_MAPPER = new BeanHandler<>(UserEntity.class);
-    private static final ResultSetHandler<List<UserEntity>> USER_LIST_MAPPER = new BeanListHandler<>(UserEntity.class);
+    private static final ResultSetHandler<User> USER_MAPPER = new BeanHandler<>(User.class);
+    private static final ResultSetHandler<List<User>> USER_LIST_MAPPER = new BeanListHandler<>(User.class);
     private static final ResultSetHandler<Integer> INT_MAPPER = new ScalarHandler<>();
 
     private final QueryRunner runner;
@@ -52,7 +52,7 @@ public class UserDao {
     }
 
     public UserInst insert(String username, String password) throws TakenUsernameException {
-        var inst = new UserInst(UUID.randomUUID().toString(), username, password, "USA", UserEntity.START_ELO, 0, 0);
+        var inst = new UserInst(UUID.randomUUID().toString(), username, password, "USA", User.START_ELO, 0, 0);
         insert(inst);
         return inst;
     }
@@ -241,14 +241,14 @@ public class UserDao {
         }
     }
 
-    public UserEntity getById(String id) {
+    public User getById(String id) {
         var sql = """
             SELECT id, username, country, elo, highestElo, wins, losses, bio, joinedOn
             FROM users
             WHERE id = ?""";
         try {
             var user = runner.query(sql, USER_MAPPER, id);
-            LOGGER.info("Fetched user by id={}", id);
+            LOGGER.info("Fetched user={} by id={}", user, id);
             return user;
         } catch (SQLException ex) {
             LOGGER.error("Failed to fetch user by id={}", id, ex);
@@ -256,7 +256,7 @@ public class UserDao {
         }
     }
 
-    public UserEntity getByIdWithRank(String id) {
+    public User getByIdWithRank(String id) {
         var sql = """
             SELECT u1.id, u1.username, u1.country, u1.elo, u1.highestElo, u1.wins, u1.losses, u1.joinedOn, u1.bio,
                 (SELECT COUNT(*) FROM users u2 WHERE u2.elo >= u1.elo) as rank
@@ -264,7 +264,7 @@ public class UserDao {
             WHERE u1.id = ?""";
         try {
             var user = runner.query(sql, USER_MAPPER, id);
-            LOGGER.info("Fetched user with rank by id={}", id);
+            LOGGER.info("Fetched user={} with rank by id={}", user, id);
             return user;
         } catch (SQLException ex) {
             LOGGER.error("Failed to fetch user with rank by id={}", id, ex);
@@ -272,11 +272,11 @@ public class UserDao {
         }
     }
 
-    public List<UserEntity> getByRanks(List<RankedUser> users) {
+    public List<User> getByRanks(List<RankedUser> users) {
         return getByIds(users.stream().map(RankedUser::getId).toList());
     }
 
-    public List<UserEntity> getByIds(List<String> ids) {
+    public List<User> getByIds(List<String> ids) {
         var sql = """
             SELECT id, username, country, elo, wins, losses
             FROM users
@@ -285,28 +285,28 @@ public class UserDao {
 
         var idsStr = ids.stream().collect(Collectors.joining(",", "[", "]"));
         try {
-            var results = runner.query(sql, USER_LIST_MAPPER, ids.toArray());
-            LOGGER.info("Selected users by ids={}", idsStr);
-            return results;
+            var users = runner.query(sql, USER_LIST_MAPPER, ids.toArray());
+            LOGGER.info("Selected users={} by ids={}", users, idsStr);
+            return users;
         } catch (SQLException e) {
             LOGGER.error("Failed to select users by ids={}", idsStr);
             throw new RuntimeException(e);
         }
     }
 
-    public List<UserEntity> getAll() {
+    public List<User> getAll() {
         var sql = "SELECT id, username, country, elo, wins, losses FROM users";
         try {
-            var results = runner.query(sql, USER_LIST_MAPPER);
-            LOGGER.info("Selected ALL records from the user table");
-            return results;
+            var users = runner.query(sql, USER_LIST_MAPPER);
+            LOGGER.info("Selected ALL records={} from the user table", users);
+            return users;
         } catch (SQLException ex) {
             LOGGER.error("Failed to select ALL records from the user table");
             throw new RuntimeException(ex);
         }
     }
 
-    public List<UserEntity> getLeaderboard(int page, int perPage) {
+    public List<User> getLeaderboard(int page, int perPage) {
         var sql = """
             SELECT id, username, country, elo, wins, losses
             FROM users
@@ -316,19 +316,19 @@ public class UserDao {
         var offset = (page - 1) * perPage;
 
         try {
-            var results = runner.query(sql, USER_LIST_MAPPER, perPage, offset);
-            for (int i = 0; i < results.size(); i++) {
-                results.get(i).setRank((page - 1) * perPage + i + 1);
+            var users = runner.query(sql, USER_LIST_MAPPER, perPage, offset);
+            for (int i = 0; i < users.size(); i++) {
+                users.get(i).setRank((page - 1) * perPage + i + 1);
             }
-            LOGGER.info("Selected leaderboard for page={}, perPage={}", page, perPage);
-            return results;
+            LOGGER.info("Selected leaderboard={} for page={}, perPage={}", users, page, perPage);
+            return users;
         } catch (SQLException ex) {
             LOGGER.error("Failed to select leaderboard for page={}, perPage={}", page, perPage);
             throw new RuntimeException(ex);
         }
     }
 
-    public List<UserEntity> searchByName(String name, int page, int perPage) {
+    public List<User> searchByName(String name, int page, int perPage) {
         var sql = """
             SELECT id, username, country, elo, wins, losses, (username <-> ?) as rank
             FROM users
@@ -339,12 +339,12 @@ public class UserDao {
         var offset = (page - 1) * perPage;
 
         try {
-            var results = runner.query(sql, USER_LIST_MAPPER, name, name, perPage, offset);
-            for (int i = 0; i < results.size(); i++) {
-                results.get(i).setRank(i + 1);
+            var users = runner.query(sql, USER_LIST_MAPPER, name, name, perPage, offset);
+            for (int i = 0; i < users.size(); i++) {
+                users.get(i).setRank(i + 1);
             }
-            LOGGER.info("Selected users by name for name={}, page={}, perPage={}", name, page, perPage);
-            return results;
+            LOGGER.info("Selected users={} by name for name={}, page={}, perPage={}", users, name, page, perPage);
+            return users;
         } catch (SQLException ex) {
             LOGGER.error("Failed to select users by name for name={}, page={}, perPage={}", name, page, perPage);
             throw new RuntimeException(ex);

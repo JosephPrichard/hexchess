@@ -1,7 +1,7 @@
-package infra;
+package services;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import models.HistoryEntity;
+import models.History;
 import org.junit.jupiter.api.*;
 import utils.Config;
 
@@ -45,21 +45,21 @@ public class HistoryDaoTest {
         createTestUserData(userDao);
 
         // when
-        historyDao.insert("id1", "id2", HistoryEntity.WHITE_WIN, 30, -30, "{}");
-        historyDao.insert("id2", "id3", HistoryEntity.BLACK_WIN, 30, -30, "{}");
-        historyDao.insert("id3", "id1", HistoryEntity.DRAW, 30, -30, "{}");
+        historyDao.insert("id1", "id2", History.WHITE_WIN, 30, -30, "{}");
+        historyDao.insert("id2", "id3", History.BLACK_WIN, 30, -30, "{}");
+        historyDao.insert("id3", "id1", History.DRAW, 30, -30, "{}");
 
         var actualHistory1 = historyDao.getHistory(1);
         var actualHistory2 = historyDao.getHistory(2);
         var actualHistory3 = historyDao.getHistory(3);
 
         // then
-        var expectedHistory1 = new HistoryEntity(1, "id1", "id2", "user1", "user2",
-            "us", "us", "{}", HistoryEntity.WHITE_WIN, 30, -30, null);
-        var expectedHistory2 = new HistoryEntity(2, "id2", "id3", "user2", "user3",
-            "us", "us", "{}", HistoryEntity.BLACK_WIN, 30, -30, null);
-        var expectedHistory3 = new HistoryEntity(3, "id3", "id1", "user3", "user1",
-            "us", "us", "{}", HistoryEntity.DRAW, 30, -30, null);
+        var expectedHistory1 = new History(1, "id1", "id2", "user1", "user2",
+            "us", "us", "{}", History.WHITE_WIN, 30, -30, null);
+        var expectedHistory2 = new History(2, "id2", "id3", "user2", "user3",
+            "us", "us", "{}", History.BLACK_WIN, 30, -30, null);
+        var expectedHistory3 = new History(3, "id3", "id1", "user3", "user1",
+            "us", "us", "{}", History.DRAW, 30, -30, null);
 
         Assertions.assertEquals(expectedHistory1, actualHistory1);
         Assertions.assertEquals(expectedHistory2, actualHistory2);
@@ -72,22 +72,22 @@ public class HistoryDaoTest {
         createTestUserData(userDao);
 
         // when
-        historyDao.insert("id1", "id2", HistoryEntity.WHITE_WIN, 30, -30, "{}");
-        historyDao.insert("id2", "id3", HistoryEntity.BLACK_WIN, 30, -30, "{}");
-        historyDao.insert("id3", "id1", HistoryEntity.DRAW, 30, -30, "{}");
+        historyDao.insert("id1", "id2", History.WHITE_WIN, 30, -30, "{}");
+        historyDao.insert("id2", "id3", History.BLACK_WIN, 30, -30, "{}");
+        historyDao.insert("id3", "id1", History.DRAW, 30, -30, "{}");
 
         var actualHistoryList1 = historyDao.getUserHistories("id1", null, 5);
         var actualHistoryList2 = historyDao.getUserHistories("id1", 3L, 5);
 
         // then
         var expectedHistoryList1 = List.of(
-            new HistoryEntity(3, "id3", "id1", "user3", "user1", "us", "us",
-                null, HistoryEntity.DRAW, 30, -30, null),
-            new HistoryEntity(1, "id1", "id2", "user1", "user2", "us", "us",
-                null, HistoryEntity.WHITE_WIN, 30, -30, null));
+            new History(3, "id3", "id1", "user3", "user1", "us", "us",
+                null, History.DRAW, 30, -30, null),
+            new History(1, "id1", "id2", "user1", "user2", "us", "us",
+                null, History.WHITE_WIN, 30, -30, null));
         var expectedHistoryList2 = List.of(
-            new HistoryEntity(1, "id1", "id2", "user1", "user2", "us", "us",
-                null, HistoryEntity.WHITE_WIN, 30, -30, null));
+            new History(1, "id1", "id2", "user1", "user2", "us", "us",
+                null, History.WHITE_WIN, 30, -30, null));
 
         Assertions.assertEquals(expectedHistoryList1, actualHistoryList1);
         Assertions.assertEquals(expectedHistoryList2, actualHistoryList2);

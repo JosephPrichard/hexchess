@@ -15,7 +15,7 @@ import static utils.Globals.HTML_SAFELIST;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class HistoryEntity {
+public class History {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
     public static final int WHITE_WIN = 0;
     public static final int BLACK_WIN = 1;

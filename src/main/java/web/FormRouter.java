@@ -8,7 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import models.Player;
 import org.jsoup.Jsoup;
-import infra.UserDao;
+import services.UserDao;
 
 import static utils.Globals.*;
 

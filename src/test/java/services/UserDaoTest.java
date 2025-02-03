@@ -1,7 +1,7 @@
-package infra;
+package services;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import models.UserEntity;
+import models.User;
 import org.junit.jupiter.api.*;
 import utils.Config;
 
@@ -42,7 +42,6 @@ public class UserDaoTest {
         userDao.insert(new UserDao.UserInst("id5", "user5", "password5", "us", 1500f, 40, 35));
     }
 
-
     @Test
     public void testInsertThenVerify() {
         // when
@@ -79,8 +78,8 @@ public class UserDaoTest {
         actualUsers2.roundElo();
 
         // then
-        var expectedUsers1 = new UserEntity("id1", "user1", "us", 1015f, 1015f, 1, 0, 0, "", null);
-        var expectedUsers2 = new UserEntity("id2", "user2", "us", 990f, 1005f, 1, 1, 0, "", null);
+        var expectedUsers1 = new User("id1", "user1", "us", 1015f, 1015f, 1, 0, 0, "", null);
+        var expectedUsers2 = new User("id2", "user2", "us", 990f, 1005f, 1, 1, 0, "", null);
 
         Assertions.assertEquals(new UserDao.EloChangeSet(1015f, 990f), changeSet);
         Assertions.assertEquals(expectedUsers1, actualUsers1);
@@ -100,8 +99,8 @@ public class UserDaoTest {
         var actualUser2 = userDao.getById("id2");
 
         // then
-        var expectedUser1 = new UserEntity("id1", "user1-changed", "us", 1000f, 1000f, 0, 0, 0, "", null);
-        var expectedUser2 = new UserEntity("id2", "user2-changed", "eu", 1005f, 1005f, 1, 0, 0, "", null);
+        var expectedUser1 = new User("id1", "user1-changed", "us", 1000f, 1000f, 0, 0, 0, "", null);
+        var expectedUser2 = new User("id2", "user2-changed", "eu", 1005f, 1005f, 1, 0, 0, "", null);
 
         Assertions.assertEquals(expectedUser1, actualUser1);
         Assertions.assertEquals(expectedUser2, actualUser2);
@@ -132,11 +131,11 @@ public class UserDaoTest {
 
         // then
         var expectedUserList = List.of(
-            new UserEntity("id4", "user4", "us", 2000f, 0f, 50, 20, 1, null, null),
-            new UserEntity("id5", "user5", "us", 1500f, 0f, 40, 35, 2, null, null),
-            new UserEntity("id2", "user2", "us", 1005f, 0f, 1, 0, 3, null, null),
-            new UserEntity("id1", "user1", "us", 1000f, 0f, 0, 0, 4, null, null),
-            new UserEntity("id3", "user3", "us", 900f, 0f, 1, 8, 5, null, null));
+            new User("id4", "user4", "us", 2000f, 0f, 50, 20, 1, null, null),
+            new User("id5", "user5", "us", 1500f, 0f, 40, 35, 2, null, null),
+            new User("id2", "user2", "us", 1005f, 0f, 1, 0, 3, null, null),
+            new User("id1", "user1", "us", 1000f, 0f, 0, 0, 4, null, null),
+            new User("id3", "user3", "us", 900f, 0f, 1, 8, 5, null, null));
         Assertions.assertEquals(expectedUserList, actualUserList);
     }
 
@@ -150,8 +149,8 @@ public class UserDaoTest {
 
         // then
         var expectedUserList = List.of(
-            new UserEntity("id1", "user1", "us", 1000f, 0f, 0, 0, 0, null, null),
-            new UserEntity("id2", "user2", "us", 1005f, 0f, 1, 0, 0, null, null));
+            new User("id1", "user1", "us", 1000f, 0f, 0, 0, 0, null, null),
+            new User("id2", "user2", "us", 1005f, 0f, 1, 0, 0, null, null));
         Assertions.assertEquals(expectedUserList, actualUserList);
     }
 
@@ -164,7 +163,7 @@ public class UserDaoTest {
         var actualUser = userDao.getByIdWithRank("id1");
 
         // then
-        var expectedUser = new UserEntity("id1", "user1", "us", 1000f, 1000f, 0, 0, 4, "", null);
+        var expectedUser = new User("id1", "user1", "us", 1000f, 1000f, 0, 0, 4, "", null);
         Assertions.assertEquals(expectedUser, actualUser);
     }
 
@@ -180,8 +179,8 @@ public class UserDaoTest {
 
         // then
         var expectedUserList = List.of(
-            new UserEntity("id6", "johnny", "us", 0f, 0f, 0, 0, 1, null, null),
-            new UserEntity("id7", "john", "us", 0f, 0f, 0, 0, 2, null, null));
+            new User("id6", "johnny", "us", 0f, 0f, 0, 0, 1, null, null),
+            new User("id7", "john", "us", 0f, 0f, 0, 0, 2, null, null));
         Assertions.assertEquals(expectedUserList, actualUserList);
     }
 

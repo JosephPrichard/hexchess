@@ -12,13 +12,13 @@ public class RankedUser {
     public String id;
     public int rank;
 
-    public static void joinRanks(List<RankedUser> rankedList, List<UserEntity> entityList) {
-        for (var entity : entityList) {
+    public static void joinRanks(List<RankedUser> rankedList, List<User> userList) {
+        for (var user : userList) {
             int i = 0;
             for (; i < rankedList.size(); i++) {
                 var rankedUser = rankedList.get(i);
-                if (rankedUser.id.equals(entity.id)) {
-                    entity.rank = rankedUser.rank;
+                if (rankedUser.id.equals(user.id)) {
+                    user.rank = rankedUser.rank;
                     break;
                 }
             }
@@ -26,6 +26,6 @@ public class RankedUser {
                 throw new NoSuchElementException();
             }
         }
-        entityList.sort((e1, e2) -> Float.compare(e1.rank, e2.rank));
+        userList.sort((e1, e2) -> Float.compare(e1.rank, e2.rank));
     }
 }
