@@ -1,9 +1,12 @@
 <div id="banner" class="banner blue-bg">
-    <a href="/" class="banner-elem text-md">
+    <a href="/" class="banner-elem title-color-hover text-md">
         Hexachess
     </a>
-    <a href="/play" class="banner-elem color-hover">
+    <a href="/" class="banner-elem color-hover">
         Play
+    </a>
+    <a href="/challenges" class="banner-elem color-hover">
+        Challenges
     </a>
     <a href="/leaderboard" class="banner-elem color-hover">
         Leaderboard
@@ -11,22 +14,21 @@
     <a href="/players/search" class="banner-elem color-hover">
         Search
     </a>
-    <div id="profile" class="banner-elem" style="margin-left: auto;"></div>
+    <a href="/settings" class="banner-elem color-hover">
+        Settings
+    </a>
 </div>
 <script src="/scripts/session.js"></script>
 <script>
-    const profileElem = document.getElementById("profile");
+    const bannerElem = document.getElementById("banner");
     const cookieValue = getSessionCookie();
 
     if (cookieValue) {
-        profileElem.innerHTML = `
+        bannerElem.innerHTML += `
             <a href="/players/${cookieValue.playerId}" class="banner-elem color-hover">
                 ${cookieValue.username}
-            </a>
-            <a href="/settings" class="banner-elem color-hover" style="font-weight: bold; font-size: 24px;">
-                &#x2699;
             </a>`;
     } else {
-        profileElem.innerHTML = '<a href="/login" class="banner-elem color-hover"> Login </div>';
+        bannerElem.innerHTML += '<a href="/login" class="banner-elem color-hover"> Login </div>';
     }
 </script>

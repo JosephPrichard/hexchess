@@ -19,17 +19,17 @@ public class UserEntity {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
     public static final float START_ELO = 1000f;
 
-    String id;
-    String username;
-    String country;
-    float elo;
-    float highestElo;
-    int wins;
-    int losses;
-    int rank;
-    String bio;
+    public String id;
+    public String username;
+    public String country;
+    public float elo;
+    public float highestElo;
+    public int wins;
+    public int losses;
+    public int rank;
+    public String bio;
     @EqualsAndHashCode.Exclude
-    Timestamp joinedOn;
+    public Timestamp joinedOn;
 
     public UserEntity(String id, String username, String country, float elo, int rank) {
         this(id, username, country, elo, elo, 0, 0, rank, null, null);

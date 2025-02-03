@@ -11,7 +11,6 @@ import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 import static utils.Globals.JSON_MAPPER;
 
@@ -19,18 +18,18 @@ import static utils.Globals.JSON_MAPPER;
 @NoArgsConstructor
 @AllArgsConstructor
 public class GameState {
-    String id;
-    ChessGame game;
-    Player whitePlayer = null;
-    Player blackPlayer = null;
-    boolean isEnded;
+    public String id;
+    public ChessGame game;
+    public Player whitePlayer = null;
+    public Player blackPlayer = null;
+    public boolean isEnded;
     @JsonIgnore
-    Boolean isFirstPlayerWhite = null; // true - first player joining should be white... false - first player joining should be black... null - random...
+    public Boolean isFirstPlayerWhite = null; // true - first player joining should be white... false - first player joining should be black... null - random...
     @EqualsAndHashCode.Exclude
     @JsonIgnore
-    double touch;
+    public double touch;
     @JsonIgnore
-    List<Move> moveList;
+    public List<Move> moveList;
 
     public GameState deepCopy() {
         return new GameState(id,

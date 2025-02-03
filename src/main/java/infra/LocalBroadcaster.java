@@ -1,4 +1,4 @@
-package services;
+package infra;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;

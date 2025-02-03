@@ -24,31 +24,10 @@ import static utils.Globals.LOGGER;
 
 public class Config {
 
-    public static Map<String, String> readEnvConfig() throws IOException {
-        var inputStream = Router.class.getClassLoader().getResourceAsStream(".env");
-        if (inputStream == null) {
-            throw new IllegalArgumentException(".env file is not found");
-        }
-
-        Map<String, String> envMap = new HashMap<>();
-
-        try (var reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                var tokens = line.split("=");
-                if (tokens.length < 2) {
-                    throw new IllegalArgumentException("Line must have at least two tokens: " + line);
-                }
-                envMap.put(tokens[0], tokens[1]);
-            }
-        }
-        return envMap;
-    }
-
-    public static HikariDataSource createDataSource(Map<String, String> envMap) {
-        var dbUrl = envMap.get("DB_URL");
-        var dbUser = envMap.get("DB_USER");
-        var dbPassword = envMap.get("DB_PASSWORD");
+    public static HikariDataSource createDataSource() {
+        var dbUrl = System.getenv("DB_URL");
+        var dbUser = System.getenv("DB_USER");
+        var dbPassword = System.getenv("DB_PASSWORD");
 
         var config = new HikariConfig();
         config.setJdbcUrl(dbUrl);

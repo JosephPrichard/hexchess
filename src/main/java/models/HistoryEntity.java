@@ -21,19 +21,19 @@ public class HistoryEntity {
     public static final int BLACK_WIN = 1;
     public static final int DRAW = 2;
 
-    long id;
-    String whiteId;
-    String blackId;
-    String whiteName;
-    String blackName;
-    String whiteCountry;
-    String blackCountry;
-    String data; // this is expensive, so for certain views we don't fetch it
-    int result;
-    float winElo;
-    float loseElo;
+    public long id;
+    public String whiteId;
+    public String blackId;
+    public String whiteName;
+    public String blackName;
+    public String whiteCountry;
+    public String blackCountry;
+    public String data; // this is expensive, so for certain views we don't fetch it
+    public int result;
+    public float winElo;
+    public float loseElo;
     @EqualsAndHashCode.Exclude
-    Timestamp playedOn;
+    public Timestamp playedOn;
 
     public String getFormattedResult() {
         return switch (result) {

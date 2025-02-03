@@ -1,0 +1,62 @@
+version: "1"
+
+networks:
+  elk:
+    driver: bridge
+
+volumes:
+  keydb_data:
+    driver: local
+  es_data:
+    driver: local
+
+services:
+  keydb:
+    image: eqalpha/keydb
+    ports:
+      - "6379:6379"
+    volumes:
+      - keydb_data:/data
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.11.1
+    networks:
+      - elk
+    environment:
+      - discovery.type=single-node
+      - cluster.name=application-logs
+      - node.name=node-1
+      - xpack.security.enabled=false
+      - ELASTICSEARCH_USERNAME=${ELASTIC_USERNAME}
+      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD}
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.11.1
+    networks:
+      - elk
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+      - ./logs:/logs:ro
+    depends_on:
+      - elasticsearch
+    ports:
+      - "5044:5044"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=${ELASTIC_USERNAME}
+      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD}
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.11.1
+    networks:
+      - elk
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=${ELASTIC_USERNAME}
+      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD}
+    depends_on:
+      - elasticsearch

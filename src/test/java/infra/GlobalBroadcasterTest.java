@@ -1,4 +1,4 @@
-package services;
+package infra;
 
 import io.jooby.WebSocket;
 import org.junit.jupiter.api.*;
@@ -8,6 +8,7 @@ import redis.embedded.RedisServer;
 import java.util.concurrent.ExecutionException;
 
 import static org.mockito.Mockito.*;
+import static utils.Globals.LOGGER;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class GlobalBroadcasterTest {
@@ -18,7 +19,11 @@ public class GlobalBroadcasterTest {
     @BeforeAll
     public void beforeAll() {
         redisServer = new RedisServer(6379);
-        redisServer.start();
+        try {
+            redisServer.start();
+        } catch (RuntimeException ex) {
+            LOGGER.info("Redis instance is already started");
+        }
         jedis = new JedisPooled("localhost", 6379);
     }
 

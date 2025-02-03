@@ -5,20 +5,12 @@ Created using Java, Javascript, Jooby, Handlebars, Postgres, and Redis.
 
 ## Build and Deployment
 
-### Run Keydb
+### Run Infra
 
-`docker pull eqalpha/keydb`
-
-`docker run -d --name keydb -p 6379:6379 eqalpha/keydb`
-
-### Run Postgres
-
-`docker pull postgres`
-
-`docker run -d --name postgres -p 5432:5432 postgres`
+`$ docker compose up`
 
 ### Run Server
 
-`mvn clean install package`
+`$ mvn clean install`
 
-`java -cp target/Hexchess-1.0-SNAPSHOT.jar Main`
+`$ java -cp target/Hexchess-1.0-SNAPSHOT.jar Main`

@@ -124,17 +124,17 @@
             Edit Profile
         </div>
         <form class="form-wrapper" onsubmit="return onUpdateUser();">
-            <label for="country" style="font-size: 17px">Country</label>
-            <select id="country" name="country" value="{{country}}" style="margin-top: 5px; margin-bottom: 10px; width: 100%;">
-                <option value="US">US</option>
-                <option value="UK">UK</option>
-            </select>
+<!--            <label for="country" style="font-size: 17px">Country</label>-->
+<!--            <select id="country" name="country" value="{{country}}" style="margin-top: 5px; margin-bottom: 10px; width: 100%;">-->
+<!--                <option value="US">US</option>-->
+<!--                <option value="UK">UK</option>-->
+<!--            </select>-->
 
             <label for="username" style="font-size: 17px">Username</label>
             <input id="username" name="username" placeholder="Username" value="{{username}}" style="margin-top: 5px; margin-bottom: 10px;"/>
 
             <label for="biography" style="font-size: 17px">Biography</label>
-            <textarea id="bio" name="bio" rows="8">{{bio}}</textarea>
+            <textarea id="bio" name="bio" rows="8" style="padding: 8px; font-size: 14px">{{bio}}</textarea>
 
             <button id="user-form-submit" class="button-grey" type="submit">
                 Submit

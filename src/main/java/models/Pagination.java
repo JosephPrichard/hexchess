@@ -9,9 +9,9 @@ import java.util.List;
 @Data
 @AllArgsConstructor
 public class Pagination {
-    List<Page> pages;
-    String leftPage;
-    String rightPage;
+    public List<Page> pages;
+    public String leftPage;
+    public String rightPage;
 
     @Data
     @AllArgsConstructor

@@ -8,7 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import models.Player;
 import org.jsoup.Jsoup;
-import services.UserDao;
+import infra.UserDao;
 
 import static utils.Globals.*;
 
@@ -21,6 +21,15 @@ public class FormRouter extends Jooby {
 
         public static String ofJson(String message) throws JsonProcessingException {
             return JSON_MAPPER.writeValueAsString(new FormResp(message));
+        }
+    }
+
+    static void validatePassword(String passwordStr, String dupPasswordStr) throws JsonProcessingException {
+        if (passwordStr.length() < 10 || passwordStr.length() > 100) {
+            throw new StatusCodeException(StatusCode.BAD_REQUEST, FormResp.ofJson("Password should be between 10 and 100 characters"));
+        }
+        if (!passwordStr.equals(dupPasswordStr)) {
+            throw new StatusCodeException(StatusCode.BAD_REQUEST, FormResp.ofJson("Password and retyped password must be equal"));
         }
     }
 
@@ -54,21 +63,16 @@ public class FormRouter extends Jooby {
             if (!Jsoup.isValid(usernameStr, HTML_SAFELIST)) {
                 throw new StatusCodeException(StatusCode.BAD_REQUEST, FormResp.ofJson("Username cannot contain invalid or unsafe characters"));
             }
-            if (passwordStr.length() < 10 || passwordStr.length() > 100) {
-                throw new StatusCodeException(StatusCode.BAD_REQUEST, FormResp.ofJson("Password should be between 10 and 100 characters"));
-            }
-            if (!passwordStr.equals(dupPasswordStr)) {
-                throw new StatusCodeException(StatusCode.BAD_REQUEST, FormResp.ofJson("Password and retyped password must be equal"));
-            }
+            validatePassword(passwordStr, dupPasswordStr);
 
             try {
                 var inst = userDao.insert(usernameStr, passwordStr);
 
-                var player = new Player(inst.getNewId(), inst.getUsername());
-
                 var sessionId = sessionService.createId();
-                var cookie = sessionService.createCookie(sessionId, player);
+                var cookie = sessionService.createCookie(sessionId, inst.getNewId(), inst.getUsername(), inst.getCountry());
                 ctx.setResponseCookie(cookie);
+
+                var player = new Player(inst.getNewId(), inst.getUsername());
                 remoteDict.setSession(sessionId, player, cookie.getMaxAge());
 
                 LOGGER.info("Registered a new player={}", player);
@@ -92,17 +96,17 @@ public class FormRouter extends Jooby {
             var usernameStr = username.toString();
             var passwordStr = password.toString();
 
-            var player = userDao.verify(usernameStr, passwordStr);
-            if (player == null) {
+            var verifiedPlayer = userDao.verify(usernameStr, passwordStr);
+            if (verifiedPlayer == null) {
                 throw new StatusCodeException(StatusCode.UNAUTHORIZED, FormResp.ofJson("Login credentials are invalid"));
             }
 
             var sessionId = sessionService.createId();
-            var cookie = sessionService.createCookie(sessionId, player);
+            var cookie = sessionService.createCookie(sessionId, verifiedPlayer.getId(), verifiedPlayer.getUsername(), verifiedPlayer.getCountry());
             ctx.setResponseCookie(cookie);
-            remoteDict.setSession(sessionId, player, cookie.getMaxAge());
+            remoteDict.setSession(sessionId, new Player(verifiedPlayer.getId(), verifiedPlayer.getUsername()), cookie.getMaxAge());
 
-            LOGGER.info("Player has logged in={}", player);
+            LOGGER.info("Player has logged in {}", verifiedPlayer);
 
             return new FormResp("Logged in successfully!");
         });
@@ -114,12 +118,10 @@ public class FormRouter extends Jooby {
 
             var form = ctx.form();
             var passwordStr = form.get("password").toString();
-            var newPasswordStr = form.get("new-password").valueOrNull();
-            var dupPasswordStr = form.get("duplicate-new-password").valueOrNull();
+            var newPasswordStr = form.get("new-password").toString();
+            var dupPasswordStr = form.get("duplicate-new-password").toString();
 
-            if (!newPasswordStr.equals(dupPasswordStr)) {
-                throw new StatusCodeException(StatusCode.BAD_REQUEST, FormResp.ofJson("Password and retyped password must be equal"));
-            }
+            validatePassword(passwordStr, dupPasswordStr);
 
             var session = sessionService.getSession(cookieStr);
             if (session == null) {
@@ -169,7 +171,8 @@ public class FormRouter extends Jooby {
                 var cookie = sessionService.createEmptyCookie();
                 ctx.setResponseCookie(cookie);
             } else {
-                var cookie = sessionService.createCookie(session.getSessionId(), new Player(session.getPlayerId(), session.getUsername()));
+                // create a new cookie with the same session data to update the max age field
+                var cookie = sessionService.createCookie(session.getSessionId(), session.getPlayerId(), session.getUsername(), session.getCountry());
                 ctx.setResponseCookie(cookie);
                 remoteDict.updateSessionEx(session.getSessionId(), cookie.getMaxAge());
             }

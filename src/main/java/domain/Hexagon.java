@@ -17,8 +17,8 @@ public class Hexagon {
     public static final Hexagon[] ORDERED = getOrdered();
     public static final int MIDPOINT = 5;
 
-    int file;
-    int rank;
+    public int file;
+    public int rank;
 
     public static Hexagon of(int file, int rank) {
         return new Hexagon(file, rank);

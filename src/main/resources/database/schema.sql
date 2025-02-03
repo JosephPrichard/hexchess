@@ -33,6 +33,11 @@ CREATE TABLE IF NOT EXISTS game_histories (
     winElo NUMERIC,
     loseElo NUMERIC);
 
+CREATE TABLE IF NOT EXISTS challenges (
+    challengerId INTEGER NOT NULL,
+    challengeeId INTEGER NOT NULL,
+    status INTEGER NOT NULL);
+
 -- Create indices.
 CREATE INDEX IF NOT EXISTS idxTrgmUsername ON users USING GIST (username gist_trgm_ops);
 CREATE INDEX IF NOT EXISTS idxUsername ON users(username);

@@ -1,4 +1,4 @@
-package services;
+package infra;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import models.UserEntity;
@@ -164,7 +164,7 @@ public class UserDaoTest {
         var actualUser = userDao.getByIdWithRank("id1");
 
         // then
-        var expectedUser = new UserEntity("id1", "user1", "us", 1000f, 1000f, 0, 0, 4, null, null);
+        var expectedUser = new UserEntity("id1", "user1", "us", 1000f, 1000f, 0, 0, 4, "", null);
         Assertions.assertEquals(expectedUser, actualUser);
     }
 

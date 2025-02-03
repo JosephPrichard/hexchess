@@ -8,8 +8,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Move {
-    Hexagon from;
-    Hexagon to;
+    public Hexagon from;
+    public Hexagon to;
 
     public Move deepCopy() {
         return new Move(from.deepCopy(), to.deepCopy());

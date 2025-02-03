@@ -1,9 +1,8 @@
-package services;
+package infra;
 
 import at.favre.lib.crypto.bcrypt.BCrypt;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import models.Player;
 import models.RankedUser;
 import models.UserEntity;
 import org.apache.commons.dbutils.DbUtils;
@@ -40,13 +39,13 @@ public class UserDao {
     @Data
     @AllArgsConstructor
     public static class UserInst {
-        String newId;
-        String username;
-        String password;
-        String country;
-        float elo;
-        int wins;
-        int losses;
+        public String newId;
+        public String username;
+        public String password;
+        public String country;
+        public float elo;
+        public int wins;
+        public int losses;
     }
 
     public static class TakenUsernameException extends RuntimeException {
@@ -103,8 +102,16 @@ public class UserDao {
         }
     }
 
-    public Player verify(String username, String inputPassword) {
-        var sql = "SELECT id, username, password, salt FROM users WHERE UPPER(username) = UPPER(?)";
+    @Data
+    @AllArgsConstructor
+    public static class VerifiedPlayer {
+        public String id;
+        public String username;
+        public String country;
+    }
+
+    public VerifiedPlayer verify(String username, String inputPassword) {
+        var sql = "SELECT id, username, country, password, salt FROM users WHERE UPPER(username) = UPPER(?)";
 
         Connection conn = null;
         PreparedStatement stmt = null;
@@ -124,12 +131,13 @@ public class UserDao {
             var password = rs.getString("password");
             var id = rs.getString("id");
             var usernameOut = rs.getString("username");
+            var country = rs.getString("country");
 
             var saltedPassword = inputPassword + salt;
             var result = BCrypt.verifyer().verify(saltedPassword.toCharArray(), password);
 
             LOGGER.info("Password verification {} for username={}", result.verified ? "successful" : "failed", usernameOut);
-            return result.verified ? new Player(id, usernameOut) : null;
+            return result.verified ? new VerifiedPlayer(id, usernameOut, country) : null;
         } catch (SQLException ex) {
             LOGGER.error("Failed to select user credentials for user={}", username, ex);
             DbUtils.rollbackAndCloseQuietly(conn);
@@ -193,8 +201,8 @@ public class UserDao {
     @Data
     @AllArgsConstructor
     public static class EloChangeSet {
-        double winEloDiff;
-        double loseEloDiff;
+        public double winEloDiff;
+        public double loseEloDiff;
 
         public void roundElo() {
             winEloDiff = Math.round(winEloDiff);
@@ -250,7 +258,7 @@ public class UserDao {
 
     public UserEntity getByIdWithRank(String id) {
         var sql = """
-            SELECT u1.id, u1.username, u1.country, u1.elo, u1.highestElo, u1.wins, u1.losses, u1.joinedOn,
+            SELECT u1.id, u1.username, u1.country, u1.elo, u1.highestElo, u1.wins, u1.losses, u1.joinedOn, u1.bio,
                 (SELECT COUNT(*) FROM users u2 WHERE u2.elo >= u1.elo) as rank
             FROM users u1
             WHERE u1.id = ?""";

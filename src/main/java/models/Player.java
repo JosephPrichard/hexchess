@@ -9,9 +9,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Player {
-    String id;
+    public String id;
     @EqualsAndHashCode.Exclude
-    String name;
+    public String name;
 
     public Player deepCopy() {
         return new Player(id, name);

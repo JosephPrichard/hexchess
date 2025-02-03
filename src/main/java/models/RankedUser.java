@@ -9,8 +9,8 @@ import java.util.NoSuchElementException;
 @Data
 @AllArgsConstructor
 public class RankedUser {
-    String id;
-    int rank;
+    public String id;
+    public int rank;
 
     public static void joinRanks(List<RankedUser> rankedList, List<UserEntity> entityList) {
         for (var entity : entityList) {

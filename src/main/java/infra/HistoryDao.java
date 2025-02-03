@@ -1,4 +1,4 @@
-package services;
+package infra;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -29,12 +29,12 @@ public class HistoryDao {
     @Data
     @AllArgsConstructor
     public static class HistoryInst {
-        String whiteId;
-        String blackId;
-        int result;
-        Double winEloDiff;
-        Double loseEloDiff;
-        String data;
+        public String whiteId;
+        public String blackId;
+        public int result;
+        public Double winEloDiff;
+        public Double loseEloDiff;
+        public String data;
     }
 
     public void insert(String whiteId, String blackId, int result, double winEloDiff, double loseEloDiff, String data) {

@@ -3,9 +3,9 @@ package scripts;
 import lombok.AllArgsConstructor;
 import models.GameState;
 import org.apache.commons.dbutils.QueryRunner;
-import services.HistoryDao;
-import services.RemoteDict;
-import services.UserDao;
+import infra.HistoryDao;
+import infra.RemoteDict;
+import infra.UserDao;
 import utils.Config;
 
 import javax.sql.DataSource;
@@ -221,11 +221,9 @@ public class DataSeeder {
     }
 
     public static void main(String[] args) throws Exception {
-        var envMap = Config.readEnvConfig();
-
         var startTime = System.currentTimeMillis();
 
-        var ds = Config.createDataSource(envMap);
+        var ds = Config.createDataSource();
         new QueryRunner(ds).execute("BEGIN; DROP SCHEMA public CASCADE; CREATE SCHEMA public; END;");
 
         Config.createSchema(ds);

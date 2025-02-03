@@ -52,7 +52,7 @@
             </div>
             <img class="flag-lg" src="/files/flags/{{user.country}}.png" alt=""/>
             <br>
-            <div class="panel-container" style="min-width: 450px;">
+            <div class="panel-container" style="min-width: 450px; margin-bottom: 35px;">
                 <div class="panel-elem">
                     <div class="panel-title">Rank</div>
                     <div class="panel-text">#{{user.rank}}</div>
@@ -66,7 +66,7 @@
                     <div class="panel-text">{{user.roundedHighestElo}}</div>
                 </div>
             </div>
-            <div class="panel-container">
+            <div class="panel-container" style="margin-bottom: 35px;">
                 <div class="panel-elem">
                     <div class="panel-title">Win%</div>
                     <div class="panel-text {{user.winRateColor}}">{{user.winRate}}%</div>
@@ -84,10 +84,20 @@
                     <div class="panel-text">{{user.total}}</div>
                 </div>
             </div>
-            <div class="panel-elem">
-                <div class="panel-title">Joined On</div>
-                <div class="panel-text">{{user.formattedJoinedOn}}</div>
+            <div class="panel-container" style="margin-bottom: 0">
+                <div class="panel-elem">
+                    <div class="panel-title">Joined On</div>
+                    <div class="panel-text">{{user.formattedJoinedOn}}</div>
+                </div>
             </div>
+            {{#if user.bio}}
+                <div class="panel-container" style="margin-top: 35px;">
+                    <div class="panel-elem">
+                        <div class="panel-title" style="margin-bottom: 5px">Biography</div>
+                        <div class="panel-text" style="font-size: 16px">{{user.bio}}</div>
+                    </div>
+                </div>
+            {{/if}}
         </div>
     </div>
     <div class="center-horizontal-container" style="margin-top: 50px; margin-bottom: 50px;">

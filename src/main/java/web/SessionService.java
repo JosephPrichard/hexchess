@@ -5,11 +5,9 @@ import io.jooby.SameSite;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import models.Player;
 
 import java.security.SecureRandom;
-
-import static utils.Globals.LOGGER;
+import java.util.function.Function;
 
 @AllArgsConstructor
 public class SessionService {
@@ -35,14 +33,11 @@ public class SessionService {
         String sessionId;
         String playerId;
         String username;
+        String country;
     }
 
-    public Cookie createCookie(String sessionId, Player player) {
-        return createCookie(sessionId, player.getId(), player.getName());
-    }
-
-    public Cookie createCookie(String sessionId, String playerId, String username) {
-        var sessionCsv = String.format("%s,%s,%s", sessionId, playerId, username);
+    public Cookie createCookie(String sessionId, String playerId, String username, String country) {
+        var sessionCsv = String.format("%s,%s,%s,%s", sessionId, playerId, username, country);
         var maxAgeSecs = 6 * 60 * 60; // 6 hours
 
         // our cookie is not set to http only because javascript must read it starting a websocket
@@ -61,6 +56,14 @@ public class SessionService {
             .setMaxAge(1);
     }
 
+    private static String getFieldOrNull(String[] fields, int index, Function<String, String> map) {
+        return fields.length > index ? map.apply(fields[index]) : null;
+    }
+
+    private static String getFieldOrNull(String[] fields, int index) {
+        return getFieldOrNull(fields, index, Function.identity());
+    }
+
     public SessionValue getSession(String cookieStr) {
         if (cookieStr == null) {
             return null;
@@ -70,13 +73,10 @@ public class SessionService {
             return null;
         }
         var fields = cookieStr.substring(delimIndex + 1).split(",");
-        if (fields.length < 3) {
-            LOGGER.error("Session is in invalid format {}", cookieStr);
-            return null;
-        }
         return new SessionValue(
-            fields[0].substring(1),
-            fields[1],
-            fields[2].substring(0, fields[2].length() - 1));
+            getFieldOrNull(fields, 0, s -> s.substring(1)),
+            getFieldOrNull(fields, 1),
+            getFieldOrNull(fields, 2, s -> s.substring(0, fields[2].length() - 1)),
+            getFieldOrNull(fields, 3));
     }
 }

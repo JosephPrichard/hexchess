@@ -1,8 +1,6 @@
-package services;
+package infra;
 
 import io.jooby.WebSocket;
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import redis.clients.jedis.JedisPooled;
 import redis.clients.jedis.JedisPubSub;
 
@@ -42,7 +40,7 @@ public class GlobalBroadcaster implements Broadcaster {
 
     public JedisPubSub startListenSubscribe() throws ExecutionException, InterruptedException {
         CompletableFuture<JedisPubSub> futureSubscriber = new CompletableFuture<>();
-        var thread = Thread.ofVirtual().start(() -> {
+        Thread.ofVirtual().start(() -> {
             var subscriber = new JedisPubSub() {
                 @Override
                 public void onSubscribe(String channel, int subscribedChannels) {
@@ -68,7 +66,6 @@ public class GlobalBroadcaster implements Broadcaster {
             };
             jedis.subscribe(subscriber, CHANNEL_NAME); // start the subscriber, blocking the current thread until subscriber is stopped
         });
-        thread.start();
 
         // don't actually return the jedis subscriber until the thread notifies us that we've created it
         return futureSubscriber.get();

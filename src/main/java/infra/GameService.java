@@ -1,4 +1,4 @@
-package services;
+package infra;
 
 import domain.Move;
 import lombok.AllArgsConstructor;

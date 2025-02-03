@@ -10,8 +10,8 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PieceMoves {
-    Hexagon hex;
-    List<Hexagon> moves;
+    public Hexagon hex;
+    public List<Hexagon> moves;
 
     public PieceMoves deepCopy() {
         return new PieceMoves(hex.deepCopy(), moves.stream().map(Hexagon::deepCopy).toList());

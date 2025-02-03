@@ -11,6 +11,7 @@ function getSessionCookie() {
     return {
         sessionId: fields[0],
         playerId: fields[1],
-        username: fields[2]
+        username: fields[2],
+        country: fields[3]
     };
 }

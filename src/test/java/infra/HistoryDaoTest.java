@@ -1,4 +1,4 @@
-package services;
+package infra;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import models.HistoryEntity;

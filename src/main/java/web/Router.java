@@ -14,11 +14,10 @@ public class Router extends Jooby {
 
     public static Router init() {
         try {
-            var envMap = Config.readEnvConfig();
-            var ds = Config.createDataSource(envMap);
+            var ds = Config.createDataSource();
 
-            var redisHost = envMap.get("REDIS_HOST");
-            var redisPort = Integer.parseInt(envMap.get("REDIS_PORT"));
+            var redisHost = System.getenv("REDIS_HOST");
+            var redisPort = Integer.parseInt(System.getenv("REDIS_PORT"));
             var jedis = new JedisPooled(redisHost, redisPort);
 
             var loader = new ClassPathTemplateLoader();
