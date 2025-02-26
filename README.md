@@ -5,12 +5,12 @@ Created using Java, Javascript, Jooby, Handlebars, Postgres, and Redis.
 
 ## Build and Deployment
 
-### Run Infra
+### Run Infrastructure
 
 `$ docker compose up`
 
 ### Run Server
 
-`$ mvn clean install`
+`$ mvn clean install package`
 
 `$ java -cp target/Hexchess-1.0-SNAPSHOT.jar Main`

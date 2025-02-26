@@ -11,6 +11,7 @@ import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.handlers.BeanHandler;
 import org.apache.commons.dbutils.handlers.BeanListHandler;
 import org.apache.commons.dbutils.handlers.ScalarHandler;
+import utils.Config;
 
 import javax.sql.DataSource;
 import java.security.NoSuchAlgorithmException;
@@ -210,8 +211,8 @@ public class UserDao {
         }
     }
 
-    public EloChangeSet updateStatsUsingResult(String winId, String loseId) {
-        var sql = "CALL updateStatsUsingResult(?, ?, ?, ?)";
+    public EloChangeSet updateStats(String winId, String loseId) {
+        var sql = "CALL updateStats(?, ?, ?, ?)";
 
         Connection conn = null;
         CallableStatement stmt = null;

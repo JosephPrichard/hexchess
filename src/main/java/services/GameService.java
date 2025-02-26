@@ -126,7 +126,7 @@ public class GameService {
 
             var moveHistoryData = JSON_MAPPER.writeValueAsString(state.getMoveList());
 
-            var changeSet = userDao.updateStatsUsingResult(winId, loseId);
+            var changeSet = userDao.updateStats(winId, loseId);
             remoteDict.updateLeaderboardUser(
                 new RemoteDict.EloChangeSet(winId, changeSet.winEloDiff),
                 new RemoteDict.EloChangeSet(loseId, changeSet.loseEloDiff));

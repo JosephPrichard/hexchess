@@ -17,6 +17,12 @@ services:
       - "6379:6379"
     volumes:
       - keydb_data:/data
+    environment:
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_URL=${DB_URL}
+      - DB_USER=${DB_URL}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.11.1
     networks:
@@ -26,28 +32,13 @@ services:
       - cluster.name=application-logs
       - node.name=node-1
       - xpack.security.enabled=false
-      - ELASTICSEARCH_USERNAME=${ELASTIC_USERNAME}
-      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD}
+      - ELASTICSEARCH_USERNAME=${ELASTICSEARCH_USERNAME}
+      - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD}
     volumes:
       - es_data:/usr/share/elasticsearch/data
     ports:
       - "9200:9200"
       - "9300:9300"
-  logstash:
-    image: docker.elastic.co/logstash/logstash:7.11.1
-    networks:
-      - elk
-    volumes:
-      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
-      - ./logs:/logs:ro
-    depends_on:
-      - elasticsearch
-    ports:
-      - "5044:5044"
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-      - ELASTICSEARCH_USERNAME=${ELASTIC_USERNAME}
-      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD}
   kibana:
     image: docker.elastic.co/kibana/kibana:7.11.1
     networks:
@@ -56,7 +47,23 @@ services:
       - "5601:5601"
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-      - ELASTICSEARCH_USERNAME=${ELASTIC_USERNAME}
-      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD}
+      - ELASTICSEARCH_USERNAME=${ELASTICSEARCH_USERNAME}
+      - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD}
     depends_on:
       - elasticsearch
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:7.11.1
+    networks:
+      - elk
+    command: filebeat -e -strict.perms=false
+    volumes:
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ./logs:/logs:ro
+    depends_on:
+      - elasticsearch
+    ports:
+      - "5044:5044"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=${ELASTICSEARCH_USERNAME}
+      - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD}

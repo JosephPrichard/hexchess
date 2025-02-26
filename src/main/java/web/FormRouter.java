@@ -151,7 +151,7 @@ public class FormRouter extends Jooby {
 
             var session = sessionService.getSession(cookieStr);
             if (session == null) {
-                throw new StatusCodeException(StatusCode.UNAUTHORIZED, FormResp.ofJson("Cannot update user when you are not logged in"));
+                throw new StatusCodeException(StatusCode.UNAUTHORIZED, FormResp.ofJson("Cannot updateStats.sql user when you are not logged in"));
             }
 
             userDao.updateUser(session.getPlayerId(), newUsernameStr, newCountryStr, newBioStr);

@@ -45,7 +45,12 @@ public class Config {
 
         var classLoader = Thread.currentThread().getContextClassLoader();
         try {
-            var resourcePath = Paths.get(Objects.requireNonNull(classLoader.getResource("flags")).toURI());
+            var resource = classLoader.getResource("flags");
+            if (resource == null) {
+                return files;
+            }
+
+            var resourcePath = Paths.get(resource.toURI());
             try (Stream<Path> paths = Files.walk(resourcePath)) {
                 paths.filter(Files::isRegularFile).forEach(filePath -> {
                     try (var inputStream = classLoader.getResourceAsStream("flags/" + filePath.getFileName().toString())) {
@@ -85,6 +90,7 @@ public class Config {
             var runner = new QueryRunner(ds);
             runner.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
             executeQuery(runner, "database/schema.sql");
+            executeQuery(runner, "database/updateStats.sql");
         } catch (SQLException ex) {
             LOGGER.error("Error occurred while creating schema {}", String.valueOf(ex));
             throw new RuntimeException(ex);

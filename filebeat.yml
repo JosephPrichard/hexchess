@@ -1,0 +1,26 @@
+filebeat.inputs:
+  - type: log
+    paths:
+      - /logs/app.log
+    scan_frequency: 10s
+    start_position: beginning
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  username: "${ELASTICSEARCH_USERNAME}"
+  password: "${ELASTICSEARCH_PASSWORD}"
+
+setup.template.enabled: true
+setup.template.name: "filebeat"
+setup.template.pattern: "filebeat-*"
+
+setup.kibana:
+  host: "http://localhost:5601"
+
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat.log
+  keepfiles: 7
+  permissions: 0644

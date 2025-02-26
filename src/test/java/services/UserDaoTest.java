@@ -69,7 +69,7 @@ public class UserDaoTest {
         createTestData(userDao);
 
         // when
-        var changeSet = userDao.updateStatsUsingResult("id1", "id2");
+        var changeSet = userDao.updateStats("id1", "id2");
         var actualUsers1 = userDao.getById("id1");
         var actualUsers2 = userDao.getById("id2");
 
