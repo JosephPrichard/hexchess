@@ -48,8 +48,8 @@ public class GameState {
         return new GameState(id, game, null, null, false, null, 0, moveList);
     }
 
-    public static GameState ofPlayers(Player whitePlayer, Player blackPlayer) {
-        return new GameState("", null, whitePlayer, blackPlayer, false, null, 0, null);
+    public static GameState ofPlayers(String id, Player whitePlayer, Player blackPlayer) {
+        return new GameState(id, null, whitePlayer, blackPlayer, false, null, 0, null);
     }
 
     public Player getCurrPlayer() {

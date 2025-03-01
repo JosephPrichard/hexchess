@@ -1,4 +1,4 @@
-package services;
+package dao;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import models.User;
@@ -64,7 +64,7 @@ public class UserDaoTest {
     }
 
     @Test
-    public void testUpdateStatsUsingResult() {
+    public void testUpdateStats() {
         // given
         createTestData(userDao);
 
@@ -92,14 +92,14 @@ public class UserDaoTest {
         createTestData(userDao);
 
         // when
-        userDao.updateUser("id1", "user1-changed", null, null);
+        userDao.updateUser("id1", "user1-changed", null, "Testing123");
         userDao.updateUser("id2", "user2-changed", "eu", null);
 
         var actualUser1 = userDao.getById("id1");
         var actualUser2 = userDao.getById("id2");
 
         // then
-        var expectedUser1 = new User("id1", "user1-changed", "us", 1000f, 1000f, 0, 0, 0, "", null);
+        var expectedUser1 = new User("id1", "user1-changed", "us", 1000f, 1000f, 0, 0, 0, "Testing123", null);
         var expectedUser2 = new User("id2", "user2-changed", "eu", 1005f, 1005f, 1, 0, 0, "", null);
 
         Assertions.assertEquals(expectedUser1, actualUser1);

@@ -47,28 +47,28 @@ public class RemoteDict {
     }
 
     public GameState setGame(String id, GameState gameState) {
-        double timeNanos = System.nanoTime();
-        gameState.setTouch(timeNanos);
+        double timeMillis = System.currentTimeMillis();
+        gameState.setTouch(timeMillis);
 
         var bytes = Serializer.serialize(gameState);
         var fullId = "game:" + id;
 
         var t = jedis.multi();
         t.set(fullId.getBytes(), bytes);
-        t.zadd(GAMES_ZSET, timeNanos, fullId);
+        t.zadd(GAMES_ZSET, timeMillis, fullId);
         t.exec();
 
         return gameState;
     }
 
     public void expireGames() {
-        expireGames(GAME_EXPIRE_FINISHED.toNanos());
+        expireGames(GAME_EXPIRE_FINISHED.toMillis());
     }
 
-    public void expireGames(long expireTimeNanos) {
-        long timeNanos = System.nanoTime();
-        long unixTimeExpireNanos = timeNanos - expireTimeNanos;
-        var results = jedis.zrangeByScore(GAMES_ZSET, Double.NEGATIVE_INFINITY, unixTimeExpireNanos);
+    public void expireGames(long expireTimeMillis) {
+        long timeMillis = System.currentTimeMillis();
+        long unixTimeExpireMillis = timeMillis - expireTimeMillis;
+        var results = jedis.zrangeByScore(GAMES_ZSET, Double.NEGATIVE_INFINITY, unixTimeExpireMillis);
         var gameKeys = results.toArray(String[]::new);
 
         if (gameKeys.length > 0) {

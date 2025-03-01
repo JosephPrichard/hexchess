@@ -1,4 +1,4 @@
-package services;
+package dao;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import models.History;

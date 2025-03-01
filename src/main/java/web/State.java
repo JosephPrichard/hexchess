@@ -2,9 +2,9 @@ package web;
 
 import com.github.jknack.handlebars.Handlebars;
 import com.zaxxer.hikari.HikariDataSource;
-import services.HistoryDao;
+import dao.HistoryDao;
 import services.RemoteDict;
-import services.UserDao;
+import dao.UserDao;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

@@ -3,9 +3,9 @@ package scripts;
 import lombok.AllArgsConstructor;
 import models.GameState;
 import org.apache.commons.dbutils.QueryRunner;
-import services.HistoryDao;
+import dao.HistoryDao;
 import services.RemoteDict;
-import services.UserDao;
+import dao.UserDao;
 import utils.Config;
 
 import javax.sql.DataSource;

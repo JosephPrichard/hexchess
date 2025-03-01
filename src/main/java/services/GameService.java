@@ -1,5 +1,7 @@
 package services;
 
+import dao.HistoryDao;
+import dao.UserDao;
 import domain.Move;
 import lombok.AllArgsConstructor;
 import models.GameState;

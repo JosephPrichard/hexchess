@@ -1,4 +1,4 @@
-package services;
+package dao;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -10,7 +10,6 @@ import org.apache.commons.dbutils.handlers.BeanListHandler;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.List;
 
 import static utils.Globals.LOGGER;
@@ -42,10 +41,7 @@ public class HistoryDao {
     }
 
     public void insert(HistoryInst historyInst) {
-        var sql = """
-            BEGIN;
-            INSERT INTO game_histories (whiteId, blackId, result, data, winElo, loseElo) VALUES (?, ?, ?, ? ::json, ?, ?);
-            END""";
+        var sql = "INSERT INTO game_histories (whiteId, blackId, result, data, winElo, loseElo) VALUES (?, ?, ?, ? ::json, ?, ?)";
         try {
             runner.execute(sql, historyInst.whiteId, historyInst.blackId,
                 historyInst.result, historyInst.data, historyInst.winEloDiff, historyInst.loseEloDiff);
@@ -59,22 +55,13 @@ public class HistoryDao {
     public History getHistory(long id) {
         var sql = """
             SELECT
-                h1.id,
-                h1.whiteId,
-                h1.blackId,
-                u1.username as whiteName,
-                u2.username as blackName,
-                u1.country as whiteCountry,
-                u2.country as blackCountry,
-                h1.result,
-                h1.data,
-                h1.playedOn,
-                h1.winElo,
-                h1.loseElo
+                h1.id, h1.whiteId, h1.blackId, h1.result, h1.data, h1.playedOn, h1.winElo, h1.loseElo,
+                u1.username as whiteName, u2.username as blackName, u1.country as whiteCountry, u2.country as blackCountry
             FROM game_histories as h1
             INNER JOIN users as u1 ON u1.id = h1.whiteId
             INNER JOIN users as u2 ON u2.id = h1.blackId
-            WHERE h1.id = ?""";
+            WHERE h1.id = ?
+            """;
         try {
             var history = runner.query(sql, HIST_MAPPER, id);
             LOGGER.info("Selected history={} for id={}", history, id);
@@ -92,35 +79,22 @@ public class HistoryDao {
 
         var sql = """
             SELECT
-                h1.id,
-                h1.whiteId,
-                h1.blackId,
-                u1.username as whiteName,
-                u2.username as blackName,
-                u1.country as whiteCountry,
-                u2.country as blackCountry,
-                h1.result,
-                h1.playedOn,
-                h1.winElo,
-                h1.loseElo
+                h1.id, h1.whiteId, h1.blackId, h1.result, h1.playedOn, h1.winElo, h1.loseElo,
+                u1.username as whiteName, u2.username as blackName, u1.country as whiteCountry, u2.country as blackCountry
             FROM game_histories as h1
             INNER JOIN users as u1 ON u1.id = h1.whiteId
             INNER JOIN users as u2 ON u2.id = h1.blackId
-            WHERE (h1.whiteId = ? OR h1.blackId = ?)""";
-        List<Object> params = new ArrayList<>();
+            WHERE
+                (h1.whiteId = ? OR h1.blackId = ?) AND h1.id < ?
+            ORDER BY h1.id DESC LIMIT ?
+            """;
 
-        params.add(userId);
-        params.add(userId);
-
-        if (afterId != null) {
-            sql += " AND h1.id < ?";
-            params.add(afterId);
+        if (afterId == null) {
+            afterId = Long.MAX_VALUE;
         }
-        sql += " ORDER BY h1.id DESC LIMIT ?";
-        params.add(perPage);
 
         try {
-            var histories = runner.query(sql, HIST_LIST_MAPPER, params.toArray());
+            var histories = runner.query(sql, HIST_LIST_MAPPER, userId, userId, afterId, perPage);
             LOGGER.info("Selected user histories={} page for userId={}, afterId={}", histories, userId, afterId);
             return histories;
         } catch (SQLException ex) {

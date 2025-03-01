@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import services.GameService;
 import services.RemoteDict;
-import services.UserDao;
+import dao.UserDao;
 
 import java.util.concurrent.atomic.AtomicReference;
 

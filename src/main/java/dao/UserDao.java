@@ -1,4 +1,4 @@
-package services;
+package dao;
 
 import at.favre.lib.crypto.bcrypt.BCrypt;
 import lombok.AllArgsConstructor;
@@ -11,13 +11,11 @@ import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.handlers.BeanHandler;
 import org.apache.commons.dbutils.handlers.BeanListHandler;
 import org.apache.commons.dbutils.handlers.ScalarHandler;
-import utils.Config;
 
 import javax.sql.DataSource;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.sql.*;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
@@ -75,10 +73,11 @@ public class UserDao {
 
         var sql = """
             BEGIN;
-            INSERT INTO users (id, username, country, elo, highestElo, wins, losses, password, salt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-            UPDATE users_metadata SET count = count + 1 WHERE id = 1;
-            END;""";
+                INSERT INTO users (id, username, country, elo, highestElo, wins, losses, password, salt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                UPDATE users_metadata SET count = count + 1 WHERE id = 1;
+            END;
+            """;
         try {
             runner.execute(sql,
                 inst.getNewId(),
@@ -156,27 +155,13 @@ public class UserDao {
             return;
         }
 
-        var sql = new StringBuilder("BEGIN; UPDATE users SET ");
-        List<Object> params = new ArrayList<>();
-
-        if (newUsername != null) {
-            sql.append("username = ?,");
-            params.add(newUsername);
-        }
-        if (newCountry != null) {
-            sql.append("country = ?,");
-            params.add(newCountry);
-        }
-        if (newBio != null) {
-            sql.append("bio = ?,");
-            params.add(newBio);
-        }
-        sql.deleteCharAt(sql.length() - 1);
-        sql.append(" WHERE id = ?; END");
-        params.add(id);
+        var sql = """
+            UPDATE users
+            SET username = COALESCE(?, username), country = COALESCE(?, country), bio = COALESCE(?, bio)
+            WHERE id = ?;""";
 
         try {
-            runner.execute(sql.toString(), params.toArray());
+            runner.execute(sql, newUsername, newCountry, newBio, id);
             LOGGER.info("Updated user data with id={}", id);
         } catch (SQLException ex) {
             LOGGER.error("Failed to update user with id={}", id, ex);
@@ -189,7 +174,7 @@ public class UserDao {
         var saltedPassword = newPassword + salt;
         var hashedPassword = BCrypt.withDefaults().hashToString(12, saltedPassword.toCharArray());
 
-        var sql = "BEGIN; UPDATE users SET password = ?, salt = ? WHERE id = ?; END;";
+        var sql = "UPDATE users SET password = ?, salt = ? WHERE id = ?;";
         try {
             runner.execute(sql, hashedPassword, salt, id);
             LOGGER.info("Updated user password with id={}", id);
@@ -246,7 +231,8 @@ public class UserDao {
         var sql = """
             SELECT id, username, country, elo, highestElo, wins, losses, bio, joinedOn
             FROM users
-            WHERE id = ?""";
+            WHERE id = ?
+            """;
         try {
             var user = runner.query(sql, USER_MAPPER, id);
             LOGGER.info("Fetched user={} by id={}", user, id);
@@ -281,17 +267,31 @@ public class UserDao {
         var sql = """
             SELECT id, username, country, elo, wins, losses
             FROM users
-            WHERE 1 = 1 AND"""
-            + ids.stream().map(x -> "?").collect(Collectors.joining(",", " id IN (", ") "));
+            WHERE 1 = 1 AND id = ANY (?)
+            """;
 
         var idsStr = ids.stream().collect(Collectors.joining(",", "[", "]"));
+
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
         try {
-            var users = runner.query(sql, USER_LIST_MAPPER, ids.toArray());
+            conn = runner.getDataSource().getConnection();
+            stmt = conn.prepareStatement(sql);
+
+            stmt.setArray(1, conn.createArrayOf("VARCHAR", ids.toArray()));
+            rs = stmt.executeQuery();
+
+            var users = USER_LIST_MAPPER.handle(rs);
             LOGGER.info("Selected users={} by ids={}", users, idsStr);
             return users;
         } catch (SQLException e) {
             LOGGER.error("Failed to select users by ids={}", idsStr);
             throw new RuntimeException(e);
+        } finally {
+            DbUtils.closeQuietly(conn);
+            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(rs);
         }
     }
 
@@ -311,7 +311,8 @@ public class UserDao {
         var sql = """
             SELECT id, username, country, elo, wins, losses
             FROM users
-            ORDER BY elo DESC LIMIT ? OFFSET ?""";
+            ORDER BY elo DESC LIMIT ? OFFSET ?
+            """;
 
         page = Math.max(page, 1);
         var offset = (page - 1) * perPage;
@@ -334,7 +335,8 @@ public class UserDao {
             SELECT id, username, country, elo, wins, losses, (username <-> ?) as rank
             FROM users
             WHERE 1 = 1 AND username % ?
-            ORDER BY rank DESC LIMIT ? OFFSET ?""";
+            ORDER BY rank DESC LIMIT ? OFFSET ?
+            """;
 
         page = Math.max(page, 1);
         var offset = (page - 1) * perPage;

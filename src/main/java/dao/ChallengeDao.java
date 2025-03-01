@@ -1,4 +1,4 @@
-package services;
+package dao;
 
 import models.Challenge;
 import org.apache.commons.dbutils.QueryRunner;
