@@ -10,11 +10,6 @@
         <encoder class="PatternLayoutEncoder">
             <pattern>[%d{HH:mm:ss.SSS}] [%thread] %level %logger{36} -- %msg%n</pattern>
         </encoder>
-        <filter class="ch.qos.logback.classic.filter.LevelFilter">
-            <level>INFO</level>
-            <onMatch>ACCEPT</onMatch>
-            <onMismatch>DENY</onMismatch>
-        </filter>
     </appender>
 
     <appender name="FILE" class="ch.qos.logback.core.FileAppender">
@@ -22,14 +17,9 @@
         <encoder class="PatternLayoutEncoder">
             <pattern>[%d{HH:mm:ss.SSS}] [%thread] %level %logger{36} -- %msg%n</pattern>
         </encoder>
-        <filter class="ch.qos.logback.classic.filter.LevelFilter">
-            <level>INFO</level>
-            <onMatch>ACCEPT</onMatch>
-            <onMismatch>DENY</onMismatch>
-        </filter>
     </appender>
 
-    <root>
+    <root level="INFO">
         <appender-ref ref="STDOUT" />
         <appender-ref ref="FILE" />
     </root>

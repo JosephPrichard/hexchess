@@ -11,19 +11,19 @@ import java.io.IOException;
 @NoArgsConstructor
 public class Templates {
 
-    Template indexTemplate;
-    Template loginTemplate;
-    Template registerTemplate;
-    Template leaderboardTemplate;
-    Template profileTemplate;
-    Template preferencesTemplates;
-    Template currentGamesTemplate;
-    Template GameStateoryTemplate;
-    Template searchTemplate;
-    Template errorTemplate;
+    private Template indexTemplate;
+    private Template loginTemplate;
+    private Template registerTemplate;
+    private Template leaderboardTemplate;
+    private Template profileTemplate;
+    private Template preferencesTemplates;
+    private Template currentGamesTemplate;
+    private Template GameStateoryTemplate;
+    private Template searchTemplate;
+    private Template challengesTemplate;
+    private Template errorTemplate;
 
-    Template historyListTemplate;
-    Template searchOptionsTemplate;
+    private Template historyListTemplate;
 
     public Templates(Handlebars handlebars) throws IOException {
         // pages
@@ -36,6 +36,7 @@ public class Templates {
         currentGamesTemplate = handlebars.compile("/pages/currentGames");
         GameStateoryTemplate = handlebars.compile("/pages/gameHistory");
         searchTemplate = handlebars.compile("/pages/searchPlayers");
+        challengesTemplate = handlebars.compile("/pages/challenges");
         errorTemplate = handlebars.compile("/pages/error");
 
         // partials

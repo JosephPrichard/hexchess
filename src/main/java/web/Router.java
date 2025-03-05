@@ -53,16 +53,10 @@ public class Router extends Jooby {
 
         install(new JacksonModule());
 
-        // adding the files to the router
-        var filesMap = state.getFiles();
-
-        assets("/css/index.css", "/css/index.css");
-
-        assets("/scripts/chess-view.js", "/scripts/chess-view.js");
-
-        assets("/scripts/session.js", "/scripts/session.js");
+        assets("/static/*", "static");
 
         get("/files/flags/{name}", ctx -> {
+            var filesMap = state.getFiles();
             ctx.setResponseType("image/png");
 
             var name = ctx.path("name").toOptional().orElse("");

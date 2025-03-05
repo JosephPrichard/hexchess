@@ -1,43 +1,43 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <title>Replay - Hexchess</title>
-        <link rel="stylesheet" href="/css/index.css">
-        <script type="application/json" id="move-history-list">
-            {{{history.data}}}
-        </script>
-        <script type="application/json" id="initial-board">
-            {{{initialBoard}}}
-        </script>
-        <script>
-            const moveList = JSON.parse(document.getElementById("move-history-list").innerHTML);
-            const initialBoard = JSON.parse(document.getElementById("initial-board").innerHTML);
+<head>
+    <title>Replay - Hexchess</title>
+    <link rel="stylesheet" href="/static/css/index.css">
+    <script type="application/json" id="move-history-list">
+        {{{history.data}}}
+    </script>
+    <script type="application/json" id="initial-board">
+        {{{initialBoard}}}
+    </script>
+    <script>
+        const moveList = JSON.parse(document.getElementById("move-history-list").innerHTML);
+        const initialBoard = JSON.parse(document.getElementById("initial-board").innerHTML);
 
-            const boardCache = [];
+        const boardCache = [];
 
-            function moveInitialBoard(initialBoard, moveList, index) {
-                if (boardCache[i] !== undefined) {
-                    return boardCache[i];
-                }
-                const board = structuredClone(initialBoard);
-                for (let i = 0; i < index; i++) {
-                    const move = moveList[i];
-                    board[move.to.file][move.to.rank] = board[move.from.file][move.from.rank]
-                }
-                boardCache[i] = board;
-                return board;
+        function moveInitialBoard(initialBoard, moveList, index) {
+            if (boardCache[i] !== undefined) {
+                return boardCache[i];
             }
-        </script>
-    </head>
-    <body>
-        {{> partials/banner }}
-        <div class="center-horizontal-container">
-            <div class="center-vertical-container">
-                <div id="hexagon-board">
-                </div>
-                <div id="move-history-view">
-                </div>
+            const board = structuredClone(initialBoard);
+            for (let i = 0; i < index; i++) {
+                const move = moveList[i];
+                board[move.to.file][move.to.rank] = board[move.from.file][move.from.rank]
+            }
+            boardCache[i] = board;
+            return board;
+        }
+    </script>
+</head>
+<body>
+    {{> partials/banner }}
+    <div class="center-horizontal-container">
+        <div class="center-vertical-container">
+            <div id="hexagon-board">
+            </div>
+            <div id="move-history-view">
             </div>
         </div>
-    </body>
+    </div>
+</body>
 </html>

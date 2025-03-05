@@ -225,11 +225,4 @@ public class ChessGameTest {
         Assertions.assertEquals(expectedCurrMoves, currMoves);
         Assertions.assertEquals(expectedOppMoves, oppMoves);
     }
-
-    @Test
-    public void testCopy() {
-        var gameState = GameState.startWithGame("id");
-        gameState.getGame().initPieceMoves();
-        Assertions.assertEquals(gameState, gameState.deepCopy());
-    }
 }

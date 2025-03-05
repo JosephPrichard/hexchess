@@ -2,21 +2,12 @@
 <html lang="en">
 <head>
     <title>{{user.username}} - Hexchess</title>
-    <link rel="stylesheet" href="/css/index.css">
-    <script>
-        const userId = '{{user.id}}';
+    <link rel="stylesheet" href="/static/css/index.css">
+    <meta id="user-id" name="user-id" content="{{user.id}}">
+    <script type="module">
+        import { getUserHistories } from "/static/scripts/client.js";
 
-        async function getUserHistories(userId, afterId) {
-            const url =`/partials/player-history?userId=${userId}&afterId=${afterId}`;
-            try {
-                const resp = await fetch(url, { method: 'GET' });
-                return [await resp.text(), resp.ok];
-            } catch (ex) {
-                console.error(ex);
-                return ["", false];
-            }
-        }
-
+        const userId = document.getElementById("user-id").content;
         let hasMoreRecords = true;
 
         function attemptInfiniteScroll() {
@@ -91,12 +82,12 @@
                 </div>
             </div>
             {{#if user.bio}}
-                <div class="panel-container" style="margin-top: 35px;">
-                    <div class="panel-elem">
-                        <div class="panel-title" style="margin-bottom: 5px">Biography</div>
-                        <div class="panel-text" style="font-size: 16px">{{user.bio}}</div>
-                    </div>
+            <div class="panel-container" style="margin-top: 35px;">
+                <div class="panel-elem">
+                    <div class="panel-title" style="margin-bottom: 5px">Biography</div>
+                    <div class="panel-text" style="font-size: 16px">{{user.bio}}</div>
                 </div>
+            </div>
             {{/if}}
         </div>
     </div>

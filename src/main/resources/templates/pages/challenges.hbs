@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <title>Challenges - Hexchess</title>
+    <link rel="stylesheet" href="/static/css/index.css">
+    <script type="module">
+        function onDeleteChallenge(challengeeId, challengerId) {
+
+        }
+
+        function onRejectChallenge(challengeeId, challengerId) {
+
+        }
+    </script>
+</head>
+<body>
+    {{> partials/banner }}
+    <div>
+        {{#each challengeList as |challenge|}}
+        <div>
+            <div>
+                <a href="/players/{{challenge.challengeeId}}" class="text-ul">{{challenge.challengeeName}}</a>
+                vs
+                <a href="/players/{{history.challengerId}}" class="text-ul">{{history.challengerName}}</a>
+            </div>
+            <div>
+                {{history.formattedMadeOn}}
+            </div>
+            <div>
+                {{history.formattedStatus}}
+            </div>
+            {{#if areSent}}
+            <button class="button-grey button-red">
+                Delete
+            </button>
+            {{else}}
+            <button class="button-grey button-red">
+                Reject
+            </button>
+            {{/if}}
+        </div>
+        {{/each}}
+    </div>
+</body>

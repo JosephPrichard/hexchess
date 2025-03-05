@@ -13,7 +13,7 @@ import java.util.List;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ChallengeDaoTest {
 
-    public EmbeddedPostgres pg;
+    private EmbeddedPostgres pg;
     private DataSource ds;
     private UserDao userDao;
     private ChallengeDao challengeDao;
@@ -41,50 +41,51 @@ public class ChallengeDaoTest {
     }
 
     @Test
-    public void testInsertThenUpdateThenSelect() {
+    public void testUpdateThenGetByChallengee() {
         // given
         createTestData(userDao);
 
         // when
-        challengeDao.insertStatus("id2", "id1");
-        challengeDao.insertStatus("id2", "id3");
-        challengeDao.insertStatus("id5", "id4");
+        challengeDao.insert("id2", "id1");
+        challengeDao.insert("id2", "id3");
+        challengeDao.insert("id5", "id4");
+
         challengeDao.updateStatus("id2", "id3", Challenge.ACCEPTED);
 
-        var challenges = challengeDao.getByChallengee("id2");
+        var challenges = challengeDao.getByParticipant(null, "id2");
 
         // then
         var expected = List.of(
             new Challenge(
-                "id2", "user2", "us", 1005f,
-                "id1", "user1", "us", 1000f,
+                "id2", "user2", 1005f,
+                "id1", "user1", 1000f,
                 Challenge.PENDING, null),
             new Challenge(
-                "id2", "user2", "us", 1005f,
-                "id3", "user3", "us", 900f,
+                "id2", "user2", 1005f,
+                "id3", "user3", 900f,
                 Challenge.ACCEPTED, null));
         Assertions.assertEquals(expected, challenges);
     }
 
     @Test
-    public void testDeleteThenSelect() throws InterruptedException {
+    public void testSelectExpired() throws InterruptedException {
         // given
         createTestData(userDao);
 
         // when
-        challengeDao.insertStatus("id2", "id1");
+        challengeDao.insert("id2", "id1");
         Thread.sleep(10);
-        challengeDao.insertStatus("id2", "id3");
+        challengeDao.insert("id2", "id3");
 
         challengeDao.deleteExpired("id2", Duration.ofMillis(5));
 
-        var challenges = challengeDao.getByChallengee("id2");
+        var challenges = challengeDao.getByParticipant(null, "id2");
 
         // then
         var expected = List.of(
             new Challenge(
-                "id2", "user2", "us", 1005f,
-                "id3", "user3", "us", 900f,
+                "id2", "user2", 1005f,
+                "id3", "user3", 900f,
                 Challenge.PENDING, null));
         Assertions.assertEquals(expected, challenges);
     }

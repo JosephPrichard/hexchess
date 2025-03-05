@@ -5,30 +5,27 @@
     <a href="/" class="banner-elem color-hover">
         Play
     </a>
-    <a href="/challenges" class="banner-elem color-hover">
-        Challenges
-    </a>
     <a href="/leaderboard" class="banner-elem color-hover">
         Leaderboard
     </a>
     <a href="/players/search" class="banner-elem color-hover">
         Search
     </a>
+    <a href="/challenges" class="banner-elem color-hover">
+        Challenges
+    </a>
     <a href="/settings" class="banner-elem color-hover">
         Settings
     </a>
 </div>
-<script src="/scripts/session.js"></script>
+<script src="/static/scripts/session.js"></script>
 <script>
-    const bannerElem = document.getElementById("banner");
-    const cookieValue = getSessionCookie();
+    const e = document.getElementById("banner");
+    const cookie = getSessionCookie();
 
-    if (cookieValue) {
-        bannerElem.innerHTML += `
-            <a href="/players/${cookieValue.playerId}" class="banner-elem color-hover">
-                ${cookieValue.username}
-            </a>`;
+    if (cookie) {
+        e.innerHTML += `<a href="/players/${cookie.playerId}" class="banner-elem color-hover"> ${cookie.username} </a>`;
     } else {
-        bannerElem.innerHTML += '<a href="/login" class="banner-elem color-hover"> Login </div>';
+        e.innerHTML += '<a href="/login" class="banner-elem color-hover"> Login </div>';
     }
 </script>

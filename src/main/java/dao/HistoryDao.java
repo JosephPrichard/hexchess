@@ -41,7 +41,11 @@ public class HistoryDao {
     }
 
     public void insert(HistoryInst historyInst) {
-        var sql = "INSERT INTO game_histories (whiteId, blackId, result, data, winElo, loseElo) VALUES (?, ?, ?, ? ::json, ?, ?)";
+        var sql = """
+            BEGIN;
+                INSERT INTO game_histories (whiteId, blackId, result, data, winElo, loseElo) VALUES (?, ?, ?, ? ::json, ?, ?);
+            END
+            """;
         try {
             runner.execute(sql, historyInst.whiteId, historyInst.blackId,
                 historyInst.result, historyInst.data, historyInst.winEloDiff, historyInst.loseEloDiff);

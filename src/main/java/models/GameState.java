@@ -31,17 +31,6 @@ public class GameState {
     @JsonIgnore
     public List<Move> moveList;
 
-    public GameState deepCopy() {
-        return new GameState(id,
-            game != null ? game.deepCopy() : null,
-            whitePlayer != null ? whitePlayer.deepCopy() : null,
-            blackPlayer != null ? blackPlayer.deepCopy() : null,
-            isEnded,
-            isFirstPlayerWhite,
-            touch,
-            moveList != null ? moveList.stream().toList() : null);
-    }
-
     public static GameState startWithGame(String id) {
         var game = ChessGame.start();
         List<Move> moveList = new ArrayList<>();
@@ -70,31 +59,26 @@ public class GameState {
 
     public static String randomAsJson() {
         try {
-            var moveList = applyRandomSequence(10);
+            var game = ChessGame.start();
+            List<Move> moveList = new ArrayList<>();
+
+            for (int i = 0; i < 10; i++) {
+                game.initPieceMoves();
+
+                var currMoves = game.getCurrMoves();
+
+                // we're going to assume there is at least one piece
+                var pm = currMoves.stream().filter((x) -> !x.getMoves().isEmpty()).findFirst().orElseThrow();
+                var from = pm.getHex();
+                var to = pm.getMoves().getFirst(); // make the first move (we already know there is at least one)
+
+                var move = new Move(from, to);
+                game.makeMove(move);
+                moveList.add(move);
+            }
             return JSON_MAPPER.writeValueAsString(moveList);
         } catch (JsonProcessingException ex) {
             throw new RuntimeException(ex);
         }
-    }
-
-    public static List<Move> applyRandomSequence(int count) {
-        var game = ChessGame.start();
-        List<Move> moveList = new ArrayList<>();
-
-        for (int i = 0; i < count; i++) {
-            game.initPieceMoves();
-
-            var currMoves = game.getCurrMoves();
-
-            // we're going to assume there is at least one piece
-            var pm = currMoves.stream().filter((x) -> !x.getMoves().isEmpty()).findFirst().orElseThrow();
-            var from = pm.getHex();
-            var to = pm.getMoves().getFirst(); // make the first move (we already know there is at least one)
-
-            var move = new Move(from, to);
-            game.makeMove(move);
-            moveList.add(move);
-        }
-        return moveList;
     }
 }

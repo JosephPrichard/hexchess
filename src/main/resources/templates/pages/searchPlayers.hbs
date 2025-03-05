@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <title>Search - Hexchess</title>
-    <link rel="stylesheet" href="/css/index.css">
+    <link rel="stylesheet" href="/static/css/index.css">
 </head>
 <body>
     {{> partials/banner }}
@@ -16,12 +16,12 @@
                 <input class="button-grey button-submit-vertical-form" type="submit" value="Search">
             </form>
             {{#if searchText}}
-                {{> partials/statsTable }}
+            {{> partials/statsTable }}
             {{/if}}
         </div>
     </div>
     {{#if searchText}}
-        {{> partials/pagination pages }}
+    {{> partials/pagination pages }}
     {{/if}}
 </body>
 </html>

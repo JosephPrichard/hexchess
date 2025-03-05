@@ -2,25 +2,15 @@
 <html lang="en">
 <head>
     <title>Leaderboard - Hexchess</title>
-    <link rel="stylesheet" href="/css/index.css">
-    <script>
-        async function postRegister(username, password, dupPassword) {
-            const formData = new FormData();
-            formData.append("username", username);
-            formData.append("password", password);
-            formData.append("duplicate-password", dupPassword);
+    <link rel="stylesheet" href="/static/css/index.css">
+    <script type="module">
+        import { postRegister } from "/static/scripts/client.js";
 
-            const url =`/forms/signup`;
-            try {
-                const resp = await fetch(url, { method: 'POST', body: formData });
-                return [await resp.json(), resp.ok];
-            } catch (ex) {
-                console.error(ex);
-                return [{ message: "An unexpected error has occurred" }, false];
-            }
-        }
+        const signupForm = document.getElementById("signup-form");
 
-        function onSignUp() {
+        signupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
             const usernameElem = document.getElementById("username-register");
             const passwordElem = document.getElementById("password-register");
             const dupPasswordElem = document.getElementById("password-retype-register");
@@ -31,28 +21,30 @@
                 submitElem.innerHTML = "Register";
             }
 
-            postRegister(usernameElem.value, passwordElem.value, dupPasswordElem.value)
-                .then(([object, ok]) => {
-                    console.log("Register response", object, ok);
+            const username = usernameElem.value;
+            const password = passwordElem.value;
+            const dupPassword = dupPasswordElem.value;
 
-                    const messageElem = document.getElementById("register-form-message");
+            try {
+                const [text, ok] = await postRegister(username, password, dupPassword);
+                console.log("Register response", text, ok);
 
-                    if (ok) {
-                        messageElem.innerText = "";
-                        messageElem.className = "";
-                        window.location = "/";
-                    } else {
-                        messageElem.innerText = object.message;
-                        messageElem.className = "red-color";
-                    }
+                const messageElem = document.getElementById("register-form-message");
 
-                    onResponse();
-                })
-                .catch(onResponse);
+                if (ok) {
+                    messageElem.innerText = "";
+                    messageElem.className = "";
+                    window.location = "/";
+                } else {
+                    messageElem.innerText = text;
+                    messageElem.className = "red-color";
+                }
 
-            // used to prevent the form onsubmit event this is invoked within from refreshing the page
-            return false;
-        }
+                onResponse();
+            } catch (ex) {
+                onResponse();
+            }
+        })
     </script>
 </head>
 <body>
@@ -62,7 +54,7 @@
         Register
     </div>
     <div style="width: 500px">
-        <form class="form-wrapper" onsubmit="return onSignUp();">
+        <form id="signup-form" class="form-wrapper">
             <label for="username-register" style="font-size: 17px">Username</label>
             <input id="username-register" name="username" placeholder="Username" value="" style="margin-top: 5px; margin-bottom: 10px;"/>
 

@@ -12,7 +12,7 @@ import java.util.List;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class HistoryDaoTest {
 
-    public EmbeddedPostgres pg;
+    private EmbeddedPostgres pg;
     private DataSource ds;
     private UserDao userDao;
     private HistoryDao historyDao;

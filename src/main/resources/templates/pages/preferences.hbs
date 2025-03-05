@@ -2,24 +2,17 @@
 <html lang="en">
 <head>
     <title>Preferences - Hexchess</title>
-    <link rel="stylesheet" href="/css/index.css">
-    <script>
-        async function postUpdateUser(username, bio) {
-            const formData = new FormData();
-            formData.append("new-username", username);
-            formData.append("new-bio", bio);
+    <link rel="stylesheet" href="/static/css/index.css">
+    <script type="module">
+        import { postUpdateUser, postSignOut, postUpdatePassword } from "/static/scripts/client.js";
 
-            const url =`/forms/update-user`;
-            try {
-                const resp = await fetch(url, { method: 'POST', body: formData });
-                return [await resp.json(), resp.ok];
-            } catch (ex) {
-                console.error(ex);
-                return [{ message: "An unexpected error has occurred" }, false];
-            }
-        }
+        const updateUserForm = document.getElementById("update-user-form");
+        const updatePasswordForm = document.getElementById("update-password-form");
+        const signOutButton = document.getElementById("sign-out-button");
 
-        function onUpdateUser() {
+        updateUserForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
             const usernameElem = document.getElementById("username");
             const bioElem = document.getElementById("bio");
             const submitElem = document.getElementById("user-form-submit");
@@ -29,43 +22,27 @@
                 submitElem.innerHTML = "Login";
             }
 
-            postUpdateUser(usernameElem.value, bioElem.value)
-                .then(([object, ok]) => {
-                    console.log("Update user response", object, ok);
-
-                    const messageElem = document.getElementById("update-user-form-message");
-                    messageElem.innerText = object.message;
-
-                    if (ok) {
-                        messageElem.className = "";
-                    } else {
-                        messageElem.className = "red-color";
-                    }
-
-                    onResponse();
-                })
-                .catch(onResponse)
-
-            return false;
-        }
-
-        async function postUpdatePassword(password, newPassword, newDupPassword) {
-            const formData = new FormData();
-            formData.append("password", password);
-            formData.append("new-password", newPassword);
-            formData.append("duplicate-new-password", newDupPassword);
-
-            const url =`/forms/update-password`;
             try {
-                const resp = await fetch(url, { method: 'POST', body: formData });
-                return [await resp.json(), resp.ok];
-            } catch (ex) {
-                console.error(ex);
-                return [{ message: "An unexpected error has occurred" }, false];
-            }
-        }
+                const [text, ok] = await postUpdateUser(usernameElem.value, bioElem.value);
+                console.log("Update user response", text, ok);
 
-        function onUpdatePassword() {
+                const messageElem = document.getElementById("update-user-form-message");
+                messageElem.innerText = text;
+
+                if (ok) {
+                    messageElem.className = "";
+                } else {
+                    messageElem.className = "red-color";
+                }
+                onResponse();
+            } catch (ex) {
+                onResponse();
+            }
+        })
+
+        updatePasswordForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
             const passwordElem = document.getElementById("password");
             const newPasswordElem = document.getElementById("new-password");
             const retypePasswordElem = document.getElementById("retype-password");
@@ -76,44 +53,29 @@
                 submitElem.innerHTML = "Login";
             }
 
-            postUpdatePassword(passwordElem.value, newPasswordElem.value, retypePasswordElem.value)
-                .then(([object, ok]) => {
-                    console.log("Update password response", object, ok);
-
-                    const messageElem = document.getElementById("update-password-form-message");
-                    messageElem.innerText = object.message;
-
-                    if (ok) {
-                        messageElem.className = "";
-                    } else {
-                        messageElem.className = "red-color";
-                    }
-
-                    onResponse();
-                })
-                .catch(onResponse)
-
-            return false;
-        }
-
-        async function postSignOut() {
-            const url =`/forms/logout`;
             try {
-                const resp = await fetch(url, { method: 'POST' });
-                return [await resp.json(), resp.ok];
-            } catch (ex) {
-                console.error(ex);
-                return [{ message: "An unexpected error has occurred" }, false];
-            }
-        }
+                const [text, ok] = await postUpdatePassword(passwordElem.value, newPasswordElem.value, retypePasswordElem.value);
+                console.log("Update password response", text, ok);
 
-        function onSignOut() {
-            postSignOut()
-                .then(([object, ok]) => {
-                    console.log("Logout response", object, ok);
-                    window.location = "/";
-                })
-        }
+                const messageElem = document.getElementById("update-password-form-message");
+                messageElem.innerText = text;
+
+                if (ok) {
+                    messageElem.className = "";
+                } else {
+                    messageElem.className = "red-color";
+                }
+                onResponse();
+            } catch (ex) {
+                onResponse();
+            }
+        })
+
+        signOutButton.addEventListener('click', async (_) => {
+            const [object, ok] = await postSignOut();
+            console.log("Logout response", object, ok);
+            window.location = "/";
+        });
     </script>
 </head>
 <body>
@@ -123,7 +85,7 @@
         <div class="title-lg" style="padding-left: 0">
             Edit Profile
         </div>
-        <form class="form-wrapper" onsubmit="return onUpdateUser();">
+        <form id="update-user-form" class="form-wrapper">
 <!--            <label for="country" style="font-size: 17px">Country</label>-->
 <!--            <select id="country" name="country" value="{{country}}" style="margin-top: 5px; margin-bottom: 10px; width: 100%;">-->
 <!--                <option value="US">US</option>-->
@@ -144,7 +106,7 @@
         <div class="title-lg" style="padding-left: 0">
             Update Password
         </div>
-        <form class="form-wrapper" onsubmit="return onUpdatePassword();">
+        <form id="update-password-form" class="form-wrapper">
             <label for="password" style="font-size: 17px">Current Password</label>
             <input id="password" type="password" name="password" placeholder="Password" value="" style="margin-top: 5px; margin-bottom: 10px;"/>
 
@@ -159,7 +121,7 @@
             <div id="update-password-form-message" style="margin-top: 20px; min-height: 20px;"></div>
         </form>
         <br>
-        <button class="button-grey button-red" onclick="onSignOut();">
+        <button id="sign-out-button" class="button-grey button-red">
             Sign Out
         </button>
         <div style="height: 100px;"></div>

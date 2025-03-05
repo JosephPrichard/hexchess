@@ -2,24 +2,15 @@
 <html lang="en">
 <head>
     <title>Login - Hexchess</title>
-    <link rel="stylesheet" href="/css/index.css">
-    <script>
-        async function postLogin(username, password) {
-            const formData = new FormData();
-            formData.append("username", username);
-            formData.append("password", password);
+    <link rel="stylesheet" href="/static/css/index.css">
+    <script type="module">
+        import { postLogin } from "/static/scripts/client.js";
 
-            const url =`/forms/login`;
-            try {
-                const resp = await fetch(url, { method: 'POST', body: formData });
-                return [await resp.json(), resp.ok];
-            } catch (ex) {
-                console.error(ex);
-                return [{ message: "An unexpected error has occurred" }, false];
-            }
-        }
+        const loginForm = document.getElementById("login-form");
 
-        function onLogin() {
+        loginForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
             const usernameElem = document.getElementById("username-login");
             const passwordElem = document.getElementById("password-login");
             const submitElem = document.getElementById("login-form-submit");
@@ -29,27 +20,29 @@
                 submitElem.innerHTML = "Login";
             }
 
-            postLogin(usernameElem.value, passwordElem.value)
-                .then(([object, ok]) => {
-                    console.log("Login response", object, ok);
+            const username = usernameElem.value;
+            const password = passwordElem.value;
 
-                    const messageElem = document.getElementById("login-form-message");
+            try {
+                const [text, ok] = await postLogin(username, password);
+                console.log("Login response", text, ok);
 
-                    if (ok) {
-                        messageElem.innerText = "";
-                        messageElem.className = "";
-                        window.location = "/";
-                    } else {
-                        messageElem.innerText = object.message;
-                        messageElem.className = "red-color";
-                    }
+                const messageElem = document.getElementById("login-form-message");
 
-                    onResponse();
-                })
-                .catch(onResponse);
+                if (ok) {
+                    messageElem.innerText = "";
+                    messageElem.className = "";
+                    window.location = "/";
+                } else {
+                    messageElem.innerText = text;
+                    messageElem.className = "red-color";
+                }
 
-            return false;
-        }
+                onResponse();
+            } catch (ex) {
+                onResponse();
+            }
+        })
     </script>
 </head>
 <body>
@@ -59,7 +52,7 @@
         Login
     </div>
     <div style="width: 500px">
-        <form class="form-wrapper" onsubmit="return onLogin();">
+        <form id="login-form" class="form-wrapper">
             <label for="username-login" style="font-size: 17px">Username</label>
             <input id="username-login" name="username" placeholder="Username" value="" style="margin-top: 5px; margin-bottom: 10px;"/>
 

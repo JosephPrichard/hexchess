@@ -156,9 +156,12 @@ public class UserDao {
         }
 
         var sql = """
-            UPDATE users
-            SET username = COALESCE(?, username), country = COALESCE(?, country), bio = COALESCE(?, bio)
-            WHERE id = ?;""";
+            BEGIN;
+                UPDATE users
+                SET username = COALESCE(?, username), country = COALESCE(?, country), bio = COALESCE(?, bio)
+                WHERE id = ?;
+            END;
+            """;
 
         try {
             runner.execute(sql, newUsername, newCountry, newBio, id);
@@ -174,7 +177,11 @@ public class UserDao {
         var saltedPassword = newPassword + salt;
         var hashedPassword = BCrypt.withDefaults().hashToString(12, saltedPassword.toCharArray());
 
-        var sql = "UPDATE users SET password = ?, salt = ? WHERE id = ?;";
+        var sql = """
+            BEGIN;
+                UPDATE users SET password = ?, salt = ? WHERE id = ?;
+            END
+            """;
         try {
             runner.execute(sql, hashedPassword, salt, id);
             LOGGER.info("Updated user password with id={}", id);
@@ -248,7 +255,8 @@ public class UserDao {
             SELECT u1.id, u1.username, u1.country, u1.elo, u1.highestElo, u1.wins, u1.losses, u1.joinedOn, u1.bio,
                 (SELECT COUNT(*) FROM users u2 WHERE u2.elo >= u1.elo) as rank
             FROM users u1
-            WHERE u1.id = ?""";
+            WHERE u1.id = ?
+            """;
         try {
             var user = runner.query(sql, USER_MAPPER, id);
             LOGGER.info("Fetched user={} with rank by id={}", user, id);

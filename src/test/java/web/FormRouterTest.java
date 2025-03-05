@@ -23,7 +23,6 @@ public class FormRouterTest {
         // given
         var accountInst = new UserDao.UserInst("1", "testUser", "testPassword", "USA", 1000, 3, 3);
         var player = new Player("1", "testUser");
-        var country = "us";
         var cookie = new Cookie("sessionToken");
 
         var mockUserDao = mock(UserDao.class);

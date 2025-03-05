@@ -1,9 +1,11 @@
 package scripts;
 
+import dao.ChallengeDao;
 import lombok.AllArgsConstructor;
 import models.GameState;
 import org.apache.commons.dbutils.QueryRunner;
 import dao.HistoryDao;
+import org.apache.commons.lang3.tuple.Pair;
 import services.RemoteDict;
 import dao.UserDao;
 import utils.Config;
@@ -11,6 +13,9 @@ import utils.Config;
 import javax.sql.DataSource;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static utils.Globals.EXECUTOR;
 import static utils.Globals.LOGGER;
@@ -183,10 +188,17 @@ public class DataSeeder {
         new HistoryDao.HistoryInst("id1", "id2", 1, 14d, -14d, GameState.randomAsJson()),
         new HistoryDao.HistoryInst("id2", "id1", 0, 30d, -30d, GameState.randomAsJson()));
 
-    private void seedUsersTable(List<UserDao.UserInst> insts) {
-        var userDao = new UserDao(ds);
+    private static final List<Pair<String, String>> CHALLENGE_INSTS = List.of(
+        Pair.of("id1", "id2"),
+        Pair.of("id1", "id3"),
+        Pair.of("id1", "id4"),
+        Pair.of("id1", "id5"),
+        Pair.of("id1", "id6"),
+        Pair.of("id1", "id7"));
+
+    private <T> void seedTable(List<T> insts, Consumer<T> consumer) {
         var futures = insts.stream()
-            .map((inst) -> EXECUTOR.submit(() -> userDao.insert(inst)))
+            .map((inst) -> EXECUTOR.submit(() -> consumer.accept(inst)))
             .toList();
         futures.forEach((f) -> {
             try {
@@ -197,23 +209,25 @@ public class DataSeeder {
         });
     }
 
+    private void seedUsersTable(List<UserDao.UserInst> insts) {
+        var userDao = new UserDao(ds);
+        seedTable(insts, userDao::insert);
+    }
+
     private void seedHistTable(List<HistoryDao.HistoryInst> insts) {
-        var userDao = new HistoryDao(ds);
-        var futures = insts.stream()
-            .map((inst) -> EXECUTOR.submit(() -> userDao.insert(inst)))
-            .toList();
-        futures.forEach((f) -> {
-            try {
-                f.get();
-            } catch (InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        var histDao = new HistoryDao(ds);
+        seedTable(insts, histDao::insert);
+    }
+
+    private void seedChallengeTable(List<Pair<String, String>> insts) {
+        var challengeDao = new ChallengeDao(ds);
+        seedTable(insts, (pair) -> challengeDao.insert(pair.getLeft(), pair.getRight()));
     }
 
     private void seedUsersDict() {
         var userDao = new UserDao(ds);
         var allUsers = userDao.getAll();
+
         var changeSets = allUsers.stream()
             .map(user -> new RemoteDict.EloChangeSet(user.getId(), user.getElo()))
             .toArray(RemoteDict.EloChangeSet[]::new);
@@ -238,6 +252,7 @@ public class DataSeeder {
         seeder.seedUsersTable(USER_INSTS);
 //        seeder.seedUsersDict();
         seeder.seedHistTable(HISTORY_INSTS);
+        seeder.seedChallengeTable(CHALLENGE_INSTS);
 
         var endTime = System.currentTimeMillis() - startTime;
         LOGGER.info("Took {} ms to execute seeding script", endTime);

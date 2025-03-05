@@ -2,6 +2,7 @@ package web;
 
 import com.github.jknack.handlebars.Handlebars;
 import com.zaxxer.hikari.HikariDataSource;
+import dao.ChallengeDao;
 import dao.HistoryDao;
 import services.RemoteDict;
 import dao.UserDao;
@@ -18,18 +19,20 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 public class State {
-    UserDao userDao;
-    HistoryDao historyDao;
-    RemoteDict remoteDict;
-    GameService gameService;
-    SessionService sessionService;
-    Broadcaster broadcaster;
-    Templates templates;
-    Map<String, byte[]> files;
+    private UserDao userDao;
+    private HistoryDao historyDao;
+    private ChallengeDao challengeDao;
+    private RemoteDict remoteDict;
+    private GameService gameService;
+    private SessionService sessionService;
+    private Broadcaster broadcaster;
+    private Templates templates;
+    private Map<String, byte[]> files;
 
     public State(JedisPooled jedis, HikariDataSource ds, Handlebars handlebars, Map<String, byte[]> filesMap) throws IOException {
         userDao = new UserDao(ds);
         historyDao = new HistoryDao(ds);
+        challengeDao = new ChallengeDao(ds);
         remoteDict = new RemoteDict(jedis);
         gameService = new GameService(remoteDict, userDao, historyDao);
         sessionService = new SessionService();
