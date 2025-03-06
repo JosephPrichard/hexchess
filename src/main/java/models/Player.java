@@ -12,8 +12,4 @@ public class Player {
     public String id;
     @EqualsAndHashCode.Exclude
     public String name;
-
-    public Player deepCopy() {
-        return new Player(id, name);
-    }
 }

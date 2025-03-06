@@ -14,6 +14,8 @@ import static utils.Globals.*;
 
 public class PageRouter extends Jooby {
 
+    public static final int PER_PAGE = 25;
+
     private final State state;
     private String initialBoardJson;
     private String loginHtml;
@@ -121,8 +123,8 @@ public class PageRouter extends Jooby {
         try {
             int page = ctx.query("page").toOptional().map(Integer::parseUnsignedInt).orElse(1);
 
-            var userListFut = CompletableFuture.supplyAsync(() -> userDao.getLeaderboard(page, 25), EXECUTOR);
-            var totalPagesFut = CompletableFuture.supplyAsync(() -> userDao.countPages(25), EXECUTOR);
+            var userListFut = CompletableFuture.supplyAsync(() -> userDao.getLeaderboard(page, PER_PAGE), EXECUTOR);
+            var totalPagesFut = CompletableFuture.supplyAsync(() -> userDao.countPages(PER_PAGE), EXECUTOR);
             var userList = userListFut.get();
             var totalPages = totalPagesFut.get();
 
@@ -145,7 +147,7 @@ public class PageRouter extends Jooby {
         try {
             int page = ctx.query("page").toOptional().map(Integer::parseUnsignedInt).orElse(1);
 
-            var leaderboard = remoteDict.getLeaderboardPage(page, 20);
+            var leaderboard = remoteDict.getLeaderboardPage(page, PER_PAGE);
             var userList = userDao.getByRanks(leaderboard.getUsers());
 
             RankedUser.joinRanks(leaderboard.getUsers(), userList);

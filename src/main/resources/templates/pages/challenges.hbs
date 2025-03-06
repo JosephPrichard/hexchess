@@ -4,41 +4,57 @@
     <title>Challenges - Hexchess</title>
     <link rel="stylesheet" href="/static/css/index.css">
     <script type="module">
-        function onDeleteChallenge(challengeeId, challengerId) {
 
-        }
-
-        function onRejectChallenge(challengeeId, challengerId) {
-
-        }
     </script>
 </head>
 <body>
     {{> partials/banner }}
-    <div>
-        {{#each challengeList as |challenge|}}
-        <div>
+    <div class="center-horizontal-container" style="margin-bottom: 100px">
+        {{#if challengeList.length}}
+        {{#each challengeList as |c|}}
+        <div class="challenge-box">
             <div>
-                <a href="/players/{{challenge.challengeeId}}" class="text-ul">{{challenge.challengeeName}}</a>
-                vs
-                <a href="/players/{{history.challengerId}}" class="text-ul">{{history.challengerName}}</a>
+                <div style="margin-bottom: 5px">
+                    <a href="/players/{{c.challengerId}}" class="text-ul" style="color: dodgerblue">{{c.challengerName}}</a>
+                    <b>({{c.roundedChallengerElo}})</b>
+                    vs
+                    <a href="/players/{{c.challengeeId}}" class="text-ul" style="color: dodgerblue">{{c.challengeeName}}</a>
+                    <b>({{c.roundedChallengeeElo}})</b>
+                </div>
+                <div style="margin-bottom: 5px">
+                    Made On: <b> {{c.formattedMadeOn}} </b>
+                </div>
+                <div style="margin-bottom: 5px">
+                    Expires On: <b> {{c.formattedExpiresOn}} </b>
+                </div>
+                <div class="{{c.statusColor}}" style="margin-bottom: 5px">
+                    {{c.formattedStatus}}
+                </div>
             </div>
-            <div>
-                {{history.formattedMadeOn}}
+            <div class="center-relative">
+                <div>
+                    {{#unless areSent}}
+                    <button class="button-grey button-green" style="margin-left: 5px">
+                        Accept
+                    </button>
+                    {{/unless}}
+                    {{#if areSent}}
+                    <button class="button-grey button-red" style="margin-left: 5px">
+                        Delete
+                    </button>
+                    {{else}}
+                    <button class="button-grey button-red" style="margin-left: 5px">
+                        Reject
+                    </button>
+                    {{/if}}
+                </div>
             </div>
-            <div>
-                {{history.formattedStatus}}
-            </div>
-            {{#if areSent}}
-            <button class="button-grey button-red">
-                Delete
-            </button>
-            {{else}}
-            <button class="button-grey button-red">
-                Reject
-            </button>
-            {{/if}}
         </div>
         {{/each}}
+        {{else}}
+            <div class="color-wrapper">
+                No challenges have been made
+            </div>
+        {{/if}}
     </div>
 </body>

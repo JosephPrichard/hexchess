@@ -7,12 +7,16 @@ import io.jooby.StatusCode;
 import lombok.AllArgsConstructor;
 import models.History;
 
+import static utils.Globals.EXECUTOR;
+
 public class PartialsRouter extends Jooby {
 
     public final State state;
 
     public PartialsRouter(State state) {
         this.state = state;
+
+        setWorker(EXECUTOR);
 
         get("/partials/*", ctx -> {
             ctx.setResponseCode(StatusCode.NOT_FOUND_CODE);
@@ -34,7 +38,7 @@ public class PartialsRouter extends Jooby {
             return "";
         }
         var userId = userIdSlug.toString();
-        Long afterId = ctx.query("afterId").toOptional().map(Long::parseUnsignedLong).orElse(null);
+        var afterId = ctx.query("afterId").toOptional().map(Long::parseUnsignedLong).orElse(null);
 
         var historyList = historyDao.getUserHistories(userId, afterId, 25);
         if (historyList.isEmpty()) {

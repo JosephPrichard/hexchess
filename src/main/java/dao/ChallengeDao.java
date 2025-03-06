@@ -77,12 +77,10 @@ public class ChallengeDao {
         var sql = """
             SELECT
                 c1.challengeeId,
-                u1.username as challengeeUsername,
-                u1.country as challengeeCountry,
+                u1.username as challengeeName,
                 u1.elo as challengeeElo,
                 c1.challengerId,
-                u2.username as challengerUsername,
-                u2.country as challengerCountry,
+                u2.username as challengerName,
                 u2.elo as challengerElo,
                 c1.status,
                 c1.madeOn
