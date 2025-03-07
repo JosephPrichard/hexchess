@@ -32,8 +32,6 @@ public class FormRouter extends Jooby {
         var userDao = state.getUserDao();
         var remoteDict = state.getRemoteDict();
 
-        ctx.setResponseHeader("Content-Type", "application/json");
-
         var form = ctx.form();
         var username = form.get("username");
         var password = form.get("password");
@@ -67,6 +65,7 @@ public class FormRouter extends Jooby {
 
             LOGGER.info("Registered a new player={}", player);
 
+            ctx.setResponseHeader("Content-Type", "text/plain");
             return "Signed up successfully!";
         } catch (UserDao.TakenUsernameException ex) {
             throw new StatusCodeException(StatusCode.BAD_REQUEST, "Username is already taken, choose another");
@@ -77,8 +76,6 @@ public class FormRouter extends Jooby {
         var sessionService = state.getSessionService();
         var userDao = state.getUserDao();
         var remoteDict = state.getRemoteDict();
-
-        ctx.setResponseHeader("Content-Type", "application/json");
 
         var form = ctx.form();
         var username = form.get("username");
@@ -98,14 +95,14 @@ public class FormRouter extends Jooby {
         remoteDict.setSession(sessionId, new Player(verifiedPlayer.getId(), verifiedPlayer.getUsername()), cookie.getMaxAge());
 
         LOGGER.info("Player has logged in {}", verifiedPlayer);
+
+        ctx.setResponseHeader("Content-Type", "text/plain");
         return "Logged in successfully!";
     }
 
     public String updatePassword(Context ctx) {
         var sessionService = state.getSessionService();
         var userDao = state.getUserDao();
-
-        ctx.setResponseHeader("Content-Type", "application/json");
 
         var form = ctx.form();
         var passwordStr = form.get("password").toString();
@@ -125,15 +122,15 @@ public class FormRouter extends Jooby {
         }
         userDao.updatePassword(player.getId(), newPasswordStr);
 
-        LOGGER.info("Updated data of user: {}", player);
+        LOGGER.info("Updated data of user={}", player);
+
+        ctx.setResponseHeader("Content-Type", "text/plain");
         return "Updated successfully!";
     }
 
     public String updateUser(Context ctx) {
         var sessionService = state.getSessionService();
         var userDao = state.getUserDao();
-
-        ctx.setResponseHeader("Content-Type", "application/json");
 
         var form = ctx.form();
         var newUsernameStr = form.get("new-username").valueOrNull();
@@ -146,7 +143,9 @@ public class FormRouter extends Jooby {
         }
 
         userDao.updateUser(session.getPlayerId(), newUsernameStr, newCountryStr, newBioStr);
-        LOGGER.info("Updated data of user: {}", session.getPlayerId());
+        LOGGER.info("Updated data of user={}", session.getPlayerId());
+
+        ctx.setResponseHeader("Content-Type", "text/plain");
         return "Updated successfully!";
     }
 
@@ -154,14 +153,16 @@ public class FormRouter extends Jooby {
         var sessionService = state.getSessionService();
         var remoteDict = state.getRemoteDict();
 
-        ctx.setResponseHeader("Content-Type", "application/json");
-
         var session = sessionService.getSession(ctx.header("Cookie").valueOrNull());
         if (session != null) {
             var cookie = sessionService.createCookie(session.getSessionId(), session.getPlayerId(), session.getUsername(), session.getCountry());
             ctx.setResponseCookie(cookie);
             remoteDict.updateSessionEx(session.getSessionId(), cookie.getMaxAge());
+
+            LOGGER.info("Refreshed session for user={}", session.getPlayerId());
         }
+
+        ctx.setResponseHeader("Content-Type", "text/plain");
         return "Updated session successfully!";
     }
 
@@ -169,11 +170,13 @@ public class FormRouter extends Jooby {
         var sessionService = state.getSessionService();
         var remoteDict = state.getRemoteDict();
 
-        ctx.setResponseHeader("Content-Type", "application/json");
-
         var session = sessionService.getSession(ctx.header("Cookie").valueOrNull());
         remoteDict.deleteSession(session.getSessionId());
         ctx.setResponseCookie(sessionService.createEmptyCookie());
+
+        LOGGER.info("Logged out user={}", session.getPlayerId());
+
+        ctx.setResponseHeader("Content-Type", "text/plain");
         return "Logged out successfully!";
     }
 

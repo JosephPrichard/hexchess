@@ -131,7 +131,10 @@ public class PageRouter extends Jooby {
             userList.forEach(User::sanitize);
 
             var template = templates.getLeaderboardTemplate();
-            return template.apply(new LeaderboardView(userList, Pagination.withTotal("?", page, totalPages)));
+            var resp = template.apply(new LeaderboardView(userList, Pagination.withTotal("?", page, totalPages)));
+
+//            ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
+            return resp;
         } catch (NumberFormatException ex) {
             var code = StatusCode.BAD_REQUEST_CODE;
             ctx.setResponseCode(code);
@@ -154,7 +157,10 @@ public class PageRouter extends Jooby {
             userList.forEach(User::sanitize);
 
             var template = templates.getLeaderboardTemplate();
-            return template.apply(new LeaderboardView(userList, Pagination.withTotal("?", page, leaderboard.getPageCount())));
+            var resp = template.apply(new LeaderboardView(userList, Pagination.withTotal("?", page, leaderboard.getPageCount())));
+
+//            ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
+            return resp;
         } catch (NumberFormatException ex) {
             var code = StatusCode.BAD_REQUEST_CODE;
             ctx.setResponseCode(code);
@@ -192,7 +198,10 @@ public class PageRouter extends Jooby {
         historyList.forEach(History::sanitize);
 
         var template = templates.getProfileTemplate();
-        return template.apply(new ProfileView(user, historyList));
+        var resp = template.apply(new ProfileView(user, historyList));
+
+//        ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
+        return resp;
     }
 
     public String getPlayerV2(Context ctx) throws Exception {
@@ -222,7 +231,10 @@ public class PageRouter extends Jooby {
         historyList.forEach(History::sanitize);
 
         var template = templates.getProfileTemplate();
-        return template.apply(new ProfileView(user, historyList));
+        var resp = template.apply(new ProfileView(user, historyList));
+
+//        ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
+        return resp;
     }
 
     @Data
@@ -250,7 +262,10 @@ public class PageRouter extends Jooby {
             userList.forEach(User::sanitize);
 
             var pagination = Pagination.ofUnlimited(String.format("?username=%s&", name), page);
-            return template.apply(new SearchView(name, userList, pagination));
+            var resp = template.apply(new SearchView(name, userList, pagination));
+
+//            ctx.setResponseHeader("Cache-Control", "max-age=3600, must-revalidate");
+            return resp;
         } catch (NumberFormatException ex) {
             var code = StatusCode.BAD_REQUEST_CODE;
             ctx.setResponseCode(code);
@@ -279,11 +294,13 @@ public class PageRouter extends Jooby {
         var historyId = Long.parseUnsignedLong(historyIdSlug.toString());
 
         var history = historyDao.getHistory(historyId);
-
         history.sanitize();
 
         var template = templates.getGameStateoryTemplate();
-        return template.apply(new ReplayView(initialBoardJson, history));
+        var resp = template.apply(new ReplayView(initialBoardJson, history));
+
+//        ctx.setResponseHeader("Cache-Control", "max-age=86400, must-revalidate"); // this is never updated, we can cache aggressively
+        return resp;
     }
 
     @Data
@@ -332,6 +349,9 @@ public class PageRouter extends Jooby {
         EXECUTOR.execute(() -> challengeDao.deleteExpired(session.getPlayerId()));
 
         var template = templates.getChallengesTemplate();
-        return template.apply(new ChallengeView(challengeList, areSent));
+        var resp = template.apply(new ChallengeView(challengeList, areSent));
+
+//        ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
+        return resp;
     }
 }

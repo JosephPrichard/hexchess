@@ -1,0 +1,47 @@
+{{#if userList.length}}
+    <table id="stats-table" class="table-container">
+        <thead>
+        <tr>
+            <th>Rank</th>
+            <th>Player</th>
+            <th>Elo</th>
+            <th>Win%</th>
+            <th>Won</th>
+            <th>Lost</th>
+            <th>Total</th>
+        </tr>
+        </thead>
+        <tbody>
+        {{#each userList as |u|}}
+            <tr id="user-{{u.id}}" class="row-hover" onclick="window.location = '/players/{{u.id}}';">
+                <td style="width: 9%">
+                    {{u.rank}}
+                </td>
+                <td style="width: 43%">
+                    {{u.username}}
+                    <img class="flag" src="/files/flags/{{u.country}}.png" alt=""/>
+                </td>
+                <td style="width: 12%">
+                    {{u.roundedElo}}
+                </td>
+                <td class="{{u.winRateColor}}" style="width: 9%;">
+                    {{u.winRate}}%
+                </td>
+                <td class="green-color" style="width: 9%">
+                    {{u.wins}}
+                </td>
+                <td class="red-color" style="width: 9%">
+                    {{u.losses}}
+                </td>
+                <td style="width: 9%">
+                    {{u.total}}
+                </td>
+            </tr>
+        {{/each}}
+        </tbody>
+    </table>
+{{else}}
+    <div class="color-wrapper">
+        No players to show
+    </div>
+{{/if}}

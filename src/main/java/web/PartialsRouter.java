@@ -49,6 +49,9 @@ public class PartialsRouter extends Jooby {
         historyList.forEach(History::sanitize);
 
         var template = templates.getHistoryListTemplate();
-        return template.apply(historyList);
+        var resp = template.apply(historyList);
+
+//        ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
+        return resp;
     }
 }

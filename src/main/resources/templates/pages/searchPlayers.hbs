@@ -5,23 +5,23 @@
     <link rel="stylesheet" href="/static/css/index.css">
 </head>
 <body>
-    {{> partials/banner }}
-    <div class="center-horizontal-container">
-        <div class="title-lg">
-            Search
-        </div>
-        <div class="wrapper">
-            <form class="form-wrapper">
-                <input id="username" name="username" placeholder="Username" value="{{searchText}}" style="width: 50%; top: 4px; position: relative"/>
-                <input class="button-grey button-submit-vertical-form" type="submit" value="Search">
-            </form>
-            {{#if searchText}}
-            {{> partials/statsTable }}
-            {{/if}}
-        </div>
+{{> partials/banner }}
+<div class="center-horizontal-container">
+    <div class="title-lg">
+        Search
     </div>
-    {{#if searchText}}
+    <div class="wrapper">
+        <form class="form-wrapper">
+            <input id="username" name="username" placeholder="Username" value="{{searchText}}" style="width: 50%; top: 4px; position: relative"/>
+            <input class="button-grey button-submit-vertical-form" type="submit" value="Search">
+        </form>
+        {{#if searchText}}
+            {{> partials/statsList }}
+        {{/if}}
+    </div>
+</div>
+{{#if searchText}}
     {{> partials/pagination pages }}
-    {{/if}}
+{{/if}}
 </body>
 </html>

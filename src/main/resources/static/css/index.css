@@ -293,13 +293,40 @@ select {
     text-decoration: none;
 }
 
-.button-green {
-    background-color: rgb(30, 144, 255);
-    box-shadow: 0 5px rgb(5, 110, 220);
+.button-small {
+    height: 40px;
+    font-size: 15px;
+    min-width: 100px;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    border-radius: 5px;
+    text-align: center;
+    width: fit-content;
+    padding: 5px 10px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    outline: none;
+    border: none;
+    text-decoration: none;
 }
 
-.button-green:hover {
-    background-color: rgb(45, 164, 255);
+.button-red-small {
+    background: rgb(231, 76, 60);
+}
+
+.button-red-small:hover {
+    background: rgb(201, 46, 40);
+    text-decoration: none;
+}
+
+.button-blue-small {
+    background-color: rgb(25, 140, 250);
+}
+
+.button-blue-small:hover {
+    background-color: rgb(5, 110, 210);
     text-decoration: none;
 }
 
@@ -402,12 +429,11 @@ select {
 }
 
 .challenge-box {
-    width: 700px;
+    width: 100%;
     margin: 3px;
     padding: 20px 20px;
-    border-radius: 5px;
+    border-radius: 3px;
     background-color: rgb(42,42,42);
-    border: 1px solid rgb(80,80,80);
     display: flex;
     flex-direction: row;
 }
@@ -417,4 +443,32 @@ select {
     place-items: center;
     margin-right: 0;
     margin-left: auto;
+}
+
+.vertical-align {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.tabs-group {
+    width: fit-content;
+    display: flex;
+    flex-direction: row;
+    gap: 15px;
+    margin: 10px auto 10px 0;
+}
+
+.tab {
+    background-color: rgb(42,42,42);
+    border-radius: 3px;
+    padding: 10px 20px;
+    text-decoration: none !important;
+}
+
+.tab:hover {
+    background-color: rgb(62,62,62);
 }

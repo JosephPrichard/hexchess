@@ -10,51 +10,63 @@
 <body>
     {{> partials/banner }}
     <div class="center-horizontal-container" style="margin-bottom: 100px">
-        {{#if challengeList.length}}
-        {{#each challengeList as |c|}}
-        <div class="challenge-box">
-            <div>
-                <div style="margin-bottom: 5px">
-                    <a href="/players/{{c.challengerId}}" class="text-ul" style="color: dodgerblue">{{c.challengerName}}</a>
-                    <b>({{c.roundedChallengerElo}})</b>
-                    vs
-                    <a href="/players/{{c.challengeeId}}" class="text-ul" style="color: dodgerblue">{{c.challengeeName}}</a>
-                    <b>({{c.roundedChallengeeElo}})</b>
-                </div>
-                <div style="margin-bottom: 5px">
-                    Made On: <b> {{c.formattedMadeOn}} </b>
-                </div>
-                <div style="margin-bottom: 5px">
-                    Expires On: <b> {{c.formattedExpiresOn}} </b>
-                </div>
-                <div class="{{c.statusColor}}" style="margin-bottom: 5px">
-                    {{c.formattedStatus}}
-                </div>
+        <div style="width: 700px;">
+            <div class="tabs-group">
+                <a class="tab" href="?participants=sent">
+                    Sent
+                </a>
+                <a class="tab" href="?participants=received">
+                    Received
+                </a>
             </div>
-            <div class="center-relative">
-                <div>
-                    {{#unless areSent}}
-                    <button class="button-grey button-green" style="margin-left: 5px">
-                        Accept
-                    </button>
-                    {{/unless}}
+            {{#if challengeList.length}}
+                {{#each challengeList as |c|}}
+                    <div class="challenge-box">
+                        <div>
+                            <div style="margin-bottom: 5px">
+                                <a href="/players/{{c.challengerId}}" class="text-ul" style="color: dodgerblue">{{c.challengerName}}</a>
+                                <b>({{c.roundedChallengerElo}})</b>
+                                vs
+                                <a href="/players/{{c.challengeeId}}" class="text-ul" style="color: dodgerblue">{{c.challengeeName}}</a>
+                                <b>({{c.roundedChallengeeElo}})</b>
+                            </div>
+                            <div style="margin-bottom: 5px">
+                                Made On: <b> {{c.formattedMadeOn}} </b>
+                            </div>
+                            <div style="margin-bottom: 5px">
+                                Expires On: <b> {{c.formattedExpiresOn}} </b>
+                            </div>
+                            <div class="{{c.statusColor}}" style="margin-bottom: 5px">
+                                {{c.formattedStatus}}
+                            </div>
+                        </div>
+                        <div class="center-relative">
+                            <div class="vertical-align">
+                                {{#if areSent}}
+                                    <button class="button-grey-small button-red-small" style="margin-left: 5px">
+                                        Delete
+                                    </button>
+                                {{else}}
+                                    <button class="button-small button-blue-small" style="margin-left: 5px">
+                                        Accept
+                                    </button>
+                                    <button class="button-small button-red-small" style="margin-left: 5px">
+                                        Reject
+                                    </button>
+                                {{/if}}
+                            </div>
+                        </div>
+                    </div>
+                {{/each}}
+            {{else}}
+                <div class="color-wrapper">
                     {{#if areSent}}
-                    <button class="button-grey button-red" style="margin-left: 5px">
-                        Delete
-                    </button>
+                        No challenges have been sent
                     {{else}}
-                    <button class="button-grey button-red" style="margin-left: 5px">
-                        Reject
-                    </button>
+                        No challenges have been received
                     {{/if}}
                 </div>
-            </div>
+            {{/if}}
         </div>
-        {{/each}}
-        {{else}}
-            <div class="color-wrapper">
-                No challenges have been made
-            </div>
-        {{/if}}
     </div>
 </body>
