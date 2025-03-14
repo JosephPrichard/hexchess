@@ -18,7 +18,7 @@ public class LocalBroadcaster implements Broadcaster {
 
     @Override
     public void subscribe(String id, WebSocket ws) {
-        var socketList = socketsMap.get(id);
+        List<WebSocket> socketList = socketsMap.get(id);
         socketList.add(ws);
         socketsMap.put(id, socketList);
         LOGGER.info("Ws {} subscribed to id: {}, ref: {}", ws.toString(), id, this);
@@ -26,7 +26,7 @@ public class LocalBroadcaster implements Broadcaster {
 
     @Override
     public void unsubscribe(String id, WebSocket ws) {
-        var socketList = socketsMap.get(id);
+        List<WebSocket> socketList = socketsMap.get(id);
         socketList.remove(ws);
         socketsMap.put(id, socketList);
         LOGGER.info("Ws {} unsubscribed from id: {}, ref: {}", ws.toString(), id, this);
@@ -34,7 +34,7 @@ public class LocalBroadcaster implements Broadcaster {
 
     @Override
     public void broadcast(String id, String content) {
-        var socketList = socketsMap.get(id);
+        List<WebSocket> socketList = socketsMap.get(id);
         if (socketList == null) {
             LOGGER.info("Broadcast local to id: {}, but there where no subscribers", id);
             return;

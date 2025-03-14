@@ -13,10 +13,10 @@ public class RankedUser {
     public int rank;
 
     public static void joinRanks(List<RankedUser> rankedList, List<User> userList) {
-        for (var user : userList) {
+        for (User user : userList) {
             int i = 0;
             for (; i < rankedList.size(); i++) {
-                var rankedUser = rankedList.get(i);
+                RankedUser rankedUser = rankedList.get(i);
                 if (rankedUser.id.equals(user.id)) {
                     user.rank = rankedUser.rank;
                     break;

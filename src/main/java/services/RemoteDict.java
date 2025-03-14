@@ -7,7 +7,9 @@ import lombok.Data;
 import models.GameState;
 import models.Player;
 import models.RankedUser;
+import redis.clients.jedis.AbstractTransaction;
 import redis.clients.jedis.JedisPooled;
+import redis.clients.jedis.resps.Tuple;
 import utils.Serializer;
 
 import java.io.IOException;
@@ -38,8 +40,8 @@ public class RemoteDict {
     public GameState getGame(String id) {
         expireGames();
 
-        var fullId = "game:" + id;
-        var bytes = jedis.get(fullId.getBytes());
+        String fullId = "game:" + id;
+        byte[] bytes = jedis.get(fullId.getBytes());
         if (bytes == null) {
             return null;
         }
@@ -50,10 +52,10 @@ public class RemoteDict {
         double timeMillis = System.currentTimeMillis();
         gameState.setTouch(timeMillis);
 
-        var bytes = Serializer.serialize(gameState);
-        var fullId = "game:" + id;
+        byte[] bytes = Serializer.serialize(gameState);
+        String fullId = "game:" + id;
 
-        var t = jedis.multi();
+        AbstractTransaction t = jedis.multi();
         t.set(fullId.getBytes(), bytes);
         t.zadd(GAMES_ZSET, timeMillis, fullId);
         t.exec();
@@ -68,11 +70,11 @@ public class RemoteDict {
     public void expireGames(long expireTimeMillis) {
         long timeMillis = System.currentTimeMillis();
         long unixTimeExpireMillis = timeMillis - expireTimeMillis;
-        var results = jedis.zrangeByScore(GAMES_ZSET, Double.NEGATIVE_INFINITY, unixTimeExpireMillis);
-        var gameKeys = results.toArray(String[]::new);
+        List<String> results = jedis.zrangeByScore(GAMES_ZSET, Double.NEGATIVE_INFINITY, unixTimeExpireMillis);
+        String[] gameKeys = results.toArray(String[]::new);
 
         if (gameKeys.length > 0) {
-            var t = jedis.multi();
+            AbstractTransaction t = jedis.multi();
             t.del(gameKeys);
             t.zrem(GAMES_ZSET, gameKeys);
             t.exec();
@@ -90,7 +92,7 @@ public class RemoteDict {
         expireGames();
 
         cursor = cursor != null ? cursor : 0;
-        var tuples = jedis.zrangeByScoreWithScores(GAMES_ZSET, cursor, Double.POSITIVE_INFINITY, 0, count + 1);
+        List<Tuple> tuples = jedis.zrangeByScoreWithScores(GAMES_ZSET, cursor, Double.POSITIVE_INFINITY, 0, count + 1);
 
         // discard the last element, if we know for sure we over fetched, and use it as the next cursor
         Double nextCursor = null;
@@ -103,46 +105,46 @@ public class RemoteDict {
             fullIds[i] = tuples.get(i).getBinaryElement();
         }
 
-        var bytesList = jedis.mget(fullIds);
+        List<byte[]> bytesList = jedis.mget(fullIds);
         if (bytesList == null) {
             return null;
         }
 
-        var gameStates = bytesList.stream().map((bytes) -> Serializer.deserialize(bytes, GameState.class)).toList();
+        List<GameState> gameStates = bytesList.stream().map((bytes) -> Serializer.deserialize(bytes, GameState.class)).toList();
         return new GetGamesResult(nextCursor, gameStates);
     }
 
     public Player getSession(String sessionId) {
-        var fullId = "session:" + sessionId;
-        var str = jedis.get(fullId);
+        String fullId = "session:" + sessionId;
+        String str = jedis.get(fullId);
         if (str == null) {
             return null;
         }
         try {
             return playerReader.readValue(str, Player.class);
         } catch (IOException ex) {
-            LOGGER.info("Failed to parse json object from the dictionary {}", String.valueOf(ex));
+            LOGGER.error("Failed to parse json object from the dictionary", ex);
             return null;
         }
     }
 
     public void setSession(String sessionId, Player player, long expirySeconds) {
-        var fullId = "session:" + sessionId;
+        String fullId = "session:" + sessionId;
         try {
-            var str = JSON_MAPPER.writeValueAsString(player);
+            String str = JSON_MAPPER.writeValueAsString(player);
             jedis.setex(fullId, expirySeconds, str);
         } catch (JsonProcessingException ex) {
-            LOGGER.info("Failed to serialize an input json object to dictionary {}", String.valueOf(ex));
+            LOGGER.error("Failed to serialize an input json object to dictionary", ex);
         }
     }
 
     public void updateSessionEx(String sessionId, long expirySeconds) {
-        var fullId = "session:" + sessionId;
+        String fullId = "session:" + sessionId;
         jedis.expire(fullId, expirySeconds);
     }
 
     public void deleteSession(String sessionId) {
-        var fullId = "session:" + sessionId;
+        String fullId = "session:" + sessionId;
         jedis.del(fullId);
     }
 
@@ -151,7 +153,7 @@ public class RemoteDict {
         if (sessionId != null) {
             player = getSession(sessionId);
         } else {
-            var guestName = "Guest " + RANDOM.nextInt(1000);
+            String guestName = "Guest " + RANDOM.nextInt(1000);
             player = new Player(UUID.randomUUID().toString(), guestName);
         }
         return player;
@@ -169,14 +171,14 @@ public class RemoteDict {
     }
 
     public Leaderboard getLeaderboard(int startRank, int count) {
-        var ids = jedis.zrange(LEADERBOARD_ZSET, startRank, startRank - 1 + count);
-        var elemCount = jedis.zcount(LEADERBOARD_ZSET, Integer.MIN_VALUE, Integer.MAX_VALUE);
+        List<String> ids = jedis.zrange(LEADERBOARD_ZSET, startRank, startRank - 1 + count);
+        long elemCount = jedis.zcount(LEADERBOARD_ZSET, Integer.MIN_VALUE, Integer.MAX_VALUE);
 
-        var pageCount = elemCount / count;
+        long pageCount = elemCount / count;
 
         List<RankedUser> users = new ArrayList<>();
         for (int i = 0; i < ids.size(); i++) {
-            var id = ids.get(i);
+            String id = ids.get(i);
             users.add(new RankedUser(id, startRank + i + 1));
         }
         return new Leaderboard(users, (int) pageCount);
@@ -184,7 +186,7 @@ public class RemoteDict {
 
     public Leaderboard getLeaderboardPage(int page, int perPage) {
         page = Math.max(page, 1);
-        var offset = (page - 1) * perPage;
+        int offset = (page - 1) * perPage;
         return getLeaderboard(offset, perPage);
     }
 
@@ -196,8 +198,8 @@ public class RemoteDict {
     }
 
     public void incrLeaderboardUser(EloChangeSet... changeSets) {
-        var t = jedis.multi();
-        for (var cs : changeSets) {
+        AbstractTransaction t = jedis.multi();
+        for (EloChangeSet cs : changeSets) {
             t.zincrby(LEADERBOARD_ZSET, cs.elo, cs.id);
         }
         t.exec();
@@ -208,8 +210,8 @@ public class RemoteDict {
     }
 
     public void updateLeaderboardUser(EloChangeSet... changeSets) {
-        var t = jedis.multi();
-        for (var cs : changeSets) {
+        AbstractTransaction t = jedis.multi();
+        for (EloChangeSet cs : changeSets) {
             t.zadd(LEADERBOARD_ZSET, cs.elo, cs.id);
         }
         t.exec();

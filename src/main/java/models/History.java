@@ -49,7 +49,7 @@ public class History {
     }
 
     public String getWhiteEloDiff() {
-        var elo = switch (result) {
+        float elo = switch (result) {
             case WHITE_WIN -> winElo;
             case BLACK_WIN -> loseElo;
             case DRAW -> 0;
@@ -59,7 +59,7 @@ public class History {
     }
 
     public String getBlackEloDiff() {
-        var elo = switch (result) {
+        float elo = switch (result) {
             case WHITE_WIN -> loseElo;
             case BLACK_WIN -> winElo;
             case DRAW -> 0;

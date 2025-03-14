@@ -33,7 +33,7 @@ public class GlobalBroadcaster implements Broadcaster {
 
     @Override
     public void broadcast(String id, String content) {
-        var message = id + FIELD_SPLIT + content;
+        String message = id + FIELD_SPLIT + content;
         jedis.publish(CHANNEL_NAME, message);
         LOGGER.info("Broadcast global to id: {}, message: {}", id, message);
     }
@@ -53,7 +53,7 @@ public class GlobalBroadcaster implements Broadcaster {
                 public void onMessage(String channel, String message) {
                     try {
                         super.onMessage(channel, message);
-                        var index = message.indexOf(FIELD_SPLIT);
+                        int index = message.indexOf(FIELD_SPLIT);
                         if (index == -1) {
                             LOGGER.error("Invalid message format: {}", message);
                             return;

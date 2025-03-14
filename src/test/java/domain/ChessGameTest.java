@@ -47,29 +47,29 @@ public class ChessGameTest {
 
     @Test
     public void testGetSetPieces() {
-        var board = ChessBoard.initial();
+        ChessBoard board = ChessBoard.initial();
 
         board.setPiece("f3", WHITE_BISHOP);
-        var piece = board.getPiece("f3");
+        byte piece = board.getPiece("f3");
 
         Assertions.assertEquals(WHITE_BISHOP, piece);
     }
 
     private void assertPieceMoves(List<Hexagon> actualMoves, String... expMoves) {
-        var expectedMoves = Stream.of(expMoves).map(Hexagon::fromNotation).toList();
+        List<Hexagon> expectedMoves = Stream.of(expMoves).map(Hexagon::fromNotation).toList();
         Assertions.assertTrue(CollectionUtils.isEqualCollection(expectedMoves, actualMoves));
     }
 
     @Test
     public void testFindRookMoves() {
         // given
-        var game1 = ChessGame.start().setPiece("f6", BLACK_ROOK);
-        var game2 = ChessGame.start().setPiece("c8", BLACK_ROOK);
-        var game3 = ChessGame.start().setPiece("h4", BLACK_ROOK);
+        ChessGame game1 = ChessGame.start().setPiece("f6", BLACK_ROOK);
+        ChessGame game2 = ChessGame.start().setPiece("c8", BLACK_ROOK);
+        ChessGame game3 = ChessGame.start().setPiece("h4", BLACK_ROOK);
         // when
-        var centerMoves = game1.findRookMoves(Hexagon.fromNotation("f6")).getMoves();
-        var leftMoves = game2.findRookMoves(Hexagon.fromNotation("c8")).getMoves();
-        var rightMoves = game3.findRookMoves(Hexagon.fromNotation("h4")).getMoves();
+        List<Hexagon> centerMoves = game1.findRookMoves(Hexagon.fromNotation("f6")).getMoves();
+        List<Hexagon> leftMoves = game2.findRookMoves(Hexagon.fromNotation("c8")).getMoves();
+        List<Hexagon> rightMoves = game3.findRookMoves(Hexagon.fromNotation("h4")).getMoves();
 
         LOGGER.info(game1.getBoard().toMovesString(centerMoves));
         LOGGER.info(game2.getBoard().toMovesString(leftMoves));
@@ -90,14 +90,14 @@ public class ChessGameTest {
     @Test
     public void testFindBishopMoves() {
         // given
-        var game1 = ChessGame.start().setPiece("f6", BLACK_BISHOP);
-        var game2 = ChessGame.start().setPiece("c8", BLACK_BISHOP);
-        var game3 = ChessGame.start().setPiece("h4", BLACK_BISHOP);
+        ChessGame game1 = ChessGame.start().setPiece("f6", BLACK_BISHOP);
+        ChessGame game2 = ChessGame.start().setPiece("c8", BLACK_BISHOP);
+        ChessGame game3 = ChessGame.start().setPiece("h4", BLACK_BISHOP);
 
         // when
-        var centerMoves = game1.findBishopMoves(Hexagon.fromNotation("f6")).getMoves();
-        var leftMoves = game2.findBishopMoves(Hexagon.fromNotation("c8")).getMoves();
-        var rightMoves = game3.findBishopMoves(Hexagon.fromNotation("h4")).getMoves();
+        List<Hexagon> centerMoves = game1.findBishopMoves(Hexagon.fromNotation("f6")).getMoves();
+        List<Hexagon> leftMoves = game2.findBishopMoves(Hexagon.fromNotation("c8")).getMoves();
+        List<Hexagon> rightMoves = game3.findBishopMoves(Hexagon.fromNotation("h4")).getMoves();
 
         LOGGER.info(game1.getBoard().toMovesString(centerMoves));
         LOGGER.info(game2.getBoard().toMovesString(leftMoves));
@@ -117,14 +117,14 @@ public class ChessGameTest {
     @Test
     public void testFindKingMoves() {
         // given
-        var game1 = ChessGame.empty().setPiece("f6", WHITE_KING);
-        var game2 = ChessGame.empty().setPiece("d3", WHITE_KING);
-        var game3 = ChessGame.empty().setPiece("h7", WHITE_KING);
+        ChessGame game1 = ChessGame.empty().setPiece("f6", WHITE_KING);
+        ChessGame game2 = ChessGame.empty().setPiece("d3", WHITE_KING);
+        ChessGame game3 = ChessGame.empty().setPiece("h7", WHITE_KING);
 
         // when
-        var centerMoves = game1.findKingMoves(Hexagon.fromNotation("f6"));
-        var leftMoves = game2.findKingMoves(Hexagon.fromNotation("d3"));
-        var rightMoves = game2.findKingMoves(Hexagon.fromNotation("h7"));
+        List<Hexagon> centerMoves = game1.findKingMoves(Hexagon.fromNotation("f6"));
+        List<Hexagon> leftMoves = game2.findKingMoves(Hexagon.fromNotation("d3"));
+        List<Hexagon> rightMoves = game2.findKingMoves(Hexagon.fromNotation("h7"));
 
         LOGGER.info(game3.getBoard().toMovesString(centerMoves));
         LOGGER.info(game3.getBoard().toMovesString(leftMoves));
@@ -144,14 +144,14 @@ public class ChessGameTest {
     @Test
     public void testFindKnightMoves() {
         // given
-        var game1 = ChessGame.empty().setPiece("f6", WHITE_KNIGHT);
-        var game2 = ChessGame.empty().setPiece("d3", WHITE_KNIGHT);
-        var game3 = ChessGame.empty().setPiece("h7", WHITE_KNIGHT);
+        ChessGame game1 = ChessGame.empty().setPiece("f6", WHITE_KNIGHT);
+        ChessGame game2 = ChessGame.empty().setPiece("d3", WHITE_KNIGHT);
+        ChessGame game3 = ChessGame.empty().setPiece("h7", WHITE_KNIGHT);
 
         // when
-        var centerMoves = game1.findKnightMoves(Hexagon.fromNotation("f6")).getMoves();
-        var leftMoves = game2.findKnightMoves(Hexagon.fromNotation("d3")).getMoves();
-        var rightMoves = game3.findKnightMoves(Hexagon.fromNotation("h7")).getMoves();
+        List<Hexagon> centerMoves = game1.findKnightMoves(Hexagon.fromNotation("f6")).getMoves();
+        List<Hexagon> leftMoves = game2.findKnightMoves(Hexagon.fromNotation("d3")).getMoves();
+        List<Hexagon> rightMoves = game3.findKnightMoves(Hexagon.fromNotation("h7")).getMoves();
 
         LOGGER.info(game1.getBoard().toMovesString(centerMoves));
         LOGGER.info(game2.getBoard().toMovesString(leftMoves));
@@ -171,15 +171,15 @@ public class ChessGameTest {
     @Test
     public void testFindPawnMoves() {
         // given
-        var game1 = ChessGame.empty().setPiece("g4", WHITE_PAWN);
-        var game2 = ChessGame.empty()
+        ChessGame game1 = ChessGame.empty().setPiece("g4", WHITE_PAWN);
+        ChessGame game2 = ChessGame.empty()
             .setPiece("c4", BLACK_KNIGHT)
             .setPiece("e5", WHITE_KNIGHT)
             .setPiece("d5", BLACK_PAWN);
 
         // when
-        var firstMoves = game1.findPawnMoves(Hexagon.fromNotation("g4"), Turn.WHITE).getMoves();
-        var takeMoves = game2.findPawnMoves(Hexagon.fromNotation("d5"), Turn.BLACK).getMoves();
+        List<Hexagon> firstMoves = game1.findPawnMoves(Hexagon.fromNotation("g4"), Turn.WHITE).getMoves();
+        List<Hexagon> takeMoves = game2.findPawnMoves(Hexagon.fromNotation("d5"), Turn.BLACK).getMoves();
 
         LOGGER.info(game1.getBoard().toMovesString(firstMoves));
         LOGGER.info(game2.getBoard().toMovesString(takeMoves));
@@ -192,7 +192,7 @@ public class ChessGameTest {
 
     @Test
     public void testIsCheckmate() {
-        var game = ChessGame.empty()
+        ChessGame game = ChessGame.empty()
             .setPiece("f6", WHITE_KING)
             .setPiece("f4", BLACK_QUEEN)
             .setPiece("f8", BLACK_QUEEN)
@@ -205,19 +205,19 @@ public class ChessGameTest {
         LOGGER.info(game.getBoard().toString());
         LOGGER.info(game.getBoard().toPieceMovesString(game.getOppositeMoves()));
 
-        var isCheckmate = game.isCheckmate();
+        boolean isCheckmate = game.isCheckmate();
         Assertions.assertTrue(isCheckmate);
     }
 
     @Test
     public void testInitPieceMoves() {
         // given
-        var game = ChessGame.start();
+        ChessGame game = ChessGame.start();
 
         // when
         game.initPieceMoves();
-        var currMoves = game.getCurrMoves();
-        var oppMoves = game.getOppositeMoves();
+        List<PieceMoves> currMoves = game.getCurrMoves();
+        List<PieceMoves> oppMoves = game.getOppositeMoves();
 
         // then
         List<PieceMoves> expectedCurrMoves = new ArrayList<>();

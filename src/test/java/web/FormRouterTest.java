@@ -1,10 +1,13 @@
 package web;
 
+import dao.ChallengeDao;
 import io.jooby.Cookie;
 import io.jooby.Formdata;
 import io.jooby.test.MockContext;
 import io.jooby.test.MockResponse;
 import io.jooby.test.MockRouter;
+import io.jooby.test.MockValue;
+import models.Challenge;
 import models.Player;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -19,30 +22,30 @@ import static org.mockito.Mockito.*;
 
 public class FormRouterTest {
     @Test
-    public void testPostSignup() throws UserDao.TakenUsernameException {
+    public void testPostRegister() throws UserDao.TakenUsernameException {
         // given
-        var accountInst = new UserDao.UserInst("1", "testUser", "testPassword", "USA", 1000, 3, 3);
-        var player = new Player("1", "testUser");
-        var cookie = new Cookie("sessionToken");
+        UserDao.UserInst accountInst = new UserDao.UserInst("1", "testUser", "testPassword", "USA", 1000, 3, 3);
+        Player player = new Player("1", "testUser");
+        Cookie cookie = new Cookie("sessionToken");
 
-        var mockUserDao = mock(UserDao.class);
-        var mockSessionService = mock(SessionService.class);
+        UserDao mockUserDao = mock(UserDao.class);
+        SessionService mockSessionService = mock(SessionService.class);
 
         when(mockUserDao.insert(any(), any())).thenReturn(accountInst);
         when(mockSessionService.createId()).thenReturn("sessionToken");
         when(mockSessionService.createCookie(any(), any(), any(), any())).thenReturn(cookie);
 
-        var state = new State();
+        State state = new State();
         state.setUserDao(mockUserDao);
         state.setSessionService(mockSessionService);
 
-        var mockDict = mock(RemoteDict.class);
+        RemoteDict mockDict = mock(RemoteDict.class);
         state.setRemoteDict(mockDict);
 
-        var mockRouter = new MockRouter(new FormRouter(state));
+        MockRouter mockRouter = new MockRouter(new FormRouter(state));
 
-        var mockContext = new MockContext();
-        var mockForm = Formdata.create(mockContext);
+        MockContext mockContext = new MockContext();
+        Formdata mockForm = Formdata.create(mockContext);
         mockForm.put("username", "testUser");
         mockForm.put("password", "testPassword");
         mockForm.put("duplicate-password", "testPassword");
@@ -50,8 +53,8 @@ public class FormRouterTest {
 
         // when
         AtomicReference<MockResponse> response = new AtomicReference<>();
-        mockRouter.post("/forms/signup", mockContext, response::set);
-        var actualCookie = response.get().getHeaders().get("Set-Cookie");
+        mockRouter.post("/forms/register", mockContext, response::set);
+        Object actualCookie = response.get().getHeaders().get("Set-Cookie");
 
         // then
         verify(mockUserDao, times(1)).insert("testUser", "testPassword");
@@ -64,36 +67,36 @@ public class FormRouterTest {
     @Test
     public void testPostLogin() {
         // given
-        var player = new Player("1", "testUser");
-        var country = "us";
-        var cookie = new Cookie("sessionToken");
+        Player player = new Player("1", "testUser");
+        String country = "us";
+        Cookie cookie = new Cookie("sessionToken");
 
-        var mockUserDao = mock(UserDao.class);
-        var mockSessionService = mock(SessionService.class);
+        UserDao mockUserDao = mock(UserDao.class);
+        SessionService mockSessionService = mock(SessionService.class);
 
         when(mockUserDao.verify(any(), any())).thenReturn(new UserDao.VerifiedPlayer("1", "testUser", country));
         when(mockSessionService.createId()).thenReturn("sessionToken");
         when(mockSessionService.createCookie(any(), any(), any(), any())).thenReturn(cookie);
 
-        var state = new State();
+        State state = new State();
         state.setUserDao(mockUserDao);
         state.setSessionService(mockSessionService);
 
-        var mockDict = mock(RemoteDict.class);
+        RemoteDict mockDict = mock(RemoteDict.class);
         state.setRemoteDict(mockDict);
 
-        var mockRouter = new MockRouter(new FormRouter(state));
+        MockRouter mockRouter = new MockRouter(new FormRouter(state));
 
-        var mockContext = new MockContext();
-        var mockForm = Formdata.create(mockContext);
+        MockContext mockContext = new MockContext();
+        Formdata mockForm = Formdata.create(mockContext);
         mockForm.put("username", "testUser");
         mockForm.put("password", "testPass");
         mockContext.setForm(mockForm);
 
         // when
-        AtomicReference<MockResponse> response = new AtomicReference<>();
-        mockRouter.post("/forms/login", mockContext, response::set);
-        var actualCookie = response.get().getHeaders().get("Set-Cookie");
+        AtomicReference<MockResponse> resp = new AtomicReference<>();
+        mockRouter.post("/forms/login", mockContext, resp::set);
+        Object actualCookie = resp.get().getHeaders().get("Set-Cookie");
 
         // then
         verify(mockUserDao, times(1)).verify("testUser", "testPass");
@@ -106,19 +109,135 @@ public class FormRouterTest {
     @Test
     public void testPostCreateGame() {
         // given
-        var state = new State();
+        GameService mockGameService = mock(GameService.class);
+        when(mockGameService.create(null)).thenReturn("test-id");
 
-        var mockgameService = mock(GameService.class);
-        when(mockgameService.create(null)).thenReturn("test-id");
-        state.setGameService(mockgameService);
+        State state = new State();
+        state.setGameService(mockGameService);
 
-        var mockRouter = new MockRouter(new FormRouter(state));
+        MockRouter mockRouter = new MockRouter(new FormRouter(state));
 
         // when
-        var result = mockRouter.post("/forms/create-game");
+        MockValue result = mockRouter.post("/forms/create-game");
 
         // then
-        verify(mockgameService, times(1)).create(null);
+        verify(mockGameService, times(1)).create(null);
         Assertions.assertEquals("test-id", result.value());
+    }
+
+    @Test
+    public void testAcceptChallenge() {
+        // given
+        String challengeeId = "challengeeId";
+        String challengerId = "challengerId";
+
+        ChallengeDao mockChallengeDao = mock(ChallengeDao.class);
+        GameService mockGameService = mock(GameService.class);
+        RemoteDict mockRemoteDict = mock(RemoteDict.class);
+        SessionService mockSessionService = mock(SessionService.class);
+
+        when(mockSessionService.parseSession(any())).thenReturn(new SessionService.SessionValue("sessionId", challengeeId, "username", "us"));
+        when(mockRemoteDict.getSession("sessionId")).thenReturn(new Player(challengeeId, "playerName"));
+        when(mockGameService.create(null)).thenReturn("test-id");
+        when(mockChallengeDao.updateStatus(any(), any(), anyInt())).thenReturn(true);
+
+        State state = new State();
+        state.setChallengeDao(mockChallengeDao);
+        state.setGameService(mockGameService);
+        state.setRemoteDict(mockRemoteDict);
+        state.setSessionService(mockSessionService);
+
+        MockRouter mockRouter = new MockRouter(new FormRouter(state));
+
+        MockContext mockContext = new MockContext();
+        Formdata mockForm = Formdata.create(mockContext);
+        mockForm.put("challengeeId", challengeeId);
+        mockForm.put("challengerId", challengerId);
+        mockForm.put("action", "ACCEPT");
+        mockContext.setForm(mockForm);
+
+        // when
+        MockValue result = mockRouter.post("/forms/update-challenge", mockContext);
+
+        // then
+        verify(mockChallengeDao, times(1)).updateStatus(challengeeId, challengerId, Challenge.Status.ACCEPTED);
+        verify(mockGameService, times(1)).create(null);
+        Assertions.assertEquals("test-id", result.value());
+    }
+
+    @Test
+    public void testDeleteChallenge() {
+        // given
+        String challengeeId = "challengeeId";
+        String challengerId = "challengerId";
+
+        ChallengeDao mockChallengeDao = mock(ChallengeDao.class);
+        GameService mockGameService = mock(GameService.class);
+        RemoteDict mockRemoteDict = mock(RemoteDict.class);
+        SessionService mockSessionService = mock(SessionService.class);
+
+        when(mockSessionService.parseSession(any())).thenReturn(new SessionService.SessionValue("sessionId", challengerId, "username", "us"));
+        when(mockRemoteDict.getSession("sessionId")).thenReturn(new Player(challengerId, "playerName"));
+
+        State state = new State();
+        state.setChallengeDao(mockChallengeDao);
+        state.setGameService(mockGameService);
+        state.setRemoteDict(mockRemoteDict);
+        state.setSessionService(mockSessionService);
+
+        MockRouter mockRouter = new MockRouter(new FormRouter(state));
+
+        MockContext mockContext = new MockContext();
+        Formdata mockForm = Formdata.create(mockContext);
+        mockForm.put("challengeeId", challengeeId);
+        mockForm.put("challengerId", challengerId);
+        mockForm.put("action", "DELETE");
+        mockContext.setForm(mockForm);
+
+        // when
+        MockValue result = mockRouter.post("/forms/update-challenge", mockContext);
+
+        // then
+        verify(mockChallengeDao, times(1)).deleteChallenge(challengeeId, challengerId);
+        verify(mockGameService, times(0)).create(null);
+        Assertions.assertEquals("Successfully updated challenge!", result.value());
+    }
+
+    @Test
+    public void testRejectChallenge() {
+        // given
+        String challengeeId = "challengeeId";
+        String challengerId = "challengerId";
+
+        ChallengeDao mockChallengeDao = mock(ChallengeDao.class);
+        GameService mockGameService = mock(GameService.class);
+        RemoteDict mockRemoteDict = mock(RemoteDict.class);
+        SessionService mockSessionService = mock(SessionService.class);
+
+        when(mockSessionService.parseSession(any())).thenReturn(new SessionService.SessionValue("sessionId", challengeeId, "username", "us"));
+        when(mockRemoteDict.getSession("sessionId")).thenReturn(new Player(challengeeId, "playerName"));
+
+        State state = new State();
+        state.setChallengeDao(mockChallengeDao);
+        state.setGameService(mockGameService);
+        state.setRemoteDict(mockRemoteDict);
+        state.setSessionService(mockSessionService);
+
+        MockRouter mockRouter = new MockRouter(new FormRouter(state));
+
+        MockContext mockContext = new MockContext();
+        Formdata mockForm = Formdata.create(mockContext);
+        mockForm.put("challengeeId", challengeeId);
+        mockForm.put("challengerId", challengerId);
+        mockForm.put("action", "REJECT");
+        mockContext.setForm(mockForm);
+
+        // when
+        MockValue result = mockRouter.post("/forms/update-challenge", mockContext);
+
+        // then
+        verify(mockChallengeDao, times(1)).updateStatus(challengeeId, challengerId, Challenge.Status.REJECTED);
+        verify(mockGameService, times(0)).create(null);
+        Assertions.assertEquals("Successfully updated challenge!", result.value());
     }
 }

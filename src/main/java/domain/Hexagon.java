@@ -24,10 +24,6 @@ public class Hexagon {
         return new Hexagon(file, rank);
     }
 
-    public Hexagon deepCopy() {
-        return new Hexagon(file, rank);
-    }
-
     public enum Direction {
         UP,
         DOWN,
@@ -38,9 +34,9 @@ public class Hexagon {
     }
 
     public Hexagon walk(Direction[] directions) {
-        var file = getFile();
-        var rank = getRank();
-        for (var direction : directions) {
+        int file = getFile();
+        int rank = getRank();
+        for (Direction direction : directions) {
             switch (direction) {
                 case UP -> rank += 1;
                 case DOWN -> rank -= 1;
@@ -88,8 +84,8 @@ public class Hexagon {
     }
 
     public static Hexagon fromNotation(String notation) {
-        var file = notation.charAt(0) - 'a';
-        var rank = Integer.parseInt(notation.substring(1)) - 1;
+        int file = notation.charAt(0) - 'a';
+        int rank = Integer.parseInt(notation.substring(1)) - 1;
         return new Hexagon(file, rank);
     }
 

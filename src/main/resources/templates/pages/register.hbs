@@ -3,49 +3,7 @@
 <head>
     <title>Leaderboard - Hexchess</title>
     <link rel="stylesheet" href="/static/css/index.css">
-    <script type="module">
-        import { postRegister } from "/static/scripts/client.js";
-
-        const signupForm = document.getElementById("signup-form");
-
-        signupForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const usernameElem = document.getElementById("username-register");
-            const passwordElem = document.getElementById("password-register");
-            const dupPasswordElem = document.getElementById("password-retype-register");
-            const submitElem = document.getElementById("register-form-submit");
-
-            submitElem.innerHTML = `<div class="loader"></div`;
-            function onResponse() {
-                submitElem.innerHTML = "Register";
-            }
-
-            const username = usernameElem.value;
-            const password = passwordElem.value;
-            const dupPassword = dupPasswordElem.value;
-
-            try {
-                const [text, ok] = await postRegister(username, password, dupPassword);
-                console.log("Register response", text, ok);
-
-                const messageElem = document.getElementById("register-form-message");
-
-                if (ok) {
-                    messageElem.innerText = "";
-                    messageElem.className = "";
-                    window.location = "/";
-                } else {
-                    messageElem.innerText = text;
-                    messageElem.className = "red-color";
-                }
-
-                onResponse();
-            } catch (ex) {
-                onResponse();
-            }
-        })
-    </script>
+    <script src="/static/scripts/pages/register.js" defer></script>
 </head>
 <body>
 {{> partials/banner }}
@@ -54,7 +12,7 @@
         Register
     </div>
     <div style="width: 500px">
-        <form id="signup-form" class="form-wrapper">
+        <form id="register-form" class="form-wrapper">
             <label for="username-register" style="font-size: 17px">Username</label>
             <input id="username-register" name="username" placeholder="Username" value="" style="margin-top: 5px; margin-bottom: 10px;"/>
 

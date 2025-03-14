@@ -1,5 +1,6 @@
 package utils;
 
+import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import models.GameState;
@@ -14,19 +15,19 @@ public class SerializerTest {
     @Test
     public void testRoundTrip() {
         // given
-        var match = GameState.startWithGame("1");
+        GameState match = GameState.startWithGame("1");
 
         // when
-        var rawBytesOut = new ByteArrayOutputStream();
-        try (var output = new Output(rawBytesOut)) {
-            var kryo = Serializer.get();
+        ByteArrayOutputStream rawBytesOut = new ByteArrayOutputStream();
+        try (Output output = new Output(rawBytesOut)) {
+            Kryo kryo = Serializer.get();
             kryo.writeObject(output, match);
         }
 
         GameState afterGameState;
-        var rawBytesIn = new ByteArrayInputStream(rawBytesOut.toByteArray());
-        try (var input = new Input(rawBytesIn)) {
-            var kryo = Serializer.get();
+        ByteArrayInputStream rawBytesIn = new ByteArrayInputStream(rawBytesOut.toByteArray());
+        try (Input input = new Input(rawBytesIn)) {
+            Kryo kryo = Serializer.get();
             afterGameState = kryo.readObject(input, GameState.class);
         }
 

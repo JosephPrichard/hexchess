@@ -2,11 +2,13 @@ package dao;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import models.Challenge;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.*;
 import utils.Config;
 
 import javax.sql.DataSource;
 import java.io.IOException;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.List;
 
@@ -41,7 +43,7 @@ public class ChallengeDaoTest {
     }
 
     @Test
-    public void testUpdateThenGetByChallengee() {
+    public void testGetChallenges() {
         // given
         createTestData(userDao);
 
@@ -50,43 +52,46 @@ public class ChallengeDaoTest {
         challengeDao.insert("id2", "id3");
         challengeDao.insert("id5", "id4");
 
-        challengeDao.updateStatus("id2", "id3", Challenge.ACCEPTED);
-
-        var challenges = challengeDao.getByParticipant(null, "id2");
+        List<Challenge> challenges = challengeDao.getByParticipant(null, "id2");
 
         // then
-        var expected = List.of(
+        List<Challenge> expected = List.of(
             new Challenge(
                 "id2", "user2", 1005f,
                 "id1", "user1", 1000f,
-                Challenge.PENDING, null),
+                Challenge.Status.PENDING, null),
             new Challenge(
                 "id2", "user2", 1005f,
                 "id3", "user3", 900f,
-                Challenge.ACCEPTED, null));
+                Challenge.Status.PENDING, null));
         Assertions.assertEquals(expected, challenges);
     }
 
     @Test
-    public void testSelectExpired() throws InterruptedException {
+    public void testExpiration() throws InterruptedException {
         // given
         createTestData(userDao);
 
         // when
-        challengeDao.insert("id2", "id1");
-        Thread.sleep(10);
-        challengeDao.insert("id2", "id3");
+        challengeDao.insert("id2", "id5", new Timestamp(System.currentTimeMillis() - 2000));
+        challengeDao.insert("id2", "id4", new Timestamp(System.currentTimeMillis() - 1000));
+        challengeDao.insert("id2", "id3", new Timestamp(System.currentTimeMillis()));
+        challengeDao.insert("id2", "id1", new Timestamp(System.currentTimeMillis()));
 
-        challengeDao.deleteExpired("id2", Duration.ofMillis(5));
+        challengeDao.deleteExpired("id2", Duration.ofMillis(500));
 
-        var challenges = challengeDao.getByParticipant(null, "id2");
+        List<Challenge> challenges = challengeDao.getByParticipant(null, "id2");
 
         // then
-        var expected = List.of(
+        List<Challenge> expected = List.of(
             new Challenge(
                 "id2", "user2", 1005f,
                 "id3", "user3", 900f,
-                Challenge.PENDING, null));
+                Challenge.Status.PENDING, null),
+            new Challenge(
+                "id2", "user2", 1005f,
+                "id1", "user1", 1000f,
+                Challenge.Status.PENDING, null));
         Assertions.assertEquals(expected, challenges);
     }
 }

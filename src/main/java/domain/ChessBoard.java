@@ -5,7 +5,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
@@ -69,14 +68,8 @@ public class ChessBoard {
         this.turn = turn;
     }
 
-    public ChessBoard deepCopy() {
-        assert pieces != null;
-        return new ChessBoard(turn,
-            Arrays.stream(pieces).map(byte[]::clone).toArray(byte[][]::new));
-    }
-
     public static ChessBoard initial() {
-        var board = new ChessBoard(Turn.WHITE);
+        ChessBoard board = new ChessBoard(Turn.WHITE);
 
         board.setPiece("b1", WHITE_PAWN);
         board.setPiece("c2", WHITE_PAWN);
@@ -158,7 +151,7 @@ public class ChessBoard {
     public static boolean hasPawnMoved(Hexagon pawnHex, byte piece) {
         // pawns have moved if they exit the rank threshold, based on what color the pawn is
         if (isWhite(piece)) {
-            var minRank = switch (pawnHex.getFile()) {
+            int minRank = switch (pawnHex.getFile()) {
                 case 1, 9 -> 0;
                 case 2, 8 -> 1;
                 case 3, 7 -> 2;
@@ -173,7 +166,7 @@ public class ChessBoard {
     }
 
     public Hexagon findKing(Turn turn) {
-        for (var hex : Hexagon.ORDERED) {
+        for (Hexagon hex : Hexagon.ORDERED) {
             if (getPiece(hex) == WHITE_KING && turn.isWhite() || getPiece(hex) == BLACK_KING && turn.isBlack()) {
                 return hex;
             }
@@ -238,11 +231,11 @@ public class ChessBoard {
     }
 
     public String toString(Function<Hexagon, Boolean> isMove) {
-        var sb = new StringBuilder("\n");
+        StringBuilder sb = new StringBuilder("\n");
 
         for (int file = 0; file < ChessBoard.FILES; file++) {
-            var ranksCount = RANKS_PER_FILE[file];
-            var ranksDiff = MAX_RANKS - ranksCount;
+            int ranksCount = RANKS_PER_FILE[file];
+            int ranksDiff = MAX_RANKS - ranksCount;
 
             char charStr = (char) (file + 'a');
             sb.append(charStr).append("   ");
@@ -253,7 +246,7 @@ public class ChessBoard {
                 if (isMove.apply(Hexagon.of(file, rank))) {
                     sb.append('x').append("   ");
                 } else {
-                    var piece = getPiece(file, rank);
+                    byte piece = getPiece(file, rank);
                     sb.append(pieceToChar(piece)).append("   ");
                 }
             }
@@ -269,13 +262,13 @@ public class ChessBoard {
     }
 
     public String toPieceMovesString(List<PieceMoves> moves) {
-        var isAttacked = new boolean[FILES][];
+        boolean[][] isAttacked = new boolean[FILES][];
         for (int i = 0; i < isAttacked.length; i++) {
             isAttacked[i] = new boolean[RANKS_PER_FILE[i]]; // defaulted to false
         }
 
-        for (var pm : moves) {
-            for (var move : pm.getMoves()) {
+        for (PieceMoves pm : moves) {
+            for (Hexagon move : pm.getMoves()) {
                 isAttacked[move.getFile()][move.getRank()] = true;
             }
         }

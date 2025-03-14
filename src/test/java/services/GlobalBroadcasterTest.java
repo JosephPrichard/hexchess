@@ -3,6 +3,7 @@ package services;
 import io.jooby.WebSocket;
 import org.junit.jupiter.api.*;
 import redis.clients.jedis.JedisPooled;
+import redis.clients.jedis.JedisPubSub;
 import redis.embedded.RedisServer;
 
 import java.util.concurrent.ExecutionException;
@@ -40,15 +41,15 @@ public class GlobalBroadcasterTest {
     @Test
     public void testBroadcast() throws InterruptedException, ExecutionException {
         // given
-        var broadcastService1 = new GlobalBroadcaster(jedis);
-        var broadcastService2 = new GlobalBroadcaster(jedis);
+        GlobalBroadcaster broadcastService1 = new GlobalBroadcaster(jedis);
+        GlobalBroadcaster broadcastService2 = new GlobalBroadcaster(jedis);
 
-        var mockWs1 = mock(WebSocket.class);
-        var mockWs2 = mock(WebSocket.class);
-        var mockWs3 = mock(WebSocket.class);
+        WebSocket mockWs1 = mock(WebSocket.class);
+        WebSocket mockWs2 = mock(WebSocket.class);
+        WebSocket mockWs3 = mock(WebSocket.class);
 
-        var subscriber1 = broadcastService1.startListenSubscribe();
-        var subscriber2 = broadcastService2.startListenSubscribe();
+        JedisPubSub subscriber1 = broadcastService1.startListenSubscribe();
+        JedisPubSub subscriber2 = broadcastService2.startListenSubscribe();
 
         // when
         broadcastService1.subscribe("id", mockWs1);

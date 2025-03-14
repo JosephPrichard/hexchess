@@ -1,21 +1,21 @@
 package scripts;
 
+import com.zaxxer.hikari.HikariDataSource;
 import dao.ChallengeDao;
+import dao.HistoryDao;
+import dao.UserDao;
 import lombok.AllArgsConstructor;
 import models.GameState;
+import models.User;
 import org.apache.commons.dbutils.QueryRunner;
-import dao.HistoryDao;
 import org.apache.commons.lang3.tuple.Pair;
 import services.RemoteDict;
-import dao.UserDao;
 import utils.Config;
 
 import javax.sql.DataSource;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static utils.Globals.EXECUTOR;
 import static utils.Globals.LOGGER;
@@ -210,34 +210,34 @@ public class DataSeeder {
     }
 
     private void seedUsersTable(List<UserDao.UserInst> insts) {
-        var userDao = new UserDao(ds);
+        UserDao userDao = new UserDao(ds);
         seedTable(insts, userDao::insert);
     }
 
     private void seedHistTable(List<HistoryDao.HistoryInst> insts) {
-        var histDao = new HistoryDao(ds);
+        HistoryDao histDao = new HistoryDao(ds);
         seedTable(insts, histDao::insert);
     }
 
     private void seedChallengeTable(List<Pair<String, String>> insts) {
-        var challengeDao = new ChallengeDao(ds);
+        ChallengeDao challengeDao = new ChallengeDao(ds);
         seedTable(insts, (pair) -> challengeDao.insert(pair.getLeft(), pair.getRight()));
     }
 
     private void seedUsersDict() {
-        var userDao = new UserDao(ds);
-        var allUsers = userDao.getAll();
+        UserDao userDao = new UserDao(ds);
+        List<User> allUsers = userDao.getAll();
 
-        var changeSets = allUsers.stream()
+        RemoteDict.EloChangeSet[] changeSets = allUsers.stream()
             .map(user -> new RemoteDict.EloChangeSet(user.getId(), user.getElo()))
             .toArray(RemoteDict.EloChangeSet[]::new);
         remoteDict.incrLeaderboardUser(changeSets);
     }
 
     public static void main(String[] args) throws Exception {
-        var startTime = System.currentTimeMillis();
+        long startTime = System.currentTimeMillis();
 
-        var ds = Config.createDataSource();
+        HikariDataSource ds = Config.createDataSource();
         new QueryRunner(ds).execute("BEGIN; DROP SCHEMA public CASCADE; CREATE SCHEMA public; END;");
 
         Config.createSchema(ds);
@@ -247,14 +247,14 @@ public class DataSeeder {
 //        var jedis = new JedisPooled(redisHost, redisPort);
 //        var remoteDict = new RemoteDict(jedis, new ObjectMapper());
 
-        var seeder = new DataSeeder(ds, null);
+        DataSeeder seeder = new DataSeeder(ds, null);
 //        var seeder = new DataSeeder(ds, remoteDict);
         seeder.seedUsersTable(USER_INSTS);
 //        seeder.seedUsersDict();
         seeder.seedHistTable(HISTORY_INSTS);
         seeder.seedChallengeTable(CHALLENGE_INSTS);
 
-        var endTime = System.currentTimeMillis() - startTime;
+        long endTime = System.currentTimeMillis() - startTime;
         LOGGER.info("Took {} ms to execute seeding script", endTime);
 
 //        jedis.close();

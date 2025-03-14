@@ -16,9 +16,10 @@ import static dao.ChallengeDao.THRESHOLD_EXPIRATION;
 @AllArgsConstructor
 public class Challenge {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm");
-    public static final int PENDING = 0;
-    public static final int ACCEPTED = 1;
-    public static final int REJECTED = 2;
+
+    public boolean isPending() {
+        return status == Challenge.Status.PENDING;
+    }
 
     public String challengeeId;
     public String challengeeName;
@@ -32,20 +33,30 @@ public class Challenge {
 
     public String getFormattedStatus() {
         return switch (status) {
-            case PENDING -> "Pending";
-            case ACCEPTED -> "Accepted";
-            case REJECTED -> "Rejected";
+            case Status.PENDING -> "Pending";
+            case Status.ACCEPTED -> "Accepted";
+            case Status.REJECTED -> "Rejected";
             default -> throw new IllegalStateException("Invalid status state " + status);
         };
     }
 
     public String getStatusColor() {
         return switch (status) {
-            case PENDING -> Globals.YELLOW_COLOR;
-            case ACCEPTED -> Globals.GREEN_COLOR;
-            case REJECTED -> Globals.RED_COLOR;
+            case Status.PENDING -> Globals.YELLOW_COLOR;
+            case Status.ACCEPTED -> Globals.GREEN_COLOR;
+            case Status.REJECTED -> Globals.RED_COLOR;
             default -> throw new IllegalStateException("Invalid status state " + status);
         };
+    }
+
+    public static class Status {
+        public static final int PENDING = 0;
+        public static final int ACCEPTED = 1;
+        public static final int REJECTED = 2;
+
+        public static boolean isValid(int status) {
+            return status != Challenge.Status.ACCEPTED && status != Challenge.Status.REJECTED && status != Challenge.Status.PENDING;
+        }
     }
 
     public int getRoundedChallengeeElo() {

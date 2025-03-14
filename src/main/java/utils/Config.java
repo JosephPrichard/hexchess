@@ -5,26 +5,24 @@ import com.zaxxer.hikari.HikariDataSource;
 import org.apache.commons.dbutils.QueryRunner;
 
 import javax.sql.DataSource;
+import java.io.File;
 import java.io.IOException;
-import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import static utils.Globals.LOGGER;
 
 public class Config {
 
     public static HikariDataSource createDataSource() {
-        var dbUrl = System.getenv("DB_URL");
-        var dbUser = System.getenv("DB_USER");
-        var dbPassword = System.getenv("DB_PASSWORD");
+        String dbUrl = System.getenv("DB_URL");
+        String dbUser = System.getenv("DB_USER");
+        String dbPassword = System.getenv("DB_PASSWORD");
 
-        var config = new HikariConfig();
+        HikariConfig config = new HikariConfig();
         config.setJdbcUrl(dbUrl);
         config.setUsername(dbUser);
         config.setPassword(dbPassword);
@@ -36,57 +34,44 @@ public class Config {
     }
 
     public static Map<String, byte[]> createFilesMap() {
-        Map<String, byte[]> files = new HashMap<>();
+        Map<String, byte[]> filesMap = new HashMap<>();
 
-        var classLoader = Thread.currentThread().getContextClassLoader();
         try {
-            var resource = classLoader.getResource("flags");
+            URL resource = ClassLoader.getSystemResource("database");
             if (resource == null) {
-                return files;
+                return filesMap;
             }
 
-            var resourcePath = Paths.get(resource.toURI());
-            try (Stream<Path> paths = Files.walk(resourcePath)) {
-                paths.filter(Files::isRegularFile).forEach(filePath -> {
-                    try (var inputStream = classLoader.getResourceAsStream("flags/" + filePath.getFileName().toString())) {
-                        if (inputStream != null) {
-                            files.put(filePath.getFileName().toString(), inputStream.readAllBytes());
-                        }
-                    } catch (IOException ex) {
-                        LOGGER.error("Error occurred while stepping through files {}", String.valueOf(ex));
-                        throw new RuntimeException(ex);
-                    }
-                });
+            File dir = new File(resource.getFile());
+            File[] files = dir.listFiles();
+            assert files != null;
+            for (File file : files) {
+                byte[] data = Files.readAllBytes(file.toPath());
+                filesMap.put(file.getName(), data);
             }
-        } catch (URISyntaxException | IOException ex) {
+        } catch (IOException ex) {
             LOGGER.error("Error occurred while creating files map {}", String.valueOf(ex));
             throw new RuntimeException(ex);
         }
 
-        return files;
-    }
-
-    public static void executeQueryFile(QueryRunner runner, String path) {
-        var classLoader = Thread.currentThread().getContextClassLoader();
-        try (var inputStream = classLoader.getResourceAsStream(path)) {
-            if (inputStream == null) {
-                throw new RuntimeException("Expected input stream to be non null");
-            }
-            var sql = new String(inputStream.readAllBytes());
-            runner.update(sql);
-        } catch (SQLException | IOException ex) {
-            LOGGER.error("Error occurred while executing query {}", String.valueOf(ex));
-            throw new RuntimeException(ex);
-        }
+        return filesMap;
     }
 
     public static void createSchema(DataSource ds) {
         try {
-            var runner = new QueryRunner(ds);
+            QueryRunner runner = new QueryRunner(ds);
             runner.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
-            executeQueryFile(runner, "database/schema.sql");
-            executeQueryFile(runner, "database/updateStats.sql");
-        } catch (SQLException ex) {
+
+            URL resource = ClassLoader.getSystemResource("database");
+            File dir = new File(resource.getFile());
+            File[] files = dir.listFiles();
+            assert files != null;
+            for (File file : files) {
+                byte[] data = Files.readAllBytes(file.toPath());
+                String sql = new String(data);
+                runner.update(sql);
+            }
+        } catch (SQLException | IOException ex) {
             LOGGER.error("Error occurred while creating schema {}", String.valueOf(ex));
             throw new RuntimeException(ex);
         }

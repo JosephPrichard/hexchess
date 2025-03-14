@@ -36,7 +36,7 @@ public class User {
     }
 
     public int getWinRate() {
-        var total = getTotal();
+        int total = getTotal();
         return total == 0 ? 0 : wins * 100 / total;
     }
 
@@ -57,7 +57,7 @@ public class User {
     }
 
     public String getWinRateColor() {
-        var winRate = getWinRate();
+        int winRate = getWinRate();
         if (winRate > 50) {
             return Globals.GREEN_COLOR;
         } else if (winRate < 50) {

@@ -51,14 +51,14 @@ public class UserDao {
     }
 
     public UserInst insert(String username, String password) throws TakenUsernameException {
-        var inst = new UserInst(UUID.randomUUID().toString(), username, password, "USA", User.START_ELO, 0, 0);
+        UserInst inst = new UserInst(UUID.randomUUID().toString(), username, password, "USA", User.START_ELO, 0, 0);
         insert(inst);
         return inst;
     }
 
     public static String generateSalt() {
         try {
-            var salt = new byte[16];
+            byte[] salt = new byte[16];
             SecureRandom.getInstanceStrong().nextBytes(salt);
             return Base64.getEncoder().encodeToString(salt);
         } catch (NoSuchAlgorithmException ex) {
@@ -67,14 +67,14 @@ public class UserDao {
     }
 
     public void insert(UserInst inst) throws TakenUsernameException {
-        var salt = generateSalt();
-        var saltedPassword = inst.getPassword() + salt;
-        var hashedPassword = BCrypt.withDefaults().hashToString(12, saltedPassword.toCharArray());
+        String salt = generateSalt();
+        String saltedPassword = inst.getPassword() + salt;
+        String hashedPassword = BCrypt.withDefaults().hashToString(12, saltedPassword.toCharArray());
 
-        var sql = """
+        String sql = """
             BEGIN;
                 INSERT INTO users (id, username, country, elo, highestElo, wins, losses, password, salt)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
                 UPDATE users_metadata SET count = count + 1 WHERE id = 1;
             END;
             """;
@@ -91,7 +91,7 @@ public class UserDao {
                 salt);
             LOGGER.info("Inserted user={}", inst);
         } catch (SQLException ex) {
-            var nextEx = ex.getNextException();
+            SQLException nextEx = ex.getNextException();
             if ("23505".equals(nextEx.getSQLState())) {
                 LOGGER.warn("Username is already taken={}", inst, ex);
                 throw new TakenUsernameException();
@@ -111,7 +111,7 @@ public class UserDao {
     }
 
     public VerifiedPlayer verify(String username, String inputPassword) {
-        var sql = "SELECT id, username, country, password, salt FROM users WHERE UPPER(username) = UPPER(?)";
+        String sql = "SELECT id, username, country, password, salt FROM users WHERE UPPER(username) = UPPER(?)";
 
         Connection conn = null;
         PreparedStatement stmt = null;
@@ -127,14 +127,14 @@ public class UserDao {
                 LOGGER.warn("No user found with username={}", username);
                 return null;
             }
-            var salt = rs.getString("salt");
-            var password = rs.getString("password");
-            var id = rs.getString("id");
-            var usernameOut = rs.getString("username");
-            var country = rs.getString("country");
+            String salt = rs.getString("salt");
+            String password = rs.getString("password");
+            String id = rs.getString("id");
+            String usernameOut = rs.getString("username");
+            String country = rs.getString("country");
 
-            var saltedPassword = inputPassword + salt;
-            var result = BCrypt.verifyer().verify(saltedPassword.toCharArray(), password);
+            String saltedPassword = inputPassword + salt;
+            BCrypt.Result result = BCrypt.verifyer().verify(saltedPassword.toCharArray(), password);
 
             LOGGER.info("Password verification {} for username={}", result.verified ? "successful" : "failed", usernameOut);
             return result.verified ? new VerifiedPlayer(id, usernameOut, country) : null;
@@ -155,7 +155,7 @@ public class UserDao {
             return;
         }
 
-        var sql = """
+        String sql = """
             BEGIN;
                 UPDATE users
                 SET username = COALESCE(?, username), country = COALESCE(?, country), bio = COALESCE(?, bio)
@@ -173,11 +173,11 @@ public class UserDao {
     }
 
     public void updatePassword(String id, String newPassword) {
-        var salt = generateSalt();
-        var saltedPassword = newPassword + salt;
-        var hashedPassword = BCrypt.withDefaults().hashToString(12, saltedPassword.toCharArray());
+        String salt = generateSalt();
+        String saltedPassword = newPassword + salt;
+        String hashedPassword = BCrypt.withDefaults().hashToString(12, saltedPassword.toCharArray());
 
-        var sql = """
+        String sql = """
             BEGIN;
                 UPDATE users SET password = ?, salt = ? WHERE id = ?;
             END
@@ -204,7 +204,7 @@ public class UserDao {
     }
 
     public EloChangeSet updateStats(String winId, String loseId) {
-        var sql = "CALL updateStats(?, ?, ?, ?)";
+        String sql = "CALL updateStats(?, ?, ?, ?)";
 
         Connection conn = null;
         CallableStatement stmt = null;
@@ -235,13 +235,13 @@ public class UserDao {
     }
 
     public User getById(String id) {
-        var sql = """
+        String sql = """
             SELECT id, username, country, elo, highestElo, wins, losses, bio, joinedOn
             FROM users
             WHERE id = ?
             """;
         try {
-            var user = runner.query(sql, USER_MAPPER, id);
+            User user = runner.query(sql, USER_MAPPER, id);
             LOGGER.info("Fetched user={} by id={}", user, id);
             return user;
         } catch (SQLException ex) {
@@ -251,14 +251,14 @@ public class UserDao {
     }
 
     public User getByIdWithRank(String id) {
-        var sql = """
+        String sql = """
             SELECT u1.id, u1.username, u1.country, u1.elo, u1.highestElo, u1.wins, u1.losses, u1.joinedOn, u1.bio,
                 (SELECT COUNT(*) FROM users u2 WHERE u2.elo >= u1.elo) as rank
             FROM users u1
             WHERE u1.id = ?
             """;
         try {
-            var user = runner.query(sql, USER_MAPPER, id);
+            User user = runner.query(sql, USER_MAPPER, id);
             LOGGER.info("Fetched user={} with rank by id={}", user, id);
             return user;
         } catch (SQLException ex) {
@@ -272,13 +272,13 @@ public class UserDao {
     }
 
     public List<User> getByIds(List<String> ids) {
-        var sql = """
+        String sql = """
             SELECT id, username, country, elo, wins, losses
             FROM users
             WHERE 1 = 1 AND id = ANY (?)
             """;
 
-        var idsStr = ids.stream().collect(Collectors.joining(",", "[", "]"));
+        String idsStr = ids.stream().collect(Collectors.joining(",", "[", "]"));
 
         Connection conn = null;
         PreparedStatement stmt = null;
@@ -290,7 +290,7 @@ public class UserDao {
             stmt.setArray(1, conn.createArrayOf("VARCHAR", ids.toArray()));
             rs = stmt.executeQuery();
 
-            var users = USER_LIST_MAPPER.handle(rs);
+            List<User> users = USER_LIST_MAPPER.handle(rs);
             LOGGER.info("Selected users={} by ids={}", users, idsStr);
             return users;
         } catch (SQLException e) {
@@ -304,9 +304,9 @@ public class UserDao {
     }
 
     public List<User> getAll() {
-        var sql = "SELECT id, username, country, elo, wins, losses FROM users";
+        String sql = "SELECT id, username, country, elo, wins, losses FROM users";
         try {
-            var users = runner.query(sql, USER_LIST_MAPPER);
+            List<User> users = runner.query(sql, USER_LIST_MAPPER);
             LOGGER.info("Selected ALL records={} from the user table", users);
             return users;
         } catch (SQLException ex) {
@@ -316,17 +316,17 @@ public class UserDao {
     }
 
     public List<User> getLeaderboard(int page, int perPage) {
-        var sql = """
+        String sql = """
             SELECT id, username, country, elo, wins, losses
             FROM users
             ORDER BY elo DESC LIMIT ? OFFSET ?
             """;
 
         page = Math.max(page, 1);
-        var offset = (page - 1) * perPage;
+        int offset = (page - 1) * perPage;
 
         try {
-            var users = runner.query(sql, USER_LIST_MAPPER, perPage, offset);
+            List<User> users = runner.query(sql, USER_LIST_MAPPER, perPage, offset);
             for (int i = 0; i < users.size(); i++) {
                 users.get(i).setRank((page - 1) * perPage + i + 1);
             }
@@ -339,7 +339,7 @@ public class UserDao {
     }
 
     public List<User> searchByName(String name, int page, int perPage) {
-        var sql = """
+        String sql = """
             SELECT id, username, country, elo, wins, losses, (username <-> ?) as rank
             FROM users
             WHERE 1 = 1 AND username % ?
@@ -347,10 +347,10 @@ public class UserDao {
             """;
 
         page = Math.max(page, 1);
-        var offset = (page - 1) * perPage;
+        int offset = (page - 1) * perPage;
 
         try {
-            var users = runner.query(sql, USER_LIST_MAPPER, name, name, perPage, offset);
+            List<User> users = runner.query(sql, USER_LIST_MAPPER, name, name, perPage, offset);
             for (int i = 0; i < users.size(); i++) {
                 users.get(i).setRank(i + 1);
             }
@@ -363,9 +363,9 @@ public class UserDao {
     }
 
     public int countUsers() {
-        var sql = "SELECT count FROM users_metadata";
+        String sql = "SELECT count FROM users_metadata";
         try {
-            var count = runner.query(sql, INT_MAPPER);
+            Integer count = runner.query(sql, INT_MAPPER);
             LOGGER.info("Counted user table records with count={}", count);
             return count;
         } catch (SQLException ex) {

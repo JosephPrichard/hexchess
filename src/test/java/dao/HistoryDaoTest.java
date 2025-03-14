@@ -2,6 +2,7 @@ package dao;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import models.History;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.*;
 import utils.Config;
 
@@ -49,16 +50,16 @@ public class HistoryDaoTest {
         historyDao.insert("id2", "id3", History.BLACK_WIN, 30, -30, "{}");
         historyDao.insert("id3", "id1", History.DRAW, 30, -30, "{}");
 
-        var actualHistory1 = historyDao.getHistory(1);
-        var actualHistory2 = historyDao.getHistory(2);
-        var actualHistory3 = historyDao.getHistory(3);
+        History actualHistory1 = historyDao.getHistory(1);
+        History actualHistory2 = historyDao.getHistory(2);
+        History actualHistory3 = historyDao.getHistory(3);
 
         // then
-        var expectedHistory1 = new History(1, "id1", "id2", "user1", "user2",
+        History expectedHistory1 = new History(1, "id1", "id2", "user1", "user2",
             "us", "us", "{}", History.WHITE_WIN, 30, -30, null);
-        var expectedHistory2 = new History(2, "id2", "id3", "user2", "user3",
+        History expectedHistory2 = new History(2, "id2", "id3", "user2", "user3",
             "us", "us", "{}", History.BLACK_WIN, 30, -30, null);
-        var expectedHistory3 = new History(3, "id3", "id1", "user3", "user1",
+        History expectedHistory3 = new History(3, "id3", "id1", "user3", "user1",
             "us", "us", "{}", History.DRAW, 30, -30, null);
 
         Assertions.assertEquals(expectedHistory1, actualHistory1);
@@ -76,16 +77,16 @@ public class HistoryDaoTest {
         historyDao.insert("id2", "id3", History.BLACK_WIN, 30, -30, "{}");
         historyDao.insert("id3", "id1", History.DRAW, 30, -30, "{}");
 
-        var actualHistoryList1 = historyDao.getUserHistories("id1", null, 5);
-        var actualHistoryList2 = historyDao.getUserHistories("id1", 3L, 5);
+        List<History> actualHistoryList1 = historyDao.getUserHistories("id1", null, 5);
+        List<History> actualHistoryList2 = historyDao.getUserHistories("id1", 3L, 5);
 
         // then
-        var expectedHistoryList1 = List.of(
+        List<History> expectedHistoryList1 = List.of(
             new History(3, "id3", "id1", "user3", "user1", "us", "us",
                 null, History.DRAW, 30, -30, null),
             new History(1, "id1", "id2", "user1", "user2", "us", "us",
                 null, History.WHITE_WIN, 30, -30, null));
-        var expectedHistoryList2 = List.of(
+        List<History> expectedHistoryList2 = List.of(
             new History(1, "id1", "id2", "user1", "user2", "us", "us",
                 null, History.WHITE_WIN, 30, -30, null));
 

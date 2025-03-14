@@ -9,8 +9,11 @@ END $$;
 
 -- Transaction to calculate the new stats of a winner and loser of a game, returning the new stats of each player
 CREATE OR REPLACE PROCEDURE updateStats(
-    IN winId VARCHAR, IN loseId VARCHAR,
-    OUT winEloNext NUMERIC, OUT loseEloNext NUMERIC)
+    IN winId VARCHAR,
+    IN loseId VARCHAR,
+    OUT winEloNext NUMERIC,
+    OUT loseEloNext NUMERIC
+)
     LANGUAGE plpgsql
 AS $$
 DECLARE

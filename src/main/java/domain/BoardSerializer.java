@@ -26,7 +26,7 @@ public class BoardSerializer extends StdSerializer<ChessBoard> {
         json.writeFieldName("pieces");
         json.writeStartArray();
 
-        var pieces = board.getPieces();
+        byte[][] pieces = board.getPieces();
         for (byte[] piecesFile : pieces) {
             json.writeStartArray();
             for (byte b : piecesFile) {

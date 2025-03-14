@@ -12,8 +12,4 @@ import java.util.List;
 public class PieceMoves {
     public Hexagon hex;
     public List<Hexagon> moves;
-
-    public PieceMoves deepCopy() {
-        return new PieceMoves(hex.deepCopy(), moves.stream().map(Hexagon::deepCopy).toList());
-    }
 }

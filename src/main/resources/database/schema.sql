@@ -15,8 +15,10 @@ CREATE TABLE IF NOT EXISTS users (
     joinedOn TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     password VARCHAR NOT NULL,
     salt VARCHAR NOT NULL,
-    PRIMARY KEY (id),
-    CONSTRAINT unique_username UNIQUE (username));
+    PRIMARY KEY (id)
+);
+
+CREATE UNIQUE INDEX UniqueUsername ON users (UPPER(username));
 
 CREATE TABLE IF NOT EXISTS users_metadata (
     id NUMERIC,

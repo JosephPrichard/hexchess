@@ -44,16 +44,16 @@ public class RemoteDictTest {
 
     @Test
     public void testGameUpdate() {
-        var id = "test-id";
+        String id = "test-id";
         remoteDict.setGame(id, GameState.startWithGame(id));
 
-        var firstGame = remoteDict.getGame(id);
+        GameState firstGame = remoteDict.getGame(id);
         Assertions.assertEquals(GameState.startWithGame(id), firstGame);
 
         firstGame.getGame().getBoard().setPiece("a1", ChessBoard.BLACK_QUEEN);
         remoteDict.setGame(id, firstGame);
 
-        var secondGame = remoteDict.getGame(id);
+        GameState secondGame = remoteDict.getGame(id);
 
         Assertions.assertEquals(firstGame, secondGame);
     }
@@ -61,19 +61,19 @@ public class RemoteDictTest {
     @Test
     public void testGameScan() {
         // given
-        var id1 = "test-id1";
-        var id2 = "test-id2";
-        var id3 = "test-id3";
-        var id4 = "test-id4";
+        String id1 = "test-id1";
+        String id2 = "test-id2";
+        String id3 = "test-id3";
+        String id4 = "test-id4";
 
-        var player1 = new Player("id1", "name1");
-        var player2 = new Player("id2", "name2");
-        var player3 = new Player("id3", "name3");
+        Player player1 = new Player("id1", "name1");
+        Player player2 = new Player("id2", "name2");
+        Player player3 = new Player("id3", "name3");
 
-        var game1 = GameState.ofPlayers(id1, player1, player2);
-        var game2 = GameState.ofPlayers(id2, player2, player3);
-        var game3 = GameState.ofPlayers(id3, player3, player1);
-        var game4 = GameState.ofPlayers(id4, player2, player1);
+        GameState game1 = GameState.ofPlayers(id1, player1, player2);
+        GameState game2 = GameState.ofPlayers(id2, player2, player3);
+        GameState game3 = GameState.ofPlayers(id3, player3, player1);
+        GameState game4 = GameState.ofPlayers(id4, player2, player1);
 
         // when
         remoteDict.setGame(id1, game1);
@@ -81,8 +81,8 @@ public class RemoteDictTest {
         remoteDict.setGame(id3, game3);
         remoteDict.setGame(id4, game4);
 
-        var scanResult1 = remoteDict.getGames(null, 2);
-        var scanResult2 = remoteDict.getGames(scanResult1.getNextCursor(), 2);
+        RemoteDict.GetGamesResult scanResult1 = remoteDict.getGames(null, 2);
+        RemoteDict.GetGamesResult scanResult2 = remoteDict.getGames(scanResult1.getNextCursor(), 2);
 
         // then
         Assertions.assertEquals(2, scanResult1.getGameStates().size());
@@ -99,17 +99,17 @@ public class RemoteDictTest {
     @Test
     public void testSessions() throws InterruptedException {
         // given
-        var player1 = new Player("test-id1", "test-name1");
-        var player2 = new Player("test-id2", "test-name2");
+        Player player1 = new Player("test-id1", "test-name1");
+        Player player2 = new Player("test-id2", "test-name2");
 
         // when
         remoteDict.setSession("session1", player1, 100);
         remoteDict.setSession("session2", player2, 1);
 
-        var actualPlayer1 = remoteDict.getSession("session1");
+        Player actualPlayer1 = remoteDict.getSession("session1");
 
         Thread.sleep(1000); // wait for key to expire
-        var actualPlayer2 = remoteDict.getSession("session2");
+        Player actualPlayer2 = remoteDict.getSession("session2");
 
         // then
         Assertions.assertEquals(player1, actualPlayer1);
@@ -128,17 +128,17 @@ public class RemoteDictTest {
         int rank3 = remoteDict.getLeaderboardRank("user3");
         int rank4 = remoteDict.getLeaderboardRank("user4");
 
-        var leaderboard1 = remoteDict.getLeaderboard(0, 4);
+        RemoteDict.Leaderboard leaderboard1 = remoteDict.getLeaderboard(0, 4);
 
         remoteDict.incrLeaderboardUser(new RemoteDict.EloChangeSet("user2", 30));
-        var leaderboard2 = remoteDict.getLeaderboard(1, 2);
+        RemoteDict.Leaderboard leaderboard2 = remoteDict.getLeaderboard(1, 2);
 
         Assertions.assertEquals(1, rank1);
         Assertions.assertEquals(2, rank2);
         Assertions.assertEquals(3, rank3);
         Assertions.assertEquals(4, rank4);
 
-        var expectedLeaderboard1 = new RemoteDict.Leaderboard(
+        RemoteDict.Leaderboard expectedLeaderboard1 = new RemoteDict.Leaderboard(
             List.of(
                 new RankedUser("user1", 1),
                 new RankedUser("user2", 2),
@@ -147,7 +147,7 @@ public class RemoteDictTest {
             1);
         Assertions.assertEquals(expectedLeaderboard1, leaderboard1);
 
-        var expectedLeaderboard2 = new RemoteDict.Leaderboard(
+        RemoteDict.Leaderboard expectedLeaderboard2 = new RemoteDict.Leaderboard(
             List.of(
                 new RankedUser("user3", 2),
                 new RankedUser("user2", 3)),

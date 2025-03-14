@@ -1,5 +1,6 @@
 package web;
 
+import io.jooby.Context;
 import io.jooby.Cookie;
 import io.jooby.SameSite;
 import lombok.AllArgsConstructor;
@@ -7,7 +8,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.security.SecureRandom;
-import java.util.function.Function;
 
 @AllArgsConstructor
 public class SessionService {
@@ -17,8 +17,8 @@ public class SessionService {
     private static final String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
     public String createId() {
-        var length = 100;
-        var sb = new StringBuilder(length);
+        int length = 100;
+        StringBuilder sb = new StringBuilder(length);
         for (int i = 0; i < length; i++) {
             int index = RANDOM.nextInt(CHARACTERS.length());
             sb.append(CHARACTERS.charAt(index));
@@ -37,8 +37,8 @@ public class SessionService {
     }
 
     public Cookie createCookie(String sessionId, String playerId, String username, String country) {
-        var sessionCsv = String.format("%s,%s,%s,%s", sessionId, playerId, username, country);
-        var maxAgeSecs = 6 * 60 * 60; // 6 hours
+        String sessionCsv = String.format("%s,%s,%s,%s", sessionId, playerId, username, country);
+        int maxAgeSecs = 6 * 60 * 60; // 6 hours
 
         // our cookie is not set to http only because javascript must read it starting a websocket
         return new Cookie(COOKIE_NAME, sessionCsv)
@@ -56,27 +56,27 @@ public class SessionService {
             .setMaxAge(1);
     }
 
-    private static String getFieldOrNull(String[] fields, int index, Function<String, String> map) {
-        return fields.length > index ? map.apply(fields[index]) : null;
-    }
+    public SessionValue parseSession(Context ctx) {
+        String cookieStr = ctx.header("Cookie").valueOrNull();
 
-    private static String getFieldOrNull(String[] fields, int index) {
-        return getFieldOrNull(fields, index, Function.identity());
-    }
-
-    public SessionValue getSession(String cookieStr) {
         if (cookieStr == null) {
             return null;
         }
-        var delimIndex = cookieStr.indexOf("=");
+        int delimIndex = cookieStr.indexOf("=");
         if (delimIndex < 0) {
-            return null;
+            throw new IllegalArgumentException("Invalid cookie, must contain a key-value pair: " + cookieStr);
         }
-        var fields = cookieStr.substring(delimIndex + 1).split(",");
-        return new SessionValue(
-            getFieldOrNull(fields, 0, s -> s.substring(1)),
-            getFieldOrNull(fields, 1),
-            getFieldOrNull(fields, 2, s -> s.substring(0, fields[2].length() - 1)),
-            getFieldOrNull(fields, 3));
+
+        String value = cookieStr.substring(delimIndex + 1);
+        if (!value.isEmpty()) {
+            value = value.substring(1, value.length() - 1); // strip quotes from
+        }
+
+        String[] fields = value.split(",");
+        if (fields.length != 4) {
+            throw new IllegalArgumentException("Invalid cookie, 'session' must contain 4 fields: " + cookieStr);
+        }
+
+        return new SessionValue(fields[0], fields[1], fields[2], fields[3]);
     }
 }

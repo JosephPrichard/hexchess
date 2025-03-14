@@ -1,6 +1,8 @@
 package web;
 
 import domain.Move;
+import services.Broadcaster;
+import services.RemoteDict;
 import io.jooby.*;
 import io.jooby.exception.StatusCodeException;
 import lombok.AllArgsConstructor;
@@ -23,17 +25,17 @@ public class WsRouter extends Jooby {
     }
 
     public void onJoin(Context ctx, WebSocketConfigurer configurer) {
-        var remoteDict = state.getRemoteDict();
-        var broadcastService = state.getBroadcaster();
+        RemoteDict remoteDict = state.getRemoteDict();
+        Broadcaster broadcastService = state.getBroadcaster();
 
-        var sessionId = ctx.query("sessionId").valueOrNull(); // query is safe for secrets over a websocket when using wss
-        var gameIdSlug = ctx.path("id");
+        String sessionId = ctx.query("sessionId").valueOrNull(); // query is safe for secrets over a websocket when using wss
+        Value gameIdSlug = ctx.path("id");
         if (gameIdSlug.isMissing()) {
             throw new StatusCodeException(StatusCode.BAD_REQUEST, "Invalid request: must contain id within slug");
         }
 
-        var gameId = gameIdSlug.toString();
-        var player = remoteDict.getSessionOrDefault(sessionId);
+        String gameId = gameIdSlug.toString();
+        Player player = remoteDict.getSessionOrDefault(sessionId);
 
         if (player == null) {
             throw new RuntimeException("Expected player to be non null");
@@ -98,21 +100,21 @@ public class WsRouter extends Jooby {
 
     public WebSocket.OnConnect handleGameConnect(String gameId, Player player) {
         return ws -> EXECUTOR.execute(() -> {
-            var gameService = state.getGameService();
-            var broadcaster = state.getBroadcaster();
+            GameService gameService = state.getGameService();
+            Broadcaster broadcaster = state.getBroadcaster();
 
             try {
-                var gameState = gameService.join(gameId, player);
+                GameState gameState = gameService.join(gameId, player);
                 if (gameState == null) {
                     // we cannot join. so just send an error and then disconnect
-                    var jsonOutput = JSON_MAPPER.writeValueAsString(OutputMsg.ofError("Invalid message type"));
+                    String jsonOutput = JSON_MAPPER.writeValueAsString(OutputMsg.ofError("Invalid message type"));
                     ws.send(jsonOutput);
                     ws.close();
                     return;
                 }
                 broadcaster.subscribe(gameState.getId(), ws);
                 // the joiner needs a snapshot of what the game actually looks like when joining!
-                var jsonResult = JSON_MAPPER.writeValueAsString(OutputMsg.ofJoin(player, gameState));
+                String jsonResult = JSON_MAPPER.writeValueAsString(OutputMsg.ofJoin(player, gameState));
 //                ws.send(jsonResult);
                 broadcaster.broadcast(gameState.getId(), jsonResult);
                 LOGGER.info("Player {} connected to game {}", player.getId(), gameId);
@@ -126,39 +128,39 @@ public class WsRouter extends Jooby {
 
     public WebSocket.OnMessage handleGameMessage(String gameId, Player player) {
         return (ws, message) -> EXECUTOR.execute(() -> {
-            var gameService = state.getGameService();
-            var broadcaster = state.getBroadcaster();
+            GameService gameService = state.getGameService();
+            Broadcaster broadcaster = state.getBroadcaster();
 
             LOGGER.info("Received message from player {}, {} on game {}", player.getId(), message.value(), gameId);
             try {
                 try {
-                    var input = JSON_MAPPER.readValue(message.value(), InputMsg.class);
-                    var type = input.getType();
+                    InputMsg input = JSON_MAPPER.readValue(message.value(), InputMsg.class);
+                    int type = input.getType();
                     switch (type) {
-                        case InputMsg.FORFEIT -> {
-                            var game = gameService.forfeit(gameId, player);
-                            var jsonOutput = JSON_MAPPER.writeValueAsString(OutputMsg.ofForfeit(game));
-                            broadcaster.broadcast(gameId, jsonOutput);
-                        }
-                        case InputMsg.MOVE -> {
-                            var move = input.getMove();
-                            var game = gameService.makeMove(gameId, player, move);
-                            var jsonOutput = JSON_MAPPER.writeValueAsString(OutputMsg.ofMove(game, move));
-                            broadcaster.broadcast(gameId, jsonOutput);
-                        }
-                        case InputMsg.TEXT -> {
-                            var jsonOutput = JSON_MAPPER.writeValueAsString(OutputMsg.ofText(input.getMessage()));
-                            broadcaster.broadcast(gameId, jsonOutput);
-                        }
-                        default -> {
-                            var resp = OutputMsg.ofError("Invalid message type: %d" + type);
-                            var jsonOutput = JSON_MAPPER.writeValueAsString(resp);
-                            ws.send(jsonOutput);
-                        }
+                    case InputMsg.FORFEIT -> {
+                        GameState game = gameService.forfeit(gameId, player);
+                        String jsonOutput = JSON_MAPPER.writeValueAsString(OutputMsg.ofForfeit(game));
+                        broadcaster.broadcast(gameId, jsonOutput);
+                    }
+                    case InputMsg.MOVE -> {
+                        Move move = input.getMove();
+                        GameState game = gameService.makeMove(gameId, player, move);
+                        String jsonOutput = JSON_MAPPER.writeValueAsString(OutputMsg.ofMove(game, move));
+                        broadcaster.broadcast(gameId, jsonOutput);
+                    }
+                    case InputMsg.TEXT -> {
+                        String jsonOutput = JSON_MAPPER.writeValueAsString(OutputMsg.ofText(input.getMessage()));
+                        broadcaster.broadcast(gameId, jsonOutput);
+                    }
+                    default -> {
+                        OutputMsg resp = OutputMsg.ofError("Invalid message type: %d" + type);
+                        String jsonOutput = JSON_MAPPER.writeValueAsString(resp);
+                        ws.send(jsonOutput);
+                    }
                     }
                 } catch (GameService.MoveException e) {
-                    var resp = OutputMsg.ofError(e.getMessage());
-                    var jsonOutput = JSON_MAPPER.writeValueAsString(resp);
+                    OutputMsg resp = OutputMsg.ofError(e.getMessage());
+                    String jsonOutput = JSON_MAPPER.writeValueAsString(resp);
                     ws.send(jsonOutput);
                 }
             } catch (Exception e) {

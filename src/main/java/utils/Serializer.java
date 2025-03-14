@@ -18,7 +18,7 @@ import static utils.Globals.LOGGER;
 public class Serializer {
 
     private static final ThreadLocal<Kryo> KRYO = ThreadLocal.withInitial(() -> {
-        var kryo = new Kryo();
+        Kryo kryo = new Kryo();
         kryo.register(Hexagon.class);
         kryo.register(PieceMoves.class);
         kryo.register(ChessBoard.class);
@@ -33,9 +33,9 @@ public class Serializer {
 
     public static <T> byte[] serialize(T obj) {
         try {
-            var rawBytes = new ByteArrayOutputStream();
-            try (var output = new Output(rawBytes)) {
-                var kryo = Serializer.get();
+            ByteArrayOutputStream rawBytes = new ByteArrayOutputStream();
+            try (Output output = new Output(rawBytes)) {
+                Kryo kryo = Serializer.get();
                 kryo.writeObject(output, obj);
             }
             return rawBytes.toByteArray();
@@ -47,9 +47,9 @@ public class Serializer {
 
     public static <T> T deserialize(byte[] bytes, Class<T> clazz) {
         try {
-            var rawBytes = new ByteArrayInputStream(bytes);
-            try (var input = new Input(rawBytes)) {
-                var kryo = Serializer.get();
+            ByteArrayInputStream rawBytes = new ByteArrayInputStream(bytes);
+            try (Input input = new Input(rawBytes)) {
+                Kryo kryo = Serializer.get();
                 return kryo.readObject(input, clazz);
             }
         } catch (Exception ex) {

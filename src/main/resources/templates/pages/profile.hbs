@@ -3,35 +3,12 @@
 <head>
     <title>{{user.username}} - Hexchess</title>
     <link rel="stylesheet" href="/static/css/index.css">
-    <meta id="user-id" name="user-id" content="{{user.id}}">
     <script type="module">
-        import { getUserHistories } from "/static/scripts/client.js";
+        import {handleScrollHistories} from "/static/scripts/pages/histories";
 
-        const userId = document.getElementById("user-id").content;
-        let hasMoreRecords = true;
-
-        function attemptInfiniteScroll() {
-            const table = document.getElementById('history-table-tbody');
-            if (table == null) {
-                console.error("history-table-tbody is null");
-            }
-            const isAtPageBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight;
-            if (!hasMoreRecords || !isAtPageBottom) {
-                return;
-            }
-            const lastId = table.lastElementChild.getAttribute("data-id");
-            getUserHistories(userId, lastId)
-                .then(([html, ok]) => {
-                    if (ok) {
-                        table.insertAdjacentHTML('beforeend', html);
-                    } else {
-                        hasMoreRecords = false;
-                    }
-                });
-        }
-
-        window.onload = attemptInfiniteScroll;
-        window.addEventListener('scroll', attemptInfiniteScroll);
+        const handleScroll = handleScrollHistories('{{user.id}}');
+        window.onload = handleScroll;
+        window.addEventListener('scroll', handleScroll);
     </script>
 </head>
 <body>

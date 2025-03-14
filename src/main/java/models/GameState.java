@@ -3,7 +3,9 @@ package models;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import domain.ChessGame;
+import domain.Hexagon;
 import domain.Move;
+import domain.PieceMoves;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -32,7 +34,7 @@ public class GameState {
     public List<Move> moveList;
 
     public static GameState startWithGame(String id) {
-        var game = ChessGame.start();
+        ChessGame game = ChessGame.start();
         List<Move> moveList = new ArrayList<>();
         return new GameState(id, game, null, null, false, null, 0, moveList);
     }
@@ -46,7 +48,7 @@ public class GameState {
     }
 
     public boolean isPlayerTurn(Player player) {
-        var currPlayer = getCurrPlayer();
+        Player currPlayer = getCurrPlayer();
         if (currPlayer == null) {
             return false;
         }
@@ -59,20 +61,20 @@ public class GameState {
 
     public static String randomAsJson() {
         try {
-            var game = ChessGame.start();
+            ChessGame game = ChessGame.start();
             List<Move> moveList = new ArrayList<>();
 
             for (int i = 0; i < 10; i++) {
                 game.initPieceMoves();
 
-                var currMoves = game.getCurrMoves();
+                List<PieceMoves> currMoves = game.getCurrMoves();
 
                 // we're going to assume there is at least one piece
-                var pm = currMoves.stream().filter((x) -> !x.getMoves().isEmpty()).findFirst().orElseThrow();
-                var from = pm.getHex();
-                var to = pm.getMoves().getFirst(); // make the first move (we already know there is at least one)
+                PieceMoves pm = currMoves.stream().filter((x) -> !x.getMoves().isEmpty()).findFirst().orElseThrow();
+                Hexagon from = pm.getHex();
+                Hexagon to = pm.getMoves().getFirst(); // make the first move (we already know there is at least one)
 
-                var move = new Move(from, to);
+                Move move = new Move(from, to);
                 game.makeMove(move);
                 moveList.add(move);
             }

@@ -2,6 +2,7 @@ package services;
 
 import dao.HistoryDao;
 import dao.UserDao;
+import domain.ChessGame;
 import domain.Move;
 import lombok.AllArgsConstructor;
 import models.GameState;
@@ -11,6 +12,7 @@ import models.Player;
 import java.util.Random;
 import java.util.UUID;
 
+import static dao.UserDao.*;
 import static utils.Globals.*;
 
 @AllArgsConstructor
@@ -29,8 +31,8 @@ public class GameService {
     private final HistoryDao historyDao;
 
     public String create(Boolean isFirstPlayerWhite) {
-        var id = UUID.randomUUID().toString();
-        var gameState = GameState.startWithGame(id);
+        String id = UUID.randomUUID().toString();
+        GameState gameState = GameState.startWithGame(id);
 
         gameState.setIsFirstPlayerWhite(isFirstPlayerWhite);
         gameState.getGame().initPieceMoves();
@@ -40,18 +42,18 @@ public class GameService {
     }
 
     public GameState join(String gameId, Player player) {
-        var state = remoteDict.getGame(gameId);
+        GameState state = remoteDict.getGame(gameId);
         if (state == null) {
             return null;
         }
 
-        var hasWhitePlayer = state.getWhitePlayer() != null;
-        var hasBlackPlayer = state.getBlackPlayer() != null;
+        boolean hasWhitePlayer = state.getWhitePlayer() != null;
+        boolean hasBlackPlayer = state.getBlackPlayer() != null;
 
         boolean joinedAsWhite;
         if (!hasWhitePlayer && !hasBlackPlayer) {
             // neither player, so join as either
-            var isFirstPlayerWhite = state.getIsFirstPlayerWhite();
+            Boolean isFirstPlayerWhite = state.getIsFirstPlayerWhite();
             boolean chooseWhite = isFirstPlayerWhite == null ? RANDOM.nextInt() % 2 == 0 : isFirstPlayerWhite;
             if (chooseWhite) {
                 state.setWhitePlayer(player);
@@ -83,12 +85,12 @@ public class GameService {
     }
 
     public GameState makeMove(String gameId, Player player, Move move) {
-        var state = remoteDict.getGame(gameId);
+        GameState state = remoteDict.getGame(gameId);
         if (state == null) {
             return null;
         }
 
-        var game = state.getGame();
+        ChessGame game = state.getGame();
 
         if (state.isEnded()) {
             LOGGER.info("Move attempted on ended game {}", gameId);
@@ -110,7 +112,7 @@ public class GameService {
 
         if (game.isCheckmate()) {
             state.setEnded(true);
-            var isWhiteWin = game.getBoard().turn().isBlack(); // white wins if its checkmate when it's blacks turn
+            boolean isWhiteWin = game.getBoard().turn().isBlack(); // white wins if its checkmate when it's blacks turn
             EXECUTOR.execute(() -> onFinishGame(state, isWhiteWin));
         }
 
@@ -120,31 +122,31 @@ public class GameService {
 
     public void onFinishGame(GameState state, boolean isWhiteWin) {
         try {
-            var whiteId = state.getWhitePlayer().getId();
-            var blackId = state.getBlackPlayer().getId();
-            var result = isWhiteWin ? History.WHITE_WIN : History.BLACK_WIN;
-            var winId = isWhiteWin ? whiteId : blackId;
-            var loseId = isWhiteWin ? blackId : whiteId;
+            String whiteId = state.getWhitePlayer().getId();
+            String blackId = state.getBlackPlayer().getId();
+            int result = isWhiteWin ? History.WHITE_WIN : History.BLACK_WIN;
+            String winId = isWhiteWin ? whiteId : blackId;
+            String loseId = isWhiteWin ? blackId : whiteId;
 
-            var moveHistoryData = JSON_MAPPER.writeValueAsString(state.getMoveList());
+            String moveHistoryData = JSON_MAPPER.writeValueAsString(state.getMoveList());
 
-            var changeSet = userDao.updateStats(winId, loseId);
-//            remoteDict.updateLeaderboardUser(
-//                new RemoteDict.EloChangeSet(winId, changeSet.winEloDiff),
-//                new RemoteDict.EloChangeSet(loseId, changeSet.loseEloDiff));
-//            historyDao.insert(whiteId, blackId, result, changeSet.getWinEloDiff(), changeSet.getLoseEloDiff(), moveHistoryData);
+            EloChangeSet changeSet = userDao.updateStats(winId, loseId);
+            remoteDict.updateLeaderboardUser(
+                    new RemoteDict.EloChangeSet(winId, changeSet.winEloDiff),
+                    new RemoteDict.EloChangeSet(loseId, changeSet.loseEloDiff));
+            historyDao.insert(whiteId, blackId, result, changeSet.getWinEloDiff(), changeSet.getLoseEloDiff(), moveHistoryData);
         } catch (Exception ex) {
             LOGGER.info("Failed to persist game results to database in background thread {}", String.valueOf(ex));
         }
     }
 
     public GameState forfeit(String gameId, Player player) {
-        var state = remoteDict.getGame(gameId);
+        GameState state = remoteDict.getGame(gameId);
         if (state == null) {
             return null;
         }
 
-        var didBlackForfeit = state.getBlackPlayer().equals(player);
+        boolean didBlackForfeit = state.getBlackPlayer().equals(player);
 
         state.setEnded(true);
         onFinishGame(state, didBlackForfeit);

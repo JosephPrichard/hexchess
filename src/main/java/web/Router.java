@@ -2,11 +2,14 @@ package web;
 
 import com.github.jknack.handlebars.Handlebars;
 import com.github.jknack.handlebars.io.ClassPathTemplateLoader;
+import com.zaxxer.hikari.HikariDataSource;
 import io.jooby.Jooby;
 import io.jooby.exception.NotFoundException;
 import io.jooby.jackson.JacksonModule;
 import redis.clients.jedis.JedisPooled;
 import utils.Config;
+
+import java.util.Map;
 
 import static utils.Globals.LOGGER;
 
@@ -14,20 +17,20 @@ public class Router extends Jooby {
 
     public static Router init() {
         try {
-            var ds = Config.createDataSource();
+            HikariDataSource ds = Config.createDataSource();
 
-            var redisHost = System.getenv("REDIS_HOST");
-            var redisPort = Integer.parseInt(System.getenv("REDIS_PORT"));
-            var jedis = new JedisPooled(redisHost, redisPort);
+            String redisHost = System.getenv("REDIS_HOST");
+            int redisPort = Integer.parseInt(System.getenv("REDIS_PORT"));
+            JedisPooled jedis = new JedisPooled(redisHost, redisPort);
 
-            var loader = new ClassPathTemplateLoader();
+            ClassPathTemplateLoader loader = new ClassPathTemplateLoader();
             loader.setPrefix("/templates");
             loader.setSuffix(".hbs");
-            var handlebars = new Handlebars(loader);
+            Handlebars handlebars = new Handlebars(loader);
 
-            var files = Config.createFilesMap();
+            Map<String, byte[]> files = Config.createFilesMap();
 
-            var state = new State(jedis, ds, handlebars, files);
+            State state = new State(jedis, ds, handlebars, files);
 //            var state = new State(null, null, null);
             return new Router(state);
         } catch (Exception ex) {
@@ -45,7 +48,7 @@ public class Router extends Jooby {
                 ctx.send("Internal Server Error");
             } else {
                 // non 500 errors contain clear messages that can be spit out as strings to both server logs and the client
-                var message = "Error: " + statusCode + ", " + cause.getMessage();
+                String message = "Error: " + statusCode + ", " + cause.getMessage();
                 LOGGER.error(message);
                 ctx.send(cause.getMessage());
             }
@@ -56,11 +59,11 @@ public class Router extends Jooby {
         assets("/static/*", "static");
 
         get("/files/flags/{name}", ctx -> {
-            var filesMap = state.getFiles();
+            Map<String, byte[]> filesMap = state.getFiles();
             ctx.setResponseType("image/png");
 
-            var name = ctx.path("name").toOptional().orElse("");
-            var fileBytes = filesMap.get(name);
+            String name = ctx.path("name").toOptional().orElse("");
+            byte[] fileBytes = filesMap.get(name);
             if (fileBytes == null) {
                 throw new NotFoundException("The requested file does not exist: " + name);
             }

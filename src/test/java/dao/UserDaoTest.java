@@ -2,6 +2,7 @@ package dao;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import models.User;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.*;
 import utils.Config;
 
@@ -45,15 +46,15 @@ public class UserDaoTest {
     @Test
     public void testInsertThenVerify() {
         // when
-        var inst1 = userDao.insert("user1", "password1");
-        var inst2 = userDao.insert("user2", "password2");
-        var inst3 = userDao.insert("user3", "password3");
+        UserDao.UserInst inst1 = userDao.insert("user1", "password1");
+        UserDao.UserInst inst2 = userDao.insert("user2", "password2");
+        UserDao.UserInst inst3 = userDao.insert("user3", "password3");
 
-        var player1 = userDao.verify("user1", "password1");
-        var player2 = userDao.verify("user2", "password2");
-        var player3 = userDao.verify("user2", "wrong-password");
-        var player4 = userDao.verify("user3", "password3");
-        var player5 = userDao.verify("user1", "password3");
+        UserDao.VerifiedPlayer player1 = userDao.verify("user1", "password1");
+        UserDao.VerifiedPlayer player2 = userDao.verify("user2", "password2");
+        UserDao.VerifiedPlayer player3 = userDao.verify("user2", "wrong-password");
+        UserDao.VerifiedPlayer player4 = userDao.verify("user3", "password3");
+        UserDao.VerifiedPlayer player5 = userDao.verify("user1", "password3");
 
         // then
         Assertions.assertEquals(player1.getId(), inst1.getNewId());
@@ -69,17 +70,17 @@ public class UserDaoTest {
         createTestData(userDao);
 
         // when
-        var changeSet = userDao.updateStats("id1", "id2");
-        var actualUsers1 = userDao.getById("id1");
-        var actualUsers2 = userDao.getById("id2");
+        UserDao.EloChangeSet changeSet = userDao.updateStats("id1", "id2");
+        User actualUsers1 = userDao.getById("id1");
+        User actualUsers2 = userDao.getById("id2");
 
         changeSet.roundElo();
         actualUsers1.roundElo();
         actualUsers2.roundElo();
 
         // then
-        var expectedUsers1 = new User("id1", "user1", "us", 1015f, 1015f, 1, 0, 0, "", null);
-        var expectedUsers2 = new User("id2", "user2", "us", 990f, 1005f, 1, 1, 0, "", null);
+        User expectedUsers1 = new User("id1", "user1", "us", 1015f, 1015f, 1, 0, 0, "", null);
+        User expectedUsers2 = new User("id2", "user2", "us", 990f, 1005f, 1, 1, 0, "", null);
 
         Assertions.assertEquals(new UserDao.EloChangeSet(1015f, 990f), changeSet);
         Assertions.assertEquals(expectedUsers1, actualUsers1);
@@ -95,12 +96,12 @@ public class UserDaoTest {
         userDao.updateUser("id1", "user1-changed", null, "Testing123");
         userDao.updateUser("id2", "user2-changed", "eu", null);
 
-        var actualUser1 = userDao.getById("id1");
-        var actualUser2 = userDao.getById("id2");
+        User actualUser1 = userDao.getById("id1");
+        User actualUser2 = userDao.getById("id2");
 
         // then
-        var expectedUser1 = new User("id1", "user1-changed", "us", 1000f, 1000f, 0, 0, 0, "Testing123", null);
-        var expectedUser2 = new User("id2", "user2-changed", "eu", 1005f, 1005f, 1, 0, 0, "", null);
+        User expectedUser1 = new User("id1", "user1-changed", "us", 1000f, 1000f, 0, 0, 0, "Testing123", null);
+        User expectedUser2 = new User("id2", "user2-changed", "eu", 1005f, 1005f, 1, 0, 0, "", null);
 
         Assertions.assertEquals(expectedUser1, actualUser1);
         Assertions.assertEquals(expectedUser2, actualUser2);
@@ -114,8 +115,8 @@ public class UserDaoTest {
         // when
         userDao.updatePassword("id1", "password-new");
 
-        var user = userDao.getById("id1");
-        var player = userDao.verify("user1", "password-new");
+        User user = userDao.getById("id1");
+        UserDao.VerifiedPlayer player = userDao.verify("user1", "password-new");
 
         // then
         Assertions.assertEquals(player.getId(), user.getId());
@@ -127,10 +128,10 @@ public class UserDaoTest {
         createTestData(userDao);
 
         // when
-        var actualUserList = userDao.getLeaderboard(1, 5);
+        List<User> actualUserList = userDao.getLeaderboard(1, 5);
 
         // then
-        var expectedUserList = List.of(
+        List<User> expectedUserList = List.of(
             new User("id4", "user4", "us", 2000f, 0f, 50, 20, 1, null, null),
             new User("id5", "user5", "us", 1500f, 0f, 40, 35, 2, null, null),
             new User("id2", "user2", "us", 1005f, 0f, 1, 0, 3, null, null),
@@ -145,10 +146,10 @@ public class UserDaoTest {
         createTestData(userDao);
 
         // when
-        var actualUserList = userDao.getByIds(List.of("id1", "id2"));
+        List<User> actualUserList = userDao.getByIds(List.of("id1", "id2"));
 
         // then
-        var expectedUserList = List.of(
+        List<User> expectedUserList = List.of(
             new User("id1", "user1", "us", 1000f, 0f, 0, 0, 0, null, null),
             new User("id2", "user2", "us", 1005f, 0f, 1, 0, 0, null, null));
         Assertions.assertEquals(expectedUserList, actualUserList);
@@ -160,10 +161,10 @@ public class UserDaoTest {
         createTestData(userDao);
 
         // when
-        var actualUser = userDao.getByIdWithRank("id1");
+        User actualUser = userDao.getByIdWithRank("id1");
 
         // then
-        var expectedUser = new User("id1", "user1", "us", 1000f, 1000f, 0, 0, 4, "", null);
+        User expectedUser = new User("id1", "user1", "us", 1000f, 1000f, 0, 0, 4, "", null);
         Assertions.assertEquals(expectedUser, actualUser);
     }
 
@@ -175,10 +176,10 @@ public class UserDaoTest {
         userDao.insert(new UserDao.UserInst("id7", "john", "password7", "us", 0f, 0, 0));
 
         // when
-        var actualUserList = userDao.searchByName("john", 1, 20);
+        List<User> actualUserList = userDao.searchByName("john", 1, 20);
 
         // then
-        var expectedUserList = List.of(
+        List<User> expectedUserList = List.of(
             new User("id6", "johnny", "us", 0f, 0f, 0, 0, 1, null, null),
             new User("id7", "john", "us", 0f, 0f, 0, 0, 2, null, null));
         Assertions.assertEquals(expectedUserList, actualUserList);
@@ -190,7 +191,7 @@ public class UserDaoTest {
         createTestData(userDao);
 
         // when
-        var count = userDao.countUsers();
+        int count = userDao.countUsers();
 
         // then
         Assertions.assertEquals(5, count);
