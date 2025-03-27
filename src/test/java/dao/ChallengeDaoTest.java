@@ -2,7 +2,6 @@ package dao;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import models.Challenge;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.*;
 import utils.Config;
 
@@ -43,14 +42,14 @@ public class ChallengeDaoTest {
     }
 
     @Test
-    public void testGetChallenges() {
+    public void testInsertThenGetChallenges() {
         // given
         createTestData(userDao);
 
         // when
-        challengeDao.insert("id2", "id1");
-        challengeDao.insert("id2", "id3");
-        challengeDao.insert("id5", "id4");
+        challengeDao.insert("id1", "id2");
+        challengeDao.insert("id3", "id2");
+        challengeDao.insert("id4", "id5");
 
         List<Challenge> challenges = challengeDao.getByParticipant(null, "id2");
 
@@ -58,17 +57,17 @@ public class ChallengeDaoTest {
         List<Challenge> expected = List.of(
             new Challenge(
                 "id2", "user2", 1005f,
-                "id1", "user1", 1000f,
-                Challenge.Status.PENDING, null),
+                "id3", "user3", 900f,
+                null),
             new Challenge(
                 "id2", "user2", 1005f,
-                "id3", "user3", 900f,
-                Challenge.Status.PENDING, null));
+                "id1", "user1", 1000f,
+                null));
         Assertions.assertEquals(expected, challenges);
     }
 
     @Test
-    public void testExpiration() throws InterruptedException {
+    public void testExpiration() {
         // given
         createTestData(userDao);
 
@@ -86,12 +85,30 @@ public class ChallengeDaoTest {
         List<Challenge> expected = List.of(
             new Challenge(
                 "id2", "user2", 1005f,
-                "id3", "user3", 900f,
-                Challenge.Status.PENDING, null),
+                "id1", "user1", 1000f,
+                null),
             new Challenge(
                 "id2", "user2", 1005f,
-                "id1", "user1", 1000f,
-                Challenge.Status.PENDING, null));
+                "id3", "user3", 900f,
+                null));
         Assertions.assertEquals(expected, challenges);
+    }
+
+    @Test
+    public void testDelete() {
+        // given
+        createTestData(userDao);
+
+        // when
+        challengeDao.insert("id1", "id2");
+
+        int count = challengeDao.delete("id1", "id2");
+
+        List<Challenge> challenges = challengeDao.getByParticipant("id1", null);
+
+        // then
+        List<Challenge> expected = List.of();
+        Assertions.assertEquals(expected, challenges);
+        Assertions.assertEquals(1, count);
     }
 }

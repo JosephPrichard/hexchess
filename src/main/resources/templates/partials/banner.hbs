@@ -11,21 +11,19 @@
     <a href="/players/search" class="banner-elem color-hover">
         Search
     </a>
-    <a href="/challenges" class="banner-elem color-hover">
+    <a id="challenge-link" href="/challenges" class="banner-elem color-hover">
         Challenges
     </a>
-    <a href="/settings" class="banner-elem color-hover">
+    <a id="settings-link" href="/settings" class="banner-elem color-hover">
         Settings
     </a>
+    <a id="profile-link" class="banner-elem color-hover" style="display: none"></a>
+    <a id="login-link" href="/login" class="banner-elem color-hover" style="display: none">
+        Login
+    </a>
 </div>
-<script src="/static/scripts/session.js"></script>
+<script src="/static/js/lib/session.js"></script>
+<script src="/static/js/partials/banner.js"></script>
 <script>
-    const e = document.getElementById("banner");
-    const cookie = getSessionCookie();
-
-    if (cookie) {
-        e.innerHTML += `<a href="/players/${cookie.playerId}" class="banner-elem color-hover"> ${cookie.username} </a>`;
-    } else {
-        e.innerHTML += '<a href="/login" class="banner-elem color-hover"> Login </div>';
-    }
+   initBanner();
 </script>

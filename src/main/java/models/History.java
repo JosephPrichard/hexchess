@@ -35,7 +35,7 @@ public class History {
     @EqualsAndHashCode.Exclude
     public Timestamp playedOn;
 
-    public String getFormattedResult() {
+    public String getResultFmt() {
         return switch (result) {
             case WHITE_WIN -> "White Victory";
             case BLACK_WIN -> "Black Victory";
@@ -86,7 +86,7 @@ public class History {
         };
     }
 
-    public String getFormattedPlayedOn() {
+    public String getPlayedOnFmt() {
         return playedOn.toLocalDateTime().format(DATE_FORMATTER);
     }
 

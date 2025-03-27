@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <title>Replay - Hexchess</title>
+    <link rel="stylesheet" href="/static/css/index.css">
+    <script type="application/json" id="move-history-list">
+        {{{history.data}}}
+    </script>
+    <script type="application/json" id="initial-board">
+        {{{initialBoard}}}
+    </script>
+    <script src="/static/js/pages/replay.js" defer></script>
+</head>
+<body>
+{{> partials/banner }}
+<div class="center-horizontal-container">
+    <div class="center-vertical-container">
+        <div id="hexagon-board">
+        </div>
+        <div id="move-history-view">
+        </div>
+    </div>
+</div>
+</body>
+</html>

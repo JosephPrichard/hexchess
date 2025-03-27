@@ -5,6 +5,7 @@ import org.apache.commons.dbutils.DbUtils;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.handlers.BeanListHandler;
+import org.apache.commons.dbutils.handlers.ScalarHandler;
 
 import javax.sql.DataSource;
 import java.sql.*;
@@ -17,6 +18,7 @@ public class ChallengeDao {
 
     public static final Duration THRESHOLD_EXPIRATION = Duration.ofDays(7);
     private static final ResultSetHandler<List<Challenge>> CHAL_LIST_MAPPER = new BeanListHandler<>(Challenge.class);
+    private static final ResultSetHandler<Long> LONG_MAPPER = new ScalarHandler<>();
 
     private final QueryRunner runner;
 
@@ -24,69 +26,51 @@ public class ChallengeDao {
         runner = new QueryRunner(ds);
     }
 
-    public static class ChallengeException extends RuntimeException {
-        public ChallengeException(String message) {
-            super(message);
+    public static class DuplicateException extends RuntimeException {}
+
+    public static class SelfException extends RuntimeException {}
+
+    public static class ParticipantException extends RuntimeException {}
+
+    public void insert(String challengerId, String challengeeId) throws DuplicateException, SelfException {
+        insert(challengerId, challengeeId, new Timestamp(System.currentTimeMillis()));
+    }
+
+    public void insert(String challengerId, String challengeeId, Timestamp madeOn) throws DuplicateException, SelfException {
+        if (challengeeId.equals(challengerId)) {
+            throw new ChallengeDao.SelfException();
         }
-    }
 
-    public void insert(String challengeeId, String challengerId) throws ChallengeException {
-        insert(challengeeId, challengerId, new Timestamp(System.currentTimeMillis()));
-    }
-
-    public void insert(String challengeeId, String challengerId, Timestamp madeOn) throws ChallengeException {
-        String sql = """
-             BEGIN;
-                 INSERT INTO challenges (challengerId, challengeeId, status, madeOn) VALUES (?, ?, ?, ?);
-             END
-             """;
+        String sql = "INSERT INTO challenges (challengerId, challengeeId, madeOn) VALUES (?, ?, ?)";
         try {
-            runner.execute(sql, challengerId, challengeeId, Challenge.Status.PENDING, madeOn);
+            runner.execute(sql, challengerId, challengeeId, madeOn);
             LOGGER.info("Inserted a challenge=[challengerId={},challengeeId={}]", challengerId, challengeeId);
         } catch (SQLException ex) {
             SQLException nextEx = ex.getNextException();
-            if ("23505".equals(nextEx.getSQLState())) {
-                LOGGER.warn("Already made challenge=[challengerId={},challengeeId={}]", challengerId, challengeeId, ex);
-                throw new ChallengeDao.ChallengeException("Challenge has already been made against this user");
+
+            switch (nextEx.getSQLState()) {
+            case "23505":
+                LOGGER.warn("Already made challenge=[challengerId={},challengeeId={}]", challengerId, challengeeId);
+                throw new ChallengeDao.DuplicateException();
+            case "23506":
+                LOGGER.warn("Violating key constraint exception when inserting challenge=[challengerId={},challengeeId={}]", challengerId, challengeeId);
+                throw new ParticipantException();
+            default:
+                LOGGER.error("Failed to insert a challenge=[challengerId={},challengeeId={}]", challengerId, challengeeId, ex);
+                throw new RuntimeException(ex);
             }
-
-            LOGGER.error("Failed to insert a challenge=[challengerId={},challengeeId={}]", challengerId, challengeeId, ex);
-            throw new RuntimeException(ex);
         }
     }
 
-    public void deleteChallenge(String challengeeId, String challengerId) throws ChallengeException {
-        String sql = """
-            BEGIN;
-                DELETE FROM challenges WHERE challengeeId = ? AND challengerId = ? AND status = ?;
-            END
-            """;
-        try {
-            int rows = runner.execute(sql, challengeeId, challengerId, Challenge.Status.PENDING);
-            LOGGER.info("Delete challenge=[{},{}], deleting {} rows", challengerId, challengeeId, rows);
-        } catch (SQLException ex) {
-            LOGGER.error("Failed to a challenge=[{},{}]", challengerId, challengeeId, ex);
-            throw new RuntimeException(ex);
-        }
-    }
+    public int delete(String challengerId, String challengeeId) {
+        String sql = "DELETE FROM challenges WHERE challengerId = ? AND challengeeId = ?";
 
-    public boolean updateStatus(String challengeeId, String challengerId, int status) throws ChallengeException {
-        if (!Challenge.Status.isValid(status)) {
-            LOGGER.info("Invalid status={} challenge with challenge=[challengerId={},challengeeId={}]", status, challengerId, challengeeId);
-            throw new ChallengeException("Invalid status for challenge");
-        }
-
-        String sql = """
-            BEGIN;
-                UPDATE challenges SET status = ? WHERE challengeeId = ? AND challengerId = ? AND status = ?;
-            END
-            """;
         try {
-            int rows = runner.execute(sql, status, challengeeId, challengerId, Challenge.Status.PENDING);
-            LOGGER.info("Updated the status={} for a challenge=[{},{}], updating {} rows", status, challengerId, challengeeId, rows);
-            return rows > 0; // returns whether an update occurred or not
+            int count = runner.update(sql, challengerId, challengeeId);
+            LOGGER.info("Delete challenge=[{},{}], deleting {} rows", challengerId, challengeeId, count);
+            return count;
         } catch (SQLException ex) {
-            LOGGER.error("Failed to update the status={} for a challenge=[{},{}]", status, challengerId, challengeeId, ex);
+            LOGGER.error("Failed to delete a challenge=[{},{}]", challengerId, challengeeId, ex);
             throw new RuntimeException(ex);
         }
     }
@@ -102,7 +86,6 @@ public class ChallengeDao {
                 c1.challengerId,
                 u2.username as challengerName,
                 u2.elo as challengerElo,
-                c1.status,
                 c1.madeOn
             FROM challenges c1
             INNER JOIN users as u1 ON u1.id = c1.challengeeId
@@ -110,6 +93,7 @@ public class ChallengeDao {
             WHERE challengerId = COALESCE(?, challengerId)
               AND challengeeId = COALESCE(?, challengeeId)
               AND madeOn >= ?
+            ORDER BY madeOn DESC
             """;
 
         Connection conn = null;
@@ -141,16 +125,12 @@ public class ChallengeDao {
         return getByParticipant(challengerId, challengeeId, THRESHOLD_EXPIRATION);
     }
 
-    public void deleteExpired(String userId, Duration threshold) throws ChallengeException {
+    public void deleteExpired(String userId, Duration threshold) {
         Timestamp timestamp = new Timestamp(System.currentTimeMillis() - threshold.toMillis());
 
-        String sql = """
-            BEGIN;
-                DELETE FROM challenges WHERE (challengeeId = ? OR challengerId = ?) AND madeOn < ?;
-            END
-            """;
+        String sql = "DELETE FROM challenges WHERE (challengeeId = ? OR challengerId = ?) AND madeOn < ?";
         try {
-            int rows = runner.execute(sql, userId, userId, timestamp);
+            int rows = runner.update(sql, userId, userId, timestamp);
             LOGGER.info("Deleted {} expired challenges for userId={}", rows, userId);
         } catch (SQLException ex) {
             LOGGER.error("Failed to delete expired challenges for userId={}", userId, ex);
@@ -158,7 +138,7 @@ public class ChallengeDao {
         }
     }
 
-    public void deleteExpired(String challengeeId) throws ChallengeException {
+    public void deleteExpired(String challengeeId) {
         deleteExpired(challengeeId, THRESHOLD_EXPIRATION);
     }
 }

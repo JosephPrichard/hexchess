@@ -1,15 +1,19 @@
 package web;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import io.jooby.Context;
 import io.jooby.Cookie;
 import io.jooby.SameSite;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.apache.commons.text.StringEscapeUtils;
 
 import java.security.SecureRandom;
 
-@AllArgsConstructor
+import static utils.Globals.JSON_MAPPER;
+import static utils.Globals.LOGGER;
+
 public class SessionService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -37,15 +41,24 @@ public class SessionService {
     }
 
     public Cookie createCookie(String sessionId, String playerId, String username, String country) {
-        String sessionCsv = String.format("%s,%s,%s,%s", sessionId, playerId, username, country);
-        int maxAgeSecs = 6 * 60 * 60; // 6 hours
+        return createCookie(new SessionValue(sessionId, playerId, username, country));
+    }
 
-        // our cookie is not set to http only because javascript must read it starting a websocket
-        return new Cookie(COOKIE_NAME, sessionCsv)
-            .setDomain("localhost")
-            .setSecure(true)
-            .setSameSite(SameSite.STRICT)
-            .setMaxAge(maxAgeSecs);
+    public Cookie createCookie(SessionValue sessionValue) {
+        try {
+            String sessionJson = JSON_MAPPER.writeValueAsString(JSON_MAPPER.writeValueAsString(sessionValue));
+            int maxAgeSecs = 6 * 60 * 60; // 6 hours
+
+            // our cookie is not set to http only because javascript must read it starting a websocket
+            return new Cookie(COOKIE_NAME, sessionJson)
+                .setDomain("localhost")
+                .setSecure(true)
+                .setSameSite(SameSite.STRICT)
+                .setMaxAge(maxAgeSecs);
+        } catch (JsonProcessingException e) {
+            LOGGER.error("Failed to serialize session value={}", sessionValue, e);
+            throw new RuntimeException(e);
+        }
     }
 
     public Cookie createEmptyCookie() {
@@ -58,25 +71,24 @@ public class SessionService {
 
     public SessionValue parseSession(Context ctx) {
         String cookieStr = ctx.header("Cookie").valueOrNull();
-
         if (cookieStr == null) {
             return null;
         }
-        int delimIndex = cookieStr.indexOf("=");
-        if (delimIndex < 0) {
-            throw new IllegalArgumentException("Invalid cookie, must contain a key-value pair: " + cookieStr);
-        }
 
-        String value = cookieStr.substring(delimIndex + 1);
-        if (!value.isEmpty()) {
-            value = value.substring(1, value.length() - 1); // strip quotes from
+        String[] cookieTokens = cookieStr.split(";");
+        if (cookieTokens.length == 0) {
+            return null;
         }
+        String token = cookieTokens[0]; // we're only expecting one cookie here, so just take the first one
 
-        String[] fields = value.split(",");
-        if (fields.length != 4) {
-            throw new IllegalArgumentException("Invalid cookie, 'session' must contain 4 fields: " + cookieStr);
+        int delimIndex = token.indexOf("=");
+        String sessionStr = token.substring(delimIndex + 1);
+
+        try {
+            return JSON_MAPPER.readValue(JSON_MAPPER.readValue(sessionStr, String.class), SessionValue.class);
+        } catch (JsonProcessingException e) {
+            LOGGER.error("Failed to deserialize session value={}", sessionStr, e);
+            throw new RuntimeException(e);
         }
-
-        return new SessionValue(fields[0], fields[1], fields[2], fields[3]);
     }
 }

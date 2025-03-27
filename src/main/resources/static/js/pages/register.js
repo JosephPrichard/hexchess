@@ -14,9 +14,8 @@ async function postRegister(username, password, dupPassword) {
     }
 }
 
-const signupForm = document.getElementById("register-form");
-
-signupForm.addEventListener('submit', async (e) => {
+const registerForm = document.getElementById("register-form");
+registerForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const usernameElem = document.getElementById("username-register");

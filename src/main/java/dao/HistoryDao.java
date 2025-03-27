@@ -41,11 +41,7 @@ public class HistoryDao {
     }
 
     public void insert(HistoryInst historyInst) {
-        String sql = """
-            BEGIN;
-                INSERT INTO game_histories (whiteId, blackId, result, data, winElo, loseElo) VALUES (?, ?, ?, ? ::json, ?, ?);
-            END
-            """;
+        String sql = "INSERT INTO game_histories (whiteId, blackId, result, data, winElo, loseElo) VALUES (?, ?, ?, ? ::json, ?, ?)";
         try {
             runner.execute(sql, historyInst.whiteId, historyInst.blackId,
                 historyInst.result, historyInst.data, historyInst.winEloDiff, historyInst.loseEloDiff);
@@ -109,13 +105,13 @@ public class HistoryDao {
             FROM game_histories as h1
             INNER JOIN users as u1 ON u1.id = h1.whiteId
             INNER JOIN users as u2 ON u2.id = h1.blackId
-            WHERE (h1.whiteId = ? OR h1.blackId = ?)
-                AND h1.id < ?
+            WHERE h1.id < ?
+                AND (h1.whiteId = ? OR h1.blackId = ?)
             ORDER BY h1.id DESC LIMIT ?
             """;
 
         try {
-            List<History> histories = runner.query(sql, HIST_LIST_MAPPER, userId, userId, afterId, perPage);
+            List<History> histories = runner.query(sql, HIST_LIST_MAPPER, afterId, userId, userId, perPage);
             LOGGER.info("Selected user histories={} page for userId={}, afterId={}", histories, userId, afterId);
             return histories;
         } catch (SQLException ex) {

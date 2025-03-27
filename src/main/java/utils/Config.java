@@ -29,6 +29,7 @@ public class Config {
         config.setMaximumPoolSize(10);
         config.setAutoCommit(false);
         config.setDriverClassName("org.postgresql.Driver");
+        config.setAutoCommit(true);
 
         return new HikariDataSource(config);
     }

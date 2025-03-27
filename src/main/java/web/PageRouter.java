@@ -56,8 +56,8 @@ public class PageRouter extends Jooby {
         get("/login", ctx -> loginHtml);
         get("/register", ctx -> registerHtml);
         get("/settings", this::getSettings);
-        get("/leaderboard", this::getLeaderboardV1);
-        get("/players/{id}", this::getPlayerV1);
+        get("/leaderboard", this::getLeaderboardRedis);
+        get("/players/{id}", this::getPlayerRedis);
         get("/players/search", this::searchPlayers);
         get("/games/histories/{id}", this::getGameHistories);
         get("/challenges", this::getChallenges);
@@ -134,7 +134,7 @@ public class PageRouter extends Jooby {
         public Pagination pages;
     }
 
-    public String getLeaderboardV1(Context ctx) throws Exception {
+    public String getLeaderboard(Context ctx) throws Exception {
         Templates templates = state.getTemplates();
         UserDao userDao = state.getUserDao();
 
@@ -158,7 +158,7 @@ public class PageRouter extends Jooby {
         }
     }
 
-    public String getLeaderboardV2(Context ctx) throws Exception {
+    public String getLeaderboardRedis(Context ctx) throws Exception {
         Templates templates = state.getTemplates();
         UserDao userDao = state.getUserDao();
         RemoteDict remoteDict = state.getRemoteDict();
@@ -189,7 +189,7 @@ public class PageRouter extends Jooby {
         public List<History> historyList;
     }
 
-    public String getPlayerV1(Context ctx) throws Exception {
+    public String getPlayer(Context ctx) throws Exception {
         Templates templates = state.getTemplates();
         UserDao userDao = state.getUserDao();
         HistoryDao historyDao = state.getHistoryDao();
@@ -202,7 +202,7 @@ public class PageRouter extends Jooby {
 
         CompletableFuture<User> userFut = CompletableFuture.supplyAsync(() -> userDao.getByIdWithRank(userId), EXECUTOR);
         CompletableFuture<List<History>> historyListFut =
-                CompletableFuture.supplyAsync(() -> historyDao.getUserHistories(userId, null, 25), EXECUTOR);
+                CompletableFuture.supplyAsync(() -> historyDao.getUserHistories(userId, null, PER_PAGE), EXECUTOR);
         User user = userFut.get();
         List<History> historyList = historyListFut.get();
 
@@ -220,7 +220,7 @@ public class PageRouter extends Jooby {
         return resp;
     }
 
-    public String getPlayerV2(Context ctx) throws Exception {
+    public String getPlayerRedis(Context ctx) throws Exception {
         Templates templates = state.getTemplates();
         UserDao userDao = state.getUserDao();
         HistoryDao historyDao = state.getHistoryDao();
@@ -234,7 +234,7 @@ public class PageRouter extends Jooby {
 
         CompletableFuture<User> userFut = CompletableFuture.supplyAsync(() -> userDao.getById(userId), EXECUTOR);
         CompletableFuture<List<History>> historyListFut =
-                CompletableFuture.supplyAsync(() -> historyDao.getUserHistories(userId, null, 10), EXECUTOR);
+                CompletableFuture.supplyAsync(() -> historyDao.getUserHistories(userId, null, PER_PAGE), EXECUTOR);
 
         User user = userFut.get();
         if (user == null) {
@@ -276,7 +276,7 @@ public class PageRouter extends Jooby {
                 return template.apply(new SearchView(name, List.of(), Pagination.ofUnlimited("?", page)));
             }
 
-            List<User> userList = userDao.searchByName(name, page, 20);
+            List<User> userList = userDao.searchByName(name, page, PER_PAGE);
             userList.forEach(User::sanitize);
 
             Pagination pagination = Pagination.ofUnlimited(String.format("?username=%s&", name), page);
@@ -309,7 +309,7 @@ public class PageRouter extends Jooby {
         History history = historyDao.getHistory(historyId);
         history.sanitize();
 
-        Template template = templates.getGameStateoryTemplate();
+        Template template = templates.getReplayTemplate();
         String resp = template.apply(new ReplayView(initialBoardJson, history));
 
 //        ctx.setResponseHeader("Cache-Control", "max-age=86400, must-revalidate"); // this is never updated, we can cache aggressively

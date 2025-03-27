@@ -44,15 +44,15 @@ public class User {
         return wins + losses;
     }
 
-    public int getRoundedElo() {
+    public int getEloFmt() {
         return Math.round(elo);
     }
 
-    public int getRoundedHighestElo() {
+    public int getHighestEloFmt() {
         return Math.round(highestElo);
     }
 
-    public String getFormattedJoinedOn() {
+    public String getJoinedOnFmt() {
         return joinedOn.toLocalDateTime().format(DATE_FORMATTER);
     }
 

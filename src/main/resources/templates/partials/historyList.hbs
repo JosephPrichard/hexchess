@@ -1,28 +1,28 @@
-{{#each this as |h|}}
-<tr id="history-{{h.id}}"
-    data-id="{{h.id}}"
-    class="row-hover"
-    onclick="window.location = '/games/histories/{{h.id}}';">
+{{#each this}}
+    <tr id="history-{{id}}"
+        data-id="{{id}}"
+        class="row-hover"
+        onclick="window.location = '/games/histories/{{id}}';">
 
-    <td style="width: 25%">
-        <a href="/players/{{h.whiteId}}" class="text-ul">{{h.whiteName}}</a>
-        <img class="flag" src="/files/flags/{{h.whiteCountry}}.png" alt=""/>
-        <span class="{{h.whiteEloColor}}">
-            {{h.whiteEloDiff}}
-        </span>
-    </td>
-    <td style="width: 25%">
-        <a href="/players/{{h.blackId}}" class="text-ul">{{h.blackName}}</a>
-        <img class="flag" src="/files/flags/{{h.blackCountry}}.png" alt=""/>
-        <span class="{{h.blackEloColor}}" >
-            {{h.blackEloDiff}}
-        </span>
-    </td>
-    <td style="width: 25%">
-        {{h.formattedResult}}
-    </td>
-    <td style="width: 25%;">
-        {{h.formattedPlayedOn}}
-    </td>
-</tr>
+        <td style="width: 25%">
+            <a href="/players/{{whiteId}}" class="text-ul">{{whiteName}}</a>
+            <img class="flag" src="/files/flags/{{whiteCountry}}.png" alt=""/>
+            <span class="{{whiteEloColor}}">
+                {{whiteEloDiff}}
+            </span>
+        </td>
+        <td style="width: 25%">
+            <a href="/players/{{blackId}}" class="text-ul">{{blackName}}</a>
+            <img class="flag" src="/files/flags/{{blackCountry}}.png" alt=""/>
+            <span class="{{blackEloColor}}" >
+                {{blackEloDiff}}
+            </span>
+        </td>
+        <td style="width: 25%">
+            {{resultFmt}}
+        </td>
+        <td style="width: 25%;">
+            {{playedOnFmt}}
+        </td>
+    </tr>
 {{/each}}

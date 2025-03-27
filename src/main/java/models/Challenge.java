@@ -7,7 +7,9 @@ import lombok.NoArgsConstructor;
 import utils.Globals;
 
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
+import java.util.Date;
 
 import static dao.ChallengeDao.THRESHOLD_EXPIRATION;
 
@@ -17,61 +19,35 @@ import static dao.ChallengeDao.THRESHOLD_EXPIRATION;
 public class Challenge {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm");
 
-    public boolean isPending() {
-        return status == Challenge.Status.PENDING;
-    }
-
     public String challengeeId;
     public String challengeeName;
     public float challengeeElo;
     public String challengerId;
     public String challengerName;
     public float challengerElo;
-    public int status;
     @EqualsAndHashCode.Exclude
     public Timestamp madeOn;
 
-    public String getFormattedStatus() {
-        return switch (status) {
-            case Status.PENDING -> "Pending";
-            case Status.ACCEPTED -> "Accepted";
-            case Status.REJECTED -> "Rejected";
-            default -> throw new IllegalStateException("Invalid status state " + status);
-        };
-    }
-
-    public String getStatusColor() {
-        return switch (status) {
-            case Status.PENDING -> Globals.YELLOW_COLOR;
-            case Status.ACCEPTED -> Globals.GREEN_COLOR;
-            case Status.REJECTED -> Globals.RED_COLOR;
-            default -> throw new IllegalStateException("Invalid status state " + status);
-        };
-    }
-
-    public static class Status {
-        public static final int PENDING = 0;
-        public static final int ACCEPTED = 1;
-        public static final int REJECTED = 2;
-
-        public static boolean isValid(int status) {
-            return status != Challenge.Status.ACCEPTED && status != Challenge.Status.REJECTED && status != Challenge.Status.PENDING;
-        }
-    }
-
-    public int getRoundedChallengeeElo() {
+    public int getChallengeeEloFmt() {
         return Math.round(challengeeElo);
     }
 
-    public int getRoundedChallengerElo() {
+    public int getChallengerEloFmt() {
         return Math.round(challengerElo);
     }
 
-    public String getFormattedMadeOn() {
-        return madeOn.toLocalDateTime().format(DATE_FORMATTER);
+    public String getMadeAgo() {
+        long now = System.currentTimeMillis();
+        long then = madeOn.getTime();
+        long days = Duration.ofMillis(now - then).toDays();
+        return days > 0 ? String.format("%s days ago", days) : "Today";
     }
 
-    public String getFormattedExpiresOn() {
-        return madeOn.toLocalDateTime().plusDays(THRESHOLD_EXPIRATION.toDays()).format(DATE_FORMATTER);
+    public String getExpiresIn() {
+        long now = System.currentTimeMillis();
+        long then = madeOn.getTime();
+        long duration = THRESHOLD_EXPIRATION.toMillis();
+        long days = Duration.ofMillis(duration - (now - then)).toDays();
+        return days > 0 ? String.format("in %s days", days) : "Today";
     }
 }

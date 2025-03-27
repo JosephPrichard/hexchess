@@ -18,8 +18,6 @@ CREATE TABLE IF NOT EXISTS users (
     PRIMARY KEY (id)
 );
 
-CREATE UNIQUE INDEX UniqueUsername ON users (UPPER(username));
-
 CREATE TABLE IF NOT EXISTS users_metadata (
     id NUMERIC,
     count INTEGER,
@@ -38,7 +36,6 @@ CREATE TABLE IF NOT EXISTS game_histories (
 CREATE TABLE IF NOT EXISTS challenges (
     challengerId VARCHAR NOT NULL,
     challengeeId VARCHAR NOT NULL,
-    status INTEGER NOT NULL,
     madeOn TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (challengerId, challengeeId));
 
@@ -46,12 +43,16 @@ CREATE TABLE IF NOT EXISTS challenges (
 CREATE INDEX IF NOT EXISTS idxTrgmUsername ON users USING GIST (username gist_trgm_ops);
 CREATE INDEX IF NOT EXISTS idxUsername ON users(username);
 CREATE INDEX IF NOT EXISTS idxElo ON users(elo);
+CREATE UNIQUE INDEX idxUniqueUsername ON users (UPPER(username));
 
 CREATE INDEX IF NOT EXISTS idxWhiteId ON game_histories(whiteId, id);
 CREATE INDEX IF NOT EXISTS idxBlackId ON game_histories(blackId, id);
 CREATE INDEX IF NOT EXISTS idxBothIds ON game_histories(whiteId, blackId, id);
 
 CREATE INDEX IF NOT EXISTS idxChallengee ON challenges(challengeeId, madeOn);
+CREATE INDEX IF NOT EXISTS idxChallengee ON challenges(challengerId, madeOn);
+ALTER TABLE challenges ADD FOREIGN KEY(challengerId) REFERENCES users(id);
+ALTER TABLE challenges ADD FOREIGN KEY(challengeeId) REFERENCES users(id);
 END;
 
 BEGIN; INSERT INTO users_metadata (id, count) VALUES (1, 0); END;

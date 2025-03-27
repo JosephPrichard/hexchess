@@ -4,9 +4,9 @@
             &#11164;
         </a>
     {{/if}}
-    {{#each pages as |page|}}
-        <a class="page-button" href="{{page.location}}">
-            {{page.value}}
+    {{#each pages}}
+        <a class="page-button" href="{{location}}">
+            {{value}}
         </a>
     {{/each}}
     {{#if rightPage}}

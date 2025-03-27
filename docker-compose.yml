@@ -5,18 +5,18 @@ networks:
     driver: bridge
 
 volumes:
-  keydb_data:
+  redis_data:
     driver: local
   es_data:
     driver: local
 
 services:
-  keydb:
-    image: eqalpha/keydb
+  redis:
+    image: redis
     ports:
       - "6379:6379"
     volumes:
-      - keydb_data:/data
+      - redis_data:/redis
     environment:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_URL=${DB_URL}

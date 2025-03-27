@@ -6,7 +6,6 @@ import services.GameService;
 import services.RemoteDict;
 import io.jooby.*;
 import io.jooby.exception.StatusCodeException;
-import models.Challenge;
 import models.Player;
 import org.jsoup.Jsoup;
 
@@ -30,6 +29,7 @@ public class FormRouter extends Jooby {
         post("/forms/logout", this::logout);
         post("/forms/create-game", this::createGame);
         post("/forms/update-challenge", this::updateChallenge);
+        post("/forms/create-challenge", this::createChallenge);
     }
 
     private static void validatePassword(String passwordStr, String dupPasswordStr) {
@@ -202,47 +202,16 @@ public class FormRouter extends Jooby {
         return gameService.create(isFirstWhite);
     }
 
-    public boolean handleUpdateAction(String callerId, String challengeeId, String challengerId, String action) {
-        ChallengeDao challengeDao = state.getChallengeDao();
-
-        switch (action) {
-        case "DELETE":
-            LOGGER.info("Handling DELETE challenge=[challengee={}, challenger={}] from caller={}", challengeeId, challengerId, callerId);
-            if (callerId.equals(challengerId)) {
-                challengeDao.deleteChallenge(challengeeId, challengerId);
-                return false;
-            } else {
-                throw new StatusCodeException(StatusCode.UNAUTHORIZED, "You must be the challenger to delete a challenge");
-            }
-        case "ACCEPT":
-            LOGGER.info("Handling ACCEPT challenge=[challengee={}, challenger={}] from caller={}", challengeeId, challengerId, callerId);
-            if (callerId.equals(challengeeId)) {
-                return challengeDao.updateStatus(challengeeId, challengerId, Challenge.Status.ACCEPTED);
-            } else {
-                throw new StatusCodeException(StatusCode.UNAUTHORIZED, "You must be the challengee to accept a challenge");
-            }
-        case "REJECT":
-            LOGGER.info("Handling REJECT challenge=[challengee={}, challenger={}] from caller={}", challengeeId, challengerId, callerId);
-            if (callerId.equals(challengeeId)) {
-                challengeDao.updateStatus(challengeeId, challengerId, Challenge.Status.REJECTED);
-                return false;
-            } else {
-                throw new StatusCodeException(StatusCode.UNAUTHORIZED, "You must be the challengee to reject a challenge");
-            }
-        default:
-            throw new StatusCodeException(StatusCode.BAD_REQUEST, String.format("Invalid challenge action code=%s", action));
-        }
-    }
-
     public String updateChallenge(Context ctx) {
         GameService gameService = state.getGameService();
         SessionService sessionService = state.getSessionService();
         RemoteDict remoteDict = state.getRemoteDict();
+        ChallengeDao challengeDao = state.getChallengeDao();
 
         Formdata form = ctx.form();
         String challengeeId = form.get("challengeeId").value();
         String challengerId = form.get("challengerId").value();
-        String action = form.get("action").value();
+        String action = form.get("action").value().toUpperCase();
 
         SessionService.SessionValue session = sessionService.parseSession(ctx);
         if (session == null) {
@@ -255,17 +224,80 @@ public class FormRouter extends Jooby {
 
         String callerId = player.getId();
 
-        boolean accept = handleUpdateAction(callerId, challengeeId, challengerId, action);
-        if (accept) {
-            String id = gameService.create(null);
+        switch (action) {
+        case "ACCEPT":
+            if (callerId.equals(challengeeId)) {
+                int count = challengeDao.delete(challengerId, challengeeId);
+                if (count == 0) {
+                    throw new StatusCodeException(StatusCode.NOT_FOUND, "Failed to accept the challenge, it does not exist anymore");
+                }
 
-            ctx.setResponseCode(StatusCode.CREATED);
-            ctx.setResponseHeader("Content-Type", "text/plain");
-            return id;
-        } else {
-            ctx.setResponseCode(StatusCode.OK);
-            ctx.setResponseHeader("Content-Type", "text/plain");
-            return "Successfully updated challenge!";
+                String id = gameService.create(null);
+
+                ctx.setResponseCode(StatusCode.CREATED);
+                ctx.setResponseHeader("Content-Type", "text/plain");
+                return id;
+            } else {
+                throw new StatusCodeException(StatusCode.UNAUTHORIZED, "You must be the challengee to accept a challenge");
+            }
+        case "DELETE":
+            if (callerId.equals(challengerId)) {
+                int count = challengeDao.delete(challengerId, challengeeId);
+                if (count == 0) {
+                    throw new StatusCodeException(StatusCode.NOT_FOUND, "Failed to delete the challenge, it does not exist anymore");
+                }
+
+                ctx.setResponseCode(StatusCode.OK);
+                ctx.setResponseHeader("Content-Type", "text/plain");
+                return "Successfully updated challenge!";
+            } else {
+                throw new StatusCodeException(StatusCode.UNAUTHORIZED, "You must be the challenger to delete a challenge");
+            }
+        case "REJECT":
+            if (callerId.equals(challengeeId)) {
+                int count = challengeDao.delete(challengerId, challengeeId);
+                if (count == 0) {
+                    throw new StatusCodeException(StatusCode.NOT_FOUND, "Failed to reject the challenge, it does not exist anymore");
+                }
+
+                ctx.setResponseCode(StatusCode.OK);
+                ctx.setResponseHeader("Content-Type", "text/plain");
+                return "Successfully updated challenge!";
+            } else {
+                throw new StatusCodeException(StatusCode.UNAUTHORIZED, "You must be the challengee to reject a challenge");
+            }
+        default:
+            throw new StatusCodeException(StatusCode.BAD_REQUEST, String.format("Invalid challenge action code=%s", action));
         }
+    }
+
+    public String createChallenge(Context ctx) {
+        SessionService sessionService = state.getSessionService();
+        RemoteDict remoteDict = state.getRemoteDict();
+        ChallengeDao challengeDao = state.getChallengeDao();
+
+        Formdata form = ctx.form();
+        String challengeeId = form.get("challengeeId").value();
+
+        SessionService.SessionValue session = sessionService.parseSession(ctx);
+        if (session == null) {
+            throw new StatusCodeException(StatusCode.UNAUTHORIZED, "Cannot update user when you are not logged in");
+        }
+        Player player = remoteDict.getSession(session.getSessionId());
+        if (player == null) {
+            throw new StatusCodeException(StatusCode.UNAUTHORIZED, "Session has expired, please login again");
+        }
+
+        try {
+            challengeDao.insert(challengeeId, player.getId());
+        } catch (ChallengeDao.ParticipantException ex) {
+            throw new StatusCodeException(StatusCode.NOT_FOUND, "The challenge is made against a participant that does not exist");
+        } catch (ChallengeDao.SelfException ex) {
+            throw new StatusCodeException(StatusCode.BAD_REQUEST, "You cannot challenge yourself");
+        } catch (ChallengeDao.DuplicateException ex) {
+            throw new StatusCodeException(StatusCode.BAD_REQUEST, "A challenge against this player already exists");
+        }
+
+        return "Successfully created challenge!";
     }
 }

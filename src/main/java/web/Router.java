@@ -4,6 +4,8 @@ import com.github.jknack.handlebars.Handlebars;
 import com.github.jknack.handlebars.io.ClassPathTemplateLoader;
 import com.zaxxer.hikari.HikariDataSource;
 import io.jooby.Jooby;
+import io.jooby.MediaType;
+import io.jooby.ServerOptions;
 import io.jooby.exception.NotFoundException;
 import io.jooby.jackson.JacksonModule;
 import redis.clients.jedis.JedisPooled;

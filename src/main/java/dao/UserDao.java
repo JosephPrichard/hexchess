@@ -93,7 +93,7 @@ public class UserDao {
         } catch (SQLException ex) {
             SQLException nextEx = ex.getNextException();
             if ("23505".equals(nextEx.getSQLState())) {
-                LOGGER.warn("Username is already taken={}", inst, ex);
+                LOGGER.warn("Username is already taken={}", inst);
                 throw new TakenUsernameException();
             }
 
@@ -156,11 +156,9 @@ public class UserDao {
         }
 
         String sql = """
-            BEGIN;
-                UPDATE users
-                SET username = COALESCE(?, username), country = COALESCE(?, country), bio = COALESCE(?, bio)
-                WHERE id = ?;
-            END;
+            UPDATE users
+            SET username = COALESCE(?, username), country = COALESCE(?, country), bio = COALESCE(?, bio)
+            WHERE id = ?;
             """;
 
         try {
@@ -177,11 +175,7 @@ public class UserDao {
         String saltedPassword = newPassword + salt;
         String hashedPassword = BCrypt.withDefaults().hashToString(12, saltedPassword.toCharArray());
 
-        String sql = """
-            BEGIN;
-                UPDATE users SET password = ?, salt = ? WHERE id = ?;
-            END
-            """;
+        String sql = "UPDATE users SET password = ?, salt = ? WHERE id = ?";
         try {
             runner.execute(sql, hashedPassword, salt, id);
             LOGGER.info("Updated user password with id={}", id);
@@ -242,7 +236,7 @@ public class UserDao {
             """;
         try {
             User user = runner.query(sql, USER_MAPPER, id);
-            LOGGER.info("Fetched user={} by id={}", user, id);
+            LOGGER.info("Selected user={} by id={}", user, id);
             return user;
         } catch (SQLException ex) {
             LOGGER.error("Failed to fetch user by id={}", id, ex);
@@ -259,7 +253,7 @@ public class UserDao {
             """;
         try {
             User user = runner.query(sql, USER_MAPPER, id);
-            LOGGER.info("Fetched user={} with rank by id={}", user, id);
+            LOGGER.info("Selected user={} with rank by id={}", user, id);
             return user;
         } catch (SQLException ex) {
             LOGGER.error("Failed to fetch user with rank by id={}", id, ex);
@@ -275,7 +269,7 @@ public class UserDao {
         String sql = """
             SELECT id, username, country, elo, wins, losses
             FROM users
-            WHERE 1 = 1 AND id = ANY (?)
+            WHERE id = ANY (?)
             """;
 
         String idsStr = ids.stream().collect(Collectors.joining(",", "[", "]"));

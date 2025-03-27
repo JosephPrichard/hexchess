@@ -3,7 +3,7 @@
 <head>
     <title>Preferences - Hexchess</title>
     <link rel="stylesheet" href="/static/css/index.css">
-    <script src="/static/scripts/pages/preferences.js" defer></script>
+    <script src="/static/js/pages/preferences.js" defer></script>
 </head>
 <body>
 {{> partials/banner }}
@@ -22,10 +22,10 @@
             <label for="username" style="font-size: 17px">Username</label>
             <input id="username" name="username" placeholder="Username" value="{{username}}" style="margin-top: 5px; margin-bottom: 10px;"/>
 
-            <label for="biography" style="font-size: 17px">Biography</label>
+            <label for="bio" style="font-size: 17px">Biography</label>
             <textarea id="bio" name="bio" rows="8" style="padding: 8px; font-size: 14px">{{bio}}</textarea>
 
-            <button id="user-form-submit" class="button-grey" type="submit">
+            <button id="user-form-submit" class="button button-grey" type="submit">
                 Submit
             </button>
             <div id="update-user-form-message" style="margin-top: 20px; min-height: 20px;"></div>
@@ -42,13 +42,13 @@
             <label for="retype-password" style="font-size: 17px">Retype New Password</label>
 
             <input id="retype-password" type="password" name="retype-password" placeholder="Password" value="" style="margin-top: 5px; margin-bottom: 15px;"/>
-            <button id="password-form-submit" class="button-grey" type="submit">
+            <button id="password-form-submit" class="button button-grey" type="submit">
                 Submit
             </button>
             <div id="update-password-form-message" style="margin-top: 20px; min-height: 20px;"></div>
         </form>
         <br>
-        <button id="sign-out-button" class="button-grey button-red">
+        <button id="sign-out-button" class="button button-red">
             Sign Out
         </button>
         <div style="height: 100px;"></div>

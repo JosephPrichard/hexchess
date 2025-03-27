@@ -5,18 +5,19 @@
     <link rel="stylesheet" href="/static/css/index.css">
 </head>
 <body>
-    {{> partials/banner }}
-   <div class="center-container">
-       <div class="panel" style="max-width: 350px;">
-           <div class="text-lg">
-               Error {{code}}
-           </div>
-           <p>
-               {{message}}
-           </p>
-           <a href="/" class="button-grey button-scaled">
-               Return Home
-           </a>
+{{> partials/banner }}
+<div class="center-container">
+   <div class="panel" style="max-width: 350px;">
+       <div class="text-lg">
+           Error {{code}}
        </div>
+       <p>
+           {{message}}
+       </p>
+       <a href="/" class="button button-grey button-scaled">
+           Return Home
+       </a>
    </div>
+</div>
 </body>
+</html>

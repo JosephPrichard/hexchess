@@ -19,15 +19,15 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 public class State {
-    private UserDao userDao;
-    private HistoryDao historyDao;
-    private ChallengeDao challengeDao;
-    private RemoteDict remoteDict;
-    private GameService gameService;
-    private SessionService sessionService;
-    private Broadcaster broadcaster;
-    private Templates templates;
-    private Map<String, byte[]> files;
+    public UserDao userDao;
+    public HistoryDao historyDao;
+    public ChallengeDao challengeDao;
+    public RemoteDict remoteDict;
+    public GameService gameService;
+    public SessionService sessionService;
+    public Broadcaster broadcaster;
+    public Templates templates;
+    public Map<String, byte[]> files;
 
     public State(JedisPooled jedis, HikariDataSource ds, Handlebars handlebars, Map<String, byte[]> filesMap) throws IOException {
         userDao = new UserDao(ds);

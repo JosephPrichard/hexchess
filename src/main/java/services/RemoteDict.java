@@ -105,7 +105,10 @@ public class RemoteDict {
             fullIds[i] = tuples.get(i).getBinaryElement();
         }
 
-        List<byte[]> bytesList = jedis.mget(fullIds);
+        List<byte[]> bytesList = null;
+        if (fullIds.length > 0) {
+            bytesList = jedis.mget(fullIds);
+        }
         if (bytesList == null) {
             return null;
         }
@@ -171,23 +174,27 @@ public class RemoteDict {
     }
 
     public Leaderboard getLeaderboard(int startRank, int count) {
-        List<String> ids = jedis.zrange(LEADERBOARD_ZSET, startRank, startRank - 1 + count);
+        List<String> ids = jedis.zrevrange(LEADERBOARD_ZSET, startRank, startRank - 1 + count);
         long elemCount = jedis.zcount(LEADERBOARD_ZSET, Integer.MIN_VALUE, Integer.MAX_VALUE);
 
-        long pageCount = elemCount / count;
+        long pageCount = (elemCount / count) + Math.min(elemCount % count, 1);
 
         List<RankedUser> users = new ArrayList<>();
         for (int i = 0; i < ids.size(); i++) {
             String id = ids.get(i);
             users.add(new RankedUser(id, startRank + i + 1));
         }
+
         return new Leaderboard(users, (int) pageCount);
     }
 
     public Leaderboard getLeaderboardPage(int page, int perPage) {
         page = Math.max(page, 1);
         int offset = (page - 1) * perPage;
-        return getLeaderboard(offset, perPage);
+        Leaderboard leaderboard = getLeaderboard(offset, perPage);
+
+        LOGGER.info("Get leaderboard={} of page={}", leaderboard, page);
+        return leaderboard;
     }
 
     @Data

@@ -12,29 +12,29 @@
         </tr>
         </thead>
         <tbody>
-        {{#each userList as |u|}}
-            <tr id="user-{{u.id}}" class="row-hover" onclick="window.location = '/players/{{u.id}}';">
+        {{#each userList}}
+            <tr id="user-{{id}}" class="row-hover" onclick="window.location = '/players/{{id}}';">
                 <td style="width: 9%">
-                    {{u.rank}}
+                    {{rank}}
                 </td>
                 <td style="width: 43%">
-                    {{u.username}}
-                    <img class="flag" src="/files/flags/{{u.country}}.png" alt=""/>
+                    {{username}}
+                    <img class="flag" src="/files/flags/{{country}}.png" alt=""/>
                 </td>
                 <td style="width: 12%">
-                    {{u.roundedElo}}
+                    {{eloFmt}}
                 </td>
-                <td class="{{u.winRateColor}}" style="width: 9%;">
-                    {{u.winRate}}%
+                <td class="{{winRateColor}}" style="width: 9%;">
+                    {{winRate}}%
                 </td>
                 <td class="green-color" style="width: 9%">
-                    {{u.wins}}
+                    {{wins}}
                 </td>
                 <td class="red-color" style="width: 9%">
-                    {{u.losses}}
+                    {{losses}}
                 </td>
                 <td style="width: 9%">
-                    {{u.total}}
+                    {{total}}
                 </td>
             </tr>
         {{/each}}

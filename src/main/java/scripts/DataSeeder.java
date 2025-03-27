@@ -9,6 +9,7 @@ import models.GameState;
 import models.User;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.lang3.tuple.Pair;
+import redis.clients.jedis.JedisPooled;
 import services.RemoteDict;
 import utils.Config;
 
@@ -194,7 +195,10 @@ public class DataSeeder {
         Pair.of("id1", "id4"),
         Pair.of("id1", "id5"),
         Pair.of("id1", "id6"),
-        Pair.of("id1", "id7"));
+        Pair.of("id1", "id7"),
+        Pair.of("id2", "id1"),
+        Pair.of("id3", "id1"),
+        Pair.of("id4", "id1"));
 
     private <T> void seedTable(List<T> insts, Consumer<T> consumer) {
         var futures = insts.stream()
@@ -242,15 +246,14 @@ public class DataSeeder {
 
         Config.createSchema(ds);
 
-//        var redisHost = envMap.get("REDIS_HOST");
-//        var redisPort = Integer.parseInt(envMap.get("REDIS_PORT"));
-//        var jedis = new JedisPooled(redisHost, redisPort);
-//        var remoteDict = new RemoteDict(jedis, new ObjectMapper());
+        String redisHost = System.getenv("REDIS_HOST");
+        int redisPort = Integer.parseInt(System.getenv("REDIS_PORT"));
+        JedisPooled jedis = new JedisPooled(redisHost, redisPort);
+        RemoteDict remoteDict = new RemoteDict(jedis);
 
-        DataSeeder seeder = new DataSeeder(ds, null);
-//        var seeder = new DataSeeder(ds, remoteDict);
+        DataSeeder seeder = new DataSeeder(ds, remoteDict);
         seeder.seedUsersTable(USER_INSTS);
-//        seeder.seedUsersDict();
+        seeder.seedUsersDict();
         seeder.seedHistTable(HISTORY_INSTS);
         seeder.seedChallengeTable(CHALLENGE_INSTS);
 
