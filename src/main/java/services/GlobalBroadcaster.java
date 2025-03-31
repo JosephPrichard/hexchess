@@ -11,7 +11,7 @@ import static utils.Globals.LOGGER;
 
 public class GlobalBroadcaster implements Broadcaster {
 
-    private static final String CHANNEL_NAME = "global-ws-broadcast";
+    private static final String CHANNEL_NAME = "GLOBAL-BROADCAST";
     private static final char FIELD_SPLIT = 0x1e;
 
     private final JedisPooled jedis;
@@ -35,7 +35,7 @@ public class GlobalBroadcaster implements Broadcaster {
     public void broadcast(String id, String content) {
         String message = id + FIELD_SPLIT + content;
         jedis.publish(CHANNEL_NAME, message);
-        LOGGER.info("Broadcast global to id: {}, message: {}", id, message);
+        LOGGER.info("Broadcast global to id={}, message={}", id, message);
     }
 
     public JedisPubSub startListenSubscribe() throws ExecutionException, InterruptedException {
@@ -45,7 +45,7 @@ public class GlobalBroadcaster implements Broadcaster {
                 @Override
                 public void onSubscribe(String channel, int subscribedChannels) {
                     super.onSubscribe(channel, subscribedChannels);
-                    LOGGER.info("Started the subscriber listener for broadcast instance: {}", this);
+                    LOGGER.info("Started the subscriber listener on channel={} for broadcast instance: {}", channel, this);
                     futureSubscriber.complete(this);
                 }
 
@@ -58,7 +58,10 @@ public class GlobalBroadcaster implements Broadcaster {
                             LOGGER.error("Invalid message format: {}", message);
                             return;
                         }
-                        localBroadcaster.broadcast(message.substring(0, index), message.substring(index + 1));
+                        String id = message.substring(0, index);
+                        String content = message.substring(index + 1);
+                        LOGGER.info("Received a message on channel id={}, content{}, ref={}", id, content, this);
+                        localBroadcaster.broadcast(id, content);
                     } catch (Exception ex) {
                         LOGGER.error("Error occurred in subscriber thread {}", String.valueOf(ex));
                     }

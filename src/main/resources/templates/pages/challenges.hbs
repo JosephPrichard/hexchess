@@ -4,9 +4,11 @@
     <title>Challenges - Hexchess</title>
     <link rel="stylesheet" href="/static/css/index.css">
     <script src="/static/js/pages/challenges.js" defer></script>
+    <script src="/static/js/lib/notifications.js" defer></script>
 </head>
 <body>
 {{> partials/banner }}
+<div class="bottom-right-anchor" style="width: 350px" id="notifications-box"></div>
 <div class="center-horizontal-container" style="margin-bottom: 100px">
     <div style="width: 500px;">
         <div class="tabs-group">
@@ -24,14 +26,14 @@
                         <a href="/players/{{challengerId}}" class="text-ul" style="color: dodgerblue">
                             {{challengerName}}
                         </a>
-                        {{#unless areSent}}
+                        {{#unless sender}}
                             <b>({{challengerEloFmt}})</b>
                         {{/unless}}
                         vs
                         <a href="/players/{{challengeeId}}" class="text-ul" style="color: dodgerblue">
                             {{challengeeName}}
                         </a>
-                        {{#if areSent}}
+                        {{#if sender}}
                             <b>({{challengeeEloFmt}})</b>
                         {{/if}}
                     </div>
@@ -44,24 +46,24 @@
                 </div>
                 <div class="center-relative">
                     <div class="vertical-align">
-                        {{#if areSent}}
+                        {{#if sender}}
                             <button id="challenge-{{@index}}-delete"
                                     class="button-small button-small-red"
                                     style="margin-left: 5px"
-                                    onclick="onDelete({{@index}}, '{{challengerId}}', '{{challengeeId}}')">
+                                    onclick="onDelete({{@index}}, '{{challengerId}}', '{{challengeeId}}', '{{challengeeName}}')">
                                 Delete
                             </button>
                         {{else}}
                             <button id="challenge-{{@index}}-accept"
                                     class="button-small button-small-green"
                                     style="margin-left: 5px"
-                                    onclick="onAccept({{@index}}, '{{challengerId}}', '{{challengeeId}}')">
+                                    onclick="onAccept({{@index}}, '{{challengerId}}', '{{challengeeId}}', '{{challengerName}}')">
                                 Accept
                             </button>
                             <button id="challenge-{{@index}}-reject"
                                     class="button-small button-small-red"
                                     style="margin-left: 5px"
-                                    onclick="onReject({{@index}}, '{{challengerId}}', '{{challengeeId}}')">
+                                    onclick="onReject({{@index}}, '{{challengerId}}', '{{challengeeId}}', '{{challengerName}}')">
                                 Reject
                             </button>
                         {{/if}}
@@ -71,7 +73,7 @@
         {{/each}}
         {{#unless challengeList.length}}
             <div class="color-wrapper">
-                {{#if areSent}}
+                {{#if sender}}
                     No challenges have been sent
                 {{else}}
                     No challenges have been received

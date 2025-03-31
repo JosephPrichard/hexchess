@@ -2,7 +2,7 @@ function initBanner() {
     const cookie = getSessionCookie();
 
     if (cookie) {
-        const elem = document.getElementById("profile-link");
+        const elem = document.getElementById("user-link");
         elem.style.removeProperty('display');
         elem.innerHTML = cookie.username;
         elem.setAttribute("href", `/players/${cookie.playerId}`);

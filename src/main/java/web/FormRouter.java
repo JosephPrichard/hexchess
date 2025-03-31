@@ -61,6 +61,7 @@ public class FormRouter extends Jooby {
 
         try {
             UserInst inst = userDao.insert(username, password);
+            remoteDict.incrLeaderboardUser(inst.getNewId(), inst.getElo());
 
             String sessionId = sessionService.createId();
             Cookie cookie = sessionService.createCookie(sessionId, inst.getNewId(), inst.getUsername(), inst.getCountry());
@@ -87,17 +88,17 @@ public class FormRouter extends Jooby {
         String username = form.get("username").value();
         String password = form.get("password").value();
 
-        VerifiedPlayer verifiedPlayer = userDao.verify(username, password);
-        if (verifiedPlayer == null) {
+        VerifiedUser verifiedUser = userDao.verify(username, password);
+        if (verifiedUser == null) {
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, "Login credentials are invalid");
         }
 
         String sessionId = sessionService.createId();
-        Cookie cookie = sessionService.createCookie(sessionId, verifiedPlayer.getId(), verifiedPlayer.getUsername(), verifiedPlayer.getCountry());
+        Cookie cookie = sessionService.createCookie(sessionId, verifiedUser.getId(), verifiedUser.getUsername(), verifiedUser.getCountry());
         ctx.setResponseCookie(cookie);
-        remoteDict.setSession(sessionId, new Player(verifiedPlayer.getId(), verifiedPlayer.getUsername()), cookie.getMaxAge());
+        remoteDict.setSession(sessionId, new Player(verifiedUser.getId(), verifiedUser.getUsername()), cookie.getMaxAge());
 
-        LOGGER.info("Player has logged in {}", verifiedPlayer);
+        LOGGER.info("Player has logged in {}", verifiedUser);
 
         ctx.setResponseHeader("Content-Type", "text/plain");
         ctx.setResponseHeader("Hx-Redirect", "/");
@@ -119,7 +120,7 @@ public class FormRouter extends Jooby {
         if (session == null) {
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, "Cannot update password when you are not logged in");
         }
-        VerifiedPlayer player = userDao.verify(session.getUsername(), password);
+        VerifiedUser player = userDao.verify(session.getUsername(), password);
         if (player == null) {
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, "Login credentials are invalid");
         }
@@ -147,11 +148,16 @@ public class FormRouter extends Jooby {
         }
         Player player = remoteDict.getSession(session.getSessionId());
         if (player == null) {
+            ctx.setResponseCookie(sessionService.createEmptyCookie());
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, "Session has expired, please login again");
         }
 
-        userDao.updateUser(player.getId(), newUsername, newCountry, newBio);
-        LOGGER.info("Updated data of user={}", session.getPlayerId());
+        VerifiedUser verifiedUser = userDao.updateUser(player.getId(), newUsername, newCountry, newBio);
+        if (verifiedUser != null) {
+            LOGGER.info("Updated data of user={}", session.getPlayerId());
+            Cookie cookie = sessionService.createCookie(session.getSessionId(), verifiedUser.getId(), verifiedUser.getUsername(), verifiedUser.getCountry());
+            ctx.setResponseCookie(cookie);
+        }
 
         ctx.setResponseHeader("Content-Type", "text/plain");
         return "Updated successfully!";
@@ -219,6 +225,7 @@ public class FormRouter extends Jooby {
         }
         Player player = remoteDict.getSession(session.getSessionId());
         if (player == null) {
+            ctx.setResponseCookie(sessionService.createEmptyCookie());
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, "Session has expired, please login again");
         }
 
@@ -249,7 +256,7 @@ public class FormRouter extends Jooby {
 
                 ctx.setResponseCode(StatusCode.OK);
                 ctx.setResponseHeader("Content-Type", "text/plain");
-                return "Successfully updated challenge!";
+                return "Successfully updated challenge";
             } else {
                 throw new StatusCodeException(StatusCode.UNAUTHORIZED, "You must be the challenger to delete a challenge");
             }
@@ -262,7 +269,7 @@ public class FormRouter extends Jooby {
 
                 ctx.setResponseCode(StatusCode.OK);
                 ctx.setResponseHeader("Content-Type", "text/plain");
-                return "Successfully updated challenge!";
+                return "Successfully updated challenge";
             } else {
                 throw new StatusCodeException(StatusCode.UNAUTHORIZED, "You must be the challengee to reject a challenge");
             }
@@ -285,6 +292,7 @@ public class FormRouter extends Jooby {
         }
         Player player = remoteDict.getSession(session.getSessionId());
         if (player == null) {
+            ctx.setResponseCookie(sessionService.createEmptyCookie());
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, "Session has expired, please login again");
         }
 
@@ -298,6 +306,6 @@ public class FormRouter extends Jooby {
             throw new StatusCodeException(StatusCode.BAD_REQUEST, "A challenge against this player already exists");
         }
 
-        return "Successfully created challenge!";
+        return "Created a challenge against player";
     }
 }

@@ -14,8 +14,7 @@ async function postRegister(username, password, dupPassword) {
     }
 }
 
-const registerForm = document.getElementById("register-form");
-registerForm.addEventListener('submit', async (e) => {
+async function onSubmitRegisterForm(e) {
     e.preventDefault();
 
     const usernameElem = document.getElementById("username-register");
@@ -32,16 +31,13 @@ registerForm.addEventListener('submit', async (e) => {
     const [text, ok] = await postRegister(username, password, dupPassword);
     console.log("Register response", text, ok);
 
-    const messageElem = document.getElementById("register-form-message");
-
     if (ok) {
-        messageElem.innerText = "";
-        messageElem.className = "";
         window.location = "/";
     } else {
-        messageElem.innerText = text;
-        messageElem.className = "red-color";
+        createNotification(text, ok);
     }
 
     submitElem.innerHTML = "Register";
-});
+}
+
+document.getElementById("register-form").addEventListener('submit', onSubmitRegisterForm);

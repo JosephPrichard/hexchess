@@ -19,12 +19,12 @@ import static dao.ChallengeDao.THRESHOLD_EXPIRATION;
 public class Challenge {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm");
 
-    public String challengeeId;
-    public String challengeeName;
-    public float challengeeElo;
     public String challengerId;
     public String challengerName;
     public float challengerElo;
+    public String challengeeId;
+    public String challengeeName;
+    public float challengeeElo;
     @EqualsAndHashCode.Exclude
     public Timestamp madeOn;
 

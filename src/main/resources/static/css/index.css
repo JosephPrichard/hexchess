@@ -478,7 +478,7 @@ select {
 
 .challenge-box {
     width: 100%;
-    margin: 3px;
+    margin-bottom: 6px;
     padding: 20px 20px;
     border-radius: 3px;
     background-color: rgb(42,42,42);
@@ -525,4 +525,66 @@ select {
     display: flex;
     align-items: center;
     height: 100%;
+}
+
+.bottom-right-anchor {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+}
+
+.notification {
+    display: flex;
+    flex-direction: row;
+    z-index: 4;
+    margin: 20px;
+    border-radius: 5px;
+    padding: 10px 20px;
+    color: white;
+    transition: opacity 3s ease-in-out;
+    opacity: 1;
+}
+
+.notification-green {
+    background-color: #2ea44f;
+}
+
+.notification-red{
+    background-color: crimson;
+}
+
+.notification-text {
+    flex: 0.95;
+}
+
+.x-button {
+    flex: 0.05;
+    float: right;
+    margin-right: auto;
+    cursor: pointer;
+}
+
+.country-wrapper {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.country-image {
+    width: 80px;
+    height: 55px;
+    border-radius: 5px;
+    cursor: pointer;
+    display: inline-block;
+}
+
+.country-picker {
+    position: absolute;
+    z-index: 2;
+    overflow-y: scroll;
+    background-color: rgb(50, 50, 50);
+    box-shadow: 0 0 0 1px rgb(40, 40, 40);
+    border-radius: 10px;
+    padding: 25px;
+    width: calc(87px * 5);
+    height: calc(500px);
 }

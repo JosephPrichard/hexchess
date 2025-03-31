@@ -21,6 +21,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 public class FormRouterTest {
+
     @Test
     public void testPostRegister() throws UserDao.TakenUsernameException {
         // given
@@ -74,7 +75,7 @@ public class FormRouterTest {
         UserDao mockUserDao = mock(UserDao.class);
         SessionService mockSessionService = mock(SessionService.class);
 
-        when(mockUserDao.verify(any(), any())).thenReturn(new UserDao.VerifiedPlayer("1", "testUser", country));
+        when(mockUserDao.verify(any(), any())).thenReturn(new UserDao.VerifiedUser("1", "testUser", country));
         when(mockSessionService.createId()).thenReturn("sessionToken");
         when(mockSessionService.createCookie(any(), any(), any(), any())).thenReturn(cookie);
 
@@ -125,7 +126,7 @@ public class FormRouterTest {
         Assertions.assertEquals("test-id", result.value());
     }
 
-    private MockContext mockChallengeCtx(String challengeeId, String challengerId, String action) {
+    private MockContext mockChallengeCtx(String challengerId, String challengeeId, String action) {
         MockContext mockContext = new MockContext();
         Formdata mockForm = Formdata.create(mockContext);
         mockForm.put("challengeeId", challengeeId);
@@ -158,13 +159,13 @@ public class FormRouterTest {
         state.setSessionService(mockSessionService);
 
         MockRouter mockRouter = new MockRouter(new FormRouter(state));
-        MockContext mockContext = mockChallengeCtx(challengeeId, challengerId, "ACCEPT");
+        MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "ACCEPT");
 
         // when
         mockRouter.post("/forms/update-challenge", mockContext);
 
         // then
-        verify(mockChallengeDao, times(1)).delete(challengeeId, challengerId);
+        verify(mockChallengeDao, times(1)).delete(challengerId, challengeeId);
         verify(mockGameService, times(1)).create(null);
     }
 
@@ -190,13 +191,13 @@ public class FormRouterTest {
         state.setSessionService(mockSessionService);
 
         MockRouter mockRouter = new MockRouter(new FormRouter(state));
-        MockContext mockContext = mockChallengeCtx(challengeeId, challengerId, "ACCEPT");
+        MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "ACCEPT");
 
         // when
         Assertions.assertThrows(StatusCodeException.class, () -> mockRouter.post("/forms/update-challenge", mockContext));
 
         // then
-        verify(mockChallengeDao, times(1)).delete(challengeeId, challengerId);
+        verify(mockChallengeDao, times(1)).delete(challengerId, challengeeId);
         verify(mockGameService, times(0)).create(any());
     }
 
@@ -213,6 +214,7 @@ public class FormRouterTest {
 
         when(mockSessionService.parseSession(any())).thenReturn(new SessionService.SessionValue("sessionId", challengerId, "username", "us"));
         when(mockRemoteDict.getSession("sessionId")).thenReturn(new Player(challengerId, "playerName"));
+        when(mockChallengeDao.delete(any(), any())).thenReturn(1);
 
         State state = new State();
         state.setChallengeDao(mockChallengeDao);
@@ -221,15 +223,14 @@ public class FormRouterTest {
         state.setSessionService(mockSessionService);
 
         MockRouter mockRouter = new MockRouter(new FormRouter(state));
-        MockContext mockContext = mockChallengeCtx(challengeeId, challengerId, "DELETE");
+        MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "DELETE");
 
         // when
-        MockValue result = mockRouter.post("/forms/update-challenge", mockContext);
+        mockRouter.post("/forms/update-challenge", mockContext);
 
         // then
-        verify(mockChallengeDao, times(1)).delete(challengeeId, challengerId);
+        verify(mockChallengeDao, times(1)).delete(challengerId, challengeeId);
         verify(mockGameService, times(0)).create(null);
-        Assertions.assertEquals("Successfully updated challenge!", result.value());
     }
 
     @Test
@@ -245,6 +246,7 @@ public class FormRouterTest {
 
         when(mockSessionService.parseSession(any())).thenReturn(new SessionService.SessionValue("sessionId", challengeeId, "username", "us"));
         when(mockRemoteDict.getSession("sessionId")).thenReturn(new Player(challengeeId, "playerName"));
+        when(mockChallengeDao.delete(any(), any())).thenReturn(1);
 
         State state = new State();
         state.setChallengeDao(mockChallengeDao);
@@ -253,14 +255,13 @@ public class FormRouterTest {
         state.setSessionService(mockSessionService);
 
         MockRouter mockRouter = new MockRouter(new FormRouter(state));
-        MockContext mockContext = mockChallengeCtx(challengeeId, challengerId, "REJECT");
+        MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "REJECT");
 
         // when
-        MockValue result = mockRouter.post("/forms/update-challenge", mockContext);
+        mockRouter.post("/forms/update-challenge", mockContext);
 
         // then
-        verify(mockChallengeDao, times(1)).delete(challengeeId, challengerId);
+        verify(mockChallengeDao, times(1)).delete(challengerId, challengeeId);
         verify(mockGameService, times(0)).create(null);
-        Assertions.assertEquals("Successfully updated challenge!", result.value());
     }
 }

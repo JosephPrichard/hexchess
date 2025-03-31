@@ -56,12 +56,12 @@ public class ChallengeDaoTest {
         // then
         List<Challenge> expected = List.of(
             new Challenge(
-                "id2", "user2", 1005f,
                 "id3", "user3", 900f,
+                "id2", "user2", 1005f,
                 null),
             new Challenge(
-                "id2", "user2", 1005f,
                 "id1", "user1", 1000f,
+                "id2", "user2", 1005f,
                 null));
         Assertions.assertEquals(expected, challenges);
     }
@@ -79,7 +79,7 @@ public class ChallengeDaoTest {
 
         challengeDao.deleteExpired("id2", Duration.ofMillis(500));
 
-        List<Challenge> challenges = challengeDao.getByParticipant(null, "id2");
+        List<Challenge> challenges = challengeDao.getByParticipant("id2", null);
 
         // then
         List<Challenge> expected = List.of(
@@ -101,14 +101,11 @@ public class ChallengeDaoTest {
 
         // when
         challengeDao.insert("id1", "id2");
-
         int count = challengeDao.delete("id1", "id2");
-
         List<Challenge> challenges = challengeDao.getByParticipant("id1", null);
 
         // then
-        List<Challenge> expected = List.of();
-        Assertions.assertEquals(expected, challenges);
+        Assertions.assertEquals(List.of(), challenges);
         Assertions.assertEquals(1, count);
     }
 }

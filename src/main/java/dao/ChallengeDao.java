@@ -18,7 +18,6 @@ public class ChallengeDao {
 
     public static final Duration THRESHOLD_EXPIRATION = Duration.ofDays(7);
     private static final ResultSetHandler<List<Challenge>> CHAL_LIST_MAPPER = new BeanListHandler<>(Challenge.class);
-    private static final ResultSetHandler<Long> LONG_MAPPER = new ScalarHandler<>();
 
     private final QueryRunner runner;
 
@@ -32,11 +31,11 @@ public class ChallengeDao {
 
     public static class ParticipantException extends RuntimeException {}
 
-    public void insert(String challengerId, String challengeeId) throws DuplicateException, SelfException {
+    public void insert(String challengerId, String challengeeId) {
         insert(challengerId, challengeeId, new Timestamp(System.currentTimeMillis()));
     }
 
-    public void insert(String challengerId, String challengeeId, Timestamp madeOn) throws DuplicateException, SelfException {
+    public void insert(String challengerId, String challengeeId, Timestamp madeOn) {
         if (challengeeId.equals(challengerId)) {
             throw new ChallengeDao.SelfException();
         }
@@ -103,6 +102,7 @@ public class ChallengeDao {
             conn = runner.getDataSource().getConnection();
             stmt = conn.prepareStatement(sql);
 
+            // nullable fields must assign using typed setters
             stmt.setString(1, challengerId);
             stmt.setString(2, challengeeId);
             stmt.setTimestamp(3, timestamp);

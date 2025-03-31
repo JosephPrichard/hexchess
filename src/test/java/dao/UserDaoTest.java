@@ -2,7 +2,6 @@ package dao;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import models.User;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.*;
 import utils.Config;
 
@@ -50,11 +49,11 @@ public class UserDaoTest {
         UserDao.UserInst inst2 = userDao.insert("user2", "password2");
         UserDao.UserInst inst3 = userDao.insert("user3", "password3");
 
-        UserDao.VerifiedPlayer player1 = userDao.verify("user1", "password1");
-        UserDao.VerifiedPlayer player2 = userDao.verify("user2", "password2");
-        UserDao.VerifiedPlayer player3 = userDao.verify("user2", "wrong-password");
-        UserDao.VerifiedPlayer player4 = userDao.verify("user3", "password3");
-        UserDao.VerifiedPlayer player5 = userDao.verify("user1", "password3");
+        UserDao.VerifiedUser player1 = userDao.verify("user1", "password1");
+        UserDao.VerifiedUser player2 = userDao.verify("user2", "password2");
+        UserDao.VerifiedUser player3 = userDao.verify("user2", "wrong-password");
+        UserDao.VerifiedUser player4 = userDao.verify("user3", "password3");
+        UserDao.VerifiedUser player5 = userDao.verify("user1", "password3");
 
         // then
         Assertions.assertEquals(player1.getId(), inst1.getNewId());
@@ -116,7 +115,7 @@ public class UserDaoTest {
         userDao.updatePassword("id1", "password-new");
 
         User user = userDao.getById("id1");
-        UserDao.VerifiedPlayer player = userDao.verify("user1", "password-new");
+        UserDao.VerifiedUser player = userDao.verify("user1", "password-new");
 
         // then
         Assertions.assertEquals(player.getId(), user.getId());

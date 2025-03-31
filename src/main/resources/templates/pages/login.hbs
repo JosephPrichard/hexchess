@@ -4,9 +4,11 @@
     <title>Login - Hexchess</title>
     <link rel="stylesheet" href="/static/css/index.css">
     <script src="/static/js/pages/login.js" defer></script>
+    <script src="/static/js/lib/notifications.js" defer></script>
 </head>
 <body>
 {{> partials/banner }}
+<div class="bottom-right-anchor" style="width: 350px" id="notifications-box"></div>
 <div class="center-horizontal-container">
     <div class="title-lg">
         Login
@@ -25,7 +27,6 @@
             <div style="margin-top: 20px;">
                 Don't have an account? Register <a href="/register" style="color: cornflowerblue;"> here! </a>
             </div>
-            <div id="login-form-message" style="margin-top: 20px"></div>
         </form>
     </div>
 </div>

@@ -131,9 +131,9 @@ public class GameService {
             String moveHistoryData = JSON_MAPPER.writeValueAsString(state.getMoveList());
 
             EloChangeSet changeSet = userDao.updateStats(winId, loseId);
-            remoteDict.updateLeaderboardUser(
-                    new RemoteDict.EloChangeSet(winId, changeSet.winEloDiff),
-                    new RemoteDict.EloChangeSet(loseId, changeSet.loseEloDiff));
+            remoteDict.incrLeaderboardUser(
+                    new RemoteDict.EloChangeSet(winId, changeSet.getWinEloDiff()),
+                    new RemoteDict.EloChangeSet(loseId, changeSet.getLoseEloDiff()));
             historyDao.insert(whiteId, blackId, result, changeSet.getWinEloDiff(), changeSet.getLoseEloDiff(), moveHistoryData);
         } catch (Exception ex) {
             LOGGER.info("Failed to persist game results to database in background thread {}", String.valueOf(ex));

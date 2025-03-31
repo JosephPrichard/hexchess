@@ -4,9 +4,11 @@
     <title>Leaderboard - Hexchess</title>
     <link rel="stylesheet" href="/static/css/index.css">
     <script src="/static/js/pages/register.js" defer></script>
+    <script src="/static/js/lib/notifications.js" defer></script>
 </head>
 <body>
 {{> partials/banner }}
+<div class="bottom-right-anchor" style="width: 350px" id="notifications-box"></div>
 <div class="center-horizontal-container">
     <div class="title-lg">
         Register
@@ -25,7 +27,6 @@
             <button id="register-form-submit" class="button button-grey" type="submit">
                 Register
             </button>
-            <div id="register-form-message" style="margin-top: 20px"></div>
         </form>
     </div>
 </div>

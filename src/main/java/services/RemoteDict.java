@@ -7,6 +7,7 @@ import lombok.Data;
 import models.GameState;
 import models.Player;
 import models.RankedUser;
+import models.User;
 import redis.clients.jedis.AbstractTransaction;
 import redis.clients.jedis.JedisPooled;
 import redis.clients.jedis.resps.Tuple;
@@ -163,7 +164,13 @@ public class RemoteDict {
     }
 
     public int getLeaderboardRank(String id) {
-        return jedis.zrank(LEADERBOARD_ZSET, id).intValue() + 1;
+        Long rank = jedis.zrevrank(LEADERBOARD_ZSET, id);
+        if (rank == null) {
+            incrLeaderboardUser(id, User.START_ELO);
+            rank = jedis.zrevrank(LEADERBOARD_ZSET, id);
+            assert rank != null;
+        }
+        return rank.intValue() + 1;
     }
 
     @Data

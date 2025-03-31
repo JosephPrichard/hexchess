@@ -41,7 +41,7 @@ public class HistoryDao {
     }
 
     public void insert(HistoryInst historyInst) {
-        String sql = "INSERT INTO game_histories (whiteId, blackId, result, data, winElo, loseElo) VALUES (?, ?, ?, ? ::json, ?, ?)";
+        String sql = "INSERT INTO game_histories (whiteId, blackId, result, data, winElo, loseElo) VALUES (?, ?, ?, ? ::jsonb, ?, ?)";
         try {
             runner.execute(sql, historyInst.whiteId, historyInst.blackId,
                 historyInst.result, historyInst.data, historyInst.winEloDiff, historyInst.loseEloDiff);

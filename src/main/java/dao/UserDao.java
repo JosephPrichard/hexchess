@@ -3,6 +3,7 @@ package dao;
 import at.favre.lib.crypto.bcrypt.BCrypt;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import models.RankedUser;
 import models.User;
 import org.apache.commons.dbutils.DbUtils;
@@ -51,7 +52,7 @@ public class UserDao {
     }
 
     public UserInst insert(String username, String password) throws TakenUsernameException {
-        UserInst inst = new UserInst(UUID.randomUUID().toString(), username, password, "USA", User.START_ELO, 0, 0);
+        UserInst inst = new UserInst(UUID.randomUUID().toString(), username, password, "us", User.START_ELO, 0, 0);
         insert(inst);
         return inst;
     }
@@ -103,14 +104,17 @@ public class UserDao {
     }
 
     @Data
+    @NoArgsConstructor
     @AllArgsConstructor
-    public static class VerifiedPlayer {
+    public static class VerifiedUser {
         public String id;
         public String username;
         public String country;
+
+        private static final ResultSetHandler<VerifiedUser> MAPPER = new BeanHandler<>(VerifiedUser.class);
     }
 
-    public VerifiedPlayer verify(String username, String inputPassword) {
+    public VerifiedUser verify(String username, String inputPassword) {
         String sql = "SELECT id, username, country, password, salt FROM users WHERE UPPER(username) = UPPER(?)";
 
         Connection conn = null;
@@ -137,7 +141,7 @@ public class UserDao {
             BCrypt.Result result = BCrypt.verifyer().verify(saltedPassword.toCharArray(), password);
 
             LOGGER.info("Password verification {} for username={}", result.verified ? "successful" : "failed", usernameOut);
-            return result.verified ? new VerifiedPlayer(id, usernameOut, country) : null;
+            return result.verified ? new VerifiedUser(id, usernameOut, country) : null;
         } catch (SQLException ex) {
             LOGGER.error("Failed to select user credentials for user={}", username, ex);
             DbUtils.rollbackAndCloseQuietly(conn);
@@ -149,21 +153,23 @@ public class UserDao {
         }
     }
 
-    public void updateUser(String id, String newUsername, String newCountry, String newBio) {
+    public VerifiedUser updateUser(String id, String newUsername, String newCountry, String newBio) {
         if (newUsername == null && newCountry == null && newBio == null) {
             LOGGER.info("No fields provided for user update.");
-            return;
+            return null;
         }
 
         String sql = """
             UPDATE users
             SET username = COALESCE(?, username), country = COALESCE(?, country), bio = COALESCE(?, bio)
-            WHERE id = ?;
+            WHERE id = ?
+            RETURNING *
             """;
 
         try {
-            runner.execute(sql, newUsername, newCountry, newBio, id);
+            VerifiedUser user = runner.query(sql, VerifiedUser.MAPPER, newUsername, newCountry, newBio, id);
             LOGGER.info("Updated user data with id={}", id);
+            return user;
         } catch (SQLException ex) {
             LOGGER.error("Failed to update user with id={}", id, ex);
             throw new RuntimeException(ex);
@@ -346,8 +352,10 @@ public class UserDao {
         try {
             List<User> users = runner.query(sql, USER_LIST_MAPPER, name, name, perPage, offset);
             for (int i = 0; i < users.size(); i++) {
-                users.get(i).setRank(i + 1);
+                int rank = (page - 1) * perPage + i + 1;
+                users.get(i).setRank(rank);
             }
+
             LOGGER.info("Selected users={} by name for name={}, page={}, perPage={}", users, name, page, perPage);
             return users;
         } catch (SQLException ex) {

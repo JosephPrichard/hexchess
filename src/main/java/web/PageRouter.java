@@ -24,16 +24,18 @@ import static services.RemoteDict.*;
 public class PageRouter extends Jooby {
 
     public static final int PER_PAGE = 25;
+    public static final String MESSAGE_404 =
+        "Sorry, the page you are looking for does not exist. " +
+        "You might have followed a broken link or entered a URL that doesn't exist on this site.";
 
     private final State state;
     private String initialBoardJson;
     private String loginHtml;
     private String registerHtml;
+    private String defaultHtml;
 
     public PageRouter(State state) {
         this.state = state;
-
-        initStatics(state);
 
         setWorker(EXECUTOR);
 
@@ -43,11 +45,8 @@ public class PageRouter extends Jooby {
         });
 
         get("*", ctx -> {
-            Templates templates = state.getTemplates();
-            String message = "Sorry, the page you are looking for does not exist. You might have followed a broken link or entered a URL that doesn't exist on this site.";
-            int code = StatusCode.NOT_FOUND_CODE;
-            ctx.setResponseCode(code);
-            return templates.getErrorTemplate().apply(new ErrorView(code, message));
+            ctx.setResponseCode(StatusCode.NOT_FOUND_CODE);
+            return defaultHtml;
         });
 
         get("/", this::getIndex);
@@ -55,7 +54,7 @@ public class PageRouter extends Jooby {
         get("/play", this::getIndex);
         get("/login", ctx -> loginHtml);
         get("/register", ctx -> registerHtml);
-        get("/settings", this::getSettings);
+        get("/profile", this::getProfile);
         get("/leaderboard", this::getLeaderboardRedis);
         get("/players/{id}", this::getPlayerRedis);
         get("/players/search", this::searchPlayers);
@@ -63,11 +62,12 @@ public class PageRouter extends Jooby {
         get("/challenges", this::getChallenges);
     }
 
-    public void initStatics(State state) {
+    public PageRouter initStatics() {
         try {
             Templates templates = state.getTemplates();
             Template loginTemplate = templates.getLoginTemplate();
             Template registerTemplate = templates.getRegisterTemplate();
+            Template errorTemplate = templates.getErrorTemplate();
 
             initialBoardJson = JSON_MAPPER.writeValueAsString(ChessBoard.initial());
             if (loginTemplate != null) {
@@ -76,10 +76,15 @@ public class PageRouter extends Jooby {
             if (registerTemplate != null) {
                 registerHtml = registerTemplate.apply(null);
             }
+            if (errorTemplate != null) {
+                defaultHtml = errorTemplate.apply(new ErrorView(StatusCode.NOT_FOUND_CODE, MESSAGE_404));
+            }
         } catch (IOException ex) {
             LOGGER.error("Failed during page router initialization", ex);
             throw new RuntimeException(ex);
         }
+
+        return this;
     }
 
     public String sendErrorView(Context ctx, int code, String message) throws IOException {
@@ -106,7 +111,14 @@ public class PageRouter extends Jooby {
         return template.apply(null);
     }
 
-    public String getSettings(Context ctx) throws IOException {
+    @Data
+    @AllArgsConstructor
+    public static class ProfileView {
+        public User user;
+        public List<String> countries;
+    }
+
+    public String getProfile(Context ctx) throws IOException {
         Templates templates = state.getTemplates();
         SessionService sessionService = state.getSessionService();
         UserDao userDao = state.getUserDao();
@@ -118,13 +130,14 @@ public class PageRouter extends Jooby {
         }
         Player player = remoteDict.getSession(session.getSessionId());
         if (player == null) {
+            ctx.setResponseCookie(sessionService.createEmptyCookie());
             return sendErrorView(ctx, StatusCode.UNAUTHORIZED_CODE, "Session has expired, please login again.");
         }
 
         User user = userDao.getById(player.getId());
 
-        Template template = templates.getPreferencesTemplates();
-        return template.apply(user);
+        Template template = templates.getProfileTemplate();
+        return template.apply(new ProfileView(user, state.getCountryList()));
     }
 
     @Data
@@ -184,7 +197,7 @@ public class PageRouter extends Jooby {
 
     @Data
     @AllArgsConstructor
-    public static class ProfileView {
+    public static class UserView {
         public User user;
         public List<History> historyList;
     }
@@ -213,8 +226,8 @@ public class PageRouter extends Jooby {
         user.sanitize();
         historyList.forEach(History::sanitize);
 
-        Template template = templates.getProfileTemplate();
-        String resp = template.apply(new ProfileView(user, historyList));
+        Template template = templates.getUserTemplate();
+        String resp = template.apply(new UserView(user, historyList));
 
 //        ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
         return resp;
@@ -248,8 +261,8 @@ public class PageRouter extends Jooby {
         user.sanitize();
         historyList.forEach(History::sanitize);
 
-        Template template = templates.getProfileTemplate();
-        String resp = template.apply(new ProfileView(user, historyList));
+        Template template = templates.getUserTemplate();
+        String resp = template.apply(new UserView(user, historyList));
 
 //        ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
         return resp;
@@ -320,7 +333,7 @@ public class PageRouter extends Jooby {
     @AllArgsConstructor
     public static class ChallengeView {
         public List<Challenge> challengeList;
-        public boolean areSent;
+        public boolean sender;
     }
 
     public String getChallenges(Context ctx) throws IOException {
@@ -337,34 +350,32 @@ public class PageRouter extends Jooby {
         }
         Player player = remoteDict.getSession(session.getSessionId());
         if (player == null) {
-            throw new StatusCodeException(StatusCode.UNAUTHORIZED, "Session has expired, please login again");
+            ctx.setResponseCookie(sessionService.createEmptyCookie());
+            return sendErrorView(ctx, StatusCode.UNAUTHORIZED_CODE, "Session has expired, please login again.");
         }
 
         List<Challenge> challengeList;
-        boolean areSent;
+        boolean sender;
 
         switch (participants) {
-            case "received": {
-                challengeList = challengeDao.getByParticipant(null, player.getId());
-                areSent = false;
-                break;
-            }
-            case "sent": {
-                challengeList = challengeDao.getByParticipant(player.getId(), null);
-                areSent = true;
-                break;
-            }
-            default: {
-                int code = StatusCode.BAD_REQUEST_CODE;
-                ctx.setResponseCode(code);
-                return templates.getErrorTemplate().apply(new ErrorView(code, "Invalid value for participants, must be 'sent' or 'received'."));
-            }
+        case "received":
+            challengeList = challengeDao.getByParticipant(null, player.getId());
+            sender = false;
+            break;
+        case "sent":
+            challengeList = challengeDao.getByParticipant(player.getId(), null);
+            sender = true;
+            break;
+        default:
+            int code = StatusCode.BAD_REQUEST_CODE;
+            ctx.setResponseCode(code);
+            return templates.getErrorTemplate().apply(new ErrorView(code, "Invalid value for participants, must be 'sent' or 'received'."));
         }
 
         EXECUTOR.execute(() -> challengeDao.deleteExpired(session.getPlayerId()));
 
         Template template = templates.getChallengesTemplate();
-        String resp = template.apply(new ChallengeView(challengeList, areSent));
+        String resp = template.apply(new ChallengeView(challengeList, sender));
 
 //        ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
         return resp;

@@ -1,7 +1,6 @@
 package models;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import domain.ChessGame;
 import domain.Hexagon;
 import domain.Move;
@@ -13,8 +12,6 @@ import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static utils.Globals.JSON_MAPPER;
 
 @Data
 @NoArgsConstructor
@@ -59,28 +56,24 @@ public class GameState {
         moveList.add(move);
     }
 
-    public static String randomAsJson() {
-        try {
-            ChessGame game = ChessGame.start();
-            List<Move> moveList = new ArrayList<>();
+    public static List<Move> randomMoveList() {
+        ChessGame game = ChessGame.start();
+        List<Move> moveList = new ArrayList<>();
 
-            for (int i = 0; i < 10; i++) {
-                game.initPieceMoves();
+        for (int i = 0; i < 10; i++) {
+            game.initPieceMoves();
 
-                List<PieceMoves> currMoves = game.getCurrMoves();
+            List<PieceMoves> currMoves = game.getCurrMoves();
 
-                // we're going to assume there is at least one piece
-                PieceMoves pm = currMoves.stream().filter((x) -> !x.getMoves().isEmpty()).findFirst().orElseThrow();
-                Hexagon from = pm.getHex();
-                Hexagon to = pm.getMoves().getFirst(); // make the first move (we already know there is at least one)
+            // we're going to assume there is at least one piece
+            PieceMoves pm = currMoves.stream().filter((x) -> !x.getMoves().isEmpty()).findFirst().orElseThrow();
+            Hexagon from = pm.getHex();
+            Hexagon to = pm.getMoves().getFirst(); // make the first move (we already know there is at least one)
 
-                Move move = new Move(from, to);
-                game.makeMove(move);
-                moveList.add(move);
-            }
-            return JSON_MAPPER.writeValueAsString(moveList);
-        } catch (JsonProcessingException ex) {
-            throw new RuntimeException(ex);
+            Move move = new Move(from, to);
+            game.makeMove(move);
+            moveList.add(move);
         }
+        return moveList;
     }
 }

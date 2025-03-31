@@ -39,6 +39,6 @@ build/
 
 .idea
 
-.env
+src/main/resources/.env
 
 /logs/app.log

@@ -20,26 +20,24 @@ public class LocalBroadcaster implements Broadcaster {
     public void subscribe(String id, WebSocket ws) {
         List<WebSocket> socketList = socketsMap.get(id);
         socketList.add(ws);
-        socketsMap.put(id, socketList);
-        LOGGER.info("Ws {} subscribed to id: {}, ref: {}", ws.toString(), id, this);
+        LOGGER.info("Ws '{}' subscribed to id={}, ref={}", ws.toString(), id, this);
     }
 
     @Override
     public void unsubscribe(String id, WebSocket ws) {
         List<WebSocket> socketList = socketsMap.get(id);
         socketList.remove(ws);
-        socketsMap.put(id, socketList);
-        LOGGER.info("Ws {} unsubscribed from id: {}, ref: {}", ws.toString(), id, this);
+        LOGGER.info("Ws '{}' unsubscribed from id={}, ref={}", ws.toString(), id, this);
     }
 
     @Override
     public void broadcast(String id, String content) {
         List<WebSocket> socketList = socketsMap.get(id);
         if (socketList == null) {
-            LOGGER.info("Broadcast local to id: {}, but there where no subscribers", id);
+            LOGGER.info("Broadcast local to id={}, but there were no subscribers", id);
             return;
         }
         socketList.forEach((socket) -> socket.send(content));
-        LOGGER.info("Broadcast local to id: {}, content: {}, ref: {}", id, content, this);
+        LOGGER.info("Broadcast local to id={}, content={}, ref={}", id, content, this);
     }
 }

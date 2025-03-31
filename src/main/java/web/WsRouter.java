@@ -21,7 +21,7 @@ public class WsRouter extends Jooby {
     public WsRouter(State state) {
         this.state = state;
 
-        ws("/games/join/{id}", this::onJoin);
+        ws("/subscriptions/games/{id}", this::onJoin);
     }
 
     public void onJoin(Context ctx, WebSocketConfigurer configurer) {
@@ -104,6 +104,8 @@ public class WsRouter extends Jooby {
             Broadcaster broadcaster = state.getBroadcaster();
 
             try {
+                LOGGER.info("Player {} attempting to connect to game {}", player.getId(), gameId);
+
                 GameState gameState = gameService.join(gameId, player);
                 if (gameState == null) {
                     // we cannot join. so just send an error and then disconnect
@@ -115,9 +117,8 @@ public class WsRouter extends Jooby {
                 broadcaster.subscribe(gameState.getId(), ws);
                 // the joiner needs a snapshot of what the game actually looks like when joining!
                 String jsonResult = JSON_MAPPER.writeValueAsString(OutputMsg.ofJoin(player, gameState));
-//                ws.send(jsonResult);
                 broadcaster.broadcast(gameState.getId(), jsonResult);
-                LOGGER.info("Player {} connected to game {}", player.getId(), gameId);
+                LOGGER.info("Player {} successfully connected to game {}", player.getId(), gameId);
             } catch (Exception e) {
                 // if we encounter some unknown error or maybe json failure, we can't really do anything so just log and close the connection
                 LOGGER.error("Fatal exception occurred: {}", e.getMessage());

@@ -13,8 +13,7 @@ async function postLogin(username, password) {
     }
 }
 
-const loginForm = document.getElementById("login-form");
-loginForm.addEventListener("submit", async (e) => {
+async function onSubmitLoginForm(e)  {
     e.preventDefault();
 
     const usernameElem = document.getElementById("username-login");
@@ -29,16 +28,13 @@ loginForm.addEventListener("submit", async (e) => {
     const [text, ok] = await postLogin(username, password);
     console.log("Login response", text, ok);
 
-    const messageElem = document.getElementById("login-form-message");
-
     if (ok) {
-        messageElem.innerText = "";
-        messageElem.className = "";
         window.location = "/";
     } else {
-        messageElem.innerText = text;
-        messageElem.className = "red-color";
+        createNotification(text, ok);
     }
 
     submitElem.innerHTML = "Login";
-});
+}
+
+document.getElementById("login-form").addEventListener("submit", onSubmitLoginForm);

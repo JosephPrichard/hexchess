@@ -15,8 +15,8 @@ public class Templates {
     private Template loginTemplate;
     private Template registerTemplate;
     private Template leaderboardTemplate;
+    private Template userTemplate;
     private Template profileTemplate;
-    private Template preferencesTemplates;
     private Template currentGamesTemplate;
     private Template replayTemplate;
     private Template searchTemplate;
@@ -31,8 +31,8 @@ public class Templates {
         registerTemplate = handlebars.compile("/pages/register");
         loginTemplate = handlebars.compile("/pages/login");
         leaderboardTemplate = handlebars.compile("/pages/leaderboard");
+        userTemplate = handlebars.compile("/pages/user");
         profileTemplate = handlebars.compile("/pages/profile");
-        preferencesTemplates = handlebars.compile("/pages/preferences");
         currentGamesTemplate = handlebars.compile("/pages/currentGames");
         replayTemplate = handlebars.compile("/pages/replay");
         searchTemplate = handlebars.compile("/pages/searchPlayers");

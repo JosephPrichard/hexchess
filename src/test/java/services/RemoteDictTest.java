@@ -118,10 +118,10 @@ public class RemoteDictTest {
 
     @Test
     public void testLeaderboard() {
-        remoteDict.incrLeaderboardUser("user1", 930);
-        remoteDict.incrLeaderboardUser("user2", 995);
-        remoteDict.incrLeaderboardUser("user3", 1000);
-        remoteDict.incrLeaderboardUser("user4", 1500);
+        remoteDict.incrLeaderboardUser("user1", 1500);
+        remoteDict.incrLeaderboardUser("user2", 1000);
+        remoteDict.incrLeaderboardUser("user3", 950);
+        remoteDict.incrLeaderboardUser("user4", 835);
 
         int rank1 = remoteDict.getLeaderboardRank("user1");
         int rank2 = remoteDict.getLeaderboardRank("user2");
@@ -149,8 +149,8 @@ public class RemoteDictTest {
 
         RemoteDict.Leaderboard expectedLeaderboard2 = new RemoteDict.Leaderboard(
             List.of(
-                new RankedUser("user3", 2),
-                new RankedUser("user2", 3)),
+                new RankedUser("user2", 2),
+                new RankedUser("user3", 3)),
             2);
         Assertions.assertEquals(expectedLeaderboard2, leaderboard2);
     }

@@ -10,17 +10,45 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 import static utils.Globals.LOGGER;
 
 public class Config {
 
-    public static HikariDataSource createDataSource() {
-        String dbUrl = System.getenv("DB_URL");
-        String dbUser = System.getenv("DB_USER");
-        String dbPassword = System.getenv("DB_PASSWORD");
+    public static Map<String, String> readEnvironment() {
+        Map<String, String> env = new HashMap<>();
+
+        try {
+            URL resource = ClassLoader.getSystemResource(".env");
+            File file = new File(resource.getFile());
+
+            // put all .env file members into the env map
+            Scanner scanner = new Scanner(file);
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine();
+                String[] tokens = line.split("=");
+                String key = tokens[0];
+                String value = tokens[1];
+                env.put(key, value);
+            }
+
+            // put all system env variables into the env map
+            for (String envName : System.getenv().keySet()) {
+                env.put(envName, System.getenv(envName));
+            }
+        } catch (IOException e) {
+            LOGGER.error("Error occurred while reading the .env file", e);
+            throw new RuntimeException(e);
+        }
+
+        return env;
+    }
+
+    public static HikariDataSource createDataSource(Map<String, String> env) {
+        String dbUrl = env.get("DB_URL");
+        String dbUser = env.get("DB_USER");
+        String dbPassword = env.get("DB_PASSWORD");
 
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl(dbUrl);
@@ -34,28 +62,35 @@ public class Config {
         return new HikariDataSource(config);
     }
 
-    public static Map<String, byte[]> createFilesMap() {
-        Map<String, byte[]> filesMap = new HashMap<>();
+    public static List<String> createCountryList() {
+        List<String> countryList = new ArrayList<>();
 
-        try {
-            URL resource = ClassLoader.getSystemResource("database");
-            if (resource == null) {
-                return filesMap;
-            }
-
-            File dir = new File(resource.getFile());
-            File[] files = dir.listFiles();
-            assert files != null;
-            for (File file : files) {
-                byte[] data = Files.readAllBytes(file.toPath());
-                filesMap.put(file.getName(), data);
-            }
-        } catch (IOException ex) {
-            LOGGER.error("Error occurred while creating files map {}", String.valueOf(ex));
-            throw new RuntimeException(ex);
+        URL resource = ClassLoader.getSystemResource("static/images/flags");
+        if (resource == null) {
+            return countryList;
         }
 
-        return filesMap;
+        countryList.add("us");
+
+        File dir = new File(resource.getFile());
+        File[] files = dir.listFiles();
+
+        assert files != null;
+        for (File file : files) {
+//                byte[] data = Files.readAllBytes(file.toPath());
+            String flagName = file.getName();
+            if (flagName.equals("us")) {
+                continue;
+            }
+
+            int index = flagName.lastIndexOf(".");
+            if (index != -1) {
+                flagName = flagName.substring(0, index);
+            }
+            countryList.add(flagName);
+        }
+
+        return countryList;
     }
 
     public static void createSchema(DataSource ds) {
@@ -66,6 +101,7 @@ public class Config {
             URL resource = ClassLoader.getSystemResource("database");
             File dir = new File(resource.getFile());
             File[] files = dir.listFiles();
+
             assert files != null;
             for (File file : files) {
                 byte[] data = Files.readAllBytes(file.toPath());
