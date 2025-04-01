@@ -96,19 +96,3 @@ END;
 
 -- Insert the base values for a zero initialized schema
 BEGIN; INSERT INTO users_metadata (id, count) VALUES (1, 0); END;
-
--- Trigger to keep the user metadata up to date
-CREATE OR REPLACE FUNCTION increment_users_metadata()
-    RETURNS TRIGGER AS $$
-BEGIN
-    UPDATE users_metadata
-    SET count = count + 1
-    WHERE id = NEW.id;
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trigger_increment_users_metadata_on_insert
-    AFTER INSERT ON users
-    FOR EACH ROW
-    EXECUTE FUNCTION increment_users_metadata();

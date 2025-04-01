@@ -157,19 +157,6 @@ public class UserDaoTest {
     }
 
     @Test
-    public void testByIdWithRank() {
-        // given
-        createTestData(userDao);
-
-        // when
-        UserEntity actualUser = userDao.getByIdWithRank(1L);
-
-        // then
-        UserEntity expectedUser = new UserEntity(1L, "user1", "us", 1000f, 1000f, 0, 0, 4, "", null);
-        Assertions.assertEquals(expectedUser, actualUser);
-    }
-
-    @Test
     public void searchByName() {
         // given
         createTestData(userDao);
@@ -184,17 +171,5 @@ public class UserDaoTest {
                 new UserEntity(6L, "johnny", "us", 0f, 0f, 0, 0, 1, null, null),
                 new UserEntity(7L, "john", "us", 0f, 0f, 0, 0, 2, null, null));
         Assertions.assertEquals(expectedUserList, actualUserList);
-    }
-
-    @Test
-    public void testCountUsers() {
-        // given
-        createTestData(userDao);
-
-        // when
-        int count = userDao.countUsers();
-
-        // then
-        Assertions.assertEquals(5, count);
     }
 }

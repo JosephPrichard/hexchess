@@ -146,30 +146,6 @@ public class PageRouter extends Jooby {
         public Pagination pages;
     }
 
-    public String getLeaderboard(Context ctx) throws Exception {
-        Templates templates = state.getTemplates();
-        UserDao userDao = state.getUserDao();
-
-        try {
-            int page = ctx.query("page").toOptional().map(Integer::parseUnsignedInt).orElse(1);
-
-            CompletableFuture<List<UserEntity>> userListFut = CompletableFuture.supplyAsync(() -> userDao.getLeaderboard(page, PER_PAGE), EXECUTOR);
-            CompletableFuture<Integer> totalPagesFut = CompletableFuture.supplyAsync(() -> userDao.countPages(PER_PAGE), EXECUTOR);
-            List<UserEntity> userList = userListFut.get();
-            Integer totalPages = totalPagesFut.get();
-
-            userList.forEach(UserEntity::sanitize);
-
-            Template template = templates.getLeaderboardTemplate();
-            String resp = template.apply(new LeaderboardView(userList, Pagination.withTotal("?", page, totalPages)));
-
-//            ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
-            return resp;
-        } catch (NumberFormatException ex) {
-            return sendErrorView(ctx, StatusCode.BAD_REQUEST_CODE, "Invalid param 'page': must be a positive integer.");
-        }
-    }
-
     public String getLeaderboardRedis(Context ctx) throws Exception {
         Templates templates = state.getTemplates();
         UserDao userDao = state.getUserDao();
@@ -183,7 +159,7 @@ public class PageRouter extends Jooby {
         }
 
         RemoteDict.Leaderboard leaderboard = remoteDict.getLeaderboardPage(page, PER_PAGE);
-        List<UserEntity> userList = userDao.getByRanks(leaderboard.getUsers());
+        List<UserEntity> userList = userDao.getByRankedUsers(leaderboard.getUsers());
 
         RankedUser.joinRanks(leaderboard.getUsers(), userList);
         userList.forEach(UserEntity::sanitize);
@@ -200,37 +176,6 @@ public class PageRouter extends Jooby {
     public static class UserView {
         public UserEntity user;
         public List<ReplayEntity> replayList;
-    }
-
-    public String getPlayer(Context ctx) throws Exception {
-        Templates templates = state.getTemplates();
-        UserDao userDao = state.getUserDao();
-        ReplayDao replayDao = state.getReplayDao();
-
-        Value userIdSlug = ctx.path("id");
-        if (userIdSlug.isMissing()) {
-            return sendErrorView(ctx, StatusCode.BAD_REQUEST_CODE, "Invalid param 'id': must contain id within slug.");
-        }
-        long userId = userIdSlug.longValue();
-
-        CompletableFuture<UserEntity> userFut = CompletableFuture.supplyAsync(() -> userDao.getByIdWithRank(userId), EXECUTOR);
-        CompletableFuture<List<ReplayEntity>> replayListFut =
-                CompletableFuture.supplyAsync(() -> replayDao.getUserReplays(userId, null, PER_PAGE), EXECUTOR);
-        UserEntity user = userFut.get();
-        List<ReplayEntity> replayList = replayListFut.get();
-
-        if (user == null) {
-            return sendErrorView(ctx, StatusCode.NOT_FOUND_CODE,  "Couldn't find a user for the provided user id.");
-        }
-
-        user.sanitize();
-        replayList.forEach(ReplayEntity::sanitize);
-
-        Template template = templates.getUserTemplate();
-        String resp = template.apply(new UserView(user, replayList));
-
-//        ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
-        return resp;
     }
 
     public String getPlayerRedis(Context ctx) throws Exception {
@@ -280,26 +225,28 @@ public class PageRouter extends Jooby {
         Templates templates = state.getTemplates();
         UserDao userDao = state.getUserDao();
 
+        int page;
         try {
-            int page = ctx.query("page").toOptional().map(Integer::parseUnsignedInt).orElse(1);
-            String name = ctx.query("username").toOptional().orElse("");
-
-            Template template = templates.getSearchTemplate();
-            if (name.isEmpty()) {
-                return template.apply(new SearchView(name, List.of(), Pagination.ofUnlimited("?", page)));
-            }
-
-            List<UserEntity> userList = userDao.searchByName(name, page, PER_PAGE);
-            userList.forEach(UserEntity::sanitize);
-
-            Pagination pagination = Pagination.ofUnlimited(String.format("?username=%s&", name), page);
-            String resp = template.apply(new SearchView(name, userList, pagination));
-
-//            ctx.setResponseHeader("Cache-Control", "max-age=3600, must-revalidate");
-            return resp;
+           page = ctx.query("page").toOptional().map(Integer::parseUnsignedInt).orElse(1);
         } catch (NumberFormatException ex) {
             return sendErrorView(ctx, StatusCode.BAD_REQUEST_CODE, "Invalid param 'page': must be a positive integer.");
         }
+
+        String name = ctx.query("username").toOptional().orElse("");
+
+        Template template = templates.getSearchTemplate();
+        if (name.isEmpty()) {
+            return template.apply(new SearchView(name, List.of(), Pagination.ofUnlimited("?", page)));
+        }
+
+        List<UserEntity> userList = userDao.searchByName(name, page, PER_PAGE);
+        userList.forEach(UserEntity::sanitize);
+
+        Pagination pagination = Pagination.ofUnlimited(String.format("?username=%s&", name), page);
+        String resp = template.apply(new SearchView(name, userList, pagination));
+
+//            ctx.setResponseHeader("Cache-Control", "max-age=3600, must-revalidate");
+        return resp;
     }
 
     @Data

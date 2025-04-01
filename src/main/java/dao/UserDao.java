@@ -20,7 +20,6 @@ import java.sql.*;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static utils.Globals.LOGGER;
@@ -253,24 +252,7 @@ public class UserDao {
         }
     }
 
-    public UserEntity getByIdWithRank(long id) {
-        String sql = """
-            SELECT u1.id, u1.username, u1.country, u1.elo, u1.highestElo, u1.wins, u1.losses, u1.joinedOn, u1.bio,
-                (SELECT COUNT(*) FROM users u2 WHERE u2.elo >= u1.elo) as rank
-            FROM users u1
-            WHERE u1.id = ?
-            """;
-        try {
-            UserEntity user = runner.query(sql, USER_MAPPER, id);
-            LOGGER.info("Selected user={} with rank by id={}", user, id);
-            return user;
-        } catch (SQLException ex) {
-            LOGGER.error("Failed to fetch user with rank by id={}", id, ex);
-            throw new RuntimeException(ex);
-        }
-    }
-
-    public List<UserEntity> getByRanks(List<RankedUser> users) {
+    public List<UserEntity> getByRankedUsers(List<RankedUser> users) {
         return getByIds(users.stream().map(RankedUser::getId).toArray(Long[]::new));
     }
 
@@ -365,21 +347,5 @@ public class UserDao {
             LOGGER.error("Failed to select users by name for name={}, page={}, perPage={}", name, page, perPage);
             throw new RuntimeException(ex);
         }
-    }
-
-    public int countUsers() {
-        String sql = "SELECT count FROM users_metadata";
-        try {
-            Integer count = runner.query(sql, INT_MAPPER);
-            LOGGER.info("Counted user table records with count={}", count);
-            return count;
-        } catch (SQLException ex) {
-            LOGGER.error("Failed to count user table records");
-            throw new RuntimeException(ex);
-        }
-    }
-
-    public int countPages(int perPage) {
-        return countUsers() / perPage + 1;
     }
 }
