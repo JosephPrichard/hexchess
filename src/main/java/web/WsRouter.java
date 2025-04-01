@@ -9,7 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import models.GameState;
-import models.Player;
+import models.PlayerEntity;
 import services.GameService;
 
 import static utils.Globals.*;
@@ -35,7 +35,7 @@ public class WsRouter extends Jooby {
         }
 
         String gameId = gameIdSlug.toString();
-        Player player = remoteDict.getSessionOrDefault(sessionId);
+        PlayerEntity player = remoteDict.getSessionOrDefault(sessionId);
 
         if (player == null) {
             throw new RuntimeException("Expected player to be non null");
@@ -73,7 +73,7 @@ public class WsRouter extends Jooby {
 
         int type;
         String message; // only used for error
-        Player player; // only used for join, says who the joining player is
+        PlayerEntity player; // only used for join, says who the joining player is
         Move move; // only used for move
         GameState gameState; // the current state of the game being played
 
@@ -85,7 +85,7 @@ public class WsRouter extends Jooby {
             return new OutputMsg(FORFEIT, null, null, null, gameState);
         }
 
-        static OutputMsg ofJoin(Player player, GameState gameState) {
+        static OutputMsg ofJoin(PlayerEntity player, GameState gameState) {
             return new OutputMsg(JOIN, null, player, null, gameState);
         }
 
@@ -98,7 +98,7 @@ public class WsRouter extends Jooby {
         }
     }
 
-    public WebSocket.OnConnect handleGameConnect(String gameId, Player player) {
+    public WebSocket.OnConnect handleGameConnect(String gameId, PlayerEntity player) {
         return ws -> EXECUTOR.execute(() -> {
             GameService gameService = state.getGameService();
             Broadcaster broadcaster = state.getBroadcaster();
@@ -127,7 +127,7 @@ public class WsRouter extends Jooby {
         });
     }
 
-    public WebSocket.OnMessage handleGameMessage(String gameId, Player player) {
+    public WebSocket.OnMessage handleGameMessage(String gameId, PlayerEntity player) {
         return (ws, message) -> EXECUTOR.execute(() -> {
             GameService gameService = state.getGameService();
             Broadcaster broadcaster = state.getBroadcaster();

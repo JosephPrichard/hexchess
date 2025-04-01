@@ -2,10 +2,9 @@ import com.github.jknack.handlebars.Handlebars;
 import com.github.jknack.handlebars.io.ClassPathTemplateLoader;
 import com.zaxxer.hikari.HikariDataSource;
 import dao.ChallengeDao;
-import dao.HistoryDao;
+import dao.ReplayDao;
 import dao.UserDao;
 import redis.clients.jedis.JedisPooled;
-import services.Broadcaster;
 import services.GameService;
 import services.GlobalBroadcaster;
 import services.RemoteDict;
@@ -41,16 +40,16 @@ public class Main {
             State state = new State();
 
             UserDao userDao = new UserDao(ds);
-            HistoryDao historyDao = new HistoryDao(ds);
+            ReplayDao replayDao = new ReplayDao(ds);
             ChallengeDao challengeDao = new ChallengeDao(ds);
             RemoteDict remoteDict = new RemoteDict(jedis);
-            GameService gameService = new GameService(remoteDict, userDao, historyDao);
+            GameService gameService = new GameService(remoteDict, userDao, replayDao);
             SessionService sessionService = new SessionService();
             GlobalBroadcaster broadcaster = new GlobalBroadcaster(jedis);
             Templates templates = new Templates(handlebars);
 
             state.setUserDao(userDao);
-            state.setHistoryDao(historyDao);
+            state.setReplayDao(replayDao);
             state.setChallengeDao(challengeDao);
             state.setRemoteDict(remoteDict);
             state.setGameService(gameService);

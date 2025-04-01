@@ -5,7 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import models.RankedUser;
-import models.User;
+import models.UserEntity;
 import org.apache.commons.dbutils.DbUtils;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
@@ -17,6 +17,7 @@ import javax.sql.DataSource;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.sql.*;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
@@ -26,8 +27,8 @@ import static utils.Globals.LOGGER;
 
 public class UserDao {
 
-    private static final ResultSetHandler<User> USER_MAPPER = new BeanHandler<>(User.class);
-    private static final ResultSetHandler<List<User>> USER_LIST_MAPPER = new BeanListHandler<>(User.class);
+    private static final ResultSetHandler<UserEntity> USER_MAPPER = new BeanHandler<>(UserEntity.class);
+    private static final ResultSetHandler<List<UserEntity>> USER_LIST_MAPPER = new BeanListHandler<>(UserEntity.class);
     private static final ResultSetHandler<Integer> INT_MAPPER = new ScalarHandler<>();
 
     private final QueryRunner runner;
@@ -39,7 +40,6 @@ public class UserDao {
     @Data
     @AllArgsConstructor
     public static class UserInst {
-        public String newId;
         public String username;
         public String password;
         public String country;
@@ -48,13 +48,19 @@ public class UserDao {
         public int losses;
     }
 
+    @Data
+    @AllArgsConstructor
+    public static class CreatedUser {
+        public long id;
+        public float elo;
+    }
+
     public static class TakenUsernameException extends RuntimeException {
     }
 
-    public UserInst insert(String username, String password) throws TakenUsernameException {
-        UserInst inst = new UserInst(UUID.randomUUID().toString(), username, password, "us", User.START_ELO, 0, 0);
-        insert(inst);
-        return inst;
+    public UserEntity insert(String username, String password) throws TakenUsernameException {
+        UserInst inst = new UserInst(username, password, "us", UserEntity.START_ELO, 0, 0);
+        return insert(inst);
     }
 
     public static String generateSalt() {
@@ -67,21 +73,17 @@ public class UserDao {
         }
     }
 
-    public void insert(UserInst inst) throws TakenUsernameException {
+    public UserEntity insert(UserInst inst) throws TakenUsernameException {
         String salt = generateSalt();
         String saltedPassword = inst.getPassword() + salt;
         String hashedPassword = BCrypt.withDefaults().hashToString(12, saltedPassword.toCharArray());
 
         String sql = """
-            BEGIN;
-                INSERT INTO users (id, username, country, elo, highestElo, wins, losses, password, salt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-                UPDATE users_metadata SET count = count + 1 WHERE id = 1;
-            END;
+            INSERT INTO users (username, country, elo, highestElo, wins, losses, password, salt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, username, country, elo, highestElo, wins, losses, bio;
             """;
         try {
-            runner.execute(sql,
-                inst.getNewId(),
+            UserEntity user = runner.query(sql, USER_MAPPER,
                 inst.getUsername(),
                 inst.getCountry(),
                 inst.getElo(),
@@ -90,7 +92,8 @@ public class UserDao {
                 inst.getLosses(),
                 hashedPassword,
                 salt);
-            LOGGER.info("Inserted user={}", inst);
+            LOGGER.info("Created new user={}", user);
+            return user;
         } catch (SQLException ex) {
             SQLException nextEx = ex.getNextException();
             if ("23505".equals(nextEx.getSQLState())) {
@@ -107,7 +110,7 @@ public class UserDao {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class VerifiedUser {
-        public String id;
+        public long id;
         public String username;
         public String country;
 
@@ -133,7 +136,7 @@ public class UserDao {
             }
             String salt = rs.getString("salt");
             String password = rs.getString("password");
-            String id = rs.getString("id");
+            long id = rs.getLong("id");
             String usernameOut = rs.getString("username");
             String country = rs.getString("country");
 
@@ -153,7 +156,7 @@ public class UserDao {
         }
     }
 
-    public VerifiedUser updateUser(String id, String newUsername, String newCountry, String newBio) {
+    public VerifiedUser updateUser(long id, String newUsername, String newCountry, String newBio) {
         if (newUsername == null && newCountry == null && newBio == null) {
             LOGGER.info("No fields provided for user update.");
             return null;
@@ -176,7 +179,7 @@ public class UserDao {
         }
     }
 
-    public void updatePassword(String id, String newPassword) {
+    public void updatePassword(long id, String newPassword) {
         String salt = generateSalt();
         String saltedPassword = newPassword + salt;
         String hashedPassword = BCrypt.withDefaults().hashToString(12, saltedPassword.toCharArray());
@@ -203,7 +206,7 @@ public class UserDao {
         }
     }
 
-    public EloChangeSet updateStats(String winId, String loseId) {
+    public EloChangeSet updateStats(long winId, long loseId) {
         String sql = "CALL updateStats(?, ?, ?, ?)";
 
         Connection conn = null;
@@ -212,8 +215,8 @@ public class UserDao {
             conn = runner.getDataSource().getConnection();
 
             stmt = conn.prepareCall(sql);
-            stmt.setString(1, winId);
-            stmt.setString(2, loseId);
+            stmt.setLong(1, winId);
+            stmt.setLong(2, loseId);
             stmt.registerOutParameter(3, Types.NUMERIC);
             stmt.registerOutParameter(4, Types.NUMERIC);
 
@@ -234,14 +237,14 @@ public class UserDao {
         }
     }
 
-    public User getById(String id) {
+    public UserEntity getById(long id) {
         String sql = """
             SELECT id, username, country, elo, highestElo, wins, losses, bio, joinedOn
             FROM users
             WHERE id = ?
             """;
         try {
-            User user = runner.query(sql, USER_MAPPER, id);
+            UserEntity user = runner.query(sql, USER_MAPPER, id);
             LOGGER.info("Selected user={} by id={}", user, id);
             return user;
         } catch (SQLException ex) {
@@ -250,7 +253,7 @@ public class UserDao {
         }
     }
 
-    public User getByIdWithRank(String id) {
+    public UserEntity getByIdWithRank(long id) {
         String sql = """
             SELECT u1.id, u1.username, u1.country, u1.elo, u1.highestElo, u1.wins, u1.losses, u1.joinedOn, u1.bio,
                 (SELECT COUNT(*) FROM users u2 WHERE u2.elo >= u1.elo) as rank
@@ -258,7 +261,7 @@ public class UserDao {
             WHERE u1.id = ?
             """;
         try {
-            User user = runner.query(sql, USER_MAPPER, id);
+            UserEntity user = runner.query(sql, USER_MAPPER, id);
             LOGGER.info("Selected user={} with rank by id={}", user, id);
             return user;
         } catch (SQLException ex) {
@@ -267,18 +270,18 @@ public class UserDao {
         }
     }
 
-    public List<User> getByRanks(List<RankedUser> users) {
-        return getByIds(users.stream().map(RankedUser::getId).toList());
+    public List<UserEntity> getByRanks(List<RankedUser> users) {
+        return getByIds(users.stream().map(RankedUser::getId).toArray(Long[]::new));
     }
 
-    public List<User> getByIds(List<String> ids) {
+    public List<UserEntity> getByIds(Long[] ids) {
         String sql = """
             SELECT id, username, country, elo, wins, losses
             FROM users
             WHERE id = ANY (?)
             """;
 
-        String idsStr = ids.stream().collect(Collectors.joining(",", "[", "]"));
+        String idsStr = Arrays.stream(ids).map(Object::toString).collect(Collectors.joining(",", "[", "]"));
 
         Connection conn = null;
         PreparedStatement stmt = null;
@@ -287,10 +290,10 @@ public class UserDao {
             conn = runner.getDataSource().getConnection();
             stmt = conn.prepareStatement(sql);
 
-            stmt.setArray(1, conn.createArrayOf("VARCHAR", ids.toArray()));
+            stmt.setArray(1, conn.createArrayOf("INTEGER", ids));
             rs = stmt.executeQuery();
 
-            List<User> users = USER_LIST_MAPPER.handle(rs);
+            List<UserEntity> users = USER_LIST_MAPPER.handle(rs);
             LOGGER.info("Selected users={} by ids={}", users, idsStr);
             return users;
         } catch (SQLException e) {
@@ -303,10 +306,10 @@ public class UserDao {
         }
     }
 
-    public List<User> getAll() {
+    public List<UserEntity> getAll() {
         String sql = "SELECT id, username, country, elo, wins, losses FROM users";
         try {
-            List<User> users = runner.query(sql, USER_LIST_MAPPER);
+            List<UserEntity> users = runner.query(sql, USER_LIST_MAPPER);
             LOGGER.info("Selected ALL records={} from the user table", users);
             return users;
         } catch (SQLException ex) {
@@ -315,7 +318,7 @@ public class UserDao {
         }
     }
 
-    public List<User> getLeaderboard(int page, int perPage) {
+    public List<UserEntity> getLeaderboard(int page, int perPage) {
         String sql = """
             SELECT id, username, country, elo, wins, losses
             FROM users
@@ -326,7 +329,7 @@ public class UserDao {
         int offset = (page - 1) * perPage;
 
         try {
-            List<User> users = runner.query(sql, USER_LIST_MAPPER, perPage, offset);
+            List<UserEntity> users = runner.query(sql, USER_LIST_MAPPER, perPage, offset);
             for (int i = 0; i < users.size(); i++) {
                 users.get(i).setRank((page - 1) * perPage + i + 1);
             }
@@ -338,7 +341,7 @@ public class UserDao {
         }
     }
 
-    public List<User> searchByName(String name, int page, int perPage) {
+    public List<UserEntity> searchByName(String name, int page, int perPage) {
         String sql = """
             SELECT id, username, country, elo, wins, losses, (username <-> ?) as rank
             FROM users
@@ -350,7 +353,7 @@ public class UserDao {
         int offset = (page - 1) * perPage;
 
         try {
-            List<User> users = runner.query(sql, USER_LIST_MAPPER, name, name, perPage, offset);
+            List<UserEntity> users = runner.query(sql, USER_LIST_MAPPER, name, name, perPage, offset);
             for (int i = 0; i < users.size(); i++) {
                 int rank = (page - 1) * perPage + i + 1;
                 users.get(i).setRank(rank);

@@ -8,7 +8,8 @@ import io.jooby.test.MockContext;
 import io.jooby.test.MockResponse;
 import io.jooby.test.MockRouter;
 import io.jooby.test.MockValue;
-import models.Player;
+import models.PlayerEntity;
+import models.UserEntity;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import services.GameService;
@@ -25,16 +26,16 @@ public class FormRouterTest {
     @Test
     public void testPostRegister() throws UserDao.TakenUsernameException {
         // given
-        UserDao.UserInst accountInst = new UserDao.UserInst("1", "testUser", "testPassword", "USA", 1000, 3, 3);
-        Player player = new Player("1", "testUser");
+        UserEntity user = new UserEntity(1L, "testUser", "USA");
+        PlayerEntity player = new PlayerEntity(1L, "testUser");
         Cookie cookie = new Cookie("sessionToken");
 
         UserDao mockUserDao = mock(UserDao.class);
         SessionService mockSessionService = mock(SessionService.class);
 
-        when(mockUserDao.insert(any(), any())).thenReturn(accountInst);
+        when(mockUserDao.insert(any(), any())).thenReturn(user);
         when(mockSessionService.createId()).thenReturn("sessionToken");
-        when(mockSessionService.createCookie(any(), any(), any(), any())).thenReturn(cookie);
+        when(mockSessionService.createCookie(any(), anyLong(), any(), any())).thenReturn(cookie);
 
         State state = new State();
         state.setUserDao(mockUserDao);
@@ -68,16 +69,16 @@ public class FormRouterTest {
     @Test
     public void testPostLogin() {
         // given
-        Player player = new Player("1", "testUser");
+        PlayerEntity player = new PlayerEntity(1L, "testUser");
         String country = "us";
         Cookie cookie = new Cookie("sessionToken");
 
         UserDao mockUserDao = mock(UserDao.class);
         SessionService mockSessionService = mock(SessionService.class);
 
-        when(mockUserDao.verify(any(), any())).thenReturn(new UserDao.VerifiedUser("1", "testUser", country));
+        when(mockUserDao.verify(any(), any())).thenReturn(new UserDao.VerifiedUser(1L, "testUser", country));
         when(mockSessionService.createId()).thenReturn("sessionToken");
-        when(mockSessionService.createCookie(any(), any(), any(), any())).thenReturn(cookie);
+        when(mockSessionService.createCookie(any(), anyLong(), any(), any())).thenReturn(cookie);
 
         State state = new State();
         state.setUserDao(mockUserDao);
@@ -126,11 +127,11 @@ public class FormRouterTest {
         Assertions.assertEquals("test-id", result.value());
     }
 
-    private MockContext mockChallengeCtx(String challengerId, String challengeeId, String action) {
+    private MockContext mockChallengeCtx(long challengerId, long challengeeId, String action) {
         MockContext mockContext = new MockContext();
         Formdata mockForm = Formdata.create(mockContext);
-        mockForm.put("challengeeId", challengeeId);
-        mockForm.put("challengerId", challengerId);
+        mockForm.put("challengeeId", Long.toString(challengeeId));
+        mockForm.put("challengerId",  Long.toString(challengerId));
         mockForm.put("action", action);
         mockContext.setForm(mockForm);
         return mockContext;
@@ -139,8 +140,8 @@ public class FormRouterTest {
     @Test
     public void testAcceptChallenge() {
         // given
-        String challengeeId = "challengeeId";
-        String challengerId = "challengerId";
+        long challengeeId = 1L;
+        long challengerId = 2L;
 
         ChallengeDao mockChallengeDao = mock(ChallengeDao.class);
         GameService mockGameService = mock(GameService.class);
@@ -148,9 +149,9 @@ public class FormRouterTest {
         SessionService mockSessionService = mock(SessionService.class);
 
         when(mockSessionService.parseSession(any())).thenReturn(new SessionService.SessionValue("sessionId", challengeeId, "username", "us"));
-        when(mockRemoteDict.getSession("sessionId")).thenReturn(new Player(challengeeId, "playerName"));
+        when(mockRemoteDict.getSession("sessionId")).thenReturn(new PlayerEntity(challengeeId, "playerName"));
         when(mockGameService.create(any())).thenReturn("test-id");
-        when(mockChallengeDao.delete(any(), any())).thenReturn(1);
+        when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(1);
 
         State state = new State();
         state.setChallengeDao(mockChallengeDao);
@@ -172,8 +173,8 @@ public class FormRouterTest {
     @Test
     public void testNoAcceptChallenge() {
         // given
-        String challengeeId = "challengeeId";
-        String challengerId = "challengerId";
+        long challengeeId = 1L;
+        long challengerId = 2L;
 
         ChallengeDao mockChallengeDao = mock(ChallengeDao.class);
         GameService mockGameService = mock(GameService.class);
@@ -181,8 +182,8 @@ public class FormRouterTest {
         SessionService mockSessionService = mock(SessionService.class);
 
         when(mockSessionService.parseSession(any())).thenReturn(new SessionService.SessionValue("sessionId", challengeeId, "username", "us"));
-        when(mockRemoteDict.getSession("sessionId")).thenReturn(new Player(challengeeId, "playerName"));
-        when(mockChallengeDao.delete(any(), any())).thenReturn(0);
+        when(mockRemoteDict.getSession("sessionId")).thenReturn(new PlayerEntity(challengeeId, "playerName"));
+        when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(0);
 
         State state = new State();
         state.setChallengeDao(mockChallengeDao);
@@ -204,8 +205,8 @@ public class FormRouterTest {
     @Test
     public void testDeleteChallenge() {
         // given
-        String challengeeId = "challengeeId";
-        String challengerId = "challengerId";
+        long challengeeId = 1L;
+        long challengerId = 2L;
 
         ChallengeDao mockChallengeDao = mock(ChallengeDao.class);
         GameService mockGameService = mock(GameService.class);
@@ -213,8 +214,8 @@ public class FormRouterTest {
         SessionService mockSessionService = mock(SessionService.class);
 
         when(mockSessionService.parseSession(any())).thenReturn(new SessionService.SessionValue("sessionId", challengerId, "username", "us"));
-        when(mockRemoteDict.getSession("sessionId")).thenReturn(new Player(challengerId, "playerName"));
-        when(mockChallengeDao.delete(any(), any())).thenReturn(1);
+        when(mockRemoteDict.getSession("sessionId")).thenReturn(new PlayerEntity(challengerId, "playerName"));
+        when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(1);
 
         State state = new State();
         state.setChallengeDao(mockChallengeDao);
@@ -236,8 +237,8 @@ public class FormRouterTest {
     @Test
     public void testRejectChallenge() {
         // given
-        String challengeeId = "challengeeId";
-        String challengerId = "challengerId";
+        long challengeeId = 1L;
+        long challengerId = 2L;
 
         ChallengeDao mockChallengeDao = mock(ChallengeDao.class);
         GameService mockGameService = mock(GameService.class);
@@ -245,8 +246,8 @@ public class FormRouterTest {
         SessionService mockSessionService = mock(SessionService.class);
 
         when(mockSessionService.parseSession(any())).thenReturn(new SessionService.SessionValue("sessionId", challengeeId, "username", "us"));
-        when(mockRemoteDict.getSession("sessionId")).thenReturn(new Player(challengeeId, "playerName"));
-        when(mockChallengeDao.delete(any(), any())).thenReturn(1);
+        when(mockRemoteDict.getSession("sessionId")).thenReturn(new PlayerEntity(challengeeId, "playerName"));
+        when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(1);
 
         State state = new State();
         state.setChallengeDao(mockChallengeDao);

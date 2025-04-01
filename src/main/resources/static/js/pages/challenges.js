@@ -52,7 +52,7 @@ async function onAccept(index, challengerId, challengeeId, challengerName) {
         submitElem.remove();
         createNotification("Accepted challenge from " + challengerName, ok);
     } else {
-        createNotification("Failed to accept challenge from " + challengeeName, ok);
+        createNotification("Failed to accept challenge from " + challengerName, ok);
     }
 
     buttonElem.innerHTML = "Accept";
@@ -74,7 +74,7 @@ async function onReject(index, challengerId, challengeeId, challengerName) {
         submitElem.remove();
         createNotification("Rejected challenge from " + challengerName, ok);
     } else {
-        createNotification("Failed to reject challenge from " + challengeeName, ok);
+        createNotification("Failed to reject challenge from " + challengerName, ok);
     }
 
     buttonElem.innerHTML = "Reject";

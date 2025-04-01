@@ -19,8 +19,8 @@ import java.util.List;
 public class GameState {
     public String id;
     public ChessGame game;
-    public Player whitePlayer = null;
-    public Player blackPlayer = null;
+    public PlayerEntity whitePlayer = null;
+    public PlayerEntity blackPlayer = null;
     public boolean isEnded;
     @JsonIgnore
     public Boolean isFirstPlayerWhite = null; // true - first player joining should be white... false - first player joining should be black... null - random...
@@ -36,23 +36,23 @@ public class GameState {
         return new GameState(id, game, null, null, false, null, 0, moveList);
     }
 
-    public static GameState ofPlayers(String id, Player whitePlayer, Player blackPlayer) {
+    public static GameState ofPlayers(String id, PlayerEntity whitePlayer, PlayerEntity blackPlayer) {
         return new GameState(id, null, whitePlayer, blackPlayer, false, null, 0, null);
     }
 
-    public Player getCurrPlayer() {
+    public PlayerEntity getCurrPlayer() {
         return game.getBoard().turn().isWhite() ? whitePlayer : blackPlayer;
     }
 
-    public boolean isPlayerTurn(Player player) {
-        Player currPlayer = getCurrPlayer();
+    public boolean isPlayerTurn(PlayerEntity player) {
+        PlayerEntity currPlayer = getCurrPlayer();
         if (currPlayer == null) {
             return false;
         }
         return currPlayer.equals(player);
     }
 
-    public void pushMoveHistory(Move move) {
+    public void pushMoveList(Move move) {
         moveList.add(move);
     }
 

@@ -9,15 +9,15 @@ import java.util.NoSuchElementException;
 @Data
 @AllArgsConstructor
 public class RankedUser {
-    public String id;
+    public long id;
     public int rank;
 
-    public static void joinRanks(List<RankedUser> rankedList, List<User> userList) {
-        for (User user : userList) {
+    public static void joinRanks(List<RankedUser> rankedList, List<UserEntity> userList) {
+        for (UserEntity user : userList) {
             int i = 0;
             for (; i < rankedList.size(); i++) {
                 RankedUser rankedUser = rankedList.get(i);
-                if (rankedUser.id.equals(user.id)) {
+                if (rankedUser.id == user.id) {
                     user.rank = rankedUser.rank;
                     break;
                 }

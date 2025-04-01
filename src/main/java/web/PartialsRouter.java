@@ -1,10 +1,9 @@
 package web;
 
 import com.github.jknack.handlebars.Template;
-import dao.HistoryDao;
+import dao.ReplayDao;
 import io.jooby.*;
-import lombok.AllArgsConstructor;
-import models.History;
+import models.ReplayEntity;
 
 import java.util.List;
 
@@ -24,33 +23,28 @@ public class PartialsRouter extends Jooby {
             return "";
         });
 
-        get("/partials/player-history", this::getPlayerHistory);
+        get("/partials/player/replays", this::getPlayerReplays);
     }
 
-    public String getPlayerHistory(Context ctx) throws Exception {
-        HistoryDao historyDao = state.getHistoryDao();
+    public String getPlayerReplays(Context ctx) throws Exception {
+        ReplayDao replayDao = state.getReplayDao();
         Templates templates = state.getTemplates();
 
         ctx.setResponseType(MediaType.HTML);
 
-        ValueNode userIdSlug = ctx.query("userId");
-        if (userIdSlug.isMissing()) {
-            ctx.setResponseCode(StatusCode.BAD_REQUEST_CODE);
-            return "";
-        }
-        String userId = userIdSlug.toString();
+        long userId = ctx.query("userId").longValue();
         Long afterId = ctx.query("afterId").toOptional().map(Long::parseUnsignedLong).orElse(null);
 
-        List<History> historyList = historyDao.getUserHistories(userId, afterId, 25);
-        if (historyList.isEmpty()) {
+        List<ReplayEntity> replayList = replayDao.getUserReplays(userId, afterId, 25);
+        if (replayList.isEmpty()) {
             ctx.setResponseCode(StatusCode.NOT_FOUND_CODE);
             return "";
         }
 
-        historyList.forEach(History::sanitize);
+        replayList.forEach(ReplayEntity::sanitize);
 
-        Template template = templates.getHistoryListTemplate();
-        String resp = template.apply(historyList);
+        Template template = templates.getReplayListTemplate();
+        String resp = template.apply(replayList);
 
 //        ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
         return resp;

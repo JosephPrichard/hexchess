@@ -1,7 +1,8 @@
 package dao;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
-import models.Challenge;
+import models.ChallengeEntity;
+import models.UserEntity;
 import org.junit.jupiter.api.*;
 import utils.Config;
 
@@ -10,6 +11,8 @@ import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.List;
+
+import static dao.UserDao.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ChallengeDaoTest {
@@ -34,11 +37,11 @@ public class ChallengeDaoTest {
     }
 
     public static void createTestData(UserDao userDao) {
-        userDao.insert(new UserDao.UserInst("id1", "user1", "password1", "us", 1000f, 0, 0));
-        userDao.insert(new UserDao.UserInst("id2", "user2", "password2", "us", 1005f, 1, 0));
-        userDao.insert(new UserDao.UserInst("id3", "user3", "password3", "us", 900f, 1, 8));
-        userDao.insert(new UserDao.UserInst("id4", "user4", "password4", "us", 2000f, 50, 20));
-        userDao.insert(new UserDao.UserInst("id5", "user5", "password5", "us", 1500f, 40, 35));
+        userDao.insert(new UserInst("user1", "password1", "us", 1000f, 0, 0));
+        userDao.insert(new UserInst("user2", "password2", "us", 1005f, 1, 0));
+        userDao.insert(new UserInst("user3", "password3", "us", 900f, 1, 8));
+        userDao.insert(new UserInst("user4", "password4", "us", 2000f, 50, 20));
+        userDao.insert(new UserInst("user5", "password5", "us", 1500f, 40, 35));
     }
 
     @Test
@@ -47,21 +50,21 @@ public class ChallengeDaoTest {
         createTestData(userDao);
 
         // when
-        challengeDao.insert("id1", "id2");
-        challengeDao.insert("id3", "id2");
-        challengeDao.insert("id4", "id5");
+        challengeDao.insert(1L, 2L);
+        challengeDao.insert(3L, 2L);
+        challengeDao.insert(4L, 5L);
 
-        List<Challenge> challenges = challengeDao.getByParticipant(null, "id2");
+        List<ChallengeEntity> challenges = challengeDao.getByParticipant(null, 2L);
 
         // then
-        List<Challenge> expected = List.of(
-            new Challenge(
-                "id3", "user3", 900f,
-                "id2", "user2", 1005f,
+        List<ChallengeEntity> expected = List.of(
+            new ChallengeEntity(
+                3L, "user3", 900f,
+                2L, "user2", 1005f,
                 null),
-            new Challenge(
-                "id1", "user1", 1000f,
-                "id2", "user2", 1005f,
+            new ChallengeEntity(
+                1L, "user1", 1000f,
+                2L, "user2", 1005f,
                 null));
         Assertions.assertEquals(expected, challenges);
     }
@@ -72,24 +75,24 @@ public class ChallengeDaoTest {
         createTestData(userDao);
 
         // when
-        challengeDao.insert("id2", "id5", new Timestamp(System.currentTimeMillis() - 2000));
-        challengeDao.insert("id2", "id4", new Timestamp(System.currentTimeMillis() - 1000));
-        challengeDao.insert("id2", "id3", new Timestamp(System.currentTimeMillis()));
-        challengeDao.insert("id2", "id1", new Timestamp(System.currentTimeMillis()));
+        challengeDao.insert(2L, 5L, new Timestamp(System.currentTimeMillis() - 2000));
+        challengeDao.insert(2L, 4L, new Timestamp(System.currentTimeMillis() - 1000));
+        challengeDao.insert(2L, 3L, new Timestamp(System.currentTimeMillis()));
+        challengeDao.insert(2L, 1L, new Timestamp(System.currentTimeMillis()));
 
-        challengeDao.deleteExpired("id2", Duration.ofMillis(500));
+        challengeDao.deleteExpired(2L, Duration.ofMillis(500));
 
-        List<Challenge> challenges = challengeDao.getByParticipant("id2", null);
+        List<ChallengeEntity> challenges = challengeDao.getByParticipant(2L, null);
 
         // then
-        List<Challenge> expected = List.of(
-            new Challenge(
-                "id2", "user2", 1005f,
-                "id1", "user1", 1000f,
+        List<ChallengeEntity> expected = List.of(
+            new ChallengeEntity(
+                2L, "user2", 1005f,
+                1L, "user1", 1000f,
                 null),
-            new Challenge(
-                "id2", "user2", 1005f,
-                "id3", "user3", 900f,
+            new ChallengeEntity(
+                2L, "user2", 1005f,
+                3L, "user3", 900f,
                 null));
         Assertions.assertEquals(expected, challenges);
     }
@@ -100,9 +103,9 @@ public class ChallengeDaoTest {
         createTestData(userDao);
 
         // when
-        challengeDao.insert("id1", "id2");
-        int count = challengeDao.delete("id1", "id2");
-        List<Challenge> challenges = challengeDao.getByParticipant("id1", null);
+        challengeDao.insert(1L, 2L);
+        int count = challengeDao.delete(1L, 2L);
+        List<ChallengeEntity> challenges = challengeDao.getByParticipant(1L, null);
 
         // then
         Assertions.assertEquals(List.of(), challenges);

@@ -7,7 +7,6 @@ import io.jooby.SameSite;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.apache.commons.text.StringEscapeUtils;
 
 import java.security.SecureRandom;
 
@@ -35,13 +34,13 @@ public class SessionService {
     @AllArgsConstructor
     public static class SessionValue {
         String sessionId;
-        String playerId;
+        long userId;
         String username;
         String country;
     }
 
-    public Cookie createCookie(String sessionId, String playerId, String username, String country) {
-        return createCookie(new SessionValue(sessionId, playerId, username, country));
+    public Cookie createCookie(String sessionId, long userId, String username, String country) {
+        return createCookie(new SessionValue(sessionId, userId, username, country));
     }
 
     public Cookie createCookie(SessionValue sessionValue) {

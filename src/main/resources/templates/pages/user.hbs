@@ -6,12 +6,12 @@
     <script src="/static/js/pages/user.js"></script>
     <script src="/static/js/lib/notifications.js" defer></script>
     <script defer>
-        const loadHistories = createLoadHistories('{{user.id}}');
+        const loadReplays = createLoadReplays('{{user.id}}');
         window.onload = function() {
             initButtons('{{user.id}}')
-            loadHistories();
+            loadReplays();
         };
-        window.addEventListener('scroll', loadHistories);
+        window.addEventListener('scroll', loadReplays);
     </script>
 </head>
 <body>
@@ -85,7 +85,7 @@
 </div>
 <div class="center-horizontal-container" style="margin-top: 50px; margin-bottom: 50px;">
     <div class="wrapper">
-        <table id="history-table" class="table-container">
+        <table id="replay-table" class="table-container">
             <thead>
             <tr>
                 <th>White</th>
@@ -94,8 +94,8 @@
                 <th>Played On</th>
             </tr>
             </thead>
-            <tbody id="history-table-tbody">
-            {{> partials/historyList historyList}}
+            <tbody id="replay-table-tbody">
+            {{> partials/replayList replayList}}
             </tbody>
         </table>
     </div>

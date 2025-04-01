@@ -1,11 +1,10 @@
 package dao;
 
-import models.Challenge;
+import models.ChallengeEntity;
 import org.apache.commons.dbutils.DbUtils;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.handlers.BeanListHandler;
-import org.apache.commons.dbutils.handlers.ScalarHandler;
 
 import javax.sql.DataSource;
 import java.sql.*;
@@ -17,7 +16,7 @@ import static utils.Globals.LOGGER;
 public class ChallengeDao {
 
     public static final Duration THRESHOLD_EXPIRATION = Duration.ofDays(7);
-    private static final ResultSetHandler<List<Challenge>> CHAL_LIST_MAPPER = new BeanListHandler<>(Challenge.class);
+    private static final ResultSetHandler<List<ChallengeEntity>> CHAL_LIST_MAPPER = new BeanListHandler<>(ChallengeEntity.class);
 
     private final QueryRunner runner;
 
@@ -31,12 +30,12 @@ public class ChallengeDao {
 
     public static class ParticipantException extends RuntimeException {}
 
-    public void insert(String challengerId, String challengeeId) {
+    public void insert(long challengerId, long challengeeId) {
         insert(challengerId, challengeeId, new Timestamp(System.currentTimeMillis()));
     }
 
-    public void insert(String challengerId, String challengeeId, Timestamp madeOn) {
-        if (challengeeId.equals(challengerId)) {
+    public void insert(long challengerId, long challengeeId, Timestamp madeOn) {
+        if (challengeeId == challengerId) {
             throw new ChallengeDao.SelfException();
         }
 
@@ -61,7 +60,7 @@ public class ChallengeDao {
         }
     }
 
-    public int delete(String challengerId, String challengeeId) {
+    public int delete(long challengerId, long challengeeId) {
         String sql = "DELETE FROM challenges WHERE challengerId = ? AND challengeeId = ?";
 
         try {
@@ -74,7 +73,7 @@ public class ChallengeDao {
         }
     }
 
-    public List<Challenge> getByParticipant(String challengerId, String challengeeId, Duration threshold) {
+    public List<ChallengeEntity> getByParticipant(Long challengerId, Long challengeeId, Duration threshold) {
         Timestamp timestamp = new Timestamp(System.currentTimeMillis() - threshold.toMillis());
 
         String sql = """
@@ -102,13 +101,20 @@ public class ChallengeDao {
             conn = runner.getDataSource().getConnection();
             stmt = conn.prepareStatement(sql);
 
-            // nullable fields must assign using typed setters
-            stmt.setString(1, challengerId);
-            stmt.setString(2, challengeeId);
+            if (challengerId != null) {
+                stmt.setLong(1, challengerId);
+            } else {
+                stmt.setNull(1, Types.INTEGER);
+            }
+            if (challengeeId != null) {
+                stmt.setLong(2, challengeeId);
+            } else {
+                stmt.setNull(2, Types.INTEGER);
+            }
             stmt.setTimestamp(3, timestamp);
             rs = stmt.executeQuery();
 
-            List<Challenge> challenges = CHAL_LIST_MAPPER.handle(rs);
+            List<ChallengeEntity> challenges = CHAL_LIST_MAPPER.handle(rs);
             LOGGER.info("Selected challenges={} for challenged={}", challenges, challengerId);
             return challenges;
         } catch (SQLException ex) {
@@ -121,11 +127,11 @@ public class ChallengeDao {
         }
     }
 
-    public List<Challenge> getByParticipant(String challengerId, String challengeeId) {
+    public List<ChallengeEntity> getByParticipant(Long challengerId, Long challengeeId) {
         return getByParticipant(challengerId, challengeeId, THRESHOLD_EXPIRATION);
     }
 
-    public void deleteExpired(String userId, Duration threshold) {
+    public void deleteExpired(long userId, Duration threshold) {
         Timestamp timestamp = new Timestamp(System.currentTimeMillis() - threshold.toMillis());
 
         String sql = "DELETE FROM challenges WHERE (challengeeId = ? OR challengerId = ?) AND madeOn < ?";
@@ -138,7 +144,7 @@ public class ChallengeDao {
         }
     }
 
-    public void deleteExpired(String challengeeId) {
+    public void deleteExpired(long challengeeId) {
         deleteExpired(challengeeId, THRESHOLD_EXPIRATION);
     }
 }

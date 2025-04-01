@@ -1,10 +1,10 @@
 function initReplay() {
-    const moveList = JSON.parse(document.getElementById("move-history-list").innerHTML);
+    const moveList = JSON.parse(document.getElementById("replay-move-list").innerHTML);
     const initialBoard = JSON.parse(document.getElementById("initial-board").innerHTML);
 
     const boardCache = [];
 
-    function moveInitialBoard(initialBoard, moveList, index) {
+    function moveInitialBoard(index) {
         if (boardCache[i] !== undefined) {
             return boardCache[i];
         }

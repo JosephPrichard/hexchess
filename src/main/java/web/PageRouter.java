@@ -2,13 +2,12 @@ package web;
 
 import com.github.jknack.handlebars.Template;
 import dao.ChallengeDao;
-import dao.HistoryDao;
+import dao.ReplayDao;
 import dao.UserDao;
 import domain.ChessBoard;
 import services.GameService;
 import services.RemoteDict;
 import io.jooby.*;
-import io.jooby.exception.StatusCodeException;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import models.*;
@@ -58,7 +57,7 @@ public class PageRouter extends Jooby {
         get("/leaderboard", this::getLeaderboardRedis);
         get("/players/{id}", this::getPlayerRedis);
         get("/players/search", this::searchPlayers);
-        get("/games/histories/{id}", this::getGameHistories);
+        get("/games/replay/{id}", this::getGameReplay);
         get("/challenges", this::getChallenges);
     }
 
@@ -114,7 +113,7 @@ public class PageRouter extends Jooby {
     @Data
     @AllArgsConstructor
     public static class ProfileView {
-        public User user;
+        public UserEntity user;
         public List<String> countries;
     }
 
@@ -128,13 +127,13 @@ public class PageRouter extends Jooby {
         if (session == null) {
             return sendErrorView(ctx, StatusCode.UNAUTHORIZED_CODE, "You must be logged in to access this page.");
         }
-        Player player = remoteDict.getSession(session.getSessionId());
+        PlayerEntity player = remoteDict.getSession(session.getSessionId());
         if (player == null) {
             ctx.setResponseCookie(sessionService.createEmptyCookie());
             return sendErrorView(ctx, StatusCode.UNAUTHORIZED_CODE, "Session has expired, please login again.");
         }
 
-        User user = userDao.getById(player.getId());
+        UserEntity user = userDao.getById(player.getId());
 
         Template template = templates.getProfileTemplate();
         return template.apply(new ProfileView(user, state.getCountryList()));
@@ -143,7 +142,7 @@ public class PageRouter extends Jooby {
     @Data
     @AllArgsConstructor
     public static class LeaderboardView {
-        public List<User> userList;
+        public List<UserEntity> userList;
         public Pagination pages;
     }
 
@@ -154,12 +153,12 @@ public class PageRouter extends Jooby {
         try {
             int page = ctx.query("page").toOptional().map(Integer::parseUnsignedInt).orElse(1);
 
-            CompletableFuture<List<User>> userListFut = CompletableFuture.supplyAsync(() -> userDao.getLeaderboard(page, PER_PAGE), EXECUTOR);
+            CompletableFuture<List<UserEntity>> userListFut = CompletableFuture.supplyAsync(() -> userDao.getLeaderboard(page, PER_PAGE), EXECUTOR);
             CompletableFuture<Integer> totalPagesFut = CompletableFuture.supplyAsync(() -> userDao.countPages(PER_PAGE), EXECUTOR);
-            List<User> userList = userListFut.get();
+            List<UserEntity> userList = userListFut.get();
             Integer totalPages = totalPagesFut.get();
 
-            userList.forEach(User::sanitize);
+            userList.forEach(UserEntity::sanitize);
 
             Template template = templates.getLeaderboardTemplate();
             String resp = template.apply(new LeaderboardView(userList, Pagination.withTotal("?", page, totalPages)));
@@ -176,58 +175,59 @@ public class PageRouter extends Jooby {
         UserDao userDao = state.getUserDao();
         RemoteDict remoteDict = state.getRemoteDict();
 
+        int page;
         try {
-            int page = ctx.query("page").toOptional().map(Integer::parseUnsignedInt).orElse(1);
-
-            RemoteDict.Leaderboard leaderboard = remoteDict.getLeaderboardPage(page, PER_PAGE);
-            List<User> userList = userDao.getByRanks(leaderboard.getUsers());
-
-            RankedUser.joinRanks(leaderboard.getUsers(), userList);
-            userList.forEach(User::sanitize);
-
-            Template template = templates.getLeaderboardTemplate();
-            String resp = template.apply(new LeaderboardView(userList, Pagination.withTotal("?", page, leaderboard.getPageCount())));
-
-//            ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
-            return resp;
+            page = ctx.query("page").toOptional().map(Integer::parseUnsignedInt).orElse(1);
         } catch (NumberFormatException ex) {
             return sendErrorView(ctx, StatusCode.BAD_REQUEST_CODE, "Invalid param 'page': must be a positive integer.");
         }
+
+        RemoteDict.Leaderboard leaderboard = remoteDict.getLeaderboardPage(page, PER_PAGE);
+        List<UserEntity> userList = userDao.getByRanks(leaderboard.getUsers());
+
+        RankedUser.joinRanks(leaderboard.getUsers(), userList);
+        userList.forEach(UserEntity::sanitize);
+
+        Template template = templates.getLeaderboardTemplate();
+        String resp = template.apply(new LeaderboardView(userList, Pagination.withTotal("?", page, leaderboard.getPageCount())));
+
+//            ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
+        return resp;
     }
 
     @Data
     @AllArgsConstructor
     public static class UserView {
-        public User user;
-        public List<History> historyList;
+        public UserEntity user;
+        public List<ReplayEntity> replayList;
     }
 
     public String getPlayer(Context ctx) throws Exception {
         Templates templates = state.getTemplates();
         UserDao userDao = state.getUserDao();
-        HistoryDao historyDao = state.getHistoryDao();
+        ReplayDao replayDao = state.getReplayDao();
 
         Value userIdSlug = ctx.path("id");
         if (userIdSlug.isMissing()) {
             return sendErrorView(ctx, StatusCode.BAD_REQUEST_CODE, "Invalid param 'id': must contain id within slug.");
         }
-        String userId = userIdSlug.toString();
+        long userId = userIdSlug.longValue();
 
-        CompletableFuture<User> userFut = CompletableFuture.supplyAsync(() -> userDao.getByIdWithRank(userId), EXECUTOR);
-        CompletableFuture<List<History>> historyListFut =
-                CompletableFuture.supplyAsync(() -> historyDao.getUserHistories(userId, null, PER_PAGE), EXECUTOR);
-        User user = userFut.get();
-        List<History> historyList = historyListFut.get();
+        CompletableFuture<UserEntity> userFut = CompletableFuture.supplyAsync(() -> userDao.getByIdWithRank(userId), EXECUTOR);
+        CompletableFuture<List<ReplayEntity>> replayListFut =
+                CompletableFuture.supplyAsync(() -> replayDao.getUserReplays(userId, null, PER_PAGE), EXECUTOR);
+        UserEntity user = userFut.get();
+        List<ReplayEntity> replayList = replayListFut.get();
 
         if (user == null) {
             return sendErrorView(ctx, StatusCode.NOT_FOUND_CODE,  "Couldn't find a user for the provided user id.");
         }
 
         user.sanitize();
-        historyList.forEach(History::sanitize);
+        replayList.forEach(ReplayEntity::sanitize);
 
         Template template = templates.getUserTemplate();
-        String resp = template.apply(new UserView(user, historyList));
+        String resp = template.apply(new UserView(user, replayList));
 
 //        ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
         return resp;
@@ -236,33 +236,33 @@ public class PageRouter extends Jooby {
     public String getPlayerRedis(Context ctx) throws Exception {
         Templates templates = state.getTemplates();
         UserDao userDao = state.getUserDao();
-        HistoryDao historyDao = state.getHistoryDao();
+        ReplayDao replayDao = state.getReplayDao();
         RemoteDict remoteDict = state.getRemoteDict();
 
         Value userIdSlug = ctx.path("id");
         if (userIdSlug.isMissing()) {
             return sendErrorView(ctx, StatusCode.BAD_REQUEST_CODE, "Invalid param 'id': must contain id within slug.");
         }
-        String userId = userIdSlug.toString();
+        long userId = userIdSlug.longValue();
 
-        CompletableFuture<User> userFut = CompletableFuture.supplyAsync(() -> userDao.getById(userId), EXECUTOR);
-        CompletableFuture<List<History>> historyListFut =
-                CompletableFuture.supplyAsync(() -> historyDao.getUserHistories(userId, null, PER_PAGE), EXECUTOR);
+        CompletableFuture<UserEntity> userFut = CompletableFuture.supplyAsync(() -> userDao.getById(userId), EXECUTOR);
+        CompletableFuture<List<ReplayEntity>> replayListFut =
+                CompletableFuture.supplyAsync(() -> replayDao.getUserReplays(userId, null, PER_PAGE), EXECUTOR);
 
-        User user = userFut.get();
+        UserEntity user = userFut.get();
         if (user == null) {
             return sendErrorView(ctx, StatusCode.NOT_FOUND_CODE,"Couldn't find a user for the provided user id.");
         }
 
         int rank = remoteDict.getLeaderboardRank(user.getId());
         user.setRank(rank);
-        List<History> historyList = historyListFut.get();
+        List<ReplayEntity> replayList = replayListFut.get();
 
         user.sanitize();
-        historyList.forEach(History::sanitize);
+        replayList.forEach(ReplayEntity::sanitize);
 
         Template template = templates.getUserTemplate();
-        String resp = template.apply(new UserView(user, historyList));
+        String resp = template.apply(new UserView(user, replayList));
 
 //        ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
         return resp;
@@ -272,7 +272,7 @@ public class PageRouter extends Jooby {
     @AllArgsConstructor
     public static class SearchView {
         public String searchText;
-        public List<User> userList;
+        public List<UserEntity> userList;
         public Pagination pages;
     }
 
@@ -289,8 +289,8 @@ public class PageRouter extends Jooby {
                 return template.apply(new SearchView(name, List.of(), Pagination.ofUnlimited("?", page)));
             }
 
-            List<User> userList = userDao.searchByName(name, page, PER_PAGE);
-            userList.forEach(User::sanitize);
+            List<UserEntity> userList = userDao.searchByName(name, page, PER_PAGE);
+            userList.forEach(UserEntity::sanitize);
 
             Pagination pagination = Pagination.ofUnlimited(String.format("?username=%s&", name), page);
             String resp = template.apply(new SearchView(name, userList, pagination));
@@ -306,24 +306,24 @@ public class PageRouter extends Jooby {
     @AllArgsConstructor
     public static class ReplayView {
         public String initialBoard;
-        public History history;
+        public ReplayEntity replay;
     }
 
-    public String getGameHistories(Context ctx) throws IOException {
+    public String getGameReplay(Context ctx) throws IOException {
         Templates templates = state.getTemplates();
-        HistoryDao historyDao = state.getHistoryDao();
+        ReplayDao replayDao = state.getReplayDao();
 
-        Value historyIdSlug = ctx.path("id");
-        if (historyIdSlug.isMissing()) {
+        Value replayIdSlug = ctx.path("id");
+        if (replayIdSlug.isMissing()) {
             return sendErrorView(ctx, StatusCode.BAD_REQUEST_CODE, "Invalid param 'id': must contain id within slug.");
         }
-        long historyId = Long.parseUnsignedLong(historyIdSlug.toString());
+        long replayId = Long.parseUnsignedLong(replayIdSlug.toString());
 
-        History history = historyDao.getHistory(historyId);
-        history.sanitize();
+        ReplayEntity replay = replayDao.getReplay(replayId);
+        replay.sanitize();
 
         Template template = templates.getReplayTemplate();
-        String resp = template.apply(new ReplayView(initialBoardJson, history));
+        String resp = template.apply(new ReplayView(initialBoardJson, replay));
 
 //        ctx.setResponseHeader("Cache-Control", "max-age=86400, must-revalidate"); // this is never updated, we can cache aggressively
         return resp;
@@ -332,7 +332,7 @@ public class PageRouter extends Jooby {
     @Data
     @AllArgsConstructor
     public static class ChallengeView {
-        public List<Challenge> challengeList;
+        public List<ChallengeEntity> challengeList;
         public boolean sender;
     }
 
@@ -348,13 +348,13 @@ public class PageRouter extends Jooby {
         if (session == null) {
             return sendErrorView(ctx, StatusCode.UNAUTHORIZED_CODE, "You must be logged in to access this page.");
         }
-        Player player = remoteDict.getSession(session.getSessionId());
+        PlayerEntity player = remoteDict.getSession(session.getSessionId());
         if (player == null) {
             ctx.setResponseCookie(sessionService.createEmptyCookie());
             return sendErrorView(ctx, StatusCode.UNAUTHORIZED_CODE, "Session has expired, please login again.");
         }
 
-        List<Challenge> challengeList;
+        List<ChallengeEntity> challengeList;
         boolean sender;
 
         switch (participants) {
@@ -372,7 +372,7 @@ public class PageRouter extends Jooby {
             return templates.getErrorTemplate().apply(new ErrorView(code, "Invalid value for participants, must be 'sent' or 'received'."));
         }
 
-        EXECUTOR.execute(() -> challengeDao.deleteExpired(session.getPlayerId()));
+        EXECUTOR.execute(() -> challengeDao.deleteExpired(session.getUserId()));
 
         Template template = templates.getChallengesTemplate();
         String resp = template.apply(new ChallengeView(challengeList, sender));

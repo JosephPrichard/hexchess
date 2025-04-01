@@ -15,23 +15,23 @@ import static utils.Globals.HTML_SAFELIST;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class History {
+public class ReplayEntity {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
     public static final int WHITE_WIN = 0;
     public static final int BLACK_WIN = 1;
     public static final int DRAW = 2;
 
     public long id;
-    public String whiteId;
-    public String blackId;
+    public long whiteId;
+    public long blackId;
     public String whiteName;
     public String blackName;
     public String whiteCountry;
     public String blackCountry;
-    public String data; // this is expensive, so for certain views we don't fetch it
     public int result;
     public float winElo;
     public float loseElo;
+    public String moveList;
     @EqualsAndHashCode.Exclude
     public Timestamp playedOn;
 
@@ -95,8 +95,5 @@ public class History {
         blackName = Jsoup.clean(blackName, HTML_SAFELIST);
         whiteCountry = Jsoup.clean(whiteCountry, HTML_SAFELIST);
         blackCountry = Jsoup.clean(blackCountry, HTML_SAFELIST);
-        if (data != null) {
-            Jsoup.clean(data, HTML_SAFELIST);
-        }
     }
 }

@@ -5,7 +5,7 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- Create tables.
 CREATE TABLE IF NOT EXISTS users (
-    id VARCHAR NOT NULL,
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     username VARCHAR NOT NULL,
     country VARCHAR,
     elo NUMERIC NOT NULL,
@@ -15,28 +15,26 @@ CREATE TABLE IF NOT EXISTS users (
     bio VARCHAR NOT NULL DEFAULT '',
     joinedOn TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     password VARCHAR NOT NULL,
-    salt VARCHAR NOT NULL,
-    PRIMARY KEY (id)
-);
+    salt VARCHAR NOT NULL);
 
 CREATE TABLE IF NOT EXISTS users_metadata (
-    id NUMERIC,
+    id BIGINT,
     count INTEGER,
     PRIMARY KEY (id));
 
-CREATE TABLE IF NOT EXISTS game_histories (
-    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    whiteId VARCHAR NOT NULL,
-    blackId VARCHAR NOT NULL,
+CREATE TABLE IF NOT EXISTS replays (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    whiteId BIGINT NOT NULL,
+    blackId BIGINT NOT NULL,
     result INTEGER NOT NULL,
-    data JSONB NOT NULL,
     playedOn TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     winElo NUMERIC,
-    loseElo NUMERIC);
+    loseElo NUMERIC,
+    moveList JSONB NOT NULL);
 
 CREATE TABLE IF NOT EXISTS challenges (
-    challengerId VARCHAR NOT NULL,
-    challengeeId VARCHAR NOT NULL,
+    challengerId BIGINT NOT NULL,
+    challengeeId BIGINT NOT NULL,
     madeOn TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (challengerId, challengeeId));
 
@@ -44,11 +42,13 @@ CREATE TABLE IF NOT EXISTS challenges (
 CREATE INDEX IF NOT EXISTS idxTrgmUsername ON users USING GIST (username gist_trgm_ops);
 CREATE INDEX IF NOT EXISTS idxUsername ON users(username);
 CREATE INDEX IF NOT EXISTS idxElo ON users(elo);
-CREATE UNIQUE INDEX idxUniqueUsername ON users (UPPER(username));
+CREATE UNIQUE INDEX IF NOT EXISTS idxUniqueUsername ON users (UPPER(username));
 
-CREATE INDEX IF NOT EXISTS idxWhiteId ON game_histories(whiteId, id);
-CREATE INDEX IF NOT EXISTS idxBlackId ON game_histories(blackId, id);
-CREATE INDEX IF NOT EXISTS idxBothIds ON game_histories(whiteId, blackId, id);
+CREATE INDEX IF NOT EXISTS idxWhiteId ON replays(whiteId, id);
+CREATE INDEX IF NOT EXISTS idxBlackId ON replays(blackId, id);
+CREATE INDEX IF NOT EXISTS idxBothIds ON replays(whiteId, blackId, id);
+ALTER TABLE replays ADD FOREIGN KEY(whiteId) REFERENCES users(id);
+ALTER TABLE replays ADD FOREIGN KEY(blackId) REFERENCES users(id);
 
 CREATE INDEX IF NOT EXISTS idxChallengee ON challenges(challengeeId, madeOn);
 CREATE INDEX IF NOT EXISTS idxChallengee ON challenges(challengerId, madeOn);
@@ -67,8 +67,8 @@ END $$;
 
 -- Transaction to calculate the new stats of a winner and loser of a game, returning the new stats of each player
 CREATE OR REPLACE PROCEDURE updateStats(
-    IN winId VARCHAR,
-    IN loseId VARCHAR,
+    IN winId BIGINT,
+    IN loseId BIGINT,
     OUT winEloNext NUMERIC,
     OUT loseEloNext NUMERIC
 )
@@ -96,3 +96,19 @@ END;
 
 -- Insert the base values for a zero initialized schema
 BEGIN; INSERT INTO users_metadata (id, count) VALUES (1, 0); END;
+
+-- Trigger to keep the user metadata up to date
+CREATE OR REPLACE FUNCTION increment_users_metadata()
+    RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE users_metadata
+    SET count = count + 1
+    WHERE id = NEW.id;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_increment_users_metadata_on_insert
+    AFTER INSERT ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION increment_users_metadata();

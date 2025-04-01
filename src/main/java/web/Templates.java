@@ -23,7 +23,7 @@ public class Templates {
     private Template challengesTemplate;
     private Template errorTemplate;
 
-    private Template historyListTemplate;
+    private Template replayListTemplate;
 
     public Templates(Handlebars handlebars) throws IOException {
         // pages
@@ -40,6 +40,6 @@ public class Templates {
         errorTemplate = handlebars.compile("/pages/error");
 
         // partials
-        historyListTemplate = handlebars.compile("partials/historyList");
+        replayListTemplate = handlebars.compile("partials/replayList");
     }
 }

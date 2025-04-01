@@ -4,25 +4,23 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import utils.Globals;
 
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
-import java.util.Date;
 
 import static dao.ChallengeDao.THRESHOLD_EXPIRATION;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Challenge {
+public class ChallengeEntity {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm");
 
-    public String challengerId;
+    public long challengerId;
     public String challengerName;
     public float challengerElo;
-    public String challengeeId;
+    public long challengeeId;
     public String challengeeName;
     public float challengeeElo;
     @EqualsAndHashCode.Exclude

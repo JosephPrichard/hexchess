@@ -5,9 +5,9 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import models.GameState;
-import models.Player;
+import models.PlayerEntity;
 import models.RankedUser;
-import models.User;
+import models.UserEntity;
 import redis.clients.jedis.AbstractTransaction;
 import redis.clients.jedis.JedisPooled;
 import redis.clients.jedis.resps.Tuple;
@@ -35,7 +35,7 @@ public class RemoteDict {
 
     public RemoteDict(JedisPooled jedis) {
         this.jedis = jedis;
-        this.playerReader = JSON_MAPPER.readerFor(Player.class);
+        this.playerReader = JSON_MAPPER.readerFor(PlayerEntity.class);
     }
 
     public GameState getGame(String id) {
@@ -118,21 +118,21 @@ public class RemoteDict {
         return new GetGamesResult(nextCursor, gameStates);
     }
 
-    public Player getSession(String sessionId) {
+    public PlayerEntity getSession(String sessionId) {
         String fullId = "session:" + sessionId;
         String str = jedis.get(fullId);
         if (str == null) {
             return null;
         }
         try {
-            return playerReader.readValue(str, Player.class);
+            return playerReader.readValue(str, PlayerEntity.class);
         } catch (IOException ex) {
             LOGGER.error("Failed to parse json object from the dictionary", ex);
             return null;
         }
     }
 
-    public void setSession(String sessionId, Player player, long expirySeconds) {
+    public void setSession(String sessionId, PlayerEntity player, long expirySeconds) {
         String fullId = "session:" + sessionId;
         try {
             String str = JSON_MAPPER.writeValueAsString(player);
@@ -152,22 +152,24 @@ public class RemoteDict {
         jedis.del(fullId);
     }
 
-    public Player getSessionOrDefault(String sessionId) {
-        Player player;
+    public PlayerEntity getSessionOrDefault(String sessionId) {
+        PlayerEntity player;
         if (sessionId != null) {
             player = getSession(sessionId);
         } else {
             String guestName = "Guest " + RANDOM.nextInt(1000);
-            player = new Player(UUID.randomUUID().toString(), guestName);
+            long randomLong = RANDOM.nextLong();
+            player = new PlayerEntity(randomLong, guestName);
         }
         return player;
     }
 
-    public int getLeaderboardRank(String id) {
-        Long rank = jedis.zrevrank(LEADERBOARD_ZSET, id);
+    public int getLeaderboardRank(long id) {
+        String strId = Long.toString(id);
+        Long rank = jedis.zrevrank(LEADERBOARD_ZSET, strId);
         if (rank == null) {
-            incrLeaderboardUser(id, User.START_ELO);
-            rank = jedis.zrevrank(LEADERBOARD_ZSET, id);
+            incrLeaderboardUser(id, UserEntity.START_ELO);
+            rank = jedis.zrevrank(LEADERBOARD_ZSET, strId);
             assert rank != null;
         }
         return rank.intValue() + 1;
@@ -188,7 +190,7 @@ public class RemoteDict {
 
         List<RankedUser> users = new ArrayList<>();
         for (int i = 0; i < ids.size(); i++) {
-            String id = ids.get(i);
+            long id = Long.parseUnsignedLong(ids.get(i));
             users.add(new RankedUser(id, startRank + i + 1));
         }
 
@@ -207,26 +209,26 @@ public class RemoteDict {
     @Data
     @AllArgsConstructor
     public static class EloChangeSet {
-        String id;
+        long id;
         double elo;
     }
 
     public void incrLeaderboardUser(EloChangeSet... changeSets) {
         AbstractTransaction t = jedis.multi();
         for (EloChangeSet cs : changeSets) {
-            t.zincrby(LEADERBOARD_ZSET, cs.elo, cs.id);
+            t.zincrby(LEADERBOARD_ZSET, cs.elo, Long.toString(cs.id));
         }
         t.exec();
     }
 
-    public void incrLeaderboardUser(String id, double elo) {
-        jedis.zincrby(LEADERBOARD_ZSET, elo, id);
+    public void incrLeaderboardUser(long id, double elo) {
+        jedis.zincrby(LEADERBOARD_ZSET, elo, Long.toString(id));
     }
 
     public void updateLeaderboardUser(EloChangeSet... changeSets) {
         AbstractTransaction t = jedis.multi();
         for (EloChangeSet cs : changeSets) {
-            t.zadd(LEADERBOARD_ZSET, cs.elo, cs.id);
+            t.zadd(LEADERBOARD_ZSET, cs.elo, Long.toString(cs.id));
         }
         t.exec();
     }

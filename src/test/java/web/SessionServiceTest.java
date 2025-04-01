@@ -12,7 +12,7 @@ public class SessionServiceTest {
 
     @Test
     public void parseSession() {
-        String sessionJson = "\"{\\\"sessionId\\\":\\\"session-id\\\",\\\"playerId\\\":\\\"player-id\\\",\\\"username\\\":\\\"username-value\\\",\\\"country\\\":\\\"country-name\\\"}\"";
+        String sessionJson = "\"{\\\"sessionId\\\":\\\"session-id\\\",\\\"userId\\\":1,\\\"username\\\":\\\"username-value\\\",\\\"country\\\":\\\"country-name\\\"}\"";
 
         Context ctx = mock(Context.class);
         when(ctx.header("Cookie")).thenReturn(new SingleValue(ctx, "Cookie", String.format("session=%s;key1=value1;key2=value2", sessionJson)));
@@ -21,7 +21,7 @@ public class SessionServiceTest {
 
         SessionService.SessionValue sessionValue = sessionService.parseSession(ctx);
 
-        SessionService.SessionValue expected = new SessionService.SessionValue("session-id", "player-id", "username-value", "country-name");
+        SessionService.SessionValue expected = new SessionService.SessionValue("session-id", 1, "username-value", "country-name");
         Assertions.assertEquals(expected, sessionValue);
     }
 }

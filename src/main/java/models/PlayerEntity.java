@@ -8,8 +8,8 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Player {
-    public String id;
+public class PlayerEntity {
+    public long id;
     @EqualsAndHashCode.Exclude
     public String name;
 }

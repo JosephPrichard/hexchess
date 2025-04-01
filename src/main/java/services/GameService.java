@@ -1,13 +1,13 @@
 package services;
 
-import dao.HistoryDao;
+import dao.ReplayDao;
 import dao.UserDao;
 import domain.ChessGame;
 import domain.Move;
 import lombok.AllArgsConstructor;
 import models.GameState;
-import models.History;
-import models.Player;
+import models.ReplayEntity;
+import models.PlayerEntity;
 
 import java.util.Random;
 import java.util.UUID;
@@ -28,7 +28,7 @@ public class GameService {
 
     private final RemoteDict remoteDict;
     private final UserDao userDao;
-    private final HistoryDao historyDao;
+    private final ReplayDao replayDao;
 
     public String create(Boolean isFirstPlayerWhite) {
         String id = UUID.randomUUID().toString();
@@ -41,7 +41,7 @@ public class GameService {
         return id;
     }
 
-    public GameState join(String gameId, Player player) {
+    public GameState join(String gameId, PlayerEntity player) {
         GameState state = remoteDict.getGame(gameId);
         if (state == null) {
             return null;
@@ -84,7 +84,7 @@ public class GameService {
         return remoteDict.setGame(gameId, state);
     }
 
-    public GameState makeMove(String gameId, Player player, Move move) {
+    public GameState makeMove(String gameId, PlayerEntity player, Move move) {
         GameState state = remoteDict.getGame(gameId);
         if (state == null) {
             return null;
@@ -108,7 +108,7 @@ public class GameService {
         game.makeMove(move);
         game.initPieceMoves();
 
-        state.pushMoveHistory(move);
+        state.pushMoveList(move);
 
         if (game.isCheckmate()) {
             state.setEnded(true);
@@ -122,25 +122,25 @@ public class GameService {
 
     public void onFinishGame(GameState state, boolean isWhiteWin) {
         try {
-            String whiteId = state.getWhitePlayer().getId();
-            String blackId = state.getBlackPlayer().getId();
-            int result = isWhiteWin ? History.WHITE_WIN : History.BLACK_WIN;
-            String winId = isWhiteWin ? whiteId : blackId;
-            String loseId = isWhiteWin ? blackId : whiteId;
+            long whiteId = state.getWhitePlayer().getId();
+            long blackId = state.getBlackPlayer().getId();
+            int result = isWhiteWin ? ReplayEntity.WHITE_WIN : ReplayEntity.BLACK_WIN;
+            long winId = isWhiteWin ? whiteId : blackId;
+            long loseId = isWhiteWin ? blackId : whiteId;
 
-            String moveHistoryData = JSON_MAPPER.writeValueAsString(state.getMoveList());
+            String moveListJson = JSON_MAPPER.writeValueAsString(state.getMoveList());
 
             EloChangeSet changeSet = userDao.updateStats(winId, loseId);
             remoteDict.incrLeaderboardUser(
                     new RemoteDict.EloChangeSet(winId, changeSet.getWinEloDiff()),
                     new RemoteDict.EloChangeSet(loseId, changeSet.getLoseEloDiff()));
-            historyDao.insert(whiteId, blackId, result, changeSet.getWinEloDiff(), changeSet.getLoseEloDiff(), moveHistoryData);
+            replayDao.insert(whiteId, blackId, result, changeSet.getWinEloDiff(), changeSet.getLoseEloDiff(), moveListJson);
         } catch (Exception ex) {
             LOGGER.info("Failed to persist game results to database in background thread {}", String.valueOf(ex));
         }
     }
 
-    public GameState forfeit(String gameId, Player player) {
+    public GameState forfeit(String gameId, PlayerEntity player) {
         GameState state = remoteDict.getGame(gameId);
         if (state == null) {
             return null;

@@ -1,5 +1,5 @@
-async function getHistories(userId, afterId) {
-    const url = `/partials/player-history?userId=${userId}&afterId=${afterId}`;
+async function getPlayerReplays(userId, afterId) {
+    const url = `/partials/player/replays?userId=${userId}&afterId=${afterId}`;
     try {
         const resp = await fetch(url, {method: 'GET'});
         return [await resp.text(), resp.ok];
@@ -9,17 +9,17 @@ async function getHistories(userId, afterId) {
     }
 }
 
-function createLoadHistories(userId) {
+function createLoadReplays(userId) {
     let hasMoreRecords = true;
     return async () => {
-        const table = document.getElementById('history-table-tbody');
+        const table = document.getElementById('replay-table-tbody');
         const isAtPageBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight;
         if (!hasMoreRecords || !isAtPageBottom || !table.lastElementChild) {
             return;
         }
 
         const lastId = table.lastElementChild.getAttribute("data-id");
-        const [html, ok] = await getHistories(userId, lastId)
+        const [html, ok] = await getPlayerReplays(userId, lastId)
         if (ok) {
             table.insertAdjacentHTML('beforeend', html);
         } else {
@@ -43,13 +43,13 @@ async function createChallenge(challengeeId) {
 }
 
 async function onCreateChallenge(challengeeId) {
-    const [text, _] = await createChallenge(challengeeId);
-    createNotification(text);
+    const [text, ok] = await createChallenge(challengeeId);
+    createNotification(text, ok);
 }
 
 function initButtons(userId) {
     const cookie = getSessionCookie();
-    if (cookie && userId !== cookie.playerId) {
+    if (cookie && userId !== cookie.userId) {
         const elem = document.getElementById("profile-buttons");
         elem.style.removeProperty('display');
     }

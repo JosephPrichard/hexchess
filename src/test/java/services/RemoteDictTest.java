@@ -2,7 +2,7 @@ package services;
 
 import domain.ChessBoard;
 import models.GameState;
-import models.Player;
+import models.PlayerEntity;
 import models.RankedUser;
 import org.junit.jupiter.api.*;
 import redis.clients.jedis.JedisPooled;
@@ -66,9 +66,9 @@ public class RemoteDictTest {
         String id3 = "test-id3";
         String id4 = "test-id4";
 
-        Player player1 = new Player("id1", "name1");
-        Player player2 = new Player("id2", "name2");
-        Player player3 = new Player("id3", "name3");
+        PlayerEntity player1 = new PlayerEntity(1L, "name1");
+        PlayerEntity player2 = new PlayerEntity(2L, "name2");
+        PlayerEntity player3 = new PlayerEntity(3L, "name3");
 
         GameState game1 = GameState.ofPlayers(id1, player1, player2);
         GameState game2 = GameState.ofPlayers(id2, player2, player3);
@@ -99,17 +99,17 @@ public class RemoteDictTest {
     @Test
     public void testSessions() throws InterruptedException {
         // given
-        Player player1 = new Player("test-id1", "test-name1");
-        Player player2 = new Player("test-id2", "test-name2");
+        PlayerEntity player1 = new PlayerEntity(1L, "test-name1");
+        PlayerEntity player2 = new PlayerEntity(2L, "test-name2");
 
         // when
         remoteDict.setSession("session1", player1, 100);
         remoteDict.setSession("session2", player2, 1);
 
-        Player actualPlayer1 = remoteDict.getSession("session1");
+        PlayerEntity actualPlayer1 = remoteDict.getSession("session1");
 
         Thread.sleep(1000); // wait for key to expire
-        Player actualPlayer2 = remoteDict.getSession("session2");
+        PlayerEntity actualPlayer2 = remoteDict.getSession("session2");
 
         // then
         Assertions.assertEquals(player1, actualPlayer1);
@@ -118,19 +118,19 @@ public class RemoteDictTest {
 
     @Test
     public void testLeaderboard() {
-        remoteDict.incrLeaderboardUser("user1", 1500);
-        remoteDict.incrLeaderboardUser("user2", 1000);
-        remoteDict.incrLeaderboardUser("user3", 950);
-        remoteDict.incrLeaderboardUser("user4", 835);
+        remoteDict.incrLeaderboardUser(10, 1500);
+        remoteDict.incrLeaderboardUser(20, 1000);
+        remoteDict.incrLeaderboardUser(30, 950);
+        remoteDict.incrLeaderboardUser(40, 835);
 
-        int rank1 = remoteDict.getLeaderboardRank("user1");
-        int rank2 = remoteDict.getLeaderboardRank("user2");
-        int rank3 = remoteDict.getLeaderboardRank("user3");
-        int rank4 = remoteDict.getLeaderboardRank("user4");
+        int rank1 = remoteDict.getLeaderboardRank(10);
+        int rank2 = remoteDict.getLeaderboardRank(20);
+        int rank3 = remoteDict.getLeaderboardRank(30);
+        int rank4 = remoteDict.getLeaderboardRank(40);
 
         RemoteDict.Leaderboard leaderboard1 = remoteDict.getLeaderboard(0, 4);
 
-        remoteDict.incrLeaderboardUser(new RemoteDict.EloChangeSet("user2", 30));
+        remoteDict.incrLeaderboardUser(new RemoteDict.EloChangeSet(20, 30));
         RemoteDict.Leaderboard leaderboard2 = remoteDict.getLeaderboard(1, 2);
 
         Assertions.assertEquals(1, rank1);
@@ -140,17 +140,17 @@ public class RemoteDictTest {
 
         RemoteDict.Leaderboard expectedLeaderboard1 = new RemoteDict.Leaderboard(
             List.of(
-                new RankedUser("user1", 1),
-                new RankedUser("user2", 2),
-                new RankedUser("user3", 3),
-                new RankedUser("user4", 4)),
+                new RankedUser(10, 1),
+                new RankedUser(20, 2),
+                new RankedUser(30, 3),
+                new RankedUser(40, 4)),
             1);
         Assertions.assertEquals(expectedLeaderboard1, leaderboard1);
 
         RemoteDict.Leaderboard expectedLeaderboard2 = new RemoteDict.Leaderboard(
             List.of(
-                new RankedUser("user2", 2),
-                new RankedUser("user3", 3)),
+                new RankedUser(20, 2),
+                new RankedUser(30, 3)),
             2);
         Assertions.assertEquals(expectedLeaderboard2, leaderboard2);
     }

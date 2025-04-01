@@ -1,7 +1,7 @@
 package web;
 
 import dao.ChallengeDao;
-import dao.HistoryDao;
+import dao.ReplayDao;
 import services.RemoteDict;
 import dao.UserDao;
 import lombok.AllArgsConstructor;
@@ -16,7 +16,7 @@ import java.util.List;
 @AllArgsConstructor
 public class State {
     public UserDao userDao;
-    public HistoryDao historyDao;
+    public ReplayDao replayDao;
     public ChallengeDao challengeDao;
     public RemoteDict remoteDict;
     public GameService gameService;

@@ -2,11 +2,12 @@ package web;
 
 import dao.ChallengeDao;
 import dao.UserDao;
+import models.UserEntity;
 import services.GameService;
 import services.RemoteDict;
 import io.jooby.*;
 import io.jooby.exception.StatusCodeException;
-import models.Player;
+import models.PlayerEntity;
 import org.jsoup.Jsoup;
 
 import static utils.Globals.*;
@@ -60,14 +61,14 @@ public class FormRouter extends Jooby {
         validatePassword(password, dupPassword);
 
         try {
-            UserInst inst = userDao.insert(username, password);
-            remoteDict.incrLeaderboardUser(inst.getNewId(), inst.getElo());
+            UserEntity user = userDao.insert(username, password);
+            remoteDict.incrLeaderboardUser(user.getId(), user.getElo());
 
             String sessionId = sessionService.createId();
-            Cookie cookie = sessionService.createCookie(sessionId, inst.getNewId(), inst.getUsername(), inst.getCountry());
+            Cookie cookie = sessionService.createCookie(sessionId, user.getId(), user.getUsername(), user.getCountry());
             ctx.setResponseCookie(cookie);
 
-            Player player = new Player(inst.getNewId(), inst.getUsername());
+            PlayerEntity player = new PlayerEntity(user.getId(), user.getUsername());
             remoteDict.setSession(sessionId, player, cookie.getMaxAge());
 
             LOGGER.info("Registered a new player={}", player);
@@ -96,7 +97,7 @@ public class FormRouter extends Jooby {
         String sessionId = sessionService.createId();
         Cookie cookie = sessionService.createCookie(sessionId, verifiedUser.getId(), verifiedUser.getUsername(), verifiedUser.getCountry());
         ctx.setResponseCookie(cookie);
-        remoteDict.setSession(sessionId, new Player(verifiedUser.getId(), verifiedUser.getUsername()), cookie.getMaxAge());
+        remoteDict.setSession(sessionId, new PlayerEntity(verifiedUser.getId(), verifiedUser.getUsername()), cookie.getMaxAge());
 
         LOGGER.info("Player has logged in {}", verifiedUser);
 
@@ -146,7 +147,7 @@ public class FormRouter extends Jooby {
         if (session == null) {
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, "Cannot update user when you are not logged in");
         }
-        Player player = remoteDict.getSession(session.getSessionId());
+        PlayerEntity player = remoteDict.getSession(session.getSessionId());
         if (player == null) {
             ctx.setResponseCookie(sessionService.createEmptyCookie());
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, "Session has expired, please login again");
@@ -154,7 +155,7 @@ public class FormRouter extends Jooby {
 
         VerifiedUser verifiedUser = userDao.updateUser(player.getId(), newUsername, newCountry, newBio);
         if (verifiedUser != null) {
-            LOGGER.info("Updated data of user={}", session.getPlayerId());
+            LOGGER.info("Updated data of user={}", session.getUserId());
             Cookie cookie = sessionService.createCookie(session.getSessionId(), verifiedUser.getId(), verifiedUser.getUsername(), verifiedUser.getCountry());
             ctx.setResponseCookie(cookie);
         }
@@ -169,11 +170,11 @@ public class FormRouter extends Jooby {
 
         SessionValue session = sessionService.parseSession(ctx);
         if (session != null) {
-            Cookie cookie = sessionService.createCookie(session.getSessionId(), session.getPlayerId(), session.getUsername(), session.getCountry());
+            Cookie cookie = sessionService.createCookie(session.getSessionId(), session.getUserId(), session.getUsername(), session.getCountry());
             ctx.setResponseCookie(cookie);
             remoteDict.updateSessionEx(session.getSessionId(), cookie.getMaxAge());
 
-            LOGGER.info("Refreshed session for user={}", session.getPlayerId());
+            LOGGER.info("Refreshed session for user={}", session.getUserId());
         }
 
         ctx.setResponseHeader("Content-Type", "text/plain");
@@ -188,7 +189,7 @@ public class FormRouter extends Jooby {
         remoteDict.deleteSession(session.getSessionId());
         ctx.setResponseCookie(sessionService.createEmptyCookie());
 
-        LOGGER.info("Logged out user={}", session.getPlayerId());
+        LOGGER.info("Logged out user={}", session.getUserId());
 
         ctx.setResponseHeader("Content-Type", "text/plain");
         return "Logged out successfully!";
@@ -215,25 +216,25 @@ public class FormRouter extends Jooby {
         ChallengeDao challengeDao = state.getChallengeDao();
 
         Formdata form = ctx.form();
-        String challengeeId = form.get("challengeeId").value();
-        String challengerId = form.get("challengerId").value();
+        long challengeeId = form.get("challengeeId").longValue();
+        long challengerId = form.get("challengerId").longValue();
         String action = form.get("action").value().toUpperCase();
 
         SessionService.SessionValue session = sessionService.parseSession(ctx);
         if (session == null) {
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, "Cannot update user when you are not logged in");
         }
-        Player player = remoteDict.getSession(session.getSessionId());
+        PlayerEntity player = remoteDict.getSession(session.getSessionId());
         if (player == null) {
             ctx.setResponseCookie(sessionService.createEmptyCookie());
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, "Session has expired, please login again");
         }
 
-        String callerId = player.getId();
+        long callerId = player.getId();
 
         switch (action) {
         case "ACCEPT":
-            if (callerId.equals(challengeeId)) {
+            if (callerId == challengeeId) {
                 int count = challengeDao.delete(challengerId, challengeeId);
                 if (count == 0) {
                     throw new StatusCodeException(StatusCode.NOT_FOUND, "Failed to accept the challenge, it does not exist anymore");
@@ -248,7 +249,7 @@ public class FormRouter extends Jooby {
                 throw new StatusCodeException(StatusCode.UNAUTHORIZED, "You must be the challengee to accept a challenge");
             }
         case "DELETE":
-            if (callerId.equals(challengerId)) {
+            if (callerId == challengerId) {
                 int count = challengeDao.delete(challengerId, challengeeId);
                 if (count == 0) {
                     throw new StatusCodeException(StatusCode.NOT_FOUND, "Failed to delete the challenge, it does not exist anymore");
@@ -261,7 +262,7 @@ public class FormRouter extends Jooby {
                 throw new StatusCodeException(StatusCode.UNAUTHORIZED, "You must be the challenger to delete a challenge");
             }
         case "REJECT":
-            if (callerId.equals(challengeeId)) {
+            if (callerId == challengeeId) {
                 int count = challengeDao.delete(challengerId, challengeeId);
                 if (count == 0) {
                     throw new StatusCodeException(StatusCode.NOT_FOUND, "Failed to reject the challenge, it does not exist anymore");
@@ -284,13 +285,13 @@ public class FormRouter extends Jooby {
         ChallengeDao challengeDao = state.getChallengeDao();
 
         Formdata form = ctx.form();
-        String challengeeId = form.get("challengeeId").value();
+        long challengeeId = form.get("challengeeId").longValue();
 
         SessionService.SessionValue session = sessionService.parseSession(ctx);
         if (session == null) {
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, "Cannot update user when you are not logged in");
         }
-        Player player = remoteDict.getSession(session.getSessionId());
+        PlayerEntity player = remoteDict.getSession(session.getSessionId());
         if (player == null) {
             ctx.setResponseCookie(sessionService.createEmptyCookie());
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, "Session has expired, please login again");
