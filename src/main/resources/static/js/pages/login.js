@@ -1,18 +1,3 @@
-async function postLogin(username, password) {
-    const formData = new FormData();
-    formData.append("username", username);
-    formData.append("password", password);
-
-    const url = `/forms/login`;
-    try {
-        const resp = await fetch(url, {method: 'POST', body: formData});
-        return [await resp.text(), resp.ok];
-    } catch (ex) {
-        console.error(ex);
-        return ["An unexpected error has occurred", false];
-    }
-}
-
 async function onSubmitLoginForm(e)  {
     e.preventDefault();
 
@@ -22,10 +7,19 @@ async function onSubmitLoginForm(e)  {
 
     submitElem.innerHTML = '<div class="loader"></div>';
 
-    const username = usernameElem.value;
-    const password = passwordElem.value;
+    const resp = await fetch("/forms/login", {
+        method: 'POST',
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            username: usernameElem.value,
+            password: passwordElem.value
+        })
+    });
+    const text = await resp.text();
+    const ok = resp.ok;
 
-    const [text, ok] = await postLogin(username, password);
     console.log("Login response", text, ok);
 
     if (ok) {
@@ -33,8 +27,8 @@ async function onSubmitLoginForm(e)  {
     } else {
         createNotification(text, ok);
     }
-
     submitElem.innerHTML = "Login";
 }
 
-document.getElementById("login-form").addEventListener("submit", onSubmitLoginForm);
+const loginFormElem = document.getElementById("login-form");
+loginFormElem.addEventListener("submit", onSubmitLoginForm);

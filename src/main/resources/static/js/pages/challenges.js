@@ -1,81 +1,66 @@
-async function updateChallenge(challengerId, challengeeId, action) {
-    const url = "/forms/update-challenge";
-    try {
-        const formData = new FormData();
-        formData.set("challengerId", challengerId);
-        formData.set("challengeeId", challengeeId);
-        formData.set("action", action);
+async function updateChallenge({ id, buttonId, challengerId, challengeeId, successMsg, failMsg, action }) {
+    console.log(`On ${action} challenge`, challengerId, challengeeId);
 
-        const resp = await fetch(url, {method: 'POST', body: formData });
-        return [await resp.text(), resp.ok];
-    } catch (ex) {
-        console.error(ex);
-        return ["", false];
+    const submitElem = document.getElementById(id);
+    const buttonElem = document.getElementById(buttonId);
+
+    buttonElem.innerHTML = '<div class="loader"></div>';
+
+    const resp = await fetch("/forms/challenges/update", {
+        method: 'POST',
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            challengerId: Number(challengerId),
+            challengeeId: Number(challengeeId),
+            action
+        })
+    });
+    const ok = resp.ok;
+
+    if (ok) {
+        submitElem.remove();
+        createNotification(successMsg, ok);
+    } else {
+        createNotification(failMsg, ok);
     }
+
+    buttonElem.innerHTML = action;
 }
 
 async function onDelete(index, challengerId, challengeeId, challengeeName) {
-    const id = `challenge-${index}`;
-    const buttonId = `challenge-${index}-delete`;
-
-    console.log("On delete challenge", challengerId, challengeeId);
-
-    const submitElem = document.getElementById(id);
-    const buttonElem = document.getElementById(buttonId);
-
-    buttonElem.innerHTML = '<div class="loader"></div>';
-
-    const [_, ok] = await updateChallenge(challengerId, challengeeId, "DELETE");
-    if (ok) {
-        submitElem.remove();
-        createNotification("Deleted challenge against " + challengeeName, ok);
-    } else {
-        createNotification("Failed to deleted challenge against " + challengeeName, ok);
-    }
-
-    buttonElem.innerHTML = "Delete";
+    await updateChallenge({
+        id: `challenge-${index}`,
+        buttonId: `challenge-${index}-delete`,
+        challengerId,
+        challengeeId,
+        action: "Delete",
+        successMsg: "Deleted challenge against " + challengeeName,
+        failMsg: "Failed to deleted challenge against " + challengeeName,
+    });
 }
 
 async function onAccept(index, challengerId, challengeeId, challengerName) {
-    const id = `challenge-${index}`;
-    const buttonId = `challenge-${index}-accept`;
-
-    console.log("On accept challenge", challengerId, challengeeId);
-
-    const submitElem = document.getElementById(id);
-    const buttonElem = document.getElementById(buttonId);
-
-    buttonElem.innerHTML = '<div class="loader"></div>';
-
-    const [_, ok] = await updateChallenge(challengerId, challengeeId, "ACCEPT");
-    if (ok) {
-        submitElem.remove();
-        createNotification("Accepted challenge from " + challengerName, ok);
-    } else {
-        createNotification("Failed to accept challenge from " + challengerName, ok);
-    }
-
-    buttonElem.innerHTML = "Accept";
+    await updateChallenge({
+        id: `challenge-${index}`,
+        buttonId: `challenge-${index}-accept`,
+        challengerId,
+        challengeeId,
+        action: "Accept",
+        successMsg: "Accepted challenge from " + challengerName,
+        failMsg: "Failed to accept challenge from " + challengerName,
+    });
 }
 
 async function onReject(index, challengerId, challengeeId, challengerName) {
-    const id = `challenge-${index}`;
-    const buttonId = `challenge-${index}-reject`;
-
-    console.log("On reject challenge", challengerId, challengeeId);
-
-    const submitElem = document.getElementById(id);
-    const buttonElem = document.getElementById(buttonId);
-
-    buttonElem.innerHTML = '<div class="loader"></div>';
-
-    const [_, ok] = await updateChallenge(challengerId, challengeeId, "REJECT");
-    if (ok) {
-        submitElem.remove();
-        createNotification("Rejected challenge from " + challengerName, ok);
-    } else {
-        createNotification("Failed to reject challenge from " + challengerName, ok);
-    }
-
-    buttonElem.innerHTML = "Reject";
+    await updateChallenge({
+        id: `challenge-${index}`,
+        buttonId: `challenge-${index}-reject`,
+        challengerId,
+        challengeeId,
+        action: "Reject",
+        successMsg: "Rejected challenge from " + challengerName,
+        failMsg: "Failed to reject challenge from " + challengerName,
+    });
 }

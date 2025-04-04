@@ -1,15 +1,17 @@
-package dao;
+package services.dao;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import models.ReplayEntity;
 import org.junit.jupiter.api.*;
+import services.dao.ReplayDao;
+import services.dao.UserDao;
 import utils.Config;
 
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.util.List;
 
-import static dao.UserDao.*;
+import static services.dao.UserDao.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ReplayDaoTest {

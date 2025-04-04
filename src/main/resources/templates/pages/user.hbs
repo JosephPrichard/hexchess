@@ -4,14 +4,16 @@
     <title>{{user.username}} - Hexchess</title>
     <link rel="stylesheet" href="/static/css/index.css">
     <script src="/static/js/pages/user.js"></script>
+    <script src="/static/js/lib/session.js"></script>
     <script src="/static/js/lib/notifications.js" defer></script>
     <script defer>
-        const loadReplays = createLoadReplays('{{user.id}}');
-        window.onload = function() {
-            initButtons('{{user.id}}')
+        window.onload = () => {
+            const userId = '{{user.id}}';
+            const loadReplays = createLoadReplays(userId);
+            initButtons(userId);
             loadReplays();
+            window.addEventListener('scroll', loadReplays);
         };
-        window.addEventListener('scroll', loadReplays);
     </script>
 </head>
 <body>

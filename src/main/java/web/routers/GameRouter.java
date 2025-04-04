@@ -1,6 +1,7 @@
-package web;
+package web.routers;
 
 import domain.Move;
+import io.jooby.jackson.JacksonModule;
 import services.Broadcaster;
 import services.RemoteDict;
 import io.jooby.*;
@@ -11,17 +12,20 @@ import lombok.NoArgsConstructor;
 import models.GameState;
 import models.PlayerEntity;
 import services.GameService;
+import web.State;
 
 import static utils.Globals.*;
 
-public class WsRouter extends Jooby {
+public class GameRouter extends Jooby {
 
     private final State state;
 
-    public WsRouter(State state) {
+    public GameRouter(State state) {
         this.state = state;
 
-        ws("/subscriptions/games/{id}", this::onJoin);
+        install(new JacksonModule(JSON_MAPPER));
+
+        ws("/games/{id}", this::onJoin);
     }
 
     public void onJoin(Context ctx, WebSocketConfigurer configurer) {

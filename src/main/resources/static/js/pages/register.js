@@ -1,19 +1,3 @@
-async function postRegister(username, password, dupPassword) {
-    const formData = new FormData();
-    formData.append("username", username);
-    formData.append("password", password);
-    formData.append("duplicate-password", dupPassword);
-
-    const url = `/forms/register`;
-    try {
-        const resp = await fetch(url, {method: 'POST', body: formData});
-        return [await resp.text(), resp.ok];
-    } catch (ex) {
-        console.error(ex);
-        return ["An unexpected error has occurred", false];
-    }
-}
-
 async function onSubmitRegisterForm(e) {
     e.preventDefault();
 
@@ -24,11 +8,20 @@ async function onSubmitRegisterForm(e) {
 
     submitElem.innerHTML = '<div class="loader"></div>';
 
-    const username = usernameElem.value;
-    const password = passwordElem.value;
-    const dupPassword = dupPasswordElem.value;
+    const resp = await fetch("/forms/register", {
+        method: 'POST',
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            username: usernameElem.value,
+            password: passwordElem.value,
+            confirmPassword: dupPasswordElem.value
+        })
+    });
+    const text = await resp.text();
+    const ok = resp.ok;
 
-    const [text, ok] = await postRegister(username, password, dupPassword);
     console.log("Register response", text, ok);
 
     if (ok) {
@@ -36,8 +29,8 @@ async function onSubmitRegisterForm(e) {
     } else {
         createNotification(text, ok);
     }
-
     submitElem.innerHTML = "Register";
 }
 
-document.getElementById("register-form").addEventListener('submit', onSubmitRegisterForm);
+const registerFormElem = document.getElementById("register-form");
+registerFormElem.addEventListener('submit', onSubmitRegisterForm);

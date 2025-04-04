@@ -28,28 +28,27 @@ function createLoadReplays(userId) {
     };
 }
 
-async function createChallenge(challengeeId) {
-    const url = "/forms/create-challenge";
-    try {
-        const formData = new FormData();
-        formData.set("challengeeId", challengeeId);
-
-        const resp = await fetch(url, {method: 'POST', body: formData });
-        return [await resp.text(), resp.ok];
-    } catch (ex) {
-        console.error(ex);
-        return ["", false];
-    }
-}
-
 async function onCreateChallenge(challengeeId) {
-    const [text, ok] = await createChallenge(challengeeId);
+    const resp = await fetch("/forms/challenges/create", {
+        method: 'POST',
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ challengeeId })
+    });
+    const text = await resp.text();
+    const ok = resp.ok;
+
     createNotification(text, ok);
 }
 
 function initButtons(userId) {
     const cookie = getSessionCookie();
-    if (cookie && userId !== cookie.userId) {
+
+    const isDifferentUser = cookie && userId !== String(cookie.userId);
+    console.log("Initialize profile buttons", cookie.userId, userId, userId !== cookie.userId);
+
+    if (isDifferentUser) {
         const elem = document.getElementById("profile-buttons");
         elem.style.removeProperty('display');
     }

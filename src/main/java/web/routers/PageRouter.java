@@ -1,9 +1,9 @@
-package web;
+package web.routers;
 
 import com.github.jknack.handlebars.Template;
-import dao.ChallengeDao;
-import dao.ReplayDao;
-import dao.UserDao;
+import services.dao.ChallengeDao;
+import services.dao.ReplayDao;
+import services.dao.UserDao;
 import domain.ChessBoard;
 import services.GameService;
 import services.RemoteDict;
@@ -11,6 +11,9 @@ import io.jooby.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import models.*;
+import web.SessionService;
+import web.State;
+import web.Templates;
 
 import java.io.IOException;
 import java.util.List;

@@ -1,7 +1,7 @@
 package services;
 
-import dao.ReplayDao;
-import dao.UserDao;
+import services.dao.ReplayDao;
+import services.dao.UserDao;
 import domain.ChessGame;
 import domain.Move;
 import lombok.AllArgsConstructor;
@@ -12,7 +12,7 @@ import models.PlayerEntity;
 import java.util.Random;
 import java.util.UUID;
 
-import static dao.UserDao.*;
+import static services.dao.UserDao.*;
 import static utils.Globals.*;
 
 @AllArgsConstructor

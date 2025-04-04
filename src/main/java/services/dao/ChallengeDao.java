@@ -1,4 +1,4 @@
-package dao;
+package services.dao;
 
 import models.ChallengeEntity;
 import org.apache.commons.dbutils.DbUtils;

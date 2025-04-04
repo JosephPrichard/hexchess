@@ -1,7 +1,11 @@
-package web;
+package web.routers;
 
-import dao.ChallengeDao;
-import dao.UserDao;
+import io.jooby.jackson.JacksonModule;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import services.dao.ChallengeDao;
+import services.dao.UserDao;
 import models.UserEntity;
 import services.GameService;
 import services.RemoteDict;
@@ -9,12 +13,15 @@ import io.jooby.*;
 import io.jooby.exception.StatusCodeException;
 import models.PlayerEntity;
 import org.jsoup.Jsoup;
+import web.SessionService;
+import web.State;
 
 import static utils.Globals.*;
-import static dao.UserDao.*;
+import static services.dao.UserDao.*;
 import static web.SessionService.*;
 
 public class FormRouter extends Jooby {
+
     private final State state;
 
     public FormRouter(State state) {
@@ -24,13 +31,13 @@ public class FormRouter extends Jooby {
 
         post("/forms/register", this::register);
         post("/forms/login", this::login);
-        post("/forms/update-password", this::updatePassword);
-        post("/forms/update-user", this::updateUser);
-        post("/forms/update-session", this::updateSession);
+        post("/forms/users/password", this::updatePassword);
+        post("/forms/users", this::updateUser);
+        post("/forms/session", this::updateSession);
         post("/forms/logout", this::logout);
-        post("/forms/create-game", this::createGame);
-        post("/forms/update-challenge", this::updateChallenge);
-        post("/forms/create-challenge", this::createChallenge);
+        post("/forms/game", this::createGame);
+        post("/forms/challenges/update", this::updateChallenge);
+        post("/forms/challenges/create", this::createChallenge);
     }
 
     private static void validatePassword(String passwordStr, String dupPasswordStr) {
@@ -42,15 +49,23 @@ public class FormRouter extends Jooby {
         }
     }
 
+    @Data
+    @NoArgsConstructor
+    public static class RegisterBody {
+        public String username;
+        public String password;
+        public String confirmPassword;
+    }
+
     public String register(Context ctx) {
         SessionService sessionService = state.getSessionService();
         UserDao userDao = state.getUserDao();
         RemoteDict remoteDict = state.getRemoteDict();
 
-        Formdata form = ctx.form();
-        String username = form.get("username").value();
-        String password = form.get("password").value();
-        String dupPassword = form.get("duplicate-password").value();
+        RegisterBody body = ctx.body(RegisterBody.class);
+        String username = body.getUsername();
+        String password = body.getPassword();
+        String confirmPassword = body.getConfirmPassword();
 
         if (username.length() < 5 || username.length() > 20) {
             throw new StatusCodeException(StatusCode.BAD_REQUEST, "Field username should be between 5 and 20 characters");
@@ -58,7 +73,7 @@ public class FormRouter extends Jooby {
         if (!Jsoup.isValid(username, HTML_SAFELIST)) {
             throw new StatusCodeException(StatusCode.BAD_REQUEST, "Field username cannot contain invalid or unsafe characters");
         }
-        validatePassword(password, dupPassword);
+        validatePassword(password, confirmPassword);
 
         try {
             UserEntity user = userDao.insert(username, password);
@@ -80,14 +95,21 @@ public class FormRouter extends Jooby {
         }
     }
 
+    @Data
+    @NoArgsConstructor
+    public static class LoginBody {
+        public String username;
+        public String password;
+    }
+
     public String login(Context ctx) {
         SessionService sessionService = state.getSessionService();
         UserDao userDao = state.getUserDao();
         RemoteDict remoteDict = state.getRemoteDict();
 
-        Formdata form = ctx.form();
-        String username = form.get("username").value();
-        String password = form.get("password").value();
+        LoginBody body = ctx.body(LoginBody.class);
+        String username = body.getUsername();
+        String password = body.getPassword();
 
         VerifiedUser verifiedUser = userDao.verify(username, password);
         if (verifiedUser == null) {
@@ -106,16 +128,24 @@ public class FormRouter extends Jooby {
         return "Logged in successfully!";
     }
 
+    @Data
+    @NoArgsConstructor
+    public static class UpdatePasswordBody {
+        public String password;
+        public String newPassword;
+        public String confirmNewPassword;
+    }
+
     public String updatePassword(Context ctx) {
         SessionService sessionService = state.getSessionService();
         UserDao userDao = state.getUserDao();
 
-        Formdata form = ctx.form();
-        String password = form.get("password").value();
-        String newPassword = form.get("new-password").value();
-        String dupPassword = form.get("duplicate-new-password").value();
+        UpdatePasswordBody body = ctx.body(UpdatePasswordBody.class);
+        String password = body.getPassword();
+        String newPassword = body.getNewPassword();
+        String confirmNewPassword = body.getConfirmNewPassword();
 
-        validatePassword(password, dupPassword);
+        validatePassword(password, confirmNewPassword);
 
         SessionService.SessionValue session = sessionService.parseSession(ctx);
         if (session == null) {
@@ -133,15 +163,23 @@ public class FormRouter extends Jooby {
         return "Updated successfully!";
     }
 
+    @Data
+    @NoArgsConstructor
+    public static class UpdateUserBody {
+        public String newUsername;
+        public String newCountry;
+        public String newBio;
+    }
+
     public String updateUser(Context ctx) {
         UserDao userDao = state.getUserDao();
         SessionService sessionService = state.getSessionService();
         RemoteDict remoteDict = state.getRemoteDict();
 
-        Formdata form = ctx.form();
-        String newUsername = form.get("new-username").valueOrNull();
-        String newCountry = form.get("new-country").valueOrNull();
-        String newBio = form.get("new-bio").valueOrNull();
+        UpdateUserBody body = ctx.body(UpdateUserBody.class);
+        String newUsername = body.getNewUsername();
+        String newCountry = body.getNewCountry();
+        String newBio = body.getNewBio();
 
         SessionValue session = sessionService.parseSession(ctx);
         if (session == null) {
@@ -195,9 +233,17 @@ public class FormRouter extends Jooby {
         return "Logged out successfully!";
     }
 
+    @Data
+    @NoArgsConstructor
+    public static class CreateGameBody {
+        public String color;
+    }
+
     public String createGame(Context ctx) {
         GameService gameService = state.getGameService();
-        String colorParam = ctx.query("color").toOptional().orElse(null);
+
+        CreateGameBody body = ctx.body(CreateGameBody.class);
+        String colorParam = body.getColor();
 
         Boolean isFirstWhite = null;
         if (colorParam != null && colorParam.equals("white")) {
@@ -209,16 +255,24 @@ public class FormRouter extends Jooby {
         return gameService.create(isFirstWhite);
     }
 
+    @Data
+    @NoArgsConstructor
+    public static class UpdateChallengeBody {
+        public long challengeeId;
+        public long challengerId;
+        public String action;
+    }
+
     public String updateChallenge(Context ctx) {
         GameService gameService = state.getGameService();
         SessionService sessionService = state.getSessionService();
         RemoteDict remoteDict = state.getRemoteDict();
         ChallengeDao challengeDao = state.getChallengeDao();
 
-        Formdata form = ctx.form();
-        long challengeeId = form.get("challengeeId").longValue();
-        long challengerId = form.get("challengerId").longValue();
-        String action = form.get("action").value().toUpperCase();
+        UpdateChallengeBody body = ctx.body(UpdateChallengeBody.class);
+        long challengeeId = body.getChallengeeId();
+        long challengerId = body.getChallengerId();
+        String action = body.getAction();
 
         SessionService.SessionValue session = sessionService.parseSession(ctx);
         if (session == null) {
@@ -279,13 +333,19 @@ public class FormRouter extends Jooby {
         }
     }
 
+    @Data
+    @NoArgsConstructor
+    public static class CreateChallengeBody {
+        public long challengeeId;
+    }
+
     public String createChallenge(Context ctx) {
         SessionService sessionService = state.getSessionService();
         RemoteDict remoteDict = state.getRemoteDict();
         ChallengeDao challengeDao = state.getChallengeDao();
 
-        Formdata form = ctx.form();
-        long challengeeId = form.get("challengeeId").longValue();
+        CreateChallengeBody body = ctx.body(CreateChallengeBody.class);
+        long challengeeId = body.getChallengeeId();
 
         SessionService.SessionValue session = sessionService.parseSession(ctx);
         if (session == null) {

@@ -1,9 +1,9 @@
 package web;
 
-import dao.ChallengeDao;
-import dao.ReplayDao;
+import services.dao.ChallengeDao;
+import services.dao.ReplayDao;
 import services.RemoteDict;
-import dao.UserDao;
+import services.dao.UserDao;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

@@ -1,4 +1,4 @@
-package dao;
+package services.dao;
 
 import at.favre.lib.crypto.bcrypt.BCrypt;
 import lombok.AllArgsConstructor;

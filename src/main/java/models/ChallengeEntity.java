@@ -9,7 +9,7 @@ import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 
-import static dao.ChallengeDao.THRESHOLD_EXPIRATION;
+import static services.dao.ChallengeDao.THRESHOLD_EXPIRATION;
 
 @Data
 @NoArgsConstructor

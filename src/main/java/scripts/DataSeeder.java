@@ -2,9 +2,9 @@ package scripts;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.zaxxer.hikari.HikariDataSource;
-import dao.ChallengeDao;
-import dao.ReplayDao;
-import dao.UserDao;
+import services.dao.ChallengeDao;
+import services.dao.ReplayDao;
+import services.dao.UserDao;
 import domain.Move;
 import lombok.AllArgsConstructor;
 import models.GameState;
@@ -22,8 +22,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 import static utils.Globals.*;
-import static dao.UserDao.*;
-import static dao.ReplayDao.*;
+import static services.dao.UserDao.*;
+import static services.dao.ReplayDao.*;
 
 @AllArgsConstructor
 public class DataSeeder {

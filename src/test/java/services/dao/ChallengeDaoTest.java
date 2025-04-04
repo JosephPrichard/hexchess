@@ -1,9 +1,10 @@
-package dao;
+package services.dao;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import models.ChallengeEntity;
-import models.UserEntity;
 import org.junit.jupiter.api.*;
+import services.dao.ChallengeDao;
+import services.dao.UserDao;
 import utils.Config;
 
 import javax.sql.DataSource;
@@ -12,7 +13,7 @@ import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.List;
 
-import static dao.UserDao.*;
+import static services.dao.UserDao.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ChallengeDaoTest {

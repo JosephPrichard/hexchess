@@ -1,69 +1,27 @@
-async function postUpdatePassword(password, newPassword, newDupPassword) {
-    const formData = new FormData();
-    formData.append("password", password);
-    formData.append("new-password", newPassword);
-    formData.append("duplicate-new-password", newDupPassword);
-
-    const url = `/forms/update-password`;
-    try {
-        const resp = await fetch(url, {method: 'POST', body: formData});
-        return [await resp.text(), resp.ok];
-    } catch (ex) {
-        console.error(ex);
-        return ["An unexpected error has occurred", false];
-    }
-}
-
-async function postUpdateUser(username, bio) {
-    const formData = new FormData();
-    formData.append("new-username", username);
-    formData.append("new-bio", bio);
-
-    const url = `/forms/update-user`;
-    try {
-        const resp = await fetch(url, {method: 'POST', body: formData});
-        return [await resp.text(), resp.ok];
-    } catch (ex) {
-        console.error(ex);
-        return ["An unexpected error has occurred", false];
-    }
-}
-
-async function postSignOut() {
-    const url = `/forms/logout`;
-    try {
-        const resp = await fetch(url, {method: 'POST'});
-        return [await resp.text(), resp.ok];
-    } catch (ex) {
-        console.error(ex);
-        return ["An unexpected error has occurred", false];
-    }
-}
-
-async function postUpdateCountry(country) {
-    const formData = new FormData();
-    formData.append("new-country", country);
-
-    const url = `/forms/update-user`;
-    try {
-        const resp = await fetch(url, {method: 'POST', body: formData});
-        return [await resp.text(), resp.ok];
-    } catch (ex) {
-        console.error(ex);
-        return ["An unexpected error has occurred", false];
-    }
-}
-
 async function onSubmitUserForm(e) {
     e.preventDefault();
 
     const usernameElem = document.getElementById("username");
     const bioElem = document.getElementById("bio");
+    const countryElem = document.getElementById("selected-country");
     const submitElem = document.getElementById("user-form-submit");
 
     submitElem.innerHTML = `<div class="loader"></div`;
 
-    const [text, ok] = await postUpdateUser(usernameElem.value, bioElem.value);
+    const resp = await fetch("/forms/users", {
+        method: 'POST',
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            newUsername: usernameElem.value,
+            newBio: bioElem.value,
+            newCountry: countryElem.getAttribute("data-country")
+        })
+    });
+    const text = await resp.text();
+    const ok = resp.ok;
+
     console.log("Update user response", text, ok);
 
     createNotification(text, ok);
@@ -80,38 +38,62 @@ async function onSubmitPasswordForm(e)  {
 
     submitElem.innerHTML = '<div class="loader"></div>';
 
-    const [text, ok] = await postUpdatePassword(passwordElem.value, newPasswordElem.value, retypePasswordElem.value);
+    const resp = await fetch("/forms/users/password", {
+        method: 'POST',
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            password: passwordElem.value,
+            newPassword: newPasswordElem.value,
+            confirmNewPassword: retypePasswordElem.value
+        })
+    });
+    const text = await resp.text();
+    const ok = resp.ok;
+
     console.log("Update password response", text, ok);
 
     createNotification(text, ok);
     submitElem.innerHTML = "Login";
 }
 
-async function onSignOut(_) {
-    const [object, ok] = await postSignOut();
+async function onSignOut() {
+    const resp = await fetch("/forms/logout", {
+        method: 'POST',
+        headers: {
+            "Content-Type": "application/json"
+        }
+    });
+    const ok = resp.ok;
+
     console.log("Logout response", object, ok);
     window.location = "/";
-}
-
-function toggleCountryDropdown() {
-    const dropdown = document.getElementById("country-select-options");
-    let display = dropdown.style.getPropertyValue("display");
-    display = display !== 'none' ? 'none' : 'block';
-    dropdown.style.setProperty("display", display);
 }
 
 async function onSelectCountry(country) {
     console.log("Selecting country", country);
 
-    const [text, ok] = await postUpdateCountry(country);
+    const elemCountry = document.getElementById("selected-country");
+    elemCountry.src = `/static/images/flags/${country}.png`;
+    elemCountry.setAttribute("data-country", country);
 
-    if (ok) {
-        const elemCountry = document.getElementById("selected-country");
-        elemCountry.src = `/static/images/flags/${country}.png`;
-    }
-    createNotification(text, ok);
+    toggleCountryDropdown();
 }
 
-document.getElementById("update-user-form").addEventListener("submit", onSubmitUserForm);
-document.getElementById("update-password-form").addEventListener("submit", onSubmitPasswordForm);
-document.getElementById("sign-out-button").addEventListener("click", onSignOut);
+function toggleCountryDropdown() {
+    const dropdown = document.getElementById("country-select-options");
+
+    let display = dropdown.style.getPropertyValue("display");
+    display = display !== 'none' ? 'none' : 'block';
+
+    dropdown.style.setProperty("display", display);
+}
+
+const userFormElem = document.getElementById("update-user-form");
+const passwordFormElem = document.getElementById("update-password-form");
+const signOutButton = document.getElementById("sign-out-button");
+
+userFormElem.addEventListener("submit", onSubmitUserForm);
+passwordFormElem.addEventListener("submit", onSubmitPasswordForm);
+signOutButton.addEventListener("click", onSignOut);

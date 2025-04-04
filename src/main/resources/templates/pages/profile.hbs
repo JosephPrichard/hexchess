@@ -27,7 +27,8 @@
                      id="selected-country"
                      src="/static/images/flags/{{user.country}}.png"
                      alt="{{user.country}}"
-                     onclick="toggleCountryDropdown()" />
+                     onclick="toggleCountryDropdown()"
+                     data-country="{{user.country}}" />
                 <div id="country-select-options" class="country-picker" style="display: none">
                     {{#each countries}}
                         <img class="country-image"

@@ -1,6 +1,6 @@
 package web;
 
-import dao.ChallengeDao;
+import services.dao.ChallengeDao;
 import io.jooby.Cookie;
 import io.jooby.Formdata;
 import io.jooby.exception.StatusCodeException;
@@ -14,7 +14,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import services.GameService;
 import services.RemoteDict;
-import dao.UserDao;
+import services.dao.UserDao;
+import web.routers.FormRouter;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -120,7 +121,7 @@ public class FormRouterTest {
         MockRouter mockRouter = new MockRouter(new FormRouter(state));
 
         // when
-        MockValue result = mockRouter.post("/forms/create-game");
+        MockValue result = mockRouter.post("/forms/game");
 
         // then
         verify(mockGameService, times(1)).create(null);
@@ -163,7 +164,7 @@ public class FormRouterTest {
         MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "ACCEPT");
 
         // when
-        mockRouter.post("/forms/update-challenge", mockContext);
+        mockRouter.post("/forms/challenge", mockContext);
 
         // then
         verify(mockChallengeDao, times(1)).delete(challengerId, challengeeId);
@@ -227,7 +228,7 @@ public class FormRouterTest {
         MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "DELETE");
 
         // when
-        mockRouter.post("/forms/update-challenge", mockContext);
+        mockRouter.post("/forms/challenge", mockContext);
 
         // then
         verify(mockChallengeDao, times(1)).delete(challengerId, challengeeId);
@@ -259,7 +260,7 @@ public class FormRouterTest {
         MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "REJECT");
 
         // when
-        mockRouter.post("/forms/update-challenge", mockContext);
+        mockRouter.post("/forms/challenge", mockContext);
 
         // then
         verify(mockChallengeDao, times(1)).delete(challengerId, challengeeId);
