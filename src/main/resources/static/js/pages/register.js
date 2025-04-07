@@ -19,18 +19,19 @@ async function onSubmitRegisterForm(e) {
             confirmPassword: dupPasswordElem.value
         })
     });
-    const text = await resp.text();
+    const code = await resp.text();
     const ok = resp.ok;
 
-    console.log("Register response", text, ok);
+    console.log("Register response", code, ok);
 
     if (ok) {
         window.location = "/";
     } else {
-        createNotification(text, ok);
+        createNotification(messages[code], ok);
     }
     submitElem.innerHTML = "Register";
 }
 
 const registerFormElem = document.getElementById("register-form");
+
 registerFormElem.addEventListener('submit', onSubmitRegisterForm);

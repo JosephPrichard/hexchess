@@ -41,33 +41,37 @@ public class GlobalBroadcaster implements Broadcaster {
     public JedisPubSub startListenSubscribe() throws ExecutionException, InterruptedException {
         CompletableFuture<JedisPubSub> futureSubscriber = new CompletableFuture<>();
         Thread.ofVirtual().start(() -> {
-            var subscriber = new JedisPubSub() {
-                @Override
-                public void onSubscribe(String channel, int subscribedChannels) {
-                    super.onSubscribe(channel, subscribedChannels);
-                    LOGGER.info("Started the subscriber listener on channel={} for broadcast instance: {}", channel, this);
-                    futureSubscriber.complete(this);
-                }
-
-                @Override
-                public void onMessage(String channel, String message) {
-                    try {
-                        super.onMessage(channel, message);
-                        int index = message.indexOf(FIELD_SPLIT);
-                        if (index == -1) {
-                            LOGGER.error("Invalid message format: {}", message);
-                            return;
-                        }
-                        String id = message.substring(0, index);
-                        String content = message.substring(index + 1);
-                        LOGGER.info("Received a message on channel id={}, content{}, ref={}", id, content, this);
-                        localBroadcaster.broadcast(id, content);
-                    } catch (Exception ex) {
-                        LOGGER.error("Error occurred in subscriber thread {}", String.valueOf(ex));
+            try {
+                JedisPubSub subscriber = new JedisPubSub() {
+                    @Override
+                    public void onSubscribe(String channel, int subscribedChannels) {
+                        super.onSubscribe(channel, subscribedChannels);
+                        LOGGER.info("Started the subscriber listener on channel={} for broadcast instance: {}", channel, this);
+                        futureSubscriber.complete(this);
                     }
-                }
-            };
-            jedis.subscribe(subscriber, CHANNEL_NAME); // start the subscriber, blocking the current thread until subscriber is stopped
+
+                    @Override
+                    public void onMessage(String channel, String message) {
+                        try {
+                            super.onMessage(channel, message);
+                            int index = message.indexOf(FIELD_SPLIT);
+                            if (index == -1) {
+                                LOGGER.error("Invalid message format: {}", message);
+                                return;
+                            }
+                            String id = message.substring(0, index);
+                            String content = message.substring(index + 1);
+                            LOGGER.info("Received a message on channel id={}, content{}, ref={}", id, content, this);
+                            localBroadcaster.broadcast(id, content);
+                        } catch (Exception ex) {
+                            LOGGER.error("Error occurred in subscriber thread {}", String.valueOf(ex));
+                        }
+                    }
+                };
+                jedis.subscribe(subscriber, CHANNEL_NAME); // start the subscriber, blocking the current thread until subscriber is stopped
+            } catch (Exception ex) {
+                futureSubscriber.completeExceptionally(ex);
+            }
         });
 
         // don't actually return the jedis subscriber until the thread notifies us that we've created it

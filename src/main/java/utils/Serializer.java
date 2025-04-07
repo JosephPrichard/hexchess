@@ -3,10 +3,10 @@ package utils;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import domain.ChessBoard;
-import domain.ChessGame;
-import domain.Hexagon;
-import domain.PieceMoves;
+import chess.ChessBoard;
+import chess.ChessGame;
+import chess.Hexagon;
+import chess.PieceMoves;
 import models.GameState;
 
 import java.io.ByteArrayInputStream;

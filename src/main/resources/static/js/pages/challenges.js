@@ -1,8 +1,10 @@
-async function updateChallenge({ id, buttonId, challengerId, challengeeId, successMsg, failMsg, action }) {
+async function updateChallenge({ id, buttonId, challengerId, challengeeId, action, updateMessages }) {
     console.log(`On ${action} challenge`, challengerId, challengeeId);
 
     const submitElem = document.getElementById(id);
     const buttonElem = document.getElementById(buttonId);
+    const noChallengesElem = document.getElementById("no-challenges");
+    const challengeListElem = document.getElementById("challenge-list");
 
     buttonElem.innerHTML = '<div class="loader"></div>';
 
@@ -17,15 +19,20 @@ async function updateChallenge({ id, buttonId, challengerId, challengeeId, succe
             action
         })
     });
+    const code = await resp.text();
     const ok = resp.ok;
+
+    const msg = updateMessages[code] || messages[code]
+    createNotification(msg, ok);
 
     if (ok) {
         submitElem.remove();
-        createNotification(successMsg, ok);
-    } else {
-        createNotification(failMsg, ok);
+        if (challengeListElem.children.length === 0) {
+            noChallengesElem.style.setProperty('display', 'block');
+            challengeListElem.remove();
+        }
+        console.log(`${challengeListElem.children.length} challenges after removal`)
     }
-
     buttonElem.innerHTML = action;
 }
 
@@ -36,8 +43,9 @@ async function onDelete(index, challengerId, challengeeId, challengeeName) {
         challengerId,
         challengeeId,
         action: "Delete",
-        successMsg: "Deleted challenge against " + challengeeName,
-        failMsg: "Failed to deleted challenge against " + challengeeName,
+        updateMessages: {
+            "SUCCESS_UPDATE_CHALLENGE": "Deleted challenge against " + challengeeName
+        }
     });
 }
 
@@ -48,8 +56,9 @@ async function onAccept(index, challengerId, challengeeId, challengerName) {
         challengerId,
         challengeeId,
         action: "Accept",
-        successMsg: "Accepted challenge from " + challengerName,
-        failMsg: "Failed to accept challenge from " + challengerName,
+        updateMessages: {
+            "SUCCESS_UPDATE_CHALLENGE": "Accepted challenge from " + challengerName,
+        }
     });
 }
 
@@ -60,7 +69,8 @@ async function onReject(index, challengerId, challengeeId, challengerName) {
         challengerId,
         challengeeId,
         action: "Reject",
-        successMsg: "Rejected challenge from " + challengerName,
-        failMsg: "Failed to reject challenge from " + challengerName,
+        updateMessages: {
+            "SUCCESS_UPDATE_CHALLENGE": "Rejected challenge from " + challengerName
+        }
     });
 }

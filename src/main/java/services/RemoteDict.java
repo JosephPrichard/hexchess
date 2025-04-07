@@ -18,7 +18,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.UUID;
 
 import static utils.Globals.JSON_MAPPER;
 import static utils.Globals.LOGGER;

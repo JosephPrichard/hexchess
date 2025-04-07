@@ -19,12 +19,12 @@ async function onSubmitUserForm(e) {
             newCountry: countryElem.getAttribute("data-country")
         })
     });
-    const text = await resp.text();
+    const code = await resp.text();
     const ok = resp.ok;
 
-    console.log("Update user response", text, ok);
+    console.log("Update user response", code, ok);
 
-    createNotification(text, ok);
+    createNotification(messages[code], ok);
     submitElem.innerHTML = "Login";
 }
 
@@ -49,12 +49,12 @@ async function onSubmitPasswordForm(e)  {
             confirmNewPassword: retypePasswordElem.value
         })
     });
-    const text = await resp.text();
+    const code = await resp.text();
     const ok = resp.ok;
 
-    console.log("Update password response", text, ok);
+    console.log("Update password response", code, ok);
 
-    createNotification(text, ok);
+    createNotification(messages[code], ok);
     submitElem.innerHTML = "Login";
 }
 
@@ -75,8 +75,9 @@ async function onSelectCountry(country) {
     console.log("Selecting country", country);
 
     const elemCountry = document.getElementById("selected-country");
-    elemCountry.src = `/static/images/flags/${country}.png`;
-    elemCountry.setAttribute("data-country", country);
+    elemCountry.setAttribute('src', `/static/images/flags/${country}.png`);
+    elemCountry.setAttribute('data-country', country);
+    elemCountry.setAttribute('alt', country);
 
     toggleCountryDropdown();
 }

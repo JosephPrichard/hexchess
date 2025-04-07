@@ -1,4 +1,4 @@
-function initBanner() {
+window.addEventListener('load', () => {
     const cookie = getSessionCookie();
 
     if (cookie) {
@@ -16,4 +16,4 @@ function initBanner() {
         elem = document.getElementById("settings-link");
         elem.style.setProperty('display', 'none');
     }
-}
+});

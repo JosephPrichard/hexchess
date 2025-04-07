@@ -12,23 +12,20 @@ const BLACK_QUEEN = 10;
 const WHITE_KING = 11;
 const BLACK_KING = 12;
 
-function fromPieceToName(piece) {
-    switch (piece) {
-        case WHITE_PAWN: return "white-pawn";
-        case BLACK_PAWN: return "black-pawn";
-        case WHITE_KNIGHT: return "white-knight";
-        case BLACK_KNIGHT: return "black-knight";
-        case WHITE_BISHOP: return "white-bishop";
-        case BLACK_BISHOP: return "black-bishop";
-        case WHITE_ROOK: return "white-rook";
-        case BLACK_ROOK: return "black-rook";
-        case WHITE_QUEEN: return "white-queen";
-        case BLACK_QUEEN: return "black-queen";
-        case WHITE_KING: return "white-king";
-        case BLACK_KING: return "black-king";
-        default: return "empty";
-    }
-}
+const pieceNames = {
+    [WHITE_PAWN]: "white-pawn",
+    [BLACK_PAWN]: "black-pawn",
+    [WHITE_KNIGHT]: "white-knight",
+    [BLACK_KNIGHT]: "black-knight",
+    [WHITE_BISHOP]: "white-bishop",
+    [BLACK_BISHOP]: "black-bishop",
+    [WHITE_ROOK]: "white-rook",
+    [BLACK_ROOK]: "black-rook",
+    [WHITE_QUEEN]: "white-queen",
+    [BLACK_QUEEN]: "black-queen",
+    [WHITE_KING]: "white-king",
+    [BLACK_KING]: "black-king"
+};
 
 const HEX_HEIGHT = 66;
 const HEX_WIDTH = HEX_HEIGHT * 1.2;
@@ -68,7 +65,7 @@ function renderBoard(element, board) {
             pieceElem.style.setProperty("background", bgColor);
 
             if (piece !== EMPTY) {
-                const piecename = fromPieceToName(piece);
+                const piecename = pieceNames[piece] || "";
 
                 const pieceImg = document.createElement("img");
                 pieceImg.setAttribute("src", `/static/images/pieces/${piecename}.png`);
@@ -81,3 +78,8 @@ function renderBoard(element, board) {
         }
     }
 }
+
+function renderMoveTable(element) {
+
+}
+

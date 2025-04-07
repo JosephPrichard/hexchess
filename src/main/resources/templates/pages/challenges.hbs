@@ -10,76 +10,74 @@
 {{> partials/banner }}
 <div class="bottom-right-anchor" style="width: 350px" id="notifications-box"></div>
 <div class="center-horizontal-container" style="margin-bottom: 100px">
-    <div style="width: 500px;">
+    <div style="width: 600px;">
         <div class="tabs-group">
-            <a class="tab" href="?participants=sent">
-                Sent
-            </a>
-            <a class="tab" href="?participants=received">
+            <a class="tab {{#unless sender}} tab-selected {{/unless}}" href="?participants=received">
                 Received
             </a>
+            <a class="tab {{#if sender}} tab-selected {{/if}}" href="?participants=sent">
+                Sent
+            </a>
         </div>
-        {{#each challengeList}}
-            <div id="challenge-{{@index}}" class="challenge-box">
-                <div>
-                    <div style="margin-bottom: 5px">
-                        <a href="/players/{{challengerId}}" class="text-ul" style="color: dodgerblue">
-                            {{challengerName}}
-                        </a>
-                        {{#unless sender}}
-                            <b>({{challengerEloFmt}})</b>
-                        {{/unless}}
-                        vs
-                        <a href="/players/{{challengeeId}}" class="text-ul" style="color: dodgerblue">
-                            {{challengeeName}}
-                        </a>
-                        {{#if sender}}
-                            <b>({{challengeeEloFmt}})</b>
-                        {{/if}}
+        <div id="challenge-list" class="challenge-list" style="display: {{#if challengeList.length}} block {{else}} none {{/if}}">
+            {{#each challengeList}}
+                <div id="challenge-{{@index}}" class="challenge-box">
+                    <div>
+                        <div style="margin-bottom: 6px">
+                            <a href="/players/{{challengerId}}" class="text-ul bold-link">{{challengerName}}</a>
+                            {{#unless sender}}
+                                <img class="flag" src="/static/images/flags/{{challengerCountry}}.png" alt=""/>
+                                <b>({{challengerElo}})</b>
+                            {{/unless}}
+                            vs
+                            <a href="/players/{{challengeeId}}" class="text-ul bold-link">{{challengeeName}}</a>
+                            {{#if sender}}
+                                <img class="flag" src="/static/images/flags/{{challengeeCountry}}.png" alt=""/>
+                                <b>({{challengeeElo}})</b>
+                            {{/if}}
+                        </div>
+                        <div style="margin-bottom: 6px">
+                            Sent {{madeAgo}}
+                        </div>
+                        <div style="margin-bottom: 6px">
+                            Expires {{expiresIn}}
+                        </div>
                     </div>
-                    <div style="margin-bottom: 5px">
-                        Sent <b> {{madeAgo}} </b>
-                    </div>
-                    <div style="margin-bottom: 5px">
-                        Expires <b> {{expiresIn}} </b>
+                    <div class="center-relative">
+                        <div class="vertical-align">
+                            {{#if sender}}
+                                <button id="challenge-{{@index}}-delete"
+                                        class="button-small button-small-red"
+                                        style="margin-left: 5px"
+                                        onclick="onDelete({{@index}}, '{{challengerId}}', '{{challengeeId}}', '{{challengeeName}}')">
+                                    Delete
+                                </button>
+                            {{else}}
+                                <button id="challenge-{{@index}}-accept"
+                                        class="button-small button-small-green"
+                                        style="margin-left: 5px"
+                                        onclick="onAccept({{@index}}, '{{challengerId}}', '{{challengeeId}}', '{{challengerName}}')">
+                                    Accept
+                                </button>
+                                <button id="challenge-{{@index}}-reject"
+                                        class="button-small button-small-red"
+                                        style="margin-left: 5px"
+                                        onclick="onReject({{@index}}, '{{challengerId}}', '{{challengeeId}}', '{{challengerName}}')">
+                                    Reject
+                                </button>
+                            {{/if}}
+                        </div>
                     </div>
                 </div>
-                <div class="center-relative">
-                    <div class="vertical-align">
-                        {{#if sender}}
-                            <button id="challenge-{{@index}}-delete"
-                                    class="button-small button-small-red"
-                                    style="margin-left: 5px"
-                                    onclick="onDelete({{@index}}, '{{challengerId}}', '{{challengeeId}}', '{{challengeeName}}')">
-                                Delete
-                            </button>
-                        {{else}}
-                            <button id="challenge-{{@index}}-accept"
-                                    class="button-small button-small-green"
-                                    style="margin-left: 5px"
-                                    onclick="onAccept({{@index}}, '{{challengerId}}', '{{challengeeId}}', '{{challengerName}}')">
-                                Accept
-                            </button>
-                            <button id="challenge-{{@index}}-reject"
-                                    class="button-small button-small-red"
-                                    style="margin-left: 5px"
-                                    onclick="onReject({{@index}}, '{{challengerId}}', '{{challengeeId}}', '{{challengerName}}')">
-                                Reject
-                            </button>
-                        {{/if}}
-                    </div>
-                </div>
-            </div>
-        {{/each}}
-        {{#unless challengeList.length}}
-            <div class="color-wrapper">
-                {{#if sender}}
-                    No challenges have been sent
-                {{else}}
-                    No challenges have been received
-                {{/if}}
-            </div>
-        {{/unless}}
+            {{/each}}
+        </div>
+        <div id="no-challenges" class="no-challenges" style="display: {{#if challengeList.length}} none {{else}} block {{/if}}">
+            {{#if sender}}
+                No challenges have been sent
+            {{else}}
+                No challenges have been received
+            {{/if}}
+        </div>
     </div>
 </div>
 </body>

@@ -10,25 +10,26 @@ async function onSubmitLoginForm(e)  {
     const resp = await fetch("/forms/login", {
         method: 'POST',
         headers: {
-          "Content-Type": "application/json"
+            "Content-Type": "application/json"
         },
         body: JSON.stringify({
             username: usernameElem.value,
             password: passwordElem.value
         })
     });
-    const text = await resp.text();
+    const code = await resp.text();
     const ok = resp.ok;
 
-    console.log("Login response", text, ok);
+    console.log("Login response", code, ok);
 
     if (ok) {
         window.location = "/";
     } else {
-        createNotification(text, ok);
+        createNotification(messages[code], ok);
     }
     submitElem.innerHTML = "Login";
 }
 
 const loginFormElem = document.getElementById("login-form");
+
 loginFormElem.addEventListener("submit", onSubmitLoginForm);

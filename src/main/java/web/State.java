@@ -1,13 +1,15 @@
 package web;
 
-import services.dao.ChallengeDao;
-import services.dao.ReplayDao;
+import services.Broadcaster;
+import daos.ChallengeDao;
+import daos.ReplayDao;
+import services.GameService;
 import services.RemoteDict;
-import services.dao.UserDao;
+import daos.UserDao;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import services.*;
+import services.SessionService;
 
 import java.util.List;
 

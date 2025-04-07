@@ -1,9 +1,10 @@
 package services;
 
-import services.dao.ReplayDao;
-import services.dao.UserDao;
-import domain.ChessGame;
-import domain.Move;
+import chess.PieceMove;
+import daos.ReplayDao;
+import daos.UserDao;
+import chess.ChessGame;
+import chess.Move;
 import lombok.AllArgsConstructor;
 import models.GameState;
 import models.ReplayEntity;
@@ -12,17 +13,17 @@ import models.PlayerEntity;
 import java.util.Random;
 import java.util.UUID;
 
-import static services.dao.UserDao.*;
+import static daos.UserDao.*;
 import static utils.Globals.*;
 
 @AllArgsConstructor
 public class GameService {
 
-    public static class MoveException extends RuntimeException {
-        public MoveException(String message) {
-            super(message);
-        }
-    }
+    public static class FinishedGameException extends RuntimeException {}
+
+    public static class TurnException extends RuntimeException {}
+
+    public static class InvalidMoveException extends RuntimeException {}
 
     private static final Random RANDOM = new Random();
 
@@ -94,21 +95,22 @@ public class GameService {
 
         if (state.isEnded()) {
             LOGGER.info("Move attempted on ended game {}", gameId);
-            throw new MoveException("Cannot make a move on a game that is over!");
+            throw new FinishedGameException();
         }
         if (!state.isPlayerTurn(player)) {
             LOGGER.info("{} cannot make move on game {}, it isn't their turn", player, gameId);
-            throw new MoveException("Cannot make a move when it isn't your turn!");
+            throw new TurnException();
         }
         if (!game.isValidMove(move)) {
             LOGGER.info(" {} made invalid move {} on game {}", player, move, gameId);
-            throw new MoveException("Cannot make an invalid move!");
+            throw new InvalidMoveException();
         }
 
+        byte piece = game.getBoard().getPiece(move.getFrom());
         game.makeMove(move);
         game.initPieceMoves();
 
-        state.pushMoveList(move);
+        state.pushMoveList(new PieceMove(piece, move.getFrom(), move.getTo()));
 
         if (game.isCheckmate()) {
             state.setEnded(true);

@@ -7,21 +7,20 @@ import lombok.NoArgsConstructor;
 
 import java.sql.Timestamp;
 import java.time.Duration;
-import java.time.format.DateTimeFormatter;
 
-import static services.dao.ChallengeDao.THRESHOLD_EXPIRATION;
+import static daos.ChallengeDao.THRESHOLD_EXPIRATION;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class ChallengeEntity {
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm");
-
     public long challengerId;
     public String challengerName;
+    public String challengerCountry;
     public float challengerElo;
     public long challengeeId;
     public String challengeeName;
+    public String challengeeCountry;
     public float challengeeElo;
     @EqualsAndHashCode.Exclude
     public Timestamp madeOn;

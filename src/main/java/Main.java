@@ -1,16 +1,16 @@
 import com.github.jknack.handlebars.Handlebars;
 import com.github.jknack.handlebars.io.ClassPathTemplateLoader;
 import com.zaxxer.hikari.HikariDataSource;
-import services.dao.ChallengeDao;
-import services.dao.ReplayDao;
-import services.dao.UserDao;
+import daos.ChallengeDao;
+import daos.ReplayDao;
+import daos.UserDao;
 import redis.clients.jedis.JedisPooled;
 import services.GameService;
 import services.GlobalBroadcaster;
 import services.RemoteDict;
 import utils.Config;
-import web.routers.Router;
-import web.SessionService;
+import web.controllers.AppController;
+import services.SessionService;
 import web.State;
 import web.Templates;
 
@@ -21,7 +21,7 @@ import static io.jooby.Jooby.runApp;
 import static utils.Globals.LOGGER;
 
 public class Main {
-    public static Router init() {
+    public static AppController init() {
         try {
             Map<String, String> env = Config.readEnvironment();
             HikariDataSource ds = Config.createDataSource(env);
@@ -60,7 +60,7 @@ public class Main {
 
             broadcaster.startListenSubscribe();
 
-            return new Router(state);
+            return new AppController(state);
         } catch (Exception ex) {
             LOGGER.error("Error occurred during router init {}", String.valueOf(ex));
             throw new RuntimeException(ex);

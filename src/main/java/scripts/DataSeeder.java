@@ -2,10 +2,10 @@ package scripts;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.zaxxer.hikari.HikariDataSource;
-import services.dao.ChallengeDao;
-import services.dao.ReplayDao;
-import services.dao.UserDao;
-import domain.Move;
+import chess.PieceMove;
+import daos.ChallengeDao;
+import daos.ReplayDao;
+import daos.UserDao;
 import lombok.AllArgsConstructor;
 import models.GameState;
 import models.UserEntity;
@@ -22,8 +22,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 import static utils.Globals.*;
-import static services.dao.UserDao.*;
-import static services.dao.ReplayDao.*;
+import static daos.UserDao.*;
+import static daos.ReplayDao.*;
 
 @AllArgsConstructor
 public class DataSeeder {
@@ -206,14 +206,14 @@ public class DataSeeder {
 
     private static String randomGameStateAsJson() {
         try {
-            List<Move> moveList = GameState.randomMoveList();
+            List<PieceMove> moveList = GameState.randomMoveList();
             return JSON_MAPPER.writeValueAsString(moveList);
         } catch (JsonProcessingException ex) {
             throw new RuntimeException(ex);
         }
     }
 
-    private <T> void seedTable(List<T> insts, Consumer<T> consumer) {
+    private <T> void seedTableInParallel(List<T> insts, Consumer<T> consumer) {
         var futures = insts.stream()
             .map((inst) -> EXECUTOR.submit(() -> consumer.accept(inst)))
             .toList();
@@ -228,17 +228,17 @@ public class DataSeeder {
 
     private void seedUsersTable(List<UserInst> insts) {
         UserDao userDao = new UserDao(ds);
-        seedTable(insts, userDao::insert);
+        insts.forEach(userDao::insert);
     }
 
     private void seedHistTable(List<ReplayInst> insts) {
         ReplayDao histDao = new ReplayDao(ds);
-        seedTable(insts, histDao::insert);
+        seedTableInParallel(insts, histDao::insert);
     }
 
     private void seedChallengeTable(List<Pair<Long, Long>> insts) {
         ChallengeDao challengeDao = new ChallengeDao(ds);
-        seedTable(insts, (pair) -> challengeDao.insert(pair.getLeft(), pair.getRight()));
+        seedTableInParallel(insts, (pair) -> challengeDao.insert(pair.getLeft(), pair.getRight()));
     }
 
     private void seedUsersDict() {

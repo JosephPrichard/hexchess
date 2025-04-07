@@ -1,15 +1,4 @@
-async function getPlayerReplays(userId, afterId) {
-    const url = `/partials/player/replays?userId=${userId}&afterId=${afterId}`;
-    try {
-        const resp = await fetch(url, {method: 'GET'});
-        return [await resp.text(), resp.ok];
-    } catch (ex) {
-        console.error(ex);
-        return ["An unexpected error has occurred", false];
-    }
-}
-
-function createLoadReplays(userId) {
+function createGetReplays(userId) {
     let hasMoreRecords = true;
     return async () => {
         const table = document.getElementById('replay-table-tbody');
@@ -19,7 +8,11 @@ function createLoadReplays(userId) {
         }
 
         const lastId = table.lastElementChild.getAttribute("data-id");
-        const [html, ok] = await getPlayerReplays(userId, lastId)
+
+        const resp = await fetch(`/partials/player/replays?userId=${userId}&afterId=${lastId}`, {method: 'GET'});
+        const html = await resp.text();
+        const ok = resp.ok;
+
         if (ok) {
             table.insertAdjacentHTML('beforeend', html);
         } else {
@@ -28,7 +21,7 @@ function createLoadReplays(userId) {
     };
 }
 
-async function onCreateChallenge(challengeeId) {
+async function onCreateChallenge(challengeeId, challengeeName) {
     const resp = await fetch("/forms/challenges/create", {
         method: 'POST',
         headers: {
@@ -36,20 +29,27 @@ async function onCreateChallenge(challengeeId) {
         },
         body: JSON.stringify({ challengeeId })
     });
-    const text = await resp.text();
+    const code = await resp.text();
     const ok = resp.ok;
 
-    createNotification(text, ok);
+    const createMessages = {
+        "ERROR_DUPLICATE_CHALLENGE": "You have already sent a challenge to " + challengeeName
+    };
+    createNotification(createMessages[code] || messages[code], ok);
 }
 
-function initButtons(userId) {
-    const cookie = getSessionCookie();
+function handleLoadUser(userId) {
+    window.addEventListener('load', async () => {
+        const cookie = getSessionCookie();
 
-    const isDifferentUser = cookie && userId !== String(cookie.userId);
-    console.log("Initialize profile buttons", cookie.userId, userId, userId !== cookie.userId);
+        const isDifferentUser = cookie && userId !== String(cookie.userId);
+        if (isDifferentUser) {
+            const elem = document.getElementById("profile-buttons");
+            elem.style.removeProperty('display');
+        }
 
-    if (isDifferentUser) {
-        const elem = document.getElementById("profile-buttons");
-        elem.style.removeProperty('display');
-    }
+        const loadReplays = createGetReplays(userId);
+        await loadReplays();
+        window.addEventListener('scroll', loadReplays);
+    });
 }

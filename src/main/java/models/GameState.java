@@ -1,10 +1,7 @@
 package models;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import domain.ChessGame;
-import domain.Hexagon;
-import domain.Move;
-import domain.PieceMoves;
+import chess.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -28,11 +25,11 @@ public class GameState {
     @JsonIgnore
     public double touch;
     @JsonIgnore
-    public List<Move> moveList;
+    public List<PieceMove> moveList;
 
     public static GameState startWithGame(String id) {
         ChessGame game = ChessGame.start();
-        List<Move> moveList = new ArrayList<>();
+        List<PieceMove> moveList = new ArrayList<>();
         return new GameState(id, game, null, null, false, null, 0, moveList);
     }
 
@@ -52,13 +49,13 @@ public class GameState {
         return currPlayer.equals(player);
     }
 
-    public void pushMoveList(Move move) {
+    public void pushMoveList(PieceMove move) {
         moveList.add(move);
     }
 
-    public static List<Move> randomMoveList() {
+    public static List<PieceMove> randomMoveList() {
         ChessGame game = ChessGame.start();
-        List<Move> moveList = new ArrayList<>();
+        List<PieceMove> moveList = new ArrayList<>();
 
         for (int i = 0; i < 10; i++) {
             game.initPieceMoves();
@@ -70,8 +67,8 @@ public class GameState {
             Hexagon from = pm.getHex();
             Hexagon to = pm.getMoves().getFirst(); // make the first move (we already know there is at least one)
 
-            Move move = new Move(from, to);
-            game.makeMove(move);
+            PieceMove move = new PieceMove(game.getBoard().getPiece(from), from, to);
+            game.makeMove(from, to);
             moveList.add(move);
         }
         return moveList;

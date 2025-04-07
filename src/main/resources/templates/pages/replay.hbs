@@ -9,13 +9,14 @@
     <script type="application/json" id="initial-board">
         {{{initialBoard}}}
     </script>
+    <script src="/static/js/lib/chess.js" defer></script>
     <script src="/static/js/pages/replay.js" defer></script>
 </head>
 <body>
 {{> partials/banner }}
 <div class="center-horizontal-container">
     <div class="center-vertical-container">
-        <div id="hexagon-board">
+        <div id="chess-board">
         </div>
         <div id="replay-move-view">
         </div>

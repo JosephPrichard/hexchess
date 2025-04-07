@@ -1,6 +1,6 @@
 package services;
 
-import domain.ChessBoard;
+import chess.ChessBoard;
 import models.GameState;
 import models.PlayerEntity;
 import models.RankedUser;
