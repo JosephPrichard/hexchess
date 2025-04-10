@@ -16,6 +16,7 @@ import services.GameService;
 import services.RemoteDict;
 import daos.UserDao;
 import services.SessionService;
+import web.WebConstants;
 import web.State;
 
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,15 +50,11 @@ public class FormControllerTest {
         MockRouter mockRouter = new MockRouter(new FormController(state));
 
         MockContext mockContext = new MockContext();
-        Formdata mockForm = Formdata.create(mockContext);
-        mockForm.put("username", "testUser");
-        mockForm.put("password", "testPassword");
-        mockForm.put("duplicate-password", "testPassword");
-        mockContext.setForm(mockForm);
+        mockContext.setBodyObject(new FormController.RegisterBody("testUser", "testPassword", "testPassword"));
 
         // when
         AtomicReference<MockResponse> response = new AtomicReference<>();
-        mockRouter.post("/forms/register", mockContext, response::set);
+        MockValue value = mockRouter.post("/forms/register", mockContext, response::set);
         Object actualCookie = response.get().getHeaders().get("Set-Cookie");
 
         // then
@@ -66,6 +63,7 @@ public class FormControllerTest {
         verify(mockSessionService, times(1)).createCookie(eq("sessionToken"), eq(player.getId()), eq(player.getName()), any());
 
         Assertions.assertEquals(actualCookie, cookie.toString());
+        Assertions.assertEquals(WebConstants.SUCCESS_REGISTER, value.value());
     }
 
     @Test
@@ -92,22 +90,20 @@ public class FormControllerTest {
         MockRouter mockRouter = new MockRouter(new FormController(state));
 
         MockContext mockContext = new MockContext();
-        Formdata mockForm = Formdata.create(mockContext);
-        mockForm.put("username", "testUser");
-        mockForm.put("password", "testPass");
-        mockContext.setForm(mockForm);
+        mockContext.setBodyObject(new FormController.LoginBody("testUser", "testPassword"));
 
         // when
         AtomicReference<MockResponse> resp = new AtomicReference<>();
-        mockRouter.post("/forms/login", mockContext, resp::set);
+        MockValue value = mockRouter.post("/forms/login", mockContext, resp::set);
         Object actualCookie = resp.get().getHeaders().get("Set-Cookie");
 
         // then
-        verify(mockUserDao, times(1)).verify("testUser", "testPass");
+        verify(mockUserDao, times(1)).verify("testUser", "testPassword");
         verify(mockDict, times(1)).setSession(anyString(), eq(player), anyLong());
         verify(mockSessionService, times(1)).createCookie(eq("sessionToken"), eq(player.getId()), eq(player.getName()), any());
 
         Assertions.assertEquals(actualCookie, cookie.toString());
+        Assertions.assertEquals(WebConstants.SUCCESS_LOGIN, value.value());
     }
 
     @Test
@@ -121,8 +117,11 @@ public class FormControllerTest {
 
         MockRouter mockRouter = new MockRouter(new FormController(state));
 
+        MockContext mockContext = new MockContext();
+        mockContext.setBodyObject(new FormController.CreateGameBody(null));
+
         // when
-        MockValue result = mockRouter.post("/forms/game");
+        MockValue result = mockRouter.post("/forms/game", mockContext);
 
         // then
         verify(mockGameService, times(1)).create(null);
@@ -131,11 +130,7 @@ public class FormControllerTest {
 
     private MockContext mockChallengeCtx(long challengerId, long challengeeId, String action) {
         MockContext mockContext = new MockContext();
-        Formdata mockForm = Formdata.create(mockContext);
-        mockForm.put("challengeeId", Long.toString(challengeeId));
-        mockForm.put("challengerId",  Long.toString(challengerId));
-        mockForm.put("action", action);
-        mockContext.setForm(mockForm);
+        mockContext.setBodyObject(new FormController.UpdateChallengeBody(challengeeId, challengerId, action));
         return mockContext;
     }
 
@@ -165,11 +160,13 @@ public class FormControllerTest {
         MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "ACCEPT");
 
         // when
-        mockRouter.post("/forms/challenge", mockContext);
+        MockValue value = mockRouter.post("/forms/challenges/update", mockContext);
 
         // then
         verify(mockChallengeDao, times(1)).delete(challengerId, challengeeId);
         verify(mockGameService, times(1)).create(null);
+
+        Assertions.assertEquals(new FormController.UpdateChallengeResp(WebConstants.SUCCESS_UPDATE_CHALLENGE, "test-id"), value.value());
     }
 
     @Test
@@ -197,7 +194,7 @@ public class FormControllerTest {
         MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "ACCEPT");
 
         // when
-        Assertions.assertThrows(StatusCodeException.class, () -> mockRouter.post("/forms/update-challenge", mockContext));
+        Assertions.assertThrows(StatusCodeException.class, () -> mockRouter.post("/forms/challenges/update", mockContext));
 
         // then
         verify(mockChallengeDao, times(1)).delete(challengerId, challengeeId);
@@ -229,11 +226,13 @@ public class FormControllerTest {
         MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "DELETE");
 
         // when
-        mockRouter.post("/forms/challenge", mockContext);
+        MockValue value = mockRouter.post("/forms/challenges/update", mockContext);
 
         // then
         verify(mockChallengeDao, times(1)).delete(challengerId, challengeeId);
         verify(mockGameService, times(0)).create(null);
+
+        Assertions.assertEquals(new FormController.UpdateChallengeResp(WebConstants.SUCCESS_UPDATE_CHALLENGE, null), value.value());
     }
 
     @Test
@@ -261,10 +260,12 @@ public class FormControllerTest {
         MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "REJECT");
 
         // when
-        mockRouter.post("/forms/challenge", mockContext);
+        MockValue value = mockRouter.post("/forms/challenges/update", mockContext);
 
         // then
         verify(mockChallengeDao, times(1)).delete(challengerId, challengeeId);
         verify(mockGameService, times(0)).create(null);
+
+        Assertions.assertEquals(new FormController.UpdateChallengeResp(WebConstants.SUCCESS_UPDATE_CHALLENGE, null), value.value());
     }
 }

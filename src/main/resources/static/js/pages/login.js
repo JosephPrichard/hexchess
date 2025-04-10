@@ -31,5 +31,4 @@ async function onSubmitLoginForm(e)  {
 }
 
 const loginFormElem = document.getElementById("login-form");
-
 loginFormElem.addEventListener("submit", onSubmitLoginForm);

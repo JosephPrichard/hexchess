@@ -56,7 +56,7 @@ public class PartialsController extends Jooby {
             return "";
         }
 
-        List<ReplayView> viewList = entityList.stream().map(ReplayView::fromEntity).toList();
+        List<ReplayView> viewList = entityList.stream().map(ReplayView::createRow).toList();
 
         Template template = templates.getReplayListTemplate();
         String resp = template.apply(viewList);

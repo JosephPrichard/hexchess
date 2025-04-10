@@ -7,11 +7,11 @@ const messages = {
     "ERROR_INVALID_LOGIN": "Invalid username or password.",
     "ERROR_REQUIRED_LOGIN": "You must be logged in to access this feature.",
     "ERROR_SESSION_EXPIRED": "Your session has expired. Please log in again.",
-    "ERROR_NOT_FOUND_CHALLENGE": "The challenge is inv.",
+    "ERROR_NOT_FOUND_CHALLENGE": "The challenge does not exist anymore.",
     "ERROR_INVALID_CHALLENGE_ACTION": "This action is not allowed for the challenge.",
     "ERROR_SELF_CHALLENGE": "You cannot challenge yourself.",
     "ERROR_DUPLICATE_CHALLENGE": "You have already sent this challenge.",
-    "ERROR_UPDATE_CHALLENGE": "You are not authorized to delete this challenge.",
+    "ERROR_UPDATE_CHALLENGE": "You are not authorized to update this challenge.",
     "SUCCESS_LOGIN": "Login successful!",
     "SUCCESS_REGISTER": "Registration successful!",
     "SUCCESS_UPDATE_PASSWORD": "Password updated successfully!",
@@ -21,7 +21,11 @@ const messages = {
     "SUCCESS": "Operation completed successfully."
 };
 
-function createNotification(text, isSuccess) {
+function createNotification(text, isSuccess, timeout) {
+    if (timeout === undefined) {
+        timeout = 3000;
+    }
+
     const notifications = document.getElementById("notifications-box");
 
     const notificationText = document.createElement('div');
@@ -55,7 +59,7 @@ function createNotification(text, isSuccess) {
             }
             console.log("Deleted notification", text);
         },
-        3000);
+        timeout);
 
     console.log("Created notification", text);
 }

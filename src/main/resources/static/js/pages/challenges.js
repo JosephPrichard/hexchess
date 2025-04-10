@@ -1,4 +1,4 @@
-async function updateChallenge({ id, buttonId, challengerId, challengeeId, action, updateMessages }) {
+async function updateChallenge({ id, buttonId, challengerId, challengeeId, action, getMessage }) {
     console.log(`On ${action} challenge`, challengerId, challengeeId);
 
     const submitElem = document.getElementById(id);
@@ -19,10 +19,10 @@ async function updateChallenge({ id, buttonId, challengerId, challengeeId, actio
             action
         })
     });
-    const code = await resp.text();
+    const object = await resp.json();
     const ok = resp.ok;
 
-    const msg = updateMessages[code] || messages[code]
+    const msg = getMessage(object);
     createNotification(msg, ok);
 
     if (ok) {
@@ -43,8 +43,11 @@ async function onDelete(index, challengerId, challengeeId, challengeeName) {
         challengerId,
         challengeeId,
         action: "Delete",
-        updateMessages: {
-            "SUCCESS_UPDATE_CHALLENGE": "Deleted challenge against " + challengeeName
+        getMessage: (object) => {
+            if (object.code === "SUCCESS_UPDATE_CHALLENGE") {
+                return "Deleted challenge against " + challengeeName;
+            }
+            return messages[code];
         }
     });
 }
@@ -56,8 +59,11 @@ async function onAccept(index, challengerId, challengeeId, challengerName) {
         challengerId,
         challengeeId,
         action: "Accept",
-        updateMessages: {
-            "SUCCESS_UPDATE_CHALLENGE": "Accepted challenge from " + challengerName,
+        getMessage: (object) => {
+            if (object.code === "SUCCESS_UPDATE_CHALLENGE") {
+                return "Accepted challenge from " + challengerName;
+            }
+            return messages[code];
         }
     });
 }
@@ -69,8 +75,11 @@ async function onReject(index, challengerId, challengeeId, challengerName) {
         challengerId,
         challengeeId,
         action: "Reject",
-        updateMessages: {
-            "SUCCESS_UPDATE_CHALLENGE": "Rejected challenge from " + challengerName
+        getMessage: (object) => {
+            if (object.code === "SUCCESS_UPDATE_CHALLENGE") {
+                return "Rejected challenge from " + challengerName;
+            }
+            return messages[code];
         }
     });
 }

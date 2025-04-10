@@ -24,7 +24,7 @@ public class ChallengeView {
     public String madeAgo;
     public String expiresIn;
 
-    public static ChallengeView fromEntity(ChallengeEntity entity) {
+    public static ChallengeView create(ChallengeEntity entity) {
         ChallengeView view = new ChallengeView();
         view.challengerId = entity.challengerId;
         view.challengerName = entity.challengerName;
@@ -40,6 +40,9 @@ public class ChallengeView {
     }
 
     public static String formatMadeAgo(Timestamp madeOn) {
+        if (madeOn == null) {
+            return "";
+        }
         long now = System.currentTimeMillis();
         long then = madeOn.getTime();
         long days = Duration.ofMillis(now - then).toDays();
@@ -47,6 +50,9 @@ public class ChallengeView {
     }
 
     public static String formatExpiresIn(Timestamp madeOn) {
+        if (madeOn == null) {
+            return "";
+        }
         long now = System.currentTimeMillis();
         long then = madeOn.getTime();
         long duration = THRESHOLD_EXPIRATION.toMillis();

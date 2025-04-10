@@ -51,23 +51,25 @@ public class ChallengeDaoTest {
         createTestData(userDao);
 
         // when
-        challengeDao.insert(1L, 2L);
-        challengeDao.insert(3L, 2L);
+        ChallengeEntity entity1 = challengeDao.insert(1L, 2L);
+        ChallengeEntity entity2 = challengeDao.insert(3L, 2L);
         challengeDao.insert(4L, 5L);
 
-        List<ChallengeEntity> challenges = challengeDao.getByParticipant(null, 2L);
+        List<ChallengeEntity> entityList = challengeDao.getByParticipant(null, 2L);
 
         // then
-        List<ChallengeEntity> expected = List.of(
-            new ChallengeEntity(
-                3L, "user3", "us", 900f,
-                2L, "user2", "us", 1005f,
-                null),
-            new ChallengeEntity(
-                1L, "user1", "us", 1000f,
-                2L, "user2", "us", 1005f,
-                null));
-        Assertions.assertEquals(expected, challenges);
+        ChallengeEntity expectedEntity1 = new ChallengeEntity(
+            1L, "user1", "us", 1000f,
+            2L, "user2", "us", 1005f,
+            null);
+        ChallengeEntity expectedEntity2 = new ChallengeEntity(
+            3L, "user3", "us", 900f,
+            2L, "user2", "us", 1005f,
+            null);
+        List<ChallengeEntity> expectedList = List.of(expectedEntity2, expectedEntity1);
+        Assertions.assertEquals(expectedList, entityList);
+        Assertions.assertEquals(expectedEntity1, entity1);
+        Assertions.assertEquals(expectedEntity2, entity2);
     }
 
     @Test

@@ -305,17 +305,17 @@ select {
 }
 
 .button-grey {
-    background: rgb(65, 65, 65);
-    box-shadow: 0 5px rgb(45, 45, 45);
+    background: rgb(75, 75, 75);
+    box-shadow: 0 5px rgb(55, 55, 55);
 }
 
 .button-grey:active {
     top: 2px;
-    box-shadow: 0 3px rgb(45, 45, 45);
+    box-shadow: 0 3px rgb(55, 55, 55);
 }
 
 .button-grey:hover {
-    background: rgb(75, 75, 75);
+    background: rgb(85, 85, 85);
     text-decoration: none;
 }
 
@@ -370,11 +370,6 @@ select {
     width: 85px;
     height: 35px;
 }
-
-/*.button-small:focus:not(:focus-visible):not(.focus-visible) {*/
-/*    box-shadow: none;*/
-/*    outline: none;*/
-/*}*/
 
 .button-small-green {
     background-color: rgb(46, 164, 79);
@@ -485,19 +480,6 @@ select {
     cursor: pointer;
 }
 
-.chess-board {
-    margin-left: 40px;
-    margin-right: 40px;
-    margin-bottom: 40px;
-    position: relative;
-}
-
-.hexagon {
-    position: absolute;
-    aspect-ratio: 1 / cos(30deg);
-    clip-path: polygon(50% -50%, 100% 50%, 50% 150%, 0 50%);
-}
-
 .loader {
     width: 20px;
     height: 20px;
@@ -593,6 +575,7 @@ select {
 .svg-container {
     display: flex;
     align-items: center;
+    justify-content: center;
     height: 100%;
 }
 
@@ -664,4 +647,86 @@ select {
     padding: 25px;
     width: calc(87px * 5);
     height: calc(500px);
+}
+
+.chess-board {
+    position: relative;
+}
+
+.hexagon {
+    position: absolute;
+    aspect-ratio: 1 / cos(30deg);
+    clip-path: polygon(50% -50%, 100% 50%, 50% 150%, 0 50%);
+    display: flex;
+    justify-content: center;
+}
+
+.piece-img {
+    padding-top: 2px;
+    max-width: 88%;
+    max-height: 88%;
+    cursor: pointer;
+}
+
+.move-table {
+    width: 275px;
+    display: flex;
+    flex-direction: column;
+    background-color: rgb(35, 35, 35);
+    border-radius: 4px;
+    box-shadow: rgba(0, 0, 0, 0.24) 0 1px 3px;
+    max-height: calc(100vh - 75px - 40px); /* Screen height minus the banner height minus the margin height */
+}
+
+.move-table-header {
+    padding: 15px;
+    border-radius: 4px;
+    background-color: rgb(44, 44, 44);
+}
+
+.move-table-header-elem {
+    margin-bottom: 5px;
+}
+
+.replay-move-list {
+    height: fit-content;
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+.move-table-buttons {
+    background-color: rgb(44, 44, 44);
+    padding: 20px;
+    border-radius: 4px;
+}
+
+.move-table-button {
+    height: 38px;
+    font-size: 15px;
+}
+
+.move-row {
+    display: flex;
+    flex-direction: row;
+    height: 40px;
+}
+
+.move-number {
+    flex: 0.2;
+    line-height: 40px;
+    text-align: center;
+    background-color: rgb(48, 48, 48);
+    border-radius: 2px;
+}
+
+.move-elem {
+    flex: 0.4;
+    line-height: 40px;
+    padding-left: 15px;
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+.move-elem:hover {
+    background-color: rgb(58, 58, 58);
 }

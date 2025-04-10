@@ -5,12 +5,9 @@ import daos.ChallengeDao;
 import daos.ReplayDao;
 import daos.UserDao;
 import redis.clients.jedis.JedisPooled;
-import services.GameService;
-import services.GlobalBroadcaster;
-import services.RemoteDict;
+import services.*;
 import utils.Config;
 import web.controllers.AppController;
-import services.SessionService;
 import web.State;
 import web.Templates;
 
@@ -45,7 +42,8 @@ public class Main {
             RemoteDict remoteDict = new RemoteDict(jedis);
             GameService gameService = new GameService(remoteDict, userDao, replayDao);
             SessionService sessionService = new SessionService();
-            GlobalBroadcaster broadcaster = new GlobalBroadcaster(jedis);
+            GlobalBroadcaster gameBroadcaster = new GlobalBroadcaster(jedis, Broadcaster.GAMES_CHANNEL);
+            GlobalBroadcaster userBroadcaster = new GlobalBroadcaster(jedis, Broadcaster.USERS_CHANNEL);
             Templates templates = new Templates(handlebars);
 
             state.setUserDao(userDao);
@@ -54,11 +52,13 @@ public class Main {
             state.setRemoteDict(remoteDict);
             state.setGameService(gameService);
             state.setSessionService(sessionService);
-            state.setBroadcaster(broadcaster);
+            state.setGameBroadcaster(gameBroadcaster);
+            state.setUserBroadcaster(userBroadcaster);
             state.setTemplates(templates);
             state.setCountryList(countryList);
 
-            broadcaster.startListenSubscribe();
+            gameBroadcaster.startListenSubscribe();
+            userBroadcaster.startListenSubscribe();
 
             return new AppController(state);
         } catch (Exception ex) {

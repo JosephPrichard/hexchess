@@ -25,7 +25,9 @@ public class ReplayEntity {
     public int result;
     public float winElo;
     public float loseElo;
-    public String moveList;
+    public float whiteElo;
+    public float blackElo;
+    public String moveListJson;
     @EqualsAndHashCode.Exclude
     public Timestamp playedOn;
 }

@@ -17,13 +17,14 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class State {
-    public UserDao userDao;
-    public ReplayDao replayDao;
-    public ChallengeDao challengeDao;
-    public RemoteDict remoteDict;
-    public GameService gameService;
-    public SessionService sessionService;
-    public Broadcaster broadcaster;
-    public Templates templates;
-    public List<String> countryList;
+    private UserDao userDao;
+    private ReplayDao replayDao;
+    private ChallengeDao challengeDao;
+    private RemoteDict remoteDict;
+    private GameService gameService;
+    private SessionService sessionService;
+    private Broadcaster gameBroadcaster;
+    private Broadcaster userBroadcaster;
+    private Templates templates;
+    private List<String> countryList;
 }

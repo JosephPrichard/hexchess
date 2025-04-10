@@ -70,10 +70,12 @@ public class ReplayDao {
                 r1.winElo,
                 r1.loseElo,
                 u1.username as whiteName,
-                u2.username as blackName,
                 u1.country as whiteCountry,
+                u1.elo as whiteElo,
+                u2.username as blackName,
                 u2.country as blackCountry,
-                r1.moveList :: JSON
+                u2.elo as blackElo,
+                r1.moveList :: JSON as moveListJson
             FROM replays as r1
             INNER JOIN users as u1 ON u1.id = r1.whiteId
             INNER JOIN users as u2 ON u2.id = r1.blackId
@@ -107,8 +109,8 @@ public class ReplayDao {
                 r1.winElo,
                 r1.loseElo,
                 u1.username as whiteName,
-                u2.username as blackName,
                 u1.country as whiteCountry,
+                u2.username as blackName,
                 u2.country as blackCountry
             FROM replays as r1
             INNER JOIN users as u1 ON u1.id = r1.whiteId

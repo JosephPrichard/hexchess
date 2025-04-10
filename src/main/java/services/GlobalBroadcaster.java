@@ -4,38 +4,42 @@ import io.jooby.WebSocket;
 import redis.clients.jedis.JedisPooled;
 import redis.clients.jedis.JedisPubSub;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 
 import static utils.Globals.LOGGER;
 
 public class GlobalBroadcaster implements Broadcaster {
 
-    private static final String CHANNEL_NAME = "GLOBAL-BROADCAST";
     private static final char FIELD_SPLIT = 0x1e;
 
     private final JedisPooled jedis;
-    private final LocalBroadcaster localBroadcaster = new LocalBroadcaster();
+    private final String channel;
+    private final LocalBroadcaster localBroadcaster;
 
-    public GlobalBroadcaster(JedisPooled jedis) {
+    public GlobalBroadcaster(JedisPooled jedis, String channel) {
         this.jedis = jedis;
+        this.channel = channel;
+        this.localBroadcaster = new LocalBroadcaster(channel);
     }
 
     @Override
-    public void subscribe(String id, WebSocket ws) {
-        localBroadcaster.subscribe(id, ws);
+    public void subscribe(String groupId, String handlerId, Consumer<String> consumer) {
+        localBroadcaster.subscribe(groupId, handlerId, consumer);
     }
 
     @Override
-    public void unsubscribe(String id, WebSocket ws) {
-        localBroadcaster.unsubscribe(id, ws);
+    public void unsubscribe(String groupId, String handlerId) {
+        localBroadcaster.unsubscribe(groupId, handlerId);
     }
 
     @Override
-    public void broadcast(String id, String content) {
-        String message = id + FIELD_SPLIT + content;
-        jedis.publish(CHANNEL_NAME, message);
-        LOGGER.info("Broadcast global to id={}, message={}", id, message);
+    public void broadcast(String groupId, String content) {
+        String message = groupId + FIELD_SPLIT + content;
+        jedis.publish(channel, message);
+        LOGGER.info("Broadcast global to id={}", groupId);
     }
 
     public JedisPubSub startListenSubscribe() throws ExecutionException, InterruptedException {
@@ -61,14 +65,15 @@ public class GlobalBroadcaster implements Broadcaster {
                             }
                             String id = message.substring(0, index);
                             String content = message.substring(index + 1);
-                            LOGGER.info("Received a message on channel id={}, content{}, ref={}", id, content, this);
+                            LOGGER.info("Received a message on channel id={}", id);
+
                             localBroadcaster.broadcast(id, content);
                         } catch (Exception ex) {
                             LOGGER.error("Error occurred in subscriber thread {}", String.valueOf(ex));
                         }
                     }
                 };
-                jedis.subscribe(subscriber, CHANNEL_NAME); // start the subscriber, blocking the current thread until subscriber is stopped
+                jedis.subscribe(subscriber, channel); // start the subscriber, blocking the current thread until subscriber is stopped
             } catch (Exception ex) {
                 futureSubscriber.completeExceptionally(ex);
             }

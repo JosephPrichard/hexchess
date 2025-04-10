@@ -3,24 +3,63 @@
 <head>
     <title>Replay - Hexchess</title>
     <link rel="stylesheet" href="/static/css/index.css">
-    <script type="application/json" id="replay-move-list">
-        {{{replay.data}}}
+    <script type="application/json" id="move-list-data">
+        {{{replay.moveListJson}}}
     </script>
-    <script type="application/json" id="initial-board">
-        {{{initialBoard}}}
+    <script type="application/json" id="initial-board-data">
+        {{{initialBoardJson}}}
     </script>
-    <script src="/static/js/lib/chess.js" defer></script>
-    <script src="/static/js/pages/replay.js" defer></script>
+    <script src="/static/js/lib/chess.js"></script>
+    <script src="/static/js/pages/replay.js"></script>
 </head>
 <body>
 {{> partials/banner }}
 <div class="center-horizontal-container">
-    <div class="center-vertical-container">
-        <div id="chess-board">
-        </div>
-        <div id="replay-move-view">
+    <div class="center-vertical-container" style="align-items: stretch; margin-bottom: 40px">
+        <div id="chess-board" class="chess-board"></div>
+        <div class="move-table">
+            <div class="move-table-header">
+                <div class="move-table-header-elem">
+                    <a href="/players/{{replay.whiteId}}" class="text-ul">
+                        <b>{{replay.whiteName}}</b>
+                    </a>
+                    <img class="flag" src="/static/images/flags/{{replay.whiteCountry}}.png" alt=""/>
+                    <span>({{replay.whiteElo}})</span>
+                    <span class="{{replay.whiteEloColor}}">
+                        {{replay.whiteEloDiff}}
+                    </span>
+                </div>
+                <div class="move-table-header-elem">
+                    <a href="/players/{{replay.blackId}}" class="text-ul">
+                        <b>{{replay.blackName}}</b>
+                    </a>
+                    <img class="flag" src="/static/images/flags/{{replay.blackCountry}}.png" alt=""/>
+                    <span>({{replay.blackElo}})</span>
+                    <span class="{{replay.blackEloColor}}" >
+                        {{replay.blackEloDiff}}
+                    </span>
+                </div>
+                <div class="move-table-header-elem">
+                    {{replay.result}}
+                </div>
+                <div class="move-table-header-elem">
+                    {{replay.playedOn}}
+                </div>
+            </div>
+            <div id="replay-move-list" class="replay-move-list"></div>
+            <div id="move-table-buttons" class="move-table-buttons">
+                <button class="button button-grey move-table-button" style="margin-bottom: 20px;">
+                    Flip Board
+                </button>
+                <button class="button button-grey move-table-button">
+                    Auto Play
+                </button>
+            </div>
         </div>
     </div>
 </div>
 </body>
+<script>
+    renderReplay();
+</script>
 </html>

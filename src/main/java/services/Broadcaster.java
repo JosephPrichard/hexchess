@@ -1,11 +1,14 @@
 package services;
 
-import io.jooby.WebSocket;
+import java.util.function.Consumer;
 
 public interface Broadcaster {
-    void subscribe(String id, WebSocket ws);
+    String GAMES_CHANNEL = "GAMES";
+    String USERS_CHANNEL = "NOTIFICATIONS";
 
-    void unsubscribe(String id, WebSocket ws);
+    void subscribe(String groupId, String handlerId, Consumer<String> consumer);
 
-    void broadcast(String id, String content);
+    void unsubscribe(String groupId, String handlerId);
+
+    void broadcast(String groupId, String content);
 }

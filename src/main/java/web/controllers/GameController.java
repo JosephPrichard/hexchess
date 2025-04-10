@@ -14,6 +14,8 @@ import models.PlayerEntity;
 import services.GameService;
 import web.State;
 
+import java.util.UUID;
+
 import static utils.Globals.*;
 
 public class GameController extends Jooby {
@@ -36,7 +38,7 @@ public class GameController extends Jooby {
 
     public void onJoin(Context ctx, WebSocketConfigurer configurer) {
         RemoteDict remoteDict = state.getRemoteDict();
-        Broadcaster broadcastService = state.getBroadcaster();
+        Broadcaster gameBroadcaster = state.getGameBroadcaster();
 
         String sessionId = ctx.query("sessionId").valueOrNull(); // query is safe for secrets over a websocket when using wss
         Value gameIdSlug = ctx.path("id");
@@ -51,11 +53,13 @@ public class GameController extends Jooby {
             throw new RuntimeException("Expected player to be non null");
         }
 
-        configurer.onConnect(handleGameConnect(gameId, player));
+        String wsId = UUID.randomUUID().toString();
+
+        configurer.onConnect(handleGameConnect(gameId, player, wsId));
 
         configurer.onMessage(handleGameMessage(gameId, player));
 
-        configurer.onClose((ws, statusCode) -> broadcastService.unsubscribe(gameId, ws));
+        configurer.onClose((ws, statusCode) -> gameBroadcaster.unsubscribe(gameId, wsId));
     }
 
     @Data
@@ -108,28 +112,25 @@ public class GameController extends Jooby {
         }
     }
 
-    public WebSocket.OnConnect handleGameConnect(String gameId, PlayerEntity player) {
+    public WebSocket.OnConnect handleGameConnect(String gameId, PlayerEntity player, String wsId) {
         return ws -> EXECUTOR.execute(() -> {
             GameService gameService = state.getGameService();
-            Broadcaster broadcaster = state.getBroadcaster();
+            Broadcaster broadcaster = state.getGameBroadcaster();
 
             try {
                 LOGGER.info("Player {} attempting to connect to game {}", player.getId(), gameId);
 
                 GameState gameState = gameService.join(gameId, player);
                 if (gameState == null) {
-                    // we cannot join, so just send an error and then disconnect
                     ws.render(OutputMsg.ofError(ERROR_INVALID_GAME));
                     return;
                 }
-                broadcaster.subscribe(gameState.getId(), ws);
+                broadcaster.subscribe(gameState.getId(), wsId, ws::send);
 
-                // the joiner needs a snapshot of what the game actually looks like when joining!
                 String jsonResult = JSON_MAPPER.writeValueAsString(OutputMsg.ofJoin(player, gameState));
                 broadcaster.broadcast(gameState.getId(), jsonResult);
                 LOGGER.info("Player {} successfully connected to game {}", player.getId(), gameId);
             } catch (Exception e) {
-                // if we encounter some unknown error or maybe json failure, we can't really do anything so just log and close the connection
                 LOGGER.error("Fatal exception occurred: {}", e.getMessage());
                 ws.close();
             }
@@ -139,7 +140,7 @@ public class GameController extends Jooby {
     public WebSocket.OnMessage handleGameMessage(String gameId, PlayerEntity player) {
         return (ws, message) -> EXECUTOR.execute(() -> {
             GameService gameService = state.getGameService();
-            Broadcaster broadcaster = state.getBroadcaster();
+            Broadcaster broadcaster = state.getGameBroadcaster();
 
             LOGGER.info("Received message from player {}, {} on game {}", player.getId(), message.value(), gameId);
             try {

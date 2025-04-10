@@ -33,7 +33,7 @@ public class Templates {
         leaderboardTemplate = handlebars.compile("/pages/leaderboard");
         userTemplate = handlebars.compile("/pages/user");
         profileTemplate = handlebars.compile("/pages/profile");
-        currentGamesTemplate = handlebars.compile("/pages/currentGames");
+        currentGamesTemplate = handlebars.compile("/pages/games");
         replayTemplate = handlebars.compile("/pages/replay");
         searchTemplate = handlebars.compile("/pages/search");
         challengesTemplate = handlebars.compile("/pages/challenges");

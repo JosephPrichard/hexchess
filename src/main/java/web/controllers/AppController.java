@@ -15,6 +15,7 @@ public class AppController extends Jooby {
         assets("/static/*", "static").setMaxAge(Duration.ofHours(1));
 
         mount(new FormController(state));
+        mount(new EventController(state));
         mount(new PageController(state).initStatics());
         mount(new PartialsController(state));
         mount(new GameController(state));

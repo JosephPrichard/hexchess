@@ -136,10 +136,8 @@ public class PageController extends Jooby {
         GetGamesResult gamesResult = gameService.getGames(null);
 
         Template template = templates.getIndexTemplate();
-        String resp = template.apply(null);
 
-        ctx.setResponseType(MediaType.HTML);
-        return resp;
+        return template.apply(null);
     }
 
     @Data
@@ -166,13 +164,11 @@ public class PageController extends Jooby {
         }
 
         UserEntity entity = userDao.getById(player.getId());
-        UserView view = UserView.fromEntity(entity);
+        UserView view = UserView.create(entity);
 
         Template template = templates.getProfileTemplate();
-        String resp = template.apply(new ProfilePage(view, state.getCountryList()));
 
-        ctx.setResponseType(MediaType.HTML);
-        return resp;
+        return template.apply(new ProfilePage(view, state.getCountryList()));
     }
 
     @Data
@@ -199,12 +195,10 @@ public class PageController extends Jooby {
 
         RankedUser.joinRanks(leaderboard.getUsers(), entityList);
 
-        List<UserView> viewList = entityList.stream().map(UserView::fromEntity).toList();
+        List<UserView> viewList = entityList.stream().map(UserView::create).toList();
 
         Template template = templates.getLeaderboardTemplate();
         String resp = template.apply(new LeaderboardPage(viewList, PaginationView.withTotal("?", page, leaderboard.getPageCount())));
-
-        ctx.setResponseType(MediaType.HTML);
 //            ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
         return resp;
     }
@@ -246,13 +240,11 @@ public class PageController extends Jooby {
         userEntity.setRank(rank);
         List<ReplayEntity> replayEntityList = replayListFut.get();
 
-        UserView userView = UserView.fromEntity(userEntity);
-        List<ReplayView> replayViewList = replayEntityList.stream().map(ReplayView::fromEntity).collect(Collectors.toList());
+        UserView userView = UserView.create(userEntity);
+        List<ReplayView> replayViewList = replayEntityList.stream().map(ReplayView::createRow).collect(Collectors.toList());
 
         Template template = templates.getUserTemplate();
         String resp = template.apply(new UserPage(userView, replayViewList));
-
-        ctx.setResponseType(MediaType.HTML);
 //        ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
         return resp;
     }
@@ -284,12 +276,10 @@ public class PageController extends Jooby {
         }
 
         List<UserEntity> entityList = userDao.searchByName(name, page, PER_PAGE);
-        List<UserView> viewList = entityList.stream().map(UserView::fromEntity).toList();
+        List<UserView> viewList = entityList.stream().map(UserView::create).toList();
 
         PaginationView pagination = PaginationView.ofUnlimited(String.format("?username=%s&", name), page);
         String resp = template.apply(new SearchPage(name, viewList, pagination));
-
-        ctx.setResponseType(MediaType.HTML);
 //            ctx.setResponseHeader("Cache-Control", "max-age=3600, must-revalidate");
         return resp;
     }
@@ -297,7 +287,7 @@ public class PageController extends Jooby {
     @Data
     @AllArgsConstructor
     static class ReplayPage {
-        String initialBoard;
+        String initialBoardJson;
         ReplayView replay;
     }
 
@@ -317,12 +307,10 @@ public class PageController extends Jooby {
         }
 
         ReplayEntity entity = replayDao.getReplay(replayId);
-        ReplayView view = ReplayView.fromEntity(entity);
+        ReplayView view = ReplayView.createHeader(entity);
 
         Template template = templates.getReplayTemplate();
         String resp = template.apply(new ReplayPage(initialBoardJson, view));
-
-        ctx.setResponseType(MediaType.HTML);
 //        ctx.setResponseHeader("Cache-Control", "max-age=86400, must-revalidate"); // this is never updated, we can cache aggressively
         return resp;
     }
@@ -370,12 +358,10 @@ public class PageController extends Jooby {
             return templates.getErrorTemplate().apply(new ErrorPage(code, "Invalid value for participants, must be sent or received."));
         }
 
-        List<ChallengeView> viewList = entityList.stream().map(ChallengeView::fromEntity).toList();
+        List<ChallengeView> viewList = entityList.stream().map(ChallengeView::create).toList();
 
         Template template = templates.getChallengesTemplate();
         String resp = template.apply(new ChallengesPage(viewList, sender));
-
-        ctx.setResponseType(MediaType.HTML);
 //        ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
         return resp;
     }

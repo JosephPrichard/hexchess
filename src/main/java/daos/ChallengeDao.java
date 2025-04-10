@@ -4,6 +4,7 @@ import models.ChallengeEntity;
 import org.apache.commons.dbutils.DbUtils;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
+import org.apache.commons.dbutils.handlers.BeanHandler;
 import org.apache.commons.dbutils.handlers.BeanListHandler;
 
 import javax.sql.DataSource;
@@ -16,6 +17,7 @@ import static utils.Globals.LOGGER;
 public class ChallengeDao {
 
     public static final Duration THRESHOLD_EXPIRATION = Duration.ofDays(7);
+    private static final ResultSetHandler<ChallengeEntity> CHAL_MAPPER = new BeanHandler<>(ChallengeEntity.class);
     private static final ResultSetHandler<List<ChallengeEntity>> CHAL_LIST_MAPPER = new BeanListHandler<>(ChallengeEntity.class);
 
     private final QueryRunner runner;
@@ -30,19 +32,37 @@ public class ChallengeDao {
 
     public static class ParticipantException extends RuntimeException {}
 
-    public void insert(long challengerId, long challengeeId) {
-        insert(challengerId, challengeeId, new Timestamp(System.currentTimeMillis()));
+    public ChallengeEntity insert(long challengerId, long challengeeId) {
+        return insert(challengerId, challengeeId, new Timestamp(System.currentTimeMillis()));
     }
 
-    public void insert(long challengerId, long challengeeId, Timestamp madeOn) {
+    public ChallengeEntity insert(long challengerId, long challengeeId, Timestamp madeOn) {
         if (challengeeId == challengerId) {
             throw new ChallengeDao.SelfException();
         }
 
-        String sql = "INSERT INTO challenges (challengerId, challengeeId, madeOn) VALUES (?, ?, ?)";
+        String sql = """
+            WITH inserted_challenges AS (
+                INSERT INTO challenges (challengerId, challengeeId, madeOn) VALUES (?, ?, ?) RETURNING *
+            )
+            SELECT
+                c1.challengeeId,
+                u1.username as challengeeName,
+                u1.country as challengeeCountry,
+                u1.elo as challengeeElo,
+                c1.challengerId,
+                u2.username as challengerName,
+                u2.country as challengerCountry,
+                u2.elo as challengerElo,
+                c1.madeOn
+            FROM inserted_challenges c1
+            INNER JOIN users as u1 ON u1.id = c1.challengeeId
+            INNER JOIN users as u2 ON u2.id = c1.challengerId
+            """;
         try {
-            runner.execute(sql, challengerId, challengeeId, madeOn);
-            LOGGER.info("Inserted a challenge=[challengerId={},challengeeId={}]", challengerId, challengeeId);
+            ChallengeEntity challenge = runner.query(sql, CHAL_MAPPER, challengerId, challengeeId, madeOn);
+            LOGGER.info("Inserted a challenge={}", challenge);
+            return challenge;
         } catch (SQLException ex) {
             SQLException nextEx = ex.getNextException();
 

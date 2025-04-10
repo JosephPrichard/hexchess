@@ -1,12 +1,9 @@
-function handleReplayEvents() {
+function renderReplay() {
     const boardElem = document.getElementById("chess-board");
-    const moveListElem = document.getElementById("replay-move-view");
+    const moveListElem = document.getElementById("replay-move-list");
 
-    const moveListJson = document.getElementById("replay-move-list").innerHTML;
-    const initialBoardJson = document.getElementById("initial-board").innerHTML;
-
-    const moveList = JSON.parse(moveListJson);
-    const initialBoard = JSON.parse(initialBoardJson);
+    const moveList = JSON.parse(document.getElementById("move-list-data").innerHTML);
+    const initialBoard = JSON.parse(document.getElementById("initial-board-data").innerHTML);
 
     const boardCache = [];
 
@@ -29,5 +26,5 @@ function handleReplayEvents() {
     }
 
     renderBoard(boardElem, initialBoard);
-    renderMoveTable(moveListElem, moveList, onClickMove);
+    renderMoveList(moveListElem, moveList, onClickMove);
 }

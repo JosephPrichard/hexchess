@@ -1,10 +1,14 @@
 package web.controllers;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import daos.ChallengeDao;
 import daos.UserDao;
+import models.ChallengeEntity;
 import models.UserEntity;
+import services.Broadcaster;
 import services.GameService;
 import services.RemoteDict;
 import io.jooby.*;
@@ -14,32 +18,14 @@ import org.jsoup.Jsoup;
 import services.SessionService;
 import web.State;
 
+import java.io.IOException;
+
 import static utils.Globals.*;
 import static daos.UserDao.*;
 import static services.SessionService.*;
+import static web.WebConstants.*;
 
 public class FormController extends Jooby {
-
-    private static final String ERROR_INVALID_PASSWORD = "ERROR_PASSWORD_LENGTH";
-    private static final String ERROR_CONFIRM_PASSWORD = "ERROR_CONFIRM_PASSWORD";
-    private static final String ERROR_INVALID_USERNAME = "ERROR_USERNAME_LENGTH";
-    private static final String ERROR_UNSAFE_USERNAME = "ERROR_UNSAFE_USERNAME";
-    private static final String ERROR_DUPLICATE_USERNAME = "ERROR_DUPLICATE_USERNAME";
-    private static final String ERROR_INVALID_LOGIN = "ERROR_INVALID_LOGIN";
-    private static final String ERROR_REQUIRED_LOGIN = "ERROR_REQUIRED_LOGIN";
-    private static final String ERROR_SESSION_EXPIRED = "ERROR_SESSION_EXPIRED";
-    private static final String ERROR_NOT_FOUND_CHALLENGE = "ERROR_NOT_FOUND_CHALLENGE";
-    private static final String ERROR_INVALID_CHALLENGE_ACTION = "ERROR_INVALID_CHALLENGE_ACTION";
-    private static final String ERROR_SELF_CHALLENGE = "ERROR_SELF_CHALLENGE";
-    private static final String ERROR_DUPLICATE_CHALLENGE = "ERROR_DUPLICATE_CHALLENGE";
-    private static final String ERROR_UPDATE_CHALLENGE = "ERROR_UPDATE_CHALLENGE";
-    private static final String SUCCESS_LOGIN = "SUCCESS_LOGIN";
-    private static final String SUCCESS_REGISTER = "SUCCESS_REGISTER";
-    private static final String SUCCESS_UPDATE_PASSWORD = "SUCCESS_UPDATE_PASSWORD";
-    private static final String SUCCESS_UPDATE_USER = "SUCCESS_UPDATE_USER";
-    private static final String SUCCESS_CREATE_CHALLENGE = "SUCCESS_CREATE_CHALLENGE";
-    private static final String SUCCESS_UPDATE_CHALLENGE = "SUCCESS_UPDATE_CHALLENGE";
-    private static final String SUCCESS_GENERIC = "SUCCESS";
 
     private final State state;
 
@@ -82,7 +68,8 @@ public class FormController extends Jooby {
 
     @Data
     @NoArgsConstructor
-    static class RegisterBody {
+    @AllArgsConstructor
+    public static class RegisterBody {
         String username;
         String password;
         String confirmPassword;
@@ -127,7 +114,8 @@ public class FormController extends Jooby {
 
     @Data
     @NoArgsConstructor
-    static class LoginBody {
+    @AllArgsConstructor
+    public static class LoginBody {
         String username;
         String password;
     }
@@ -158,7 +146,8 @@ public class FormController extends Jooby {
 
     @Data
     @NoArgsConstructor
-    static class UpdatePasswordBody {
+    @AllArgsConstructor
+    public static class UpdatePasswordBody {
         String password;
         String newPassword;
         String confirmNewPassword;
@@ -191,7 +180,8 @@ public class FormController extends Jooby {
 
     @Data
     @NoArgsConstructor
-    static class UpdateUserBody {
+    @AllArgsConstructor
+    public static class UpdateUserBody {
         String newUsername;
         String newCountry;
         String newBio;
@@ -257,7 +247,8 @@ public class FormController extends Jooby {
 
     @Data
     @NoArgsConstructor
-    static class CreateGameBody {
+    @AllArgsConstructor
+    public static class CreateGameBody {
         String color;
     }
 
@@ -265,12 +256,12 @@ public class FormController extends Jooby {
         GameService gameService = state.getGameService();
 
         CreateGameBody body = ctx.body(CreateGameBody.class);
-        String colorParam = body.getColor();
+        String color = body.getColor();
 
         Boolean isFirstWhite = null;
-        if (colorParam != null && colorParam.equals("white")) {
+        if (color != null && color.equals("white")) {
             isFirstWhite = true;
-        } else if (colorParam != null && colorParam.equals("black")) {
+        } else if (color != null && color.equals("black")) {
             isFirstWhite = false;
         }
 
@@ -280,13 +271,25 @@ public class FormController extends Jooby {
 
     @Data
     @NoArgsConstructor
-    static class UpdateChallengeBody {
+    @AllArgsConstructor
+    public static class UpdateChallengeBody {
         long challengeeId;
         long challengerId;
         String action;
     }
 
-    public String updateChallenge(Context ctx) {
+    @Data
+    @AllArgsConstructor
+    public static class UpdateChallengeResp {
+        String code;
+        String gameId;
+
+        static String json(String code) throws JsonProcessingException {
+            return JSON_MAPPER.writeValueAsString(new UpdateChallengeResp(code, null));
+        }
+    }
+
+    public UpdateChallengeResp updateChallenge(Context ctx) throws IOException {
         GameService gameService = state.getGameService();
         SessionService sessionService = state.getSessionService();
         RemoteDict remoteDict = state.getRemoteDict();
@@ -299,39 +302,45 @@ public class FormController extends Jooby {
 
         SessionService.SessionValue session = sessionService.parseSession(ctx);
         if (session == null) {
-            throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_REQUIRED_LOGIN);
+            throw new StatusCodeException(StatusCode.UNAUTHORIZED, UpdateChallengeResp.json(ERROR_REQUIRED_LOGIN));
         }
         PlayerEntity player = remoteDict.getSession(session.getSessionId());
         if (player == null) {
             ctx.setResponseCookie(sessionService.createEmptyCookie());
-            throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_SESSION_EXPIRED);
+            throw new StatusCodeException(StatusCode.UNAUTHORIZED, UpdateChallengeResp.json(ERROR_SESSION_EXPIRED));
         }
 
         long callerId = player.getId();
 
         long targetId = switch (action) {
-            case "ACCEPT", "REJECT" -> challengeeId; // an accepter or rejected must be the challengee
-            case "DELETE" -> challengerId; // a deleter must be the challenger
+            case "ACCEPT", "REJECT" -> challengeeId;
+            case "DELETE" -> challengerId;
             default ->
-                throw new StatusCodeException(StatusCode.BAD_REQUEST, ERROR_INVALID_CHALLENGE_ACTION);
+                throw new StatusCodeException(StatusCode.BAD_REQUEST, UpdateChallengeResp.json(ERROR_INVALID_CHALLENGE_ACTION));
         };
+
+        String gameId = null;
 
         if (callerId == targetId) {
             int count = challengeDao.delete(challengerId, challengeeId);
             if (count == 0) {
-                throw new StatusCodeException(StatusCode.NOT_FOUND, ERROR_NOT_FOUND_CHALLENGE);
+                throw new StatusCodeException(StatusCode.NOT_FOUND, UpdateChallengeResp.json(ERROR_NOT_FOUND_CHALLENGE));
+            }
+            if (action.equals("ACCEPT")) {
+                gameId = gameService.create(null);
             }
         } else {
-            throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_UPDATE_CHALLENGE);
+            throw new StatusCodeException(StatusCode.UNAUTHORIZED, UpdateChallengeResp.json(ERROR_UPDATE_CHALLENGE));
         }
 
         ctx.setResponseCode(StatusCode.OK);
-        return SUCCESS_UPDATE_CHALLENGE;
+        return new UpdateChallengeResp(SUCCESS_UPDATE_CHALLENGE, gameId);
     }
 
     @Data
     @NoArgsConstructor
-    static class CreateChallengeBody {
+    @AllArgsConstructor
+    public static class CreateChallengeBody {
         long challengeeId;
     }
 
@@ -339,6 +348,7 @@ public class FormController extends Jooby {
         SessionService sessionService = state.getSessionService();
         RemoteDict remoteDict = state.getRemoteDict();
         ChallengeDao challengeDao = state.getChallengeDao();
+        Broadcaster userBroadcaster = state.getUserBroadcaster();
 
         CreateChallengeBody body = ctx.body(CreateChallengeBody.class);
         long challengeeId = body.getChallengeeId();
@@ -354,7 +364,16 @@ public class FormController extends Jooby {
         }
 
         try {
-            challengeDao.insert(challengeeId, player.getId());
+            ChallengeEntity entity = challengeDao.insert(challengeeId, player.getId());
+
+            EXECUTOR.execute(() -> {
+                try {
+                    String jsonOutput = JSON_MAPPER.writeValueAsString(entity);
+                    userBroadcaster.broadcast(Long.toString(challengeeId), jsonOutput);
+                } catch (JsonProcessingException e) {
+                    LOGGER.error("Error occurred while broadcasting challenge to user", e);
+                }
+            });
             EXECUTOR.execute(() -> challengeDao.deleteExpired(session.getUserId()));
         } catch (ChallengeDao.ParticipantException ex) {
             throw new StatusCodeException(StatusCode.NOT_FOUND, ERROR_NOT_FOUND_CHALLENGE);

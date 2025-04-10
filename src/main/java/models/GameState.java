@@ -57,7 +57,7 @@ public class GameState {
         ChessGame game = ChessGame.start();
         List<PieceMove> moveList = new ArrayList<>();
 
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 34; i++) {
             game.initPieceMoves();
 
             List<PieceMoves> currMoves = game.getCurrMoves();
