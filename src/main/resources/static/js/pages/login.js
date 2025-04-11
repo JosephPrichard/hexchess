@@ -30,5 +30,7 @@ async function onSubmitLoginForm(e)  {
     submitElem.innerHTML = "Login";
 }
 
-const loginFormElem = document.getElementById("login-form");
-loginFormElem.addEventListener("submit", onSubmitLoginForm);
+function renderLogin() {
+    const loginFormElem = document.getElementById("login-form");
+    loginFormElem.addEventListener("submit", onSubmitLoginForm);
+}

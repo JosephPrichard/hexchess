@@ -2,6 +2,7 @@ package daos;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.ToString;
 import models.ReplayEntity;
 import org.apache.commons.dbutils.QueryRunner;
@@ -27,31 +28,34 @@ public class ReplayDao {
     }
 
     @Data
+    @NoArgsConstructor
     @AllArgsConstructor
     public static class ReplayInst {
         public long whiteId;
         public long blackId;
         public int result;
-        public Double winEloDiff;
-        public Double loseEloDiff;
+        public int cause;
+        public Double winElo;
+        public Double loseElo;
         @ToString.Exclude
         public String moveListJson;
     }
 
-    public void insert(long whiteId, long blackId, int result, double winEloDiff, double loseEloDiff, String moveListJson) {
-        insert(new ReplayInst(whiteId, blackId, result, winEloDiff, loseEloDiff, moveListJson));
+    public void insert(long whiteId, long blackId, int result, int cause, double winEloDiff, double loseEloDiff, String moveListJson) {
+        insert(new ReplayInst(whiteId, blackId, result, cause, winEloDiff, loseEloDiff, moveListJson));
     }
 
     public void insert(ReplayInst replayInst) {
-        String sql = "INSERT INTO replays (whiteId, blackId, result, winElo, loseElo, moveList) VALUES (?, ?, ?, ?, ?, ? :: JSONB)";
+        String sql = "INSERT INTO replays (whiteId, blackId, result, cause, winElo, loseElo, moveList) VALUES (?, ?, ?, ?, ?, ?, ? :: JSONB)";
         try {
             runner.execute(sql,
-                replayInst.getWhiteId(),
-                replayInst.getBlackId(),
-                replayInst.getResult(),
-                replayInst.getWinEloDiff(),
-                replayInst.getLoseEloDiff(),
-                replayInst.getMoveListJson());
+                replayInst.whiteId,
+                replayInst.blackId,
+                replayInst.result,
+                replayInst.cause,
+                replayInst.winElo,
+                replayInst.loseElo,
+                replayInst.moveListJson);
             LOGGER.info("Inserted a replay={}", replayInst);
         } catch (SQLException ex) {
             LOGGER.error("Failed to insert a replay={}", replayInst);
@@ -66,6 +70,7 @@ public class ReplayDao {
                 r1.whiteId,
                 r1.blackId,
                 r1.result,
+                r1.cause,
                 r1.playedOn,
                 r1.winElo,
                 r1.loseElo,
@@ -105,6 +110,7 @@ public class ReplayDao {
                 r1.whiteId,
                 r1.blackId,
                 r1.result,
+                r1.cause,
                 r1.playedOn,
                 r1.winElo,
                 r1.loseElo,

@@ -37,6 +37,7 @@ public class UserDao {
     }
 
     @Data
+    @NoArgsConstructor
     @AllArgsConstructor
     public static class UserInst {
         public String username;
@@ -83,12 +84,12 @@ public class UserDao {
             """;
         try {
             UserEntity user = runner.query(sql, USER_MAPPER,
-                inst.getUsername(),
-                inst.getCountry(),
-                inst.getElo(),
-                inst.getElo(),
-                inst.getWins(),
-                inst.getLosses(),
+                inst.username,
+                inst.country,
+                inst.elo,
+                inst.elo,
+                inst.wins,
+                inst.losses,
                 hashedPassword,
                 salt);
             LOGGER.info("Created new user={}", user);

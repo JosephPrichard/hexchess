@@ -49,9 +49,9 @@ public class ReplayDaoTest {
         createTestUserData(userDao);
 
         // when
-        replayDao.insert(1L, 2L, ReplayEntity.WHITE_WIN, 30, -30, "{}");
-        replayDao.insert(2L, 3L, ReplayEntity.BLACK_WIN, 30, -30, "{}");
-        replayDao.insert(3L, 1L, ReplayEntity.DRAW, 30, -30, "{}");
+        replayDao.insert(1L, 2L, ReplayEntity.WHITE_WIN, ReplayEntity.CHECKMATE, 30, -30, "{}");
+        replayDao.insert(2L, 3L, ReplayEntity.BLACK_WIN, ReplayEntity.CHECKMATE, 30, -30, "{}");
+        replayDao.insert(3L, 1L, ReplayEntity.DRAW, ReplayEntity.CHECKMATE, 30, -30, "{}");
 
         ReplayEntity actualReplay1 = replayDao.getReplay(1);
         ReplayEntity actualReplay2 = replayDao.getReplay(2);
@@ -59,11 +59,14 @@ public class ReplayDaoTest {
 
         // then
         ReplayEntity expectedReplay1 = new ReplayEntity(1, 1L, 2L, "user1", "user2",
-            "us", "us", ReplayEntity.WHITE_WIN, 30, -30, "{}", null);
+            "us", "us", ReplayEntity.WHITE_WIN, ReplayEntity.CHECKMATE, 30, -30,
+            0f, 0f, "{}", null);
         ReplayEntity expectedReplay2 = new ReplayEntity(2, 2L, 3L, "user2", "user3",
-            "us", "us", ReplayEntity.BLACK_WIN, 30, -30, "{}",  null);
+            "us", "us", ReplayEntity.BLACK_WIN, ReplayEntity.CHECKMATE, 30, -30,
+            0f, 0f, "{}",  null);
         ReplayEntity expectedReplay3 = new ReplayEntity(3, 3L, 1L, "user3", "user1",
-            "us", "us", ReplayEntity.DRAW, 30, -30, "{}",  null);
+            "us", "us", ReplayEntity.DRAW, ReplayEntity.CHECKMATE, 30, -30,
+            0f, 0f, "{}",  null);
 
         Assertions.assertEquals(expectedReplay1, actualReplay1);
         Assertions.assertEquals(expectedReplay2, actualReplay2);
@@ -76,9 +79,9 @@ public class ReplayDaoTest {
         createTestUserData(userDao);
 
         // when
-        replayDao.insert(1L, 2L, ReplayEntity.WHITE_WIN, 30, -30, "{}");
-        replayDao.insert(2L, 3L, ReplayEntity.BLACK_WIN, 30, -30, "{}");
-        replayDao.insert(3L, 1L, ReplayEntity.DRAW, 30, -30, "{}");
+        replayDao.insert(1L, 2L, ReplayEntity.WHITE_WIN, ReplayEntity.CHECKMATE, 30, -30, "{}");
+        replayDao.insert(2L, 3L, ReplayEntity.BLACK_WIN, ReplayEntity.CHECKMATE, 30, -30, "{}");
+        replayDao.insert(3L, 1L, ReplayEntity.DRAW, ReplayEntity.CHECKMATE, 30, -30, "{}");
 
         List<ReplayEntity> actualReplayList1 = replayDao.getUserReplays(1L, null, 5);
         List<ReplayEntity> actualReplayList2 = replayDao.getUserReplays(1L, 3L, 5);
@@ -86,12 +89,12 @@ public class ReplayDaoTest {
         // then
         List<ReplayEntity> expectedReplayList1 = List.of(
             new ReplayEntity(3, 3L, 1L, "user3", "user1", "us", "us",
-                ReplayEntity.DRAW, 30, -30, null, null),
+                ReplayEntity.DRAW, ReplayEntity.CHECKMATE, 30, -30, 0f, 0f, null, null),
             new ReplayEntity(1, 1L, 2L, "user1", "user2", "us", "us",
-                ReplayEntity.WHITE_WIN, 30, -30, null, null));
+                ReplayEntity.WHITE_WIN, ReplayEntity.CHECKMATE, 30, -30, 0f, 0f, null, null));
         List<ReplayEntity> expectedReplayList2 = List.of(
             new ReplayEntity(1, 1L, 2L, "user1", "user2", "us", "us",
-                ReplayEntity.WHITE_WIN, 30, -30, null, null));
+                ReplayEntity.WHITE_WIN, ReplayEntity.CHECKMATE, 30, -30, 0f, 0f, null, null));
 
         Assertions.assertEquals(expectedReplayList1, actualReplayList1);
         Assertions.assertEquals(expectedReplayList2, actualReplayList2);

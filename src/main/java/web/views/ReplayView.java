@@ -37,6 +37,7 @@ public class ReplayView {
     public String moveListJson;
     public String playedOn;
     public String result;
+    public String cause;
     public String whiteEloDiff;
     public String blackEloDiff;
     public String whiteEloColor;
@@ -65,8 +66,17 @@ public class ReplayView {
         view.blackElo = String.format("%.0f", entity.blackElo);
         view.moveListJson = entity.moveListJson;
         view.playedOn = entity.playedOn != null ? formatPlayedOn.apply(entity.playedOn) : null;
+        view.cause = formatCause(entity.cause);
         view.formatResults(entity);
         return view;
+    }
+
+    public static String formatCause(int cause) {
+        return switch (cause) {
+        case CHECKMATE -> "Checkmate";
+        case FORFEIT -> "Forfeit";
+        default -> throw new IllegalStateException("Invalid cause state " + cause);
+        };
     }
 
     public static String formatDuration(Timestamp timestamp) {

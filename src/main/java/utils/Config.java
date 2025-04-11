@@ -98,7 +98,7 @@ public class Config {
             QueryRunner runner = new QueryRunner(ds);
             runner.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
 
-            URL resource = ClassLoader.getSystemResource("database");
+            URL resource = ClassLoader.getSystemResource("database/sql");
             File dir = new File(resource.getFile());
             File[] files = dir.listFiles();
 

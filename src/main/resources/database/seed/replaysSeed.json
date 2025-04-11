@@ -1,0 +1,562 @@
+[
+  {
+    "whiteId": 37,
+    "blackId": 5,
+    "result": 1,
+    "winElo": 15,
+    "loseElo": -15,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 27,
+    "result": 0,
+    "winElo": 10,
+    "loseElo": -10,
+    "cause": 0
+  },
+  {
+    "whiteId": 4,
+    "blackId": 19,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 12,
+    "blackId": 32,
+    "result": 1,
+    "winElo": 20,
+    "loseElo": -20,
+    "cause": 0
+  },
+  {
+    "whiteId": 29,
+    "blackId": 8,
+    "result": 0,
+    "winElo": 30,
+    "loseElo": -30,
+    "cause": 0
+  },
+  {
+    "whiteId": 14,
+    "blackId": 23,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 30,
+    "blackId": 10,
+    "result": 1,
+    "winElo": 18,
+    "loseElo": -18,
+    "cause": 0
+  },
+  {
+    "whiteId": 7,
+    "blackId": 33,
+    "result": 0,
+    "winElo": 23,
+    "loseElo": -23,
+    "cause": 0
+  },
+  {
+    "whiteId": 21,
+    "blackId": 25,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 9,
+    "blackId": 11,
+    "result": 1,
+    "winElo": 16,
+    "loseElo": -16,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 18,
+    "result": 0,
+    "winElo": 28,
+    "loseElo": -28,
+    "cause": 0
+  },
+  {
+    "whiteId": 24,
+    "blackId": 6,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 15,
+    "blackId": 20,
+    "result": 1,
+    "winElo": 30,
+    "loseElo": -30,
+    "cause": 0
+  },
+  {
+    "whiteId": 35,
+    "blackId": 31,
+    "result": 0,
+    "winElo": 25,
+    "loseElo": -25,
+    "cause": 0
+  },
+  {
+    "whiteId": 26,
+    "blackId": 3,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 28,
+    "blackId": 17,
+    "result": 1,
+    "winElo": 11,
+    "loseElo": -11,
+    "cause": 0
+  },
+  {
+    "whiteId": 13,
+    "blackId": 16,
+    "result": 0,
+    "winElo": 22,
+    "loseElo": -22,
+    "cause": 0
+  },
+  {
+    "whiteId": 3,
+    "blackId": 34,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 11,
+    "blackId": 22,
+    "result": 1,
+    "winElo": 13,
+    "loseElo": -13,
+    "cause": 0
+  },
+  {
+    "whiteId": 34,
+    "blackId": 38,
+    "result": 0,
+    "winElo": 27,
+    "loseElo": -27,
+    "cause": 0
+  },
+  {
+    "whiteId": 36,
+    "blackId": 1,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 31,
+    "blackId": 7,
+    "result": 1,
+    "winElo": 19,
+    "loseElo": -19,
+    "cause": 0
+  },
+  {
+    "whiteId": 39,
+    "blackId": 10,
+    "result": 0,
+    "winElo": 22,
+    "loseElo": -22,
+    "cause": 0
+  },
+  {
+    "whiteId": 22,
+    "blackId": 4,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 20,
+    "blackId": 15,
+    "result": 1,
+    "winElo": 27,
+    "loseElo": -27,
+    "cause": 0
+  },
+  {
+    "whiteId": 8,
+    "blackId": 14,
+    "result": 0,
+    "winElo": 18,
+    "loseElo": -18,
+    "cause": 0
+  },
+  {
+    "whiteId": 18,
+    "blackId": 9,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 5,
+    "blackId": 13,
+    "result": 1,
+    "winElo": 24,
+    "loseElo": -24,
+    "cause": 0
+  },
+  {
+    "whiteId": 16,
+    "blackId": 30,
+    "result": 0,
+    "winElo": 25,
+    "loseElo": -25,
+    "cause": 0
+  },
+  {
+    "whiteId": 33,
+    "blackId": 19,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 24,
+    "blackId": 7,
+    "result": 1,
+    "winElo": 28,
+    "loseElo": -28,
+    "cause": 0
+  },
+  {
+    "whiteId": 6,
+    "blackId": 21,
+    "result": 0,
+    "winElo": 22,
+    "loseElo": -22,
+    "cause": 0
+  },
+  {
+    "whiteId": 8,
+    "blackId": 2,
+    "result": 1,
+    "winElo": 19,
+    "loseElo": -19,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 1,
+    "winElo": 15,
+    "loseElo": -15,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 0,
+    "winElo": 10,
+    "loseElo": -10,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 1,
+    "winElo": 20,
+    "loseElo": -20,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 0,
+    "winElo": 30,
+    "loseElo": -30,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 1,
+    "winElo": 18,
+    "loseElo": -18,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 0,
+    "winElo": 23,
+    "loseElo": -23,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 1,
+    "winElo": 16,
+    "loseElo": -16,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 0,
+    "winElo": 28,
+    "loseElo": -28,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 1,
+    "winElo": 30,
+    "loseElo": -30,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 0,
+    "winElo": 25,
+    "loseElo": -25,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 1,
+    "winElo": 11,
+    "loseElo": -11,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 0,
+    "winElo": 22,
+    "loseElo": -22,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 1,
+    "winElo": 13,
+    "loseElo": -13,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 0,
+    "winElo": 27,
+    "loseElo": -27,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 1,
+    "winElo": 24,
+    "loseElo": -24,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 0,
+    "winElo": 19,
+    "loseElo": -19,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 1,
+    "winElo": 26,
+    "loseElo": -26,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 0,
+    "winElo": 21,
+    "loseElo": -21,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 1,
+    "winElo": 28,
+    "loseElo": -28,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 0,
+    "winElo": 15,
+    "loseElo": -15,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 1,
+    "winElo": 23,
+    "loseElo": -23,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 0,
+    "winElo": 17,
+    "loseElo": -17,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 1,
+    "winElo": 27,
+    "loseElo": -27,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 0,
+    "winElo": 20,
+    "loseElo": -20,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 2,
+    "winElo": 0,
+    "loseElo": 0,
+    "cause": 0
+  },
+  {
+    "whiteId": 1,
+    "blackId": 2,
+    "result": 1,
+    "winElo": 14,
+    "loseElo": -14,
+    "cause": 0
+  },
+  {
+    "whiteId": 2,
+    "blackId": 1,
+    "result": 0,
+    "winElo": 30,
+    "loseElo": -30,
+    "cause": 0
+  }
+]

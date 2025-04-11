@@ -32,5 +32,7 @@ async function onSubmitRegisterForm(e) {
     submitElem.innerHTML = "Register";
 }
 
-const registerFormElem = document.getElementById("register-form");
-registerFormElem.addEventListener('submit', onSubmitRegisterForm);
+function renderRegister() {
+    const registerFormElem = document.getElementById("register-form");
+    registerFormElem.addEventListener('submit', onSubmitRegisterForm);
+}

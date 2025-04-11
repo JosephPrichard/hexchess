@@ -659,6 +659,9 @@ select {
     clip-path: polygon(50% -50%, 100% 50%, 50% 150%, 0 50%);
     display: flex;
     justify-content: center;
+    -moz-user-select: none;
+    -khtml-user-select: none;
+    -webkit-user-select: none;
 }
 
 .piece-img {
@@ -669,7 +672,7 @@ select {
 }
 
 .move-table {
-    width: 275px;
+    width: 300px;
     display: flex;
     flex-direction: column;
     background-color: rgb(35, 35, 35);
@@ -684,6 +687,14 @@ select {
     background-color: rgb(44, 44, 44);
 }
 
+.move-table-nav-buttons {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+}
+
 .move-table-header-elem {
     margin-bottom: 5px;
 }
@@ -692,6 +703,8 @@ select {
     height: fit-content;
     flex-grow: 1;
     overflow-y: auto;
+    border-top: 1px solid rgb(58,58,58);
+    border-bottom: 1px solid rgb(58,58,58);
 }
 
 .move-table-buttons {
@@ -716,17 +729,35 @@ select {
     line-height: 40px;
     text-align: center;
     background-color: rgb(48, 48, 48);
-    border-radius: 2px;
+    border-right: 1px solid rgb(58,58,58);
+    border-left: 1px solid rgb(58,58,58);
 }
 
-.move-elem {
+.move {
     flex: 0.4;
     line-height: 40px;
     padding-left: 15px;
     cursor: pointer;
     border-radius: 2px;
+    -moz-user-select: none;
+    -khtml-user-select: none;
+    -webkit-user-select: none;
 }
 
-.move-elem:hover {
-    background-color: rgb(58, 58, 58);
+.move:hover {
+    background-color: rgb(65, 65, 65);
+}
+
+.selected-move {
+    background-color: rgb(53, 53, 53);
+}
+
+.button-transparent {
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 5px 8px;
+}
+
+.button-transparent:hover {
+    background-color: rgb(55, 55, 55);
 }

@@ -12,7 +12,7 @@ const BLACK_QUEEN = 10;
 const WHITE_KING = 11;
 const BLACK_KING = 12;
 
-const pieceNames = {
+const PIECE_NAMES = {
     [WHITE_PAWN]: "white-pawn",
     [BLACK_PAWN]: "black-pawn",
     [WHITE_KNIGHT]: "white-knight",
@@ -26,8 +26,8 @@ const pieceNames = {
     [WHITE_KING]: "white-king",
     [BLACK_KING]: "black-king"
 };
-const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-const pieceSymbols = {
+const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+const PIECE_SYMBOLS = {
     [WHITE_PAWN]: 'p',
     [BLACK_PAWN]: 'p',
     [WHITE_KNIGHT]: 'N',
@@ -53,11 +53,11 @@ const DARK_COLOR = "rgb(210,140,69)";
 const COLORS = [LIGHT_COLOR, MEDIUM_COLOR, DARK_COLOR];
 const COLOR_OFFSETS = [0, 1, 2, 0, 1, 2, 1, 0, 2, 1, 0]; // file -> color
 
-function renderBoard(element, board, flip) {
-    element.innerHTML = "";
+function renderBoard(boardElem, board, flip) {
+    boardElem.innerHTML = "";
 
-    element.style.setProperty("width", `${11 * HEX_HEIGHT}px`);
-    element.style.setProperty("height", `${11 * HEX_HEIGHT}px`);
+    boardElem.style.setProperty("width", `${11 * HEX_HEIGHT}px`);
+    boardElem.style.setProperty("height", `${11 * HEX_HEIGHT}px`);
 
     for (let file = 0; file < board.pieces.length; file++) {
         const piecesFile = board.pieces[file];
@@ -75,10 +75,10 @@ function renderBoard(element, board, flip) {
             const bgColor = COLORS[index];
 
             const pieceElem = document.createElement("div");
-            pieceElem.classList.add("hexagon");
-
+            pieceElem.setAttribute("id", `hexagon-${file}-${rank}`)
             pieceElem.setAttribute("data-rank", String(rank));
             pieceElem.setAttribute("data-file", String(file));
+            pieceElem.classList.add("hexagon");
             pieceElem.style.setProperty("top", `${top}px`);
             pieceElem.style.setProperty("left", `${left}px`);
             pieceElem.style.setProperty("width", `${HEX_WIDTH}px`);
@@ -86,9 +86,10 @@ function renderBoard(element, board, flip) {
             pieceElem.style.setProperty("background", bgColor);
 
             if (piece !== EMPTY) {
-                const piecename = pieceNames[piece] || "";
+                const piecename = PIECE_NAMES[piece] || "";
 
                 const pieceImg = document.createElement("img");
+                pieceImg.setAttribute("id", `piece-${file}-${rank}`)
                 pieceImg.setAttribute("src", `/static/images/pieces/${piecename}.png`);
                 pieceImg.setAttribute("alt", "");
                 pieceImg.setAttribute("draggable", "false");
@@ -97,19 +98,20 @@ function renderBoard(element, board, flip) {
                 pieceElem.appendChild(pieceImg);
             }
 
-            element.appendChild(pieceElem);
+            boardElem.appendChild(pieceElem);
         }
     }
 }
 
 function stringOfMove(move) {
-    const symbol = pieceSymbols[move.piece] || '?';
-    const toFile = files[move.to.file];
+    const symbol = PIECE_SYMBOLS[move.piece] || '?';
+    const toFile = FILES[move.to.file];
     const toRank = move.to.rank + 1;
 
     return `${symbol}${toFile}${toRank}`;
 }
-function renderMoveList(moveListElem, moveList, onClickMove) {
+
+function renderMoveList(moveListElem, moveList, handleOnClickMove) {
     let ply = 1;
     for (let i = 0; i < moveList.length; i += 2) {
         const moveOne = moveList[i];
@@ -124,13 +126,17 @@ function renderMoveList(moveListElem, moveList, onClickMove) {
         moveElem.appendChild(numberElem);
 
         const moveOneElem = document.createElement("div");
+        moveOneElem.setAttribute("id", `move-${i}`)
         moveOneElem.appendChild(document.createTextNode(stringOfMove(moveOne)));
-        moveOneElem.classList.add("move-elem");
+        moveOneElem.classList.add("move");
+        moveOneElem.onclick = () => handleOnClickMove(i, moveOneElem);
         moveElem.appendChild(moveOneElem);
 
         const moveTwoElem = document.createElement("div");
+        moveTwoElem.setAttribute("id", `move-${i + 1}`)
         moveTwoElem.appendChild(document.createTextNode(moveTwo ? stringOfMove(moveTwo) : ""));
-        moveTwoElem.classList.add("move-elem");
+        moveTwoElem.classList.add("move");
+        moveTwoElem.onclick = () => handleOnClickMove(i + 1, moveTwoElem);
         moveElem.appendChild(moveTwoElem);
 
         moveListElem.appendChild(moveElem);
@@ -138,4 +144,3 @@ function renderMoveList(moveListElem, moveList, onClickMove) {
         ply++;
     }
 }
-

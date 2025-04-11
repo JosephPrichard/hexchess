@@ -115,14 +115,14 @@ public class GameService {
         if (game.isCheckmate()) {
             state.setEnded(true);
             boolean isWhiteWin = game.getBoard().turn().isBlack(); // white wins if its checkmate when it's blacks turn
-            EXECUTOR.execute(() -> onFinishGame(state, isWhiteWin));
+            EXECUTOR.execute(() -> onFinishGame(state, isWhiteWin, ReplayEntity.CHECKMATE));
         }
 
         LOGGER.info("{} made move {} on game {}", player, move, gameId);
         return remoteDict.setGame(gameId, state);
     }
 
-    public void onFinishGame(GameState state, boolean isWhiteWin) {
+    public void onFinishGame(GameState state, boolean isWhiteWin, int cause) {
         try {
             long whiteId = state.getWhitePlayer().getId();
             long blackId = state.getBlackPlayer().getId();
@@ -136,7 +136,7 @@ public class GameService {
             remoteDict.incrLeaderboardUser(
                     new RemoteDict.EloChangeSet(winId, changeSet.getWinEloDiff()),
                     new RemoteDict.EloChangeSet(loseId, changeSet.getLoseEloDiff()));
-            replayDao.insert(whiteId, blackId, result, changeSet.getWinEloDiff(), changeSet.getLoseEloDiff(), moveListJson);
+            replayDao.insert(whiteId, blackId, result, cause, changeSet.getWinEloDiff(), changeSet.getLoseEloDiff(), moveListJson);
         } catch (Exception ex) {
             LOGGER.info("Failed to persist game results to database in background thread {}", String.valueOf(ex));
         }
@@ -151,7 +151,7 @@ public class GameService {
         boolean didBlackForfeit = state.getBlackPlayer().equals(player);
 
         state.setEnded(true);
-        onFinishGame(state, didBlackForfeit);
+        onFinishGame(state, didBlackForfeit, ReplayEntity.FORFEIT);
 
         return remoteDict.setGame(gameId, state); // did black forfeit? then white won.
     }

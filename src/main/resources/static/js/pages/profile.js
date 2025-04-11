@@ -91,10 +91,12 @@ function toggleCountryDropdown() {
     dropdown.style.setProperty("display", display);
 }
 
-const userFormElem = document.getElementById("update-user-form");
-const passwordFormElem = document.getElementById("update-password-form");
-const signOutButton = document.getElementById("sign-out-button");
+function renderProfile() {
+    const userFormElem = document.getElementById("update-user-form");
+    const passwordFormElem = document.getElementById("update-password-form");
+    const signOutButton = document.getElementById("sign-out-button");
 
-userFormElem.addEventListener("submit", onSubmitUserForm);
-passwordFormElem.addEventListener("submit", onSubmitPasswordForm);
-signOutButton.addEventListener("click", onSignOut);
+    userFormElem.addEventListener("submit", onSubmitUserForm);
+    passwordFormElem.addEventListener("submit", onSubmitPasswordForm);
+    signOutButton.addEventListener("click", onSignOut);
+}

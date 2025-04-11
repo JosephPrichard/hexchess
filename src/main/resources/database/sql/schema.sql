@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS replays (
     whiteId BIGINT NOT NULL,
     blackId BIGINT NOT NULL,
     result INTEGER NOT NULL,
+    cause INTEGER NOT NULL,
     playedOn TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     winElo NUMERIC,
     loseElo NUMERIC,

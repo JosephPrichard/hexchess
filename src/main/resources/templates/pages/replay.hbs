@@ -15,7 +15,7 @@
 <body>
 {{> partials/banner }}
 <div class="center-horizontal-container">
-    <div class="center-vertical-container" style="align-items: stretch; margin-bottom: 40px">
+    <div class="center-vertical-container" style="align-items: stretch;">
         <div id="chess-board" class="chess-board"></div>
         <div class="move-table">
             <div class="move-table-header">
@@ -40,7 +40,7 @@
                     </span>
                 </div>
                 <div class="move-table-header-elem">
-                    {{replay.result}}
+                    {{replay.result}} &#8226; {{replay.cause}}
                 </div>
                 <div class="move-table-header-elem">
                     {{replay.playedOn}}
@@ -48,12 +48,25 @@
             </div>
             <div id="replay-move-list" class="replay-move-list"></div>
             <div id="move-table-buttons" class="move-table-buttons">
-                <button class="button button-grey move-table-button" style="margin-bottom: 20px;">
-                    Flip Board
-                </button>
-                <button class="button button-grey move-table-button">
-                    Auto Play
-                </button>
+                <div class="move-table-nav-buttons">
+                    <div id="left-button" class="button-transparent">
+                        <svg width="30px" height="30px" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M9 13L9 10H16V6L9 6L9 3L8 3L3 8L8 13H9Z" fill="rgb(100,100,100)"/>
+                            <path d="M2 14L2 2L0 2L5.24537e-07 14H2Z" fill="rgb(100,100,100)"/>
+                        </svg>
+                    </div>
+                    <div id="flip-board-button" class="button-transparent">
+                        <svg width="30px" height="30px" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M5 15H4L0 11L4 7H5V10H11C12.6569 10 14 8.65685 14 7C14 5.34315 12.6569 4 11 4H4V2H11C13.7614 2 16 4.23858 16 7C16 9.76142 13.7614 12 11 12H5V15Z" fill="rgb(100,100,100)"/>
+                        </svg>
+                    </div>
+                    <div id="right-button" class="button-transparent">
+                        <svg width="30px" height="30px" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M7 13V10H0L1.74846e-07 6L7 6L7 3L8 3L13 8L8 13H7Z" fill="rgb(100,100,100)"/>
+                            <path d="M14 14V2L16 2V14H14Z" fill="rgb(100,100,100)"/>
+                        </svg>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
