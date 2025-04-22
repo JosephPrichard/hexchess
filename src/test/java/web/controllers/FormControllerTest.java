@@ -2,7 +2,6 @@ package web.controllers;
 
 import daos.ChallengeDao;
 import io.jooby.Cookie;
-import io.jooby.Formdata;
 import io.jooby.exception.StatusCodeException;
 import io.jooby.test.MockContext;
 import io.jooby.test.MockResponse;
@@ -15,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import services.GameService;
 import services.RemoteDict;
 import daos.UserDao;
-import services.SessionService;
+import web.reusable.SessionService;
 import web.WebConstants;
 import web.State;
 
@@ -30,7 +29,7 @@ public class FormControllerTest {
     public void testPostRegister() throws UserDao.TakenUsernameException {
         // given
         UserEntity user = new UserEntity(1L, "testUser", "USA");
-        PlayerEntity player = new PlayerEntity(1L, "testUser");
+        PlayerEntity player = new PlayerEntity(1L, "testUser", "us", 0f);
         Cookie cookie = new Cookie("sessionToken");
 
         UserDao mockUserDao = mock(UserDao.class);
@@ -60,7 +59,7 @@ public class FormControllerTest {
         // then
         verify(mockUserDao, times(1)).insert("testUser", "testPassword");
         verify(mockDict, times(1)).setSession(anyString(), eq(player), anyLong());
-        verify(mockSessionService, times(1)).createCookie(eq("sessionToken"), eq(player.getId()), eq(player.getName()), any());
+        verify(mockSessionService, times(1)).createCookie(eq("sessionToken"), eq(player.id), eq(player.name), any());
 
         Assertions.assertEquals(actualCookie, cookie.toString());
         Assertions.assertEquals(WebConstants.SUCCESS_REGISTER, value.value());
@@ -69,14 +68,14 @@ public class FormControllerTest {
     @Test
     public void testPostLogin() {
         // given
-        PlayerEntity player = new PlayerEntity(1L, "testUser");
+        PlayerEntity player = new PlayerEntity(1L, "testUser", "us", 0f);
         String country = "us";
         Cookie cookie = new Cookie("sessionToken");
 
         UserDao mockUserDao = mock(UserDao.class);
         SessionService mockSessionService = mock(SessionService.class);
 
-        when(mockUserDao.verify(any(), any())).thenReturn(new UserDao.VerifiedUser(1L, "testUser", country));
+        when(mockUserDao.verify(any(), any())).thenReturn(new UserDao.VerifiedUser(1L, "testUser", country, 0f));
         when(mockSessionService.createId()).thenReturn("sessionToken");
         when(mockSessionService.createCookie(any(), anyLong(), any(), any())).thenReturn(cookie);
 
@@ -100,7 +99,7 @@ public class FormControllerTest {
         // then
         verify(mockUserDao, times(1)).verify("testUser", "testPassword");
         verify(mockDict, times(1)).setSession(anyString(), eq(player), anyLong());
-        verify(mockSessionService, times(1)).createCookie(eq("sessionToken"), eq(player.getId()), eq(player.getName()), any());
+        verify(mockSessionService, times(1)).createCookie(eq("sessionToken"), eq(player.id), eq(player.name), any());
 
         Assertions.assertEquals(actualCookie, cookie.toString());
         Assertions.assertEquals(WebConstants.SUCCESS_LOGIN, value.value());
@@ -146,7 +145,7 @@ public class FormControllerTest {
         SessionService mockSessionService = mock(SessionService.class);
 
         when(mockSessionService.parseSession(any())).thenReturn(new SessionService.SessionValue("sessionId", challengeeId, "username", "us"));
-        when(mockRemoteDict.getSession("sessionId")).thenReturn(new PlayerEntity(challengeeId, "playerName"));
+        when(mockRemoteDict.getSession("sessionId")).thenReturn(new PlayerEntity(challengeeId, "playerName", "us", 0f));
         when(mockGameService.create(any())).thenReturn("test-id");
         when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(1);
 
@@ -181,7 +180,7 @@ public class FormControllerTest {
         SessionService mockSessionService = mock(SessionService.class);
 
         when(mockSessionService.parseSession(any())).thenReturn(new SessionService.SessionValue("sessionId", challengeeId, "username", "us"));
-        when(mockRemoteDict.getSession("sessionId")).thenReturn(new PlayerEntity(challengeeId, "playerName"));
+        when(mockRemoteDict.getSession("sessionId")).thenReturn(new PlayerEntity(challengeeId, "playerName", "us", 0f));
         when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(0);
 
         State state = new State();
@@ -213,7 +212,7 @@ public class FormControllerTest {
         SessionService mockSessionService = mock(SessionService.class);
 
         when(mockSessionService.parseSession(any())).thenReturn(new SessionService.SessionValue("sessionId", challengerId, "username", "us"));
-        when(mockRemoteDict.getSession("sessionId")).thenReturn(new PlayerEntity(challengerId, "playerName"));
+        when(mockRemoteDict.getSession("sessionId")).thenReturn(new PlayerEntity(challengerId, "playerName", "us", 0f));
         when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(1);
 
         State state = new State();
@@ -247,7 +246,7 @@ public class FormControllerTest {
         SessionService mockSessionService = mock(SessionService.class);
 
         when(mockSessionService.parseSession(any())).thenReturn(new SessionService.SessionValue("sessionId", challengeeId, "username", "us"));
-        when(mockRemoteDict.getSession("sessionId")).thenReturn(new PlayerEntity(challengeeId, "playerName"));
+        when(mockRemoteDict.getSession("sessionId")).thenReturn(new PlayerEntity(challengeeId, "playerName", "us", 0f));
         when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(1);
 
         State state = new State();

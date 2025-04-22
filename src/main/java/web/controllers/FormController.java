@@ -15,22 +15,32 @@ import io.jooby.*;
 import io.jooby.exception.StatusCodeException;
 import models.PlayerEntity;
 import org.jsoup.Jsoup;
-import services.SessionService;
+import web.reusable.SessionService;
 import web.State;
 
 import java.io.IOException;
 
 import static utils.Globals.*;
 import static daos.UserDao.*;
-import static services.SessionService.*;
+import static web.reusable.SessionService.*;
 import static web.WebConstants.*;
 
 public class FormController extends Jooby {
 
-    private final State state;
+    private final UserDao userDao;
+    private final ChallengeDao challengeDao;
+    private final RemoteDict remoteDict;
+    private final GameService gameService;
+    private final SessionService sessionService;
+    private final Broadcaster userBroadcaster;
 
     public FormController(State state) {
-        this.state = state;
+        userDao = state.getUserDao();
+        challengeDao = state.getChallengeDao();
+        remoteDict = state.getRemoteDict();
+        gameService = state.getGameService();
+        sessionService = state.getSessionService();
+        userBroadcaster = state.getUserBroadcaster();
 
         setWorker(EXECUTOR);
 
@@ -76,12 +86,8 @@ public class FormController extends Jooby {
     }
 
     public String register(Context ctx) {
-        SessionService sessionService = state.getSessionService();
-        UserDao userDao = state.getUserDao();
-        RemoteDict remoteDict = state.getRemoteDict();
-
         RegisterBody body = ctx.body(RegisterBody.class);
-        String username = body.getUsername();
+        String username = body.username;
         String password = body.getPassword();
         String confirmPassword = body.getConfirmPassword();
 
@@ -95,13 +101,13 @@ public class FormController extends Jooby {
 
         try {
             UserEntity user = userDao.insert(username, password);
-            remoteDict.incrLeaderboardUser(user.getId(), user.getElo());
+            remoteDict.incrLeaderboardUser(user.id, user.elo);
 
             String sessionId = sessionService.createId();
-            Cookie cookie = sessionService.createCookie(sessionId, user.getId(), user.getUsername(), user.getCountry());
+            Cookie cookie = sessionService.createCookie(sessionId, user.id, user.username, user.country);
             ctx.setResponseCookie(cookie);
 
-            PlayerEntity player = new PlayerEntity(user.getId(), user.getUsername());
+            PlayerEntity player = new PlayerEntity(user.id, user.username, user.country, user.elo);
             remoteDict.setSession(sessionId, player, cookie.getMaxAge());
 
             LOGGER.info("Registered a new player={}", player);
@@ -121,12 +127,8 @@ public class FormController extends Jooby {
     }
 
     public String login(Context ctx) {
-        SessionService sessionService = state.getSessionService();
-        UserDao userDao = state.getUserDao();
-        RemoteDict remoteDict = state.getRemoteDict();
-
         LoginBody body = ctx.body(LoginBody.class);
-        String username = body.getUsername();
+        String username = body.username;
         String password = body.getPassword();
 
         VerifiedUser verifiedUser = userDao.verify(username, password);
@@ -135,9 +137,12 @@ public class FormController extends Jooby {
         }
 
         String sessionId = sessionService.createId();
-        Cookie cookie = sessionService.createCookie(sessionId, verifiedUser.getId(), verifiedUser.getUsername(), verifiedUser.getCountry());
+        Cookie cookie = sessionService.createCookie(sessionId, verifiedUser.id, verifiedUser.username, verifiedUser.country);
         ctx.setResponseCookie(cookie);
-        remoteDict.setSession(sessionId, new PlayerEntity(verifiedUser.getId(), verifiedUser.getUsername()), cookie.getMaxAge());
+        remoteDict.setSession(
+            sessionId,
+            new PlayerEntity(verifiedUser.id, verifiedUser.username, verifiedUser.country, verifiedUser.elo),
+            cookie.getMaxAge());
 
         LOGGER.info("Player has logged in {}", verifiedUser);
 
@@ -154,9 +159,6 @@ public class FormController extends Jooby {
     }
 
     public String updatePassword(Context ctx) {
-        SessionService sessionService = state.getSessionService();
-        UserDao userDao = state.getUserDao();
-
         UpdatePasswordBody body = ctx.body(UpdatePasswordBody.class);
         String password = body.getPassword();
         String newPassword = body.getNewPassword();
@@ -164,16 +166,16 @@ public class FormController extends Jooby {
 
         validatePassword(newPassword, confirmNewPassword);
 
-        SessionService.SessionValue session = sessionService.parseSession(ctx);
+        SessionValue session = sessionService.parseSession(ctx);
         if (session == null) {
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_REQUIRED_LOGIN);
         }
-        VerifiedUser player = userDao.verify(session.getUsername(), password);
+        VerifiedUser player = userDao.verify(session.username, password);
         if (player == null) {
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_INVALID_LOGIN);
         }
 
-        userDao.updatePassword(player.getId(), newPassword);
+        userDao.updatePassword(player.id, newPassword);
 
         return SUCCESS_UPDATE_PASSWORD;
     }
@@ -188,10 +190,6 @@ public class FormController extends Jooby {
     }
 
     public String updateUser(Context ctx) {
-        UserDao userDao = state.getUserDao();
-        SessionService sessionService = state.getSessionService();
-        RemoteDict remoteDict = state.getRemoteDict();
-
         UpdateUserBody body = ctx.body(UpdateUserBody.class);
         String newUsername = body.getNewUsername();
         String newCountry = body.getNewCountry();
@@ -201,15 +199,15 @@ public class FormController extends Jooby {
         if (session == null) {
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_REQUIRED_LOGIN);
         }
-        PlayerEntity player = remoteDict.getSession(session.getSessionId());
+        PlayerEntity player = remoteDict.getSession(session.sessionId);
         if (player == null) {
             ctx.setResponseCookie(sessionService.createEmptyCookie());
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_SESSION_EXPIRED);
         }
 
-        VerifiedUser verifiedUser = userDao.updateUser(player.getId(), newUsername, newCountry, newBio);
+        VerifiedUser verifiedUser = userDao.updateUser(player.id, newUsername, newCountry, newBio);
         if (verifiedUser != null) {
-            Cookie cookie = sessionService.createCookie(session.getSessionId(), verifiedUser.getId(), verifiedUser.getUsername(), verifiedUser.getCountry());
+            Cookie cookie = sessionService.createCookie(session.sessionId, verifiedUser.id, verifiedUser.username, verifiedUser.country);
             ctx.setResponseCookie(cookie);
         }
 
@@ -217,30 +215,24 @@ public class FormController extends Jooby {
     }
 
     public String updateSession(Context ctx) {
-        SessionService sessionService = state.getSessionService();
-        RemoteDict remoteDict = state.getRemoteDict();
-
         SessionValue session = sessionService.parseSession(ctx);
         if (session != null) {
-            Cookie cookie = sessionService.createCookie(session.getSessionId(), session.getUserId(), session.getUsername(), session.getCountry());
+            Cookie cookie = sessionService.createCookie(session.sessionId, session.userId, session.username, session.country);
             ctx.setResponseCookie(cookie);
-            remoteDict.updateSessionEx(session.getSessionId(), cookie.getMaxAge());
+            remoteDict.updateSessionEx(session.sessionId, cookie.getMaxAge());
 
-            LOGGER.info("Refreshed session for user={}", session.getUserId());
+            LOGGER.info("Refreshed session for user={}", session.userId);
         }
 
         return SUCCESS_GENERIC;
     }
 
     public String logout(Context ctx) {
-        SessionService sessionService = state.getSessionService();
-        RemoteDict remoteDict = state.getRemoteDict();
-
         SessionValue session = sessionService.parseSession(ctx);
-        remoteDict.deleteSession(session.getSessionId());
+        remoteDict.deleteSession(session.sessionId);
         ctx.setResponseCookie(sessionService.createEmptyCookie());
 
-        LOGGER.info("Logged out user={}", session.getUserId());
+        LOGGER.info("Logged out user={}", session.userId);
 
         return SUCCESS_GENERIC;
     }
@@ -253,8 +245,6 @@ public class FormController extends Jooby {
     }
 
     public String createGame(Context ctx) {
-        GameService gameService = state.getGameService();
-
         CreateGameBody body = ctx.body(CreateGameBody.class);
         String color = body.getColor();
 
@@ -290,11 +280,6 @@ public class FormController extends Jooby {
     }
 
     public UpdateChallengeResp updateChallenge(Context ctx) throws IOException {
-        GameService gameService = state.getGameService();
-        SessionService sessionService = state.getSessionService();
-        RemoteDict remoteDict = state.getRemoteDict();
-        ChallengeDao challengeDao = state.getChallengeDao();
-
         UpdateChallengeBody body = ctx.body(UpdateChallengeBody.class);
         long challengeeId = body.getChallengeeId();
         long challengerId = body.getChallengerId();
@@ -304,13 +289,13 @@ public class FormController extends Jooby {
         if (session == null) {
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, UpdateChallengeResp.json(ERROR_REQUIRED_LOGIN));
         }
-        PlayerEntity player = remoteDict.getSession(session.getSessionId());
+        PlayerEntity player = remoteDict.getSession(session.sessionId);
         if (player == null) {
             ctx.setResponseCookie(sessionService.createEmptyCookie());
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, UpdateChallengeResp.json(ERROR_SESSION_EXPIRED));
         }
 
-        long callerId = player.getId();
+        long callerId = player.id;
 
         long targetId = switch (action) {
             case "ACCEPT", "REJECT" -> challengeeId;
@@ -345,11 +330,6 @@ public class FormController extends Jooby {
     }
 
     public String createChallenge(Context ctx) {
-        SessionService sessionService = state.getSessionService();
-        RemoteDict remoteDict = state.getRemoteDict();
-        ChallengeDao challengeDao = state.getChallengeDao();
-        Broadcaster userBroadcaster = state.getUserBroadcaster();
-
         CreateChallengeBody body = ctx.body(CreateChallengeBody.class);
         long challengeeId = body.getChallengeeId();
 
@@ -357,14 +337,14 @@ public class FormController extends Jooby {
         if (session == null) {
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_REQUIRED_LOGIN);
         }
-        PlayerEntity player = remoteDict.getSession(session.getSessionId());
+        PlayerEntity player = remoteDict.getSession(session.sessionId);
         if (player == null) {
             ctx.setResponseCookie(sessionService.createEmptyCookie());
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_SESSION_EXPIRED);
         }
 
         try {
-            ChallengeEntity entity = challengeDao.insert(challengeeId, player.getId());
+            ChallengeEntity entity = challengeDao.insert(challengeeId, player.id);
 
             EXECUTOR.execute(() -> {
                 try {
@@ -374,7 +354,7 @@ public class FormController extends Jooby {
                     LOGGER.error("Error occurred while broadcasting challenge to user", e);
                 }
             });
-            EXECUTOR.execute(() -> challengeDao.deleteExpired(session.getUserId()));
+            EXECUTOR.execute(() -> challengeDao.deleteExpired(session.userId));
         } catch (ChallengeDao.ParticipantException ex) {
             throw new StatusCodeException(StatusCode.NOT_FOUND, ERROR_NOT_FOUND_CHALLENGE);
         } catch (ChallengeDao.SelfException ex) {

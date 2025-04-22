@@ -6,3 +6,9 @@ function getSessionCookie() {
     }
     return JSON.parse(JSON.parse(value))
 }
+
+function getPostHeaders() {
+    return {
+        "Content-Type": "application/json"
+    };
+}

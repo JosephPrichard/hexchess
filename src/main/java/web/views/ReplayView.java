@@ -1,8 +1,10 @@
+
 package web.views;
 
-import chess.PieceMove;
-import com.fasterxml.jackson.databind.type.CollectionType;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 import org.jsoup.Jsoup;
 import models.ReplayEntity;
 import web.WebConstants;
@@ -10,18 +12,16 @@ import web.WebConstants;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 import java.util.function.Function;
 
 import static models.ReplayEntity.*;
 import static utils.Globals.HTML_SAFELIST;
-import static utils.Globals.JSON_MAPPER;
 
-@Data
+@ToString
+@EqualsAndHashCode
+@Getter
 public class ReplayView {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
-    private static final DateTimeFormatter DURATION_FORMATTER = DateTimeFormatter.ofPattern("hh:mm a");
-    private static final CollectionType moveListType = JSON_MAPPER.getTypeFactory().constructCollectionType(List.class, PieceMove.class);
 
     public long id;
     public long whiteId;
@@ -73,9 +73,9 @@ public class ReplayView {
 
     public static String formatCause(int cause) {
         return switch (cause) {
-        case CHECKMATE -> "Checkmate";
-        case FORFEIT -> "Forfeit";
-        default -> throw new IllegalStateException("Invalid cause state " + cause);
+            case CHECKMATE -> "Checkmate";
+            case FORFEIT -> "Forfeit";
+            default -> throw new IllegalStateException("Invalid cause state " + cause);
         };
     }
 

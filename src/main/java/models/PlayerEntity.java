@@ -1,9 +1,6 @@
 package models;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 @Data
 @NoArgsConstructor
@@ -12,4 +9,8 @@ public class PlayerEntity {
     public long id;
     @EqualsAndHashCode.Exclude
     public String name;
+    @EqualsAndHashCode.Exclude
+    public String country;
+    @EqualsAndHashCode.Exclude
+    public Float elo;
 }

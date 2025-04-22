@@ -11,13 +11,11 @@ public class AppController extends Jooby {
     public AppController(State state) {
         install(new JacksonModule());
 
-        assets("/favicon.ico", "/static/images/pieces/white-queen.png");
-        assets("/static/*", "static").setMaxAge(Duration.ofHours(1));
-
+        mount(new StaticsController());
         mount(new FormController(state));
         mount(new EventController(state));
         mount(new PageController(state).initStatics());
         mount(new PartialsController(state));
-        mount(new GameController(state));
+        mount(new WebsocketController(state));
     }
 }

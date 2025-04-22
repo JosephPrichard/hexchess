@@ -2,28 +2,26 @@ package models;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import chess.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@Data
+@ToString
+@EqualsAndHashCode
 @NoArgsConstructor
 @AllArgsConstructor
 public class GameState {
     public String id;
     public ChessGame game;
-    public PlayerEntity whitePlayer = null;
-    public PlayerEntity blackPlayer = null;
+    public PlayerEntity whitePlayer;
+    public PlayerEntity blackPlayer;
     public boolean isEnded;
     @JsonIgnore
-    public Boolean isFirstPlayerWhite = null; // true - first player joining should be white... false - first player joining should be black... null - random...
+    public Boolean isFirstPlayerWhite; // true - first player joining should be white... false - first player joining should be black... null - random...
     @EqualsAndHashCode.Exclude
     @JsonIgnore
-    public double touch;
+    public long touch;
     @JsonIgnore
     public List<PieceMove> moveList;
 

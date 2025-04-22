@@ -50,7 +50,7 @@ public class RemoteDictTest {
         GameState firstGame = remoteDict.getGame(id);
         Assertions.assertEquals(GameState.startWithGame(id), firstGame);
 
-        firstGame.getGame().getBoard().setPiece("a1", ChessBoard.BLACK_QUEEN);
+        firstGame.game.getBoard().setPiece("a1", ChessBoard.BLACK_QUEEN);
         remoteDict.setGame(id, firstGame);
 
         GameState secondGame = remoteDict.getGame(id);
@@ -66,9 +66,9 @@ public class RemoteDictTest {
         String id3 = "test-id3";
         String id4 = "test-id4";
 
-        PlayerEntity player1 = new PlayerEntity(1L, "name1");
-        PlayerEntity player2 = new PlayerEntity(2L, "name2");
-        PlayerEntity player3 = new PlayerEntity(3L, "name3");
+        PlayerEntity player1 = new PlayerEntity(1L, "name1", null, null);
+        PlayerEntity player2 = new PlayerEntity(2L, "name2", null, null);
+        PlayerEntity player3 = new PlayerEntity(3L, "name3", null, null);
 
         GameState game1 = GameState.ofPlayers(id1, player1, player2);
         GameState game2 = GameState.ofPlayers(id2, player2, player3);
@@ -81,26 +81,24 @@ public class RemoteDictTest {
         remoteDict.setGame(id3, game3);
         remoteDict.setGame(id4, game4);
 
-        RemoteDict.GetGamesResult scanResult1 = remoteDict.getGames(null, 2);
-        RemoteDict.GetGamesResult scanResult2 = remoteDict.getGames(scanResult1.getNextCursor(), 2);
+        List<GameState> gameStates1 = remoteDict.getGames(1, 2);
+        List<GameState> gameStates2 = remoteDict.getGames(2, 2);
 
         // then
-        Assertions.assertEquals(2, scanResult1.getGameStates().size());
-        Assertions.assertEquals(2, scanResult2.getGameStates().size());
+        Assertions.assertEquals(2, gameStates1.size());
+        Assertions.assertEquals(2, gameStates2.size());
 
-        Assertions.assertEquals(id1, scanResult1.getGameStates().get(0).getId());
-        Assertions.assertEquals(id2, scanResult1.getGameStates().get(1).getId());
-        Assertions.assertEquals(id3, scanResult2.getGameStates().get(0).getId());
-        Assertions.assertEquals(id4, scanResult2.getGameStates().get(1).getId());
-
-        Assertions.assertNull(scanResult2.getNextCursor());
+        Assertions.assertEquals(id1, gameStates1.get(0).id);
+        Assertions.assertEquals(id2, gameStates1.get(1).id);
+        Assertions.assertEquals(id3, gameStates2.get(0).id);
+        Assertions.assertEquals(id4, gameStates2.get(1).id);
     }
 
     @Test
     public void testSessions() throws InterruptedException {
         // given
-        PlayerEntity player1 = new PlayerEntity(1L, "test-name1");
-        PlayerEntity player2 = new PlayerEntity(2L, "test-name2");
+        PlayerEntity player1 = new PlayerEntity(1L, "test-name1", null, null);
+        PlayerEntity player2 = new PlayerEntity(2L, "test-name2", null, null);
 
         // when
         remoteDict.setSession("session1", player1, 100);

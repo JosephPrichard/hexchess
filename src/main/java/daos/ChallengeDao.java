@@ -1,8 +1,6 @@
 package daos;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import models.ChallengeEntity;
 import org.apache.commons.dbutils.DbUtils;
 import org.apache.commons.dbutils.QueryRunner;
@@ -35,12 +33,11 @@ public class ChallengeDao {
 
     public static class ParticipantException extends RuntimeException {}
 
-    @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ChallengeInst {
-        long challengerId;
-        long challengeeId;
+        public long challengerId;
+        public long challengeeId;
     }
 
     public ChallengeEntity insert(ChallengeInst inst) {

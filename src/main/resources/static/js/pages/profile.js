@@ -1,31 +1,44 @@
+let state = {
+    country: undefined
+};
+
 async function onSubmitUserForm(e) {
     e.preventDefault();
 
     const usernameElem = document.getElementById("username");
     const bioElem = document.getElementById("bio");
-    const countryElem = document.getElementById("selected-country");
     const submitElem = document.getElementById("user-form-submit");
 
-    submitElem.innerHTML = `<div class="loader"></div`;
+    submitElem.innerHTML = '<div class="loader"></div';
 
     const resp = await fetch("/forms/users", {
         method: 'POST',
-        headers: {
-            "Content-Type": "application/json"
-        },
+        headers: getPostHeaders(),
         body: JSON.stringify({
             newUsername: usernameElem.value,
             newBio: bioElem.value,
-            newCountry: countryElem.getAttribute("data-country")
-        })
+            newCountry: state.country,
+        }),
     });
     const code = await resp.text();
     const ok = resp.ok;
 
     console.log("Update user response", code, ok);
 
-    createNotification(messages[code], ok);
+    createNotification(messages[code] || "", ok);
     submitElem.innerHTML = "Login";
+}
+
+async function onSelectCountry(country) {
+    console.log("Selecting country", country);
+
+    const elemCountry = document.getElementById("selected-country");
+    elemCountry.setAttribute('src', `/static/images/flags/${country}.png`);
+    elemCountry.setAttribute('alt', country);
+
+    state.country = country;
+
+    toggleCountryDropdown();
 }
 
 async function onSubmitPasswordForm(e)  {
@@ -40,46 +53,32 @@ async function onSubmitPasswordForm(e)  {
 
     const resp = await fetch("/forms/users/password", {
         method: 'POST',
-        headers: {
-            "Content-Type": "application/json"
-        },
+        headers: getPostHeaders(),
         body: JSON.stringify({
             password: passwordElem.value,
             newPassword: newPasswordElem.value,
-            confirmNewPassword: retypePasswordElem.value
-        })
+            confirmNewPassword: retypePasswordElem.value,
+        }),
     });
     const code = await resp.text();
     const ok = resp.ok;
 
     console.log("Update password response", code, ok);
 
-    createNotification(messages[code], ok);
+    createNotification(messages[code] || "", ok);
     submitElem.innerHTML = "Login";
 }
 
 async function onSignOut() {
     const resp = await fetch("/forms/logout", {
         method: 'POST',
-        headers: {
-            "Content-Type": "application/json"
-        }
+        headers: getPostHeaders(),
     });
     const ok = resp.ok;
 
-    console.log("Logout response", object, ok);
-    window.location = "/";
-}
-
-async function onSelectCountry(country) {
-    console.log("Selecting country", country);
-
-    const elemCountry = document.getElementById("selected-country");
-    elemCountry.setAttribute('src', `/static/images/flags/${country}.png`);
-    elemCountry.setAttribute('data-country', country);
-    elemCountry.setAttribute('alt', country);
-
-    toggleCountryDropdown();
+    if (ok) {
+        window.location = "/";
+    }
 }
 
 function toggleCountryDropdown() {
@@ -87,11 +86,14 @@ function toggleCountryDropdown() {
 
     let display = dropdown.style.getPropertyValue("display");
     display = display !== 'none' ? 'none' : 'block';
-
     dropdown.style.setProperty("display", display);
 }
 
-function renderProfile() {
+function initState(initialCountry) {
+    state.country = initialCountry;
+}
+
+function attachEventListeners() {
     const userFormElem = document.getElementById("update-user-form");
     const passwordFormElem = document.getElementById("update-password-form");
     const signOutButton = document.getElementById("sign-out-button");

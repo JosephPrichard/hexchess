@@ -1,18 +1,16 @@
 async function updateChallenge({ id, buttonId, challengerId, challengeeId, action, getMessage }) {
-    console.log(`On ${action} challenge`, challengerId, challengeeId);
-
     const submitElem = document.getElementById(id);
     const buttonElem = document.getElementById(buttonId);
     const noChallengesElem = document.getElementById("no-challenges");
     const challengeListElem = document.getElementById("challenge-list");
 
+    console.log(`On ${action} challenge`, challengerId, challengeeId);
+
     buttonElem.innerHTML = '<div class="loader"></div>';
 
     const resp = await fetch("/forms/challenges/update", {
         method: 'POST',
-        headers: {
-            "Content-Type": "application/json"
-        },
+        headers: getPostHeaders(),
         body: JSON.stringify({
             challengerId: Number(challengerId),
             challengeeId: Number(challengeeId),
@@ -47,7 +45,7 @@ async function onDelete(index, challengerId, challengeeId, challengeeName) {
             if (object.code === "SUCCESS_UPDATE_CHALLENGE") {
                 return "Deleted challenge against " + challengeeName;
             }
-            return messages[code];
+            return messages[code] || "";
         }
     });
 }
@@ -63,7 +61,7 @@ async function onAccept(index, challengerId, challengeeId, challengerName) {
             if (object.code === "SUCCESS_UPDATE_CHALLENGE") {
                 return "Accepted challenge from " + challengerName;
             }
-            return messages[code];
+            return messages[code] || "";
         }
     });
 }
@@ -79,7 +77,7 @@ async function onReject(index, challengerId, challengeeId, challengerName) {
             if (object.code === "SUCCESS_UPDATE_CHALLENGE") {
                 return "Rejected challenge from " + challengerName;
             }
-            return messages[code];
+            return messages[code] || "";
         }
     });
 }

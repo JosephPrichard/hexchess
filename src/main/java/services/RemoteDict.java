@@ -3,14 +3,14 @@ package services;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectReader;
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import models.GameState;
 import models.PlayerEntity;
 import models.RankedUser;
 import models.UserEntity;
 import redis.clients.jedis.AbstractTransaction;
 import redis.clients.jedis.JedisPooled;
-import redis.clients.jedis.resps.Tuple;
 import utils.Serializer;
 
 import java.io.IOException;
@@ -29,6 +29,7 @@ public class RemoteDict {
     private final ObjectReader playerReader;
 
     private static final String GAMES_ZSET = "games";
+    private static final byte[] GAMES_ZSET_BYTES = GAMES_ZSET.getBytes();
     private static final String LEADERBOARD_ZSET = "leaderboard";
     private static final Duration GAME_EXPIRE_FINISHED = Duration.ofHours(1);
 
@@ -49,15 +50,14 @@ public class RemoteDict {
     }
 
     public GameState setGame(String id, GameState gameState) {
-        double timeMillis = System.currentTimeMillis();
-        gameState.setTouch(timeMillis);
+        gameState.touch = System.currentTimeMillis();
 
         byte[] bytes = Serializer.serialize(gameState);
-        String fullId = "game:" + id;
+        id = "game:" + id;
 
         AbstractTransaction t = jedis.multi();
-        t.set(fullId.getBytes(), bytes);
-        t.zadd(GAMES_ZSET, timeMillis, fullId);
+        t.set(id.getBytes(), bytes);
+        t.zadd(GAMES_ZSET, gameState.touch, id);
         t.exec();
 
         return gameState;
@@ -81,28 +81,20 @@ public class RemoteDict {
         }
     }
 
-    @Data
-    @AllArgsConstructor
-    public static class GetGamesResult {
-        Double nextCursor;
-        List<GameState> gameStates;
-    }
-
-    public GetGamesResult getGames(Double cursor, int count) {
+    public List<GameState> getGames(int page, int count) {
         expireGames();
 
-        cursor = cursor != null ? cursor : 0;
-        List<Tuple> tuples = jedis.zrangeByScoreWithScores(GAMES_ZSET, cursor, Double.POSITIVE_INFINITY, 0, count + 1);
-
-        // discard the last element, if we know for sure we over fetched, and use it as the next cursor
-        Double nextCursor = null;
-        if (tuples.size() >= count + 1) {
-            nextCursor = tuples.removeLast().getScore();
+        if (page < 1) {
+            page = 1;
         }
 
-        byte[][] fullIds = new byte[tuples.size()][];
-        for (int i = 0; i < tuples.size(); i++) {
-            fullIds[i] = tuples.get(i).getBinaryElement();
+        int min = (page - 1) * count;
+        int max = min + count - 1;
+        List<byte[]> elements = jedis.zrange(GAMES_ZSET_BYTES, min, max);
+
+        byte[][] fullIds = new byte[elements.size()][];
+        for (int i = 0; i < elements.size(); i++) {
+            fullIds[i] = elements.get(i);
         }
 
         List<byte[]> bytesList = null;
@@ -110,11 +102,10 @@ public class RemoteDict {
             bytesList = jedis.mget(fullIds);
         }
         if (bytesList == null) {
-            return null;
+            return List.of();
         }
 
-        List<GameState> gameStates = bytesList.stream().map((bytes) -> Serializer.deserialize(bytes, GameState.class)).toList();
-        return new GetGamesResult(nextCursor, gameStates);
+        return bytesList.stream().map((bytes) -> Serializer.deserialize(bytes, GameState.class)).toList();
     }
 
     public PlayerEntity getSession(String sessionId) {
@@ -158,7 +149,7 @@ public class RemoteDict {
         } else {
             String guestName = "Guest " + RANDOM.nextInt(1000);
             long randomLong = RANDOM.nextLong();
-            player = new PlayerEntity(randomLong, guestName);
+            player = new PlayerEntity(randomLong, guestName, null, null);
         }
         return player;
     }
@@ -174,11 +165,12 @@ public class RemoteDict {
         return rank.intValue() + 1;
     }
 
-    @Data
+    @ToString
+    @EqualsAndHashCode
     @AllArgsConstructor
     public static class Leaderboard {
-        List<RankedUser> users;
-        int pageCount;
+        public List<RankedUser> users;
+        public int pageCount;
     }
 
     public Leaderboard getLeaderboard(int startRank, int count) {
@@ -205,11 +197,11 @@ public class RemoteDict {
         return leaderboard;
     }
 
-    @Data
+    @ToString
     @AllArgsConstructor
     public static class EloChangeSet {
-        long id;
-        double elo;
+        public long id;
+        public double elo;
     }
 
     public void incrLeaderboardUser(EloChangeSet... changeSets) {

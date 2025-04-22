@@ -10,29 +10,25 @@ async function onSubmitRegisterForm(e) {
 
     const resp = await fetch("/forms/register", {
         method: 'POST',
-        headers: {
-            "Content-Type": "application/json"
-        },
+        headers: getPostHeaders(),
         body: JSON.stringify({
             username: usernameElem.value,
             password: passwordElem.value,
-            confirmPassword: dupPasswordElem.value
-        })
+            confirmPassword: dupPasswordElem.value,
+        }),
     });
     const code = await resp.text();
     const ok = resp.ok;
 
-    console.log("Register response", code, ok);
-
     if (ok) {
         window.location = "/";
     } else {
-        createNotification(messages[code], ok);
+        createNotification(messages[code] || "", ok);
     }
     submitElem.innerHTML = "Register";
 }
 
-function renderRegister() {
+function attachEventListeners() {
     const registerFormElem = document.getElementById("register-form");
     registerFormElem.addEventListener('submit', onSubmitRegisterForm);
 }

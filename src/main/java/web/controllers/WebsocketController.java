@@ -18,7 +18,7 @@ import java.util.UUID;
 
 import static utils.Globals.*;
 
-public class GameController extends Jooby {
+public class WebsocketController extends Jooby {
 
     private static final String ERROR_MESSAGE_TYPE = "ERROR_MESSAGE_TYPE";
     private static final String ERROR_TURN = "ERROR_TURN";
@@ -28,7 +28,7 @@ public class GameController extends Jooby {
 
     private final State state;
 
-    public GameController(State state) {
+    public WebsocketController(State state) {
         this.state = state;
 
         install(new JacksonModule(JSON_MAPPER));
@@ -118,18 +118,18 @@ public class GameController extends Jooby {
             Broadcaster broadcaster = state.getGameBroadcaster();
 
             try {
-                LOGGER.info("Player {} attempting to connect to game {}", player.getId(), gameId);
+                LOGGER.info("Player {} attempting to connect to game {}", player.id, gameId);
 
                 GameState gameState = gameService.join(gameId, player);
                 if (gameState == null) {
                     ws.render(OutputMsg.ofError(ERROR_INVALID_GAME));
                     return;
                 }
-                broadcaster.subscribe(gameState.getId(), wsId, ws::send);
+                broadcaster.subscribe(gameState.id, wsId, ws::send);
 
                 String jsonResult = JSON_MAPPER.writeValueAsString(OutputMsg.ofJoin(player, gameState));
-                broadcaster.broadcast(gameState.getId(), jsonResult);
-                LOGGER.info("Player {} successfully connected to game {}", player.getId(), gameId);
+                broadcaster.broadcast(gameState.id, jsonResult);
+                LOGGER.info("Player {} successfully connected to game {}", player.id, gameId);
             } catch (Exception e) {
                 LOGGER.error("Fatal exception occurred: {}", e.getMessage());
                 ws.close();
@@ -142,7 +142,7 @@ public class GameController extends Jooby {
             GameService gameService = state.getGameService();
             Broadcaster broadcaster = state.getGameBroadcaster();
 
-            LOGGER.info("Received message from player {}, {} on game {}", player.getId(), message.value(), gameId);
+            LOGGER.info("Received message from player {}, {} on game {}", player.id, message.value(), gameId);
             try {
                 try {
                     InputMsg input = JSON_MAPPER.readValue(message.value(), InputMsg.class);

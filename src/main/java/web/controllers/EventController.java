@@ -1,19 +1,13 @@
 package web.controllers;
 
-import chess.Move;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import io.jooby.Context;
 import io.jooby.Jooby;
 import io.jooby.ServerSentEmitter;
 import io.jooby.jackson.JacksonModule;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import models.GameState;
 import models.PlayerEntity;
 import services.Broadcaster;
 import services.RemoteDict;
-import services.SessionService;
+import web.reusable.SessionService;
 import web.State;
 
 import java.util.UUID;
@@ -44,14 +38,14 @@ public class EventController extends Jooby {
             sse.close();
             return;
         }
-        PlayerEntity player = remoteDict.getSession(session.getSessionId());
+        PlayerEntity player = remoteDict.getSession(session.sessionId);
         if (player == null) {
             sse.close();
             return;
         }
 
         String sseId = UUID.randomUUID().toString();
-        String userId = Long.toString(player.getId());
+        String userId = Long.toString(player.id);
 
         userBroadcaster.subscribe(userId, sseId, sse::send);
         sse.onClose(() -> userBroadcaster.unsubscribe(userId, sseId));

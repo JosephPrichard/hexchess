@@ -9,7 +9,8 @@ import daos.UserDao;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import services.SessionService;
+import web.reusable.PathService;
+import web.reusable.SessionService;
 
 import java.util.List;
 
@@ -23,6 +24,7 @@ public class State {
     private RemoteDict remoteDict;
     private GameService gameService;
     private SessionService sessionService;
+    private PathService pathService;
     private Broadcaster gameBroadcaster;
     private Broadcaster userBroadcaster;
     private Templates templates;

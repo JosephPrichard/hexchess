@@ -1,9 +1,7 @@
 package daos;
 
 import at.favre.lib.crypto.bcrypt.BCrypt;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import models.RankedUser;
 import models.UserEntity;
 import org.apache.commons.dbutils.DbUtils;
@@ -36,7 +34,6 @@ public class UserDao {
         runner = new QueryRunner(ds);
     }
 
-    @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class UserInst {
@@ -46,13 +43,6 @@ public class UserDao {
         public float elo;
         public int wins;
         public int losses;
-    }
-
-    @Data
-    @AllArgsConstructor
-    public static class CreatedUser {
-        public long id;
-        public float elo;
     }
 
     public static class TakenUsernameException extends RuntimeException {
@@ -75,7 +65,7 @@ public class UserDao {
 
     public UserEntity insert(UserInst inst) throws TakenUsernameException {
         String salt = generateSalt();
-        String saltedPassword = inst.getPassword() + salt;
+        String saltedPassword = inst.password + salt;
         String hashedPassword = BCrypt.withDefaults().hashToString(12, saltedPassword.toCharArray());
 
         String sql = """
@@ -106,19 +96,19 @@ public class UserDao {
         }
     }
 
-    @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class VerifiedUser {
         public long id;
         public String username;
         public String country;
+        public float elo;
 
         private static final ResultSetHandler<VerifiedUser> MAPPER = new BeanHandler<>(VerifiedUser.class);
     }
 
     public VerifiedUser verify(String username, String inputPassword) {
-        String sql = "SELECT id, username, country, password, salt FROM users WHERE UPPER(username) = UPPER(?)";
+        String sql = "SELECT id, username, country, elo, password, salt FROM users WHERE UPPER(username) = UPPER(?)";
 
         Connection conn = null;
         PreparedStatement stmt = null;
@@ -139,12 +129,13 @@ public class UserDao {
             long id = rs.getLong("id");
             String usernameOut = rs.getString("username");
             String country = rs.getString("country");
+            float elo = rs.getFloat("elo");
 
             String saltedPassword = inputPassword + salt;
             BCrypt.Result result = BCrypt.verifyer().verify(saltedPassword.toCharArray(), password);
 
             LOGGER.info("Password verification {} for username={}", result.verified ? "successful" : "failed", usernameOut);
-            return result.verified ? new VerifiedUser(id, usernameOut, country) : null;
+            return result.verified ? new VerifiedUser(id, usernameOut, country, elo) : null;
         } catch (SQLException ex) {
             LOGGER.error("Failed to select user credentials for user={}", username, ex);
             DbUtils.rollbackAndCloseQuietly(conn);
@@ -194,7 +185,8 @@ public class UserDao {
         }
     }
 
-    @Data
+    @ToString
+    @EqualsAndHashCode
     @AllArgsConstructor
     public static class EloChangeSet {
         public double winEloDiff;
@@ -254,7 +246,7 @@ public class UserDao {
     }
 
     public List<UserEntity> getByRankedUsers(List<RankedUser> users) {
-        return getByIds(users.stream().map(RankedUser::getId).toArray(Long[]::new));
+        return getByIds(users.stream().map((user) -> user.id).toArray(Long[]::new));
     }
 
     public List<UserEntity> getByIds(Long[] ids) {
@@ -314,7 +306,7 @@ public class UserDao {
         try {
             List<UserEntity> users = runner.query(sql, USER_LIST_MAPPER, perPage, offset);
             for (int i = 0; i < users.size(); i++) {
-                users.get(i).setRank((page - 1) * perPage + i + 1);
+                users.get(i).rank = (page - 1) * perPage + i + 1;
             }
             LOGGER.info("Selected leaderboard={} for page={}, perPage={}", users, page, perPage);
             return users;
@@ -338,8 +330,7 @@ public class UserDao {
         try {
             List<UserEntity> users = runner.query(sql, USER_LIST_MAPPER, name, name, perPage, offset);
             for (int i = 0; i < users.size(); i++) {
-                int rank = (page - 1) * perPage + i + 1;
-                users.get(i).setRank(rank);
+                users.get(i).rank = (page - 1) * perPage + i + 1;
             }
 
             LOGGER.info("Selected users={} by name for name={}, page={}, perPage={}", users, name, page, perPage);

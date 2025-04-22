@@ -24,22 +24,20 @@ function createGetReplays(userId) {
 async function onCreateChallenge(challengeeId, challengeeName) {
     const resp = await fetch("/forms/challenges/create", {
         method: 'POST',
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ challengeeId })
+        headers: getPostHeaders(),
+        body: JSON.stringify({ challengeeId }),
     });
     const code = await resp.text();
     const ok = resp.ok;
 
     const customMessages = {
-        "ERROR_DUPLICATE_CHALLENGE": "You have already sent a challenge to " + challengeeName,
-        "SUCCESS_CREATE_CHALLENGE": "Successfully created a challenge against " + challengeeName
+        "ERROR_DUPLICATE_CHALLENGE": `You have already sent a challenge to ${challengeeName}`,
+        "SUCCESS_CREATE_CHALLENGE": `Successfully created a challenge against ${challengeeName}`
     };
-    createNotification(customMessages[code] || messages[code], ok);
+    createNotification(customMessages[code] || messages[code] || "", ok);
 }
 
-async function renderUser(userId) {
+async function render(userId) {
     const cookie = getSessionCookie();
 
     const isDifferentUser = cookie && userId !== String(cookie.userId);
@@ -47,7 +45,9 @@ async function renderUser(userId) {
         const elem = document.getElementById("profile-buttons");
         elem.style.removeProperty('display');
     }
+}
 
+async function attachEventListeners(userId) {
     const loadReplays = createGetReplays(userId);
     await loadReplays();
     window.addEventListener('scroll', loadReplays);

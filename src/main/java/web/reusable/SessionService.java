@@ -1,12 +1,10 @@
-package services;
+package web.reusable;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import io.jooby.Context;
 import io.jooby.Cookie;
 import io.jooby.SameSite;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.security.SecureRandom;
 
@@ -29,14 +27,15 @@ public class SessionService {
         return sb.toString();
     }
 
-    @Data
+    @ToString
+    @EqualsAndHashCode
     @NoArgsConstructor
     @AllArgsConstructor
     public static class SessionValue {
-        String sessionId;
-        long userId;
-        String username;
-        String country;
+        public String sessionId;
+        public long userId;
+        public String username;
+        public String country;
     }
 
     public Cookie createCookie(String sessionId, long userId, String username, String country) {

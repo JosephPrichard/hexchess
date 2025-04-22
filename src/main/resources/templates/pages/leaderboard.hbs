@@ -5,15 +5,15 @@
     <link rel="stylesheet" href="/static/css/index.css">
 </head>
 <body>
-    {{> partials/banner }}
-    <div class="center-horizontal-container">
-        <div class="title-lg">
-            Leaderboard
-        </div>
-        <div class="wrapper">
-            {{> partials/statsList }}
-        </div>
+{{> partials/banner }}
+<div class="center-horizontal-container">
+    <div class="title-lg">
+        Leaderboard
     </div>
-    {{> partials/pagination pages }}
+    <div class="wrapper">
+        {{> partials/statsList }}
+    </div>
+</div>
+{{> partials/pagination pages }}
 </body>
 </html>

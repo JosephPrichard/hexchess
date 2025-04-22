@@ -1,6 +1,9 @@
+
 package web.views;
 
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.ToString;
 import org.jsoup.Jsoup;
 import models.UserEntity;
 import web.WebConstants;
@@ -9,14 +12,16 @@ import java.time.format.DateTimeFormatter;
 
 import static utils.Globals.HTML_SAFELIST;
 
-@Data
+@ToString
+@EqualsAndHashCode
+@Getter
 public class UserView {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
 
     public long id;
     public String username;
     public String country;
-    public int eloFmt;
+    public int elo;
     public float highestElo;
     public int wins;
     public int losses;
@@ -32,7 +37,7 @@ public class UserView {
         view.id = entity.id;
         view.username = entity.username != null ? Jsoup.clean(entity.username, HTML_SAFELIST) : null;
         view.country = entity.country;
-        view.eloFmt = Math.round(entity.elo);
+        view.elo = Math.round(entity.elo);
         view.highestElo = Math.round(entity.highestElo);
         view.bio = entity.bio != null ? Jsoup.clean(entity.bio, HTML_SAFELIST) : null;
         view.joinedOn = entity.joinedOn != null ? entity.joinedOn.toLocalDateTime().format(DATE_FORMATTER) : null;

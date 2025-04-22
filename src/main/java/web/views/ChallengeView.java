@@ -1,18 +1,19 @@
 package web.views;
 
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.ToString;
 import models.ChallengeEntity;
 
 import java.sql.Timestamp;
 import java.time.Duration;
-import java.time.format.DateTimeFormatter;
 
 import static daos.ChallengeDao.THRESHOLD_EXPIRATION;
 
-@Data
+@ToString
+@EqualsAndHashCode
+@Getter
 public class ChallengeView {
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm");
-
     public long challengerId;
     public String challengerName;
     public String challengerCountry;

@@ -27,8 +27,8 @@
                      id="selected-country"
                      src="/static/images/flags/{{user.country}}.png"
                      alt="{{user.country}}"
-                     onclick="toggleCountryDropdown()"
-                     data-country="{{user.country}}" />
+                     onclick="toggleCountryDropdown()" />
+
                 <div id="country-select-options" class="country-picker" style="display: none">
                     {{#each countries}}
                         <img class="country-image"
@@ -68,6 +68,7 @@
 </div>
 </body>
 <script>
-    renderProfile();
+    initState('{{user.country}}');
+    attachEventListeners();
 </script>
 </html>

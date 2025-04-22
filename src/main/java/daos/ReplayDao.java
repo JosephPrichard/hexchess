@@ -27,7 +27,6 @@ public class ReplayDao {
         runner = new QueryRunner(ds);
     }
 
-    @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ReplayInst {

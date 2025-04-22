@@ -10,6 +10,8 @@ import utils.Config;
 import web.controllers.AppController;
 import web.State;
 import web.Templates;
+import web.reusable.PathService;
+import web.reusable.SessionService;
 
 import java.util.List;
 import java.util.Map;
@@ -45,6 +47,7 @@ public class Main {
             GlobalBroadcaster gameBroadcaster = new GlobalBroadcaster(jedis, Broadcaster.GAMES_CHANNEL);
             GlobalBroadcaster userBroadcaster = new GlobalBroadcaster(jedis, Broadcaster.USERS_CHANNEL);
             Templates templates = new Templates(handlebars);
+            PathService pathService = new PathService(templates);
 
             state.setUserDao(userDao);
             state.setReplayDao(replayDao);
@@ -56,6 +59,7 @@ public class Main {
             state.setUserBroadcaster(userBroadcaster);
             state.setTemplates(templates);
             state.setCountryList(countryList);
+            state.setPathService(pathService);
 
             gameBroadcaster.startListenSubscribe();
             userBroadcaster.startListenSubscribe();

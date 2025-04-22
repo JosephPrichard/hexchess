@@ -59,10 +59,10 @@ public class UserDaoTest {
         VerifiedUser verified5 = userDao.verify("user1", "password3");
 
         // then
-        Assertions.assertEquals(verified1.getId(), user1.getId());
-        Assertions.assertEquals(verified2.getId(), user2.getId());
+        Assertions.assertEquals(verified1.id, user1.id);
+        Assertions.assertEquals(verified2.id, user2.id);
         Assertions.assertNull(verified3);
-        Assertions.assertEquals(verified4.getId(), user3.getId());
+        Assertions.assertEquals(verified4.id, user3.id);
         Assertions.assertNull(verified5);
     }
 
@@ -121,7 +121,7 @@ public class UserDaoTest {
         UserDao.VerifiedUser player = userDao.verify("user1", "password-new");
 
         // then
-        Assertions.assertEquals(player.getId(), user.getId());
+        Assertions.assertEquals(player.id, user.id);
     }
 
     @Test

@@ -4,7 +4,7 @@
     <title>{{user.username}} - Hexchess</title>
     <link rel="stylesheet" href="/static/css/index.css">
     <script src="/static/js/pages/user.js"></script>
-    <script src="/static/js/lib/session.js"></script>
+    <script src="/static/js/lib/utils.js"></script>
     <script src="/static/js/lib/notifications.js"></script>
 </head>
 <body>
@@ -97,6 +97,7 @@
 </div>
 </body>
 <script>
-    renderUser('{{user.id}}')
+    render('{{user.id}}')
+    attachEventListeners('{{user.id}}');
 </script>
 </html>

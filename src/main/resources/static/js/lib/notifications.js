@@ -22,7 +22,7 @@ const messages = {
 };
 
 function createNotification(text, isSuccess, timeout) {
-    if (timeout === undefined) {
+    if (!timeout) {
         timeout = 3000;
     }
 

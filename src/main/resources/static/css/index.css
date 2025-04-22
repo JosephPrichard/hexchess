@@ -761,3 +761,7 @@ select {
 .button-transparent:hover {
     background-color: rgb(55, 55, 55);
 }
+
+.games-table {
+    width: 600px;
+}

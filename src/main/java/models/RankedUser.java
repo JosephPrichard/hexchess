@@ -2,11 +2,14 @@ package models;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 import java.util.List;
 import java.util.NoSuchElementException;
 
-@Data
+@ToString
+@EqualsAndHashCode
 @AllArgsConstructor
 public class RankedUser {
     public long id;

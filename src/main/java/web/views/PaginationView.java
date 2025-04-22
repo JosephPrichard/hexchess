@@ -1,12 +1,14 @@
+
 package web.views;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.*;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@Data
+@ToString
+@EqualsAndHashCode
+@Getter
 @AllArgsConstructor
 public class PaginationView {
     public List<Page> pages;
@@ -34,14 +36,14 @@ public class PaginationView {
             pages.add(Page.of(baseUrl, page));
         }
         return new PaginationView(pages,
-            targetPage > 1 ? createURL(baseUrl, targetPage - 1) : null,
-            targetPage < totalPages ? createURL(baseUrl, targetPage + 1) : null);
+                targetPage > 1 ? createURL(baseUrl, targetPage - 1) : null,
+                targetPage < totalPages ? createURL(baseUrl, targetPage + 1) : null);
     }
 
     public static PaginationView ofUnlimited(String baseUrl, int page) {
         return new PaginationView(
-            List.of(Page.of(baseUrl, page)),
-            page > 1 ? createURL(baseUrl, page - 1) : null,
-            createURL(baseUrl, page + 1));
+                List.of(Page.of(baseUrl, page)),
+                page > 1 ? createURL(baseUrl, page - 1) : null,
+                createURL(baseUrl, page + 1));
     }
 }

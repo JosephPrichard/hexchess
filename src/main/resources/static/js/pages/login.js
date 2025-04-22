@@ -9,13 +9,11 @@ async function onSubmitLoginForm(e)  {
 
     const resp = await fetch("/forms/login", {
         method: 'POST',
-        headers: {
-            "Content-Type": "application/json"
-        },
+        headers: getPostHeaders(),
         body: JSON.stringify({
             username: usernameElem.value,
-            password: passwordElem.value
-        })
+            password: passwordElem.value,
+        }),
     });
     const code = await resp.text();
     const ok = resp.ok;
@@ -25,12 +23,12 @@ async function onSubmitLoginForm(e)  {
     if (ok) {
         window.location = "/";
     } else {
-        createNotification(messages[code], ok);
+        createNotification(messages[code] || "", ok);
     }
     submitElem.innerHTML = "Login";
 }
 
-function renderLogin() {
+function attachEventListeners() {
     const loginFormElem = document.getElementById("login-form");
     loginFormElem.addEventListener("submit", onSubmitLoginForm);
 }

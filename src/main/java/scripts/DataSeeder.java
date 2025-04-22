@@ -98,7 +98,7 @@ public class DataSeeder {
         List<UserEntity> allUsers = userDao.getAll();
 
         RemoteDict.EloChangeSet[] changeSets = allUsers.stream()
-            .map(user -> new RemoteDict.EloChangeSet(user.getId(), user.getElo()))
+            .map(user -> new RemoteDict.EloChangeSet(user.id, user.elo))
             .toArray(RemoteDict.EloChangeSet[]::new);
         remoteDict.incrLeaderboardUser(changeSets);
     }

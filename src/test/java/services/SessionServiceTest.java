@@ -4,6 +4,7 @@ import io.jooby.Context;
 import io.jooby.internal.SingleValue;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import web.reusable.SessionService;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

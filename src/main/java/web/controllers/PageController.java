@@ -11,13 +11,11 @@ import services.RemoteDict;
 import io.jooby.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import services.SessionService;
+import web.reusable.PathService;
+import web.reusable.SessionService;
 import web.State;
 import web.Templates;
-import web.views.ChallengeView;
-import web.views.PaginationView;
-import web.views.ReplayView;
-import web.views.UserView;
+import web.views.*;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,24 +23,38 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import static utils.Globals.*;
-import static services.SessionService.*;
+import static web.reusable.SessionService.*;
 import static services.RemoteDict.*;
+import static web.Templates.*;
 
 public class PageController extends Jooby {
 
     public static final int PER_PAGE = 25;
-    public static final String MESSAGE_404 =
-        "Sorry, the page you are looking for does not exist. " +
-        "You might have followed a broken link or entered a URL that doesn't exist on this site.";
 
-    private final State state;
-    private String initialBoardJson;
+    private final UserDao userDao;
+    private final ReplayDao replayDao;
+    private final ChallengeDao challengeDao;
+    private final RemoteDict remoteDict;
+    private final GameService gameService;
+    private final SessionService sessionService;
+    private final PathService pathService;
+    private final Templates templates;
+    private final List<String> countryList;
+
     private String loginHtml;
     private String registerHtml;
     private String defaultHtml;
 
     public PageController(State state) {
-        this.state = state;
+        userDao = state.getUserDao();
+        replayDao = state.getReplayDao();
+        challengeDao = state.getChallengeDao();
+        remoteDict = state.getRemoteDict();
+        gameService = state.getGameService();
+        sessionService = state.getSessionService();
+        pathService = state.getPathService();
+        templates = state.getTemplates();
+        countryList = state.getCountryList();
 
         setWorker(EXECUTOR);
 
@@ -73,20 +85,18 @@ public class PageController extends Jooby {
 
     public PageController initStatics() {
         try {
-            Templates templates = state.getTemplates();
             Template loginTemplate = templates.getLoginTemplate();
             Template registerTemplate = templates.getRegisterTemplate();
-            Template errorTemplate = templates.getErrorTemplate();
+            Template error404Template = templates.getError404Template();
 
-            initialBoardJson = JSON_MAPPER.writeValueAsString(ChessBoard.initial());
             if (loginTemplate != null) {
                 loginHtml = loginTemplate.apply(null);
             }
             if (registerTemplate != null) {
                 registerHtml = registerTemplate.apply(null);
             }
-            if (errorTemplate != null) {
-                defaultHtml = errorTemplate.apply(new ErrorPage(StatusCode.NOT_FOUND_CODE, MESSAGE_404));
+            if (error404Template != null) {
+                defaultHtml = error404Template.apply(null);
             }
         } catch (IOException ex) {
             LOGGER.error("Failed during page router initialization", ex);
@@ -97,18 +107,10 @@ public class PageController extends Jooby {
     }
 
     public String sendErrorPage(Context ctx, int code, String message) throws IOException {
-        Templates templates = state.getTemplates();
         Template template = templates.getErrorTemplate();
 
         ctx.setResponseCode(code);
         return template.apply(new ErrorPage(code, message));
-    }
-
-    @Data
-    @AllArgsConstructor
-    static class ErrorPage {
-        int code;
-        String message;
     }
 
     public void handleError(Context ctx, Throwable cause, StatusCode statusCode) {
@@ -129,14 +131,20 @@ public class PageController extends Jooby {
         }
     }
 
+    @Data
+    @AllArgsConstructor
+    static class IndexPage {
+        List<GameView> games;
+    }
+
     public String getIndex(Context ctx) throws IOException {
-        GameService gameService = state.getGameService();
-        Templates templates = state.getTemplates();
-
-        GetGamesResult gamesResult = gameService.getGames(null);
-
         Template template = templates.getIndexTemplate();
 
+        List<GameState> gameStates = gameService.getGames(1);
+
+//        List<GameView> gameViews = gameStates.stream().map(GameView::fromGameState).toList();
+
+//        return template.apply(new GamesPage(gameViews));
         return template.apply(null);
     }
 
@@ -148,27 +156,22 @@ public class PageController extends Jooby {
     }
 
     public String getProfile(Context ctx) throws IOException {
-        Templates templates = state.getTemplates();
-        SessionService sessionService = state.getSessionService();
-        UserDao userDao = state.getUserDao();
-        RemoteDict remoteDict = state.getRemoteDict();
+        Template template = templates.getProfileTemplate();
 
         SessionValue session = sessionService.parseSession(ctx); // this route is un-cacheable due to using cookies
         if (session == null) {
             return sendErrorPage(ctx, StatusCode.UNAUTHORIZED_CODE, "You must be logged in to access this page.");
         }
-        PlayerEntity player = remoteDict.getSession(session.getSessionId());
+        PlayerEntity player = remoteDict.getSession(session.sessionId);
         if (player == null) {
             ctx.setResponseCookie(sessionService.createEmptyCookie());
             return sendErrorPage(ctx, StatusCode.UNAUTHORIZED_CODE, "Session has expired, please login again.");
         }
 
-        UserEntity entity = userDao.getById(player.getId());
+        UserEntity entity = userDao.getById(player.id);
         UserView view = UserView.create(entity);
 
-        Template template = templates.getProfileTemplate();
-
-        return template.apply(new ProfilePage(view, state.getCountryList()));
+        return template.apply(new ProfilePage(view, countryList));
     }
 
     @Data
@@ -179,26 +182,18 @@ public class PageController extends Jooby {
     }
 
     public String getLeaderboard(Context ctx) throws Exception {
-        Templates templates = state.getTemplates();
-        UserDao userDao = state.getUserDao();
-        RemoteDict remoteDict = state.getRemoteDict();
+        Template template = templates.getLeaderboardTemplate();
 
-        int page;
-        try {
-            page = ctx.query("page").toOptional().map(Integer::parseUnsignedInt).orElse(1);
-        } catch (NumberFormatException ex) {
-            return sendErrorPage(ctx, StatusCode.BAD_REQUEST_CODE, "Invalid param page: must be a positive integer.");
-        }
+        int page = pathService.getPageParam(ctx);
 
-        RemoteDict.Leaderboard leaderboard = remoteDict.getLeaderboardPage(page, PER_PAGE);
-        List<UserEntity> entityList = userDao.getByRankedUsers(leaderboard.getUsers());
+        Leaderboard leaderboard = remoteDict.getLeaderboardPage(page, PER_PAGE);
+        List<UserEntity> entityList = userDao.getByRankedUsers(leaderboard.users);
 
-        RankedUser.joinRanks(leaderboard.getUsers(), entityList);
+        RankedUser.joinRanks(leaderboard.users, entityList);
 
         List<UserView> viewList = entityList.stream().map(UserView::create).toList();
 
-        Template template = templates.getLeaderboardTemplate();
-        String resp = template.apply(new LeaderboardPage(viewList, PaginationView.withTotal("?", page, leaderboard.getPageCount())));
+        String resp = template.apply(new LeaderboardPage(viewList, PaginationView.withTotal("?", page, leaderboard.pageCount)));
 //            ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
         return resp;
     }
@@ -211,21 +206,7 @@ public class PageController extends Jooby {
     }
 
     public String getPlayer(Context ctx) throws Exception {
-        Templates templates = state.getTemplates();
-        UserDao userDao = state.getUserDao();
-        ReplayDao replayDao = state.getReplayDao();
-        RemoteDict remoteDict = state.getRemoteDict();
-
-        long userId;
-        try {
-            Value userIdPath = ctx.path("id");
-            if (userIdPath.isMissing()) {
-                return sendErrorPage(ctx, StatusCode.BAD_REQUEST_CODE, "Invalid param id: must contain id within path parameter.");
-            }
-            userId = Long.parseUnsignedLong(userIdPath.value());
-        } catch (NumberFormatException ex) {
-            return sendErrorPage(ctx, StatusCode.BAD_REQUEST_CODE, "Invalid param id: must be a positive integer.");
-        }
+        long userId = pathService.getIdPath(ctx);
 
         CompletableFuture<UserEntity> userFut = CompletableFuture.supplyAsync(() -> userDao.getById(userId), EXECUTOR);
         CompletableFuture<List<ReplayEntity>> replayListFut =
@@ -233,11 +214,10 @@ public class PageController extends Jooby {
 
         UserEntity userEntity = userFut.get();
         if (userEntity == null) {
-            return sendErrorPage(ctx, StatusCode.NOT_FOUND_CODE,"Couldn't find a user for the provided user id.");
+            return sendErrorPage(ctx, StatusCode.NOT_FOUND_CODE, "Couldn't find a user for the provided user id.");
         }
 
-        int rank = remoteDict.getLeaderboardRank(userEntity.getId());
-        userEntity.setRank(rank);
+        userEntity.rank = remoteDict.getLeaderboardRank(userEntity.id);
         List<ReplayEntity> replayEntityList = replayListFut.get();
 
         UserView userView = UserView.create(userEntity);
@@ -258,19 +238,12 @@ public class PageController extends Jooby {
     }
 
     public String searchPlayers(Context ctx) throws IOException {
-        Templates templates = state.getTemplates();
-        UserDao userDao = state.getUserDao();
+        Template template = templates.getSearchTemplate();
 
-        int page;
-        try {
-           page = ctx.query("page").toOptional().map(Integer::parseUnsignedInt).orElse(1);
-        } catch (NumberFormatException ex) {
-            return sendErrorPage(ctx, StatusCode.BAD_REQUEST_CODE, "Invalid param page: must be a positive integer.");
-        }
+        int page = pathService.getPageParam(ctx);
 
         String name = ctx.query("username").toOptional().orElse("");
 
-        Template template = templates.getSearchTemplate();
         if (name.isEmpty()) {
             return template.apply(new SearchPage(name, List.of(), PaginationView.ofUnlimited("?", page)));
         }
@@ -287,30 +260,18 @@ public class PageController extends Jooby {
     @Data
     @AllArgsConstructor
     static class ReplayPage {
-        String initialBoardJson;
         ReplayView replay;
     }
 
     public String getGameReplay(Context ctx) throws IOException {
-        Templates templates = state.getTemplates();
-        ReplayDao replayDao = state.getReplayDao();
+        Template template = templates.getReplayTemplate();
 
-        long replayId;
-        try {
-            Value replayIdPath = ctx.path("id");
-            if (replayIdPath.isMissing()) {
-                return sendErrorPage(ctx, StatusCode.BAD_REQUEST_CODE, "Invalid param id: must contain id within path parameter.");
-            }
-            replayId = Long.parseUnsignedLong(replayIdPath.value());
-        } catch (NumberFormatException ex) {
-            return sendErrorPage(ctx, StatusCode.BAD_REQUEST_CODE, "Invalid param id: must be a positive integer.");
-        }
+        long replayId = pathService.getIdPath(ctx);
 
         ReplayEntity entity = replayDao.getReplay(replayId);
         ReplayView view = ReplayView.createHeader(entity);
 
-        Template template = templates.getReplayTemplate();
-        String resp = template.apply(new ReplayPage(initialBoardJson, view));
+        String resp = template.apply(new ReplayPage(view));
 //        ctx.setResponseHeader("Cache-Control", "max-age=86400, must-revalidate"); // this is never updated, we can cache aggressively
         return resp;
     }
@@ -323,10 +284,7 @@ public class PageController extends Jooby {
     }
 
     public String getChallenges(Context ctx) throws IOException {
-        Templates templates = state.getTemplates();
-        SessionService sessionService = state.getSessionService();
-        ChallengeDao challengeDao = state.getChallengeDao();
-        RemoteDict remoteDict = state.getRemoteDict();
+        Template template = templates.getChallengesTemplate();
 
         String participants = ctx.query("participants").toOptional().orElse("received");
 
@@ -334,7 +292,7 @@ public class PageController extends Jooby {
         if (session == null) {
             return sendErrorPage(ctx, StatusCode.UNAUTHORIZED_CODE, "You must be logged in to access this page.");
         }
-        PlayerEntity player = remoteDict.getSession(session.getSessionId());
+        PlayerEntity player = remoteDict.getSession(session.sessionId);
         if (player == null) {
             ctx.setResponseCookie(sessionService.createEmptyCookie());
             return sendErrorPage(ctx, StatusCode.UNAUTHORIZED_CODE, "Session has expired, please login again.");
@@ -345,11 +303,11 @@ public class PageController extends Jooby {
 
         switch (participants) {
         case "received":
-            entityList = challengeDao.getByParticipant(null, player.getId());
+            entityList = challengeDao.getByParticipant(null, player.id);
             sender = false;
             break;
         case "sent":
-            entityList = challengeDao.getByParticipant(player.getId(), null);
+            entityList = challengeDao.getByParticipant(player.id, null);
             sender = true;
             break;
         default:
@@ -360,7 +318,6 @@ public class PageController extends Jooby {
 
         List<ChallengeView> viewList = entityList.stream().map(ChallengeView::create).toList();
 
-        Template template = templates.getChallengesTemplate();
         String resp = template.apply(new ChallengesPage(viewList, sender));
 //        ctx.setResponseHeader("Cache-Control", "max-age=60, must-revalidate");
         return resp;

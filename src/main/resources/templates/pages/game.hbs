@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <title>Login - Hexchess</title>
+    <link rel="stylesheet" href="/static/css/index.css">
+    <script src="/static/js/pages/game.js"></script>
+    <script src="/static/js/lib/notifications.js"></script>
+</head>
+<body>
+{{> partials/banner }}
+<div class="bottom-right-anchor" style="width: 350px" id="notifications-box"></div>
+<div class="center-horizontal-container">
+    <div id="chess-board" class="chess-board"></div>
+    <div class="move-table">
+        <div class="move-table-header">
+            <div id="white-player" class="move-table-header-elem"></div>
+            <div id="black-player" class="move-table-header-elem"></div>
+        </div>
+        <div id="replay-move-list" class="replay-move-list"></div>
+    </div>
+</div>
+</body>
+<script>
+    renderAndAttachEventListeners();
+</script>
+</html>

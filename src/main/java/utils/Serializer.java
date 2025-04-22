@@ -1,13 +1,11 @@
 package utils;
 
+import chess.*;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import chess.ChessBoard;
-import chess.ChessGame;
-import chess.Hexagon;
-import chess.PieceMoves;
 import models.GameState;
+import models.PlayerEntity;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -23,6 +21,8 @@ public class Serializer {
         kryo.register(PieceMoves.class);
         kryo.register(ChessBoard.class);
         kryo.register(ChessGame.class);
+        kryo.register(PlayerEntity.class);
+        kryo.register(PieceMove.class);
         kryo.register(GameState.class);
         return kryo;
     });
@@ -56,9 +56,5 @@ public class Serializer {
             LOGGER.error("Error occurred while deserializing: {}", String.valueOf(ex));
             throw new RuntimeException(ex);
         }
-    }
-
-    public static <T> T deserialize(String str, Class<T> clazz) {
-        return deserialize(str.getBytes(StandardCharsets.UTF_8), clazz);
     }
 }

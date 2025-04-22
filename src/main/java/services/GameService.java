@@ -10,6 +10,7 @@ import models.GameState;
 import models.ReplayEntity;
 import models.PlayerEntity;
 
+import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 
@@ -35,8 +36,8 @@ public class GameService {
         String id = UUID.randomUUID().toString();
         GameState gameState = GameState.startWithGame(id);
 
-        gameState.setIsFirstPlayerWhite(isFirstPlayerWhite);
-        gameState.getGame().initPieceMoves();
+        gameState.isFirstPlayerWhite = isFirstPlayerWhite;
+        gameState.game.initPieceMoves();
 
         remoteDict.setGame(id, gameState);
         return id;
@@ -48,38 +49,33 @@ public class GameService {
             return null;
         }
 
-        boolean hasWhitePlayer = state.getWhitePlayer() != null;
-        boolean hasBlackPlayer = state.getBlackPlayer() != null;
+        boolean hasWhitePlayer = state.whitePlayer != null;
+        boolean hasBlackPlayer = state.blackPlayer != null;
 
         boolean joinedAsWhite;
         if (!hasWhitePlayer && !hasBlackPlayer) {
-            // neither player, so join as either
-            Boolean isFirstPlayerWhite = state.getIsFirstPlayerWhite();
-            boolean chooseWhite = isFirstPlayerWhite == null ? RANDOM.nextInt() % 2 == 0 : isFirstPlayerWhite;
+            boolean chooseWhite = state.isFirstPlayerWhite == null ? RANDOM.nextInt() % 2 == 0 : state.isFirstPlayerWhite;
             if (chooseWhite) {
-                state.setWhitePlayer(player);
+                state.whitePlayer = player;
                 joinedAsWhite = true;
             } else {
-                state.setBlackPlayer(player);
+                state.blackPlayer = player;
                 joinedAsWhite = false;
             }
         } else if (!hasBlackPlayer) {
-            // no black player, so join as black
-            state.setBlackPlayer(player);
+            state.blackPlayer = player;
             joinedAsWhite = false;
         } else if (!hasWhitePlayer) {
-            // no white player, so join as white
-            state.setWhitePlayer(player);
+            state.whitePlayer = player;
             joinedAsWhite = true;
         } else {
-            // both players, so we cannot join... just return the game data to view
             return state;
         }
 
         if (joinedAsWhite) {
-            LOGGER.info("Player {} joined as white player {}", player.getId(), gameId);
+            LOGGER.info("Player {} joined as white player {}", player.id, gameId);
         } else {
-            LOGGER.info("Player {} joined as black player {}", player.getId(), gameId);
+            LOGGER.info("Player {} joined as black player {}", player.id, gameId);
         }
 
         return remoteDict.setGame(gameId, state);
@@ -91,9 +87,9 @@ public class GameService {
             return null;
         }
 
-        ChessGame game = state.getGame();
+        ChessGame game = state.game;
 
-        if (state.isEnded()) {
+        if (state.isEnded) {
             LOGGER.info("Move attempted on ended game {}", gameId);
             throw new FinishedGameException();
         }
@@ -113,7 +109,7 @@ public class GameService {
         state.pushMoveList(new PieceMove(piece, move.getFrom(), move.getTo()));
 
         if (game.isCheckmate()) {
-            state.setEnded(true);
+            state.isEnded = true;
             boolean isWhiteWin = game.getBoard().turn().isBlack(); // white wins if its checkmate when it's blacks turn
             EXECUTOR.execute(() -> onFinishGame(state, isWhiteWin, ReplayEntity.CHECKMATE));
         }
@@ -124,19 +120,19 @@ public class GameService {
 
     public void onFinishGame(GameState state, boolean isWhiteWin, int cause) {
         try {
-            long whiteId = state.getWhitePlayer().getId();
-            long blackId = state.getBlackPlayer().getId();
+            long whiteId = state.whitePlayer.id;
+            long blackId = state.blackPlayer.id;
             int result = isWhiteWin ? ReplayEntity.WHITE_WIN : ReplayEntity.BLACK_WIN;
             long winId = isWhiteWin ? whiteId : blackId;
             long loseId = isWhiteWin ? blackId : whiteId;
 
-            String moveListJson = JSON_MAPPER.writeValueAsString(state.getMoveList());
+            String moveListJson = JSON_MAPPER.writeValueAsString(state.moveList);
 
             EloChangeSet changeSet = userDao.updateStats(winId, loseId);
             remoteDict.incrLeaderboardUser(
-                    new RemoteDict.EloChangeSet(winId, changeSet.getWinEloDiff()),
-                    new RemoteDict.EloChangeSet(loseId, changeSet.getLoseEloDiff()));
-            replayDao.insert(whiteId, blackId, result, cause, changeSet.getWinEloDiff(), changeSet.getLoseEloDiff(), moveListJson);
+                    new RemoteDict.EloChangeSet(winId, changeSet.winEloDiff),
+                    new RemoteDict.EloChangeSet(loseId, changeSet.loseEloDiff));
+            replayDao.insert(whiteId, blackId, result, cause, changeSet.winEloDiff, changeSet.loseEloDiff, moveListJson);
         } catch (Exception ex) {
             LOGGER.info("Failed to persist game results to database in background thread {}", String.valueOf(ex));
         }
@@ -148,15 +144,15 @@ public class GameService {
             return null;
         }
 
-        boolean didBlackForfeit = state.getBlackPlayer().equals(player);
+        boolean didBlackForfeit = state.blackPlayer.equals(player);
 
-        state.setEnded(true);
+        state.isEnded = true;
         onFinishGame(state, didBlackForfeit, ReplayEntity.FORFEIT);
 
         return remoteDict.setGame(gameId, state); // did black forfeit? then white won.
     }
 
-    public RemoteDict.GetGamesResult getGames(Double cursor) {
-        return remoteDict.getGames(cursor, 20);
+    public List<GameState> getGames(int page) {
+        return remoteDict.getGames(page, 20);
     }
 }
