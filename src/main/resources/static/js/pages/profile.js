@@ -5,19 +5,21 @@ let state = {
 async function onSubmitUserForm(e) {
     e.preventDefault();
 
-    const usernameElem = document.getElementById("username");
-    const bioElem = document.getElementById("bio");
-    const submitElem = document.getElementById("user-form-submit");
+    const submitElement = document.getElementById("user-form-submit");
 
-    submitElem.innerHTML = '<div class="loader"></div';
+    submitElement.innerHTML = '<div class="loader"></div';
+
+    const newUsername = document.getElementById("username").value;
+    const newBio = document.getElementById("bio").value;
+    const newCountry = state.country;
 
     const resp = await fetch("/forms/users", {
         method: 'POST',
         headers: getPostHeaders(),
         body: JSON.stringify({
-            newUsername: usernameElem.value,
-            newBio: bioElem.value,
-            newCountry: state.country,
+            newUsername,
+            newBio,
+            newCountry,
         }),
     });
     const code = await resp.text();
@@ -26,7 +28,7 @@ async function onSubmitUserForm(e) {
     console.log("Update user response", code, ok);
 
     createNotification(messages[code] || "", ok);
-    submitElem.innerHTML = "Login";
+    submitElement.innerHTML = "Login";
 }
 
 async function onSelectCountry(country) {
@@ -44,20 +46,21 @@ async function onSelectCountry(country) {
 async function onSubmitPasswordForm(e)  {
     e.preventDefault();
 
-    const passwordElem = document.getElementById("password");
-    const newPasswordElem = document.getElementById("new-password");
-    const retypePasswordElem = document.getElementById("retype-password");
     const submitElem = document.getElementById("password-form-submit");
 
     submitElem.innerHTML = '<div class="loader"></div>';
+
+    const password = document.getElementById("password").value;
+    const newPassword = document.getElementById("new-password").value;
+    const confirmNewPassword = document.getElementById("retype-password").value;
 
     const resp = await fetch("/forms/users/password", {
         method: 'POST',
         headers: getPostHeaders(),
         body: JSON.stringify({
-            password: passwordElem.value,
-            newPassword: newPasswordElem.value,
-            confirmNewPassword: retypePasswordElem.value,
+            password,
+            newPassword,
+            confirmNewPassword,
         }),
     });
     const code = await resp.text();
@@ -82,11 +85,11 @@ async function onSignOut() {
 }
 
 function toggleCountryDropdown() {
-    const dropdown = document.getElementById("country-select-options");
+    const dropdownElement = document.getElementById("country-select-options");
 
-    let display = dropdown.style.getPropertyValue("display");
+    let display = dropdownElement.style.getPropertyValue("display");
     display = display !== 'none' ? 'none' : 'block';
-    dropdown.style.setProperty("display", display);
+    dropdownElement.style.setProperty("display", display);
 }
 
 function initState(initialCountry) {
@@ -94,11 +97,7 @@ function initState(initialCountry) {
 }
 
 function attachEventListeners() {
-    const userFormElem = document.getElementById("update-user-form");
-    const passwordFormElem = document.getElementById("update-password-form");
-    const signOutButton = document.getElementById("sign-out-button");
-
-    userFormElem.addEventListener("submit", onSubmitUserForm);
-    passwordFormElem.addEventListener("submit", onSubmitPasswordForm);
-    signOutButton.addEventListener("click", onSignOut);
+    document.getElementById("update-user-form").addEventListener("submit", onSubmitUserForm);
+    document.getElementById("update-password-form").addEventListener("submit", onSubmitPasswordForm);
+    document.getElementById("sign-out-button").addEventListener("click", onSignOut);
 }

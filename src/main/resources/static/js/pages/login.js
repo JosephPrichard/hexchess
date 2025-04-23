@@ -1,18 +1,19 @@
 async function onSubmitLoginForm(e)  {
     e.preventDefault();
 
-    const usernameElem = document.getElementById("username-login");
-    const passwordElem = document.getElementById("password-login");
-    const submitElem = document.getElementById("login-form-submit");
+    const submitElement = document.getElementById("login-form-submit");
 
-    submitElem.innerHTML = '<div class="loader"></div>';
+    submitElement.innerHTML = '<div class="loader"></div>';
+
+    const username = document.getElementById("username-login").value;
+    const password = document.getElementById("password-login").value;
 
     const resp = await fetch("/forms/login", {
         method: 'POST',
         headers: getPostHeaders(),
         body: JSON.stringify({
-            username: usernameElem.value,
-            password: passwordElem.value,
+            username,
+            password,
         }),
     });
     const code = await resp.text();
@@ -25,10 +26,9 @@ async function onSubmitLoginForm(e)  {
     } else {
         createNotification(messages[code] || "", ok);
     }
-    submitElem.innerHTML = "Login";
+    submitElement.innerHTML = "Login";
 }
 
 function attachEventListeners() {
-    const loginFormElem = document.getElementById("login-form");
-    loginFormElem.addEventListener("submit", onSubmitLoginForm);
+    document.getElementById("login-form").addEventListener("submit", onSubmitLoginForm);
 }

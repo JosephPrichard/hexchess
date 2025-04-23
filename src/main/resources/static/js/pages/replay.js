@@ -1,7 +1,3 @@
-async function getInitialBoard() {
-
-}
-
 async function renderAndAttachEventListeners() {
     let state = {
         boardCache: [],
@@ -15,11 +11,8 @@ async function renderAndAttachEventListeners() {
 
     const moveList = JSON.parse(document.getElementById("move-list-data").innerHTML);
 
-    const boardElem = document.getElementById("chess-board");
-    const moveListElem = document.getElementById("replay-move-list");
-    const flipButton = document.getElementById("flip-board-button");
-    const rightButton = document.getElementById("right-button");
-    const leftButton = document.getElementById("left-button");
+    const boardElement = document.getElementById("chess-board");
+    const moveListElement = document.getElementById("replay-move-list");
 
     function getBoard(index) {
         if (state.boardCache[index] !== undefined) {
@@ -47,7 +40,7 @@ async function renderAndAttachEventListeners() {
     function handleOnMove(index, moveElem) {
         const board = getBoard(index);
         state.currentIndex = index;
-        renderBoard(boardElem, board, state.isFlipped);
+        renderBoard(boardElement, board, state.isFlipped);
 
         if (state.selectMoveElem) {
             state.selectMoveElem.classList.remove("selected-move");
@@ -59,7 +52,7 @@ async function renderAndAttachEventListeners() {
     function onFlipClick() {
         state.isFlipped = !state.isFlipped;
         const board = state.currentIndex !== undefined ? getBoard(state.currentIndex) : initialBoard;
-        renderBoard(boardElem, board, state.isFlipped);
+        renderBoard(boardElement, board, state.isFlipped);
     }
 
     function onLeftClick() {
@@ -70,8 +63,7 @@ async function renderAndAttachEventListeners() {
         } else {
             return;
         }
-        const elem = document.getElementById(`move-${state.currentIndex}`);
-        handleOnMove(state.currentIndex, elem);
+        handleOnMove(state.currentIndex, document.getElementById(`move-${state.currentIndex}`));
     }
 
     function onRightClick() {
@@ -82,14 +74,13 @@ async function renderAndAttachEventListeners() {
         } else {
             return;
         }
-        const elem = document.getElementById(`move-${state.currentIndex}`);
-        handleOnMove(state.currentIndex, elem);
+        handleOnMove(state.currentIndex, document.getElementById(`move-${state.currentIndex}`));
     }
 
-    flipButton.addEventListener('click', onFlipClick);
-    leftButton.addEventListener('click', onLeftClick);
-    rightButton.addEventListener('click', onRightClick);
+    document.getElementById("flip-board-button").addEventListener('click', onFlipClick);
+    document.getElementById("right-button").addEventListener('click', onLeftClick);
+    document.getElementById("left-button").addEventListener('click', onRightClick);
 
-    renderBoard(boardElem, initialBoard, state.isFlipped);
-    renderMoveList(moveListElem, moveList, handleOnMove);
+    renderBoard(boardElement, initialBoard, state.isFlipped);
+    renderMoveList(moveListElement, moveList, handleOnMove);
 }

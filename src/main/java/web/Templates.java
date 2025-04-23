@@ -18,12 +18,13 @@ public class Templates {
     private Template leaderboardTemplate;
     private Template userTemplate;
     private Template profileTemplate;
-    private Template currentGamesTemplate;
     private Template replayTemplate;
     private Template searchTemplate;
     private Template challengesTemplate;
+    private Template gameTemplate;
+
     private Template errorTemplate;
-    private Template error404Template;
+    private Template generic404Template;
 
     private Template replayListTemplate;
 
@@ -45,8 +46,11 @@ public class Templates {
         replayTemplate = handlebars.compile("/pages/replay");
         searchTemplate = handlebars.compile("/pages/search");
         challengesTemplate = handlebars.compile("/pages/challenges");
+        gameTemplate = handlebars.compile("/pages/game");
+
+        // errors
         errorTemplate = handlebars.compile("/pages/error");
-        error404Template = handlebars.compile("/pages/error404");
+        generic404Template = handlebars.compile("/errors/404");
 
         // partials
         replayListTemplate = handlebars.compile("partials/replayList");

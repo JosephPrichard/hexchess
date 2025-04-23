@@ -21,35 +21,35 @@ const messages = {
     "SUCCESS": "Operation completed successfully."
 };
 
-function createNotification(text, isSuccess, timeout) {
+function createNotification(message, isSuccess, timeout) {
     if (!timeout) {
         timeout = 3000;
     }
 
     const notifications = document.getElementById("notifications-box");
 
-    const notificationText = document.createElement('div');
-    notificationText.classList.add('notification-text');
-    notificationText.appendChild(document.createTextNode(text));
+    const text = document.createElement('div');
+    text.className = 'notification-text';
+    text.innerHTML = message;
 
-    const notificationSpace = document.createElement('div');
-    notificationSpace.classList.add('notification-space');
+    const space = document.createElement('div');
+    space.className = 'notification-space';
 
     const xButton = document.createElement('span');
-    xButton.classList.add('x-button');
+    xButton.className = 'x-button';
     xButton.innerHTML = '&#10006;';
 
     const notification = document.createElement('div');
-    notification.classList.add('notification');
-    notification.classList.add(isSuccess ? "notification-green" : "notification-red");
-    notification.appendChild(notificationText);
-    notification.appendChild(notificationSpace);
+    notification.className = `notification ${isSuccess ? "notification-green" : "notification-red"}`;
+
+    notification.appendChild(text);
+    notification.appendChild(space);
     notification.appendChild(xButton);
 
-    xButton.onclick = () => notifications.removeChild(notification);
+    xButton.addEventListener('click', () => notifications.removeChild(notification));
 
     notifications.append(notification);
-    setTimeout(() => notification.classList.add('visible'), 0); // apply the css transition after the element is written to DOM
+    requestAnimationFrame(() => notification.classList.add('visible')); // apply the css transition after the element is written to DOM
 
     setTimeout(
         () => {
@@ -57,9 +57,9 @@ function createNotification(text, isSuccess, timeout) {
                 notification.classList.remove('visible')
                 setTimeout(() => notifications.removeChild(notification), 250); // delete the element after css transition is finished
             }
-            console.log("Deleted notification", text);
+            console.log("Deleted a notification", message);
         },
         timeout);
 
-    console.log("Created notification", text);
+    console.log("Created a notification", message);
 }

@@ -344,7 +344,7 @@ public class FormController extends Jooby {
         }
 
         try {
-            ChallengeEntity entity = challengeDao.insert(challengeeId, player.id);
+            ChallengeEntity entity = challengeDao.insert(player.id, challengeeId);
 
             EXECUTOR.execute(() -> {
                 try {

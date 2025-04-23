@@ -4,7 +4,6 @@ import com.github.jknack.handlebars.Template;
 import daos.ChallengeDao;
 import daos.ReplayDao;
 import daos.UserDao;
-import chess.ChessBoard;
 import models.*;
 import services.GameService;
 import services.RemoteDict;
@@ -80,6 +79,7 @@ public class PageController extends Jooby {
         get("/players/{id}", this::getPlayer);
         get("/players/search", this::searchPlayers);
         get("/games/replay/{id}", this::getGameReplay);
+        get("/games/{id}", this::getGame);
         get("/challenges", this::getChallenges);
     }
 
@@ -87,7 +87,7 @@ public class PageController extends Jooby {
         try {
             Template loginTemplate = templates.getLoginTemplate();
             Template registerTemplate = templates.getRegisterTemplate();
-            Template error404Template = templates.getError404Template();
+            Template generic404Template = templates.getGeneric404Template();
 
             if (loginTemplate != null) {
                 loginHtml = loginTemplate.apply(null);
@@ -95,8 +95,8 @@ public class PageController extends Jooby {
             if (registerTemplate != null) {
                 registerHtml = registerTemplate.apply(null);
             }
-            if (error404Template != null) {
-                defaultHtml = error404Template.apply(null);
+            if (generic404Template != null) {
+                defaultHtml = generic404Template.apply(null);
             }
         } catch (IOException ex) {
             LOGGER.error("Failed during page router initialization", ex);
@@ -206,7 +206,7 @@ public class PageController extends Jooby {
     }
 
     public String getPlayer(Context ctx) throws Exception {
-        long userId = pathService.getIdPath(ctx);
+        long userId = pathService.getIdPathAsLong(ctx);
 
         CompletableFuture<UserEntity> userFut = CompletableFuture.supplyAsync(() -> userDao.getById(userId), EXECUTOR);
         CompletableFuture<List<ReplayEntity>> replayListFut =
@@ -266,7 +266,7 @@ public class PageController extends Jooby {
     public String getGameReplay(Context ctx) throws IOException {
         Template template = templates.getReplayTemplate();
 
-        long replayId = pathService.getIdPath(ctx);
+        long replayId = pathService.getIdPathAsLong(ctx);
 
         ReplayEntity entity = replayDao.getReplay(replayId);
         ReplayView view = ReplayView.createHeader(entity);
@@ -274,6 +274,18 @@ public class PageController extends Jooby {
         String resp = template.apply(new ReplayPage(view));
 //        ctx.setResponseHeader("Cache-Control", "max-age=86400, must-revalidate"); // this is never updated, we can cache aggressively
         return resp;
+    }
+
+    @Data
+    @AllArgsConstructor
+    static class GamePage {
+        String gameId;
+    }
+
+    public String getGame(Context ctx) throws IOException {
+        Template template = templates.getGameTemplate();
+        String gameId = pathService.getIdPathAsString(ctx);
+        return template.apply(new GamePage(gameId));
     }
 
     @Data

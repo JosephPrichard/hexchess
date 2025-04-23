@@ -1,20 +1,20 @@
 async function updateChallenge({ id, buttonId, challengerId, challengeeId, action, getMessage }) {
-    const submitElem = document.getElementById(id);
-    const buttonElem = document.getElementById(buttonId);
-    const noChallengesElem = document.getElementById("no-challenges");
-    const challengeListElem = document.getElementById("challenge-list");
+    const buttonElement = document.getElementById(buttonId);
 
     console.log(`On ${action} challenge`, challengerId, challengeeId);
 
-    buttonElem.innerHTML = '<div class="loader"></div>';
+    buttonElement.innerHTML = '<div class="loader"></div>';
+
+    challengerId = Number(challengerId);
+    challengeeId = Number(challengeeId);
 
     const resp = await fetch("/forms/challenges/update", {
         method: 'POST',
         headers: getPostHeaders(),
         body: JSON.stringify({
-            challengerId: Number(challengerId),
-            challengeeId: Number(challengeeId),
-            action
+            challengerId,
+            challengeeId,
+            action,
         })
     });
     const object = await resp.json();
@@ -24,14 +24,19 @@ async function updateChallenge({ id, buttonId, challengerId, challengeeId, actio
     createNotification(msg, ok);
 
     if (ok) {
-        submitElem.remove();
-        if (challengeListElem.children.length === 0) {
-            noChallengesElem.style.setProperty('display', 'block');
-            challengeListElem.remove();
+        const noneElement = document.getElementById("no-challenges");
+        const listElement = document.getElementById("challenge-list");
+        const submitElement = document.getElementById(id);
+
+        submitElement.remove();
+        if (listElement.children.length === 0) {
+            noneElement.style.setProperty('display', 'block');
+            listElement.remove();
         }
-        console.log(`${challengeListElem.children.length} challenges after removal`)
+
+        console.log(`${listElement.children.length} challenges after removal`)
     }
-    buttonElem.innerHTML = action;
+    buttonElement.innerHTML = action;
 }
 
 async function onDelete(index, challengerId, challengeeId, challengeeName) {

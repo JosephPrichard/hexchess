@@ -1,20 +1,21 @@
 async function onSubmitRegisterForm(e) {
     e.preventDefault();
 
-    const usernameElem = document.getElementById("username-register");
-    const passwordElem = document.getElementById("password-register");
-    const dupPasswordElem = document.getElementById("password-retype-register");
-    const submitElem = document.getElementById("register-form-submit");
+    const submitElement = document.getElementById("register-form-submit");
 
-    submitElem.innerHTML = '<div class="loader"></div>';
+    submitElement.innerHTML = '<div class="loader"></div>';
+
+    const username = document.getElementById("username-register").value;
+    const password = document.getElementById("password-register").value;
+    const confirmPassword = document.getElementById("password-retype-register").value;
 
     const resp = await fetch("/forms/register", {
         method: 'POST',
         headers: getPostHeaders(),
         body: JSON.stringify({
-            username: usernameElem.value,
-            password: passwordElem.value,
-            confirmPassword: dupPasswordElem.value,
+            username,
+            password,
+            confirmPassword,
         }),
     });
     const code = await resp.text();
@@ -25,10 +26,9 @@ async function onSubmitRegisterForm(e) {
     } else {
         createNotification(messages[code] || "", ok);
     }
-    submitElem.innerHTML = "Register";
+    submitElement.innerHTML = "Register";
 }
 
 function attachEventListeners() {
-    const registerFormElem = document.getElementById("register-form");
-    registerFormElem.addEventListener('submit', onSubmitRegisterForm);
+    document.getElementById("register-form").addEventListener('submit', onSubmitRegisterForm);
 }
