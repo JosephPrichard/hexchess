@@ -42,7 +42,9 @@ symbols[piece.blackQueen] = 'q';
 symbols[piece.whiteKing] = 'k';
 symbols[piece.blackKing] = 'k';
 
-function displayChessBoard(boardElement, board, isBlackPerspective) {
+function displayChessBoard($board, board, isBlackPerspective) {
+    $board.empty();
+
     var height = 64;
     var width = height * 1.2;
     var verticalFileOffsets = [5, 4, 3, 2, 1, 0, 1, 2, 3, 4, 5]; // file -> vertical offset
@@ -50,7 +52,6 @@ function displayChessBoard(boardElement, board, isBlackPerspective) {
     var colors = ["rgb(255, 207, 159)", "rgb(233, 172, 112)", "rgb(210,140,69)"]; // LIGHT, MEDIUM, DARK
     var colorsOffset = [0, 1, 2, 0, 1, 2, 1, 0, 2, 1, 0]; // file -> color
 
-    var $board = $(boardElement).empty();
     $board.css({
         width: 11 * height + "px",
         height: 11 * height + "px"
@@ -69,7 +70,7 @@ function displayChessBoard(boardElement, board, isBlackPerspective) {
             var bgColor = colors[index];
             var piecename = names[piece];
 
-            var $hex = $("<div/>")
+            var hexagon = $("<div/>")
                 .addClass("hexagon")
                 .attr("id", "hexagon-" + file + "-" + rank)
                 .attr("data-rank", rank)
@@ -80,7 +81,8 @@ function displayChessBoard(boardElement, board, isBlackPerspective) {
                     width: width + "px",
                     height: height + "px",
                     background: bgColor
-                });
+                })
+                .appendTo($board);
 
             if (piecename) {
                 $("<img alt='' src=''>")
@@ -89,10 +91,8 @@ function displayChessBoard(boardElement, board, isBlackPerspective) {
                     .attr("alt", "")
                     .attr("draggable", false)
                     .addClass("piece-img")
-                    .appendTo($hex);
+                    .appendTo(hexagon);
             }
-
-            $board.append($hex);
         }
     }
 }
@@ -107,14 +107,12 @@ function stringOfMove(move) {
     return symbol + toFile + toRank;
 }
 
-function displayMoveList(moveListElem, moveList, handleOnClickMove) {
-    var $container = $(moveListElem).empty();
+function displayMoveList($moveList, moveList, handleOnClickMove) {
+    $moveList.empty();
+
     var ply = 1;
 
     for (var i = 0; i < moveList.length; i += 2) {
-        var $row = $("<div></div>").addClass("move-row");
-        var $number = $("<div></div>").addClass("move-number").text(ply + ".");
-
         var $moveOne = $("<div/>")
             .addClass("move")
             .attr("id", "move-" + i)
@@ -123,25 +121,25 @@ function displayMoveList(moveListElem, moveList, handleOnClickMove) {
             return function() {
                 handleOnClickMove(i, $moveOne);
             };
-        }(i, $moveOne))
+        }(i, $moveOne));
 
         var $moveTwo = $("<div/>")
             .addClass("move")
             .attr("id", "move-" + (i + 1));
         if (moveList[i + 1]) {
-            $moveTwo.html(stringOfMove(moveList[i + 1]));
-            $moveTwo.on("click", function(i, $moveTwo) {
-                return function() {
-                    handleOnClickMove(i, $moveTwo);
-                };
-            }(i + 1, $moveTwo));
+            $moveTwo.html(stringOfMove(moveList[i + 1]))
+                .on("click", function(i, $moveTwo) {
+                    return function() {
+                        handleOnClickMove(i, $moveTwo);
+                    };
+                }(i + 1, $moveTwo));
         }
 
-        $row.append($number)
+        $("<div/>").addClass("move-row")
+            .append($("<div/>").addClass("move-number").text(ply + "."))
             .append($moveOne)
-            .append($moveTwo);
-
-        $container.append($row);
+            .append($moveTwo)
+            .appendTo($moveList);
 
         ply++;
     }

@@ -41,10 +41,14 @@ function onCreateChallenge(challengeeId, challengeeName) {
         }),
         success: function (data) {
             createNotification(customMessages[data] || message(data), true);
+
+            console.log("Create challenge response", data);
         },
         error: function (xhr) {
             var code = xhr.responseText;
             createNotification(customMessages[code] || message(code), false);
+
+            console.log("Create challenge response", xhr.responseText);
         }
     });
 }

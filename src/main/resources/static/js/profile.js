@@ -21,23 +21,25 @@ function onSubmitUserForm(e) {
         success: function(data) {
             createNotification(message(data), true);
             $submitElement.html("Login");
+
             console.log("User Form response", data);
         },
         error: function(xhr) {
             var code = xhr.responseText;
             createNotification(message(code), false);
             $submitElement.html("Login");
+
             console.log("User Form response", xhr.responseText);
         }
     });
 }
 
 function onSelectCountry(newCountry) {
-    var $elemCountry = $("#selected-country");
-    $elemCountry.attr("src", "/static/images/flags/" + newCountry + ".png");
-    $elemCountry.attr("alt", newCountry);
-
     country = newCountry;
+
+    $("#selected-country").
+        attr("src", "/static/images/flags/" + country + ".png").
+        attr("alt", country);
 
     toggleCountryDropdown();
 }
@@ -64,13 +66,15 @@ function onSubmitPasswordForm(e) {
         success: function(data) {
             createNotification(message(data), true);
             $submitElem.html("Login");
-            console.log("Update password response", data, true);
+
+            console.log("Update password response", data);
         },
         error: function(xhr) {
             var code = xhr.responseText;
             createNotification(message(code), false);
             $submitElem.html("Login");
-            console.log("Update password response", code, false);
+
+            console.log("Update password response", code);
         }
     });
 }
@@ -88,8 +92,8 @@ function onSignOut() {
 
 function toggleCountryDropdown() {
     var $dropdownElement = $("#country-select-options");
-    var display = $dropdownElement.css("display");
-    $dropdownElement.css("display", display !== "none" ? "none" : "block");
+    $dropdownElement.css("display",
+        $dropdownElement.css("display") !== "none" ? "none" : "block");
 }
 
 function initProfilePage(initialCountry) {

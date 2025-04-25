@@ -1,19 +1,17 @@
 function initReplayPageGivenBoard(initialBoard) {
-    var state = {
-        boardCache: [],
-        currentIndex: undefined,
-        isFlipped: false,
-        selectMoveElem: undefined
-    };
+    var boardCache = [];
+    var index = undefined;
+    var isFlipped = false;
+    var $selectedMove = undefined;
 
     var moveList = JSON.parse($("#move-list-data").html());
 
-    var $boardElement = $("#chess-board");
-    var $moveListElement = $("#replay-move-list");
+    var $board = $("#chess-board");
+    var $moveList = $("#replay-move-list");
 
     function getBoard(index) {
-        if (state.boardCache[index] !== undefined) {
-            return state.boardCache[index];
+        if (boardCache[index] !== undefined) {
+            return boardCache[index];
         }
         var board = JSON.parse(JSON.stringify(initialBoard));
         for (var i = 0; i <= index; i++) {
@@ -26,56 +24,56 @@ function initReplayPageGivenBoard(initialBoard) {
             board.pieces[toFile][toRank] = board.pieces[fromFile][fromRank];
             board.pieces[fromFile][fromRank] = piece.empty;
         }
-        state.boardCache[index] = board;
+        boardCache[index] = board;
         return board;
     }
 
-    function handleOnMove(index, $moveElem) {
-        var board = getBoard(index);
-        state.currentIndex = index;
-        displayChessBoard($boardElement[0], board, state.isFlipped);
+    function handleOnMove(newIndex, $move) {
+        var board = getBoard(newIndex);
+        index = newIndex;
+        displayChessBoard($board, board, isFlipped);
 
-        if (state.selectMoveElem) {
-            $(state.selectMoveElem).removeClass("selected-move");
+        if ($selectedMove !== undefined) {
+            $($selectedMove).removeClass("selected-move");
         }
-        state.selectMoveElem = $moveElem;
-        $moveElem.addClass("selected-move");
+        $selectedMove = $move;
+        $move.addClass("selected-move");
     }
 
     function onClickFlip() {
-        state.isFlipped = !state.isFlipped;
-        var board = state.currentIndex !== undefined ? getBoard(state.currentIndex) : initialBoard;
-        displayChessBoard($boardElement[0], board, state.isFlipped);
+        isFlipped = !isFlipped;
+        var board = index !== undefined ? getBoard(index) : initialBoard;
+        displayChessBoard($board, board, isFlipped);
     }
 
     function onClickLeft() {
-        if (state.currentIndex === undefined) {
-            state.currentIndex = 0;
-        } else if (state.currentIndex > 0) {
-            state.currentIndex--;
+        if (index === undefined) {
+            index = 0;
+        } else if (index > 0) {
+            index--;
         } else {
             return;
         }
-        handleOnMove(state.currentIndex, $("#move-" + state.currentIndex));
+        handleOnMove(index, $("#move-" + index));
     }
 
     function onClickRight() {
-        if (state.currentIndex === undefined) {
-            state.currentIndex = 0;
-        } else if (state.currentIndex < moveList.length - 1) {
-            state.currentIndex++;
+        if (index === undefined) {
+            index = 0;
+        } else if (index < moveList.length - 1) {
+            index++;
         } else {
             return;
         }
-        handleOnMove(state.currentIndex, $("#move-" + state.currentIndex));
+        handleOnMove(index, $("#move-" + index));
     }
 
     $("#flip-board-button").on("click", onClickFlip);
     $("#left-button").on("click", onClickLeft);
     $("#right-button").on("click", onClickRight);
 
-    displayChessBoard($boardElement[0], initialBoard, state.isFlipped);
-    displayMoveList($moveListElement[0], moveList, handleOnMove);
+    displayChessBoard($board, initialBoard, isFlipped);
+    displayMoveList($moveList, moveList, handleOnMove);
 }
 
 function initReplayPage() {

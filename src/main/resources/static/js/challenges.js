@@ -3,13 +3,13 @@ function updateChallenge(args) {
     var buttonId = args.buttonId;
     var challengerId = Number(args.challengerId);
     var challengeeId = Number(args.challengeeId);
-    var action = args.action;
+    var buttonText = args.buttonText;
     var messageOfResp = args.messageOfResp;
 
-    var $buttonElement = $("#" + buttonId);
+    var $button = $("#" + buttonId);
 
-    console.log("On " + action + " challenge", challengerId, challengeeId);
-    $buttonElement.html('<div class="loader"></div>');
+    console.log("On " + buttonText + " challenge", challengerId, challengeeId);
+    $button.html('<div class="loader"></div>');
 
     $.ajax({
         url: "/forms/challenges/update",
@@ -18,31 +18,34 @@ function updateChallenge(args) {
         data: JSON.stringify({
             challengerId: challengerId,
             challengeeId: challengeeId,
-            action: action
+            action: buttonText
         }),
         success: function (data) {
             var msg = messageOfResp(data);
             createNotification(msg, true);
 
-            var $noneElement = $("#no-challenges");
-            var $listElement = $("#challenge-list");
-            var $submitElement = $("#" + id);
+            var $none = $("#no-challenges");
+            var $challengeList = $("#challenge-list");
+            var $submit = $("#" + id);
 
-            $submitElement.remove();
+            $submit.remove();
 
-            if ($listElement.children().length === 0) {
-                $noneElement.css("display", "block");
-                $listElement.remove();
+            if ($challengeList.children().length === 0) {
+                $none.css("display", "block");
+                $challengeList.remove();
             }
 
-            console.log($listElement.children().length + " challenges after removal");
-            $buttonElement.html(action);
+            $button.html(buttonText);
+
+            console.log($challengeList.children().length + " challenges after removal");
         },
         error: function (xhr) {
             var respBody = JSON.parse(xhr.responseText);
-            var msg = getMessage(respBody);
+            var msg = messageOfResp(respBody);
             createNotification(msg, false);
-            $buttonElement.html(action);
+            $button.html(buttonText);
+
+            console.log("Update challenge response", xhr.responseText);
         }
     });
 }
@@ -53,7 +56,7 @@ function onDelete(index, challengerId, challengeeId, challengeeName) {
         buttonId: "challenge-" + index + "-delete",
         challengerId: challengerId,
         challengeeId: challengeeId,
-        action: "Delete",
+        buttonText: "Delete",
         messageOfResp: function (resp) {
             if (resp.code === "SUCCESS_UPDATE_CHALLENGE") {
                 return "Deleted challenge against " + challengeeName;
@@ -69,7 +72,7 @@ function onAccept(index, challengerId, challengeeId, challengerName) {
         buttonId: "challenge-" + index + "-accept",
         challengerId: challengerId,
         challengeeId: challengeeId,
-        action: "Accept",
+        buttonText: "Accept",
         messageOfResp: function (resp) {
             if (resp.code === "SUCCESS_UPDATE_CHALLENGE") {
                 return "Accepted challenge from " + challengerName;
@@ -85,7 +88,7 @@ function onReject(index, challengerId, challengeeId, challengerName) {
         buttonId: "challenge-" + index + "-reject",
         challengerId: challengerId,
         challengeeId: challengeeId,
-        action: "Reject",
+        buttonText: "Reject",
         messageOfResp: function (resp) {
             if (resp.code === "SUCCESS_UPDATE_CHALLENGE") {
                 return "Rejected challenge from " + challengerName;

@@ -30,25 +30,24 @@ function createNotification(message, isSuccess, timeout) {
         timeout = 3000;
     }
 
-    var $notifications = $("#notifications-box");
-
     var $xButton = $("<div/>")
         .addClass("x-button")
         .html("&#10006;");
 
-    var $notification = $('<div class="notification ' + (isSuccess ? 'notification-green' : 'notification-red') + '"></div>')
+    var $notification = $("<div/>")
+        .addClass("notification")
+        .addClass(isSuccess ? "notification-green" : "notification-red")
         .append($("<div/>")
             .addClass("notification-text")
             .text(message))
         .append($("<div/>")
             .addClass("notification-space"))
-        .append($xButton);
+        .append($xButton)
+        .appendTo($("#notifications-box"));
 
     $xButton.on("click", function () {
         $notification.remove();
     });
-
-    $notifications.append($notification);
 
     requestAnimationFrame(function () {
         $notification.addClass("visible");

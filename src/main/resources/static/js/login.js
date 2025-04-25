@@ -23,6 +23,7 @@ function onSubmitLoginForm(e) {
             var code = xhr.responseText;
             createNotification(message(code), false);
             $submitElement.html("Login");
+
             console.log("Login response", xhr.responseText);
         }
     });

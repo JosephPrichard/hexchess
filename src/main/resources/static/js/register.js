@@ -25,6 +25,7 @@ function onSubmitRegisterForm(e) {
             var code = xhr.responseText;
             createNotification(message(code), false);
             $submitElement.html("Register");
+
             console.log("Register response", xhr.responseText);
         }
     });
