@@ -2,11 +2,8 @@
 <html lang="en">
 <head>
     <title>Login - Hexchess</title>
-    <link rel="stylesheet" href="/static/css/index.css">
-    <script src="/static/js/lib/constants.js"></script>
-    <script src="/static/js/lib/chess.js"></script>
-    <script src="/static/js/pages/game.js"></script>
-    <script src="/static/js/lib/notifications.js"></script>
+    <script src="/static/js/notifications.js"></script>
+    {{> partials/head }}
 </head>
 <body>
 {{> partials/banner }}
@@ -22,7 +19,4 @@
     </div>
 </div>
 </body>
-<script>
-    renderAndAttachEventListeners('{{gameId}}');
-</script>
 </html>

@@ -2,25 +2,12 @@
 <html lang="en">
 <head>
     <title>Games - Hexchess</title>
-    <link rel="stylesheet" href="/static/css/index.css">
+    {{> partials/head }}
 </head>
 <body>
 {{> partials/banner }}
 <div class="center-vertical-container">
     <div class="center-vertical-container" style="width: 800px">
-        <table id="games-table" class="table-container">
-            <thead>
-            <tr>
-                <th>White</th>
-                <th>Black</th>
-                <th>Score</th>
-                <th>Mode</th>
-            </tr>
-            </thead>
-            <tbody>
-            {{> partials/gamesList games }}
-            </tbody>
-        </table>
         <div class="center-horizontal-container" style="padding: 15px;">
             <button id="register-form-submit" class="button button-grey" type="submit" style="margin-bottom: 20px">
                 Play a Friend

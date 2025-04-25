@@ -1,4 +1,4 @@
-const messages = {
+var messages = {
     "ERROR_PASSWORD_LENGTH": "Password must be between 10 and 100 characters long.",
     "ERROR_CONFIRM_PASSWORD": "Passwords do not match.",
     "ERROR_USERNAME_LENGTH": "Username must be between 5 and 20 characters.",
@@ -21,45 +21,46 @@ const messages = {
     "SUCCESS": "Operation completed successfully."
 };
 
+function message(code) {
+    return messages[code] || "";
+}
+
 function createNotification(message, isSuccess, timeout) {
     if (!timeout) {
         timeout = 3000;
     }
 
-    const notifications = document.getElementById("notifications-box");
+    var $notifications = $("#notifications-box");
 
-    const text = document.createElement('div');
-    text.className = 'notification-text';
-    text.innerHTML = message;
+    var $xButton = $("<div/>")
+        .addClass("x-button")
+        .html("&#10006;");
 
-    const space = document.createElement('div');
-    space.className = 'notification-space';
+    var $notification = $('<div class="notification ' + (isSuccess ? 'notification-green' : 'notification-red') + '"></div>')
+        .append($("<div/>")
+            .addClass("notification-text")
+            .text(message))
+        .append($("<div/>")
+            .addClass("notification-space"))
+        .append($xButton);
 
-    const xButton = document.createElement('span');
-    xButton.className = 'x-button';
-    xButton.innerHTML = '&#10006;';
+    $xButton.on("click", function () {
+        $notification.remove();
+    });
 
-    const notification = document.createElement('div');
-    notification.className = `notification ${isSuccess ? "notification-green" : "notification-red"}`;
+    $notifications.append($notification);
 
-    notification.appendChild(text);
-    notification.appendChild(space);
-    notification.appendChild(xButton);
+    requestAnimationFrame(function () {
+        $notification.addClass("visible");
+    });
 
-    xButton.addEventListener('click', () => notifications.removeChild(notification));
-
-    notifications.append(notification);
-    requestAnimationFrame(() => notification.classList.add('visible')); // apply the css transition after the element is written to DOM
-
-    setTimeout(
-        () => {
-            if (notifications.contains(notification)) {
-                notification.classList.remove('visible')
-                setTimeout(() => notifications.removeChild(notification), 250); // delete the element after css transition is finished
-            }
-            console.log("Deleted a notification", message);
-        },
-        timeout);
+    setTimeout(function () {
+        $notification.removeClass("visible");
+        setTimeout(function () {
+            $notification.remove();
+        }, 250);
+        console.log("Deleted a notification", message);
+    }, timeout);
 
     console.log("Created a notification", message);
 }

@@ -1,7 +1,7 @@
 # Hexagonal Chess
 A website to play hexagonal chess online.
 
-Created using Java, Javascript, Jooby, Handlebars, Postgres, and Redis.
+Created using Java, Javascript, Jooby, Handlebars, JQuery, Postgres, and Redis.
 
 ## Build and Deployment
 

@@ -2,10 +2,9 @@
 <html lang="en">
 <head>
     <title>{{user.username}} - Hexchess</title>
-    <link rel="stylesheet" href="/static/css/index.css">
-    <script src="/static/js/pages/user.js"></script>
-    <script src="/static/js/lib/utils.js"></script>
-    <script src="/static/js/lib/notifications.js"></script>
+    <script src="/static/js/user.js"></script>
+    <script src="/static/js/notifications.js"></script>
+    {{> partials/head }}
 </head>
 <body>
 {{> partials/banner }}
@@ -97,7 +96,6 @@
 </div>
 </body>
 <script>
-    render('{{user.id}}')
-    attachEventListeners('{{user.id}}');
+    initUserPage('{{user.id}}')
 </script>
 </html>

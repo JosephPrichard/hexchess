@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
     <title>Profile - Hexchess</title>
-    <link rel="stylesheet" href="/static/css/index.css">
-    <script src="/static/js/pages/profile.js"></script>
-    <script src="/static/js/lib/notifications.js"></script>
+    <script src="/static/js/profile.js"></script>
+    <script src="/static/js/notifications.js"></script>
+    {{> partials/head }}
 </head>
 <body>
 {{> partials/banner }}
@@ -68,7 +68,6 @@
 </div>
 </body>
 <script>
-    initState('{{user.country}}');
-    attachEventListeners();
+    initProfilePage('{{user.country}}');
 </script>
 </html>

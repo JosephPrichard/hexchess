@@ -2,13 +2,10 @@
 <html lang="en">
 <head>
     <title>Replay - Hexchess</title>
-    <link rel="stylesheet" href="/static/css/index.css">
-    <script src="/static/js/lib/constants.js"></script>
-    <script src="/static/js/lib/chess.js"></script>
-    <script src="/static/js/pages/replay.js"></script>
-    <script type="application/json" id="move-list-data">
-        {{{replay.moveListJson}}}
-    </script>
+    <script src="/static/js/chess.js"></script>
+    <script src="/static/js/replay.js"></script>
+    <script src="/static/js/notifications.js"></script>
+    {{> partials/head }}
 </head>
 <body>
 {{> partials/banner }}
@@ -70,7 +67,10 @@
     </div>
 </div>
 </body>
+<script type="application/json" id="move-list-data">
+    {{{replay.moveListJson}}}
+</script>
 <script>
-    renderAndAttachEventListeners();
+    initReplayPage();
 </script>
 </html>

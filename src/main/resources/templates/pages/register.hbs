@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
     <title>Leaderboard - Hexchess</title>
-    <link rel="stylesheet" href="/static/css/index.css">
-    <script src="/static/js/pages/register.js"></script>
-    <script src="/static/js/lib/notifications.js"></script>
+    <script src="/static/js/register.js"></script>
+    <script src="/static/js/notifications.js"></script>
+    {{> partials/head }}
 </head>
 <body>
 {{> partials/banner }}
@@ -32,6 +32,6 @@
 </div>
 </body>
 <script>
-    attachEventListeners();
+    initRegisterPage();
 </script>
 </html>
