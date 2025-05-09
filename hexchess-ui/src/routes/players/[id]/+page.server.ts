@@ -1,17 +1,20 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { getUserWithReplays } from '$lib/api';
+import { getUserWithReplays, unwrap } from '$lib/api';
 import { createMessage } from '$lib/response';
 import type { PlayerProps } from './+page.svelte';
 
-export const load: PageServerLoad = async ({ params }): Promise<PlayerProps> => {
+export const load: PageServerLoad = async ({ params, setHeaders }): Promise<PlayerProps> => {
     const id = params.id;
 
-    const { ok, status, err, resp } = await getUserWithReplays(id);
+    const { ok, status, err, resp } = await unwrap(getUserWithReplays(id));
 
-    if (!ok || !resp) {
+    if (!ok || resp === undefined) {
         error(status, createMessage(err));
     }
 
+    setHeaders({
+        'cache-control': 'max-age=300'
+    });
     return { userWithReplays: resp };
 };

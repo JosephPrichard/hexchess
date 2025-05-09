@@ -1,54 +1,57 @@
 <script lang="ts">
-    import type { UserView } from '$lib/models';
-    import { getCountries, postLogout, postUpdatePassword, postUpdateUser } from '$lib/api';
+    import { getCountries, getProfile, postLogout, postUpdatePassword, postUpdateUser, unwrap } from '$lib/api';
     import { goto } from '$app/navigation';
     import { onMount } from 'svelte';
-
-    export interface ProfileProps  {
-        user: UserView;
-    }
-
-    const { data }: { data: ProfileProps } = $props();
-    const { user } = data;
+    import { createMessage } from '$lib/response';
 
     let showCountryOptions = $state(false);
-    let countryList: string[] = $state([]);
-    let username = $state(user.username);
-    let bio = $state(user.bio);
-    let country = $state(user.country);
+
+    let awaitingCountryList: Promise<string[]> = $state(Promise.resolve([]));
+
+    let username = $state('');
+    let bio = $state('');
+    let country = $state('');
     let password = $state('');
     let newPassword = $state('');
     let retypePassword = $state('');
 
+    onMount(() => {
+        awaitingCountryList = getCountries();
+    });
+
     onMount(async () => {
-        const { ok, status, resp, err } = await getCountries();
+        const { ok, status, resp, err } = await unwrap(getProfile());
         if (!ok) {
             console.error(ok, status, resp, err );
         }
-        countryList = resp || [];
-    });
+        if (resp) {
+            username = resp.username;
+            bio = resp.bio;
+            country = resp.country;
+        }
+    })
 
     async function onSubmitUser(e: MouseEvent) {
         e.preventDefault();
 
-        const { ok, status, resp, err } = await postUpdateUser(username, bio, country);
+        const { ok, status, resp, err } = await unwrap(postUpdateUser(username, bio, country));
         console.error(ok, status, resp, err );
     }
 
     async function onSubmitPassword(e: MouseEvent) {
         e.preventDefault();
 
-        const { ok, status, resp, err } = await postUpdatePassword(password, newPassword, retypePassword);
+        const { ok, status, resp, err } = await unwrap(postUpdatePassword(password, newPassword, retypePassword));
         console.error(ok, status, resp, err );
     }
 
     async function onSelectCountry(country: string) {
-        const { ok, status, resp, err } = await postUpdateUser(username, bio, country);
+        const { ok, status, resp, err } = await unwrap(postUpdateUser(username, bio, country));
         console.error(ok, status, resp, err );
     }
 
     async function onClickSignOut() {
-        const { ok, status, resp, err } = await postLogout();
+        const { ok, status, resp, err } = await unwrap(postLogout());
         if (ok) {
             await goto('/');
         } else {
@@ -75,15 +78,23 @@
                 <button class="invisible-button" onclick={() => (showCountryOptions = false)}>
                     <img alt={country} class="country-image" src={`%sveltekit.assets%/flags/${country}.png`} />
                 </button>
-                {#if showCountryOptions}
-                    <div class="country-picker">
-                        {#each countryList as country (country)}
-                            <button class="invisible-button" onclick={() => onSelectCountry(country)}>
-                                <img class="country-image" src={`%sveltekit.assets%/flags/${country}.png`} alt={country} />
-                            </button>
-                        {/each}
-                    </div>
-                {/if}
+                <div class="country-picker">
+                    {#if showCountryOptions}
+                        {#await awaitingCountryList}
+                            <div class="loader"></div>
+                        {:then countryList}
+                            {#each countryList as country (country)}
+                                <button class="invisible-button" onclick={() => onSelectCountry(country)}>
+                                    <img class="country-image" src={`%sveltekit.assets%/flags/${country}.png`} alt={country} />
+                                </button>
+                            {/each}
+                        {:catch error}
+                            <div class="red-color text-md">
+                                {createMessage(error.message)}
+                            </div>
+                        {/await}
+                    {/if}
+                </div>
             </div>
 
             <button class="button button-grey" onclick={onSubmitUser} style="margin-top: 15px;" type="submit"> Submit </button>

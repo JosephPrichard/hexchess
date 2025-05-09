@@ -1,11 +1,6 @@
 package web;
 
 public class WebConstants {
-    // css constants
-    public static final String GREEN_COLOR = "green-color";
-    public static final String RED_COLOR = "red-color";
-    public static final String YELLOW_COLOR = "yellow-color";
-
     // http error codes
     public static final String ERROR_UNKNOWN = "ERROR_UNKNOWN";
     public static final String ERROR_INVALID_PASSWORD = "ERROR_PASSWORD_LENGTH";
@@ -23,6 +18,8 @@ public class WebConstants {
     public static final String ERROR_DUPLICATE_CHALLENGE = "ERROR_DUPLICATE_CHALLENGE";
     public static final String ERROR_UPDATE_CHALLENGE = "ERROR_UPDATE_CHALLENGE";
     public static final String ERROR_INVALID_REQUEST = "ERROR_INVALID_REQUEST";
+
+    // http success codes
     public static final String SUCCESS_LOGIN = "SUCCESS_LOGIN";
     public static final String SUCCESS_REGISTER = "SUCCESS_REGISTER";
     public static final String SUCCESS_UPDATE_PASSWORD = "SUCCESS_UPDATE_PASSWORD";
@@ -31,7 +28,7 @@ public class WebConstants {
     public static final String SUCCESS_UPDATE_CHALLENGE = "SUCCESS_UPDATE_CHALLENGE";
     public static final String SUCCESS_GENERIC = "SUCCESS";
 
-    // ws error codes
+    // ws response codes
     public static final String ERROR_MESSAGE_TYPE = "ERROR_MESSAGE_TYPE";
     public static final String ERROR_TURN = "ERROR_TURN";
     public static final String ERROR_INVALID_MOVE = "ERROR_INVALID_MOVE";

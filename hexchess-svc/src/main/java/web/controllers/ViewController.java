@@ -68,6 +68,7 @@ public class ViewController extends Jooby {
         get("/views/replays", this::getReplayList);
         get("/views/challenges", this::getChallengeList);
         get("/views/countries", this::getCountryList);
+        get("/views/initial-board", this::getInitialBoard);
     }
 
     public PlayerEntity authenticate(Context ctx) {
@@ -98,6 +99,11 @@ public class ViewController extends Jooby {
             errorMessage = message;
         }
         ctx.send(errorMessage);
+    }
+
+    public String getInitialBoard(Context ctx) {
+        ctx.setResponseHeader("Cache-Control", String.format("public, max-age=%s, immutable", Duration.ofDays(1).toSeconds()));
+        return initialBoardJson;
     }
 
     public List<String> getCountryList(Context ctx) {

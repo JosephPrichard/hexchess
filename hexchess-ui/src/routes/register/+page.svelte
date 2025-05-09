@@ -3,6 +3,7 @@
     import { postRegister } from '$lib/api';
     import { goto } from '$app/navigation';
     import { createMessage } from '$lib/response';
+    import { unwrap } from '$lib/api.js';
 
     let username = $state('');
     let password = $state('');
@@ -13,7 +14,7 @@
         e.preventDefault();
 
         isLoading = true;
-        const { ok, resp, err } = await postRegister(username, password, confirmPassword);
+        const { ok, resp, err } = await unwrap(postRegister(username, password, confirmPassword));
 
         if (ok) {
             console.log(resp);

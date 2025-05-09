@@ -7,7 +7,9 @@
 
     let session: Session | undefined = $state(undefined);
 
-    onMount(() => (session = getClientSession()));
+    onMount(() => {
+        session = getClientSession();
+    });
 </script>
 
 <link href="https://fonts.googleapis.com/css2?family=Gidole&display=swap" rel="stylesheet" />

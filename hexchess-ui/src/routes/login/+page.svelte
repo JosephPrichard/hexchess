@@ -1,6 +1,6 @@
 <script lang="ts">
     import Banner from '$lib/components/Banner.svelte';
-    import { postLogin } from '$lib/api';
+    import { postLogin, unwrap } from '$lib/api';
     import { goto } from '$app/navigation';
     import { createMessage } from '$lib/response';
 
@@ -12,7 +12,7 @@
         e.preventDefault();
 
         isLoading = true;
-        const { ok, resp, err } = await postLogin(username, password);
+        const { ok, resp, err } = await unwrap(postLogin(username, password));
 
         if (ok) {
             console.log(resp);

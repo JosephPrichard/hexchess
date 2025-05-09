@@ -2,7 +2,7 @@
     import type { ColorSelect, TimeControl, UserWithReplaysView } from '$lib/models.js';
     import { goto } from '$app/navigation';
     import CreateGame from '$lib/components/modals/CreateGame.svelte';
-    import { getReplays, postCreateChallenge } from '$lib/api';
+    import { getReplays, postCreateChallenge, unwrap } from '$lib/api';
     import { onMount } from 'svelte';
     import { getClientSession } from '$lib/utils';
     import ChallengeSvg from '$lib/components/icons/ChallengeIcon.svelte';
@@ -22,9 +22,10 @@
     async function tryLoadReplays() {
         const lastId = nestedReplayList.at(-1)?.at(-1)?.id;
         const isAtPageBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight;
+        const shouldLoadReplays = hasMoreReplays && isAtPageBottom && lastId !== undefined && user?.id !== undefined;
 
-        if (hasMoreReplays && isAtPageBottom && lastId !== undefined && user?.id !== undefined) {
-            const { ok, resp, err } = await getReplays(user.id, lastId);
+        if (shouldLoadReplays) {
+            const { ok, resp, err } = await unwrap(getReplays(user.id, lastId));
             if (!ok) {
                 console.error(ok, resp, err);
             }
@@ -45,7 +46,7 @@
     });
 
     async function onSubmitCreateGame(timeControl: TimeControl, color: ColorSelect) {
-        const { ok, status, resp, err } = await postCreateChallenge(timeControl, color);
+        const { ok, status, resp, err } = await unwrap(postCreateChallenge(timeControl, color));
         showCreateModal = false;
         console.error(ok, status, resp, err);
     }

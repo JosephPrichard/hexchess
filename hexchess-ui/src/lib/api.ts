@@ -1,107 +1,108 @@
-import type { ChallengeView, ReplayView, UserView, UserWithReplaysView } from '$lib/models';
+import type { ChallengeView, ChessBoard, ReplayView, UserView, UserWithReplaysView } from '$lib/models';
+import { codes } from '$lib/response';
 
 export interface ApiResult<T> {
     ok: boolean;
     status: number;
-    err: string;
     resp: T | undefined;
+    err: string;
 }
 
-const baseURL = "http://localhost:8081";
+const baseURL = 'http://localhost:8081';
 
-async function handleResponse<T>(response: Response): Promise<ApiResult<T>> {
-    if (!response.ok) {
-        const errorText = await response.text();
-        return { ok: false, status: response.status, err: errorText, resp: undefined };
+class ApiError extends Error {
+    public readonly status: number;
+
+    constructor(message: string, status?: number) {
+        super(message);
+        this.status = status || 0;
     }
-    const data = await response.json();
-    return { ok: true, status: response.status, err: "", resp: data };
 }
 
-const API_RESULT_UNKNOWN: ApiResult<never> = { ok: false, status: 0, err: 'ERROR_UNKNOWN', resp: undefined };
-
-export async function postLogin(username: string, password: string): Promise<ApiResult<string>> {
+export async function api<T>(call: Promise<Response>): Promise<T> {
+    let error: ApiError | undefined;
     try {
-        const response = await fetch(`${baseURL}/forms/login`, {
+        const response = await call;
+
+        if (!response.ok) {
+            const errorCode = await response.text();
+            error = new ApiError(errorCode, response.status);
+        } else {
+            return await response.json();
+        }
+    } catch (error) {
+        console.error(error);
+        throw new ApiError(codes.errorUnknown, 500);
+    }
+
+    throw error;
+}
+
+export async function unwrap<T>(promiseResp: Promise<T>): Promise<ApiResult<T>> {
+    try {
+        const resp = await promiseResp;
+        return { ok: true, status: 200, resp, err: '' };
+    } catch (error) {
+        if (error instanceof ApiError) {
+            return { ok: false, status: error.status, resp: undefined, err: error.message };
+        }
+        return { ok: false, status: 500, resp: undefined, err: codes.errorUnknown };
+    }
+}
+
+export function postLogin(username: string, password: string) {
+    return api<string>(
+        fetch(`${baseURL}/forms/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: "include",
+            credentials: 'include',
             body: JSON.stringify({ username, password })
-        });
-
-        return handleResponse<string>(response);
-    } catch (error) {
-        console.error(error);
-        return API_RESULT_UNKNOWN;
-    }
+        })
+    );
 }
 
-export async function postRegister(username: string, password: string, confirmPassword: string): Promise<ApiResult<string>> {
-    try {
-        const response = await fetch(`${baseURL}/forms/register`, {
+export function postRegister(username: string, password: string, confirmPassword: string) {
+    return api<string>(
+        fetch(`${baseURL}/forms/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: "include",
+            credentials: 'include',
             body: JSON.stringify({ username, password, confirmPassword })
-        });
-
-        return handleResponse<string>(response);
-    } catch (error) {
-        console.error(error);
-        return API_RESULT_UNKNOWN;
-    }
+        })
+    );
 }
 
-export async function postUpdateUser(username: string, bio: string, country: string): Promise<ApiResult<string>> {
-    try {
-        const response = await fetch(`${baseURL}/forms/users`, {
+export function postUpdateUser(username: string, bio: string, country: string) {
+    return api<string>(
+        fetch(`${baseURL}/forms/users`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: "include",
-            body: JSON.stringify({
-                newUsername: username,
-                newBio: bio,
-                newCountry: country
-            })
-        });
-
-        return handleResponse<string>(response);
-    } catch (error) {
-        console.error(error);
-        return API_RESULT_UNKNOWN;
-    }
+            credentials: 'include',
+            body: JSON.stringify({ newUsername: username, newBio: bio, newCountry: country })
+        })
+    );
 }
 
-export async function postUpdatePassword(password: string, newPassword: string, confirmNewPassword: string): Promise<ApiResult<string>> {
-    try {
-        const response = await fetch(`${baseURL}/forms/users/password`, {
+export function postUpdatePassword(password: string, newPassword: string, confirmNewPassword: string) {
+    return api<string>(
+        fetch(`${baseURL}/forms/users/password`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: "include",
+            credentials: 'include',
             body: JSON.stringify({ password, newPassword, confirmNewPassword })
-        });
-
-        return handleResponse<string>(response);
-    } catch (error) {
-        console.error(error);
-        return API_RESULT_UNKNOWN;
-    }
+        })
+    );
 }
 
-export async function postCreateChallenge(timeControl: string, startColor: string): Promise<ApiResult<string>> {
-    try {
-        const response = await fetch(`${baseURL}/forms/challenges/create`, {
+export function postCreateChallenge(timeControl: string, startColor: string) {
+    return api<string>(
+        fetch(`${baseURL}/forms/challenges/create`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: "include",
+            credentials: 'include',
             body: JSON.stringify({ startColor, timeControl })
-        });
-
-        return handleResponse<string>(response);
-    } catch (error) {
-        console.error(error);
-        return API_RESULT_UNKNOWN;
-    }
+        })
+    );
 }
 
 export interface UpdateChallengeResp {
@@ -109,20 +110,15 @@ export interface UpdateChallengeResp {
     gameId?: string;
 }
 
-export async function postUpdateChallenge(challengerId: number, challengeeId: number, action: string): Promise<ApiResult<UpdateChallengeResp>> {
-    try {
-        const response = await fetch(`${baseURL}/forms/challenges/update`, {
+export function postUpdateChallenge(challengerId: number, challengeeId: number, action: string) {
+    return api<UpdateChallengeResp>(
+        fetch(`${baseURL}/forms/challenges/update`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: "include",
+            credentials: 'include',
             body: JSON.stringify({ challengerId, challengeeId, action })
-        });
-
-        return handleResponse<UpdateChallengeResp>(response);
-    } catch (error) {
-        console.error(error);
-        return API_RESULT_UNKNOWN;
-    }
+        })
+    );
 }
 
 export interface UpdateGameResp {
@@ -130,67 +126,45 @@ export interface UpdateGameResp {
     gameId?: string;
 }
 
-export async function postCreateGame(timeControl: string, firstColor: string): Promise<ApiResult<UpdateGameResp>> {
-    try {
-        const response = await fetch(`${baseURL}/forms/game/create`, {
+export function postCreateGame(timeControl: string, firstColor: string) {
+    return api<UpdateGameResp>(
+        fetch(`${baseURL}/forms/game/create`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: "include",
+            credentials: 'include',
             body: JSON.stringify({ firstColor, timeControl })
-        });
-
-        return handleResponse<UpdateGameResp>(response);
-    } catch (error) {
-        console.error(error);
-        return API_RESULT_UNKNOWN;
-    }
+        })
+    );
 }
 
-export async function postLogout(): Promise<ApiResult<string>> {
-    try {
-        const response = await fetch(`${baseURL}/forms/logout`, {
+export function postLogout() {
+    return api<string>(
+        fetch(`${baseURL}/forms/logout`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: "include"
-        });
-
-        return handleResponse<string>(response);
-    } catch (error) {
-        console.error(error);
-        return API_RESULT_UNKNOWN;
-    }
+            credentials: 'include'
+        })
+    );
 }
 
-export async function getReplays(userId: number, afterId?: number): Promise<ApiResult<ReplayView[]>> {
-    try {
-        const params = new URLSearchParams({ userId: userId.toString() });
-        if (afterId) {
-            params.set('afterId', afterId.toString());
-        }
-
-        const response = await fetch(`${baseURL}/views/replays?${params.toString()}`, { method: 'GET' });
-
-        return handleResponse<ReplayView[]>(response);
-    } catch (error) {
-        console.error(error);
-        return API_RESULT_UNKNOWN;
+export function getReplays(userId: number, afterId?: number) {
+    const params = new URLSearchParams({ userId: userId.toString() });
+    if (afterId) {
+        params.set('afterId', afterId.toString());
     }
+
+    return api<ReplayView[]>(fetch(`${baseURL}/views/replays?${params.toString()}`, { method: 'GET' }));
 }
 
-export async function getChallenges(participants: string): Promise<ApiResult<ChallengeView[]>> {
-    try {
-        const params = new URLSearchParams({ participant: participants });
+export function getChallenges(participants: string) {
+    const params = new URLSearchParams({ participant: participants });
 
-        const response = await fetch(`${baseURL}/views/player/challenges?${params.toString()}`, {
+    return api<ChallengeView[]>(
+        fetch(`${baseURL}/views/player/challenges?${params.toString()}`, {
             method: 'GET',
-            credentials: "include",
-        });
-
-        return handleResponse<ChallengeView[]>(response);
-    } catch (error) {
-        console.error(error);
-        return API_RESULT_UNKNOWN;
-    }
+            credentials: 'include'
+        })
+    );
 }
 
 export interface LeaderboardResp {
@@ -198,78 +172,52 @@ export interface LeaderboardResp {
     userList: UserView[];
 }
 
-export async function getLeaderboard(page: number): Promise<ApiResult<LeaderboardResp>> {
-    try {
-        const params = new URLSearchParams({ page: String(page) });
+export function getLeaderboard(page: number) {
+    const params = new URLSearchParams({ page: String(page) });
 
-        const response = await fetch(`${baseURL}/views/leaderboard?${params}`, { method: 'GET' });
-
-        return handleResponse<LeaderboardResp>(response);
-    } catch (error) {
-        console.error(error);
-        return API_RESULT_UNKNOWN;
-    }
+    return api<LeaderboardResp>(fetch(`${baseURL}/views/leaderboard?${params}`, { method: 'GET' }));
 }
 
-export async function getSelfUser(): Promise<ApiResult<UserView>> {
-    try {
-        const response = await fetch(`${baseURL}/views/players/self`, {
+export function getProfile() {
+    return api<UserView>(
+        fetch(`${baseURL}/views/players/self`, {
             method: 'GET',
-            credentials: "include",
-        });
-
-        return handleResponse<UserView>(response);
-    } catch (error) {
-        console.error(error);
-        return API_RESULT_UNKNOWN;
-    }
+            credentials: 'include'
+        })
+    );
 }
 
-export async function getUserWithReplays(id: string): Promise<ApiResult<UserWithReplaysView>> {
-    try {
-        const response = await fetch(`${baseURL}/views/players/${id}`, { method: 'GET' });
-
-        return handleResponse<UserWithReplaysView>(response);
-    } catch (error) {
-        console.error(error);
-        return API_RESULT_UNKNOWN;
-    }
+export function getUserWithReplays(id: string) {
+    return api<UserWithReplaysView>(fetch(`${baseURL}/views/players/${id}`, { method: 'GET' }));
 }
 
-export async function getSearchPlayers(username: string, page?: number): Promise<ApiResult<UserView[]>> {
-    try {
-        const params = new URLSearchParams({ username });
-        if (page) {
-            params.set('page', String(page));
-        }
-
-        const response = await fetch(`${baseURL}/views/players/search?${params.toString()}`, { method: 'GET' });
-
-        return handleResponse<UserView[]>(response);
-    } catch (error) {
-        console.error(error);
-        return API_RESULT_UNKNOWN;
+export function getSearchPlayers(username: string, page?: number) {
+    const params = new URLSearchParams({ username });
+    if (page) {
+        params.set('page', String(page));
     }
+
+    return api<UserView[]>(fetch(`${baseURL}/views/players/search?${params.toString()}`, { method: 'GET' }));
 }
 
-export async function getReplay(username: string): Promise<ApiResult<ReplayView>> {
-    try {
-        const response = await fetch(`${baseURL}/views/replay/${username}`, { method: 'GET' });
-
-        return handleResponse<ReplayView>(response);
-    } catch (error) {
-        console.error(error);
-        return API_RESULT_UNKNOWN;
-    }
+export function getReplay(id: string) {
+    return api<ReplayView>(fetch(`${baseURL}/views/replay/${id}`, { method: 'GET' }));
 }
 
-export async function getCountries(): Promise<ApiResult<string[]>> {
-    try {
-        const response = await fetch(`${baseURL}/views/countries`, { method: 'GET' });
+export function getCountries() {
+    return api<string[]>(fetch(`${baseURL}/views/countries`, { method: 'GET' }));
+}
 
-        return handleResponse<string[]>(response);
-    } catch (error) {
-        console.error(error);
-        return API_RESULT_UNKNOWN;
+let cachedBoard: ChessBoard | undefined = undefined;
+
+export async function getInitialBoard() {
+    if (cachedBoard !== undefined) {
+        return cachedBoard;
     }
+    const board = await api<ChessBoard>(fetch(`${baseURL}/views/initial-board`, { method: 'GET' }));
+    if (!board) {
+        return undefined;
+    }
+    cachedBoard = board;
+    return cachedBoard;
 }

@@ -4,23 +4,25 @@
 
     interface Props {
         moveList: Move[];
-        onClickMove: (i: number, move: Move) => void;
+        onSelectMove: (i: number) => void;
+        selectedMoveIndex?: number;
     }
 
-    const { moveList, onClickMove }: Props = $props();
+    const { moveList, onSelectMove, selectedMoveIndex }: Props = $props();
 </script>
 
 <div class="move-list">
     {#each moveList as moveOne, i (i)}
         {#if i % 2 === 0}
+            {@const moveTwoIndex = i + 1}
             {@const moveTwo = moveList[i + 1]}
             <div class="move-row">
                 <div class="move-number">{i / 2 + 1}.</div>
-                <div class="move" role="button" onkeydown={() => onClickMove(i, moveList[i])} tabindex="-1">
+                <div class="move" class:selected-move={selectedMoveIndex === i} role="button" onkeydown={() => onSelectMove(i)} tabindex="-1">
                     {stringOfMove(moveOne)}
                 </div>
                 {#if moveTwo}
-                    <div class="move" role="button" onkeydown={() => onClickMove(i + 1, moveTwo)} tabindex="-1">
+                    <div class="move" class:selected-move={selectedMoveIndex === moveTwoIndex} role="button" onkeydown={() => onSelectMove(moveTwoIndex)} tabindex="-1">
                         {stringOfMove(moveTwo)}
                     </div>
                 {:else}
