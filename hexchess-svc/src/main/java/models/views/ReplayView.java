@@ -5,11 +5,11 @@ import chess.PieceMove;
 import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.SneakyThrows;
 import lombok.ToString;
+import models.common.ReplayCause;
+import models.common.ReplayResult;
 import org.jsoup.Jsoup;
 import models.entities.ReplayEntity;
-import web.WebConstants;
 
 import java.sql.Timestamp;
 import java.time.Duration;
@@ -18,8 +18,7 @@ import java.util.List;
 import java.util.function.Function;
 
 import static models.entities.ReplayEntity.*;
-import static utils.Globals.HTML_SAFELIST;
-import static utils.Globals.JSON_MAPPER;
+import static utils.Globals.*;
 
 @ToString
 @EqualsAndHashCode
@@ -37,14 +36,14 @@ public class ReplayView {
     public String blackCountry;
     public float winElo;
     public float loseElo;
-    public String whiteElo;
-    public String blackElo;
+    public float whiteElo;
+    public float blackElo;
     public List<PieceMove> moveList;
     public String playedOn;
-    public String result;
-    public String cause;
-    public String whiteEloDiff;
-    public String blackEloDiff;
+    public ReplayResult result;
+    public ReplayCause cause;
+    public float whiteEloDiff;
+    public float blackEloDiff;
     public String whiteEloColor;
     public String blackEloColor;
 
@@ -56,9 +55,7 @@ public class ReplayView {
         return create(entity, ReplayView::formatDuration);
     }
 
-    @SneakyThrows
     public static ReplayView create(ReplayEntity entity, Function<Timestamp, String> formatPlayedOn) {
-        TypeReference<List<PieceMove>> d = new TypeReference<>() {};
         ReplayView view = new ReplayView();
         view.id = entity.id;
         view.whiteId = entity.whiteId;
@@ -69,21 +66,23 @@ public class ReplayView {
         view.blackCountry = entity.blackCountry != null ? Jsoup.clean(entity.blackCountry, HTML_SAFELIST) : null;
         view.winElo = entity.winElo;
         view.loseElo = entity.loseElo;
-        view.whiteElo = String.format("%.0f", entity.whiteElo);
-        view.blackElo = String.format("%.0f", entity.blackElo);
-        view.moveList = JSON_MAPPER.readValue(entity.moveListJson, MOVE_LIST_TYPE);
+        view.whiteElo = entity.whiteElo;
+        view.blackElo = entity.blackElo;
+        view.moveList = deserializeMoveList(entity.moveListJson);
         view.playedOn = entity.playedOn != null ? formatPlayedOn.apply(entity.playedOn) : null;
-        view.cause = formatCause(entity.cause);
-        view.formatResults(entity);
+        view.result = ReplayResult.fromInteger(entity.result);
+        view.cause = ReplayCause.fromInteger(entity.cause);
+        view.calcResultElos(entity);
         return view;
     }
 
-    public static String formatCause(int cause) {
-        return switch (cause) {
-            case CHECKMATE -> "Checkmate";
-            case FORFEIT -> "Forfeit";
-            default -> throw new IllegalStateException("Invalid cause state " + cause);
-        };
+    public static List<PieceMove> deserializeMoveList(String moveListJson) {
+        try {
+            return moveListJson != null ? JSON_MAPPER.readValue(moveListJson, MOVE_LIST_TYPE) : null;
+        } catch (Exception e) {
+            LOGGER.error("Failed to deserialize moveList={}", moveListJson);
+            throw new RuntimeException(e);
+        }
     }
 
     public static String formatDuration(Timestamp timestamp) {
@@ -107,34 +106,21 @@ public class ReplayView {
         return timestamp.toLocalDateTime().format(DATE_FORMATTER);
     }
 
-    public void formatResults(ReplayEntity entity) {
+    public void calcResultElos(ReplayEntity entity) {
         switch (entity.result) {
         case WHITE_WIN -> {
-            result = "White Victory";
-            whiteEloDiff = formatElo(entity.winElo);
-            blackEloDiff = formatElo(entity.loseElo);
-            whiteEloColor = WebConstants.RED_COLOR;
-            blackEloColor = WebConstants.GREEN_COLOR;
+            whiteEloDiff = entity.winElo;
+            blackEloDiff = entity.loseElo;
         }
         case BLACK_WIN -> {
-            result = "Black Victory";
-            whiteEloDiff = formatElo(entity.loseElo);
-            blackEloDiff = formatElo(entity.winElo);
-            whiteEloColor = WebConstants.GREEN_COLOR;
-            blackEloColor = WebConstants.RED_COLOR;
+            whiteEloDiff = entity.loseElo;
+            blackEloDiff = entity.winElo;
         }
         case DRAW -> {
-            result = "Draw";
-            whiteEloDiff = formatElo(0);
-            blackEloDiff = formatElo(0);
-            whiteEloColor = WebConstants.YELLOW_COLOR;
-            blackEloColor = WebConstants.YELLOW_COLOR;
+            whiteEloDiff = 0;
+            blackEloDiff = 0;
         }
         default -> throw new IllegalStateException("Invalid result state " + result);
         }
-    }
-
-    private static String formatElo(float elo) {
-        return (elo >= 0 ? "+" : "") + elo;
     }
 }

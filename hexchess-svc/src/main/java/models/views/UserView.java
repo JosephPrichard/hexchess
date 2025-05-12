@@ -30,7 +30,6 @@ public class UserView {
     public String joinedOn;
     public int total;
     public int winRate;
-    public String winRateColor;
 
     public static UserView create(UserEntity entity) {
         UserView view = new UserView();
@@ -45,18 +44,7 @@ public class UserView {
         view.losses = entity.losses;
         view.total = entity.wins + entity.losses;
         view.winRate = view.total == 0 ? 0 : entity.wins * 100 / view.total;
-        view.winRateColor = formatWinrateColor(view.winRate);
         view.rank = entity.rank;
         return view;
-    }
-
-    public static String formatWinrateColor(int winRate) {
-        if (winRate > 50) {
-            return WebConstants.GREEN_COLOR;
-        } else if (winRate < 50) {
-            return WebConstants.RED_COLOR;
-        } else {
-            return WebConstants.YELLOW_COLOR;
-        }
     }
 }

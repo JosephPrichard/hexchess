@@ -3,7 +3,6 @@ package services.daos;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import models.entities.UserEntity;
 import org.junit.jupiter.api.*;
-import services.daos.UserDao;
 import utils.Config;
 
 import javax.sql.DataSource;
@@ -118,7 +117,7 @@ public class UserDaoTest {
         userDao.updatePassword(1L, "password-new");
 
         UserEntity user = userDao.getById(1L);
-        UserDao.VerifiedUser player = userDao.verify("user1", "password-new");
+        VerifiedUser player = userDao.verify("user1", "password-new");
 
         // then
         Assertions.assertEquals(player.id, user.id);

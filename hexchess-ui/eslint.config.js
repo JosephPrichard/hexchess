@@ -21,8 +21,8 @@ export default ts.config(
             globals: { ...globals.browser, ...globals.node }
         },
         rules: {
-            'no-undef': 'off'
-            // 'no-unused-vars': ['warn', { varsIgnorePattern: '^_' }] // Allow unused _ variables
+            'no-undef': 'off',
+            'no-unused-vars': 'off'
         }
     },
     {

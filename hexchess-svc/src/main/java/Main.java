@@ -11,19 +11,25 @@ import services.game.GameService;
 import utils.Config;
 import web.controllers.AppController;
 import web.State;
+import web.reusable.AuthService;
 import web.reusable.PathService;
-import web.reusable.SessionService;
 
 import java.util.List;
 import java.util.Map;
 
 import static io.jooby.Jooby.runApp;
 import static utils.Globals.JSON_MAPPER;
+import static utils.Globals.LOGGER;
 
 public class Main {
     public static void main(String[] args) throws Exception {
         Map<String, String> env = Config.readEnvironment();
         HikariDataSource ds = Config.createDataSource(env);
+
+        String cookieDomain = env.get("COOKIE_DOMAIN");
+
+        String allowedOriginsStr = env.get("ALLOWED_ORIGINS");
+        List<String> allowedOrigins = List.of(allowedOriginsStr.split(","));
 
         int port = Integer.parseInt(env.get("APP_PORT"));
 
@@ -42,7 +48,7 @@ public class Main {
         ChallengeDao challengeDao = new ChallengeDao(ds);
         DictionaryDao dictionaryDao = new DictionaryDao(new JedisPooled(redisHost, redisPort));
         GameService gameService = new GameService(dictionaryDao, userDao, replayDao);
-        SessionService sessionService = new SessionService();
+        AuthService authService = new AuthService(dictionaryDao, cookieDomain);
         GlobalBroadcaster gameBroadcaster = new GlobalBroadcaster(redisPubsubHost, redisPubsubPort, Broadcaster.GAMES_TOPIC);
         GlobalBroadcaster userBroadcaster = new GlobalBroadcaster(redisPubsubHost, redisPubsubPort, Broadcaster.USERS_TOPIC);
         PathService pathService = new PathService();
@@ -52,7 +58,7 @@ public class Main {
         state.setChallengeDao(challengeDao);
         state.setDictionaryDao(dictionaryDao);
         state.setGameService(gameService);
-        state.setSessionService(sessionService);
+        state.setAuthService(authService);
         state.setGameBroadcaster(gameBroadcaster);
         state.setUserBroadcaster(userBroadcaster);
         state.setCountryList(countryList);
@@ -62,6 +68,7 @@ public class Main {
         gameBroadcaster.startListenSubscribe();
         userBroadcaster.startListenSubscribe();
 
-        runApp(args, () -> new AppController(port, state));
+        LOGGER.info("Starting on port {} with allowedOrigins={}", port, allowedOrigins);
+        runApp(args, () -> new AppController(port, allowedOrigins, state));
     }
 }

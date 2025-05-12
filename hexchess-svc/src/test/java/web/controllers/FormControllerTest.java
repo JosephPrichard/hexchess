@@ -1,5 +1,6 @@
 package web.controllers;
 
+import models.views.SessionView;
 import services.daos.DictionaryDao;
 import services.daos.ChallengeDao;
 import io.jooby.Cookie;
@@ -16,8 +17,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import services.game.GameService;
 import services.daos.UserDao;
-import web.reusable.SessionService;
-import web.WebConstants;
+import web.reusable.AuthService;
 import web.State;
 
 import java.util.concurrent.atomic.AtomicReference;
@@ -31,19 +31,19 @@ public class FormControllerTest {
     public void testPostRegister() throws UserDao.TakenUsernameException {
         // given
         UserEntity user = new UserEntity(1L, "testUser", "USA");
-        PlayerEntity player = new PlayerEntity(1L, "testUser", "us", 0f);
+        PlayerEntity player = new PlayerEntity(1L, "testUser", "USA", 0f);
         Cookie cookie = new Cookie("sessionToken");
 
         UserDao mockUserDao = mock(UserDao.class);
-        SessionService mockSessionService = mock(SessionService.class);
+        AuthService mockAuthService = mock(AuthService.class);
 
         when(mockUserDao.insert(any(), any())).thenReturn(user);
-        when(mockSessionService.createId()).thenReturn("sessionToken");
-        when(mockSessionService.createCookie(any(), anyLong(), any(), any())).thenReturn(cookie);
+        when(mockAuthService.createSessionId()).thenReturn("sessionToken");
+        when(mockAuthService.createSessionCookie(any())).thenReturn(cookie);
 
         State state = new State();
         state.setUserDao(mockUserDao);
-        state.setSessionService(mockSessionService);
+        state.setAuthService(mockAuthService);
 
         DictionaryDao mockDict = mock(DictionaryDao.class);
         state.setDictionaryDao(mockDict);
@@ -61,10 +61,10 @@ public class FormControllerTest {
         // then
         verify(mockUserDao, times(1)).insert("testUser", "testPassword");
         verify(mockDict, times(1)).setSession(anyString(), eq(player), anyLong());
-        verify(mockSessionService, times(1)).createCookie(eq("sessionToken"), eq(player.id), eq(player.name), any());
+        verify(mockAuthService, times(1)).createSessionCookie("sessionToken");
 
         Assertions.assertEquals(actualCookie, cookie.toString());
-        Assertions.assertEquals(WebConstants.SUCCESS_REGISTER, value.value());
+        Assertions.assertEquals(new SessionView(1L, "testUser", "USA", 0f, null), value.value());
     }
 
     @Test
@@ -75,15 +75,15 @@ public class FormControllerTest {
         Cookie cookie = new Cookie("sessionToken");
 
         UserDao mockUserDao = mock(UserDao.class);
-        SessionService mockSessionService = mock(SessionService.class);
+        AuthService mockAuthService = mock(AuthService.class);
 
         when(mockUserDao.verify(any(), any())).thenReturn(new UserDao.VerifiedUser(1L, "testUser", country, 0f));
-        when(mockSessionService.createId()).thenReturn("sessionToken");
-        when(mockSessionService.createCookie(any(), anyLong(), any(), any())).thenReturn(cookie);
+        when(mockAuthService.createSessionId()).thenReturn("sessionToken");
+        when(mockAuthService.createSessionCookie(any())).thenReturn(cookie);
 
         State state = new State();
         state.setUserDao(mockUserDao);
-        state.setSessionService(mockSessionService);
+        state.setAuthService(mockAuthService);
 
         DictionaryDao mockDict = mock(DictionaryDao.class);
         state.setDictionaryDao(mockDict);
@@ -101,10 +101,10 @@ public class FormControllerTest {
         // then
         verify(mockUserDao, times(1)).verify("testUser", "testPassword");
         verify(mockDict, times(1)).setSession(anyString(), eq(player), anyLong());
-        verify(mockSessionService, times(1)).createCookie(eq("sessionToken"), eq(player.id), eq(player.name), any());
+        verify(mockAuthService, times(1)).createSessionCookie("sessionToken");
 
         Assertions.assertEquals(actualCookie, cookie.toString());
-        Assertions.assertEquals(WebConstants.SUCCESS_LOGIN, value.value());
+        Assertions.assertEquals(new SessionView(1L, "testUser", "us", 0f, null), value.value());
     }
 
     @Test
@@ -126,7 +126,7 @@ public class FormControllerTest {
 
         // then
         verify(mockGameService, times(1)).create(ColorSelect.RANDOM, TimeControl.UNLIMITED);
-        Assertions.assertEquals(new FormController.CreateGameResp(WebConstants.SUCCESS_GENERIC, "test-id"), result.value());
+        Assertions.assertEquals(new FormController.CreateGameResp("test-id"), result.value());
     }
 
     private MockContext mockChallengeCtx(long challengerId, long challengeeId, String action) {
@@ -144,10 +144,9 @@ public class FormControllerTest {
         ChallengeDao mockChallengeDao = mock(ChallengeDao.class);
         GameService mockGameService = mock(GameService.class);
         DictionaryDao mockDictionaryDao = mock(DictionaryDao.class);
-        SessionService mockSessionService = mock(SessionService.class);
+        AuthService mockAuthService = mock(AuthService.class);
 
-        when(mockSessionService.parseSession(any())).thenReturn(new SessionService.SessionValue("sessionId", challengeeId, "username", "us"));
-        when(mockDictionaryDao.getSession("sessionId")).thenReturn(new PlayerEntity(challengeeId, "playerName", "us", 0f));
+        when(mockAuthService.getSessionPlayer(any())).thenReturn(new PlayerEntity(challengeeId, "playerName", "us", 0f));
         when(mockGameService.create(any(), any())).thenReturn("test-id");
         when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(new ChallengeDao.DeleteResult(1L, 2L, "UNLIMITED", "WHITE"));
 
@@ -155,7 +154,7 @@ public class FormControllerTest {
         state.setChallengeDao(mockChallengeDao);
         state.setGameService(mockGameService);
         state.setDictionaryDao(mockDictionaryDao);
-        state.setSessionService(mockSessionService);
+        state.setAuthService(mockAuthService);
 
         MockRouter mockRouter = new MockRouter(new FormController(state));
         MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "ACCEPT");
@@ -167,7 +166,7 @@ public class FormControllerTest {
         verify(mockChallengeDao, times(1)).delete(challengerId, challengeeId);
         verify(mockGameService, times(1)).create(ColorSelect.WHITE, TimeControl.UNLIMITED);
 
-        Assertions.assertEquals(new FormController.UpdateChallengeResp(WebConstants.SUCCESS_UPDATE_CHALLENGE, "test-id"), value.value());
+        Assertions.assertEquals(new FormController.UpdateChallengeResp("test-id"), value.value());
     }
 
     @Test
@@ -179,17 +178,16 @@ public class FormControllerTest {
         ChallengeDao mockChallengeDao = mock(ChallengeDao.class);
         GameService mockGameService = mock(GameService.class);
         DictionaryDao mockDictionaryDao = mock(DictionaryDao.class);
-        SessionService mockSessionService = mock(SessionService.class);
+        AuthService mockAuthService = mock(AuthService.class);
 
-        when(mockSessionService.parseSession(any())).thenReturn(new SessionService.SessionValue("sessionId", challengeeId, "username", "us"));
-        when(mockDictionaryDao.getSession("sessionId")).thenReturn(new PlayerEntity(challengeeId, "playerName", "us", 0f));
+        when(mockAuthService.getSessionPlayer(any())).thenReturn(new PlayerEntity(challengeeId, "playerName", "us", 0f));
         when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(null);
 
         State state = new State();
         state.setChallengeDao(mockChallengeDao);
         state.setGameService(mockGameService);
         state.setDictionaryDao(mockDictionaryDao);
-        state.setSessionService(mockSessionService);
+        state.setAuthService(mockAuthService);
 
         MockRouter mockRouter = new MockRouter(new FormController(state));
         MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "ACCEPT");
@@ -211,17 +209,16 @@ public class FormControllerTest {
         ChallengeDao mockChallengeDao = mock(ChallengeDao.class);
         GameService mockGameService = mock(GameService.class);
         DictionaryDao mockDictionaryDao = mock(DictionaryDao.class);
-        SessionService mockSessionService = mock(SessionService.class);
+        AuthService mockAuthService = mock(AuthService.class);
 
-        when(mockSessionService.parseSession(any())).thenReturn(new SessionService.SessionValue("sessionId", challengerId, "username", "us"));
-        when(mockDictionaryDao.getSession("sessionId")).thenReturn(new PlayerEntity(challengerId, "playerName", "us", 0f));
+        when(mockAuthService.getSessionPlayer(any())).thenReturn(new PlayerEntity(challengerId, "playerName", "us", 0f));
         when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(new ChallengeDao.DeleteResult(1L, 2L, "UNLIMITED", "WHITE"));
 
         State state = new State();
         state.setChallengeDao(mockChallengeDao);
         state.setGameService(mockGameService);
         state.setDictionaryDao(mockDictionaryDao);
-        state.setSessionService(mockSessionService);
+        state.setAuthService(mockAuthService);
 
         MockRouter mockRouter = new MockRouter(new FormController(state));
         MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "DELETE");
@@ -233,7 +230,7 @@ public class FormControllerTest {
         verify(mockChallengeDao, times(1)).delete(challengerId, challengeeId);
         verify(mockGameService, times(0)).create(any(), any());
 
-        Assertions.assertEquals(new FormController.UpdateChallengeResp(WebConstants.SUCCESS_UPDATE_CHALLENGE, null), value.value());
+        Assertions.assertEquals(new FormController.UpdateChallengeResp(null), value.value());
     }
 
     @Test
@@ -245,17 +242,16 @@ public class FormControllerTest {
         ChallengeDao mockChallengeDao = mock(ChallengeDao.class);
         GameService mockGameService = mock(GameService.class);
         DictionaryDao mockDictionaryDao = mock(DictionaryDao.class);
-        SessionService mockSessionService = mock(SessionService.class);
+        AuthService mockAuthService = mock(AuthService.class);
 
-        when(mockSessionService.parseSession(any())).thenReturn(new SessionService.SessionValue("sessionId", challengeeId, "username", "us"));
-        when(mockDictionaryDao.getSession("sessionId")).thenReturn(new PlayerEntity(challengeeId, "playerName", "us", 0f));
+        when(mockAuthService.getSessionPlayer(any())).thenReturn(new PlayerEntity(challengeeId, "playerName", "us", 0f));
         when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(new ChallengeDao.DeleteResult(1L, 2L, "UNLIMITED", "WHITE"));
 
         State state = new State();
         state.setChallengeDao(mockChallengeDao);
         state.setGameService(mockGameService);
         state.setDictionaryDao(mockDictionaryDao);
-        state.setSessionService(mockSessionService);
+        state.setAuthService(mockAuthService);
 
         MockRouter mockRouter = new MockRouter(new FormController(state));
         MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "REJECT");
@@ -267,6 +263,6 @@ public class FormControllerTest {
         verify(mockChallengeDao, times(1)).delete(challengerId, challengeeId);
         verify(mockGameService, times(0)).create(any(), any());
 
-        Assertions.assertEquals(new FormController.UpdateChallengeResp(WebConstants.SUCCESS_UPDATE_CHALLENGE, null), value.value());
+        Assertions.assertEquals(new FormController.UpdateChallengeResp(null), value.value());
     }
 }

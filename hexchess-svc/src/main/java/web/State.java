@@ -9,8 +9,8 @@ import services.daos.UserDao;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import web.reusable.AuthService;
 import web.reusable.PathService;
-import web.reusable.SessionService;
 
 import java.util.List;
 
@@ -23,7 +23,7 @@ public class State {
     private ChallengeDao challengeDao;
     private DictionaryDao dictionaryDao;
     private GameService gameService;
-    private SessionService sessionService;
+    private AuthService authService;
     private PathService pathService;
     private Broadcaster gameBroadcaster;
     private Broadcaster userBroadcaster;

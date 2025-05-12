@@ -1,5 +1,6 @@
 package web.controllers;
 
+import models.entities.RankedEntity;
 import services.daos.ChallengeDao;
 import services.daos.ReplayDao;
 import services.daos.UserDao;
@@ -12,7 +13,7 @@ import io.jooby.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import web.reusable.PathService;
-import web.reusable.SessionService;
+import web.reusable.AuthService;
 import web.State;
 
 import java.io.IOException;
@@ -23,7 +24,6 @@ import java.util.stream.Collectors;
 
 import static utils.Globals.*;
 import static web.WebConstants.*;
-import static web.reusable.SessionService.*;
 import static services.daos.DictionaryDao.*;
 
 public class ViewController extends Jooby {
@@ -35,7 +35,7 @@ public class ViewController extends Jooby {
     private final ChallengeDao challengeDao;
     private final DictionaryDao dictionaryDao;
     private final GameService gameService;
-    private final SessionService sessionService;
+    private final AuthService authService;
     private final PathService pathService;
     private final List<String> countryList;
     private final String initialBoardJson;
@@ -46,7 +46,7 @@ public class ViewController extends Jooby {
         challengeDao = state.getChallengeDao();
         dictionaryDao = state.getDictionaryDao();
         gameService = state.getGameService();
-        sessionService = state.getSessionService();
+        authService = state.getAuthService();
         pathService = state.getPathService();
         countryList = state.getCountryList();
         initialBoardJson = state.getInitialBoardJson();
@@ -72,13 +72,13 @@ public class ViewController extends Jooby {
     }
 
     public PlayerEntity authenticate(Context ctx) {
-        SessionValue session = sessionService.parseSession(ctx);
-        if (session == null) {
+        String sessionId = authService.parseSession(ctx);
+        if (sessionId == null) {
             throw new BadRequestException(ERROR_REQUIRED_LOGIN);
         }
-        PlayerEntity player = dictionaryDao.getSession(session.sessionId);
+        PlayerEntity player = dictionaryDao.getSession(sessionId);
         if (player == null) {
-            ctx.setResponseCookie(sessionService.createEmptyCookie());
+            ctx.setResponseCookie(authService.createEmptyCookie());
             throw new BadRequestException(ERROR_SESSION_EXPIRED);
         }
         return player;
@@ -112,10 +112,11 @@ public class ViewController extends Jooby {
     }
 
     public UserView getSelf(Context ctx) throws IOException {
-        // this route is un-cacheable due to using cookies
         PlayerEntity player = authenticate(ctx);
 
         UserEntity entity = userDao.getById(player.id);
+
+        LOGGER.info("Retrieved self user={}", entity);
 
         return UserView.create(entity);
     }
@@ -171,7 +172,7 @@ public class ViewController extends Jooby {
     public List<UserView> searchPlayers(Context ctx) {
        int page = pathService.getPageParam(ctx);
 
-        String name = ctx.query("username").toOptional().orElse("");
+        String name = ctx.query("username").value("");
 
         if (name.isEmpty()) {
             return List.of();
@@ -189,10 +190,9 @@ public class ViewController extends Jooby {
         return ReplayView.createHeader(entity);
     }
 
-    public List<ChallengeView> getChallengeList(Context ctx) throws IOException {
-        String participants = ctx.query("participants").toOptional().orElse("received");
+    public List<ChallengeView> getChallengeList(Context ctx) {
+        String participants = ctx.query("participants").value("");
 
-        // this route is un-cacheable due to using cookies
         PlayerEntity player = authenticate(ctx);
 
         List<ChallengeEntity> entityList = switch (participants) {

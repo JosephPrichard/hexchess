@@ -1,14 +1,3 @@
-export interface Session {
-    sessionId: string;
-    userId: number;
-    username: string;
-    country: string;
-}
-
-export type ColorSelect = 'RANDOM' | 'WHITE' | 'BLACK';
-
-export type TimeControl = 'UNLIMITED' | 'REAL_TIME' | 'CORRESPONDENCE';
-
 export const Piece = {
     empty: 0,
     whitePawn: 1,
@@ -43,7 +32,17 @@ export const pieceNames: Record<PieceType, string> = {
     [Piece.blackKing]: 'black-king'
 };
 
-export type Turn = 'white' | 'black';
+export type Action = 'delete' | 'reject' | 'accept';
+
+export type Turn = 'WHITE' | 'BLACK';
+
+export type ReplayResult = 'DRAW' | 'WHITE_WIN' | 'BLACK_WIN';
+
+export type ReplayCause = 'CHECKMATE' | 'FORFEIT';
+
+export type ColorSelect = 'RANDOM' | 'WHITE' | 'BLACK';
+
+export type TimeControl = 'UNLIMITED' | 'REAL_TIME' | 'CORRESPONDENCE';
 
 export interface ChessBoard {
     turn: Turn;
@@ -61,6 +60,14 @@ export interface Move {
     to: Hexagon;
 }
 
+export interface SessionView {
+    id: number;
+    username: string;
+    country: string;
+    elo: number;
+    ttlSecs?: number;
+}
+
 export interface UserView {
     id: number;
     username: string;
@@ -74,7 +81,6 @@ export interface UserView {
     joinedOn: string;
     total: number;
     winRate: number;
-    winRateColor: string;
 }
 
 export interface ChallengeView {
@@ -101,20 +107,18 @@ export interface ReplayView {
     blackCountry: string;
     winElo: number;
     loseElo: number;
-    whiteElo: string;
-    blackElo: string;
+    whiteElo: number;
+    blackElo: number;
     moveList?: Move[];
     playedOn: string;
-    result: string;
-    cause: string;
-    whiteEloDiff: string;
-    blackEloDiff: string;
-    whiteEloColor: string;
-    blackEloColor: string;
+    result: ReplayResult;
+    cause: ReplayCause;
+    whiteEloDiff: number;
+    blackEloDiff: number;
 }
 
 export interface UserWithReplaysView {
-    user?: UserView;
+    user: UserView;
     replayList: ReplayView[];
 }
 

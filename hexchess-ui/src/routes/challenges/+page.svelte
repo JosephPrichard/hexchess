@@ -1,58 +1,100 @@
 <script lang="ts">
-    import type { ChallengeView } from '$lib/models.js';
-    import { getChallenges, postUpdateChallenge, unwrap } from '$lib/api';
-    import { onMount } from 'svelte';
-    import Error from '$lib/components/Error.svelte';
-    import { createMessage } from '$lib/response';
+    import type { Action, ChallengeView } from '$lib/models.js';
+    import Banner from '$lib/components/Banner.svelte';
+    import { postUpdateChallenge, unwrap } from '$lib/api';
+    import { createMessage } from '$lib/error';
+    import { getNotificationsContext } from '$lib/context';
 
     export interface ChallengeProps {
         participants: string;
+        challengeList: ChallengeView[];
     }
 
-    const { data }: { data: ChallengeProps } = $props();
-    const { participants } = data;
-    const isSender = data.participants === "sent";
+    const { data: props }: { data: ChallengeProps } = $props();
+    const isSender = $derived(props.participants === "sent");
 
-    let awaitingChallengeList: Promise<ChallengeView[]> = $state(Promise.resolve([]));
+    interface ChallengeState {
+        challenge: ChallengeView;
+        isLoading: {
+            delete: boolean;
+            accept: boolean;
+            reject: boolean;
+        }
+    }
 
-    onMount(() => {
-        awaitingChallengeList = getChallenges(participants);
+    let challengeList: ChallengeState[] = $state([]);
+
+    $effect(() => {
+        challengeList = props.challengeList.map((e) => ({
+            challenge: e,
+            isLoading: {
+                delete: false,
+                accept: false,
+                reject: false
+            }
+        }));
     });
 
-    async function onUpdateChallenge(challenge: ChallengeView, action: string) {
-        const { ok, status, resp, err } = await unwrap(postUpdateChallenge(challenge.challengerId, challenge.challengeeId, action));
-        console.error(ok, status, resp, err);
+    const { addNotification } = getNotificationsContext();
+
+    function formatSuccessMessage(challenge: ChallengeView, action: Action) {
+        let message: string | undefined = undefined;
+        switch (action) {
+            case 'delete':
+                message = `Deleted the challenge against ${challenge.challengeeName}.`;
+                break;
+            case 'accept':
+                message = `Accepted the challenge from ${challenge.challengerName}!`;
+                break;
+            case 'reject':
+                message = `Rejected the challenge from ${challenge.challengerName}.`;
+                break;
+        }
+        return message;
+    }
+
+    async function onUpdateChallenge(challenge: ChallengeView, index: number, action: Action) {
+        challengeList[index].isLoading[action] = true;
+
+        const { ok, resp, err } = await unwrap(postUpdateChallenge(challenge.challengerId, challenge.challengeeId, action));
+        if (ok && resp) {
+            const message = formatSuccessMessage(challenge, action);
+            addNotification({ message: message || "An unexpected error has occurred", isSuccess: message !== undefined }, 3000);
+            challengeList.splice(index, 1);
+        } else {
+            const message = createMessage(err);
+            addNotification({ message, isSuccess: false }, 3000);
+            challengeList[index].isLoading[action] = false;
+        }
     }
 </script>
 
 <svelte:head>
     <title>Challenges - Hexchess</title>
 </svelte:head>
+<Banner />
+<div class="center-horizontal-container" style="margin-bottom: 100px">
+    <div style="width: 600px;">
+        <div class="tabs-group">
+            <a class="tab" class:tab-selected={!isSender} href="?participants=received"> Received </a>
+            <a class="tab" class:tab-selected={isSender} href="?participants=sent"> Sent </a>
+        </div>
 
-{#await awaitingChallengeList}
-    <div class="loader"></div>
-{:then challengeList}
-    <div class="center-horizontal-container" style="margin-bottom: 100px">
-        <div style="width: 600px;">
-            <div class="tabs-group">
-                <a class="tab" class:tab-selected={!isSender} href="?participants=received"> Received </a>
-                <a class="tab" class:tab-selected={isSender} href="?participants=sent"> Sent </a>
-            </div>
-
-            <div class="challenge-list" id="challenge-list" style="display: {challengeList.length ? 'block' : 'none'}">
-                {#each challengeList as challenge, index (index)}
+        {#if challengeList.length > 0}
+            <div class="challenge-list">
+                {#each challengeList as { challenge, isLoading }, index (index)}
                     <div class="challenge-box">
                         <div>
                             <div style="margin-bottom: 6px">
                                 <a href="/players/{challenge.challengerId}" class="text-ul bold-link">{challenge.challengerName}</a>
                                 {#if !isSender}
-                                    <img class="flag" src={`%sveltekit.assets%/flags/{challenge.challengerCountry}.png"`} alt="" />
+                                    <img class="flag" src="/flags/{challenge.challengerCountry}.png" alt="" />
                                     <b>({challenge.challengerElo})</b>
                                 {/if}
                                 vs
                                 <a href="/players/{challenge.challengeeId}" class="text-ul bold-link">{challenge.challengeeName}</a>
                                 {#if isSender}
-                                    <img class="flag" src={`%sveltekit.assets%/flags/${challenge.challengeeCountry}.png`} alt="" />
+                                    <img class="flag" src="/flags/{challenge.challengeeCountry}.png" alt="" />
                                     <b>({challenge.challengeeElo})</b>
                                 {/if}
                             </div>
@@ -66,15 +108,33 @@
                         <div class="center-relative">
                             <div class="vertical-align">
                                 {#if isSender}
-                                    <button id="challenge-{index}-delete" class="button-small button-small-red" style="margin-left: 5px" onclick={() => onUpdateChallenge(challenge, 'DELETE')}>
-                                        Delete
+                                    <button class="button-small button-small-red"
+                                            onclick={() => onUpdateChallenge(challenge, index, 'delete')}
+                                            style="margin-left: 5px">
+                                        {#if isLoading.delete}
+                                            <div class="loader"></div>
+                                        {:else}
+                                            Delete
+                                        {/if}
                                     </button>
                                 {:else}
-                                    <button id="challenge-{index}-accept" class="button-small button-small-green" style="margin-left: 5px" onclick={() => onUpdateChallenge(challenge, 'ACCEPT')}>
-                                        Accept
+                                    <button class="button-small button-small-green"
+                                            onclick={() => onUpdateChallenge(challenge, index, 'accept')}
+                                            style="margin-left: 5px">
+                                        {#if isLoading.accept}
+                                            <div class="loader"></div>
+                                        {:else}
+                                            Accept
+                                        {/if}
                                     </button>
-                                    <button id="challenge-{index}-reject" class="button-small button-small-red" style="margin-left: 5px" onclick={() => onUpdateChallenge(challenge, 'REJECT')}>
-                                        Reject
+                                    <button class="button-small button-small-red"
+                                            onclick={() => onUpdateChallenge(challenge, index, 'reject')}
+                                            style="margin-left: 5px">
+                                        {#if isLoading.reject}
+                                            <div class="loader"></div>
+                                        {:else}
+                                            Reject
+                                        {/if}
                                     </button>
                                 {/if}
                             </div>
@@ -82,15 +142,14 @@
                     </div>
                 {/each}
             </div>
-        </div>
-        <div class="no-challenges" id="no-challenges" style="display: {challengeList.length ? 'none' : 'block'}">
-            {#if isSender}
-                No challenges have been sent
-            {:else}
-                No challenges have been received
-            {/if}
-        </div>
+        {:else}
+            <div class="color-wrapper">
+                {#if isSender}
+                    No challenges have been sent
+                {:else}
+                    No challenges have been received
+                {/if}
+            </div>
+        {/if}
     </div>
-{:catch error}
-    <Error status={error.status} message={createMessage(error.message)} />
-{/await}
+</div>

@@ -1,6 +1,7 @@
 <script lang="ts">
     import { goto } from '$app/navigation';
     import type { UserView } from '$lib/models';
+    import { getWinrateClass } from '$lib/format';
 
     interface Props {
         userList: UserView[];
@@ -24,14 +25,14 @@
         </thead>
         <tbody>
             {#each userList as user (user.id)}
-                <tr id={'user-' + user.id} class="row-hover" onclick={() => goto(`/players/${user.id}`)}>
+                <tr class="row-hover" onclick={() => goto(`/players/${user.id}`)}>
                     <td style="width: 9%">{user.rank}</td>
                     <td style="width: 43%">
                         {user.username}
-                        <img class="flag" src={`%sveltekit.assets%/flags/${user.country}.png`} alt="" />
+                        <img class="flag" src="/flags/{user.country}.png" alt="" />
                     </td>
                     <td style="width: 12%">{user.elo}</td>
-                    <td class={user.winRateColor} style="width: 9%">
+                    <td class={getWinrateClass(user.winRate)} style="width: 9%">
                         {user.winRate}%
                     </td>
                     <td class="green-color" style="width: 9%">{user.wins}</td>
@@ -42,5 +43,7 @@
         </tbody>
     </table>
 {:else}
-    <div class="color-wrapper">No players to show</div>
+    <div class="color-wrapper">
+        No more players to show
+    </div>
 {/if}

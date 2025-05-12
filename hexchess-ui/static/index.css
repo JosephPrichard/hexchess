@@ -193,7 +193,7 @@ tr {
 }
 
 .panel {
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 30px;
     background-color: rgb(42, 42, 42);
     box-shadow: rgba(0, 0, 0, 0.24) 0 1px 3px;
@@ -296,13 +296,6 @@ select {
     font-weight: 500;
     margin-left: 5px;
     margin-right: 5px;
-}
-
-.color-wrapper {
-    color: white;
-    background-color: rgba(0, 150, 255, 0.75);
-    padding: 11px 15px;
-    border-radius: 6px;
 }
 
 .button {
@@ -525,12 +518,11 @@ select {
     /*box-shadow: rgba(0, 0, 0, 0.24) 0 2px 4px;*/
 }
 
-.no-challenges {
+.color-wrapper {
     color: white;
-    background-color: rgb(42, 42, 42);
-    padding: 30px 30px;
+    background-color: rgba(0, 150, 255, 0.75);
+    padding: 11px 15px;
     border-radius: 6px;
-    /*box-shadow: rgba(0, 0, 0, 0.24) 0 2px 4px;*/
 }
 
 .challenge-box {
@@ -644,6 +636,7 @@ select {
 }
 
 .notification-x {
+    all: unset;
     flex: 0.05;
     float: right;
     margin-right: auto;
@@ -681,7 +674,7 @@ select {
     height: calc(500px);
 }
 
-.chess-board {
+.board {
     position: relative;
 }
 
@@ -731,7 +724,7 @@ select {
     margin-bottom: 5px;
 }
 
-.replay-move-list {
+.move-list {
     height: fit-content;
     flex-grow: 1;
     overflow-y: auto;
@@ -765,18 +758,19 @@ select {
     border-left: 1px solid rgb(58, 58, 58);
 }
 
-.move {
+.move-button {
+    all: unset;
+    cursor: pointer;
     flex: 0.4;
     line-height: 40px;
-    padding-left: 15px;
-    cursor: pointer;
+    padding-left: 20px;
     border-radius: 2px;
     -moz-user-select: none;
     -khtml-user-select: none;
     -webkit-user-select: none;
 }
 
-.move:hover {
+.move-button:hover {
     background-color: rgb(65, 65, 65);
 }
 
@@ -785,6 +779,7 @@ select {
 }
 
 .button-transparent {
+    all: unset;
     cursor: pointer;
     border-radius: 6px;
     padding: 5px 8px;

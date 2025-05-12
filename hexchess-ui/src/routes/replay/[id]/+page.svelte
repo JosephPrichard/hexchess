@@ -1,12 +1,14 @@
 <script lang="ts">
     import { type ChessBoard, type ReplayView } from '$lib/models';
     import Banner from '$lib/components/Banner.svelte';
-    import MoveListView from '$lib/components/chess/MoveListView.svelte';
-    import ChessBoardView from '$lib/components/chess/ChessBoardView.svelte';
+    import MoveListView from '$lib/components/chess/MoveList.svelte';
+    import ChessBoardView from '$lib/components/chess/Board.svelte';
     import { translateBoard } from '$lib/chess';
     import RightIcon from '$lib/components/icons/RightIcon.svelte';
     import LeftIcon from '$lib/components/icons/LeftIcon.svelte';
     import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
+    import { formatCause, formatElo, getResultClasses } from '$lib/format';
+    import { formatReplayResult } from '$lib/format.js';
 
     export interface ReplayProps {
         replay: ReplayView;
@@ -14,7 +16,8 @@
     }
 
     const { data }: { data: ReplayProps } = $props();
-    const { replay, initialBoard } = data;
+    const { replay, initialBoard } = $derived(data);
+    const [whiteClass, blackClass] = $derived(getResultClasses(replay.result));
 
     let isBlackPerspective = $state(false);
     let moveIndex: number | undefined = $state(undefined);
@@ -72,27 +75,27 @@
         <div class="move-table">
             <div class="move-table-header">
                 <div class="move-table-header-elem">
-                    <a href={`/players/${replay.whiteId}`} class="text-ul">
+                    <a href="/players/{replay.whiteId}" class="text-ul">
                         <b>{replay.whiteName}</b>
                     </a>
-                    <img class="flag" src={`/static/images/flags/${replay.whiteCountry}.png`} alt="" />
+                    <img class="flag" src="/flags/{replay.whiteCountry}.png" alt="" />
                     <span>({replay.whiteElo})</span>
-                    <span class={replay.whiteEloColor}>
-                    {replay.whiteEloDiff}
+                    <span class={whiteClass}>
+                    {formatElo(replay.whiteEloDiff)}
                 </span>
                 </div>
                 <div class="move-table-header-elem">
-                    <a href={`/players/${replay.blackId}`} class="text-ul">
+                    <a href="/players/{replay.blackId}" class="text-ul">
                         <b>{replay.blackName}</b>
                     </a>
-                    <img class="flag" src={`/static/images/flags/${replay.blackCountry}.png`} alt="" />
+                    <img class="flag" src="/flags/{replay.blackCountry}.png" alt="" />
                     <span>({replay.blackElo})</span>
-                    <span class={replay.blackEloColor}>
-                    {replay.blackEloDiff}
+                    <span class={blackClass}>
+                    {formatElo(replay.blackEloDiff)}
                 </span>
                 </div>
                 <div class="move-table-header-elem">
-                    {replay.result} &#8226; {replay.cause}
+                    {formatReplayResult(replay.result)} &#8226; {formatCause(replay.cause)}
                 </div>
                 <div class="move-table-header-elem">
                     {replay.playedOn}
@@ -101,13 +104,13 @@
             <MoveListView moveList={replay.moveList || []} onSelectMove={onSelectMove} selectedMoveIndex={moveIndex} />
             <div id="move-table-buttons" class="move-table-buttons">
                 <div class="move-table-nav-buttons">
-                    <button id="left-button" class="button-transparent" onclick={onClickLeft}>
+                    <button class="button-transparent" onclick={onClickLeft}>
                         <LeftIcon />
                     </button>
-                    <button id="flip-board-button" class="button-transparent" onclick={onClickFlip}>
+                    <button class="button-transparent" onclick={onClickFlip}>
                         <FlipIcon />
                     </button>
-                    <button id="right-button" class="button-transparent" onclick={onClickRight}>
+                    <button class="button-transparent" onclick={onClickRight}>
                         <RightIcon />
                     </button>
                 </div>

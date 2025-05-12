@@ -21,7 +21,7 @@
             <div class="text-md" style="margin-bottom: 25px">
                 {title}
             </div>
-            <button class="notification-x modal-x" onclick={onClose}> &#10006; </button>
+            <button class="modal-x" onclick={onClose}> &#10006; </button>
             <div style="margin-bottom: 25px">
                 <label class="text-xsm" for="time-control"> Time control </label>
                 <select bind:value={timeControl} name="time-control">
@@ -32,13 +32,13 @@
             </div>
             <div id="selected-color" style="margin-bottom: 25px">
                 <div role="button" tabindex="-1" onkeydown={() => (color = 'BLACK')}>
-                    <img alt="Black" class="color-piece-image" class:selected-color-piece-image={color === 'BLACK'} src="/static/images/pieces/black-king.png" />
+                    <img alt="Black" class="color-piece-image" class:selected-color-piece-image={color === 'BLACK'} src="/pieces/black-king.png" />
                 </div>
                 <div role="button" tabindex="-1" onkeydown={() => (color = 'RANDOM')}>
-                    <img alt="Random" class="color-piece-image" class:selected-color-piece-image={color === 'RANDOM'} src="/static/images/pieces/half-king.png" />
+                    <img alt="Random" class="color-piece-image" class:selected-color-piece-image={color === 'RANDOM'} src="/pieces/half-king.png" />
                 </div>
                 <div role="button" tabindex="-1" onkeydown={() => (color = 'WHITE')}>
-                    <img alt="White" class="color-piece-image" class:selected-color-piece-image={color === 'WHITE'} src="/static/images/pieces/white-king.png" />
+                    <img alt="White" class="color-piece-image" class:selected-color-piece-image={color === 'WHITE'} src="/pieces/white-king.png" />
                 </div>
             </div>
             <button class="button button-grey" onclick={() => onSubmit(timeControl, color)} type="submit"> Create! </button>

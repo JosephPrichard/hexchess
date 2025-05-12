@@ -25,7 +25,7 @@
             {@const bgColor = colors[bgIndex]}
             <div class="hexagon" style:top="{isBlackPerspective ? flippedTop : top}px" style:left="{left}px" style:width="{width}px" style:height="{height}px" style:background={bgColor}>
                 {#if piece !== Piece.empty}
-                    <img class="piece-img" src={`%sveltekit.assets%/pieces/${pieceNames[piece]}.png`} alt="" draggable={false} />
+                    <img class="piece-img" src="/pieces/{pieceNames[piece]}.png" alt="" draggable={false} />
                 {/if}
             </div>
         {/each}

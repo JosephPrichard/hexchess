@@ -23,7 +23,7 @@ public class ChallengeView {
     public String challengeeName;
     public String challengeeCountry;
     public float challengeeElo;
-    public String timeControl;
+    public TimeControl timeControl;
     public String madeAgo;
     public String expiresIn;
 
@@ -37,18 +37,10 @@ public class ChallengeView {
         view.challengeeName = entity.challengeeName;
         view.challengeeCountry = entity.challengeeCountry;
         view.challengeeElo = Math.round(entity.challengeeElo);
-        view.timeControl = formatTimeControl(TimeControl.fromString(entity.timeControl));
+        view.timeControl = TimeControl.fromString(entity.timeControl);
         view.madeAgo = formatMadeAgo(entity.madeOn);
         view.expiresIn = formatExpiresIn(entity.madeOn);
         return view;
-    }
-
-    public static String formatTimeControl(TimeControl mode) {
-        return switch (mode) {
-            case UNLIMITED -> "Unlimited &#8734;+0";
-            case CORRESPONDENCE -> String.format("Correspondence %s+%s", 10, 1);
-            case REAL_TIME -> String.format("Realtime %s+%s", 5, 3);
-        };
     }
 
     public static String formatMadeAgo(Timestamp madeOn) {

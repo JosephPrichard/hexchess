@@ -1,68 +1,87 @@
 <script lang="ts">
-    import { getCountries, getProfile, postLogout, postUpdatePassword, postUpdateUser, unwrap } from '$lib/api';
+    import { postLogout, postUpdatePassword, postUpdateUser, unwrap } from '$lib/api';
     import { goto } from '$app/navigation';
-    import { onMount } from 'svelte';
-    import { createMessage } from '$lib/response';
+    import Banner from '$lib/components/Banner.svelte';
+    import type { UserView } from '$lib/models';
+    import { updateClientSession as updateClientUser } from '$lib/local';
+    import { createMessage } from '$lib/error';
+    import { getNotificationsContext } from '$lib/context';
+
+    export interface ProfileProps {
+        countryList: string[];
+        user: UserView;
+    }
+
+    const { data: props }: { data: ProfileProps } = $props();
+
+    const { addNotification } = getNotificationsContext();
 
     let showCountryOptions = $state(false);
-
-    let awaitingCountryList: Promise<string[]> = $state(Promise.resolve([]));
-
-    let username = $state('');
-    let bio = $state('');
-    let country = $state('');
+    let isLoading = $state(false);
+    let username = $state(props.user.username);
+    let bio = $state(props.user.bio);
+    let country = $state(props.user.country);
     let password = $state('');
     let newPassword = $state('');
     let retypePassword = $state('');
 
-    onMount(() => {
-        awaitingCountryList = getCountries();
-    });
-
-    onMount(async () => {
-        const { ok, status, resp, err } = await unwrap(getProfile());
-        if (!ok) {
-            console.error(ok, status, resp, err );
-        }
-        if (resp) {
-            username = resp.username;
-            bio = resp.bio;
-            country = resp.country;
-        }
-    })
-
     async function onSubmitUser(e: MouseEvent) {
         e.preventDefault();
 
+        isLoading = true;
+
         const { ok, status, resp, err } = await unwrap(postUpdateUser(username, bio, country));
         console.error(ok, status, resp, err );
+
+        if (ok && resp) {
+            updateClientUser(resp);
+        }
+
+        isLoading = false;
     }
 
     async function onSubmitPassword(e: MouseEvent) {
         e.preventDefault();
 
-        const { ok, status, resp, err } = await unwrap(postUpdatePassword(password, newPassword, retypePassword));
-        console.error(ok, status, resp, err );
+        const { ok, resp, err } = await unwrap(postUpdatePassword(password, newPassword, retypePassword));
+        if (ok && resp) {
+            const message = "Successfully updated password!";
+            addNotification({ message, isSuccess: false }, 3000);
+        } else {
+            const message = createMessage(err);
+            addNotification({ message, isSuccess: false }, 3000);
+        }
     }
 
-    async function onSelectCountry(country: string) {
-        const { ok, status, resp, err } = await unwrap(postUpdateUser(username, bio, country));
-        console.error(ok, status, resp, err );
+    async function onSelectCountry(e: MouseEvent, newCountry: string) {
+        e.preventDefault();
+        country = newCountry;
+        showCountryOptions = false;
     }
 
     async function onClickSignOut() {
-        const { ok, status, resp, err } = await unwrap(postLogout());
+        const { ok, err } = await unwrap(postLogout());
         if (ok) {
+            const message = "Successfully signed out.";
+            addNotification({ message, isSuccess: false }, 3000);
+
             await goto('/');
         } else {
-            console.error(ok, status, resp, err );
+            const message = createMessage(err);
+            addNotification({ message, isSuccess: false }, 3000);
         }
+    }
+
+    function toggleCountryDropdown(e: MouseEvent) {
+        e.preventDefault();
+        showCountryOptions = !showCountryOptions;
     }
 </script>
 
 <svelte:head>
     <title>Profile - Hexchess</title>
 </svelte:head>
+<Banner />
 <div class="center-horizontal-container">
     <div style="width: 500px">
         <div class="title-lg" style="padding-left: 0">Edit Profile</div>
@@ -75,29 +94,27 @@
 
             <label for="country" style="font-size: 17px">Country</label>
             <div class="country-wrapper">
-                <button class="invisible-button" onclick={() => (showCountryOptions = false)}>
-                    <img alt={country} class="country-image" src={`%sveltekit.assets%/flags/${country}.png`} />
+                <button class="invisible-button" onclick={toggleCountryDropdown}>
+                    <img alt={country} class="country-image" src="/flags/{country}.png" />
                 </button>
-                <div class="country-picker">
-                    {#if showCountryOptions}
-                        {#await awaitingCountryList}
-                            <div class="loader"></div>
-                        {:then countryList}
-                            {#each countryList as country (country)}
-                                <button class="invisible-button" onclick={() => onSelectCountry(country)}>
-                                    <img class="country-image" src={`%sveltekit.assets%/flags/${country}.png`} alt={country} />
-                                </button>
-                            {/each}
-                        {:catch error}
-                            <div class="red-color text-md">
-                                {createMessage(error.message)}
-                            </div>
-                        {/await}
-                    {/if}
-                </div>
+                {#if showCountryOptions}
+                    <div class="country-picker">
+                        {#each props.countryList as country, i (i)}
+                            <button class="invisible-button" onclick={(e) => onSelectCountry(e, country)}>
+                                <img class="country-image" src="/flags/{country}.png" alt={country} />
+                            </button>
+                        {/each}
+                    </div>
+                {/if}
             </div>
 
-            <button class="button button-grey" onclick={onSubmitUser} style="margin-top: 15px;" type="submit"> Submit </button>
+            <button class="button button-grey" onclick={onSubmitUser} style="margin-top: 15px;" type="submit"> 
+                {#if isLoading}
+                    <div class="loader"></div>
+                {:else}
+                    Submit 
+                {/if}
+            </button>
         </form>
 
         <div class="title-lg" style="padding-left: 0">Update Password</div>

@@ -9,13 +9,16 @@
 </script>
 
 <div class="center-container">
-    <div class="panel" style="width: 550px; height: 550px; text-align: center">
+    <div class="panel" style="width: 600px; height: 600px; text-align: center">
         <div class="text-xlg">
             Error {status}
         </div>
         <p class="text-xsm">
-            {message || ''} Return to the <a class="highlight" href="/">homepage</a>?
+            {message || ''}
         </p>
-        <img alt="Error" src="/static/images/error-image.jpg" style="margin: 20px; width: 500px; height: auto;" />
+        <p class="text-xsm">
+            Return to the <a class="highlight" href="/">homepage</a>?
+        </p>
+        <img alt="Error" src="/error-image.jpg" style="margin: 20px; width: 550px; height: auto;" />
     </div>
 </div>

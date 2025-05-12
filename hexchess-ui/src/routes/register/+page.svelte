@@ -2,13 +2,17 @@
     import Banner from '$lib/components/Banner.svelte';
     import { postRegister } from '$lib/api';
     import { goto } from '$app/navigation';
-    import { createMessage } from '$lib/response';
+    import { createMessage } from '$lib/error';
     import { unwrap } from '$lib/api.js';
+    import { setClientSession } from '$lib/local';
+    import { getNotificationsContext } from '$lib/context';
 
     let username = $state('');
     let password = $state('');
     let confirmPassword = $state('');
     let isLoading = $state(false);
+
+    const { addNotification } = getNotificationsContext();
 
     async function onSubmit(e: MouseEvent) {
         e.preventDefault();
@@ -16,12 +20,16 @@
         isLoading = true;
         const { ok, resp, err } = await unwrap(postRegister(username, password, confirmPassword));
 
-        if (ok) {
-            console.log(resp);
+        if (ok && resp) {
+            setClientSession(resp);
+
+            const message = "Registration was successful!";
+            addNotification({ message, isSuccess: false }, 3000);
+
             await goto('/');
         } else {
             const message = createMessage(err);
-            console.log(message);
+            addNotification({ message, isSuccess: false }, 3000);
         }
 
         isLoading = false;
@@ -45,11 +53,14 @@
             <label for="password-retype-register" style="font-size: 17px">Confirm Password</label>
             <input bind:value={confirmPassword} id="password-retype-register" name="password" placeholder="Password" style="margin-top: 5px; margin-bottom: 15px;" type="password" />
 
-            {#if isLoading}
-                <div class="loader"></div>
-            {:else}
-                <button id="register-form-submit" class="button button-grey" type="submit" onclick={onSubmit}> Register </button>
-            {/if}
+            <button id="register-form-submit" class="button button-grey" type="submit" onclick={onSubmit}>
+                {#if isLoading}
+                    <div class="loader"></div>
+                {:else}
+                    Register 
+                {/if}
+            </button>
+            
         </form>
     </div>
 </div>

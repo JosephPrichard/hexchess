@@ -10,8 +10,7 @@
         userList: UserView[];
     }
 
-    const { data }: { data: LeaderboardProps } = $props();
-    const { page, pageCount, userList } = data;
+    const { data: props }: { data: LeaderboardProps } = $props();
 </script>
 
 <svelte:head>
@@ -21,7 +20,7 @@
 <div class="center-horizontal-container">
     <div class="title-lg">Leaderboard</div>
     <div class="wrapper">
-        <StatsList {userList} />
+        <StatsList userList={props.userList} />
     </div>
 </div>
-<Pagination targetPage={page} totalPages={pageCount} />
+<Pagination targetPage={props.page} totalPages={props.pageCount} />

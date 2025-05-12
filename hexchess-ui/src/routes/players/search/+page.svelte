@@ -10,8 +10,7 @@
         userList: UserView[];
     }
 
-    const { data }: { data: SearchProps } = $props();
-    const { searchText, page, userList } = data;
+    const { data: props }: { data: SearchProps } = $props();
 </script>
 
 <svelte:head>
@@ -23,16 +22,16 @@
     <div class="wrapper">
         <form class="form-wrapper">
             <label for="username"></label>
-            <input id="username" name="username" placeholder="Username" style="width: 50%; top: 4px; position: relative" value={searchText} />
+            <input id="username" name="username" placeholder="Username" style="width: 50%; top: 4px; position: relative" value={props.searchText} />
             <div class="button-submit-vertical-form">
                 <button class="button button-grey" type="submit"> Search </button>
             </div>
         </form>
-        {#if searchText}
-            <StatsList {userList} />
+        {#if props.searchText}
+            <StatsList userList={props.userList} />
         {/if}
     </div>
 </div>
-{#if searchText}
-    <Pagination targetPage={page} />
+{#if props.searchText}
+    <Pagination targetPage={props.page} />
 {/if}

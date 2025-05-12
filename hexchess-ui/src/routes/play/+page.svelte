@@ -1,8 +1,8 @@
 <script lang="ts">
     import type { WsMessage } from '$lib/models';
     import { onMount } from 'svelte';
-    import { getClientSession } from '$lib/utils';
     import Banner from '$lib/components/Banner.svelte';
+    import { postTempSession, unwrap } from '$lib/api';
 
     interface Props {
         data: {
@@ -65,9 +65,14 @@
         }, connectTries !== 0 ? Math.pow(2, connectTries) * 1000 : 0);
     }
 
-    onMount(() => {
-        let session = getClientSession();
-        connectGame(session?.sessionId);
+    onMount(async () => {
+        let { ok, resp, err } = await unwrap(postTempSession());
+
+        if (ok && resp) {
+            connectGame(resp);
+        } else {
+            console.error(ok, resp, err);
+        }
     });
 </script>
 

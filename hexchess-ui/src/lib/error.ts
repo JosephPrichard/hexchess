@@ -16,14 +16,6 @@ export const codes = {
     errorUpdateChallenge: 'ERROR_UPDATE_CHALLENGE',
     errorInvalidRequest: 'ERROR_INVALID_REQUEST',
     errorInvalidGame: 'ERROR_INVALID_GAME',
-
-    successLogin: 'SUCCESS_LOGIN',
-    successRegister: 'SUCCESS_REGISTER',
-    successUpdatePassword: 'SUCCESS_UPDATE_PASSWORD',
-    successUpdateUser: 'SUCCESS_UPDATE_USER',
-    successCreateChallenge: 'SUCCESS_CREATE_CHALLENGE',
-    successUpdateChallenge: 'SUCCESS_UPDATE_CHALLENGE',
-    success: 'SUCCESS'
 };
 
 export const messages: Record<string, string> = {
@@ -44,14 +36,6 @@ export const messages: Record<string, string> = {
     [codes.errorUpdateChallenge]: 'You are not authorized to update this challenge.',
     [codes.errorInvalidRequest]: 'The request was malformed or contained invalid data.',
     [codes.errorInvalidGame]: 'Cannot find a game for the given id.',
-
-    [codes.successLogin]: 'Login successful!',
-    [codes.successRegister]: 'Registration successful!',
-    [codes.successUpdatePassword]: 'Password updated successfully!',
-    [codes.successUpdateUser]: 'User information updated successfully!',
-    [codes.successCreateChallenge]: 'Challenge created successfully.',
-    [codes.successUpdateChallenge]: 'Challenge updated successfully.',
-    [codes.success]: 'Operation completed successfully.'
 };
 
 export function createMessage(code?: string) {

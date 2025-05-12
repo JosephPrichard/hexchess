@@ -32,6 +32,7 @@ public class DictionaryDao {
     private static final byte[] GAMES_ZSET_BYTES = GAMES_ZSET.getBytes();
     private static final String LEADERBOARD_ZSET = "leaderboard";
     private static final Duration GAME_EXPIRE_FINISHED = Duration.ofHours(1);
+    public static final Duration TEMP_SESSION_EXPIRE = Duration.ofMinutes(1);
 
     public DictionaryDao(JedisPooled jedis) {
         this.jedis = jedis;

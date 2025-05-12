@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { stringOfMove } from '$lib/utils.js';
     import type { Move } from '$lib/models';
+    import { stringOfMove } from '$lib/chess';
 
     interface Props {
         moveList: Move[];
@@ -18,13 +18,13 @@
             {@const moveTwo = moveList[i + 1]}
             <div class="move-row">
                 <div class="move-number">{i / 2 + 1}.</div>
-                <div class="move" class:selected-move={selectedMoveIndex === i} role="button" onkeydown={() => onSelectMove(i)} tabindex="-1">
+                <button class="move-button" class:selected-move={selectedMoveIndex === i} onclick={() => onSelectMove(i)} tabindex="-1">
                     {stringOfMove(moveOne)}
-                </div>
+                </button>
                 {#if moveTwo}
-                    <div class="move" class:selected-move={selectedMoveIndex === moveTwoIndex} role="button" onkeydown={() => onSelectMove(moveTwoIndex)} tabindex="-1">
+                    <button class="move-button" class:selected-move={selectedMoveIndex === moveTwoIndex} onclick={() => onSelectMove(moveTwoIndex)} tabindex="-1">
                         {stringOfMove(moveTwo)}
-                    </div>
+                    </button>
                 {:else}
                     <div class="move"></div>
                 {/if}

@@ -19,19 +19,13 @@ public class WebConstants {
     public static final String ERROR_UPDATE_CHALLENGE = "ERROR_UPDATE_CHALLENGE";
     public static final String ERROR_INVALID_REQUEST = "ERROR_INVALID_REQUEST";
 
-    // http success codes
-    public static final String SUCCESS_LOGIN = "SUCCESS_LOGIN";
-    public static final String SUCCESS_REGISTER = "SUCCESS_REGISTER";
-    public static final String SUCCESS_UPDATE_PASSWORD = "SUCCESS_UPDATE_PASSWORD";
-    public static final String SUCCESS_UPDATE_USER = "SUCCESS_UPDATE_USER";
-    public static final String SUCCESS_CREATE_CHALLENGE = "SUCCESS_CREATE_CHALLENGE";
-    public static final String SUCCESS_UPDATE_CHALLENGE = "SUCCESS_UPDATE_CHALLENGE";
-    public static final String SUCCESS_GENERIC = "SUCCESS";
-
     // ws response codes
     public static final String ERROR_MESSAGE_TYPE = "ERROR_MESSAGE_TYPE";
     public static final String ERROR_TURN = "ERROR_TURN";
     public static final String ERROR_INVALID_MOVE = "ERROR_INVALID_MOVE";
     public static final String ERROR_FINISHED_GAME = "ERROR_FINISHED_GAME";
     public static final String ERROR_INVALID_GAME = "ERROR_INVALID_GAME";
+
+    // json utils
+    public static final String EMPTY_JSON = "{}";
 }

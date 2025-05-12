@@ -9,7 +9,6 @@ import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.handlers.BeanHandler;
 import org.apache.commons.dbutils.handlers.BeanListHandler;
-import org.apache.commons.dbutils.handlers.ScalarHandler;
 
 import javax.sql.DataSource;
 import java.security.NoSuchAlgorithmException;
@@ -26,7 +25,7 @@ public class UserDao {
 
     private static final ResultSetHandler<UserEntity> USER_MAPPER = new BeanHandler<>(UserEntity.class);
     private static final ResultSetHandler<List<UserEntity>> USER_LIST_MAPPER = new BeanListHandler<>(UserEntity.class);
-    private static final ResultSetHandler<Integer> INT_MAPPER = new ScalarHandler<>();
+    private static final ResultSetHandler<VerifiedUser> VERIFIED_USER_MAPPER = new BeanHandler<>(VerifiedUser.class);
 
     private final QueryRunner runner;
 
@@ -98,13 +97,12 @@ public class UserDao {
 
     @NoArgsConstructor
     @AllArgsConstructor
+    @Data
     public static class VerifiedUser {
         public long id;
         public String username;
         public String country;
         public float elo;
-
-        private static final ResultSetHandler<VerifiedUser> MAPPER = new BeanHandler<>(VerifiedUser.class);
     }
 
     public VerifiedUser verify(String username, String inputPassword) {
@@ -161,7 +159,7 @@ public class UserDao {
             """;
 
         try {
-            VerifiedUser user = runner.query(sql, VerifiedUser.MAPPER, newUsername, newCountry, newBio, id);
+            VerifiedUser user = runner.query(sql, VERIFIED_USER_MAPPER, newUsername, newCountry, newBio, id);
             LOGGER.info("Updated user data with id={} to newUsername={}, newCountry={}, newBio={}", id, newUsername, newCountry, newBio);
             return user;
         } catch (SQLException ex) {
