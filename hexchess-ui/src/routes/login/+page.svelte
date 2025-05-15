@@ -25,7 +25,7 @@
         } else {
             const message = createMessage(err);
             console.log(message);
-            addNotification({ message, isSuccess: false }, 3000);
+            addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
         }
 
         isLoading = false;

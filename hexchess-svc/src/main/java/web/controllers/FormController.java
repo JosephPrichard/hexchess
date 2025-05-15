@@ -1,6 +1,5 @@
 package web.controllers;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -13,16 +12,15 @@ import models.common.TimeControl;
 import models.entities.ChallengeEntity;
 import models.entities.PlayerEntity;
 import models.entities.UserEntity;
-import services.broadcast.Broadcaster;
 import services.game.GameService;
 import services.daos.DictionaryDao;
 import io.jooby.*;
 import io.jooby.exception.StatusCodeException;
 import org.jsoup.Jsoup;
+import services.producers.ChallengeProducer;
+import web.dto.ChallengeMsg;
 import web.reusable.AuthService;
 import web.State;
-
-import java.io.IOException;
 
 import static utils.Globals.*;
 import static web.WebConstants.*;
@@ -35,7 +33,7 @@ public class FormController extends Jooby {
     private final DictionaryDao dictionaryDao;
     private final GameService gameService;
     private final AuthService authService;
-    private final Broadcaster userBroadcaster;
+    private final ChallengeProducer challengeProducer;
 
     public FormController(State state) {
         userDao = state.getUserDao();
@@ -43,7 +41,7 @@ public class FormController extends Jooby {
         dictionaryDao = state.getDictionaryDao();
         gameService = state.getGameService();
         authService = state.getAuthService();
-        userBroadcaster = state.getUserBroadcaster();
+        challengeProducer = state.getChallengeProducer();
 
         setWorker(EXECUTOR);
 
@@ -359,7 +357,7 @@ public class FormController extends Jooby {
 
         try {
             ChallengeEntity entity = challengeDao.insert(player.id, challengeeId, timeControl.toString(), startColor.toString());
-            EXECUTOR.execute(() -> broadcastChallengeEntity(challengeeId, entity));
+            EXECUTOR.execute(() -> challengeProducer.broadcastChallenge(ChallengeMsg.fromEntity(entity)));
             EXECUTOR.execute(() -> challengeDao.deleteExpired(player.id));
 
             return EMPTY_JSON;
@@ -369,15 +367,6 @@ public class FormController extends Jooby {
             throw new StatusCodeException(StatusCode.BAD_REQUEST, ERROR_SELF_CHALLENGE);
         } catch (ChallengeDao.DuplicateException ex) {
             throw new StatusCodeException(StatusCode.BAD_REQUEST, ERROR_DUPLICATE_CHALLENGE);
-        }
-    }
-
-    private void broadcastChallengeEntity(long challengeeId, ChallengeEntity entity) {
-        try {
-            String jsonOutput = JSON_MAPPER.writeValueAsString(entity);
-            userBroadcaster.broadcast(Long.toString(challengeeId), jsonOutput);
-        } catch (JsonProcessingException e) {
-            LOGGER.error("Error occurred while broadcasting challenge to user", e);
         }
     }
 }

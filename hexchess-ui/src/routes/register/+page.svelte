@@ -24,12 +24,12 @@
             setClientSession(resp);
 
             const message = "Registration was successful!";
-            addNotification({ message, isSuccess: false }, 3000);
+            addNotification({ type: 'string', message, isSuccess: true, duration: 3000 });
 
             await goto('/');
         } else {
             const message = createMessage(err);
-            addNotification({ message, isSuccess: false }, 3000);
+            addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
         }
 
         isLoading = false;

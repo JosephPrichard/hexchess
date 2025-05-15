@@ -8,6 +8,7 @@ import services.daos.ReplayDao;
 import services.daos.UserDao;
 import redis.clients.jedis.JedisPooled;
 import services.game.GameService;
+import services.producers.ChallengeProducer;
 import utils.Config;
 import web.controllers.AppController;
 import web.State;
@@ -51,6 +52,7 @@ public class Main {
         AuthService authService = new AuthService(dictionaryDao, cookieDomain);
         GlobalBroadcaster gameBroadcaster = new GlobalBroadcaster(redisPubsubHost, redisPubsubPort, Broadcaster.GAMES_TOPIC);
         GlobalBroadcaster userBroadcaster = new GlobalBroadcaster(redisPubsubHost, redisPubsubPort, Broadcaster.USERS_TOPIC);
+        ChallengeProducer challengeProducer = new ChallengeProducer(userBroadcaster);
         PathService pathService = new PathService();
 
         state.setUserDao(userDao);
@@ -61,6 +63,7 @@ public class Main {
         state.setAuthService(authService);
         state.setGameBroadcaster(gameBroadcaster);
         state.setUserBroadcaster(userBroadcaster);
+        state.setChallengeProducer(challengeProducer);
         state.setCountryList(countryList);
         state.setPathService(pathService);
         state.setInitialBoardJson(initialBoardJson);

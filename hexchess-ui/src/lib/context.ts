@@ -1,12 +1,25 @@
 import { getContext, setContext } from 'svelte';
+import type { ChallengeMsg } from '$lib/models';
 
-export interface NotificationData {
-    message: string;
+export interface NotificationValue {
     isSuccess: boolean;
+    duration: number;
 }
 
+type TextValue = NotificationValue & {
+    type: 'string';
+    message: string;
+}
+
+type ChallengeValue = NotificationValue & {
+    type: 'challenge';
+    message: ChallengeMsg;
+}
+
+export type NotificationData = TextValue | ChallengeValue;
+
 interface NotificationsContext {
-    addNotification: (data: NotificationData, expire: number) => void;
+    addNotification: (data: NotificationData) => void;
     deleteNotification: (index: number) => void;
 }
 

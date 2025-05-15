@@ -22,4 +22,6 @@ target/
 
 src/main/resources/.env
 
-/hexchess-svc/logs/app.log
+hexchess-svc/logs/app.log
+*/.svelte-kit
+*/node_modules

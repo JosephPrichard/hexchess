@@ -122,6 +122,15 @@ export interface UserWithReplaysView {
     replayList: ReplayView[];
 }
 
-export interface WsMessage {
+export interface GameOutputMsg {
     type: string;
+}
+
+export interface ChallengeMsg {
+    challengerId: number;
+    challengerName: string;
+    challengerCountry: string;
+    challengeeId: number;
+    challengeeName: string;
+    challengeeCountry: string;
 }

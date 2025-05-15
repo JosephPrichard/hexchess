@@ -8,7 +8,7 @@ export interface ApiResult<T> {
     err: string;
 }
 
-const baseURL = 'http://localhost:8081';
+export const baseURL = 'http://localhost:8081';
 
 class ApiError extends Error {
     public readonly status: number;

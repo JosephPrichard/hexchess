@@ -60,10 +60,10 @@
         console.error(ok, status, resp, err);
 
         if (ok || resp) {
-            addNotification({ message: `Successfully created the challenge against ${user.username}`, isSuccess: false }, 3000);
+            addNotification({ type: 'string', message: `Successfully created the challenge against ${user.username}`, isSuccess: false, duration: 3000 });
         } else {
             const message = createMessage(err);
-            addNotification({ message, isSuccess: false }, 3000);
+            addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
         }
     }
 </script>

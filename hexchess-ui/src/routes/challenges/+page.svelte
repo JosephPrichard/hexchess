@@ -59,11 +59,11 @@
         const { ok, resp, err } = await unwrap(postUpdateChallenge(challenge.challengerId, challenge.challengeeId, action));
         if (ok && resp) {
             const message = formatSuccessMessage(challenge, action);
-            addNotification({ message: message || "An unexpected error has occurred", isSuccess: message !== undefined }, 3000);
+            addNotification({ type: 'string', message: message || "An unexpected error has occurred", isSuccess: true, duration: 3000 });
             challengeList.splice(index, 1);
         } else {
             const message = createMessage(err);
-            addNotification({ message, isSuccess: false }, 3000);
+            addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
             challengeList[index].isLoading[action] = false;
         }
     }

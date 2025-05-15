@@ -46,10 +46,10 @@
         const { ok, resp, err } = await unwrap(postUpdatePassword(password, newPassword, retypePassword));
         if (ok && resp) {
             const message = "Successfully updated password!";
-            addNotification({ message, isSuccess: false }, 3000);
+            addNotification({ type: 'string', message, isSuccess: true, duration: 3000 });
         } else {
             const message = createMessage(err);
-            addNotification({ message, isSuccess: false }, 3000);
+            addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
         }
     }
 
@@ -63,12 +63,12 @@
         const { ok, err } = await unwrap(postLogout());
         if (ok) {
             const message = "Successfully signed out.";
-            addNotification({ message, isSuccess: false }, 3000);
+            addNotification({ message, isSuccess: false, duration: 3000 });
 
             await goto('/');
         } else {
             const message = createMessage(err);
-            addNotification({ message, isSuccess: false }, 3000);
+            addNotification({ message, isSuccess: false, duration: 3000 });
         }
     }
 

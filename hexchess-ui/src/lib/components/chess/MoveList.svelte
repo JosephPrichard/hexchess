@@ -2,13 +2,13 @@
     import type { Move } from '$lib/models';
     import { stringOfMove } from '$lib/chess';
 
-    interface Props {
+    export interface MoveListProps {
         moveList: Move[];
         onSelectMove: (i: number) => void;
         selectedMoveIndex?: number;
     }
 
-    const { moveList, onSelectMove, selectedMoveIndex }: Props = $props();
+    const { moveList, onSelectMove, selectedMoveIndex }: MoveListProps = $props();
 </script>
 
 <div class="move-list">

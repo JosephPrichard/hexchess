@@ -1,8 +1,9 @@
 <script lang="ts">
-    import type { WsMessage } from '$lib/models';
-    import { onMount } from 'svelte';
+    import type { GameOutputMsg } from '$lib/models';
     import Banner from '$lib/components/Banner.svelte';
     import { postTempSession, unwrap } from '$lib/api';
+    import { createMessage } from '$lib/error';
+    import { getNotificationsContext } from '$lib/context';
 
     interface Props {
         data: {
@@ -10,13 +11,14 @@
         }
     }
 
-    const { data }: Props = $props();
-    const { gameId } = data;
+    const { data: props }: Props = $props();
 
-    let ws = undefined;
+    const { addNotification } = getNotificationsContext();
+
+    let ws: WebSocket | undefined = undefined;
     let connectTries = 0;
 
-    function onMessage(message: WsMessage) {
+    function onMessage(message: GameOutputMsg) {
         console.log("Received message", message);
         switch (message.type) {
         case 'ERROR':
@@ -42,37 +44,40 @@
         }
     }
 
-    function connectGame(sessionId: string | undefined) {
-        setTimeout(function () {
-            let url =  `/connections/games/${gameId}`;
-            if (sessionId !== undefined) {
-                url += `?sessionId=${sessionId}`;
-            }
+    function connectGame(gameId: string) {
+        setTimeout(async () => {
+            let { ok, resp: sessionId, err } = await unwrap(postTempSession());
+            if (ok && sessionId) {
+                const params = new URLSearchParams({ sessionId });
+                let url =  `/connections/games/${gameId}?${params}`;
 
-            ws = new WebSocket(url);
-            ws.addEventListener('open', () => {
-                connectTries = 0;
-            });
-            ws.addEventListener('message', (event) => {
-                const data: WsMessage = JSON.parse(event.data);
-                onMessage(data);
-            });
-            ws.addEventListener('error', () => {
-                console.log(`Disconnected with error, trying to reconnect with ${connectTries} tries`);
-                connectTries += 1;
-                connectGame(sessionId);
-            });
+                ws = new WebSocket(url);
+                ws.addEventListener('open', () => {
+                    connectTries = 0;
+                });
+                ws.addEventListener('message', (event) => {
+                    const data: GameOutputMsg = JSON.parse(event.data);
+                    onMessage(data);
+                });
+                ws.addEventListener('error', () => {
+                    console.log(`Disconnected from game=${gameId} with error, trying to reconnect with ${connectTries} tries`);
+                    connectTries += 1;
+                    connectGame(gameId);
+                });
+            } else {
+                const message = createMessage(err);
+                addNotification({ type: 'string', message, isSuccess: false }, 3000);
+            }
         }, connectTries !== 0 ? Math.pow(2, connectTries) * 1000 : 0);
     }
 
-    onMount(async () => {
-        let { ok, resp, err } = await unwrap(postTempSession());
-
-        if (ok && resp) {
-            connectGame(resp);
-        } else {
-            console.error(ok, resp, err);
-        }
+    $effect(() => {
+        connectGame(props.gameId);
+        return () => {
+            if (ws) {
+                ws.close();
+            }
+        };
     });
 </script>
 

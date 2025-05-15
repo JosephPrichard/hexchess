@@ -9,6 +9,7 @@ import services.daos.UserDao;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import services.producers.ChallengeProducer;
 import web.reusable.AuthService;
 import web.reusable.PathService;
 
@@ -27,6 +28,7 @@ public class State {
     private PathService pathService;
     private Broadcaster gameBroadcaster;
     private Broadcaster userBroadcaster;
+    private ChallengeProducer challengeProducer;
 
     private List<String> countryList;
     private String initialBoardJson;
