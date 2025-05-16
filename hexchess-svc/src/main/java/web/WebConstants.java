@@ -17,6 +17,7 @@ public class WebConstants {
     public static final String ERROR_SELF_CHALLENGE = "ERROR_SELF_CHALLENGE";
     public static final String ERROR_DUPLICATE_CHALLENGE = "ERROR_DUPLICATE_CHALLENGE";
     public static final String ERROR_UPDATE_CHALLENGE = "ERROR_UPDATE_CHALLENGE";
+    public static final String ERROR_NOT_FOUND_USER = "ERROR_NOT_FOUND_USER";
     public static final String ERROR_INVALID_REQUEST = "ERROR_INVALID_REQUEST";
 
     // ws response codes
@@ -25,7 +26,4 @@ public class WebConstants {
     public static final String ERROR_INVALID_MOVE = "ERROR_INVALID_MOVE";
     public static final String ERROR_FINISHED_GAME = "ERROR_FINISHED_GAME";
     public static final String ERROR_INVALID_GAME = "ERROR_INVALID_GAME";
-
-    // json utils
-    public static final String EMPTY_JSON = "{}";
 }

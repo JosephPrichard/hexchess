@@ -95,12 +95,12 @@ export function postUpdatePassword(password: string, newPassword: string, confir
     });
 }
 
-export function postCreateChallenge(timeControl: string, startColor: string) {
+export function postCreateChallenge(timeControl: string, startColor: string, challengeeId: number) {
     return api<unknown>(`${baseURL}/forms/challenges/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ startColor, timeControl })
+        body: JSON.stringify({ startColor, timeControl, challengeeId })
     });
 }
 
@@ -140,6 +140,18 @@ export function postLogout() {
 
 export function postTempSession() {
     return api<string>(`${baseURL}/forms/session/temp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+    });
+}
+
+interface RefreshResp {
+    session: SessionView | null;
+}
+
+export function postRefresh() {
+    return api<RefreshResp>(`${baseURL}/forms/session/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include'

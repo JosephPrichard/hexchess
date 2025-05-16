@@ -1,12 +1,9 @@
 package web.controllers;
 
-import lombok.AllArgsConstructor;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import models.views.SessionView;
 import services.daos.ChallengeDao;
 import services.daos.UserDao;
-import lombok.ToString;
 import models.common.ColorSelect;
 import models.common.TimeControl;
 import models.entities.ChallengeEntity;
@@ -179,7 +176,7 @@ public class FormController extends Jooby {
 
         userDao.updatePassword(verifiedUser.id, newPassword);
 
-        return EMPTY_JSON;
+        return "SUCCESS";
     }
 
     @ToString
@@ -211,17 +208,32 @@ public class FormController extends Jooby {
         return tempSessionId;
     }
 
-    public String refreshSession(Context ctx) {
-        String sessionId = authService.parseSession(ctx);
-        if (sessionId != null) {
-            Cookie cookie = authService.createSessionCookie(sessionId);
-            ctx.setResponseCookie(cookie);
-            dictionaryDao.updateSessionEx(sessionId, cookie.getMaxAge());
+    @ToString
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RefreshResp {
+        public static final RefreshResp EMPTY = new RefreshResp();
 
-            LOGGER.info("Refreshed session for sessionId={}", sessionId);
+        public SessionView session;
+    }
+
+    public RefreshResp refreshSession(Context ctx) {
+        String sessionId = authService.parseSession(ctx);
+        if (sessionId == null) {
+            return RefreshResp.EMPTY;
+        }
+        PlayerEntity player = authService.getSessionPlayer(ctx);
+        if (player == null) {
+            return RefreshResp.EMPTY;
         }
 
-        return EMPTY_JSON;
+        Cookie cookie = authService.createSessionCookie(sessionId);
+        ctx.setResponseCookie(cookie);
+        dictionaryDao.updateSessionEx(sessionId, cookie.getMaxAge());
+
+        LOGGER.info("Refreshed session for player={}", player.id);
+
+        return new RefreshResp(SessionView.fromPlayer(player, cookie.getMaxAge()));
     }
 
     public String logout(Context ctx) {
@@ -232,7 +244,7 @@ public class FormController extends Jooby {
 
         LOGGER.info("Logged out sessionId={}", sessionId);
 
-        return EMPTY_JSON;
+        return "SUCCESS";
     }
 
     @ToString
@@ -360,9 +372,9 @@ public class FormController extends Jooby {
             EXECUTOR.execute(() -> challengeProducer.broadcastChallenge(ChallengeMsg.fromEntity(entity)));
             EXECUTOR.execute(() -> challengeDao.deleteExpired(player.id));
 
-            return EMPTY_JSON;
+            return "SUCCESS";
         } catch (ChallengeDao.ParticipantException ex) {
-            throw new StatusCodeException(StatusCode.NOT_FOUND, ERROR_NOT_FOUND_CHALLENGE);
+            throw new StatusCodeException(StatusCode.NOT_FOUND, ERROR_NOT_FOUND_USER);
         } catch (ChallengeDao.SelfException ex) {
             throw new StatusCodeException(StatusCode.BAD_REQUEST, ERROR_SELF_CHALLENGE);
         } catch (ChallengeDao.DuplicateException ex) {

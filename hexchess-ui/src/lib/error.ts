@@ -16,6 +16,7 @@ export const codes = {
     errorUpdateChallenge: 'ERROR_UPDATE_CHALLENGE',
     errorInvalidRequest: 'ERROR_INVALID_REQUEST',
     errorInvalidGame: 'ERROR_INVALID_GAME',
+    errorNotFoundUser: 'ERROR_NOT_FOUND_USER'
 };
 
 export const messages: Record<string, string> = {
@@ -36,6 +37,7 @@ export const messages: Record<string, string> = {
     [codes.errorUpdateChallenge]: 'You are not authorized to update this challenge.',
     [codes.errorInvalidRequest]: 'The request was malformed or contained invalid data.',
     [codes.errorInvalidGame]: 'Cannot find a game for the given id.',
+    [codes.errorNotFoundUser]: 'The provided user is invalid or does not exist.'
 };
 
 export function createMessage(code?: string) {

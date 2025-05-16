@@ -12,16 +12,26 @@
 
     let color: ColorSelect = $state('RANDOM');
     let timeControl: TimeControl = $state('UNLIMITED');
+
+    function onClickClose(e: MouseEvent) {
+        e.preventDefault();
+        onClose();
+    }
+
+    function onSubmitForm(e: MouseEvent) {
+        e.preventDefault();
+        onSubmit(timeControl, color);
+    }
 </script>
 
 <div class="modal-overlay" id="modal-overlay" style:display={show ? '' : 'none'}></div>
 <div class="absolute-center">
-    <div class="modal panel invisible" id="create-modal" style:display={show ? '' : 'none'}>
+    <div class="modal panel" id="create-modal" style:display={show ? '' : 'none'}>
         <form class="form-wrapper" id="create-game-form">
             <div class="text-md" style="margin-bottom: 25px">
                 {title}
             </div>
-            <button class="modal-x" onclick={onClose}> &#10006; </button>
+            <button class="modal-x" onclick={onClickClose}> &#10006; </button>
             <div style="margin-bottom: 25px">
                 <label class="text-xsm" for="time-control"> Time control </label>
                 <select bind:value={timeControl} name="time-control">
@@ -31,17 +41,17 @@
                 </select>
             </div>
             <div id="selected-color" style="margin-bottom: 25px">
-                <div role="button" tabindex="-1" onkeydown={() => (color = 'BLACK')}>
+                <button class="invisible-button" tabindex="-1" onclick={() => (color = 'BLACK')} style:display="inline-block">
                     <img alt="Black" class="color-piece-image" class:selected-color-piece-image={color === 'BLACK'} src="/pieces/black-king.png" />
-                </div>
-                <div role="button" tabindex="-1" onkeydown={() => (color = 'RANDOM')}>
+                </button>
+                <button class="invisible-button" tabindex="-1" onclick={() => (color = 'RANDOM')} style:display="inline-block">
                     <img alt="Random" class="color-piece-image" class:selected-color-piece-image={color === 'RANDOM'} src="/pieces/half-king.png" />
-                </div>
-                <div role="button" tabindex="-1" onkeydown={() => (color = 'WHITE')}>
+                </button>
+                <button class="invisible-button" tabindex="-1" onclick={() => (color = 'WHITE')} style:display="inline-block">
                     <img alt="White" class="color-piece-image" class:selected-color-piece-image={color === 'WHITE'} src="/pieces/white-king.png" />
-                </div>
+                </button>
             </div>
-            <button class="button button-grey" onclick={() => onSubmit(timeControl, color)} type="submit"> Create! </button>
+            <button class="button button-grey" onclick={onSubmitForm} type="submit"> Create! </button>
         </form>
     </div>
 </div>

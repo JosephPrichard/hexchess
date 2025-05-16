@@ -7,6 +7,8 @@ import io.jooby.jackson.JacksonModule;
 import models.entities.PlayerEntity;
 import services.broadcast.Broadcaster;
 import services.daos.DictionaryDao;
+import services.producers.ChallengeProducer;
+import web.dto.ChallengeMsg;
 import web.reusable.AuthService;
 import web.State;
 
@@ -16,8 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static utils.Globals.JSON_MAPPER;
 import static utils.Globals.LOGGER;
-import static web.WebConstants.ERROR_REQUIRED_LOGIN;
-import static web.WebConstants.ERROR_SESSION_EXPIRED;
+import static web.WebConstants.*;
 
 public class EventController extends Jooby {
     private final State state;
@@ -29,7 +30,17 @@ public class EventController extends Jooby {
 
         install(new JacksonModule(JSON_MAPPER));
 
-        sse("/events/user", this::handleEvents);
+        post("/events/user/challenges/publish", this::publishChallenge);
+        sse("/events/user/subscriptions", this::handleEvents);
+    }
+
+    private String publishChallenge(Context ctx) {
+        ChallengeMsg body = ctx.body(ChallengeMsg.class);
+
+        ChallengeProducer challengeProducer = state.getChallengeProducer();
+        challengeProducer.broadcastChallenge(body);
+
+        return "SUCCESS";
     }
 
     private void handleEvents(ServerSentEmitter sse) {

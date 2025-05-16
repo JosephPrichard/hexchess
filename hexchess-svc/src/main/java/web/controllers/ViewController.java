@@ -157,7 +157,7 @@ public class ViewController extends Jooby {
         UserEntity userEntity = userFut.get();
         if (userEntity == null) {
             LOGGER.warn("User not found for id={}", userId);
-            throw new BadRequestException(ERROR_NOT_FOUND_CHALLENGE);
+            throw new BadRequestException(ERROR_NOT_FOUND_USER);
         }
 
         userEntity.rank = dictionaryDao.getLeaderboardRank(userEntity.id);

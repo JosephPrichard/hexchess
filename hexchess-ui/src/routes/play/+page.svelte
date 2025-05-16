@@ -66,7 +66,7 @@
                 });
             } else {
                 const message = createMessage(err);
-                addNotification({ type: 'string', message, isSuccess: false }, 3000);
+                addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
             }
         }, connectTries !== 0 ? Math.pow(2, connectTries) * 1000 : 0);
     }

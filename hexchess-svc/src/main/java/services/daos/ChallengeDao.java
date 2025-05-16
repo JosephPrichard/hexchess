@@ -77,6 +77,7 @@ public class ChallengeDao {
             INNER JOIN users as u2 ON u2.id = c1.challengerId
             """;
         try {
+            LOGGER.info("Inserting challenge with challengerId={}, challengeeId={}, timeControl={}, startColor={}", challengerId, challengeeId, timeControl, startColor);
             ChallengeEntity challenge = runner.query(sql, CHAL_MAPPER, challengerId, challengeeId, timeControl, startColor, madeOn);
             LOGGER.info("Inserted a challenge={}", challenge);
             return challenge;
@@ -87,11 +88,11 @@ public class ChallengeDao {
             case "23505":
                 LOGGER.warn("Already made challenge=[challengerId={},challengeeId={}]", challengerId, challengeeId);
                 throw new DuplicateException();
-            case "23506":
+            case "23503", "23506":
                 LOGGER.warn("Violating key constraint exception when inserting challenge=[challengerId={},challengeeId={}]", challengerId, challengeeId);
                 throw new ParticipantException();
             default:
-                LOGGER.error("Failed to insert a challenge=[challengerId={},challengeeId={}]", challengerId, challengeeId, ex);
+                LOGGER.error("Failed to insert a challenge=[challengerId={},challengeeId={}] with violation={}", challengerId, challengeeId, nextEx.getSQLState(), ex);
                 throw new RuntimeException(ex);
             }
         }

@@ -7,8 +7,16 @@
 
     let client: SessionView | null = $state(null);
 
-    onMount(() => {
+    function initClientSession() {
         client = getClientSession();
+    }
+
+    onMount(() => {
+        initClientSession();
+        window.addEventListener('storage', initClientSession);
+        return () => {
+            window.removeEventListener('storage', initClientSession);
+        };
     });
 </script>
 

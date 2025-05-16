@@ -4,6 +4,7 @@
     import { postUpdateChallenge, unwrap } from '$lib/api';
     import { createMessage } from '$lib/error';
     import { getNotificationsContext } from '$lib/context';
+    import { onMount } from 'svelte';
 
     export interface ChallengeProps {
         participants: string;
@@ -83,7 +84,7 @@
         {#if challengeList.length > 0}
             <div class="challenge-list">
                 {#each challengeList as { challenge, isLoading }, index (index)}
-                    <div class="challenge-box">
+                    <div id="{challenge.challengeeId}+{challenge.challengerId}" class="challenge-box">
                         <div>
                             <div style="margin-bottom: 6px">
                                 <a href="/players/{challenge.challengerId}" class="text-ul bold-link">{challenge.challengerName}</a>

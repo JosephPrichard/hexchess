@@ -1,17 +1,19 @@
 <script lang="ts">
     import type { LayoutProps } from '../../.svelte-kit/types/src/routes/$types';
-    import { type NotificationData, type NotificationValue, setNotificationsContext } from '$lib/context';
+    import { type NotificationData, setNotificationsContext } from '$lib/context';
     import { onMount } from 'svelte';
     import type { ChallengeMsg } from '$lib/models';
-    import { baseURL } from '$lib/api';
+    import { baseURL, postRefresh, unwrap } from '$lib/api';
     import { createMessage } from '$lib/error';
+    import { clearClientSession, updateClientSession } from '$lib/local';
 
     const { children }: LayoutProps = $props();
 
     const notifications: (NotificationData | undefined)[] = $state([]);
-    const timeouts: Record<number, number> = {};
+    const timeouts: Record<number, ReturnType<typeof setTimeout>> = {};
     let index = 0;
     let sse: EventSource | undefined = undefined;
+    let refreshInterval: ReturnType<typeof setInterval> | undefined = undefined;
 
     function deleteNotification(index: number) {
         notifications[index] = undefined;
@@ -29,7 +31,7 @@
     }
 
     function connectUserEvents() {
-        sse = new EventSource(`${baseURL}/events/user`, {
+        sse = new EventSource(`${baseURL}/events/user/subscriptions`, {
             withCredentials: true,
         });
         sse.addEventListener("meta", (event) => {
@@ -38,13 +40,29 @@
         sse.addEventListener("challenge", (event) => {
             const data: ChallengeMsg = JSON.parse(event.data);
             console.log("Sse:", data);
-            addNotification({ type: 'challenge', message: data, isSuccess: true, duration: 10000 });
+            addNotification({ type: 'challenge', message: data, isSuccess: true, duration: 150000 });
         });
+    }
+
+    async function refreshSession() {
+        let { ok, resp } = await unwrap(postRefresh());
+        if (ok) {
+            if (resp && resp.session) {
+                updateClientSession(resp.session);
+            } else {
+                clearClientSession();
+            }
+        }
     }
 
     onMount(() => {
         connectUserEvents();
+        refreshSession();
+        refreshInterval = setInterval(async () => refreshSession(), 900000); // 15 minutes
         return () => {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
             if (sse) {
                 sse.close();
             }
@@ -66,7 +84,7 @@
                         {:else if notification.type === 'challenge'}
                             {@const challenge = notification.message}
                             Player <a href="/players/{challenge.challengeeId}"> {challenge.challengeeName} </a>
-                            has challenged you to a <a href="/challenges?participants=received&id={challenge.challengerId}"> game </a>
+                            has challenged you to a <a href="/challenges?participants=received"> game </a>
                         {/if}
                     </div>
                     <div class="notification-space"></div>

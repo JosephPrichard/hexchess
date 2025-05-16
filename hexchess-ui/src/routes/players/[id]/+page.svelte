@@ -50,17 +50,18 @@
 
     onMount(() => {
         const client = getClientSession();
-        isDifferentUser = client !== null && client?.id !== client.id;
+        isDifferentUser = client !== null && user.id !== client.id;
+        console.log("Initializing with client: ", client);
         tryLoadReplays();
     });
 
     async function onSubmitCreateChallenge(timeControl: TimeControl, color: ColorSelect) {
-        const { ok, status, resp, err } = await unwrap(postCreateChallenge(timeControl, color));
+        const { ok, status, resp, err } = await unwrap(postCreateChallenge(timeControl, color, user.id));
         showCreateModal = false;
         console.error(ok, status, resp, err);
 
         if (ok || resp) {
-            addNotification({ type: 'string', message: `Successfully created the challenge against ${user.username}`, isSuccess: false, duration: 3000 });
+            addNotification({ type: 'string', message: `Successfully created the challenge against ${user.username}`, isSuccess: true, duration: 3000 });
         } else {
             const message = createMessage(err);
             addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
@@ -130,14 +131,16 @@
             </div>
         {/if}
 
-        <div id="profile-buttons" style="margin-top: 25px" style:display={isDifferentUser ? '' : 'none'}>
-            <button class="button button-grey" id="challenge-button" onclick={() => (showCreateModal = true)}>
+        {#if isDifferentUser}
+            <div id="profile-buttons" style="margin-top: 25px">
+                <button class="button button-grey" id="challenge-button" onclick={() => (showCreateModal = true)}>
                 <span class="svg-container">
                     <span style="margin-right: 8px">Challenge</span>
                     <ChallengeSvg />
                 </span>
-            </button>
-        </div>
+                </button>
+            </div>
+        {/if}
     </div>
 </div>
 
