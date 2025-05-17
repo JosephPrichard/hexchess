@@ -2,31 +2,31 @@ import { getContext, setContext } from 'svelte';
 import type { ChallengeMsg } from '$lib/models';
 
 export interface NotificationValue {
-    isSuccess: boolean;
-    duration: number;
+	isSuccess: boolean;
+	duration: number;
 }
 
 type TextValue = NotificationValue & {
-    type: 'string';
-    message: string;
-}
+	type: 'string';
+	message: string;
+};
 
 type ChallengeValue = NotificationValue & {
-    type: 'challenge';
-    message: ChallengeMsg;
-}
+	type: 'challenge';
+	message: ChallengeMsg;
+};
 
 export type NotificationData = TextValue | ChallengeValue;
 
 interface NotificationsContext {
-    addNotification: (data: NotificationData) => void;
-    deleteNotification: (index: number) => void;
+	addNotification: (data: NotificationData) => void;
+	deleteNotification: (index: number) => void;
 }
 
 export function getNotificationsContext() {
-    return getContext("notifications") as NotificationsContext;
+	return getContext('notifications') as NotificationsContext;
 }
 
 export function setNotificationsContext(ctx: NotificationsContext) {
-    return setContext("notifications", ctx);
+	return setContext('notifications', ctx);
 }

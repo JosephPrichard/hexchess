@@ -126,7 +126,7 @@ public class FormControllerTest {
 
         // then
         verify(mockGameService, times(1)).create(ColorSelect.RANDOM, TimeControl.UNLIMITED);
-        Assertions.assertEquals(new FormController.CreateGameResp("test-id"), result.value());
+        Assertions.assertEquals("test-id", result.value());
     }
 
     private MockContext mockChallengeCtx(long challengerId, long challengeeId, String action) {

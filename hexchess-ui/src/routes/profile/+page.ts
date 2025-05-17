@@ -5,18 +5,15 @@ import { createMessage } from '$lib/error';
 import { error } from '@sveltejs/kit';
 
 export const load: PageLoad = async ({ fetch }): Promise<ProfileProps> => {
-    const [countryList, profileResult] = await Promise.all([
-        getCountries(fetch), 
-        unwrap(getProfile(fetch))
-    ]);
+	const [countryList, profileResult] = await Promise.all([getCountries(fetch), unwrap(getProfile(fetch))]);
 
-    if (!countryList) {
-        error(500, "Unexpected error has occurred.");
-    }
+	if (!countryList) {
+		error(500, 'Unexpected error has occurred.');
+	}
 
-    if (!profileResult.ok || profileResult.resp === undefined) {
-        error(profileResult.status, createMessage(profileResult.err));
-    }
+	if (!profileResult.ok || profileResult.resp === undefined) {
+		error(profileResult.status, createMessage(profileResult.err));
+	}
 
-    return { countryList: countryList || [], user: profileResult.resp };
+	return { countryList: countryList || [], user: profileResult.resp };
 };

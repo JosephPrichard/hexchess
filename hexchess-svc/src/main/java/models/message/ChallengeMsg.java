@@ -1,4 +1,4 @@
-package web.dto;
+package models.message;
 
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;

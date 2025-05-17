@@ -1,35 +1,35 @@
 export const Piece = {
-    empty: 0,
-    whitePawn: 1,
-    blackPawn: 2,
-    whiteKnight: 3,
-    blackKnight: 4,
-    whiteBishop: 5,
-    blackBishop: 6,
-    whiteRook: 7,
-    blackRook: 8,
-    whiteQueen: 9,
-    blackQueen: 10,
-    whiteKing: 11,
-    blackKing: 12
+	empty: 0,
+	whitePawn: 1,
+	blackPawn: 2,
+	whiteKnight: 3,
+	blackKnight: 4,
+	whiteBishop: 5,
+	blackBishop: 6,
+	whiteRook: 7,
+	blackRook: 8,
+	whiteQueen: 9,
+	blackQueen: 10,
+	whiteKing: 11,
+	blackKing: 12
 } as const;
 
 export type PieceType = (typeof Piece)[keyof typeof Piece];
 
-export const pieceNames: Record<PieceType, string> = {
-    [Piece.empty]: 'empty',
-    [Piece.whitePawn]: 'white-pawn',
-    [Piece.blackPawn]: 'black-pawn',
-    [Piece.whiteKnight]: 'white-knight',
-    [Piece.blackKnight]: 'black-knight',
-    [Piece.whiteBishop]: 'white-bishop',
-    [Piece.blackBishop]: 'black-bishop',
-    [Piece.whiteRook]: 'white-rook',
-    [Piece.blackRook]: 'black-rook',
-    [Piece.whiteQueen]: 'white-queen',
-    [Piece.blackQueen]: 'black-queen',
-    [Piece.whiteKing]: 'white-king',
-    [Piece.blackKing]: 'black-king'
+export const piecenames: Record<PieceType, string> = {
+	[Piece.empty]: 'empty',
+	[Piece.whitePawn]: 'white-pawn',
+	[Piece.blackPawn]: 'black-pawn',
+	[Piece.whiteKnight]: 'white-knight',
+	[Piece.blackKnight]: 'black-knight',
+	[Piece.whiteBishop]: 'white-bishop',
+	[Piece.blackBishop]: 'black-bishop',
+	[Piece.whiteRook]: 'white-rook',
+	[Piece.blackRook]: 'black-rook',
+	[Piece.whiteQueen]: 'white-queen',
+	[Piece.blackQueen]: 'black-queen',
+	[Piece.whiteKing]: 'white-king',
+	[Piece.blackKing]: 'black-king'
 };
 
 export type Action = 'delete' | 'reject' | 'accept';
@@ -45,92 +45,157 @@ export type ColorSelect = 'RANDOM' | 'WHITE' | 'BLACK';
 export type TimeControl = 'UNLIMITED' | 'REAL_TIME' | 'CORRESPONDENCE';
 
 export interface ChessBoard {
-    turn: Turn;
-    pieces: PieceType[][];
+	turn: Turn;
+	pieces: PieceType[][];
+}
+
+export interface ChessGame {
+	board: ChessBoard;
+	whiteMoves: PieceMoves[];
+	blackMoves: PieceMoves[];
 }
 
 export interface Hexagon {
-    file: number;
-    rank: number;
+	file: number;
+	rank: number;
 }
 
 export interface Move {
-    piece: PieceType;
-    from: Hexagon;
-    to: Hexagon;
+	piece: PieceType;
+	from: Hexagon;
+	to: Hexagon;
+}
+
+export interface PieceMoves {
+	hex: Hexagon;
+	moves: Hexagon[];
 }
 
 export interface SessionView {
-    id: number;
-    username: string;
-    country: string;
-    elo: number;
-    ttlSecs?: number;
+	id: number;
+	username: string;
+	country: string;
+	elo: number;
+	ttlSecs?: number;
 }
 
 export interface UserView {
-    id: number;
-    username: string;
-    country: string;
-    elo: number;
-    highestElo: number;
-    wins: number;
-    losses: number;
-    rank: number;
-    bio: string;
-    joinedOn: string;
-    total: number;
-    winRate: number;
+	id: number;
+	username: string;
+	country: string;
+	elo: number;
+	highestElo: number;
+	wins: number;
+	losses: number;
+	rank: number;
+	bio: string;
+	joinedOn: string;
+	total: number;
+	winRate: number;
 }
 
 export interface ChallengeView {
-    challengerId: number;
-    challengerName: string;
-    challengerCountry: string;
-    challengerElo: number;
-    challengeeId: number;
-    challengeeName: string;
-    challengeeCountry: string;
-    challengeeElo: number;
-    timeControl: string;
-    madeAgo: string;
-    expiresIn: string;
+	challengerId: number;
+	challengerName: string;
+	challengerCountry: string;
+	challengerElo: number;
+	challengeeId: number;
+	challengeeName: string;
+	challengeeCountry: string;
+	challengeeElo: number;
+	timeControl: string;
+	madeAgo: string;
+	expiresIn: string;
 }
 
 export interface ReplayView {
-    id: number;
-    whiteId: number;
-    blackId: number;
-    whiteName: string;
-    blackName: string;
-    whiteCountry: string;
-    blackCountry: string;
-    winElo: number;
-    loseElo: number;
-    whiteElo: number;
-    blackElo: number;
-    moveList?: Move[];
-    playedOn: string;
-    result: ReplayResult;
-    cause: ReplayCause;
-    whiteEloDiff: number;
-    blackEloDiff: number;
+	id: number;
+	whiteId: number;
+	blackId: number;
+	whiteName: string;
+	blackName: string;
+	whiteCountry: string;
+	blackCountry: string;
+	winElo: number;
+	loseElo: number;
+	whiteElo: number;
+	blackElo: number;
+	moveList?: Move[];
+	playedOn: string;
+	result: ReplayResult;
+	cause: ReplayCause;
+	whiteEloDiff: number;
+	blackEloDiff: number;
 }
 
 export interface UserWithReplaysView {
-    user: UserView;
-    replayList: ReplayView[];
+	user: UserView;
+	replayList: ReplayView[];
 }
 
-export interface GameOutputMsg {
-    type: string;
+export interface PlayerView {
+	id: number;
+	name: string;
+	country?: string;
+	elo?: number;
 }
 
 export interface ChallengeMsg {
-    challengerId: number;
-    challengerName: string;
-    challengerCountry: string;
-    challengeeId: number;
-    challengeeName: string;
-    challengeeCountry: string;
+	challengerId: number;
+	challengerName: string;
+	challengerCountry: string;
+	challengeeId: number;
+	challengeeName: string;
+	challengeeCountry: string;
+}
+
+export interface ErrorMsg {
+	type: 'ERROR';
+	message: string;
+}
+
+export interface ForfeitMsg {
+	type: 'FORFEIT';
+	gameState: GameState;
+}
+
+export interface JoinMsg {
+	type: 'JOIN';
+	gameState: GameState;
+	player: PlayerView;
+}
+
+export interface ConnectMsg {
+	type: 'CONNECT';
+	player: PlayerView;
+}
+
+export interface MoveMsg {
+	type: 'MOVE';
+	move: Move;
+	game: ChessGame;
+}
+
+export interface ChatMsg {
+	type: 'CHAT';
+	player: PlayerView;
+	message: string;
+}
+
+export type GameOutputMsg =
+	| ErrorMsg
+	| ForfeitMsg
+	| ConnectMsg
+	| JoinMsg
+	| MoveMsg
+	| ChatMsg;
+
+export interface GameState {
+	id: number;
+	game: ChessGame;
+	whitePlayer: PlayerView | null;
+	blackPlayer: PlayerView | null;
+	timeControl: TimeControl;
+	isEnded: boolean;
+	moveList: Move[];
 }

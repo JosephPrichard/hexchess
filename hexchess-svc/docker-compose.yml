@@ -18,9 +18,6 @@ services:
     volumes:
       - redis_data:/data
     environment:
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_URL=${DB_URL}
-      - DB_USER=${DB_URL}
       - REDIS_HOST=${REDIS_HOST}
       - REDIS_PORT=${REDIS_PORT}
   redis-pubsub:
@@ -28,9 +25,6 @@ services:
     ports:
       - "6380:6379"
     environment:
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_URL=${DB_URL}
-      - DB_USER=${DB_URL}
       - REDIS_HOST=${REDIS_HOST}
       - REDIS_PORT=${REDIS_PORT}
   elasticsearch:

@@ -1,120 +1,120 @@
 <script lang="ts">
-    import { type ChessBoard, type ReplayView } from '$lib/models';
-    import Banner from '$lib/components/Banner.svelte';
-    import MoveListView from '$lib/components/chess/MoveList.svelte';
-    import ChessBoardView from '$lib/components/chess/Board.svelte';
-    import { translateBoard } from '$lib/chess';
-    import RightIcon from '$lib/components/icons/RightIcon.svelte';
-    import LeftIcon from '$lib/components/icons/LeftIcon.svelte';
-    import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
-    import { formatCause, formatElo, getResultClasses } from '$lib/format';
-    import { formatReplayResult } from '$lib/format.js';
+	import { type ChessBoard, type ReplayView } from '$lib/models';
+	import Banner from '$lib/components/Banner.svelte';
+	import MoveListView from '$lib/components/chess/MoveList.svelte';
+	import ChessBoardView from '$lib/components/chess/Board.svelte';
+	import { translateBoard } from '$lib/chess';
+	import RightIcon from '$lib/components/icons/RightIcon.svelte';
+	import LeftIcon from '$lib/components/icons/LeftIcon.svelte';
+	import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
+	import { formatCause, formatElo, getResultClasses } from '$lib/format';
+	import { formatReplayResult } from '$lib/format.js';
 
-    export interface ReplayProps {
-        replay: ReplayView;
-        initialBoard: ChessBoard;
-    }
+	export interface ReplayProps {
+		replay: ReplayView;
+		initialBoard: ChessBoard;
+	}
 
-    const { data }: { data: ReplayProps } = $props();
-    const { replay, initialBoard } = $derived(data);
-    const [whiteClass, blackClass] = $derived(getResultClasses(replay.result));
+	const { data }: { data: ReplayProps } = $props();
+	const { replay, initialBoard } = $derived(data);
+	const [whiteClass, blackClass] = $derived(getResultClasses(replay.result));
 
-    let isBlackPerspective = $state(false);
-    let moveIndex: number | undefined = $state(undefined);
+	let isBlackPerspective = $state(false);
+	let moveIndex: number | undefined = $state(undefined);
 
-    let boardCache = new Map<number, ChessBoard>();
+	let boardCache = new Map<number, ChessBoard>();
 
-    const board = $derived.by(() => {
-        if (!moveIndex) {
-            return initialBoard;
-        }
+	const board = $derived.by(() => {
+		if (!moveIndex) {
+			return initialBoard;
+		}
 
-        let board = boardCache.get(moveIndex);
-        if (board !== undefined) {
-            return board;
-        }
+		let board = boardCache.get(moveIndex);
+		if (board !== undefined) {
+			return board;
+		}
 
-        board = translateBoard(moveIndex, replay.moveList!, initialBoard);
+		board = translateBoard(moveIndex, replay.moveList!, initialBoard);
 
-        boardCache.set(moveIndex, board);
-        return board;
-    });
+		boardCache.set(moveIndex, board);
+		return board;
+	});
 
-    function onSelectMove(i: number) {
-        moveIndex = i;
-    }
+	function onSelectMove(i: number) {
+		moveIndex = i;
+	}
 
-    function onClickFlip() {
-        isBlackPerspective = !isBlackPerspective;
-    }
+	function onClickFlip() {
+		isBlackPerspective = !isBlackPerspective;
+	}
 
-    function onClickLeft() {
-        if (moveIndex === undefined) {
-            moveIndex = 0;
-        } else if (moveIndex > 0) {
-            moveIndex--;
-        }
-    }
+	function onClickLeft() {
+		if (moveIndex === undefined) {
+			moveIndex = 0;
+		} else if (moveIndex > 0) {
+			moveIndex--;
+		}
+	}
 
-    function onClickRight() {
-        if (moveIndex === undefined) {
-            moveIndex = 0;
-        } else if (moveIndex < replay.moveList!.length - 1) {
-            moveIndex++;
-        }
-    }
+	function onClickRight() {
+		if (moveIndex === undefined) {
+			moveIndex = 0;
+		} else if (moveIndex < replay.moveList!.length - 1) {
+			moveIndex++;
+		}
+	}
 </script>
 
 <svelte:head>
-    <title>Replay - Hexchess</title>
+	<title>Replay - Hexchess</title>
 </svelte:head>
 <Banner />
 <div class="center-horizontal-container">
-    <div class="center-vertical-container" style="align-items: stretch;">
-        <ChessBoardView board={board} isBlackPerspective={isBlackPerspective} />
-        <div class="move-table">
-            <div class="move-table-header">
-                <div class="move-table-header-elem">
-                    <a href="/players/{replay.whiteId}" class="text-ul">
-                        <b>{replay.whiteName}</b>
-                    </a>
-                    <img class="flag" src="/flags/{replay.whiteCountry}.png" alt="" />
-                    <span>({replay.whiteElo})</span>
-                    <span class={whiteClass}>
-                    {formatElo(replay.whiteEloDiff)}
-                </span>
-                </div>
-                <div class="move-table-header-elem">
-                    <a href="/players/{replay.blackId}" class="text-ul">
-                        <b>{replay.blackName}</b>
-                    </a>
-                    <img class="flag" src="/flags/{replay.blackCountry}.png" alt="" />
-                    <span>({replay.blackElo})</span>
-                    <span class={blackClass}>
-                    {formatElo(replay.blackEloDiff)}
-                </span>
-                </div>
-                <div class="move-table-header-elem">
-                    {formatReplayResult(replay.result)} &#8226; {formatCause(replay.cause)}
-                </div>
-                <div class="move-table-header-elem">
-                    {replay.playedOn}
-                </div>
-            </div>
-            <MoveListView moveList={replay.moveList || []} onSelectMove={onSelectMove} selectedMoveIndex={moveIndex} />
-            <div id="move-table-buttons" class="move-table-buttons">
-                <div class="move-table-nav-buttons">
-                    <button class="button-transparent" onclick={onClickLeft}>
-                        <LeftIcon />
-                    </button>
-                    <button class="button-transparent" onclick={onClickFlip}>
-                        <FlipIcon />
-                    </button>
-                    <button class="button-transparent" onclick={onClickRight}>
-                        <RightIcon />
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+	<div class="center-vertical-container" style="align-items: stretch;">
+		<ChessBoardView {board} {isBlackPerspective} />
+		<div class="move-table">
+			<div class="move-table-header">
+				<div class="move-table-header-elem">
+					<a href="/players/{replay.whiteId}" class="text-ul">
+						<b>{replay.whiteName}</b>
+					</a>
+					<img class="flag" src="/flags/{replay.whiteCountry}.png" alt="" />
+					<span>({replay.whiteElo})</span>
+					<span class={whiteClass}>
+						{formatElo(replay.whiteEloDiff)}
+					</span>
+				</div>
+				<div class="move-table-header-elem">
+					<a href="/players/{replay.blackId}" class="text-ul">
+						<b>{replay.blackName}</b>
+					</a>
+					<img class="flag" src="/flags/{replay.blackCountry}.png" alt="" />
+					<span>({replay.blackElo})</span>
+					<span class={blackClass}>
+						{formatElo(replay.blackEloDiff)}
+					</span>
+				</div>
+				<div class="move-table-header-elem">
+					{formatReplayResult(replay.result)} &#8226; {formatCause(replay.cause)}
+				</div>
+				<div class="move-table-header-elem">
+					{replay.playedOn}
+				</div>
+			</div>
+			<MoveListView moveList={replay.moveList || []} {onSelectMove} selectedMoveIndex={moveIndex} />
+			<div class="move-table-footer">
+				<div class="move-table-nav-buttons">
+					<button class="button-transparent" onclick={onClickLeft}>
+						<LeftIcon />
+					</button>
+					<button class="button-transparent" onclick={onClickFlip}>
+						<FlipIcon />
+					</button>
+					<button class="button-transparent" onclick={onClickRight}>
+						<RightIcon />
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
 </div>

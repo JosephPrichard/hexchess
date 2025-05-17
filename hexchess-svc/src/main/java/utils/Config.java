@@ -3,6 +3,7 @@ package utils;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.apache.commons.dbutils.QueryRunner;
+import redis.clients.jedis.ConnectionPoolConfig;
 
 import javax.sql.DataSource;
 import java.io.File;
@@ -10,11 +11,24 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.*;
 
 import static utils.Globals.LOGGER;
 
 public class Config {
+
+    public static ConnectionPoolConfig getJedisPoolConfig() {
+        ConnectionPoolConfig poolConfig = new ConnectionPoolConfig();
+        poolConfig.setMaxTotal(24);
+        poolConfig.setMaxIdle(8);
+        poolConfig.setMinIdle(0);
+        poolConfig.setBlockWhenExhausted(false);
+        poolConfig.setMaxWait(Duration.ofSeconds(1));
+        poolConfig.setTestWhileIdle(true);
+        poolConfig.setTimeBetweenEvictionRuns(Duration.ofSeconds(1));
+        return poolConfig;
+    }
 
     public static Map<String, String> readEnvironment() {
         Map<String, String> env = new HashMap<>();

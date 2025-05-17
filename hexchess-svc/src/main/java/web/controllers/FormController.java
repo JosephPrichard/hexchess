@@ -15,7 +15,7 @@ import io.jooby.*;
 import io.jooby.exception.StatusCodeException;
 import org.jsoup.Jsoup;
 import services.producers.ChallengeProducer;
-import web.dto.ChallengeMsg;
+import models.message.ChallengeMsg;
 import web.reusable.AuthService;
 import web.State;
 
@@ -255,15 +255,7 @@ public class FormController extends Jooby {
         public TimeControl timeControl;
     }
 
-    @ToString
-    @EqualsAndHashCode
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class CreateGameResp {
-        public String gameId;
-    }
-
-    public CreateGameResp createGame(Context ctx) {
+    public String createGame(Context ctx) {
         CreateGameBody body = ctx.body(CreateGameBody.class);
 
         if (body.firstColor == null) {
@@ -276,7 +268,7 @@ public class FormController extends Jooby {
         String gameId = gameService.create(body.firstColor, body.timeControl);
 
         ctx.setResponseType(MediaType.TEXT);
-        return new CreateGameResp(gameId);
+        return gameId;
     }
 
     @ToString

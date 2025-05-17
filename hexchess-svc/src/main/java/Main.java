@@ -1,7 +1,9 @@
 import chess.ChessBoard;
 import com.zaxxer.hikari.HikariDataSource;
+import redis.clients.jedis.ConnectionPoolConfig;
 import services.broadcast.Broadcaster;
 import services.broadcast.GlobalBroadcaster;
+import services.broadcast.LocalBroadcaster;
 import services.daos.ChallengeDao;
 import services.daos.DictionaryDao;
 import services.daos.ReplayDao;
@@ -24,6 +26,8 @@ import static utils.Globals.LOGGER;
 
 public class Main {
     public static void main(String[] args) throws Exception {
+        ConnectionPoolConfig poolConfig = Config.getJedisPoolConfig();
+
         Map<String, String> env = Config.readEnvironment();
         HikariDataSource ds = Config.createDataSource(env);
 
@@ -47,11 +51,13 @@ public class Main {
         UserDao userDao = new UserDao(ds);
         ReplayDao replayDao = new ReplayDao(ds);
         ChallengeDao challengeDao = new ChallengeDao(ds);
-        DictionaryDao dictionaryDao = new DictionaryDao(new JedisPooled(redisHost, redisPort));
+        DictionaryDao dictionaryDao = new DictionaryDao(new JedisPooled(poolConfig, redisHost, redisPort));
         GameService gameService = new GameService(dictionaryDao, userDao, replayDao);
         AuthService authService = new AuthService(dictionaryDao, cookieDomain);
-        GlobalBroadcaster gameBroadcaster = new GlobalBroadcaster(redisPubsubHost, redisPubsubPort, Broadcaster.GAMES_TOPIC);
-        GlobalBroadcaster userBroadcaster = new GlobalBroadcaster(redisPubsubHost, redisPubsubPort, Broadcaster.USERS_TOPIC);
+//        GlobalBroadcaster gameBroadcaster = new GlobalBroadcaster(poolConfig, redisPubsubHost, redisPubsubPort, Broadcaster.GAMES_TOPIC);
+//        GlobalBroadcaster userBroadcaster = new GlobalBroadcaster(poolConfig, redisPubsubHost, redisPubsubPort, Broadcaster.USERS_TOPIC);
+        LocalBroadcaster gameBroadcaster = new LocalBroadcaster(Broadcaster.GAMES_TOPIC);
+        LocalBroadcaster userBroadcaster = new LocalBroadcaster(Broadcaster.USERS_TOPIC);
         ChallengeProducer challengeProducer = new ChallengeProducer(userBroadcaster);
         PathService pathService = new PathService();
 
@@ -68,8 +74,8 @@ public class Main {
         state.setPathService(pathService);
         state.setInitialBoardJson(initialBoardJson);
 
-        gameBroadcaster.startListenSubscribe();
-        userBroadcaster.startListenSubscribe();
+//        gameBroadcaster.startListenSubscribe();
+//        userBroadcaster.startListenSubscribe();
 
         LOGGER.info("Starting on port {} with allowedOrigins={}", port, allowedOrigins);
         runApp(args, () -> new AppController(port, allowedOrigins, state));

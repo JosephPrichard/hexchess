@@ -8,7 +8,7 @@ import models.entities.PlayerEntity;
 import services.broadcast.Broadcaster;
 import services.daos.DictionaryDao;
 import services.producers.ChallengeProducer;
-import web.dto.ChallengeMsg;
+import models.message.ChallengeMsg;
 import web.reusable.AuthService;
 import web.State;
 

@@ -56,10 +56,11 @@ public class DictionaryDao {
         byte[] bytes = Serializer.serialize(gameState);
         id = "game:" + id;
 
-        AbstractTransaction t = jedis.multi();
-        t.set(id.getBytes(), bytes);
-        t.zadd(GAMES_ZSET, gameState.touch, id);
-        t.exec();
+        try (AbstractTransaction t = jedis.multi()) {
+            t.set(id.getBytes(), bytes);
+            t.zadd(GAMES_ZSET, gameState.touch, id);
+            t.exec();
+        }
 
         return gameState;
     }
@@ -75,10 +76,11 @@ public class DictionaryDao {
         String[] gameKeys = results.toArray(String[]::new);
 
         if (gameKeys.length > 0) {
-            AbstractTransaction t = jedis.multi();
-            t.del(gameKeys);
-            t.zrem(GAMES_ZSET, gameKeys);
-            t.exec();
+            try (AbstractTransaction t = jedis.multi()) {
+                t.del(gameKeys);
+                t.zrem(GAMES_ZSET, gameKeys);
+                t.exec();
+            }
         }
     }
 
@@ -206,11 +208,12 @@ public class DictionaryDao {
     }
 
     public void incrLeaderboardUser(EloChangeSet... changeSets) {
-        AbstractTransaction t = jedis.multi();
-        for (EloChangeSet cs : changeSets) {
-            t.zincrby(LEADERBOARD_ZSET, cs.elo, Long.toString(cs.id));
+        try (AbstractTransaction t = jedis.multi()) {
+            for (EloChangeSet cs : changeSets) {
+                t.zincrby(LEADERBOARD_ZSET, cs.elo, Long.toString(cs.id));
+            }
+            t.exec();
         }
-        t.exec();
     }
 
     public void incrLeaderboardUser(long id, double elo) {
@@ -218,10 +221,11 @@ public class DictionaryDao {
     }
 
     public void updateLeaderboardUser(EloChangeSet... changeSets) {
-        AbstractTransaction t = jedis.multi();
-        for (EloChangeSet cs : changeSets) {
-            t.zadd(LEADERBOARD_ZSET, cs.elo, Long.toString(cs.id));
+        try (AbstractTransaction t = jedis.multi()) {
+            for (EloChangeSet cs : changeSets) {
+                t.zadd(LEADERBOARD_ZSET, cs.elo, Long.toString(cs.id));
+            }
+            t.exec();
         }
-        t.exec();
     }
 }

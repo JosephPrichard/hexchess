@@ -27,7 +27,6 @@ public class GameState {
     @EqualsAndHashCode.Exclude
     @JsonIgnore
     public long touch;
-    @JsonIgnore
     public List<PieceMove> moveList;
 
     public static GameState startWithGame(String id, TimeControl timeControl) {

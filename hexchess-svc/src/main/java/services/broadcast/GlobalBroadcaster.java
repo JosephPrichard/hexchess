@@ -1,5 +1,6 @@
 package services.broadcast;
 
+import redis.clients.jedis.ConnectionPoolConfig;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPooled;
 import redis.clients.jedis.JedisPubSub;
@@ -8,6 +9,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
+import static utils.Globals.EXECUTOR;
 import static utils.Globals.LOGGER;
 
 public class GlobalBroadcaster implements Broadcaster {
@@ -19,8 +21,8 @@ public class GlobalBroadcaster implements Broadcaster {
     private final String channel;
     private final LocalBroadcaster localBroadcaster;
 
-    public GlobalBroadcaster(String host, int port, String channel) {
-        this.jedisPublisher = new JedisPooled(host, port);
+    public GlobalBroadcaster(ConnectionPoolConfig poolConfig, String host, int port, String channel) {
+        this.jedisPublisher = new JedisPooled(poolConfig, host, port);
         this.jedisSubscriber = new Jedis(host, port);
         this.channel = channel;
         this.localBroadcaster = new LocalBroadcaster(channel);
@@ -45,7 +47,7 @@ public class GlobalBroadcaster implements Broadcaster {
 
     public JedisPubSub startListenSubscribe() throws ExecutionException, InterruptedException {
         CompletableFuture<JedisPubSub> futureSubscriber = new CompletableFuture<>();
-        Thread.ofVirtual().start(() -> {
+        EXECUTOR.execute(() -> {
             try {
                 JedisPubSub subscriber = new JedisPubSub() {
                     @Override

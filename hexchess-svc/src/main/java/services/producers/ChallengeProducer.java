@@ -5,7 +5,7 @@ import lombok.AllArgsConstructor;
 import services.broadcast.Broadcaster;
 import services.broadcast.GlobalBroadcaster;
 import utils.Config;
-import web.dto.ChallengeMsg;
+import models.message.ChallengeMsg;
 
 import java.util.Map;
 
@@ -32,7 +32,7 @@ public class ChallengeProducer {
         String redisPubsubHost = env.get("REDIS_PUBSUB_HOST");
         int redisPubsubPort = Integer.parseInt(env.get("REDIS_PUBSUB_PORT"));
 
-        ChallengeProducer producer = new ChallengeProducer(new GlobalBroadcaster(redisPubsubHost, redisPubsubPort, Broadcaster.USERS_TOPIC));
+        ChallengeProducer producer = new ChallengeProducer(new GlobalBroadcaster(Config.getJedisPoolConfig(), redisPubsubHost, redisPubsubPort, Broadcaster.USERS_TOPIC));
         producer.broadcastChallenge(new ChallengeMsg(2, "User2", "us", 1, "User1", "us"));
     }
 }

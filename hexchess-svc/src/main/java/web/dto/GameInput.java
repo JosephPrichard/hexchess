@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class GameInputMsg {
+public class GameInput {
     public static final int FORFEIT = 0;
     public static final int MOVE = 1;
     public static final int TEXT = 2;

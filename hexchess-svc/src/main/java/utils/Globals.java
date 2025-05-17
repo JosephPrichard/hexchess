@@ -20,9 +20,7 @@ public class Globals {
 
     public static final ExecutorService EXECUTOR = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("thread-", 0L).factory());
 
-    public static final ObjectMapper JSON_MAPPER = new ObjectMapper()
-        .setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.NONE)
-        .setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
+    public static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
     public static final Random RANDOM = new Random();
 
