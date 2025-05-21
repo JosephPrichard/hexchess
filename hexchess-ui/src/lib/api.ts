@@ -8,6 +8,7 @@ export interface ApiResult<T> {
 	err: string;
 }
 
+export const appBaseURL = 'http://localhost:5173';
 export const baseURL = 'http://localhost:8081';
 
 class ApiError extends Error {

@@ -30,7 +30,7 @@ export function setClientSession(client: SessionView) {
 	const recordStr = JSON.stringify(record);
 	localStorage.setItem(SESSION_KEY, recordStr);
 
-	console.log(`Set key=${SESSION_KEY} to value=${recordStr} to local storage`);
+	// console.log(`Set key=${SESSION_KEY} to value=${recordStr} to local storage`);
 }
 
 export function updateClientSession(newClient: SessionView | null) {
@@ -39,7 +39,6 @@ export function updateClientSession(newClient: SessionView | null) {
 		if (client != null) {
 			newClient = { ...newClient, ttlSecs: newClient.ttlSecs || client.ttlSecs };
 			setClientSession(newClient);
-			console.log(`Upsert key=${SESSION_KEY} of value=${JSON.stringify(client)} to value=${JSON.stringify(newClient)} in local storage`);
 		}
 	}
 }

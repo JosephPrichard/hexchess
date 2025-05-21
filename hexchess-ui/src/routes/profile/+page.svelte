@@ -63,12 +63,12 @@
 		const { ok, err } = await unwrap(postLogout());
 		if (ok) {
 			const message = 'Successfully signed out.';
-			addNotification({ message, isSuccess: false, duration: 3000 });
+			addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
 
 			await goto('/');
 		} else {
 			const message = createMessage(err);
-			addNotification({ message, isSuccess: false, duration: 3000 });
+			addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
 		}
 	}
 
@@ -83,7 +83,7 @@
 </svelte:head>
 <Banner />
 <div class="center-horizontal-container">
-	<div style="width: 500px">
+	<div class="profile-wrapper">
 		<div class="title-lg" style="padding-left: 0">Edit Profile</div>
 		<form class="form-wrapper">
 			<label for="username" style="font-size: 17px">Username</label>
@@ -137,3 +137,35 @@
 		<div style="height: 100px;"></div>
 	</div>
 </div>
+
+
+<style>
+    .country-wrapper {
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+
+    .country-image {
+        width: 80px;
+        height: 55px;
+        border-radius: 5px;
+        cursor: pointer;
+        display: inline-block;
+    }
+
+    .country-picker {
+        position: absolute;
+        z-index: 2;
+        overflow-y: scroll;
+        background-color: rgb(50, 50, 50);
+        box-shadow: 0 0 0 1px rgb(40, 40, 40);
+        border-radius: 10px;
+        padding: 25px;
+        width: calc(87px * 5);
+        height: calc(500px);
+    }
+
+	.profile-wrapper {
+        width: 500px;
+	}
+</style>

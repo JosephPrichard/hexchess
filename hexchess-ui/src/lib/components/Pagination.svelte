@@ -72,3 +72,31 @@
 		<a class="page-button" href={pagination.rightPage}> &#11166; </a>
 	{/if}
 </div>
+
+<style>
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        height: 100px;
+    }
+
+    .page-button {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border-radius: 5px;
+        background: rgb(42, 42, 42);
+        width: 30px;
+        height: 30px;
+        text-decoration: none;
+        border: 1px solid rgb(52, 52, 52);
+        margin: 4px;
+    }
+
+    .page-button:hover {
+        cursor: pointer;
+        background: rgb(52, 52, 52);
+    }
+</style>

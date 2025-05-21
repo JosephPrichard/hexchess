@@ -53,7 +53,7 @@ export function formatCause(cause: ReplayCause) {
 export function formatTimeControl(timeControl: TimeControl) {
 	switch (timeControl) {
 		case 'UNLIMITED':
-			return 'Unlimited &#8734;+0';
+			return 'Unlimited ∞+0';
 		case 'CORRESPONDENCE':
 			return `Correspondence ${10}+${1}`;
 		case 'REAL_TIME':

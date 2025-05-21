@@ -1,24 +1,19 @@
-package web.dto;
+package web.websocket;
 
 import chess.ChessGame;
+import models.common.TimeControl;
 import models.entities.PlayerEntity;
 import models.state.GameState;
 
 public sealed interface GameOutput permits
         GameOutput.Error,
         GameOutput.Forfeit,
-        GameOutput.Connect,
+        GameOutput.Start,
         GameOutput.Join,
         GameOutput.Move,
         GameOutput.Chat {
 
     String getType();
-
-    record Error(String message) implements GameOutput {
-        public String getType() {
-            return "ERROR";
-        }
-    }
 
     record Forfeit(GameState gameState) implements GameOutput {
         public String getType() {
@@ -26,13 +21,13 @@ public sealed interface GameOutput permits
         }
     }
 
-    record Connect(PlayerEntity player) implements GameOutput {
+    record Start(PlayerEntity selfPlayer, GameState gameState) implements GameOutput {
         public String getType() {
-            return "CONNECT";
+            return "START";
         }
     }
 
-    record Join(GameState gameState) implements GameOutput {
+    record Join(PlayerEntity whitePlayer, PlayerEntity blackPlayer, PlayerEntity selfPlayer) implements GameOutput {
         public String getType() {
             return "JOIN";
         }
@@ -47,6 +42,12 @@ public sealed interface GameOutput permits
     record Chat(PlayerEntity player, String message) implements GameOutput {
         public String getType() {
             return "CHAT";
+        }
+    }
+
+    record Error(String message) implements GameOutput {
+        public String getType() {
+            return "ERROR";
         }
     }
 }

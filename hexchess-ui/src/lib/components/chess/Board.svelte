@@ -3,10 +3,10 @@
 
 	interface Props {
 		board: ChessBoard;
-		isBlackPerspective: boolean;
+		isWhitePerspective: boolean;
 	}
 
-	const { board, isBlackPerspective }: Props = $props();
+	const { board, isWhitePerspective }: Props = $props();
 
 	const height = 64;
 	const width = height * 1.2;
@@ -25,7 +25,7 @@
 			{@const bgColor = colors[bgIndex]}
 			<div
 				class="hexagon"
-				style:top="{isBlackPerspective ? flippedTop : top}px"
+				style:top="{isWhitePerspective ? flippedTop : top}px"
 				style:left="{left}px"
 				style:width="{width}px"
 				style:height="{height}px"
@@ -38,3 +38,27 @@
 		{/each}
 	{/each}
 </div>
+
+<style>
+    .board {
+        position: relative;
+    }
+
+    .hexagon {
+        position: absolute;
+        aspect-ratio: 1 / cos(30deg);
+        clip-path: polygon(50% -50%, 100% 50%, 50% 150%, 0 50%);
+        display: flex;
+        justify-content: center;
+        -moz-user-select: none;
+        -khtml-user-select: none;
+        -webkit-user-select: none;
+    }
+
+    .piece-img {
+        padding-top: 2px;
+        max-width: 88%;
+        max-height: 88%;
+        cursor: pointer;
+    }
+</style>

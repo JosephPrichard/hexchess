@@ -152,7 +152,7 @@ public class DictionaryDao {
         } else {
             String guestName = "Guest " + RANDOM.nextInt(1000);
             long randomLong = Math.abs(RANDOM.nextLong());
-            player = new PlayerEntity(randomLong, guestName, null, null);
+            player = new PlayerEntity(randomLong, guestName, null, null, true);
         }
         return player;
     }

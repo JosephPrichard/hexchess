@@ -11,8 +11,6 @@ import services.broadcast.Broadcaster;
 import services.daos.DictionaryDao;
 import services.game.GameService;
 import web.State;
-import web.dto.GameInput;
-import web.dto.GameOutput;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -61,11 +59,11 @@ public class GameWebsocket {
                 return;
             }
 
-            ws.render(new GameOutput.Connect(player));
+            ws.render(new GameOutput.Start(player, gameState));
 
             gameBroadcaster.subscribe(gameState.id, wsId, ws::send);
 
-            String jsonResult = JSON_MAPPER.writeValueAsString(new GameOutput.Join(gameState));
+            String jsonResult = JSON_MAPPER.writeValueAsString(new GameOutput.Join(gameState.whitePlayer, gameState.blackPlayer, player));
             gameBroadcaster.broadcast(gameState.id, jsonResult);
 
             LOGGER.info("Player {} successfully connected to game {}", player.id, gameId);
@@ -84,22 +82,24 @@ public class GameWebsocket {
         LOGGER.info("Received message from player {}, {} on game {}", player.id, message.value(), gameId);
         try {
             GameInput input = JSON_MAPPER.readValue(message.value(), GameInput.class);
-            int type = input.getType();
-            switch (type) {
-            case GameInput.FORFEIT -> {
+            switch (input.type) {
+            case "FORFEIT" -> {
                 GameState game = gameService.forfeit(gameId, player);
                 String jsonOutput = JSON_MAPPER.writeValueAsString(new GameOutput.Forfeit(game));
                 gameBroadcaster.broadcast(gameId, jsonOutput);
             }
-            case GameInput.MOVE -> {
+            case "MOVE" -> {
                 Move move = input.getMove();
                 GameState gameState = gameService.makeMove(gameId, player, move);
 
                 String jsonOutput = JSON_MAPPER.writeValueAsString(new GameOutput.Move(move, gameState.game));
                 gameBroadcaster.broadcast(gameId, jsonOutput);
             }
-            case GameInput.TEXT -> {
-                String jsonOutput = JSON_MAPPER.writeValueAsString(new GameOutput.Chat(player, input.getMessage()));
+            case "TEXT" -> {
+                if (input.message.length() > 250) {
+                    input.message = input.message.substring(0, 250);
+                }
+                String jsonOutput = JSON_MAPPER.writeValueAsString(new GameOutput.Chat(player, input.message));
                 gameBroadcaster.broadcast(gameId, jsonOutput);
             }
             default -> ws.render(new GameOutput.Error(ERROR_MESSAGE_TYPE));
@@ -109,7 +109,10 @@ public class GameWebsocket {
                 case GameService.FinishedGameException ex -> ERROR_FINISHED_GAME;
                 case GameService.InvalidMoveException ex -> ERROR_INVALID_MOVE;
                 case GameService.TurnException ex -> ERROR_TURN;
-                default -> ERROR_UNKNOWN;
+                default -> {
+                    LOGGER.warn("Error exception occurred in handling connection", e);
+                    yield ERROR_UNKNOWN;
+                }
             };
             ws.render(new GameOutput.Error(error));
         }

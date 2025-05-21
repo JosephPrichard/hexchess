@@ -20,8 +20,8 @@ target/
 
 .idea
 
-src/main/resources/.env
-
 hexchess-svc/logs/app.log
 */.svelte-kit
 */node_modules
+hexchess-svc/.env
+hexchess-svc/src/main/resources/.env

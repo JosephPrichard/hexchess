@@ -68,7 +68,7 @@ BEGIN
     RETURN 1.0 / (1.0 + POWER(10, (elo1 - elo2) / 400.0));
 END $$;
 
--- Transaction to calculate the new stats of a winner and loser of a game, returning the new stats of each player
+-- Transaction to calculate the new stats of a winner and loser of a game, returning the new stats of each selfPlayer
 CREATE OR REPLACE PROCEDURE updateStats(
     IN winId BIGINT,
     IN loseId BIGINT,

@@ -11,7 +11,7 @@
 </script>
 
 {#if userList.length}
-	<table id="stats-table" class="table-container">
+	<table class="table-container">
 		<thead>
 			<tr>
 				<th>Rank</th>

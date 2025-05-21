@@ -16,7 +16,7 @@
 		const { ok, resp, err } = await unwrap(postCreateGame(timeControl, color));
 		showCreateModal = false;
 		if (ok || resp) {
-			await goto(`play?id=${resp}`);
+			await goto(`play/${resp}`);
 		} else {
 			const message = createMessage(err);
 			addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });

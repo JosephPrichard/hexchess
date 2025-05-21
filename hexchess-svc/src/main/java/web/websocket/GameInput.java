@@ -1,4 +1,4 @@
-package web.dto;
+package web.websocket;
 
 import chess.Move;
 import lombok.AllArgsConstructor;
@@ -9,11 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class GameInput {
-    public static final int FORFEIT = 0;
-    public static final int MOVE = 1;
-    public static final int TEXT = 2;
-
-    public int type;
+    public String type;
     public Move move;
     public String message;
 }

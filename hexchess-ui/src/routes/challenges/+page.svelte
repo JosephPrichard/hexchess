@@ -79,8 +79,8 @@
 	<title>Challenges - Hexchess</title>
 </svelte:head>
 <Banner />
-<div class="center-horizontal-container" style="margin-bottom: 100px">
-	<div style="width: 600px;">
+<div class="center-horizontal-container challenge-bottom">
+	<div class="challenge-wrapper">
 		<div class="tabs-group">
 			<a class="tab" class:tab-selected={!isSender} href="?participants=received"> Received </a>
 			<a class="tab" class:tab-selected={isSender} href="?participants=sent"> Sent </a>
@@ -165,3 +165,30 @@
 		{/if}
 	</div>
 </div>
+
+<style>
+	.challenge-bottom {
+		margin-bottom: 100px;
+	}
+
+	.challenge-wrapper {
+		width: 600px;
+	}
+
+    .challenge-list {
+        padding: 15px 30px;
+        border-radius: 5px;
+        background-color: rgb(42, 42, 42);
+        /*box-shadow: rgba(0, 0, 0, 0.24) 0 2px 4px;*/
+    }
+
+    .challenge-box {
+        width: 100%;
+        padding: 15px 0;
+        border-radius: 3px;
+        background-color: rgb(42, 42, 42);
+        display: flex;
+        flex-direction: row;
+        z-index: 2;
+    }
+</style>

@@ -19,7 +19,7 @@
 	const { replay, initialBoard } = $derived(data);
 	const [whiteClass, blackClass] = $derived(getResultClasses(replay.result));
 
-	let isBlackPerspective = $state(false);
+	let isWhitePerspective = $state(true);
 	let moveIndex: number | undefined = $state(undefined);
 
 	let boardCache = new Map<number, ChessBoard>();
@@ -45,7 +45,7 @@
 	}
 
 	function onClickFlip() {
-		isBlackPerspective = !isBlackPerspective;
+		isWhitePerspective = !isWhitePerspective;
 	}
 
 	function onClickLeft() {
@@ -71,10 +71,10 @@
 <Banner />
 <div class="center-horizontal-container">
 	<div class="center-vertical-container" style="align-items: stretch;">
-		<ChessBoardView {board} {isBlackPerspective} />
-		<div class="move-table">
-			<div class="move-table-header">
-				<div class="move-table-header-elem">
+		<ChessBoardView {board} {isWhitePerspective} />
+		<div class="side-table">
+			<div class="side-table-header">
+				<div class="side-table-header-elem">
 					<a href="/players/{replay.whiteId}" class="text-ul">
 						<b>{replay.whiteName}</b>
 					</a>
@@ -84,7 +84,7 @@
 						{formatElo(replay.whiteEloDiff)}
 					</span>
 				</div>
-				<div class="move-table-header-elem">
+				<div class="side-table-header-elem">
 					<a href="/players/{replay.blackId}" class="text-ul">
 						<b>{replay.blackName}</b>
 					</a>
@@ -94,23 +94,25 @@
 						{formatElo(replay.blackEloDiff)}
 					</span>
 				</div>
-				<div class="move-table-header-elem">
+				<div class="side-table-header-elem">
 					{formatReplayResult(replay.result)} &#8226; {formatCause(replay.cause)}
 				</div>
-				<div class="move-table-header-elem">
+				<div class="side-table-header-elem">
 					{replay.playedOn}
 				</div>
 			</div>
-			<MoveListView moveList={replay.moveList || []} {onSelectMove} selectedMoveIndex={moveIndex} />
-			<div class="move-table-footer">
+			<div class="growing-scrollbox">
+				<MoveListView moveList={replay.moveList || []} {onSelectMove} selectedMoveIndex={moveIndex} />
+			</div>
+			<div class="side-table-footer">
 				<div class="move-table-nav-buttons">
-					<button class="button-transparent" onclick={onClickLeft}>
+					<button class="button-transparent" style:padding-top="5px" onclick={onClickLeft}>
 						<LeftIcon />
 					</button>
-					<button class="button-transparent" onclick={onClickFlip}>
+					<button class="button-transparent" style:padding-top="5px" onclick={onClickFlip}>
 						<FlipIcon />
 					</button>
-					<button class="button-transparent" onclick={onClickRight}>
+					<button class="button-transparent" style:padding-top="5px" onclick={onClickRight}>
 						<RightIcon />
 					</button>
 				</div>
@@ -118,3 +120,13 @@
 		</div>
 	</div>
 </div>
+
+<style>
+	.move-table-nav-buttons {
+		display: flex;
+		flex-direction: row;
+		gap: 10px;
+		align-items: center;
+		justify-content: center;
+	}
+</style>

@@ -2,6 +2,7 @@ package models.state;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import chess.*;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 import models.common.ColorSelect;
 import models.common.TimeControl;
@@ -22,7 +23,7 @@ public class GameState {
     public PlayerEntity blackPlayer;
     public boolean isEnded;
     @JsonIgnore
-    public ColorSelect firstColor; // decides what color the first joining player joins as
+    public ColorSelect firstColor; // decides what color the first joining selfPlayer joins as
     public TimeControl timeControl;
     @EqualsAndHashCode.Exclude
     @JsonIgnore

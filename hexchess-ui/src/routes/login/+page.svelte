@@ -38,18 +38,17 @@
 <Banner />
 <div class="center-horizontal-container">
 	<div class="title-lg">Login</div>
-	<div style="width: 500px">
+	<div class="login-wrapper">
 		<form class="form-wrapper">
-			<label for="username-login" style="font-size: 17px">Username</label>
-			<input bind:value={username} id="username-login" name="username" placeholder="Username" style="margin-top: 5px; margin-bottom: 10px" />
+			<label for="username-login" class="login-font">Username</label>
+			<input bind:value={username} class="login-input" name="username" placeholder="Username" />
 
-			<label for="password-login" style="font-size: 17px">Password</label>
+			<label for="password-login" class="login-font">Password</label>
 			<input
 				bind:value={password}
-				id="password-login"
+				class="login-input"
 				name="password"
 				placeholder="Password"
-				style="margin-top: 5px; margin-bottom: 15px"
 				type="password"
 			/>
 
@@ -68,3 +67,18 @@
 		</form>
 	</div>
 </div>
+
+<style>
+	.login-wrapper {
+		width: 500px;
+	}
+
+	.login-font {
+        font-size: 17px;
+	}
+
+	.login-input {
+        margin-top: 5px;
+		margin-bottom: 10px
+	}
+</style>

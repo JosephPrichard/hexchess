@@ -34,7 +34,9 @@ export const piecenames: Record<PieceType, string> = {
 
 export type Action = 'delete' | 'reject' | 'accept';
 
-export type Turn = 'WHITE' | 'BLACK';
+export const whiteTurn = 0;
+export const blackTurn = 1;
+export type Turn = typeof whiteTurn | typeof blackTurn;
 
 export type ReplayResult = 'DRAW' | 'WHITE_WIN' | 'BLACK_WIN';
 
@@ -138,6 +140,7 @@ export interface PlayerView {
 	name: string;
 	country?: string;
 	elo?: number;
+	isGuest: boolean;
 }
 
 export interface ChallengeMsg {
@@ -161,13 +164,20 @@ export interface ForfeitMsg {
 
 export interface JoinMsg {
 	type: 'JOIN';
-	gameState: GameState;
-	player: PlayerView;
+	blackPlayer: PlayerView;
+	whitePlayer: PlayerView;
+	joiningPlayer: PlayerView;
 }
 
-export interface ConnectMsg {
-	type: 'CONNECT';
-	player: PlayerView;
+export interface SettingsMsg {
+	type: 'SETTINGS';
+	settings: GameSettings;
+}
+
+export interface StartMsg {
+	type: 'START';
+	gameState: GameState;
+	selfPlayer: PlayerView;
 }
 
 export interface MoveMsg {
@@ -185,7 +195,7 @@ export interface ChatMsg {
 export type GameOutputMsg =
 	| ErrorMsg
 	| ForfeitMsg
-	| ConnectMsg
+	| StartMsg
 	| JoinMsg
 	| MoveMsg
 	| ChatMsg;
@@ -198,4 +208,8 @@ export interface GameState {
 	timeControl: TimeControl;
 	isEnded: boolean;
 	moveList: Move[];
+}
+
+export interface GameSettings {
+	timeControl: TimeControl;
 }

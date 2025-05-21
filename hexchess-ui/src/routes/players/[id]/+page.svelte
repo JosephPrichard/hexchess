@@ -3,7 +3,7 @@
 	import CreateGame from '$lib/components/modals/CreateGame.svelte';
 	import { getReplays, postCreateChallenge, unwrap } from '$lib/api';
 	import { onMount } from 'svelte';
-	import ChallengeSvg from '$lib/components/icons/ChallengeIcon.svelte';
+	import ChallengeIcon from '$lib/components/icons/ChallengeIcon.svelte';
 	import { formatReplayResult, getResultClasses, getWinrateClass } from '$lib/format.js';
 	import { getClientSession } from '$lib/local';
 	import Banner from '$lib/components/Banner.svelte';
@@ -80,12 +80,12 @@
 <Banner />
 <CreateGame title="Create a Challenge?" show={showCreateModal} onSubmit={onSubmitCreateChallenge} onClose={() => (showCreateModal = false)} />
 <div class="center-horizontal-container">
-	<div class="panel" style="width: 500px">
+	<div class="panel player-panel">
 		<div class="text-lg capped-size">{user.username}</div>
 		<img class="flag-lg" src={`/flags/${user.country}.png`} alt="" />
 		<br />
 
-		<div class="panel-container" style="min-width: 450px; margin-bottom: 35px;">
+		<div class="panel-container">
 			<div class="panel-elem">
 				<div class="panel-title">Rank</div>
 				<div class="panel-text">#{user.rank}</div>
@@ -136,11 +136,11 @@
 		{/if}
 
 		{#if isDifferentUser}
-			<div id="profile-buttons" style="margin-top: 25px">
+			<div style="margin-top: 25px">
 				<button class="button button-grey" id="challenge-button" onclick={() => (showCreateModal = true)}>
 					<span class="svg-container">
 						<span style="margin-right: 8px">Challenge</span>
-						<ChallengeSvg />
+						<ChallengeIcon />
 					</span>
 				</button>
 			</div>
@@ -151,7 +151,7 @@
 <div class="center-horizontal-container" style="margin-top: 50px; margin-bottom: 50px;">
 	{#if (nestedReplayList[0] || []).length > 0}
 		<div class="wrapper">
-			<table class="table-container" id="replay-table">
+			<table class="table-container">
 				<thead>
 					<tr>
 						<th>White</th>
@@ -195,3 +195,31 @@
 		<div class="color-wrapper" style="width: 530px;">This player hasn't played any games yet.</div>
 	{/if}
 </div>
+
+<style>
+	.player-panel {
+        width: 500px;
+	}
+
+    .panel-container {
+		min-width: 450px;
+		margin-bottom: 35px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 45px;
+    }
+
+    .panel-elem {
+        font-size: 16px;
+        box-sizing: border-box;
+    }
+
+    .panel-title {
+        font-weight: 600;
+        color: rgb(160, 160, 160);
+    }
+
+    .panel-text {
+        font-size: 20px;
+    }
+</style>

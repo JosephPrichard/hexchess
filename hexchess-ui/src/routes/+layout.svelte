@@ -47,7 +47,6 @@
 	async function refreshSession() {
 		let { ok, resp } = await unwrap(postRefresh());
 		if (ok) {
-			console.log("Refresh session", resp);
 			if (resp && resp.session) {
 				updateClientSession(resp.session);
 			} else {
@@ -73,11 +72,12 @@
 	setNotificationsContext({ addNotification, deleteNotification });
 </script>
 
-<div class="bottom-right-anchor notifications-box" style="width: 350px">
+<div class="bottom-right-anchor notifications-box">
 	{#each notifications as notification, i (i)}
 		{#if notification}
 			<div class="notification">
-				<div class="notification-border {notification.isSuccess ? 'notification-green' : 'notification-red'}"></div>
+				<div class="notification-border" class:notification-green={notification.isSuccess} class:notification-red={!notification.isSuccess}>
+				</div>
 				<div class="notification-body">
 					<div class="notification-text">
 						{#if notification.type === 'string'}
@@ -96,3 +96,56 @@
 	{/each}
 </div>
 {@render children()}
+
+<style>
+    .notifications-box {
+        width: 350px;
+        z-index: 10000;
+    }
+
+    .notification-border {
+        border-radius: 2px;
+        height: 3px;
+        width: 100%;
+    }
+
+    .notification-green {
+        background: #2ea44f;
+    }
+
+    .notification-red {
+        background: crimson;
+    }
+
+    .notification {
+        display: flex;
+        flex-direction: column;
+        z-index: 10000;
+        margin: 20px;
+        color: white;
+        border-radius: 2px;
+        background-color: rgb(43, 43, 43);
+    }
+
+    .notification-body {
+        display: flex;
+        flex-direction: row;
+        padding: 20px 30px;
+    }
+
+    .notification-text {
+        flex: 0.9;
+    }
+
+    .notification-space {
+        flex: 0.05;
+    }
+
+    .notification-x {
+        all: unset;
+        flex: 0.05;
+        float: right;
+        margin-right: auto;
+        cursor: pointer;
+    }
+</style>

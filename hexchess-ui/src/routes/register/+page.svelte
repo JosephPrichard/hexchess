@@ -42,8 +42,8 @@
 <Banner />
 <div class="center-horizontal-container">
 	<div class="title-lg">Register</div>
-	<div style="width: 500px">
-		<form class="form-wrapper" id="register-form">
+	<div class="register-wrapper">
+		<form class="form-wrapper">
 			<label for="username-register" style="font-size: 17px">Username</label>
 			<input
 				bind:value={username}
@@ -73,7 +73,7 @@
 				type="password"
 			/>
 
-			<button id="register-form-submit" class="button button-grey" type="submit" onclick={onSubmit}>
+			<button class="button button-grey" type="submit" onclick={onSubmit}>
 				{#if isLoading}
 					<div class="loader"></div>
 				{:else}
@@ -83,3 +83,9 @@
 		</form>
 	</div>
 </div>
+
+<style>
+	.register-wrapper {
+        width: 500px;
+	}
+</style>

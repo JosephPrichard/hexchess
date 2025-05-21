@@ -109,7 +109,7 @@ public class FormController extends Jooby {
             PlayerEntity player = new PlayerEntity(user.id, user.username, user.country, user.elo);
             dictionaryDao.setSession(sessionId, player, cookie.getMaxAge());
 
-            LOGGER.info("Registered a new player={}", player);
+            LOGGER.info("Registered a new selfPlayer={}", player);
 
             VerifiedUser verifiedUser = new VerifiedUser(player.id, player.name, player.country, player.elo);
 

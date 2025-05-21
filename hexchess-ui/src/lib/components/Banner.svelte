@@ -11,8 +11,6 @@
 		client = getClientSession();
 	}
 
-	$inspect(client);
-
 	onMount(() => {
 		initClientSession();
 		window.addEventListener('storage', initClientSession);
@@ -41,3 +39,50 @@
 		<a aria-label="login-link-{id}" class="banner-elem color-hover" href="/login"> Login </a>
 	{/if}
 </div>
+
+<style>
+    .banner {
+        height: 75px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        padding-left: 15%;
+        padding-right: 15%;
+        user-select: none;
+        font-weight: 500;
+
+        width: 70%;
+
+        background: rgb(43, 43, 43);
+        box-shadow: 0 1px rgb(22, 22, 22);
+    }
+
+    .banner-elem {
+        font-size: 17px;
+        height: 40%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 5px 5px;
+        padding: 15px 10px;
+        cursor: pointer;
+        border-radius: 6px;
+        user-select: none;
+        text-decoration: none;
+    }
+
+    .logo-font {
+        position: relative;
+        top: 1px;
+        font-family: 'Gidole', sans-serif;
+        font-weight: 100;
+        font-size: 28px;
+    }
+
+    .logo-symbol {
+        height: 45px;
+        width: auto;
+        margin-right: 5px;
+        opacity: 0.75;
+    }
+</style>
