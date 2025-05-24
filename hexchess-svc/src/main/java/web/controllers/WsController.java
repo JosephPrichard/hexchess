@@ -26,7 +26,7 @@ public class WsController extends Jooby {
         String gameId = ctx.path("id").value("");
         String wsId = UUID.randomUUID().toString();
 
-        LOGGER.info("Player joined ws with id={} with sessionId={} to gameId={}", wsId, sessionId, gameId);
+        LOG.info("Player joined ws with id={} with sessionId={} to gameId={}", wsId, sessionId, gameId);
 
         GameWebsocket websocket = new GameWebsocket(state, wsId, gameId, sessionId);
 

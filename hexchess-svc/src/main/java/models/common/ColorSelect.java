@@ -1,6 +1,6 @@
 package models.common;
 
-import static utils.Globals.LOGGER;
+import static utils.Globals.LOG;
 
 public enum ColorSelect {
     WHITE,
@@ -13,7 +13,7 @@ public enum ColorSelect {
             case "BLACK" -> BLACK;
             case "RANDOM" -> RANDOM;
             default -> {
-                LOGGER.warn("Unknown color select {}, defaulting to {}", value, RANDOM);
+                LOG.warn("Unknown color select {}, defaulting to {}", value, RANDOM);
                 yield RANDOM;
             }
         };

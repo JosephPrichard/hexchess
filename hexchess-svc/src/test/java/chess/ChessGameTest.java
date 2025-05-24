@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static chess.ChessBoard.*;
-import static utils.Globals.LOGGER;
+import static utils.Globals.LOG;
 
 public class ChessGameTest {
 
@@ -70,9 +70,9 @@ public class ChessGameTest {
         List<Hexagon> leftMoves = game2.findRookMoves(Hexagon.fromNotation("c8")).getMoves();
         List<Hexagon> rightMoves = game3.findRookMoves(Hexagon.fromNotation("h4")).getMoves();
 
-        LOGGER.info(game1.getBoard().toMovesString(centerMoves));
-        LOGGER.info(game2.getBoard().toMovesString(leftMoves));
-        LOGGER.info(game3.getBoard().toMovesString(rightMoves));
+        LOG.info(game1.getBoard().toMovesString(centerMoves));
+        LOG.info(game2.getBoard().toMovesString(leftMoves));
+        LOG.info(game3.getBoard().toMovesString(rightMoves));
 
         // then
         assertPieceMoves(centerMoves,
@@ -98,9 +98,9 @@ public class ChessGameTest {
         List<Hexagon> leftMoves = game2.findBishopMoves(Hexagon.fromNotation("c8")).getMoves();
         List<Hexagon> rightMoves = game3.findBishopMoves(Hexagon.fromNotation("h4")).getMoves();
 
-        LOGGER.info(game1.getBoard().toMovesString(centerMoves));
-        LOGGER.info(game2.getBoard().toMovesString(leftMoves));
-        LOGGER.info(game3.getBoard().toMovesString(rightMoves));
+        LOG.info(game1.getBoard().toMovesString(centerMoves));
+        LOG.info(game2.getBoard().toMovesString(leftMoves));
+        LOG.info(game3.getBoard().toMovesString(rightMoves));
 
         // then
         assertPieceMoves(centerMoves,
@@ -125,9 +125,9 @@ public class ChessGameTest {
         List<Hexagon> leftMoves = game2.findKingMoves(Hexagon.fromNotation("d3"));
         List<Hexagon> rightMoves = game2.findKingMoves(Hexagon.fromNotation("h7"));
 
-        LOGGER.info(game3.getBoard().toMovesString(centerMoves));
-        LOGGER.info(game3.getBoard().toMovesString(leftMoves));
-        LOGGER.info(game3.getBoard().toMovesString(rightMoves));
+        LOG.info(game3.getBoard().toMovesString(centerMoves));
+        LOG.info(game3.getBoard().toMovesString(leftMoves));
+        LOG.info(game3.getBoard().toMovesString(rightMoves));
 
         // then
         assertPieceMoves(centerMoves,
@@ -152,9 +152,9 @@ public class ChessGameTest {
         List<Hexagon> leftMoves = game2.findKnightMoves(Hexagon.fromNotation("d3")).getMoves();
         List<Hexagon> rightMoves = game3.findKnightMoves(Hexagon.fromNotation("h7")).getMoves();
 
-        LOGGER.info(game1.getBoard().toMovesString(centerMoves));
-        LOGGER.info(game2.getBoard().toMovesString(leftMoves));
-        LOGGER.info(game3.getBoard().toMovesString(rightMoves));
+        LOG.info(game1.getBoard().toMovesString(centerMoves));
+        LOG.info(game2.getBoard().toMovesString(leftMoves));
+        LOG.info(game3.getBoard().toMovesString(rightMoves));
 
         // then
         assertPieceMoves(centerMoves,
@@ -180,8 +180,8 @@ public class ChessGameTest {
         List<Hexagon> firstMoves = game1.findPawnMoves(Hexagon.fromNotation("g4"), Turn.WHITE).getMoves();
         List<Hexagon> takeMoves = game2.findPawnMoves(Hexagon.fromNotation("d5"), Turn.BLACK).getMoves();
 
-        LOGGER.info(game1.getBoard().toMovesString(firstMoves));
-        LOGGER.info(game2.getBoard().toMovesString(takeMoves));
+        LOG.info(game1.getBoard().toMovesString(firstMoves));
+        LOG.info(game2.getBoard().toMovesString(takeMoves));
 
         // then
         assertPieceMoves(firstMoves, "g5", "g6");
@@ -201,8 +201,8 @@ public class ChessGameTest {
 
         game.initPieceMoves();
 
-        LOGGER.info(game.getBoard().toString());
-        LOGGER.info(game.getBoard().toPieceMovesString(game.getOppositeMoves()));
+        LOG.info(game.getBoard().toString());
+        LOG.info(game.getBoard().toPieceMovesString(game.getOppositeMoves()));
 
         boolean isCheckmate = game.isCheckmate();
         Assertions.assertTrue(isCheckmate);

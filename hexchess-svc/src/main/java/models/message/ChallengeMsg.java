@@ -1,31 +1,27 @@
 package models.message;
 
-import lombok.AllArgsConstructor;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
-import lombok.ToString;
+import lombok.*;
 import models.entities.ChallengeEntity;
 
-@EqualsAndHashCode
-@ToString
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class ChallengeMsg {
-    public long challengerId;
-    public String challengerName;
-    public String challengerCountry;
-    public long challengeeId;
-    public String challengeeName;
-    public String challengeeCountry;
+    private long challengerId;
+    private String challengerName;
+    private String challengerCountry;
+    private long challengeeId;
+    private String challengeeName;
+    private String challengeeCountry;
 
     public static ChallengeMsg fromEntity(ChallengeEntity entity) {
         ChallengeMsg msg = new ChallengeMsg();
-        msg.challengerId = entity.challengerId;
-        msg.challengerName = entity.challengerName;
-        msg.challengerCountry = entity.challengerCountry;
-        msg.challengeeId = entity.challengeeId;
-        msg.challengeeName = entity.challengeeName;
-        msg.challengeeCountry = entity.challengeeCountry;
+        msg.challengerId = entity.getChallengerId();
+        msg.challengerName = entity.getChallengerName();
+        msg.challengerCountry = entity.getChallengerCountry();
+        msg.challengeeId = entity.getChallengeeId();
+        msg.challengeeName = entity.getChallengeeName();
+        msg.challengeeCountry = entity.getChallengeeCountry();
         return msg;
     }
 }

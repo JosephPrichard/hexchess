@@ -30,11 +30,14 @@
 
 		isLoading = true;
 
-		const { ok, status, resp, err } = await unwrap(postUpdateUser(username, bio, country));
-		console.error(ok, status, resp, err);
+		const { ok, resp, err } = await unwrap(postUpdateUser(username, bio, country));
 
 		if (ok && resp) {
 			updateClientUser(resp);
+			addNotification({ type: 'string', message: 'Updated your profile!', isSuccess: true, duration: 3000 });
+		} else {
+			const message = createMessage(err);
+			addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
 		}
 
 		isLoading = false;

@@ -14,7 +14,7 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.util.*;
 
-import static utils.Globals.LOGGER;
+import static utils.Globals.LOG;
 
 public class Config {
 
@@ -52,7 +52,7 @@ public class Config {
                 env.put(envName, System.getenv(envName));
             }
         } catch (IOException e) {
-            LOGGER.error("Error occurred while reading the .env file", e);
+            LOG.error("Error occurred while reading the .env file", e);
             throw new RuntimeException(e);
         }
 
@@ -122,7 +122,7 @@ public class Config {
                 runner.update(sql);
             }
         } catch (SQLException | IOException ex) {
-            LOGGER.error("Error occurred while creating schema {}", String.valueOf(ex));
+            LOG.error("Error occurred while creating schema {}", String.valueOf(ex));
             throw new RuntimeException(ex);
         }
     }

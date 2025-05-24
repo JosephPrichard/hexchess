@@ -1,13 +1,11 @@
 package chess;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class Move {
-    public Hexagon from;
-    public Hexagon to;
+    private Hexagon from;
+    private Hexagon to;
 }

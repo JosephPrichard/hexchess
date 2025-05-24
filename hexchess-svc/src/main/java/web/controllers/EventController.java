@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static utils.Globals.JSON_MAPPER;
-import static utils.Globals.LOGGER;
+import static utils.Globals.LOG;
 import static web.WebConstants.*;
 
 public class EventController extends Jooby {
@@ -65,17 +65,17 @@ public class EventController extends Jooby {
         }
 
         String sseId = UUID.randomUUID().toString();
-        String userId = Long.toString(player.id);
+        String userId = Long.toString(player.getId());
 
         int joinCount = numberOfConnections.incrementAndGet();
-        LOGGER.info("Player={} connected to the user events as connection {}", player.id, joinCount);
+        LOG.info("Player={} connected to the user events as connection {}", player.getId(), joinCount);
 
         userBroadcaster.subscribe(userId, sseId, (m) -> sse.send("challenge", m));
 
         sse.keepAlive(15, TimeUnit.SECONDS);
         sse.onClose(() -> {
             int leaveCount = numberOfConnections.decrementAndGet();
-            LOGGER.info("Player={} disconnected from event, leaving {} connections", player.id, leaveCount);
+            LOG.info("Player={} disconnected from event, leaving {} connections", player.getId(), leaveCount);
             userBroadcaster.unsubscribe(userId, sseId);
         });
     }

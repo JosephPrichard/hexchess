@@ -5,22 +5,23 @@ import lombok.*;
 import java.sql.Timestamp;
 
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserEntity {
     public static final float START_ELO = 1000f;
 
-    public long id;
-    public String username;
-    public String country;
-    public float elo;
-    public float highestElo;
-    public int wins;
-    public int losses;
-    public int rank;
-    public String bio;
+    private long id;
+    private String username;
+    private String country;
+    private float elo;
+    private float highestElo;
+    private int wins;
+    private int losses;
+    private int rank;
+    private String bio;
     @EqualsAndHashCode.Exclude
-    public Timestamp joinedOn;
+    private Timestamp joinedOn;
 
     public UserEntity(long id, String username, String country) {
         this(id, username, country, 0, 0, 0, 0, 0, null, null);

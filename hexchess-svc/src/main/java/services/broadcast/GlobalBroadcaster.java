@@ -10,7 +10,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 import static utils.Globals.EXECUTOR;
-import static utils.Globals.LOGGER;
+import static utils.Globals.LOG;
 
 public class GlobalBroadcaster implements Broadcaster {
 
@@ -42,7 +42,7 @@ public class GlobalBroadcaster implements Broadcaster {
     public void broadcast(String groupId, String content) {
         String message = groupId + FIELD_SPLIT + content;
         jedisPublisher.publish(channel, message);
-        LOGGER.info("Broadcast global to id={}", groupId);
+        LOG.info("Broadcast global to id={}", groupId);
     }
 
     public JedisPubSub startListenSubscribe() throws ExecutionException, InterruptedException {
@@ -53,7 +53,7 @@ public class GlobalBroadcaster implements Broadcaster {
                     @Override
                     public void onSubscribe(String channel, int subscribedChannels) {
                         super.onSubscribe(channel, subscribedChannels);
-                        LOGGER.info("Started the subscriber listener on channel={} for broadcast instance: {}", channel, this);
+                        LOG.info("Started the subscriber listener on channel={} for broadcast instance: {}", channel, this);
                         futureSubscriber.complete(this);
                     }
 
@@ -63,16 +63,16 @@ public class GlobalBroadcaster implements Broadcaster {
                             super.onMessage(channel, message);
                             int index = message.indexOf(FIELD_SPLIT);
                             if (index == -1) {
-                                LOGGER.error("Invalid message format: {}", message);
+                                LOG.error("Invalid message format: {}", message);
                                 return;
                             }
                             String id = message.substring(0, index);
                             String content = message.substring(index + 1);
-                            LOGGER.info("Received a message on channel id={}", id);
+                            LOG.info("Received a message on channel id={}", id);
 
                             localBroadcaster.broadcast(id, content);
                         } catch (Exception ex) {
-                            LOGGER.error("Error occurred in subscriber thread {}", String.valueOf(ex));
+                            LOG.error("Error occurred in subscriber thread {}", String.valueOf(ex));
                         }
                     }
                 };

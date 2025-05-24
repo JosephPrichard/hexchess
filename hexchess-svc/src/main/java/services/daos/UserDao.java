@@ -19,7 +19,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static utils.Globals.LOGGER;
+import static utils.Globals.LOG;
 
 public class UserDao {
 
@@ -33,16 +33,7 @@ public class UserDao {
         runner = new QueryRunner(ds);
     }
 
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class UserInst {
-        public String username;
-        public String password;
-        public String country;
-        public float elo;
-        public int wins;
-        public int losses;
-    }
+    public record UserInst(String username, String password, String country, float elo, int wins, int losses) {}
 
     public static class TakenUsernameException extends RuntimeException {
     }
@@ -64,7 +55,7 @@ public class UserDao {
 
     public UserEntity insert(UserInst inst) throws TakenUsernameException {
         String salt = generateSalt();
-        String saltedPassword = inst.password + salt;
+        String saltedPassword = inst.password() + salt;
         String hashedPassword = BCrypt.withDefaults().hashToString(12, saltedPassword.toCharArray());
 
         String sql = """
@@ -73,36 +64,36 @@ public class UserDao {
             """;
         try {
             UserEntity user = runner.query(sql, USER_MAPPER,
-                inst.username,
-                inst.country,
-                inst.elo,
-                inst.elo,
-                inst.wins,
-                inst.losses,
+                inst.username(),
+                inst.country(),
+                inst.elo(),
+                inst.elo(),
+                inst.wins(),
+                inst.losses(),
                 hashedPassword,
                 salt);
-            LOGGER.info("Created new user={}", user);
+            LOG.info("Created new user={}", user);
             return user;
         } catch (SQLException ex) {
             SQLException nextEx = ex.getNextException();
             if ("23505".equals(nextEx.getSQLState())) {
-                LOGGER.warn("Username is already taken={}", inst);
+                LOG.warn("Username is already taken={}", inst);
                 throw new TakenUsernameException();
             }
 
-            LOGGER.error("Failed to insert user={}", inst, ex);
+            LOG.error("Failed to insert user={}", inst, ex);
             throw new RuntimeException(ex);
         }
     }
 
+    @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    @Data
     public static class VerifiedUser {
-        public long id;
-        public String username;
-        public String country;
-        public float elo;
+        private long id;
+        private String username;
+        private String country;
+        private float elo;
     }
 
     public VerifiedUser verify(String username, String inputPassword) {
@@ -119,7 +110,7 @@ public class UserDao {
             rs = stmt.executeQuery();
 
             if (!rs.next()) {
-                LOGGER.warn("No user found with username={}", username);
+                LOG.warn("No user found with username={}", username);
                 return null;
             }
             String salt = rs.getString("salt");
@@ -132,10 +123,10 @@ public class UserDao {
             String saltedPassword = inputPassword + salt;
             BCrypt.Result result = BCrypt.verifyer().verify(saltedPassword.toCharArray(), password);
 
-            LOGGER.info("Password verification {} for username={}", result.verified ? "successful" : "failed", usernameOut);
+            LOG.info("Password verification {} for username={}", result.verified ? "successful" : "failed", usernameOut);
             return result.verified ? new VerifiedUser(id, usernameOut, country, elo) : null;
         } catch (SQLException ex) {
-            LOGGER.error("Failed to select user credentials for user={}", username, ex);
+            LOG.error("Failed to select user credentials for user={}", username, ex);
             DbUtils.rollbackAndCloseQuietly(conn);
             throw new RuntimeException(ex);
         } finally {
@@ -147,7 +138,7 @@ public class UserDao {
 
     public VerifiedUser updateUser(long id, String newUsername, String newCountry, String newBio) {
         if (newUsername == null && newCountry == null && newBio == null) {
-            LOGGER.info("No fields provided for user update.");
+            LOG.info("No fields provided for user update.");
             return null;
         }
 
@@ -160,10 +151,10 @@ public class UserDao {
 
         try {
             VerifiedUser user = runner.query(sql, VERIFIED_USER_MAPPER, newUsername, newCountry, newBio, id);
-            LOGGER.info("Updated user data with id={} to newUsername={}, newCountry={}, newBio={}", id, newUsername, newCountry, newBio);
+            LOG.info("Updated user data with id={} to newUsername={}, newCountry={}, newBio={}", id, newUsername, newCountry, newBio);
             return user;
         } catch (SQLException ex) {
-            LOGGER.error("Failed to update user with id={}", id, ex);
+            LOG.error("Failed to update user with id={}", id, ex);
             throw new RuntimeException(ex);
         }
     }
@@ -176,25 +167,14 @@ public class UserDao {
         String sql = "UPDATE users SET password = ?, salt = ? WHERE id = ?";
         try {
             runner.execute(sql, hashedPassword, salt, id);
-            LOGGER.info("Updated user password with id={}", id);
+            LOG.info("Updated user password with id={}", id);
         } catch (SQLException ex) {
-            LOGGER.error("Failed to update user with id={}", id, ex);
+            LOG.error("Failed to update user with id={}", id, ex);
             throw new RuntimeException(ex);
         }
     }
 
-    @ToString
-    @EqualsAndHashCode
-    @AllArgsConstructor
-    public static class EloChangeSet {
-        public double winEloDiff;
-        public double loseEloDiff;
-
-        public void roundElo() {
-            winEloDiff = Math.round(winEloDiff);
-            loseEloDiff = Math.round(loseEloDiff);
-        }
-    }
+    public record EloChangeSet(double winEloDiff, double loseEloDiff) {}
 
     public EloChangeSet updateStats(long winId, long loseId) {
         String sql = "CALL updateStats(?, ?, ?, ?)";
@@ -215,10 +195,10 @@ public class UserDao {
             double winEloDiff = stmt.getBigDecimal(3).doubleValue();
             double loseEloDiff = stmt.getBigDecimal(4).doubleValue();
 
-            LOGGER.info("Updated stats: winId={} loseId={}, winEloDiff={}, loseEloDiff={}", winId, loseId, winEloDiff, loseEloDiff);
+            LOG.info("Updated stats: winId={} loseId={}, winEloDiff={}, loseEloDiff={}", winId, loseId, winEloDiff, loseEloDiff);
             return new EloChangeSet(winEloDiff, loseEloDiff);
         } catch (SQLException ex) {
-            LOGGER.error("Failed to update stats for winId={}, loseId={}", winId, loseId, ex);
+            LOG.error("Failed to update stats for winId={}, loseId={}", winId, loseId, ex);
             DbUtils.rollbackAndCloseQuietly(conn);
             throw new RuntimeException(ex);
         } finally {
@@ -235,16 +215,16 @@ public class UserDao {
             """;
         try {
             UserEntity user = runner.query(sql, USER_MAPPER, id);
-            LOGGER.info("Selected user={} by id={}", user, id);
+            LOG.info("Selected user={} by id={}", user, id);
             return user;
         } catch (SQLException ex) {
-            LOGGER.error("Failed to fetch user by id={}", id, ex);
+            LOG.error("Failed to fetch user by id={}", id, ex);
             throw new RuntimeException(ex);
         }
     }
 
     public List<UserEntity> getByRankedUsers(List<RankedEntity> users) {
-        return getByIds(users.stream().map((user) -> user.id).toArray(Long[]::new));
+        return getByIds(users.stream().map(RankedEntity::getId).toArray(Long[]::new));
     }
 
     public List<UserEntity> getByIds(Long[] ids) {
@@ -267,10 +247,10 @@ public class UserDao {
             rs = stmt.executeQuery();
 
             List<UserEntity> users = USER_LIST_MAPPER.handle(rs);
-            LOGGER.info("Selected users={} by ids={}", users, idsStr);
+            LOG.info("Selected users={} by ids={}", users, idsStr);
             return users;
         } catch (SQLException e) {
-            LOGGER.error("Failed to select users by ids={}", idsStr);
+            LOG.error("Failed to select users by ids={}", idsStr);
             throw new RuntimeException(e);
         } finally {
             DbUtils.closeQuietly(conn);
@@ -283,10 +263,10 @@ public class UserDao {
         String sql = "SELECT id, username, country, elo, wins, losses FROM users";
         try {
             List<UserEntity> users = runner.query(sql, USER_LIST_MAPPER);
-            LOGGER.info("Selected ALL records={} from the user table", users);
+            LOG.info("Selected ALL records={} from the user table", users);
             return users;
         } catch (SQLException ex) {
-            LOGGER.error("Failed to select ALL records from the user table");
+            LOG.error("Failed to select ALL records from the user table");
             throw new RuntimeException(ex);
         }
     }
@@ -304,12 +284,13 @@ public class UserDao {
         try {
             List<UserEntity> users = runner.query(sql, USER_LIST_MAPPER, perPage, offset);
             for (int i = 0; i < users.size(); i++) {
-                users.get(i).rank = (page - 1) * perPage + i + 1;
+                int rank = (page - 1) * perPage + i + 1;
+                users.get(i).setRank(rank);
             }
-            LOGGER.info("Selected leaderboard={} for page={}, perPage={}", users, page, perPage);
+            LOG.info("Selected leaderboard={} for page={}, perPage={}", users, page, perPage);
             return users;
         } catch (SQLException ex) {
-            LOGGER.error("Failed to select leaderboard for page={}, perPage={}", page, perPage);
+            LOG.error("Failed to select leaderboard for page={}, perPage={}", page, perPage);
             throw new RuntimeException(ex);
         }
     }
@@ -328,13 +309,14 @@ public class UserDao {
         try {
             List<UserEntity> users = runner.query(sql, USER_LIST_MAPPER, name, name, perPage, offset);
             for (int i = 0; i < users.size(); i++) {
-                users.get(i).rank = (page - 1) * perPage + i + 1;
+                int rank = (page - 1) * perPage + i + 1;
+                users.get(i).setRank(rank);
             }
 
-            LOGGER.info("Selected users={} by name for name={}, page={}, perPage={}", users, name, page, perPage);
+            LOG.info("Selected users={} by name for name={}, page={}, perPage={}", users, name, page, perPage);
             return users;
         } catch (SQLException ex) {
-            LOGGER.error("Failed to select users by name for name={}, page={}, perPage={}", name, page, perPage);
+            LOG.error("Failed to select users by name for name={}, page={}, perPage={}", name, page, perPage);
             throw new RuntimeException(ex);
         }
     }

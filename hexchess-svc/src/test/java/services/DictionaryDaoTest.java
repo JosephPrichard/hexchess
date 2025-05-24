@@ -1,7 +1,7 @@
 package services;
 
 import chess.ChessBoard;
-import models.state.GameState;
+import models.state.ChessRoom;
 import models.entities.PlayerEntity;
 import models.entities.RankedEntity;
 import models.common.TimeControl;
@@ -12,7 +12,7 @@ import services.daos.DictionaryDao;
 
 import java.util.List;
 
-import static utils.Globals.LOGGER;
+import static utils.Globals.LOG;
 
 // this is an integration test that runs against a real redis instance
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -28,7 +28,7 @@ public class DictionaryDaoTest {
         try {
             redisServer.start();
         } catch (RuntimeException ex) {
-            LOGGER.info("Redis instance is already started");
+            LOG.info("Redis instance is already started");
         }
         jedis = new JedisPooled("localhost", 7777);
         dictionaryDao = new DictionaryDao(jedis);
@@ -47,15 +47,15 @@ public class DictionaryDaoTest {
     @Test
     public void testGameUpdate() {
         String id = "test-id";
-        dictionaryDao.setGame(id, GameState.startWithGame(id, TimeControl.UNLIMITED));
+        dictionaryDao.setGame(id, ChessRoom.startWithGame(id, TimeControl.UNLIMITED));
 
-        GameState firstGame = dictionaryDao.getGame(id);
-        Assertions.assertEquals(GameState.startWithGame(id, TimeControl.UNLIMITED), firstGame);
+        ChessRoom firstGame = dictionaryDao.getGame(id);
+        Assertions.assertEquals(ChessRoom.startWithGame(id, TimeControl.UNLIMITED), firstGame);
 
-        firstGame.game.getBoard().setPiece("a1", ChessBoard.BLACK_QUEEN);
+        firstGame.getGame().getBoard().setPiece("a1", ChessBoard.BLACK_QUEEN);
         dictionaryDao.setGame(id, firstGame);
 
-        GameState secondGame = dictionaryDao.getGame(id);
+        ChessRoom secondGame = dictionaryDao.getGame(id);
 
         Assertions.assertEquals(firstGame, secondGame);
     }
@@ -72,10 +72,10 @@ public class DictionaryDaoTest {
         PlayerEntity player2 = new PlayerEntity(2L, "name2", null, null);
         PlayerEntity player3 = new PlayerEntity(3L, "name3", null, null);
 
-        GameState game1 = GameState.ofPlayers(id1, player1, player2);
-        GameState game2 = GameState.ofPlayers(id2, player2, player3);
-        GameState game3 = GameState.ofPlayers(id3, player3, player1);
-        GameState game4 = GameState.ofPlayers(id4, player2, player1);
+        ChessRoom game1 = ChessRoom.ofPlayers(id1, player1, player2);
+        ChessRoom game2 = ChessRoom.ofPlayers(id2, player2, player3);
+        ChessRoom game3 = ChessRoom.ofPlayers(id3, player3, player1);
+        ChessRoom game4 = ChessRoom.ofPlayers(id4, player2, player1);
 
         // when
         dictionaryDao.setGame(id1, game1);
@@ -83,17 +83,17 @@ public class DictionaryDaoTest {
         dictionaryDao.setGame(id3, game3);
         dictionaryDao.setGame(id4, game4);
 
-        List<GameState> gameStates1 = dictionaryDao.getGames(1, 2);
-        List<GameState> gameStates2 = dictionaryDao.getGames(2, 2);
+        List<ChessRoom> gameStates1 = dictionaryDao.getGames(1, 2);
+        List<ChessRoom> gameStates2 = dictionaryDao.getGames(2, 2);
 
         // then
         Assertions.assertEquals(2, gameStates1.size());
         Assertions.assertEquals(2, gameStates2.size());
 
-        Assertions.assertEquals(id1, gameStates1.get(0).id);
-        Assertions.assertEquals(id2, gameStates1.get(1).id);
-        Assertions.assertEquals(id3, gameStates2.get(0).id);
-        Assertions.assertEquals(id4, gameStates2.get(1).id);
+        Assertions.assertEquals(id1, gameStates1.get(0).getId());
+        Assertions.assertEquals(id2, gameStates1.get(1).getId());
+        Assertions.assertEquals(id3, gameStates2.get(0).getId());
+        Assertions.assertEquals(id4, gameStates2.get(1).getId());
     }
 
     @Test

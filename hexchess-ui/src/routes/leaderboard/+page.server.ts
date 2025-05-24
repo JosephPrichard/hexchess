@@ -15,8 +15,8 @@ export const load: PageServerLoad = async ({ url, setHeaders, fetch }): Promise<
 		error(status, createMessage(err));
 	}
 
-	setHeaders({
-		'cache-control': 'max-age=60'
-	});
+	// setHeaders({
+	// 	'cache-control': 'max-age=60'
+	// });
 	return { page, pageCount: resp?.totalPages || 0, userList: resp?.userList || [] };
 };

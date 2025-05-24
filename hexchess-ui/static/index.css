@@ -24,6 +24,11 @@ a:hover {
 	text-decoration: underline;
 }
 
+@font-face{
+	font-family:'digital-clock-font';
+	src: url('/fonts/digital-7.ttf');
+}
+
 .highlight {
 	color: dodgerblue;
 	text-decoration: underline;
@@ -497,7 +502,7 @@ select {
 }
 
 .side-table {
-	width: 250px;
+	width: 300px;
 	display: flex;
 	flex-direction: column;
 	background-color: rgb(35, 35, 35);

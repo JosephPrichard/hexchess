@@ -13,14 +13,14 @@ import java.sql.*;
 import java.time.Duration;
 import java.util.List;
 
-import static utils.Globals.LOGGER;
+import static utils.Globals.LOG;
 
 public class ChallengeDao {
 
     public static final Duration THRESHOLD_EXPIRATION = Duration.ofDays(7);
     private static final ResultSetHandler<ChallengeEntity> CHAL_MAPPER = new BeanHandler<>(ChallengeEntity.class);
     private static final ResultSetHandler<List<ChallengeEntity>> CHAL_LIST_MAPPER = new BeanListHandler<>(ChallengeEntity.class);
-    private static final ResultSetHandler<List<DeleteResult>> DEL_MAPPER = new BeanListHandler<>(DeleteResult.class);
+    private static final ResultSetHandler<List<DeleteResult>> DELRES_MAPPER = new BeanListHandler<>(DeleteResult.class);
 
     private final QueryRunner runner;
 
@@ -34,17 +34,10 @@ public class ChallengeDao {
 
     public static class ParticipantException extends RuntimeException {}
 
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class ChallengeInst {
-        public long challengerId;
-        public long challengeeId;
-        public String timeControl;
-        public String startColor;
-    }
+    public record ChallengeInst(long challengerId, long challengeeId, String timeControl, String startColor) { }
 
     public ChallengeEntity insert(ChallengeInst inst) {
-        return insert(inst.challengerId, inst.challengeeId, inst.timeControl, inst.startColor);
+        return insert(inst.challengerId(), inst.challengeeId(), inst.timeControl(), inst.startColor());
     }
 
     public ChallengeEntity insert(long challengerId, long challengeeId, String timeControl, String startColor) {
@@ -77,36 +70,28 @@ public class ChallengeDao {
             INNER JOIN users as u2 ON u2.id = c1.challengerId
             """;
         try {
-            LOGGER.info("Inserting challenge with challengerId={}, challengeeId={}, timeControl={}, startColor={}", challengerId, challengeeId, timeControl, startColor);
+            LOG.info("Inserting challenge with challengerId={}, challengeeId={}, timeControl={}, startColor={}", challengerId, challengeeId, timeControl, startColor);
             ChallengeEntity challenge = runner.query(sql, CHAL_MAPPER, challengerId, challengeeId, timeControl, startColor, madeOn);
-            LOGGER.info("Inserted a challenge={}", challenge);
+            LOG.info("Inserted a challenge={}", challenge);
             return challenge;
         } catch (SQLException ex) {
             SQLException nextEx = ex.getNextException();
 
             switch (nextEx.getSQLState()) {
             case "23505":
-                LOGGER.warn("Already made challenge=[challengerId={},challengeeId={}]", challengerId, challengeeId);
+                LOG.warn("Already made challenge=[challengerId={},challengeeId={}]", challengerId, challengeeId);
                 throw new DuplicateException();
             case "23503", "23506":
-                LOGGER.warn("Violating key constraint exception when inserting challenge=[challengerId={},challengeeId={}]", challengerId, challengeeId);
+                LOG.warn("Violating key constraint exception when inserting challenge=[challengerId={},challengeeId={}]", challengerId, challengeeId);
                 throw new ParticipantException();
             default:
-                LOGGER.error("Failed to insert a challenge=[challengerId={},challengeeId={}] with violation={}", challengerId, challengeeId, nextEx.getSQLState(), ex);
+                LOG.error("Failed to insert a challenge=[challengerId={},challengeeId={}] with violation={}", challengerId, challengeeId, nextEx.getSQLState(), ex);
                 throw new RuntimeException(ex);
             }
         }
     }
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class DeleteResult {
-        public long challengerId;
-        public long challengeeId;
-        public String timeControl;
-        public String startColor;
-    }
+    public record DeleteResult(long challengerId, long challengeeId, String timeControl, String startColor) {}
 
     public DeleteResult delete(long challengerId, long challengeeId) {
         String sql = """
@@ -115,11 +100,11 @@ public class ChallengeDao {
             """;
 
         try {
-            List<DeleteResult> results = runner.query(sql, DEL_MAPPER, challengerId, challengeeId);
-            LOGGER.info("Delete challenge=[{},{}], deleting {} rows", challengerId, challengeeId, results);
+            List<DeleteResult> results = runner.query(sql, DELRES_MAPPER, challengerId, challengeeId);
+            LOG.info("Delete challenge=[{},{}], deleting {} rows", challengerId, challengeeId, results);
             return results.isEmpty() ? null : results.getFirst();
         } catch (SQLException ex) {
-            LOGGER.error("Failed to delete a challenge=[{},{}]", challengerId, challengeeId, ex);
+            LOG.error("Failed to delete a challenge=[{},{}]", challengerId, challengeeId, ex);
             throw new RuntimeException(ex);
         }
     }
@@ -170,10 +155,10 @@ public class ChallengeDao {
             rs = stmt.executeQuery();
 
             List<ChallengeEntity> challenges = CHAL_LIST_MAPPER.handle(rs);
-            LOGGER.info("Selected challenges={} for challengerId={}, challengeeId={}", challenges, challengerId, challengeeId);
+            LOG.info("Selected challenges={} for challengerId={}, challengeeId={}", challenges, challengerId, challengeeId);
             return challenges;
         } catch (SQLException ex) {
-            LOGGER.error("Failed to select challenges for challenged={}", challengerId, ex);
+            LOG.error("Failed to select challenges for challenged={}", challengerId, ex);
             throw new RuntimeException(ex);
         } finally {
             DbUtils.closeQuietly(conn);
@@ -192,9 +177,9 @@ public class ChallengeDao {
         String sql = "DELETE FROM challenges WHERE (challengeeId = ? OR challengerId = ?) AND madeOn < ?";
         try {
             int rows = runner.update(sql, userId, userId, timestamp);
-            LOGGER.info("Deleted {} expired challenges for userId={}", rows, userId);
+            LOG.info("Deleted {} expired challenges for userId={}", rows, userId);
         } catch (SQLException ex) {
-            LOGGER.error("Failed to delete expired challenges for userId={}", userId, ex);
+            LOG.error("Failed to delete expired challenges for userId={}", userId, ex);
             throw new RuntimeException(ex);
         }
     }

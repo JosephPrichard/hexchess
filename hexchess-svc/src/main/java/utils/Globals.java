@@ -1,7 +1,5 @@
 package utils;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
-import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.safety.Safelist;
 import org.slf4j.Logger;
@@ -14,7 +12,7 @@ import java.util.concurrent.Executors;
 
 public class Globals {
 
-    public static final Logger LOGGER = LoggerFactory.getLogger("HexChess");
+    public static final Logger LOG = LoggerFactory.getLogger("HexChess");
 
     public static Safelist HTML_SAFELIST = Safelist.basic();
 

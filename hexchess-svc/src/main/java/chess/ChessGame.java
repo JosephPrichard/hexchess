@@ -1,58 +1,27 @@
 package chess;
 
+import it.unimi.dsi.fastutil.bytes.ByteArrayList;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 import static chess.ChessBoard.*;
+import static chess.Direction.*;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class ChessGame {
 
-    private final static Direction[][] ROOK_OFFSETS = {
-        {Direction.UP},
-        {Direction.DOWN},
-        {Direction.DOWN_LEFT},
-        {Direction.DOWN_RIGHT},
-        {Direction.UP_LEFT},
-        {Direction.UP_RIGHT}
-    };
-    private final static Direction[][] BISHOP_OFFSETS = {
-        {Direction.UP_RIGHT, Direction.DOWN_RIGHT},
-        {Direction.UP_LEFT, Direction.DOWN_LEFT},
-        {Direction.UP, Direction.UP_RIGHT},
-        {Direction.UP, Direction.UP_LEFT},
-        {Direction.DOWN, Direction.DOWN_RIGHT},
-        {Direction.DOWN, Direction.DOWN_LEFT}
-    };
-    private final static Direction[][] KING_OFFSETS =
-        Stream.concat(Arrays.stream(ROOK_OFFSETS), Arrays.stream(BISHOP_OFFSETS)).toArray(Direction[][]::new);
-    private final static Direction[][] KNIGHT_OFFSETS = {
-        {Direction.UP_RIGHT, Direction.UP_RIGHT, Direction.UP},
-        {Direction.UP_RIGHT, Direction.UP, Direction.UP},
-        {Direction.DOWN_RIGHT, Direction.DOWN_RIGHT, Direction.DOWN},
-        {Direction.DOWN_RIGHT, Direction.DOWN, Direction.DOWN},
-        {Direction.UP_LEFT, Direction.UP_LEFT, Direction.UP},
-        {Direction.UP_LEFT, Direction.UP, Direction.UP},
-        {Direction.DOWN_LEFT, Direction.DOWN_LEFT, Direction.DOWN},
-        {Direction.DOWN_LEFT, Direction.DOWN, Direction.DOWN},
-        {Direction.UP_LEFT, Direction.UP_LEFT, Direction.DOWN_LEFT},
-        {Direction.DOWN_LEFT, Direction.DOWN_LEFT, Direction.UP_LEFT},
-        {Direction.UP_RIGHT, Direction.UP_RIGHT, Direction.DOWN_RIGHT},
-        {Direction.DOWN_RIGHT, Direction.DOWN_RIGHT, Direction.UP_RIGHT},
-    };
-
     private ChessBoard board;
-    private List<PieceMoves> whiteMoves = null;
-    private List<PieceMoves> blackMoves = null;
+    private List<PieceMoves> whiteMoves;
+    private List<PieceMoves> blackMoves;
+    private ByteArrayList takenWhitePieces = new ByteArrayList();
+    private ByteArrayList takenBlackPieces = new ByteArrayList();
 
     public static ChessGame start() {
         return new ChessGame(ChessBoard.initial());
@@ -91,7 +60,8 @@ public class ChessGame {
         List<PieceMoves> moves = getCurrMoves();
 
         // has a match for a move from one hexagon to another hexagon
-        return moves.stream()
+        return moves
+            .stream()
             .anyMatch((pm) -> {
                 boolean isFrom = pm.getHex().equals(move.getFrom());
                 boolean hasTo = pm.getMoves().stream().anyMatch((m) -> m.equals(move.getTo()));
@@ -104,9 +74,19 @@ public class ChessGame {
     }
 
     public void makeMove(Hexagon from, Hexagon to) {
-        byte piece = board.getPiece(from);
+        byte piece1 = board.getPiece(from);
+        byte piece2 = board.getPiece(to);
+
+        if (piece2 != EMPTY) {
+            if (board.turn().isWhite()) {
+                takenWhitePieces.add(piece2);
+            } else {
+                takenBlackPieces.add(piece2);
+            }
+        }
+
         board.setPiece(from, EMPTY);
-        board.setPiece(to, piece);
+        board.setPiece(to, piece1);
         board.flipTurn();
 
         whiteMoves = null;

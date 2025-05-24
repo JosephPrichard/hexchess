@@ -2,7 +2,6 @@ import chess.ChessBoard;
 import com.zaxxer.hikari.HikariDataSource;
 import redis.clients.jedis.ConnectionPoolConfig;
 import services.broadcast.Broadcaster;
-import services.broadcast.GlobalBroadcaster;
 import services.broadcast.LocalBroadcaster;
 import services.daos.ChallengeDao;
 import services.daos.DictionaryDao;
@@ -22,7 +21,7 @@ import java.util.Map;
 
 import static io.jooby.Jooby.runApp;
 import static utils.Globals.JSON_MAPPER;
-import static utils.Globals.LOGGER;
+import static utils.Globals.LOG;
 
 public class Main {
     public static void main(String[] args) throws Exception {
@@ -44,7 +43,6 @@ public class Main {
         int redisPubsubPort = Integer.parseInt(env.get("REDIS_PUBSUB_PORT"));
 
         List<String> countryList = Config.createCountryList();
-        String initialBoardJson = JSON_MAPPER.writeValueAsString(ChessBoard.initial());
 
         State state = new State();
 
@@ -72,12 +70,12 @@ public class Main {
         state.setChallengeProducer(challengeProducer);
         state.setCountryList(countryList);
         state.setPathService(pathService);
-        state.setInitialBoardJson(initialBoardJson);
+        state.setInitialBoard(ChessBoard.initial());
 
 //        gameBroadcaster.startListenSubscribe();
 //        userBroadcaster.startListenSubscribe();
 
-        LOGGER.info("Starting on port {} with allowedOrigins={}", port, allowedOrigins);
+        LOG.info("Starting on port {} with allowedOrigins={}", port, allowedOrigins);
         runApp(args, () -> new AppController(port, allowedOrigins, state));
     }
 }

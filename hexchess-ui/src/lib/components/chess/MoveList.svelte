@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { Move } from '$lib/models';
+	import type { PieceMove } from '$lib/models';
 	import { stringOfMove } from '$lib/chess';
 
 	export interface MoveListProps {
-		moveList: Move[];
+		moveList: PieceMove[];
 		onSelectMove?: (i: number) => void;
 		selectedMoveIndex?: number;
 	}

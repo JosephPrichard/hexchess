@@ -3,8 +3,6 @@ package services.daos;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import models.entities.ReplayEntity;
 import org.junit.jupiter.api.*;
-import services.daos.ReplayDao;
-import services.daos.UserDao;
 import utils.Config;
 
 import javax.sql.DataSource;
@@ -15,6 +13,52 @@ import static services.daos.UserDao.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ReplayDaoTest {
+
+    public static final ReplayEntity REPLAY1 = ReplayEntity.builder()
+        .id(1L)
+        .whiteId(1L)
+        .blackId(2L)
+        .whiteName("user1")
+        .blackName("user2")
+        .whiteCountry("us")
+        .blackCountry("us")
+        .result(ReplayEntity.WHITE_WIN)
+        .cause(ReplayEntity.CHECKMATE)
+        .winElo(30f)
+        .loseElo(-30f)
+        .whiteElo(0f)
+        .blackElo(0f)
+        .build();
+    public static final ReplayEntity REPLAY2 = ReplayEntity.builder()
+        .id(2L)
+        .whiteId(2L)
+        .blackId(3L)
+        .whiteName("user2")
+        .blackName("user3")
+        .whiteCountry("us")
+        .blackCountry("us")
+        .result(ReplayEntity.BLACK_WIN)
+        .cause(ReplayEntity.CHECKMATE)
+        .winElo(30f)
+        .loseElo(-30f)
+        .whiteElo(0f)
+        .blackElo(0f)
+        .build();
+    public static final ReplayEntity REPLAY3 = ReplayEntity.builder()
+        .id(3L)
+        .whiteId(3L)
+        .blackId(1L)
+        .whiteName("user3")
+        .blackName("user1")
+        .whiteCountry("us")
+        .blackCountry("us")
+        .result(ReplayEntity.DRAW)
+        .cause(ReplayEntity.CHECKMATE)
+        .winElo(30f)
+        .loseElo(-30f)
+        .whiteElo(0f)
+        .blackElo(0f)
+        .build();
 
     private EmbeddedPostgres pg;
     private DataSource ds;
@@ -58,19 +102,9 @@ public class ReplayDaoTest {
         ReplayEntity actualReplay3 = replayDao.getReplay(3);
 
         // then
-        ReplayEntity expectedReplay1 = new ReplayEntity(1, 1L, 2L, "user1", "user2",
-            "us", "us", ReplayEntity.WHITE_WIN, ReplayEntity.CHECKMATE, 30, -30,
-            0f, 0f, "{}", null);
-        ReplayEntity expectedReplay2 = new ReplayEntity(2, 2L, 3L, "user2", "user3",
-            "us", "us", ReplayEntity.BLACK_WIN, ReplayEntity.CHECKMATE, 30, -30,
-            0f, 0f, "{}",  null);
-        ReplayEntity expectedReplay3 = new ReplayEntity(3, 3L, 1L, "user3", "user1",
-            "us", "us", ReplayEntity.DRAW, ReplayEntity.CHECKMATE, 30, -30,
-            0f, 0f, "{}",  null);
-
-        Assertions.assertEquals(expectedReplay1, actualReplay1);
-        Assertions.assertEquals(expectedReplay2, actualReplay2);
-        Assertions.assertEquals(expectedReplay3, actualReplay3);
+        Assertions.assertEquals(REPLAY1, actualReplay1);
+        Assertions.assertEquals(REPLAY2, actualReplay2);
+        Assertions.assertEquals(REPLAY3, actualReplay3);
     }
 
     @Test
@@ -87,16 +121,25 @@ public class ReplayDaoTest {
         List<ReplayEntity> actualReplayList2 = replayDao.getUserReplays(1L, 3L, 5);
 
         // then
-        List<ReplayEntity> expectedReplayList1 = List.of(
-            new ReplayEntity(3, 3L, 1L, "user3", "user1", "us", "us",
-                ReplayEntity.DRAW, ReplayEntity.CHECKMATE, 30, -30, 0f, 0f, null, null),
-            new ReplayEntity(1, 1L, 2L, "user1", "user2", "us", "us",
-                ReplayEntity.WHITE_WIN, ReplayEntity.CHECKMATE, 30, -30, 0f, 0f, null, null));
-        List<ReplayEntity> expectedReplayList2 = List.of(
-            new ReplayEntity(1, 1L, 2L, "user1", "user2", "us", "us",
-                ReplayEntity.WHITE_WIN, ReplayEntity.CHECKMATE, 30, -30, 0f, 0f, null, null));
+        List<ReplayEntity> expectedReplayList1 = List.of(REPLAY3, REPLAY1);
+        List<ReplayEntity> expectedReplayList2 = List.of(REPLAY1);
 
         Assertions.assertEquals(expectedReplayList1, actualReplayList1);
         Assertions.assertEquals(expectedReplayList2, actualReplayList2);
+    }
+
+    @Test
+    public void testGetReplayMoveList() {
+        // given
+        createTestUserData(userDao);
+
+        // when
+        replayDao.insert(1L, 2L, ReplayEntity.WHITE_WIN, ReplayEntity.CHECKMATE, 30, -30, "[]");
+
+
+        String actualMoveList = replayDao.getReplayMoveList(1L);
+
+        // then
+        Assertions.assertEquals("[]", actualMoveList);
     }
 }

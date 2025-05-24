@@ -66,3 +66,11 @@ export function formatTimeControl(timeControl: TimeControl) {
 export function formatElo(elo: number) {
 	return (elo >= 0 ? '+' : '') + elo;
 }
+
+export function formatTimer(ms: number) {
+	const minutes = String(Math.floor(ms / 60000)).padStart(2, '0');
+	ms %= 60000;
+	const seconds = String(Math.floor(ms / 1000)).padStart(2, '0');
+	ms %= 1000;
+	return `${minutes}:${seconds}:${String(ms).padStart(2, '0')}`;
+}

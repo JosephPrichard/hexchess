@@ -1,8 +1,6 @@
 package chess;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.util.List;
 
@@ -10,6 +8,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PieceMoves {
-    public Hexagon hex;
-    public List<Hexagon> moves;
+    private Hexagon hex;
+    private List<Hexagon> moves;
 }

@@ -5,19 +5,20 @@ import lombok.*;
 import java.sql.Timestamp;
 
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ChallengeEntity {
-    public long challengerId;
-    public String challengerName;
-    public String challengerCountry;
-    public float challengerElo;
-    public long challengeeId;
-    public String challengeeName;
-    public String challengeeCountry;
-    public float challengeeElo;
-    public String timeControl;
-    public String startColor; // from challenger's perspective.
+    private long challengerId;
+    private String challengerName;
+    private String challengerCountry;
+    private float challengerElo;
+    private long challengeeId;
+    private String challengeeName;
+    private String challengeeCountry;
+    private float challengeeElo;
+    private String timeControl;
+    private String startColor; // from challenger's perspective.
     @EqualsAndHashCode.Exclude
-    public Timestamp madeOn;
+    private Timestamp madeOn;
 }

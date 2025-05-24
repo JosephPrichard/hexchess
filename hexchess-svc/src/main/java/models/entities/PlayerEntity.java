@@ -3,17 +3,18 @@ package models.entities;
 import lombok.*;
 
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class PlayerEntity {
-    public long id;
+    private long id;
     @EqualsAndHashCode.Exclude
-    public String name;
+    private String name;
     @EqualsAndHashCode.Exclude
-    public String country;
+    private String country;
     @EqualsAndHashCode.Exclude
-    public Float elo;
-    public boolean isGuest = false;
+    private Float elo;
+    private boolean isGuest = false;
 
     public PlayerEntity(long id, String name, String country, Float elo) {
         this.id = id;

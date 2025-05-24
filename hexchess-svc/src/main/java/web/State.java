@@ -1,5 +1,6 @@
 package web;
 
+import chess.ChessBoard;
 import services.broadcast.Broadcaster;
 import services.daos.DictionaryDao;
 import services.daos.ChallengeDao;
@@ -31,5 +32,5 @@ public class State {
     private ChallengeProducer challengeProducer;
 
     private List<String> countryList;
-    private String initialBoardJson;
+    private ChessBoard initialBoard;
 }

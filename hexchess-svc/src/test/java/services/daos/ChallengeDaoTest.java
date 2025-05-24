@@ -3,8 +3,6 @@ package services.daos;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import models.entities.ChallengeEntity;
 import org.junit.jupiter.api.*;
-import services.daos.ChallengeDao;
-import services.daos.UserDao;
 import utils.Config;
 
 import javax.sql.DataSource;
@@ -23,13 +21,69 @@ public class ChallengeDaoTest {
     private UserDao userDao;
     private ChallengeDao challengeDao;
 
+    public static final ChallengeEntity CHALLENGE1 = ChallengeEntity.builder()
+        .challengerId(1L)
+        .challengerName("user1")
+        .challengerCountry("us")
+        .challengerElo(1000f)
+        .challengeeId(2L)
+        .challengeeName("user2")
+        .challengeeCountry("us")
+        .challengeeElo(1005f)
+        .timeControl("UNLIMITED")
+        .startColor("RANDOM")
+        .madeOn(null)
+        .build();
+
+    public static final ChallengeEntity CHALLENGE2 = ChallengeEntity.builder()
+        .challengerId(3L)
+        .challengerName("user3")
+        .challengerCountry("us")
+        .challengerElo(900f)
+        .challengeeId(2L)
+        .challengeeName("user2")
+        .challengeeCountry("us")
+        .challengeeElo(1005f)
+        .timeControl("UNLIMITED")
+        .startColor("RANDOM")
+        .madeOn(null)
+        .build();
+
+    public static final ChallengeEntity EXPIRED_CHALLENGE1 = ChallengeEntity.builder()
+        .challengerId(2L)
+        .challengerName("user2")
+        .challengerCountry("us")
+        .challengerElo(1005f)
+        .challengeeId(1L)
+        .challengeeName("user1")
+        .challengeeCountry("us")
+        .challengeeElo(1000f)
+        .timeControl("UNLIMITED")
+        .startColor("RANDOM")
+        .madeOn(null)
+        .build();
+
+    public static final ChallengeEntity EXPIRED_CHALLENGE2 = ChallengeEntity.builder()
+        .challengerId(2L)
+        .challengerName("user2")
+        .challengerCountry("us")
+        .challengerElo(1005f)
+        .challengeeId(3L)
+        .challengeeName("user3")
+        .challengeeCountry("us")
+        .challengeeElo(900f)
+        .timeControl("UNLIMITED")
+        .startColor("RANDOM")
+        .madeOn(null)
+        .build();
+
     @BeforeAll
     public void beforeAll() throws IOException {
         pg = EmbeddedPostgres.builder().start();
         ds = pg.getPostgresDatabase();
 
         userDao = new UserDao(ds);
-        challengeDao = new ChallengeDao(ds);
+        challengeDao = new  ChallengeDao(ds);
     }
 
     @BeforeEach
@@ -58,18 +112,10 @@ public class ChallengeDaoTest {
         List<ChallengeEntity> entityList = challengeDao.getByParticipant(null, 2L);
 
         // then
-        ChallengeEntity expectedEntity1 = new ChallengeEntity(
-            1L, "user1", "us", 1000f,
-            2L, "user2", "us", 1005f,
-            "UNLIMITED", "RANDOM", null);
-        ChallengeEntity expectedEntity2 = new ChallengeEntity(
-            3L, "user3", "us", 900f,
-            2L, "user2", "us", 1005f,
-            "UNLIMITED", "RANDOM", null);
-        List<ChallengeEntity> expectedList = List.of(expectedEntity2, expectedEntity1);
+        List<ChallengeEntity> expectedList = List.of(CHALLENGE2, CHALLENGE1);
         Assertions.assertEquals(expectedList, entityList);
-        Assertions.assertEquals(expectedEntity1, entity1);
-        Assertions.assertEquals(expectedEntity2, entity2);
+        Assertions.assertEquals(CHALLENGE1, entity1);
+        Assertions.assertEquals(CHALLENGE2, entity2);
     }
 
     @Test
@@ -88,15 +134,7 @@ public class ChallengeDaoTest {
         List<ChallengeEntity> challenges = challengeDao.getByParticipant(2L, null);
 
         // then
-        List<ChallengeEntity> expected = List.of(
-            new ChallengeEntity(
-                2L, "user2", "us", 1005f,
-                1L, "user1", "us", 1000f,
-                "UNLIMITED", "RANDOM", null),
-            new ChallengeEntity(
-                2L, "user2", "us", 1005f,
-                3L, "user3", "us", 900f,
-                "UNLIMITED", "RANDOM",     null));
+        List<ChallengeEntity> expected = List.of(EXPIRED_CHALLENGE1, EXPIRED_CHALLENGE2);
         Assertions.assertEquals(expected, challenges);
     }
 

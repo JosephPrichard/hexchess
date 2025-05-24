@@ -1,6 +1,6 @@
 package models.common;
 
-import static utils.Globals.LOGGER;
+import static utils.Globals.LOG;
 
 public enum TimeControl {
     REAL_TIME,
@@ -13,7 +13,7 @@ public enum TimeControl {
             case "CORRESPONDENCE" -> CORRESPONDENCE;
             case "UNLIMITED" -> UNLIMITED;
             default -> {
-                LOGGER.warn("Unknown time control {}, defaulting to {}", value, UNLIMITED);
+                LOG.warn("Unknown time control {}, defaulting to {}", value, UNLIMITED);
                 yield UNLIMITED;
             }
         };

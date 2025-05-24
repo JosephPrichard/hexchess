@@ -1,9 +1,8 @@
 package web.websocket;
 
 import chess.ChessGame;
-import models.common.TimeControl;
 import models.entities.PlayerEntity;
-import models.state.GameState;
+import models.state.ChessRoom;
 
 public sealed interface GameOutput permits
         GameOutput.Error,
@@ -15,13 +14,13 @@ public sealed interface GameOutput permits
 
     String getType();
 
-    record Forfeit(GameState gameState) implements GameOutput {
+    record Forfeit(ChessRoom room) implements GameOutput {
         public String getType() {
             return "FORFEIT";
         }
     }
 
-    record Start(PlayerEntity selfPlayer, GameState gameState) implements GameOutput {
+    record Start(PlayerEntity selfPlayer, ChessRoom room) implements GameOutput {
         public String getType() {
             return "START";
         }

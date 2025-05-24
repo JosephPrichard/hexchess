@@ -1,6 +1,7 @@
 package scripts;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.zaxxer.hikari.HikariDataSource;
 import chess.PieceMove;
 import services.daos.DictionaryDao;
@@ -32,7 +33,13 @@ import static services.daos.ChallengeDao.*;
 @AllArgsConstructor
 public class DataSeeder {
 
-    private final DataSource ds;
+    private static final TypeReference<List<UserInst>> USER_LIST_TYPE = new TypeReference<>() {};
+    private static final TypeReference<List<ReplayInst>> REPLAY_LIST_TYPE = new TypeReference<>() {};
+    private static final TypeReference<List<ChallengeInst>> CHALLENGE_LIST_TYPE = new TypeReference<>() {};
+
+    private final UserDao userDao;
+    private final ChallengeDao challengeDao;
+    private final ReplayDao replayDao;
     private final DictionaryDao dictionaryDao;
 
     public static String readResourceAsString(String resourcePath) throws IOException {
@@ -69,35 +76,29 @@ public class DataSeeder {
 
     private void seedUsersTable() throws IOException {
         String json = readResourceAsString("/seed/users.json");
-        List<UserInst> insts = JSON_MAPPER.readValue(json,
-            JSON_MAPPER.getTypeFactory().constructCollectionType(ArrayList.class, UserInst.class));
-        UserDao userDao = new UserDao(ds);
+        List<UserInst> insts = JSON_MAPPER.readValue(json, USER_LIST_TYPE);
         insts.forEach(userDao::insert);
     }
 
     private void seedReplayTable() throws IOException {
         String json = readResourceAsString("/seed/replays.json");
-        List<ReplayInst> insts = JSON_MAPPER.readValue(json,
-            JSON_MAPPER.getTypeFactory().constructCollectionType(ArrayList.class, ReplayInst.class));
-        insts.forEach(replay -> replay.moveListJson = randomGameStateAsJson());
-        ReplayDao replayDao = new ReplayDao(ds);
+        List<ReplayInst> insts = JSON_MAPPER.readValue(json, REPLAY_LIST_TYPE)
+            .stream()
+            .map(replay -> replay.withMoveListJson(randomGameStateAsJson()))
+            .toList();
         seedTableInParallel(insts, replayDao::insert);
     }
 
     private void seedChallengeTable() throws IOException {
         String json = readResourceAsString("/seed/challenges.json");
-        List<ChallengeInst> insts = JSON_MAPPER.readValue(json,
-            JSON_MAPPER.getTypeFactory().constructCollectionType(ArrayList.class, ChallengeInst.class));
-        ChallengeDao challengeDao = new ChallengeDao(ds);
+        List<ChallengeInst> insts = JSON_MAPPER.readValue(json, CHALLENGE_LIST_TYPE);
         seedTableInParallel(insts, challengeDao::insert);
     }
 
     private void seedUsersDict() {
-        UserDao userDao = new UserDao(ds);
-        List<UserEntity> allUsers = userDao.getAll();
-
-        DictionaryDao.EloChangeSet[] changeSets = allUsers.stream()
-            .map(user -> new DictionaryDao.EloChangeSet(user.id, user.elo))
+        DictionaryDao.EloChangeSet[] changeSets = userDao.getAll()
+            .stream()
+            .map(user -> new DictionaryDao.EloChangeSet(user.getId(), user.getElo()))
             .toArray(DictionaryDao.EloChangeSet[]::new);
         dictionaryDao.incrLeaderboardUser(changeSets);
     }
@@ -118,14 +119,14 @@ public class DataSeeder {
 
         jedis.flushAll();
 
-        DataSeeder seeder = new DataSeeder(ds, dictionaryDao);
+        DataSeeder seeder = new DataSeeder(new UserDao(ds), new ChallengeDao(ds), new ReplayDao(ds), dictionaryDao);
         seeder.seedUsersTable();
         seeder.seedUsersDict();
         seeder.seedReplayTable();
         seeder.seedChallengeTable();
 
         long endTime = System.currentTimeMillis() - startTime;
-        LOGGER.info("Took {} ms to execute seeding script", endTime);
+        LOG.info("Took {} ms to execute seeding script", endTime);
 
 //        jedis.close();
         ds.close();

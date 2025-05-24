@@ -13,8 +13,8 @@ export const load: PageServerLoad = async ({ params, setHeaders, fetch }): Promi
 		error(status, createMessage(err));
 	}
 
-	setHeaders({
-		'cache-control': 'max-age=300'
-	});
+	// setHeaders({
+	// 	'cache-control': 'max-age=300'
+	// });
 	return { userWithReplays: resp };
 };

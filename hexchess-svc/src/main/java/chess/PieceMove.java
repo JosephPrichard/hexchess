@@ -1,8 +1,6 @@
 package chess;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,9 +9,9 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PieceMove {
-    public byte piece;
-    public Hexagon from;
-    public Hexagon to;
+    private byte piece;
+    private Hexagon from;
+    private Hexagon to;
 
     public static List<PieceMove> randomMoveList() {
         ChessGame game = ChessGame.start();

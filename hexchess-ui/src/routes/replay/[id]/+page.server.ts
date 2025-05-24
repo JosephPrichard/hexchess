@@ -17,8 +17,8 @@ export const load: PageServerLoad = async ({ params, setHeaders, fetch }): Promi
 		error(replayResult.status, createMessage(replayResult.err));
 	}
 
-	setHeaders({
-		'cache-control': 'max-age=3600'
-	});
+	// setHeaders({
+	// 	'cache-control': 'max-age=3600'
+	// });
 	return { replay: replayResult.resp, initialBoard };
 };

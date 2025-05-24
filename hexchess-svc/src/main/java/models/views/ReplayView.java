@@ -24,28 +24,24 @@ import static utils.Globals.*;
 @EqualsAndHashCode
 @Getter
 public class ReplayView {
-    private static final TypeReference<List<PieceMove>> MOVE_LIST_TYPE = new TypeReference<>() {};
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
 
-    public long id;
-    public long whiteId;
-    public long blackId;
-    public String whiteName;
-    public String blackName;
-    public String whiteCountry;
-    public String blackCountry;
-    public float winElo;
-    public float loseElo;
-    public float whiteElo;
-    public float blackElo;
-    public List<PieceMove> moveList;
-    public String playedOn;
-    public ReplayResult result;
-    public ReplayCause cause;
-    public float whiteEloDiff;
-    public float blackEloDiff;
-    public String whiteEloColor;
-    public String blackEloColor;
+    private long id;
+    private long whiteId;
+    private long blackId;
+    private String whiteName;
+    private String blackName;
+    private String whiteCountry;
+    private String blackCountry;
+    private float winElo;
+    private float loseElo;
+    private float whiteElo;
+    private float blackElo;
+    private String playedOn;
+    private ReplayResult result;
+    private ReplayCause cause;
+    private float whiteEloDiff;
+    private float blackEloDiff;
 
     public static ReplayView createRow(ReplayEntity entity) {
         return create(entity, ReplayView::formatDate);
@@ -57,32 +53,22 @@ public class ReplayView {
 
     public static ReplayView create(ReplayEntity entity, Function<Timestamp, String> formatPlayedOn) {
         ReplayView view = new ReplayView();
-        view.id = entity.id;
-        view.whiteId = entity.whiteId;
-        view.blackId = entity.blackId;
-        view.whiteName = entity.whiteName != null ? Jsoup.clean(entity.whiteName, HTML_SAFELIST) : null;
-        view.blackName = entity.blackName != null ? Jsoup.clean(entity.blackName, HTML_SAFELIST) : null;
-        view.whiteCountry = entity.whiteCountry != null ? Jsoup.clean(entity.whiteCountry, HTML_SAFELIST) : null;
-        view.blackCountry = entity.blackCountry != null ? Jsoup.clean(entity.blackCountry, HTML_SAFELIST) : null;
-        view.winElo = entity.winElo;
-        view.loseElo = entity.loseElo;
-        view.whiteElo = entity.whiteElo;
-        view.blackElo = entity.blackElo;
-        view.moveList = deserializeMoveList(entity.moveListJson);
-        view.playedOn = entity.playedOn != null ? formatPlayedOn.apply(entity.playedOn) : null;
-        view.result = ReplayResult.fromInteger(entity.result);
-        view.cause = ReplayCause.fromInteger(entity.cause);
+        view.id = entity.getId();
+        view.whiteId = entity.getWhiteId();
+        view.blackId = entity.getBlackId();
+        view.whiteName = entity.getWhiteName() != null ? Jsoup.clean(entity.getWhiteName(), HTML_SAFELIST) : null;
+        view.blackName = entity.getBlackName() != null ? Jsoup.clean(entity.getBlackName(), HTML_SAFELIST) : null;
+        view.whiteCountry = entity.getWhiteCountry() != null ? Jsoup.clean(entity.getWhiteCountry(), HTML_SAFELIST) : null;
+        view.blackCountry = entity.getBlackCountry() != null ? Jsoup.clean(entity.getBlackCountry(), HTML_SAFELIST) : null;
+        view.winElo = entity.getWinElo();
+        view.loseElo = entity.getLoseElo();
+        view.whiteElo = entity.getWhiteElo();
+        view.blackElo = entity.getBlackElo();
+        view.playedOn = entity.getPlayedOn() != null ? formatPlayedOn.apply(entity.getPlayedOn()) : null;
+        view.result = ReplayResult.fromInteger(entity.getResult());
+        view.cause = ReplayCause.fromInteger(entity.getCause());
         view.calcResultElos(entity);
         return view;
-    }
-
-    public static List<PieceMove> deserializeMoveList(String moveListJson) {
-        try {
-            return moveListJson != null ? JSON_MAPPER.readValue(moveListJson, MOVE_LIST_TYPE) : null;
-        } catch (Exception e) {
-            LOGGER.error("Failed to deserialize moveList={}", moveListJson);
-            throw new RuntimeException(e);
-        }
     }
 
     public static String formatDuration(Timestamp timestamp) {
@@ -107,14 +93,14 @@ public class ReplayView {
     }
 
     public void calcResultElos(ReplayEntity entity) {
-        switch (entity.result) {
+        switch (entity.getResult()) {
         case WHITE_WIN -> {
-            whiteEloDiff = entity.winElo;
-            blackEloDiff = entity.loseElo;
+            whiteEloDiff = entity.getWinElo();
+            blackEloDiff = entity.getLoseElo();
         }
         case BLACK_WIN -> {
-            whiteEloDiff = entity.loseElo;
-            blackEloDiff = entity.winElo;
+            whiteEloDiff = entity.getLoseElo();
+            blackEloDiff = entity.getWinElo();
         }
         case DRAW -> {
             whiteEloDiff = 0;

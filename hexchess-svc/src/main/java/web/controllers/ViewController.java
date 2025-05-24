@@ -1,5 +1,9 @@
 package web.controllers;
 
+import chess.ChessBoard;
+import chess.PieceMove;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import models.entities.RankedEntity;
 import services.daos.ChallengeDao;
 import services.daos.ReplayDao;
@@ -10,8 +14,6 @@ import models.views.*;
 import services.game.GameService;
 import services.daos.DictionaryDao;
 import io.jooby.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import web.reusable.PathService;
 import web.reusable.AuthService;
 import web.State;
@@ -28,7 +30,9 @@ import static services.daos.DictionaryDao.*;
 
 public class ViewController extends Jooby {
 
+    private static final TypeReference<List<PieceMove>> MOVE_LIST_TYPE = new TypeReference<>() {};
     public static final int PER_PAGE = 25;
+    public static final String LONG_CACHE_CONTROL = String.format("public, max-age=%s, immutable", Duration.ofDays(1).toSeconds());
 
     private final UserDao userDao;
     private final ReplayDao replayDao;
@@ -38,7 +42,7 @@ public class ViewController extends Jooby {
     private final AuthService authService;
     private final PathService pathService;
     private final List<String> countryList;
-    private final String initialBoardJson;
+    private final ChessBoard initialBoard;
 
     public ViewController(State state) {
         userDao = state.getUserDao();
@@ -49,7 +53,7 @@ public class ViewController extends Jooby {
         authService = state.getAuthService();
         pathService = state.getPathService();
         countryList = state.getCountryList();
-        initialBoardJson = state.getInitialBoardJson();
+        initialBoard = state.getInitialBoard();
 
         setWorker(EXECUTOR);
 
@@ -65,6 +69,7 @@ public class ViewController extends Jooby {
         get("/views/players/search", this::searchPlayers);
         get("/views/leaderboard", this::getLeaderboard);
         get("/views/replay/{id}", this::getReplay);
+        get("/views/replay/{id}/move-list", this::getReplayMoveList);
         get("/views/replays", this::getReplayList);
         get("/views/challenges", this::getChallengeList);
         get("/views/countries", this::getCountryList);
@@ -91,61 +96,51 @@ public class ViewController extends Jooby {
         ctx.setResponseCode(statusCode);
 
         if (statusCode.value() == 500) {
-            LOGGER.error("Error: {}", statusCode, cause);
+            LOG.error("Error: {}", statusCode, cause);
             errorMessage = ERROR_UNKNOWN;
         } else {
             String message = "Error: " + statusCode;
-            LOGGER.error(message);
+            LOG.error(message);
             errorMessage = message;
         }
         ctx.send(errorMessage);
     }
 
-    public String getInitialBoard(Context ctx) {
-        ctx.setResponseHeader("Cache-Control", String.format("public, max-age=%s, immutable", Duration.ofDays(1).toSeconds()));
-        return initialBoardJson;
+    public ChessBoard getInitialBoard(Context ctx) {
+        ctx.setResponseHeader("Cache-Control", LONG_CACHE_CONTROL);
+        return initialBoard;
     }
 
     public List<String> getCountryList(Context ctx) {
-        ctx.setResponseHeader("Cache-Control", String.format("public, max-age=%s, immutable", Duration.ofDays(1).toSeconds()));
+        ctx.setResponseHeader("Cache-Control", LONG_CACHE_CONTROL);
         return countryList;
     }
 
     public UserView getSelf(Context ctx) throws IOException {
         PlayerEntity player = authenticate(ctx);
 
-        UserEntity entity = userDao.getById(player.id);
+        UserEntity entity = userDao.getById(player.getId());
 
-        LOGGER.info("Retrieved self user={}", entity);
+        LOG.info("Retrieved self user={}", entity);
 
         return UserView.create(entity);
     }
 
-    @Data
-    @AllArgsConstructor
-    public static class LeaderboardResp {
-        public int totalPages;
-        public List<UserView> userList;
-    }
+    public record LeaderboardResp(int totalPages, List<UserView> userList) {}
 
     public LeaderboardResp getLeaderboard(Context ctx) {
         int page = pathService.getPageParam(ctx);
 
         Leaderboard leaderboard = dictionaryDao.getLeaderboardPage(page, PER_PAGE);
-        List<UserEntity> entityList = userDao.getByRankedUsers(leaderboard.users);
+        List<UserEntity> entityList = userDao.getByRankedUsers(leaderboard.users());
 
-        RankedEntity.joinRanks(leaderboard.users, entityList);
+        RankedEntity.joinRanks(leaderboard.users(), entityList);
 
         List<UserView> viewList = entityList.stream().map(UserView::create).toList();
-        return new LeaderboardResp(leaderboard.pageCount, viewList);
+        return new LeaderboardResp(leaderboard.pageCount(), viewList);
     }
 
-    @Data
-    @AllArgsConstructor
-    public static class UserWithReplaysResp {
-        public UserView user;
-        public List<ReplayView> replayList;
-    }
+    public record UserWithReplaysResp(UserView user, List<ReplayView> replayList) {}
 
     public UserWithReplaysResp getPlayer(Context ctx) throws Exception {
         long userId = pathService.getPathAsLong(ctx, "id");
@@ -156,11 +151,11 @@ public class ViewController extends Jooby {
 
         UserEntity userEntity = userFut.get();
         if (userEntity == null) {
-            LOGGER.warn("User not found for id={}", userId);
+            LOG.warn("User not found for id={}", userId);
             throw new BadRequestException(ERROR_NOT_FOUND_USER);
         }
 
-        userEntity.rank = dictionaryDao.getLeaderboardRank(userEntity.id);
+        userEntity.setRank(dictionaryDao.getLeaderboardRank(userEntity.getId()));
         List<ReplayEntity> replayEntityList = replayListFut.get();
 
         UserView userView = UserView.create(userEntity);
@@ -190,16 +185,25 @@ public class ViewController extends Jooby {
         return ReplayView.createHeader(entity);
     }
 
+    public List<PieceMove> getReplayMoveList(Context ctx) throws JsonProcessingException {
+        long replayId = pathService.getPathAsLong(ctx, "id");
+
+        String moveListJson = replayDao.getReplayMoveList(replayId);
+
+        ctx.setResponseHeader("Cache-Control", LONG_CACHE_CONTROL);
+        return JSON_MAPPER.readValue(moveListJson, MOVE_LIST_TYPE);
+    }
+
     public List<ChallengeView> getChallengeList(Context ctx) {
         String participants = ctx.query("participants").value("");
 
         PlayerEntity player = authenticate(ctx);
 
         List<ChallengeEntity> entityList = switch (participants) {
-            case "received" -> challengeDao.getByParticipant(null, player.id);
-            case "sent" -> challengeDao.getByParticipant(player.id, null);
+            case "received" -> challengeDao.getByParticipant(null, player.getId());
+            case "sent" -> challengeDao.getByParticipant(player.getId(), null);
             default -> {
-                LOGGER.warn("Invalid participants value={} while getting challengeList", participants);
+                LOG.warn("Invalid participants value={} while getting challengeList", participants);
                 throw new BadRequestException(ERROR_INVALID_PARTICIPANTS);
             }
         };

@@ -5,6 +5,7 @@ import lombok.*;
 import java.sql.Timestamp;
 
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ReplayEntity {
@@ -14,20 +15,19 @@ public class ReplayEntity {
     public static final int CHECKMATE = 0;
     public static final int FORFEIT = 1;
 
-    public long id;
-    public long whiteId;
-    public long blackId;
-    public String whiteName;
-    public String blackName;
-    public String whiteCountry;
-    public String blackCountry;
-    public int result;
-    public int cause;
-    public float winElo;
-    public float loseElo;
-    public float whiteElo;
-    public float blackElo;
-    public String moveListJson;
+    private long id;
+    private long whiteId;
+    private long blackId;
+    private String whiteName;
+    private String blackName;
+    private String whiteCountry;
+    private String blackCountry;
+    private int result;
+    private int cause;
+    private float winElo;
+    private float loseElo;
+    private float whiteElo;
+    private float blackElo;
     @EqualsAndHashCode.Exclude
-    public Timestamp playedOn;
+    private Timestamp playedOn;
 }

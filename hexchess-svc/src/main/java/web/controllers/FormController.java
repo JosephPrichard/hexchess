@@ -1,6 +1,5 @@
 package web.controllers;
 
-import lombok.*;
 import models.views.SessionView;
 import services.daos.ChallengeDao;
 import services.daos.UserDao;
@@ -45,11 +44,11 @@ public class FormController extends Jooby {
         error((ctx, cause, statusCode) -> {
             ctx.setResponseCode(statusCode);
             if (statusCode.value() == 500) {
-                LOGGER.error("Error: {} ", statusCode, cause);
+                LOG.error("Error: {} ", statusCode, cause);
                 ctx.send(ERROR_UNKNOWN);
             } else {
                 String message = "Error: " + statusCode + ", " + cause.getMessage();
-                LOGGER.error(message);
+                LOG.error(message);
                 ctx.send(cause.getMessage());
             }
         });
@@ -75,20 +74,13 @@ public class FormController extends Jooby {
         }
     }
 
-    @ToString
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class RegisterBody {
-        public String username;
-        public String password;
-        public String confirmPassword;
-    }
+    public record RegisterBody(String username, String password, String confirmPassword) {}
 
     public SessionView register(Context ctx) {
         RegisterBody body = ctx.body(RegisterBody.class);
-        String username = body.username;
-        String password = body.password;
-        String confirmPassword = body.confirmPassword;
+        String username = body.username();
+        String password = body.password();
+        String confirmPassword = body.confirmPassword();
 
         if (username.length() < 5 || username.length() > 20) {
             throw new StatusCodeException(StatusCode.BAD_REQUEST, ERROR_INVALID_USERNAME);
@@ -100,18 +92,18 @@ public class FormController extends Jooby {
 
         try {
             UserEntity user = userDao.insert(username, password);
-            dictionaryDao.incrLeaderboardUser(user.id, user.elo);
+            dictionaryDao.incrLeaderboardUser(user.getId(), user.getElo());
 
             String sessionId = authService.createSessionId();
             Cookie cookie = authService.createSessionCookie(sessionId);
             ctx.setResponseCookie(cookie);
 
-            PlayerEntity player = new PlayerEntity(user.id, user.username, user.country, user.elo);
+            PlayerEntity player = new PlayerEntity(user.getId(), user.getUsername(), user.getCountry(), user.getElo());
             dictionaryDao.setSession(sessionId, player, cookie.getMaxAge());
 
-            LOGGER.info("Registered a new selfPlayer={}", player);
+            LOG.info("Registered a new selfPlayer={}", player);
 
-            VerifiedUser verifiedUser = new VerifiedUser(player.id, player.name, player.country, player.elo);
+            VerifiedUser verifiedUser = new VerifiedUser(player.getId(), player.getName(), player.getCountry(), player.getElo());
 
             return SessionView.fromUser(verifiedUser, cookie.getMaxAge());
         } catch (UserDao.TakenUsernameException ex) {
@@ -119,18 +111,12 @@ public class FormController extends Jooby {
         }
     }
 
-    @ToString
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class LoginBody {
-        public String username;
-        public String password;
-    }
+    public record LoginBody(String username, String password) {}
 
     public SessionView login(Context ctx) {
         LoginBody body = ctx.body(LoginBody.class);
-        String username = body.username;
-        String password = body.password;
+        String username = body.username();
+        String password = body.password();
 
         VerifiedUser verifiedUser = userDao.verify(username, password);
         if (verifiedUser == null) {
@@ -142,61 +128,47 @@ public class FormController extends Jooby {
         ctx.setResponseCookie(cookie);
         dictionaryDao.setSession(
                 sessionId,
-                new PlayerEntity(verifiedUser.id, verifiedUser.username, verifiedUser.country, verifiedUser.elo),
+                new PlayerEntity(verifiedUser.getId(), verifiedUser.getUsername(), verifiedUser.getCountry(), verifiedUser.getElo()),
                 cookie.getMaxAge());
 
-        LOGGER.info("Player has logged in {}", verifiedUser);
+        LOG.info("Player has logged in {}", verifiedUser);
 
         return SessionView.fromUser(verifiedUser, cookie.getMaxAge());
     }
 
-    @ToString
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class UpdatePasswordBody {
-        public String password;
-        public String newPassword;
-        public String confirmNewPassword;
-    }
+    public record UpdatePasswordBody(String password, String newPassword, String confirmNewPassword) {}
 
     public String updatePassword(Context ctx) {
         UpdatePasswordBody body = ctx.body(UpdatePasswordBody.class);
-        String password = body.password;
-        String newPassword = body.newPassword;
-        String confirmNewPassword = body.confirmNewPassword;
+        String password = body.password();
+        String newPassword = body.newPassword();
+        String confirmNewPassword = body.confirmNewPassword();
 
         validatePassword(newPassword, confirmNewPassword);
 
         PlayerEntity player = authService.getSessionPlayer(ctx);
 
-        VerifiedUser verifiedUser = userDao.verify(player.name, password);
+        VerifiedUser verifiedUser = userDao.verify(player.getName(), password);
         if (verifiedUser == null) {
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_INVALID_LOGIN);
         }
 
-        userDao.updatePassword(verifiedUser.id, newPassword);
+        userDao.updatePassword(verifiedUser.getId(), newPassword);
 
         return "SUCCESS";
     }
 
-    @ToString
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class UpdateUserBody {
-        public String newUsername;
-        public String newCountry;
-        public String newBio;
-    }
+    public record UpdateUserBody(String newUsername, String newCountry, String newBio) {}
 
     public SessionView updateUser(Context ctx) {
         UpdateUserBody body = ctx.body(UpdateUserBody.class);
-        String newUsername = body.newUsername;
-        String newCountry = body.newCountry;
-        String newBio = body.newBio;
+        String newUsername = body.newUsername();
+        String newCountry = body.newCountry();
+        String newBio = body.newBio();
 
         PlayerEntity player = authService.getSessionPlayer(ctx);
 
-        VerifiedUser verifiedUser = userDao.updateUser(player.id, newUsername, newCountry, newBio);
+        VerifiedUser verifiedUser = userDao.updateUser(player.getId(), newUsername, newCountry, newBio);
 
         return SessionView.fromUser(verifiedUser, null);
     }
@@ -208,13 +180,8 @@ public class FormController extends Jooby {
         return tempSessionId;
     }
 
-    @ToString
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class RefreshResp {
-        public static final RefreshResp EMPTY = new RefreshResp();
-
-        public SessionView session;
+    public record RefreshResp(SessionView session) {
+        public static final RefreshResp EMPTY = new RefreshResp(null);
     }
 
     public RefreshResp refreshSession(Context ctx) {
@@ -231,7 +198,7 @@ public class FormController extends Jooby {
         ctx.setResponseCookie(cookie);
         dictionaryDao.updateSessionEx(sessionId, cookie.getMaxAge());
 
-        LOGGER.info("Refreshed session for player={}", player.id);
+        LOG.info("Refreshed session for player={}", player.getId());
 
         return new RefreshResp(SessionView.fromPlayer(player, cookie.getMaxAge()));
     }
@@ -242,60 +209,38 @@ public class FormController extends Jooby {
         dictionaryDao.deleteSession(sessionId);
         ctx.setResponseCookie(authService.createEmptyCookie());
 
-        LOGGER.info("Logged out sessionId={}", sessionId);
+        LOG.info("Logged out sessionId={}", sessionId);
 
         return "SUCCESS";
     }
 
-    @ToString
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class CreateGameBody {
-        public ColorSelect firstColor;
-        public TimeControl timeControl;
-    }
+    public record CreateGameBody(ColorSelect firstColor, TimeControl timeControl) {}
 
     public String createGame(Context ctx) {
         CreateGameBody body = ctx.body(CreateGameBody.class);
 
-        if (body.firstColor == null) {
-            body.firstColor = ColorSelect.RANDOM;
-        }
-        if (body.timeControl == null) {
-            body.timeControl = TimeControl.UNLIMITED;
-        }
+        ColorSelect firstColor = body.firstColor() != null ? body.firstColor() : ColorSelect.RANDOM;
+        TimeControl timeControl = body.timeControl() != null ? body.timeControl() : TimeControl.UNLIMITED;
 
-        String gameId = gameService.create(body.firstColor, body.timeControl);
+        String gameId = gameService.create(firstColor, timeControl);
 
         ctx.setResponseType(MediaType.TEXT);
         return gameId;
     }
 
-    @ToString
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class UpdateChallengeBody {
-        public long challengeeId;
-        public long challengerId;
-        public String action;
-    }
+    public record UpdateChallengeBody(long challengeeId, long challengerId, String action) {}
 
-    @ToString
-    @EqualsAndHashCode
-    @AllArgsConstructor
-    public static class UpdateChallengeResp {
-        public String gameId;
-    }
+    public record UpdateChallengeResp(String gameId) {}
 
     public UpdateChallengeResp updateChallenge(Context ctx) {
         UpdateChallengeBody body = ctx.body(UpdateChallengeBody.class);
-        long challengeeId = body.challengeeId;
-        long challengerId = body.challengerId;
-        String action = body.action.toUpperCase();
+        long challengeeId = body.challengeeId();
+        long challengerId = body.challengerId();
+        String action = body.action().toUpperCase();
 
         PlayerEntity player = authService.getSessionPlayer(ctx);
 
-        long callerId = player.id;
+        long callerId = player.getId();
 
         long targetId = switch (action) {
             case "ACCEPT", "REJECT" -> challengeeId;
@@ -312,8 +257,8 @@ public class FormController extends Jooby {
             }
             if (action.equals("ACCEPT")) {
                 gameId = gameService.create(
-                    ColorSelect.fromString(result.startColor),
-                    TimeControl.fromString(result.timeControl));
+                    ColorSelect.fromString(result.startColor()),
+                    TimeControl.fromString(result.timeControl()));
             }
         } else {
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_UPDATE_CHALLENGE);
@@ -323,20 +268,13 @@ public class FormController extends Jooby {
         return new UpdateChallengeResp(gameId);
     }
 
-    @ToString
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class CreateChallengeBody {
-        public long challengeeId;
-        public TimeControl timeControl;
-        public ColorSelect startColor;
-    }
+    public record CreateChallengeBody(long challengeeId, TimeControl timeControl, ColorSelect startColor) {}
 
     private void validateCreateChallenge(CreateChallengeBody body) {
-        if (body.timeControl == null) {
+        if (body.timeControl() == null) {
             throw new StatusCodeException(StatusCode.BAD_REQUEST, ERROR_INVALID_REQUEST);
         }
-        if (body.startColor == null) {
+        if (body.startColor() == null) {
             throw new StatusCodeException(StatusCode.BAD_REQUEST, ERROR_INVALID_REQUEST);
         }
     }
@@ -345,9 +283,9 @@ public class FormController extends Jooby {
         CreateChallengeBody body = ctx.body(CreateChallengeBody.class);
         validateCreateChallenge(body);
 
-        long challengeeId = body.challengeeId;
-        ColorSelect startColor = body.startColor;
-        TimeControl timeControl = body.timeControl;
+        long challengeeId = body.challengeeId();
+        ColorSelect startColor = body.startColor();
+        TimeControl timeControl = body.timeControl();
 
         String sessionId = authService.parseSession(ctx);
         if (sessionId == null) {
@@ -360,9 +298,9 @@ public class FormController extends Jooby {
         }
 
         try {
-            ChallengeEntity entity = challengeDao.insert(player.id, challengeeId, timeControl.toString(), startColor.toString());
+            ChallengeEntity entity = challengeDao.insert(player.getId(), challengeeId, timeControl.toString(), startColor.toString());
             EXECUTOR.execute(() -> challengeProducer.broadcastChallenge(ChallengeMsg.fromEntity(entity)));
-            EXECUTOR.execute(() -> challengeDao.deleteExpired(player.id));
+            EXECUTOR.execute(() -> challengeDao.deleteExpired(player.getId()));
 
             return "SUCCESS";
         } catch (ChallengeDao.ParticipantException ex) {

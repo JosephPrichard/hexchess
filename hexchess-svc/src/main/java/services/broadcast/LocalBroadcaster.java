@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
-import static utils.Globals.LOGGER;
+import static utils.Globals.LOG;
 
 public class LocalBroadcaster implements Broadcaster {
 
@@ -37,14 +37,14 @@ public class LocalBroadcaster implements Broadcaster {
     public void subscribe(String groupId, String handlerId, Consumer<String> consumer) {
         List<Handler> handlerList = handlerMap.get(groupId);
         handlerList.add(new Handler(handlerId, consumer));
-        LOGGER.info("Subscribed to id={} on broadcaster {}", groupId, name);
+        LOG.info("Subscribed to id={} on broadcaster {}", groupId, name);
     }
 
     @Override
     public void unsubscribe(String groupId, String handlerId) {
         List<Handler> handlerList = handlerMap.get(groupId);
         if (handlerList.removeIf((handler) -> handler.handlerId.equals(handlerId))) {
-            LOGGER.info("Unsubscribed from id={} on broadcaster {}", groupId, name);
+            LOG.info("Unsubscribed from id={} on broadcaster {}", groupId, name);
         }
     }
 
@@ -52,10 +52,10 @@ public class LocalBroadcaster implements Broadcaster {
     public void broadcast(String groupId, String content) {
         List<Handler> handlerList = handlerMap.get(groupId);
         if (handlerList == null) {
-            LOGGER.info("Broadcast local to id={} on broadcaster {}, but there were no subscribers", groupId, name);
+            LOG.info("Broadcast local to id={} on broadcaster {}, but there were no subscribers", groupId, name);
             return;
         }
         handlerList.forEach((handler) -> handler.consumer.accept(content));
-        LOGGER.info("Broadcast local to id={}, handlerList={} on broadcaster {}", groupId, handlerList, name);
+        LOG.info("Broadcast local to id={}, handlerList={} on broadcaster {}", groupId, handlerList, name);
     }
 }

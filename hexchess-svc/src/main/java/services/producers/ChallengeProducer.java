@@ -10,7 +10,7 @@ import models.message.ChallengeMsg;
 import java.util.Map;
 
 import static utils.Globals.JSON_MAPPER;
-import static utils.Globals.LOGGER;
+import static utils.Globals.LOG;
 
 @AllArgsConstructor
 public class ChallengeProducer {
@@ -19,10 +19,10 @@ public class ChallengeProducer {
     public void broadcastChallenge(ChallengeMsg msg) {
         try {
             String jsonOutput = JSON_MAPPER.writeValueAsString(msg);
-            LOGGER.info("Broadcasting challenge={} to user broadcaster", msg);
-            userBroadcaster.broadcast(Long.toString(msg.challengeeId), jsonOutput);
+            LOG.info("Broadcasting challenge={} to user broadcaster", msg);
+            userBroadcaster.broadcast(Long.toString(msg.getChallengeeId()), jsonOutput);
         } catch (JsonProcessingException e) {
-            LOGGER.error("Error occurred while broadcasting challenge to user", e);
+            LOG.error("Error occurred while broadcasting challenge to user", e);
         }
     }
 

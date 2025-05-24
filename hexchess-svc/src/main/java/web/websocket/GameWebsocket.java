@@ -6,7 +6,7 @@ import io.jooby.WebSocketCloseStatus;
 import io.jooby.WebSocketMessage;
 import lombok.AllArgsConstructor;
 import models.entities.PlayerEntity;
-import models.state.GameState;
+import models.state.ChessRoom;
 import services.broadcast.Broadcaster;
 import services.daos.DictionaryDao;
 import services.game.GameService;
@@ -15,7 +15,7 @@ import web.State;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static utils.Globals.JSON_MAPPER;
-import static utils.Globals.LOGGER;
+import static utils.Globals.LOG;
 import static web.WebConstants.*;
 import static web.WebConstants.ERROR_UNKNOWN;
 
@@ -44,31 +44,31 @@ public class GameWebsocket {
             selfPlayer.set(player);
 
             if (player == null) {
-                LOGGER.warn("Invalid session {} when attempting to connect to game {}", sessionId, gameId);
+                LOG.warn("Invalid session {} when attempting to connect to game {}", sessionId, gameId);
                 ws.render(new GameOutput.Error(ERROR_SESSION_EXPIRED));
                 ws.close();
                 return;
             }
 
-            LOGGER.info("Player {} attempting to connect to game {}", player.id, gameId);
+            LOG.info("Player {} attempting to connect to game {}", player.getId(), gameId);
 
-            GameState gameState = gameService.join(gameId, player);
-            if (gameState == null) {
+            ChessRoom chessRoom = gameService.join(gameId, player);
+            if (chessRoom == null) {
                 ws.render(new GameOutput.Error(ERROR_INVALID_GAME));
                 ws.close();
                 return;
             }
 
-            ws.render(new GameOutput.Start(player, gameState));
+            ws.render(new GameOutput.Start(player, chessRoom));
 
-            gameBroadcaster.subscribe(gameState.id, wsId, ws::send);
+            gameBroadcaster.subscribe(chessRoom.getId(), wsId, ws::send);
 
-            String jsonResult = JSON_MAPPER.writeValueAsString(new GameOutput.Join(gameState.whitePlayer, gameState.blackPlayer, player));
-            gameBroadcaster.broadcast(gameState.id, jsonResult);
+            String jsonResult = JSON_MAPPER.writeValueAsString(new GameOutput.Join(chessRoom.getWhitePlayer(), chessRoom.getBlackPlayer(), player));
+            gameBroadcaster.broadcast(chessRoom.getId(), jsonResult);
 
-            LOGGER.info("Player {} successfully connected to game {}", player.id, gameId);
+            LOG.info("Player {} successfully connected to game {}", player.getId(), gameId);
         } catch (Exception e) {
-            LOGGER.error("Fatal exception occurred", e);
+            LOG.error("Fatal exception occurred", e);
             ws.render(new GameOutput.Error(ERROR_UNKNOWN));
             ws.close();
         }
@@ -79,27 +79,28 @@ public class GameWebsocket {
         Broadcaster gameBroadcaster = state.getGameBroadcaster();
 
         PlayerEntity player = selfPlayer.get();
-        LOGGER.info("Received message from player {}, {} on game {}", player.id, message.value(), gameId);
+        LOG.info("Received message from player {}, {} on game {}", player.getId(), message.value(), gameId);
         try {
             GameInput input = JSON_MAPPER.readValue(message.value(), GameInput.class);
-            switch (input.type) {
+            switch (input.getType()) {
             case "FORFEIT" -> {
-                GameState game = gameService.forfeit(gameId, player);
+                ChessRoom game = gameService.forfeit(gameId, player);
                 String jsonOutput = JSON_MAPPER.writeValueAsString(new GameOutput.Forfeit(game));
                 gameBroadcaster.broadcast(gameId, jsonOutput);
             }
             case "MOVE" -> {
                 Move move = input.getMove();
-                GameState gameState = gameService.makeMove(gameId, player, move);
+                ChessRoom chessRoom = gameService.makeMove(gameId, player, move);
 
-                String jsonOutput = JSON_MAPPER.writeValueAsString(new GameOutput.Move(move, gameState.game));
+                String jsonOutput = JSON_MAPPER.writeValueAsString(new GameOutput.Move(move, chessRoom.getGame()));
                 gameBroadcaster.broadcast(gameId, jsonOutput);
             }
             case "TEXT" -> {
-                if (input.message.length() > 250) {
-                    input.message = input.message.substring(0, 250);
+                String content = input.getMessage();
+                if (content.length() > 250) {
+                    content = content.substring(0, 250);
                 }
-                String jsonOutput = JSON_MAPPER.writeValueAsString(new GameOutput.Chat(player, input.message));
+                String jsonOutput = JSON_MAPPER.writeValueAsString(new GameOutput.Chat(player, content));
                 gameBroadcaster.broadcast(gameId, jsonOutput);
             }
             default -> ws.render(new GameOutput.Error(ERROR_MESSAGE_TYPE));
@@ -110,7 +111,7 @@ public class GameWebsocket {
                 case GameService.InvalidMoveException ex -> ERROR_INVALID_MOVE;
                 case GameService.TurnException ex -> ERROR_TURN;
                 default -> {
-                    LOGGER.warn("Error exception occurred in handling connection", e);
+                    LOG.warn("Error exception occurred in handling connection", e);
                     yield ERROR_UNKNOWN;
                 }
             };
@@ -121,7 +122,7 @@ public class GameWebsocket {
     public void onClose(WebSocket ws, WebSocketCloseStatus statusCode) {
         Broadcaster gameBroadcaster = state.getGameBroadcaster();
 
-        LOGGER.info("Closed websocket with id={} with closeStatus={}", wsId, statusCode);
+        LOG.info("Closed websocket with id={} with closeStatus={}", wsId, statusCode);
         gameBroadcaster.unsubscribe(gameId, wsId);
     }
 }

@@ -15,31 +15,31 @@ import static services.daos.ChallengeDao.THRESHOLD_EXPIRATION;
 @EqualsAndHashCode
 @Getter
 public class ChallengeView {
-    public long challengerId;
-    public String challengerName;
-    public String challengerCountry;
-    public float challengerElo;
-    public long challengeeId;
-    public String challengeeName;
-    public String challengeeCountry;
-    public float challengeeElo;
-    public TimeControl timeControl;
-    public String madeAgo;
-    public String expiresIn;
+    private long challengerId;
+    private String challengerName;
+    private String challengerCountry;
+    private float challengerElo;
+    private long challengeeId;
+    private String challengeeName;
+    private String challengeeCountry;
+    private float challengeeElo;
+    private TimeControl timeControl;
+    private String madeAgo;
+    private String expiresIn;
 
     public static ChallengeView create(ChallengeEntity entity) {
         ChallengeView view = new ChallengeView();
-        view.challengerId = entity.challengerId;
-        view.challengerName = entity.challengerName;
-        view.challengerCountry = entity.challengerCountry;
-        view.challengerElo = Math.round(entity.challengerElo);
-        view.challengeeId = entity.challengeeId;
-        view.challengeeName = entity.challengeeName;
-        view.challengeeCountry = entity.challengeeCountry;
-        view.challengeeElo = Math.round(entity.challengeeElo);
-        view.timeControl = TimeControl.fromString(entity.timeControl);
-        view.madeAgo = formatMadeAgo(entity.madeOn);
-        view.expiresIn = formatExpiresIn(entity.madeOn);
+        view.challengerId = entity.getChallengerId();
+        view.challengerName = entity.getChallengerName();
+        view.challengerCountry = entity.getChallengerCountry();
+        view.challengerElo = Math.round(entity.getChallengerElo());
+        view.challengeeId = entity.getChallengeeId();
+        view.challengeeName = entity.getChallengeeName();
+        view.challengeeCountry = entity.getChallengeeCountry();
+        view.challengeeElo = Math.round(entity.getChallengeeElo());
+        view.timeControl = TimeControl.fromString(entity.getTimeControl());
+        view.madeAgo = formatMadeAgo(entity.getMadeOn());
+        view.expiresIn = formatExpiresIn(entity.getMadeOn());
         return view;
     }
 

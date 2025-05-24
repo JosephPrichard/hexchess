@@ -8,11 +8,9 @@ import io.jooby.exception.StatusCodeException;
 import lombok.AllArgsConstructor;
 import models.entities.PlayerEntity;
 import services.daos.DictionaryDao;
-import web.controllers.FormController;
 
 import java.security.SecureRandom;
 
-import static utils.Globals.LOGGER;
 import static web.WebConstants.ERROR_REQUIRED_LOGIN;
 import static web.WebConstants.ERROR_SESSION_EXPIRED;
 

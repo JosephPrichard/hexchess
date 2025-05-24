@@ -55,6 +55,8 @@ export interface ChessGame {
 	board: ChessBoard;
 	whiteMoves: PieceMoves[];
 	blackMoves: PieceMoves[];
+	takenWhitePieces: PieceType[];
+	takenBlackPieces: PieceType[];
 }
 
 export interface Hexagon {
@@ -62,7 +64,7 @@ export interface Hexagon {
 	rank: number;
 }
 
-export interface Move {
+export interface PieceMove {
 	piece: PieceType;
 	from: Hexagon;
 	to: Hexagon;
@@ -122,7 +124,6 @@ export interface ReplayView {
 	loseElo: number;
 	whiteElo: number;
 	blackElo: number;
-	moveList?: Move[];
 	playedOn: string;
 	result: ReplayResult;
 	cause: ReplayCause;
@@ -159,7 +160,6 @@ export interface ErrorMsg {
 
 export interface ForfeitMsg {
 	type: 'FORFEIT';
-	gameState: GameState;
 }
 
 export interface JoinMsg {
@@ -176,13 +176,13 @@ export interface SettingsMsg {
 
 export interface StartMsg {
 	type: 'START';
-	gameState: GameState;
+	room: ChessRoom;
 	selfPlayer: PlayerView;
 }
 
 export interface MoveMsg {
 	type: 'MOVE';
-	move: Move;
+	move: PieceMove;
 	game: ChessGame;
 }
 
@@ -200,14 +200,14 @@ export type GameOutputMsg =
 	| MoveMsg
 	| ChatMsg;
 
-export interface GameState {
+export interface ChessRoom {
 	id: number;
 	game: ChessGame;
+	moveList: PieceMove[];
 	whitePlayer: PlayerView | null;
 	blackPlayer: PlayerView | null;
 	timeControl: TimeControl;
 	isEnded: boolean;
-	moveList: Move[];
 }
 
 export interface GameSettings {

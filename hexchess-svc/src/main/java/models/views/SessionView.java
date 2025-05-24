@@ -12,18 +12,18 @@ import services.daos.UserDao.*;
 @AllArgsConstructor
 @Data
 public class SessionView {
-    public long id;
-    public String username;
-    public String country;
-    public float elo;
+    private long id;
+    private String username;
+    private String country;
+    private float elo;
     @EqualsAndHashCode.Exclude
-    public Long ttlSecs;
+    private Long ttlSecs;
 
     public static SessionView fromUser(VerifiedUser user, Long maxAge) {
-        return new SessionView(user.id, user.username, user.country, user.elo, maxAge);
+        return new SessionView(user.getId(), user.getUsername(), user.getCountry(), user.getElo(), maxAge);
     }
 
     public static SessionView fromPlayer(PlayerEntity player, Long maxAge) {
-        return new SessionView(player.id, player.name, player.country, player.elo, maxAge);
+        return new SessionView(player.getId(), player.getName(), player.getCountry(), player.getElo(), maxAge);
     }
 }

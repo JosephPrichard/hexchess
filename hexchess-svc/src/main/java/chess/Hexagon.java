@@ -1,8 +1,6 @@
 package chess;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,16 +15,16 @@ public class Hexagon {
     public static final Hexagon[] ORDERED = getOrdered();
     public static final int MIDPOINT = 5;
 
-    public int file;
-    public int rank;
+    private int file;
+    private int rank;
 
     public static Hexagon of(int file, int rank) {
         return new Hexagon(file, rank);
     }
 
     public Hexagon walk(Direction[] directions) {
-        int file = getFile();
-        int rank = getRank();
+        int file = this.file;
+        int rank = this.rank;
         for (Direction direction : directions) {
             switch (direction) {
                 case UP -> rank += 1;
@@ -53,14 +51,14 @@ public class Hexagon {
     }
 
     public boolean canPromote() {
-        return switch (getFile()) {
-            case 0, 10 -> getRank() >= 5;
-            case 1, 9 -> getRank() >= 6;
-            case 2, 8 -> getRank() >= 7;
-            case 3, 7 -> getRank() >= 8;
-            case 4, 6 -> getRank() >= 9;
-            case 5 -> getRank() >= 10;
-            default -> throw new IllegalStateException("Cannot promote to an invalid file " + getFile());
+        return switch (file) {
+            case 0, 10 -> rank >= 5;
+            case 1, 9 -> rank >= 6;
+            case 2, 8 -> rank >= 7;
+            case 3, 7 -> rank >= 8;
+            case 4, 6 -> rank >= 9;
+            case 5 -> rank >= 10;
+            default -> throw new IllegalStateException("Cannot promote to an invalid file " + file);
         };
     }
 

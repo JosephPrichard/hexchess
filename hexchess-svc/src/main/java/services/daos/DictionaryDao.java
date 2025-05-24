@@ -3,9 +3,10 @@ package services.daos;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectReader;
 import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
-import models.state.GameState;
+import models.state.ChessRoom;
 import models.entities.PlayerEntity;
 import models.entities.RankedEntity;
 import models.entities.UserEntity;
@@ -20,7 +21,7 @@ import java.util.List;
 import java.util.Random;
 
 import static utils.Globals.JSON_MAPPER;
-import static utils.Globals.LOGGER;
+import static utils.Globals.LOG;
 
 public class DictionaryDao {
 
@@ -39,7 +40,7 @@ public class DictionaryDao {
         this.playerReader = JSON_MAPPER.readerFor(PlayerEntity.class);
     }
 
-    public GameState getGame(String id) {
+    public ChessRoom getGame(String id) {
         expireGames();
 
         String fullId = "game:" + id;
@@ -47,22 +48,22 @@ public class DictionaryDao {
         if (bytes == null) {
             return null;
         }
-        return Serializer.deserialize(bytes, GameState.class);
+        return Serializer.deserialize(bytes, ChessRoom.class);
     }
 
-    public GameState setGame(String id, GameState gameState) {
-        gameState.touch = System.currentTimeMillis();
+    public ChessRoom setGame(String id, ChessRoom room) {
+        room.setTouch(System.currentTimeMillis());
 
-        byte[] bytes = Serializer.serialize(gameState);
+        byte[] bytes = Serializer.serialize(room);
         id = "game:" + id;
 
         try (AbstractTransaction t = jedis.multi()) {
             t.set(id.getBytes(), bytes);
-            t.zadd(GAMES_ZSET, gameState.touch, id);
+            t.zadd(GAMES_ZSET, room.getTouch(), id);
             t.exec();
         }
 
-        return gameState;
+        return room;
     }
 
     public void expireGames() {
@@ -84,7 +85,7 @@ public class DictionaryDao {
         }
     }
 
-    public List<GameState> getGames(int page, int count) {
+    public List<ChessRoom> getGames(int page, int count) {
         expireGames();
 
         if (page < 1) {
@@ -108,7 +109,7 @@ public class DictionaryDao {
             return List.of();
         }
 
-        return bytesList.stream().map((bytes) -> Serializer.deserialize(bytes, GameState.class)).toList();
+        return bytesList.stream().map((bytes) -> Serializer.deserialize(bytes, ChessRoom.class)).toList();
     }
 
     public PlayerEntity getSession(String sessionId) {
@@ -120,7 +121,7 @@ public class DictionaryDao {
         try {
             return playerReader.readValue(str, PlayerEntity.class);
         } catch (IOException ex) {
-            LOGGER.error("Failed to parse json object from the dictionary", ex);
+            LOG.error("Failed to parse json object from the dictionary", ex);
             return null;
         }
     }
@@ -131,7 +132,7 @@ public class DictionaryDao {
             String str = JSON_MAPPER.writeValueAsString(player);
             jedis.setex(fullId, expirySeconds, str);
         } catch (JsonProcessingException ex) {
-            LOGGER.error("Failed to serialize an input json object to dictionary", ex);
+            LOG.error("Failed to serialize an input json object to dictionary", ex);
         }
     }
 
@@ -168,13 +169,7 @@ public class DictionaryDao {
         return rank.intValue() + 1;
     }
 
-    @ToString
-    @EqualsAndHashCode
-    @AllArgsConstructor
-    public static class Leaderboard {
-        public List<RankedEntity> users;
-        public int pageCount;
-    }
+    public record Leaderboard(List<RankedEntity> users, int pageCount) {}
 
     public Leaderboard getLeaderboard(int startRank, int count) {
         List<String> ids = jedis.zrevrange(LEADERBOARD_ZSET, startRank, startRank - 1 + count);
@@ -196,21 +191,16 @@ public class DictionaryDao {
         int offset = (page - 1) * perPage;
         Leaderboard leaderboard = getLeaderboard(offset, perPage);
 
-        LOGGER.info("Get leaderboard={} of page={}", leaderboard, page);
+        LOG.info("Get leaderboard={} of page={}", leaderboard, page);
         return leaderboard;
     }
 
-    @ToString
-    @AllArgsConstructor
-    public static class EloChangeSet {
-        public long id;
-        public double elo;
-    }
+    public record EloChangeSet(long id, double elo) {}
 
     public void incrLeaderboardUser(EloChangeSet... changeSets) {
         try (AbstractTransaction t = jedis.multi()) {
             for (EloChangeSet cs : changeSets) {
-                t.zincrby(LEADERBOARD_ZSET, cs.elo, Long.toString(cs.id));
+                t.zincrby(LEADERBOARD_ZSET, cs.elo(), Long.toString(cs.id()));
             }
             t.exec();
         }
@@ -223,7 +213,7 @@ public class DictionaryDao {
     public void updateLeaderboardUser(EloChangeSet... changeSets) {
         try (AbstractTransaction t = jedis.multi()) {
             for (EloChangeSet cs : changeSets) {
-                t.zadd(LEADERBOARD_ZSET, cs.elo, Long.toString(cs.id));
+                t.zadd(LEADERBOARD_ZSET, cs.elo(), Long.toString(cs.id()));
             }
             t.exec();
         }

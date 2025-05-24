@@ -1,4 +1,4 @@
-import type { ChallengeView, ChessBoard, ReplayView, UserView, UserWithReplaysView, SessionView, Action } from '$lib/models';
+import type { ChallengeView, ChessBoard, ReplayView, UserView, UserWithReplaysView, SessionView, Action, PieceMove } from '$lib/models';
 import { codes } from '$lib/error';
 
 export interface ApiResult<T> {
@@ -214,6 +214,10 @@ export function getSearchPlayers(username: string, page?: number, fetch?: typeof
 
 export function getReplay(id: string, fetch?: typeof window.fetch) {
 	return api<ReplayView>(`${baseURL}/views/replay/${id}`, { method: 'GET' }, fetch);
+}
+
+export function getReplayMoveList(id: string, fetch?: typeof window.fetch) {
+	return api<PieceMove[]>(`${baseURL}/views/replay/${id}/move-list`, { method: 'GET' }, fetch);
 }
 
 export function cached<T>(get: (fetch?: typeof window.fetch) => Promise<T>) {

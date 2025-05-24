@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { type ChessBoard, type ReplayView } from '$lib/models';
+	import { type ChessBoard, type PieceMove, type ReplayView } from '$lib/models';
 	import Banner from '$lib/components/Banner.svelte';
 	import MoveListView from '$lib/components/chess/MoveList.svelte';
 	import ChessBoardView from '$lib/components/chess/Board.svelte';
@@ -9,6 +9,9 @@
 	import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
 	import { formatCause, formatElo, getResultClasses } from '$lib/format';
 	import { formatReplayResult } from '$lib/format.js';
+	import { getReplayMoveList, unwrap } from '$lib/api';
+	import { createMessage } from '$lib/error';
+	import { getNotificationsContext } from '$lib/context';
 
 	export interface ReplayProps {
 		replay: ReplayView;
@@ -19,10 +22,27 @@
 	const { replay, initialBoard } = $derived(data);
 	const [whiteClass, blackClass] = $derived(getResultClasses(replay.result));
 
+	const { addNotification } = getNotificationsContext();
+
 	let isWhitePerspective = $state(true);
 	let moveIndex: number | undefined = $state(undefined);
+	let moveList: PieceMove[] = $state([]);
 
 	let boardCache = new Map<number, ChessBoard>();
+
+	async function initMoveList(replayId: string) {
+		const { ok, resp, err } = await unwrap(getReplayMoveList(replayId));
+		if (ok && resp) {
+			moveList = resp;
+		} else {
+			const message = 'Failed to load replay move list: ' + createMessage(err);
+			addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
+		}
+	}
+
+	$effect(() => {
+		initMoveList(String(replay.id));
+	});
 
 	const board = $derived.by(() => {
 		if (!moveIndex) {
@@ -34,7 +54,7 @@
 			return board;
 		}
 
-		board = translateBoard(moveIndex, replay.moveList!, initialBoard);
+		board = translateBoard(moveIndex, moveList, initialBoard);
 
 		boardCache.set(moveIndex, board);
 		return board;
@@ -59,7 +79,7 @@
 	function onClickRight() {
 		if (moveIndex === undefined) {
 			moveIndex = 0;
-		} else if (moveIndex < replay.moveList!.length - 1) {
+		} else if (moveIndex < moveList.length - 1) {
 			moveIndex++;
 		}
 	}
@@ -102,17 +122,17 @@
 				</div>
 			</div>
 			<div class="growing-scrollbox">
-				<MoveListView moveList={replay.moveList || []} {onSelectMove} selectedMoveIndex={moveIndex} />
+				<MoveListView moveList={moveList} {onSelectMove} selectedMoveIndex={moveIndex} />
 			</div>
 			<div class="side-table-footer">
 				<div class="move-table-nav-buttons">
-					<button class="button-transparent" style:padding-top="5px" onclick={onClickLeft}>
+					<button title="Previous Move" class="button-transparent" style:padding-top="5px" onclick={onClickLeft}>
 						<LeftIcon />
 					</button>
-					<button class="button-transparent" style:padding-top="5px" onclick={onClickFlip}>
+					<button title="Flip Board" class="button-transparent" style:padding-top="5px" onclick={onClickFlip}>
 						<FlipIcon />
 					</button>
-					<button class="button-transparent" style:padding-top="5px" onclick={onClickRight}>
+					<button title="Next Move" class="button-transparent" style:padding-top="5px" onclick={onClickRight}>
 						<RightIcon />
 					</button>
 				</div>

@@ -5,7 +5,7 @@ import io.jooby.Value;
 import io.jooby.exception.BadRequestException;
 import lombok.AllArgsConstructor;
 
-import static utils.Globals.LOGGER;
+import static utils.Globals.LOG;
 import static web.WebConstants.*;
 
 @AllArgsConstructor
@@ -16,7 +16,7 @@ public class PathService {
             String id = getPathAsString(ctx, name);
             return Long.parseUnsignedLong(id);
         } catch (NumberFormatException ex) {
-            LOGGER.warn("Value with name={} is not a valid long", name);
+            LOG.warn("Value with name={} is not a valid long", name);
             throw new BadRequestException(ERROR_INVALID_REQUEST);
         }
     }
@@ -31,7 +31,7 @@ public class PathService {
 
     public String getValueAsString(Value value, String name) {
         if (value.isMissing()) {
-            LOGGER.warn("Value is missing with name={}", name);
+            LOG.warn("Value is missing with name={}", name);
             throw new BadRequestException(ERROR_INVALID_REQUEST);
         }
         return value.value();
@@ -41,7 +41,7 @@ public class PathService {
         try {
             return ctx.query("page").toOptional().map(Integer::parseUnsignedInt).orElse(1);
         } catch (NumberFormatException ex) {
-            LOGGER.warn("Page value is not valid integer");
+            LOG.warn("Page value is not valid integer");
             throw new BadRequestException(ERROR_INVALID_REQUEST);
         }
     }
