@@ -35,16 +35,16 @@ public class ChessGame {
         this.board = board;
     }
 
-    public List<PieceMoves> getPieceMoves(Turn turn) {
+    public List<PieceMoves> findTurnMoves(Turn turn) {
         return turn.isWhite() ? whiteMoves : blackMoves;
     }
 
-    public List<PieceMoves> getCurrMoves() {
-        return getPieceMoves(board.turn());
+    public List<PieceMoves> findCurrMoves() {
+        return findTurnMoves(board.turn());
     }
 
-    public List<PieceMoves> getOppositeMoves() {
-        return getPieceMoves(board.turn().opposite());
+    public List<PieceMoves> findOppositeMoves() {
+        return findTurnMoves(board.turn().opposite());
     }
 
     public ChessGame setPiece(String notation, byte piece) {
@@ -57,7 +57,7 @@ public class ChessGame {
         assert whiteMoves != null;
         assert blackMoves != null;
 
-        List<PieceMoves> moves = getCurrMoves();
+        List<PieceMoves> moves = findCurrMoves();
 
         // has a match for a move from one hexagon to another hexagon
         return moves
@@ -108,8 +108,8 @@ public class ChessGame {
 
         // decide whether we will add the piece moves... are we in check?
         // we don't need to check if the opposite move is in check... it should never be!
-        List<PieceMoves> currMoves = getCurrMoves();
-        List<PieceMoves> oppMoves = getOppositeMoves();
+        List<PieceMoves> currMoves = findCurrMoves();
+        List<PieceMoves> oppMoves = findOppositeMoves();
         boolean[][] isAttacked = findAttacking(oppMoves);
         boolean isCheck = isAttacked[kingHex.getFile()][kingHex.getRank()];
         if (isCheck) {
@@ -143,11 +143,11 @@ public class ChessGame {
         return isAttacked;
     }
 
-    public boolean isCheckmate() {
+    public boolean determineIsCheckmate() {
         Turn turn = board.turn();
         Hexagon kingHex = board.findKing(turn);
-        List<PieceMoves> pieceMoves = getPieceMoves(turn);
-        List<PieceMoves> oppPieceMoves = getPieceMoves(turn.opposite());
+        List<PieceMoves> pieceMoves = findTurnMoves(turn);
+        List<PieceMoves> oppPieceMoves = findTurnMoves(turn.opposite());
         PieceMoves kingMoves = pieceMoves.getLast();
 
         // the LAST element should always be the king moves!

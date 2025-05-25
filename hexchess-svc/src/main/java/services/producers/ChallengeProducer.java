@@ -9,8 +9,7 @@ import models.message.ChallengeMsg;
 
 import java.util.Map;
 
-import static utils.Globals.JSON_MAPPER;
-import static utils.Globals.LOG;
+import static utils.Globals.*;
 
 @AllArgsConstructor
 public class ChallengeProducer {
@@ -18,15 +17,17 @@ public class ChallengeProducer {
 
     public void broadcastChallenge(ChallengeMsg msg) {
         try {
-            String jsonOutput = JSON_MAPPER.writeValueAsString(msg);
-            LOG.info("Broadcasting challenge={} to user broadcaster", msg);
-            userBroadcaster.broadcast(Long.toString(msg.getChallengeeId()), jsonOutput);
+            String groupId = Long.toString(msg.getChallengeeId());
+            LOG.info("Broadcasting challenge={} with groupId={} to user broadcaster", msg, groupId);
+
+            byte[] output = JSON.writeValueAsBytes(msg);
+            userBroadcaster.broadcast(groupId, output);
         } catch (JsonProcessingException e) {
             LOG.error("Error occurred while broadcasting challenge to user", e);
         }
     }
 
-    // produce a single message for testing
+    // produces a single message for testing
     public static void main(String[] args) {
         Map<String, String> env = Config.readEnvironment();
         String redisPubsubHost = env.get("REDIS_PUBSUB_HOST");

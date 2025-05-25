@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 
 import static io.jooby.Jooby.runApp;
-import static utils.Globals.JSON_MAPPER;
 import static utils.Globals.LOG;
 
 public class Main {

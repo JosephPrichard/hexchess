@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { type ChessBoard, Piece, piecenames } from '$lib/models.js';
 
-	interface Props {
+	export interface BoardProps {
 		board: ChessBoard;
 		isWhitePerspective: boolean;
 	}
 
-	const { board, isWhitePerspective }: Props = $props();
+	const { board, isWhitePerspective }: BoardProps = $props();
 
 	const height = 64;
 	const width = height * 1.2;

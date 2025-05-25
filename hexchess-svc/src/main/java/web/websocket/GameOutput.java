@@ -1,7 +1,7 @@
 package web.websocket;
 
 import chess.ChessGame;
-import models.entities.PlayerEntity;
+import models.state.Player;
 import models.state.ChessRoom;
 
 public sealed interface GameOutput permits
@@ -20,13 +20,13 @@ public sealed interface GameOutput permits
         }
     }
 
-    record Start(PlayerEntity selfPlayer, ChessRoom room) implements GameOutput {
+    record Start(Player selfPlayer, ChessRoom room) implements GameOutput {
         public String getType() {
             return "START";
         }
     }
 
-    record Join(PlayerEntity whitePlayer, PlayerEntity blackPlayer, PlayerEntity selfPlayer) implements GameOutput {
+    record Join(Player whitePlayer, Player blackPlayer, Player selfPlayer) implements GameOutput {
         public String getType() {
             return "JOIN";
         }
@@ -38,7 +38,7 @@ public sealed interface GameOutput permits
         }
     }
 
-    record Chat(PlayerEntity player, String message) implements GameOutput {
+    record Chat(Player player, String message) implements GameOutput {
         public String getType() {
             return "CHAT";
         }

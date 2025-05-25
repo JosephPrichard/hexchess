@@ -9,7 +9,7 @@ import chess.Move;
 import lombok.AllArgsConstructor;
 import models.common.ColorSelect;
 import models.common.TimeControl;
-import models.entities.PlayerEntity;
+import models.state.Player;
 import models.entities.ReplayEntity;
 import models.state.ChessRoom;
 
@@ -50,12 +50,12 @@ public class GameService {
 
         LOG.info("Created game={}", chessRoom);
 
-        dictionaryDao.setGame(id, chessRoom);
+        dictionaryDao.setRoom(id, chessRoom);
         return id;
     }
 
-    public ChessRoom join(String gameId, PlayerEntity player) {
-        ChessRoom room = dictionaryDao.getGame(gameId);
+    public ChessRoom join(String gameId, Player player) {
+        ChessRoom room = dictionaryDao.getRoom(gameId);
         if (room == null) {
             return null;
         }
@@ -95,19 +95,19 @@ public class GameService {
             }
         }
 
-        return dictionaryDao.setGame(gameId, room);
+        return dictionaryDao.setRoom(gameId, room);
     }
 
-    public static boolean isPlayerTurn(ChessRoom state, PlayerEntity player) {
-        PlayerEntity currPlayer = state.getCurrPlayer();
+    public static boolean isPlayerTurn(ChessRoom state, Player player) {
+        Player currPlayer = state.findCurrPlayer();
         if (currPlayer == null) {
             return false;
         }
         return currPlayer.equals(player);
     }
 
-    public ChessRoom makeMove(String gameId, PlayerEntity player, Move move) {
-        ChessRoom room = dictionaryDao.getGame(gameId);
+    public ChessRoom makeMove(String gameId, Player player, Move move) {
+        ChessRoom room = dictionaryDao.getRoom(gameId);
         if (room == null) {
             return null;
         }
@@ -133,14 +133,14 @@ public class GameService {
 
         room.getMoveList().add(new PieceMove(piece, move.getFrom(), move.getTo()));
 
-        if (game.isCheckmate()) {
+        if (game.determineIsCheckmate()) {
             room.setEnded(true);
             boolean isWhiteWin = game.getBoard().turn().isBlack(); // white wins if its checkmate when it's blacks turn
             EXECUTOR.execute(() -> onFinishGame(room, isWhiteWin, ReplayEntity.CHECKMATE));
         }
 
         LOG.info("{} made move {} on game {}", player, move, gameId);
-        return dictionaryDao.setGame(gameId, room);
+        return dictionaryDao.setRoom(gameId, room);
     }
 
     public void onFinishGame(ChessRoom state, boolean isWhiteWin, int cause) {
@@ -151,7 +151,7 @@ public class GameService {
             long winId = isWhiteWin ? whiteId : blackId;
             long loseId = isWhiteWin ? blackId : whiteId;
 
-            String moveListJson = JSON_MAPPER.writeValueAsString(state.getMoveList());
+            String moveListJson = JSON.writeValueAsString(state.getMoveList());
             EloChangeSet changeSet = userDao.updateStats(winId, loseId);
 
             dictionaryDao.incrLeaderboardUser(
@@ -163,8 +163,8 @@ public class GameService {
         }
     }
 
-    public ChessRoom forfeit(String gameId, PlayerEntity player) {
-        ChessRoom state = dictionaryDao.getGame(gameId);
+    public ChessRoom forfeit(String gameId, Player player) {
+        ChessRoom state = dictionaryDao.getRoom(gameId);
         if (state == null) {
             return null;
         }
@@ -174,10 +174,10 @@ public class GameService {
         state.setEnded(true);
         onFinishGame(state, didBlackForfeit, ReplayEntity.FORFEIT);
 
-        return dictionaryDao.setGame(gameId, state); // did black forfeit? then white won.
+        return dictionaryDao.setRoom(gameId, state); // did black forfeit? then white won.
     }
 
     public List<ChessRoom> getGames(int page) {
-        return dictionaryDao.getGames(page, 20);
+        return dictionaryDao.getRooms(page, 20);
     }
 }

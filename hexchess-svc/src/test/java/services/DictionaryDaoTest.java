@@ -2,7 +2,7 @@ package services;
 
 import chess.ChessBoard;
 import models.state.ChessRoom;
-import models.entities.PlayerEntity;
+import models.state.Player;
 import models.entities.RankedEntity;
 import models.common.TimeControl;
 import org.junit.jupiter.api.*;
@@ -47,30 +47,30 @@ public class DictionaryDaoTest {
     @Test
     public void testGameUpdate() {
         String id = "test-id";
-        dictionaryDao.setGame(id, ChessRoom.startWithGame(id, TimeControl.UNLIMITED));
+        dictionaryDao.setRoom(id, ChessRoom.startWithGame(id, TimeControl.UNLIMITED));
 
-        ChessRoom firstGame = dictionaryDao.getGame(id);
+        ChessRoom firstGame = dictionaryDao.getRoom(id);
         Assertions.assertEquals(ChessRoom.startWithGame(id, TimeControl.UNLIMITED), firstGame);
 
         firstGame.getGame().getBoard().setPiece("a1", ChessBoard.BLACK_QUEEN);
-        dictionaryDao.setGame(id, firstGame);
+        dictionaryDao.setRoom(id, firstGame);
 
-        ChessRoom secondGame = dictionaryDao.getGame(id);
+        ChessRoom secondGame = dictionaryDao.getRoom(id);
 
         Assertions.assertEquals(firstGame, secondGame);
     }
 
     @Test
-    public void testGameScan() {
+    public void testGetSetRooms() {
         // given
         String id1 = "test-id1";
         String id2 = "test-id2";
         String id3 = "test-id3";
         String id4 = "test-id4";
 
-        PlayerEntity player1 = new PlayerEntity(1L, "name1", null, null);
-        PlayerEntity player2 = new PlayerEntity(2L, "name2", null, null);
-        PlayerEntity player3 = new PlayerEntity(3L, "name3", null, null);
+        Player player1 = new Player(1L, "name1", null, null);
+        Player player2 = new Player(2L, "name2", null, null);
+        Player player3 = new Player(3L, "name3", null, null);
 
         ChessRoom game1 = ChessRoom.ofPlayers(id1, player1, player2);
         ChessRoom game2 = ChessRoom.ofPlayers(id2, player2, player3);
@@ -78,13 +78,13 @@ public class DictionaryDaoTest {
         ChessRoom game4 = ChessRoom.ofPlayers(id4, player2, player1);
 
         // when
-        dictionaryDao.setGame(id1, game1);
-        dictionaryDao.setGame(id2, game2);
-        dictionaryDao.setGame(id3, game3);
-        dictionaryDao.setGame(id4, game4);
+        dictionaryDao.setRoom(id1, game1);
+        dictionaryDao.setRoom(id2, game2);
+        dictionaryDao.setRoom(id3, game3);
+        dictionaryDao.setRoom(id4, game4);
 
-        List<ChessRoom> gameStates1 = dictionaryDao.getGames(1, 2);
-        List<ChessRoom> gameStates2 = dictionaryDao.getGames(2, 2);
+        List<ChessRoom> gameStates1 = dictionaryDao.getRooms(1, 2);
+        List<ChessRoom> gameStates2 = dictionaryDao.getRooms(2, 2);
 
         // then
         Assertions.assertEquals(2, gameStates1.size());
@@ -99,17 +99,17 @@ public class DictionaryDaoTest {
     @Test
     public void testSessions() throws InterruptedException {
         // given
-        PlayerEntity player1 = new PlayerEntity(1L, "test-name1", null, null);
-        PlayerEntity player2 = new PlayerEntity(2L, "test-name2", null, null);
+        Player player1 = new Player(1L, "test-name1", null, null);
+        Player player2 = new Player(2L, "test-name2", null, null);
 
         // when
         dictionaryDao.setSession("session1", player1, 100);
         dictionaryDao.setSession("session2", player2, 1);
 
-        PlayerEntity actualPlayer1 = dictionaryDao.getSession("session1");
+        Player actualPlayer1 = dictionaryDao.getSession("session1");
 
         Thread.sleep(1000); // wait for key to expire
-        PlayerEntity actualPlayer2 = dictionaryDao.getSession("session2");
+        Player actualPlayer2 = dictionaryDao.getSession("session2");
 
         // then
         Assertions.assertEquals(player1, actualPlayer1);

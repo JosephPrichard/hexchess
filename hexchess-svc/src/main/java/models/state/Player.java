@@ -1,4 +1,4 @@
-package models.entities;
+package models.state;
 
 import lombok.*;
 
@@ -6,7 +6,7 @@ import lombok.*;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PlayerEntity {
+public class Player {
     private long id;
     @EqualsAndHashCode.Exclude
     private String name;
@@ -16,7 +16,7 @@ public class PlayerEntity {
     private Float elo;
     private boolean isGuest = false;
 
-    public PlayerEntity(long id, String name, String country, Float elo) {
+    public Player(long id, String name, String country, Float elo) {
         this.id = id;
         this.name = name;
         this.country = country;

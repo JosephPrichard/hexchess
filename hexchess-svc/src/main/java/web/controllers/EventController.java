@@ -4,7 +4,7 @@ import io.jooby.Context;
 import io.jooby.Jooby;
 import io.jooby.ServerSentEmitter;
 import io.jooby.jackson.JacksonModule;
-import models.entities.PlayerEntity;
+import models.state.Player;
 import services.broadcast.Broadcaster;
 import services.daos.DictionaryDao;
 import services.producers.ChallengeProducer;
@@ -16,7 +16,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static utils.Globals.JSON_MAPPER;
+import static utils.Globals.JSON;
 import static utils.Globals.LOG;
 import static web.WebConstants.*;
 
@@ -28,7 +28,7 @@ public class EventController extends Jooby {
     public EventController(State state) {
         this.state = state;
 
-        install(new JacksonModule(JSON_MAPPER));
+        install(new JacksonModule(JSON));
 
         post("/events/user/challenges/publish", this::publishChallenge);
         sse("/events/user/subscriptions", this::handleEvents);
@@ -57,7 +57,7 @@ public class EventController extends Jooby {
             sse.close();
             return;
         }
-        PlayerEntity player = dictionaryDao.getSession(sessionId);
+        Player player = dictionaryDao.getSession(sessionId);
         if (player == null) {
             sse.send("meta", ERROR_SESSION_EXPIRED);
             sse.close();

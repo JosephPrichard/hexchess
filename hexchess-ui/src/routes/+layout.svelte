@@ -1,4 +1,5 @@
 <script lang="ts">
+	import '../lib/css/index.css';
 	import type { LayoutProps } from '../../.svelte-kit/types/src/routes/$types';
 	import { type NotificationData, setNotificationsContext } from '$lib/context';
 	import { onMount } from 'svelte';
@@ -95,6 +96,7 @@
 		{/if}
 	{/each}
 </div>
+
 {@render children()}
 
 <style>

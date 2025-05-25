@@ -6,9 +6,9 @@ public interface Broadcaster {
     String GAMES_TOPIC = "GAMES";
     String USERS_TOPIC = "NOTIFICATIONS";
 
-    void subscribe(String groupId, String handlerId, Consumer<String> consumer);
+    void subscribe(String groupId, String handlerId, Consumer<byte[]> consumer);
 
     void unsubscribe(String groupId, String handlerId);
 
-    void broadcast(String groupId, String content);
+    void broadcast(String groupId, byte[] content);
 }

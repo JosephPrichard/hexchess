@@ -190,7 +190,7 @@ public class ChessGameTest {
     }
 
     @Test
-    public void testIsCheckmate() {
+    public void testDetermineIsCheckmate() {
         ChessGame game = ChessGame.empty()
             .setPiece("f6", WHITE_KING)
             .setPiece("f4", BLACK_QUEEN)
@@ -202,9 +202,9 @@ public class ChessGameTest {
         game.initPieceMoves();
 
         LOG.info(game.getBoard().toString());
-        LOG.info(game.getBoard().toPieceMovesString(game.getOppositeMoves()));
+        LOG.info(game.getBoard().toPieceMovesString(game.findOppositeMoves()));
 
-        boolean isCheckmate = game.isCheckmate();
+        boolean isCheckmate = game.determineIsCheckmate();
         Assertions.assertTrue(isCheckmate);
     }
 
@@ -215,8 +215,8 @@ public class ChessGameTest {
 
         // when
         game.initPieceMoves();
-        List<PieceMoves> currMoves = game.getCurrMoves();
-        List<PieceMoves> oppMoves = game.getOppositeMoves();
+        List<PieceMoves> currMoves = game.findCurrMoves();
+        List<PieceMoves> oppMoves = game.findOppositeMoves();
 
         // then
         List<PieceMoves> expectedCurrMoves = new ArrayList<>();

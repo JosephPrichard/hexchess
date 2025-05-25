@@ -10,7 +10,7 @@ import io.jooby.test.MockResponse;
 import io.jooby.test.MockRouter;
 import io.jooby.test.MockValue;
 import models.common.ColorSelect;
-import models.entities.PlayerEntity;
+import models.state.Player;
 import models.common.TimeControl;
 import models.entities.UserEntity;
 import org.junit.jupiter.api.Assertions;
@@ -31,7 +31,7 @@ public class FormControllerTest {
     public void testPostRegister() throws UserDao.TakenUsernameException {
         // given
         UserEntity user = new UserEntity(1L, "testUser", "USA");
-        PlayerEntity player = new PlayerEntity(1L, "testUser", "USA", 0f);
+        Player player = new Player(1L, "testUser", "USA", 0f);
         Cookie cookie = new Cookie("sessionToken");
 
         UserDao mockUserDao = mock(UserDao.class);
@@ -70,7 +70,7 @@ public class FormControllerTest {
     @Test
     public void testPostLogin() {
         // given
-        PlayerEntity player = new PlayerEntity(1L, "testUser", "us", 0f);
+        Player player = new Player(1L, "testUser", "us", 0f);
         String country = "us";
         Cookie cookie = new Cookie("sessionToken");
 
@@ -146,7 +146,7 @@ public class FormControllerTest {
         DictionaryDao mockDictionaryDao = mock(DictionaryDao.class);
         AuthService mockAuthService = mock(AuthService.class);
 
-        when(mockAuthService.getSessionPlayer(any())).thenReturn(new PlayerEntity(challengeeId, "playerName", "us", 0f));
+        when(mockAuthService.getSessionPlayer(any())).thenReturn(new Player(challengeeId, "playerName", "us", 0f));
         when(mockGameService.create(any(), any())).thenReturn("test-id");
         when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(new ChallengeDao.DeleteResult(1L, 2L, "UNLIMITED", "WHITE"));
 
@@ -180,7 +180,7 @@ public class FormControllerTest {
         DictionaryDao mockDictionaryDao = mock(DictionaryDao.class);
         AuthService mockAuthService = mock(AuthService.class);
 
-        when(mockAuthService.getSessionPlayer(any())).thenReturn(new PlayerEntity(challengeeId, "playerName", "us", 0f));
+        when(mockAuthService.getSessionPlayer(any())).thenReturn(new Player(challengeeId, "playerName", "us", 0f));
         when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(null);
 
         State state = new State();
@@ -211,7 +211,7 @@ public class FormControllerTest {
         DictionaryDao mockDictionaryDao = mock(DictionaryDao.class);
         AuthService mockAuthService = mock(AuthService.class);
 
-        when(mockAuthService.getSessionPlayer(any())).thenReturn(new PlayerEntity(challengerId, "playerName", "us", 0f));
+        when(mockAuthService.getSessionPlayer(any())).thenReturn(new Player(challengerId, "playerName", "us", 0f));
         when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(new ChallengeDao.DeleteResult(1L, 2L, "UNLIMITED", "WHITE"));
 
         State state = new State();
@@ -244,7 +244,7 @@ public class FormControllerTest {
         DictionaryDao mockDictionaryDao = mock(DictionaryDao.class);
         AuthService mockAuthService = mock(AuthService.class);
 
-        when(mockAuthService.getSessionPlayer(any())).thenReturn(new PlayerEntity(challengeeId, "playerName", "us", 0f));
+        when(mockAuthService.getSessionPlayer(any())).thenReturn(new Player(challengeeId, "playerName", "us", 0f));
         when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(new ChallengeDao.DeleteResult(1L, 2L, "UNLIMITED", "WHITE"));
 
         State state = new State();

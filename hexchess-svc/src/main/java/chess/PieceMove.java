@@ -20,7 +20,7 @@ public class PieceMove {
         for (int i = 0; i < 34; i++) {
             game.initPieceMoves();
 
-            List<PieceMoves> currMoves = game.getCurrMoves();
+            List<PieceMoves> currMoves = game.findCurrMoves();
 
             // we're going to assume there is at least one piece
             PieceMoves pm = currMoves.stream().filter((x) -> !x.getMoves().isEmpty()).findFirst().orElseThrow();

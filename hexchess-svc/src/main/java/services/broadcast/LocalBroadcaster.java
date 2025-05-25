@@ -16,7 +16,7 @@ public class LocalBroadcaster implements Broadcaster {
     @AllArgsConstructor
     private static class Handler {
         String handlerId;
-        Consumer<String> consumer;
+        Consumer<byte[]> consumer;
 
         @Override
         public String toString() {
@@ -34,7 +34,7 @@ public class LocalBroadcaster implements Broadcaster {
     }
 
     @Override
-    public void subscribe(String groupId, String handlerId, Consumer<String> consumer) {
+    public void subscribe(String groupId, String handlerId, Consumer<byte[]> consumer) {
         List<Handler> handlerList = handlerMap.get(groupId);
         handlerList.add(new Handler(handlerId, consumer));
         LOG.info("Subscribed to id={} on broadcaster {}", groupId, name);
@@ -49,7 +49,7 @@ public class LocalBroadcaster implements Broadcaster {
     }
 
     @Override
-    public void broadcast(String groupId, String content) {
+    public void broadcast(String groupId, byte[] content) {
         List<Handler> handlerList = handlerMap.get(groupId);
         if (handlerList == null) {
             LOG.info("Broadcast local to id={} on broadcaster {}, but there were no subscribers", groupId, name);

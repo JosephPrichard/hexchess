@@ -6,7 +6,7 @@ import io.jooby.SameSite;
 import io.jooby.StatusCode;
 import io.jooby.exception.StatusCodeException;
 import lombok.AllArgsConstructor;
-import models.entities.PlayerEntity;
+import models.state.Player;
 import services.daos.DictionaryDao;
 
 import java.security.SecureRandom;
@@ -79,12 +79,12 @@ public class AuthService {
         return sessionStr;
     }
 
-    public PlayerEntity getSessionPlayer(Context ctx) {
+    public Player getSessionPlayer(Context ctx) {
         String sessionId = parseSession(ctx);
         if (sessionId == null) {
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_REQUIRED_LOGIN);
         }
-        PlayerEntity player = dictionaryDao.getSession(sessionId);
+        Player player = dictionaryDao.getSession(sessionId);
         if (player == null) {
             ctx.setResponseCookie(createEmptyCookie());
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_SESSION_EXPIRED);

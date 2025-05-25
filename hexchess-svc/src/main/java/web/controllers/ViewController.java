@@ -5,6 +5,7 @@ import chess.PieceMove;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import models.entities.RankedEntity;
+import models.state.Player;
 import services.daos.ChallengeDao;
 import services.daos.ReplayDao;
 import services.daos.UserDao;
@@ -76,12 +77,12 @@ public class ViewController extends Jooby {
         get("/views/initial-board", this::getInitialBoard);
     }
 
-    public PlayerEntity authenticate(Context ctx) {
+    public Player authenticate(Context ctx) {
         String sessionId = authService.parseSession(ctx);
         if (sessionId == null) {
             throw new BadRequestException(ERROR_REQUIRED_LOGIN);
         }
-        PlayerEntity player = dictionaryDao.getSession(sessionId);
+        Player player = dictionaryDao.getSession(sessionId);
         if (player == null) {
             ctx.setResponseCookie(authService.createEmptyCookie());
             throw new BadRequestException(ERROR_SESSION_EXPIRED);
@@ -117,7 +118,7 @@ public class ViewController extends Jooby {
     }
 
     public UserView getSelf(Context ctx) throws IOException {
-        PlayerEntity player = authenticate(ctx);
+        Player player = authenticate(ctx);
 
         UserEntity entity = userDao.getById(player.getId());
 
@@ -191,13 +192,13 @@ public class ViewController extends Jooby {
         String moveListJson = replayDao.getReplayMoveList(replayId);
 
         ctx.setResponseHeader("Cache-Control", LONG_CACHE_CONTROL);
-        return JSON_MAPPER.readValue(moveListJson, MOVE_LIST_TYPE);
+        return JSON.readValue(moveListJson, MOVE_LIST_TYPE);
     }
 
     public List<ChallengeView> getChallengeList(Context ctx) {
         String participants = ctx.query("participants").value("");
 
-        PlayerEntity player = authenticate(ctx);
+        Player player = authenticate(ctx);
 
         List<ChallengeEntity> entityList = switch (participants) {
             case "received" -> challengeDao.getByParticipant(null, player.getId());

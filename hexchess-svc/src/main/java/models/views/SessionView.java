@@ -5,7 +5,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
-import models.entities.PlayerEntity;
+import models.state.Player;
 import services.daos.UserDao.*;
 
 @NoArgsConstructor
@@ -23,7 +23,7 @@ public class SessionView {
         return new SessionView(user.getId(), user.getUsername(), user.getCountry(), user.getElo(), maxAge);
     }
 
-    public static SessionView fromPlayer(PlayerEntity player, Long maxAge) {
+    public static SessionView fromPlayer(Player player, Long maxAge) {
         return new SessionView(player.getId(), player.getName(), player.getCountry(), player.getElo(), maxAge);
     }
 }

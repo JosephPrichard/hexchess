@@ -4,14 +4,14 @@
 	import { appBaseURL, baseURL, postTempSession, unwrap } from '$lib/api';
 	import { createMessage } from '$lib/error';
 	import { getNotificationsContext } from '$lib/context';
-	import MoveListView from '$lib/components/chess/MoveList.svelte';
+	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import ChessBoardView from '$lib/components/chess/Board.svelte';
 	import { formatTimeControl, formatTimer } from '$lib/format';
 	import ClipboardIcon from '$lib/components/icons/ClipboardIcon.svelte';
-	import CrossIcon from '$lib/components/icons/CrossIcon.svelte';
 	import FlagIcon from '$lib/components/icons/FlagIcon.svelte';
 	import SettingsIcon from '$lib/components/icons/SettingsIcon.svelte';
 	import UndoIcon from '$lib/components/icons/UndoIcon.svelte';
+	import msgpack from 'msgpack-lite';
 
 	export interface PlayProps {
 		gameId: string
@@ -60,7 +60,6 @@
 	}
 
 	function onMessage(data: GameOutputMsg) {
-		console.log('Received message', data);
 		switch (data.type) {
 			case 'JOIN':
 				if (room) {
@@ -101,13 +100,18 @@
 					let url = `${baseURL}/connections/games/${gameId}?${params}`;
 
 					ws = new WebSocket(url);
+					ws.binaryType = "arraybuffer";
 					ws.addEventListener('open', () => {
 						console.log(`Connected to game=${gameId} successfully!`);
 						connectTries = 0;
 					});
 					ws.addEventListener('message', (event) => {
-						const data: GameOutputMsg = JSON.parse(event.data);
-						onMessage(data);
+						// const data: GameOutputMsg = JSON.parse(event.data);
+						if (event.data instanceof ArrayBuffer) {
+							const data: GameOutputMsg = msgpack.decode(new Uint8Array(event.data));
+							console.log(`Received message data=${JSON.stringify(data)}, length=${event.data.byteLength}`);
+							onMessage(data);
+						}
 					});
 					ws.addEventListener('error', () => {
 						console.log(`Disconnected from game=${gameId} with error, trying to reconnect with ${connectTries} tries`);
@@ -177,14 +181,7 @@
 							</div>
 						{/if}
 					</div>
-					<div class="growing-scrollbox">
-						<MoveListView moveList={room.moveList} />
-						{#if completeMessage}
-							<div class="completed-message">
-								{completeMessage}
-							</div>
-						{/if}
-					</div>
+					<MoveList moveList={room.moveList} />
 					<div class="icons">
 						<button title="Forfeit" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickForfeit}>
 							<FlagIcon />

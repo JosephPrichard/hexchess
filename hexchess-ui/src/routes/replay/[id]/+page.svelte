@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { type ChessBoard, type PieceMove, type ReplayView } from '$lib/models';
 	import Banner from '$lib/components/Banner.svelte';
-	import MoveListView from '$lib/components/chess/MoveList.svelte';
 	import ChessBoardView from '$lib/components/chess/Board.svelte';
 	import { translateBoard } from '$lib/chess';
 	import RightIcon from '$lib/components/icons/RightIcon.svelte';
@@ -12,6 +11,7 @@
 	import { getReplayMoveList, unwrap } from '$lib/api';
 	import { createMessage } from '$lib/error';
 	import { getNotificationsContext } from '$lib/context';
+	import MoveList from '$lib/components/chess/MoveList.svelte';
 
 	export interface ReplayProps {
 		replay: ReplayView;
@@ -121,9 +121,7 @@
 					{replay.playedOn}
 				</div>
 			</div>
-			<div class="growing-scrollbox">
-				<MoveListView moveList={moveList} {onSelectMove} selectedMoveIndex={moveIndex} />
-			</div>
+			<MoveList moveList={moveList} {onSelectMove} selectedMoveIndex={moveIndex} />
 			<div class="side-table-footer">
 				<div class="move-table-nav-buttons">
 					<button title="Previous Move" class="button-transparent" style:padding-top="5px" onclick={onClickLeft}>

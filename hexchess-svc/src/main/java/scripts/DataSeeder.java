@@ -9,16 +9,14 @@ import services.daos.ChallengeDao;
 import services.daos.ReplayDao;
 import services.daos.UserDao;
 import lombok.AllArgsConstructor;
-import models.entities.UserEntity;
 import org.apache.commons.dbutils.QueryRunner;
 import redis.clients.jedis.JedisPooled;
 import utils.Config;
+import utils.Globals;
 
-import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
@@ -55,7 +53,7 @@ public class DataSeeder {
     private static String randomGameStateAsJson() {
         try {
             List<PieceMove> moveList = PieceMove.randomMoveList();
-            return JSON_MAPPER.writeValueAsString(moveList);
+            return JSON.writeValueAsString(moveList);
         } catch (JsonProcessingException ex) {
             throw new RuntimeException(ex);
         }
@@ -76,13 +74,13 @@ public class DataSeeder {
 
     private void seedUsersTable() throws IOException {
         String json = readResourceAsString("/seed/users.json");
-        List<UserInst> insts = JSON_MAPPER.readValue(json, USER_LIST_TYPE);
+        List<UserInst> insts = Globals.JSON.readValue(json, USER_LIST_TYPE);
         insts.forEach(userDao::insert);
     }
 
     private void seedReplayTable() throws IOException {
         String json = readResourceAsString("/seed/replays.json");
-        List<ReplayInst> insts = JSON_MAPPER.readValue(json, REPLAY_LIST_TYPE)
+        List<ReplayInst> insts = Globals.JSON.readValue(json, REPLAY_LIST_TYPE)
             .stream()
             .map(replay -> replay.withMoveListJson(randomGameStateAsJson()))
             .toList();
@@ -91,7 +89,7 @@ public class DataSeeder {
 
     private void seedChallengeTable() throws IOException {
         String json = readResourceAsString("/seed/challenges.json");
-        List<ChallengeInst> insts = JSON_MAPPER.readValue(json, CHALLENGE_LIST_TYPE);
+        List<ChallengeInst> insts = Globals.JSON.readValue(json, CHALLENGE_LIST_TYPE);
         seedTableInParallel(insts, challengeDao::insert);
     }
 

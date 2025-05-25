@@ -2,17 +2,12 @@ package services.daos;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectReader;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.ToString;
 import models.state.ChessRoom;
-import models.entities.PlayerEntity;
+import models.state.Player;
 import models.entities.RankedEntity;
 import models.entities.UserEntity;
 import redis.clients.jedis.AbstractTransaction;
 import redis.clients.jedis.JedisPooled;
-import utils.Serializer;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -20,14 +15,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-import static utils.Globals.JSON_MAPPER;
-import static utils.Globals.LOG;
+import static utils.Globals.*;
 
 public class DictionaryDao {
 
     private static final Random RANDOM = new Random();
     private final JedisPooled jedis;
     private final ObjectReader playerReader;
+    private final ObjectReader roomReader;
 
     private static final String GAMES_ZSET = "games";
     private static final byte[] GAMES_ZSET_BYTES = GAMES_ZSET.getBytes();
@@ -37,24 +32,41 @@ public class DictionaryDao {
 
     public DictionaryDao(JedisPooled jedis) {
         this.jedis = jedis;
-        this.playerReader = JSON_MAPPER.readerFor(PlayerEntity.class);
+        this.playerReader = MESSAGE_PACK.readerFor(Player.class);
+        this.roomReader = MESSAGE_PACK.readerFor(ChessRoom.class);
     }
 
-    public ChessRoom getGame(String id) {
-        expireGames();
+    private ChessRoom deserializeRoom(byte[] bytes) {
+        try {
+            return roomReader.readValue(bytes, ChessRoom.class);
+        } catch (IOException ex) {
+            LOG.error("Failed to deserialize room object from bytes", ex);
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public ChessRoom getRoom(String id) {
+        expireRooms();
 
         String fullId = "game:" + id;
         byte[] bytes = jedis.get(fullId.getBytes());
         if (bytes == null) {
             return null;
         }
-        return Serializer.deserialize(bytes, ChessRoom.class);
+        return deserializeRoom(bytes);
     }
 
-    public ChessRoom setGame(String id, ChessRoom room) {
+    public ChessRoom setRoom(String id, ChessRoom room) {
         room.setTouch(System.currentTimeMillis());
 
-        byte[] bytes = Serializer.serialize(room);
+        byte[] bytes;
+        try {
+           bytes = MESSAGE_PACK.writeValueAsBytes(room);
+        } catch (IOException ex) {
+            LOG.error("Failed to serialize room object to bytes", ex);
+            throw new RuntimeException(ex);
+        }
+
         id = "game:" + id;
 
         try (AbstractTransaction t = jedis.multi()) {
@@ -66,11 +78,11 @@ public class DictionaryDao {
         return room;
     }
 
-    public void expireGames() {
-        expireGames(GAME_EXPIRE_FINISHED.toMillis());
+    public void expireRooms() {
+        expireRooms(GAME_EXPIRE_FINISHED.toMillis());
     }
 
-    public void expireGames(long expireTimeMillis) {
+    public void expireRooms(long expireTimeMillis) {
         long timeMillis = System.currentTimeMillis();
         long unixTimeExpireMillis = timeMillis - expireTimeMillis;
         List<String> results = jedis.zrangeByScore(GAMES_ZSET, Double.NEGATIVE_INFINITY, unixTimeExpireMillis);
@@ -85,8 +97,8 @@ public class DictionaryDao {
         }
     }
 
-    public List<ChessRoom> getGames(int page, int count) {
-        expireGames();
+    public List<ChessRoom> getRooms(int page, int count) {
+        expireRooms();
 
         if (page < 1) {
             page = 1;
@@ -109,30 +121,31 @@ public class DictionaryDao {
             return List.of();
         }
 
-        return bytesList.stream().map((bytes) -> Serializer.deserialize(bytes, ChessRoom.class)).toList();
+        return bytesList.stream().map(this::deserializeRoom).toList();
     }
 
-    public PlayerEntity getSession(String sessionId) {
+    public Player getSession(String sessionId) {
         String fullId = "session:" + sessionId;
-        String str = jedis.get(fullId);
-        if (str == null) {
+        byte[] bytes = jedis.get(fullId.getBytes());
+        if (bytes == null) {
             return null;
         }
         try {
-            return playerReader.readValue(str, PlayerEntity.class);
+            return playerReader.readValue(bytes, Player.class);
         } catch (IOException ex) {
-            LOG.error("Failed to parse json object from the dictionary", ex);
-            return null;
+            LOG.error("Failed to deserialize a player to bytes", ex);
+            throw new RuntimeException(ex);
         }
     }
 
-    public void setSession(String sessionId, PlayerEntity player, long expirySeconds) {
+    public void setSession(String sessionId, Player player, long expirySeconds) {
         String fullId = "session:" + sessionId;
         try {
-            String str = JSON_MAPPER.writeValueAsString(player);
-            jedis.setex(fullId, expirySeconds, str);
+            byte[] bytes = MESSAGE_PACK.writeValueAsBytes(player);
+            jedis.setex(fullId.getBytes(), expirySeconds, bytes);
         } catch (JsonProcessingException ex) {
-            LOG.error("Failed to serialize an input json object to dictionary", ex);
+            LOG.error("Failed to serialize a player to bytes", ex);
+            throw new RuntimeException(ex);
         }
     }
 
@@ -146,14 +159,14 @@ public class DictionaryDao {
         jedis.del(fullId);
     }
 
-    public PlayerEntity getSessionOrDefault(String sessionId) {
-        PlayerEntity player;
+    public Player getSessionOrDefault(String sessionId) {
+        Player player;
         if (sessionId != null) {
             player = getSession(sessionId);
         } else {
             String guestName = "Guest " + RANDOM.nextInt(1000);
             long randomLong = Math.abs(RANDOM.nextLong());
-            player = new PlayerEntity(randomLong, guestName, null, null, true);
+            player = new Player(randomLong, guestName, null, null, true);
         }
         return player;
     }

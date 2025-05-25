@@ -6,7 +6,7 @@ import services.daos.UserDao;
 import models.common.ColorSelect;
 import models.common.TimeControl;
 import models.entities.ChallengeEntity;
-import models.entities.PlayerEntity;
+import models.state.Player;
 import models.entities.UserEntity;
 import services.game.GameService;
 import services.daos.DictionaryDao;
@@ -98,7 +98,7 @@ public class FormController extends Jooby {
             Cookie cookie = authService.createSessionCookie(sessionId);
             ctx.setResponseCookie(cookie);
 
-            PlayerEntity player = new PlayerEntity(user.getId(), user.getUsername(), user.getCountry(), user.getElo());
+            Player player = new Player(user.getId(), user.getUsername(), user.getCountry(), user.getElo());
             dictionaryDao.setSession(sessionId, player, cookie.getMaxAge());
 
             LOG.info("Registered a new selfPlayer={}", player);
@@ -128,7 +128,7 @@ public class FormController extends Jooby {
         ctx.setResponseCookie(cookie);
         dictionaryDao.setSession(
                 sessionId,
-                new PlayerEntity(verifiedUser.getId(), verifiedUser.getUsername(), verifiedUser.getCountry(), verifiedUser.getElo()),
+                new Player(verifiedUser.getId(), verifiedUser.getUsername(), verifiedUser.getCountry(), verifiedUser.getElo()),
                 cookie.getMaxAge());
 
         LOG.info("Player has logged in {}", verifiedUser);
@@ -146,7 +146,7 @@ public class FormController extends Jooby {
 
         validatePassword(newPassword, confirmNewPassword);
 
-        PlayerEntity player = authService.getSessionPlayer(ctx);
+        Player player = authService.getSessionPlayer(ctx);
 
         VerifiedUser verifiedUser = userDao.verify(player.getName(), password);
         if (verifiedUser == null) {
@@ -166,7 +166,7 @@ public class FormController extends Jooby {
         String newCountry = body.newCountry();
         String newBio = body.newBio();
 
-        PlayerEntity player = authService.getSessionPlayer(ctx);
+        Player player = authService.getSessionPlayer(ctx);
 
         VerifiedUser verifiedUser = userDao.updateUser(player.getId(), newUsername, newCountry, newBio);
 
@@ -174,7 +174,7 @@ public class FormController extends Jooby {
     }
 
     public String createTempSession(Context ctx) {
-        PlayerEntity player = authService.getSessionPlayer(ctx);
+        Player player = authService.getSessionPlayer(ctx);
         String tempSessionId = authService.createSessionId();
         dictionaryDao.setSession(tempSessionId, player, DictionaryDao.TEMP_SESSION_EXPIRE.toSeconds());
         return tempSessionId;
@@ -189,7 +189,7 @@ public class FormController extends Jooby {
         if (sessionId == null) {
             return RefreshResp.EMPTY;
         }
-        PlayerEntity player = authService.getSessionPlayer(ctx);
+        Player player = authService.getSessionPlayer(ctx);
         if (player == null) {
             return RefreshResp.EMPTY;
         }
@@ -238,7 +238,7 @@ public class FormController extends Jooby {
         long challengerId = body.challengerId();
         String action = body.action().toUpperCase();
 
-        PlayerEntity player = authService.getSessionPlayer(ctx);
+        Player player = authService.getSessionPlayer(ctx);
 
         long callerId = player.getId();
 
@@ -291,7 +291,7 @@ public class FormController extends Jooby {
         if (sessionId == null) {
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_REQUIRED_LOGIN);
         }
-        PlayerEntity player = dictionaryDao.getSession(sessionId);
+        Player player = dictionaryDao.getSession(sessionId);
         if (player == null) {
             ctx.setResponseCookie(authService.createEmptyCookie());
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_SESSION_EXPIRED);

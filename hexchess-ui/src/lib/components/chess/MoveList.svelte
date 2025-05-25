@@ -6,44 +6,52 @@
 		moveList: PieceMove[];
 		onSelectMove?: (i: number) => void;
 		selectedMoveIndex?: number;
+		completeMessage?: string;
 	}
 
-	const { moveList, onSelectMove, selectedMoveIndex }: MoveListProps = $props();
+	const { moveList, onSelectMove, selectedMoveIndex, completeMessage }: MoveListProps = $props();
 </script>
 
-{#each moveList as moveOne, i (i)}
-	{#if i % 2 === 0}
-		{@const moveTwoIndex = i + 1}
-		{@const moveTwo = moveList[i + 1]}
-		<div class="move-row">
-			<div class="move-number">
-				{i / 2 + 1}.
-			</div>
-			<button
-				class="move-button"
-				class:move-button-hover={onSelectMove !== undefined}
-				class:selected-move={selectedMoveIndex === i}
-				onclick={() => onSelectMove ? onSelectMove(i) : {}}
-				tabindex="-1"
-			>
-				{stringOfMove(moveOne)}
-			</button>
-			{#if moveTwo}
+<div class="growing-scrollbox">
+	{#each moveList as moveOne, i (i)}
+		{#if i % 2 === 0}
+			{@const moveTwoIndex = i + 1}
+			{@const moveTwo = moveList[i + 1]}
+			<div class="move-row">
+				<div class="move-number">
+					{i / 2 + 1}.
+				</div>
 				<button
 					class="move-button"
 					class:move-button-hover={onSelectMove !== undefined}
-					class:selected-move={selectedMoveIndex === moveTwoIndex}
-					onclick={() =>  onSelectMove ? onSelectMove(moveTwoIndex) : {}}
+					class:selected-move={selectedMoveIndex === i}
+					onclick={() => onSelectMove ? onSelectMove(i) : {}}
 					tabindex="-1"
 				>
-					{stringOfMove(moveTwo)}
+					{stringOfMove(moveOne)}
 				</button>
-			{:else}
-				<div class="move"></div>
-			{/if}
+				{#if moveTwo}
+					<button
+						class="move-button"
+						class:move-button-hover={onSelectMove !== undefined}
+						class:selected-move={selectedMoveIndex === moveTwoIndex}
+						onclick={() =>  onSelectMove ? onSelectMove(moveTwoIndex) : {}}
+						tabindex="-1"
+					>
+						{stringOfMove(moveTwo)}
+					</button>
+				{:else}
+					<div class="move"></div>
+				{/if}
+			</div>
+		{/if}
+	{/each}
+	{#if completeMessage}
+		<div class="completed-message">
+			{completeMessage}
 		</div>
 	{/if}
-{/each}
+</div>
 
 <style>
     .move-row {

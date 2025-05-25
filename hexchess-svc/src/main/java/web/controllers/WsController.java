@@ -16,7 +16,7 @@ public class WsController extends Jooby {
     public WsController(State state) {
         this.state = state;
 
-        install(new JacksonModule(JSON_MAPPER));
+        install(new JacksonModule(JSON));
 
         ws("/connections/games/{id}", this::onJoin);
     }
