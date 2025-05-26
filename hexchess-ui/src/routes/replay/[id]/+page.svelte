@@ -1,17 +1,16 @@
 <script lang="ts">
 	import { type ChessBoard, type PieceMove, type ReplayView } from '$lib/models';
 	import Banner from '$lib/components/Banner.svelte';
-	import ChessBoardView from '$lib/components/chess/Board.svelte';
+	import Board from '$lib/components/chess/Board.svelte';
 	import { translateBoard } from '$lib/chess';
 	import RightIcon from '$lib/components/icons/RightIcon.svelte';
 	import LeftIcon from '$lib/components/icons/LeftIcon.svelte';
 	import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
-	import { formatCause, formatElo, getResultClasses } from '$lib/format';
-	import { formatReplayResult } from '$lib/format.js';
 	import { getReplayMoveList, unwrap } from '$lib/api';
 	import { createMessage } from '$lib/error';
 	import { getNotificationsContext } from '$lib/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
+	import ReplayPanel from '$lib/components/user/ReplayPanel.svelte';
 
 	export interface ReplayProps {
 		replay: ReplayView;
@@ -20,7 +19,6 @@
 
 	const { data }: { data: ReplayProps } = $props();
 	const { replay, initialBoard } = $derived(data);
-	const [whiteClass, blackClass] = $derived(getResultClasses(replay.result));
 
 	const { addNotification } = getNotificationsContext();
 
@@ -91,36 +89,9 @@
 <Banner />
 <div class="center-horizontal-container">
 	<div class="center-vertical-container" style="align-items: stretch;">
-		<ChessBoardView {board} {isWhitePerspective} />
+		<Board {board} {isWhitePerspective} />
 		<div class="side-table">
-			<div class="side-table-header">
-				<div class="side-table-header-elem">
-					<a href="/players/{replay.whiteId}" class="text-ul">
-						<b>{replay.whiteName}</b>
-					</a>
-					<img class="flag" src="/flags/{replay.whiteCountry}.png" alt="" />
-					<span>({replay.whiteElo})</span>
-					<span class={whiteClass}>
-						{formatElo(replay.whiteEloDiff)}
-					</span>
-				</div>
-				<div class="side-table-header-elem">
-					<a href="/players/{replay.blackId}" class="text-ul">
-						<b>{replay.blackName}</b>
-					</a>
-					<img class="flag" src="/flags/{replay.blackCountry}.png" alt="" />
-					<span>({replay.blackElo})</span>
-					<span class={blackClass}>
-						{formatElo(replay.blackEloDiff)}
-					</span>
-				</div>
-				<div class="side-table-header-elem">
-					{formatReplayResult(replay.result)} &#8226; {formatCause(replay.cause)}
-				</div>
-				<div class="side-table-header-elem">
-					{replay.playedOn}
-				</div>
-			</div>
+			<ReplayPanel replay={replay} />
 			<MoveList moveList={moveList} {onSelectMove} selectedMoveIndex={moveIndex} />
 			<div class="side-table-footer">
 				<div class="move-table-nav-buttons">

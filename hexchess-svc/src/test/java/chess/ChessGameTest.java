@@ -177,8 +177,8 @@ public class ChessGameTest {
             .setPiece("d5", BLACK_PAWN);
 
         // when
-        List<Hexagon> firstMoves = game1.findPawnMoves(Hexagon.fromNotation("g4"), Turn.WHITE).getMoves();
-        List<Hexagon> takeMoves = game2.findPawnMoves(Hexagon.fromNotation("d5"), Turn.BLACK).getMoves();
+        List<Hexagon> firstMoves = game1.findPawnMoves(Hexagon.fromNotation("g4"), true).getMoves();
+        List<Hexagon> takeMoves = game2.findPawnMoves(Hexagon.fromNotation("d5"), false).getMoves();
 
         LOG.info(game1.getBoard().toMovesString(firstMoves));
         LOG.info(game2.getBoard().toMovesString(takeMoves));
@@ -204,7 +204,7 @@ public class ChessGameTest {
         LOG.info(game.getBoard().toString());
         LOG.info(game.getBoard().toPieceMovesString(game.findOppositeMoves()));
 
-        boolean isCheckmate = game.determineIsCheckmate();
+        boolean isCheckmate = game.checkmateReached();
         Assertions.assertTrue(isCheckmate);
     }
 

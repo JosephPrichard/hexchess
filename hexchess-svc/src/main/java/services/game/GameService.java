@@ -133,9 +133,9 @@ public class GameService {
 
         room.getMoveList().add(new PieceMove(piece, move.getFrom(), move.getTo()));
 
-        if (game.determineIsCheckmate()) {
+        if (game.checkmateReached()) {
             room.setEnded(true);
-            boolean isWhiteWin = game.getBoard().turn().isBlack(); // white wins if its checkmate when it's blacks turn
+            boolean isWhiteWin = !game.getBoard().isWhiteTurn(); // white wins if its checkmate when it's blacks turn
             EXECUTOR.execute(() -> onFinishGame(room, isWhiteWin, ReplayEntity.CHECKMATE));
         }
 

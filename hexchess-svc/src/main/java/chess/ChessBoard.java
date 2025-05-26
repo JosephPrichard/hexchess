@@ -8,11 +8,9 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 import java.util.function.Function;
 
-
 @Data
 @NoArgsConstructor(force = true)
 @AllArgsConstructor
-@JsonSerialize(using = BoardSerializer.class)
 public class ChessBoard {
 
     public final static byte EMPTY = 0;
@@ -33,19 +31,19 @@ public class ChessBoard {
     public final static int FILES = 11; // marked by letters A-L
     public final static int[] RANKS_PER_FILE = {6, 7, 8, 9, 10, 11, 10, 9, 8, 7, 6};
 
-    private Turn turn;
+    private boolean isWhiteTurn;
     private final byte[][] pieces; // jagged array storing the pieces with [file][rank] format
 
-    public ChessBoard(Turn turn) {
+    public ChessBoard(boolean isWhiteTurn) {
         pieces = new byte[FILES][];
         for (int i = 0; i < pieces.length; i++) {
             pieces[i] = new byte[RANKS_PER_FILE[i]];
         }
-        this.turn = turn;
+        this.isWhiteTurn = isWhiteTurn;
     }
 
     public static ChessBoard initial() {
-        ChessBoard board = new ChessBoard(Turn.WHITE);
+        ChessBoard board = new ChessBoard(true);
 
         board.setPiece("b1", WHITE_PAWN);
         board.setPiece("c2", WHITE_PAWN);
@@ -90,12 +88,12 @@ public class ChessBoard {
         return board;
     }
 
-    public Turn turn() {
-        return turn;
+    public boolean isWhiteTurn() {
+        return isWhiteTurn;
     }
 
     public void flipTurn() {
-        turn = turn.opposite();
+        isWhiteTurn = !isWhiteTurn;
     }
 
     public void setPiece(Hexagon hex, byte piece) {
@@ -141,17 +139,17 @@ public class ChessBoard {
         }
     }
 
-    public Hexagon findKing(Turn turn) {
+    public Hexagon findKing(boolean isWhiteTurn) {
         for (Hexagon hex : Hexagon.ORDERED) {
-            if (getPiece(hex) == WHITE_KING && turn.isWhite() || getPiece(hex) == BLACK_KING && turn.isBlack()) {
+            if (getPiece(hex) == WHITE_KING && isWhiteTurn || getPiece(hex) == BLACK_KING && !isWhiteTurn) {
                 return hex;
             }
         }
         throw new IllegalStateException("Board doesn't have a king");
     }
 
-    public static boolean isPieceTurn(byte piece, Turn turn) {
-        return piece % 2 == 0 && turn.isBlack() || piece % 2 == 1 && turn.isWhite();
+    public static boolean isPieceTurn(byte piece, boolean isWhiteTurn) {
+        return piece % 2 == 0 && !isWhiteTurn || piece % 2 == 1 && isWhiteTurn;
     }
 
     public static boolean isWhite(byte piece) {

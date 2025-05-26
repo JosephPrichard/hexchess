@@ -46,13 +46,13 @@
 				</select>
 			</div>
 			<div class="modal-panel">
-				<button class="invisible-button" style:display="inline-block" tabindex="-1" onclick={(e) => onClickColor(e, 'BLACK')} >
+				<button class="piece-color invisible-button" style:display="inline-block" tabindex="-1" onclick={(e) => onClickColor(e, 'BLACK')} >
 					<img alt="Black" class="color-piece-image" class:selected-color-piece-image={color === 'BLACK'} src="/pieces/black-king.png" />
 				</button>
-				<button class="invisible-button" style:display="inline-block" tabindex="-1" onclick={(e) => onClickColor(e, 'RANDOM')}>
+				<button class="piece-color invisible-button" style:display="inline-block" tabindex="-1" onclick={(e) => onClickColor(e, 'RANDOM')}>
 					<img alt="Random" class="color-piece-image" class:selected-color-piece-image={color === 'RANDOM'} src="/pieces/half-king.png" />
 				</button>
-				<button class="invisible-button" style:display="inline-block" tabindex="-1" onclick={(e) => onClickColor(e, 'WHITE')}>
+				<button class="piece-color invisible-button" style:display="inline-block" tabindex="-1" onclick={(e) => onClickColor(e, 'WHITE')}>
 					<img alt="White" class="color-piece-image" class:selected-color-piece-image={color === 'WHITE'} src="/pieces/white-king.png" />
 				</button>
 			</div>
@@ -106,4 +106,8 @@
     .selected-color-piece-image {
         background-color: rgb(77, 77, 77);
     }
+
+	.piece-color {
+		cursor: pointer;
+	}
 </style>

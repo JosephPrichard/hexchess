@@ -27,4 +27,21 @@ public class Globals {
 
     public static final String CHARACTERS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
     public static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
+    static {
+        MESSAGE_PACK.setVisibility(MESSAGE_PACK
+            .getSerializationConfig()
+            .getDefaultVisibilityChecker()
+            .withFieldVisibility(JsonAutoDetect.Visibility.ANY)
+            .withGetterVisibility(JsonAutoDetect.Visibility.NONE)
+            .withSetterVisibility(JsonAutoDetect.Visibility.NONE)
+            .withCreatorVisibility(JsonAutoDetect.Visibility.NONE));
+        JSON.setVisibility(MESSAGE_PACK
+            .getSerializationConfig()
+            .getDefaultVisibilityChecker()
+            .withFieldVisibility(JsonAutoDetect.Visibility.ANY)
+            .withGetterVisibility(JsonAutoDetect.Visibility.NONE)
+            .withSetterVisibility(JsonAutoDetect.Visibility.NONE)
+            .withCreatorVisibility(JsonAutoDetect.Visibility.NONE));
+    }
 }

@@ -88,4 +88,11 @@
     .selected-move {
         background-color: rgb(53, 53, 53);
     }
+
+    .completed-message {
+        text-align: center;
+        margin-top: 10px;
+        margin-bottom: 10px;
+        font-style: italic;
+    }
 </style>

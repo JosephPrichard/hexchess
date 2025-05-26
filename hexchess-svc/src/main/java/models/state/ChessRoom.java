@@ -37,6 +37,6 @@ public class ChessRoom {
     }
 
     public Player findCurrPlayer() {
-        return game.getBoard().turn().isWhite() ? whitePlayer : blackPlayer;
+        return game.getBoard().isWhiteTurn() ? whitePlayer : blackPlayer;
     }
 }

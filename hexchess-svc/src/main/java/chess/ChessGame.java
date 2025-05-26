@@ -28,23 +28,23 @@ public class ChessGame {
     }
 
     public static ChessGame empty() {
-        return new ChessGame(new ChessBoard(Turn.WHITE));
+        return new ChessGame(new ChessBoard(true));
     }
 
     public ChessGame(ChessBoard board) {
         this.board = board;
     }
 
-    public List<PieceMoves> findTurnMoves(Turn turn) {
-        return turn.isWhite() ? whiteMoves : blackMoves;
+    public List<PieceMoves> findTurnMoves(boolean isWhiteTurn) {
+        return isWhiteTurn ? whiteMoves : blackMoves;
     }
 
     public List<PieceMoves> findCurrMoves() {
-        return findTurnMoves(board.turn());
+        return findTurnMoves(board.isWhiteTurn());
     }
 
     public List<PieceMoves> findOppositeMoves() {
-        return findTurnMoves(board.turn().opposite());
+        return findTurnMoves(!board.isWhiteTurn());
     }
 
     public ChessGame setPiece(String notation, byte piece) {
@@ -78,7 +78,7 @@ public class ChessGame {
         byte piece2 = board.getPiece(to);
 
         if (piece2 != EMPTY) {
-            if (board.turn().isWhite()) {
+            if (board.isWhiteTurn()) {
                 takenWhitePieces.add(piece2);
             } else {
                 takenBlackPieces.add(piece2);
@@ -95,16 +95,16 @@ public class ChessGame {
 
     public void initPieceMoves() {
         // we find the piece moves for all other pieces besides the king
-        whiteMoves = findPieceMoves(Turn.WHITE);
-        blackMoves = findPieceMoves(Turn.BLACK);
+        whiteMoves = findPieceMoves(true);
+        blackMoves = findPieceMoves(false);
 
-        Hexagon whiteKingHex = board.findKing(Turn.WHITE);
-        Hexagon blackKingHex = board.findKing(Turn.BLACK);
+        Hexagon whiteKingHex = board.findKing(true);
+        Hexagon blackKingHex = board.findKing(false);
 
         // find the moves for both kings - excluding any attacking squares
         PieceMoves whiteKingMoves = new PieceMoves(whiteKingHex, findKingMoves(whiteKingHex));
         PieceMoves blackKingMoves = new PieceMoves(blackKingHex, findKingMoves(blackKingHex));
-        Hexagon kingHex = board.turn().isWhite() ? whiteKingHex : blackKingHex;
+        Hexagon kingHex = board.isWhiteTurn() ? whiteKingHex : blackKingHex;
 
         // decide whether we will add the piece moves... are we in check?
         // we don't need to check if the opposite move is in check... it should never be!
@@ -143,15 +143,15 @@ public class ChessGame {
         return isAttacked;
     }
 
-    public boolean determineIsCheckmate() {
-        Turn turn = board.turn();
-        Hexagon kingHex = board.findKing(turn);
-        List<PieceMoves> pieceMoves = findTurnMoves(turn);
-        List<PieceMoves> oppPieceMoves = findTurnMoves(turn.opposite());
+    public boolean checkmateReached() {
+        boolean isWhiteTurn = board.isWhiteTurn();
+        Hexagon kingHex = board.findKing(isWhiteTurn);
+        List<PieceMoves> pieceMoves = findTurnMoves(isWhiteTurn);
+        List<PieceMoves> oppPieceMoves = findTurnMoves(!isWhiteTurn);
         PieceMoves kingMoves = pieceMoves.getLast();
 
         // the LAST element should always be the king moves!
-        assert (board.getPiece(kingMoves.getHex()) == (turn.isWhite() ? WHITE_KING : BLACK_KING));
+        assert (board.getPiece(kingMoves.getHex()) == (isWhiteTurn ? WHITE_KING : BLACK_KING));
 
         // a king must be checked to be in checkmate
         boolean[][] isAttacked = findAttacking(oppPieceMoves);
@@ -172,18 +172,18 @@ public class ChessGame {
     }
 
     // finds all pieces moves excluding the king moves, which are handled elsewhere
-    public List<PieceMoves> findPieceMoves(Turn turn) {
+    public List<PieceMoves> findPieceMoves(boolean isWhiteTurn) {
         List<PieceMoves> moves = new ArrayList<>();
         for (Hexagon hex : Hexagon.ORDERED) {
             byte piece = board.getPiece(hex);
-            if (piece != EMPTY && isPieceTurn(piece, turn)) {
+            if (piece != EMPTY && isPieceTurn(piece, isWhiteTurn)) {
                 // we check the piece type to find the right piece moves (we have already checked the color)
                 switch (piece) {
                     case WHITE_ROOK, BLACK_ROOK -> moves.add(findRookMoves(hex));
                     case WHITE_BISHOP, BLACK_BISHOP -> moves.add(findBishopMoves(hex));
                     case WHITE_QUEEN, BLACK_QUEEN -> moves.add(findQueenMoves(hex));
                     case WHITE_KNIGHT, BLACK_KNIGHT -> moves.add(findKnightMoves(hex));
-                    case WHITE_PAWN, BLACK_PAWN -> moves.add(findPawnMoves(hex, turn));
+                    case WHITE_PAWN, BLACK_PAWN -> moves.add(findPawnMoves(hex, isWhiteTurn));
                     case WHITE_KING, BLACK_KING -> {
                     } // this is a no-op, we find the king moves in a separate function
                     default -> throw new IllegalStateException("Board has invalid piece " + piece + " at hexagon " + hex);
@@ -226,12 +226,12 @@ public class ChessGame {
     private static final Direction[] BLACK_TAKE_LEFT = {Direction.DOWN_LEFT};
     private static final Direction[] BLACK_TAKE_RIGHT = {Direction.DOWN_RIGHT};
 
-    public PieceMoves findPawnMoves(Hexagon hex, Turn turn) {
+    public PieceMoves findPawnMoves(Hexagon hex, boolean isWhiteTurn) {
         byte basePiece = board.getPiece(hex);
         List<Hexagon> moves = new ArrayList<>();
 
         // we can always move one rank ahead on the same file
-        Hexagon move1 = hex.walk(turn.isWhite() ? WHITE_AHEAD : BLACK_AHEAD);
+        Hexagon move1 = hex.walk(isWhiteTurn ? WHITE_AHEAD : BLACK_AHEAD);
         if (board.inBounds(move1)) {
             byte piece = board.getPiece(move1);
             if (piece == EMPTY) {
@@ -240,7 +240,7 @@ public class ChessGame {
         }
 
         // we can move a rank ahead of that if we haven't moved yet!
-        Hexagon move2 = move1.walk(turn.isWhite() ? WHITE_AHEAD : BLACK_AHEAD);
+        Hexagon move2 = move1.walk(isWhiteTurn ? WHITE_AHEAD : BLACK_AHEAD);
         if (board.inBounds(move2) && !hasPawnMoved(hex, basePiece)) {
             byte piece = board.getPiece(move2);
             if (piece == EMPTY) {
@@ -249,7 +249,7 @@ public class ChessGame {
         }
 
         // we can also take in adjacent ranks
-        Hexagon move3 = hex.walk(turn.isWhite() ? WHITE_TAKE_LEFT : BLACK_TAKE_LEFT);
+        Hexagon move3 = hex.walk(isWhiteTurn ? WHITE_TAKE_LEFT : BLACK_TAKE_LEFT);
         if (board.inBounds(move3)) {
             byte piece = board.getPiece(move3);
             if (piece != EMPTY && areOpposite(basePiece, piece)) {
@@ -257,7 +257,7 @@ public class ChessGame {
             }
         }
 
-        Hexagon move4 = hex.walk(turn.isWhite() ? WHITE_TAKE_RIGHT : BLACK_TAKE_RIGHT);
+        Hexagon move4 = hex.walk(isWhiteTurn ? WHITE_TAKE_RIGHT : BLACK_TAKE_RIGHT);
         if (board.inBounds(move4)) {
             byte piece = board.getPiece(move4);
             if (piece != EMPTY && areOpposite(basePiece, piece)) {

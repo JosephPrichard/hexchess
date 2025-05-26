@@ -34,10 +34,6 @@ export const piecenames: Record<PieceType, string> = {
 
 export type Action = 'delete' | 'reject' | 'accept';
 
-export const whiteTurn = 0;
-export const blackTurn = 1;
-export type Turn = typeof whiteTurn | typeof blackTurn;
-
 export type ReplayResult = 'DRAW' | 'WHITE_WIN' | 'BLACK_WIN';
 
 export type ReplayCause = 'CHECKMATE' | 'FORFEIT';
@@ -47,7 +43,7 @@ export type ColorSelect = 'RANDOM' | 'WHITE' | 'BLACK';
 export type TimeControl = 'UNLIMITED' | 'REAL_TIME' | 'CORRESPONDENCE';
 
 export interface ChessBoard {
-	turn: Turn;
+	isWhiteTurn: boolean;
 	pieces: PieceType[][];
 }
 

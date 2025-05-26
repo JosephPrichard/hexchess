@@ -2,7 +2,7 @@
 	import Banner from '$lib/components/Banner.svelte';
 	import Pagination from '$lib/components/Pagination.svelte';
 	import type { UserView } from '$lib/models';
-	import StatsList from '$lib/components/StatsList.svelte';
+	import StatsList from '$lib/components/stats/StatsList.svelte';
 
 	export interface SearchProps {
 		searchText: string;

@@ -1,5 +1,6 @@
 package utils;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.apache.commons.dbutils.QueryRunner;
@@ -8,15 +9,19 @@ import redis.clients.jedis.ConnectionPoolConfig;
 import javax.sql.DataSource;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.*;
 
+import static utils.Globals.JSON;
 import static utils.Globals.LOG;
 
 public class Config {
+
+    private static TypeReference<List<String>> COUNTRY_LIST_TYPE = new TypeReference<>() {};
 
     public static ConnectionPoolConfig getJedisPoolConfig() {
         ConnectionPoolConfig poolConfig = new ConnectionPoolConfig();
@@ -77,33 +82,15 @@ public class Config {
     }
 
     public static List<String> createCountryList() {
-        List<String> countryList = new ArrayList<>();
-
-        URL resource = ClassLoader.getSystemResource("flags");
-        if (resource == null) {
-            return countryList;
-        }
-
-        countryList.add("us");
-
-        File dir = new File(resource.getFile());
-        File[] files = dir.listFiles();
-
-        assert files != null;
-        for (File file : files) {
-            String flagName = file.getName();
-            if (flagName.equals("us")) {
-                continue;
+        try (InputStream inputStream = Config.class.getClassLoader().getResourceAsStream("static/countryList.json")) {
+            if (inputStream == null) {
+                throw new IllegalArgumentException("File not found!");
             }
-
-            int index = flagName.lastIndexOf(".");
-            if (index != -1) {
-                flagName = flagName.substring(0, index);
-            }
-            countryList.add(flagName);
+            return JSON.readValue(inputStream, COUNTRY_LIST_TYPE);
+        } catch (IOException e) {
+            LOG.error("Error occurred while parsing countryList.json", e);
+            throw new RuntimeException(e);
         }
-
-        return countryList;
     }
 
     public static void createSchema(DataSource ds) {

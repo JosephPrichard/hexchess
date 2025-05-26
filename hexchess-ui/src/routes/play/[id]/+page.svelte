@@ -1,17 +1,20 @@
 <script lang="ts">
-	import { type ChatMsg, type GameOutputMsg, type ChessRoom, type PlayerView, whiteTurn, piecenames } from '$lib/models';
+	import { type ChatMsg, type GameOutputMsg, type ChessRoom, type PlayerView, piecenames, type PieceMove, type PieceMoves, type Hexagon } from '$lib/models';
 	import Banner from '$lib/components/Banner.svelte';
 	import { appBaseURL, baseURL, postTempSession, unwrap } from '$lib/api';
 	import { createMessage } from '$lib/error';
 	import { getNotificationsContext } from '$lib/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
-	import ChessBoardView from '$lib/components/chess/Board.svelte';
+	import Board from '$lib/components/chess/Board.svelte';
 	import { formatTimeControl, formatTimer } from '$lib/format';
 	import ClipboardIcon from '$lib/components/icons/ClipboardIcon.svelte';
 	import FlagIcon from '$lib/components/icons/FlagIcon.svelte';
 	import SettingsIcon from '$lib/components/icons/SettingsIcon.svelte';
 	import UndoIcon from '$lib/components/icons/UndoIcon.svelte';
 	import msgpack from 'msgpack-lite';
+	import PieceList from '$lib/components/chess/PieceList.svelte';
+	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
+	import { findPotentialMoves, isHexagonEqual } from './utils';
 
 	export interface PlayProps {
 		gameId: string
@@ -23,12 +26,14 @@
 	const { addNotification } = getNotificationsContext();
 
 	let room: ChessRoom | undefined = $state(undefined);
-	let selfPlayer: PlayerView | undefined = $state(undefined);
+	let selfPlayer: PlayerView | null = $state(null);
 	let chats: ChatMsg[] = $state([]);
 	let chat = $state("");
 	let completeMessage: string | undefined = $state(undefined);
 	let whiteTimer: number | undefined = $state(undefined);
 	let blackTimer: number | undefined = $state(undefined);
+	let potentialMoves: PieceMoves | undefined = $state(undefined);
+	let selectedHexagon: Hexagon | undefined = $state(undefined);
 
 	const isStarted = $derived(() => room?.whitePlayer && room?.blackPlayer);
 
@@ -57,6 +62,25 @@
 
 	function onClickSettings() {
 
+	}
+
+	function onClickPiece(hexagon: Hexagon) {
+		if (!room) {
+			return;
+		}
+
+		if (isHexagonEqual(hexagon, selectedHexagon)) {
+			potentialMoves = undefined;
+			selectedHexagon = undefined;
+			return;
+		}
+
+		potentialMoves = findPotentialMoves(hexagon, room);
+		if (potentialMoves) {
+			selectedHexagon = hexagon;
+		} else {
+			selectedHexagon = undefined;
+		}
 	}
 
 	function onMessage(data: GameOutputMsg) {
@@ -106,10 +130,9 @@
 						connectTries = 0;
 					});
 					ws.addEventListener('message', (event) => {
-						// const data: GameOutputMsg = JSON.parse(event.data);
 						if (event.data instanceof ArrayBuffer) {
 							const data: GameOutputMsg = msgpack.decode(new Uint8Array(event.data));
-							console.log(`Received message data=${JSON.stringify(data)}, length=${event.data.byteLength}`);
+							console.log(`Received message with length=${event.data.byteLength} data`, data);
 							onMessage(data);
 						}
 					});
@@ -145,42 +168,30 @@
 	<div class="center-vertical-container" style="align-items: stretch;">
 		{#if room && isStarted()}
 			{@const game = room.game}
+			{@const board = room.game.board}
 			{@const isPlayingAsWhite = selfPlayer?.id === room.whitePlayer?.id}
-			{@const isTurn = room.game.board.turn === whiteTurn && isPlayingAsWhite}
+			{@const isTurn = board.isWhiteTurn && isPlayingAsWhite}
 			{@const opponentPlayer = isPlayingAsWhite ? room.blackPlayer : room.whitePlayer}
 			{@const selfTimer = isPlayingAsWhite ? whiteTimer : blackTimer}
 			{@const opponentTimer = isPlayingAsWhite ? blackTimer : whiteTimer}
 			{@const selfTakenPieces = isPlayingAsWhite ? game.takenWhitePieces : game.takenBlackPieces}
 			{@const opponentTakenPieces = isPlayingAsWhite ? game.takenBlackPieces : game.takenWhitePieces}
-			<ChessBoardView board={game.board} isWhitePerspective={isPlayingAsWhite} />
+			<Board
+				board={board}
+				isWhitePerspective={isPlayingAsWhite}
+				potentialMoves={potentialMoves?.moves}
+				onClickPiece={onClickPiece}
+				selectedHexagon={selectedHexagon}
+			/>
 			<div class="side-table-wrapper">
-				<div class="taken-pieces">
-					{#each opponentTakenPieces as piece}
-						<div class="piece-icon-wrapper">
-							<img class="piece-icon" src="/pieces/{piecenames[piece]}.png" draggable={false} alt="" />
-						</div>
-					{/each}
-				</div>
+				<PieceList pieces={opponentTakenPieces} />
 				{#if opponentTimer}
 					<div class="timer" class:timer-warn={opponentTimer < 15000}>
 						{formatTimer(opponentTimer)}
 					</div>
 				{/if}
 				<div class="side-table move-table-wrapper">
-					<div class="side-table-header player-panel">
-						{#if opponentPlayer}
-							<div class="side-table-header-elem text-xsm">
-								<div class="turn-circle" class:turn-circle-green={!isTurn}></div>
-								<a href="/players/{opponentPlayer.id}" class="text-ul">
-									<b>{opponentPlayer.name}</b>
-								</a>
-								<img class="flag-md" src="/flags/{opponentPlayer.country}.png" alt="" />
-								{#if opponentPlayer.elo}
-									<span>({opponentPlayer.elo})</span>
-								{/if}
-							</div>
-						{/if}
-					</div>
+					<PlayerPanel player={opponentPlayer} isTurn={!isTurn} />
 					<MoveList moveList={room.moveList} />
 					<div class="icons">
 						<button title="Forfeit" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickForfeit}>
@@ -193,33 +204,14 @@
 							<SettingsIcon />
 						</button>
 					</div>
-					<div class="side-table-footer player-panel">
-						{#if selfPlayer}
-							<div class="side-table-header-elem text-xsm">
-								<div class="turn-circle" class:turn-circle-green={isTurn}></div>
-								<a href="/players/{selfPlayer.id}" class="text-ul">
-									<b>{selfPlayer.name}</b>
-								</a>
-								<img class="flag-md" src="/flags/{selfPlayer.country}.png" alt="" />
-								{#if selfPlayer.elo}
-									<span>({selfPlayer.elo})</span>
-								{/if}
-							</div>
-						{/if}
-					</div>
+					<PlayerPanel player={selfPlayer} isTurn={isTurn} />
 				</div>
 				{#if selfTimer}
 					<div class="timer" class:timer-warn={selfTimer < 15000}>
 						{formatTimer(selfTimer)}
 					</div>
 				{/if}
-				<div class="taken-pieces">
-					{#each selfTakenPieces as piece}
-						<div class="piece-icon-wrapper">
-							<img class="piece-icon" src="/pieces/{piecenames[piece]}.png" draggable={false} alt="" />
-						</div>
-					{/each}
-				</div>
+				<PieceList pieces={selfTakenPieces} />
 			</div>
 		{:else if room}
 			<div class="panel lobby">
@@ -268,11 +260,6 @@
         border-radius: 2px;
     }
 
-    .player-panel {
-        padding-top: 15px;
-        padding-bottom: 15px;
-    }
-
     .lobby {
         width: 600px;
         height: 500px;
@@ -285,28 +272,6 @@
         background-color: rgb(44, 44, 44);
         border-top: 1px solid rgb(58, 58, 58);
     }
-
-	.completed-message {
-		text-align: center;
-		margin-top: 10px;
-		margin-bottom: 10px;
-        font-style: italic;
-	}
-
-	.turn-circle {
-		display: inline-block;
-        width: 7px;
-        height: 7px;
-		margin-right: 5px;
-        border-radius: 50%;
-        border: 2px solid #B4B4B4;
-        background-color: transparent;
-	}
-
-	.turn-circle-green {
-		border-color: #78b13f;
-		background-color: #78b13f;
-	}
 
 	.timer {
 		border-radius: 6px;
@@ -336,21 +301,4 @@
         margin-bottom: 10px;
 		height: 350px;
     }
-
-	.taken-pieces {
-        width: 280px;
-        display: flex;
-        justify-content: center;
-        flex-wrap: wrap;
-    }
-
-    .piece-icon {
-        width: 35px;
-		height: 35px;
-		margin-right: -20px;
-    }
-
-	.piece-icon-wrapper {
-		display: inline-block;
-	}
 </style>
