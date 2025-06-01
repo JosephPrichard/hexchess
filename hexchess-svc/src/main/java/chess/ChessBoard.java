@@ -1,15 +1,13 @@
 package chess;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
+import messages.Messages;
 
 import java.util.List;
 import java.util.function.Function;
 
 @Data
-@NoArgsConstructor(force = true)
 @AllArgsConstructor
 public class ChessBoard {
 
@@ -248,5 +246,40 @@ public class ChessBoard {
         }
 
         return toString((hex) -> isAttacked[hex.getFile()][hex.getRank()]);
+    }
+
+    public Messages.ChessBoard serialize() {
+        Messages.ChessBoard.Builder builder = Messages.ChessBoard.newBuilder()
+            .setIsWhiteTurn(isWhiteTurn);
+
+        for (int file = 0; file < ChessBoard.FILES; file++) {
+            int ranksCount = ChessBoard.RANKS_PER_FILE[file];
+
+            for (int rank = 0; rank < ranksCount; rank++) {
+                byte piece = getPiece(file, rank);
+                builder.addPieces(piece);
+            }
+        }
+
+        return builder.build();
+    }
+
+    public static ChessBoard deserialize(Messages.ChessBoard msg) {
+        ChessBoard board = new ChessBoard(msg.getIsWhiteTurn());
+
+        int size = msg.getPiecesCount();
+        int file = 0;
+        int rank = 0;
+        for (int i = 0; i < size; i++) {
+            int ranksCount = ChessBoard.RANKS_PER_FILE[file];
+            board.setPiece(file, rank, (byte) msg.getPieces(i));
+            rank++;
+            if (rank >= ranksCount) {
+                file++;
+                rank = 0;
+            }
+        }
+
+        return board;
     }
 }

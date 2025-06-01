@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ColorSelect, TimeControl, UserWithReplaysView } from '$lib/models.js';
+	import type { ColorSelect, TimeControl, UserWithReplays } from '$lib/models.js';
 	import CreateGame from '$lib/components/modals/CreateGame.svelte';
 	import { getReplays, postCreateChallenge, unwrap } from '$lib/api';
 	import { onMount } from 'svelte';
@@ -12,7 +12,7 @@
 	import { createMessage } from '$lib/error';
 
 	export interface PlayerProps {
-		userWithReplays: UserWithReplaysView;
+		userWithReplays: UserWithReplays;
 	}
 
 	const { data: props }: { data: PlayerProps } = $props();

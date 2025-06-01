@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Action, ChallengeView } from '$lib/models.js';
+	import type { Action, Challenge } from '$lib/models.js';
 	import Banner from '$lib/components/Banner.svelte';
 	import { postUpdateChallenge, unwrap } from '$lib/api';
 	import { createMessage } from '$lib/error';
@@ -8,14 +8,14 @@
 
 	export interface ChallengeProps {
 		participants: string;
-		challengeList: ChallengeView[];
+		challengeList: Challenge[];
 	}
 
 	const { data: props }: { data: ChallengeProps } = $props();
 	const isSender = $derived(props.participants === 'sent');
 
 	interface ChallengeState {
-		challenge: ChallengeView;
+		challenge: Challenge;
 		isLoading: {
 			delete: boolean;
 			accept: boolean;
@@ -38,7 +38,7 @@
 
 	const { addNotification } = getNotificationsContext();
 
-	function formatSuccessMessage(challenge: ChallengeView, action: Action) {
+	function formatSuccessMessage(challenge: Challenge, action: Action) {
 		let message: string | undefined = undefined;
 		switch (action) {
 			case 'delete':
@@ -54,7 +54,7 @@
 		return message;
 	}
 
-	async function onUpdateChallenge(challenge: ChallengeView, index: number, action: Action) {
+	async function onUpdateChallenge(challenge: Challenge, index: number, action: Action) {
 		challengeList[index].isLoading[action] = true;
 
 		const { ok, resp, err } = await unwrap(postUpdateChallenge(challenge.challengerId, challenge.challengeeId, action));

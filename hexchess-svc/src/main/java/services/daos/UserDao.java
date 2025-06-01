@@ -26,6 +26,7 @@ public class UserDao {
     private static final ResultSetHandler<UserEntity> USER_MAPPER = new BeanHandler<>(UserEntity.class);
     private static final ResultSetHandler<List<UserEntity>> USER_LIST_MAPPER = new BeanListHandler<>(UserEntity.class);
     private static final ResultSetHandler<VerifiedUser> VERIFIED_USER_MAPPER = new BeanHandler<>(VerifiedUser.class);
+    private static final ResultSetHandler<List<EloResult>> ELO_LIST_MAPPER = new BeanListHandler<>(EloResult.class);
 
     private final QueryRunner runner;
 
@@ -125,9 +126,9 @@ public class UserDao {
 
             LOG.info("Password verification {} for username={}", result.verified ? "successful" : "failed", usernameOut);
             return result.verified ? new VerifiedUser(id, usernameOut, country, elo) : null;
-        } catch (SQLException ex) {
+        } catch (Exception ex) {
             LOG.error("Failed to select user credentials for user={}", username, ex);
-            DbUtils.rollbackAndCloseQuietly(conn);
+            DbUtils.rollbackQuietly(conn);
             throw new RuntimeException(ex);
         } finally {
             DbUtils.closeQuietly(conn);
@@ -176,34 +177,83 @@ public class UserDao {
 
     public record EloChangeSet(double winEloDiff, double loseEloDiff) {}
 
+    public double probabilityWins(double elo1, double elo2) {
+        return 1.0 / (1.0 + Math.pow(10, (elo1 - elo2) / 400.0));
+    }
+
     public EloChangeSet updateStats(long winId, long loseId) {
-        String sql = "CALL updateStats(?, ?, ?, ?)";
+        String getEloSql = "SELECT elo FROM users WHERE id = ?";
+        String updateWinsSql = """
+            UPDATE users
+            SET elo = ?, wins = wins + 1, highestElo = GREATEST(highestElo, ?)
+            WHERE id = ?;
+            """;
+        String updateLossSql = """
+            UPDATE users
+            SET elo = ?, losses = losses + 1
+            WHERE id = ?
+            """;
 
         Connection conn = null;
-        CallableStatement stmt = null;
+        PreparedStatement getEloStmt = null;
+        PreparedStatement updateWinsStmt = null;
+        PreparedStatement updateLossStmt = null;
+        ResultSet getWinRs = null;
+        ResultSet getLossRs = null;
         try {
             conn = runner.getDataSource().getConnection();
+            conn.setAutoCommit(false);
+            conn.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
 
-            stmt = conn.prepareCall(sql);
-            stmt.setLong(1, winId);
-            stmt.setLong(2, loseId);
-            stmt.registerOutParameter(3, Types.NUMERIC);
-            stmt.registerOutParameter(4, Types.NUMERIC);
+            getEloStmt = conn.prepareStatement(getEloSql);
+            updateWinsStmt = conn.prepareStatement(updateWinsSql);
+            updateLossStmt = conn.prepareStatement(updateLossSql);
 
-            stmt.execute();
+            getEloStmt.setLong(1, winId);
+            getWinRs = getEloStmt.executeQuery();
+            if (!getWinRs.next()) {
+                LOG.warn("Couldn't find winner with id={}", winId);
+                return null;
+            }
+            double winElo = getWinRs.getDouble("elo");
 
-            double winEloDiff = stmt.getBigDecimal(3).doubleValue();
-            double loseEloDiff = stmt.getBigDecimal(4).doubleValue();
+            getEloStmt.setLong(1, loseId);
+            getLossRs = getEloStmt.executeQuery();
+            if (!getLossRs.next()) {
+                LOG.warn("Couldn't find loser with id={}", loseId);
+                return null;
+            }
+            double loseElo = getLossRs.getDouble("elo");
+
+            double winEloNext = winElo + (30 * (1 - probabilityWins(loseElo, winElo)));
+            updateWinsStmt.setDouble(1, winEloNext);
+            updateWinsStmt.setDouble(2, winEloNext);
+            updateWinsStmt.setLong(3, winId);
+            updateWinsStmt.executeUpdate();
+
+            double loseEloNext = loseElo + ((30 * probabilityWins(winElo, loseElo)) * -1);
+            updateLossStmt.setDouble(1, loseEloNext);
+            updateLossStmt.setLong(2, loseId);
+            updateLossStmt.executeUpdate();
+
+            conn.commit();
+
+            double winEloDiff = winEloNext - winElo;
+            double loseEloDiff = loseEloNext - loseElo;
 
             LOG.info("Updated stats: winId={} loseId={}, winEloDiff={}, loseEloDiff={}", winId, loseId, winEloDiff, loseEloDiff);
             return new EloChangeSet(winEloDiff, loseEloDiff);
-        } catch (SQLException ex) {
+        } catch (Exception ex) {
             LOG.error("Failed to update stats for winId={}, loseId={}", winId, loseId, ex);
-            DbUtils.rollbackAndCloseQuietly(conn);
+            DbUtils.rollbackQuietly(conn);
             throw new RuntimeException(ex);
         } finally {
             DbUtils.closeQuietly(conn);
-            DbUtils.closeQuietly(stmt);
+            DbUtils.closeQuietly(getEloStmt);
+            DbUtils.closeQuietly(updateWinsStmt);
+            DbUtils.closeQuietly(updateLossStmt);
+            DbUtils.closeQuietly(getWinRs);
+            DbUtils.closeQuietly(getLossRs);
         }
     }
 
@@ -246,9 +296,9 @@ public class UserDao {
             stmt.setArray(1, conn.createArrayOf("INTEGER", ids));
             rs = stmt.executeQuery();
 
-            List<UserEntity> users = USER_LIST_MAPPER.handle(rs);
-            LOG.info("Selected users={} by ids={}", users, idsStr);
-            return users;
+            List<UserEntity> userList = USER_LIST_MAPPER.handle(rs);
+            LOG.info("Selected users={} by ids={}", userList, idsStr);
+            return userList;
         } catch (SQLException e) {
             LOG.error("Failed to select users by ids={}", idsStr);
             throw new RuntimeException(e);
@@ -271,26 +321,23 @@ public class UserDao {
         }
     }
 
-    public List<UserEntity> getLeaderboard(int page, int perPage) {
-        String sql = """
-            SELECT id, username, country, elo, wins, losses
-            FROM users
-            ORDER BY elo DESC LIMIT ? OFFSET ?
-            """;
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class EloResult {
+        private long id;
+        private float elo;
+    }
 
-        page = Math.max(page, 1);
-        int offset = (page - 1) * perPage;
+    public List<EloResult> getEloList(int afterId, int count) {
+        String sql = "SELECT id, elo FROM users WHERE id > ? ORDER BY id LIMIT ?";
 
         try {
-            List<UserEntity> users = runner.query(sql, USER_LIST_MAPPER, perPage, offset);
-            for (int i = 0; i < users.size(); i++) {
-                int rank = (page - 1) * perPage + i + 1;
-                users.get(i).setRank(rank);
-            }
-            LOG.info("Selected leaderboard={} for page={}, perPage={}", users, page, perPage);
-            return users;
+            List<EloResult> eloList = runner.query(sql, ELO_LIST_MAPPER, afterId, count);
+            LOG.info("Selected eloList={} after id={}", eloList, afterId);
+            return eloList;
         } catch (SQLException ex) {
-            LOG.error("Failed to select leaderboard for page={}, perPage={}", page, perPage);
+            LOG.error("Failed to select eloList after id={}", afterId);
             throw new RuntimeException(ex);
         }
     }

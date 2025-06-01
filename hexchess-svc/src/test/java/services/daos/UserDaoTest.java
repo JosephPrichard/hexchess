@@ -9,6 +9,10 @@ import javax.sql.DataSource;
 import java.io.IOException;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 import static services.daos.UserDao.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -23,7 +27,7 @@ public class UserDaoTest {
         pg = EmbeddedPostgres.builder().start();
         ds = pg.getPostgresDatabase();
 
-        userDao = new UserDao(ds);
+        userDao = spy(new UserDao(ds));
     }
 
     @BeforeEach
@@ -38,7 +42,7 @@ public class UserDaoTest {
 
     public static void createTestData(UserDao userDao) {
         userDao.insert(new UserInst("user1", "password1", "us", 1000f, 0, 0));
-        userDao.insert(new UserInst("user2", "password2", "us", 1005f, 1, 0));
+        userDao.insert(new UserInst("user2", "password2", "us", 1000f, 1, 0));
         userDao.insert(new UserInst("user3", "password3", "us", 900f, 1, 8));
         userDao.insert(new UserInst("user4", "password4", "us", 2000f, 50, 20));
         userDao.insert(new UserInst("user5", "password5", "us", 1500f, 40, 35));
@@ -75,17 +79,38 @@ public class UserDaoTest {
         UserEntity actualUsers1 = userDao.getById(1L);
         UserEntity actualUsers2 = userDao.getById(2L);
 
-//        changeSet.roundElo();
-        actualUsers1.roundElo();
-        actualUsers2.roundElo();
+        changeSet = new EloChangeSet(Math.round(changeSet.winEloDiff()), Math.round(changeSet.loseEloDiff()));
+        actualUsers1.setElo(Math.round(actualUsers1.getElo()));
+        actualUsers1.setHighestElo(Math.round(actualUsers1.getHighestElo()));
+        actualUsers2.setElo(Math.round(actualUsers2.getElo()));
+        actualUsers2.setHighestElo(Math.round(actualUsers2.getHighestElo()));
 
         // then
         UserEntity expectedUsers1 = new UserEntity(1L, "user1", "us", 1015f, 1015f, 1, 0, 0, "", null);
-        UserEntity expectedUsers2 = new UserEntity(2L, "user2", "us", 990f, 1005f, 1, 1, 0, "", null);
+        UserEntity expectedUsers2 = new UserEntity(2L, "user2", "us", 985f, 1000f, 1, 1, 0, "", null);
 
-        Assertions.assertEquals(new EloChangeSet(1015f, 990f), changeSet);
+        Assertions.assertEquals(new EloChangeSet(15f, -15f), changeSet);
         Assertions.assertEquals(expectedUsers1, actualUsers1);
         Assertions.assertEquals(expectedUsers2, actualUsers2);
+    }
+
+    @Test
+    public void testUpdateStatsRollback() {
+        // given
+        createTestData(userDao);
+
+        // when
+        when(userDao.probabilityWins(1000f, 900f)).thenThrow(new RuntimeException("Mocked exception"));
+
+        Assertions.assertThrows(RuntimeException.class, () -> userDao.updateStats(1L, 3L));
+        UserEntity actualUsers1 = userDao.getById(1L);
+
+        actualUsers1.setElo(Math.round(actualUsers1.getElo()));
+        actualUsers1.setHighestElo(Math.round(actualUsers1.getHighestElo()));
+
+        // then
+        UserEntity expectedUsers1 = new UserEntity(1L, "user1", "us", 1000f, 1000f, 0, 0, 0, "", null);
+        Assertions.assertEquals(expectedUsers1, actualUsers1);
     }
 
     @Test
@@ -102,7 +127,7 @@ public class UserDaoTest {
 
         // then
         UserEntity expectedUser1 = new UserEntity(1L, "user1-changed", "us", 1000f, 1000f, 0, 0, 0, "Testing123", null);
-        UserEntity expectedUser2 = new UserEntity(2L, "user2-changed", "eu", 1005f, 1005f, 1, 0, 0, "", null);
+        UserEntity expectedUser2 = new UserEntity(2L, "user2-changed", "eu", 1000f, 1000f, 1, 0, 0, "", null);
 
         Assertions.assertEquals(expectedUser1, actualUser1);
         Assertions.assertEquals(expectedUser2, actualUser2);
@@ -124,21 +149,21 @@ public class UserDaoTest {
     }
 
     @Test
-    public void testGetLeaderboard() {
+    public void testGetEloList() {
         // given
         createTestData(userDao);
 
         // when
-        List<UserEntity> actualUserList = userDao.getLeaderboard(1, 5);
+        List<UserDao.EloResult> eloList = userDao.getEloList(0, 5);
 
         // then
-        List<UserEntity> expectedUserList = List.of(
-                new UserEntity(4L, "user4", "us", 2000f, 0f, 50, 20, 1, null, null),
-                new UserEntity(5L, "user5", "us", 1500f, 0f, 40, 35, 2, null, null),
-                new UserEntity(2L, "user2", "us", 1005f, 0f, 1, 0, 3, null, null),
-                new UserEntity(1L, "user1", "us", 1000f, 0f, 0, 0, 4, null, null),
-                new UserEntity(3L, "user3", "us", 900f, 0f, 1, 8, 5, null, null));
-        Assertions.assertEquals(expectedUserList, actualUserList);
+        List<UserDao.EloResult> expectedEloList = List.of(
+            new UserDao.EloResult(1L, 1000f),
+            new UserDao.EloResult(2L, 1000f),
+            new UserDao.EloResult(3L, 900f),
+            new UserDao.EloResult(4L, 2000f),
+            new UserDao.EloResult(5L, 1500f));
+        Assertions.assertEquals(expectedEloList, eloList);
     }
 
     @Test
@@ -152,7 +177,7 @@ public class UserDaoTest {
         // then
         List<UserEntity> expectedUserList = List.of(
                 new UserEntity(1L, "user1", "us", 1000f, 0f, 0, 0, 0, null, null),
-                new UserEntity(2L, "user2", "us", 1005f, 0f, 1, 0, 0, null, null));
+                new UserEntity(2L, "user2", "us", 1000f, 0f, 1, 0, 0, null, null));
         Assertions.assertEquals(expectedUserList, actualUserList);
     }
 

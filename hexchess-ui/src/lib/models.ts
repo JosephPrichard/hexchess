@@ -1,37 +1,3 @@
-export const Piece = {
-	empty: 0,
-	whitePawn: 1,
-	blackPawn: 2,
-	whiteKnight: 3,
-	blackKnight: 4,
-	whiteBishop: 5,
-	blackBishop: 6,
-	whiteRook: 7,
-	blackRook: 8,
-	whiteQueen: 9,
-	blackQueen: 10,
-	whiteKing: 11,
-	blackKing: 12
-} as const;
-
-export type PieceType = (typeof Piece)[keyof typeof Piece];
-
-export const piecenames: Record<PieceType, string> = {
-	[Piece.empty]: 'empty',
-	[Piece.whitePawn]: 'white-pawn',
-	[Piece.blackPawn]: 'black-pawn',
-	[Piece.whiteKnight]: 'white-knight',
-	[Piece.blackKnight]: 'black-knight',
-	[Piece.whiteBishop]: 'white-bishop',
-	[Piece.blackBishop]: 'black-bishop',
-	[Piece.whiteRook]: 'white-rook',
-	[Piece.blackRook]: 'black-rook',
-	[Piece.whiteQueen]: 'white-queen',
-	[Piece.blackQueen]: 'black-queen',
-	[Piece.whiteKing]: 'white-king',
-	[Piece.blackKing]: 'black-king'
-};
-
 export type Action = 'delete' | 'reject' | 'accept';
 
 export type ReplayResult = 'DRAW' | 'WHITE_WIN' | 'BLACK_WIN';
@@ -42,36 +8,7 @@ export type ColorSelect = 'RANDOM' | 'WHITE' | 'BLACK';
 
 export type TimeControl = 'UNLIMITED' | 'REAL_TIME' | 'CORRESPONDENCE';
 
-export interface ChessBoard {
-	isWhiteTurn: boolean;
-	pieces: PieceType[][];
-}
-
-export interface ChessGame {
-	board: ChessBoard;
-	whiteMoves: PieceMoves[];
-	blackMoves: PieceMoves[];
-	takenWhitePieces: PieceType[];
-	takenBlackPieces: PieceType[];
-}
-
-export interface Hexagon {
-	file: number;
-	rank: number;
-}
-
-export interface PieceMove {
-	piece: PieceType;
-	from: Hexagon;
-	to: Hexagon;
-}
-
-export interface PieceMoves {
-	hex: Hexagon;
-	moves: Hexagon[];
-}
-
-export interface SessionView {
+export interface Session {
 	id: number;
 	username: string;
 	country: string;
@@ -79,7 +16,7 @@ export interface SessionView {
 	ttlSecs?: number;
 }
 
-export interface UserView {
+export interface User {
 	id: number;
 	username: string;
 	country: string;
@@ -94,7 +31,7 @@ export interface UserView {
 	winRate: number;
 }
 
-export interface ChallengeView {
+export interface Challenge {
 	challengerId: number;
 	challengerName: string;
 	challengerCountry: string;
@@ -108,7 +45,7 @@ export interface ChallengeView {
 	expiresIn: string;
 }
 
-export interface ReplayView {
+export interface Replay {
 	id: number;
 	whiteId: number;
 	blackId: number;
@@ -127,85 +64,7 @@ export interface ReplayView {
 	blackEloDiff: number;
 }
 
-export interface UserWithReplaysView {
-	user: UserView;
-	replayList: ReplayView[];
-}
-
-export interface PlayerView {
-	id: number;
-	name: string;
-	country?: string;
-	elo?: number;
-	isGuest: boolean;
-}
-
-export interface ChallengeMsg {
-	challengerId: number;
-	challengerName: string;
-	challengerCountry: string;
-	challengeeId: number;
-	challengeeName: string;
-	challengeeCountry: string;
-}
-
-export interface ErrorMsg {
-	type: 'ERROR';
-	message: string;
-}
-
-export interface ForfeitMsg {
-	type: 'FORFEIT';
-}
-
-export interface JoinMsg {
-	type: 'JOIN';
-	blackPlayer: PlayerView;
-	whitePlayer: PlayerView;
-	joiningPlayer: PlayerView;
-}
-
-export interface SettingsMsg {
-	type: 'SETTINGS';
-	settings: GameSettings;
-}
-
-export interface StartMsg {
-	type: 'START';
-	room: ChessRoom;
-	selfPlayer: PlayerView;
-}
-
-export interface MoveMsg {
-	type: 'MOVE';
-	move: PieceMove;
-	game: ChessGame;
-}
-
-export interface ChatMsg {
-	type: 'CHAT';
-	player: PlayerView;
-	message: string;
-}
-
-export type GameOutputMsg =
-	| ErrorMsg
-	| ForfeitMsg
-	| StartMsg
-	| JoinMsg
-	| MoveMsg
-	| ChatMsg;
-
-export interface ChessRoom {
-	id: number;
-	game: ChessGame;
-	moveList: PieceMove[];
-	whitePlayer: PlayerView | null;
-	blackPlayer: PlayerView | null;
-	timeControl: TimeControl;
-	isEnded: boolean;
-}
-
-export interface GameSettings {
-	timeControl: TimeControl;
+export interface UserWithReplays {
+	user: User;
+	replayList: Replay[];
 }

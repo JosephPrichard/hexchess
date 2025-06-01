@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { type ChessBoard, type PieceMove, type ReplayView } from '$lib/models';
+	import { type ChessBoard, type PieceMove, type Replay } from '$lib/models';
 	import Banner from '$lib/components/Banner.svelte';
 	import Board from '$lib/components/chess/Board.svelte';
 	import { translateBoard } from '$lib/chess';
@@ -13,7 +13,7 @@
 	import ReplayPanel from '$lib/components/user/ReplayPanel.svelte';
 
 	export interface ReplayProps {
-		replay: ReplayView;
+		replay: Replay;
 		initialBoard: ChessBoard;
 	}
 

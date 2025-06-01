@@ -1,20 +1,18 @@
 <script lang="ts">
-	import { type ChatMsg, type GameOutputMsg, type ChessRoom, type PlayerView, piecenames, type PieceMove, type PieceMoves, type Hexagon } from '$lib/models';
 	import Banner from '$lib/components/Banner.svelte';
 	import { appBaseURL, baseURL, postTempSession, unwrap } from '$lib/api';
 	import { createMessage } from '$lib/error';
 	import { getNotificationsContext } from '$lib/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import Board from '$lib/components/chess/Board.svelte';
-	import { formatTimeControl, formatTimer } from '$lib/format';
+	import { formatTimeControl, formatTimer, timeControlIntMap } from '$lib/format';
 	import ClipboardIcon from '$lib/components/icons/ClipboardIcon.svelte';
 	import FlagIcon from '$lib/components/icons/FlagIcon.svelte';
 	import SettingsIcon from '$lib/components/icons/SettingsIcon.svelte';
 	import UndoIcon from '$lib/components/icons/UndoIcon.svelte';
-	import msgpack from 'msgpack-lite';
 	import PieceList from '$lib/components/chess/PieceList.svelte';
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
-	import { findPotentialMoves, isHexagonEqual } from './utils';
+	import { type Chat, type ChessRoom, GameOutput, type Hexagon, type PieceMoves, type Player } from '$lib/messages';
 
 	export interface PlayProps {
 		gameId: string
@@ -26,8 +24,8 @@
 	const { addNotification } = getNotificationsContext();
 
 	let room: ChessRoom | undefined = $state(undefined);
-	let selfPlayer: PlayerView | null = $state(null);
-	let chats: ChatMsg[] = $state([]);
+	let selfPlayer: Player | undefined = $state(undefined);
+	let chats: Chat[] = $state([]);
 	let chat = $state("");
 	let completeMessage: string | undefined = $state(undefined);
 	let whiteTimer: number | undefined = $state(undefined);
@@ -42,7 +40,7 @@
 
 	function onSubmitChat(e: KeyboardEvent) {
 		if (e.key === "Enter" && ws && chat.length > 0) {
-			ws.send(JSON.stringify({ type: 'TEXT', message: chat }));
+			ws.send(JSON.stringify({ type: 'CHAT', message: chat }));
 			chat = "";
 		}
 	}
@@ -64,50 +62,67 @@
 
 	}
 
-	function onClickPiece(hexagon: Hexagon) {
-		if (!room) {
+	function onClickPiece(newSelection: Hexagon) {
+		if (!room?.game) {
 			return;
 		}
 
-		if (isHexagonEqual(hexagon, selectedHexagon)) {
+		if (newSelection.file === newSelection.file && newSelection.rank == newSelection.rank) {
 			potentialMoves = undefined;
 			selectedHexagon = undefined;
 			return;
 		}
 
-		potentialMoves = findPotentialMoves(hexagon, room);
-		if (potentialMoves) {
-			selectedHexagon = hexagon;
+		let index = room.game.blackMoves.findIndex(move => newSelection.file === move?.hex?.file && newSelection.rank == move?.hex?.rank);
+		if (index !== -1) {
+			potentialMoves = room.game.blackMoves[index];
+			selectedHexagon = newSelection;
+			return;
 		} else {
-			selectedHexagon = undefined;
+			index = room.game.whiteMoves.findIndex(move => newSelection.file === move?.hex?.file && newSelection.rank == move?.hex?.rank);
+			if (index !== -1) {
+				potentialMoves = room.game.whiteMoves[index];
+				selectedHexagon = newSelection;
+				return;
+			}
 		}
+
+		selectedHexagon = undefined;
 	}
 
-	function onMessage(data: GameOutputMsg) {
-		switch (data.type) {
-			case 'JOIN':
+	function onMessage(data: GameOutput) {
+		switch (data.value.oneofKind) {
+			case 'join':
+				const join = data.value.join;
 				if (room) {
-					room.whitePlayer = data.whitePlayer;
-					room.blackPlayer = data.blackPlayer;
+					room.whitePlayer = join.whitePlayer;
+					room.blackPlayer = join.blackPlayer;
 				}
 				break;
-			case 'START':
-				selfPlayer = data.selfPlayer;
-				room = data.room;
+			case 'start':
+				const start =  data.value.start;
+				selfPlayer = start.selfPlayer;
+				room = start.room;
 				break;
-			case 'MOVE':
+			case 'move':
+				const move = data.value.move;
+				if (move.pieceMove === undefined) {
+					throw new Error("Piece move must be specified, got " + JSON.stringify(move));
+				}
 				if (room) {
-					room.game = data.game;
-					room.moveList.push(data.move);
+					room.game = move.game;
+					room.moveList.push(move.pieceMove);
 				}
 				break;
-			case 'FORFEIT':
+			case 'forfeit':
 				break;
-			case 'CHAT':
-				chats.push(data)
+			case 'chat':
+				const chat = data.value.chat;
+				chats.push(chat);
 				break;
-			case 'ERROR':
-				const message = createMessage(data.message);
+			case 'error':
+				const error = data.value.error;
+				const message = createMessage(error.message);
 				addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
 				break;
 		}
@@ -131,7 +146,7 @@
 					});
 					ws.addEventListener('message', (event) => {
 						if (event.data instanceof ArrayBuffer) {
-							const data: GameOutputMsg = msgpack.decode(new Uint8Array(event.data));
+							const data = GameOutput.fromBinary(new Uint8Array(event.data));
 							console.log(`Received message with length=${event.data.byteLength} data`, data);
 							onMessage(data);
 						}
@@ -168,14 +183,14 @@
 	<div class="center-vertical-container" style="align-items: stretch;">
 		{#if room && isStarted()}
 			{@const game = room.game}
-			{@const board = room.game.board}
+			{@const board = room.game?.board}
 			{@const isPlayingAsWhite = selfPlayer?.id === room.whitePlayer?.id}
-			{@const isTurn = board.isWhiteTurn && isPlayingAsWhite}
+			{@const isTurn = board?.isWhiteTurn && isPlayingAsWhite}
 			{@const opponentPlayer = isPlayingAsWhite ? room.blackPlayer : room.whitePlayer}
 			{@const selfTimer = isPlayingAsWhite ? whiteTimer : blackTimer}
 			{@const opponentTimer = isPlayingAsWhite ? blackTimer : whiteTimer}
-			{@const selfTakenPieces = isPlayingAsWhite ? game.takenWhitePieces : game.takenBlackPieces}
-			{@const opponentTakenPieces = isPlayingAsWhite ? game.takenBlackPieces : game.takenWhitePieces}
+			{@const selfTakenPieces = isPlayingAsWhite ? game?.takenWhitePieces : game?.takenBlackPieces}
+			{@const opponentTakenPieces = isPlayingAsWhite ? game?.takenBlackPieces : game?.takenWhitePieces}
 			<Board
 				board={board}
 				isWhitePerspective={isPlayingAsWhite}
@@ -184,7 +199,7 @@
 				selectedHexagon={selectedHexagon}
 			/>
 			<div class="side-table-wrapper">
-				<PieceList pieces={opponentTakenPieces} />
+				<PieceList pieces={opponentTakenPieces || []} />
 				{#if opponentTimer}
 					<div class="timer" class:timer-warn={opponentTimer < 15000}>
 						{formatTimer(opponentTimer)}
@@ -204,14 +219,14 @@
 							<SettingsIcon />
 						</button>
 					</div>
-					<PlayerPanel player={selfPlayer} isTurn={isTurn} />
+					<PlayerPanel player={selfPlayer} isTurn={isTurn || false} />
 				</div>
 				{#if selfTimer}
 					<div class="timer" class:timer-warn={selfTimer < 15000}>
 						{formatTimer(selfTimer)}
 					</div>
 				{/if}
-				<PieceList pieces={selfTakenPieces} />
+				<PieceList pieces={selfTakenPieces || []} />
 			</div>
 		{:else if room}
 			<div class="panel lobby">
@@ -219,7 +234,7 @@
 					Challenge to a game
 				</div>
 				<div class="text-sm" style:margin-bottom="30px">
-					{formatTimeControl(room.timeControl)}
+					{formatTimeControl(timeControlIntMap[room.timeControl])}
 				</div>
 				<div style:margin-bottom="10px">
 					To invite someone to play, send them this URL.

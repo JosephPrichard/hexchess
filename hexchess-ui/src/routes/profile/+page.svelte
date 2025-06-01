@@ -2,14 +2,14 @@
 	import { postLogout, postUpdatePassword, postUpdateUser, unwrap } from '$lib/api';
 	import { goto } from '$app/navigation';
 	import Banner from '$lib/components/Banner.svelte';
-	import type { UserView } from '$lib/models';
+	import type { User } from '$lib/models';
 	import { updateClientSession as updateClientUser } from '$lib/local';
 	import { createMessage } from '$lib/error';
 	import { getNotificationsContext } from '$lib/context';
 
 	export interface ProfileProps {
 		countryList: string[];
-		user: UserView;
+		user: User;
 	}
 
 	const { data: props }: { data: ProfileProps } = $props();

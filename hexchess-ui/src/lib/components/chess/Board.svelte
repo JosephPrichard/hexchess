@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { type ChessBoard, type Hexagon, Piece, piecenames } from '$lib/models.js';
-	import { colors, colorsOffset, height, selectedColor, verticalFileOffsets, width } from '$lib/globals';
-	import { isHexagonEqual } from '../../../routes/play/[id]/utils';
+	import { colors, colorsOffset, height, piecenames, selectedColor, verticalFileOffsets, width } from '$lib/globals';
+	import type { ChessBoard, Hexagon } from '$lib/messages';
 
 	export interface BoardProps {
 		board: ChessBoard;
@@ -31,7 +30,6 @@
 			{@const flippedTop = 10 * height - top}
 			{@const left = file * (height - 8)}
 			{@const bgIndex = (colorsOffset[file] + rank) % 3}
-			{@const hexagon = { file, rank }}
 			{@const isMove = potentialMovesMap[file + "," + rank]}
 			<div
 				class="hexagon"
@@ -39,10 +37,10 @@
 				style:left="{left}px"
 				style:width="{width}px"
 				style:height="{height}px"
-				style:background={isHexagonEqual(selectedHexagon, hexagon) ? selectedColor : colors[bgIndex]}
+				style:background={selectedHexagon?.file === file && selectedHexagon?.rank === rank ? selectedColor : colors[bgIndex]}
 			>
-				{#if piece !== Piece.empty}
-					<div role="button" tabindex="0" class="piece-img" onmousedown={() => onClickPiece ? onClickPiece(hexagon) : {}}>
+				{#if piece !== 0}
+					<div role="button" tabindex="0" class="piece-img" onmousedown={() => onClickPiece ? onClickPiece({ file, rank }) : {}}>
 						<img class="piece-img-inner" src="/pieces/{piecenames[piece]}.png" alt="" draggable={false} />
 					</div>
 					{#if isMove}

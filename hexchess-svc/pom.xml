@@ -8,10 +8,12 @@
     <artifactId>Hexchess</artifactId>
     <version>1.0-SNAPSHOT</version>
 
+
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <protobuf-java.version>3.24.0</protobuf-java.version> <!-- Your desired version -->
     </properties>
 
     <repositories>
@@ -27,7 +29,6 @@
             <groupId>io.jooby</groupId>
             <artifactId>jooby</artifactId>
             <version>3.7.0</version>
-
             <exclusions>
                 <exclusion>
                     <groupId>org.slf4j</groupId>
@@ -52,12 +53,6 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>com.github.jknack</groupId>
-            <artifactId>handlebars</artifactId>
-            <version>4.4.0</version>
-        </dependency>
-
-        <dependency>
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
             <version>1.18.1</version>
@@ -67,7 +62,6 @@
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>
             <version>5.1.0</version>
-
             <exclusions>
                 <exclusion>
                     <groupId>org.slf4j</groupId>
@@ -85,19 +79,11 @@
             <artifactId>commons-dbutils</artifactId>
             <version>1.8.1</version>
         </dependency>
-        <dependency>
-            <groupId>io.zonky.test.postgres</groupId>
-            <artifactId>embedded-postgres-binaries-bom</artifactId>
-            <version>17.0.0</version>
-            <type>pom</type>
-            <scope>test</scope>
-        </dependency>
         <!-- Dictionaries/caches -->
         <dependency>
             <groupId>redis.clients</groupId>
             <artifactId>jedis</artifactId>
             <version>5.1.0</version>
-
             <exclusions>
                 <exclusion>
                     <groupId>org.slf4j</groupId>
@@ -112,14 +98,14 @@
         </dependency>
         <!-- Serialization -->
         <dependency>
-            <groupId>org.msgpack</groupId>
-            <artifactId>msgpack-core</artifactId>
-            <version>0.9.0</version>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <version>4.31.0</version>
         </dependency>
         <dependency>
-            <groupId>org.msgpack</groupId>
-            <artifactId>jackson-dataformat-msgpack</artifactId>
-            <version>0.9.9</version>
+            <groupId>com.google.flatbuffers</groupId>
+            <artifactId>flatbuffers-java</artifactId>
+            <version>23.5.26</version>
         </dependency>
         <!-- Cryptography/security -->
         <dependency>
@@ -145,13 +131,19 @@
             <artifactId>embedded-postgres</artifactId>
             <version>2.0.7</version>
             <scope>test</scope>
-
             <exclusions>
                 <exclusion>
                     <groupId>org.slf4j</groupId>
                     <artifactId>slf4j-api</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>io.zonky.test.postgres</groupId>
+            <artifactId>embedded-postgres-binaries-bom</artifactId>
+            <version>17.0.0</version>
+            <type>pom</type>
+            <scope>test</scope>
         </dependency>
         <!-- Annotation -->
         <dependency>
@@ -177,7 +169,6 @@
             <artifactId>fastutil</artifactId>
             <version>5.0.9</version>
         </dependency>
-
         <dependency>
             <groupId>org.codehaus.plexus</groupId>
             <artifactId>plexus-utils</artifactId>
@@ -187,6 +178,20 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>io.github.ascopes</groupId>
+                <artifactId>protobuf-maven-plugin</artifactId>
+                <configuration>
+                    <protocVersion>${protobuf-java.version}</protocVersion>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <!-- Shade plugin for building executable jars using maven -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

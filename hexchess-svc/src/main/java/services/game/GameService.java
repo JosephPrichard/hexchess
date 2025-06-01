@@ -99,14 +99,16 @@ public class GameService {
     }
 
     public static boolean isPlayerTurn(ChessRoom state, Player player) {
-        Player currPlayer = state.findCurrPlayer();
+        Player currPlayer = state.getCurrPlayer();
         if (currPlayer == null) {
             return false;
         }
         return currPlayer.equals(player);
     }
 
-    public ChessRoom makeMove(String gameId, Player player, Move move) {
+    public record MakeMoveResult(ChessRoom room, PieceMove pm) {}
+
+    public MakeMoveResult makeMove(String gameId, Player player, Move move) {
         ChessRoom room = dictionaryDao.getRoom(gameId);
         if (room == null) {
             return null;
@@ -128,7 +130,7 @@ public class GameService {
         }
 
         byte piece = game.getBoard().getPiece(move.getFrom());
-        game.makeMove(move);
+        PieceMove pm = game.makeMove(move);
         game.initPieceMoves();
 
         room.getMoveList().add(new PieceMove(piece, move.getFrom(), move.getTo()));
@@ -140,19 +142,23 @@ public class GameService {
         }
 
         LOG.info("{} made move {} on game {}", player, move, gameId);
-        return dictionaryDao.setRoom(gameId, room);
+        return new MakeMoveResult(dictionaryDao.setRoom(gameId, room), pm);
     }
 
-    public void onFinishGame(ChessRoom state, boolean isWhiteWin, int cause) {
+    public void onFinishGame(ChessRoom room, boolean isWhiteWin, int cause) {
         try {
-            long whiteId = state.getWhitePlayer().getId();
-            long blackId = state.getBlackPlayer().getId();
+            long whiteId = room.getWhitePlayer().getId();
+            long blackId = room.getBlackPlayer().getId();
             int result = isWhiteWin ? ReplayEntity.WHITE_WIN : ReplayEntity.BLACK_WIN;
             long winId = isWhiteWin ? whiteId : blackId;
             long loseId = isWhiteWin ? blackId : whiteId;
 
-            String moveListJson = JSON.writeValueAsString(state.getMoveList());
+            String moveListJson = JSON.writeValueAsString(room.getMoveList());
             EloChangeSet changeSet = userDao.updateStats(winId, loseId);
+            if (changeSet == null) {
+                LOG.info("No change set needs to be applied to game result for room={}", room.getId());
+                return;
+            }
 
             dictionaryDao.incrLeaderboardUser(
                     new DictionaryDao.EloChangeSet(winId, changeSet.winEloDiff()),

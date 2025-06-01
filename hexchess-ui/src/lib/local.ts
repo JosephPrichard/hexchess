@@ -1,4 +1,4 @@
-import type { SessionView } from '$lib/models';
+import type { Session } from '$lib/models';
 
 const SESSION_KEY = 'session';
 
@@ -7,10 +7,10 @@ interface LocalStorageRecord<T> {
 	expiry: number;
 }
 
-export function getClientSession(): SessionView | null {
+export function getClientSession(): Session | null {
 	const recordStr = localStorage.getItem(SESSION_KEY);
 	if (recordStr != null) {
-		const record = JSON.parse(recordStr) as LocalStorageRecord<SessionView>;
+		const record = JSON.parse(recordStr) as LocalStorageRecord<Session>;
 		const now = new Date().getTime();
 		if (record.expiry < now) {
 			localStorage.removeItem(SESSION_KEY);
@@ -22,8 +22,8 @@ export function getClientSession(): SessionView | null {
 	return null;
 }
 
-export function setClientSession(client: SessionView) {
-	const record: LocalStorageRecord<SessionView> = {
+export function setClientSession(client: Session) {
+	const record: LocalStorageRecord<Session> = {
 		data: client,
 		expiry: new Date().getTime() + (client.ttlSecs || 0) * 1000
 	};
@@ -33,7 +33,7 @@ export function setClientSession(client: SessionView) {
 	// console.log(`Set key=${SESSION_KEY} to value=${recordStr} to local storage`);
 }
 
-export function updateClientSession(newClient: SessionView | null) {
+export function updateClientSession(newClient: Session | null) {
 	if (newClient) {
 		const client = getClientSession();
 		if (client != null) {

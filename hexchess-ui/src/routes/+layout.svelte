@@ -1,9 +1,9 @@
 <script lang="ts">
-	import '../lib/css/index.css';
+	import '../css/index.css';
 	import type { LayoutProps } from '../../.svelte-kit/types/src/routes/$types';
 	import { type NotificationData, setNotificationsContext } from '$lib/context';
 	import { onMount } from 'svelte';
-	import type { ChallengeMsg } from '$lib/models';
+	import type { Challenge } from '$lib/models';
 	import { baseURL, postRefresh, unwrap } from '$lib/api';
 	import { createMessage } from '$lib/error';
 	import { clearClientSession, updateClientSession } from '$lib/local';
@@ -39,7 +39,7 @@
 			console.log('Sse:', createMessage(event.data));
 		});
 		sse.addEventListener('challenge', (event) => {
-			const data: ChallengeMsg = JSON.parse(event.data);
+			const data: Challenge = JSON.parse(event.data);
 			console.log('Sse:', data);
 			addNotification({ type: 'challenge', message: data, isSuccess: true, duration: 150000 });
 		});

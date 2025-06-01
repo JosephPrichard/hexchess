@@ -1,6 +1,9 @@
 package web.controllers;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import messages.Messages;
 import models.views.SessionView;
+import services.broadcast.Broadcaster;
 import services.daos.ChallengeDao;
 import services.daos.UserDao;
 import models.common.ColorSelect;
@@ -13,8 +16,6 @@ import services.daos.DictionaryDao;
 import io.jooby.*;
 import io.jooby.exception.StatusCodeException;
 import org.jsoup.Jsoup;
-import services.producers.ChallengeProducer;
-import models.message.ChallengeMsg;
 import web.reusable.AuthService;
 import web.State;
 
@@ -29,7 +30,7 @@ public class FormController extends Jooby {
     private final DictionaryDao dictionaryDao;
     private final GameService gameService;
     private final AuthService authService;
-    private final ChallengeProducer challengeProducer;
+    private final Broadcaster userBroadcaster;
 
     public FormController(State state) {
         userDao = state.getUserDao();
@@ -37,7 +38,7 @@ public class FormController extends Jooby {
         dictionaryDao = state.getDictionaryDao();
         gameService = state.getGameService();
         authService = state.getAuthService();
-        challengeProducer = state.getChallengeProducer();
+        userBroadcaster = state.getUserBroadcaster();
 
         setWorker(EXECUTOR);
 
@@ -257,8 +258,8 @@ public class FormController extends Jooby {
             }
             if (action.equals("ACCEPT")) {
                 gameId = gameService.create(
-                    ColorSelect.fromString(result.startColor()),
-                    TimeControl.fromString(result.timeControl()));
+                    ColorSelect.fromString(result.getStartColor()),
+                    TimeControl.fromString(result.getTimeControl()));
             }
         } else {
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_UPDATE_CHALLENGE);
@@ -276,6 +277,18 @@ public class FormController extends Jooby {
         }
         if (body.startColor() == null) {
             throw new StatusCodeException(StatusCode.BAD_REQUEST, ERROR_INVALID_REQUEST);
+        }
+    }
+
+    private void broadcastChallenge(ChallengeEntity entity) {
+        try {
+            String groupId = Long.toString(entity.getChallengeeId());
+            LOG.info("Broadcasting challenge={} with groupId={} to user broadcaster", entity, groupId);
+
+            byte[] output = JSON.writeValueAsBytes(entity);
+            userBroadcaster.broadcast(groupId, output);
+        } catch (JsonProcessingException e) {
+            LOG.error("Error occurred while broadcasting challenge to user", e);
         }
     }
 
@@ -299,7 +312,7 @@ public class FormController extends Jooby {
 
         try {
             ChallengeEntity entity = challengeDao.insert(player.getId(), challengeeId, timeControl.toString(), startColor.toString());
-            EXECUTOR.execute(() -> challengeProducer.broadcastChallenge(ChallengeMsg.fromEntity(entity)));
+            EXECUTOR.execute(() -> broadcastChallenge(entity));
             EXECUTOR.execute(() -> challengeDao.deleteExpired(player.getId()));
 
             return "SUCCESS";

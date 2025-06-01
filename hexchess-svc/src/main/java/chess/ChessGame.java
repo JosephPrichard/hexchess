@@ -4,22 +4,27 @@ import it.unimi.dsi.fastutil.bytes.ByteArrayList;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.NonNull;
+import messages.Messages;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static chess.ChessBoard.*;
 import static chess.Direction.*;
 
 @Data
-@NoArgsConstructor
 @AllArgsConstructor
 public class ChessGame {
 
+    @NonNull
     private ChessBoard board;
-    private List<PieceMoves> whiteMoves;
-    private List<PieceMoves> blackMoves;
+    private List<PieceMoves> whiteMoves = new ArrayList<>();
+    private List<PieceMoves> blackMoves = new ArrayList<>();
     private ByteArrayList takenWhitePieces = new ByteArrayList();
     private ByteArrayList takenBlackPieces = new ByteArrayList();
 
@@ -31,7 +36,7 @@ public class ChessGame {
         return new ChessGame(new ChessBoard(true));
     }
 
-    public ChessGame(ChessBoard board) {
+    public ChessGame(@NonNull ChessBoard board) {
         this.board = board;
     }
 
@@ -54,8 +59,6 @@ public class ChessGame {
 
     public boolean isValidMove(Move move) {
         assert move != null;
-        assert whiteMoves != null;
-        assert blackMoves != null;
 
         List<PieceMoves> moves = findCurrMoves();
 
@@ -69,11 +72,11 @@ public class ChessGame {
             });
     }
 
-    public void makeMove(Move move) {
-        makeMove(move.getFrom(), move.getTo());
+    public PieceMove makeMove(Move move) {
+        return makeMove(move.getFrom(), move.getTo());
     }
 
-    public void makeMove(Hexagon from, Hexagon to) {
+    public PieceMove makeMove(Hexagon from, Hexagon to) {
         byte piece1 = board.getPiece(from);
         byte piece2 = board.getPiece(to);
 
@@ -89,8 +92,7 @@ public class ChessGame {
         board.setPiece(to, piece1);
         board.flipTurn();
 
-        whiteMoves = null;
-        blackMoves = null;
+        return new PieceMove(piece1, from, to);
     }
 
     public void initPieceMoves() {
@@ -323,5 +325,56 @@ public class ChessGame {
         }
 
         return moves;
+    }
+
+    public Messages.ChessGame serialize() {
+        Stream<Messages.PieceMoves> whiteMovesStream = Optional.ofNullable(whiteMoves)
+            .orElse(Collections.emptyList())
+            .stream()
+            .map(PieceMoves::serialize);
+        Stream<Messages.PieceMoves> blackMovesStream = Optional.ofNullable(blackMoves)
+            .orElse(Collections.emptyList())
+            .stream()
+            .map(PieceMoves::serialize);
+
+        Messages.ChessGame.Builder builder = Messages.ChessGame.newBuilder()
+            .setBoard(board.serialize())
+            .addAllWhiteMoves(whiteMovesStream::iterator)
+            .addAllBlackMoves(blackMovesStream::iterator);
+
+        for (int i = 0; i < takenWhitePieces.size(); i++) {
+            builder.setTakenWhitePieces(i, takenWhitePieces.get(i));
+        }
+        for (int i = 0; i < takenBlackPieces.size(); i++) {
+            builder.setTakenBlackPieces(i, takenBlackPieces.get(i));
+        }
+
+        return builder.build();
+    }
+
+    public static ChessGame deserialize(Messages.ChessGame msg) {
+        ChessBoard board = ChessBoard.deserialize(msg.getBoard());
+
+        List<PieceMoves> whiteMoves = msg.getWhiteMovesList()
+            .stream()
+            .map(PieceMoves::deserialize)
+            .toList();
+
+        List<PieceMoves> blackMoves = msg.getBlackMovesList()
+            .stream()
+            .map(PieceMoves::deserialize)
+            .toList();
+
+        ByteArrayList takenWhite = new ByteArrayList();
+        ByteArrayList takenBlack = new ByteArrayList();
+
+        for (int i = 0; i < msg.getTakenBlackPiecesCount(); i++) {
+            takenWhite.add((byte) msg.getTakenBlackPieces(i));
+        }
+        for (int i = 0; i < msg.getTakenWhitePiecesCount(); i++) {
+            takenBlack.add((byte) msg.getTakenWhitePieces(i));
+        }
+
+        return new ChessGame(board, whiteMoves, blackMoves, takenWhite, takenBlack);
     }
 }

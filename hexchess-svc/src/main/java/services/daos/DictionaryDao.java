@@ -1,7 +1,5 @@
 package services.daos;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectReader;
 import models.state.ChessRoom;
 import models.state.Player;
 import models.entities.RankedEntity;
@@ -9,7 +7,6 @@ import models.entities.UserEntity;
 import redis.clients.jedis.AbstractTransaction;
 import redis.clients.jedis.JedisPooled;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,8 +18,6 @@ public class DictionaryDao {
 
     private static final Random RANDOM = new Random();
     private final JedisPooled jedis;
-    private final ObjectReader playerReader;
-    private final ObjectReader roomReader;
 
     private static final String GAMES_ZSET = "games";
     private static final byte[] GAMES_ZSET_BYTES = GAMES_ZSET.getBytes();
@@ -32,17 +27,6 @@ public class DictionaryDao {
 
     public DictionaryDao(JedisPooled jedis) {
         this.jedis = jedis;
-        this.playerReader = MESSAGE_PACK.readerFor(Player.class);
-        this.roomReader = MESSAGE_PACK.readerFor(ChessRoom.class);
-    }
-
-    private ChessRoom deserializeRoom(byte[] bytes) {
-        try {
-            return roomReader.readValue(bytes, ChessRoom.class);
-        } catch (IOException ex) {
-            LOG.error("Failed to deserialize room object from bytes", ex);
-            throw new RuntimeException(ex);
-        }
     }
 
     public ChessRoom getRoom(String id) {
@@ -53,19 +37,13 @@ public class DictionaryDao {
         if (bytes == null) {
             return null;
         }
-        return deserializeRoom(bytes);
+        return ChessRoom.deserialize(bytes);
     }
 
     public ChessRoom setRoom(String id, ChessRoom room) {
         room.setTouch(System.currentTimeMillis());
 
-        byte[] bytes;
-        try {
-           bytes = MESSAGE_PACK.writeValueAsBytes(room);
-        } catch (IOException ex) {
-            LOG.error("Failed to serialize room object to bytes", ex);
-            throw new RuntimeException(ex);
-        }
+        byte[] bytes = room.serializeAsBytes();
 
         id = "game:" + id;
 
@@ -121,7 +99,7 @@ public class DictionaryDao {
             return List.of();
         }
 
-        return bytesList.stream().map(this::deserializeRoom).toList();
+        return bytesList.stream().map(ChessRoom::deserialize).toList();
     }
 
     public Player getSession(String sessionId) {
@@ -130,23 +108,13 @@ public class DictionaryDao {
         if (bytes == null) {
             return null;
         }
-        try {
-            return playerReader.readValue(bytes, Player.class);
-        } catch (IOException ex) {
-            LOG.error("Failed to deserialize a player to bytes", ex);
-            throw new RuntimeException(ex);
-        }
+        return Player.deserialize(bytes);
     }
 
     public void setSession(String sessionId, Player player, long expirySeconds) {
         String fullId = "session:" + sessionId;
-        try {
-            byte[] bytes = MESSAGE_PACK.writeValueAsBytes(player);
-            jedis.setex(fullId.getBytes(), expirySeconds, bytes);
-        } catch (JsonProcessingException ex) {
-            LOG.error("Failed to serialize a player to bytes", ex);
-            throw new RuntimeException(ex);
-        }
+        byte[] bytes = player.serializeAsBytes();
+        jedis.setex(fullId.getBytes(), expirySeconds, bytes);
     }
 
     public void updateSessionEx(String sessionId, long expirySeconds) {

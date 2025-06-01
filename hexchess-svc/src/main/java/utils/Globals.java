@@ -3,7 +3,6 @@ package utils;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.safety.Safelist;
-import org.msgpack.jackson.dataformat.MessagePackMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,7 +20,6 @@ public class Globals {
     public static final ExecutorService EXECUTOR = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("thread-", 0L).factory());
 
     public static final ObjectMapper JSON = new ObjectMapper();
-    public static final ObjectMapper MESSAGE_PACK = new MessagePackMapper();
 
     public static final Random RANDOM = new Random();
 
@@ -29,14 +27,7 @@ public class Globals {
     public static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     static {
-        MESSAGE_PACK.setVisibility(MESSAGE_PACK
-            .getSerializationConfig()
-            .getDefaultVisibilityChecker()
-            .withFieldVisibility(JsonAutoDetect.Visibility.ANY)
-            .withGetterVisibility(JsonAutoDetect.Visibility.NONE)
-            .withSetterVisibility(JsonAutoDetect.Visibility.NONE)
-            .withCreatorVisibility(JsonAutoDetect.Visibility.NONE));
-        JSON.setVisibility(MESSAGE_PACK
+        JSON.setVisibility(JSON
             .getSerializationConfig()
             .getDefaultVisibilityChecker()
             .withFieldVisibility(JsonAutoDetect.Visibility.ANY)

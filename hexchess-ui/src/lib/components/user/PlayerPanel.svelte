@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { PlayerView } from '$lib/models.js';
 
-	const { player, isTurn }: { player: PlayerView | null, isTurn: boolean } = $props();
+	const { player, isTurn }: { player: PlayerView | undefined, isTurn: boolean } = $props();
 </script>
 
 <div class="side-table-header player-panel">

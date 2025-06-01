@@ -91,7 +91,15 @@ public class ChallengeDao {
         }
     }
 
-    public record DeleteResult(long challengerId, long challengeeId, String timeControl, String startColor) {}
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DeleteResult {
+        private long challengerId;
+        private long challengeeId;
+        private String timeControl;
+        private String startColor;
+    }
 
     public DeleteResult delete(long challengerId, long challengeeId) {
         String sql = """

@@ -30,9 +30,4 @@ public class UserEntity {
     public UserEntity(long id, String username, String country, float elo, int rank) {
         this(id, username, country, elo, elo, 0, 0, rank, null, null);
     }
-
-    public void roundElo() {
-        elo = Math.round(elo);
-        highestElo = Math.round(highestElo);
-    }
 }

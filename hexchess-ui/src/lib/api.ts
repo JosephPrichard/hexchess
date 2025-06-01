@@ -1,5 +1,6 @@
-import type { ChallengeView, ChessBoard, ReplayView, UserView, UserWithReplaysView, SessionView, Action, PieceMove } from '$lib/models';
+import type { Challenge, Replay, User, UserWithReplays, Session, Action } from '$lib/models';
 import { codes } from '$lib/error';
+import type { ChessBoard, PieceMove } from '$lib/messages';
 
 export interface ApiResult<T> {
 	ok: boolean;
@@ -61,7 +62,7 @@ export async function unwrap<T>(promiseResp: Promise<T>): Promise<ApiResult<T>> 
 }
 
 export function postLogin(username: string, password: string) {
-	return api<SessionView>(`${baseURL}/forms/login`, {
+	return api<Session>(`${baseURL}/forms/login`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		credentials: 'include',
@@ -70,7 +71,7 @@ export function postLogin(username: string, password: string) {
 }
 
 export function postRegister(username: string, password: string, confirmPassword: string) {
-	return api<SessionView>(`${baseURL}/forms/register`, {
+	return api<Session>(`${baseURL}/forms/register`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		credentials: 'include',
@@ -79,7 +80,7 @@ export function postRegister(username: string, password: string, confirmPassword
 }
 
 export function postUpdateUser(username: string, bio: string, country: string) {
-	return api<SessionView>(`${baseURL}/forms/users`, {
+	return api<Session>(`${baseURL}/forms/users`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		credentials: 'include',
@@ -144,7 +145,7 @@ export function postTempSession() {
 }
 
 interface RefreshResp {
-	session: SessionView | null;
+	session: Session | null;
 }
 
 export function postRefresh() {
@@ -161,13 +162,13 @@ export function getReplays(userId: number, afterId?: number, fetch?: typeof wind
 		params.set('afterId', afterId.toString());
 	}
 
-	return api<ReplayView[]>(`${baseURL}/views/replays?${params.toString()}`, { method: 'GET' }, fetch);
+	return api<Replay[]>(`${baseURL}/views/replays?${params.toString()}`, { method: 'GET' }, fetch);
 }
 
 export function getChallenges(participants: string, fetch?: typeof window.fetch) {
 	const params = new URLSearchParams({ participants: participants });
 
-	return api<ChallengeView[]>(
+	return api<Challenge[]>(
 		`${baseURL}/views/challenges?${params.toString()}`,
 		{
 			method: 'GET',
@@ -179,7 +180,7 @@ export function getChallenges(participants: string, fetch?: typeof window.fetch)
 
 export interface LeaderboardResp {
 	totalPages: number;
-	userList: UserView[];
+	userList: User[];
 }
 
 export function getLeaderboard(page: number, fetch?: typeof window.fetch) {
@@ -189,7 +190,7 @@ export function getLeaderboard(page: number, fetch?: typeof window.fetch) {
 }
 
 export function getProfile(fetch?: typeof window.fetch) {
-	return api<UserView>(
+	return api<User>(
 		`${baseURL}/views/players/self`,
 		{
 			method: 'GET',
@@ -200,7 +201,7 @@ export function getProfile(fetch?: typeof window.fetch) {
 }
 
 export function getUserWithReplays(id: string, fetch?: typeof window.fetch) {
-	return api<UserWithReplaysView>(`${baseURL}/views/players/${id}`, { method: 'GET' }, fetch);
+	return api<UserWithReplays>(`${baseURL}/views/players/${id}`, { method: 'GET' }, fetch);
 }
 
 export function getSearchPlayers(username: string, page?: number, fetch?: typeof window.fetch) {
@@ -209,11 +210,11 @@ export function getSearchPlayers(username: string, page?: number, fetch?: typeof
 		params.set('page', String(page));
 	}
 
-	return api<UserView[]>(`${baseURL}/views/players/search?${params.toString()}`, { method: 'GET' }, fetch);
+	return api<User[]>(`${baseURL}/views/players/search?${params.toString()}`, { method: 'GET' }, fetch);
 }
 
 export function getReplay(id: string, fetch?: typeof window.fetch) {
-	return api<ReplayView>(`${baseURL}/views/replay/${id}`, { method: 'GET' }, fetch);
+	return api<Replay>(`${baseURL}/views/replay/${id}`, { method: 'GET' }, fetch);
 }
 
 export function getReplayMoveList(id: string, fetch?: typeof window.fetch) {

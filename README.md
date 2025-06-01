@@ -5,6 +5,13 @@ Created using Java, Svelte, Jooby, Postgres, and Redis.
 
 ## Build and Deployment
 
+### Install Dependencies
+
+`$ git clone https://github.com/google/flatbuffers.git`
+`$ sudo apt update`
+`$ sudo apt install cmake`
+``
+
 ### Run Infrastructure
 
 `$ docker compose up`

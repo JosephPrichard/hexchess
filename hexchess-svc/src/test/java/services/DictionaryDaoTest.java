@@ -47,17 +47,19 @@ public class DictionaryDaoTest {
     @Test
     public void testGameUpdate() {
         String id = "test-id";
-        dictionaryDao.setRoom(id, ChessRoom.startWithGame(id, TimeControl.UNLIMITED));
 
-        ChessRoom firstGame = dictionaryDao.getRoom(id);
-        Assertions.assertEquals(ChessRoom.startWithGame(id, TimeControl.UNLIMITED), firstGame);
+        ChessRoom input = ChessRoom.startWithGame(id, TimeControl.UNLIMITED);
+        dictionaryDao.setRoom(id, input);
 
-        firstGame.getGame().getBoard().setPiece("a1", ChessBoard.BLACK_QUEEN);
-        dictionaryDao.setRoom(id, firstGame);
+        ChessRoom output1 = dictionaryDao.getRoom(id);
+        Assertions.assertEquals(input, output1);
 
-        ChessRoom secondGame = dictionaryDao.getRoom(id);
+        output1.getGame().getBoard().setPiece("a1", ChessBoard.BLACK_QUEEN);
+        dictionaryDao.setRoom(id, output1);
 
-        Assertions.assertEquals(firstGame, secondGame);
+        ChessRoom output2 = dictionaryDao.getRoom(id);
+
+        Assertions.assertEquals(output1, output2);
     }
 
     @Test
@@ -68,14 +70,10 @@ public class DictionaryDaoTest {
         String id3 = "test-id3";
         String id4 = "test-id4";
 
-        Player player1 = new Player(1L, "name1", null, null);
-        Player player2 = new Player(2L, "name2", null, null);
-        Player player3 = new Player(3L, "name3", null, null);
-
-        ChessRoom game1 = ChessRoom.ofPlayers(id1, player1, player2);
-        ChessRoom game2 = ChessRoom.ofPlayers(id2, player2, player3);
-        ChessRoom game3 = ChessRoom.ofPlayers(id3, player3, player1);
-        ChessRoom game4 = ChessRoom.ofPlayers(id4, player2, player1);
+        ChessRoom game1 = ChessRoom.startWithGame(id1, TimeControl.REAL_TIME);
+        ChessRoom game2 = ChessRoom.startWithGame(id2, TimeControl.REAL_TIME);
+        ChessRoom game3 = ChessRoom.startWithGame(id3, TimeControl.REAL_TIME);
+        ChessRoom game4 = ChessRoom.startWithGame(id4, TimeControl.REAL_TIME);
 
         // when
         dictionaryDao.setRoom(id1, game1);

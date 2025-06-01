@@ -1,14 +1,15 @@
 package web.controllers;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import io.jooby.Context;
 import io.jooby.Jooby;
 import io.jooby.ServerSentEmitter;
 import io.jooby.jackson.JacksonModule;
+import messages.Messages;
+import models.entities.ChallengeEntity;
 import models.state.Player;
 import services.broadcast.Broadcaster;
 import services.daos.DictionaryDao;
-import services.producers.ChallengeProducer;
-import models.message.ChallengeMsg;
 import web.reusable.AuthService;
 import web.State;
 
@@ -35,10 +36,18 @@ public class EventController extends Jooby {
     }
 
     private String publishChallenge(Context ctx) {
-        ChallengeMsg body = ctx.body(ChallengeMsg.class);
+        ChallengeEntity body = ctx.body(ChallengeEntity.class);
+        Broadcaster userBroadcaster = state.getUserBroadcaster();
 
-        ChallengeProducer challengeProducer = state.getChallengeProducer();
-        challengeProducer.broadcastChallenge(body);
+        try {
+            String groupId = Long.toString(body.getChallengeeId());
+            LOG.info("Broadcasting challenge={} with groupId={} to user broadcaster", body, groupId);
+
+            byte[] output = JSON.writeValueAsBytes(body);
+            userBroadcaster.broadcast(groupId, output);
+        } catch (JsonProcessingException e) {
+            LOG.error("Error occurred while broadcasting challenge to user", e);
+        }
 
         return "SUCCESS";
     }

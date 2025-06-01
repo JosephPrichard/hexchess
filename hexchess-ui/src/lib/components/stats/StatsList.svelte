@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import type { UserView } from '$lib/models';
+	import type { User } from '$lib/models';
 	import { getWinrateClass } from '$lib/format';
 
 	interface Props {
-		userList: UserView[];
+		userList: User[];
 	}
 
 	const { userList }: Props = $props();

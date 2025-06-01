@@ -1,12 +1,12 @@
 package chess;
 
 import lombok.*;
+import messages.Messages;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Data
-@NoArgsConstructor
 @AllArgsConstructor
 public class PieceMove {
     private byte piece;
@@ -32,5 +32,17 @@ public class PieceMove {
             moveList.add(move);
         }
         return moveList;
+    }
+
+    public Messages.PieceMove serialize() {
+        return Messages.PieceMove.newBuilder()
+            .setPiece(piece)
+            .setFrom(from.serialize())
+            .setTo(to.serialize())
+            .build();
+    }
+
+    public static PieceMove deserialize(Messages.PieceMove msg) {
+        return new PieceMove((byte) msg.getPiece(), Hexagon.deserialize(msg.getFrom()), Hexagon.deserialize(msg.getTo()));
     }
 }

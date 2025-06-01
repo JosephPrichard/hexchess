@@ -9,7 +9,6 @@ import services.daos.ReplayDao;
 import services.daos.UserDao;
 import redis.clients.jedis.JedisPooled;
 import services.game.GameService;
-import services.producers.ChallengeProducer;
 import utils.Config;
 import web.controllers.AppController;
 import web.State;
@@ -23,7 +22,8 @@ import static io.jooby.Jooby.runApp;
 import static utils.Globals.LOG;
 
 public class Main {
-    public static void main(String[] args) throws Exception {
+
+    public static void main(String[] args) {
         ConnectionPoolConfig poolConfig = Config.getJedisPoolConfig();
 
         Map<String, String> env = Config.readEnvironment();
@@ -55,7 +55,6 @@ public class Main {
 //        GlobalBroadcaster userBroadcaster = new GlobalBroadcaster(poolConfig, redisPubsubHost, redisPubsubPort, Broadcaster.USERS_TOPIC);
         LocalBroadcaster gameBroadcaster = new LocalBroadcaster(Broadcaster.GAMES_TOPIC);
         LocalBroadcaster userBroadcaster = new LocalBroadcaster(Broadcaster.USERS_TOPIC);
-        ChallengeProducer challengeProducer = new ChallengeProducer(userBroadcaster);
         PathService pathService = new PathService();
 
         state.setUserDao(userDao);
@@ -66,7 +65,6 @@ public class Main {
         state.setAuthService(authService);
         state.setGameBroadcaster(gameBroadcaster);
         state.setUserBroadcaster(userBroadcaster);
-        state.setChallengeProducer(challengeProducer);
         state.setCountryList(countryList);
         state.setPathService(pathService);
         state.setInitialBoard(ChessBoard.initial());

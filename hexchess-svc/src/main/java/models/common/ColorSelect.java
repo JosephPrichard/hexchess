@@ -18,4 +18,21 @@ public enum ColorSelect {
             }
         };
     }
+
+    public int toInt() {
+        return switch (this) {
+            case WHITE -> 0;
+            case BLACK -> 1;
+            case RANDOM -> 2;
+        };
+    }
+
+    public static ColorSelect fromInt(int value) {
+        return switch (value) {
+            case 0 -> WHITE;
+            case 1 -> BLACK;
+            case 2 -> RANDOM;
+            default -> throw new IllegalStateException("Invalid value for color select: " + value);
+        };
+    }
 }

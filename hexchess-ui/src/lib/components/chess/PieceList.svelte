@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { piecenames, type PieceType } from '$lib/models.js';
+	import { piecenames } from '$lib/globals';
 
-	const { pieces }: { pieces: PieceType[] } = $props();
+	const { pieces }: { pieces: number[] } = $props();
 </script>
 
 <div class="pieces-wrapper">

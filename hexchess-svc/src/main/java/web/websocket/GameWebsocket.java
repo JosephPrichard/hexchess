@@ -1,14 +1,15 @@
 package web.websocket;
 
 import chess.ChessGame;
+import chess.Hexagon;
 import chess.Move;
+import chess.PieceMove;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import io.jooby.WebSocket;
 import io.jooby.WebSocketCloseStatus;
 import io.jooby.WebSocketMessage;
 import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import messages.Messages;
 import models.state.Player;
 import models.state.ChessRoom;
 import services.broadcast.Broadcaster;
@@ -40,42 +41,6 @@ public class GameWebsocket {
 
     public record GameInput(String type, chess.Move move, String message) {}
 
-    public record ForfeitOutput(String type, ChessRoom room) {
-        public ForfeitOutput(ChessRoom room) {
-            this("FORFEIT", room);
-        }
-    }
-
-    public record StartOutput(String type, Player selfPlayer, ChessRoom room) {
-        public StartOutput(Player selfPlayer, ChessRoom room) {
-            this("START", selfPlayer, room);
-        }
-    }
-
-    public record JoinOutput(String type, Player whitePlayer, Player blackPlayer) {
-        public JoinOutput(Player whitePlayer, Player blackPlayer) {
-            this("JOIN", whitePlayer, blackPlayer);
-        }
-    }
-
-    public record MoveOutput(String type, chess.Move move, ChessGame game) {
-        public MoveOutput(chess.Move move, ChessGame game) {
-            this("MOVE", move, game);
-        }
-    }
-
-    public record ChatOutput(String type, Player player, String message) {
-        public ChatOutput(Player player, String message) {
-            this("CHAT", player, message);
-        }
-    }
-
-    public record ErrorOutput(String type, String message) {
-        public ErrorOutput(String message) {
-            this("ERROR", message);
-        }
-    }
-
     public void onConnect(WebSocket ws) {
         DictionaryDao dictionaryDao = state.getDictionaryDao();
         GameService gameService = state.getGameService();
@@ -87,7 +52,7 @@ public class GameWebsocket {
 
             if (player == null) {
                 LOG.warn("Invalid session {} when attempting to connect to game {}", sessionId, gameId);
-                ws.sendBinary(serializeOutput(new ErrorOutput(ERROR_SESSION_EXPIRED)));
+                ws.sendBinary(serializeError(ERROR_SESSION_EXPIRED));
                 ws.close();
                 return;
             }
@@ -96,22 +61,22 @@ public class GameWebsocket {
 
             ChessRoom chessRoom = gameService.join(gameId, player);
             if (chessRoom == null) {
-                ws.sendBinary(serializeOutput(new ErrorOutput(ERROR_INVALID_GAME)));
+                ws.sendBinary(serializeError(ERROR_INVALID_GAME));
                 ws.close();
                 return;
             }
 
-            ws.sendBinary(serializeOutput(new StartOutput(player, chessRoom)));
+            ws.sendBinary(serializeStart(player, chessRoom));
 
             gameBroadcaster.subscribe(chessRoom.getId(), wsId, ws::sendBinary);
 
-            byte[] output = serializeOutput(new JoinOutput(chessRoom.getWhitePlayer(), chessRoom.getBlackPlayer()));
+            byte[] output = serializeJoin(chessRoom.getWhitePlayer(), chessRoom.getBlackPlayer());
             gameBroadcaster.broadcast(chessRoom.getId(), output);
 
             LOG.info("Player {} successfully connected to game {}", player.getId(), gameId);
         } catch (Exception e) {
             LOG.error("Fatal exception occurred", e);
-            ws.sendBinary(serializeOutput(new ErrorOutput(ERROR_UNKNOWN)));
+            ws.sendBinary(serializeError(ERROR_UNKNOWN));
             ws.close();
         }
     }
@@ -128,16 +93,16 @@ public class GameWebsocket {
             case "FORFEIT" -> {
                 ChessRoom room = gameService.forfeit(gameId, player);
 
-                byte[] output = serializeOutput(new ForfeitOutput(room));
+                byte[] output = serializeForfeit();
                 gameBroadcaster.broadcast(gameId, output);
             }
             case "MOVE" -> {
                 Move move = input.move();
                 Objects.requireNonNull(move);
 
-                ChessRoom room = gameService.makeMove(gameId, player, move);
+                GameService.MakeMoveResult result = gameService.makeMove(gameId, player, move);
 
-                byte[] output = serializeOutput(new MoveOutput(move, room.getGame()));
+                byte[] output = serializeMove(result.pm(), result.room().getGame());
                 gameBroadcaster.broadcast(gameId, output);
             }
             case "TEXT" -> {
@@ -148,10 +113,10 @@ public class GameWebsocket {
                     content = content.substring(0, 250);
                 }
 
-                byte[] output = serializeOutput(new ChatOutput(player, content));
+                byte[] output = serializeChat(player, content);
                 gameBroadcaster.broadcast(gameId, output);
             }
-            default -> ws.sendBinary(serializeOutput(new ErrorOutput(ERROR_MESSAGE_TYPE)));
+            default -> ws.sendBinary(serializeError(ERROR_MESSAGE_TYPE));
             }
         } catch (Exception e) {
             String error = switch (e) {
@@ -163,7 +128,7 @@ public class GameWebsocket {
                     yield ERROR_UNKNOWN;
                 }
             };
-            ws.sendBinary(serializeOutput(new ErrorOutput(error)));
+            ws.sendBinary(serializeError(error));
         }
     }
 
@@ -174,12 +139,64 @@ public class GameWebsocket {
         gameBroadcaster.unsubscribe(gameId, wsId);
     }
 
-    private static byte[] serializeOutput(Object output) {
-        try {
-            return MESSAGE_PACK.writeValueAsBytes(output);
-        } catch (JsonProcessingException ex) {
-            LOG.error("Failed to serialize output message", ex);
-            throw new RuntimeException(ex);
+    private static byte[] serializeError(String message) {
+        return Messages.GameOutput.newBuilder()
+            .setError(Messages.Error.newBuilder().setMessage(message))
+            .build()
+            .toByteArray();
+    }
+
+    private static byte[] serializeStart(Player selfPlayer, ChessRoom chessRoom) {
+        Messages.Start start = Messages.Start.newBuilder()
+            .setSelfPlayer(selfPlayer.serialize())
+            .setRoom(chessRoom.serialize())
+            .build();
+        return Messages.GameOutput.newBuilder()
+            .setStart(start)
+            .build()
+            .toByteArray();
+    }
+
+    private static byte[] serializeJoin(Player whitePlayer, Player blackPlayer) {
+        Messages.Join.Builder builder = Messages.Join.newBuilder();
+        if (whitePlayer != null) {
+            builder.setWhitePlayer(whitePlayer.serialize());
         }
+        if (blackPlayer != null) {
+            builder.setBlackPlayer(blackPlayer.serialize());
+        }
+        return Messages.GameOutput.newBuilder()
+            .setJoin(builder.build())
+            .build()
+            .toByteArray();
+    }
+
+    private static byte[] serializeMove(PieceMove pieceMove, ChessGame game) {
+        Messages.Move move = Messages.Move.newBuilder()
+            .setPieceMove(pieceMove.serialize())
+            .setGame(game.serialize())
+            .build();
+        return Messages.GameOutput.newBuilder()
+            .setMove(move)
+            .build()
+            .toByteArray();
+    }
+
+    private static byte[] serializeChat(Player player, String message) {
+        Messages.Chat chat = Messages.Chat.newBuilder()
+            .setPlayer(player.serialize())
+            .setMessage(message)
+            .build();
+        return Messages.GameOutput.newBuilder()
+            .setChat(chat)
+            .build()
+            .toByteArray();
+    }
+
+    private static byte[] serializeForfeit() {
+        return Messages.GameOutput.newBuilder()
+            .setForfeit(Messages.Forfeit.newBuilder())
+            .build()
+            .toByteArray();
     }
 }

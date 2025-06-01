@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { formatElo, getResultClasses } from '$lib/format.js';
-	import type { ReplayView } from '$lib/models';
+	import type { Replay } from '$lib/models';
 
-	const { replay }: { replay: ReplayView } = $props();
+	const { replay }: { replay: Replay } = $props();
 	const [whiteClass, blackClass] = $derived(getResultClasses(replay.result));
 </script>
 

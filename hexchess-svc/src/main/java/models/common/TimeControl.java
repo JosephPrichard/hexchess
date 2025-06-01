@@ -18,4 +18,21 @@ public enum TimeControl {
             }
         };
     }
+
+    public int toInt() {
+        return switch (this) {
+            case REAL_TIME -> 0;
+            case CORRESPONDENCE -> 1;
+            case UNLIMITED -> 2;
+        };
+    }
+
+    public static TimeControl fromInt(int value) {
+        return switch (value) {
+            case 0 -> REAL_TIME;
+            case 1 -> CORRESPONDENCE;
+            case 2 -> UNLIMITED;
+            default -> throw new IllegalStateException("Invalid value for time control: " + value);
+        };
+    }
 }

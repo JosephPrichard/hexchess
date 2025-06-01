@@ -29,7 +29,7 @@ import static services.daos.ReplayDao.*;
 import static services.daos.ChallengeDao.*;
 
 @AllArgsConstructor
-public class DataSeeder {
+public class DatabaseSeed {
 
     private static final TypeReference<List<UserInst>> USER_LIST_TYPE = new TypeReference<>() {};
     private static final TypeReference<List<ReplayInst>> REPLAY_LIST_TYPE = new TypeReference<>() {};
@@ -41,7 +41,7 @@ public class DataSeeder {
     private final DictionaryDao dictionaryDao;
 
     public static String readResourceAsString(String resourcePath) throws IOException {
-        try (InputStream inputStream = DataSeeder.class.getResourceAsStream(resourcePath)) {
+        try (InputStream inputStream = DatabaseSeed.class.getResourceAsStream(resourcePath)) {
             assert inputStream != null;
             try (Scanner scanner = new Scanner(inputStream, StandardCharsets.UTF_8)) {
                 scanner.useDelimiter("\\A");
@@ -117,7 +117,7 @@ public class DataSeeder {
 
         jedis.flushAll();
 
-        DataSeeder seeder = new DataSeeder(new UserDao(ds), new ChallengeDao(ds), new ReplayDao(ds), dictionaryDao);
+        DatabaseSeed seeder = new DatabaseSeed(new UserDao(ds), new ChallengeDao(ds), new ReplayDao(ds), dictionaryDao);
         seeder.seedUsersTable();
         seeder.seedUsersDict();
         seeder.seedReplayTable();

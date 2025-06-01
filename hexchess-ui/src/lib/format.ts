@@ -50,6 +50,8 @@ export function formatCause(cause: ReplayCause) {
 	}
 }
 
+export const timeControlIntMap: TimeControl[] = ['UNLIMITED', 'CORRESPONDENCE', 'REAL_TIME'];
+
 export function formatTimeControl(timeControl: TimeControl) {
 	switch (timeControl) {
 		case 'UNLIMITED':

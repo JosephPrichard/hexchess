@@ -1,6 +1,7 @@
 package chess;
 
 import lombok.*;
+import messages.Messages;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -9,7 +10,6 @@ import static chess.ChessBoard.FILES;
 import static chess.ChessBoard.RANKS_PER_FILE;
 
 @Data
-@NoArgsConstructor
 @AllArgsConstructor
 public class Hexagon {
     public static final Hexagon[] ORDERED = getOrdered();
@@ -82,5 +82,16 @@ public class Hexagon {
     public String toString() {
         char fileChar = (char) (file + 'a');
         return fileChar + Integer.toString(rank + 1);
+    }
+
+    public Messages.Hexagon serialize() {
+        return Messages.Hexagon.newBuilder()
+            .setFile(file)
+            .setRank(rank)
+            .build();
+    }
+
+    public static Hexagon deserialize(Messages.Hexagon msg) {
+        return new Hexagon(msg.getFile(), msg.getRank());
     }
 }
