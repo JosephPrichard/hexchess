@@ -6,6 +6,7 @@
 	"scripts": {
 		"dev": "vite dev",
 		"protogen": "npx protoc --ts_out src/lib --proto_path protos protos/messages.proto",
+		"apigen": "npx openapi-typescript ./swagger/hexchess-api.json -o ./src/lib/api-v1.d.ts",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",

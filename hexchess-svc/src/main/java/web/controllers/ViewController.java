@@ -4,7 +4,6 @@ import chess.ChessBoard;
 import chess.PieceMove;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
-import messages.Messages;
 import models.entities.RankedEntity;
 import models.state.Player;
 import services.daos.ChallengeDao;
@@ -16,11 +15,9 @@ import models.views.*;
 import services.game.GameService;
 import services.daos.DictionaryDao;
 import io.jooby.*;
-import web.reusable.PathService;
 import web.reusable.AuthService;
 import web.State;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -42,7 +39,6 @@ public class ViewController extends Jooby {
     private final DictionaryDao dictionaryDao;
     private final GameService gameService;
     private final AuthService authService;
-    private final PathService pathService;
     private final List<String> countryList;
     private final ChessBoard initialBoard;
 
@@ -53,7 +49,6 @@ public class ViewController extends Jooby {
         dictionaryDao = state.getDictionaryDao();
         gameService = state.getGameService();
         authService = state.getAuthService();
-        pathService = state.getPathService();
         countryList = state.getCountryList();
         initialBoard = state.getInitialBoard();
 
@@ -61,10 +56,10 @@ public class ViewController extends Jooby {
 
         error(this::handleError);
 
-        use(next -> ctx -> {
+//        use(next -> ctx -> {
 //            ctx.setResponseType(MediaType.JSON);
-            return next.apply(ctx);
-        });
+//            return next.apply(ctx);
+//        });
 
         get("/views/players/self", this::getSelf);
         get("/views/players/{id}", this::getPlayer);
@@ -131,7 +126,13 @@ public class ViewController extends Jooby {
     public record LeaderboardResp(int totalPages, List<UserView> userList) {}
 
     public LeaderboardResp getLeaderboard(Context ctx) {
-        int page = pathService.getPageParam(ctx);
+        int page;
+        try {
+            page = ctx.query("page").toOptional().map(Integer::parseUnsignedInt).orElse(1);
+        } catch (NumberFormatException ex) {
+            LOG.warn("Page value is not valid integer");
+            throw new BadRequestException(ERROR_INVALID_REQUEST);
+        }
 
         Leaderboard leaderboard = dictionaryDao.getLeaderboardPage(page, PER_PAGE);
         List<UserEntity> entityList = userDao.getByRankedUsers(leaderboard.users());
@@ -145,7 +146,14 @@ public class ViewController extends Jooby {
     public record UserWithReplaysResp(UserView user, List<ReplayView> replayList) {}
 
     public UserWithReplaysResp getPlayer(Context ctx) throws Exception {
-        long userId = pathService.getPathAsLong(ctx, "id");
+        String id = ctx.path("id").value();
+        long userId;
+        try {
+            userId = Long.parseUnsignedLong(id);
+        } catch (NumberFormatException ex) {
+            LOG.warn("Id={} is not a valid long", id);
+            throw new BadRequestException(ERROR_INVALID_REQUEST);
+        }
 
         CompletableFuture<UserEntity> userFut = CompletableFuture.supplyAsync(() -> userDao.getById(userId), EXECUTOR);
         CompletableFuture<List<ReplayEntity>> replayListFut =
@@ -167,7 +175,13 @@ public class ViewController extends Jooby {
     }
 
     public List<UserView> searchPlayers(Context ctx) {
-       int page = pathService.getPageParam(ctx);
+        int page;
+        try {
+            page = ctx.query("page").toOptional().map(Integer::parseUnsignedInt).orElse(1);
+        } catch (NumberFormatException ex) {
+            LOG.warn("Page value is not valid integer");
+            throw new BadRequestException(ERROR_INVALID_REQUEST);
+        }
 
         String name = ctx.query("username").value("");
 
@@ -180,7 +194,14 @@ public class ViewController extends Jooby {
     }
 
     public ReplayView getReplay(Context ctx) {
-        long replayId = pathService.getPathAsLong(ctx, "id");
+        String id = ctx.path("id").value();
+        long replayId;
+        try {
+            replayId = Long.parseUnsignedLong(id);
+        } catch (NumberFormatException ex) {
+            LOG.warn("Id={} is not a valid long", id);
+            throw new BadRequestException(ERROR_INVALID_REQUEST);
+        }
 
         ReplayEntity entity = replayDao.getReplay(replayId);
 
@@ -188,7 +209,14 @@ public class ViewController extends Jooby {
     }
 
     public List<PieceMove> getReplayMoveList(Context ctx) throws JsonProcessingException {
-        long replayId = pathService.getPathAsLong(ctx, "id");
+        String id = ctx.path("id").value();
+        long replayId;
+        try {
+            replayId = Long.parseUnsignedLong(id);
+        } catch (NumberFormatException ex) {
+            LOG.warn("Id={} is not a valid long", id);
+            throw new BadRequestException(ERROR_INVALID_REQUEST);
+        }
 
         String moveListJson = replayDao.getReplayMoveList(replayId);
 

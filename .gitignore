@@ -20,7 +20,7 @@ target/
 
 .idea
 
-hexchess-ui/src/lib/api-v1.d.ts
+hexchess-ui/src/lib/api*.d.ts
 hexchess-svc/logs/app.log
 hexchess-ui/src/lib/messages.ts
 */.svelte-kit

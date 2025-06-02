@@ -11,7 +11,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import web.reusable.AuthService;
-import web.reusable.PathService;
 
 import java.util.List;
 
@@ -25,7 +24,6 @@ public class State {
     private DictionaryDao dictionaryDao;
     private GameService gameService;
     private AuthService authService;
-    private PathService pathService;
     private Broadcaster gameBroadcaster;
     private Broadcaster userBroadcaster;
 

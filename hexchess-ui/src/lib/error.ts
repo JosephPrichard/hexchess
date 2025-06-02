@@ -40,6 +40,6 @@ export const messages: Record<string, string> = {
 	[codes.errorNotFoundUser]: 'The provided user is invalid or does not exist.'
 };
 
-export function createMessage(code?: string) {
+export function createMessage(code?: string | never) {
 	return messages[code || ''] || 'An unexpected error has occurred';
 }

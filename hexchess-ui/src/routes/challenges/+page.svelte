@@ -1,21 +1,21 @@
 <script lang="ts">
-	import type { Action, Challenge } from '$lib/models.js';
 	import Banner from '$lib/components/Banner.svelte';
-	import { postUpdateChallenge, unwrap } from '$lib/api';
 	import { createMessage } from '$lib/error';
 	import { getNotificationsContext } from '$lib/context';
-	import { onMount } from 'svelte';
+	import type { ChallengeView } from '$lib/api';
+
+	type ChallengeAction = "delete" | "reject" | "accept";
 
 	export interface ChallengeProps {
 		participants: string;
-		challengeList: Challenge[];
+		challengeList: ChallengeView[];
 	}
 
 	const { data: props }: { data: ChallengeProps } = $props();
 	const isSender = $derived(props.participants === 'sent');
 
 	interface ChallengeState {
-		challenge: Challenge;
+		challenge: ChallengeView;
 		isLoading: {
 			delete: boolean;
 			accept: boolean;
@@ -38,7 +38,7 @@
 
 	const { addNotification } = getNotificationsContext();
 
-	function formatSuccessMessage(challenge: Challenge, action: Action) {
+	function formatSuccessMessage(challenge: ChallengeView, action: ChallengeAction) {
 		let message: string | undefined = undefined;
 		switch (action) {
 			case 'delete':
@@ -54,10 +54,10 @@
 		return message;
 	}
 
-	async function onUpdateChallenge(challenge: Challenge, index: number, action: Action) {
+	async function onUpdateChallenge(challenge: ChallengeView, index: number, action: ChallengeAction) {
 		challengeList[index].isLoading[action] = true;
 
-		const { ok, resp, err } = await unwrap(postUpdateChallenge(challenge.challengerId, challenge.challengeeId, action));
+		const { ok, resp, err } = await unwrap(postUpdateChallenge(challenge.challengerId, challenge.challengeeId, action.toLocaleLowerCase()));
 		if (ok && resp) {
 			const message = formatSuccessMessage(challenge, action);
 			addNotification({

@@ -13,7 +13,6 @@ import utils.Config;
 import web.controllers.AppController;
 import web.State;
 import web.reusable.AuthService;
-import web.reusable.PathService;
 
 import java.util.List;
 import java.util.Map;
@@ -55,7 +54,6 @@ public class Main {
 //        GlobalBroadcaster userBroadcaster = new GlobalBroadcaster(poolConfig, redisPubsubHost, redisPubsubPort, Broadcaster.USERS_TOPIC);
         LocalBroadcaster gameBroadcaster = new LocalBroadcaster(Broadcaster.GAMES_TOPIC);
         LocalBroadcaster userBroadcaster = new LocalBroadcaster(Broadcaster.USERS_TOPIC);
-        PathService pathService = new PathService();
 
         state.setUserDao(userDao);
         state.setReplayDao(replayDao);
@@ -66,7 +64,6 @@ public class Main {
         state.setGameBroadcaster(gameBroadcaster);
         state.setUserBroadcaster(userBroadcaster);
         state.setCountryList(countryList);
-        state.setPathService(pathService);
         state.setInitialBoard(ChessBoard.initial());
 
 //        gameBroadcaster.startListenSubscribe();

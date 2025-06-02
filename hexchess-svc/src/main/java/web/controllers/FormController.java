@@ -1,7 +1,7 @@
 package web.controllers;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import messages.Messages;
+import models.common.ChallengeAction;
 import models.views.SessionView;
 import services.broadcast.Broadcaster;
 import services.daos.ChallengeDao;
@@ -233,7 +233,7 @@ public class FormController extends Jooby {
         return new CreateGameResp(gameId);
     }
 
-    public record UpdateChallengeBody(long challengeeId, long challengerId, String action) {}
+    public record UpdateChallengeBody(long challengeeId, long challengerId, ChallengeAction action) {}
 
     public record UpdateChallengeResp(String gameId) {}
 
@@ -241,16 +241,15 @@ public class FormController extends Jooby {
         UpdateChallengeBody body = ctx.body(UpdateChallengeBody.class);
         long challengeeId = body.challengeeId();
         long challengerId = body.challengerId();
-        String action = body.action().toUpperCase();
+        ChallengeAction action = body.action();
 
         Player player = authService.getSessionPlayer(ctx);
 
         long callerId = player.getId();
 
         long targetId = switch (action) {
-            case "ACCEPT", "REJECT" -> challengeeId;
-            case "DELETE" -> challengerId;
-            default -> throw new StatusCodeException(StatusCode.BAD_REQUEST, ERROR_INVALID_CHALLENGE_ACTION);
+            case ChallengeAction.ACCEPT, ChallengeAction.REJECT -> challengeeId;
+            case ChallengeAction.DELETE -> challengerId;
         };
 
         String gameId = null;
@@ -260,7 +259,7 @@ public class FormController extends Jooby {
             if (result == null) {
                 throw new StatusCodeException(StatusCode.NOT_FOUND, ERROR_NOT_FOUND_CHALLENGE);
             }
-            if (action.equals("ACCEPT")) {
+            if (action.equals(ChallengeAction.ACCEPT)) {
                 gameId = gameService.create(
                     ColorSelect.fromString(result.getStartColor()),
                     TimeControl.fromString(result.getTimeControl()));
