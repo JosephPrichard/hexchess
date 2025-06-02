@@ -147,6 +147,9 @@ public class GameService {
 
     public void onFinishGame(ChessRoom room, boolean isWhiteWin, int cause) {
         try {
+            assert room.getWhitePlayer() != null;
+            assert room.getBlackPlayer() != null;
+
             long whiteId = room.getWhitePlayer().getId();
             long blackId = room.getBlackPlayer().getId();
             int result = isWhiteWin ? ReplayEntity.WHITE_WIN : ReplayEntity.BLACK_WIN;

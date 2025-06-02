@@ -15,6 +15,8 @@ public class AppController extends Jooby {
     public AppController(int port, List<String> allowedOrigins, State state) {
         setServerOptions(new ServerOptions().setPort(port));
 
+//        install(new OpenAPIModule());
+
         use(new CorsHandler(new Cors().setOrigin(allowedOrigins)));
 
         install(new JacksonModule());

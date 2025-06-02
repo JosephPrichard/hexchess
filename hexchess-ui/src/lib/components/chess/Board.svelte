@@ -24,8 +24,8 @@
 </script>
 
 <div class="board" style="width: {11 * height}px; height: {11 * height}px;">
-	{#each board.pieces as piecesFile, file (file)}
-		{#each piecesFile as piece, rank (rank)}
+	{#each board.file as boardFile, file (file)}
+		{#each boardFile.pieces as piece, rank (rank)}
 			{@const top = rank * height + (verticalFileOffsets[file] * height) / 2}
 			{@const flippedTop = 10 * height - top}
 			{@const left = file * (height - 8)}

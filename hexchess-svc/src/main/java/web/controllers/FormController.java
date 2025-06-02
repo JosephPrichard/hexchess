@@ -174,11 +174,13 @@ public class FormController extends Jooby {
         return SessionView.fromUser(verifiedUser, null);
     }
 
-    public String createTempSession(Context ctx) {
+    public record TempSessionBody(String sessionId) {}
+
+    public TempSessionBody createTempSession(Context ctx) {
         Player player = authService.getSessionPlayer(ctx);
         String tempSessionId = authService.createSessionId();
         dictionaryDao.setSession(tempSessionId, player, DictionaryDao.TEMP_SESSION_EXPIRE.toSeconds());
-        return tempSessionId;
+        return new TempSessionBody(tempSessionId);
     }
 
     public record RefreshResp(SessionView session) {
@@ -217,7 +219,9 @@ public class FormController extends Jooby {
 
     public record CreateGameBody(ColorSelect firstColor, TimeControl timeControl) {}
 
-    public String createGame(Context ctx) {
+    public record CreateGameResp(String gameId) {}
+
+    public CreateGameResp createGame(Context ctx) {
         CreateGameBody body = ctx.body(CreateGameBody.class);
 
         ColorSelect firstColor = body.firstColor() != null ? body.firstColor() : ColorSelect.RANDOM;
@@ -226,7 +230,7 @@ public class FormController extends Jooby {
         String gameId = gameService.create(firstColor, timeControl);
 
         ctx.setResponseType(MediaType.TEXT);
-        return gameId;
+        return new CreateGameResp(gameId);
     }
 
     public record UpdateChallengeBody(long challengeeId, long challengerId, String action) {}

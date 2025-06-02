@@ -21,11 +21,13 @@ export function translateBoard(index: number, moveList: PieceMove[], board: Ches
 		if (move.to === undefined || move.from === undefined) {
 			throw new Error("Move 'to' and 'from' must be defined, got " + JSON.stringify(move));
 		}
+		const {
+			to: { rank: toRank, file: toFile },
+			from: { rank: fromRank, file: fromFile }
+		} = move;
 
-		const { to: { rank: toRank, file: toFile }, from: { rank: fromRank, file: fromFile } } = move;
-
-		board.pieces[toFile][toRank] = board.pieces[fromFile][fromRank];
-		board.pieces[fromFile][fromRank] = 0;
+		board.file[toFile].pieces[toRank] = board.file[fromFile].pieces[fromRank];
+		board.file[fromFile].pieces[fromRank] = 0;
 	}
 	return board;
 }

@@ -26,9 +26,13 @@ message PieceMoves {
   repeated Hexagon moves = 2;
 }
 
+message BoardFile {
+  repeated uint32 pieces = 1;
+}
+
 message ChessBoard {
   bool is_white_turn = 1;
-  repeated uint32 pieces = 2;
+  repeated BoardFile file = 2;
 }
 
 message ChessGame {

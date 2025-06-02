@@ -4,6 +4,7 @@ import chess.ChessBoard;
 import chess.PieceMove;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import messages.Messages;
 import models.entities.RankedEntity;
 import models.state.Player;
 import services.daos.ChallengeDao;
@@ -61,7 +62,7 @@ public class ViewController extends Jooby {
         error(this::handleError);
 
         use(next -> ctx -> {
-            ctx.setResponseType(MediaType.JSON);
+//            ctx.setResponseType(MediaType.JSON);
             return next.apply(ctx);
         });
 
@@ -117,7 +118,7 @@ public class ViewController extends Jooby {
         return countryList;
     }
 
-    public UserView getSelf(Context ctx) throws IOException {
+    public UserView getSelf(Context ctx) {
         Player player = authenticate(ctx);
 
         UserEntity entity = userDao.getById(player.getId());

@@ -14,6 +14,7 @@
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <protobuf-java.version>3.24.0</protobuf-java.version> <!-- Your desired version -->
+        <application.class>web.controllers.AppController</application.class>
     </properties>
 
     <repositories>
@@ -178,6 +179,18 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>io.jooby</groupId>
+                <artifactId>jooby-maven-plugin</artifactId>
+                <version>3.9.1</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>openapi</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>io.github.ascopes</groupId>
                 <artifactId>protobuf-maven-plugin</artifactId>

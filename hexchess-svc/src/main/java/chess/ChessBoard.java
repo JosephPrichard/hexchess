@@ -249,34 +249,30 @@ public class ChessBoard {
     }
 
     public Messages.ChessBoard serialize() {
-        Messages.ChessBoard.Builder builder = Messages.ChessBoard.newBuilder()
+        Messages.ChessBoard.Builder boardBuilder = Messages.ChessBoard.newBuilder()
             .setIsWhiteTurn(isWhiteTurn);
 
         for (int file = 0; file < ChessBoard.FILES; file++) {
             int ranksCount = ChessBoard.RANKS_PER_FILE[file];
 
+            Messages.BoardFile.Builder fileBuilder = Messages.BoardFile.newBuilder();
             for (int rank = 0; rank < ranksCount; rank++) {
                 byte piece = getPiece(file, rank);
-                builder.addPieces(piece);
+                fileBuilder.addPieces(piece);
             }
+            boardBuilder.addFile(fileBuilder);
         }
 
-        return builder.build();
+        return boardBuilder.build();
     }
 
     public static ChessBoard deserialize(Messages.ChessBoard msg) {
         ChessBoard board = new ChessBoard(msg.getIsWhiteTurn());
 
-        int size = msg.getPiecesCount();
-        int file = 0;
-        int rank = 0;
-        for (int i = 0; i < size; i++) {
-            int ranksCount = ChessBoard.RANKS_PER_FILE[file];
-            board.setPiece(file, rank, (byte) msg.getPieces(i));
-            rank++;
-            if (rank >= ranksCount) {
-                file++;
-                rank = 0;
+        for (int f = 0; f < msg.getFileCount(); f++) {
+            Messages.BoardFile file = msg.getFile(f);
+            for (int r = 0; r < file.getPiecesCount(); r++) {
+                board.setPiece(f, r, (byte) file.getPieces(r));
             }
         }
 

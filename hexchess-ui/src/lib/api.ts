@@ -1,6 +1,7 @@
 import type { Challenge, Replay, User, UserWithReplays, Session, Action } from '$lib/models';
 import { codes } from '$lib/error';
-import type { ChessBoard, PieceMove } from '$lib/messages';
+import { ChessBoard, PieceMove } from '$lib/messages';
+import { MessageType } from "@protobuf-ts/runtime";
 
 export interface ApiResult<T> {
 	ok: boolean;
@@ -21,24 +22,23 @@ class ApiError extends Error {
 	}
 }
 
-export async function api<T>(input: RequestInfo | URL, init?: RequestInit, request?: typeof window.fetch): Promise<T> {
+export async function api<T extends object | unknown>(input: RequestInfo | URL, init?: RequestInit, request?: typeof window.fetch): Promise<T> {
 	if (!request) {
 		request = fetch;
 	}
 
 	let error: ApiError | undefined;
 	try {
+		if (init) {
+			init.headers = { 'Content-Type': 'application/json' }
+		}
 		const response = await request(input, init);
 
 		if (!response.ok) {
 			const errorCode = await response.text();
 			error = new ApiError(errorCode, response.status);
 		} else {
-			if ((response.headers.get('Content-Type') || '').includes('application/json')) {
-				return await response.json();
-			} else {
-				return (await response.text()) as T;
-			}
+			return await response.json();
 		}
 	} catch (error) {
 		console.error(error);
@@ -53,7 +53,6 @@ export async function unwrap<T>(promiseResp: Promise<T>): Promise<ApiResult<T>> 
 		const resp = await promiseResp;
 		return { ok: true, status: 200, resp, err: '' };
 	} catch (error) {
-		console.error(error);
 		if (error instanceof ApiError) {
 			return { ok: false, status: error.status, resp: undefined, err: error.message };
 		}
@@ -62,48 +61,57 @@ export async function unwrap<T>(promiseResp: Promise<T>): Promise<ApiResult<T>> 
 }
 
 export function postLogin(username: string, password: string) {
-	return api<Session>(`${baseURL}/forms/login`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		credentials: 'include',
-		body: JSON.stringify({ username, password })
-	});
+	return api<Session>(`${baseURL}/forms/login`,
+		{
+			method: 'POST',
+			credentials: 'include',
+			body: JSON.stringify({ username, password })
+		}
+	);
 }
 
 export function postRegister(username: string, password: string, confirmPassword: string) {
-	return api<Session>(`${baseURL}/forms/register`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		credentials: 'include',
-		body: JSON.stringify({ username, password, confirmPassword })
-	});
+	return api<Session>(
+		`${baseURL}/forms/register`,
+		{
+			method: 'POST',
+			credentials: 'include',
+			body: JSON.stringify({ username, password, confirmPassword })
+		}
+	);
 }
 
 export function postUpdateUser(username: string, bio: string, country: string) {
-	return api<Session>(`${baseURL}/forms/users`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		credentials: 'include',
-		body: JSON.stringify({ newUsername: username, newBio: bio, newCountry: country })
-	});
+	return api<Session>(
+		`${baseURL}/forms/users`,
+		{
+			method: 'POST',
+			credentials: 'include',
+			body: JSON.stringify({ newUsername: username, newBio: bio, newCountry: country })
+		}
+	);
 }
 
 export function postUpdatePassword(password: string, newPassword: string, confirmNewPassword: string) {
-	return api<unknown>(`${baseURL}/forms/users/password`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		credentials: 'include',
-		body: JSON.stringify({ password, newPassword, confirmNewPassword })
-	});
+	return api<unknown>(
+		`${baseURL}/forms/users/password`,
+		{
+			method: 'POST',
+			credentials: 'include',
+			body: JSON.stringify({ password, newPassword, confirmNewPassword })
+		}
+	);
 }
 
 export function postCreateChallenge(timeControl: string, startColor: string, challengeeId: number) {
-	return api<unknown>(`${baseURL}/forms/challenges/create`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		credentials: 'include',
-		body: JSON.stringify({ startColor, timeControl, challengeeId })
-	});
+	return api<unknown>(
+		`${baseURL}/forms/challenges/create`,
+		{
+			method: 'POST',
+			credentials: 'include',
+			body: JSON.stringify({ startColor, timeControl, challengeeId })
+		}
+	);
 }
 
 export interface UpdateChallengeResp {
@@ -111,37 +119,53 @@ export interface UpdateChallengeResp {
 }
 
 export function postUpdateChallenge(challengerId: number, challengeeId: number, action: Action) {
-	return api<UpdateChallengeResp>(`${baseURL}/forms/challenges/update`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		credentials: 'include',
-		body: JSON.stringify({ challengerId, challengeeId, action })
-	});
+	return api<UpdateChallengeResp>(
+		`${baseURL}/forms/challenges/update`,
+		{
+			method: 'POST',
+			credentials: 'include',
+			body: JSON.stringify({ challengerId, challengeeId, action })
+		}
+	);
+}
+
+export interface CreateGameResp {
+	gameId?: string;
 }
 
 export function postCreateGame(timeControl: string, firstColor: string) {
-	return api<string>(`${baseURL}/forms/games/create`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		credentials: 'include',
-		body: JSON.stringify({ firstColor, timeControl })
-	});
+	return api<CreateGameResp>(
+		`${baseURL}/forms/games/create`,
+		{
+			method: 'POST',
+			credentials: 'include',
+			body: JSON.stringify({ firstColor, timeControl })
+		}
+	);
 }
 
 export function postLogout() {
-	return api<unknown>(`${baseURL}/forms/logout`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		credentials: 'include'
-	});
+	return api<unknown>(
+		`${baseURL}/forms/logout`,
+		{
+			method: 'POST',
+			credentials: 'include'
+		}
+	);
+}
+
+export interface TempSessionResp {
+	sessionId?: string;
 }
 
 export function postTempSession() {
-	return api<string>(`${baseURL}/forms/session/temp`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		credentials: 'include'
-	});
+	return api<TempSessionResp>(
+		`${baseURL}/forms/session/temp`,
+		{
+			method: 'POST',
+			credentials: 'include'
+		}
+	);
 }
 
 interface RefreshResp {
@@ -149,11 +173,13 @@ interface RefreshResp {
 }
 
 export function postRefresh() {
-	return api<RefreshResp>(`${baseURL}/forms/session/refresh`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		credentials: 'include'
-	});
+	return api<RefreshResp>(
+		`${baseURL}/forms/session/refresh`,
+		{
+			method: 'POST',
+			credentials: 'include'
+		}
+	);
 }
 
 export function getReplays(userId: number, afterId?: number, fetch?: typeof window.fetch) {
@@ -162,7 +188,13 @@ export function getReplays(userId: number, afterId?: number, fetch?: typeof wind
 		params.set('afterId', afterId.toString());
 	}
 
-	return api<Replay[]>(`${baseURL}/views/replays?${params.toString()}`, { method: 'GET' }, fetch);
+	return api<Replay[]>(
+		`${baseURL}/views/replays?${params.toString()}`,
+		{
+			method: 'GET'
+		},
+		fetch
+	);
 }
 
 export function getChallenges(participants: string, fetch?: typeof window.fetch) {
@@ -186,7 +218,13 @@ export interface LeaderboardResp {
 export function getLeaderboard(page: number, fetch?: typeof window.fetch) {
 	const params = new URLSearchParams({ page: String(page) });
 
-	return api<LeaderboardResp>(`${baseURL}/views/leaderboard?${params}`, { method: 'GET' }, fetch);
+	return api<LeaderboardResp>(
+		`${baseURL}/views/leaderboard?${params}`,
+		{
+			method: 'GET'
+		},
+		fetch
+	);
 }
 
 export function getProfile(fetch?: typeof window.fetch) {
@@ -201,7 +239,13 @@ export function getProfile(fetch?: typeof window.fetch) {
 }
 
 export function getUserWithReplays(id: string, fetch?: typeof window.fetch) {
-	return api<UserWithReplays>(`${baseURL}/views/players/${id}`, { method: 'GET' }, fetch);
+	return api<UserWithReplays>(
+		`${baseURL}/views/players/${id}`,
+		{
+			method: 'GET'
+		},
+		fetch
+	);
 }
 
 export function getSearchPlayers(username: string, page?: number, fetch?: typeof window.fetch) {
@@ -210,15 +254,33 @@ export function getSearchPlayers(username: string, page?: number, fetch?: typeof
 		params.set('page', String(page));
 	}
 
-	return api<User[]>(`${baseURL}/views/players/search?${params.toString()}`, { method: 'GET' }, fetch);
+	return api<User[]>(
+		`${baseURL}/views/players/search?${params.toString()}`,
+		{
+			method: 'GET'
+		},
+		fetch
+	);
 }
 
 export function getReplay(id: string, fetch?: typeof window.fetch) {
-	return api<Replay>(`${baseURL}/views/replay/${id}`, { method: 'GET' }, fetch);
+	return api<Replay>(
+		`${baseURL}/views/replay/${id}`,
+		{
+			method: 'GET'
+		},
+		fetch
+	);
 }
 
 export function getReplayMoveList(id: string, fetch?: typeof window.fetch) {
-	return api<PieceMove[]>(`${baseURL}/views/replay/${id}/move-list`, { method: 'GET' }, fetch);
+	return api<PieceMove[]>(
+		`${baseURL}/views/replay/${id}/move-list`,
+		{
+			method: 'GET'
+		},
+		fetch
+	);
 }
 
 export function cached<T>(get: (fetch?: typeof window.fetch) => Promise<T>) {
@@ -242,9 +304,21 @@ export function cached<T>(get: (fetch?: typeof window.fetch) => Promise<T>) {
 }
 
 export const getCountries = cached(async (fetch?: typeof window.fetch) => {
-	return api<string[]>(`${baseURL}/views/countries`, { method: 'GET' }, fetch)
+	return api<string[]>(
+		`${baseURL}/views/countries`,
+		{
+			method: 'GET'
+		},
+		fetch
+	);
 });
 
 export const getInitialBoard = cached(async (fetch?: typeof window.fetch) => {
-	return api<ChessBoard>(`${baseURL}/views/initial-board`, { method: 'GET' }, fetch);
+	return api<ChessBoard>(
+		`${baseURL}/views/initial-board`,
+		{
+			method: 'GET'
+		},
+		fetch
+	);
 });
