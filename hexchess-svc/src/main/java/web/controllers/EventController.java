@@ -1,17 +1,14 @@
 package web.controllers;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import io.jooby.Context;
 import io.jooby.Jooby;
 import io.jooby.ServerSentEmitter;
 import io.jooby.jackson.JacksonModule;
-import messages.Messages;
-import models.entities.ChallengeEntity;
 import models.state.Player;
 import services.broadcast.Broadcaster;
 import services.daos.DictionaryDao;
-import web.reusable.AuthService;
 import web.State;
+import web.reusable.AuthService;
 
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -19,7 +16,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static utils.Globals.JSON;
 import static utils.Globals.LOG;
-import static web.WebConstants.*;
+import static web.WebConstants.ERROR_REQUIRED_LOGIN;
+import static web.WebConstants.ERROR_SESSION_EXPIRED;
 
 public class EventController extends Jooby {
     private final State state;
@@ -31,25 +29,7 @@ public class EventController extends Jooby {
 
         install(new JacksonModule(JSON));
 
-        post("/events/user/challenges/publish", this::publishChallenge);
         sse("/events/user/subscriptions", this::handleEvents);
-    }
-
-    private String publishChallenge(Context ctx) {
-        ChallengeEntity body = ctx.body(ChallengeEntity.class);
-        Broadcaster userBroadcaster = state.getUserBroadcaster();
-
-        try {
-            String groupId = Long.toString(body.getChallengeeId());
-            LOG.info("Broadcasting challenge={} with groupId={} to user broadcaster", body, groupId);
-
-            byte[] output = JSON.writeValueAsBytes(body);
-            userBroadcaster.broadcast(groupId, output);
-        } catch (JsonProcessingException e) {
-            LOG.error("Error occurred while broadcasting challenge to user", e);
-        }
-
-        return "SUCCESS";
     }
 
     private void handleEvents(ServerSentEmitter sse) {

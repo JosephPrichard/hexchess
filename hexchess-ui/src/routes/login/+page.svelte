@@ -1,10 +1,10 @@
 <script lang="ts">
 	import Banner from '$lib/components/Banner.svelte';
-	import { postLogin, unwrap } from '$lib/api';
+	import services from '$lib/api/services';
 	import { goto } from '$app/navigation';
-	import { createMessage } from '$lib/error';
-	import { setClientSession } from '$lib/local';
-	import { getNotificationsContext } from '$lib/context';
+	import { createMessage } from '$lib/utils/error';
+	import { setClientSession } from '$lib/utils/storage';
+	import { getNotificationsContext } from '$lib/utils/context';
 
 	let username = $state('');
 	let password = $state('');
@@ -16,11 +16,11 @@
 		e.preventDefault();
 
 		isLoading = true;
-		const { ok, resp, err } = await unwrap(postLogin(username, password));
+		const [data, err] = await services.postLogin(username, password);
 
-		if (ok && resp) {
-			console.log('Logged in', resp);
-			setClientSession(resp);
+		if (data) {
+			console.log('Logged in', data);
+			setClientSession(data);
 			await goto('/');
 		} else {
 			const message = createMessage(err);

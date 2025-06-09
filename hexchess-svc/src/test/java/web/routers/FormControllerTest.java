@@ -1,5 +1,8 @@
-package web.controllers;
+package web.routers;
 
+import io.jooby.Context;
+import models.entities.ChallengeEntity;
+import models.views.ServiceView;
 import models.views.SessionView;
 import services.daos.DictionaryDao;
 import services.daos.ChallengeDao;
@@ -17,6 +20,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import services.game.GameService;
 import services.daos.UserDao;
+import web.controllers.FormController;
 import web.reusable.AuthService;
 import web.State;
 
@@ -28,7 +32,7 @@ import static org.mockito.Mockito.*;
 public class FormControllerTest {
 
     @Test
-    public void testPostRegister() throws UserDao.TakenUsernameException {
+    public void testRegister() throws UserDao.TakenUsernameException {
         // given
         UserEntity user = new UserEntity(1L, "testUser", "USA");
         Player player = new Player(1L, "testUser", "USA", 0f);
@@ -68,7 +72,7 @@ public class FormControllerTest {
     }
 
     @Test
-    public void testPostLogin() {
+    public void testLogin() {
         // given
         Player player = new Player(1L, "testUser", "us", 0f);
         String country = "us";
@@ -108,7 +112,7 @@ public class FormControllerTest {
     }
 
     @Test
-    public void testPostCreateGame() {
+    public void testCreateGame() {
         // given
         GameService mockGameService = mock(GameService.class);
         when(mockGameService.create(any(), any())).thenReturn("test-id");
@@ -126,10 +130,10 @@ public class FormControllerTest {
 
         // then
         verify(mockGameService, times(1)).create(ColorSelect.RANDOM, TimeControl.UNLIMITED);
-        Assertions.assertEquals("test-id", result.value());
+        Assertions.assertEquals(new FormController.CreateGameResp("test-id"), result.value());
     }
 
-    private MockContext mockChallengeCtx(long challengerId, long challengeeId, String action) {
+    private MockContext mockChallengeCtx(long challengerId, long challengeeId, FormController.UpdtAction action) {
         MockContext mockContext = new MockContext();
         mockContext.setBodyObject(new FormController.UpdateChallengeBody(challengeeId, challengerId, action));
         return mockContext;
@@ -157,7 +161,7 @@ public class FormControllerTest {
         state.setAuthService(mockAuthService);
 
         MockRouter mockRouter = new MockRouter(new FormController(state));
-        MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "ACCEPT");
+        MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, FormController.UpdtAction.ACCEPT);
 
         // when
         MockValue value = mockRouter.post("/forms/challenges/update", mockContext);
@@ -190,7 +194,7 @@ public class FormControllerTest {
         state.setAuthService(mockAuthService);
 
         MockRouter mockRouter = new MockRouter(new FormController(state));
-        MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "ACCEPT");
+        MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, FormController.UpdtAction.ACCEPT);
 
         // when
         Assertions.assertThrows(StatusCodeException.class, () -> mockRouter.post("/forms/challenges/update", mockContext));
@@ -221,7 +225,7 @@ public class FormControllerTest {
         state.setAuthService(mockAuthService);
 
         MockRouter mockRouter = new MockRouter(new FormController(state));
-        MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "DELETE");
+        MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, FormController.UpdtAction.DELETE);
 
         // when
         MockValue value = mockRouter.post("/forms/challenges/update", mockContext);
@@ -254,7 +258,7 @@ public class FormControllerTest {
         state.setAuthService(mockAuthService);
 
         MockRouter mockRouter = new MockRouter(new FormController(state));
-        MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, "REJECT");
+        MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, FormController.UpdtAction.REJECT);
 
         // when
         MockValue value = mockRouter.post("/forms/challenges/update", mockContext);
@@ -264,5 +268,42 @@ public class FormControllerTest {
         verify(mockGameService, times(0)).create(any(), any());
 
         Assertions.assertEquals(new FormController.UpdateChallengeResp(null), value.value());
+    }
+
+    @Test
+    public void testCreateChallenge() {
+        // given
+        long challengeeId = 1L;
+        long challengerId = 2L;
+
+        ChallengeDao mockChallengeDao = mock(ChallengeDao.class);
+        DictionaryDao mockDictionaryDao = mock(DictionaryDao.class);
+        AuthService mockAuthService = mock(AuthService.class);
+
+        when(mockAuthService.getSessionPlayer(any())).thenReturn(new Player(challengerId, "playerName", "us", 0f));
+        when(mockChallengeDao.insert(anyLong(), anyLong(), anyString(), anyString())).thenReturn(ChallengeEntity.fromIds(challengeeId, challengerId));
+
+        State state = new State();
+        state.setChallengeDao(mockChallengeDao);
+        state.setDictionaryDao(mockDictionaryDao);
+        state.setAuthService(mockAuthService);
+
+        // using a spy instead of a mock router so we can do a partial mock
+        FormController sut = spy(new FormController(state));
+        doNothing().when(sut).dispatchBroadcastChallenge(any());
+        doNothing().when(sut).dispatchDeleteExpired(anyLong());
+
+        Context mockContext = mock(Context.class);
+        when(mockContext.body(any())).thenReturn(new FormController.CreateChallengeBody(challengeeId, TimeControl.REAL_TIME, ColorSelect.RANDOM));
+
+        // when
+        ServiceView response = sut.createChallenge(mockContext);
+
+        // then
+        verify(mockChallengeDao, times(1)).insert(challengerId, challengeeId, "REAL_TIME", "RANDOM");
+        verify(sut, times(1)).dispatchBroadcastChallenge(ChallengeEntity.fromIds(challengeeId, challengerId));
+        verify(sut, times(1)).dispatchDeleteExpired(challengerId);
+
+        Assertions.assertEquals(ServiceView.SUCCESS, response);
     }
 }

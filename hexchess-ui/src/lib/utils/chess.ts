@@ -1,4 +1,4 @@
-import type { ChessBoard, PieceMove } from '$lib/messages';
+import type { ChessBoard, PieceMove } from '$lib/api/messages';
 
 const symbols = ['p', 'p', 'n', 'n', 'b', 'b', 'r', 'r', 'q', 'q', 'k', 'k'];
 const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];

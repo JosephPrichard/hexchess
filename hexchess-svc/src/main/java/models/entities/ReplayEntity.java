@@ -18,10 +18,10 @@ public class ReplayEntity {
     private long id;
     private long whiteId;
     private long blackId;
-    private String whiteName;
-    private String blackName;
-    private String whiteCountry;
-    private String blackCountry;
+    private String whiteName = "";
+    private String blackName = "";
+    private String whiteCountry = "";
+    private String blackCountry = "";
     private int result;
     private int cause;
     private float winElo;

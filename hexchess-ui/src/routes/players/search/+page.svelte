@@ -1,13 +1,13 @@
 <script lang="ts">
 	import Banner from '$lib/components/Banner.svelte';
 	import Pagination from '$lib/components/Pagination.svelte';
-	import type { User } from '$lib/models';
 	import StatsList from '$lib/components/stats/StatsList.svelte';
+	import type { UserModel } from '$lib/api/model';
 
 	export interface SearchProps {
 		searchText: string;
 		page: number;
-		userList: User[];
+		userList: UserModel[];
 	}
 
 	const { data: props }: { data: SearchProps } = $props();

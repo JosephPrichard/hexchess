@@ -1,5 +1,5 @@
 import { getContext, setContext } from 'svelte';
-import type { Challenge } from '$lib/models';
+import type { ChallengeModel } from '$lib/api/model';
 
 export interface NotificationValue {
 	isSuccess: boolean;
@@ -13,7 +13,7 @@ type TextValue = NotificationValue & {
 
 type ChallengeValue = NotificationValue & {
 	type: 'challenge';
-	message: Challenge;
+	message: ChallengeModel;
 };
 
 export type NotificationData = TextValue | ChallengeValue;

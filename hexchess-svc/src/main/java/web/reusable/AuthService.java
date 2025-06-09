@@ -9,6 +9,7 @@ import lombok.AllArgsConstructor;
 import models.state.Player;
 import services.daos.DictionaryDao;
 
+import javax.annotation.Nullable;
 import java.security.SecureRandom;
 
 import static web.WebConstants.ERROR_REQUIRED_LOGIN;
@@ -55,13 +56,11 @@ public class AuthService {
     public String parseSession(Context ctx) {
         String cookieStr = ctx.header("Cookie").valueOrNull();
         if (cookieStr == null) {
-//            LOGGER.warn("Request does not contain a cookie header");
             return null;
         }
 
         String[] cookieTokens = cookieStr.split(";");
         if (cookieTokens.length == 0) {
-//            LOGGER.warn("Request does not contain any cookies in the cookie header");
             return null;
         }
 
@@ -73,8 +72,6 @@ public class AuthService {
                 sessionStr = token.substring(delimIndex + 1).replaceAll("\\s+","");
             }
         }
-
-//        LOGGER.info("Parsed cookie with value={} from cookie header", sessionStr);
 
         return sessionStr;
     }
@@ -88,6 +85,20 @@ public class AuthService {
         if (player == null) {
             ctx.setResponseCookie(createEmptyCookie());
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_SESSION_EXPIRED);
+        }
+        return player;
+    }
+
+    @Nullable
+    public Player getOptionalSessionPlayer(Context ctx) {
+        String sessionId = parseSession(ctx);
+        if (sessionId == null) {
+            return null;
+        }
+        Player player = dictionaryDao.getSession(sessionId);
+        if (player == null) {
+            ctx.setResponseCookie(createEmptyCookie());
+            return null;
         }
         return player;
     }

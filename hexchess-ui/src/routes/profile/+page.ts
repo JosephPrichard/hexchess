@@ -1,19 +1,19 @@
 import type { PageLoad } from './$types';
 import type { ProfileProps } from './+page.svelte';
-import { getCountries, getProfile, unwrap } from '$lib/api';
-import { createMessage } from '$lib/error';
+import { createMessage } from '$lib/utils/error';
 import { error } from '@sveltejs/kit';
+import services from '$lib/api/services';
 
 export const load: PageLoad = async ({ fetch }): Promise<ProfileProps> => {
-	const [countryList, profileResult] = await Promise.all([getCountries(fetch), unwrap(getProfile(fetch))]);
+	const [[countryData, countryErr], [profileData, profileErr]] = await Promise.all([services.getCountries(fetch), services.getProfile(fetch)]);
 
-	if (!countryList) {
-		error(500, 'Unexpected error has occurred.');
+	if (countryErr) {
+		error(countryErr.status, 'Unexpected error has occurred.');
 	}
 
-	if (!profileResult.ok || profileResult.resp === undefined) {
-		error(profileResult.status, createMessage(profileResult.err));
+	if (profileErr || profileData === undefined) {
+		error(profileErr?.status || 500, createMessage(profileErr));
 	}
 
-	return { countryList: countryList || [], user: profileResult.resp };
+	return { countryList: countryData || [], user: profileData };
 };

@@ -20,9 +20,8 @@ target/
 
 .idea
 
-hexchess-ui/src/lib/api*.d.ts
 hexchess-svc/logs/app.log
-hexchess-ui/src/lib/messages.ts
+hexchess-ui/src/lib/api/messages.ts
 */.svelte-kit
 */node_modules
 hexchess-svc/.env

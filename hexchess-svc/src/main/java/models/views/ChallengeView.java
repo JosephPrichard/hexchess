@@ -1,5 +1,6 @@
 package models.views;
 
+import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
@@ -11,9 +12,7 @@ import java.time.Duration;
 
 import static services.daos.ChallengeDao.THRESHOLD_EXPIRATION;
 
-@ToString
-@EqualsAndHashCode
-@Getter
+@Data
 public class ChallengeView {
     private long challengerId;
     private String challengerName;

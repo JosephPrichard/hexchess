@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { getClientSession } from '$lib/local';
-	import type { Session } from '$lib/models';
+	import { getClientSession } from '$lib/utils/storage';
+	import type { SessionModel } from '$lib/api/model';
 
 	const id = $props.id();
 
-	let client: Session | null = $state(null);
+	let client: SessionModel | null = $state(null);
 
 	function initClientSession() {
 		client = getClientSession();

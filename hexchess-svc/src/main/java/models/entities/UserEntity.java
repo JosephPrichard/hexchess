@@ -12,14 +12,14 @@ public class UserEntity {
     public static final float START_ELO = 1000f;
 
     private long id;
-    private String username;
-    private String country;
+    private String username = "";
+    private String country = "";
     private float elo;
     private float highestElo;
     private int wins;
     private int losses;
     private int rank;
-    private String bio;
+    private String bio = "";
     @EqualsAndHashCode.Exclude
     private Timestamp joinedOn;
 

@@ -16,17 +16,16 @@ public class Player {
     private long id;
     @EqualsAndHashCode.Exclude
     @NonNull
-    private String name;
+    private String name = "";
     @EqualsAndHashCode.Exclude
-    @Nullable
-    private String country;
+    @NonNull
+    private String country = "";
     @EqualsAndHashCode.Exclude
-    @Nullable
-    private Float elo;
+    private float elo;
     @EqualsAndHashCode.Exclude
     private boolean isGuest = false;
 
-    public Player(long id, @NonNull String name, @Nullable String country, @Nullable Float elo) {
+    public Player(long id, @NonNull String name, @NonNull String country, float elo) {
         this.id = id;
         this.name = name;
         this.country = country;
@@ -37,8 +36,9 @@ public class Player {
         return Messages.Player.newBuilder()
             .setId(id)
             .setName(name)
-            .setCountry(country == null ? "" : country)
-            .setElo(elo == null ? 0.0f : elo)
+            .setCountry(country)
+            .setElo(0.0f)
+            .setIsGuest(isGuest)
             .build();
     }
 

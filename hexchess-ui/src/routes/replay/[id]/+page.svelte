@@ -1,24 +1,25 @@
 <script lang="ts">
-	import { type ChessBoard, type PieceMove, type Replay } from '$lib/models';
 	import Banner from '$lib/components/Banner.svelte';
 	import Board from '$lib/components/chess/Board.svelte';
-	import { translateBoard } from '$lib/chess';
+	import { translateBoard } from '$lib/utils/chess';
 	import RightIcon from '$lib/components/icons/RightIcon.svelte';
 	import LeftIcon from '$lib/components/icons/LeftIcon.svelte';
 	import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
-	import { getReplayMoveList, unwrap } from '$lib/api';
-	import { createMessage } from '$lib/error';
-	import { getNotificationsContext } from '$lib/context';
+	import { createMessage } from '$lib/utils/error';
+	import { getNotificationsContext } from '$lib/utils/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import ReplayPanel from '$lib/components/user/ReplayPanel.svelte';
+	import type { ChessBoard, PieceMove } from '$lib/api/messages';
+	import { initialBoard } from '$lib/utils/globals';
+	import type { ReplayModel } from '$lib/api/model';
+	import services from '$lib/api/services';
 
 	export interface ReplayProps {
-		replay: Replay;
-		initialBoard: ChessBoard;
+		replay: ReplayModel;
 	}
 
 	const { data }: { data: ReplayProps } = $props();
-	const { replay, initialBoard } = $derived(data);
+	const { replay } = $derived(data);
 
 	const { addNotification } = getNotificationsContext();
 
@@ -29,9 +30,9 @@
 	let boardCache = new Map<number, ChessBoard>();
 
 	async function initMoveList(replayId: string) {
-		const { ok, resp, err } = await unwrap(getReplayMoveList(replayId));
-		if (ok && resp) {
-			moveList = resp;
+		const [data, err] = await services.getReplayMoveList(replayId);
+		if (data) {
+			moveList = data;
 		} else {
 			const message = 'Failed to load replay move list: ' + createMessage(err);
 			addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
@@ -43,7 +44,7 @@
 	});
 
 	const board = $derived.by(() => {
-		if (!moveIndex) {
+		if (moveIndex === undefined) {
 			return initialBoard;
 		}
 

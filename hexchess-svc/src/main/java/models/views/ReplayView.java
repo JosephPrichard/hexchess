@@ -1,43 +1,39 @@
 
 package models.views;
 
-import chess.PieceMove;
-import com.fasterxml.jackson.core.type.TypeReference;
+import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 import models.common.ReplayCause;
 import models.common.ReplayResult;
-import org.jsoup.Jsoup;
 import models.entities.ReplayEntity;
+import org.jsoup.Jsoup;
 
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 import java.util.function.Function;
 
 import static models.entities.ReplayEntity.*;
-import static utils.Globals.*;
+import static utils.Globals.HTML_SAFELIST;
 
-@ToString
-@EqualsAndHashCode
-@Getter
+@Data
 public class ReplayView {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
 
     private long id;
     private long whiteId;
     private long blackId;
-    private String whiteName;
-    private String blackName;
-    private String whiteCountry;
-    private String blackCountry;
+    private String whiteName = "";
+    private String blackName = "";
+    private String whiteCountry = "";
+    private String blackCountry = "";
     private float winElo;
     private float loseElo;
     private float whiteElo;
     private float blackElo;
-    private String playedOn;
+    private String playedOn = "";
     private ReplayResult result;
     private ReplayCause cause;
     private float whiteEloDiff;

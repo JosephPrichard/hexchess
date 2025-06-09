@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import type { User } from '$lib/models';
-	import { getWinrateClass } from '$lib/format';
+	import { getWinrateClass } from '$lib/utils/format';
+	import type { UserModel } from '$lib/api/model';
 
 	interface Props {
-		userList: User[];
+		userList: UserModel[];
 	}
 
 	const { userList }: Props = $props();
@@ -14,30 +14,34 @@
 	<table class="table-container">
 		<thead>
 			<tr>
-				<th>Rank</th>
-				<th>Player</th>
-				<th>Elo</th>
-				<th>Win%</th>
-				<th>Won</th>
-				<th>Lost</th>
-				<th>Total</th>
+				<th style="width: 9%">Rank</th>
+				<th style="width: 43%">Player</th>
+				<th style="width: 12%">Elo</th>
+				<th style="width: 9%">Win%</th>
+				<th style="width: 9%">Won</th>
+				<th style="width: 9%">Lost</th>
+				<th style="width: 9%">Total</th>
 			</tr>
 		</thead>
 		<tbody>
 			{#each userList as user (user.id)}
 				<tr class="row-hover" onclick={() => goto(`/players/${user.id}`)}>
-					<td style="width: 9%">{user.rank}</td>
-					<td style="width: 43%">
+					<td>{user.rank}</td>
+					<td>
 						{user.username}
 						<img class="flag" src="/flags/{user.country}.png" alt="" />
 					</td>
-					<td style="width: 12%">{user.elo}</td>
-					<td class={getWinrateClass(user.winRate)} style="width: 9%">
+					<td >{user.elo}</td>
+					<td class={getWinrateClass(user.winRate)}>
 						{user.winRate}%
 					</td>
-					<td class="green-color" style="width: 9%">{user.wins}</td>
-					<td class="red-color" style="width: 9%">{user.losses}</td>
-					<td style="width: 9%">{user.total}</td>
+					<td class="green-color">
+						{user.wins}
+					</td>
+					<td class="red-color">
+						{user.losses}
+					</td>
+					<td>{user.total}</td>
 				</tr>
 			{/each}
 		</tbody>

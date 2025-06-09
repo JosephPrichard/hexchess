@@ -244,10 +244,10 @@ select {
 }
 
 .button {
-	height: 42px;
+	height: 46px;
 	font-size: 16px;
-	min-width: 150px;
-	color: #fff;
+	min-width: 190px;
+	color: rgb(210, 210, 210);
 	cursor: pointer;
 	position: relative;
 	border-radius: 5px;
@@ -262,17 +262,17 @@ select {
 }
 
 .button-grey {
-	background: rgb(75, 75, 75);
-	box-shadow: 0 5px rgb(55, 55, 55);
+	background: rgb(60, 60, 60);
+	box-shadow: 0 5px rgb(45, 45, 45);
 }
 
 .button-grey:active {
 	top: 2px;
-	box-shadow: 0 3px rgb(55, 55, 55);
+	box-shadow: 0 3px rgb(45, 45, 45);
 }
 
 .button-grey:hover {
-	background: rgb(85, 85, 85);
+	background: rgb(70, 70, 70);
 	text-decoration: none;
 }
 
@@ -450,15 +450,19 @@ select {
 	width: 100%;
 	display: flex;
 	flex-direction: row;
-	margin-bottom: 20px;
+	margin-bottom: 10px;
 }
 
 .tab {
+	font-family: -apple-system, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+	background-color: transparent;
+	cursor: pointer;
 	text-align: center;
 	flex: 0.5;
 	padding: 10px 20px;
 	text-decoration: none !important;
 	font-weight: 500;
+	border: none;
 	border-bottom: 1px solid rgb(120, 120, 120);
 	color: rgb(110, 110, 110);
 }
@@ -513,7 +517,8 @@ select {
 
 .side-table-header {
 	padding: 15px;
-	border-radius: 4px;
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
 	background-color: rgb(44, 44, 44);
 	border-bottom: 1px solid rgb(58, 58, 58);
 }

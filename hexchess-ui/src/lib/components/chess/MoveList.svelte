@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { stringOfMove } from '$lib/chess';
-	import type { PieceMove } from '$lib/messages';
+	import { stringOfMove } from '$lib/utils/chess';
+	import type { MoveListModel } from '$lib/api/model';
 
 	export interface MoveListProps {
-		moveList: PieceMove[];
+		moveList: MoveListModel;
 		onSelectMove?: (i: number) => void;
 		selectedMoveIndex?: number;
 		completeMessage?: string;
@@ -75,18 +75,19 @@
         flex: 0.4;
         line-height: 40px;
         padding-left: 20px;
-        border-radius: 2px;
+        border-radius: 1px;
         -moz-user-select: none;
         -khtml-user-select: none;
         -webkit-user-select: none;
+        border: rgba(0, 0, 0, 0) solid 1px;
     }
 
     .move-button-hover:hover {
-        background-color: rgb(65, 65, 65);
+        border: rgb(65, 65, 65) solid 1px;
     }
 
     .selected-move {
-        background-color: rgb(53, 53, 53);
+        background-color: rgba(51, 153, 255, 0.25);
     }
 
     .completed-message {

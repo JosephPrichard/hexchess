@@ -13,7 +13,6 @@ public class WebConstants {
     public static final String ERROR_REQUIRED_LOGIN = "ERROR_REQUIRED_LOGIN";
     public static final String ERROR_SESSION_EXPIRED = "ERROR_SESSION_EXPIRED";
     public static final String ERROR_NOT_FOUND_CHALLENGE = "ERROR_NOT_FOUND_CHALLENGE";
-    public static final String ERROR_INVALID_CHALLENGE_ACTION = "ERROR_INVALID_CHALLENGE_ACTION";
     public static final String ERROR_SELF_CHALLENGE = "ERROR_SELF_CHALLENGE";
     public static final String ERROR_DUPLICATE_CHALLENGE = "ERROR_DUPLICATE_CHALLENGE";
     public static final String ERROR_UPDATE_CHALLENGE = "ERROR_UPDATE_CHALLENGE";

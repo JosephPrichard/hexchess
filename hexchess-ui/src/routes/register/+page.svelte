@@ -1,11 +1,10 @@
 <script lang="ts">
 	import Banner from '$lib/components/Banner.svelte';
-	import { postRegister } from '$lib/api';
 	import { goto } from '$app/navigation';
-	import { createMessage } from '$lib/error';
-	import { unwrap } from '$lib/api.js';
-	import { setClientSession } from '$lib/local';
-	import { getNotificationsContext } from '$lib/context';
+	import { createMessage } from '$lib/utils/error';
+	import { setClientSession } from '$lib/utils/storage';
+	import { getNotificationsContext } from '$lib/utils/context';
+	import services from '$lib/api/services';
 
 	let username = $state('');
 	let password = $state('');
@@ -18,10 +17,10 @@
 		e.preventDefault();
 
 		isLoading = true;
-		const { ok, resp, err } = await unwrap(postRegister(username, password, confirmPassword));
+		const [data, err] = await services.postRegister(username, password, confirmPassword);
 
-		if (ok && resp) {
-			setClientSession(resp);
+		if (data) {
+			setClientSession(data);
 
 			const message = 'Registration was successful!';
 			addNotification({ type: 'string', message, isSuccess: true, duration: 3000 });

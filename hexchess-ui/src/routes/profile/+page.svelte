@@ -1,15 +1,15 @@
 <script lang="ts">
-	import { postLogout, postUpdatePassword, postUpdateUser, unwrap } from '$lib/api';
 	import { goto } from '$app/navigation';
 	import Banner from '$lib/components/Banner.svelte';
-	import type { User } from '$lib/models';
-	import { updateClientSession as updateClientUser } from '$lib/local';
-	import { createMessage } from '$lib/error';
-	import { getNotificationsContext } from '$lib/context';
+	import { updateClientSession as updateClientUser } from '$lib/utils/storage';
+	import { createMessage } from '$lib/utils/error';
+	import { getNotificationsContext } from '$lib/utils/context';
+	import type { UserModel } from '$lib/api/model';
+	import services from '$lib/api/services';
 
 	export interface ProfileProps {
 		countryList: string[];
-		user: User;
+		user: UserModel;
 	}
 
 	const { data: props }: { data: ProfileProps } = $props();
@@ -30,10 +30,9 @@
 
 		isLoading = true;
 
-		const { ok, resp, err } = await unwrap(postUpdateUser(username, bio, country));
-
-		if (ok && resp) {
-			updateClientUser(resp);
+		const [data, err] = await services.postUpdateUser(username, bio, country);
+		if (data) {
+			updateClientUser(data);
 			addNotification({ type: 'string', message: 'Updated your profile!', isSuccess: true, duration: 3000 });
 		} else {
 			const message = createMessage(err);
@@ -46,8 +45,8 @@
 	async function onSubmitPassword(e: MouseEvent) {
 		e.preventDefault();
 
-		const { ok, resp, err } = await unwrap(postUpdatePassword(password, newPassword, retypePassword));
-		if (ok && resp) {
+		const [data, err] = await services.postUpdatePassword(password, newPassword, retypePassword);
+		if (data) {
 			const message = 'Successfully updated password!';
 			addNotification({ type: 'string', message, isSuccess: true, duration: 3000 });
 		} else {
@@ -63,8 +62,8 @@
 	}
 
 	async function onClickSignOut() {
-		const { ok, err } = await unwrap(postLogout());
-		if (ok) {
+		const [data, err] = await services.postLogout();
+		if (data) {
 			const message = 'Successfully signed out.';
 			addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
 

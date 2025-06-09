@@ -1,4 +1,4 @@
-import type { ReplayCause, ReplayResult, TimeControl } from '$lib/models';
+import type { ReplayCause, ReplayResult, TimeControl } from '$lib/api/model';
 
 export function getResultClasses(result: ReplayResult) {
 	switch (result) {

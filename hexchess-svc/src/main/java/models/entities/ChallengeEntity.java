@@ -10,15 +10,22 @@ import java.sql.Timestamp;
 @AllArgsConstructor
 public class ChallengeEntity {
     private long challengerId;
-    private String challengerName;
-    private String challengerCountry;
+    private String challengerName = "";
+    private String challengerCountry = "";
     private float challengerElo;
     private long challengeeId;
-    private String challengeeName;
-    private String challengeeCountry;
+    private String challengeeName = "";
+    private String challengeeCountry = "";
     private float challengeeElo;
-    private String timeControl;
-    private String startColor; // from challenger's perspective.
+    private String timeControl = "";
+    private String startColor = ""; // from challenger's perspective.
     @EqualsAndHashCode.Exclude
     private Timestamp madeOn;
+
+    public static ChallengeEntity fromIds(long challengerId, long challengeeId) {
+        ChallengeEntity entity = new ChallengeEntity();
+        entity.challengerId = challengerId;
+        entity.challengeeId = challengeeId;
+        return entity;
+    }
 }

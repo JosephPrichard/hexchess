@@ -1,21 +1,20 @@
 <script lang="ts">
 	import Banner from '$lib/components/Banner.svelte';
-	import { createMessage } from '$lib/error';
-	import { getNotificationsContext } from '$lib/context';
-	import type { ChallengeView } from '$lib/api';
-
-	type ChallengeAction = "delete" | "reject" | "accept";
+	import { createMessage } from '$lib/utils/error';
+	import { getNotificationsContext } from '$lib/utils/context';
+	import type { Action, ChallengeModel } from '$lib/api/model';
+	import services from '$lib/api/services';
 
 	export interface ChallengeProps {
 		participants: string;
-		challengeList: ChallengeView[];
+		challengeList: ChallengeModel[];
 	}
 
 	const { data: props }: { data: ChallengeProps } = $props();
 	const isSender = $derived(props.participants === 'sent');
 
 	interface ChallengeState {
-		challenge: ChallengeView;
+		challenge: ChallengeModel;
 		isLoading: {
 			delete: boolean;
 			accept: boolean;
@@ -38,7 +37,7 @@
 
 	const { addNotification } = getNotificationsContext();
 
-	function formatSuccessMessage(challenge: ChallengeView, action: ChallengeAction) {
+	function formatSuccessMessage(challenge: ChallengeModel, action: Action) {
 		let message: string | undefined = undefined;
 		switch (action) {
 			case 'delete':
@@ -54,11 +53,11 @@
 		return message;
 	}
 
-	async function onUpdateChallenge(challenge: ChallengeView, index: number, action: ChallengeAction) {
+	async function onUpdateChallenge(challenge: ChallengeModel, index: number, action: Action) {
 		challengeList[index].isLoading[action] = true;
 
-		const { ok, resp, err } = await unwrap(postUpdateChallenge(challenge.challengerId, challenge.challengeeId, action.toLocaleLowerCase()));
-		if (ok && resp) {
+		const [data, err] = await services.postUpdateChallenge(challenge.challengerId, challenge.challengeeId, action);
+		if (data) {
 			const message = formatSuccessMessage(challenge, action);
 			addNotification({
 				type: 'string',
@@ -85,7 +84,6 @@
 			<a class="tab" class:tab-selected={!isSender} href="?participants=received"> Received </a>
 			<a class="tab" class:tab-selected={isSender} href="?participants=sent"> Sent </a>
 		</div>
-
 		{#if challengeList.length > 0}
 			<div class="challenge-list">
 				{#each challengeList as { challenge, isLoading }, index (index)}

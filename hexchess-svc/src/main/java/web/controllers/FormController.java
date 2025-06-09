@@ -1,7 +1,7 @@
 package web.controllers;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import models.common.ChallengeAction;
+import models.views.ServiceView;
 import models.views.SessionView;
 import services.broadcast.Broadcaster;
 import services.daos.ChallengeDao;
@@ -41,18 +41,6 @@ public class FormController extends Jooby {
         userBroadcaster = state.getUserBroadcaster();
 
         setWorker(EXECUTOR);
-
-        error((ctx, cause, statusCode) -> {
-            ctx.setResponseCode(statusCode);
-            if (statusCode.value() == 500) {
-                LOG.error("Error: {} ", statusCode, cause);
-                ctx.send(ERROR_UNKNOWN);
-            } else {
-                String message = "Error: " + statusCode + ", " + cause.getMessage();
-                LOG.error(message);
-                ctx.send(cause.getMessage());
-            }
-        });
 
         post("/forms/register", this::register);
         post("/forms/login", this::login);
@@ -128,9 +116,9 @@ public class FormController extends Jooby {
         Cookie cookie = authService.createSessionCookie(sessionId);
         ctx.setResponseCookie(cookie);
         dictionaryDao.setSession(
-                sessionId,
-                new Player(verifiedUser.getId(), verifiedUser.getUsername(), verifiedUser.getCountry(), verifiedUser.getElo()),
-                cookie.getMaxAge());
+            sessionId,
+            new Player(verifiedUser.getId(), verifiedUser.getUsername(), verifiedUser.getCountry(), verifiedUser.getElo()),
+            cookie.getMaxAge());
 
         LOG.info("Player has logged in {}", verifiedUser);
 
@@ -139,7 +127,7 @@ public class FormController extends Jooby {
 
     public record UpdatePasswordBody(String password, String newPassword, String confirmNewPassword) {}
 
-    public String updatePassword(Context ctx) {
+    public ServiceView updatePassword(Context ctx) {
         UpdatePasswordBody body = ctx.body(UpdatePasswordBody.class);
         String password = body.password();
         String newPassword = body.newPassword();
@@ -156,7 +144,7 @@ public class FormController extends Jooby {
 
         userDao.updatePassword(verifiedUser.getId(), newPassword);
 
-        return "SUCCESS";
+        return ServiceView.SUCCESS;
     }
 
     public record UpdateUserBody(String newUsername, String newCountry, String newBio) {}
@@ -179,7 +167,9 @@ public class FormController extends Jooby {
     public TempSessionBody createTempSession(Context ctx) {
         Player player = authService.getSessionPlayer(ctx);
         String tempSessionId = authService.createSessionId();
+
         dictionaryDao.setSession(tempSessionId, player, DictionaryDao.TEMP_SESSION_EXPIRE.toSeconds());
+
         return new TempSessionBody(tempSessionId);
     }
 
@@ -206,7 +196,7 @@ public class FormController extends Jooby {
         return new RefreshResp(SessionView.fromPlayer(player, cookie.getMaxAge()));
     }
 
-    public String logout(Context ctx) {
+    public ServiceView logout(Context ctx) {
         String sessionId = authService.parseSession(ctx);
 
         dictionaryDao.deleteSession(sessionId);
@@ -214,7 +204,7 @@ public class FormController extends Jooby {
 
         LOG.info("Logged out sessionId={}", sessionId);
 
-        return "SUCCESS";
+        return ServiceView.SUCCESS;
     }
 
     public record CreateGameBody(ColorSelect firstColor, TimeControl timeControl) {}
@@ -233,7 +223,13 @@ public class FormController extends Jooby {
         return new CreateGameResp(gameId);
     }
 
-    public record UpdateChallengeBody(long challengeeId, long challengerId, ChallengeAction action) {}
+    public enum UpdtAction {
+        ACCEPT,
+        REJECT,
+        DELETE
+    }
+
+    public record UpdateChallengeBody(long challengeeId, long challengerId, UpdtAction action) {}
 
     public record UpdateChallengeResp(String gameId) {}
 
@@ -241,15 +237,15 @@ public class FormController extends Jooby {
         UpdateChallengeBody body = ctx.body(UpdateChallengeBody.class);
         long challengeeId = body.challengeeId();
         long challengerId = body.challengerId();
-        ChallengeAction action = body.action();
+        UpdtAction action = body.action();
 
         Player player = authService.getSessionPlayer(ctx);
 
         long callerId = player.getId();
 
         long targetId = switch (action) {
-            case ChallengeAction.ACCEPT, ChallengeAction.REJECT -> challengeeId;
-            case ChallengeAction.DELETE -> challengerId;
+            case UpdtAction.ACCEPT, UpdtAction.REJECT -> challengeeId;
+            case UpdtAction.DELETE -> challengerId;
         };
 
         String gameId = null;
@@ -259,7 +255,7 @@ public class FormController extends Jooby {
             if (result == null) {
                 throw new StatusCodeException(StatusCode.NOT_FOUND, ERROR_NOT_FOUND_CHALLENGE);
             }
-            if (action.equals(ChallengeAction.ACCEPT)) {
+            if (action.equals(UpdtAction.ACCEPT)) {
                 gameId = gameService.create(
                     ColorSelect.fromString(result.getStartColor()),
                     TimeControl.fromString(result.getTimeControl()));
@@ -270,6 +266,24 @@ public class FormController extends Jooby {
 
         ctx.setResponseCode(StatusCode.OK);
         return new UpdateChallengeResp(gameId);
+    }
+
+    public void dispatchBroadcastChallenge(ChallengeEntity entity) {
+        EXECUTOR.execute(() -> {
+            try {
+                String groupId = Long.toString(entity.getChallengeeId());
+                LOG.info("Broadcasting challenge={} with groupId={} to user broadcaster", entity, groupId);
+
+                byte[] output = JSON.writeValueAsBytes(entity);
+                userBroadcaster.broadcast(groupId, output);
+            } catch (JsonProcessingException e) {
+                LOG.error("Error occurred while broadcasting challenge to user", e);
+            }
+        });
+    }
+
+    public void dispatchDeleteExpired(long challengeeId) {
+        EXECUTOR.execute(() -> challengeDao.deleteExpired(challengeeId));
     }
 
     public record CreateChallengeBody(long challengeeId, TimeControl timeControl, ColorSelect startColor) {}
@@ -283,19 +297,7 @@ public class FormController extends Jooby {
         }
     }
 
-    private void broadcastChallenge(ChallengeEntity entity) {
-        try {
-            String groupId = Long.toString(entity.getChallengeeId());
-            LOG.info("Broadcasting challenge={} with groupId={} to user broadcaster", entity, groupId);
-
-            byte[] output = JSON.writeValueAsBytes(entity);
-            userBroadcaster.broadcast(groupId, output);
-        } catch (JsonProcessingException e) {
-            LOG.error("Error occurred while broadcasting challenge to user", e);
-        }
-    }
-
-    public String createChallenge(Context ctx) {
+    public ServiceView createChallenge(Context ctx) {
         CreateChallengeBody body = ctx.body(CreateChallengeBody.class);
         validateCreateChallenge(body);
 
@@ -303,22 +305,14 @@ public class FormController extends Jooby {
         ColorSelect startColor = body.startColor();
         TimeControl timeControl = body.timeControl();
 
-        String sessionId = authService.parseSession(ctx);
-        if (sessionId == null) {
-            throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_REQUIRED_LOGIN);
-        }
-        Player player = dictionaryDao.getSession(sessionId);
-        if (player == null) {
-            ctx.setResponseCookie(authService.createEmptyCookie());
-            throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_SESSION_EXPIRED);
-        }
+        Player player = authService.getSessionPlayer(ctx);
 
         try {
             ChallengeEntity entity = challengeDao.insert(player.getId(), challengeeId, timeControl.toString(), startColor.toString());
-            EXECUTOR.execute(() -> broadcastChallenge(entity));
-            EXECUTOR.execute(() -> challengeDao.deleteExpired(player.getId()));
+            dispatchBroadcastChallenge(entity);
+            dispatchDeleteExpired(player.getId());
 
-            return "SUCCESS";
+            return ServiceView.SUCCESS;
         } catch (ChallengeDao.ParticipantException ex) {
             throw new StatusCodeException(StatusCode.NOT_FOUND, ERROR_NOT_FOUND_USER);
         } catch (ChallengeDao.SelfException ex) {

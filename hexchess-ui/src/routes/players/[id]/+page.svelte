@@ -1,18 +1,18 @@
 <script lang="ts">
-	import type { ColorSelect, TimeControl, UserWithReplays } from '$lib/models.js';
 	import CreateGame from '$lib/components/modals/CreateGame.svelte';
-	import { getReplays, postCreateChallenge, unwrap } from '$lib/api';
 	import { onMount } from 'svelte';
 	import ChallengeIcon from '$lib/components/icons/ChallengeIcon.svelte';
-	import { formatReplayResult, getResultClasses, getWinrateClass } from '$lib/format.js';
-	import { getClientSession } from '$lib/local';
+	import { formatReplayResult, getResultClasses, getWinrateClass } from '$lib/utils/format.js';
+	import { getClientSession } from '$lib/utils/storage';
 	import Banner from '$lib/components/Banner.svelte';
 	import { goto } from '$app/navigation';
-	import { getNotificationsContext } from '$lib/context';
-	import { createMessage } from '$lib/error';
+	import { getNotificationsContext } from '$lib/utils/context';
+	import { createMessage } from '$lib/utils/error';
+	import type { ColorSelect, TimeControl, UserWithReplaysModel } from '$lib/api/model';
+	import services from '$lib/api/services';
 
 	export interface PlayerProps {
-		userWithReplays: UserWithReplays;
+		userWithReplays: UserWithReplaysModel;
 	}
 
 	const { data: props }: { data: PlayerProps } = $props();
@@ -31,15 +31,16 @@
 		const shouldLoadReplays = hasMoreReplays && isAtPageBottom && lastId !== undefined;
 
 		if (shouldLoadReplays) {
-			const { ok, resp, err } = await unwrap(getReplays(user.id, lastId));
-			if (!ok) {
-				console.error(ok, resp, err);
+			const [data, err] = await services.getReplays(user.id, lastId);
+
+			if (err) {
+				console.error("Error loading replays: ", err);
 			}
 
-			const replayList = resp || [];
+			const replayList = data || [];
 			console.log(`Loaded ${replayList.length} new replays`);
 
-			if (ok && replayList.length > 0) {
+			if (replayList.length > 0) {
 				nestedReplayList.push(replayList);
 				console.log(`There are ${nestedReplayList.length} replayList records in the nestedReplayList`);
 			} else {
@@ -56,9 +57,9 @@
 	});
 
 	async function onSubmitCreateChallenge(timeControl: TimeControl, color: ColorSelect) {
-		const { ok, resp, err } = await unwrap(postCreateChallenge(timeControl, color, user.id));
+		const [data, err] = await services.postCreateChallenge(timeControl, color, user.id);
 		showCreateModal = false;
-		if (ok || resp) {
+		if (data) {
 			addNotification({
 				type: 'string',
 				message: `Successfully created the challenge against ${user.username}`,

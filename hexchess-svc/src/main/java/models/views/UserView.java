@@ -1,6 +1,7 @@
 
 package models.views;
 
+import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
@@ -12,22 +13,20 @@ import java.time.format.DateTimeFormatter;
 
 import static utils.Globals.HTML_SAFELIST;
 
-@ToString
-@EqualsAndHashCode
-@Getter
+@Data
 public class UserView {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
 
     private long id;
-    private String username;
-    private String country;
+    private String username = "";
+    private String country = "";
     private int elo;
     private int highestElo;
     private int wins;
     private int losses;
     private int rank;
-    private String bio;
-    private String joinedOn;
+    private String bio = "";
+    private String joinedOn = "";
     private int total;
     private int winRate;
 

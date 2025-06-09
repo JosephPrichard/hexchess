@@ -1,6 +1,7 @@
 package services.game;
 
 import chess.PieceMove;
+import models.views.ChessView;
 import services.daos.DictionaryDao;
 import services.daos.ReplayDao;
 import services.daos.UserDao;
@@ -13,6 +14,7 @@ import models.state.Player;
 import models.entities.ReplayEntity;
 import models.state.ChessRoom;
 
+import java.util.Collections;
 import java.util.List;
 
 import static services.daos.UserDao.*;
@@ -65,37 +67,32 @@ public class GameService {
         boolean hasNoPlayers = !hasWhitePlayer && !hasBlackPlayer;
         boolean playerExists = hasWhitePlayer && player.equals(room.getWhitePlayer()) || hasBlackPlayer && player.equals(room.getBlackPlayer());
 
+        String color = "none";
         if (!playerExists) {
-            boolean joinedAsWhite;
             if (hasNoPlayers) {
-                boolean chooseWhite = room.getFirstColor() == ColorSelect.RANDOM ?
-                        RANDOM.nextInt() % 2 == 0 :
-                        room.getFirstColor() == ColorSelect.WHITE;
+                boolean chooseWhite = room.getFirstColor() == ColorSelect.RANDOM ? RANDOM.nextInt() % 2 == 0 : room.getFirstColor() == ColorSelect.WHITE;
                 if (chooseWhite) {
                     room.setWhitePlayer(player);
-                    joinedAsWhite = true;
+                    color = "white";
                 } else {
                     room.setBlackPlayer(player);
-                    joinedAsWhite = false;
+                    color = "black";
                 }
             } else if (!hasBlackPlayer) {
                 room.setBlackPlayer(player);
-                joinedAsWhite = false;
+                color = "black";
             } else if (!hasWhitePlayer) {
                 room.setWhitePlayer(player);
-                joinedAsWhite = true;
+                color = "white";
             } else {
                 return room;
             }
-
-            if (joinedAsWhite) {
-                LOG.info("Player {} joined as white player {}", player.getId(), gameId);
-            } else {
-                LOG.info("Player {} joined as black player {}", player.getId(), gameId);
-            }
         }
 
-        return dictionaryDao.setRoom(gameId, room);
+        LOG.info("Player={} joined the game={} as color={}", player.getId(), gameId, color);
+
+        room = dictionaryDao.setRoom(gameId, room);
+        return room;
     }
 
     public static boolean isPlayerTurn(ChessRoom state, Player player) {
@@ -172,10 +169,10 @@ public class GameService {
         }
     }
 
-    public ChessRoom forfeit(String gameId, Player player) {
+    public void forfeit(String gameId, Player player) {
         ChessRoom state = dictionaryDao.getRoom(gameId);
         if (state == null) {
-            return null;
+            return;
         }
 
         boolean didBlackForfeit = state.getBlackPlayer().equals(player);
@@ -183,10 +180,6 @@ public class GameService {
         state.setEnded(true);
         onFinishGame(state, didBlackForfeit, ReplayEntity.FORFEIT);
 
-        return dictionaryDao.setRoom(gameId, state); // did black forfeit? then white won.
-    }
-
-    public List<ChessRoom> getGames(int page) {
-        return dictionaryDao.getRooms(page, 20);
+        dictionaryDao.setRoom(gameId, state); // did black forfeit? then white won.
     }
 }

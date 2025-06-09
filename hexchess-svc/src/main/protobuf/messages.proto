@@ -55,14 +55,16 @@ message ChessRoom {
   int64 touch = 9;
 }
 
-message Forfeit {}
-
-message Start {
-  Player selfPlayer = 1;
-  ChessRoom room = 2;
+message Error {
+  string message = 1;
 }
 
-message Join {
+message Init {
+  ChessRoom room = 1;
+  Player self = 2;
+}
+
+message Players {
   Player whitePlayer = 1;
   Player blackPlayer = 2;
 }
@@ -77,15 +79,13 @@ message Chat {
   string message = 3;
 }
 
-message Error {
-  string message = 1;
-}
+message Forfeit {}
 
 message GameOutput {
   oneof value {
     Error error = 1;
-    Start start = 2;
-    Join join = 3;
+    Init init = 2;
+    Players players = 3;
     Move move = 4;
     Chat chat = 5;
     Forfeit forfeit = 6;

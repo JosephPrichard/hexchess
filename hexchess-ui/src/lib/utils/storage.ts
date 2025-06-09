@@ -1,4 +1,4 @@
-import type { Session } from '$lib/models';
+import type { SessionModel } from '$lib/api/model';
 
 const SESSION_KEY = 'session';
 
@@ -7,10 +7,10 @@ interface LocalStorageRecord<T> {
 	expiry: number;
 }
 
-export function getClientSession(): Session | null {
+export function getClientSession(): SessionModel | null {
 	const recordStr = localStorage.getItem(SESSION_KEY);
 	if (recordStr != null) {
-		const record = JSON.parse(recordStr) as LocalStorageRecord<Session>;
+		const record = JSON.parse(recordStr) as LocalStorageRecord<SessionModel>;
 		const now = new Date().getTime();
 		if (record.expiry < now) {
 			localStorage.removeItem(SESSION_KEY);
@@ -22,8 +22,8 @@ export function getClientSession(): Session | null {
 	return null;
 }
 
-export function setClientSession(client: Session) {
-	const record: LocalStorageRecord<Session> = {
+export function setClientSession(client: SessionModel) {
+	const record: LocalStorageRecord<SessionModel> = {
 		data: client,
 		expiry: new Date().getTime() + (client.ttlSecs || 0) * 1000
 	};
@@ -33,7 +33,7 @@ export function setClientSession(client: Session) {
 	// console.log(`Set key=${SESSION_KEY} to value=${recordStr} to local storage`);
 }
 
-export function updateClientSession(newClient: Session | null) {
+export function updateClientSession(newClient: SessionModel | null) {
 	if (newClient) {
 		const client = getClientSession();
 		if (client != null) {

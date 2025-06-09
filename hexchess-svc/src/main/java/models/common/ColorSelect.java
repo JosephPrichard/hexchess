@@ -32,7 +32,10 @@ public enum ColorSelect {
             case 0 -> WHITE;
             case 1 -> BLACK;
             case 2 -> RANDOM;
-            default -> throw new IllegalStateException("Invalid value for color select: " + value);
+            default -> {
+                LOG.warn("Unknown color select {}, defaulting to {}", value, RANDOM);
+                yield RANDOM;
+            }
         };
     }
 }

@@ -1,19 +1,18 @@
 <script lang="ts">
 	import Banner from '$lib/components/Banner.svelte';
-	import { appBaseURL, baseURL, postTempSession, unwrap } from '$lib/api';
-	import { createMessage } from '$lib/error';
-	import { getNotificationsContext } from '$lib/context';
+	import services, { appBaseURL, baseURL } from '$lib/api/services';
+	import { createMessage } from '$lib/utils/error';
+	import { getNotificationsContext } from '$lib/utils/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import Board from '$lib/components/chess/Board.svelte';
-	import { formatTimeControl, formatTimer, timeControlIntMap } from '$lib/format';
+	import { formatTimeControl, formatTimer, timeControlIntMap } from '$lib/utils/format';
 	import ClipboardIcon from '$lib/components/icons/ClipboardIcon.svelte';
 	import FlagIcon from '$lib/components/icons/FlagIcon.svelte';
 	import SettingsIcon from '$lib/components/icons/SettingsIcon.svelte';
 	import UndoIcon from '$lib/components/icons/UndoIcon.svelte';
 	import PieceList from '$lib/components/chess/PieceList.svelte';
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
-	import { type Chat, type ChessRoom, GameOutput, type Hexagon, type PieceMoves, type Player } from '$lib/messages';
-
+	import { type Chat, type ChessGame, type ChessRoom, GameOutput, type Hexagon, type PieceMove, type PieceMoves, type Player } from '$lib/api/messages';
 	export interface PlayProps {
 		gameId: string
 	}
@@ -23,17 +22,22 @@
 
 	const { addNotification } = getNotificationsContext();
 
-	let room: ChessRoom | undefined = $state(undefined);
+	let game = $state<ChessGame | undefined>(undefined);
+	let moveList = $state<PieceMove[]>([]);
+	let whitePlayer = $state<Player | undefined>(undefined);
+	let blackPlayer = $state<Player | undefined>(undefined);
+
 	let selfPlayer: Player | undefined = $state(undefined);
 	let chats: Chat[] = $state([]);
+
 	let chat = $state("");
 	let completeMessage: string | undefined = $state(undefined);
+
 	let whiteTimer: number | undefined = $state(undefined);
 	let blackTimer: number | undefined = $state(undefined);
+
 	let potentialMoves: PieceMoves | undefined = $state(undefined);
 	let selectedHexagon: Hexagon | undefined = $state(undefined);
-
-	const isStarted = $derived(() => room?.whitePlayer && room?.blackPlayer);
 
 	let ws: WebSocket | undefined = undefined;
 	let connectTries = 0;
@@ -63,7 +67,7 @@
 	}
 
 	function onClickPiece(newSelection: Hexagon) {
-		if (!room?.game) {
+		if (!game) {
 			return;
 		}
 
@@ -73,15 +77,15 @@
 			return;
 		}
 
-		let index = room.game.blackMoves.findIndex(move => newSelection.file === move?.hex?.file && newSelection.rank == move?.hex?.rank);
+		let index = game.blackMoves.findIndex(move => newSelection.file === move?.hex?.file && newSelection.rank == move?.hex?.rank);
 		if (index !== -1) {
-			potentialMoves = room.game.blackMoves[index];
+			potentialMoves = game.blackMoves[index];
 			selectedHexagon = newSelection;
 			return;
 		} else {
-			index = room.game.whiteMoves.findIndex(move => newSelection.file === move?.hex?.file && newSelection.rank == move?.hex?.rank);
+			index = game.whiteMoves.findIndex(move => newSelection.file === move?.hex?.file && newSelection.rank == move?.hex?.rank);
 			if (index !== -1) {
-				potentialMoves = room.game.whiteMoves[index];
+				potentialMoves = game.whiteMoves[index];
 				selectedHexagon = newSelection;
 				return;
 			}
@@ -90,79 +94,74 @@
 		selectedHexagon = undefined;
 	}
 
-	function onMessage(data: GameOutput) {
-		switch (data.value.oneofKind) {
-			case 'join':
-				const join = data.value.join;
-				if (room) {
-					room.whitePlayer = join.whitePlayer;
-					room.blackPlayer = join.blackPlayer;
-				}
-				break;
-			case 'start':
-				const start =  data.value.start;
-				selfPlayer = start.selfPlayer;
-				room = start.room;
-				break;
-			case 'move':
-				const move = data.value.move;
-				if (move.pieceMove === undefined) {
-					throw new Error("Piece move must be specified, got " + JSON.stringify(move));
-				}
-				if (room) {
-					room.game = move.game;
-					room.moveList.push(move.pieceMove);
-				}
-				break;
-			case 'forfeit':
-				break;
-			case 'chat':
-				const chat = data.value.chat;
-				chats.push(chat);
-				break;
-			case 'error':
-				const error = data.value.error;
-				const message = createMessage(error.message);
-				addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
-				break;
+	function handleMessage(data: GameOutput) {
+		const kind = data.value.oneofKind;
+		if (kind === 'init') {
+			const init = data.value.init;
+			if (init.room === undefined) {
+				throw new Error("Room must be specified, got " + JSON.stringify(init));
+			}
+			game = init.room.game;
+			moveList = init.room.moveList || [];
+			whitePlayer = init.room.whitePlayer;
+			blackPlayer = init.room.blackPlayer;
+			selfPlayer = init.self;
+		} else if (kind === 'players') {
+			const players = data.value.players;
+			whitePlayer = players.whitePlayer;
+			blackPlayer = players.blackPlayer;
+		} else if (kind === 'move') {
+			const move = data.value.move;
+			if (move.pieceMove === undefined) {
+				throw new Error("Piece move must be specified, got " + JSON.stringify(move));
+			}
+			game = move.game;
+			moveList.push(move.pieceMove);
+		} else if (kind === 'forfeit') {
+			// no-op
+		} else if (kind === 'chat') {
+			const chat = data.value.chat;
+			chats.push(chat);
+		} else if (kind === 'error') {
+			const error = data.value.error;
+			const message = createMessage(error.message);
+			addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
 		}
 	}
 
 	function connectGame(gameId: string) {
 		const timeout = connectTries !== 0 ? Math.pow(2, connectTries) * 1000 : 0;
 		console.log(`Trying to connect to game=${gameId} in timeout=${timeout}`);
-		setTimeout(
-			async () => {
-				let { ok, resp: sessionId, err } = await unwrap(postTempSession());
-				if (ok && sessionId) {
-					const params = new URLSearchParams({ sessionId });
-					let url = `${baseURL}/connections/games/${gameId}?${params}`;
+		const tryConnect = async () => {
+			const [data, err] = await services.postTempSession();
+			if (data) {
+				const params = new URLSearchParams({ sessionId: data.sessionId || "" });
+				let url = `${baseURL}/connections/games/${gameId}?${params}`;
 
-					ws = new WebSocket(url);
-					ws.binaryType = "arraybuffer";
-					ws.addEventListener('open', () => {
-						console.log(`Connected to game=${gameId} successfully!`);
-						connectTries = 0;
-					});
-					ws.addEventListener('message', (event) => {
-						if (event.data instanceof ArrayBuffer) {
-							const data = GameOutput.fromBinary(new Uint8Array(event.data));
-							console.log(`Received message with length=${event.data.byteLength} data`, data);
-							onMessage(data);
-						}
-					});
-					ws.addEventListener('error', () => {
-						console.log(`Disconnected from game=${gameId} with error, trying to reconnect with ${connectTries} tries`);
-						connectTries += 1;
-						connectGame(gameId);
-					});
-				} else {
-					const message = createMessage(err);
-					addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
-				}
-			},
-			timeout
-		);
+				ws = new WebSocket(url);
+				ws.binaryType = "arraybuffer";
+				ws.addEventListener('open', () => {
+					console.log(`Connected to game=${gameId} successfully!`);
+					connectTries = 0;
+				});
+				ws.addEventListener('message', (event) => {
+					if (event.data instanceof ArrayBuffer) {
+						const data = GameOutput.fromBinary(new Uint8Array(event.data));
+						console.log(`Received ${data.value.oneofKind} message`, data);
+						handleMessage(data);
+					}
+				});
+				ws.addEventListener('error', () => {
+					console.log(`Disconnected from game=${gameId} with error, trying to reconnect with ${connectTries} tries`);
+					connectTries += 1;
+					connectGame(gameId);
+				});
+			} else {
+				const message = createMessage(err);
+				addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
+			}
+		};
+		setTimeout(tryConnect, timeout);
 	}
 
 	$effect(() => {
@@ -181,33 +180,34 @@
 <Banner />
 <div class="center-horizontal-container">
 	<div class="center-vertical-container" style="align-items: stretch;">
-		{#if room && isStarted()}
-			{@const game = room.game}
-			{@const board = room.game?.board}
-			{@const isPlayingAsWhite = selfPlayer?.id === room.whitePlayer?.id}
-			{@const isTurn = board?.isWhiteTurn && isPlayingAsWhite}
-			{@const opponentPlayer = isPlayingAsWhite ? room.blackPlayer : room.whitePlayer}
-			{@const selfTimer = isPlayingAsWhite ? whiteTimer : blackTimer}
-			{@const opponentTimer = isPlayingAsWhite ? blackTimer : whiteTimer}
-			{@const selfTakenPieces = isPlayingAsWhite ? game?.takenWhitePieces : game?.takenBlackPieces}
-			{@const opponentTakenPieces = isPlayingAsWhite ? game?.takenBlackPieces : game?.takenWhitePieces}
-			<Board
-				board={board}
-				isWhitePerspective={isPlayingAsWhite}
-				potentialMoves={potentialMoves?.moves}
-				onClickPiece={onClickPiece}
-				selectedHexagon={selectedHexagon}
-			/>
+		{#if whitePlayer && blackPlayer}
+			{@const isPlayingAsWhite = selfPlayer?.id === whitePlayer?.id}
+			{@const isTurn = game?.board?.isWhiteTurn && isPlayingAsWhite}
+			{@const bottomPlayer = isPlayingAsWhite ? blackPlayer : whitePlayer}
+			{@const topPlayer = isPlayingAsWhite ? whitePlayer : blackPlayer}
+			{@const bottomTimer = isPlayingAsWhite ? whiteTimer : blackTimer}
+			{@const topTimer = isPlayingAsWhite ? blackTimer : whiteTimer}
+			{@const topTakenPieces = isPlayingAsWhite ? game?.takenWhitePieces : game?.takenBlackPieces}
+			{@const bottomTakenPieces = isPlayingAsWhite ? game?.takenBlackPieces : game?.takenWhitePieces}
+			{#if game?.board}
+				<Board
+					board={game?.board}
+					isWhitePerspective={isPlayingAsWhite}
+					potentialMoves={potentialMoves?.moves}
+					onClickPiece={onClickPiece}
+					selectedHexagon={selectedHexagon}
+				/>
+			{/if}
 			<div class="side-table-wrapper">
-				<PieceList pieces={opponentTakenPieces || []} />
-				{#if opponentTimer}
-					<div class="timer" class:timer-warn={opponentTimer < 15000}>
-						{formatTimer(opponentTimer)}
+				<PieceList pieces={bottomTakenPieces || []} />
+				{#if topTimer}
+					<div class="timer" class:timer-warn={topTimer < 15000}>
+						{formatTimer(topTimer)}
 					</div>
 				{/if}
 				<div class="side-table move-table-wrapper">
-					<PlayerPanel player={opponentPlayer} isTurn={!isTurn} />
-					<MoveList moveList={room.moveList} />
+					<PlayerPanel player={bottomPlayer} isTurn={!isTurn} />
+					<MoveList moveList={moveList} />
 					<div class="icons">
 						<button title="Forfeit" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickForfeit}>
 							<FlagIcon />
@@ -219,22 +219,19 @@
 							<SettingsIcon />
 						</button>
 					</div>
-					<PlayerPanel player={selfPlayer} isTurn={isTurn || false} />
+					<PlayerPanel player={topPlayer} isTurn={isTurn || false} />
 				</div>
-				{#if selfTimer}
-					<div class="timer" class:timer-warn={selfTimer < 15000}>
-						{formatTimer(selfTimer)}
+				{#if bottomTimer}
+					<div class="timer" class:timer-warn={bottomTimer < 15000}>
+						{formatTimer(bottomTimer)}
 					</div>
 				{/if}
-				<PieceList pieces={selfTakenPieces || []} />
+				<PieceList pieces={topTakenPieces || []} />
 			</div>
-		{:else if room}
+		{:else}
 			<div class="panel lobby">
 				<div class="text-lg" style:margin-bottom="20px">
 					Challenge to a game
-				</div>
-				<div class="text-sm" style:margin-bottom="30px">
-					{formatTimeControl(timeControlIntMap[room.timeControl])}
 				</div>
 				<div style:margin-bottom="10px">
 					To invite someone to play, send them this URL.

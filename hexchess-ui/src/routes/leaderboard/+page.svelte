@@ -2,12 +2,12 @@
 	import Banner from '$lib/components/Banner.svelte';
 	import Pagination from '$lib/components/Pagination.svelte';
 	import StatsList from '$lib/components/stats/StatsList.svelte';
-	import type { User } from '$lib/models';
+	import type { UserModel } from '$lib/api/model';
 
 	export interface LeaderboardProps {
 		page: number;
 		pageCount: number;
-		userList: User[];
+		userList: UserModel[];
 	}
 
 	const { data: props }: { data: LeaderboardProps } = $props();

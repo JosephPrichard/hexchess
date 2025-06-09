@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { colors, colorsOffset, height, piecenames, selectedColor, verticalFileOffsets, width } from '$lib/globals';
-	import type { ChessBoard, Hexagon } from '$lib/messages';
+	import { colors, colorsOffset, height, piecenames, selectedColor, verticalFileOffsets, width } from '$lib/utils/globals';
+	import type { ChessBoard, Hexagon } from '$lib/api/messages';
 
 	export interface BoardProps {
 		board: ChessBoard;
@@ -24,8 +24,8 @@
 </script>
 
 <div class="board" style="width: {11 * height}px; height: {11 * height}px;">
-	{#each board.file as boardFile, file (file)}
-		{#each boardFile.pieces as piece, rank (rank)}
+	{#each board.file as piecesFile, file (file)}
+		{#each piecesFile.pieces as piece, rank (rank)}
 			{@const top = rank * height + (verticalFileOffsets[file] * height) / 2}
 			{@const flippedTop = 10 * height - top}
 			{@const left = file * (height - 8)}

@@ -4,6 +4,7 @@ import models.state.ChessRoom;
 import models.state.Player;
 import models.entities.RankedEntity;
 import models.entities.UserEntity;
+import models.views.ChessView;
 import redis.clients.jedis.AbstractTransaction;
 import redis.clients.jedis.JedisPooled;
 
@@ -11,6 +12,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.stream.Collectors;
 
 import static utils.Globals.*;
 
@@ -57,12 +59,10 @@ public class DictionaryDao {
     }
 
     public void expireRooms() {
-        expireRooms(GAME_EXPIRE_FINISHED.toMillis());
+        expireRooms(System.currentTimeMillis() - GAME_EXPIRE_FINISHED.toMillis());
     }
 
-    public void expireRooms(long expireTimeMillis) {
-        long timeMillis = System.currentTimeMillis();
-        long unixTimeExpireMillis = timeMillis - expireTimeMillis;
+    public void expireRooms(long unixTimeExpireMillis) {
         List<String> results = jedis.zrangeByScore(GAMES_ZSET, Double.NEGATIVE_INFINITY, unixTimeExpireMillis);
         String[] gameKeys = results.toArray(String[]::new);
 
@@ -75,16 +75,20 @@ public class DictionaryDao {
         }
     }
 
-    public List<ChessRoom> getRooms(int page, int count) {
+    public List<ChessView> getUserChessViews(long userId) {
+       return List.of();
+    }
+
+    public List<ChessView> getChessViews(int page, int count) {
         expireRooms();
 
         if (page < 1) {
             page = 1;
         }
-
         int min = (page - 1) * count;
         int max = min + count - 1;
-        List<byte[]> elements = jedis.zrange(GAMES_ZSET_BYTES, min, max);
+
+        List<byte[]> elements = jedis.zrevrange(GAMES_ZSET_BYTES, min, max);
 
         byte[][] fullIds = new byte[elements.size()][];
         for (int i = 0; i < elements.size(); i++) {
@@ -99,7 +103,7 @@ public class DictionaryDao {
             return List.of();
         }
 
-        return bytesList.stream().map(ChessRoom::deserialize).toList();
+        return bytesList.stream().map(ChessView::deserialize).toList();
     }
 
     public Player getSession(String sessionId) {
@@ -134,7 +138,7 @@ public class DictionaryDao {
         } else {
             String guestName = "Guest " + RANDOM.nextInt(1000);
             long randomLong = Math.abs(RANDOM.nextLong());
-            player = new Player(randomLong, guestName, null, null, true);
+            player = new Player(randomLong, guestName, "", 0, true);
         }
         return player;
     }

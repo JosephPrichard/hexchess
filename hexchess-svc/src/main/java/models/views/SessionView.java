@@ -8,13 +8,13 @@ import lombok.NoArgsConstructor;
 import models.state.Player;
 import services.daos.UserDao.*;
 
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Data
 public class SessionView {
     private long id;
-    private String username;
-    private String country;
+    private String username = "";
+    private String country = "";
     private float elo;
     @EqualsAndHashCode.Exclude
     private Long ttlSecs;

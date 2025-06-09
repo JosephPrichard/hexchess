@@ -32,7 +32,10 @@ public enum TimeControl {
             case 0 -> REAL_TIME;
             case 1 -> CORRESPONDENCE;
             case 2 -> UNLIMITED;
-            default -> throw new IllegalStateException("Invalid value for time control: " + value);
+            default -> {
+                LOG.warn("Unknown time control {}, defaulting to {}", value, UNLIMITED);
+                yield UNLIMITED;
+            }
         };
     }
 }

@@ -2,7 +2,6 @@ package web.controllers;
 
 import chess.ChessBoard;
 import chess.PieceMove;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import models.entities.RankedEntity;
 import models.state.Player;
@@ -54,70 +53,33 @@ public class ViewController extends Jooby {
 
         setWorker(EXECUTOR);
 
-        error(this::handleError);
-
-//        use(next -> ctx -> {
-//            ctx.setResponseType(MediaType.JSON);
-//            return next.apply(ctx);
-//        });
-
         get("/views/players/self", this::getSelf);
         get("/views/players/{id}", this::getPlayer);
         get("/views/players/search", this::searchPlayers);
         get("/views/leaderboard", this::getLeaderboard);
         get("/views/replay/{id}", this::getReplay);
-        get("/views/replay/{id}/move-list", this::getReplayMoveList);
+        get("/views/replay/{id}/moves", this::getReplayMoveList);
         get("/views/replays", this::getReplayList);
         get("/views/challenges", this::getChallengeList);
         get("/views/countries", this::getCountryList);
         get("/views/initial-board", this::getInitialBoard);
-    }
-
-    public Player authenticate(Context ctx) {
-        String sessionId = authService.parseSession(ctx);
-        if (sessionId == null) {
-            throw new BadRequestException(ERROR_REQUIRED_LOGIN);
-        }
-        Player player = dictionaryDao.getSession(sessionId);
-        if (player == null) {
-            ctx.setResponseCookie(authService.createEmptyCookie());
-            throw new BadRequestException(ERROR_SESSION_EXPIRED);
-        }
-        return player;
-    }
-
-    public void handleError(Context ctx, Throwable cause, StatusCode statusCode) {
-        String errorMessage;
-
-        ctx.setResponseType(MediaType.TEXT);
-        ctx.setResponseCode(statusCode);
-
-        if (statusCode.value() == 500) {
-            LOG.error("Error: {}", statusCode, cause);
-            errorMessage = ERROR_UNKNOWN;
-        } else {
-            String message = "Error: " + statusCode;
-            LOG.error(message);
-            errorMessage = message;
-        }
-        ctx.send(errorMessage);
+        get("/views/chess/rooms", this::getRoomLists);
     }
 
     public ChessBoard getInitialBoard(Context ctx) {
-        ctx.setResponseHeader("Cache-Control", LONG_CACHE_CONTROL);
+//        ctx.setResponseHeader("Cache-Control", LONG_CACHE_CONTROL);
         return initialBoard;
     }
 
     public List<String> getCountryList(Context ctx) {
-        ctx.setResponseHeader("Cache-Control", LONG_CACHE_CONTROL);
+//        ctx.setResponseHeader("Cache-Control", LONG_CACHE_CONTROL);
         return countryList;
     }
 
     public UserView getSelf(Context ctx) {
-        Player player = authenticate(ctx);
+        Player player = authService.getSessionPlayer(ctx);
 
         UserEntity entity = userDao.getById(player.getId());
-
         LOG.info("Retrieved self user={}", entity);
 
         return UserView.create(entity);
@@ -157,7 +119,7 @@ public class ViewController extends Jooby {
 
         CompletableFuture<UserEntity> userFut = CompletableFuture.supplyAsync(() -> userDao.getById(userId), EXECUTOR);
         CompletableFuture<List<ReplayEntity>> replayListFut =
-                CompletableFuture.supplyAsync(() -> replayDao.getUserReplays(userId, null, PER_PAGE), EXECUTOR);
+            CompletableFuture.supplyAsync(() -> replayDao.getUserReplays(userId, null, PER_PAGE), EXECUTOR);
 
         UserEntity userEntity = userFut.get();
         if (userEntity == null) {
@@ -208,7 +170,7 @@ public class ViewController extends Jooby {
         return ReplayView.createHeader(entity);
     }
 
-    public List<PieceMove> getReplayMoveList(Context ctx) throws JsonProcessingException {
+    public String getReplayMoveList(Context ctx) {
         String id = ctx.path("id").value();
         long replayId;
         try {
@@ -220,14 +182,15 @@ public class ViewController extends Jooby {
 
         String moveListJson = replayDao.getReplayMoveList(replayId);
 
-        ctx.setResponseHeader("Cache-Control", LONG_CACHE_CONTROL);
-        return JSON.readValue(moveListJson, MOVE_LIST_TYPE);
+//        ctx.setResponseHeader("Cache-Control", LONG_CACHE_CONTROL);
+        ctx.setResponseType(MediaType.JSON);
+        return moveListJson;
     }
 
     public List<ChallengeView> getChallengeList(Context ctx) {
         String participants = ctx.query("participants").value("");
 
-        Player player = authenticate(ctx);
+        Player player = authService.getSessionPlayer(ctx);
 
         List<ChallengeEntity> entityList = switch (participants) {
             case "received" -> challengeDao.getByParticipant(null, player.getId());
@@ -251,5 +214,29 @@ public class ViewController extends Jooby {
         }
 
         return entityList.stream().map(ReplayView::createRow).toList();
+    }
+
+    public record ChessRoomResp(List<ChessView> chessList, List<ChessView> selfChessList) {}
+
+    public ChessRoomResp getRoomLists(Context ctx) {
+        int page;
+        int count;
+        try {
+            page = ctx.query("page").toOptional().map(Integer::parseUnsignedInt).orElse(1);
+            count = ctx.query("count").toOptional().map(Integer::parseUnsignedInt).orElse(PER_PAGE);
+        } catch (NumberFormatException ex) {
+            LOG.warn("Query params must be a valid integer");
+            throw new BadRequestException(ERROR_INVALID_REQUEST);
+        }
+
+        Player player = authService.getOptionalSessionPlayer(ctx);
+
+        List<ChessView> viewList = dictionaryDao.getChessViews(page, count);
+        List<ChessView> selfViewList = player != null ? dictionaryDao.getUserChessViews(player.getId()) : List.of();
+
+        LOG.info("Retrieved chess views={} for page={}", viewList, page);
+        LOG.info("Retrieved chess views={} for player={}", selfViewList, player);
+
+        return new ChessRoomResp(viewList, selfViewList);
     }
 }

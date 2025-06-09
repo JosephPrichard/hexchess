@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { piecenames } from '$lib/globals';
+	import { piecenames } from '$lib/utils/globals';
 
 	const { pieces }: { pieces: number[] } = $props();
 </script>

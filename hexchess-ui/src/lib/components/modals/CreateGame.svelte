@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ColorSelect, TimeControl } from '$lib/models';
+	import type { ColorSelect, TimeControl } from '$lib/api/model';
 
 	interface Props {
 		title: string;
@@ -39,7 +39,7 @@
 			<button class="modal-x" onclick={onClickClose}> &#10006; </button>
 			<div class="modal-panel">
 				<label class="text-xsm" for="time-control"> Time control </label>
-				<select bind:value={timeControl} name="time-control">
+				<select bind:value={timeControl} name="time-control" class="time-control-input">
 					<option value="UNLIMITED"> Unlimited</option>
 					<option value="REAL_TIME"> Real Time</option>
 					<option value="CORRESPONDENCE"> Correspondence</option>
@@ -85,8 +85,16 @@
         position: absolute;
         top: 20px;
         right: 20px;
+		height: 25px;
         cursor: pointer;
+        background: rgb(210, 4, 45);
+		border: none;
+		border-radius: 2px;
     }
+
+	.modal-x:hover {
+        background: rgb(250, 44, 85);
+	}
 
     .color-piece-image {
         width: 65px;
@@ -99,15 +107,16 @@
         box-shadow: rgba(0, 0, 0, 0.24) 0 1px 3px;
     }
 
-    .color-piece-image:hover {
-        background-color: rgb(66, 66, 66);
-    }
-
     .selected-color-piece-image {
-        background-color: rgb(77, 77, 77);
+        background-color: rgb(99, 99, 99);
     }
 
 	.piece-color {
 		cursor: pointer;
+	}
+
+	.time-control-input {
+		height: 30px;
+		border-radius: 5px;
 	}
 </style>

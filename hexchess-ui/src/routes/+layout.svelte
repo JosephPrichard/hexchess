@@ -1,12 +1,12 @@
 <script lang="ts">
 	import '../css/index.css';
 	import type { LayoutProps } from '../../.svelte-kit/types/src/routes/$types';
-	import { type NotificationData, setNotificationsContext } from '$lib/context';
+	import { type NotificationData, setNotificationsContext } from '$lib/utils/context';
 	import { onMount } from 'svelte';
-	import type { Challenge } from '$lib/models';
-	import { baseURL, postRefresh, unwrap } from '$lib/api';
-	import { createMessage } from '$lib/error';
-	import { clearClientSession, updateClientSession } from '$lib/local';
+	import { createMessage } from '$lib/utils/error';
+	import { clearClientSession, updateClientSession } from '$lib/utils/storage';
+	import services, { baseURL } from '$lib/api/services';
+	import type { ChallengeModel } from '$lib/api/model';
 
 	const { children }: LayoutProps = $props();
 
@@ -39,17 +39,17 @@
 			console.log('Sse:', createMessage(event.data));
 		});
 		sse.addEventListener('challenge', (event) => {
-			const data: Challenge = JSON.parse(event.data);
+			const data: ChallengeModel = JSON.parse(event.data);
 			console.log('Sse:', data);
 			addNotification({ type: 'challenge', message: data, isSuccess: true, duration: 150000 });
 		});
 	}
 
 	async function refreshSession() {
-		let { ok, resp } = await unwrap(postRefresh());
-		if (ok) {
-			if (resp && resp.session) {
-				updateClientSession(resp.session);
+		const [data, _] = await services.postRefresh();
+		if (data) {
+			if (data.session) {
+				updateClientSession(data.session);
 			} else {
 				clearClientSession();
 			}

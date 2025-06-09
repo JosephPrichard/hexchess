@@ -1,3 +1,5 @@
+import type { ServiceModel } from '$lib/api/model';
+
 export const codes = {
 	errorUnknown: 'ERROR_UNKNOWN',
 	errorPasswordLength: 'ERROR_PASSWORD_LENGTH',
@@ -35,11 +37,12 @@ export const messages: Record<string, string> = {
 	[codes.errorSelfChallenge]: 'You cannot challenge yourself.',
 	[codes.errorDuplicateChallenge]: 'You have already sent this challenge.',
 	[codes.errorUpdateChallenge]: 'You are not authorized to update this challenge.',
-	[codes.errorInvalidRequest]: 'The request was malformed or contained invalid data.',
+	[codes.errorInvalidRequest]: 'The api was malformed or contained invalid data.',
 	[codes.errorInvalidGame]: 'Cannot find a game for the given id.',
 	[codes.errorNotFoundUser]: 'The provided user is invalid or does not exist.'
 };
 
-export function createMessage(code?: string | never) {
-	return messages[code || ''] || 'An unexpected error has occurred';
+export function createMessage(error?: ServiceModel | string) {
+	// console.error(error);
+	return messages[(typeof error === "string" ? error : error?.message) || ''] || 'An unexpected error has occurred';
 }

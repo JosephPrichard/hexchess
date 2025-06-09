@@ -1,10 +1,12 @@
 package services;
 
 import chess.ChessBoard;
+import models.common.ColorSelect;
 import models.state.ChessRoom;
 import models.state.Player;
 import models.entities.RankedEntity;
 import models.common.TimeControl;
+import models.views.ChessView;
 import org.junit.jupiter.api.*;
 import redis.clients.jedis.JedisPooled;
 import redis.embedded.RedisServer;
@@ -63,42 +65,44 @@ public class DictionaryDaoTest {
     }
 
     @Test
-    public void testGetSetRooms() {
+    public void testSetThenGetViews() {
         // given
         String id1 = "test-id1";
         String id2 = "test-id2";
         String id3 = "test-id3";
         String id4 = "test-id4";
 
-        ChessRoom game1 = ChessRoom.startWithGame(id1, TimeControl.REAL_TIME);
-        ChessRoom game2 = ChessRoom.startWithGame(id2, TimeControl.REAL_TIME);
-        ChessRoom game3 = ChessRoom.startWithGame(id3, TimeControl.REAL_TIME);
-        ChessRoom game4 = ChessRoom.startWithGame(id4, TimeControl.REAL_TIME);
+        ChessRoom room1 = ChessRoom.startWithGame(id1, TimeControl.REAL_TIME);
+        ChessRoom room2 = ChessRoom.startWithGame(id2, TimeControl.REAL_TIME);
+        ChessRoom room3 = ChessRoom.startWithGame(id3, TimeControl.REAL_TIME);
+        ChessRoom room4 = ChessRoom.startWithGame(id4, TimeControl.REAL_TIME);
 
         // when
-        dictionaryDao.setRoom(id1, game1);
-        dictionaryDao.setRoom(id2, game2);
-        dictionaryDao.setRoom(id3, game3);
-        dictionaryDao.setRoom(id4, game4);
+        dictionaryDao.setRoom(id1, room1);
+        dictionaryDao.setRoom(id2, room2);
+        dictionaryDao.setRoom(id3, room3);
+        dictionaryDao.setRoom(id4, room4);
 
-        List<ChessRoom> gameStates1 = dictionaryDao.getRooms(1, 2);
-        List<ChessRoom> gameStates2 = dictionaryDao.getRooms(2, 2);
+        List<ChessView> viewsList1 = dictionaryDao.getChessViews(1, 2);
+        List<ChessView> viewsList2 = dictionaryDao.getChessViews(2, 2);
 
         // then
-        Assertions.assertEquals(2, gameStates1.size());
-        Assertions.assertEquals(2, gameStates2.size());
+        List<ChessView> expectedViewList1 = List.of(
+            new ChessView("test-id1", null, null, false, ColorSelect.RANDOM, TimeControl.REAL_TIME),
+            new ChessView("test-id2", null, null, false, ColorSelect.RANDOM, TimeControl.REAL_TIME));
+        List<ChessView> expectedViewList2 = List.of(
+            new ChessView("test-id3", null, null, false, ColorSelect.RANDOM, TimeControl.REAL_TIME),
+            new ChessView("test-id4", null, null, false, ColorSelect.RANDOM, TimeControl.REAL_TIME));
 
-        Assertions.assertEquals(id1, gameStates1.get(0).getId());
-        Assertions.assertEquals(id2, gameStates1.get(1).getId());
-        Assertions.assertEquals(id3, gameStates2.get(0).getId());
-        Assertions.assertEquals(id4, gameStates2.get(1).getId());
+        Assertions.assertEquals(expectedViewList1, viewsList1);
+        Assertions.assertEquals(expectedViewList2, viewsList2);
     }
 
     @Test
     public void testSessions() throws InterruptedException {
         // given
-        Player player1 = new Player(1L, "test-name1", null, null);
-        Player player2 = new Player(2L, "test-name2", null, null);
+        Player player1 = new Player(1L, "test-name1", "", 0f);
+        Player player2 = new Player(2L, "test-name2", "", 0f);
 
         // when
         dictionaryDao.setSession("session1", player1, 100);
