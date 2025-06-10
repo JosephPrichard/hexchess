@@ -1,7 +1,7 @@
 package services.game;
 
+import chess.ChessBoard;
 import chess.PieceMove;
-import models.views.ChessView;
 import services.daos.DictionaryDao;
 import services.daos.ReplayDao;
 import services.daos.UserDao;
@@ -13,9 +13,6 @@ import models.common.TimeControl;
 import models.state.Player;
 import models.entities.ReplayEntity;
 import models.state.ChessRoom;
-
-import java.util.Collections;
-import java.util.List;
 
 import static services.daos.UserDao.*;
 import static utils.Globals.*;
@@ -62,14 +59,13 @@ public class GameService {
             return null;
         }
 
-        boolean hasWhitePlayer = room.getWhitePlayer() != null;
-        boolean hasBlackPlayer = room.getBlackPlayer() != null;
-        boolean hasNoPlayers = !hasWhitePlayer && !hasBlackPlayer;
-        boolean playerExists = hasWhitePlayer && player.equals(room.getWhitePlayer()) || hasBlackPlayer && player.equals(room.getBlackPlayer());
+        boolean hasWhite = room.getWhitePlayer() != null;
+        boolean hasBlack = room.getBlackPlayer() != null;
+        boolean playerExists = hasWhite && player.equals(room.getWhitePlayer()) || hasBlack && player.equals(room.getBlackPlayer());
 
         String color = "none";
         if (!playerExists) {
-            if (hasNoPlayers) {
+            if (!hasWhite && !hasBlack) {
                 boolean chooseWhite = room.getFirstColor() == ColorSelect.RANDOM ? RANDOM.nextInt() % 2 == 0 : room.getFirstColor() == ColorSelect.WHITE;
                 if (chooseWhite) {
                     room.setWhitePlayer(player);
@@ -78,10 +74,10 @@ public class GameService {
                     room.setBlackPlayer(player);
                     color = "black";
                 }
-            } else if (!hasBlackPlayer) {
+            } else if (!hasBlack) {
                 room.setBlackPlayer(player);
                 color = "black";
-            } else if (!hasWhitePlayer) {
+            } else if (!hasWhite) {
                 room.setWhitePlayer(player);
                 color = "white";
             } else {
@@ -95,14 +91,6 @@ public class GameService {
         return room;
     }
 
-    public static boolean isPlayerTurn(ChessRoom state, Player player) {
-        Player currPlayer = state.getCurrPlayer();
-        if (currPlayer == null) {
-            return false;
-        }
-        return currPlayer.equals(player);
-    }
-
     public record MakeMoveResult(ChessRoom room, PieceMove pm) {}
 
     public MakeMoveResult makeMove(String gameId, Player player, Move move) {
@@ -112,12 +100,16 @@ public class GameService {
         }
 
         ChessGame game = room.getGame();
+        ChessBoard board = game.getBoard();
+
+        Player currPlayer = room.getCurrPlayer();
+        boolean isPlayerTurn = currPlayer != null && currPlayer.equals(player);
 
         if (room.isEnded()) {
             LOG.info("Move attempted on ended game {}", gameId);
             throw new FinishedGameException();
         }
-        if (!isPlayerTurn(room, player)) {
+        if (!isPlayerTurn) {
             LOG.info("{} cannot make move on game {}, it isn't their turn", player, gameId);
             throw new TurnException();
         }
@@ -126,15 +118,15 @@ public class GameService {
             throw new InvalidMoveException();
         }
 
-        byte piece = game.getBoard().getPiece(move.getFrom());
+        byte piece = board.getPiece(move.getFrom());
         PieceMove pm = game.makeMove(move);
         game.initPieceMoves();
 
-        room.getMoveList().add(new PieceMove(piece, move.getFrom(), move.getTo()));
+        room.addMove(new PieceMove(piece, move.getFrom(), move.getTo()));
 
         if (game.checkmateReached()) {
             room.setEnded(true);
-            boolean isWhiteWin = !game.getBoard().isWhiteTurn(); // white wins if its checkmate when it's blacks turn
+            boolean isWhiteWin = !board.isWhiteTurn(); // white wins if its checkmate when it's blacks turn
             EXECUTOR.execute(() -> onFinishGame(room, isWhiteWin, ReplayEntity.CHECKMATE));
         }
 
@@ -160,9 +152,11 @@ public class GameService {
                 return;
             }
 
+            LOG.info("Applying changeSet={} on room={}", changeSet, room.getId());
+
             dictionaryDao.incrLeaderboardUser(
-                    new DictionaryDao.EloChangeSet(winId, changeSet.winEloDiff()),
-                    new DictionaryDao.EloChangeSet(loseId, changeSet.loseEloDiff()));
+                new DictionaryDao.EloChangeSet(winId, changeSet.winEloDiff()),
+                new DictionaryDao.EloChangeSet(loseId, changeSet.loseEloDiff()));
             replayDao.insert(whiteId, blackId, result, cause, changeSet.winEloDiff(), changeSet.loseEloDiff(), moveListJson);
         } catch (Exception ex) {
             LOG.info("Failed to persist game results to database in background thread {}", String.valueOf(ex));
@@ -171,15 +165,15 @@ public class GameService {
 
     public void forfeit(String gameId, Player player) {
         ChessRoom state = dictionaryDao.getRoom(gameId);
-        if (state == null) {
+        if (state == null || state.getBlackPlayer() == null || state.getWhitePlayer() == null) {
             return;
         }
 
         boolean didBlackForfeit = state.getBlackPlayer().equals(player);
 
         state.setEnded(true);
-        onFinishGame(state, didBlackForfeit, ReplayEntity.FORFEIT);
+        onFinishGame(state, didBlackForfeit, ReplayEntity.FORFEIT); // did black forfeit? then white won.
 
-        dictionaryDao.setRoom(gameId, state); // did black forfeit? then white won.
+        dictionaryDao.setRoom(gameId, state);
     }
 }

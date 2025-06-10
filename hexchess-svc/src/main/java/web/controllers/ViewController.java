@@ -28,7 +28,6 @@ import static services.daos.DictionaryDao.*;
 
 public class ViewController extends Jooby {
 
-    private static final TypeReference<List<PieceMove>> MOVE_LIST_TYPE = new TypeReference<>() {};
     public static final int PER_PAGE = 25;
     public static final String LONG_CACHE_CONTROL = String.format("public, max-age=%s, immutable", Duration.ofDays(1).toSeconds());
 

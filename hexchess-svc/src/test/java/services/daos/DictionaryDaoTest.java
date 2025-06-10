@@ -1,4 +1,4 @@
-package services;
+package services.daos;
 
 import chess.ChessBoard;
 import models.common.ColorSelect;
@@ -10,7 +10,6 @@ import models.views.ChessView;
 import org.junit.jupiter.api.*;
 import redis.clients.jedis.JedisPooled;
 import redis.embedded.RedisServer;
-import services.daos.DictionaryDao;
 
 import java.util.List;
 

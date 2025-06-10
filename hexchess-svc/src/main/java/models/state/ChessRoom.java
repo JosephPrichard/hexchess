@@ -15,7 +15,6 @@ import java.util.stream.Stream;
 import static utils.Globals.LOG;
 
 @Data
-@NoArgsConstructor
 @AllArgsConstructor
 public class ChessRoom {
     @NonNull
@@ -43,6 +42,10 @@ public class ChessRoom {
 
     public Player getCurrPlayer() {
         return game.getBoard().isWhiteTurn() ? whitePlayer : blackPlayer;
+    }
+
+    public void addMove(PieceMove pm) {
+        moveList.add(pm);
     }
 
     public Messages.ChessRoom serialize() {
