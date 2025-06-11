@@ -1,4 +1,5 @@
 import { codes } from '$lib/utils/error';
+import { z } from 'zod';
 import type { Action, ChallengeModel, ChessModel, MoveListModel, ReplayModel, ServiceModel, SessionModel, UserModel, UserWithReplaysModel } from '$lib/api/model';
 
 export const appBaseURL = 'http://localhost:5173';

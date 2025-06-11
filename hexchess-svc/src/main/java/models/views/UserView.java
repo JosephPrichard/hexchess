@@ -33,12 +33,12 @@ public class UserView {
     public static UserView create(UserEntity entity) {
         UserView view = new UserView();
         view.id = entity.getId();
-        view.username = entity.getUsername() != null ? Jsoup.clean(entity.getUsername(), HTML_SAFELIST) : null;
+        view.username = entity.getUsername() != null ? Jsoup.clean(entity.getUsername(), HTML_SAFELIST) : "";
         view.country = entity.getCountry();
         view.elo = Math.round(entity.getElo());
         view.highestElo = Math.round(entity.getHighestElo());
-        view.bio = entity.getBio() != null ? Jsoup.clean(entity.getBio(), HTML_SAFELIST) : null;
-        view.joinedOn = entity.getJoinedOn() != null ? entity.getJoinedOn().toLocalDateTime().format(DATE_FORMATTER) : null;
+        view.bio = entity.getBio() != null ? Jsoup.clean(entity.getBio(), HTML_SAFELIST) : "";
+        view.joinedOn = entity.getJoinedOn() != null ? entity.getJoinedOn().toLocalDateTime().format(DATE_FORMATTER) : "";
         view.wins = entity.getWins();
         view.losses = entity.getLosses();
         view.total = view.wins + view.losses;

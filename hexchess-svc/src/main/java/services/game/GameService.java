@@ -6,7 +6,6 @@ import services.daos.DictionaryDao;
 import services.daos.ReplayDao;
 import services.daos.UserDao;
 import chess.ChessGame;
-import chess.Move;
 import lombok.AllArgsConstructor;
 import models.common.ColorSelect;
 import models.common.TimeControl;
@@ -91,9 +90,9 @@ public class GameService {
         return room;
     }
 
-    public record MakeMoveResult(ChessRoom room, PieceMove pm) {}
+    public record MakeMoveResult(ChessRoom room, PieceMove move) {}
 
-    public MakeMoveResult makeMove(String gameId, Player player, Move move) {
+    public MakeMoveResult makeMove(String gameId, Player player, PieceMove move) {
         ChessRoom room = dictionaryDao.getRoom(gameId);
         if (room == null) {
             return null;
@@ -122,7 +121,7 @@ public class GameService {
         PieceMove pm = game.makeMove(move);
         game.initPieceMoves();
 
-        room.addMove(new PieceMove(piece, move.getFrom(), move.getTo()));
+        room.addMove(move);
 
         if (game.checkmateReached()) {
             room.setEnded(true);

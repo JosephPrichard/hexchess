@@ -268,7 +268,7 @@ public class FormController extends Jooby {
         return new UpdateChallengeResp(gameId);
     }
 
-    public void dispatchBroadcastChallenge(ChallengeEntity entity) {
+    public void broadcastChallenge(ChallengeEntity entity) {
         EXECUTOR.execute(() -> {
             try {
                 String groupId = Long.toString(entity.getChallengeeId());
@@ -309,7 +309,7 @@ public class FormController extends Jooby {
 
         try {
             ChallengeEntity entity = challengeDao.insert(player.getId(), challengeeId, timeControl.toString(), startColor.toString());
-            dispatchBroadcastChallenge(entity);
+            broadcastChallenge(entity);
             dispatchDeleteExpired(player.getId());
 
             return ServiceView.SUCCESS;

@@ -1,8 +1,6 @@
 package web.controllers;
 
 import chess.ChessBoard;
-import chess.PieceMove;
-import com.fasterxml.jackson.core.type.TypeReference;
 import models.entities.RankedEntity;
 import models.state.Player;
 import services.daos.ChallengeDao;
@@ -20,6 +18,7 @@ import web.State;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import static utils.Globals.*;
@@ -104,6 +103,14 @@ public class ViewController extends Jooby {
         return new LeaderboardResp(leaderboard.pageCount(), viewList);
     }
 
+    public Future<UserEntity> dispatchGetById(long userId) {
+        return CompletableFuture.supplyAsync(() -> userDao.getById(userId), EXECUTOR);
+    }
+
+    public Future<List<ReplayEntity>> dispatchUserReplays(long userId) {
+        return CompletableFuture.supplyAsync(() -> replayDao.getUserReplays(userId, null, PER_PAGE), EXECUTOR);
+    }
+
     public record UserWithReplaysResp(UserView user, List<ReplayView> replayList) {}
 
     public UserWithReplaysResp getPlayer(Context ctx) throws Exception {
@@ -112,13 +119,12 @@ public class ViewController extends Jooby {
         try {
             userId = Long.parseUnsignedLong(id);
         } catch (NumberFormatException ex) {
-            LOG.warn("Id={} is not a valid long", id);
+            LOG.warn("Query player id={} is not a valid long", id);
             throw new BadRequestException(ERROR_INVALID_REQUEST);
         }
 
-        CompletableFuture<UserEntity> userFut = CompletableFuture.supplyAsync(() -> userDao.getById(userId), EXECUTOR);
-        CompletableFuture<List<ReplayEntity>> replayListFut =
-            CompletableFuture.supplyAsync(() -> replayDao.getUserReplays(userId, null, PER_PAGE), EXECUTOR);
+        Future<UserEntity> userFut = dispatchGetById(userId);
+        Future<List<ReplayEntity>> replayListFut = dispatchUserReplays(userId);
 
         UserEntity userEntity = userFut.get();
         if (userEntity == null) {

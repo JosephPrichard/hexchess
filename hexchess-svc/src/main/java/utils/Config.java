@@ -21,7 +21,7 @@ import static utils.Globals.LOG;
 
 public class Config {
 
-    private static TypeReference<List<String>> COUNTRY_LIST_TYPE = new TypeReference<>() {};
+    private static final TypeReference<List<String>> COUNTRY_LIST_TYPE = new TypeReference<>() {};
 
     public static ConnectionPoolConfig getJedisPoolConfig() {
         ConnectionPoolConfig poolConfig = new ConnectionPoolConfig();

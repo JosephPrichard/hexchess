@@ -53,7 +53,7 @@ public class AuthService {
         return createCookie("", 1);
     }
 
-    public String parseSession(Context ctx) {
+    public static String parseSession(Context ctx) {
         String cookieStr = ctx.header("Cookie").valueOrNull();
         if (cookieStr == null) {
             return null;
@@ -67,6 +67,10 @@ public class AuthService {
         String sessionStr = null;
         for (String token : cookieTokens) {
             int delimIndex = token.indexOf("=");
+            if (delimIndex < 0) {
+                continue;
+            }
+
             String nameStr = token.substring(0, delimIndex);
             if (nameStr.equals(SESSION_COOKIE_NAME)) {
                 sessionStr = token.substring(delimIndex + 1).replaceAll("\\s+","");

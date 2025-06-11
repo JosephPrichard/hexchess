@@ -1,9 +1,6 @@
 package models.views;
 
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.ToString;
+import lombok.*;
 import models.entities.ChallengeEntity;
 import models.common.TimeControl;
 
@@ -15,16 +12,16 @@ import static services.daos.ChallengeDao.THRESHOLD_EXPIRATION;
 @Data
 public class ChallengeView {
     private long challengerId;
-    private String challengerName;
-    private String challengerCountry;
+    private String challengerName = "";
+    private String challengerCountry = "";
     private float challengerElo;
     private long challengeeId;
-    private String challengeeName;
-    private String challengeeCountry;
+    private String challengeeName = "";
+    private String challengeeCountry = "";
     private float challengeeElo;
-    private TimeControl timeControl;
-    private String madeAgo;
-    private String expiresIn;
+    private TimeControl timeControl = TimeControl.REAL_TIME;
+    private String madeAgo = "";
+    private String expiresIn = "";
 
     public static ChallengeView create(ChallengeEntity entity) {
         ChallengeView view = new ChallengeView();

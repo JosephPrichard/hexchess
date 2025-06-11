@@ -7,7 +7,7 @@ import lombok.Data;
 @AllArgsConstructor
 public class ServiceView {
     private int status;
-    private String message = "";
+    private String message;
 
     public static final ServiceView SUCCESS = new ServiceView(200, "SUCCESS");
 }

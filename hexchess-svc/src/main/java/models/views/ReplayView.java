@@ -34,8 +34,8 @@ public class ReplayView {
     private float whiteElo;
     private float blackElo;
     private String playedOn = "";
-    private ReplayResult result;
-    private ReplayCause cause;
+    private ReplayResult result = ReplayResult.DRAW;
+    private ReplayCause cause = ReplayCause.CHECKMATE;
     private float whiteEloDiff;
     private float blackEloDiff;
 
@@ -52,15 +52,15 @@ public class ReplayView {
         view.id = entity.getId();
         view.whiteId = entity.getWhiteId();
         view.blackId = entity.getBlackId();
-        view.whiteName = entity.getWhiteName() != null ? Jsoup.clean(entity.getWhiteName(), HTML_SAFELIST) : null;
-        view.blackName = entity.getBlackName() != null ? Jsoup.clean(entity.getBlackName(), HTML_SAFELIST) : null;
-        view.whiteCountry = entity.getWhiteCountry() != null ? Jsoup.clean(entity.getWhiteCountry(), HTML_SAFELIST) : null;
-        view.blackCountry = entity.getBlackCountry() != null ? Jsoup.clean(entity.getBlackCountry(), HTML_SAFELIST) : null;
+        view.whiteName = entity.getWhiteName() != null ? Jsoup.clean(entity.getWhiteName(), HTML_SAFELIST) : "";
+        view.blackName = entity.getBlackName() != null ? Jsoup.clean(entity.getBlackName(), HTML_SAFELIST) : "";
+        view.whiteCountry = entity.getWhiteCountry() != null ? Jsoup.clean(entity.getWhiteCountry(), HTML_SAFELIST) : "";
+        view.blackCountry = entity.getBlackCountry() != null ? Jsoup.clean(entity.getBlackCountry(), HTML_SAFELIST) : "";
         view.winElo = entity.getWinElo();
         view.loseElo = entity.getLoseElo();
         view.whiteElo = entity.getWhiteElo();
         view.blackElo = entity.getBlackElo();
-        view.playedOn = entity.getPlayedOn() != null ? formatPlayedOn.apply(entity.getPlayedOn()) : null;
+        view.playedOn = entity.getPlayedOn() != null ? formatPlayedOn.apply(entity.getPlayedOn()) : "";
         view.result = ReplayResult.fromInteger(entity.getResult());
         view.cause = ReplayCause.fromInteger(entity.getCause());
         view.calcResultElos(entity);

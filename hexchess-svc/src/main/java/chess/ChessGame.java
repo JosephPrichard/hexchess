@@ -57,7 +57,7 @@ public class ChessGame {
         return this;
     }
 
-    public boolean isValidMove(Move move) {
+    public boolean isValidMove(PieceMove move) {
         assert move != null;
 
         List<PieceMoves> moves = findCurrMoves();
@@ -72,7 +72,7 @@ public class ChessGame {
             });
     }
 
-    public PieceMove makeMove(Move move) {
+    public PieceMove makeMove(PieceMove move) {
         return makeMove(move.getFrom(), move.getTo());
     }
 

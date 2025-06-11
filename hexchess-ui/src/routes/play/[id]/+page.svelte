@@ -5,14 +5,16 @@
 	import { getNotificationsContext } from '$lib/utils/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import Board from '$lib/components/chess/Board.svelte';
-	import { formatTimeControl, formatTimer, timeControlIntMap } from '$lib/utils/format';
+	import { formatTimer } from '$lib/utils/format';
 	import ClipboardIcon from '$lib/components/icons/ClipboardIcon.svelte';
 	import FlagIcon from '$lib/components/icons/FlagIcon.svelte';
 	import SettingsIcon from '$lib/components/icons/SettingsIcon.svelte';
 	import UndoIcon from '$lib/components/icons/UndoIcon.svelte';
 	import PieceList from '$lib/components/chess/PieceList.svelte';
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
-	import { type Chat, type ChessGame, type ChessRoom, GameOutput, type Hexagon, type PieceMove, type PieceMoves, type Player } from '$lib/api/messages';
+	import { type Chat, type ChessGame, GameOutput, type Hexagon, type PieceMove, type PieceMoves, type Player } from '$lib/api/messages';
+	import { onSelectPiece } from './service';
+
 	export interface PlayProps {
 		gameId: string
 	}
@@ -31,7 +33,6 @@
 	let chats: Chat[] = $state([]);
 
 	let chat = $state("");
-	let completeMessage: string | undefined = $state(undefined);
 
 	let whiteTimer: number | undefined = $state(undefined);
 	let blackTimer: number | undefined = $state(undefined);
@@ -42,56 +43,25 @@
 	let ws: WebSocket | undefined = undefined;
 	let connectTries = 0;
 
-	function onSubmitChat(e: KeyboardEvent) {
-		if (e.key === "Enter" && ws && chat.length > 0) {
-			ws.send(JSON.stringify({ type: 'CHAT', message: chat }));
-			chat = "";
-		}
-	}
-
 	async function onClickCopy() {
 		await navigator.clipboard.writeText(link);
 		addNotification({ type: 'string', message: "Copied to clipboard!", isSuccess: true, duration: 2000 });
 	}
 
-	function onClickForfeit() {
+	function onClickForfeit() {}
 
-	}
+	function onClickUndo() {}
 
-	function onClickUndo() {
-
-	}
-
-	function onClickSettings() {
-
-	}
+	function onClickSettings() {}
 
 	function onClickPiece(newSelection: Hexagon) {
 		if (!game) {
 			return;
 		}
+		const result = onSelectPiece(game, newSelection, potentialMoves);
 
-		if (newSelection.file === newSelection.file && newSelection.rank == newSelection.rank) {
-			potentialMoves = undefined;
-			selectedHexagon = undefined;
-			return;
-		}
-
-		let index = game.blackMoves.findIndex(move => newSelection.file === move?.hex?.file && newSelection.rank == move?.hex?.rank);
-		if (index !== -1) {
-			potentialMoves = game.blackMoves[index];
-			selectedHexagon = newSelection;
-			return;
-		} else {
-			index = game.whiteMoves.findIndex(move => newSelection.file === move?.hex?.file && newSelection.rank == move?.hex?.rank);
-			if (index !== -1) {
-				potentialMoves = game.whiteMoves[index];
-				selectedHexagon = newSelection;
-				return;
-			}
-		}
-
-		selectedHexagon = undefined;
+		potentialMoves = result.potentialMoves;
+		selectedHexagon = result.newSelection;
 	}
 
 	function handleMessage(data: GameOutput) {

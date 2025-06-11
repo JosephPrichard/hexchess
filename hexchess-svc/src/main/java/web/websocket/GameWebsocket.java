@@ -1,6 +1,6 @@
 package web.websocket;
 
-import chess.Move;
+import chess.PieceMove;
 import io.jooby.WebSocket;
 import io.jooby.WebSocketCloseStatus;
 import io.jooby.WebSocketMessage;
@@ -34,7 +34,7 @@ public class GameWebsocket {
         this.sessionId = sessionId;
     }
 
-    public record GameInput(String type, chess.Move move, String message) {}
+    public record GameInput(String type, PieceMove move, String message) {}
 
     public void onConnect(WebSocket ws) {
         DictionaryDao dictionaryDao = state.getDictionaryDao();
@@ -93,12 +93,12 @@ public class GameWebsocket {
                 gameBroadcaster.broadcast(gameId, output);
             }
             case "MOVE" -> {
-                Move move = input.move();
+                PieceMove move = input.move();
                 Objects.requireNonNull(move);
 
                 GameService.MakeMoveResult result = gameService.makeMove(gameId, player, move);
 
-                byte[] output = GameMessages.serializeMove(result.pm(), result.room().getGame());
+                byte[] output = GameMessages.serializeMove(result.move(), result.room().getGame());
                 gameBroadcaster.broadcast(gameId, output);
             }
             case "TEXT" -> {

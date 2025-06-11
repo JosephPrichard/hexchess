@@ -77,7 +77,7 @@ export interface PlayerModel {
 	isGuest: boolean;
 }
 
-export interface PieceMoveModel {
+interface PieceMoveModel {
 	piece: number;
 	from: {
 		file: number;

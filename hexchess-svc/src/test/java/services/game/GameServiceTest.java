@@ -1,4 +1,4 @@
-package services;
+package services.game;
 
 import chess.*;
 import models.common.ColorSelect;
@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import services.daos.DictionaryDao;
 import services.daos.ReplayDao;
 import services.daos.UserDao;
-import services.game.GameService;
 
 import java.util.List;
 
@@ -78,9 +77,8 @@ public class GameServiceTest {
         String gameId = "game123";
         Player white = new Player(1L, "name1", "us", 0f);
         Player black = new Player(2L, "name2", "us", 0f);
-        Move move = new Move(Hexagon.of(0, 0), Hexagon.of(0, 1));
         byte piece = ChessBoard.BLACK_PAWN;
-        PieceMove pm = new PieceMove(piece, move.getFrom(), move.getTo());
+        PieceMove move = new PieceMove(piece, Hexagon.of(0, 0), Hexagon.of(0, 1));
 
         ChessGame game = mock(ChessGame.class);
         ChessBoard board = mock(ChessBoard.class);
@@ -95,7 +93,7 @@ public class GameServiceTest {
 
         when(game.getBoard()).thenReturn(board);
         when(game.isValidMove(any())).thenReturn(true);
-        when(game.makeMove(move)).thenReturn(pm);
+        when(game.makeMove(move)).thenReturn(move);
 
         when(board.getPiece(any(Hexagon.class))).thenReturn(piece);
         when(board.isWhiteTurn()).thenReturn(true);
@@ -107,14 +105,14 @@ public class GameServiceTest {
 
         // then
         verify(game).isValidMove(move);
-        verify(room).addMove(pm);
+        verify(room).addMove(move);
 
         verify(dictionaryDao).getRoom(gameId);
         verify(dictionaryDao).setRoom(eq(gameId), any());
 
         assertNotNull(result);
         assertEquals(room.getId(), result.room().getId());
-        assertEquals(pm, result.pm());
+        assertEquals(move, result.move());
     }
 
     @Test

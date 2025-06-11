@@ -22,8 +22,8 @@ public class ReplayEntity {
     private String blackName = "";
     private String whiteCountry = "";
     private String blackCountry = "";
-    private int result;
-    private int cause;
+    private int result = DRAW;
+    private int cause = CHECKMATE;
     private float winElo;
     private float loseElo;
     private float whiteElo;
