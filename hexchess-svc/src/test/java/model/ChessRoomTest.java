@@ -1,6 +1,5 @@
 package model;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.protobuf.InvalidProtocolBufferException;
 import messages.Messages;
 import models.common.TimeControl;

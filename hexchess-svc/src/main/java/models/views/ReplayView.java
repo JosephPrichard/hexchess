@@ -1,10 +1,7 @@
 
 package models.views;
 
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.ToString;
+import lombok.*;
 import models.common.ReplayCause;
 import models.common.ReplayResult;
 import models.entities.ReplayEntity;
@@ -19,6 +16,9 @@ import static models.entities.ReplayEntity.*;
 import static utils.Globals.HTML_SAFELIST;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class ReplayView {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
 

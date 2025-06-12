@@ -9,56 +9,12 @@ import javax.sql.DataSource;
 import java.io.IOException;
 import java.util.List;
 
+import static mocks.ReplayMocks.*;
 import static services.daos.UserDao.*;
 
+// this is an integration test that runs against an embedded postgres instance
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ReplayDaoTest {
-
-    public static final ReplayEntity REPLAY1 = ReplayEntity.builder()
-        .id(1L)
-        .whiteId(1L)
-        .blackId(2L)
-        .whiteName("user1")
-        .blackName("user2")
-        .whiteCountry("us")
-        .blackCountry("us")
-        .result(ReplayEntity.WHITE_WIN)
-        .cause(ReplayEntity.CHECKMATE)
-        .winElo(30f)
-        .loseElo(-30f)
-        .whiteElo(0f)
-        .blackElo(0f)
-        .build();
-    public static final ReplayEntity REPLAY2 = ReplayEntity.builder()
-        .id(2L)
-        .whiteId(2L)
-        .blackId(3L)
-        .whiteName("user2")
-        .blackName("user3")
-        .whiteCountry("us")
-        .blackCountry("us")
-        .result(ReplayEntity.BLACK_WIN)
-        .cause(ReplayEntity.CHECKMATE)
-        .winElo(30f)
-        .loseElo(-30f)
-        .whiteElo(0f)
-        .blackElo(0f)
-        .build();
-    public static final ReplayEntity REPLAY3 = ReplayEntity.builder()
-        .id(3L)
-        .whiteId(3L)
-        .blackId(1L)
-        .whiteName("user3")
-        .blackName("user1")
-        .whiteCountry("us")
-        .blackCountry("us")
-        .result(ReplayEntity.DRAW)
-        .cause(ReplayEntity.CHECKMATE)
-        .winElo(30f)
-        .loseElo(-30f)
-        .whiteElo(0f)
-        .blackElo(0f)
-        .build();
 
     private EmbeddedPostgres pg;
     private DataSource ds;

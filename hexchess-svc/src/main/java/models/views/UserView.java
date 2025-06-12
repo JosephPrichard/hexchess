@@ -1,10 +1,7 @@
 
 package models.views;
 
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.ToString;
+import lombok.*;
 import org.jsoup.Jsoup;
 import models.entities.UserEntity;
 import web.WebConstants;
@@ -14,6 +11,9 @@ import java.time.format.DateTimeFormatter;
 import static utils.Globals.HTML_SAFELIST;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class UserView {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
 

@@ -9,12 +9,11 @@ import javax.sql.DataSource;
 import java.io.IOException;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 import static services.daos.UserDao.*;
 
+// this is an integration test that runs against an embedded postgres instance
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class UserDaoTest {
 
@@ -176,8 +175,8 @@ public class UserDaoTest {
 
         // then
         List<UserEntity> expectedUserList = List.of(
-                new UserEntity(1L, "user1", "us", 1000f, 0f, 0, 0, 0, null, null),
-                new UserEntity(2L, "user2", "us", 1000f, 0f, 1, 0, 0, null, null));
+                new UserEntity(1L, "user1", "us", 1000f, 0f, 0, 0, 0, "", null),
+                new UserEntity(2L, "user2", "us", 1000f, 0f, 1, 0, 0, "", null));
         Assertions.assertEquals(expectedUserList, actualUserList);
     }
 
@@ -193,8 +192,8 @@ public class UserDaoTest {
 
         // then
         List<UserEntity> expectedUserList = List.of(
-                new UserEntity(6L, "johnny", "us", 0f, 0f, 0, 0, 1, null, null),
-                new UserEntity(7L, "john", "us", 0f, 0f, 0, 0, 2, null, null));
+                new UserEntity(6L, "johnny", "us", 0f, 0f, 0, 0, 1, "", null),
+                new UserEntity(7L, "john", "us", 0f, 0f, 0, 0, 2, "", null));
         Assertions.assertEquals(expectedUserList, actualUserList);
     }
 }

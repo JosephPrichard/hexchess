@@ -7,6 +7,8 @@ import io.jooby.test.MockContext;
 import io.jooby.test.MockRouter;
 import io.jooby.test.MockValue;
 import models.common.ColorSelect;
+import models.common.ReplayCause;
+import models.common.ReplayResult;
 import models.common.TimeControl;
 import models.entities.RankedEntity;
 import models.entities.ReplayEntity;
@@ -26,24 +28,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+import static mocks.UserMocks.*;
+import static mocks.ReplayMocks.*;
 import static org.mockito.Mockito.*;
 import static web.controllers.ViewController.PER_PAGE;
 
 public class ViewControllerTest {
-
-    private static UserEntity createUserEntity(long id) {
-        UserEntity user = new UserEntity();
-        user.setId(id);
-        return user;
-    }
-
-    private static UserView createUserView(long id, int rank) {
-        UserView user = new UserView();
-        user.setId(id);
-        user.setRank(rank);
-        user.setJoinedOn("");
-        return user;
-    }
 
     @Test
     public void testGetLeaderboard() {
@@ -56,7 +46,7 @@ public class ViewControllerTest {
         state.setUserDao(userDao);
 
         List<RankedEntity> rankedEntities = Arrays.asList(new RankedEntity(1, 1), new RankedEntity(2, 2));
-        List<UserEntity> entityList = Arrays.asList(createUserEntity(1), createUserEntity(2));
+        List<UserEntity> entityList = Arrays.asList(USER_ENTITY1, USER_ENTITY2);
 
         MockRouter mockRouter = new MockRouter(new ViewController(state));
 
@@ -70,21 +60,9 @@ public class ViewControllerTest {
         verify(dictionaryDao).getLeaderboardPage(1, PER_PAGE);
         verify(userDao).getByRankedUsers(rankedEntities);
 
-        List<UserView> viewList = List.of(createUserView(1, 1), createUserView(2, 2));
+        List<UserView> viewList = List.of(USER_VIEW1, USER_VIEW2);
 
         Assertions.assertEquals(new ViewController.LeaderboardResp(1, viewList), value.value());
-    }
-
-    private static ReplayEntity createReplayEntity(long id) {
-        ReplayEntity replay = new ReplayEntity();
-        replay.setId(id);
-        return replay;
-    }
-
-    private static ReplayView createReplayView(long id) {
-        ReplayView replay = new ReplayView();
-        replay.setId(id);
-        return replay;
     }
 
     @Test
@@ -100,15 +78,14 @@ public class ViewControllerTest {
 
         Context mockContext = mock(Context.class);
 
-        UserEntity user = createUserEntity(1);
-        List<ReplayEntity> entityList = List.of(createReplayEntity(1));
+        List<ReplayEntity> entityList = List.of(REPLAY_ENTITY1);
 
         // when
         when(mockContext.path("id")).thenReturn(new SingleValue(mockContext, "id", "1"));
 
-        when(sut.dispatchGetById(anyLong())).thenReturn(CompletableFuture.completedFuture(user));
+        when(sut.dispatchGetById(anyLong())).thenReturn(CompletableFuture.completedFuture(USER_ENTITY1));
         when(sut.dispatchUserReplays(anyLong())).thenReturn(CompletableFuture.completedFuture(entityList));
-        when(dictionaryDao.getLeaderboardRank(anyLong())).thenReturn(5);
+        when(dictionaryDao.getLeaderboardRank(anyLong())).thenReturn(1);
 
         ViewController.UserWithReplaysResp response = sut.getPlayer(mockContext);
 
@@ -117,10 +94,9 @@ public class ViewControllerTest {
         verify(sut).dispatchGetById(1);
         verify(sut).dispatchUserReplays(1);
 
-        UserView userView = createUserView(1, 5);
-        List<ReplayView> viewList = List.of(createReplayView(1));
+        List<ReplayView> viewList = List.of(REPLAY_VIEW1);
 
-        Assertions.assertEquals(new ViewController.UserWithReplaysResp(userView, viewList), response);
+        Assertions.assertEquals(new ViewController.UserWithReplaysResp(USER_VIEW1, viewList), response);
     }
 
     @Test

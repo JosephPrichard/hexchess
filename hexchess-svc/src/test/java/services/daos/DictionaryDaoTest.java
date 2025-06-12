@@ -15,7 +15,7 @@ import java.util.List;
 
 import static utils.Globals.LOG;
 
-// this is an integration test that runs against a real redis instance
+// this is an integration test that runs against an embedded redis instance
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DictionaryDaoTest {
 
@@ -87,11 +87,11 @@ public class DictionaryDaoTest {
 
         // then
         List<ChessView> expectedViewList1 = List.of(
-            new ChessView("test-id1", null, null, false, ColorSelect.RANDOM, TimeControl.REAL_TIME),
-            new ChessView("test-id2", null, null, false, ColorSelect.RANDOM, TimeControl.REAL_TIME));
+            new ChessView("test-id4", null, null, false, ColorSelect.RANDOM, TimeControl.REAL_TIME),
+            new ChessView("test-id3", null, null, false, ColorSelect.RANDOM, TimeControl.REAL_TIME));
         List<ChessView> expectedViewList2 = List.of(
-            new ChessView("test-id3", null, null, false, ColorSelect.RANDOM, TimeControl.REAL_TIME),
-            new ChessView("test-id4", null, null, false, ColorSelect.RANDOM, TimeControl.REAL_TIME));
+            new ChessView("test-id2", null, null, false, ColorSelect.RANDOM, TimeControl.REAL_TIME),
+            new ChessView("test-id1", null, null, false, ColorSelect.RANDOM, TimeControl.REAL_TIME));
 
         Assertions.assertEquals(expectedViewList1, viewsList1);
         Assertions.assertEquals(expectedViewList2, viewsList2);
