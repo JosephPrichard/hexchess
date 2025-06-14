@@ -20,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
@@ -61,7 +62,7 @@ public class DatabaseSeed {
 
     private <T> void seedTableInParallel(List<T> insts, Consumer<T> consumer) {
         var futures = insts.stream()
-            .map((inst) -> EXECUTOR.submit(() -> consumer.accept(inst)))
+            .map((inst) -> CompletableFuture.runAsync(() -> consumer.accept(inst), EXECUTOR))
             .toList();
         futures.forEach((f) -> {
             try {

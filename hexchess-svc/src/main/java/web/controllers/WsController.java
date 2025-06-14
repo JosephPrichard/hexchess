@@ -6,6 +6,7 @@ import web.State;
 import web.websocket.GameWebsocket;
 
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import static utils.Globals.*;
 
@@ -30,9 +31,9 @@ public class WsController extends Jooby {
 
         GameWebsocket websocket = new GameWebsocket(state, wsId, gameId, sessionId);
 
-        configurer.onConnect((ws) -> EXECUTOR.execute(() -> websocket.onConnect(ws)));
+        configurer.onConnect((ws) -> CompletableFuture.runAsync(() -> websocket.onConnect(ws), EXECUTOR));
 
-        configurer.onMessage((ws, message) -> EXECUTOR.execute(() -> websocket.onMessage(ws, message)));
+        configurer.onMessage((ws, message) -> CompletableFuture.runAsync(() -> websocket.onMessage(ws, message), EXECUTOR));
 
         configurer.onClose(websocket::onClose);
     }

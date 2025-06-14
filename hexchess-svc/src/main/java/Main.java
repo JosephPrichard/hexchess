@@ -3,6 +3,7 @@ import com.zaxxer.hikari.HikariDataSource;
 import redis.clients.jedis.ConnectionPoolConfig;
 import services.broadcast.Broadcaster;
 import services.broadcast.LocalBroadcaster;
+import services.broadcast.SingleLocalBroadcaster;
 import services.daos.ChallengeDao;
 import services.daos.DictionaryDao;
 import services.daos.ReplayDao;
@@ -37,8 +38,8 @@ public class Main {
 
         String redisHost = env.get("REDIS_HOST");
         int redisPort = Integer.parseInt(env.get("REDIS_PORT"));
-        String redisPubsubHost = env.get("REDIS_PUBSUB_HOST");
-        int redisPubsubPort = Integer.parseInt(env.get("REDIS_PUBSUB_PORT"));
+//        String redisPubsubHost = env.get("REDIS_PUBSUB_HOST");
+//        int redisPubsubPort = Integer.parseInt(env.get("REDIS_PUBSUB_PORT"));
 
         List<String> countryList = Config.createCountryList();
 
@@ -54,6 +55,7 @@ public class Main {
 //        GlobalBroadcaster userBroadcaster = new GlobalBroadcaster(poolConfig, redisPubsubHost, redisPubsubPort, Broadcaster.USERS_TOPIC);
         LocalBroadcaster gameBroadcaster = new LocalBroadcaster(Broadcaster.GAMES_TOPIC);
         LocalBroadcaster userBroadcaster = new LocalBroadcaster(Broadcaster.USERS_TOPIC);
+        SingleLocalBroadcaster userCountBroadcaster = new SingleLocalBroadcaster(SingleLocalBroadcaster.USERS_COUNT_TOPIC);
 
         state.setUserDao(userDao);
         state.setReplayDao(replayDao);
@@ -63,6 +65,7 @@ public class Main {
         state.setAuthService(authService);
         state.setGameBroadcaster(gameBroadcaster);
         state.setUserBroadcaster(userBroadcaster);
+        state.setUserCountBroadcaster(userCountBroadcaster);
         state.setCountryList(countryList);
         state.setInitialBoard(ChessBoard.initial());
 

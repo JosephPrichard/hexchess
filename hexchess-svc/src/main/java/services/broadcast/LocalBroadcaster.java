@@ -12,20 +12,8 @@ import java.util.function.Consumer;
 import static utils.Globals.LOG;
 
 public class LocalBroadcaster implements Broadcaster {
-
-    @AllArgsConstructor
-    private static class Handler {
-        String handlerId;
-        Consumer<byte[]> consumer;
-
-        @Override
-        public String toString() {
-            return handlerId;
-        }
-    }
-
     private final String name;
-    private final LoadingCache<String, List<Handler>> handlerMap = Caffeine.newBuilder()
+    private final LoadingCache<String, List<Handler<byte[]>>> handlerMap = Caffeine.newBuilder()
         .scheduler(Scheduler.systemScheduler())
         .build(key -> new CopyOnWriteArrayList<>());
 
@@ -35,27 +23,27 @@ public class LocalBroadcaster implements Broadcaster {
 
     @Override
     public void subscribe(String groupId, String handlerId, Consumer<byte[]> consumer) {
-        List<Handler> handlerList = handlerMap.get(groupId);
-        handlerList.add(new Handler(handlerId, consumer));
-        LOG.info("Subscribed to id={} on broadcaster {}", groupId, name);
+        List<Handler<byte[]>> handlerList = handlerMap.get(groupId);
+        handlerList.add(new Handler<>(handlerId, consumer));
+        LOG.info("Subscribed handlerId={} to groupId={} on broadcaster {} with new handlerList={}", handlerId, groupId, name, handlerList);
     }
 
     @Override
     public void unsubscribe(String groupId, String handlerId) {
-        List<Handler> handlerList = handlerMap.get(groupId);
-        if (handlerList.removeIf((handler) -> handler.handlerId.equals(handlerId))) {
-            LOG.info("Unsubscribed from id={} on broadcaster {}", groupId, name);
+        List<Handler<byte[]>> handlerList = handlerMap.get(groupId);
+        if (handlerList.removeIf((handler) -> handler.getHandlerId().equals(handlerId))) {
+            LOG.info("Unsubscribed handlerId={} from groupId={} on broadcaster {} with new handlerList={}", handlerId, groupId, name, handlerList);
         }
     }
 
     @Override
     public void broadcast(String groupId, byte[] content) {
-        List<Handler> handlerList = handlerMap.get(groupId);
+        List<Handler<byte[]>> handlerList = handlerMap.get(groupId);
         if (handlerList == null) {
             LOG.info("Broadcast local to id={} on broadcaster {}, but there were no subscribers", groupId, name);
             return;
         }
-        handlerList.forEach((handler) -> handler.consumer.accept(content));
+        handlerList.forEach((handler) -> handler.getConsumer().accept(content));
         LOG.info("Broadcast local to id={}, handlerList={} on broadcaster {}", groupId, handlerList, name);
     }
 }

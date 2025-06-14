@@ -13,7 +13,8 @@ import models.state.Player;
 import models.entities.ReplayEntity;
 import models.state.ChessRoom;
 
-import static services.daos.UserDao.*;
+import java.util.concurrent.CompletableFuture;
+
 import static utils.Globals.*;
 
 @AllArgsConstructor
@@ -117,8 +118,7 @@ public class GameService {
             throw new InvalidMoveException();
         }
 
-        byte piece = board.getPiece(move.getFrom());
-        PieceMove pm = game.makeMove(move);
+        move = game.makeMove(move);
         game.initPieceMoves();
 
         room.addMove(move);
@@ -126,11 +126,11 @@ public class GameService {
         if (game.checkmateReached()) {
             room.setEnded(true);
             boolean isWhiteWin = !board.isWhiteTurn(); // white wins if its checkmate when it's blacks turn
-            EXECUTOR.execute(() -> onFinishGame(room, isWhiteWin, ReplayEntity.CHECKMATE));
+            CompletableFuture.runAsync(() -> onFinishGame(room, isWhiteWin, ReplayEntity.CHECKMATE), EXECUTOR);
         }
 
         LOG.info("{} made move {} on game {}", player, move, gameId);
-        return new MakeMoveResult(dictionaryDao.setRoom(gameId, room), pm);
+        return new MakeMoveResult(dictionaryDao.setRoom(gameId, room), move);
     }
 
     public void onFinishGame(ChessRoom room, boolean isWhiteWin, int cause) {
@@ -145,7 +145,7 @@ public class GameService {
             long loseId = isWhiteWin ? blackId : whiteId;
 
             String moveListJson = JSON.writeValueAsString(room.getMoveList());
-            EloChangeSet changeSet = userDao.updateStats(winId, loseId);
+            UserDao.EloChangeSet changeSet = userDao.updateStats(winId, loseId);
             if (changeSet == null) {
                 LOG.info("No change set needs to be applied to game result for room={}", room.getId());
                 return;

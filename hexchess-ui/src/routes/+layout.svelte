@@ -32,13 +32,13 @@
 	}
 
 	function connectUserEvents() {
-		sse = new EventSource(`${baseURL}/events/user/subscriptions`, {
+		sse = new EventSource(`${baseURL}/events/user`, {
 			withCredentials: true
 		});
 		sse.addEventListener('meta', (event) => {
 			console.log('Sse:', createMessage(event.data));
 		});
-		sse.addEventListener('challenge', (event) => {
+		sse.addEventListener('userEvents', (event) => {
 			const data: ChallengeModel = JSON.parse(event.data);
 			console.log('Sse:', data);
 			addNotification({ type: 'challenge', message: data, isSuccess: true, duration: 150000 });

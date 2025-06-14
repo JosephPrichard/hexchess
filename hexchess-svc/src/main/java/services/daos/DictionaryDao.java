@@ -10,9 +10,9 @@ import redis.clients.jedis.JedisPooled;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
-import java.util.stream.Collectors;
 
 import static utils.Globals.*;
 
@@ -24,6 +24,9 @@ public class DictionaryDao {
     private static final String GAMES_ZSET = "games";
     private static final byte[] GAMES_ZSET_BYTES = GAMES_ZSET.getBytes();
     private static final String LEADERBOARD_ZSET = "leaderboard";
+    private static final String USERS_ZSET = "users";
+
+    private static final Duration USER_EXPIRE_FINISHED = Duration.ofMinutes(15);
     private static final Duration GAME_EXPIRE_FINISHED = Duration.ofHours(1);
     public static final Duration TEMP_SESSION_EXPIRE = Duration.ofMinutes(1);
 
@@ -39,6 +42,7 @@ public class DictionaryDao {
         if (bytes == null) {
             return null;
         }
+
         return ChessRoom.deserialize(bytes);
     }
 
@@ -54,7 +58,6 @@ public class DictionaryDao {
             t.zadd(GAMES_ZSET, room.getTouch(), id);
             t.exec();
         }
-
         return room;
     }
 
@@ -67,6 +70,8 @@ public class DictionaryDao {
         String[] gameKeys = results.toArray(String[]::new);
 
         if (gameKeys.length > 0) {
+            LOG.info("Expiring games with keys={}", Arrays.toString(gameKeys));
+
             try (AbstractTransaction t = jedis.multi()) {
                 t.del(gameKeys);
                 t.zrem(GAMES_ZSET, gameKeys);
@@ -100,10 +105,14 @@ public class DictionaryDao {
             bytesList = jedis.mget(fullIds);
         }
         if (bytesList == null) {
+            LOG.info("Retrieved no chess views page={}", page);
             return List.of();
         }
 
-        return bytesList.stream().map(ChessView::deserialize).toList();
+        List<ChessView> viewList = bytesList.stream().map(ChessView::deserialize).toList();
+
+        LOG.info("Retrieved chess views={} for page={}", viewList, page);
+        return viewList;
     }
 
     public Player getSession(String sessionId) {
@@ -151,6 +160,8 @@ public class DictionaryDao {
             rank = jedis.zrevrank(LEADERBOARD_ZSET, strId);
             assert rank != null;
         }
+
+        LOG.info("Get leaderboard rank={} of for id={}", rank, id);
         return rank.intValue() + 1;
     }
 
@@ -176,7 +187,7 @@ public class DictionaryDao {
         int offset = (page - 1) * perPage;
         Leaderboard leaderboard = getLeaderboard(offset, perPage);
 
-        LOG.info("Get leaderboard={} of page={}", leaderboard, page);
+        LOG.info("Retrieved leaderboard={} of page={}", leaderboard, page);
         return leaderboard;
     }
 
@@ -189,10 +200,12 @@ public class DictionaryDao {
             }
             t.exec();
         }
+        LOG.info("Incremented leaderboard elo with changeSets={}", Arrays.toString(changeSets));
     }
 
     public void incrLeaderboardUser(long id, double elo) {
         jedis.zincrby(LEADERBOARD_ZSET, elo, Long.toString(id));
+        LOG.info("Incremented leaderboard elo for user={} by elo={}", id, elo);
     }
 
     public void updateLeaderboardUser(EloChangeSet... changeSets) {
@@ -202,5 +215,54 @@ public class DictionaryDao {
             }
             t.exec();
         }
+
+        LOG.info("Set leaderboard elo with changeSets={}", Arrays.toString(changeSets));
+    }
+
+    public void expireUsers() {
+        expireUsers(System.currentTimeMillis() - USER_EXPIRE_FINISHED.toMillis());
+    }
+
+    public void expireUsers(long unixTimeExpireMillis) {
+        List<String> results = jedis.zrangeByScore(USERS_ZSET, Double.NEGATIVE_INFINITY, unixTimeExpireMillis);
+        String[] userKeys = results.toArray(String[]::new);
+
+        if (userKeys.length > 0) {
+            LOG.info("Expiring users with keys={}", Arrays.toString(userKeys));
+            jedis.zrem(USERS_ZSET, userKeys);
+        }
+    }
+
+    public long addThenCountUsers(Long userId) {
+        expireUsers();
+
+        if (userId != null) {
+           jedis.zadd(USERS_ZSET, System.currentTimeMillis(), Long.toString(userId));
+        }
+
+        long count = jedis.zcard(USERS_ZSET);
+
+        LOG.info("Added user={} with users count={}", userId, count);
+        return count;
+    }
+
+    public Long removeThenCountUsers(Long userId) {
+        expireUsers();
+
+        if (userId != null) {
+            jedis.zrem(USERS_ZSET, Long.toString(userId));
+            long count = jedis.zcard(USERS_ZSET);
+
+            LOG.info("Removed user={} with users count={}", userId, count);
+            return count;
+        }
+        return null;
+    }
+
+    public long getGameCount(long count) {
+        long result = jedis.zcard(GAMES_ZSET);
+
+        LOG.info("Get games count {}", count);
+        return result;
     }
 }
