@@ -1,5 +1,6 @@
 import { getContext, setContext } from 'svelte';
 import type { ChallengeModel } from '$lib/api/model';
+import type { Writable } from 'svelte/store';
 
 export interface NotificationValue {
 	isSuccess: boolean;
@@ -21,6 +22,7 @@ export type NotificationData = TextValue | ChallengeValue;
 interface NotificationsContext {
 	addNotification: (data: NotificationData) => void;
 	deleteNotification: (index: number) => void;
+	counts: Writable<{ usersCount: number; gameCounts: number; }>;
 }
 
 export function getNotificationsContext() {

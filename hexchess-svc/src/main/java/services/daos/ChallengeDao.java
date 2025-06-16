@@ -20,7 +20,7 @@ public class ChallengeDao {
     public static final Duration THRESHOLD_EXPIRATION = Duration.ofDays(7);
     private static final ResultSetHandler<ChallengeEntity> CHAL_MAPPER = new BeanHandler<>(ChallengeEntity.class);
     private static final ResultSetHandler<List<ChallengeEntity>> CHAL_LIST_MAPPER = new BeanListHandler<>(ChallengeEntity.class);
-    private static final ResultSetHandler<List<DeleteResult>> DELRES_MAPPER = new BeanListHandler<>(DeleteResult.class);
+    private static final ResultSetHandler<List<DeleteResult>> DEL_RES_MAPPER = new BeanListHandler<>(DeleteResult.class);
 
     private final QueryRunner runner;
 
@@ -108,7 +108,7 @@ public class ChallengeDao {
             """;
 
         try {
-            List<DeleteResult> results = runner.query(sql, DELRES_MAPPER, challengerId, challengeeId);
+            List<DeleteResult> results = runner.query(sql, DEL_RES_MAPPER, challengerId, challengeeId);
             LOG.info("Delete challenge=[{},{}], deleting {} rows", challengerId, challengeeId, results);
             return results.isEmpty() ? null : results.getFirst();
         } catch (SQLException ex) {

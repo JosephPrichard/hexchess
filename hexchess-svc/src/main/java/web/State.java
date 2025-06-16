@@ -28,6 +28,7 @@ public class State {
     private Broadcaster gameBroadcaster;
     private Broadcaster userBroadcaster;
     private SingleBroadcaster userCountBroadcaster;
+    private SingleBroadcaster gameCountBroadcaster;
 
     private List<String> countryList;
     private ChessBoard initialBoard;

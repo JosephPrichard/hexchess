@@ -26,7 +26,7 @@ public class DictionaryDao {
     private static final String LEADERBOARD_ZSET = "leaderboard";
     private static final String USERS_ZSET = "users";
 
-    private static final Duration USER_EXPIRE_FINISHED = Duration.ofMinutes(15);
+    private static final Duration USER_EXPIRE_FINISHED = Duration.ofMinutes(1);
     private static final Duration GAME_EXPIRE_FINISHED = Duration.ofHours(1);
     public static final Duration TEMP_SESSION_EXPIRE = Duration.ofMinutes(1);
 
@@ -105,7 +105,6 @@ public class DictionaryDao {
             bytesList = jedis.mget(fullIds);
         }
         if (bytesList == null) {
-            LOG.info("Retrieved no chess views page={}", page);
             return List.of();
         }
 
@@ -233,36 +232,31 @@ public class DictionaryDao {
         }
     }
 
-    public long addThenCountUsers(Long userId) {
+    public void addUser(String id) {
+        jedis.zadd(USERS_ZSET, System.currentTimeMillis(), id);
+
+        LOG.info("Added user={} into users set", id);
+    }
+
+    public void removeUser(String id) {
+        jedis.zrem(USERS_ZSET, id);
+
+        LOG.info("Removed user={} from users set", id);
+    }
+
+    public long getUsersCount() {
         expireUsers();
-
-        if (userId != null) {
-           jedis.zadd(USERS_ZSET, System.currentTimeMillis(), Long.toString(userId));
-        }
-
         long count = jedis.zcard(USERS_ZSET);
 
-        LOG.info("Added user={} with users count={}", userId, count);
+        LOG.info("Counted users with result={}", count);
         return count;
     }
 
-    public Long removeThenCountUsers(Long userId) {
-        expireUsers();
+    public long getRoomsCount() {
+        expireRooms();
+        long count = jedis.zcard(GAMES_ZSET);
 
-        if (userId != null) {
-            jedis.zrem(USERS_ZSET, Long.toString(userId));
-            long count = jedis.zcard(USERS_ZSET);
-
-            LOG.info("Removed user={} with users count={}", userId, count);
-            return count;
-        }
-        return null;
-    }
-
-    public long getGameCount(long count) {
-        long result = jedis.zcard(GAMES_ZSET);
-
-        LOG.info("Get games count {}", count);
-        return result;
+        LOG.info("Counted games with result={}", count);
+        return count;
     }
 }

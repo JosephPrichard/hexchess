@@ -1,4 +1,4 @@
-package web.routers;
+package web.controllers;
 
 import io.jooby.Context;
 import io.jooby.exception.BadRequestException;
@@ -7,8 +7,6 @@ import io.jooby.test.MockContext;
 import io.jooby.test.MockRouter;
 import io.jooby.test.MockValue;
 import models.common.ColorSelect;
-import models.common.ReplayCause;
-import models.common.ReplayResult;
 import models.common.TimeControl;
 import models.entities.RankedEntity;
 import models.entities.ReplayEntity;
@@ -21,7 +19,6 @@ import org.junit.jupiter.api.Test;
 import services.daos.DictionaryDao;
 import services.daos.UserDao;
 import web.State;
-import web.controllers.ViewController;
 import web.reusable.AuthService;
 
 import java.util.Arrays;

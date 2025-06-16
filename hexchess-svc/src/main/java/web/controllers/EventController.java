@@ -14,23 +14,29 @@ import web.reusable.AuthService;
 
 import java.util.UUID;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static utils.Globals.*;
 
 public class EventController extends Jooby {
     private static final String USERS_COUNT_EVENT = "userCountEvents";
+    private static final String GAMES_COUNT_EVENT = "gameCountEvents";
     private static final String USER_EVENT = "userEvents";
+    private static final String META_EVENT = "meta";
 
-    private final State state;
+    private final DictionaryDao dictionaryDao;
+    private final AuthService authService;
+    private final Broadcaster userBroadcaster;
+    private final SingleBroadcaster userCountBroadcaster;
+    private final SingleBroadcaster gameCountBroadcaster;
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
-    private final AtomicInteger numberOfCountEvents = new AtomicInteger(0);
-    private final AtomicInteger numberOfUserEvents = new AtomicInteger(0);
-
     public EventController(State state) {
-        this.state = state;
+        dictionaryDao = state.getDictionaryDao();
+        authService = state.getAuthService();
+        userBroadcaster = state.getUserBroadcaster();
+        userCountBroadcaster = state.getUserCountBroadcaster();
+        gameCountBroadcaster = state.getGameCountBroadcaster();
 
         install(new JacksonModule(JSON));
 
@@ -38,67 +44,46 @@ public class EventController extends Jooby {
         sse("/events/user", this::handleUserEvents);
     }
 
-    private void onCloseCount(Long userId, ScheduledFuture<?> fut) {
-        SingleBroadcaster userCountBroadcaster = state.getUserCountBroadcaster();
-        DictionaryDao dictionaryDao = state.getDictionaryDao();
-
-        int leaveCount = numberOfCountEvents.decrementAndGet();
-        LOG.info("Disconnected to counts as connection {}", leaveCount);
-
+    private void onCloseCount(String sseId, ScheduledFuture<?> fut) {
         fut.cancel(false);
 
-        Long count = dictionaryDao.removeThenCountUsers(userId);
-        if (count != null) {
-            LOG.info("Decremented users count to {}", count);
-            userCountBroadcaster.broadcast(Long.toString(count));
-        }
+        dictionaryDao.removeUser(sseId);
+        long count = dictionaryDao.getUsersCount();
+
+        userCountBroadcaster.unsubscribe(sseId);
+        userCountBroadcaster.broadcast(Long.toString(count));
     }
 
     private void handleCount(ServerSentEmitter sse) {
-        SingleBroadcaster userCountBroadcaster = state.getUserCountBroadcaster();
-        DictionaryDao dictionaryDao = state.getDictionaryDao();
-        AuthService authService = state.getAuthService();
-
-        Context ctx = sse.getContext();
-
         String sseId = UUID.randomUUID().toString();
 
-        Player player = authService.getOptionalSessionPlayer(ctx);
-        Long userId = player == null ? null : player.getId();
+        // update and retrieve the count state
+        dictionaryDao.addUser(sseId);
+        long userCount = dictionaryDao.getUsersCount();
+        long gameCount = dictionaryDao.getRoomsCount();
 
-        int joinCount = numberOfCountEvents.incrementAndGet();
-        LOG.info("Connected to counts as connection {}", joinCount);
+        userCountBroadcaster.broadcast(Long.toString(userCount));
 
-        long count = dictionaryDao.addThenCountUsers(userId);
-        LOG.info("Incremented users count to {}", count);
-
-        sse.send(USERS_COUNT_EVENT, count);
-
+        // subscribe to all updates on counts
         userCountBroadcaster.subscribe(sseId, (m) -> sse.send(USERS_COUNT_EVENT, m));
+        gameCountBroadcaster.subscribe(sseId, (m) -> sse.send(GAMES_COUNT_EVENT, m));
 
         // periodically refresh user as long as this sse is open
-        ScheduledFuture<?> fut = scheduler.schedule(
-            () -> CompletableFuture.runAsync(() -> dictionaryDao.addThenCountUsers(userId), EXECUTOR),
-            1,
-            TimeUnit.MINUTES);
+        ScheduledFuture<?> fut = scheduler.scheduleAtFixedRate(
+            () -> CompletableFuture.runAsync(() -> dictionaryDao.addUser(sseId), EXECUTOR),
+            30,
+            30,
+            TimeUnit.SECONDS);
+
+        sse.send(META_EVENT, "Connected");
+        sse.send(USERS_COUNT_EVENT, userCount);
+        sse.send(GAMES_COUNT_EVENT, gameCount);
 
         sse.keepAlive(15, TimeUnit.SECONDS);
-        sse.onClose(() -> CompletableFuture.runAsync(() -> onCloseCount(userId, fut), EXECUTOR));
-    }
-
-    private void onCloseUserEvent(Player player, String userId, String sseId) {
-        Broadcaster userBroadcaster = state.getUserBroadcaster();
-
-        int leaveCount = numberOfUserEvents.decrementAndGet();
-        LOG.info("Player={} disconnected from event, leaving {} connections", player, leaveCount);
-
-        userBroadcaster.unsubscribe(userId, sseId);
+        sse.onClose(() -> CompletableFuture.runAsync(() -> onCloseCount(sseId, fut), EXECUTOR));
     }
 
     private void handleUserEvents(ServerSentEmitter sse) {
-        Broadcaster userBroadcaster = state.getUserBroadcaster();
-        AuthService authService = state.getAuthService();
-
         Context ctx = sse.getContext();
 
         // silently close the sse if we have auth issues, we cannot deliver notifications
@@ -106,7 +91,7 @@ public class EventController extends Jooby {
         try {
             player = authService.getSessionPlayer(ctx);
         } catch (StatusCodeException ex) {
-            sse.send("meta", ex.getMessage());
+            sse.send(META_EVENT, ex.getMessage());
             sse.close();
             return;
         }
@@ -114,12 +99,11 @@ public class EventController extends Jooby {
         String sseId = UUID.randomUUID().toString();
         String userId = Long.toString(player.getId());
 
-        int joinCount = numberOfUserEvents.incrementAndGet();
-        LOG.info("Player={} connected to the user events as connection {}", player.getId(), joinCount);
-
         userBroadcaster.subscribe(userId, sseId, (m) -> sse.send(USER_EVENT, m));
 
+        sse.send(META_EVENT, "Connected");
+
         sse.keepAlive(15, TimeUnit.SECONDS);
-        sse.onClose(() -> CompletableFuture.runAsync(() -> onCloseUserEvent(player, userId, sseId), EXECUTOR));
+        sse.onClose(() -> CompletableFuture.runAsync(() -> userBroadcaster.unsubscribe(userId, sseId), EXECUTOR));
     }
 }

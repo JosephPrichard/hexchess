@@ -14,7 +14,6 @@ import java.util.List;
 import static mocks.ChallengeMocks.*;
 import static services.daos.UserDao.*;
 
-// this is an integration test that runs against an embedded postgres instance
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ChallengeDaoTest {
 

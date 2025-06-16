@@ -7,13 +7,17 @@
 	import { clearClientSession, updateClientSession } from '$lib/utils/storage';
 	import services, { baseURL } from '$lib/api/services';
 	import type { ChallengeModel } from '$lib/api/model';
+	import { writable } from 'svelte/store';
 
 	const { children }: LayoutProps = $props();
 
 	const notifications: (NotificationData | undefined)[] = $state([]);
+	let counts = writable({ usersCount: 0, gameCounts: 0 });
+
 	const timeouts: Record<number, ReturnType<typeof setTimeout>> = {};
 	let index = 0;
-	let sse: EventSource | undefined = undefined;
+	let userSse: EventSource | undefined = undefined;
+	let countSse: EventSource | undefined = undefined;
 	let refreshInterval: ReturnType<typeof setInterval> | undefined = undefined;
 
 	function deleteNotification(index: number) {
@@ -32,16 +36,41 @@
 	}
 
 	function connectUserEvents() {
-		sse = new EventSource(`${baseURL}/events/user`, {
+		userSse = new EventSource(`${baseURL}/events/user`, {
 			withCredentials: true
 		});
-		sse.addEventListener('meta', (event) => {
-			console.log('Sse:', createMessage(event.data));
+		userSse.addEventListener('meta', (event) => {
+			console.log('Sse: /events/user meta', event.data);
 		});
-		sse.addEventListener('userEvents', (event) => {
+		userSse.addEventListener('userEvents', (event) => {
+			console.log('Sse: /events/user userEvents', event.data);
 			const data: ChallengeModel = JSON.parse(event.data);
-			console.log('Sse:', data);
 			addNotification({ type: 'challenge', message: data, isSuccess: true, duration: 150000 });
+		});
+	}
+
+	function connectCountEvents() {
+		countSse = new EventSource(`${baseURL}/events/count`, {
+			withCredentials: true
+		});
+		countSse.addEventListener('meta', (event) => {
+			console.log('Sse: /events/count meta', event.data);
+		});
+		countSse.addEventListener('userCountEvents', (event) => {
+			console.log('Sse: /events/count userCountEvents', event.data);
+
+			const count = Number(event.data);
+			if (!isNaN(count)) {
+				counts.update((value) => ({ ...value, usersCount: count }));
+			}
+		});
+		countSse.addEventListener('gameCountEvents', (event) => {
+			console.log('Sse: /events/count gameCountEvents', event.data);
+
+			const count = Number(event.data);
+			if (!isNaN(count)) {
+				counts.update((value) => ({ ...value, gameCounts: count }));
+			}
 		});
 	}
 
@@ -57,6 +86,7 @@
 	}
 
 	onMount(() => {
+		connectCountEvents();
 		connectUserEvents();
 		refreshSession();
 		refreshInterval = setInterval(async () => refreshSession(), 900000); // 15 minutes
@@ -64,13 +94,16 @@
 			if (refreshInterval) {
 				clearInterval(refreshInterval);
 			}
-			if (sse) {
-				sse.close();
+			if (userSse) {
+				userSse.close();
+			}
+			if (countSse) {
+				countSse.close();
 			}
 		};
 	});
 
-	setNotificationsContext({ addNotification, deleteNotification });
+	setNotificationsContext({ addNotification, deleteNotification, counts });
 </script>
 
 <div class="bottom-right-anchor notifications-box">

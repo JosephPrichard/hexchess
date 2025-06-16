@@ -32,6 +32,6 @@ public class SingleLocalBroadcaster implements SingleBroadcaster {
     @Override
     public void broadcast(String content) {
         handlerMap.forEach((k, v) -> v.getConsumer().accept(content));
-        LOG.info("Broadcasting on broadcaster {}", name);
+        LOG.info("Broadcasting content={} on broadcaster {}", content, name);
     }
 }

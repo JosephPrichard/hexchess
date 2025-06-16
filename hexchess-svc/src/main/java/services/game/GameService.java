@@ -2,6 +2,7 @@ package services.game;
 
 import chess.ChessBoard;
 import chess.PieceMove;
+import services.broadcast.SingleBroadcaster;
 import services.daos.DictionaryDao;
 import services.daos.ReplayDao;
 import services.daos.UserDao;
@@ -27,6 +28,7 @@ public class GameService {
     public static class InvalidMoveException extends RuntimeException {}
 
     private final DictionaryDao dictionaryDao;
+    private final SingleBroadcaster gameCountBroadcaster;
     private final UserDao userDao;
     private final ReplayDao replayDao;
 
@@ -47,9 +49,12 @@ public class GameService {
         chessRoom.setFirstColor(color);
         chessRoom.getGame().initPieceMoves();
 
-        LOG.info("Created game={}", chessRoom);
+        LOG.info("Created chess game with room={}", chessRoom);
 
         dictionaryDao.setRoom(id, chessRoom);
+
+        CompletableFuture.runAsync(() -> gameCountBroadcaster.broadcast(Long.toString(dictionaryDao.getRoomsCount())), EXECUTOR);
+
         return id;
     }
 

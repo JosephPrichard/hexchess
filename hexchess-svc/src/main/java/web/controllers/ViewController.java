@@ -239,9 +239,6 @@ public class ViewController extends Jooby {
         List<ChessView> viewList = dictionaryDao.getChessViews(page, count);
         List<ChessView> selfViewList = player != null ? dictionaryDao.getUserChessViews(player.getId()) : List.of();
 
-        LOG.info("Retrieved chess views={} for page={}", viewList, page);
-        LOG.info("Retrieved chess views={} for player={}", selfViewList, player);
-
         return new ChessRoomResp(viewList, selfViewList);
     }
 }

@@ -32,22 +32,24 @@ import static services.daos.ChallengeDao.*;
 @AllArgsConstructor
 public class DatabaseSeed {
 
+    private static final String USERS_JSON = readResourceAsString("/seed/users.json");
+    private static final String REPLAYS_JSON = readResourceAsString("/seed/relays.json");
+    private static final String CHALLENGES_JSON = readResourceAsString("/seed/challenges.json");
+
     private static final TypeReference<List<UserInst>> USER_LIST_TYPE = new TypeReference<>() {};
     private static final TypeReference<List<ReplayInst>> REPLAY_LIST_TYPE = new TypeReference<>() {};
     private static final TypeReference<List<ChallengeInst>> CHALLENGE_LIST_TYPE = new TypeReference<>() {};
 
-    private final UserDao userDao;
-    private final ChallengeDao challengeDao;
-    private final ReplayDao replayDao;
-    private final DictionaryDao dictionaryDao;
-
-    public static String readResourceAsString(String resourcePath) throws IOException {
+    public static String readResourceAsString(String resourcePath)  {
         try (InputStream inputStream = DatabaseSeed.class.getResourceAsStream(resourcePath)) {
             assert inputStream != null;
             try (Scanner scanner = new Scanner(inputStream, StandardCharsets.UTF_8)) {
                 scanner.useDelimiter("\\A");
                 return scanner.hasNext() ? scanner.next() : "";
             }
+        } catch (Exception ex) {
+            LOG.error("Failed to read resource at path {}", resourcePath, ex);
+            throw new RuntimeException(ex);
         }
     }
 
@@ -60,46 +62,17 @@ public class DatabaseSeed {
         }
     }
 
-    private <T> void seedTableInParallel(List<T> insts, Consumer<T> consumer) {
+    private static <T> void seedTableInParallel(List<T> insts, Consumer<T> consumer) {
         var futures = insts.stream()
             .map((inst) -> CompletableFuture.runAsync(() -> consumer.accept(inst), EXECUTOR))
             .toList();
         futures.forEach((f) -> {
             try {
                 f.get();
-            } catch (InterruptedException | ExecutionException e) {
+            } catch (Exception e) {
                 throw new RuntimeException(e);
             }
         });
-    }
-
-    private void seedUsersTable() throws IOException {
-        String json = readResourceAsString("/seed/users.json");
-        List<UserInst> insts = Globals.JSON.readValue(json, USER_LIST_TYPE);
-        insts.forEach(userDao::insert);
-    }
-
-    private void seedReplayTable() throws IOException {
-        String json = readResourceAsString("/seed/replays.json");
-        List<ReplayInst> insts = Globals.JSON.readValue(json, REPLAY_LIST_TYPE)
-            .stream()
-            .map(replay -> replay.withMoveListJson(randomGameStateAsJson()))
-            .toList();
-        seedTableInParallel(insts, replayDao::insert);
-    }
-
-    private void seedChallengeTable() throws IOException {
-        String json = readResourceAsString("/seed/challenges.json");
-        List<ChallengeInst> insts = Globals.JSON.readValue(json, CHALLENGE_LIST_TYPE);
-        seedTableInParallel(insts, challengeDao::insert);
-    }
-
-    private void seedUsersDict() {
-        DictionaryDao.EloChangeSet[] changeSets = userDao.getAll()
-            .stream()
-            .map(user -> new DictionaryDao.EloChangeSet(user.getId(), user.getElo()))
-            .toArray(DictionaryDao.EloChangeSet[]::new);
-        dictionaryDao.incrLeaderboardUser(changeSets);
     }
 
     public static void main(String[] args) throws Exception {
@@ -114,20 +87,34 @@ public class DatabaseSeed {
         String redisHost = env.get("REDIS_HOST");
         int redisPort = Integer.parseInt(env.get("REDIS_PORT"));
         JedisPooled jedis = new JedisPooled(redisHost, redisPort);
-        DictionaryDao dictionaryDao = new DictionaryDao(jedis);
 
         jedis.flushAll();
 
-        DatabaseSeed seeder = new DatabaseSeed(new UserDao(ds), new ChallengeDao(ds), new ReplayDao(ds), dictionaryDao);
-        seeder.seedUsersTable();
-        seeder.seedUsersDict();
-        seeder.seedReplayTable();
-        seeder.seedChallengeTable();
+        UserDao userDao = new UserDao(ds);
+        ChallengeDao challengeDao = new ChallengeDao(ds);
+        ReplayDao replayDao = new ReplayDao(ds);
+        DictionaryDao dictionaryDao = new DictionaryDao(jedis);
+
+        List<UserInst> userInsts = JSON.readValue(USERS_JSON, USER_LIST_TYPE);
+        List<ReplayInst> replayInsts = JSON.readValue(REPLAYS_JSON, REPLAY_LIST_TYPE)
+            .stream()
+            .map(replay -> replay.withMoveListJson(randomGameStateAsJson()))
+            .toList();
+        List<ChallengeInst> challengeInsts = JSON.readValue(CHALLENGES_JSON, CHALLENGE_LIST_TYPE);
+        DictionaryDao.EloChangeSet[] changeSets = userDao.getAll()
+            .stream()
+            .map(user -> new DictionaryDao.EloChangeSet(user.getId(), user.getElo()))
+            .toArray(DictionaryDao.EloChangeSet[]::new);
+
+        userDao.batchInsert(userInsts);
+        seedTableInParallel(replayInsts, replayDao::insert);
+        seedTableInParallel(challengeInsts, challengeDao::insert);
+        dictionaryDao.incrLeaderboardUser(changeSets);
 
         long endTime = System.currentTimeMillis() - startTime;
         LOG.info("Took {} ms to execute seeding script", endTime);
 
-//        jedis.close();
+        jedis.close();
         ds.close();
     }
 }

@@ -15,7 +15,6 @@ import java.util.List;
 
 import static utils.Globals.LOG;
 
-// this is an integration test that runs against an embedded redis instance
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DictionaryDaoTest {
 

@@ -13,7 +13,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 import static services.daos.UserDao.*;
 
-// this is an integration test that runs against an embedded postgres instance
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class UserDaoTest {
 
@@ -66,6 +65,27 @@ public class UserDaoTest {
         Assertions.assertNull(verified3);
         Assertions.assertEquals(verified4.getId(), user3.getId());
         Assertions.assertNull(verified5);
+    }
+
+    @Test
+    public void testBatchInsertThenGet() {
+        // when
+        userDao.batchInsert(List.of(
+            new UserInst("user1", "password1", "us", 1005f, 10, 9),
+            new UserInst("user2", "password2", "eu", 1035f, 12, 9)));
+
+        UserEntity user1 = userDao.getById(1L);
+        UserEntity user2 = userDao.getById(2L);
+
+        VerifiedUser verified1 = userDao.verify("user1", "password1");
+        VerifiedUser verified2 = userDao.verify("user2", "password2");
+
+        // then
+        Assertions.assertEquals(new UserEntity(1L, "user1", "us", 1005f, 1005f, 10, 9, 0, "", null), user1);
+        Assertions.assertEquals(new UserEntity(2L, "user2", "eu", 1035f, 1035f, 12, 9, 0, "", null), user2);
+
+        Assertions.assertEquals(verified1.getId(), user1.getId());
+        Assertions.assertEquals(verified2.getId(), user2.getId());
     }
 
     @Test

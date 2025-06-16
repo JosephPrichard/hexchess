@@ -17,8 +17,11 @@ import java.sql.*;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import static utils.Globals.CPU_EXECUTOR;
 import static utils.Globals.LOG;
 
 public class UserDao {
@@ -27,6 +30,7 @@ public class UserDao {
     private static final ResultSetHandler<List<UserEntity>> USER_LIST_MAPPER = new BeanListHandler<>(UserEntity.class);
     private static final ResultSetHandler<VerifiedUser> VERIFIED_USER_MAPPER = new BeanHandler<>(VerifiedUser.class);
     private static final ResultSetHandler<List<EloResult>> ELO_LIST_MAPPER = new BeanListHandler<>(EloResult.class);
+    private static final ResultSetHandler<List<Long>> IDS_MAPPER = new BeanListHandler<>(Long.class);
 
     private final QueryRunner runner;
 
@@ -44,20 +48,25 @@ public class UserDao {
         return insert(inst);
     }
 
-    public static String generateSalt() {
+    public record HashResult(String salt, String hashedPassword) {}
+
+    public static HashResult generateHash(String password) {
         try {
-            byte[] salt = new byte[16];
-            SecureRandom.getInstanceStrong().nextBytes(salt);
-            return Base64.getEncoder().encodeToString(salt);
+            byte[] bytes = new byte[16];
+            SecureRandom.getInstanceStrong().nextBytes(bytes);
+            String salt = Base64.getEncoder().encodeToString(bytes);
+
+            String saltedPassword = password + salt;
+            String hashedPassword = BCrypt.withDefaults().hashToString(12, saltedPassword.toCharArray());
+            return new HashResult(salt, hashedPassword);
         } catch (NoSuchAlgorithmException ex) {
+            LOG.error("Error occurred while generated salt and hashed passwords", ex);
             throw new RuntimeException(ex);
         }
     }
 
     public UserEntity insert(UserInst inst) throws TakenUsernameException {
-        String salt = generateSalt();
-        String saltedPassword = inst.password() + salt;
-        String hashedPassword = BCrypt.withDefaults().hashToString(12, saltedPassword.toCharArray());
+        HashResult hash = generateHash(inst.password());
 
         String sql = """
             INSERT INTO users (username, country, elo, highestElo, wins, losses, password, salt)
@@ -71,8 +80,8 @@ public class UserDao {
                 inst.elo(),
                 inst.wins(),
                 inst.losses(),
-                hashedPassword,
-                salt);
+                hash.hashedPassword(),
+                hash.salt());
             LOG.info("Created new user={}", user);
             return user;
         } catch (SQLException ex) {
@@ -83,6 +92,49 @@ public class UserDao {
             }
 
             LOG.error("Failed to insert user={}", inst, ex);
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public void batchInsert(List<UserInst> insts) throws TakenUsernameException {
+        LOG.info("Starting batch insert for user insts={}", insts);
+
+        if (insts.isEmpty()) {
+            LOG.info("Finished batch insert, no insts were provided, this is a no-op");
+            return;
+        }
+
+        List<CompletableFuture<HashResult>> hashFuts = insts.stream()
+            .map((inst) -> CompletableFuture.supplyAsync(() -> generateHash(inst.password()), CPU_EXECUTOR))
+            .toList();
+
+        String sql = """
+            INSERT INTO users (username, country, elo, highestElo, wins, losses, password, salt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, username, country, elo, highestElo, wins, losses, bio;
+            """;
+        try {
+            Object[][] params = new Object[insts.size()][];
+            for (int i = 0; i < insts.size(); i++) {
+                UserInst inst = insts.get(i);
+                HashResult hash = hashFuts.get(i).get();
+
+                Object[] row = new Object[8];
+                row[0] = inst.username();
+                row[1] = inst.country();
+                row[2] = inst.elo();
+                row[3] = inst.elo();
+                row[4] = inst.wins();
+                row[5] = inst.losses();
+                row[6] = hash.hashedPassword();
+                row[7] = hash.salt();
+
+                params[i] = row;
+            }
+
+            int[] userIds = runner.batch(sql, params);
+            LOG.info("Finished batch insert for new users with ids={}", userIds);
+        } catch (SQLException | InterruptedException | ExecutionException ex) {
+            LOG.error("Failed to perform batch insert on users={}", insts, ex);
             throw new RuntimeException(ex);
         }
     }
@@ -161,13 +213,11 @@ public class UserDao {
     }
 
     public void updatePassword(long id, String newPassword) {
-        String salt = generateSalt();
-        String saltedPassword = newPassword + salt;
-        String hashedPassword = BCrypt.withDefaults().hashToString(12, saltedPassword.toCharArray());
+        HashResult hash = generateHash(newPassword);
 
         String sql = "UPDATE users SET password = ?, salt = ? WHERE id = ?";
         try {
-            runner.execute(sql, hashedPassword, salt, id);
+            runner.execute(sql, hash.hashedPassword(), hash.salt(), id);
             LOG.info("Updated user password with id={}", id);
         } catch (SQLException ex) {
             LOG.error("Failed to update user with id={}", id, ex);

@@ -18,6 +18,7 @@ public class Globals {
     public static Safelist HTML_SAFELIST = Safelist.basic();
 
     public static final ExecutorService EXECUTOR = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("thread-", 0L).factory());
+    public static final ExecutorService CPU_EXECUTOR = Executors.newCachedThreadPool(Thread.ofPlatform().name("thread-", 0L).factory());
 
     public static final ObjectMapper JSON = new ObjectMapper();
 

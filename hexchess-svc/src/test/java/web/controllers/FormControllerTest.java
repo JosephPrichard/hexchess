@@ -1,4 +1,4 @@
-package web.routers;
+package web.controllers;
 
 import io.jooby.Context;
 import models.entities.ChallengeEntity;
@@ -20,7 +20,6 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import services.game.GameService;
 import services.daos.UserDao;
-import web.controllers.FormController;
 import web.reusable.AuthService;
 import web.State;
 

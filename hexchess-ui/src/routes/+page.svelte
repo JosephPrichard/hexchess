@@ -18,11 +18,18 @@
 
 	let showSelf = $state(false);
 	let showCreateModal = $state(false);
+	let userCounts = $state(0);
+	let gameCounts = $state(0);
 
 	const chessList = $derived(showSelf ? props.selfChessList : props.chessList);
 	const bottomPadding = $derived((chessRowHeight * maxChessRows) - (chessRowHeight * chessList.length));
 
-	const { addNotification } = getNotificationsContext();
+	const { addNotification, counts } = getNotificationsContext();
+
+	counts.subscribe((value) => {
+		userCounts = value.usersCount;
+		gameCounts = value.gameCounts;
+	});
 
 	async function onSubmitCreateGame(timeControl: TimeControl, color: ColorSelect) {
 		showCreateModal = false;
@@ -106,6 +113,12 @@
 			<button class="button button-grey" id="challenge-button">
 				Find a Match
 			</button>
+			<div>
+				<b> {userCounts} </b> players
+			</div>
+			<div>
+				<b> {gameCounts} </b> games in play
+			</div>
 		</div>
 	</div>
 </div>

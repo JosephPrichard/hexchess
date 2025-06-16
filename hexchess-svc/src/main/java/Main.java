@@ -56,6 +56,7 @@ public class Main {
         LocalBroadcaster gameBroadcaster = new LocalBroadcaster(Broadcaster.GAMES_TOPIC);
         LocalBroadcaster userBroadcaster = new LocalBroadcaster(Broadcaster.USERS_TOPIC);
         SingleLocalBroadcaster userCountBroadcaster = new SingleLocalBroadcaster(SingleLocalBroadcaster.USERS_COUNT_TOPIC);
+        SingleLocalBroadcaster gameCountBroadcaster = new SingleLocalBroadcaster(SingleLocalBroadcaster.GAME_COUNT_TOPIC);
 
         state.setUserDao(userDao);
         state.setReplayDao(replayDao);
@@ -66,6 +67,7 @@ public class Main {
         state.setGameBroadcaster(gameBroadcaster);
         state.setUserBroadcaster(userBroadcaster);
         state.setUserCountBroadcaster(userCountBroadcaster);
+        state.setGameCountBroadcaster(gameCountBroadcaster);
         state.setCountryList(countryList);
         state.setInitialBoard(ChessBoard.initial());
 
