@@ -1,6 +1,6 @@
 package services.broadcast;
 
-public interface Broadcaster {
+public interface GroupBroadcaster {
     String GAMES_TOPIC = "GAMES";
     String USERS_TOPIC = "NOTIFICATIONS";
 

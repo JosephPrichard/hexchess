@@ -7,30 +7,36 @@ import models.state.Player;
 import models.entities.RankedEntity;
 import models.common.TimeControl;
 import models.views.ChessView;
+import org.junit.ClassRule;
 import org.junit.jupiter.api.*;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 import redis.clients.jedis.JedisPooled;
-import redis.embedded.RedisServer;
 
 import java.util.List;
 
-import static utils.Globals.LOG;
-
+@Testcontainers
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DictionaryDaoTest {
 
-    private RedisServer redisServer;
+    public static final DockerImageName REDIS_IMAGE = DockerImageName.parse("redis:6-alpine");
+
+    @ClassRule
+    public static GenericContainer<?> redis = new GenericContainer<>(REDIS_IMAGE)
+            .withExposedPorts(6379);
+
     private JedisPooled jedis;
     private DictionaryDao dictionaryDao;
 
     @BeforeAll
     public void beforeAll() {
-        redisServer = new RedisServer(7777);
-        try {
-            redisServer.start();
-        } catch (RuntimeException ex) {
-            LOG.info("Redis instance is already started");
-        }
-        jedis = new JedisPooled("localhost", 7777);
+        redis.start();
+
+        String host = redis.getHost();
+        int port = redis.getFirstMappedPort();
+
+        jedis = new JedisPooled(host, port);
         dictionaryDao = new DictionaryDao(jedis);
     }
 
@@ -41,7 +47,7 @@ public class DictionaryDaoTest {
 
     @AfterAll
     public void afterAll() {
-        redisServer.stop();
+        redis.stop();
     }
 
     @Test
@@ -95,6 +101,42 @@ public class DictionaryDaoTest {
         Assertions.assertEquals(expectedViewList1, viewsList1);
         Assertions.assertEquals(expectedViewList2, viewsList2);
     }
+    @Test
+    public void testSetThenGetUserViews() {
+        // given
+        String id1 = "test-id1";
+        String id2 = "test-id2";
+        String id3 = "test-id3";
+
+        ChessRoom room1 = ChessRoom.startWithGame(id1, TimeControl.REAL_TIME);
+        ChessRoom room2 = ChessRoom.startWithGame(id2, TimeControl.REAL_TIME);
+        ChessRoom room3 = ChessRoom.startWithGame(id2, TimeControl.REAL_TIME);
+
+        room1.setWhitePlayer(new Player(1L));
+        room1.setBlackPlayer(new Player(2L));
+
+        room2.setBlackPlayer(new Player(1L));
+
+        // when
+        dictionaryDao.setRoom(id1, room1);
+        dictionaryDao.setRoom(id2, room2);
+        dictionaryDao.setRoom(id3, room3);
+
+        List<ChessView> viewsList1 = dictionaryDao.getUserChessViews(1L);
+        List<ChessView> viewsList2 = dictionaryDao.getUserChessViews(2L);
+        List<ChessView> viewsList3 = dictionaryDao.getUserChessViews(3L);
+
+        // then
+        List<ChessView> expectedViewList1 = List.of(
+            new ChessView("test-id2", null, new Player(1L), false, ColorSelect.RANDOM, TimeControl.REAL_TIME),
+            new ChessView("test-id1", new Player(1L), new Player(2L), false, ColorSelect.RANDOM, TimeControl.REAL_TIME));
+        List<ChessView> expectedViewList2 = List.of(
+            new ChessView("test-id1", new Player(1L), new Player(2L), false, ColorSelect.RANDOM, TimeControl.REAL_TIME));
+
+        Assertions.assertEquals(expectedViewList1, viewsList1);
+        Assertions.assertEquals(expectedViewList2, viewsList2);
+        Assertions.assertEquals(List.of(), viewsList3);
+    }
 
     @Test
     public void testSessions() throws InterruptedException {
@@ -106,14 +148,14 @@ public class DictionaryDaoTest {
         dictionaryDao.setSession("session1", player1, 100);
         dictionaryDao.setSession("session2", player2, 1);
 
-        Player actualPlayer1 = dictionaryDao.getSession("session1");
+        Player player3 = dictionaryDao.getSession("session1");
 
         Thread.sleep(1000); // wait for key to expire
-        Player actualPlayer2 = dictionaryDao.getSession("session2");
+        Player player4 = dictionaryDao.getSession("session2");
 
         // then
-        Assertions.assertEquals(player1, actualPlayer1);
-        Assertions.assertNull(actualPlayer2);
+        Assertions.assertEquals(player1, player3);
+        Assertions.assertNull(player4);
     }
 
     @Test

@@ -4,13 +4,13 @@ import org.junit.jupiter.api.Test;
 
 import static org.mockito.Mockito.*;
 
-public class LocalBroadcasterTest {
+public class LocalGroupBroadcasterTest {
 
     @Test
     @SuppressWarnings("unchecked")
     public void testLocalBroadcaster() {
         // given
-        LocalBroadcaster broadcaster = new LocalBroadcaster("test-broadcaster");
+        LocalGroupBroadcaster broadcaster = new LocalGroupBroadcaster("test-broadcaster");
 
         Receiver<byte[]> receiver1 = mock(Receiver.class);
         Receiver<byte[]> receiver2 = mock(Receiver.class);

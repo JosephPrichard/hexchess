@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit;
 
 import static utils.Globals.LOG;
 
-public class LocalBroadcaster implements Broadcaster {
+public class LocalGroupBroadcaster implements GroupBroadcaster {
     private final String name;
     private final LoadingCache<String, List<Receiver<byte[]>>> handlerMap = Caffeine.newBuilder()
         .scheduler(Scheduler.systemScheduler())
@@ -20,7 +20,7 @@ public class LocalBroadcaster implements Broadcaster {
         .expireAfterAccess(1, TimeUnit.HOURS)
         .build(key -> new CopyOnWriteArrayList<>());
 
-    public LocalBroadcaster(String name) {
+    public LocalGroupBroadcaster(String name) {
         this.name = name;
     }
 

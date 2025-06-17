@@ -7,7 +7,7 @@ import io.jooby.WebSocketMessage;
 import lombok.AllArgsConstructor;
 import models.state.Player;
 import models.state.ChessRoom;
-import services.broadcast.Broadcaster;
+import services.broadcast.GroupBroadcaster;
 import services.broadcast.Receiver;
 import services.daos.DictionaryDao;
 import services.game.GameService;
@@ -40,7 +40,7 @@ public class GameWebsocket {
     public void onConnect(WebSocket ws) {
         DictionaryDao dictionaryDao = state.getDictionaryDao();
         GameService gameService = state.getGameService();
-        Broadcaster gameBroadcaster = state.getGameBroadcaster();
+        GroupBroadcaster gameBroadcaster = state.getGameBroadcaster();
 
         try {
             Player player = dictionaryDao.getSessionOrDefault(sessionId);
@@ -97,7 +97,7 @@ public class GameWebsocket {
 
     public void onMessage(WebSocket ws, WebSocketMessage message) {
         GameService gameService = state.getGameService();
-        Broadcaster gameBroadcaster = state.getGameBroadcaster();
+        GroupBroadcaster gameBroadcaster = state.getGameBroadcaster();
 
         Player player = self.get();
         LOG.info("Received message from player {}, {} on game {}", player.getId(), message.value(), gameId);
@@ -147,7 +147,7 @@ public class GameWebsocket {
     }
 
     public void onClose(WebSocket ws, WebSocketCloseStatus statusCode) {
-        Broadcaster gameBroadcaster = state.getGameBroadcaster();
+        GroupBroadcaster gameBroadcaster = state.getGameBroadcaster();
 
         LOG.info("Closed websocket with id={} with closeStatus={}", wsId, statusCode);
         gameBroadcaster.unsubscribe(gameId, wsId);

@@ -300,7 +300,7 @@ public class FormControllerTest {
         // when
         when(mockContext.body(any())).thenReturn(new FormController.CreateChallengeBody(challengeeId, TimeControl.REAL_TIME, ColorSelect.RANDOM));
 
-        doNothing().when(sut).broadcastChallenge(any());
+        doNothing().when(sut).dispatchBroadcastChallenge(any());
         doNothing().when(sut).dispatchDeleteExpired(anyLong());
 
         when(mockAuthService.getSessionPlayer(any())).thenReturn(new Player(challengerId, "playerName", "us", 0f));
@@ -310,7 +310,7 @@ public class FormControllerTest {
 
         // then
         verify(mockChallengeDao, times(1)).insert(challengerId, challengeeId, "REAL_TIME", "RANDOM");
-        verify(sut, times(1)).broadcastChallenge(challengeFromIds(challengeeId, challengerId));
+        verify(sut, times(1)).dispatchBroadcastChallenge(challengeFromIds(challengeeId, challengerId));
         verify(sut, times(1)).dispatchDeleteExpired(challengerId);
 
         Assertions.assertEquals(ServiceView.SUCCESS, response);

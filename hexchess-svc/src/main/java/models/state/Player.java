@@ -25,6 +25,10 @@ public class Player {
     @EqualsAndHashCode.Exclude
     private boolean isGuest = false;
 
+    public Player(long id) {
+        this.id = id;
+    }
+
     public Player(long id, @NonNull String name, @NonNull String country, float elo) {
         this.id = id;
         this.name = name;

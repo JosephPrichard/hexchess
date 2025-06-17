@@ -21,10 +21,9 @@ public class DictionaryDao {
     private static final Random RANDOM = new Random();
     private final JedisPooled jedis;
 
-    private static final String GAMES_ZSET = "games";
-    private static final byte[] GAMES_ZSET_BYTES = GAMES_ZSET.getBytes();
-    private static final String LEADERBOARD_ZSET = "leaderboard";
-    private static final String USERS_ZSET = "users";
+    public static final String GAMES_ZSET = "games";
+    public static final String LEADERBOARD_ZSET = "leaderboard";
+    public static final String USERS_ZSET = "users";
 
     private static final Duration USER_EXPIRE_FINISHED = Duration.ofMinutes(1);
     private static final Duration GAME_EXPIRE_FINISHED = Duration.ofHours(1);
@@ -35,7 +34,7 @@ public class DictionaryDao {
     }
 
     public ChessRoom getRoom(String id) {
-        expireRooms();
+        expireRooms(GAMES_ZSET);
 
         String fullId = "game:" + id;
         byte[] bytes = jedis.get(fullId.getBytes());
@@ -47,26 +46,33 @@ public class DictionaryDao {
     }
 
     public ChessRoom setRoom(String id, ChessRoom room) {
+        Player whitePlayer = room.getWhitePlayer();
+        Player blackPlayer = room.getBlackPlayer();
         room.setTouch(System.currentTimeMillis());
 
         byte[] bytes = room.serializeAsBytes();
-
         id = "game:" + id;
 
         try (AbstractTransaction t = jedis.multi()) {
             t.set(id.getBytes(), bytes);
             t.zadd(GAMES_ZSET, room.getTouch(), id);
+            if (whitePlayer != null) {
+                t.zadd(GAMES_ZSET + "_" + whitePlayer.getId(), room.getTouch(), id);
+            }
+            if (blackPlayer != null) {
+                t.zadd(GAMES_ZSET + "_" + blackPlayer.getId(), room.getTouch(), id);
+            }
             t.exec();
         }
         return room;
     }
 
-    public void expireRooms() {
-        expireRooms(System.currentTimeMillis() - GAME_EXPIRE_FINISHED.toMillis());
+    public void expireRooms(String zSetName) {
+        expireRooms(zSetName, System.currentTimeMillis() - GAME_EXPIRE_FINISHED.toMillis());
     }
 
-    public void expireRooms(long unixTimeExpireMs) {
-        List<String> results = jedis.zrangeByScore(GAMES_ZSET, Double.NEGATIVE_INFINITY, unixTimeExpireMs);
+    public void expireRooms(String zSetName, long unixTimeExpireMs) {
+        List<String> results = jedis.zrangeByScore(zSetName, Double.NEGATIVE_INFINITY, unixTimeExpireMs);
         String[] gameKeys = results.toArray(String[]::new);
 
         if (gameKeys.length > 0) {
@@ -81,19 +87,31 @@ public class DictionaryDao {
     }
 
     public List<ChessView> getUserChessViews(long userId) {
-       return List.of();
+       return  getChessViews(GAMES_ZSET + "_" + userId, 1, -1);
     }
 
     public List<ChessView> getChessViews(int page, int count) {
-        expireRooms();
+        return getChessViews(GAMES_ZSET, page, count);
+    }
+
+    public List<ChessView> getChessViews(String zSetName, int page, int count) {
+        expireRooms(zSetName);
 
         if (page < 1) {
             page = 1;
         }
-        int min = (page - 1) * count;
-        int max = min + count - 1;
 
-        List<byte[]> elements = jedis.zrevrange(GAMES_ZSET_BYTES, min, max);
+        int min;
+        int max;
+        if (count >= 0) {
+            min = (page - 1) * count;
+            max = min + count - 1;
+        } else {
+            min = 0;
+            max = -1;
+        }
+
+        List<byte[]> elements = jedis.zrevrange(zSetName.getBytes(), min, max);
 
         byte[][] fullIds = new byte[elements.size()][];
         for (int i = 0; i < elements.size(); i++) {
@@ -253,7 +271,7 @@ public class DictionaryDao {
     }
 
     public long getRoomsCount() {
-        expireRooms();
+        expireRooms(GAMES_ZSET);
         long count = jedis.zcard(GAMES_ZSET);
 
         LOG.info("Counted games with result={}", count);

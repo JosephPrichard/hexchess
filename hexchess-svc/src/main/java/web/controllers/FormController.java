@@ -1,9 +1,8 @@
 package web.controllers;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import models.views.ServiceView;
 import models.views.SessionView;
-import services.broadcast.Broadcaster;
+import services.broadcast.GroupBroadcaster;
 import services.daos.ChallengeDao;
 import services.daos.UserDao;
 import models.common.ColorSelect;
@@ -32,7 +31,7 @@ public class FormController extends Jooby {
     private final DictionaryDao dictionaryDao;
     private final GameService gameService;
     private final AuthService authService;
-    private final Broadcaster userBroadcaster;
+    private final GroupBroadcaster userBroadcaster;
 
     public FormController(State state) {
         userDao = state.getUserDao();
@@ -180,11 +179,11 @@ public class FormController extends Jooby {
     }
 
     public RefreshResp refreshSession(Context ctx) {
-        String sessionId = authService.parseSession(ctx);
+        String sessionId = AuthService.parseSession(ctx);
         if (sessionId == null) {
             return RefreshResp.EMPTY;
         }
-        Player player = authService.getSessionPlayer(ctx);
+        Player player = dictionaryDao.getSession(sessionId);
         if (player == null) {
             return RefreshResp.EMPTY;
         }
@@ -282,6 +281,10 @@ public class FormController extends Jooby {
         }
     }
 
+    public void dispatchBroadcastChallenge(ChallengeEntity entity) {
+        CompletableFuture.runAsync(() -> broadcastChallenge(entity), EXECUTOR);
+    }
+
     public void dispatchDeleteExpired(long challengeeId) {
         CompletableFuture.runAsync(() -> challengeDao.deleteExpired(challengeeId), EXECUTOR);
     }
@@ -309,9 +312,8 @@ public class FormController extends Jooby {
 
         try {
             ChallengeEntity entity = challengeDao.insert(player.getId(), challengeeId, timeControl.toString(), startColor.toString());
-            broadcastChallenge(entity);
+            dispatchBroadcastChallenge(entity);
             dispatchDeleteExpired(player.getId());
-
             return ServiceView.SUCCESS;
         } catch (ChallengeDao.ParticipantException ex) {
             throw new StatusCodeException(StatusCode.NOT_FOUND, ERROR_NOT_FOUND_USER);

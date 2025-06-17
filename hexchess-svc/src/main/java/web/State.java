@@ -1,7 +1,7 @@
 package web;
 
 import chess.ChessBoard;
-import services.broadcast.Broadcaster;
+import services.broadcast.GroupBroadcaster;
 import services.broadcast.SingleBroadcaster;
 import services.daos.DictionaryDao;
 import services.daos.ChallengeDao;
@@ -25,8 +25,8 @@ public class State {
     private DictionaryDao dictionaryDao;
     private GameService gameService;
     private AuthService authService;
-    private Broadcaster gameBroadcaster;
-    private Broadcaster userBroadcaster;
+    private GroupBroadcaster gameBroadcaster;
+    private GroupBroadcaster userBroadcaster;
     private SingleBroadcaster userCountBroadcaster;
     private SingleBroadcaster gameCountBroadcaster;
 

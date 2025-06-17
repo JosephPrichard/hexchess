@@ -6,7 +6,7 @@ import io.jooby.ServerSentEmitter;
 import io.jooby.exception.StatusCodeException;
 import io.jooby.jackson.JacksonModule;
 import models.state.Player;
-import services.broadcast.Broadcaster;
+import services.broadcast.GroupBroadcaster;
 import services.broadcast.SingleBroadcaster;
 import web.reusable.SseReceiver;
 import services.daos.DictionaryDao;
@@ -26,7 +26,7 @@ public class EventController extends Jooby {
 
     private final DictionaryDao dictionaryDao;
     private final AuthService authService;
-    private final Broadcaster userBroadcaster;
+    private final GroupBroadcaster userBroadcaster;
     private final SingleBroadcaster userCountBroadcaster;
     private final SingleBroadcaster gameCountBroadcaster;
 

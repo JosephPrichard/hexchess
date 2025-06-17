@@ -5,12 +5,12 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static utils.Globals.LOG;
 
-public class SingleLocalBroadcaster implements SingleBroadcaster {
+public class LocalSingleBroadcaster implements SingleBroadcaster {
 
     private final String name;
     private final Map<String, Receiver<String>> receiverMap = new ConcurrentHashMap<>();
 
-    public SingleLocalBroadcaster(String name) {
+    public LocalSingleBroadcaster(String name) {
         this.name = name;
     }
 
