@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 import models.state.Player;
 import models.state.ChessRoom;
 import services.broadcast.Broadcaster;
+import services.broadcast.Receiver;
 import services.daos.DictionaryDao;
 import services.game.GameService;
 import web.State;
@@ -66,7 +67,24 @@ public class GameWebsocket {
 
             ws.sendBinary(initOutput);
 
-            gameBroadcaster.subscribe(room.getId(), wsId, ws::sendBinary);
+            gameBroadcaster.subscribe(room.getId(), new Receiver<>(wsId) {
+                @Override
+                public void onMessage(byte[] content) {
+                    ws.sendBinary(content);
+                }
+
+                @Override
+                public void onEviction() {
+                    if (ws.isOpen()) {
+                        ws.close();
+                    }
+                }
+
+                @Override
+                public boolean isClosed() {
+                    return !ws.isOpen();
+                }
+            });
             gameBroadcaster.broadcast(room.getId(), playersOutput);
 
             LOG.info("Player {} successfully connected to game {}", player.getId(), gameId);

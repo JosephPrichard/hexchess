@@ -113,7 +113,7 @@
 			<button class="button button-grey" id="challenge-button">
 				Find a Match
 			</button>
-			<div>
+			<div class="counts-wrapper">
 				<b> {userCounts} </b> players
 			</div>
 			<div>
@@ -124,6 +124,10 @@
 </div>
 
 <style>
+	.counts-wrapper {
+		margin-top: 30px;
+	}
+
 	.buttons-wrapper {
 		display: flex;
 		flex-direction: column;

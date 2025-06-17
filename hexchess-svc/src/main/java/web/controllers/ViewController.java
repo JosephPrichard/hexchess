@@ -166,7 +166,7 @@ public class ViewController extends Jooby {
         try {
             replayId = Long.parseUnsignedLong(id);
         } catch (NumberFormatException ex) {
-            LOG.warn("Id={} is not a valid long", id);
+            LOG.warn("Replay id={} is not a valid long", id);
             throw new BadRequestException(ERROR_INVALID_REQUEST);
         }
 
@@ -181,7 +181,7 @@ public class ViewController extends Jooby {
         try {
             replayId = Long.parseUnsignedLong(id);
         } catch (NumberFormatException ex) {
-            LOG.warn("Id={} is not a valid long", id);
+            LOG.warn("Replay id={} is not a valid long", id);
             throw new BadRequestException(ERROR_INVALID_REQUEST);
         }
 

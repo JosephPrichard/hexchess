@@ -49,14 +49,14 @@ public class Main {
         ReplayDao replayDao = new ReplayDao(ds);
         ChallengeDao challengeDao = new ChallengeDao(ds);
         DictionaryDao dictionaryDao = new DictionaryDao(new JedisPooled(poolConfig, redisHost, redisPort));
-        GameService gameService = new GameService(dictionaryDao, userDao, replayDao);
-        AuthService authService = new AuthService(dictionaryDao, cookieDomain);
 //        GlobalBroadcaster gameBroadcaster = new GlobalBroadcaster(poolConfig, redisPubsubHost, redisPubsubPort, Broadcaster.GAMES_TOPIC);
 //        GlobalBroadcaster userBroadcaster = new GlobalBroadcaster(poolConfig, redisPubsubHost, redisPubsubPort, Broadcaster.USERS_TOPIC);
         LocalBroadcaster gameBroadcaster = new LocalBroadcaster(Broadcaster.GAMES_TOPIC);
         LocalBroadcaster userBroadcaster = new LocalBroadcaster(Broadcaster.USERS_TOPIC);
         SingleLocalBroadcaster userCountBroadcaster = new SingleLocalBroadcaster(SingleLocalBroadcaster.USERS_COUNT_TOPIC);
         SingleLocalBroadcaster gameCountBroadcaster = new SingleLocalBroadcaster(SingleLocalBroadcaster.GAME_COUNT_TOPIC);
+        GameService gameService = new GameService(dictionaryDao, userDao, replayDao, gameCountBroadcaster);
+        AuthService authService = new AuthService(dictionaryDao, cookieDomain);
 
         state.setUserDao(userDao);
         state.setReplayDao(replayDao);

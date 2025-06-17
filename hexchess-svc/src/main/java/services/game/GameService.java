@@ -28,9 +28,9 @@ public class GameService {
     public static class InvalidMoveException extends RuntimeException {}
 
     private final DictionaryDao dictionaryDao;
-    private final SingleBroadcaster gameCountBroadcaster;
     private final UserDao userDao;
     private final ReplayDao replayDao;
+    private final SingleBroadcaster gameCountBroadcaster;
 
     public static String generateGameId() {
         int length = 8;
@@ -44,14 +44,13 @@ public class GameService {
 
     public String create(ColorSelect color, TimeControl timeControl) {
         String id = generateGameId();
-        ChessRoom chessRoom = ChessRoom.startWithGame(id, timeControl);
+        ChessRoom room = ChessRoom.startWithGame(id, timeControl);
 
-        chessRoom.setFirstColor(color);
-        chessRoom.getGame().initPieceMoves();
+        room.setFirstColor(color);
+        room.getGame().initPieceMoves();
 
-        LOG.info("Created chess game with room={}", chessRoom);
-
-        dictionaryDao.setRoom(id, chessRoom);
+        LOG.info("Created chess game with room={}", room);
+        dictionaryDao.setRoom(id, room);
 
         CompletableFuture.runAsync(() -> gameCountBroadcaster.broadcast(Long.toString(dictionaryDao.getRoomsCount())), EXECUTOR);
 

@@ -24,7 +24,7 @@ public class GameServiceTest {
     void testJoinGame_JoinWhite() {
         // given
         DictionaryDao dictionaryDao = mock(DictionaryDao.class);
-        GameService gameService = new GameService(dictionaryDao, null, null);
+        GameService gameService = new GameService(dictionaryDao, null, null, null);
 
         String gameId = "abc123";
         ChessRoom room = ChessRoom.startWithGame(gameId, TimeControl.REAL_TIME);
@@ -47,7 +47,7 @@ public class GameServiceTest {
     void testJoinGame_BothPlayersAlreadyExist() {
         // given
         DictionaryDao dictionaryDao = mock(DictionaryDao.class);
-        GameService gameService = new GameService(dictionaryDao, null, null);
+        GameService gameService = new GameService(dictionaryDao, null, null, null);
 
         String gameId = "abc123";
         Player white = new Player(1L, "name1", "us", 0f);
@@ -72,7 +72,7 @@ public class GameServiceTest {
         DictionaryDao dictionaryDao = mock(DictionaryDao.class);
         UserDao userDao = mock(UserDao.class);
         ReplayDao replayDao = mock(ReplayDao.class);
-        GameService gameService = new GameService(dictionaryDao, userDao, replayDao);
+        GameService gameService = new GameService(dictionaryDao, userDao, replayDao, null);
 
         String gameId = "game123";
         Player white = new Player(1L, "name1", "us", 0f);
@@ -121,7 +121,7 @@ public class GameServiceTest {
         DictionaryDao dictionaryDao = mock(DictionaryDao.class);
         UserDao userDao = mock(UserDao.class);
         ReplayDao replayDao = mock(ReplayDao.class);
-        GameService gameService = new GameService(dictionaryDao, userDao, replayDao);
+        GameService gameService = new GameService(dictionaryDao, userDao, replayDao, null);
 
         ChessRoom room = ChessRoom.startWithGame("gameId", TimeControl.REAL_TIME);
         Player white = new Player(1L, "name1", "us", 0f);
@@ -149,7 +149,7 @@ public class GameServiceTest {
         DictionaryDao dictionaryDao = mock(DictionaryDao.class);
         UserDao userDao = mock(UserDao.class);
         ReplayDao replayDao = mock(ReplayDao.class);
-        GameService gameService = new GameService(dictionaryDao, userDao, replayDao);
+        GameService gameService = new GameService(dictionaryDao, userDao, replayDao, null);
 
         Player white = new Player(1L, "name1", "us", 0f);
         Player black = new Player(2L, "name2", "us", 0f);

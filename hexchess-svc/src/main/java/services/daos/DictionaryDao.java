@@ -65,8 +65,8 @@ public class DictionaryDao {
         expireRooms(System.currentTimeMillis() - GAME_EXPIRE_FINISHED.toMillis());
     }
 
-    public void expireRooms(long unixTimeExpireMillis) {
-        List<String> results = jedis.zrangeByScore(GAMES_ZSET, Double.NEGATIVE_INFINITY, unixTimeExpireMillis);
+    public void expireRooms(long unixTimeExpireMs) {
+        List<String> results = jedis.zrangeByScore(GAMES_ZSET, Double.NEGATIVE_INFINITY, unixTimeExpireMs);
         String[] gameKeys = results.toArray(String[]::new);
 
         if (gameKeys.length > 0) {
@@ -222,8 +222,8 @@ public class DictionaryDao {
         expireUsers(System.currentTimeMillis() - USER_EXPIRE_FINISHED.toMillis());
     }
 
-    public void expireUsers(long unixTimeExpireMillis) {
-        List<String> results = jedis.zrangeByScore(USERS_ZSET, Double.NEGATIVE_INFINITY, unixTimeExpireMillis);
+    public void expireUsers(long unixTimeExpireMs) {
+        List<String> results = jedis.zrangeByScore(USERS_ZSET, Double.NEGATIVE_INFINITY, unixTimeExpireMs);
         String[] userKeys = results.toArray(String[]::new);
 
         if (userKeys.length > 0) {

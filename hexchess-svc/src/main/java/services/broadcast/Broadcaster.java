@@ -1,12 +1,10 @@
 package services.broadcast;
 
-import java.util.function.Consumer;
-
 public interface Broadcaster {
     String GAMES_TOPIC = "GAMES";
     String USERS_TOPIC = "NOTIFICATIONS";
 
-    void subscribe(String groupId, String handlerId, Consumer<byte[]> consumer);
+    void subscribe(String groupId, Receiver<byte[]> receiver);
 
     void unsubscribe(String groupId, String handlerId);
 

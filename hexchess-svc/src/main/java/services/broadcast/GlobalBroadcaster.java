@@ -1,6 +1,5 @@
 package services.broadcast;
 
-import it.unimi.dsi.fastutil.bytes.ByteArrayList;
 import redis.clients.jedis.ConnectionPoolConfig;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPooled;
@@ -9,7 +8,6 @@ import redis.clients.jedis.JedisPubSub;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
 
 import static utils.Globals.EXECUTOR;
 import static utils.Globals.LOG;
@@ -33,13 +31,13 @@ public class GlobalBroadcaster implements Broadcaster {
     }
 
     @Override
-    public void subscribe(String groupId, String handlerId, Consumer<byte[]> consumer) {
-        localBroadcaster.subscribe(groupId, handlerId, consumer);
+    public void subscribe(String groupId, Receiver<byte[]> receiver) {
+        localBroadcaster.subscribe(groupId, receiver);
     }
 
     @Override
-    public void unsubscribe(String groupId, String handlerId) {
-        localBroadcaster.unsubscribe(groupId, handlerId);
+    public void unsubscribe(String groupId, String receiverId) {
+        localBroadcaster.unsubscribe(groupId, receiverId);
     }
 
     @Override

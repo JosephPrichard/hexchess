@@ -8,6 +8,7 @@ import io.jooby.jackson.JacksonModule;
 import models.state.Player;
 import services.broadcast.Broadcaster;
 import services.broadcast.SingleBroadcaster;
+import web.reusable.SseReceiver;
 import services.daos.DictionaryDao;
 import web.State;
 import web.reusable.AuthService;
@@ -65,11 +66,11 @@ public class EventController extends Jooby {
         userCountBroadcaster.broadcast(Long.toString(userCount));
 
         // subscribe to all updates on counts
-        userCountBroadcaster.subscribe(sseId, (m) -> sse.send(USERS_COUNT_EVENT, m));
-        gameCountBroadcaster.subscribe(sseId, (m) -> sse.send(GAMES_COUNT_EVENT, m));
+        userCountBroadcaster.subscribe(new SseReceiver<>(sseId, sse, USERS_COUNT_EVENT));
+        gameCountBroadcaster.subscribe(new SseReceiver<>(sseId, sse, GAMES_COUNT_EVENT));
 
-        // periodically refresh user as long as this sse is open
         ScheduledFuture<?> fut = scheduler.scheduleAtFixedRate(
+            // keep user refreshed as long as this sse is open
             () -> CompletableFuture.runAsync(() -> dictionaryDao.addUser(sseId), EXECUTOR),
             30,
             30,
@@ -99,7 +100,7 @@ public class EventController extends Jooby {
         String sseId = UUID.randomUUID().toString();
         String userId = Long.toString(player.getId());
 
-        userBroadcaster.subscribe(userId, sseId, (m) -> sse.send(USER_EVENT, m));
+        userBroadcaster.subscribe(userId, new SseReceiver<>(sseId, sse, USER_EVENT));
 
         sse.send(META_EVENT, "Connected");
 

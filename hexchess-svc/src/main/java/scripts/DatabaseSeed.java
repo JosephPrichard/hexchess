@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.zaxxer.hikari.HikariDataSource;
 import chess.PieceMove;
+import lombok.SneakyThrows;
 import services.daos.DictionaryDao;
 import services.daos.ChallengeDao;
 import services.daos.ReplayDao;
@@ -16,9 +17,13 @@ import utils.Globals;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Scanner;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -33,24 +38,18 @@ import static services.daos.ChallengeDao.*;
 public class DatabaseSeed {
 
     private static final String USERS_JSON = readResourceAsString("/seed/users.json");
-    private static final String REPLAYS_JSON = readResourceAsString("/seed/relays.json");
+    private static final String REPLAYS_JSON = readResourceAsString("/seed/replays.json");
     private static final String CHALLENGES_JSON = readResourceAsString("/seed/challenges.json");
 
     private static final TypeReference<List<UserInst>> USER_LIST_TYPE = new TypeReference<>() {};
     private static final TypeReference<List<ReplayInst>> REPLAY_LIST_TYPE = new TypeReference<>() {};
     private static final TypeReference<List<ChallengeInst>> CHALLENGE_LIST_TYPE = new TypeReference<>() {};
 
+    @SneakyThrows
     public static String readResourceAsString(String resourcePath)  {
-        try (InputStream inputStream = DatabaseSeed.class.getResourceAsStream(resourcePath)) {
-            assert inputStream != null;
-            try (Scanner scanner = new Scanner(inputStream, StandardCharsets.UTF_8)) {
-                scanner.useDelimiter("\\A");
-                return scanner.hasNext() ? scanner.next() : "";
-            }
-        } catch (Exception ex) {
-            LOG.error("Failed to read resource at path {}", resourcePath, ex);
-            throw new RuntimeException(ex);
-        }
+        URI uri = Objects.requireNonNull(DatabaseSeed.class.getResource(resourcePath)).toURI();
+        Path filePath = Path.of(uri);
+        return Files.readString(filePath);
     }
 
     private static String randomGameStateAsJson() {
@@ -101,14 +100,15 @@ public class DatabaseSeed {
             .map(replay -> replay.withMoveListJson(randomGameStateAsJson()))
             .toList();
         List<ChallengeInst> challengeInsts = JSON.readValue(CHALLENGES_JSON, CHALLENGE_LIST_TYPE);
-        DictionaryDao.EloChangeSet[] changeSets = userDao.getAll()
-            .stream()
-            .map(user -> new DictionaryDao.EloChangeSet(user.getId(), user.getElo()))
-            .toArray(DictionaryDao.EloChangeSet[]::new);
 
         userDao.batchInsert(userInsts);
         seedTableInParallel(replayInsts, replayDao::insert);
         seedTableInParallel(challengeInsts, challengeDao::insert);
+
+        DictionaryDao.EloChangeSet[] changeSets = userDao.getAll()
+            .stream()
+            .map(user -> new DictionaryDao.EloChangeSet(user.getId(), user.getElo()))
+            .toArray(DictionaryDao.EloChangeSet[]::new);
         dictionaryDao.incrLeaderboardUser(changeSets);
 
         long endTime = System.currentTimeMillis() - startTime;
@@ -116,5 +116,7 @@ public class DatabaseSeed {
 
         jedis.close();
         ds.close();
+
+        System.exit(0); // force shutdown
     }
 }

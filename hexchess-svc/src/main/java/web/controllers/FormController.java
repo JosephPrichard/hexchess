@@ -19,6 +19,8 @@ import org.jsoup.Jsoup;
 import web.reusable.AuthService;
 import web.State;
 
+import java.util.concurrent.CompletableFuture;
+
 import static utils.Globals.*;
 import static web.WebConstants.*;
 import static services.daos.UserDao.*;
@@ -197,7 +199,7 @@ public class FormController extends Jooby {
     }
 
     public ServiceView logout(Context ctx) {
-        String sessionId = authService.parseSession(ctx);
+        String sessionId = AuthService.parseSession(ctx);
 
         dictionaryDao.deleteSession(sessionId);
         ctx.setResponseCookie(authService.createEmptyCookie());
@@ -269,21 +271,19 @@ public class FormController extends Jooby {
     }
 
     public void broadcastChallenge(ChallengeEntity entity) {
-        EXECUTOR.execute(() -> {
-            try {
-                String groupId = Long.toString(entity.getChallengeeId());
-                LOG.info("Broadcasting challenge={} with groupId={} to user broadcaster", entity, groupId);
+        try {
+            String groupId = Long.toString(entity.getChallengeeId());
+            LOG.info("Broadcasting challenge={} with groupId={} to user broadcaster", entity, groupId);
 
-                byte[] output = JSON.writeValueAsBytes(entity);
-                userBroadcaster.broadcast(groupId, output);
-            } catch (JsonProcessingException e) {
-                LOG.error("Error occurred while broadcasting challenge to user", e);
-            }
-        });
+            byte[] output = JSON.writeValueAsBytes(entity);
+            userBroadcaster.broadcast(groupId, output);
+        } catch (Exception ex) {
+            LOG.error("Error occurred while broadcasting challenge to user", ex);
+        }
     }
 
     public void dispatchDeleteExpired(long challengeeId) {
-        EXECUTOR.execute(() -> challengeDao.deleteExpired(challengeeId));
+        CompletableFuture.runAsync(() -> challengeDao.deleteExpired(challengeeId), EXECUTOR);
     }
 
     public record CreateChallengeBody(long challengeeId, TimeControl timeControl, ColorSelect startColor) {}
