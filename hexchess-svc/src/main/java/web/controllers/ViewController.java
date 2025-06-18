@@ -17,6 +17,7 @@ import web.State;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
@@ -34,7 +35,6 @@ public class ViewController extends Jooby {
     private final ReplayDao replayDao;
     private final ChallengeDao challengeDao;
     private final DictionaryDao dictionaryDao;
-    private final GameService gameService;
     private final AuthService authService;
     private final List<String> countryList;
     private final ChessBoard initialBoard;
@@ -44,7 +44,6 @@ public class ViewController extends Jooby {
         replayDao = state.getReplayDao();
         challengeDao = state.getChallengeDao();
         dictionaryDao = state.getDictionaryDao();
-        gameService = state.getGameService();
         authService = state.getAuthService();
         countryList = state.getCountryList();
         initialBoard = state.getInitialBoard();
@@ -142,9 +141,11 @@ public class ViewController extends Jooby {
     }
 
     public List<UserView> searchPlayers(Context ctx) {
+        Optional<String> pageQuery = ctx.query("page").toOptional();
+
         int page;
         try {
-            page = ctx.query("page").toOptional().map(Integer::parseUnsignedInt).orElse(1);
+            page = pageQuery.map(Integer::parseUnsignedInt).orElse(1);
         } catch (NumberFormatException ex) {
             LOG.warn("Page value is not valid integer");
             throw new BadRequestException(ERROR_INVALID_REQUEST);
@@ -161,12 +162,13 @@ public class ViewController extends Jooby {
     }
 
     public ReplayView getReplay(Context ctx) {
-        String id = ctx.path("id").value();
+        String pathId = ctx.path("id").value();
+
         long replayId;
         try {
-            replayId = Long.parseUnsignedLong(id);
+            replayId = Long.parseUnsignedLong(pathId);
         } catch (NumberFormatException ex) {
-            LOG.warn("Replay id={} is not a valid long", id);
+            LOG.warn("Replay id={} is not a valid long", pathId);
             throw new BadRequestException(ERROR_INVALID_REQUEST);
         }
 
@@ -176,12 +178,13 @@ public class ViewController extends Jooby {
     }
 
     public String getReplayMoveList(Context ctx) {
-        String id = ctx.path("id").value();
+        String pathId = ctx.path("id").value();
+
         long replayId;
         try {
-            replayId = Long.parseUnsignedLong(id);
+            replayId = Long.parseUnsignedLong(pathId);
         } catch (NumberFormatException ex) {
-            LOG.warn("Replay id={} is not a valid long", id);
+            LOG.warn("Replay id={} is not a valid long", pathId);
             throw new BadRequestException(ERROR_INVALID_REQUEST);
         }
 
@@ -223,18 +226,24 @@ public class ViewController extends Jooby {
 
     public record ChessRoomResp(List<ChessView> chessList, List<ChessView> selfChessList) {}
 
-    public ChessRoomResp getRoomLists(Context ctx) {
+    public ChessRoomResp getRoomLists(Context ctx) throws Exception {
+        Optional<String> pageQuery = ctx.query("page").toOptional();
+        Optional<String> countQuery = ctx.query("count").toOptional();
+
         int page;
         int count;
         try {
-            page = ctx.query("page").toOptional().map(Integer::parseUnsignedInt).orElse(1);
-            count = ctx.query("count").toOptional().map(Integer::parseUnsignedInt).orElse(PER_PAGE);
+            page = pageQuery.map(Integer::parseUnsignedInt).orElse(1);
+            count = countQuery.map(Integer::parseUnsignedInt).orElse(PER_PAGE);
         } catch (NumberFormatException ex) {
             LOG.warn("Query params must be a valid integer");
             throw new BadRequestException(ERROR_INVALID_REQUEST);
         }
 
         Player player = authService.getOptionalSessionPlayer(ctx);
+        if (player == null) {
+            LOG.info("Player is not provided when requesting rooms list, defaulting to empty list");
+        }
 
         List<ChessView> viewList = dictionaryDao.getChessViews(page, count);
         List<ChessView> selfViewList = player != null ? dictionaryDao.getUserChessViews(player.getId()) : List.of();

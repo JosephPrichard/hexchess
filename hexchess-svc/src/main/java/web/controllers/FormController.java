@@ -219,8 +219,6 @@ public class FormController extends Jooby {
         TimeControl timeControl = body.timeControl() != null ? body.timeControl() : TimeControl.UNLIMITED;
 
         String gameId = gameService.create(firstColor, timeControl);
-
-        ctx.setResponseType(MediaType.TEXT);
         return new CreateGameResp(gameId);
     }
 
@@ -312,8 +310,10 @@ public class FormController extends Jooby {
 
         try {
             ChallengeEntity entity = challengeDao.insert(player.getId(), challengeeId, timeControl.toString(), startColor.toString());
+
             dispatchBroadcastChallenge(entity);
             dispatchDeleteExpired(player.getId());
+
             return ServiceView.SUCCESS;
         } catch (ChallengeDao.ParticipantException ex) {
             throw new StatusCodeException(StatusCode.NOT_FOUND, ERROR_NOT_FOUND_USER);

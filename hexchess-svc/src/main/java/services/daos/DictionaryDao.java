@@ -33,6 +33,10 @@ public class DictionaryDao {
         this.jedis = jedis;
     }
 
+    public static String getUserGameZSet(long id) {
+        return GAMES_ZSET + "_USER_" + id;
+    }
+
     public ChessRoom getRoom(String id) {
         expireRooms(GAMES_ZSET);
 
@@ -57,10 +61,10 @@ public class DictionaryDao {
             t.set(id.getBytes(), bytes);
             t.zadd(GAMES_ZSET, room.getTouch(), id);
             if (whitePlayer != null) {
-                t.zadd(GAMES_ZSET + "_" + whitePlayer.getId(), room.getTouch(), id);
+                t.zadd(getUserGameZSet(whitePlayer.getId()), room.getTouch(), id);
             }
             if (blackPlayer != null) {
-                t.zadd(GAMES_ZSET + "_" + blackPlayer.getId(), room.getTouch(), id);
+                t.zadd(getUserGameZSet(blackPlayer.getId()), room.getTouch(), id);
             }
             t.exec();
         }
@@ -73,9 +77,9 @@ public class DictionaryDao {
 
     public void expireRooms(String zSetName, long unixTimeExpireMs) {
         List<String> results = jedis.zrangeByScore(zSetName, Double.NEGATIVE_INFINITY, unixTimeExpireMs);
-        String[] gameKeys = results.toArray(String[]::new);
+        if (!results.isEmpty()) {
+            String[] gameKeys = results.toArray(String[]::new);
 
-        if (gameKeys.length > 0) {
             LOG.info("Expiring games with keys={}", Arrays.toString(gameKeys));
 
             try (AbstractTransaction t = jedis.multi()) {
@@ -87,7 +91,7 @@ public class DictionaryDao {
     }
 
     public List<ChessView> getUserChessViews(long userId) {
-       return  getChessViews(GAMES_ZSET + "_" + userId, 1, -1);
+       return getChessViews(getUserGameZSet(userId), 1, -1);
     }
 
     public List<ChessView> getChessViews(int page, int count) {
@@ -123,12 +127,12 @@ public class DictionaryDao {
             bytesList = jedis.mget(fullIds);
         }
         if (bytesList == null) {
-            return List.of();
+            bytesList = List.of();
         }
 
         List<ChessView> viewList = bytesList.stream().map(ChessView::deserialize).toList();
 
-        LOG.info("Retrieved chess views={} for page={}", viewList, page);
+        LOG.info("Retrieved chess views={} from set={} for page={}", viewList, zSetName, page);
         return viewList;
     }
 
@@ -242,9 +246,9 @@ public class DictionaryDao {
 
     public void expireUsers(long unixTimeExpireMs) {
         List<String> results = jedis.zrangeByScore(USERS_ZSET, Double.NEGATIVE_INFINITY, unixTimeExpireMs);
-        String[] userKeys = results.toArray(String[]::new);
+        if (!results.isEmpty()) {
+            String[] userKeys = results.toArray(String[]::new);
 
-        if (userKeys.length > 0) {
             LOG.info("Expiring users with keys={}", Arrays.toString(userKeys));
             jedis.zrem(USERS_ZSET, userKeys);
         }

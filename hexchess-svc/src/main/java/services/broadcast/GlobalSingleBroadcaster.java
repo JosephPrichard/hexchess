@@ -43,36 +43,36 @@ public class GlobalSingleBroadcaster implements SingleBroadcaster {
         LOG.info("Broadcast content={} to broadcaster = {}", content, channel);
     }
 
+    public void startListenSubscribe(CompletableFuture<JedisPubSub> fut) {
+        try {
+            JedisPubSub subscriber = new JedisPubSub() {
+                @Override
+                public void onSubscribe(String channel, int subscribedChannels) {
+                    super.onSubscribe(channel, subscribedChannels);
+                    LOG.info("Started the subscriber listener on channel={} for broadcast instance: {}", channel, this);
+                    fut.complete(this);
+                }
+
+                @Override
+                public void onMessage(String channel, String message) {
+                    try {
+                        super.onMessage(channel, message);
+                        LOG.info("Received a message on channel={}", channel);
+                        localBroadcaster.broadcast(message);
+                    } catch (Exception ex) {
+                        LOG.error("Error occurred in subscriber thread", ex);
+                    }
+                }
+            };
+            jedisSubscriber.subscribe(subscriber, channel); // start the subscriber, blocking the current thread until subscriber is stopped
+        } catch (Exception ex) {
+            fut.completeExceptionally(ex);
+        }
+    }
+
     public JedisPubSub startListenSubscribe() throws ExecutionException, InterruptedException {
         CompletableFuture<JedisPubSub> fut = new CompletableFuture<>();
-        EXECUTOR.execute(() -> {
-            try {
-                JedisPubSub subscriber = new JedisPubSub() {
-                    @Override
-                    public void onSubscribe(String channel, int subscribedChannels) {
-                        super.onSubscribe(channel, subscribedChannels);
-                        LOG.info("Started the subscriber listener on channel={} for broadcast instance: {}", channel, this);
-                        fut.complete(this);
-                    }
-
-                    @Override
-                    public void onMessage(String channel, String message) {
-                        try {
-                            super.onMessage(channel, message);
-                            LOG.info("Received a message on channel={}", channel);
-                            localBroadcaster.broadcast(message);
-                        } catch (Exception ex) {
-                            LOG.error("Error occurred in subscriber thread", ex);
-                        }
-                    }
-                };
-                jedisSubscriber.subscribe(subscriber, channel); // start the subscriber, blocking the current thread until subscriber is stopped
-            } catch (Exception ex) {
-                fut.completeExceptionally(ex);
-            }
-        });
-
-        // don't actually return the jedis subscriber until the thread notifies us that we've created it
+        CompletableFuture.runAsync(() -> startListenSubscribe(fut), EXECUTOR);
         return fut.get();
     }
 }
