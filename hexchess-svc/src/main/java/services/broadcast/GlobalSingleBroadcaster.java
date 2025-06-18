@@ -13,8 +13,6 @@ import static utils.Globals.LOG;
 
 public class GlobalSingleBroadcaster implements SingleBroadcaster {
 
-    private static final byte FIELD_SPLIT = 0x1e;
-
     private final JedisPooled jedisPublisher;
     private final Jedis jedisSubscriber;
     private final String channel;
