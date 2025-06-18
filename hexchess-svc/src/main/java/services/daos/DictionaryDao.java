@@ -23,9 +23,9 @@ public class DictionaryDao {
 
     public static final String GAMES_ZSET = "games";
     public static final String LEADERBOARD_ZSET = "leaderboard";
-    public static final String USERS_ZSET = "users";
+    public static final String ACTIVE_USERS_ZSET = "active_users";
 
-    private static final Duration USER_EXPIRE_FINISHED = Duration.ofMinutes(1);
+    private static final Duration USER_EXPIRE_FINISHED = Duration.ofMinutes(2);
     private static final Duration GAME_EXPIRE_FINISHED = Duration.ofHours(1);
     public static final Duration TEMP_SESSION_EXPIRE = Duration.ofMinutes(1);
 
@@ -245,30 +245,30 @@ public class DictionaryDao {
     }
 
     public void expireUsers(long unixTimeExpireMs) {
-        List<String> results = jedis.zrangeByScore(USERS_ZSET, Double.NEGATIVE_INFINITY, unixTimeExpireMs);
+        List<String> results = jedis.zrangeByScore(ACTIVE_USERS_ZSET, Double.NEGATIVE_INFINITY, unixTimeExpireMs);
         if (!results.isEmpty()) {
             String[] userKeys = results.toArray(String[]::new);
 
             LOG.info("Expiring users with keys={}", Arrays.toString(userKeys));
-            jedis.zrem(USERS_ZSET, userKeys);
+            jedis.zrem(ACTIVE_USERS_ZSET, userKeys);
         }
     }
 
     public void addUser(String id) {
-        jedis.zadd(USERS_ZSET, System.currentTimeMillis(), id);
+        jedis.zadd(ACTIVE_USERS_ZSET, System.currentTimeMillis(), id);
 
         LOG.info("Added user={} into users set", id);
     }
 
     public void removeUser(String id) {
-        jedis.zrem(USERS_ZSET, id);
+        jedis.zrem(ACTIVE_USERS_ZSET, id);
 
         LOG.info("Removed user={} from users set", id);
     }
 
     public long getUsersCount() {
         expireUsers();
-        long count = jedis.zcard(USERS_ZSET);
+        long count = jedis.zcard(ACTIVE_USERS_ZSET);
 
         LOG.info("Counted users with result={}", count);
         return count;

@@ -310,7 +310,6 @@ public class FormController extends Jooby {
 
         try {
             ChallengeEntity entity = challengeDao.insert(player.getId(), challengeeId, timeControl.toString(), startColor.toString());
-
             dispatchBroadcastChallenge(entity);
             dispatchDeleteExpired(player.getId());
 

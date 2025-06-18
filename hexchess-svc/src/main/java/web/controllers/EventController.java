@@ -45,17 +45,34 @@ public class EventController extends Jooby {
         sse("/events/user", this::handleUserEvents);
     }
 
-    private void onCloseCount(String sseId, ScheduledFuture<?> fut) {
-        fut.cancel(false);
+    private void onCloseCount(String sseId, ScheduledFuture<?> task) {
+        try {
+            task.cancel(false);
 
-        dictionaryDao.removeUser(sseId);
-        long count = dictionaryDao.getUsersCount();
+            dictionaryDao.removeUser(sseId);
+            long count = dictionaryDao.getUsersCount();
 
-        userCountBroadcaster.unsubscribe(sseId);
-        userCountBroadcaster.broadcast(Long.toString(count));
+            userCountBroadcaster.unsubscribe(sseId);
+            userCountBroadcaster.broadcast(Long.toString(count));
+        } catch (Exception ex) {
+            LOG.error("Failed to execute close count event handler", ex);
+        }
     }
 
-    private void handleCount(ServerSentEmitter sse) {
+    private void onRefreshCount(ServerSentEmitter sse, String sseId) {
+        try {
+            // keep user refreshed as long as this sse is open, a user will expire if not used in 2 minutes
+            dictionaryDao.addUser(sseId);
+
+            // get the updated game counts info, we need to do this to account for game expiration
+            long gameCount = dictionaryDao.getRoomsCount();
+            sse.send(GAMES_COUNT_EVENT, gameCount);
+        } catch (Exception ex) {
+            LOG.error("Failed to execute refresh count event handler", ex);
+        }
+    }
+
+    public void handleCount(ServerSentEmitter sse) {
         String sseId = UUID.randomUUID().toString();
 
         // update and retrieve the count state
@@ -70,11 +87,10 @@ public class EventController extends Jooby {
         gameCountBroadcaster.subscribe(new SseReceiver<>(sseId, sse, GAMES_COUNT_EVENT));
 
         ScheduledFuture<?> fut = scheduler.scheduleAtFixedRate(
-            // keep user refreshed as long as this sse is open
-            () -> CompletableFuture.runAsync(() -> dictionaryDao.addUser(sseId), EXECUTOR),
-            30,
-            30,
-            TimeUnit.SECONDS);
+            () -> CompletableFuture.runAsync(() -> onRefreshCount(sse, sseId), EXECUTOR),
+            1,
+            1,
+            TimeUnit.MINUTES);
 
         sse.send(META_EVENT, "Connected");
         sse.send(USERS_COUNT_EVENT, userCount);
@@ -84,7 +100,7 @@ public class EventController extends Jooby {
         sse.onClose(() -> CompletableFuture.runAsync(() -> onCloseCount(sseId, fut), EXECUTOR));
     }
 
-    private void handleUserEvents(ServerSentEmitter sse) {
+    public void handleUserEvents(ServerSentEmitter sse) {
         Context ctx = sse.getContext();
 
         // silently close the sse if we have auth issues, we cannot deliver notifications

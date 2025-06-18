@@ -85,11 +85,13 @@ public class ViewController extends Jooby {
     public record LeaderboardResp(int totalPages, List<UserView> userList) {}
 
     public LeaderboardResp getLeaderboard(Context ctx) {
+        Optional<String> pageQuery = ctx.query("page").toOptional();
+
         int page;
         try {
-            page = ctx.query("page").toOptional().map(Integer::parseUnsignedInt).orElse(1);
+            page = pageQuery.map(Integer::parseUnsignedInt).orElse(1);
         } catch (NumberFormatException ex) {
-            LOG.warn("Page value is not valid integer");
+            LOG.warn("Query param 'page' is not a valid long", ex);
             throw new BadRequestException(ERROR_INVALID_REQUEST);
         }
 
@@ -114,11 +116,12 @@ public class ViewController extends Jooby {
 
     public UserWithReplaysResp getPlayer(Context ctx) throws Exception {
         String id = ctx.path("id").value();
+
         long userId;
         try {
             userId = Long.parseUnsignedLong(id);
         } catch (NumberFormatException ex) {
-            LOG.warn("Query player id={} is not a valid long", id);
+            LOG.warn("Path param 'id' is not a valid long", ex);
             throw new BadRequestException(ERROR_INVALID_REQUEST);
         }
 
@@ -147,7 +150,7 @@ public class ViewController extends Jooby {
         try {
             page = pageQuery.map(Integer::parseUnsignedInt).orElse(1);
         } catch (NumberFormatException ex) {
-            LOG.warn("Page value is not valid integer");
+            LOG.warn("Query param 'page' is not valid integer", ex);
             throw new BadRequestException(ERROR_INVALID_REQUEST);
         }
 
@@ -168,7 +171,7 @@ public class ViewController extends Jooby {
         try {
             replayId = Long.parseUnsignedLong(pathId);
         } catch (NumberFormatException ex) {
-            LOG.warn("Replay id={} is not a valid long", pathId);
+            LOG.warn("Path param 'id' is not a valid long", ex);
             throw new BadRequestException(ERROR_INVALID_REQUEST);
         }
 
@@ -184,7 +187,7 @@ public class ViewController extends Jooby {
         try {
             replayId = Long.parseUnsignedLong(pathId);
         } catch (NumberFormatException ex) {
-            LOG.warn("Replay id={} is not a valid long", pathId);
+            LOG.warn("Path param 'id' is not a valid long", ex);
             throw new BadRequestException(ERROR_INVALID_REQUEST);
         }
 
@@ -213,8 +216,16 @@ public class ViewController extends Jooby {
     }
 
     public List<ReplayView> getReplayList(Context ctx) {
+        Optional<String> afterIdPath = ctx.query("afterId").toOptional();
         long userId = ctx.query("userId").longValue();
-        Long afterId = ctx.query("afterId").toOptional().map(Long::parseUnsignedLong).orElse(null);
+
+        Long afterId;
+        try {
+            afterId = afterIdPath.map(Long::parseUnsignedLong).orElse(null);
+        } catch (NumberFormatException ex) {
+            LOG.warn("Query param 'afterId' must be a valid integer", ex);
+            throw new BadRequestException(ERROR_INVALID_REQUEST);
+        }
 
         List<ReplayEntity> entityList = replayDao.getUserReplays(userId, afterId, 25);
         if (entityList.isEmpty()) {
@@ -226,7 +237,7 @@ public class ViewController extends Jooby {
 
     public record ChessRoomResp(List<ChessView> chessList, List<ChessView> selfChessList) {}
 
-    public ChessRoomResp getRoomLists(Context ctx) throws Exception {
+    public ChessRoomResp getRoomLists(Context ctx) {
         Optional<String> pageQuery = ctx.query("page").toOptional();
         Optional<String> countQuery = ctx.query("count").toOptional();
 
@@ -236,7 +247,7 @@ public class ViewController extends Jooby {
             page = pageQuery.map(Integer::parseUnsignedInt).orElse(1);
             count = countQuery.map(Integer::parseUnsignedInt).orElse(PER_PAGE);
         } catch (NumberFormatException ex) {
-            LOG.warn("Query params must be a valid integer");
+            LOG.warn("Query param 'page' and 'count' must be a valid integer", ex);
             throw new BadRequestException(ERROR_INVALID_REQUEST);
         }
 
