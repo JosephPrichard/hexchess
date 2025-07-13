@@ -1,16 +1,19 @@
 <script lang="ts">
 	import { colors, colorsOffset, height, piecenames, selectedColor, verticalFileOffsets, width } from '$lib/utils/globals';
 	import type { ChessBoard, Hexagon } from '$lib/api/messages';
+	import Piece from '$lib/components/chess/Piece.svelte';
 
 	export interface BoardProps {
 		board: ChessBoard;
+		draggable?: "white" | "black";
 		isWhitePerspective: boolean;
 		selectedHexagon?: Hexagon;
 		potentialMoves?: Hexagon[];
 		onClickPiece?: (hex: Hexagon) => void;
 	}
 
-	const { board, isWhitePerspective, selectedHexagon, potentialMoves, onClickPiece }: BoardProps = $props();
+	const { board, draggable, isWhitePerspective, selectedHexagon, potentialMoves, onClickPiece }: BoardProps = $props();
+
 	const potentialMovesMap = $derived.by(() => {
 		if (!potentialMoves) {
 			return {};
@@ -38,11 +41,10 @@
 				style:width="{width}px"
 				style:height="{height}px"
 				style:background={selectedHexagon?.file === file && selectedHexagon?.rank === rank ? selectedColor : colors[bgIndex]}
+				style:cursor={isMove ? "pointer" : undefined}
 			>
 				{#if piece !== 0}
-					<div role="button" tabindex="0" class="piece-img" onmousedown={() => onClickPiece ? onClickPiece({ file, rank }) : {}}>
-						<img class="piece-img-inner" src="/pieces/{piecenames[piece]}.png" alt="" draggable={false} />
-					</div>
+					<Piece file={file} rank={rank} piece={piece} onClickPiece={onClickPiece}/>
 					{#if isMove}
 						<div class="move-circle"></div>
 					{/if}
@@ -70,20 +72,6 @@
         -moz-user-select: none;
         -khtml-user-select: none;
         -webkit-user-select: none;
-    }
-
-    .piece-img {
-		position: relative;
-        top: 2px;
-        max-width: 88%;
-        max-height: 88%;
-        cursor: pointer;
-    }
-
-    .piece-img-inner {
-        max-width: 100%;
-        max-height: 100%;
-        cursor: pointer;
     }
 
     .move-dot {

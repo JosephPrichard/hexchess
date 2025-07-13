@@ -58,7 +58,8 @@
 		if (!game) {
 			return;
 		}
-		const result = onSelectPiece(game, newSelection, potentialMoves);
+		const result = onSelectPiece(game, selectedHexagon, newSelection, potentialMoves);
+		console.log("Clicked hexagon with result", newSelection, result)
 
 		potentialMoves = result.potentialMoves;
 		selectedHexagon = result.newSelection;
@@ -176,7 +177,9 @@
 					</div>
 				{/if}
 				<div class="side-table move-table-wrapper">
-					<PlayerPanel player={bottomPlayer} isTurn={!isTurn} />
+					<div class="side-table-header player-panel">
+						<PlayerPanel player={bottomPlayer} isTurn={!isTurn} />
+					</div>
 					<MoveList moveList={moveList} />
 					<div class="icons">
 						<button title="Forfeit" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickForfeit}>
@@ -189,7 +192,9 @@
 							<SettingsIcon />
 						</button>
 					</div>
-					<PlayerPanel player={topPlayer} isTurn={isTurn || false} />
+					<div class="side-table-header-bottom player-panel">
+						<PlayerPanel player={topPlayer} isTurn={isTurn || false} />
+					</div>
 				</div>
 				{#if bottomTimer}
 					<div class="timer" class:timer-warn={bottomTimer < 15000}>
@@ -225,6 +230,11 @@
 </div>
 
 <style>
+    .player-panel {
+        padding-top: 15px;
+        padding-bottom: 15px;
+    }
+
     .text-outline {
         width: fit-content;
         border: 1px solid rgb(58, 58, 58);

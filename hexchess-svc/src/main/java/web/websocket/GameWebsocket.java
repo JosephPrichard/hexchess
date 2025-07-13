@@ -76,6 +76,7 @@ public class GameWebsocket {
                 @Override
                 public void onEviction() {
                     if (ws.isOpen()) {
+                        LOG.info("Closed websocket with id={} during eviction process", wsId);
                         ws.close();
                     }
                 }

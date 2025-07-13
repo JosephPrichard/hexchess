@@ -9,6 +9,34 @@ Created using Java, Svelte, Jooby, Postgres, and Redis.
 
 `$ docker compose up`
 
+### Set Environment Variables
+
+Create an environment variables file in the `resources` folder of `hexchess-svc`
+```
+APP_PORT=8081
+ELASTICSEARCH_USERNAME=elasticname
+ELASTICSEARCH_PASSWORD=elasticsearch-password
+DB_PASSWORD=db-password
+DB_URL=jdbc:postgresql://localhost:5432/hexachess
+DB_USER=postgres
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PUBSUB_HOST=localhost
+REDIS_PUBSUB_PORT=6380
+ALLOWED_ORIGINS=http://localhost:5173
+COOKIE_DOMAIN=localhost
+```
+
+Create an environment variables file in root, this will be used by `docker-compose.yml`
+```
+ELASTICSEARCH_USERNAME=elasticname
+ELASTICSEARCH_PASSWORD=elasticsearch-password
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PUBSUB_HOST=localhost
+REDIS_PUBSUB_PORT=6380
+```
+
 ### Run Server
 
 `$ mvn clean install package`

@@ -13,20 +13,15 @@ import lombok.AllArgsConstructor;
 import org.apache.commons.dbutils.QueryRunner;
 import redis.clients.jedis.JedisPooled;
 import utils.Config;
-import utils.Globals;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Scanner;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static utils.Globals.*;
@@ -67,7 +62,7 @@ public class DatabaseSeed {
             .toList();
         futures.forEach((f) -> {
             try {
-                f.get();
+                f.get(MAX_WAIT_MS, TimeUnit.MILLISECONDS);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

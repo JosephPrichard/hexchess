@@ -6,10 +6,9 @@ import redis.clients.jedis.JedisPooled;
 import redis.clients.jedis.JedisPubSub;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
-import static utils.Globals.EXECUTOR;
-import static utils.Globals.LOG;
+import static utils.Globals.*;
 
 public class GlobalSingleBroadcaster implements SingleBroadcaster {
 
@@ -68,9 +67,9 @@ public class GlobalSingleBroadcaster implements SingleBroadcaster {
         }
     }
 
-    public JedisPubSub startListenSubscribe() throws ExecutionException, InterruptedException {
+    public JedisPubSub startListenSubscribe() throws Exception {
         CompletableFuture<JedisPubSub> fut = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> startListenSubscribe(fut), EXECUTOR);
-        return fut.get();
+        EXECUTOR.execute(() -> startListenSubscribe(fut));
+        return fut.get(MAX_WAIT_MS, TimeUnit.MILLISECONDS);
     }
 }

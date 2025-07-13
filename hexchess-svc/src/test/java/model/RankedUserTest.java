@@ -1,6 +1,6 @@
 package model;
 
-import models.entities.RankedEntity;
+import models.entities.UserRankEntity;
 import models.entities.UserEntity;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -15,12 +15,12 @@ public class RankedUserTest {
             new UserEntity(1L, "user1", "us", 1000f, 0),
             new UserEntity(3L, "user3", "us", 1500f, 0),
             new UserEntity(2L, "user2", "us", 1250f, 0)));
-        List<RankedEntity> rankedList = List.of(
-            new RankedEntity(1L, 3),
-            new RankedEntity(3L, 1),
-            new RankedEntity(2L, 2));
+        List<UserRankEntity> rankedList = List.of(
+            new UserRankEntity(1L, 3),
+            new UserRankEntity(3L, 1),
+            new UserRankEntity(2L, 2));
 
-        RankedEntity.joinRanks(rankedList, entityList);
+        UserRankEntity.joinRanks(rankedList, entityList);
 
         List<UserEntity> expectedEntityList = List.of(
             new UserEntity(3L, "user3", "us", 1500f, 1),

@@ -5,33 +5,27 @@
 	const { player, isTurn }: { player: PlayerModel | Player | undefined, isTurn: boolean } = $props();
 </script>
 
-<div class="side-table-header player-panel">
-	{#if player}
-		<div class="side-table-header-elem text-xsm">
-			<div class="turn-circle" class:turn-circle-green={isTurn}></div>
-			{#if !player.isGuest}
-				<a href="/players/{player.id}" class="text-ul">
-					<b>{player.name}</b>
-				</a>
-			{:else}
-				<span class="text-ul">
-					<b>{player.name}</b>
-				</span>
-			{/if}
-			<img class="flag-md" src="/flags/{player.country}.png" alt="" />
-			{#if player.elo}
-				<span>({player.elo})</span>
-			{/if}
-		</div>
-	{/if}
-</div>
+
+{#if player}
+	<div class="side-table-header-elem text-xsm">
+		<div class="turn-circle" class:turn-circle-green={isTurn}></div>
+		{#if !player.isGuest}
+			<a href="/players/{player.id}" class="text-ul">
+				<b>{player.name}</b>
+			</a>
+		{:else}
+			<span class="text-ul">
+				<b>{player.name}</b>
+			</span>
+		{/if}
+		<img class="flag-md" src="/flags/{player.country}.png" alt="" />
+		{#if player.elo}
+			<span>({player.elo})</span>
+		{/if}
+	</div>
+{/if}
 
 <style>
-    .player-panel {
-        padding-top: 15px;
-        padding-bottom: 15px;
-    }
-
     .turn-circle {
         display: inline-block;
         width: 7px;

@@ -59,45 +59,31 @@ public class EventController extends Jooby {
         }
     }
 
-    private void onRefreshCount(ServerSentEmitter sse, String sseId) {
-        try {
-            // keep user refreshed as long as this sse is open, a user will expire if not used in 2 minutes
-            dictionaryDao.addUser(sseId);
-
-            // get the updated game counts info, we need to do this to account for game expiration
-            long gameCount = dictionaryDao.getRoomsCount();
-            sse.send(GAMES_COUNT_EVENT, gameCount);
-        } catch (Exception ex) {
-            LOG.error("Failed to execute refresh count event handler", ex);
-        }
-    }
-
     public void handleCount(ServerSentEmitter sse) {
         String sseId = UUID.randomUUID().toString();
 
         // update and retrieve the count state
         dictionaryDao.addUser(sseId);
         long userCount = dictionaryDao.getUsersCount();
-        long gameCount = dictionaryDao.getRoomsCount();
-
-        userCountBroadcaster.broadcast(Long.toString(userCount));
+        long roomsCount = dictionaryDao.getRoomsCount();
 
         // subscribe to all updates on counts
+        userCountBroadcaster.broadcast(Long.toString(userCount));
         userCountBroadcaster.subscribe(new SseReceiver<>(sseId, sse, USERS_COUNT_EVENT));
         gameCountBroadcaster.subscribe(new SseReceiver<>(sseId, sse, GAMES_COUNT_EVENT));
 
         ScheduledFuture<?> fut = scheduler.scheduleAtFixedRate(
-            () -> CompletableFuture.runAsync(() -> onRefreshCount(sse, sseId), EXECUTOR),
+            () -> EXECUTOR.execute(() -> dictionaryDao.addUser(sseId)),
             1,
             1,
             TimeUnit.MINUTES);
 
         sse.send(META_EVENT, "Connected");
         sse.send(USERS_COUNT_EVENT, userCount);
-        sse.send(GAMES_COUNT_EVENT, gameCount);
+        sse.send(GAMES_COUNT_EVENT, roomsCount);
 
         sse.keepAlive(15, TimeUnit.SECONDS);
-        sse.onClose(() -> CompletableFuture.runAsync(() -> onCloseCount(sseId, fut), EXECUTOR));
+        sse.onClose(() -> EXECUTOR.execute(() -> onCloseCount(sseId, fut)));
     }
 
     public void handleUserEvents(ServerSentEmitter sse) {
@@ -121,6 +107,6 @@ public class EventController extends Jooby {
         sse.send(META_EVENT, "Connected");
 
         sse.keepAlive(15, TimeUnit.SECONDS);
-        sse.onClose(() -> CompletableFuture.runAsync(() -> userBroadcaster.unsubscribe(userId, sseId), EXECUTOR));
+        sse.onClose(() -> EXECUTOR.execute(() -> userBroadcaster.unsubscribe(userId, sseId)));
     }
 }

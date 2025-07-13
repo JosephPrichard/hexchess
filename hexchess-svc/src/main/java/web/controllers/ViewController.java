@@ -1,16 +1,12 @@
 package web.controllers;
 
 import chess.ChessBoard;
-import models.entities.RankedEntity;
+import models.entities.UserRankEntity;
 import models.state.Player;
-import services.daos.ChallengeDao;
-import services.daos.ReplayDao;
-import services.daos.UserDao;
+import services.daos.*;
 import io.jooby.exception.BadRequestException;
 import models.entities.*;
 import models.views.*;
-import services.game.GameService;
-import services.daos.DictionaryDao;
 import io.jooby.*;
 import web.reusable.AuthService;
 import web.State;
@@ -20,6 +16,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static utils.Globals.*;
@@ -98,7 +95,7 @@ public class ViewController extends Jooby {
         Leaderboard leaderboard = dictionaryDao.getLeaderboardPage(page, PER_PAGE);
         List<UserEntity> entityList = userDao.getByRankedUsers(leaderboard.users());
 
-        RankedEntity.joinRanks(leaderboard.users(), entityList);
+        UserRankEntity.joinRanks(leaderboard.users(), entityList);
 
         List<UserView> viewList = entityList.stream().map(UserView::create).toList();
         return new LeaderboardResp(leaderboard.pageCount(), viewList);
@@ -128,14 +125,14 @@ public class ViewController extends Jooby {
         Future<UserEntity> userFut = dispatchGetById(userId);
         Future<List<ReplayEntity>> replayListFut = dispatchUserReplays(userId);
 
-        UserEntity userEntity = userFut.get();
+        UserEntity userEntity = userFut.get(MAX_WAIT_MS, TimeUnit.MILLISECONDS);
         if (userEntity == null) {
             LOG.warn("User not found for id={}", userId);
             throw new BadRequestException(ERROR_NOT_FOUND_USER);
         }
 
         userEntity.setRank(dictionaryDao.getLeaderboardRank(userEntity.getId()));
-        List<ReplayEntity> replayEntityList = replayListFut.get();
+        List<ReplayEntity> replayEntityList = replayListFut.get(MAX_WAIT_MS, TimeUnit.MILLISECONDS);
 
         UserView userView = UserView.create(userEntity);
         List<ReplayView> replayViewList = replayEntityList.stream().map(ReplayView::createRow).collect(Collectors.toList());

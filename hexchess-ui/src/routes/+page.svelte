@@ -4,10 +4,12 @@
 	import { createMessage } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import { goto } from '$app/navigation';
-	import type { ChessModel, ColorSelect, TimeControl } from '$lib/api/model';
+	import type { ChessModel, ColorSelect, SessionModel, TimeControl } from '$lib/api/model';
 	import services from '$lib/api/services';
 	import { formatTimeControl } from '$lib/utils/format';
 	import { chessRowHeight, maxChessRows } from '$lib/utils/globals';
+	import { onMount } from 'svelte';
+	import { getClientSession } from '$lib/utils/storage';
 
 	export interface IndexProps {
 		chessList: ChessModel[];
@@ -20,6 +22,7 @@
 	let showCreateModal = $state(false);
 	let userCounts = $state(0);
 	let gameCounts = $state(0);
+	let client: SessionModel | null = $state(null);
 
 	const chessList = $derived(showSelf ? props.selfChessList : props.chessList);
 	const bottomPadding = $derived((chessRowHeight * maxChessRows) - (chessRowHeight * chessList.length));
@@ -42,6 +45,11 @@
 			addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
 		}
 	}
+
+	onMount(() => {
+		client = getClientSession();
+		console.log('Initializing with client: ', client);
+	});
 </script>
 
 <svelte:head>
@@ -52,14 +60,16 @@
 <div class="center-horizontal-container">
 	<div class="center-vertical-container index-container">
 		<div>
-			<div class="tabs-group">
-				<button class="tab" class:tab-selected={!showSelf} onclick={() => showSelf = false}>
-					All Games
-				</button>
-				<button class="tab" class:tab-selected={showSelf} onclick={() => showSelf = true}>
-					My Games
-				</button>
-			</div>
+			{#if client != null}
+				<div class="tabs-group">
+					<button class="tab" class:tab-selected={!showSelf} onclick={() => showSelf = false}>
+						Public Games
+					</button>
+					<button class="tab" class:tab-selected={showSelf} onclick={() => showSelf = true}>
+						My Games
+					</button>
+				</div>
+			{/if}
 			<table class="table-container chess-table">
 				<thead>
 				<tr>

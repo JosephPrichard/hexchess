@@ -8,7 +8,7 @@ import io.jooby.test.MockRouter;
 import io.jooby.test.MockValue;
 import models.common.ColorSelect;
 import models.common.TimeControl;
-import models.entities.RankedEntity;
+import models.entities.UserRankEntity;
 import models.entities.ReplayEntity;
 import models.entities.UserEntity;
 import models.views.ChessView;
@@ -42,7 +42,7 @@ public class ViewControllerTest {
         state.setDictionaryDao(dictionaryDao);
         state.setUserDao(userDao);
 
-        List<RankedEntity> rankedEntities = Arrays.asList(new RankedEntity(1, 1), new RankedEntity(2, 2));
+        List<UserRankEntity> rankedEntities = Arrays.asList(new UserRankEntity(1, 1), new UserRankEntity(2, 2));
         List<UserEntity> entityList = Arrays.asList(USER_ENTITY1, USER_ENTITY2);
 
         MockRouter mockRouter = new MockRouter(new ViewController(state));

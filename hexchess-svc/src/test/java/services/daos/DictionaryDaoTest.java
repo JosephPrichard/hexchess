@@ -4,7 +4,7 @@ import chess.ChessBoard;
 import models.common.ColorSelect;
 import models.state.ChessRoom;
 import models.state.Player;
-import models.entities.RankedEntity;
+import models.entities.UserRankEntity;
 import models.common.TimeControl;
 import models.views.ChessView;
 import org.junit.ClassRule;
@@ -182,17 +182,17 @@ public class DictionaryDaoTest {
 
         DictionaryDao.Leaderboard expectedLeaderboard1 = new DictionaryDao.Leaderboard(
             List.of(
-                new RankedEntity(10, 1),
-                new RankedEntity(20, 2),
-                new RankedEntity(30, 3),
-                new RankedEntity(40, 4)),
+                new UserRankEntity(10, 1),
+                new UserRankEntity(20, 2),
+                new UserRankEntity(30, 3),
+                new UserRankEntity(40, 4)),
             1);
         Assertions.assertEquals(expectedLeaderboard1, leaderboard1);
 
         DictionaryDao.Leaderboard expectedLeaderboard2 = new DictionaryDao.Leaderboard(
             List.of(
-                new RankedEntity(20, 2),
-                new RankedEntity(30, 3)),
+                new UserRankEntity(20, 2),
+                new UserRankEntity(30, 3)),
             2);
         Assertions.assertEquals(expectedLeaderboard2, leaderboard2);
     }

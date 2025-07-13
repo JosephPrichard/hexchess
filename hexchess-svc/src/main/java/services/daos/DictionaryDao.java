@@ -2,17 +2,14 @@ package services.daos;
 
 import models.state.ChessRoom;
 import models.state.Player;
-import models.entities.RankedEntity;
+import models.entities.UserRankEntity;
 import models.entities.UserEntity;
 import models.views.ChessView;
 import redis.clients.jedis.AbstractTransaction;
 import redis.clients.jedis.JedisPooled;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 import static utils.Globals.*;
 
@@ -34,7 +31,7 @@ public class DictionaryDao {
     }
 
     public static String getUserGameZSet(long id) {
-        return GAMES_ZSET + "_USER_" + id;
+        return GAMES_ZSET + "_user_" + id;
     }
 
     public ChessRoom getRoom(String id) {
@@ -130,7 +127,13 @@ public class DictionaryDao {
             bytesList = List.of();
         }
 
-        List<ChessView> viewList = bytesList.stream().map(ChessView::deserialize).toList();
+        // handle keys that were inconsistently unset (present in the sorted set but not the dictionary)
+        List<byte[]> filteredBytesList = bytesList.stream().filter(Objects::nonNull).toList();
+        if (bytesList.size() != filteredBytesList.size()) {
+            LOG.warn("Inconsistent result while retrieving chess rooms difference between zset and dictionary is={}", bytesList.size() - filteredBytesList.size());
+        }
+
+        List<ChessView> viewList = filteredBytesList.stream().map(ChessView::deserialize).toList();
 
         LOG.info("Retrieved chess views={} from set={} for page={}", viewList, zSetName, page);
         return viewList;
@@ -186,7 +189,7 @@ public class DictionaryDao {
         return rank.intValue() + 1;
     }
 
-    public record Leaderboard(List<RankedEntity> users, int pageCount) {}
+    public record Leaderboard(List<UserRankEntity> users, int pageCount) {}
 
     public Leaderboard getLeaderboard(int startRank, int count) {
         List<String> ids = jedis.zrevrange(LEADERBOARD_ZSET, startRank, startRank - 1 + count);
@@ -194,10 +197,10 @@ public class DictionaryDao {
 
         long pageCount = (elemCount / count) + Math.min(elemCount % count, 1);
 
-        List<RankedEntity> users = new ArrayList<>();
+        List<UserRankEntity> users = new ArrayList<>();
         for (int i = 0; i < ids.size(); i++) {
             long id = Long.parseUnsignedLong(ids.get(i));
-            users.add(new RankedEntity(id, startRank + i + 1));
+            users.add(new UserRankEntity(id, startRank + i + 1));
         }
 
         return new Leaderboard(users, (int) pageCount);

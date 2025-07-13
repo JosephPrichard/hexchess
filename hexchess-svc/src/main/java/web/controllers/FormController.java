@@ -82,7 +82,7 @@ public class FormController extends Jooby {
 
         try {
             UserEntity user = userDao.insert(username, password);
-            dictionaryDao.incrLeaderboardUser(user.getId(), user.getElo());
+            EXECUTOR.execute(() -> dictionaryDao.incrLeaderboardUser(user.getId(), user.getElo()));
 
             String sessionId = authService.createSessionId();
             Cookie cookie = authService.createSessionCookie(sessionId);
@@ -280,11 +280,11 @@ public class FormController extends Jooby {
     }
 
     public void dispatchBroadcastChallenge(ChallengeEntity entity) {
-        CompletableFuture.runAsync(() -> broadcastChallenge(entity), EXECUTOR);
+        EXECUTOR.execute(() -> broadcastChallenge(entity));
     }
 
     public void dispatchDeleteExpired(long challengeeId) {
-        CompletableFuture.runAsync(() -> challengeDao.deleteExpired(challengeeId), EXECUTOR);
+        EXECUTOR.execute(() -> challengeDao.deleteExpired(challengeeId));
     }
 
     public record CreateChallengeBody(long challengeeId, TimeControl timeControl, ColorSelect startColor) {}

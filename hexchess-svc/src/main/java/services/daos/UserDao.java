@@ -2,7 +2,7 @@ package services.daos;
 
 import at.favre.lib.crypto.bcrypt.BCrypt;
 import lombok.*;
-import models.entities.RankedEntity;
+import models.entities.UserRankEntity;
 import models.entities.UserEntity;
 import org.apache.commons.dbutils.DbUtils;
 import org.apache.commons.dbutils.QueryRunner;
@@ -18,11 +18,10 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static utils.Globals.CPU_EXECUTOR;
-import static utils.Globals.LOG;
+import static utils.Globals.*;
 
 public class UserDao {
 
@@ -116,7 +115,7 @@ public class UserDao {
             Object[][] params = new Object[insts.size()][];
             for (int i = 0; i < insts.size(); i++) {
                 UserInst inst = insts.get(i);
-                HashResult hash = hashFuts.get(i).get();
+                HashResult hash = hashFuts.get(i).get(MAX_WAIT_MS, TimeUnit.MILLISECONDS);
 
                 Object[] row = new Object[8];
                 row[0] = inst.username();
@@ -133,7 +132,7 @@ public class UserDao {
 
             int[] userIds = runner.batch(sql, params);
             LOG.info("Finished batch insert for new users with ids={}", userIds);
-        } catch (SQLException | InterruptedException | ExecutionException ex) {
+        } catch (Exception ex) {
             LOG.error("Failed to perform batch insert on users={}", insts, ex);
             throw new RuntimeException(ex);
         }
@@ -323,8 +322,8 @@ public class UserDao {
         }
     }
 
-    public List<UserEntity> getByRankedUsers(List<RankedEntity> users) {
-        return getByIds(users.stream().map(RankedEntity::getId).toArray(Long[]::new));
+    public List<UserEntity> getByRankedUsers(List<UserRankEntity> users) {
+        return getByIds(users.stream().map(UserRankEntity::getId).toArray(Long[]::new));
     }
 
     public List<UserEntity> getByIds(Long[] ids) {

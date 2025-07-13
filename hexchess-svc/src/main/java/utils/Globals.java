@@ -27,6 +27,8 @@ public class Globals {
     public static final String CHARACTERS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
     public static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+    public static final int MAX_WAIT_MS = 500;
+
     static {
         JSON.setVisibility(JSON
             .getSerializationConfig()

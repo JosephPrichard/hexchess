@@ -1,7 +1,7 @@
 import type { ChessGame, Hexagon, PieceMoves } from '$lib/api/messages';
 
-export function onSelectPiece(game: ChessGame, newSelection: Hexagon, oldPotentialMoves: PieceMoves | undefined) {
-	if (newSelection.file === newSelection.file && newSelection.rank == newSelection.rank) {
+export function onSelectPiece(game: ChessGame, currentSelection: Hexagon | undefined, newSelection: Hexagon, oldPotentialMoves: PieceMoves | undefined) {
+	if (currentSelection?.file === newSelection.file && currentSelection?.rank == newSelection.rank) {
 		return { potentialMoves: undefined, newSelection: undefined };
 	}
 

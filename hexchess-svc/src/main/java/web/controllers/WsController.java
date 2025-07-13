@@ -31,9 +31,9 @@ public class WsController extends Jooby {
 
         GameWebsocket websocket = new GameWebsocket(state, wsId, gameId, sessionId);
 
-        configurer.onConnect((ws) -> CompletableFuture.runAsync(() -> websocket.onConnect(ws), EXECUTOR));
+        configurer.onConnect((ws) -> EXECUTOR.execute(() -> websocket.onConnect(ws)));
 
-        configurer.onMessage((ws, message) -> CompletableFuture.runAsync(() -> websocket.onMessage(ws, message), EXECUTOR));
+        configurer.onMessage((ws, message) -> EXECUTOR.execute(() -> websocket.onMessage(ws, message)));
 
         configurer.onClose(websocket::onClose);
     }
