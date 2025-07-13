@@ -2,7 +2,7 @@ package model;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import messages.Messages;
-import models.common.TimeControl;
+import models.enums.TimeControl;
 import models.state.ChessRoom;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;

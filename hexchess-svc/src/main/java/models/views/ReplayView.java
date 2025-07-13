@@ -2,8 +2,8 @@
 package models.views;
 
 import lombok.*;
-import models.common.ReplayCause;
-import models.common.ReplayResult;
+import models.enums.ReplayCause;
+import models.enums.ReplayResult;
 import models.entities.ReplayEntity;
 import org.jsoup.Jsoup;
 

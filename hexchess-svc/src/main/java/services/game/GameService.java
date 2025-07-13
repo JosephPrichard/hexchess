@@ -8,13 +8,11 @@ import services.daos.ReplayDao;
 import services.daos.UserDao;
 import chess.ChessGame;
 import lombok.AllArgsConstructor;
-import models.common.ColorSelect;
-import models.common.TimeControl;
+import models.enums.ColorSelect;
+import models.enums.TimeControl;
 import models.state.Player;
 import models.entities.ReplayEntity;
 import models.state.ChessRoom;
-
-import java.util.concurrent.CompletableFuture;
 
 import static utils.Globals.*;
 

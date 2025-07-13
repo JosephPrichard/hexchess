@@ -1,11 +1,11 @@
 package services.daos;
 
 import chess.ChessBoard;
-import models.common.ColorSelect;
+import models.enums.ColorSelect;
 import models.state.ChessRoom;
 import models.state.Player;
 import models.entities.UserRankEntity;
-import models.common.TimeControl;
+import models.enums.TimeControl;
 import models.views.ChessView;
 import org.junit.ClassRule;
 import org.junit.jupiter.api.*;

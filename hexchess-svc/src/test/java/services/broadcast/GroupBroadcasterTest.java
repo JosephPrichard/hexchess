@@ -4,18 +4,18 @@ import org.junit.jupiter.api.Test;
 
 import static org.mockito.Mockito.*;
 
-public class LocalGroupBroadcasterTest {
+public class GroupBroadcasterTest {
 
     @Test
     @SuppressWarnings("unchecked")
     public void testLocalBroadcaster() {
         // given
-        LocalGroupBroadcaster broadcaster = new LocalGroupBroadcaster("test-broadcaster");
+        GroupBroadcaster.Local broadcaster = new GroupBroadcaster.Local("test-broadcaster");
 
-        Receiver<byte[]> receiver1 = mock(Receiver.class);
-        Receiver<byte[]> receiver2 = mock(Receiver.class);
-        Receiver<byte[]> receiver3 = mock(Receiver.class);
-        Receiver<byte[]> receiver4 = mock(Receiver.class);
+        BroadcastReceiver<byte[]> receiver1 = mock(BroadcastReceiver.class);
+        BroadcastReceiver<byte[]> receiver2 = mock(BroadcastReceiver.class);
+        BroadcastReceiver<byte[]> receiver3 = mock(BroadcastReceiver.class);
+        BroadcastReceiver<byte[]> receiver4 = mock(BroadcastReceiver.class);
 
         // when
         when(receiver1.getId()).thenReturn("handlerId1");

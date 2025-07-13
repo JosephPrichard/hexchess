@@ -5,8 +5,8 @@ import models.views.SessionView;
 import services.broadcast.GroupBroadcaster;
 import services.daos.ChallengeDao;
 import services.daos.UserDao;
-import models.common.ColorSelect;
-import models.common.TimeControl;
+import models.enums.ColorSelect;
+import models.enums.TimeControl;
 import models.entities.ChallengeEntity;
 import models.state.Player;
 import models.entities.UserEntity;
@@ -17,8 +17,6 @@ import io.jooby.exception.StatusCodeException;
 import org.jsoup.Jsoup;
 import web.reusable.AuthService;
 import web.State;
-
-import java.util.concurrent.CompletableFuture;
 
 import static utils.Globals.*;
 import static web.WebConstants.*;

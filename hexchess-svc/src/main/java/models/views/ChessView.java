@@ -4,8 +4,8 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import messages.Messages;
-import models.common.ColorSelect;
-import models.common.TimeControl;
+import models.enums.ColorSelect;
+import models.enums.TimeControl;
 import models.state.Player;
 
 import javax.annotation.Nullable;

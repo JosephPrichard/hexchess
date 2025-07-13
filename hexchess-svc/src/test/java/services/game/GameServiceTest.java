@@ -1,8 +1,8 @@
 package services.game;
 
 import chess.*;
-import models.common.ColorSelect;
-import models.common.TimeControl;
+import models.enums.ColorSelect;
+import models.enums.TimeControl;
 import models.entities.ReplayEntity;
 import models.state.ChessRoom;
 import models.state.Player;

@@ -1,7 +1,7 @@
 package mocks;
 
-import models.common.ReplayCause;
-import models.common.ReplayResult;
+import models.enums.ReplayCause;
+import models.enums.ReplayResult;
 import models.entities.ReplayEntity;
 import models.views.ReplayView;
 

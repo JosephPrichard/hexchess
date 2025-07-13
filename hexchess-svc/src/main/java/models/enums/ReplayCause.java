@@ -1,4 +1,4 @@
-package models.common;
+package models.enums;
 
 import models.entities.ReplayEntity;
 

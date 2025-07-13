@@ -4,8 +4,8 @@ import chess.*;
 import com.google.protobuf.InvalidProtocolBufferException;
 import lombok.*;
 import messages.Messages;
-import models.common.ColorSelect;
-import models.common.TimeControl;
+import models.enums.ColorSelect;
+import models.enums.TimeControl;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;

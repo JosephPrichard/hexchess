@@ -6,9 +6,9 @@ import io.jooby.ServerSentEmitter;
 import io.jooby.exception.StatusCodeException;
 import io.jooby.jackson.JacksonModule;
 import models.state.Player;
+import services.broadcast.BroadcastReceiver;
 import services.broadcast.GroupBroadcaster;
 import services.broadcast.SingleBroadcaster;
-import web.reusable.SseReceiver;
 import services.daos.DictionaryDao;
 import web.State;
 import web.reusable.AuthService;
@@ -31,6 +31,34 @@ public class EventController extends Jooby {
     private final SingleBroadcaster gameCountBroadcaster;
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
+    public static class SseReceiver<Content> extends BroadcastReceiver<Content> {
+        private final ServerSentEmitter sse;
+        private final String event;
+
+        public SseReceiver(String id, ServerSentEmitter sse, String event) {
+            super(id);
+            this.sse = sse;
+            this.event = event;
+        }
+
+        @Override
+        public void onMessage(Content content) {
+            sse.send(event, content);
+        }
+
+        @Override
+        public void onEviction() {
+            if (sse.isOpen()) {
+                sse.close();
+            }
+        }
+
+        @Override
+        public boolean isClosed() {
+            return !sse.isOpen();
+        }
+    }
 
     public EventController(State state) {
         dictionaryDao = state.getDictionaryDao();

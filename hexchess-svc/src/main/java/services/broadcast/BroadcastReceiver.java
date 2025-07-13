@@ -3,10 +3,10 @@ package services.broadcast;
 import lombok.Data;
 
 @Data
-public abstract class Receiver<Content> {
+public abstract class BroadcastReceiver<Content> {
     protected String id;
 
-    public Receiver(String id) {
+    public BroadcastReceiver(String id) {
         this.id = id;
     }
 

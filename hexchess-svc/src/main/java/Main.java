@@ -2,8 +2,7 @@ import chess.ChessBoard;
 import com.zaxxer.hikari.HikariDataSource;
 import redis.clients.jedis.ConnectionPoolConfig;
 import services.broadcast.GroupBroadcaster;
-import services.broadcast.LocalGroupBroadcaster;
-import services.broadcast.LocalSingleBroadcaster;
+import services.broadcast.SingleBroadcaster;
 import services.daos.*;
 import redis.clients.jedis.JedisPooled;
 import services.game.GameService;
@@ -48,10 +47,10 @@ public class Main {
         DictionaryDao dictionaryDao = new DictionaryDao(new JedisPooled(poolConfig, redisHost, redisPort));
 //        GlobalBroadcaster gameBroadcaster = new GlobalBroadcaster(poolConfig, redisPubsubHost, redisPubsubPort, Broadcaster.GAMES_TOPIC);
 //        GlobalBroadcaster userBroadcaster = new GlobalBroadcaster(poolConfig, redisPubsubHost, redisPubsubPort, Broadcaster.USERS_TOPIC);
-        LocalGroupBroadcaster gameBroadcaster = new LocalGroupBroadcaster(GroupBroadcaster.GAMES_TOPIC);
-        LocalGroupBroadcaster userBroadcaster = new LocalGroupBroadcaster(GroupBroadcaster.USERS_TOPIC);
-        LocalSingleBroadcaster userCountBroadcaster = new LocalSingleBroadcaster(LocalSingleBroadcaster.USERS_COUNT_TOPIC);
-        LocalSingleBroadcaster gameCountBroadcaster = new LocalSingleBroadcaster(LocalSingleBroadcaster.GAME_COUNT_TOPIC);
+        GroupBroadcaster.Local gameBroadcaster = new GroupBroadcaster.Local(GroupBroadcaster.GAMES_TOPIC);
+        GroupBroadcaster.Local userBroadcaster = new GroupBroadcaster.Local(GroupBroadcaster.USERS_TOPIC);
+        SingleBroadcaster.Local userCountBroadcaster = new SingleBroadcaster.Local(SingleBroadcaster.USERS_COUNT_TOPIC);
+        SingleBroadcaster.Local gameCountBroadcaster = new SingleBroadcaster.Local(SingleBroadcaster.GAME_COUNT_TOPIC);
         GameService gameService = new GameService(dictionaryDao, userDao, replayDao, gameCountBroadcaster);
         AuthService authService = new AuthService(dictionaryDao, cookieDomain);
 

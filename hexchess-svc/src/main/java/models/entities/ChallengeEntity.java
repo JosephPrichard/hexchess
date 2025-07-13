@@ -21,11 +21,4 @@ public class ChallengeEntity {
     private String startColor = ""; // from challenger's perspective.
     @EqualsAndHashCode.Exclude
     private Timestamp madeOn;
-
-    public static ChallengeEntity fromIds(long challengerId, long challengeeId) {
-        ChallengeEntity entity = new ChallengeEntity();
-        entity.challengerId = challengerId;
-        entity.challengeeId = challengeeId;
-        return entity;
-    }
 }

@@ -1,14 +1,16 @@
 package web.websocket;
 
+import chess.ChessGame;
 import chess.PieceMove;
 import io.jooby.WebSocket;
 import io.jooby.WebSocketCloseStatus;
 import io.jooby.WebSocketMessage;
 import lombok.AllArgsConstructor;
+import messages.Messages;
 import models.state.Player;
 import models.state.ChessRoom;
 import services.broadcast.GroupBroadcaster;
-import services.broadcast.Receiver;
+import services.broadcast.BroadcastReceiver;
 import services.daos.DictionaryDao;
 import services.game.GameService;
 import web.State;
@@ -48,7 +50,7 @@ public class GameWebsocket {
 
             if (player == null) {
                 LOG.warn("Invalid session {} when attempting to connect to game {}", sessionId, gameId);
-                ws.sendBinary(GameMessages.serializeError(ERROR_SESSION_EXPIRED));
+                ws.sendBinary(serializeError(ERROR_SESSION_EXPIRED));
                 ws.close();
                 return;
             }
@@ -57,17 +59,17 @@ public class GameWebsocket {
 
             ChessRoom room = gameService.join(gameId, player);
             if (room == null) {
-                ws.sendBinary(GameMessages.serializeError(ERROR_INVALID_GAME));
+                ws.sendBinary(serializeError(ERROR_INVALID_GAME));
                 ws.close();
                 return;
             }
 
-            byte[] initOutput = GameMessages.serializeStart(player, room);
-            byte[] playersOutput = GameMessages.serializePlayers(room.getWhitePlayer(), room.getBlackPlayer());
+            byte[] initOutput = serializeStart(player, room);
+            byte[] playersOutput = serializePlayers(room.getWhitePlayer(), room.getBlackPlayer());
 
             ws.sendBinary(initOutput);
 
-            gameBroadcaster.subscribe(room.getId(), new Receiver<>(wsId) {
+            gameBroadcaster.subscribe(room.getId(), new BroadcastReceiver<>(wsId) {
                 @Override
                 public void onMessage(byte[] content) {
                     ws.sendBinary(content);
@@ -91,7 +93,7 @@ public class GameWebsocket {
             LOG.info("Player {} successfully connected to game {}", player.getId(), gameId);
         } catch (Exception e) {
             LOG.error("Fatal exception occurred", e);
-            ws.sendBinary(GameMessages.serializeError(ERROR_UNKNOWN));
+            ws.sendBinary(serializeError(ERROR_UNKNOWN));
             ws.close();
         }
     }
@@ -108,7 +110,7 @@ public class GameWebsocket {
             case "FORFEIT" -> {
                 gameService.forfeit(gameId, player);
 
-                byte[] output = GameMessages.serializeForfeit();
+                byte[] output = serializeForfeit();
                 gameBroadcaster.broadcast(gameId, output);
             }
             case "MOVE" -> {
@@ -117,7 +119,7 @@ public class GameWebsocket {
 
                 GameService.MakeMoveResult result = gameService.makeMove(gameId, player, move);
 
-                byte[] output = GameMessages.serializeMove(result.move(), result.room().getGame());
+                byte[] output = serializeMove(result.move(), result.room().getGame());
                 gameBroadcaster.broadcast(gameId, output);
             }
             case "TEXT" -> {
@@ -128,10 +130,10 @@ public class GameWebsocket {
                     content = content.substring(0, 250);
                 }
 
-                byte[] output = GameMessages.serializeChat(player, content);
+                byte[] output = serializeChat(player, content);
                 gameBroadcaster.broadcast(gameId, output);
             }
-            default -> ws.sendBinary(GameMessages.serializeError(ERROR_MESSAGE_TYPE));
+            default -> ws.sendBinary(serializeError(ERROR_MESSAGE_TYPE));
             }
         } catch (Exception e) {
             String error = switch (e) {
@@ -143,7 +145,7 @@ public class GameWebsocket {
                     yield ERROR_UNKNOWN;
                 }
             };
-            ws.sendBinary(GameMessages.serializeError(error));
+            ws.sendBinary(serializeError(error));
         }
     }
 
@@ -152,5 +154,67 @@ public class GameWebsocket {
 
         LOG.info("Closed websocket with id={} with closeStatus={}", wsId, statusCode);
         gameBroadcaster.unsubscribe(gameId, wsId);
+    }
+
+    public static byte[] serializeError(String message) {
+        return Messages.GameOutput.newBuilder()
+            .setError(Messages.Error.newBuilder().setMessage(message))
+            .build()
+            .toByteArray();
+    }
+
+    public static byte[] serializeStart(Player self, ChessRoom room) {
+        Messages.Init.Builder init = Messages.Init.newBuilder()
+            .setRoom(room.serialize());
+        if (self != null) {
+            init.setSelf(self.serialize());
+        }
+        return Messages.GameOutput.newBuilder()
+            .setInit(init.build())
+            .build()
+            .toByteArray();
+    }
+
+    public static byte[] serializePlayers(Player whitePlayer, Player blackPlayer) {
+        Messages.Players.Builder players = Messages.Players.newBuilder();
+        if (whitePlayer != null) {
+            players.setWhitePlayer(whitePlayer.serialize());
+        }
+        if (blackPlayer != null) {
+            players.setBlackPlayer(blackPlayer.serialize());
+        }
+        return Messages.GameOutput.newBuilder()
+            .setPlayers(players.build())
+            .build()
+            .toByteArray();
+    }
+
+    public static byte[] serializeMove(PieceMove pieceMove, ChessGame game) {
+        Messages.Move move = Messages.Move.newBuilder()
+            .setPieceMove(pieceMove.serialize())
+            .setGame(game.serialize())
+            .build();
+        return Messages.GameOutput.newBuilder()
+            .setMove(move)
+            .build()
+            .toByteArray();
+    }
+
+    public static byte[] serializeChat(Player player, String message) {
+        Messages.Chat chat = Messages.Chat.newBuilder()
+            .setPlayer(player.serialize())
+            .setMessage(message)
+            .build();
+        return Messages.GameOutput.newBuilder()
+            .setChat(chat)
+            .build()
+            .toByteArray();
+    }
+
+    public static byte[] serializeForfeit() {
+        return Messages.GameOutput.newBuilder()
+            .setForfeit(Messages.Forfeit.newBuilder())
+            .build()
+            .toByteArray();
     }
 }

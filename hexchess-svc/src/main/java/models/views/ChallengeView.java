@@ -2,7 +2,7 @@ package models.views;
 
 import lombok.*;
 import models.entities.ChallengeEntity;
-import models.common.TimeControl;
+import models.enums.TimeControl;
 
 import java.sql.Timestamp;
 import java.time.Duration;
