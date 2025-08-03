@@ -16,7 +16,7 @@ import static utils.Globals.LOG;
 
 @Data
 @AllArgsConstructor
-public class ChessRoom {
+public class ChessState {
     @NonNull
     private String id;
     @ToString.Exclude
@@ -25,9 +25,9 @@ public class ChessRoom {
     @NonNull
     private List<PieceMove> moveList;
     @Nullable
-    private Player whitePlayer;
+    private PlayerState whitePlayer;
     @Nullable
-    private Player blackPlayer;
+    private PlayerState blackPlayer;
     private boolean isEnded;
     @NonNull
     private ColorSelect firstColor; // decides what color the first joining selfPlayer joins as
@@ -36,11 +36,11 @@ public class ChessRoom {
     @EqualsAndHashCode.Exclude
     private long touch;
 
-    public static ChessRoom startWithGame(String id, TimeControl timeControl) {
-        return new ChessRoom(id, ChessGame.start(), new ArrayList<>(), null, null, false, ColorSelect.RANDOM, timeControl, 0);
+    public static ChessState startWithGame(String id, TimeControl timeControl) {
+        return new ChessState(id, ChessGame.start(), new ArrayList<>(), null, null, false, ColorSelect.RANDOM, timeControl, 0);
     }
 
-    public Player getCurrPlayer() {
+    public PlayerState getCurrPlayer() {
         return game.getBoard().isWhiteTurn() ? whitePlayer : blackPlayer;
     }
 
@@ -48,10 +48,10 @@ public class ChessRoom {
         moveList.add(pm);
     }
 
-    public Messages.ChessRoom serialize() {
+    public Messages.ChessState serialize() {
         Stream<Messages.PieceMove> moveListStream = moveList.stream().map(PieceMove::serialize);
 
-        Messages.ChessRoom.Builder builder = Messages.ChessRoom.newBuilder()
+        Messages.ChessState.Builder builder = Messages.ChessState.newBuilder()
             .setId(id)
             .setGame(game.serialize())
             .addAllMoveList(moveListStream::iterator)
@@ -74,7 +74,7 @@ public class ChessRoom {
         return serialize().toByteArray();
     }
 
-    public static ChessRoom deserialize(Messages.ChessRoom msg) {
+    public static ChessState deserialize(Messages.ChessState msg) {
         String id = msg.getId();
         ChessGame game = ChessGame.deserialize(msg.getGame());
 
@@ -83,8 +83,8 @@ public class ChessRoom {
             .map(PieceMove::deserialize)
             .toList();
 
-        Player blackPlayer = msg.hasBlackPlayer() ? Player.deserialize(msg.getBlackPlayer()) : null;
-        Player whitePlayer = msg.hasWhitePlayer() ? Player.deserialize(msg.getWhitePlayer()) : null;
+        PlayerState blackPlayer = msg.hasBlackPlayer() ? PlayerState.deserialize(msg.getBlackPlayer()) : null;
+        PlayerState whitePlayer = msg.hasWhitePlayer() ? PlayerState.deserialize(msg.getWhitePlayer()) : null;
 
         TimeControl timeControl = TimeControl.fromInt(msg.getTimeControl());
         ColorSelect firstColor = ColorSelect.fromInt(msg.getFirstColor());
@@ -92,12 +92,12 @@ public class ChessRoom {
         boolean isEnded = msg.getIsEnded();
         long touch = msg.getTouch();
 
-        return new ChessRoom(id, game, moveList, whitePlayer, blackPlayer, isEnded, firstColor, timeControl, touch);
+        return new ChessState(id, game, moveList, whitePlayer, blackPlayer, isEnded, firstColor, timeControl, touch);
     }
 
-    public static ChessRoom deserialize(byte[] bytes) {
+    public static ChessState deserialize(byte[] bytes) {
         try {
-            return deserialize(Messages.ChessRoom.parseFrom(bytes));
+            return deserialize(Messages.ChessState.parseFrom(bytes));
         } catch (InvalidProtocolBufferException ex) {
             LOG.error("Failed to deserialize room object from bytes", ex);
             throw new RuntimeException(ex);

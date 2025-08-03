@@ -2,7 +2,7 @@ package web.controllers;
 
 import chess.ChessBoard;
 import models.entities.UserRankEntity;
-import models.state.Player;
+import models.state.PlayerState;
 import services.daos.*;
 import io.jooby.exception.BadRequestException;
 import models.entities.*;
@@ -71,7 +71,7 @@ public class ViewController extends Jooby {
     }
 
     public UserView getSelf(Context ctx) {
-        Player player = authService.getSessionPlayer(ctx);
+        PlayerState player = authService.getSessionPlayer(ctx);
 
         UserEntity entity = userDao.getById(player.getId());
         LOG.info("Retrieved self user={}", entity);
@@ -198,7 +198,7 @@ public class ViewController extends Jooby {
     public List<ChallengeView> getChallengeList(Context ctx) {
         String participants = ctx.query("participants").value("");
 
-        Player player = authService.getSessionPlayer(ctx);
+        PlayerState player = authService.getSessionPlayer(ctx);
 
         List<ChallengeEntity> entityList = switch (participants) {
             case "received" -> challengeDao.getByParticipant(null, player.getId());
@@ -248,7 +248,7 @@ public class ViewController extends Jooby {
             throw new BadRequestException(ERROR_INVALID_REQUEST);
         }
 
-        Player player = authService.getOptionalSessionPlayer(ctx);
+        PlayerState player = authService.getOptionalSessionPlayer(ctx);
         if (player == null) {
             LOG.info("Player is not provided when requesting rooms list, defaulting to empty list");
         }

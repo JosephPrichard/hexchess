@@ -2,8 +2,8 @@ package services.daos;
 
 import chess.ChessBoard;
 import models.enums.ColorSelect;
-import models.state.ChessRoom;
-import models.state.Player;
+import models.state.ChessState;
+import models.state.PlayerState;
 import models.entities.UserRankEntity;
 import models.enums.TimeControl;
 import models.views.ChessView;
@@ -54,16 +54,16 @@ public class DictionaryDaoTest {
     public void testGameUpdate() {
         String id = "test-id";
 
-        ChessRoom input = ChessRoom.startWithGame(id, TimeControl.UNLIMITED);
+        ChessState input = ChessState.startWithGame(id, TimeControl.UNLIMITED);
         dictionaryDao.setRoom(id, input);
 
-        ChessRoom output1 = dictionaryDao.getRoom(id);
+        ChessState output1 = dictionaryDao.getRoom(id);
         Assertions.assertEquals(input, output1);
 
         output1.getGame().getBoard().setPiece("a1", ChessBoard.BLACK_QUEEN);
         dictionaryDao.setRoom(id, output1);
 
-        ChessRoom output2 = dictionaryDao.getRoom(id);
+        ChessState output2 = dictionaryDao.getRoom(id);
 
         Assertions.assertEquals(output1, output2);
     }
@@ -76,10 +76,10 @@ public class DictionaryDaoTest {
         String id3 = "test-id3";
         String id4 = "test-id4";
 
-        ChessRoom room1 = ChessRoom.startWithGame(id1, TimeControl.REAL_TIME);
-        ChessRoom room2 = ChessRoom.startWithGame(id2, TimeControl.REAL_TIME);
-        ChessRoom room3 = ChessRoom.startWithGame(id3, TimeControl.REAL_TIME);
-        ChessRoom room4 = ChessRoom.startWithGame(id4, TimeControl.REAL_TIME);
+        ChessState room1 = ChessState.startWithGame(id1, TimeControl.REAL_TIME);
+        ChessState room2 = ChessState.startWithGame(id2, TimeControl.REAL_TIME);
+        ChessState room3 = ChessState.startWithGame(id3, TimeControl.REAL_TIME);
+        ChessState room4 = ChessState.startWithGame(id4, TimeControl.REAL_TIME);
 
         // when
         dictionaryDao.setRoom(id1, room1);
@@ -108,14 +108,14 @@ public class DictionaryDaoTest {
         String id2 = "test-id2";
         String id3 = "test-id3";
 
-        ChessRoom room1 = ChessRoom.startWithGame(id1, TimeControl.REAL_TIME);
-        ChessRoom room2 = ChessRoom.startWithGame(id2, TimeControl.REAL_TIME);
-        ChessRoom room3 = ChessRoom.startWithGame(id2, TimeControl.REAL_TIME);
+        ChessState room1 = ChessState.startWithGame(id1, TimeControl.REAL_TIME);
+        ChessState room2 = ChessState.startWithGame(id2, TimeControl.REAL_TIME);
+        ChessState room3 = ChessState.startWithGame(id2, TimeControl.REAL_TIME);
 
-        room1.setWhitePlayer(new Player(1L));
-        room1.setBlackPlayer(new Player(2L));
+        room1.setWhitePlayer(new PlayerState(1L));
+        room1.setBlackPlayer(new PlayerState(2L));
 
-        room2.setBlackPlayer(new Player(1L));
+        room2.setBlackPlayer(new PlayerState(1L));
 
         // when
         dictionaryDao.setRoom(id1, room1);
@@ -128,10 +128,10 @@ public class DictionaryDaoTest {
 
         // then
         List<ChessView> expectedViewList1 = List.of(
-            new ChessView("test-id2", null, new Player(1L), false, ColorSelect.RANDOM, TimeControl.REAL_TIME),
-            new ChessView("test-id1", new Player(1L), new Player(2L), false, ColorSelect.RANDOM, TimeControl.REAL_TIME));
+            new ChessView("test-id2", null, new PlayerState(1L), false, ColorSelect.RANDOM, TimeControl.REAL_TIME),
+            new ChessView("test-id1", new PlayerState(1L), new PlayerState(2L), false, ColorSelect.RANDOM, TimeControl.REAL_TIME));
         List<ChessView> expectedViewList2 = List.of(
-            new ChessView("test-id1", new Player(1L), new Player(2L), false, ColorSelect.RANDOM, TimeControl.REAL_TIME));
+            new ChessView("test-id1", new PlayerState(1L), new PlayerState(2L), false, ColorSelect.RANDOM, TimeControl.REAL_TIME));
 
         Assertions.assertEquals(expectedViewList1, viewsList1);
         Assertions.assertEquals(expectedViewList2, viewsList2);
@@ -141,17 +141,17 @@ public class DictionaryDaoTest {
     @Test
     public void testSessions() throws InterruptedException {
         // given
-        Player player1 = new Player(1L, "test-name1", "", 0f);
-        Player player2 = new Player(2L, "test-name2", "", 0f);
+        PlayerState player1 = new PlayerState(1L, "test-name1", "", 0f);
+        PlayerState player2 = new PlayerState(2L, "test-name2", "", 0f);
 
         // when
         dictionaryDao.setSession("session1", player1, 100);
         dictionaryDao.setSession("session2", player2, 1);
 
-        Player player3 = dictionaryDao.getSession("session1");
+        PlayerState player3 = dictionaryDao.getSession("session1");
 
         Thread.sleep(1000); // wait for key to expire
-        Player player4 = dictionaryDao.getSession("session2");
+        PlayerState player4 = dictionaryDao.getSession("session2");
 
         // then
         Assertions.assertEquals(player1, player3);

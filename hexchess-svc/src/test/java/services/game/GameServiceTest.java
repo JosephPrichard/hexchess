@@ -4,8 +4,8 @@ import chess.*;
 import models.enums.ColorSelect;
 import models.enums.TimeControl;
 import models.entities.ReplayEntity;
-import models.state.ChessRoom;
-import models.state.Player;
+import models.state.ChessState;
+import models.state.PlayerState;
 import org.junit.jupiter.api.Test;
 import services.daos.DictionaryDao;
 import services.daos.ReplayDao;
@@ -27,15 +27,15 @@ public class GameServiceTest {
         GameService gameService = new GameService(dictionaryDao, null, null, null);
 
         String gameId = "abc123";
-        ChessRoom room = ChessRoom.startWithGame(gameId, TimeControl.REAL_TIME);
+        ChessState room = ChessState.startWithGame(gameId, TimeControl.REAL_TIME);
         room.setFirstColor(ColorSelect.WHITE);
-        Player player = new Player(1L, "name", "us", 0f);
+        PlayerState player = new PlayerState(1L, "name", "us", 0f);
 
         // when
         when(dictionaryDao.getRoom(gameId)).thenReturn(room);
         when(dictionaryDao.setRoom(any(), any())).thenReturn(room);
 
-        ChessRoom updated = gameService.join(gameId, player);
+        ChessState updated = gameService.join(gameId, player);
 
         // then
         verify(dictionaryDao, times(1)).setRoom(eq(gameId), any());
@@ -50,17 +50,17 @@ public class GameServiceTest {
         GameService gameService = new GameService(dictionaryDao, null, null, null);
 
         String gameId = "abc123";
-        Player white = new Player(1L, "name1", "us", 0f);
-        Player black = new Player(2L, "name2", "us", 0f);
+        PlayerState white = new PlayerState(1L, "name1", "us", 0f);
+        PlayerState black = new PlayerState(2L, "name2", "us", 0f);
 
-        ChessRoom room = ChessRoom.startWithGame(gameId, TimeControl.REAL_TIME);
+        ChessState room = ChessState.startWithGame(gameId, TimeControl.REAL_TIME);
         room.setWhitePlayer(white);
         room.setBlackPlayer(black);
 
         // when
         when(dictionaryDao.getRoom(gameId)).thenReturn(room);
 
-        ChessRoom result = gameService.join(gameId, new Player(3L, "name3", "us", 0f));
+        ChessState result = gameService.join(gameId, new PlayerState(3L, "name3", "us", 0f));
 
         // then
         assertEquals(room, result); // No-op join
@@ -75,15 +75,15 @@ public class GameServiceTest {
         GameService gameService = new GameService(dictionaryDao, userDao, replayDao, null);
 
         String gameId = "game123";
-        Player white = new Player(1L, "name1", "us", 0f);
-        Player black = new Player(2L, "name2", "us", 0f);
+        PlayerState white = new PlayerState(1L, "name1", "us", 0f);
+        PlayerState black = new PlayerState(2L, "name2", "us", 0f);
         byte piece = ChessBoard.BLACK_PAWN;
         PieceMove move = new PieceMove(piece, Hexagon.of(0, 0), Hexagon.of(0, 1));
 
         ChessGame game = mock(ChessGame.class);
         ChessBoard board = mock(ChessBoard.class);
 
-        ChessRoom room = spy(ChessRoom.startWithGame(gameId, TimeControl.REAL_TIME));
+        ChessState room = spy(ChessState.startWithGame(gameId, TimeControl.REAL_TIME));
         room.setWhitePlayer(white);
         room.setBlackPlayer(black);
         room.setGame(game);
@@ -123,9 +123,9 @@ public class GameServiceTest {
         ReplayDao replayDao = mock(ReplayDao.class);
         GameService gameService = new GameService(dictionaryDao, userDao, replayDao, null);
 
-        ChessRoom room = ChessRoom.startWithGame("gameId", TimeControl.REAL_TIME);
-        Player white = new Player(1L, "name1", "us", 0f);
-        Player black = new Player(2L, "name2", "us", 0f);
+        ChessState room = ChessState.startWithGame("gameId", TimeControl.REAL_TIME);
+        PlayerState white = new PlayerState(1L, "name1", "us", 0f);
+        PlayerState black = new PlayerState(2L, "name2", "us", 0f);
 
         room.setWhitePlayer(white);
         room.setBlackPlayer(black);
@@ -151,9 +151,9 @@ public class GameServiceTest {
         ReplayDao replayDao = mock(ReplayDao.class);
         GameService gameService = new GameService(dictionaryDao, userDao, replayDao, null);
 
-        Player white = new Player(1L, "name1", "us", 0f);
-        Player black = new Player(2L, "name2", "us", 0f);
-        ChessRoom room = ChessRoom.startWithGame("gameId", TimeControl.REAL_TIME);
+        PlayerState white = new PlayerState(1L, "name1", "us", 0f);
+        PlayerState black = new PlayerState(2L, "name2", "us", 0f);
+        ChessState room = ChessState.startWithGame("gameId", TimeControl.REAL_TIME);
         room.setWhitePlayer(white);
         room.setBlackPlayer(black);
 

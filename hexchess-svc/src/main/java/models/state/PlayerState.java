@@ -4,15 +4,13 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import lombok.*;
 import messages.Messages;
 
-import javax.annotation.Nullable;
-
 import static utils.Globals.LOG;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Player {
+public class PlayerState {
     private long id;
     @EqualsAndHashCode.Exclude
     @NonNull
@@ -25,11 +23,11 @@ public class Player {
     @EqualsAndHashCode.Exclude
     private boolean isGuest = false;
 
-    public Player(long id) {
+    public PlayerState(long id) {
         this.id = id;
     }
 
-    public Player(long id, @NonNull String name, @NonNull String country, float elo) {
+    public PlayerState(long id, @NonNull String name, @NonNull String country, float elo) {
         this.id = id;
         this.name = name;
         this.country = country;
@@ -46,15 +44,15 @@ public class Player {
             .build();
     }
 
-    public static Player deserialize(Messages.Player msg) {
-        return new Player(msg.getId(), msg.getName(), msg.getCountry(), msg.getElo());
+    public static PlayerState deserialize(Messages.Player msg) {
+        return new PlayerState(msg.getId(), msg.getName(), msg.getCountry(), msg.getElo());
     }
 
     public byte[] serializeAsBytes() {
         return serialize().toByteArray();
     }
 
-    public static Player deserialize(byte[] bytes) {
+    public static PlayerState deserialize(byte[] bytes) {
         try {
             return deserialize(Messages.Player.parseFrom(bytes));
         } catch (InvalidProtocolBufferException ex) {

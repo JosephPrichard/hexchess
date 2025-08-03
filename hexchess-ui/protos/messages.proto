@@ -43,7 +43,7 @@ message ChessGame {
   repeated int32 taken_black_pieces = 5;
 }
 
-message ChessRoom {
+message ChessState {
   string id = 1;
   ChessGame game = 2;
   repeated PieceMove move_list = 3;
@@ -60,7 +60,7 @@ message Error {
 }
 
 message Init {
-  ChessRoom room = 1;
+  ChessState state = 1;
   Player self = 2;
 }
 

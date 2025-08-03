@@ -3,7 +3,7 @@ package model;
 import com.google.protobuf.InvalidProtocolBufferException;
 import messages.Messages;
 import models.enums.TimeControl;
-import models.state.ChessRoom;
+import models.state.ChessState;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -11,16 +11,16 @@ import java.util.UUID;
 
 import static utils.Globals.LOG;
 
-public class ChessRoomTest {
+public class ChessStateTest {
     @Test
     public void testRoomSerializerNotStarted() throws InvalidProtocolBufferException {
         // given
-        ChessRoom in = ChessRoom.startWithGame(UUID.randomUUID().toString(), TimeControl.REAL_TIME);
+        ChessState in = ChessState.startWithGame(UUID.randomUUID().toString(), TimeControl.REAL_TIME);
 
         // when
         byte[] bytes = in.serializeAsBytes();
-        Messages.ChessRoom msg = Messages.ChessRoom.parseFrom(bytes);
-        ChessRoom out = ChessRoom.deserialize(msg);
+        Messages.ChessState msg = Messages.ChessState.parseFrom(bytes);
+        ChessState out = ChessState.deserialize(msg);
 
         LOG.info("Deserialized room={}, board={}", out, out.getGame().getBoard());
 
@@ -31,13 +31,13 @@ public class ChessRoomTest {
     @Test
     public void testRoomSerializer() throws InvalidProtocolBufferException {
         // given
-        ChessRoom in = ChessRoom.startWithGame(UUID.randomUUID().toString(), TimeControl.REAL_TIME);
+        ChessState in = ChessState.startWithGame(UUID.randomUUID().toString(), TimeControl.REAL_TIME);
         in.getGame().initPieceMoves();
 
         // when
         byte[] bytes = in.serializeAsBytes();
-        Messages.ChessRoom msg = Messages.ChessRoom.parseFrom(bytes);
-        ChessRoom out = ChessRoom.deserialize(msg);
+        Messages.ChessState msg = Messages.ChessState.parseFrom(bytes);
+        ChessState out = ChessState.deserialize(msg);
 
         LOG.info("Deserialized room={}, board={}", out, out.getGame().getBoard());
 

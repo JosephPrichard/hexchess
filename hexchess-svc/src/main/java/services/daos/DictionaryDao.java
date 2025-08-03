@@ -1,7 +1,7 @@
 package services.daos;
 
-import models.state.ChessRoom;
-import models.state.Player;
+import models.state.ChessState;
+import models.state.PlayerState;
 import models.entities.UserRankEntity;
 import models.entities.UserEntity;
 import models.views.ChessView;
@@ -34,7 +34,7 @@ public class DictionaryDao {
         return GAMES_ZSET + "_user_" + id;
     }
 
-    public ChessRoom getRoom(String id) {
+    public ChessState getRoom(String id) {
         expireRooms(GAMES_ZSET);
 
         String fullId = "game:" + id;
@@ -43,12 +43,12 @@ public class DictionaryDao {
             return null;
         }
 
-        return ChessRoom.deserialize(bytes);
+        return ChessState.deserialize(bytes);
     }
 
-    public ChessRoom setRoom(String id, ChessRoom room) {
-        Player whitePlayer = room.getWhitePlayer();
-        Player blackPlayer = room.getBlackPlayer();
+    public ChessState setRoom(String id, ChessState room) {
+        PlayerState whitePlayer = room.getWhitePlayer();
+        PlayerState blackPlayer = room.getBlackPlayer();
         room.setTouch(System.currentTimeMillis());
 
         byte[] bytes = room.serializeAsBytes();
@@ -139,16 +139,16 @@ public class DictionaryDao {
         return viewList;
     }
 
-    public Player getSession(String sessionId) {
+    public PlayerState getSession(String sessionId) {
         String fullId = "session:" + sessionId;
         byte[] bytes = jedis.get(fullId.getBytes());
         if (bytes == null) {
             return null;
         }
-        return Player.deserialize(bytes);
+        return PlayerState.deserialize(bytes);
     }
 
-    public void setSession(String sessionId, Player player, long expirySeconds) {
+    public void setSession(String sessionId, PlayerState player, long expirySeconds) {
         String fullId = "session:" + sessionId;
         byte[] bytes = player.serializeAsBytes();
         jedis.setex(fullId.getBytes(), expirySeconds, bytes);
@@ -164,14 +164,14 @@ public class DictionaryDao {
         jedis.del(fullId);
     }
 
-    public Player getSessionOrDefault(String sessionId) {
-        Player player;
+    public PlayerState getSessionOrDefault(String sessionId) {
+        PlayerState player;
         if (sessionId != null) {
             player = getSession(sessionId);
         } else {
             String guestName = "Guest " + RANDOM.nextInt(1000);
             long randomLong = Math.abs(RANDOM.nextLong());
-            player = new Player(randomLong, guestName, "", 0, true);
+            player = new PlayerState(randomLong, guestName, "", 0, true);
         }
         return player;
     }

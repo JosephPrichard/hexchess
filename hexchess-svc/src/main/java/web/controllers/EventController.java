@@ -5,7 +5,7 @@ import io.jooby.Jooby;
 import io.jooby.ServerSentEmitter;
 import io.jooby.exception.StatusCodeException;
 import io.jooby.jackson.JacksonModule;
-import models.state.Player;
+import models.state.PlayerState;
 import services.broadcast.BroadcastReceiver;
 import services.broadcast.GroupBroadcaster;
 import services.broadcast.SingleBroadcaster;
@@ -118,7 +118,7 @@ public class EventController extends Jooby {
         Context ctx = sse.getContext();
 
         // silently close the sse if we have auth issues, we cannot deliver notifications
-        Player player;
+        PlayerState player;
         try {
             player = authService.getSessionPlayer(ctx);
         } catch (StatusCodeException ex) {

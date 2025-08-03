@@ -7,8 +7,8 @@ import io.jooby.WebSocketCloseStatus;
 import io.jooby.WebSocketMessage;
 import lombok.AllArgsConstructor;
 import messages.Messages;
-import models.state.Player;
-import models.state.ChessRoom;
+import models.state.PlayerState;
+import models.state.ChessState;
 import services.broadcast.GroupBroadcaster;
 import services.broadcast.BroadcastReceiver;
 import services.daos.DictionaryDao;
@@ -28,7 +28,7 @@ public class GameWebsocket {
     private final String sessionId;
     private final String gameId;
     private final String wsId;
-    private AtomicReference<Player> self = new AtomicReference<>();
+    private AtomicReference<PlayerState> self = new AtomicReference<>();
 
     public GameWebsocket(State state, String wsId, String gameId, String sessionId) {
         this.state = state;
@@ -45,7 +45,7 @@ public class GameWebsocket {
         GroupBroadcaster gameBroadcaster = state.getGameBroadcaster();
 
         try {
-            Player player = dictionaryDao.getSessionOrDefault(sessionId);
+            PlayerState player = dictionaryDao.getSessionOrDefault(sessionId);
             self.set(player);
 
             if (player == null) {
@@ -57,7 +57,7 @@ public class GameWebsocket {
 
             LOG.info("Player {} attempting to connect to game {}", player.getId(), gameId);
 
-            ChessRoom room = gameService.join(gameId, player);
+            ChessState room = gameService.join(gameId, player);
             if (room == null) {
                 ws.sendBinary(serializeError(ERROR_INVALID_GAME));
                 ws.close();
@@ -102,7 +102,7 @@ public class GameWebsocket {
         GameService gameService = state.getGameService();
         GroupBroadcaster gameBroadcaster = state.getGameBroadcaster();
 
-        Player player = self.get();
+        PlayerState player = self.get();
         LOG.info("Received message from player {}, {} on game {}", player.getId(), message.value(), gameId);
         try {
             GameInput input = JSON.readValue(message.value(), GameInput.class);
@@ -163,9 +163,8 @@ public class GameWebsocket {
             .toByteArray();
     }
 
-    public static byte[] serializeStart(Player self, ChessRoom room) {
-        Messages.Init.Builder init = Messages.Init.newBuilder()
-            .setRoom(room.serialize());
+    public static byte[] serializeStart(PlayerState self, ChessState room) {
+        Messages.Init.Builder init = Messages.Init.newBuilder().setState(room.serialize());
         if (self != null) {
             init.setSelf(self.serialize());
         }
@@ -175,7 +174,7 @@ public class GameWebsocket {
             .toByteArray();
     }
 
-    public static byte[] serializePlayers(Player whitePlayer, Player blackPlayer) {
+    public static byte[] serializePlayers(PlayerState whitePlayer, PlayerState blackPlayer) {
         Messages.Players.Builder players = Messages.Players.newBuilder();
         if (whitePlayer != null) {
             players.setWhitePlayer(whitePlayer.serialize());
@@ -200,7 +199,7 @@ public class GameWebsocket {
             .toByteArray();
     }
 
-    public static byte[] serializeChat(Player player, String message) {
+    public static byte[] serializeChat(PlayerState player, String message) {
         Messages.Chat chat = Messages.Chat.newBuilder()
             .setPlayer(player.serialize())
             .setMessage(message)

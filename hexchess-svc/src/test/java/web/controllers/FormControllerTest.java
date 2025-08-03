@@ -13,7 +13,7 @@ import io.jooby.test.MockResponse;
 import io.jooby.test.MockRouter;
 import io.jooby.test.MockValue;
 import models.enums.ColorSelect;
-import models.state.Player;
+import models.state.PlayerState;
 import models.enums.TimeControl;
 import models.entities.UserEntity;
 import org.junit.jupiter.api.Assertions;
@@ -34,7 +34,7 @@ public class FormControllerTest {
     public void testRegister() throws UserDao.TakenUsernameException {
         // given
         UserEntity user = new UserEntity(1L, "testUser", "USA");
-        Player player = new Player(1L, "testUser", "USA", 0f);
+        PlayerState player = new PlayerState(1L, "testUser", "USA", 0f);
         Cookie cookie = new Cookie("sessionToken");
 
         UserDao mockUserDao = mock(UserDao.class);
@@ -73,7 +73,7 @@ public class FormControllerTest {
     @Test
     public void testLogin() {
         // given
-        Player player = new Player(1L, "testUser", "us", 0f);
+        PlayerState player = new PlayerState(1L, "testUser", "us", 0f);
         String country = "us";
         Cookie cookie = new Cookie("sessionToken");
 
@@ -160,7 +160,7 @@ public class FormControllerTest {
         MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, FormController.UpdtAction.ACCEPT);
 
         // when
-        when(mockAuthService.getSessionPlayer(any())).thenReturn(new Player(challengeeId, "playerName", "us", 0f));
+        when(mockAuthService.getSessionPlayer(any())).thenReturn(new PlayerState(challengeeId, "playerName", "us", 0f));
         when(mockGameService.create(any(), any())).thenReturn("test-id");
         when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(new ChallengeDao.DeleteResult(1L, 2L, "UNLIMITED", "WHITE"));
 
@@ -194,7 +194,7 @@ public class FormControllerTest {
         MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, FormController.UpdtAction.ACCEPT);
 
         // when
-        when(mockAuthService.getSessionPlayer(any())).thenReturn(new Player(challengeeId, "playerName", "us", 0f));
+        when(mockAuthService.getSessionPlayer(any())).thenReturn(new PlayerState(challengeeId, "playerName", "us", 0f));
         when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(null);
 
         Assertions.assertThrows(StatusCodeException.class, () -> mockRouter.post("/forms/challenges/update", mockContext));
@@ -225,7 +225,7 @@ public class FormControllerTest {
         MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, FormController.UpdtAction.DELETE);
 
         // when
-        when(mockAuthService.getSessionPlayer(any())).thenReturn(new Player(challengerId, "playerName", "us", 0f));
+        when(mockAuthService.getSessionPlayer(any())).thenReturn(new PlayerState(challengerId, "playerName", "us", 0f));
         when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(new ChallengeDao.DeleteResult(1L, 2L, "UNLIMITED", "WHITE"));
 
         MockValue value = mockRouter.post("/forms/challenges/update", mockContext);
@@ -258,7 +258,7 @@ public class FormControllerTest {
         MockContext mockContext = mockChallengeCtx(challengerId, challengeeId, FormController.UpdtAction.REJECT);
 
         // when
-        when(mockAuthService.getSessionPlayer(any())).thenReturn(new Player(challengeeId, "playerName", "us", 0f));
+        when(mockAuthService.getSessionPlayer(any())).thenReturn(new PlayerState(challengeeId, "playerName", "us", 0f));
         when(mockChallengeDao.delete(anyLong(), anyLong())).thenReturn(new ChallengeDao.DeleteResult(1L, 2L, "UNLIMITED", "WHITE"));
 
         MockValue value = mockRouter.post("/forms/challenges/update", mockContext);
@@ -303,7 +303,7 @@ public class FormControllerTest {
         doNothing().when(sut).dispatchBroadcastChallenge(any());
         doNothing().when(sut).dispatchDeleteExpired(anyLong());
 
-        when(mockAuthService.getSessionPlayer(any())).thenReturn(new Player(challengerId, "playerName", "us", 0f));
+        when(mockAuthService.getSessionPlayer(any())).thenReturn(new PlayerState(challengerId, "playerName", "us", 0f));
         when(mockChallengeDao.insert(anyLong(), anyLong(), anyString(), anyString())).thenReturn(challengeFromIds(challengeeId, challengerId));
 
         ServiceView response = sut.createChallenge(mockContext);

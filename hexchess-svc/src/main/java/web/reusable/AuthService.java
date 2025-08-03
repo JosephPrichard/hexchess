@@ -6,7 +6,7 @@ import io.jooby.SameSite;
 import io.jooby.StatusCode;
 import io.jooby.exception.StatusCodeException;
 import lombok.AllArgsConstructor;
-import models.state.Player;
+import models.state.PlayerState;
 import services.daos.DictionaryDao;
 
 import javax.annotation.Nullable;
@@ -80,12 +80,12 @@ public class AuthService {
         return sessionStr;
     }
 
-    public Player getSessionPlayer(Context ctx) {
+    public PlayerState getSessionPlayer(Context ctx) {
         String sessionId = parseSession(ctx);
         if (sessionId == null) {
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_REQUIRED_LOGIN);
         }
-        Player player = dictionaryDao.getSession(sessionId);
+        PlayerState player = dictionaryDao.getSession(sessionId);
         if (player == null) {
             ctx.setResponseCookie(createEmptyCookie());
             throw new StatusCodeException(StatusCode.UNAUTHORIZED, ERROR_SESSION_EXPIRED);
@@ -94,12 +94,12 @@ public class AuthService {
     }
 
     @Nullable
-    public Player getOptionalSessionPlayer(Context ctx) {
+    public PlayerState getOptionalSessionPlayer(Context ctx) {
         String sessionId = parseSession(ctx);
         if (sessionId == null) {
             return null;
         }
-        Player player = dictionaryDao.getSession(sessionId);
+        PlayerState player = dictionaryDao.getSession(sessionId);
         if (player == null) {
             ctx.setResponseCookie(createEmptyCookie());
             return null;

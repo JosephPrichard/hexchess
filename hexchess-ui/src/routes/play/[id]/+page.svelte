@@ -69,13 +69,13 @@
 		const kind = data.value.oneofKind;
 		if (kind === 'init') {
 			const init = data.value.init;
-			if (init.room === undefined) {
+			if (init.state === undefined) {
 				throw new Error("Room must be specified, got " + JSON.stringify(init));
 			}
-			game = init.room.game;
-			moveList = init.room.moveList || [];
-			whitePlayer = init.room.whitePlayer;
-			blackPlayer = init.room.blackPlayer;
+			game = init.state.game;
+			moveList = init.state.moveList || [];
+			whitePlayer = init.state.whitePlayer;
+			blackPlayer = init.state.blackPlayer;
 			selfPlayer = init.self;
 		} else if (kind === 'players') {
 			const players = data.value.players;

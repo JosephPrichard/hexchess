@@ -10,9 +10,9 @@ import chess.ChessGame;
 import lombok.AllArgsConstructor;
 import models.enums.ColorSelect;
 import models.enums.TimeControl;
-import models.state.Player;
+import models.state.PlayerState;
 import models.entities.ReplayEntity;
-import models.state.ChessRoom;
+import models.state.ChessState;
 
 import static utils.Globals.*;
 
@@ -42,7 +42,7 @@ public class GameService {
 
     public String create(ColorSelect color, TimeControl timeControl) {
         String id = generateGameId();
-        ChessRoom room = ChessRoom.startWithGame(id, timeControl);
+        ChessState room = ChessState.startWithGame(id, timeControl);
 
         room.setFirstColor(color);
         room.getGame().initPieceMoves();
@@ -55,8 +55,8 @@ public class GameService {
         return id;
     }
 
-    public ChessRoom join(String gameId, Player player) {
-        ChessRoom room = dictionaryDao.getRoom(gameId);
+    public ChessState join(String gameId, PlayerState player) {
+        ChessState room = dictionaryDao.getRoom(gameId);
         if (room == null) {
             return null;
         }
@@ -93,10 +93,10 @@ public class GameService {
         return room;
     }
 
-    public record MakeMoveResult(ChessRoom room, PieceMove move) {}
+    public record MakeMoveResult(ChessState room, PieceMove move) {}
 
-    public MakeMoveResult makeMove(String gameId, Player player, PieceMove move) {
-        ChessRoom room = dictionaryDao.getRoom(gameId);
+    public MakeMoveResult makeMove(String gameId, PlayerState player, PieceMove move) {
+        ChessState room = dictionaryDao.getRoom(gameId);
         if (room == null) {
             return null;
         }
@@ -104,7 +104,7 @@ public class GameService {
         ChessGame game = room.getGame();
         ChessBoard board = game.getBoard();
 
-        Player currPlayer = room.getCurrPlayer();
+        PlayerState currPlayer = room.getCurrPlayer();
         boolean isPlayerTurn = currPlayer != null && currPlayer.equals(player);
 
         if (room.isEnded()) {
@@ -135,7 +135,7 @@ public class GameService {
         return new MakeMoveResult(dictionaryDao.setRoom(gameId, room), move);
     }
 
-    public void onFinishGame(ChessRoom room, boolean isWhiteWin, int cause) {
+    public void onFinishGame(ChessState room, boolean isWhiteWin, int cause) {
         try {
             assert room.getWhitePlayer() != null;
             assert room.getBlackPlayer() != null;
@@ -164,8 +164,8 @@ public class GameService {
         }
     }
 
-    public void forfeit(String gameId, Player player) {
-        ChessRoom state = dictionaryDao.getRoom(gameId);
+    public void forfeit(String gameId, PlayerState player) {
+        ChessState state = dictionaryDao.getRoom(gameId);
         if (state == null || state.getBlackPlayer() == null || state.getWhitePlayer() == null) {
             return;
         }
