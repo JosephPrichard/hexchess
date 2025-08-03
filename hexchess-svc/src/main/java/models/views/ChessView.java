@@ -2,7 +2,9 @@ package models.views;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import messages.Messages;
 import models.enums.ColorSelect;
 import models.enums.TimeControl;
@@ -13,7 +15,9 @@ import javax.annotation.Nullable;
 import static utils.Globals.LOG;
 
 @Data
+@NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class ChessView {
     private String id;
     @Nullable

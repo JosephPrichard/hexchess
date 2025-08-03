@@ -1,6 +1,9 @@
 package models.views;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import models.entities.ChallengeEntity;
 import models.enums.TimeControl;
 
@@ -10,6 +13,9 @@ import java.time.Duration;
 import static services.daos.ChallengeDao.THRESHOLD_EXPIRATION;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class ChallengeView {
     private long challengerId;
     private String challengerName = "";
@@ -24,19 +30,19 @@ public class ChallengeView {
     private String expiresIn = "";
 
     public static ChallengeView create(ChallengeEntity entity) {
-        ChallengeView view = new ChallengeView();
-        view.challengerId = entity.getChallengerId();
-        view.challengerName = entity.getChallengerName();
-        view.challengerCountry = entity.getChallengerCountry();
-        view.challengerElo = Math.round(entity.getChallengerElo());
-        view.challengeeId = entity.getChallengeeId();
-        view.challengeeName = entity.getChallengeeName();
-        view.challengeeCountry = entity.getChallengeeCountry();
-        view.challengeeElo = Math.round(entity.getChallengeeElo());
-        view.timeControl = TimeControl.fromString(entity.getTimeControl());
-        view.madeAgo = formatMadeAgo(entity.getMadeOn());
-        view.expiresIn = formatExpiresIn(entity.getMadeOn());
-        return view;
+        return ChallengeView.builder()
+            .challengerId(entity.getChallengerId())
+            .challengerName(entity.getChallengerName())
+            .challengerCountry(entity.getChallengerCountry())
+            .challengerElo(Math.round(entity.getChallengerElo()))
+            .challengeeId(entity.getChallengeeId())
+            .challengeeName(entity.getChallengeeName())
+            .challengeeCountry(entity.getChallengeeCountry())
+            .challengeeElo(Math.round(entity.getChallengeeElo()))
+            .timeControl(TimeControl.fromString(entity.getTimeControl()))
+            .madeAgo(formatMadeAgo(entity.getMadeOn()))
+            .expiresIn(formatExpiresIn(entity.getMadeOn()))
+            .build();
     }
 
     public static String formatMadeAgo(Timestamp madeOn) {
