@@ -2,8 +2,8 @@ package scripts;
 
 import com.zaxxer.hikari.HikariDataSource;
 import redis.clients.jedis.JedisPooled;
-import services.daos.DictionaryDao;
-import services.daos.UserDao;
+import services.DictionaryDao;
+import services.UserDao;
 import utils.Config;
 
 import java.util.List;

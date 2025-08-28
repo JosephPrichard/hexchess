@@ -1,26 +1,24 @@
-package web.controllers;
+package web;
 
 import models.views.ServiceView;
 import models.views.SessionView;
-import services.broadcast.GroupBroadcaster;
-import services.daos.ChallengeDao;
-import services.daos.UserDao;
+import services.GroupBroadcaster;
+import services.ChallengeDao;
+import services.UserDao;
 import models.enums.ColorSelect;
 import models.enums.TimeControl;
 import models.entities.ChallengeEntity;
 import models.state.PlayerState;
 import models.entities.UserEntity;
-import services.game.GameService;
-import services.daos.DictionaryDao;
+import services.GameService;
+import services.DictionaryDao;
 import io.jooby.*;
 import io.jooby.exception.StatusCodeException;
 import org.jsoup.Jsoup;
-import web.reusable.AuthService;
-import web.State;
 
 import static utils.Globals.*;
 import static web.WebConstants.*;
-import static services.daos.UserDao.*;
+import static services.UserDao.*;
 
 public class FormController extends Jooby {
 

@@ -1,4 +1,4 @@
-package services.broadcast;
+package services;
 
 import redis.clients.jedis.ConnectionPoolConfig;
 import redis.clients.jedis.Jedis;

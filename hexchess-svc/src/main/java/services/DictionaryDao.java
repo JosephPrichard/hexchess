@@ -1,4 +1,4 @@
-package services.daos;
+package services;
 
 import models.state.ChessState;
 import models.state.PlayerState;

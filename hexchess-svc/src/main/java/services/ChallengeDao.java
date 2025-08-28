@@ -1,4 +1,4 @@
-package services.daos;
+package services;
 
 import lombok.*;
 import models.entities.ChallengeEntity;

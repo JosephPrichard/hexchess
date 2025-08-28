@@ -1,11 +1,10 @@
-package web.controllers;
+package web;
 
 import io.jooby.*;
 import io.jooby.handler.Cors;
 import io.jooby.handler.CorsHandler;
 import io.jooby.jackson.JacksonModule;
 import models.views.ServiceView;
-import web.State;
 
 import java.util.List;
 

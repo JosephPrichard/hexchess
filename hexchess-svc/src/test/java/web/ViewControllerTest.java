@@ -1,4 +1,4 @@
-package web.controllers;
+package web;
 
 import io.jooby.Context;
 import io.jooby.exception.BadRequestException;
@@ -16,10 +16,8 @@ import models.views.ReplayView;
 import models.views.UserView;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import services.daos.DictionaryDao;
-import services.daos.UserDao;
-import web.State;
-import web.reusable.AuthService;
+import services.DictionaryDao;
+import services.UserDao;
 
 import java.util.Arrays;
 import java.util.List;
@@ -28,7 +26,7 @@ import java.util.concurrent.CompletableFuture;
 import static mocks.UserMocks.*;
 import static mocks.ReplayMocks.*;
 import static org.mockito.Mockito.*;
-import static web.controllers.ViewController.PER_PAGE;
+import static web.ViewController.PER_PAGE;
 
 public class ViewControllerTest {
 

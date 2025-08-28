@@ -1,4 +1,4 @@
-package services.daos;
+package services;
 
 import at.favre.lib.crypto.bcrypt.BCrypt;
 import lombok.*;

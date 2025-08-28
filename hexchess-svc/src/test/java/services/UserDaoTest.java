@@ -1,4 +1,4 @@
-package services.daos;
+package services;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import models.entities.UserEntity;
@@ -11,7 +11,7 @@ import java.util.List;
 
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
-import static services.daos.UserDao.*;
+import static services.UserDao.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class UserDaoTest {

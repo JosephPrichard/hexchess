@@ -1,12 +1,9 @@
-package web.controllers;
+package web;
 
 import io.jooby.jackson.JacksonModule;
 import io.jooby.*;
-import web.State;
-import web.websocket.GameWebsocket;
 
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 import static utils.Globals.*;
 

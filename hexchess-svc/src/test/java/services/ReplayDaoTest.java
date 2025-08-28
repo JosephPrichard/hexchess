@@ -1,4 +1,4 @@
-package services.daos;
+package services;
 
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import models.entities.ReplayEntity;
@@ -10,7 +10,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static mocks.ReplayMocks.*;
-import static services.daos.UserDao.*;
+import static services.UserDao.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ReplayDaoTest {

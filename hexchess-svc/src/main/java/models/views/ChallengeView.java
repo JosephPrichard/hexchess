@@ -10,7 +10,7 @@ import models.enums.TimeControl;
 import java.sql.Timestamp;
 import java.time.Duration;
 
-import static services.daos.ChallengeDao.THRESHOLD_EXPIRATION;
+import static services.ChallengeDao.THRESHOLD_EXPIRATION;
 
 @Data
 @NoArgsConstructor

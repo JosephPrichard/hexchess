@@ -1,4 +1,4 @@
-package web.websocket;
+package web;
 
 import chess.ChessGame;
 import chess.PieceMove;
@@ -9,11 +9,10 @@ import lombok.AllArgsConstructor;
 import messages.Messages;
 import models.state.PlayerState;
 import models.state.ChessState;
-import services.broadcast.GroupBroadcaster;
-import services.broadcast.BroadcastReceiver;
-import services.daos.DictionaryDao;
-import services.game.GameService;
-import web.State;
+import services.GroupBroadcaster;
+import services.BroadcastReceiver;
+import services.DictionaryDao;
+import services.GameService;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;

@@ -1,4 +1,4 @@
-package web.reusable;
+package web;
 
 import io.jooby.Context;
 import io.jooby.internal.SingleValue;
@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static web.reusable.AuthService.SESSION_COOKIE_NAME;
+import static web.AuthService.SESSION_COOKIE_NAME;
 
 public class AuthServiceTest {
 

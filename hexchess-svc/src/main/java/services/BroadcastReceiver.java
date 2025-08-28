@@ -1,4 +1,4 @@
-package services.broadcast;
+package services;
 
 import lombok.Data;
 

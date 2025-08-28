@@ -1,4 +1,4 @@
-package services.daos;
+package services;
 
 import chess.ChessBoard;
 import models.enums.ColorSelect;

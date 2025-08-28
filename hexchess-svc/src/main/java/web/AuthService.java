@@ -1,4 +1,4 @@
-package web.reusable;
+package web;
 
 import io.jooby.Context;
 import io.jooby.Cookie;
@@ -7,7 +7,7 @@ import io.jooby.StatusCode;
 import io.jooby.exception.StatusCodeException;
 import lombok.AllArgsConstructor;
 import models.state.PlayerState;
-import services.daos.DictionaryDao;
+import services.DictionaryDao;
 
 import javax.annotation.Nullable;
 import java.security.SecureRandom;

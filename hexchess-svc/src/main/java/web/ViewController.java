@@ -1,15 +1,16 @@
-package web.controllers;
+package web;
 
 import chess.ChessBoard;
 import models.entities.UserRankEntity;
 import models.state.PlayerState;
-import services.daos.*;
+import services.ChallengeDao;
+import services.DictionaryDao;
+import services.ReplayDao;
+import services.UserDao;
 import io.jooby.exception.BadRequestException;
 import models.entities.*;
 import models.views.*;
 import io.jooby.*;
-import web.reusable.AuthService;
-import web.State;
 
 import java.time.Duration;
 import java.util.List;
@@ -21,7 +22,7 @@ import java.util.stream.Collectors;
 
 import static utils.Globals.*;
 import static web.WebConstants.*;
-import static services.daos.DictionaryDao.*;
+import static services.DictionaryDao.*;
 
 public class ViewController extends Jooby {
 

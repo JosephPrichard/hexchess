@@ -1,4 +1,4 @@
-package services.game;
+package services;
 
 import chess.*;
 import models.enums.ColorSelect;
@@ -7,9 +7,6 @@ import models.entities.ReplayEntity;
 import models.state.ChessState;
 import models.state.PlayerState;
 import org.junit.jupiter.api.Test;
-import services.daos.DictionaryDao;
-import services.daos.ReplayDao;
-import services.daos.UserDao;
 
 import java.util.List;
 

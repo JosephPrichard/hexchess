@@ -1,11 +1,11 @@
-package web.controllers;
+package web;
 
 import io.jooby.Context;
 import models.entities.ChallengeEntity;
 import models.views.ServiceView;
 import models.views.SessionView;
-import services.daos.DictionaryDao;
-import services.daos.ChallengeDao;
+import services.DictionaryDao;
+import services.ChallengeDao;
 import io.jooby.Cookie;
 import io.jooby.exception.StatusCodeException;
 import io.jooby.test.MockContext;
@@ -18,10 +18,8 @@ import models.enums.TimeControl;
 import models.entities.UserEntity;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import services.game.GameService;
-import services.daos.UserDao;
-import web.reusable.AuthService;
-import web.State;
+import services.GameService;
+import services.UserDao;
 
 import java.util.concurrent.atomic.AtomicReference;
 

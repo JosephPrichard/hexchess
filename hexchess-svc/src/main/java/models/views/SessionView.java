@@ -6,7 +6,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import models.state.PlayerState;
-import services.daos.UserDao.*;
+import services.UserDao.*;
 
 @Data
 @NoArgsConstructor

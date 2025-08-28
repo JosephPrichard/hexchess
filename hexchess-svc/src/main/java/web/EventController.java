@@ -1,4 +1,4 @@
-package web.controllers;
+package web;
 
 import io.jooby.Context;
 import io.jooby.Jooby;
@@ -6,12 +6,10 @@ import io.jooby.ServerSentEmitter;
 import io.jooby.exception.StatusCodeException;
 import io.jooby.jackson.JacksonModule;
 import models.state.PlayerState;
-import services.broadcast.BroadcastReceiver;
-import services.broadcast.GroupBroadcaster;
-import services.broadcast.SingleBroadcaster;
-import services.daos.DictionaryDao;
-import web.State;
-import web.reusable.AuthService;
+import services.BroadcastReceiver;
+import services.GroupBroadcaster;
+import services.SingleBroadcaster;
+import services.DictionaryDao;
 
 import java.util.UUID;
 import java.util.concurrent.*;

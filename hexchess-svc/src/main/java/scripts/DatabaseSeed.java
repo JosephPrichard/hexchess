@@ -5,10 +5,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.zaxxer.hikari.HikariDataSource;
 import chess.PieceMove;
 import lombok.SneakyThrows;
-import services.daos.DictionaryDao;
-import services.daos.ChallengeDao;
-import services.daos.ReplayDao;
-import services.daos.UserDao;
+import services.DictionaryDao;
+import services.ChallengeDao;
+import services.ReplayDao;
+import services.UserDao;
 import lombok.AllArgsConstructor;
 import org.apache.commons.dbutils.QueryRunner;
 import redis.clients.jedis.JedisPooled;
@@ -25,9 +25,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static utils.Globals.*;
-import static services.daos.UserDao.*;
-import static services.daos.ReplayDao.*;
-import static services.daos.ChallengeDao.*;
+import static services.UserDao.*;
+import static services.ReplayDao.*;
+import static services.ChallengeDao.*;
 
 @AllArgsConstructor
 public class DatabaseSeed {
