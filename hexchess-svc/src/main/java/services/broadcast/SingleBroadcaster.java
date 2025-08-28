@@ -22,14 +22,14 @@ public interface SingleBroadcaster {
 
     void broadcast(String content);
 
-    class GlobalSingleBroadcaster implements SingleBroadcaster {
+    class Global implements SingleBroadcaster {
 
         private final JedisPooled jedisPublisher;
         private final Jedis jedisSubscriber;
         private final String channel;
         private final Local localBroadcaster;
 
-        public GlobalSingleBroadcaster(ConnectionPoolConfig poolConfig, String host, int port, String channel) {
+        public Global(ConnectionPoolConfig poolConfig, String host, int port, String channel) {
             this.jedisPublisher = new JedisPooled(poolConfig, host, port);
             this.jedisSubscriber = new Jedis(host, port);
             this.channel = channel;

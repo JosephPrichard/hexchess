@@ -28,7 +28,7 @@ public interface GroupBroadcaster {
 
     void broadcast(String groupId, byte[] content);
 
-    class GlobalGroupBroadcaster implements GroupBroadcaster {
+    class Global implements GroupBroadcaster {
 
         private static final byte FIELD_SPLIT = 0x1e;
 
@@ -38,7 +38,7 @@ public interface GroupBroadcaster {
         private final byte[] channelBytes;
         private final Local localBroadcaster;
 
-        public GlobalGroupBroadcaster(ConnectionPoolConfig poolConfig, String host, int port, String channel) {
+        public Global(ConnectionPoolConfig poolConfig, String host, int port, String channel) {
             this.jedisPublisher = new JedisPooled(poolConfig, host, port);
             this.jedisSubscriber = new Jedis(host, port);
             this.channel = channel;
