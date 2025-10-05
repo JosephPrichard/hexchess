@@ -46,7 +46,7 @@ public class ViewController extends Jooby {
         countryList = state.getCountryList();
         initialBoard = state.getInitialBoard();
 
-        setWorker(EXECUTOR);
+        setWorker(TP);
 
         get("/views/players/self", this::getSelf);
         get("/views/players/{id}", this::getPlayer);
@@ -103,11 +103,11 @@ public class ViewController extends Jooby {
     }
 
     public Future<UserEntity> dispatchGetById(long userId) {
-        return CompletableFuture.supplyAsync(() -> userDao.getById(userId), EXECUTOR);
+        return CompletableFuture.supplyAsync(() -> userDao.getById(userId), TP);
     }
 
     public Future<List<ReplayEntity>> dispatchUserReplays(long userId) {
-        return CompletableFuture.supplyAsync(() -> replayDao.getUserReplays(userId, null, PER_PAGE), EXECUTOR);
+        return CompletableFuture.supplyAsync(() -> replayDao.getUserReplays(userId, null, PER_PAGE), TP);
     }
 
     public record UserWithReplaysResp(UserView user, List<ReplayView> replayList) {}

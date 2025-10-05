@@ -81,7 +81,7 @@ public interface SingleBroadcaster {
 
         public JedisPubSub startListenSubscribe() throws Exception {
             CompletableFuture<JedisPubSub> fut = new CompletableFuture<>();
-            EXECUTOR.execute(() -> startListenSubscribe(fut));
+            TP.execute(() -> startListenSubscribe(fut));
             return fut.get(MAX_WAIT_MS, TimeUnit.MILLISECONDS);
         }
     }

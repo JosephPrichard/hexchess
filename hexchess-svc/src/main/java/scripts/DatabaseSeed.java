@@ -58,7 +58,7 @@ public class DatabaseSeed {
 
     private static <T> void seedTableInParallel(List<T> insts, Consumer<T> consumer) {
         var futures = insts.stream()
-            .map((inst) -> CompletableFuture.runAsync(() -> consumer.accept(inst), EXECUTOR))
+            .map((inst) -> CompletableFuture.runAsync(() -> consumer.accept(inst), TP))
             .toList();
         futures.forEach((f) -> {
             try {

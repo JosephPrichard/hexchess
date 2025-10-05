@@ -130,7 +130,7 @@ public class DictionaryDao {
         // handle keys that were inconsistently unset (present in the sorted set but not the dictionary)
         List<byte[]> filteredBytesList = bytesList.stream().filter(Objects::nonNull).toList();
         if (bytesList.size() != filteredBytesList.size()) {
-            LOG.warn("Inconsistent result while retrieving chess rooms difference between zset and dictionary is={}", bytesList.size() - filteredBytesList.size());
+            LOG.warn("Assertion error: expected bytesList len={} and filteredBytesList len={} to be of equal", bytesList.size(), filteredBytesList.size());
         }
 
         List<ChessView> viewList = filteredBytesList.stream().map(ChessView::deserialize).toList();

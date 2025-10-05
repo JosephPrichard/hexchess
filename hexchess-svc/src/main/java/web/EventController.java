@@ -99,7 +99,7 @@ public class EventController extends Jooby {
         gameCountBroadcaster.subscribe(new SseReceiver<>(sseId, sse, GAMES_COUNT_EVENT));
 
         ScheduledFuture<?> fut = scheduler.scheduleAtFixedRate(
-            () -> EXECUTOR.execute(() -> dictionaryDao.addUser(sseId)),
+            () -> TP.execute(() -> dictionaryDao.addUser(sseId)),
             1,
             1,
             TimeUnit.MINUTES);
@@ -109,7 +109,7 @@ public class EventController extends Jooby {
         sse.send(GAMES_COUNT_EVENT, roomsCount);
 
         sse.keepAlive(15, TimeUnit.SECONDS);
-        sse.onClose(() -> EXECUTOR.execute(() -> onCloseCount(sseId, fut)));
+        sse.onClose(() -> TP.execute(() -> onCloseCount(sseId, fut)));
     }
 
     public void handleUserEvents(ServerSentEmitter sse) {
@@ -133,6 +133,6 @@ public class EventController extends Jooby {
         sse.send(META_EVENT, "Connected");
 
         sse.keepAlive(15, TimeUnit.SECONDS);
-        sse.onClose(() -> EXECUTOR.execute(() -> userBroadcaster.unsubscribe(userId, sseId)));
+        sse.onClose(() -> TP.execute(() -> userBroadcaster.unsubscribe(userId, sseId)));
     }
 }

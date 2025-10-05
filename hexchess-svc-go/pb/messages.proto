@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+package messages;
+
+message Player {
+  int64 id = 1;
+  string name = 2;
+  string country = 3;
+  float elo = 4;
+  bool isGuest = 5;
+}
+
+message Hexagon {
+  int32 file = 1;
+  int32 rank = 2;
+}
+
+message PieceMove {
+  int32 piece = 1;
+  Hexagon from = 2;
+  Hexagon to = 3;
+}
+
+message PieceMoves {
+  Hexagon hex = 1;
+  repeated Hexagon moves = 2;
+}
+
+message BoardFile {
+  repeated uint32 pieces = 1;
+}
+
+message ChessBoard {
+  bool is_white_turn = 1;
+  repeated BoardFile file = 2;
+}
+
+message ChessGame {
+  ChessBoard board = 1;
+  repeated PieceMoves white_moves = 2;
+  repeated PieceMoves black_moves = 3;
+  repeated int32 taken_white_pieces = 4;
+  repeated int32 taken_black_pieces = 5;
+}
+
+message ChessState {
+  string id = 1;
+  ChessGame game = 2;
+  repeated PieceMove move_list = 3;
+  Player white_player = 4;
+  Player black_player = 5;
+  bool is_ended = 6;
+  uint32 first_color = 7;
+  uint32 time_control = 8;
+  int64 touch = 9;
+}
+
+message Error {
+  string message = 1;
+}
+
+message Init {
+  ChessState state = 1;
+  Player self = 2;
+}
+
+message Players {
+  Player whitePlayer = 1;
+  Player blackPlayer = 2;
+}
+
+message Move {
+  PieceMove pieceMove = 1;
+  ChessGame game = 2;
+}
+
+message Chat {
+  Player player = 2;
+  string message = 3;
+}
+
+message Forfeit {}
+
+message GameOutput {
+  oneof value {
+    Error error = 1;
+    Init init = 2;
+    Players players = 3;
+    Move move = 4;
+    Chat chat = 5;
+    Forfeit forfeit = 6;
+  }
+}

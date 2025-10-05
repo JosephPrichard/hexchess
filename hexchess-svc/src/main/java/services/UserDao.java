@@ -104,8 +104,10 @@ public class UserDao {
         }
 
         List<CompletableFuture<HashResult>> hashFuts = insts.stream()
-            .map((inst) -> CompletableFuture.supplyAsync(() -> generateHash(inst.password()), CPU_EXECUTOR))
+            .map((inst) -> CompletableFuture.supplyAsync(() -> generateHash(inst.password()), CPU_BND_TP))
             .toList();
+
+        assert insts.size() == hashFuts.size();
 
         String sql = """
             INSERT INTO users (username, country, elo, highestElo, wins, losses, password, salt)

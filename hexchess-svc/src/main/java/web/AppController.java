@@ -8,7 +8,7 @@ import models.views.ServiceView;
 
 import java.util.List;
 
-import static utils.Globals.EXECUTOR;
+import static utils.Globals.TP;
 import static utils.Globals.LOG;
 import static web.WebConstants.ERROR_UNKNOWN;
 
@@ -16,7 +16,7 @@ public class AppController extends Jooby {
 
     public AppController(int port, List<String> allowedOrigins, State state) {
         setServerOptions(new ServerOptions().setPort(port));
-        setWorker(EXECUTOR);
+        setWorker(TP);
         use(new CorsHandler(new Cors().setOrigin(allowedOrigins)));
         error(this::handleError);
         install(new OpenAPIModule());

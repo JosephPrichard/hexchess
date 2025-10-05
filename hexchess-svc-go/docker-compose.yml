@@ -1,0 +1,45 @@
+version: "1"
+
+networks:
+  elk:
+    driver: bridge
+
+volumes:
+  redis_data:
+    driver: local
+  es_data:
+    driver: local
+
+services:
+  redis:
+    image: redis/redis-stack-server
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    environment:
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+  redis-pubsub:
+    image: redis/redis-stack-server
+    ports:
+      - "6380:6379"
+    environment:
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.11.1
+    networks:
+      - elk
+    environment:
+      - discovery.type=single-node
+      - cluster.name=application-logs
+      - node.name=node-1
+      - xpack.security.enabled=false
+      - ELASTICSEARCH_USERNAME=${ELASTICSEARCH_USERNAME}
+      - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD}
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"

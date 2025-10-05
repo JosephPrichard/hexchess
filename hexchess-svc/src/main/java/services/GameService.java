@@ -46,7 +46,7 @@ public class GameService {
         LOG.info("Created chess game with room={}", room);
         dictionaryDao.setRoom(id, room);
 
-        EXECUTOR.execute(() -> gameCountBroadcaster.broadcast(Long.toString(dictionaryDao.getRoomsCount())));
+        TP.execute(() -> gameCountBroadcaster.broadcast(Long.toString(dictionaryDao.getRoomsCount())));
 
         return id;
     }
@@ -124,7 +124,7 @@ public class GameService {
         if (game.checkmateReached()) {
             room.setEnded(true);
             boolean isWhiteWin = !board.isWhiteTurn(); // white wins if its checkmate when it's blacks turn
-            EXECUTOR.execute(() -> onFinishGame(room, isWhiteWin, ReplayEntity.CHECKMATE));
+            TP.execute(() -> onFinishGame(room, isWhiteWin, ReplayEntity.CHECKMATE));
         }
 
         LOG.info("{} made move {} on game {}", player, move, gameId);
