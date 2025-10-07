@@ -30,7 +30,7 @@ type User struct {
 	JoinedOn   time.Time
 }
 
-const StartElo float32 = 1000
+const StartElo float64 = 1000
 
 type RankedUser struct {
 	ID   int64

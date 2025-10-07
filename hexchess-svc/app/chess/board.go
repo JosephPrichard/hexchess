@@ -31,11 +31,11 @@ const (
 var RanksPerFile = []int{6, 7, 8, 9, 10, 11, 10, 9, 8, 7, 6}
 var OrdHexagons = GetOrdHexagons()
 
-func GetOrdHexagons() []Hexagon {
-	var hexagons []Hexagon
+func GetOrdHexagons() []Hex {
+	var hexagons []Hex
 	for file := range Files {
 		for rank := range RanksPerFile[file] {
-			hexagons = append(hexagons, Hexagon{File: file, Rank: rank})
+			hexagons = append(hexagons, Hex{File: file, Rank: rank})
 		}
 	}
 	return hexagons
@@ -86,20 +86,20 @@ var KnightOffsets = [][]Direction{
 	{DownRight, DownRight, UpRight},
 }
 
-type Hexagon struct {
+type Hex struct {
 	File int
 	Rank int
 }
 
 type PieceMoves struct {
-	From  Hexagon
-	Moves []Hexagon
+	From  Hex
+	Moves []Hex
 }
 
 type PieceMove struct {
 	Piece Piece
-	From  Hexagon
-	To    Hexagon
+	From  Hex
+	To    Hex
 }
 
 type Board struct {
@@ -107,16 +107,16 @@ type Board struct {
 	Pieces      [Files][]Piece
 }
 
-func ParseHexagon(notation string) (Hexagon, error) {
+func ParseHexagon(notation string) (Hex, error) {
 	file := int(notation[0] - 'a')
 	rank, err := strconv.Atoi(notation[1:])
 	if err != nil {
-		return Hexagon{}, fmt.Errorf("failed to parse hexagon: %w", err)
+		return Hex{}, fmt.Errorf("failed to parse hexagon: %w", err)
 	}
-	return Hexagon{File: file, Rank: rank - 1}, nil
+	return Hex{File: file, Rank: rank - 1}, nil
 }
 
-func ParseHexagonValid(notation string) Hexagon {
+func ParseHexagonValid(notation string) Hex {
 	hex, err := ParseHexagon(notation)
 	if err != nil {
 		panic(fmt.Sprintf("failed to set piece at notation: %v", err))
@@ -124,13 +124,13 @@ func ParseHexagonValid(notation string) Hexagon {
 	return hex
 }
 
-func (h Hexagon) String() string {
+func (h Hex) String() string {
 	// String returns a string like "a1" from a Hexagon
 	fileChar := rune(h.File + 'a')
 	return fmt.Sprintf("%c%d", fileChar, h.Rank+1)
 }
 
-func (h Hexagon) CanPromote() bool {
+func (h Hex) CanPromote() bool {
 	switch h.File {
 	case 0, 10:
 		return h.Rank >= 5
@@ -150,7 +150,7 @@ func (h Hexagon) CanPromote() bool {
 	return false
 }
 
-func (h Hexagon) Walk(directions []Direction) Hexagon {
+func (h Hex) Walk(directions []Direction) Hex {
 	file := h.File
 	rank := h.Rank
 	for _, direction := range directions {
@@ -181,10 +181,10 @@ func (h Hexagon) Walk(directions []Direction) Hexagon {
 			file += 1
 		}
 	}
-	return Hexagon{File: file, Rank: rank}
+	return Hex{File: file, Rank: rank}
 }
 
-func (b *Board) FindKing(isWhiteTurn bool) Hexagon {
+func (b *Board) FindKing(isWhiteTurn bool) Hex {
 	for _, hex := range OrdHexagons {
 		piece := b.Pieces[hex.File][hex.Rank]
 		if (piece == WhiteKing && isWhiteTurn) || (piece == BlackKing && !isWhiteTurn) {
@@ -192,10 +192,10 @@ func (b *Board) FindKing(isWhiteTurn bool) Hexagon {
 		}
 	}
 	panic("board doesn't have a king")
-	return Hexagon{}
+	return Hex{}
 }
 
-func HasPawnMoved(pawnHex Hexagon, isWhite bool) bool {
+func HasPawnMoved(pawnHex Hex, isWhite bool) bool {
 	if isWhite {
 		var minRank int
 		switch pawnHex.File {
@@ -350,7 +350,7 @@ func (b *Board) InBounds(file, rank int) bool {
 	return rank < len(b.Pieces[file])
 }
 
-func (b *Board) InBoundsHex(hex Hexagon) bool {
+func (b *Board) InBoundsHex(hex Hex) bool {
 	return b.InBounds(hex.File, hex.Rank)
 }
 
@@ -366,17 +366,17 @@ func (b *Board) ToPieceMovesString(moves []PieceMoves) string {
 		}
 	}
 
-	return b.StringFunc(func(hex Hexagon) bool {
+	return b.StringFunc(func(hex Hex) bool {
 		return isAttacked[hex.File][hex.Rank]
 	})
 }
 
 func (b *Board) String() string {
 	// default: no moves highlighted
-	return b.StringFunc(func(h Hexagon) bool { return false })
+	return b.StringFunc(func(h Hex) bool { return false })
 }
 
-func (b *Board) StringFunc(isMove func(Hexagon) bool) string {
+func (b *Board) StringFunc(isMove func(Hex) bool) string {
 	var sb strings.Builder
 	sb.WriteString("\n")
 
@@ -393,7 +393,7 @@ func (b *Board) StringFunc(isMove func(Hexagon) bool) string {
 		}
 
 		for rank := 0; rank < ranksCount; rank++ {
-			hex := Hexagon{File: file, Rank: rank}
+			hex := Hex{File: file, Rank: rank}
 			if isMove(hex) {
 				sb.WriteString("x   ")
 			} else {
@@ -409,8 +409,8 @@ func (b *Board) StringFunc(isMove func(Hexagon) bool) string {
 	return sb.String()
 }
 
-func (b *Board) ToMovesString(moves []Hexagon) string {
-	return b.StringFunc(func(hex Hexagon) bool {
+func (b *Board) ToMovesString(moves []Hex) string {
+	return b.StringFunc(func(hex Hex) bool {
 		return slices.Contains(moves, hex)
 	})
 }

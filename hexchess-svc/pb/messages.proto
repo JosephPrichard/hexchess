@@ -11,20 +11,18 @@ message PlayerState {
   bool isGuest = 5;
 }
 
-message Hexagon {
-  int32 file = 1;
-  int32 rank = 2;
-}
-
 message PieceMove {
   int32 piece = 1;
-  Hexagon from = 2;
-  Hexagon to = 3;
+  int32 fromFile = 2;
+  int32 fromRank = 3;
+  int32 toFile = 4;
+  int32 toRank = 5;
 }
 
 message PieceMoves {
-  Hexagon hex = 1;
-  repeated Hexagon moves = 2;
+  int32 fromFile = 1;
+  int32 fromRank = 2;
+  repeated int64 moves = 3;
 }
 
 message BoardFile {

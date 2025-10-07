@@ -52,6 +52,16 @@ type ChessView struct {
 	TimeControl TimeControl
 }
 
+func MakeStartChessState(id string, timeControl TimeControl) ChessState {
+	return ChessState{
+		ID:          id,
+		Game:        chess.MakeStartGame(),
+		FirstColor:  Random,
+		TimeControl: timeControl,
+		Touch:       time.UnixMilli(0),
+	}
+}
+
 func ParseColorSelect(value string) (ColorSelect, error) {
 	switch strings.ToUpper(value) {
 	case "WHITE":

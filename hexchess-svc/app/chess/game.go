@@ -27,7 +27,7 @@ type Move struct {
 	Piece Piece
 }
 
-func StartGame(initial ...Move) Game {
+func MakeStartGame(initial ...Move) Game {
 	game := Game{Board: InitialBoard()}
 	for _, pm := range initial {
 		game.SetPiece(pm.Not, pm.Piece)
@@ -35,7 +35,7 @@ func StartGame(initial ...Move) Game {
 	return game
 }
 
-func EmptyGame(initial ...Move) Game {
+func MakeEmptyGame(initial ...Move) Game {
 	game := Game{Board: MakeBoard(false)}
 	for _, pm := range initial {
 		game.SetPiece(pm.Not, pm.Piece)
@@ -64,7 +64,7 @@ func (g *Game) GetOppositeMoves() []PieceMoves {
 	return g.GetTurnMoves(!g.Board.IsWhiteTurn)
 }
 
-func (g *Game) MakeMove(from, to Hexagon) PieceMove {
+func (g *Game) MakeMove(from, to Hex) PieceMove {
 	piece1 := g.Board.Pieces[from.File][from.Rank]
 	piece2 := g.Board.Pieces[to.File][to.Rank]
 
@@ -88,7 +88,7 @@ func (g *Game) IsValidMove(move PieceMove) bool {
 
 	for _, pm := range moves {
 		isFrom := pm.From == move.From
-		hasTo := slices.ContainsFunc(pm.Moves, func(to Hexagon) bool { return to == move.To })
+		hasTo := slices.ContainsFunc(pm.Moves, func(to Hex) bool { return to == move.To })
 		if isFrom && hasTo {
 			return true
 		}
@@ -216,40 +216,40 @@ func (g *Game) FindPieceMoves(isWhiteTurn bool) []PieceMoves {
 	return moves
 }
 
-func (g *Game) FindRookMoves(hex Hexagon) PieceMoves {
+func (g *Game) FindRookMoves(hex Hex) PieceMoves {
 	return PieceMoves{From: hex, Moves: g.FindMovesByTraveling(hex, RookOffsets)}
 }
 
-func (g *Game) FindBishopMoves(hex Hexagon) PieceMoves {
+func (g *Game) FindBishopMoves(hex Hex) PieceMoves {
 	return PieceMoves{From: hex, Moves: g.FindMovesByTraveling(hex, BishopOffsets)}
 }
 
-func (g *Game) FindQueenMoves(hex Hexagon) PieceMoves {
+func (g *Game) FindQueenMoves(hex Hex) PieceMoves {
 	return PieceMoves{From: hex, Moves: g.FindMovesByTraveling(hex, KingOffsets)}
 }
 
-func (g *Game) FindKnightMoves(hex Hexagon) PieceMoves {
+func (g *Game) FindKnightMoves(hex Hex) PieceMoves {
 	return PieceMoves{From: hex, Moves: g.FindOffsetMoves(hex, KnightOffsets)}
 }
 
-func (g *Game) FindKingMoves(hex Hexagon) PieceMoves {
+func (g *Game) FindKingMoves(hex Hex) PieceMoves {
 	// we want all moves, so nothing is attacking
-	return PieceMoves{From: hex, Moves: g.FindKingMovesFiltered(hex, func(h Hexagon) bool { return true })}
+	return PieceMoves{From: hex, Moves: g.FindKingMovesFiltered(hex, func(h Hex) bool { return true })}
 }
 
-func (g *Game) FindKingMovesFiltered(hex Hexagon, isNotAttacked func(Hexagon) bool) []Hexagon {
+func (g *Game) FindKingMovesFiltered(hex Hex, isNotAttacked func(Hex) bool) []Hex {
 	return g.FindOffsetMovesFiltered(hex, KingOffsets, isNotAttacked)
 }
 
-func (g *Game) FindPawnMovesWhite(hex Hexagon) PieceMoves {
+func (g *Game) FindPawnMovesWhite(hex Hex) PieceMoves {
 	return g.FindPawnMoves(hex, true)
 }
 
-func (g *Game) FindPawnMovesBlack(hex Hexagon) PieceMoves {
+func (g *Game) FindPawnMovesBlack(hex Hex) PieceMoves {
 	return g.FindPawnMoves(hex, false)
 }
 
-func (g *Game) FindPawnMoves(hex Hexagon, isWhiteTurn bool) PieceMoves {
+func (g *Game) FindPawnMoves(hex Hex, isWhiteTurn bool) PieceMoves {
 	pick := func(cond bool, a, b []Direction) []Direction {
 		if cond {
 			return a
@@ -258,7 +258,7 @@ func (g *Game) FindPawnMoves(hex Hexagon, isWhiteTurn bool) PieceMoves {
 	}
 
 	basePiece := g.Board.Pieces[hex.File][hex.Rank]
-	var moves []Hexagon
+	var moves []Hex
 
 	move1 := hex.Walk(pick(isWhiteTurn, WhiteAhead, BlackAhead))
 	if g.Board.InBoundsHex(move1) && g.Board.Pieces[move1.File][move1.Rank] == Empty {
@@ -289,9 +289,9 @@ func (g *Game) FindPawnMoves(hex Hexagon, isWhiteTurn bool) PieceMoves {
 	return PieceMoves{From: hex, Moves: moves}
 }
 
-func (g *Game) FindMovesByTraveling(hex Hexagon, directions [][]Direction) []Hexagon {
+func (g *Game) FindMovesByTraveling(hex Hex, directions [][]Direction) []Hex {
 	basePiece := g.Board.Pieces[hex.File][hex.Rank]
-	var moves []Hexagon
+	var moves []Hex
 
 	for _, dirSeq := range directions {
 		move := hex
@@ -316,13 +316,13 @@ func (g *Game) FindMovesByTraveling(hex Hexagon, directions [][]Direction) []Hex
 	return moves
 }
 
-func (g *Game) FindOffsetMoves(hex Hexagon, directions [][]Direction) []Hexagon {
-	return g.FindOffsetMovesFiltered(hex, directions, func(Hexagon) bool { return true })
+func (g *Game) FindOffsetMoves(hex Hex, directions [][]Direction) []Hex {
+	return g.FindOffsetMovesFiltered(hex, directions, func(Hex) bool { return true })
 }
 
-func (g *Game) FindOffsetMovesFiltered(hex Hexagon, directions [][]Direction, canMoveTo func(Hexagon) bool) []Hexagon {
+func (g *Game) FindOffsetMovesFiltered(hex Hex, directions [][]Direction, canMoveTo func(Hex) bool) []Hex {
 	basePiece := g.Board.Pieces[hex.File][hex.Rank]
-	var moves []Hexagon
+	var moves []Hex
 
 	for _, dirSeq := range directions {
 		move := hex.Walk(dirSeq)
