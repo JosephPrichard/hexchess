@@ -40,8 +40,8 @@ type GetReplayByIDRow struct {
 	Result       int32
 	Cause        int32
 	PlayedOn     pgtype.Timestamp
-	WinElo       pgtype.Float8
-	LoseElo      pgtype.Float8
+	WinElo       float64
+	LoseElo      float64
 	WhiteName    string
 	WhiteCountry pgtype.Text
 	WhiteElo     float64
@@ -97,8 +97,10 @@ SELECT
     r.lose_elo,
     u1.username AS white_name,
     u1.country AS white_country,
+    u1.elo AS white_elo,
     u2.username AS black_name,
-    u2.country AS black_country
+    u2.country AS black_country,
+    u2.elo AS black_elo
 FROM replays r
          INNER JOIN users u1 ON u1.id = r.white_id
          INNER JOIN users u2 ON u2.id = r.black_id
@@ -109,8 +111,8 @@ ORDER BY r.id DESC
 `
 
 type GetUserReplaysParams struct {
-	AfterId int64
-	UserId  int64
+	AfterID pgtype.Int8
+	UserID  int64
 	PerPage int32
 }
 
@@ -121,16 +123,18 @@ type GetUserReplaysRow struct {
 	Result       int32
 	Cause        int32
 	PlayedOn     pgtype.Timestamp
-	WinElo       pgtype.Float8
-	LoseElo      pgtype.Float8
+	WinElo       float64
+	LoseElo      float64
 	WhiteName    string
 	WhiteCountry pgtype.Text
+	WhiteElo     float64
 	BlackName    string
 	BlackCountry pgtype.Text
+	BlackElo     float64
 }
 
 func (q *Queries) GetUserReplays(ctx context.Context, arg GetUserReplaysParams) ([]GetUserReplaysRow, error) {
-	rows, err := q.db.Query(ctx, getUserReplays, arg.AfterId, arg.UserId, arg.PerPage)
+	rows, err := q.db.Query(ctx, getUserReplays, arg.AfterID, arg.UserID, arg.PerPage)
 	if err != nil {
 		return nil, err
 	}
@@ -149,8 +153,10 @@ func (q *Queries) GetUserReplays(ctx context.Context, arg GetUserReplaysParams) 
 			&i.LoseElo,
 			&i.WhiteName,
 			&i.WhiteCountry,
+			&i.WhiteElo,
 			&i.BlackName,
 			&i.BlackCountry,
+			&i.BlackElo,
 		); err != nil {
 			return nil, err
 		}
@@ -169,19 +175,19 @@ RETURNING id
 `
 
 type InsertReplayParams struct {
-	WhiteId  int64
-	BlackId  int64
+	WhiteID  int64
+	BlackID  int64
 	Result   int32
 	Cause    int32
-	WinElo   pgtype.Float8
-	LoseElo  pgtype.Float8
+	WinElo   float64
+	LoseElo  float64
 	MoveList []byte
 }
 
 func (q *Queries) InsertReplay(ctx context.Context, arg InsertReplayParams) (int64, error) {
 	row := q.db.QueryRow(ctx, insertReplay,
-		arg.WhiteId,
-		arg.BlackId,
+		arg.WhiteID,
+		arg.BlackID,
 		arg.Result,
 		arg.Cause,
 		arg.WinElo,

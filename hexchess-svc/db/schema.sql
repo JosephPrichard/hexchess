@@ -31,8 +31,8 @@ CREATE TABLE IF NOT EXISTS replays (
     result INTEGER NOT NULL,
     cause INTEGER NOT NULL,
     played_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    win_elo FLOAT8,
-    lose_elo FLOAT8,
+    win_elo FLOAT8 NOT NULL,
+    lose_elo FLOAT8 NOT NULL,
     move_list JSONB NOT NULL
 );
 

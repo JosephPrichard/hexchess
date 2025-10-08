@@ -33,8 +33,14 @@ func GetUserGameZSet(id int64) string {
 func GetChessState(ctx context.Context, rdb *redis.Client, id string) (ChessState, error) {
 	trace := ctx.Value(TraceKey)
 
-	if err := ExpireChessStates(ctx, rdb, GamesZSet); err != nil {
+	fail := func(str string, err error) (ChessState, error) {
+		err = fmt.Errorf("%s: %w", str, err)
+		slog.Error("failed to get chess state", "id", id, "err", err, "trace", trace)
 		return ChessState{}, err
+	}
+
+	if err := ExpireChessStates(ctx, rdb, GamesZSet); err != nil {
+		return fail("failed to expire chess states", err)
 	}
 	fullID := "game:" + id
 
@@ -42,13 +48,12 @@ func GetChessState(ctx context.Context, rdb *redis.Client, id string) (ChessStat
 	if errors.Is(err, redis.Nil) {
 		return ChessState{}, nil
 	} else if err != nil {
-		slog.Error("failed to get chess state", "id", id, "err", err, "trace", trace)
-		return ChessState{}, err
+		return fail("failed to get chess state", err)
 	}
 
 	state, err := ChessDeserialize(data)
 	if err != nil {
-		return ChessState{}, err
+		return fail("failed to deserialize chess state", err)
 	}
 	slog.Info("selected session", "key", fullID, "id", state.ID, "trace", trace)
 	return state, nil
@@ -58,13 +63,13 @@ func SetChessState(ctx context.Context, rdb *redis.Client, id string, state Ches
 	trace := ctx.Value(TraceKey)
 
 	state.Touch = time.Now()
+	touch := float64(state.Touch.Unix())
 	fullID := "game:" + id
+
 	data, err := state.Serialize()
 	if err != nil {
-		return ChessState{}, err
+		return ChessState{}, fmt.Errorf("failed to serialize chess state: %w", err)
 	}
-
-	touch := float64(state.Touch.Unix())
 
 	pipe := rdb.TxPipeline()
 	pipe.Set(ctx, fullID, data, 0)
@@ -93,9 +98,8 @@ func ExpireChessStatesBefore(ctx context.Context, rdb *redis.Client, zSetName st
 	keys, err := rdb.ZRangeByScore(ctx, zSetName, by).Result()
 	if err != nil {
 		slog.Error("failed to retrieved expired chess states", "zSetName", zSetName, "err", err, "trace", trace)
-		return err
+		return fmt.Errorf("failed to retrieve expired chess states: %w", err)
 	}
-
 	if len(keys) == 0 {
 		return nil
 	}
@@ -128,7 +132,6 @@ func GetChessViews(ctx context.Context, rdb *redis.Client, zSetName string, page
 	if page < 1 {
 		page = 1
 	}
-
 	var left, right int64
 	if count >= 0 {
 		left = int64((page - 1) * count)
@@ -138,28 +141,23 @@ func GetChessViews(ctx context.Context, rdb *redis.Client, zSetName string, page
 		right = -1
 	}
 
-	if err := ExpireChessStates(ctx, rdb, zSetName); err != nil {
-		return fail(err)
-	}
-
-	elements, err := rdb.ZRevRange(ctx, zSetName, left, right).Result()
-	if err != nil {
-		return fail(err)
-	}
-
 	var dataList []interface{}
 
+	if err := ExpireChessStates(ctx, rdb, zSetName); err != nil {
+		return fail(fmt.Errorf("failed to expire chess states: %w", err))
+	}
+	elements, err := rdb.ZRevRange(ctx, zSetName, left, right).Result()
+	if err != nil {
+		return fail(fmt.Errorf("failed to get chess ids: %w", err))
+	}
 	if len(elements) > 0 {
 		if dataList, err = rdb.MGet(ctx, elements...).Result(); err != nil {
-			return fail(err)
+			return fail(fmt.Errorf("failed to get chess states: %w", err))
 		}
 	}
 
 	var views []ChessView
 	for i, data := range dataList {
-		if data == nil {
-			continue
-		}
 		str, ok := data.(string)
 		if !ok {
 			return fail(fmt.Errorf("unexpected type: %T for key: %v, should be string", data, elements[i]))
@@ -289,7 +287,8 @@ func GetLeaderboardRank(ctx context.Context, rdb *redis.Client, id int64) (int, 
 	trace := ctx.Value(TraceKey)
 	strID := strconv.FormatInt(id, 10)
 
-	fail := func(err error) (int, error) {
+	fail := func(str string, err error) (int, error) {
+		err = fmt.Errorf("%s: %w", str, err)
 		slog.Error("failed to get leaderboard rank", "trace", trace, "id", id, "err", err)
 		return 0, err
 	}
@@ -297,14 +296,12 @@ func GetLeaderboardRank(ctx context.Context, rdb *redis.Client, id int64) (int, 
 	rank, err := rdb.ZRevRank(ctx, LeaderboardZSet, strID).Result()
 	if errors.Is(err, redis.Nil) {
 		if err := IncrLeaderboardUser(ctx, rdb, id, StartElo); err != nil {
-			return fail(err)
+			return fail("failed to incr rank", err)
 		}
 		rank, err = rdb.ZRevRank(ctx, LeaderboardZSet, strID).Result()
-		if err != nil {
-			return fail(err)
-		}
-	} else if err != nil {
-		return fail(err)
+	}
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return fail("failed to get rank", err)
 	}
 
 	slog.Info("retrieved leaderboard rank", "trace", trace, "id", id, "rank", int(rank)+1)
@@ -314,7 +311,8 @@ func GetLeaderboardRank(ctx context.Context, rdb *redis.Client, id int64) (int, 
 func GetLeaderboard(ctx context.Context, rdb *redis.Client, startRank, count int) (Leaderboard, error) {
 	trace := ctx.Value(TraceKey)
 
-	fail := func(err error) (Leaderboard, error) {
+	fail := func(str string, err error) (Leaderboard, error) {
+		err = fmt.Errorf("%s: %w", str, err)
 		slog.Error("failed to fetch leaderboard", "trace", trace, "startRank", startRank, "count", count, "err", err)
 		return Leaderboard{}, err
 	}
@@ -322,19 +320,18 @@ func GetLeaderboard(ctx context.Context, rdb *redis.Client, startRank, count int
 	end := startRank - 1 + count
 	ids, err := rdb.ZRevRange(ctx, LeaderboardZSet, int64(startRank), int64(end)).Result()
 	if err != nil {
-		return fail(err)
+		return fail("failed to get leaderboard", err)
 	}
-
 	elemCount, err := rdb.ZCount(ctx, LeaderboardZSet, "-inf", "+inf").Result()
 	if err != nil {
-		return fail(err)
+		return fail("failed to count leaderboard", err)
 	}
 
 	users := make([]RankedUser, 0, len(ids))
 	for i, strID := range ids {
 		id, err := strconv.ParseInt(strID, 10, 64)
 		if err != nil {
-			return fail(err)
+			return fail("failed to parse ranked ID", err)
 		}
 		users = append(users, RankedUser{ID: id, Rank: int64(startRank + i + 1)})
 	}
@@ -356,5 +353,5 @@ func GetLeaderboardPage(ctx context.Context, rdb *redis.Client, page, perPage in
 
 	leaderboard, err := GetLeaderboard(ctx, rdb, offset, perPage)
 	slog.Log(nil, dynLevel(err), "retrieved leaderboard page", "trace", trace, "page", page, "perPage", perPage, "leaderboard", leaderboard, "err", err)
-	return leaderboard, nil
+	return leaderboard, err
 }

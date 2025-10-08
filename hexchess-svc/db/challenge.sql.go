@@ -18,8 +18,8 @@ WHERE challenger_id = $1 AND challengee_id = $2
 `
 
 type DeleteChallengeParams struct {
-	ChallengerId int64
-	ChallengeeId int64
+	ChallengerID int64
+	ChallengeeID int64
 }
 
 type DeleteChallengeRow struct {
@@ -30,7 +30,7 @@ type DeleteChallengeRow struct {
 }
 
 func (q *Queries) DeleteChallenge(ctx context.Context, arg DeleteChallengeParams) (DeleteChallengeRow, error) {
-	row := q.db.QueryRow(ctx, deleteChallenge, arg.ChallengerId, arg.ChallengeeId)
+	row := q.db.QueryRow(ctx, deleteChallenge, arg.ChallengerID, arg.ChallengeeID)
 	var i DeleteChallengeRow
 	err := row.Scan(
 		&i.ChallengerID,
@@ -48,12 +48,12 @@ WHERE (challengee_id = $1 OR challenger_id = $1)
 `
 
 type DeleteExpiredChallengesParams struct {
-	UserId    int64
-	Threshold pgtype.Timestamp
+	UserID     int64
+	ExpireTime pgtype.Timestamp
 }
 
 func (q *Queries) DeleteExpiredChallenges(ctx context.Context, arg DeleteExpiredChallengesParams) error {
-	_, err := q.db.Exec(ctx, deleteExpiredChallenges, arg.UserId, arg.Threshold)
+	_, err := q.db.Exec(ctx, deleteExpiredChallenges, arg.UserID, arg.ExpireTime)
 	return err
 }
 
@@ -82,8 +82,8 @@ FROM inserted_challenges c
 `
 
 type InsertChallengeParams struct {
-	ChallengerId int64
-	ChallengeeId int64
+	ChallengerID int64
+	ChallengeeID int64
 	TimeControl  string
 	StartColor   string
 	MadeOn       pgtype.Timestamp
@@ -108,8 +108,8 @@ type InsertChallengeRow struct {
 // ======================
 func (q *Queries) InsertChallenge(ctx context.Context, arg InsertChallengeParams) (InsertChallengeRow, error) {
 	row := q.db.QueryRow(ctx, insertChallenge,
-		arg.ChallengerId,
-		arg.ChallengeeId,
+		arg.ChallengerID,
+		arg.ChallengeeID,
 		arg.TimeControl,
 		arg.StartColor,
 		arg.MadeOn,
@@ -147,15 +147,15 @@ SELECT
 FROM challenges c
          INNER JOIN users u1 ON u1.id = c.challengee_id
          INNER JOIN users u2 ON u2.id = c.challenger_id
-WHERE ($1 IS NULL OR challenger_id = $1)
-  AND ($2 IS NULL OR challengee_id = $2)
+WHERE ($1::BIGINT IS NULL OR challenger_id = $1::BIGINT)
+  AND ($2::BIGINT IS NULL OR challengee_id = $2::BIGINT)
   AND made_on >= $3
 ORDER BY made_on DESC
 `
 
 type SelectChallengesByParticipantParams struct {
-	ChallengerId interface{}
-	ChallengeeId interface{}
+	ChallengerID pgtype.Int8
+	ChallengeeID pgtype.Int8
 	Since        pgtype.Timestamp
 }
 
@@ -174,7 +174,7 @@ type SelectChallengesByParticipantRow struct {
 }
 
 func (q *Queries) SelectChallengesByParticipant(ctx context.Context, arg SelectChallengesByParticipantParams) ([]SelectChallengesByParticipantRow, error) {
-	rows, err := q.db.Query(ctx, selectChallengesByParticipant, arg.ChallengerId, arg.ChallengeeId, arg.Since)
+	rows, err := q.db.Query(ctx, selectChallengesByParticipant, arg.ChallengerID, arg.ChallengeeID, arg.Since)
 	if err != nil {
 		return nil, err
 	}

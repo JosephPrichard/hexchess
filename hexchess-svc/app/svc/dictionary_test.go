@@ -27,26 +27,25 @@ func TestDictionary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get host: %s", err)
 	}
-	r, err := cont.Container.Inspect(ctx)
+	resp, err := cont.Container.Inspect(ctx)
 	if err != nil {
 		t.Fatalf("failed to get port: %s", err)
 	}
-	pm := r.NetworkSettings.Ports
-	port := pm["6379/tcp"][0].HostPort
+	port := resp.NetworkSettings.Ports["6379/tcp"][0].HostPort
 
 	t.Logf("connecting on host: %s and port: %v", host, port)
 	client := redis.NewClient(&redis.Options{Addr: host + ":" + port})
 
-	t.Run("test-set-then-get", func(t *testing.T) {
+	t.Run("TestSetThenGet", func(t *testing.T) {
 		testSetThenGetViews(t, client)
 	})
-	t.Run("test-set-then-get-user", func(t *testing.T) {
+	t.Run("TestSetSetThenGetUser", func(t *testing.T) {
 		testSetThenGetUserViews(t, client)
 	})
-	t.Run("test-sessions", func(t *testing.T) {
+	t.Run("TestSession", func(t *testing.T) {
 		testSessions(t, client)
 	})
-	t.Run("test-leaderboard", func(t *testing.T) {
+	t.Run("TestLeaderboard", func(t *testing.T) {
 		testLeaderboard(t, client)
 	})
 }

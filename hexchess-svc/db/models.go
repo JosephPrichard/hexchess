@@ -23,8 +23,8 @@ type Replay struct {
 	Result   int32
 	Cause    int32
 	PlayedOn pgtype.Timestamp
-	WinElo   pgtype.Float8
-	LoseElo  pgtype.Float8
+	WinElo   float64
+	LoseElo  float64
 	MoveList []byte
 }
 

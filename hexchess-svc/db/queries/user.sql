@@ -1,7 +1,7 @@
 -- name: InsertUser :one
 INSERT INTO users (username, country, elo, highest_elo, wins, losses, password, salt)
 VALUES (sqlc.arg('username'), sqlc.arg('country'), sqlc.arg('elo'), sqlc.arg('highestElo'), sqlc.arg('wins'), sqlc.arg('losses'), sqlc.arg('password'), sqlc.arg('salt'))
-RETURNING id, username, country, elo, highest_elo, wins, losses, bio;
+RETURNING id, username, country, elo, highest_elo, wins, losses, bio, joined_on;
 
 -- name: BatchInsertUser :copyfrom
 INSERT INTO users (username, country, elo, highest_elo, wins, losses, password, salt)
@@ -50,12 +50,12 @@ SELECT
     losses
 FROM users;
 
--- name: SelectUsersAfterID :many
+-- name: SelectEloListAfterID :many
 SELECT
     id,
     elo
 FROM users
-WHERE id > sqlc.arg('afterId')
+WHERE id > sqlc.arg('afterID')
 ORDER BY id
     LIMIT sqlc.arg('limit');
 

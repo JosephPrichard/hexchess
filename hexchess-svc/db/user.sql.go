@@ -72,7 +72,7 @@ func (q *Queries) GetEloList(ctx context.Context, arg GetEloListParams) ([]GetEl
 const insertUser = `-- name: InsertUser :one
 INSERT INTO users (username, country, elo, highest_elo, wins, losses, password, salt)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, username, country, elo, highest_elo, wins, losses, bio
+RETURNING id, username, country, elo, highest_elo, wins, losses, bio, joined_on
 `
 
 type InsertUserParams struct {
@@ -95,6 +95,7 @@ type InsertUserRow struct {
 	Wins       int32
 	Losses     int32
 	Bio        string
+	JoinedOn   pgtype.Timestamp
 }
 
 func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertUserRow, error) {
@@ -118,6 +119,7 @@ func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertU
 		&i.Wins,
 		&i.Losses,
 		&i.Bio,
+		&i.JoinedOn,
 	)
 	return i, err
 }
@@ -159,6 +161,46 @@ func (q *Queries) SelectAllUsers(ctx context.Context) ([]SelectAllUsersRow, erro
 			&i.Wins,
 			&i.Losses,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const selectEloListAfterID = `-- name: SelectEloListAfterID :many
+SELECT
+    id,
+    elo
+FROM users
+WHERE id > $1
+ORDER BY id
+    LIMIT $2
+`
+
+type SelectEloListAfterIDParams struct {
+	AfterID int64
+	Limit   int32
+}
+
+type SelectEloListAfterIDRow struct {
+	ID  int64
+	Elo float64
+}
+
+func (q *Queries) SelectEloListAfterID(ctx context.Context, arg SelectEloListAfterIDParams) ([]SelectEloListAfterIDRow, error) {
+	rows, err := q.db.Query(ctx, selectEloListAfterID, arg.AfterID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SelectEloListAfterIDRow
+	for rows.Next() {
+		var i SelectEloListAfterIDRow
+		if err := rows.Scan(&i.ID, &i.Elo); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -240,46 +282,6 @@ func (q *Queries) SelectUserByID(ctx context.Context, id int64) (SelectUserByIDR
 		&i.JoinedOn,
 	)
 	return i, err
-}
-
-const selectUsersAfterID = `-- name: SelectUsersAfterID :many
-SELECT
-    id,
-    elo
-FROM users
-WHERE id > $1
-ORDER BY id
-    LIMIT $2
-`
-
-type SelectUsersAfterIDParams struct {
-	AfterId int64
-	Limit   int32
-}
-
-type SelectUsersAfterIDRow struct {
-	ID  int64
-	Elo float64
-}
-
-func (q *Queries) SelectUsersAfterID(ctx context.Context, arg SelectUsersAfterIDParams) ([]SelectUsersAfterIDRow, error) {
-	rows, err := q.db.Query(ctx, selectUsersAfterID, arg.AfterId, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []SelectUsersAfterIDRow
-	for rows.Next() {
-		var i SelectUsersAfterIDRow
-		if err := rows.Scan(&i.ID, &i.Elo); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const selectUsersByIDs = `-- name: SelectUsersByIDs :many
