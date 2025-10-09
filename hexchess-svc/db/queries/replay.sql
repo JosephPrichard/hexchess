@@ -48,7 +48,7 @@ SELECT
 FROM replays r
          INNER JOIN users u1 ON u1.id = r.white_id
          INNER JOIN users u2 ON u2.id = r.black_id
-WHERE r.id < sqlc.narg('afterID')
+WHERE r.id < sqlc.arg('afterID')
   AND (r.white_id = sqlc.arg('userID') OR r.black_id = sqlc.arg('userID'))
 ORDER BY r.id DESC
     LIMIT sqlc.arg('perPage');

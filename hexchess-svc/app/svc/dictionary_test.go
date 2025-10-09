@@ -4,53 +4,22 @@ import (
 	"context"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
-	"github.com/testcontainers/testcontainers-go"
-	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 	"testing"
 	"time"
 )
 
-func TestDictionary(t *testing.T) {
-	ctx := context.Background()
+func makeRedisClient(t *testing.T) *redis.Client {
+	addr := getRedisContainerAddr(t)
 
-	cont, err := tcredis.Run(ctx, "redis:6-alpine", testcontainers.WithExposedPorts("6379"))
-	if err != nil {
-		t.Fatalf("failed to start container: %s", err)
-	}
-	defer func() {
-		if err := testcontainers.TerminateContainer(cont); err != nil {
-			t.Fatalf("failed to terminate container: %s", err)
-		}
-	}()
+	t.Logf("connecting to redis on addr: %s", addr)
+	rdb := redis.NewClient(&redis.Options{Addr: addr})
 
-	host, err := cont.Container.Host(ctx)
-	if err != nil {
-		t.Fatalf("failed to get host: %s", err)
-	}
-	resp, err := cont.Container.Inspect(ctx)
-	if err != nil {
-		t.Fatalf("failed to get port: %s", err)
-	}
-	port := resp.NetworkSettings.Ports["6379/tcp"][0].HostPort
-
-	t.Logf("connecting on host: %s and port: %v", host, port)
-	client := redis.NewClient(&redis.Options{Addr: host + ":" + port})
-
-	t.Run("TestSetThenGet", func(t *testing.T) {
-		testSetThenGetViews(t, client)
-	})
-	t.Run("TestSetSetThenGetUser", func(t *testing.T) {
-		testSetThenGetUserViews(t, client)
-	})
-	t.Run("TestSession", func(t *testing.T) {
-		testSessions(t, client)
-	})
-	t.Run("TestLeaderboard", func(t *testing.T) {
-		testLeaderboard(t, client)
-	})
+	return rdb
 }
 
-func testSetThenGetViews(t *testing.T, rdb *redis.Client) {
+func TestSetThenGetViews(t *testing.T) {
+	rdb := makeRedisClient(t)
+
 	id1 := "test-id1"
 	id2 := "test-id2"
 	id3 := "test-id3"
@@ -90,7 +59,9 @@ func testSetThenGetViews(t *testing.T, rdb *redis.Client) {
 	assert.Equal(t, expectedViewList2, viewsList2)
 }
 
-func testSetThenGetUserViews(t *testing.T, rdb *redis.Client) {
+func TestSetThenGetUserViews(t *testing.T) {
+	rdb := makeRedisClient(t)
+
 	id1 := "test-id1"
 	id2 := "test-id2"
 	id3 := "test-id3"
@@ -132,7 +103,9 @@ func testSetThenGetUserViews(t *testing.T, rdb *redis.Client) {
 	assert.Empty(t, viewsList3)
 }
 
-func testSessions(t *testing.T, rdb *redis.Client) {
+func TestSessions(t *testing.T) {
+	rdb := makeRedisClient(t)
+
 	player1 := PlayerState{ID: 1, Name: "test-name1"}
 
 	ctx := context.WithValue(context.Background(), TraceKey, "test-sessions")
@@ -146,7 +119,9 @@ func testSessions(t *testing.T, rdb *redis.Client) {
 	assert.Equal(t, player1, player3)
 }
 
-func testLeaderboard(t *testing.T, rdb *redis.Client) {
+func TestLeaderboard(t *testing.T) {
+	rdb := makeRedisClient(t)
+
 	ctx := context.WithValue(context.Background(), TraceKey, "test-leaderboard")
 
 	assert.NoError(t, IncrLeaderboardUser(ctx, rdb, 10, 1500))

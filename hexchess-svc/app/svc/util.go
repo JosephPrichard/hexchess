@@ -12,3 +12,7 @@ func dynLevel(err error) slog.Level {
 	}
 	return slog.LevelInfo
 }
+
+func pointerOf[T any](v T) *T {
+	return &v
+}

@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-type User struct {
+type UserEntity struct {
 	ID         int64
 	Username   string
 	Country    string
@@ -39,7 +39,7 @@ type RankedUser struct {
 
 var ErrUserNotFound = errors.New("user not found")
 
-func JoinRanks(rankedList []RankedUser, userList []User) error {
+func JoinRanks(rankedList []RankedUser, userList []UserEntity) error {
 	for i := range userList {
 		user := &userList[i]
 		found := false
@@ -107,8 +107,8 @@ func mapInsertUserParams(inst UserInst, hash HashResult) db.InsertUserParams {
 	}
 }
 
-func mapUserFromRow(row db.SelectUserByIDRow) User {
-	return User{
+func mapUserFromRow(row db.SelectUserByIDRow) UserEntity {
+	return UserEntity{
 		ID:         row.ID,
 		Username:   row.Username,
 		Country:    row.Country.String,
@@ -126,12 +126,12 @@ func InsertUser(ctx context.Context, q *db.Queries, inst UserInst) error {
 	return err
 }
 
-func InsertUserRet(ctx context.Context, q *db.Queries, inst UserInst) (User, error) {
+func InsertUserRet(ctx context.Context, q *db.Queries, inst UserInst) (UserEntity, error) {
 	trace := ctx.Value(TraceKey)
-	fail := func(str string, err error) (User, error) {
+	fail := func(str string, err error) (UserEntity, error) {
 		err = fmt.Errorf("%s: %w", str, err)
 		slog.Error("failed to insert user", "inst", inst, "err", err, "trace", trace)
-		return User{}, err
+		return UserEntity{}, err
 	}
 
 	hash, err := GenerateHash(inst.Password)
@@ -144,7 +144,7 @@ func InsertUserRet(ctx context.Context, q *db.Queries, inst UserInst) (User, err
 	if errors.As(err, &pgErr) {
 		if pgErr.Code == "23505" {
 			slog.Info("player already exists", "inst", inst, "err", pgErr, "trace", trace)
-			return User{}, ErrTakenUsername
+			return UserEntity{}, ErrTakenUsername
 		}
 	}
 	if err != nil {
@@ -210,8 +210,8 @@ func ProbabilityWins(elo1, elo2 float64) float64 {
 	return 1.0 / (1.0 + math.Pow(10, (elo2-elo1)/400.0))
 }
 
-func UpdateUserStatsTx(ctx context.Context, qtx QueriesTx, winID int64, loseID int64) (EloChangeSet, error) {
-	return WithTransaction(ctx, qtx, func(q *db.Queries) (EloChangeSet, error) {
+func UpdateUserStatsTx(ctx context.Context, pgDB DB, winID int64, loseID int64) (EloChangeSet, error) {
+	return WithTransaction(ctx, pgDB, func(q *db.Queries) (EloChangeSet, error) {
 		return UpdateUserStats(ctx, q, winID, loseID)
 	})
 }
@@ -276,19 +276,19 @@ func UpdateUserPassword(ctx context.Context, q *db.Queries, id int64, newPasswor
 	return err
 }
 
-func GetUserById(ctx context.Context, q *db.Queries, id int64) (User, error) {
+func GetUserById(ctx context.Context, q *db.Queries, id int64) (UserEntity, error) {
 	trace := ctx.Value(TraceKey)
 	row, err := q.SelectUserByID(ctx, id)
 	if err != nil {
 		slog.Error("failed to select user", "id", id, "err", err, "trace", trace)
-		return User{}, fmt.Errorf("failed to select user: %w", err)
+		return UserEntity{}, fmt.Errorf("failed to select user: %w", err)
 	}
 	user := mapUserFromRow(row)
 	slog.Info("selected user", "id", id, "user", user, "trace", trace)
 	return user, nil
 }
 
-func GetRankedUsers(ctx context.Context, q *db.Queries, users []RankedUser) ([]User, error) {
+func GetRankedUsers(ctx context.Context, q *db.Queries, users []RankedUser) ([]UserEntity, error) {
 	var ids []int64
 	for _, user := range users {
 		ids = append(ids, user.ID)
@@ -296,14 +296,14 @@ func GetRankedUsers(ctx context.Context, q *db.Queries, users []RankedUser) ([]U
 	return GetUserByIds(ctx, q, ids)
 }
 
-func GetUserByIds(ctx context.Context, q *db.Queries, ids []int64) ([]User, error) {
+func GetUserByIds(ctx context.Context, q *db.Queries, ids []int64) ([]UserEntity, error) {
 	trace := ctx.Value(TraceKey)
 	rows, err := q.SelectUsersByIDs(ctx, ids)
 	if err != nil {
 		slog.Error("failed to select users", "ids", ids, "err", err, "trace", trace)
 		return nil, fmt.Errorf("failed to select users: %w", err)
 	}
-	var users []User
+	var users []UserEntity
 	for _, row := range rows {
 		users = append(users, mapUserFromRow(db.SelectUserByIDRow(row)))
 	}
@@ -311,7 +311,7 @@ func GetUserByIds(ctx context.Context, q *db.Queries, ids []int64) ([]User, erro
 	return users, nil
 }
 
-func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page int32, perPage int32) ([]User, error) {
+func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page int32, perPage int32) ([]UserEntity, error) {
 	trace := ctx.Value(TraceKey)
 
 	page = max(page, 1)
@@ -323,10 +323,10 @@ func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page int
 		return nil, fmt.Errorf("failed to select users by name: %w", err)
 	}
 
-	var users []User
+	var users []UserEntity
 	for i, row := range rows {
 		rank := (page-1)*perPage + int32(i) + 1
-		user := User{
+		user := UserEntity{
 			ID:       row.ID,
 			Username: row.Username,
 			Country:  row.Country.String,

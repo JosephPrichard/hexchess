@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-type Challenge struct {
+type ChallengeEntity struct {
 	ChallengerId      int64
 	ChallengerName    string
 	ChallengerCountry string
@@ -34,20 +34,47 @@ var (
 const ExpireChallengeThreshold = time.Hour * 24 * 7
 
 type ChallengeInst struct {
-	ChallengerID int64  `json:"challengerId"`
-	ChallengeeID int64  `json:"challengeeId"`
-	TimeControl  string `json:"timeControl"`
-	StartColor   string `json:"startColor"`
+	ChallengerID int64     `json:"challengerId"`
+	ChallengeeID int64     `json:"challengeeId"`
+	TimeControl  string    `json:"timeControl"`
+	StartColor   string    `json:"startColor"`
+	MadeOn       time.Time `json:"madeOn"`
+}
+
+func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) ChallengeEntity {
+	return ChallengeEntity{
+		ChallengerId:      row.ChallengerID,
+		ChallengerName:    row.ChallengerName,
+		ChallengerCountry: row.ChallengerCountry.String,
+		ChallengerElo:     row.ChallengerElo,
+		ChallengeeId:      row.ChallengeeID,
+		ChallengeeName:    row.ChallengeeName,
+		ChallengeeCountry: row.ChallengeeCountry.String,
+		ChallengeeElo:     row.ChallengeeElo,
+		TimeControl:       row.TimeControl,
+		StartColor:        row.StartColor,
+		MadeOn:            row.MadeOn.Time,
+	}
 }
 
 func InsertChallenge(ctx context.Context, q *db.Queries, inst ChallengeInst) error {
+	_, err := InsertChallengeRet(ctx, q, inst)
+	return err
+}
+
+func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) (ChallengeEntity, error) {
 	trace := ctx.Value(TraceKey)
 
-	count, err := q.InsertChallenge(ctx, db.InsertChallengeParams{
+	if inst.MadeOn.IsZero() {
+		inst.MadeOn = time.Now()
+	}
+
+	row, err := q.InsertChallenge(ctx, db.InsertChallengeParams{
 		ChallengerID: inst.ChallengerID,
 		ChallengeeID: inst.ChallengeeID,
 		TimeControl:  inst.TimeControl,
 		StartColor:   inst.StartColor,
+		MadeOn:       pgtype.Timestamp{Valid: true, Time: inst.MadeOn},
 	})
 
 	var pgErr *pgconn.PgError
@@ -55,17 +82,20 @@ func InsertChallenge(ctx context.Context, q *db.Queries, inst ChallengeInst) err
 		switch pgErr.Code {
 		case "23505":
 			slog.Info("challenge already exists", "challenge", inst, "err", pgErr, "trace", trace)
-			return ErrDuplicateChallenge
+			return ChallengeEntity{}, ErrDuplicateChallenge
 		case "23503", "23506":
 			slog.Info("violating key constraint when creating challenge", "challenge", inst, "err", pgErr, "trace", trace)
-			return ErrParticipantConflict
+			return ChallengeEntity{}, ErrParticipantConflict
 		}
 	}
-	slog.Log(nil, dynLevel(err), "created a new challenge", "challenge", inst, "count", count, "err", err, "trace", trace)
-	return err
+
+	challenge := mapChallengeFromRow(db.SelectChallengesByParticipantRow(row))
+
+	slog.Log(nil, dynLevel(err), "created a new challenge", "challenge", inst, "challenge", challenge, "err", err, "trace", trace)
+	return challenge, err
 }
 
-func GetByParticipant(ctx context.Context, q *db.Queries, challengerID *int64, challengeeID *int64, threshold time.Duration) ([]Challenge, error) {
+func GetChallengesByParticipant(ctx context.Context, q *db.Queries, challengerID *int64, challengeeID *int64, threshold time.Duration) ([]ChallengeEntity, error) {
 	trace := ctx.Value(TraceKey)
 
 	var pgChallengerID pgtype.Int8
@@ -90,31 +120,32 @@ func GetByParticipant(ctx context.Context, q *db.Queries, challengerID *int64, c
 		return nil, fmt.Errorf("failed to get challenges by participant: %w", err)
 	}
 
-	var challenges []Challenge
+	var challenges []ChallengeEntity
 	for _, row := range rows {
-		challenges = append(challenges, Challenge{
-			ChallengerId:      row.ChallengerID,
-			ChallengerName:    row.ChallengerName,
-			ChallengerCountry: row.ChallengerCountry.String,
-			ChallengerElo:     row.ChallengerElo,
-			ChallengeeId:      row.ChallengeeID,
-			ChallengeeName:    row.ChallengeeName,
-			ChallengeeCountry: row.ChallengeeCountry.String,
-			ChallengeeElo:     row.ChallengeeElo,
-			TimeControl:       row.TimeControl,
-			StartColor:        row.StartColor,
-			MadeOn:            row.MadeOn.Time,
-		})
+		challenges = append(challenges, mapChallengeFromRow(row))
 	}
 
 	return challenges, nil
 }
 
-func DeleteChallenge(ctx context.Context, q *db.Queries, challengeeID int64, challengerID int64) error {
-	count, err := q.DeleteChallenge(ctx, db.DeleteChallengeParams{ChallengerID: challengeeID, ChallengeeID: challengerID})
-	slog.Log(nil, dynLevel(err), "created a new challenge",
-		"challengee", challengeeID, "challengerID", challengerID, "count", count, "err", err, "trace", ctx.Value(TraceKey))
-	return err
+type DeleteResult struct {
+	ChallengerID int64
+	ChallengeeID int64
+	TimeControl  string
+	StartColor   string
+}
+
+func DeleteChallenge(ctx context.Context, q *db.Queries, challengeeID int64, challengerID int64) (DeleteResult, error) {
+	trace := ctx.Value(TraceKey)
+
+	row, err := q.DeleteChallenge(ctx, db.DeleteChallengeParams{ChallengerID: challengeeID, ChallengeeID: challengerID})
+	if err != nil {
+		slog.Error("failed to create challenge", "err", err, "trace", trace)
+		return DeleteResult{}, err
+	}
+
+	slog.Info("created a new challenge", "challengee", challengeeID, "challengerID", challengerID, "row", row, "err", err, "trace", trace)
+	return DeleteResult(row), err
 }
 
 func DeleteExpiredChallenges(ctx context.Context, q *db.Queries, userID int64, threshold time.Duration) error {

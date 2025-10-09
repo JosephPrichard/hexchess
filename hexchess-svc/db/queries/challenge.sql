@@ -4,10 +4,10 @@
 
 -- name: InsertChallenge :one
 WITH inserted_challenges AS (
-INSERT INTO challenges (challenger_id, challengee_id, time_control, start_color, made_on)
-VALUES (sqlc.arg('challengerID'), sqlc.arg('challengeeID'), sqlc.arg('timeControl'), sqlc.arg('startColor'), sqlc.arg('madeOn'))
+    INSERT INTO challenges (challenger_id, challengee_id, time_control, start_color, made_on)
+    VALUES (sqlc.arg('challengerID'), sqlc.arg('challengeeID'), sqlc.arg('timeControl'), sqlc.arg('startColor'), sqlc.arg('madeOn'))
     RETURNING *
-    )
+)
 SELECT
     c.challenger_id,
     c.challengee_id,

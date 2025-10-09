@@ -8,42 +8,6 @@ import (
 	"testing"
 )
 
-func TestUserQueries(t *testing.T) {
-	closer := createEmbeddedDb(t)
-	defer closer()
-
-	pool := makeTestPgxPool(t)
-	defer pool.Close()
-
-	q := db.New(pool)
-	qtx := MakeQueriesTx(q, pool)
-
-	t.Run("TestInsertThenVerify", func(t *testing.T) {
-		resetTestSchema(t, pool)
-		testInsertThenVerify(t, q)
-	})
-	t.Run("TestBatchInsertThenGet", func(t *testing.T) {
-		resetTestSchema(t, pool)
-		testBatchInsertThenGet(t, q)
-	})
-	t.Run("TestUpdateStats", func(t *testing.T) {
-		resetTestSchema(t, pool)
-		testUpdateStats(t, qtx)
-	})
-	t.Run("TestUpdateUser", func(t *testing.T) {
-		resetTestSchema(t, pool)
-		testUpdateUser(t, q)
-	})
-	t.Run("TestUpdatePassword", func(t *testing.T) {
-		resetTestSchema(t, pool)
-		testUpdatePassword(t, q)
-	})
-	t.Run("TestSearchByName", func(t *testing.T) {
-		resetTestSchema(t, pool)
-		testSearchByName(t, q)
-	})
-}
-
 func createTestUsers(t *testing.T, q *db.Queries) {
 	ctx := context.WithValue(context.Background(), TraceKey, "create-test-data")
 	assert.NoError(t, InsertUser(ctx, q, UserInst{Username: "user1", Password: "password1", Country: "us", Elo: 1000}))
@@ -53,24 +17,27 @@ func createTestUsers(t *testing.T, q *db.Queries) {
 	assert.NoError(t, InsertUser(ctx, q, UserInst{Username: "user5", Password: "password5", Country: "us", Elo: 1500, Wins: 40, Losses: 35}))
 }
 
-func testInsertThenVerify(t *testing.T, q *db.Queries) {
+func TestInsertThenVerify(t *testing.T) {
+	pgDB, closer := initDbClient(t)
+	defer closer()
+
 	ctx := context.WithValue(context.Background(), TraceKey, "test-insert-then-verify")
 
-	u1, err := InsertUserRet(ctx, q, UserInst{Username: "user1", Password: "password1"})
+	u1, err := InsertUserRet(ctx, pgDB.Q, UserInst{Username: "user1", Password: "password1"})
 	assert.NoError(t, err)
-	u2, err := InsertUserRet(ctx, q, UserInst{Username: "user2", Password: "password2"})
+	u2, err := InsertUserRet(ctx, pgDB.Q, UserInst{Username: "user2", Password: "password2"})
 	assert.NoError(t, err)
-	u3, err := InsertUserRet(ctx, q, UserInst{Username: "user3", Password: "password3"})
+	u3, err := InsertUserRet(ctx, pgDB.Q, UserInst{Username: "user3", Password: "password3"})
 	assert.NoError(t, err)
 
-	v1, err := VerifyUser(ctx, q, "user1", "password1")
+	v1, err := VerifyUser(ctx, pgDB.Q, "user1", "password1")
 	assert.NoError(t, err)
-	v2, err := VerifyUser(ctx, q, "user2", "password2")
+	v2, err := VerifyUser(ctx, pgDB.Q, "user2", "password2")
 	assert.NoError(t, err)
-	_, err1 := VerifyUser(ctx, q, "user2", "wrong-password")
-	v4, err := VerifyUser(ctx, q, "user3", "password3")
+	_, err1 := VerifyUser(ctx, pgDB.Q, "user2", "wrong-password")
+	v4, err := VerifyUser(ctx, pgDB.Q, "user3", "password3")
 	assert.NoError(t, err)
-	_, err2 := VerifyUser(ctx, q, "user1", "password3")
+	_, err2 := VerifyUser(ctx, pgDB.Q, "user1", "password3")
 
 	assert.Equal(t, u1.ID, v1.ID)
 	assert.Equal(t, u2.ID, v2.ID)
@@ -79,41 +46,47 @@ func testInsertThenVerify(t *testing.T, q *db.Queries) {
 	assert.Error(t, err2)
 }
 
-func testBatchInsertThenGet(t *testing.T, q *db.Queries) {
+func TestBatchInsertThenGet(t *testing.T) {
+	pgDB, closer := initDbClient(t)
+	defer closer()
+
 	ctx := context.WithValue(context.Background(), TraceKey, "test-batch-insert-then-get")
 
 	users := []UserInst{
 		{Username: "user1", Password: "password1", Country: "us", Elo: 1005, Wins: 10, Losses: 9},
 		{Username: "user2", Password: "password2", Country: "eu", Elo: 1035, Wins: 12, Losses: 9},
 	}
-	assert.NoError(t, BatchInsertUsers(ctx, q, users))
+	assert.NoError(t, BatchInsertUsers(ctx, pgDB.Q, users))
 
-	u1, err := GetUserById(ctx, q, 1)
+	u1, err := GetUserById(ctx, pgDB.Q, 1)
 	assert.NoError(t, err)
-	u2, err := GetUserById(ctx, q, 2)
+	u2, err := GetUserById(ctx, pgDB.Q, 2)
 	assert.NoError(t, err)
 
-	v1, err := VerifyUser(ctx, q, "user1", "password1")
+	v1, err := VerifyUser(ctx, pgDB.Q, "user1", "password1")
 	assert.NoError(t, err)
-	v2, err := VerifyUser(ctx, q, "user2", "password2")
+	v2, err := VerifyUser(ctx, pgDB.Q, "user2", "password2")
 	assert.NoError(t, err)
 
 	assert.Equal(t, u1.ID, v1.ID)
 	assert.Equal(t, u2.ID, v2.ID)
 }
 
-func testUpdateStats(t *testing.T, qtx QueriesTx) {
+func TestUpdateStats(t *testing.T) {
+	pgDB, closer := initDbClient(t)
+	defer closer()
+
 	ctx := context.WithValue(context.Background(), TraceKey, "test-update-stats")
+	createTestUsers(t, pgDB.Q)
 
-	createTestUsers(t, qtx.Q)
-
-	cs, err := UpdateUserStatsTx(ctx, qtx, 1, 2)
+	cs, err := UpdateUserStatsTx(ctx, pgDB, 1, 2)
 	assert.NoError(t, err)
-	u1, err := GetUserById(ctx, qtx.Q, 1)
+	u1, err := GetUserById(ctx, pgDB.Q, 1)
 	assert.NoError(t, err)
-	u2, err := GetUserById(ctx, qtx.Q, 2)
+	u2, err := GetUserById(ctx, pgDB.Q, 2)
 	assert.NoError(t, err)
 
+	// assert a value relatively close to the actual value
 	cs.WinEloDiff = math.Round(cs.WinEloDiff)
 	cs.LoseEloDiff = math.Round(cs.LoseEloDiff)
 	u1.Elo = math.Round(u1.Elo)
@@ -126,10 +99,10 @@ func testUpdateStats(t *testing.T, qtx QueriesTx) {
 	assert.Equal(t, float64(985), u2.Elo)
 }
 
-//func testUpdateStatsRollback(t *testing.T, qtx QueriesTx) {
+//func testUpdateStatsRollback(t *testing.T, pgDB DB) {
 //	ctx := context.Background()
 //
-//	createTestUsers(t, qtx.Q)
+//	createTestUsers(t, pgDB.Q)
 //
 //	userDao.MockProbWins = func(_, _ float64) (float64, error) {
 //		panic("mocked panic")
@@ -141,25 +114,27 @@ func testUpdateStats(t *testing.T, qtx QueriesTx) {
 //				t.Logf("panic recovered: %s", err)
 //			}
 //		}()
-//		_, _ = UpdateUserStatsTx(ctx, qtx, 1, 3)
+//		_, _ = UpdateUserStatsTx(ctx, pgDB, 1, 3)
 //	}()
 //
-//	u1, err := GetUserById(ctx, qtx.Q, 1)
+//	u1, err := GetUserById(ctx, pgDB.pgDB.Q, 1)
 //	assert.NoError(t, err)
 //	assert.Equal(t, float64(1000), u1.Elo)
 //}
 
-func testUpdateUser(t *testing.T, q *db.Queries) {
+func TestUpdateUser(t *testing.T) {
+	pgDB, closer := initDbClient(t)
+	defer closer()
+
 	ctx := context.WithValue(context.Background(), TraceKey, "test-update-user")
+	createTestUsers(t, pgDB.Q)
 
-	createTestUsers(t, q)
+	assert.NoError(t, UpdateUser(ctx, pgDB.Q, 1, "user1-changed", "Testing123", ""))
+	assert.NoError(t, UpdateUser(ctx, pgDB.Q, 2, "user2-changed", "", "eu"))
 
-	assert.NoError(t, UpdateUser(ctx, q, 1, "user1-changed", "Testing123", ""))
-	assert.NoError(t, UpdateUser(ctx, q, 2, "user2-changed", "", "eu"))
-
-	u1, err := GetUserById(ctx, q, 1)
+	u1, err := GetUserById(ctx, pgDB.Q, 1)
 	assert.NoError(t, err)
-	u2, err := GetUserById(ctx, q, 2)
+	u2, err := GetUserById(ctx, pgDB.Q, 2)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "user1-changed", u1.Username)
@@ -171,30 +146,34 @@ func testUpdateUser(t *testing.T, q *db.Queries) {
 	assert.Equal(t, "eu", u2.Country)
 }
 
-func testUpdatePassword(t *testing.T, q *db.Queries) {
+func TestUpdatePassword(t *testing.T) {
+	pgDB, closer := initDbClient(t)
+	defer closer()
+
 	ctx := context.WithValue(context.Background(), TraceKey, "update-password")
+	createTestUsers(t, pgDB.Q)
 
-	createTestUsers(t, q)
+	assert.NoError(t, UpdateUserPassword(ctx, pgDB.Q, 1, "password-new"))
 
-	assert.NoError(t, UpdateUserPassword(ctx, q, 1, "password-new"))
-
-	u1, err := GetUserById(ctx, q, 1)
+	u1, err := GetUserById(ctx, pgDB.Q, 1)
 	assert.NoError(t, err)
-	v1, err := VerifyUser(ctx, q, "user1", "password-new")
+	v1, err := VerifyUser(ctx, pgDB.Q, "user1", "password-new")
 	assert.NoError(t, err)
 
 	assert.Equal(t, u1.ID, v1.ID)
 }
 
-func testSearchByName(t *testing.T, q *db.Queries) {
+func TestSearchByName(t *testing.T) {
+	pgDB, closer := initDbClient(t)
+	defer closer()
+
 	ctx := context.WithValue(context.Background(), TraceKey, "search-by-name")
+	createTestUsers(t, pgDB.Q)
 
-	createTestUsers(t, q)
+	assert.NoError(t, InsertUser(ctx, pgDB.Q, UserInst{Username: "johnny", Password: "password6"}))
+	assert.NoError(t, InsertUser(ctx, pgDB.Q, UserInst{Username: "john", Password: "password7"}))
 
-	assert.NoError(t, InsertUser(ctx, q, UserInst{Username: "johnny", Password: "password6"}))
-	assert.NoError(t, InsertUser(ctx, q, UserInst{Username: "john", Password: "password7"}))
-
-	list, err := SearchUsersByName(ctx, q, "john", 1, 20)
+	list, err := SearchUsersByName(ctx, pgDB.Q, "john", 1, 20)
 	assert.NoError(t, err)
 	assert.Len(t, list, 2)
 }

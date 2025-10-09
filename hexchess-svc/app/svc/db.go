@@ -8,21 +8,21 @@ import (
 	"log/slog"
 )
 
-type QueriesTx struct {
-	Q       *db.Queries
-	BeginFn BeginTxFn
+type DB struct {
+	Q    *db.Queries
+	pool *pgxpool.Pool
 }
 
-func MakeQueriesTx(q *db.Queries, pool *pgxpool.Pool) QueriesTx {
-	return QueriesTx{Q: q, BeginFn: pool.Begin}
+func MakeDbClient(q *db.Queries, pool *pgxpool.Pool) DB {
+	return DB{Q: q, pool: pool}
 }
 
 type TxFn[Ret any] func(q *db.Queries) (Ret, error)
 type BeginTxFn = func(ctx context.Context) (pgx.Tx, error)
 
-func WithTransaction[Ret any](ctx context.Context, qtx QueriesTx, txFn TxFn[Ret]) (ret Ret, err error) {
+func WithTransaction[Ret any](ctx context.Context, pgDB DB, txFn TxFn[Ret]) (ret Ret, err error) {
 	trace := ctx.Value(TraceKey)
-	tx, err := qtx.BeginFn(ctx)
+	tx, err := pgDB.pool.Begin(ctx)
 	if err != nil {
 		return
 	}
@@ -43,6 +43,6 @@ func WithTransaction[Ret any](ctx context.Context, qtx QueriesTx, txFn TxFn[Ret]
 			}
 		}
 	}()
-	ret, err = txFn(qtx.Q.WithTx(tx))
+	ret, err = txFn(pgDB.Q.WithTx(tx))
 	return
 }

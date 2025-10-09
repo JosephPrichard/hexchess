@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/db"
 	"log/slog"
+	"math"
 	"time"
 )
 
-type Replay struct {
+type ReplayEntity struct {
 	ID           int64
 	WhiteID      int64
 	BlackID      int64
@@ -50,7 +50,7 @@ type ReplayInst struct {
 	Cause        int32   `json:"cause"`
 	WinElo       float64 `json:"winElo"`
 	LoseElo      float64 `json:"loseElo"`
-	MoveListJSON []byte
+	MoveListJSON string
 }
 
 func InsertReplay(ctx context.Context, q *db.Queries, inst ReplayInst) error {
@@ -61,14 +61,14 @@ func InsertReplay(ctx context.Context, q *db.Queries, inst ReplayInst) error {
 		Cause:    inst.Cause,
 		WinElo:   inst.WinElo,
 		LoseElo:  inst.LoseElo,
-		MoveList: inst.MoveListJSON,
+		MoveList: []byte(inst.MoveListJSON),
 	})
 	slog.Log(nil, dynLevel(err), "created a new replay", "replay", inst, "count", count, "err", err, "trace", ctx.Value(TraceKey))
 	return err
 }
 
-func mapReplay(row db.GetReplayByIDRow) Replay {
-	return Replay{
+func mapReplayFromRow(row db.GetReplayByIDRow) ReplayEntity {
+	return ReplayEntity{
 		ID:           row.ID,
 		WhiteID:      row.WhiteID,
 		BlackID:      row.BlackID,
@@ -87,18 +87,18 @@ func mapReplay(row db.GetReplayByIDRow) Replay {
 
 var ErrNoReplay = errors.New("replay not found")
 
-func GetReplay(ctx context.Context, q *db.Queries, id int64) (Replay, error) {
+func GetReplay(ctx context.Context, q *db.Queries, id int64) (ReplayEntity, error) {
 	trace := ctx.Value(TraceKey)
 
 	row, err := q.GetReplayByID(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return Replay{}, ErrNoReplay
+		return ReplayEntity{}, ErrNoReplay
 	}
 	if err != nil {
 		slog.Error("failed to select replay", "id", id, "err", err, "trace", trace)
-		return Replay{}, fmt.Errorf("failed to get replay by id: %v", err)
+		return ReplayEntity{}, fmt.Errorf("failed to get replay by id: %v", err)
 	}
-	replay := mapReplay(row)
+	replay := mapReplayFromRow(row)
 
 	slog.Info("selected replay by id", "replay", replay, "trace", trace)
 	return replay, nil
@@ -121,18 +121,16 @@ func GetReplayMoveList(ctx context.Context, q *db.Queries, id int64) (string, er
 	return moveListStr, nil
 }
 
-func GetUserReplays(ctx context.Context, q *db.Queries, userID int64, afterID *int64, perPage int32) ([]Replay, error) {
+func GetUserReplays(ctx context.Context, q *db.Queries, userID int64, afterID int64, perPage int32) ([]ReplayEntity, error) {
 	trace := ctx.Value(TraceKey)
 
-	var pgAfterID pgtype.Int8
-	if afterID != nil {
-		pgAfterID.Valid = true
-		pgAfterID.Int64 = *afterID
+	if afterID < 0 {
+		afterID = int64(math.MaxInt64)
 	}
 
 	rows, err := q.GetUserReplays(ctx, db.GetUserReplaysParams{
 		UserID:  userID,
-		AfterID: pgAfterID,
+		AfterID: afterID,
 		PerPage: perPage,
 	})
 	if err != nil {
@@ -140,9 +138,9 @@ func GetUserReplays(ctx context.Context, q *db.Queries, userID int64, afterID *i
 		return nil, fmt.Errorf("failed to get replays: %v", err)
 	}
 
-	var replays []Replay
+	var replays []ReplayEntity
 	for _, row := range rows {
-		replays = append(replays, mapReplay(db.GetReplayByIDRow(row)))
+		replays = append(replays, mapReplayFromRow(db.GetReplayByIDRow(row)))
 	}
 
 	slog.Info("selected replays", "replays", replays, "userID", userID, "afterID", afterID, "perPage", perPage, "trace", trace)
