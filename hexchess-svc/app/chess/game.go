@@ -84,6 +84,9 @@ func (g *Game) MakeMove(from, to Hex) PieceMove {
 }
 
 func (g *Game) IsValidMove(move PieceMove) bool {
+	if g.WhiteMoves == nil && g.BlackMoves == nil {
+		g.InitPieceMoves()
+	}
 	moves := g.GetCurrMoves()
 
 	for _, pm := range moves {

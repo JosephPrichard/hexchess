@@ -66,7 +66,7 @@ var (
 )
 
 func TestInsertThenGetChallenges(t *testing.T) {
-	pgDB, closer := initDbClient(t)
+	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), TraceKey, "test-insert-get-challenges")
@@ -96,7 +96,7 @@ func TestInsertThenGetChallenges(t *testing.T) {
 }
 
 func TestExpiration(t *testing.T) {
-	pgDB, closer := initDbClient(t)
+	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), TraceKey, "test-expiration")
@@ -123,7 +123,7 @@ func TestExpiration(t *testing.T) {
 }
 
 func TestDeleteChallenge(t *testing.T) {
-	pgDB, closer := initDbClient(t)
+	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), TraceKey, "test-delete")

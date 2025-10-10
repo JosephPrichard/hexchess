@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"hexchess-svc/db"
 	"log/slog"
 )
@@ -11,6 +12,11 @@ import (
 type DB struct {
 	Q    *db.Queries
 	pool *pgxpool.Pool
+}
+
+type Databases struct {
+	Rdb  *redis.Client
+	PgDB DB
 }
 
 func MakeDbClient(q *db.Queries, pool *pgxpool.Pool) DB {

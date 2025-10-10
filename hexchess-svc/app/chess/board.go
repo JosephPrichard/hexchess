@@ -184,17 +184,6 @@ func (h Hex) Walk(directions []Direction) Hex {
 	return Hex{File: file, Rank: rank}
 }
 
-func (b *Board) FindKing(isWhiteTurn bool) Hex {
-	for _, hex := range OrdHexagons {
-		piece := b.Pieces[hex.File][hex.Rank]
-		if (piece == WhiteKing && isWhiteTurn) || (piece == BlackKing && !isWhiteTurn) {
-			return hex
-		}
-	}
-	panic("board doesn't have a king")
-	return Hex{}
-}
-
 func HasPawnMoved(pawnHex Hex, isWhite bool) bool {
 	if isWhite {
 		var minRank int
@@ -333,6 +322,29 @@ func InitialBoard() Board {
 	return board
 }
 
+func (b *Board) SafeSetPiece(file, rank int, piece Piece) error {
+	if file >= len(b.Pieces) {
+		return fmt.Errorf("file out of range: %d", file)
+	}
+	fileArr := b.Pieces[file]
+	if rank >= len(fileArr) {
+		return fmt.Errorf("rank out of range: %d for file: %d", rank, file)
+	}
+	fileArr[rank] = piece
+	return nil
+}
+
+func (b *Board) SafeGetPiece(file, rank int) (Piece, error) {
+	if file >= len(b.Pieces) {
+		return 0, fmt.Errorf("file out of range: %d", file)
+	}
+	fileArr := b.Pieces[file]
+	if rank >= len(fileArr) {
+		return 0, fmt.Errorf("rank out of range: %d for file: %d", rank, file)
+	}
+	return fileArr[rank], nil
+}
+
 func (b *Board) SetPiece(str string, p Piece) {
 	hex := ParseHexagonValid(str)
 	b.Pieces[hex.File][hex.Rank] = p
@@ -341,6 +353,17 @@ func (b *Board) SetPiece(str string, p Piece) {
 func (b *Board) GetPiece(str string) Piece {
 	hex := ParseHexagonValid(str)
 	return b.Pieces[hex.File][hex.Rank]
+}
+
+func (b *Board) FindKing(isWhiteTurn bool) Hex {
+	for _, hex := range OrdHexagons {
+		piece := b.Pieces[hex.File][hex.Rank]
+		if (piece == WhiteKing && isWhiteTurn) || (piece == BlackKing && !isWhiteTurn) {
+			return hex
+		}
+	}
+	panic("board doesn't have a king")
+	return Hex{}
 }
 
 func (b *Board) InBounds(file, rank int) bool {

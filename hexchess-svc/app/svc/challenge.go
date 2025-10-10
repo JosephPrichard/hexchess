@@ -91,7 +91,7 @@ func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) 
 
 	challenge := mapChallengeFromRow(db.SelectChallengesByParticipantRow(row))
 
-	slog.Log(nil, dynLevel(err), "created a new challenge", "challenge", inst, "challenge", challenge, "err", err, "trace", trace)
+	dynLog("created a new challenge", err, "challenge", inst, "challenge", challenge, "trace", trace)
 	return challenge, err
 }
 
@@ -154,6 +154,6 @@ func DeleteExpiredChallenges(ctx context.Context, q *db.Queries, userID int64, t
 		UserID:     userID,
 		ExpireTime: pgtype.Timestamp{Valid: true, Time: t},
 	})
-	slog.Log(nil, dynLevel(err), "deleted expired challenges", "userID", userID, "expireTime", t, "trace", ctx.Value(TraceKey))
+	dynLog("deleted expired challenges", err, "userID", userID, "expireTime", t, "trace", ctx.Value(TraceKey))
 	return nil
 }

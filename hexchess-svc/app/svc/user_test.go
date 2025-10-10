@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/stretchr/testify/assert"
 	"hexchess-svc/db"
-	"math"
 	"testing"
 )
 
@@ -18,7 +17,7 @@ func createTestUsers(t *testing.T, q *db.Queries) {
 }
 
 func TestInsertThenVerify(t *testing.T) {
-	pgDB, closer := initDbClient(t)
+	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), TraceKey, "test-insert-then-verify")
@@ -47,7 +46,7 @@ func TestInsertThenVerify(t *testing.T) {
 }
 
 func TestBatchInsertThenGet(t *testing.T) {
-	pgDB, closer := initDbClient(t)
+	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), TraceKey, "test-batch-insert-then-get")
@@ -72,33 +71,6 @@ func TestBatchInsertThenGet(t *testing.T) {
 	assert.Equal(t, u2.ID, v2.ID)
 }
 
-func TestUpdateStats(t *testing.T) {
-	pgDB, closer := initDbClient(t)
-	defer closer()
-
-	ctx := context.WithValue(context.Background(), TraceKey, "test-update-stats")
-	createTestUsers(t, pgDB.Q)
-
-	cs, err := UpdateUserStatsTx(ctx, pgDB, 1, 2)
-	assert.NoError(t, err)
-	u1, err := GetUserById(ctx, pgDB.Q, 1)
-	assert.NoError(t, err)
-	u2, err := GetUserById(ctx, pgDB.Q, 2)
-	assert.NoError(t, err)
-
-	// assert a value relatively close to the actual value
-	cs.WinEloDiff = math.Round(cs.WinEloDiff)
-	cs.LoseEloDiff = math.Round(cs.LoseEloDiff)
-	u1.Elo = math.Round(u1.Elo)
-	u2.Elo = math.Round(u2.Elo)
-
-	expectedChange := EloChangeSet{WinEloDiff: 15, LoseEloDiff: -15}
-	assert.Equal(t, expectedChange, cs)
-
-	assert.Equal(t, float64(1015), u1.Elo)
-	assert.Equal(t, float64(985), u2.Elo)
-}
-
 //func testUpdateStatsRollback(t *testing.T, pgDB DB) {
 //	ctx := context.Background()
 //
@@ -114,7 +86,7 @@ func TestUpdateStats(t *testing.T) {
 //				t.Logf("panic recovered: %s", err)
 //			}
 //		}()
-//		_, _ = UpdateUserStatsTx(ctx, pgDB, 1, 3)
+//		_, _ = FinishGameTx(ctx, pgDB, 1, 3)
 //	}()
 //
 //	u1, err := GetUserById(ctx, pgDB.pgDB.Q, 1)
@@ -123,7 +95,7 @@ func TestUpdateStats(t *testing.T) {
 //}
 
 func TestUpdateUser(t *testing.T) {
-	pgDB, closer := initDbClient(t)
+	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), TraceKey, "test-update-user")
@@ -147,7 +119,7 @@ func TestUpdateUser(t *testing.T) {
 }
 
 func TestUpdatePassword(t *testing.T) {
-	pgDB, closer := initDbClient(t)
+	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), TraceKey, "update-password")
@@ -164,7 +136,7 @@ func TestUpdatePassword(t *testing.T) {
 }
 
 func TestSearchByName(t *testing.T) {
-	pgDB, closer := initDbClient(t)
+	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), TraceKey, "search-by-name")

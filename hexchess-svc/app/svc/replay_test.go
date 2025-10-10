@@ -57,7 +57,7 @@ var (
 )
 
 func TestInsertThenGet(t *testing.T) {
-	pgDB, closer := initDbClient(t)
+	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), TraceKey, "test-insert-get")
@@ -80,7 +80,7 @@ func TestInsertThenGet(t *testing.T) {
 }
 
 func TestGetUserReplays(t *testing.T) {
-	pgDB, closer := initDbClient(t)
+	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), TraceKey, "test-get-replays")
@@ -103,7 +103,7 @@ func TestGetUserReplays(t *testing.T) {
 }
 
 func TestGetReplayMoveList(t *testing.T) {
-	pgDB, closer := initDbClient(t)
+	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), TraceKey, "test-get-move-list")

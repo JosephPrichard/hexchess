@@ -66,10 +66,7 @@ func mapPiecesMoves(pbMoves []*pb.PieceMoves) []chess.PieceMoves {
 			moves = append(moves, chess.Hex{File: file, Rank: rank})
 		}
 		pms := chess.PieceMoves{
-			From: chess.Hex{
-				File: int(pm.FromFile),
-				Rank: int(pm.FromRank),
-			},
+			From:  chess.Hex{File: int(pm.FromFile), Rank: int(pm.FromRank)},
 			Moves: moves,
 		}
 		pmsList = append(pmsList, pms)
@@ -84,11 +81,9 @@ func mapBoard(pbBoard *pb.ChessBoard) (chess.Board, error) {
 			return board, fmt.Errorf("board file is out of bounds: %d", f)
 		}
 		for r, piece := range file.Pieces {
-			maxR := len(board.Pieces[f])
-			if r >= maxR {
-				return board, fmt.Errorf("board rank is out of bounds: %d, max: %d", r, maxR)
+			if err := board.SafeSetPiece(f, r, chess.Piece(piece)); err != nil {
+				return board, err
 			}
-			board.Pieces[f][r] = chess.Piece(piece)
 		}
 	}
 	return board, nil
@@ -190,7 +185,7 @@ func mapPbPiecesMoves(moves []chess.PieceMoves) []*pb.PieceMoves {
 	return pbMoves
 }
 
-func mapPbBoard(board chess.Board) *pb.ChessBoard {
+func mapPbBoard(board chess.Board) (*pb.ChessBoard, error) {
 	pbBoard := &pb.ChessBoard{
 		File:        make([]*pb.BoardFile, 0, chess.Files),
 		IsWhiteTurn: board.IsWhiteTurn,
@@ -201,11 +196,15 @@ func mapPbBoard(board chess.Board) *pb.ChessBoard {
 			Pieces: make([]uint32, 0, ranksCount),
 		}
 		for rank := 0; rank < ranksCount; rank++ {
-			pbFile.Pieces = append(pbFile.Pieces, uint32(board.Pieces[file][rank]))
+			piece, err := board.SafeGetPiece(file, rank)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get piece: %w", err)
+			}
+			pbFile.Pieces = append(pbFile.Pieces, uint32(piece))
 		}
 		pbBoard.File = append(pbBoard.File, pbFile)
 	}
-	return pbBoard
+	return pbBoard, nil
 }
 
 func mapPbMoveList(moves []chess.PieceMove) []*pb.PieceMove {
@@ -220,12 +219,17 @@ func mapPbMoveList(moves []chess.PieceMove) []*pb.PieceMove {
 }
 
 func (s *ChessState) Serialize() ([]byte, error) {
+	pbBoard, err := mapPbBoard(s.Game.Board)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map pb board: %v", err)
+	}
+
 	pbGame := &pb.ChessGame{
 		TakenWhitePieces: mapPbPieces(s.Game.TakenWhitePieces),
 		TakenBlackPieces: mapPbPieces(s.Game.TakenBlackPieces),
 		BlackMoves:       mapPbPiecesMoves(s.Game.BlackMoves),
 		WhiteMoves:       mapPbPiecesMoves(s.Game.WhiteMoves),
-		Board:            mapPbBoard(s.Game.Board),
+		Board:            pbBoard,
 	}
 
 	var pbMoveList []*pb.PieceMove

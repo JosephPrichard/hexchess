@@ -169,7 +169,7 @@ func BatchInsertUsers(ctx context.Context, q *db.Queries, insts []UserInst) erro
 	}
 
 	rows, err := q.BatchInsertUser(ctx, batches)
-	slog.Log(nil, dynLevel(err), "batch inserted users", "insts", insts, "err", err, "rowsAffected", rows, "trace", ctx.Value(TraceKey))
+	dynLog("batch inserted users", err, "insts", insts, "rowsAffected", rows, "trace", ctx.Value(TraceKey))
 	return err
 }
 
@@ -201,53 +201,8 @@ func VerifyUser(ctx context.Context, q *db.Queries, username string, inputPasswo
 	return u, nil
 }
 
-type EloChangeSet struct {
-	WinEloDiff  float64
-	LoseEloDiff float64
-}
-
 func ProbabilityWins(elo1, elo2 float64) float64 {
 	return 1.0 / (1.0 + math.Pow(10, (elo2-elo1)/400.0))
-}
-
-func UpdateUserStatsTx(ctx context.Context, pgDB DB, winID int64, loseID int64) (EloChangeSet, error) {
-	return WithTransaction(ctx, pgDB, func(q *db.Queries) (EloChangeSet, error) {
-		return UpdateUserStats(ctx, q, winID, loseID)
-	})
-}
-
-func UpdateUserStats(ctx context.Context, q *db.Queries, winID int64, loseID int64) (EloChangeSet, error) {
-	trace := ctx.Value(TraceKey)
-	fail := func(str string, err error) (EloChangeSet, error) {
-		err = fmt.Errorf("%s: %w", str, err)
-		slog.Error("failed to update stats", "winID", winID, "loseID", loseID, "err", err, "trace", trace)
-		return EloChangeSet{}, err
-	}
-
-	winElo, err := q.GetElo(ctx, winID)
-	if err != nil {
-		return fail("failed to get win elo", err)
-	}
-	loseElo, err := q.GetElo(ctx, loseID)
-	if err != nil {
-		return fail("failed to get lose elo", err)
-	}
-
-	winEloNext := winElo + 30*(1.0-ProbabilityWins(loseElo, winElo))
-	loseEloNext := loseElo + (-30 * ProbabilityWins(winElo, loseElo))
-
-	if err := q.UpdateWins(ctx, db.UpdateWinsParams{ID: winID, Elo: winEloNext}); err != nil {
-		return fail("failed to update win elo", err)
-	}
-	if err := q.UpdateLosses(ctx, db.UpdateLossesParams{ID: loseID, Elo: loseEloNext}); err != nil {
-		return fail("failed to update lose elo", err)
-	}
-
-	winEloDiff := winEloNext - winElo
-	loseEloDiff := loseEloNext - loseElo
-
-	slog.Info("updated user stats", "winId", winID, "loseId", loseID, "winEloDiff", winEloDiff, "loseEloDiff", loseEloDiff, "trace", trace)
-	return EloChangeSet{WinEloDiff: winEloDiff, LoseEloDiff: loseEloDiff}, nil
 }
 
 func UpdateUser(ctx context.Context, q *db.Queries, id int64, newUsername string, newBio string, newCountry string) error {
@@ -262,7 +217,7 @@ func UpdateUser(ctx context.Context, q *db.Queries, id int64, newUsername string
 		Country:  pgtype.Text{Valid: newCountry != "", String: newCountry},
 	})
 
-	slog.Log(nil, dynLevel(err), "updated user", "user", user, "err", err, "trace", ctx.Value(TraceKey))
+	dynLog("updated user", err, "user", user, "trace", ctx.Value(TraceKey))
 	return err
 }
 
@@ -272,7 +227,7 @@ func UpdateUserPassword(ctx context.Context, q *db.Queries, id int64, newPasswor
 		return err
 	}
 	err = q.UpdatePassword(ctx, db.UpdatePasswordParams{ID: id, Password: hash.HashedPassword, Salt: hash.Salt})
-	slog.Log(nil, dynLevel(err), "updated password", "id", id, "err", err, "trace", ctx.Value(TraceKey))
+	dynLog("updated password", err, "id", id, "trace", ctx.Value(TraceKey))
 	return err
 }
 

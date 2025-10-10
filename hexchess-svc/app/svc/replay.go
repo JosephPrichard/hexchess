@@ -63,7 +63,7 @@ func InsertReplay(ctx context.Context, q *db.Queries, inst ReplayInst) error {
 		LoseElo:  inst.LoseElo,
 		MoveList: []byte(inst.MoveListJSON),
 	})
-	slog.Log(nil, dynLevel(err), "created a new replay", "replay", inst, "count", count, "err", err, "trace", ctx.Value(TraceKey))
+	dynLog("created a new replay", err, "replay", inst, "count", count, "trace", ctx.Value(TraceKey))
 	return err
 }
 

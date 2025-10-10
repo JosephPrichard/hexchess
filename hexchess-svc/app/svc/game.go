@@ -1,8 +1,16 @@
 package svc
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"hexchess-svc/app/chess"
+	"hexchess-svc/db"
+	"log/slog"
+	"math/big"
 	"strings"
 	"time"
 )
@@ -59,7 +67,15 @@ func MakeStartChessState(id string, timeControl TimeControl) ChessState {
 		FirstColor:  Random,
 		TimeControl: timeControl,
 		Touch:       time.UnixMilli(0),
+		//MoveList:    []chess.PieceMove{},
 	}
+}
+
+func (s *ChessState) CurrPlayer() *PlayerState {
+	if s.Game.Board.IsWhiteTurn {
+		return s.WhitePlayer
+	}
+	return s.BlackPlayer
 }
 
 func ParseColorSelect(value string) (ColorSelect, error) {
@@ -86,4 +102,314 @@ func ParseTimeControl(value string) (TimeControl, error) {
 	default:
 		return 0, fmt.Errorf("unknown time control: %s", value)
 	}
+}
+
+const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+const idLength = 8
+
+func generateGameID() (string, error) {
+	id := make([]byte, idLength)
+	for i := range id {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(characters))))
+		if err != nil {
+			return "", err
+		}
+		id[i] = characters[n.Int64()]
+	}
+	return string(id), nil
+}
+
+func broadcastOnCreateGame(rdb *redis.Client) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Warn("recovered in CreateGame broadcast handler", "err", r)
+		}
+	}()
+
+	ctx := context.WithValue(context.Background(), TraceKey, "create-game-broadcast-handler")
+
+	count, err := GetChessStateCount(ctx, rdb)
+	if err != nil {
+		slog.Error("failed to count chess states after creating game", "err", err)
+		return
+	}
+	slog.Info("counted chess states after creating game", "count", count)
+
+	//svc.GameBroadcaster.Broadcast(count)
+}
+
+func CreateGame(ctx context.Context, rdb *redis.Client, color ColorSelect, timeControl TimeControl) (string, error) {
+	id, err := generateGameID()
+	if err != nil {
+		return "", fmt.Errorf("error generating id: %v", err)
+	}
+
+	state := MakeStartChessState(id, timeControl)
+	state.FirstColor = color
+	state.Game.InitPieceMoves()
+
+	slog.Info("created chess game", "state", state, "trace", ctx.Value(TraceKey))
+
+	state, err = SetChessState(ctx, rdb, id, state)
+	if err != nil {
+		return "", err
+	}
+
+	go broadcastOnCreateGame(rdb)
+	return id, nil
+}
+
+func JoinGame(ctx context.Context, rdb *redis.Client, gameID string, player PlayerState) (ChessState, error) {
+	trace := ctx.Value(TraceKey)
+
+	state, err := GetChessState(ctx, rdb, gameID)
+	if err != nil {
+		return ChessState{}, err
+	}
+
+	hasWhite := state.WhitePlayer != nil
+	hasBlack := state.BlackPlayer != nil
+	playerExists := (hasWhite && state.WhitePlayer.ID == player.ID) || (hasBlack && state.BlackPlayer.ID == player.ID)
+
+	color := "none"
+	if !playerExists {
+		switch {
+		case !hasWhite && !hasBlack:
+			n, err := rand.Int(rand.Reader, big.NewInt(1000))
+			if err != nil {
+				return ChessState{}, err
+			}
+			pickWhite := state.FirstColor == Random && n.Int64()%2 == 0 || state.FirstColor == White
+			if pickWhite {
+				state.WhitePlayer = &player
+				color = "white"
+			} else {
+				state.BlackPlayer = &player
+				color = "black"
+			}
+		case !hasBlack:
+			state.BlackPlayer = &player
+			color = "black"
+		case !hasWhite:
+			state.WhitePlayer = &player
+			color = "white"
+		default:
+			return state, nil
+		}
+	}
+
+	state, err = SetChessState(ctx, rdb, gameID, state)
+
+	dynLog("player joined game", err, "playerID", player.ID, "stateID", gameID, "color", color, "err", err, "trace", trace)
+	return state, err
+}
+
+type MoveResult struct {
+	Room ChessState
+	Move chess.PieceMove
+}
+
+var (
+	ErrFinishedGame = errors.New("move attempted on finished game")
+	ErrTurn         = errors.New("not player's turn")
+	ErrInvalidMove  = errors.New("invalid move")
+)
+
+func MakeGameMove(ctx context.Context, dbs Databases, gameID string, player PlayerState, move chess.PieceMove) (MoveResult, error) {
+	trace := ctx.Value(TraceKey)
+
+	state, err := GetChessState(ctx, dbs.Rdb, gameID)
+	if err != nil {
+		return MoveResult{}, err
+	}
+
+	game := state.Game
+	board := game.Board
+	currPlayer := state.CurrPlayer()
+
+	if state.IsEnded {
+		slog.Info("make move: attempted on ended game", "gameId", gameID)
+		return MoveResult{}, ErrFinishedGame
+	}
+	if currPlayer == nil || *currPlayer != player {
+		slog.Info("make move: invalid turn", "player", player.ID, "game", gameID)
+		return MoveResult{}, ErrTurn
+	}
+	if !game.IsValidMove(move) {
+		slog.Info("make move: invalid move", "player", player.ID, "move", move, "game", gameID)
+		return MoveResult{}, ErrInvalidMove
+	}
+
+	move = game.MakeMove(move.From, move.To)
+	game.InitPieceMoves()
+	state.MoveList = append(state.MoveList, move)
+
+	if game.CheckmateReached() {
+		state.IsEnded = true
+		isWhiteWin := !board.IsWhiteTurn
+		if err := handleFinishGame(ctx, dbs, state, isWhiteWin, Checkmate); err != nil {
+			return MoveResult{}, err
+		}
+	}
+
+	slog.Info("made move on game", "player", player.ID, "move", move, "state", state, "trace", trace)
+
+	state, err = SetChessState(ctx, dbs.Rdb, gameID, state)
+	if err != nil {
+		return MoveResult{}, err
+	}
+
+	return MoveResult{Room: state, Move: move}, nil
+}
+
+func handleFinishGame(ctx context.Context, dbs Databases, state ChessState, isWhiteWin bool, cause ReplayCause) error {
+	trace := ctx.Value(TraceKey)
+	fail := func(m string, err error) error {
+		err = fmt.Errorf("%s: %v", m, err)
+		slog.Error("failed to finish game", "err", err, "trace", trace)
+		return err
+	}
+
+	if state.WhitePlayer == nil || state.BlackPlayer == nil {
+		panic(fmt.Errorf("assertion error: room players must not be nil: roomID: %s", state.ID))
+	}
+	whiteID := state.WhitePlayer.ID
+	blackID := state.BlackPlayer.ID
+
+	params := FinishGameParams{
+		WhiteID:    whiteID,
+		BlackID:    blackID,
+		Cause:      cause,
+		IsWhiteWin: isWhiteWin,
+		MoveList:   state.MoveList,
+	}
+	cs, err := FinishGameTx(ctx, dbs.PgDB, params)
+	if err != nil {
+		return fail("failed to execute finish game tx", err)
+	}
+	if cs == (FinishGameChangeSet{}) {
+		return nil
+	}
+
+	slog.Info("applying ELO change set to leaderboard", "changeSet", cs, "room", state.ID, "trace", trace)
+
+	if err := IncrLeaderboard(
+		ctx,
+		dbs.Rdb,
+		IncrLbCs{ID: cs.WinID, EloDiff: cs.WinEloDiff},
+		IncrLbCs{ID: cs.LoseID, EloDiff: cs.LoseEloDiff},
+	); err != nil {
+		return fail("failed to increment user leaderboard stats", err)
+	}
+
+	slog.Info("finished game", "room", state.ID, "trace", trace)
+	return nil
+}
+
+func ForfeitGame(ctx context.Context, dbs Databases, gameID string, player PlayerState) error {
+	trace := ctx.Value(TraceKey)
+
+	state, err := GetChessState(ctx, dbs.Rdb, gameID)
+	if err != nil {
+		return err
+	}
+	if state.WhitePlayer == nil || state.BlackPlayer == nil {
+		slog.Warn("game does not have both players, cannot forfeit", "game", gameID, "trace", trace)
+		return nil
+	}
+
+	didBlackForfeit := state.BlackPlayer.ID == player.ID
+	state.IsEnded = true
+
+	if err := handleFinishGame(ctx, dbs, state, didBlackForfeit, Forfeit); err != nil {
+		return err
+	}
+	if _, err := SetChessState(ctx, dbs.Rdb, gameID, state); err != nil {
+		return err
+	}
+
+	slog.Info("player forfeited game", "playerID", player.ID, "gameId", gameID, "err", err, "trace", trace)
+	return err
+}
+
+type FinishGameParams struct {
+	WhiteID    int64       `json:"whiteId"`
+	BlackID    int64       `json:"blackId"`
+	Cause      ReplayCause `json:"cause"`
+	IsWhiteWin bool        `json:"isWhiteWin"`
+	MoveList   []chess.PieceMove
+}
+
+type FinishGameChangeSet struct {
+	WinID       int64
+	LoseID      int64
+	WinEloDiff  float64
+	LoseEloDiff float64
+}
+
+func FinishGameTx(ctx context.Context, pgDB DB, params FinishGameParams) (FinishGameChangeSet, error) {
+	return WithTransaction(ctx, pgDB, func(q *db.Queries) (FinishGameChangeSet, error) {
+		return FinishGame(ctx, q, params)
+	})
+}
+
+func FinishGame(ctx context.Context, q *db.Queries, params FinishGameParams) (FinishGameChangeSet, error) {
+	result, winID, loseID := WhiteWin, params.WhiteID, params.BlackID
+	if !params.IsWhiteWin {
+		result, winID, loseID = BlackWin, params.BlackID, params.WhiteID
+	}
+
+	trace := ctx.Value(TraceKey)
+	fail := func(str string, err error) (FinishGameChangeSet, error) {
+		err = fmt.Errorf("%s: %w", str, err)
+		slog.Error("failed to update stats", "winID", winID, "loseID", loseID, "err", err, "trace", trace)
+		return FinishGameChangeSet{}, err
+	}
+
+	winElo, err := q.GetElo(ctx, winID)
+	if err != nil {
+		return fail("failed to get winner elo", err)
+	}
+	loseElo, err := q.GetElo(ctx, loseID)
+	if err != nil {
+		return fail("failed to get loser elo", err)
+	}
+
+	winEloNext := winElo + 30*(1.0-ProbabilityWins(loseElo, winElo))
+	loseEloNext := loseElo + (-30 * ProbabilityWins(winElo, loseElo))
+	winEloDiff := winEloNext - winElo
+	loseEloDiff := loseEloNext - loseElo
+
+	if winEloDiff == 0 && loseEloDiff == 0 {
+		slog.Info("user stats update is a noop", "winId", winID, "loseId", loseID, "trace", trace)
+		return FinishGameChangeSet{}, nil
+	}
+
+	if err := q.UpdateWins(ctx, db.UpdateWinsParams{ID: winID, Elo: winEloNext}); err != nil {
+		return fail("failed to update win elo", err)
+	}
+	if err := q.UpdateLosses(ctx, db.UpdateLossesParams{ID: loseID, Elo: loseEloNext}); err != nil {
+		return fail("failed to update lose elo", err)
+	}
+
+	moveListJson, err := json.Marshal(params.MoveList)
+	if err != nil {
+		return fail("failed to unmarshal move list", err)
+	}
+	inst := ReplayInst{
+		WhiteID:      params.WhiteID,
+		BlackID:      params.BlackID,
+		Result:       int32(result),
+		Cause:        int32(params.Cause),
+		WinElo:       winEloDiff,
+		LoseElo:      loseEloDiff,
+		MoveListJSON: string(moveListJson),
+	}
+	if err := InsertReplay(ctx, q, inst); err != nil {
+		return fail("failed to insert replay", err)
+	}
+
+	cs := FinishGameChangeSet{WinID: winID, LoseID: loseID, WinEloDiff: winEloDiff, LoseEloDiff: loseEloDiff}
+	slog.Info("updated user stats", "inst", inst, "changeSet", cs, "trace", trace)
+	return cs, nil
 }

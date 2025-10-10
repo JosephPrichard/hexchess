@@ -8,17 +8,50 @@ import (
 	"time"
 )
 
-func makeRedisClient(t *testing.T) *redis.Client {
+func beforeDatabaseTests(t *testing.T) (Databases, func()) {
+	rdb := beforeRedisTests(t)
+	pgDB, closer := beforeDbTests(t)
+	return Databases{Rdb: rdb, PgDB: pgDB}, closer
+}
+
+func beforeRedisTests(t *testing.T) *redis.Client {
 	addr := getRedisContainerAddr(t)
 
 	t.Logf("connecting to redis on addr: %s", addr)
 	rdb := redis.NewClient(&redis.Options{Addr: addr})
 
+	rdb.FlushAll(context.Background())
+
 	return rdb
 }
 
+func TestSetThenGetState(t *testing.T) {
+	rdb := beforeRedisTests(t)
+
+	id1 := "test-id1"
+	id2 := "test-id2"
+
+	state1 := MakeStartChessState(id1, RealTime)
+	ctx := context.WithValue(context.Background(), TraceKey, "test-set-then-get")
+
+	_, err := SetChessState(ctx, rdb, id1, state1)
+	assert.NoError(t, err)
+
+	outState, err := GetChessState(ctx, rdb, id1)
+	assert.NoError(t, err)
+
+	// clear values we don't want to assert
+	state1.Touch = time.Time{}
+	outState.Touch = time.Time{}
+
+	assert.Equal(t, state1, outState)
+
+	_, err = GetChessState(ctx, rdb, id2)
+	assert.Error(t, ErrNoChessState, err)
+}
+
 func TestSetThenGetViews(t *testing.T) {
-	rdb := makeRedisClient(t)
+	rdb := beforeRedisTests(t)
 
 	id1 := "test-id1"
 	id2 := "test-id2"
@@ -30,7 +63,7 @@ func TestSetThenGetViews(t *testing.T) {
 	state3 := MakeStartChessState(id3, RealTime)
 	state4 := MakeStartChessState(id4, RealTime)
 
-	ctx := context.WithValue(context.Background(), TraceKey, "test-set-then-get")
+	ctx := context.WithValue(context.Background(), TraceKey, "test-set-then-get-views")
 
 	_, err := SetChessState(ctx, rdb, id1, state1)
 	assert.NoError(t, err)
@@ -60,7 +93,7 @@ func TestSetThenGetViews(t *testing.T) {
 }
 
 func TestSetThenGetUserViews(t *testing.T) {
-	rdb := makeRedisClient(t)
+	rdb := beforeRedisTests(t)
 
 	id1 := "test-id1"
 	id2 := "test-id2"
@@ -104,7 +137,7 @@ func TestSetThenGetUserViews(t *testing.T) {
 }
 
 func TestSessions(t *testing.T) {
-	rdb := makeRedisClient(t)
+	rdb := beforeRedisTests(t)
 
 	player1 := PlayerState{ID: 1, Name: "test-name1"}
 
@@ -120,14 +153,14 @@ func TestSessions(t *testing.T) {
 }
 
 func TestLeaderboard(t *testing.T) {
-	rdb := makeRedisClient(t)
+	rdb := beforeRedisTests(t)
 
 	ctx := context.WithValue(context.Background(), TraceKey, "test-leaderboard")
 
-	assert.NoError(t, IncrLeaderboardUser(ctx, rdb, 10, 1500))
-	assert.NoError(t, IncrLeaderboardUser(ctx, rdb, 20, 1000))
-	assert.NoError(t, IncrLeaderboardUser(ctx, rdb, 30, 950))
-	assert.NoError(t, IncrLeaderboardUser(ctx, rdb, 40, 835))
+	assert.NoError(t, IncrLeaderboard(ctx, rdb, IncrLbCs{10, 1500}))
+	assert.NoError(t, IncrLeaderboard(ctx, rdb, IncrLbCs{20, 1000}))
+	assert.NoError(t, IncrLeaderboard(ctx, rdb, IncrLbCs{30, 950}))
+	assert.NoError(t, IncrLeaderboard(ctx, rdb, IncrLbCs{40, 835}))
 
 	rank1, err := GetLeaderboardRank(ctx, rdb, 10)
 	assert.NoError(t, err)
@@ -146,7 +179,7 @@ func TestLeaderboard(t *testing.T) {
 	leaderboard1, err := GetLeaderboard(ctx, rdb, 0, 4)
 	assert.NoError(t, err)
 
-	assert.NoError(t, IncrLeaderboardUser(ctx, rdb, 20, 30))
+	assert.NoError(t, IncrLeaderboard(ctx, rdb, IncrLbCs{20, 30}))
 
 	leaderboard2, err := GetLeaderboard(ctx, rdb, 1, 2)
 	assert.NoError(t, err)

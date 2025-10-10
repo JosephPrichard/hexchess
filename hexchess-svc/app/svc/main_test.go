@@ -99,7 +99,7 @@ func getRedisContainerAddr(t *testing.T) string {
 	return host + ":" + port
 }
 
-func initDbClient(t *testing.T) (DB, func()) {
+func beforeDbTests(t *testing.T) (DB, func()) {
 	setupEmbeddedDb(t)
 
 	pool, err := pgxpool.New(context.Background(), fmt.Sprintf("user=%s dbname=%s password=%s port=%d", TestDbUser, TestDbName, TestDbPass, TestDbPort))
