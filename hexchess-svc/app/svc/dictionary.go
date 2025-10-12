@@ -4,13 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gomodule/redigo/redis"
 	"log/slog"
 	"math"
 	"math/rand"
 	"strconv"
 	"time"
-
-	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -32,7 +31,7 @@ func getUserGameZSet(id int64) string {
 
 var ErrNoChessState = errors.New("no chess state")
 
-func GetChessState(ctx context.Context, rdb *redis.Client, id string) (ChessState, error) {
+func GetChessState(ctx context.Context, rdb *redis.Pool, id string) (ChessState, error) {
 	trace := ctx.Value(TraceKey)
 
 	fail := func(str string, err error) (ChessState, error) {
@@ -41,13 +40,16 @@ func GetChessState(ctx context.Context, rdb *redis.Client, id string) (ChessStat
 		return ChessState{}, err
 	}
 
-	if err := ExpireChessStates(ctx, rdb, GamesZSet); err != nil {
+	conn := rdb.Get()
+	defer conn.Close()
+
+	if err := ExpireChessStates(ctx, conn, GamesZSet); err != nil {
 		return fail("failed to expire chess states", err)
 	}
 	fullID := "game:" + id
 
-	data, err := rdb.Get(ctx, fullID).Bytes()
-	if errors.Is(err, redis.Nil) {
+	data, err := redis.Bytes(conn.Do("GET", fullID))
+	if errors.Is(err, redis.ErrNil) {
 		return ChessState{}, ErrNoChessState
 	} else if err != nil {
 		return fail("failed to get chess state", err)
@@ -57,11 +59,11 @@ func GetChessState(ctx context.Context, rdb *redis.Client, id string) (ChessStat
 	if err != nil {
 		return fail("failed to deserialize chess state", err)
 	}
-	slog.Info("selected session", "key", fullID, "stateID", state.ID, "trace", trace)
+	slog.Info("selected session", "key", fullID, "trace", trace)
 	return state, nil
 }
 
-func SetChessState(ctx context.Context, rdb *redis.Client, id string, state ChessState) (ChessState, error) {
+func SetChessState(ctx context.Context, rdb *redis.Pool, id string, state ChessState) (ChessState, error) {
 	trace := ctx.Value(TraceKey)
 
 	state.Touch = time.Now()
@@ -73,60 +75,75 @@ func SetChessState(ctx context.Context, rdb *redis.Client, id string, state Ches
 		return ChessState{}, fmt.Errorf("failed to serialize chess state: %w", err)
 	}
 
-	pipe := rdb.TxPipeline()
-	pipe.Set(ctx, fullID, data, 0)
-	pipe.ZAdd(ctx, GamesZSet, redis.Z{Score: touch, Member: fullID})
+	conn := rdb.Get()
+	defer conn.Close()
 
+	conn.Send("MULTI")
+	conn.Send("SET", fullID, data)
+	conn.Send("ZADD", GamesZSet, touch, fullID)
 	if state.WhitePlayer != nil {
-		pipe.ZAdd(ctx, getUserGameZSet(state.WhitePlayer.ID), redis.Z{Score: touch, Member: fullID})
+		conn.Send("ZADD", getUserGameZSet(state.WhitePlayer.ID), touch, fullID)
 	}
 	if state.BlackPlayer != nil {
-		pipe.ZAdd(ctx, getUserGameZSet(state.BlackPlayer.ID), redis.Z{Score: touch, Member: fullID})
+		conn.Send("ZADD", getUserGameZSet(state.BlackPlayer.ID), touch, fullID)
+	}
+	if _, err = conn.Do("EXEC"); err != nil {
+		return ChessState{}, fmt.Errorf("failed to set chess state: %w", err)
 	}
 
-	_, err = pipe.Exec(ctx)
-	dynLog("set chess state", err, "key", fullID, "stateID", state.ID, "trace", trace)
-	return state, err
+	slog.Info("set chess state", "key", fullID, "trace", trace)
+	return state, nil
 }
 
-func ExpireChessStates(ctx context.Context, rdb *redis.Client, zSetName string) error {
-	return ExpireChessStatesBefore(ctx, rdb, zSetName, time.Now().Add(-GameExpireFinished))
+func ExpireChessStates(ctx context.Context, conn redis.Conn, zSetName string) error {
+	return ExpireChessStatesBefore(ctx, conn, zSetName, time.Now().Add(-GameExpireFinished))
 }
 
-func ExpireChessStatesBefore(ctx context.Context, rdb *redis.Client, zSetName string, expireBefore time.Time) error {
+func ExpireChessStatesBefore(ctx context.Context, conn redis.Conn, zSetName string, expireBefore time.Time) error {
 	trace := ctx.Value(TraceKey)
 
-	by := &redis.ZRangeBy{Min: "-inf", Max: strconv.FormatInt(expireBefore.Unix(), 10)}
-	keys, err := rdb.ZRangeByScore(ctx, zSetName, by).Result()
+	fail := func(str string, err error) error {
+		err = fmt.Errorf("%s: %w", str, err)
+		slog.Error("failed to expire chess state", "zSetName", zSetName, "err", err, "trace", trace)
+		return err
+	}
+
+	keys, err := redis.Values(conn.Do("ZRANGEBYSCORE", zSetName, "-inf", expireBefore.Unix()))
 	if err != nil {
-		slog.Error("failed to retrieved expired chess states", "zSetName", zSetName, "err", err, "trace", trace)
-		return fmt.Errorf("failed to retrieve expired chess states: %w", err)
+		return fail("failed to retrieve expired states", err)
 	}
 	if len(keys) == 0 {
 		return nil
 	}
 
-	pipe := rdb.TxPipeline()
-	pipe.Del(ctx, keys...)
-	pipe.ZRem(ctx, zSetName, keys)
+	var delArgs []interface{}
+	delArgs = append(delArgs, zSetName)
+	delArgs = append(delArgs, keys...)
 
-	_, err = pipe.Exec(ctx)
-	dynLog("expired chess states", err, "zSetName", zSetName, "keys", keys, "expireBefore", expireBefore, "err", err, "trace", trace)
+	conn.Send("MULTI")
+	conn.Send("DEL", delArgs)
+	conn.Send("ZREM", delArgs)
+	if _, err = conn.Do("EXEC"); err != nil {
+		return fail("failed to remove expired states", err)
+	}
+
+	slog.Info("expired chess states", "zSetName", zSetName, "keys", keys, "expireBefore", expireBefore, "err", err, "trace", trace)
 	return err
 }
 
-func GetUserChessViews(ctx context.Context, rdb *redis.Client, userID int64) ([]ChessView, error) {
+func GetUserChessViews(ctx context.Context, rdb *redis.Pool, userID int64) ([]ChessView, error) {
 	return GetChessViews(ctx, rdb, getUserGameZSet(userID), 1, -1)
 }
 
-func GetAllChessViews(ctx context.Context, rdb *redis.Client, page, count int) ([]ChessView, error) {
+func GetAllChessViews(ctx context.Context, rdb *redis.Pool, page, count int) ([]ChessView, error) {
 	return GetChessViews(ctx, rdb, GamesZSet, page, count)
 }
 
-func GetChessViews(ctx context.Context, rdb *redis.Client, zSetName string, page, count int) ([]ChessView, error) {
+func GetChessViews(ctx context.Context, rdb *redis.Pool, zSetName string, page, count int) ([]ChessView, error) {
 	trace := ctx.Value(TraceKey)
 
-	fail := func(err error) ([]ChessView, error) {
+	fail := func(str string, err error) ([]ChessView, error) {
+		err = fmt.Errorf("%s: %w", str, err)
 		slog.Error("failed to get chess views", "zSetName", zSetName, "page", page, "count", count, "err", err, "trace", trace)
 		return nil, err
 	}
@@ -143,154 +160,208 @@ func GetChessViews(ctx context.Context, rdb *redis.Client, zSetName string, page
 		right = -1
 	}
 
-	var dataList []interface{}
+	conn := rdb.Get()
+	defer conn.Close()
 
-	if err := ExpireChessStates(ctx, rdb, zSetName); err != nil {
-		return fail(fmt.Errorf("failed to expire chess states: %w", err))
+	var bytesList [][]byte
+
+	if err := ExpireChessStates(ctx, conn, zSetName); err != nil {
+		return fail("failed to expire chess states", err)
 	}
-	elements, err := rdb.ZRevRange(ctx, zSetName, left, right).Result()
+	elements, err := redis.Values(conn.Do("ZREVRANGE", zSetName, left, right))
 	if err != nil {
-		return fail(fmt.Errorf("failed to get chess ids: %w", err))
+		return fail("failed to get chess id", err)
 	}
 	if len(elements) > 0 {
-		if dataList, err = rdb.MGet(ctx, elements...).Result(); err != nil {
-			return fail(fmt.Errorf("failed to get chess states: %w", err))
+		bytesList, err = redis.ByteSlices(conn.Do("MGET", elements...))
+		if err != nil {
+			return fail("failed to get chess states", err)
 		}
 	}
 
 	var views []ChessView
-	for i, data := range dataList {
-		str, ok := data.(string)
-		if !ok {
-			return fail(fmt.Errorf("unexpected type: %T for key: %v, should be string", data, elements[i]))
-		}
-		cv, err := ChessViewDeserialize(str)
+	for _, bytes := range bytesList {
+		cv, err := ChessViewDeserialize(bytes)
 		if err != nil {
-			return fail(fmt.Errorf("failed to deserialize chess view with key: %s, err: %w", elements[i], err))
+			return fail("failed to deserialize chess view with key", err)
 		}
 		views = append(views, cv)
 	}
 
-	slog.Info("retrieved chess views", "count", len(views), "zset", zSetName, "page", page, "trace", trace)
+	slog.Info("retrieved chess views", "count", len(views), "zSetName", zSetName, "page", page, "trace", trace)
 	return views, nil
 }
 
 var ErrNoSession = errors.New("session not found")
 
-func GetSession(ctx context.Context, rdb *redis.Client, sessionID string) (PlayerState, error) {
+func GetSession(ctx context.Context, rdb *redis.Pool, sessionID string) (PlayerState, error) {
 	trace := ctx.Value(TraceKey)
+	conn := rdb.Get()
+	defer conn.Close()
 
 	fullID := "session:" + sessionID
-	data, err := rdb.Get(ctx, fullID).Bytes()
-	if errors.Is(err, redis.Nil) {
+	data, err := redis.Bytes(conn.Do("GET", fullID))
+	if errors.Is(err, redis.ErrNil) {
 		return PlayerState{}, ErrNoSession
 	}
 	if err != nil {
 		slog.Error("failed to get session", "sessionID", sessionID, "trace", trace)
 		return PlayerState{}, err
 	}
+
 	player, err := PlayerDeserialize(data)
 	if err != nil {
 		return PlayerState{}, err
 	}
+
 	slog.Info("selected session", "sessionID", sessionID, "player", player, "trace", trace)
 	return player, nil
 }
 
-func SetSession(ctx context.Context, rdb *redis.Client, sessionID string, player PlayerState, expiry time.Duration) error {
-	trace := ctx.Value(TraceKey)
-
+func SetSession(ctx context.Context, rdb *redis.Pool, sessionID string, player PlayerState, expiry time.Duration) error {
 	fullID := "session:" + sessionID
 	data, err := player.Serialize()
 	if err != nil {
 		return err
 	}
-	if err := rdb.SetEx(ctx, fullID, data, expiry).Err(); err != nil {
-		slog.Error("failed to set session", "sessionID", sessionID, "err", err)
+	trace := ctx.Value(TraceKey)
+	conn := rdb.Get()
+	defer conn.Close()
+
+	if _, err := conn.Do("SETEX", fullID, int(expiry.Seconds()), data); err != nil {
+		slog.Error("failed to set session", "sessionID", sessionID, "trace", trace, "err", err)
 		return err
 	}
+
 	slog.Info("set session", "sessionID", sessionID, "player", player, "trace", trace)
 	return nil
 }
 
-func UpdateSessionEx(ctx context.Context, rdb *redis.Client, sessionID string, expiry time.Duration) error {
-	err := rdb.Expire(ctx, "session:"+sessionID, expiry).Err()
-	dynLog("updated session", err, "sessionID", sessionID, "trace", ctx.Value(TraceKey))
-	return err
+func UpdateSessionEx(ctx context.Context, rdb *redis.Pool, sessionID string, expiry time.Duration) error {
+	trace := ctx.Value(TraceKey)
+	conn := rdb.Get()
+	defer conn.Close()
+
+	if _, err := conn.Do("EXPIRE", "session:"+sessionID, int(expiry.Seconds())); err != nil {
+		slog.Error("failed to update session expiry", "sessionID", sessionID, "trace", trace, "err", err)
+		return err
+	}
+
+	slog.Info("updated session expiry", "sessionID", sessionID, "trace", trace)
+	return nil
 }
 
-func DeleteSession(ctx context.Context, rdb *redis.Client, sessionID string) error {
-	err := rdb.Del(ctx, "session:"+sessionID).Err()
-	dynLog("deleted session", err, "sessionID", sessionID, "trace", ctx.Value(TraceKey))
-	return err
+func DeleteSession(ctx context.Context, rdb *redis.Pool, sessionID string) error {
+	trace := ctx.Value(TraceKey)
+	conn := rdb.Get()
+	defer conn.Close()
+
+	if _, err := conn.Do("DEL", "session:"+sessionID); err != nil {
+		slog.Error("failed to delete session", "sessionID", sessionID, "trace", trace, "err", err)
+		return err
+	}
+
+	slog.Info("deleted session", "sessionID", sessionID, "trace", trace)
+	return nil
 }
 
-func AddUser(ctx context.Context, rdb *redis.Client, id string) error {
-	by := redis.Z{Score: float64(time.Now().UnixMilli()), Member: id}
-	err := rdb.ZAdd(ctx, ActiveUsersZSet, by).Err()
-	dynLog("added user", err, "id", id, "trace", ctx.Value(TraceKey))
-	return err
+func AddUser(ctx context.Context, rdb *redis.Pool, id string) error {
+	trace := ctx.Value(TraceKey)
+	conn := rdb.Get()
+	defer conn.Close()
+
+	if _, err := conn.Do("ZADD", ActiveUsersZSet, "NX", "CH", float64(time.Now().UnixMilli()), id); err != nil {
+		slog.Error("failed to add user", "id", id, "trace", trace, "err", err)
+		return err
+	}
+
+	slog.Info("added user", "id", id, "trace", trace)
+	return nil
 }
 
-func RemoveUser(ctx context.Context, rdb *redis.Client, id string) error {
-	err := rdb.ZRem(ctx, ActiveUsersZSet, id).Err()
-	dynLog("removed user", err, "id", id, "trace", ctx.Value(TraceKey))
-	return err
+func RemoveUser(ctx context.Context, rdb *redis.Pool, id string) error {
+	trace := ctx.Value(TraceKey)
+	conn := rdb.Get()
+	defer conn.Close()
+
+	if _, err := conn.Do("ZREM", ActiveUsersZSet, id); err != nil {
+		slog.Info("failed to remove user", "err", err, "trace", trace)
+	}
+
+	slog.Info("removed user", "id", id, "trace", trace)
+	return nil
 }
 
-func ExpireUsers(ctx context.Context, rdb *redis.Client) error {
-	return ExpireUsersBefore(ctx, rdb, time.Now().Add(-UserExpireFinished).UnixMilli())
+func ExpireUsers(ctx context.Context, conn redis.Conn) error {
+	return ExpireUsersBefore(ctx, conn, time.Now().Add(-UserExpireFinished).UnixMilli())
 }
 
-func ExpireUsersBefore(ctx context.Context, rdb *redis.Client, expireBefore int64) error {
-	by := &redis.ZRangeBy{Min: "-inf", Max: strconv.FormatInt(expireBefore, 10)}
-	keys, err := rdb.ZRangeByScore(ctx, ActiveUsersZSet, by).Result()
+func ExpireUsersBefore(ctx context.Context, conn redis.Conn, expireBefore int64) error {
+	keys, err := redis.Strings(conn.Do("ZREMRANGEBYSCORE", ActiveUsersZSet, "-inf", expireBefore))
 	if err != nil {
 		slog.Error("failed to expire users", "expireBefore", expireBefore, "trace", ctx.Value(TraceKey))
 		return err
 	}
 	if len(keys) > 0 {
-		slog.Info("expiring users with keys", "keys", keys)
-		rdb.ZRem(ctx, ActiveUsersZSet, keys)
+		slog.Info("expired users with keys", "keys", keys)
 	}
 	return nil
 }
 
-func GetUsersCount(ctx context.Context, rdb *redis.Client) (int64, error) {
-	if err := ExpireUsers(ctx, rdb); err != nil {
+func GetUsersCount(ctx context.Context, rdb *redis.Pool) (int64, error) {
+	trace := ctx.Value(TraceKey)
+	conn := rdb.Get()
+	defer conn.Close()
+
+	if err := ExpireUsers(ctx, conn); err != nil {
 		return 0, err
 	}
-	count, err := rdb.ZCard(ctx, ActiveUsersZSet).Result()
-	dynLog("selected users count", err, "count", count, "trace", ctx.Value(TraceKey))
+	count, err := redis.Int64(conn.Do("ZCARD", ActiveUsersZSet))
+	if err != nil {
+		return 0, fmt.Errorf("failed to select users count: %w", err)
+	}
+
+	slog.Info("selected users count", "count", count, "trace", trace)
 	return count, err
 }
 
-func GetChessStateCount(ctx context.Context, rdb *redis.Client) (int64, error) {
-	if err := ExpireChessStates(ctx, rdb, GamesZSet); err != nil {
+func GetChessStateCount(ctx context.Context, rdb *redis.Pool) (int64, error) {
+	trace := ctx.Value(TraceKey)
+	conn := rdb.Get()
+	defer conn.Close()
+
+	if err := ExpireChessStates(ctx, conn, GamesZSet); err != nil {
 		return 0, err
 	}
-	count, err := rdb.ZCard(ctx, GamesZSet).Result()
-	dynLog("selected users count", err, "count", count, "trace", ctx.Value(TraceKey))
+	count, err := redis.Int64(conn.Do("ZCARD", GamesZSet))
+	if err != nil {
+		return 0, fmt.Errorf("failed to select chess count: %w", err)
+	}
+
+	slog.Info("selected chess count", "count", count, "trace", trace)
 	return count, err
 }
 
-type IncrLbCs struct {
+type IncrLbChangeSet struct {
 	ID      int64
 	EloDiff float64
 }
 
-func IncrLeaderboard(ctx context.Context, rdb *redis.Client, csList ...IncrLbCs) error {
+func IncrLeaderboard(ctx context.Context, rdb *redis.Pool, csList ...IncrLbChangeSet) error {
 	trace := ctx.Value(TraceKey)
+	conn := rdb.Get()
+	defer conn.Close()
 
-	t := rdb.Pipeline()
+	conn.Send("MULTI")
 	for _, cs := range csList {
-		if err := t.ZIncrBy(ctx, LeaderboardZSet, cs.EloDiff, strconv.FormatInt(cs.ID, 10)).Err(); err != nil {
-			slog.Error("failed to increment user", "id", cs.ID, "err", err, "trace", trace)
-		}
+		conn.Send("ZINCRBY", LeaderboardZSet, cs.EloDiff, cs.ID)
 	}
-	_, err := t.Exec(ctx)
-	dynLog("incremented leaderboard user", err, "csList", csList, "trace", trace)
-	return err
+	if _, err := conn.Do("EXEC"); err != nil {
+		return fmt.Errorf("failed to increment leaderboard user: %w", err)
+	}
+
+	slog.Info("incremented leaderboard user", "csList", csList, "trace", trace)
+	return nil
 }
 
 type Leaderboard struct {
@@ -298,32 +369,36 @@ type Leaderboard struct {
 	PageCount int          `json:"pageCount"`
 }
 
-func GetLeaderboardRank(ctx context.Context, rdb *redis.Client, id int64) (int, error) {
+func GetLeaderboardRank(ctx context.Context, rdb *redis.Pool, id int64) (int, error) {
 	trace := ctx.Value(TraceKey)
-	strID := strconv.FormatInt(id, 10)
 
 	fail := func(str string, err error) (int, error) {
 		err = fmt.Errorf("%s: %w", str, err)
-		slog.Error("failed to get leaderboard rank", "trace", trace, "id", id, "err", err)
+		slog.Error("failed to get leaderboard rank", "id", id, "trace", trace, "err", err)
 		return 0, err
 	}
 
-	rank, err := rdb.ZRevRank(ctx, LeaderboardZSet, strID).Result()
-	if errors.Is(err, redis.Nil) {
-		if err := IncrLeaderboard(ctx, rdb, IncrLbCs{ID: id, EloDiff: StartElo}); err != nil {
+	conn := rdb.Get()
+	defer conn.Close()
+
+	rank, err := redis.Int(conn.Do("ZREVRANK", LeaderboardZSet, id))
+	if errors.Is(err, redis.ErrNil) {
+		if _, err := conn.Do("ZINCRBY", LeaderboardZSet, StartElo, id); err != nil {
 			return fail("failed to incr rank", err)
 		}
-		rank, err = rdb.ZRevRank(ctx, LeaderboardZSet, strID).Result()
+		if rank, err = redis.Int(conn.Do("ZREVRANK", LeaderboardZSet, id)); err != nil {
+			return fail("failed to get rank", err)
+		}
 	}
-	if err != nil && !errors.Is(err, redis.Nil) {
+	if err != nil {
 		return fail("failed to get rank", err)
 	}
 
-	slog.Info("retrieved leaderboard rank", "trace", trace, "id", id, "rank", int(rank)+1)
-	return int(rank) + 1, nil
+	slog.Info("retrieved leaderboard rank", "trace", trace, "id", id, "rank", rank+1)
+	return rank + 1, nil
 }
 
-func GetLeaderboard(ctx context.Context, rdb *redis.Client, startRank, count int) (Leaderboard, error) {
+func GetLeaderboard(ctx context.Context, rdb *redis.Pool, startRank, count int) (Leaderboard, error) {
 	trace := ctx.Value(TraceKey)
 
 	fail := func(str string, err error) (Leaderboard, error) {
@@ -332,12 +407,15 @@ func GetLeaderboard(ctx context.Context, rdb *redis.Client, startRank, count int
 		return Leaderboard{}, err
 	}
 
+	conn := rdb.Get()
+	defer conn.Close()
+
 	end := startRank - 1 + count
-	ids, err := rdb.ZRevRange(ctx, LeaderboardZSet, int64(startRank), int64(end)).Result()
+	ids, err := redis.Strings(conn.Do("ZREVRANGE", LeaderboardZSet, int64(startRank), int64(end)))
 	if err != nil {
 		return fail("failed to get leaderboard", err)
 	}
-	elemCount, err := rdb.ZCount(ctx, LeaderboardZSet, "-inf", "+inf").Result()
+	elemCount, err := redis.Int64(conn.Do("ZCOUNT", LeaderboardZSet, "-inf", "+inf"))
 	if err != nil {
 		return fail("failed to count leaderboard", err)
 	}
@@ -358,7 +436,7 @@ func GetLeaderboard(ctx context.Context, rdb *redis.Client, startRank, count int
 	return leaderboard, nil
 }
 
-func GetLeaderboardPage(ctx context.Context, rdb *redis.Client, page, perPage int) (Leaderboard, error) {
+func GetLeaderboardPage(ctx context.Context, rdb *redis.Pool, page, perPage int) (Leaderboard, error) {
 	trace := ctx.Value(TraceKey)
 
 	if page < 1 {

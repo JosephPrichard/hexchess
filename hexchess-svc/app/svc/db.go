@@ -2,11 +2,12 @@ package svc
 
 import (
 	"context"
+	"github.com/gomodule/redigo/redis"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/redis/go-redis/v9"
 	"hexchess-svc/db"
 	"log/slog"
+	"time"
 )
 
 type DB struct {
@@ -14,9 +15,23 @@ type DB struct {
 	pool *pgxpool.Pool
 }
 
-type Databases struct {
-	Rdb  *redis.Client
+type Stores struct {
+	Rdb  *redis.Pool
 	PgDB DB
+}
+
+func MakeRdbPool(addr string) *redis.Pool {
+	return &redis.Pool{
+		MaxIdle:     3,
+		IdleTimeout: 240 * time.Second,
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.Dial("tcp", addr)
+			if err != nil {
+				return nil, err
+			}
+			return c, err
+		},
+	}
 }
 
 func MakeDbClient(q *db.Queries, pool *pgxpool.Pool) DB {

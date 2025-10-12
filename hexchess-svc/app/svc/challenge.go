@@ -12,7 +12,7 @@ import (
 )
 
 type ChallengeEntity struct {
-	ChallengerId      int64
+	ChallengerID      int64
 	ChallengerName    string
 	ChallengerCountry string
 	ChallengerElo     float64
@@ -43,7 +43,7 @@ type ChallengeInst struct {
 
 func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) ChallengeEntity {
 	return ChallengeEntity{
-		ChallengerId:      row.ChallengerID,
+		ChallengerID:      row.ChallengerID,
 		ChallengerName:    row.ChallengerName,
 		ChallengerCountry: row.ChallengerCountry.String,
 		ChallengerElo:     row.ChallengerElo,

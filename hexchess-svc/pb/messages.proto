@@ -80,13 +80,18 @@ message Chat {
 
 message Forfeit {}
 
+message GameOutputID {
+  string game_id = 1;
+}
+
 message GameOutput {
+  string game_id = 1;
   oneof value {
-    Error error = 1;
-    Init init = 2;
-    Players players = 3;
-    Move move = 4;
-    Chat chat = 5;
-    Forfeit forfeit = 6;
+    Error error = 2;
+    Init init = 3;
+    Players players = 4;
+    Move move = 5;
+    Chat chat = 6;
+    Forfeit forfeit = 7;
   }
 }

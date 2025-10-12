@@ -12,7 +12,7 @@ import (
 func PlayerDeserialize(b []byte) (PlayerState, error) {
 	var pbPlayer pb.PlayerState
 	if err := proto.Unmarshal(b, &pbPlayer); err != nil {
-		return PlayerState{}, fmt.Errorf("failed to unmarhsal player: %v", err)
+		return PlayerState{}, fmt.Errorf("failed to unmarhsal player: %w", err)
 	}
 	player := PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Elo: pbPlayer.Elo, IsGuest: pbPlayer.IsGuest}
 	return player, nil
@@ -105,7 +105,7 @@ var ErrNilGame = errors.New("game and board must not be nil")
 func ChessDeserialize(b []byte) (ChessState, error) {
 	var pbChess pb.ChessState
 	if err := proto.Unmarshal(b, &pbChess); err != nil {
-		return ChessState{}, fmt.Errorf("failed to unmarhsal chess state: %v", err)
+		return ChessState{}, fmt.Errorf("failed to unmarhsal chess state: %w", err)
 	}
 	if pbChess.Game == nil || pbChess.Game.Board == nil {
 		return ChessState{}, ErrNilGame
@@ -113,7 +113,7 @@ func ChessDeserialize(b []byte) (ChessState, error) {
 
 	board, err := mapBoard(pbChess.Game.Board)
 	if err != nil {
-		return ChessState{}, fmt.Errorf("failed to map board: %v", err)
+		return ChessState{}, fmt.Errorf("failed to map board: %w", err)
 	}
 
 	game := chess.Game{
@@ -221,7 +221,7 @@ func mapPbMoveList(moves []chess.PieceMove) []*pb.PieceMove {
 func (s *ChessState) Serialize() ([]byte, error) {
 	pbBoard, err := mapPbBoard(s.Game.Board)
 	if err != nil {
-		return nil, fmt.Errorf("failed to map pb board: %v", err)
+		return nil, fmt.Errorf("failed to map pb board: %w", err)
 	}
 
 	pbGame := &pb.ChessGame{
@@ -254,10 +254,10 @@ func (s *ChessState) Serialize() ([]byte, error) {
 	return proto.Marshal(pbState)
 }
 
-func ChessViewDeserialize(str string) (ChessView, error) {
+func ChessViewDeserialize(b []byte) (ChessView, error) {
 	var pbChess pb.ChessState
-	if err := proto.Unmarshal([]byte(str), &pbChess); err != nil {
-		return ChessView{}, fmt.Errorf("failed to unmarhsal chess state: %v", err)
+	if err := proto.Unmarshal(b, &pbChess); err != nil {
+		return ChessView{}, fmt.Errorf("failed to unmarhsal chess state: %w", err)
 	}
 	cv := ChessView{
 		ID:          pbChess.Id,

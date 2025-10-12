@@ -53,8 +53,9 @@ type ReplayInst struct {
 	MoveListJSON string
 }
 
-func InsertReplay(ctx context.Context, q *db.Queries, inst ReplayInst) error {
-	count, err := q.InsertReplay(ctx, db.InsertReplayParams{
+func InsertReplay(ctx context.Context, q *db.Queries, inst ReplayInst) (int64, error) {
+	trace := ctx.Value(TraceKey)
+	replayID, err := q.InsertReplay(ctx, db.InsertReplayParams{
 		WhiteID:  inst.WhiteID,
 		BlackID:  inst.BlackID,
 		Result:   inst.Result,
@@ -63,8 +64,12 @@ func InsertReplay(ctx context.Context, q *db.Queries, inst ReplayInst) error {
 		LoseElo:  inst.LoseElo,
 		MoveList: []byte(inst.MoveListJSON),
 	})
-	dynLog("created a new replay", err, "replay", inst, "count", count, "trace", ctx.Value(TraceKey))
-	return err
+	if err != nil {
+		slog.Info("failed to create replay", "err", err, "trace", trace)
+		return 0, err
+	}
+	slog.Info("created a new replay", "replay", inst, "replayID", replayID, "trace", trace)
+	return replayID, nil
 }
 
 func mapReplayFromRow(row db.GetReplayByIDRow) ReplayEntity {
@@ -96,7 +101,7 @@ func GetReplay(ctx context.Context, q *db.Queries, id int64) (ReplayEntity, erro
 	}
 	if err != nil {
 		slog.Error("failed to select replay", "id", id, "err", err, "trace", trace)
-		return ReplayEntity{}, fmt.Errorf("failed to get replay by id: %v", err)
+		return ReplayEntity{}, fmt.Errorf("failed to get replay by id: %w", err)
 	}
 	replay := mapReplayFromRow(row)
 
@@ -113,7 +118,7 @@ func GetReplayMoveList(ctx context.Context, q *db.Queries, id int64) (string, er
 	}
 	if err != nil {
 		slog.Error("failed to select replay move list", "id", id, "err", err, "trace", trace)
-		return "", fmt.Errorf("failed to get replay move list by id: %v", err)
+		return "", fmt.Errorf("failed to get replay move list by id: %w", err)
 	}
 	moveListStr := string(moveList)
 
@@ -135,7 +140,7 @@ func GetUserReplays(ctx context.Context, q *db.Queries, userID int64, afterID in
 	})
 	if err != nil {
 		slog.Error("failed to select replays", "err", err, "trace", trace)
-		return nil, fmt.Errorf("failed to get replays: %v", err)
+		return nil, fmt.Errorf("failed to get replays: %w", err)
 	}
 
 	var replays []ReplayEntity

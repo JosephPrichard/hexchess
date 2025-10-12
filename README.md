@@ -7,6 +7,20 @@ Currently, in the process of a rewrite from Java -> Go.
 
 ## Build and Deployment
 
+### Compile Server
+
+`$ cd hexchess-svc`
+
+`$ sqlc generate`
+
+`$ protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative pb/messages.proto`
+
+### Compile UI
+
+`$ cd hexchess-ui`
+
+`$ npm run protogen`
+
 ### Run Infrastructure
 
 `$ docker compose up`
@@ -29,18 +43,14 @@ ALLOWED_ORIGINS=http://localhost:5173
 COOKIE_DOMAIN=localhost
 ```
 
-Create an environment variables file in root, this will be used by `docker-compose.yml`
-```
-ELASTICSEARCH_USERNAME=elasticname
-ELASTICSEARCH_PASSWORD=elasticsearch-password
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_PUBSUB_HOST=localhost
-REDIS_PUBSUB_PORT=6380
-```
+### Run Server Locally
 
-### Run Server
+`$ cd hexchess-svc`
 
-`$ mvn clean install package`
+`$ go run ./cmd/server/main.go`
 
-`$ java -cp target/Hexchess-1.0-SNAPSHOT.jar Main`
+### Build Docker Image
+
+`$ cd hexchess-svc`
+
+`$ docker build -t hexchess-svc:<version>`

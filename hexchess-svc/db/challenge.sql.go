@@ -60,10 +60,10 @@ func (q *Queries) DeleteExpiredChallenges(ctx context.Context, arg DeleteExpired
 const insertChallenge = `-- name: InsertChallenge :one
 
 WITH inserted_challenges AS (
-INSERT INTO challenges (challenger_id, challengee_id, time_control, start_color, made_on)
-VALUES ($1, $2, $3, $4, $5)
+    INSERT INTO challenges (challenger_id, challengee_id, time_control, start_color, made_on)
+    VALUES ($1, $2, $3, $4, $5)
     RETURNING challenger_id, challengee_id, time_control, start_color, made_on
-    )
+)
 SELECT
     c.challenger_id,
     c.challengee_id,

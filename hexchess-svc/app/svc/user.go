@@ -121,11 +121,6 @@ func mapUserFromRow(row db.SelectUserByIDRow) UserEntity {
 	}
 }
 
-func InsertUser(ctx context.Context, q *db.Queries, inst UserInst) error {
-	_, err := InsertUserRet(ctx, q, inst)
-	return err
-}
-
 func InsertUserRet(ctx context.Context, q *db.Queries, inst UserInst) (UserEntity, error) {
 	trace := ctx.Value(TraceKey)
 	fail := func(str string, err error) (UserEntity, error) {
@@ -205,16 +200,22 @@ func ProbabilityWins(elo1, elo2 float64) float64 {
 	return 1.0 / (1.0 + math.Pow(10, (elo2-elo1)/400.0))
 }
 
-func UpdateUser(ctx context.Context, q *db.Queries, id int64, newUsername string, newBio string, newCountry string) error {
-	if newUsername == "" && newBio == "" && newCountry == "" {
+type UpdateUserParams struct {
+	Username string
+	Bio      string
+	Country  string
+}
+
+func UpdateUser(ctx context.Context, q *db.Queries, id int64, updt UpdateUserParams) error {
+	if updt.Username == "" && updt.Bio == "" && updt.Country == "" {
 		return nil
 	}
 
 	user, err := q.UpdateUser(ctx, db.UpdateUserParams{
 		ID:       id,
-		Username: pgtype.Text{Valid: newUsername != "", String: newUsername},
-		Bio:      pgtype.Text{Valid: newBio != "", String: newBio},
-		Country:  pgtype.Text{Valid: newCountry != "", String: newCountry},
+		Username: pgtype.Text{Valid: updt.Username != "", String: updt.Username},
+		Bio:      pgtype.Text{Valid: updt.Bio != "", String: updt.Bio},
+		Country:  pgtype.Text{Valid: updt.Country != "", String: updt.Country},
 	})
 
 	dynLog("updated user", err, "user", user, "trace", ctx.Value(TraceKey))

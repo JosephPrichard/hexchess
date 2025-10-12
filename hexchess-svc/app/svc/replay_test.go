@@ -6,8 +6,66 @@ import (
 	"testing"
 )
 
-var (
-	Replay1 = ReplayEntity{
+var TestReplays = []ReplayInst{
+	{1, 2, int32(WhiteWin), int32(Checkmate), 30, -30, "[]"},
+	{2, 3, int32(BlackWin), int32(Checkmate), 30, -30, "{}"},
+	{3, 1, int32(Draw), int32(Checkmate), 30, -30, "{}"},
+}
+
+func createTestReplays(t *testing.T, pgDB DB, insts ...ReplayInst) {
+	ctx := context.WithValue(context.Background(), TraceKey, "create-test-replays")
+	for _, inst := range insts {
+		_, err := InsertReplay(ctx, pgDB.Q, inst)
+		if err != nil {
+			t.Fatalf("failed to insert test replay: %v", err)
+		}
+	}
+}
+
+func TestInsertThenGet(t *testing.T) {
+	pgDB, closer := beforeDbTests(t)
+	defer closer()
+
+	ctx := context.WithValue(context.Background(), TraceKey, "test-insert-get")
+
+	id, err := InsertReplay(ctx, pgDB.Q, ReplayInst{2, 3, int32(WhiteWin), int32(Checkmate), 35, -25, "{}"})
+	assert.NoError(t, err)
+
+	actualReplay1, err := GetReplay(ctx, pgDB.Q, id)
+	assert.NoError(t, err)
+
+	expReplay := ReplayEntity{
+		ID:           id,
+		WhiteID:      2,
+		BlackID:      3,
+		WhiteName:    "user2",
+		BlackName:    "user3",
+		WhiteCountry: "us",
+		BlackCountry: "us",
+		Result:       WhiteWin,
+		Cause:        Checkmate,
+		WinElo:       35,
+		LoseElo:      -25,
+		WhiteElo:     1000,
+		BlackElo:     900,
+	}
+	assert.Equal(t, expReplay, actualReplay1)
+}
+
+func TestGetUserReplays(t *testing.T) {
+	pgDB, closer := beforeDbTests(t)
+	defer closer()
+
+	ctx := context.WithValue(context.Background(), TraceKey, "test-get-replays")
+
+	// the only replays that include userID '1' should be the replays made in the test init phase
+
+	actualReplayList1, err := GetUserReplays(ctx, pgDB.Q, 1, -1, 5)
+	assert.NoError(t, err)
+	actualReplayList2, err := GetUserReplays(ctx, pgDB.Q, 1, 3, 5)
+	assert.NoError(t, err)
+
+	replay1 := ReplayEntity{
 		ID:           1,
 		WhiteID:      1,
 		BlackID:      2,
@@ -22,24 +80,7 @@ var (
 		WhiteElo:     1000,
 		BlackElo:     1000,
 	}
-
-	Replay2 = ReplayEntity{
-		ID:           2,
-		WhiteID:      2,
-		BlackID:      3,
-		WhiteName:    "user2",
-		BlackName:    "user3",
-		WhiteCountry: "us",
-		BlackCountry: "us",
-		Result:       BlackWin,
-		Cause:        Checkmate,
-		WinElo:       30,
-		LoseElo:      -30,
-		WhiteElo:     1000,
-		BlackElo:     900,
-	}
-
-	Replay3 = ReplayEntity{
+	replay3 := ReplayEntity{
 		ID:           3,
 		WhiteID:      3,
 		BlackID:      1,
@@ -54,49 +95,9 @@ var (
 		WhiteElo:     900,
 		BlackElo:     1000,
 	}
-)
 
-func TestInsertThenGet(t *testing.T) {
-	pgDB, closer := beforeDbTests(t)
-	defer closer()
-
-	ctx := context.WithValue(context.Background(), TraceKey, "test-insert-get")
-	createTestUsers(t, pgDB.Q)
-
-	assert.NoError(t, InsertReplay(ctx, pgDB.Q, ReplayInst{1, 2, int32(WhiteWin), int32(Checkmate), 30, -30, "{}"}))
-	assert.NoError(t, InsertReplay(ctx, pgDB.Q, ReplayInst{2, 3, int32(BlackWin), int32(Checkmate), 30, -30, "{}"}))
-	assert.NoError(t, InsertReplay(ctx, pgDB.Q, ReplayInst{3, 1, int32(Draw), int32(Checkmate), 30, -30, "{}"}))
-
-	actualReplay1, err := GetReplay(ctx, pgDB.Q, 1)
-	assert.NoError(t, err)
-	actualReplay2, err := GetReplay(ctx, pgDB.Q, 2)
-	assert.NoError(t, err)
-	actualReplay3, err := GetReplay(ctx, pgDB.Q, 3)
-	assert.NoError(t, err)
-
-	assert.Equal(t, Replay1, actualReplay1)
-	assert.Equal(t, Replay2, actualReplay2)
-	assert.Equal(t, Replay3, actualReplay3)
-}
-
-func TestGetUserReplays(t *testing.T) {
-	pgDB, closer := beforeDbTests(t)
-	defer closer()
-
-	ctx := context.WithValue(context.Background(), TraceKey, "test-get-replays")
-	createTestUsers(t, pgDB.Q)
-
-	assert.NoError(t, InsertReplay(ctx, pgDB.Q, ReplayInst{1, 2, int32(WhiteWin), int32(Checkmate), 30, -30, "{}"}))
-	assert.NoError(t, InsertReplay(ctx, pgDB.Q, ReplayInst{2, 3, int32(BlackWin), int32(Checkmate), 30, -30, "{}"}))
-	assert.NoError(t, InsertReplay(ctx, pgDB.Q, ReplayInst{3, 1, int32(Draw), int32(Checkmate), 30, -30, "{}"}))
-
-	actualReplayList1, err := GetUserReplays(ctx, pgDB.Q, 1, -1, 5)
-	assert.NoError(t, err)
-	actualReplayList2, err := GetUserReplays(ctx, pgDB.Q, 1, 3, 5)
-	assert.NoError(t, err)
-
-	expectedReplayList1 := []ReplayEntity{Replay3, Replay1}
-	expectedReplayList2 := []ReplayEntity{Replay1}
+	expectedReplayList1 := []ReplayEntity{replay3, replay1}
+	expectedReplayList2 := []ReplayEntity{replay1}
 
 	assert.Equal(t, expectedReplayList1, actualReplayList1)
 	assert.Equal(t, expectedReplayList2, actualReplayList2)
@@ -107,9 +108,7 @@ func TestGetReplayMoveList(t *testing.T) {
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), TraceKey, "test-get-move-list")
-	createTestUsers(t, pgDB.Q)
 
-	assert.NoError(t, InsertReplay(ctx, pgDB.Q, ReplayInst{1, 2, int32(WhiteWin), int32(Checkmate), 30, -30, "[]"}))
 	actualMoveList, err := GetReplayMoveList(ctx, pgDB.Q, 1)
 	assert.NoError(t, err)
 

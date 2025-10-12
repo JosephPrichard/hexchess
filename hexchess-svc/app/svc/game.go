@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/redis/go-redis/v9"
 	"hexchess-svc/app/chess"
 	"hexchess-svc/db"
 	"log/slog"
@@ -104,6 +103,38 @@ func ParseTimeControl(value string) (TimeControl, error) {
 	}
 }
 
+type GameStoresAPI interface {
+	GetChessStateCount(ctx context.Context) (int64, error)
+	GetChessState(ctx context.Context, id string) (ChessState, error)
+	SetChessState(ctx context.Context, id string, state ChessState) (ChessState, error)
+	UpdateGameResult(ctx context.Context, params GRParams) (GRChangeSet, error)
+	UpdateLeaderboard(ctx context.Context, csList ...IncrLbChangeSet) error
+}
+
+type GameStores struct {
+	Stores
+}
+
+func (a *GameStores) GetChessStateCount(ctx context.Context) (int64, error) {
+	return GetChessStateCount(ctx, a.Rdb)
+}
+
+func (a *GameStores) GetChessState(ctx context.Context, id string) (ChessState, error) {
+	return GetChessState(ctx, a.Rdb, id)
+}
+
+func (a *GameStores) SetChessState(ctx context.Context, id string, state ChessState) (ChessState, error) {
+	return SetChessState(ctx, a.Rdb, id, state)
+}
+
+func (a *GameStores) UpdateGameResult(ctx context.Context, params GRParams) (GRChangeSet, error) {
+	return UpdateGameResultTx(ctx, a.PgDB, params)
+}
+
+func (a *GameStores) UpdateLeaderboard(ctx context.Context, csList ...IncrLbChangeSet) error {
+	return IncrLeaderboard(ctx, a.Rdb, csList...)
+}
+
 const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 const idLength = 8
 
@@ -119,7 +150,7 @@ func generateGameID() (string, error) {
 	return string(id), nil
 }
 
-func broadcastOnCreateGame(rdb *redis.Client) {
+func broadcastOnCreateGame(a GameStoresAPI) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Warn("recovered in CreateGame broadcast handler", "err", r)
@@ -128,20 +159,20 @@ func broadcastOnCreateGame(rdb *redis.Client) {
 
 	ctx := context.WithValue(context.Background(), TraceKey, "create-game-broadcast-handler")
 
-	count, err := GetChessStateCount(ctx, rdb)
+	count, err := a.GetChessStateCount(ctx)
 	if err != nil {
 		slog.Error("failed to count chess states after creating game", "err", err)
 		return
 	}
 	slog.Info("counted chess states after creating game", "count", count)
 
-	//svc.GameBroadcaster.Broadcast(count)
+	//svc.GameBroadcaster.MultiBroker(count)
 }
 
-func CreateGame(ctx context.Context, rdb *redis.Client, color ColorSelect, timeControl TimeControl) (string, error) {
+func CreateGame(ctx context.Context, a GameStoresAPI, color ColorSelect, timeControl TimeControl) (string, error) {
 	id, err := generateGameID()
 	if err != nil {
-		return "", fmt.Errorf("error generating id: %v", err)
+		return "", fmt.Errorf("error generating id: %w", err)
 	}
 
 	state := MakeStartChessState(id, timeControl)
@@ -150,19 +181,19 @@ func CreateGame(ctx context.Context, rdb *redis.Client, color ColorSelect, timeC
 
 	slog.Info("created chess game", "state", state, "trace", ctx.Value(TraceKey))
 
-	state, err = SetChessState(ctx, rdb, id, state)
+	state, err = a.SetChessState(ctx, id, state)
 	if err != nil {
 		return "", err
 	}
 
-	go broadcastOnCreateGame(rdb)
+	go broadcastOnCreateGame(a)
 	return id, nil
 }
 
-func JoinGame(ctx context.Context, rdb *redis.Client, gameID string, player PlayerState) (ChessState, error) {
+func JoinGame(ctx context.Context, a GameStoresAPI, gameID string, player PlayerState) (ChessState, error) {
 	trace := ctx.Value(TraceKey)
 
-	state, err := GetChessState(ctx, rdb, gameID)
+	state, err := a.GetChessState(ctx, gameID)
 	if err != nil {
 		return ChessState{}, err
 	}
@@ -198,7 +229,7 @@ func JoinGame(ctx context.Context, rdb *redis.Client, gameID string, player Play
 		}
 	}
 
-	state, err = SetChessState(ctx, rdb, gameID, state)
+	state, err = a.SetChessState(ctx, gameID, state)
 
 	dynLog("player joined game", err, "playerID", player.ID, "stateID", gameID, "color", color, "err", err, "trace", trace)
 	return state, err
@@ -215,10 +246,10 @@ var (
 	ErrInvalidMove  = errors.New("invalid move")
 )
 
-func MakeGameMove(ctx context.Context, dbs Databases, gameID string, player PlayerState, move chess.PieceMove) (MoveResult, error) {
+func MakeGameMove(ctx context.Context, a GameStoresAPI, gameID string, player PlayerState, move chess.PieceMove) (MoveResult, error) {
 	trace := ctx.Value(TraceKey)
 
-	state, err := GetChessState(ctx, dbs.Rdb, gameID)
+	state, err := a.GetChessState(ctx, gameID)
 	if err != nil {
 		return MoveResult{}, err
 	}
@@ -247,14 +278,14 @@ func MakeGameMove(ctx context.Context, dbs Databases, gameID string, player Play
 	if game.CheckmateReached() {
 		state.IsEnded = true
 		isWhiteWin := !board.IsWhiteTurn
-		if err := handleFinishGame(ctx, dbs, state, isWhiteWin, Checkmate); err != nil {
+		if err := handleFinishGame(ctx, a, state, isWhiteWin, Checkmate); err != nil {
 			return MoveResult{}, err
 		}
 	}
 
 	slog.Info("made move on game", "player", player.ID, "move", move, "state", state, "trace", trace)
 
-	state, err = SetChessState(ctx, dbs.Rdb, gameID, state)
+	state, err = a.SetChessState(ctx, gameID, state)
 	if err != nil {
 		return MoveResult{}, err
 	}
@@ -262,7 +293,7 @@ func MakeGameMove(ctx context.Context, dbs Databases, gameID string, player Play
 	return MoveResult{Room: state, Move: move}, nil
 }
 
-func handleFinishGame(ctx context.Context, dbs Databases, state ChessState, isWhiteWin bool, cause ReplayCause) error {
+func handleFinishGame(ctx context.Context, a GameStoresAPI, state ChessState, isWhiteWin bool, cause ReplayCause) error {
 	trace := ctx.Value(TraceKey)
 	fail := func(m string, err error) error {
 		err = fmt.Errorf("%s: %v", m, err)
@@ -276,28 +307,26 @@ func handleFinishGame(ctx context.Context, dbs Databases, state ChessState, isWh
 	whiteID := state.WhitePlayer.ID
 	blackID := state.BlackPlayer.ID
 
-	params := FinishGameParams{
+	params := GRParams{
 		WhiteID:    whiteID,
 		BlackID:    blackID,
 		Cause:      cause,
 		IsWhiteWin: isWhiteWin,
 		MoveList:   state.MoveList,
 	}
-	cs, err := FinishGameTx(ctx, dbs.PgDB, params)
+	cs, err := a.UpdateGameResult(ctx, params)
 	if err != nil {
 		return fail("failed to execute finish game tx", err)
 	}
-	if cs == (FinishGameChangeSet{}) {
+	if cs == (GRChangeSet{}) {
 		return nil
 	}
 
 	slog.Info("applying ELO change set to leaderboard", "changeSet", cs, "room", state.ID, "trace", trace)
 
-	if err := IncrLeaderboard(
-		ctx,
-		dbs.Rdb,
-		IncrLbCs{ID: cs.WinID, EloDiff: cs.WinEloDiff},
-		IncrLbCs{ID: cs.LoseID, EloDiff: cs.LoseEloDiff},
+	if err := a.UpdateLeaderboard(ctx,
+		IncrLbChangeSet{ID: cs.WinID, EloDiff: cs.WinEloDiff},
+		IncrLbChangeSet{ID: cs.LoseID, EloDiff: cs.LoseEloDiff},
 	); err != nil {
 		return fail("failed to increment user leaderboard stats", err)
 	}
@@ -306,10 +335,10 @@ func handleFinishGame(ctx context.Context, dbs Databases, state ChessState, isWh
 	return nil
 }
 
-func ForfeitGame(ctx context.Context, dbs Databases, gameID string, player PlayerState) error {
+func ForfeitGame(ctx context.Context, a GameStoresAPI, gameID string, player PlayerState) error {
 	trace := ctx.Value(TraceKey)
 
-	state, err := GetChessState(ctx, dbs.Rdb, gameID)
+	state, err := a.GetChessState(ctx, gameID)
 	if err != nil {
 		return err
 	}
@@ -321,10 +350,10 @@ func ForfeitGame(ctx context.Context, dbs Databases, gameID string, player Playe
 	didBlackForfeit := state.BlackPlayer.ID == player.ID
 	state.IsEnded = true
 
-	if err := handleFinishGame(ctx, dbs, state, didBlackForfeit, Forfeit); err != nil {
+	if err := handleFinishGame(ctx, a, state, didBlackForfeit, Forfeit); err != nil {
 		return err
 	}
-	if _, err := SetChessState(ctx, dbs.Rdb, gameID, state); err != nil {
+	if _, err := a.SetChessState(ctx, gameID, state); err != nil {
 		return err
 	}
 
@@ -332,7 +361,7 @@ func ForfeitGame(ctx context.Context, dbs Databases, gameID string, player Playe
 	return err
 }
 
-type FinishGameParams struct {
+type GRParams struct {
 	WhiteID    int64       `json:"whiteId"`
 	BlackID    int64       `json:"blackId"`
 	Cause      ReplayCause `json:"cause"`
@@ -340,30 +369,31 @@ type FinishGameParams struct {
 	MoveList   []chess.PieceMove
 }
 
-type FinishGameChangeSet struct {
+type GRChangeSet struct {
+	ReplayID    int64
 	WinID       int64
 	LoseID      int64
 	WinEloDiff  float64
 	LoseEloDiff float64
 }
 
-func FinishGameTx(ctx context.Context, pgDB DB, params FinishGameParams) (FinishGameChangeSet, error) {
-	return WithTransaction(ctx, pgDB, func(q *db.Queries) (FinishGameChangeSet, error) {
-		return FinishGame(ctx, q, params)
+func UpdateGameResultTx(ctx context.Context, pgDB DB, params GRParams) (GRChangeSet, error) {
+	return WithTransaction(ctx, pgDB, func(q *db.Queries) (GRChangeSet, error) {
+		return UpdateGameResult(ctx, q, params)
 	})
 }
 
-func FinishGame(ctx context.Context, q *db.Queries, params FinishGameParams) (FinishGameChangeSet, error) {
+func UpdateGameResult(ctx context.Context, q *db.Queries, params GRParams) (GRChangeSet, error) {
 	result, winID, loseID := WhiteWin, params.WhiteID, params.BlackID
 	if !params.IsWhiteWin {
 		result, winID, loseID = BlackWin, params.BlackID, params.WhiteID
 	}
 
 	trace := ctx.Value(TraceKey)
-	fail := func(str string, err error) (FinishGameChangeSet, error) {
+	fail := func(str string, err error) (GRChangeSet, error) {
 		err = fmt.Errorf("%s: %w", str, err)
 		slog.Error("failed to update stats", "winID", winID, "loseID", loseID, "err", err, "trace", trace)
-		return FinishGameChangeSet{}, err
+		return GRChangeSet{}, err
 	}
 
 	winElo, err := q.GetElo(ctx, winID)
@@ -382,7 +412,7 @@ func FinishGame(ctx context.Context, q *db.Queries, params FinishGameParams) (Fi
 
 	if winEloDiff == 0 && loseEloDiff == 0 {
 		slog.Info("user stats update is a noop", "winId", winID, "loseId", loseID, "trace", trace)
-		return FinishGameChangeSet{}, nil
+		return GRChangeSet{}, nil
 	}
 
 	if err := q.UpdateWins(ctx, db.UpdateWinsParams{ID: winID, Elo: winEloNext}); err != nil {
@@ -405,11 +435,12 @@ func FinishGame(ctx context.Context, q *db.Queries, params FinishGameParams) (Fi
 		LoseElo:      loseEloDiff,
 		MoveListJSON: string(moveListJson),
 	}
-	if err := InsertReplay(ctx, q, inst); err != nil {
+	replayID, err := InsertReplay(ctx, q, inst)
+	if err != nil {
 		return fail("failed to insert replay", err)
 	}
 
-	cs := FinishGameChangeSet{WinID: winID, LoseID: loseID, WinEloDiff: winEloDiff, LoseEloDiff: loseEloDiff}
+	cs := GRChangeSet{ReplayID: replayID, WinID: winID, LoseID: loseID, WinEloDiff: winEloDiff, LoseEloDiff: loseEloDiff}
 	slog.Info("updated user stats", "inst", inst, "changeSet", cs, "trace", trace)
 	return cs, nil
 }
