@@ -43,6 +43,18 @@ func MakeEmptyGame(initial ...Move) Game {
 	return game
 }
 
+func (g *Game) DeepCopy() Game {
+	g2 := Game{}
+
+	g2.Board = g.Board.DeepCopy()
+	g2.WhiteMoves = append(g2.WhiteMoves, g.WhiteMoves...)
+	g2.BlackMoves = append(g2.BlackMoves, g.BlackMoves...)
+	g2.TakenWhitePieces = append(g2.TakenWhitePieces, g.TakenWhitePieces...)
+	g2.TakenBlackPieces = append(g2.TakenBlackPieces, g.TakenBlackPieces...)
+
+	return g2
+}
+
 func (g *Game) SetPiece(str string, p Piece) *Game {
 	hex := ParseHexagonValid(str)
 	g.Board.Pieces[hex.File][hex.Rank] = p

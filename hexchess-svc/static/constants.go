@@ -1,4 +1,4 @@
-package meta
+package static
 
 import (
 	_ "embed"

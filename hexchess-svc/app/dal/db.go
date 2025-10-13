@@ -1,10 +1,11 @@
-package svc
+package dal
 
 import (
 	"context"
 	"github.com/gomodule/redigo/redis"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"hexchess-svc/app/util"
 	"hexchess-svc/db"
 	"log/slog"
 	"time"
@@ -42,7 +43,7 @@ type TxFn[Ret any] func(q *db.Queries) (Ret, error)
 type BeginTxFn = func(ctx context.Context) (pgx.Tx, error)
 
 func WithTransaction[Ret any](ctx context.Context, pgDB DB, txFn TxFn[Ret]) (ret Ret, err error) {
-	trace := ctx.Value(TraceKey)
+	trace := ctx.Value(util.TraceKey)
 	tx, err := pgDB.pool.Begin(ctx)
 	if err != nil {
 		return

@@ -1,10 +1,11 @@
-package svc
+package dal
 
 import (
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"hexchess-svc/app/util"
 	"hexchess-svc/db"
 	"log/slog"
 	"math"
@@ -54,7 +55,7 @@ type ReplayInst struct {
 }
 
 func InsertReplay(ctx context.Context, q *db.Queries, inst ReplayInst) (int64, error) {
-	trace := ctx.Value(TraceKey)
+	trace := ctx.Value(util.TraceKey)
 	replayID, err := q.InsertReplay(ctx, db.InsertReplayParams{
 		WhiteID:  inst.WhiteID,
 		BlackID:  inst.BlackID,
@@ -93,7 +94,7 @@ func mapReplayFromRow(row db.GetReplayByIDRow) ReplayEntity {
 var ErrNoReplay = errors.New("replay not found")
 
 func GetReplay(ctx context.Context, q *db.Queries, id int64) (ReplayEntity, error) {
-	trace := ctx.Value(TraceKey)
+	trace := ctx.Value(util.TraceKey)
 
 	row, err := q.GetReplayByID(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -110,7 +111,7 @@ func GetReplay(ctx context.Context, q *db.Queries, id int64) (ReplayEntity, erro
 }
 
 func GetReplayMoveList(ctx context.Context, q *db.Queries, id int64) (string, error) {
-	trace := ctx.Value(TraceKey)
+	trace := ctx.Value(util.TraceKey)
 
 	moveList, err := q.GetReplayMoveList(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -127,7 +128,7 @@ func GetReplayMoveList(ctx context.Context, q *db.Queries, id int64) (string, er
 }
 
 func GetUserReplays(ctx context.Context, q *db.Queries, userID int64, afterID int64, perPage int32) ([]ReplayEntity, error) {
-	trace := ctx.Value(TraceKey)
+	trace := ctx.Value(util.TraceKey)
 
 	if afterID < 0 {
 		afterID = int64(math.MaxInt64)

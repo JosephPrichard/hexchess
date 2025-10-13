@@ -1,4 +1,4 @@
-package svc
+package dal
 
 import (
 	"context"
@@ -13,7 +13,7 @@ var TestReplays = []ReplayInst{
 }
 
 func createTestReplays(t *testing.T, pgDB DB, insts ...ReplayInst) {
-	ctx := context.WithValue(context.Background(), TraceKey, "create-test-replays")
+	ctx := context.WithValue(context.Background(), util.TraceKey, "create-test-replays")
 	for _, inst := range insts {
 		_, err := InsertReplay(ctx, pgDB.Q, inst)
 		if err != nil {
@@ -26,7 +26,7 @@ func TestInsertThenGet(t *testing.T) {
 	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), TraceKey, "test-insert-get")
+	ctx := context.WithValue(context.Background(), util.TraceKey, "test-insert-get")
 
 	id, err := InsertReplay(ctx, pgDB.Q, ReplayInst{2, 3, int32(WhiteWin), int32(Checkmate), 35, -25, "{}"})
 	assert.NoError(t, err)
@@ -56,7 +56,7 @@ func TestGetUserReplays(t *testing.T) {
 	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), TraceKey, "test-get-replays")
+	ctx := context.WithValue(context.Background(), util.TraceKey, "test-get-replays")
 
 	// the only replays that include userID '1' should be the replays made in the test init phase
 
@@ -107,7 +107,7 @@ func TestGetReplayMoveList(t *testing.T) {
 	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), TraceKey, "test-get-move-list")
+	ctx := context.WithValue(context.Background(), util.TraceKey, "test-get-move-list")
 
 	actualMoveList, err := GetReplayMoveList(ctx, pgDB.Q, 1)
 	assert.NoError(t, err)

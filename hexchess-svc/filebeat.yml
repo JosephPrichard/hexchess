@@ -1,7 +1,7 @@
 filebeat.inputs:
-  - type: log
+  - type: util
     paths:
-      - /logs/app.log
+      - /logs/app.util
     scan_frequency: 10s
     start_position: beginning
 
@@ -20,7 +20,7 @@ setup.kibana:
 logging.level: info
 logging.to_files: true
 logging.files:
-  path: /var/log/filebeat
-  name: filebeat.log
+  path: /var/util/filebeat
+  name: filebeat.util
   keepfiles: 7
   permissions: 0644

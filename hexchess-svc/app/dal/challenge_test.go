@@ -1,4 +1,4 @@
-package svc
+package dal
 
 import (
 	"context"
@@ -8,11 +8,15 @@ import (
 	"time"
 )
 
+func pointerOf[T any](v T) *T {
+	return &v
+}
+
 func TestGetChallenges(t *testing.T) {
 	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), TraceKey, "test-insert-get-challenges")
+	ctx := context.WithValue(context.Background(), util.TraceKey, "test-insert-get-challenges")
 
 	testUser := createTestUser(t, pgDB, UserInst{Username: "user1-" + uuid.NewString(), Password: "password1", Country: "us", Elo: 1000})
 
@@ -21,7 +25,7 @@ func TestGetChallenges(t *testing.T) {
 	c2, err := InsertChallengeRet(ctx, pgDB.Q, ChallengeInst{3, testUser.ID, "UNLIMITED", "RANDOM", time.Time{}})
 	assert.NoError(t, err)
 
-	challenges, err := GetChallengesByParticipant(ctx, pgDB.Q, nil, pointerOf(int64(testUser.ID)), ExpireChallengeThreshold)
+	challenges, err := GetChallengesByParticipant(ctx, pgDB.Q, nil, pointerOf(testUser.ID), ExpireChallengeThreshold)
 	assert.NoError(t, err)
 
 	c1.MadeOn = time.Time{}
@@ -68,7 +72,7 @@ func TestChallengeExpiration(t *testing.T) {
 	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), TraceKey, "test-expiration")
+	ctx := context.WithValue(context.Background(), util.TraceKey, "test-expiration")
 	now := time.Now()
 
 	testUser := createTestUser(t, pgDB, UserInst{Username: "user1-" + uuid.NewString(), Password: "password1", Country: "us", Elo: 1000})
@@ -126,7 +130,7 @@ func TestChallengeDeletion(t *testing.T) {
 	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), TraceKey, "test-delete")
+	ctx := context.WithValue(context.Background(), util.TraceKey, "test-delete")
 
 	testUser := createTestUser(t, pgDB, UserInst{Username: "user1-" + uuid.NewString(), Password: "password1", Country: "us", Elo: 1000})
 

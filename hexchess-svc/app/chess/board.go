@@ -207,16 +207,16 @@ func HasPawnMoved(pawnHex Hex, isWhite bool) bool {
 	}
 }
 
-func (piece Piece) String() string {
-	return string(piece.ToChar())
+func (p Piece) String() string {
+	return string(p.ToChar())
 }
 
-func (piece Piece) IsPieceTurn(isWhiteTurn bool) bool {
-	return (piece%2 == 0 && !isWhiteTurn) || (piece%2 == 1 && isWhiteTurn)
+func (p Piece) IsPieceTurn(isWhiteTurn bool) bool {
+	return (p%2 == 0 && !isWhiteTurn) || (p%2 == 1 && isWhiteTurn)
 }
 
-func (piece Piece) IsWhite() bool {
-	return piece%2 == 1
+func (p Piece) IsWhite() bool {
+	return p%2 == 1
 }
 
 func AreOpposite(piece1, piece2 Piece) bool {
@@ -226,8 +226,8 @@ func AreOpposite(piece1, piece2 Piece) bool {
 	return piece1%2 != piece2%2
 }
 
-func (piece Piece) ToChar() rune {
-	switch piece {
+func (p Piece) ToChar() rune {
+	switch p {
 	case Empty:
 		return '.'
 	case WhitePawn:
@@ -255,17 +255,17 @@ func (piece Piece) ToChar() rune {
 	case BlackKing:
 		return 'k'
 	default:
-		panic(fmt.Sprintf("invalid piece: %d", piece))
+		panic(fmt.Sprintf("invalid piece: %d", p))
 	}
 	return 0
 }
 
-func (piece Piece) IsPawn() bool {
-	return piece == WhitePawn || piece == BlackPawn
+func (p Piece) IsPawn() bool {
+	return p == WhitePawn || p == BlackPawn
 }
 
-func (piece Piece) IsKing() bool {
-	return piece == WhiteKing || piece == BlackKing
+func (p Piece) IsKing() bool {
+	return p == WhiteKing || p == BlackKing
 }
 
 func MakeBoard(isWhiteTurn bool) Board {
@@ -319,6 +319,16 @@ func InitialBoard() Board {
 	board.SetPiece("h9", BlackKnight)
 	board.SetPiece("i8", BlackRook)
 
+	return board
+}
+
+func (b *Board) DeepCopy() Board {
+	board := MakeBoard(b.IsWhiteTurn)
+	for i := range b.Pieces {
+		for j := range b.Pieces[i] {
+			board.Pieces[i][j] = b.Pieces[i][j]
+		}
+	}
 	return board
 }
 

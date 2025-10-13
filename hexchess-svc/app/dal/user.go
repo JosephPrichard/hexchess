@@ -1,4 +1,4 @@
-package svc
+package dal
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
+	"hexchess-svc/app/util"
 	"hexchess-svc/db"
 	"log/slog"
 	"math"
@@ -77,7 +78,7 @@ type HashResult struct {
 	HashedPassword string
 }
 
-func GenerateHash(password string) (HashResult, error) {
+func hashPassword(password string) (HashResult, error) {
 	saltBytes := make([]byte, 16)
 	if _, err := rand.Read(saltBytes); err != nil {
 		return HashResult{}, fmt.Errorf("failed to generate salt: %w", err)
@@ -121,15 +122,15 @@ func mapUserFromRow(row db.SelectUserByIDRow) UserEntity {
 	}
 }
 
-func InsertUserRet(ctx context.Context, q *db.Queries, inst UserInst) (UserEntity, error) {
-	trace := ctx.Value(TraceKey)
+func InsertUser(ctx context.Context, q *db.Queries, inst UserInst) (UserEntity, error) {
+	trace := ctx.Value(util.TraceKey)
 	fail := func(str string, err error) (UserEntity, error) {
 		err = fmt.Errorf("%s: %w", str, err)
 		slog.Error("failed to insert user", "inst", inst, "err", err, "trace", trace)
 		return UserEntity{}, err
 	}
 
-	hash, err := GenerateHash(inst.Password)
+	hash, err := hashPassword(inst.Password)
 	if err != nil {
 		return fail("failed to generate hash", err)
 	}
@@ -155,7 +156,7 @@ func BatchInsertUsers(ctx context.Context, q *db.Queries, insts []UserInst) erro
 	var batches []db.BatchInsertUserParams
 
 	for _, inst := range insts {
-		hash, err := GenerateHash(inst.Password)
+		hash, err := hashPassword(inst.Password)
 		if err != nil {
 			return err
 		}
@@ -164,7 +165,7 @@ func BatchInsertUsers(ctx context.Context, q *db.Queries, insts []UserInst) erro
 	}
 
 	rows, err := q.BatchInsertUser(ctx, batches)
-	dynLog("batch inserted users", err, "insts", insts, "rowsAffected", rows, "trace", ctx.Value(TraceKey))
+	util.DynLog("batch inserted users", err, "insts", insts, "rowsAffected", rows, "trace", ctx.Value(util.TraceKey))
 	return err
 }
 
@@ -176,7 +177,7 @@ type VerifiedUser struct {
 }
 
 func VerifyUser(ctx context.Context, q *db.Queries, username string, inputPassword string) (VerifiedUser, error) {
-	trace := ctx.Value(TraceKey)
+	trace := ctx.Value(util.TraceKey)
 
 	login, err := q.SelectLoginByName(ctx, username)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -218,22 +219,22 @@ func UpdateUser(ctx context.Context, q *db.Queries, id int64, updt UpdateUserPar
 		Country:  pgtype.Text{Valid: updt.Country != "", String: updt.Country},
 	})
 
-	dynLog("updated user", err, "user", user, "trace", ctx.Value(TraceKey))
+	util.DynLog("updated user", err, "user", user, "trace", ctx.Value(util.TraceKey))
 	return err
 }
 
 func UpdateUserPassword(ctx context.Context, q *db.Queries, id int64, newPassword string) error {
-	hash, err := GenerateHash(newPassword)
+	hash, err := hashPassword(newPassword)
 	if err != nil {
 		return err
 	}
 	err = q.UpdatePassword(ctx, db.UpdatePasswordParams{ID: id, Password: hash.HashedPassword, Salt: hash.Salt})
-	dynLog("updated password", err, "id", id, "trace", ctx.Value(TraceKey))
+	util.DynLog("updated password", err, "id", id, "trace", ctx.Value(util.TraceKey))
 	return err
 }
 
 func GetUserById(ctx context.Context, q *db.Queries, id int64) (UserEntity, error) {
-	trace := ctx.Value(TraceKey)
+	trace := ctx.Value(util.TraceKey)
 	row, err := q.SelectUserByID(ctx, id)
 	if err != nil {
 		slog.Error("failed to select user", "id", id, "err", err, "trace", trace)
@@ -253,7 +254,7 @@ func GetRankedUsers(ctx context.Context, q *db.Queries, users []RankedUser) ([]U
 }
 
 func GetUserByIds(ctx context.Context, q *db.Queries, ids []int64) ([]UserEntity, error) {
-	trace := ctx.Value(TraceKey)
+	trace := ctx.Value(util.TraceKey)
 	rows, err := q.SelectUsersByIDs(ctx, ids)
 	if err != nil {
 		slog.Error("failed to select users", "ids", ids, "err", err, "trace", trace)
@@ -268,7 +269,7 @@ func GetUserByIds(ctx context.Context, q *db.Queries, ids []int64) ([]UserEntity
 }
 
 func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page int32, perPage int32) ([]UserEntity, error) {
-	trace := ctx.Value(TraceKey)
+	trace := ctx.Value(util.TraceKey)
 
 	page = max(page, 1)
 	offset := (page - 1) * perPage

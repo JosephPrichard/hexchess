@@ -1,4 +1,4 @@
-package svc
+package dal
 
 import (
 	"context"
@@ -16,8 +16,8 @@ var TestUsers = []UserInst{
 }
 
 func createTestUser(t *testing.T, pgDB DB, inst UserInst) UserEntity {
-	ctx := context.WithValue(context.Background(), TraceKey, "create-test-user")
-	u, err := InsertUserRet(ctx, pgDB.Q, inst)
+	ctx := context.WithValue(context.Background(), util.TraceKey, "create-test-user")
+	u, err := InsertUser(ctx, pgDB.Q, inst)
 	if err != nil {
 		t.Fatalf("failed to insert test user: %v", err)
 	}
@@ -36,17 +36,17 @@ func TestInsertThenVerify(t *testing.T) {
 	pgDB, closer := beforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), TraceKey, "test-insert-then-verify")
+	ctx := context.WithValue(context.Background(), util.TraceKey, "test-insert-then-verify")
 
 	user1 := "user1-" + uuid.NewString()
 	user2 := "user2-" + uuid.NewString()
 	user3 := "user3-" + uuid.NewString()
 
-	u1, err := InsertUserRet(ctx, pgDB.Q, UserInst{Username: user1, Password: "password1"})
+	u1, err := InsertUser(ctx, pgDB.Q, UserInst{Username: user1, Password: "password1"})
 	assert.NoError(t, err)
-	u2, err := InsertUserRet(ctx, pgDB.Q, UserInst{Username: user2, Password: "password2"})
+	u2, err := InsertUser(ctx, pgDB.Q, UserInst{Username: user2, Password: "password2"})
 	assert.NoError(t, err)
-	u3, err := InsertUserRet(ctx, pgDB.Q, UserInst{Username: user3, Password: "password3"})
+	u3, err := InsertUser(ctx, pgDB.Q, UserInst{Username: user3, Password: "password3"})
 	assert.NoError(t, err)
 
 	v1, err := VerifyUser(ctx, pgDB.Q, user1, "password1")
@@ -70,7 +70,7 @@ func TestInsertThenVerify(t *testing.T) {
 //	pgDB, closer := beforeDbTests(t)
 //	defer closer()
 //
-//	ctx := context.WithValue(context.Background(), TraceKey, "test-batch-insert-then-get")
+//	ctx := context.WithValue(context.Background(), util.TraceKey, "test-batch-insert-then-get")
 //
 //	users := []UserInst{
 //		{Username: "user1", Password: "password1", Country: "us", Elo: 1005, Wins: 10, Losses: 9},
@@ -142,7 +142,7 @@ func TestUpdateUser(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), TraceKey, "test-update-user")
+	ctx := context.WithValue(context.Background(), util.TraceKey, "test-update-user")
 
 	for _, test := range tests {
 		testUser := createTestUser(t, pgDB, test.inst)
@@ -164,7 +164,7 @@ func TestUpdatePassword(t *testing.T) {
 
 	testUser := createTestUser(t, pgDB, UserInst{Username: "user1-" + uuid.NewString(), Password: "password1", Country: "us", Elo: 1000})
 
-	ctx := context.WithValue(context.Background(), TraceKey, "update-password")
+	ctx := context.WithValue(context.Background(), util.TraceKey, "update-password")
 
 	assert.NoError(t, UpdateUserPassword(ctx, pgDB.Q, testUser.ID, "password-new"))
 
@@ -182,7 +182,7 @@ func TestSearchByName(t *testing.T) {
 
 	createTestUsers(t, pgDB, UserInst{Username: "johnny", Password: "password6"}, UserInst{Username: "john", Password: "password7"})
 
-	ctx := context.WithValue(context.Background(), TraceKey, "search-by-name")
+	ctx := context.WithValue(context.Background(), util.TraceKey, "search-by-name")
 
 	list, err := SearchUsersByName(ctx, pgDB.Q, "john", 1, 20)
 	assert.NoError(t, err)

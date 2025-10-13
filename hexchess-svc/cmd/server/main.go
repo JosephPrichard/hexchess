@@ -1,23 +1,22 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
-	"hexchess-svc/app/svc"
+	"hexchess-svc/app/dal"
 	"hexchess-svc/db"
-	"hexchess-svc/meta"
+	"hexchess-svc/static"
 	"log"
 	"log/slog"
 	"os"
+	"strings"
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Fatalf("error loading .env file: %v", err)
-	}
+	initEnv()
 
 	appPort := os.Getenv("APP_PORT")
 	elasticUser := os.Getenv("ELASTICSEARCH_USERNAME")
@@ -48,7 +47,7 @@ func main() {
 	)
 
 	var countryList []string
-	if err := json.Unmarshal(meta.CountryListFile, &countryList); err != nil {
+	if err := json.Unmarshal(static.CountryListFile, &countryList); err != nil {
 		log.Fatalf("failed to unmarshal country list: %v", err)
 	}
 
@@ -60,12 +59,39 @@ func main() {
 	defer pool.Close()
 
 	q := db.New(pool)
-	pgDB := svc.MakeDbClient(q, pool)
+	pgDB := dal.MakeDbClient(q, pool)
+
+	redisAddr := redisHost + ":" + redisPort
+	psAddr := redisPubSubHost + ":" + redisPubSubPort
 
 	slog.Info("connecting to redis db", "host", redisHost, "port", redisPort)
-	rdb := svc.MakeRdbPool(redisHost + ":" + redisPort)
+	rdb := dal.MakeRdbPool(redisAddr)
 
-	_ = svc.Stores{Rdb: rdb, PgDB: pgDB}
+	slog.Info("connecting to redis pubsub channels", "host", redisPubSubHost, "port", redisPubSubPort)
+	_ = dal.DialAndListenGameMessages(psAddr)
+
+	_ = dal.Stores{Rdb: rdb, PgDB: pgDB}
 
 	slog.Info("starting server", "port", appPort, "allowedOrigins", allowedOrigins)
+}
+
+func initEnv() {
+	file, err := os.Open(".env")
+	if err != nil {
+		log.Printf("error loading .env file: %v", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		index := strings.Index(line, "=")
+		if index < 0 {
+			log.Fatalf("invalid line in .env file: %s", line)
+		}
+		key, value := line[:index], line[index+1:]
+		if err := os.Setenv(key, value); err != nil {
+			log.Printf("error setting env var: %v", err)
+		}
+	}
 }

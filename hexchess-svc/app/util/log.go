@@ -1,14 +1,12 @@
-package svc
+package util
 
-import (
-	"log/slog"
-)
+import "log/slog"
 
 type TraceType string
 
 var TraceKey TraceType = "trace"
 
-func dynLog(msg string, err error, args ...any) {
+func DynLog(msg string, err error, args ...any) {
 	if err != nil {
 		ea := make([]any, len(args)+2)
 		ea[0] = "err"
@@ -20,8 +18,4 @@ func dynLog(msg string, err error, args ...any) {
 	} else {
 		slog.Info(msg, args...)
 	}
-}
-
-func pointerOf[T any](v T) *T {
-	return &v
 }

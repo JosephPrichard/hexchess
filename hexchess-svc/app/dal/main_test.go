@@ -1,4 +1,4 @@
-package svc
+package dal
 
 import (
 	"context"
@@ -82,14 +82,18 @@ func initRedis(t *testing.T) string {
 }
 
 func beforeRedisTests(t *testing.T) (*redis.Pool, func()) {
-	addr := initRedis(t)
+	pool, _, closer := beforeRedisTestsWithAddr(t)
+	return pool, closer
+}
 
+func beforeRedisTestsWithAddr(t *testing.T) (*redis.Pool, string, func()) {
+	addr := initRedis(t)
 	t.Logf("connecting to redis on addr: %s", addr)
 
 	rdb := MakeRdbPool(addr)
 	closer := func() { rdb.Close() }
 
-	return rdb, closer
+	return rdb, addr, closer
 }
 
 func initEmbeddedPostgres(t *testing.T, pgDB DB) {

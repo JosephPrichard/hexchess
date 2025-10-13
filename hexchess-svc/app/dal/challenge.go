@@ -1,11 +1,12 @@
-package svc
+package dal
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
-	"golang.org/x/net/context"
+	"hexchess-svc/app/util"
 	"hexchess-svc/db"
 	"log/slog"
 	"time"
@@ -63,7 +64,7 @@ func InsertChallenge(ctx context.Context, q *db.Queries, inst ChallengeInst) err
 }
 
 func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) (ChallengeEntity, error) {
-	trace := ctx.Value(TraceKey)
+	trace := ctx.Value(util.TraceKey)
 
 	if inst.MadeOn.IsZero() {
 		inst.MadeOn = time.Now()
@@ -91,12 +92,12 @@ func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) 
 
 	challenge := mapChallengeFromRow(db.SelectChallengesByParticipantRow(row))
 
-	dynLog("created a new challenge", err, "challenge", inst, "challenge", challenge, "trace", trace)
+	util.DynLog("created a new challenge", err, "challenge", inst, "challenge", challenge, "trace", trace)
 	return challenge, err
 }
 
 func GetChallengesByParticipant(ctx context.Context, q *db.Queries, challengerID *int64, challengeeID *int64, threshold time.Duration) ([]ChallengeEntity, error) {
-	trace := ctx.Value(TraceKey)
+	trace := ctx.Value(util.TraceKey)
 
 	var pgChallengerID pgtype.Int8
 	if challengerID != nil {
@@ -136,7 +137,7 @@ type DeleteResult struct {
 }
 
 func DeleteChallenge(ctx context.Context, q *db.Queries, challengeeID int64, challengerID int64) (DeleteResult, error) {
-	trace := ctx.Value(TraceKey)
+	trace := ctx.Value(util.TraceKey)
 
 	row, err := q.DeleteChallenge(ctx, db.DeleteChallengeParams{ChallengerID: challengeeID, ChallengeeID: challengerID})
 	if err != nil {
@@ -154,6 +155,6 @@ func DeleteExpiredChallenges(ctx context.Context, q *db.Queries, userID int64, t
 		UserID:     userID,
 		ExpireTime: pgtype.Timestamp{Valid: true, Time: t},
 	})
-	dynLog("deleted expired challenges", err, "userID", userID, "expireTime", t, "trace", ctx.Value(TraceKey))
+	util.DynLog("deleted expired challenges", err, "userID", userID, "expireTime", t, "trace", ctx.Value(util.TraceKey))
 	return nil
 }
