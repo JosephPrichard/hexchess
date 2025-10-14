@@ -1,4 +1,4 @@
-package dal
+package data
 
 import (
 	"context"
@@ -20,10 +20,10 @@ func TestLeaderboard(t *testing.T) {
 
 	ctx := context.WithValue(context.Background(), util.TraceKey, "test-leaderboard")
 
-	assert.NoError(t, IncrLeaderboard(ctx, rdb, IncrLbChangeSet{id1, 1500}))
-	assert.NoError(t, IncrLeaderboard(ctx, rdb, IncrLbChangeSet{id2, 1000}))
-	assert.NoError(t, IncrLeaderboard(ctx, rdb, IncrLbChangeSet{id3, 950}))
-	assert.NoError(t, IncrLeaderboard(ctx, rdb, IncrLbChangeSet{id4, 835}))
+	assert.NoError(t, IncrLeaderboard(ctx, rdb, UpdtLbChangeSet{id1, 1500}))
+	assert.NoError(t, IncrLeaderboard(ctx, rdb, UpdtLbChangeSet{id2, 1000}))
+	assert.NoError(t, IncrLeaderboard(ctx, rdb, UpdtLbChangeSet{id3, 950}))
+	assert.NoError(t, IncrLeaderboard(ctx, rdb, UpdtLbChangeSet{id4, 835}))
 
 	rank1, err := GetLeaderboardRank(ctx, rdb, id1)
 	assert.NoError(t, err)
@@ -42,7 +42,7 @@ func TestLeaderboard(t *testing.T) {
 	leaderboard1, err := GetLeaderboard(ctx, rdb, 0, 4)
 	assert.NoError(t, err)
 
-	assert.NoError(t, IncrLeaderboard(ctx, rdb, IncrLbChangeSet{id2, 30}))
+	assert.NoError(t, SetLeaderboard(ctx, rdb, UpdtLbChangeSet{id2, 1030}))
 
 	leaderboard2, err := GetLeaderboard(ctx, rdb, 1, 2)
 	assert.NoError(t, err)

@@ -1,4 +1,4 @@
-package dal
+package data
 
 import "context"
 
@@ -8,7 +8,7 @@ type GameplayDAL interface {
 	GetChessState(ctx context.Context, id string) (ChessState, error)
 	SetChessState(ctx context.Context, id string, state ChessState) (ChessState, error)
 	UpdateGameResult(ctx context.Context, params GRParams) (GRChangeSet, error)
-	UpdateLeaderboard(ctx context.Context, csList ...IncrLbChangeSet) error
+	UpdateLeaderboard(ctx context.Context, csList ...UpdtLbChangeSet) error
 }
 
 type GameplayDao struct {
@@ -31,6 +31,6 @@ func (s *GameplayDao) UpdateGameResult(ctx context.Context, params GRParams) (GR
 	return UpdateGameResultTx(ctx, s.PgDB, params)
 }
 
-func (s *GameplayDao) UpdateLeaderboard(ctx context.Context, csList ...IncrLbChangeSet) error {
+func (s *GameplayDao) UpdateLeaderboard(ctx context.Context, csList ...UpdtLbChangeSet) error {
 	return IncrLeaderboard(ctx, s.Rdb, csList...)
 }

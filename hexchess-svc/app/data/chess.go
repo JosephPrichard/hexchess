@@ -1,4 +1,4 @@
-package dal
+package data
 
 import (
 	"context"
@@ -50,10 +50,14 @@ func GetChessState(ctx context.Context, rdb *redis.Pool, id string) (ChessState,
 }
 
 func SetChessState(ctx context.Context, rdb *redis.Pool, id string, state ChessState) (ChessState, error) {
+	return SetChessStateAt(ctx, rdb, id, state, time.Now())
+}
+
+func SetChessStateAt(ctx context.Context, rdb *redis.Pool, id string, state ChessState, touch time.Time) (ChessState, error) {
 	trace := ctx.Value(util.TraceKey)
 
-	state.Touch = time.Now()
-	touch := float64(state.Touch.Unix())
+	state.Touch = touch
+	touchSecs := float64(state.Touch.Unix())
 	fullID := "game:" + id
 
 	data, err := state.Serialize()
@@ -66,18 +70,18 @@ func SetChessState(ctx context.Context, rdb *redis.Pool, id string, state ChessS
 
 	conn.Send("MULTI")
 	conn.Send("SET", fullID, data)
-	conn.Send("ZADD", GamesZSet, touch, fullID)
+	conn.Send("ZADD", GamesZSet, touchSecs, fullID)
 	if state.WhitePlayer != nil {
-		conn.Send("ZADD", getUserGameZSet(state.WhitePlayer.ID), touch, fullID)
+		conn.Send("ZADD", getUserGameZSet(state.WhitePlayer.ID), touchSecs, fullID)
 	}
 	if state.BlackPlayer != nil {
-		conn.Send("ZADD", getUserGameZSet(state.BlackPlayer.ID), touch, fullID)
+		conn.Send("ZADD", getUserGameZSet(state.BlackPlayer.ID), touchSecs, fullID)
 	}
 	if _, err = conn.Do("EXEC"); err != nil {
 		return ChessState{}, fmt.Errorf("failed to set chess state: %w", err)
 	}
 
-	slog.Info("set chess state", "key", fullID, "trace", trace)
+	slog.Info("set chess state", "key", fullID, "touch", touch, "trace", trace)
 	return state, nil
 }
 
@@ -121,6 +125,10 @@ func ExpireChessStatesBefore(ctx context.Context, conn redis.Conn, zSetName stri
 
 func GetUserChessViews(ctx context.Context, rdb *redis.Pool, userID int64) ([]ChessView, error) {
 	return GetChessViews(ctx, rdb, getUserGameZSet(userID), 1, -1)
+}
+
+func GetUserChessViewsPaged(ctx context.Context, rdb *redis.Pool, userID int64, page, count int) ([]ChessView, error) {
+	return GetChessViews(ctx, rdb, getUserGameZSet(userID), page, count)
 }
 
 func GetAllChessViews(ctx context.Context, rdb *redis.Pool, page, count int) ([]ChessView, error) {
@@ -178,4 +186,21 @@ func GetChessViews(ctx context.Context, rdb *redis.Pool, zSetName string, page, 
 
 	slog.Info("retrieved chess views", "count", len(views), "zSetName", zSetName, "page", page, "trace", trace)
 	return views, nil
+}
+
+func GetChessStateCount(ctx context.Context, rdb *redis.Pool) (int64, error) {
+	trace := ctx.Value(util.TraceKey)
+	conn := rdb.Get()
+	defer conn.Close()
+
+	if err := ExpireChessStates(ctx, conn, GamesZSet); err != nil {
+		return 0, err
+	}
+	count, err := redis.Int64(conn.Do("ZCARD", GamesZSet))
+	if err != nil {
+		return 0, fmt.Errorf("failed to select chess count: %w", err)
+	}
+
+	slog.Info("selected chess count", "count", count, "trace", trace)
+	return count, err
 }

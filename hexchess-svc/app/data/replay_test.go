@@ -1,8 +1,9 @@
-package dal
+package data
 
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
+	"hexchess-svc/app/util"
 	"testing"
 )
 

@@ -1,5 +1,5 @@
 syntax = "proto3";
-option go_package = "hexchess-dal/pb";
+option go_package = "hexchess-data/pb";
 
 package messages;
 

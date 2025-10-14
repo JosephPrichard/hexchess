@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/app/chess"
-	"hexchess-svc/app/dal"
+	"hexchess-svc/app/data"
 	"hexchess-svc/app/util"
 	"log/slog"
 	"math/big"
@@ -14,7 +14,7 @@ import (
 
 const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
-func CreateGame(ctx context.Context, a dal.GameplayDAL, color dal.ColorSelect, timeControl dal.TimeControl) (string, error) {
+func CreateGame(ctx context.Context, a data.GameplayDAL, color data.ColorSelect, timeControl data.TimeControl) (string, error) {
 	bID := make([]byte, 8)
 	for i := range bID {
 		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(characters))))
@@ -25,7 +25,7 @@ func CreateGame(ctx context.Context, a dal.GameplayDAL, color dal.ColorSelect, t
 	}
 	strID := string(bID)
 
-	state := dal.MakeStartChessState(strID, timeControl)
+	state := data.MakeStartChessState(strID, timeControl)
 	state.FirstColor = color
 	state.Game.InitPieceMoves()
 
@@ -40,7 +40,7 @@ func CreateGame(ctx context.Context, a dal.GameplayDAL, color dal.ColorSelect, t
 	return strID, nil
 }
 
-func broadcastOnCreateGame(a dal.GameplayDAL) {
+func broadcastOnCreateGame(a data.GameplayDAL) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Warn("recovered in CreateGame broadcast handler", "err", r)
@@ -56,15 +56,15 @@ func broadcastOnCreateGame(a dal.GameplayDAL) {
 	}
 	slog.Info("counted chess states after creating game", "count", count)
 
-	//dal.GameBroadcaster.MultiBroker(count)
+	//data.GameBroadcaster.MultiBroker(count)
 }
 
-func JoinGame(ctx context.Context, a dal.GameplayDAL, gameID string, player dal.PlayerState) (dal.ChessState, error) {
+func JoinGame(ctx context.Context, a data.GameplayDAL, gameID string, player data.PlayerState) (data.ChessState, error) {
 	trace := ctx.Value(util.TraceKey)
 
 	state, err := a.GetChessState(ctx, gameID)
 	if err != nil {
-		return dal.ChessState{}, err
+		return data.ChessState{}, err
 	}
 
 	hasWhite := state.WhitePlayer != nil
@@ -77,9 +77,9 @@ func JoinGame(ctx context.Context, a dal.GameplayDAL, gameID string, player dal.
 		case !hasWhite && !hasBlack:
 			n, err := rand.Int(rand.Reader, big.NewInt(1000))
 			if err != nil {
-				return dal.ChessState{}, err
+				return data.ChessState{}, err
 			}
-			pickWhite := state.FirstColor == dal.Random && n.Int64()%2 == 0 || state.FirstColor == dal.White
+			pickWhite := state.FirstColor == data.Random && n.Int64()%2 == 0 || state.FirstColor == data.White
 			if pickWhite {
 				state.WhitePlayer = &player
 				color = "white"
@@ -105,7 +105,7 @@ func JoinGame(ctx context.Context, a dal.GameplayDAL, gameID string, player dal.
 }
 
 type MoveResult struct {
-	Room dal.ChessState
+	Room data.ChessState
 	Move chess.PieceMove
 }
 
@@ -115,7 +115,7 @@ var (
 	ErrInvalidMove  = errors.New("invalid move")
 )
 
-func MakeGameMove(ctx context.Context, d dal.GameplayDAL, gameID string, player dal.PlayerState, move chess.PieceMove) (MoveResult, error) {
+func MakeGameMove(ctx context.Context, d data.GameplayDAL, gameID string, player data.PlayerState, move chess.PieceMove) (MoveResult, error) {
 	trace := ctx.Value(util.TraceKey)
 
 	state, err := d.GetChessState(ctx, gameID)
@@ -147,7 +147,7 @@ func MakeGameMove(ctx context.Context, d dal.GameplayDAL, gameID string, player 
 	if game.CheckmateReached() {
 		state.IsEnded = true
 		isWhiteWin := !board.IsWhiteTurn
-		if err := handleFinishGame(ctx, d, state, isWhiteWin, dal.Checkmate); err != nil {
+		if err := handleFinishGame(ctx, d, state, isWhiteWin, data.Checkmate); err != nil {
 			return MoveResult{}, err
 		}
 	}
@@ -162,7 +162,7 @@ func MakeGameMove(ctx context.Context, d dal.GameplayDAL, gameID string, player 
 	return MoveResult{Room: state, Move: move}, nil
 }
 
-func ForfeitGame(ctx context.Context, d dal.GameplayDAL, gameID string, player dal.PlayerState) error {
+func ForfeitGame(ctx context.Context, d data.GameplayDAL, gameID string, player data.PlayerState) error {
 	trace := ctx.Value(util.TraceKey)
 
 	state, err := d.GetChessState(ctx, gameID)
@@ -177,7 +177,7 @@ func ForfeitGame(ctx context.Context, d dal.GameplayDAL, gameID string, player d
 	didBlackForfeit := state.BlackPlayer.ID == player.ID
 	state.IsEnded = true
 
-	if err := handleFinishGame(ctx, d, state, didBlackForfeit, dal.Forfeit); err != nil {
+	if err := handleFinishGame(ctx, d, state, didBlackForfeit, data.Forfeit); err != nil {
 		return err
 	}
 	if _, err := d.SetChessState(ctx, gameID, state); err != nil {
@@ -188,7 +188,7 @@ func ForfeitGame(ctx context.Context, d dal.GameplayDAL, gameID string, player d
 	return err
 }
 
-func handleFinishGame(ctx context.Context, d dal.GameplayDAL, state dal.ChessState, isWhiteWin bool, cause dal.ReplayCause) error {
+func handleFinishGame(ctx context.Context, d data.GameplayDAL, state data.ChessState, isWhiteWin bool, cause data.ReplayCause) error {
 	trace := ctx.Value(util.TraceKey)
 	fail := func(m string, err error) error {
 		err = fmt.Errorf("%s: %v", m, err)
@@ -202,7 +202,7 @@ func handleFinishGame(ctx context.Context, d dal.GameplayDAL, state dal.ChessSta
 	whiteID := state.WhitePlayer.ID
 	blackID := state.BlackPlayer.ID
 
-	params := dal.GRParams{
+	params := data.GRParams{
 		WhiteID:    whiteID,
 		BlackID:    blackID,
 		Cause:      cause,
@@ -213,15 +213,15 @@ func handleFinishGame(ctx context.Context, d dal.GameplayDAL, state dal.ChessSta
 	if err != nil {
 		return fail("failed to execute finish game tx", err)
 	}
-	if cs == (dal.GRChangeSet{}) {
+	if cs == (data.GRChangeSet{}) {
 		return nil
 	}
 
 	slog.Info("applying ELO change set to leaderboard", "changeSet", cs, "room", state.ID, "trace", trace)
 
 	if err := d.UpdateLeaderboard(ctx,
-		dal.IncrLbChangeSet{ID: cs.WinID, EloDiff: cs.WinEloDiff},
-		dal.IncrLbChangeSet{ID: cs.LoseID, EloDiff: cs.LoseEloDiff},
+		data.UpdtLbChangeSet{ID: cs.WinID, EloDiff: cs.WinEloDiff},
+		data.UpdtLbChangeSet{ID: cs.LoseID, EloDiff: cs.LoseEloDiff},
 	); err != nil {
 		return fail("failed to increment user leaderboard stats", err)
 	}

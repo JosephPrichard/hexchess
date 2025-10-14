@@ -1,26 +1,23 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"hexchess-svc/app/dal"
+	"hexchess-svc/app/data"
+	"hexchess-svc/cmd"
 	"hexchess-svc/db"
 	"hexchess-svc/static"
 	"log"
 	"log/slog"
 	"os"
-	"strings"
 )
 
 func main() {
-	initEnv()
+	cmd.InitEnv()
 
 	appPort := os.Getenv("APP_PORT")
-	elasticUser := os.Getenv("ELASTICSEARCH_USERNAME")
-	_ = os.Getenv("ELASTICSEARCH_PASSWORD")
 	dbPass := os.Getenv("DB_PASSWORD")
 	dbName := os.Getenv("DB_NAME")
 	dbPort := os.Getenv("DB_PORT")
@@ -34,7 +31,6 @@ func main() {
 
 	slog.Info("loaded environment variables",
 		"APP_PORT", appPort,
-		"ELASTICSEARCH_USERNAME", elasticUser,
 		"DB_NAME", dbName,
 		"DB_PORT", dbPort,
 		"DB_USER", dbUser,
@@ -59,39 +55,18 @@ func main() {
 	defer pool.Close()
 
 	q := db.New(pool)
-	pgDB := dal.MakeDbClient(q, pool)
+	pgDB := data.MakeDbClient(q, pool)
 
 	redisAddr := redisHost + ":" + redisPort
-	psAddr := redisPubSubHost + ":" + redisPubSubPort
+	//psAddr := redisPubSubHost + ":" + redisPubSubPort
 
 	slog.Info("connecting to redis db", "host", redisHost, "port", redisPort)
-	rdb := dal.MakeRdbPool(redisAddr)
+	rdb := data.MakeRdbPool(redisAddr)
 
 	slog.Info("connecting to redis pubsub channels", "host", redisPubSubHost, "port", redisPubSubPort)
-	_ = dal.DialAndListenGameMessages(psAddr)
+	//_ = data.DialAndListenGameMessages(psAddr)
 
-	_ = dal.Stores{Rdb: rdb, PgDB: pgDB}
+	_ = data.Stores{Rdb: rdb, PgDB: pgDB}
 
 	slog.Info("starting server", "port", appPort, "allowedOrigins", allowedOrigins)
-}
-
-func initEnv() {
-	file, err := os.Open(".env")
-	if err != nil {
-		log.Printf("error loading .env file: %v", err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		index := strings.Index(line, "=")
-		if index < 0 {
-			log.Fatalf("invalid line in .env file: %s", line)
-		}
-		key, value := line[:index], line[index+1:]
-		if err := os.Setenv(key, value); err != nil {
-			log.Printf("error setting env var: %v", err)
-		}
-	}
 }

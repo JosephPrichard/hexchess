@@ -1,9 +1,10 @@
-package dal
+package data
 
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
+	"hexchess-svc/app/util"
 	"hexchess-svc/pb"
 	"testing"
 )

@@ -1,9 +1,10 @@
-package dal
+package data
 
 import (
 	"context"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"hexchess-svc/app/util"
 	"math"
 	"testing"
 	"time"

@@ -1073,7 +1073,7 @@ const file_pb_messages_proto_rawDesc = "" +
 	"\x04move\x18\x05 \x01(\v2\x0e.messages.MoveH\x00R\x04move\x12$\n" +
 	"\x04chat\x18\x06 \x01(\v2\x0e.messages.ChatH\x00R\x04chat\x12-\n" +
 	"\aforfeit\x18\a \x01(\v2\x11.messages.ForfeitH\x00R\aforfeitB\a\n" +
-	"\x05valueB\x11Z\x0fhexchess-dal/pbb\x06proto3"
+	"\x05valueB\x12Z\x10hexchess-data/pbb\x06proto3"
 
 var (
 	file_pb_messages_proto_rawDescOnce sync.Once
