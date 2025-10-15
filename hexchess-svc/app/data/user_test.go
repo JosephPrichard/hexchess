@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"hexchess-svc/app/util"
 	"testing"
+	"time"
 )
 
 var TestUsers = []UserInst{
@@ -16,7 +17,7 @@ var TestUsers = []UserInst{
 	{Username: "user5", Password: "password5", Country: "us", Elo: 1500, Wins: 40, Losses: 35},
 }
 
-func createTestUser(t *testing.T, pgDB DB, inst UserInst) UserEntity {
+func createTestUser(t TestLogger, pgDB DB, inst UserInst) UserEntity {
 	ctx := context.WithValue(context.Background(), util.TraceKey, "create-test-user")
 	u, err := InsertUser(ctx, pgDB.Q, inst)
 	if err != nil {
@@ -25,7 +26,7 @@ func createTestUser(t *testing.T, pgDB DB, inst UserInst) UserEntity {
 	return u
 }
 
-func createTestUsers(t *testing.T, pgDB DB, insts ...UserInst) []UserEntity {
+func createTestUsers(t TestLogger, pgDB DB, insts ...UserInst) []UserEntity {
 	var users []UserEntity
 	for _, inst := range insts {
 		users = append(users, createTestUser(t, pgDB, inst))
@@ -66,55 +67,30 @@ func TestInsertThenVerify(t *testing.T) {
 	assert.Error(t, err2)
 }
 
-//
-//func TestBatchInsertThenGet(t *testing.T) {
-//	pgDB, closer := beforeDbTests(t)
-//	defer closer()
-//
-//	ctx := context.WithValue(context.Background(), util.TraceKey, "test-batch-insert-then-get")
-//
-//	users := []UserInst{
-//		{Username: "user1", Password: "password1", Country: "us", Elo: 1005, Wins: 10, Losses: 9},
-//		{Username: "user2", Password: "password2", Country: "eu", Elo: 1035, Wins: 12, Losses: 9},
-//	}
-//	assert.NoError(t, BatchInsertUsers(ctx, pgDB.Q, users))
-//
-//	u1, err := GetUserById(ctx, pgDB.Q, 1)
-//	assert.NoError(t, err)
-//	u2, err := GetUserById(ctx, pgDB.Q, 2)
-//	assert.NoError(t, err)
-//
-//	v1, err := VerifyUser(ctx, pgDB.Q, "user1", "password1")
-//	assert.NoError(t, err)
-//	v2, err := VerifyUser(ctx, pgDB.Q, "user2", "password2")
-//	assert.NoError(t, err)
-//
-//	assert.Equal(t, u1.ID, v1.ID)
-//	assert.Equal(t, u2.ID, v2.ID)
-//}
+func TestBatchInsertThenGet(t *testing.T) {
+	pgDB, closer := beforeDbTests(t)
+	defer closer()
 
-//func testUpdateStatsRollback(t *testing.T, pgDB DB) {
-//	ctx := context.Background()
-//
-//	createTestUsers(t, pgDB.Q)
-//
-//	userDao.MockProbWins = func(_, _ float64) (float64, error) {
-//		panic("mocked panic")
-//	}
-//
-//	func () {
-//		defer func() {
-//			if err := recover(); err != nil {
-//				t.Logf("panic recovered: %s", err)
-//			}
-//		}()
-//		_, _ = UpdateGameResultTx(ctx, pgDB, 1, 3)
-//	}()
-//
-//	u1, err := GetUserById(ctx, pgDB.pgDB.Q, 1)
-//	assert.NoError(t, err)
-//	assert.Equal(t, float64(1000), u1.Elo)
-//}
+	ctx := context.WithValue(context.Background(), util.TraceKey, "test-batch-insert-then-get")
+
+	insts := []UserInst{
+		{Username: "user1-" + uuid.NewString(), Password: "password1", Country: "us", Elo: 1005, Wins: 10, Losses: 9},
+		{Username: "user2-" + uuid.NewString(), Password: "password2", Country: "eu", Elo: 1035, Wins: 12, Losses: 9},
+	}
+	users, err := BatchInsertUsers(ctx, pgDB.Q, insts)
+
+	for i := range users {
+		users[i].ID = 0
+		users[i].JoinedOn = time.Time{}
+	}
+	expUsers := []UserEntity{
+		{Username: insts[0].Username, Country: "us", Elo: 1005, HighestElo: 1005, Wins: 10, Losses: 9, Rank: 0, Bio: ""},
+		{Username: insts[1].Username, Country: "eu", Elo: 1035, HighestElo: 1035, Wins: 12, Losses: 9, Rank: 0, Bio: ""},
+	}
+
+	assert.Equal(t, expUsers, users)
+	assert.NoError(t, err)
+}
 
 func TestUpdateUser(t *testing.T) {
 	pgDB, closer := beforeDbTests(t)

@@ -3,9 +3,10 @@ INSERT INTO users (username, country, elo, highest_elo, wins, losses, password, 
 VALUES (sqlc.arg('username'), sqlc.arg('country'), sqlc.arg('elo'), sqlc.arg('highestElo'), sqlc.arg('wins'), sqlc.arg('losses'), sqlc.arg('password'), sqlc.arg('salt'))
 RETURNING id, username, country, elo, highest_elo, wins, losses, bio, joined_on;
 
--- name: BatchInsertUser :copyfrom
+-- name: BatchInsertUser :batchone
 INSERT INTO users (username, country, elo, highest_elo, wins, losses, password, salt)
-VALUES (sqlc.arg('username'), sqlc.arg('country'), sqlc.arg('elo'), sqlc.arg('highestElo'), sqlc.arg('wins'), sqlc.arg('losses'), sqlc.arg('password'), sqlc.arg('salt'));
+VALUES (sqlc.arg('username'), sqlc.arg('country'), sqlc.arg('elo'), sqlc.arg('highestElo'), sqlc.arg('wins'), sqlc.arg('losses'), sqlc.arg('password'), sqlc.arg('salt'))
+RETURNING id, username, country, elo, highest_elo, wins, losses, bio, joined_on;
 
 -- name: SelectLoginByName :one
 SELECT id, username, country, elo, password, salt

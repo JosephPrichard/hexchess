@@ -27,20 +27,30 @@ func TestGetSetPieces(t *testing.T) {
 }
 
 func TestDetermineIsCheckmate(t *testing.T) {
-	game := MakeEmptyGame()
-	game.
+	game1 := MakeEmptyGame()
+	game1.
 		SetPiece("f6", WhiteKing).
 		SetPiece("f4", BlackQueen).
 		SetPiece("f8", BlackQueen).
 		SetPiece("b4", BlackBishop).
 		SetPiece("j4", BlackBishop).
 		SetPiece("f9", BlackKing)
+	game2 := MakeEmptyGame()
+	game2.
+		SetPiece("f1", WhiteKing).
+		SetPiece("a1", BlackQueen).
+		SetPiece("h1", BlackRook).
+		SetPiece("f3", BlackRook).
+		SetPiece("f9", BlackKing)
 
-	t.Logf("game:\n%s", game.Board.String())
-	game.InitPieceMoves()
-
-	isCheckmate := game.CheckmateReached()
-	assert.True(t, isCheckmate)
+	for i, game := range []Game{game1, game2} {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			game.InitPieceMoves()
+			t.Logf("game:\n%s", game.StringColor(!game.Board.IsWhiteTurn))
+			isCheckmate := game.CheckmateReached()
+			assert.True(t, isCheckmate)
+		})
+	}
 }
 
 func assertMoves(t *testing.T, actual []Hex, expected ...string) {

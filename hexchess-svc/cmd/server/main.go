@@ -43,7 +43,7 @@ func main() {
 	)
 
 	var countryList []string
-	if err := json.Unmarshal(static.CountryListFile, &countryList); err != nil {
+	if err := json.Unmarshal(static.CountryListJson, &countryList); err != nil {
 		log.Fatalf("failed to unmarshal country list: %v", err)
 	}
 
@@ -62,6 +62,7 @@ func main() {
 
 	slog.Info("connecting to redis db", "host", redisHost, "port", redisPort)
 	rdb := data.MakeRdbPool(redisAddr)
+	defer rdb.Close()
 
 	slog.Info("connecting to redis pubsub channels", "host", redisPubSubHost, "port", redisPubSubPort)
 	//_ = data.DialAndListenGameMessages(psAddr)

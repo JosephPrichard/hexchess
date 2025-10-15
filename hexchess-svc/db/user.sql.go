@@ -11,17 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type BatchInsertUserParams struct {
-	Username   string
-	Country    pgtype.Text
-	Elo        float64
-	HighestElo float64
-	Wins       int32
-	Losses     int32
-	Password   string
-	Salt       string
-}
-
 const getElo = `-- name: GetElo :one
 SELECT elo
 FROM users

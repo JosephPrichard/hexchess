@@ -9,11 +9,11 @@ var TraceKey TraceType = "trace"
 func DynLog(msg string, err error, args ...any) {
 	if err != nil {
 		ea := make([]any, len(args)+2)
-		ea[0] = "err"
-		ea[1] = err
 		for i, arg := range args {
-			ea[i+2] = arg
+			ea[i] = arg
 		}
+		ea[len(args)] = "err"
+		ea[len(args)+1] = err
 		slog.Error(msg, ea...)
 	} else {
 		slog.Info(msg, args...)

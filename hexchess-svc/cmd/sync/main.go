@@ -1,4 +1,4 @@
-package sync
+package main
 
 import (
 	"context"
@@ -11,9 +11,12 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"time"
 )
 
 func main() {
+	start := time.Now()
+
 	cmd.InitEnv()
 
 	dbPass := os.Getenv("DB_PASSWORD")
@@ -38,6 +41,7 @@ func main() {
 
 	slog.Info("connecting to redis db", "host", redisHost, "port", redisPort)
 	rdb := data.MakeRdbPool(redisAddr)
+	defer rdb.Close()
 
 	afterID := int64(0)
 	for {
@@ -48,15 +52,17 @@ func main() {
 		if len(rows) == 0 {
 			break
 		}
-		var csList []data.UpdtLbChangeSet
+		var changes []data.UpdtLbChangeSet
 		for i, row := range rows {
 			if i == len(rows)-1 {
 				afterID = row.ID
 			}
-			csList = append(csList, data.UpdtLbChangeSet{ID: row.ID, EloDiff: row.Elo})
+			changes = append(changes, data.UpdtLbChangeSet{ID: row.ID, EloDiff: row.Elo})
 		}
-		if err := data.SetLeaderboard(ctx, rdb, csList...); err != nil {
+		if err := data.SetLeaderboard(ctx, rdb, changes...); err != nil {
 			log.Fatalf("failed to incr leaderboard: %v", err)
 		}
 	}
+
+	log.Printf("finished syncing leaderboard: %v", time.Now().Sub(start))
 }

@@ -123,8 +123,7 @@ func MakeGameMove(ctx context.Context, d data.GameplayDAL, gameID string, player
 		return MoveResult{}, err
 	}
 
-	game := state.Game
-	board := game.Board
+	game := &state.Game
 	currPlayer := state.CurrPlayer()
 
 	if state.IsEnded {
@@ -146,8 +145,8 @@ func MakeGameMove(ctx context.Context, d data.GameplayDAL, gameID string, player
 
 	if game.CheckmateReached() {
 		state.IsEnded = true
-		isWhiteWin := !board.IsWhiteTurn
-		if err := handleFinishGame(ctx, d, state, isWhiteWin, data.Checkmate); err != nil {
+		isWhiteWin := !game.Board.IsWhiteTurn
+		if err := d.WriteFinishedGame(ctx, state, isWhiteWin, data.Checkmate); err != nil {
 			return MoveResult{}, err
 		}
 	}
@@ -177,7 +176,7 @@ func ForfeitGame(ctx context.Context, d data.GameplayDAL, gameID string, player 
 	didBlackForfeit := state.BlackPlayer.ID == player.ID
 	state.IsEnded = true
 
-	if err := handleFinishGame(ctx, d, state, didBlackForfeit, data.Forfeit); err != nil {
+	if err := d.WriteFinishedGame(ctx, state, didBlackForfeit, data.Forfeit); err != nil {
 		return err
 	}
 	if _, err := d.SetChessState(ctx, gameID, state); err != nil {
@@ -186,46 +185,4 @@ func ForfeitGame(ctx context.Context, d data.GameplayDAL, gameID string, player 
 
 	slog.Info("player forfeited game", "playerID", player.ID, "gameId", gameID, "err", err, "trace", trace)
 	return err
-}
-
-func handleFinishGame(ctx context.Context, d data.GameplayDAL, state data.ChessState, isWhiteWin bool, cause data.ReplayCause) error {
-	trace := ctx.Value(util.TraceKey)
-	fail := func(m string, err error) error {
-		err = fmt.Errorf("%s: %v", m, err)
-		slog.Error("failed to finish game", "err", err, "trace", trace)
-		return err
-	}
-
-	if state.WhitePlayer == nil || state.BlackPlayer == nil {
-		panic(fmt.Errorf("assertion error: room players must not be nil: roomID: %s", state.ID))
-	}
-	whiteID := state.WhitePlayer.ID
-	blackID := state.BlackPlayer.ID
-
-	params := data.GRParams{
-		WhiteID:    whiteID,
-		BlackID:    blackID,
-		Cause:      cause,
-		IsWhiteWin: isWhiteWin,
-		MoveList:   state.MoveList,
-	}
-	cs, err := d.UpdateGameResult(ctx, params)
-	if err != nil {
-		return fail("failed to execute finish game tx", err)
-	}
-	if cs == (data.GRChangeSet{}) {
-		return nil
-	}
-
-	slog.Info("applying ELO change set to leaderboard", "changeSet", cs, "room", state.ID, "trace", trace)
-
-	if err := d.UpdateLeaderboard(ctx,
-		data.UpdtLbChangeSet{ID: cs.WinID, EloDiff: cs.WinEloDiff},
-		data.UpdtLbChangeSet{ID: cs.LoseID, EloDiff: cs.LoseEloDiff},
-	); err != nil {
-		return fail("failed to increment user leaderboard stats", err)
-	}
-
-	slog.Info("finished game", "room", state.ID, "trace", trace)
-	return nil
 }

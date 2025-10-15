@@ -16,37 +16,37 @@ type UpdtLbChangeSet struct {
 	EloDiff float64
 }
 
-func SetLeaderboard(ctx context.Context, rdb *redis.Pool, csList ...UpdtLbChangeSet) error {
+func SetLeaderboard(ctx context.Context, rdb *redis.Pool, changes ...UpdtLbChangeSet) error {
 	trace := ctx.Value(util.TraceKey)
 	conn := rdb.Get()
 	defer conn.Close()
 
 	conn.Send("MULTI")
-	for _, cs := range csList {
+	for _, cs := range changes {
 		conn.Send("ZADD", LeaderboardZSet, "NX", cs.EloDiff, cs.ID)
 	}
 	if _, err := conn.Do("EXEC"); err != nil {
 		return fmt.Errorf("failed to set leaderboard users: %w", err)
 	}
 
-	slog.Info("set leaderboard users", "csList", csList, "trace", trace)
+	slog.Info("set leaderboard users", "changes", changes, "trace", trace)
 	return nil
 }
 
-func IncrLeaderboard(ctx context.Context, rdb *redis.Pool, csList ...UpdtLbChangeSet) error {
+func IncrLeaderboard(ctx context.Context, rdb *redis.Pool, changes ...UpdtLbChangeSet) error {
 	trace := ctx.Value(util.TraceKey)
 	conn := rdb.Get()
 	defer conn.Close()
 
 	conn.Send("MULTI")
-	for _, cs := range csList {
+	for _, cs := range changes {
 		conn.Send("ZINCRBY", LeaderboardZSet, cs.EloDiff, cs.ID)
 	}
 	if _, err := conn.Do("EXEC"); err != nil {
 		return fmt.Errorf("failed to increment leaderboard user: %w", err)
 	}
 
-	slog.Info("incremented leaderboard user", "csList", csList, "trace", trace)
+	slog.Info("incremented leaderboard user", "changes", changes, "trace", trace)
 	return nil
 }
 

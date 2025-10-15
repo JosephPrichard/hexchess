@@ -51,7 +51,12 @@ func teardownTestInfra() {
 	}
 }
 
-func initRedis(t *testing.T) string {
+type TestLogger interface {
+	Logf(format string, args ...interface{})
+	Fatalf(format string, args ...any)
+}
+
+func initRedis(t TestLogger) string {
 	muRedis.Lock()
 	defer muRedis.Unlock()
 
@@ -81,12 +86,12 @@ func initRedis(t *testing.T) string {
 	return host + ":" + port
 }
 
-func beforeRedisTests(t *testing.T) (*redis.Pool, func()) {
+func beforeRedisTests(t TestLogger) (*redis.Pool, func()) {
 	pool, _, closer := beforeRedisTestsWithAddr(t)
 	return pool, closer
 }
 
-func beforeRedisTestsWithAddr(t *testing.T) (*redis.Pool, string, func()) {
+func beforeRedisTestsWithAddr(t TestLogger) (*redis.Pool, string, func()) {
 	addr := initRedis(t)
 	t.Logf("connecting to redis on addr: %s", addr)
 
@@ -96,7 +101,7 @@ func beforeRedisTestsWithAddr(t *testing.T) (*redis.Pool, string, func()) {
 	return rdb, addr, closer
 }
 
-func initEmbeddedPostgres(t *testing.T, pgDB DB) {
+func initEmbeddedPostgres(t TestLogger, pgDB DB) {
 	muPostgres.Lock()
 	defer muPostgres.Unlock()
 
@@ -132,7 +137,7 @@ func initEmbeddedPostgres(t *testing.T, pgDB DB) {
 	t.Logf("finished setting up the embedded test database in %v", time.Now().Sub(start))
 }
 
-func beforeDbTests(t *testing.T) (DB, func()) {
+func beforeDbTests(t TestLogger) (DB, func()) {
 	pool, err := pgxpool.New(context.Background(), fmt.Sprintf("user=%s dbname=%s password=%s port=%d", TestDbUser, TestDbName, TestDbPass, TestDbPort))
 	if err != nil {
 		t.Fatalf("failed to create pool: %v", err)
@@ -145,12 +150,4 @@ func beforeDbTests(t *testing.T) (DB, func()) {
 	}
 
 	return pgDB, closer
-}
-
-func beforeStoreTests(t *testing.T) (Stores, func()) {
-	rdb, rdbCloser := beforeRedisTests(t)
-	pgDB, pgCloser := beforeDbTests(t)
-	closer := func() { rdbCloser(); pgCloser() }
-
-	return Stores{Rdb: rdb, PgDB: pgDB}, closer
 }

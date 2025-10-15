@@ -387,29 +387,12 @@ func (b *Board) InBoundsHex(hex Hex) bool {
 	return b.InBounds(hex.File, hex.Rank)
 }
 
-func (b *Board) ToPieceMovesString(moves []PieceMoves) string {
-	var isAttacked [Files][]bool
-	for i := range len(isAttacked) {
-		isAttacked[i] = make([]bool, RanksPerFile[i])
-	}
-
-	for _, pm := range moves {
-		for _, move := range pm.Moves {
-			isAttacked[move.File][move.Rank] = true
-		}
-	}
-
-	return b.StringFunc(func(hex Hex) bool {
-		return isAttacked[hex.File][hex.Rank]
-	})
-}
-
 func (b *Board) String() string {
 	// default: no moves highlighted
-	return b.StringFunc(func(h Hex) bool { return false })
+	return b.StringFunc(func(h Hex) rune { return 0 })
 }
 
-func (b *Board) StringFunc(isMove func(Hex) bool) string {
+func (b *Board) StringFunc(isMove func(Hex) rune) string {
 	var sb strings.Builder
 	sb.WriteString("\n")
 
@@ -427,13 +410,14 @@ func (b *Board) StringFunc(isMove func(Hex) bool) string {
 
 		for rank := 0; rank < ranksCount; rank++ {
 			hex := Hex{File: file, Rank: rank}
-			if isMove(hex) {
-				sb.WriteString("x   ")
+			ch := isMove(hex)
+			piece := b.Pieces[file][rank]
+			if ch != 0 && piece == Empty {
+				sb.WriteRune(ch)
 			} else {
-				piece := b.Pieces[file][rank]
 				sb.WriteRune(piece.ToChar())
-				sb.WriteString("   ")
 			}
+			sb.WriteString("   ")
 		}
 
 		sb.WriteString("\n")
@@ -442,8 +426,12 @@ func (b *Board) StringFunc(isMove func(Hex) bool) string {
 	return sb.String()
 }
 
-func (b *Board) ToMovesString(moves []Hex) string {
-	return b.StringFunc(func(hex Hex) bool {
-		return slices.Contains(moves, hex)
+func (b *Board) StringMoves(moves []Hex) string {
+	return b.StringFunc(func(hex Hex) rune {
+		if slices.Contains(moves, hex) {
+			return 'x'
+		} else {
+			return 0
+		}
 	})
 }

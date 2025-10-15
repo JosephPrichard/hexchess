@@ -10,6 +10,6 @@ func TestDynLog(t *testing.T) {
 	DynLog("hello world", nil, "arg1", 0, "arg2", "value")
 
 	// check for output in logs to contain
-	// ERROR hello world err=test arg1=0 arg2=value
+	// ERROR hello world arg1=0 arg2=value err=test
 	// INFO hello world arg1=0 arg2=value
 }

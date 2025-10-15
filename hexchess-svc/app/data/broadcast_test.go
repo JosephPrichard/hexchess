@@ -124,3 +124,18 @@ func TestBroadcastGameMessage(t *testing.T) {
 
 	assert.Equal(t, []string{"test1", "test2"}, getChatMessages(t, <-mChan))
 }
+
+func BenchmarkBroadcastGameMessage(b *testing.B) {
+	rdb, addr, closer := beforeRedisTestsWithAddr(b)
+	defer closer() // this will also stop the goroutine listening to the pubsub channel
+
+	m := MakeMultiBrokerMap("test-broker-map")
+	DialAndListenGameMessages(m, addr)
+
+	ctx := context.WithValue(context.Background(), util.TraceKey, "test-broadcast-game-message")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		assert.NoError(b, BroadcastGameMessage(ctx, rdb, pb.MakeChat("1", "test1")))
+	}
+}

@@ -74,82 +74,96 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 func TestMakeMove(t *testing.T) {
 	gameID := "test123-" + uuid.NewString()
 
-	inpState := data.MakeStartChessState(gameID, data.RealTime)
-	inpState.WhitePlayer = &data.PlayerState{ID: 1}
-	inpState.BlackPlayer = &data.PlayerState{ID: 2}
+	ss := data.MakeStartChessState(gameID, data.RealTime)
+	ss.WhitePlayer = &data.PlayerState{ID: 1}
+	ss.BlackPlayer = &data.PlayerState{ID: 2}
 
-	tests := []struct {
-		pm     chess.PieceMove
-		player data.PlayerState
-		expErr error
-	}{
+	fs := data.ChessState{
+		ID:          gameID,
+		Game:        chess.MakeEmptyGame(),
+		FirstColor:  data.Random,
+		TimeControl: data.RealTime,
+		Touch:       time.UnixMilli(0),
+		WhitePlayer: &data.PlayerState{ID: 1},
+		BlackPlayer: &data.PlayerState{ID: 2},
+	}
+	fs.Game.Board.IsWhiteTurn = false
+	fs.Game.
+		SetPiece("f1", chess.WhiteKing).
+		SetPiece("a2", chess.BlackQueen).
+		SetPiece("h1", chess.BlackRook).
+		SetPiece("f3", chess.BlackRook).
+		SetPiece("f9", chess.BlackKing)
+
+	type Test struct {
+		pm             chess.PieceMove
+		state          data.ChessState
+		player         data.PlayerState
+		makesCheckmate bool
+		expErr         error
+	}
+
+	tests := []Test{
 		{
 			pm:     chess.PieceMove{To: chess.Hex{File: 1}}, // invalid turn
-			player: *inpState.BlackPlayer,
+			state:  ss,
+			player: *ss.BlackPlayer,
 			expErr: ErrTurn,
 		},
 		{
 			pm:     chess.PieceMove{To: chess.Hex{File: 1}}, // invalid move
-			player: *inpState.WhitePlayer,
+			state:  ss,
+			player: *ss.WhitePlayer,
 			expErr: ErrInvalidMove,
 		},
 		{
 			pm:     chess.PieceMove{Piece: chess.WhitePawn, From: chess.Hex{File: 1, Rank: 0}, To: chess.Hex{File: 1, Rank: 1}}, // valid move
-			player: *inpState.WhitePlayer,
+			state:  ss,
+			player: *ss.WhitePlayer,
+		},
+		{
+			pm:             chess.PieceMove{Piece: chess.BlackQueen, From: chess.Hex{File: 0, Rank: 1}, To: chess.Hex{File: 0, Rank: 0}}, // valid move
+			state:          fs,
+			makesCheckmate: true,
+			player:         *ss.BlackPlayer,
 		},
 	}
 
-	for i, test := range tests {
-		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			d := data.NewMockGameplayDAL(ctrl)
+	runTest := func(t *testing.T, test Test) {
+		ctrl := gomock.NewController(t)
+		d := data.NewMockGameplayDAL(ctrl)
 
-			ctx := context.WithValue(context.Background(), util.TraceKey, "test-make-move")
+		ctx := context.WithValue(context.Background(), util.TraceKey, "test-make-move")
 
+		// don't assert the chess states, since it is too complex to test that logic here
+		d.EXPECT().
+			GetChessState(gomock.Any(), gomock.Eq(gameID)).
+			Return(test.state, nil)
+		if test.expErr == nil {
 			d.EXPECT().
-				GetChessState(gomock.Any(), gomock.Eq(gameID)).
-				Return(inpState, nil)
-			if test.expErr == nil {
-				d.EXPECT().
-					// don't assert the chess state, since it is too complex to test that logic here
-					SetChessState(gomock.Any(), gomock.Eq(gameID), gomock.Any()).
-					Return(inpState, nil)
-			}
+				SetChessState(gomock.Any(), gomock.Eq(gameID), gomock.Any()).
+				DoAndReturn(func(_ context.Context, gameID string, state data.ChessState) (data.ChessState, error) {
+					return state, nil // echo stub
+				})
+		}
+		if test.makesCheckmate {
+			d.EXPECT().
+				WriteFinishedGame(gomock.Any(), gomock.Any(), false, data.Checkmate).
+				Return(nil)
+		}
 
-			result, err := MakeGameMove(ctx, d, gameID, test.player, test.pm)
-			if err == nil {
-				assert.Equal(t, test.pm, result.Move)
-			} else {
-				assert.Equal(t, test.expErr, err)
-			}
-		})
+		if result, err := MakeGameMove(ctx, d, gameID, test.player, test.pm); err == nil {
+			assert.Equal(t, test.pm, result.Move)
+		} else {
+			assert.Equal(t, test.expErr, err)
+		}
+	}
+	for i, test := range tests {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) { runTest(t, test) })
 	}
 }
 
 var MockMoveList = []chess.PieceMove{{Piece: 1, To: chess.Hex{Rank: 1}}}
-
-func TestHandleFinishGame(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	d := data.NewMockGameplayDAL(ctrl)
-
-	ctx := context.WithValue(context.Background(), util.TraceKey, "test-finish-game")
-
-	gameID := "test123-" + uuid.NewString()
-
-	inpState := data.MakeStartChessState(gameID, data.RealTime)
-	inpState.WhitePlayer = &data.PlayerState{ID: 1}
-	inpState.BlackPlayer = &data.PlayerState{ID: 2}
-	inpState.MoveList = MockMoveList
-
-	d.EXPECT().
-		UpdateGameResult(gomock.Any(), gomock.Eq(data.GRParams{WhiteID: 1, BlackID: 2, Cause: data.Checkmate, IsWhiteWin: true, MoveList: MockMoveList})).
-		Return(data.GRChangeSet{ReplayID: 1, WinID: 1, LoseID: 2, WinEloDiff: 30, LoseEloDiff: -30}, nil)
-	d.EXPECT().
-		UpdateLeaderboard(gomock.Any(), gomock.Eq([]data.UpdtLbChangeSet{{1, 30}, {2, -30}})).
-		Return(nil)
-
-	assert.NoError(t, handleFinishGame(ctx, d, inpState, true, data.Checkmate))
-}
 
 func TestForfeit_BlackForfeits(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -171,10 +185,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 		GetChessState(gomock.Any(), gomock.Eq(gameID)).
 		Return(inpState, nil)
 	d.EXPECT().
-		UpdateGameResult(gomock.Any(), gomock.Eq(data.GRParams{WhiteID: 1, BlackID: 2, Cause: data.Forfeit, IsWhiteWin: true, MoveList: MockMoveList})).
-		Return(data.GRChangeSet{ReplayID: 1, WinID: 1, LoseID: 2, WinEloDiff: 30, LoseEloDiff: -30}, nil)
-	d.EXPECT().
-		UpdateLeaderboard(gomock.Any(), gomock.Eq([]data.UpdtLbChangeSet{{1, 30}, {2, -30}})).
+		WriteFinishedGame(gomock.Any(), gomock.Eq(retState), gomock.Eq(true), gomock.Eq(data.Forfeit)).
 		Return(nil)
 	d.EXPECT().
 		SetChessState(gomock.Any(), gomock.Eq(gameID), gomock.Eq(retState)).

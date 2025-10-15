@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/sync/errgroup"
 	"hexchess-svc/app/util"
 	"hexchess-svc/db"
 	"log/slog"
@@ -152,21 +153,39 @@ func InsertUser(ctx context.Context, q *db.Queries, inst UserInst) (UserEntity, 
 	return user, nil
 }
 
-func BatchInsertUsers(ctx context.Context, q *db.Queries, insts []UserInst) error {
-	var batches []db.BatchInsertUserParams
+func BatchInsertUsers(ctx context.Context, q *db.Queries, insts []UserInst) ([]UserEntity, error) {
+	batches := make([]db.BatchInsertUserParams, len(insts))
 
-	for _, inst := range insts {
-		hash, err := hashPassword(inst.Password)
-		if err != nil {
-			return err
-		}
-		batch := mapInsertUserParams(inst, hash)
-		batches = append(batches, db.BatchInsertUserParams(batch))
+	var eg errgroup.Group
+	for i, inst := range insts {
+		eg.Go(func() error {
+			hash, err := hashPassword(inst.Password)
+			if err != nil {
+				return err
+			}
+			batch := mapInsertUserParams(inst, hash)
+			batches[i] = db.BatchInsertUserParams(batch)
+			return nil
+		})
+	}
+	if err := eg.Wait(); err != nil {
+		slog.Error("failed to batch insert users", "insts", insts, "err", err, "trace", ctx.Value(util.TraceKey))
+		return nil, err
 	}
 
-	rows, err := q.BatchInsertUser(ctx, batches)
-	util.DynLog("batch inserted users", err, "insts", insts, "rowsAffected", rows, "trace", ctx.Value(util.TraceKey))
-	return err
+	var users []UserEntity
+	var errs []error
+
+	q.BatchInsertUser(ctx, batches).QueryRow(func(i int, row db.BatchInsertUserRow, err error) {
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			users = append(users, mapUserFromRow(db.SelectUserByIDRow(row)))
+		}
+	})
+
+	util.DynLog("batch inserted user", errors.Join(errs...), "insts", insts, "users", users, "trace", ctx.Value(util.TraceKey))
+	return users, nil
 }
 
 type VerifiedUser struct {

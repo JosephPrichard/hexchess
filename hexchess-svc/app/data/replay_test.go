@@ -13,7 +13,7 @@ var TestReplays = []ReplayInst{
 	{3, 1, int32(Draw), int32(Checkmate), 30, -30, "{}"},
 }
 
-func createTestReplays(t *testing.T, pgDB DB, insts ...ReplayInst) {
+func createTestReplays(t TestLogger, pgDB DB, insts ...ReplayInst) {
 	ctx := context.WithValue(context.Background(), util.TraceKey, "create-test-replays")
 	for _, inst := range insts {
 		_, err := InsertReplay(ctx, pgDB.Q, inst)

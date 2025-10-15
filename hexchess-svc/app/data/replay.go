@@ -66,9 +66,10 @@ func InsertReplay(ctx context.Context, q *db.Queries, inst ReplayInst) (int64, e
 		MoveList: []byte(inst.MoveListJSON),
 	})
 	if err != nil {
-		slog.Info("failed to create replay", "err", err, "trace", trace)
+		slog.Error("failed to create replay", "replay", inst, "err", err, "trace", trace)
 		return 0, err
 	}
+	
 	slog.Info("created a new replay", "replay", inst, "replayID", replayID, "trace", trace)
 	return replayID, nil
 }
