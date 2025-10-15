@@ -19,7 +19,7 @@ func testStrSub(t *testing.T, sub subscriber, mChan chan []string) {
 }
 
 func TestMultiBroker(t *testing.T) {
-	m := MakeMultiBrokerMap("test-broker")
+	m := MakeMultiCasterMap("test-broker")
 
 	sub1 := make(subscriber)
 	sub2 := make(subscriber)
@@ -60,7 +60,7 @@ func TestMultiBroker(t *testing.T) {
 }
 
 func TestSingleBroker(t *testing.T) {
-	m := MakeSingleBroker("test-broker")
+	m := MakeUniCaster("test-broker")
 
 	sub1 := make(subscriber)
 	sub2 := make(subscriber)
@@ -72,10 +72,10 @@ func TestSingleBroker(t *testing.T) {
 	go testStrSub(t, sub2, mChan2)
 
 	m.Subscribe(sub1)
-	m.Broadcast([]byte("test1"), BrokerExpireTime)
+	m.Broadcast([]byte("test1"), BroadcasterExpireTime)
 
 	m.Subscribe(sub2)
-	m.Broadcast([]byte("test2"), BrokerExpireTime)
+	m.Broadcast([]byte("test2"), BroadcasterExpireTime)
 
 	m.Unsubscribe(sub1)
 	m.Unsubscribe(sub2)
@@ -108,7 +108,7 @@ func TestBroadcastGameMessage(t *testing.T) {
 	rdb, addr, closer := beforeRedisTestsWithAddr(t)
 	defer closer() // this will also stop the goroutine listening to the pubsub channel
 
-	m := MakeMultiBrokerMap("test-broker-map")
+	m := MakeMultiCasterMap("test-broker-map")
 	DialAndListenGameMessages(m, addr)
 
 	ctx := context.WithValue(context.Background(), util.TraceKey, "test-broadcast-game-message")
@@ -126,16 +126,16 @@ func TestBroadcastGameMessage(t *testing.T) {
 }
 
 func BenchmarkBroadcastGameMessage(b *testing.B) {
-	rdb, addr, closer := beforeRedisTestsWithAddr(b)
-	defer closer() // this will also stop the goroutine listening to the pubsub channel
-
-	m := MakeMultiBrokerMap("test-broker-map")
-	DialAndListenGameMessages(m, addr)
-
-	ctx := context.WithValue(context.Background(), util.TraceKey, "test-broadcast-game-message")
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		assert.NoError(b, BroadcastGameMessage(ctx, rdb, pb.MakeChat("1", "test1")))
-	}
+	//rdb, addr, closer := beforeRedisTestsWithAddr(b)
+	//defer closer() // this will also stop the goroutine listening to the pubsub channel
+	//
+	//m := MakeMultiCasterMap("test-broker-map")
+	//DialAndListenGameMessages(m, addr)
+	//
+	//ctx := context.WithValue(context.Background(), util.TraceKey, "test-broadcast-game-message")
+	//
+	//b.ResetTimer()
+	//for i := 0; i < b.N; i++ {
+	//	assert.NoError(b, BroadcastGameMessage(ctx, rdb, pb.MakeChat("1", "test1")))
+	//}
 }

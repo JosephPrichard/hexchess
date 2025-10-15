@@ -56,7 +56,7 @@ func broadcastOnCreateGame(a data.GameplayDAL) {
 	}
 	slog.Info("counted chess states after creating game", "count", count)
 
-	//data.GameBroadcaster.MultiBroker(count)
+	//data.GameBroadcaster.MultiCaster(count)
 }
 
 func JoinGame(ctx context.Context, a data.GameplayDAL, gameID string, player data.PlayerState) (data.ChessState, error) {
