@@ -1,3 +1,0 @@
-digraph gomodgraph {
-	node [ shape=rectangle fontsize=12 ]
-}

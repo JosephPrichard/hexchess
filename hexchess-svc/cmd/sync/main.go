@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"hexchess-svc/app/data"
-	"hexchess-svc/app/util"
 	"hexchess-svc/cmd"
+	"hexchess-svc/data"
 	"hexchess-svc/db"
+	"hexchess-svc/logs"
 	"log"
 	"log/slog"
 	"os"
@@ -26,9 +26,9 @@ func main() {
 	redisHost := os.Getenv("REDIS_HOST")
 	redisPort := os.Getenv("REDIS_PORT")
 
-	ctx := context.WithValue(context.Background(), util.TraceKey, "sync-leaderboard-script")
+	ctx := context.WithValue(context.Background(), logs.TraceKey, "sync-leaderboard-script")
 
-	slog.Info("connecting to postgres db", "user", dbUser, "name", dbName, "port", dbPort)
+	slog.InfoContext(ctx, "connecting to postgres db", "user", dbUser, "name", dbName, "port", dbPort)
 	pool, err := pgxpool.New(ctx, fmt.Sprintf("user=%s dbname=%s password=%s port=%s", dbUser, dbName, dbPass, dbPort))
 	if err != nil {
 		log.Fatalf("failed to create pool: %v", err)
@@ -39,8 +39,8 @@ func main() {
 
 	redisAddr := redisHost + ":" + redisPort
 
-	slog.Info("connecting to redis db", "host", redisHost, "port", redisPort)
-	rdb := data.MakeRdbPool(redisAddr)
+	slog.InfoContext(ctx, "connecting to redis db", "host", redisHost, "port", redisPort)
+	rdb := data.MakeRdb(redisAddr)
 	defer rdb.Close()
 
 	afterID := int64(0)

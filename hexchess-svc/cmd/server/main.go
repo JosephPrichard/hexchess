@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"hexchess-svc/app/data"
 	"hexchess-svc/cmd"
+	"hexchess-svc/data"
 	"hexchess-svc/db"
+	"hexchess-svc/logs"
 	"hexchess-svc/static"
 	"log"
 	"log/slog"
@@ -15,6 +16,15 @@ import (
 )
 
 func main() {
+	ctx := context.WithValue(context.Background(), "trace", "server-init")
+
+	f, err := os.OpenFile("logs/app.logs", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("failed to open logs file: %v", err)
+	}
+	defer f.Close()
+
+	logs.InitLogger(f)
 	cmd.InitEnv()
 
 	appPort := os.Getenv("APP_PORT")
@@ -29,7 +39,7 @@ func main() {
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 	cookieDomain := os.Getenv("COOKIE_DOMAIN")
 
-	slog.Info("loaded environment variables",
+	slog.InfoContext(ctx, "loaded environment variables",
 		"APP_PORT", appPort,
 		"DB_NAME", dbName,
 		"DB_PORT", dbPort,
@@ -47,7 +57,7 @@ func main() {
 		log.Fatalf("failed to unmarshal country list: %v", err)
 	}
 
-	slog.Info("connecting to postgres db", "user", dbUser, "name", dbName, "port", dbPort)
+	slog.InfoContext(ctx, "connecting to postgres db", "user", dbUser, "name", dbName, "port", dbPort)
 	pool, err := pgxpool.New(context.Background(), fmt.Sprintf("user=%s dbname=%s password=%s port=%s", dbUser, dbName, dbPass, dbPort))
 	if err != nil {
 		log.Fatalf("failed to create pool: %v", err)
@@ -60,14 +70,14 @@ func main() {
 	redisAddr := redisHost + ":" + redisPort
 	//psAddr := redisPubSubHost + ":" + redisPubSubPort
 
-	slog.Info("connecting to redis db", "host", redisHost, "port", redisPort)
-	rdb := data.MakeRdbPool(redisAddr)
+	slog.InfoContext(ctx, "connecting to redis db", "host", redisHost, "port", redisPort)
+	rdb := data.MakeRdb(redisAddr)
 	defer rdb.Close()
 
-	slog.Info("connecting to redis pubsub channels", "host", redisPubSubHost, "port", redisPubSubPort)
+	slog.InfoContext(ctx, "connecting to redis pubsub channels", "host", redisPubSubHost, "port", redisPubSubPort)
 	//_ = data.DialAndListenGameMessages(psAddr)
 
 	_ = data.Stores{Rdb: rdb, PgDB: pgDB}
 
-	slog.Info("starting server", "port", appPort, "allowedOrigins", allowedOrigins)
+	slog.InfoContext(ctx, "starting server", "port", appPort, "allowedOrigins", allowedOrigins)
 }

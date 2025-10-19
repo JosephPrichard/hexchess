@@ -7,7 +7,7 @@ message PlayerState {
   int64 id = 1;
   string name = 2;
   string country = 3;
-  float elo = 4;
+  double elo = 4;
   bool isGuest = 5;
 }
 
@@ -64,8 +64,8 @@ message Init {
 }
 
 message Players {
-  PlayerState whitePlayer = 1;
-  PlayerState blackPlayer = 2;
+  PlayerState white_player = 1;
+  PlayerState black_player = 2;
 }
 
 message Move {
@@ -74,24 +74,26 @@ message Move {
 }
 
 message Chat {
-  PlayerState player = 2;
-  string message = 3;
+  PlayerState player = 1;
+  string message = 2;
 }
 
 message Forfeit {}
 
 message GameOutputID {
   string game_id = 1;
+  string message_id = 2;
 }
 
 message GameOutput {
   string game_id = 1;
+  string message_id = 2;
   oneof value {
-    Error error = 2;
-    Init init = 3;
-    Players players = 4;
-    Move move = 5;
-    Chat chat = 6;
-    Forfeit forfeit = 7;
+    Error error = 3;
+    Init init = 4;
+    Players players = 5;
+    Move move = 6;
+    Chat chat = 7;
+    Forfeit forfeit = 8;
   }
 }

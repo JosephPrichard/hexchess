@@ -1,0 +1,71 @@
+package web
+
+import (
+	"context"
+	"crypto/rand"
+	"fmt"
+	"hexchess-svc/data"
+	"math/big"
+	"net/http"
+	"time"
+)
+
+const CookieKey = "session"
+const TempSessionExpire = time.Minute
+const MaxAgeCookie = time.Hour * 24 * 30
+
+type SessionView struct {
+	ID       int64         `json:"id"`
+	Username string        `json:"username"`
+	Country  string        `json:"country"`
+	Elo      float64       `json:"elo"`
+	TTLSecs  time.Duration `json:"ttlSecs,omitempty"`
+}
+
+func MakeSessionID() (string, error) {
+	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	const length = 100
+
+	bytes := make([]byte, length)
+	for i := 0; i < length; i++ {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(characters))))
+		if err != nil {
+			return "", fmt.Errorf("error generating session id: %w", err)
+		}
+		bytes[i] = characters[n.Int64()]
+	}
+	return string(bytes), nil
+}
+
+func GetSessionPlayer(ctx context.Context, rdb data.Rdb, r *http.Request) (data.PlayerState, string, error) {
+	cookie, err := r.Cookie(CookieKey)
+	if err != nil {
+		return data.PlayerState{}, "", err
+	}
+	sessionID := cookie.Value
+	player, err := data.GetSession(ctx, rdb, sessionID)
+	if err != nil {
+		return data.PlayerState{}, "", err
+	}
+	return player, sessionID, nil
+}
+
+func SetSessionPlayer(ctx context.Context, rdb data.Rdb, w http.ResponseWriter, player data.PlayerState) (time.Duration, error) {
+	sessionID, err := MakeSessionID()
+	if err != nil {
+		return 0, err
+	}
+	if err := data.SetSession(ctx, rdb, sessionID, player, MaxAgeCookie); err != nil {
+		return 0, err
+	}
+	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
+	return MaxAgeCookie, nil
+}
+
+func FmtCookie(sessionID string) string {
+	return fmt.Sprintf("%s=%s; Max-Age=%d; Path=/", CookieKey, sessionID, int(MaxAgeCookie.Seconds()))
+}
+
+func EmptyCookie(sessionID string) string {
+	return fmt.Sprintf("%s=%s; Max-Age=%d; Path=/", CookieKey, sessionID, 0)
+}

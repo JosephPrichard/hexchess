@@ -1,7 +1,3 @@
--- ======================
--- Challenges Queries
--- ======================
-
 -- name: InsertChallenge :one
 WITH inserted_challenges AS (
     INSERT INTO challenges (challenger_id, challengee_id, time_control, start_color, made_on)

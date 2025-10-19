@@ -26,7 +26,7 @@ type PlayerState struct {
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Country       string                 `protobuf:"bytes,3,opt,name=country,proto3" json:"country,omitempty"`
-	Elo           float32                `protobuf:"fixed32,4,opt,name=elo,proto3" json:"elo,omitempty"`
+	Elo           float64                `protobuf:"fixed64,4,opt,name=elo,proto3" json:"elo,omitempty"`
 	IsGuest       bool                   `protobuf:"varint,5,opt,name=isGuest,proto3" json:"isGuest,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -83,7 +83,7 @@ func (x *PlayerState) GetCountry() string {
 	return ""
 }
 
-func (x *PlayerState) GetElo() float32 {
+func (x *PlayerState) GetElo() float64 {
 	if x != nil {
 		return x.Elo
 	}
@@ -611,8 +611,8 @@ func (x *Init) GetSelf() *PlayerState {
 
 type Players struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	WhitePlayer   *PlayerState           `protobuf:"bytes,1,opt,name=whitePlayer,proto3" json:"whitePlayer,omitempty"`
-	BlackPlayer   *PlayerState           `protobuf:"bytes,2,opt,name=blackPlayer,proto3" json:"blackPlayer,omitempty"`
+	WhitePlayer   *PlayerState           `protobuf:"bytes,1,opt,name=white_player,json=whitePlayer,proto3" json:"white_player,omitempty"`
+	BlackPlayer   *PlayerState           `protobuf:"bytes,2,opt,name=black_player,json=blackPlayer,proto3" json:"black_player,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -715,8 +715,8 @@ func (x *Move) GetGame() *ChessGame {
 
 type Chat struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Player        *PlayerState           `protobuf:"bytes,2,opt,name=player,proto3" json:"player,omitempty"`
-	Message       string                 `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	Player        *PlayerState           `protobuf:"bytes,1,opt,name=player,proto3" json:"player,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -804,6 +804,7 @@ func (*Forfeit) Descriptor() ([]byte, []int) {
 type GameOutputID struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	GameId        string                 `protobuf:"bytes,1,opt,name=game_id,json=gameId,proto3" json:"game_id,omitempty"`
+	MessageId     string                 `protobuf:"bytes,2,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -845,9 +846,17 @@ func (x *GameOutputID) GetGameId() string {
 	return ""
 }
 
+func (x *GameOutputID) GetMessageId() string {
+	if x != nil {
+		return x.MessageId
+	}
+	return ""
+}
+
 type GameOutput struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	GameId string                 `protobuf:"bytes,1,opt,name=game_id,json=gameId,proto3" json:"game_id,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	GameId    string                 `protobuf:"bytes,1,opt,name=game_id,json=gameId,proto3" json:"game_id,omitempty"`
+	MessageId string                 `protobuf:"bytes,2,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
 	// Types that are valid to be assigned to Value:
 	//
 	//	*GameOutput_Error
@@ -894,6 +903,13 @@ func (*GameOutput) Descriptor() ([]byte, []int) {
 func (x *GameOutput) GetGameId() string {
 	if x != nil {
 		return x.GameId
+	}
+	return ""
+}
+
+func (x *GameOutput) GetMessageId() string {
+	if x != nil {
+		return x.MessageId
 	}
 	return ""
 }
@@ -964,27 +980,27 @@ type isGameOutput_Value interface {
 }
 
 type GameOutput_Error struct {
-	Error *Error `protobuf:"bytes,2,opt,name=error,proto3,oneof"`
+	Error *Error `protobuf:"bytes,3,opt,name=error,proto3,oneof"`
 }
 
 type GameOutput_Init struct {
-	Init *Init `protobuf:"bytes,3,opt,name=init,proto3,oneof"`
+	Init *Init `protobuf:"bytes,4,opt,name=init,proto3,oneof"`
 }
 
 type GameOutput_Players struct {
-	Players *Players `protobuf:"bytes,4,opt,name=players,proto3,oneof"`
+	Players *Players `protobuf:"bytes,5,opt,name=players,proto3,oneof"`
 }
 
 type GameOutput_Move struct {
-	Move *Move `protobuf:"bytes,5,opt,name=move,proto3,oneof"`
+	Move *Move `protobuf:"bytes,6,opt,name=move,proto3,oneof"`
 }
 
 type GameOutput_Chat struct {
-	Chat *Chat `protobuf:"bytes,6,opt,name=chat,proto3,oneof"`
+	Chat *Chat `protobuf:"bytes,7,opt,name=chat,proto3,oneof"`
 }
 
 type GameOutput_Forfeit struct {
-	Forfeit *Forfeit `protobuf:"bytes,7,opt,name=forfeit,proto3,oneof"`
+	Forfeit *Forfeit `protobuf:"bytes,8,opt,name=forfeit,proto3,oneof"`
 }
 
 func (*GameOutput_Error) isGameOutput_Value() {}
@@ -1008,7 +1024,7 @@ const file_pb_messages_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
 	"\acountry\x18\x03 \x01(\tR\acountry\x12\x10\n" +
-	"\x03elo\x18\x04 \x01(\x02R\x03elo\x12\x18\n" +
+	"\x03elo\x18\x04 \x01(\x01R\x03elo\x12\x18\n" +
 	"\aisGuest\x18\x05 \x01(\bR\aisGuest\"\x89\x01\n" +
 	"\tPieceMove\x12\x14\n" +
 	"\x05piece\x18\x01 \x01(\x05R\x05piece\x12\x1a\n" +
@@ -1051,28 +1067,32 @@ const file_pb_messages_proto_rawDesc = "" +
 	"\amessage\x18\x01 \x01(\tR\amessage\"]\n" +
 	"\x04Init\x12*\n" +
 	"\x05state\x18\x01 \x01(\v2\x14.messages.ChessStateR\x05state\x12)\n" +
-	"\x04self\x18\x02 \x01(\v2\x15.messages.PlayerStateR\x04self\"{\n" +
-	"\aPlayers\x127\n" +
-	"\vwhitePlayer\x18\x01 \x01(\v2\x15.messages.PlayerStateR\vwhitePlayer\x127\n" +
-	"\vblackPlayer\x18\x02 \x01(\v2\x15.messages.PlayerStateR\vblackPlayer\"b\n" +
+	"\x04self\x18\x02 \x01(\v2\x15.messages.PlayerStateR\x04self\"}\n" +
+	"\aPlayers\x128\n" +
+	"\fwhite_player\x18\x01 \x01(\v2\x15.messages.PlayerStateR\vwhitePlayer\x128\n" +
+	"\fblack_player\x18\x02 \x01(\v2\x15.messages.PlayerStateR\vblackPlayer\"b\n" +
 	"\x04Move\x121\n" +
 	"\tpieceMove\x18\x01 \x01(\v2\x13.messages.PieceMoveR\tpieceMove\x12'\n" +
 	"\x04game\x18\x02 \x01(\v2\x13.messages.ChessGameR\x04game\"O\n" +
 	"\x04Chat\x12-\n" +
-	"\x06player\x18\x02 \x01(\v2\x15.messages.PlayerStateR\x06player\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"\t\n" +
-	"\aForfeit\"'\n" +
+	"\x06player\x18\x01 \x01(\v2\x15.messages.PlayerStateR\x06player\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\t\n" +
+	"\aForfeit\"F\n" +
 	"\fGameOutputID\x12\x17\n" +
-	"\agame_id\x18\x01 \x01(\tR\x06gameId\"\xa7\x02\n" +
+	"\agame_id\x18\x01 \x01(\tR\x06gameId\x12\x1d\n" +
+	"\n" +
+	"message_id\x18\x02 \x01(\tR\tmessageId\"\xc6\x02\n" +
 	"\n" +
 	"GameOutput\x12\x17\n" +
-	"\agame_id\x18\x01 \x01(\tR\x06gameId\x12'\n" +
-	"\x05error\x18\x02 \x01(\v2\x0f.messages.ErrorH\x00R\x05error\x12$\n" +
-	"\x04init\x18\x03 \x01(\v2\x0e.messages.InitH\x00R\x04init\x12-\n" +
-	"\aplayers\x18\x04 \x01(\v2\x11.messages.PlayersH\x00R\aplayers\x12$\n" +
-	"\x04move\x18\x05 \x01(\v2\x0e.messages.MoveH\x00R\x04move\x12$\n" +
-	"\x04chat\x18\x06 \x01(\v2\x0e.messages.ChatH\x00R\x04chat\x12-\n" +
-	"\aforfeit\x18\a \x01(\v2\x11.messages.ForfeitH\x00R\aforfeitB\a\n" +
+	"\agame_id\x18\x01 \x01(\tR\x06gameId\x12\x1d\n" +
+	"\n" +
+	"message_id\x18\x02 \x01(\tR\tmessageId\x12'\n" +
+	"\x05error\x18\x03 \x01(\v2\x0f.messages.ErrorH\x00R\x05error\x12$\n" +
+	"\x04init\x18\x04 \x01(\v2\x0e.messages.InitH\x00R\x04init\x12-\n" +
+	"\aplayers\x18\x05 \x01(\v2\x11.messages.PlayersH\x00R\aplayers\x12$\n" +
+	"\x04move\x18\x06 \x01(\v2\x0e.messages.MoveH\x00R\x04move\x12$\n" +
+	"\x04chat\x18\a \x01(\v2\x0e.messages.ChatH\x00R\x04chat\x12-\n" +
+	"\aforfeit\x18\b \x01(\v2\x11.messages.ForfeitH\x00R\aforfeitB\a\n" +
 	"\x05valueB\x12Z\x10hexchess-data/pbb\x06proto3"
 
 var (
@@ -1116,8 +1136,8 @@ var file_pb_messages_proto_depIdxs = []int32{
 	0,  // 7: messages.ChessState.black_player:type_name -> messages.PlayerState
 	6,  // 8: messages.Init.state:type_name -> messages.ChessState
 	0,  // 9: messages.Init.self:type_name -> messages.PlayerState
-	0,  // 10: messages.Players.whitePlayer:type_name -> messages.PlayerState
-	0,  // 11: messages.Players.blackPlayer:type_name -> messages.PlayerState
+	0,  // 10: messages.Players.white_player:type_name -> messages.PlayerState
+	0,  // 11: messages.Players.black_player:type_name -> messages.PlayerState
 	1,  // 12: messages.Move.pieceMove:type_name -> messages.PieceMove
 	5,  // 13: messages.Move.game:type_name -> messages.ChessGame
 	0,  // 14: messages.Chat.player:type_name -> messages.PlayerState

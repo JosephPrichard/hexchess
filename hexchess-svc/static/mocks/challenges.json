@@ -1,11 +1,11 @@
 [
-  { "challengerId": 1, "challengeeId": 2, "timeControl": "UNLIMITED", "startColor": "WHITE" },
-  { "challengerId": 1, "challengeeId": 3, "timeControl": "UNLIMITED", "startColor": "WHITE" },
-  { "challengerId": 1, "challengeeId": 4, "timeControl": "REAL_TIME", "startColor": "RANDOM" },
-  { "challengerId": 1, "challengeeId": 5, "timeControl": "REAL_TIME", "startColor": "WHITE" },
-  { "challengerId": 1, "challengeeId": 6, "timeControl": "CORRESPONDENCE", "startColor": "RANDOM" },
-  { "challengerId": 1, "challengeeId": 7, "timeControl": "CORRESPONDENCE", "startColor": "WHITE" },
-  { "challengerId": 2, "challengeeId": 1, "timeControl": "REAL_TIME", "startColor": "BLACK" },
-  { "challengerId": 3, "challengeeId": 1, "timeControl": "UNLIMITED", "startColor": "WHITE" },
-  { "challengerId": 4, "challengeeId": 1, "timeControl": "CORRESPONDENCE", "startColor": "BLACK" }
+  { "challengerId": 1, "challengeeId": 2, "timeControl": 0, "startColor": 0 },
+  { "challengerId": 1, "challengeeId": 3, "timeControl": 0, "startColor": 0},
+  { "challengerId": 1, "challengeeId": 4, "timeControl": 1, "startColor": 2 },
+  { "challengerId": 1, "challengeeId": 5, "timeControl": 1, "startColor": 0 },
+  { "challengerId": 1, "challengeeId": 6, "timeControl": 2, "startColor": 2 },
+  { "challengerId": 1, "challengeeId": 7, "timeControl": 2, "startColor": 0 },
+  { "challengerId": 2, "challengeeId": 1, "timeControl": 1, "startColor": 1 },
+  { "challengerId": 3, "challengeeId": 1, "timeControl": 0, "startColor": 0 },
+  { "challengerId": 4, "challengeeId": 1, "timeControl": 2, "startColor": 1 }
 ]

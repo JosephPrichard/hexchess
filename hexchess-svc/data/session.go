@@ -1,0 +1,80 @@
+package data
+
+import (
+	"context"
+	"errors"
+	"github.com/gomodule/redigo/redis"
+	"log/slog"
+	"time"
+)
+
+const LeaderboardZSet = "leaderboard"
+
+var ErrNoSession = errors.New("session not found")
+
+func GetSession(ctx context.Context, rdb Rdb, sessionID string) (PlayerState, error) {
+	conn := rdb.Get()
+	defer conn.Close()
+
+	fullID := "session:" + sessionID
+	data, err := redis.Bytes(conn.Do("GET", fullID))
+	if errors.Is(err, redis.ErrNil) {
+		return PlayerState{}, ErrNoSession
+	}
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to get session", "sessionID", sessionID)
+		return PlayerState{}, err
+	}
+
+	player, err := PlayerDeserialize(data)
+	if err != nil {
+		return PlayerState{}, err
+	}
+	slog.InfoContext(ctx, "selected session", "sessionID", sessionID, "player", player)
+	return player, nil
+}
+
+func SetSession(ctx context.Context, rdb Rdb, sessionID string, player PlayerState, expiry time.Duration) error {
+	data, err := SerializePlayerState(&player)
+	if err != nil {
+		return err
+	}
+
+	conn := rdb.Get()
+	defer conn.Close()
+
+	fullID := "session:" + sessionID
+
+	if _, err := conn.Do("SETEX", fullID, int(expiry.Seconds()), data); err != nil {
+		slog.ErrorContext(ctx, "failed to set session", "sessionID", sessionID, "err", err)
+		return err
+	}
+	slog.InfoContext(ctx, "set session", "sessionID", sessionID, "player", player)
+	return nil
+}
+
+func UpdateSessionEx(ctx context.Context, rdb Rdb, sessionID string, expiry time.Duration) error {
+	conn := rdb.Get()
+	defer conn.Close()
+
+	fullID := "session:" + sessionID
+
+	if _, err := conn.Do("EXPIRE", fullID, int(expiry.Seconds())); err != nil {
+		slog.ErrorContext(ctx, "failed to update session expiry", "sessionID", sessionID, "err", err)
+		return err
+	}
+	slog.InfoContext(ctx, "updated session expiry", "sessionID", sessionID)
+	return nil
+}
+
+func DeleteSession(ctx context.Context, rdb Rdb, sessionID string) error {
+	conn := rdb.Get()
+	defer conn.Close()
+
+	if _, err := conn.Do("DEL", "session:"+sessionID); err != nil {
+		slog.ErrorContext(ctx, "failed to delete session", "sessionID", sessionID, "err", err)
+		return err
+	}
+	slog.InfoContext(ctx, "deleted session", "sessionID", sessionID)
+	return nil
+}

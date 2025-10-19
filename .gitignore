@@ -26,3 +26,7 @@ hexchess-ui/src/lib/api/messages.ts
 */node_modules
 hexchess-svc/.env
 hexchess-svc/src/main/resources/.env
+
+*_mock.go
+
+graph.dot

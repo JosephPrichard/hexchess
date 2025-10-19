@@ -6,14 +6,15 @@ import (
 	"fmt"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
-	"hexchess-svc/app/chess"
-	"hexchess-svc/app/data"
-	"hexchess-svc/app/util"
+	"hexchess-svc/chess"
 	"hexchess-svc/cmd"
+	"hexchess-svc/data"
 	"hexchess-svc/db"
+	"hexchess-svc/logs"
 	"hexchess-svc/static"
 	"log"
 	"log/slog"
+	"math/rand"
 	"os"
 	"time"
 )
@@ -34,7 +35,8 @@ func insertReplay(ctx context.Context, q *db.Queries, r data.ReplayInst) error {
 	game := chess.MakeStartGame()
 	var moveList []chess.PieceMove
 
-	for range 35 {
+	// generates a random move list for mock data between length 35 and 45
+	for range rand.Intn(10) + 35 {
 		game.InitPieceMoves()
 
 		var fpm chess.PieceMoves
@@ -79,9 +81,9 @@ func main() {
 	redisHost := os.Getenv("REDIS_HOST")
 	redisPort := os.Getenv("REDIS_PORT")
 
-	ctx := context.WithValue(context.Background(), util.TraceKey, "seed-stores-script")
+	ctx := context.WithValue(context.Background(), logs.TraceKey, "seed-stores-script")
 
-	slog.Info("connecting to postgres db", "user", dbUser, "name", dbName, "port", dbPort)
+	slog.InfoContext(ctx, "connecting to postgres db", "user", dbUser, "name", dbName, "port", dbPort)
 	pool, err := pgxpool.New(ctx, fmt.Sprintf("user=%s dbname=%s password=%s port=%s", dbUser, dbName, dbPass, dbPort))
 	if err != nil {
 		log.Fatalf("failed to create pool: %v", err)
@@ -90,8 +92,8 @@ func main() {
 
 	q := db.New(pool)
 
-	slog.Info("connecting to redis db", "host", redisHost, "port", redisPort)
-	rdb := data.MakeRdbPool(redisHost + ":" + redisPort)
+	slog.InfoContext(ctx, "connecting to redis db", "host", redisHost, "port", redisPort)
+	rdb := data.MakeRdb(redisHost + ":" + redisPort)
 	defer rdb.Close()
 
 	if _, err := pool.Exec(context.Background(), "DROP SCHEMA public CASCADE;\nCREATE SCHEMA public;"); err != nil {
