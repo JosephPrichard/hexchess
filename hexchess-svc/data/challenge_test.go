@@ -2,16 +2,11 @@ package data
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"hexchess-svc/logs"
 	"testing"
 	"time"
 )
-
-func pointerOf[T any](v T) *T {
-	return &v
-}
 
 func TestGetChallenges(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
@@ -19,14 +14,14 @@ func TestGetChallenges(t *testing.T) {
 
 	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-insert-get-challenges")
 
-	testUser := createTestUser(t, pgDB.Q, UserInst{Username: "user1-" + uuid.NewString(), Password: "password1", Country: "us", Elo: 1000})
+	testUser := createTestUser(t, pgDB.Q, UserInst{Username: "user1", Password: "password1", Country: "us", Elo: 1000})
 
 	c1, err := InsertChallengeRet(ctx, pgDB.Q, ChallengeInst{1, testUser.ID, Unlimited, Random, time.Time{}})
 	assert.NoError(t, err)
 	c2, err := InsertChallengeRet(ctx, pgDB.Q, ChallengeInst{3, testUser.ID, Unlimited, Random, time.Time{}})
 	assert.NoError(t, err)
 
-	challenges, err := GetChallengesByParticipant(ctx, pgDB.Q, nil, pointerOf(testUser.ID), ExpireChallengeThreshold)
+	challenges, err := GetChallengesByParticipant(ctx, pgDB.Q, NoChallengeID, testUser.ID, ExpireChallengeThreshold)
 	assert.NoError(t, err)
 
 	c1.MadeOn = time.Time{}
@@ -76,7 +71,7 @@ func TestChallengeExpiration(t *testing.T) {
 	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-expiration")
 	now := time.Now()
 
-	testUser := createTestUser(t, pgDB.Q, UserInst{Username: "user1-" + uuid.NewString(), Password: "password1", Country: "us", Elo: 1000})
+	testUser := createTestUser(t, pgDB.Q, UserInst{Username: "user1", Password: "password1", Country: "us", Elo: 1000})
 
 	insts := []ChallengeInst{
 		{testUser.ID, 2, Unlimited, Random, now.Add(-2 * time.Second)},
@@ -90,7 +85,7 @@ func TestChallengeExpiration(t *testing.T) {
 
 	assert.NoError(t, DeleteExpiredChallenges(ctx, pgDB.Q, testUser.ID, 500*time.Millisecond))
 
-	challenges, err := GetChallengesByParticipant(ctx, pgDB.Q, pointerOf(testUser.ID), nil, ExpireChallengeThreshold)
+	challenges, err := GetChallengesByParticipant(ctx, pgDB.Q, testUser.ID, NoChallengeID, ExpireChallengeThreshold)
 	assert.NoError(t, err)
 
 	for i := range challenges {
@@ -133,7 +128,7 @@ func TestChallengeDeletion(t *testing.T) {
 
 	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-delete")
 
-	testUser := createTestUser(t, pgDB.Q, UserInst{Username: "user1-" + uuid.NewString(), Password: "password1", Country: "us", Elo: 1000})
+	testUser := createTestUser(t, pgDB.Q, UserInst{Username: "user1", Password: "password1", Country: "us", Elo: 1000})
 
 	_, err := InsertChallengeRet(ctx, pgDB.Q, ChallengeInst{testUser.ID, 2, Unlimited, Random, time.Time{}})
 	assert.NoError(t, err)
@@ -141,7 +136,7 @@ func TestChallengeDeletion(t *testing.T) {
 	result, err := DeleteChallenge(ctx, pgDB.Q, testUser.ID, 2)
 	assert.NoError(t, err)
 
-	challenges, err := GetChallengesByParticipant(ctx, pgDB.Q, pointerOf(testUser.ID), nil, ExpireChallengeThreshold)
+	challenges, err := GetChallengesByParticipant(ctx, pgDB.Q, testUser.ID, NoChallengeID, ExpireChallengeThreshold)
 	assert.NoError(t, err)
 
 	assert.Empty(t, challenges)

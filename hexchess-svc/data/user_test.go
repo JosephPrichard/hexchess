@@ -15,9 +15,9 @@ func TestInsertThenVerify(t *testing.T) {
 
 	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-insert-then-verify")
 
-	user1 := "user1-" + uuid.NewString()
-	user2 := "user2-" + uuid.NewString()
-	user3 := "user3-" + uuid.NewString()
+	user1 := "user1"
+	user2 := "user2"
+	user3 := "user3"
 
 	u1, err := InsertUser(ctx, pgDB.Q, UserInst{Username: user1, Password: "password1"})
 	assert.NoError(t, err)
@@ -49,8 +49,8 @@ func TestBatchInsertThenGet(t *testing.T) {
 	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-batch-insert-then-get")
 
 	insts := []UserInst{
-		{Username: "user1-" + uuid.NewString(), Password: "password1", Country: "us", Elo: 1005, Wins: 10, Losses: 10},
-		{Username: "user2-" + uuid.NewString(), Password: "password2", Country: "eu", Elo: 1035, Wins: 12, Losses: 0},
+		{Username: "user1", Password: "password1", Country: "us", Elo: 1005, Wins: 10, Losses: 10},
+		{Username: "user2", Password: "password2", Country: "eu", Elo: 1035, Wins: 12, Losses: 0},
 	}
 	users, err := BatchInsertUsers(ctx, pgDB.Q, insts)
 
@@ -71,7 +71,9 @@ func TestUpdateUser(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	tests := []struct {
+	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-update-user")
+
+	for _, test := range []struct {
 		inst        UserInst
 		udpt        UpdtUserParams
 		expUsername string
@@ -92,14 +94,11 @@ func TestUpdateUser(t *testing.T) {
 			expBio:      "",
 			expCountry:  "eu",
 		},
-	}
-
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-update-user")
-
-	for _, test := range tests {
+	} {
 		testUser := createTestUser(t, pgDB.Q, test.inst)
 
-		assert.NoError(t, UpdateUser(ctx, pgDB.Q, testUser.ID, test.udpt))
+		_, err := UpdateUser(ctx, pgDB.Q, testUser.ID, test.udpt)
+		assert.NoError(t, err)
 
 		u, err := GetUserById(ctx, pgDB.Q, testUser.ID)
 		assert.NoError(t, err)
@@ -114,7 +113,7 @@ func TestUpdatePassword(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	testUser := createTestUser(t, pgDB.Q, UserInst{Username: "user1-" + uuid.NewString(), Password: "password1", Country: "us", Elo: 1000})
+	testUser := createTestUser(t, pgDB.Q, UserInst{Username: "user1", Password: "password1", Country: "us", Elo: 1000})
 
 	ctx := context.WithValue(context.Background(), logs.TraceKey, "update-password")
 

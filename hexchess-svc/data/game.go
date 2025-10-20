@@ -13,7 +13,7 @@ const GamesZSet = "games"
 
 func WriteFinishedGame(ctx context.Context, stores Stores, state ChessState, isWhiteWin bool, cause ReplayCause) error {
 	fail := func(m string, err error) error {
-		err = fmt.Errorf("%s: %v", m, err)
+		err = fmt.Errorf("%s: %w", m, err)
 		slog.ErrorContext(ctx, "failed to finish game", "err", err)
 		return err
 	}
@@ -134,32 +134,4 @@ func updateGameResult(ctx context.Context, q *db.Queries, params GRParams) (GRCh
 	cs := GRChangeSet{ReplayID: replayID, WinID: winID, LoseID: loseID, WinEloDiff: winEloDiff, LoseEloDiff: loseEloDiff}
 	slog.InfoContext(ctx, "updated user stats", "inst", inst, "changeSet", cs)
 	return cs, nil
-}
-
-//go:generate mockgen -source game.go -destination game_mock.go -package data
-type GameplayDAL interface {
-	GetChessStateCount(ctx context.Context) (int64, error)
-	GetChessState(ctx context.Context, id string) (ChessState, error)
-	SetChessState(ctx context.Context, id string, state ChessState) (ChessState, error)
-	WriteFinishedGame(ctx context.Context, state ChessState, isWhiteWin bool, cause ReplayCause) error
-}
-
-type GameplayDao struct {
-	Stores
-}
-
-func (d *GameplayDao) GetChessStateCount(ctx context.Context) (int64, error) {
-	return GetChessStateCount(ctx, d.Rdb)
-}
-
-func (d *GameplayDao) GetChessState(ctx context.Context, id string) (ChessState, error) {
-	return GetChessState(ctx, d.Rdb, id)
-}
-
-func (d *GameplayDao) SetChessState(ctx context.Context, id string, state ChessState) (ChessState, error) {
-	return SetChessState(ctx, d.Rdb, id, state)
-}
-
-func (d *GameplayDao) WriteFinishedGame(ctx context.Context, state ChessState, isWhiteWin bool, cause ReplayCause) error {
-	return WriteFinishedGame(ctx, d.Stores, state, isWhiteWin, cause)
 }

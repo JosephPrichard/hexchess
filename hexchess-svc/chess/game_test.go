@@ -61,16 +61,14 @@ func assertMoves(t *testing.T, actual []Hex, expected ...string) {
 	assert.ElementsMatch(t, expectedMoves, actual)
 }
 
-type MovesTest struct {
-	name     string
-	game     Game
-	hex      Hex
-	f        func(*Game, Hex) PieceMoves
-	expMoves []string
-}
-
 func TestFindMoves(t *testing.T) {
-	tests := []MovesTest{
+	for _, test := range []struct {
+		name     string
+		game     Game
+		hex      Hex
+		f        func(*Game, Hex) PieceMoves
+		expMoves []string
+	}{
 		{
 			name:     "TestCenterRook",
 			game:     MakeStartGame(Move{"f6", BlackRook}),
@@ -173,9 +171,7 @@ func TestFindMoves(t *testing.T) {
 			f:        (*Game).FindPawnMovesBlack,
 			expMoves: []string{"d4", "e5"},
 		},
-	}
-
-	for _, test := range tests {
+	} {
 		t.Run(fmt.Sprintf("%s", test.name), func(t *testing.T) {
 			t.Logf("testing moves for piece at: %v on game:%s", test.hex, test.game.Board.String())
 			moves := test.f(&test.game, test.hex).Moves

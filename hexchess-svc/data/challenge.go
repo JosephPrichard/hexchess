@@ -87,11 +87,11 @@ type ChallengeInst struct {
 }
 
 func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) (ChallengeEntity, error) {
-	tc, err := mapTimeControl(row.TimeControl)
+	tc, err := ParseTimeControl(row.TimeControl)
 	if err != nil {
 		return ChallengeEntity{}, err
 	}
-	cs, err := mapColorSelect(row.StartColor)
+	cs, err := ParseColorSelect(row.StartColor)
 	if err != nil {
 		return ChallengeEntity{}, err
 	}
@@ -110,7 +110,7 @@ func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) (ChallengeEnti
 	}, nil
 }
 
-func mapTimeControl(tc string) (TimeControl, error) {
+func ParseTimeControl(tc string) (TimeControl, error) {
 	switch tc {
 	case "UNLIMITED":
 		return Unlimited, nil
@@ -123,7 +123,7 @@ func mapTimeControl(tc string) (TimeControl, error) {
 	}
 }
 
-func mapColorSelect(cs string) (ColorSelect, error) {
+func ParseColorSelect(cs string) (ColorSelect, error) {
 	switch cs {
 	case "WHITE":
 		return White, nil
@@ -142,6 +142,10 @@ func InsertChallenge(ctx context.Context, q *db.Queries, inst ChallengeInst) err
 }
 
 func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) (ChallengeEntity, error) {
+	if inst.ChallengerID == inst.ChallengeeID {
+		return ChallengeEntity{}, ErrSelfChallenge
+	}
+
 	if inst.MadeOn.IsZero() {
 		inst.MadeOn = time.Now()
 	}
@@ -175,16 +179,18 @@ func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) 
 	return challenge, err
 }
 
-func GetChallengesByParticipant(ctx context.Context, q *db.Queries, challengerID *int64, challengeeID *int64, threshold time.Duration) ([]ChallengeEntity, error) {
+const NoChallengeID = -1
+
+func GetChallengesByParticipant(ctx context.Context, q *db.Queries, challengerID int64, challengeeID int64, threshold time.Duration) ([]ChallengeEntity, error) {
 	var pgChallengerID pgtype.Int8
-	if challengerID != nil {
+	if challengerID != NoChallengeID {
 		pgChallengerID.Valid = true
-		pgChallengerID.Int64 = *challengerID
+		pgChallengerID.Int64 = challengerID
 	}
 	var pgChallengeeID pgtype.Int8
-	if challengeeID != nil {
+	if challengeeID != NoChallengeID {
 		pgChallengeeID.Valid = true
-		pgChallengeeID.Int64 = *challengeeID
+		pgChallengeeID.Int64 = challengeeID
 	}
 
 	t := time.Now().Add(-threshold)
@@ -227,11 +233,11 @@ func DeleteChallenge(ctx context.Context, q *db.Queries, challengeeID int64, cha
 		return DeleteResult{}, err
 	}
 
-	tc, err := mapTimeControl(row.TimeControl)
+	tc, err := ParseTimeControl(row.TimeControl)
 	if err != nil {
 		return DeleteResult{}, err
 	}
-	cs, err := mapColorSelect(row.StartColor)
+	cs, err := ParseColorSelect(row.StartColor)
 	if err != nil {
 		return DeleteResult{}, err
 	}

@@ -69,7 +69,6 @@ func InsertReplay(ctx context.Context, q *db.Queries, inst ReplayInst) (int64, e
 		slog.ErrorContext(ctx, "failed to create replay", "replay", inst, "err", err)
 		return 0, err
 	}
-
 	slog.InfoContext(ctx, "created a new replay", "replay", inst, "replayID", replayID)
 	return replayID, nil
 }
@@ -117,20 +116,16 @@ func GetReplay(ctx context.Context, q *db.Queries, id int64) (ReplayEntity, erro
 	return replay, nil
 }
 
-func GetReplayMoveList(ctx context.Context, q *db.Queries, id int64) (string, error) {
-
+func GetReplayMoveList(ctx context.Context, q *db.Queries, id int64) ([]byte, error) {
 	moveList, err := q.GetReplayMoveList(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", ErrNoReplay
+		return nil, ErrNoReplay
 	}
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to select replay move list", "id", id, "err", err)
-		return "", fmt.Errorf("failed to get replay move list by id: %w", err)
+		return nil, fmt.Errorf("failed to get replay move list by id: %w", err)
 	}
-	moveListStr := string(moveList)
-
-	slog.InfoContext(ctx, "selected replay by id", "moveList", moveListStr)
-	return moveListStr, nil
+	return moveList, nil
 }
 
 func GetUserReplays(ctx context.Context, q *db.Queries, userID int64, afterID int64, perPage int32) ([]ReplayEntity, error) {
@@ -152,7 +147,6 @@ func GetUserReplays(ctx context.Context, q *db.Queries, userID int64, afterID in
 	for _, row := range rows {
 		replays = append(replays, mapReplayFromRow(db.GetReplayByIDRow(row)))
 	}
-
 	slog.InfoContext(ctx, "selected replays", "replays", replays, "userID", userID, "afterID", afterID, "perPage", perPage)
 	return replays, nil
 }

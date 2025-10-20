@@ -13,16 +13,19 @@ import (
 )
 
 const GamesChan = "games"
+const UsersChan = "users"
+const GamesCountChan = "games_count"
+const UsersCountChan = "users_count"
 
-func BroadcastGameMessage(ctx context.Context, rdb Rdb, b []byte) error {
+func BroadcastMessage(ctx context.Context, rdb Rdb, channel string, b []byte) error {
 	conn := rdb.Get()
 	defer conn.Close()
 
-	if _, err := conn.Do("PUBLISH", GamesChan, b); err != nil {
+	if _, err := conn.Do("PUBLISH", channel, b); err != nil {
 		slog.ErrorContext(ctx, "failed to publish message", "err", err)
 		return err
 	}
-	slog.InfoContext(ctx, "broadcasted message to channel", "bytes", len(b))
+	slog.InfoContext(ctx, "broadcasted message to channel", "channel", channel, "bytes", len(b))
 	return nil
 }
 

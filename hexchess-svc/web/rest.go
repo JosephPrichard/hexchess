@@ -13,16 +13,25 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
-func handler(stores data.Stores, h func(w http.ResponseWriter, r *http.Request, stores data.Stores) error) http.Handler {
+type RestState struct {
+	data.Stores
+	initialBoard []byte
+	countryList  []byte
+}
+
+func handler(state RestState, h func(w http.ResponseWriter, r *http.Request, state RestState) error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		trace := uuid.NewString()
 		r = r.WithContext(context.WithValue(r.Context(), logs.TraceKey, trace))
 
-		slog.InfoContext(r.Context(), "request received", "trace", trace, "method", r.Method, "url", r.URL)
+		slog.InfoContext(r.Context(), "request received", "method", r.Method, "url", r.URL)
 
-		if err := h(w, r, stores); err != nil {
+		if err := h(w, r, state); err != nil {
+			slog.ErrorContext(r.Context(), "request failed", "method", r.Method, "url", r.URL, "error", err)
+
 			status, m := HttpStatusFromError(err)
 			w.WriteHeader(status)
 			_, _ = w.Write([]byte(m))
@@ -30,18 +39,65 @@ func handler(stores data.Stores, h func(w http.ResponseWriter, r *http.Request, 
 	})
 }
 
-func Handle(stores data.Stores) http.Handler {
+func staticHandler(b []byte) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(b)
+	})
+}
+
+func Handle(state RestState) http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("/api/register", handler(stores, HandleRegister))
-	mux.Handle("/api/login", handler(stores, HandleLogin))
-	mux.Handle("/api/session/temp", handler(stores, HandleCreateTempSession))
-	mux.Handle("/api/session/refresh", handler(stores, HandleRefreshSession))
-	mux.Handle("/api/session/logout", handler(stores, HandleLogout))
-	mux.Handle("/api/users/password", handler(stores, HandleUpdatePassword))
-	mux.Handle("/api/users", handler(stores, HandleUpdateUser))
-	mux.Handle("/api/leaderboard", handler(stores, HandleGetLeaderboard))
-	mux.Handle("/api/players", handler(stores, HandleGetPlayer))
-	mux.Handle("/api/self", handler(stores, HandleGetSelf))
+
+	var sb strings.Builder
+	sb.WriteString("starting rest server...\n")
+
+	for _, route := range []struct {
+		pattern string
+		handler func(w http.ResponseWriter, r *http.Request, state RestState) error
+	}{
+		{"POST /api/register", HandleRegister},
+		{"POST /api/login", HandleLogin},
+		{"GET /api/session/temp", HandleCreateTempSession},
+		{"POST /api/session/refresh", HandleRefreshSession},
+		{"POST /api/session/logout", HandleLogout},
+		{"POST /api/users/password", HandleUpdatePassword},
+		{"POST /api/users", HandleUpdateUser},
+		{"POST /api/games/create", HandleCreateGame},
+		{"POST /api/challenges/update", HandleUpdateChallenge},
+		{"POST /api/challenges/create", HandleCreateChallenge},
+		{"GET /api/players", HandleGetPlayer},
+		{"GET /api/players/self", HandleGetSelf},
+		{"GET /api/players/search", HandleSearchPlayers},
+		{"GET /api/leaderboard", HandleGetLeaderboard},
+		{"GET /api/challenges", HandleGetChallenges},
+		{"GET /api/replays", HandleGetUserReplays},
+		{"GET /api/chess/rooms", HandleGetChessRoomList},
+		{"GET /api/replay", HandleGetReplay},
+		{"GET /api/replay/move-list", HandleGetReplayMoveList},
+	} {
+		mux.Handle(route.pattern, handler(state, route.handler))
+
+		sb.WriteString("\t")
+		sb.WriteString(route.pattern)
+		sb.WriteString("\n")
+	}
+	for _, route := range []struct {
+		pattern  string
+		resource []byte
+	}{
+		{"GET /initial-board", state.initialBoard},
+		{"GET /countries", state.countryList},
+	} {
+		mux.Handle(route.pattern, staticHandler(route.resource))
+
+		sb.WriteString("\t")
+		sb.WriteString(route.pattern)
+		sb.WriteString("\n")
+	}
+
+	fmt.Println(sb.String())
 	return mux
 }
 
@@ -63,10 +119,10 @@ func validatePassword(password, confirm string) error {
 	return nil
 }
 
-func HandleRegister(w http.ResponseWriter, r *http.Request, stores data.Stores) error {
+func HandleRegister(w http.ResponseWriter, r *http.Request, state RestState) error {
 	var body RegisterBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		return ErrHttpUnknown
+		return err
 	}
 	if len(body.Username) < 5 || len(body.Username) > 20 {
 		return ErrHttpInvalidUsername
@@ -76,7 +132,7 @@ func HandleRegister(w http.ResponseWriter, r *http.Request, stores data.Stores) 
 	}
 
 	ctx := r.Context()
-	user, err := data.InsertUser(ctx, stores.Q, data.UserInst{
+	user, err := data.InsertUser(ctx, state.Q, data.UserInst{
 		Username: body.Username,
 		Password: body.Password,
 		Country:  "us",
@@ -90,7 +146,7 @@ func HandleRegister(w http.ResponseWriter, r *http.Request, stores data.Stores) 
 	if err != nil {
 		return fmt.Errorf("failed to insert user: %w", err)
 	}
-	t, err := SetSessionPlayer(ctx, stores.Rdb, w, data.PlayerState{
+	t, err := SetSessionPlayer(ctx, state.Rdb, w, data.PlayerState{
 		ID:      user.ID,
 		Name:    user.Username,
 		Country: user.Country,
@@ -117,21 +173,21 @@ type LoginBody struct {
 	Password string `json:"password"`
 }
 
-func HandleLogin(w http.ResponseWriter, r *http.Request, stores data.Stores) error {
+func HandleLogin(w http.ResponseWriter, r *http.Request, state RestState) error {
 	var body LoginBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		return ErrHttpUnknown
+		return err
 	}
 
 	ctx := r.Context()
-	user, err := data.VerifyUser(ctx, stores.Q, body.Username, body.Password)
+	user, err := data.VerifyUser(ctx, state.Q, body.Username, body.Password)
 	if errors.Is(err, data.ErrUserNotFound) {
 		return ErrHttpUserNotFound
 	}
 	if err != nil {
 		return fmt.Errorf("failed to verify user: %w", err)
 	}
-	t, err := SetSessionPlayer(ctx, stores.Rdb, w, data.PlayerState{
+	t, err := SetSessionPlayer(ctx, state.Rdb, w, data.PlayerState{
 		ID:      user.ID,
 		Name:    user.Username,
 		Country: user.Country,
@@ -159,28 +215,28 @@ type UpdatePasswordBody struct {
 	ConfirmNewPassword string `json:"confirmNewPassword"`
 }
 
-func HandleUpdatePassword(w http.ResponseWriter, r *http.Request, stores data.Stores) error {
+func HandleUpdatePassword(w http.ResponseWriter, r *http.Request, state RestState) error {
 	var body UpdatePasswordBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		return ErrHttpUnknown
+		return err
 	}
 	if err := validatePassword(body.NewPassword, body.ConfirmNewPassword); err != nil {
 		return err
 	}
 
 	ctx := r.Context()
-	player, _, err := GetSessionPlayer(ctx, stores.Rdb, r)
+	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
 	if err != nil {
 		return fmt.Errorf("failed to get session player: %w", err)
 	}
-	user, err := data.VerifyUser(ctx, stores.Q, player.Name, body.Password)
+	user, err := data.VerifyUser(ctx, state.Q, player.Name, body.Password)
 	if errors.Is(err, data.ErrUserNotFound) {
 		return ErrHttpInvalidLogin
 	}
 	if err != nil {
 		return fmt.Errorf("failed to verify user: %w", err)
 	}
-	if err := data.UpdateUserPassword(ctx, stores.Q, user.ID, body.NewPassword); err != nil {
+	if err := data.UpdateUserPassword(ctx, state.Q, user.ID, body.NewPassword); err != nil {
 		return fmt.Errorf("failed to update user password: %w", err)
 	}
 	slog.InfoContext(ctx, "user has updated password", "user", user)
@@ -195,31 +251,32 @@ type UpdateUserBody struct {
 	NewBio      string `json:"newBio"`
 }
 
-func HandleUpdateUser(w http.ResponseWriter, r *http.Request, stores data.Stores) error {
+func HandleUpdateUser(w http.ResponseWriter, r *http.Request, state RestState) error {
 	var body UpdateUserBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		return ErrHttpUnknown
+		return err
 	}
 
 	ctx := r.Context()
-	player, _, err := GetSessionPlayer(ctx, stores.Rdb, r)
+	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
 	if err != nil {
 		return fmt.Errorf("failed to get session player: %w", err)
 	}
-	if err := data.UpdateUser(ctx, stores.Q, player.ID, data.UpdtUserParams{
+	user, err := data.UpdateUser(ctx, state.Q, player.ID, data.UpdtUserParams{
 		Username: body.NewUsername,
 		Bio:      body.NewBio,
 		Country:  body.NewCountry,
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("failed to update user: %w", err)
 	}
 	slog.InfoContext(ctx, "user has updated username", "user", player)
 
 	writeJSON(w, http.StatusOK, SessionView{
-		ID:       player.ID,
-		Username: player.Name,
-		Country:  player.Country,
-		Elo:      player.Elo,
+		ID:       user.ID,
+		Username: user.Username,
+		Country:  user.Country,
+		Elo:      user.Elo,
 	})
 	return nil
 }
@@ -228,9 +285,9 @@ type TempSessionResp struct {
 	SessionID string `json:"sessionId"`
 }
 
-func HandleCreateTempSession(w http.ResponseWriter, r *http.Request, stores data.Stores) error {
+func HandleCreateTempSession(w http.ResponseWriter, r *http.Request, state RestState) error {
 	ctx := r.Context()
-	player, _, err := GetSessionPlayer(ctx, stores.Rdb, r)
+	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
 	if err != nil {
 		return fmt.Errorf("failed to get session player: %w", err)
 	}
@@ -238,7 +295,7 @@ func HandleCreateTempSession(w http.ResponseWriter, r *http.Request, stores data
 	if err != nil {
 		return err
 	}
-	if err := data.SetSession(ctx, stores.Rdb, sessionID, player, MaxAgeCookie); err != nil {
+	if err := data.SetSession(ctx, state.Rdb, sessionID, player, MaxAgeCookie); err != nil {
 		return fmt.Errorf("failed to set session: %w", err)
 	}
 
@@ -252,17 +309,17 @@ type RefreshResp struct {
 	Session *SessionView `json:"session,omitempty"`
 }
 
-func HandleRefreshSession(w http.ResponseWriter, r *http.Request, stores data.Stores) error {
+func HandleRefreshSession(w http.ResponseWriter, r *http.Request, state RestState) error {
 	ctx := r.Context()
-	player, sessionID, err := GetSessionPlayer(ctx, stores.Rdb, r)
-	if errors.Is(err, data.ErrNoSession) {
+	player, sessionID, err := GetSessionPlayer(ctx, state.Rdb, r)
+	if errors.Is(err, data.ErrSessionNotFound) {
 		writeEmptyRefreshJSON(w)
 		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("failed to get session player: %w", err)
 	}
-	if err := data.UpdateSessionEx(ctx, stores.Rdb, sessionID, MaxAgeCookie); err != nil {
+	if err := data.UpdateSessionEx(ctx, state.Rdb, sessionID, MaxAgeCookie); err != nil {
 		return fmt.Errorf("failed to update session: %w", err)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
@@ -279,7 +336,7 @@ func HandleRefreshSession(w http.ResponseWriter, r *http.Request, stores data.St
 	return nil
 }
 
-func HandleLogout(w http.ResponseWriter, r *http.Request, stores data.Stores) error {
+func HandleLogout(w http.ResponseWriter, r *http.Request, state RestState) error {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
 		return err
@@ -287,7 +344,7 @@ func HandleLogout(w http.ResponseWriter, r *http.Request, stores data.Stores) er
 	sessionID := cookie.Value
 
 	ctx := r.Context()
-	if err := data.DeleteSession(ctx, stores.Rdb, sessionID); err != nil {
+	if err := data.DeleteSession(ctx, state.Rdb, sessionID); err != nil {
 		return fmt.Errorf("failed to delete session: %w", err)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
@@ -305,13 +362,10 @@ type CreateGameResp struct {
 	GameID string `json:"gameId"`
 }
 
-func HandleCreateGame(w http.ResponseWriter, r *http.Request, d data.GameplayDAL) error {
+func HandleCreateGame(w http.ResponseWriter, r *http.Request, state RestState) error {
 	var body CreateGameBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		return ErrHttpUnknown
-	}
 
-	gameID, err := CreateGame(r.Context(), d, body.FirstColor, body.TimeControl)
+	gameID, err := CreateGame(r.Context(), state.Stores, body.FirstColor, body.TimeControl)
 	if err != nil {
 		return fmt.Errorf("failed to create game: %w", err)
 	}
@@ -323,7 +377,7 @@ func HandleCreateGame(w http.ResponseWriter, r *http.Request, d data.GameplayDAL
 
 type UpdateChallengeBody struct {
 	ChallengeeID int64  `json:"challengeeId"`
-	ChallengerID int64  `json:"accept"`
+	ChallengerID int64  `json:"challengerId"`
 	Action       string `json:"action"`
 }
 
@@ -331,11 +385,9 @@ type UpdateChallengeResp struct {
 	GameID string `json:"challengeId"`
 }
 
-func UpdateChallenge(w http.ResponseWriter, r *http.Request, stores data.Stores, d data.GameplayDAL) error {
+func HandleUpdateChallenge(w http.ResponseWriter, r *http.Request, state RestState) error {
 	var body UpdateChallengeBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		return ErrHttpUnknown
-	}
+
 	body.Action = strings.ToUpper(body.Action)
 
 	var targetID int64
@@ -349,8 +401,7 @@ func UpdateChallenge(w http.ResponseWriter, r *http.Request, stores data.Stores,
 	}
 
 	ctx := r.Context()
-
-	player, _, err := GetSessionPlayer(ctx, stores.Rdb, r)
+	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
 	if err != nil {
 		return fmt.Errorf("failed to get session player: %w", err)
 	}
@@ -358,7 +409,7 @@ func UpdateChallenge(w http.ResponseWriter, r *http.Request, stores data.Stores,
 		return ErrHttpUpdateChallenge
 	}
 
-	dr, err := data.DeleteChallenge(ctx, stores.Q, body.ChallengerID, body.ChallengeeID)
+	dr, err := data.DeleteChallenge(ctx, state.Q, body.ChallengerID, body.ChallengeeID)
 	if errors.Is(err, data.ErrChallengeNotFound) {
 		return ErrHttpNotFoundChallenge
 	}
@@ -369,7 +420,7 @@ func UpdateChallenge(w http.ResponseWriter, r *http.Request, stores data.Stores,
 
 	gameID := ""
 	if body.Action == "ACCEPT" {
-		gameID, err = CreateGame(ctx, d, dr.FirstColor, dr.TimeControl)
+		gameID, err = CreateGame(ctx, state.Stores, dr.FirstColor, dr.TimeControl)
 		if err != nil {
 			return fmt.Errorf("failed to create game: %w", err)
 		}
@@ -386,15 +437,58 @@ type CreateChallengeBody struct {
 	TimeControl  string `json:"timeControl"`
 }
 
-func HandleCreateChallenge(w http.ResponseWriter, r *http.Request, stores data.Stores) error {
+func HandleCreateChallenge(w http.ResponseWriter, r *http.Request, state RestState) error {
+	var body CreateChallengeBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		return err
+	}
+
+	ctx := r.Context()
+	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
+	if err != nil {
+		return fmt.Errorf("failed to get session player: %w", err)
+	}
+
+	tc, err := data.ParseTimeControl(body.TimeControl)
+	if err != nil {
+		return err
+	}
+	fc, err := data.ParseColorSelect(body.FirstColor)
+	if err != nil {
+		return err
+	}
+	ret, err := data.InsertChallengeRet(ctx, state.Q, data.ChallengeInst{
+		ChallengerID: player.ID,
+		ChallengeeID: body.ChallengeeID,
+		TimeControl:  tc,
+		StartColor:   fc,
+		MadeOn:       time.Now(),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to insert challenge: %w", err)
+	}
+	writeSuccessJSON(w)
+
+	ctx = context.WithoutCancel(ctx)
+	if err := data.DeleteExpiredChallenges(ctx, state.Q, player.ID, data.ExpireChallengeThreshold); err != nil {
+		slog.ErrorContext(ctx, "failed to delete expired challenges", "challenge", ret, "err", err)
+	}
+	b, err := json.Marshal(ret)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to marshall challenge for broadcast", "challenge", ret, "err", err)
+		return nil
+	}
+	if err := data.BroadcastMessage(ctx, state.Rdb, state.Rdb.UsersChan, b); err != nil {
+		slog.ErrorContext(ctx, "failed to broadcast challenge", "challenge", ret, "err", err)
+	}
 	return nil
 }
 
-func HandleGetSelf(w http.ResponseWriter, r *http.Request, stores data.Stores) error {
+func HandleGetSelf(w http.ResponseWriter, r *http.Request, state RestState) error {
 	ctx := r.Context()
 
-	player, _, err := GetSessionPlayer(ctx, stores.Rdb, r)
-	if errors.Is(err, data.ErrNoSession) {
+	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
+	if errors.Is(err, data.ErrSessionNotFound) {
 		writeEmptyRefreshJSON(w)
 		return nil
 	}
@@ -402,7 +496,7 @@ func HandleGetSelf(w http.ResponseWriter, r *http.Request, stores data.Stores) e
 		return fmt.Errorf("failed to get session player: %w", err)
 	}
 
-	user, err := data.GetUserById(ctx, stores.Q, player.ID)
+	user, err := data.GetUserById(ctx, state.Q, player.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get user by id: %w", err)
 	}
@@ -417,23 +511,19 @@ type LeaderboardResp struct {
 	UserList   []data.UserEntity `json:"userList,omitempty"`
 }
 
-func HandleGetLeaderboard(w http.ResponseWriter, r *http.Request, stores data.Stores) error {
-	var page int64
-	strPage := r.URL.Query().Get("page")
-	if strPage != "" {
-		p, err := strconv.ParseInt(strPage, 10, 64)
-		if err != nil {
-			return ErrHttpInvalidRequest
-		}
-		page = p
+func HandleGetLeaderboard(w http.ResponseWriter, r *http.Request, state RestState) error {
+	query := r.URL.Query()
+	page, err := getPageQuery(query)
+	if err != nil {
+		return err
 	}
 
 	ctx := r.Context()
-	lbd, err := data.GetLeaderboardPage(ctx, stores.Rdb, page, PerPage)
+	lbd, err := data.GetLeaderboardPage(ctx, state.Rdb, int64(page), PerPage)
 	if err != nil {
 		return fmt.Errorf("failed to get leaderboard page: %w", err)
 	}
-	users, err := data.GetRankedUsers(ctx, stores.Q, lbd.Users)
+	users, err := data.GetRankedUsers(ctx, state.Q, lbd.Users)
 	if err != nil {
 		return fmt.Errorf("failed to get ranked users: %w", err)
 	}
@@ -451,7 +541,7 @@ type UserWithReplaysResp struct {
 	ReplayList []data.ReplayEntity `json:"replayList,omitempty"`
 }
 
-func HandleGetPlayer(w http.ResponseWriter, r *http.Request, stores data.Stores) error {
+func HandleGetPlayer(w http.ResponseWriter, r *http.Request, state RestState) error {
 	strID := r.URL.Query().Get("id")
 	id, err := strconv.ParseInt(strID, 10, 64)
 	if err != nil {
@@ -466,22 +556,22 @@ func HandleGetPlayer(w http.ResponseWriter, r *http.Request, stores data.Stores)
 	var replayList []data.ReplayEntity
 
 	eg.Go(func() error {
-		u, err := data.GetUserById(egCtx, stores.Q, id)
+		u, err := data.GetUserById(egCtx, state.Q, id)
 		if err != nil {
-			return fmt.Errorf("failed to get user by id: %v", err)
+			return fmt.Errorf("failed to get user by id: %w", err)
 		}
 		user = u
-		rs, err := data.GetUserReplays(egCtx, stores.Q, id, -1, PerPage)
+		rs, err := data.GetUserReplays(egCtx, state.Q, id, -1, PerPage)
 		if err != nil {
-			return fmt.Errorf("failed to get replays by id: %v", err)
+			return fmt.Errorf("failed to get replays by id: %w", err)
 		}
 		replayList = rs
 		return nil
 	})
 	eg.Go(func() error {
-		ur, err := data.GetLeaderboardRank(egCtx, stores.Rdb, id)
+		ur, err := data.GetLeaderboardRank(egCtx, state.Rdb, id)
 		if err != nil {
-			return fmt.Errorf("failed leaderboard rank by id: %v", err)
+			return fmt.Errorf("failed leaderboard rank by id: %w", err)
 		}
 		userRank = ur
 		return nil
@@ -500,23 +590,150 @@ type SearchPlayersResp struct {
 	UserList []data.UserEntity `json:"userList,omitempty"`
 }
 
-func HandleSearchPlayers(w http.ResponseWriter, r *http.Request, stores data.Stores) error {
-	page, err := strconv.ParseInt(r.URL.Query().Get("page"), 10, 64)
+func HandleSearchPlayers(w http.ResponseWriter, r *http.Request, state RestState) error {
+	query := r.URL.Query()
+	page, err := getPageQuery(query)
 	if err != nil {
-		return ErrHttpInvalidRequest
+		return err
 	}
-	name := r.URL.Query().Get("name")
+	name := query.Get("name")
 
 	var userList []data.UserEntity
-
-	ctx := r.Context()
 	if name != "" {
-		userList, err = data.SearchUsersByName(ctx, stores.Q, name, int32(page), PerPage)
-		if err != nil {
+		if userList, err = data.SearchUsersByName(r.Context(), state.Q, name, int32(page), PerPage); err != nil {
 			return fmt.Errorf("failed to search users by name: %w", err)
 		}
 	}
 
 	writeJSON(w, http.StatusOK, SearchPlayersResp{UserList: userList})
+	return nil
+}
+
+type GetReplayResp struct {
+	Replay data.ReplayEntity `json:"replay"`
+}
+
+func HandleGetReplay(w http.ResponseWriter, r *http.Request, state RestState) error {
+	strID := r.URL.Query().Get("id")
+	id, err := strconv.Atoi(strID)
+	if err != nil {
+		return err
+	}
+
+	ctx := r.Context()
+	replay, err := data.GetReplay(ctx, state.Q, int64(id))
+	if err != nil {
+		return fmt.Errorf("failed to get replay: %w", err)
+	}
+	writeJSON(w, http.StatusOK, GetReplayResp{Replay: replay})
+	return nil
+}
+
+func HandleGetReplayMoveList(w http.ResponseWriter, r *http.Request, state RestState) error {
+	strID := r.URL.Query().Get("id")
+	id, err := strconv.Atoi(strID)
+	if err != nil {
+		return err
+	}
+
+	ctx := r.Context()
+	moveList, err := data.GetReplayMoveList(ctx, state.Q, int64(id))
+	if err != nil {
+		return fmt.Errorf("failed to get replay moveList: %w", err)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(moveList)
+	return nil
+}
+
+type GetUserReplaysResp struct {
+	ReplayList []data.ReplayEntity `json:"replayList"`
+}
+
+func HandleGetUserReplays(w http.ResponseWriter, r *http.Request, state RestState) error {
+	query := r.URL.Query()
+	afterID, err := strconv.Atoi(query.Get("afterId"))
+	if err != nil {
+		return err
+	}
+	userID, err := strconv.Atoi(query.Get("userId"))
+	if err != nil {
+		return err
+	}
+	replays, err := data.GetUserReplays(r.Context(), state.Q, int64(afterID), int64(userID), PerPage)
+	if err != nil {
+		return fmt.Errorf("failed to get user replays: %w", err)
+	}
+	writeJSON(w, http.StatusOK, GetUserReplaysResp{ReplayList: replays})
+	return nil
+}
+
+type GetChallengesResp struct {
+	ChallengeList []data.ChallengeEntity `json:"challengeList"`
+}
+
+func HandleGetChallenges(w http.ResponseWriter, r *http.Request, state RestState) error {
+	participants := r.URL.Query().Get("participants")
+
+	ctx := r.Context()
+	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
+	if err != nil {
+		return fmt.Errorf("failed to get session player: %w", err)
+	}
+
+	var challengeList []data.ChallengeEntity
+	switch participants {
+	case "sent":
+		challengeList, err = data.GetChallengesByParticipant(ctx, state.Q, player.ID, data.NoChallengeID, data.ExpireChallengeThreshold)
+	case "received":
+		challengeList, err = data.GetChallengesByParticipant(ctx, state.Q, data.NoChallengeID, player.ID, data.ExpireChallengeThreshold)
+	default:
+		return ErrHttpInvalidRequest
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get challenges by participant: %w", err)
+	}
+
+	writeJSON(w, http.StatusOK, GetChallengesResp{ChallengeList: challengeList})
+	return nil
+}
+
+type ChessRoomListResp struct {
+	ChessList     []data.ChessView `json:"chessList"`
+	SelfChessList []data.ChessView `json:"selfChessList"`
+}
+
+func HandleGetChessRoomList(w http.ResponseWriter, r *http.Request, state RestState) error {
+	query := r.URL.Query()
+	page, err := getPageQuery(query)
+	if err != nil {
+		return err
+	}
+	count, err := getCountQuery(query)
+	if err != nil {
+		return err
+	}
+
+	ctx := r.Context()
+	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
+	hasSession := err != data.ErrSessionNotFound
+	if err != nil && hasSession {
+		return fmt.Errorf("failed to get session player: %w", err)
+	}
+
+	chessList, err := data.GetAllChessViews(ctx, state.Rdb, page, count)
+	if err != nil {
+		return fmt.Errorf("failed to get all chess views: %w", err)
+	}
+	var selfChessList []data.ChessView
+	if hasSession {
+		if selfChessList, err = data.GetUserChessViews(ctx, state.Rdb, player.ID); err != nil {
+			return fmt.Errorf("failed to get all chess views: %w", err)
+		}
+	}
+
+	writeJSON(w, http.StatusOK, ChessRoomListResp{ChessList: chessList, SelfChessList: selfChessList})
 	return nil
 }

@@ -134,9 +134,9 @@ func TestBroadcastGameMessage(t *testing.T) {
 	go testCountSub(t, sub, mChan, 2)
 	m.Subscribe("1", sub)
 
-	assert.NoError(t, BroadcastGameMessage(ctx, rdb, makeTestChatOutput(t, "1", "test1")))
-	assert.NoError(t, BroadcastGameMessage(ctx, rdb, makeTestChatOutput(t, "1", "test2")))
-	assert.NoError(t, BroadcastGameMessage(ctx, rdb, makeTestChatOutput(t, "2", "test3")))
+	assert.NoError(t, BroadcastMessage(ctx, rdb, GamesChan, makeTestChatOutput(t, "1", "test1")))
+	assert.NoError(t, BroadcastMessage(ctx, rdb, GamesChan, makeTestChatOutput(t, "1", "test2")))
+	assert.NoError(t, BroadcastMessage(ctx, rdb, GamesChan, makeTestChatOutput(t, "2", "test3")))
 
 	assert.Equal(t, []string{"test1", "test2"}, getChatMessages(t, <-mChan))
 }
@@ -236,7 +236,7 @@ func BenchmarkBroadcastGameMessage(b *testing.B) {
 
 		b.StartTimer()
 
-		assert.NoError(b, BroadcastGameMessage(ctx, rdb, output))
+		assert.NoError(b, BroadcastMessage(ctx, rdb, GamesChan, output))
 
 		b.StopTimer()
 	}

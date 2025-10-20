@@ -3,15 +3,22 @@ package web
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 	"hexchess-svc/chess"
 	"hexchess-svc/data"
 	"hexchess-svc/logs"
 	"testing"
 	"time"
 )
+
+func assertStateRdb(t *testing.T, rdb data.Rdb, expState data.ChessState) {
+	ctx := context.WithValue(context.Background(), logs.TraceKey, "assert-chess-states")
+	actualState, err := data.GetChessState(ctx, rdb, expState.ID)
+	if err != nil {
+		t.Fatalf("failed to get chess for assert: %v", err)
+	}
+	assertStatesEqual(t, expState, actualState)
+}
 
 func assertStatesEqual(t *testing.T, expState data.ChessState, actualState data.ChessState) {
 	// empty fields we do not want to assert
@@ -21,175 +28,149 @@ func assertStatesEqual(t *testing.T, expState data.ChessState, actualState data.
 }
 
 func TestJoinGame_JoinWhite(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	d := data.NewMockGameplayDAL(ctrl)
+	stores, closer := data.BeforeStoresTests(t)
+	defer closer()
 
 	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-join-game")
 
-	gameID := "test123-" + uuid.NewString()
+	gameID := "test123"
+	inState := data.MakeStartChessState(gameID, data.RealTime)
+	inState.FirstColor = data.White
+	player := data.PlayerState{ID: 1, Name: "name", Country: "us", Elo: 0}
 
-	inpState := data.MakeStartChessState(gameID, data.RealTime)
-	inpState.FirstColor = data.White
-	inpPlayer := data.PlayerState{ID: 1, Name: "name", Country: "us", Elo: 0}
+	if _, err := data.SetChessState(ctx, stores.Rdb, gameID, inState); err != nil {
+		t.Fatalf("failed initialize test state: %v", err)
+	}
 
-	retState := inpState.DeepCopy()
-	retState.WhitePlayer = &inpPlayer
+	updated, err := JoinGame(ctx, stores, gameID, player)
 
-	d.EXPECT().
-		GetChessState(gomock.Any(), gomock.Eq(gameID)).
-		Return(inpState, nil)
-	d.EXPECT().
-		SetChessState(gomock.Any(), gomock.Eq(gameID), gomock.Eq(retState)).
-		Return(retState, nil)
-
-	updated, err := JoinGame(ctx, d, gameID, inpPlayer)
+	expState := inState.DeepCopy()
+	expState.WhitePlayer = &player
 
 	assert.NoError(t, err)
-	assert.Equal(t, retState, updated)
+	assertStatesEqual(t, expState, updated)
+	assertStateRdb(t, stores.Rdb, inState)
 }
 
 func TestJoinGame_BothPlayersExist(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	d := data.NewMockGameplayDAL(ctrl)
+	stores, closer := data.BeforeStoresTests(t)
+	defer closer()
 
 	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-join-game-both-players")
 
-	gameID := "test123-" + uuid.NewString()
+	gameID := "test123"
+	inState := data.MakeStartChessState(gameID, data.RealTime)
+	inState.WhitePlayer = &data.PlayerState{ID: 1, Name: "white"}
+	inState.BlackPlayer = &data.PlayerState{ID: 2, Name: "black"}
 
-	inpState := data.MakeStartChessState(gameID, data.RealTime)
-	inpState.WhitePlayer = &data.PlayerState{ID: 1, Name: "white"}
-	inpState.BlackPlayer = &data.PlayerState{ID: 2, Name: "black"}
+	if _, err := data.SetChessState(ctx, stores.Rdb, gameID, inState); err != nil {
+		t.Fatalf("failed initialize test state: %v", err)
+	}
 
-	d.EXPECT().
-		GetChessState(gomock.Any(), gomock.Eq(gameID)).
-		Return(inpState, nil)
+	result, err := JoinGame(ctx, stores, gameID, data.PlayerState{ID: 3, Name: "test"})
 
-	result, err := JoinGame(ctx, d, gameID, data.PlayerState{ID: 3, Name: "extra"})
 	assert.NoError(t, err)
-
-	assertStatesEqual(t, inpState, result)
+	assertStatesEqual(t, inState, result)
+	assertStateRdb(t, stores.Rdb, inState)
 }
 
 func TestMakeMove(t *testing.T) {
-	gameID := "test123-" + uuid.NewString()
+	stores, closer := data.BeforeStoresTests(t)
+	defer closer()
 
-	ss := data.MakeStartChessState(gameID, data.RealTime)
-	ss.WhitePlayer = &data.PlayerState{ID: 1}
-	ss.BlackPlayer = &data.PlayerState{ID: 2}
+	s1 := data.MakeStartChessState("test1", data.RealTime)
+	s1.WhitePlayer = &data.PlayerState{ID: 1}
+	s1.BlackPlayer = &data.PlayerState{ID: 2}
 
-	fs := data.ChessState{
-		ID:          gameID,
+	s2 := data.ChessState{
+		ID:          "test2",
 		Game:        chess.MakeEmptyGame(),
 		FirstColor:  data.Random,
 		TimeControl: data.RealTime,
 		Touch:       time.UnixMilli(0),
-		WhitePlayer: &data.PlayerState{ID: 1},
-		BlackPlayer: &data.PlayerState{ID: 2},
+		WhitePlayer: &data.PlayerState{ID: 3},
+		BlackPlayer: &data.PlayerState{ID: 4},
 	}
-	fs.Game.Board.IsWhiteTurn = false
-	fs.Game.
+	s2.Game.Board.IsWhiteTurn = false
+	s2.Game.
 		SetPiece("f1", chess.WhiteKing).
 		SetPiece("a2", chess.BlackQueen).
 		SetPiece("h1", chess.BlackRook).
 		SetPiece("f3", chess.BlackRook).
 		SetPiece("f9", chess.BlackKing)
 
-	type Test struct {
+	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-make-move")
+
+	for _, state := range []data.ChessState{s1, s2} {
+		if _, err := data.SetChessState(ctx, stores.Rdb, state.ID, state); err != nil {
+			t.Fatalf("failed initialize test state: %v", err)
+		}
+	}
+
+	for i, test := range []struct {
 		pm             chess.PieceMove
 		state          data.ChessState
 		player         data.PlayerState
 		makesCheckmate bool
 		expErr         error
-	}
-
-	tests := []Test{
+	}{
 		{
 			pm:     chess.PieceMove{To: chess.Hex{File: 1}}, // invalid turn
-			state:  ss,
-			player: *ss.BlackPlayer,
+			state:  s1,
+			player: *s1.BlackPlayer,
 			expErr: ErrTurn,
 		},
 		{
 			pm:     chess.PieceMove{To: chess.Hex{File: 1}}, // invalid move
-			state:  ss,
-			player: *ss.WhitePlayer,
+			state:  s1,
+			player: *s1.WhitePlayer,
 			expErr: ErrInvalidMove,
 		},
 		{
 			pm:     chess.PieceMove{Piece: chess.WhitePawn, From: chess.Hex{File: 1, Rank: 0}, To: chess.Hex{File: 1, Rank: 1}}, // valid move
-			state:  ss,
-			player: *ss.WhitePlayer,
+			state:  s1,
+			player: *s1.WhitePlayer,
 		},
 		{
 			pm:             chess.PieceMove{Piece: chess.BlackQueen, From: chess.Hex{File: 0, Rank: 1}, To: chess.Hex{File: 0, Rank: 0}}, // valid move
-			state:          fs,
+			state:          s2,
 			makesCheckmate: true,
-			player:         *ss.BlackPlayer,
+			player:         *s2.BlackPlayer,
 		},
-	}
-
-	runTest := func(t *testing.T, test Test) {
-		ctrl := gomock.NewController(t)
-		d := data.NewMockGameplayDAL(ctrl)
-
-		ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-make-move")
-
-		// don't assert the chess states, since it is too complex to testing that logic here
-		d.EXPECT().
-			GetChessState(gomock.Any(), gomock.Eq(gameID)).
-			Return(test.state, nil)
-		if test.expErr == nil {
-			d.EXPECT().
-				SetChessState(gomock.Any(), gomock.Eq(gameID), gomock.Any()).
-				DoAndReturn(func(_ context.Context, gameID string, state data.ChessState) (data.ChessState, error) {
-					return state, nil // echo stub
-				})
-		}
-		if test.makesCheckmate {
-			d.EXPECT().
-				WriteFinishedGame(gomock.Any(), gomock.Any(), false, data.Checkmate).
-				Return(nil)
-		}
-
-		if result, err := MakeGameMove(ctx, d, gameID, test.player, test.pm); err == nil {
-			assert.Equal(t, test.pm, result.Move)
-		} else {
-			assert.Equal(t, test.expErr, err)
-		}
-	}
-	for i, test := range tests {
-		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) { runTest(t, test) })
+	} {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			result, err := MakeGameMove(ctx, stores, test.state.ID, test.player, test.pm)
+			if err != nil {
+				assert.Equal(t, test.expErr, err)
+			} else {
+				assert.Equal(t, test.pm, result.Move)
+			}
+		})
 	}
 }
 
 var MockMoveList = []chess.PieceMove{{Piece: 1, To: chess.Hex{Rank: 1}}}
 
 func TestForfeit_BlackForfeits(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	d := data.NewMockGameplayDAL(ctrl)
-
-	gameID := "test123-" + uuid.NewString()
+	stores, closer := data.BeforeStoresTests(t)
+	defer closer()
 
 	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-forfeit")
 
-	inpState := data.MakeStartChessState(gameID, data.RealTime)
-	inpState.WhitePlayer = &data.PlayerState{ID: 1}
-	inpState.BlackPlayer = &data.PlayerState{ID: 2}
-	inpState.MoveList = MockMoveList
+	gameID := "test123"
+	inState := data.MakeStartChessState(gameID, data.RealTime)
+	inState.WhitePlayer = &data.PlayerState{ID: 1}
+	inState.BlackPlayer = &data.PlayerState{ID: 2}
+	inState.MoveList = MockMoveList
 
-	retState := inpState.DeepCopy()
-	retState.IsEnded = true
+	if _, err := data.SetChessState(ctx, stores.Rdb, gameID, inState); err != nil {
+		t.Fatalf("failed initialize test state: %v", err)
+	}
 
-	d.EXPECT().
-		GetChessState(gomock.Any(), gomock.Eq(gameID)).
-		Return(inpState, nil)
-	d.EXPECT().
-		WriteFinishedGame(gomock.Any(), gomock.Eq(retState), gomock.Eq(true), gomock.Eq(data.Forfeit)).
-		Return(nil)
-	d.EXPECT().
-		SetChessState(gomock.Any(), gomock.Eq(gameID), gomock.Eq(retState)).
-		Return(retState, nil)
+	assert.NoError(t, ForfeitGame(ctx, stores, gameID, *inState.BlackPlayer))
 
-	assert.NoError(t, ForfeitGame(ctx, d, gameID, *inpState.BlackPlayer))
+	expState := inState.DeepCopy()
+	expState.IsEnded = true
+
+	assertStateRdb(t, stores.Rdb, expState)
 }

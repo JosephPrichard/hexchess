@@ -232,20 +232,21 @@ type UpdtUserParams struct {
 	Country  string
 }
 
-func UpdateUser(ctx context.Context, q *db.Queries, id int64, updt UpdtUserParams) error {
+func UpdateUser(ctx context.Context, q *db.Queries, id int64, updt UpdtUserParams) (UserEntity, error) {
 	if updt.Username == "" && updt.Bio == "" && updt.Country == "" {
-		return nil
+		return UserEntity{}, nil
 	}
 
-	user, err := q.UpdateUser(ctx, db.UpdateUserParams{
+	row, err := q.UpdateUser(ctx, db.UpdateUserParams{
 		ID:       id,
 		Username: pgtype.Text{Valid: updt.Username != "", String: updt.Username},
 		Bio:      pgtype.Text{Valid: updt.Bio != "", String: updt.Bio},
 		Country:  pgtype.Text{Valid: updt.Country != "", String: updt.Country},
 	})
 
+	user := mapUserFromRow(db.SelectUserByIDRow(row))
 	logs.DynLog(ctx, "updated user", err, "user", user, "trace", ctx.Value(logs.TraceKey))
-	return err
+	return user, err
 }
 
 func UpdateUserPassword(ctx context.Context, q *db.Queries, id int64, newPassword string) error {
@@ -291,9 +292,14 @@ func GetUserByIds(ctx context.Context, q *db.Queries, ids []int64) ([]UserEntity
 	return users, nil
 }
 
-func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page int32, perPage int32) ([]UserEntity, error) {
+const MaxSearchOffset = 1000
+
+func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page, perPage int32) ([]UserEntity, error) {
 	page = max(page, 1)
 	offset := (page - 1) * perPage
+	if offset > MaxSearchOffset {
+		return nil, fmt.Errorf("search offset: %d exceeds maximum: %d", offset, MaxSearchOffset)
+	}
 
 	rows, err := q.SelectUsersBySimilarity(ctx, db.SelectUsersBySimilarityParams{Username: name, Limit: perPage, Offset: offset})
 	if err != nil {
@@ -304,7 +310,7 @@ func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page int
 	var users []UserEntity
 	for i, row := range rows {
 		rank := (page-1)*perPage + int32(i) + 1
-		user := UserEntity{
+		users = append(users, UserEntity{
 			ID:       row.ID,
 			Username: row.Username,
 			Country:  row.Country.String,
@@ -312,8 +318,7 @@ func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page int
 			Wins:     row.Wins,
 			Losses:   row.Losses,
 			Rank:     int64(rank),
-		}
-		users = append(users, user)
+		})
 	}
 
 	slog.InfoContext(ctx, "selected users by name similarity", "name", name, "page", page, "perPage", page, "offset", offset)

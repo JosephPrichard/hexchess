@@ -10,7 +10,7 @@ import (
 
 const LeaderboardZSet = "leaderboard"
 
-var ErrNoSession = errors.New("session not found")
+var ErrSessionNotFound = errors.New("session not found")
 
 func GetSession(ctx context.Context, rdb Rdb, sessionID string) (PlayerState, error) {
 	conn := rdb.Get()
@@ -19,7 +19,7 @@ func GetSession(ctx context.Context, rdb Rdb, sessionID string) (PlayerState, er
 	fullID := "session:" + sessionID
 	data, err := redis.Bytes(conn.Do("GET", fullID))
 	if errors.Is(err, redis.ErrNil) {
-		return PlayerState{}, ErrNoSession
+		return PlayerState{}, ErrSessionNotFound
 	}
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get session", "sessionID", sessionID)

@@ -2,7 +2,6 @@ package data
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"hexchess-svc/logs"
 	"math"
@@ -15,8 +14,8 @@ func TestUpdateGameResultTx(t *testing.T) {
 	defer closer()
 
 	testUsers := createTestUsers(t, pgDB.Q,
-		UserInst{Username: "user1-" + uuid.NewString(), Password: "password1", Country: "us", Elo: 1000},
-		UserInst{Username: "user2-" + uuid.NewString(), Password: "password1", Country: "us", Elo: 1000})
+		UserInst{Username: "user1", Password: "password1", Country: "us", Elo: 1000},
+		UserInst{Username: "user2", Password: "password1", Country: "us", Elo: 1000})
 
 	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-update-stats")
 

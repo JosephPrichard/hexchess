@@ -24,6 +24,10 @@ type Rdb struct {
 	LeaderboardZSet string
 	GamesZSet       string
 	ActiveUsersZSet string
+	GamesChan       string
+	UsersChan       string
+	GamesCountChan  string
+	UsersCountChan  string
 }
 
 type Stores struct {
@@ -48,6 +52,10 @@ func MakeRdb(addr string) Rdb {
 		LeaderboardZSet: LeaderboardZSet,
 		GamesZSet:       GamesZSet,
 		ActiveUsersZSet: ActiveUsersZSet,
+		GamesChan:       "games",
+		UsersChan:       "users",
+		GamesCountChan:  "games_count",
+		UsersCountChan:  "users_count",
 	}
 }
 

@@ -2,7 +2,6 @@ package data
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"hexchess-svc/logs"
 	"testing"
@@ -14,9 +13,9 @@ func TestSessions(t *testing.T) {
 	defer closer()
 
 	player := PlayerState{ID: 1, Name: "testing-name1"}
-	sessionID1 := "session1" + uuid.NewString()
-	sessionID2 := "session2" + uuid.NewString()
-	sessionID3 := "session3" + uuid.NewString()
+	sessionID1 := "session1"
+	sessionID2 := "session2"
+	sessionID3 := "session3"
 
 	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-sessions")
 
@@ -33,8 +32,8 @@ func TestSessions(t *testing.T) {
 	assert.NoError(t, UpdateSessionEx(ctx, rdb, sessionID3, 0))
 
 	_, err = GetSession(ctx, rdb, sessionID2)
-	assert.Equal(t, ErrNoSession, err)
+	assert.Equal(t, ErrSessionNotFound, err)
 
 	_, err = GetSession(ctx, rdb, sessionID3)
-	assert.Equal(t, ErrNoSession, err)
+	assert.Equal(t, ErrSessionNotFound, err)
 }

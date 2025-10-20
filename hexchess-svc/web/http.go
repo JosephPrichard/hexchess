@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"testing"
 )
 
@@ -31,7 +33,14 @@ func init() {
 
 func writeSuccessJSON(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(SuccessJSON)
+}
+
+func writeEmptyRefreshJSON(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(EmptyRefreshJSON)
 }
 
 func writeJSON[V any](w http.ResponseWriter, status int, data V) {
@@ -45,16 +54,35 @@ func writeJSON[V any](w http.ResponseWriter, status int, data V) {
 	_, _ = w.Write(v)
 }
 
-func writeEmptyRefreshJSON(w http.ResponseWriter) {
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(EmptyRefreshJSON)
+func getPageQuery(query url.Values) (int, error) {
+	strPage := query.Get("page")
+	if strPage == "" {
+		return 1, nil
+	}
+	page, err := strconv.Atoi(strPage)
+	if err != nil {
+		return 0, err
+	}
+	return page, nil
 }
 
-func assertRespNoup[V any](t *testing.T, expBody any, w *httptest.ResponseRecorder) {
-	assertResp(t, expBody, w, func(*V) {})
+func getCountQuery(query url.Values) (int, error) {
+	strCount := query.Get("count")
+	if strCount == "" {
+		return PerPage, nil
+	}
+	count, err := strconv.Atoi(strCount)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
-func assertResp[V any](t *testing.T, expBody any, w *httptest.ResponseRecorder, updtResp func(*V)) {
+func assertResp[V any](t *testing.T, expBody any, w *httptest.ResponseRecorder) {
+	assertRespUpdt(t, expBody, w, func(*V) {})
+}
+
+func assertRespUpdt[V any](t *testing.T, expBody any, w *httptest.ResponseRecorder, updtResp func(*V)) {
 	resp := w.Result()
 	defer resp.Body.Close()
 
@@ -76,6 +104,6 @@ func assertResp[V any](t *testing.T, expBody any, w *httptest.ResponseRecorder, 
 		updtResp(&actualBody)
 		assert.Equal(t, expBody, actualBody)
 	default:
-		assert.Fail(t, fmt.Sprintf("unsupported type: %T", expBody))
+		assert.Fail(t, fmt.Sprintf("unsupported type in assert: %T", expBody))
 	}
 }

@@ -67,7 +67,16 @@ SET
     country = COALESCE(sqlc.narg('country'), country),
     bio = COALESCE(sqlc.narg('bio'), bio)
 WHERE id = sqlc.arg('id')
-    RETURNING *;
+RETURNING
+    id,
+    username,
+    country,
+    elo,
+    highest_elo,
+    wins,
+    losses,
+    bio,
+    joined_on;
 
 -- name: SelectUsersBySimilarity :many
 SELECT
