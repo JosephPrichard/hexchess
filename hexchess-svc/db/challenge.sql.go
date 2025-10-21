@@ -48,12 +48,12 @@ WHERE (challengee_id = $1 OR challenger_id = $1)
 `
 
 type DeleteExpiredChallengesParams struct {
-	UserID     int64
-	ExpireTime pgtype.Timestamp
+	UserID int64
+	Before pgtype.Timestamp
 }
 
 func (q *Queries) DeleteExpiredChallenges(ctx context.Context, arg DeleteExpiredChallengesParams) error {
-	_, err := q.db.Exec(ctx, deleteExpiredChallenges, arg.UserID, arg.ExpireTime)
+	_, err := q.db.Exec(ctx, deleteExpiredChallenges, arg.UserID, arg.Before)
 	return err
 }
 

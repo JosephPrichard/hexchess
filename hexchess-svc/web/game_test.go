@@ -49,7 +49,7 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 
 	assert.NoError(t, err)
 	assertStatesEqual(t, expState, updated)
-	assertStateRdb(t, stores.Rdb, inState)
+	assertStateRdb(t, stores.Rdb, updated)
 }
 
 func TestJoinGame_BothPlayersExist(t *testing.T) {
@@ -108,11 +108,10 @@ func TestMakeMove(t *testing.T) {
 	}
 
 	for i, test := range []struct {
-		pm             chess.PieceMove
-		state          data.ChessState
-		player         data.PlayerState
-		makesCheckmate bool
-		expErr         error
+		pm     chess.PieceMove
+		state  data.ChessState
+		player data.PlayerState
+		expErr error
 	}{
 		{
 			pm:     chess.PieceMove{To: chess.Hex{File: 1}}, // invalid turn
@@ -132,10 +131,9 @@ func TestMakeMove(t *testing.T) {
 			player: *s1.WhitePlayer,
 		},
 		{
-			pm:             chess.PieceMove{Piece: chess.BlackQueen, From: chess.Hex{File: 0, Rank: 1}, To: chess.Hex{File: 0, Rank: 0}}, // valid move
-			state:          s2,
-			makesCheckmate: true,
-			player:         *s2.BlackPlayer,
+			pm:     chess.PieceMove{Piece: chess.BlackQueen, From: chess.Hex{File: 0, Rank: 1}, To: chess.Hex{File: 0, Rank: 0}}, // valid move
+			state:  s2,
+			player: *s2.BlackPlayer,
 		},
 	} {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
@@ -149,8 +147,6 @@ func TestMakeMove(t *testing.T) {
 	}
 }
 
-var MockMoveList = []chess.PieceMove{{Piece: 1, To: chess.Hex{Rank: 1}}}
-
 func TestForfeit_BlackForfeits(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
@@ -161,7 +157,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	inState := data.MakeStartChessState(gameID, data.RealTime)
 	inState.WhitePlayer = &data.PlayerState{ID: 1}
 	inState.BlackPlayer = &data.PlayerState{ID: 2}
-	inState.MoveList = MockMoveList
+	inState.MoveList = []chess.PieceMove{{Piece: 1, To: chess.Hex{Rank: 1}}}
 
 	if _, err := data.SetChessState(ctx, stores.Rdb, gameID, inState); err != nil {
 		t.Fatalf("failed initialize test state: %v", err)

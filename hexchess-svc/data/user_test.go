@@ -15,9 +15,9 @@ func TestInsertThenVerify(t *testing.T) {
 
 	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-insert-then-verify")
 
-	user1 := "user1"
-	user2 := "user2"
-	user3 := "user3"
+	user1 := "user1-test"
+	user2 := "user2-test"
+	user3 := "user3-test"
 
 	u1, err := InsertUser(ctx, pgDB.Q, UserInst{Username: user1, Password: "password1"})
 	assert.NoError(t, err)
@@ -49,8 +49,8 @@ func TestBatchInsertThenGet(t *testing.T) {
 	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-batch-insert-then-get")
 
 	insts := []UserInst{
-		{Username: "user1", Password: "password1", Country: "us", Elo: 1005, Wins: 10, Losses: 10},
-		{Username: "user2", Password: "password2", Country: "eu", Elo: 1035, Wins: 12, Losses: 0},
+		{Username: "user1-test", Password: "password1", Country: "us", Elo: 1005, Wins: 10, Losses: 10},
+		{Username: "user2-test", Password: "password2", Country: "eu", Elo: 1035, Wins: 12, Losses: 0},
 	}
 	users, err := BatchInsertUsers(ctx, pgDB.Q, insts)
 
@@ -100,7 +100,7 @@ func TestUpdateUser(t *testing.T) {
 		_, err := UpdateUser(ctx, pgDB.Q, testUser.ID, test.udpt)
 		assert.NoError(t, err)
 
-		u, err := GetUserById(ctx, pgDB.Q, testUser.ID)
+		u, err := GetUserByID(ctx, pgDB.Q, testUser.ID)
 		assert.NoError(t, err)
 
 		assert.Equal(t, test.expUsername, u.Username)
@@ -113,15 +113,13 @@ func TestUpdatePassword(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	testUser := createTestUser(t, pgDB.Q, UserInst{Username: "user1", Password: "password1", Country: "us", Elo: 1000})
-
 	ctx := context.WithValue(context.Background(), logs.TraceKey, "update-password")
 
-	assert.NoError(t, UpdateUserPassword(ctx, pgDB.Q, testUser.ID, "password-new"))
+	assert.NoError(t, UpdateUserPassword(ctx, pgDB.Q, TestUserEntities[0].ID, "password-new"))
 
-	u1, err := GetUserById(ctx, pgDB.Q, testUser.ID)
+	u1, err := GetUserByID(ctx, pgDB.Q, TestUserEntities[0].ID)
 	assert.NoError(t, err)
-	v1, err := VerifyUser(ctx, pgDB.Q, testUser.Username, "password-new")
+	v1, err := VerifyUser(ctx, pgDB.Q, TestUserEntities[0].Username, "password-new")
 	assert.NoError(t, err)
 
 	assert.Equal(t, u1.ID, v1.ID)

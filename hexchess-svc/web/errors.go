@@ -41,21 +41,20 @@ func HttpStatusFromError(err error) (int, string) {
 		ErrHttpInvalidUsername,
 		ErrHttpUnsafeUsername,
 		ErrHttpInvalidParticipants,
-		ErrHttpInvalidLogin,
-		ErrHttpInvalidRequest:
+		ErrHttpInvalidRequest,
+		ErrHttpSelfChallenge,
+		ErrHttpUpdateChallenge:
 		return http.StatusBadRequest, err.Error()
 	case ErrHttpDuplicateUsername,
 		ErrHttpDuplicateChallenge:
 		return http.StatusConflict, err.Error()
 	case ErrHttpRequiredLogin,
+		ErrHttpInvalidLogin,
 		ErrHttpSessionExpired:
 		return http.StatusUnauthorized, err.Error()
 	case ErrHttpUserNotFound,
 		ErrHttpNotFoundChallenge:
 		return http.StatusNotFound, err.Error()
-	case ErrHttpSelfChallenge,
-		ErrHttpUpdateChallenge:
-		return http.StatusForbidden, err.Error()
 	case ErrHttpUnknown:
 		return http.StatusInternalServerError, err.Error()
 	default:

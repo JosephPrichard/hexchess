@@ -259,7 +259,7 @@ func UpdateUserPassword(ctx context.Context, q *db.Queries, id int64, newPasswor
 	return err
 }
 
-func GetUserById(ctx context.Context, q *db.Queries, id int64) (UserEntity, error) {
+func GetUserByID(ctx context.Context, q *db.Queries, id int64) (UserEntity, error) {
 	row, err := q.SelectUserByID(ctx, id)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to select user", "id", id, "err", err)
@@ -275,10 +275,10 @@ func GetRankedUsers(ctx context.Context, q *db.Queries, users []RankedUser) ([]U
 	for _, user := range users {
 		ids = append(ids, user.ID)
 	}
-	return GetUserByIds(ctx, q, ids)
+	return GetUserByIDs(ctx, q, ids)
 }
 
-func GetUserByIds(ctx context.Context, q *db.Queries, ids []int64) ([]UserEntity, error) {
+func GetUserByIDs(ctx context.Context, q *db.Queries, ids []int64) ([]UserEntity, error) {
 	rows, err := q.SelectUsersByIDs(ctx, ids)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to select users", "ids", ids, "err", err)

@@ -49,4 +49,4 @@ ORDER BY made_on DESC;
 -- name: DeleteExpiredChallenges :exec
 DELETE FROM challenges
 WHERE (challengee_id = sqlc.arg('userID') OR challenger_id = sqlc.arg('userID'))
-  AND made_on < sqlc.arg('expireTime');
+  AND made_on < sqlc.arg('before');

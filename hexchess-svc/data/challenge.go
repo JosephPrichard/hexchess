@@ -10,6 +10,7 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/logs"
 	"log/slog"
+	"strings"
 	"time"
 )
 
@@ -60,7 +61,7 @@ type ChallengeEntity struct {
 	ChallengerName    string
 	ChallengerCountry string
 	ChallengerElo     float64
-	ChallengeeId      int64
+	ChallengeeID      int64
 	ChallengeeName    string
 	ChallengeeCountry string
 	ChallengeeElo     float64
@@ -100,7 +101,7 @@ func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) (ChallengeEnti
 		ChallengerName:    row.ChallengerName,
 		ChallengerCountry: row.ChallengerCountry.String,
 		ChallengerElo:     row.ChallengerElo,
-		ChallengeeId:      row.ChallengeeID,
+		ChallengeeID:      row.ChallengeeID,
 		ChallengeeName:    row.ChallengeeName,
 		ChallengeeCountry: row.ChallengeeCountry.String,
 		ChallengeeElo:     row.ChallengeeElo,
@@ -111,7 +112,7 @@ func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) (ChallengeEnti
 }
 
 func ParseTimeControl(tc string) (TimeControl, error) {
-	switch tc {
+	switch strings.ToUpper(tc) {
 	case "UNLIMITED":
 		return Unlimited, nil
 	case "REAL_TIME":
@@ -124,7 +125,7 @@ func ParseTimeControl(tc string) (TimeControl, error) {
 }
 
 func ParseColorSelect(cs string) (ColorSelect, error) {
-	switch cs {
+	switch strings.ToUpper(cs) {
 	case "WHITE":
 		return White, nil
 	case "BLACK":
@@ -179,21 +180,22 @@ func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) 
 	return challenge, err
 }
 
-const NoChallengeID = -1
-
 func GetChallengesByParticipant(ctx context.Context, q *db.Queries, challengerID int64, challengeeID int64, threshold time.Duration) ([]ChallengeEntity, error) {
+	return GetChallengesByParticipantOn(ctx, q, challengerID, challengeeID, time.Now().Add(-threshold))
+}
+
+func GetChallengesByParticipantOn(ctx context.Context, q *db.Queries, challengerID int64, challengeeID int64, t time.Time) ([]ChallengeEntity, error) {
 	var pgChallengerID pgtype.Int8
-	if challengerID != NoChallengeID {
+	if challengerID != -1 {
 		pgChallengerID.Valid = true
 		pgChallengerID.Int64 = challengerID
 	}
 	var pgChallengeeID pgtype.Int8
-	if challengeeID != NoChallengeID {
+	if challengeeID != -1 {
 		pgChallengeeID.Valid = true
 		pgChallengeeID.Int64 = challengeeID
 	}
 
-	t := time.Now().Add(-threshold)
 	rows, err := q.SelectChallengesByParticipant(ctx, db.SelectChallengesByParticipantParams{
 		ChallengerID: pgChallengerID,
 		ChallengeeID: pgChallengeeID,
@@ -213,6 +215,7 @@ func GetChallengesByParticipant(ctx context.Context, q *db.Queries, challengerID
 		challenges = append(challenges, challenge)
 	}
 
+	slog.InfoContext(ctx, "got challenges by participant", "challengerID", challengerID, "challengeeID", challengeeID, "since", t, "challenges", challenges)
 	return challenges, nil
 }
 
@@ -248,10 +251,13 @@ func DeleteChallenge(ctx context.Context, q *db.Queries, challengeeID int64, cha
 }
 
 func DeleteExpiredChallenges(ctx context.Context, q *db.Queries, userID int64, threshold time.Duration) error {
-	t := time.Now().Add(-threshold)
+	return DeleteExpiredChallengesOn(ctx, q, userID, time.Now().Add(-threshold))
+}
+
+func DeleteExpiredChallengesOn(ctx context.Context, q *db.Queries, userID int64, t time.Time) error {
 	err := q.DeleteExpiredChallenges(ctx, db.DeleteExpiredChallengesParams{
-		UserID:     userID,
-		ExpireTime: pgtype.Timestamp{Valid: true, Time: t},
+		UserID: userID,
+		Before: pgtype.Timestamp{Valid: true, Time: t},
 	})
 	logs.DynLog(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", t, "trace", ctx.Value(logs.TraceKey))
 	return nil

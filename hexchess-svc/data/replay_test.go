@@ -101,5 +101,5 @@ func TestGetReplayMoveList(t *testing.T) {
 	actualMoveList, err := GetReplayMoveList(ctx, pgDB.Q, 1)
 	assert.NoError(t, err)
 
-	assert.Equal(t, "[]", actualMoveList)
+	assert.Equal(t, []byte("[]"), actualMoveList)
 }
