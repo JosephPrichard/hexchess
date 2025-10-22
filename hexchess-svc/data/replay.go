@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"hexchess-svc/db"
 	"log/slog"
 	"math"
@@ -29,6 +30,8 @@ type ReplayEntity struct {
 	BlackEloDiff float64
 	PlayedOn     time.Time
 }
+
+var ReplayEntityCmpOpts = cmpopts.IgnoreFields(ReplayEntity{}, "PlayedOn")
 
 type ReplayResult int
 

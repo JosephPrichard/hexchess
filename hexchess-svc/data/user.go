@@ -6,13 +6,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/sync/errgroup"
 	"hexchess-svc/db"
-	"hexchess-svc/logs"
+	"hexchess-svc/lib"
 	"log/slog"
 	"math"
 	"sort"
@@ -33,6 +34,8 @@ type UserEntity struct {
 	Total      int64
 	Winrate    int64
 }
+
+var UserEntityCmpOpts = cmpopts.IgnoreFields(UserEntity{}, "JoinedOn")
 
 const StartElo float64 = 1000
 
@@ -177,7 +180,7 @@ func BatchInsertUsers(ctx context.Context, q *db.Queries, insts []UserInst) ([]U
 		})
 	}
 	if err := eg.Wait(); err != nil {
-		slog.ErrorContext(ctx, "failed to batch insert users", "insts", insts, "err", err, "trace", ctx.Value(logs.TraceKey))
+		slog.ErrorContext(ctx, "failed to batch insert users", "insts", insts, "err", err, "trace", ctx.Value(lib.TraceKey))
 		return nil, err
 	}
 
@@ -192,7 +195,7 @@ func BatchInsertUsers(ctx context.Context, q *db.Queries, insts []UserInst) ([]U
 		}
 	})
 
-	logs.DynLog(ctx, "batch inserted user", errors.Join(errs...), "insts", insts, "users", users, "trace", ctx.Value(logs.TraceKey))
+	lib.DynLog(ctx, "batch inserted user", errors.Join(errs...), "insts", insts, "users", users, "trace", ctx.Value(lib.TraceKey))
 	return users, nil
 }
 
@@ -245,7 +248,7 @@ func UpdateUser(ctx context.Context, q *db.Queries, id int64, updt UpdtUserParam
 	})
 
 	user := mapUserFromRow(db.SelectUserByIDRow(row))
-	logs.DynLog(ctx, "updated user", err, "user", user, "trace", ctx.Value(logs.TraceKey))
+	lib.DynLog(ctx, "updated user", err, "user", user, "trace", ctx.Value(lib.TraceKey))
 	return user, err
 }
 
@@ -255,7 +258,7 @@ func UpdateUserPassword(ctx context.Context, q *db.Queries, id int64, newPasswor
 		return err
 	}
 	err = q.UpdatePassword(ctx, db.UpdatePasswordParams{ID: id, Password: hash.HashedPassword, Salt: hash.Salt})
-	logs.DynLog(ctx, "updated password", err, "id", id, "trace", ctx.Value(logs.TraceKey))
+	lib.DynLog(ctx, "updated password", err, "id", id, "trace", ctx.Value(lib.TraceKey))
 	return err
 }
 

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"hexchess-svc/chess"
 	"hexchess-svc/data"
-	"hexchess-svc/logs"
+	"hexchess-svc/lib"
 	"log/slog"
 	"math/big"
 	"strconv"
@@ -26,11 +26,11 @@ func CreateGame(ctx context.Context, stores data.Stores, color data.ColorSelect,
 	}
 	strID := string(bID)
 
-	state := data.MakeStartChessState(strID, timeControl)
+	state := data.MakeState(strID, timeControl)
 	state.FirstColor = color
 	state.Game.InitPieceMoves()
 
-	slog.InfoContext(ctx, "created chess game", "state", state, "trace", ctx.Value(logs.TraceKey))
+	slog.InfoContext(ctx, "created chess game", "state", state, "trace", ctx.Value(lib.TraceKey))
 
 	state, err := data.SetChessState(ctx, stores.Rdb, strID, state)
 	if err != nil {
@@ -47,7 +47,7 @@ func broadcastOnCreateGame(stores data.Stores) {
 			slog.Warn("recovered in create game broadcast handler", "err", r)
 		}
 	}()
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "create-game-broadcast-handler")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "create-game-broadcast-handler")
 
 	count, err := data.GetChessStateCount(ctx, stores.Rdb)
 	if err != nil {
@@ -95,7 +95,7 @@ func JoinGame(ctx context.Context, stores data.Stores, gameID string, player dat
 	}
 
 	state, err = data.SetChessState(ctx, stores.Rdb, gameID, state)
-	logs.DynLog(ctx, "player joined game", err, "playerID", player.ID, "state", state, "err", err)
+	lib.DynLog(ctx, "player joined game", err, "playerID", player.ID, "state", state, "err", err)
 	return state, err
 }
 

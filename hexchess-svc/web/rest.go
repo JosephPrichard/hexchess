@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"hexchess-svc/data"
-	"hexchess-svc/logs"
+	"hexchess-svc/lib"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -25,7 +25,7 @@ type RestState struct {
 func handler(state RestState, h func(w http.ResponseWriter, r *http.Request, state RestState) error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		trace := uuid.NewString()
-		r = r.WithContext(context.WithValue(r.Context(), logs.TraceKey, trace))
+		r = r.WithContext(context.WithValue(r.Context(), lib.TraceKey, trace))
 
 		slog.InfoContext(r.Context(), "request received", "method", r.Method, "url", r.URL)
 
@@ -722,8 +722,8 @@ func HandleGetChallenges(w http.ResponseWriter, r *http.Request, state RestState
 }
 
 type ChessRoomListResp struct {
-	ChessList     []data.ChessView `json:"chessList"`
-	SelfChessList []data.ChessView `json:"selfChessList"`
+	ChessList     []data.ChessMeta `json:"chessList"`
+	SelfChessList []data.ChessMeta `json:"selfChessList"`
 }
 
 func HandleGetChessRoomList(w http.ResponseWriter, r *http.Request, state RestState) error {
@@ -744,15 +744,15 @@ func HandleGetChessRoomList(w http.ResponseWriter, r *http.Request, state RestSt
 		return fmt.Errorf("failed to get session player: %w", err)
 	}
 
-	chessList, err := data.GetAllChessViews(ctx, state.Rdb, page, count)
+	chessList, err := data.GetAllChessMetas(ctx, state.Rdb, page, count)
 	if err != nil {
-		return fmt.Errorf("failed to get all chess views: %w", err)
+		return fmt.Errorf("failed to get all chess meta views: %w", err)
 	}
-	var selfChessList []data.ChessView
+	var selfChessList []data.ChessMeta
 	if hasSession {
-		selfChessList, err = data.GetUserChessViews(ctx, state.Rdb, player.ID)
+		selfChessList, err = data.GetUserChessMetas(ctx, state.Rdb, player.ID)
 		if err != nil {
-			return fmt.Errorf("failed to get all chess views: %w", err)
+			return fmt.Errorf("failed to get all chess meta views: %w", err)
 		}
 	}
 

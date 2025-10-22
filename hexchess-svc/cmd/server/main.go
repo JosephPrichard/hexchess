@@ -8,7 +8,7 @@ import (
 	"hexchess-svc/cmd"
 	"hexchess-svc/data"
 	"hexchess-svc/db"
-	"hexchess-svc/logs"
+	"hexchess-svc/lib"
 	"hexchess-svc/static"
 	"log"
 	"log/slog"
@@ -18,13 +18,13 @@ import (
 func main() {
 	ctx := context.WithValue(context.Background(), "trace", "server-init")
 
-	f, err := os.OpenFile("logs/app.logs", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	f, err := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
-		log.Fatalf("failed to open logs file: %v", err)
+		log.Fatalf("failed to open log file: %v", err)
 	}
 	defer f.Close()
 
-	logs.InitLogger(f)
+	lib.InitLogger(f)
 	cmd.InitEnv()
 
 	appPort := os.Getenv("APP_PORT")

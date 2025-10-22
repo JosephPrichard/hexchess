@@ -8,8 +8,8 @@ import (
 )
 
 func TestChessSerializer(t *testing.T) {
-	input1 := MakeStartChessState(uuid.NewString(), RealTime)
-	input2 := MakeStartChessState(uuid.NewString(), RealTime)
+	input1 := MakeState(uuid.NewString(), RealTime)
+	input2 := MakeState(uuid.NewString(), RealTime)
 	input2.Game.InitPieceMoves()
 
 	inputs := []ChessState{input1, input2}

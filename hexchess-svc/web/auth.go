@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"hexchess-svc/data"
 	"math/big"
 	"net/http"
@@ -21,6 +22,8 @@ type SessionView struct {
 	Elo      float64       `json:"elo"`
 	TTLSecs  time.Duration `json:"ttlSecs,omitempty"`
 }
+
+var SessionViewCmpOpts = cmpopts.IgnoreFields(SessionView{}, "TTLSecs")
 
 func MakeSessionID() (string, error) {
 	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"

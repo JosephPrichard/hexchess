@@ -3,7 +3,7 @@ package data
 import (
 	"context"
 	"hexchess-svc/db"
-	"hexchess-svc/logs"
+	"hexchess-svc/lib"
 	"time"
 )
 
@@ -45,7 +45,7 @@ var TestUserEntities = []UserEntity{
 }
 
 func createTestUser(t TestLogger, q *db.Queries, inst UserInst) UserEntity {
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "create-test-user")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "create-test-user")
 	u, err := InsertUser(ctx, q, inst)
 	if err != nil {
 		t.Fatalf("failed to insert test user: %v", err)
@@ -105,7 +105,7 @@ var TestReplayEntities = []ReplayEntity{
 }
 
 func createTestReplays(t TestLogger, q *db.Queries, insts ...ReplayInst) {
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "create-test-replays")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "create-test-replays")
 	for _, inst := range insts {
 		_, err := InsertReplay(ctx, q, inst)
 		if err != nil {
@@ -124,7 +124,7 @@ var TestChallengeInsts = []ChallengeInst{
 }
 
 func createTestChallenges(t TestLogger, q *db.Queries, insts ...ChallengeInst) {
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "create-test-challenges")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "create-test-challenges")
 	for _, c := range insts {
 		err := InsertChallenge(ctx, q, c)
 		if err != nil {

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gomodule/redigo/redis"
-	"hexchess-svc/logs"
+	"hexchess-svc/lib"
 	"log/slog"
 	"math"
 	"strconv"
@@ -123,6 +123,6 @@ func GetLeaderboardPage(ctx context.Context, rdb Rdb, page, perPage int64) (Lead
 	offset := (page - 1) * perPage
 
 	leaderboard, err := GetLeaderboard(ctx, rdb, offset, perPage)
-	logs.DynLog(ctx, "retrieved leaderboard page", err, "page", page, "perPage", perPage, "leaderboard", leaderboard, "err", err)
+	lib.DynLog(ctx, "retrieved leaderboard page", err, "page", page, "perPage", perPage, "leaderboard", leaderboard, "err", err)
 	return leaderboard, err
 }

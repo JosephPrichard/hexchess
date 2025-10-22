@@ -1,6 +1,7 @@
 package data
 
 import (
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"hexchess-svc/chess"
 	"time"
 )
@@ -14,9 +15,13 @@ type PlayerState struct {
 }
 
 type ChessState struct {
+	ChessMeta
+	Game     chess.Game
+	MoveList []chess.PieceMove
+}
+
+type ChessMeta struct {
 	ID          string
-	Game        chess.Game
-	MoveList    []chess.PieceMove
 	WhitePlayer *PlayerState
 	BlackPlayer *PlayerState
 	IsEnded     bool
@@ -25,22 +30,31 @@ type ChessState struct {
 	Touch       time.Time
 }
 
-type ChessView struct {
-	ID          string
-	WhitePlayer *PlayerState
-	BlackPlayer *PlayerState
-	IsEnded     bool
-	FirstColor  ColorSelect
-	TimeControl TimeControl
+var ChessMetaCmpOpts = cmpopts.IgnoreFields(ChessMeta{}, "Touch")
+
+func MakeState(id string, timeControl TimeControl) ChessState {
+	return ChessState{
+		Game: chess.MakeStartGame(),
+		ChessMeta: ChessMeta{
+			ID:          id,
+			FirstColor:  Random,
+			TimeControl: timeControl,
+			Touch:       time.UnixMilli(0),
+		},
+	}
 }
 
-func MakeStartChessState(id string, timeControl TimeControl) ChessState {
+func MakeStateWithPlayers(id string, timeControl TimeControl, whitePlayer *PlayerState, blackPlayer *PlayerState) ChessState {
 	return ChessState{
-		ID:          id,
-		Game:        chess.MakeStartGame(),
-		FirstColor:  Random,
-		TimeControl: timeControl,
-		Touch:       time.UnixMilli(0),
+		Game: chess.MakeStartGame(),
+		ChessMeta: ChessMeta{
+			ID:          id,
+			WhitePlayer: whitePlayer,
+			BlackPlayer: blackPlayer,
+			FirstColor:  Random,
+			TimeControl: timeControl,
+			Touch:       time.UnixMilli(0),
+		},
 	}
 }
 
@@ -53,12 +67,14 @@ func (s *ChessState) CurrPlayer() *PlayerState {
 
 func (s *ChessState) DeepCopy() ChessState {
 	s2 := ChessState{
-		ID:          s.ID,
-		Game:        s.Game.DeepCopy(),
-		IsEnded:     s.IsEnded,
-		FirstColor:  s.FirstColor,
-		TimeControl: s.TimeControl,
-		Touch:       s.Touch,
+		Game: s.Game.DeepCopy(),
+		ChessMeta: ChessMeta{
+			ID:          s.ID,
+			IsEnded:     s.IsEnded,
+			FirstColor:  s.FirstColor,
+			TimeControl: s.TimeControl,
+			Touch:       s.Touch,
+		},
 	}
 
 	if s.WhitePlayer != nil {

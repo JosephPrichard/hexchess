@@ -3,7 +3,7 @@ package data
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
-	"hexchess-svc/logs"
+	"hexchess-svc/lib"
 	"testing"
 )
 
@@ -11,7 +11,7 @@ func TestInsertThenGet(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-insert-get")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-insert-get")
 
 	id, err := InsertReplay(ctx, pgDB.Q, ReplayInst{2, 3, int32(WhiteWin), int32(Checkmate), 35, -25, "{}"})
 	assert.NoError(t, err)
@@ -43,7 +43,7 @@ func TestGetUserReplays(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-get-replays")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-get-replays")
 
 	// the only replays that include userID '1' should be the replays made in the testing init phase
 
@@ -96,7 +96,7 @@ func TestGetReplayMoveList(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-get-move-list")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-get-move-list")
 
 	actualMoveList, err := GetReplayMoveList(ctx, pgDB.Q, 1)
 	assert.NoError(t, err)

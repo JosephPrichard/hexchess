@@ -118,21 +118,20 @@ func ExpireChessStatesBefore(ctx context.Context, conn redis.Conn, zSetName stri
 	return err
 }
 
-func GetUserChessViews(ctx context.Context, rdb Rdb, userID int64) ([]ChessView, error) {
-	return GetChessViews(ctx, rdb, getUserGameZSet(rdb, userID), 1, -1)
+func GetUserChessMetas(ctx context.Context, rdb Rdb, userID int64) ([]ChessMeta, error) {
+	return GetChessMetas(ctx, rdb, getUserGameZSet(rdb, userID), 1, -1)
 }
 
-func GetUserChessViewsPaged(ctx context.Context, rdb Rdb, userID int64, page, count int) ([]ChessView, error) {
-	return GetChessViews(ctx, rdb, getUserGameZSet(rdb, userID), page, count)
+func GetUserChessViewsPaged(ctx context.Context, rdb Rdb, userID int64, page, count int) ([]ChessMeta, error) {
+	return GetChessMetas(ctx, rdb, getUserGameZSet(rdb, userID), page, count)
 }
 
-func GetAllChessViews(ctx context.Context, rdb Rdb, page, count int) ([]ChessView, error) {
-	return GetChessViews(ctx, rdb, rdb.GamesZSet, page, count)
+func GetAllChessMetas(ctx context.Context, rdb Rdb, page, count int) ([]ChessMeta, error) {
+	return GetChessMetas(ctx, rdb, rdb.GamesZSet, page, count)
 }
 
-func GetChessViews(ctx context.Context, rdb Rdb, zSetName string, page, count int) ([]ChessView, error) {
-
-	fail := func(str string, err error) ([]ChessView, error) {
+func GetChessMetas(ctx context.Context, rdb Rdb, zSetName string, page, count int) ([]ChessMeta, error) {
+	fail := func(str string, err error) ([]ChessMeta, error) {
 		err = fmt.Errorf("%s: %w", str, err)
 		slog.ErrorContext(ctx, "failed to get chess views", "zSetName", zSetName, "page", page, "count", count, "err", err)
 		return nil, err
@@ -169,17 +168,17 @@ func GetChessViews(ctx context.Context, rdb Rdb, zSetName string, page, count in
 		}
 	}
 
-	var views []ChessView
+	var metas []ChessMeta
 	for _, bytes := range bytesList {
-		cv, err := ChessViewDeserialize(bytes)
+		cv, err := ChessMetaDeserialize(bytes)
 		if err != nil {
 			return fail("failed to deserialize chess view with key", err)
 		}
-		views = append(views, cv)
+		metas = append(metas, cv)
 	}
 
-	slog.InfoContext(ctx, "retrieved chess views", "count", len(views), "zSetName", zSetName, "page", page)
-	return views, nil
+	slog.InfoContext(ctx, "retrieved chess views", "count", len(metas), "zSetName", zSetName, "page", page)
+	return metas, nil
 }
 
 func GetChessStateCount(ctx context.Context, rdb Rdb) (int64, error) {

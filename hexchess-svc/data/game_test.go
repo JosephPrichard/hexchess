@@ -3,7 +3,7 @@ package data
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
-	"hexchess-svc/logs"
+	"hexchess-svc/lib"
 	"math"
 	"testing"
 	"time"
@@ -13,7 +13,7 @@ func TestUpdateGameResultTx(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-update-stats")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-update-stats")
 
 	testUser0 := TestUserEntities[0]
 	testUser1 := TestUserEntities[1]

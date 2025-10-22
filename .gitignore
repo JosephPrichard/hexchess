@@ -20,13 +20,11 @@ target/
 
 .idea
 
-hexchess-svc/logs/app.log
+hexchess-svc/app.log
 hexchess-ui/src/lib/api/messages.ts
 */.svelte-kit
 */node_modules
 hexchess-svc/.env
 hexchess-svc/src/main/resources/.env
-
-*_mock.go
 
 graph.dot

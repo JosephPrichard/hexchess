@@ -2,15 +2,10 @@ package web
 
 import (
 	"encoding/json"
-	"fmt"
-	"github.com/stretchr/testify/assert"
-	"io"
 	"log"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"strconv"
-	"testing"
 )
 
 type ServiceView struct {
@@ -76,34 +71,4 @@ func getCountQuery(query url.Values) (int, error) {
 		return 0, err
 	}
 	return count, nil
-}
-
-func assertResp[V any](t *testing.T, expBody any, w *httptest.ResponseRecorder) {
-	assertRespUpdt(t, expBody, w, func(*V) {})
-}
-
-func assertRespUpdt[V any](t *testing.T, expBody any, w *httptest.ResponseRecorder, updtResp func(*V)) {
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Logf("body: %s", b)
-
-	switch expBody.(type) {
-	case string:
-		assert.Equal(t, expBody, string(b))
-	case V:
-		var actualBody V
-		if err = json.Unmarshal(b, &actualBody); err != nil {
-			t.Fatal(err)
-		}
-		updtResp(&actualBody)
-		assert.Equal(t, expBody, actualBody)
-	default:
-		assert.Fail(t, fmt.Sprintf("unsupported type in assert: %T", expBody))
-	}
 }

@@ -2,12 +2,12 @@ package web
 
 import (
 	"hexchess-svc/data"
-	"hexchess-svc/logs"
+	"hexchess-svc/lib"
 	"testing"
 )
 
 func TestMain(m *testing.M) {
 	defer data.TeardownTestInfra()
-	logs.InitLogger(nil)
+	lib.InitLogger(nil)
 	m.Run()
 }

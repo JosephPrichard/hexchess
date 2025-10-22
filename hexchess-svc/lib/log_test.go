@@ -1,4 +1,4 @@
-package logs
+package lib
 
 import (
 	"context"
@@ -10,7 +10,7 @@ func TestDynLog(t *testing.T) {
 	DynLog(context.Background(), "hello world", errors.New("testing"), "arg1", 0, "arg2", "value")
 	DynLog(context.Background(), "hello world", nil, "arg1", 0, "arg2", "value")
 
-	// check for output in logs to contain
+	// check for output in lib to contain
 	// ERROR hello world arg1=0 arg2=value err=testing
 	// INFO hello world arg1=0 arg2=value
 }

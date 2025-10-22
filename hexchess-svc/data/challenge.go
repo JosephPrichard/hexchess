@@ -5,10 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/db"
-	"hexchess-svc/logs"
+	"hexchess-svc/lib"
 	"log/slog"
 	"strings"
 	"time"
@@ -69,6 +70,8 @@ type ChallengeEntity struct {
 	StartColor        ColorSelect // from challenger's perspective
 	MadeOn            time.Time
 }
+
+var ChallengeEntityCmpOpts = cmpopts.IgnoreFields(ChallengeEntity{}, "MadeOn")
 
 var (
 	ErrDuplicateChallenge  = errors.New("duplicate challenge")
@@ -176,7 +179,7 @@ func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) 
 		return ChallengeEntity{}, err
 	}
 
-	logs.DynLog(ctx, "created a new challenge", err, "challenge", inst, "challenge", challenge)
+	lib.DynLog(ctx, "created a new challenge", err, "challenge", inst, "challenge", challenge)
 	return challenge, err
 }
 
@@ -259,6 +262,6 @@ func DeleteExpiredChallengesOn(ctx context.Context, q *db.Queries, userID int64,
 		UserID: userID,
 		Before: pgtype.Timestamp{Valid: true, Time: t},
 	})
-	logs.DynLog(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", t, "trace", ctx.Value(logs.TraceKey))
+	lib.DynLog(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", t, "trace", ctx.Value(lib.TraceKey))
 	return nil
 }

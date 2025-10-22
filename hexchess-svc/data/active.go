@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gomodule/redigo/redis"
-	"hexchess-svc/logs"
+	"hexchess-svc/lib"
 	"log/slog"
 	"time"
 )
@@ -22,7 +22,7 @@ func GetActiveCountWithExpiry(ctx context.Context, rdb Rdb, expireBefore int64) 
 
 	count, err := redis.Int64(conn.Do("ZREMRANGEBYSCORE", rdb.ActiveUsersZSet, "-inf", expireBefore))
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to expire users", "expireBefore", expireBefore, "trace", ctx.Value(logs.TraceKey))
+		slog.ErrorContext(ctx, "failed to expire users", "expireBefore", expireBefore, "trace", ctx.Value(lib.TraceKey))
 		return 0, err
 	}
 	if count > 0 {

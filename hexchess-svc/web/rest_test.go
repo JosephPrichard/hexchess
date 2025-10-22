@@ -5,26 +5,33 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"hexchess-svc/data"
-	"hexchess-svc/logs"
+	"hexchess-svc/lib"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 )
 
-func clearSessionView(b *SessionView) {
-	b.ID = 0
-	b.TTLSecs = 0
-}
-
-func initSession(t *testing.T, rdb data.Rdb) string {
+func createTestSessions(t *testing.T, rdb data.Rdb) string {
 	sessionID := "test-session-id"
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-update-password")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "create-test-sessions")
 	if err := data.SetSession(ctx, rdb, sessionID, data.PlayerState{ID: 1, Name: "user1", Country: "us", Elo: 1000}, MaxAgeCookie); err != nil {
-		t.Fatalf("failed to init session: %v", err)
+		t.Fatalf("failed to create test sessions: %v", err)
 	}
 	return sessionID
+}
+
+func createTestChessStates(t *testing.T, rdb data.Rdb) {
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-update-password")
+	for _, state := range []data.ChessState{
+		data.MakeStateWithPlayers("game1", data.RealTime, nil, &data.PlayerState{ID: 1, Name: "username", Country: "us", Elo: 1000}),
+		data.MakeState("game2", data.RealTime),
+		data.MakeState("game3", data.RealTime),
+	} {
+		if _, err := data.SetChessState(ctx, rdb, state.ID, state); err != nil {
+			t.Fatalf("failed to create test states: %v", err)
+		}
+	}
 }
 
 func TestHandleRegister(t *testing.T) {
@@ -38,7 +45,7 @@ func TestHandleRegister(t *testing.T) {
 	}{
 		{
 			body:      `{"username": "test-name", "password": "test-password", "confirmPassword": "test-password"}`,
-			expResp:   SessionView{Username: "test-name", Country: "us", Elo: 1000},
+			expResp:   SessionView{ID: 6, Username: "test-name", Country: "us", Elo: 1000},
 			expStatus: 200,
 		},
 		{
@@ -58,7 +65,7 @@ func TestHandleRegister(t *testing.T) {
 
 			Handle(RestState{Stores: stores}).ServeHTTP(w, r)
 
-			assertRespUpdt[SessionView](t, test.expResp, w, clearSessionView)
+			lib.AssertRespBody[SessionView](t, test.expResp, w, SessionViewCmpOpts)
 			assert.Equal(t, test.expStatus, w.Code)
 		})
 	}
@@ -82,7 +89,7 @@ func TestHandleLogin(t *testing.T) {
 		},
 		{
 			body:      fmt.Sprintf(`{"username": "%s", "password": "%s"}`, testUser.Username, testUser.Password),
-			expResp:   SessionView{Username: testUser.Username, Country: "us", Elo: 1000},
+			expResp:   SessionView{ID: 1, Username: testUser.Username, Country: "us", Elo: 1000},
 			expStatus: 200,
 		},
 	} {
@@ -92,7 +99,7 @@ func TestHandleLogin(t *testing.T) {
 
 			Handle(RestState{Stores: stores}).ServeHTTP(w, r)
 
-			assertRespUpdt[SessionView](t, test.expResp, w, clearSessionView)
+			lib.AssertRespBody[SessionView](t, test.expResp, w, SessionViewCmpOpts)
 			assert.Equal(t, test.expStatus, w.Code)
 		})
 	}
@@ -102,10 +109,9 @@ func TestHandleUpdateUser(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	sessionID := initSession(t, stores.Rdb)
+	sessionID := createTestSessions(t, stores.Rdb)
 
 	body := `{"newUsername": "new-username", "newBio": "test biography", "newCountry": "eu"}`
-	expResp := SessionView{Username: "new-username", Country: "eu", Elo: 1000}
 
 	r := httptest.NewRequest(http.MethodPost, "/api/users", strings.NewReader(body))
 	r.Header.Set("Cookie", FmtCookie(sessionID))
@@ -114,7 +120,8 @@ func TestHandleUpdateUser(t *testing.T) {
 
 	Handle(RestState{Stores: stores}).ServeHTTP(w, r)
 
-	assertRespUpdt(t, expResp, w, clearSessionView)
+	expResp := SessionView{ID: 1, Username: "new-username", Country: "eu", Elo: 1000}
+	lib.AssertRespBody[SessionView](t, expResp, w, SessionViewCmpOpts)
 	assert.Equal(t, 200, w.Code)
 }
 
@@ -122,7 +129,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	sessionID := initSession(t, stores.Rdb)
+	sessionID := createTestSessions(t, stores.Rdb)
 
 	for i, test := range []struct {
 		body      string
@@ -152,7 +159,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 
 			Handle(RestState{Stores: stores}).ServeHTTP(w, r)
 
-			assertResp[ServiceView](t, test.expResp, w)
+			lib.AssertRespBody[ServiceView](t, test.expResp, w)
 			assert.Equal(t, test.expStatus, w.Code)
 		})
 	}
@@ -162,7 +169,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	sessionID := initSession(t, stores.Rdb)
+	sessionID := createTestSessions(t, stores.Rdb)
 
 	for i, test := range []struct {
 		body      string
@@ -203,7 +210,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	sessionID := initSession(t, stores.Rdb)
+	sessionID := createTestSessions(t, stores.Rdb)
 
 	body := `{"challengeeID": 4, "firstColor": "WHITE", "timeControl": "REAL_TIME"}`
 
@@ -213,7 +220,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 
 	Handle(RestState{Stores: stores}).ServeHTTP(w, r)
 
-	assertResp[ServiceView](t, ServiceView{Status: 200, Message: "SUCCESS"}, w)
+	lib.AssertRespBody[ServiceView](t, ServiceView{Status: 200, Message: "SUCCESS"}, w)
 	assert.Equal(t, 200, w.Code)
 }
 
@@ -221,7 +228,7 @@ func TestGetLeaderboard(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "setup-get-leaderboard")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "setup-get-leaderboard")
 	if err := data.SetLeaderboard(ctx, stores.Rdb, data.UpdtLbChangeSet{ID: 1, EloDiff: 1000}); err != nil {
 		t.Fatalf("failed to setup leaderboard: %v", err)
 	}
@@ -236,11 +243,7 @@ func TestGetLeaderboard(t *testing.T) {
 		UserList:   []data.UserEntity{data.TestUserEntities[0]},
 	}
 
-	assertRespUpdt[LeaderboardResp](t, expResp, w, func(b *LeaderboardResp) {
-		for i := range b.UserList {
-			b.UserList[i].JoinedOn = time.Time{}
-		}
-	})
+	lib.AssertRespBody[LeaderboardResp](t, expResp, w, data.UserEntityCmpOpts)
 	assert.Equal(t, 200, w.Code)
 }
 
@@ -273,12 +276,7 @@ func TestGetPlayer(t *testing.T) {
 
 			Handle(RestState{Stores: stores}).ServeHTTP(w, r)
 
-			assertRespUpdt[UserWithReplaysResp](t, test.expResp, w, func(b *UserWithReplaysResp) {
-				b.User.JoinedOn = time.Time{}
-				for i := range b.ReplayList {
-					b.ReplayList[i].PlayedOn = time.Time{}
-				}
-			})
+			lib.AssertRespBody[UserWithReplaysResp](t, test.expResp, w, data.UserEntityCmpOpts, data.ReplayEntityCmpOpts)
 			assert.Equal(t, test.expStatus, w.Code)
 		})
 	}
@@ -288,7 +286,7 @@ func TestGetChallenges(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	sessionID := initSession(t, stores.Rdb)
+	sessionID := createTestSessions(t, stores.Rdb)
 
 	for i, test := range []struct {
 		participants string
@@ -339,12 +337,41 @@ func TestGetChallenges(t *testing.T) {
 
 			Handle(RestState{Stores: stores}).ServeHTTP(w, r)
 
-			assertRespUpdt[GetChallengesResp](t, test.expResp, w, func(b *GetChallengesResp) {
-				for i := range b.ChallengeList {
-					b.ChallengeList[i].MadeOn = time.Time{}
-				}
-			})
+			lib.AssertRespBody[GetChallengesResp](t, test.expResp, w, data.ChallengeEntityCmpOpts)
 			assert.Equal(t, test.expStatus, w.Code)
 		})
 	}
+}
+
+func TestHandleGetChessViews(t *testing.T) {
+	stores, closer := data.BeforeStoresTests(t)
+	defer closer()
+
+	sessionID := createTestSessions(t, stores.Rdb)
+	createTestChessStates(t, stores.Rdb)
+
+	r := httptest.NewRequest(http.MethodGet, "/api/chess/rooms", nil)
+	r.Header.Set("Cookie", FmtCookie(sessionID))
+	w := httptest.NewRecorder()
+
+	Handle(RestState{Stores: stores}).ServeHTTP(w, r)
+
+	meta3 := data.ChessMeta{ID: "game3", FirstColor: data.Random}
+	meta2 := data.ChessMeta{ID: "game2", FirstColor: data.Random}
+	meta1 := data.ChessMeta{
+		ID: "game1",
+		BlackPlayer: &data.PlayerState{
+			ID:      1,
+			Name:    "username",
+			Country: "us",
+			Elo:     1000,
+		},
+		FirstColor: data.Random,
+	}
+	expResp := ChessRoomListResp{
+		ChessList:     []data.ChessMeta{meta3, meta2, meta1},
+		SelfChessList: []data.ChessMeta{meta1},
+	}
+	lib.AssertRespBody[ChessRoomListResp](t, expResp, w)
+	assert.Equal(t, 200, w.Code)
 }

@@ -6,35 +6,28 @@ import (
 	"github.com/stretchr/testify/assert"
 	"hexchess-svc/chess"
 	"hexchess-svc/data"
-	"hexchess-svc/logs"
+	"hexchess-svc/lib"
 	"testing"
 	"time"
 )
 
 func assertStateRdb(t *testing.T, rdb data.Rdb, expState data.ChessState) {
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "assert-chess-states")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "assert-chess-states")
 	actualState, err := data.GetChessState(ctx, rdb, expState.ID)
 	if err != nil {
 		t.Fatalf("failed to get chess for assert: %v", err)
 	}
-	assertStatesEqual(t, expState, actualState)
-}
-
-func assertStatesEqual(t *testing.T, expState data.ChessState, actualState data.ChessState) {
-	// empty fields we do not want to assert
-	expState.Touch = time.Time{}
-	actualState.Touch = time.Time{}
-	assert.Equal(t, expState, actualState)
+	lib.AssertEqualIgnoring(t, expState, actualState, data.ChessMetaCmpOpts)
 }
 
 func TestJoinGame_JoinWhite(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-join-game")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-join-game")
 
 	gameID := "test123"
-	inState := data.MakeStartChessState(gameID, data.RealTime)
+	inState := data.MakeState(gameID, data.RealTime)
 	inState.FirstColor = data.White
 	player := data.PlayerState{ID: 1, Name: "name", Country: "us", Elo: 0}
 
@@ -48,7 +41,7 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	expState.WhitePlayer = &player
 
 	assert.NoError(t, err)
-	assertStatesEqual(t, expState, updated)
+	lib.AssertEqualIgnoring(t, expState, updated, data.ChessMetaCmpOpts)
 	assertStateRdb(t, stores.Rdb, updated)
 }
 
@@ -56,10 +49,10 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-join-game-both-players")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-join-game-both-players")
 
 	gameID := "test123"
-	inState := data.MakeStartChessState(gameID, data.RealTime)
+	inState := data.MakeState(gameID, data.RealTime)
 	inState.WhitePlayer = &data.PlayerState{ID: 1, Name: "white"}
 	inState.BlackPlayer = &data.PlayerState{ID: 2, Name: "black"}
 
@@ -70,7 +63,7 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	result, err := JoinGame(ctx, stores, gameID, data.PlayerState{ID: 3, Name: "test"})
 
 	assert.NoError(t, err)
-	assertStatesEqual(t, inState, result)
+	lib.AssertEqualIgnoring(t, inState, result, data.ChessMetaCmpOpts)
 	assertStateRdb(t, stores.Rdb, inState)
 }
 
@@ -78,18 +71,20 @@ func TestMakeMove(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	s1 := data.MakeStartChessState("test1", data.RealTime)
+	s1 := data.MakeState("test1", data.RealTime)
 	s1.WhitePlayer = &data.PlayerState{ID: 1}
 	s1.BlackPlayer = &data.PlayerState{ID: 2}
 
 	s2 := data.ChessState{
-		ID:          "test2",
-		Game:        chess.MakeEmptyGame(),
-		FirstColor:  data.Random,
-		TimeControl: data.RealTime,
-		Touch:       time.UnixMilli(0),
-		WhitePlayer: &data.PlayerState{ID: 3},
-		BlackPlayer: &data.PlayerState{ID: 4},
+		Game: chess.MakeEmptyGame(),
+		ChessMeta: data.ChessMeta{
+			ID:          "test2",
+			FirstColor:  data.Random,
+			TimeControl: data.RealTime,
+			Touch:       time.UnixMilli(0),
+			WhitePlayer: &data.PlayerState{ID: 3},
+			BlackPlayer: &data.PlayerState{ID: 4},
+		},
 	}
 	s2.Game.Board.IsWhiteTurn = false
 	s2.Game.
@@ -99,7 +94,7 @@ func TestMakeMove(t *testing.T) {
 		SetPiece("f3", chess.BlackRook).
 		SetPiece("f9", chess.BlackKing)
 
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-make-move")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-make-move")
 
 	for _, state := range []data.ChessState{s1, s2} {
 		if _, err := data.SetChessState(ctx, stores.Rdb, state.ID, state); err != nil {
@@ -151,10 +146,10 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-forfeit")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-forfeit")
 
 	gameID := "test123"
-	inState := data.MakeStartChessState(gameID, data.RealTime)
+	inState := data.MakeState(gameID, data.RealTime)
 	inState.WhitePlayer = &data.PlayerState{ID: 1}
 	inState.BlackPlayer = &data.PlayerState{ID: 2}
 	inState.MoveList = []chess.PieceMove{{Piece: 1, To: chess.Hex{Rank: 1}}}

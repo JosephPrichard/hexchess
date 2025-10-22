@@ -3,7 +3,7 @@ package data
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
-	"hexchess-svc/logs"
+	"hexchess-svc/lib"
 	"math"
 	"math/rand"
 	"testing"
@@ -18,7 +18,7 @@ func TestLeaderboard(t *testing.T) {
 	id3 := int64(rand.Intn(math.MaxInt64))
 	id4 := int64(rand.Intn(math.MaxInt64))
 
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-leaderboard")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-leaderboard")
 
 	assert.NoError(t, IncrLeaderboard(ctx, rdb, UpdtLbChangeSet{id1, 1500}))
 	assert.NoError(t, IncrLeaderboard(ctx, rdb, UpdtLbChangeSet{id2, 1000}))

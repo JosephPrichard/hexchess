@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"hexchess-svc/logs"
+	"hexchess-svc/lib"
 	"testing"
 	"time"
 )
@@ -13,7 +13,7 @@ func TestInsertThenVerify(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-insert-then-verify")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-insert-then-verify")
 
 	user1 := "user1-test"
 	user2 := "user2-test"
@@ -46,7 +46,7 @@ func TestBatchInsertThenGet(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-batch-insert-then-get")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-batch-insert-then-get")
 
 	insts := []UserInst{
 		{Username: "user1-test", Password: "password1", Country: "us", Elo: 1005, Wins: 10, Losses: 10},
@@ -71,7 +71,7 @@ func TestUpdateUser(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "testing-update-user")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-update-user")
 
 	for _, test := range []struct {
 		inst        UserInst
@@ -113,7 +113,7 @@ func TestUpdatePassword(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "update-password")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "update-password")
 
 	assert.NoError(t, UpdateUserPassword(ctx, pgDB.Q, TestUserEntities[0].ID, "password-new"))
 
@@ -131,7 +131,7 @@ func TestSearchByName(t *testing.T) {
 
 	createTestUsers(t, pgDB.Q, UserInst{Username: "johnny", Password: "password6"}, UserInst{Username: "john", Password: "password7"})
 
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "search-by-name")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "search-by-name")
 
 	list, err := SearchUsersByName(ctx, pgDB.Q, "john", 1, 20)
 	assert.NoError(t, err)

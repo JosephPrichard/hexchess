@@ -7,7 +7,7 @@ import (
 	"hexchess-svc/cmd"
 	"hexchess-svc/data"
 	"hexchess-svc/db"
-	"hexchess-svc/logs"
+	"hexchess-svc/lib"
 	"log"
 	"log/slog"
 	"os"
@@ -26,7 +26,7 @@ func main() {
 	redisHost := os.Getenv("REDIS_HOST")
 	redisPort := os.Getenv("REDIS_PORT")
 
-	ctx := context.WithValue(context.Background(), logs.TraceKey, "sync-leaderboard-script")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "sync-leaderboard-script")
 
 	slog.InfoContext(ctx, "connecting to postgres db", "user", dbUser, "name", dbName, "port", dbPort)
 	pool, err := pgxpool.New(ctx, fmt.Sprintf("user=%s dbname=%s password=%s port=%s", dbUser, dbName, dbPass, dbPort))

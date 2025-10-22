@@ -125,15 +125,17 @@ func ChessDeserialize(b []byte) (ChessState, error) {
 	}
 
 	state := ChessState{
-		ID:          pbChess.Id,
-		Game:        game,
-		MoveList:    mapMoveList(pbChess.MoveList),
-		WhitePlayer: mapPlayer(pbChess.WhitePlayer),
-		BlackPlayer: mapPlayer(pbChess.BlackPlayer),
-		IsEnded:     pbChess.IsEnded,
-		FirstColor:  ColorSelect(pbChess.FirstColor),
-		TimeControl: TimeControl(pbChess.TimeControl),
-		Touch:       time.UnixMilli(pbChess.Touch),
+		Game:     game,
+		MoveList: mapMoveList(pbChess.MoveList),
+		ChessMeta: ChessMeta{
+			ID:          pbChess.Id,
+			WhitePlayer: mapPlayer(pbChess.WhitePlayer),
+			BlackPlayer: mapPlayer(pbChess.BlackPlayer),
+			IsEnded:     pbChess.IsEnded,
+			FirstColor:  ColorSelect(pbChess.FirstColor),
+			TimeControl: TimeControl(pbChess.TimeControl),
+			Touch:       time.UnixMilli(pbChess.Touch),
+		},
 	}
 	return state, nil
 }
@@ -261,12 +263,12 @@ func SerializeChessState(s *ChessState) ([]byte, error) {
 	return proto.Marshal(pbState)
 }
 
-func ChessViewDeserialize(b []byte) (ChessView, error) {
+func ChessMetaDeserialize(b []byte) (ChessMeta, error) {
 	var pbChess pb.ChessState
 	if err := proto.Unmarshal(b, &pbChess); err != nil {
-		return ChessView{}, fmt.Errorf("failed to unmarhsal chess state: %w", err)
+		return ChessMeta{}, fmt.Errorf("failed to unmarhsal chess state: %w", err)
 	}
-	cv := ChessView{
+	cv := ChessMeta{
 		ID:          pbChess.Id,
 		WhitePlayer: mapPlayer(pbChess.WhitePlayer),
 		BlackPlayer: mapPlayer(pbChess.BlackPlayer),

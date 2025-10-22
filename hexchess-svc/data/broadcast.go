@@ -267,7 +267,7 @@ func (br *UniCaster) Unsubscribe(sub subscriber) {
 
 func (br *UniCaster) Broadcast(msg []byte, expireTime time.Duration) {
 	var subscribers []subscriber // copy out so the sending doesn't keep the lock
-	var expiredSubs []subscriber // copy this out so we don't logs while lock is acquired
+	var expiredSubs []subscriber // copy this out so we don't log while lock is acquired
 
 	func() {
 		br.Lock()
