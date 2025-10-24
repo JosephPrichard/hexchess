@@ -1,15 +1,17 @@
 package data
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
+	"strconv"
 	"time"
 )
 
-func PlayerDeserialize(b []byte) (PlayerState, error) {
+func UnmarshalPlayer(b []byte) (PlayerState, error) {
 	var pbPlayer pb.PlayerState
 	if err := proto.Unmarshal(b, &pbPlayer); err != nil {
 		return PlayerState{}, fmt.Errorf("failed to unmarhsal player: %w", err)
@@ -18,7 +20,7 @@ func PlayerDeserialize(b []byte) (PlayerState, error) {
 	return player, nil
 }
 
-func SerializePlayerState(p *PlayerState) ([]byte, error) {
+func MarshalPlayer(p *PlayerState) ([]byte, error) {
 	pbPlayer := pb.PlayerState{Id: p.ID, Name: p.Name, Country: p.Country, Elo: p.Elo, IsGuest: p.IsGuest}
 	return proto.Marshal(&pbPlayer)
 }
@@ -102,7 +104,7 @@ func mapMoveList(pbMoves []*pb.PieceMove) []chess.PieceMove {
 
 var ErrNilGame = errors.New("game and board must not be nil")
 
-func ChessDeserialize(b []byte) (ChessState, error) {
+func UnmarshalChess(b []byte) (ChessState, error) {
 	var pbChess pb.ChessState
 	if err := proto.Unmarshal(b, &pbChess); err != nil {
 		return ChessState{}, fmt.Errorf("failed to unmarhsal chess state: %w", err)
@@ -235,7 +237,7 @@ func mapPbGame(game chess.Game) (*pb.ChessGame, error) {
 	return pbGame, nil
 }
 
-func SerializeChessState(s *ChessState) ([]byte, error) {
+func MarshalChessState(s *ChessState) ([]byte, error) {
 	pbGame, err := mapPbGame(s.Game)
 	if err != nil {
 		return nil, err
@@ -263,7 +265,7 @@ func SerializeChessState(s *ChessState) ([]byte, error) {
 	return proto.Marshal(pbState)
 }
 
-func ChessMetaDeserialize(b []byte) (ChessMeta, error) {
+func UnmarshalChessMeta(b []byte) (ChessMeta, error) {
 	var pbChess pb.ChessState
 	if err := proto.Unmarshal(b, &pbChess); err != nil {
 		return ChessMeta{}, fmt.Errorf("failed to unmarhsal chess state: %w", err)
@@ -277,4 +279,44 @@ func ChessMetaDeserialize(b []byte) (ChessMeta, error) {
 		TimeControl: TimeControl(pbChess.TimeControl),
 	}
 	return cv, nil
+}
+
+func mapPbChallengeMessage(um *pb.UserMessage, id int64, c ChallengeEntity) {
+	*um = pb.UserMessage{
+		UserId: strconv.Itoa(int(id)),
+		Value: &pb.UserMessage_Challenge{
+			Challenge: &pb.ChallengeMessage{
+				ChallengerId:      c.ChallengerID,
+				ChallengerName:    c.ChallengerName,
+				ChallengerCountry: c.ChallengerCountry,
+				ChallengerElo:     c.ChallengerElo,
+				ChallengeeId:      c.ChallengeeID,
+				ChallengeeName:    c.ChallengeeName,
+				ChallengeeCountry: c.ChallengeeCountry,
+				ChallengeeElo:     c.ChallengeeElo,
+				TimeControl:       uint32(c.TimeControl),
+				StartColor:        uint32(c.StartColor),
+				MadeOn:            c.MadeOn.UnixMilli(),
+			},
+		},
+	}
+}
+
+func MarshalUserMessage(um *pb.UserMessage) ([]byte, error) {
+	if c := um.GetChallenge(); c != nil {
+		return json.Marshal(ChallengeEntity{
+			ChallengerID:      c.ChallengerId,
+			ChallengerName:    c.ChallengerName,
+			ChallengerCountry: c.ChallengerCountry,
+			ChallengerElo:     c.ChallengerElo,
+			ChallengeeID:      c.ChallengeeId,
+			ChallengeeName:    c.ChallengeeName,
+			ChallengeeCountry: c.ChallengeeCountry,
+			ChallengeeElo:     c.ChallengeeElo,
+			TimeControl:       TimeControl(c.TimeControl),
+			StartColor:        ColorSelect(c.StartColor),
+			MadeOn:            time.UnixMilli(c.MadeOn),
+		})
+	}
+	return nil, fmt.Errorf("unknown message type: %T", um)
 }

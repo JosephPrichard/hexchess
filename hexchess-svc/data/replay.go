@@ -13,22 +13,22 @@ import (
 )
 
 type ReplayEntity struct {
-	ID           int64
-	WhiteID      int64
-	BlackID      int64
-	WhiteName    string
-	BlackName    string
-	WhiteCountry string
-	BlackCountry string
-	Result       ReplayResult
-	Cause        ReplayCause
-	WinElo       float64
-	LoseElo      float64
-	WhiteElo     float64
-	BlackElo     float64
-	WhiteEloDiff float64
-	BlackEloDiff float64
-	PlayedOn     time.Time
+	ID           int64        `json:"id"`
+	WhiteID      int64        `json:"whiteId"`
+	BlackID      int64        `json:"blackId"`
+	WhiteName    string       `json:"whiteName"`
+	BlackName    string       `json:"blackName"`
+	WhiteCountry string       `json:"whiteCountry"`
+	BlackCountry string       `json:"blackCountry"`
+	Result       ReplayResult `json:"result"`
+	Cause        ReplayCause  `json:"cause"`
+	WinElo       float64      `json:"winElo"`
+	LoseElo      float64      `json:"loseElo"`
+	WhiteElo     float64      `json:"whiteElo"`
+	BlackElo     float64      `json:"blackElo"`
+	WhiteEloDiff float64      `json:"whiteEloDiff"`
+	BlackEloDiff float64      `json:"blackEloDiff"`
+	PlayedOn     time.Time    `json:"playedOn"`
 }
 
 var ReplayEntityCmpOpts = cmpopts.IgnoreFields(ReplayEntity{}, "PlayedOn")

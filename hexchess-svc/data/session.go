@@ -26,7 +26,7 @@ func GetSession(ctx context.Context, rdb Rdb, sessionID string) (PlayerState, er
 		return PlayerState{}, err
 	}
 
-	player, err := PlayerDeserialize(data)
+	player, err := UnmarshalPlayer(data)
 	if err != nil {
 		return PlayerState{}, err
 	}
@@ -35,7 +35,7 @@ func GetSession(ctx context.Context, rdb Rdb, sessionID string) (PlayerState, er
 }
 
 func SetSession(ctx context.Context, rdb Rdb, sessionID string, player PlayerState, expiry time.Duration) error {
-	data, err := SerializePlayerState(&player)
+	data, err := MarshalPlayer(&player)
 	if err != nil {
 		return err
 	}

@@ -12,42 +12,12 @@ import (
 	"testing"
 )
 
-func createTestSessions(t *testing.T, rdb data.Rdb) string {
-	sessionID := "test-session-id"
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "create-test-sessions")
-	if err := data.SetSession(ctx, rdb, sessionID, data.PlayerState{ID: 1, Name: "user1", Country: "us", Elo: 1000}, MaxAgeCookie); err != nil {
-		t.Fatalf("failed to create test sessions: %v", err)
-	}
-	return sessionID
-}
-
-func createTestChessStates(t *testing.T, rdb data.Rdb) {
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-update-password")
-	for _, state := range []data.ChessState{
-		data.MakeStateWithPlayers("game1", data.RealTime, nil, &data.PlayerState{ID: 1, Name: "username", Country: "us", Elo: 1000}),
-		data.MakeState("game2", data.RealTime),
-		data.MakeState("game3", data.RealTime),
-	} {
-		if _, err := data.SetChessState(ctx, rdb, state.ID, state); err != nil {
-			t.Fatalf("failed to create test states: %v", err)
-		}
-	}
-}
-
 func TestHandleRegister(t *testing.T) {
-	stores, closer := data.BeforeStoresTests(t)
-	defer closer()
-
 	for i, test := range []struct {
 		body      string
 		expResp   any
 		expStatus int
 	}{
-		{
-			body:      `{"username": "test-name", "password": "test-password", "confirmPassword": "test-password"}`,
-			expResp:   SessionView{ID: 6, Username: "test-name", Country: "us", Elo: 1000},
-			expStatus: 200,
-		},
 		{
 			body:      `{"username": "test-name1", "password": "test-password1", "confirmPassword": "wrong"}`,
 			expResp:   ErrHttpConfirmPassword.Error(),
@@ -58,12 +28,21 @@ func TestHandleRegister(t *testing.T) {
 			expResp:   ErrHttpDuplicateUsername.Error(),
 			expStatus: 409,
 		},
+		{
+			body:      `{"username": "test-name", "password": "test-password", "confirmPassword": "test-password"}`,
+			expResp:   SessionView{ID: 6, Username: "test-name", Country: "us", Elo: 1000},
+			expStatus: 200,
+		},
 	} {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			stores, closer := data.BeforeStoresTests(t)
+			defer closer()
+
 			r := httptest.NewRequest(http.MethodPost, "/api/register", strings.NewReader(test.body))
 			w := httptest.NewRecorder()
 
-			Handle(RestState{Stores: stores}).ServeHTTP(w, r)
+			h := HandleRoot(MakeServerState(stores, nil, nil))
+			h.ServeHTTP(w, r)
 
 			lib.AssertRespBody[SessionView](t, test.expResp, w, SessionViewCmpOpts)
 			assert.Equal(t, test.expStatus, w.Code)
@@ -97,7 +76,8 @@ func TestHandleLogin(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(test.body))
 			w := httptest.NewRecorder()
 
-			Handle(RestState{Stores: stores}).ServeHTTP(w, r)
+			h := HandleRoot(MakeServerState(stores, nil, nil))
+			h.ServeHTTP(w, r)
 
 			lib.AssertRespBody[SessionView](t, test.expResp, w, SessionViewCmpOpts)
 			assert.Equal(t, test.expStatus, w.Code)
@@ -118,7 +98,8 @@ func TestHandleUpdateUser(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	Handle(RestState{Stores: stores}).ServeHTTP(w, r)
+	h := HandleRoot(MakeServerState(stores, nil, nil))
+	h.ServeHTTP(w, r)
 
 	expResp := SessionView{ID: 1, Username: "new-username", Country: "eu", Elo: 1000}
 	lib.AssertRespBody[SessionView](t, expResp, w, SessionViewCmpOpts)
@@ -157,7 +138,8 @@ func TestHandleUpdatePassword(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(sessionID))
 			w := httptest.NewRecorder()
 
-			Handle(RestState{Stores: stores}).ServeHTTP(w, r)
+			h := HandleRoot(MakeServerState(stores, nil, nil))
+			h.ServeHTTP(w, r)
 
 			lib.AssertRespBody[ServiceView](t, test.expResp, w)
 			assert.Equal(t, test.expStatus, w.Code)
@@ -196,7 +178,8 @@ func TestHandleUpdateChallenge(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(sessionID))
 			w := httptest.NewRecorder()
 
-			Handle(RestState{Stores: stores}).ServeHTTP(w, r)
+			h := HandleRoot(MakeServerState(stores, nil, nil))
+			h.ServeHTTP(w, r)
 
 			if test.expResp != "" {
 				assert.Equal(t, test.expResp, w.Body.String())
@@ -218,7 +201,8 @@ func TestHandleCreateChallenge(t *testing.T) {
 	r.Header.Set("Cookie", FmtCookie(sessionID))
 	w := httptest.NewRecorder()
 
-	Handle(RestState{Stores: stores}).ServeHTTP(w, r)
+	h := HandleRoot(MakeServerState(stores, nil, nil))
+	h.ServeHTTP(w, r)
 
 	lib.AssertRespBody[ServiceView](t, ServiceView{Status: 200, Message: "SUCCESS"}, w)
 	assert.Equal(t, 200, w.Code)
@@ -236,7 +220,8 @@ func TestGetLeaderboard(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/api/leaderboard", nil)
 	w := httptest.NewRecorder()
 
-	Handle(RestState{Stores: stores}).ServeHTTP(w, r)
+	h := HandleRoot(MakeServerState(stores, nil, nil))
+	h.ServeHTTP(w, r)
 
 	expResp := LeaderboardResp{
 		TotalPages: 1,
@@ -274,7 +259,8 @@ func TestGetPlayer(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players?id=%s", test.id), nil)
 			w := httptest.NewRecorder()
 
-			Handle(RestState{Stores: stores}).ServeHTTP(w, r)
+			h := HandleRoot(MakeServerState(stores, nil, nil))
+			h.ServeHTTP(w, r)
 
 			lib.AssertRespBody[UserWithReplaysResp](t, test.expResp, w, data.UserEntityCmpOpts, data.ReplayEntityCmpOpts)
 			assert.Equal(t, test.expStatus, w.Code)
@@ -295,38 +281,16 @@ func TestGetChallenges(t *testing.T) {
 	}{
 		{
 			participants: "sent",
-			expResp: GetChallengesResp{ChallengeList: []data.ChallengeEntity{
-				{
-					ChallengerID:      1,
-					ChallengerName:    "user1",
-					ChallengerCountry: "us",
-					ChallengerElo:     1000,
-					ChallengeeID:      2,
-					ChallengeeName:    "user2",
-					ChallengeeCountry: "us",
-					ChallengeeElo:     1000,
-					TimeControl:       data.Unlimited,
-					StartColor:        data.Random,
-				},
-			}},
+			expResp: GetChallengesResp{
+				ChallengeList: []data.ChallengeEntity{data.TestChallengeEntities[0]},
+			},
 			expStatus: 200,
 		},
 		{
 			participants: "received",
-			expResp: GetChallengesResp{ChallengeList: []data.ChallengeEntity{
-				{
-					ChallengerID:      3,
-					ChallengerName:    "user3",
-					ChallengerCountry: "us",
-					ChallengerElo:     900,
-					ChallengeeID:      1,
-					ChallengeeName:    "user1",
-					ChallengeeCountry: "us",
-					ChallengeeElo:     1000,
-					TimeControl:       data.Unlimited,
-					StartColor:        data.Random,
-				},
-			}},
+			expResp: GetChallengesResp{
+				ChallengeList: []data.ChallengeEntity{data.TestChallengeEntities[1]},
+			},
 			expStatus: 200,
 		},
 	} {
@@ -335,7 +299,8 @@ func TestGetChallenges(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(sessionID))
 			w := httptest.NewRecorder()
 
-			Handle(RestState{Stores: stores}).ServeHTTP(w, r)
+			h := HandleRoot(MakeServerState(stores, nil, nil))
+			h.ServeHTTP(w, r)
 
 			lib.AssertRespBody[GetChallengesResp](t, test.expResp, w, data.ChallengeEntityCmpOpts)
 			assert.Equal(t, test.expStatus, w.Code)
@@ -354,7 +319,8 @@ func TestHandleGetChessViews(t *testing.T) {
 	r.Header.Set("Cookie", FmtCookie(sessionID))
 	w := httptest.NewRecorder()
 
-	Handle(RestState{Stores: stores}).ServeHTTP(w, r)
+	h := HandleRoot(MakeServerState(stores, nil, nil))
+	h.ServeHTTP(w, r)
 
 	meta3 := data.ChessMeta{ID: "game3", FirstColor: data.Random}
 	meta2 := data.ChessMeta{ID: "game2", FirstColor: data.Random}

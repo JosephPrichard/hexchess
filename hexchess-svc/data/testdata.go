@@ -115,12 +115,39 @@ func createTestReplays(t TestLogger, q *db.Queries, insts ...ReplayInst) {
 }
 
 var TestChallengeInsts = []ChallengeInst{
+	{1, 2, Unlimited, Random, time.Now()},
+	{3, 1, Unlimited, Random, time.Now()},
 	{5, 2, Unlimited, Random, time.Unix(20500, 0)},
 	{5, 4, Unlimited, Random, time.Unix(19500, 0)},
 	{5, 3, Unlimited, Random, time.Unix(0, 0)},
 	{5, 1, Unlimited, Random, time.Unix(0, 0)},
-	{1, 2, Unlimited, Random, time.Now()},
-	{3, 1, Unlimited, Random, time.Now()},
+}
+
+var TestChallengeEntities = []ChallengeEntity{
+	{
+		ChallengerID:      1,
+		ChallengerName:    "user1",
+		ChallengerCountry: "us",
+		ChallengerElo:     1000,
+		ChallengeeID:      2,
+		ChallengeeName:    "user2",
+		ChallengeeCountry: "us",
+		ChallengeeElo:     1000,
+		TimeControl:       Unlimited,
+		StartColor:        Random,
+	},
+	{
+		ChallengerID:      3,
+		ChallengerName:    "user3",
+		ChallengerCountry: "us",
+		ChallengerElo:     900,
+		ChallengeeID:      1,
+		ChallengeeName:    "user1",
+		ChallengeeCountry: "us",
+		ChallengeeElo:     1000,
+		TimeControl:       Unlimited,
+		StartColor:        Random,
+	},
 }
 
 func createTestChallenges(t TestLogger, q *db.Queries, insts ...ChallengeInst) {

@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func testStrSub(t *testing.T, sub subscriber, mChan chan []string) {
+func testSub(t *testing.T, sub subscriber, mChan chan []string) {
 	var messages []string
 	for msg := range sub {
 		messages = append(messages, string(msg))
@@ -24,6 +24,8 @@ func testStrSub(t *testing.T, sub subscriber, mChan chan []string) {
 }
 
 func TestMultiBroker(t *testing.T) {
+	type msg = []byte
+
 	m := MakeMultiCasterMap("testing-broker")
 
 	sub1 := make(subscriber)
@@ -36,23 +38,23 @@ func TestMultiBroker(t *testing.T) {
 	mChan3 := make(chan []string)
 	mChan4 := make(chan []string)
 
-	go testStrSub(t, sub1, mChan1)
-	go testStrSub(t, sub2, mChan2)
-	go testStrSub(t, sub3, mChan3)
-	go testStrSub(t, sub4, mChan4)
+	go testSub(t, sub1, mChan1)
+	go testSub(t, sub2, mChan2)
+	go testSub(t, sub3, mChan3)
+	go testSub(t, sub4, mChan4)
 
 	m.Subscribe("1", sub1)
 	m.Subscribe("2", sub4)
-	m.Broadcast("1", []byte("test1"))
+	m.Broadcast("1", msg("test1"))
 
 	m.Subscribe("1", sub2)
 	m.Subscribe("1", sub3)
-	m.Broadcast("1", []byte("test2"))
+	m.Broadcast("1", msg("test2"))
 
 	m.Unsubscribe("1", sub3)
-	m.Broadcast("1", []byte("test3"))
+	m.Broadcast("1", msg("test3"))
 
-	m.Broadcast("2", []byte("test4"))
+	m.Broadcast("2", msg("test4"))
 
 	m.Unsubscribe("1", sub1)
 	m.Unsubscribe("1", sub2)
@@ -73,8 +75,8 @@ func TestSingleBroker(t *testing.T) {
 	mChan1 := make(chan []string)
 	mChan2 := make(chan []string)
 
-	go testStrSub(t, sub1, mChan1)
-	go testStrSub(t, sub2, mChan2)
+	go testSub[string](t, sub1, mChan1)
+	go testSub[string](t, sub2, mChan2)
 
 	m.Subscribe(sub1)
 	m.Broadcast([]byte("test1"), BroadcasterExpireTime)
@@ -121,11 +123,11 @@ func makeTestChatOutput(t *testing.T, id string, msg string) []byte {
 }
 
 func TestBroadcastGameMessage(t *testing.T) {
-	rdb, addr, closer := BeforeRedisTestsWithAddr(t)
-	defer closer() // this will also stop the goroutine listening to the pubsub channel
+	rdb := BeforeRedisTests(t)
+	defer rdb.Close() // this will also stop the goroutine listening to the pubsub channel
 
 	m := MakeMultiCasterMap("testing-broker-map")
-	DialAndListenGameMessages(m, addr)
+	ListenGameMessages(m, rdb.Addr)
 
 	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-broadcast-game-message")
 
@@ -168,11 +170,11 @@ func BenchmarkBroadcastGameMessage(b *testing.B) {
 	const benchBrCount = 5
 	const benchSubCount = 3 // subs per broker
 
-	rdb, addr, closer := BeforeRedisTestsWithAddr(b)
-	defer closer() // this will also stop the goroutine listening to the pubsub channel
+	rdb := BeforeRedisTests(b)
+	rdb.Close() // this will also stop the goroutine listening to the pubsub channel
 
 	m := MakeMultiCasterMap("testing-broker-map")
-	DialAndListenGameMessages(m, addr)
+	ListenGameMessages(m, rdb.Addr)
 
 	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-broadcast-game-message")
 

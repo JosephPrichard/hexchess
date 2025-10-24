@@ -14,25 +14,31 @@ type TxFn[Ret any] func(q *db.Queries) (Ret, error)
 type BeginTxFn = func(ctx context.Context) (pgx.Tx, error)
 
 type PgDB struct {
-	Q         *db.Queries
-	BeginTxFn BeginTxFn
-	noopTxn   bool
+	Q       *db.Queries
+	Pool    *pgxpool.Pool
+	noopTxn bool
 }
 
 type Rdb struct {
 	*redis.Pool
+	Addr            string
 	LeaderboardZSet string
 	GamesZSet       string
 	ActiveUsersZSet string
 	GamesChan       string
 	UsersChan       string
 	GamesCountChan  string
-	UsersCountChan  string
+	ActiveCountChan string
 }
 
 type Stores struct {
 	PgDB
 	Rdb Rdb
+}
+
+func (s Stores) Close() {
+	s.PgDB.Pool.Close()
+	s.Rdb.Pool.Close()
 }
 
 func MakeRdb(addr string) Rdb {
@@ -49,18 +55,19 @@ func MakeRdb(addr string) Rdb {
 	}
 	return Rdb{
 		Pool:            pool,
+		Addr:            addr,
 		LeaderboardZSet: LeaderboardZSet,
 		GamesZSet:       GamesZSet,
 		ActiveUsersZSet: ActiveUsersZSet,
 		GamesChan:       "games",
 		UsersChan:       "users",
 		GamesCountChan:  "games_count",
-		UsersCountChan:  "users_count",
+		ActiveCountChan: "users_count",
 	}
 }
 
 func MakeDbClient(q *db.Queries, pool *pgxpool.Pool) PgDB {
-	return PgDB{Q: q, BeginTxFn: pool.Begin}
+	return PgDB{Q: q, Pool: pool}
 }
 
 func MakeFakeDbClient(q *db.Queries) PgDB {
@@ -73,7 +80,7 @@ func WithTxn[Ret any](ctx context.Context, db PgDB, txFn TxFn[Ret]) (ret Ret, er
 		return txFn(db.Q)
 	}
 
-	tx, err := db.BeginTxFn(ctx)
+	tx, err := db.Pool.Begin(ctx)
 	if err != nil {
 		return
 	}

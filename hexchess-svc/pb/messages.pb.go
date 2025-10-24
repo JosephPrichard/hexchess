@@ -1015,6 +1015,248 @@ func (*GameOutput_Chat) isGameOutput_Value() {}
 
 func (*GameOutput_Forfeit) isGameOutput_Value() {}
 
+type UserMessageID struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UserMessageID) Reset() {
+	*x = UserMessageID{}
+	mi := &file_pb_messages_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UserMessageID) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UserMessageID) ProtoMessage() {}
+
+func (x *UserMessageID) ProtoReflect() protoreflect.Message {
+	mi := &file_pb_messages_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserMessageID.ProtoReflect.Descriptor instead.
+func (*UserMessageID) Descriptor() ([]byte, []int) {
+	return file_pb_messages_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *UserMessageID) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type UserMessage struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	UserId string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Types that are valid to be assigned to Value:
+	//
+	//	*UserMessage_Challenge
+	Value         isUserMessage_Value `protobuf_oneof:"value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UserMessage) Reset() {
+	*x = UserMessage{}
+	mi := &file_pb_messages_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UserMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UserMessage) ProtoMessage() {}
+
+func (x *UserMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_pb_messages_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserMessage.ProtoReflect.Descriptor instead.
+func (*UserMessage) Descriptor() ([]byte, []int) {
+	return file_pb_messages_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *UserMessage) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *UserMessage) GetValue() isUserMessage_Value {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+func (x *UserMessage) GetChallenge() *ChallengeMessage {
+	if x != nil {
+		if x, ok := x.Value.(*UserMessage_Challenge); ok {
+			return x.Challenge
+		}
+	}
+	return nil
+}
+
+type isUserMessage_Value interface {
+	isUserMessage_Value()
+}
+
+type UserMessage_Challenge struct {
+	Challenge *ChallengeMessage `protobuf:"bytes,2,opt,name=challenge,proto3,oneof"`
+}
+
+func (*UserMessage_Challenge) isUserMessage_Value() {}
+
+type ChallengeMessage struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	ChallengerId      int64                  `protobuf:"varint,1,opt,name=challenger_id,json=challengerId,proto3" json:"challenger_id,omitempty"`
+	ChallengerName    string                 `protobuf:"bytes,2,opt,name=challenger_name,json=challengerName,proto3" json:"challenger_name,omitempty"`
+	ChallengerCountry string                 `protobuf:"bytes,3,opt,name=challenger_country,json=challengerCountry,proto3" json:"challenger_country,omitempty"`
+	ChallengerElo     float64                `protobuf:"fixed64,4,opt,name=challenger_elo,json=challengerElo,proto3" json:"challenger_elo,omitempty"`
+	ChallengeeId      int64                  `protobuf:"varint,5,opt,name=challengee_id,json=challengeeId,proto3" json:"challengee_id,omitempty"`
+	ChallengeeName    string                 `protobuf:"bytes,6,opt,name=challengee_name,json=challengeeName,proto3" json:"challengee_name,omitempty"`
+	ChallengeeCountry string                 `protobuf:"bytes,7,opt,name=challengee_country,json=challengeeCountry,proto3" json:"challengee_country,omitempty"`
+	ChallengeeElo     float64                `protobuf:"fixed64,8,opt,name=challengee_elo,json=challengeeElo,proto3" json:"challengee_elo,omitempty"`
+	TimeControl       uint32                 `protobuf:"varint,9,opt,name=time_control,json=timeControl,proto3" json:"time_control,omitempty"`
+	StartColor        uint32                 `protobuf:"varint,10,opt,name=start_color,json=startColor,proto3" json:"start_color,omitempty"`
+	MadeOn            int64                  `protobuf:"varint,11,opt,name=made_on,json=madeOn,proto3" json:"made_on,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ChallengeMessage) Reset() {
+	*x = ChallengeMessage{}
+	mi := &file_pb_messages_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChallengeMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChallengeMessage) ProtoMessage() {}
+
+func (x *ChallengeMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_pb_messages_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChallengeMessage.ProtoReflect.Descriptor instead.
+func (*ChallengeMessage) Descriptor() ([]byte, []int) {
+	return file_pb_messages_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ChallengeMessage) GetChallengerId() int64 {
+	if x != nil {
+		return x.ChallengerId
+	}
+	return 0
+}
+
+func (x *ChallengeMessage) GetChallengerName() string {
+	if x != nil {
+		return x.ChallengerName
+	}
+	return ""
+}
+
+func (x *ChallengeMessage) GetChallengerCountry() string {
+	if x != nil {
+		return x.ChallengerCountry
+	}
+	return ""
+}
+
+func (x *ChallengeMessage) GetChallengerElo() float64 {
+	if x != nil {
+		return x.ChallengerElo
+	}
+	return 0
+}
+
+func (x *ChallengeMessage) GetChallengeeId() int64 {
+	if x != nil {
+		return x.ChallengeeId
+	}
+	return 0
+}
+
+func (x *ChallengeMessage) GetChallengeeName() string {
+	if x != nil {
+		return x.ChallengeeName
+	}
+	return ""
+}
+
+func (x *ChallengeMessage) GetChallengeeCountry() string {
+	if x != nil {
+		return x.ChallengeeCountry
+	}
+	return ""
+}
+
+func (x *ChallengeMessage) GetChallengeeElo() float64 {
+	if x != nil {
+		return x.ChallengeeElo
+	}
+	return 0
+}
+
+func (x *ChallengeMessage) GetTimeControl() uint32 {
+	if x != nil {
+		return x.TimeControl
+	}
+	return 0
+}
+
+func (x *ChallengeMessage) GetStartColor() uint32 {
+	if x != nil {
+		return x.StartColor
+	}
+	return 0
+}
+
+func (x *ChallengeMessage) GetMadeOn() int64 {
+	if x != nil {
+		return x.MadeOn
+	}
+	return 0
+}
+
 var File_pb_messages_proto protoreflect.FileDescriptor
 
 const file_pb_messages_proto_rawDesc = "" +
@@ -1093,7 +1335,27 @@ const file_pb_messages_proto_rawDesc = "" +
 	"\x04move\x18\x06 \x01(\v2\x0e.messages.MoveH\x00R\x04move\x12$\n" +
 	"\x04chat\x18\a \x01(\v2\x0e.messages.ChatH\x00R\x04chat\x12-\n" +
 	"\aforfeit\x18\b \x01(\v2\x11.messages.ForfeitH\x00R\aforfeitB\a\n" +
-	"\x05valueB\x12Z\x10hexchess-data/pbb\x06proto3"
+	"\x05value\"(\n" +
+	"\rUserMessageID\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"k\n" +
+	"\vUserMessage\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12:\n" +
+	"\tchallenge\x18\x02 \x01(\v2\x1a.messages.ChallengeMessageH\x00R\tchallengeB\a\n" +
+	"\x05value\"\xb7\x03\n" +
+	"\x10ChallengeMessage\x12#\n" +
+	"\rchallenger_id\x18\x01 \x01(\x03R\fchallengerId\x12'\n" +
+	"\x0fchallenger_name\x18\x02 \x01(\tR\x0echallengerName\x12-\n" +
+	"\x12challenger_country\x18\x03 \x01(\tR\x11challengerCountry\x12%\n" +
+	"\x0echallenger_elo\x18\x04 \x01(\x01R\rchallengerElo\x12#\n" +
+	"\rchallengee_id\x18\x05 \x01(\x03R\fchallengeeId\x12'\n" +
+	"\x0fchallengee_name\x18\x06 \x01(\tR\x0echallengeeName\x12-\n" +
+	"\x12challengee_country\x18\a \x01(\tR\x11challengeeCountry\x12%\n" +
+	"\x0echallengee_elo\x18\b \x01(\x01R\rchallengeeElo\x12!\n" +
+	"\ftime_control\x18\t \x01(\rR\vtimeControl\x12\x1f\n" +
+	"\vstart_color\x18\n" +
+	" \x01(\rR\n" +
+	"startColor\x12\x17\n" +
+	"\amade_on\x18\v \x01(\x03R\x06madeOnB\x12Z\x10hexchess-data/pbb\x06proto3"
 
 var (
 	file_pb_messages_proto_rawDescOnce sync.Once
@@ -1107,23 +1369,26 @@ func file_pb_messages_proto_rawDescGZIP() []byte {
 	return file_pb_messages_proto_rawDescData
 }
 
-var file_pb_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_pb_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_pb_messages_proto_goTypes = []any{
-	(*PlayerState)(nil),  // 0: messages.PlayerState
-	(*PieceMove)(nil),    // 1: messages.PieceMove
-	(*PieceMoves)(nil),   // 2: messages.PieceMoves
-	(*BoardFile)(nil),    // 3: messages.BoardFile
-	(*ChessBoard)(nil),   // 4: messages.ChessBoard
-	(*ChessGame)(nil),    // 5: messages.ChessGame
-	(*ChessState)(nil),   // 6: messages.ChessState
-	(*Error)(nil),        // 7: messages.Error
-	(*Init)(nil),         // 8: messages.Init
-	(*Players)(nil),      // 9: messages.Players
-	(*Move)(nil),         // 10: messages.Move
-	(*Chat)(nil),         // 11: messages.Chat
-	(*Forfeit)(nil),      // 12: messages.Forfeit
-	(*GameOutputID)(nil), // 13: messages.GameOutputID
-	(*GameOutput)(nil),   // 14: messages.GameOutput
+	(*PlayerState)(nil),      // 0: messages.PlayerState
+	(*PieceMove)(nil),        // 1: messages.PieceMove
+	(*PieceMoves)(nil),       // 2: messages.PieceMoves
+	(*BoardFile)(nil),        // 3: messages.BoardFile
+	(*ChessBoard)(nil),       // 4: messages.ChessBoard
+	(*ChessGame)(nil),        // 5: messages.ChessGame
+	(*ChessState)(nil),       // 6: messages.ChessState
+	(*Error)(nil),            // 7: messages.Error
+	(*Init)(nil),             // 8: messages.Init
+	(*Players)(nil),          // 9: messages.Players
+	(*Move)(nil),             // 10: messages.Move
+	(*Chat)(nil),             // 11: messages.Chat
+	(*Forfeit)(nil),          // 12: messages.Forfeit
+	(*GameOutputID)(nil),     // 13: messages.GameOutputID
+	(*GameOutput)(nil),       // 14: messages.GameOutput
+	(*UserMessageID)(nil),    // 15: messages.UserMessageID
+	(*UserMessage)(nil),      // 16: messages.UserMessage
+	(*ChallengeMessage)(nil), // 17: messages.ChallengeMessage
 }
 var file_pb_messages_proto_depIdxs = []int32{
 	3,  // 0: messages.ChessBoard.file:type_name -> messages.BoardFile
@@ -1147,11 +1412,12 @@ var file_pb_messages_proto_depIdxs = []int32{
 	10, // 18: messages.GameOutput.move:type_name -> messages.Move
 	11, // 19: messages.GameOutput.chat:type_name -> messages.Chat
 	12, // 20: messages.GameOutput.forfeit:type_name -> messages.Forfeit
-	21, // [21:21] is the sub-list for method output_type
-	21, // [21:21] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	17, // 21: messages.UserMessage.challenge:type_name -> messages.ChallengeMessage
+	22, // [22:22] is the sub-list for method output_type
+	22, // [22:22] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_pb_messages_proto_init() }
@@ -1167,13 +1433,16 @@ func file_pb_messages_proto_init() {
 		(*GameOutput_Chat)(nil),
 		(*GameOutput_Forfeit)(nil),
 	}
+	file_pb_messages_proto_msgTypes[16].OneofWrappers = []any{
+		(*UserMessage_Challenge)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pb_messages_proto_rawDesc), len(file_pb_messages_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

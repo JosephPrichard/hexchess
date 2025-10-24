@@ -9,8 +9,8 @@ import (
 )
 
 func TestSessions(t *testing.T) {
-	rdb, closer := BeforeRedisTests(t)
-	defer closer()
+	rdb := BeforeRedisTests(t)
+	defer rdb.Close()
 
 	player := PlayerState{ID: 1, Name: "testing-name1"}
 	sessionID1 := "session1"

@@ -10,8 +10,8 @@ import (
 )
 
 func TestLeaderboard(t *testing.T) {
-	rdb, closer := BeforeRedisTests(t)
-	defer closer()
+	rdb := BeforeRedisTests(t)
+	defer rdb.Close()
 
 	id1 := int64(rand.Intn(math.MaxInt64))
 	id2 := int64(rand.Intn(math.MaxInt64))

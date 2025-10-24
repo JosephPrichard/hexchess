@@ -44,12 +44,7 @@ type TestLogger interface {
 	Fatalf(format string, args ...any)
 }
 
-func BeforeRedisTests(t TestLogger) (Rdb, func()) {
-	rdb, _, closer := BeforeRedisTestsWithAddr(t)
-	return rdb, closer
-}
-
-func BeforeRedisTestsWithAddr(t TestLogger) (Rdb, string, func()) {
+func BeforeRedisTests(t TestLogger) Rdb {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
 
@@ -80,16 +75,13 @@ func BeforeRedisTestsWithAddr(t TestLogger) (Rdb, string, func()) {
 	t.Logf("connecting to redis on addr: %s", addr)
 
 	rdb := MakeRdb(addr)
+
 	// make unique ZSET names so any test that uses this rdb instance is isolated
 	rdb.LeaderboardZSet += uuid.NewString()
 	rdb.ActiveUsersZSet += uuid.NewString()
 	rdb.GamesZSet += uuid.NewString()
 
-	closer := func() {
-		t.Logf("closing redis pool")
-		rdb.Close()
-	}
-	return rdb, addr, closer
+	return rdb
 }
 
 func BeforeDbTests(t TestLogger) (PgDB, func()) {
@@ -172,10 +164,10 @@ func BeforeDbTests(t TestLogger) (PgDB, func()) {
 
 func BeforeStoresTests(t TestLogger) (Stores, func()) {
 	pgDB, dbCloser := BeforeDbTests(t)
-	rdb, rdbCloser := BeforeRedisTests(t)
+	rdb := BeforeRedisTests(t)
 	closer := func() {
 		dbCloser()
-		rdbCloser()
+		rdb.Close()
 	}
 	return Stores{PgDB: pgDB, Rdb: rdb}, closer
 }

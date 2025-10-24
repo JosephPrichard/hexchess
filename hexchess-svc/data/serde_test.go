@@ -16,12 +16,12 @@ func TestChessSerializer(t *testing.T) {
 
 	for i, input := range inputs {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
-			b, err := SerializeChessState(&input)
+			b, err := MarshalChessState(&input)
 			if err != nil {
 				t.Fatalf("failed to serialize state: %v", err)
 			}
 
-			output, err := ChessDeserialize(b)
+			output, err := UnmarshalChess(b)
 			if err != nil {
 				t.Fatalf("failed to deserialize state: %v", err)
 			}

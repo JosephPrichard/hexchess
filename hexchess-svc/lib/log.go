@@ -43,7 +43,7 @@ func InitLogger(f *os.File) {
 	} else {
 		w = os.Stderr
 	}
-	handler := slog.NewTextHandler(w, &slog.HandlerOptions{
+	handler := slog.NewJSONHandler(w, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})
 	slog.SetDefault(slog.New(&TraceHandler{handler}))

@@ -10,7 +10,6 @@ import (
 	"hexchess-svc/lib"
 	"log/slog"
 	"math/big"
-	"strconv"
 )
 
 func CreateGame(ctx context.Context, stores data.Stores, color data.ColorSelect, timeControl data.TimeControl) (string, error) {
@@ -44,17 +43,17 @@ func CreateGame(ctx context.Context, stores data.Stores, color data.ColorSelect,
 func broadcastOnCreateGame(stores data.Stores) {
 	defer func() {
 		if r := recover(); r != nil {
-			slog.Warn("recovered in create game broadcast handler", "err", r)
+			slog.Warn("recovered in create game broadcast makeRestHandler", "err", r)
 		}
 	}()
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "create-game-broadcast-handler")
+	ctx := context.WithValue(context.Background(), lib.TraceKey, "create-game-broadcast-makeRestHandler")
 
 	count, err := data.GetChessStateCount(ctx, stores.Rdb)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to count chess states after creating game", "err", err)
 		return
 	}
-	if err := data.BroadcastMessage(ctx, stores.Rdb, stores.Rdb.GamesChan, strconv.AppendInt(nil, count, 10)); err != nil {
+	if err := data.BroadcastGameCount(ctx, stores.Rdb, count); err != nil {
 		slog.ErrorContext(ctx, "failed to broadcast chess states count after creating game", "err", err)
 		return
 	}

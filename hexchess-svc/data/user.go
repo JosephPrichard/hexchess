@@ -21,18 +21,18 @@ import (
 )
 
 type UserEntity struct {
-	ID         int64
-	Username   string
-	Country    string
-	Elo        float64
-	HighestElo float64
-	Wins       int32
-	Losses     int32
-	Rank       int64
-	Bio        string
-	JoinedOn   time.Time
-	Total      int64
-	Winrate    int64
+	ID         int64     `json:"id"`
+	Username   string    `json:"username"`
+	Country    string    `json:"country"`
+	Elo        float64   `json:"elo"`
+	HighestElo float64   `json:"highestElo"`
+	Wins       int32     `json:"wins"`
+	Losses     int32     `json:"losses"`
+	Rank       int64     `json:"rank"`
+	Bio        string    `json:"bio"`
+	JoinedOn   time.Time `json:"joinedOn"`
+	Total      int64     `json:"total"`
+	Winrate    int64     `json:"winrate"`
 }
 
 var UserEntityCmpOpts = cmpopts.IgnoreFields(UserEntity{}, "JoinedOn")

@@ -16,13 +16,9 @@ import (
 	"time"
 )
 
-type RestState struct {
-	data.Stores
-	initialBoard []byte
-	countryList  []byte
-}
+type RestHandler = func(w http.ResponseWriter, r *http.Request, state ServerState) error
 
-func handler(state RestState, h func(w http.ResponseWriter, r *http.Request, state RestState) error) http.Handler {
+func makeRestHandler(state ServerState, h RestHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		trace := uuid.NewString()
 		r = r.WithContext(context.WithValue(r.Context(), lib.TraceKey, trace))
@@ -39,66 +35,12 @@ func handler(state RestState, h func(w http.ResponseWriter, r *http.Request, sta
 	})
 }
 
-func staticHandler(b []byte) http.Handler {
+func makeStaticHandler(b []byte) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(b)
 	})
-}
-
-func Handle(state RestState) http.Handler {
-	mux := http.NewServeMux()
-
-	var sb strings.Builder
-	sb.WriteString("starting rest server...\n")
-
-	for _, route := range []struct {
-		pattern string
-		handler func(w http.ResponseWriter, r *http.Request, state RestState) error
-	}{
-		{"POST /api/register", HandleRegister},
-		{"POST /api/login", HandleLogin},
-		{"GET /api/session/temp", HandleCreateTempSession},
-		{"POST /api/session/refresh", HandleRefreshSession},
-		{"POST /api/session/logout", HandleLogout},
-		{"POST /api/users/password", HandleUpdatePassword},
-		{"POST /api/users", HandleUpdateUser},
-		{"POST /api/games/create", HandleCreateGame},
-		{"POST /api/challenges/update", HandleUpdateChallenge},
-		{"POST /api/challenges/create", HandleCreateChallenge},
-		{"GET /api/players", HandleGetPlayer},
-		{"GET /api/players/self", HandleGetSelf},
-		{"GET /api/players/search", HandleSearchPlayers},
-		{"GET /api/leaderboard", HandleGetLeaderboard},
-		{"GET /api/challenges", HandleGetChallenges},
-		{"GET /api/replays", HandleGetUserReplays},
-		{"GET /api/chess/rooms", HandleGetChessRoomList},
-		{"GET /api/replay", HandleGetReplay},
-		{"GET /api/replay/move-list", HandleGetReplayMoveList},
-	} {
-		mux.Handle(route.pattern, handler(state, route.handler))
-
-		sb.WriteString("\t")
-		sb.WriteString(route.pattern)
-		sb.WriteString("\n")
-	}
-	for _, route := range []struct {
-		pattern  string
-		resource []byte
-	}{
-		{"GET /api/initial-board", state.initialBoard},
-		{"GET /api/countries", state.countryList},
-	} {
-		mux.Handle(route.pattern, staticHandler(route.resource))
-
-		sb.WriteString("\t")
-		sb.WriteString(route.pattern)
-		sb.WriteString("\n")
-	}
-
-	fmt.Println(sb.String())
-	return mux
 }
 
 const PerPage = 25
@@ -119,7 +61,7 @@ func validatePassword(password, confirm string) error {
 	return nil
 }
 
-func HandleRegister(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleRegister(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	var body RegisterBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		return err
@@ -173,7 +115,7 @@ type LoginBody struct {
 	Password string `json:"password"`
 }
 
-func HandleLogin(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleLogin(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	var body LoginBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		return err
@@ -215,7 +157,7 @@ type UpdatePasswordBody struct {
 	ConfirmNewPassword string `json:"confirmNewPassword"`
 }
 
-func HandleUpdatePassword(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleUpdatePassword(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	var body UpdatePasswordBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		return err
@@ -251,7 +193,7 @@ type UpdateUserBody struct {
 	NewBio      string `json:"newBio"`
 }
 
-func HandleUpdateUser(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleUpdateUser(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	var body UpdateUserBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		return err
@@ -285,7 +227,7 @@ type TempSessionResp struct {
 	SessionID string `json:"sessionID"`
 }
 
-func HandleCreateTempSession(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleCreateTempSession(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	ctx := r.Context()
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
 	if err != nil {
@@ -309,7 +251,7 @@ type RefreshResp struct {
 	Session *SessionView `json:"session,omitempty"`
 }
 
-func HandleRefreshSession(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleRefreshSession(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	ctx := r.Context()
 	player, sessionID, err := GetSessionPlayer(ctx, state.Rdb, r)
 	if errors.Is(err, data.ErrSessionNotFound) {
@@ -336,7 +278,7 @@ func HandleRefreshSession(w http.ResponseWriter, r *http.Request, state RestStat
 	return nil
 }
 
-func HandleLogout(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleLogout(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
 		return err
@@ -362,7 +304,7 @@ type CreateGameResp struct {
 	GameID string `json:"gameID"`
 }
 
-func HandleCreateGame(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleCreateGame(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	var body CreateGameBody
 
 	gameID, err := CreateGame(r.Context(), state.Stores, body.FirstColor, body.TimeControl)
@@ -385,7 +327,7 @@ type UpdateChallengeResp struct {
 	GameID string `json:"challengeID"`
 }
 
-func HandleUpdateChallenge(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleUpdateChallenge(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	var body UpdateChallengeBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		return err
@@ -440,7 +382,7 @@ type CreateChallengeBody struct {
 	TimeControl  string `json:"timeControl"`
 }
 
-func HandleCreateChallenge(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleCreateChallenge(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	var body CreateChallengeBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		return err
@@ -476,18 +418,13 @@ func HandleCreateChallenge(w http.ResponseWriter, r *http.Request, state RestSta
 	if err := data.DeleteExpiredChallenges(ctx, state.Q, player.ID, data.ExpireChallengeThreshold); err != nil {
 		slog.ErrorContext(ctx, "failed to delete expired challenges", "challenge", ret, "err", err)
 	}
-	b, err := json.Marshal(ret)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to marshal challenge for broadcast", "challenge", ret, "err", err)
-		return nil
-	}
-	if err := data.BroadcastMessage(ctx, state.Rdb, state.Rdb.UsersChan, b); err != nil {
+	if err := data.BroadcastChallenge(ctx, state.Rdb, player.ID, ret); err != nil {
 		slog.ErrorContext(ctx, "failed to broadcast challenge", "challenge", ret, "err", err)
 	}
 	return nil
 }
 
-func HandleGetSelf(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleGetSelf(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	ctx := r.Context()
 
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
@@ -514,7 +451,7 @@ type LeaderboardResp struct {
 	UserList   []data.UserEntity `json:"userList,omitempty"`
 }
 
-func HandleGetLeaderboard(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleGetLeaderboard(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	query := r.URL.Query()
 	page, err := getPageQuery(query)
 	if err != nil {
@@ -547,7 +484,7 @@ type UserWithReplaysResp struct {
 	ReplayList []data.ReplayEntity `json:"replayList,omitempty"`
 }
 
-func HandleGetPlayer(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleGetPlayer(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	strID := r.URL.Query().Get("id")
 	id, err := strconv.ParseInt(strID, 10, 64)
 	if err != nil {
@@ -600,7 +537,7 @@ type SearchPlayersResp struct {
 	UserList []data.UserEntity `json:"userList,omitempty"`
 }
 
-func HandleSearchPlayers(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleSearchPlayers(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	query := r.URL.Query()
 	page, err := getPageQuery(query)
 	if err != nil {
@@ -626,7 +563,7 @@ type GetReplayResp struct {
 	Replay data.ReplayEntity `json:"replay"`
 }
 
-func HandleGetReplay(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleGetReplay(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	strID := r.URL.Query().Get("id")
 	id, err := strconv.Atoi(strID)
 	if err != nil {
@@ -642,7 +579,7 @@ func HandleGetReplay(w http.ResponseWriter, r *http.Request, state RestState) er
 	return nil
 }
 
-func HandleGetReplayMoveList(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleGetReplayMoveList(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	strID := r.URL.Query().Get("id")
 	id, err := strconv.Atoi(strID)
 	if err != nil {
@@ -665,7 +602,7 @@ type GetUserReplaysResp struct {
 	ReplayList []data.ReplayEntity `json:"replayList"`
 }
 
-func HandleGetUserReplays(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleGetUserReplays(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	query := r.URL.Query()
 	afterID, err := strconv.Atoi(query.Get("afterID"))
 	if err != nil {
@@ -691,7 +628,7 @@ type GetChallengesResp struct {
 	ChallengeList []data.ChallengeEntity `json:"challengeList"`
 }
 
-func HandleGetChallenges(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleGetChallenges(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	participants := r.URL.Query().Get("participants")
 
 	ctx := r.Context()
@@ -726,7 +663,7 @@ type ChessRoomListResp struct {
 	SelfChessList []data.ChessMeta `json:"selfChessList"`
 }
 
-func HandleGetChessRoomList(w http.ResponseWriter, r *http.Request, state RestState) error {
+func HandleGetChessRoomList(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	query := r.URL.Query()
 	page, err := getPageQuery(query)
 	if err != nil {

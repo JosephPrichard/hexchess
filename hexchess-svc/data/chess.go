@@ -38,7 +38,7 @@ func GetChessState(ctx context.Context, rdb Rdb, id string) (ChessState, error) 
 		return fail("failed to get chess state", err)
 	}
 
-	state, err := ChessDeserialize(data)
+	state, err := UnmarshalChess(data)
 	if err != nil {
 		return fail("failed to deserialize chess state", err)
 	}
@@ -56,7 +56,7 @@ func SetChessStateAt(ctx context.Context, rdb Rdb, id string, state ChessState, 
 	touchSecs := float64(state.Touch.Unix())
 	fullID := "game:" + id
 
-	b, err := SerializeChessState(&state)
+	b, err := MarshalChessState(&state)
 	if err != nil {
 		return ChessState{}, fmt.Errorf("failed to serialize chess state: %w", err)
 	}
@@ -170,7 +170,7 @@ func GetChessMetas(ctx context.Context, rdb Rdb, zSetName string, page, count in
 
 	var metas []ChessMeta
 	for _, bytes := range bytesList {
-		cv, err := ChessMetaDeserialize(bytes)
+		cv, err := UnmarshalChessMeta(bytes)
 		if err != nil {
 			return fail("failed to deserialize chess view with key", err)
 		}

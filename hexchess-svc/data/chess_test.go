@@ -10,8 +10,8 @@ import (
 )
 
 func TestSetThenGetState(t *testing.T) {
-	rdb, closer := BeforeRedisTests(t)
-	defer closer()
+	rdb := BeforeRedisTests(t)
+	defer rdb.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 	id2 := "testing-id2-" + uuid.NewString()
@@ -32,8 +32,8 @@ func TestSetThenGetState(t *testing.T) {
 }
 
 func TestSetThenGetUserViews(t *testing.T) {
-	rdb, closer := BeforeRedisTests(t)
-	defer closer()
+	rdb := BeforeRedisTests(t)
+	defer rdb.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 	id2 := "testing-id2-" + uuid.NewString()

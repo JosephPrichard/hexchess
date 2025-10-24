@@ -2,11 +2,13 @@ package data
 
 import (
 	"context"
+	"fmt"
 	"github.com/gomodule/redigo/redis"
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/pb"
 	"log/slog"
 	"slices"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,7 +17,7 @@ import (
 const GamesChan = "games"
 const UsersChan = "users"
 const GamesCountChan = "games_count"
-const UsersCountChan = "users_count"
+const ActiveCountChan = "active_count"
 
 func BroadcastMessage(ctx context.Context, rdb Rdb, channel string, b []byte) error {
 	conn := rdb.Get()
@@ -25,25 +27,52 @@ func BroadcastMessage(ctx context.Context, rdb Rdb, channel string, b []byte) er
 		slog.ErrorContext(ctx, "failed to publish message", "err", err)
 		return err
 	}
-	slog.InfoContext(ctx, "broadcasted message to channel", "channel", channel, "bytes", len(b))
+	slog.InfoContext(ctx, "broadcasted message to channel", "channel", channel, "bytesCount", len(b))
 	return nil
 }
 
-func DialAndListenGameMessages(m *MultiCasterMap, addr string) {
+func BroadcastActiveCount(ctx context.Context, rdb Rdb, count int64) error {
+	return BroadcastMessage(ctx, rdb, rdb.ActiveCountChan, []byte(strconv.FormatInt(count, 10)))
+}
+
+func BroadcastGameCount(ctx context.Context, rdb Rdb, count int64) error {
+	return BroadcastMessage(ctx, rdb, rdb.GamesCountChan, []byte(strconv.FormatInt(count, 10)))
+}
+
+func BroadcastChallenge(ctx context.Context, rdb Rdb, id int64, c ChallengeEntity) error {
+	var pbUm pb.UserMessage
+	mapPbChallengeMessage(&pbUm, id, c)
+
+	b, err := proto.Marshal(&pbUm)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to marshal user challenge message", "err", err)
+		return err
+	}
+	return BroadcastMessage(ctx, rdb, rdb.UsersChan, b)
+}
+
+func makePubSub(conn redis.Conn, channel string) redis.PubSubConn {
+	slog.Info("starting channel broadcast subscriber", "channel", channel)
+	psc := redis.PubSubConn{Conn: conn}
+	psc.Subscribe(channel)
+	return psc
+}
+
+func ListenGameMessages(m *MultiCasterMap, addr string) {
 	conn, err := redis.Dial("tcp", addr)
 	if err != nil {
 		slog.Error("failed to get conn for pubsub", "err", err)
+		return
 	}
-
-	psc := redis.PubSubConn{Conn: conn}
-	psc.Subscribe(GamesChan)
-
+	psc := makePubSub(conn, GamesChan)
 	go listenGameMessages(psc, m)
 }
 
 func listenGameMessages(psc redis.PubSubConn, m *MultiCasterMap) {
-	slog.Info("starting channel broadcast subscriber", "channel", GamesChan)
-listenLoop:
+	defer func() {
+		psc.Close()
+		slog.Error("stopped broadcast channel subscriber", "channel", GamesChan)
+	}()
 	for {
 		switch v := psc.Receive().(type) {
 		case redis.Message:
@@ -51,21 +80,98 @@ listenLoop:
 
 			var goi pb.GameOutputID
 			if err := proto.Unmarshal(b, &goi); err != nil {
-				slog.Error("failed to unmarshal game message while listening to channel", "err", err)
+				slog.Error("failed to unmarshal game message", "err", err, "channel", GamesChan)
 				continue
 			}
-			slog.Info("received message on channel", "ID", goi.GameId, "channel", GamesChan)
+			slog.Info("received message on channel", "ID", goi.GameId, "channel", v.Channel)
 
 			m.Broadcast(goi.GameId, b)
 		case redis.Subscription:
-			slog.Info("received subscription on channel", "value", v)
+			slog.Info("received subscription on channel", "value", v, "channel", GamesChan)
 		case error:
-			slog.Error("failed to receive from games channel", "err", v)
-			break listenLoop
+			slog.Error("failed to receive from games channel", "err", v, "channel", GamesChan)
+			return
 		}
 	}
-	psc.Close()
-	slog.Error("stopped broadcast channel subscriber", "channel", GamesChan)
+}
+
+func ListenUsersMessages(m *MultiCasterMap, addr string) {
+	conn, err := redis.Dial("tcp", addr)
+	if err != nil {
+		slog.Error("failed to get conn for pubsub", "err", err)
+		return
+	}
+	psc := makePubSub(conn, UsersChan)
+	go listenUserMessages(psc, m)
+}
+
+func listenUserMessages(psc redis.PubSubConn, m *MultiCasterMap) {
+	defer func() {
+		psc.Close()
+		slog.Error("stopped broadcast channel subscriber", "channel", UsersChan)
+	}()
+	for {
+		switch v := psc.Receive().(type) {
+		case redis.Message:
+			b := v.Data
+
+			var um pb.UserMessage
+			if err := proto.Unmarshal(b, &um); err != nil {
+				slog.Error("failed to unmarshal user message", "err", err, "channel", UsersChan)
+				continue
+			}
+			slog.Info("received message on channel", "userID", um.UserId, "channel", v.Channel)
+
+			buf, err := MarshalUserMessage(&um)
+			if err != nil {
+				slog.Error("failed to marshal user message", "err", err, "channel", UsersChan)
+				continue
+			}
+			m.Broadcast(um.UserId, buf)
+		case redis.Subscription:
+			slog.Info("received subscription on channel", "value", v, "channel", UsersChan)
+		case error:
+			slog.Error("failed to receive from channel", "err", v, "channel", UsersChan)
+			return
+		}
+	}
+}
+
+func ListenActiveCountsMessages(m *UniCaster, addr string) {
+	ListenMessages(ActiveCountChan, m, addr)
+}
+
+func ListenGameCountsMessages(m *UniCaster, addr string) {
+	ListenMessages(GamesCountChan, m, addr)
+}
+
+func ListenMessages(channel string, m *UniCaster, addr string) {
+	conn, err := redis.Dial("tcp", addr)
+	if err != nil {
+		slog.Error("failed to get conn for pubsub", "err", err)
+		return
+	}
+	psc := makePubSub(conn, channel)
+	go listenMessages(channel, psc, m)
+}
+
+func listenMessages(channel string, psc redis.PubSubConn, m *UniCaster) {
+	defer func() {
+		psc.Close()
+		slog.Error("stopped broadcast channel subscriber", "channel", channel)
+	}()
+	for {
+		switch v := psc.Receive().(type) {
+		case redis.Message:
+			slog.Info("received message on channel", "msg", string(v.Data), "channel", v.Channel)
+			m.Broadcast(v.Data, BroadcasterExpireTime)
+		case redis.Subscription:
+			slog.Info("received subscription on channel", "value", v, "channel", channel)
+		case error:
+			slog.Error("failed to receive from channel", "err", v, "channel", channel)
+			return
+		}
+	}
 }
 
 type MultiCasterMap struct {
@@ -179,7 +285,7 @@ func (br *MultiCaster) SetLastAccess() {
 }
 
 func (br *MultiCaster) Subscribe(sub subscriber) {
-	slog.Info("subscribing to broker", "brID", br.ID, "sub", sub)
+	slog.Info("subscribing to broker", "brID", br.ID, "sub", fmt.Sprintf("%v", sub))
 
 	br.Lock()
 	defer br.Unlock()
@@ -191,7 +297,7 @@ func (br *MultiCaster) Subscribe(sub subscriber) {
 }
 
 func (br *MultiCaster) Unsubscribe(sub subscriber) {
-	slog.Info("unsubscribing from broker", "brID", br.ID, "sub", sub)
+	slog.Info("unsubscribing from broker", "brID", br.ID, "sub", fmt.Sprintf("%v", sub))
 
 	br.SetLastAccess()
 
@@ -245,7 +351,7 @@ func MakeUniCaster(brID string) *UniCaster {
 }
 
 func (br *UniCaster) Subscribe(sub subscriber) {
-	slog.Info("subscribing to broker", "brID", br.ID, "sub", sub)
+	slog.Info("subscribing to broker", "brID", br.ID, "sub", fmt.Sprintf("%v", sub))
 
 	br.Lock()
 	defer br.Unlock()
@@ -256,7 +362,7 @@ func (br *UniCaster) Subscribe(sub subscriber) {
 }
 
 func (br *UniCaster) Unsubscribe(sub subscriber) {
-	slog.Info("unsubscribing from broker", "brID", br.ID, "sub", sub)
+	slog.Info("unsubscribing from broker", "brID", br.ID, "sub", fmt.Sprintf("%v", sub))
 
 	br.Lock()
 	defer br.Unlock()

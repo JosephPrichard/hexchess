@@ -75,7 +75,7 @@ func main() {
 	defer rdb.Close()
 
 	slog.InfoContext(ctx, "connecting to redis pubsub channels", "host", redisPubSubHost, "port", redisPubSubPort)
-	//_ = data.DialAndListenGameMessages(psAddr)
+	//_ = data.ListenGameMessages(psAddr)
 
 	_ = data.Stores{Rdb: rdb, PgDB: pgDB}
 

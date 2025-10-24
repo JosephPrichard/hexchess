@@ -9,26 +9,28 @@ import (
 )
 
 func TestActiveUser(t *testing.T) {
-	rdb, closer := BeforeRedisTests(t)
-	defer closer()
+	rdb := BeforeRedisTests(t)
+	defer rdb.Close()
 
 	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-active-user")
 
-	assert.NoError(t, AddActiveUser(ctx, rdb, "1"))
-	assert.NoError(t, AddActiveUser(ctx, rdb, "2"))
-
-	count, err := GetActiveCount(ctx, rdb)
+	_, err := AddActiveUser(ctx, rdb, "1")
 	assert.NoError(t, err)
-	assert.Equal(t, 2, count)
-
-	assert.NoError(t, RemoveActiveUser(ctx, rdb, "2"))
-	assert.NoError(t, AddActiveUserOn(ctx, rdb, "3", time.UnixMilli(100)))
-
-	count, err = GetActiveCountWithExpiry(ctx, rdb, 0)
+	count, err := AddActiveUser(ctx, rdb, "2")
 	assert.NoError(t, err)
-	assert.Equal(t, 2, count)
 
-	count, err = GetActiveCountWithExpiry(ctx, rdb, 1000)
+	assert.Equal(t, int64(2), count)
+
+	_, err = RemoveActiveUser(ctx, rdb, "2")
 	assert.NoError(t, err)
-	assert.Equal(t, 1, count)
+	count, err = AddActiveUserOn(ctx, rdb, "3", time.UnixMilli(100), 0)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), count)
+
+	conn := rdb.Get()
+	defer conn.Close()
+
+	count, err = GetActiveCountWithExpiry(ctx, conn, rdb.ActiveUsersZSet, 1000)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(1), count)
 }

@@ -97,3 +97,28 @@ message GameOutput {
     Forfeit forfeit = 8;
   }
 }
+
+message UserMessageID {
+  string user_id = 1;
+}
+
+message UserMessage {
+  string user_id = 1;
+  oneof value {
+    ChallengeMessage challenge = 2;
+  }
+}
+
+message ChallengeMessage {
+  int64 challenger_id = 1;
+  string challenger_name = 2;
+  string challenger_country = 3;
+  double challenger_elo = 4;
+  int64 challengee_id = 5;
+  string challengee_name = 6;
+  string challengee_country = 7;
+  double challengee_elo = 8;
+  uint32 time_control = 9;
+  uint32 start_color = 10;
+  int64 made_on = 11;
+}
