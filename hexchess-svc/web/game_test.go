@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-func assertStateRdb(t *testing.T, rdb data.Rdb, expState data.ChessState) {
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "assert-chess-states")
+func assertStateRdb(t *testing.T, rdb data.Redis, expState data.ChessState) {
+	ctx := context.WithValue(context.Background(), lib.TK, "assert-chess-states")
 	actualState, err := data.GetChessState(ctx, rdb, expState.ID)
 	if err != nil {
 		t.Fatalf("failed to get chess for assert: %v", err)
@@ -24,7 +24,7 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-join-game")
+	ctx := context.WithValue(context.Background(), lib.TK, "testing-join-game")
 
 	gameID := "test123"
 	inState := data.MakeState(gameID, data.RealTime)
@@ -49,7 +49,7 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-join-game-both-players")
+	ctx := context.WithValue(context.Background(), lib.TK, "testing-join-game-both-players")
 
 	gameID := "test123"
 	inState := data.MakeState(gameID, data.RealTime)
@@ -94,7 +94,7 @@ func TestMakeMove(t *testing.T) {
 		SetPiece("f3", chess.BlackRook).
 		SetPiece("f9", chess.BlackKing)
 
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-make-move")
+	ctx := context.WithValue(context.Background(), lib.TK, "testing-make-move")
 
 	for _, state := range []data.ChessState{s1, s2} {
 		if _, err := data.SetChessState(ctx, stores.Rdb, state.ID, state); err != nil {
@@ -146,7 +146,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-forfeit")
+	ctx := context.WithValue(context.Background(), lib.TK, "testing-forfeit")
 
 	gameID := "test123"
 	inState := data.MakeState(gameID, data.RealTime)

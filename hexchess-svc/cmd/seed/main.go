@@ -81,7 +81,7 @@ func main() {
 	redisHost := os.Getenv("REDIS_HOST")
 	redisPort := os.Getenv("REDIS_PORT")
 
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "seed-stores-script")
+	ctx := context.WithValue(context.Background(), lib.TK, "seed-stores-script")
 
 	slog.InfoContext(ctx, "connecting to postgres db", "user", dbUser, "name", dbName, "port", dbPort)
 	pool, err := pgxpool.New(ctx, fmt.Sprintf("user=%s dbname=%s password=%s port=%s", dbUser, dbName, dbPass, dbPort))

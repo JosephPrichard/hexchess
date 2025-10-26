@@ -180,7 +180,7 @@ func BatchInsertUsers(ctx context.Context, q *db.Queries, insts []UserInst) ([]U
 		})
 	}
 	if err := eg.Wait(); err != nil {
-		slog.ErrorContext(ctx, "failed to batch insert users", "insts", insts, "err", err, "trace", ctx.Value(lib.TraceKey))
+		slog.ErrorContext(ctx, "failed to batch insert users", "insts", insts, "err", err, "trace", ctx.Value(lib.TK))
 		return nil, err
 	}
 
@@ -195,7 +195,7 @@ func BatchInsertUsers(ctx context.Context, q *db.Queries, insts []UserInst) ([]U
 		}
 	})
 
-	lib.DynLog(ctx, "batch inserted user", errors.Join(errs...), "insts", insts, "users", users, "trace", ctx.Value(lib.TraceKey))
+	lib.DynLog(ctx, "batch inserted user", errors.Join(errs...), "insts", insts, "users", users, "trace", ctx.Value(lib.TK))
 	return users, nil
 }
 
@@ -248,7 +248,7 @@ func UpdateUser(ctx context.Context, q *db.Queries, id int64, updt UpdtUserParam
 	})
 
 	user := mapUserFromRow(db.SelectUserByIDRow(row))
-	lib.DynLog(ctx, "updated user", err, "user", user, "trace", ctx.Value(lib.TraceKey))
+	lib.DynLog(ctx, "updated user", err, "user", user, "trace", ctx.Value(lib.TK))
 	return user, err
 }
 
@@ -258,7 +258,7 @@ func UpdateUserPassword(ctx context.Context, q *db.Queries, id int64, newPasswor
 		return err
 	}
 	err = q.UpdatePassword(ctx, db.UpdatePasswordParams{ID: id, Password: hash.HashedPassword, Salt: hash.Salt})
-	lib.DynLog(ctx, "updated password", err, "id", id, "trace", ctx.Value(lib.TraceKey))
+	lib.DynLog(ctx, "updated password", err, "id", id, "trace", ctx.Value(lib.TK))
 	return err
 }
 

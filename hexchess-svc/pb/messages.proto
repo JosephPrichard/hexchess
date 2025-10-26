@@ -54,31 +54,49 @@ message ChessState {
   int64 touch = 9;
 }
 
-message Error {
+message ForfeitInput {}
+
+message MoveInput {
+  PieceMove move = 1;
+}
+
+message ChatInput {
   string message = 1;
 }
 
-message Init {
+message GameInput {
+  oneof value {
+    ForfeitInput forfeit = 1;
+    MoveInput move = 2;
+    ChatInput chat = 3;
+  }
+}
+
+message ErrorOutput {
+  string message = 1;
+}
+
+message InitOutput {
   ChessState state = 1;
   PlayerState self = 2;
 }
 
-message Players {
+message PlayersOutput {
   PlayerState white_player = 1;
   PlayerState black_player = 2;
 }
 
-message Move {
+message MoveOutput {
   PieceMove pieceMove = 1;
   ChessGame game = 2;
 }
 
-message Chat {
+message ChatOutput {
   PlayerState player = 1;
   string message = 2;
 }
 
-message Forfeit {}
+message ForfeitOutput {}
 
 message GameOutputID {
   string game_id = 1;
@@ -89,27 +107,23 @@ message GameOutput {
   string game_id = 1;
   string message_id = 2;
   oneof value {
-    Error error = 3;
-    Init init = 4;
-    Players players = 5;
-    Move move = 6;
-    Chat chat = 7;
-    Forfeit forfeit = 8;
+    ErrorOutput error = 3;
+    InitOutput init = 4;
+    PlayersOutput players = 5;
+    MoveOutput move = 6;
+    ChatOutput chat = 7;
+    ForfeitOutput forfeit = 8;
   }
 }
 
-message UserMessageID {
-  string user_id = 1;
-}
-
-message UserMessage {
+message UserMsg {
   string user_id = 1;
   oneof value {
-    ChallengeMessage challenge = 2;
+    ChallengeMsg challenge = 2;
   }
 }
 
-message ChallengeMessage {
+message ChallengeMsg {
   int64 challenger_id = 1;
   string challenger_name = 2;
   string challenger_country = 3;

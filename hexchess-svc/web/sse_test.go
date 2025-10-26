@@ -3,6 +3,7 @@ package web
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"hexchess-svc/data"
@@ -34,8 +35,8 @@ func TestHandleCountEvents(t *testing.T) {
 	defer closer()
 
 	state := MakeServerState(stores, nil, nil)
-	data.ListenActiveCountsMessages(state.ActiveCaster, stores.Rdb.Addr)
-	data.ListenGameCountsMessages(state.GamesCaster, stores.Rdb.Addr)
+	data.ListenActiveCountsMessages(state.ActiveCntCaster, stores.Rdb.Addr)
+	data.ListenGameCountsMessages(state.GamesCntCaster, stores.Rdb.Addr)
 
 	ts := httptest.NewServer(HandleRoot(state))
 	defer ts.Close()
@@ -46,10 +47,12 @@ func TestHandleCountEvents(t *testing.T) {
 
 	assert.Equal(t, resp.Header.Get("Content-Type"), "text/event-stream")
 
+	errChan := make(chan error)
 	go func() {
-		ctx := context.WithValue(context.Background(), lib.TraceKey, "broadcast-counts")
-		data.BroadcastMessage(ctx, stores.Rdb, data.ActiveCountChan, strconv.AppendInt(nil, 2, 10))
-		data.BroadcastMessage(ctx, stores.Rdb, data.GamesCountChan, strconv.AppendInt(nil, 1, 10))
+		ctx := context.WithValue(context.Background(), lib.TK, "broadcast-counts")
+		errChan <- errors.Join(nil,
+			data.BroadcastMessage(ctx, stores.Rdb, data.ActiveCountChan, strconv.AppendInt(nil, 2, 10)),
+			data.BroadcastMessage(ctx, stores.Rdb, data.GamesCountChan, strconv.AppendInt(nil, 1, 10)))
 	}()
 
 	lines := scanLines(t, resp, 5)
@@ -71,28 +74,28 @@ func TestHandleUserEvents(t *testing.T) {
 	state := MakeServerState(stores, nil, nil)
 	data.ListenUsersMessages(state.UsersCaster, stores.Rdb.Addr)
 
-	sessionID := createTestSessions(t, stores.Rdb)
+	createTestSessions(t, stores.Rdb)
 
 	ts := httptest.NewServer(HandleRoot(state))
 	defer ts.Close()
 
 	req, err := http.NewRequest(http.MethodGet, ts.URL+"/api/events/users", nil)
 	assert.NoError(t, err)
-	req.Header.Set("Cookie", FmtCookie(sessionID))
+	req.Header.Set("Cookie", FmtCookie(sessionID1))
 
 	resp, err := http.DefaultClient.Do(req)
-	assert.NoError(t, err)
-
 	assert.NoError(t, err)
 	defer resp.Body.Close()
 
 	assert.Equal(t, resp.Header.Get("Content-Type"), "text/event-stream")
 
+	errChan := make(chan error)
 	go func() {
-		ctx := context.WithValue(context.Background(), lib.TraceKey, "broadcast-user-events")
-		data.BroadcastChallenge(ctx, stores.Rdb, 1, data.ChallengeEntity{ChallengerID: 1})
-		data.BroadcastChallenge(ctx, stores.Rdb, 2, data.ChallengeEntity{})
-		data.BroadcastChallenge(ctx, stores.Rdb, 1, data.ChallengeEntity{ChallengerID: 1})
+		ctx := context.WithValue(context.Background(), lib.TK, "broadcast-user-events")
+		errChan <- errors.Join(nil,
+			data.BroadcastChallenge(ctx, stores.Rdb, 1, data.ChallengeEntity{ChallengerID: 1}),
+			data.BroadcastChallenge(ctx, stores.Rdb, 2, data.ChallengeEntity{ChallengerID: 2}),
+			data.BroadcastChallenge(ctx, stores.Rdb, 1, data.ChallengeEntity{ChallengerID: 1}))
 	}()
 
 	lines := scanLines(t, resp, 3)
@@ -104,4 +107,7 @@ func TestHandleUserEvents(t *testing.T) {
 		fmt.Sprintf("%s: %s", UserChallengeEvent, json),
 	}
 	assert.Equal(t, expLines, lines)
+
+	err = <-errChan
+	assert.NoError(t, err)
 }

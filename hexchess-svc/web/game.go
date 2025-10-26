@@ -29,7 +29,7 @@ func CreateGame(ctx context.Context, stores data.Stores, color data.ColorSelect,
 	state.FirstColor = color
 	state.Game.InitPieceMoves()
 
-	slog.InfoContext(ctx, "created chess game", "state", state, "trace", ctx.Value(lib.TraceKey))
+	slog.InfoContext(ctx, "created chess game", "state", state, "trace", ctx.Value(lib.TK))
 
 	state, err := data.SetChessState(ctx, stores.Rdb, strID, state)
 	if err != nil {
@@ -46,7 +46,7 @@ func broadcastOnCreateGame(stores data.Stores) {
 			slog.Warn("recovered in create game broadcast makeRestHandler", "err", r)
 		}
 	}()
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "create-game-broadcast-makeRestHandler")
+	ctx := context.WithValue(context.Background(), lib.TK, "create-game-broadcast-makeRestHandler")
 
 	count, err := data.GetChessStateCount(ctx, stores.Rdb)
 	if err != nil {

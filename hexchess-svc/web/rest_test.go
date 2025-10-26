@@ -19,6 +19,11 @@ func TestHandleRegister(t *testing.T) {
 		expStatus int
 	}{
 		{
+			body:      `{"username": "test-name", "password": "test-password", "confirmPassword": "test-password"}`,
+			expResp:   SessionView{ID: 6, Username: "test-name", Country: "us", Elo: 1000}, // this should be before the duplicate failure, since that will autoincrement
+			expStatus: 200,
+		},
+		{
 			body:      `{"username": "test-name1", "password": "test-password1", "confirmPassword": "wrong"}`,
 			expResp:   ErrHttpConfirmPassword.Error(),
 			expStatus: 400,
@@ -27,11 +32,6 @@ func TestHandleRegister(t *testing.T) {
 			body:      fmt.Sprintf(`{"username": "%s", "password": "test-password2", "confirmPassword": "test-password2"}`, data.TestUsersInsts[0].Username),
 			expResp:   ErrHttpDuplicateUsername.Error(),
 			expStatus: 409,
-		},
-		{
-			body:      `{"username": "test-name", "password": "test-password", "confirmPassword": "test-password"}`,
-			expResp:   SessionView{ID: 6, Username: "test-name", Country: "us", Elo: 1000},
-			expStatus: 200,
 		},
 	} {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
@@ -89,12 +89,12 @@ func TestHandleUpdateUser(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	sessionID := createTestSessions(t, stores.Rdb)
+	createTestSessions(t, stores.Rdb)
 
 	body := `{"newUsername": "new-username", "newBio": "test biography", "newCountry": "eu"}`
 
 	r := httptest.NewRequest(http.MethodPost, "/api/users", strings.NewReader(body))
-	r.Header.Set("Cookie", FmtCookie(sessionID))
+	r.Header.Set("Cookie", FmtCookie(sessionID1))
 
 	w := httptest.NewRecorder()
 
@@ -110,7 +110,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	sessionID := createTestSessions(t, stores.Rdb)
+	createTestSessions(t, stores.Rdb)
 
 	for i, test := range []struct {
 		body      string
@@ -135,7 +135,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/api/users/password", strings.NewReader(test.body))
-			r.Header.Set("Cookie", FmtCookie(sessionID))
+			r.Header.Set("Cookie", FmtCookie(sessionID1))
 			w := httptest.NewRecorder()
 
 			h := HandleRoot(MakeServerState(stores, nil, nil))
@@ -151,7 +151,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	sessionID := createTestSessions(t, stores.Rdb)
+	createTestSessions(t, stores.Rdb)
 
 	for i, test := range []struct {
 		body      string
@@ -175,7 +175,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/api/challenges/update", strings.NewReader(test.body))
-			r.Header.Set("Cookie", FmtCookie(sessionID))
+			r.Header.Set("Cookie", FmtCookie(sessionID1))
 			w := httptest.NewRecorder()
 
 			h := HandleRoot(MakeServerState(stores, nil, nil))
@@ -193,12 +193,12 @@ func TestHandleCreateChallenge(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	sessionID := createTestSessions(t, stores.Rdb)
+	createTestSessions(t, stores.Rdb)
 
 	body := `{"challengeeID": 4, "firstColor": "WHITE", "timeControl": "REAL_TIME"}`
 
 	r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", strings.NewReader(body))
-	r.Header.Set("Cookie", FmtCookie(sessionID))
+	r.Header.Set("Cookie", FmtCookie(sessionID1))
 	w := httptest.NewRecorder()
 
 	h := HandleRoot(MakeServerState(stores, nil, nil))
@@ -212,7 +212,7 @@ func TestGetLeaderboard(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "setup-get-leaderboard")
+	ctx := context.WithValue(context.Background(), lib.TK, "setup-get-leaderboard")
 	if err := data.SetLeaderboard(ctx, stores.Rdb, data.UpdtLbChangeSet{ID: 1, EloDiff: 1000}); err != nil {
 		t.Fatalf("failed to setup leaderboard: %v", err)
 	}
@@ -272,7 +272,7 @@ func TestGetChallenges(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	sessionID := createTestSessions(t, stores.Rdb)
+	createTestSessions(t, stores.Rdb)
 
 	for i, test := range []struct {
 		participants string
@@ -296,7 +296,7 @@ func TestGetChallenges(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/challenges?participants=%s", test.participants), nil)
-			r.Header.Set("Cookie", FmtCookie(sessionID))
+			r.Header.Set("Cookie", FmtCookie(sessionID1))
 			w := httptest.NewRecorder()
 
 			h := HandleRoot(MakeServerState(stores, nil, nil))
@@ -312,11 +312,11 @@ func TestHandleGetChessViews(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	sessionID := createTestSessions(t, stores.Rdb)
+	createTestSessions(t, stores.Rdb)
 	createTestChessStates(t, stores.Rdb)
 
 	r := httptest.NewRequest(http.MethodGet, "/api/chess/rooms", nil)
-	r.Header.Set("Cookie", FmtCookie(sessionID))
+	r.Header.Set("Cookie", FmtCookie(sessionID2))
 	w := httptest.NewRecorder()
 
 	h := HandleRoot(MakeServerState(stores, nil, nil))
@@ -326,9 +326,9 @@ func TestHandleGetChessViews(t *testing.T) {
 	meta2 := data.ChessMeta{ID: "game2", FirstColor: data.Random}
 	meta1 := data.ChessMeta{
 		ID: "game1",
-		BlackPlayer: &data.PlayerState{
-			ID:      1,
-			Name:    "username",
+		WhitePlayer: &data.PlayerState{
+			ID:      2,
+			Name:    "user2",
 			Country: "us",
 			Elo:     1000,
 		},

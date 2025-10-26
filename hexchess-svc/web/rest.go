@@ -21,14 +21,14 @@ type RestHandler = func(w http.ResponseWriter, r *http.Request, state ServerStat
 func makeRestHandler(state ServerState, h RestHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		trace := uuid.NewString()
-		r = r.WithContext(context.WithValue(r.Context(), lib.TraceKey, trace))
+		r = r.WithContext(context.WithValue(r.Context(), lib.TK, trace))
 
 		slog.InfoContext(r.Context(), "request received", "method", r.Method, "url", r.URL)
 
 		if err := h(w, r, state); err != nil {
 			slog.ErrorContext(r.Context(), "request failed", "method", r.Method, "url", r.URL, "error", err)
 
-			status, m := HttpStatusFromError(err)
+			status, m := HttpStatusFromErr(err)
 			w.WriteHeader(status)
 			_, _ = w.Write([]byte(m))
 		}
@@ -415,11 +415,11 @@ func HandleCreateChallenge(w http.ResponseWriter, r *http.Request, state ServerS
 	writeSuccessJSON(w)
 
 	ctx = context.WithoutCancel(ctx)
-	if err := data.DeleteExpiredChallenges(ctx, state.Q, player.ID, data.ExpireChallengeThreshold); err != nil {
-		slog.ErrorContext(ctx, "failed to delete expired challenges", "challenge", ret, "err", err)
-	}
 	if err := data.BroadcastChallenge(ctx, state.Rdb, player.ID, ret); err != nil {
 		slog.ErrorContext(ctx, "failed to broadcast challenge", "challenge", ret, "err", err)
+	}
+	if err := data.DeleteExpiredChallenges(ctx, state.Q, player.ID, data.ExpireChallengeThreshold); err != nil {
+		slog.ErrorContext(ctx, "failed to delete expired challenges", "challenge", ret, "err", err)
 	}
 	return nil
 }

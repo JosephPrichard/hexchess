@@ -75,8 +75,8 @@ func TestSingleBroker(t *testing.T) {
 	mChan1 := make(chan []string)
 	mChan2 := make(chan []string)
 
-	go testSub[string](t, sub1, mChan1)
-	go testSub[string](t, sub2, mChan2)
+	go testSub(t, sub1, mChan1)
+	go testSub(t, sub2, mChan2)
 
 	m.Subscribe(sub1)
 	m.Broadcast([]byte("test1"), BroadcasterExpireTime)
@@ -114,7 +114,7 @@ func testCountSub(t *testing.T, sub subscriber, mChan chan [][]byte, count int) 
 func makeTestChatOutput(t *testing.T, id string, msg string) []byte {
 	b, err := proto.Marshal(&pb.GameOutput{
 		GameId: id,
-		Value:  &pb.GameOutput_Chat{Chat: &pb.Chat{Message: msg}},
+		Value:  &pb.GameOutput_Chat{Chat: &pb.ChatOutput{Message: msg}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -129,7 +129,7 @@ func TestBroadcastGameMessage(t *testing.T) {
 	m := MakeMultiCasterMap("testing-broker-map")
 	ListenGameMessages(m, rdb.Addr)
 
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-broadcast-game-message")
+	ctx := context.WithValue(context.Background(), lib.TK, "testing-broadcast-game-message")
 
 	sub := make(subscriber)
 	mChan := make(chan [][]byte)
@@ -144,7 +144,7 @@ func TestBroadcastGameMessage(t *testing.T) {
 }
 
 func makeTestMoveOutput(b *testing.B, gID string, mID string) []byte {
-	pbGame, err := mapPbGame(chess.MakeStartGame())
+	pbGame, err := MapPbGame(chess.MakeStartGame())
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func makeTestMoveOutput(b *testing.B, gID string, mID string) []byte {
 		GameId:    gID,
 		MessageId: mID,
 		Value: &pb.GameOutput_Move{
-			Move: &pb.Move{
+			Move: &pb.MoveOutput{
 				PieceMove: &pb.PieceMove{Piece: int32(chess.WhitePawn), ToFile: int32(1), ToRank: int32(1), FromFile: int32(2), FromRank: int32(1)},
 				Game:      pbGame,
 			},
@@ -176,7 +176,7 @@ func BenchmarkBroadcastGameMessage(b *testing.B) {
 	m := MakeMultiCasterMap("testing-broker-map")
 	ListenGameMessages(m, rdb.Addr)
 
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-broadcast-game-message")
+	ctx := context.WithValue(context.Background(), lib.TK, "testing-broadcast-game-message")
 
 	var mapMu sync.Mutex
 	sends := make(map[string]time.Time)

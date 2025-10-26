@@ -12,7 +12,7 @@ func TestActiveUser(t *testing.T) {
 	rdb := BeforeRedisTests(t)
 	defer rdb.Close()
 
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-active-user")
+	ctx := context.WithValue(context.Background(), lib.TK, "testing-active-user")
 
 	_, err := AddActiveUser(ctx, rdb, "1")
 	assert.NoError(t, err)

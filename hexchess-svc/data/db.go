@@ -19,7 +19,7 @@ type PgDB struct {
 	noopTxn bool
 }
 
-type Rdb struct {
+type Redis struct {
 	*redis.Pool
 	Addr            string
 	LeaderboardZSet string
@@ -33,7 +33,7 @@ type Rdb struct {
 
 type Stores struct {
 	PgDB
-	Rdb Rdb
+	Rdb Redis
 }
 
 func (s Stores) Close() {
@@ -41,7 +41,7 @@ func (s Stores) Close() {
 	s.Rdb.Pool.Close()
 }
 
-func MakeRdb(addr string) Rdb {
+func MakeRdb(addr string) Redis {
 	pool := &redis.Pool{
 		MaxIdle:     3,
 		IdleTimeout: 240 * time.Second,
@@ -53,7 +53,7 @@ func MakeRdb(addr string) Rdb {
 			return c, err
 		},
 	}
-	return Rdb{
+	return Redis{
 		Pool:            pool,
 		Addr:            addr,
 		LeaderboardZSet: LeaderboardZSet,

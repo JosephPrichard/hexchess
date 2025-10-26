@@ -7,7 +7,7 @@ import (
 
 // HTTP error codes
 var (
-	ErrHttpUnknown             = errors.New("ERROR_UNKNOWN")
+	ErrHttpFatal               = errors.New("ERROR_FATAL")
 	ErrHttpInvalidPassword     = errors.New("ERROR_PASSWORD_LENGTH")
 	ErrHttpConfirmPassword     = errors.New("ERROR_CONFIRM_PASSWORD")
 	ErrHttpInvalidUsername     = errors.New("ERROR_USERNAME_LENGTH")
@@ -27,6 +27,7 @@ var (
 
 // WebSocket response codes
 var (
+	ErrWsFatal        = errors.New("ERROR_FATAL")
 	ErrWsMessageType  = errors.New("ERROR_MESSAGE_TYPE")
 	ErrWsTurn         = errors.New("ERROR_TURN")
 	ErrWsInvalidMove  = errors.New("ERROR_INVALID_MOVE")
@@ -34,7 +35,7 @@ var (
 	ErrWsInvalidGame  = errors.New("ERROR_INVALID_GAME")
 )
 
-func HttpStatusFromError(err error) (int, string) {
+func HttpStatusFromErr(err error) (int, string) {
 	switch err {
 	case ErrHttpInvalidPassword,
 		ErrHttpConfirmPassword,
@@ -55,9 +56,22 @@ func HttpStatusFromError(err error) (int, string) {
 	case ErrHttpUserNotFound,
 		ErrHttpNotFoundChallenge:
 		return http.StatusNotFound, err.Error()
-	case ErrHttpUnknown:
+	case ErrHttpFatal:
 		return http.StatusInternalServerError, err.Error()
 	default:
-		return http.StatusInternalServerError, ErrHttpUnknown.Error()
+		return http.StatusInternalServerError, ErrHttpFatal.Error()
+	}
+}
+
+func mapWsErr(err error) error {
+	switch err {
+	case ErrFinishedGame:
+		return ErrWsFinishedGame
+	case ErrTurn:
+		return ErrWsTurn
+	case ErrInvalidMove:
+		return ErrWsInvalidMove
+	default:
+		return ErrWsFatal
 	}
 }

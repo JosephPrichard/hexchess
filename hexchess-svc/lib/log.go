@@ -9,7 +9,7 @@ import (
 
 type TraceType string
 
-var TraceKey TraceType = "trace"
+var TK TraceType = "trace"
 
 func DynLog(ctx context.Context, msg string, err error, args ...any) {
 	if err != nil {
@@ -30,7 +30,7 @@ type TraceHandler struct {
 }
 
 func (h *TraceHandler) Handle(ctx context.Context, r slog.Record) error {
-	if v := ctx.Value(TraceKey); v != nil {
+	if v := ctx.Value(TK); v != nil {
 		r.Add("trace", v)
 	}
 	return h.Handler.Handle(ctx, r)
@@ -43,7 +43,7 @@ func InitLogger(f *os.File) {
 	} else {
 		w = os.Stderr
 	}
-	handler := slog.NewJSONHandler(w, &slog.HandlerOptions{
+	handler := slog.NewTextHandler(w, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})
 	slog.SetDefault(slog.New(&TraceHandler{handler}))

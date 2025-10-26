@@ -123,7 +123,7 @@ func ParseTimeControl(tc string) (TimeControl, error) {
 	case "CORRESPONDENCE":
 		return Correspondence, nil
 	default:
-		return 0, fmt.Errorf("unparseable TimeControl value: %s", tc)
+		return 0, fmt.Errorf("invalid time control value: %s", tc)
 	}
 }
 
@@ -136,7 +136,7 @@ func ParseColorSelect(cs string) (ColorSelect, error) {
 	case "RANDOM":
 		return Random, nil
 	default:
-		return 0, fmt.Errorf("unparseable ColorSelect value: %s", cs)
+		return 0, fmt.Errorf("invalid color select value: %s", cs)
 	}
 }
 
@@ -206,7 +206,7 @@ func GetChallengesByParticipantOn(ctx context.Context, q *db.Queries, challenger
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get challenges by participant", "challengerID", challengerID, "challengeeID", challengeeID, "err", err)
-		return nil, fmt.Errorf("failed to get challenges by participant: %w", err)
+		return nil, err
 	}
 
 	var challenges []ChallengeEntity
@@ -262,6 +262,6 @@ func DeleteExpiredChallengesOn(ctx context.Context, q *db.Queries, userID int64,
 		UserID: userID,
 		Before: pgtype.Timestamp{Valid: true, Time: t},
 	})
-	lib.DynLog(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", t, "trace", ctx.Value(lib.TraceKey))
+	lib.DynLog(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", t, "trace", ctx.Value(lib.TK))
 	return nil
 }

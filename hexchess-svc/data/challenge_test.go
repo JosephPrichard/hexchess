@@ -12,7 +12,7 @@ func TestChallengeExpiration(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-expiration")
+	ctx := context.WithValue(context.Background(), lib.TK, "testing-expiration")
 
 	challenges, err := GetChallengesByParticipantOn(ctx, pgDB.Q, int64(5), -1, time.Unix(10000, 0))
 	assert.NoError(t, err)
@@ -65,7 +65,7 @@ func TestChallengeDeletion(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-delete")
+	ctx := context.WithValue(context.Background(), lib.TK, "testing-delete")
 
 	testUser := TestUserEntities[1] // ID: 2 will have no challenges at this point. if this changes, the test may break.
 

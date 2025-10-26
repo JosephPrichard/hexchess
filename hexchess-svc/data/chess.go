@@ -10,13 +10,13 @@ import (
 	"time"
 )
 
-func getUserGameZSet(rdb Rdb, id int64) string {
+func getUserGameZSet(rdb Redis, id int64) string {
 	return rdb.GamesZSet + "_user_" + strconv.FormatInt(id, 10)
 }
 
 var ErrNoChessState = errors.New("no chess state")
 
-func GetChessState(ctx context.Context, rdb Rdb, id string) (ChessState, error) {
+func GetChessState(ctx context.Context, rdb Redis, id string) (ChessState, error) {
 	fail := func(str string, err error) (ChessState, error) {
 		err = fmt.Errorf("%s: %w", str, err)
 		slog.ErrorContext(ctx, "failed to get chess state", "id", id, "err", err)
@@ -42,21 +42,21 @@ func GetChessState(ctx context.Context, rdb Rdb, id string) (ChessState, error) 
 	if err != nil {
 		return fail("failed to deserialize chess state", err)
 	}
-	slog.InfoContext(ctx, "selected session", "key", fullID)
+	slog.InfoContext(ctx, "selected chess state", "key", fullID)
 	return state, nil
 }
 
-func SetChessState(ctx context.Context, rdb Rdb, id string, state ChessState) (ChessState, error) {
+func SetChessState(ctx context.Context, rdb Redis, id string, state ChessState) (ChessState, error) {
 	return SetChessStateAt(ctx, rdb, id, state, time.Now())
 }
 
-func SetChessStateAt(ctx context.Context, rdb Rdb, id string, state ChessState, touch time.Time) (ChessState, error) {
+func SetChessStateAt(ctx context.Context, rdb Redis, id string, state ChessState, touch time.Time) (ChessState, error) {
 
 	state.Touch = touch
 	touchSecs := float64(state.Touch.Unix())
 	fullID := "game:" + id
 
-	b, err := MarshalChessState(&state)
+	b, err := MarshalChessState(state)
 	if err != nil {
 		return ChessState{}, fmt.Errorf("failed to serialize chess state: %w", err)
 	}
@@ -118,19 +118,19 @@ func ExpireChessStatesBefore(ctx context.Context, conn redis.Conn, zSetName stri
 	return err
 }
 
-func GetUserChessMetas(ctx context.Context, rdb Rdb, userID int64) ([]ChessMeta, error) {
+func GetUserChessMetas(ctx context.Context, rdb Redis, userID int64) ([]ChessMeta, error) {
 	return GetChessMetas(ctx, rdb, getUserGameZSet(rdb, userID), 1, -1)
 }
 
-func GetUserChessViewsPaged(ctx context.Context, rdb Rdb, userID int64, page, count int) ([]ChessMeta, error) {
+func GetUserChessViewsPaged(ctx context.Context, rdb Redis, userID int64, page, count int) ([]ChessMeta, error) {
 	return GetChessMetas(ctx, rdb, getUserGameZSet(rdb, userID), page, count)
 }
 
-func GetAllChessMetas(ctx context.Context, rdb Rdb, page, count int) ([]ChessMeta, error) {
+func GetAllChessMetas(ctx context.Context, rdb Redis, page, count int) ([]ChessMeta, error) {
 	return GetChessMetas(ctx, rdb, rdb.GamesZSet, page, count)
 }
 
-func GetChessMetas(ctx context.Context, rdb Rdb, zSetName string, page, count int) ([]ChessMeta, error) {
+func GetChessMetas(ctx context.Context, rdb Redis, zSetName string, page, count int) ([]ChessMeta, error) {
 	fail := func(str string, err error) ([]ChessMeta, error) {
 		err = fmt.Errorf("%s: %w", str, err)
 		slog.ErrorContext(ctx, "failed to get chess views", "zSetName", zSetName, "page", page, "count", count, "err", err)
@@ -181,7 +181,7 @@ func GetChessMetas(ctx context.Context, rdb Rdb, zSetName string, page, count in
 	return metas, nil
 }
 
-func GetChessStateCount(ctx context.Context, rdb Rdb) (int64, error) {
+func GetChessStateCount(ctx context.Context, rdb Redis) (int64, error) {
 
 	conn := rdb.Get()
 	defer conn.Close()

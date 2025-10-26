@@ -44,7 +44,7 @@ type TestLogger interface {
 	Fatalf(format string, args ...any)
 }
 
-func BeforeRedisTests(t TestLogger) Rdb {
+func BeforeRedisTests(t TestLogger) Redis {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
 

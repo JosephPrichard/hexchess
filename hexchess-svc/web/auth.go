@@ -40,7 +40,7 @@ func MakeSessionID() (string, error) {
 	return string(bytes), nil
 }
 
-func GetSessionPlayer(ctx context.Context, rdb data.Rdb, r *http.Request) (data.PlayerState, string, error) {
+func GetSessionPlayer(ctx context.Context, rdb data.Redis, r *http.Request) (data.PlayerState, string, error) {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
 		return data.PlayerState{}, "", err
@@ -53,7 +53,7 @@ func GetSessionPlayer(ctx context.Context, rdb data.Rdb, r *http.Request) (data.
 	return player, sessionID, nil
 }
 
-func SetSessionPlayer(ctx context.Context, rdb data.Rdb, w http.ResponseWriter, player data.PlayerState) (time.Duration, error) {
+func SetSessionPlayer(ctx context.Context, rdb data.Redis, w http.ResponseWriter, player data.PlayerState) (time.Duration, error) {
 	sessionID, err := MakeSessionID()
 	if err != nil {
 		return 0, err

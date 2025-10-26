@@ -17,7 +17,7 @@ func TestSetThenGetState(t *testing.T) {
 	id2 := "testing-id2-" + uuid.NewString()
 
 	state1 := MakeState(id1, RealTime)
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-set-then-get")
+	ctx := context.WithValue(context.Background(), lib.TK, "testing-set-then-get")
 
 	_, err := SetChessState(ctx, rdb, id1, state1)
 	assert.NoError(t, err)
@@ -48,7 +48,7 @@ func TestSetThenGetUserViews(t *testing.T) {
 	state2.BlackPlayer = &PlayerState{ID: 1}
 	state3.BlackPlayer = &PlayerState{ID: 1}
 
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-set-then-get-user")
+	ctx := context.WithValue(context.Background(), lib.TK, "testing-set-then-get-user")
 	now := time.Now()
 
 	_, err := SetChessStateAt(ctx, rdb, id1, state1, now.Add(-100))

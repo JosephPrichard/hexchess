@@ -17,7 +17,7 @@ func TestSessions(t *testing.T) {
 	sessionID2 := "session2"
 	sessionID3 := "session3"
 
-	ctx := context.WithValue(context.Background(), lib.TraceKey, "testing-sessions")
+	ctx := context.WithValue(context.Background(), lib.TK, "testing-sessions")
 
 	assert.NoError(t, SetSession(ctx, rdb, sessionID1, player, 100*time.Second))
 	assert.NoError(t, SetSession(ctx, rdb, sessionID2, player, 100*time.Second))

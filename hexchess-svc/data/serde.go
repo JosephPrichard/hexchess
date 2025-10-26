@@ -25,7 +25,7 @@ func MarshalPlayer(p *PlayerState) ([]byte, error) {
 	return proto.Marshal(&pbPlayer)
 }
 
-func mapPlayer(pbPlayer *pb.PlayerState) *PlayerState {
+func MapPlayer(pbPlayer *pb.PlayerState) *PlayerState {
 	var player *PlayerState
 	if pbPlayer != nil {
 		player = &PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Elo: pbPlayer.Elo, IsGuest: pbPlayer.IsGuest}
@@ -33,7 +33,7 @@ func mapPlayer(pbPlayer *pb.PlayerState) *PlayerState {
 	return player
 }
 
-func mapPieces(src []int32) []chess.Piece {
+func MapPieces(src []int32) []chess.Piece {
 	if len(src) == 0 {
 		return nil
 	}
@@ -44,7 +44,7 @@ func mapPieces(src []int32) []chess.Piece {
 	return dst
 }
 
-func mapPieceMove(pbPm *pb.PieceMove) chess.PieceMove {
+func MapPieceMove(pbPm *pb.PieceMove) chess.PieceMove {
 	if pbPm == nil {
 		return chess.PieceMove{}
 	}
@@ -55,7 +55,7 @@ func mapPieceMove(pbPm *pb.PieceMove) chess.PieceMove {
 	}
 }
 
-func mapPiecesMoves(pbMoves []*pb.PieceMoves) []chess.PieceMoves {
+func MapPiecesMoves(pbMoves []*pb.PieceMoves) []chess.PieceMoves {
 	if len(pbMoves) == 0 {
 		return nil
 	}
@@ -76,7 +76,7 @@ func mapPiecesMoves(pbMoves []*pb.PieceMoves) []chess.PieceMoves {
 	return pmsList
 }
 
-func mapBoard(pbBoard *pb.ChessBoard) (chess.Board, error) {
+func MapBoard(pbBoard *pb.ChessBoard) (chess.Board, error) {
 	board := chess.MakeBoard(pbBoard.IsWhiteTurn)
 	for f, file := range pbBoard.File {
 		if f >= chess.Files {
@@ -91,13 +91,13 @@ func mapBoard(pbBoard *pb.ChessBoard) (chess.Board, error) {
 	return board, nil
 }
 
-func mapMoveList(pbMoves []*pb.PieceMove) []chess.PieceMove {
+func MapMoveList(pbMoves []*pb.PieceMove) []chess.PieceMove {
 	if len(pbMoves) == 0 {
 		return nil
 	}
 	moveList := make([]chess.PieceMove, 0, len(pbMoves))
 	for _, pbPm := range pbMoves {
-		moveList = append(moveList, mapPieceMove(pbPm))
+		moveList = append(moveList, MapPieceMove(pbPm))
 	}
 	return moveList
 }
@@ -113,26 +113,26 @@ func UnmarshalChess(b []byte) (ChessState, error) {
 		return ChessState{}, ErrNilGame
 	}
 
-	board, err := mapBoard(pbChess.Game.Board)
+	board, err := MapBoard(pbChess.Game.Board)
 	if err != nil {
 		return ChessState{}, fmt.Errorf("failed to map board: %w", err)
 	}
 
 	game := chess.Game{
-		TakenWhitePieces: mapPieces(pbChess.Game.TakenWhitePieces),
-		TakenBlackPieces: mapPieces(pbChess.Game.TakenBlackPieces),
-		BlackMoves:       mapPiecesMoves(pbChess.Game.BlackMoves),
-		WhiteMoves:       mapPiecesMoves(pbChess.Game.WhiteMoves),
+		TakenWhitePieces: MapPieces(pbChess.Game.TakenWhitePieces),
+		TakenBlackPieces: MapPieces(pbChess.Game.TakenBlackPieces),
+		BlackMoves:       MapPiecesMoves(pbChess.Game.BlackMoves),
+		WhiteMoves:       MapPiecesMoves(pbChess.Game.WhiteMoves),
 		Board:            board,
 	}
 
 	state := ChessState{
 		Game:     game,
-		MoveList: mapMoveList(pbChess.MoveList),
+		MoveList: MapMoveList(pbChess.MoveList),
 		ChessMeta: ChessMeta{
 			ID:          pbChess.Id,
-			WhitePlayer: mapPlayer(pbChess.WhitePlayer),
-			BlackPlayer: mapPlayer(pbChess.BlackPlayer),
+			WhitePlayer: MapPlayer(pbChess.WhitePlayer),
+			BlackPlayer: MapPlayer(pbChess.BlackPlayer),
 			IsEnded:     pbChess.IsEnded,
 			FirstColor:  ColorSelect(pbChess.FirstColor),
 			TimeControl: TimeControl(pbChess.TimeControl),
@@ -142,7 +142,7 @@ func UnmarshalChess(b []byte) (ChessState, error) {
 	return state, nil
 }
 
-func mapPbPlayer(p *PlayerState) *pb.PlayerState {
+func MapPbPlayer(p *PlayerState) *pb.PlayerState {
 	if p == nil {
 		return nil
 	}
@@ -155,7 +155,7 @@ func mapPbPlayer(p *PlayerState) *pb.PlayerState {
 	}
 }
 
-func mapPbPieces(pieces []chess.Piece) []int32 {
+func MapPbPieces(pieces []chess.Piece) []int32 {
 	out := make([]int32, 0, len(pieces))
 	for _, p := range pieces {
 		out = append(out, int32(p))
@@ -163,7 +163,7 @@ func mapPbPieces(pieces []chess.Piece) []int32 {
 	return out
 }
 
-func mapPbPieceMove(pm chess.PieceMove) *pb.PieceMove {
+func MapPbPieceMove(pm chess.PieceMove) *pb.PieceMove {
 	return &pb.PieceMove{
 		Piece:    int32(pm.Piece),
 		FromFile: int32(pm.From.File),
@@ -173,7 +173,7 @@ func mapPbPieceMove(pm chess.PieceMove) *pb.PieceMove {
 	}
 }
 
-func mapPbPiecesMoves(moves []chess.PieceMoves) []*pb.PieceMoves {
+func MapPbPiecesMoves(moves []chess.PieceMoves) []*pb.PieceMoves {
 	if len(moves) == 0 {
 		return nil
 	}
@@ -189,7 +189,7 @@ func mapPbPiecesMoves(moves []chess.PieceMoves) []*pb.PieceMoves {
 	return pbMoves
 }
 
-func mapPbBoard(board chess.Board) (*pb.ChessBoard, error) {
+func MapPbBoard(board chess.Board) (*pb.ChessBoard, error) {
 	pbBoard := &pb.ChessBoard{
 		File:        make([]*pb.BoardFile, 0, chess.Files),
 		IsWhiteTurn: board.IsWhiteTurn,
@@ -211,34 +211,34 @@ func mapPbBoard(board chess.Board) (*pb.ChessBoard, error) {
 	return pbBoard, nil
 }
 
-func mapPbMoveList(moves []chess.PieceMove) []*pb.PieceMove {
+func MapPbMoveList(moves []chess.PieceMove) []*pb.PieceMove {
 	if len(moves) == 0 {
 		return nil
 	}
 	pbMoveList := make([]*pb.PieceMove, 0, len(moves))
 	for _, pm := range moves {
-		pbMoveList = append(pbMoveList, mapPbPieceMove(pm))
+		pbMoveList = append(pbMoveList, MapPbPieceMove(pm))
 	}
 	return pbMoveList
 }
 
-func mapPbGame(game chess.Game) (*pb.ChessGame, error) {
-	pbBoard, err := mapPbBoard(game.Board)
+func MapPbGame(game chess.Game) (*pb.ChessGame, error) {
+	pbBoard, err := MapPbBoard(game.Board)
 	if err != nil {
 		return nil, fmt.Errorf("failed to map pb board: %w", err)
 	}
 	pbGame := &pb.ChessGame{
-		TakenWhitePieces: mapPbPieces(game.TakenWhitePieces),
-		TakenBlackPieces: mapPbPieces(game.TakenBlackPieces),
-		BlackMoves:       mapPbPiecesMoves(game.BlackMoves),
-		WhiteMoves:       mapPbPiecesMoves(game.WhiteMoves),
+		TakenWhitePieces: MapPbPieces(game.TakenWhitePieces),
+		TakenBlackPieces: MapPbPieces(game.TakenBlackPieces),
+		BlackMoves:       MapPbPiecesMoves(game.BlackMoves),
+		WhiteMoves:       MapPbPiecesMoves(game.WhiteMoves),
 		Board:            pbBoard,
 	}
 	return pbGame, nil
 }
 
-func MarshalChessState(s *ChessState) ([]byte, error) {
-	pbGame, err := mapPbGame(s.Game)
+func MapPbChessState(s ChessState) (*pb.ChessState, error) {
+	pbGame, err := MapPbGame(s.Game)
 	if err != nil {
 		return nil, err
 	}
@@ -247,20 +247,28 @@ func MarshalChessState(s *ChessState) ([]byte, error) {
 	if s.MoveList != nil {
 		pbMoveList = make([]*pb.PieceMove, 0, len(s.MoveList))
 		for _, pm := range s.MoveList {
-			pbMoveList = append(pbMoveList, mapPbPieceMove(pm))
+			pbMoveList = append(pbMoveList, MapPbPieceMove(pm))
 		}
 	}
 
 	pbState := &pb.ChessState{
 		Id:          s.ID,
 		Game:        pbGame,
-		MoveList:    mapPbMoveList(s.MoveList),
-		WhitePlayer: mapPbPlayer(s.WhitePlayer),
-		BlackPlayer: mapPbPlayer(s.BlackPlayer),
+		MoveList:    MapPbMoveList(s.MoveList),
+		WhitePlayer: MapPbPlayer(s.WhitePlayer),
+		BlackPlayer: MapPbPlayer(s.BlackPlayer),
 		IsEnded:     s.IsEnded,
 		FirstColor:  uint32(s.FirstColor),
 		TimeControl: uint32(s.TimeControl),
 		Touch:       s.Touch.UnixMilli(),
+	}
+	return pbState, nil
+}
+
+func MarshalChessState(s ChessState) ([]byte, error) {
+	pbState, err := MapPbChessState(s)
+	if err != nil {
+		return nil, err
 	}
 	return proto.Marshal(pbState)
 }
@@ -272,8 +280,8 @@ func UnmarshalChessMeta(b []byte) (ChessMeta, error) {
 	}
 	cv := ChessMeta{
 		ID:          pbChess.Id,
-		WhitePlayer: mapPlayer(pbChess.WhitePlayer),
-		BlackPlayer: mapPlayer(pbChess.BlackPlayer),
+		WhitePlayer: MapPlayer(pbChess.WhitePlayer),
+		BlackPlayer: MapPlayer(pbChess.BlackPlayer),
 		IsEnded:     pbChess.IsEnded,
 		FirstColor:  ColorSelect(pbChess.FirstColor),
 		TimeControl: TimeControl(pbChess.TimeControl),
@@ -281,11 +289,11 @@ func UnmarshalChessMeta(b []byte) (ChessMeta, error) {
 	return cv, nil
 }
 
-func mapPbChallengeMessage(um *pb.UserMessage, id int64, c ChallengeEntity) {
-	*um = pb.UserMessage{
+func mapPbChallengeMsg(um *pb.UserMsg, id int64, c ChallengeEntity) {
+	*um = pb.UserMsg{
 		UserId: strconv.Itoa(int(id)),
-		Value: &pb.UserMessage_Challenge{
-			Challenge: &pb.ChallengeMessage{
+		Value: &pb.UserMsg_Challenge{
+			Challenge: &pb.ChallengeMsg{
 				ChallengerId:      c.ChallengerID,
 				ChallengerName:    c.ChallengerName,
 				ChallengerCountry: c.ChallengerCountry,
@@ -302,7 +310,7 @@ func mapPbChallengeMessage(um *pb.UserMessage, id int64, c ChallengeEntity) {
 	}
 }
 
-func MarshalUserMessage(um *pb.UserMessage) ([]byte, error) {
+func MarshalUserMessage(um *pb.UserMsg) ([]byte, error) {
 	if c := um.GetChallenge(); c != nil {
 		return json.Marshal(ChallengeEntity{
 			ChallengerID:      c.ChallengerId,

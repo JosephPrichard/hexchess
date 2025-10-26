@@ -12,7 +12,7 @@ const LeaderboardZSet = "leaderboard"
 
 var ErrSessionNotFound = errors.New("session not found")
 
-func GetSession(ctx context.Context, rdb Rdb, sessionID string) (PlayerState, error) {
+func GetSession(ctx context.Context, rdb Redis, sessionID string) (PlayerState, error) {
 	conn := rdb.Get()
 	defer conn.Close()
 
@@ -34,7 +34,7 @@ func GetSession(ctx context.Context, rdb Rdb, sessionID string) (PlayerState, er
 	return player, nil
 }
 
-func SetSession(ctx context.Context, rdb Rdb, sessionID string, player PlayerState, expiry time.Duration) error {
+func SetSession(ctx context.Context, rdb Redis, sessionID string, player PlayerState, expiry time.Duration) error {
 	data, err := MarshalPlayer(&player)
 	if err != nil {
 		return err
@@ -53,7 +53,7 @@ func SetSession(ctx context.Context, rdb Rdb, sessionID string, player PlayerSta
 	return nil
 }
 
-func UpdateSessionEx(ctx context.Context, rdb Rdb, sessionID string, expiry time.Duration) error {
+func UpdateSessionEx(ctx context.Context, rdb Redis, sessionID string, expiry time.Duration) error {
 	conn := rdb.Get()
 	defer conn.Close()
 
@@ -67,7 +67,7 @@ func UpdateSessionEx(ctx context.Context, rdb Rdb, sessionID string, expiry time
 	return nil
 }
 
-func DeleteSession(ctx context.Context, rdb Rdb, sessionID string) error {
+func DeleteSession(ctx context.Context, rdb Redis, sessionID string) error {
 	conn := rdb.Get()
 	defer conn.Close()
 

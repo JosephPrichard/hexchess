@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gomodule/redigo/redis"
+	"hexchess-svc/db"
 	"hexchess-svc/lib"
 	"log/slog"
 	"math"
@@ -16,7 +17,7 @@ type UpdtLbChangeSet struct {
 	EloDiff float64
 }
 
-func SetLeaderboard(ctx context.Context, rdb Rdb, changes ...UpdtLbChangeSet) error {
+func SetLeaderboard(ctx context.Context, rdb Redis, changes ...UpdtLbChangeSet) error {
 	conn := rdb.Get()
 	defer conn.Close()
 
@@ -32,7 +33,7 @@ func SetLeaderboard(ctx context.Context, rdb Rdb, changes ...UpdtLbChangeSet) er
 	return nil
 }
 
-func IncrLeaderboard(ctx context.Context, rdb Rdb, changes ...UpdtLbChangeSet) error {
+func IncrLeaderboard(ctx context.Context, rdb Redis, changes ...UpdtLbChangeSet) error {
 	conn := rdb.Get()
 	defer conn.Close()
 
@@ -53,7 +54,7 @@ type Leaderboard struct {
 	PageCount int          `json:"pageCount"`
 }
 
-func GetLeaderboardRank(ctx context.Context, rdb Rdb, id int64) (int64, error) {
+func GetLeaderboardRank(ctx context.Context, rdb Redis, id int64) (int64, error) {
 	fail := func(str string, err error) (int64, error) {
 		err = fmt.Errorf("%s: %w", str, err)
 		slog.ErrorContext(ctx, "failed to get leaderboard rank", "id", id, "err", err)
@@ -80,7 +81,7 @@ func GetLeaderboardRank(ctx context.Context, rdb Rdb, id int64) (int64, error) {
 	return rank + 1, nil
 }
 
-func GetLeaderboard(ctx context.Context, rdb Rdb, startRank, count int64) (Leaderboard, error) {
+func GetLeaderboard(ctx context.Context, rdb Redis, startRank, count int64) (Leaderboard, error) {
 	fail := func(str string, err error) (Leaderboard, error) {
 		err = fmt.Errorf("%s: %w", str, err)
 		slog.ErrorContext(ctx, "failed to fetch leaderboard", "startRank", startRank, "count", count, "err", err)
@@ -116,7 +117,7 @@ func GetLeaderboard(ctx context.Context, rdb Rdb, startRank, count int64) (Leade
 	return leaderboard, nil
 }
 
-func GetLeaderboardPage(ctx context.Context, rdb Rdb, page, perPage int64) (Leaderboard, error) {
+func GetLeaderboardPage(ctx context.Context, rdb Redis, page, perPage int64) (Leaderboard, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -125,4 +126,28 @@ func GetLeaderboardPage(ctx context.Context, rdb Rdb, page, perPage int64) (Lead
 	leaderboard, err := GetLeaderboard(ctx, rdb, offset, perPage)
 	lib.DynLog(ctx, "retrieved leaderboard page", err, "page", page, "perPage", perPage, "leaderboard", leaderboard, "err", err)
 	return leaderboard, err
+}
+
+func SyncLeaderboard(ctx context.Context, stores Stores) error {
+	afterID := int64(0)
+	for {
+		rows, err := stores.Q.SelectEloListAfterID(ctx, db.SelectEloListAfterIDParams{AfterID: afterID, Limit: 20})
+		if err != nil {
+			return fmt.Errorf("failed to select elo list: %v", err)
+		}
+		if len(rows) == 0 {
+			break
+		}
+		var changes []UpdtLbChangeSet
+		for i, row := range rows {
+			if i == len(rows)-1 {
+				afterID = row.ID
+			}
+			changes = append(changes, UpdtLbChangeSet{ID: row.ID, EloDiff: row.Elo})
+		}
+		if err := SetLeaderboard(ctx, stores.Rdb, changes...); err != nil {
+			return fmt.Errorf("failed to incr leaderboard: %v", err)
+		}
+	}
+	return nil
 }

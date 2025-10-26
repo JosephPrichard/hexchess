@@ -17,7 +17,7 @@ type SseHandler = func(w http.ResponseWriter, r *http.Request, f http.Flusher, s
 func makeSseHandler(state ServerState, h SseHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		trace := uuid.NewString()
-		r = r.WithContext(context.WithValue(r.Context(), lib.TraceKey, trace))
+		r = r.WithContext(context.WithValue(r.Context(), lib.TK, trace))
 
 		slog.InfoContext(r.Context(), "received sse request", "method", r.Method, "url", r.URL)
 
@@ -37,6 +37,13 @@ func makeSseHandler(state ServerState, h SseHandler) http.Handler {
 			f.Flush()
 		}
 	})
+}
+
+func ssePrintf(w http.ResponseWriter, format string, a ...any) {
+	_, err := fmt.Fprintf(w, format, a...)
+	if err != nil {
+		slog.ErrorContext(context.Background(), "failed to write to sse", "err", err)
+	}
 }
 
 const MetaEvent = "meta"
@@ -62,15 +69,15 @@ func HandleCountEvents(w http.ResponseWriter, r *http.Request, f http.Flusher, s
 		return err
 	}
 
-	fmt.Fprintf(w, "%s: %s\n", MetaEvent, "Connected")
-	fmt.Fprintf(w, "%s: %s\n", ActiveCountEvent, strconv.FormatInt(ac, 10))
-	fmt.Fprintf(w, "%s: %s\n", GamesCountEvent, strconv.FormatInt(sc, 10))
+	ssePrintf(w, "%s: %s\n", MetaEvent, "Connected")
+	ssePrintf(w, "%s: %s\n", ActiveCountEvent, strconv.FormatInt(ac, 10))
+	ssePrintf(w, "%s: %s\n", GamesCountEvent, strconv.FormatInt(sc, 10))
 	f.Flush()
 
 	activeChan := make(chan []byte)
-	state.ActiveCaster.Subscribe(activeChan)
+	state.ActiveCntCaster.Subscribe(activeChan)
 	gamesChan := make(chan []byte)
-	state.GamesCaster.Subscribe(gamesChan)
+	state.GamesCntCaster.Subscribe(gamesChan)
 
 	type event struct {
 		key   string
@@ -94,15 +101,15 @@ func HandleCountEvents(w http.ResponseWriter, r *http.Request, f http.Flusher, s
 		keepAliveTicker := time.NewTicker(time.Second * 15)
 		select {
 		case m := <-eventChan:
-			fmt.Fprintf(w, "%s: %s\n", m.key, m.value)
+			ssePrintf(w, "%s: %s\n", m.key, m.value)
 			f.Flush()
 		case <-clientGone:
-			state.ActiveCaster.Unsubscribe(activeChan)
-			state.GamesCaster.Unsubscribe(gamesChan)
+			state.ActiveCntCaster.Unsubscribe(activeChan)
+			state.GamesCntCaster.Unsubscribe(gamesChan)
 			slog.InfoContext(ctx, "finishing handle count events sse", "sseID", sseID)
 			return nil
 		case <-keepAliveTicker.C:
-			fmt.Fprintf(w, "%s: %s\n", MetaEvent, "KeepAlive")
+			ssePrintf(w, "%s: %s\n", MetaEvent, "KeepAlive")
 			f.Flush()
 		case <-pingTicker.C:
 			if err := data.RetainActiveUser(ctx, state.Rdb, sseID); err != nil {
@@ -123,7 +130,7 @@ func HandleUserEvents(w http.ResponseWriter, r *http.Request, f http.Flusher, st
 	}
 	strID := strconv.Itoa(int(player.ID))
 
-	fmt.Fprintf(w, "%s: %s\n", MetaEvent, "Connected")
+	ssePrintf(w, "%s: %s\n", MetaEvent, "Connected")
 	f.Flush()
 
 	usersChan := make(chan []byte)
@@ -133,14 +140,14 @@ func HandleUserEvents(w http.ResponseWriter, r *http.Request, f http.Flusher, st
 		keepAliveTicker := time.NewTicker(time.Second * 15)
 		select {
 		case m := <-usersChan:
-			fmt.Fprintf(w, "%s: %s\n", UserChallengeEvent, string(m))
+			ssePrintf(w, "%s: %s\n", UserChallengeEvent, string(m))
 			f.Flush()
 		case <-clientGone:
 			state.UsersCaster.Unsubscribe(strID, usersChan)
 			slog.InfoContext(ctx, "finishing handle user events sse", "sseID", sseID)
 			return nil
 		case <-keepAliveTicker.C:
-			fmt.Fprintf(w, "%s: %s\n", MetaEvent, "KeepAlive")
+			ssePrintf(w, "%s: %s\n", MetaEvent, "KeepAlive")
 			f.Flush()
 		}
 	}

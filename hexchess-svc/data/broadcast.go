@@ -19,7 +19,7 @@ const UsersChan = "users"
 const GamesCountChan = "games_count"
 const ActiveCountChan = "active_count"
 
-func BroadcastMessage(ctx context.Context, rdb Rdb, channel string, b []byte) error {
+func BroadcastMessage(ctx context.Context, rdb Redis, channel string, b []byte) error {
 	conn := rdb.Get()
 	defer conn.Close()
 
@@ -31,17 +31,17 @@ func BroadcastMessage(ctx context.Context, rdb Rdb, channel string, b []byte) er
 	return nil
 }
 
-func BroadcastActiveCount(ctx context.Context, rdb Rdb, count int64) error {
+func BroadcastActiveCount(ctx context.Context, rdb Redis, count int64) error {
 	return BroadcastMessage(ctx, rdb, rdb.ActiveCountChan, []byte(strconv.FormatInt(count, 10)))
 }
 
-func BroadcastGameCount(ctx context.Context, rdb Rdb, count int64) error {
+func BroadcastGameCount(ctx context.Context, rdb Redis, count int64) error {
 	return BroadcastMessage(ctx, rdb, rdb.GamesCountChan, []byte(strconv.FormatInt(count, 10)))
 }
 
-func BroadcastChallenge(ctx context.Context, rdb Rdb, id int64, c ChallengeEntity) error {
-	var pbUm pb.UserMessage
-	mapPbChallengeMessage(&pbUm, id, c)
+func BroadcastChallenge(ctx context.Context, rdb Redis, id int64, c ChallengeEntity) error {
+	var pbUm pb.UserMsg
+	mapPbChallengeMsg(&pbUm, id, c)
 
 	b, err := proto.Marshal(&pbUm)
 	if err != nil {
@@ -115,7 +115,7 @@ func listenUserMessages(psc redis.PubSubConn, m *MultiCasterMap) {
 		case redis.Message:
 			b := v.Data
 
-			var um pb.UserMessage
+			var um pb.UserMsg
 			if err := proto.Unmarshal(b, &um); err != nil {
 				slog.Error("failed to unmarshal user message", "err", err, "channel", UsersChan)
 				continue
@@ -331,10 +331,12 @@ func (br *MultiCaster) Broadcast(msg []byte) {
 		}
 	}()
 
-	slog.Info("broadcasting to broker subscribers", "brID", br.ID, "subscribers", subscribers)
+	subStrs := make([]string, 0, len(subscribers))
 	for _, sub := range subscribers {
 		sub <- msg
+		subStrs = append(subStrs, fmt.Sprintf("%v", sub))
 	}
+	slog.Info("broadcasted to broker subscribers", "brID", br.ID, "subscribers", subStrs)
 }
 
 type UniCaster struct {
