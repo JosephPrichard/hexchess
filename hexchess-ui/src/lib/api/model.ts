@@ -1,9 +1,5 @@
 export type Action = 'delete' | 'reject' | 'accept';
 
-export type ReplayResult = 'DRAW' | 'WHITE_WIN' | 'BLACK_WIN';
-
-export type ReplayCause = 'CHECKMATE' | 'FORFEIT';
-
 export type ColorSelect = 'RANDOM' | 'WHITE' | 'BLACK';
 
 export type TimeControl = 'UNLIMITED' | 'REAL_TIME' | 'CORRESPONDENCE';
@@ -58,13 +54,13 @@ export interface ReplayModel {
 	whiteElo: number;
 	blackElo: number;
 	playedOn: string;
-	result: ReplayResult;
-	cause: ReplayCause;
+	result: number;
+	cause: number;
 	whiteEloDiff: number;
 	blackEloDiff: number;
 }
 
-export interface UserWithReplaysModel {
+export interface FullUserModel {
 	user: UserModel;
 	replayList: ReplayModel[];
 }
@@ -77,7 +73,7 @@ export interface PlayerModel {
 	isGuest: boolean;
 }
 
-interface PieceMoveModel {
+export interface PieceMoveModel {
 	piece: number;
 	from: {
 		file: number;
@@ -95,8 +91,8 @@ export interface ChessModel {
 	id: string,
 	whitePlayer: PlayerModel | null,
 	blackPlayer: PlayerModel | null,
-	firstColor: ColorSelect,
-	timeControl: TimeControl,
+	firstColor: number,
+	timeControl: number,
 	ended: boolean
 }
 

@@ -84,7 +84,7 @@ type InsertUserRow struct {
 	Wins       int32
 	Losses     int32
 	Bio        string
-	JoinedOn   pgtype.Timestamp
+	JoinedOn   pgtype.Timestamptz
 }
 
 func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertUserRow, error) {
@@ -253,7 +253,7 @@ type SelectUserByIDRow struct {
 	Wins       int32
 	Losses     int32
 	Bio        string
-	JoinedOn   pgtype.Timestamp
+	JoinedOn   pgtype.Timestamptz
 }
 
 func (q *Queries) SelectUserByID(ctx context.Context, id int64) (SelectUserByIDRow, error) {
@@ -297,7 +297,7 @@ type SelectUsersByIDsRow struct {
 	Wins       int32
 	Losses     int32
 	Bio        string
-	JoinedOn   pgtype.Timestamp
+	JoinedOn   pgtype.Timestamptz
 }
 
 func (q *Queries) SelectUsersByIDs(ctx context.Context, ids []int64) ([]SelectUsersByIDsRow, error) {
@@ -459,7 +459,7 @@ type UpdateUserRow struct {
 	Wins       int32
 	Losses     int32
 	Bio        string
-	JoinedOn   pgtype.Timestamp
+	JoinedOn   pgtype.Timestamptz
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (UpdateUserRow, error) {

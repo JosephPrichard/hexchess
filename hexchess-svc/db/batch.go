@@ -49,7 +49,7 @@ type BatchInsertUserRow struct {
 	Wins       int32
 	Losses     int32
 	Bio        string
-	JoinedOn   pgtype.Timestamp
+	JoinedOn   pgtype.Timestamptz
 }
 
 func (q *Queries) BatchInsertUser(ctx context.Context, arg []BatchInsertUserParams) *BatchInsertUserBatchResults {

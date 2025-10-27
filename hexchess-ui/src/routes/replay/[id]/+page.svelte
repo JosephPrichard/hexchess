@@ -9,9 +9,9 @@
 	import { getNotificationsContext } from '$lib/utils/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import ReplayPanel from '$lib/components/user/ReplayPanel.svelte';
-	import type { ChessBoard, PieceMove } from '$lib/api/messages';
+	import type { ChessBoard } from '$lib/api/messages';
 	import { initialBoard } from '$lib/utils/globals';
-	import type { ReplayModel } from '$lib/api/model';
+	import type { MoveListModel, ReplayModel } from '$lib/api/model';
 	import services from '$lib/api/services';
 
 	export interface ReplayProps {
@@ -25,7 +25,7 @@
 
 	let isWhitePerspective = $state(true);
 	let moveIndex: number | undefined = $state(undefined);
-	let moveList: PieceMove[] = $state([]);
+	let moveList: MoveListModel = $state([]);
 
 	let boardCache = new Map<number, ChessBoard>();
 

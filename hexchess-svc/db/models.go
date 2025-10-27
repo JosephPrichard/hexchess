@@ -13,7 +13,7 @@ type Challenge struct {
 	ChallengeeID int64
 	TimeControl  string
 	StartColor   string
-	MadeOn       pgtype.Timestamp
+	MadeOn       pgtype.Timestamptz
 }
 
 type Replay struct {
@@ -22,7 +22,7 @@ type Replay struct {
 	BlackID  int64
 	Result   int32
 	Cause    int32
-	PlayedOn pgtype.Timestamp
+	PlayedOn pgtype.Timestamptz
 	WinElo   float64
 	LoseElo  float64
 	MoveList []byte
@@ -37,7 +37,7 @@ type User struct {
 	Wins       int32
 	Losses     int32
 	Bio        string
-	JoinedOn   pgtype.Timestamp
+	JoinedOn   pgtype.Timestamptz
 	Password   string
 	Salt       string
 }

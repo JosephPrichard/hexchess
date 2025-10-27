@@ -2,25 +2,25 @@
 	import CreateGame from '$lib/components/modals/CreateGame.svelte';
 	import { onMount } from 'svelte';
 	import ChallengeIcon from '$lib/components/icons/ChallengeIcon.svelte';
-	import { formatReplayResult, getResultClasses, getWinrateClass } from '$lib/utils/format.js';
+	import { formatJoinedOn, formatPlayedOn, formatReplayResult, getResultClasses, getWinrateClass } from '$lib/utils/format.js';
 	import { getClientSession } from '$lib/utils/storage';
 	import Banner from '$lib/components/Banner.svelte';
 	import { goto } from '$app/navigation';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import { createMessage } from '$lib/utils/error';
-	import type { ColorSelect, TimeControl, UserWithReplaysModel } from '$lib/api/model';
+	import type { ColorSelect, TimeControl, FullUserModel } from '$lib/api/model';
 	import services from '$lib/api/services';
 
 	export interface PlayerProps {
-		userWithReplays: UserWithReplaysModel;
+		fullUser: FullUserModel;
 	}
 
 	const { data: props }: { data: PlayerProps } = $props();
-	const { user } = $derived(props.userWithReplays);
+	const { user } = $derived(props.fullUser);
 
 	const { addNotification } = getNotificationsContext();
 
-	let nestedReplayList = $state([props.userWithReplays.replayList]);
+	let nestedReplayList = $state([props.fullUser.replayList]);
 	let showCreateModal = $state(false);
 	let hasMoreReplays = $state(true);
 	let isDifferentUser = $state(false);
@@ -37,7 +37,7 @@
 				console.error("Error loading replays: ", err);
 			}
 
-			const replayList = data || [];
+			const replayList = data?.replayList || [];
 			console.log(`Loaded ${replayList.length} new replays`);
 
 			if (replayList.length > 0) {
@@ -123,7 +123,7 @@
 		<div class="panel-container" style="margin-bottom: 0">
 			<div class="panel-elem">
 				<div class="panel-title">Joined On</div>
-				<div class="panel-text">{user.joinedOn}</div>
+				<div class="panel-text">{formatJoinedOn(user.joinedOn)}</div>
 			</div>
 		</div>
 
@@ -184,7 +184,7 @@
 									{formatReplayResult(replay.result)}
 								</td>
 								<td style="width: 25%">
-									{replay.playedOn}
+									{formatPlayedOn(replay.playedOn)}
 								</td>
 							</tr>
 						{/each}

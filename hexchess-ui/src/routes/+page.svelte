@@ -48,8 +48,8 @@
 
 	onMount(() => {
 		client = getClientSession();
-		console.log('Initializing with client: ', client);
 	});
+	$inspect(client, 'client session');
 </script>
 
 <svelte:head>

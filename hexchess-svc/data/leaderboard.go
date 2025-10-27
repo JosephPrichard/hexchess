@@ -18,7 +18,7 @@ type UpdtLbChangeSet struct {
 }
 
 func SetLeaderboard(ctx context.Context, rdb Redis, changes ...UpdtLbChangeSet) error {
-	conn := rdb.Get()
+	conn := rdb.Primary.Get()
 	defer conn.Close()
 
 	conn.Send("MULTI")
@@ -34,7 +34,7 @@ func SetLeaderboard(ctx context.Context, rdb Redis, changes ...UpdtLbChangeSet) 
 }
 
 func IncrLeaderboard(ctx context.Context, rdb Redis, changes ...UpdtLbChangeSet) error {
-	conn := rdb.Get()
+	conn := rdb.Primary.Get()
 	defer conn.Close()
 
 	conn.Send("MULTI")
@@ -61,7 +61,7 @@ func GetLeaderboardRank(ctx context.Context, rdb Redis, id int64) (int64, error)
 		return 0, err
 	}
 
-	conn := rdb.Get()
+	conn := rdb.Primary.Get()
 	defer conn.Close()
 
 	rank, err := redis.Int64(conn.Do("ZREVRANK", rdb.LeaderboardZSet, id))
@@ -88,7 +88,7 @@ func GetLeaderboard(ctx context.Context, rdb Redis, startRank, count int64) (Lea
 		return Leaderboard{}, err
 	}
 
-	conn := rdb.Get()
+	conn := rdb.Primary.Get()
 	defer conn.Close()
 
 	end := startRank - 1 + count
@@ -135,15 +135,16 @@ func SyncLeaderboard(ctx context.Context, stores Stores) error {
 		if err != nil {
 			return fmt.Errorf("failed to select elo list: %v", err)
 		}
-		if len(rows) == 0 {
-			break
-		}
 		var changes []UpdtLbChangeSet
 		for i, row := range rows {
 			if i == len(rows)-1 {
 				afterID = row.ID
 			}
 			changes = append(changes, UpdtLbChangeSet{ID: row.ID, EloDiff: row.Elo})
+		}
+		slog.InfoContext(ctx, "created update leaderboard changeset", "changes", changes, "nextAfterID", afterID)
+		if len(changes) == 0 {
+			break
 		}
 		if err := SetLeaderboard(ctx, stores.Rdb, changes...); err != nil {
 			return fmt.Errorf("failed to incr leaderboard: %v", err)

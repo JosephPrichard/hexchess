@@ -127,7 +127,7 @@ func TestBroadcastGameMessage(t *testing.T) {
 	defer rdb.Close() // this will also stop the goroutine listening to the pubsub channel
 
 	m := MakeMultiCasterMap("testing-broker-map")
-	ListenGameMessages(m, rdb.Addr)
+	ListenGameMessages(m, rdb.PubsubAddr)
 
 	ctx := context.WithValue(context.Background(), lib.TK, "testing-broadcast-game-message")
 
@@ -174,7 +174,7 @@ func BenchmarkBroadcastGameMessage(b *testing.B) {
 	rdb.Close() // this will also stop the goroutine listening to the pubsub channel
 
 	m := MakeMultiCasterMap("testing-broker-map")
-	ListenGameMessages(m, rdb.Addr)
+	ListenGameMessages(m, rdb.PrimaryAddr)
 
 	ctx := context.WithValue(context.Background(), lib.TK, "testing-broadcast-game-message")
 

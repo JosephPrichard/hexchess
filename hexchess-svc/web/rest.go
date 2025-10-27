@@ -5,10 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"hexchess-svc/data"
-	"hexchess-svc/lib"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -20,9 +18,6 @@ type RestHandler = func(w http.ResponseWriter, r *http.Request, state ServerStat
 
 func makeRestHandler(state ServerState, h RestHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		trace := uuid.NewString()
-		r = r.WithContext(context.WithValue(r.Context(), lib.TK, trace))
-
 		slog.InfoContext(r.Context(), "request received", "method", r.Method, "url", r.URL)
 
 		if err := h(w, r, state); err != nil {
@@ -30,13 +25,25 @@ func makeRestHandler(state ServerState, h RestHandler) http.Handler {
 
 			status, m := HttpStatusFromErr(err)
 			w.WriteHeader(status)
-			_, _ = w.Write([]byte(m))
+
+			b, err := json.Marshal(ServiceView{Message: m, Status: status})
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write(ErrorJSON)
+			} else {
+				_, _ = w.Write(b)
+			}
 		}
 	})
 }
 
-func makeStaticHandler(b []byte) http.Handler {
+func makeJsonHandler(v any) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, err := json.Marshal(v)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(b)
@@ -237,7 +244,7 @@ func HandleCreateTempSession(w http.ResponseWriter, r *http.Request, state Serve
 	if err != nil {
 		return err
 	}
-	if err := data.SetSession(ctx, state.Rdb, sessionID, player, MaxAgeCookie); err != nil {
+	if err := data.SetSession(ctx, state.Rdb, sessionID, player, TempSessionMaxAge); err != nil {
 		return fmt.Errorf("failed to set session: %w", err)
 	}
 
@@ -261,7 +268,7 @@ func HandleRefreshSession(w http.ResponseWriter, r *http.Request, state ServerSt
 	if err != nil {
 		return fmt.Errorf("failed to get session player: %w", err)
 	}
-	if err := data.UpdateSessionEx(ctx, state.Rdb, sessionID, MaxAgeCookie); err != nil {
+	if err := data.UpdateSessionEx(ctx, state.Rdb, sessionID, SessionMaxAge); err != nil {
 		return fmt.Errorf("failed to update session: %w", err)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
@@ -273,7 +280,7 @@ func HandleRefreshSession(w http.ResponseWriter, r *http.Request, state ServerSt
 		Username: player.Name,
 		Country:  player.Country,
 		Elo:      player.Elo,
-		TTLSecs:  MaxAgeCookie,
+		TTLSecs:  SessionMaxAge,
 	}})
 	return nil
 }
@@ -378,7 +385,7 @@ func HandleUpdateChallenge(w http.ResponseWriter, r *http.Request, state ServerS
 
 type CreateChallengeBody struct {
 	ChallengeeID int64  `json:"challengeeID"`
-	FirstColor   string `json:"firstColor"`
+	StartColor   string `json:"startColor"`
 	TimeControl  string `json:"timeControl"`
 }
 
@@ -398,7 +405,7 @@ func HandleCreateChallenge(w http.ResponseWriter, r *http.Request, state ServerS
 	if err != nil {
 		return err
 	}
-	fc, err := data.ParseColorSelect(body.FirstColor)
+	fc, err := data.ParseColorSelect(body.StartColor)
 	if err != nil {
 		return err
 	}
@@ -409,7 +416,13 @@ func HandleCreateChallenge(w http.ResponseWriter, r *http.Request, state ServerS
 		StartColor:   fc,
 		MadeOn:       time.Now(),
 	})
-	if err != nil {
+	if errors.Is(err, data.ErrDuplicateChallenge) {
+		return ErrHttpDuplicateChallenge
+	} else if errors.Is(err, data.ErrParticipantConflict) {
+		return ErrHttpInvalidParticipants
+	} else if errors.Is(err, data.ErrSelfChallenge) {
+		return ErrHttpSelfChallenge
+	} else if err != nil {
 		return fmt.Errorf("failed to insert challenge: %w", err)
 	}
 	writeSuccessJSON(w)
@@ -479,7 +492,7 @@ func HandleGetLeaderboard(w http.ResponseWriter, r *http.Request, state ServerSt
 	return nil
 }
 
-type UserWithReplaysResp struct {
+type FullUserResp struct {
 	User       data.UserEntity     `json:"user"`
 	ReplayList []data.ReplayEntity `json:"replayList,omitempty"`
 }
@@ -529,7 +542,7 @@ func HandleGetPlayer(w http.ResponseWriter, r *http.Request, state ServerState) 
 		replayList = []data.ReplayEntity{}
 	}
 	slog.InfoContext(ctx, "retrieved user with replays", "user", user, "replays", replayList)
-	writeJSON(w, http.StatusOK, UserWithReplaysResp{User: user, ReplayList: replayList})
+	writeJSON(w, http.StatusOK, FullUserResp{User: user, ReplayList: replayList})
 	return nil
 }
 
@@ -543,11 +556,18 @@ func HandleSearchPlayers(w http.ResponseWriter, r *http.Request, state ServerSta
 	if err != nil {
 		return err
 	}
-	name := query.Get("name")
+	name := query.Get("username")
+	ctx := r.Context()
+
+	slog.InfoContext(ctx, "searching players", "page", page, "name", name)
 
 	var userList []data.UserEntity
 	if name != "" {
-		if userList, err = data.SearchUsersByName(r.Context(), state.Q, name, int32(page), PerPage); err != nil {
+		userList, err = data.SearchUsersByName(ctx, state.Q, name, int32(page), PerPage)
+		if errors.Is(err, data.ErrSearchLimit) {
+			return ErrHttpSearchLimit
+		}
+		if err != nil {
 			return fmt.Errorf("failed to search users by name: %w", err)
 		}
 	}
@@ -693,6 +713,12 @@ func HandleGetChessRoomList(w http.ResponseWriter, r *http.Request, state Server
 		}
 	}
 
+	if chessList == nil {
+		chessList = []data.ChessMeta{}
+	}
+	if selfChessList == nil {
+		selfChessList = []data.ChessMeta{}
+	}
 	writeJSON(w, http.StatusOK, ChessRoomListResp{ChessList: chessList, SelfChessList: selfChessList})
 	return nil
 }

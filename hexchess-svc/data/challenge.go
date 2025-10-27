@@ -159,7 +159,7 @@ func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) 
 		ChallengeeID: inst.ChallengeeID,
 		TimeControl:  inst.TimeControl.String(),
 		StartColor:   inst.StartColor.String(),
-		MadeOn:       pgtype.Timestamp{Valid: true, Time: inst.MadeOn},
+		MadeOn:       pgtype.Timestamptz{Valid: true, Time: inst.MadeOn},
 	})
 
 	var pgErr *pgconn.PgError
@@ -173,11 +173,10 @@ func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) 
 			return ChallengeEntity{}, ErrParticipantConflict
 		}
 	}
-
-	challenge, err := mapChallengeFromRow(db.SelectChallengesByParticipantRow(row))
 	if err != nil {
 		return ChallengeEntity{}, err
 	}
+	challenge, err := mapChallengeFromRow(db.SelectChallengesByParticipantRow(row))
 
 	lib.DynLog(ctx, "created a new challenge", err, "challenge", inst, "challenge", challenge)
 	return challenge, err
@@ -202,7 +201,7 @@ func GetChallengesByParticipantOn(ctx context.Context, q *db.Queries, challenger
 	rows, err := q.SelectChallengesByParticipant(ctx, db.SelectChallengesByParticipantParams{
 		ChallengerID: pgChallengerID,
 		ChallengeeID: pgChallengeeID,
-		Since:        pgtype.Timestamp{Valid: true, Time: t},
+		Since:        pgtype.Timestamptz{Valid: true, Time: t},
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get challenges by participant", "challengerID", challengerID, "challengeeID", challengeeID, "err", err)
@@ -260,7 +259,7 @@ func DeleteExpiredChallenges(ctx context.Context, q *db.Queries, userID int64, t
 func DeleteExpiredChallengesOn(ctx context.Context, q *db.Queries, userID int64, t time.Time) error {
 	err := q.DeleteExpiredChallenges(ctx, db.DeleteExpiredChallengesParams{
 		UserID: userID,
-		Before: pgtype.Timestamp{Valid: true, Time: t},
+		Before: pgtype.Timestamptz{Valid: true, Time: t},
 	})
 	lib.DynLog(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", t, "trace", ctx.Value(lib.TK))
 	return nil

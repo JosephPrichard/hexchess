@@ -10,8 +10,10 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/lib"
 	"hexchess-svc/static"
+	"hexchess-svc/web"
 	"log"
 	"log/slog"
+	"net/http"
 	"os"
 )
 
@@ -24,7 +26,7 @@ func main() {
 	}
 	defer f.Close()
 
-	lib.InitLogger(f)
+	lib.InitLoggers(f)
 	cmd.InitEnv()
 
 	appPort := os.Getenv("APP_PORT")
@@ -67,17 +69,24 @@ func main() {
 	q := db.New(pool)
 	pgDB := data.MakeDbClient(q, pool)
 
-	redisAddr := redisHost + ":" + redisPort
-	//psAddr := redisPubSubHost + ":" + redisPubSubPort
+	primaryAddr := redisHost + ":" + redisPort
+	pubsubAddr := redisPubSubHost + ":" + redisPubSubPort
 
 	slog.InfoContext(ctx, "connecting to redis db", "host", redisHost, "port", redisPort)
-	rdb := data.MakeRdb(redisAddr)
+	rdb := data.MakeRdb(primaryAddr, pubsubAddr)
 	defer rdb.Close()
 
-	slog.InfoContext(ctx, "connecting to redis pubsub channels", "host", redisPubSubHost, "port", redisPubSubPort)
-	//_ = data.ListenGameMessages(psAddr)
+	state := web.MakeServerState(data.Stores{Rdb: rdb, PgDB: pgDB}, countryList)
 
-	_ = data.Stores{Rdb: rdb, PgDB: pgDB}
+	slog.InfoContext(ctx, "connecting to redis pubsub channels", "host", redisPubSubHost, "port", redisPubSubPort)
+	data.ListenGameMessages(state.GamesCaster, pubsubAddr)
+	data.ListenUsersMessages(state.UsersCaster, pubsubAddr)
+	data.ListenGameCountsMessages(state.GamesCntCaster, pubsubAddr)
+	data.ListenActiveCountsMessages(state.ActiveCntCaster, pubsubAddr)
 
 	slog.InfoContext(ctx, "starting server", "port", appPort, "allowedOrigins", allowedOrigins)
+
+	if err := http.ListenAndServe(":"+appPort, web.HandleRoot(state, allowedOrigins)); err != nil {
+		log.Fatalf("failed while serving: %v", err)
+	}
 }

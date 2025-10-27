@@ -49,7 +49,7 @@ WHERE (challengee_id = $1 OR challenger_id = $1)
 
 type DeleteExpiredChallengesParams struct {
 	UserID int64
-	Before pgtype.Timestamp
+	Before pgtype.Timestamptz
 }
 
 func (q *Queries) DeleteExpiredChallenges(ctx context.Context, arg DeleteExpiredChallengesParams) error {
@@ -85,7 +85,7 @@ type InsertChallengeParams struct {
 	ChallengeeID int64
 	TimeControl  string
 	StartColor   string
-	MadeOn       pgtype.Timestamp
+	MadeOn       pgtype.Timestamptz
 }
 
 type InsertChallengeRow struct {
@@ -99,7 +99,7 @@ type InsertChallengeRow struct {
 	ChallengeeElo     float64
 	TimeControl       string
 	StartColor        string
-	MadeOn            pgtype.Timestamp
+	MadeOn            pgtype.Timestamptz
 }
 
 func (q *Queries) InsertChallenge(ctx context.Context, arg InsertChallengeParams) (InsertChallengeRow, error) {
@@ -152,7 +152,7 @@ ORDER BY made_on DESC
 type SelectChallengesByParticipantParams struct {
 	ChallengerID pgtype.Int8
 	ChallengeeID pgtype.Int8
-	Since        pgtype.Timestamp
+	Since        pgtype.Timestamptz
 }
 
 type SelectChallengesByParticipantRow struct {
@@ -166,7 +166,7 @@ type SelectChallengesByParticipantRow struct {
 	ChallengeeElo     float64
 	TimeControl       string
 	StartColor        string
-	MadeOn            pgtype.Timestamp
+	MadeOn            pgtype.Timestamptz
 }
 
 func (q *Queries) SelectChallengesByParticipant(ctx context.Context, arg SelectChallengesByParticipantParams) ([]SelectChallengesByParticipantRow, error) {

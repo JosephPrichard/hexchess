@@ -42,7 +42,7 @@
 						{stringOfMove(moveTwo)}
 					</button>
 				{:else}
-					<div class="move"></div>
+					<div class="move-button"></div>
 				{/if}
 			</div>
 		{/if}

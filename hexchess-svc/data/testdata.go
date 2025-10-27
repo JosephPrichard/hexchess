@@ -27,7 +27,7 @@ var TestUserEntities = []UserEntity{
 		Rank:       1,
 		Bio:        "",
 		Total:      0,
-		Winrate:    0,
+		WinRate:    0,
 	},
 	{
 		ID:         2,
@@ -40,7 +40,7 @@ var TestUserEntities = []UserEntity{
 		Rank:       2,
 		Bio:        "",
 		Total:      1,
-		Winrate:    100,
+		WinRate:    100,
 	},
 }
 

@@ -3,11 +3,9 @@ package web
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/data"
-	"hexchess-svc/lib"
 	"hexchess-svc/pb"
 	"log/slog"
 	"net/http"
@@ -17,9 +15,6 @@ type WsHandler = func(w http.ResponseWriter, r *http.Request, ss ServerState) er
 
 func makeWsHandler(state ServerState, h WsHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		trace := uuid.NewString()
-		r = r.WithContext(context.WithValue(r.Context(), lib.TK, trace))
-
 		slog.InfoContext(r.Context(), "ws received", "method", r.Method, "url", r.URL)
 
 		if err := h(w, r, state); err != nil {

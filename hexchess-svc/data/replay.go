@@ -91,12 +91,13 @@ func mapReplayFromRow(row db.GetReplayByIDRow) ReplayEntity {
 		LoseElo:      row.LoseElo,
 		WhiteElo:     row.WhiteElo,
 		BlackElo:     row.BlackElo,
+		PlayedOn:     row.PlayedOn.Time,
 	}
 	switch replay.Result {
 	case WhiteWin:
 		replay.WhiteEloDiff, replay.BlackEloDiff = row.WinElo, row.LoseElo
 	case BlackWin:
-		replay.WhiteEloDiff, replay.BlackEloDiff = row.LoseElo, row.WhiteElo
+		replay.WhiteEloDiff, replay.BlackEloDiff = row.LoseElo, row.WinElo
 	default:
 	}
 	return replay

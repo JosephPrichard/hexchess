@@ -44,7 +44,7 @@
 				style:cursor={isMove ? "pointer" : undefined}
 			>
 				{#if piece !== 0}
-					<Piece file={file} rank={rank} piece={piece} onClickPiece={onClickPiece}/>
+					<Piece draggable={true} file={file} rank={rank} piece={piece} onClickPiece={onClickPiece}/>
 					{#if isMove}
 						<div class="move-circle"></div>
 					{/if}

@@ -9,17 +9,21 @@ import (
 )
 
 type ServiceView struct {
-	Status  int
-	Message string
+	Status  int    `json:"status"`
+	Message string `json:"message"`
 }
 
-var SuccessJSON = []byte(`{status: 200, message: "SUCCESS",}`)
-var EmptyRefreshJSON = []byte(`{message: null}`)
+var SuccessJSON []byte
+var ErrorJSON []byte
+var EmptyRefreshJSON []byte
 
 func init() {
 	var err error
+	if ErrorJSON, err = json.Marshal(ServiceView{Status: 500, Message: ErrHttpFatal.Error()}); err != nil {
+		log.Fatalf("failed to marshal unknown service view: %v", err)
+	}
 	if SuccessJSON, err = json.Marshal(ServiceView{Status: 200, Message: "SUCCESS"}); err != nil {
-		log.Fatalf("failed to marshal service view: %v", err)
+		log.Fatalf("failed to marshal success service view: %v", err)
 	}
 	if EmptyRefreshJSON, err = json.Marshal(RefreshResp{Session: nil}); err != nil {
 		log.Fatalf("failed to marshal refresh resp: %v", err)

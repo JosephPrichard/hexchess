@@ -16,12 +16,22 @@ import (
 
 func scanLines(t *testing.T, resp *http.Response, expLines int) []string {
 	var lines []string
+	currLine := ""
 
 	scan := bufio.NewScanner(resp.Body)
 	for scan.Scan() {
 		line := scan.Text()
-		t.Log(line)
-		lines = append(lines, line)
+		if line == "" {
+			continue
+		}
+		if currLine == "" {
+			currLine = line + "\n"
+		} else {
+			currLine += line + "\n"
+			t.Log(currLine)
+			lines = append(lines, currLine)
+			currLine = ""
+		}
 		if len(lines) >= expLines {
 			break
 		}
@@ -34,14 +44,15 @@ func TestHandleCountEvents(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	state := MakeServerState(stores, nil, nil)
-	data.ListenActiveCountsMessages(state.ActiveCntCaster, stores.Rdb.Addr)
-	data.ListenGameCountsMessages(state.GamesCntCaster, stores.Rdb.Addr)
+	state := MakeServerState(stores, nil)
+	data.ListenActiveCountsMessages(state.ActiveCntCaster, stores.Rdb.PrimaryAddr)
+	data.ListenGameCountsMessages(state.GamesCntCaster, stores.Rdb.PrimaryAddr)
 
-	ts := httptest.NewServer(HandleRoot(state))
+	ts := httptest.NewServer(HandleRoot(state, ""))
+
 	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/api/events/counts")
+	resp, err := http.Get(ts.URL + "/api/events/count")
 	assert.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -58,11 +69,11 @@ func TestHandleCountEvents(t *testing.T) {
 	lines := scanLines(t, resp, 5)
 
 	expLines := []string{
-		fmt.Sprintf("%s: Connected", MetaEvent),
-		fmt.Sprintf("%s: 1", ActiveCountEvent),
-		fmt.Sprintf("%s: 0", GamesCountEvent),
-		fmt.Sprintf("%s: 2", ActiveCountEvent),
-		fmt.Sprintf("%s: 1", GamesCountEvent),
+		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, "Connected"),
+		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, "1"),
+		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, "0"),
+		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, "2"),
+		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, "1"),
 	}
 	assert.Equal(t, expLines, lines)
 }
@@ -71,15 +82,15 @@ func TestHandleUserEvents(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	state := MakeServerState(stores, nil, nil)
-	data.ListenUsersMessages(state.UsersCaster, stores.Rdb.Addr)
+	state := MakeServerState(stores, nil)
+	data.ListenUsersMessages(state.UsersCaster, stores.Rdb.PrimaryAddr)
 
 	createTestSessions(t, stores.Rdb)
 
-	ts := httptest.NewServer(HandleRoot(state))
+	ts := httptest.NewServer(HandleRoot(state, ""))
 	defer ts.Close()
 
-	req, err := http.NewRequest(http.MethodGet, ts.URL+"/api/events/users", nil)
+	req, err := http.NewRequest(http.MethodGet, ts.URL+"/api/events/user", nil)
 	assert.NoError(t, err)
 	req.Header.Set("Cookie", FmtCookie(sessionID1))
 
@@ -102,9 +113,9 @@ func TestHandleUserEvents(t *testing.T) {
 
 	json := `{"challengerId":1,"challengerName":"","challengerCountry":"","challengerElo":0,"challengeeId":0,"challengeeName":"","challengeeCountry":"","challengeeElo":0,"timeControl":0,"startColor":0,"madeOn":"0000-12-31T18:00:00-06:00"}`
 	expLines := []string{
-		fmt.Sprintf("%s: Connected", MetaEvent),
-		fmt.Sprintf("%s: %s", UserChallengeEvent, json),
-		fmt.Sprintf("%s: %s", UserChallengeEvent, json),
+		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, "Connected"),
+		fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, json),
+		fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, json),
 	}
 	assert.Equal(t, expLines, lines)
 

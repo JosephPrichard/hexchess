@@ -23,7 +23,7 @@ func GetChessState(ctx context.Context, rdb Redis, id string) (ChessState, error
 		return ChessState{}, err
 	}
 
-	conn := rdb.Get()
+	conn := rdb.Primary.Get()
 	defer conn.Close()
 
 	if err := ExpireChessStates(ctx, conn, rdb.GamesZSet); err != nil {
@@ -61,7 +61,7 @@ func SetChessStateAt(ctx context.Context, rdb Redis, id string, state ChessState
 		return ChessState{}, fmt.Errorf("failed to serialize chess state: %w", err)
 	}
 
-	conn := rdb.Get()
+	conn := rdb.Primary.Get()
 	defer conn.Close()
 
 	conn.Send("MULTI")
@@ -149,7 +149,7 @@ func GetChessMetas(ctx context.Context, rdb Redis, zSetName string, page, count 
 		right = -1
 	}
 
-	conn := rdb.Get()
+	conn := rdb.Primary.Get()
 	defer conn.Close()
 
 	var bytesList [][]byte
@@ -183,7 +183,7 @@ func GetChessMetas(ctx context.Context, rdb Redis, zSetName string, page, count 
 
 func GetChessStateCount(ctx context.Context, rdb Redis) (int64, error) {
 
-	conn := rdb.Get()
+	conn := rdb.Primary.Get()
 	defer conn.Close()
 
 	if err := ExpireChessStates(ctx, conn, rdb.GamesZSet); err != nil {

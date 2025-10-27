@@ -1,8 +1,12 @@
 package web
 
 import (
+	"context"
 	"fmt"
+	"github.com/google/uuid"
+	"hexchess-svc/chess"
 	"hexchess-svc/data"
+	"hexchess-svc/lib"
 	"net/http"
 	"strings"
 )
@@ -13,63 +17,96 @@ type ServerState struct {
 	GamesCntCaster  *data.UniCaster
 	GamesCaster     *data.MultiCasterMap
 	UsersCaster     *data.MultiCasterMap
-	InitialBoard    []byte
-	CountryList     []byte
+	CountryList     []string
 }
 
-func MakeServerState(stores data.Stores, initialBoard []byte, countryList []byte) ServerState {
+func MakeServerState(stores data.Stores, countryList []string) ServerState {
+	if countryList == nil {
+		countryList = []string{}
+	}
 	return ServerState{
 		Stores:          stores,
-		ActiveCntCaster: data.MakeUniCaster("active-cnt-caster"),
-		GamesCntCaster:  data.MakeUniCaster("games-cnt-caster"),
+		ActiveCntCaster: data.MakeUniCaster("active-count-caster"),
+		GamesCntCaster:  data.MakeUniCaster("games-count-caster"),
 		GamesCaster:     data.MakeMultiCasterMap("games-caster"),
 		UsersCaster:     data.MakeMultiCasterMap("users-caster"),
-		InitialBoard:    initialBoard,
 		CountryList:     countryList,
 	}
 }
 
-func HandleRoot(state ServerState) http.Handler {
+func withTrace(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		trace := r.Header.Get("X-trace")
+		if trace == "" {
+			trace = uuid.NewString()
+		}
+		r = r.WithContext(context.WithValue(r.Context(), lib.TK, trace))
+		next.ServeHTTP(w, r)
+	})
+}
+
+func withCors(next http.Handler, allowedOrigins string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set CORS headers
+		w.Header().Set("Access-Control-Allow-Origin", allowedOrigins)
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-trace")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+		// Handle preflight (OPTIONS)
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 	mux := http.NewServeMux()
 	var sb strings.Builder
 
 	sb.WriteString("starting rest server...\n")
 
-	handle := func(pattern string, handler http.Handler) {
-		mux.Handle(pattern, handler)
+	handle := func(method string, pattern string, handler http.Handler) {
+		handler = withTrace(withCors(handler, allowedOrigins))
+		mux.Handle(method+" "+pattern, handler)
+		mux.Handle("OPTIONS "+pattern, handler)
 		sb.WriteString("\t")
 		sb.WriteString(pattern)
 		sb.WriteString("\n")
 	}
 
-	handle("POST /api/register", makeRestHandler(state, HandleRegister))
-	handle("POST /api/login", makeRestHandler(state, HandleLogin))
-	handle("GET /api/session/temp", makeRestHandler(state, HandleCreateTempSession))
-	handle("POST /api/session/refresh", makeRestHandler(state, HandleRefreshSession))
-	handle("POST /api/session/logout", makeRestHandler(state, HandleLogout))
-	handle("POST /api/users/password", makeRestHandler(state, HandleUpdatePassword))
-	handle("POST /api/users", makeRestHandler(state, HandleUpdateUser))
-	handle("POST /api/games/create", makeRestHandler(state, HandleCreateGame))
-	handle("POST /api/challenges/update", makeRestHandler(state, HandleUpdateChallenge))
-	handle("POST /api/challenges/create", makeRestHandler(state, HandleCreateChallenge))
-	handle("GET /api/players", makeRestHandler(state, HandleGetPlayer))
-	handle("GET /api/players/self", makeRestHandler(state, HandleGetSelf))
-	handle("GET /api/players/search", makeRestHandler(state, HandleSearchPlayers))
-	handle("GET /api/leaderboard", makeRestHandler(state, HandleGetLeaderboard))
-	handle("GET /api/challenges", makeRestHandler(state, HandleGetChallenges))
-	handle("GET /api/replays", makeRestHandler(state, HandleGetUserReplays))
-	handle("GET /api/chess/rooms", makeRestHandler(state, HandleGetChessRoomList))
-	handle("GET /api/replay", makeRestHandler(state, HandleGetReplay))
-	handle("GET /api/replay/move-list", makeRestHandler(state, HandleGetReplayMoveList))
+	handle("POST", "/api/register", makeRestHandler(state, HandleRegister))
+	handle("POST", "/api/login", makeRestHandler(state, HandleLogin))
+	handle("POST", "/api/session/temp", makeRestHandler(state, HandleCreateTempSession))
+	handle("POST", "/api/session/refresh", makeRestHandler(state, HandleRefreshSession))
+	handle("POST", "/api/session/logout", makeRestHandler(state, HandleLogout))
+	handle("POST", "/api/users/password", makeRestHandler(state, HandleUpdatePassword))
+	handle("POST", "/api/users", makeRestHandler(state, HandleUpdateUser))
+	handle("POST", "/api/games/create", makeRestHandler(state, HandleCreateGame))
+	handle("POST", "/api/challenges/update", makeRestHandler(state, HandleUpdateChallenge))
+	handle("POST", "/api/challenges/create", makeRestHandler(state, HandleCreateChallenge))
 
-	handle("/api/ws/game", makeWsHandler(state, HandleGameplayWs))
+	handle("GET", "/api/players", makeRestHandler(state, HandleGetPlayer))
+	handle("GET", "/api/players/self", makeRestHandler(state, HandleGetSelf))
+	handle("GET", "/api/players/search", makeRestHandler(state, HandleSearchPlayers))
+	handle("GET", "/api/leaderboard", makeRestHandler(state, HandleGetLeaderboard))
+	handle("GET", "/api/challenges", makeRestHandler(state, HandleGetChallenges))
+	handle("GET", "/api/replays", makeRestHandler(state, HandleGetUserReplays))
+	handle("GET", "/api/chess/rooms", makeRestHandler(state, HandleGetChessRoomList))
+	handle("GET", "/api/replay", makeRestHandler(state, HandleGetReplay))
+	handle("GET", "/api/replay/move-list", makeRestHandler(state, HandleGetReplayMoveList))
 
-	handle("GET /api/events/counts", makeSseHandler(state, HandleCountEvents))
-	handle("GET /api/events/users", makeSseHandler(state, HandleUserEvents))
+	handle("GET", "/api/events/count", makeSseHandler(state, HandleCountEvents))
+	handle("GET", "/api/events/user", makeSseHandler(state, HandleUserEvents))
 
-	handle("GET /api/initial-board", makeStaticHandler(state.InitialBoard))
-	handle("GET /api/countries", makeStaticHandler(state.CountryList))
+	handle("GET", "/api/initial-board", makeJsonHandler(chess.InitialBoard()))
+	handle("GET", "/api/countries", makeJsonHandler(state.CountryList))
 
-	fmt.Println(sb.String())
+	handle("GET", "/api/ws/game", makeWsHandler(state, HandleGameplayWs))
+
+	fmt.Fprintf(lib.LogFile, "%s", sb.String())
 	return mux
 }

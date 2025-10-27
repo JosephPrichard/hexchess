@@ -1,9 +1,10 @@
 import type { ChessBoard, PieceMove } from '$lib/api/messages';
+import type { PieceMoveModel } from '$lib/api/model';
 
-const symbols = ['p', 'p', 'n', 'n', 'b', 'b', 'r', 'r', 'q', 'q', 'k', 'k'];
-const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+const symbols = ['?', 'P', 'p', 'N', 'n', 'B', 'b', 'R', 'r', 'Q', 'q', 'K', 'k'];
+const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k'];
 
-export function stringOfMove(move: PieceMove) {
+export function stringOfMove(move: PieceMove | PieceMoveModel) {
 	if (move.to === undefined || move.from === undefined) {
 		throw new Error("Move 'to' and 'from' must be defined, got " + JSON.stringify(move));
 	}
@@ -11,7 +12,9 @@ export function stringOfMove(move: PieceMove) {
 	const symbol = symbols[move.piece] || '?';
 	const toFile = files[move.to.file];
 	const toRank = String(move.to.rank + 1);
-	return symbol + toFile + toRank;
+	const str = symbol + toFile + toRank;
+	// console.log(move, str);
+	return str;
 }
 
 export function translateBoard(index: number, moveList: PieceMove[], board: ChessBoard) {

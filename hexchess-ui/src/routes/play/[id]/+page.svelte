@@ -107,7 +107,7 @@
 			const [data, err] = await services.postTempSession();
 			if (data) {
 				const params = new URLSearchParams({ sessionId: data.sessionId || "" });
-				let url = `${baseURL}/connections/games/${gameId}?${params}`;
+				let url = `${baseURL}/ws/games/${gameId}?${params}`;
 
 				ws = new WebSocket(url);
 				ws.binaryType = "arraybuffer";

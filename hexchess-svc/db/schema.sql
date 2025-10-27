@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
     wins INTEGER NOT NULL,
     losses INTEGER NOT NULL,
     bio VARCHAR NOT NULL DEFAULT '',
-    joined_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    joined_on TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     password VARCHAR NOT NULL,
     salt VARCHAR NOT NULL
 );
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS replays (
     black_id BIGINT NOT NULL,
     result INTEGER NOT NULL,
     cause INTEGER NOT NULL,
-    played_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    played_on TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     win_elo FLOAT8 NOT NULL,
     lose_elo FLOAT8 NOT NULL,
     move_list JSONB NOT NULL
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS challenges (
     challengee_id BIGINT NOT NULL,
     time_control VARCHAR NOT NULL,
     start_color VARCHAR NOT NULL, -- from challenger's perspective
-    made_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    made_on TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (challenger_id, challengee_id)
 );
 
@@ -64,7 +64,7 @@ ALTER TABLE challenges ADD FOREIGN KEY(challengee_id) REFERENCES users(id);
 
 END;
 
--- Insert the base values for a zero initialized schema
+-- Insert the base values for a zero-initialized schema
 BEGIN;
 INSERT INTO users_metadata (id, count) VALUES (1, 0);
 END;

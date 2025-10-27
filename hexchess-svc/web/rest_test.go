@@ -41,7 +41,7 @@ func TestHandleRegister(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/api/register", strings.NewReader(test.body))
 			w := httptest.NewRecorder()
 
-			h := HandleRoot(MakeServerState(stores, nil, nil))
+			h := HandleRoot(MakeServerState(stores, nil), "")
 			h.ServeHTTP(w, r)
 
 			lib.AssertRespBody[SessionView](t, test.expResp, w, SessionViewCmpOpts)
@@ -76,7 +76,7 @@ func TestHandleLogin(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(test.body))
 			w := httptest.NewRecorder()
 
-			h := HandleRoot(MakeServerState(stores, nil, nil))
+			h := HandleRoot(MakeServerState(stores, nil), "")
 			h.ServeHTTP(w, r)
 
 			lib.AssertRespBody[SessionView](t, test.expResp, w, SessionViewCmpOpts)
@@ -98,7 +98,7 @@ func TestHandleUpdateUser(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	h := HandleRoot(MakeServerState(stores, nil, nil))
+	h := HandleRoot(MakeServerState(stores, nil), "")
 	h.ServeHTTP(w, r)
 
 	expResp := SessionView{ID: 1, Username: "new-username", Country: "eu", Elo: 1000}
@@ -138,7 +138,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(sessionID1))
 			w := httptest.NewRecorder()
 
-			h := HandleRoot(MakeServerState(stores, nil, nil))
+			h := HandleRoot(MakeServerState(stores, nil), "")
 			h.ServeHTTP(w, r)
 
 			lib.AssertRespBody[ServiceView](t, test.expResp, w)
@@ -178,7 +178,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(sessionID1))
 			w := httptest.NewRecorder()
 
-			h := HandleRoot(MakeServerState(stores, nil, nil))
+			h := HandleRoot(MakeServerState(stores, nil), "")
 			h.ServeHTTP(w, r)
 
 			if test.expResp != "" {
@@ -201,7 +201,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 	r.Header.Set("Cookie", FmtCookie(sessionID1))
 	w := httptest.NewRecorder()
 
-	h := HandleRoot(MakeServerState(stores, nil, nil))
+	h := HandleRoot(MakeServerState(stores, nil), "")
 	h.ServeHTTP(w, r)
 
 	lib.AssertRespBody[ServiceView](t, ServiceView{Status: 200, Message: "SUCCESS"}, w)
@@ -220,7 +220,7 @@ func TestGetLeaderboard(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/api/leaderboard", nil)
 	w := httptest.NewRecorder()
 
-	h := HandleRoot(MakeServerState(stores, nil, nil))
+	h := HandleRoot(MakeServerState(stores, nil), "")
 	h.ServeHTTP(w, r)
 
 	expResp := LeaderboardResp{
@@ -243,7 +243,7 @@ func TestGetPlayer(t *testing.T) {
 	}{
 		{
 			id: "1",
-			expResp: UserWithReplaysResp{
+			expResp: FullUserResp{
 				User:       data.TestUserEntities[0],
 				ReplayList: []data.ReplayEntity{data.TestReplayEntities[0], data.TestReplayEntities[1]},
 			},
@@ -259,10 +259,10 @@ func TestGetPlayer(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players?id=%s", test.id), nil)
 			w := httptest.NewRecorder()
 
-			h := HandleRoot(MakeServerState(stores, nil, nil))
+			h := HandleRoot(MakeServerState(stores, nil), "")
 			h.ServeHTTP(w, r)
 
-			lib.AssertRespBody[UserWithReplaysResp](t, test.expResp, w, data.UserEntityCmpOpts, data.ReplayEntityCmpOpts)
+			lib.AssertRespBody[FullUserResp](t, test.expResp, w, data.UserEntityCmpOpts, data.ReplayEntityCmpOpts)
 			assert.Equal(t, test.expStatus, w.Code)
 		})
 	}
@@ -299,7 +299,7 @@ func TestGetChallenges(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(sessionID1))
 			w := httptest.NewRecorder()
 
-			h := HandleRoot(MakeServerState(stores, nil, nil))
+			h := HandleRoot(MakeServerState(stores, nil), "")
 			h.ServeHTTP(w, r)
 
 			lib.AssertRespBody[GetChallengesResp](t, test.expResp, w, data.ChallengeEntityCmpOpts)
@@ -319,7 +319,7 @@ func TestHandleGetChessViews(t *testing.T) {
 	r.Header.Set("Cookie", FmtCookie(sessionID2))
 	w := httptest.NewRecorder()
 
-	h := HandleRoot(MakeServerState(stores, nil, nil))
+	h := HandleRoot(MakeServerState(stores, nil), "")
 	h.ServeHTTP(w, r)
 
 	meta3 := data.ChessMeta{ID: "game3", FirstColor: data.Random}

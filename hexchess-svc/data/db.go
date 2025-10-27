@@ -19,9 +19,17 @@ type PgDB struct {
 	noopTxn bool
 }
 
+func (db PgDB) Close() {
+	if db.Pool != nil {
+		db.Pool.Close()
+	}
+}
+
 type Redis struct {
-	*redis.Pool
-	Addr            string
+	Primary         *redis.Pool
+	PubSub          *redis.Pool
+	PrimaryAddr     string
+	PubsubAddr      string
 	LeaderboardZSet string
 	GamesZSet       string
 	ActiveUsersZSet string
@@ -31,22 +39,42 @@ type Redis struct {
 	ActiveCountChan string
 }
 
+func (rdb Redis) Close() {
+	if rdb.Primary != nil {
+		rdb.Primary.Close()
+	}
+	if rdb.PubSub != nil {
+		rdb.PubSub.Close()
+	}
+}
+
 type Stores struct {
 	PgDB
 	Rdb Redis
 }
 
 func (s Stores) Close() {
-	s.PgDB.Pool.Close()
-	s.Rdb.Pool.Close()
+	s.PgDB.Close()
+	s.Rdb.Close()
 }
 
-func MakeRdb(addr string) Redis {
-	pool := &redis.Pool{
+func MakeRdb(primaryAddr string, pubsubAddr string) Redis {
+	primary := &redis.Pool{
 		MaxIdle:     3,
 		IdleTimeout: 240 * time.Second,
 		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", addr)
+			c, err := redis.Dial("tcp", primaryAddr)
+			if err != nil {
+				return nil, err
+			}
+			return c, err
+		},
+	}
+	pubsub := &redis.Pool{
+		MaxIdle:     3,
+		IdleTimeout: 240 * time.Second,
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.Dial("tcp", pubsubAddr)
 			if err != nil {
 				return nil, err
 			}
@@ -54,15 +82,17 @@ func MakeRdb(addr string) Redis {
 		},
 	}
 	return Redis{
-		Pool:            pool,
-		Addr:            addr,
+		Primary:         primary,
+		PubSub:          pubsub,
+		PrimaryAddr:     primaryAddr,
+		PubsubAddr:      pubsubAddr,
 		LeaderboardZSet: LeaderboardZSet,
 		GamesZSet:       GamesZSet,
 		ActiveUsersZSet: ActiveUsersZSet,
-		GamesChan:       "games",
-		UsersChan:       "users",
-		GamesCountChan:  "games_count",
-		ActiveCountChan: "users_count",
+		GamesChan:       GamesChan,
+		UsersChan:       UsersChan,
+		GamesCountChan:  GamesCountChan,
+		ActiveCountChan: ActiveCountChan,
 	}
 }
 

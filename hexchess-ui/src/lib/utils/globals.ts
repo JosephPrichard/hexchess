@@ -2,7 +2,7 @@ import type { ChessBoard } from '$lib/api/messages';
 
 export const env = 'PROD';
 
-export const height = 64;
+export const height = 62;
 export const width = height * 1.2;
 export const verticalFileOffsets = [5, 4, 3, 2, 1, 0, 1, 2, 3, 4, 5];
 export const colors = ['rgb(255, 207, 159)', 'rgb(233, 172, 112)', 'rgb(210,140,69)'];

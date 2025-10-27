@@ -39,7 +39,7 @@ type GetReplayByIDRow struct {
 	BlackID      int64
 	Result       int32
 	Cause        int32
-	PlayedOn     pgtype.Timestamp
+	PlayedOn     pgtype.Timestamptz
 	WinElo       float64
 	LoseElo      float64
 	WhiteName    string
@@ -122,7 +122,7 @@ type GetUserReplaysRow struct {
 	BlackID      int64
 	Result       int32
 	Cause        int32
-	PlayedOn     pgtype.Timestamp
+	PlayedOn     pgtype.Timestamptz
 	WinElo       float64
 	LoseElo      float64
 	WhiteName    string

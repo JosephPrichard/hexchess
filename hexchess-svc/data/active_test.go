@@ -27,7 +27,7 @@ func TestActiveUser(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), count)
 
-	conn := rdb.Get()
+	conn := rdb.Primary.Get()
 	defer conn.Close()
 
 	count, err = GetActiveCountWithExpiry(ctx, conn, rdb.ActiveUsersZSet, 1000)

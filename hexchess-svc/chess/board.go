@@ -87,19 +87,19 @@ var KnightOffsets = [][]Direction{
 }
 
 type Hex struct {
-	File int
-	Rank int
+	File int `json:"file"`
+	Rank int `json:"rank"`
 }
 
 type PieceMoves struct {
-	From  Hex
-	Moves []Hex
+	From  Hex   `json:"from"`
+	Moves []Hex `json:"moves"`
 }
 
 type PieceMove struct {
-	Piece Piece
-	From  Hex
-	To    Hex
+	Piece Piece `json:"piece"`
+	From  Hex   `json:"from"`
+	To    Hex   `json:"to"`
 }
 
 type Board struct {

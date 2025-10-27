@@ -7,7 +7,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
-	"strconv"
 	"time"
 )
 
@@ -289,28 +288,7 @@ func UnmarshalChessMeta(b []byte) (ChessMeta, error) {
 	return cv, nil
 }
 
-func mapPbChallengeMsg(um *pb.UserMsg, id int64, c ChallengeEntity) {
-	*um = pb.UserMsg{
-		UserId: strconv.Itoa(int(id)),
-		Value: &pb.UserMsg_Challenge{
-			Challenge: &pb.ChallengeMsg{
-				ChallengerId:      c.ChallengerID,
-				ChallengerName:    c.ChallengerName,
-				ChallengerCountry: c.ChallengerCountry,
-				ChallengerElo:     c.ChallengerElo,
-				ChallengeeId:      c.ChallengeeID,
-				ChallengeeName:    c.ChallengeeName,
-				ChallengeeCountry: c.ChallengeeCountry,
-				ChallengeeElo:     c.ChallengeeElo,
-				TimeControl:       uint32(c.TimeControl),
-				StartColor:        uint32(c.StartColor),
-				MadeOn:            c.MadeOn.UnixMilli(),
-			},
-		},
-	}
-}
-
-func MarshalUserMessage(um *pb.UserMsg) ([]byte, error) {
+func MarshalUserMessageJson(um *pb.UserMsg) ([]byte, error) {
 	if c := um.GetChallenge(); c != nil {
 		return json.Marshal(ChallengeEntity{
 			ChallengerID:      c.ChallengerId,

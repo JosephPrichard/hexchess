@@ -32,7 +32,7 @@ type UserEntity struct {
 	Bio        string    `json:"bio"`
 	JoinedOn   time.Time `json:"joinedOn"`
 	Total      int64     `json:"total"`
-	Winrate    int64     `json:"winrate"`
+	WinRate    int64     `json:"winRate"`
 }
 
 var UserEntityCmpOpts = cmpopts.IgnoreFields(UserEntity{}, "JoinedOn")
@@ -130,7 +130,7 @@ func mapUserFromRow(row db.SelectUserByIDRow) UserEntity {
 		Losses:     row.Losses,
 		Bio:        row.Bio,
 		JoinedOn:   row.JoinedOn.Time,
-		Winrate:    int64(wr),
+		WinRate:    int64(wr),
 		Total:      int64(total),
 	}
 }
@@ -297,11 +297,14 @@ func GetUserByIDs(ctx context.Context, q *db.Queries, ids []int64) ([]UserEntity
 
 const MaxSearchOffset = 1000
 
+var ErrSearchLimit = errors.New("search limit exceeded")
+
 func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page, perPage int32) ([]UserEntity, error) {
 	page = max(page, 1)
 	offset := (page - 1) * perPage
 	if offset > MaxSearchOffset {
-		return nil, fmt.Errorf("search offset: %d exceeds maximum: %d", offset, MaxSearchOffset)
+		slog.ErrorContext(ctx, "search offset exceeds maximum", "offset", offset, "maxOffset", MaxSearchOffset)
+		return nil, ErrSearchLimit
 	}
 
 	rows, err := q.SelectUsersBySimilarity(ctx, db.SelectUsersBySimilarityParams{Username: name, Limit: perPage, Offset: offset})
@@ -324,6 +327,6 @@ func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page, pe
 		})
 	}
 
-	slog.InfoContext(ctx, "selected users by name similarity", "name", name, "page", page, "perPage", page, "offset", offset)
+	slog.InfoContext(ctx, "selected users by name similarity", "users", users, "name", name, "page", page, "perPage", page, "offset", offset)
 	return users, nil
 }

@@ -16,5 +16,5 @@ export const load: PageServerLoad = async ({ params, setHeaders, fetch }): Promi
 	// setHeaders({
 	// 	'cache-control': 'max-age=3600'
 	// });
-	return { replay: data };
+	return { replay: data.replay };
 };

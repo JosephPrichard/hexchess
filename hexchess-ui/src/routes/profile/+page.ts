@@ -10,7 +10,6 @@ export const load: PageLoad = async ({ fetch }): Promise<ProfileProps> => {
 	if (countryErr) {
 		error(countryErr.status, 'Unexpected error has occurred.');
 	}
-
 	if (profileErr || profileData === undefined) {
 		error(profileErr?.status || 500, createMessage(profileErr));
 	}

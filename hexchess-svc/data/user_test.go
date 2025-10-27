@@ -59,8 +59,8 @@ func TestBatchInsertThenGet(t *testing.T) {
 		users[i].JoinedOn = time.Time{}
 	}
 	expUsers := []UserEntity{
-		{Username: insts[0].Username, Country: "us", Elo: 1005, HighestElo: 1005, Wins: 10, Losses: 10, Total: 20, Winrate: 50.0},
-		{Username: insts[1].Username, Country: "eu", Elo: 1035, HighestElo: 1035, Wins: 12, Losses: 0, Total: 12, Winrate: 100.0},
+		{Username: insts[0].Username, Country: "us", Elo: 1005, HighestElo: 1005, Wins: 10, Losses: 10, Total: 20, WinRate: 50.0},
+		{Username: insts[1].Username, Country: "eu", Elo: 1035, HighestElo: 1035, Wins: 12, Losses: 0, Total: 12, WinRate: 100.0},
 	}
 
 	assert.Equal(t, expUsers, users)

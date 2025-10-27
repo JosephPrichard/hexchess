@@ -74,7 +74,7 @@ func BeforeRedisTests(t TestLogger) Redis {
 
 	t.Logf("connecting to redis on addr: %s", addr)
 
-	rdb := MakeRdb(addr)
+	rdb := MakeRdb(addr, addr)
 
 	// make unique ZSET names so any test that uses this rdb instance is isolated
 	rdb.LeaderboardZSet += uuid.NewString()

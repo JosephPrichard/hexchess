@@ -36,14 +36,13 @@ func (h *TraceHandler) Handle(ctx context.Context, r slog.Record) error {
 	return h.Handler.Handle(ctx, r)
 }
 
-func InitLogger(f *os.File) {
-	var w io.Writer
+var LogFile io.Writer = os.Stderr
+
+func InitLoggers(f *os.File) {
 	if f != nil {
-		w = io.MultiWriter(os.Stderr, f)
-	} else {
-		w = os.Stderr
+		LogFile = io.MultiWriter(os.Stderr, f)
 	}
-	handler := slog.NewTextHandler(w, &slog.HandlerOptions{
+	handler := slog.NewTextHandler(LogFile, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})
 	slog.SetDefault(slog.New(&TraceHandler{handler}))

@@ -13,7 +13,7 @@ const LeaderboardZSet = "leaderboard"
 var ErrSessionNotFound = errors.New("session not found")
 
 func GetSession(ctx context.Context, rdb Redis, sessionID string) (PlayerState, error) {
-	conn := rdb.Get()
+	conn := rdb.Primary.Get()
 	defer conn.Close()
 
 	fullID := "session:" + sessionID
@@ -40,7 +40,7 @@ func SetSession(ctx context.Context, rdb Redis, sessionID string, player PlayerS
 		return err
 	}
 
-	conn := rdb.Get()
+	conn := rdb.Primary.Get()
 	defer conn.Close()
 
 	fullID := "session:" + sessionID
@@ -54,7 +54,7 @@ func SetSession(ctx context.Context, rdb Redis, sessionID string, player PlayerS
 }
 
 func UpdateSessionEx(ctx context.Context, rdb Redis, sessionID string, expiry time.Duration) error {
-	conn := rdb.Get()
+	conn := rdb.Primary.Get()
 	defer conn.Close()
 
 	fullID := "session:" + sessionID
@@ -68,7 +68,7 @@ func UpdateSessionEx(ctx context.Context, rdb Redis, sessionID string, expiry ti
 }
 
 func DeleteSession(ctx context.Context, rdb Redis, sessionID string) error {
-	conn := rdb.Get()
+	conn := rdb.Primary.Get()
 	defer conn.Close()
 
 	if _, err := conn.Do("DEL", "session:"+sessionID); err != nil {

@@ -20,7 +20,7 @@ const GamesCountChan = "games_count"
 const ActiveCountChan = "active_count"
 
 func BroadcastMessage(ctx context.Context, rdb Redis, channel string, b []byte) error {
-	conn := rdb.Get()
+	conn := rdb.PubSub.Get()
 	defer conn.Close()
 
 	if _, err := conn.Do("PUBLISH", channel, b); err != nil {
@@ -40,9 +40,22 @@ func BroadcastGameCount(ctx context.Context, rdb Redis, count int64) error {
 }
 
 func BroadcastChallenge(ctx context.Context, rdb Redis, id int64, c ChallengeEntity) error {
-	var pbUm pb.UserMsg
-	mapPbChallengeMsg(&pbUm, id, c)
-
+	pbUm := pb.UserMsg{
+		UserId: strconv.Itoa(int(id)),
+		Value: &pb.UserMsg_Challenge{Challenge: &pb.ChallengeMsg{
+			ChallengerId:      c.ChallengerID,
+			ChallengerName:    c.ChallengerName,
+			ChallengerCountry: c.ChallengerCountry,
+			ChallengerElo:     c.ChallengerElo,
+			ChallengeeId:      c.ChallengeeID,
+			ChallengeeName:    c.ChallengeeName,
+			ChallengeeCountry: c.ChallengeeCountry,
+			ChallengeeElo:     c.ChallengeeElo,
+			TimeControl:       uint32(c.TimeControl),
+			StartColor:        uint32(c.StartColor),
+			MadeOn:            c.MadeOn.UnixMilli(),
+		}},
+	}
 	b, err := proto.Marshal(&pbUm)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to marshal user challenge message", "err", err)
@@ -52,7 +65,6 @@ func BroadcastChallenge(ctx context.Context, rdb Redis, id int64, c ChallengeEnt
 }
 
 func makePubSub(conn redis.Conn, channel string) redis.PubSubConn {
-	slog.Info("starting channel broadcast subscriber", "channel", channel)
 	psc := redis.PubSubConn{Conn: conn}
 	psc.Subscribe(channel)
 	return psc
@@ -71,8 +83,9 @@ func ListenGameMessages(m *MultiCasterMap, addr string) {
 func listenGameMessages(psc redis.PubSubConn, m *MultiCasterMap) {
 	defer func() {
 		psc.Close()
-		slog.Error("stopped broadcast channel subscriber", "channel", GamesChan)
+		slog.Error("stopped channel subscriber", "channel", GamesChan)
 	}()
+	slog.Info("starting channel subscriber", "channel", GamesChan)
 	for {
 		switch v := psc.Receive().(type) {
 		case redis.Message:
@@ -110,6 +123,7 @@ func listenUserMessages(psc redis.PubSubConn, m *MultiCasterMap) {
 		psc.Close()
 		slog.Error("stopped broadcast channel subscriber", "channel", UsersChan)
 	}()
+	slog.Info("starting channel subscriber", "channel", UsersChan)
 	for {
 		switch v := psc.Receive().(type) {
 		case redis.Message:
@@ -122,7 +136,7 @@ func listenUserMessages(psc redis.PubSubConn, m *MultiCasterMap) {
 			}
 			slog.Info("received message on channel", "userID", um.UserId, "channel", v.Channel)
 
-			buf, err := MarshalUserMessage(&um)
+			buf, err := MarshalUserMessageJson(&um)
 			if err != nil {
 				slog.Error("failed to marshal user message", "err", err, "channel", UsersChan)
 				continue
@@ -160,6 +174,7 @@ func listenMessages(channel string, psc redis.PubSubConn, m *UniCaster) {
 		psc.Close()
 		slog.Error("stopped broadcast channel subscriber", "channel", channel)
 	}()
+	slog.Info("starting channel subscriber", "channel", channel)
 	for {
 		switch v := psc.Receive().(type) {
 		case redis.Message:
@@ -175,23 +190,25 @@ func listenMessages(channel string, psc redis.PubSubConn, m *UniCaster) {
 }
 
 type MultiCasterMap struct {
+	mu sync.RWMutex
 	ID string
-	sync.RWMutex
-	m map[string]*MultiCaster
+	m  map[string]*MultiCaster
 }
 
 func MakeMultiCasterMap(ID string) *MultiCasterMap {
-	return &MultiCasterMap{
+	m := &MultiCasterMap{
 		ID: ID,
 		m:  make(map[string]*MultiCaster),
 	}
+	go m.ExpirePeriodically(BroadcasterExpireTime)
+	return m
 }
 
 func (m *MultiCasterMap) Subscribe(brID string, sub subscriber) {
 	slog.Info("subscribing to broker map", "mapID", m.ID, "brID", brID)
 
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	br, ok := m.m[brID]
 	if !ok {
@@ -204,8 +221,8 @@ func (m *MultiCasterMap) Subscribe(brID string, sub subscriber) {
 func (m *MultiCasterMap) Unsubscribe(brID string, sub subscriber) {
 	didUnsub := false
 	func() {
-		m.RLock()
-		defer m.RUnlock()
+		m.mu.RLock()
+		defer m.mu.RUnlock()
 
 		if br, ok := m.m[brID]; ok {
 			br.Unsubscribe(sub)
@@ -218,8 +235,8 @@ func (m *MultiCasterMap) Unsubscribe(brID string, sub subscriber) {
 }
 
 func (m *MultiCasterMap) Broadcast(brID string, msg []byte) {
-	m.RLock()
-	defer m.RUnlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	br, ok := m.m[brID]
 	if ok && br != nil {
@@ -230,7 +247,7 @@ func (m *MultiCasterMap) Broadcast(brID string, msg []byte) {
 var BroadcasterExpireTime = time.Hour
 
 func (m *MultiCasterMap) ExpirePeriodically(expireTime time.Duration) {
-	for range time.NewTimer(time.Minute * 1).C {
+	for range time.NewTicker(time.Minute * 1).C {
 		m.Expire(expireTime)
 	}
 }
@@ -243,8 +260,8 @@ func (m *MultiCasterMap) Expire(expireTime time.Duration) {
 	var expiredBrs []pair // copy out so we can unsubscribe from channels outside the lock
 
 	func() {
-		m.Lock()
-		defer m.Unlock()
+		m.mu.Lock()
+		defer m.mu.Unlock()
 
 		for key, br := range m.m {
 			et := time.Now().Sub(br.GetLastAccess())
@@ -255,7 +272,7 @@ func (m *MultiCasterMap) Expire(expireTime time.Duration) {
 		}
 	}()
 
-	slog.Info("expiring brokers", "expiredBrokers", expiredBrs)
+	slog.Info("expiring brokers from multicaster map", "mapID", m.ID, "expiredBrokers", expiredBrs)
 	for _, p := range expiredBrs {
 		p.br.UnsubscribeAll()
 	}
@@ -264,7 +281,7 @@ func (m *MultiCasterMap) Expire(expireTime time.Duration) {
 type subscriber = chan []byte
 
 type MultiCaster struct {
-	sync.RWMutex
+	mu          sync.RWMutex
 	ID          string
 	lastAccess  atomic.Int64
 	subscribers []subscriber
@@ -287,8 +304,8 @@ func (br *MultiCaster) SetLastAccess() {
 func (br *MultiCaster) Subscribe(sub subscriber) {
 	slog.Info("subscribing to broker", "brID", br.ID, "sub", fmt.Sprintf("%v", sub))
 
-	br.Lock()
-	defer br.Unlock()
+	br.mu.Lock()
+	defer br.mu.Unlock()
 
 	br.SetLastAccess()
 	if !slices.Contains(br.subscribers, sub) {
@@ -301,8 +318,8 @@ func (br *MultiCaster) Unsubscribe(sub subscriber) {
 
 	br.SetLastAccess()
 
-	br.Lock()
-	defer br.Unlock()
+	br.mu.Lock()
+	defer br.mu.Unlock()
 
 	if slices.Contains(br.subscribers, sub) {
 		close(sub)
@@ -311,8 +328,8 @@ func (br *MultiCaster) Unsubscribe(sub subscriber) {
 }
 
 func (br *MultiCaster) UnsubscribeAll() {
-	br.Lock()
-	defer br.Unlock()
+	br.mu.Lock()
+	defer br.mu.Unlock()
 
 	for _, sub := range br.subscribers {
 		close(sub)
@@ -324,8 +341,8 @@ func (br *MultiCaster) Broadcast(msg []byte) {
 	var subscribers []subscriber // copy out so the sending doesn't keep the lock
 
 	func() {
-		br.RLock()
-		defer br.RUnlock()
+		br.mu.RLock()
+		defer br.mu.RUnlock()
 		for _, sub := range br.subscribers {
 			subscribers = append(subscribers, sub)
 		}
@@ -340,37 +357,40 @@ func (br *MultiCaster) Broadcast(msg []byte) {
 }
 
 type UniCaster struct {
+	mu sync.RWMutex
 	ID string
-	sync.RWMutex
-	m map[subscriber]*atomic.Int64
+	m  map[subscriber]*atomic.Int64
 }
 
 func MakeUniCaster(brID string) *UniCaster {
-	return &UniCaster{
+	br := &UniCaster{
 		ID: brID,
 		m:  make(map[subscriber]*atomic.Int64),
 	}
+	go br.ExpirePeriodically(BroadcasterExpireTime)
+	return br
 }
 
 func (br *UniCaster) Subscribe(sub subscriber) {
 	slog.Info("subscribing to broker", "brID", br.ID, "sub", fmt.Sprintf("%v", sub))
 
-	br.Lock()
-	defer br.Unlock()
-
 	t := &atomic.Int64{}
 	t.Store(time.Now().UnixMilli())
+
+	br.mu.Lock()
+	defer br.mu.Unlock()
+
 	br.m[sub] = t
 }
 
 func (br *UniCaster) Unsubscribe(sub subscriber) {
 	slog.Info("unsubscribing from broker", "brID", br.ID, "sub", fmt.Sprintf("%v", sub))
+	close(sub)
 
-	br.Lock()
-	defer br.Unlock()
+	br.mu.Lock()
+	defer br.mu.Unlock()
 
 	delete(br.m, sub)
-	close(sub)
 }
 
 func (br *UniCaster) Broadcast(msg []byte, expireTime time.Duration) {
@@ -378,8 +398,8 @@ func (br *UniCaster) Broadcast(msg []byte, expireTime time.Duration) {
 	var expiredSubs []subscriber // copy this out so we don't log while lock is acquired
 
 	func() {
-		br.Lock()
-		defer br.Unlock()
+		br.mu.Lock()
+		defer br.mu.Unlock()
 
 		for sub, t := range br.m {
 			lastAccess := time.UnixMilli(t.Load())
@@ -400,4 +420,34 @@ func (br *UniCaster) Broadcast(msg []byte, expireTime time.Duration) {
 	for _, sub := range subscribers {
 		sub <- msg
 	}
+}
+
+func (br *UniCaster) ExpirePeriodically(expireTime time.Duration) {
+	for range time.NewTicker(time.Minute * 1).C {
+		br.Expire(expireTime)
+	}
+}
+
+func (br *UniCaster) Expire(expireTime time.Duration) {
+	var expiredSubs []subscriber // copy out so we can unsubscribe from channels outside the lock
+
+	func() {
+		br.mu.Lock()
+		defer br.mu.Unlock()
+
+		for sub, t := range br.m {
+			et := time.Now().Sub(time.UnixMilli(t.Load()))
+			if et > expireTime {
+				expiredSubs = append(expiredSubs, sub)
+				delete(br.m, sub)
+			}
+		}
+	}()
+
+	var expiredSubStrs []string
+	for _, sub := range expiredSubs {
+		close(sub)
+		expiredSubStrs = append(expiredSubStrs, fmt.Sprintf("%v", sub))
+	}
+	slog.Info("expired subscribers from unicaster", "brID", br.ID, "expiredSubs", expiredSubs)
 }

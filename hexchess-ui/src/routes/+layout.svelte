@@ -37,6 +37,7 @@
 
 	function connectUserEvents() {
 		userSse = new EventSource(`${baseURL}/events/user`, {
+			mode: 'cors',
 			withCredentials: true
 		});
 		userSse.addEventListener('meta', (event) => {
@@ -50,9 +51,7 @@
 	}
 
 	function connectCountEvents() {
-		countSse = new EventSource(`${baseURL}/events/count`, {
-			withCredentials: true
-		});
+		countSse = new EventSource(`${baseURL}/events/count`);
 		countSse.addEventListener('meta', (event) => {
 			console.log('Sse: /events/count meta', event.data);
 		});

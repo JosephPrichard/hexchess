@@ -12,8 +12,8 @@ import (
 )
 
 const CookieKey = "session"
-const TempSessionExpire = time.Minute
-const MaxAgeCookie = time.Hour * 24 * 30
+const TempSessionMaxAge = time.Minute
+const SessionMaxAge = time.Hour * 24 * 30
 
 type SessionView struct {
 	ID       int64         `json:"id"`
@@ -43,7 +43,7 @@ func MakeSessionID() (string, error) {
 func GetSessionPlayer(ctx context.Context, rdb data.Redis, r *http.Request) (data.PlayerState, string, error) {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
-		return data.PlayerState{}, "", err
+		return data.PlayerState{}, "", data.ErrSessionNotFound
 	}
 	sessionID := cookie.Value
 	player, err := data.GetSession(ctx, rdb, sessionID)
@@ -58,15 +58,15 @@ func SetSessionPlayer(ctx context.Context, rdb data.Redis, w http.ResponseWriter
 	if err != nil {
 		return 0, err
 	}
-	if err := data.SetSession(ctx, rdb, sessionID, player, MaxAgeCookie); err != nil {
+	if err := data.SetSession(ctx, rdb, sessionID, player, SessionMaxAge); err != nil {
 		return 0, err
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
-	return MaxAgeCookie, nil
+	return SessionMaxAge, nil
 }
 
 func FmtCookie(sessionID string) string {
-	return fmt.Sprintf("%s=%s; Max-Age=%d; Path=/", CookieKey, sessionID, int(MaxAgeCookie.Seconds()))
+	return fmt.Sprintf("%s=%s; Max-Age=%d; Path=/", CookieKey, sessionID, int(SessionMaxAge.Seconds()))
 }
 
 func EmptyCookie(sessionID string) string {

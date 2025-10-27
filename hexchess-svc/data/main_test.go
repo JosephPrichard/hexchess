@@ -7,6 +7,6 @@ import (
 
 func TestMain(m *testing.M) {
 	defer TeardownTestInfra()
-	lib.InitLogger(nil)
+	lib.InitLoggers(nil)
 	m.Run()
 }

@@ -39,18 +39,25 @@ func insertReplay(ctx context.Context, q *db.Queries, r data.ReplayInst) error {
 	for range rand.Intn(10) + 35 {
 		game.InitPieceMoves()
 
-		var fpm chess.PieceMoves
+		var pmsList []chess.PieceMoves
 		for _, pm := range game.GetCurrMoves() {
 			if len(pm.Moves) > 0 {
-				fpm = pm
-				break
+				pmsList = append(pmsList, pm)
 			}
 		}
-		if len(fpm.Moves) == 0 {
+		pms := pmsList[rand.Intn(len(pmsList))]
+		if len(pms.Moves) == 0 {
 			return fmt.Errorf("expected at least one move, got none for game: %v", game)
 		}
-		pm := chess.PieceMove{From: fpm.From, To: fpm.Moves[0]}
+		pm := chess.PieceMove{
+			Piece: game.Board.Pieces[pms.From.File][pms.From.Rank],
+			From:  pms.From,
+			To:    pms.Moves[rand.Intn(len(pms.Moves))],
+		}
 
+		if game.Board.Pieces[pm.To.File][pm.To.Rank].IsKing() {
+			break
+		}
 		game.MakeMove(pm.From, pm.To)
 		moveList = append(moveList, pm)
 	}
