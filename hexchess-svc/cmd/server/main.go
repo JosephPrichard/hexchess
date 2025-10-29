@@ -8,8 +8,8 @@ import (
 	"hexchess-svc/cmd"
 	"hexchess-svc/data"
 	"hexchess-svc/db"
-	"hexchess-svc/lib"
 	"hexchess-svc/static"
+	"hexchess-svc/util"
 	"hexchess-svc/web"
 	"log"
 	"log/slog"
@@ -26,7 +26,7 @@ func main() {
 	}
 	defer f.Close()
 
-	lib.InitLoggers(f)
+	util.InitLoggers(f)
 	cmd.InitEnv()
 
 	appPort := os.Getenv("APP_PORT")

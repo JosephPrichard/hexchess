@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/gomodule/redigo/redis"
 	"log/slog"
 	"time"
@@ -22,13 +23,12 @@ func GetSession(ctx context.Context, rdb Redis, sessionID string) (PlayerState, 
 		return PlayerState{}, ErrSessionNotFound
 	}
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get session", "sessionID", sessionID)
-		return PlayerState{}, err
+		return PlayerState{}, fmt.Errorf("failed to get session %s: %w", sessionID, err)
 	}
 
 	player, err := UnmarshalPlayer(data)
 	if err != nil {
-		return PlayerState{}, err
+		return PlayerState{}, fmt.Errorf("failed to unmarshal session: %w", err)
 	}
 	slog.InfoContext(ctx, "selected session", "sessionID", sessionID, "player", player)
 	return player, nil
@@ -42,11 +42,9 @@ func SetSession(ctx context.Context, rdb Redis, sessionID string, player PlayerS
 
 	conn := rdb.Primary.Get()
 	defer conn.Close()
-
 	fullID := "session:" + sessionID
 
 	if _, err := conn.Do("SETEX", fullID, int(expiry.Seconds()), data); err != nil {
-		slog.ErrorContext(ctx, "failed to set session", "sessionID", sessionID, "err", err)
 		return err
 	}
 	slog.InfoContext(ctx, "set session", "sessionID", sessionID, "player", player)
@@ -60,7 +58,6 @@ func UpdateSessionEx(ctx context.Context, rdb Redis, sessionID string, expiry ti
 	fullID := "session:" + sessionID
 
 	if _, err := conn.Do("EXPIRE", fullID, int(expiry.Seconds())); err != nil {
-		slog.ErrorContext(ctx, "failed to update session expiry", "sessionID", sessionID, "err", err)
 		return err
 	}
 	slog.InfoContext(ctx, "updated session expiry", "sessionID", sessionID)
@@ -72,7 +69,6 @@ func DeleteSession(ctx context.Context, rdb Redis, sessionID string) error {
 	defer conn.Close()
 
 	if _, err := conn.Do("DEL", "session:"+sessionID); err != nil {
-		slog.ErrorContext(ctx, "failed to delete session", "sessionID", sessionID, "err", err)
 		return err
 	}
 	slog.InfoContext(ctx, "deleted session", "sessionID", sessionID)

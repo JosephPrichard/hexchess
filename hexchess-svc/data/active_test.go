@@ -3,7 +3,7 @@ package data
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
-	"hexchess-svc/lib"
+	"hexchess-svc/util"
 	"testing"
 	"time"
 )
@@ -12,7 +12,7 @@ func TestActiveUser(t *testing.T) {
 	rdb := BeforeRedisTests(t)
 	defer rdb.Close()
 
-	ctx := context.WithValue(context.Background(), lib.TK, "testing-active-user")
+	ctx := context.WithValue(context.Background(), util.Trace, "testing-active-user")
 
 	_, err := AddActiveUser(ctx, rdb, "1")
 	assert.NoError(t, err)

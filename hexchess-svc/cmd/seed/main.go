@@ -10,11 +10,10 @@ import (
 	"hexchess-svc/cmd"
 	"hexchess-svc/data"
 	"hexchess-svc/db"
-	"hexchess-svc/lib"
 	"hexchess-svc/static"
+	"hexchess-svc/util"
 	"log"
 	"log/slog"
-	"math/rand"
 	"os"
 	"time"
 )
@@ -33,38 +32,14 @@ func readMockFile[V any](filename string) []V {
 
 func insertReplay(ctx context.Context, q *db.Queries, r data.ReplayInst) error {
 	game := chess.MakeStartGame()
-	var moveList []chess.PieceMove
-
-	// generates a random move list for mock data between length 35 and 45
-	for range rand.Intn(10) + 35 {
-		game.InitPieceMoves()
-
-		var pmsList []chess.PieceMoves
-		for _, pm := range game.GetCurrMoves() {
-			if len(pm.Moves) > 0 {
-				pmsList = append(pmsList, pm)
-			}
-		}
-		pms := pmsList[rand.Intn(len(pmsList))]
-		if len(pms.Moves) == 0 {
-			return fmt.Errorf("expected at least one move, got none for game: %v", game)
-		}
-		pm := chess.PieceMove{
-			Piece: game.Board.Pieces[pms.From.File][pms.From.Rank],
-			From:  pms.From,
-			To:    pms.Moves[rand.Intn(len(pms.Moves))],
-		}
-
-		if game.Board.Pieces[pm.To.File][pm.To.Rank].IsKing() {
-			break
-		}
-		game.MakeMove(pm.From, pm.To)
-		moveList = append(moveList, pm)
+	moveList, err := chess.RandomMoveList(game, 35, 45)
+	if err != nil {
+		return fmt.Errorf("failed to generate random move list: %w", err)
 	}
 
 	b, err := json.Marshal(moveList)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal move list: %w", err)
 	}
 	r.MoveListJSON = string(b)
 
@@ -79,6 +54,7 @@ func main() {
 	replays := readMockFile[data.ReplayInst]("mocks/replays.json")
 	userInsts := readMockFile[data.UserInst]("mocks/users.json")
 
+	util.InitLoggers(nil)
 	cmd.InitEnv()
 
 	dbPass := os.Getenv("DB_PASSWORD")
@@ -88,7 +64,7 @@ func main() {
 	redisHost := os.Getenv("REDIS_HOST")
 	redisPort := os.Getenv("REDIS_PORT")
 
-	ctx := context.WithValue(context.Background(), lib.TK, "seed-stores-script")
+	ctx := context.WithValue(context.Background(), util.Trace, "seed-stores-script")
 
 	slog.InfoContext(ctx, "connecting to postgres db", "user", dbUser, "name", dbName, "port", dbPort)
 	pool, err := pgxpool.New(ctx, fmt.Sprintf("user=%s dbname=%s password=%s port=%s", dbUser, dbName, dbPass, dbPort))
@@ -100,7 +76,7 @@ func main() {
 	q := db.New(pool)
 
 	slog.InfoContext(ctx, "connecting to redis db", "host", redisHost, "port", redisPort)
-	rdb := data.MakeRdb(redisHost + ":" + redisPort)
+	rdb := data.MakeRdb(redisHost+":"+redisPort, "")
 	defer rdb.Close()
 
 	if _, err := pool.Exec(context.Background(), "DROP SCHEMA public CASCADE;\nCREATE SCHEMA public;"); err != nil {
@@ -110,7 +86,7 @@ func main() {
 		log.Fatalf("failed to create schema: %v", err)
 	}
 
-	conn := rdb.Get()
+	conn := rdb.Primary.Get()
 	defer conn.Close()
 
 	if _, err := conn.Do("FLUSHALL"); err != nil {

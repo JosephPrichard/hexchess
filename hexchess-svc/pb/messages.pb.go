@@ -175,9 +175,10 @@ func (x *PieceMove) GetToRank() int32 {
 
 type PieceMoves struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	FromFile      int32                  `protobuf:"varint,1,opt,name=fromFile,proto3" json:"fromFile,omitempty"`
-	FromRank      int32                  `protobuf:"varint,2,opt,name=fromRank,proto3" json:"fromRank,omitempty"`
-	Moves         []int64                `protobuf:"varint,3,rep,packed,name=moves,proto3" json:"moves,omitempty"`
+	Piece         int32                  `protobuf:"varint,1,opt,name=piece,proto3" json:"piece,omitempty"`
+	FromFile      int32                  `protobuf:"varint,2,opt,name=fromFile,proto3" json:"fromFile,omitempty"`
+	FromRank      int32                  `protobuf:"varint,3,opt,name=fromRank,proto3" json:"fromRank,omitempty"`
+	Moves         []int64                `protobuf:"varint,4,rep,packed,name=moves,proto3" json:"moves,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -210,6 +211,13 @@ func (x *PieceMoves) ProtoReflect() protoreflect.Message {
 // Deprecated: Use PieceMoves.ProtoReflect.Descriptor instead.
 func (*PieceMoves) Descriptor() ([]byte, []int) {
 	return file_pb_messages_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *PieceMoves) GetPiece() int32 {
+	if x != nil {
+		return x.Piece
+	}
+	return 0
 }
 
 func (x *PieceMoves) GetFromFile() int32 {
@@ -1451,12 +1459,13 @@ const file_pb_messages_proto_rawDesc = "" +
 	"\bfromFile\x18\x02 \x01(\x05R\bfromFile\x12\x1a\n" +
 	"\bfromRank\x18\x03 \x01(\x05R\bfromRank\x12\x16\n" +
 	"\x06toFile\x18\x04 \x01(\x05R\x06toFile\x12\x16\n" +
-	"\x06toRank\x18\x05 \x01(\x05R\x06toRank\"Z\n" +
+	"\x06toRank\x18\x05 \x01(\x05R\x06toRank\"p\n" +
 	"\n" +
-	"PieceMoves\x12\x1a\n" +
-	"\bfromFile\x18\x01 \x01(\x05R\bfromFile\x12\x1a\n" +
-	"\bfromRank\x18\x02 \x01(\x05R\bfromRank\x12\x14\n" +
-	"\x05moves\x18\x03 \x03(\x03R\x05moves\"#\n" +
+	"PieceMoves\x12\x14\n" +
+	"\x05piece\x18\x01 \x01(\x05R\x05piece\x12\x1a\n" +
+	"\bfromFile\x18\x02 \x01(\x05R\bfromFile\x12\x1a\n" +
+	"\bfromRank\x18\x03 \x01(\x05R\bfromRank\x12\x14\n" +
+	"\x05moves\x18\x04 \x03(\x03R\x05moves\"#\n" +
 	"\tBoardFile\x12\x16\n" +
 	"\x06pieces\x18\x01 \x03(\rR\x06pieces\"Y\n" +
 	"\n" +

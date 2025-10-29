@@ -13,7 +13,7 @@ import (
 func UnmarshalPlayer(b []byte) (PlayerState, error) {
 	var pbPlayer pb.PlayerState
 	if err := proto.Unmarshal(b, &pbPlayer); err != nil {
-		return PlayerState{}, fmt.Errorf("failed to unmarhsal player: %w", err)
+		return PlayerState{}, err
 	}
 	player := PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Elo: pbPlayer.Elo, IsGuest: pbPlayer.IsGuest}
 	return player, nil
@@ -59,15 +59,16 @@ func MapPiecesMoves(pbMoves []*pb.PieceMoves) []chess.PieceMoves {
 		return nil
 	}
 	pmsList := make([]chess.PieceMoves, 0, len(pbMoves))
-	for _, pm := range pbMoves {
-		moves := make([]chess.Hex, 0, len(pm.Moves))
-		for _, hInt := range pm.Moves {
+	for _, pbPm := range pbMoves {
+		moves := make([]chess.Hex, 0, len(pbPm.Moves))
+		for _, hInt := range pbPm.Moves {
 			file := int(hInt & 0xFFFFFFFF)
 			rank := int(hInt >> 32)
 			moves = append(moves, chess.Hex{File: file, Rank: rank})
 		}
 		pms := chess.PieceMoves{
-			From:  chess.Hex{File: int(pm.FromFile), Rank: int(pm.FromRank)},
+			Piece: chess.Piece(pbPm.Piece),
+			From:  chess.Hex{File: int(pbPm.FromFile), Rank: int(pbPm.FromRank)},
 			Moves: moves,
 		}
 		pmsList = append(pmsList, pms)
@@ -82,7 +83,7 @@ func MapBoard(pbBoard *pb.ChessBoard) (chess.Board, error) {
 			return board, fmt.Errorf("board file is out of bounds: %d", f)
 		}
 		for r, piece := range file.Pieces {
-			if err := board.SafeSetPiece(f, r, chess.Piece(piece)); err != nil {
+			if err := board.SetPiece(f, r, chess.Piece(piece)); err != nil {
 				return board, err
 			}
 		}
@@ -183,7 +184,12 @@ func MapPbPiecesMoves(moves []chess.PieceMoves) []*pb.PieceMoves {
 			hInt := int64(h.Rank)<<32 | int64(h.File)
 			pbHexes = append(pbHexes, hInt)
 		}
-		pbMoves = append(pbMoves, &pb.PieceMoves{FromFile: int32(pm.From.File), FromRank: int32(pm.From.Rank), Moves: pbHexes})
+		pbMoves = append(pbMoves, &pb.PieceMoves{
+			Piece:    int32(pm.Piece),
+			FromFile: int32(pm.From.File),
+			FromRank: int32(pm.From.Rank),
+			Moves:    pbHexes,
+		})
 	}
 	return pbMoves
 }
@@ -199,7 +205,7 @@ func MapPbBoard(board chess.Board) (*pb.ChessBoard, error) {
 			Pieces: make([]uint32, 0, ranksCount),
 		}
 		for rank := 0; rank < ranksCount; rank++ {
-			piece, err := board.SafeGetPiece(file, rank)
+			piece, err := board.GetPiece(file, rank)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get piece: %w", err)
 			}
@@ -239,7 +245,7 @@ func MapPbGame(game chess.Game) (*pb.ChessGame, error) {
 func MapPbChessState(s ChessState) (*pb.ChessState, error) {
 	pbGame, err := MapPbGame(s.Game)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to map pb game: %w", err)
 	}
 
 	var pbMoveList []*pb.PieceMove

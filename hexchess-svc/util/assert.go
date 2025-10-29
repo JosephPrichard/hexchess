@@ -1,4 +1,4 @@
-package lib
+package util
 
 import (
 	"encoding/json"
@@ -26,8 +26,6 @@ func AssertRespBody[V any](t *testing.T, expBody any, w *httptest.ResponseRecord
 	}
 
 	switch expBody := expBody.(type) {
-	case string:
-		assert.Equal(t, expBody, string(b))
 	case V:
 		var actualBody V
 		if err = json.Unmarshal(b, &actualBody); err != nil {

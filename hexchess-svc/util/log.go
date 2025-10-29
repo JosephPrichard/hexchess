@@ -1,4 +1,4 @@
-package lib
+package util
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 
 type TraceType string
 
-var TK TraceType = "trace"
+var Trace TraceType = "trace"
 
 func DynLog(ctx context.Context, msg string, err error, args ...any) {
 	if err != nil {
@@ -30,19 +30,19 @@ type TraceHandler struct {
 }
 
 func (h *TraceHandler) Handle(ctx context.Context, r slog.Record) error {
-	if v := ctx.Value(TK); v != nil {
+	if v := ctx.Value(Trace); v != nil {
 		r.Add("trace", v)
 	}
 	return h.Handler.Handle(ctx, r)
 }
 
-var LogFile io.Writer = os.Stderr
+var LogWriter io.Writer = os.Stderr
 
 func InitLoggers(f *os.File) {
 	if f != nil {
-		LogFile = io.MultiWriter(os.Stderr, f)
+		LogWriter = io.MultiWriter(os.Stderr, f)
 	}
-	handler := slog.NewTextHandler(LogFile, &slog.HandlerOptions{
+	handler := slog.NewTextHandler(LogWriter, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})
 	slog.SetDefault(slog.New(&TraceHandler{handler}))

@@ -3,8 +3,6 @@ A website to play hexagonal chess online.
 
 Created using Go, Svelte, Postgres, and Redis.
 
-Currently, in the process of a rewrite from Java -> Go.
-
 ## Build and Deployment
 
 ### Compile Server

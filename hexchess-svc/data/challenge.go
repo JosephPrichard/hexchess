@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/db"
-	"hexchess-svc/lib"
+	"hexchess-svc/util"
 	"log/slog"
 	"strings"
 	"time"
@@ -149,7 +149,6 @@ func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) 
 	if inst.ChallengerID == inst.ChallengeeID {
 		return ChallengeEntity{}, ErrSelfChallenge
 	}
-
 	if inst.MadeOn.IsZero() {
 		inst.MadeOn = time.Now()
 	}
@@ -178,24 +177,29 @@ func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) 
 	}
 	challenge, err := mapChallengeFromRow(db.SelectChallengesByParticipantRow(row))
 
-	lib.DynLog(ctx, "created a new challenge", err, "challenge", inst, "challenge", challenge)
+	util.DynLog(ctx, "created a new challenge", err, "challenge", inst, "challenge", challenge)
 	return challenge, err
 }
 
-func GetChallengesByParticipant(ctx context.Context, q *db.Queries, challengerID int64, challengeeID int64, threshold time.Duration) ([]ChallengeEntity, error) {
-	return GetChallengesByParticipantOn(ctx, q, challengerID, challengeeID, time.Now().Add(-threshold))
+type ChallengeKey struct {
+	ChallengerID int64
+	ChallengeeID int64
 }
 
-func GetChallengesByParticipantOn(ctx context.Context, q *db.Queries, challengerID int64, challengeeID int64, t time.Time) ([]ChallengeEntity, error) {
+func GetChallengesByParticipant(ctx context.Context, q *db.Queries, key ChallengeKey, threshold time.Duration) ([]ChallengeEntity, error) {
+	return GetChallengesByParticipantOn(ctx, q, key, time.Now().Add(-threshold))
+}
+
+func GetChallengesByParticipantOn(ctx context.Context, q *db.Queries, key ChallengeKey, t time.Time) ([]ChallengeEntity, error) {
 	var pgChallengerID pgtype.Int8
-	if challengerID != -1 {
+	if key.ChallengerID != -1 {
 		pgChallengerID.Valid = true
-		pgChallengerID.Int64 = challengerID
+		pgChallengerID.Int64 = key.ChallengerID
 	}
 	var pgChallengeeID pgtype.Int8
-	if challengeeID != -1 {
+	if key.ChallengeeID != -1 {
 		pgChallengeeID.Valid = true
-		pgChallengeeID.Int64 = challengeeID
+		pgChallengeeID.Int64 = key.ChallengeeID
 	}
 
 	rows, err := q.SelectChallengesByParticipant(ctx, db.SelectChallengesByParticipantParams{
@@ -204,8 +208,7 @@ func GetChallengesByParticipantOn(ctx context.Context, q *db.Queries, challenger
 		Since:        pgtype.Timestamptz{Valid: true, Time: t},
 	})
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get challenges by participant", "challengerID", challengerID, "challengeeID", challengeeID, "err", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to get challenges by participant %v: %w", key, err)
 	}
 
 	var challenges []ChallengeEntity
@@ -217,7 +220,7 @@ func GetChallengesByParticipantOn(ctx context.Context, q *db.Queries, challenger
 		challenges = append(challenges, challenge)
 	}
 
-	slog.InfoContext(ctx, "got challenges by participant", "challengerID", challengerID, "challengeeID", challengeeID, "since", t, "challenges", challenges)
+	slog.InfoContext(ctx, "got challenges by participant", "challengeKey", key, "since", t, "challenges", challenges)
 	return challenges, nil
 }
 
@@ -228,14 +231,13 @@ type DeleteResult struct {
 	FirstColor   ColorSelect
 }
 
-func DeleteChallenge(ctx context.Context, q *db.Queries, challengeeID int64, challengerID int64) (DeleteResult, error) {
-	row, err := q.DeleteChallenge(ctx, db.DeleteChallengeParams{ChallengerID: challengeeID, ChallengeeID: challengerID})
+func DeleteChallenge(ctx context.Context, q *db.Queries, key ChallengeKey) (DeleteResult, error) {
+	row, err := q.DeleteChallenge(ctx, db.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return DeleteResult{}, ErrChallengeNotFound
 	}
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to delete challenge", "err", err)
-		return DeleteResult{}, err
+		return DeleteResult{}, fmt.Errorf("failed to delete challenge %d: %w", key, err)
 	}
 
 	tc, err := ParseTimeControl(row.TimeControl)
@@ -248,7 +250,7 @@ func DeleteChallenge(ctx context.Context, q *db.Queries, challengeeID int64, cha
 	}
 	dr := DeleteResult{ChallengerID: row.ChallengerID, ChallengeeID: row.ChallengeeID, TimeControl: tc, FirstColor: cs}
 
-	slog.InfoContext(ctx, "deleted challenge", "challengee", challengeeID, "challengerID", challengerID, "dr", dr, "err", err)
+	slog.InfoContext(ctx, "deleted challenge", "challengeKey", key, "dr", dr, "err", err)
 	return dr, err
 }
 
@@ -261,6 +263,6 @@ func DeleteExpiredChallengesOn(ctx context.Context, q *db.Queries, userID int64,
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: t},
 	})
-	lib.DynLog(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", t, "trace", ctx.Value(lib.TK))
+	util.DynLog(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", t)
 	return nil
 }

@@ -3,7 +3,7 @@ package web
 import (
 	"context"
 	"hexchess-svc/data"
-	"hexchess-svc/lib"
+	"hexchess-svc/util"
 	"testing"
 )
 
@@ -11,7 +11,7 @@ var sessionID1 = "test-session-id-1"
 var sessionID2 = "test-session-id-2"
 
 func createTestSessions(t *testing.T, rdb data.Redis) {
-	ctx := context.WithValue(context.Background(), lib.TK, "create-test-session-1")
+	ctx := context.WithValue(context.Background(), util.Trace, "create-test-session-1")
 	if err := data.SetSession(ctx, rdb, sessionID1, data.PlayerState{ID: 1, Name: "user1", Country: "us", Elo: 1000}, SessionMaxAge); err != nil {
 		t.Fatalf("failed to create test sessions: %v", err)
 	}
@@ -21,7 +21,7 @@ func createTestSessions(t *testing.T, rdb data.Redis) {
 }
 
 func createTestChessStates(t *testing.T, rdb data.Redis) {
-	ctx := context.WithValue(context.Background(), lib.TK, "testing-update-password")
+	ctx := context.WithValue(context.Background(), util.Trace, "testing-update-password")
 	for _, state := range []data.ChessState{
 		data.MakeStateWithPlayers("game1", data.RealTime,
 			&data.PlayerState{ID: 2, Name: "user2", Country: "us", Elo: 1000},

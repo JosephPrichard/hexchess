@@ -24,8 +24,7 @@ func BroadcastMessage(ctx context.Context, rdb Redis, channel string, b []byte) 
 	defer conn.Close()
 
 	if _, err := conn.Do("PUBLISH", channel, b); err != nil {
-		slog.ErrorContext(ctx, "failed to publish message", "err", err)
-		return err
+		return fmt.Errorf("failed to publish message: %w", err)
 	}
 	slog.InfoContext(ctx, "broadcasted message to channel", "channel", channel, "bytesCount", len(b))
 	return nil
@@ -58,8 +57,7 @@ func BroadcastChallenge(ctx context.Context, rdb Redis, id int64, c ChallengeEnt
 	}
 	b, err := proto.Marshal(&pbUm)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to marshal user challenge message", "err", err)
-		return err
+		return fmt.Errorf("failed to marshal user challenge message: %w", err)
 	}
 	return BroadcastMessage(ctx, rdb, rdb.UsersChan, b)
 }
@@ -338,21 +336,17 @@ func (br *MultiCaster) UnsubscribeAll() {
 }
 
 func (br *MultiCaster) Broadcast(msg []byte) {
-	var subscribers []subscriber // copy out so the sending doesn't keep the lock
+	var subStrs []string // copy out so logging doesn't keep the lock
 
 	func() {
 		br.mu.RLock()
 		defer br.mu.RUnlock()
 		for _, sub := range br.subscribers {
-			subscribers = append(subscribers, sub)
+			sub <- msg
+			subStrs = append(subStrs, fmt.Sprintf("%v", sub))
 		}
 	}()
 
-	subStrs := make([]string, 0, len(subscribers))
-	for _, sub := range subscribers {
-		sub <- msg
-		subStrs = append(subStrs, fmt.Sprintf("%v", sub))
-	}
 	slog.Info("broadcasted to broker subscribers", "brID", br.ID, "subscribers", subStrs)
 }
 
@@ -385,16 +379,16 @@ func (br *UniCaster) Subscribe(sub subscriber) {
 
 func (br *UniCaster) Unsubscribe(sub subscriber) {
 	slog.Info("unsubscribing from broker", "brID", br.ID, "sub", fmt.Sprintf("%v", sub))
-	close(sub)
-
+	
 	br.mu.Lock()
 	defer br.mu.Unlock()
 
 	delete(br.m, sub)
+	close(sub)
 }
 
 func (br *UniCaster) Broadcast(msg []byte, expireTime time.Duration) {
-	var subscribers []subscriber // copy out so the sending doesn't keep the lock
+	subCount := 0
 	var expiredSubs []subscriber // copy this out so we don't log while lock is acquired
 
 	func() {
@@ -408,18 +402,15 @@ func (br *UniCaster) Broadcast(msg []byte, expireTime time.Duration) {
 				expiredSubs = append(expiredSubs, sub)
 				delete(br.m, sub)
 			} else {
-				subscribers = append(subscribers, sub)
+				sub <- msg
+				subCount++
 			}
 			t.Store(now.UnixMilli())
 		}
 	}()
 
 	slog.Info("expired subscribers", "brID", br.ID, "expiredSubs", expiredSubs)
-	slog.Info("broadcasting to broker subscribers", "brID", br.ID, "count", len(subscribers))
-
-	for _, sub := range subscribers {
-		sub <- msg
-	}
+	slog.Info("broadcasted to broker subscribers", "brID", br.ID, "count", subCount)
 }
 
 func (br *UniCaster) ExpirePeriodically(expireTime time.Duration) {
@@ -429,7 +420,7 @@ func (br *UniCaster) ExpirePeriodically(expireTime time.Duration) {
 }
 
 func (br *UniCaster) Expire(expireTime time.Duration) {
-	var expiredSubs []subscriber // copy out so we can unsubscribe from channels outside the lock
+	var expiredSubStrs []string // copy out so we can log outside the lock
 
 	func() {
 		br.mu.Lock()
@@ -438,16 +429,12 @@ func (br *UniCaster) Expire(expireTime time.Duration) {
 		for sub, t := range br.m {
 			et := time.Now().Sub(time.UnixMilli(t.Load()))
 			if et > expireTime {
-				expiredSubs = append(expiredSubs, sub)
 				delete(br.m, sub)
+				close(sub)
+				expiredSubStrs = append(expiredSubStrs, fmt.Sprintf("%v", sub))
 			}
 		}
 	}()
 
-	var expiredSubStrs []string
-	for _, sub := range expiredSubs {
-		close(sub)
-		expiredSubStrs = append(expiredSubStrs, fmt.Sprintf("%v", sub))
-	}
-	slog.Info("expired subscribers from unicaster", "brID", br.ID, "expiredSubs", expiredSubs)
+	slog.Info("expired subscribers from unicaster", "brID", br.ID, "expiredSubs", expiredSubStrs)
 }

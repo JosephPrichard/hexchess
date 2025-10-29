@@ -3,7 +3,7 @@ package data
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
-	"hexchess-svc/lib"
+	"hexchess-svc/util"
 	"testing"
 )
 
@@ -11,7 +11,7 @@ func TestInsertThenGet(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), lib.TK, "testing-insert-get")
+	ctx := context.WithValue(context.Background(), util.Trace, "testing-insert-get")
 
 	id, err := InsertReplay(ctx, pgDB.Q, ReplayInst{2, 3, int32(WhiteWin), int32(Checkmate), 35, -25, "{}"})
 	assert.NoError(t, err)
@@ -36,14 +36,14 @@ func TestInsertThenGet(t *testing.T) {
 		WhiteElo:     1000,
 		BlackElo:     900,
 	}
-	assert.Equal(t, expReplay, actualReplay1)
+	util.AssertEqualIgnoring(t, expReplay, actualReplay1, ReplayEntityCmpOpts)
 }
 
 func TestGetUserReplays(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), lib.TK, "testing-get-replays")
+	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-replays")
 
 	// the only replays that include userID '1' should be the replays made in the testing init phase
 
@@ -88,15 +88,15 @@ func TestGetUserReplays(t *testing.T) {
 	expectedReplayList1 := []ReplayEntity{replay3, replay1}
 	expectedReplayList2 := []ReplayEntity{replay1}
 
-	assert.Equal(t, expectedReplayList1, actualReplayList1)
-	assert.Equal(t, expectedReplayList2, actualReplayList2)
+	util.AssertEqualIgnoring(t, expectedReplayList1, actualReplayList1, ReplayEntityCmpOpts)
+	util.AssertEqualIgnoring(t, expectedReplayList2, actualReplayList2, ReplayEntityCmpOpts)
 }
 
 func TestGetReplayMoveList(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), lib.TK, "testing-get-move-list")
+	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-move-list")
 
 	actualMoveList, err := GetReplayMoveList(ctx, pgDB.Q, 1)
 	assert.NoError(t, err)

@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
-	"hexchess-svc/lib"
 	"hexchess-svc/pb"
+	"hexchess-svc/util"
 	"math/rand"
 	"sync"
 	"testing"
@@ -129,7 +129,7 @@ func TestBroadcastGameMessage(t *testing.T) {
 	m := MakeMultiCasterMap("testing-broker-map")
 	ListenGameMessages(m, rdb.PubsubAddr)
 
-	ctx := context.WithValue(context.Background(), lib.TK, "testing-broadcast-game-message")
+	ctx := context.WithValue(context.Background(), util.Trace, "testing-broadcast-game-message")
 
 	sub := make(subscriber)
 	mChan := make(chan [][]byte)
@@ -176,7 +176,7 @@ func BenchmarkBroadcastGameMessage(b *testing.B) {
 	m := MakeMultiCasterMap("testing-broker-map")
 	ListenGameMessages(m, rdb.PrimaryAddr)
 
-	ctx := context.WithValue(context.Background(), lib.TK, "testing-broadcast-game-message")
+	ctx := context.WithValue(context.Background(), util.Trace, "testing-broadcast-game-message")
 
 	var mapMu sync.Mutex
 	sends := make(map[string]time.Time)

@@ -1,7 +1,9 @@
 package chess
 
 import (
+	"errors"
 	"fmt"
+	"math/rand"
 	"slices"
 )
 
@@ -46,7 +48,7 @@ func MakeEmptyGame(initial ...Move) Game {
 func (g *Game) DeepCopy() Game {
 	g2 := Game{}
 
-	g2.Board = g.Board.DeepCopy()
+	g2.Board = g.Board
 	g2.WhiteMoves = append(g2.WhiteMoves, g.WhiteMoves...)
 	g2.BlackMoves = append(g2.BlackMoves, g.BlackMoves...)
 	g2.TakenWhitePieces = append(g2.TakenWhitePieces, g.TakenWhitePieces...)
@@ -72,8 +74,22 @@ func (g *Game) GetCurrMoves() []PieceMoves {
 	return g.GetTurnMoves(g.Board.IsWhiteTurn)
 }
 
+func (g *Game) ClearCurrentMoves() {
+	if g.Board.IsWhiteTurn {
+		g.WhiteMoves = g.WhiteMoves[:0]
+	} else {
+		g.BlackMoves = g.BlackMoves[:0]
+	}
+}
+
 func (g *Game) GetOppositeMoves() []PieceMoves {
 	return g.GetTurnMoves(!g.Board.IsWhiteTurn)
+}
+
+func (g *Game) MakeMoved(from, to Hex) Game {
+	g2 := g.DeepCopy()
+	g2.MakeMove(from, to)
+	return g2
 }
 
 func (g *Game) MakeMove(from, to Hex) PieceMove {
@@ -119,38 +135,34 @@ func (g *Game) InitPieceMoves() {
 
 	whiteKingHex := g.Board.FindKing(true)
 	blackKingHex := g.Board.FindKing(false)
-
-	// find the moves for both kings - excluding any attacking squares
-	whiteKingMoves := g.FindKingMoves(whiteKingHex)
-	blackKingMoves := g.FindKingMoves(blackKingHex)
 	kingHex := blackKingHex
 	if g.Board.IsWhiteTurn {
 		kingHex = whiteKingHex
 	}
 
-	// decide whether we will add the piece moves... are we in check?
-	// we don't need to check if the opposite move is in check... it should never be!
-	currMoves := g.GetCurrMoves()
-	oppMoves := g.GetOppositeMoves()
-	isAttacked := g.FindAttackTable(oppMoves)
+	// to decide whether we will add the piece moves, are we in check?
+	// we don't need to check if the opposite king is in check, it should never be!
+	isAttacked := g.FindAttackTable()
 	isCheck := isAttacked[kingHex.File][kingHex.Rank]
 
 	if isCheck {
 		// if the current king is in check, we cannot move any other pieces
 		// TODO: add support for maintaining all "blocking" moves
-		currMoves = currMoves[:0]
+		g.ClearCurrentMoves()
 	}
 
-	// now, we can add the king moves
-	g.WhiteMoves = append(g.WhiteMoves, whiteKingMoves)
-	g.BlackMoves = append(g.BlackMoves, blackKingMoves)
+	// find the moves for both kings - excluding any attacking squares
+	canMoveTo := func(hex Hex) bool {
+		return !isAttacked[kingHex.File][kingHex.Rank]
+	}
+	g.WhiteMoves = append(g.WhiteMoves, g.FindKingMovesFiltered(whiteKingHex, canMoveTo))
+	g.BlackMoves = append(g.BlackMoves, g.FindKingMovesFiltered(blackKingHex, canMoveTo))
 }
 
-func (g *Game) FindAttackTable(moves []PieceMoves) [Files][]bool {
-	var isAttacked [Files][]bool
-	for i := range isAttacked {
-		isAttacked[i] = make([]bool, RanksPerFile[i])
-	}
+func (g *Game) FindAttackTable() [Files][MaxRanks]bool {
+	moves := g.GetOppositeMoves()
+
+	var isAttacked [Files][MaxRanks]bool
 
 	for _, pm := range moves {
 		piece := g.Board.Pieces[pm.From.File][pm.From.Rank]
@@ -167,39 +179,15 @@ func (g *Game) FindAttackTable(moves []PieceMoves) [Files][]bool {
 }
 
 func (g *Game) CheckmateReached() bool {
-	pickPiece := func(cond bool, a, b Piece) Piece {
-		if cond {
-			return a
-		}
-		return b
-	}
-
-	isWhiteTurn := g.Board.IsWhiteTurn
-	kingHex := g.Board.FindKing(isWhiteTurn)
-	pieceMoves := g.GetTurnMoves(isWhiteTurn)
-	oppPieceMoves := g.GetTurnMoves(!isWhiteTurn)
-	kingMoves := pieceMoves[len(pieceMoves)-1] // the last element is always the king moves
-
-	// sanity check: the last piece is the king
-	kingPiece := g.Board.Pieces[kingMoves.From.File][kingMoves.From.Rank]
-	if kingPiece != pickPiece(isWhiteTurn, WhiteKing, BlackKing) {
-		panic("assertion error: expected last piece to be the king")
-	}
-
-	isAttacked := g.FindAttackTable(oppPieceMoves)
-	isChecked := isAttacked[kingHex.File][kingHex.Rank]
-	if !isChecked {
-		return false
-	}
-
-	// all king moves must be attacked
-	for _, move := range kingMoves.Moves {
-		if !isAttacked[move.File][move.Rank] {
-			return false
-		}
-	}
-
-	// TODO: support blocking moves and preventing taking defended attackers
+	//kingHex := g.Board.FindKing(g.Board.IsWhiteTurn)
+	//
+	//isAttacked := g.FindAttackTable()
+	//isChecked := isAttacked[kingHex.File][kingHex.Rank]
+	//if !isChecked {
+	//	return false
+	//}
+	//
+	//
 	return true
 }
 
@@ -232,28 +220,28 @@ func (g *Game) FindPieceMoves(isWhiteTurn bool) []PieceMoves {
 }
 
 func (g *Game) FindRookMoves(hex Hex) PieceMoves {
-	return PieceMoves{From: hex, Moves: g.FindMovesByTraveling(hex, RookOffsets)}
+	return PieceMoves{Piece: g.Board.Pieces[hex.File][hex.Rank], From: hex, Moves: g.FindMovesByTraveling(hex, RookOffsets)}
 }
 
 func (g *Game) FindBishopMoves(hex Hex) PieceMoves {
-	return PieceMoves{From: hex, Moves: g.FindMovesByTraveling(hex, BishopOffsets)}
+	return PieceMoves{Piece: g.Board.Pieces[hex.File][hex.Rank], From: hex, Moves: g.FindMovesByTraveling(hex, BishopOffsets)}
 }
 
 func (g *Game) FindQueenMoves(hex Hex) PieceMoves {
-	return PieceMoves{From: hex, Moves: g.FindMovesByTraveling(hex, KingOffsets)}
+	return PieceMoves{Piece: g.Board.Pieces[hex.File][hex.Rank], From: hex, Moves: g.FindMovesByTraveling(hex, KingOffsets)}
 }
 
 func (g *Game) FindKnightMoves(hex Hex) PieceMoves {
-	return PieceMoves{From: hex, Moves: g.FindOffsetMoves(hex, KnightOffsets)}
+	return PieceMoves{Piece: g.Board.Pieces[hex.File][hex.Rank], From: hex, Moves: g.FindOffsetMoves(hex, KnightOffsets)}
 }
 
 func (g *Game) FindKingMoves(hex Hex) PieceMoves {
 	// we want all moves, so nothing is attacking
-	return PieceMoves{From: hex, Moves: g.FindKingMovesFiltered(hex, func(h Hex) bool { return true })}
+	return g.FindKingMovesFiltered(hex, func(h Hex) bool { return true })
 }
 
-func (g *Game) FindKingMovesFiltered(hex Hex, isNotAttacked func(Hex) bool) []Hex {
-	return g.FindOffsetMovesFiltered(hex, KingOffsets, isNotAttacked)
+func (g *Game) FindKingMovesFiltered(hex Hex, canMoveTo func(Hex) bool) PieceMoves {
+	return PieceMoves{Piece: g.Board.Pieces[hex.File][hex.Rank], From: hex, Moves: g.FindOffsetMovesFiltered(hex, KingOffsets, canMoveTo)}
 }
 
 func (g *Game) FindPawnMovesWhite(hex Hex) PieceMoves {
@@ -301,7 +289,7 @@ func (g *Game) FindPawnMoves(hex Hex, isWhiteTurn bool) PieceMoves {
 		}
 	}
 
-	return PieceMoves{From: hex, Moves: moves}
+	return PieceMoves{Piece: g.Board.Pieces[hex.File][hex.Rank], From: hex, Moves: moves}
 }
 
 func (g *Game) FindMovesByTraveling(hex Hex, directions [][]Direction) []Hex {
@@ -372,10 +360,7 @@ func (g *Game) StringColor(isWhite bool) string {
 		kingMoves = g.WhiteMoves[len(g.WhiteMoves)-1]
 	}
 
-	var moveTable [Files][]rune
-	for i := range len(moveTable) {
-		moveTable[i] = make([]rune, RanksPerFile[i])
-	}
+	var moveTable [Files][MaxRanks]rune
 
 	for _, move := range kingMoves.Moves {
 		moveTable[move.File][move.Rank] = '_'
@@ -389,4 +374,42 @@ func (g *Game) StringColor(isWhite bool) string {
 	return g.Board.StringFunc(func(hex Hex) rune {
 		return moveTable[hex.File][hex.Rank]
 	})
+}
+
+func RandomMoveList(game Game, low int, hi int) ([]PieceMove, error) {
+	var moveList []PieceMove
+
+	// generates a random move list for mock data between length 35 and 45
+	for range rand.Intn(low) + (low + hi) {
+		game.InitPieceMoves()
+
+		var pmsList []PieceMoves
+		for _, pm := range game.GetCurrMoves() {
+			if len(pm.Moves) > 0 {
+				pmsList = append(pmsList, pm)
+			}
+		}
+		if len(pmsList) == 0 {
+			return nil, errors.New("reached checkmate or stalemate")
+		}
+
+		pms := pmsList[rand.Intn(len(pmsList))]
+		if len(pms.Moves) == 0 {
+			return nil, fmt.Errorf("expected at least one move, got none for game: %v", game)
+		}
+		pm := PieceMove{
+			Piece: game.Board.Pieces[pms.From.File][pms.From.Rank],
+			From:  pms.From,
+			To:    pms.Moves[rand.Intn(len(pms.Moves))],
+		}
+
+		if game.Board.Pieces[pm.To.File][pm.To.Rank].IsKing() {
+			panic("assertion error: should never be allowed to make a move to the king")
+		}
+
+		game.MakeMove(pm.From, pm.To)
+		moveList = append(moveList, pm)
+	}
+
+	return moveList, nil
 }

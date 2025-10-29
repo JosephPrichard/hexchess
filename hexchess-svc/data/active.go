@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/gomodule/redigo/redis"
-	"hexchess-svc/lib"
 	"log/slog"
 	"time"
 )
@@ -19,8 +18,7 @@ func GetActiveCount(ctx context.Context, conn redis.Conn, activeUsersZSet string
 func GetActiveCountWithExpiry(ctx context.Context, conn redis.Conn, activeUsersZSet string, expireBefore int64) (int64, error) {
 	count, err := redis.Int64(conn.Do("ZREMRANGEBYSCORE", activeUsersZSet, "-inf", expireBefore))
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to expire users", "expireBefore", expireBefore, "trace", ctx.Value(lib.TK))
-		return 0, err
+		return 0, fmt.Errorf("failed to expire users: %w", err)
 	}
 	if count > 0 {
 		slog.InfoContext(ctx, "expired users with keys", "count", count)
@@ -38,8 +36,7 @@ func RetainActiveUser(ctx context.Context, rdb Redis, id string) error {
 	defer conn.Close()
 
 	if _, err := conn.Do("ZADD", rdb.ActiveUsersZSet, "NX", float64(time.Now().UnixMilli()), id); err != nil {
-		slog.ErrorContext(ctx, "failed to add user", "id", id, "err", err)
-		return err
+		return fmt.Errorf("failed to add user %s: %w", id, err)
 	}
 	slog.InfoContext(ctx, "retained active user", "id", id)
 	return nil
@@ -55,8 +52,7 @@ func AddActiveUserOn(ctx context.Context, rdb Redis, id string, expire time.Time
 	defer conn.Close()
 
 	if _, err := conn.Do("ZADD", rdb.ActiveUsersZSet, "NX", float64(expire.UnixMilli()), id); err != nil {
-		slog.ErrorContext(ctx, "failed to add user", "id", id, "err", err)
-		return 0, err
+		return 0, fmt.Errorf("failed to add user: %v: %w", id, err)
 	}
 	slog.InfoContext(ctx, "added active user", "id", id)
 	return GetActiveCountWithExpiry(ctx, conn, rdb.ActiveUsersZSet, expireBefore)
@@ -67,8 +63,7 @@ func RemoveActiveUser(ctx context.Context, rdb Redis, id string) (int64, error) 
 	defer conn.Close()
 
 	if _, err := conn.Do("ZREM", rdb.ActiveUsersZSet, id); err != nil {
-		slog.ErrorContext(ctx, "failed to remove user", "err", err)
-		return 0, err
+		return 0, fmt.Errorf("failed to remove user: %v: %w", id, err)
 	}
 	slog.InfoContext(ctx, "removed active user", "id", id)
 	return GetActiveCount(ctx, conn, rdb.ActiveUsersZSet)

@@ -7,7 +7,7 @@ import (
 	"hexchess-svc/cmd"
 	"hexchess-svc/data"
 	"hexchess-svc/db"
-	"hexchess-svc/lib"
+	"hexchess-svc/util"
 	"log"
 	"log/slog"
 	"os"
@@ -17,6 +17,7 @@ import (
 func main() {
 	start := time.Now()
 
+	util.InitLoggers(nil)
 	cmd.InitEnv()
 
 	dbPass := os.Getenv("DB_PASSWORD")
@@ -26,7 +27,7 @@ func main() {
 	redisHost := os.Getenv("REDIS_HOST")
 	redisPort := os.Getenv("REDIS_PORT")
 
-	ctx := context.WithValue(context.Background(), lib.TK, "sync-leaderboard-script")
+	ctx := context.WithValue(context.Background(), util.Trace, "sync-leaderboard-script")
 
 	slog.InfoContext(ctx, "connecting to postgres db", "user", dbUser, "name", dbName, "port", dbPort)
 	pool, err := pgxpool.New(ctx, fmt.Sprintf("user=%s dbname=%s password=%s port=%s", dbUser, dbName, dbPass, dbPort))
@@ -38,7 +39,7 @@ func main() {
 
 	redisAddr := redisHost + ":" + redisPort
 	slog.InfoContext(ctx, "connecting to redis db", "host", redisHost, "port", redisPort)
-	rdb := data.MakeRdb(redisAddr)
+	rdb := data.MakeRdb(redisAddr, "")
 	defer rdb.Close()
 
 	stores := data.Stores{PgDB: data.MakeDbClient(q, pool), Rdb: rdb}

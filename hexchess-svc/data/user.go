@@ -13,7 +13,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/sync/errgroup"
 	"hexchess-svc/db"
-	"hexchess-svc/lib"
+	"hexchess-svc/util"
 	"log/slog"
 	"math"
 	"sort"
@@ -172,7 +172,7 @@ func BatchInsertUsers(ctx context.Context, q *db.Queries, insts []UserInst) ([]U
 		eg.Go(func() error {
 			hash, err := hashPassword(inst.Password)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to hash password for inst %d: %w", i, err)
 			}
 			batch := mapInsertUserParams(inst, hash)
 			batches[i] = db.BatchInsertUserParams(batch)
@@ -180,7 +180,7 @@ func BatchInsertUsers(ctx context.Context, q *db.Queries, insts []UserInst) ([]U
 		})
 	}
 	if err := eg.Wait(); err != nil {
-		slog.ErrorContext(ctx, "failed to batch insert users", "insts", insts, "err", err, "trace", ctx.Value(lib.TK))
+		slog.ErrorContext(ctx, "failed to batch insert users", "insts", insts, "err", err)
 		return nil, err
 	}
 
@@ -195,7 +195,7 @@ func BatchInsertUsers(ctx context.Context, q *db.Queries, insts []UserInst) ([]U
 		}
 	})
 
-	lib.DynLog(ctx, "batch inserted user", errors.Join(errs...), "insts", insts, "users", users, "trace", ctx.Value(lib.TK))
+	util.DynLog(ctx, "batch inserted user", errors.Join(errs...), "insts", insts, "users", users)
 	return users, nil
 }
 
@@ -248,17 +248,17 @@ func UpdateUser(ctx context.Context, q *db.Queries, id int64, updt UpdtUserParam
 	})
 
 	user := mapUserFromRow(db.SelectUserByIDRow(row))
-	lib.DynLog(ctx, "updated user", err, "user", user, "trace", ctx.Value(lib.TK))
+	util.DynLog(ctx, "updated user", err, "user", user)
 	return user, err
 }
 
 func UpdateUserPassword(ctx context.Context, q *db.Queries, id int64, newPassword string) error {
 	hash, err := hashPassword(newPassword)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to hash password for user %d: %w", id, err)
 	}
 	err = q.UpdatePassword(ctx, db.UpdatePasswordParams{ID: id, Password: hash.HashedPassword, Salt: hash.Salt})
-	lib.DynLog(ctx, "updated password", err, "id", id, "trace", ctx.Value(lib.TK))
+	util.DynLog(ctx, "updated password", err, "id", id)
 	return err
 }
 

@@ -6,9 +6,8 @@ import (
 	"github.com/google/uuid"
 	"hexchess-svc/chess"
 	"hexchess-svc/data"
-	"hexchess-svc/lib"
+	"hexchess-svc/util"
 	"net/http"
-	"strings"
 )
 
 type ServerState struct {
@@ -40,7 +39,7 @@ func withTrace(next http.Handler) http.Handler {
 		if trace == "" {
 			trace = uuid.NewString()
 		}
-		r = r.WithContext(context.WithValue(r.Context(), lib.TK, trace))
+		r = r.WithContext(context.WithValue(r.Context(), util.Trace, trace))
 		next.ServeHTTP(w, r)
 	})
 }
@@ -65,17 +64,14 @@ func withCors(next http.Handler, allowedOrigins string) http.Handler {
 
 func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 	mux := http.NewServeMux()
-	var sb strings.Builder
 
-	sb.WriteString("starting rest server...\n")
+	fmt.Fprintf(util.LogWriter, "starting rest server...\n")
 
 	handle := func(method string, pattern string, handler http.Handler) {
 		handler = withTrace(withCors(handler, allowedOrigins))
 		mux.Handle(method+" "+pattern, handler)
 		mux.Handle("OPTIONS "+pattern, handler)
-		sb.WriteString("\t")
-		sb.WriteString(pattern)
-		sb.WriteString("\n")
+		fmt.Fprintf(util.LogWriter, "\t%s\n", pattern)
 	}
 
 	handle("POST", "/api/register", makeRestHandler(state, HandleRegister))
@@ -106,7 +102,5 @@ func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 	handle("GET", "/api/countries", makeJsonHandler(state.CountryList))
 
 	handle("GET", "/api/ws/game", makeWsHandler(state, HandleGameplayWs))
-
-	fmt.Fprintf(lib.LogFile, "%s", sb.String())
 	return mux
 }

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -34,7 +35,7 @@ func makeSseHandler(state ServerState, h SseHandler) http.Handler {
 	})
 }
 
-func sendEvent(w http.ResponseWriter, key string, value string) {
+func writeEvent(w http.ResponseWriter, key string, value string) {
 	_, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", key, value)
 	if err != nil {
 		slog.ErrorContext(context.Background(), "failed to write to sse", "err", err)
@@ -45,6 +46,18 @@ const MetaEvent = "meta"
 const UserChallengeEvent = "user-challenge"
 const GamesCountEvent = "gameCountEvents"
 const ActiveCountEvent = "userCountEvents"
+
+func shutdownActiveUser(ctx context.Context, state ServerState, sseID string) {
+	// a user will get expired, but remove it and broadcast the new count to keep all users up to date
+	ac, err := data.RemoveActiveUser(ctx, state.Rdb, sseID)
+	if err == nil {
+		if err := data.BroadcastActiveCount(ctx, state.Rdb, ac); err != nil {
+			slog.ErrorContext(ctx, "failed to broadcast active count", "sseID", sseID, "err", err)
+		}
+	} else {
+		slog.ErrorContext(ctx, "failed to remove active user", "sseID", sseID, "err", err)
+	}
+}
 
 func HandleCountEvents(w http.ResponseWriter, r *http.Request, f http.Flusher, state ServerState) error {
 	ctx := r.Context()
@@ -64,57 +77,47 @@ func HandleCountEvents(w http.ResponseWriter, r *http.Request, f http.Flusher, s
 		return err
 	}
 
-	sendEvent(w, MetaEvent, "Connected")
-	sendEvent(w, ActiveCountEvent, strconv.FormatInt(ac, 10))
-	sendEvent(w, GamesCountEvent, strconv.FormatInt(sc, 10))
+	writeEvent(w, MetaEvent, "Connected")
+	writeEvent(w, ActiveCountEvent, strconv.FormatInt(ac, 10))
+	writeEvent(w, GamesCountEvent, strconv.FormatInt(sc, 10))
 	f.Flush()
 
 	activeChan := make(chan []byte)
 	state.ActiveCntCaster.Subscribe(activeChan)
 	defer state.ActiveCntCaster.Unsubscribe(activeChan)
+
 	gamesChan := make(chan []byte)
 	state.GamesCntCaster.Subscribe(gamesChan)
 	defer state.GamesCntCaster.Unsubscribe(gamesChan)
 
-	type event struct {
-		key   string
-		value []byte
+	var sseMu sync.Mutex
+	writeEvent := func(key string, value string) {
+		sseMu.Lock()
+		defer sseMu.Unlock()
+		writeEvent(w, key, value)
+		f.Flush()
 	}
-
-	eventChan := make(chan event)
 
 	go func() {
 		for msg := range activeChan {
-			eventChan <- event{key: ActiveCountEvent, value: msg}
+			writeEvent(ActiveCountEvent, string(msg))
 		}
 	}()
 	go func() {
 		for msg := range gamesChan {
-			eventChan <- event{key: GamesCountEvent, value: msg}
+			writeEvent(GamesCountEvent, string(msg))
 		}
 	}()
 	for {
 		pingTicker := time.NewTimer(time.Minute)
 		keepAliveTicker := time.NewTicker(time.Second * 15)
 		select {
-		case m := <-eventChan:
-			sendEvent(w, m.key, string(m.value))
-			f.Flush()
 		case <-clientGone:
-			// a user will get expired, but remove it and broadcast the new count to keep all users up to date
-			ac, err := data.RemoveActiveUser(ctx, state.Rdb, sseID)
-			if err == nil {
-				if err := data.BroadcastActiveCount(ctx, state.Rdb, ac); err != nil {
-					slog.ErrorContext(ctx, "failed to broadcast active count", "sseID", sseID, "err", err)
-				}
-			} else {
-				slog.ErrorContext(ctx, "failed to remove active user", "sseID", sseID, "err", err)
-			}
+			shutdownActiveUser(ctx, state, sseID)
 			slog.InfoContext(ctx, "finishing handle count events sse", "sseID", sseID)
 			return nil
 		case <-keepAliveTicker.C:
-			sendEvent(w, MetaEvent, "KeepAlive")
-			f.Flush()
+			writeEvent(MetaEvent, "KeepAlive")
 		case <-pingTicker.C:
 			if err := data.RetainActiveUser(ctx, state.Rdb, sseID); err != nil {
 				slog.ErrorContext(ctx, "failed to retain active user", "sseID", sseID, "err", err)
@@ -134,7 +137,7 @@ func HandleUserEvents(w http.ResponseWriter, r *http.Request, f http.Flusher, st
 	}
 	strID := strconv.Itoa(int(player.ID))
 
-	sendEvent(w, MetaEvent, "Connected")
+	writeEvent(w, MetaEvent, "Connected")
 	f.Flush()
 
 	usersChan := make(chan []byte)
@@ -144,14 +147,14 @@ func HandleUserEvents(w http.ResponseWriter, r *http.Request, f http.Flusher, st
 		keepAliveTicker := time.NewTicker(time.Second * 15)
 		select {
 		case m := <-usersChan:
-			sendEvent(w, UserChallengeEvent, string(m))
+			writeEvent(w, UserChallengeEvent, string(m))
 			f.Flush()
 		case <-clientGone:
 			state.UsersCaster.Unsubscribe(strID, usersChan)
 			slog.InfoContext(ctx, "finishing handle user events sse", "sseID", sseID)
 			return nil
 		case <-keepAliveTicker.C:
-			sendEvent(w, MetaEvent, "KeepAlive")
+			writeEvent(w, MetaEvent, "KeepAlive")
 			f.Flush()
 		}
 	}

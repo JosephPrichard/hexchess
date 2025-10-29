@@ -20,9 +20,10 @@ message PieceMove {
 }
 
 message PieceMoves {
-  int32 fromFile = 1;
-  int32 fromRank = 2;
-  repeated int64 moves = 3;
+  int32 piece = 1;
+  int32 fromFile = 2;
+  int32 fromRank = 3;
+  repeated int64 moves = 4;
 }
 
 message BoardFile {

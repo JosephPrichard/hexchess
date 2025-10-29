@@ -6,25 +6,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"hexchess-svc/chess"
 	"hexchess-svc/data"
-	"hexchess-svc/lib"
+	"hexchess-svc/util"
 	"testing"
 	"time"
 )
 
 func assertStateRdb(t *testing.T, rdb data.Redis, expState data.ChessState) {
-	ctx := context.WithValue(context.Background(), lib.TK, "assert-chess-states")
+	ctx := context.WithValue(context.Background(), util.Trace, "assert-chess-states")
 	actualState, err := data.GetChessState(ctx, rdb, expState.ID)
 	if err != nil {
 		t.Fatalf("failed to get chess for assert: %v", err)
 	}
-	lib.AssertEqualIgnoring(t, expState, actualState, data.ChessMetaCmpOpts)
+	util.AssertEqualIgnoring(t, expState, actualState, data.ChessMetaCmpOpts)
 }
 
 func TestJoinGame_JoinWhite(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), lib.TK, "testing-join-game")
+	ctx := context.WithValue(context.Background(), util.Trace, "testing-join-game")
 
 	gameID := "test123"
 	inState := data.MakeState(gameID, data.RealTime)
@@ -41,7 +41,7 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	expState.WhitePlayer = &player
 
 	assert.NoError(t, err)
-	lib.AssertEqualIgnoring(t, expState, updated, data.ChessMetaCmpOpts)
+	util.AssertEqualIgnoring(t, expState, updated, data.ChessMetaCmpOpts)
 	assertStateRdb(t, stores.Rdb, updated)
 }
 
@@ -49,7 +49,7 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), lib.TK, "testing-join-game-both-players")
+	ctx := context.WithValue(context.Background(), util.Trace, "testing-join-game-both-players")
 
 	gameID := "test123"
 	inState := data.MakeState(gameID, data.RealTime)
@@ -63,7 +63,7 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	result, err := JoinGame(ctx, stores, gameID, data.PlayerState{ID: 3, Name: "test"})
 
 	assert.NoError(t, err)
-	lib.AssertEqualIgnoring(t, inState, result, data.ChessMetaCmpOpts)
+	util.AssertEqualIgnoring(t, inState, result, data.ChessMetaCmpOpts)
 	assertStateRdb(t, stores.Rdb, inState)
 }
 
@@ -94,7 +94,7 @@ func TestMakeMove(t *testing.T) {
 		SetPiece("f3", chess.BlackRook).
 		SetPiece("f9", chess.BlackKing)
 
-	ctx := context.WithValue(context.Background(), lib.TK, "testing-make-move")
+	ctx := context.WithValue(context.Background(), util.Trace, "testing-make-move")
 
 	for _, state := range []data.ChessState{s1, s2} {
 		if _, err := data.SetChessState(ctx, stores.Rdb, state.ID, state); err != nil {
@@ -146,7 +146,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	stores, closer := data.BeforeStoresTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), lib.TK, "testing-forfeit")
+	ctx := context.WithValue(context.Background(), util.Trace, "testing-forfeit")
 
 	gameID := "test123"
 	inState := data.MakeState(gameID, data.RealTime)

@@ -3,7 +3,7 @@ package data
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
-	"hexchess-svc/lib"
+	"hexchess-svc/util"
 	"testing"
 	"time"
 )
@@ -12,15 +12,15 @@ func TestChallengeExpiration(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), lib.TK, "testing-expiration")
+	ctx := context.WithValue(context.Background(), util.Trace, "testing-expiration")
 
-	challenges, err := GetChallengesByParticipantOn(ctx, pgDB.Q, int64(5), -1, time.Unix(10000, 0))
+	challenges, err := GetChallengesByParticipantOn(ctx, pgDB.Q, ChallengeKey{int64(5), -1}, time.Unix(10000, 0))
 	assert.NoError(t, err)
 
 	assert.NoError(t, DeleteExpiredChallengesOn(ctx, pgDB.Q, 5, time.Unix(10000, 0)))
 
 	// get all challenges to prove that the deletion method worked.
-	challengesDel, err := GetChallengesByParticipantOn(ctx, pgDB.Q, int64(5), -1, time.Unix(0, 0))
+	challengesDel, err := GetChallengesByParticipantOn(ctx, pgDB.Q, ChallengeKey{int64(5), -1}, time.Unix(0, 0))
 	assert.NoError(t, err)
 
 	for _, ca := range [][]ChallengeEntity{challenges, challengesDel} {
@@ -65,17 +65,17 @@ func TestChallengeDeletion(t *testing.T) {
 	pgDB, closer := BeforeDbTests(t)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), lib.TK, "testing-delete")
+	ctx := context.WithValue(context.Background(), util.Trace, "testing-delete")
 
 	testUser := TestUserEntities[1] // ID: 2 will have no challenges at this point. if this changes, the test may break.
 
 	_, err := InsertChallengeRet(ctx, pgDB.Q, ChallengeInst{testUser.ID, 3, Unlimited, Random, time.Time{}})
 	assert.NoError(t, err)
 
-	result, err := DeleteChallenge(ctx, pgDB.Q, testUser.ID, 3)
+	result, err := DeleteChallenge(ctx, pgDB.Q, ChallengeKey{testUser.ID, 3})
 	assert.NoError(t, err)
 
-	challenges, err := GetChallengesByParticipant(ctx, pgDB.Q, testUser.ID, -1, ExpireChallengeThreshold)
+	challenges, err := GetChallengesByParticipant(ctx, pgDB.Q, ChallengeKey{testUser.ID, -1}, ExpireChallengeThreshold)
 	assert.NoError(t, err)
 
 	assert.Empty(t, challenges)

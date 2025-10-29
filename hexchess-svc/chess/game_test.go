@@ -6,27 +6,27 @@ import (
 	"testing"
 )
 
-func TestHexagonToString(t *testing.T) {
+func TestHexagon_String(t *testing.T) {
 	assert.Equal(t, "f9", Hex{File: 5, Rank: 8}.String())
 	assert.Equal(t, "g10", Hex{File: 6, Rank: 9}.String())
 	assert.Equal(t, "e5", Hex{File: 4, Rank: 4}.String())
 	assert.Equal(t, "g1", Hex{File: 6, Rank: 0}.String())
 }
 
-func TestHexagonFromString(t *testing.T) {
+func TestParseHexagon(t *testing.T) {
 	assert.Equal(t, Hex{File: 5, Rank: 8}, ParseHexagonValid("f9"))
 	assert.Equal(t, Hex{File: 6, Rank: 9}, ParseHexagonValid("g10"))
 	assert.Equal(t, Hex{File: 4, Rank: 4}, ParseHexagonValid("e5"))
 }
 
-func TestGetSetPieces(t *testing.T) {
+func TestGame_GetSetPieces(t *testing.T) {
 	board := InitialBoard()
-	board.SetPiece("f3", WhiteBishop)
-	piece := board.GetPiece("f3")
+	board.SetPieceNot("f3", WhiteBishop)
+	piece := board.GetPieceNot("f3")
 	assert.Equal(t, WhiteBishop, piece)
 }
 
-func TestDetermineIsCheckmate(t *testing.T) {
+func TestGame_DetermineIsCheckmate(t *testing.T) {
 	game1 := MakeEmptyGame()
 	game1.
 		SetPiece("f6", WhiteKing).
@@ -61,7 +61,7 @@ func assertMoves(t *testing.T, actual []Hex, expected ...string) {
 	assert.ElementsMatch(t, expectedMoves, actual)
 }
 
-func TestFindMoves(t *testing.T) {
+func TestGame_FindMoves(t *testing.T) {
 	for _, test := range []struct {
 		name     string
 		game     Game

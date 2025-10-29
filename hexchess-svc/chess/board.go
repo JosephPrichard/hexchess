@@ -92,6 +92,7 @@ type Hex struct {
 }
 
 type PieceMoves struct {
+	Piece Piece `json:"piece"`
 	From  Hex   `json:"from"`
 	Moves []Hex `json:"moves"`
 }
@@ -104,7 +105,7 @@ type PieceMove struct {
 
 type Board struct {
 	IsWhiteTurn bool
-	Pieces      [Files][]Piece
+	Pieces      [Files][MaxRanks]Piece // over allocated to keep the array packed within the struct
 }
 
 func ParseHexagon(notation string) (Hex, error) {
@@ -270,97 +271,98 @@ func (p Piece) IsKing() bool {
 
 func MakeBoard(isWhiteTurn bool) Board {
 	b := Board{IsWhiteTurn: isWhiteTurn}
-	for i := range b.Pieces {
-		b.Pieces[i] = make([]Piece, RanksPerFile[i])
-	}
+	//for i := range b.Pieces {
+	//	b.Pieces[i] = make([]Piece, RanksPerFile[i])
+	//}
 	return b
 }
 
 func InitialBoard() Board {
 	board := MakeBoard(true)
 
-	board.SetPiece("b1", WhitePawn)
-	board.SetPiece("c2", WhitePawn)
-	board.SetPiece("d3", WhitePawn)
-	board.SetPiece("e4", WhitePawn)
-	board.SetPiece("f5", WhitePawn)
-	board.SetPiece("g4", WhitePawn)
-	board.SetPiece("h3", WhitePawn)
-	board.SetPiece("i2", WhitePawn)
-	board.SetPiece("j1", WhitePawn)
+	board.SetPieceNot("b1", WhitePawn)
+	board.SetPieceNot("c2", WhitePawn)
+	board.SetPieceNot("d3", WhitePawn)
+	board.SetPieceNot("e4", WhitePawn)
+	board.SetPieceNot("f5", WhitePawn)
+	board.SetPieceNot("g4", WhitePawn)
+	board.SetPieceNot("h3", WhitePawn)
+	board.SetPieceNot("i2", WhitePawn)
+	board.SetPieceNot("j1", WhitePawn)
 
-	board.SetPiece("c1", WhiteRook)
-	board.SetPiece("d1", WhiteKnight)
-	board.SetPiece("e1", WhiteQueen)
-	board.SetPiece("f1", WhiteBishop)
-	board.SetPiece("f2", WhiteBishop)
-	board.SetPiece("f3", WhiteBishop)
-	board.SetPiece("g1", WhiteKing)
-	board.SetPiece("h1", WhiteKnight)
-	board.SetPiece("i1", WhiteRook)
+	board.SetPieceNot("c1", WhiteRook)
+	board.SetPieceNot("d1", WhiteKnight)
+	board.SetPieceNot("e1", WhiteQueen)
+	board.SetPieceNot("f1", WhiteBishop)
+	board.SetPieceNot("f2", WhiteBishop)
+	board.SetPieceNot("f3", WhiteBishop)
+	board.SetPieceNot("g1", WhiteKing)
+	board.SetPieceNot("h1", WhiteKnight)
+	board.SetPieceNot("i1", WhiteRook)
 
-	board.SetPiece("b7", BlackPawn)
-	board.SetPiece("c7", BlackPawn)
-	board.SetPiece("d7", BlackPawn)
-	board.SetPiece("e7", BlackPawn)
-	board.SetPiece("f7", BlackPawn)
-	board.SetPiece("g7", BlackPawn)
-	board.SetPiece("h7", BlackPawn)
-	board.SetPiece("i7", BlackPawn)
-	board.SetPiece("j7", BlackPawn)
+	board.SetPieceNot("b7", BlackPawn)
+	board.SetPieceNot("c7", BlackPawn)
+	board.SetPieceNot("d7", BlackPawn)
+	board.SetPieceNot("e7", BlackPawn)
+	board.SetPieceNot("f7", BlackPawn)
+	board.SetPieceNot("g7", BlackPawn)
+	board.SetPieceNot("h7", BlackPawn)
+	board.SetPieceNot("i7", BlackPawn)
+	board.SetPieceNot("j7", BlackPawn)
 
-	board.SetPiece("c8", BlackRook)
-	board.SetPiece("d9", BlackKnight)
-	board.SetPiece("e10", BlackQueen)
-	board.SetPiece("f11", BlackBishop)
-	board.SetPiece("f10", BlackBishop)
-	board.SetPiece("f9", BlackBishop)
-	board.SetPiece("g10", BlackKing)
-	board.SetPiece("h9", BlackKnight)
-	board.SetPiece("i8", BlackRook)
+	board.SetPieceNot("c8", BlackRook)
+	board.SetPieceNot("d9", BlackKnight)
+	board.SetPieceNot("e10", BlackQueen)
+	board.SetPieceNot("f11", BlackBishop)
+	board.SetPieceNot("f10", BlackBishop)
+	board.SetPieceNot("f9", BlackBishop)
+	board.SetPieceNot("g10", BlackKing)
+	board.SetPieceNot("h9", BlackKnight)
+	board.SetPieceNot("i8", BlackRook)
 
 	return board
 }
 
-func (b *Board) DeepCopy() Board {
-	board := MakeBoard(b.IsWhiteTurn)
-	for i := range b.Pieces {
-		for j := range b.Pieces[i] {
-			board.Pieces[i][j] = b.Pieces[i][j]
-		}
-	}
-	return board
-}
+//func (b *Board) DeepCopy() Board {
+//	board := MakeBoard(b.IsWhiteTurn)
+//	for i := range b.Pieces {
+//		for j := range b.Pieces[i] {
+//			board.Pieces[i][j] = b.Pieces[i][j]
+//		}
+//	}
+//	return board
+//}
 
-func (b *Board) SafeSetPiece(file, rank int, piece Piece) error {
+func (b *Board) SetPiece(file, rank int, piece Piece) error {
 	if file >= len(b.Pieces) {
 		return fmt.Errorf("file out of range: %d", file)
 	}
-	fileArr := b.Pieces[file]
-	if rank >= len(fileArr) {
+	fileArr := &b.Pieces[file]
+	if rank >= RanksPerFile[file] {
 		return fmt.Errorf("rank out of range: %d for file: %d", rank, file)
 	}
 	fileArr[rank] = piece
 	return nil
 }
 
-func (b *Board) SafeGetPiece(file, rank int) (Piece, error) {
+func (b *Board) GetPiece(file, rank int) (Piece, error) {
 	if file >= len(b.Pieces) {
 		return 0, fmt.Errorf("file out of range: %d", file)
 	}
-	fileArr := b.Pieces[file]
-	if rank >= len(fileArr) {
+	fileArr := &b.Pieces[file]
+	if rank >= RanksPerFile[file] {
 		return 0, fmt.Errorf("rank out of range: %d for file: %d", rank, file)
 	}
 	return fileArr[rank], nil
 }
 
-func (b *Board) SetPiece(str string, p Piece) {
+// SetPieceNot GetPieceNot set piece notation, get piece notation
+func (b *Board) SetPieceNot(str string, p Piece) {
 	hex := ParseHexagonValid(str)
 	b.Pieces[hex.File][hex.Rank] = p
 }
 
-func (b *Board) GetPiece(str string) Piece {
+func (b *Board) GetPieceNot(str string) Piece {
 	hex := ParseHexagonValid(str)
 	return b.Pieces[hex.File][hex.Rank]
 }
@@ -380,7 +382,7 @@ func (b *Board) InBounds(file, rank int) bool {
 	if file < 0 || file >= Files || rank < 0 {
 		return false
 	}
-	return rank < len(b.Pieces[file])
+	return rank < RanksPerFile[file]
 }
 
 func (b *Board) InBoundsHex(hex Hex) bool {

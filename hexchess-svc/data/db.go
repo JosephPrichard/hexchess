@@ -70,16 +70,19 @@ func MakeRdb(primaryAddr string, pubsubAddr string) Redis {
 			return c, err
 		},
 	}
-	pubsub := &redis.Pool{
-		MaxIdle:     3,
-		IdleTimeout: 240 * time.Second,
-		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", pubsubAddr)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		},
+	var pubsub *redis.Pool
+	if pubsubAddr != "" {
+		pubsub = &redis.Pool{
+			MaxIdle:     3,
+			IdleTimeout: 240 * time.Second,
+			Dial: func() (redis.Conn, error) {
+				c, err := redis.Dial("tcp", pubsubAddr)
+				if err != nil {
+					return nil, err
+				}
+				return c, err
+			},
+		}
 	}
 	return Redis{
 		Primary:         primary,

@@ -361,7 +361,7 @@ func HandleUpdateChallenge(w http.ResponseWriter, r *http.Request, state ServerS
 		return ErrHttpUpdateChallenge
 	}
 
-	dr, err := data.DeleteChallenge(ctx, state.Q, body.ChallengerID, body.ChallengeeID)
+	dr, err := data.DeleteChallenge(ctx, state.Q, data.ChallengeKey{ChallengerID: body.ChallengerID, ChallengeeID: body.ChallengeeID})
 	if errors.Is(err, data.ErrChallengeNotFound) {
 		return ErrHttpNotFoundChallenge
 	}
@@ -660,9 +660,9 @@ func HandleGetChallenges(w http.ResponseWriter, r *http.Request, state ServerSta
 	var challengeList []data.ChallengeEntity
 	switch participants {
 	case "sent":
-		challengeList, err = data.GetChallengesByParticipant(ctx, state.Q, player.ID, -1, data.ExpireChallengeThreshold)
+		challengeList, err = data.GetChallengesByParticipant(ctx, state.Q, data.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1}, data.ExpireChallengeThreshold)
 	case "received":
-		challengeList, err = data.GetChallengesByParticipant(ctx, state.Q, -1, player.ID, data.ExpireChallengeThreshold)
+		challengeList, err = data.GetChallengesByParticipant(ctx, state.Q, data.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID}, data.ExpireChallengeThreshold)
 	default:
 		return ErrHttpInvalidRequest
 	}
@@ -696,10 +696,10 @@ func HandleGetChessRoomList(w http.ResponseWriter, r *http.Request, state Server
 
 	ctx := r.Context()
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
-	hasSession := err != data.ErrSessionNotFound
-	if err != nil && hasSession {
+	if err != nil && err != data.ErrSessionNotFound {
 		return fmt.Errorf("failed to get session player: %w", err)
 	}
+	hasSession := err != data.ErrSessionNotFound
 
 	chessList, err := data.GetAllChessMetas(ctx, state.Rdb, page, count)
 	if err != nil {

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"hexchess-svc/data"
-	"hexchess-svc/lib"
+	"hexchess-svc/util"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -60,7 +60,7 @@ func TestHandleCountEvents(t *testing.T) {
 
 	errChan := make(chan error)
 	go func() {
-		ctx := context.WithValue(context.Background(), lib.TK, "broadcast-counts")
+		ctx := context.WithValue(context.Background(), util.Trace, "broadcast-counts")
 		errChan <- errors.Join(nil,
 			data.BroadcastMessage(ctx, stores.Rdb, data.ActiveCountChan, strconv.AppendInt(nil, 2, 10)),
 			data.BroadcastMessage(ctx, stores.Rdb, data.GamesCountChan, strconv.AppendInt(nil, 1, 10)))
@@ -102,7 +102,7 @@ func TestHandleUserEvents(t *testing.T) {
 
 	errChan := make(chan error)
 	go func() {
-		ctx := context.WithValue(context.Background(), lib.TK, "broadcast-user-events")
+		ctx := context.WithValue(context.Background(), util.Trace, "broadcast-user-events")
 		errChan <- errors.Join(nil,
 			data.BroadcastChallenge(ctx, stores.Rdb, 1, data.ChallengeEntity{ChallengerID: 1}),
 			data.BroadcastChallenge(ctx, stores.Rdb, 2, data.ChallengeEntity{ChallengerID: 2}),

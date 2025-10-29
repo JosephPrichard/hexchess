@@ -51,7 +51,6 @@ func SetChessState(ctx context.Context, rdb Redis, id string, state ChessState) 
 }
 
 func SetChessStateAt(ctx context.Context, rdb Redis, id string, state ChessState, touch time.Time) (ChessState, error) {
-
 	state.Touch = touch
 	touchSecs := float64(state.Touch.Unix())
 	fullID := "game:" + id
@@ -88,7 +87,6 @@ func ExpireChessStates(ctx context.Context, conn redis.Conn, zSetName string) er
 }
 
 func ExpireChessStatesBefore(ctx context.Context, conn redis.Conn, zSetName string, expireBefore time.Time) error {
-
 	fail := func(str string, err error) error {
 		err = fmt.Errorf("%s: %w", str, err)
 		slog.ErrorContext(ctx, "failed to expire chess state", "zSetName", zSetName, "err", err)

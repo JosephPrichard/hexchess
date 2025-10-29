@@ -5,8 +5,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"hexchess-svc/data"
-	"hexchess-svc/lib"
 	"hexchess-svc/pb"
+	"hexchess-svc/util"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -119,6 +119,6 @@ func TestHandleGameplayWs(t *testing.T) {
 			}},
 		},
 	}
-	lib.AssertEqualIgnoring(t, expected1, outputs1, protocmp.Transform(), protocmp.IgnoreFields(&pb.InitOutput{}, "state", "self"))
-	lib.AssertEqualIgnoring(t, expected2, outputs2, protocmp.Transform())
+	util.AssertEqualIgnoring(t, expected1, outputs1, protocmp.Transform(), protocmp.IgnoreFields(&pb.InitOutput{}, "state", "self"))
+	util.AssertEqualIgnoring(t, expected2, outputs2, protocmp.Transform())
 }

@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"hexchess-svc/lib"
+	"hexchess-svc/util"
 	"testing"
 	"time"
 )
@@ -17,7 +17,7 @@ func TestSetThenGetState(t *testing.T) {
 	id2 := "testing-id2-" + uuid.NewString()
 
 	state1 := MakeState(id1, RealTime)
-	ctx := context.WithValue(context.Background(), lib.TK, "testing-set-then-get")
+	ctx := context.WithValue(context.Background(), util.Trace, "testing-set-then-get")
 
 	_, err := SetChessState(ctx, rdb, id1, state1)
 	assert.NoError(t, err)
@@ -25,7 +25,7 @@ func TestSetThenGetState(t *testing.T) {
 	outState1, err := GetChessState(ctx, rdb, id1)
 	assert.NoError(t, err)
 
-	lib.AssertEqualIgnoring(t, state1, outState1, ChessMetaCmpOpts)
+	util.AssertEqualIgnoring(t, state1, outState1, ChessMetaCmpOpts)
 
 	_, err = GetChessState(ctx, rdb, id2)
 	assert.Error(t, ErrNoChessState, err)
@@ -48,7 +48,7 @@ func TestSetThenGetUserViews(t *testing.T) {
 	state2.BlackPlayer = &PlayerState{ID: 1}
 	state3.BlackPlayer = &PlayerState{ID: 1}
 
-	ctx := context.WithValue(context.Background(), lib.TK, "testing-set-then-get-user")
+	ctx := context.WithValue(context.Background(), util.Trace, "testing-set-then-get-user")
 	now := time.Now()
 
 	_, err := SetChessStateAt(ctx, rdb, id1, state1, now.Add(-100))
