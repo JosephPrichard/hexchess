@@ -2,7 +2,7 @@ package web
 
 import (
 	"encoding/json"
-	"log"
+	"hexchess-svc/util"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -14,19 +14,23 @@ type ServiceView struct {
 }
 
 var SuccessJSON []byte
-var ErrorJSON []byte
+var FatalErrorJSON []byte
+var NotFoundErrorJSON []byte
 var EmptyRefreshJSON []byte
 
 func init() {
 	var err error
-	if ErrorJSON, err = json.Marshal(ServiceView{Status: 500, Message: ErrHttpFatal.Error()}); err != nil {
-		log.Fatalf("failed to marshal unknown service view: %v", err)
+	if FatalErrorJSON, err = json.Marshal(ServiceView{Status: 500, Message: ErrHttpFatal.Error()}); err != nil {
+		util.LogFatal("failed to marshal fatal error service view", "err", err)
+	}
+	if NotFoundErrorJSON, err = json.Marshal(ServiceView{Status: 404, Message: "route not found"}); err != nil {
+		util.LogFatal("failed to marshal not found service view", "err", err)
 	}
 	if SuccessJSON, err = json.Marshal(ServiceView{Status: 200, Message: "SUCCESS"}); err != nil {
-		log.Fatalf("failed to marshal success service view: %v", err)
+		util.LogFatal("failed to marshal success service view", "err", err)
 	}
 	if EmptyRefreshJSON, err = json.Marshal(RefreshResp{Session: nil}); err != nil {
-		log.Fatalf("failed to marshal refresh resp: %v", err)
+		util.LogFatal("failed to marshal refresh resp", "err", err)
 	}
 }
 

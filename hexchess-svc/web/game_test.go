@@ -15,7 +15,7 @@ func assertStateRdb(t *testing.T, rdb data.Redis, expState data.ChessState) {
 	ctx := context.WithValue(context.Background(), util.Trace, "assert-chess-states")
 	actualState, err := data.GetChessState(ctx, rdb, expState.ID)
 	if err != nil {
-		t.Fatalf("failed to get chess for assert: %v", err)
+		t.Fatalf("failed to get chess for assert", "err", err)
 	}
 	util.AssertEqualIgnoring(t, expState, actualState, data.ChessMetaCmpOpts)
 }
@@ -32,7 +32,7 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	player := data.PlayerState{ID: 1, Name: "name", Country: "us", Elo: 0}
 
 	if _, err := data.SetChessState(ctx, stores.Rdb, gameID, inState); err != nil {
-		t.Fatalf("failed initialize test state: %v", err)
+		t.Fatalf("failed initialize test state", "err", err)
 	}
 
 	updated, err := JoinGame(ctx, stores, gameID, player)
@@ -57,7 +57,7 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	inState.BlackPlayer = &data.PlayerState{ID: 2, Name: "black"}
 
 	if _, err := data.SetChessState(ctx, stores.Rdb, gameID, inState); err != nil {
-		t.Fatalf("failed initialize test state: %v", err)
+		t.Fatalf("failed initialize test state", "err", err)
 	}
 
 	result, err := JoinGame(ctx, stores, gameID, data.PlayerState{ID: 3, Name: "test"})
@@ -98,7 +98,7 @@ func TestMakeMove(t *testing.T) {
 
 	for _, state := range []data.ChessState{s1, s2} {
 		if _, err := data.SetChessState(ctx, stores.Rdb, state.ID, state); err != nil {
-			t.Fatalf("failed initialize test state: %v", err)
+			t.Fatalf("failed initialize test state", "err", err)
 		}
 	}
 
@@ -155,7 +155,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	inState.MoveList = []chess.PieceMove{{Piece: 1, To: chess.Hex{Rank: 1}}}
 
 	if _, err := data.SetChessState(ctx, stores.Rdb, gameID, inState); err != nil {
-		t.Fatalf("failed initialize test state: %v", err)
+		t.Fatalf("failed initialize test state", "err", err)
 	}
 
 	assert.NoError(t, ForfeitGame(ctx, stores, gameID, *inState.BlackPlayer))

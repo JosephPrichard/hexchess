@@ -376,6 +376,8 @@ func (g *Game) StringColor(isWhite bool) string {
 	})
 }
 
+var ErrKingAssert = errors.New("assertion error: should never be allowed to make a move to the king")
+
 func RandomMoveList(game Game, low int, hi int) ([]PieceMove, error) {
 	var moveList []PieceMove
 
@@ -390,7 +392,7 @@ func RandomMoveList(game Game, low int, hi int) ([]PieceMove, error) {
 			}
 		}
 		if len(pmsList) == 0 {
-			return nil, errors.New("reached checkmate or stalemate")
+			break
 		}
 
 		pms := pmsList[rand.Intn(len(pmsList))]
@@ -404,7 +406,7 @@ func RandomMoveList(game Game, low int, hi int) ([]PieceMove, error) {
 		}
 
 		if game.Board.Pieces[pm.To.File][pm.To.Rank].IsKing() {
-			panic("assertion error: should never be allowed to make a move to the king")
+			return nil, ErrKingAssert
 		}
 
 		game.MakeMove(pm.From, pm.To)

@@ -41,7 +41,6 @@ type GameplayState struct {
 
 func HandleGameplayWs(w http.ResponseWriter, r *http.Request, ss ServerState) error {
 	ctx := r.Context()
-
 	gameID := r.URL.Query().Get("id")
 
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -55,20 +54,20 @@ func HandleGameplayWs(w http.ResponseWriter, r *http.Request, ss ServerState) er
 	if err != nil {
 		return err
 	}
-	gp := GameplayState{ServerState: ss, gameID: gameID, player: player}
+	gs := GameplayState{ServerState: ss, gameID: gameID, player: player}
 
-	state, err := JoinGame(ctx, gp.Stores, gp.gameID, player)
+	cs, err := JoinGame(ctx, gs.Stores, gs.gameID, player)
 	if err != nil {
 		return err
 	}
-	if err := handleGameplayInit(gp, conn, state); err != nil {
+	if err := handleGameplayInit(gs, conn, cs); err != nil {
 		slog.ErrorContext(ctx, "failed to handle gameplay init", "err", err)
 		return ErrWsFatal
 	}
 
 	writeChan := make(chan []byte)
-	gp.GamesCaster.Subscribe(gp.gameID, writeChan)
-	defer gp.GamesCaster.Unsubscribe(gp.gameID, writeChan)
+	gs.GamesCaster.Subscribe(gs.gameID, writeChan)
+	defer gs.GamesCaster.Unsubscribe(gs.gameID, writeChan)
 
 	go func() {
 		for b := range writeChan {
@@ -86,7 +85,7 @@ func HandleGameplayWs(w http.ResponseWriter, r *http.Request, ss ServerState) er
 			slog.ErrorContext(ctx, "failed to read ws message", "err", err)
 			break
 		}
-		handleMsg(ctx, gp, msg, writeChan)
+		handleMsg(ctx, gs, msg, writeChan)
 	}
 	return nil
 }

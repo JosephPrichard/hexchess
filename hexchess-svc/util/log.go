@@ -25,6 +25,11 @@ func DynLog(ctx context.Context, msg string, err error, args ...any) {
 	}
 }
 
+func LogFatal(msg string, args ...any) {
+	slog.Error(msg, args...)
+	os.Exit(1)
+}
+
 type TraceHandler struct {
 	slog.Handler
 }

@@ -16,10 +16,10 @@ import (
 func writeMessage(t *testing.T, conn *websocket.Conn, pbInput *pb.GameInput) {
 	b, err := proto.Marshal(pbInput)
 	if err != nil {
-		t.Fatalf("failed to marshal input: %v", err)
+		t.Fatalf("failed to marshal input", "err", err)
 	}
 	if err := conn.WriteMessage(websocket.BinaryMessage, b); err != nil {
-		t.Fatalf("failed to write message: %v", err)
+		t.Fatalf("failed to write message", "err", err)
 	}
 }
 
@@ -67,7 +67,7 @@ func TestHandleGameplayWs(t *testing.T) {
 		"Cookie": []string{FmtCookie(sessionID1)},
 	})
 	if err != nil {
-		t.Fatalf("failed to dial websocket: %v", err)
+		t.Fatalf("failed to dial websocket", "err", err)
 	}
 	defer conn.Close()
 
@@ -78,10 +78,10 @@ func TestHandleGameplayWs(t *testing.T) {
 	for i := range expCount1 {
 		_, b, err := conn.ReadMessage()
 		if err != nil {
-			t.Fatalf("failed to read ws message: %v", err)
+			t.Fatalf("failed to read ws message", "err", err)
 		}
 		if err := proto.Unmarshal(b, &outputs1[i]); err != nil {
-			t.Fatalf("failed to marshal input: %v", err)
+			t.Fatalf("failed to marshal input", "err", err)
 		}
 	}
 	outputs2 := <-outputs2Chan

@@ -20,7 +20,7 @@
 	}
 
 	const { data: props }: { data: PlayProps } = $props();
-	const link = $derived(`${appBaseURL}/play/${props.gameId}`);
+	const link = $derived(`${appBaseURL()}/play/${props.gameId}`);
 
 	const { addNotification } = getNotificationsContext();
 
@@ -107,7 +107,7 @@
 			const [data, err] = await services.postTempSession();
 			if (data) {
 				const params = new URLSearchParams({ sessionId: data.sessionId || "" });
-				let url = `${baseURL}/ws/games/${gameId}?${params}`;
+				let url = `${baseURL()}/ws/games/${gameId}?${params}`;
 
 				ws = new WebSocket(url);
 				ws.binaryType = "arraybuffer";

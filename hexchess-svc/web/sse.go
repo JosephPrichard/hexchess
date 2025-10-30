@@ -50,12 +50,11 @@ const ActiveCountEvent = "userCountEvents"
 func shutdownActiveUser(ctx context.Context, state ServerState, sseID string) {
 	// a user will get expired, but remove it and broadcast the new count to keep all users up to date
 	ac, err := data.RemoveActiveUser(ctx, state.Rdb, sseID)
-	if err == nil {
-		if err := data.BroadcastActiveCount(ctx, state.Rdb, ac); err != nil {
-			slog.ErrorContext(ctx, "failed to broadcast active count", "sseID", sseID, "err", err)
-		}
-	} else {
+	if err != nil {
 		slog.ErrorContext(ctx, "failed to remove active user", "sseID", sseID, "err", err)
+	}
+	if err := data.BroadcastActiveCount(ctx, state.Rdb, ac); err != nil {
+		slog.ErrorContext(ctx, "failed to broadcast active count", "sseID", sseID, "err", err)
 	}
 }
 

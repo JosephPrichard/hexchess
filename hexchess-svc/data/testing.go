@@ -9,6 +9,7 @@ import (
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"hexchess-svc/db"
+	"hexchess-svc/util"
 	"log"
 	"sync"
 	"time"
@@ -27,13 +28,13 @@ func TeardownTestInfra() {
 	log.Print("tearing down test infra")
 	if postgresCont != nil {
 		if err := testcontainers.TerminateContainer(postgresCont); err != nil {
-			log.Fatalf("failed to stop test db with err: %v", err)
+			util.LogFatal("failed to stop test db with err", "err", err)
 		}
 		log.Print("stopped test postgres db")
 	}
 	if redisCont != nil {
 		if err := testcontainers.TerminateContainer(redisCont); err != nil {
-			log.Fatalf("failed to terminate container: %s", err)
+			util.LogFatal("failed to terminate container: %s", err)
 		}
 		log.Print("stopped test redis container")
 	}
@@ -127,17 +128,17 @@ func BeforeDbTests(t TestLogger) (PgDB, func()) {
 
 	pool, err := pgxpool.New(ctx, fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", TestDbUser, TestDbPass, host, port.Port(), TestDbName))
 	if err != nil {
-		t.Fatalf("failed to create pool: %v", err)
+		t.Fatalf("failed to create pool", "err", err)
 	}
 	q := db.New(pool)
 
 	if shouldSeed {
 		// initialize the schema and test data for the test postgres instance, but only after the container is created
 		if _, err := pool.Exec(ctx, "DROP SCHEMA public CASCADE;\nCREATE SCHEMA public;"); err != nil {
-			t.Fatalf("failed to create schema: %v", err)
+			t.Fatalf("failed to create schema", "err", err)
 		}
 		if _, err := pool.Exec(ctx, db.CreateSchema); err != nil {
-			t.Fatalf("failed to create schema: %v", err)
+			t.Fatalf("failed to create schema", "err", err)
 		}
 
 		CreateTestData(t, q)
@@ -153,7 +154,7 @@ func BeforeDbTests(t TestLogger) (PgDB, func()) {
 	closer := func() {
 		t.Logf("shutting down test txn and pool")
 		if err := testTx.Rollback(context.Background()); err != nil {
-			t.Fatalf("failed to rollback test txn: %v", err)
+			t.Fatalf("failed to rollback test txn", "err", err)
 		}
 		pool.Close()
 	}

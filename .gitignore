@@ -22,9 +22,11 @@ target/
 
 hexchess-svc/app.log
 hexchess-ui/src/lib/api/messages.ts
+hexchess-ui/build
 */.svelte-kit
 */node_modules
 hexchess-svc/.env
+.env
 hexchess-svc/src/main/resources/.env
 
 graph.dot

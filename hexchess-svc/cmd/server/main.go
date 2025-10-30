@@ -3,90 +3,76 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"hexchess-svc/cmd"
 	"hexchess-svc/data"
 	"hexchess-svc/db"
 	"hexchess-svc/static"
 	"hexchess-svc/util"
 	"hexchess-svc/web"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 )
 
 func main() {
-	ctx := context.WithValue(context.Background(), "trace", "server-init")
-
 	f, err := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
-		log.Fatalf("failed to open log file: %v", err)
+		util.LogFatal("failed to open log file", "err", err)
 	}
 	defer f.Close()
 
 	util.InitLoggers(f)
-	cmd.InitEnv()
+	util.InitEnv()
 
-	appPort := os.Getenv("APP_PORT")
-	dbPass := os.Getenv("DB_PASSWORD")
-	dbName := os.Getenv("DB_NAME")
-	dbPort := os.Getenv("DB_PORT")
-	dbUser := os.Getenv("DB_USER")
-	redisHost := os.Getenv("REDIS_HOST")
-	redisPort := os.Getenv("REDIS_PORT")
-	redisPubSubHost := os.Getenv("REDIS_PUBSUB_HOST")
-	redisPubSubPort := os.Getenv("REDIS_PUBSUB_PORT")
+	envMap := make(map[string]string)
+	for _, e := range os.Environ() {
+		pair := strings.Split(e, "=")
+		envMap[pair[0]] = pair[1]
+	}
+
+	serverPort := os.Getenv("SERVER_PORT")
+	dbURL := os.Getenv("DB_URL")
+	redisPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
+	redisPubSubURL := os.Getenv("REDIS_PUBSUB_URL")
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
-	cookieDomain := os.Getenv("COOKIE_DOMAIN")
+	//cookieDomain := os.Getenv("COOKIE_DOMAIN")
 
-	slog.InfoContext(ctx, "loaded environment variables",
-		"APP_PORT", appPort,
-		"DB_NAME", dbName,
-		"DB_PORT", dbPort,
-		"DB_USER", dbUser,
-		"REDIS_HOST", redisHost,
-		"REDIS_PORT", redisPort,
-		"REDIS_PUBSUB_HOST", redisPubSubHost,
-		"REDIS_PUBSUB_PORT", redisPubSubPort,
-		"ALLOWED_ORIGINS", allowedOrigins,
-		"COOKIE_DOMAIN", cookieDomain,
-	)
+	slog.Info("loaded environment variables", "envs", envMap)
 
 	var countryList []string
 	if err := json.Unmarshal(static.CountryListJson, &countryList); err != nil {
-		log.Fatalf("failed to unmarshal country list: %v", err)
+		util.LogFatal("failed to unmarshal country list", "err", err)
 	}
 
-	slog.InfoContext(ctx, "connecting to postgres db", "user", dbUser, "name", dbName, "port", dbPort)
-	pool, err := pgxpool.New(context.Background(), fmt.Sprintf("user=%s dbname=%s password=%s port=%s", dbUser, dbName, dbPass, dbPort))
+	slog.Info("connecting to postgres db", "dbURL", dbURL)
+	pool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
-		log.Fatalf("failed to create pool: %v", err)
+		util.LogFatal("failed to create pool", "err", err)
 	}
 	defer pool.Close()
+	_, err = pool.Exec(context.Background(), "SELECT 1;")
+	if err != nil {
+		util.LogFatal("failed to execute startup query", "err", err)
+	}
 
 	q := db.New(pool)
 	pgDB := data.MakeDbClient(q, pool)
 
-	primaryAddr := redisHost + ":" + redisPort
-	pubsubAddr := redisPubSubHost + ":" + redisPubSubPort
-
-	slog.InfoContext(ctx, "connecting to redis db", "host", redisHost, "port", redisPort)
-	rdb := data.MakeRdb(primaryAddr, pubsubAddr)
+	slog.Info("connecting to redis db", "primaryURL", redisPrimaryURL, "pubsubURL", redisPubSubURL)
+	rdb := data.MakeRdb(redisPrimaryURL, redisPubSubURL)
 	defer rdb.Close()
 
 	state := web.MakeServerState(data.Stores{Rdb: rdb, PgDB: pgDB}, countryList)
 
-	slog.InfoContext(ctx, "connecting to redis pubsub channels", "host", redisPubSubHost, "port", redisPubSubPort)
-	data.ListenGameMessages(state.GamesCaster, pubsubAddr)
-	data.ListenUsersMessages(state.UsersCaster, pubsubAddr)
-	data.ListenGameCountsMessages(state.GamesCntCaster, pubsubAddr)
-	data.ListenActiveCountsMessages(state.ActiveCntCaster, pubsubAddr)
+	data.ListenGameMessages(state.GamesCaster, rdb.PubsubAddr)
+	data.ListenUsersMessages(state.UsersCaster, rdb.PubsubAddr)
+	data.ListenGameCountsMessages(state.GamesCntCaster, rdb.PubsubAddr)
+	data.ListenActiveCountsMessages(state.ActiveCntCaster, rdb.PubsubAddr)
 
-	slog.InfoContext(ctx, "starting server", "port", appPort, "allowedOrigins", allowedOrigins)
+	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 
-	if err := http.ListenAndServe(":"+appPort, web.HandleRoot(state, allowedOrigins)); err != nil {
-		log.Fatalf("failed while serving: %v", err)
+	if err := http.ListenAndServe(":"+serverPort, web.HandleRoot(state, allowedOrigins)); err != nil {
+		util.LogFatal("failed while serving", "err", err)
 	}
 }

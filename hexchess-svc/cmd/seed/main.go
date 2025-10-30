@@ -7,7 +7,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
 	"hexchess-svc/chess"
-	"hexchess-svc/cmd"
 	"hexchess-svc/data"
 	"hexchess-svc/db"
 	"hexchess-svc/static"
@@ -55,47 +54,43 @@ func main() {
 	userInsts := readMockFile[data.UserInst]("mocks/users.json")
 
 	util.InitLoggers(nil)
-	cmd.InitEnv()
+	util.InitEnv()
 
-	dbPass := os.Getenv("DB_PASSWORD")
-	dbName := os.Getenv("DB_NAME")
-	dbPort := os.Getenv("DB_PORT")
-	dbUser := os.Getenv("DB_USER")
-	redisHost := os.Getenv("REDIS_HOST")
-	redisPort := os.Getenv("REDIS_PORT")
+	dbURL := os.Getenv("DB_URL")
+	redisPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
 
 	ctx := context.WithValue(context.Background(), util.Trace, "seed-stores-script")
 
-	slog.InfoContext(ctx, "connecting to postgres db", "user", dbUser, "name", dbName, "port", dbPort)
-	pool, err := pgxpool.New(ctx, fmt.Sprintf("user=%s dbname=%s password=%s port=%s", dbUser, dbName, dbPass, dbPort))
+	slog.InfoContext(ctx, "connecting to postgres db", "dbURL", dbURL)
+	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
-		log.Fatalf("failed to create pool: %v", err)
+		util.LogFatal("failed to create pool", "err", err)
 	}
 	defer pool.Close()
 
 	q := db.New(pool)
 
-	slog.InfoContext(ctx, "connecting to redis db", "host", redisHost, "port", redisPort)
-	rdb := data.MakeRdb(redisHost+":"+redisPort, "")
+	slog.InfoContext(ctx, "connecting to redis db", "redisPrimaryURL", redisPrimaryURL)
+	rdb := data.MakeRdb(redisPrimaryURL, "")
 	defer rdb.Close()
 
 	if _, err := pool.Exec(context.Background(), "DROP SCHEMA public CASCADE;\nCREATE SCHEMA public;"); err != nil {
-		log.Fatalf("failed to drop schema: %v", err)
+		util.LogFatal("failed to drop schema", "err", err)
 	}
 	if _, err := pool.Exec(context.Background(), db.CreateSchema); err != nil {
-		log.Fatalf("failed to create schema: %v", err)
+		util.LogFatal("failed to create schema", "err", err)
 	}
 
 	conn := rdb.Primary.Get()
 	defer conn.Close()
 
 	if _, err := conn.Do("FLUSHALL"); err != nil {
-		log.Fatalf("failed to flush redis: %v", err)
+		util.LogFatal("failed to flush redis", "err", err)
 	}
 
 	users, err := data.BatchInsertUsers(ctx, q, userInsts)
 	if err != nil {
-		log.Fatalf("failed to insert users: %v", err)
+		util.LogFatal("failed to insert users", "err", err)
 	}
 	var changes []data.UpdtLbChangeSet
 	for _, u := range users {
@@ -119,7 +114,7 @@ func main() {
 	}
 
 	if err := eg.Wait(); err != nil {
-		log.Fatalf("failed to insert challenges and replys: %v", err)
+		util.LogFatal("failed to insert challenges and replys", "err", err)
 	}
 
 	log.Printf("finished seeding databases: %v", time.Now().Sub(start))

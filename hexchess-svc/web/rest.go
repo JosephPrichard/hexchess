@@ -29,7 +29,7 @@ func makeRestHandler(state ServerState, h RestHandler) http.Handler {
 			b, err := json.Marshal(ServiceView{Message: m, Status: status})
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
-				_, _ = w.Write(ErrorJSON)
+				_, _ = w.Write(FatalErrorJSON)
 			} else {
 				_, _ = w.Write(b)
 			}

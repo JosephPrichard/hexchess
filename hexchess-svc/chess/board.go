@@ -120,7 +120,7 @@ func ParseHexagon(notation string) (Hex, error) {
 func ParseHexagonValid(notation string) Hex {
 	hex, err := ParseHexagon(notation)
 	if err != nil {
-		panic(fmt.Sprintf("failed to set piece at notation: %v", err))
+		panic(fmt.Sprintf("failed to set piece at notation", "err", err))
 	}
 	return hex
 }

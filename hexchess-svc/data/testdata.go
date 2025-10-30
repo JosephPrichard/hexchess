@@ -48,7 +48,7 @@ func createTestUser(t TestLogger, q *db.Queries, inst UserInst) UserEntity {
 	ctx := context.WithValue(context.Background(), util.Trace, "create-test-user")
 	u, err := InsertUser(ctx, q, inst)
 	if err != nil {
-		t.Fatalf("failed to insert test user: %v", err)
+		t.Fatalf("failed to insert test user", "err", err)
 	}
 	return u
 }
@@ -109,7 +109,7 @@ func createTestReplays(t TestLogger, q *db.Queries, insts ...ReplayInst) {
 	for _, inst := range insts {
 		_, err := InsertReplay(ctx, q, inst)
 		if err != nil {
-			t.Fatalf("failed to insert test replay: %v", err)
+			t.Fatalf("failed to insert test replay", "err", err)
 		}
 	}
 }
@@ -155,7 +155,7 @@ func createTestChallenges(t TestLogger, q *db.Queries, insts ...ChallengeInst) {
 	for _, c := range insts {
 		err := InsertChallenge(ctx, q, c)
 		if err != nil {
-			t.Fatalf("failed to insert test challenges: %v", err)
+			t.Fatalf("failed to insert test challenges", "err", err)
 		}
 	}
 }

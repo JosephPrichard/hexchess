@@ -7,7 +7,9 @@ import (
 	"hexchess-svc/chess"
 	"hexchess-svc/data"
 	"hexchess-svc/util"
+	"log/slog"
 	"net/http"
+	"strings"
 )
 
 type ServerState struct {
@@ -65,13 +67,14 @@ func withCors(next http.Handler, allowedOrigins string) http.Handler {
 func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 	mux := http.NewServeMux()
 
-	fmt.Fprintf(util.LogWriter, "starting rest server...\n")
+	var sb strings.Builder
+	sb.WriteString("starting server with registered routes:\n")
 
 	handle := func(method string, pattern string, handler http.Handler) {
 		handler = withTrace(withCors(handler, allowedOrigins))
 		mux.Handle(method+" "+pattern, handler)
 		mux.Handle("OPTIONS "+pattern, handler)
-		fmt.Fprintf(util.LogWriter, "\t%s\n", pattern)
+		sb.WriteString(fmt.Sprintf("\t%s\n", pattern))
 	}
 
 	handle("POST", "/api/register", makeRestHandler(state, HandleRegister))
@@ -102,5 +105,13 @@ func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 	handle("GET", "/api/countries", makeJsonHandler(state.CountryList))
 
 	handle("GET", "/api/ws/game", makeWsHandler(state, HandleGameplayWs))
+
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		slog.ErrorContext(r.Context(), "route not found", "method", r.Method, "url", r.URL)
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write(NotFoundErrorJSON)
+	})
+
+	fmt.Fprintf(util.LogWriter, sb.String())
 	return mux
 }

@@ -1,8 +1,8 @@
-package cmd
+package util
 
 import (
 	"bufio"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 )
@@ -10,7 +10,7 @@ import (
 func InitEnv() {
 	file, err := os.Open(".env")
 	if err != nil {
-		log.Printf("error loading .env file: %v", err)
+		slog.Warn("did not load env file", "err", err)
 	}
 	defer file.Close()
 
@@ -19,11 +19,11 @@ func InitEnv() {
 		line := scanner.Text()
 		index := strings.Index(line, "=")
 		if index < 0 {
-			log.Fatalf("invalid line in .env file: %s", line)
+			LogFatal("invalid line in .env file: %s", line)
 		}
 		key, value := line[:index], line[index+1:]
 		if err := os.Setenv(key, value); err != nil {
-			log.Printf("error setting env var: %v", err)
+			slog.Warn("error setting env var", "err", err)
 		}
 	}
 }

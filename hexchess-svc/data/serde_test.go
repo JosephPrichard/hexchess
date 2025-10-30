@@ -18,12 +18,12 @@ func TestChessSerializer(t *testing.T) {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 			b, err := MarshalChessState(input)
 			if err != nil {
-				t.Fatalf("failed to serialize state: %v", err)
+				t.Fatalf("failed to serialize state", "err", err)
 			}
 
 			output, err := UnmarshalChess(b)
 			if err != nil {
-				t.Fatalf("failed to deserialize state: %v", err)
+				t.Fatalf("failed to deserialize state", "err", err)
 			}
 
 			t.Logf("deserialized state: %v, board: %v", output, output.Game.Board.String())
