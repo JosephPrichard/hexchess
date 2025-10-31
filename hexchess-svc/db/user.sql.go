@@ -58,6 +58,18 @@ func (q *Queries) GetEloList(ctx context.Context, arg GetEloListParams) ([]GetEl
 	return items, nil
 }
 
+const incrLoginAttempts = `-- name: IncrLoginAttempts :exec
+UPDATE users
+SET last_login_attempt = CURRENT_TIMESTAMP,
+    login_attempts = login_attempts + 1
+WHERE id = $1
+`
+
+func (q *Queries) IncrLoginAttempts(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, incrLoginAttempts, id)
+	return err
+}
+
 const insertUser = `-- name: InsertUser :one
 INSERT INTO users (username, country, elo, highest_elo, wins, losses, password, salt)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -111,6 +123,18 @@ func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertU
 		&i.JoinedOn,
 	)
 	return i, err
+}
+
+const resetLoginAttempts = `-- name: ResetLoginAttempts :exec
+UPDATE users
+SET last_login_attempt = CURRENT_TIMESTAMP,
+    login_attempts = 0
+WHERE id = $1
+`
+
+func (q *Queries) ResetLoginAttempts(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, resetLoginAttempts, id)
+	return err
 }
 
 const selectAllUsers = `-- name: SelectAllUsers :many
@@ -201,18 +225,20 @@ func (q *Queries) SelectEloListAfterID(ctx context.Context, arg SelectEloListAft
 }
 
 const selectLoginByName = `-- name: SelectLoginByName :one
-SELECT id, username, country, elo, password, salt
+SELECT id, username, country, elo, password, salt, login_attempts, last_login_attempt
 FROM users
 WHERE UPPER(username) = UPPER($1::TEXT)
 `
 
 type SelectLoginByNameRow struct {
-	ID       int64
-	Username string
-	Country  pgtype.Text
-	Elo      float64
-	Password string
-	Salt     string
+	ID               int64
+	Username         string
+	Country          pgtype.Text
+	Elo              float64
+	Password         string
+	Salt             string
+	LoginAttempts    int32
+	LastLoginAttempt pgtype.Timestamptz
 }
 
 func (q *Queries) SelectLoginByName(ctx context.Context, username string) (SelectLoginByNameRow, error) {
@@ -225,6 +251,8 @@ func (q *Queries) SelectLoginByName(ctx context.Context, username string) (Selec
 		&i.Elo,
 		&i.Password,
 		&i.Salt,
+		&i.LoginAttempts,
+		&i.LastLoginAttempt,
 	)
 	return i, err
 }

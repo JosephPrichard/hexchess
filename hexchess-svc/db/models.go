@@ -29,17 +29,19 @@ type Replay struct {
 }
 
 type User struct {
-	ID         int64
-	Username   string
-	Country    pgtype.Text
-	Elo        float64
-	HighestElo float64
-	Wins       int32
-	Losses     int32
-	Bio        string
-	JoinedOn   pgtype.Timestamptz
-	Password   string
-	Salt       string
+	ID               int64
+	Username         string
+	Country          pgtype.Text
+	Elo              float64
+	HighestElo       float64
+	Wins             int32
+	Losses           int32
+	Bio              string
+	JoinedOn         pgtype.Timestamptz
+	Password         string
+	Salt             string
+	LoginAttempts    int32
+	LastLoginAttempt pgtype.Timestamptz
 }
 
 type UsersMetadatum struct {

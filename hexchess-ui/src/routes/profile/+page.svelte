@@ -65,7 +65,7 @@
 		const [data, err] = await services.postLogout();
 		if (data) {
 			const message = 'Successfully signed out.';
-			addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
+			addNotification({ type: 'string', message, isSuccess: true, duration: 3000 });
 
 			await goto('/');
 		} else {

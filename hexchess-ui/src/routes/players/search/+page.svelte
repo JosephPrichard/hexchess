@@ -8,6 +8,7 @@
 		searchText: string;
 		page: number;
 		userList: UserModel[];
+		message: string;
 	}
 
 	const { data: props }: { data: SearchProps } = $props();
@@ -27,7 +28,9 @@
 				<button class="button button-grey" type="submit"> Search </button>
 			</div>
 		</form>
-		{#if props.searchText}
+		{#if props.message}
+			<div class="color-wrapper">{props.message}</div>
+		{:else if props.searchText}
 			<StatsList userList={props.userList} />
 		{/if}
 	</div>

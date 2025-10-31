@@ -10,40 +10,37 @@ import (
 )
 
 func TestInsertThenVerify(t *testing.T) {
-	pgDB, closer := BeforeDbTests(t)
+	pgDB, closer := BeforeDbTests(t, true)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-insert-then-verify")
 
 	user1 := "user1-test"
 	user2 := "user2-test"
-	user3 := "user3-test"
 
 	u1, err := InsertUser(ctx, pgDB.Q, UserInst{Username: user1, Password: "password1"})
 	assert.NoError(t, err)
 	u2, err := InsertUser(ctx, pgDB.Q, UserInst{Username: user2, Password: "password2"})
 	assert.NoError(t, err)
-	u3, err := InsertUser(ctx, pgDB.Q, UserInst{Username: user3, Password: "password3"})
+
+	v1, err := VerifyUserTx(ctx, pgDB, user1, "password1")
+	assert.NoError(t, err)
+	v2, err := VerifyUserTx(ctx, pgDB, user2, "password2")
 	assert.NoError(t, err)
 
-	v1, err := VerifyUser(ctx, pgDB.Q, user1, "password1")
-	assert.NoError(t, err)
-	v2, err := VerifyUser(ctx, pgDB.Q, user2, "password2")
-	assert.NoError(t, err)
-	_, err1 := VerifyUser(ctx, pgDB.Q, user2, "wrong-password")
-	v4, err := VerifyUser(ctx, pgDB.Q, user3, "password3")
-	assert.NoError(t, err)
-	_, err2 := VerifyUser(ctx, pgDB.Q, user1, "password3")
+	for range LoginAttemptsDivisor {
+		_, err := VerifyUserTx(ctx, pgDB, user2, "wrong-password")
+		assert.Equal(t, ErrUserNotFound, err)
+	}
+	_, err = VerifyUserTx(ctx, pgDB, user2, "wrong-password")
+	assert.Equal(t, ErrTooManyLoginAttempts, err)
 
 	assert.Equal(t, u1.ID, v1.ID)
 	assert.Equal(t, u2.ID, v2.ID)
-	assert.Error(t, err1)
-	assert.Equal(t, u3.ID, v4.ID)
-	assert.Error(t, err2)
 }
 
 func TestBatchInsertThenGet(t *testing.T) {
-	pgDB, closer := BeforeDbTests(t)
+	pgDB, closer := BeforeDbTests(t, true)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-batch-insert-then-get")
@@ -68,7 +65,7 @@ func TestBatchInsertThenGet(t *testing.T) {
 }
 
 func TestUpdateUser(t *testing.T) {
-	pgDB, closer := BeforeDbTests(t)
+	pgDB, closer := BeforeDbTests(t, true)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-update-user")
@@ -110,7 +107,7 @@ func TestUpdateUser(t *testing.T) {
 }
 
 func TestUpdatePassword(t *testing.T) {
-	pgDB, closer := BeforeDbTests(t)
+	pgDB, closer := BeforeDbTests(t, true)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "update-password")
@@ -126,7 +123,7 @@ func TestUpdatePassword(t *testing.T) {
 }
 
 func TestSearchByName(t *testing.T) {
-	pgDB, closer := BeforeDbTests(t)
+	pgDB, closer := BeforeDbTests(t, true)
 	defer closer()
 
 	createTestUsers(t, pgDB.Q, UserInst{Username: "johnny", Password: "password6"}, UserInst{Username: "john", Password: "password7"})

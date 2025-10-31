@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types';
 import { error } from '@sveltejs/kit';
 import services from '$lib/api/services';
-import { createMessage } from '$lib/utils/error';
+import { codes, createMessage } from '$lib/utils/error';
 import type { SearchProps } from './+page.svelte';
 
 export const load: PageServerLoad = async ({ url, setHeaders, fetch }): Promise<SearchProps> => {
@@ -14,13 +14,17 @@ export const load: PageServerLoad = async ({ url, setHeaders, fetch }): Promise<
 		error(404, 'Page must be a valid number');
 	}
 
+	let message = "";
+
 	const [data, err] = await services.getSearchPlayers(username, page, fetch);
-	if (err) {
+	if (err && err.message === codes.errorSearchLimit) {
+		message = createMessage(err);
+	} else if (err) {
 		error(err.status, createMessage(err));
 	}
 
 	// setHeaders({
 	// 	'cache-control': 'max-age=3600'
 	// });
-	return { searchText: username, page: page, userList: data?.userList || [] };
+	return { searchText: username, page: page, userList: data?.userList || [], message: message };
 };

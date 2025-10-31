@@ -16,10 +16,10 @@ import (
 func writeMessage(t *testing.T, conn *websocket.Conn, pbInput *pb.GameInput) {
 	b, err := proto.Marshal(pbInput)
 	if err != nil {
-		t.Fatalf("failed to marshal input", "err", err)
+		t.Fatalf("failed to marshal input: %v", err)
 	}
 	if err := conn.WriteMessage(websocket.BinaryMessage, b); err != nil {
-		t.Fatalf("failed to write message", "err", err)
+		t.Fatalf("failed to write message: %v", err)
 	}
 }
 
@@ -45,7 +45,7 @@ func TestHandleGameplayWs(t *testing.T) {
 	expCount1 := 4
 	expCount2 := 1
 
-	stores, closer := data.BeforeStoresTests(t)
+	stores, closer := data.BeforeStoresTests(t, true)
 	defer closer()
 
 	createTestSessions(t, stores.Rdb)
@@ -64,10 +64,10 @@ func TestHandleGameplayWs(t *testing.T) {
 
 	url := strings.Replace(ts.URL+"/api/ws/game?id="+gameID, "http", "ws", 1)
 	conn, _, err := websocket.DefaultDialer.Dial(url, http.Header{
-		"Cookie": []string{FmtCookie(sessionID1)},
+		"Cookie": []string{FmtCookie(TestSessionID1)},
 	})
 	if err != nil {
-		t.Fatalf("failed to dial websocket", "err", err)
+		t.Fatalf("failed to dial websocket: %v", err)
 	}
 	defer conn.Close()
 
@@ -78,10 +78,10 @@ func TestHandleGameplayWs(t *testing.T) {
 	for i := range expCount1 {
 		_, b, err := conn.ReadMessage()
 		if err != nil {
-			t.Fatalf("failed to read ws message", "err", err)
+			t.Fatalf("failed to read ws message: %v", err)
 		}
 		if err := proto.Unmarshal(b, &outputs1[i]); err != nil {
-			t.Fatalf("failed to marshal input", "err", err)
+			t.Fatalf("failed to marshal input: %v", err)
 		}
 	}
 	outputs2 := <-outputs2Chan

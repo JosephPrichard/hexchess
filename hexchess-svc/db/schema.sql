@@ -14,9 +14,11 @@ CREATE TABLE IF NOT EXISTS users (
     wins INTEGER NOT NULL,
     losses INTEGER NOT NULL,
     bio VARCHAR NOT NULL DEFAULT '',
-    joined_on TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    joined_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     password VARCHAR NOT NULL,
-    salt VARCHAR NOT NULL
+    salt VARCHAR NOT NULL,
+    login_attempts INTEGER NOT NULL DEFAULT 0,
+    last_login_attempt TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS users_metadata (
@@ -30,7 +32,7 @@ CREATE TABLE IF NOT EXISTS replays (
     black_id BIGINT NOT NULL,
     result INTEGER NOT NULL,
     cause INTEGER NOT NULL,
-    played_on TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    played_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     win_elo FLOAT8 NOT NULL,
     lose_elo FLOAT8 NOT NULL,
     move_list JSONB NOT NULL
@@ -41,7 +43,7 @@ CREATE TABLE IF NOT EXISTS challenges (
     challengee_id BIGINT NOT NULL,
     time_control VARCHAR NOT NULL,
     start_color VARCHAR NOT NULL, -- from challenger's perspective
-    made_on TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    made_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (challenger_id, challengee_id)
 );
 

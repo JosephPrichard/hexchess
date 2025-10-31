@@ -56,7 +56,7 @@ func HandleGameplayWs(w http.ResponseWriter, r *http.Request, ss ServerState) er
 	}
 	gs := GameplayState{ServerState: ss, gameID: gameID, player: player}
 
-	cs, err := JoinGame(ctx, gs.Stores, gs.gameID, player)
+	cs, err := JoinGame(ctx, gs.Rdb, gs.gameID, player)
 	if err != nil {
 		return err
 	}

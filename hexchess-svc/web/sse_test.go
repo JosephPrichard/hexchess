@@ -41,7 +41,7 @@ func scanLines(t *testing.T, resp *http.Response, expLines int) []string {
 }
 
 func TestHandleCountEvents(t *testing.T) {
-	stores, closer := data.BeforeStoresTests(t)
+	stores, closer := data.BeforeStoresTests(t, true)
 	defer closer()
 
 	state := MakeServerState(stores, nil)
@@ -79,7 +79,7 @@ func TestHandleCountEvents(t *testing.T) {
 }
 
 func TestHandleUserEvents(t *testing.T) {
-	stores, closer := data.BeforeStoresTests(t)
+	stores, closer := data.BeforeStoresTests(t, true)
 	defer closer()
 
 	state := MakeServerState(stores, nil)
@@ -92,7 +92,7 @@ func TestHandleUserEvents(t *testing.T) {
 
 	req, err := http.NewRequest(http.MethodGet, ts.URL+"/api/events/user", nil)
 	assert.NoError(t, err)
-	req.Header.Set("Cookie", FmtCookie(sessionID1))
+	req.Header.Set("Cookie", FmtCookie(TestSessionID1))
 
 	resp, err := http.DefaultClient.Do(req)
 	assert.NoError(t, err)

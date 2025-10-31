@@ -28,7 +28,7 @@ func TestSetThenGetState(t *testing.T) {
 	util.AssertEqualIgnoring(t, state1, outState1, ChessMetaCmpOpts)
 
 	_, err = GetChessState(ctx, rdb, id2)
-	assert.Error(t, ErrNoChessState, err)
+	assert.Equal(t, ErrNoChessState, err)
 }
 
 func TestSetThenGetUserViews(t *testing.T) {

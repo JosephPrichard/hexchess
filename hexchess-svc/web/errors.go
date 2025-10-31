@@ -1,29 +1,33 @@
 package web
 
 import (
+	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 )
 
 // HTTP error codes
 var (
-	ErrHttpFatal               = errors.New("ERROR_FATAL")
-	ErrHttpInvalidPassword     = errors.New("ERROR_PASSWORD_LENGTH")
-	ErrHttpConfirmPassword     = errors.New("ERROR_CONFIRM_PASSWORD")
-	ErrHttpInvalidUsername     = errors.New("ERROR_USERNAME_LENGTH")
-	ErrHttpUnsafeUsername      = errors.New("ERROR_UNSAFE_USERNAME")
-	ErrHttpInvalidParticipants = errors.New("ERROR_INVALID_PARTICIPANTS")
-	ErrHttpDuplicateUsername   = errors.New("ERROR_DUPLICATE_USERNAME")
-	ErrHttpInvalidLogin        = errors.New("ERROR_INVALID_LOGIN")
-	ErrHttpRequiredLogin       = errors.New("ERROR_REQUIRED_LOGIN")
-	ErrHttpSessionExpired      = errors.New("ERROR_SESSION_EXPIRED")
-	ErrHttpNotFoundChallenge   = errors.New("ERROR_NOT_FOUND_CHALLENGE")
-	ErrHttpSelfChallenge       = errors.New("ERROR_SELF_CHALLENGE")
-	ErrHttpDuplicateChallenge  = errors.New("ERROR_DUPLICATE_CHALLENGE")
-	ErrHttpUpdateChallenge     = errors.New("ERROR_UPDATE_CHALLENGE")
-	ErrHttpUserNotFound        = errors.New("ERROR_NOT_FOUND_USER")
-	ErrHttpInvalidRequest      = errors.New("ERROR_INVALID_REQUEST")
-	ErrHttpSearchLimit         = errors.New("ERROR_SEARCH_LIMIT")
+	ErrHttpFatal                = errors.New("ERROR_FATAL")
+	ErrHttpInvalidPassword      = errors.New("ERROR_PASSWORD_LENGTH")
+	ErrHttpConfirmPassword      = errors.New("ERROR_CONFIRM_PASSWORD")
+	ErrHttpInvalidUsername      = errors.New("ERROR_USERNAME_LENGTH")
+	ErrHttpUnsafeUsername       = errors.New("ERROR_UNSAFE_USERNAME")
+	ErrHttpInvalidParticipants  = errors.New("ERROR_INVALID_PARTICIPANTS")
+	ErrHttpDuplicateUsername    = errors.New("ERROR_DUPLICATE_USERNAME")
+	ErrHttpInvalidCountry       = errors.New("ERROR_INVALID_COUNTRY")
+	ErrHttpInvalidLogin         = errors.New("ERROR_INVALID_LOGIN")
+	ErrHttpTooManyLoginAttempts = errors.New("ERROR_TOO_MANY_LOGIN_ATTEMPTS")
+	ErrHttpRequiredLogin        = errors.New("ERROR_REQUIRED_LOGIN")
+	ErrHttpSessionExpired       = errors.New("ERROR_SESSION_EXPIRED")
+	ErrHttpNotFoundChallenge    = errors.New("ERROR_NOT_FOUND_CHALLENGE")
+	ErrHttpSelfChallenge        = errors.New("ERROR_SELF_CHALLENGE")
+	ErrHttpDuplicateChallenge   = errors.New("ERROR_DUPLICATE_CHALLENGE")
+	ErrHttpUpdateChallenge      = errors.New("ERROR_UPDATE_CHALLENGE")
+	ErrHttpUserNotFound         = errors.New("ERROR_NOT_FOUND_USER")
+	ErrHttpInvalidRequest       = errors.New("ERROR_INVALID_REQUEST")
+	ErrHttpSearchLimit          = errors.New("ERROR_SEARCH_LIMIT")
 )
 
 // WebSocket response codes
@@ -46,14 +50,16 @@ func HttpStatusFromErr(err error) (int, string) {
 		ErrHttpInvalidRequest,
 		ErrHttpSelfChallenge,
 		ErrHttpUpdateChallenge,
-		ErrHttpSearchLimit:
+		ErrHttpSearchLimit,
+		ErrHttpInvalidCountry:
 		return http.StatusBadRequest, err.Error()
 	case ErrHttpDuplicateUsername,
 		ErrHttpDuplicateChallenge:
 		return http.StatusConflict, err.Error()
 	case ErrHttpRequiredLogin,
 		ErrHttpInvalidLogin,
-		ErrHttpSessionExpired:
+		ErrHttpSessionExpired,
+		ErrHttpTooManyLoginAttempts:
 		return http.StatusUnauthorized, err.Error()
 	case ErrHttpUserNotFound,
 		ErrHttpNotFoundChallenge:
@@ -76,4 +82,9 @@ func mapWsErr(err error) error {
 	default:
 		return ErrWsFatal
 	}
+}
+
+func handleInvalidRequest(ctx context.Context, err error) error {
+	slog.ErrorContext(ctx, "invalid request", "err", err)
+	return ErrHttpInvalidRequest
 }

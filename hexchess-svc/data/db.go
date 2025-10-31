@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"hexchess-svc/db"
 	"log/slog"
+	"slices"
 	"time"
 )
 
@@ -107,13 +108,21 @@ func MakeFakeDbClient(q *db.Queries) PgDB {
 	return PgDB{Q: q, noopTxn: true}
 }
 
-func WithTxn[Ret any](ctx context.Context, db PgDB, txFn TxFn[Ret]) (ret Ret, err error) {
-	if db.noopTxn {
-		// a db client can be a fake when testing. if so, do not begin or commit a new Txn, since the test is already in a txn
-		return txFn(db.Q)
-	}
+type TxnArgs[Ret any] struct {
+	Ctx          context.Context
+	PgDB         PgDB
+	TxFn         TxFn[Ret]
+	ErrWhiteList []error // errors where we are allowed to commit instead of rollback
+}
 
-	tx, err := db.Pool.Begin(ctx)
+func WithTxn[Ret any](args TxnArgs[Ret]) (ret Ret, err error) {
+	if args.PgDB.noopTxn {
+		// a db client can be a fake when testing. if so, do not begin or commit a new Txn, since the test is already in a txn
+		return args.TxFn(args.PgDB.Q)
+	}
+ 
+	ctx := args.Ctx
+	tx, err := args.PgDB.Pool.Begin(args.Ctx)
 	if err != nil {
 		return
 	}
@@ -124,7 +133,7 @@ func WithTxn[Ret any](ctx context.Context, db PgDB, txFn TxFn[Ret]) (ret Ret, er
 				slog.ErrorContext(ctx, "failed to rollback tx", "err", err)
 			}
 			panic(p)
-		} else if err != nil {
+		} else if err != nil && !slices.Contains(args.ErrWhiteList, err) {
 			// something went wrong, rollback
 			slog.ErrorContext(ctx, "failed to complete tx, rolling back", "err", err)
 			if err := tx.Rollback(ctx); err != nil {
@@ -132,12 +141,12 @@ func WithTxn[Ret any](ctx context.Context, db PgDB, txFn TxFn[Ret]) (ret Ret, er
 			}
 		} else {
 			// all good, commit
-			err = tx.Commit(ctx)
-			if err != nil {
+			if cmtErr := tx.Commit(ctx); cmtErr != nil {
 				slog.ErrorContext(ctx, "failed to commit tx", "err", err)
+				err = cmtErr // due to the error allowlist, we may still want to commit with an error, so only assign when there is a commit err
 			}
 		}
 	}()
-	ret, err = txFn(db.Q.WithTx(tx))
+	ret, err = args.TxFn(args.PgDB.Q.WithTx(tx))
 	return
 }

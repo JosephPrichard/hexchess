@@ -12,7 +12,7 @@ import (
 	"math/big"
 )
 
-func CreateGame(ctx context.Context, stores data.Stores, color data.ColorSelect, timeControl data.TimeControl) (string, error) {
+func CreateGame(ctx context.Context, rdb data.Redis, color data.ColorSelect, timeControl data.TimeControl) (string, error) {
 	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
 	bID := make([]byte, 8)
@@ -31,16 +31,16 @@ func CreateGame(ctx context.Context, stores data.Stores, color data.ColorSelect,
 
 	slog.InfoContext(ctx, "created chess game", "state", state)
 
-	state, err := data.SetChessState(ctx, stores.Rdb, strID, state)
+	state, err := data.SetChessState(ctx, rdb, strID, state)
 	if err != nil {
 		return "", err
 	}
 
-	go broadcastOnCreateGame(stores)
+	go broadcastOnCreateGame(rdb)
 	return strID, nil
 }
 
-func broadcastOnCreateGame(stores data.Stores) {
+func broadcastOnCreateGame(rdb data.Redis) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Warn("recovered in create game broadcast makeRestHandler", "err", r)
@@ -48,20 +48,20 @@ func broadcastOnCreateGame(stores data.Stores) {
 	}()
 	ctx := context.WithValue(context.Background(), util.Trace, "create-game-broadcast-makeRestHandler")
 
-	count, err := data.GetChessStateCount(ctx, stores.Rdb)
+	count, err := data.GetChessStateCount(ctx, rdb)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to count chess states after creating game", "err", err)
 		return
 	}
-	if err := data.BroadcastGameCount(ctx, stores.Rdb, count); err != nil {
+	if err := data.BroadcastGameCount(ctx, rdb, count); err != nil {
 		slog.ErrorContext(ctx, "failed to broadcast chess states count after creating game", "err", err)
 		return
 	}
 	slog.InfoContext(ctx, "counted chess states after creating game", "count", count)
 }
 
-func JoinGame(ctx context.Context, stores data.Stores, gameID string, player data.PlayerState) (data.ChessState, error) {
-	state, err := data.GetChessState(ctx, stores.Rdb, gameID)
+func JoinGame(ctx context.Context, rdb data.Redis, gameID string, player data.PlayerState) (data.ChessState, error) {
+	state, err := data.GetChessState(ctx, rdb, gameID)
 	if err != nil {
 		return data.ChessState{}, err
 	}
@@ -93,7 +93,7 @@ func JoinGame(ctx context.Context, stores data.Stores, gameID string, player dat
 		return state, nil
 	}
 
-	state, err = data.SetChessState(ctx, stores.Rdb, gameID, state)
+	state, err = data.SetChessState(ctx, rdb, gameID, state)
 	util.DynLog(ctx, "player joined game", err, "playerID", player.ID, "state", state, "err", err)
 	return state, err
 }

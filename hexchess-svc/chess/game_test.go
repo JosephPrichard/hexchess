@@ -44,7 +44,7 @@ func TestGame_DetermineIsCheckmate(t *testing.T) {
 		SetPiece("f9", BlackKing)
 
 	for i, game := range []Game{game1, game2} {
-		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			game.InitPieceMoves()
 			t.Logf("game:\n%s", game.StringColor(!game.Board.IsWhiteTurn))
 			isCheckmate := game.CheckmateReached()

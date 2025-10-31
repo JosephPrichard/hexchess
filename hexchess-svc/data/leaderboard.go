@@ -110,7 +110,7 @@ func GetLeaderboard(ctx context.Context, rdb Redis, startRank, count int64) (Lea
 		users = append(users, RankedUser{ID: id, Rank: startRank + int64(i) + 1})
 	}
 
-	pageCount := int((elemCount / int64(count)) + int64(math.Min(float64(elemCount%int64(count)), 1)))
+	pageCount := int((elemCount / count) + int64(math.Min(float64(elemCount%count), 1)))
 
 	leaderboard := Leaderboard{Users: users, PageCount: pageCount}
 	slog.InfoContext(ctx, "retrieved leaderboard", "startRank", startRank, "count", count, "leaderboard", leaderboard)
@@ -133,7 +133,7 @@ func SyncLeaderboard(ctx context.Context, stores Stores) error {
 	for {
 		rows, err := stores.Q.SelectEloListAfterID(ctx, db.SelectEloListAfterIDParams{AfterID: afterID, Limit: 20})
 		if err != nil {
-			return fmt.Errorf("failed to select elo list", "err", err)
+			return fmt.Errorf("failed to select elo list: %v", err)
 		}
 		var changes []UpdtLbChangeSet
 		for i, row := range rows {
@@ -147,7 +147,7 @@ func SyncLeaderboard(ctx context.Context, stores Stores) error {
 			break
 		}
 		if err := SetLeaderboard(ctx, stores.Rdb, changes...); err != nil {
-			return fmt.Errorf("failed to incr leaderboard", "err", err)
+			return fmt.Errorf("failed to incr leaderboard: %v", err)
 		}
 	}
 	return nil

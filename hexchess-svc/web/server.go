@@ -19,11 +19,16 @@ type ServerState struct {
 	GamesCaster     *data.MultiCasterMap
 	UsersCaster     *data.MultiCasterMap
 	CountryList     []string
+	CountryMap      map[string]struct{}
 }
 
 func MakeServerState(stores data.Stores, countryList []string) ServerState {
 	if countryList == nil {
 		countryList = []string{}
+	}
+	countryMap := make(map[string]struct{})
+	for _, c := range countryList {
+		countryMap[c] = struct{}{}
 	}
 	return ServerState{
 		Stores:          stores,
@@ -32,6 +37,7 @@ func MakeServerState(stores data.Stores, countryList []string) ServerState {
 		GamesCaster:     data.MakeMultiCasterMap("games-caster"),
 		UsersCaster:     data.MakeMultiCasterMap("users-caster"),
 		CountryList:     countryList,
+		CountryMap:      countryMap,
 	}
 }
 
@@ -81,7 +87,7 @@ func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 	handle("POST", "/api/login", makeRestHandler(state, HandleLogin))
 	handle("POST", "/api/session/temp", makeRestHandler(state, HandleCreateTempSession))
 	handle("POST", "/api/session/refresh", makeRestHandler(state, HandleRefreshSession))
-	handle("POST", "/api/session/logout", makeRestHandler(state, HandleLogout))
+	handle("POST", "/api/logout", makeRestHandler(state, HandleLogout))
 	handle("POST", "/api/users/password", makeRestHandler(state, HandleUpdatePassword))
 	handle("POST", "/api/users", makeRestHandler(state, HandleUpdateUser))
 	handle("POST", "/api/games/create", makeRestHandler(state, HandleCreateGame))
@@ -112,6 +118,6 @@ func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 		_, _ = w.Write(NotFoundErrorJSON)
 	})
 
-	fmt.Fprintf(util.LogWriter, sb.String())
+	fmt.Fprintf(util.LogWriter, "%s", sb.String())
 	return mux
 }

@@ -188,17 +188,20 @@ func listenMessages(channel string, psc redis.PubSubConn, m *UniCaster) {
 }
 
 type MultiCasterMap struct {
-	mu sync.RWMutex
-	ID string
-	m  map[string]*MultiCaster
+	mu       sync.RWMutex
+	ID       string
+	m        map[string]*MultiCaster
+	StopChan chan struct{}
 }
 
 func MakeMultiCasterMap(ID string) *MultiCasterMap {
+	stopChan := make(chan struct{})
 	m := &MultiCasterMap{
-		ID: ID,
-		m:  make(map[string]*MultiCaster),
+		ID:       ID,
+		m:        make(map[string]*MultiCaster),
+		StopChan: stopChan,
 	}
-	go m.ExpirePeriodically(BroadcasterExpireTime)
+	go m.ExpirePeriodically(BroadcasterExpireTime, stopChan)
 	return m
 }
 
@@ -244,9 +247,15 @@ func (m *MultiCasterMap) Broadcast(brID string, msg []byte) {
 
 var BroadcasterExpireTime = time.Hour
 
-func (m *MultiCasterMap) ExpirePeriodically(expireTime time.Duration) {
-	for range time.NewTicker(time.Minute * 1).C {
-		m.Expire(expireTime)
+func (m *MultiCasterMap) ExpirePeriodically(expireTime time.Duration, stopChan chan struct{}) {
+	ticker := time.NewTicker(time.Minute * 1)
+	for {
+		select {
+		case <-ticker.C:
+			m.Expire(expireTime)
+		case <-stopChan:
+			return
+		}
 	}
 }
 
@@ -351,17 +360,20 @@ func (br *MultiCaster) Broadcast(msg []byte) {
 }
 
 type UniCaster struct {
-	mu sync.RWMutex
-	ID string
-	m  map[subscriber]*atomic.Int64
+	mu       sync.RWMutex
+	ID       string
+	m        map[subscriber]*atomic.Int64
+	StopChan chan struct{}
 }
 
 func MakeUniCaster(brID string) *UniCaster {
+	stopChan := make(chan struct{})
 	br := &UniCaster{
-		ID: brID,
-		m:  make(map[subscriber]*atomic.Int64),
+		ID:       brID,
+		m:        make(map[subscriber]*atomic.Int64),
+		StopChan: stopChan,
 	}
-	go br.ExpirePeriodically(BroadcasterExpireTime)
+	go br.ExpirePeriodically(BroadcasterExpireTime, stopChan)
 	return br
 }
 
@@ -379,7 +391,7 @@ func (br *UniCaster) Subscribe(sub subscriber) {
 
 func (br *UniCaster) Unsubscribe(sub subscriber) {
 	slog.Info("unsubscribing from broker", "brID", br.ID, "sub", fmt.Sprintf("%v", sub))
-	
+
 	br.mu.Lock()
 	defer br.mu.Unlock()
 
@@ -400,6 +412,7 @@ func (br *UniCaster) Broadcast(msg []byte, expireTime time.Duration) {
 			now := time.Now()
 			if now.Sub(lastAccess) > expireTime {
 				expiredSubs = append(expiredSubs, sub)
+				close(sub)
 				delete(br.m, sub)
 			} else {
 				sub <- msg
@@ -413,9 +426,15 @@ func (br *UniCaster) Broadcast(msg []byte, expireTime time.Duration) {
 	slog.Info("broadcasted to broker subscribers", "brID", br.ID, "count", subCount)
 }
 
-func (br *UniCaster) ExpirePeriodically(expireTime time.Duration) {
-	for range time.NewTicker(time.Minute * 1).C {
-		br.Expire(expireTime)
+func (br *UniCaster) ExpirePeriodically(expireTime time.Duration, stopChan chan struct{}) {
+	ticker := time.NewTicker(time.Minute * 1)
+	for {
+		select {
+		case <-ticker.C:
+			br.Expire(expireTime)
+		case <-stopChan:
+			return
+		}
 	}
 }
 

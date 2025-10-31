@@ -206,23 +206,54 @@ type VerifiedUser struct {
 	Elo      float64 `json:"elo"`
 }
 
+func VerifyUserTx(ctx context.Context, pgDB PgDB, username string, inputPassword string) (VerifiedUser, error) {
+	return WithTxn(TxnArgs[VerifiedUser]{
+		Ctx:  ctx,
+		PgDB: pgDB,
+		TxFn: func(q *db.Queries) (VerifiedUser, error) {
+			// we want to wrap this in a txn, so only a single login attempt can be active at a time - to prevent DDOS attacks used to skip login attempt count
+			return VerifyUser(ctx, q, username, inputPassword)
+		},
+		ErrWhiteList: []error{ErrTooManyLoginAttempts, ErrUserNotFound},
+	})
+}
+
+const LoginAttemptsDivisor = 10
+const LockoutDuration = time.Minute * 1
+
+var ErrTooManyLoginAttempts = errors.New("too many login attempts")
+
 func VerifyUser(ctx context.Context, q *db.Queries, username string, inputPassword string) (VerifiedUser, error) {
 	login, err := q.SelectLoginByName(ctx, username)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return VerifiedUser{}, ErrUserNotFound
-	}
-	if err != nil {
-		return VerifiedUser{}, fmt.Errorf("failed to select user by name: %w", err)
-	}
-	saltedPassword := inputPassword + login.Salt
-	if err := bcrypt.CompareHashAndPassword([]byte(login.Password), []byte(saltedPassword)); err != nil {
-		slog.InfoContext(ctx, "user login is invalid", "username", username)
-		return VerifiedUser{}, ErrUserNotFound
+	} else if err != nil {
+		return VerifiedUser{}, fmt.Errorf("failed to select user by login: %w", err)
 	}
 
-	u := VerifiedUser{ID: login.ID, Username: login.Username, Country: login.Country.String, Elo: login.Elo}
-	slog.InfoContext(ctx, "user login is valid", "user", u)
-	return u, nil
+	isExceedAttempts := login.LoginAttempts > 0 && login.LoginAttempts%LoginAttemptsDivisor == 0
+	nextLoginTime := login.LastLoginAttempt.Time.Add(LockoutDuration)
+	isLocked := isExceedAttempts && time.Now().Before(nextLoginTime)
+	if isLocked {
+		return VerifiedUser{}, ErrTooManyLoginAttempts
+	}
+	saltedPassword := inputPassword + login.Salt
+	loginErr := bcrypt.CompareHashAndPassword([]byte(login.Password), []byte(saltedPassword))
+
+	if loginErr == nil {
+		if err := q.ResetLoginAttempts(ctx, login.ID); err != nil {
+			return VerifiedUser{}, fmt.Errorf("failed to update login attempts: %w", err)
+		}
+		u := VerifiedUser{ID: login.ID, Username: login.Username, Country: login.Country.String, Elo: login.Elo}
+		slog.InfoContext(ctx, "user login is valid", "user", u)
+		return u, nil
+	} else {
+		if err := q.IncrLoginAttempts(ctx, login.ID); err != nil {
+			return VerifiedUser{}, fmt.Errorf("failed to update login attempts: %w", err)
+		}
+		slog.ErrorContext(ctx, "user login is invalid", "username", username, "err", loginErr)
+		return VerifiedUser{}, ErrUserNotFound
+	}
 }
 
 func ProbabilityWins(elo1, elo2 float64) float64 {
@@ -316,6 +347,11 @@ func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page, pe
 	var users []UserEntity
 	for i, row := range rows {
 		rank := (page-1)*perPage + int32(i) + 1
+		total := row.Wins + row.Losses
+		wr := float64(0)
+		if total > 0 {
+			wr = float64(row.Wins) / float64(total) * 100.0
+		}
 		users = append(users, UserEntity{
 			ID:       row.ID,
 			Username: row.Username,
@@ -324,6 +360,8 @@ func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page, pe
 			Wins:     row.Wins,
 			Losses:   row.Losses,
 			Rank:     int64(rank),
+			Total:    int64(total),
+			WinRate:  int64(wr),
 		})
 	}
 

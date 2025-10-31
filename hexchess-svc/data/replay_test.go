@@ -8,7 +8,7 @@ import (
 )
 
 func TestInsertThenGet(t *testing.T) {
-	pgDB, closer := BeforeDbTests(t)
+	pgDB, closer := BeforeDbTests(t, true)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-insert-get")
@@ -40,12 +40,10 @@ func TestInsertThenGet(t *testing.T) {
 }
 
 func TestGetUserReplays(t *testing.T) {
-	pgDB, closer := BeforeDbTests(t)
+	pgDB, closer := BeforeDbTests(t, true)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-replays")
-
-	// the only replays that include userID '1' should be the replays made in the testing init phase
 
 	actualReplayList1, err := GetUserReplays(ctx, pgDB.Q, 1, -1, 5)
 	assert.NoError(t, err)
@@ -93,7 +91,7 @@ func TestGetUserReplays(t *testing.T) {
 }
 
 func TestGetReplayMoveList(t *testing.T) {
-	pgDB, closer := BeforeDbTests(t)
+	pgDB, closer := BeforeDbTests(t, true)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-move-list")

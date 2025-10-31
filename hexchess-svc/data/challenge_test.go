@@ -9,7 +9,7 @@ import (
 )
 
 func TestChallengeExpiration(t *testing.T) {
-	pgDB, closer := BeforeDbTests(t)
+	pgDB, closer := BeforeDbTests(t, true)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-expiration")
@@ -62,7 +62,7 @@ func TestChallengeExpiration(t *testing.T) {
 }
 
 func TestChallengeDeletion(t *testing.T) {
-	pgDB, closer := BeforeDbTests(t)
+	pgDB, closer := BeforeDbTests(t, true)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-delete")

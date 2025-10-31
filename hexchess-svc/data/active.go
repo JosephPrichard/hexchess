@@ -35,7 +35,7 @@ func RetainActiveUser(ctx context.Context, rdb Redis, id string) error {
 	conn := rdb.Primary.Get()
 	defer conn.Close()
 
-	if _, err := conn.Do("ZADD", rdb.ActiveUsersZSet, "NX", float64(time.Now().UnixMilli()), id); err != nil {
+	if _, err := conn.Do("ZADD", rdb.ActiveUsersZSet, "XX", float64(time.Now().UnixMilli()), id); err != nil {
 		return fmt.Errorf("failed to add user %s: %w", id, err)
 	}
 	slog.InfoContext(ctx, "retained active user", "id", id)

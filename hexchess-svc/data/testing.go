@@ -85,7 +85,7 @@ func BeforeRedisTests(t TestLogger) Redis {
 	return rdb
 }
 
-func BeforeDbTests(t TestLogger) (PgDB, func()) {
+func BeforeDbTests(t TestLogger, useTestTx bool) (PgDB, func()) {
 	start := time.Now()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
@@ -128,43 +128,47 @@ func BeforeDbTests(t TestLogger) (PgDB, func()) {
 
 	pool, err := pgxpool.New(ctx, fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", TestDbUser, TestDbPass, host, port.Port(), TestDbName))
 	if err != nil {
-		t.Fatalf("failed to create pool", "err", err)
+		t.Fatalf("failed to create pool: %v", err)
 	}
 	q := db.New(pool)
 
 	if shouldSeed {
 		// initialize the schema and test data for the test postgres instance, but only after the container is created
 		if _, err := pool.Exec(ctx, "DROP SCHEMA public CASCADE;\nCREATE SCHEMA public;"); err != nil {
-			t.Fatalf("failed to create schema", "err", err)
+			t.Fatalf("failed to create schema: %v", err)
 		}
 		if _, err := pool.Exec(ctx, db.CreateSchema); err != nil {
-			t.Fatalf("failed to create schema", "err", err)
+			t.Fatalf("failed to create schema: %v", err)
 		}
-
 		CreateTestData(t, q)
-
 		t.Logf("finished setting up postgres test cont in %v", time.Now().Sub(start))
 	}
 
-	testTx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatalf("failed to open testing tx %v", err)
-	}
-
-	closer := func() {
-		t.Logf("shutting down test txn and pool")
-		if err := testTx.Rollback(context.Background()); err != nil {
-			t.Fatalf("failed to rollback test txn", "err", err)
+	if useTestTx {
+		testTx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatalf("failed to open testing tx %v", err)
 		}
-		pool.Close()
+		closer := func() {
+			t.Logf("shutting down test txn and pool")
+			if err := testTx.Rollback(context.Background()); err != nil {
+				t.Fatalf("failed to rollback test txn: %v", err)
+			}
+			pool.Close()
+		}
+		q = q.WithTx(testTx)
+		return MakeFakeDbClient(q), closer
+	} else {
+		closer := func() {
+			t.Logf("shutting down pool")
+			pool.Close()
+		}
+		return MakeDbClient(q, pool), closer
 	}
-
-	q = q.WithTx(testTx)
-	return MakeFakeDbClient(q), closer
 }
 
-func BeforeStoresTests(t TestLogger) (Stores, func()) {
-	pgDB, dbCloser := BeforeDbTests(t)
+func BeforeStoresTests(t TestLogger, useTx bool) (Stores, func()) {
+	pgDB, dbCloser := BeforeDbTests(t, useTx)
 	rdb := BeforeRedisTests(t)
 	closer := func() {
 		dbCloser()

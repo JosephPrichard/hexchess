@@ -70,8 +70,12 @@ type GRChangeSet struct {
 }
 
 func UpdateGameResultTx(ctx context.Context, pgDB PgDB, params GRParams) (GRChangeSet, error) {
-	return WithTxn(ctx, pgDB, func(q *db.Queries) (GRChangeSet, error) {
-		return updateGameResult(ctx, q, params)
+	return WithTxn(TxnArgs[GRChangeSet]{
+		Ctx:  ctx,
+		PgDB: pgDB,
+		TxFn: func(q *db.Queries) (GRChangeSet, error) {
+			return updateGameResult(ctx, q, params)
+		},
 	})
 }
 

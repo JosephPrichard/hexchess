@@ -9,7 +9,7 @@ VALUES (sqlc.arg('username'), sqlc.arg('country'), sqlc.arg('elo'), sqlc.arg('hi
 RETURNING id, username, country, elo, highest_elo, wins, losses, bio, joined_on;
 
 -- name: SelectLoginByName :one
-SELECT id, username, country, elo, password, salt
+SELECT id, username, country, elo, password, salt, login_attempts, last_login_attempt
 FROM users
 WHERE UPPER(username) = UPPER(sqlc.arg('username')::TEXT);
 
@@ -93,6 +93,21 @@ ORDER BY rank DESC
     LIMIT sqlc.arg('limit')
 OFFSET sqlc.arg('offset');
 
+-- name: GetEloList :many
+SELECT id, elo FROM users WHERE id > sqlc.arg('id') ORDER BY id LIMIT sqlc.arg('limit');
+
+-- name: IncrLoginAttempts :exec
+UPDATE users
+SET last_login_attempt = CURRENT_TIMESTAMP,
+    login_attempts = login_attempts + 1
+WHERE id = sqlc.arg('id');
+
+-- name: ResetLoginAttempts :exec
+UPDATE users
+SET last_login_attempt = CURRENT_TIMESTAMP,
+    login_attempts = 0
+WHERE id = sqlc.arg('id');
+
 -- name: UpdatePassword :exec
 UPDATE users
 SET password = sqlc.arg('password'), salt = sqlc.arg('salt')
@@ -115,6 +130,3 @@ UPDATE users
 SET elo = sqlc.arg('elo'),
     losses = losses + 1
 WHERE id = sqlc.arg('id');
-
--- name: GetEloList :many
-SELECT id, elo FROM users WHERE id > sqlc.arg('id') ORDER BY id LIMIT sqlc.arg('limit');
