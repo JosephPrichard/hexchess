@@ -120,7 +120,7 @@ func ParseHexagon(notation string) (Hex, error) {
 func ParseHexagonValid(notation string) Hex {
 	hex, err := ParseHexagon(notation)
 	if err != nil {
-		panic(fmt.Sprintf("failed to set piece at notation", "err", err))
+		panic(fmt.Sprintf("failed to set piece at notation: %s", err))
 	}
 	return hex
 }
@@ -269,69 +269,60 @@ func (p Piece) IsKing() bool {
 	return p == WhiteKing || p == BlackKing
 }
 
-func MakeBoard(isWhiteTurn bool) Board {
-	b := Board{IsWhiteTurn: isWhiteTurn}
-	//for i := range b.Pieces {
-	//	b.Pieces[i] = make([]Piece, RanksPerFile[i])
-	//}
-	return b
-}
-
 func InitialBoard() Board {
-	board := MakeBoard(true)
+	board := Board{IsWhiteTurn: true}
 
-	board.SetPieceNot("b1", WhitePawn)
-	board.SetPieceNot("c2", WhitePawn)
-	board.SetPieceNot("d3", WhitePawn)
-	board.SetPieceNot("e4", WhitePawn)
-	board.SetPieceNot("f5", WhitePawn)
-	board.SetPieceNot("g4", WhitePawn)
-	board.SetPieceNot("h3", WhitePawn)
-	board.SetPieceNot("i2", WhitePawn)
-	board.SetPieceNot("j1", WhitePawn)
-
-	board.SetPieceNot("c1", WhiteRook)
-	board.SetPieceNot("d1", WhiteKnight)
-	board.SetPieceNot("e1", WhiteQueen)
-	board.SetPieceNot("f1", WhiteBishop)
-	board.SetPieceNot("f2", WhiteBishop)
-	board.SetPieceNot("f3", WhiteBishop)
-	board.SetPieceNot("g1", WhiteKing)
-	board.SetPieceNot("h1", WhiteKnight)
-	board.SetPieceNot("i1", WhiteRook)
-
-	board.SetPieceNot("b7", BlackPawn)
-	board.SetPieceNot("c7", BlackPawn)
-	board.SetPieceNot("d7", BlackPawn)
-	board.SetPieceNot("e7", BlackPawn)
-	board.SetPieceNot("f7", BlackPawn)
-	board.SetPieceNot("g7", BlackPawn)
-	board.SetPieceNot("h7", BlackPawn)
-	board.SetPieceNot("i7", BlackPawn)
-	board.SetPieceNot("j7", BlackPawn)
-
-	board.SetPieceNot("c8", BlackRook)
-	board.SetPieceNot("d9", BlackKnight)
-	board.SetPieceNot("e10", BlackQueen)
-	board.SetPieceNot("f11", BlackBishop)
-	board.SetPieceNot("f10", BlackBishop)
-	board.SetPieceNot("f9", BlackBishop)
-	board.SetPieceNot("g10", BlackKing)
-	board.SetPieceNot("h9", BlackKnight)
-	board.SetPieceNot("i8", BlackRook)
+	placements := []struct {
+		square string
+		piece  Piece
+	}{
+		// White pawns
+		{"b1", WhitePawn},
+		{"c2", WhitePawn},
+		{"d3", WhitePawn},
+		{"e4", WhitePawn},
+		{"f5", WhitePawn},
+		{"g4", WhitePawn},
+		{"h3", WhitePawn},
+		{"i2", WhitePawn},
+		{"j1", WhitePawn},
+		// White back rank
+		{"c1", WhiteRook},
+		{"d1", WhiteKnight},
+		{"e1", WhiteQueen},
+		{"f1", WhiteBishop},
+		{"f2", WhiteBishop},
+		{"f3", WhiteBishop},
+		{"g1", WhiteKing},
+		{"h1", WhiteKnight},
+		{"i1", WhiteRook},
+		// Black pawns
+		{"b7", BlackPawn},
+		{"c7", BlackPawn},
+		{"d7", BlackPawn},
+		{"e7", BlackPawn},
+		{"f7", BlackPawn},
+		{"g7", BlackPawn},
+		{"h7", BlackPawn},
+		{"i7", BlackPawn},
+		{"j7", BlackPawn},
+		// Black back rank
+		{"c8", BlackRook},
+		{"d9", BlackKnight},
+		{"e10", BlackQueen},
+		{"f11", BlackBishop},
+		{"f10", BlackBishop},
+		{"f9", BlackBishop},
+		{"g10", BlackKing},
+		{"h9", BlackKnight},
+		{"i8", BlackRook},
+	}
+	for _, p := range placements {
+		board.SetPieceNot(p.square, p.piece)
+	}
 
 	return board
 }
-
-//func (b *Board) DeepCopy() Board {
-//	board := MakeBoard(b.IsWhiteTurn)
-//	for i := range b.Pieces {
-//		for j := range b.Pieces[i] {
-//			board.Pieces[i][j] = b.Pieces[i][j]
-//		}
-//	}
-//	return board
-//}
 
 func (b *Board) SetPiece(file, rank int, piece Piece) error {
 	if file >= len(b.Pieces) {

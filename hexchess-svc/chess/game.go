@@ -38,7 +38,7 @@ func MakeStartGame(initial ...Move) Game {
 }
 
 func MakeEmptyGame(initial ...Move) Game {
-	game := Game{Board: MakeBoard(true)}
+	game := Game{Board: Board{IsWhiteTurn: true}}
 	for _, pm := range initial {
 		game.SetPiece(pm.Not, pm.Piece)
 	}
@@ -57,10 +57,15 @@ func (g *Game) DeepCopy() Game {
 	return g2
 }
 
-func (g *Game) SetPiece(str string, p Piece) *Game {
+func (g *Game) SetPiece(str string, p Piece) {
 	hex := ParseHexagonValid(str)
 	g.Board.Pieces[hex.File][hex.Rank] = p
-	return g
+}
+
+func (g *Game) SetPieces(placements ...Move) {
+	for _, placement := range placements {
+		g.SetPiece(placement.Not, placement.Piece)
+	}
 }
 
 func (g *Game) GetTurnMoves(isWhiteTurn bool) []PieceMoves {

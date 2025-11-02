@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
@@ -43,31 +44,31 @@ func HandleGameplayWs(w http.ResponseWriter, r *http.Request, ss ServerState) er
 	ctx := r.Context()
 	gameID := r.URL.Query().Get("id")
 
+	player, _, err := GetSessionPlayer(ctx, ss.Rdb, r)
+	if err != nil {
+		return err
+	}
+	cs, err := data.JoinGame(ctx, ss.Rdb, gameID, player)
+	if errors.Is(err, data.ErrNoChessState) {
+		return ErrHttpInvalidGame
+	} else if err != nil {
+		return err
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
-	defer slog.InfoContext(ctx, "closed ws connection")
 
-	player, _, err := GetSessionPlayer(ctx, ss.Rdb, r)
-	if err != nil {
-		return err
-	}
-	gs := GameplayState{ServerState: ss, gameID: gameID, player: player}
+	state := GameplayState{ServerState: ss, gameID: gameID, player: player}
 
-	cs, err := JoinGame(ctx, gs.Rdb, gs.gameID, player)
-	if err != nil {
-		return err
-	}
-	if err := handleGameplayInit(gs, conn, cs); err != nil {
+	if err := handleGpInit(state, conn, cs); err != nil {
 		slog.ErrorContext(ctx, "failed to handle gameplay init", "err", err)
-		return ErrWsFatal
 	}
 
 	writeChan := make(chan []byte)
-	gs.GamesCaster.Subscribe(gs.gameID, writeChan)
-	defer gs.GamesCaster.Unsubscribe(gs.gameID, writeChan)
+	state.GamesCaster.Subscribe(state.gameID, writeChan)
 
 	go func() {
 		for b := range writeChan {
@@ -76,6 +77,8 @@ func HandleGameplayWs(w http.ResponseWriter, r *http.Request, ss ServerState) er
 			}
 		}
 	}()
+
+	defer state.GamesCaster.Unsubscribe(state.gameID, writeChan)
 	for {
 		_, msg, err := conn.ReadMessage()
 		if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
@@ -85,12 +88,12 @@ func HandleGameplayWs(w http.ResponseWriter, r *http.Request, ss ServerState) er
 			slog.ErrorContext(ctx, "failed to read ws message", "err", err)
 			break
 		}
-		handleMsg(ctx, gs, msg, writeChan)
+		handleMessage(ctx, state, msg, writeChan)
 	}
 	return nil
 }
 
-func handleGameplayInit(gp GameplayState, conn *websocket.Conn, state data.ChessState) error {
+func handleGpInit(gp GameplayState, conn *websocket.Conn, state data.ChessState) error {
 	pbState, err := data.MapPbChessState(state)
 	if err != nil {
 		return fmt.Errorf("failed to map pb state: %w", err)
@@ -128,14 +131,14 @@ func handleGameplayInit(gp GameplayState, conn *websocket.Conn, state data.Chess
 	return nil
 }
 
-func handleMsg(ctx context.Context, gp GameplayState, msg []byte, writeChan chan []byte) {
+func handleMessage(ctx context.Context, gp GameplayState, msg []byte, writeChan chan []byte) {
 	sendErr := func(err error) {
-		wsErr := mapWsErr(err)
-		slog.ErrorContext(ctx, "error occurred while handling ws message", "err", err, "wsErr", wsErr)
+		err = mapSocketErr(err)
+		slog.ErrorContext(ctx, "error occurred while handling ws message", "err", err, "wsErr", err)
 		b, err := proto.Marshal(&pb.GameOutput{
 			GameId: gp.gameID,
 			Value: &pb.GameOutput_Error{Error: &pb.ErrorOutput{
-				Message: wsErr.Error(),
+				Message: err.Error(),
 			}},
 		})
 		if err != nil {
@@ -167,7 +170,7 @@ func handleMsg(ctx context.Context, gp GameplayState, msg []byte, writeChan chan
 }
 
 func handleForfeitMsg(ctx context.Context, gp GameplayState) error {
-	if err := ForfeitGame(ctx, gp.Stores, gp.gameID, gp.player); err != nil {
+	if err := data.ForfeitGame(ctx, gp.Stores, gp.gameID, gp.player); err != nil {
 		return err
 	}
 	b, err := proto.Marshal(&pb.GameOutput{
@@ -181,7 +184,7 @@ func handleForfeitMsg(ctx context.Context, gp GameplayState) error {
 }
 
 func handleMoveMsg(ctx context.Context, gp GameplayState, pbInput *pb.MoveInput) error {
-	mr, err := MakeGameMove(ctx, gp.Stores, gp.gameID, gp.player, data.MapPieceMove(pbInput.Move))
+	mr, err := data.MakeGameMove(ctx, gp.Stores, gp.gameID, gp.player, data.MapPieceMove(pbInput.Move))
 	if err != nil {
 		return err
 	}

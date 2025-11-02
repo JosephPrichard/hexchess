@@ -7,6 +7,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
+	"strconv"
 	"time"
 )
 
@@ -77,7 +78,7 @@ func MapPiecesMoves(pbMoves []*pb.PieceMoves) []chess.PieceMoves {
 }
 
 func MapBoard(pbBoard *pb.ChessBoard) (chess.Board, error) {
-	board := chess.MakeBoard(pbBoard.IsWhiteTurn)
+	board := chess.Board{IsWhiteTurn: pbBoard.IsWhiteTurn}
 	for f, file := range pbBoard.File {
 		if f >= chess.Files {
 			return board, fmt.Errorf("board file is out of bounds: %d", f)
@@ -294,8 +295,8 @@ func UnmarshalChessMeta(b []byte) (ChessMeta, error) {
 	return cv, nil
 }
 
-func MarshalUserMessageJson(um *pb.UserMsg) ([]byte, error) {
-	if c := um.GetChallenge(); c != nil {
+func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {
+	if c := pbUm.GetChallenge(); c != nil {
 		return json.Marshal(ChallengeEntity{
 			ChallengerID:      c.ChallengerId,
 			ChallengerName:    c.ChallengerName,
@@ -310,5 +311,24 @@ func MarshalUserMessageJson(um *pb.UserMsg) ([]byte, error) {
 			MadeOn:            time.UnixMilli(c.MadeOn),
 		})
 	}
-	return nil, fmt.Errorf("unknown message type: %T", um)
+	return nil, fmt.Errorf("unknown message type: %T", pbUm)
+}
+
+func MapPbChallengeMsg(id int64, c ChallengeEntity) pb.UserMsg {
+	return pb.UserMsg{
+		UserId: strconv.Itoa(int(id)),
+		Value: &pb.UserMsg_Challenge{Challenge: &pb.ChallengeMsg{
+			ChallengerId:      c.ChallengerID,
+			ChallengerName:    c.ChallengerName,
+			ChallengerCountry: c.ChallengerCountry,
+			ChallengerElo:     c.ChallengerElo,
+			ChallengeeId:      c.ChallengeeID,
+			ChallengeeName:    c.ChallengeeName,
+			ChallengeeCountry: c.ChallengeeCountry,
+			ChallengeeElo:     c.ChallengeeElo,
+			TimeControl:       uint32(c.TimeControl),
+			StartColor:        uint32(c.StartColor),
+			MadeOn:            c.MadeOn.UnixMilli(),
+		}},
+	}
 }

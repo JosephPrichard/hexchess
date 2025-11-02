@@ -3,6 +3,7 @@ package chess
 import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"strconv"
 	"testing"
 )
 
@@ -28,20 +29,21 @@ func TestGame_GetSetPieces(t *testing.T) {
 
 func TestGame_DetermineIsCheckmate(t *testing.T) {
 	game1 := MakeEmptyGame()
-	game1.
-		SetPiece("f6", WhiteKing).
-		SetPiece("f4", BlackQueen).
-		SetPiece("f8", BlackQueen).
-		SetPiece("b4", BlackBishop).
-		SetPiece("j4", BlackBishop).
-		SetPiece("f9", BlackKing)
+	game1.SetPieces(
+		Move{"f6", WhiteKing},
+		Move{"f4", BlackQueen},
+		Move{"f8", BlackQueen},
+		Move{"b4", BlackBishop},
+		Move{"j4", BlackBishop},
+		Move{"f9", BlackKing})
+
 	game2 := MakeEmptyGame()
-	game2.
-		SetPiece("f1", WhiteKing).
-		SetPiece("a1", BlackQueen).
-		SetPiece("h1", BlackRook).
-		SetPiece("f3", BlackRook).
-		SetPiece("f9", BlackKing)
+	game2.SetPieces(
+		Move{"f1", WhiteKing},
+		Move{"a1", BlackQueen},
+		Move{"h1", BlackRook},
+		Move{"f3", BlackRook},
+		Move{"f9", BlackKing})
 
 	for i, game := range []Game{game1, game2} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {

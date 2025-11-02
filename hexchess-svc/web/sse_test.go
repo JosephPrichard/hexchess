@@ -3,6 +3,7 @@ package web
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/stretchr/testify/assert"
@@ -10,13 +11,20 @@ import (
 	"hexchess-svc/util"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
+	"sort"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
-func scanLines(t *testing.T, resp *http.Response, expLines int) []string {
-	var lines []string
-	currLine := ""
+func scanEventsFunc(resp *http.Response, expEvents int, fn func(string)) {
+	if expEvents == 0 {
+		return
+	}
+
+	event := ""
+	count := 0
 
 	scan := bufio.NewScanner(resp.Body)
 	for scan.Scan() {
@@ -24,32 +32,49 @@ func scanLines(t *testing.T, resp *http.Response, expLines int) []string {
 		if line == "" {
 			continue
 		}
-		if currLine == "" {
-			currLine = line + "\n"
+		if event == "" {
+			event = line + "\n"
 		} else {
-			currLine += line + "\n"
-			t.Log(currLine)
-			lines = append(lines, currLine)
-			currLine = ""
+			event += line + "\n"
+			//fmt.Printf("sse event:%s\n", strings.ReplaceAll("\n"+event, "\n", "\n\t"))
+			fn(event)
+			count++
+			event = ""
 		}
-		if len(lines) >= expLines {
+		if count >= expEvents {
 			break
 		}
 	}
+}
 
-	return lines
+func scanEvents(resp *http.Response, expEvents int) []string {
+	var events []string
+	scanEventsFunc(resp, expEvents, func(line string) {
+		events = append(events, line)
+	})
+	return events
+}
+
+func parseEventData(input string) string {
+	lines := strings.Split(input, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "data: ") {
+			return strings.TrimPrefix(line, "data: ")
+		}
+	}
+	panic(fmt.Sprintf("failed to parse event data: %s", input))
 }
 
 func TestHandleCountEvents(t *testing.T) {
-	stores, closer := data.BeforeStoresTests(t, true)
-	defer closer()
+	rdb := data.BeforeRedisTests(t)
+	defer rdb.Close()
+	stores := data.Stores{Rdb: rdb}
 
 	state := MakeServerState(stores, nil)
-	data.ListenActiveCountsMessages(state.ActiveCntCaster, stores.Rdb.PrimaryAddr)
-	data.ListenGameCountsMessages(state.GamesCntCaster, stores.Rdb.PrimaryAddr)
+	state.MakeID = func() string { return "id1" }
+	data.ListenUnicastEvents(state.CountsCaster, stores.Rdb.PrimaryAddr)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
-
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/api/events/count")
@@ -62,27 +87,28 @@ func TestHandleCountEvents(t *testing.T) {
 	go func() {
 		ctx := context.WithValue(context.Background(), util.Trace, "broadcast-counts")
 		errChan <- errors.Join(nil,
-			data.BroadcastMessage(ctx, stores.Rdb, data.ActiveCountChan, strconv.AppendInt(nil, 2, 10)),
-			data.BroadcastMessage(ctx, stores.Rdb, data.GamesCountChan, strconv.AppendInt(nil, 1, 10)))
+			data.BroadcastActiveCount(ctx, stores.Rdb, 2, "id3"),
+			data.BroadcastGameCount(ctx, stores.Rdb, 1, "id2"))
 	}()
 
-	lines := scanLines(t, resp, 5)
-
-	expLines := []string{
-		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, "Connected"),
-		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, "1"),
-		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, "0"),
-		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, "2"),
-		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, "1"),
+	expEvents := []string{
+		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, "id1"),
+		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"id":"id1","count":0}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, `{"id":"id1","count":1}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, `{"id":"id3","count":2}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"id":"id2","count":1}`),
 	}
-	assert.Equal(t, expLines, lines)
+	events := scanEvents(resp, len(expEvents))
+	assert.ElementsMatch(t, expEvents, events)
 }
 
 func TestHandleUserEvents(t *testing.T) {
-	stores, closer := data.BeforeStoresTests(t, true)
-	defer closer()
+	rdb := data.BeforeRedisTests(t)
+	defer rdb.Close()
+	stores := data.Stores{Rdb: rdb}
 
 	state := MakeServerState(stores, nil)
+	state.MakeID = func() string { return "id1" }
 	data.ListenUsersMessages(state.UsersCaster, stores.Rdb.PrimaryAddr)
 
 	createTestSessions(t, stores.Rdb)
@@ -109,16 +135,116 @@ func TestHandleUserEvents(t *testing.T) {
 			data.BroadcastChallenge(ctx, stores.Rdb, 1, data.ChallengeEntity{ChallengerID: 1}))
 	}()
 
-	lines := scanLines(t, resp, 3)
-
-	json := `{"challengerId":1,"challengerName":"","challengerCountry":"","challengerElo":0,"challengeeId":0,"challengeeName":"","challengeeCountry":"","challengeeElo":0,"timeControl":0,"startColor":0,"madeOn":"0000-12-31T18:00:00-06:00"}`
-	expLines := []string{
-		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, "Connected"),
-		fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, json),
-		fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, json),
+	jsonData := `{"challengerId":1,"challengerName":"","challengerCountry":"","challengerElo":0,"challengeeId":0,"challengeeName":"","challengeeCountry":"","challengeeElo":0,"timeControl":0,"startColor":0,"madeOn":"0000-12-31T18:00:00-06:00"}`
+	expEvents := []string{
+		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, "id1"),
+		fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, jsonData),
+		fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, jsonData),
 	}
-	assert.Equal(t, expLines, lines)
+	events := scanEvents(resp, len(expEvents))
+	assert.ElementsMatch(t, expEvents, events)
 
 	err = <-errChan
 	assert.NoError(t, err)
+}
+
+func TestHandleCountEvents_Throughput(t *testing.T) {
+	rdb := data.BeforeRedisTests(t)
+	defer rdb.Close()
+	stores := data.Stores{Rdb: rdb}
+
+	state := MakeServerState(stores, nil)
+	data.ListenUnicastEvents(state.CountsCaster, stores.Rdb.PrimaryAddr)
+
+	ts := httptest.NewServer(HandleRoot(state, ""))
+	defer ts.Close()
+
+	runs := sseCountFlag()
+
+	type msg struct {
+		recvTime time.Time
+		count    int64
+	}
+	type group struct {
+		startTime time.Time
+		subMap    map[string]msg
+	}
+	sseMap := make(map[string]group)
+
+	var wg sync.WaitGroup
+
+	for i := range runs {
+		wg.Add(1)
+
+		start := time.Now()
+		resp, err := http.Get(ts.URL + "/api/events/count")
+		if err != nil {
+			t.Fatalf("failed to open sse: %v", err)
+		}
+		// wait for initial events before we start the next SSE
+		// this guarantees in the routine below, we will be listening to broadcasts from other SSE connections
+		events := scanEvents(resp, 2)
+
+		sseID := parseEventData(events[0])
+		subMap := make(map[string]msg)
+		sseMap[sseID] = group{startTime: start, subMap: subMap}
+
+		// expect one message from every single SSE that connects afterward
+		go func() {
+			defer resp.Body.Close()
+			defer wg.Done()
+			scanEventsFunc(resp, runs-i, func(event string) {
+				d := parseEventData(event)
+				var ce data.CountEvent
+				if err := json.Unmarshal([]byte(d), &ce); err != nil {
+					t.Logf("failed to unmarshal count event: %v", err)
+					return
+				}
+				subMap[ce.ID] = msg{
+					recvTime: time.Now(),
+					count:    ce.Count,
+				}
+			})
+			//fmt.Printf("sse finished: %d\n", i)
+		}()
+	}
+
+	wg.Wait()
+
+	count := 0
+	total := time.Duration(0)
+
+	// ordering and sseIDs are non-deterministic - prepare sorted messages by len and count content for assertions
+	var results [][]int64
+
+	for sseID, gr := range sseMap {
+		var counts []int64
+		for subID, m := range gr.subMap {
+			counts = append(counts, m.count)
+			sort.Slice(counts, func(i, j int) bool { return counts[i] < counts[j] })
+
+			subMeta, ok := sseMap[subID]
+			if ok {
+				d := m.recvTime.Sub(subMeta.startTime)
+				total += d
+				count++
+				t.Logf("%s to %s: duration: %v", sseID, subID, d)
+			}
+		}
+		results = append(results, counts)
+	}
+	sort.Slice(results, func(i, j int) bool { return len(results[i]) > len(results[j]) })
+
+	avg := time.Duration(int(total) / count)
+	t.Logf("avg duration: %v", avg)
+
+	var expected [][]int64
+	for i := range runs {
+		var counts []int64
+		for c := i + 1; c <= runs; c++ {
+			counts = append(counts, int64(c))
+		}
+		expected = append(expected, counts)
+	}
+	assert.Equal(t, expected, results)
 }

@@ -55,8 +55,8 @@
 		countSse.addEventListener('meta', (event) => {
 			console.log('Sse: /events/count meta', event.data);
 		});
-		countSse.addEventListener('userCountEvents', (event) => {
-			console.log('Sse: /events/count userCountEvents', event.data);
+		countSse.addEventListener('activeCountEvents', (event) => {
+			console.log('Sse: /events/count activeCountEvents', event.data);
 
 			const count = Number(event.data);
 			if (!isNaN(count)) {

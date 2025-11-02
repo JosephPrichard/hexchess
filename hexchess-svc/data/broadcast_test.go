@@ -2,59 +2,53 @@ package data
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
-	"hexchess-svc/chess"
 	"hexchess-svc/pb"
 	"hexchess-svc/util"
-	"math/rand"
-	"sync"
 	"testing"
 	"time"
 )
 
-func testSub(t *testing.T, sub subscriber, mChan chan []string) {
-	var messages []string
-	for msg := range sub {
-		messages = append(messages, string(msg))
+func TestMultiCaster(t *testing.T) {
+	testSub := func(sub chan []byte, mChan chan []string) {
+		var messages []string
+		for msg := range sub {
+			messages = append(messages, string(msg))
+		}
+		t.Logf("completed testing subscriber: %v: %v", sub, messages)
+		mChan <- messages
 	}
-	t.Logf("completed testing subscriber: %v: %v", sub, messages)
-	mChan <- messages
-}
 
-func TestMultiBroker(t *testing.T) {
-	type msg = []byte
+	m := MakeMultiCasterMap("testing-mc", time.Hour*1)
 
-	m := MakeMultiCasterMap("testing-broker")
-
-	sub1 := make(subscriber)
-	sub2 := make(subscriber)
-	sub3 := make(subscriber)
-	sub4 := make(subscriber)
+	sub1 := make(chan []byte)
+	sub2 := make(chan []byte)
+	sub3 := make(chan []byte)
+	sub4 := make(chan []byte)
 
 	mChan1 := make(chan []string)
 	mChan2 := make(chan []string)
 	mChan3 := make(chan []string)
 	mChan4 := make(chan []string)
 
-	go testSub(t, sub1, mChan1)
-	go testSub(t, sub2, mChan2)
-	go testSub(t, sub3, mChan3)
-	go testSub(t, sub4, mChan4)
+	go testSub(sub1, mChan1)
+	go testSub(sub2, mChan2)
+	go testSub(sub3, mChan3)
+	go testSub(sub4, mChan4)
 
 	m.Subscribe("1", sub1)
 	m.Subscribe("2", sub4)
-	m.Broadcast("1", msg("test1"))
+	m.Broadcast("1", []byte("test1"))
 
 	m.Subscribe("1", sub2)
 	m.Subscribe("1", sub3)
-	m.Broadcast("1", msg("test2"))
+	m.Broadcast("1", []byte("test2"))
 
 	m.Unsubscribe("1", sub3)
-	m.Broadcast("1", msg("test3"))
+	m.Broadcast("1", []byte("test3"))
 
-	m.Broadcast("2", msg("test4"))
+	m.Broadcast("2", []byte("test4"))
 
 	m.Unsubscribe("1", sub1)
 	m.Unsubscribe("1", sub2)
@@ -66,29 +60,41 @@ func TestMultiBroker(t *testing.T) {
 	assert.Equal(t, []string{"test4"}, <-mChan4)
 }
 
-func TestSingleBroker(t *testing.T) {
-	m := MakeUniCaster("testing-broker")
+func TestUnicaster(t *testing.T) {
+	testSub := func(sub chan UcEvent, mChan chan []UcEvent) {
+		var messages []UcEvent
+		for msg := range sub {
+			messages = append(messages, msg)
+		}
+		t.Logf("completed testing subscriber: %v: %v", sub, messages)
+		mChan <- messages
+	}
 
-	sub1 := make(subscriber)
-	sub2 := make(subscriber)
+	m := MakeUniCaster("testing-uc")
 
-	mChan1 := make(chan []string)
-	mChan2 := make(chan []string)
+	sub1 := make(chan UcEvent)
+	sub2 := make(chan UcEvent)
 
-	go testSub(t, sub1, mChan1)
-	go testSub(t, sub2, mChan2)
+	mChan1 := make(chan []UcEvent)
+	mChan2 := make(chan []UcEvent)
+
+	go testSub(sub1, mChan1)
+	go testSub(sub2, mChan2)
+
+	e1 := UcEvent{Kind: 0, Data: "test1"}
+	e2 := UcEvent{Kind: 1, Data: "test2"}
 
 	m.Subscribe(sub1)
-	m.Broadcast([]byte("test1"), BroadcasterExpireTime)
+	m.Broadcast(e1)
 
 	m.Subscribe(sub2)
-	m.Broadcast([]byte("test2"), BroadcasterExpireTime)
+	m.Broadcast(e2)
 
 	m.Unsubscribe(sub1)
 	m.Unsubscribe(sub2)
 
-	assert.Equal(t, []string{"test1", "test2"}, <-mChan1)
-	assert.Equal(t, []string{"test2"}, <-mChan2)
+	assert.Equal(t, []UcEvent{e1, e2}, <-mChan1)
+	assert.Equal(t, []UcEvent{e2}, <-mChan2)
 }
 
 func getChatMessages(t *testing.T, bytes [][]byte) []string {
@@ -101,7 +107,7 @@ func getChatMessages(t *testing.T, bytes [][]byte) []string {
 	return msgs
 }
 
-func testCountSub(t *testing.T, sub subscriber, mChan chan [][]byte, count int) {
+func testCountSub(t *testing.T, sub chan []byte, mChan chan [][]byte, count int) {
 	var messages [][]byte
 	for range count {
 		msg := <-sub
@@ -126,12 +132,12 @@ func TestBroadcastGameMessage(t *testing.T) {
 	rdb := BeforeRedisTests(t)
 	defer rdb.Close() // this will also stop the goroutine listening to the pubsub channel
 
-	m := MakeMultiCasterMap("testing-broker-map")
+	m := MakeMultiCasterMap("testing-broker-map", time.Hour*1)
 	ListenGameMessages(m, rdb.PubsubAddr)
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-broadcast-game-message")
 
-	sub := make(subscriber)
+	sub := make(chan []byte)
 	mChan := make(chan [][]byte)
 	go testCountSub(t, sub, mChan, 2)
 	m.Subscribe("1", sub)
@@ -141,122 +147,4 @@ func TestBroadcastGameMessage(t *testing.T) {
 	assert.NoError(t, BroadcastMessage(ctx, rdb, GamesChan, makeTestChatOutput(t, "2", "test3")))
 
 	assert.Equal(t, []string{"test1", "test2"}, getChatMessages(t, <-mChan))
-}
-
-func makeTestMoveOutput(b *testing.B, gID string, mID string) []byte {
-	pbGame, err := MapPbGame(chess.MakeStartGame())
-	if err != nil {
-		b.Fatal(err)
-	}
-	bytes, err := proto.Marshal(&pb.GameOutput{
-		GameId:    gID,
-		MessageId: mID,
-		Value: &pb.GameOutput_Move{
-			Move: &pb.MoveOutput{
-				PieceMove: &pb.PieceMove{Piece: int32(chess.WhitePawn), ToFile: int32(1), ToRank: int32(1), FromFile: int32(2), FromRank: int32(1)},
-				Game:      pbGame,
-			},
-		},
-	})
-	if err != nil {
-		b.Fatal(err)
-	}
-	return bytes
-}
-
-func BenchmarkBroadcastGameMessage(b *testing.B) {
-	b.N = 100
-
-	const benchBrCount = 5
-	const benchSubCount = 3 // subs per broker
-
-	rdb := BeforeRedisTests(b)
-	rdb.Close() // this will also stop the goroutine listening to the pubsub channel
-
-	m := MakeMultiCasterMap("testing-broker-map")
-	ListenGameMessages(m, rdb.PrimaryAddr)
-
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-broadcast-game-message")
-
-	var mapMu sync.Mutex
-	sends := make(map[string]time.Time)
-	recvs := make(map[string]time.Time)
-
-	consistentSub := func(sub subscriber, brID string) {
-		sID := uuid.NewString()
-		for msg := range sub {
-			var goi pb.GameOutputID
-			if err := proto.Unmarshal(msg, &goi); err != nil {
-				b.Fatal(err)
-			}
-			t := time.Now()
-			func() {
-				mapMu.Lock()
-				defer mapMu.Unlock()
-				recvs[goi.MessageId] = t
-			}()
-			b.Logf("receiving mID %s, brID %s, sID: %s, time: %d", goi.MessageId, brID, sID, t.UnixMicro())
-		}
-	}
-
-	//intermittentSub := func(brID string) {
-	//	// simulates a subscriber that is intermittently subscribing and unsubscribing
-	//	var sub subscriber
-	//	for range time.NewTimer(time.Second).C {
-	//		if sub != nil {
-	//			m.Unsubscribe(brID, sub)
-	//			sub = nil
-	//		} else {
-	//			sub = make(subscriber)
-	//			m.Subscribe(brID, sub)
-	//		}
-	//	}
-	//}
-
-	var testBrokers []string
-	for range benchBrCount {
-		brID := uuid.NewString()
-		testBrokers = append(testBrokers, brID)
-		for range benchSubCount {
-			sub := make(subscriber)
-			m.Subscribe(brID, sub)
-			go consistentSub(sub, brID)
-		}
-		//for range benchSubCount {
-		//	go intermittentSub(brID)
-		//}
-	}
-
-	for range b.N {
-		mID := uuid.NewString()
-		brID := testBrokers[rand.Intn(len(testBrokers))]
-		output := makeTestMoveOutput(b, brID, mID)
-
-		t := time.Now()
-		sends[mID] = t
-		b.Logf("sending mID: %s, brID: %s, time: %d", mID, brID, t.UnixMicro())
-
-		b.StartTimer()
-
-		assert.NoError(b, BroadcastMessage(ctx, rdb, GamesChan, output))
-
-		b.StopTimer()
-	}
-
-	var totalTime int64
-	var count int64
-
-	for k, v := range sends {
-		v1, ok := recvs[k]
-		if !ok {
-			b.Fatalf("missing matching recv for mID %s", k)
-		}
-		diff := v1.Sub(v)
-		totalTime += diff.Nanoseconds()
-		count++
-		b.Logf("mID: %s, time: %v", k, diff)
-	}
-
-	b.Logf("total time: %v", time.Duration(totalTime)*time.Nanosecond)
-	b.Logf("avg time: %v", time.Duration(int(totalTime/count))*time.Nanosecond)
 }

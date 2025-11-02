@@ -67,8 +67,7 @@ func main() {
 
 	data.ListenGameMessages(state.GamesCaster, rdb.PubsubAddr)
 	data.ListenUsersMessages(state.UsersCaster, rdb.PubsubAddr)
-	data.ListenGameCountsMessages(state.GamesCntCaster, rdb.PubsubAddr)
-	data.ListenActiveCountsMessages(state.ActiveCntCaster, rdb.PubsubAddr)
+	data.ListenUnicastEvents(state.CountsCaster, rdb.PubsubAddr)
 
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 

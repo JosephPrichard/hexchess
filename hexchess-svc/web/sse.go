@@ -2,8 +2,8 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
 	"hexchess-svc/data"
 	"log/slog"
 	"net/http"
@@ -31,106 +31,128 @@ func makeSseHandler(state ServerState, h SseHandler) http.Handler {
 			http.Error(w, fmt.Sprintf("%s: internal server error", MetaEvent), http.StatusInternalServerError)
 			f.Flush()
 		}
+		slog.InfoContext(r.Context(), "finished sse request", "method", r.Method, "url", r.URL)
 	})
 }
 
-func writeEvent(w http.ResponseWriter, key string, value string) {
-	_, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", key, value)
-	if err != nil {
-		slog.ErrorContext(context.Background(), "failed to write to sse", "err", err)
-	}
-}
-
 const MetaEvent = "meta"
-const UserChallengeEvent = "user-challenge"
+const UserChallengeEvent = "userEvents"
 const GamesCountEvent = "gameCountEvents"
-const ActiveCountEvent = "userCountEvents"
+const ActiveCountEvent = "activeCountEvents"
 
-func shutdownActiveUser(ctx context.Context, state ServerState, sseID string) {
-	// a user will get expired in case this does not execute, but remove it and broadcast the new count to keep all subscribers up to date quicker
-	ac, err := data.RemoveActiveUser(ctx, state.Rdb, sseID)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to remove active user", "sseID", sseID, "err", err)
-	}
-	if err := data.BroadcastActiveCount(ctx, state.Rdb, ac); err != nil {
-		slog.ErrorContext(ctx, "failed to broadcast active count", "sseID", sseID, "err", err)
+func writeEvent(w http.ResponseWriter, e string, d string) {
+	if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", e, d); err != nil {
+		slog.Error("failed to write to sse", "err", err)
 	}
 }
 
-func HandleCountEvents(w http.ResponseWriter, r *http.Request, f http.Flusher, state ServerState) error {
-	ctx := r.Context()
+func writeCountEvent(w http.ResponseWriter, event data.UcEvent) {
+	var e string
+	switch event.Kind {
+	case data.UcActiveEk:
+		e = ActiveCountEvent
+	case data.UcGamesEk:
+		e = GamesCountEvent
+	}
+	if e == "" {
+		slog.Error("unknown count event key", "event", e)
+		return
+	}
+	writeEvent(w, e, event.Data)
+}
 
-	sseID := uuid.NewString()
-	clientGone := ctx.Done()
-
-	sc, err := data.GetChessStateCount(ctx, state.Rdb)
+func makeCountEvent(count int64, sseID string) string {
+	b, err := json.Marshal(data.CountEvent{Count: count, ID: sseID})
 	if err != nil {
-		return err
+		slog.Error("failed to marshal count event", "sseID", sseID, "err", err)
 	}
-	ac, err := data.AddActiveUser(ctx, state.Rdb, sseID)
-	if err != nil {
-		return err
-	}
-	if err := data.BroadcastActiveCount(ctx, state.Rdb, ac); err != nil {
-		return err
-	}
+	return string(b)
+}
 
-	writeEvent(w, MetaEvent, "Connected")
-	writeEvent(w, ActiveCountEvent, strconv.FormatInt(ac, 10))
-	writeEvent(w, GamesCountEvent, strconv.FormatInt(sc, 10))
-	f.Flush()
-
-	activeChan := make(chan []byte)
-	state.ActiveCntCaster.Subscribe(activeChan)
-	defer state.ActiveCntCaster.Unsubscribe(activeChan)
-
-	gamesChan := make(chan []byte)
-	state.GamesCntCaster.Subscribe(gamesChan)
-	defer state.GamesCntCaster.Unsubscribe(gamesChan)
-
-	type event struct {
-		event string
-		msg   string
-	}
-	eventChan := make(chan event)
-
+func makePingTicker(ctx context.Context, state ServerState, sseID string) chan struct{} {
+	ctx = context.WithoutCancel(ctx)
+	stopPingChan := make(chan struct{})
 	go func() {
-		for msg := range activeChan {
-			eventChan <- event{ActiveCountEvent, string(msg)}
-		}
-	}()
-	go func() {
-		for msg := range gamesChan {
-			eventChan <- event{GamesCountEvent, string(msg)}
-		}
-	}()
-	keepAliveTicker := time.NewTicker(time.Second * 15)
-	kaCount := 0
-	for {
-		select {
-		case <-clientGone:
-			shutdownActiveUser(ctx, state, sseID)
-			slog.InfoContext(ctx, "finishing handle count events sse", "sseID", sseID)
-			return nil
-		case e := <-eventChan:
-			writeEvent(w, e.event, e.msg)
-			f.Flush()
-		case <-keepAliveTicker.C:
-			kaCount++
-			writeEvent(w, MetaEvent, "KeepAlive")
-			f.Flush()
-			if kaCount%4 == 0 {
+		pingTicker := time.NewTicker(time.Second * 60)
+		for {
+			select {
+			case <-stopPingChan:
+				slog.InfoContext(ctx, "finished ping ticker", "sseID", sseID)
+				return
+			case <-pingTicker.C:
 				if err := data.RetainActiveUser(ctx, state.Rdb, sseID); err != nil {
 					slog.ErrorContext(ctx, "failed to retain active user", "sseID", sseID, "err", err)
 				}
 			}
+		}
+	}()
+	return stopPingChan
+}
+
+func HandleCountEvents(w http.ResponseWriter, r *http.Request, f http.Flusher, state ServerState) error {
+	ctx := r.Context()
+	sseID := state.MakeID()
+	clientGone := ctx.Done()
+
+	gamesCount, err := data.GetChessStateCount(ctx, state.Rdb)
+	if err != nil {
+		return err
+	}
+	activeCount, err := data.AddActiveUser(ctx, state.Rdb, sseID)
+	if err != nil {
+		return err
+	}
+
+	writeEvent(w, MetaEvent, sseID)
+	writeCountEvent(w, data.UcEvent{Kind: data.UcGamesEk, Data: makeCountEvent(gamesCount, sseID)})
+	f.Flush()
+
+	countsChan := make(chan data.UcEvent)
+	state.CountsCaster.Subscribe(countsChan)
+
+	if err := data.BroadcastActiveCount(ctx, state.Rdb, activeCount, sseID); err != nil {
+		slog.ErrorContext(ctx, "failed to broadcast active count", "sseID", sseID, "err", err)
+	}
+
+	stopPingChan := makePingTicker(ctx, state, sseID)
+
+	shutdown := func() error {
+		stopPingChan <- struct{}{}
+		ac, err := data.RemoveActiveUser(ctx, state.Rdb, sseID)
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to remove active user", "sseID", sseID, "error", err)
+		}
+		if err := data.BroadcastActiveCount(ctx, state.Rdb, ac, sseID); err != nil {
+			slog.ErrorContext(ctx, "failed to broadcast active count on removal", "sseID", sseID, "error", err)
+		}
+		return nil
+	}
+
+	go func() {
+		<-clientGone
+		state.CountsCaster.Unsubscribe(countsChan)
+		slog.InfoContext(ctx, "finished handle user events sse", "sseID", sseID)
+	}()
+
+	keepAliveTicker := time.NewTicker(time.Second * 15)
+	for {
+		select {
+		case e, ok := <-countsChan:
+			if !ok {
+				return shutdown()
+			}
+			writeCountEvent(w, e)
+			f.Flush()
+		case <-keepAliveTicker.C:
+			writeEvent(w, MetaEvent, "KeepAlive")
+			f.Flush()
 		}
 	}
 }
 
 func HandleUserEvents(w http.ResponseWriter, r *http.Request, f http.Flusher, state ServerState) error {
 	ctx := r.Context()
-	sseID := uuid.NewString()
+	sseID := state.MakeID()
 	clientGone := ctx.Done()
 
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
@@ -139,20 +161,25 @@ func HandleUserEvents(w http.ResponseWriter, r *http.Request, f http.Flusher, st
 	}
 	strID := strconv.Itoa(int(player.ID))
 
-	writeEvent(w, MetaEvent, "Connected")
+	writeEvent(w, MetaEvent, sseID)
 	f.Flush()
 
 	usersChan := make(chan []byte)
 	state.UsersCaster.Subscribe(strID, usersChan)
 
+	go func() {
+		<-clientGone
+		state.UsersCaster.Unsubscribe(strID, usersChan)
+		slog.InfoContext(ctx, "finishing handle user events sse", "sseID", sseID)
+	}()
+
+	keepAliveTicker := time.NewTicker(time.Second * 15)
 	for {
-		keepAliveTicker := time.NewTicker(time.Second * 15)
 		select {
-		case <-clientGone:
-			state.UsersCaster.Unsubscribe(strID, usersChan)
-			slog.InfoContext(ctx, "finishing handle user events sse", "sseID", sseID)
-			return nil
-		case m := <-usersChan:
+		case m, ok := <-usersChan:
+			if !ok {
+				return nil
+			}
 			writeEvent(w, UserChallengeEvent, string(m))
 			f.Flush()
 		case <-keepAliveTicker.C:

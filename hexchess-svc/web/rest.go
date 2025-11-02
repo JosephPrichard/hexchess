@@ -320,7 +320,7 @@ type CreateGameResp struct {
 func HandleCreateGame(w http.ResponseWriter, r *http.Request, state ServerState) error {
 	var body CreateGameBody
 
-	gameID, err := CreateGame(r.Context(), state.Rdb, body.FirstColor, body.TimeControl)
+	gameID, err := data.CreateGame(r.Context(), state.Rdb, body.FirstColor, body.TimeControl)
 	if err != nil {
 		return fmt.Errorf("failed to create game: %w", err)
 	}
@@ -378,7 +378,7 @@ func HandleUpdateChallenge(w http.ResponseWriter, r *http.Request, state ServerS
 
 	gameID := ""
 	if body.Action == "ACCEPT" {
-		gameID, err = CreateGame(ctx, state.Rdb, dr.FirstColor, dr.TimeControl)
+		gameID, err = data.CreateGame(ctx, state.Rdb, dr.FirstColor, dr.TimeControl)
 		if err != nil {
 			return fmt.Errorf("failed to create game: %w", err)
 		}

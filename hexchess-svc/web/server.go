@@ -14,12 +14,12 @@ import (
 
 type ServerState struct {
 	data.Stores
-	ActiveCntCaster *data.UniCaster
-	GamesCntCaster  *data.UniCaster
-	GamesCaster     *data.MultiCasterMap
-	UsersCaster     *data.MultiCasterMap
-	CountryList     []string
-	CountryMap      map[string]struct{}
+	CountsCaster *data.UniCaster
+	GamesCaster  *data.MultiCasterMap
+	UsersCaster  *data.MultiCasterMap
+	CountryList  []string
+	CountryMap   map[string]struct{}
+	MakeID       func() string // mock uniquely generated request IDs in tests
 }
 
 func MakeServerState(stores data.Stores, countryList []string) ServerState {
@@ -31,13 +31,13 @@ func MakeServerState(stores data.Stores, countryList []string) ServerState {
 		countryMap[c] = struct{}{}
 	}
 	return ServerState{
-		Stores:          stores,
-		ActiveCntCaster: data.MakeUniCaster("active-count-caster"),
-		GamesCntCaster:  data.MakeUniCaster("games-count-caster"),
-		GamesCaster:     data.MakeMultiCasterMap("games-caster"),
-		UsersCaster:     data.MakeMultiCasterMap("users-caster"),
-		CountryList:     countryList,
-		CountryMap:      countryMap,
+		Stores:       stores,
+		CountsCaster: data.MakeUniCaster("counts-caster"),
+		GamesCaster:  data.MakeMultiCasterMap("games-caster", data.GameExpireDur),
+		UsersCaster:  data.MakeMultiCasterMap("users-caster", -1),
+		CountryList:  countryList,
+		CountryMap:   countryMap,
+		MakeID:       func() string { return uuid.NewString() },
 	}
 }
 

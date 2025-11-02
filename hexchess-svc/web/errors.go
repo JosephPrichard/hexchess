@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"errors"
+	"hexchess-svc/data"
 	"log/slog"
 	"net/http"
 )
@@ -28,6 +29,7 @@ var (
 	ErrHttpUserNotFound         = errors.New("ERROR_NOT_FOUND_USER")
 	ErrHttpInvalidRequest       = errors.New("ERROR_INVALID_REQUEST")
 	ErrHttpSearchLimit          = errors.New("ERROR_SEARCH_LIMIT")
+	ErrHttpInvalidGame          = errors.New("ERROR_INVALID_GAME")
 )
 
 // WebSocket response codes
@@ -37,7 +39,7 @@ var (
 	ErrWsTurn         = errors.New("ERROR_TURN")
 	ErrWsInvalidMove  = errors.New("ERROR_INVALID_MOVE")
 	ErrWsFinishedGame = errors.New("ERROR_FINISHED_GAME")
-	ErrWsInvalidGame  = errors.New("ERROR_INVALID_GAME")
+	ErrExpiredGame    = errors.New("ERROR_INVALID_GAME")
 )
 
 func HttpStatusFromErr(err error) (int, string) {
@@ -51,7 +53,8 @@ func HttpStatusFromErr(err error) (int, string) {
 		ErrHttpSelfChallenge,
 		ErrHttpUpdateChallenge,
 		ErrHttpSearchLimit,
-		ErrHttpInvalidCountry:
+		ErrHttpInvalidCountry,
+		ErrHttpInvalidGame:
 		return http.StatusBadRequest, err.Error()
 	case ErrHttpDuplicateUsername,
 		ErrHttpDuplicateChallenge:
@@ -71,14 +74,17 @@ func HttpStatusFromErr(err error) (int, string) {
 	}
 }
 
-func mapWsErr(err error) error {
+func mapSocketErr(err error) error {
 	switch err {
-	case ErrFinishedGame:
+	case data.ErrFinishedGame:
 		return ErrWsFinishedGame
-	case ErrTurn:
+	case data.ErrTurn:
 		return ErrWsTurn
-	case ErrInvalidMove:
+	case data.ErrInvalidMove:
 		return ErrWsInvalidMove
+	case data.ErrNoChessState:
+		// no chess state means the game has expired since we last accessed it
+		return ErrExpiredGame
 	default:
 		return ErrWsFatal
 	}

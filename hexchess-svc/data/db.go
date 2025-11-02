@@ -59,34 +59,33 @@ func (s Stores) Close() {
 	s.Rdb.Close()
 }
 
+const MaxIdle = 3
+const IdleTimeout = 240 * time.Second
+
 func MakeRdb(primaryAddr string, pubsubAddr string) Redis {
-	primary := &redis.Pool{
-		MaxIdle:     3,
-		IdleTimeout: 240 * time.Second,
-		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", primaryAddr)
+	makeDial := func(addr string) func() (redis.Conn, error) {
+		return func() (redis.Conn, error) {
+			c, err := redis.Dial("tcp", addr)
 			if err != nil {
 				return nil, err
 			}
 			return c, err
-		},
+		}
 	}
 	var pubsub *redis.Pool
 	if pubsubAddr != "" {
 		pubsub = &redis.Pool{
-			MaxIdle:     3,
-			IdleTimeout: 240 * time.Second,
-			Dial: func() (redis.Conn, error) {
-				c, err := redis.Dial("tcp", pubsubAddr)
-				if err != nil {
-					return nil, err
-				}
-				return c, err
-			},
+			MaxIdle:     MaxIdle,
+			IdleTimeout: IdleTimeout,
+			Dial:        makeDial(pubsubAddr),
 		}
 	}
 	return Redis{
-		Primary:         primary,
+		Primary: &redis.Pool{
+			MaxIdle:     MaxIdle,
+			IdleTimeout: IdleTimeout,
+			Dial:        makeDial(primaryAddr),
+		},
 		PubSub:          pubsub,
 		PrimaryAddr:     primaryAddr,
 		PubsubAddr:      pubsubAddr,
@@ -120,7 +119,7 @@ func WithTxn[Ret any](args TxnArgs[Ret]) (ret Ret, err error) {
 		// a db client can be a fake when testing. if so, do not begin or commit a new Txn, since the test is already in a txn
 		return args.TxFn(args.PgDB.Q)
 	}
- 
+
 	ctx := args.Ctx
 	tx, err := args.PgDB.Pool.Begin(args.Ctx)
 	if err != nil {
