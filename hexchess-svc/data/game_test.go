@@ -152,7 +152,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	inState := MakeState(gameID, RealTime)
 	inState.WhitePlayer = &PlayerState{ID: 1}
 	inState.BlackPlayer = &PlayerState{ID: 2}
-	inState.MoveList = []chess.PieceMove{{Piece: 1, To: chess.Hex{Rank: 1}}}
+	inState.Game.MoveList = []chess.PieceMove{{Piece: 1, To: chess.Hex{Rank: 1}}}
 
 	if _, err := SetChessState(ctx, stores.Rdb, gameID, inState); err != nil {
 		t.Fatalf("failed initialize test state: %v", err)
@@ -175,7 +175,7 @@ func TestUpdateGameResultTx(t *testing.T) {
 	testUser0 := TestUserEntities[0]
 	testUser1 := TestUserEntities[1]
 
-	cs, err := UpdateGameResultTx(ctx, pgDB, GRParams{WhiteID: testUser0.ID, BlackID: testUser1.ID, Cause: Checkmate, IsWhiteWin: true, MoveList: nil})
+	cs, err := UpdateGameResultTx(ctx, pgDB, GRParams{WhiteID: testUser0.ID, BlackID: testUser1.ID, Cause: Checkmate, IsWhiteWin: true, MoveHistoryProto: []byte{}})
 	assert.NoError(t, err)
 
 	u1, err := GetUserByID(ctx, pgDB.Q, testUser0.ID)

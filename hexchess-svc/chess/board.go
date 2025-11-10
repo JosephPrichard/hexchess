@@ -220,11 +220,15 @@ func (p Piece) IsWhite() bool {
 	return p%2 == 1
 }
 
-func AreOpposite(piece1, piece2 Piece) bool {
-	if piece1 == Empty || piece2 == Empty {
-		panic(fmt.Sprintf("pieces are empty when checking if opposite, was piece1=%v and piece2=%v", piece1, piece2))
+func (p Piece) SameColor(p2 Piece) bool {
+	return p != Empty && p2 != Empty && !p.OppositeColor(p2)
+}
+
+func (p Piece) OppositeColor(p2 Piece) bool {
+	if p == Empty || p2 == Empty {
+		panic(fmt.Sprintf("pieces are empty when checking if opposite, was piece1=%v and piece2=%v", p, p2))
 	}
-	return piece1%2 != piece2%2
+	return p%2 != p2%2
 }
 
 func (p Piece) ToChar() rune {
@@ -324,6 +328,14 @@ func InitialBoard() Board {
 	return board
 }
 
+func (b *Board) Get(file, rank int) Piece {
+	return b.Pieces[file][rank]
+}
+
+func (b *Board) Set(file, rank int, p Piece) {
+	b.Pieces[file][rank] = p
+}
+
 func (b *Board) SetPiece(file, rank int, piece Piece) error {
 	if file >= len(b.Pieces) {
 		return fmt.Errorf("file out of range: %d", file)
@@ -350,22 +362,22 @@ func (b *Board) GetPiece(file, rank int) (Piece, error) {
 // SetPieceNot GetPieceNot set piece notation, get piece notation
 func (b *Board) SetPieceNot(str string, p Piece) {
 	hex := ParseHexagonValid(str)
-	b.Pieces[hex.File][hex.Rank] = p
+	b.Set(hex.File, hex.Rank, p)
 }
 
 func (b *Board) GetPieceNot(str string) Piece {
 	hex := ParseHexagonValid(str)
-	return b.Pieces[hex.File][hex.Rank]
+	return b.Get(hex.File, hex.Rank)
 }
 
-func (b *Board) FindKing(isWhiteTurn bool) Hex {
+func (b *Board) FindKing(isWhite bool) Hex {
 	for _, hex := range OrdHexagons {
-		piece := b.Pieces[hex.File][hex.Rank]
-		if (piece == WhiteKing && isWhiteTurn) || (piece == BlackKing && !isWhiteTurn) {
+		piece := b.Get(hex.File, hex.Rank)
+		if (piece == WhiteKing && isWhite) || (piece == BlackKing && !isWhite) {
 			return hex
 		}
 	}
-	panic("board doesn't have a king")
+	panic(fmt.Sprintf("board doesn't have a king: %s", b.String()))
 	return Hex{}
 }
 
@@ -404,7 +416,7 @@ func (b *Board) StringFunc(isMove func(Hex) rune) string {
 		for rank := 0; rank < ranksCount; rank++ {
 			hex := Hex{File: file, Rank: rank}
 			ch := isMove(hex)
-			piece := b.Pieces[file][rank]
+			piece := b.Get(file, rank)
 			if ch != 0 && piece == Empty {
 				sb.WriteRune(ch)
 			} else {

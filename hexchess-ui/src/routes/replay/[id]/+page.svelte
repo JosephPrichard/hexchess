@@ -1,7 +1,6 @@
 <script lang="ts">
 	import Banner from '$lib/components/Banner.svelte';
 	import Board from '$lib/components/chess/Board.svelte';
-	import { translateBoard } from '$lib/utils/chess';
 	import RightIcon from '$lib/components/icons/RightIcon.svelte';
 	import LeftIcon from '$lib/components/icons/LeftIcon.svelte';
 	import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
@@ -9,10 +8,10 @@
 	import { getNotificationsContext } from '$lib/utils/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import ReplayPanel from '$lib/components/user/ReplayPanel.svelte';
-	import type { ChessBoard } from '$lib/api/messages';
-	import { initialBoard } from '$lib/utils/globals';
-	import type { MoveListModel, ReplayModel } from '$lib/api/model';
+	import { type ChessBoard, type MoveStep, type PieceMove } from '$lib/api/messages';
+	import type { ReplayModel } from '$lib/api/model';
 	import services from '$lib/api/services';
+	import { createMoveState } from '$lib/state/move.svelte';
 
 	export interface ReplayProps {
 		replay: ReplayModel;
@@ -23,16 +22,16 @@
 
 	const { addNotification } = getNotificationsContext();
 
-	let isWhitePerspective = $state(true);
-	let moveIndex: number | undefined = $state(undefined);
-	let moveList: MoveListModel = $state([]);
+	let moveState = createMoveState();
 
-	let boardCache = new Map<number, ChessBoard>();
+	let moveSteps: MoveStep[] = $state([]);
+	let initialBoard: ChessBoard | undefined = $state(undefined);
 
 	async function initMoveList(replayId: string) {
-		const [data, err] = await services.getReplayMoveList(replayId);
+		const [data, err] = await services.getReplayMoveHistory(replayId);
 		if (data) {
-			moveList = data;
+			moveSteps = data.moveSteps;
+			initialBoard = data.initialBoard;
 		} else {
 			const message = 'Failed to load replay move list: ' + createMessage(err);
 			addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
@@ -42,46 +41,20 @@
 	$effect(() => {
 		initMoveList(String(replay.id));
 	});
-
-	const board = $derived.by(() => {
-		if (moveIndex === undefined) {
-			return initialBoard;
-		}
-
-		let board = boardCache.get(moveIndex);
-		if (board !== undefined) {
-			return board;
-		}
-
-		board = translateBoard(moveIndex, moveList, initialBoard);
-
-		boardCache.set(moveIndex, board);
-		return board;
+	$effect(() => {
+		moveState.updateMoveCount(moveSteps.length);
 	});
 
-	function onSelectMove(i: number) {
-		moveIndex = i;
-	}
-
-	function onClickFlip() {
-		isWhitePerspective = !isWhitePerspective;
-	}
-
-	function onClickLeft() {
-		if (moveIndex === undefined) {
-			moveIndex = 0;
-		} else if (moveIndex > 0) {
-			moveIndex--;
+	const board = $derived.by(() => moveState.value.moveIndex ? moveSteps[moveState.value.moveIndex]?.game?.board : initialBoard);
+	const moveList = $derived.by(() => {
+		const moveList: PieceMove[] = [];
+		for (const step of moveSteps) {
+			if (step?.move) {
+				moveList.push(step.move);
+			}
 		}
-	}
-
-	function onClickRight() {
-		if (moveIndex === undefined) {
-			moveIndex = 0;
-		} else if (moveIndex < moveList.length - 1) {
-			moveIndex++;
-		}
-	}
+		return moveList;
+	});
 </script>
 
 <svelte:head>
@@ -90,19 +63,19 @@
 <Banner />
 <div class="center-horizontal-container">
 	<div class="center-vertical-container" style="align-items: stretch;">
-		<Board {board} {isWhitePerspective} />
+		<Board {board} draggable="none" isWhitePerspective={moveState.value.isWhitePerspective} />
 		<div class="side-table">
 			<ReplayPanel replay={replay} />
-			<MoveList moveList={moveList} {onSelectMove} selectedMoveIndex={moveIndex} />
+			<MoveList moveList={moveList} onSelectMove={moveState.selectMove} selectedMoveIndex={moveState.value.moveIndex} />
 			<div class="side-table-footer">
 				<div class="move-table-nav-buttons">
-					<button title="Previous Move" class="button-transparent" style:padding-top="5px" onclick={onClickLeft}>
+					<button title="Previous Move" class="button-transparent" style:padding-top="5px" onclick={moveState.goLeft}>
 						<LeftIcon />
 					</button>
-					<button title="Flip Board" class="button-transparent" style:padding-top="5px" onclick={onClickFlip}>
+					<button title="Flip Board" class="button-transparent" style:padding-top="5px" onclick={moveState.flip}>
 						<FlipIcon />
 					</button>
-					<button title="Next Move" class="button-transparent" style:padding-top="5px" onclick={onClickRight}>
+					<button title="Next Move" class="button-transparent" style:padding-top="5px" onclick={moveState.goRight}>
 						<RightIcon />
 					</button>
 				</div>
@@ -110,13 +83,3 @@
 		</div>
 	</div>
 </div>
-
-<style>
-	.move-table-nav-buttons {
-		display: flex;
-		flex-direction: row;
-		gap: 10px;
-		align-items: center;
-		justify-content: center;
-	}
-</style>

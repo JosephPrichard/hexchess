@@ -12,8 +12,9 @@
 	import UndoIcon from '$lib/components/icons/UndoIcon.svelte';
 	import PieceList from '$lib/components/chess/PieceList.svelte';
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
-	import { type Chat, type ChessGame, GameOutput, type Hexagon, type PieceMove, type PieceMoves, type Player } from '$lib/api/messages';
-	import { onSelectPiece } from './service';
+	import { type ChessGame, GameOutput, type PieceMove, type PieceMoves, type PlayerState } from '$lib/api/messages';
+	import type { Hexagon } from '$lib/api/model';
+	import { mapHexagonList, handleSelectPiece, type Selection } from '$lib/utils/chess';
 
 	export interface PlayProps {
 		gameId: string
@@ -25,20 +26,18 @@
 	const { addNotification } = getNotificationsContext();
 
 	let game = $state<ChessGame | undefined>(undefined);
-	let moveList = $state<PieceMove[]>([]);
-	let whitePlayer = $state<Player | undefined>(undefined);
-	let blackPlayer = $state<Player | undefined>(undefined);
+	let whitePlayer = $state<PlayerState | undefined>(undefined);
+	let blackPlayer = $state<PlayerState | undefined>(undefined);
 
-	let selfPlayer: Player | undefined = $state(undefined);
-	let chats: Chat[] = $state([]);
-
-	let chat = $state("");
+	let selfPlayer: PlayerState | undefined = $state(undefined);
 
 	let whiteTimer: number | undefined = $state(undefined);
 	let blackTimer: number | undefined = $state(undefined);
 
-	let potentialMoves: PieceMoves | undefined = $state(undefined);
-	let selectedHexagon: Hexagon | undefined = $state(undefined);
+	let selection: Selection = $state({
+		potentialMoves: undefined,
+		hex: undefined
+	});
 
 	let ws: WebSocket | undefined = undefined;
 	let connectTries = 0;
@@ -54,15 +53,11 @@
 
 	function onClickSettings() {}
 
-	function onClickPiece(newSelection: Hexagon) {
+	function onSelectPiece(next: Hexagon) {
 		if (!game) {
 			return;
 		}
-		const result = onSelectPiece(game, selectedHexagon, newSelection, potentialMoves);
-		console.log("Clicked hexagon with result", newSelection, result)
-
-		potentialMoves = result.potentialMoves;
-		selectedHexagon = result.newSelection;
+		selection = handleSelectPiece(game, selection, next);
 	}
 
 	function handleMessage(data: GameOutput) {
@@ -73,7 +68,6 @@
 				throw new Error("Room must be specified, got " + JSON.stringify(init));
 			}
 			game = init.state.game;
-			moveList = init.state.moveList || [];
 			whitePlayer = init.state.whitePlayer;
 			blackPlayer = init.state.blackPlayer;
 			selfPlayer = init.self;
@@ -87,12 +81,8 @@
 				throw new Error("Piece move must be specified, got " + JSON.stringify(move));
 			}
 			game = move.game;
-			moveList.push(move.pieceMove);
 		} else if (kind === 'forfeit') {
 			// no-op
-		} else if (kind === 'chat') {
-			const chat = data.value.chat;
-			chats.push(chat);
 		} else if (kind === 'error') {
 			const error = data.value.error;
 			const message = createMessage(error.message);
@@ -164,9 +154,9 @@
 				<Board
 					board={game?.board}
 					isWhitePerspective={isPlayingAsWhite}
-					potentialMoves={potentialMoves?.moves}
-					onClickPiece={onClickPiece}
-					selectedHexagon={selectedHexagon}
+					potentialMoves={mapHexagonList(selection.potentialMoves?.moves)}
+					onSelectPiece={onSelectPiece}
+					selectedHexagon={selection.hex}
 				/>
 			{/if}
 			<div class="side-table-wrapper">
@@ -180,7 +170,7 @@
 					<div class="side-table-header player-panel">
 						<PlayerPanel player={bottomPlayer} isTurn={!isTurn} />
 					</div>
-					<MoveList moveList={moveList} />
+					<MoveList moveList={game?.moveList || []} />
 					<div class="icons">
 						<button title="Forfeit" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickForfeit}>
 							<FlagIcon />

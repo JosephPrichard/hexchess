@@ -6,7 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/proto"
+	"hexchess-svc/chess"
 	"hexchess-svc/data"
+	"hexchess-svc/pb"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -617,14 +621,13 @@ func HandleGetReplayMoveList(w http.ResponseWriter, r *http.Request, state Serve
 	}
 
 	ctx := r.Context()
-	moveList, err := data.GetReplayMoveList(ctx, state.Q, int64(id))
+	moveHistory, err := data.GetReplayMoveHistory(ctx, state.Q, int64(id))
 	if err != nil {
-		return fmt.Errorf("failed to get replay moveList: %w", err)
+		return fmt.Errorf("failed to get replay moveHistory: %w", err)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(moveList)
+	writeBytes(w, http.StatusOK, moveHistory)
+	//w.Header().Set("Cache-Control", "public, max-age=3600")
 	return nil
 }
 
@@ -733,5 +736,45 @@ func HandleGetChessRoomList(w http.ResponseWriter, r *http.Request, state Server
 		selfChessList = []data.ChessMeta{}
 	}
 	writeJSON(w, http.StatusOK, ChessRoomListResp{ChessList: chessList, SelfChessList: selfChessList})
+	return nil
+}
+
+func HandleMakeMove(w http.ResponseWriter, r *http.Request, _ ServerState) error {
+	b, err := io.ReadAll(r.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read request body: %w", err)
+	}
+	var pbBody pb.MakeMoveBody
+	if err := proto.Unmarshal(b, &pbBody); err != nil {
+		return err
+	}
+
+	var game chess.Game
+	if pbBody.Board != nil {
+		board, err := data.MapBoard(pbBody.Board)
+		if err != nil {
+			return fmt.Errorf("failed to map board: %w", err)
+		}
+		game = chess.Game{Board: board}
+	} else {
+		game = chess.Game{Board: chess.InitialBoard()}
+	}
+
+	game.InitPieceMoves()
+	if pbBody.Move != nil {
+		pm := data.MapPieceMove(pbBody.Move)
+		game.MakeMove(pm.From, pm.To)
+	}
+
+	pbGame, err := data.MapPbGame(game)
+	if err != nil {
+		return fmt.Errorf("failed to marshal chess game: %w", err)
+	}
+	b, err = proto.Marshal(&pb.MakeMoveResp{Game: pbGame})
+	if err != nil {
+		return fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	writeBytes(w, http.StatusOK, b)
 	return nil
 }

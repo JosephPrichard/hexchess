@@ -1,36 +1,57 @@
-import type { ChessBoard, PieceMove } from '$lib/api/messages';
-import type { PieceMoveModel } from '$lib/api/model';
+import type { ChessBoard, ChessGame, PieceMove, PieceMoves } from '$lib/api/messages';
+import type { Hexagon } from '$lib/api/model';
 
 const symbols = ['?', 'P', 'p', 'N', 'n', 'B', 'b', 'R', 'r', 'Q', 'q', 'K', 'k'];
 const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k'];
 
-export function stringOfMove(move: PieceMove | PieceMoveModel) {
-	if (move.to === undefined || move.from === undefined) {
-		throw new Error("Move 'to' and 'from' must be defined, got " + JSON.stringify(move));
-	}
-
-	const symbol = symbols[move.piece] || '?';
-	const toFile = files[move.to.file];
-	const toRank = String(move.to.rank + 1);
-	const str = symbol + toFile + toRank;
-	// console.log(move, str);
-	return str;
+export function isWhite(piece: number) {
+	return piece % 2 === 1;
 }
 
-export function translateBoard(index: number, moveList: PieceMove[], board: ChessBoard) {
-	board = structuredClone(board);
-	for (let i = 0; i <= index; i++) {
-		const move = moveList[i];
-		if (move.to === undefined || move.from === undefined) {
-			throw new Error("Move 'to' and 'from' must be defined, got " + JSON.stringify(move));
-		}
-		const {
-			to: { rank: toRank, file: toFile },
-			from: { rank: fromRank, file: fromFile }
-		} = move;
+export function isBlack(piece: number) {
+	return !isWhite(piece);
+}
 
-		board.file[toFile].pieces[toRank] = board.file[fromFile].pieces[fromRank];
-		board.file[fromFile].pieces[fromRank] = 0;
+export function stringOfMove(move: PieceMove) {
+	const symbol = symbols[move.piece] || '?';
+	const toFile = files[move.toFile];
+	const toRank = String(move.toRank + 1);
+	return symbol + toFile + toRank;
+}
+
+export function mapHexagonList(hexagonList?: bigint[]): Hexagon[] {
+	if (!hexagonList) {
+		return [];
 	}
-	return board;
+	return hexagonList.map(hexagon => ({
+		file: Number(hexagon & 0xFFFFFFFFn),
+		rank: Number((hexagon >> 32n) & 0xFFFFFFFFn)
+	}));
+}
+
+export interface Selection {
+	potentialMoves: PieceMoves | undefined;
+	hex: Hexagon | undefined;
+}
+
+export function handleSelectPiece(game: ChessGame, selection: Selection, next: Hexagon): Selection {
+	let index = game.blackMoves.findIndex((move) => next.file === move?.fromFile && next.rank == move?.fromRank);
+	if (index !== -1) {
+		const potentialMoves = game.blackMoves[index];
+		return { potentialMoves: potentialMoves, hex: next };
+	} else {
+		index = game.whiteMoves.findIndex((move) =>
+			next.file === move?.fromFile && next.rank == move?.fromRank);
+		if (index !== -1) {
+			const potentialMoves = game.whiteMoves[index];
+			return { potentialMoves: potentialMoves, hex: next };
+		}
+	}
+	const nextSelection = { potentialMoves: selection.potentialMoves, hex: undefined };
+	console.log("New selection:", next, nextSelection);
+	return nextSelection;
+}
+
+export function handleDeSelectPiece(): Selection {
+	return { potentialMoves: undefined, hex: undefined };
 }

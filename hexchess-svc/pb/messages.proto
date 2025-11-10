@@ -41,12 +41,12 @@ message ChessGame {
   repeated PieceMoves black_moves = 3;
   repeated int32 taken_white_pieces = 4;
   repeated int32 taken_black_pieces = 5;
+  repeated PieceMove move_list = 6;
 }
 
 message ChessState {
   string id = 1;
   ChessGame game = 2;
-  repeated PieceMove move_list = 3;
   PlayerState white_player = 4;
   PlayerState black_player = 5;
   bool is_ended = 6;
@@ -136,4 +136,23 @@ message ChallengeMsg {
   uint32 time_control = 9;
   uint32 start_color = 10;
   int64 made_on = 11;
+}
+
+message MakeMoveBody {
+  PieceMove move = 1;
+  ChessBoard board = 2;
+}
+
+message MakeMoveResp {
+  ChessGame game = 1;
+}
+
+message MoveStep {
+  ChessGame game = 1;
+  PieceMove move = 2;
+}
+
+message MoveHistory {
+  ChessBoard initialBoard = 1;
+  repeated MoveStep move_steps = 2;
 }

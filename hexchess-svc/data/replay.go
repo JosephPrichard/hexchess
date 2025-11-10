@@ -49,16 +49,20 @@ const (
 )
 
 type ReplayInst struct {
-	WhiteID      int64   `json:"whiteId"`
-	BlackID      int64   `json:"blackId"`
-	Result       int32   `json:"result"`
-	Cause        int32   `json:"cause"`
-	WinElo       float64 `json:"winElo"`
-	LoseElo      float64 `json:"loseElo"`
-	MoveListJSON string
+	WhiteID          int64   `json:"whiteId"`
+	BlackID          int64   `json:"blackId"`
+	Result           int32   `json:"result"`
+	Cause            int32   `json:"cause"`
+	WinElo           float64 `json:"winElo"`
+	LoseElo          float64 `json:"loseElo"`
+	MoveHistoryProto []byte
 }
 
 func InsertReplay(ctx context.Context, q *db.Queries, inst ReplayInst) (int64, error) {
+	if inst.MoveHistoryProto == nil {
+		inst.MoveHistoryProto = []byte{}
+	}
+
 	replayID, err := q.InsertReplay(ctx, db.InsertReplayParams{
 		WhiteID:  inst.WhiteID,
 		BlackID:  inst.BlackID,
@@ -66,12 +70,14 @@ func InsertReplay(ctx context.Context, q *db.Queries, inst ReplayInst) (int64, e
 		Cause:    inst.Cause,
 		WinElo:   inst.WinElo,
 		LoseElo:  inst.LoseElo,
-		MoveList: []byte(inst.MoveListJSON),
+		MoveList: inst.MoveHistoryProto,
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to create replay", "replay", inst, "err", err)
 		return 0, err
 	}
+
+	inst.MoveHistoryProto = nil
 	slog.InfoContext(ctx, "created a new replay", "replay", inst, "replayID", replayID)
 	return replayID, nil
 }
@@ -120,8 +126,8 @@ func GetReplay(ctx context.Context, q *db.Queries, id int64) (ReplayEntity, erro
 	return replay, nil
 }
 
-func GetReplayMoveList(ctx context.Context, q *db.Queries, id int64) ([]byte, error) {
-	moveList, err := q.GetReplayMoveList(ctx, id)
+func GetReplayMoveHistory(ctx context.Context, q *db.Queries, id int64) ([]byte, error) {
+	moveList, err := q.GetReplayMoveHistory(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNoReplay
 	}

@@ -1,6 +1,7 @@
 import type { ServiceModel } from '$lib/api/model';
 
 export const codes = {
+	// HTTP codes
 	errorUnknown: 'ERROR_UNKNOWN',
 	errorPasswordLength: 'ERROR_PASSWORD_LENGTH',
 	errorConfirmPassword: 'ERROR_CONFIRM_PASSWORD',
@@ -19,12 +20,21 @@ export const codes = {
 	errorDuplicateChallenge: 'ERROR_DUPLICATE_CHALLENGE',
 	errorUpdateChallenge: 'ERROR_UPDATE_CHALLENGE',
 	errorInvalidRequest: 'ERROR_INVALID_REQUEST',
-	errorInvalidGame: 'ERROR_INVALID_GAME',
 	errorNotFoundUser: 'ERROR_NOT_FOUND_USER',
-	errorSearchLimit: 'ERROR_SEARCH_LIMIT'
+	errorSearchLimit: 'ERROR_SEARCH_LIMIT',
+
+	// WS codes
+	errorFatal: 'ERROR_FATAL',
+	errorMessageType: 'ERROR_MESSAGE_TYPE',
+	errorTurn: 'ERROR_TURN',
+	errorInvalidMove: 'ERROR_INVALID_MOVE',
+	errorFinishedGame: 'ERROR_FINISHED_GAME',
+	errorInvalidGame: 'ERROR_INVALID_GAME',
+	errorExpiredGame: 'ERROR_EXPIRED_GAME',
 };
 
 export const messages: Record<string, string> = {
+	// HTTP messages
 	[codes.errorUnknown]: 'An unexpected error occurred.',
 	[codes.errorPasswordLength]: 'Password must be between 10 and 100 characters long.',
 	[codes.errorConfirmPassword]: 'Passwords do not match.',
@@ -43,12 +53,20 @@ export const messages: Record<string, string> = {
 	[codes.errorDuplicateChallenge]: 'You have already sent this challenge.',
 	[codes.errorUpdateChallenge]: 'You are not authorized to update this challenge.',
 	[codes.errorInvalidRequest]: 'The api was malformed or contained invalid data.',
-	[codes.errorInvalidGame]: 'Cannot find a game for the given id.',
 	[codes.errorNotFoundUser]: 'The provided user is invalid or does not exist.',
-	[codes.errorSearchLimit]: 'The search limit has been reached.'
+	[codes.errorSearchLimit]: 'The search limit has been reached.',
+
+	// WS messages
+	[codes.errorFatal]: 'A fatal error occurred. Please reconnect or try again later.',
+	[codes.errorMessageType]: 'Invalid message type received.',
+	[codes.errorTurn]: "It's not your turn.",
+	[codes.errorInvalidMove]: 'That move is invalid. Please try again.',
+	[codes.errorFinishedGame]: 'The game has already finished.',
+	[codes.errorInvalidGame]: 'Cannot find a game for the given id.',
+	[codes.errorExpiredGame]: 'The game has expired due to inactivity.',
 };
 
 export function createMessage(error?: ServiceModel | string) {
-	// console.error(error);
+	console.error(error);
 	return messages[(typeof error === "string" ? error : error?.message) || ''] || 'An unexpected error has occurred';
 }

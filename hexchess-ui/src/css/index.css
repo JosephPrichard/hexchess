@@ -5,6 +5,7 @@
 html {
 	background: rgb(33, 33, 33);
 	/*background: linear-gradient(to bottom, rgb(43, 43, 43) 0% 5%, rgb(33, 33, 33) 10% 100%) no-repeat fixed;*/
+	overflow-x: hidden;
 }
 
 body {
@@ -482,8 +483,8 @@ select {
 
 .svg-container {
 	display: flex;
-	align-items: center;
-	justify-content: center;
+	/*align-items: center;*/
+	/*justify-content: center;*/
 	height: 100%;
 	width: 100%;
 }
@@ -575,4 +576,12 @@ select {
 	padding: 0;
 	margin: 0;
 	outline: none;
+}
+
+.move-table-nav-buttons {
+	display: flex;
+	flex-direction: row;
+	gap: 10px;
+	align-items: center;
+	justify-content: center;
 }

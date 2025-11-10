@@ -28,13 +28,13 @@ func TeardownTestInfra() {
 	log.Print("tearing down test infra")
 	if postgresCont != nil {
 		if err := testcontainers.TerminateContainer(postgresCont); err != nil {
-			util.LogFatal("failed to stop test db with err", "err", err)
+			util.LogFatalErr("failed to stop test db with err", err)
 		}
 		log.Print("stopped test postgres db")
 	}
 	if redisCont != nil {
 		if err := testcontainers.TerminateContainer(redisCont); err != nil {
-			util.LogFatal("failed to terminate container: %s", err)
+			util.LogFatalErr("failed to terminate container", err)
 		}
 		log.Print("stopped test redis container")
 	}

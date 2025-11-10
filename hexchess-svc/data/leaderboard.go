@@ -133,7 +133,7 @@ func SyncLeaderboard(ctx context.Context, stores Stores) error {
 	for {
 		rows, err := stores.Q.SelectEloListAfterID(ctx, db.SelectEloListAfterIDParams{AfterID: afterID, Limit: 20})
 		if err != nil {
-			return fmt.Errorf("failed to select elo list: %v", err)
+			return fmt.Errorf("failed to select elo list: %w", err)
 		}
 		var changes []UpdtLbChangeSet
 		for i, row := range rows {
@@ -147,7 +147,7 @@ func SyncLeaderboard(ctx context.Context, stores Stores) error {
 			break
 		}
 		if err := SetLeaderboard(ctx, stores.Rdb, changes...); err != nil {
-			return fmt.Errorf("failed to incr leaderboard: %v", err)
+			return fmt.Errorf("failed to incr leaderboard: %w", err)
 		}
 	}
 	return nil

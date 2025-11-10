@@ -16,8 +16,7 @@ type PlayerState struct {
 
 type ChessState struct {
 	ChessMeta
-	Game     chess.Game
-	MoveList []chess.PieceMove
+	Game chess.Game
 }
 
 type ChessMeta struct {
@@ -83,7 +82,6 @@ func (s *ChessState) DeepCopy() ChessState {
 	if s.BlackPlayer != nil {
 		s2.BlackPlayer = &(*s.BlackPlayer)
 	}
-	s2.MoveList = append(s2.MoveList, s.MoveList...)
 
 	return s2
 }

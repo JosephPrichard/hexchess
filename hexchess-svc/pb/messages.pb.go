@@ -344,6 +344,7 @@ type ChessGame struct {
 	BlackMoves       []*PieceMoves          `protobuf:"bytes,3,rep,name=black_moves,json=blackMoves,proto3" json:"black_moves,omitempty"`
 	TakenWhitePieces []int32                `protobuf:"varint,4,rep,packed,name=taken_white_pieces,json=takenWhitePieces,proto3" json:"taken_white_pieces,omitempty"`
 	TakenBlackPieces []int32                `protobuf:"varint,5,rep,packed,name=taken_black_pieces,json=takenBlackPieces,proto3" json:"taken_black_pieces,omitempty"`
+	MoveList         []*PieceMove           `protobuf:"bytes,6,rep,name=move_list,json=moveList,proto3" json:"move_list,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -413,11 +414,17 @@ func (x *ChessGame) GetTakenBlackPieces() []int32 {
 	return nil
 }
 
+func (x *ChessGame) GetMoveList() []*PieceMove {
+	if x != nil {
+		return x.MoveList
+	}
+	return nil
+}
+
 type ChessState struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Game          *ChessGame             `protobuf:"bytes,2,opt,name=game,proto3" json:"game,omitempty"`
-	MoveList      []*PieceMove           `protobuf:"bytes,3,rep,name=move_list,json=moveList,proto3" json:"move_list,omitempty"`
 	WhitePlayer   *PlayerState           `protobuf:"bytes,4,opt,name=white_player,json=whitePlayer,proto3" json:"white_player,omitempty"`
 	BlackPlayer   *PlayerState           `protobuf:"bytes,5,opt,name=black_player,json=blackPlayer,proto3" json:"black_player,omitempty"`
 	IsEnded       bool                   `protobuf:"varint,6,opt,name=is_ended,json=isEnded,proto3" json:"is_ended,omitempty"`
@@ -468,13 +475,6 @@ func (x *ChessState) GetId() string {
 func (x *ChessState) GetGame() *ChessGame {
 	if x != nil {
 		return x.Game
-	}
-	return nil
-}
-
-func (x *ChessState) GetMoveList() []*PieceMove {
-	if x != nil {
-		return x.MoveList
 	}
 	return nil
 }
@@ -1443,6 +1443,206 @@ func (x *ChallengeMsg) GetMadeOn() int64 {
 	return 0
 }
 
+type MakeMoveBody struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Move          *PieceMove             `protobuf:"bytes,1,opt,name=move,proto3" json:"move,omitempty"`
+	Board         *ChessBoard            `protobuf:"bytes,2,opt,name=board,proto3" json:"board,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MakeMoveBody) Reset() {
+	*x = MakeMoveBody{}
+	mi := &file_pb_messages_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MakeMoveBody) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MakeMoveBody) ProtoMessage() {}
+
+func (x *MakeMoveBody) ProtoReflect() protoreflect.Message {
+	mi := &file_pb_messages_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MakeMoveBody.ProtoReflect.Descriptor instead.
+func (*MakeMoveBody) Descriptor() ([]byte, []int) {
+	return file_pb_messages_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *MakeMoveBody) GetMove() *PieceMove {
+	if x != nil {
+		return x.Move
+	}
+	return nil
+}
+
+func (x *MakeMoveBody) GetBoard() *ChessBoard {
+	if x != nil {
+		return x.Board
+	}
+	return nil
+}
+
+type MakeMoveResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Game          *ChessGame             `protobuf:"bytes,1,opt,name=game,proto3" json:"game,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MakeMoveResp) Reset() {
+	*x = MakeMoveResp{}
+	mi := &file_pb_messages_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MakeMoveResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MakeMoveResp) ProtoMessage() {}
+
+func (x *MakeMoveResp) ProtoReflect() protoreflect.Message {
+	mi := &file_pb_messages_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MakeMoveResp.ProtoReflect.Descriptor instead.
+func (*MakeMoveResp) Descriptor() ([]byte, []int) {
+	return file_pb_messages_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *MakeMoveResp) GetGame() *ChessGame {
+	if x != nil {
+		return x.Game
+	}
+	return nil
+}
+
+type MoveStep struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Game          *ChessGame             `protobuf:"bytes,1,opt,name=game,proto3" json:"game,omitempty"`
+	Move          *PieceMove             `protobuf:"bytes,2,opt,name=move,proto3" json:"move,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MoveStep) Reset() {
+	*x = MoveStep{}
+	mi := &file_pb_messages_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MoveStep) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MoveStep) ProtoMessage() {}
+
+func (x *MoveStep) ProtoReflect() protoreflect.Message {
+	mi := &file_pb_messages_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MoveStep.ProtoReflect.Descriptor instead.
+func (*MoveStep) Descriptor() ([]byte, []int) {
+	return file_pb_messages_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *MoveStep) GetGame() *ChessGame {
+	if x != nil {
+		return x.Game
+	}
+	return nil
+}
+
+func (x *MoveStep) GetMove() *PieceMove {
+	if x != nil {
+		return x.Move
+	}
+	return nil
+}
+
+type MoveHistory struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	InitialBoard  *ChessBoard            `protobuf:"bytes,1,opt,name=initialBoard,proto3" json:"initialBoard,omitempty"`
+	MoveSteps     []*MoveStep            `protobuf:"bytes,2,rep,name=move_steps,json=moveSteps,proto3" json:"move_steps,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MoveHistory) Reset() {
+	*x = MoveHistory{}
+	mi := &file_pb_messages_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MoveHistory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MoveHistory) ProtoMessage() {}
+
+func (x *MoveHistory) ProtoReflect() protoreflect.Message {
+	mi := &file_pb_messages_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MoveHistory.ProtoReflect.Descriptor instead.
+func (*MoveHistory) Descriptor() ([]byte, []int) {
+	return file_pb_messages_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *MoveHistory) GetInitialBoard() *ChessBoard {
+	if x != nil {
+		return x.InitialBoard
+	}
+	return nil
+}
+
+func (x *MoveHistory) GetMoveSteps() []*MoveStep {
+	if x != nil {
+		return x.MoveSteps
+	}
+	return nil
+}
+
 var File_pb_messages_proto protoreflect.FileDescriptor
 
 const file_pb_messages_proto_rawDesc = "" +
@@ -1471,7 +1671,7 @@ const file_pb_messages_proto_rawDesc = "" +
 	"\n" +
 	"ChessBoard\x12\"\n" +
 	"\ris_white_turn\x18\x01 \x01(\bR\visWhiteTurn\x12'\n" +
-	"\x04file\x18\x02 \x03(\v2\x13.messages.BoardFileR\x04file\"\x81\x02\n" +
+	"\x04file\x18\x02 \x03(\v2\x13.messages.BoardFileR\x04file\"\xb3\x02\n" +
 	"\tChessGame\x12*\n" +
 	"\x05board\x18\x01 \x01(\v2\x14.messages.ChessBoardR\x05board\x125\n" +
 	"\vwhite_moves\x18\x02 \x03(\v2\x14.messages.PieceMovesR\n" +
@@ -1479,12 +1679,12 @@ const file_pb_messages_proto_rawDesc = "" +
 	"\vblack_moves\x18\x03 \x03(\v2\x14.messages.PieceMovesR\n" +
 	"blackMoves\x12,\n" +
 	"\x12taken_white_pieces\x18\x04 \x03(\x05R\x10takenWhitePieces\x12,\n" +
-	"\x12taken_black_pieces\x18\x05 \x03(\x05R\x10takenBlackPieces\"\xe0\x02\n" +
+	"\x12taken_black_pieces\x18\x05 \x03(\x05R\x10takenBlackPieces\x120\n" +
+	"\tmove_list\x18\x06 \x03(\v2\x13.messages.PieceMoveR\bmoveList\"\xae\x02\n" +
 	"\n" +
 	"ChessState\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
-	"\x04game\x18\x02 \x01(\v2\x13.messages.ChessGameR\x04game\x120\n" +
-	"\tmove_list\x18\x03 \x03(\v2\x13.messages.PieceMoveR\bmoveList\x128\n" +
+	"\x04game\x18\x02 \x01(\v2\x13.messages.ChessGameR\x04game\x128\n" +
 	"\fwhite_player\x18\x04 \x01(\v2\x15.messages.PlayerStateR\vwhitePlayer\x128\n" +
 	"\fblack_player\x18\x05 \x01(\v2\x15.messages.PlayerStateR\vblackPlayer\x12\x19\n" +
 	"\bis_ended\x18\x06 \x01(\bR\aisEnded\x12\x1f\n" +
@@ -1553,7 +1753,19 @@ const file_pb_messages_proto_rawDesc = "" +
 	"\vstart_color\x18\n" +
 	" \x01(\rR\n" +
 	"startColor\x12\x17\n" +
-	"\amade_on\x18\v \x01(\x03R\x06madeOnB\x12Z\x10hexchess-data/pbb\x06proto3"
+	"\amade_on\x18\v \x01(\x03R\x06madeOn\"c\n" +
+	"\fMakeMoveBody\x12'\n" +
+	"\x04move\x18\x01 \x01(\v2\x13.messages.PieceMoveR\x04move\x12*\n" +
+	"\x05board\x18\x02 \x01(\v2\x14.messages.ChessBoardR\x05board\"7\n" +
+	"\fMakeMoveResp\x12'\n" +
+	"\x04game\x18\x01 \x01(\v2\x13.messages.ChessGameR\x04game\"\\\n" +
+	"\bMoveStep\x12'\n" +
+	"\x04game\x18\x01 \x01(\v2\x13.messages.ChessGameR\x04game\x12'\n" +
+	"\x04move\x18\x02 \x01(\v2\x13.messages.PieceMoveR\x04move\"z\n" +
+	"\vMoveHistory\x128\n" +
+	"\finitialBoard\x18\x01 \x01(\v2\x14.messages.ChessBoardR\finitialBoard\x121\n" +
+	"\n" +
+	"move_steps\x18\x02 \x03(\v2\x12.messages.MoveStepR\tmoveStepsB\x12Z\x10hexchess-data/pbb\x06proto3"
 
 var (
 	file_pb_messages_proto_rawDescOnce sync.Once
@@ -1567,7 +1779,7 @@ func file_pb_messages_proto_rawDescGZIP() []byte {
 	return file_pb_messages_proto_rawDescData
 }
 
-var file_pb_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_pb_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_pb_messages_proto_goTypes = []any{
 	(*PlayerState)(nil),   // 0: messages.PlayerState
 	(*PieceMove)(nil),     // 1: messages.PieceMove
@@ -1590,14 +1802,18 @@ var file_pb_messages_proto_goTypes = []any{
 	(*GameOutput)(nil),    // 18: messages.GameOutput
 	(*UserMsg)(nil),       // 19: messages.UserMsg
 	(*ChallengeMsg)(nil),  // 20: messages.ChallengeMsg
+	(*MakeMoveBody)(nil),  // 21: messages.MakeMoveBody
+	(*MakeMoveResp)(nil),  // 22: messages.MakeMoveResp
+	(*MoveStep)(nil),      // 23: messages.MoveStep
+	(*MoveHistory)(nil),   // 24: messages.MoveHistory
 }
 var file_pb_messages_proto_depIdxs = []int32{
 	3,  // 0: messages.ChessBoard.file:type_name -> messages.BoardFile
 	4,  // 1: messages.ChessGame.board:type_name -> messages.ChessBoard
 	2,  // 2: messages.ChessGame.white_moves:type_name -> messages.PieceMoves
 	2,  // 3: messages.ChessGame.black_moves:type_name -> messages.PieceMoves
-	5,  // 4: messages.ChessState.game:type_name -> messages.ChessGame
-	1,  // 5: messages.ChessState.move_list:type_name -> messages.PieceMove
+	1,  // 4: messages.ChessGame.move_list:type_name -> messages.PieceMove
+	5,  // 5: messages.ChessState.game:type_name -> messages.ChessGame
 	0,  // 6: messages.ChessState.white_player:type_name -> messages.PlayerState
 	0,  // 7: messages.ChessState.black_player:type_name -> messages.PlayerState
 	1,  // 8: messages.MoveInput.move:type_name -> messages.PieceMove
@@ -1618,11 +1834,18 @@ var file_pb_messages_proto_depIdxs = []int32{
 	15, // 23: messages.GameOutput.chat:type_name -> messages.ChatOutput
 	16, // 24: messages.GameOutput.forfeit:type_name -> messages.ForfeitOutput
 	20, // 25: messages.UserMsg.challenge:type_name -> messages.ChallengeMsg
-	26, // [26:26] is the sub-list for method output_type
-	26, // [26:26] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	1,  // 26: messages.MakeMoveBody.move:type_name -> messages.PieceMove
+	4,  // 27: messages.MakeMoveBody.board:type_name -> messages.ChessBoard
+	5,  // 28: messages.MakeMoveResp.game:type_name -> messages.ChessGame
+	5,  // 29: messages.MoveStep.game:type_name -> messages.ChessGame
+	1,  // 30: messages.MoveStep.move:type_name -> messages.PieceMove
+	4,  // 31: messages.MoveHistory.initialBoard:type_name -> messages.ChessBoard
+	23, // 32: messages.MoveHistory.move_steps:type_name -> messages.MoveStep
+	33, // [33:33] is the sub-list for method output_type
+	33, // [33:33] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_pb_messages_proto_init() }
@@ -1652,7 +1875,7 @@ func file_pb_messages_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pb_messages_proto_rawDesc), len(file_pb_messages_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   21,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

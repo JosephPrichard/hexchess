@@ -3,7 +3,6 @@ package data
 import (
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"hexchess-svc/chess"
@@ -39,28 +38,26 @@ func CreateGame(ctx context.Context, rdb Redis, color ColorSelect, timeControl T
 		return "", err
 	}
 
-	go broadcastOnCreateGame(rdb, strID)
-	return strID, nil
-}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Warn("recovered in panic while broadcasting game event", "err", r)
+			}
+		}()
+		ctx := context.WithValue(context.Background(), util.Trace, "create-game-broadcast-handler")
 
-func broadcastOnCreateGame(rdb Redis, id string) {
-	defer func() {
-		if r := recover(); r != nil {
-			slog.Warn("recovered in create game broadcast handler", "err", r)
+		count, err := GetChessStateCount(ctx, rdb)
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to count chess states after creating game", "err", err)
+			return
 		}
+		if err := BroadcastGameCount(ctx, rdb, count, strID); err != nil {
+			slog.ErrorContext(ctx, "failed to broadcast chess states count after creating game", "err", err)
+			return
+		}
+		slog.InfoContext(ctx, "counted chess states after creating game", "count", count)
 	}()
-	ctx := context.WithValue(context.Background(), util.Trace, "create-game-broadcast-handler")
-
-	count, err := GetChessStateCount(ctx, rdb)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to count chess states after creating game", "err", err)
-		return
-	}
-	if err := BroadcastGameCount(ctx, rdb, count, id); err != nil {
-		slog.ErrorContext(ctx, "failed to broadcast chess states count after creating game", "err", err)
-		return
-	}
-	slog.InfoContext(ctx, "counted chess states after creating game", "count", count)
+	return strID, nil
 }
 
 func JoinGame(ctx context.Context, rdb Redis, gameID string, player PlayerState) (ChessState, error) {
@@ -69,15 +66,8 @@ func JoinGame(ctx context.Context, rdb Redis, gameID string, player PlayerState)
 		return ChessState{}, err
 	}
 
-	hasWhite := state.WhitePlayer != nil
-	hasBlack := state.BlackPlayer != nil
-	playerExists := (hasWhite && state.WhitePlayer.ID == player.ID) || (hasBlack && state.BlackPlayer.ID == player.ID)
-
-	if playerExists {
-		slog.WarnContext(ctx, "player has already joined game", "playerID", player.ID, "state", state)
-		return state, nil
-	}
-	if !hasWhite && !hasBlack {
+	var playerExists bool
+	if state.WhitePlayer == nil && state.BlackPlayer == nil {
 		n, err := rand.Int(rand.Reader, big.NewInt(1000))
 		if err != nil {
 			return ChessState{}, err
@@ -88,11 +78,22 @@ func JoinGame(ctx context.Context, rdb Redis, gameID string, player PlayerState)
 		} else {
 			state.BlackPlayer = &player
 		}
-	} else if !hasBlack {
-		state.BlackPlayer = &player
-	} else if !hasWhite {
-		state.WhitePlayer = &player
-	} else {
+	} else if state.BlackPlayer != nil && state.WhitePlayer == nil {
+		if state.BlackPlayer.ID == player.ID {
+			playerExists = true
+		} else {
+			state.WhitePlayer = &player
+		}
+	} else if state.WhitePlayer != nil && state.BlackPlayer == nil {
+		if state.WhitePlayer.ID == player.ID {
+			playerExists = true
+		} else {
+			state.BlackPlayer = &player
+		}
+	}
+
+	if playerExists {
+		slog.WarnContext(ctx, "player has already joined game", "playerID", player.ID, "state", state)
 		return state, nil
 	}
 
@@ -112,13 +113,9 @@ var (
 	ErrInvalidMove  = errors.New("invalid move")
 )
 
-func MakeGameMove(ctx context.Context, stores Stores, gameID string, player PlayerState, move chess.PieceMove) (MoveResult, error) {
-	state, err := GetChessState(ctx, stores.Rdb, gameID)
-	if err != nil {
-		return MoveResult{}, err
-	}
-
+func DoMakeMove(ctx context.Context, state ChessState, player PlayerState, move chess.PieceMove) (MoveResult, error) {
 	game := &state.Game
+	gameID := state.ID
 	currPlayer := state.CurrPlayer()
 
 	if state.IsEnded {
@@ -136,24 +133,37 @@ func MakeGameMove(ctx context.Context, stores Stores, gameID string, player Play
 
 	move = game.MakeMove(move.From, move.To)
 	game.InitPieceMoves()
-	state.MoveList = append(state.MoveList, move)
 
-	if game.CheckmateReached() {
+	if game.Checkmate() {
 		state.IsEnded = true
-		isWhiteWin := !game.Board.IsWhiteTurn
+	}
+	return MoveResult{Room: state, Move: move}, nil
+}
+
+func MakeGameMove(ctx context.Context, stores Stores, gameID string, player PlayerState, move chess.PieceMove) (MoveResult, error) {
+	state, err := GetChessState(ctx, stores.Rdb, gameID)
+	if err != nil {
+		return MoveResult{}, err
+	}
+
+	mr, err := DoMakeMove(ctx, state, player, move)
+	if err != nil {
+		return MoveResult{}, err
+	}
+
+	if state.IsEnded {
+		isWhiteWin := !state.Game.Board.IsWhiteTurn
 		if err := WriteFinishedGame(ctx, stores, state, isWhiteWin, Checkmate); err != nil {
 			return MoveResult{}, err
 		}
 	}
-
 	slog.InfoContext(ctx, "made move on game", "player", player.ID, "move", move, "state", state)
 
 	state, err = SetChessState(ctx, stores.Rdb, gameID, state)
 	if err != nil {
 		return MoveResult{}, err
 	}
-
-	return MoveResult{Room: state, Move: move}, nil
+	return mr, nil
 }
 
 func ForfeitGame(ctx context.Context, stores Stores, gameID string, player PlayerState) error {
@@ -169,10 +179,10 @@ func ForfeitGame(ctx context.Context, stores Stores, gameID string, player Playe
 	didBlackForfeit := state.BlackPlayer.ID == player.ID
 	state.IsEnded = true
 
-	if err := WriteFinishedGame(ctx, stores, state, didBlackForfeit, Forfeit); err != nil {
+	if _, err := SetChessState(ctx, stores.Rdb, gameID, state); err != nil {
 		return err
 	}
-	if _, err := SetChessState(ctx, stores.Rdb, gameID, state); err != nil {
+	if err := WriteFinishedGame(ctx, stores, state, didBlackForfeit, Forfeit); err != nil {
 		return err
 	}
 
@@ -193,12 +203,16 @@ func WriteFinishedGame(ctx context.Context, stores Stores, state ChessState, isW
 	whiteID := state.WhitePlayer.ID
 	blackID := state.BlackPlayer.ID
 
+	moveHistBytes, err := MarshalMoveHistory(chess.InitialBoard(), state.Game.MoveList)
+	if err != nil {
+		return fail("failed to marshal move history", err)
+	}
 	cs, err := UpdateGameResultTx(ctx, stores.PgDB, GRParams{
-		WhiteID:    whiteID,
-		BlackID:    blackID,
-		Cause:      cause,
-		IsWhiteWin: isWhiteWin,
-		MoveList:   state.MoveList,
+		WhiteID:          whiteID,
+		BlackID:          blackID,
+		Cause:            cause,
+		IsWhiteWin:       isWhiteWin,
+		MoveHistoryProto: moveHistBytes,
 	})
 	if err != nil {
 		return fail("failed to execute finish game tx", err)
@@ -223,11 +237,11 @@ func WriteFinishedGame(ctx context.Context, stores Stores, state ChessState, isW
 }
 
 type GRParams struct {
-	WhiteID    int64       `json:"whiteId"`
-	BlackID    int64       `json:"blackId"`
-	Cause      ReplayCause `json:"cause"`
-	IsWhiteWin bool        `json:"isWhiteWin"`
-	MoveList   []chess.PieceMove
+	WhiteID          int64       `json:"whiteId"`
+	BlackID          int64       `json:"blackId"`
+	Cause            ReplayCause `json:"cause"`
+	IsWhiteWin       bool        `json:"isWhiteWin"`
+	MoveHistoryProto []byte
 }
 
 type GRChangeSet struct {
@@ -286,18 +300,14 @@ func updateGameResult(ctx context.Context, q *db.Queries, params GRParams) (GRCh
 		return fail("failed to update lose elo", err)
 	}
 
-	moveListJson, err := json.Marshal(params.MoveList)
-	if err != nil {
-		return fail("failed to unmarshal move list", err)
-	}
 	inst := ReplayInst{
-		WhiteID:      params.WhiteID,
-		BlackID:      params.BlackID,
-		Result:       int32(result),
-		Cause:        int32(params.Cause),
-		WinElo:       winEloDiff,
-		LoseElo:      loseEloDiff,
-		MoveListJSON: string(moveListJson),
+		WhiteID:          params.WhiteID,
+		BlackID:          params.BlackID,
+		Result:           int32(result),
+		Cause:            int32(params.Cause),
+		WinElo:           winEloDiff,
+		LoseElo:          loseEloDiff,
+		MoveHistoryProto: params.MoveHistoryProto,
 	}
 	replayID, err := InsertReplay(ctx, q, inst)
 	if err != nil {

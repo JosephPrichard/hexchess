@@ -74,7 +74,7 @@
 	}
 
 	async function refreshSession() {
-		const [data, _] = await services.postRefresh();
+		const [data, _] = await services.postRefreshSession();
 		if (data) {
 			if (data.session) {
 				updateClientSession(data.session);

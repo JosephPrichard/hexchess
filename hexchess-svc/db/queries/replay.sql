@@ -24,8 +24,8 @@ FROM replays r
          INNER JOIN users u2 ON u2.id = r.black_id
 WHERE r.id = sqlc.arg('id');
 
--- name: GetReplayMoveList :one
-SELECT move_list AS move_list_json
+-- name: GetReplayMoveHistory :one
+SELECT move_list AS move_history_bytes
 FROM replays
 WHERE id = sqlc.arg('id');
 

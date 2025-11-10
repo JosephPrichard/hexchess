@@ -77,7 +77,12 @@ func MapPiecesMoves(pbMoves []*pb.PieceMoves) []chess.PieceMoves {
 	return pmsList
 }
 
+var ErrNilBoard = errors.New("board must not be nil")
+
 func MapBoard(pbBoard *pb.ChessBoard) (chess.Board, error) {
+	if pbBoard == nil {
+		return chess.Board{}, ErrNilBoard
+	}
 	board := chess.Board{IsWhiteTurn: pbBoard.IsWhiteTurn}
 	for f, file := range pbBoard.File {
 		if f >= chess.Files {
@@ -85,7 +90,7 @@ func MapBoard(pbBoard *pb.ChessBoard) (chess.Board, error) {
 		}
 		for r, piece := range file.Pieces {
 			if err := board.SetPiece(f, r, chess.Piece(piece)); err != nil {
-				return board, err
+				return board, fmt.Errorf("failed to set piece: %w", err)
 			}
 		}
 	}
@@ -103,6 +108,21 @@ func MapMoveList(pbMoves []*pb.PieceMove) []chess.PieceMove {
 	return moveList
 }
 
+func MapGame(pbGame *pb.ChessGame) (chess.Game, error) {
+	board, err := MapBoard(pbGame.Board)
+	if err != nil {
+		return chess.Game{}, fmt.Errorf("failed to map board: %w", err)
+	}
+	return chess.Game{
+		TakenWhitePieces: MapPieces(pbGame.TakenWhitePieces),
+		TakenBlackPieces: MapPieces(pbGame.TakenBlackPieces),
+		BlackMoves:       MapPiecesMoves(pbGame.BlackMoves),
+		WhiteMoves:       MapPiecesMoves(pbGame.WhiteMoves),
+		MoveList:         MapMoveList(pbGame.MoveList),
+		Board:            board,
+	}, nil
+}
+
 var ErrNilGame = errors.New("game and board must not be nil")
 
 func UnmarshalChess(b []byte) (ChessState, error) {
@@ -114,22 +134,13 @@ func UnmarshalChess(b []byte) (ChessState, error) {
 		return ChessState{}, ErrNilGame
 	}
 
-	board, err := MapBoard(pbChess.Game.Board)
+	game, err := MapGame(pbChess.Game)
 	if err != nil {
-		return ChessState{}, fmt.Errorf("failed to map board: %w", err)
-	}
-
-	game := chess.Game{
-		TakenWhitePieces: MapPieces(pbChess.Game.TakenWhitePieces),
-		TakenBlackPieces: MapPieces(pbChess.Game.TakenBlackPieces),
-		BlackMoves:       MapPiecesMoves(pbChess.Game.BlackMoves),
-		WhiteMoves:       MapPiecesMoves(pbChess.Game.WhiteMoves),
-		Board:            board,
+		return ChessState{}, fmt.Errorf("failed to map game: %w", err)
 	}
 
 	state := ChessState{
-		Game:     game,
-		MoveList: MapMoveList(pbChess.MoveList),
+		Game: game,
 		ChessMeta: ChessMeta{
 			ID:          pbChess.Id,
 			WhitePlayer: MapPlayer(pbChess.WhitePlayer),
@@ -238,6 +249,7 @@ func MapPbGame(game chess.Game) (*pb.ChessGame, error) {
 		TakenBlackPieces: MapPbPieces(game.TakenBlackPieces),
 		BlackMoves:       MapPbPiecesMoves(game.BlackMoves),
 		WhiteMoves:       MapPbPiecesMoves(game.WhiteMoves),
+		MoveList:         MapPbMoveList(game.MoveList),
 		Board:            pbBoard,
 	}
 	return pbGame, nil
@@ -249,18 +261,9 @@ func MapPbChessState(s ChessState) (*pb.ChessState, error) {
 		return nil, fmt.Errorf("failed to map pb game: %w", err)
 	}
 
-	var pbMoveList []*pb.PieceMove
-	if s.MoveList != nil {
-		pbMoveList = make([]*pb.PieceMove, 0, len(s.MoveList))
-		for _, pm := range s.MoveList {
-			pbMoveList = append(pbMoveList, MapPbPieceMove(pm))
-		}
-	}
-
 	pbState := &pb.ChessState{
 		Id:          s.ID,
 		Game:        pbGame,
-		MoveList:    MapPbMoveList(s.MoveList),
 		WhitePlayer: MapPbPlayer(s.WhitePlayer),
 		BlackPlayer: MapPbPlayer(s.BlackPlayer),
 		IsEnded:     s.IsEnded,
@@ -269,6 +272,36 @@ func MapPbChessState(s ChessState) (*pb.ChessState, error) {
 		Touch:       s.Touch.UnixMilli(),
 	}
 	return pbState, nil
+}
+
+func MarshalMoveHistory(b chess.Board, moveList []chess.PieceMove) ([]byte, error) {
+	initialBoard := b
+	pbInitialBoard, err := MapPbBoard(initialBoard)
+	if err != nil {
+		return nil, fmt.Errorf("failed to map initial board: %w", err)
+	}
+
+	game := chess.Game{Board: b}
+	var pbMoveSteps []*pb.MoveStep
+	for _, m := range moveList {
+		game.InitPieceMoves()
+		game.MakeMove(m.From, m.To)
+
+		pbGame, err := MapPbGame(game)
+		if err != nil {
+			return nil, fmt.Errorf("failed to map pb game: %w", err)
+		}
+
+		pbMoveSteps = append(pbMoveSteps, &pb.MoveStep{
+			Game: pbGame,
+			Move: MapPbPieceMove(m),
+		})
+	}
+
+	return proto.Marshal(&pb.MoveHistory{
+		InitialBoard: pbInitialBoard,
+		MoveSteps:    pbMoveSteps,
+	})
 }
 
 func MarshalChessState(s ChessState) ([]byte, error) {
@@ -282,7 +315,7 @@ func MarshalChessState(s ChessState) ([]byte, error) {
 func UnmarshalChessMeta(b []byte) (ChessMeta, error) {
 	var pbChess pb.ChessState
 	if err := proto.Unmarshal(b, &pbChess); err != nil {
-		return ChessMeta{}, fmt.Errorf("failed to unmarhsal chess state: %w", err)
+		return ChessMeta{}, fmt.Errorf("failed to unmarshal chess state: %w", err)
 	}
 	cv := ChessMeta{
 		ID:          pbChess.Id,

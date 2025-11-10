@@ -57,7 +57,7 @@ func SetChessStateAt(ctx context.Context, rdb Redis, id string, state ChessState
 
 	b, err := MarshalChessState(state)
 	if err != nil {
-		return ChessState{}, fmt.Errorf("failed to serialize chess state: %w", err)
+		return ChessState{}, fmt.Errorf("failed to marshal chess state: %w", err)
 	}
 
 	conn := rdb.Primary.Get()
@@ -170,7 +170,7 @@ func GetChessMetas(ctx context.Context, rdb Redis, zSetName string, page, count 
 	for _, bytes := range bytesList {
 		cv, err := UnmarshalChessMeta(bytes)
 		if err != nil {
-			return fail("failed to deserialize chess view with key", err)
+			return fail("failed to unmarshal chess debug with key", err)
 		}
 		metas = append(metas, cv)
 	}

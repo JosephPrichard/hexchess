@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
@@ -12,21 +11,7 @@ import (
 	"net/http"
 )
 
-type WsHandler = func(w http.ResponseWriter, r *http.Request, ss ServerState) error
-
-func makeWsHandler(state ServerState, h WsHandler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		slog.InfoContext(r.Context(), "ws received", "method", r.Method, "url", r.URL)
-
-		if err := h(w, r, state); err != nil {
-			slog.ErrorContext(r.Context(), "ws failed", "method", r.Method, "url", r.URL, "error", err)
-
-			status, m := HttpStatusFromErr(err)
-			w.WriteHeader(status)
-			_, _ = w.Write([]byte(m))
-		}
-	})
-}
+type WsHandler = func(w http.ResponseWriter, r *http.Request, ss ServerState)
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
@@ -40,41 +25,61 @@ type GameplayState struct {
 	player data.PlayerState
 }
 
-func HandleGameplayWs(w http.ResponseWriter, r *http.Request, ss ServerState) error {
+func writeConn(b []byte, conn *websocket.Conn, ctx context.Context) {
+	if b == nil {
+		// a nil message is a "no-op", the caller does not need to check for errors
+		return
+	}
+	if err := conn.WriteMessage(websocket.BinaryMessage, b); err != nil {
+		slog.ErrorContext(ctx, "failed to write ws message", "err", err)
+	}
+}
+
+func HandleGameplayWs(w http.ResponseWriter, r *http.Request, ss ServerState) {
 	ctx := r.Context()
 	gameID := r.URL.Query().Get("id")
 
-	player, _, err := GetSessionPlayer(ctx, ss.Rdb, r)
-	if err != nil {
-		return err
-	}
-	cs, err := data.JoinGame(ctx, ss.Rdb, gameID, player)
-	if errors.Is(err, data.ErrNoChessState) {
-		return ErrHttpInvalidGame
-	} else if err != nil {
-		return err
-	}
-
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		return err
+		// writing the websocket error response and code is handled in the upgrade fn
+		return
 	}
 	defer conn.Close()
 
-	state := GameplayState{ServerState: ss, gameID: gameID, player: player}
-
-	if err := handleGpInit(state, conn, cs); err != nil {
-		slog.ErrorContext(ctx, "failed to handle gameplay init", "err", err)
+	write := func(b []byte) {
+		writeConn(b, conn, ctx)
 	}
+	writeInitErr := func(err error) {
+		err = MapWsInitErr(err)
+		slog.ErrorContext(ctx, "failed io initialize gameplay ws", "err", err, "wsErr", err)
+		b := makeErrMsg(ctx, gameID, err)
+		write(b)
+	}
+
+	player, _, err := GetSessionPlayer(ctx, ss.Rdb, r)
+	if err != nil {
+		writeInitErr(err)
+		return
+	}
+	cs, err := data.JoinGame(ctx, ss.Rdb, gameID, player)
+	if err != nil {
+		writeInitErr(err)
+		return
+	}
+	if err := handleInit(gameID, player, cs, write); err != nil {
+		// callee is responsible for writing to the client, we just log in the caller
+		slog.ErrorContext(ctx, "failed to handle game init", "err", err)
+		return
+	}
+
+	state := GameplayState{ServerState: ss, gameID: gameID, player: player}
 
 	writeChan := make(chan []byte)
 	state.GamesCaster.Subscribe(state.gameID, writeChan)
 
 	go func() {
 		for b := range writeChan {
-			if err := conn.WriteMessage(websocket.BinaryMessage, b); err != nil {
-				slog.ErrorContext(ctx, "failed to write ws message", "err", err)
-			}
+			write(b)
 		}
 	}()
 
@@ -90,67 +95,68 @@ func HandleGameplayWs(w http.ResponseWriter, r *http.Request, ss ServerState) er
 		}
 		handleMessage(ctx, state, msg, writeChan)
 	}
-	return nil
 }
 
-func handleGpInit(gp GameplayState, conn *websocket.Conn, state data.ChessState) error {
+func makeErrMsg(ctx context.Context, gameID string, err error) []byte {
+	b, err := proto.Marshal(&pb.GameOutput{
+		GameId: gameID,
+		Value: &pb.GameOutput_Error{Error: &pb.ErrorOutput{
+			Message: err.Error(),
+		}},
+	})
+	if err != nil {
+		// this should never happen because the input is never unmarshall-able - if it does, we have no way to write back errors
+		slog.ErrorContext(ctx, "failed to marshal err output msg", "err", err)
+	}
+	return b
+}
+
+func handleInit(gameID string, player data.PlayerState, state data.ChessState, write func([]byte)) error {
 	pbState, err := data.MapPbChessState(state)
 	if err != nil {
 		return fmt.Errorf("failed to map pb state: %w", err)
 	}
-	output1 := &pb.GameOutput{
-		GameId: gp.gameID,
-		Value: &pb.GameOutput_Init{
-			Init: &pb.InitOutput{
-				State: pbState,
-				Self:  data.MapPbPlayer(&gp.player),
+	outputs := []*pb.GameOutput{
+		{
+			GameId: gameID,
+			Value: &pb.GameOutput_Init{
+				Init: &pb.InitOutput{
+					State: pbState,
+					Self:  data.MapPbPlayer(&player),
+				},
+			},
+		},
+		{
+			GameId: gameID,
+			Value: &pb.GameOutput_Players{
+				Players: &pb.PlayersOutput{
+					WhitePlayer: data.MapPbPlayer(state.WhitePlayer),
+					BlackPlayer: data.MapPbPlayer(state.BlackPlayer),
+				},
 			},
 		},
 	}
-	output2 := &pb.GameOutput{
-		GameId: gp.gameID,
-		Value: &pb.GameOutput_Players{
-			Players: &pb.PlayersOutput{
-				WhitePlayer: data.MapPbPlayer(state.WhitePlayer),
-				BlackPlayer: data.MapPbPlayer(state.BlackPlayer),
-			},
-		},
-	}
-	for _, o := range []*pb.GameOutput{
-		output1,
-		output2,
-	} {
+	for _, o := range outputs {
 		b, err := proto.Marshal(o)
 		if err != nil {
-			return fmt.Errorf("failed to marshal output msg: %w", err)
+			return fmt.Errorf("failed to marshal game init output: %w", err)
 		}
-		if err := conn.WriteMessage(websocket.BinaryMessage, b); err != nil {
-			return fmt.Errorf("failed to write ws msg: %w", err)
-		}
+		write(b)
 	}
 	return nil
 }
 
 func handleMessage(ctx context.Context, gp GameplayState, msg []byte, writeChan chan []byte) {
-	sendErr := func(err error) {
-		err = mapSocketErr(err)
+	writeErr := func(err error) {
+		err = MapWsEventErr(err)
 		slog.ErrorContext(ctx, "error occurred while handling ws message", "err", err, "wsErr", err)
-		b, err := proto.Marshal(&pb.GameOutput{
-			GameId: gp.gameID,
-			Value: &pb.GameOutput_Error{Error: &pb.ErrorOutput{
-				Message: err.Error(),
-			}},
-		})
-		if err != nil {
-			slog.ErrorContext(ctx, "failed to marshal err output msg", "err", err)
-			return
-		}
+		b := makeErrMsg(ctx, gp.gameID, err)
 		writeChan <- b
 	}
 
 	var pbInput pb.GameInput
 	if err := proto.Unmarshal(msg, &pbInput); err != nil {
-		sendErr(err)
+		writeErr(err)
 		return
 	}
 
@@ -165,7 +171,7 @@ func handleMessage(ctx context.Context, gp GameplayState, msg []byte, writeChan 
 		err = ErrWsMessageType
 	}
 	if err != nil {
-		sendErr(err)
+		writeErr(err)
 	}
 }
 

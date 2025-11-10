@@ -73,19 +73,10 @@ export interface PlayerModel {
 	isGuest: boolean;
 }
 
-export interface PieceMoveModel {
-	piece: number;
-	from: {
-		file: number;
-		rank: number;
-	};
-	to: {
-		file: number;
-		rank: number;
-	};
+export interface Hexagon {
+	file: number;
+	rank: number;
 }
-
-export type MoveListModel = PieceMoveModel[];
 
 export interface ChessModel {
 	id: string,

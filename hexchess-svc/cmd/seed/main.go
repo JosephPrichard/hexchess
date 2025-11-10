@@ -31,16 +31,16 @@ func readMockFile[V any](filename string) []V {
 
 func insertReplay(ctx context.Context, q *db.Queries, r data.ReplayInst) error {
 	game := chess.MakeStartGame()
-	moveList, err := chess.RandomMoveList(game, 35, 45)
+	moveList, err := chess.RandomMoveList(game, 10, 30)
 	if err != nil {
-		return fmt.Errorf("failed to generate random move list: %w", err)
+		util.LogFatalErr("failed to generate random move list", err)
 	}
 
-	b, err := json.Marshal(moveList)
+	moveHistBytes, err := data.MarshalMoveHistory(chess.InitialBoard(), moveList)
 	if err != nil {
 		return fmt.Errorf("failed to marshal move list: %w", err)
 	}
-	r.MoveListJSON = string(b)
+	r.MoveHistoryProto = moveHistBytes
 
 	_, err = data.InsertReplay(ctx, q, r)
 	return err
@@ -64,7 +64,7 @@ func main() {
 	slog.InfoContext(ctx, "connecting to postgres db", "dbURL", dbURL)
 	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
-		util.LogFatal("failed to create pool", "err", err)
+		util.LogFatalErr("failed to create pool", err)
 	}
 	defer pool.Close()
 
@@ -75,22 +75,22 @@ func main() {
 	defer rdb.Close()
 
 	if _, err := pool.Exec(context.Background(), "DROP SCHEMA public CASCADE;\nCREATE SCHEMA public;"); err != nil {
-		util.LogFatal("failed to drop schema", "err", err)
+		util.LogFatalErr("failed to drop schema", err)
 	}
 	if _, err := pool.Exec(context.Background(), db.CreateSchema); err != nil {
-		util.LogFatal("failed to create schema", "err", err)
+		util.LogFatalErr("failed to create schema", err)
 	}
 
 	conn := rdb.Primary.Get()
 	defer conn.Close()
 
 	if _, err := conn.Do("FLUSHALL"); err != nil {
-		util.LogFatal("failed to flush redis", "err", err)
+		util.LogFatalErr("failed to flush redis", err)
 	}
 
 	users, err := data.BatchInsertUsers(ctx, q, userInsts)
 	if err != nil {
-		util.LogFatal("failed to insert users", "err", err)
+		util.LogFatalErr("failed to insert users", err)
 	}
 	var changes []data.UpdtLbChangeSet
 	for _, u := range users {
@@ -114,7 +114,7 @@ func main() {
 	}
 
 	if err := eg.Wait(); err != nil {
-		util.LogFatal("failed to insert challenges and replys", "err", err)
+		util.LogFatalErr("failed to insert challenges and replays", err)
 	}
 
 	log.Printf("finished seeding databases: %v", time.Now().Sub(start))

@@ -1,10 +1,9 @@
 <script lang="ts">
 	import { stringOfMove } from '$lib/utils/chess';
-	import type { MoveListModel } from '$lib/api/model';
 	import type { PieceMove } from '$lib/api/messages';
 
 	export interface MoveListProps {
-		moveList: MoveListModel | PieceMove[];
+		moveList: PieceMove[];
 		onSelectMove?: (i: number) => void;
 		selectedMoveIndex?: number;
 		completeMessage?: string;
@@ -26,8 +25,12 @@
 					class="move-button"
 					class:move-button-hover={onSelectMove !== undefined}
 					class:selected-move={selectedMoveIndex === i}
-					onclick={() => onSelectMove ? onSelectMove(i) : {}}
+					onclick={() => onSelectMove?.(i)}
 					tabindex="-1"
+					data-from-file={moveOne.fromFile}
+					data-from-rank={moveOne.fromRank}
+					data-to-file={moveOne.toFile}
+					data-to-rank={moveOne.toRank}
 				>
 					{stringOfMove(moveOne)}
 				</button>
@@ -36,8 +39,12 @@
 						class="move-button"
 						class:move-button-hover={onSelectMove !== undefined}
 						class:selected-move={selectedMoveIndex === moveTwoIndex}
-						onclick={() =>  onSelectMove ? onSelectMove(moveTwoIndex) : {}}
+						onclick={() => onSelectMove?.(moveTwoIndex)}
 						tabindex="-1"
+						data-from-file={moveTwo.fromFile}
+						data-from-rank={moveTwo.fromRank}
+						data-to-file={moveTwo.toFile}
+						data-to-rank={moveTwo.toRank}
 					>
 						{stringOfMove(moveTwo)}
 					</button>

@@ -82,35 +82,45 @@ func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 		mux.Handle("OPTIONS "+pattern, handler)
 		sb.WriteString(fmt.Sprintf("\t%s\n", pattern))
 	}
+	handleRest := func(method string, pattern string, handler RestHandler) {
+		handle(method, pattern, makeRestHandler(state, handler))
+	}
+	handleSse := func(method string, pattern string, handler SseHandler) {
+		handle(method, pattern, makeSseHandler(state, handler))
+	}
 
-	handle("POST", "/api/register", makeRestHandler(state, HandleRegister))
-	handle("POST", "/api/login", makeRestHandler(state, HandleLogin))
-	handle("POST", "/api/session/temp", makeRestHandler(state, HandleCreateTempSession))
-	handle("POST", "/api/session/refresh", makeRestHandler(state, HandleRefreshSession))
-	handle("POST", "/api/logout", makeRestHandler(state, HandleLogout))
-	handle("POST", "/api/users/password", makeRestHandler(state, HandleUpdatePassword))
-	handle("POST", "/api/users", makeRestHandler(state, HandleUpdateUser))
-	handle("POST", "/api/games/create", makeRestHandler(state, HandleCreateGame))
-	handle("POST", "/api/challenges/update", makeRestHandler(state, HandleUpdateChallenge))
-	handle("POST", "/api/challenges/create", makeRestHandler(state, HandleCreateChallenge))
+	handleRest("POST", "/api/register", HandleRegister)
+	handleRest("POST", "/api/login", HandleLogin)
+	handleRest("POST", "/api/session/temp", HandleCreateTempSession)
+	handleRest("POST", "/api/session/refresh", HandleRefreshSession)
+	handleRest("POST", "/api/logout", HandleLogout)
+	handleRest("POST", "/api/users/password", HandleUpdatePassword)
+	handleRest("POST", "/api/users", HandleUpdateUser)
+	handleRest("POST", "/api/games/create", HandleCreateGame)
+	handleRest("POST", "/api/challenges/update", HandleUpdateChallenge)
+	handleRest("POST", "/api/challenges/create", HandleCreateChallenge)
+	handleRest("POST", "/api/make-move", HandleMakeMove)
 
-	handle("GET", "/api/players", makeRestHandler(state, HandleGetPlayer))
-	handle("GET", "/api/players/self", makeRestHandler(state, HandleGetSelf))
-	handle("GET", "/api/players/search", makeRestHandler(state, HandleSearchPlayers))
-	handle("GET", "/api/leaderboard", makeRestHandler(state, HandleGetLeaderboard))
-	handle("GET", "/api/challenges", makeRestHandler(state, HandleGetChallenges))
-	handle("GET", "/api/replays", makeRestHandler(state, HandleGetUserReplays))
-	handle("GET", "/api/chess/rooms", makeRestHandler(state, HandleGetChessRoomList))
-	handle("GET", "/api/replay", makeRestHandler(state, HandleGetReplay))
-	handle("GET", "/api/replay/move-list", makeRestHandler(state, HandleGetReplayMoveList))
+	handleRest("GET", "/api/players", HandleGetPlayer)
+	handleRest("GET", "/api/players/self", HandleGetSelf)
+	handleRest("GET", "/api/players/search", HandleSearchPlayers)
+	handleRest("GET", "/api/leaderboard", HandleGetLeaderboard)
+	handleRest("GET", "/api/challenges", HandleGetChallenges)
+	handleRest("GET", "/api/replays", HandleGetUserReplays)
+	handleRest("GET", "/api/chess/rooms", HandleGetChessRoomList)
+	handleRest("GET", "/api/replay", HandleGetReplay)
+	handleRest("GET", "/api/replay/move-list", HandleGetReplayMoveList)
 
-	handle("GET", "/api/events/count", makeSseHandler(state, HandleCountEvents))
-	handle("GET", "/api/events/user", makeSseHandler(state, HandleUserEvents))
+	handleSse("GET", "/api/events/count", HandleCountEvents)
+	handleSse("GET", "/api/events/user", HandleUserEvents)
 
 	handle("GET", "/api/initial-board", makeJsonHandler(chess.InitialBoard()))
 	handle("GET", "/api/countries", makeJsonHandler(state.CountryList))
 
-	handle("GET", "/api/ws/game", makeWsHandler(state, HandleGameplayWs))
+	handle("GET", "/api/ws/game", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		slog.InfoContext(r.Context(), "begin game ws connection", "method", r.Method, "url", r.URL)
+		HandleGameplayWs(w, r, state)
+	}))
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		slog.ErrorContext(r.Context(), "route not found", "method", r.Method, "url", r.URL)

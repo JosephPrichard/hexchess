@@ -1,18 +1,29 @@
 <script lang="ts">
-	import { colors, colorsOffset, height, piecenames, selectedColor, verticalFileOffsets, width } from '$lib/utils/globals';
-	import type { ChessBoard, Hexagon } from '$lib/api/messages';
+	import { colors, colorsOffset, hexHeight, selectedColor, verticalFileOffsets, hexWidth, piecenames, defaultBoard } from '$lib/utils/globals';
+	import type { ChessBoard } from '$lib/api/messages';
 	import Piece from '$lib/components/chess/Piece.svelte';
+	import type { Hexagon } from '$lib/api/model';
+	import { isBlack, isWhite } from '$lib/utils/chess';
 
 	export interface BoardProps {
-		board: ChessBoard;
-		draggable?: "white" | "black";
+		board?: ChessBoard;
+		draggable?: "turn" | "anyone" | "none";
 		isWhitePerspective: boolean;
 		selectedHexagon?: Hexagon;
 		potentialMoves?: Hexagon[];
-		onClickPiece?: (hex: Hexagon) => void;
+		onSelectPiece?: (hex: Hexagon) => void;
+		onDeSelectPiece?: (hex: Hexagon) => void;
 	}
 
-	const { board, draggable, isWhitePerspective, selectedHexagon, potentialMoves, onClickPiece }: BoardProps = $props();
+	const { board, draggable, isWhitePerspective, selectedHexagon, potentialMoves, onSelectPiece, onDeSelectPiece }: BoardProps = $props();
+
+	function onSelectBoardPiece(hex: Hexagon) {
+		onSelectPiece?.(hex);
+	}
+
+	function onDeSelectBoardPiece(hex: Hexagon) {
+		onDeSelectPiece?.(hex);
+	}
 
 	const potentialMovesMap = $derived.by(() => {
 		if (!potentialMoves) {
@@ -24,27 +35,34 @@
 		}
 		return potentialMovesMap;
 	});
+
+	const actualBoard = $derived.by(() => board ? board : defaultBoard)
 </script>
 
-<div class="board" style="width: {11 * height}px; height: {11 * height}px;">
-	{#each board.file as piecesFile, file (file)}
+<div class="board" style="width: {11 * hexHeight}px; height: {11 * hexHeight}px;">
+	{#each actualBoard.file as piecesFile, file (file)}
 		{#each piecesFile.pieces as piece, rank (rank)}
-			{@const top = rank * height + (verticalFileOffsets[file] * height) / 2}
-			{@const flippedTop = 10 * height - top}
-			{@const left = file * (height - 8)}
+			{@const top = rank * hexHeight + (verticalFileOffsets[file] * hexHeight) / 2}
+			{@const flippedTop = 10 * hexHeight - top}
+			{@const actualTop = isWhitePerspective ? flippedTop : top}
+			{@const left = file * (hexHeight - 8)}
 			{@const bgIndex = (colorsOffset[file] + rank) % 3}
 			{@const isMove = potentialMovesMap[file + "," + rank]}
+			{@const isDraggable =
+				draggable !== "none" &&
+				(draggable === "anyone" ||
+				(draggable === "turn" && isWhite(piece) && board?.isWhiteTurn) ||
+				(draggable === "turn" && isBlack(piece) && !board?.isWhiteTurn))}
 			<div
 				class="hexagon"
-				style:top="{isWhitePerspective ? flippedTop : top}px"
+				style:top="{actualTop}px"
 				style:left="{left}px"
-				style:width="{width}px"
-				style:height="{height}px"
+				style:width="{hexWidth}px"
+				style:height="{hexHeight}px"
 				style:background={selectedHexagon?.file === file && selectedHexagon?.rank === rank ? selectedColor : colors[bgIndex]}
 				style:cursor={isMove ? "pointer" : undefined}
 			>
 				{#if piece !== 0}
-					<Piece draggable={true} file={file} rank={rank} piece={piece} onClickPiece={onClickPiece}/>
 					{#if isMove}
 						<div class="move-circle"></div>
 					{/if}
@@ -54,6 +72,16 @@
 					{/if}
 				{/if}
 			</div>
+			{#if piece !== 0}
+				<Piece
+					draggable={isDraggable}
+					initialLeft={left}
+					initialTop={actualTop}
+					piece={piece}
+					onSelectPiece={() => onSelectBoardPiece({ file, rank })}
+					onDeSelectPiece={() => onDeSelectBoardPiece({ file, rank })}
+				/>
+			{/if}
 		{/each}
 	{/each}
 </div>
@@ -64,6 +92,8 @@
     }
 
     .hexagon {
+		z-index: 1;
+        overflow: hidden;
         position: absolute;
         aspect-ratio: 1 / cos(30deg);
         clip-path: polygon(50% -50%, 100% 50%, 50% 150%, 0 50%);

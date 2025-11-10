@@ -15,7 +15,13 @@ import (
 func main() {
 	start := time.Now()
 
-	util.InitLoggers(nil)
+	f, err := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		util.LogFatalErr("failed to open log file", err)
+	}
+	defer f.Close()
+
+	util.InitLoggers(f)
 	util.InitEnv()
 
 	dbURL := os.Getenv("DB_URL")
@@ -26,7 +32,7 @@ func main() {
 	slog.InfoContext(ctx, "connecting to postgres db", "dbURL", dbURL)
 	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
-		util.LogFatal("failed to create pool", "err", err)
+		util.LogFatalErr("failed to create pool", err)
 	}
 	defer pool.Close()
 	q := db.New(pool)
@@ -38,7 +44,7 @@ func main() {
 	stores := data.Stores{PgDB: data.MakeDbClient(q, pool), Rdb: rdb}
 
 	if err := data.SyncLeaderboard(ctx, stores); err != nil {
-		util.LogFatal("failed to sync leaderboard", "err", err)
+		util.LogFatalErr("failed to sync leaderboard", err)
 	}
 	log.Printf("finished syncing leaderboard: %v", time.Now().Sub(start))
 }

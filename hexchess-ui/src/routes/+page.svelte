@@ -123,6 +123,11 @@
 			<button class="button button-grey" id="challenge-button">
 				Find a Match
 			</button>
+			<button class="button button-grey" id="challenge-button">
+				<a href="/sandbox">
+					Try Sandbox
+				</a>
+			</button>
 			<div class="counts-wrapper">
 				<b> {userCounts} </b> players
 			</div>

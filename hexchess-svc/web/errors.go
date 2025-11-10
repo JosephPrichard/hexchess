@@ -29,7 +29,6 @@ var (
 	ErrHttpUserNotFound         = errors.New("ERROR_NOT_FOUND_USER")
 	ErrHttpInvalidRequest       = errors.New("ERROR_INVALID_REQUEST")
 	ErrHttpSearchLimit          = errors.New("ERROR_SEARCH_LIMIT")
-	ErrHttpInvalidGame          = errors.New("ERROR_INVALID_GAME")
 )
 
 // WebSocket response codes
@@ -39,7 +38,9 @@ var (
 	ErrWsTurn         = errors.New("ERROR_TURN")
 	ErrWsInvalidMove  = errors.New("ERROR_INVALID_MOVE")
 	ErrWsFinishedGame = errors.New("ERROR_FINISHED_GAME")
-	ErrExpiredGame    = errors.New("ERROR_INVALID_GAME")
+	ErrWsInvalidGame  = errors.New("ERROR_INVALID_GAME")
+	ErrWsExpiration   = errors.New("ERROR_EXPIRED_GAME")
+	ErrWsSpectator    = errors.New("ERROR_SPECTATOR")
 )
 
 func HttpStatusFromErr(err error) (int, string) {
@@ -53,8 +54,7 @@ func HttpStatusFromErr(err error) (int, string) {
 		ErrHttpSelfChallenge,
 		ErrHttpUpdateChallenge,
 		ErrHttpSearchLimit,
-		ErrHttpInvalidCountry,
-		ErrHttpInvalidGame:
+		ErrHttpInvalidCountry:
 		return http.StatusBadRequest, err.Error()
 	case ErrHttpDuplicateUsername,
 		ErrHttpDuplicateChallenge:
@@ -74,7 +74,18 @@ func HttpStatusFromErr(err error) (int, string) {
 	}
 }
 
-func mapSocketErr(err error) error {
+// MapWsInitErr handle events that occur during the connection initialization phase of a game ws
+func MapWsInitErr(err error) error {
+	switch err {
+	case data.ErrNoChessState:
+		return ErrWsInvalidGame
+	default:
+		return ErrWsFatal
+	}
+}
+
+// MapWsEventErr handle events that occur during an existing connection of a game ws
+func MapWsEventErr(err error) error {
 	switch err {
 	case data.ErrFinishedGame:
 		return ErrWsFinishedGame
@@ -83,8 +94,8 @@ func mapSocketErr(err error) error {
 	case data.ErrInvalidMove:
 		return ErrWsInvalidMove
 	case data.ErrNoChessState:
-		// no chess state means the game has expired since we last accessed it
-		return ErrExpiredGame
+		// if the state cannot be found, it has expired while an inactive connection has been open
+		return ErrWsExpiration
 	default:
 		return ErrWsFatal
 	}

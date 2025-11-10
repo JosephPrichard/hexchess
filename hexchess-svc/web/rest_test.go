@@ -1,11 +1,16 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
+	"hexchess-svc/chess"
 	"hexchess-svc/data"
+	"hexchess-svc/pb"
 	"hexchess-svc/util"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -428,4 +433,38 @@ func TestHandleGetChessViews(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	util.AssertRespBody[ChessRoomListResp](t, expResp, w)
+}
+
+func TestHandleMakeMove(t *testing.T) {
+	pbInitialBoard, err := data.MapPbBoard(chess.InitialBoard())
+	if err != nil {
+		t.Fatalf("failed to map board: %v", err)
+	}
+
+	for _, test := range []struct {
+		body *pb.MakeMoveBody
+	}{
+		{body: &pb.MakeMoveBody{Board: pbInitialBoard}},
+		{body: &pb.MakeMoveBody{}},
+	} {
+		body, err := proto.Marshal(test.body)
+		if err != nil {
+			t.Fatalf("failed to marshal body: %v", err)
+		}
+		r := httptest.NewRequest(http.MethodPost, "/api/make-move", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+		h := HandleRoot(MakeServerState(data.Stores{}, nil), "")
+		h.ServeHTTP(w, r)
+
+		b, err := io.ReadAll(w.Body)
+		if err != nil {
+			t.Fatalf("failed to read resp: %v", err)
+		}
+		var resp pb.MakeMoveResp
+		if err := proto.Unmarshal(b, &resp); err != nil {
+			t.Fatalf("failed to unmarshal resp: %v", err)
+		}
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	}
 }
