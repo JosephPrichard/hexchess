@@ -45,7 +45,8 @@
 		moveState.updateMoveCount(moveSteps.length);
 	});
 
-	const board = $derived.by(() => moveState.value.moveIndex ? moveSteps[moveState.value.moveIndex]?.game?.board : initialBoard);
+	$inspect("moveIndex", moveState.value.moveIndex)
+	const board = $derived.by(() => moveState.value.moveIndex !== undefined ? moveSteps[moveState.value.moveIndex]?.game?.board : initialBoard);
 	const moveList = $derived.by(() => {
 		const moveList: PieceMove[] = [];
 		for (const step of moveSteps) {

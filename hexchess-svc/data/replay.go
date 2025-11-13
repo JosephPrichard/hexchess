@@ -127,15 +127,14 @@ func GetReplay(ctx context.Context, q *db.Queries, id int64) (ReplayEntity, erro
 }
 
 func GetReplayMoveHistory(ctx context.Context, q *db.Queries, id int64) ([]byte, error) {
-	moveList, err := q.GetReplayMoveHistory(ctx, id)
+	b, err := q.GetReplayMoveHistory(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNoReplay
 	}
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to select replay move list", "id", id, "err", err)
 		return nil, fmt.Errorf("failed to get replay move list by id: %w", err)
 	}
-	return moveList, nil
+	return b, nil
 }
 
 func GetUserReplays(ctx context.Context, q *db.Queries, userID int64, afterID int64, perPage int32) ([]ReplayEntity, error) {

@@ -198,7 +198,7 @@ func WriteFinishedGame(ctx context.Context, stores Stores, state ChessState, isW
 	}
 
 	if state.WhitePlayer == nil || state.BlackPlayer == nil {
-		panic(fmt.Errorf("assertion error: room players must not be nil: roomID: %s", state.ID))
+		return fmt.Errorf("assertion error: room players must not be nil on a finished game: roomID: %s", state.ID)
 	}
 	whiteID := state.WhitePlayer.ID
 	blackID := state.BlackPlayer.ID

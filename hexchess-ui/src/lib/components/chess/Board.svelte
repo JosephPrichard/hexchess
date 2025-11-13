@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { colors, colorsOffset, hexHeight, selectedColor, verticalFileOffsets, hexWidth, piecenames, defaultBoard } from '$lib/utils/globals';
+	import { colors, colorsOffset, hexHeight, selectedColor, verticalFileOffsets, hexWidth, piecenames, defaultBoard, pieces } from '$lib/utils/globals';
 	import type { ChessBoard } from '$lib/api/messages';
 	import Piece from '$lib/components/chess/Piece.svelte';
 	import type { Hexagon } from '$lib/api/model';
@@ -45,9 +45,10 @@
 			{@const top = rank * hexHeight + (verticalFileOffsets[file] * hexHeight) / 2}
 			{@const flippedTop = 10 * hexHeight - top}
 			{@const actualTop = isWhitePerspective ? flippedTop : top}
-			{@const left = file * (hexHeight - 8)}
+			{@const left = file * (hexHeight - 7)}
 			{@const bgIndex = (colorsOffset[file] + rank) % 3}
 			{@const isMove = potentialMovesMap[file + "," + rank]}
+			{@const isSelected = selectedHexagon?.file === file && selectedHexagon?.rank === rank}
 			{@const isDraggable =
 				draggable !== "none" &&
 				(draggable === "anyone" ||
@@ -55,14 +56,16 @@
 				(draggable === "turn" && isBlack(piece) && !board?.isWhiteTurn))}
 			<div
 				class="hexagon"
+				role="cell"
+				tabindex="0"
 				style:top="{actualTop}px"
 				style:left="{left}px"
 				style:width="{hexWidth}px"
 				style:height="{hexHeight}px"
-				style:background={selectedHexagon?.file === file && selectedHexagon?.rank === rank ? selectedColor : colors[bgIndex]}
-				style:cursor={isMove ? "pointer" : undefined}
+				style:background-color={isSelected ? selectedColor : colors[bgIndex]}
+				oncontextmenu={e => e.preventDefault()}
 			>
-				{#if piece !== 0}
+				{#if piece !== pieces.empty}
 					{#if isMove}
 						<div class="move-circle"></div>
 					{/if}
@@ -72,9 +75,11 @@
 					{/if}
 				{/if}
 			</div>
-			{#if piece !== 0}
+			{#if piece !== pieces.empty}
 				<Piece
-					draggable={isDraggable}
+					{isSelected}
+					isBgTransparent
+					isDraggable={isDraggable}
 					initialLeft={left}
 					initialTop={actualTop}
 					piece={piece}
@@ -92,6 +97,7 @@
     }
 
     .hexagon {
+        cursor: pointer;
 		z-index: 1;
         overflow: hidden;
         position: absolute;
@@ -99,6 +105,7 @@
         clip-path: polygon(50% -50%, 100% 50%, 50% 150%, 0 50%);
         display: flex;
         justify-content: center;
+        user-select: none;
         -moz-user-select: none;
         -khtml-user-select: none;
         -webkit-user-select: none;

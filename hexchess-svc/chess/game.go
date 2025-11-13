@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"math/rand"
 	"slices"
+	"strconv"
+	"strings"
 )
 
 type AttackTable = [Files][MaxRanks]bool
@@ -143,9 +145,58 @@ func (g *Game) MakeMove(from, to Hex) PieceMove {
 	g.Board.Set(to.File, to.Rank, pieceFrom)
 	g.Board.IsWhiteTurn = !g.Board.IsWhiteTurn
 
-	g.MoveList = append(g.MoveList, PieceMove{Piece: pieceFrom, From: from, To: to})
+	move := PieceMove{Piece: pieceFrom, From: from, To: to}
+	g.MoveList = append(g.MoveList, move)
 
-	return PieceMove{Piece: pieceFrom, From: from, To: to}
+	return move
+}
+
+func (g *Game) GetMoveNotation(move PieceMove) string {
+	var sb strings.Builder
+
+	sb.WriteRune(move.Piece.ToChar())
+
+	if g.Board.Get(move.To.File, move.To.Rank) != Empty {
+		sb.WriteString("x")
+	}
+
+	moves := g.GetCurrMoves()
+	if index := slices.IndexFunc(moves, func(pms PieceMoves) bool { return pms.Piece == move.Piece }); index > 0 {
+		for _, h := range moves[index].Moves {
+			p := g.Board.Get(h.File, h.Rank)
+			if p.IsKing() {
+				sb.WriteString("+")
+			}
+		}
+	}
+
+	var sameFile bool
+	var sameRank bool
+	for _, pms := range moves {
+		if pms.Piece != move.Piece {
+			continue
+		}
+		if slices.ContainsFunc(pms.Moves, func(to Hex) bool { return to == move.To }) {
+			if pms.From.File == move.From.File {
+				sameFile = true
+			}
+			if pms.From.Rank == move.From.Rank {
+				sameRank = true
+			}
+		}
+	}
+	if !sameFile || !sameRank {
+		if sameFile {
+			sb.WriteString(strconv.Itoa(move.From.Rank + 1))
+		}
+		if sameRank {
+			sb.WriteRune(rune(move.From.File + 'a'))
+		}
+	}
+
+	sb.WriteString(move.To.String())
+
+	return sb.String()
 }
 
 func (g *Game) IsValidMove(move PieceMove) bool {

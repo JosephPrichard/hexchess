@@ -4,20 +4,24 @@
 
 	export interface PieceProps {
 		piece: number;
+		isSelected?: boolean;
+		isDraggable?: boolean;
+		isBgTransparent?: boolean;
 		initialLeft: number;
 		initialTop: number;
-		draggable: boolean;
-		onSelectPiece: () => void;
-		onDeSelectPiece: () => void;
+		onSelectPiece?: () => void;
+		onDeSelectPiece?: () => void;
 	}
 
-	const { piece, draggable, initialTop, initialLeft, onSelectPiece, onDeSelectPiece }: PieceProps = $props();
+	const { piece, isSelected, isDraggable, isBgTransparent, initialTop, initialLeft, onSelectPiece, onDeSelectPiece }: PieceProps = $props();
 
 	let element: HTMLDivElement | undefined;
 
+	let isAnnotated = $state(false);
 	let dragging = $state(false);
 	let xOff = $state(initialLeft);
 	let yOff = $state(initialTop);
+
 	let lastX = 0;
 	let lastY = 0;
 
@@ -27,11 +31,20 @@
 	})
 
 	function onMouseDown(e: MouseEvent) {
-		onSelectPiece();
-
-		if (!element || !draggable) {
-			return;
+		e.preventDefault();
+		if (!element || e.button != 0) {
+			return
 		}
+
+		if (!isDraggable) {
+			if (isSelected) {
+				onDeSelectPiece?.();
+			} else {
+				onSelectPiece?.();
+			}
+			return
+		}
+		onSelectPiece?.();
 
 		const rect = element.getBoundingClientRect();
 		xOff += (e.clientX - (rect.x + hexWidth / 3));
@@ -42,7 +55,7 @@
 	}
 
 	function onMove(e: MouseEvent) {
-		if (!draggable) {
+		if (!isDraggable) {
 			return
 		}
 		if (e.clientX >= screen.width || e.clientY >= screen.height) {
@@ -56,14 +69,13 @@
 		}
 	}
 
-	function onMouseUp(_: MouseEvent) {
-		if (!draggable) {
-			onDeSelectPiece();
+	function onMouseUpDrag(_: MouseEvent) {
+		if (!isDraggable) {
 			return
 		}
 		if (dragging) {
-			if (Math.abs(xOff - initialLeft) > hexWidth / 4 && Math.abs(yOff - initialTop) > hexHeight / 4) {
-				onDeSelectPiece();
+			if (Math.abs(xOff - initialLeft) > hexWidth / 2 || Math.abs(yOff - initialTop) > hexHeight / 2) {
+				onDeSelectPiece?.();
 			}
 			dragging = false;
 			xOff = initialLeft;
@@ -71,30 +83,72 @@
 		}
 	}
 
+	function onMouseUpRelease(e: MouseEvent) {
+		e.preventDefault();
+		if (isDraggable || e.button != 0) {
+			return
+		}
+	}
+
+	function onRightClick(e: MouseEvent) {
+		e.preventDefault();
+		isAnnotated = !isAnnotated;
+	}
+
 	onMount(() => {
 		document.addEventListener('mousemove', onMove);
-		document.addEventListener('mouseup', onMouseUp);
+		document.addEventListener('mouseup', onMouseUpDrag);
 		return () => {
 			document.removeEventListener('mousemove', onMove);
-			document.removeEventListener('mouseup', onMouseUp);
+			document.removeEventListener('mouseup', onMouseUpDrag);
 		}
 	});
 </script>
 
 <div
-	bind:this={element}
-	role="button"
+	class="annotation"
+	class:annotation-show={isAnnotated}
+	role="cell"
 	tabindex="0"
+	style:left="{hexWidth / 8 + initialLeft}px"
+	style:top="{hexWidth / 24 + initialTop}px"
+	style:width="{hexWidth * 0.75}px"
+	style:height="{hexWidth * 0.75}px"
+	oncontextmenu={e => e.preventDefault()}
+></div>
+<div
 	class="piece-img"
-	onmousedown={onMouseDown}
-	onmouseup={onMouseUp}
+	role="cell"
+	tabindex="0"
+	style:left="{hexWidth / 8 + initialLeft}px"
+	style:top="{initialTop}px"
+	style:width="{hexWidth * 0.9}px"
+	style:height="{hexHeight * 0.9}px"
+	oncontextmenu={e => e.preventDefault()}
+>
+	<img
+		class="piece-img-inner"
+		style:opacity={isBgTransparent ? "0.4" : 1}
+		src="/pieces/{piecenames[piece]}.png"
+		alt=""
+		draggable={false}
+	/>
+</div>
+<div
+	bind:this={element}
+	role="none"
+	class="piece-img"
 	style:left="{hexWidth / 8 + xOff}px"
 	style:top="{yOff}px"
 	style:width="{hexWidth * 0.9}px"
 	style:height="{hexHeight * 0.9}px"
 	style:z-index={dragging ? "101" : "100"}
+	oncontextmenu={onRightClick}
 >
 	<img
+		role="none"
+		onmousedown={onMouseDown}
+		onmouseup={onMouseUpRelease}
 		class="piece-img-inner"
 		src="/pieces/{piecenames[piece]}.png"
 		alt=""
@@ -103,9 +157,27 @@
 </div>
 
 <style>
-    .piece-img {
+    .annotation {
+        z-index: 100;
         position: absolute;
-        cursor: pointer;
+        border-radius: 50%;
+        border: 4px solid red;
+        background: transparent;
+        box-sizing: border-box;
+        opacity: 0;
+        transition: opacity 0.15s ease-in-out;
+    }
+
+	.annotation-show {
+		opacity: 1;
+	}
+
+    .piece-img {
+		z-index: 100;
+        position: absolute;
+        user-select: none;
+        -moz-user-select: none;
+        -webkit-user-select: none;
     }
 
     .piece-img-inner {
@@ -113,5 +185,8 @@
         cursor: pointer;
         max-width: 100%;
         max-height: 100%;
+        user-select: none;
+        -moz-user-select: none;
+        -webkit-user-select: none;
     }
 </style>

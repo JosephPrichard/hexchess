@@ -5,7 +5,7 @@ import (
 	_ "embed"
 )
 
-//go:embed all:mocks
+//go:embed all:test
 var Mocks embed.FS
 
 //go:embed countries.json

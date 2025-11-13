@@ -6,16 +6,18 @@ import services from '$lib/api/services';
 import { createMoveState } from '$lib/state/move.svelte';
 import { onMount } from 'svelte';
 import Banner from '$lib/components/Banner.svelte';
-import { mapHexagonList, handleSelectPiece, type Selection, handleDeSelectPiece } from '$lib/utils/chess.js';
+import { mapHexagonList, handleSelectPiece, type Selection, handleDeSelectPiece, countPieces } from '$lib/utils/chess.js';
 import type { Hexagon } from '$lib/api/model';
 import { createMessage } from '$lib/utils/error';
 import { getNotificationsContext } from '$lib/utils/context';
 import TrashcanIcon from '$lib/components/icons/TrashcanIcon.svelte';
 import RedoIcon from '$lib/components/icons/RedoIcon.svelte';
+import { blackPieces, type BoardErr, boardErrMessages, pieces, whitePieces } from '$lib/utils/globals';
+import PieceEditor from '$lib/components/chess/PieceEditor.svelte';
 
 const { addNotification } = getNotificationsContext();
 
-let mode: "EDIT" | "VIEW" = $state("EDIT");
+let mode: "EDIT" | "PLAY" = $state("EDIT");
 let moveState = createMoveState();
 
 let game: ChessGame | undefined = $state(undefined);
@@ -52,7 +54,20 @@ async function loadInitialGame() {
 
 onMount(loadInitialGame);
 
-const draggable = $derived.by(() => mode == "VIEW" ? "turn" : "anyone");
+const draggable = $derived.by(() => mode == "PLAY" ? "turn" : "anyone");
+
+const errors = $derived.by(() => {
+	const [pieceCount, kingCount] = countPieces(game?.board);
+
+	const errors: BoardErr[] = [];
+	if (pieceCount == 0) {
+		errors.push('ERR_PIECES');
+	}
+	if (kingCount == 0) {
+		errors.push('ERR_KINGS');
+	}
+	return errors;
+});
 
 </script>
 <svelte:head>
@@ -64,44 +79,71 @@ const draggable = $derived.by(() => mode == "VIEW" ? "turn" : "anyone");
 		board={game?.board}
 		{draggable}
 		isWhitePerspective={moveState.value.isWhitePerspective}
-		potentialMoves={mode === "VIEW" ? mapHexagonList(selection.potentialMoves?.moves) : undefined}
+		potentialMoves={mode === "PLAY" ? mapHexagonList(selection.potentialMoves?.moves) : undefined}
 		onSelectPiece={onSelectPiece}
 		onDeSelectPiece={onDeSelectPiece}
 		selectedHexagon={selection.hex}
 	/>
 	<div class="side-bar">
-		<div class="sandbox-options">
-			<button class="sandbox-option-button" onclick={() => mode = "EDIT"} class:sandbox-option-active={mode === "EDIT"}>
-				Edit
-			</button>
-			<button class="sandbox-option-button" onclick={() => mode = "VIEW"} class:sandbox-option-active={mode === "VIEW"}>
-				View
-			</button>
+		<div class="piece-panels-container">
+			<PieceEditor pieces={whitePieces}/>
+			<PieceEditor pieces={blackPieces}/>
 		</div>
 		<div style:margin-top="10px"></div>
-		<button title="Flip Board" class="button-transparent side-bar-button" style:padding-top="5px" onclick={moveState.flip}>
+		<button class="button-transparent side-bar-button" style:padding-top="5px" onclick={moveState.flip}>
 			<FlipIcon />
 			<span>
 				Flip Board
 			</span>
 		</button>
-		<button title="Reset Board" class="button-transparent side-bar-button" style:padding-top="5px" onclick={loadInitialGame}>
+		<button class="button-transparent side-bar-button" style:padding-top="5px" onclick={loadInitialGame}>
 			<RedoIcon />
 			<span>
 				Reset Board
 			</span>
 		</button>
-		<button title="Clear Board" class="button-transparent side-bar-button" style:padding-top="5px" onclick={onClickClearBoard}>
+		<button class="button-transparent side-bar-button" style:padding-top="5px" onclick={onClickClearBoard}>
 			<TrashcanIcon />
 			<span>
 				Clear Board
 			</span>
 		</button>
+		<div class="sandbox-options">
+			<button class="sandbox-option-button" onclick={() => mode = "EDIT"} class:sandbox-option-active={mode === "EDIT"}>
+				Edit
+			</button>
+			<button class="sandbox-option-button" onclick={() => mode = "PLAY"} class:sandbox-option-active={mode === "PLAY"}>
+				Play
+			</button>
+		</div>
+		{#if mode === "PLAY"}
+			{#each errors as v}
+				<div class="error-message"> {boardErrMessages[v]} </div>
+			{/each}
+		{/if}
 	</div>
 </div>
 <style>
+	.piece-panels-container {
+		display: flex;
+		flex-direction: row;
+		gap: 10px;
+		margin-bottom: 10px;
+	}
+
+	.error-message {
+		font-size: 14px;
+        margin-top: 10px;
+        margin-bottom: 10px;
+        border: 2px solid rgb(180, 50, 50);
+        background-color: rgb(240, 150, 150);
+        color: rgb(180, 50, 50);
+        padding: 5px;
+        border-radius: 5px;
+	}
+
 	.side-bar {
-		width: 200px;
+		width: 150px;
 	}
 
 	.side-bar-button {
@@ -112,12 +154,10 @@ const draggable = $derived.by(() => mode == "VIEW" ? "turn" : "anyone");
 		width: calc(100% - 15px);
 	}
 
-	.side-bar-button > div {
-		text-align: center;
-	}
-
 	.sandbox-options {
 		margin: auto;
+		margin-top: 10px;
+		margin-bottom: 10px;
         display: flex;
         flex-direction: row;
 		border-radius: 5px;
@@ -144,6 +184,5 @@ const draggable = $derived.by(() => mode == "VIEW" ? "turn" : "anyone");
 
 	.sandbox-option-active {
         background-color: rgb(80, 80, 80);
-		/*color: rgb(44, 44, 44);*/
 	}
 </style>

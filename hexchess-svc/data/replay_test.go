@@ -13,7 +13,7 @@ func TestInsertThenGet(t *testing.T) {
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-insert-get")
 
-	id, err := InsertReplay(ctx, pgDB.Q, ReplayInst{2, 3, int32(WhiteWin), int32(Checkmate), 35, -25, "{}"})
+	id, err := InsertReplay(ctx, pgDB.Q, ReplayInst{2, 3, int32(WhiteWin), int32(Checkmate), 35, -25, []byte{}})
 	assert.NoError(t, err)
 
 	actualReplay1, err := GetReplay(ctx, pgDB.Q, id)
@@ -96,8 +96,8 @@ func TestGetReplayMoveList(t *testing.T) {
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-move-list")
 
-	actualMoveList, err := GetReplayMoveHistory(ctx, pgDB.Q, 1)
+	b, err := GetReplayMoveHistory(ctx, pgDB.Q, 1)
 	assert.NoError(t, err)
 
-	assert.Equal(t, []byte("[]"), actualMoveList)
+	assert.Equal(t, []byte{}, b)
 }

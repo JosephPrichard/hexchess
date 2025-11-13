@@ -20,6 +20,7 @@ COPY nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 8080
 
-CMD SERVER_PORT=8081 /app/go-server & \
+# Can connect to the PPROF port using ``
+CMD SERVER_PORT=8081 PPROF_PORT=6060 /app/go-server & \
     PORT=5173 node --trace-warnings /app/node/build/index.js & \
     nginx -g "daemon off;"

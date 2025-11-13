@@ -10,19 +10,36 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 )
 
-type ServerState struct {
-	data.Stores
+type CasterState struct {
 	CountsCaster *data.UniCaster
 	GamesCaster  *data.MultiCasterMap
 	UsersCaster  *data.MultiCasterMap
-	CountryList  []string
-	CountryMap   map[string]struct{}
-	MakeID       func() string // mock uniquely generated request IDs in tests
 }
 
-func MakeServerState(stores data.Stores, countryList []string) ServerState {
+type CountryState struct {
+	CountryList []string
+	CountryMap  map[string]struct{}
+}
+
+type ServerState struct {
+	data.Stores
+	CasterState
+	CountryState
+	MakeID func() string
+}
+
+func makeCasterState() CasterState {
+	return CasterState{
+		CountsCaster: data.MakeUniCaster("counts-caster"),
+		GamesCaster:  data.MakeMultiCasterMap("games-caster", data.GameExpireDur),
+		UsersCaster:  data.MakeMultiCasterMap("users-caster", -1),
+	}
+}
+
+func makeCountryState(countryList []string) CountryState {
 	if countryList == nil {
 		countryList = []string{}
 	}
@@ -30,13 +47,14 @@ func MakeServerState(stores data.Stores, countryList []string) ServerState {
 	for _, c := range countryList {
 		countryMap[c] = struct{}{}
 	}
+	return CountryState{CountryList: countryList, CountryMap: countryMap}
+}
+
+func MakeServerState(stores data.Stores, countryList []string) ServerState {
 	return ServerState{
 		Stores:       stores,
-		CountsCaster: data.MakeUniCaster("counts-caster"),
-		GamesCaster:  data.MakeMultiCasterMap("games-caster", data.GameExpireDur),
-		UsersCaster:  data.MakeMultiCasterMap("users-caster", -1),
-		CountryList:  countryList,
-		CountryMap:   countryMap,
+		CasterState:  makeCasterState(),
+		CountryState: makeCountryState(countryList),
 		MakeID:       func() string { return uuid.NewString() },
 	}
 }
@@ -48,6 +66,7 @@ func withTrace(next http.Handler) http.Handler {
 			trace = uuid.NewString()
 		}
 		r = r.WithContext(context.WithValue(r.Context(), util.Trace, trace))
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -122,6 +141,8 @@ func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 		HandleGameplayWs(w, r, state)
 	}))
 
+	mux.HandleFunc("/api/healthcheck", makeHealthCheck(state))
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		slog.ErrorContext(r.Context(), "route not found", "method", r.Method, "url", r.URL)
 		w.WriteHeader(http.StatusNotFound)
@@ -130,4 +151,46 @@ func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 
 	fmt.Fprintf(util.LogWriter, "%s", sb.String())
 	return mux
+}
+
+func makeHealthCheck(state ServerState) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		connPrim := state.Rdb.Primary.Get()
+		defer connPrim.Close()
+
+		connPs := state.Rdb.PubSub.Get()
+		defer connPs.Close()
+
+		_, primErr := connPrim.Do("PING")
+		_, psErr := connPs.Do("PING")
+		_, dbErr := state.Pool.Exec(context.Background(), "SELECT 1;")
+
+		failures := make(map[string]string)
+		if primErr != nil {
+			failures["redisPrimary"] = primErr.Error()
+		}
+		if psErr != nil {
+			failures["redisPubsub"] = psErr.Error()
+		}
+		if dbErr != nil {
+			failures["postgresDB"] = dbErr.Error()
+		}
+
+		status := "OK"
+		if len(failures) == 3 {
+			status = "DOWN"
+		} else if len(failures) > 0 {
+			status = "PARTIAL_AVAILABILITY"
+		}
+
+		writeJSON(w, http.StatusOK, struct {
+			Status    string            `json:"status"`
+			Timestamp time.Time         `json:"timestamp"`
+			Failures  map[string]string `json:"failures"`
+		}{
+			Status:    status,
+			Timestamp: time.Now(),
+			Failures:  failures,
+		})
+	}
 }

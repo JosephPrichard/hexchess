@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { stringOfMove } from '$lib/utils/chess';
 	import type { PieceMove } from '$lib/api/messages';
+	import { stringOfMove } from '$lib/utils/chess';
 
 	export interface MoveListProps {
 		moveList: PieceMove[];
@@ -27,10 +27,6 @@
 					class:selected-move={selectedMoveIndex === i}
 					onclick={() => onSelectMove?.(i)}
 					tabindex="-1"
-					data-from-file={moveOne.fromFile}
-					data-from-rank={moveOne.fromRank}
-					data-to-file={moveOne.toFile}
-					data-to-rank={moveOne.toRank}
 				>
 					{stringOfMove(moveOne)}
 				</button>
@@ -41,10 +37,6 @@
 						class:selected-move={selectedMoveIndex === moveTwoIndex}
 						onclick={() => onSelectMove?.(moveTwoIndex)}
 						tabindex="-1"
-						data-from-file={moveTwo.fromFile}
-						data-from-rank={moveTwo.fromRank}
-						data-to-file={moveTwo.toFile}
-						data-to-rank={moveTwo.toRank}
 					>
 						{stringOfMove(moveTwo)}
 					</button>

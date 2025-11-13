@@ -1,5 +1,6 @@
 import type { ChessBoard, ChessGame, PieceMove, PieceMoves } from '$lib/api/messages';
 import type { Hexagon } from '$lib/api/model';
+import { pieces } from '$lib/utils/globals';
 
 const symbols = ['?', 'P', 'p', 'N', 'n', 'B', 'b', 'R', 'r', 'Q', 'q', 'K', 'k'];
 const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k'];
@@ -54,4 +55,22 @@ export function handleSelectPiece(game: ChessGame, selection: Selection, next: H
 
 export function handleDeSelectPiece(): Selection {
 	return { potentialMoves: undefined, hex: undefined };
+}
+
+export function countPieces(board?: ChessBoard) {
+	let pieceCount = 0;
+	let kingCount = 0;
+	if (board) {
+		for (const file of board.file) {
+			for (const piece of file.pieces) {
+				if (piece != pieces.empty) {
+					pieceCount++;
+				}
+				if (piece == pieces.blackKing || piece == pieces.whiteKing) {
+					kingCount++;
+				}
+			}
+		}
+	}
+	return [pieceCount, kingCount]
 }

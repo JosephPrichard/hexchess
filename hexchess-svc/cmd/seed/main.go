@@ -49,9 +49,9 @@ func insertReplay(ctx context.Context, q *db.Queries, r data.ReplayInst) error {
 func main() {
 	start := time.Now()
 
-	challenges := readMockFile[data.ChallengeInst]("mocks/challenges.json")
-	replays := readMockFile[data.ReplayInst]("mocks/replays.json")
-	userInsts := readMockFile[data.UserInst]("mocks/users.json")
+	challenges := readMockFile[data.ChallengeInst]("test/challenges.json")
+	replays := readMockFile[data.ReplayInst]("test/replays.json")
+	userInsts := readMockFile[data.UserInst]("test/users.json")
 
 	util.InitLoggers(nil)
 	util.InitEnv()

@@ -22,10 +22,10 @@ type RestHandler = func(w http.ResponseWriter, r *http.Request, state ServerStat
 
 func makeRestHandler(state ServerState, h RestHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		slog.InfoContext(r.Context(), "request received", "method", r.Method, "url", r.URL)
+		slog.InfoContext(r.Context(), "request received", "method", r.Method, "url", r.URL, "headers", r.Header)
 
 		if err := h(w, r, state); err != nil {
-			slog.ErrorContext(r.Context(), "request failed", "method", r.Method, "url", r.URL, "error", err)
+			slog.ErrorContext(r.Context(), "request failed", "method", r.Method, "url", r.URL, "headers", r.Header, "error", err)
 
 			status, m := HttpStatusFromErr(err)
 			w.WriteHeader(status)
@@ -621,12 +621,12 @@ func HandleGetReplayMoveList(w http.ResponseWriter, r *http.Request, state Serve
 	}
 
 	ctx := r.Context()
-	moveHistory, err := data.GetReplayMoveHistory(ctx, state.Q, int64(id))
+	b, err := data.GetReplayMoveHistory(ctx, state.Q, int64(id))
 	if err != nil {
 		return fmt.Errorf("failed to get replay moveHistory: %w", err)
 	}
 
-	writeBytes(w, http.StatusOK, moveHistory)
+	writeBytes(w, http.StatusOK, b)
 	//w.Header().Set("Cache-Control", "public, max-age=3600")
 	return nil
 }
@@ -712,10 +712,10 @@ func HandleGetChessRoomList(w http.ResponseWriter, r *http.Request, state Server
 	}
 
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
-	if err != nil && err != data.ErrSessionNotFound {
+	hasSession := err != data.ErrSessionNotFound
+	if err != nil && hasSession {
 		return fmt.Errorf("failed to get session player: %w", err)
 	}
-	hasSession := err != data.ErrSessionNotFound
 
 	chessList, err := data.GetAllChessMetas(ctx, state.Rdb, page, count)
 	if err != nil {

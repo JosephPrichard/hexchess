@@ -174,6 +174,74 @@ func TestGame_MakeMove(t *testing.T) {
 	assert.Equal(t, 1, len(game.MoveList))
 }
 
+func TestGame_GetMoveNotation(t *testing.T) {
+	game := MakeEmptyGame(
+		Move{"f5", WhitePawn},
+		Move{"a1", WhiteKing},
+		Move{"k6", BlackKing},
+		Move{"g9", WhiteRook},
+	)
+	game.InitPieceMoves()
+
+	for _, test := range []struct {
+		game Game
+		move PieceMove
+		not  string
+	}{
+		{
+			game: game,
+			move: PieceMove{
+				Piece: WhitePawn,
+				From:  ParseHexagonValid("e5"),
+				To:    ParseHexagonValid("f6"),
+			},
+			not: "Pef6",
+		},
+		{
+			game: game,
+			move: PieceMove{
+				Piece: WhitePawn,
+				From:  ParseHexagonValid("f7"),
+				To:    ParseHexagonValid("f6"),
+			},
+			not: "P7f6",
+		},
+		{
+			game: game,
+			move: PieceMove{
+				Piece: WhitePawn,
+				From:  ParseHexagonValid("k1"),
+				To:    ParseHexagonValid("f6"),
+			},
+			not: "Pf6",
+		},
+		{
+			game: game,
+			move: PieceMove{
+				Piece: BlackPawn,
+				From:  ParseHexagonValid("e5"),
+				To:    ParseHexagonValid("f5"),
+			},
+			not: "pxf5",
+		},
+		//{
+		//	game: game,
+		//	move: PieceMove{
+		//		Piece: WhiteRook,
+		//		From:  ParseHexagonValid("g9"),
+		//		To:    ParseHexagonValid("g8"),
+		//	},
+		//	not: "R+g8",
+		//},
+	} {
+		t.Logf("testing get move notation on game:%s", test.game.Board.StringMoves(test.game.GetCurrMoves()[0].Moves))
+		t.Logf("expecting move: %v", test.not)
+
+		not := test.game.GetMoveNotation(test.move)
+		assert.Equal(t, test.not, not)
+	}
+}
+
 type PieceMoveNode struct {
 	Move PieceMove
 	Game Game

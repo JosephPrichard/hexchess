@@ -9,8 +9,10 @@ import (
 	"hexchess-svc/static"
 	"hexchess-svc/util"
 	"hexchess-svc/web"
+	"log"
 	"log/slog"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"strings"
 )
@@ -36,6 +38,7 @@ func main() {
 	redisPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
 	redisPubSubURL := os.Getenv("REDIS_PUBSUB_URL")
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
+	pprofPort := os.Getenv("PPROF_PORT")
 	//cookieDomain := os.Getenv("COOKIE_DOMAIN")
 
 	slog.Info("loaded environment variables", "envs", envMap)
@@ -71,6 +74,11 @@ func main() {
 
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 
+	if pprofPort != "" {
+		go func() {
+			log.Println(http.ListenAndServe(":"+pprofPort, nil))
+		}()
+	}
 	if err := http.ListenAndServe(":"+serverPort, web.HandleRoot(state, allowedOrigins)); err != nil {
 		util.LogFatalErr("failed while serving", err)
 	}

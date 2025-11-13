@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 type Piece byte
@@ -109,8 +110,10 @@ type Board struct {
 }
 
 func ParseHexagon(notation string) (Hex, error) {
-	file := int(notation[0] - 'a')
-	rank, err := strconv.Atoi(notation[1:])
+	n1 := unicode.ToLower(rune(notation[0]))
+	n2 := strings.ToLower(notation[1:])
+	file := int(n1 - 'a')
+	rank, err := strconv.Atoi(n2)
 	if err != nil {
 		return Hex{}, fmt.Errorf("failed to parse hexagon: %w", err)
 	}
