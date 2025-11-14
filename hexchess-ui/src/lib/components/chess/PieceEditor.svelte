@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { hexHeight, hexWidth, piecenames } from '$lib/utils/globals';
+	import { hexHeight, hexWidth } from '$lib/utils/render';
 	import Piece from '$lib/components/chess/Piece.svelte';
 
 	export interface PieceEditorProps {
@@ -12,7 +12,7 @@
 </script>
 
 <div class="piece-panel">
-	{#each pieces as piece, i}
+	{#each pieces as piece}
 		<div
 			class="piece-tile"
 			style:width="{hexWidth}px"
@@ -32,7 +32,6 @@
 	.piece-panel {
 		border-radius: 4px;
 		background-color: rgb(55, 55, 55);
-		flex: 0.5;
         box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.3);
 		position: relative;
 	}

@@ -73,7 +73,7 @@ export interface PlayerModel {
 	isGuest: boolean;
 }
 
-export interface Hexagon {
+export interface Hex {
 	file: number;
 	rank: number;
 }

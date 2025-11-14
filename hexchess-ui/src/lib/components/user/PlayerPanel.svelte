@@ -1,8 +1,13 @@
 <script lang="ts">
 	import type { PlayerModel } from '$lib/api/model';
-	import type { Player } from '$lib/api/messages';
+	import type { PlayerState } from '$lib/api/messages';
 
-	const { player, isTurn }: { player: PlayerModel | Player | undefined, isTurn: boolean } = $props();
+	export interface PlayerPanelProps {
+		player: PlayerModel | PlayerState | undefined,
+		isTurn: boolean
+	}
+
+	const { player, isTurn }: PlayerPanelProps = $props();
 </script>
 
 

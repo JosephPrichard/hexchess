@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { piecenames } from '$lib/utils/globals';
+	import { piecenames } from '$lib/utils/chess';
 
 	const { pieces }: { pieces: number[] } = $props();
 </script>

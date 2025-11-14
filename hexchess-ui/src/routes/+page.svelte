@@ -7,9 +7,9 @@
 	import type { ChessModel, ColorSelect, SessionModel, TimeControl } from '$lib/api/model';
 	import services from '$lib/api/services';
 	import { formatTimeControl } from '$lib/utils/format';
-	import { chessRowHeight, maxChessRows } from '$lib/utils/globals';
 	import { onMount } from 'svelte';
 	import { getClientSession } from '$lib/utils/storage';
+	import { chessRowHeight, maxChessRows } from '$lib/utils/render';
 
 	export interface IndexProps {
 		chessList: ChessModel[];

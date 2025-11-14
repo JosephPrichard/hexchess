@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { hexHeight, hexWidth, piecenames } from '$lib/utils/globals.js';
 	import { onMount } from 'svelte';
+	import { hexHeight, hexWidth } from '$lib/utils/render';
+	import { piecenames } from '$lib/utils/chess';
 
 	export interface PieceProps {
 		piece: number;
@@ -11,9 +12,11 @@
 		initialTop: number;
 		onSelectPiece?: () => void;
 		onDeSelectPiece?: () => void;
+		onDragPiece?: (x: number, y: number) => void;
+		onDropPiece?: (x: number, y: number, piece: number) => void;
 	}
 
-	const { piece, isSelected, isDraggable, isBgTransparent, initialTop, initialLeft, onSelectPiece, onDeSelectPiece }: PieceProps = $props();
+	const { piece, isSelected, isDraggable, isBgTransparent, initialTop, initialLeft, onSelectPiece, onDeSelectPiece, onDragPiece, onDropPiece }: PieceProps = $props();
 
 	let element: HTMLDivElement | undefined;
 
@@ -55,6 +58,9 @@
 	}
 
 	function onMove(e: MouseEvent) {
+		if (!element) {
+			return
+		}
 		if (!isDraggable) {
 			return
 		}
@@ -66,10 +72,11 @@
 			yOff += e.clientY - lastY;
 			lastX = e.clientX;
 			lastY = e.clientY;
+			onDragPiece?.(e.clientX, e.clientY);
 		}
 	}
 
-	function onMouseUpDrag(_: MouseEvent) {
+	function onMouseUpDrag(e: MouseEvent) {
 		if (!isDraggable) {
 			return
 		}
@@ -80,6 +87,7 @@
 			dragging = false;
 			xOff = initialLeft;
 			yOff = initialTop;
+			onDropPiece?.(e.clientX, e.clientY, piece);
 		}
 	}
 

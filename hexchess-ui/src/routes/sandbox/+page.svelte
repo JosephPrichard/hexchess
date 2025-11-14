@@ -6,13 +6,20 @@ import services from '$lib/api/services';
 import { createMoveState } from '$lib/state/move.svelte';
 import { onMount } from 'svelte';
 import Banner from '$lib/components/Banner.svelte';
-import { mapHexagonList, handleSelectPiece, type Selection, handleDeSelectPiece, countPieces } from '$lib/utils/chess.js';
-import type { Hexagon } from '$lib/api/model';
+import {
+	mapHexagonList,
+	handleSelectPiece,
+	type Selection,
+	handleDeSelectPiece,
+	whitePieces,
+	blackPieces,
+	defaultGame, pieces, mapHexagon
+} from '$lib/utils/chess.js';
+import type { Hex } from '$lib/api/model';
 import { createMessage } from '$lib/utils/error';
 import { getNotificationsContext } from '$lib/utils/context';
 import TrashcanIcon from '$lib/components/icons/TrashcanIcon.svelte';
 import RedoIcon from '$lib/components/icons/RedoIcon.svelte';
-import { blackPieces, type BoardErr, boardErrMessages, pieces, whitePieces } from '$lib/utils/globals';
 import PieceEditor from '$lib/components/chess/PieceEditor.svelte';
 
 const { addNotification } = getNotificationsContext();
@@ -22,20 +29,85 @@ let moveState = createMoveState();
 
 let game: ChessGame | undefined = $state(undefined);
 
-let selection: Selection = $state({
-	potentialMoves: undefined,
-	hex: undefined
-});
+let selection: Selection = $state({ potentialMoves: undefined, hex: undefined });
 
-function onSelectPiece(next: Hexagon) {
-	if (!game) {
-		return;
+async function setModePlay() {
+	const [resp, err] = await services.postMakeMove({ board: game?.board });
+	if (resp) {
+		game = resp.game;
+		mode = "PLAY";
+	} else {
+		const message = 'Failed to load board moves: ' + createMessage(err);
+		addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
 	}
+}
+
+function onSelectPiece(next: Hex) {
+	if (!game)
+		return;
 	selection = handleSelectPiece(game, selection, next);
+}
+
+function handleSetBoardTurn(event: Event) {
+	const target = event.target as HTMLSelectElement;
+	const turn = target.value == "WHITE";
+	if (game?.board) {
+		const nextGame = {
+			...defaultGame,
+			board: structuredClone($state.snapshot(game?.board)),
+		};
+		nextGame.board.isWhiteTurn = turn;
+		game = nextGame;
+	}
 }
 
 function onDeSelectPiece() {
 	selection = handleDeSelectPiece();
+}
+
+function isMoveValid(from: Hex, to: Hex) {
+	if (mode == "EDIT")
+		return true;
+	const currMoves = (game?.board?.isWhiteTurn ?
+		game.whiteMoves :
+		game?.blackMoves)
+		|| [];
+	const pieceMoves = currMoves.find((hex) =>
+		hex.fromFile == from.file && hex.fromRank == from.rank)?.moves || [];
+	const index = pieceMoves.findIndex((hex) => {
+		const mh = mapHexagon(hex);
+		return mh.file == to.file && mh.rank == to.rank
+	});
+	return index >= 0;
+}
+
+function onDropPiece(from: Hex, to: Hex, piece: number) {
+	if (!isMoveValid(from, to))
+		return;
+	if (mode == "EDIT") {
+		const nextGame = {
+			...defaultGame,
+			board: structuredClone($state.snapshot(game?.board)),
+		};
+		if (nextGame?.board) {
+			nextGame.board.file[to.file].pieces[to.rank] = piece;
+			nextGame.board.file[from.file].pieces[from.rank] = pieces.empty;
+		}
+		game = nextGame;
+	} else {
+		(async() => {
+			const [resp, err] = await services.postMakeMove({
+				board: game?.board,
+				move: { piece: piece, fromFile: from.file, fromRank: from.rank, toFile: to.file, toRank: to.rank }
+			});
+			if (resp) {
+				game = resp.game;
+			} else {
+				const message = 'Failed to load board move: ' + createMessage(err);
+				addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
+			}
+		})()
+	}
 }
 
 function onClickClearBoard() {
@@ -43,7 +115,7 @@ function onClickClearBoard() {
 }
 
 async function loadInitialGame() {
-	const [resp, err] = await services.postMakeMove();
+	const [resp, err] = await services.postMakeMove({});
 	if (resp) {
 		game = resp.game;
 	} else {
@@ -56,19 +128,6 @@ onMount(loadInitialGame);
 
 const draggable = $derived.by(() => mode == "PLAY" ? "turn" : "anyone");
 
-const errors = $derived.by(() => {
-	const [pieceCount, kingCount] = countPieces(game?.board);
-
-	const errors: BoardErr[] = [];
-	if (pieceCount == 0) {
-		errors.push('ERR_PIECES');
-	}
-	if (kingCount == 0) {
-		errors.push('ERR_KINGS');
-	}
-	return errors;
-});
-
 </script>
 <svelte:head>
 	<title>Sandbox - Hexchess</title>
@@ -80,11 +139,36 @@ const errors = $derived.by(() => {
 		{draggable}
 		isWhitePerspective={moveState.value.isWhitePerspective}
 		potentialMoves={mode === "PLAY" ? mapHexagonList(selection.potentialMoves?.moves) : undefined}
+		selectedHexagon={selection.hex}
 		onSelectPiece={onSelectPiece}
 		onDeSelectPiece={onDeSelectPiece}
-		selectedHexagon={selection.hex}
+		onDropPiece={onDropPiece}
 	/>
 	<div class="side-bar">
+		<div class="sandbox-options-list">
+			<select
+				value={game?.board?.isWhiteTurn ? "WHITE" : "BLACK"}
+				name="player-turn" class="turn-selector"
+				onchange={handleSetBoardTurn}
+				disabled={mode === "PLAY"}
+			>
+				<option value="WHITE">White to Play</option>
+				<option value="BLACK">Black to Play</option>
+			</select>
+			<div class="sandbox-options-switch">
+				<div class="sandbox-options-title">
+					Sandbox Mode
+				</div>
+				<div class="sandbox-options">
+					<button class="sandbox-option-button" onclick={() => mode = "EDIT"} class:sandbox-option-active={mode === "EDIT"}>
+						Edit
+					</button>
+					<button class="sandbox-option-button" onclick={setModePlay} class:sandbox-option-active={mode === "PLAY"}>
+						Play
+					</button>
+				</div>
+			</div>
+		</div>
 		<div class="piece-panels-container">
 			<PieceEditor pieces={whitePieces}/>
 			<PieceEditor pieces={blackPieces}/>
@@ -108,22 +192,17 @@ const errors = $derived.by(() => {
 				Clear Board
 			</span>
 		</button>
-		<div class="sandbox-options">
-			<button class="sandbox-option-button" onclick={() => mode = "EDIT"} class:sandbox-option-active={mode === "EDIT"}>
-				Edit
-			</button>
-			<button class="sandbox-option-button" onclick={() => mode = "PLAY"} class:sandbox-option-active={mode === "PLAY"}>
-				Play
-			</button>
-		</div>
-		{#if mode === "PLAY"}
-			{#each errors as v}
-				<div class="error-message"> {boardErrMessages[v]} </div>
-			{/each}
-		{/if}
 	</div>
 </div>
 <style>
+	.turn-selector {
+        min-width: 165px;
+		max-width: 165px;
+        box-sizing: border-box;
+		height: 40px;
+        margin: 0 0 10px;
+    }
+
 	.piece-panels-container {
 		display: flex;
 		flex-direction: row;
@@ -131,19 +210,8 @@ const errors = $derived.by(() => {
 		margin-bottom: 10px;
 	}
 
-	.error-message {
-		font-size: 14px;
-        margin-top: 10px;
-        margin-bottom: 10px;
-        border: 2px solid rgb(180, 50, 50);
-        background-color: rgb(240, 150, 150);
-        color: rgb(180, 50, 50);
-        padding: 5px;
-        border-radius: 5px;
-	}
-
 	.side-bar {
-		width: 150px;
+		width: 165px;
 	}
 
 	.side-bar-button {
@@ -154,10 +222,22 @@ const errors = $derived.by(() => {
 		width: calc(100% - 15px);
 	}
 
-	.sandbox-options {
-		margin: auto;
+	.sandbox-options-switch {
+		height: 75px;
+	}
+
+	.sandbox-options-list {
 		margin-top: 10px;
 		margin-bottom: 10px;
+	}
+
+	.sandbox-options-title {
+		font-size: 14px;
+		padding: 1px;
+	}
+
+	.sandbox-options {
+        margin: 5px auto;
         display: flex;
         flex-direction: row;
 		border-radius: 5px;
@@ -166,7 +246,7 @@ const errors = $derived.by(() => {
 
 	.sandbox-option-button {
 		background-color: rgb(0, 0, 0, 0);
-		font-weight: bold;
+
 		border: none;
 		color: #B4B4B4;
 		padding: 8px;

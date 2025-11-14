@@ -13,7 +13,7 @@
 	import PieceList from '$lib/components/chess/PieceList.svelte';
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
 	import { type ChessGame, GameOutput, type PieceMove, type PieceMoves, type PlayerState } from '$lib/api/messages';
-	import type { Hexagon } from '$lib/api/model';
+	import type { Hex } from '$lib/api/model';
 	import { mapHexagonList, handleSelectPiece, type Selection } from '$lib/utils/chess';
 
 	export interface PlayProps {
@@ -53,7 +53,7 @@
 
 	function onClickSettings() {}
 
-	function onSelectPiece(next: Hexagon) {
+	function onSelectPiece(next: Hex) {
 		if (!game) {
 			return;
 		}
