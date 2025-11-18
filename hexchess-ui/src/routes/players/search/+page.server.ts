@@ -8,7 +8,7 @@ export const load: PageServerLoad = async ({ url, setHeaders, fetch }): Promise<
 	const username = url.searchParams.get('username') || '';
 	const page = Number(url.searchParams.get('page') || 1);
 	if (username === null) {
-		return { searchText: '', page: 1, userList: [] };
+		return { searchText: '', page: 1, userList: [], message: "" };
 	}
 	if (isNaN(page)) {
 		error(404, 'Page must be a valid number');

@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { hexHeight, hexWidth } from '../../services/render';
-	import { piecenames } from '../../services/chess';
-	import { type SelectEvent, selectEvents } from '../../globals';
+	import { hexHeight, hexWidth } from '$lib/services/render';
+	import { piecenames } from '$lib/services/chess';
+	import { type SelectEvent, selectEvents } from '$lib/globals';
 
 	export interface PieceProps {
 		piece: number;

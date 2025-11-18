@@ -22,11 +22,11 @@
 
 <link href="https://fonts.googleapis.com/css2?family=Gidole&display=swap" rel="stylesheet" />
 <div class="banner blue-bg" id="banner">
-	<a class="banner-elem color-hover text-md" href="/static">
+	<a class="banner-elem color-hover text-md" href="/">
 		<img alt="" class="logo-symbol" src="/pieces/white-queen.png" />
 		<span class="logo-font"> Hexchess </span>
 	</a>
-	<a class="banner-elem color-hover" href="/static"> Play </a>
+	<a class="banner-elem color-hover" href="/"> Play </a>
 	<a class="banner-elem color-hover" href="/leaderboard"> Leaderboard </a>
 	<a class="banner-elem color-hover" href="/players/search"> Search </a>
 	{#if client}

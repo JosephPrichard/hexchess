@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { hexHeight, hexWidth, findHex } from '../../services/render';
+	import { hexHeight, hexWidth, findHex } from '$lib/services/render';
 	import Piece from './Piece.svelte';
-	import type { Hex } from '../../api/model';
-	import { type SelectEvent, selectEvents } from '../../globals';
-	import { blackPieces, whitePieces } from '../../services/chess';
+	import type { Hex } from '$lib/api/model';
+	import { type SelectEvent, selectEvents } from '$lib/globals';
+	import { blackPieces, whitePieces } from '$lib/services/chess';
 
 	export interface PieceEditorProps {
 		selectedPiece?: number;
@@ -43,35 +43,51 @@
 	}
 </script>
 
-{#each [whitePieces, blackPieces] as panel}
-	<div class="piece-panel" class:disabled-piece-panel={isDisabled}>
-		{#each panel as piece}
-			<div
-				role="cell"
-				tabindex="0"
-				class="piece-tile"
-				style:width="{hexWidth}px"
-				style:height="{hexHeight}px"
-				class:selected-tile={selectedPiece === piece}
-				onmousedown={(e) => onSelectPiece(selectEvents[e.button], piece)}
-			>
-				<Piece
-					isDraggable={!isDisabled}
-					piece={piece}
-					initialLeft={0}
-					initialTop={0}
-					onSelectHexagon={(event) => onSelectPiece(event, piece)}
-					onDragPiece={onDragEditorPiece}
-					onDropPiece={onDropEditorPiece}
-				/>
-			</div>
-		{/each}
-	</div>
-{/each}
+<div class="piece-editor">
+	{#each [whitePieces, blackPieces] as panel}
+		<div class="piece-panel" class:disabled-piece-panel={isDisabled}>
+			{#each panel as piece}
+				<div class="piece-tile-wrapper">
+					<div
+						role="cell"
+						tabindex="0"
+						class="piece-tile"
+						style:width="{hexWidth}px"
+						style:height="{hexHeight}px"
+						class:selected-tile={selectedPiece === piece}
+						onmousedown={(e) => onSelectPiece(selectEvents[e.button], piece)}
+					>
+						<Piece
+							isDraggable={!isDisabled}
+							piece={piece}
+							initialLeft={-5}
+							initialTop={0}
+							onSelectHexagon={(event) => onSelectPiece(event, piece)}
+							onDragPiece={onDragEditorPiece}
+							onDropPiece={onDropEditorPiece}
+						/>
+					</div>
+				</div>
+			{/each}
+		</div>
+	{/each}
+</div>
 
 <style>
+	.piece-editor {
+		width: 100%;
+		margin-top: 20px;
+		margin-bottom: 20px;
+		padding: 20px;
+		display: flex;
+		flex-direction: row;
+        border-radius: 3px;
+        background: rgb(43, 43, 43);
+	}
+
 	.selected-tile {
-        background-color: rgb(30, 144, 255, 0.2);
+        background-color: #FFEB3B;
+		border-radius: 3px;
 	}
 
 	.disabled-piece-panel {
@@ -79,15 +95,17 @@
 	}
 
 	.piece-panel {
-		border-radius: 3px;
-		background-color: rgb(70, 70, 70);
-        box-shadow:  2px 3px 5px rgba(0, 0, 0, .3) inset;
-		position: relative;
+        flex: 0.5;
+	}
+
+	.piece-tile-wrapper {
+		text-align: center;
+		width: 100%;
 	}
 
     .piece-tile {
 		cursor: pointer;
 		position: relative;
-		padding: 1px;
+		margin: auto;
 	}
 </style>

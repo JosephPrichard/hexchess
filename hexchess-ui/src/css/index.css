@@ -210,6 +210,7 @@ input {
 	margin: 0;
 	border: 1px rgb(80, 80, 80) solid;
 	background-color: rgb(42, 42, 42);
+	color: rgb(180, 180, 180);
 }
 
 input:focus {
@@ -514,8 +515,22 @@ select:disabled {
 	opacity: 1;
 }
 
+.turn-circle {
+	display: inline-block;
+	width: 7px;
+	height: 7px;
+	margin-right: 5px;
+	border-radius: 50%;
+	border: 2px solid #B4B4B4;
+	background-color: transparent;
+}
+
+.turn-circle-green {
+	border-color: #78b13f;
+	background-color: #78b13f;
+}
+
 .side-table {
-	width: 300px;
 	display: flex;
 	flex-direction: column;
 	background-color: rgb(35, 35, 35);
@@ -555,6 +570,12 @@ select:disabled {
 	height: fit-content;
 	overflow-y: auto;
 	overflow-x: hidden;
+	box-sizing: border-box;
+	flex-grow: 1;
+}
+
+.growing-box {
+	height: fit-content;
 	box-sizing: border-box;
 	flex-grow: 1;
 }

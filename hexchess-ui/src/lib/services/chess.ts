@@ -160,6 +160,6 @@ export function setBoardTurn(board: ChessBoard | undefined, turn: boolean) {
 	return { ...defaultGame, board: board }
 }
 
-export function zeroGame(board: ChessBoard | undefined) {
+export function newGame(board: ChessBoard | undefined) {
 	return { ...defaultGame, board: board }
 }

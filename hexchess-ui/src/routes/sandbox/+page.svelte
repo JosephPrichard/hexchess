@@ -1,7 +1,7 @@
 <script lang="ts">
 import Board from '$lib/components/chess/Board.svelte';
 import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
-import type { ChessGame } from '$lib/api/messages';
+import { ChessBoard, type ChessGame } from '$lib/api/messages';
 import { createMoveState } from '$lib/state/move.svelte';
 import { onMount } from 'svelte';
 import Banner from '$lib/Banner.svelte';
@@ -9,7 +9,7 @@ import {
 	mapHexagonList,
 	getNewSelection,
 	type Selection,
-	isMoveValid, NoSelection, moveBoardPiece, setBoardTurn, placeBoardPiece, clearBoard, zeroGame
+	isMoveValid, NoSelection, moveBoardPiece, setBoardTurn, placeBoardPiece, clearBoard, newGame, defaultGame
 } from '$lib/services/chess.js';
 import type { Hex } from '$lib/api/model';
 import { getNotificationsContext } from '$lib/services/context';
@@ -18,8 +18,14 @@ import RedoIcon from '$lib/components/icons/RedoIcon.svelte';
 import PieceEditor from '$lib/components/chess/PieceEditor.svelte';
 import EditIcon from '$lib/components/icons/EditIcon.svelte';
 import KingIcon from '$lib/components/icons/MoveIcon.svelte';
-import ClipboardIcon from '$lib/components/icons/ClipboardIcon.svelte';
-import { boardToFenDyn, getInitialBoardDyn, makeMoveDyn } from '$lib/services/wasm';
+import { boardToFenDyn, fenToGameDyn, getInitialBoardDyn, makeMoveDyn } from '$lib/services/wasm';
+import MoveList from '$lib/components/chess/MoveList.svelte';
+
+export interface SandboxProps {
+	fen: string;
+}
+
+const { data: props }: { data: SandboxProps } = $props();
 
 const { addNotification } = getNotificationsContext();
 
@@ -32,8 +38,9 @@ let selection: Selection = $state(NoSelection);
 let hoveringHex: Hex | undefined = $state(undefined);
 let selectedPiece: number | undefined = $state(undefined);
 
+let fen = $state(props.fen);
+
 let game: ChessGame | undefined = $state(undefined);
-let fen: string = $state("");
 
 function onSelectPiece(hex: Hex) {
 	selection = getNewSelection(game, hex);
@@ -43,14 +50,16 @@ function onDeSelectPiece() {
 	selection = NoSelection;
 }
 
-function handleSetBoardTurn(event: Event) {
+async function handleSetBoardTurn(event: Event) {
 	const turn = (event.target as HTMLSelectElement).value == "WHITE";
 	game = setBoardTurn($state.snapshot(game?.board), turn)
+	await gotoFen(game?.board);
 }
+
 async function onDropPieceSet(hex: Hex) {
 	if (selectedPiece) {
 		game = placeBoardPiece($state.snapshot(game?.board), hex, selectedPiece);
-		fen = await boardToFenDyn(game?.board);
+		await gotoFen(game?.board);
 	}
 }
 
@@ -59,9 +68,14 @@ function onClickClearBoard() {
 	game = clearBoard($state.snapshot(game?.board));
 }
 
-async function onCopyFen() {
-	await navigator.clipboard.writeText(fen);
-	addNotification({ type: 'string', message: "Copied to clipboard!", isSuccess: true, duration: 2000 });
+async function gotoFen(board?: ChessBoard) {
+	const f = await boardToFenDyn(board);
+	if (!f) {
+		return;
+	}
+	// await goto(`/sandbox?fen=${fen}`, { replaceState: true });
+	fen = f;
+	history.pushState({}, "", `/sandbox?fen=${fen}`);
 }
 
 async function onPieceMove(from: Hex, to: Hex) {
@@ -78,10 +92,13 @@ async function onPieceMove(from: Hex, to: Hex) {
 
 	if (mode == "EDIT") {
 		game = moveBoardPiece(tempBoard, from, to);
+		await gotoFen(game?.board);
 	} else if (mode == "PLAY") {
-		game = await makeMoveDyn(tempBoard, {from, to});
+		const tempGame = await makeMoveDyn(tempBoard, {from, to});
+		await gotoFen(tempGame?.board); // update fen before the state so we can set the right game with move history after URL is updated
+		tempGame.moveList = [...game?.moveList || [], ...tempGame.moveList]
+		game = tempGame;
 	}
-	fen = await boardToFenDyn(game?.board);
 
 	onDeSelectPiece();
 }
@@ -92,7 +109,7 @@ async function setMode(newMode: 'EDIT' | 'PLAY') {
 	if (mode == "EDIT") {
 		game = await makeMoveDyn(tempBoard); // noop move, just calculate moves for curr board
 	} else if (mode == "PLAY") {
-		game = zeroGame(tempBoard);
+		game = newGame(tempBoard);
 	}
 
 	selectedPiece = undefined;
@@ -100,11 +117,32 @@ async function setMode(newMode: 'EDIT' | 'PLAY') {
 }
 
 async function loadInitialGame() {
-	game = zeroGame(await getInitialBoardDyn());
-	fen = await boardToFenDyn(game.board);
+	game = newGame(await getInitialBoardDyn());
+	await gotoFen(game?.board);
 }
 
-onMount(loadInitialGame);
+async function loadBoardFen(fenInput: string) {
+	let isInitialGame = false;
+	if (fenInput != "") {
+		const results = await fenToGameDyn(fenInput);
+		if (results.err) {
+			addNotification({ type: 'string', message: results.err, isSuccess: false });
+			isInitialGame = true;
+		} else {
+			game = results.game || defaultGame;
+			await gotoFen(game?.board);
+		}
+	} else {
+		isInitialGame = true;
+	}
+	if (isInitialGame) {
+		await loadInitialGame();
+	}
+}
+
+$effect(() => {
+	loadBoardFen(props.fen);
+});
 
 const draggable = $derived.by(() => mode == "PLAY" ? "turn" : "anyone");
 
@@ -119,82 +157,93 @@ const prevMove = $derived.by(() => {
 	<title>Sandbox - Hexchess</title>
 </svelte:head>
 <Banner />
-<div class="center-vertical-container" style="align-items: stretch;">
-	<Board
-		board={game?.board}
-		bind:boardElement={boardElement}
-		{draggable}
-		isWhitePerspective={moveState.value.isWhitePerspective}
-		potentialMoves={mode === "PLAY" ? mapHexagonList(selection.potentialMoves?.moves) : undefined}
-		selectedHexagon={selection.hex}
-		prevMove={prevMove}
-		bind:hoveringHexagon={hoveringHex}
-		onSelectPiece={onSelectPiece}
-		onDeSelectPiece={onDeSelectPiece}
-		onDropPiece={onPieceMove}
-		onSetPiece={onDropPieceSet}
-	/>
-	<div class="side-bar">
-		<select
-			class="turn-selector"
-			value={game?.board?.isWhiteTurn ? "WHITE" : "BLACK"}
-			name="player-turn"
-			onchange={handleSetBoardTurn}
-			disabled={mode === "PLAY"}
-		>
-			<option value="WHITE">White to Play</option>
-			<option value="BLACK">Black to Play</option>
-		</select>
-		<div class="piece-panels-container">
-			<PieceEditor
-				isWhitePerspective={moveState.value.isWhitePerspective}
-				bind:selectedPiece={selectedPiece}
-				bind:boardElement={boardElement}
-				bind:hoveringHexagon={hoveringHex}
-				onDropPiece={onDropPieceSet}
-				isDisabled={mode === "PLAY"}
-			/>
-		</div>
-		<div style:margin-top="10px"></div>
-		{#if mode === "PLAY" }
-			<button class="button-transparent side-bar-button"  onclick={() => setMode("EDIT")}>
-				<EditIcon />
-				<span class="button-text">
+<div class="center-horizontal-container">
+	<div class="center-vertical-container" style="align-items: stretch;">
+		<Board
+			board={game?.board}
+			fen={fen}
+			bind:boardElement={boardElement}
+			{draggable}
+			isWhitePerspective={moveState.value.isWhitePerspective}
+			potentialMoves={mode === "PLAY" ? mapHexagonList(selection.potentialMoves?.moves) : undefined}
+			selectedHexagon={selection.hex}
+			prevMove={prevMove}
+			bind:hoveringHexagon={hoveringHex}
+			onSelectPiece={onSelectPiece}
+			onDeSelectPiece={onDeSelectPiece}
+			onDropPiece={onPieceMove}
+			onSetPiece={onDropPieceSet}
+		/>
+		<div class="side-bar">
+			{#if mode === "PLAY"}
+				<div class="side-table growing-box">
+					<div class="side-table-header">
+						<div class="turn-circle" class:turn-circle-green={Boolean(game?.board?.isWhiteTurn) !== moveState.value.isWhitePerspective}></div>
+						{moveState.value.isWhitePerspective ? "Black's Turn" : "White's Turn"}
+					</div>
+					<MoveList moveList={game?.moveList || []} />
+					<div class="side-table-header-bottom">
+						<div class="turn-circle" class:turn-circle-green={Boolean(game?.board?.isWhiteTurn) === moveState.value.isWhitePerspective}></div>
+						{moveState.value.isWhitePerspective ? "White's Turn" : "Black's Turn"}
+					</div>
+				</div>
+			{:else}
+				<div class="growing-box">
+					<select
+						class="turn-selector"
+						value={game?.board?.isWhiteTurn ? "WHITE" : "BLACK"}
+						name="player-turn"
+						onchange={handleSetBoardTurn}
+					>
+						<option value="WHITE">White to Play</option>
+						<option value="BLACK">Black to Play</option>
+					</select>
+					<div class="piece-panels-container">
+						<PieceEditor
+							isWhitePerspective={moveState.value.isWhitePerspective}
+							bind:selectedPiece={selectedPiece}
+							bind:boardElement={boardElement}
+							bind:hoveringHexagon={hoveringHex}
+							onDropPiece={onDropPieceSet}
+						/>
+					</div>
+				</div>
+			{/if}
+			<div style:margin-top="10px"></div>
+			{#if mode === "PLAY" }
+				<button class="button-transparent side-bar-button"  onclick={() => setMode("EDIT")}>
+					<EditIcon />
+					<span class="button-text">
 					Edit Board
 				</span>
-			</button>
-		{:else}
-			<button class="button-transparent side-bar-button" onclick={() => setMode("PLAY")}>
-				<KingIcon />
-				<span class="button-text">
+				</button>
+			{:else}
+				<button class="button-transparent side-bar-button" onclick={() => setMode("PLAY")}>
+					<KingIcon />
+					<span class="button-text">
 					Make Moves
 				</span>
-			</button>
-		{/if}
-		<button class="button-transparent side-bar-button" onclick={moveState.flip}>
-			<FlipIcon />
-			<span class="button-text">
+				</button>
+			{/if}
+			<button class="button-transparent side-bar-button" onclick={moveState.flip}>
+				<FlipIcon />
+				<span class="button-text">
 				Flip Board
 			</span>
-		</button>
-		<button class="button-transparent side-bar-button" onclick={loadInitialGame}>
-			<RedoIcon />
-			<span class="button-text">
+			</button>
+			<button class="button-transparent side-bar-button" onclick={loadInitialGame}>
+				<RedoIcon />
+				<span class="button-text">
 				Reset Board
 			</span>
-		</button>
-		<button class="button-transparent side-bar-button" onclick={onClickClearBoard}>
-			<TrashcanIcon />
-			<span class="button-text">
-				Clear Board
-			</span>
-		</button>
-		<button class="button-transparent side-bar-button" onclick={onCopyFen}>
-			<ClipboardIcon />
-			<span class="button-text">
-				Copy FEN
-			</span>
-		</button>
+			</button>
+			<button class="button-transparent side-bar-button" onclick={onClickClearBoard}>
+				<TrashcanIcon />
+				<span class="button-text">
+					Clear Board
+				</span>
+			</button>
+		</div>
 	</div>
 </div>
 <style>
@@ -205,11 +254,14 @@ const prevMove = $derived.by(() => {
 	}
 
 	.turn-selector {
-        min-width: 165px;
-		max-width: 165px;
+		width: 100%;
+		/*min-width: 165px;*/
         box-sizing: border-box;
 		height: 40px;
         margin: 0 0 10px;
+        user-select: none;
+        -moz-user-select: none;
+        -webkit-user-select: none;
     }
 
     .piece-panels-container {
@@ -220,7 +272,10 @@ const prevMove = $derived.by(() => {
 	}
 
 	.side-bar {
-		width: 140px;
+		width: 225px;
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 75px - 40px); /* Screen height minus the banner height minus the margin height */
 	}
 
 	.side-bar-button {

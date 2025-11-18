@@ -64,7 +64,7 @@
 <div class="center-horizontal-container">
 	<div class="center-vertical-container" style="align-items: stretch;">
 		<Board {board} draggable="none" isWhitePerspective={moveState.value.isWhitePerspective} />
-		<div class="side-table">
+		<div class="side-table" style:width="300px">
 			<ReplayPanel replay={replay} />
 			<MoveList moveList={moveList} onSelectMove={moveState.selectMove} selectedMoveIndex={moveState.value.moveIndex} />
 			<div class="side-table-footer">

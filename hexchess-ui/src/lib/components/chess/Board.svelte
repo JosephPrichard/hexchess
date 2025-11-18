@@ -1,12 +1,14 @@
 <script lang="ts">
-	import type { ChessBoard, PieceMove } from '../../api/messages';
+	import type { ChessBoard, PieceMove } from '$lib/api/messages';
 	import Piece from './Piece.svelte';
-	import type { Hex } from '../../api/model';
-	import { defaultBoard, isBlack, isWhite, pieces } from '../../services/chess';
-	import { getLeft, getTop, hexHeight, hexWidth, selectedColor, colors, colorsOffset, findHex, highlightedColor, hoveringColor } from '../../services/render';
+	import type { Hex } from '$lib/api/model';
+	import { defaultBoard, isBlack, isWhite, pieces } from '$lib/services/chess';
+	import { getLeft, getTop, hexHeight, hexWidth, selectedColor, colors, colorsOffset, findHex, highlightedColor, hoveringColor } from '$lib/services/render';
+	import Fen from '$lib/components/chess/Fen.svelte';
 
 	export interface BoardProps {
 		board?: ChessBoard;
+		fen?: string;
 		boardElement?: HTMLElement;
 		draggable?: "turn" | "anyone" | "none";
 		isWhitePerspective: boolean;
@@ -20,7 +22,7 @@
 		onSetPiece?: (hex: Hex) => void;
 	}
 
-	let { board, isWhitePerspective, boardElement = $bindable(), draggable,
+	let { board, fen, isWhitePerspective, boardElement = $bindable(), draggable,
 		selectedHexagon, prevMove, hoveringHexagon = $bindable(), potentialMoves,
 		onSelectPiece, onDeSelectPiece, onDropPiece, onSetPiece }: BoardProps = $props();
 
@@ -69,82 +71,105 @@
 	const actualBoard = $derived.by(() => board ? board : defaultBoard)
 </script>
 
-<div bind:this={boardElement} class="board" style="width: {11 * hexHeight}px; height: {11 * hexHeight}px;">
-	{#each actualBoard.file as piecesFile, file (file)}
-		{#each piecesFile.pieces as piece, rank (rank)}
-			{@const top = getTop(file, rank, isWhitePerspective)}
-			{@const left = getLeft(file)}
-			{@const bgIndex = (colorsOffset[file] + rank) % 3}
-			{@const isPrevMove =
-				(prevMove?.fromFile === file && prevMove?.fromRank === rank) ||
-				(prevMove?.toFile === file && prevMove?.toRank === rank)}
-			{@const isMoveTarget = potentialMovesMap[makeMoveKey(file, rank)]}
-			{@const isSelected = selectedHexagon?.file === file && selectedHexagon?.rank === rank}
-			{@const isHovering = hoveringHexagon?.file === file && hoveringHexagon?.rank === rank}
-			{@const isDraggable =
-				draggable !== "none" &&
-				(draggable === "anyone" || (draggable === "turn"))}
-			{@const bgColor = function() {
-				if (isPrevMove) {
-					return highlightedColor
-				} else if (isSelected) {
-					return selectedColor
-				} else if (isMoveTarget && isHovering) {
-					return hoveringColor
-				} else {
-					return 'transparent';
-				}
-			}()}
-			<div
-				class="hexagon"
-				role="cell"
-				tabindex="0"
-				style:top="{top}px"
-				style:left="{left}px"
-				style:width="{hexWidth}px"
-				style:height="{hexHeight}px"
-				style:background-color={colors[bgIndex]}
-			></div>
-			<div
-				class="hexagon"
-				role="button"
-				tabindex="0"
-				style:top="{top}px"
-				style:left="{left}px"
-				style:width="{hexWidth}px"
-				style:height="{hexHeight}px"
-				style:background-color={bgColor}
-				oncontextmenu={e => e.preventDefault()}
-				onmousedown={() => onClickHexagon(file, rank)}
-			>
+<div>
+	<div bind:this={boardElement} class="board" style:width="{11 * hexHeight}px;" style:height="{11.67 * hexHeight}px;">
+		{#each actualBoard.file as piecesFile, file (file)}
+			{@const fileMarker = String.fromCharCode('a'.charCodeAt(0) + file)}
+			{#each piecesFile.pieces as piece, rank (rank)}
+				{@const top = getTop(file, rank, isWhitePerspective)}
+				{@const left = getLeft(file)}
+				{@const bgIndex = (colorsOffset[file] + rank) % 3}
+				{@const isPrevMove =
+					(prevMove?.fromFile === file && prevMove?.fromRank === rank) ||
+					(prevMove?.toFile === file && prevMove?.toRank === rank)}
+				{@const isMoveTarget = potentialMovesMap[makeMoveKey(file, rank)]}
+				{@const isSelected = selectedHexagon?.file === file && selectedHexagon?.rank === rank}
+				{@const isHovering = hoveringHexagon?.file === file && hoveringHexagon?.rank === rank}
+				{@const isDraggable =
+					draggable !== "none" &&
+					(draggable === "anyone" || (draggable === "turn"))}
+				{@const bgColor = function() {
+					if (isPrevMove) {
+						return highlightedColor
+					} else if (isSelected) {
+						return selectedColor
+					} else if (isMoveTarget && isHovering) {
+						return hoveringColor
+					} else {
+						return 'transparent';
+					}
+				}()}
+				<div
+					class="hexagon"
+					role="cell"
+					tabindex="0"
+					style:top="{top}px"
+					style:left="{left}px"
+					style:width="{hexWidth}px"
+					style:height="{hexHeight}px"
+					style:background-color={colors[bgIndex]}
+				></div>
+				<div
+					class="hexagon"
+					role="button"
+					tabindex="0"
+					style:top="{top}px"
+					style:left="{left}px"
+					style:width="{hexWidth}px"
+					style:height="{hexHeight}px"
+					style:background-color={bgColor}
+					oncontextmenu={e => e.preventDefault()}
+					onmousedown={() => onClickHexagon(file, rank)}
+				>
+					{#if piece !== pieces.empty}
+						{#if isMoveTarget && !isHovering}
+							<div
+								class="move-circle"
+								style:border-color={selectedColor}
+								style:width="{hexWidth * 0.65}px"
+								style:height="{hexWidth * 0.65}px"
+							>
+							</div>
+						{/if}
+					{:else}
+						{#if isMoveTarget && !isHovering}
+							<div class="move-dot" style:background-color={selectedColor}></div>
+						{/if}
+					{/if}
+				</div>
 				{#if piece !== pieces.empty}
-					{#if isMoveTarget && !isHovering}
-						<div class="move-circle" style:border-color={selectedColor}></div>
-					{/if}
-				{:else}
-					{#if isMoveTarget && !isHovering}
-						<div class="move-dot" style:background-color={selectedColor}></div>
-					{/if}
+					<Piece
+						isSelected={isSelected}
+						isTransparent
+						isAnnotatable
+						isDraggable={isDraggable}
+						initialLeft={left}
+						initialTop={top}
+						piece={piece}
+						onSelectHexagon={isMoveTarget ? () => onClickHexagon(file, rank) : undefined}
+						onSelectPiece={() => onSelectPiece?.({ file, rank })}
+						onDeSelectPiece={() => onDeSelectPiece?.({ file, rank })}
+						onDragPiece={onDragBoardPiece}
+						onDropPiece={(x, y) => onDropBoardPiece({ file, rank }, x, y, piece)}
+					/>
 				{/if}
+			{/each}
+			{@const top = getTop(file, -1, true)}
+			{@const left = getLeft(file)}
+			<div
+				class="hexagon-label"
+				style:top="{top}px"
+				style:left="{left}px"
+				style:width="{hexWidth}px"
+				style:height="{hexHeight}px"
+			>
+				{fileMarker}
 			</div>
-			{#if piece !== pieces.empty}
-				<Piece
-					isSelected={isSelected}
-					isTransparent
-					isAnnotatable
-					isDraggable={isDraggable}
-					initialLeft={left}
-					initialTop={top}
-					piece={piece}
-					onSelectHexagon={isMoveTarget ? () => onClickHexagon(file, rank) : undefined}
-					onSelectPiece={() => onSelectPiece?.({ file, rank })}
-					onDeSelectPiece={() => onDeSelectPiece?.({ file, rank })}
-					onDragPiece={onDragBoardPiece}
-					onDropPiece={(x, y) => onDropBoardPiece({ file, rank }, x, y, piece)}
-				/>
-			{/if}
 		{/each}
-	{/each}
+	</div>
+	{#if fen}
+		<Fen fen={fen}/>
+	{/if}
 </div>
 
 <style>
@@ -166,6 +191,18 @@
         -webkit-user-select: none;
     }
 
+	.hexagon-label {
+		padding-top: 5px;
+		text-align: center;
+		position: absolute;
+		font-weight: bold;
+		z-index: 100;
+		color: rgb(150,150,150);
+        user-select: none;
+        -moz-user-select: none;
+        -webkit-user-select: none;
+	}
+
     .move-dot {
         position: absolute;
         top: 50%;
@@ -185,8 +222,6 @@
         left: 50%;
         transform: translate(-50%, -50%);
         border-radius: 50%;
-        height: 50px;
-        width: 50px;
         cursor: pointer;
     }
 </style>

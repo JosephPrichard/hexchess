@@ -13,6 +13,8 @@ func handleJsErr(err string) js.Value {
 }
 
 func GetInitialBoard(_ js.Value, _ []js.Value) interface{} {
+	js.Global().Get("console").Call("log", "GetInitialBoard called")
+
 	pbBoard, err := chess.MapPbBoard(chess.InitialBoard())
 	if err != nil {
 		return handleJsErr(err.Error())
@@ -23,10 +25,15 @@ func GetInitialBoard(_ js.Value, _ []js.Value) interface{} {
 	}
 	out := js.Global().Get("Uint8Array").New(len(output))
 	js.CopyBytesToJS(out, output)
+
+	js.Global().Get("console").Call("log", "GetInitialBoard finished")
+
 	return out
 }
 
 func MakeBoardMove(_ js.Value, args []js.Value) interface{} {
+	js.Global().Get("console").Call("log", "MakeBoardMove called")
+
 	if len(args) == 0 {
 		return handleJsErr("makeBoardMove expects at least 2 args")
 	}
@@ -68,10 +75,15 @@ func MakeBoardMove(_ js.Value, args []js.Value) interface{} {
 
 	out := js.Global().Get("Uint8Array").New(len(output))
 	js.CopyBytesToJS(out, output)
+
+	js.Global().Get("console").Call("log", "MakeBoardMove finished")
+
 	return out
 }
 
-func FenToBoard(_ js.Value, args []js.Value) interface{} {
+func FenToGame(_ js.Value, args []js.Value) interface{} {
+	js.Global().Get("console").Call("log", "FenToGame called")
+
 	if len(args) == 0 {
 		return handleJsErr("fenToBoard expects at least 1 arg")
 	}
@@ -86,21 +98,34 @@ func FenToBoard(_ js.Value, args []js.Value) interface{} {
 		return obj
 	}
 
-	pbBoard, err := chess.MapPbBoard(board)
+	game := chess.Game{Board: board}
+	game.InitPieceMoves()
+
+	pbGame, err := chess.MapPbGame(game)
 	if err != nil {
 		return handleJsErr(err.Error())
 	}
-	output, err := proto.Marshal(pbBoard)
+	output, err := proto.Marshal(pbGame)
 	if err != nil {
 		return handleJsErr(err.Error())
 	}
 
+	js.Global().Get("console").Call("log", "FenToGame finished")
+
+	out := js.Global().Get("Uint8Array").New(len(output))
+	js.CopyBytesToJS(out, output)
+
 	obj := js.Global().Get("Object").New()
-	obj.Set("board", output)
+	obj.Set("game", out)
+
+	js.Global().Get("console").Call("log", "FenToGame returning")
+
 	return obj
 }
 
 func BoardToFen(_ js.Value, args []js.Value) interface{} {
+	js.Global().Get("console").Call("log", "BoardToFen called")
+
 	if len(args) == 0 {
 		return handleJsErr("boardToFen expects at least 1 arg")
 	}
@@ -119,13 +144,19 @@ func BoardToFen(_ js.Value, args []js.Value) interface{} {
 	}
 
 	fen := board.Fen()
-	return js.ValueOf(fen)
+	fenValue := js.ValueOf(fen)
+
+	js.Global().Get("console").Call("log", "BoardToFen finished")
+
+	return fenValue
 }
 
 func main() {
+	js.Global().Get("console").Call("log", "Begin initializing wasm module")
+
 	js.Global().Set("getInitialBoard", js.FuncOf(GetInitialBoard))
 	js.Global().Set("makeMove", js.FuncOf(MakeBoardMove))
-	js.Global().Set("fenToBoard", js.FuncOf(FenToBoard))
+	js.Global().Set("fenToGame", js.FuncOf(FenToGame))
 	js.Global().Set("boardToFen", js.FuncOf(BoardToFen))
 
 	c := make(chan struct{})

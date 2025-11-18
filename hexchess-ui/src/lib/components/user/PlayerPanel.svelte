@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { PlayerModel } from '../../api/model';
-	import type { PlayerState } from '../../api/messages';
+	import type { PlayerModel } from '$lib/api/model';
+	import type { PlayerState } from '$lib/api/messages';
 
 	export interface PlayerPanelProps {
 		player: PlayerModel | PlayerState | undefined,
@@ -31,18 +31,4 @@
 {/if}
 
 <style>
-    .turn-circle {
-        display: inline-block;
-        width: 7px;
-        height: 7px;
-        margin-right: 5px;
-        border-radius: 50%;
-        border: 2px solid #B4B4B4;
-        background-color: transparent;
-    }
-
-    .turn-circle-green {
-        border-color: #78b13f;
-        background-color: #78b13f;
-    }
 </style>

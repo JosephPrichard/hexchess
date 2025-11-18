@@ -1,12 +1,14 @@
 import { ChessBoard, ChessGame, MakeMoveInput } from '$lib/api/messages';
 import type { Hex } from '$lib/api/model';
+import { defaultBoard, defaultGame, newGame } from '$lib/services/chess';
 
 declare const Go: any; // imported in the initWasm fn
 
 let wasmReady: Promise<void>;
 
 export function initWasm(): Promise<void> {
-	if (wasmReady) return wasmReady;
+	if (wasmReady)
+		return wasmReady;
 	wasmReady = new Promise(async (resolve) => {
 		await import("/wasm/wasm_exec.js?url");
 		const go = new Go();
@@ -27,15 +29,15 @@ function dynCall(name: string, ...args: unknown[]): unknown {
 	return (fn as Function)(...args);
 }
 
-export interface FenToBoardResult {
-	err?: string;
-	board?: Uint8Array;
-}
-
 export async function getInitialBoardDyn(): Promise<ChessBoard> {
 	await initWasm();
-	const out = dynCall("getInitialBoard") as Uint8Array;
-	return ChessBoard.fromBinary(out);
+	const out = dynCall("getInitialBoard") as (Uint8Array | undefined);
+	if (out === undefined) {
+		return defaultBoard;
+	}
+	const board = ChessBoard.fromBinary(out);
+	console.log("getInitialBoard", board);
+	return board;
 }
 
 export async function makeMoveDyn(board?: ChessBoard, move?: { from: Hex, to: Hex }): Promise<ChessGame> {
@@ -44,13 +46,29 @@ export async function makeMoveDyn(board?: ChessBoard, move?: { from: Hex, to: He
 		? { piece: 0, fromFile: move.from.file, fromRank: move.from.rank, toFile: move.to.file, toRank: move.to.rank }
 		: undefined;
 	const bin = MakeMoveInput.toBinary({ board, move: pm });
-	const out = dynCall("makeMove", bin) as Uint8Array;
-	return ChessGame.fromBinary(out);
+	const out = dynCall("makeMove", bin) as (Uint8Array | undefined);
+	if (out === undefined) {
+		return newGame(defaultBoard);
+	}
+	const game = ChessGame.fromBinary(out);
+	console.log("makeMove", game);
+	return game;
 }
 
-export async function fenToBoardDyn(fen: string): Promise<FenToBoardResult> {
+interface FenToGameResult {
+	err?: string;
+	game?: Uint8Array;
+}
+
+export async function fenToGameDyn(fen: string): Promise<{game?: ChessGame, err?: string}> {
 	await initWasm();
-	return dynCall("fenToBoard", fen) as FenToBoardResult;
+	const result = dynCall("fenToGame", fen) as FenToGameResult | undefined;
+	console.log("fenToGame", result);
+	if (result === undefined) {
+		return { err: "Failed to parse Fen to board" };
+	}
+	const game = result.game ? ChessGame.fromBinary(result.game) : defaultGame;
+	return { game };
 }
 
 export async function boardToFenDyn(board?: ChessBoard): Promise<string> {
@@ -58,5 +76,7 @@ export async function boardToFenDyn(board?: ChessBoard): Promise<string> {
 		return "";
 	await initWasm();
 	const bin = ChessBoard.toBinary(board);
-	return dynCall("boardToFen", bin) as string;
+	const fen = (dynCall("boardToFen", bin) || "") as string;
+	console.log("boardToFenDyn", fen);
+	return fen;
 }
