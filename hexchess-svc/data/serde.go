@@ -33,108 +33,16 @@ func MapPlayer(pbPlayer *pb.PlayerState) *PlayerState {
 	return player
 }
 
-func MapPieces(src []int32) []chess.Piece {
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make([]chess.Piece, 0, len(src))
-	for _, p := range src {
-		dst = append(dst, chess.Piece(p))
-	}
-	return dst
-}
-
-func MapPieceMove(pbPm *pb.PieceMove) chess.PieceMove {
-	if pbPm == nil {
-		return chess.PieceMove{}
-	}
-	return chess.PieceMove{
-		Piece: chess.Piece(pbPm.Piece),
-		From:  chess.Hex{File: int(pbPm.FromFile), Rank: int(pbPm.FromRank)},
-		To:    chess.Hex{File: int(pbPm.ToFile), Rank: int(pbPm.ToRank)},
-	}
-}
-
-func MapPiecesMoves(pbMoves []*pb.PieceMoves) []chess.PieceMoves {
-	if len(pbMoves) == 0 {
-		return nil
-	}
-	pmsList := make([]chess.PieceMoves, 0, len(pbMoves))
-	for _, pbPm := range pbMoves {
-		moves := make([]chess.Hex, 0, len(pbPm.Moves))
-		for _, hInt := range pbPm.Moves {
-			file := int(hInt & 0xFFFFFFFF)
-			rank := int(hInt >> 32)
-			moves = append(moves, chess.Hex{File: file, Rank: rank})
-		}
-		pms := chess.PieceMoves{
-			Piece: chess.Piece(pbPm.Piece),
-			From:  chess.Hex{File: int(pbPm.FromFile), Rank: int(pbPm.FromRank)},
-			Moves: moves,
-		}
-		pmsList = append(pmsList, pms)
-	}
-	return pmsList
-}
-
-var ErrNilBoard = errors.New("board must not be nil")
-
-func MapBoard(pbBoard *pb.ChessBoard) (chess.Board, error) {
-	if pbBoard == nil {
-		return chess.Board{}, ErrNilBoard
-	}
-	board := chess.Board{IsWhiteTurn: pbBoard.IsWhiteTurn}
-	for f, file := range pbBoard.File {
-		if f >= chess.Files {
-			return board, fmt.Errorf("board file is out of bounds: %d", f)
-		}
-		for r, piece := range file.Pieces {
-			if err := board.SetPiece(f, r, chess.Piece(piece)); err != nil {
-				return board, fmt.Errorf("failed to set piece: %w", err)
-			}
-		}
-	}
-	return board, nil
-}
-
-func MapMoveList(pbMoves []*pb.PieceMove) []chess.PieceMove {
-	if len(pbMoves) == 0 {
-		return nil
-	}
-	moveList := make([]chess.PieceMove, 0, len(pbMoves))
-	for _, pbPm := range pbMoves {
-		moveList = append(moveList, MapPieceMove(pbPm))
-	}
-	return moveList
-}
-
-func MapGame(pbGame *pb.ChessGame) (chess.Game, error) {
-	board, err := MapBoard(pbGame.Board)
-	if err != nil {
-		return chess.Game{}, fmt.Errorf("failed to map board: %w", err)
-	}
-	return chess.Game{
-		TakenWhitePieces: MapPieces(pbGame.TakenWhitePieces),
-		TakenBlackPieces: MapPieces(pbGame.TakenBlackPieces),
-		BlackMoves:       MapPiecesMoves(pbGame.BlackMoves),
-		WhiteMoves:       MapPiecesMoves(pbGame.WhiteMoves),
-		MoveList:         MapMoveList(pbGame.MoveList),
-		Board:            board,
-	}, nil
-}
-
-var ErrNilGame = errors.New("game and board must not be nil")
-
 func UnmarshalChess(b []byte) (ChessState, error) {
 	var pbChess pb.ChessState
 	if err := proto.Unmarshal(b, &pbChess); err != nil {
 		return ChessState{}, fmt.Errorf("failed to unmarhsal chess state: %w", err)
 	}
 	if pbChess.Game == nil || pbChess.Game.Board == nil {
-		return ChessState{}, ErrNilGame
+		return ChessState{}, errors.New("game and board cannot be nil")
 	}
 
-	game, err := MapGame(pbChess.Game)
+	game, err := chess.MapGame(pbChess.Game)
 	if err != nil {
 		return ChessState{}, fmt.Errorf("failed to map game: %w", err)
 	}
@@ -167,96 +75,8 @@ func MapPbPlayer(p *PlayerState) *pb.PlayerState {
 	}
 }
 
-func MapPbPieces(pieces []chess.Piece) []int32 {
-	out := make([]int32, 0, len(pieces))
-	for _, p := range pieces {
-		out = append(out, int32(p))
-	}
-	return out
-}
-
-func MapPbPieceMove(pm chess.PieceMove) *pb.PieceMove {
-	return &pb.PieceMove{
-		Piece:    int32(pm.Piece),
-		FromFile: int32(pm.From.File),
-		FromRank: int32(pm.From.Rank),
-		ToFile:   int32(pm.From.File),
-		ToRank:   int32(pm.To.Rank),
-	}
-}
-
-func MapPbPiecesMoves(moves []chess.PieceMoves) []*pb.PieceMoves {
-	if len(moves) == 0 {
-		return nil
-	}
-	pbMoves := make([]*pb.PieceMoves, 0, len(moves))
-	for _, pm := range moves {
-		pbHexes := make([]int64, 0, len(pm.Moves))
-		for _, h := range pm.Moves {
-			hInt := int64(h.Rank)<<32 | int64(h.File)
-			pbHexes = append(pbHexes, hInt)
-		}
-		pbMoves = append(pbMoves, &pb.PieceMoves{
-			Piece:    int32(pm.Piece),
-			FromFile: int32(pm.From.File),
-			FromRank: int32(pm.From.Rank),
-			Moves:    pbHexes,
-		})
-	}
-	return pbMoves
-}
-
-func MapPbBoard(board chess.Board) (*pb.ChessBoard, error) {
-	pbBoard := &pb.ChessBoard{
-		File:        make([]*pb.BoardFile, 0, chess.Files),
-		IsWhiteTurn: board.IsWhiteTurn,
-	}
-	for file := 0; file < chess.Files; file++ {
-		ranksCount := chess.RanksPerFile[file]
-		pbFile := &pb.BoardFile{
-			Pieces: make([]uint32, 0, ranksCount),
-		}
-		for rank := 0; rank < ranksCount; rank++ {
-			piece, err := board.GetPiece(file, rank)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get piece: %w", err)
-			}
-			pbFile.Pieces = append(pbFile.Pieces, uint32(piece))
-		}
-		pbBoard.File = append(pbBoard.File, pbFile)
-	}
-	return pbBoard, nil
-}
-
-func MapPbMoveList(moves []chess.PieceMove) []*pb.PieceMove {
-	if len(moves) == 0 {
-		return nil
-	}
-	pbMoveList := make([]*pb.PieceMove, 0, len(moves))
-	for _, pm := range moves {
-		pbMoveList = append(pbMoveList, MapPbPieceMove(pm))
-	}
-	return pbMoveList
-}
-
-func MapPbGame(game chess.Game) (*pb.ChessGame, error) {
-	pbBoard, err := MapPbBoard(game.Board)
-	if err != nil {
-		return nil, fmt.Errorf("failed to map pb board: %w", err)
-	}
-	pbGame := &pb.ChessGame{
-		TakenWhitePieces: MapPbPieces(game.TakenWhitePieces),
-		TakenBlackPieces: MapPbPieces(game.TakenBlackPieces),
-		BlackMoves:       MapPbPiecesMoves(game.BlackMoves),
-		WhiteMoves:       MapPbPiecesMoves(game.WhiteMoves),
-		MoveList:         MapPbMoveList(game.MoveList),
-		Board:            pbBoard,
-	}
-	return pbGame, nil
-}
-
 func MapPbChessState(s ChessState) (*pb.ChessState, error) {
-	pbGame, err := MapPbGame(s.Game)
+	pbGame, err := chess.MapPbGame(s.Game)
 	if err != nil {
 		return nil, fmt.Errorf("failed to map pb game: %w", err)
 	}
@@ -272,36 +92,6 @@ func MapPbChessState(s ChessState) (*pb.ChessState, error) {
 		Touch:       s.Touch.UnixMilli(),
 	}
 	return pbState, nil
-}
-
-func MarshalMoveHistory(b chess.Board, moveList []chess.PieceMove) ([]byte, error) {
-	initialBoard := b
-	pbInitialBoard, err := MapPbBoard(initialBoard)
-	if err != nil {
-		return nil, fmt.Errorf("failed to map initial board: %w", err)
-	}
-
-	game := chess.Game{Board: b}
-	var pbMoveSteps []*pb.MoveStep
-	for _, m := range moveList {
-		game.InitPieceMoves()
-		game.MakeMove(m.From, m.To)
-
-		pbGame, err := MapPbGame(game)
-		if err != nil {
-			return nil, fmt.Errorf("failed to map pb game: %w", err)
-		}
-
-		pbMoveSteps = append(pbMoveSteps, &pb.MoveStep{
-			Game: pbGame,
-			Move: MapPbPieceMove(m),
-		})
-	}
-
-	return proto.Marshal(&pb.MoveHistory{
-		InitialBoard: pbInitialBoard,
-		MoveSteps:    pbMoveSteps,
-	})
 }
 
 func MarshalChessState(s ChessState) ([]byte, error) {

@@ -203,7 +203,7 @@ func WriteFinishedGame(ctx context.Context, stores Stores, state ChessState, isW
 	whiteID := state.WhitePlayer.ID
 	blackID := state.BlackPlayer.ID
 
-	moveHistBytes, err := MarshalMoveHistory(chess.InitialBoard(), state.Game.MoveList)
+	moveHistBytes, err := chess.MarshalMoveHistory(chess.InitialBoard(), state.Game.MoveList)
 	if err != nil {
 		return fail("failed to marshal move history", err)
 	}

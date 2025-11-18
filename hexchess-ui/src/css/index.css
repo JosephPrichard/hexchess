@@ -235,13 +235,21 @@ textarea:focus {
 
 select {
 	height: 40px;
+	color: rgb(180, 180, 180);
 	background-color: rgb(33, 33, 33);
-	padding: 3px 4px;
+	border: 2px solid rgb(80, 80, 80);
+	padding: 3px 10px;
 	border-radius: 6px;
 	min-width: 200px;
 	font-weight: 500;
 	margin-left: 5px;
 	margin-right: 5px;
+}
+
+select:disabled {
+	color: rgb(180, 180, 180, 0.4);
+	background-color: rgb(33, 33, 33, 0.4);
+	border: 2px solid rgb(80, 80, 80, 0.4);
 }
 
 .button {

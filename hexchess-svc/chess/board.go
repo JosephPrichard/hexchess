@@ -1,6 +1,7 @@
 package chess
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -96,6 +97,14 @@ type PieceMoves struct {
 	Piece Piece `json:"piece"`
 	From  Hex   `json:"from"`
 	Moves []Hex `json:"moves"`
+}
+
+func (pms *PieceMoves) DeepCopy() PieceMoves {
+	return PieceMoves{
+		Piece: pms.Piece,
+		From:  pms.From,
+		Moves: append([]Hex{}, pms.Moves...),
+	}
 }
 
 type PieceMove struct {
@@ -212,7 +221,7 @@ func HasPawnMoved(pawnHex Hex, isWhite bool) bool {
 }
 
 func (p Piece) String() string {
-	return string(p.ToChar())
+	return string(p.Rune())
 }
 
 func (p Piece) IsPieceTurn(isWhiteTurn bool) bool {
@@ -234,7 +243,7 @@ func (p Piece) OppositeColor(p2 Piece) bool {
 	return p%2 != p2%2
 }
 
-func (p Piece) ToChar() rune {
+func (p Piece) Rune() rune {
 	switch p {
 	case Empty:
 		return '.'
@@ -265,7 +274,41 @@ func (p Piece) ToChar() rune {
 	default:
 		panic(fmt.Sprintf("invalid piece: %d", p))
 	}
-	return 0
+}
+
+func PieceFromRune(r rune) (Piece, error) {
+	var p Piece
+	switch r {
+	case '.':
+		p = Empty
+	case 'P':
+		p = WhitePawn
+	case 'p':
+		p = BlackPawn
+	case 'N':
+		p = WhiteKnight
+	case 'n':
+		p = BlackKnight
+	case 'B':
+		p = WhiteBishop
+	case 'b':
+		p = BlackBishop
+	case 'R':
+		p = WhiteRook
+	case 'r':
+		p = BlackRook
+	case 'Q':
+		p = WhiteQueen
+	case 'q':
+		p = BlackQueen
+	case 'K':
+		p = WhiteKing
+	case 'k':
+		p = BlackKing
+	default:
+		return 0, errors.New("invalid piece move")
+	}
+	return p, nil
 }
 
 func (p Piece) IsPawn() bool {
@@ -328,6 +371,22 @@ func InitialBoard() Board {
 		board.SetPieceNot(p.square, p.piece)
 	}
 
+	return board
+}
+
+func MakeStartBoard(initial ...Move) Board {
+	board := InitialBoard()
+	for _, pm := range initial {
+		board.SetPieceNot(pm.Not, pm.Piece)
+	}
+	return board
+}
+
+func MakeEmptyBoard(initial ...Move) Board {
+	board := Board{IsWhiteTurn: true}
+	for _, pm := range initial {
+		board.SetPieceNot(pm.Not, pm.Piece)
+	}
 	return board
 }
 
@@ -395,6 +454,135 @@ func (b *Board) InBoundsHex(hex Hex) bool {
 	return b.InBounds(hex.File, hex.Rank)
 }
 
+var ErrFenInvalidFiles = fmt.Errorf("FEN string should have %d files", Files)
+var ErrFenMissingTurn = errors.New("FEN string is missing turn")
+
+func ParseFen(fen string) (Board, error) {
+	var board Board
+
+	var file int
+	var rank int
+	var index int
+	startCntIdx := -1
+
+	for _, ch := range fen {
+		if file >= Files {
+			break
+		}
+
+		isSpace := unicode.IsSpace(ch)
+		isDigit := unicode.IsDigit(ch)
+		isLetter := unicode.IsLetter(ch)
+		isSlash := ch == '/'
+
+		if isSpace || isLetter || isSlash {
+			if startCntIdx >= 0 {
+				count, err := strconv.Atoi(fen[startCntIdx:index])
+				if err != nil {
+					return Board{}, err
+				}
+				rank += count
+			}
+			startCntIdx = -1
+
+			rps := RanksPerFile[file]
+
+			if isSpace {
+				break
+			}
+			if isLetter {
+				if rank >= rps {
+					return Board{}, fmt.Errorf("%s is out of bounds", Hex{File: file, Rank: rank}.String())
+				}
+				piece, err := PieceFromRune(ch)
+				if err != nil {
+					return Board{}, fmt.Errorf("invalid FEN character: %c", ch)
+				}
+				board.Set(file, rank, piece)
+				rank++
+			} else {
+				if rank != rps {
+					return Board{}, fmt.Errorf("file '%c' requires %d pieces", file+'a', rps)
+				}
+				file++
+				rank = 0
+			}
+		} else if isDigit {
+			if startCntIdx < 0 {
+				startCntIdx = index
+			}
+		} else {
+			return Board{}, fmt.Errorf("invalid FEN character: %c", ch)
+		}
+		index++
+	}
+
+	if file != Files-1 {
+		return Board{}, ErrFenInvalidFiles
+	}
+
+	for index < len(fen) && unicode.IsSpace(rune(fen[index])) {
+		index++
+	}
+	if index >= len(fen) {
+		return Board{}, ErrFenMissingTurn
+	}
+
+	ch := fen[index]
+	switch ch {
+	case 'w':
+		board.IsWhiteTurn = true
+	case 'b':
+		board.IsWhiteTurn = false
+	default:
+		return Board{}, fmt.Errorf("invalid FEN turn: %c", ch)
+	}
+
+	return board, nil
+}
+
+func (b *Board) Fen() string {
+	var sb strings.Builder
+
+	intToString := func(n int) string {
+		return string(rune('0' + n))
+	}
+
+	for file := range Files {
+		ranksCount := RanksPerFile[file]
+		emptyCount := 0
+
+		for rank := range ranksCount {
+			piece := b.Get(file, rank)
+			if piece == Empty {
+				emptyCount++
+				continue
+			}
+
+			if emptyCount > 0 {
+				sb.WriteString(intToString(emptyCount))
+				emptyCount = 0
+			}
+			sb.WriteRune(piece.Rune())
+		}
+
+		if emptyCount > 0 {
+			sb.WriteString(intToString(emptyCount))
+		}
+		if file != Files-1 {
+			sb.WriteRune('/')
+		}
+	}
+
+	if b.IsWhiteTurn {
+		sb.WriteString(" w")
+	} else {
+		sb.WriteString(" b")
+	}
+
+	return sb.String()
+}
+
 func (b *Board) String() string {
 	// default: no moves highlighted
 	return b.StringFunc(func(h Hex) rune { return 0 })
@@ -404,7 +592,7 @@ func (b *Board) StringFunc(isMove func(Hex) rune) string {
 	var sb strings.Builder
 	sb.WriteString("\n")
 
-	for file := 0; file < Files; file++ {
+	for file := range Files {
 		ranksCount := RanksPerFile[file]
 		ranksDiff := MaxRanks - ranksCount
 
@@ -416,14 +604,14 @@ func (b *Board) StringFunc(isMove func(Hex) rune) string {
 			sb.WriteString("  ")
 		}
 
-		for rank := 0; rank < ranksCount; rank++ {
+		for rank := range ranksCount {
 			hex := Hex{File: file, Rank: rank}
 			ch := isMove(hex)
 			piece := b.Get(file, rank)
 			if ch != 0 && piece == Empty {
 				sb.WriteRune(ch)
 			} else {
-				sb.WriteRune(piece.ToChar())
+				sb.WriteRune(piece.Rune())
 			}
 			sb.WriteString("   ")
 		}

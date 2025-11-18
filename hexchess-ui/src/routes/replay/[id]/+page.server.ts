@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { createMessage } from '$lib/utils/error';
+import { createMessage } from '$lib/services/error';
 import type { ReplayProps } from './+page.svelte';
 import services from '$lib/api/services';
 

@@ -138,15 +138,6 @@ message ChallengeMsg {
   int64 made_on = 11;
 }
 
-message MakeMoveBody {
-  PieceMove move = 1;
-  ChessBoard board = 2;
-}
-
-message MakeMoveResp {
-  ChessGame game = 1;
-}
-
 message MoveStep {
   ChessGame game = 1;
   PieceMove move = 2;
@@ -155,4 +146,9 @@ message MoveStep {
 message MoveHistory {
   ChessBoard initialBoard = 1;
   repeated MoveStep move_steps = 2;
+}
+
+message MakeMoveInput {
+  PieceMove move = 1;
+  ChessBoard board = 2;
 }

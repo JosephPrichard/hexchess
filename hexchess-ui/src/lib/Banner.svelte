@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { getClientSession } from '$lib/utils/storage';
-	import type { SessionModel } from '$lib/api/model';
+	import { getClientSession } from './services/storage';
+	import type { SessionModel } from './api/model';
 
 	const id = $props.id();
 
@@ -22,11 +22,11 @@
 
 <link href="https://fonts.googleapis.com/css2?family=Gidole&display=swap" rel="stylesheet" />
 <div class="banner blue-bg" id="banner">
-	<a class="banner-elem color-hover text-md" href="/">
+	<a class="banner-elem color-hover text-md" href="/static">
 		<img alt="" class="logo-symbol" src="/pieces/white-queen.png" />
 		<span class="logo-font"> Hexchess </span>
 	</a>
-	<a class="banner-elem color-hover" href="/"> Play </a>
+	<a class="banner-elem color-hover" href="/static"> Play </a>
 	<a class="banner-elem color-hover" href="/leaderboard"> Leaderboard </a>
 	<a class="banner-elem color-hover" href="/players/search"> Search </a>
 	{#if client}

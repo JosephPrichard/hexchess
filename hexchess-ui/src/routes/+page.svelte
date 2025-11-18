@@ -1,15 +1,15 @@
 <script lang="ts">
-	import Banner from '$lib/components/Banner.svelte';
+	import Banner from '$lib/Banner.svelte';
 	import CreateGame from '$lib/components/modals/CreateGame.svelte';
-	import { createMessage } from '$lib/utils/error';
-	import { getNotificationsContext } from '$lib/utils/context';
+	import { createMessage } from '$lib/services/error';
+	import { getNotificationsContext } from '$lib/services/context';
 	import { goto } from '$app/navigation';
 	import type { ChessModel, ColorSelect, SessionModel, TimeControl } from '$lib/api/model';
 	import services from '$lib/api/services';
-	import { formatTimeControl } from '$lib/utils/format';
+	import { formatTimeControl } from '$lib/services/format';
 	import { onMount } from 'svelte';
-	import { getClientSession } from '$lib/utils/storage';
-	import { chessRowHeight, maxChessRows } from '$lib/utils/render';
+	import { getClientSession } from '$lib/services/storage';
+	import { chessRowHeight, maxChessRows } from '$lib/services/render';
 
 	export interface IndexProps {
 		chessList: ChessModel[];
@@ -42,7 +42,7 @@
 			await goto(`play/${data.gameId}`);
 		} else {
 			const message = createMessage(err);
-			addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
+			addNotification({ type: 'string', message, isSuccess: false });
 		}
 	}
 
@@ -123,11 +123,11 @@
 			<button class="button button-grey" id="challenge-button">
 				Find a Match
 			</button>
-			<button class="button button-grey" id="challenge-button">
-				<a href="/sandbox">
+			<a href="/sandbox">
+				<button class="button button-grey" id="challenge-button">
 					Try Sandbox
-				</a>
-			</button>
+				</button>
+			</a>
 			<div class="counts-wrapper">
 				<b> {userCounts} </b> players
 			</div>

@@ -2,131 +2,117 @@
 import Board from '$lib/components/chess/Board.svelte';
 import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
 import type { ChessGame } from '$lib/api/messages';
-import services from '$lib/api/services';
 import { createMoveState } from '$lib/state/move.svelte';
 import { onMount } from 'svelte';
-import Banner from '$lib/components/Banner.svelte';
+import Banner from '$lib/Banner.svelte';
 import {
 	mapHexagonList,
-	handleSelectPiece,
+	getNewSelection,
 	type Selection,
-	handleDeSelectPiece,
-	whitePieces,
-	blackPieces,
-	defaultGame, pieces, mapHexagon
-} from '$lib/utils/chess.js';
+	isMoveValid, NoSelection, moveBoardPiece, setBoardTurn, placeBoardPiece, clearBoard, zeroGame
+} from '$lib/services/chess.js';
 import type { Hex } from '$lib/api/model';
-import { createMessage } from '$lib/utils/error';
-import { getNotificationsContext } from '$lib/utils/context';
+import { getNotificationsContext } from '$lib/services/context';
 import TrashcanIcon from '$lib/components/icons/TrashcanIcon.svelte';
 import RedoIcon from '$lib/components/icons/RedoIcon.svelte';
 import PieceEditor from '$lib/components/chess/PieceEditor.svelte';
+import EditIcon from '$lib/components/icons/EditIcon.svelte';
+import KingIcon from '$lib/components/icons/MoveIcon.svelte';
+import ClipboardIcon from '$lib/components/icons/ClipboardIcon.svelte';
+import { boardToFenDyn, getInitialBoardDyn, makeMoveDyn } from '$lib/services/wasm';
 
 const { addNotification } = getNotificationsContext();
 
-let mode: "EDIT" | "PLAY" = $state("EDIT");
+let boardElement: HTMLElement | undefined = $state(undefined);
+
 let moveState = createMoveState();
+let mode: "EDIT" | "PLAY" = $state("EDIT");
+
+let selection: Selection = $state(NoSelection);
+let hoveringHex: Hex | undefined = $state(undefined);
+let selectedPiece: number | undefined = $state(undefined);
 
 let game: ChessGame | undefined = $state(undefined);
+let fen: string = $state("");
 
-let selection: Selection = $state({ potentialMoves: undefined, hex: undefined });
-
-async function setModePlay() {
-	const [resp, err] = await services.postMakeMove({ board: game?.board });
-	if (resp) {
-		game = resp.game;
-		mode = "PLAY";
-	} else {
-		const message = 'Failed to load board moves: ' + createMessage(err);
-		addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
-	}
-}
-
-function onSelectPiece(next: Hex) {
-	if (!game)
-		return;
-	selection = handleSelectPiece(game, selection, next);
-}
-
-function handleSetBoardTurn(event: Event) {
-	const target = event.target as HTMLSelectElement;
-	const turn = target.value == "WHITE";
-	if (game?.board) {
-		const nextGame = {
-			...defaultGame,
-			board: structuredClone($state.snapshot(game?.board)),
-		};
-		nextGame.board.isWhiteTurn = turn;
-		game = nextGame;
-	}
+function onSelectPiece(hex: Hex) {
+	selection = getNewSelection(game, hex);
 }
 
 function onDeSelectPiece() {
-	selection = handleDeSelectPiece();
+	selection = NoSelection;
 }
 
-function isMoveValid(from: Hex, to: Hex) {
-	if (mode == "EDIT")
-		return true;
-	const currMoves = (game?.board?.isWhiteTurn ?
-		game.whiteMoves :
-		game?.blackMoves)
-		|| [];
-	const pieceMoves = currMoves.find((hex) =>
-		hex.fromFile == from.file && hex.fromRank == from.rank)?.moves || [];
-	const index = pieceMoves.findIndex((hex) => {
-		const mh = mapHexagon(hex);
-		return mh.file == to.file && mh.rank == to.rank
-	});
-	return index >= 0;
+function handleSetBoardTurn(event: Event) {
+	const turn = (event.target as HTMLSelectElement).value == "WHITE";
+	game = setBoardTurn($state.snapshot(game?.board), turn)
 }
-
-function onDropPiece(from: Hex, to: Hex, piece: number) {
-	if (!isMoveValid(from, to))
-		return;
-	if (mode == "EDIT") {
-		const nextGame = {
-			...defaultGame,
-			board: structuredClone($state.snapshot(game?.board)),
-		};
-		if (nextGame?.board) {
-			nextGame.board.file[to.file].pieces[to.rank] = piece;
-			nextGame.board.file[from.file].pieces[from.rank] = pieces.empty;
-		}
-		game = nextGame;
-	} else {
-		(async() => {
-			const [resp, err] = await services.postMakeMove({
-				board: game?.board,
-				move: { piece: piece, fromFile: from.file, fromRank: from.rank, toFile: to.file, toRank: to.rank }
-			});
-			if (resp) {
-				game = resp.game;
-			} else {
-				const message = 'Failed to load board move: ' + createMessage(err);
-				addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
-			}
-		})()
+async function onDropPieceSet(hex: Hex) {
+	if (selectedPiece) {
+		game = placeBoardPiece($state.snapshot(game?.board), hex, selectedPiece);
+		fen = await boardToFenDyn(game?.board);
 	}
 }
 
 function onClickClearBoard() {
-	game = undefined;
+	onDeSelectPiece();
+	game = clearBoard($state.snapshot(game?.board));
+}
+
+async function onCopyFen() {
+	await navigator.clipboard.writeText(fen);
+	addNotification({ type: 'string', message: "Copied to clipboard!", isSuccess: true, duration: 2000 });
+}
+
+async function onPieceMove(from: Hex, to: Hex) {
+	let isValid = true;
+	if (mode == "PLAY") {
+		isValid = isMoveValid(game, from, to);
+	}
+	const isSameHex = from.file == to.file && from.rank == to.rank;
+	if (isSameHex || !isValid) {
+		return;
+	}
+
+	const tempBoard = $state.snapshot(game?.board);
+
+	if (mode == "EDIT") {
+		game = moveBoardPiece(tempBoard, from, to);
+	} else if (mode == "PLAY") {
+		game = await makeMoveDyn(tempBoard, {from, to});
+	}
+	fen = await boardToFenDyn(game?.board);
+
+	onDeSelectPiece();
+}
+
+async function setMode(newMode: 'EDIT' | 'PLAY') {
+	const tempBoard = $state.snapshot(game?.board);
+
+	if (mode == "EDIT") {
+		game = await makeMoveDyn(tempBoard); // noop move, just calculate moves for curr board
+	} else if (mode == "PLAY") {
+		game = zeroGame(tempBoard);
+	}
+
+	selectedPiece = undefined;
+	mode = newMode;
 }
 
 async function loadInitialGame() {
-	const [resp, err] = await services.postMakeMove({});
-	if (resp) {
-		game = resp.game;
-	} else {
-		const message = 'Failed to load initial board: ' + createMessage(err);
-		addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
-	}
+	game = zeroGame(await getInitialBoardDyn());
+	fen = await boardToFenDyn(game.board);
 }
 
 onMount(loadInitialGame);
 
 const draggable = $derived.by(() => mode == "PLAY" ? "turn" : "anyone");
+
+const prevMove = $derived.by(() => {
+	return !game?.moveList || game.moveList.length == 0
+		? undefined
+		: game.moveList[game.moveList.length - 1];
+});
 
 </script>
 <svelte:head>
@@ -136,65 +122,88 @@ const draggable = $derived.by(() => mode == "PLAY" ? "turn" : "anyone");
 <div class="center-vertical-container" style="align-items: stretch;">
 	<Board
 		board={game?.board}
+		bind:boardElement={boardElement}
 		{draggable}
 		isWhitePerspective={moveState.value.isWhitePerspective}
 		potentialMoves={mode === "PLAY" ? mapHexagonList(selection.potentialMoves?.moves) : undefined}
 		selectedHexagon={selection.hex}
+		prevMove={prevMove}
+		bind:hoveringHexagon={hoveringHex}
 		onSelectPiece={onSelectPiece}
 		onDeSelectPiece={onDeSelectPiece}
-		onDropPiece={onDropPiece}
+		onDropPiece={onPieceMove}
+		onSetPiece={onDropPieceSet}
 	/>
 	<div class="side-bar">
-		<div class="sandbox-options-list">
-			<select
-				value={game?.board?.isWhiteTurn ? "WHITE" : "BLACK"}
-				name="player-turn" class="turn-selector"
-				onchange={handleSetBoardTurn}
-				disabled={mode === "PLAY"}
-			>
-				<option value="WHITE">White to Play</option>
-				<option value="BLACK">Black to Play</option>
-			</select>
-			<div class="sandbox-options-switch">
-				<div class="sandbox-options-title">
-					Sandbox Mode
-				</div>
-				<div class="sandbox-options">
-					<button class="sandbox-option-button" onclick={() => mode = "EDIT"} class:sandbox-option-active={mode === "EDIT"}>
-						Edit
-					</button>
-					<button class="sandbox-option-button" onclick={setModePlay} class:sandbox-option-active={mode === "PLAY"}>
-						Play
-					</button>
-				</div>
-			</div>
-		</div>
+		<select
+			class="turn-selector"
+			value={game?.board?.isWhiteTurn ? "WHITE" : "BLACK"}
+			name="player-turn"
+			onchange={handleSetBoardTurn}
+			disabled={mode === "PLAY"}
+		>
+			<option value="WHITE">White to Play</option>
+			<option value="BLACK">Black to Play</option>
+		</select>
 		<div class="piece-panels-container">
-			<PieceEditor pieces={whitePieces}/>
-			<PieceEditor pieces={blackPieces}/>
+			<PieceEditor
+				isWhitePerspective={moveState.value.isWhitePerspective}
+				bind:selectedPiece={selectedPiece}
+				bind:boardElement={boardElement}
+				bind:hoveringHexagon={hoveringHex}
+				onDropPiece={onDropPieceSet}
+				isDisabled={mode === "PLAY"}
+			/>
 		</div>
 		<div style:margin-top="10px"></div>
-		<button class="button-transparent side-bar-button" style:padding-top="5px" onclick={moveState.flip}>
+		{#if mode === "PLAY" }
+			<button class="button-transparent side-bar-button"  onclick={() => setMode("EDIT")}>
+				<EditIcon />
+				<span class="button-text">
+					Edit Board
+				</span>
+			</button>
+		{:else}
+			<button class="button-transparent side-bar-button" onclick={() => setMode("PLAY")}>
+				<KingIcon />
+				<span class="button-text">
+					Make Moves
+				</span>
+			</button>
+		{/if}
+		<button class="button-transparent side-bar-button" onclick={moveState.flip}>
 			<FlipIcon />
-			<span>
+			<span class="button-text">
 				Flip Board
 			</span>
 		</button>
-		<button class="button-transparent side-bar-button" style:padding-top="5px" onclick={loadInitialGame}>
+		<button class="button-transparent side-bar-button" onclick={loadInitialGame}>
 			<RedoIcon />
-			<span>
+			<span class="button-text">
 				Reset Board
 			</span>
 		</button>
-		<button class="button-transparent side-bar-button" style:padding-top="5px" onclick={onClickClearBoard}>
+		<button class="button-transparent side-bar-button" onclick={onClickClearBoard}>
 			<TrashcanIcon />
-			<span>
+			<span class="button-text">
 				Clear Board
+			</span>
+		</button>
+		<button class="button-transparent side-bar-button" onclick={onCopyFen}>
+			<ClipboardIcon />
+			<span class="button-text">
+				Copy FEN
 			</span>
 		</button>
 	</div>
 </div>
 <style>
+	.button-text {
+        user-select: none;
+        -moz-user-select: none;
+        -webkit-user-select: none;
+	}
+
 	.turn-selector {
         min-width: 165px;
 		max-width: 165px;
@@ -203,7 +212,7 @@ const draggable = $derived.by(() => mode == "PLAY" ? "turn" : "anyone");
         margin: 0 0 10px;
     }
 
-	.piece-panels-container {
+    .piece-panels-container {
 		display: flex;
 		flex-direction: row;
 		gap: 10px;
@@ -211,7 +220,7 @@ const draggable = $derived.by(() => mode == "PLAY" ? "turn" : "anyone");
 	}
 
 	.side-bar {
-		width: 165px;
+		width: 140px;
 	}
 
 	.side-bar-button {
@@ -220,49 +229,5 @@ const draggable = $derived.by(() => mode == "PLAY" ? "turn" : "anyone");
         align-items: center;
         gap: 10px;
 		width: calc(100% - 15px);
-	}
-
-	.sandbox-options-switch {
-		height: 75px;
-	}
-
-	.sandbox-options-list {
-		margin-top: 10px;
-		margin-bottom: 10px;
-	}
-
-	.sandbox-options-title {
-		font-size: 14px;
-		padding: 1px;
-	}
-
-	.sandbox-options {
-        margin: 5px auto;
-        display: flex;
-        flex-direction: row;
-		border-radius: 5px;
-		border: 2px rgb(80, 80, 80) solid;
-	}
-
-	.sandbox-option-button {
-		background-color: rgb(0, 0, 0, 0);
-
-		border: none;
-		color: #B4B4B4;
-		padding: 8px;
-		flex: 0.5;
-		cursor: pointer;
-	}
-
-	.sandbox-options > button:first-child {
-        padding-left: 12px;
-	}
-
-	.sandbox-options > button:last-child {
-        padding-right: 12px;
-	}
-
-	.sandbox-option-active {
-        background-color: rgb(80, 80, 80);
 	}
 </style>

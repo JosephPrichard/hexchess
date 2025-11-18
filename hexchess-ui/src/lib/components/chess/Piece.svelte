@@ -1,22 +1,26 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { hexHeight, hexWidth } from '$lib/utils/render';
-	import { piecenames } from '$lib/utils/chess';
+	import { hexHeight, hexWidth } from '../../services/render';
+	import { piecenames } from '../../services/chess';
+	import { type SelectEvent, selectEvents } from '../../globals';
 
 	export interface PieceProps {
 		piece: number;
 		isSelected?: boolean;
+		isAnnotatable?: boolean;
 		isDraggable?: boolean;
-		isBgTransparent?: boolean;
+		isTransparent?: boolean;
 		initialLeft: number;
 		initialTop: number;
+		onSelectHexagon?: (key: SelectEvent) => void;
 		onSelectPiece?: () => void;
 		onDeSelectPiece?: () => void;
 		onDragPiece?: (x: number, y: number) => void;
-		onDropPiece?: (x: number, y: number, piece: number) => void;
+		onDropPiece?: (x: number, y: number) => void;
 	}
 
-	const { piece, isSelected, isDraggable, isBgTransparent, initialTop, initialLeft, onSelectPiece, onDeSelectPiece, onDragPiece, onDropPiece }: PieceProps = $props();
+	let { piece, isSelected, isAnnotatable, isDraggable, isTransparent, initialTop, initialLeft,
+		onSelectHexagon, onSelectPiece, onDeSelectPiece, onDragPiece, onDropPiece }: PieceProps = $props();
 
 	let element: HTMLDivElement | undefined;
 
@@ -35,8 +39,16 @@
 
 	function onMouseDown(e: MouseEvent) {
 		e.preventDefault();
-		if (!element || e.button != 0) {
+		if (!element || selectEvents[e.button] === undefined) {
 			return
+		}
+
+		if (onSelectHexagon) {
+			onSelectHexagon(selectEvents[e.button]);
+		}
+		if (e.button == 2) {
+			// mouse right click is already used for annotations, so prevent drag
+			return;
 		}
 
 		if (!isDraggable) {
@@ -87,7 +99,7 @@
 			dragging = false;
 			xOff = initialLeft;
 			yOff = initialTop;
-			onDropPiece?.(e.clientX, e.clientY, piece);
+			onDropPiece?.(e.clientX, e.clientY);
 		}
 	}
 
@@ -100,7 +112,9 @@
 
 	function onRightClick(e: MouseEvent) {
 		e.preventDefault();
-		isAnnotated = !isAnnotated;
+		if (isAnnotatable) {
+			isAnnotated = !isAnnotated;
+		}
 	}
 
 	onMount(() => {
@@ -136,7 +150,7 @@
 >
 	<img
 		class="piece-img-inner"
-		style:opacity={isBgTransparent ? "0.4" : 1}
+		style:opacity={isTransparent ? "0.4" : 1}
 		src="/pieces/{piecenames[piece]}.png"
 		alt=""
 		draggable={false}

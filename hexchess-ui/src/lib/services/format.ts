@@ -1,4 +1,4 @@
-import type { TimeControl } from '$lib/api/model';
+import type { TimeControl } from '../api/model';
 
 export function getResultClasses(result: number) {
 	switch (result) {

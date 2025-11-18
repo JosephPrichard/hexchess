@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { getWinrateClass } from '$lib/utils/format';
-	import type { UserModel } from '$lib/api/model';
+	import { getWinrateClass } from '../../services/format';
+	import type { UserModel } from '../../api/model';
 
 	interface Props {
 		userList: UserModel[];

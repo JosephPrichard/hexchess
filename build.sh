@@ -1,0 +1,5 @@
+(cd hexchess-svc && sqlc generate)
+(cd hexchess-svc && protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./pb/messages.proto)
+(cd hexchess-svc/cmd/wasm && GOOS=js GOARCH=wasm go build -o chess.wasm)
+(cp hexchess-svc/cmd/wasm/chess.wasm hexchess-ui/static/wasm/chess.wasm)
+(cd hexchess-ui && npm run protogen)

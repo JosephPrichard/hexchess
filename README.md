@@ -11,23 +11,17 @@ Starts the redis infrastructure used for caching and message delivery.
 
 ## Build & Execution (Local)
 
-### Compile Server
+### Compile
 
-`$ cd hexchess-svc`
-
-`$ sqlc generate`
-
-`$ protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative ./hexchess-pb/messages.proto`
-
-### Compile UI
-
-`$ cd hexchess-ui`
-
-`$ npm run protogen`
+Run `build.sh` contained in the root directory. 
+This will run `sqlc` to generate the Go DB client, 
+    `protoc` to generate the Go serializers, 
+    `npm run protogen` to generate the TypeScript serializers,
+    and `go build` to generate WASM artifacts for the UI.
 
 ### Env Variables
 
-Create an environment variables file in `hexchess-svc`
+Create an environment variable file in `hexchess-svc`
 ```
 SERVER_PORT=8081
 PPROF_PORT=6060

@@ -1,4 +1,4 @@
-import type { ServiceModel } from '$lib/api/model';
+import type { ServiceModel } from '../api/model';
 
 export const codes = {
 	// HTTP codes

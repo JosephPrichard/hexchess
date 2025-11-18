@@ -1,11 +1,11 @@
 <script lang="ts">
-	import Banner from '$lib/components/Banner.svelte';
+	import Banner from '$lib/Banner.svelte';
 	import Board from '$lib/components/chess/Board.svelte';
 	import RightIcon from '$lib/components/icons/RightIcon.svelte';
 	import LeftIcon from '$lib/components/icons/LeftIcon.svelte';
 	import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
-	import { createMessage } from '$lib/utils/error';
-	import { getNotificationsContext } from '$lib/utils/context';
+	import { createMessage } from '$lib/services/error';
+	import { getNotificationsContext } from '$lib/services/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import ReplayPanel from '$lib/components/user/ReplayPanel.svelte';
 	import { type ChessBoard, type MoveStep, type PieceMove } from '$lib/api/messages';
@@ -34,7 +34,7 @@
 			initialBoard = data.initialBoard;
 		} else {
 			const message = 'Failed to load replay move list: ' + createMessage(err);
-			addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
+			addNotification({ type: 'string', message, isSuccess: false });
 		}
 	}
 

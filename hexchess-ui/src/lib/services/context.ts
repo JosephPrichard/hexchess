@@ -1,10 +1,10 @@
 import { getContext, setContext } from 'svelte';
-import type { ChallengeModel } from '$lib/api/model';
+import type { ChallengeModel } from '../api/model';
 import type { Writable } from 'svelte/store';
 
 export interface NotificationValue {
 	isSuccess: boolean;
-	duration: number;
+	duration?: number;
 }
 
 type TextValue = NotificationValue & {

@@ -36,7 +36,7 @@ func insertReplay(ctx context.Context, q *db.Queries, r data.ReplayInst) error {
 		util.LogFatalErr("failed to generate random move list", err)
 	}
 
-	moveHistBytes, err := data.MarshalMoveHistory(chess.InitialBoard(), moveList)
+	moveHistBytes, err := chess.MarshalMoveHistory(chess.InitialBoard(), moveList)
 	if err != nil {
 		return fmt.Errorf("failed to marshal move list: %w", err)
 	}

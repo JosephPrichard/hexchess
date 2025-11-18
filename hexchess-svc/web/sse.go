@@ -11,9 +11,9 @@ import (
 	"time"
 )
 
-type SseHandler = func(w http.ResponseWriter, r *http.Request, f http.Flusher, state ServerState) error
+type SseHandler = func(state *ServerState, w http.ResponseWriter, r *http.Request, f http.Flusher) error
 
-func makeSseHandler(state ServerState, h SseHandler) http.Handler {
+func makeSseHandler(state *ServerState, h SseHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		slog.InfoContext(r.Context(), "received sse request", "method", r.Method, "url", r.URL)
 
@@ -26,7 +26,7 @@ func makeSseHandler(state ServerState, h SseHandler) http.Handler {
 			http.Error(w, "streaming is unsupported", http.StatusInternalServerError)
 			return
 		}
-		if err := h(w, r, f, state); err != nil {
+		if err := h(state, w, r, f); err != nil {
 			slog.ErrorContext(r.Context(), "sse request failed", "method", r.Method, "url", r.URL, "error", err)
 			http.Error(w, fmt.Sprintf("%s: internal server error", MetaEvent), http.StatusInternalServerError)
 			f.Flush()
@@ -69,7 +69,7 @@ func makeCountEvent(count int64, sseID string) string {
 	return string(b)
 }
 
-func makePingTicker(ctx context.Context, state ServerState, sseID string) chan struct{} {
+func makePingTicker(ctx context.Context, state *ServerState, sseID string) chan struct{} {
 	ctx = context.WithoutCancel(ctx)
 	stopPingChan := make(chan struct{})
 	go func() {
@@ -89,7 +89,7 @@ func makePingTicker(ctx context.Context, state ServerState, sseID string) chan s
 	return stopPingChan
 }
 
-func HandleCountEvents(w http.ResponseWriter, r *http.Request, f http.Flusher, state ServerState) error {
+func HandleCountEvents(state *ServerState, w http.ResponseWriter, r *http.Request, f http.Flusher) error {
 	ctx := r.Context()
 	sseID := state.MakeID()
 	clientGone := ctx.Done()
@@ -150,7 +150,7 @@ func HandleCountEvents(w http.ResponseWriter, r *http.Request, f http.Flusher, s
 	}
 }
 
-func HandleUserEvents(w http.ResponseWriter, r *http.Request, f http.Flusher, state ServerState) error {
+func HandleUserEvents(state *ServerState, w http.ResponseWriter, r *http.Request, f http.Flusher) error {
 	ctx := r.Context()
 	sseID := state.MakeID()
 	clientGone := ctx.Done()

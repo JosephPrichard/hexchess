@@ -1,9 +1,9 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { createMessage } from '$lib/utils/error';
+import { createMessage } from '$lib/services/error';
 import services from '$lib/api/services';
 import type { IndexProps } from './+page.svelte';
-import { maxChessRows } from '$lib/utils/render';
+import { maxChessRows } from '$lib/services/render';
 
 export const load: PageServerLoad = async ({ url, fetch }): Promise<IndexProps> => {
 	const page = Number(url.searchParams.get('page') || 1);

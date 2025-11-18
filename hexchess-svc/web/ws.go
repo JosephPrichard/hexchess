@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
+	"hexchess-svc/chess"
 	"hexchess-svc/data"
 	"hexchess-svc/pb"
 	"log/slog"
@@ -19,13 +20,13 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-type GameplayState struct {
+type GameSocketState struct {
 	ServerState
 	gameID string
 	player data.PlayerState
 }
 
-func writeConn(b []byte, conn *websocket.Conn, ctx context.Context) {
+func writeConn(ctx context.Context, conn *websocket.Conn, b []byte) {
 	if b == nil {
 		// a nil message is a "no-op", the caller does not need to check for errors
 		return
@@ -35,51 +36,49 @@ func writeConn(b []byte, conn *websocket.Conn, ctx context.Context) {
 	}
 }
 
-func HandleGameplayWs(w http.ResponseWriter, r *http.Request, ss ServerState) {
+func writeInitErr(ctx context.Context, conn *websocket.Conn, gameID string, err error) {
+	err = MapWsInitErr(err)
+	slog.ErrorContext(ctx, "failed io initialize game ws", "err", err, "wsErr", err)
+	writeConn(ctx, conn, makeErrMsg(ctx, gameID, err))
+}
+
+func HandleGameWs(w http.ResponseWriter, r *http.Request, ss ServerState) {
 	ctx := r.Context()
 	gameID := r.URL.Query().Get("id")
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		// writing the websocket error response and code is handled in the upgrade fn
+		// writing the websocket upgrade error response and code is handled in the upgrade fn
 		return
 	}
 	defer conn.Close()
 
-	write := func(b []byte) {
-		writeConn(b, conn, ctx)
-	}
-	writeInitErr := func(err error) {
-		err = MapWsInitErr(err)
-		slog.ErrorContext(ctx, "failed io initialize gameplay ws", "err", err, "wsErr", err)
-		b := makeErrMsg(ctx, gameID, err)
-		write(b)
-	}
-
 	player, _, err := GetSessionPlayer(ctx, ss.Rdb, r)
 	if err != nil {
-		writeInitErr(err)
+		writeInitErr(ctx, conn, gameID, err)
 		return
 	}
 	cs, err := data.JoinGame(ctx, ss.Rdb, gameID, player)
 	if err != nil {
-		writeInitErr(err)
+		writeInitErr(ctx, conn, gameID, err)
 		return
 	}
-	if err := handleInit(gameID, player, cs, write); err != nil {
+	if err := handleInit(gameID, player, cs, func(b []byte) {
+		writeConn(ctx, conn, b)
+	}); err != nil {
 		// callee is responsible for writing to the client, we just log in the caller
 		slog.ErrorContext(ctx, "failed to handle game init", "err", err)
 		return
 	}
 
-	state := GameplayState{ServerState: ss, gameID: gameID, player: player}
+	state := GameSocketState{ServerState: ss, gameID: gameID, player: player}
 
 	writeChan := make(chan []byte)
 	state.GamesCaster.Subscribe(state.gameID, writeChan)
 
 	go func() {
 		for b := range writeChan {
-			write(b)
+			writeConn(ctx, conn, b)
 		}
 	}()
 
@@ -146,7 +145,7 @@ func handleInit(gameID string, player data.PlayerState, state data.ChessState, w
 	return nil
 }
 
-func handleMessage(ctx context.Context, gp GameplayState, msg []byte, writeChan chan []byte) {
+func handleMessage(ctx context.Context, gp GameSocketState, msg []byte, writeChan chan []byte) {
 	writeErr := func(err error) {
 		err = MapWsEventErr(err)
 		slog.ErrorContext(ctx, "error occurred while handling ws message", "err", err, "wsErr", err)
@@ -175,7 +174,7 @@ func handleMessage(ctx context.Context, gp GameplayState, msg []byte, writeChan 
 	}
 }
 
-func handleForfeitMsg(ctx context.Context, gp GameplayState) error {
+func handleForfeitMsg(ctx context.Context, gp GameSocketState) error {
 	if err := data.ForfeitGame(ctx, gp.Stores, gp.gameID, gp.player); err != nil {
 		return err
 	}
@@ -189,19 +188,19 @@ func handleForfeitMsg(ctx context.Context, gp GameplayState) error {
 	return data.BroadcastMessage(ctx, gp.Rdb, gp.Rdb.GamesChan, b)
 }
 
-func handleMoveMsg(ctx context.Context, gp GameplayState, pbInput *pb.MoveInput) error {
-	mr, err := data.MakeGameMove(ctx, gp.Stores, gp.gameID, gp.player, data.MapPieceMove(pbInput.Move))
+func handleMoveMsg(ctx context.Context, gp GameSocketState, pbInput *pb.MoveInput) error {
+	mr, err := data.MakeGameMove(ctx, gp.Stores, gp.gameID, gp.player, chess.MapPieceMove(pbInput.Move))
 	if err != nil {
 		return err
 	}
-	pbGame, err := data.MapPbGame(mr.Room.Game)
+	pbGame, err := chess.MapPbGame(mr.Room.Game)
 	if err != nil {
 		return err
 	}
 	b, err := proto.Marshal(&pb.GameOutput{
 		GameId: gp.gameID,
 		Value: &pb.GameOutput_Move{Move: &pb.MoveOutput{
-			PieceMove: data.MapPbPieceMove(mr.Move),
+			PieceMove: chess.MapPbPieceMove(mr.Move),
 			Game:      pbGame,
 		}},
 	})
@@ -211,7 +210,7 @@ func handleMoveMsg(ctx context.Context, gp GameplayState, pbInput *pb.MoveInput)
 	return data.BroadcastMessage(ctx, gp.Rdb, gp.Rdb.GamesChan, b)
 }
 
-func handleChatMsg(ctx context.Context, gp GameplayState, pbInput *pb.ChatInput) error {
+func handleChatMsg(ctx context.Context, gp GameSocketState, pbInput *pb.ChatInput) error {
 	b, err := proto.Marshal(&pb.GameOutput{
 		GameId: gp.gameID,
 		Value: &pb.GameOutput_Chat{Chat: &pb.ChatOutput{

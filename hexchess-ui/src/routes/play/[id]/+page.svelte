@@ -1,20 +1,20 @@
 <script lang="ts">
-	import Banner from '$lib/components/Banner.svelte';
+	import Banner from '$lib/Banner.svelte';
 	import services, { appBaseURL, baseURL } from '$lib/api/services';
-	import { createMessage } from '$lib/utils/error';
-	import { getNotificationsContext } from '$lib/utils/context';
+	import { createMessage } from '$lib/services/error';
+	import { getNotificationsContext } from '$lib/services/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import Board from '$lib/components/chess/Board.svelte';
-	import { formatTimer } from '$lib/utils/format';
+	import { formatTimer } from '$lib/services/format';
 	import ClipboardIcon from '$lib/components/icons/ClipboardIcon.svelte';
 	import FlagIcon from '$lib/components/icons/FlagIcon.svelte';
 	import SettingsIcon from '$lib/components/icons/SettingsIcon.svelte';
 	import UndoIcon from '$lib/components/icons/UndoIcon.svelte';
 	import PieceList from '$lib/components/chess/PieceList.svelte';
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
-	import { type ChessGame, GameOutput, type PieceMove, type PieceMoves, type PlayerState } from '$lib/api/messages';
+	import { type ChessGame, GameOutput, type PlayerState } from '$lib/api/messages';
 	import type { Hex } from '$lib/api/model';
-	import { mapHexagonList, handleSelectPiece, type Selection } from '$lib/utils/chess';
+	import { mapHexagonList, getNewSelection, type Selection } from '$lib/services/chess';
 
 	export interface PlayProps {
 		gameId: string
@@ -53,11 +53,8 @@
 
 	function onClickSettings() {}
 
-	function onSelectPiece(next: Hex) {
-		if (!game) {
-			return;
-		}
-		selection = handleSelectPiece(game, selection, next);
+	function onSelectPiece(hex: Hex) {
+		selection = getNewSelection(game, hex);
 	}
 
 	function handleMessage(data: GameOutput) {
@@ -86,7 +83,7 @@
 		} else if (kind === 'error') {
 			const error = data.value.error;
 			const message = createMessage(error.message);
-			addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
+			addNotification({ type: 'string', message, isSuccess: false });
 		}
 	}
 
@@ -119,7 +116,7 @@
 				});
 			} else {
 				const message = createMessage(err);
-				addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
+				addNotification({ type: 'string', message, isSuccess: false });
 			}
 		};
 		setTimeout(tryConnect, timeout);
@@ -207,7 +204,9 @@
 							{link}
 						</span>
 						<button class="svg-container invisible-button copy-button" onclick={onClickCopy}>
-							<ClipboardIcon/>
+							<span style:margin-left="auto">
+								<ClipboardIcon/>
+							</span>
 						</button>
 					</span>
 				</div>

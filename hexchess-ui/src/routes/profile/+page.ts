@@ -1,6 +1,6 @@
 import type { PageLoad } from './$types';
 import type { ProfileProps } from './+page.svelte';
-import { createMessage } from '$lib/utils/error';
+import { createMessage } from '$lib/services/error';
 import { error } from '@sveltejs/kit';
 import services from '$lib/api/services';
 

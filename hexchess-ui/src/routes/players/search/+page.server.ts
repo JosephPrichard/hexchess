@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types';
 import { error } from '@sveltejs/kit';
 import services from '$lib/api/services';
-import { codes, createMessage } from '$lib/utils/error';
+import { codes, createMessage } from '$lib/services/error';
 import type { SearchProps } from './+page.svelte';
 
 export const load: PageServerLoad = async ({ url, setHeaders, fetch }): Promise<SearchProps> => {

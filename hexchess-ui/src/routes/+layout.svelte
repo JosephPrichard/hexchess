@@ -1,10 +1,9 @@
 <script lang="ts">
 	import '../css/index.css';
 	import type { LayoutProps } from '../../.svelte-kit/types/src/routes/$types';
-	import { type NotificationData, setNotificationsContext } from '$lib/utils/context';
+	import { type NotificationData, setNotificationsContext } from '$lib/services/context';
 	import { onMount } from 'svelte';
-	import { createMessage } from '$lib/utils/error';
-	import { clearClientSession, updateClientSession } from '$lib/utils/storage';
+	import { clearClientSession, updateClientSession } from '$lib/services/storage';
 	import services, { baseURL } from '$lib/api/services';
 	import type { ChallengeModel } from '$lib/api/model';
 	import { writable } from 'svelte/store';
@@ -32,7 +31,7 @@
 	function addNotification(data: NotificationData) {
 		const i = index++;
 		notifications[i] = data;
-		timeouts[i] = setTimeout(() => deleteNotification(i), data.duration);
+		timeouts[i] = setTimeout(() => deleteNotification(i), data.duration || 3000);
 	}
 
 	function connectUserEvents() {
@@ -46,7 +45,7 @@
 		userSse.addEventListener('userEvents', (event) => {
 			console.log('Sse: /events/user userEvents', event.data);
 			const data: ChallengeModel = JSON.parse(event.data);
-			addNotification({ type: 'challenge', message: data, isSuccess: true, duration: 150000 });
+			addNotification({ type: 'challenge', message: data, isSuccess: true });
 		});
 	}
 

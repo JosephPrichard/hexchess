@@ -1,58 +1,58 @@
 <script lang="ts">
-	import type { ChessBoard } from '$lib/api/messages';
-	import Piece from '$lib/components/chess/Piece.svelte';
-	import type { Hex } from '$lib/api/model';
-	import { defaultBoard, isBlack, isWhite, pieces, ranksPerFile } from '$lib/utils/chess';
-	import { getLeft, getTop, hexHeight, hexWidth, hoveringColor, selectedColor, colors, colorsOffset, getFile, getRank } from '$lib/utils/render';
+	import type { ChessBoard, PieceMove } from '../../api/messages';
+	import Piece from './Piece.svelte';
+	import type { Hex } from '../../api/model';
+	import { defaultBoard, isBlack, isWhite, pieces } from '../../services/chess';
+	import { getLeft, getTop, hexHeight, hexWidth, selectedColor, colors, colorsOffset, findHex, highlightedColor, hoveringColor } from '../../services/render';
 
 	export interface BoardProps {
 		board?: ChessBoard;
+		boardElement?: HTMLElement;
 		draggable?: "turn" | "anyone" | "none";
 		isWhitePerspective: boolean;
+		hoveringHexagon?: Hex;
 		selectedHexagon?: Hex;
+		prevMove?: PieceMove;
 		potentialMoves?: Hex[];
 		onSelectPiece?: (hex: Hex) => void;
 		onDeSelectPiece?: (hex: Hex) => void;
-		onDropPiece?: (from: Hex, to: Hex, piece: number) => void;
+		onDropPiece?: (from: Hex, to: Hex) => void;
+		onSetPiece?: (hex: Hex) => void;
 	}
 
-	let element: HTMLDivElement | undefined;
+	let { board, isWhitePerspective, boardElement = $bindable(), draggable,
+		selectedHexagon, prevMove, hoveringHexagon = $bindable(), potentialMoves,
+		onSelectPiece, onDeSelectPiece, onDropPiece, onSetPiece }: BoardProps = $props();
 
-	const { board, draggable, isWhitePerspective, selectedHexagon, potentialMoves, onSelectPiece, onDeSelectPiece, onDropPiece }: BoardProps = $props();
-
-	let hoveringHexagon: Hex | undefined = $state(undefined);
-
-	function onSelectBoardPiece(hex: Hex) {
-		onSelectPiece?.(hex);
-	}
-
-	function onDeSelectBoardPiece(hex: Hex) {
-		onDeSelectPiece?.(hex);
-	}
-
-	function getHex(x: number, y: number) {
-		if (!element) {
-			return;
-		}
-		const rect = element.getBoundingClientRect();
-		const file = getFile(x - rect.left);
-		const rank = getRank(y - rect.top, file, isWhitePerspective);
-		if (file < 0 || file > ranksPerFile.length || rank < 0 || rank > ranksPerFile[file]) {
-			return;
-		}
-		return { file: file, rank: rank };
+	function onDragBoardPiece(x: number, y: number) {
+		hoveringHexagon = findHex(boardElement, isWhitePerspective, x, y);
 	}
 
 	function onDropBoardPiece(from: Hex, x: number, y: number, piece: number) {
 		hoveringHexagon = undefined;
-		const hex = getHex(x, y);
-		if (hex) {
-			onDropPiece?.(from, hex, piece);
+		const hex = findHex(boardElement, isWhitePerspective, x, y);
+		if (!hex)
+			return
+		if (draggable === "anyone" ||
+			draggable === "turn" && isWhite(piece) && board?.isWhiteTurn ||
+			draggable === "turn" && isBlack(piece) && !board?.isWhiteTurn
+		) {
+			onDropPiece?.(from, hex);
 		}
 	}
 
-	function onDragBoardPiece(x: number, y: number) {
-		hoveringHexagon = getHex(x, y);
+	function onClickHexagon(file: number, rank: number) {
+		if (selectedHexagon) {
+			// the selected hexagon move takes priority
+			onDropPiece?.(selectedHexagon, {file, rank});
+		} else {
+			// defaults to just "setting" a piece from an external editor, no-ops if that is not provided
+			onSetPiece?.({file, rank});
+		}
+	}
+
+	function makeMoveKey(file: number, rank: number) {
+		return file + "," + rank;
 	}
 
 	const potentialMovesMap = $derived.by(() => {
@@ -61,7 +61,7 @@
 		}
 		const potentialMovesMap: Record<string, boolean> = {};
 		for (const move of potentialMoves) {
-			potentialMovesMap[move.file + "," + move.rank] = true;
+			potentialMovesMap[makeMoveKey(move.file, move.rank)] = true;
 		}
 		return potentialMovesMap;
 	});
@@ -69,20 +69,32 @@
 	const actualBoard = $derived.by(() => board ? board : defaultBoard)
 </script>
 
-<div bind:this={element} class="board" style="width: {11 * hexHeight}px; height: {11 * hexHeight}px;">
+<div bind:this={boardElement} class="board" style="width: {11 * hexHeight}px; height: {11 * hexHeight}px;">
 	{#each actualBoard.file as piecesFile, file (file)}
 		{#each piecesFile.pieces as piece, rank (rank)}
 			{@const top = getTop(file, rank, isWhitePerspective)}
 			{@const left = getLeft(file)}
 			{@const bgIndex = (colorsOffset[file] + rank) % 3}
-			{@const isMove = potentialMovesMap[file + "," + rank]}
+			{@const isPrevMove =
+				(prevMove?.fromFile === file && prevMove?.fromRank === rank) ||
+				(prevMove?.toFile === file && prevMove?.toRank === rank)}
+			{@const isMoveTarget = potentialMovesMap[makeMoveKey(file, rank)]}
 			{@const isSelected = selectedHexagon?.file === file && selectedHexagon?.rank === rank}
 			{@const isHovering = hoveringHexagon?.file === file && hoveringHexagon?.rank === rank}
 			{@const isDraggable =
 				draggable !== "none" &&
-				(draggable === "anyone" ||
-				(draggable === "turn" && isWhite(piece) && board?.isWhiteTurn) ||
-				(draggable === "turn" && isBlack(piece) && !board?.isWhiteTurn))}
+				(draggable === "anyone" || (draggable === "turn"))}
+			{@const bgColor = function() {
+				if (isPrevMove) {
+					return highlightedColor
+				} else if (isSelected) {
+					return selectedColor
+				} else if (isMoveTarget && isHovering) {
+					return hoveringColor
+				} else {
+					return 'transparent';
+				}
+			}()}
 			<div
 				class="hexagon"
 				role="cell"
@@ -95,45 +107,40 @@
 			></div>
 			<div
 				class="hexagon"
-				role="cell"
+				role="button"
 				tabindex="0"
 				style:top="{top}px"
 				style:left="{left}px"
 				style:width="{hexWidth}px"
 				style:height="{hexHeight}px"
-				style:background-color={function(){
-					if (isSelected) {
-						return selectedColor
-					} else if (isHovering) {
-						return hoveringColor
-					} else {
-						return 'transparent';
-					}
-				}()}
+				style:background-color={bgColor}
 				oncontextmenu={e => e.preventDefault()}
+				onmousedown={() => onClickHexagon(file, rank)}
 			>
 				{#if piece !== pieces.empty}
-					{#if isMove && !isHovering}
+					{#if isMoveTarget && !isHovering}
 						<div class="move-circle" style:border-color={selectedColor}></div>
 					{/if}
 				{:else}
-					{#if isMove && !isHovering}
+					{#if isMoveTarget && !isHovering}
 						<div class="move-dot" style:background-color={selectedColor}></div>
 					{/if}
 				{/if}
 			</div>
 			{#if piece !== pieces.empty}
 				<Piece
-					{isSelected}
-					isBgTransparent
+					isSelected={isSelected}
+					isTransparent
+					isAnnotatable
 					isDraggable={isDraggable}
 					initialLeft={left}
 					initialTop={top}
 					piece={piece}
-					onSelectPiece={() => onSelectBoardPiece({ file, rank })}
-					onDeSelectPiece={() => onDeSelectBoardPiece({ file, rank })}
+					onSelectHexagon={isMoveTarget ? () => onClickHexagon(file, rank) : undefined}
+					onSelectPiece={() => onSelectPiece?.({ file, rank })}
+					onDeSelectPiece={() => onDeSelectPiece?.({ file, rank })}
 					onDragPiece={onDragBoardPiece}
-					onDropPiece={(x, y, piece) => onDropBoardPiece({ file, rank }, x, y, piece)}
+					onDropPiece={(x, y) => onDropBoardPiece({ file, rank }, x, y, piece)}
 				/>
 			{/if}
 		{/each}
@@ -156,7 +163,6 @@
         justify-content: center;
         user-select: none;
         -moz-user-select: none;
-        -khtml-user-select: none;
         -webkit-user-select: none;
     }
 

@@ -1,8 +1,8 @@
-import { codes } from '$lib/utils/error';
-import type { Action, ChallengeModel, ChessModel, ReplayModel, ServiceModel, SessionModel, UserModel, FullUserModel } from '$lib/api/model';
+import { codes } from '../services/error';
+import type { Action, ChallengeModel, ChessModel, ReplayModel, ServiceModel, SessionModel, UserModel, FullUserModel } from './model';
 import { v4 as uuidv4 } from 'uuid';
 import { env } from '$env/dynamic/public';
-import { MakeMoveBody, MakeMoveResp, MoveHistory } from '$lib/api/messages';
+import { MoveHistory } from './messages';
 
 export function appBaseURL() {
 	return env.PUBLIC_APP_BASE_URL || 'http://localhost:5173';
@@ -261,19 +261,6 @@ function getChessRooms(count: number, page?: number, fetch?: FetchFn) {
 	return requestJSON<Response>(`${baseURL()}/chess/rooms?${params}`, { method: 'GET' }, fetch);
 }
 
-async function postMakeMove(body: MakeMoveBody): Promise<Result<MakeMoveResp>> {
-	const [buf, error] = await requestBuf(`${baseURL()}/make-move`, {
-		method: 'POST',
-		body: MakeMoveBody.toBinary(body),
-	});
-	if (buf) {
-		const resp = MakeMoveResp.fromBinary(new Uint8Array(buf));
-		return [resp, error];
-	} else {
-		return [undefined, error];
-	}
-}
-
 const getCountries = cached(async (fetch?: FetchFn) => {
 	return requestJSON<string[]>(`${baseURL()}/countries`, { method: 'GET' }, fetch);
 });
@@ -298,6 +285,5 @@ export default {
 	getReplay,
 	getReplayMoveHistory,
 	getChessRooms,
-	postMakeMove,
 	getCountries,
 };

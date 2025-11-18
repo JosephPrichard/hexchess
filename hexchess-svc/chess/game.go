@@ -32,26 +32,16 @@ type Move struct {
 }
 
 func MakeStartGame(initial ...Move) Game {
-	game := Game{Board: InitialBoard()}
-	for _, pm := range initial {
-		game.SetPiece(pm.Not, pm.Piece)
-	}
-	return game
+	return Game{Board: MakeStartBoard(initial...)}
 }
 
 func MakeEmptyGame(initial ...Move) Game {
-	game := Game{Board: Board{IsWhiteTurn: true}}
-	for _, pm := range initial {
-		game.SetPiece(pm.Not, pm.Piece)
-	}
-	return game
+	return Game{Board: MakeEmptyBoard(initial...)}
 }
 
-func (pms *PieceMoves) DeepCopy() PieceMoves {
-	return PieceMoves{
-		Piece: pms.Piece,
-		From:  pms.From,
-		Moves: append([]Hex{}, pms.Moves...),
+func (g *Game) SetPieces(initial ...Move) {
+	for _, move := range initial {
+		g.Board.SetPieceNot(move.Not, move.Piece)
 	}
 }
 
@@ -76,17 +66,6 @@ func (g *Game) ClearTables() {
 	g.BlackAttackTable = [Files][MaxRanks]bool{}
 	g.WhiteAttackTable = [Files][MaxRanks]bool{}
 	g.PinTable = [Files][MaxRanks][]Hex{}
-}
-
-func (g *Game) SetPiece(str string, p Piece) {
-	hex := ParseHexagonValid(str)
-	g.Board.Set(hex.File, hex.Rank, p)
-}
-
-func (g *Game) SetPieces(placements ...Move) {
-	for _, placement := range placements {
-		g.SetPiece(placement.Not, placement.Piece)
-	}
 }
 
 func (g *Game) GetTurnMoves(isWhiteTurn bool) []PieceMoves {
@@ -154,7 +133,7 @@ func (g *Game) MakeMove(from, to Hex) PieceMove {
 func (g *Game) GetMoveNotation(move PieceMove) string {
 	var sb strings.Builder
 
-	sb.WriteRune(move.Piece.ToChar())
+	sb.WriteRune(move.Piece.Rune())
 
 	if g.Board.Get(move.To.File, move.To.Rank) != Empty {
 		sb.WriteString("x")

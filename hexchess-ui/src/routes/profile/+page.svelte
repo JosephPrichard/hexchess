@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import Banner from '$lib/components/Banner.svelte';
-	import { updateClientSession as updateClientUser } from '$lib/utils/storage';
-	import { createMessage } from '$lib/utils/error';
-	import { getNotificationsContext } from '$lib/utils/context';
+	import Banner from '$lib/Banner.svelte';
+	import { updateClientSession as updateClientUser } from '$lib/services/storage';
+	import { createMessage } from '$lib/services/error';
+	import { getNotificationsContext } from '$lib/services/context';
 	import type { UserModel } from '$lib/api/model';
 	import services from '$lib/api/services';
 
@@ -33,10 +33,10 @@
 		const [data, err] = await services.postUpdateUser(username, bio, country);
 		if (data) {
 			updateClientUser(data);
-			addNotification({ type: 'string', message: 'Updated your profile!', isSuccess: true, duration: 3000 });
+			addNotification({ type: 'string', message: 'Updated your profile!', isSuccess: true });
 		} else {
 			const message = createMessage(err);
-			addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
+			addNotification({ type: 'string', message, isSuccess: false });
 		}
 
 		isLoading = false;
@@ -48,10 +48,10 @@
 		const [data, err] = await services.postUpdatePassword(password, newPassword, retypePassword);
 		if (data) {
 			const message = 'Successfully updated password!';
-			addNotification({ type: 'string', message, isSuccess: true, duration: 3000 });
+			addNotification({ type: 'string', message, isSuccess: true });
 		} else {
 			const message = createMessage(err);
-			addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
+			addNotification({ type: 'string', message, isSuccess: false });
 		}
 	}
 
@@ -65,12 +65,12 @@
 		const [data, err] = await services.postLogout();
 		if (data) {
 			const message = 'Successfully signed out.';
-			addNotification({ type: 'string', message, isSuccess: true, duration: 3000 });
+			addNotification({ type: 'string', message, isSuccess: true });
 
 			await goto('/');
 		} else {
 			const message = createMessage(err);
-			addNotification({ type: 'string', message, isSuccess: false, duration: 3000 });
+			addNotification({ type: 'string', message, isSuccess: false });
 		}
 	}
 

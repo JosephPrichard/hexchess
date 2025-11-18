@@ -66,7 +66,6 @@ func withTrace(next http.Handler) http.Handler {
 			trace = uuid.NewString()
 		}
 		r = r.WithContext(context.WithValue(r.Context(), util.Trace, trace))
-
 		next.ServeHTTP(w, r)
 	})
 }
@@ -102,10 +101,10 @@ func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 		sb.WriteString(fmt.Sprintf("\t%s\n", pattern))
 	}
 	handleRest := func(method string, pattern string, handler RestHandler) {
-		handle(method, pattern, makeRestHandler(state, handler))
+		handle(method, pattern, makeRestHandler(&state, handler))
 	}
 	handleSse := func(method string, pattern string, handler SseHandler) {
-		handle(method, pattern, makeSseHandler(state, handler))
+		handle(method, pattern, makeSseHandler(&state, handler))
 	}
 
 	handleRest("POST", "/api/register", HandleRegister)
@@ -118,7 +117,6 @@ func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 	handleRest("POST", "/api/games/create", HandleCreateGame)
 	handleRest("POST", "/api/challenges/update", HandleUpdateChallenge)
 	handleRest("POST", "/api/challenges/create", HandleCreateChallenge)
-	handleRest("POST", "/api/make-move", HandleMakeMove)
 
 	handleRest("GET", "/api/players", HandleGetPlayer)
 	handleRest("GET", "/api/players/self", HandleGetSelf)
@@ -138,59 +136,58 @@ func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 
 	handle("GET", "/api/ws/game", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		slog.InfoContext(r.Context(), "begin game ws connection", "method", r.Method, "url", r.URL)
-		HandleGameplayWs(w, r, state)
+		HandleGameWs(w, r, state)
 	}))
 
-	mux.HandleFunc("/api/healthcheck", makeHealthCheck(state))
+	handleRest("GET", "/api/healthcheck", HandleHealthCheck)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		slog.ErrorContext(r.Context(), "route not found", "method", r.Method, "url", r.URL)
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write(NotFoundErrorJSON)
+		writeJSON(w, http.StatusNotFound, ServiceView{Status: http.StatusNotFound, Message: "ROUTE_NOT_FOUND"})
 	})
 
 	fmt.Fprintf(util.LogWriter, "%s", sb.String())
 	return mux
 }
 
-func makeHealthCheck(state ServerState) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		connPrim := state.Rdb.Primary.Get()
-		defer connPrim.Close()
+func HandleHealthCheck(state *ServerState, w http.ResponseWriter, _ *http.Request) error {
+	connPrim := state.Rdb.Primary.Get()
+	defer connPrim.Close()
 
-		connPs := state.Rdb.PubSub.Get()
-		defer connPs.Close()
+	connPs := state.Rdb.PubSub.Get()
+	defer connPs.Close()
 
-		_, primErr := connPrim.Do("PING")
-		_, psErr := connPs.Do("PING")
-		_, dbErr := state.Pool.Exec(context.Background(), "SELECT 1;")
+	_, primErr := connPrim.Do("PING")
+	_, psErr := connPs.Do("PING")
+	_, dbErr := state.Pool.Exec(context.Background(), "SELECT 1;")
 
-		failures := make(map[string]string)
-		if primErr != nil {
-			failures["redisPrimary"] = primErr.Error()
-		}
-		if psErr != nil {
-			failures["redisPubsub"] = psErr.Error()
-		}
-		if dbErr != nil {
-			failures["postgresDB"] = dbErr.Error()
-		}
-
-		status := "OK"
-		if len(failures) == 3 {
-			status = "DOWN"
-		} else if len(failures) > 0 {
-			status = "PARTIAL_AVAILABILITY"
-		}
-
-		writeJSON(w, http.StatusOK, struct {
-			Status    string            `json:"status"`
-			Timestamp time.Time         `json:"timestamp"`
-			Failures  map[string]string `json:"failures"`
-		}{
-			Status:    status,
-			Timestamp: time.Now(),
-			Failures:  failures,
-		})
+	failures := make(map[string]string)
+	if primErr != nil {
+		failures["redisPrimary"] = primErr.Error()
 	}
+	if psErr != nil {
+		failures["redisPubsub"] = psErr.Error()
+	}
+	if dbErr != nil {
+		failures["postgresDB"] = dbErr.Error()
+	}
+
+	status := "OK"
+	if len(failures) == 3 {
+		status = "DOWN"
+	} else if len(failures) > 0 {
+		status = "PARTIAL"
+	}
+
+	writeJSON(w, http.StatusOK, struct {
+		Status    string            `json:"status"`
+		Timestamp time.Time         `json:"timestamp"`
+		Failures  map[string]string `json:"failures"`
+	}{
+		Status:    status,
+		Timestamp: time.Now(),
+		Failures:  failures,
+	})
+
+	return nil
 }

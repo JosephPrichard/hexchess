@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { PlayerModel } from '$lib/api/model';
-	import type { PlayerState } from '$lib/api/messages';
+	import type { PlayerModel } from '../../api/model';
+	import type { PlayerState } from '../../api/messages';
 
 	export interface PlayerPanelProps {
 		player: PlayerModel | PlayerState | undefined,

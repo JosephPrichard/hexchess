@@ -1,7 +1,7 @@
 import type { PageLoad } from './$types';
 import { error } from '@sveltejs/kit';
 import type { ChallengeProps } from './+page.svelte';
-import { createMessage } from '$lib/utils/error';
+import { createMessage } from '$lib/services/error';
 import services from '$lib/api/services';
 
 export const load: PageLoad = async ({ url, fetch }): Promise<ChallengeProps> => {

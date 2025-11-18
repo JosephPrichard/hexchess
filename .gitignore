@@ -29,4 +29,7 @@ hexchess-svc/.env
 .env
 hexchess-svc/src/main/resources/.env
 
+wasm_exec.js
+chess.wasm
+
 graph.dot

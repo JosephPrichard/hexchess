@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { PieceMove } from '$lib/api/messages';
-	import { stringOfMove } from '$lib/utils/chess';
+	import type { PieceMove } from '../../api/messages';
+	import { stringOfMove } from '../../services/chess';
 
 	export interface MoveListProps {
 		moveList: PieceMove[];

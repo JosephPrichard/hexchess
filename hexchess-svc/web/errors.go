@@ -40,7 +40,6 @@ var (
 	ErrWsFinishedGame = errors.New("ERROR_FINISHED_GAME")
 	ErrWsInvalidGame  = errors.New("ERROR_INVALID_GAME")
 	ErrWsExpiration   = errors.New("ERROR_EXPIRED_GAME")
-	ErrWsSpectator    = errors.New("ERROR_SPECTATOR")
 )
 
 func HttpStatusFromErr(err error) (int, string) {
