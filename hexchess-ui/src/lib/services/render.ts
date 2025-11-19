@@ -5,7 +5,7 @@ export const hexWidth = hexHeight * 1.2;
 export const verticalFileOffsets = [5, 4, 3, 2, 1, 0, 1, 2, 3, 4, 5];
 export const colors = ['rgb(255, 207, 159)', 'rgb(233, 172, 112)', 'rgb(210,140,69)'];
 export const selectedColor = 'rgba(100, 111, 64, 0.6)';
-export const highlightedColor = 'rgb(245, 246, 130, 0.5)';
+export const highlightedColor = 'rgb(173, 216, 230, 0.5)';
 export const hoveringColor = 'rgb(245, 246, 130, 0.5)'
 export const colorsOffset = [0, 1, 2, 0, 1, 2, 1, 0, 2, 1, 0];
 export const chessRowHeight = 45;
@@ -24,7 +24,8 @@ export function getTop(
 		top;
 }
 
-export function getLeft(file: number): number {
+export function getLeft(file: number, isWhitePerspective = true): number {
+	file = isWhitePerspective ? file : 10 - file;
 	return file * (hexHeight - 7);
 }
 

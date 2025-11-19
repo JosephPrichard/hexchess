@@ -3,7 +3,7 @@
 	import { stringOfMove } from '$lib/services/chess';
 
 	export interface MoveListProps {
-		moveList: PieceMove[];
+		moveList: {pm: PieceMove, moves: {pm: PieceMove}[]}[];
 		onSelectMove?: (i: number) => void;
 		selectedMoveIndex?: number;
 		completeMessage?: string;
@@ -28,7 +28,7 @@
 					onclick={() => onSelectMove?.(i)}
 					tabindex="-1"
 				>
-					{stringOfMove(moveOne)}
+					{stringOfMove(moveOne.pm)}
 				</button>
 				{#if moveTwo}
 					<button
@@ -38,7 +38,7 @@
 						onclick={() => onSelectMove?.(moveTwoIndex)}
 						tabindex="-1"
 					>
-						{stringOfMove(moveTwo)}
+						{stringOfMove(moveTwo.pm)}
 					</button>
 				{:else}
 					<div class="move-button"></div>

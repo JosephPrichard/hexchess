@@ -3,6 +3,7 @@
 	import { hexHeight, hexWidth } from '$lib/services/render';
 	import { piecenames } from '$lib/services/chess';
 	import { type SelectEvent, selectEvents } from '$lib/globals';
+	import { getGlobalID } from '$lib/components/chess/globals';
 
 	export interface PieceProps {
 		piece: number;
@@ -195,6 +196,7 @@
 	}
 
     .piece-img {
+        /*transition: all 0.5s ease-out;*/
 		z-index: 100;
         position: absolute;
         user-select: none;

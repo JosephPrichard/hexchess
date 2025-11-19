@@ -3,17 +3,16 @@ import Board from '$lib/components/chess/Board.svelte';
 import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
 import { ChessBoard, type ChessGame } from '$lib/api/messages';
 import { createMoveState } from '$lib/state/move.svelte';
-import { onMount } from 'svelte';
 import Banner from '$lib/Banner.svelte';
 import {
 	mapHexagonList,
 	getNewSelection,
 	type Selection,
-	isMoveValid, NoSelection, moveBoardPiece, setBoardTurn, placeBoardPiece, clearBoard, newGame, defaultGame
+	isMoveValid, NoSelection, moveBoardPiece, setBoardTurn, placeBoardPiece, clearBoard, newGame, defaultGame, removeBoardPiece
 } from '$lib/services/chess.js';
 import type { Hex } from '$lib/api/model';
 import { getNotificationsContext } from '$lib/services/context';
-import TrashcanIcon from '$lib/components/icons/TrashcanIcon.svelte';
+import SmallTrashIcon from '$lib/components/icons/SmallTrashIcon.svelte';
 import RedoIcon from '$lib/components/icons/RedoIcon.svelte';
 import PieceEditor from '$lib/components/chess/PieceEditor.svelte';
 import EditIcon from '$lib/components/icons/EditIcon.svelte';
@@ -33,6 +32,7 @@ let boardElement: HTMLElement | undefined = $state(undefined);
 
 let moveState = createMoveState();
 let mode: "EDIT" | "PLAY" = $state("EDIT");
+let isTrashcanSelect = $state(false);
 
 let selection: Selection = $state(NoSelection);
 let hoveringHex: Hex | undefined = $state(undefined);
@@ -42,7 +42,13 @@ let fen = $state(props.fen);
 
 let game: ChessGame | undefined = $state(undefined);
 
-function onSelectPiece(hex: Hex) {
+async function onSelectPiece(hex: Hex) {
+	if (isTrashcanSelect) {
+		game = removeBoardPiece($state.snapshot(game?.board), hex);
+		await gotoFen(game?.board);
+		onDeSelectPiece();
+		return;
+	}
 	selection = getNewSelection(game, hex);
 }
 
@@ -75,7 +81,7 @@ async function gotoFen(board?: ChessBoard) {
 	}
 	// await goto(`/sandbox?fen=${fen}`, { replaceState: true });
 	fen = f;
-	history.pushState({}, "", `/sandbox?fen=${fen}`);
+	history.replaceState({}, "", `/sandbox?fen=${fen}`);
 }
 
 async function onPieceMove(from: Hex, to: Hex) {
@@ -152,6 +158,13 @@ const prevMove = $derived.by(() => {
 		: game.moveList[game.moveList.length - 1];
 });
 
+const moveList = $derived.by(() =>
+	(game?.moveList || [])
+		.map(m => ({pm: m, moves: []}))
+);
+
+$inspect(isTrashcanSelect)
+
 </script>
 <svelte:head>
 	<title>Sandbox - Hexchess</title>
@@ -174,14 +187,16 @@ const prevMove = $derived.by(() => {
 			onDropPiece={onPieceMove}
 			onSetPiece={onDropPieceSet}
 		/>
-		<div class="side-bar">
+		<div class="side-bar" class:side-bar-short={mode === "EDIT"} class:side-bar-long={mode === "PLAY"}>
 			{#if mode === "PLAY"}
 				<div class="side-table growing-box">
 					<div class="side-table-header">
 						<div class="turn-circle" class:turn-circle-green={Boolean(game?.board?.isWhiteTurn) !== moveState.value.isWhitePerspective}></div>
 						{moveState.value.isWhitePerspective ? "Black's Turn" : "White's Turn"}
 					</div>
-					<MoveList moveList={game?.moveList || []} />
+					<MoveList
+						moveList={moveList}
+					/>
 					<div class="side-table-header-bottom">
 						<div class="turn-circle" class:turn-circle-green={Boolean(game?.board?.isWhiteTurn) === moveState.value.isWhitePerspective}></div>
 						{moveState.value.isWhitePerspective ? "White's Turn" : "Black's Turn"}
@@ -205,6 +220,7 @@ const prevMove = $derived.by(() => {
 							bind:boardElement={boardElement}
 							bind:hoveringHexagon={hoveringHex}
 							onDropPiece={onDropPieceSet}
+							bind:isTrashSelector={isTrashcanSelect}
 						/>
 					</div>
 				</div>
@@ -238,7 +254,7 @@ const prevMove = $derived.by(() => {
 			</span>
 			</button>
 			<button class="button-transparent side-bar-button" onclick={onClickClearBoard}>
-				<TrashcanIcon />
+				<SmallTrashIcon />
 				<span class="button-text">
 					Clear Board
 				</span>
@@ -254,8 +270,8 @@ const prevMove = $derived.by(() => {
 	}
 
 	.turn-selector {
-		width: 100%;
-		/*min-width: 165px;*/
+		/*width: 100%;*/
+		min-width: 165px;
         box-sizing: border-box;
 		height: 40px;
         margin: 0 0 10px;
@@ -272,11 +288,20 @@ const prevMove = $derived.by(() => {
 	}
 
 	.side-bar {
-		width: 225px;
+		width: 165px;
         display: flex;
         flex-direction: column;
         height: calc(100vh - 75px - 40px); /* Screen height minus the banner height minus the margin height */
 	}
+
+    .side-bar-short {
+        width: 165px;
+        margin-right: calc(225px - 165px);
+    }
+
+    .side-bar-long {
+        width: 225px;
+    }
 
 	.side-bar-button {
 		display: flex;

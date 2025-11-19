@@ -8,10 +8,13 @@
 	import { getNotificationsContext } from '$lib/services/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import ReplayPanel from '$lib/components/user/ReplayPanel.svelte';
-	import { type ChessBoard, type MoveStep, type PieceMove } from '$lib/api/messages';
-	import type { ReplayModel } from '$lib/api/model';
+	import { type ChessBoard, type ChessGame, type MoveStep, type PieceMove } from '$lib/api/messages';
+	import type { Hex, ReplayModel } from '$lib/api/model';
 	import services from '$lib/api/services';
 	import { createMoveState } from '$lib/state/move.svelte';
+	import { getNewSelection, isMoveValid, mapHexagonList, moveBoardPiece, newMove, NoSelection, type Selection } from '$lib/services/chess';
+	import { newGame } from '$lib/services/chess.js';
+	import { makeMoveDyn } from '$lib/services/wasm';
 
 	export interface ReplayProps {
 		replay: ReplayModel;
@@ -23,15 +26,30 @@
 	const { addNotification } = getNotificationsContext();
 
 	let moveState = createMoveState();
+	let subGameIndex: number | undefined = undefined;
 
-	let moveSteps: MoveStep[] = $state([]);
+	interface MoveElem {
+		pm: PieceMove;
+		moves: {pm: PieceMove, game: ChessGame}[];
+		game?: ChessGame;
+	}
+
+	let moveList: MoveElem[] = $state([]);
 	let initialBoard: ChessBoard | undefined = $state(undefined);
+
+	let selection: Selection = $state(NoSelection);
 
 	async function initMoveList(replayId: string) {
 		const [data, err] = await services.getReplayMoveHistory(replayId);
 		if (data) {
-			moveSteps = data.moveSteps;
+			const moveSteps = data.moveSteps;
 			initialBoard = data.initialBoard;
+
+			for (const step of moveSteps) {
+				if (step?.move) {
+					moveList.push({pm: step.move, game: step.game, moves: []});
+				}
+			}
 		} else {
 			const message = 'Failed to load replay move list: ' + createMessage(err);
 			addNotification({ type: 'string', message, isSuccess: false });
@@ -41,20 +59,47 @@
 	$effect(() => {
 		initMoveList(String(replay.id));
 	});
+
 	$effect(() => {
-		moveState.updateMoveCount(moveSteps.length);
+		moveState.updateMoveCount(moveList.length);
 	});
 
-	const board = $derived.by(() => moveState.value.moveIndex !== undefined ? moveSteps[moveState.value.moveIndex]?.game?.board : initialBoard);
-	const moveList = $derived.by(() => {
-		const moveList: PieceMove[] = [];
-		for (const step of moveSteps) {
-			if (step?.move) {
-				moveList.push(step.move);
-			}
+	const game = $derived.by(() => {
+		let moveListTemp: {game?: ChessGame}[] = moveList;
+		if (subGameIndex !== undefined) {
+			moveListTemp = moveList[subGameIndex]?.moves;
 		}
-		return moveList;
+		return moveState.value.moveIndex !== undefined
+			? moveListTemp[moveState.value.moveIndex]?.game
+			: newGame(initialBoard);
 	});
+
+	const prevMove = $derived.by(() =>
+		moveList.length > 0 && moveState?.value.moveIndex !== undefined
+			? moveList[moveState.value.moveIndex].pm
+			: undefined);
+
+	async function onPieceMove(from: Hex, to: Hex) {
+		let isValid = isMoveValid(game, from, to);
+		const isSameHex = from.file == to.file && from.rank == to.rank;
+
+		if (isSameHex || !isValid || moveState.value.moveIndex === undefined) {
+			return;
+		}
+
+		const tempGame = await makeMoveDyn($state.snapshot(game?.board), {from, to});
+
+		const moves = moveList[moveState.value.moveIndex].moves;
+		moves.push({ pm: newMove(from, to), game: tempGame });
+
+		subGameIndex = moveState.value.moveIndex;
+		moveState.selectMove(0);
+	}
+
+	function onSelectMove(index: number) {
+		subGameIndex = undefined;
+		moveState.selectMove(index);
+	}
 </script>
 
 <svelte:head>
@@ -63,10 +108,23 @@
 <Banner />
 <div class="center-horizontal-container">
 	<div class="center-vertical-container" style="align-items: stretch;">
-		<Board {board} draggable="none" isWhitePerspective={moveState.value.isWhitePerspective} />
+		<Board
+			board={game?.board}
+			potentialMoves={mapHexagonList(selection.potentialMoves?.moves)}
+			draggable="anyone"
+			isWhitePerspective={moveState.value.isWhitePerspective}
+			prevMove={prevMove}
+			onSelectPiece={(hex) => selection = getNewSelection(game, hex)}
+			onDeSelectPiece={() => selection = NoSelection}
+			onDropPiece={(from, to) => onPieceMove(from, to)}
+		/>
 		<div class="side-table" style:width="300px">
 			<ReplayPanel replay={replay} />
-			<MoveList moveList={moveList} onSelectMove={moveState.selectMove} selectedMoveIndex={moveState.value.moveIndex} />
+			<MoveList
+				moveList={moveList}
+				onSelectMove={onSelectMove}
+				selectedMoveIndex={moveState.value.moveIndex}
+			/>
 			<div class="side-table-footer">
 				<div class="move-table-nav-buttons">
 					<button title="Previous Move" class="button-transparent" style:padding-top="5px" onclick={moveState.goLeft}>

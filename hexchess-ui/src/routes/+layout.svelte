@@ -7,10 +7,11 @@
 	import services, { baseURL } from '$lib/api/services';
 	import type { ChallengeModel } from '$lib/api/model';
 	import { writable } from 'svelte/store';
+	import { fade } from 'svelte/transition';
 
 	const { children }: LayoutProps = $props();
 
-	const notifications: (NotificationData | undefined)[] = $state([]);
+	let notifications: Record<number, NotificationData> = $state({});
 	let counts = writable({ usersCount: 0, gameCounts: 0 });
 
 	const timeouts: Record<number, ReturnType<typeof setTimeout>> = {};
@@ -20,7 +21,7 @@
 	let refreshInterval: ReturnType<typeof setInterval> | undefined = undefined;
 
 	function deleteNotification(index: number) {
-		notifications[index] = undefined;
+		delete notifications[index];
 		const timeout = timeouts[index];
 		if (timeout) {
 			clearTimeout(timeout);
@@ -105,26 +106,24 @@
 </script>
 
 <div class="bottom-right-anchor notifications-box">
-	{#each notifications as notification, i (i)}
-		{#if notification}
-			<div class="notification">
-				<div class="notification-border" class:notification-green={notification.isSuccess} class:notification-red={!notification.isSuccess}>
-				</div>
-				<div class="notification-body">
-					<div class="notification-text">
-						{#if notification.type === 'string'}
-							{notification.message}
-						{:else if notification.type === 'challenge'}
-							{@const challenge = notification.message}
-							Player <a href="/players/{challenge.challengeeId}"> {challenge.challengeeName} </a>
-							has challenged you to a <a href="/challenges?participants=received"> game </a>
-						{/if}
-					</div>
-					<div class="notification-space"></div>
-					<button class="notification-x" onclick={() => deleteNotification(i)}> &#10006; </button>
-				</div>
+	{#each Object.values(notifications) as notification, i (i)}
+		<div in:fade={{ duration: 300, delay: 0 }} out:fade={{ duration: 300, delay: 0 }} class="notification">
+			<div class="notification-border" class:notification-green={notification?.isSuccess} class:notification-red={!notification?.isSuccess}>
 			</div>
-		{/if}
+			<div class="notification-body">
+				<div class="notification-text">
+					{#if notification?.type === 'string'}
+						{notification?.message}
+					{:else if notification?.type === 'challenge'}
+						{@const challenge = notification?.message}
+						Player <a href="/players/{challenge.challengeeId}"> {challenge.challengeeName} </a>
+						has challenged you to a <a href="/challenges?participants=received"> game </a>
+					{/if}
+				</div>
+				<div class="notification-space"></div>
+				<button class="notification-x" onclick={() => deleteNotification(i)}> &#10006; </button>
+			</div>
+		</div>
 	{/each}
 </div>
 
@@ -158,6 +157,9 @@
         color: white;
         border-radius: 2px;
         background-color: rgb(43, 43, 43);
+        transition:
+			opacity 0.2s ease,
+			transform ease;
     }
 
     .notification-body {

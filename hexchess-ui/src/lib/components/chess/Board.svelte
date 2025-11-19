@@ -2,7 +2,7 @@
 	import type { ChessBoard, PieceMove } from '$lib/api/messages';
 	import Piece from './Piece.svelte';
 	import type { Hex } from '$lib/api/model';
-	import { defaultBoard, isBlack, isWhite, pieces } from '$lib/services/chess';
+	import { defaultBoard, isBlack, isWhite, pieces, ranksPerFile } from '$lib/services/chess';
 	import { getLeft, getTop, hexHeight, hexWidth, selectedColor, colors, colorsOffset, findHex, highlightedColor, hoveringColor } from '$lib/services/render';
 	import Fen from '$lib/components/chess/Fen.svelte';
 
@@ -68,16 +68,20 @@
 		return potentialMovesMap;
 	});
 
-	const actualBoard = $derived.by(() => board ? board : defaultBoard)
+	const boardState = $derived.by(() => board ?? defaultBoard);
 </script>
 
-<div>
+<div class="board-wrapper">
 	<div bind:this={boardElement} class="board" style:width="{11 * hexHeight}px;" style:height="{11.67 * hexHeight}px;">
-		{#each actualBoard.file as piecesFile, file (file)}
-			{@const fileMarker = String.fromCharCode('a'.charCodeAt(0) + file)}
-			{#each piecesFile.pieces as piece, rank (rank)}
+		{#each boardState.file as piecesFile, file}
+			{@const fileMarker = String.fromCharCode('a'.charCodeAt(0)
+				+ (isWhitePerspective
+					? file
+					: (boardState.file.length - 1) - file))}
+			{#each piecesFile.pieces as piece, rank}
+				{@const rankMarker = rank + 1}
 				{@const top = getTop(file, rank, isWhitePerspective)}
-				{@const left = getLeft(file)}
+				{@const left = getLeft(file, isWhitePerspective)}
 				{@const bgIndex = (colorsOffset[file] + rank) % 3}
 				{@const isPrevMove =
 					(prevMove?.fromFile === file && prevMove?.fromRank === rank) ||
@@ -99,6 +103,24 @@
 						return 'transparent';
 					}
 				}()}
+				{#if file === 0 || (file <= 5 && rank === ranksPerFile[file]-1)}
+					<div
+						class="hexagon-label"
+						style:top="{top + (isWhitePerspective ? -hexHeight / 4 : hexHeight / 1.6)}px"
+						style:left="{getLeft(file, true) - hexWidth / 4.5}px"
+					>
+						{rankMarker}
+					</div>
+				{/if}
+				{#if file === boardState.file.length-1 || (file >= 5 && rank === ranksPerFile[file]-1)}
+					<div
+						class="hexagon-label"
+						style:top="{top + (isWhitePerspective ? -hexHeight / 4 : hexHeight / 1.6)}px"
+						style:left="{getLeft(file, true) + hexWidth}px"
+					>
+						{rankMarker}
+					</div>
+				{/if}
 				<div
 					class="hexagon"
 					role="cell"
@@ -154,7 +176,7 @@
 					/>
 				{/if}
 			{/each}
-			{@const top = getTop(file, -1, true)}
+			{@const top = isWhitePerspective ? getTop(file, -1, true) : getTop(file, -0.6, false)}
 			{@const left = getLeft(file)}
 			<div
 				class="hexagon-label"
@@ -176,6 +198,10 @@
     .board {
         position: relative;
     }
+
+	.board-wrapper {
+		margin-top: 20px;
+	}
 
     .hexagon {
         cursor: pointer;

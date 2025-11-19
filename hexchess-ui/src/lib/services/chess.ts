@@ -128,13 +128,21 @@ export const defaultGame: ChessGame = {
 	board: defaultBoard,
 };
 
+export function newGame(board: ChessBoard | undefined) {
+	return { ...defaultGame, board: board }
+}
+
+export function newMove(from: Hex, to: Hex) {
+	return { piece: 0, fromFile: from.file, fromRank: from.rank, toFile: to.file, toRank: to.rank };
+}
+
 export function moveBoardPiece(board: ChessBoard | undefined, from: Hex, to: Hex) {
 	if (board) {
 		const piece = board.file[from.file].pieces[from.rank];
 		board.file[from.file].pieces[from.rank] = pieces.empty;
 		board.file[to.file].pieces[to.rank] = piece;
 	}
-	return { ...defaultGame, board: board }
+	return newGame(board);
 }
 
 export function clearBoard(board: ChessBoard | undefined) {
@@ -143,23 +151,26 @@ export function clearBoard(board: ChessBoard | undefined) {
 			file.pieces.fill(pieces.empty);
 		}
 	}
-	return { ...defaultGame, board: board }
+	return newGame(board);
+}
+
+export function removeBoardPiece(board: ChessBoard | undefined, hex: Hex) {
+	if (board) {
+		board.file[hex.file].pieces[hex.rank] = pieces.empty;
+	}
+	return newGame(board);
 }
 
 export function placeBoardPiece(board: ChessBoard | undefined, hex: Hex, piece: number) {
 	if (board) {
 		board.file[hex.file].pieces[hex.rank] = piece;
 	}
-	return { ...defaultGame, board: board }
+	return newGame(board);
 }
 
 export function setBoardTurn(board: ChessBoard | undefined, turn: boolean) {
 	if (board) {
 		board.isWhiteTurn = turn;
 	}
-	return { ...defaultGame, board: board }
-}
-
-export function newGame(board: ChessBoard | undefined) {
-	return { ...defaultGame, board: board }
+	return newGame(board);
 }

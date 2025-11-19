@@ -4,6 +4,8 @@
 	import type { Hex } from '$lib/api/model';
 	import { type SelectEvent, selectEvents } from '$lib/globals';
 	import { blackPieces, whitePieces } from '$lib/services/chess';
+	import CursorIcon from '$lib/components/icons/CursorIcon.svelte';
+	import LargeTrashIcon from '$lib/components/icons/LargeTrashIcon.svelte';
 
 	export interface PieceEditorProps {
 		selectedPiece?: number;
@@ -12,10 +14,11 @@
 		hoveringHexagon?: Hex;
 		isWhitePerspective?: boolean;
 		onDropPiece?: (to: Hex) => void;
+		isTrashSelector?: boolean;
 	}
 
 	let { selectedPiece = $bindable(), isDisabled, boardElement = $bindable(),
-		hoveringHexagon = $bindable(), isWhitePerspective, onDropPiece }: PieceEditorProps = $props();
+		hoveringHexagon = $bindable(), isWhitePerspective, onDropPiece, isTrashSelector = $bindable() }: PieceEditorProps = $props();
 
 	function onSelectPiece(event: SelectEvent, piece: number) {
 		if (isDisabled)
@@ -44,7 +47,8 @@
 </script>
 
 <div class="piece-editor">
-	{#each [whitePieces, blackPieces] as panel}
+	{#each [whitePieces, blackPieces] as panel, i}
+		{@const isCursor = i === 0}
 		<div class="piece-panel" class:disabled-piece-panel={isDisabled}>
 			{#each panel as piece}
 				<div class="piece-tile-wrapper">
@@ -69,6 +73,22 @@
 					</div>
 				</div>
 			{/each}
+			<div
+				role="cell"
+				tabindex="0"
+				class="select-tile"
+				style:width="{hexWidth}px"
+				style:height="{hexHeight}px"
+				class:red-select-tile={isTrashSelector && !isCursor}
+				class:green-select-tile={!isTrashSelector && isCursor}
+				onmousedown={() => isTrashSelector = !isCursor}
+			>
+				{#if isCursor}
+					<CursorIcon/>
+				{:else}
+					<LargeTrashIcon/>
+				{/if}
+			</div>
 		</div>
 	{/each}
 </div>
@@ -76,13 +96,11 @@
 <style>
 	.piece-editor {
 		width: 100%;
-		margin-top: 20px;
-		margin-bottom: 20px;
-		padding: 20px;
 		display: flex;
 		flex-direction: row;
-        border-radius: 3px;
-        background: rgb(43, 43, 43);
+		gap: 25px;
+        align-items: center;
+        justify-content: center;
 	}
 
 	.selected-tile {
@@ -90,17 +108,37 @@
 		border-radius: 3px;
 	}
 
+	.red-select-tile {
+		background-color: #F44336;
+	}
+
+	.green-select-tile {
+		background-color: #4CAF50;
+	}
+
 	.disabled-piece-panel {
 		opacity: 0.4;
 	}
 
 	.piece-panel {
-        flex: 0.5;
+        margin-top: 20px;
+        margin-bottom: 20px;
+        border-radius: 3px;
+        background: rgb(64, 64, 64);
 	}
 
 	.piece-tile-wrapper {
 		text-align: center;
 		width: 100%;
+	}
+
+	.select-tile {
+		cursor: pointer;
+		display: flex;
+        justify-content: center;
+        align-items: center;
+        border-radius: 3px;
+        transition: background-color 0.15s ease-out;
 	}
 
     .piece-tile {

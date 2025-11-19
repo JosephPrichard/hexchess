@@ -1,6 +1,6 @@
 import { ChessBoard, ChessGame, MakeMoveInput } from '$lib/api/messages';
 import type { Hex } from '$lib/api/model';
-import { defaultBoard, defaultGame, newGame } from '$lib/services/chess';
+import { defaultBoard, defaultGame, newGame, newMove } from '$lib/services/chess';
 
 declare const Go: any; // imported in the initWasm fn
 
@@ -42,9 +42,7 @@ export async function getInitialBoardDyn(): Promise<ChessBoard> {
 
 export async function makeMoveDyn(board?: ChessBoard, move?: { from: Hex, to: Hex }): Promise<ChessGame> {
 	await initWasm();
-	const pm = move
-		? { piece: 0, fromFile: move.from.file, fromRank: move.from.rank, toFile: move.to.file, toRank: move.to.rank }
-		: undefined;
+	const pm = move ? newMove(move.from, move.from) : undefined;
 	const bin = MakeMoveInput.toBinary({ board, move: pm });
 	const out = dynCall("makeMove", bin) as (Uint8Array | undefined);
 	if (out === undefined) {
