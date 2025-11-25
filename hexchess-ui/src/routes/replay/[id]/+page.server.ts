@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { createMessage } from '$lib/services/error';
+import { makeMessage } from '$lib/utils/error';
 import type { ReplayProps } from './+page.svelte';
 import services from '$lib/api/services';
 
@@ -10,7 +10,7 @@ export const load: PageServerLoad = async ({ params, setHeaders, fetch }): Promi
 	const [data, err] = await services.getReplay(id, fetch);
 
 	if (err || data === undefined) {
-		error(err?.status || 500, createMessage(err));
+		error(err?.status || 500, makeMessage(err));
 	}
 
 	// setHeaders({

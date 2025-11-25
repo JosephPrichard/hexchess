@@ -73,7 +73,7 @@ func (q *Queries) GetReplayByID(ctx context.Context, id int64) (GetReplayByIDRow
 }
 
 const getReplayMoveHistory = `-- name: GetReplayMoveHistory :one
-SELECT move_list AS move_history_bytes
+SELECT move_history AS move_history_bytes
 FROM replays
 WHERE id = $1
 `
@@ -169,19 +169,19 @@ func (q *Queries) GetUserReplays(ctx context.Context, arg GetUserReplaysParams) 
 }
 
 const insertReplay = `-- name: InsertReplay :one
-INSERT INTO replays (white_id, black_id, result, cause, win_elo, lose_elo, move_list)
+INSERT INTO replays (white_id, black_id, result, cause, win_elo, lose_elo, move_history)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id
 `
 
 type InsertReplayParams struct {
-	WhiteID  int64
-	BlackID  int64
-	Result   int32
-	Cause    int32
-	WinElo   float64
-	LoseElo  float64
-	MoveList []byte
+	WhiteID     int64
+	BlackID     int64
+	Result      int32
+	Cause       int32
+	WinElo      float64
+	LoseElo     float64
+	MoveHistory []byte
 }
 
 func (q *Queries) InsertReplay(ctx context.Context, arg InsertReplayParams) (int64, error) {
@@ -192,7 +192,7 @@ func (q *Queries) InsertReplay(ctx context.Context, arg InsertReplayParams) (int
 		arg.Cause,
 		arg.WinElo,
 		arg.LoseElo,
-		arg.MoveList,
+		arg.MoveHistory,
 	)
 	var id int64
 	err := row.Scan(&id)

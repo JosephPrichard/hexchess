@@ -1,8 +1,8 @@
-import { codes } from '../services/error';
+import { codes } from '$lib/utils/error';
 import type { Action, ChallengeModel, ChessModel, ReplayModel, ServiceModel, SessionModel, UserModel, FullUserModel } from './model';
 import { v4 as uuidv4 } from 'uuid';
 import { env } from '$env/dynamic/public';
-import { MoveHistory } from './messages';
+import { MoveReplay } from './messages';
 
 export function appBaseURL() {
 	return env.PUBLIC_APP_BASE_URL || 'http://localhost:5173';
@@ -235,15 +235,15 @@ function getReplay(id: string, fetch?: FetchFn) {
 	return requestJSON<Response>(`${baseURL()}/replay?${params}`, { method: 'GET' }, fetch);
 }
 
-async function getReplayMoveHistory(id: string, fetch?: FetchFn): Promise<Result<MoveHistory>> {
+async function getReplayMoveHistory(id: string, fetch?: FetchFn): Promise<Result<MoveReplay>> {
 	const params = new URLSearchParams({ id });
 	const [buf, error] = await requestBuf(`${baseURL()}/replay/move-list?${params}`, { method: 'GET' }, fetch);
 	if (buf) {
 		const timeNow = performance.now();
-		const result = MoveHistory.fromBinary(new Uint8Array(buf));
+		const result = MoveReplay.fromBinary(new Uint8Array(buf));
 
 		const timeTaken = performance.now() - timeNow;
-		console.log(`getReplayMoveList deserialization took ${timeTaken}ms`);
+		console.log(`moveList deserialization took ${timeTaken}ms`);
 
 		return [result, error];
 	} else {

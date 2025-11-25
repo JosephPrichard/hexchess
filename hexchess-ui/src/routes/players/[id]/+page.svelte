@@ -2,12 +2,12 @@
 	import CreateGame from '$lib/components/modals/CreateGame.svelte';
 	import { onMount } from 'svelte';
 	import ChallengeIcon from '$lib/components/icons/ChallengeIcon.svelte';
-	import { formatJoinedOn, formatPlayedOn, formatReplayResult, getResultClasses, getWinrateClass } from '$lib/services/format.js';
-	import { getClientSession } from '$lib/services/storage';
+	import { formatJoinedOn, formatPlayedOn, formatReplayResult, getResultClasses, getWinrateClass } from '$lib/utils/format.js';
+	import { getClientSession } from '$lib/utils/storage';
 	import Banner from '$lib/Banner.svelte';
 	import { goto } from '$app/navigation';
-	import { getNotificationsContext } from '$lib/services/context';
-	import { createMessage } from '$lib/services/error';
+	import { getNotificationsContext } from '$lib/utils/context';
+	import { makeMessage } from '$lib/utils/error';
 	import type { ColorSelect, TimeControl, FullUserModel } from '$lib/api/model';
 	import services from '$lib/api/services';
 
@@ -67,7 +67,7 @@
 				duration: 3000
 			});
 		} else {
-			const message = createMessage(err);
+			const message = makeMessage(err);
 			addNotification({ type: 'string', message, isSuccess: false });
 		}
 		showCreateModal = true;

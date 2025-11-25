@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import Banner from '$lib/Banner.svelte';
-	import { updateClientSession as updateClientUser } from '$lib/services/storage';
-	import { createMessage } from '$lib/services/error';
-	import { getNotificationsContext } from '$lib/services/context';
+	import { updateClientSession as updateClientUser } from '$lib/utils/storage';
+	import { makeMessage } from '$lib/utils/error';
+	import { getNotificationsContext } from '$lib/utils/context';
 	import type { UserModel } from '$lib/api/model';
 	import services from '$lib/api/services';
 
@@ -35,7 +35,7 @@
 			updateClientUser(data);
 			addNotification({ type: 'string', message: 'Updated your profile!', isSuccess: true });
 		} else {
-			const message = createMessage(err);
+			const message = makeMessage(err);
 			addNotification({ type: 'string', message, isSuccess: false });
 		}
 
@@ -50,7 +50,7 @@
 			const message = 'Successfully updated password!';
 			addNotification({ type: 'string', message, isSuccess: true });
 		} else {
-			const message = createMessage(err);
+			const message = makeMessage(err);
 			addNotification({ type: 'string', message, isSuccess: false });
 		}
 	}
@@ -69,7 +69,7 @@
 
 			await goto('/');
 		} else {
-			const message = createMessage(err);
+			const message = makeMessage(err);
 			addNotification({ type: 'string', message, isSuccess: false });
 		}
 	}

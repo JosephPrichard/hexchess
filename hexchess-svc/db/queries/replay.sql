@@ -1,6 +1,6 @@
 -- name: InsertReplay :one
-INSERT INTO replays (white_id, black_id, result, cause, win_elo, lose_elo, move_list)
-VALUES (sqlc.arg('whiteID'), sqlc.arg('blackID'), sqlc.arg('result'), sqlc.arg('cause'), sqlc.arg('winElo'), sqlc.arg('loseElo'), sqlc.arg('moveList'))
+INSERT INTO replays (white_id, black_id, result, cause, win_elo, lose_elo, move_history)
+VALUES (sqlc.arg('whiteID'), sqlc.arg('blackID'), sqlc.arg('result'), sqlc.arg('cause'), sqlc.arg('winElo'), sqlc.arg('loseElo'), sqlc.arg('moveHistory'))
 RETURNING id;
 
 -- name: GetReplayByID :one
@@ -25,7 +25,7 @@ FROM replays r
 WHERE r.id = sqlc.arg('id');
 
 -- name: GetReplayMoveHistory :one
-SELECT move_list AS move_history_bytes
+SELECT move_history AS move_history_bytes
 FROM replays
 WHERE id = sqlc.arg('id');
 

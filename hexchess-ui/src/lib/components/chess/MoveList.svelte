@@ -1,9 +1,6 @@
 <script lang="ts">
-	import type { PieceMove } from '$lib/api/messages';
-	import { stringOfMove } from '$lib/services/chess';
-
 	export interface MoveListProps {
-		moveList: {pm: PieceMove, moves: {pm: PieceMove}[]}[];
+		moveList: string[];
 		onSelectMove?: (i: number) => void;
 		selectedMoveIndex?: number;
 		completeMessage?: string;
@@ -28,7 +25,7 @@
 					onclick={() => onSelectMove?.(i)}
 					tabindex="-1"
 				>
-					{stringOfMove(moveOne.pm)}
+					{moveOne}
 				</button>
 				{#if moveTwo}
 					<button
@@ -38,7 +35,7 @@
 						onclick={() => onSelectMove?.(moveTwoIndex)}
 						tabindex="-1"
 					>
-						{stringOfMove(moveTwo.pm)}
+						{moveTwo}
 					</button>
 				{:else}
 					<div class="move-button"></div>
@@ -62,6 +59,7 @@
 
     .move-number {
         flex: 0.2;
+		min-width: 40px;
         line-height: 40px;
         text-align: center;
         background-color: rgb(48, 48, 48);

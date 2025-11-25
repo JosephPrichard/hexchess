@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import services from '$lib/api/services';
-import { createMessage } from '$lib/services/error';
+import { makeMessage } from '$lib/utils/error';
 import type { LeaderboardProps } from './+page.svelte';
 
 export const load: PageServerLoad = async ({ url, setHeaders, fetch }): Promise<LeaderboardProps> => {
@@ -12,7 +12,7 @@ export const load: PageServerLoad = async ({ url, setHeaders, fetch }): Promise<
 
 	const [data, err] = await services.getLeaderboard(page, fetch);
 	if (err) {
-		error(err.status, createMessage(err));
+		error(err.status, makeMessage(err));
 	}
 
 	// setHeaders({

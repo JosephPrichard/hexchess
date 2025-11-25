@@ -12,6 +12,43 @@ import (
 
 type AttackTable = [Files][MaxRanks]bool
 
+type HistMove struct {
+	// stores any information necessary to generate a move history notation
+	PieceMove
+	CollFile bool
+	CollRank bool
+	IsCheck  bool
+	IsTake   bool
+}
+
+func (m *HistMove) String() string {
+	from := m.PieceMove.From
+	to := m.PieceMove.To
+
+	var sb strings.Builder
+
+	sb.WriteString(m.PieceMove.Piece.String())
+
+	if m.IsCheck {
+		sb.WriteString("+")
+	}
+	if m.IsTake {
+		sb.WriteString("x")
+	}
+
+	if !m.CollFile || !m.CollRank {
+		if m.CollFile {
+			sb.WriteString(strconv.Itoa(from.Rank + 1))
+		}
+		if m.CollRank {
+			sb.WriteRune(rune(from.File + 'a'))
+		}
+	}
+
+	sb.WriteString(to.String())
+	return sb.String()
+}
+
 type Game struct {
 	// data fields that store the state of the game itself
 	Board            Board
@@ -19,7 +56,7 @@ type Game struct {
 	BlackMoves       []PieceMoves
 	TakenWhitePieces []Piece
 	TakenBlackPieces []Piece
-	MoveList         []PieceMove
+	Moves            []HistMove
 	// keeps track of information while executing InitPieceMoves, zeroed out every time we calculate moves again
 	WhiteAttackTable AttackTable
 	BlackAttackTable AttackTable
@@ -46,20 +83,20 @@ func (g *Game) SetPieces(initial ...Move) {
 }
 
 func (g *Game) DeepCopy() Game {
-	g2 := Game{Board: g.Board}
+	game := Game{Board: g.Board}
 
 	for _, pms := range g.WhiteMoves {
-		g2.WhiteMoves = append(g2.WhiteMoves, pms.DeepCopy())
+		game.WhiteMoves = append(game.WhiteMoves, pms.DeepCopy())
 	}
 	for _, pms := range g.BlackMoves {
-		g2.BlackMoves = append(g2.BlackMoves, pms.DeepCopy())
+		game.BlackMoves = append(game.BlackMoves, pms.DeepCopy())
 	}
-	g2.MoveList = append(g2.MoveList, g.MoveList...)
+	game.Moves = append(game.Moves, g.Moves...)
 
-	g2.TakenWhitePieces = append(g2.TakenWhitePieces, g.TakenWhitePieces...)
-	g2.TakenBlackPieces = append(g2.TakenBlackPieces, g.TakenBlackPieces...)
+	game.TakenWhitePieces = append(game.TakenWhitePieces, g.TakenWhitePieces...)
+	game.TakenBlackPieces = append(game.TakenBlackPieces, g.TakenBlackPieces...)
 
-	return g2
+	return game
 }
 
 func (g *Game) ClearTables() {
@@ -103,12 +140,12 @@ func (g *Game) GetOppositeMoves() []PieceMoves {
 }
 
 func (g *Game) MakeMoved(from, to Hex) Game {
-	g2 := g.DeepCopy()
-	g2.MakeMove(from, to)
-	return g2
+	game := g.DeepCopy()
+	game.MakeMove(from, to)
+	return game
 }
 
-func (g *Game) MakeMove(from, to Hex) PieceMove {
+func (g *Game) MakeMove(from, to Hex) HistMove {
 	pieceFrom := g.Board.Get(from.File, from.Rank)
 	pieceTo := g.Board.Get(to.File, to.Rank)
 
@@ -120,23 +157,53 @@ func (g *Game) MakeMove(from, to Hex) PieceMove {
 		}
 	}
 
+	move := g.GetHistMove(PieceMove{Piece: pieceFrom, From: from, To: to})
+
+	g.Board.IsWhiteTurn = !g.Board.IsWhiteTurn
 	g.Board.Set(from.File, from.Rank, Empty)
 	g.Board.Set(to.File, to.Rank, pieceFrom)
-	g.Board.IsWhiteTurn = !g.Board.IsWhiteTurn
 
-	move := PieceMove{Piece: pieceFrom, From: from, To: to}
-	g.MoveList = append(g.MoveList, move)
+	g.Moves = append(g.Moves, move)
 
 	return move
 }
 
-func (g *Game) GetMoveNotation(move PieceMove) string {
-	var sb strings.Builder
+type MoveViolation int
 
-	sb.WriteRune(move.Piece.Rune())
+const (
+	ViolatesNone MoveViolation = iota
+	ViolatesOutOfBounds
+	ViolatesNoop
+	ViolatesIllegalMove
+)
+
+func (g *Game) ValidateMove(move PieceMove, checkLegal bool) MoveViolation {
+	if move.From.File == move.To.File && move.From.Rank == move.To.Rank {
+		return ViolatesNoop
+	}
+	if !g.Board.InBoundsHex(move.From) || !g.Board.InBoundsHex(move.To) {
+		return ViolatesOutOfBounds
+	}
+	if checkLegal {
+		legalMoves := g.GetCurrMoves()
+		pmsIdx := slices.IndexFunc(legalMoves, func(moves PieceMoves) bool { return moves.From == move.From })
+		if pmsIdx < 0 {
+			return ViolatesIllegalMove
+		}
+		if moveIdx := slices.IndexFunc(legalMoves[pmsIdx].Moves, func(to Hex) bool { return to == move.To }); moveIdx < 0 {
+			return ViolatesIllegalMove
+		}
+	}
+	return ViolatesNone
+}
+
+func (g *Game) GetHistMove(move PieceMove) HistMove {
+	var hm HistMove
+
+	hm.PieceMove = move
 
 	if g.Board.Get(move.To.File, move.To.Rank) != Empty {
-		sb.WriteString("x")
+		hm.IsTake = true
 	}
 
 	moves := g.GetCurrMoves()
@@ -144,38 +211,27 @@ func (g *Game) GetMoveNotation(move PieceMove) string {
 		for _, h := range moves[index].Moves {
 			p := g.Board.Get(h.File, h.Rank)
 			if p.IsKing() {
-				sb.WriteString("+")
+				hm.IsCheck = true
+				break
 			}
 		}
 	}
 
-	var sameFile bool
-	var sameRank bool
 	for _, pms := range moves {
 		if pms.Piece != move.Piece {
 			continue
 		}
 		if slices.ContainsFunc(pms.Moves, func(to Hex) bool { return to == move.To }) {
 			if pms.From.File == move.From.File {
-				sameFile = true
+				hm.CollFile = true
 			}
 			if pms.From.Rank == move.From.Rank {
-				sameRank = true
+				hm.CollRank = true
 			}
 		}
 	}
-	if !sameFile || !sameRank {
-		if sameFile {
-			sb.WriteString(strconv.Itoa(move.From.Rank + 1))
-		}
-		if sameRank {
-			sb.WriteRune(rune(move.From.File + 'a'))
-		}
-	}
 
-	sb.WriteString(move.To.String())
-
-	return sb.String()
+	return hm
 }
 
 func (g *Game) IsValidMove(move PieceMove) bool {
@@ -198,30 +254,32 @@ func (g *Game) IsValidMove(move PieceMove) bool {
 func (g *Game) InitPieceMoves() {
 	g.ClearTables()
 
-	// we find the piece moves for all other pieces besides the king
 	g.WhiteMoves = g.findPieceMoves(true)
 	g.BlackMoves = g.findPieceMoves(false)
 
-	whiteKingHex := g.Board.FindKing(true)
-	blackKingHex := g.Board.FindKing(false)
-	kingHex := blackKingHex
-	if g.Board.IsWhiteTurn {
-		kingHex = whiteKingHex
+	whiteKingHex, wkOk := g.Board.FindKing(true)
+	blackKingHex, bkOk := g.Board.FindKing(false)
+
+	handleCheck := func(kingHex Hex) {
+		isAttacked := g.GetTurnAttackTable(g.Board.IsWhiteTurn)
+		isCheck := isAttacked[kingHex.File][kingHex.Rank]
+		if isCheck {
+			// TODO: add support for maintaining all "blocking" moves
+			g.clearCurrentMoves()
+		}
+	}
+	if g.Board.IsWhiteTurn && wkOk {
+		handleCheck(whiteKingHex)
+	} else if bkOk {
+		handleCheck(blackKingHex)
 	}
 
-	// to decide whether we will add the piece moves, see if we are in check
-	isAttacked := g.GetTurnAttackTable(g.Board.IsWhiteTurn)
-	isCheck := isAttacked[kingHex.File][kingHex.Rank]
-
-	if isCheck {
-		// if the current king is in check, we cannot move any other pieces
-		// TODO: add support for maintaining all "blocking" moves
-		g.clearCurrentMoves()
+	if wkOk {
+		g.WhiteMoves = append(g.WhiteMoves, g.findKingMovesFiltered(whiteKingHex))
 	}
-
-	// find the moves for both kings - excluding any attacking squares
-	g.WhiteMoves = append(g.WhiteMoves, g.findKingMovesFiltered(whiteKingHex))
-	g.BlackMoves = append(g.BlackMoves, g.findKingMovesFiltered(blackKingHex))
+	if bkOk {
+		g.BlackMoves = append(g.BlackMoves, g.findKingMovesFiltered(blackKingHex))
+	}
 }
 
 //func (g *Game) findAttackTable() [Files][MaxRanks]bool {
@@ -244,7 +302,10 @@ func (g *Game) InitPieceMoves() {
 //}
 
 func (g *Game) Check() bool {
-	kingHex := g.Board.FindKing(g.Board.IsWhiteTurn)
+	kingHex, ok := g.Board.FindKing(g.Board.IsWhiteTurn)
+	if !ok {
+		return false
+	}
 	isAttacked := g.GetCurrAttackTable()
 	return isAttacked[kingHex.File][kingHex.Rank]
 }
@@ -281,9 +342,9 @@ func (g *Game) findPieceMoves(isWhiteTurn bool) []PieceMoves {
 		case WhitePawn, BlackPawn:
 			moves = append(moves, g.findPawnMoves(hex, isWhiteTurn))
 		case WhiteKing, BlackKing:
-			// no-op; king moves handled elsewhere
+			// noop; king moves handled elsewhere
 		default:
-			panic(fmt.Sprintf("board has invalid piece %d at hexagon %v", piece, hex))
+			// noop; ignore invalid pieces
 		}
 	}
 	return moves
@@ -508,21 +569,21 @@ func (g *Game) StringColor(isWhite bool) string {
 
 var ErrKingAssert = errors.New("assertion error: should never be allowed to make a move to the king")
 
-func RandomMoveList(game Game, low int, hi int) ([]PieceMove, error) {
+func RandomMoveSeq(game Game, low int, hi int) ([]HistMove, error) {
 	for range rand.Intn(low) + (low + hi) {
 		game.InitPieceMoves()
 
-		var pmsList []PieceMoves
+		var pmsArr []PieceMoves
 		for _, pm := range game.GetCurrMoves() {
 			if len(pm.Moves) > 0 {
-				pmsList = append(pmsList, pm)
+				pmsArr = append(pmsArr, pm)
 			}
 		}
-		if len(pmsList) == 0 {
+		if len(pmsArr) == 0 {
 			break
 		}
 
-		pms := pmsList[rand.Intn(len(pmsList))]
+		pms := pmsArr[rand.Intn(len(pmsArr))]
 		if len(pms.Moves) == 0 {
 			return nil, fmt.Errorf("expected at least one move, got none for game: %v", game)
 		}
@@ -547,6 +608,6 @@ func RandomMoveList(game Game, low int, hi int) ([]PieceMove, error) {
 		game.MakeMove(pm.From, pm.To)
 	}
 
-	slog.Info("random move list", "len", len(game.MoveList))
-	return game.MoveList, nil
+	slog.Info("random move sequence", "len", len(game.Moves))
+	return game.Moves, nil
 }

@@ -1,15 +1,15 @@
 <script lang="ts">
 	import Banner from '$lib/Banner.svelte';
 	import CreateGame from '$lib/components/modals/CreateGame.svelte';
-	import { createMessage } from '$lib/services/error';
-	import { getNotificationsContext } from '$lib/services/context';
+	import { makeMessage } from '$lib/utils/error';
+	import { getNotificationsContext } from '$lib/utils/context';
 	import { goto } from '$app/navigation';
 	import type { ChessModel, ColorSelect, SessionModel, TimeControl } from '$lib/api/model';
 	import services from '$lib/api/services';
-	import { formatTimeControl } from '$lib/services/format';
+	import { formatTimeControl } from '$lib/utils/format';
 	import { onMount } from 'svelte';
-	import { getClientSession } from '$lib/services/storage';
-	import { chessRowHeight, maxChessRows } from '$lib/services/render';
+	import { getClientSession } from '$lib/utils/storage';
+	import { chessRowHeight, maxChessRows } from './globals';
 
 	export interface IndexProps {
 		chessList: ChessModel[];
@@ -41,7 +41,7 @@
 		if (data) {
 			await goto(`play/${data.gameId}`);
 		} else {
-			const message = createMessage(err);
+			const message = makeMessage(err);
 			addNotification({ type: 'string', message, isSuccess: false });
 		}
 	}

@@ -35,13 +35,25 @@ message ChessBoard {
   repeated BoardFile file = 2;
 }
 
+message HistMove {
+  int32 piece = 1;
+  int32 fromFile = 2;
+  int32 fromRank = 3;
+  int32 toFile = 4;
+  int32 toRank = 5;
+  bool collFile = 6;
+  bool collRank = 7;
+  bool  isTake = 8;
+  bool  isCheck = 9;
+}
+
 message ChessGame {
   ChessBoard board = 1;
   repeated PieceMoves white_moves = 2;
   repeated PieceMoves black_moves = 3;
   repeated int32 taken_white_pieces = 4;
   repeated int32 taken_black_pieces = 5;
-  repeated PieceMove move_list = 6;
+  repeated HistMove moves = 6;
 }
 
 message ChessState {
@@ -88,7 +100,7 @@ message PlayersOutput {
 }
 
 message MoveOutput {
-  PieceMove pieceMove = 1;
+  HistMove histMove = 1;
   ChessGame game = 2;
 }
 
@@ -117,6 +129,37 @@ message GameOutput {
   }
 }
 
+message HistMoves {
+  repeated HistMove moves = 1;
+}
+
+message MoveHistory {
+  ChessGame initial_game = 1;
+  repeated MoveStep steps = 2;
+}
+
+message MoveStep {
+  HistMove move = 1;
+  ChessGame game = 3;
+}
+
+message MoveReplay {
+  ChessGame initial_game = 1;
+  repeated NotMoveStep steps = 2;
+}
+
+message NotMoveStep {
+  string notMove = 1;
+  PieceMove pm = 2;
+  ChessGame game = 3;
+}
+
+message MakeMoveInput {
+  PieceMove move = 1;
+  ChessGame game = 2;
+  bool validate = 3;
+}
+
 message UserMsg {
   string user_id = 1;
   oneof value {
@@ -136,19 +179,4 @@ message ChallengeMsg {
   uint32 time_control = 9;
   uint32 start_color = 10;
   int64 made_on = 11;
-}
-
-message MoveStep {
-  ChessGame game = 1;
-  PieceMove move = 2;
-}
-
-message MoveHistory {
-  ChessBoard initialBoard = 1;
-  repeated MoveStep move_steps = 2;
-}
-
-message MakeMoveInput {
-  PieceMove move = 1;
-  ChessBoard board = 2;
 }

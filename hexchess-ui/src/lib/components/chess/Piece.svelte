@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { hexHeight, hexWidth } from '$lib/services/render';
-	import { piecenames } from '$lib/services/chess';
+	import { hexHeight, hexWidth } from '$lib/components/chess/render';
+	import { piecenames } from '$lib/utils/chess.js';
 	import { type SelectEvent, selectEvents } from '$lib/globals';
 	import { getGlobalID } from '$lib/components/chess/globals';
 
@@ -36,7 +36,7 @@
 	$effect(() => {
 		xOff = initialLeft;
 		yOff = initialTop;
-	})
+	});
 
 	function onMouseDown(e: MouseEvent) {
 		e.preventDefault();

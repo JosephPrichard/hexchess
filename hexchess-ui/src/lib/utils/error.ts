@@ -66,7 +66,7 @@ export const messages: Record<string, string> = {
 	[codes.errorExpiredGame]: 'The game has expired due to inactivity.',
 };
 
-export function createMessage(error?: ServiceModel | string) {
+export function makeMessage(error?: ServiceModel | string) {
 	console.error(error);
 	return messages[(typeof error === "string" ? error : error?.message) || ''] || 'An unexpected error has occurred';
 }

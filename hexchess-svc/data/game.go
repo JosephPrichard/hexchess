@@ -104,7 +104,7 @@ func JoinGame(ctx context.Context, rdb Redis, gameID string, player PlayerState)
 
 type MoveResult struct {
 	Room ChessState
-	Move chess.PieceMove
+	Move chess.HistMove
 }
 
 var (
@@ -131,13 +131,13 @@ func DoMakeMove(ctx context.Context, state ChessState, player PlayerState, move 
 		return MoveResult{}, ErrInvalidMove
 	}
 
-	move = game.MakeMove(move.From, move.To)
+	hm := game.MakeMove(move.From, move.To)
 	game.InitPieceMoves()
 
 	if game.Checkmate() {
 		state.IsEnded = true
 	}
-	return MoveResult{Room: state, Move: move}, nil
+	return MoveResult{Room: state, Move: hm}, nil
 }
 
 func MakeGameMove(ctx context.Context, stores Stores, gameID string, player PlayerState, move chess.PieceMove) (MoveResult, error) {
@@ -203,7 +203,7 @@ func WriteFinishedGame(ctx context.Context, stores Stores, state ChessState, isW
 	whiteID := state.WhitePlayer.ID
 	blackID := state.BlackPlayer.ID
 
-	moveHistBytes, err := chess.MarshalMoveHistory(chess.InitialBoard(), state.Game.MoveList)
+	moveHistBytes, err := chess.MarshalMoveHistory(chess.InitialBoard(), state.Game.Moves)
 	if err != nil {
 		return fail("failed to marshal move history", err)
 	}

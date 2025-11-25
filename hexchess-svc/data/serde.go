@@ -33,18 +33,20 @@ func MapPlayer(pbPlayer *pb.PlayerState) *PlayerState {
 	return player
 }
 
+var ErrNilChess = errors.New("chess board and game cannot be nil")
+
 func UnmarshalChess(b []byte) (ChessState, error) {
 	var pbChess pb.ChessState
 	if err := proto.Unmarshal(b, &pbChess); err != nil {
-		return ChessState{}, fmt.Errorf("failed to unmarhsal chess state: %w", err)
+		return ChessState{}, err
 	}
 	if pbChess.Game == nil || pbChess.Game.Board == nil {
-		return ChessState{}, errors.New("game and board cannot be nil")
+		return ChessState{}, ErrNilChess
 	}
 
 	game, err := chess.MapGame(pbChess.Game)
 	if err != nil {
-		return ChessState{}, fmt.Errorf("failed to map game: %w", err)
+		return ChessState{}, err
 	}
 
 	state := ChessState{
@@ -66,21 +68,14 @@ func MapPbPlayer(p *PlayerState) *pb.PlayerState {
 	if p == nil {
 		return nil
 	}
-	return &pb.PlayerState{
-		Id:      p.ID,
-		Name:    p.Name,
-		Country: p.Country,
-		Elo:     p.Elo,
-		IsGuest: p.IsGuest,
-	}
+	return &pb.PlayerState{Id: p.ID, Name: p.Name, Country: p.Country, Elo: p.Elo, IsGuest: p.IsGuest}
 }
 
 func MapPbChessState(s ChessState) (*pb.ChessState, error) {
 	pbGame, err := chess.MapPbGame(s.Game)
 	if err != nil {
-		return nil, fmt.Errorf("failed to map pb game: %w", err)
+		return nil, err
 	}
-
 	pbState := &pb.ChessState{
 		Id:          s.ID,
 		Game:        pbGame,
@@ -119,39 +114,43 @@ func UnmarshalChessMeta(b []byte) (ChessMeta, error) {
 }
 
 func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {
-	if c := pbUm.GetChallenge(); c != nil {
-		return json.Marshal(ChallengeEntity{
-			ChallengerID:      c.ChallengerId,
-			ChallengerName:    c.ChallengerName,
-			ChallengerCountry: c.ChallengerCountry,
-			ChallengerElo:     c.ChallengerElo,
-			ChallengeeID:      c.ChallengeeId,
-			ChallengeeName:    c.ChallengeeName,
-			ChallengeeCountry: c.ChallengeeCountry,
-			ChallengeeElo:     c.ChallengeeElo,
-			TimeControl:       TimeControl(c.TimeControl),
-			StartColor:        ColorSelect(c.StartColor),
-			MadeOn:            time.UnixMilli(c.MadeOn),
-		})
+	if cm := pbUm.GetChallenge(); cm != nil {
+		ce := ChallengeEntity{
+			ChallengerID:      cm.ChallengerId,
+			ChallengerName:    cm.ChallengerName,
+			ChallengerCountry: cm.ChallengerCountry,
+			ChallengerElo:     cm.ChallengerElo,
+			ChallengeeID:      cm.ChallengeeId,
+			ChallengeeName:    cm.ChallengeeName,
+			ChallengeeCountry: cm.ChallengeeCountry,
+			ChallengeeElo:     cm.ChallengeeElo,
+			TimeControl:       TimeControl(cm.TimeControl),
+			StartColor:        ColorSelect(cm.StartColor),
+			MadeOn:            time.UnixMilli(cm.MadeOn),
+		}
+		return json.Marshal(ce)
 	}
 	return nil, fmt.Errorf("unknown message type: %T", pbUm)
 }
 
-func MapPbChallengeMsg(id int64, c ChallengeEntity) pb.UserMsg {
+func MapPbChallengeMsg(id int64, ce ChallengeEntity) pb.UserMsg {
+	cm := &pb.UserMsg_Challenge{
+		Challenge: &pb.ChallengeMsg{
+			ChallengerId:      ce.ChallengerID,
+			ChallengerName:    ce.ChallengerName,
+			ChallengerCountry: ce.ChallengerCountry,
+			ChallengerElo:     ce.ChallengerElo,
+			ChallengeeId:      ce.ChallengeeID,
+			ChallengeeName:    ce.ChallengeeName,
+			ChallengeeCountry: ce.ChallengeeCountry,
+			ChallengeeElo:     ce.ChallengeeElo,
+			TimeControl:       uint32(ce.TimeControl),
+			StartColor:        uint32(ce.StartColor),
+			MadeOn:            ce.MadeOn.UnixMilli(),
+		},
+	}
 	return pb.UserMsg{
 		UserId: strconv.Itoa(int(id)),
-		Value: &pb.UserMsg_Challenge{Challenge: &pb.ChallengeMsg{
-			ChallengerId:      c.ChallengerID,
-			ChallengerName:    c.ChallengerName,
-			ChallengerCountry: c.ChallengerCountry,
-			ChallengerElo:     c.ChallengerElo,
-			ChallengeeId:      c.ChallengeeID,
-			ChallengeeName:    c.ChallengeeName,
-			ChallengeeCountry: c.ChallengeeCountry,
-			ChallengeeElo:     c.ChallengeeElo,
-			TimeControl:       uint32(c.TimeControl),
-			StartColor:        uint32(c.StartColor),
-			MadeOn:            c.MadeOn.UnixMilli(),
-		}},
+		Value:  cm,
 	}
 }

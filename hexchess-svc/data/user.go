@@ -46,11 +46,11 @@ type RankedUser struct {
 
 var ErrUserNotFound = errors.New("user not found")
 
-func JoinRanks(rankedList []RankedUser, userList []UserEntity) error {
-	for i := range userList {
-		user := &userList[i]
+func JoinRanks(rankedUsers []RankedUser, users []UserEntity) error {
+	for i := range users {
+		user := &users[i]
 		found := false
-		for _, rankedUser := range rankedList {
+		for _, rankedUser := range rankedUsers {
 			if rankedUser.ID == user.ID {
 				user.Rank = rankedUser.Rank
 				found = true
@@ -58,12 +58,12 @@ func JoinRanks(rankedList []RankedUser, userList []UserEntity) error {
 			}
 		}
 		if !found {
-			return ErrUserNotFound
+			return fmt.Errorf("user %d not found in ranked users", user.ID)
 		}
 	}
 
-	sort.Slice(userList, func(i, j int) bool {
-		return userList[i].Rank < userList[j].Rank
+	sort.Slice(users, func(i, j int) bool {
+		return users[i].Rank < users[j].Rank
 	})
 	return nil
 }
@@ -114,12 +114,16 @@ func mapInsertUserParams(inst UserInst, hash HashResult) db.InsertUserParams {
 	}
 }
 
-func mapUserFromRow(row db.SelectUserByIDRow) UserEntity {
-	total := row.Wins + row.Losses
+func winrate(wins int32, total int32) int64 {
 	wr := float64(0)
 	if total > 0 {
-		wr = float64(row.Wins) / float64(total) * 100.0
+		wr = float64(wins) / float64(total) * 100.0
 	}
+	return int64(wr)
+}
+
+func mapUserFromRow(row db.SelectUserByIDRow) UserEntity {
+	total := row.Wins + row.Losses
 	return UserEntity{
 		ID:         row.ID,
 		Username:   row.Username,
@@ -130,7 +134,7 @@ func mapUserFromRow(row db.SelectUserByIDRow) UserEntity {
 		Losses:     row.Losses,
 		Bio:        row.Bio,
 		JoinedOn:   row.JoinedOn.Time,
-		WinRate:    int64(wr),
+		WinRate:    winrate(row.Wins, total),
 		Total:      int64(total),
 	}
 }
@@ -315,8 +319,8 @@ func GetRankedUsers(ctx context.Context, q *db.Queries, users []RankedUser) ([]U
 func GetUserByIDs(ctx context.Context, q *db.Queries, ids []int64) ([]UserEntity, error) {
 	rows, err := q.SelectUsersByIDs(ctx, ids)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to select users", "ids", ids, "err", err)
-		return nil, fmt.Errorf("failed to select users: %w", err)
+		slog.ErrorContext(ctx, "failed to select many users", "ids", ids, "err", err)
+		return nil, fmt.Errorf("failed to select many users: %w", err)
 	}
 	var users []UserEntity
 	for _, row := range rows {
@@ -348,10 +352,6 @@ func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page, pe
 	for i, row := range rows {
 		rank := (page-1)*perPage + int32(i) + 1
 		total := row.Wins + row.Losses
-		wr := float64(0)
-		if total > 0 {
-			wr = float64(row.Wins) / float64(total) * 100.0
-		}
 		users = append(users, UserEntity{
 			ID:       row.ID,
 			Username: row.Username,
@@ -361,7 +361,7 @@ func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page, pe
 			Losses:   row.Losses,
 			Rank:     int64(rank),
 			Total:    int64(total),
-			WinRate:  int64(wr),
+			WinRate:  winrate(row.Wins, total),
 		})
 	}
 

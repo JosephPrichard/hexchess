@@ -1,9 +1,9 @@
 <script lang="ts">
 	import '../css/index.css';
 	import type { LayoutProps } from '../../.svelte-kit/types/src/routes/$types';
-	import { type NotificationData, setNotificationsContext } from '$lib/services/context';
+	import { type NotificationData, setNotificationsContext } from '$lib/utils/context';
 	import { onMount } from 'svelte';
-	import { clearClientSession, updateClientSession } from '$lib/services/storage';
+	import { clearClientSession, updateClientSession } from '$lib/utils/storage';
 	import services, { baseURL } from '$lib/api/services';
 	import type { ChallengeModel } from '$lib/api/model';
 	import { writable } from 'svelte/store';

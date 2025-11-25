@@ -5,10 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"google.golang.org/protobuf/proto"
+	"hexchess-svc/chess"
 	"hexchess-svc/data"
 	"hexchess-svc/db"
-	"hexchess-svc/pb"
 	"hexchess-svc/util"
 	"log/slog"
 	"os"
@@ -17,7 +16,7 @@ import (
 
 // scripts to easily view any protobuf serialized record in the database in text format for debugging
 
-var mode = flag.String("mode", "move-list", "Dump mode to execute.")
+var mode = flag.String("mode", "move-sequence", "Dump mode to execute.")
 var value = flag.String("value", "70", "The value to fetch.")
 
 func main() {
@@ -38,27 +37,24 @@ func main() {
 	q := db.New(pool)
 
 	switch *mode {
-	case "move-list":
+	case "move-sequence":
 		id, err := strconv.Atoi(*value)
 		if err != nil {
 			util.LogFatalErr("failed to parse id os arg", err)
 		}
 
-		b, err := data.GetReplayMoveHistory(ctx, q, int64(id))
+		pbMoveHist, err := data.GetReplayMoveHistory(ctx, q, int64(id))
 		if err != nil {
 			util.LogFatalErr("failed to get replay move list", err)
 		}
 
-		var pbMoveHistory pb.MoveHistory
-		if err := proto.Unmarshal(b, &pbMoveHistory); err != nil {
-			util.LogFatalErr("failed to unmarshal move history", err)
-		}
-		for _, pbStep := range pbMoveHistory.MoveSteps {
-			game, err := data.MapGame(pbStep.Game)
+		for _, pbStep := range pbMoveHist.Steps {
+			game, err := chess.MapGame(pbStep.Game)
 			if err != nil {
 				util.LogFatalErr("failed to map game", err)
 			}
-			fmt.Printf("game with move: %v: %s\n", data.MapPieceMove(pbStep.Move), game.Board.String())
+			hm := chess.MapHistMove(pbStep.Move)
+			fmt.Printf("game with move: %s: %s\n", hm.String(), game.Board.String())
 		}
 	}
 }

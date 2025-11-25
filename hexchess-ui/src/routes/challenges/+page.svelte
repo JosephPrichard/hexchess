@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Banner from '$lib/Banner.svelte';
-	import { createMessage } from '$lib/services/error';
-	import { getNotificationsContext } from '$lib/services/context';
+	import { makeMessage } from '$lib/utils/error';
+	import { getNotificationsContext } from '$lib/utils/context';
 	import type { Action, ChallengeModel } from '$lib/api/model';
 	import services from '$lib/api/services';
 
@@ -67,7 +67,7 @@
 			});
 			challengeList.splice(index, 1);
 		} else {
-			const message = createMessage(err);
+			const message = makeMessage(err);
 			addNotification({ type: 'string', message, isSuccess: false });
 			challengeList[index].isLoading[action] = false;
 		}

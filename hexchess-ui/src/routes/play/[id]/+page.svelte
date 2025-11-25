@@ -1,11 +1,11 @@
 <script lang="ts">
 	import Banner from '$lib/Banner.svelte';
 	import services, { appBaseURL, baseURL } from '$lib/api/services';
-	import { createMessage } from '$lib/services/error';
-	import { getNotificationsContext } from '$lib/services/context';
+	import { makeMessage } from '$lib/utils/error';
+	import { getNotificationsContext } from '$lib/utils/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import Board from '$lib/components/chess/Board.svelte';
-	import { formatTimer } from '$lib/services/format';
+	import { formatTimer } from '$lib/utils/format';
 	import ClipboardIcon from '$lib/components/icons/ClipboardIcon.svelte';
 	import FlagIcon from '$lib/components/icons/FlagIcon.svelte';
 	import SettingsIcon from '$lib/components/icons/SettingsIcon.svelte';
@@ -14,7 +14,7 @@
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
 	import { type ChessGame, GameOutput, type PlayerState } from '$lib/api/messages';
 	import type { Hex } from '$lib/api/model';
-	import { mapHexagonList, getNewSelection, type Selection } from '$lib/services/chess';
+	import { mapHexagons, getNewSelection, type Selection } from '$lib/utils/chess.js';
 
 	export interface PlayProps {
 		gameId: string
@@ -82,7 +82,7 @@
 			// no-op
 		} else if (kind === 'error') {
 			const error = data.value.error;
-			const message = createMessage(error.message);
+			const message = makeMessage(error.message);
 			addNotification({ type: 'string', message, isSuccess: false });
 		}
 	}
@@ -115,7 +115,7 @@
 					connectGame(gameId);
 				});
 			} else {
-				const message = createMessage(err);
+				const message = makeMessage(err);
 				addNotification({ type: 'string', message, isSuccess: false });
 			}
 		};
@@ -151,7 +151,7 @@
 				<Board
 					board={game?.board}
 					isWhitePerspective={isPlayingAsWhite}
-					potentialMoves={mapHexagonList(selection.potentialMoves?.moves)}
+					potentialMoves={mapHexagons(selection.potentialMoves?.moves)}
 					onSelectPiece={onSelectPiece}
 					selectedHexagon={selection.hex}
 				/>

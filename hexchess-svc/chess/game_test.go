@@ -15,9 +15,9 @@ func TestHexagon_String(t *testing.T) {
 }
 
 func TestParseHexagon(t *testing.T) {
-	assert.Equal(t, Hex{File: 5, Rank: 8}, ParseHexagonValid("f9"))
-	assert.Equal(t, Hex{File: 6, Rank: 9}, ParseHexagonValid("g10"))
-	assert.Equal(t, Hex{File: 4, Rank: 4}, ParseHexagonValid("e5"))
+	assert.Equal(t, Hex{File: 5, Rank: 8}, ParseHexagonUnsafe("f9"))
+	assert.Equal(t, Hex{File: 6, Rank: 9}, ParseHexagonUnsafe("g10"))
+	assert.Equal(t, Hex{File: 4, Rank: 4}, ParseHexagonUnsafe("e5"))
 }
 
 func TestGame_GetSetPieces(t *testing.T) {
@@ -58,7 +58,7 @@ func TestGame_DetermineIsCheckmate(t *testing.T) {
 func assertMoves(t *testing.T, actual []Hex, expected ...string) {
 	var expectedMoves []Hex
 	for _, s := range expected {
-		expectedMoves = append(expectedMoves, ParseHexagonValid(s))
+		expectedMoves = append(expectedMoves, ParseHexagonUnsafe(s))
 	}
 	assert.ElementsMatch(t, expectedMoves, actual)
 }
@@ -171,7 +171,7 @@ func TestGame_MakeMove(t *testing.T) {
 
 	assert.Equal(t, Empty, game.Board.Pieces[3][4])
 	assert.Equal(t, BlackPawn, game.Board.Pieces[3][3])
-	assert.Equal(t, 1, len(game.MoveList))
+	assert.Equal(t, 1, len(game.Moves))
 }
 
 func TestGame_GetMoveNotation(t *testing.T) {
@@ -192,8 +192,8 @@ func TestGame_GetMoveNotation(t *testing.T) {
 			game: game,
 			move: PieceMove{
 				Piece: WhitePawn,
-				From:  ParseHexagonValid("e5"),
-				To:    ParseHexagonValid("f6"),
+				From:  ParseHexagonUnsafe("e5"),
+				To:    ParseHexagonUnsafe("f6"),
 			},
 			not: "Pef6",
 		},
@@ -201,8 +201,8 @@ func TestGame_GetMoveNotation(t *testing.T) {
 			game: game,
 			move: PieceMove{
 				Piece: WhitePawn,
-				From:  ParseHexagonValid("f7"),
-				To:    ParseHexagonValid("f6"),
+				From:  ParseHexagonUnsafe("f7"),
+				To:    ParseHexagonUnsafe("f6"),
 			},
 			not: "P7f6",
 		},
@@ -210,8 +210,8 @@ func TestGame_GetMoveNotation(t *testing.T) {
 			game: game,
 			move: PieceMove{
 				Piece: WhitePawn,
-				From:  ParseHexagonValid("k1"),
-				To:    ParseHexagonValid("f6"),
+				From:  ParseHexagonUnsafe("k1"),
+				To:    ParseHexagonUnsafe("f6"),
 			},
 			not: "Pf6",
 		},
@@ -219,8 +219,8 @@ func TestGame_GetMoveNotation(t *testing.T) {
 			game: game,
 			move: PieceMove{
 				Piece: BlackPawn,
-				From:  ParseHexagonValid("e5"),
-				To:    ParseHexagonValid("f5"),
+				From:  ParseHexagonUnsafe("e5"),
+				To:    ParseHexagonUnsafe("f5"),
 			},
 			not: "pxf5",
 		},
@@ -228,8 +228,8 @@ func TestGame_GetMoveNotation(t *testing.T) {
 		//	game: game,
 		//	move: PieceMove{
 		//		Piece: WhiteRook,
-		//		From:  ParseHexagonValid("g9"),
-		//		To:    ParseHexagonValid("g8"),
+		//		From:  ParseHexagonUnsafe("g9"),
+		//		To:    ParseHexagonUnsafe("g8"),
 		//	},
 		//	not: "R+g8",
 		//},
@@ -237,8 +237,8 @@ func TestGame_GetMoveNotation(t *testing.T) {
 		t.Logf("testing get move notation on game:%s", test.game.Board.StringMoves(test.game.GetCurrMoves()[0].Moves))
 		t.Logf("expecting move: %v", test.not)
 
-		not := test.game.GetMoveNotation(test.move)
-		assert.Equal(t, test.not, not)
+		histMove := test.game.GetHistMove(test.move)
+		assert.Equal(t, test.not, histMove.String())
 	}
 }
 

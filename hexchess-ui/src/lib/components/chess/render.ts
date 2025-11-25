@@ -1,6 +1,6 @@
-import { ranksPerFile } from './chess';
+import { ranksPerFile } from '$lib/utils/chess.js';
 
-export const hexHeight = 55;
+export const hexHeight = 56;
 export const hexWidth = hexHeight * 1.2;
 export const verticalFileOffsets = [5, 4, 3, 2, 1, 0, 1, 2, 3, 4, 5];
 export const colors = ['rgb(255, 207, 159)', 'rgb(233, 172, 112)', 'rgb(210,140,69)'];
@@ -8,8 +8,6 @@ export const selectedColor = 'rgba(100, 111, 64, 0.6)';
 export const highlightedColor = 'rgb(173, 216, 230, 0.5)';
 export const hoveringColor = 'rgb(245, 246, 130, 0.5)'
 export const colorsOffset = [0, 1, 2, 0, 1, 2, 1, 0, 2, 1, 0];
-export const chessRowHeight = 45;
-export const maxChessRows = 12;
 
 export function getTop(
 	file: number,
@@ -41,9 +39,9 @@ export function getRank(
 	return Math.floor((top - offset + (isWhitePerspective ? hexHeight : 0)) / hexHeight);
 }
 
-
-export function getFile(left: number): number {
-	return Math.floor(left / (hexHeight - 7));
+export function getFile(left: number, isWhitePerspective = true): number {
+	const file = left / (hexHeight - 7);
+	return isWhitePerspective ? Math.floor(file) : Math.ceil(10 - file);
 }
 
 export function findHex(element: HTMLElement | undefined, isWhitePerspective: boolean | undefined, x: number, y: number) {
@@ -51,7 +49,7 @@ export function findHex(element: HTMLElement | undefined, isWhitePerspective: bo
 		return;
 	}
 	const rect = element.getBoundingClientRect();
-	const file = getFile(x - rect.left);
+	const file = getFile(x - rect.left, isWhitePerspective);
 	const rank = getRank(y - rect.top, file, isWhitePerspective);
 	if (file < 0 || file > ranksPerFile.length || rank < 0 || rank > ranksPerFile[file]) {
 		return;

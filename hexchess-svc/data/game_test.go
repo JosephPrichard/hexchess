@@ -136,7 +136,7 @@ func TestMakeMove(t *testing.T) {
 			if err != nil {
 				assert.Equal(t, test.expErr, err)
 			} else {
-				assert.Equal(t, test.pm, result.Move)
+				assert.Equal(t, test.pm, result.Move.PieceMove)
 			}
 		})
 	}
@@ -152,7 +152,9 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	inState := MakeState(gameID, RealTime)
 	inState.WhitePlayer = &PlayerState{ID: 1}
 	inState.BlackPlayer = &PlayerState{ID: 2}
-	inState.Game.MoveList = []chess.PieceMove{{Piece: 1, To: chess.Hex{Rank: 1}}}
+	inState.Game.Moves = []chess.HistMove{{
+		PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}},
+	}}
 
 	if _, err := SetChessState(ctx, stores.Rdb, gameID, inState); err != nil {
 		t.Fatalf("failed initialize test state: %v", err)

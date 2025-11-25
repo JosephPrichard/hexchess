@@ -101,6 +101,6 @@ func MapWsEventErr(err error) error {
 }
 
 func handleInvalidRequest(ctx context.Context, err error) error {
-	slog.ErrorContext(ctx, "invalid request", "err", err)
+	slog.ErrorContext(ctx, "error invalid request", "err", err)
 	return ErrHttpInvalidRequest
 }

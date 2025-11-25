@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/proto"
+	"hexchess-svc/chess"
 	"hexchess-svc/data"
 	"log/slog"
 	"net/http"
@@ -418,13 +420,14 @@ func HandleCreateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 		StartColor:   fc,
 		MadeOn:       time.Now(),
 	})
-	if errors.Is(err, data.ErrDuplicateChallenge) {
+	switch {
+	case err == data.ErrDuplicateChallenge:
 		return ErrHttpDuplicateChallenge
-	} else if errors.Is(err, data.ErrParticipantConflict) {
+	case err == data.ErrParticipantConflict:
 		return ErrHttpInvalidParticipants
-	} else if errors.Is(err, data.ErrSelfChallenge) {
+	case err == data.ErrSelfChallenge:
 		return ErrHttpSelfChallenge
-	} else if err != nil {
+	case err != nil:
 		return fmt.Errorf("failed to insert challenge: %w", err)
 	}
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
@@ -476,7 +479,7 @@ func HandleGetLeaderboard(state *ServerState, w http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 	lbd, err := data.GetLeaderboardPage(ctx, state.Rdb, int64(page), PerPage)
 	if err != nil {
-		return fmt.Errorf("failed to get leaderboard page: %w", err)
+		return fmt.Errorf("failed to get leaderboard page %d: %w", page, err)
 	}
 	users, err := data.GetRankedUsers(ctx, state.Q, lbd.Users)
 	if err != nil {
@@ -517,7 +520,7 @@ func HandleGetPlayer(state *ServerState, w http.ResponseWriter, r *http.Request)
 	eg.Go(func() error {
 		u, err := data.GetUserByID(egCtx, state.Q, id)
 		if err != nil {
-			return fmt.Errorf("failed to get user by id: %w", err)
+			return fmt.Errorf("failed to get user %d by id: %w", id, err)
 		}
 		user = u
 		return nil
@@ -525,7 +528,7 @@ func HandleGetPlayer(state *ServerState, w http.ResponseWriter, r *http.Request)
 	eg.Go(func() error {
 		rs, err := data.GetUserReplays(egCtx, state.Q, id, -1, PerPage)
 		if err != nil {
-			return fmt.Errorf("failed to get replays by id: %w", err)
+			return fmt.Errorf("failed to get user replays %d by id: %w", id, err)
 		}
 		replayList = rs
 		return err
@@ -533,7 +536,7 @@ func HandleGetPlayer(state *ServerState, w http.ResponseWriter, r *http.Request)
 	eg.Go(func() error {
 		ur, err := data.GetLeaderboardRank(egCtx, state.Rdb, id)
 		if err != nil {
-			return fmt.Errorf("failed leaderboard rank by id: %w", err)
+			return fmt.Errorf("failed leaderboard %d rank by id: %w", id, err)
 		}
 		userRank = ur
 		return nil
@@ -574,7 +577,7 @@ func HandleSearchPlayers(state *ServerState, w http.ResponseWriter, r *http.Requ
 			return ErrHttpSearchLimit
 		}
 		if err != nil {
-			return fmt.Errorf("failed to search users by name: %w", err)
+			return fmt.Errorf("failed to search users by name '%s': %w", name, err)
 		}
 	}
 
@@ -613,9 +616,14 @@ func HandleGetReplayMoveList(state *ServerState, w http.ResponseWriter, r *http.
 	}
 
 	ctx := r.Context()
-	b, err := data.GetReplayMoveHistory(ctx, state.Q, int64(id))
+	pbMoveHist, err := data.GetReplayMoveHistory(ctx, state.Q, int64(id))
 	if err != nil {
-		return fmt.Errorf("failed to get replay moveHistory: %w", err)
+		return fmt.Errorf("failed to get replay %d moveHistory: %w", id, err)
+	}
+
+	b, err := proto.Marshal(chess.MapPbMoveReplay(pbMoveHist))
+	if err != nil {
+		return fmt.Errorf("failed to marshal replay %d move list : %w", id, err)
 	}
 
 	writeBytes(w, http.StatusOK, b)
@@ -641,7 +649,7 @@ func HandleGetUserReplays(state *ServerState, w http.ResponseWriter, r *http.Req
 	}
 	replays, err := data.GetUserReplays(r.Context(), state.Q, int64(userID), int64(afterID), PerPage)
 	if err != nil {
-		return fmt.Errorf("failed to get user replays: %w", err)
+		return fmt.Errorf("failed to get user %d replays: %w", userID, err)
 	}
 
 	if replays == nil {

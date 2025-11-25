@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatElo, getResultClasses } from '$lib/services/format';
+	import { formatElo, getResultClasses } from '$lib/utils/format';
 	import type { ReplayModel } from '$lib/api/model';
 
 	const { replay }: { replay: ReplayModel } = $props();

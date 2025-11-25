@@ -337,6 +337,114 @@ func (x *ChessBoard) GetFile() []*BoardFile {
 	return nil
 }
 
+type HistMove struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Piece         int32                  `protobuf:"varint,1,opt,name=piece,proto3" json:"piece,omitempty"`
+	FromFile      int32                  `protobuf:"varint,2,opt,name=fromFile,proto3" json:"fromFile,omitempty"`
+	FromRank      int32                  `protobuf:"varint,3,opt,name=fromRank,proto3" json:"fromRank,omitempty"`
+	ToFile        int32                  `protobuf:"varint,4,opt,name=toFile,proto3" json:"toFile,omitempty"`
+	ToRank        int32                  `protobuf:"varint,5,opt,name=toRank,proto3" json:"toRank,omitempty"`
+	CollFile      bool                   `protobuf:"varint,6,opt,name=collFile,proto3" json:"collFile,omitempty"`
+	CollRank      bool                   `protobuf:"varint,7,opt,name=collRank,proto3" json:"collRank,omitempty"`
+	IsTake        bool                   `protobuf:"varint,8,opt,name=isTake,proto3" json:"isTake,omitempty"`
+	IsCheck       bool                   `protobuf:"varint,9,opt,name=isCheck,proto3" json:"isCheck,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HistMove) Reset() {
+	*x = HistMove{}
+	mi := &file_pb_messages_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HistMove) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HistMove) ProtoMessage() {}
+
+func (x *HistMove) ProtoReflect() protoreflect.Message {
+	mi := &file_pb_messages_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HistMove.ProtoReflect.Descriptor instead.
+func (*HistMove) Descriptor() ([]byte, []int) {
+	return file_pb_messages_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *HistMove) GetPiece() int32 {
+	if x != nil {
+		return x.Piece
+	}
+	return 0
+}
+
+func (x *HistMove) GetFromFile() int32 {
+	if x != nil {
+		return x.FromFile
+	}
+	return 0
+}
+
+func (x *HistMove) GetFromRank() int32 {
+	if x != nil {
+		return x.FromRank
+	}
+	return 0
+}
+
+func (x *HistMove) GetToFile() int32 {
+	if x != nil {
+		return x.ToFile
+	}
+	return 0
+}
+
+func (x *HistMove) GetToRank() int32 {
+	if x != nil {
+		return x.ToRank
+	}
+	return 0
+}
+
+func (x *HistMove) GetCollFile() bool {
+	if x != nil {
+		return x.CollFile
+	}
+	return false
+}
+
+func (x *HistMove) GetCollRank() bool {
+	if x != nil {
+		return x.CollRank
+	}
+	return false
+}
+
+func (x *HistMove) GetIsTake() bool {
+	if x != nil {
+		return x.IsTake
+	}
+	return false
+}
+
+func (x *HistMove) GetIsCheck() bool {
+	if x != nil {
+		return x.IsCheck
+	}
+	return false
+}
+
 type ChessGame struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Board            *ChessBoard            `protobuf:"bytes,1,opt,name=board,proto3" json:"board,omitempty"`
@@ -344,14 +452,14 @@ type ChessGame struct {
 	BlackMoves       []*PieceMoves          `protobuf:"bytes,3,rep,name=black_moves,json=blackMoves,proto3" json:"black_moves,omitempty"`
 	TakenWhitePieces []int32                `protobuf:"varint,4,rep,packed,name=taken_white_pieces,json=takenWhitePieces,proto3" json:"taken_white_pieces,omitempty"`
 	TakenBlackPieces []int32                `protobuf:"varint,5,rep,packed,name=taken_black_pieces,json=takenBlackPieces,proto3" json:"taken_black_pieces,omitempty"`
-	MoveList         []*PieceMove           `protobuf:"bytes,6,rep,name=move_list,json=moveList,proto3" json:"move_list,omitempty"`
+	Moves            []*HistMove            `protobuf:"bytes,6,rep,name=moves,proto3" json:"moves,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ChessGame) Reset() {
 	*x = ChessGame{}
-	mi := &file_pb_messages_proto_msgTypes[5]
+	mi := &file_pb_messages_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -363,7 +471,7 @@ func (x *ChessGame) String() string {
 func (*ChessGame) ProtoMessage() {}
 
 func (x *ChessGame) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[5]
+	mi := &file_pb_messages_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -376,7 +484,7 @@ func (x *ChessGame) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChessGame.ProtoReflect.Descriptor instead.
 func (*ChessGame) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{5}
+	return file_pb_messages_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ChessGame) GetBoard() *ChessBoard {
@@ -414,9 +522,9 @@ func (x *ChessGame) GetTakenBlackPieces() []int32 {
 	return nil
 }
 
-func (x *ChessGame) GetMoveList() []*PieceMove {
+func (x *ChessGame) GetMoves() []*HistMove {
 	if x != nil {
-		return x.MoveList
+		return x.Moves
 	}
 	return nil
 }
@@ -437,7 +545,7 @@ type ChessState struct {
 
 func (x *ChessState) Reset() {
 	*x = ChessState{}
-	mi := &file_pb_messages_proto_msgTypes[6]
+	mi := &file_pb_messages_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -449,7 +557,7 @@ func (x *ChessState) String() string {
 func (*ChessState) ProtoMessage() {}
 
 func (x *ChessState) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[6]
+	mi := &file_pb_messages_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -462,7 +570,7 @@ func (x *ChessState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChessState.ProtoReflect.Descriptor instead.
 func (*ChessState) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{6}
+	return file_pb_messages_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ChessState) GetId() string {
@@ -529,7 +637,7 @@ type ForfeitInput struct {
 
 func (x *ForfeitInput) Reset() {
 	*x = ForfeitInput{}
-	mi := &file_pb_messages_proto_msgTypes[7]
+	mi := &file_pb_messages_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -541,7 +649,7 @@ func (x *ForfeitInput) String() string {
 func (*ForfeitInput) ProtoMessage() {}
 
 func (x *ForfeitInput) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[7]
+	mi := &file_pb_messages_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -554,7 +662,7 @@ func (x *ForfeitInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForfeitInput.ProtoReflect.Descriptor instead.
 func (*ForfeitInput) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{7}
+	return file_pb_messages_proto_rawDescGZIP(), []int{8}
 }
 
 type MoveInput struct {
@@ -566,7 +674,7 @@ type MoveInput struct {
 
 func (x *MoveInput) Reset() {
 	*x = MoveInput{}
-	mi := &file_pb_messages_proto_msgTypes[8]
+	mi := &file_pb_messages_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -578,7 +686,7 @@ func (x *MoveInput) String() string {
 func (*MoveInput) ProtoMessage() {}
 
 func (x *MoveInput) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[8]
+	mi := &file_pb_messages_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -591,7 +699,7 @@ func (x *MoveInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveInput.ProtoReflect.Descriptor instead.
 func (*MoveInput) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{8}
+	return file_pb_messages_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *MoveInput) GetMove() *PieceMove {
@@ -610,7 +718,7 @@ type ChatInput struct {
 
 func (x *ChatInput) Reset() {
 	*x = ChatInput{}
-	mi := &file_pb_messages_proto_msgTypes[9]
+	mi := &file_pb_messages_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -622,7 +730,7 @@ func (x *ChatInput) String() string {
 func (*ChatInput) ProtoMessage() {}
 
 func (x *ChatInput) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[9]
+	mi := &file_pb_messages_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -635,7 +743,7 @@ func (x *ChatInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatInput.ProtoReflect.Descriptor instead.
 func (*ChatInput) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{9}
+	return file_pb_messages_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ChatInput) GetMessage() string {
@@ -659,7 +767,7 @@ type GameInput struct {
 
 func (x *GameInput) Reset() {
 	*x = GameInput{}
-	mi := &file_pb_messages_proto_msgTypes[10]
+	mi := &file_pb_messages_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -671,7 +779,7 @@ func (x *GameInput) String() string {
 func (*GameInput) ProtoMessage() {}
 
 func (x *GameInput) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[10]
+	mi := &file_pb_messages_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -684,7 +792,7 @@ func (x *GameInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GameInput.ProtoReflect.Descriptor instead.
 func (*GameInput) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{10}
+	return file_pb_messages_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GameInput) GetValue() isGameInput_Value {
@@ -752,7 +860,7 @@ type ErrorOutput struct {
 
 func (x *ErrorOutput) Reset() {
 	*x = ErrorOutput{}
-	mi := &file_pb_messages_proto_msgTypes[11]
+	mi := &file_pb_messages_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -764,7 +872,7 @@ func (x *ErrorOutput) String() string {
 func (*ErrorOutput) ProtoMessage() {}
 
 func (x *ErrorOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[11]
+	mi := &file_pb_messages_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -777,7 +885,7 @@ func (x *ErrorOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ErrorOutput.ProtoReflect.Descriptor instead.
 func (*ErrorOutput) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{11}
+	return file_pb_messages_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ErrorOutput) GetMessage() string {
@@ -797,7 +905,7 @@ type InitOutput struct {
 
 func (x *InitOutput) Reset() {
 	*x = InitOutput{}
-	mi := &file_pb_messages_proto_msgTypes[12]
+	mi := &file_pb_messages_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -809,7 +917,7 @@ func (x *InitOutput) String() string {
 func (*InitOutput) ProtoMessage() {}
 
 func (x *InitOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[12]
+	mi := &file_pb_messages_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -822,7 +930,7 @@ func (x *InitOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InitOutput.ProtoReflect.Descriptor instead.
 func (*InitOutput) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{12}
+	return file_pb_messages_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *InitOutput) GetState() *ChessState {
@@ -849,7 +957,7 @@ type PlayersOutput struct {
 
 func (x *PlayersOutput) Reset() {
 	*x = PlayersOutput{}
-	mi := &file_pb_messages_proto_msgTypes[13]
+	mi := &file_pb_messages_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -861,7 +969,7 @@ func (x *PlayersOutput) String() string {
 func (*PlayersOutput) ProtoMessage() {}
 
 func (x *PlayersOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[13]
+	mi := &file_pb_messages_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -874,7 +982,7 @@ func (x *PlayersOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlayersOutput.ProtoReflect.Descriptor instead.
 func (*PlayersOutput) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{13}
+	return file_pb_messages_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *PlayersOutput) GetWhitePlayer() *PlayerState {
@@ -893,7 +1001,7 @@ func (x *PlayersOutput) GetBlackPlayer() *PlayerState {
 
 type MoveOutput struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	PieceMove     *PieceMove             `protobuf:"bytes,1,opt,name=pieceMove,proto3" json:"pieceMove,omitempty"`
+	HistMove      *HistMove              `protobuf:"bytes,1,opt,name=histMove,proto3" json:"histMove,omitempty"`
 	Game          *ChessGame             `protobuf:"bytes,2,opt,name=game,proto3" json:"game,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -901,7 +1009,7 @@ type MoveOutput struct {
 
 func (x *MoveOutput) Reset() {
 	*x = MoveOutput{}
-	mi := &file_pb_messages_proto_msgTypes[14]
+	mi := &file_pb_messages_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -913,7 +1021,7 @@ func (x *MoveOutput) String() string {
 func (*MoveOutput) ProtoMessage() {}
 
 func (x *MoveOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[14]
+	mi := &file_pb_messages_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -926,12 +1034,12 @@ func (x *MoveOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveOutput.ProtoReflect.Descriptor instead.
 func (*MoveOutput) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{14}
+	return file_pb_messages_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *MoveOutput) GetPieceMove() *PieceMove {
+func (x *MoveOutput) GetHistMove() *HistMove {
 	if x != nil {
-		return x.PieceMove
+		return x.HistMove
 	}
 	return nil
 }
@@ -953,7 +1061,7 @@ type ChatOutput struct {
 
 func (x *ChatOutput) Reset() {
 	*x = ChatOutput{}
-	mi := &file_pb_messages_proto_msgTypes[15]
+	mi := &file_pb_messages_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -965,7 +1073,7 @@ func (x *ChatOutput) String() string {
 func (*ChatOutput) ProtoMessage() {}
 
 func (x *ChatOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[15]
+	mi := &file_pb_messages_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -978,7 +1086,7 @@ func (x *ChatOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatOutput.ProtoReflect.Descriptor instead.
 func (*ChatOutput) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{15}
+	return file_pb_messages_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ChatOutput) GetPlayer() *PlayerState {
@@ -1003,7 +1111,7 @@ type ForfeitOutput struct {
 
 func (x *ForfeitOutput) Reset() {
 	*x = ForfeitOutput{}
-	mi := &file_pb_messages_proto_msgTypes[16]
+	mi := &file_pb_messages_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1015,7 +1123,7 @@ func (x *ForfeitOutput) String() string {
 func (*ForfeitOutput) ProtoMessage() {}
 
 func (x *ForfeitOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[16]
+	mi := &file_pb_messages_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1028,7 +1136,7 @@ func (x *ForfeitOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForfeitOutput.ProtoReflect.Descriptor instead.
 func (*ForfeitOutput) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{16}
+	return file_pb_messages_proto_rawDescGZIP(), []int{17}
 }
 
 type GameOutputID struct {
@@ -1041,7 +1149,7 @@ type GameOutputID struct {
 
 func (x *GameOutputID) Reset() {
 	*x = GameOutputID{}
-	mi := &file_pb_messages_proto_msgTypes[17]
+	mi := &file_pb_messages_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1053,7 +1161,7 @@ func (x *GameOutputID) String() string {
 func (*GameOutputID) ProtoMessage() {}
 
 func (x *GameOutputID) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[17]
+	mi := &file_pb_messages_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1066,7 +1174,7 @@ func (x *GameOutputID) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GameOutputID.ProtoReflect.Descriptor instead.
 func (*GameOutputID) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{17}
+	return file_pb_messages_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *GameOutputID) GetGameId() string {
@@ -1102,7 +1210,7 @@ type GameOutput struct {
 
 func (x *GameOutput) Reset() {
 	*x = GameOutput{}
-	mi := &file_pb_messages_proto_msgTypes[18]
+	mi := &file_pb_messages_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1114,7 +1222,7 @@ func (x *GameOutput) String() string {
 func (*GameOutput) ProtoMessage() {}
 
 func (x *GameOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[18]
+	mi := &file_pb_messages_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1127,7 +1235,7 @@ func (x *GameOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GameOutput.ProtoReflect.Descriptor instead.
 func (*GameOutput) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{18}
+	return file_pb_messages_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GameOutput) GetGameId() string {
@@ -1245,6 +1353,326 @@ func (*GameOutput_Chat) isGameOutput_Value() {}
 
 func (*GameOutput_Forfeit) isGameOutput_Value() {}
 
+type HistMoves struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Moves         []*HistMove            `protobuf:"bytes,1,rep,name=moves,proto3" json:"moves,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HistMoves) Reset() {
+	*x = HistMoves{}
+	mi := &file_pb_messages_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HistMoves) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HistMoves) ProtoMessage() {}
+
+func (x *HistMoves) ProtoReflect() protoreflect.Message {
+	mi := &file_pb_messages_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HistMoves.ProtoReflect.Descriptor instead.
+func (*HistMoves) Descriptor() ([]byte, []int) {
+	return file_pb_messages_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *HistMoves) GetMoves() []*HistMove {
+	if x != nil {
+		return x.Moves
+	}
+	return nil
+}
+
+type MoveHistory struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	InitialGame   *ChessGame             `protobuf:"bytes,1,opt,name=initial_game,json=initialGame,proto3" json:"initial_game,omitempty"`
+	Steps         []*MoveStep            `protobuf:"bytes,2,rep,name=steps,proto3" json:"steps,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MoveHistory) Reset() {
+	*x = MoveHistory{}
+	mi := &file_pb_messages_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MoveHistory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MoveHistory) ProtoMessage() {}
+
+func (x *MoveHistory) ProtoReflect() protoreflect.Message {
+	mi := &file_pb_messages_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MoveHistory.ProtoReflect.Descriptor instead.
+func (*MoveHistory) Descriptor() ([]byte, []int) {
+	return file_pb_messages_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *MoveHistory) GetInitialGame() *ChessGame {
+	if x != nil {
+		return x.InitialGame
+	}
+	return nil
+}
+
+func (x *MoveHistory) GetSteps() []*MoveStep {
+	if x != nil {
+		return x.Steps
+	}
+	return nil
+}
+
+type MoveStep struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Move          *HistMove              `protobuf:"bytes,1,opt,name=move,proto3" json:"move,omitempty"`
+	Game          *ChessGame             `protobuf:"bytes,3,opt,name=game,proto3" json:"game,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MoveStep) Reset() {
+	*x = MoveStep{}
+	mi := &file_pb_messages_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MoveStep) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MoveStep) ProtoMessage() {}
+
+func (x *MoveStep) ProtoReflect() protoreflect.Message {
+	mi := &file_pb_messages_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MoveStep.ProtoReflect.Descriptor instead.
+func (*MoveStep) Descriptor() ([]byte, []int) {
+	return file_pb_messages_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *MoveStep) GetMove() *HistMove {
+	if x != nil {
+		return x.Move
+	}
+	return nil
+}
+
+func (x *MoveStep) GetGame() *ChessGame {
+	if x != nil {
+		return x.Game
+	}
+	return nil
+}
+
+type MoveReplay struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	InitialGame   *ChessGame             `protobuf:"bytes,1,opt,name=initial_game,json=initialGame,proto3" json:"initial_game,omitempty"`
+	Steps         []*NotMoveStep         `protobuf:"bytes,2,rep,name=steps,proto3" json:"steps,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MoveReplay) Reset() {
+	*x = MoveReplay{}
+	mi := &file_pb_messages_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MoveReplay) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MoveReplay) ProtoMessage() {}
+
+func (x *MoveReplay) ProtoReflect() protoreflect.Message {
+	mi := &file_pb_messages_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MoveReplay.ProtoReflect.Descriptor instead.
+func (*MoveReplay) Descriptor() ([]byte, []int) {
+	return file_pb_messages_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *MoveReplay) GetInitialGame() *ChessGame {
+	if x != nil {
+		return x.InitialGame
+	}
+	return nil
+}
+
+func (x *MoveReplay) GetSteps() []*NotMoveStep {
+	if x != nil {
+		return x.Steps
+	}
+	return nil
+}
+
+type NotMoveStep struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NotMove       string                 `protobuf:"bytes,1,opt,name=notMove,proto3" json:"notMove,omitempty"`
+	Pm            *PieceMove             `protobuf:"bytes,2,opt,name=pm,proto3" json:"pm,omitempty"`
+	Game          *ChessGame             `protobuf:"bytes,3,opt,name=game,proto3" json:"game,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NotMoveStep) Reset() {
+	*x = NotMoveStep{}
+	mi := &file_pb_messages_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NotMoveStep) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NotMoveStep) ProtoMessage() {}
+
+func (x *NotMoveStep) ProtoReflect() protoreflect.Message {
+	mi := &file_pb_messages_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NotMoveStep.ProtoReflect.Descriptor instead.
+func (*NotMoveStep) Descriptor() ([]byte, []int) {
+	return file_pb_messages_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *NotMoveStep) GetNotMove() string {
+	if x != nil {
+		return x.NotMove
+	}
+	return ""
+}
+
+func (x *NotMoveStep) GetPm() *PieceMove {
+	if x != nil {
+		return x.Pm
+	}
+	return nil
+}
+
+func (x *NotMoveStep) GetGame() *ChessGame {
+	if x != nil {
+		return x.Game
+	}
+	return nil
+}
+
+type MakeMoveInput struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Move          *PieceMove             `protobuf:"bytes,1,opt,name=move,proto3" json:"move,omitempty"`
+	Game          *ChessGame             `protobuf:"bytes,2,opt,name=game,proto3" json:"game,omitempty"`
+	Validate      bool                   `protobuf:"varint,3,opt,name=validate,proto3" json:"validate,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MakeMoveInput) Reset() {
+	*x = MakeMoveInput{}
+	mi := &file_pb_messages_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MakeMoveInput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MakeMoveInput) ProtoMessage() {}
+
+func (x *MakeMoveInput) ProtoReflect() protoreflect.Message {
+	mi := &file_pb_messages_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MakeMoveInput.ProtoReflect.Descriptor instead.
+func (*MakeMoveInput) Descriptor() ([]byte, []int) {
+	return file_pb_messages_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *MakeMoveInput) GetMove() *PieceMove {
+	if x != nil {
+		return x.Move
+	}
+	return nil
+}
+
+func (x *MakeMoveInput) GetGame() *ChessGame {
+	if x != nil {
+		return x.Game
+	}
+	return nil
+}
+
+func (x *MakeMoveInput) GetValidate() bool {
+	if x != nil {
+		return x.Validate
+	}
+	return false
+}
+
 type UserMsg struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
 	UserId string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -1258,7 +1686,7 @@ type UserMsg struct {
 
 func (x *UserMsg) Reset() {
 	*x = UserMsg{}
-	mi := &file_pb_messages_proto_msgTypes[19]
+	mi := &file_pb_messages_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1270,7 +1698,7 @@ func (x *UserMsg) String() string {
 func (*UserMsg) ProtoMessage() {}
 
 func (x *UserMsg) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[19]
+	mi := &file_pb_messages_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1283,7 +1711,7 @@ func (x *UserMsg) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserMsg.ProtoReflect.Descriptor instead.
 func (*UserMsg) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{19}
+	return file_pb_messages_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *UserMsg) GetUserId() string {
@@ -1338,7 +1766,7 @@ type ChallengeMsg struct {
 
 func (x *ChallengeMsg) Reset() {
 	*x = ChallengeMsg{}
-	mi := &file_pb_messages_proto_msgTypes[20]
+	mi := &file_pb_messages_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1350,7 +1778,7 @@ func (x *ChallengeMsg) String() string {
 func (*ChallengeMsg) ProtoMessage() {}
 
 func (x *ChallengeMsg) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[20]
+	mi := &file_pb_messages_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1363,7 +1791,7 @@ func (x *ChallengeMsg) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChallengeMsg.ProtoReflect.Descriptor instead.
 func (*ChallengeMsg) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{20}
+	return file_pb_messages_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ChallengeMsg) GetChallengerId() int64 {
@@ -1443,162 +1871,6 @@ func (x *ChallengeMsg) GetMadeOn() int64 {
 	return 0
 }
 
-type MoveStep struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Game          *ChessGame             `protobuf:"bytes,1,opt,name=game,proto3" json:"game,omitempty"`
-	Move          *PieceMove             `protobuf:"bytes,2,opt,name=move,proto3" json:"move,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *MoveStep) Reset() {
-	*x = MoveStep{}
-	mi := &file_pb_messages_proto_msgTypes[21]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *MoveStep) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*MoveStep) ProtoMessage() {}
-
-func (x *MoveStep) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[21]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use MoveStep.ProtoReflect.Descriptor instead.
-func (*MoveStep) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{21}
-}
-
-func (x *MoveStep) GetGame() *ChessGame {
-	if x != nil {
-		return x.Game
-	}
-	return nil
-}
-
-func (x *MoveStep) GetMove() *PieceMove {
-	if x != nil {
-		return x.Move
-	}
-	return nil
-}
-
-type MoveHistory struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	InitialBoard  *ChessBoard            `protobuf:"bytes,1,opt,name=initialBoard,proto3" json:"initialBoard,omitempty"`
-	MoveSteps     []*MoveStep            `protobuf:"bytes,2,rep,name=move_steps,json=moveSteps,proto3" json:"move_steps,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *MoveHistory) Reset() {
-	*x = MoveHistory{}
-	mi := &file_pb_messages_proto_msgTypes[22]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *MoveHistory) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*MoveHistory) ProtoMessage() {}
-
-func (x *MoveHistory) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[22]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use MoveHistory.ProtoReflect.Descriptor instead.
-func (*MoveHistory) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{22}
-}
-
-func (x *MoveHistory) GetInitialBoard() *ChessBoard {
-	if x != nil {
-		return x.InitialBoard
-	}
-	return nil
-}
-
-func (x *MoveHistory) GetMoveSteps() []*MoveStep {
-	if x != nil {
-		return x.MoveSteps
-	}
-	return nil
-}
-
-type MakeMoveInput struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Move          *PieceMove             `protobuf:"bytes,1,opt,name=move,proto3" json:"move,omitempty"`
-	Board         *ChessBoard            `protobuf:"bytes,2,opt,name=board,proto3" json:"board,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *MakeMoveInput) Reset() {
-	*x = MakeMoveInput{}
-	mi := &file_pb_messages_proto_msgTypes[23]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *MakeMoveInput) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*MakeMoveInput) ProtoMessage() {}
-
-func (x *MakeMoveInput) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_messages_proto_msgTypes[23]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use MakeMoveInput.ProtoReflect.Descriptor instead.
-func (*MakeMoveInput) Descriptor() ([]byte, []int) {
-	return file_pb_messages_proto_rawDescGZIP(), []int{23}
-}
-
-func (x *MakeMoveInput) GetMove() *PieceMove {
-	if x != nil {
-		return x.Move
-	}
-	return nil
-}
-
-func (x *MakeMoveInput) GetBoard() *ChessBoard {
-	if x != nil {
-		return x.Board
-	}
-	return nil
-}
-
 var File_pb_messages_proto protoreflect.FileDescriptor
 
 const file_pb_messages_proto_rawDesc = "" +
@@ -1627,7 +1899,17 @@ const file_pb_messages_proto_rawDesc = "" +
 	"\n" +
 	"ChessBoard\x12\"\n" +
 	"\ris_white_turn\x18\x01 \x01(\bR\visWhiteTurn\x12'\n" +
-	"\x04file\x18\x02 \x03(\v2\x13.messages.BoardFileR\x04file\"\xb3\x02\n" +
+	"\x04file\x18\x02 \x03(\v2\x13.messages.BoardFileR\x04file\"\xf2\x01\n" +
+	"\bHistMove\x12\x14\n" +
+	"\x05piece\x18\x01 \x01(\x05R\x05piece\x12\x1a\n" +
+	"\bfromFile\x18\x02 \x01(\x05R\bfromFile\x12\x1a\n" +
+	"\bfromRank\x18\x03 \x01(\x05R\bfromRank\x12\x16\n" +
+	"\x06toFile\x18\x04 \x01(\x05R\x06toFile\x12\x16\n" +
+	"\x06toRank\x18\x05 \x01(\x05R\x06toRank\x12\x1a\n" +
+	"\bcollFile\x18\x06 \x01(\bR\bcollFile\x12\x1a\n" +
+	"\bcollRank\x18\a \x01(\bR\bcollRank\x12\x16\n" +
+	"\x06isTake\x18\b \x01(\bR\x06isTake\x12\x18\n" +
+	"\aisCheck\x18\t \x01(\bR\aisCheck\"\xab\x02\n" +
 	"\tChessGame\x12*\n" +
 	"\x05board\x18\x01 \x01(\v2\x14.messages.ChessBoardR\x05board\x125\n" +
 	"\vwhite_moves\x18\x02 \x03(\v2\x14.messages.PieceMovesR\n" +
@@ -1635,8 +1917,8 @@ const file_pb_messages_proto_rawDesc = "" +
 	"\vblack_moves\x18\x03 \x03(\v2\x14.messages.PieceMovesR\n" +
 	"blackMoves\x12,\n" +
 	"\x12taken_white_pieces\x18\x04 \x03(\x05R\x10takenWhitePieces\x12,\n" +
-	"\x12taken_black_pieces\x18\x05 \x03(\x05R\x10takenBlackPieces\x120\n" +
-	"\tmove_list\x18\x06 \x03(\v2\x13.messages.PieceMoveR\bmoveList\"\xae\x02\n" +
+	"\x12taken_black_pieces\x18\x05 \x03(\x05R\x10takenBlackPieces\x12(\n" +
+	"\x05moves\x18\x06 \x03(\v2\x12.messages.HistMoveR\x05moves\"\xae\x02\n" +
 	"\n" +
 	"ChessState\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
@@ -1666,10 +1948,10 @@ const file_pb_messages_proto_rawDesc = "" +
 	"\x04self\x18\x02 \x01(\v2\x15.messages.PlayerStateR\x04self\"\x83\x01\n" +
 	"\rPlayersOutput\x128\n" +
 	"\fwhite_player\x18\x01 \x01(\v2\x15.messages.PlayerStateR\vwhitePlayer\x128\n" +
-	"\fblack_player\x18\x02 \x01(\v2\x15.messages.PlayerStateR\vblackPlayer\"h\n" +
+	"\fblack_player\x18\x02 \x01(\v2\x15.messages.PlayerStateR\vblackPlayer\"e\n" +
 	"\n" +
-	"MoveOutput\x121\n" +
-	"\tpieceMove\x18\x01 \x01(\v2\x13.messages.PieceMoveR\tpieceMove\x12'\n" +
+	"MoveOutput\x12.\n" +
+	"\bhistMove\x18\x01 \x01(\v2\x12.messages.HistMoveR\bhistMove\x12'\n" +
 	"\x04game\x18\x02 \x01(\v2\x13.messages.ChessGameR\x04game\"U\n" +
 	"\n" +
 	"ChatOutput\x12-\n" +
@@ -1691,7 +1973,27 @@ const file_pb_messages_proto_rawDesc = "" +
 	"\x04move\x18\x06 \x01(\v2\x14.messages.MoveOutputH\x00R\x04move\x12*\n" +
 	"\x04chat\x18\a \x01(\v2\x14.messages.ChatOutputH\x00R\x04chat\x123\n" +
 	"\aforfeit\x18\b \x01(\v2\x17.messages.ForfeitOutputH\x00R\aforfeitB\a\n" +
-	"\x05value\"c\n" +
+	"\x05value\"5\n" +
+	"\tHistMoves\x12(\n" +
+	"\x05moves\x18\x01 \x03(\v2\x12.messages.HistMoveR\x05moves\"o\n" +
+	"\vMoveHistory\x126\n" +
+	"\finitial_game\x18\x01 \x01(\v2\x13.messages.ChessGameR\vinitialGame\x12(\n" +
+	"\x05steps\x18\x02 \x03(\v2\x12.messages.MoveStepR\x05steps\"[\n" +
+	"\bMoveStep\x12&\n" +
+	"\x04move\x18\x01 \x01(\v2\x12.messages.HistMoveR\x04move\x12'\n" +
+	"\x04game\x18\x03 \x01(\v2\x13.messages.ChessGameR\x04game\"q\n" +
+	"\n" +
+	"MoveReplay\x126\n" +
+	"\finitial_game\x18\x01 \x01(\v2\x13.messages.ChessGameR\vinitialGame\x12+\n" +
+	"\x05steps\x18\x02 \x03(\v2\x15.messages.NotMoveStepR\x05steps\"u\n" +
+	"\vNotMoveStep\x12\x18\n" +
+	"\anotMove\x18\x01 \x01(\tR\anotMove\x12#\n" +
+	"\x02pm\x18\x02 \x01(\v2\x13.messages.PieceMoveR\x02pm\x12'\n" +
+	"\x04game\x18\x03 \x01(\v2\x13.messages.ChessGameR\x04game\"}\n" +
+	"\rMakeMoveInput\x12'\n" +
+	"\x04move\x18\x01 \x01(\v2\x13.messages.PieceMoveR\x04move\x12'\n" +
+	"\x04game\x18\x02 \x01(\v2\x13.messages.ChessGameR\x04game\x12\x1a\n" +
+	"\bvalidate\x18\x03 \x01(\bR\bvalidate\"c\n" +
 	"\aUserMsg\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x126\n" +
 	"\tchallenge\x18\x02 \x01(\v2\x16.messages.ChallengeMsgH\x00R\tchallengeB\a\n" +
@@ -1709,17 +2011,7 @@ const file_pb_messages_proto_rawDesc = "" +
 	"\vstart_color\x18\n" +
 	" \x01(\rR\n" +
 	"startColor\x12\x17\n" +
-	"\amade_on\x18\v \x01(\x03R\x06madeOn\"\\\n" +
-	"\bMoveStep\x12'\n" +
-	"\x04game\x18\x01 \x01(\v2\x13.messages.ChessGameR\x04game\x12'\n" +
-	"\x04move\x18\x02 \x01(\v2\x13.messages.PieceMoveR\x04move\"z\n" +
-	"\vMoveHistory\x128\n" +
-	"\finitialBoard\x18\x01 \x01(\v2\x14.messages.ChessBoardR\finitialBoard\x121\n" +
-	"\n" +
-	"move_steps\x18\x02 \x03(\v2\x12.messages.MoveStepR\tmoveSteps\"d\n" +
-	"\rMakeMoveInput\x12'\n" +
-	"\x04move\x18\x01 \x01(\v2\x13.messages.PieceMoveR\x04move\x12*\n" +
-	"\x05board\x18\x02 \x01(\v2\x14.messages.ChessBoardR\x05boardB\x12Z\x10hexchess-data/pbb\x06proto3"
+	"\amade_on\x18\v \x01(\x03R\x06madeOnB\x12Z\x10hexchess-data/pbb\x06proto3"
 
 var (
 	file_pb_messages_proto_rawDescOnce sync.Once
@@ -1733,71 +2025,80 @@ func file_pb_messages_proto_rawDescGZIP() []byte {
 	return file_pb_messages_proto_rawDescData
 }
 
-var file_pb_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
+var file_pb_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_pb_messages_proto_goTypes = []any{
 	(*PlayerState)(nil),   // 0: messages.PlayerState
 	(*PieceMove)(nil),     // 1: messages.PieceMove
 	(*PieceMoves)(nil),    // 2: messages.PieceMoves
 	(*BoardFile)(nil),     // 3: messages.BoardFile
 	(*ChessBoard)(nil),    // 4: messages.ChessBoard
-	(*ChessGame)(nil),     // 5: messages.ChessGame
-	(*ChessState)(nil),    // 6: messages.ChessState
-	(*ForfeitInput)(nil),  // 7: messages.ForfeitInput
-	(*MoveInput)(nil),     // 8: messages.MoveInput
-	(*ChatInput)(nil),     // 9: messages.ChatInput
-	(*GameInput)(nil),     // 10: messages.GameInput
-	(*ErrorOutput)(nil),   // 11: messages.ErrorOutput
-	(*InitOutput)(nil),    // 12: messages.InitOutput
-	(*PlayersOutput)(nil), // 13: messages.PlayersOutput
-	(*MoveOutput)(nil),    // 14: messages.MoveOutput
-	(*ChatOutput)(nil),    // 15: messages.ChatOutput
-	(*ForfeitOutput)(nil), // 16: messages.ForfeitOutput
-	(*GameOutputID)(nil),  // 17: messages.GameOutputID
-	(*GameOutput)(nil),    // 18: messages.GameOutput
-	(*UserMsg)(nil),       // 19: messages.UserMsg
-	(*ChallengeMsg)(nil),  // 20: messages.ChallengeMsg
-	(*MoveStep)(nil),      // 21: messages.MoveStep
-	(*MoveHistory)(nil),   // 22: messages.MoveHistory
-	(*MakeMoveInput)(nil), // 23: messages.MakeMoveInput
+	(*HistMove)(nil),      // 5: messages.HistMove
+	(*ChessGame)(nil),     // 6: messages.ChessGame
+	(*ChessState)(nil),    // 7: messages.ChessState
+	(*ForfeitInput)(nil),  // 8: messages.ForfeitInput
+	(*MoveInput)(nil),     // 9: messages.MoveInput
+	(*ChatInput)(nil),     // 10: messages.ChatInput
+	(*GameInput)(nil),     // 11: messages.GameInput
+	(*ErrorOutput)(nil),   // 12: messages.ErrorOutput
+	(*InitOutput)(nil),    // 13: messages.InitOutput
+	(*PlayersOutput)(nil), // 14: messages.PlayersOutput
+	(*MoveOutput)(nil),    // 15: messages.MoveOutput
+	(*ChatOutput)(nil),    // 16: messages.ChatOutput
+	(*ForfeitOutput)(nil), // 17: messages.ForfeitOutput
+	(*GameOutputID)(nil),  // 18: messages.GameOutputID
+	(*GameOutput)(nil),    // 19: messages.GameOutput
+	(*HistMoves)(nil),     // 20: messages.HistMoves
+	(*MoveHistory)(nil),   // 21: messages.MoveHistory
+	(*MoveStep)(nil),      // 22: messages.MoveStep
+	(*MoveReplay)(nil),    // 23: messages.MoveReplay
+	(*NotMoveStep)(nil),   // 24: messages.NotMoveStep
+	(*MakeMoveInput)(nil), // 25: messages.MakeMoveInput
+	(*UserMsg)(nil),       // 26: messages.UserMsg
+	(*ChallengeMsg)(nil),  // 27: messages.ChallengeMsg
 }
 var file_pb_messages_proto_depIdxs = []int32{
 	3,  // 0: messages.ChessBoard.file:type_name -> messages.BoardFile
 	4,  // 1: messages.ChessGame.board:type_name -> messages.ChessBoard
 	2,  // 2: messages.ChessGame.white_moves:type_name -> messages.PieceMoves
 	2,  // 3: messages.ChessGame.black_moves:type_name -> messages.PieceMoves
-	1,  // 4: messages.ChessGame.move_list:type_name -> messages.PieceMove
-	5,  // 5: messages.ChessState.game:type_name -> messages.ChessGame
+	5,  // 4: messages.ChessGame.moves:type_name -> messages.HistMove
+	6,  // 5: messages.ChessState.game:type_name -> messages.ChessGame
 	0,  // 6: messages.ChessState.white_player:type_name -> messages.PlayerState
 	0,  // 7: messages.ChessState.black_player:type_name -> messages.PlayerState
 	1,  // 8: messages.MoveInput.move:type_name -> messages.PieceMove
-	7,  // 9: messages.GameInput.forfeit:type_name -> messages.ForfeitInput
-	8,  // 10: messages.GameInput.move:type_name -> messages.MoveInput
-	9,  // 11: messages.GameInput.chat:type_name -> messages.ChatInput
-	6,  // 12: messages.InitOutput.state:type_name -> messages.ChessState
+	8,  // 9: messages.GameInput.forfeit:type_name -> messages.ForfeitInput
+	9,  // 10: messages.GameInput.move:type_name -> messages.MoveInput
+	10, // 11: messages.GameInput.chat:type_name -> messages.ChatInput
+	7,  // 12: messages.InitOutput.state:type_name -> messages.ChessState
 	0,  // 13: messages.InitOutput.self:type_name -> messages.PlayerState
 	0,  // 14: messages.PlayersOutput.white_player:type_name -> messages.PlayerState
 	0,  // 15: messages.PlayersOutput.black_player:type_name -> messages.PlayerState
-	1,  // 16: messages.MoveOutput.pieceMove:type_name -> messages.PieceMove
-	5,  // 17: messages.MoveOutput.game:type_name -> messages.ChessGame
+	5,  // 16: messages.MoveOutput.histMove:type_name -> messages.HistMove
+	6,  // 17: messages.MoveOutput.game:type_name -> messages.ChessGame
 	0,  // 18: messages.ChatOutput.player:type_name -> messages.PlayerState
-	11, // 19: messages.GameOutput.error:type_name -> messages.ErrorOutput
-	12, // 20: messages.GameOutput.init:type_name -> messages.InitOutput
-	13, // 21: messages.GameOutput.players:type_name -> messages.PlayersOutput
-	14, // 22: messages.GameOutput.move:type_name -> messages.MoveOutput
-	15, // 23: messages.GameOutput.chat:type_name -> messages.ChatOutput
-	16, // 24: messages.GameOutput.forfeit:type_name -> messages.ForfeitOutput
-	20, // 25: messages.UserMsg.challenge:type_name -> messages.ChallengeMsg
-	5,  // 26: messages.MoveStep.game:type_name -> messages.ChessGame
-	1,  // 27: messages.MoveStep.move:type_name -> messages.PieceMove
-	4,  // 28: messages.MoveHistory.initialBoard:type_name -> messages.ChessBoard
-	21, // 29: messages.MoveHistory.move_steps:type_name -> messages.MoveStep
-	1,  // 30: messages.MakeMoveInput.move:type_name -> messages.PieceMove
-	4,  // 31: messages.MakeMoveInput.board:type_name -> messages.ChessBoard
-	32, // [32:32] is the sub-list for method output_type
-	32, // [32:32] is the sub-list for method input_type
-	32, // [32:32] is the sub-list for extension type_name
-	32, // [32:32] is the sub-list for extension extendee
-	0,  // [0:32] is the sub-list for field type_name
+	12, // 19: messages.GameOutput.error:type_name -> messages.ErrorOutput
+	13, // 20: messages.GameOutput.init:type_name -> messages.InitOutput
+	14, // 21: messages.GameOutput.players:type_name -> messages.PlayersOutput
+	15, // 22: messages.GameOutput.move:type_name -> messages.MoveOutput
+	16, // 23: messages.GameOutput.chat:type_name -> messages.ChatOutput
+	17, // 24: messages.GameOutput.forfeit:type_name -> messages.ForfeitOutput
+	5,  // 25: messages.HistMoves.moves:type_name -> messages.HistMove
+	6,  // 26: messages.MoveHistory.initial_game:type_name -> messages.ChessGame
+	22, // 27: messages.MoveHistory.steps:type_name -> messages.MoveStep
+	5,  // 28: messages.MoveStep.move:type_name -> messages.HistMove
+	6,  // 29: messages.MoveStep.game:type_name -> messages.ChessGame
+	6,  // 30: messages.MoveReplay.initial_game:type_name -> messages.ChessGame
+	24, // 31: messages.MoveReplay.steps:type_name -> messages.NotMoveStep
+	1,  // 32: messages.NotMoveStep.pm:type_name -> messages.PieceMove
+	6,  // 33: messages.NotMoveStep.game:type_name -> messages.ChessGame
+	1,  // 34: messages.MakeMoveInput.move:type_name -> messages.PieceMove
+	6,  // 35: messages.MakeMoveInput.game:type_name -> messages.ChessGame
+	27, // 36: messages.UserMsg.challenge:type_name -> messages.ChallengeMsg
+	37, // [37:37] is the sub-list for method output_type
+	37, // [37:37] is the sub-list for method input_type
+	37, // [37:37] is the sub-list for extension type_name
+	37, // [37:37] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_pb_messages_proto_init() }
@@ -1805,12 +2106,12 @@ func file_pb_messages_proto_init() {
 	if File_pb_messages_proto != nil {
 		return
 	}
-	file_pb_messages_proto_msgTypes[10].OneofWrappers = []any{
+	file_pb_messages_proto_msgTypes[11].OneofWrappers = []any{
 		(*GameInput_Forfeit)(nil),
 		(*GameInput_Move)(nil),
 		(*GameInput_Chat)(nil),
 	}
-	file_pb_messages_proto_msgTypes[18].OneofWrappers = []any{
+	file_pb_messages_proto_msgTypes[19].OneofWrappers = []any{
 		(*GameOutput_Error)(nil),
 		(*GameOutput_Init)(nil),
 		(*GameOutput_Players)(nil),
@@ -1818,7 +2119,7 @@ func file_pb_messages_proto_init() {
 		(*GameOutput_Chat)(nil),
 		(*GameOutput_Forfeit)(nil),
 	}
-	file_pb_messages_proto_msgTypes[19].OneofWrappers = []any{
+	file_pb_messages_proto_msgTypes[26].OneofWrappers = []any{
 		(*UserMsg_Challenge)(nil),
 	}
 	type x struct{}
@@ -1827,7 +2128,7 @@ func file_pb_messages_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pb_messages_proto_rawDesc), len(file_pb_messages_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   24,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

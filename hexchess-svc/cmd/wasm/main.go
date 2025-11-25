@@ -7,35 +7,51 @@ import (
 	"syscall/js"
 )
 
-func handleJsErr(err string) js.Value {
-	js.Global().Get("console").Call("error", err)
+var global = js.Global()
+
+func jsLog(args ...any) {
+	global.Get("console").Call("log", args...)
+}
+
+func jsErr(err string) js.Value {
+	global.Get("console").Call("error", err)
 	return js.Undefined()
 }
 
-func GetInitialBoard(_ js.Value, _ []js.Value) interface{} {
-	js.Global().Get("console").Call("log", "GetInitialBoard called")
+func GetInitialGame(_ js.Value, _ []js.Value) interface{} {
+	game := chess.Game{Board: chess.InitialBoard()}
+	game.InitPieceMoves()
 
-	pbBoard, err := chess.MapPbBoard(chess.InitialBoard())
+	pbGame, err := chess.MapPbGame(game)
 	if err != nil {
-		return handleJsErr(err.Error())
+		return jsErr(err.Error())
 	}
-	output, err := proto.Marshal(pbBoard)
+	output, err := proto.Marshal(pbGame)
 	if err != nil {
-		return handleJsErr(err.Error())
+		return jsErr(err.Error())
 	}
-	out := js.Global().Get("Uint8Array").New(len(output))
+	out := global.Get("Uint8Array").New(len(output))
 	js.CopyBytesToJS(out, output)
-
-	js.Global().Get("console").Call("log", "GetInitialBoard finished")
 
 	return out
 }
 
-func MakeBoardMove(_ js.Value, args []js.Value) interface{} {
-	js.Global().Get("console").Call("log", "MakeBoardMove called")
+func makeMoveErr(violation chess.MoveViolation) js.Value {
+	switch violation {
+	case chess.ViolatesOutOfBounds:
+		return jsErr("violation: Out of bounds move")
+	case chess.ViolatesNoop:
+		return jsErr("violation: Noop move")
+	case chess.ViolatesIllegalMove:
+		return jsErr("violation: Illegal move")
+	default:
+		return jsErr("violation: Unknown violation")
+	}
+}
 
+func MakeMove(_ js.Value, args []js.Value) interface{} {
 	if len(args) == 0 {
-		return handleJsErr("makeBoardMove expects at least 2 args")
+		return jsErr("makeMove expects at least 1 args")
 	}
 
 	inputUInt8Arr := args[0]
@@ -44,48 +60,76 @@ func MakeBoardMove(_ js.Value, args []js.Value) interface{} {
 
 	var pbMoveIn pb.MakeMoveInput
 	if err := proto.Unmarshal(boardIn, &pbMoveIn); err != nil {
-		return handleJsErr(err.Error())
+		return jsErr(err.Error())
 	}
-
-	board, err := chess.MapBoard(pbMoveIn.Board)
+	game, err := chess.MapGame(pbMoveIn.Game)
 	if err != nil {
-		return handleJsErr(err.Error())
+		return jsErr(err.Error())
 	}
-	var pm chess.PieceMove
-	var hasMove bool
-	if pbMoveIn.Move != nil {
-		pm = chess.MapPieceMove(pbMoveIn.Move)
-		hasMove = true
-	}
+	pm := chess.MapPieceMove(pbMoveIn.Move)
 
-	game := chess.Game{Board: board}
-	game.InitPieceMoves()
-	if hasMove {
+	if pbMoveIn.Move != nil {
+		if violation := game.ValidateMove(pm, pbMoveIn.Validate); violation != chess.ViolatesNone {
+			return makeMoveErr(violation)
+		}
 		game.MakeMove(pm.From, pm.To)
+		game.InitPieceMoves()
 	}
 
 	pbGameOut, err := chess.MapPbGame(game)
 	if err != nil {
-		return handleJsErr(err.Error())
+		return jsErr(err.Error())
 	}
 	output, err := proto.Marshal(pbGameOut)
 	if err != nil {
-		return handleJsErr(err.Error())
+		return jsErr(err.Error())
 	}
 
-	out := js.Global().Get("Uint8Array").New(len(output))
+	out := global.Get("Uint8Array").New(len(output))
 	js.CopyBytesToJS(out, output)
 
-	js.Global().Get("console").Call("log", "MakeBoardMove finished")
+	return out
+}
+
+func GetMoves(_ js.Value, args []js.Value) interface{} {
+	if len(args) == 0 {
+		return jsErr("getMoves expects at least 1 args")
+	}
+
+	inputUInt8Arr := args[0]
+	boardIn := make([]byte, inputUInt8Arr.Length())
+	js.CopyBytesToGo(boardIn, inputUInt8Arr)
+
+	var pbBoard pb.ChessBoard
+	if err := proto.Unmarshal(boardIn, &pbBoard); err != nil {
+		return jsErr(err.Error())
+	}
+	board, err := chess.MapBoard(&pbBoard)
+	if err != nil {
+		return jsErr(err.Error())
+	}
+
+	game := chess.Game{Board: board}
+	game.InitPieceMoves()
+
+	pbGameOut, err := chess.MapPbGame(game)
+	if err != nil {
+		return jsErr(err.Error())
+	}
+	output, err := proto.Marshal(pbGameOut)
+	if err != nil {
+		return jsErr(err.Error())
+	}
+
+	out := global.Get("Uint8Array").New(len(output))
+	js.CopyBytesToJS(out, output)
 
 	return out
 }
 
 func FenToGame(_ js.Value, args []js.Value) interface{} {
-	js.Global().Get("console").Call("log", "FenToGame called")
-
 	if len(args) == 0 {
-		return handleJsErr("fenToBoard expects at least 1 arg")
+		return jsErr("fenToBoard expects at least 1 arg")
 	}
 
 	fenString := args[0]
@@ -93,7 +137,7 @@ func FenToGame(_ js.Value, args []js.Value) interface{} {
 
 	board, err := chess.ParseFen(fen)
 	if err != nil {
-		obj := js.Global().Get("Object").New()
+		obj := global.Get("Object").New()
 		obj.Set("err", err.Error())
 		return obj
 	}
@@ -103,62 +147,80 @@ func FenToGame(_ js.Value, args []js.Value) interface{} {
 
 	pbGame, err := chess.MapPbGame(game)
 	if err != nil {
-		return handleJsErr(err.Error())
+		return jsErr(err.Error())
 	}
 	output, err := proto.Marshal(pbGame)
 	if err != nil {
-		return handleJsErr(err.Error())
+		return jsErr(err.Error())
 	}
 
-	js.Global().Get("console").Call("log", "FenToGame finished")
-
-	out := js.Global().Get("Uint8Array").New(len(output))
+	out := global.Get("Uint8Array").New(len(output))
 	js.CopyBytesToJS(out, output)
 
-	obj := js.Global().Get("Object").New()
+	obj := global.Get("Object").New()
 	obj.Set("game", out)
-
-	js.Global().Get("console").Call("log", "FenToGame returning")
 
 	return obj
 }
 
 func BoardToFen(_ js.Value, args []js.Value) interface{} {
-	js.Global().Get("console").Call("log", "BoardToFen called")
-
 	if len(args) == 0 {
-		return handleJsErr("boardToFen expects at least 1 arg")
+		return jsErr("boardToFen expects at least 1 arg")
 	}
 
-	boardUInt8Arr := args[0]
-	input := make([]byte, boardUInt8Arr.Length())
-	js.CopyBytesToGo(input, boardUInt8Arr)
+	inputUInt8Arr := args[0]
+	input := make([]byte, inputUInt8Arr.Length())
+	js.CopyBytesToGo(input, inputUInt8Arr)
 
 	var pbBoard pb.ChessBoard
 	if err := proto.Unmarshal(input, &pbBoard); err != nil {
-		return handleJsErr(err.Error())
+		return jsErr(err.Error())
 	}
 	board, err := chess.MapBoard(&pbBoard)
 	if err != nil {
-		return handleJsErr(err.Error())
+		return jsErr(err.Error())
 	}
 
 	fen := board.Fen()
 	fenValue := js.ValueOf(fen)
-
-	js.Global().Get("console").Call("log", "BoardToFen finished")
-
 	return fenValue
 }
 
+func GetMoveNotations(_ js.Value, args []js.Value) interface{} {
+	if len(args) == 0 {
+		return jsErr("getMoveNotations expects at least 1 arg")
+	}
+
+	inputUInt8Arr := args[0]
+	input := make([]byte, inputUInt8Arr.Length())
+	js.CopyBytesToGo(input, inputUInt8Arr)
+
+	var pbHistMoves pb.HistMoves
+	if err := proto.Unmarshal(input, &pbHistMoves); err != nil {
+		return jsErr(err.Error())
+	}
+
+	moves := make([]any, 0, len(pbHistMoves.Moves))
+	for _, pbHm := range pbHistMoves.Moves {
+		hm := chess.MapHistMove(pbHm)
+		moves = append(moves, hm.String())
+	}
+
+	notationsValue := js.ValueOf(moves)
+	return notationsValue
+}
+
 func main() {
-	js.Global().Get("console").Call("log", "Begin initializing wasm module")
+	jsLog("Begin initializing wasm module")
 
-	js.Global().Set("getInitialBoard", js.FuncOf(GetInitialBoard))
-	js.Global().Set("makeMove", js.FuncOf(MakeBoardMove))
-	js.Global().Set("fenToGame", js.FuncOf(FenToGame))
-	js.Global().Set("boardToFen", js.FuncOf(BoardToFen))
+	global.Set("getInitialGame", js.FuncOf(GetInitialGame))
+	global.Set("makeMove", js.FuncOf(MakeMove))
+	global.Set("getMoves", js.FuncOf(GetMoves))
+	global.Set("fenToGame", js.FuncOf(FenToGame))
+	global.Set("boardToFen", js.FuncOf(BoardToFen))
+	global.Set("getMoveNotations", js.FuncOf(GetMoveNotations))
 
-	c := make(chan struct{})
-	<-c
+	jsLog("Finished initializing wasm module")
+
+	select {}
 }

@@ -1,15 +1,14 @@
 <script lang="ts">
-	import { hexHeight, hexWidth, findHex } from '$lib/services/render';
+	import { hexHeight, hexWidth, findHex } from '$lib/components/chess/render';
 	import Piece from './Piece.svelte';
 	import type { Hex } from '$lib/api/model';
 	import { type SelectEvent, selectEvents } from '$lib/globals';
-	import { blackPieces, whitePieces } from '$lib/services/chess';
+	import { blackPieces, whitePieces } from '$lib/utils/chess.js';
 	import CursorIcon from '$lib/components/icons/CursorIcon.svelte';
 	import LargeTrashIcon from '$lib/components/icons/LargeTrashIcon.svelte';
 
 	export interface PieceEditorProps {
 		selectedPiece?: number;
-		isDisabled?: boolean;
 		boardElement?: HTMLElement;
 		hoveringHexagon?: Hex;
 		isWhitePerspective?: boolean;
@@ -17,11 +16,11 @@
 		isTrashSelector?: boolean;
 	}
 
-	let { selectedPiece = $bindable(), isDisabled, boardElement = $bindable(),
-		hoveringHexagon = $bindable(), isWhitePerspective, onDropPiece, isTrashSelector = $bindable() }: PieceEditorProps = $props();
+	let { selectedPiece = $bindable(), boardElement = $bindable(), hoveringHexagon = $bindable(),
+		isWhitePerspective, onDropPiece, isTrashSelector = $bindable() }: PieceEditorProps = $props();
 
 	function onSelectPiece(event: SelectEvent, piece: number) {
-		if (isDisabled)
+		if (isTrashSelector)
 			return;
 		switch (event) {
 		case "SELECT":
@@ -44,12 +43,19 @@
 			onDropPiece?.(hex);
 		}
 	}
+
+	function onSelectTrash(isCursor: boolean = false) {
+		isTrashSelector = !isCursor;
+		if (isTrashSelector) {
+			selectedPiece = undefined;
+		}
+	}
 </script>
 
 <div class="piece-editor">
 	{#each [whitePieces, blackPieces] as panel, i}
 		{@const isCursor = i === 0}
-		<div class="piece-panel" class:disabled-piece-panel={isDisabled}>
+		<div class="piece-panel">
 			{#each panel as piece}
 				<div class="piece-tile-wrapper">
 					<div
@@ -60,9 +66,10 @@
 						style:height="{hexHeight}px"
 						class:selected-tile={selectedPiece === piece}
 						onmousedown={(e) => onSelectPiece(selectEvents[e.button], piece)}
+						class:disabled-piece-panel={isTrashSelector}
 					>
 						<Piece
-							isDraggable={!isDisabled}
+							isDraggable={!isTrashSelector}
 							piece={piece}
 							initialLeft={-5}
 							initialTop={0}
@@ -81,7 +88,7 @@
 				style:height="{hexHeight}px"
 				class:red-select-tile={isTrashSelector && !isCursor}
 				class:green-select-tile={!isTrashSelector && isCursor}
-				onmousedown={() => isTrashSelector = !isCursor}
+				onmousedown={() => onSelectTrash(isCursor)}
 			>
 				{#if isCursor}
 					<CursorIcon/>

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { getLeft } from '$lib/services/render';
+	import { getLeft } from '$lib/components/chess/render';
 	import ClipboardIcon from '$lib/components/icons/ClipboardIcon.svelte';
-	import { getNotificationsContext } from '$lib/services/context';
+	import { getNotificationsContext } from '$lib/utils/context';
 
 	interface FENProps {
 		fen: string

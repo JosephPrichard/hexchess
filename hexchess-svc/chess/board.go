@@ -129,7 +129,7 @@ func ParseHexagon(notation string) (Hex, error) {
 	return Hex{File: file, Rank: rank - 1}, nil
 }
 
-func ParseHexagonValid(notation string) Hex {
+func ParseHexagonUnsafe(notation string) Hex {
 	hex, err := ParseHexagon(notation)
 	if err != nil {
 		panic(fmt.Sprintf("failed to set piece at notation: %s", err))
@@ -157,8 +157,6 @@ func (h Hex) CanPromote() bool {
 		return h.Rank >= 9
 	case 5:
 		return h.Rank >= 10
-	default:
-		panic(fmt.Sprintf("cannot promote to an invalid file %d", h.File))
 	}
 	return false
 }
@@ -233,13 +231,10 @@ func (p Piece) IsWhite() bool {
 }
 
 func (p Piece) SameColor(p2 Piece) bool {
-	return p != Empty && p2 != Empty && !p.OppositeColor(p2)
+	return p != Empty && p2 != Empty && p%2 == p2%2
 }
 
 func (p Piece) OppositeColor(p2 Piece) bool {
-	if p == Empty || p2 == Empty {
-		panic(fmt.Sprintf("pieces are empty when checking if opposite, was piece1=%v and piece2=%v", p, p2))
-	}
 	return p%2 != p2%2
 }
 
@@ -272,7 +267,7 @@ func (p Piece) Rune() rune {
 	case BlackKing:
 		return 'k'
 	default:
-		panic(fmt.Sprintf("invalid piece: %d", p))
+		return '?'
 	}
 }
 
@@ -412,35 +407,34 @@ func (b *Board) SetPiece(file, rank int, piece Piece) error {
 
 func (b *Board) GetPiece(file, rank int) (Piece, error) {
 	if file >= len(b.Pieces) {
-		return 0, fmt.Errorf("file out of range: %d", file)
+		return 0, fmt.Errorf("board file out of range: %d", file)
 	}
 	fileArr := &b.Pieces[file]
 	if rank >= RanksPerFile[file] {
-		return 0, fmt.Errorf("rank out of range: %d for file: %d", rank, file)
+		return 0, fmt.Errorf("board rank out of range: %d for file: %d", rank, file)
 	}
 	return fileArr[rank], nil
 }
 
 // SetPieceNot GetPieceNot set piece notation, get piece notation
 func (b *Board) SetPieceNot(str string, p Piece) {
-	hex := ParseHexagonValid(str)
+	hex := ParseHexagonUnsafe(str)
 	b.Set(hex.File, hex.Rank, p)
 }
 
 func (b *Board) GetPieceNot(str string) Piece {
-	hex := ParseHexagonValid(str)
+	hex := ParseHexagonUnsafe(str)
 	return b.Get(hex.File, hex.Rank)
 }
 
-func (b *Board) FindKing(isWhite bool) Hex {
+func (b *Board) FindKing(isWhite bool) (Hex, bool) {
 	for _, hex := range OrdHexagons {
 		piece := b.Get(hex.File, hex.Rank)
 		if (piece == WhiteKing && isWhite) || (piece == BlackKing && !isWhite) {
-			return hex
+			return hex, true
 		}
 	}
-	panic(fmt.Sprintf("board doesn't have a king: %s", b.String()))
-	return Hex{}
+	return Hex{}, false
 }
 
 func (b *Board) InBounds(file, rank int) bool {
@@ -544,10 +538,6 @@ func ParseFen(fen string) (Board, error) {
 func (b *Board) Fen() string {
 	var sb strings.Builder
 
-	intToString := func(n int) string {
-		return string(rune('0' + n))
-	}
-
 	for file := range Files {
 		ranksCount := RanksPerFile[file]
 		emptyCount := 0
@@ -560,14 +550,14 @@ func (b *Board) Fen() string {
 			}
 
 			if emptyCount > 0 {
-				sb.WriteString(intToString(emptyCount))
+				sb.WriteString(strconv.Itoa(emptyCount))
 				emptyCount = 0
 			}
 			sb.WriteRune(piece.Rune())
 		}
 
 		if emptyCount > 0 {
-			sb.WriteString(intToString(emptyCount))
+			sb.WriteString(strconv.Itoa(emptyCount))
 		}
 		if file != Files-1 {
 			sb.WriteRune('/')

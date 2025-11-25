@@ -96,8 +96,6 @@ func TestGetReplayMoveList(t *testing.T) {
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-move-list")
 
-	b, err := GetReplayMoveHistory(ctx, pgDB.Q, 1)
+	_, err := GetReplayMoveHistory(ctx, pgDB.Q, 1)
 	assert.NoError(t, err)
-
-	assert.Equal(t, []byte{}, b)
 }

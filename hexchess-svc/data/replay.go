@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"google.golang.org/protobuf/proto"
 	"hexchess-svc/db"
+	"hexchess-svc/pb"
 	"log/slog"
 	"math"
 	"time"
@@ -64,13 +66,13 @@ func InsertReplay(ctx context.Context, q *db.Queries, inst ReplayInst) (int64, e
 	}
 
 	replayID, err := q.InsertReplay(ctx, db.InsertReplayParams{
-		WhiteID:  inst.WhiteID,
-		BlackID:  inst.BlackID,
-		Result:   inst.Result,
-		Cause:    inst.Cause,
-		WinElo:   inst.WinElo,
-		LoseElo:  inst.LoseElo,
-		MoveList: inst.MoveHistoryProto,
+		WhiteID:     inst.WhiteID,
+		BlackID:     inst.BlackID,
+		Result:      inst.Result,
+		Cause:       inst.Cause,
+		WinElo:      inst.WinElo,
+		LoseElo:     inst.LoseElo,
+		MoveHistory: inst.MoveHistoryProto,
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to create replay", "replay", inst, "err", err)
@@ -118,7 +120,7 @@ func GetReplay(ctx context.Context, q *db.Queries, id int64) (ReplayEntity, erro
 	}
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to select replay", "id", id, "err", err)
-		return ReplayEntity{}, fmt.Errorf("failed to get replay by id: %w", err)
+		return ReplayEntity{}, fmt.Errorf("failed to get replay %d by id: %w", id, err)
 	}
 	replay := mapReplayFromRow(row)
 
@@ -126,15 +128,21 @@ func GetReplay(ctx context.Context, q *db.Queries, id int64) (ReplayEntity, erro
 	return replay, nil
 }
 
-func GetReplayMoveHistory(ctx context.Context, q *db.Queries, id int64) ([]byte, error) {
+func GetReplayMoveHistory(ctx context.Context, q *db.Queries, id int64) (*pb.MoveHistory, error) {
 	b, err := q.GetReplayMoveHistory(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNoReplay
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to get replay move list by id: %w", err)
+		return nil, fmt.Errorf("failed to get replay %d move list by id: %w", id, err)
 	}
-	return b, nil
+
+	var moveHist pb.MoveHistory
+	if err := proto.Unmarshal(b, &moveHist); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal move history: %w", err)
+	}
+
+	return &moveHist, nil
 }
 
 func GetUserReplays(ctx context.Context, q *db.Queries, userID int64, afterID int64, perPage int32) ([]ReplayEntity, error) {
@@ -148,8 +156,8 @@ func GetUserReplays(ctx context.Context, q *db.Queries, userID int64, afterID in
 		PerPage: perPage,
 	})
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to select replays", "err", err)
-		return nil, fmt.Errorf("failed to get replays: %w", err)
+		slog.ErrorContext(ctx, "failed to select replays", "userID", userID, "afterID", afterID, "err", err)
+		return nil, fmt.Errorf("failed to select replays: %w", err)
 	}
 
 	var replays []ReplayEntity

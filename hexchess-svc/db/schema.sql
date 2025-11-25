@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS replays (
     played_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     win_elo FLOAT8 NOT NULL,
     lose_elo FLOAT8 NOT NULL,
-    move_list BYTEA NOT NULL
+    move_history BYTEA NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS challenges (

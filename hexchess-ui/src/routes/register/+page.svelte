@@ -1,9 +1,9 @@
 <script lang="ts">
 	import Banner from '$lib/Banner.svelte';
 	import { goto } from '$app/navigation';
-	import { createMessage } from '$lib/services/error';
-	import { setClientSession } from '$lib/services/storage';
-	import { getNotificationsContext } from '$lib/services/context';
+	import { makeMessage } from '$lib/utils/error';
+	import { setClientSession } from '$lib/utils/storage';
+	import { getNotificationsContext } from '$lib/utils/context';
 	import services from '$lib/api/services';
 
 	let username = $state('');
@@ -27,7 +27,7 @@
 
 			await goto('/');
 		} else {
-			const message = createMessage(err);
+			const message = makeMessage(err);
 			addNotification({ type: 'string', message, isSuccess: false });
 		}
 

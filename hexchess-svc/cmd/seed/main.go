@@ -31,14 +31,14 @@ func readMockFile[V any](filename string) []V {
 
 func insertReplay(ctx context.Context, q *db.Queries, r data.ReplayInst) error {
 	game := chess.MakeStartGame()
-	moveList, err := chess.RandomMoveList(game, 10, 30)
+	moveSeq, err := chess.RandomMoveSeq(game, 10, 30)
 	if err != nil {
 		util.LogFatalErr("failed to generate random move list", err)
 	}
 
-	moveHistBytes, err := chess.MarshalMoveHistory(chess.InitialBoard(), moveList)
+	moveHistBytes, err := chess.MarshalMoveHistory(game.Board, moveSeq)
 	if err != nil {
-		return fmt.Errorf("failed to marshal move list: %w", err)
+		return fmt.Errorf("failed to marshal move history: %w", err)
 	}
 	r.MoveHistoryProto = moveHistBytes
 

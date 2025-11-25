@@ -4,7 +4,7 @@ interface MoveState {
 	moveCount: number
 }
 
-export function createMoveState() {
+export function makeMoveState() {
 	let value: MoveState = $state({
 		moveIndex: undefined,
 		isWhitePerspective: true,
@@ -39,5 +39,5 @@ export function createMoveState() {
 		value.moveCount = count;
 	}
 
-	return { value, selectMove, flip, goLeft, goRight, updateMoveCount}
+	return { value, selectMove, flip, goLeft, goRight, updateMoveCount }
 }

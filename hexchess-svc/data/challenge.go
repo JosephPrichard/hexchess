@@ -153,7 +153,7 @@ func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) 
 		inst.MadeOn = time.Now()
 	}
 
-	row, err := q.InsertChallenge(ctx, db.InsertChallengeParams{
+	row, dbErr := q.InsertChallenge(ctx, db.InsertChallengeParams{
 		ChallengerID: inst.ChallengerID,
 		ChallengeeID: inst.ChallengeeID,
 		TimeControl:  inst.TimeControl.String(),
@@ -162,7 +162,7 @@ func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) 
 	})
 
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
+	if errors.As(dbErr, &pgErr) {
 		switch pgErr.Code {
 		case "23505":
 			slog.InfoContext(ctx, "challenge already exists", "challenge", inst, "err", pgErr)
@@ -172,8 +172,8 @@ func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) 
 			return ChallengeEntity{}, ErrParticipantConflict
 		}
 	}
-	if err != nil {
-		return ChallengeEntity{}, err
+	if dbErr != nil {
+		return ChallengeEntity{}, dbErr
 	}
 	challenge, err := mapChallengeFromRow(db.SelectChallengesByParticipantRow(row))
 

@@ -2,9 +2,9 @@
 	import Banner from '$lib/Banner.svelte';
 	import services from '$lib/api/services';
 	import { goto } from '$app/navigation';
-	import { createMessage } from '$lib/services/error';
-	import { setClientSession } from '$lib/services/storage';
-	import { getNotificationsContext } from '$lib/services/context';
+	import { makeMessage } from '$lib/utils/error';
+	import { setClientSession } from '$lib/utils/storage';
+	import { getNotificationsContext } from '$lib/utils/context';
 
 	let username = $state('');
 	let password = $state('');
@@ -23,7 +23,7 @@
 			setClientSession(data);
 			await goto('/');
 		} else {
-			const message = createMessage(err);
+			const message = makeMessage(err);
 			console.log(message);
 			addNotification({ type: 'string', message, isSuccess: false });
 		}
