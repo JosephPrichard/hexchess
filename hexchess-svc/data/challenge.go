@@ -11,51 +11,24 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"log/slog"
-	"strings"
 	"time"
 )
 
-type ColorSelect int
+type ColorSelect string
 
 const (
-	White ColorSelect = iota
-	Black
-	Random
+	White  ColorSelect = "WHITE"
+	Black  ColorSelect = "BLACK"
+	Random ColorSelect = "RANDOM"
 )
 
-type TimeControl int
+type TimeControl string
 
 const (
-	RealTime TimeControl = iota
-	Correspondence
-	Unlimited
+	RealTime       TimeControl = "WHITE"
+	Correspondence TimeControl = "CORRESPONDENCE"
+	Unlimited      TimeControl = "UNLIMITED"
 )
-
-func (tc TimeControl) String() string {
-	switch tc {
-	case RealTime:
-		return "REAL_TIME"
-	case Correspondence:
-		return "CORRESPONDENCE"
-	case Unlimited:
-		return "UNLIMITED"
-	default:
-		return "UNKNOWN"
-	}
-}
-
-func (cs ColorSelect) String() string {
-	switch cs {
-	case White:
-		return "WHITE"
-	case Black:
-		return "BLACK"
-	case Random:
-		return "RANDOM"
-	default:
-		return "UNKNOWN"
-	}
-}
 
 type ChallengeEntity struct {
 	ChallengerID      int64       `json:"challengerId"`
@@ -91,14 +64,6 @@ type ChallengeInst struct {
 }
 
 func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) (ChallengeEntity, error) {
-	tc, err := ParseTimeControl(row.TimeControl)
-	if err != nil {
-		return ChallengeEntity{}, err
-	}
-	cs, err := ParseColorSelect(row.StartColor)
-	if err != nil {
-		return ChallengeEntity{}, err
-	}
 	return ChallengeEntity{
 		ChallengerID:      row.ChallengerID,
 		ChallengerName:    row.ChallengerName,
@@ -108,36 +73,10 @@ func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) (ChallengeEnti
 		ChallengeeName:    row.ChallengeeName,
 		ChallengeeCountry: row.ChallengeeCountry.String,
 		ChallengeeElo:     row.ChallengeeElo,
-		TimeControl:       tc,
-		StartColor:        cs,
+		TimeControl:       TimeControl(row.TimeControl),
+		StartColor:        ColorSelect(row.StartColor),
 		MadeOn:            row.MadeOn.Time,
 	}, nil
-}
-
-func ParseTimeControl(tc string) (TimeControl, error) {
-	switch strings.ToUpper(tc) {
-	case "UNLIMITED":
-		return Unlimited, nil
-	case "REAL_TIME":
-		return RealTime, nil
-	case "CORRESPONDENCE":
-		return Correspondence, nil
-	default:
-		return 0, fmt.Errorf("invalid time control value: %s", tc)
-	}
-}
-
-func ParseColorSelect(cs string) (ColorSelect, error) {
-	switch strings.ToUpper(cs) {
-	case "WHITE":
-		return White, nil
-	case "BLACK":
-		return Black, nil
-	case "RANDOM":
-		return Random, nil
-	default:
-		return 0, fmt.Errorf("invalid color select value: %s", cs)
-	}
 }
 
 func InsertChallenge(ctx context.Context, q *db.Queries, inst ChallengeInst) error {
@@ -156,8 +95,8 @@ func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) 
 	row, dbErr := q.InsertChallenge(ctx, db.InsertChallengeParams{
 		ChallengerID: inst.ChallengerID,
 		ChallengeeID: inst.ChallengeeID,
-		TimeControl:  inst.TimeControl.String(),
-		StartColor:   inst.StartColor.String(),
+		TimeControl:  string(inst.TimeControl),
+		StartColor:   string(inst.StartColor),
 		MadeOn:       pgtype.Timestamptz{Valid: true, Time: inst.MadeOn},
 	})
 
@@ -240,16 +179,12 @@ func DeleteChallenge(ctx context.Context, q *db.Queries, key ChallengeKey) (Dele
 		return DeleteResult{}, fmt.Errorf("failed to delete challenge %d: %w", key, err)
 	}
 
-	tc, err := ParseTimeControl(row.TimeControl)
-	if err != nil {
-		return DeleteResult{}, err
+	dr := DeleteResult{
+		ChallengerID: row.ChallengerID,
+		ChallengeeID: row.ChallengeeID,
+		TimeControl:  TimeControl(row.TimeControl),
+		FirstColor:   ColorSelect(row.StartColor),
 	}
-	cs, err := ParseColorSelect(row.StartColor)
-	if err != nil {
-		return DeleteResult{}, err
-	}
-	dr := DeleteResult{ChallengerID: row.ChallengerID, ChallengeeID: row.ChallengeeID, TimeControl: tc, FirstColor: cs}
-
 	slog.InfoContext(ctx, "deleted challenge", "challengeKey", key, "dr", dr, "err", err)
 	return dr, err
 }

@@ -37,8 +37,8 @@ type GetReplayByIDRow struct {
 	ID           int64
 	WhiteID      int64
 	BlackID      int64
-	Result       int32
-	Cause        int32
+	Result       string
+	Cause        string
 	PlayedOn     pgtype.Timestamptz
 	WinElo       float64
 	LoseElo      float64
@@ -120,8 +120,8 @@ type GetUserReplaysRow struct {
 	ID           int64
 	WhiteID      int64
 	BlackID      int64
-	Result       int32
-	Cause        int32
+	Result       string
+	Cause        string
 	PlayedOn     pgtype.Timestamptz
 	WinElo       float64
 	LoseElo      float64
@@ -177,8 +177,8 @@ RETURNING id
 type InsertReplayParams struct {
 	WhiteID     int64
 	BlackID     int64
-	Result      int32
-	Cause       int32
+	Result      string
+	Cause       string
 	WinElo      float64
 	LoseElo     float64
 	MoveHistory []byte

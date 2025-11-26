@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Banner from '$lib/Banner.svelte';
 	import services, { appBaseURL, baseURL } from '$lib/api/services';
-	import { makeMessage } from '$lib/utils/error';
+	import { codes, makeMessage } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import Board from '$lib/components/chess/Board.svelte';
@@ -14,7 +14,10 @@
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
 	import { type ChessGame, GameOutput, type PlayerState } from '$lib/api/messages';
 	import type { Hex } from '$lib/api/model';
-	import { mapHexagons, getNewSelection, type Selection } from '$lib/utils/chess.js';
+	import { mapHexagons } from '$lib/utils/chess.js';
+	import { makeMoveSelectionState } from '$lib/state/selection.svelte';
+	import { getMoveNotationsWasm } from '$lib/api/wasm';
+	import { goto } from '$app/navigation';
 
 	export interface PlayProps {
 		gameId: string
@@ -34,11 +37,10 @@
 	let whiteTimer: number | undefined = $state(undefined);
 	let blackTimer: number | undefined = $state(undefined);
 
-	let selection: Selection = $state({
-		potentialMoves: undefined,
-		hex: undefined
-	});
+	let selection = makeMoveSelectionState();
 
+	let prevUpdatedAt = new Date(0);
+	let isForfeit: boolean = false;
 	let ws: WebSocket | undefined = undefined;
 	let connectTries = 0;
 
@@ -54,19 +56,16 @@
 	function onClickSettings() {}
 
 	function onSelectPiece(hex: Hex) {
-		selection = getNewSelection(game, hex);
+		selection.select(game, hex);
 	}
 
 	function handleMessage(data: GameOutput) {
 		const kind = data.value.oneofKind;
 		if (kind === 'init') {
 			const init = data.value.init;
-			if (init.state === undefined) {
-				throw new Error("Room must be specified, got " + JSON.stringify(init));
-			}
-			game = init.state.game;
-			whitePlayer = init.state.whitePlayer;
-			blackPlayer = init.state.blackPlayer;
+			game = init?.state?.game;
+			whitePlayer = init?.state?.whitePlayer;
+			blackPlayer = init?.state?.blackPlayer;
 			selfPlayer = init.self;
 		} else if (kind === 'players') {
 			const players = data.value.players;
@@ -74,62 +73,69 @@
 			blackPlayer = players.blackPlayer;
 		} else if (kind === 'move') {
 			const move = data.value.move;
-			if (move.pieceMove === undefined) {
-				throw new Error("Piece move must be specified, got " + JSON.stringify(move));
+			const updatedAt = new Date(move.updatedAt);
+			if (updatedAt.getTime() > prevUpdatedAt.getTime()) {
+				game = move.game;
+				prevUpdatedAt = updatedAt;
 			}
-			game = move.game;
 		} else if (kind === 'forfeit') {
-			// no-op
+			isForfeit = true;
 		} else if (kind === 'error') {
 			const error = data.value.error;
-			const message = makeMessage(error.message);
-			addNotification({ type: 'string', message, isSuccess: false });
+			switch (error.message) {
+			case codes.errorInvalidGame:
+				goto(`/`);
+				break;
+			default:
+				const message = makeMessage(error.message);
+				addNotification({ type: 'string', message, isSuccess: false });
+			}
 		}
 	}
 
+	async function tryConnect(gameId: string) {
+		const [data, err] = await services.postTempSession();
+		if (data || err?.status === 401) {
+			const params = new URLSearchParams({ sessionId: data?.sessionId || "", gameId });
+			const url = `${baseURL()}/ws/game?${params}`;
+
+			ws = new WebSocket(url);
+			ws.binaryType = "arraybuffer";
+			ws.addEventListener('open', () => {
+				console.log(`Connected to game=${gameId} sessionId=${data?.sessionId} successfully!`);
+				connectTries = 0;
+			});
+			ws.addEventListener('message', (event) => {
+				if (event.data instanceof ArrayBuffer) {
+					const data = GameOutput.fromBinary(new Uint8Array(event.data));
+					console.log(`Received ${data.value.oneofKind} message`, data);
+					handleMessage(data);
+				}
+			});
+			ws.addEventListener('error', () => {
+				console.log(`Disconnected from game=${gameId} with error, trying to reconnect with ${connectTries} tries`);
+				connectTries += 1;
+				connectGame(gameId);
+			});
+		} else {
+			const message = makeMessage(err);
+			addNotification({ type: 'string', message, isSuccess: false });
+		}
+	}
 	function connectGame(gameId: string) {
 		const timeout = connectTries !== 0 ? Math.pow(2, connectTries) * 1000 : 0;
 		console.log(`Trying to connect to game=${gameId} in timeout=${timeout}`);
-		const tryConnect = async () => {
-			const [data, err] = await services.postTempSession();
-			if (data) {
-				const params = new URLSearchParams({ sessionId: data.sessionId || "" });
-				let url = `${baseURL()}/ws/games/${gameId}?${params}`;
-
-				ws = new WebSocket(url);
-				ws.binaryType = "arraybuffer";
-				ws.addEventListener('open', () => {
-					console.log(`Connected to game=${gameId} successfully!`);
-					connectTries = 0;
-				});
-				ws.addEventListener('message', (event) => {
-					if (event.data instanceof ArrayBuffer) {
-						const data = GameOutput.fromBinary(new Uint8Array(event.data));
-						console.log(`Received ${data.value.oneofKind} message`, data);
-						handleMessage(data);
-					}
-				});
-				ws.addEventListener('error', () => {
-					console.log(`Disconnected from game=${gameId} with error, trying to reconnect with ${connectTries} tries`);
-					connectTries += 1;
-					connectGame(gameId);
-				});
-			} else {
-				const message = makeMessage(err);
-				addNotification({ type: 'string', message, isSuccess: false });
-			}
-		};
-		setTimeout(tryConnect, timeout);
+		setTimeout(() => tryConnect(gameId), timeout);
 	}
 
 	$effect(() => {
 		connectGame(props.gameId);
 		return () => {
-			if (ws) {
-				ws.close();
-			}
+			if (ws) ws.close();
 		};
 	});
+
+	const awaitingNotList = $derived.by(async () => await getMoveNotationsWasm(game?.moves));
 </script>
 
 <svelte:head>
@@ -151,9 +157,9 @@
 				<Board
 					board={game?.board}
 					isWhitePerspective={isPlayingAsWhite}
-					potentialMoves={mapHexagons(selection.potentialMoves?.moves)}
+					potentialMoves={mapHexagons(selection.value.potentialMoves?.moves)}
 					onSelectPiece={onSelectPiece}
-					selectedHexagon={selection.hex}
+					selectedHexagon={selection.value.hex}
 				/>
 			{/if}
 			<div class="side-table-wrapper">
@@ -167,7 +173,9 @@
 					<div class="side-table-header player-panel">
 						<PlayerPanel player={bottomPlayer} isTurn={!isTurn} />
 					</div>
-					<MoveList moveList={game?.moveList || []} />
+					{#await awaitingNotList then notList}
+						<MoveList moveList={notList} />
+					{/await}
 					<div class="icons">
 						<button title="Forfeit" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickForfeit}>
 							<FlagIcon />

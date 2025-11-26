@@ -7,33 +7,35 @@ import (
 )
 
 type PlayerState struct {
-	ID      int64
-	Name    string
-	Country string
-	Elo     float64
-	IsGuest bool
+	ID      int64   `json:"id"`
+	Name    string  `json:"name"`
+	Country string  `json:"country"`
+	Elo     float64 `json:"elo"`
+	IsGuest bool    `json:"isGuest"`
 }
 
 type ChessState struct {
 	ChessMeta
-	Game chess.Game
+	InitialBoard chess.Board
+	Game         chess.Game
 }
 
 type ChessMeta struct {
-	ID          string
-	WhitePlayer *PlayerState
-	BlackPlayer *PlayerState
-	IsEnded     bool
-	FirstColor  ColorSelect
-	TimeControl TimeControl
-	Touch       time.Time
+	ID          string       `json:"id"`
+	WhitePlayer *PlayerState `json:"whitePlayer"`
+	BlackPlayer *PlayerState `json:"blackPlayer"`
+	IsEnded     bool         `json:"isEnded"`
+	FirstColor  ColorSelect  `json:"firstColor"`
+	TimeControl TimeControl  `json:"timeControl"`
+	Touch       time.Time    `json:"touch"`
 }
 
 var ChessMetaCmpOpts = cmpopts.IgnoreFields(ChessMeta{}, "Touch")
 
 func MakeState(id string, timeControl TimeControl) ChessState {
 	return ChessState{
-		Game: chess.MakeStartGame(),
+		InitialBoard: chess.MakeStartBoard(),
+		Game:         chess.MakeStartGame(),
 		ChessMeta: ChessMeta{
 			ID:          id,
 			FirstColor:  Random,

@@ -39,8 +39,8 @@ func TestChallengeExpiration(t *testing.T) {
 			ChallengeeName:    "user2",
 			ChallengeeCountry: "us",
 			ChallengeeElo:     1000,
-			TimeControl:       2,
-			StartColor:        2,
+			TimeControl:       Unlimited,
+			StartColor:        Random,
 			MadeOn:            time.Time{},
 		},
 		{
@@ -52,8 +52,8 @@ func TestChallengeExpiration(t *testing.T) {
 			ChallengeeName:    "user4",
 			ChallengeeCountry: "us",
 			ChallengeeElo:     2000,
-			TimeControl:       2,
-			StartColor:        2,
+			TimeControl:       Unlimited,
+			StartColor:        Random,
 			MadeOn:            time.Time{},
 		},
 	}

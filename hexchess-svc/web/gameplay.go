@@ -10,6 +10,7 @@ import (
 	"hexchess-svc/pb"
 	"log/slog"
 	"net/http"
+	"time"
 )
 
 type GameSocketState struct {
@@ -35,7 +36,10 @@ func makeGameInitErr(ctx context.Context, gameID string, err error) []byte {
 
 func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState ServerState) {
 	ctx := r.Context()
-	gameID := r.URL.Query().Get("id")
+
+	query := r.URL.Query()
+	gameID := query.Get("gameId")
+	sessionID := query.Get("sessionId")
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -43,13 +47,18 @@ func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState ServerStat
 	}
 	defer conn.Close()
 
-	player, _, err := GetSessionPlayer(ctx, serverState.Rdb, r)
-	if err != nil {
+	var sessPlayer *data.PlayerState
+
+	player, err := data.GetSession(ctx, serverState.Rdb, sessionID)
+	if err == data.ErrSessionNotFound {
+		sessPlayer = nil
+	} else if err != nil {
 		writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
 		return
+	} else {
+		sessPlayer = &player
 	}
-
-	chessState, err := data.JoinGame(ctx, serverState.Rdb, gameID, player)
+	chessState, err := data.JoinGame(ctx, serverState.Rdb, gameID, sessPlayer)
 	if err != nil {
 		writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
 		return
@@ -78,7 +87,6 @@ func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState ServerStat
 	}()
 
 	defer state.GamesCaster.Unsubscribe(state.gameID, writeChan)
-
 	for {
 		_, msg, err := conn.ReadMessage()
 		if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
@@ -149,12 +157,10 @@ func handleGameForfeit(ctx context.Context, state GameSocketState) error {
 	if err := data.ForfeitGame(ctx, state.Stores, state.gameID, state.player); err != nil {
 		return err
 	}
-
 	bytes, err := proto.Marshal(MakePbGameOutputForfeit(state.gameID))
 	if err != nil {
 		return err
 	}
-
 	return data.BroadcastMessage(ctx, state.Rdb, state.Rdb.GamesChan, bytes)
 }
 
@@ -168,28 +174,22 @@ func handleGameMove(ctx context.Context, state GameSocketState, pbInput *pb.Move
 	if err != nil {
 		return err
 	}
-
-	out := MakePbGameOutputMove(
+	bytes, err := proto.Marshal(MakePbGameOutputMove(
 		state.gameID,
 		chess.MapPbHistMove(result.Move),
 		pbGame,
-	)
-
-	bytes, err := proto.Marshal(out)
+		result.Room.Touch.Format(time.RFC3339),
+	))
 	if err != nil {
 		return err
 	}
-
 	return data.BroadcastMessage(ctx, state.Rdb, state.Rdb.GamesChan, bytes)
 }
 
 func handleGameChat(ctx context.Context, state GameSocketState, pbInput *pb.ChatInput) error {
-	out := MakePbGameOutputChat(state.gameID, pbInput.Message)
-
-	bytes, err := proto.Marshal(out)
+	bytes, err := proto.Marshal(MakePbGameOutputChat(state.gameID, pbInput.Message))
 	if err != nil {
 		return err
 	}
-
 	return data.BroadcastMessage(ctx, state.Rdb, state.Rdb.GamesChan, bytes)
 }

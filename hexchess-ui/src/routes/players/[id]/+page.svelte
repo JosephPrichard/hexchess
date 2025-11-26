@@ -32,7 +32,6 @@
 
 		if (shouldLoadReplays) {
 			const [data, err] = await services.getReplays(user.id, lastId);
-
 			if (err) {
 				console.error("Error loading replays: ", err);
 			}
@@ -79,7 +78,7 @@
 </svelte:head>
 <svelte:window onscroll={tryLoadReplays} />
 <Banner />
-<CreateGame title="Create a Challenge?" show={showCreateModal} onSubmit={onSubmitCreateChallenge} onClose={() => (showCreateModal = false)} />
+<CreateGame title="Create a Challenge?" bind:show={showCreateModal} onSubmit={onSubmitCreateChallenge} />
 <div class="center-horizontal-container">
 	<div class="panel player-panel">
 		<div class="text-lg capped-size">{user.username}</div>

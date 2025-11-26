@@ -62,9 +62,9 @@ func createTestUsers(t TestLogger, q *db.Queries, insts ...UserInst) []UserEntit
 }
 
 var TestReplayInsts = []ReplayInst{
-	{1, 2, int32(WhiteWin), int32(Checkmate), 30, -30, []byte{}},
-	{2, 3, int32(BlackWin), int32(Checkmate), 30, -30, []byte{}},
-	{3, 1, int32(Draw), int32(Checkmate), 30, -30, []byte{}},
+	{1, 2, WhiteWin, Checkmate, 30, -30, []byte{}},
+	{2, 3, BlackWin, Checkmate, 30, -30, []byte{}},
+	{3, 1, Draw, Checkmate, 30, -30, []byte{}},
 }
 
 var TestReplayEntities = []ReplayEntity{

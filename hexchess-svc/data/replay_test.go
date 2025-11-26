@@ -13,7 +13,7 @@ func TestInsertThenGet(t *testing.T) {
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-insert-get")
 
-	id, err := InsertReplay(ctx, pgDB.Q, ReplayInst{2, 3, int32(WhiteWin), int32(Checkmate), 35, -25, []byte{}})
+	id, err := InsertReplay(ctx, pgDB.Q, ReplayInst{2, 3, WhiteWin, Checkmate, 35, -25, []byte{}})
 	assert.NoError(t, err)
 
 	actualReplay1, err := GetReplay(ctx, pgDB.Q, id)

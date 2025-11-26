@@ -39,7 +39,6 @@ let selectedPiece: number | undefined = $state(undefined);
 let fen = $state(props.fen);
 
 let game: ChessGame | undefined = $state(undefined);
-let notationList: string[] = $state([]);
 
 async function onSelectPiece(hex: Hex) {
 	if (isTrashcanSelect) {
@@ -75,7 +74,6 @@ async function onClickClearBoard() {
 	onDeSelectPiece();
 	game = clearBoard($state.snapshot(game?.board));
 	await setFen(game?.board);
-	notationList = [];
 }
 
 async function setFen(board?: ChessBoard) {
@@ -102,7 +100,6 @@ async function onPieceMove(from: Hex, to: Hex) {
 		const nextGame = await makeMoveWasm($state.snapshot(game), {from, to}, true);
 		if (nextGame !== undefined) {
 			await setFen(nextGame?.board); // update fen before the state so we can set the right game with move history after URL is updated
-			notationList = [...notationList, ...(await getMoveNotationsWasm(nextGame.moves))];
 			game = nextGame;
 			onDeSelectPiece();
 		}
@@ -125,7 +122,6 @@ async function setMode(newMode: "edit" | "play") {
 		break;
 	case "play":
 		game = makeGame(board);
-		notationList = [];
 		break;
 	}
 
@@ -136,7 +132,6 @@ async function setMode(newMode: "edit" | "play") {
 async function loadInitialGame() {
 	game = await getInitialGameWasm();
 	await setFen(game?.board);
-	notationList = [];
 	onDeSelectPiece();
 }
 
@@ -173,6 +168,8 @@ const prevMove = $derived.by(() => (
 
 const potentialMoves = $derived.by(() => mode === "play" ? mapHexagons(selectionState.value.potentialMoves?.moves) : undefined);
 
+const awaitingNotList = $derived.by(async () => await getMoveNotationsWasm(game?.moves));
+
 </script>
 <svelte:head>
 	<title>Sandbox - Hexchess</title>
@@ -199,7 +196,9 @@ const potentialMoves = $derived.by(() => mode === "play" ? mapHexagons(selection
 			{#if mode === "play"}
 				<div class="side-table growing-box sandbox-display">
 					<TurnWrapper isWhitePerspective={moveState.value.isWhitePerspective} isWhiteTurn={game?.board?.isWhiteTurn}>
-						<MoveList moveList={notationList} />
+						{#await awaitingNotList then notList}
+							<MoveList moveList={notList} />
+						{/await}
 					</TurnWrapper>
 				</div>
 			{:else}

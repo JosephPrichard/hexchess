@@ -10,22 +10,27 @@
 	import { onMount } from 'svelte';
 	import { getClientSession } from '$lib/utils/storage';
 	import { chessRowHeight, maxChessRows } from './globals';
+	import { getInitialGameWasm } from '$lib/api/wasm';
+	import { boardToFenWasm } from '$lib/api/wasm.js';
 
 	export interface IndexProps {
 		chessList: ChessModel[];
 		selfChessList: ChessModel[];
+		showCreateModal?: boolean;
+		fen?: string;
 	}
 
 	const { data: props }: { data: IndexProps } = $props();
 
 	let showSelf = $state(false);
-	let showCreateModal = $state(false);
+	let showCreateModal = $state(props.showCreateModal || false);
+	let fen = $state(props.fen || '');
 	let userCounts = $state(0);
 	let gameCounts = $state(0);
 	let client: SessionModel | null = $state(null);
 
-	const chessList = $derived(showSelf ? props.selfChessList : props.chessList);
-	const bottomPadding = $derived((chessRowHeight * maxChessRows) - (chessRowHeight * chessList.length));
+	const chessList = $derived.by(() => showSelf ? props.selfChessList : props.chessList);
+	const bottomPadding = $derived.by(() => (chessRowHeight * maxChessRows) - (chessRowHeight * chessList.length));
 
 	const { addNotification, counts } = getNotificationsContext();
 
@@ -35,9 +40,7 @@
 	});
 
 	async function onSubmitCreateGame(timeControl: TimeControl, color: ColorSelect) {
-		showCreateModal = false;
-
-		const [data, err] = await services.postCreateGame(timeControl, color);
+		const [data, err] = await services.postCreateGame(timeControl, color, fen);
 		if (data) {
 			await goto(`play/${data.gameId}`);
 		} else {
@@ -46,8 +49,9 @@
 		}
 	}
 
-	onMount(() => {
+	onMount(async () => {
 		client = getClientSession();
+		fen = await boardToFenWasm((await getInitialGameWasm()).board);
 	});
 	$inspect(client, 'client session');
 </script>
@@ -56,7 +60,7 @@
 	<title>Hexchess</title>
 </svelte:head>
 <Banner />
-<CreateGame title="Create a Game?" show={showCreateModal} onSubmit={onSubmitCreateGame} onClose={() => (showCreateModal = false)} />
+<CreateGame title="Create a Game?" bind:show={showCreateModal} onSubmit={onSubmitCreateGame} bind:fen={fen}/>
 <div class="center-horizontal-container">
 	<div class="center-vertical-container index-container">
 		<div>

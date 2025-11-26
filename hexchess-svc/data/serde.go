@@ -82,8 +82,8 @@ func MapPbChessState(s ChessState) (*pb.ChessState, error) {
 		WhitePlayer: MapPbPlayer(s.WhitePlayer),
 		BlackPlayer: MapPbPlayer(s.BlackPlayer),
 		IsEnded:     s.IsEnded,
-		FirstColor:  uint32(s.FirstColor),
-		TimeControl: uint32(s.TimeControl),
+		FirstColor:  string(s.FirstColor),
+		TimeControl: string(s.TimeControl),
 		Touch:       s.Touch.UnixMilli(),
 	}
 	return pbState, nil
@@ -102,7 +102,7 @@ func UnmarshalChessMeta(b []byte) (ChessMeta, error) {
 	if err := proto.Unmarshal(b, &pbChess); err != nil {
 		return ChessMeta{}, fmt.Errorf("failed to unmarshal chess state: %w", err)
 	}
-	cv := ChessMeta{
+	cm := ChessMeta{
 		ID:          pbChess.Id,
 		WhitePlayer: MapPlayer(pbChess.WhitePlayer),
 		BlackPlayer: MapPlayer(pbChess.BlackPlayer),
@@ -110,11 +110,15 @@ func UnmarshalChessMeta(b []byte) (ChessMeta, error) {
 		FirstColor:  ColorSelect(pbChess.FirstColor),
 		TimeControl: TimeControl(pbChess.TimeControl),
 	}
-	return cv, nil
+	return cm, nil
 }
 
 func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {
 	if cm := pbUm.GetChallenge(); cm != nil {
+		madeOn, err := time.Parse(time.RFC3339, cm.MadeOn)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse challenge made on: %w", err)
+		}
 		ce := ChallengeEntity{
 			ChallengerID:      cm.ChallengerId,
 			ChallengerName:    cm.ChallengerName,
@@ -126,7 +130,7 @@ func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {
 			ChallengeeElo:     cm.ChallengeeElo,
 			TimeControl:       TimeControl(cm.TimeControl),
 			StartColor:        ColorSelect(cm.StartColor),
-			MadeOn:            time.UnixMilli(cm.MadeOn),
+			MadeOn:            madeOn,
 		}
 		return json.Marshal(ce)
 	}
@@ -144,9 +148,9 @@ func MapPbChallengeMsg(id int64, ce ChallengeEntity) pb.UserMsg {
 			ChallengeeName:    ce.ChallengeeName,
 			ChallengeeCountry: ce.ChallengeeCountry,
 			ChallengeeElo:     ce.ChallengeeElo,
-			TimeControl:       uint32(ce.TimeControl),
-			StartColor:        uint32(ce.StartColor),
-			MadeOn:            ce.MadeOn.UnixMilli(),
+			TimeControl:       string(ce.TimeControl),
+			StartColor:        string(ce.StartColor),
+			MadeOn:            ce.MadeOn.Format(time.RFC3339),
 		},
 	}
 	return pb.UserMsg{

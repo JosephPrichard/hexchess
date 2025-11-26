@@ -58,7 +58,7 @@
 		countSse.addEventListener('activeCountEvents', (event) => {
 			console.log('Sse: /events/count activeCountEvents', event.data);
 
-			const count = Number(event.data);
+			const count = JSON.parse(event.data).count;
 			if (!isNaN(count)) {
 				counts.update((value) => ({ ...value, usersCount: count }));
 			}
@@ -66,7 +66,7 @@
 		countSse.addEventListener('gameCountEvents', (event) => {
 			console.log('Sse: /events/count gameCountEvents', event.data);
 
-			const count = Number(event.data);
+			const count = JSON.parse(event.data).count;
 			if (!isNaN(count)) {
 				counts.update((value) => ({ ...value, gameCounts: count }));
 			}

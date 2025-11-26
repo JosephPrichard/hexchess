@@ -1,21 +1,21 @@
 <script lang="ts">
-	import type { ColorSelect, TimeControl } from '../../api/model';
+	import type { ColorSelect, TimeControl } from '$lib/api/model';
 
 	interface Props {
 		title: string;
 		show: boolean;
 		onSubmit: (timeControl: TimeControl, color: ColorSelect) => void;
-		onClose: () => void;
+		fen?: string;
 	}
 
-	const { title, show, onSubmit, onClose }: Props = $props();
+	let { title, show = $bindable(), onSubmit, fen = $bindable() }: Props = $props();
 
 	let color: ColorSelect = $state('RANDOM');
 	let timeControl: TimeControl = $state('UNLIMITED');
 
 	function onClickClose(e: MouseEvent) {
 		e.preventDefault();
-		onClose();
+		show = false;
 	}
 
 	function onSubmitForm(e: MouseEvent) {
@@ -56,6 +56,11 @@
 					<img alt="White" class="color-piece-image" class:selected-color-piece-image={color === 'WHITE'} src="/pieces/white-king.png" />
 				</button>
 			</div>
+			{#if fen}
+				<div class="fen-input">
+					<input bind:value={fen}/>
+				</div>
+			{/if}
 			<button class="button button-grey" onclick={onSubmitForm} type="submit"> Create! </button>
 		</form>
 	</div>
@@ -118,5 +123,9 @@
 	.time-control-input {
 		height: 30px;
 		border-radius: 5px;
+	}
+
+	.fen-input {
+		margin-bottom: 25px;
 	}
 </style>

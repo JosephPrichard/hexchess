@@ -1,12 +1,10 @@
-import type { TimeControl } from '../api/model';
-
-export function getResultClasses(result: number) {
+export function getResultClasses(result: string) {
 	switch (result) {
-		case 0:
+		case 'WHITE_WINS':
 			return ['green-color', 'red-color'];
-		case 1:
+		case 'BLACK_WINS':
 			return ['red-color', 'green-color'];
-		case 2:
+		case 'DRAW':
 			return ['yellow-color', 'yellow-color'];
 		default:
 			console.error('Unknown result case', result);
@@ -24,44 +22,31 @@ export function getWinrateClass(winRate: number) {
 	}
 }
 
-export function formatReplayResult(result: number) {
+export function formatReplayResult(result: string) {
 	switch (result) {
-		case 0:
+		case 'WHITE_WINS':
 			return 'White Victory';
-		case 1:
+		case 'BLACK_WINS':
 			return 'Black Victory';
-		case 2:
+		case 'DRAW':
 			return 'Draw';
 		default:
-			console.error('Unknown result case', result);
+			console.error('Unknown replay result', result);
 			return '';
 	}
 }
 
-export function formatCause(cause: number) {
-	switch (cause) {
-		case 0:
-			return 'Checkmate';
-		case 1:
-			return 'Forfeit';
-		default:
-			console.error('Unknown result cause', cause);
-			return '';
-	}
-}
-
-export const timeControlIntMap: TimeControl[] = ['UNLIMITED', 'CORRESPONDENCE', 'REAL_TIME'];
-
-export function formatTimeControl(timeControl: number) {
+export function formatTimeControl(timeControl: string) {
 	switch (timeControl) {
-		case 0:
+		case "UNLIMITED":
 			return 'Unlimited ∞+0';
-		case 1:
+		case "CORRESPONDENCE":
 			return `Correspondence ${10}+${1}`;
-		case 2:
+		case "REAL_TIME":
 			return `Realtime ${5}+${3}`;
 		default:
-			throw new Error('Invalid time control: ' + timeControl);
+			console.error('Unknown time control: ' + timeControl);
+			return '-';
 	}
 }
 

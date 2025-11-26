@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import Banner from '$lib/Banner.svelte';
-	import { updateClientSession as updateClientUser } from '$lib/utils/storage';
+	import { clearClientSession, setClientSession, updateClientSession as updateClientUser } from '$lib/utils/storage';
 	import { makeMessage } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import type { UserModel } from '$lib/api/model';
@@ -67,6 +67,7 @@
 			const message = 'Successfully signed out.';
 			addNotification({ type: 'string', message, isSuccess: true });
 
+			clearClientSession();
 			await goto('/');
 		} else {
 			const message = makeMessage(err);

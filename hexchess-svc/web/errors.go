@@ -29,6 +29,7 @@ var (
 	ErrHttpUserNotFound         = errors.New("ERROR_NOT_FOUND_USER")
 	ErrHttpInvalidRequest       = errors.New("ERROR_INVALID_REQUEST")
 	ErrHttpSearchLimit          = errors.New("ERROR_SEARCH_LIMIT")
+	ErrInvalidFen               = errors.New("ERROR_INVALID_FEN")
 )
 
 // WebSocket response codes
@@ -53,11 +54,11 @@ func HttpStatusFromErr(err error) (int, string) {
 		ErrHttpSelfChallenge,
 		ErrHttpUpdateChallenge,
 		ErrHttpSearchLimit,
-		ErrHttpInvalidCountry:
-		return http.StatusBadRequest, err.Error()
-	case ErrHttpDuplicateUsername,
+		ErrHttpInvalidCountry,
+		ErrHttpDuplicateUsername,
+		ErrInvalidFen,
 		ErrHttpDuplicateChallenge:
-		return http.StatusConflict, err.Error()
+		return http.StatusBadRequest, err.Error()
 	case ErrHttpRequiredLogin,
 		ErrHttpInvalidLogin,
 		ErrHttpSessionExpired,

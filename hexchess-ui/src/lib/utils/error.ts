@@ -22,6 +22,7 @@ export const codes = {
 	errorInvalidRequest: 'ERROR_INVALID_REQUEST',
 	errorNotFoundUser: 'ERROR_NOT_FOUND_USER',
 	errorSearchLimit: 'ERROR_SEARCH_LIMIT',
+	errorInvalidFEN: 'ERROR_INVALID_FEN',
 
 	// WS codes
 	errorFatal: 'ERROR_FATAL',
@@ -55,6 +56,7 @@ export const messages: Record<string, string> = {
 	[codes.errorInvalidRequest]: 'The api was malformed or contained invalid data.',
 	[codes.errorNotFoundUser]: 'The provided user is invalid or does not exist.',
 	[codes.errorSearchLimit]: 'The search limit has been reached.',
+	[codes.errorInvalidFEN]: 'The provided FEN string is invalid.',
 
 	// WS messages
 	[codes.errorFatal]: 'A fatal error occurred. Please reconnect or try again later.',

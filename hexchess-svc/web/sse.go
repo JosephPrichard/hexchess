@@ -27,9 +27,9 @@ func makeSseHandler(state *ServerState, h SseHandler) http.Handler {
 			return
 		}
 		if err := h(state, w, r, f); err != nil {
-			slog.ErrorContext(r.Context(), "sse request failed", "method", r.Method, "url", r.URL, "error", err)
-			http.Error(w, fmt.Sprintf("%s: internal server error", MetaEvent), http.StatusInternalServerError)
-			f.Flush()
+			status, m := HttpStatusFromErr(err)
+			slog.ErrorContext(r.Context(), "sse request failed", "err", err, "method", r.Method, "url", r.URL)
+			http.Error(w, fmt.Sprintf("%s:%s", MetaEvent, m), status)
 		}
 		slog.InfoContext(r.Context(), "finished sse request", "method", r.Method, "url", r.URL)
 	})
@@ -120,10 +120,10 @@ func HandleCountEvents(state *ServerState, w http.ResponseWriter, r *http.Reques
 		stopPingChan <- struct{}{}
 		ac, err := data.RemoveActiveUser(ctx, state.Rdb, sseID)
 		if err != nil {
-			slog.ErrorContext(ctx, "failed to remove active user", "sseID", sseID, "error", err)
+			slog.ErrorContext(ctx, "failed to remove active user", "sseID", sseID, "err", err)
 		}
 		if err := data.BroadcastActiveCount(ctx, state.Rdb, ac, sseID); err != nil {
-			slog.ErrorContext(ctx, "failed to broadcast active count on removal", "sseID", sseID, "error", err)
+			slog.ErrorContext(ctx, "failed to broadcast active count on removal", "sseID", sseID, "err", err)
 		}
 		return nil
 	}
@@ -156,6 +156,9 @@ func HandleUserEvents(state *ServerState, w http.ResponseWriter, r *http.Request
 	clientGone := ctx.Done()
 
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
+	if err == data.ErrSessionNotFound {
+		return ErrHttpSessionExpired
+	}
 	if err != nil {
 		return err
 	}

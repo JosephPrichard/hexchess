@@ -23,12 +23,10 @@ func makeRestHandler(state *ServerState, h RestHandler) http.Handler {
 		slog.InfoContext(r.Context(), "request received", "method", r.Method, "url", r.URL, "headers", r.Header)
 
 		if err := h(state, w, r); err != nil {
-			slog.ErrorContext(r.Context(), "request failed", "method", r.Method, "url", r.URL, "headers", r.Header, "error", err)
+			slog.ErrorContext(r.Context(), "request failed", "err", err, "method", r.Method, "url", r.URL, "headers", r.Header)
 
 			status, m := HttpStatusFromErr(err)
-			w.WriteHeader(status)
-
-			writeJSON(w, http.StatusInternalServerError, ServiceView{Message: m, Status: status})
+			writeJSON(w, status, ServiceView{Message: m, Status: status})
 		}
 	})
 }
@@ -235,12 +233,15 @@ func HandleUpdateUser(state *ServerState, w http.ResponseWriter, r *http.Request
 }
 
 type TempSessionResp struct {
-	SessionID string `json:"sessionID"`
+	SessionID string `json:"sessionId"`
 }
 
 func HandleCreateTempSession(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
+	if err == data.ErrSessionNotFound {
+		return ErrHttpSessionExpired
+	}
 	if err != nil {
 		return fmt.Errorf("failed to get session player: %w", err)
 	}
@@ -265,7 +266,7 @@ type RefreshResp struct {
 func HandleRefreshSession(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	player, sessionID, err := GetSessionPlayer(ctx, state.Rdb, r)
-	if errors.Is(err, data.ErrSessionNotFound) {
+	if err == data.ErrSessionNotFound {
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
 	}
@@ -307,22 +308,37 @@ func HandleLogout(state *ServerState, w http.ResponseWriter, r *http.Request) er
 }
 
 type CreateGameBody struct {
-	FirstColor  data.ColorSelect `json:"firstColor"`
-	TimeControl data.TimeControl `json:"timeControl"`
+	FirstColor  string `json:"firstColor"`
+	TimeControl string `json:"timeControl"`
+	InitialFEN  string `json:"initialFen"`
 }
 
 type CreateGameResp struct {
-	GameID string `json:"gameID"`
+	GameID string `json:"gameId"`
 }
 
 func HandleCreateGame(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body CreateGameBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		return err
+	}
+	ctx := r.Context()
 
-	gameID, err := data.CreateGame(r.Context(), state.Rdb, body.FirstColor, body.TimeControl)
+	var initialBoard *chess.Board
+	if body.InitialFEN != "" {
+		board, err := chess.ParseFen(body.InitialFEN)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to parse initial fen", "fen", body.InitialFEN, "err", err)
+			return ErrInvalidFen
+		}
+		initialBoard = &board
+	}
+
+	gameID, err := data.CreateGame(ctx, state.Rdb, data.ColorSelect(body.FirstColor), data.TimeControl(body.TimeControl), initialBoard)
 	if err != nil {
 		return fmt.Errorf("failed to create game: %w", err)
 	}
-	slog.InfoContext(r.Context(), "created game", "gameID", gameID)
+	slog.InfoContext(ctx, "created game", "gameID", gameID, "body", body)
 
 	writeJSON(w, http.StatusOK, CreateGameResp{GameID: gameID})
 	return nil
@@ -376,7 +392,7 @@ func HandleUpdateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 
 	gameID := ""
 	if body.Action == "ACCEPT" {
-		gameID, err = data.CreateGame(ctx, state.Rdb, dr.FirstColor, dr.TimeControl)
+		gameID, err = data.CreateGame(ctx, state.Rdb, dr.FirstColor, dr.TimeControl, nil)
 		if err != nil {
 			return fmt.Errorf("failed to create game: %w", err)
 		}
@@ -405,19 +421,11 @@ func HandleCreateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 		return fmt.Errorf("failed to get session player: %w", err)
 	}
 
-	tc, err := data.ParseTimeControl(body.TimeControl)
-	if err != nil {
-		return handleInvalidRequest(ctx, err)
-	}
-	fc, err := data.ParseColorSelect(body.StartColor)
-	if err != nil {
-		return handleInvalidRequest(ctx, err)
-	}
 	ret, err := data.InsertChallengeRet(ctx, state.Q, data.ChallengeInst{
 		ChallengerID: player.ID,
 		ChallengeeID: body.ChallengeeID,
-		TimeControl:  tc,
-		StartColor:   fc,
+		TimeControl:  data.TimeControl(body.TimeControl),
+		StartColor:   data.ColorSelect(body.StartColor),
 		MadeOn:       time.Now(),
 	})
 	switch {
@@ -446,7 +454,7 @@ func HandleGetSelf(state *ServerState, w http.ResponseWriter, r *http.Request) e
 	ctx := r.Context()
 
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
-	if errors.Is(err, data.ErrSessionNotFound) {
+	if err == data.ErrSessionNotFound {
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
 	}
@@ -639,11 +647,11 @@ func HandleGetUserReplays(state *ServerState, w http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 
 	query := r.URL.Query()
-	afterID, err := strconv.Atoi(query.Get("afterID"))
+	afterID, err := strconv.Atoi(query.Get("afterId"))
 	if err != nil {
 		return handleInvalidRequest(ctx, err)
 	}
-	userID, err := strconv.Atoi(query.Get("userID"))
+	userID, err := strconv.Atoi(query.Get("userId"))
 	if err != nil {
 		return handleInvalidRequest(ctx, err)
 	}

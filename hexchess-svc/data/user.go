@@ -176,7 +176,7 @@ func BatchInsertUsers(ctx context.Context, q *db.Queries, insts []UserInst) ([]U
 		eg.Go(func() error {
 			hash, err := hashPassword(inst.Password)
 			if err != nil {
-				return fmt.Errorf("failed to hash password for inst %d: %w", i, err)
+				return fmt.Errorf("failed to hash password for inst index %d: %w", i, err)
 			}
 			batch := mapInsertUserParams(inst, hash)
 			batches[i] = db.BatchInsertUserParams(batch)
@@ -232,7 +232,7 @@ func VerifyUser(ctx context.Context, q *db.Queries, username string, inputPasswo
 	if errors.Is(err, pgx.ErrNoRows) {
 		return VerifiedUser{}, ErrUserNotFound
 	} else if err != nil {
-		return VerifiedUser{}, fmt.Errorf("failed to select user by login: %w", err)
+		return VerifiedUser{}, fmt.Errorf("failed to select user '%s' by login: %w", username, err)
 	}
 
 	isExceedAttempts := login.LoginAttempts > 0 && login.LoginAttempts%LoginAttemptsDivisor == 0
@@ -246,14 +246,14 @@ func VerifyUser(ctx context.Context, q *db.Queries, username string, inputPasswo
 
 	if loginErr == nil {
 		if err := q.ResetLoginAttempts(ctx, login.ID); err != nil {
-			return VerifiedUser{}, fmt.Errorf("failed to update login attempts: %w", err)
+			return VerifiedUser{}, fmt.Errorf("failed to update user %d login attempts: %w", login.ID, err)
 		}
 		u := VerifiedUser{ID: login.ID, Username: login.Username, Country: login.Country.String, Elo: login.Elo}
 		slog.InfoContext(ctx, "user login is valid", "user", u)
 		return u, nil
 	} else {
 		if err := q.IncrLoginAttempts(ctx, login.ID); err != nil {
-			return VerifiedUser{}, fmt.Errorf("failed to update login attempts: %w", err)
+			return VerifiedUser{}, fmt.Errorf("failed to update user %d login attempts: %w", login.ID, err)
 		}
 		slog.ErrorContext(ctx, "user login is invalid", "username", username, "err", loginErr)
 		return VerifiedUser{}, ErrUserNotFound
@@ -301,7 +301,7 @@ func GetUserByID(ctx context.Context, q *db.Queries, id int64) (UserEntity, erro
 	row, err := q.SelectUserByID(ctx, id)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to select user", "id", id, "err", err)
-		return UserEntity{}, fmt.Errorf("failed to select user: %w", err)
+		return UserEntity{}, fmt.Errorf("failed to select user %d: %w", id, err)
 	}
 	user := mapUserFromRow(row)
 	slog.InfoContext(ctx, "selected user", "id", id, "user", user)
@@ -344,7 +344,7 @@ func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page, pe
 
 	rows, err := q.SelectUsersBySimilarity(ctx, db.SelectUsersBySimilarityParams{Username: name, Limit: perPage, Offset: offset})
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to select users by similarity", "err", err)
+		slog.ErrorContext(ctx, "failed to select users by similarity", "err", err, "name", name, "page", page, "limit", perPage, "offset", offset)
 		return nil, fmt.Errorf("failed to select users by similarity: %w", err)
 	}
 
@@ -365,6 +365,6 @@ func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page, pe
 		})
 	}
 
-	slog.InfoContext(ctx, "selected users by name similarity", "users", users, "name", name, "page", page, "perPage", page, "offset", offset)
+	slog.InfoContext(ctx, "selected users by name similarity", "users", users, "name", name, "page", page, "limit", page, "offset", offset)
 	return users, nil
 }

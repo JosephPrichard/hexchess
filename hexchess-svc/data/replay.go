@@ -35,28 +35,28 @@ type ReplayEntity struct {
 
 var ReplayEntityCmpOpts = cmpopts.IgnoreFields(ReplayEntity{}, "PlayedOn")
 
-type ReplayResult int
+type ReplayResult string
 
 const (
-	WhiteWin ReplayResult = iota
-	BlackWin
-	Draw
+	WhiteWin ReplayResult = "WHITE_WINS"
+	BlackWin ReplayResult = "BLACK_WINS"
+	Draw     ReplayResult = "DRAW"
 )
 
-type ReplayCause int
+type ReplayCause string
 
 const (
-	Checkmate ReplayCause = iota
-	Forfeit
+	Checkmate ReplayCause = "CHECKMATE"
+	Forfeit   ReplayCause = "FORFEIT"
 )
 
 type ReplayInst struct {
-	WhiteID          int64   `json:"whiteId"`
-	BlackID          int64   `json:"blackId"`
-	Result           int32   `json:"result"`
-	Cause            int32   `json:"cause"`
-	WinElo           float64 `json:"winElo"`
-	LoseElo          float64 `json:"loseElo"`
+	WhiteID          int64        `json:"whiteId"`
+	BlackID          int64        `json:"blackId"`
+	Result           ReplayResult `json:"result"`
+	Cause            ReplayCause  `json:"cause"`
+	WinElo           float64      `json:"winElo"`
+	LoseElo          float64      `json:"loseElo"`
 	MoveHistoryProto []byte
 }
 
@@ -68,8 +68,8 @@ func InsertReplay(ctx context.Context, q *db.Queries, inst ReplayInst) (int64, e
 	replayID, err := q.InsertReplay(ctx, db.InsertReplayParams{
 		WhiteID:     inst.WhiteID,
 		BlackID:     inst.BlackID,
-		Result:      inst.Result,
-		Cause:       inst.Cause,
+		Result:      string(inst.Result),
+		Cause:       string(inst.Cause),
 		WinElo:      inst.WinElo,
 		LoseElo:     inst.LoseElo,
 		MoveHistory: inst.MoveHistoryProto,
@@ -84,7 +84,7 @@ func InsertReplay(ctx context.Context, q *db.Queries, inst ReplayInst) (int64, e
 	return replayID, nil
 }
 
-func mapReplayFromRow(row db.GetReplayByIDRow) ReplayEntity {
+func mapReplayFromRow(row db.GetReplayByIDRow) (ReplayEntity, error) {
 	replay := ReplayEntity{
 		ID:           row.ID,
 		WhiteID:      row.WhiteID,
@@ -108,7 +108,7 @@ func mapReplayFromRow(row db.GetReplayByIDRow) ReplayEntity {
 		replay.WhiteEloDiff, replay.BlackEloDiff = row.LoseElo, row.WinElo
 	default:
 	}
-	return replay
+	return replay, nil
 }
 
 var ErrNoReplay = errors.New("replay not found")
@@ -122,7 +122,10 @@ func GetReplay(ctx context.Context, q *db.Queries, id int64) (ReplayEntity, erro
 		slog.ErrorContext(ctx, "failed to select replay", "id", id, "err", err)
 		return ReplayEntity{}, fmt.Errorf("failed to get replay %d by id: %w", id, err)
 	}
-	replay := mapReplayFromRow(row)
+	replay, err := mapReplayFromRow(row)
+	if err != nil {
+		return ReplayEntity{}, err
+	}
 
 	slog.InfoContext(ctx, "selected replay by id", "replay", replay)
 	return replay, nil
@@ -162,7 +165,11 @@ func GetUserReplays(ctx context.Context, q *db.Queries, userID int64, afterID in
 
 	var replays []ReplayEntity
 	for _, row := range rows {
-		replays = append(replays, mapReplayFromRow(db.GetReplayByIDRow(row)))
+		replay, err := mapReplayFromRow(db.GetReplayByIDRow(row))
+		if err != nil {
+			return nil, err
+		}
+		replays = append(replays, replay)
 	}
 	slog.InfoContext(ctx, "selected replays", "replays", replays, "userID", userID, "afterID", afterID, "perPage", perPage)
 	return replays, nil

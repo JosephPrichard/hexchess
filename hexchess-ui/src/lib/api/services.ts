@@ -16,7 +16,7 @@ export type Result<T> = [T | undefined, ServiceModel | undefined];
 export type FetchFn = typeof window.fetch;
 export type RequestFn<T> = (fetch?: FetchFn) => Promise<Result<T>>;
 
-export async function requestJSON<Response extends object | unknown>(input: RequestInfo | URL, init?: RequestInit, request?: FetchFn): Promise<Result<Response>> {
+export async function requestJSON<Response extends object | {}>(input: RequestInfo | URL, init?: RequestInit, request?: FetchFn): Promise<Result<Response>> {
 	if (!request) {
 		request = fetch;
 	}
@@ -119,7 +119,7 @@ function postUpdateUser(username: string, bio: string, country: string) {
 }
 
 function postUpdatePassword(password: string, newPassword: string, confirmNewPassword: string) {
-	return requestJSON<unknown>(`${baseURL()}/users/password`, {
+	return requestJSON<{}>(`${baseURL()}/users/password`, {
 		method: 'POST',
 		credentials: 'include',
 		body: JSON.stringify({ password, newPassword, confirmNewPassword }),
@@ -127,7 +127,7 @@ function postUpdatePassword(password: string, newPassword: string, confirmNewPas
 }
 
 function postCreateChallenge(timeControl: string, startColor: string, challengeeId: number) {
-	return requestJSON<unknown>(`${baseURL()}/challenges/create`, {
+	return requestJSON<{}>(`${baseURL()}/challenges/create`, {
 		method: 'POST',
 		credentials: 'include',
 		body: JSON.stringify({ startColor, timeControl, challengeeId }),
@@ -145,19 +145,19 @@ function postUpdateChallenge(challengerId: number, challengeeId: number, action:
 	});
 }
 
-function postCreateGame(timeControl: string, firstColor: string) {
+function postCreateGame(timeControl: string, firstColor: string, fen: string) {
 	interface Response {
 		gameId?: string;
 	}
 	return requestJSON<Response>(`${baseURL()}/games/create`, {
 		method: 'POST',
 		credentials: 'include',
-		body: JSON.stringify({ firstColor, timeControl }),
+		body: JSON.stringify({ firstColor, timeControl, fen }),
 	});
 }
 
 function postLogout() {
-	return requestJSON<unknown>(`${baseURL()}/logout`, {
+	return requestJSON<{}>(`${baseURL()}/logout`, {
 		method: 'POST',
 		credentials: 'include',
 	});
@@ -188,7 +188,8 @@ function getReplays(userId: number, afterId?: number, fetch?: FetchFn) {
 		replayList: ReplayModel[];
 	}
 	const params = new URLSearchParams({ userId: userId.toString() });
-	if (afterId) params.set('afterId', afterId.toString());
+	if (afterId)
+		params.set('afterId', afterId.toString());
 	return requestJSON<Response>(`${baseURL()}/replays?${params}`, { method: 'GET' }, fetch);
 }
 

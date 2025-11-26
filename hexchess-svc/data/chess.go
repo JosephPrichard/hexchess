@@ -166,21 +166,20 @@ func GetChessMetas(ctx context.Context, rdb Redis, zSetName string, page, count 
 		}
 	}
 
-	var metas []ChessMeta
+	var views []ChessMeta
 	for _, bytes := range bytesList {
 		cv, err := UnmarshalChessMeta(bytes)
 		if err != nil {
 			return fail("failed to unmarshal chess debug with key", err)
 		}
-		metas = append(metas, cv)
+		views = append(views, cv)
 	}
 
-	slog.InfoContext(ctx, "retrieved chess views", "count", len(metas), "zSetName", zSetName, "page", page)
-	return metas, nil
+	slog.InfoContext(ctx, "retrieved chess meta views", "views", views, "zSetName", zSetName, "page", page)
+	return views, nil
 }
 
 func GetChessStateCount(ctx context.Context, rdb Redis) (int64, error) {
-
 	conn := rdb.Primary.Get()
 	defer conn.Close()
 

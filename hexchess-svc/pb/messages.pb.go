@@ -536,8 +536,8 @@ type ChessState struct {
 	WhitePlayer   *PlayerState           `protobuf:"bytes,4,opt,name=white_player,json=whitePlayer,proto3" json:"white_player,omitempty"`
 	BlackPlayer   *PlayerState           `protobuf:"bytes,5,opt,name=black_player,json=blackPlayer,proto3" json:"black_player,omitempty"`
 	IsEnded       bool                   `protobuf:"varint,6,opt,name=is_ended,json=isEnded,proto3" json:"is_ended,omitempty"`
-	FirstColor    uint32                 `protobuf:"varint,7,opt,name=first_color,json=firstColor,proto3" json:"first_color,omitempty"`
-	TimeControl   uint32                 `protobuf:"varint,8,opt,name=time_control,json=timeControl,proto3" json:"time_control,omitempty"`
+	FirstColor    string                 `protobuf:"bytes,7,opt,name=first_color,json=firstColor,proto3" json:"first_color,omitempty"`
+	TimeControl   string                 `protobuf:"bytes,8,opt,name=time_control,json=timeControl,proto3" json:"time_control,omitempty"`
 	Touch         int64                  `protobuf:"varint,9,opt,name=touch,proto3" json:"touch,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -608,18 +608,18 @@ func (x *ChessState) GetIsEnded() bool {
 	return false
 }
 
-func (x *ChessState) GetFirstColor() uint32 {
+func (x *ChessState) GetFirstColor() string {
 	if x != nil {
 		return x.FirstColor
 	}
-	return 0
+	return ""
 }
 
-func (x *ChessState) GetTimeControl() uint32 {
+func (x *ChessState) GetTimeControl() string {
 	if x != nil {
 		return x.TimeControl
 	}
-	return 0
+	return ""
 }
 
 func (x *ChessState) GetTouch() int64 {
@@ -1001,8 +1001,9 @@ func (x *PlayersOutput) GetBlackPlayer() *PlayerState {
 
 type MoveOutput struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	HistMove      *HistMove              `protobuf:"bytes,1,opt,name=histMove,proto3" json:"histMove,omitempty"`
+	Move          *HistMove              `protobuf:"bytes,1,opt,name=move,proto3" json:"move,omitempty"`
 	Game          *ChessGame             `protobuf:"bytes,2,opt,name=game,proto3" json:"game,omitempty"`
+	UpdatedAt     string                 `protobuf:"bytes,3,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1037,9 +1038,9 @@ func (*MoveOutput) Descriptor() ([]byte, []int) {
 	return file_pb_messages_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *MoveOutput) GetHistMove() *HistMove {
+func (x *MoveOutput) GetMove() *HistMove {
 	if x != nil {
-		return x.HistMove
+		return x.Move
 	}
 	return nil
 }
@@ -1049,6 +1050,13 @@ func (x *MoveOutput) GetGame() *ChessGame {
 		return x.Game
 	}
 	return nil
+}
+
+func (x *MoveOutput) GetUpdatedAt() string {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return ""
 }
 
 type ChatOutput struct {
@@ -1757,9 +1765,9 @@ type ChallengeMsg struct {
 	ChallengeeName    string                 `protobuf:"bytes,6,opt,name=challengee_name,json=challengeeName,proto3" json:"challengee_name,omitempty"`
 	ChallengeeCountry string                 `protobuf:"bytes,7,opt,name=challengee_country,json=challengeeCountry,proto3" json:"challengee_country,omitempty"`
 	ChallengeeElo     float64                `protobuf:"fixed64,8,opt,name=challengee_elo,json=challengeeElo,proto3" json:"challengee_elo,omitempty"`
-	TimeControl       uint32                 `protobuf:"varint,9,opt,name=time_control,json=timeControl,proto3" json:"time_control,omitempty"`
-	StartColor        uint32                 `protobuf:"varint,10,opt,name=start_color,json=startColor,proto3" json:"start_color,omitempty"`
-	MadeOn            int64                  `protobuf:"varint,11,opt,name=made_on,json=madeOn,proto3" json:"made_on,omitempty"`
+	TimeControl       string                 `protobuf:"bytes,9,opt,name=time_control,json=timeControl,proto3" json:"time_control,omitempty"`
+	StartColor        string                 `protobuf:"bytes,10,opt,name=start_color,json=startColor,proto3" json:"start_color,omitempty"`
+	MadeOn            string                 `protobuf:"bytes,11,opt,name=made_on,json=madeOn,proto3" json:"made_on,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -1850,25 +1858,25 @@ func (x *ChallengeMsg) GetChallengeeElo() float64 {
 	return 0
 }
 
-func (x *ChallengeMsg) GetTimeControl() uint32 {
+func (x *ChallengeMsg) GetTimeControl() string {
 	if x != nil {
 		return x.TimeControl
 	}
-	return 0
+	return ""
 }
 
-func (x *ChallengeMsg) GetStartColor() uint32 {
+func (x *ChallengeMsg) GetStartColor() string {
 	if x != nil {
 		return x.StartColor
 	}
-	return 0
+	return ""
 }
 
-func (x *ChallengeMsg) GetMadeOn() int64 {
+func (x *ChallengeMsg) GetMadeOn() string {
 	if x != nil {
 		return x.MadeOn
 	}
-	return 0
+	return ""
 }
 
 var File_pb_messages_proto protoreflect.FileDescriptor
@@ -1926,9 +1934,9 @@ const file_pb_messages_proto_rawDesc = "" +
 	"\fwhite_player\x18\x04 \x01(\v2\x15.messages.PlayerStateR\vwhitePlayer\x128\n" +
 	"\fblack_player\x18\x05 \x01(\v2\x15.messages.PlayerStateR\vblackPlayer\x12\x19\n" +
 	"\bis_ended\x18\x06 \x01(\bR\aisEnded\x12\x1f\n" +
-	"\vfirst_color\x18\a \x01(\rR\n" +
+	"\vfirst_color\x18\a \x01(\tR\n" +
 	"firstColor\x12!\n" +
-	"\ftime_control\x18\b \x01(\rR\vtimeControl\x12\x14\n" +
+	"\ftime_control\x18\b \x01(\tR\vtimeControl\x12\x14\n" +
 	"\x05touch\x18\t \x01(\x03R\x05touch\"\x0e\n" +
 	"\fForfeitInput\"4\n" +
 	"\tMoveInput\x12'\n" +
@@ -1948,11 +1956,13 @@ const file_pb_messages_proto_rawDesc = "" +
 	"\x04self\x18\x02 \x01(\v2\x15.messages.PlayerStateR\x04self\"\x83\x01\n" +
 	"\rPlayersOutput\x128\n" +
 	"\fwhite_player\x18\x01 \x01(\v2\x15.messages.PlayerStateR\vwhitePlayer\x128\n" +
-	"\fblack_player\x18\x02 \x01(\v2\x15.messages.PlayerStateR\vblackPlayer\"e\n" +
+	"\fblack_player\x18\x02 \x01(\v2\x15.messages.PlayerStateR\vblackPlayer\"|\n" +
 	"\n" +
-	"MoveOutput\x12.\n" +
-	"\bhistMove\x18\x01 \x01(\v2\x12.messages.HistMoveR\bhistMove\x12'\n" +
-	"\x04game\x18\x02 \x01(\v2\x13.messages.ChessGameR\x04game\"U\n" +
+	"MoveOutput\x12&\n" +
+	"\x04move\x18\x01 \x01(\v2\x12.messages.HistMoveR\x04move\x12'\n" +
+	"\x04game\x18\x02 \x01(\v2\x13.messages.ChessGameR\x04game\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\x03 \x01(\tR\tupdatedAt\"U\n" +
 	"\n" +
 	"ChatOutput\x12-\n" +
 	"\x06player\x18\x01 \x01(\v2\x15.messages.PlayerStateR\x06player\x12\x18\n" +
@@ -2007,11 +2017,11 @@ const file_pb_messages_proto_rawDesc = "" +
 	"\x0fchallengee_name\x18\x06 \x01(\tR\x0echallengeeName\x12-\n" +
 	"\x12challengee_country\x18\a \x01(\tR\x11challengeeCountry\x12%\n" +
 	"\x0echallengee_elo\x18\b \x01(\x01R\rchallengeeElo\x12!\n" +
-	"\ftime_control\x18\t \x01(\rR\vtimeControl\x12\x1f\n" +
+	"\ftime_control\x18\t \x01(\tR\vtimeControl\x12\x1f\n" +
 	"\vstart_color\x18\n" +
-	" \x01(\rR\n" +
+	" \x01(\tR\n" +
 	"startColor\x12\x17\n" +
-	"\amade_on\x18\v \x01(\x03R\x06madeOnB\x12Z\x10hexchess-data/pbb\x06proto3"
+	"\amade_on\x18\v \x01(\tR\x06madeOnB\x12Z\x10hexchess-data/pbb\x06proto3"
 
 var (
 	file_pb_messages_proto_rawDescOnce sync.Once
@@ -2073,7 +2083,7 @@ var file_pb_messages_proto_depIdxs = []int32{
 	0,  // 13: messages.InitOutput.self:type_name -> messages.PlayerState
 	0,  // 14: messages.PlayersOutput.white_player:type_name -> messages.PlayerState
 	0,  // 15: messages.PlayersOutput.black_player:type_name -> messages.PlayerState
-	5,  // 16: messages.MoveOutput.histMove:type_name -> messages.HistMove
+	5,  // 16: messages.MoveOutput.move:type_name -> messages.HistMove
 	6,  // 17: messages.MoveOutput.game:type_name -> messages.ChessGame
 	0,  // 18: messages.ChatOutput.player:type_name -> messages.PlayerState
 	12, // 19: messages.GameOutput.error:type_name -> messages.ErrorOutput

@@ -54,7 +54,7 @@ export interface ReplayModel {
 	whiteElo: number;
 	blackElo: number;
 	playedOn: string;
-	result: number;
+	result: string;
 	cause: number;
 	whiteEloDiff: number;
 	blackEloDiff: number;
@@ -82,8 +82,8 @@ export interface ChessModel {
 	id: string,
 	whitePlayer: PlayerModel | null,
 	blackPlayer: PlayerModel | null,
-	firstColor: number,
-	timeControl: number,
+	firstColor: string,
+	timeControl: string,
 	ended: boolean
 }
 

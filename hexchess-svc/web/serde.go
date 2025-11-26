@@ -44,13 +44,14 @@ func MakePbGameOutputForfeit(gameID string) *pb.GameOutput {
 	}
 }
 
-func MakePbGameOutputMove(gameID string, move *pb.HistMove, game *pb.ChessGame) *pb.GameOutput {
+func MakePbGameOutputMove(gameID string, move *pb.HistMove, game *pb.ChessGame, updatedAt string) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Move{
 			Move: &pb.MoveOutput{
-				HistMove: move,
-				Game:     game,
+				Move:      move,
+				Game:      game,
+				UpdatedAt: updatedAt,
 			},
 		},
 	}

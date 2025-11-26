@@ -32,8 +32,8 @@ func TestHandleRegister(t *testing.T) {
 		},
 		{
 			body:      fmt.Sprintf(`{"username": "%s", "password": "test-password2", "confirmPassword": "test-password2"}`, data.TestUsersInsts[0].Username),
-			failResp:  ServiceView{Status: 409, Message: ErrHttpDuplicateUsername.Error()},
-			expStatus: 409,
+			failResp:  ServiceView{Status: 400, Message: ErrHttpDuplicateUsername.Error()},
+			expStatus: 400,
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
@@ -409,7 +409,8 @@ func TestHandleGetChessViews(t *testing.T) {
 					Country: "us",
 					Elo:     1000,
 				},
-				FirstColor: data.Random,
+				FirstColor:  data.Random,
+				TimeControl: data.Unlimited,
 			},
 		},
 		SelfChessList: []data.ChessMeta{
@@ -421,7 +422,8 @@ func TestHandleGetChessViews(t *testing.T) {
 					Country: "us",
 					Elo:     1000,
 				},
-				FirstColor: data.Random,
+				FirstColor:  data.Random,
+				TimeControl: data.Unlimited,
 			},
 		},
 	}

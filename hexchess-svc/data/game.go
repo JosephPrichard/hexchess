@@ -14,7 +14,7 @@ import (
 
 const GamesZSet = "games"
 
-func CreateGame(ctx context.Context, rdb Redis, color ColorSelect, timeControl TimeControl) (string, error) {
+func CreateGame(ctx context.Context, rdb Redis, color ColorSelect, timeControl TimeControl, initialBoard *chess.Board) (string, error) {
 	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
 	bID := make([]byte, 8)
@@ -30,6 +30,9 @@ func CreateGame(ctx context.Context, rdb Redis, color ColorSelect, timeControl T
 	state := MakeState(strID, timeControl)
 	state.FirstColor = color
 	state.Game.InitPieceMoves()
+	if initialBoard != nil {
+		state.Game.Board = *initialBoard
+	}
 
 	slog.InfoContext(ctx, "created chess game", "state", state)
 
@@ -60,35 +63,40 @@ func CreateGame(ctx context.Context, rdb Redis, color ColorSelect, timeControl T
 	return strID, nil
 }
 
-func JoinGame(ctx context.Context, rdb Redis, gameID string, player PlayerState) (ChessState, error) {
+func JoinGame(ctx context.Context, rdb Redis, gameID string, player *PlayerState) (ChessState, error) {
 	state, err := GetChessState(ctx, rdb, gameID)
 	if err != nil {
 		return ChessState{}, err
+	}
+
+	if player == nil {
+		slog.WarnContext(ctx, "unprovided player did not join game", "state", state)
+		return state, nil
 	}
 
 	var playerExists bool
 	if state.WhitePlayer == nil && state.BlackPlayer == nil {
 		n, err := rand.Int(rand.Reader, big.NewInt(1000))
 		if err != nil {
-			return ChessState{}, err
+			return ChessState{}, fmt.Errorf("failed to generate randint used to select first color: %w", err)
 		}
 		pickWhite := state.FirstColor == Random && n.Int64()%2 == 0 || state.FirstColor == White
 		if pickWhite {
-			state.WhitePlayer = &player
+			state.WhitePlayer = player
 		} else {
-			state.BlackPlayer = &player
+			state.BlackPlayer = player
 		}
 	} else if state.BlackPlayer != nil && state.WhitePlayer == nil {
 		if state.BlackPlayer.ID == player.ID {
 			playerExists = true
 		} else {
-			state.WhitePlayer = &player
+			state.WhitePlayer = player
 		}
 	} else if state.WhitePlayer != nil && state.BlackPlayer == nil {
 		if state.WhitePlayer.ID == player.ID {
 			playerExists = true
 		} else {
-			state.BlackPlayer = &player
+			state.BlackPlayer = player
 		}
 	}
 
@@ -203,7 +211,7 @@ func WriteFinishedGame(ctx context.Context, stores Stores, state ChessState, isW
 	whiteID := state.WhitePlayer.ID
 	blackID := state.BlackPlayer.ID
 
-	moveHistBytes, err := chess.MarshalMoveHistory(chess.InitialBoard(), state.Game.Moves)
+	moveHistBytes, err := chess.MarshalMoveHistory(state.InitialBoard, state.Game.Moves)
 	if err != nil {
 		return fail("failed to marshal move history", err)
 	}
@@ -303,8 +311,8 @@ func updateGameResult(ctx context.Context, q *db.Queries, params GRParams) (GRCh
 	inst := ReplayInst{
 		WhiteID:          params.WhiteID,
 		BlackID:          params.BlackID,
-		Result:           int32(result),
-		Cause:            int32(params.Cause),
+		Result:           result,
+		Cause:            params.Cause,
 		WinElo:           winEloDiff,
 		LoseElo:          loseEloDiff,
 		MoveHistoryProto: params.MoveHistoryProto,

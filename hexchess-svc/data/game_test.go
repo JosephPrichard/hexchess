@@ -35,7 +35,7 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 		t.Fatalf("failed initialize test state: %v", err)
 	}
 
-	updated, err := JoinGame(ctx, rdb, gameID, player)
+	updated, err := JoinGame(ctx, rdb, gameID, &player)
 	assert.NoError(t, err)
 
 	expState := inState.DeepCopy()
@@ -60,7 +60,7 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 		t.Fatalf("failed initialize test state: %v", err)
 	}
 
-	result, err := JoinGame(ctx, rdb, gameID, PlayerState{ID: 3, Name: "test"})
+	result, err := JoinGame(ctx, rdb, gameID, &PlayerState{ID: 3, Name: "test"})
 
 	assert.NoError(t, err)
 	util.AssertEqualIgnoring(t, inState, result, ChessMetaCmpOpts)
