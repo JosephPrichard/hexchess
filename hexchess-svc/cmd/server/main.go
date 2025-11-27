@@ -66,7 +66,7 @@ func main() {
 	rdb := data.MakeRdb(redisPrimaryURL, redisPubSubURL)
 	defer rdb.Close()
 
-	state := web.MakeServerState(data.Databases{Rdb: &rdb, Postgres: postgres}, countryList)
+	state := web.MakeServerState(data.Databases{Rdb: rdb, Pdb: postgres}, countryList)
 
 	data.ListenGameMessages(state.GamesCaster, rdb.PubsubAddr)
 	data.ListenUsersMessages(state.UsersCaster, rdb.PubsubAddr)

@@ -38,7 +38,7 @@ func GetChessState(ctx context.Context, rdb *Redis, id string) (ChessState, erro
 		return fail("failed to get chess state", err)
 	}
 
-	state, err := UnmarshalChess(data)
+	state, err := UnmarshalChessState(data)
 	if err != nil {
 		return fail("failed to deserialize chess state", err)
 	}
@@ -56,11 +56,7 @@ func SetChessStateAt(ctx context.Context, rdb *Redis, id string, state ChessStat
 	touchSecs := float64(state.Touch.Unix())
 	fullID := "game:" + id
 
-	pbState, err := SerializeChessState(state)
-	if err != nil {
-		return state, fmt.Errorf("failed to serialize chess state: %w", err)
-	}
-	b, err := proto.Marshal(pbState)
+	b, err := proto.Marshal(SerializeChessState(state))
 	if err != nil {
 		return state, fmt.Errorf("failed to marshal chess state: %w", err)
 	}

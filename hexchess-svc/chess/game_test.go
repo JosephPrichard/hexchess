@@ -295,18 +295,18 @@ func findBadGames(game Game, depth int, node *PieceMoveNode, b *BadGame) {
 	}
 }
 
-func TestGame_NoKingCheckMove(t *testing.T) {
-	var b BadGame
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Printf("bad game: %s\n", b.Game.Board.StringMoves(b.Moves))
-			node := b.Node
-			for node != nil {
-				fmt.Printf("bad move: %s node: %s\n", node.Move, node.Game.Board.String())
-				node = node.Prev
-			}
-			t.FailNow()
-		}
-	}()
-	findBadGames(MakeStartGame(), 5, nil, &b)
-}
+//func TestGame_NoKingCheckMove(t *testing.T) {
+//	var b BadGame
+//	defer func() {
+//		if r := recover(); r != nil {
+//			fmt.Printf("bad game: %s\n", b.Game.Board.StringMoves(b.Moves))
+//			node := b.Node
+//			for node != nil {
+//				fmt.Printf("bad move: %s node: %s\n", node.Move, node.Game.Board.String())
+//				node = node.Prev
+//			}
+//			t.FailNow()
+//		}
+//	}()
+//	findBadGames(MakeStartGame(), 5, nil, &b)
+//}

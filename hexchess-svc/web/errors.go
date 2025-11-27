@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"errors"
-	"hexchess-svc/data"
 	"log/slog"
 	"net/http"
 )
@@ -71,33 +70,6 @@ func HttpStatusFromErr(err error) (int, string) {
 		return http.StatusInternalServerError, err.Error()
 	default:
 		return http.StatusInternalServerError, ErrHttpFatal.Error()
-	}
-}
-
-// MapWsInitErr handle events that occur during the connection initialization phase of a game ws
-func MapWsInitErr(err error) error {
-	switch err {
-	case data.ErrNoChessState:
-		return ErrWsInvalidGame
-	default:
-		return ErrWsFatal
-	}
-}
-
-// MapWsEventErr handle events that occur during an existing connection of a game ws
-func MapWsEventErr(err error) error {
-	switch err {
-	case data.ErrFinishedGame:
-		return ErrWsFinishedGame
-	case data.ErrTurn:
-		return ErrWsTurn
-	case data.ErrInvalidMove:
-		return ErrWsInvalidMove
-	case data.ErrNoChessState:
-		// if the state cannot be found, it has expired while an inactive connection has been open
-		return ErrWsExpiration
-	default:
-		return ErrWsFatal
 	}
 }
 

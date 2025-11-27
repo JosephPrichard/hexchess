@@ -19,16 +19,12 @@ func TestChessSerializer(t *testing.T) {
 
 	for i, input := range inputs {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			pbState, err := SerializeChessState(input)
-			if err != nil {
-				t.Fatalf("failed to serialize chess state: %v", err)
-			}
-			b, err := proto.Marshal(pbState)
+			b, err := proto.Marshal(SerializeChessState(input))
 			if err != nil {
 				t.Fatalf("failed to marshal chess state: %v", err)
 			}
 
-			output, err := UnmarshalChess(b)
+			output, err := UnmarshalChessState(b)
 			if err != nil {
 				t.Fatalf("failed to deserialize state: %v", err)
 			}
@@ -45,15 +41,11 @@ func BenchmarkProtoChessSerializer(b *testing.B) {
 
 	b.ResetTimer()
 	for range b.N {
-		pbState, err := SerializeChessState(input)
-		if err != nil {
-			b.Fatalf("failed to serialize chess state: %v", err)
-		}
-		v, err := proto.Marshal(pbState)
+		v, err := proto.Marshal(SerializeChessState(input))
 		if err != nil {
 			b.Fatalf("failed to marshal chess state: %v", err)
 		}
-		if _, err := UnmarshalChess(v); err != nil {
+		if _, err := UnmarshalChessState(v); err != nil {
 			b.Fatalf("failed to unmarshal state: %v", err)
 		}
 	}

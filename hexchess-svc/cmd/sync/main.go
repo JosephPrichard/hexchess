@@ -37,11 +37,11 @@ func main() {
 	defer pool.Close()
 	q := db.New(pool)
 
-	slog.InfoContext(ctx, "connecting to redis db", redisPrimaryURL)
+	slog.InfoContext(ctx, "connecting to redis db", "redisPrimaryURL", redisPrimaryURL)
 	rdb := data.MakeRdb(redisPrimaryURL, "")
 	defer rdb.Close()
 
-	stores := &data.Databases{Postgres: data.MakePostgres(q, pool), Rdb: &rdb}
+	stores := &data.Databases{Pdb: data.MakePostgres(q, pool), Rdb: rdb}
 
 	if err := data.SyncLeaderboard(ctx, stores); err != nil {
 		util.LogFatalErr("failed to sync leaderboard", err)

@@ -35,7 +35,7 @@ func DeserializePlayer(pbPlayer *pb.PlayerState) *PlayerState {
 
 var ErrNilChess = errors.New("chess board and game cannot be nil")
 
-func UnmarshalChess(b []byte) (ChessState, error) {
+func UnmarshalChessState(b []byte) (ChessState, error) {
 	var cs ChessState
 
 	var pbChess pb.ChessState
@@ -47,11 +47,11 @@ func UnmarshalChess(b []byte) (ChessState, error) {
 	}
 	game, err := chess.DeserializeGame(pbChess.Game)
 	if err != nil {
-		return cs, err
+		return cs, fmt.Errorf("failed to deserialize game: %w", err)
 	}
 	initialBoard, err := chess.DeserializeBoard(pbChess.Game.Board)
 	if err != nil {
-		return cs, err
+		return cs, fmt.Errorf("failed to deserialize board %v: %w", pbChess.Game.Board, err)
 	}
 
 	cs = ChessState{
@@ -77,27 +77,18 @@ func SerializePlayer(p *PlayerState) *pb.PlayerState {
 	return &pb.PlayerState{Id: p.ID, Name: p.Name, Country: p.Country, Elo: p.Elo, IsGuest: p.IsGuest}
 }
 
-func SerializeChessState(s ChessState) (*pb.ChessState, error) {
-	pbGame, err := chess.SerializeGame(s.Game)
-	if err != nil {
-		return nil, err
-	}
-	pbBoard, err := chess.SerializeBoard(s.InitialBoard)
-	if err != nil {
-		return nil, err
-	}
-	pbState := &pb.ChessState{
+func SerializeChessState(s ChessState) *pb.ChessState {
+	return &pb.ChessState{
 		Id:           s.ID,
-		Game:         pbGame,
+		Game:         chess.SerializeGame(s.Game),
 		WhitePlayer:  SerializePlayer(s.WhitePlayer),
 		BlackPlayer:  SerializePlayer(s.BlackPlayer),
 		IsEnded:      s.IsEnded,
 		FirstColor:   string(s.FirstColor),
 		TimeControl:  string(s.TimeControl),
 		Touch:        s.Touch.UnixMilli(),
-		InitialBoard: pbBoard,
+		InitialBoard: chess.SerializeBoard(s.InitialBoard),
 	}
-	return pbState, nil
 }
 
 func UnmarshalChessMeta(b []byte) (ChessMeta, error) {
@@ -105,15 +96,14 @@ func UnmarshalChessMeta(b []byte) (ChessMeta, error) {
 	if err := proto.Unmarshal(b, &pbChess); err != nil {
 		return ChessMeta{}, fmt.Errorf("failed to unmarshal chess state: %w", err)
 	}
-	cm := ChessMeta{
+	return ChessMeta{
 		ID:          pbChess.Id,
 		WhitePlayer: DeserializePlayer(pbChess.WhitePlayer),
 		BlackPlayer: DeserializePlayer(pbChess.BlackPlayer),
 		IsEnded:     pbChess.IsEnded,
 		FirstColor:  ColorSelect(pbChess.FirstColor),
 		TimeControl: TimeControl(pbChess.TimeControl),
-	}
-	return cm, nil
+	}, nil
 }
 
 func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {

@@ -1,6 +1,9 @@
 package web
 
-import "hexchess-svc/pb"
+import (
+	"hexchess-svc/pb"
+	"time"
+)
 
 func MakePbGameOutputError(gameID string, err error) *pb.GameOutput {
 	return &pb.GameOutput{
@@ -44,14 +47,14 @@ func MakePbGameOutputForfeit(gameID string) *pb.GameOutput {
 	}
 }
 
-func MakePbGameOutputMove(gameID string, move *pb.HistMove, game *pb.ChessGame, updatedAt string) *pb.GameOutput {
+func MakePbGameOutputMove(gameID string, move *pb.HistMove, game *pb.ChessGame, updatedAt time.Time) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Move{
 			Move: &pb.MoveOutput{
 				Move:      move,
 				Game:      game,
-				UpdatedAt: updatedAt,
+				UpdatedAt: updatedAt.Format(time.RFC3339),
 			},
 		},
 	}

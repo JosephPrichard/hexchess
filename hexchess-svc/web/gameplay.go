@@ -10,7 +10,6 @@ import (
 	"hexchess-svc/pb"
 	"log/slog"
 	"net/http"
-	"time"
 )
 
 type GameSocketState struct {
@@ -20,18 +19,41 @@ type GameSocketState struct {
 }
 
 func makeGameErr(ctx context.Context, gameID string, err error) []byte {
-	slog.ErrorContext(ctx, "error occurred in game websocket", "err", err)
+	var wsErr error
+	switch err {
+	case data.ErrFinishedGame:
+		wsErr = ErrWsFinishedGame
+	case data.ErrTurn:
+		wsErr = ErrWsTurn
+	case data.ErrInvalidMove:
+		wsErr = ErrWsInvalidMove
+	case data.ErrNoChessState:
+		// if the state cannot be found, it has expired while an inactive connection has been open
+		wsErr = ErrWsExpiration
+	default:
+		wsErr = ErrWsFatal
+	}
+	slog.ErrorContext(ctx, "error occurred while handling ws message", "err", err, "wsErr", wsErr)
 
-	bytes, err := proto.Marshal(MakePbGameOutputError(gameID, err))
+	bytes, err := proto.Marshal(MakePbGameOutputError(gameID, wsErr))
 	if err != nil {
+		// log with a noop response
 		slog.ErrorContext(ctx, "failed to marshal err output msg", "err", err)
+		bytes = nil
 	}
 	return bytes
 }
 
 func makeGameInitErr(ctx context.Context, gameID string, err error) []byte {
-	slog.ErrorContext(ctx, "error occurred in initializing gameplay websocket", "err", err)
-	return makeGameErr(ctx, gameID, MapWsInitErr(err))
+	var wsErr error
+	switch err {
+	case data.ErrNoChessState:
+		wsErr = ErrWsInvalidGame
+	default:
+		wsErr = ErrWsFatal
+	}
+	slog.ErrorContext(ctx, "error occurred in initializing gameplay websocket", "err", err, "wsErr", wsErr)
+	return makeGameErr(ctx, gameID, wsErr)
 }
 
 func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState ServerState) {
@@ -104,13 +126,12 @@ func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState ServerStat
 }
 
 func handleGameInit(gameID string, player data.PlayerState, state data.ChessState, write func([]byte)) error {
-	pbState, err := data.SerializeChessState(state)
-	if err != nil {
-		return fmt.Errorf("failed to map hexchess-pb chess state: %w", err)
-	}
-
-	for _, o := range []*pb.GameOutput{
-		MakePbGameOutputInit(gameID, pbState, data.SerializePlayer(&player)),
+	for i, o := range []*pb.GameOutput{
+		MakePbGameOutputInit(
+			gameID,
+			data.SerializeChessState(state),
+			data.SerializePlayer(&player),
+		),
 		MakePbGameOutputPlayers(
 			gameID,
 			data.SerializePlayer(state.WhitePlayer),
@@ -119,24 +140,17 @@ func handleGameInit(gameID string, player data.PlayerState, state data.ChessStat
 	} {
 		b, err := proto.Marshal(o)
 		if err != nil {
-			return fmt.Errorf("failed to marshal game init output: %w", err)
+			return fmt.Errorf("failed to marshal game init output %d: %w", i, err)
 		}
 		write(b)
 	}
-
 	return nil
 }
 
 func handleGameMessage(ctx context.Context, state GameSocketState, msg []byte, writeChan chan []byte) {
-	writeErr := func(err error) {
-		err = MapWsEventErr(err)
-		slog.ErrorContext(ctx, "error occurred while handling ws message", "err", err)
-		writeChan <- makeGameErr(ctx, state.gameID, err)
-	}
-
 	var pbInput pb.GameInput
 	if err := proto.Unmarshal(msg, &pbInput); err != nil {
-		writeErr(err)
+		writeChan <- makeGameErr(ctx, state.gameID, err)
 		return
 	}
 
@@ -152,7 +166,7 @@ func handleGameMessage(ctx context.Context, state GameSocketState, msg []byte, w
 	}
 
 	if err != nil {
-		writeErr(err)
+		writeChan <- makeGameErr(ctx, state.gameID, err)
 	}
 }
 
@@ -173,15 +187,11 @@ func handleGameMove(ctx context.Context, state GameSocketState, pbInput *pb.Move
 		return err
 	}
 
-	pbGame, err := chess.SerializeGame(result.Room.Game)
-	if err != nil {
-		return err
-	}
 	bytes, err := proto.Marshal(MakePbGameOutputMove(
 		state.gameID,
 		chess.SerializeHistMove(result.Move),
-		pbGame,
-		result.Room.Touch.Format(time.RFC3339),
+		chess.SerializeGame(result.Room.Game),
+		result.Room.Touch,
 	))
 	if err != nil {
 		return err

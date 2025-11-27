@@ -15,12 +15,12 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func writeConn(ctx context.Context, conn *websocket.Conn, b []byte) {
-	if b == nil {
+func writeConn(ctx context.Context, conn *websocket.Conn, bytes []byte) {
+	if bytes == nil {
 		// a nil message is a "no-op", the caller does not need to check for errors
 		return
 	}
-	if err := conn.WriteMessage(websocket.BinaryMessage, b); err != nil {
+	if err := conn.WriteMessage(websocket.BinaryMessage, bytes); err != nil {
 		slog.ErrorContext(ctx, "failed to write ws message", "err", err)
 	}
 }

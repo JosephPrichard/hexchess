@@ -26,11 +26,7 @@ func GetInitialGame(_ js.Value, _ []js.Value) interface{} {
 	game := chess.Game{Board: chess.InitialBoard()}
 	game.InitPieceMoves()
 
-	pbGame, err := chess.SerializeGame(game)
-	if err != nil {
-		return jsErr(err)
-	}
-	output, err := proto.Marshal(pbGame)
+	output, err := proto.Marshal(chess.SerializeGame(game))
 	if err != nil {
 		return jsErr(err)
 	}
@@ -67,11 +63,7 @@ func MakeMove(_ js.Value, args []js.Value) interface{} {
 		game.InitPieceMoves()
 	}
 
-	pbGameOut, err := chess.SerializeGame(game)
-	if err != nil {
-		return jsErr(err)
-	}
-	output, err := proto.Marshal(pbGameOut)
+	output, err := proto.Marshal(chess.SerializeGame(game))
 	if err != nil {
 		return jsErr(err)
 	}
@@ -103,11 +95,7 @@ func GetMoves(_ js.Value, args []js.Value) interface{} {
 	game := chess.Game{Board: board}
 	game.InitPieceMoves()
 
-	pbGameOut, err := chess.SerializeGame(game)
-	if err != nil {
-		return jsErr(err)
-	}
-	output, err := proto.Marshal(pbGameOut)
+	output, err := proto.Marshal(chess.SerializeGame(game))
 	if err != nil {
 		return jsErr(err)
 	}
@@ -136,11 +124,7 @@ func FenToGame(_ js.Value, args []js.Value) interface{} {
 	game := chess.Game{Board: board}
 	game.InitPieceMoves()
 
-	pbGame, err := chess.SerializeGame(game)
-	if err != nil {
-		return jsErr(err)
-	}
-	output, err := proto.Marshal(pbGame)
+	output, err := proto.Marshal(chess.SerializeGame(game))
 	if err != nil {
 		return jsErr(err)
 	}

@@ -42,7 +42,7 @@ func insertReplay(ctx context.Context, query *db.Queries, r data.ReplayInst) err
 	}
 	r.MoveHistoryProto = moveHistBytes
 
-	_, err = data.InsertReplay(ctx, q, r)
+	_, err = data.InsertReplay(ctx, query, r)
 	return err
 }
 
@@ -100,7 +100,7 @@ func main() {
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() error {
-		return data.SetLeaderboard(egCtx, &rdb, changes...)
+		return data.SetLeaderboard(egCtx, rdb, changes...)
 	})
 	for _, c := range challenges {
 		eg.Go(func() error {

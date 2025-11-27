@@ -162,7 +162,7 @@ func MakeGameMove(ctx context.Context, dbs *Databases, gameID string, player Pla
 	if state.IsEnded {
 		isWhiteWin := !state.Game.Board.IsWhiteTurn
 		if err := WriteFinishedGame(ctx, dbs, state, isWhiteWin, Checkmate); err != nil {
-			return mr, err
+			return mr, fmt.Errorf("failed to write checkmate game result: %w", err)
 		}
 	}
 	slog.InfoContext(ctx, "made move on game", "player", player.ID, "move", move, "state", state)
@@ -190,7 +190,7 @@ func ForfeitGame(ctx context.Context, dbs *Databases, gameID string, player Play
 		return err
 	}
 	if err := WriteFinishedGame(ctx, dbs, state, didBlackForfeit, Forfeit); err != nil {
-		return err
+		return fmt.Errorf("failed to write forfeit game result: %w", err)
 	}
 
 	slog.InfoContext(ctx, "player forfeited game", "playerID", player.ID, "gameId", gameID, "err", err)
@@ -270,10 +270,13 @@ func UpdateGameResultTx(ctx context.Context, postgres *Postgres, params GRParams
 }
 
 func updateGameResult(ctx context.Context, query *db.Queries, params GRParams) (GRChangeSet, error) {
-	result, winID, loseID := WhiteWin, params.WhiteID, params.BlackID
-	if !params.IsWhiteWin {
-		result, winID, loseID = BlackWin, params.BlackID, params.WhiteID
-	}
+	result, winID, loseID := func() (result ReplayResult, winID, loseID int64) {
+		if params.IsWhiteWin {
+			return WhiteWin, params.WhiteID, params.BlackID
+		} else {
+			return BlackWin, params.BlackID, params.WhiteID
+		}
+	}()
 
 	fail := func(str string, err error) (GRChangeSet, error) {
 		err = fmt.Errorf("%s: %w", str, err)

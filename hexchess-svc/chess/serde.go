@@ -99,7 +99,7 @@ func DeserializeHistMoveList(pbMoves []*pb.HistMove) []HistMove {
 func DeserializeGame(pbGame *pb.ChessGame) (Game, error) {
 	board, err := DeserializeBoard(pbGame.Board)
 	if err != nil {
-		return Game{}, fmt.Errorf("failed to map board: %w", err)
+		return Game{}, fmt.Errorf("failed to deserialize board %v: %w", pbGame.Board, err)
 	}
 	return Game{
 		TakenWhitePieces: DeserializePieces(pbGame.TakenWhitePieces),
@@ -142,7 +142,7 @@ func SerializePiecesMoves(moves []PieceMoves) []*pb.PieceMoves {
 	return pbMoves
 }
 
-func SerializeBoard(board Board) (*pb.ChessBoard, error) {
+func SerializeBoard(board Board) *pb.ChessBoard {
 	files := make([]*pb.BoardFile, 0, Files)
 	for file := range Files {
 		ranksCount := RanksPerFile[file]
@@ -150,13 +150,13 @@ func SerializeBoard(board Board) (*pb.ChessBoard, error) {
 		for rank := range ranksCount {
 			piece, err := board.GetPiece(file, rank)
 			if err != nil {
-				return nil, err
+				panic(err)
 			}
 			pieces = append(pieces, uint32(piece))
 		}
 		files = append(files, &pb.BoardFile{Pieces: pieces})
 	}
-	return &pb.ChessBoard{File: files, IsWhiteTurn: board.IsWhiteTurn}, nil
+	return &pb.ChessBoard{File: files, IsWhiteTurn: board.IsWhiteTurn}
 }
 
 func SerializeHistMove(hm HistMove) *pb.HistMove {
@@ -184,20 +184,16 @@ func SerializeMoveList(moves []HistMove) []*pb.HistMove {
 	return pbMoveList
 }
 
-func SerializeGame(game Game) (*pb.ChessGame, error) {
-	pbBoard, err := SerializeBoard(game.Board)
-	if err != nil {
-		return nil, fmt.Errorf("failed to map board: %w", err)
-	}
+func SerializeGame(game Game) *pb.ChessGame {
 	pbGame := &pb.ChessGame{
 		TakenWhitePieces: SerializePieces(game.TakenWhitePieces),
 		TakenBlackPieces: SerializePieces(game.TakenBlackPieces),
 		BlackMoves:       SerializePiecesMoves(game.BlackMoves),
 		WhiteMoves:       SerializePiecesMoves(game.WhiteMoves),
 		Moves:            SerializeMoveList(game.Moves),
-		Board:            pbBoard,
+		Board:            SerializeBoard(game.Board),
 	}
-	return pbGame, nil
+	return pbGame
 }
 
 func SerializePieces(pieces []Piece) []int32 {
@@ -228,23 +224,15 @@ func MarshalMoveHistory(initialBoard Board, moveSeq []HistMove) ([]byte, error) 
 	game := Game{Board: initialBoard}
 	game.InitPieceMoves()
 
-	pbInitialGame, err := SerializeGame(game)
-	if err != nil {
-		return nil, fmt.Errorf("failed to map initial game: %w", err)
-	}
+	pbInitialGame := SerializeGame(game)
 
 	var pbMoveSteps []*pb.MoveStep
 	for _, m := range moveSeq {
 		game.MakeMove(Move{From: m.From, To: m.To, Promotion: QueenPromotion})
 		game.InitPieceMoves()
 
-		pbGame, err := SerializeGame(game)
-		if err != nil {
-			return nil, fmt.Errorf("failed to map game for move %s: %w", m.String(), err)
-		}
-
 		pbMoveSteps = append(pbMoveSteps, &pb.MoveStep{
-			Game: pbGame,
+			Game: SerializeGame(game),
 			Move: SerializeHistMove(m),
 		})
 	}

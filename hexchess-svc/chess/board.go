@@ -401,6 +401,9 @@ func (b *Board) SetPiece(file, rank uint32, piece Piece) error {
 	if rank >= RanksPerFile[file] {
 		return fmt.Errorf("rank out of range: %d for file: %d", rank, file)
 	}
+	if piece.Rune() == '?' {
+		return fmt.Errorf("unknown piece type: %d", piece)
+	}
 	fileArr[rank] = piece
 	return nil
 }

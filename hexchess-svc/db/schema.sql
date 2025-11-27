@@ -47,6 +47,23 @@ CREATE TABLE IF NOT EXISTS challenges (
     PRIMARY KEY (challenger_id, challengee_id)
 );
 
+-- Create constraints
+ALTER TABLE challenges
+    ADD CONSTRAINT time_control_check
+    CHECK (time_control IN ('REAL_TIME', 'CORRESPONDENCE', 'UNLIMITED'));
+
+ALTER TABLE challenges
+    ADD CONSTRAINT start_color_check
+    CHECK (start_color IN ('RANDOM', 'BLACK', 'WHITE'));
+
+ALTER TABLE replays
+    ADD CONSTRAINT result_check
+    CHECK (result IN ('DRAW', 'WHITE_WINS', 'BLACK_WINS'));
+
+ALTER TABLE replays
+    ADD CONSTRAINT cause_check
+    CHECK (cause IN ('CHECKMATE', 'FORFEIT'));
+
 -- Create indices
 CREATE INDEX IF NOT EXISTS idx_trgm_username ON users USING GIST (username gist_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_username ON users(username);
