@@ -25,7 +25,7 @@ type CountryState struct {
 }
 
 type ServerState struct {
-	data.Stores
+	data.Databases
 	CasterState
 	CountryState
 	MakeID func() string
@@ -50,9 +50,9 @@ func makeCountryState(countryList []string) CountryState {
 	return CountryState{CountryList: countryList, CountryMap: countryMap}
 }
 
-func MakeServerState(stores data.Stores, countryList []string) ServerState {
+func MakeServerState(dbs data.Databases, countryList []string) ServerState {
 	return ServerState{
-		Stores:       stores,
+		Databases:    dbs,
 		CasterState:  makeCasterState(),
 		CountryState: makeCountryState(countryList),
 		MakeID:       func() string { return uuid.NewString() },
@@ -159,7 +159,7 @@ func HandleHealthCheck(state *ServerState, w http.ResponseWriter, _ *http.Reques
 
 	_, primErr := connPrim.Do("PING")
 	_, psErr := connPs.Do("PING")
-	_, dbErr := state.Pool.Exec(context.Background(), "SELECT 1;")
+	_, dbErr := state.Pdb.Pool.Exec(context.Background(), "SELECT 1;")
 
 	failures := make(map[string]string)
 	if primErr != nil {

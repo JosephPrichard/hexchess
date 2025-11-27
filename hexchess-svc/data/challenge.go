@@ -79,12 +79,12 @@ func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) (ChallengeEnti
 	}, nil
 }
 
-func InsertChallenge(ctx context.Context, q *db.Queries, inst ChallengeInst) error {
-	_, err := InsertChallengeRet(ctx, q, inst)
+func InsertChallenge(ctx context.Context, query *db.Queries, inst ChallengeInst) error {
+	_, err := InsertChallengeRet(ctx, query, inst)
 	return err
 }
 
-func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) (ChallengeEntity, error) {
+func InsertChallengeRet(ctx context.Context, query *db.Queries, inst ChallengeInst) (ChallengeEntity, error) {
 	if inst.ChallengerID == inst.ChallengeeID {
 		return ChallengeEntity{}, ErrSelfChallenge
 	}
@@ -92,7 +92,7 @@ func InsertChallengeRet(ctx context.Context, q *db.Queries, inst ChallengeInst) 
 		inst.MadeOn = time.Now()
 	}
 
-	row, dbErr := q.InsertChallenge(ctx, db.InsertChallengeParams{
+	row, dbErr := query.InsertChallenge(ctx, db.InsertChallengeParams{
 		ChallengerID: inst.ChallengerID,
 		ChallengeeID: inst.ChallengeeID,
 		TimeControl:  string(inst.TimeControl),
@@ -125,11 +125,11 @@ type ChallengeKey struct {
 	ChallengeeID int64
 }
 
-func GetChallengesByParticipant(ctx context.Context, q *db.Queries, key ChallengeKey, threshold time.Duration) ([]ChallengeEntity, error) {
-	return GetChallengesByParticipantOn(ctx, q, key, time.Now().Add(-threshold))
+func GetChallengesByParticipant(ctx context.Context, query *db.Queries, key ChallengeKey, threshold time.Duration) ([]ChallengeEntity, error) {
+	return GetChallengesByParticipantOn(ctx, query, key, time.Now().Add(-threshold))
 }
 
-func GetChallengesByParticipantOn(ctx context.Context, q *db.Queries, key ChallengeKey, t time.Time) ([]ChallengeEntity, error) {
+func GetChallengesByParticipantOn(ctx context.Context, query *db.Queries, key ChallengeKey, t time.Time) ([]ChallengeEntity, error) {
 	var pgChallengerID pgtype.Int8
 	if key.ChallengerID != -1 {
 		pgChallengerID.Valid = true
@@ -141,7 +141,7 @@ func GetChallengesByParticipantOn(ctx context.Context, q *db.Queries, key Challe
 		pgChallengeeID.Int64 = key.ChallengeeID
 	}
 
-	rows, err := q.SelectChallengesByParticipant(ctx, db.SelectChallengesByParticipantParams{
+	rows, err := query.SelectChallengesByParticipant(ctx, db.SelectChallengesByParticipantParams{
 		ChallengerID: pgChallengerID,
 		ChallengeeID: pgChallengeeID,
 		Since:        pgtype.Timestamptz{Valid: true, Time: t},
@@ -170,8 +170,8 @@ type DeleteResult struct {
 	FirstColor   ColorSelect
 }
 
-func DeleteChallenge(ctx context.Context, q *db.Queries, key ChallengeKey) (DeleteResult, error) {
-	row, err := q.DeleteChallenge(ctx, db.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+func DeleteChallenge(ctx context.Context, query *db.Queries, key ChallengeKey) (DeleteResult, error) {
+	row, err := query.DeleteChallenge(ctx, db.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return DeleteResult{}, ErrChallengeNotFound
 	}
@@ -189,12 +189,12 @@ func DeleteChallenge(ctx context.Context, q *db.Queries, key ChallengeKey) (Dele
 	return dr, err
 }
 
-func DeleteExpiredChallenges(ctx context.Context, q *db.Queries, userID int64, threshold time.Duration) error {
-	return DeleteExpiredChallengesOn(ctx, q, userID, time.Now().Add(-threshold))
+func DeleteExpiredChallenges(ctx context.Context, query *db.Queries, userID int64, threshold time.Duration) error {
+	return DeleteExpiredChallengesOn(ctx, query, userID, time.Now().Add(-threshold))
 }
 
-func DeleteExpiredChallengesOn(ctx context.Context, q *db.Queries, userID int64, t time.Time) error {
-	err := q.DeleteExpiredChallenges(ctx, db.DeleteExpiredChallengesParams{
+func DeleteExpiredChallengesOn(ctx context.Context, query *db.Queries, userID int64, t time.Time) error {
+	err := query.DeleteExpiredChallenges(ctx, db.DeleteExpiredChallengesParams{
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: t},
 	})

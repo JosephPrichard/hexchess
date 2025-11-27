@@ -60,12 +60,12 @@ type ReplayInst struct {
 	MoveHistoryProto []byte
 }
 
-func InsertReplay(ctx context.Context, q *db.Queries, inst ReplayInst) (int64, error) {
+func InsertReplay(ctx context.Context, query *db.Queries, inst ReplayInst) (int64, error) {
 	if inst.MoveHistoryProto == nil {
 		inst.MoveHistoryProto = []byte{}
 	}
 
-	replayID, err := q.InsertReplay(ctx, db.InsertReplayParams{
+	replayID, err := query.InsertReplay(ctx, db.InsertReplayParams{
 		WhiteID:     inst.WhiteID,
 		BlackID:     inst.BlackID,
 		Result:      string(inst.Result),
@@ -113,8 +113,8 @@ func mapReplayFromRow(row db.GetReplayByIDRow) (ReplayEntity, error) {
 
 var ErrNoReplay = errors.New("replay not found")
 
-func GetReplay(ctx context.Context, q *db.Queries, id int64) (ReplayEntity, error) {
-	row, err := q.GetReplayByID(ctx, id)
+func GetReplay(ctx context.Context, query *db.Queries, id int64) (ReplayEntity, error) {
+	row, err := query.GetReplayByID(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ReplayEntity{}, ErrNoReplay
 	}
@@ -131,8 +131,8 @@ func GetReplay(ctx context.Context, q *db.Queries, id int64) (ReplayEntity, erro
 	return replay, nil
 }
 
-func GetReplayMoveHistory(ctx context.Context, q *db.Queries, id int64) (*pb.MoveHistory, error) {
-	b, err := q.GetReplayMoveHistory(ctx, id)
+func GetReplayMoveHistory(ctx context.Context, query *db.Queries, id int64) (*pb.MoveHistory, error) {
+	b, err := query.GetReplayMoveHistory(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNoReplay
 	}
@@ -148,12 +148,12 @@ func GetReplayMoveHistory(ctx context.Context, q *db.Queries, id int64) (*pb.Mov
 	return &moveHist, nil
 }
 
-func GetUserReplays(ctx context.Context, q *db.Queries, userID int64, afterID int64, perPage int32) ([]ReplayEntity, error) {
+func GetUserReplays(ctx context.Context, query *db.Queries, userID int64, afterID int64, perPage int32) ([]ReplayEntity, error) {
 	if afterID < 0 {
 		afterID = int64(math.MaxInt64)
 	}
 
-	rows, err := q.GetUserReplays(ctx, db.GetUserReplaysParams{
+	rows, err := query.GetUserReplays(ctx, db.GetUserReplaysParams{
 		UserID:  userID,
 		AfterID: afterID,
 		PerPage: perPage,

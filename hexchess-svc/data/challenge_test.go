@@ -9,18 +9,18 @@ import (
 )
 
 func TestChallengeExpiration(t *testing.T) {
-	pgDB, closer := BeforeDbTests(t, true)
+	postgres, closer := BeforeDbTests(t, true)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-expiration")
 
-	challenges, err := GetChallengesByParticipantOn(ctx, pgDB.Q, ChallengeKey{int64(5), -1}, time.Unix(10000, 0))
+	challenges, err := GetChallengesByParticipantOn(ctx, postgres.Query, ChallengeKey{int64(5), -1}, time.Unix(10000, 0))
 	assert.NoError(t, err)
 
-	assert.NoError(t, DeleteExpiredChallengesOn(ctx, pgDB.Q, 5, time.Unix(10000, 0)))
+	assert.NoError(t, DeleteExpiredChallengesOn(ctx, postgres.Query, 5, time.Unix(10000, 0)))
 
 	// get all challenges to prove that the deletion method worked.
-	challengesDel, err := GetChallengesByParticipantOn(ctx, pgDB.Q, ChallengeKey{int64(5), -1}, time.Unix(0, 0))
+	challengesDel, err := GetChallengesByParticipantOn(ctx, postgres.Query, ChallengeKey{int64(5), -1}, time.Unix(0, 0))
 	assert.NoError(t, err)
 
 	for _, ca := range [][]ChallengeEntity{challenges, challengesDel} {
@@ -62,20 +62,20 @@ func TestChallengeExpiration(t *testing.T) {
 }
 
 func TestChallengeDeletion(t *testing.T) {
-	pgDB, closer := BeforeDbTests(t, true)
+	pdb, closer := BeforeDbTests(t, true)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-delete")
 
 	testUser := TestUserEntities[1] // ID: 2 will have no challenges at this point. if this changes, the test may break.
 
-	_, err := InsertChallengeRet(ctx, pgDB.Q, ChallengeInst{testUser.ID, 3, TcUnlimited, TcRandom, time.Time{}})
+	_, err := InsertChallengeRet(ctx, pdb.Query, ChallengeInst{testUser.ID, 3, TcUnlimited, TcRandom, time.Time{}})
 	assert.NoError(t, err)
 
-	result, err := DeleteChallenge(ctx, pgDB.Q, ChallengeKey{testUser.ID, 3})
+	result, err := DeleteChallenge(ctx, pdb.Query, ChallengeKey{testUser.ID, 3})
 	assert.NoError(t, err)
 
-	challenges, err := GetChallengesByParticipant(ctx, pgDB.Q, ChallengeKey{testUser.ID, -1}, ExpireChallengeThreshold)
+	challenges, err := GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{testUser.ID, -1}, ExpireChallengeThreshold)
 	assert.NoError(t, err)
 
 	assert.Empty(t, challenges)

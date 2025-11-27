@@ -77,7 +77,7 @@ func HandleRegister(state *ServerState, w http.ResponseWriter, r *http.Request) 
 	}
 
 	ctx := r.Context()
-	user, err := data.InsertUser(ctx, state.Q, data.UserInst{
+	user, err := data.InsertUser(ctx, state.Pdb.Query, data.UserInst{
 		Username: body.Username,
 		Password: body.Password,
 		Country:  "us",
@@ -125,7 +125,7 @@ func HandleLogin(state *ServerState, w http.ResponseWriter, r *http.Request) err
 	}
 
 	ctx := r.Context()
-	user, err := data.VerifyUserTx(ctx, state.PgDB, body.Username, body.Password)
+	user, err := data.VerifyUserTx(ctx, state.Pdb, body.Username, body.Password)
 	if errors.Is(err, data.ErrUserNotFound) {
 		return ErrHttpInvalidLogin
 	} else if errors.Is(err, data.ErrTooManyLoginAttempts) {
@@ -176,14 +176,14 @@ func HandleUpdatePassword(state *ServerState, w http.ResponseWriter, r *http.Req
 	if err != nil {
 		return fmt.Errorf("failed to get session player: %w", err)
 	}
-	user, err := data.VerifyUserTx(ctx, state.PgDB, player.Name, body.Password)
+	user, err := data.VerifyUserTx(ctx, state.Pdb, player.Name, body.Password)
 	if errors.Is(err, data.ErrUserNotFound) {
 		return ErrHttpInvalidLogin
 	}
 	if err != nil {
 		return fmt.Errorf("failed to verify user: %w", err)
 	}
-	if err := data.UpdateUserPassword(ctx, state.Q, user.ID, body.NewPassword); err != nil {
+	if err := data.UpdateUserPassword(ctx, state.Pdb.Query, user.ID, body.NewPassword); err != nil {
 		return fmt.Errorf("failed to update user password: %w", err)
 	}
 	slog.InfoContext(ctx, "user has updated password", "user", user)
@@ -213,7 +213,7 @@ func HandleUpdateUser(state *ServerState, w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return fmt.Errorf("failed to get session player: %w", err)
 	}
-	user, err := data.UpdateUser(ctx, state.Q, player.ID, data.UpdtUserParams{
+	user, err := data.UpdateUser(ctx, state.Pdb.Query, player.ID, data.UpdtUserParams{
 		Username: body.NewUsername,
 		Bio:      body.NewBio,
 		Country:  body.NewCountry,
@@ -381,7 +381,7 @@ func HandleUpdateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 		return ErrHttpUpdateChallenge
 	}
 
-	dr, err := data.DeleteChallenge(ctx, state.Q, data.ChallengeKey{ChallengerID: body.ChallengerID, ChallengeeID: body.ChallengeeID})
+	dr, err := data.DeleteChallenge(ctx, state.Pdb.Query, data.ChallengeKey{ChallengerID: body.ChallengerID, ChallengeeID: body.ChallengeeID})
 	if errors.Is(err, data.ErrChallengeNotFound) {
 		return ErrHttpNotFoundChallenge
 	}
@@ -421,7 +421,7 @@ func HandleCreateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 		return fmt.Errorf("failed to get session player: %w", err)
 	}
 
-	ret, err := data.InsertChallengeRet(ctx, state.Q, data.ChallengeInst{
+	ret, err := data.InsertChallengeRet(ctx, state.Pdb.Query, data.ChallengeInst{
 		ChallengerID: player.ID,
 		ChallengeeID: body.ChallengeeID,
 		TimeControl:  data.TimeControl(body.TimeControl),
@@ -446,7 +446,7 @@ func HandleCreateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 	if err := data.BroadcastChallenge(ctx, state.Rdb, player.ID, ret); err != nil {
 		slog.ErrorContext(ctx, "failed to broadcast challenge", "challenge", ret, "err", err)
 	}
-	if err := data.DeleteExpiredChallenges(ctx, state.Q, player.ID, data.ExpireChallengeThreshold); err != nil {
+	if err := data.DeleteExpiredChallenges(ctx, state.Pdb.Query, player.ID, data.ExpireChallengeThreshold); err != nil {
 		slog.ErrorContext(ctx, "failed to delete expired challenges", "challenge", ret, "err", err)
 	}
 	return nil
@@ -464,7 +464,7 @@ func HandleGetSelf(state *ServerState, w http.ResponseWriter, r *http.Request) e
 		return fmt.Errorf("failed to get session player: %w", err)
 	}
 
-	user, err := data.GetUserByID(ctx, state.Q, player.ID)
+	user, err := data.GetUserByID(ctx, state.Pdb.Query, player.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get user by id %+v: %w", player, err)
 	}
@@ -491,7 +491,7 @@ func HandleGetLeaderboard(state *ServerState, w http.ResponseWriter, r *http.Req
 	if err != nil {
 		return fmt.Errorf("failed to get leaderboard page %d: %w", page, err)
 	}
-	users, err := data.GetRankedUsers(ctx, state.Q, lbd.Users)
+	users, err := data.GetRankedUsers(ctx, state.Pdb.Query, lbd.Users)
 	if err != nil {
 		return fmt.Errorf("failed to get ranked users: %w", err)
 	}
@@ -528,7 +528,7 @@ func HandleGetPlayer(state *ServerState, w http.ResponseWriter, r *http.Request)
 	var replayList []data.ReplayEntity
 
 	eg.Go(func() error {
-		u, err := data.GetUserByID(egCtx, state.Q, id)
+		u, err := data.GetUserByID(egCtx, state.Pdb.Query, id)
 		if err != nil {
 			return fmt.Errorf("failed to get user %d by id: %w", id, err)
 		}
@@ -536,7 +536,7 @@ func HandleGetPlayer(state *ServerState, w http.ResponseWriter, r *http.Request)
 		return nil
 	})
 	eg.Go(func() error {
-		rs, err := data.GetUserReplays(egCtx, state.Q, id, -1, PerPage)
+		rs, err := data.GetUserReplays(egCtx, state.Pdb.Query, id, -1, PerPage)
 		if err != nil {
 			return fmt.Errorf("failed to get user replays %d by id: %w", id, err)
 		}
@@ -582,7 +582,7 @@ func HandleSearchPlayers(state *ServerState, w http.ResponseWriter, r *http.Requ
 
 	var userList []data.UserEntity
 	if name != "" {
-		userList, err = data.SearchUsersByName(ctx, state.Q, name, int32(page), PerPage)
+		userList, err = data.SearchUsersByName(ctx, state.Pdb.Query, name, int32(page), PerPage)
 		if errors.Is(err, data.ErrSearchLimit) {
 			return ErrHttpSearchLimit
 		}
@@ -610,7 +610,7 @@ func HandleGetReplay(state *ServerState, w http.ResponseWriter, r *http.Request)
 	}
 
 	ctx := r.Context()
-	replay, err := data.GetReplay(ctx, state.Q, int64(id))
+	replay, err := data.GetReplay(ctx, state.Pdb.Query, int64(id))
 	if err != nil {
 		return fmt.Errorf("failed to get replay: %w", err)
 	}
@@ -626,7 +626,7 @@ func HandleGetReplayMoveList(state *ServerState, w http.ResponseWriter, r *http.
 	}
 
 	ctx := r.Context()
-	pbMoveHist, err := data.GetReplayMoveHistory(ctx, state.Q, int64(id))
+	pbMoveHist, err := data.GetReplayMoveHistory(ctx, state.Pdb.Query, int64(id))
 	if err != nil {
 		return fmt.Errorf("failed to get replay %d moveHistory: %w", id, err)
 	}
@@ -657,7 +657,7 @@ func HandleGetUserReplays(state *ServerState, w http.ResponseWriter, r *http.Req
 	if err != nil {
 		return handleInvalidRequest(ctx, err)
 	}
-	replays, err := data.GetUserReplays(r.Context(), state.Q, int64(userID), int64(afterID), PerPage)
+	replays, err := data.GetUserReplays(r.Context(), state.Pdb.Query, int64(userID), int64(afterID), PerPage)
 	if err != nil {
 		return fmt.Errorf("failed to get user %d replays: %w", userID, err)
 	}
@@ -685,9 +685,9 @@ func HandleGetChallenges(state *ServerState, w http.ResponseWriter, r *http.Requ
 	var challengeList []data.ChallengeEntity
 	switch participants {
 	case "sent":
-		challengeList, err = data.GetChallengesByParticipant(ctx, state.Q, data.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1}, data.ExpireChallengeThreshold)
+		challengeList, err = data.GetChallengesByParticipant(ctx, state.Pdb.Query, data.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1}, data.ExpireChallengeThreshold)
 	case "received":
-		challengeList, err = data.GetChallengesByParticipant(ctx, state.Q, data.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID}, data.ExpireChallengeThreshold)
+		challengeList, err = data.GetChallengesByParticipant(ctx, state.Pdb.Query, data.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID}, data.ExpireChallengeThreshold)
 	default:
 		return handleInvalidRequest(ctx, err)
 	}

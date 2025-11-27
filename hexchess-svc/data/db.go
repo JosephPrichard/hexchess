@@ -11,16 +11,16 @@ import (
 	"time"
 )
 
-type TxFn[Ret any] func(q *db.Queries) (Ret, error)
+type TxFn[Ret any] func(query *db.Queries) (Ret, error)
 type BeginTxFn = func(ctx context.Context) (pgx.Tx, error)
 
-type PgDB struct {
-	Q       *db.Queries
+type Postgres struct {
+	Query   *db.Queries
 	Pool    *pgxpool.Pool
 	noopTxn bool
 }
 
-func (db PgDB) Close() {
+func (db Postgres) Close() {
 	if db.Pool != nil {
 		db.Pool.Close()
 	}
@@ -40,7 +40,7 @@ type Redis struct {
 	ActiveCountChan string
 }
 
-func (rdb Redis) Close() {
+func (rdb *Redis) Close() {
 	if rdb.Primary != nil {
 		rdb.Primary.Close()
 	}
@@ -49,20 +49,20 @@ func (rdb Redis) Close() {
 	}
 }
 
-type Stores struct {
-	PgDB
-	Rdb Redis
+type Databases struct {
+	Pdb *Postgres
+	Rdb *Redis
 }
 
-func (s Stores) Close() {
-	s.PgDB.Close()
+func (s Databases) Close() {
+	s.Pdb.Close()
 	s.Rdb.Close()
 }
 
 const MaxIdle = 3
 const IdleTimeout = 240 * time.Second
 
-func MakeRdb(primaryAddr string, pubsubAddr string) Redis {
+func MakeRdb(primaryAddr string, pubsubAddr string) *Redis {
 	makeDial := func(addr string) func() (redis.Conn, error) {
 		return func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", addr)
@@ -80,7 +80,7 @@ func MakeRdb(primaryAddr string, pubsubAddr string) Redis {
 			Dial:        makeDial(pubsubAddr),
 		}
 	}
-	return Redis{
+	return &Redis{
 		Primary: &redis.Pool{
 			MaxIdle:     MaxIdle,
 			IdleTimeout: IdleTimeout,
@@ -99,29 +99,29 @@ func MakeRdb(primaryAddr string, pubsubAddr string) Redis {
 	}
 }
 
-func MakeDbClient(q *db.Queries, pool *pgxpool.Pool) PgDB {
-	return PgDB{Q: q, Pool: pool}
+func MakePostgres(query *db.Queries, pool *pgxpool.Pool) *Postgres {
+	return &Postgres{Query: query, Pool: pool}
 }
 
-func MakeFakeDbClient(q *db.Queries) PgDB {
-	return PgDB{Q: q, noopTxn: true}
+func MakeFakePostgres(query *db.Queries) *Postgres {
+	return &Postgres{Query: query, noopTxn: true}
 }
 
 type TxnArgs[Ret any] struct {
 	Ctx          context.Context
-	PgDB         PgDB
+	Postgres     *Postgres
 	TxFn         TxFn[Ret]
 	ErrWhiteList []error // errors where we are allowed to commit instead of rollback
 }
 
 func WithTxn[Ret any](args TxnArgs[Ret]) (ret Ret, err error) {
-	if args.PgDB.noopTxn {
+	if args.Postgres.noopTxn {
 		// a db client can be a fake when testing. if so, do not begin or commit a new Txn, since the test is already in a txn
-		return args.TxFn(args.PgDB.Q)
+		return args.TxFn(args.Postgres.Query)
 	}
 
 	ctx := args.Ctx
-	tx, err := args.PgDB.Pool.Begin(args.Ctx)
+	tx, err := args.Postgres.Pool.Begin(args.Ctx)
 	if err != nil {
 		return
 	}
@@ -146,6 +146,6 @@ func WithTxn[Ret any](args TxnArgs[Ret]) (ret Ret, err error) {
 			}
 		}
 	}()
-	ret, err = args.TxFn(args.PgDB.Q.WithTx(tx))
+	ret, err = args.TxFn(args.Postgres.Query.WithTx(tx))
 	return
 }

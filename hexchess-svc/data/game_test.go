@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func assertStateRdb(t *testing.T, rdb Redis, expState ChessState) {
+func assertStateRdb(t *testing.T, rdb *Redis, expState ChessState) {
 	ctx := context.WithValue(context.Background(), util.Trace, "assert-chess-states")
 	actualState, err := GetChessState(ctx, rdb, expState.ID)
 	if err != nil {
@@ -68,7 +68,7 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 }
 
 func TestMakeMove(t *testing.T) {
-	stores, closer := BeforeStoresTests(t, true)
+	dbs, closer := BeforeDatabasesTests(t, true)
 	defer closer()
 
 	s1 := MakeState("test1", TcRealTime, TcRandom, nil)
@@ -98,7 +98,7 @@ func TestMakeMove(t *testing.T) {
 
 	for _, state := range []ChessState{s1, s2} {
 		state.Game.InitPieceMoves()
-		if _, err := SetChessState(ctx, stores.Rdb, state.ID, state); err != nil {
+		if _, err := SetChessState(ctx, dbs.Rdb, state.ID, state); err != nil {
 			t.Fatalf("failed initialize test state: %v", err)
 		}
 	}
@@ -133,7 +133,7 @@ func TestMakeMove(t *testing.T) {
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			if _, err := MakeGameMove(ctx, stores, test.state.ID, test.player, test.pm); err != nil {
+			if _, err := MakeGameMove(ctx, &dbs, test.state.ID, test.player, test.pm); err != nil {
 				assert.Equal(t, test.expErr, err)
 			}
 		})
@@ -141,7 +141,7 @@ func TestMakeMove(t *testing.T) {
 }
 
 func TestForfeit_BlackForfeits(t *testing.T) {
-	stores, closer := BeforeStoresTests(t, true)
+	dbs, closer := BeforeDatabasesTests(t, true)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-forfeit")
@@ -154,20 +154,20 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 		PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}},
 	}}
 
-	if _, err := SetChessState(ctx, stores.Rdb, gameID, inState); err != nil {
+	if _, err := SetChessState(ctx, dbs.Rdb, gameID, inState); err != nil {
 		t.Fatalf("failed initialize test state: %v", err)
 	}
 
-	assert.NoError(t, ForfeitGame(ctx, stores, gameID, *inState.BlackPlayer))
+	assert.NoError(t, ForfeitGame(ctx, &dbs, gameID, *inState.BlackPlayer))
 
 	expState := inState.DeepCopy()
 	expState.IsEnded = true
 
-	assertStateRdb(t, stores.Rdb, expState)
+	assertStateRdb(t, dbs.Rdb, expState)
 }
 
 func TestUpdateGameResultTx(t *testing.T) {
-	pgDB, closer := BeforeDbTests(t, true)
+	pdb, closer := BeforeDbTests(t, true)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-update-stats")
@@ -175,14 +175,14 @@ func TestUpdateGameResultTx(t *testing.T) {
 	testUser0 := TestUserEntities[0]
 	testUser1 := TestUserEntities[1]
 
-	cs, err := UpdateGameResultTx(ctx, pgDB, GRParams{WhiteID: testUser0.ID, BlackID: testUser1.ID, Cause: Checkmate, IsWhiteWin: true, MoveHistoryProto: []byte{}})
+	cs, err := UpdateGameResultTx(ctx, pdb, GRParams{WhiteID: testUser0.ID, BlackID: testUser1.ID, Cause: Checkmate, IsWhiteWin: true, MoveHistoryProto: []byte{}})
 	assert.NoError(t, err)
 
-	u1, err := GetUserByID(ctx, pgDB.Q, testUser0.ID)
+	u1, err := GetUserByID(ctx, pdb.Query, testUser0.ID)
 	assert.NoError(t, err)
-	u2, err := GetUserByID(ctx, pgDB.Q, testUser1.ID)
+	u2, err := GetUserByID(ctx, pdb.Query, testUser1.ID)
 	assert.NoError(t, err)
-	r1, err := GetReplay(ctx, pgDB.Q, cs.ReplayID)
+	r1, err := GetReplay(ctx, pdb.Query, cs.ReplayID)
 	assert.NoError(t, err)
 
 	// assert a value relatively close to the actual value

@@ -10,7 +10,7 @@ import (
 var TestSessionID1 = "test-session-id-1"
 var TestSessionID2 = "test-session-id-2"
 
-func createTestSessions(t *testing.T, rdb data.Redis) {
+func createTestSessions(t *testing.T, rdb *data.Redis) {
 	ctx := context.WithValue(context.Background(), util.Trace, "create-test-session-1")
 	if err := data.SetSession(ctx, rdb, TestSessionID1, data.PlayerState{ID: 1, Name: "user1", Country: "us", Elo: 1000}, SessionMaxAge); err != nil {
 		t.Fatalf("failed to create test sessions: %v", err)
@@ -20,7 +20,7 @@ func createTestSessions(t *testing.T, rdb data.Redis) {
 	}
 }
 
-func createTestChessStates(t *testing.T, rdb data.Redis) {
+func createTestChessStates(t *testing.T, rdb *data.Redis) {
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-update-password")
 
 	state1 := data.MakeState("game1", data.TcRealTime, data.TcRandom, nil)

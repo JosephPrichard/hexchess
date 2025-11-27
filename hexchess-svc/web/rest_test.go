@@ -37,12 +37,12 @@ func TestHandleRegister(t *testing.T) {
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			stores, closer := data.BeforeStoresTests(t, true)
+			dbs, closer := data.BeforeDatabasesTests(t, true)
 			defer closer()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/register", strings.NewReader(test.body))
 			w := httptest.NewRecorder()
-			h := HandleRoot(MakeServerState(stores, nil), "")
+			h := HandleRoot(MakeServerState(dbs, nil), "")
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, test.expStatus, w.Code)
@@ -56,7 +56,7 @@ func TestHandleRegister(t *testing.T) {
 }
 
 func TestHandleLogin(t *testing.T) {
-	stores, closer := data.BeforeStoresTests(t, true)
+	dbs, closer := data.BeforeDatabasesTests(t, true)
 	defer closer()
 
 	user := data.TestUsersInsts[0]
@@ -81,7 +81,7 @@ func TestHandleLogin(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(test.body))
 			w := httptest.NewRecorder()
-			h := HandleRoot(MakeServerState(stores, nil), "")
+			h := HandleRoot(MakeServerState(dbs, nil), "")
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, test.expStatus, w.Code)
@@ -95,9 +95,9 @@ func TestHandleLogin(t *testing.T) {
 }
 
 func TestHandleUpdateUser(t *testing.T) {
-	stores, closer := data.BeforeStoresTests(t, true)
+	dbs, closer := data.BeforeDatabasesTests(t, true)
 	defer closer()
-	createTestSessions(t, stores.Rdb)
+	createTestSessions(t, dbs.Rdb)
 
 	for i, test := range []struct {
 		body        string
@@ -120,7 +120,7 @@ func TestHandleUpdateUser(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/api/users", strings.NewReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
-			h := HandleRoot(MakeServerState(stores, []string{"eu"}), "")
+			h := HandleRoot(MakeServerState(dbs, []string{"eu"}), "")
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, test.expStatus, w.Code)
@@ -134,9 +134,9 @@ func TestHandleUpdateUser(t *testing.T) {
 }
 
 func TestHandleUpdatePassword(t *testing.T) {
-	stores, closer := data.BeforeStoresTests(t, true)
+	dbs, closer := data.BeforeDatabasesTests(t, true)
 	defer closer()
-	createTestSessions(t, stores.Rdb)
+	createTestSessions(t, dbs.Rdb)
 
 	for i, test := range []struct {
 		body        string
@@ -164,7 +164,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/api/users/password", strings.NewReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
-			h := HandleRoot(MakeServerState(stores, nil), "")
+			h := HandleRoot(MakeServerState(dbs, nil), "")
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, test.expStatus, w.Code)
@@ -178,10 +178,10 @@ func TestHandleUpdatePassword(t *testing.T) {
 }
 
 func TestHandleUpdateChallenge(t *testing.T) {
-	stores, closer := data.BeforeStoresTests(t, true)
+	dbs, closer := data.BeforeDatabasesTests(t, true)
 	defer closer()
 
-	createTestSessions(t, stores.Rdb)
+	createTestSessions(t, dbs.Rdb)
 
 	for i, test := range []struct {
 		body      string
@@ -207,7 +207,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/api/challenges/update", strings.NewReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
-			h := HandleRoot(MakeServerState(stores, nil), "")
+			h := HandleRoot(MakeServerState(dbs, nil), "")
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, test.expStatus, w.Code)
@@ -219,9 +219,9 @@ func TestHandleUpdateChallenge(t *testing.T) {
 }
 
 func TestHandleCreateChallenge(t *testing.T) {
-	stores, closer := data.BeforeStoresTests(t, true)
+	dbs, closer := data.BeforeDatabasesTests(t, true)
 	defer closer()
-	createTestSessions(t, stores.Rdb)
+	createTestSessions(t, dbs.Rdb)
 
 	body := `{"challengeeID": 4, "startColor": "WHITE", "timeControl": "REAL_TIME"}`
 	expResp := ServiceView{Status: http.StatusOK, Message: "SUCCESS"}
@@ -229,7 +229,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", strings.NewReader(body))
 	r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 	w := httptest.NewRecorder()
-	h := HandleRoot(MakeServerState(stores, nil), "")
+	h := HandleRoot(MakeServerState(dbs, nil), "")
 	h.ServeHTTP(w, r)
 
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -237,22 +237,22 @@ func TestHandleCreateChallenge(t *testing.T) {
 }
 
 func TestGetLeaderboard(t *testing.T) {
-	stores, closer := data.BeforeStoresTests(t, false)
+	dbs, closer := data.BeforeDatabasesTests(t, false)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "setup-get-leaderboard")
-	assert.NoError(t, data.SetLeaderboard(ctx, stores.Rdb, data.UpdtLbChangeSet{ID: 1, EloDiff: 1000}))
+	assert.NoError(t, data.SetLeaderboard(ctx, dbs.Rdb, data.UpdtLbChangeSet{ID: 1, EloDiff: 1000}))
 
 	r := httptest.NewRequest(http.MethodGet, "/api/leaderboard", nil)
 	w := httptest.NewRecorder()
-	h := HandleRoot(MakeServerState(stores, nil), "")
+	h := HandleRoot(MakeServerState(dbs, nil), "")
 	h.ServeHTTP(w, r)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestGetPlayer(t *testing.T) {
-	stores, closer := data.BeforeStoresTests(t, false)
+	dbs, closer := data.BeforeDatabasesTests(t, false)
 	defer closer()
 
 	for i, test := range []struct {
@@ -278,7 +278,7 @@ func TestGetPlayer(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players?id=%s", test.id), nil)
 			w := httptest.NewRecorder()
-			h := HandleRoot(MakeServerState(stores, nil), "")
+			h := HandleRoot(MakeServerState(dbs, nil), "")
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, test.expStatus, w.Code)
@@ -292,9 +292,9 @@ func TestGetPlayer(t *testing.T) {
 }
 
 func TestGetChallenges(t *testing.T) {
-	stores, closer := data.BeforeStoresTests(t, false)
+	dbs, closer := data.BeforeDatabasesTests(t, false)
 	defer closer()
-	createTestSessions(t, stores.Rdb)
+	createTestSessions(t, dbs.Rdb)
 
 	for i, test := range []struct {
 		participants string
@@ -320,7 +320,7 @@ func TestGetChallenges(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/challenges?participants=%s", test.participants), nil)
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
-			h := HandleRoot(MakeServerState(stores, nil), "")
+			h := HandleRoot(MakeServerState(dbs, nil), "")
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, test.expStatus, w.Code)
@@ -330,7 +330,7 @@ func TestGetChallenges(t *testing.T) {
 }
 
 func TestHandleGetUserReplays(t *testing.T) {
-	stores, closer := data.BeforeStoresTests(t, true)
+	dbs, closer := data.BeforeDatabasesTests(t, true)
 	defer closer()
 
 	for i, test := range []struct {
@@ -372,7 +372,7 @@ func TestHandleGetUserReplays(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replays?afterId=%s&userId=%s", test.afterID, test.userID), nil)
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
-			h := HandleRoot(MakeServerState(stores, nil), "")
+			h := HandleRoot(MakeServerState(dbs, nil), "")
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, test.expStatus, w.Code)
@@ -386,15 +386,15 @@ func TestHandleGetUserReplays(t *testing.T) {
 }
 
 func TestHandleGetChessViews(t *testing.T) {
-	stores, closer := data.BeforeStoresTests(t, false)
+	dbs, closer := data.BeforeDatabasesTests(t, false)
 	defer closer()
-	createTestSessions(t, stores.Rdb)
-	createTestChessStates(t, stores.Rdb)
+	createTestSessions(t, dbs.Rdb)
+	createTestChessStates(t, dbs.Rdb)
 
 	r := httptest.NewRequest(http.MethodGet, "/api/chess/rooms", nil)
 	r.Header.Set("Cookie", FmtCookie(TestSessionID2))
 	w := httptest.NewRecorder()
-	h := HandleRoot(MakeServerState(stores, nil), "")
+	h := HandleRoot(MakeServerState(dbs, nil), "")
 	h.ServeHTTP(w, r)
 
 	expResp := ChessRoomListResp{

@@ -11,13 +11,13 @@ import (
 	"time"
 )
 
-func getUserGameZSet(rdb Redis, id int64) string {
+func getUserGameZSet(rdb *Redis, id int64) string {
 	return rdb.GamesZSet + "_user_" + strconv.FormatInt(id, 10)
 }
 
 var ErrNoChessState = errors.New("no chess state")
 
-func GetChessState(ctx context.Context, rdb Redis, id string) (ChessState, error) {
+func GetChessState(ctx context.Context, rdb *Redis, id string) (ChessState, error) {
 	fail := func(str string, err error) (ChessState, error) {
 		err = fmt.Errorf("%s: %w", str, err)
 		slog.ErrorContext(ctx, "failed to get chess state", "err", err, "id", id)
@@ -46,12 +46,12 @@ func GetChessState(ctx context.Context, rdb Redis, id string) (ChessState, error
 	return state, nil
 }
 
-func SetChessState(ctx context.Context, rdb Redis, id string, state ChessState) (ChessState, error) {
+func SetChessState(ctx context.Context, rdb *Redis, id string, state ChessState) (ChessState, error) {
 	touch := time.Now()
 	return SetChessStateAt(ctx, rdb, id, state, touch)
 }
 
-func SetChessStateAt(ctx context.Context, rdb Redis, id string, state ChessState, touch time.Time) (ChessState, error) {
+func SetChessStateAt(ctx context.Context, rdb *Redis, id string, state ChessState, touch time.Time) (ChessState, error) {
 	state.Touch = touch
 	touchSecs := float64(state.Touch.Unix())
 	fullID := "game:" + id
@@ -121,19 +121,19 @@ func ExpireChessStates(ctx context.Context, conn redis.Conn, zSetName string) er
 	return err
 }
 
-func GetUserChessMetas(ctx context.Context, rdb Redis, userID int64) ([]ChessMeta, error) {
+func GetUserChessMetas(ctx context.Context, rdb *Redis, userID int64) ([]ChessMeta, error) {
 	return GetChessMetas(ctx, rdb, getUserGameZSet(rdb, userID), 1, -1)
 }
 
-func GetUserChessMetasPaged(ctx context.Context, rdb Redis, userID int64, page, count int) ([]ChessMeta, error) {
+func GetUserChessMetasPaged(ctx context.Context, rdb *Redis, userID int64, page, count int) ([]ChessMeta, error) {
 	return GetChessMetas(ctx, rdb, getUserGameZSet(rdb, userID), page, count)
 }
 
-func GetAllChessMetas(ctx context.Context, rdb Redis, page, count int) ([]ChessMeta, error) {
+func GetAllChessMetas(ctx context.Context, rdb *Redis, page, count int) ([]ChessMeta, error) {
 	return GetChessMetas(ctx, rdb, rdb.GamesZSet, page, count)
 }
 
-func GetChessMetas(ctx context.Context, rdb Redis, zSetName string, page, count int) ([]ChessMeta, error) {
+func GetChessMetas(ctx context.Context, rdb *Redis, zSetName string, page, count int) ([]ChessMeta, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -181,7 +181,7 @@ func GetChessMetas(ctx context.Context, rdb Redis, zSetName string, page, count 
 	return views, nil
 }
 
-func GetChessStateCount(ctx context.Context, rdb Redis) (int64, error) {
+func GetChessStateCount(ctx context.Context, rdb *Redis) (int64, error) {
 	conn := rdb.Primary.Get()
 	defer conn.Close()
 

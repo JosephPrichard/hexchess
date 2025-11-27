@@ -19,7 +19,7 @@ const UsersChan = "users"
 const GamesCountChan = "games_count"
 const ActiveCountChan = "active_count"
 
-func BroadcastMessage(ctx context.Context, rdb Redis, channel string, b []byte) error {
+func BroadcastMessage(ctx context.Context, rdb *Redis, channel string, b []byte) error {
 	conn := rdb.PubSub.Get()
 	defer conn.Close()
 
@@ -35,7 +35,7 @@ type CountEvent struct {
 	Count int64  `json:"count"`
 }
 
-func BroadcastCountEvent(ctx context.Context, rdb Redis, channel string, count int64, id string) error {
+func BroadcastCountEvent(ctx context.Context, rdb *Redis, channel string, count int64, id string) error {
 	b, err := json.Marshal(CountEvent{ID: id, Count: count})
 	if err != nil {
 		return fmt.Errorf("failed to marshal count event message: %w", err)
@@ -43,15 +43,15 @@ func BroadcastCountEvent(ctx context.Context, rdb Redis, channel string, count i
 	return BroadcastMessage(ctx, rdb, channel, b)
 }
 
-func BroadcastActiveCount(ctx context.Context, rdb Redis, count int64, id string) error {
+func BroadcastActiveCount(ctx context.Context, rdb *Redis, count int64, id string) error {
 	return BroadcastCountEvent(ctx, rdb, rdb.ActiveCountChan, count, id)
 }
 
-func BroadcastGameCount(ctx context.Context, rdb Redis, count int64, id string) error {
+func BroadcastGameCount(ctx context.Context, rdb *Redis, count int64, id string) error {
 	return BroadcastCountEvent(ctx, rdb, rdb.GamesCountChan, count, id)
 }
 
-func BroadcastChallenge(ctx context.Context, rdb Redis, id int64, c ChallengeEntity) error {
+func BroadcastChallenge(ctx context.Context, rdb *Redis, id int64, c ChallengeEntity) error {
 	um := SerializeChallengeMsg(id, c)
 	b, err := proto.Marshal(&um)
 	if err != nil {

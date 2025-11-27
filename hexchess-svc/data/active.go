@@ -31,7 +31,7 @@ func GetActiveCountWithExpiry(ctx context.Context, conn redis.Conn, activeUsersZ
 	return count, err
 }
 
-func RetainActiveUser(ctx context.Context, rdb Redis, id string) error {
+func RetainActiveUser(ctx context.Context, rdb *Redis, id string) error {
 	conn := rdb.Primary.Get()
 	defer conn.Close()
 
@@ -42,12 +42,12 @@ func RetainActiveUser(ctx context.Context, rdb Redis, id string) error {
 	return nil
 }
 
-func AddActiveUser(ctx context.Context, rdb Redis, id string) (int64, error) {
+func AddActiveUser(ctx context.Context, rdb *Redis, id string) (int64, error) {
 	now := time.Now()
 	return AddActiveUserOn(ctx, rdb, id, now, now.Add(-ActiveUserExpireFinished).UnixMilli())
 }
 
-func AddActiveUserOn(ctx context.Context, rdb Redis, id string, expire time.Time, expireBefore int64) (int64, error) {
+func AddActiveUserOn(ctx context.Context, rdb *Redis, id string, expire time.Time, expireBefore int64) (int64, error) {
 	conn := rdb.Primary.Get()
 	defer conn.Close()
 
@@ -58,7 +58,7 @@ func AddActiveUserOn(ctx context.Context, rdb Redis, id string, expire time.Time
 	return GetActiveCountWithExpiry(ctx, conn, rdb.ActiveUsersZSet, expireBefore)
 }
 
-func RemoveActiveUser(ctx context.Context, rdb Redis, id string) (int64, error) {
+func RemoveActiveUser(ctx context.Context, rdb *Redis, id string) (int64, error) {
 	conn := rdb.Primary.Get()
 	defer conn.Close()
 

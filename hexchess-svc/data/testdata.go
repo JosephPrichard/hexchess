@@ -44,19 +44,19 @@ var TestUserEntities = []UserEntity{
 	},
 }
 
-func createTestUser(t TestLogger, q *db.Queries, inst UserInst) UserEntity {
+func createTestUser(t TestLogger, query *db.Queries, inst UserInst) UserEntity {
 	ctx := context.WithValue(context.Background(), util.Trace, "create-test-user")
-	u, err := InsertUser(ctx, q, inst)
+	u, err := InsertUser(ctx, query, inst)
 	if err != nil {
 		t.Fatalf("failed to insert test user: %v", err)
 	}
 	return u
 }
 
-func createTestUsers(t TestLogger, q *db.Queries, insts ...UserInst) []UserEntity {
+func createTestUsers(t TestLogger, query *db.Queries, insts ...UserInst) []UserEntity {
 	var users []UserEntity
 	for _, inst := range insts {
-		users = append(users, createTestUser(t, q, inst))
+		users = append(users, createTestUser(t, query, inst))
 	}
 	return users
 }
@@ -104,10 +104,10 @@ var TestReplayEntities = []ReplayEntity{
 	},
 }
 
-func createTestReplays(t TestLogger, q *db.Queries, insts ...ReplayInst) {
+func createTestReplays(t TestLogger, query *db.Queries, insts ...ReplayInst) {
 	ctx := context.WithValue(context.Background(), util.Trace, "create-test-replays")
 	for _, inst := range insts {
-		_, err := InsertReplay(ctx, q, inst)
+		_, err := InsertReplay(ctx, query, inst)
 		if err != nil {
 			t.Fatalf("failed to insert test replay: %v", err)
 		}
@@ -150,18 +150,18 @@ var TestChallengeEntities = []ChallengeEntity{
 	},
 }
 
-func createTestChallenges(t TestLogger, q *db.Queries, insts ...ChallengeInst) {
+func createTestChallenges(t TestLogger, query *db.Queries, insts ...ChallengeInst) {
 	ctx := context.WithValue(context.Background(), util.Trace, "create-test-challenges")
 	for _, c := range insts {
-		err := InsertChallenge(ctx, q, c)
+		err := InsertChallenge(ctx, query, c)
 		if err != nil {
 			t.Fatalf("failed to insert test challenges: %v", err)
 		}
 	}
 }
 
-func CreateTestData(t TestLogger, q *db.Queries) {
-	createTestUsers(t, q, TestUsersInsts...)
-	createTestReplays(t, q, TestReplayInsts...)
-	createTestChallenges(t, q, TestChallengeInsts...)
+func CreateTestData(t TestLogger, query *db.Queries) {
+	createTestUsers(t, query, TestUsersInsts...)
+	createTestReplays(t, query, TestReplayInsts...)
+	createTestChallenges(t, query, TestChallengeInsts...)
 }

@@ -41,7 +41,7 @@ func main() {
 	rdb := data.MakeRdb(redisPrimaryURL, "")
 	defer rdb.Close()
 
-	stores := data.Stores{PgDB: data.MakeDbClient(q, pool), Rdb: rdb}
+	stores := &data.Databases{Postgres: data.MakePostgres(q, pool), Rdb: &rdb}
 
 	if err := data.SyncLeaderboard(ctx, stores); err != nil {
 		util.LogFatalErr("failed to sync leaderboard", err)

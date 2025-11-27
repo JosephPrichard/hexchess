@@ -17,7 +17,7 @@ type UpdtLbChangeSet struct {
 	EloDiff float64
 }
 
-func SetLeaderboard(ctx context.Context, rdb Redis, changes ...UpdtLbChangeSet) error {
+func SetLeaderboard(ctx context.Context, rdb *Redis, changes ...UpdtLbChangeSet) error {
 	conn := rdb.Primary.Get()
 	defer conn.Close()
 
@@ -33,7 +33,7 @@ func SetLeaderboard(ctx context.Context, rdb Redis, changes ...UpdtLbChangeSet) 
 	return nil
 }
 
-func IncrLeaderboard(ctx context.Context, rdb Redis, changes ...UpdtLbChangeSet) error {
+func IncrLeaderboard(ctx context.Context, rdb *Redis, changes ...UpdtLbChangeSet) error {
 	conn := rdb.Primary.Get()
 	defer conn.Close()
 
@@ -54,7 +54,7 @@ type Leaderboard struct {
 	PageCount int          `json:"pageCount"`
 }
 
-func GetLeaderboardRank(ctx context.Context, rdb Redis, id int64) (int64, error) {
+func GetLeaderboardRank(ctx context.Context, rdb *Redis, id int64) (int64, error) {
 	fail := func(str string, err error) (int64, error) {
 		err = fmt.Errorf("%s: %w", str, err)
 		slog.ErrorContext(ctx, "failed to get leaderboard rank", "id", id, "err", err)
@@ -79,7 +79,7 @@ func GetLeaderboardRank(ctx context.Context, rdb Redis, id int64) (int64, error)
 	return rank + 1, nil
 }
 
-func GetLeaderboard(ctx context.Context, rdb Redis, startRank, count int64) (Leaderboard, error) {
+func GetLeaderboard(ctx context.Context, rdb *Redis, startRank, count int64) (Leaderboard, error) {
 	fail := func(str string, err error) (Leaderboard, error) {
 		err = fmt.Errorf("%s: %w", str, err)
 		slog.ErrorContext(ctx, "failed to fetch leaderboard", "startRank", startRank, "count", count, "err", err)
@@ -114,7 +114,7 @@ func GetLeaderboard(ctx context.Context, rdb Redis, startRank, count int64) (Lea
 	return leaderboard, nil
 }
 
-func GetLeaderboardPage(ctx context.Context, rdb Redis, page, perPage int64) (Leaderboard, error) {
+func GetLeaderboardPage(ctx context.Context, rdb *Redis, page, perPage int64) (Leaderboard, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -125,10 +125,10 @@ func GetLeaderboardPage(ctx context.Context, rdb Redis, page, perPage int64) (Le
 	return leaderboard, err
 }
 
-func SyncLeaderboard(ctx context.Context, stores Stores) error {
+func SyncLeaderboard(ctx context.Context, stores *Databases) error {
 	afterID := int64(0)
 	for {
-		rows, err := stores.Q.SelectEloListAfterID(ctx, db.SelectEloListAfterIDParams{AfterID: afterID, Limit: 20})
+		rows, err := stores.Pdb.Query.SelectEloListAfterID(ctx, db.SelectEloListAfterIDParams{AfterID: afterID, Limit: 20})
 		if err != nil {
 			return fmt.Errorf("failed to select elo list: %w", err)
 		}

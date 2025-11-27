@@ -139,7 +139,7 @@ func mapUserFromRow(row db.SelectUserByIDRow) UserEntity {
 	}
 }
 
-func InsertUser(ctx context.Context, q *db.Queries, inst UserInst) (UserEntity, error) {
+func InsertUser(ctx context.Context, query *db.Queries, inst UserInst) (UserEntity, error) {
 	fail := func(str string, err error) (UserEntity, error) {
 		err = fmt.Errorf("%s: %w", str, err)
 		slog.ErrorContext(ctx, "failed to insert user", "inst", inst, "err", err)
@@ -151,7 +151,7 @@ func InsertUser(ctx context.Context, q *db.Queries, inst UserInst) (UserEntity, 
 		return fail("failed to generate hash", err)
 	}
 
-	row, err := q.InsertUser(ctx, mapInsertUserParams(inst, hash))
+	row, err := query.InsertUser(ctx, mapInsertUserParams(inst, hash))
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		if pgErr.Code == "23505" {
@@ -168,7 +168,7 @@ func InsertUser(ctx context.Context, q *db.Queries, inst UserInst) (UserEntity, 
 	return user, nil
 }
 
-func BatchInsertUsers(ctx context.Context, q *db.Queries, insts []UserInst) ([]UserEntity, error) {
+func BatchInsertUsers(ctx context.Context, query *db.Queries, insts []UserInst) ([]UserEntity, error) {
 	batches := make([]db.BatchInsertUserParams, len(insts))
 
 	var eg errgroup.Group
@@ -191,7 +191,7 @@ func BatchInsertUsers(ctx context.Context, q *db.Queries, insts []UserInst) ([]U
 	var users []UserEntity
 	var errs []error
 
-	q.BatchInsertUser(ctx, batches).QueryRow(func(i int, row db.BatchInsertUserRow, err error) {
+	query.BatchInsertUser(ctx, batches).QueryRow(func(i int, row db.BatchInsertUserRow, err error) {
 		if err != nil {
 			errs = append(errs, err)
 		} else {
@@ -210,13 +210,13 @@ type VerifiedUser struct {
 	Elo      float64 `json:"elo"`
 }
 
-func VerifyUserTx(ctx context.Context, pgDB PgDB, username string, inputPassword string) (VerifiedUser, error) {
+func VerifyUserTx(ctx context.Context, postgres *Postgres, username string, inputPassword string) (VerifiedUser, error) {
 	return WithTxn(TxnArgs[VerifiedUser]{
-		Ctx:  ctx,
-		PgDB: pgDB,
-		TxFn: func(q *db.Queries) (VerifiedUser, error) {
+		Ctx:      ctx,
+		Postgres: postgres,
+		TxFn: func(query *db.Queries) (VerifiedUser, error) {
 			// we want to wrap this in a txn, so only a single login attempt can be active at a time - to prevent DDOS attacks used to skip login attempt count
-			return VerifyUser(ctx, q, username, inputPassword)
+			return VerifyUser(ctx, query, username, inputPassword)
 		},
 		ErrWhiteList: []error{ErrTooManyLoginAttempts, ErrUserNotFound},
 	})
@@ -227,10 +227,10 @@ const LockoutDuration = time.Minute * 1
 
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
-func VerifyUser(ctx context.Context, q *db.Queries, username string, inputPassword string) (VerifiedUser, error) {
+func VerifyUser(ctx context.Context, query *db.Queries, username string, inputPassword string) (VerifiedUser, error) {
 	var u VerifiedUser
 
-	login, err := q.SelectLoginByName(ctx, username)
+	login, err := query.SelectLoginByName(ctx, username)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return u, ErrUserNotFound
 	} else if err != nil {
@@ -247,13 +247,13 @@ func VerifyUser(ctx context.Context, q *db.Queries, username string, inputPasswo
 	loginErr := bcrypt.CompareHashAndPassword([]byte(login.Password), []byte(saltedPassword))
 
 	if loginErr != nil {
-		if err := q.IncrLoginAttempts(ctx, login.ID); err != nil {
+		if err := query.IncrLoginAttempts(ctx, login.ID); err != nil {
 			return VerifiedUser{}, fmt.Errorf("failed to incr user %d login attempts: %w", login.ID, err)
 		}
 		slog.ErrorContext(ctx, "user login is invalid", "username", username, "err", loginErr)
 		return u, ErrUserNotFound
 	}
-	if err := q.ResetLoginAttempts(ctx, login.ID); err != nil {
+	if err := query.ResetLoginAttempts(ctx, login.ID); err != nil {
 		return u, fmt.Errorf("failed to reset user %d login attempts: %w", login.ID, err)
 	}
 	u = VerifiedUser{ID: login.ID, Username: login.Username, Country: login.Country.String, Elo: login.Elo}
@@ -271,12 +271,12 @@ type UpdtUserParams struct {
 	Country  string
 }
 
-func UpdateUser(ctx context.Context, q *db.Queries, id int64, updt UpdtUserParams) (UserEntity, error) {
+func UpdateUser(ctx context.Context, query *db.Queries, id int64, updt UpdtUserParams) (UserEntity, error) {
 	if updt.Username == "" && updt.Bio == "" && updt.Country == "" {
 		return UserEntity{}, nil
 	}
 
-	row, err := q.UpdateUser(ctx, db.UpdateUserParams{
+	row, err := query.UpdateUser(ctx, db.UpdateUserParams{
 		ID:       id,
 		Username: pgtype.Text{Valid: updt.Username != "", String: updt.Username},
 		Bio:      pgtype.Text{Valid: updt.Bio != "", String: updt.Bio},
@@ -288,18 +288,18 @@ func UpdateUser(ctx context.Context, q *db.Queries, id int64, updt UpdtUserParam
 	return user, err
 }
 
-func UpdateUserPassword(ctx context.Context, q *db.Queries, id int64, newPassword string) error {
+func UpdateUserPassword(ctx context.Context, query *db.Queries, id int64, newPassword string) error {
 	hash, err := hashPassword(newPassword)
 	if err != nil {
 		return fmt.Errorf("failed to hash password for user %d: %w", id, err)
 	}
-	err = q.UpdatePassword(ctx, db.UpdatePasswordParams{ID: id, Password: hash.HashedPassword, Salt: hash.Salt})
+	err = query.UpdatePassword(ctx, db.UpdatePasswordParams{ID: id, Password: hash.HashedPassword, Salt: hash.Salt})
 	util.DynLog(ctx, "updated password", err, "id", id)
 	return err
 }
 
-func GetUserByID(ctx context.Context, q *db.Queries, id int64) (UserEntity, error) {
-	row, err := q.SelectUserByID(ctx, id)
+func GetUserByID(ctx context.Context, query *db.Queries, id int64) (UserEntity, error) {
+	row, err := query.SelectUserByID(ctx, id)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to select user", "id", id, "err", err)
 		return UserEntity{}, fmt.Errorf("failed to select user %d: %w", id, err)
@@ -309,16 +309,16 @@ func GetUserByID(ctx context.Context, q *db.Queries, id int64) (UserEntity, erro
 	return user, nil
 }
 
-func GetRankedUsers(ctx context.Context, q *db.Queries, users []RankedUser) ([]UserEntity, error) {
+func GetRankedUsers(ctx context.Context, query *db.Queries, users []RankedUser) ([]UserEntity, error) {
 	var ids []int64
 	for _, user := range users {
 		ids = append(ids, user.ID)
 	}
-	return GetUserByIDs(ctx, q, ids)
+	return GetUserByIDs(ctx, query, ids)
 }
 
-func GetUserByIDs(ctx context.Context, q *db.Queries, ids []int64) ([]UserEntity, error) {
-	rows, err := q.SelectUsersByIDs(ctx, ids)
+func GetUserByIDs(ctx context.Context, query *db.Queries, ids []int64) ([]UserEntity, error) {
+	rows, err := query.SelectUsersByIDs(ctx, ids)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to select many users", "ids", ids, "err", err)
 		return nil, fmt.Errorf("failed to select many users: %w", err)
@@ -335,7 +335,7 @@ const MaxSearchOffset = 1000
 
 var ErrSearchLimit = errors.New("search limit exceeded")
 
-func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page, perPage int32) ([]UserEntity, error) {
+func SearchUsersByName(ctx context.Context, query *db.Queries, name string, page, perPage int32) ([]UserEntity, error) {
 	page = max(page, 1)
 	offset := (page - 1) * perPage
 	if offset > MaxSearchOffset {
@@ -343,7 +343,7 @@ func SearchUsersByName(ctx context.Context, q *db.Queries, name string, page, pe
 		return nil, ErrSearchLimit
 	}
 
-	rows, err := q.SelectUsersBySimilarity(ctx, db.SelectUsersBySimilarityParams{Username: name, Limit: perPage, Offset: offset})
+	rows, err := query.SelectUsersBySimilarity(ctx, db.SelectUsersBySimilarityParams{Username: name, Limit: perPage, Offset: offset})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to select users by similarity", "err", err, "name", name, "page", page, "limit", perPage, "offset", offset)
 		return nil, fmt.Errorf("failed to select users by similarity: %w", err)

@@ -14,7 +14,7 @@ import (
 
 const GamesZSet = "games"
 
-func CreateGame(ctx context.Context, rdb Redis, color ColorSelect, timeControl TimeControl, initialBoard *chess.Board) (string, error) {
+func CreateGame(ctx context.Context, rdb *Redis, color ColorSelect, timeControl TimeControl, initialBoard *chess.Board) (string, error) {
 	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
 	bID := make([]byte, 8)
@@ -40,7 +40,7 @@ func CreateGame(ctx context.Context, rdb Redis, color ColorSelect, timeControl T
 	return strID, nil
 }
 
-func broadcastGameCounts(rdb Redis, strID string) {
+func broadcastGameCounts(rdb *Redis, strID string) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Warn("recovered in panic while broadcasting game event", "err", r)
@@ -60,7 +60,7 @@ func broadcastGameCounts(rdb Redis, strID string) {
 	slog.InfoContext(ctx, "counted chess states after creating game", "count", count)
 }
 
-func JoinGame(ctx context.Context, rdb Redis, gameID string, player *PlayerState) (ChessState, error) {
+func JoinGame(ctx context.Context, rdb *Redis, gameID string, player *PlayerState) (ChessState, error) {
 	state, err := GetChessState(ctx, rdb, gameID)
 	if err != nil {
 		return ChessState{}, err
@@ -148,10 +148,10 @@ func DoMakeMove(ctx context.Context, state ChessState, player PlayerState, move 
 	return mr, nil
 }
 
-func MakeGameMove(ctx context.Context, stores Stores, gameID string, player PlayerState, move chess.Move) (MoveResult, error) {
+func MakeGameMove(ctx context.Context, dbs *Databases, gameID string, player PlayerState, move chess.Move) (MoveResult, error) {
 	var mr MoveResult
 
-	state, err := GetChessState(ctx, stores.Rdb, gameID)
+	state, err := GetChessState(ctx, dbs.Rdb, gameID)
 	if err != nil {
 		return mr, err
 	}
@@ -161,20 +161,20 @@ func MakeGameMove(ctx context.Context, stores Stores, gameID string, player Play
 	}
 	if state.IsEnded {
 		isWhiteWin := !state.Game.Board.IsWhiteTurn
-		if err := WriteFinishedGame(ctx, stores, state, isWhiteWin, Checkmate); err != nil {
+		if err := WriteFinishedGame(ctx, dbs, state, isWhiteWin, Checkmate); err != nil {
 			return mr, err
 		}
 	}
 	slog.InfoContext(ctx, "made move on game", "player", player.ID, "move", move, "state", state)
 
-	if _, err = SetChessState(ctx, stores.Rdb, gameID, state); err != nil {
+	if _, err = SetChessState(ctx, dbs.Rdb, gameID, state); err != nil {
 		return mr, err
 	}
 	return mr, nil
 }
 
-func ForfeitGame(ctx context.Context, stores Stores, gameID string, player PlayerState) error {
-	state, err := GetChessState(ctx, stores.Rdb, gameID)
+func ForfeitGame(ctx context.Context, dbs *Databases, gameID string, player PlayerState) error {
+	state, err := GetChessState(ctx, dbs.Rdb, gameID)
 	if err != nil {
 		return err
 	}
@@ -186,10 +186,10 @@ func ForfeitGame(ctx context.Context, stores Stores, gameID string, player Playe
 	didBlackForfeit := state.BlackPlayer.ID == player.ID
 	state.IsEnded = true
 
-	if _, err := SetChessState(ctx, stores.Rdb, gameID, state); err != nil {
+	if _, err := SetChessState(ctx, dbs.Rdb, gameID, state); err != nil {
 		return err
 	}
-	if err := WriteFinishedGame(ctx, stores, state, didBlackForfeit, Forfeit); err != nil {
+	if err := WriteFinishedGame(ctx, dbs, state, didBlackForfeit, Forfeit); err != nil {
 		return err
 	}
 
@@ -197,7 +197,7 @@ func ForfeitGame(ctx context.Context, stores Stores, gameID string, player Playe
 	return err
 }
 
-func WriteFinishedGame(ctx context.Context, stores Stores, state ChessState, isWhiteWin bool, cause ReplayCause) error {
+func WriteFinishedGame(ctx context.Context, dbs *Databases, state ChessState, isWhiteWin bool, cause ReplayCause) error {
 	fail := func(m string, err error) error {
 		err = fmt.Errorf("%s: %w", m, err)
 		slog.ErrorContext(ctx, "failed to finish game", "err", err)
@@ -214,7 +214,7 @@ func WriteFinishedGame(ctx context.Context, stores Stores, state ChessState, isW
 	if err != nil {
 		return fail("failed to marshal move history", err)
 	}
-	cs, err := UpdateGameResultTx(ctx, stores.PgDB, GRParams{
+	cs, err := UpdateGameResultTx(ctx, dbs.Pdb, GRParams{
 		WhiteID:          whiteID,
 		BlackID:          blackID,
 		Cause:            cause,
@@ -232,7 +232,7 @@ func WriteFinishedGame(ctx context.Context, stores Stores, state ChessState, isW
 	slog.InfoContext(ctx, "applying ELO change set to leaderboard", "changeSet", cs, "room", state.ID)
 
 	if err := IncrLeaderboard(ctx,
-		stores.Rdb,
+		dbs.Rdb,
 		UpdtLbChangeSet{ID: cs.WinID, EloDiff: cs.WinEloDiff},
 		UpdtLbChangeSet{ID: cs.LoseID, EloDiff: cs.LoseEloDiff},
 	); err != nil {
@@ -259,17 +259,17 @@ type GRChangeSet struct {
 	LoseEloDiff float64
 }
 
-func UpdateGameResultTx(ctx context.Context, pgDB PgDB, params GRParams) (GRChangeSet, error) {
+func UpdateGameResultTx(ctx context.Context, postgres *Postgres, params GRParams) (GRChangeSet, error) {
 	return WithTxn(TxnArgs[GRChangeSet]{
-		Ctx:  ctx,
-		PgDB: pgDB,
-		TxFn: func(q *db.Queries) (GRChangeSet, error) {
-			return updateGameResult(ctx, q, params)
+		Ctx:      ctx,
+		Postgres: postgres,
+		TxFn: func(query *db.Queries) (GRChangeSet, error) {
+			return updateGameResult(ctx, query, params)
 		},
 	})
 }
 
-func updateGameResult(ctx context.Context, q *db.Queries, params GRParams) (GRChangeSet, error) {
+func updateGameResult(ctx context.Context, query *db.Queries, params GRParams) (GRChangeSet, error) {
 	result, winID, loseID := WhiteWin, params.WhiteID, params.BlackID
 	if !params.IsWhiteWin {
 		result, winID, loseID = BlackWin, params.BlackID, params.WhiteID
@@ -281,11 +281,11 @@ func updateGameResult(ctx context.Context, q *db.Queries, params GRParams) (GRCh
 		return GRChangeSet{}, err
 	}
 
-	winElo, err := q.GetElo(ctx, winID)
+	winElo, err := query.GetElo(ctx, winID)
 	if err != nil {
 		return fail("failed to get winner elo", err)
 	}
-	loseElo, err := q.GetElo(ctx, loseID)
+	loseElo, err := query.GetElo(ctx, loseID)
 	if err != nil {
 		return fail("failed to get loser elo", err)
 	}
@@ -300,10 +300,10 @@ func updateGameResult(ctx context.Context, q *db.Queries, params GRParams) (GRCh
 		return GRChangeSet{}, nil
 	}
 
-	if err := q.UpdateWins(ctx, db.UpdateWinsParams{ID: winID, Elo: winEloNext}); err != nil {
+	if err := query.UpdateWins(ctx, db.UpdateWinsParams{ID: winID, Elo: winEloNext}); err != nil {
 		return fail("failed to update win elo", err)
 	}
-	if err := q.UpdateLosses(ctx, db.UpdateLossesParams{ID: loseID, Elo: loseEloNext}); err != nil {
+	if err := query.UpdateLosses(ctx, db.UpdateLossesParams{ID: loseID, Elo: loseEloNext}); err != nil {
 		return fail("failed to update lose elo", err)
 	}
 
@@ -316,7 +316,7 @@ func updateGameResult(ctx context.Context, q *db.Queries, params GRParams) (GRCh
 		LoseElo:          loseEloDiff,
 		MoveHistoryProto: params.MoveHistoryProto,
 	}
-	replayID, err := InsertReplay(ctx, q, inst)
+	replayID, err := InsertReplay(ctx, query, inst)
 	if err != nil {
 		return fail("failed to insert replay", err)
 	}

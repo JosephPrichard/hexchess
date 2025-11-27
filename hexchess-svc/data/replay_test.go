@@ -8,15 +8,15 @@ import (
 )
 
 func TestInsertThenGet(t *testing.T) {
-	pgDB, closer := BeforeDbTests(t, true)
+	pdb, closer := BeforeDbTests(t, true)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-insert-get")
 
-	id, err := InsertReplay(ctx, pgDB.Q, ReplayInst{2, 3, WhiteWin, Checkmate, 35, -25, []byte{}})
+	id, err := InsertReplay(ctx, pdb.Query, ReplayInst{2, 3, WhiteWin, Checkmate, 35, -25, []byte{}})
 	assert.NoError(t, err)
 
-	actualReplay1, err := GetReplay(ctx, pgDB.Q, id)
+	actualReplay1, err := GetReplay(ctx, pdb.Query, id)
 	assert.NoError(t, err)
 
 	expReplay := ReplayEntity{
@@ -40,14 +40,14 @@ func TestInsertThenGet(t *testing.T) {
 }
 
 func TestGetUserReplays(t *testing.T) {
-	pgDB, closer := BeforeDbTests(t, true)
+	pdb, closer := BeforeDbTests(t, true)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-replays")
 
-	actualReplayList1, err := GetUserReplays(ctx, pgDB.Q, 1, -1, 5)
+	actualReplayList1, err := GetUserReplays(ctx, pdb.Query, 1, -1, 5)
 	assert.NoError(t, err)
-	actualReplayList2, err := GetUserReplays(ctx, pgDB.Q, 1, 3, 5)
+	actualReplayList2, err := GetUserReplays(ctx, pdb.Query, 1, 3, 5)
 	assert.NoError(t, err)
 
 	replay1 := ReplayEntity{
@@ -91,11 +91,11 @@ func TestGetUserReplays(t *testing.T) {
 }
 
 func TestGetReplayMoveList(t *testing.T) {
-	pgDB, closer := BeforeDbTests(t, true)
+	pdb, closer := BeforeDbTests(t, true)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-move-list")
 
-	_, err := GetReplayMoveHistory(ctx, pgDB.Q, 1)
+	_, err := GetReplayMoveHistory(ctx, pdb.Query, 1)
 	assert.NoError(t, err)
 }

@@ -68,7 +68,7 @@ func parseEventData(input string) string {
 func TestHandleCountEvents(t *testing.T) {
 	rdb := data.BeforeRedisTests(t)
 	defer rdb.Close()
-	stores := data.Stores{Rdb: rdb}
+	stores := data.Databases{Rdb: rdb}
 
 	state := MakeServerState(stores, nil)
 	state.MakeID = func() string { return "id1" }
@@ -105,7 +105,7 @@ func TestHandleCountEvents(t *testing.T) {
 func TestHandleUserEvents(t *testing.T) {
 	rdb := data.BeforeRedisTests(t)
 	defer rdb.Close()
-	stores := data.Stores{Rdb: rdb}
+	stores := data.Databases{Rdb: rdb}
 
 	state := MakeServerState(stores, nil)
 	state.MakeID = func() string { return "id1" }
@@ -151,7 +151,7 @@ func TestHandleUserEvents(t *testing.T) {
 func TestHandleCountEvents_Throughput(t *testing.T) {
 	rdb := data.BeforeRedisTests(t)
 	defer rdb.Close()
-	stores := data.Stores{Rdb: rdb}
+	stores := data.Databases{Rdb: rdb}
 
 	state := MakeServerState(stores, nil)
 	data.ListenUnicastEvents(state.CountsCaster, stores.Rdb.PrimaryAddr)

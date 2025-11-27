@@ -49,11 +49,11 @@ func main() {
 		}
 
 		for _, pbStep := range pbMoveHist.Steps {
-			game, err := chess.MapGame(pbStep.Game)
+			game, err := chess.DeserializeGame(pbStep.Game)
 			if err != nil {
 				util.LogFatalErr("failed to map game", err)
 			}
-			hm := chess.MapHistMove(pbStep.Move)
+			hm := chess.DeserializeHistMove(pbStep.Move)
 			fmt.Printf("game with move: %s: %s\n", hm.String(), game.Board.String())
 		}
 	}

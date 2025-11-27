@@ -45,7 +45,7 @@ type TestLogger interface {
 	Fatalf(format string, args ...any)
 }
 
-func BeforeRedisTests(t TestLogger) Redis {
+func BeforeRedisTests(t TestLogger) *Redis {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()
 
@@ -85,7 +85,7 @@ func BeforeRedisTests(t TestLogger) Redis {
 	return rdb
 }
 
-func BeforeDbTests(t TestLogger, useTestTx bool) (PgDB, func()) {
+func BeforeDbTests(t TestLogger, useTestTx bool) (*Postgres, func()) {
 	start := time.Now()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
@@ -157,22 +157,22 @@ func BeforeDbTests(t TestLogger, useTestTx bool) (PgDB, func()) {
 			pool.Close()
 		}
 		q = q.WithTx(testTx)
-		return MakeFakeDbClient(q), closer
+		return MakeFakePostgres(q), closer
 	} else {
 		closer := func() {
 			t.Logf("shutting down pool")
 			pool.Close()
 		}
-		return MakeDbClient(q, pool), closer
+		return MakePostgres(q, pool), closer
 	}
 }
 
-func BeforeStoresTests(t TestLogger, useTx bool) (Stores, func()) {
-	pgDB, dbCloser := BeforeDbTests(t, useTx)
+func BeforeDatabasesTests(t TestLogger, useTx bool) (Databases, func()) {
+	postgres, dbCloser := BeforeDbTests(t, useTx)
 	rdb := BeforeRedisTests(t)
 	closer := func() {
 		dbCloser()
 		rdb.Close()
 	}
-	return Stores{PgDB: pgDB, Rdb: rdb}, closer
+	return Databases{Pdb: postgres, Rdb: rdb}, closer
 }

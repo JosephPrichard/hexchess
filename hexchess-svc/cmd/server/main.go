@@ -60,13 +60,13 @@ func main() {
 	}
 
 	q := db.New(pool)
-	pgDB := data.MakeDbClient(q, pool)
+	postgres := data.MakePostgres(q, pool)
 
 	slog.Info("connecting to redis db", "primaryURL", redisPrimaryURL, "pubsubURL", redisPubSubURL)
 	rdb := data.MakeRdb(redisPrimaryURL, redisPubSubURL)
 	defer rdb.Close()
 
-	state := web.MakeServerState(data.Stores{Rdb: rdb, PgDB: pgDB}, countryList)
+	state := web.MakeServerState(data.Databases{Rdb: &rdb, Postgres: postgres}, countryList)
 
 	data.ListenGameMessages(state.GamesCaster, rdb.PubsubAddr)
 	data.ListenUsersMessages(state.UsersCaster, rdb.PubsubAddr)

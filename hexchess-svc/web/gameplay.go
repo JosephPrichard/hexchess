@@ -157,7 +157,7 @@ func handleGameMessage(ctx context.Context, state GameSocketState, msg []byte, w
 }
 
 func handleGameForfeit(ctx context.Context, state GameSocketState) error {
-	if err := data.ForfeitGame(ctx, state.Stores, state.gameID, state.player); err != nil {
+	if err := data.ForfeitGame(ctx, &state.Databases, state.gameID, state.player); err != nil {
 		return err
 	}
 	bytes, err := proto.Marshal(MakePbGameOutputForfeit(state.gameID))
@@ -168,7 +168,7 @@ func handleGameForfeit(ctx context.Context, state GameSocketState) error {
 }
 
 func handleGameMove(ctx context.Context, state GameSocketState, pbInput *pb.MoveInput) error {
-	result, err := data.MakeGameMove(ctx, state.Stores, state.gameID, state.player, chess.DeserializeMove(pbInput.Move))
+	result, err := data.MakeGameMove(ctx, &state.Databases, state.gameID, state.player, chess.DeserializeMove(pbInput.Move))
 	if err != nil {
 		return err
 	}

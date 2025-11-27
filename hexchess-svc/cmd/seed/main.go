@@ -29,7 +29,7 @@ func readMockFile[V any](filename string) []V {
 	return v
 }
 
-func insertReplay(ctx context.Context, q *db.Queries, r data.ReplayInst) error {
+func insertReplay(ctx context.Context, query *db.Queries, r data.ReplayInst) error {
 	game := chess.MakeStartGame()
 	moveSeq, err := chess.RandomMoveSeq(game, 10, 30)
 	if err != nil {
@@ -100,7 +100,7 @@ func main() {
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() error {
-		return data.SetLeaderboard(egCtx, rdb, changes...)
+		return data.SetLeaderboard(egCtx, &rdb, changes...)
 	})
 	for _, c := range challenges {
 		eg.Go(func() error {
