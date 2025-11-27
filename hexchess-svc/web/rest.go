@@ -239,7 +239,7 @@ type TempSessionResp struct {
 func HandleCreateTempSession(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
-	if err == data.ErrSessionNotFound {
+	if errors.Is(err, data.ErrSessionNotFound) {
 		return ErrHttpSessionExpired
 	}
 	if err != nil {
@@ -266,7 +266,7 @@ type RefreshResp struct {
 func HandleRefreshSession(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	player, sessionID, err := GetSessionPlayer(ctx, state.Rdb, r)
-	if err == data.ErrSessionNotFound {
+	if errors.Is(err, data.ErrSessionNotFound) {
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
 	}
@@ -428,15 +428,17 @@ func HandleCreateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 		StartColor:   data.ColorSelect(body.StartColor),
 		MadeOn:       time.Now(),
 	})
-	switch {
-	case err == data.ErrDuplicateChallenge:
-		return ErrHttpDuplicateChallenge
-	case err == data.ErrParticipantConflict:
-		return ErrHttpInvalidParticipants
-	case err == data.ErrSelfChallenge:
-		return ErrHttpSelfChallenge
-	case err != nil:
-		return fmt.Errorf("failed to insert challenge: %w", err)
+	if err != nil {
+		switch err {
+		case data.ErrDuplicateChallenge:
+			return ErrHttpDuplicateChallenge
+		case data.ErrParticipantConflict:
+			return ErrHttpInvalidParticipants
+		case data.ErrSelfChallenge:
+			return ErrHttpSelfChallenge
+		default:
+			return fmt.Errorf("failed to insert challenge: %w", err)
+		}
 	}
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
 
@@ -454,7 +456,7 @@ func HandleGetSelf(state *ServerState, w http.ResponseWriter, r *http.Request) e
 	ctx := r.Context()
 
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
-	if err == data.ErrSessionNotFound {
+	if errors.Is(err, data.ErrSessionNotFound) {
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
 	}
@@ -629,7 +631,7 @@ func HandleGetReplayMoveList(state *ServerState, w http.ResponseWriter, r *http.
 		return fmt.Errorf("failed to get replay %d moveHistory: %w", id, err)
 	}
 
-	b, err := proto.Marshal(chess.MapPbMoveReplay(pbMoveHist))
+	b, err := proto.Marshal(chess.SerializeMoveReplay(pbMoveHist))
 	if err != nil {
 		return fmt.Errorf("failed to marshal replay %d move list : %w", id, err)
 	}
@@ -719,10 +721,18 @@ func HandleGetChessRoomList(state *ServerState, w http.ResponseWriter, r *http.R
 		return handleInvalidRequest(ctx, err)
 	}
 
+	var hasSession bool
+
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
-	hasSession := err != data.ErrSessionNotFound
-	if err != nil && hasSession {
-		return fmt.Errorf("failed to get session player: %w", err)
+	if err != nil {
+		switch err {
+		case data.ErrSessionNotFound:
+			hasSession = false
+		default:
+			return fmt.Errorf("failed to get session player: %w", err)
+		}
+	} else {
+		hasSession = true
 	}
 
 	chessList, err := data.GetAllChessMetas(ctx, state.Rdb, page, count)
@@ -737,12 +747,6 @@ func HandleGetChessRoomList(state *ServerState, w http.ResponseWriter, r *http.R
 		}
 	}
 
-	if chessList == nil {
-		chessList = []data.ChessMeta{}
-	}
-	if selfChessList == nil {
-		selfChessList = []data.ChessMeta{}
-	}
 	writeJSON(w, http.StatusOK, ChessRoomListResp{ChessList: chessList, SelfChessList: selfChessList})
 	return nil
 }

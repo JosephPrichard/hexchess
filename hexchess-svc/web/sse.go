@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hexchess-svc/data"
 	"log/slog"
@@ -156,7 +157,7 @@ func HandleUserEvents(state *ServerState, w http.ResponseWriter, r *http.Request
 	clientGone := ctx.Done()
 
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
-	if err == data.ErrSessionNotFound {
+	if errors.Is(err, data.ErrSessionNotFound) {
 		return ErrHttpSessionExpired
 	}
 	if err != nil {

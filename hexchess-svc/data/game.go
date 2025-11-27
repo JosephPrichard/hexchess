@@ -27,40 +27,37 @@ func CreateGame(ctx context.Context, rdb Redis, color ColorSelect, timeControl T
 	}
 	strID := string(bID)
 
-	state := MakeState(strID, timeControl)
-	state.FirstColor = color
+	state := MakeState(strID, timeControl, color, initialBoard)
 	state.Game.InitPieceMoves()
-	if initialBoard != nil {
-		state.Game.Board = *initialBoard
-	}
 
 	slog.InfoContext(ctx, "created chess game", "state", state)
-
 	state, err := SetChessState(ctx, rdb, strID, state)
 	if err != nil {
 		return "", err
 	}
 
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Warn("recovered in panic while broadcasting game event", "err", r)
-			}
-		}()
-		ctx := context.WithValue(context.Background(), util.Trace, "create-game-broadcast-handler")
-
-		count, err := GetChessStateCount(ctx, rdb)
-		if err != nil {
-			slog.ErrorContext(ctx, "failed to count chess states after creating game", "err", err)
-			return
-		}
-		if err := BroadcastGameCount(ctx, rdb, count, strID); err != nil {
-			slog.ErrorContext(ctx, "failed to broadcast chess states count after creating game", "err", err)
-			return
-		}
-		slog.InfoContext(ctx, "counted chess states after creating game", "count", count)
-	}()
+	go broadcastGameCounts(rdb, strID)
 	return strID, nil
+}
+
+func broadcastGameCounts(rdb Redis, strID string) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Warn("recovered in panic while broadcasting game event", "err", r)
+		}
+	}()
+	ctx := context.WithValue(context.Background(), util.Trace, "create-game-broadcast-handler")
+
+	count, err := GetChessStateCount(ctx, rdb)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to count chess states after creating game", "err", err)
+		return
+	}
+	if err := BroadcastGameCount(ctx, rdb, count, strID); err != nil {
+		slog.ErrorContext(ctx, "failed to broadcast chess states count after creating game", "err", err)
+		return
+	}
+	slog.InfoContext(ctx, "counted chess states after creating game", "count", count)
 }
 
 func JoinGame(ctx context.Context, rdb Redis, gameID string, player *PlayerState) (ChessState, error) {
@@ -80,7 +77,7 @@ func JoinGame(ctx context.Context, rdb Redis, gameID string, player *PlayerState
 		if err != nil {
 			return ChessState{}, fmt.Errorf("failed to generate randint used to select first color: %w", err)
 		}
-		pickWhite := state.FirstColor == Random && n.Int64()%2 == 0 || state.FirstColor == White
+		pickWhite := state.FirstColor == TcRandom && n.Int64()%2 == 0 || state.FirstColor == TcWhite
 		if pickWhite {
 			state.WhitePlayer = player
 		} else {
@@ -121,55 +118,57 @@ var (
 	ErrInvalidMove  = errors.New("invalid move")
 )
 
-func DoMakeMove(ctx context.Context, state ChessState, player PlayerState, move chess.PieceMove) (MoveResult, error) {
+func DoMakeMove(ctx context.Context, state ChessState, player PlayerState, move chess.Move) (MoveResult, error) {
+	var mr MoveResult
+
 	game := &state.Game
 	gameID := state.ID
 	currPlayer := state.CurrPlayer()
 
 	if state.IsEnded {
-		slog.InfoContext(ctx, "make move: attempted on ended game", "gameId", gameID)
-		return MoveResult{}, ErrFinishedGame
+		slog.WarnContext(ctx, "make move: attempted on ended game", "gameId", gameID)
+		return mr, ErrFinishedGame
 	}
 	if currPlayer == nil || *currPlayer != player {
-		slog.InfoContext(ctx, "make move: invalid turn", "player", player.ID, "game", gameID)
-		return MoveResult{}, ErrTurn
+		slog.WarnContext(ctx, "make move: invalid turn", "player", player.ID, "game", gameID)
+		return mr, ErrTurn
 	}
-	if !game.IsValidMove(move) {
-		slog.InfoContext(ctx, "make move: invalid move", "player", player.ID, "move", move, "game", gameID)
-		return MoveResult{}, ErrInvalidMove
+	if err := game.ValidateMove(move); err != nil {
+		slog.WarnContext(ctx, "make move: invalid move", "err", err, "player", player.ID, "move", move, "game", gameID)
+		return mr, ErrInvalidMove
 	}
 
-	hm := game.MakeMove(move.From, move.To)
+	hm := game.MakeMove(move)
 	game.InitPieceMoves()
 
 	if game.Checkmate() {
 		state.IsEnded = true
 	}
-	return MoveResult{Room: state, Move: hm}, nil
+	mr = MoveResult{Room: state, Move: hm}
+	return mr, nil
 }
 
-func MakeGameMove(ctx context.Context, stores Stores, gameID string, player PlayerState, move chess.PieceMove) (MoveResult, error) {
+func MakeGameMove(ctx context.Context, stores Stores, gameID string, player PlayerState, move chess.Move) (MoveResult, error) {
+	var mr MoveResult
+
 	state, err := GetChessState(ctx, stores.Rdb, gameID)
 	if err != nil {
-		return MoveResult{}, err
+		return mr, err
 	}
 
-	mr, err := DoMakeMove(ctx, state, player, move)
-	if err != nil {
-		return MoveResult{}, err
+	if mr, err = DoMakeMove(ctx, state, player, move); err != nil {
+		return mr, err
 	}
-
 	if state.IsEnded {
 		isWhiteWin := !state.Game.Board.IsWhiteTurn
 		if err := WriteFinishedGame(ctx, stores, state, isWhiteWin, Checkmate); err != nil {
-			return MoveResult{}, err
+			return mr, err
 		}
 	}
 	slog.InfoContext(ctx, "made move on game", "player", player.ID, "move", move, "state", state)
 
-	state, err = SetChessState(ctx, stores.Rdb, gameID, state)
-	if err != nil {
-		return MoveResult{}, err
+	if _, err = SetChessState(ctx, stores.Rdb, gameID, state); err != nil {
+		return mr, err
 	}
 	return mr, nil
 }

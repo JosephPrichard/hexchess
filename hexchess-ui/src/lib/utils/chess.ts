@@ -1,9 +1,5 @@
 import type { ChessBoard, ChessGame, PieceMove, PieceMoves } from '../api/messages';
 import type { Hex } from '../api/model';
-
-const symbols = ['?', 'P', 'p', 'N', 'n', 'B', 'b', 'R', 'r', 'Q', 'q', 'K', 'k'];
-const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k'];
-
 export const ranksPerFile = [6, 7, 8, 9, 10, 11, 10, 9, 8, 7, 6];
 
 export const pieces = {
@@ -22,6 +18,13 @@ export const pieces = {
 	blackRook: 8,
 	blackQueen: 10,
 	blackKing: 12,
+}
+
+export const promotions = {
+	queen: 1,
+	rook: 3,
+	bishop: 5,
+	knight: 7,
 }
 
 export const whitePieces = [
@@ -78,16 +81,6 @@ export function makeGame(board: ChessBoard | undefined): ChessGame {
 		moves: [],
 		board: board
 	}
-}
-
-export function makeMove(from: Hex, to: Hex) {
-	return {
-		piece: 0,
-		fromFile: from.file,
-		fromRank: from.rank,
-		toFile: to.file,
-		toRank: to.rank
-	};
 }
 
 function isInBounds(hex: Hex) {

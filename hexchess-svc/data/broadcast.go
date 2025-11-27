@@ -52,7 +52,7 @@ func BroadcastGameCount(ctx context.Context, rdb Redis, count int64, id string) 
 }
 
 func BroadcastChallenge(ctx context.Context, rdb Redis, id int64, c ChallengeEntity) error {
-	um := MapPbChallengeMsg(id, c)
+	um := SerializeChallengeMsg(id, c)
 	b, err := proto.Marshal(&um)
 	if err != nil {
 		return fmt.Errorf("failed to marshal user challenge message: %w", err)
@@ -159,7 +159,7 @@ func listenUnicastEvents(psc redis.PubSubConn, m *UniCaster) {
 		switch v := psc.Receive().(type) {
 		case redis.Message:
 			strData := string(v.Data)
-			slog.Info("received event on channel", "event", strData, "channel", v.Channel) // unicast broadcasting is only being used to broadcast counts (small data), so it is safe to log
+			slog.Info("received event on channel", "event", strData, "channel", v.Channel) // unicast broadcasting is only being used to broadcastGameCounts counts (small data), so it is safe to log
 			eKind, ok := EventMap[v.Channel]
 			if !ok {
 				slog.Error("received event on unmapped channel", "channel", v.Channel, "eventMap", EventMap)

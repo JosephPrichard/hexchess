@@ -1,6 +1,6 @@
-import { ChessBoard, ChessGame, HistMove, HistMoves, MakeMoveInput } from '$lib/api/messages';
+import { ChessBoard, ChessGame, HistMove, HistMoves, MakeMoveInput } from '$lib/pb/messages';
 import type { Hex } from '$lib/api/model';
-import {defaultGame, makeMove } from '$lib/utils/chess.js';
+import {defaultGame } from '$lib/utils/chess.js';
 import { browser } from '$app/environment';
 
 declare const Go: any; // imported in the initWasm fn
@@ -42,12 +42,17 @@ export async function getInitialGameWasm(): Promise<ChessGame> {
 	return ChessGame.fromBinary(out);
 }
 
-export async function makeMoveWasm(game?: ChessGame, move?: { from: Hex, to: Hex }, validate = false): Promise<ChessGame | undefined> {
+export async function makeMoveWasm(game?: ChessGame, move?: { from: Hex, to: Hex, promotion: number }): Promise<ChessGame | undefined> {
 	await makeWasmAPI();
 	const input = MakeMoveInput.toBinary({
 		game,
-		move: move ? makeMove(move.from, move.to) : undefined,
-		validate: validate
+		move: move ? {
+			fromFile: move.from.file,
+			fromRank: move.from.rank,
+			toFile: move.to.file,
+			toRank: move.to.rank,
+			promotion: move.promotion
+		} : undefined
 	});
 
 	const output = dynCall("makeMove", input) as (Uint8Array | undefined);

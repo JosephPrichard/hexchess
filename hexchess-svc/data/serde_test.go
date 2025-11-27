@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 	"strconv"
 	"testing"
 )
 
 func TestChessSerializer(t *testing.T) {
-	input1 := MakeState(uuid.NewString(), RealTime)
-	input2 := MakeState(uuid.NewString(), RealTime)
+	input1 := MakeState(uuid.NewString(), TcRealTime, TcRandom, nil)
+	input2 := MakeState(uuid.NewString(), TcRealTime, TcRandom, nil)
 	input2.Game.InitPieceMoves()
 	input2.Game.ClearTables() // since we're asserting the output back to the input, we must clear data that isn't serialized
 
@@ -18,9 +19,13 @@ func TestChessSerializer(t *testing.T) {
 
 	for i, input := range inputs {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			b, err := MarshalChessState(input)
+			pbState, err := SerializeChessState(input)
 			if err != nil {
-				t.Fatalf("failed to serialize state: %v", err)
+				t.Fatalf("failed to serialize chess state: %v", err)
+			}
+			b, err := proto.Marshal(pbState)
+			if err != nil {
+				t.Fatalf("failed to marshal chess state: %v", err)
 			}
 
 			output, err := UnmarshalChess(b)
@@ -29,21 +34,24 @@ func TestChessSerializer(t *testing.T) {
 			}
 
 			t.Logf("deserialized state: %v, board: %v", output, output.Game.Board.String())
-
 			assert.Equal(t, input, output)
 		})
 	}
 }
 
 func BenchmarkProtoChessSerializer(b *testing.B) {
-	input := MakeState(uuid.NewString(), RealTime)
+	input := MakeState(uuid.NewString(), TcRealTime, TcRandom, nil)
 	input.Game.InitPieceMoves()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		v, err := MarshalChessState(input)
+	for range b.N {
+		pbState, err := SerializeChessState(input)
 		if err != nil {
-			b.Fatalf("failed to marshal state: %v", err)
+			b.Fatalf("failed to serialize chess state: %v", err)
+		}
+		v, err := proto.Marshal(pbState)
+		if err != nil {
+			b.Fatalf("failed to marshal chess state: %v", err)
 		}
 		if _, err := UnmarshalChess(v); err != nil {
 			b.Fatalf("failed to unmarshal state: %v", err)
@@ -52,7 +60,7 @@ func BenchmarkProtoChessSerializer(b *testing.B) {
 }
 
 func BenchmarkJsonChessSerializer(b *testing.B) {
-	input := MakeState(uuid.NewString(), RealTime)
+	input := MakeState(uuid.NewString(), TcRealTime, TcRandom, nil)
 	input.Game.InitPieceMoves()
 
 	b.ResetTimer()

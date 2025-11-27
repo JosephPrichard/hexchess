@@ -1,5 +1,5 @@
 syntax = "proto3";
-option go_package = "hexchess-data/pb";
+option go_package = "hexchess-svc/pb";
 
 package messages;
 
@@ -65,12 +65,21 @@ message ChessState {
   string first_color = 7;
   string time_control = 8;
   int64 touch = 9;
+  ChessBoard initial_board = 10;
 }
 
 message ForfeitInput {}
 
+message Move {
+  int32 promotion = 1;
+  int32 fromFile = 2;
+  int32 fromRank = 3;
+  int32 toFile = 4;
+  int32 toRank = 5;
+}
+
 message MoveInput {
-  PieceMove move = 1;
+  Move move = 1;
 }
 
 message ChatInput {
@@ -156,9 +165,8 @@ message NotMoveStep {
 }
 
 message MakeMoveInput {
-  PieceMove move = 1;
+  Move move = 1;
   ChessGame game = 2;
-  bool validate = 3;
 }
 
 message UserMsg {

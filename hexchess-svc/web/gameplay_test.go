@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -45,14 +46,14 @@ func TestHandleGameplayWs(t *testing.T) {
 	expCount1 := 4
 	expCount2 := 1
 
-	stores, closer := data.BeforeStoresTests(t, true)
-	defer closer()
+	rdb := data.BeforeRedisTests(t)
+	defer rdb.Close()
 
-	createTestSessions(t, stores.Rdb)
-	createTestChessStates(t, stores.Rdb)
+	createTestSessions(t, rdb)
+	createTestChessStates(t, rdb)
 
-	state := MakeServerState(stores, nil)
-	data.ListenGameMessages(state.GamesCaster, stores.Rdb.PrimaryAddr)
+	state := MakeServerState(data.Stores{Rdb: rdb}, nil)
+	data.ListenGameMessages(state.GamesCaster, rdb.PrimaryAddr)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
 	defer ts.Close()
@@ -62,16 +63,14 @@ func TestHandleGameplayWs(t *testing.T) {
 	outputs2Chan := make(chan []any)
 	go readOutputs(outputs2Chan, subChan, expCount2)
 
-	url := strings.Replace(ts.URL+"/api/ws/game?id="+gameID, "http", "ws", 1)
-	conn, _, err := websocket.DefaultDialer.Dial(url, http.Header{
-		"Cookie": []string{FmtCookie(TestSessionID1)},
-	})
+	url := strings.Replace(fmt.Sprintf("%s/api/ws/game?gameId=%s&sessionId=%s", ts.URL, gameID, TestSessionID1), "http", "ws", 1)
+	conn, _, err := websocket.DefaultDialer.Dial(url, http.Header{})
 	if err != nil {
 		t.Fatalf("failed to dial websocket: %v", err)
 	}
 	defer conn.Close()
 
-	writeMessage(t, conn, &pb.GameInput{Value: &pb.GameInput_Move{Move: &pb.MoveInput{Move: &pb.PieceMove{FromFile: 1, FromRank: 1, ToFile: 2, ToRank: 1}}}})
+	writeMessage(t, conn, &pb.GameInput{Value: &pb.GameInput_Move{Move: &pb.MoveInput{Move: &pb.Move{FromFile: 1, FromRank: 1, ToFile: 2, ToRank: 1}}}})
 	writeMessage(t, conn, &pb.GameInput{Value: &pb.GameInput_Chat{Chat: &pb.ChatInput{Message: "Hello World"}}})
 
 	outputs1 := make([]pb.GameOutput, expCount1)

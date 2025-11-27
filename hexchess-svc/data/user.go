@@ -228,36 +228,37 @@ const LockoutDuration = time.Minute * 1
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
 func VerifyUser(ctx context.Context, q *db.Queries, username string, inputPassword string) (VerifiedUser, error) {
+	var u VerifiedUser
+
 	login, err := q.SelectLoginByName(ctx, username)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return VerifiedUser{}, ErrUserNotFound
+		return u, ErrUserNotFound
 	} else if err != nil {
-		return VerifiedUser{}, fmt.Errorf("failed to select user '%s' by login: %w", username, err)
+		return u, fmt.Errorf("failed to select user '%s' by login: %w", username, err)
 	}
 
 	isExceedAttempts := login.LoginAttempts > 0 && login.LoginAttempts%LoginAttemptsDivisor == 0
 	nextLoginTime := login.LastLoginAttempt.Time.Add(LockoutDuration)
 	isLocked := isExceedAttempts && time.Now().Before(nextLoginTime)
 	if isLocked {
-		return VerifiedUser{}, ErrTooManyLoginAttempts
+		return u, ErrTooManyLoginAttempts
 	}
 	saltedPassword := inputPassword + login.Salt
 	loginErr := bcrypt.CompareHashAndPassword([]byte(login.Password), []byte(saltedPassword))
 
-	if loginErr == nil {
-		if err := q.ResetLoginAttempts(ctx, login.ID); err != nil {
-			return VerifiedUser{}, fmt.Errorf("failed to update user %d login attempts: %w", login.ID, err)
-		}
-		u := VerifiedUser{ID: login.ID, Username: login.Username, Country: login.Country.String, Elo: login.Elo}
-		slog.InfoContext(ctx, "user login is valid", "user", u)
-		return u, nil
-	} else {
+	if loginErr != nil {
 		if err := q.IncrLoginAttempts(ctx, login.ID); err != nil {
-			return VerifiedUser{}, fmt.Errorf("failed to update user %d login attempts: %w", login.ID, err)
+			return VerifiedUser{}, fmt.Errorf("failed to incr user %d login attempts: %w", login.ID, err)
 		}
 		slog.ErrorContext(ctx, "user login is invalid", "username", username, "err", loginErr)
-		return VerifiedUser{}, ErrUserNotFound
+		return u, ErrUserNotFound
 	}
+	if err := q.ResetLoginAttempts(ctx, login.ID); err != nil {
+		return u, fmt.Errorf("failed to reset user %d login attempts: %w", login.ID, err)
+	}
+	u = VerifiedUser{ID: login.ID, Username: login.Username, Country: login.Country.String, Elo: login.Elo}
+	slog.InfoContext(ctx, "user login is valid", "user", u)
+	return u, nil
 }
 
 func ProbabilityWins(elo1, elo2 float64) float64 {

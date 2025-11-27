@@ -78,9 +78,9 @@ func BeforeRedisTests(t TestLogger) Redis {
 	rdb := MakeRdb(addr, addr)
 
 	// make unique ZSET names so any test that uses this rdb instance is isolated
-	rdb.LeaderboardZSet += uuid.NewString()
-	rdb.ActiveUsersZSet += uuid.NewString()
-	rdb.GamesZSet += uuid.NewString()
+	rdb.LeaderboardZSet += "_" + uuid.NewString()
+	rdb.ActiveUsersZSet += "_" + uuid.NewString()
+	rdb.GamesZSet += "_" + uuid.NewString()
 
 	return rdb
 }

@@ -32,27 +32,17 @@ type ChessMeta struct {
 
 var ChessMetaCmpOpts = cmpopts.IgnoreFields(ChessMeta{}, "Touch")
 
-func MakeState(id string, timeControl TimeControl) ChessState {
-	return ChessState{
-		InitialBoard: chess.MakeStartBoard(),
-		Game:         chess.MakeStartGame(),
-		ChessMeta: ChessMeta{
-			ID:          id,
-			FirstColor:  Random,
-			TimeControl: timeControl,
-			Touch:       time.UnixMilli(0),
-		},
+func MakeState(id string, timeControl TimeControl, firstColor ColorSelect, initialBoard *chess.Board) ChessState {
+	b := chess.MakeStartBoard()
+	if initialBoard != nil {
+		b = *initialBoard
 	}
-}
-
-func MakeStateWithPlayers(id string, timeControl TimeControl, whitePlayer *PlayerState, blackPlayer *PlayerState) ChessState {
 	return ChessState{
-		Game: chess.MakeStartGame(),
+		InitialBoard: b,
+		Game:         chess.Game{Board: b},
 		ChessMeta: ChessMeta{
 			ID:          id,
-			WhitePlayer: whitePlayer,
-			BlackPlayer: blackPlayer,
-			FirstColor:  Random,
+			FirstColor:  firstColor,
 			TimeControl: timeControl,
 			Touch:       time.UnixMilli(0),
 		},
@@ -68,7 +58,8 @@ func (s *ChessState) CurrPlayer() *PlayerState {
 
 func (s *ChessState) DeepCopy() ChessState {
 	s2 := ChessState{
-		Game: s.Game.DeepCopy(),
+		Game:         s.Game.DeepCopy(),
+		InitialBoard: s.InitialBoard,
 		ChessMeta: ChessMeta{
 			ID:          s.ID,
 			IsEnded:     s.IsEnded,
@@ -77,13 +68,11 @@ func (s *ChessState) DeepCopy() ChessState {
 			Touch:       s.Touch,
 		},
 	}
-
 	if s.WhitePlayer != nil {
 		s2.WhitePlayer = &(*s.WhitePlayer)
 	}
 	if s.BlackPlayer != nil {
 		s2.BlackPlayer = &(*s.BlackPlayer)
 	}
-
 	return s2
 }

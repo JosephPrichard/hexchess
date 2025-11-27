@@ -1,4 +1,4 @@
-import type { ChessGame, PieceMoves } from '$lib/api/messages';
+import type { ChessGame, PieceMoves } from '$lib/pb/messages';
 import type { Hex } from '$lib/api/model';
 
 export interface Selection {

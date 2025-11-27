@@ -30,20 +30,20 @@ func TestGame_GetSetPieces(t *testing.T) {
 func TestGame_DetermineIsCheckmate(t *testing.T) {
 	game1 := MakeEmptyGame()
 	game1.SetPieces(
-		Move{"f6", WhiteKing},
-		Move{"f4", BlackQueen},
-		Move{"f8", BlackQueen},
-		Move{"b4", BlackBishop},
-		Move{"j4", BlackBishop},
-		Move{"f9", BlackKing})
+		NotMove{"f6", WhiteKing},
+		NotMove{"f4", BlackQueen},
+		NotMove{"f8", BlackQueen},
+		NotMove{"b4", BlackBishop},
+		NotMove{"j4", BlackBishop},
+		NotMove{"f9", BlackKing})
 
 	game2 := MakeEmptyGame()
 	game2.SetPieces(
-		Move{"f1", WhiteKing},
-		Move{"a1", BlackQueen},
-		Move{"h1", BlackRook},
-		Move{"f3", BlackRook},
-		Move{"f9", BlackKing})
+		NotMove{"f1", WhiteKing},
+		NotMove{"a1", BlackQueen},
+		NotMove{"h1", BlackRook},
+		NotMove{"f3", BlackRook},
+		NotMove{"f9", BlackKing})
 
 	for i, game := range []Game{game1, game2} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
@@ -73,70 +73,70 @@ func TestGame_findMoves(t *testing.T) {
 	}{
 		{
 			name:     "TestCenterRook",
-			game:     MakeStartGame(Move{"f6", BlackRook}),
+			game:     MakeStartGame(NotMove{"f6", BlackRook}),
 			hex:      Hex{File: 5, Rank: 5},
 			f:        (*Game).findRookMoves,
 			expMoves: []string{"f5", "e5", "d4", "c3", "b2", "a1", "g5", "h4", "i3", "j2", "k1", "e6", "d6", "c6", "b6", "a6", "g6", "h6", "i6", "j6", "k6"},
 		},
 		{
 			name:     "RookLeft",
-			game:     MakeStartGame(Move{"c8", BlackRook}),
+			game:     MakeStartGame(NotMove{"c8", BlackRook}),
 			hex:      Hex{File: 2, Rank: 7},
 			f:        (*Game).findRookMoves,
 			expMoves: []string{"d8", "e8", "f8"},
 		},
 		{
 			name:     "RookRight",
-			game:     MakeStartGame(Move{"h4", BlackRook}),
+			game:     MakeStartGame(NotMove{"h4", BlackRook}),
 			hex:      Hex{File: 7, Rank: 3},
 			f:        (*Game).findRookMoves,
 			expMoves: []string{"h5", "h6", "h3", "g4", "i3", "j2", "k1", "g5", "f6", "e6", "d6", "c6", "b6", "a6", "i4", "j4", "k4"},
 		},
 		{
 			name:     "BishopCenter",
-			game:     MakeStartGame(Move{"f6", BlackBishop}),
+			game:     MakeStartGame(NotMove{"f6", BlackBishop}),
 			hex:      Hex{File: 5, Rank: 5},
 			f:        (*Game).findBishopMoves,
 			expMoves: []string{"h5", "j4", "d5", "b4", "g4", "e4"},
 		},
 		{
 			name:     "BishopLeft",
-			game:     MakeStartGame(Move{"c8", BlackBishop}),
+			game:     MakeStartGame(NotMove{"c8", BlackBishop}),
 			hex:      Hex{File: 2, Rank: 7},
 			f:        (*Game).findBishopMoves,
 			expMoves: []string{"e9", "g9", "b6", "a4"},
 		},
 		{
 			name:     "BishopRight",
-			game:     MakeStartGame(Move{"h4", BlackBishop}),
+			game:     MakeStartGame(NotMove{"h4", BlackBishop}),
 			hex:      Hex{File: 7, Rank: 3},
 			f:        (*Game).findBishopMoves,
 			expMoves: []string{"j3", "f5", "i5", "j6", "g6", "f8", "e9", "i2", "g3", "f2"},
 		},
 		{
 			name:     "KnightCenter",
-			game:     MakeEmptyGame(Move{"f6", WhiteKnight}),
+			game:     MakeEmptyGame(NotMove{"f6", WhiteKnight}),
 			hex:      Hex{File: 5, Rank: 5},
 			f:        (*Game).findKnightMoves,
 			expMoves: []string{"h7", "g8", "h3", "g3", "d7", "e8", "d3", "e3", "c5", "c4", "i5", "i4"},
 		},
 		{
 			name:     "KnightLeft",
-			game:     MakeEmptyGame(Move{"d3", WhiteKnight}),
+			game:     MakeEmptyGame(NotMove{"d3", WhiteKnight}),
 			hex:      Hex{File: 3, Rank: 2},
 			f:        (*Game).findKnightMoves,
 			expMoves: []string{"f6", "e6", "f2", "e1", "b4", "c5", "a2", "a1", "g4", "g3"},
 		},
 		{
 			name:     "KnightRight",
-			game:     MakeEmptyGame(Move{"h7", WhiteKnight}),
+			game:     MakeEmptyGame(NotMove{"h7", WhiteKnight}),
 			hex:      Hex{File: 7, Rank: 6},
 			f:        (*Game).findKnightMoves,
 			expMoves: []string{"j4", "i4", "f10", "g10", "f6", "g5", "e8", "e7", "k6", "k5"},
 		},
 		{
 			name:     "PawnFirstMove",
-			game:     MakeStartGame(Move{"g4", WhitePawn}),
+			game:     MakeStartGame(NotMove{"g4", WhitePawn}),
 			hex:      Hex{File: 6, Rank: 3},
 			f:        (*Game).findPawnMovesWhite,
 			expMoves: []string{"g5", "g6"},
@@ -144,9 +144,9 @@ func TestGame_findMoves(t *testing.T) {
 		{
 			name: "PawnTakeMove",
 			game: MakeStartGame(
-				Move{"c4", BlackKnight},
-				Move{"e5", WhiteKnight},
-				Move{"d5", BlackPawn},
+				NotMove{"c4", BlackKnight},
+				NotMove{"e5", WhiteKnight},
+				NotMove{"d5", BlackPawn},
 			),
 			hex:      Hex{File: 3, Rank: 4},
 			f:        (*Game).findPawnMovesBlack,
@@ -164,10 +164,10 @@ func TestGame_findMoves(t *testing.T) {
 
 func TestGame_MakeMove(t *testing.T) {
 	game := MakeStartGame(
-		Move{"c4", BlackKnight},
-		Move{"e5", WhiteKnight},
-		Move{"d5", BlackPawn})
-	game.MakeMove(Hex{File: 3, Rank: 4}, Hex{File: 3, Rank: 3})
+		NotMove{"c4", BlackKnight},
+		NotMove{"e5", WhiteKnight},
+		NotMove{"d5", BlackPawn})
+	game.MakeMove(Move{From: Hex{File: 3, Rank: 4}, To: Hex{File: 3, Rank: 3}, Promotion: QueenPromotion})
 
 	assert.Equal(t, Empty, game.Board.Pieces[3][4])
 	assert.Equal(t, BlackPawn, game.Board.Pieces[3][3])
@@ -176,57 +176,66 @@ func TestGame_MakeMove(t *testing.T) {
 
 func TestGame_GetMoveNotation(t *testing.T) {
 	game := MakeEmptyGame(
-		Move{"f5", WhitePawn},
-		Move{"a1", WhiteKing},
-		Move{"k6", BlackKing},
-		Move{"g9", WhiteRook},
+		NotMove{"f5", WhitePawn},
+		NotMove{"a1", WhiteKing},
+		NotMove{"k6", BlackKing},
+		NotMove{"g9", WhiteRook},
 	)
 	game.InitPieceMoves()
 
 	for _, test := range []struct {
 		game Game
-		move PieceMove
+		hm   HistMove
 		not  string
 	}{
 		{
 			game: game,
-			move: PieceMove{
-				Piece: WhitePawn,
-				From:  ParseHexagonUnsafe("e5"),
-				To:    ParseHexagonUnsafe("f6"),
+			hm: HistMove{
+				PieceMove: PieceMove{
+					Piece: WhitePawn,
+					From:  ParseHexagonUnsafe("e5"),
+					To:    ParseHexagonUnsafe("f6"),
+				},
 			},
 			not: "Pef6",
 		},
 		{
 			game: game,
-			move: PieceMove{
-				Piece: WhitePawn,
-				From:  ParseHexagonUnsafe("f7"),
-				To:    ParseHexagonUnsafe("f6"),
+			hm: HistMove{
+				PieceMove: PieceMove{
+					Piece: WhitePawn,
+					From:  ParseHexagonUnsafe("f7"),
+					To:    ParseHexagonUnsafe("f6"),
+				},
 			},
 			not: "P7f6",
 		},
 		{
 			game: game,
-			move: PieceMove{
-				Piece: WhitePawn,
-				From:  ParseHexagonUnsafe("k1"),
-				To:    ParseHexagonUnsafe("f6"),
+			hm: HistMove{
+				PieceMove: PieceMove{
+					Piece: WhitePawn,
+					From:  ParseHexagonUnsafe("k1"),
+					To:    ParseHexagonUnsafe("f6"),
+				},
 			},
 			not: "Pf6",
 		},
 		{
 			game: game,
-			move: PieceMove{
-				Piece: BlackPawn,
-				From:  ParseHexagonUnsafe("e5"),
-				To:    ParseHexagonUnsafe("f5"),
+			hm: HistMove{
+				PieceMove: PieceMove{
+					Piece: WhitePawn,
+					From:  ParseHexagonUnsafe("e5"),
+					To:    ParseHexagonUnsafe("f5"),
+				},
+				Promotion: QueenPromotion,
 			},
-			not: "pxf5",
+			not: "Pxf5=Q",
 		},
 		//{
 		//	game: game,
-		//	move: PieceMove{
+		//	hm: HistMove{
 		//		Piece: WhiteRook,
 		//		From:  ParseHexagonUnsafe("g9"),
 		//		To:    ParseHexagonUnsafe("g8"),
@@ -237,8 +246,9 @@ func TestGame_GetMoveNotation(t *testing.T) {
 		t.Logf("testing get move notation on game:%s", test.game.Board.StringMoves(test.game.GetCurrMoves()[0].Moves))
 		t.Logf("expecting move: %v", test.not)
 
-		histMove := test.game.GetHistMove(test.move)
-		assert.Equal(t, test.not, histMove.String())
+		histMove := test.game.AnnotateHistMove(test.hm)
+		str := histMove.String()
+		assert.Equal(t, test.not, str)
 	}
 }
 
@@ -270,7 +280,7 @@ func findBadGames(game Game, depth int, node *PieceMoveNode, b *BadGame) {
 				panic("bad game")
 				return
 			}
-			game2 := game.MakeMoved(pms.From, to)
+			game2 := game.MakeMoved(Move{From: pms.From, To: to, Promotion: QueenPromotion})
 			nextNode := &PieceMoveNode{
 				Game: game,
 				Move: PieceMove{

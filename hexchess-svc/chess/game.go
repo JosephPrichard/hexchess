@@ -12,43 +12,6 @@ import (
 
 type AttackTable = [Files][MaxRanks]bool
 
-type HistMove struct {
-	// stores any information necessary to generate a move history notation
-	PieceMove
-	CollFile bool
-	CollRank bool
-	IsCheck  bool
-	IsTake   bool
-}
-
-func (m *HistMove) String() string {
-	from := m.PieceMove.From
-	to := m.PieceMove.To
-
-	var sb strings.Builder
-
-	sb.WriteString(m.PieceMove.Piece.String())
-
-	if m.IsCheck {
-		sb.WriteString("+")
-	}
-	if m.IsTake {
-		sb.WriteString("x")
-	}
-
-	if !m.CollFile || !m.CollRank {
-		if m.CollFile {
-			sb.WriteString(strconv.Itoa(from.Rank + 1))
-		}
-		if m.CollRank {
-			sb.WriteRune(rune(from.File + 'a'))
-		}
-	}
-
-	sb.WriteString(to.String())
-	return sb.String()
-}
-
 type Game struct {
 	// data fields that store the state of the game itself
 	Board            Board
@@ -63,20 +26,20 @@ type Game struct {
 	PinTable         [Files][MaxRanks][]Hex
 }
 
-type Move struct {
+type NotMove struct {
 	Not   string
 	Piece Piece
 }
 
-func MakeStartGame(initial ...Move) Game {
+func MakeStartGame(initial ...NotMove) Game {
 	return Game{Board: MakeStartBoard(initial...)}
 }
 
-func MakeEmptyGame(initial ...Move) Game {
+func MakeEmptyGame(initial ...NotMove) Game {
 	return Game{Board: MakeEmptyBoard(initial...)}
 }
 
-func (g *Game) SetPieces(initial ...Move) {
+func (g *Game) SetPieces(initial ...NotMove) {
 	for _, move := range initial {
 		g.Board.SetPieceNot(move.Not, move.Piece)
 	}
@@ -139,13 +102,57 @@ func (g *Game) GetOppositeMoves() []PieceMoves {
 	return g.GetTurnMoves(!g.Board.IsWhiteTurn)
 }
 
-func (g *Game) MakeMoved(from, to Hex) Game {
+type Promotion int
+
+const (
+	_ = iota
+	QueenPromotion
+	RookPromotion
+	BishopPromotion
+	KnightPromotion
+)
+
+func IsLastRank(to Hex) bool {
+	return to.File < uint32(len(RanksPerFile)) && to.Rank == RanksPerFile[to.File]-1
+}
+
+func GetPromoPiece(promotion Promotion, isWhiteTurn bool) Piece {
+	piecePromo := Empty
+	switch promotion {
+	case QueenPromotion:
+		piecePromo = WhiteQueen
+	case RookPromotion:
+		piecePromo = WhiteRook
+	case BishopPromotion:
+		piecePromo = WhiteBishop
+	case KnightPromotion:
+		piecePromo = WhiteKnight
+	}
+	if !isWhiteTurn && piecePromo != Empty {
+		piecePromo += 1
+	}
+	return piecePromo
+}
+
+type Move struct {
+	From      Hex
+	To        Hex
+	Promotion Promotion
+}
+
+func (g *Game) MakeMoved(mv Move) Game {
 	game := g.DeepCopy()
-	game.MakeMove(from, to)
+	game.MakeMove(mv)
 	return game
 }
 
-func (g *Game) MakeMove(from, to Hex) HistMove {
+func (g *Game) MakeMove(mv Move) HistMove {
+	// preconditions: to and from are valid locations on the board, promotion is a valid promotion
+	from := mv.From
+	to := mv.To
+	promotion := mv.Promotion
+	isMvLastRank := IsLastRank(mv.To)
+
 	pieceFrom := g.Board.Get(from.File, from.Rank)
 	pieceTo := g.Board.Get(to.File, to.Rank)
 
@@ -157,57 +164,102 @@ func (g *Game) MakeMove(from, to Hex) HistMove {
 		}
 	}
 
-	move := g.GetHistMove(PieceMove{Piece: pieceFrom, From: from, To: to})
+	hm := g.AnnotateHistMove(HistMove{PieceMove: PieceMove{Piece: pieceFrom, From: from, To: to}})
 
-	g.Board.IsWhiteTurn = !g.Board.IsWhiteTurn
 	g.Board.Set(from.File, from.Rank, Empty)
-	g.Board.Set(to.File, to.Rank, pieceFrom)
+	if isMvLastRank {
+		g.Board.Set(to.File, to.Rank, GetPromoPiece(promotion, g.Board.IsWhiteTurn))
+		hm.Promotion = promotion
+	} else {
+		g.Board.Set(to.File, to.Rank, pieceFrom)
+	}
+	g.Board.IsWhiteTurn = !g.Board.IsWhiteTurn
 
-	g.Moves = append(g.Moves, move)
-
-	return move
+	g.Moves = append(g.Moves, hm)
+	return hm
 }
 
-type MoveViolation int
-
-const (
-	ViolatesNone MoveViolation = iota
-	ViolatesOutOfBounds
-	ViolatesNoop
-	ViolatesIllegalMove
+var (
+	ErrViolatesOutOfBounds = errors.New("violates: out of bounds")
+	ErrViolatesNoop        = errors.New("violates: noop")
+	ErrViolatesIllegalMove = errors.New("violates: illegal move")
+	ErrViolatesPromotion   = errors.New("violates: piece promotion")
 )
 
-func (g *Game) ValidateMove(move PieceMove, checkLegal bool) MoveViolation {
+func (g *Game) ValidateMove(move Move) error {
 	if move.From.File == move.To.File && move.From.Rank == move.To.Rank {
-		return ViolatesNoop
+		return ErrViolatesNoop
 	}
 	if !g.Board.InBoundsHex(move.From) || !g.Board.InBoundsHex(move.To) {
-		return ViolatesOutOfBounds
+		return ErrViolatesOutOfBounds
 	}
-	if checkLegal {
-		legalMoves := g.GetCurrMoves()
-		pmsIdx := slices.IndexFunc(legalMoves, func(moves PieceMoves) bool { return moves.From == move.From })
-		if pmsIdx < 0 {
-			return ViolatesIllegalMove
-		}
-		if moveIdx := slices.IndexFunc(legalMoves[pmsIdx].Moves, func(to Hex) bool { return to == move.To }); moveIdx < 0 {
-			return ViolatesIllegalMove
+	if IsLastRank(move.To) && g.Board.Get(move.From.File, move.From.Rank).IsPawn() {
+		switch move.Promotion {
+		case QueenPromotion, RookPromotion, BishopPromotion, KnightPromotion:
+		default:
+			return ErrViolatesPromotion
 		}
 	}
-	return ViolatesNone
+	legalMoves := g.GetCurrMoves()
+	pmsIdx := slices.IndexFunc(legalMoves, func(moves PieceMoves) bool { return moves.From == move.From })
+	if pmsIdx < 0 {
+		return ErrViolatesIllegalMove
+	}
+	if moveIdx := slices.IndexFunc(legalMoves[pmsIdx].Moves, func(to Hex) bool { return to == move.To }); moveIdx < 0 {
+		return ErrViolatesIllegalMove
+	}
+	return nil
 }
 
-func (g *Game) GetHistMove(move PieceMove) HistMove {
-	var hm HistMove
+type HistMove struct {
+	// stores any information necessary to generate a move history notation
+	PieceMove
+	Promotion Promotion
+	CollFile  bool
+	CollRank  bool
+	IsCheck   bool
+	IsTake    bool
+}
 
-	hm.PieceMove = move
+func (m *HistMove) String() string {
+	from := m.PieceMove.From
+	to := m.PieceMove.To
 
-	if g.Board.Get(move.To.File, move.To.Rank) != Empty {
+	var sb strings.Builder
+	sb.WriteString(m.PieceMove.Piece.String())
+
+	if m.IsCheck {
+		sb.WriteString("+")
+	}
+	if m.IsTake {
+		sb.WriteString("x")
+	}
+	if !m.CollFile || !m.CollRank {
+		if m.CollFile {
+			sb.WriteString(strconv.Itoa(int(from.Rank + 1)))
+		}
+		if m.CollRank {
+			sb.WriteRune(rune(from.File + 'a'))
+		}
+	}
+
+	sb.WriteString(to.String())
+	piece := GetPromoPiece(m.Promotion, m.Piece.IsWhite())
+	if piece != Empty {
+		sb.WriteRune('=')
+		sb.WriteRune(piece.Rune())
+	}
+
+	return sb.String()
+}
+
+func (g *Game) AnnotateHistMove(hm HistMove) HistMove {
+	if g.Board.Get(hm.To.File, hm.To.Rank) != Empty {
 		hm.IsTake = true
 	}
 
 	moves := g.GetCurrMoves()
-	if index := slices.IndexFunc(moves, func(pms PieceMoves) bool { return pms.Piece == move.Piece }); index > 0 {
+	if index := slices.IndexFunc(moves, func(pms PieceMoves) bool { return pms.Piece == hm.Piece }); index > 0 {
 		for _, h := range moves[index].Moves {
 			p := g.Board.Get(h.File, h.Rank)
 			if p.IsKing() {
@@ -218,37 +270,19 @@ func (g *Game) GetHistMove(move PieceMove) HistMove {
 	}
 
 	for _, pms := range moves {
-		if pms.Piece != move.Piece {
+		if pms.Piece != hm.Piece {
 			continue
 		}
-		if slices.ContainsFunc(pms.Moves, func(to Hex) bool { return to == move.To }) {
-			if pms.From.File == move.From.File {
+		if slices.ContainsFunc(pms.Moves, func(to Hex) bool { return to == hm.To }) {
+			if pms.From.File == hm.From.File {
 				hm.CollFile = true
 			}
-			if pms.From.Rank == move.From.Rank {
+			if pms.From.Rank == hm.From.Rank {
 				hm.CollRank = true
 			}
 		}
 	}
-
 	return hm
-}
-
-func (g *Game) IsValidMove(move PieceMove) bool {
-	if len(g.WhiteMoves) == 0 || len(g.BlackMoves) == 0 {
-		g.InitPieceMoves()
-	}
-	moves := g.GetCurrMoves()
-
-	for _, pm := range moves {
-		isFrom := pm.From == move.From
-		hasTo := slices.ContainsFunc(pm.Moves, func(to Hex) bool { return to == move.To })
-		if isFrom && hasTo {
-			return true
-		}
-	}
-
-	return false
 }
 
 func (g *Game) InitPieceMoves() {
@@ -605,7 +639,7 @@ func RandomMoveSeq(game Game, low int, hi int) ([]HistMove, error) {
 			return nil, fmt.Errorf("expected move to not be to piece of same color %v", pm)
 		}
 
-		game.MakeMove(pm.From, pm.To)
+		game.MakeMove(Move{From: pm.From, To: pm.To, Promotion: QueenPromotion})
 	}
 
 	slog.Info("random move sequence", "len", len(game.Moves))

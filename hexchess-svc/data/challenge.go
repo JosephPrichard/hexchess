@@ -17,17 +17,17 @@ import (
 type ColorSelect string
 
 const (
-	White  ColorSelect = "WHITE"
-	Black  ColorSelect = "BLACK"
-	Random ColorSelect = "RANDOM"
+	TcWhite  ColorSelect = "WHITE"
+	TcBlack  ColorSelect = "BLACK"
+	TcRandom ColorSelect = "RANDOM"
 )
 
 type TimeControl string
 
 const (
-	RealTime       TimeControl = "WHITE"
-	Correspondence TimeControl = "CORRESPONDENCE"
-	Unlimited      TimeControl = "UNLIMITED"
+	TcRealTime       TimeControl = "REAL_TIME"
+	TcCorrespondence TimeControl = "CORRESPONDENCE"
+	TcUnlimited      TimeControl = "UNLIMITED"
 )
 
 type ChallengeEntity struct {

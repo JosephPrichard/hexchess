@@ -25,7 +25,7 @@ func MarshalPlayer(p *PlayerState) ([]byte, error) {
 	return proto.Marshal(&pbPlayer)
 }
 
-func MapPlayer(pbPlayer *pb.PlayerState) *PlayerState {
+func DeserializePlayer(pbPlayer *pb.PlayerState) *PlayerState {
 	var player *PlayerState
 	if pbPlayer != nil {
 		player = &PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Elo: pbPlayer.Elo, IsGuest: pbPlayer.IsGuest}
@@ -36,65 +36,68 @@ func MapPlayer(pbPlayer *pb.PlayerState) *PlayerState {
 var ErrNilChess = errors.New("chess board and game cannot be nil")
 
 func UnmarshalChess(b []byte) (ChessState, error) {
+	var cs ChessState
+
 	var pbChess pb.ChessState
 	if err := proto.Unmarshal(b, &pbChess); err != nil {
-		return ChessState{}, err
+		return cs, err
 	}
 	if pbChess.Game == nil || pbChess.Game.Board == nil {
-		return ChessState{}, ErrNilChess
+		return cs, ErrNilChess
 	}
-
-	game, err := chess.MapGame(pbChess.Game)
+	game, err := chess.DeserializeGame(pbChess.Game)
 	if err != nil {
-		return ChessState{}, err
+		return cs, err
+	}
+	initialBoard, err := chess.DeserializeBoard(pbChess.Game.Board)
+	if err != nil {
+		return cs, err
 	}
 
-	state := ChessState{
-		Game: game,
+	cs = ChessState{
+		Game:         game,
+		InitialBoard: initialBoard,
 		ChessMeta: ChessMeta{
 			ID:          pbChess.Id,
-			WhitePlayer: MapPlayer(pbChess.WhitePlayer),
-			BlackPlayer: MapPlayer(pbChess.BlackPlayer),
+			WhitePlayer: DeserializePlayer(pbChess.WhitePlayer),
+			BlackPlayer: DeserializePlayer(pbChess.BlackPlayer),
 			IsEnded:     pbChess.IsEnded,
 			FirstColor:  ColorSelect(pbChess.FirstColor),
 			TimeControl: TimeControl(pbChess.TimeControl),
 			Touch:       time.UnixMilli(pbChess.Touch),
 		},
 	}
-	return state, nil
+	return cs, nil
 }
 
-func MapPbPlayer(p *PlayerState) *pb.PlayerState {
+func SerializePlayer(p *PlayerState) *pb.PlayerState {
 	if p == nil {
 		return nil
 	}
 	return &pb.PlayerState{Id: p.ID, Name: p.Name, Country: p.Country, Elo: p.Elo, IsGuest: p.IsGuest}
 }
 
-func MapPbChessState(s ChessState) (*pb.ChessState, error) {
-	pbGame, err := chess.MapPbGame(s.Game)
+func SerializeChessState(s ChessState) (*pb.ChessState, error) {
+	pbGame, err := chess.SerializeGame(s.Game)
+	if err != nil {
+		return nil, err
+	}
+	pbBoard, err := chess.SerializeBoard(s.InitialBoard)
 	if err != nil {
 		return nil, err
 	}
 	pbState := &pb.ChessState{
-		Id:          s.ID,
-		Game:        pbGame,
-		WhitePlayer: MapPbPlayer(s.WhitePlayer),
-		BlackPlayer: MapPbPlayer(s.BlackPlayer),
-		IsEnded:     s.IsEnded,
-		FirstColor:  string(s.FirstColor),
-		TimeControl: string(s.TimeControl),
-		Touch:       s.Touch.UnixMilli(),
+		Id:           s.ID,
+		Game:         pbGame,
+		WhitePlayer:  SerializePlayer(s.WhitePlayer),
+		BlackPlayer:  SerializePlayer(s.BlackPlayer),
+		IsEnded:      s.IsEnded,
+		FirstColor:   string(s.FirstColor),
+		TimeControl:  string(s.TimeControl),
+		Touch:        s.Touch.UnixMilli(),
+		InitialBoard: pbBoard,
 	}
 	return pbState, nil
-}
-
-func MarshalChessState(s ChessState) ([]byte, error) {
-	pbState, err := MapPbChessState(s)
-	if err != nil {
-		return nil, err
-	}
-	return proto.Marshal(pbState)
 }
 
 func UnmarshalChessMeta(b []byte) (ChessMeta, error) {
@@ -104,8 +107,8 @@ func UnmarshalChessMeta(b []byte) (ChessMeta, error) {
 	}
 	cm := ChessMeta{
 		ID:          pbChess.Id,
-		WhitePlayer: MapPlayer(pbChess.WhitePlayer),
-		BlackPlayer: MapPlayer(pbChess.BlackPlayer),
+		WhitePlayer: DeserializePlayer(pbChess.WhitePlayer),
+		BlackPlayer: DeserializePlayer(pbChess.BlackPlayer),
 		IsEnded:     pbChess.IsEnded,
 		FirstColor:  ColorSelect(pbChess.FirstColor),
 		TimeControl: TimeControl(pbChess.TimeControl),
@@ -137,7 +140,7 @@ func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {
 	return nil, fmt.Errorf("unknown message type: %T", pbUm)
 }
 
-func MapPbChallengeMsg(id int64, ce ChallengeEntity) pb.UserMsg {
+func SerializeChallengeMsg(id int64, ce ChallengeEntity) pb.UserMsg {
 	cm := &pb.UserMsg_Challenge{
 		Challenge: &pb.ChallengeMsg{
 			ChallengerId:      ce.ChallengerID,
@@ -153,8 +156,5 @@ func MapPbChallengeMsg(id int64, ce ChallengeEntity) pb.UserMsg {
 			MadeOn:            ce.MadeOn.Format(time.RFC3339),
 		},
 	}
-	return pb.UserMsg{
-		UserId: strconv.Itoa(int(id)),
-		Value:  cm,
-	}
+	return pb.UserMsg{UserId: strconv.Itoa(int(id)), Value: cm}
 }

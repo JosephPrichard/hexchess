@@ -115,12 +115,12 @@ func createTestReplays(t TestLogger, q *db.Queries, insts ...ReplayInst) {
 }
 
 var TestChallengeInsts = []ChallengeInst{
-	{1, 2, Unlimited, Random, time.Now()},
-	{3, 1, Unlimited, Random, time.Now()},
-	{5, 2, Unlimited, Random, time.Unix(20500, 0)},
-	{5, 4, Unlimited, Random, time.Unix(19500, 0)},
-	{5, 3, Unlimited, Random, time.Unix(0, 0)},
-	{5, 1, Unlimited, Random, time.Unix(0, 0)},
+	{1, 2, TcUnlimited, TcRandom, time.Now()},
+	{3, 1, TcUnlimited, TcRandom, time.Now()},
+	{5, 2, TcUnlimited, TcRandom, time.Unix(20500, 0)},
+	{5, 4, TcUnlimited, TcRandom, time.Unix(19500, 0)},
+	{5, 3, TcUnlimited, TcRandom, time.Unix(0, 0)},
+	{5, 1, TcUnlimited, TcRandom, time.Unix(0, 0)},
 }
 
 var TestChallengeEntities = []ChallengeEntity{
@@ -133,8 +133,8 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeName:    "user2",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
-		TimeControl:       Unlimited,
-		StartColor:        Random,
+		TimeControl:       TcUnlimited,
+		StartColor:        TcRandom,
 	},
 	{
 		ChallengerID:      3,
@@ -145,8 +145,8 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeName:    "user1",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
-		TimeControl:       Unlimited,
-		StartColor:        Random,
+		TimeControl:       TcUnlimited,
+		StartColor:        TcRandom,
 	},
 }
 

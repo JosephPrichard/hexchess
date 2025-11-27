@@ -60,7 +60,6 @@ func GetLeaderboardRank(ctx context.Context, rdb Redis, id int64) (int64, error)
 		slog.ErrorContext(ctx, "failed to get leaderboard rank", "id", id, "err", err)
 		return 0, err
 	}
-
 	conn := rdb.Primary.Get()
 	defer conn.Close()
 
@@ -72,8 +71,7 @@ func GetLeaderboardRank(ctx context.Context, rdb Redis, id int64) (int64, error)
 		if rank, err = redis.Int64(conn.Do("ZREVRANK", rdb.LeaderboardZSet, id)); err != nil {
 			return fail("failed to get rank", err)
 		}
-	}
-	if err != nil {
+	} else if err != nil {
 		return fail("failed to get rank", err)
 	}
 
@@ -87,7 +85,6 @@ func GetLeaderboard(ctx context.Context, rdb Redis, startRank, count int64) (Lea
 		slog.ErrorContext(ctx, "failed to fetch leaderboard", "startRank", startRank, "count", count, "err", err)
 		return Leaderboard{}, err
 	}
-
 	conn := rdb.Primary.Get()
 	defer conn.Close()
 

@@ -50,11 +50,14 @@ func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState ServerStat
 	var sessPlayer *data.PlayerState
 
 	player, err := data.GetSession(ctx, serverState.Rdb, sessionID)
-	if err == data.ErrSessionNotFound {
-		sessPlayer = nil
-	} else if err != nil {
-		writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
-		return
+	if err != nil {
+		switch err {
+		case data.ErrSessionNotFound:
+			sessPlayer = nil
+		default:
+			writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
+			return
+		}
 	} else {
 		sessPlayer = &player
 	}
@@ -101,17 +104,17 @@ func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState ServerStat
 }
 
 func handleGameInit(gameID string, player data.PlayerState, state data.ChessState, write func([]byte)) error {
-	pbState, err := data.MapPbChessState(state)
+	pbState, err := data.SerializeChessState(state)
 	if err != nil {
-		return fmt.Errorf("failed to map pb chess state: %w", err)
+		return fmt.Errorf("failed to map hexchess-pb chess state: %w", err)
 	}
 
 	for _, o := range []*pb.GameOutput{
-		MakePbGameOutputInit(gameID, pbState, data.MapPbPlayer(&player)),
+		MakePbGameOutputInit(gameID, pbState, data.SerializePlayer(&player)),
 		MakePbGameOutputPlayers(
 			gameID,
-			data.MapPbPlayer(state.WhitePlayer),
-			data.MapPbPlayer(state.BlackPlayer),
+			data.SerializePlayer(state.WhitePlayer),
+			data.SerializePlayer(state.BlackPlayer),
 		),
 	} {
 		b, err := proto.Marshal(o)
@@ -165,18 +168,18 @@ func handleGameForfeit(ctx context.Context, state GameSocketState) error {
 }
 
 func handleGameMove(ctx context.Context, state GameSocketState, pbInput *pb.MoveInput) error {
-	result, err := data.MakeGameMove(ctx, state.Stores, state.gameID, state.player, chess.MapPieceMove(pbInput.Move))
+	result, err := data.MakeGameMove(ctx, state.Stores, state.gameID, state.player, chess.DeserializeMove(pbInput.Move))
 	if err != nil {
 		return err
 	}
 
-	pbGame, err := chess.MapPbGame(result.Room.Game)
+	pbGame, err := chess.SerializeGame(result.Room.Game)
 	if err != nil {
 		return err
 	}
 	bytes, err := proto.Marshal(MakePbGameOutputMove(
 		state.gameID,
-		chess.MapPbHistMove(result.Move),
+		chess.SerializeHistMove(result.Move),
 		pbGame,
 		result.Room.Touch.Format(time.RFC3339),
 	))

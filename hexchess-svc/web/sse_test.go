@@ -130,12 +130,12 @@ func TestHandleUserEvents(t *testing.T) {
 	go func() {
 		ctx := context.WithValue(context.Background(), util.Trace, "broadcast-user-events")
 		errChan <- errors.Join(nil,
-			data.BroadcastChallenge(ctx, stores.Rdb, 1, data.ChallengeEntity{ChallengerID: 1}),
+			data.BroadcastChallenge(ctx, stores.Rdb, 1, data.ChallengeEntity{ChallengerID: 1, TimeControl: data.TcRealTime, StartColor: data.TcWhite}),
 			data.BroadcastChallenge(ctx, stores.Rdb, 2, data.ChallengeEntity{ChallengerID: 2}),
-			data.BroadcastChallenge(ctx, stores.Rdb, 1, data.ChallengeEntity{ChallengerID: 1}))
+			data.BroadcastChallenge(ctx, stores.Rdb, 1, data.ChallengeEntity{ChallengerID: 1, TimeControl: data.TcRealTime, StartColor: data.TcWhite}))
 	}()
 
-	jsonData := `{"challengerId":1,"challengerName":"","challengerCountry":"","challengerElo":0,"challengeeId":0,"challengeeName":"","challengeeCountry":"","challengeeElo":0,"timeControl":0,"startColor":0,"madeOn":"0000-12-31T18:00:00-06:00"}`
+	jsonData := `{"challengerId":1,"challengerName":"","challengerCountry":"","challengerElo":0,"challengeeId":0,"challengeeName":"","challengeeCountry":"","challengeeElo":0,"timeControl":"REAL_TIME","startColor":"WHITE","madeOn":"0001-01-01T00:00:00Z"}`
 	expEvents := []string{
 		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, "id1"),
 		fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, jsonData),

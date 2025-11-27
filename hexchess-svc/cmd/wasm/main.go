@@ -13,7 +13,11 @@ func jsLog(args ...any) {
 	global.Get("console").Call("log", args...)
 }
 
-func jsErr(err string) js.Value {
+func jsErr(err error) js.Value {
+	return jsErrStr(err.Error())
+}
+
+func jsErrStr(err string) js.Value {
 	global.Get("console").Call("error", err)
 	return js.Undefined()
 }
@@ -22,13 +26,13 @@ func GetInitialGame(_ js.Value, _ []js.Value) interface{} {
 	game := chess.Game{Board: chess.InitialBoard()}
 	game.InitPieceMoves()
 
-	pbGame, err := chess.MapPbGame(game)
+	pbGame, err := chess.SerializeGame(game)
 	if err != nil {
-		return jsErr(err.Error())
+		return jsErr(err)
 	}
 	output, err := proto.Marshal(pbGame)
 	if err != nil {
-		return jsErr(err.Error())
+		return jsErr(err)
 	}
 	out := global.Get("Uint8Array").New(len(output))
 	js.CopyBytesToJS(out, output)
@@ -36,22 +40,9 @@ func GetInitialGame(_ js.Value, _ []js.Value) interface{} {
 	return out
 }
 
-func makeMoveErr(violation chess.MoveViolation) js.Value {
-	switch violation {
-	case chess.ViolatesOutOfBounds:
-		return jsErr("violation: Out of bounds move")
-	case chess.ViolatesNoop:
-		return jsErr("violation: Noop move")
-	case chess.ViolatesIllegalMove:
-		return jsErr("violation: Illegal move")
-	default:
-		return jsErr("violation: Unknown violation")
-	}
-}
-
 func MakeMove(_ js.Value, args []js.Value) interface{} {
 	if len(args) == 0 {
-		return jsErr("makeMove expects at least 1 args")
+		return jsErrStr("fn expects at least 1 args")
 	}
 
 	inputUInt8Arr := args[0]
@@ -60,29 +51,29 @@ func MakeMove(_ js.Value, args []js.Value) interface{} {
 
 	var pbMoveIn pb.MakeMoveInput
 	if err := proto.Unmarshal(boardIn, &pbMoveIn); err != nil {
-		return jsErr(err.Error())
+		return jsErr(err)
 	}
-	game, err := chess.MapGame(pbMoveIn.Game)
+	game, err := chess.DeserializeGame(pbMoveIn.Game)
 	if err != nil {
-		return jsErr(err.Error())
+		return jsErr(err)
 	}
-	pm := chess.MapPieceMove(pbMoveIn.Move)
+	pm := chess.DeserializeMove(pbMoveIn.Move)
 
 	if pbMoveIn.Move != nil {
-		if violation := game.ValidateMove(pm, pbMoveIn.Validate); violation != chess.ViolatesNone {
-			return makeMoveErr(violation)
+		if err := game.ValidateMove(pm); err != nil {
+			return jsErr(err)
 		}
-		game.MakeMove(pm.From, pm.To)
+		game.MakeMove(chess.Move{From: pm.From, To: pm.To})
 		game.InitPieceMoves()
 	}
 
-	pbGameOut, err := chess.MapPbGame(game)
+	pbGameOut, err := chess.SerializeGame(game)
 	if err != nil {
-		return jsErr(err.Error())
+		return jsErr(err)
 	}
 	output, err := proto.Marshal(pbGameOut)
 	if err != nil {
-		return jsErr(err.Error())
+		return jsErr(err)
 	}
 
 	out := global.Get("Uint8Array").New(len(output))
@@ -93,7 +84,7 @@ func MakeMove(_ js.Value, args []js.Value) interface{} {
 
 func GetMoves(_ js.Value, args []js.Value) interface{} {
 	if len(args) == 0 {
-		return jsErr("getMoves expects at least 1 args")
+		return jsErrStr("fn expects at least 1 args")
 	}
 
 	inputUInt8Arr := args[0]
@@ -102,23 +93,23 @@ func GetMoves(_ js.Value, args []js.Value) interface{} {
 
 	var pbBoard pb.ChessBoard
 	if err := proto.Unmarshal(boardIn, &pbBoard); err != nil {
-		return jsErr(err.Error())
+		return jsErr(err)
 	}
-	board, err := chess.MapBoard(&pbBoard)
+	board, err := chess.DeserializeBoard(&pbBoard)
 	if err != nil {
-		return jsErr(err.Error())
+		return jsErr(err)
 	}
 
 	game := chess.Game{Board: board}
 	game.InitPieceMoves()
 
-	pbGameOut, err := chess.MapPbGame(game)
+	pbGameOut, err := chess.SerializeGame(game)
 	if err != nil {
-		return jsErr(err.Error())
+		return jsErr(err)
 	}
 	output, err := proto.Marshal(pbGameOut)
 	if err != nil {
-		return jsErr(err.Error())
+		return jsErr(err)
 	}
 
 	out := global.Get("Uint8Array").New(len(output))
@@ -129,7 +120,7 @@ func GetMoves(_ js.Value, args []js.Value) interface{} {
 
 func FenToGame(_ js.Value, args []js.Value) interface{} {
 	if len(args) == 0 {
-		return jsErr("fenToBoard expects at least 1 arg")
+		return jsErrStr("fn expects at least 1 arg")
 	}
 
 	fenString := args[0]
@@ -138,20 +129,20 @@ func FenToGame(_ js.Value, args []js.Value) interface{} {
 	board, err := chess.ParseFen(fen)
 	if err != nil {
 		obj := global.Get("Object").New()
-		obj.Set("err", err.Error())
+		obj.Set("err", err)
 		return obj
 	}
 
 	game := chess.Game{Board: board}
 	game.InitPieceMoves()
 
-	pbGame, err := chess.MapPbGame(game)
+	pbGame, err := chess.SerializeGame(game)
 	if err != nil {
-		return jsErr(err.Error())
+		return jsErr(err)
 	}
 	output, err := proto.Marshal(pbGame)
 	if err != nil {
-		return jsErr(err.Error())
+		return jsErr(err)
 	}
 
 	out := global.Get("Uint8Array").New(len(output))
@@ -165,7 +156,7 @@ func FenToGame(_ js.Value, args []js.Value) interface{} {
 
 func BoardToFen(_ js.Value, args []js.Value) interface{} {
 	if len(args) == 0 {
-		return jsErr("boardToFen expects at least 1 arg")
+		return jsErrStr("fn expects at least 1 arg")
 	}
 
 	inputUInt8Arr := args[0]
@@ -174,11 +165,11 @@ func BoardToFen(_ js.Value, args []js.Value) interface{} {
 
 	var pbBoard pb.ChessBoard
 	if err := proto.Unmarshal(input, &pbBoard); err != nil {
-		return jsErr(err.Error())
+		return jsErr(err)
 	}
-	board, err := chess.MapBoard(&pbBoard)
+	board, err := chess.DeserializeBoard(&pbBoard)
 	if err != nil {
-		return jsErr(err.Error())
+		return jsErr(err)
 	}
 
 	fen := board.Fen()
@@ -188,7 +179,7 @@ func BoardToFen(_ js.Value, args []js.Value) interface{} {
 
 func GetMoveNotations(_ js.Value, args []js.Value) interface{} {
 	if len(args) == 0 {
-		return jsErr("getMoveNotations expects at least 1 arg")
+		return jsErrStr("fn expects at least 1 arg")
 	}
 
 	inputUInt8Arr := args[0]
@@ -197,12 +188,12 @@ func GetMoveNotations(_ js.Value, args []js.Value) interface{} {
 
 	var pbHistMoves pb.HistMoves
 	if err := proto.Unmarshal(input, &pbHistMoves); err != nil {
-		return jsErr(err.Error())
+		return jsErr(err)
 	}
 
 	moves := make([]any, 0, len(pbHistMoves.Moves))
 	for _, pbHm := range pbHistMoves.Moves {
-		hm := chess.MapHistMove(pbHm)
+		hm := chess.DeserializeHistMove(pbHm)
 		moves = append(moves, hm.String())
 	}
 

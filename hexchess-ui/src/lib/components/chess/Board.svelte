@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ChessBoard, PieceMove } from '$lib/api/messages';
+	import type { ChessBoard, PieceMove } from '$lib/pb/messages';
 	import Piece from './Piece.svelte';
 	import type { Hex } from '$lib/api/model';
 	import { defaultBoard, findKeyedPieces, isPieceBlack, isPieceWhite, iterBoard, pieces, type PlacedPiece, ranksPerFile } from '$lib/utils/chess.js';

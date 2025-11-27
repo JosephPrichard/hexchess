@@ -369,7 +369,7 @@ func TestHandleGetUserReplays(t *testing.T) {
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replays?afterID=%s&userID=%s", test.afterID, test.userID), nil)
+			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replays?afterId=%s&userId=%s", test.afterID, test.userID), nil)
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 			h := HandleRoot(MakeServerState(stores, nil), "")
@@ -399,8 +399,8 @@ func TestHandleGetChessViews(t *testing.T) {
 
 	expResp := ChessRoomListResp{
 		ChessList: []data.ChessMeta{
-			{ID: "game3", FirstColor: data.Random},
-			{ID: "game2", FirstColor: data.Random},
+			{ID: "game3", FirstColor: data.TcRandom, TimeControl: data.TcRealTime},
+			{ID: "game2", FirstColor: data.TcRandom, TimeControl: data.TcRealTime},
 			{
 				ID: "game1",
 				WhitePlayer: &data.PlayerState{
@@ -409,8 +409,8 @@ func TestHandleGetChessViews(t *testing.T) {
 					Country: "us",
 					Elo:     1000,
 				},
-				FirstColor:  data.Random,
-				TimeControl: data.Unlimited,
+				FirstColor:  data.TcRandom,
+				TimeControl: data.TcRealTime,
 			},
 		},
 		SelfChessList: []data.ChessMeta{
@@ -422,8 +422,8 @@ func TestHandleGetChessViews(t *testing.T) {
 					Country: "us",
 					Elo:     1000,
 				},
-				FirstColor:  data.Random,
-				TimeControl: data.Unlimited,
+				FirstColor:  data.TcRandom,
+				TimeControl: data.TcRealTime,
 			},
 		},
 	}

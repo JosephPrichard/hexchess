@@ -21,7 +21,7 @@ target/
 .idea
 
 hexchess-svc/app.log
-hexchess-ui/src/lib/api/messages.ts
+hexchess-ui/src/lib/pb/messages.ts
 hexchess-ui/build
 */.svelte-kit
 */node_modules

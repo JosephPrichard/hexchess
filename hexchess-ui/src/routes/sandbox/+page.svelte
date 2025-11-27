@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Board from '$lib/components/chess/Board.svelte';
 	import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
-	import { ChessBoard, type ChessGame } from '$lib/api/messages';
+	import { ChessBoard, type ChessGame } from '$lib/pb/messages';
 	import { makeMoveState } from '$lib/state/move.svelte';
 	import Banner from '$lib/Banner.svelte';
 	import { clearBoard, defaultGame, makeGame, mapHexagons, moveBoardPiece, placeBoardPiece, removeBoardPiece, setBoardTurn } from '$lib/utils/chess.js';
@@ -97,7 +97,7 @@ async function onPieceMove(from: Hex, to: Hex) {
 		onDeSelectPiece();
 		break;
 	case "play":
-		const nextGame = await makeMoveWasm($state.snapshot(game), {from, to}, true);
+		const nextGame = await makeMoveWasm($state.snapshot(game), {from, to, promotion: 0});
 		if (nextGame !== undefined) {
 			await setFen(nextGame?.board); // update fen before the state so we can set the right game with move history after URL is updated
 			game = nextGame;

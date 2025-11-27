@@ -8,12 +8,11 @@
 	import { getNotificationsContext } from '$lib/utils/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import ReplayPanel from '$lib/components/user/ReplayPanel.svelte';
-	import { type ChessGame, type PieceMove } from '$lib/api/messages';
+	import { type ChessGame, type PieceMove } from '$lib/pb/messages';
 	import type { Hex, ReplayModel } from '$lib/api/model';
 	import services from '$lib/api/services';
 	import { makeMoveState } from '$lib/state/move.svelte';
-	import { makeMove, mapHexagons } from '$lib/utils/chess.js';
-	import { makeMoveWasm } from '$lib/api/wasm';
+	import { mapHexagons } from '$lib/utils/chess.js';
 	import TurnWrapper from '$lib/components/chess/TurnWrapper.svelte';
 	import { makeMoveSelectionState } from '$lib/state/selection.svelte';
 

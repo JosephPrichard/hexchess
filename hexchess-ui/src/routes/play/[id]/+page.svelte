@@ -12,7 +12,7 @@
 	import UndoIcon from '$lib/components/icons/UndoIcon.svelte';
 	import PieceList from '$lib/components/chess/PieceList.svelte';
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
-	import { type ChessGame, GameOutput, type PlayerState } from '$lib/api/messages';
+	import { type ChessGame, GameOutput, type PlayerState } from '$lib/pb/messages';
 	import type { Hex } from '$lib/api/model';
 	import { mapHexagons } from '$lib/utils/chess.js';
 	import { makeMoveSelectionState } from '$lib/state/selection.svelte';

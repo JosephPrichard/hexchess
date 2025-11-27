@@ -26,11 +26,11 @@ const (
 	WhiteKing
 	BlackKing
 
-	MaxRanks = 11
-	Files    = 11
+	MaxRanks uint32 = 11
+	Files    uint32 = 11
 )
 
-var RanksPerFile = []int{6, 7, 8, 9, 10, 11, 10, 9, 8, 7, 6}
+var RanksPerFile = []uint32{6, 7, 8, 9, 10, 11, 10, 9, 8, 7, 6}
 var OrdHexagons = GetOrdHexagons()
 
 func GetOrdHexagons() []Hex {
@@ -89,8 +89,8 @@ var KnightOffsets = [][]Direction{
 }
 
 type Hex struct {
-	File int `json:"file"`
-	Rank int `json:"rank"`
+	File uint32 `json:"file"`
+	Rank uint32 `json:"rank"`
 }
 
 type PieceMoves struct {
@@ -126,7 +126,7 @@ func ParseHexagon(notation string) (Hex, error) {
 	if err != nil {
 		return Hex{}, fmt.Errorf("failed to parse hexagon: %w", err)
 	}
-	return Hex{File: file, Rank: rank - 1}, nil
+	return Hex{File: uint32(file), Rank: uint32(rank - 1)}, nil
 }
 
 func ParseHexagonUnsafe(notation string) Hex {
@@ -212,7 +212,7 @@ func HasPawnMoved(pawnHex Hex, isWhite bool) bool {
 		default:
 			minRank = -1 // any other file: pawn must have moved
 		}
-		return pawnHex.Rank > minRank
+		return int(pawnHex.Rank) > minRank
 	} else {
 		return pawnHex.Rank < 7
 	}
@@ -369,7 +369,7 @@ func InitialBoard() Board {
 	return board
 }
 
-func MakeStartBoard(initial ...Move) Board {
+func MakeStartBoard(initial ...NotMove) Board {
 	board := InitialBoard()
 	for _, pm := range initial {
 		board.SetPieceNot(pm.Not, pm.Piece)
@@ -377,7 +377,7 @@ func MakeStartBoard(initial ...Move) Board {
 	return board
 }
 
-func MakeEmptyBoard(initial ...Move) Board {
+func MakeEmptyBoard(initial ...NotMove) Board {
 	board := Board{IsWhiteTurn: true}
 	for _, pm := range initial {
 		board.SetPieceNot(pm.Not, pm.Piece)
@@ -385,16 +385,16 @@ func MakeEmptyBoard(initial ...Move) Board {
 	return board
 }
 
-func (b *Board) Get(file, rank int) Piece {
+func (b *Board) Get(file, rank uint32) Piece {
 	return b.Pieces[file][rank]
 }
 
-func (b *Board) Set(file, rank int, p Piece) {
+func (b *Board) Set(file, rank uint32, p Piece) {
 	b.Pieces[file][rank] = p
 }
 
-func (b *Board) SetPiece(file, rank int, piece Piece) error {
-	if file >= len(b.Pieces) {
+func (b *Board) SetPiece(file, rank uint32, piece Piece) error {
+	if file >= uint32(len(b.Pieces)) {
 		return fmt.Errorf("file out of range: %d", file)
 	}
 	fileArr := &b.Pieces[file]
@@ -405,8 +405,8 @@ func (b *Board) SetPiece(file, rank int, piece Piece) error {
 	return nil
 }
 
-func (b *Board) GetPiece(file, rank int) (Piece, error) {
-	if file >= len(b.Pieces) {
+func (b *Board) GetPiece(file, rank uint32) (Piece, error) {
+	if file >= uint32(len(b.Pieces)) {
 		return 0, fmt.Errorf("board file out of range: %d", file)
 	}
 	fileArr := &b.Pieces[file]
@@ -437,7 +437,7 @@ func (b *Board) FindKing(isWhite bool) (Hex, bool) {
 	return Hex{}, false
 }
 
-func (b *Board) InBounds(file, rank int) bool {
+func (b *Board) InBounds(file, rank uint32) bool {
 	if file < 0 || file >= Files || rank < 0 {
 		return false
 	}
@@ -454,8 +454,8 @@ var ErrFenMissingTurn = errors.New("FEN string is missing turn")
 func ParseFen(fen string) (Board, error) {
 	var board Board
 
-	var file int
-	var rank int
+	var file uint32
+	var rank uint32
 	var index int
 	startCntIdx := -1
 
@@ -475,7 +475,7 @@ func ParseFen(fen string) (Board, error) {
 				if err != nil {
 					return Board{}, err
 				}
-				rank += count
+				rank += uint32(count)
 			}
 			startCntIdx = -1
 
@@ -590,7 +590,7 @@ func (b *Board) StringFunc(isMove func(Hex) rune) string {
 		sb.WriteRune(fileChar)
 		sb.WriteString("   ")
 
-		for i := 0; i < ranksDiff; i++ {
+		for range ranksDiff {
 			sb.WriteString("  ")
 		}
 

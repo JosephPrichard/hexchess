@@ -27,8 +27,8 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-join-game")
 
 	gameID := "test123"
-	inState := MakeState(gameID, RealTime)
-	inState.FirstColor = White
+	inState := MakeState(gameID, TcRealTime, TcRandom, nil)
+	inState.FirstColor = TcWhite
 	player := PlayerState{ID: 1, Name: "name", Country: "us", Elo: 0}
 
 	if _, err := SetChessState(ctx, rdb, gameID, inState); err != nil {
@@ -52,7 +52,7 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-join-game-both-players")
 
 	gameID := "test123"
-	inState := MakeState(gameID, RealTime)
+	inState := MakeState(gameID, TcRealTime, TcRandom, nil)
 	inState.WhitePlayer = &PlayerState{ID: 1, Name: "white"}
 	inState.BlackPlayer = &PlayerState{ID: 2, Name: "black"}
 
@@ -71,7 +71,7 @@ func TestMakeMove(t *testing.T) {
 	stores, closer := BeforeStoresTests(t, true)
 	defer closer()
 
-	s1 := MakeState("test1", RealTime)
+	s1 := MakeState("test1", TcRealTime, TcRandom, nil)
 	s1.WhitePlayer = &PlayerState{ID: 1}
 	s1.BlackPlayer = &PlayerState{ID: 2}
 
@@ -79,8 +79,8 @@ func TestMakeMove(t *testing.T) {
 		Game: chess.MakeEmptyGame(),
 		ChessMeta: ChessMeta{
 			ID:          "test2",
-			FirstColor:  Random,
-			TimeControl: RealTime,
+			FirstColor:  TcRandom,
+			TimeControl: TcRealTime,
 			Touch:       time.UnixMilli(0),
 			WhitePlayer: &PlayerState{ID: 3},
 			BlackPlayer: &PlayerState{ID: 4},
@@ -88,55 +88,53 @@ func TestMakeMove(t *testing.T) {
 	}
 	s2.Game.Board.IsWhiteTurn = false
 	s2.Game.SetPieces(
-		chess.Move{Not: "f1", Piece: chess.WhiteKing},
-		chess.Move{Not: "a2", Piece: chess.BlackQueen},
-		chess.Move{Not: "h1", Piece: chess.BlackRook},
-		chess.Move{Not: "f3", Piece: chess.BlackRook},
-		chess.Move{Not: "f9", Piece: chess.BlackKing})
+		chess.NotMove{Not: "f1", Piece: chess.WhiteKing},
+		chess.NotMove{Not: "a2", Piece: chess.BlackQueen},
+		chess.NotMove{Not: "h1", Piece: chess.BlackRook},
+		chess.NotMove{Not: "f3", Piece: chess.BlackRook},
+		chess.NotMove{Not: "f9", Piece: chess.BlackKing})
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-make-move")
 
 	for _, state := range []ChessState{s1, s2} {
+		state.Game.InitPieceMoves()
 		if _, err := SetChessState(ctx, stores.Rdb, state.ID, state); err != nil {
 			t.Fatalf("failed initialize test state: %v", err)
 		}
 	}
 
 	for i, test := range []struct {
-		pm     chess.PieceMove
+		pm     chess.Move
 		state  ChessState
 		player PlayerState
 		expErr error
 	}{
 		{
-			pm:     chess.PieceMove{To: chess.Hex{File: 1}}, // invalid turn
+			pm:     chess.Move{To: chess.Hex{File: 1}}, // invalid turn
 			state:  s1,
 			player: *s1.BlackPlayer,
 			expErr: ErrTurn,
 		},
 		{
-			pm:     chess.PieceMove{To: chess.Hex{File: 1}}, // invalid move
+			pm:     chess.Move{To: chess.Hex{File: 1}}, // invalid move
 			state:  s1,
 			player: *s1.WhitePlayer,
 			expErr: ErrInvalidMove,
 		},
 		{
-			pm:     chess.PieceMove{Piece: chess.WhitePawn, From: chess.Hex{File: 1, Rank: 0}, To: chess.Hex{File: 1, Rank: 1}}, // valid move
+			pm:     chess.Move{Promotion: chess.QueenPromotion, From: chess.Hex{File: 1, Rank: 0}, To: chess.Hex{File: 1, Rank: 1}}, // valid move
 			state:  s1,
 			player: *s1.WhitePlayer,
 		},
 		{
-			pm:     chess.PieceMove{Piece: chess.BlackQueen, From: chess.Hex{File: 0, Rank: 1}, To: chess.Hex{File: 0, Rank: 0}}, // valid move
+			pm:     chess.Move{Promotion: chess.QueenPromotion, From: chess.Hex{File: 0, Rank: 1}, To: chess.Hex{File: 0, Rank: 0}}, // valid move
 			state:  s2,
 			player: *s2.BlackPlayer,
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			result, err := MakeGameMove(ctx, stores, test.state.ID, test.player, test.pm)
-			if err != nil {
+			if _, err := MakeGameMove(ctx, stores, test.state.ID, test.player, test.pm); err != nil {
 				assert.Equal(t, test.expErr, err)
-			} else {
-				assert.Equal(t, test.pm, result.Move.PieceMove)
 			}
 		})
 	}
@@ -149,7 +147,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-forfeit")
 
 	gameID := "test123"
-	inState := MakeState(gameID, RealTime)
+	inState := MakeState(gameID, TcRealTime, TcRandom, nil)
 	inState.WhitePlayer = &PlayerState{ID: 1}
 	inState.BlackPlayer = &PlayerState{ID: 2}
 	inState.Game.Moves = []chess.HistMove{{

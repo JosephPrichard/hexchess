@@ -22,10 +22,14 @@ func createTestSessions(t *testing.T, rdb data.Redis) {
 
 func createTestChessStates(t *testing.T, rdb data.Redis) {
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-update-password")
+
+	state1 := data.MakeState("game1", data.TcRealTime, data.TcRandom, nil)
+	state1.WhitePlayer = &data.PlayerState{ID: 2, Name: "user2", Country: "us", Elo: 1000}
+
 	for _, state := range []data.ChessState{
-		data.MakeStateWithPlayers("game1", data.RealTime, &data.PlayerState{ID: 2, Name: "user2", Country: "us", Elo: 1000}, nil),
-		data.MakeState("game2", data.RealTime),
-		data.MakeState("game3", data.RealTime),
+		state1,
+		data.MakeState("game2", data.TcRealTime, data.TcRandom, nil),
+		data.MakeState("game3", data.TcRealTime, data.TcRandom, nil),
 	} {
 		if _, err := data.SetChessState(ctx, rdb, state.ID, state); err != nil {
 			t.Fatalf("failed to create test states: %v", err)
