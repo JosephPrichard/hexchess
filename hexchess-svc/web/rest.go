@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
 	"hexchess-svc/data"
 	"log/slog"
@@ -14,16 +12,21 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/api/idtoken"
+	"google.golang.org/protobuf/proto"
 )
 
 type RestHandler = func(state *ServerState, w http.ResponseWriter, r *http.Request) error
 
 func makeRestHandler(state *ServerState, h RestHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		slog.InfoContext(r.Context(), "request received", "method", r.Method, "url", r.URL, "headers", r.Header)
+		ctx := r.Context()
+		slog.InfoContext(ctx, "request received", "method", r.Method, "url", r.URL, "headers", r.Header)
 
 		if err := h(state, w, r); err != nil {
-			slog.ErrorContext(r.Context(), "request failed", "err", err, "method", r.Method, "url", r.URL, "headers", r.Header)
+			slog.ErrorContext(ctx, "request failed", "err", err, "method", r.Method, "url", r.URL)
 
 			status, m := HttpStatusFromErr(err)
 			writeJSON(w, status, ServiceView{Message: m, Status: status})
@@ -82,8 +85,6 @@ func HandleRegister(state *ServerState, w http.ResponseWriter, r *http.Request) 
 		Password: body.Password,
 		Country:  "us",
 		Elo:      data.StartElo,
-		Wins:     0,
-		Losses:   0,
 	})
 	if errors.Is(err, data.ErrTakenUsername) {
 		return ErrHttpDuplicateUsername
@@ -113,28 +114,8 @@ func HandleRegister(state *ServerState, w http.ResponseWriter, r *http.Request) 
 	return nil
 }
 
-type LoginBody struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-func HandleLogin(state *ServerState, w http.ResponseWriter, r *http.Request) error {
-	var body LoginBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		return err
-	}
-
-	ctx := r.Context()
-	user, err := data.VerifyUserTx(ctx, state.Pdb, body.Username, body.Password)
-	if errors.Is(err, data.ErrUserNotFound) {
-		return ErrHttpInvalidLogin
-	} else if errors.Is(err, data.ErrTooManyLoginAttempts) {
-		return ErrHttpTooManyLoginAttempts
-	} else if err != nil {
-		return fmt.Errorf("failed to verify user: %w", err)
-	}
-
-	t, err := SetSessionPlayer(ctx, state.Rdb, w, data.PlayerState{
+func handleLoginSession(ctx context.Context, rdb *data.Redis, w http.ResponseWriter, user data.VerifiedUser) error {
+	t, err := SetSessionPlayer(ctx, rdb, w, data.PlayerState{
 		ID:      user.ID,
 		Name:    user.Username,
 		Country: user.Country,
@@ -154,6 +135,71 @@ func HandleLogin(state *ServerState, w http.ResponseWriter, r *http.Request) err
 		TTLSecs:  t,
 	})
 	return nil
+}
+
+type LoginBody struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+func HandleLogin(state *ServerState, w http.ResponseWriter, r *http.Request) error {
+	var body LoginBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		return err
+	}
+
+	ctx := r.Context()
+	user, err := data.VerifyUserTx(ctx, state.Pdb, body.Username, body.Password)
+	if err != nil {
+		switch err {
+		case data.ErrUserNotFound:
+			return ErrHttpInvalidLogin
+		case data.ErrTooManyLoginAttempts:
+			return ErrHttpTooManyLoginAttempts
+		default:
+			return fmt.Errorf("failed to verify user: %w", err)
+		}
+	}
+
+	return handleLoginSession(ctx, state.Rdb, w, user)
+}
+
+type GoogleLoginBody struct {
+	Token string `json:"token"`
+}
+
+const UsernameClaim string = "email"
+
+func HandleGoogleLogin(state *ServerState, w http.ResponseWriter, r *http.Request) error {
+	var body GoogleLoginBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		return err
+	}
+
+	ctx := r.Context()
+
+	payload, err := idtoken.Validate(ctx, body.Token, state.GoogleAPIKey)
+	if err != nil {
+		return fmt.Errorf("failed to validate google id token: %w", err)
+	}
+	googleAccountID := payload.Subject
+	username, ok := payload.Claims[UsernameClaim].(string)
+	if !ok {
+		return fmt.Errorf("expected claim '%s' to be provided in payload: %v", UsernameClaim, payload)
+	}
+
+	slog.InfoContext(ctx, "validated google account id token", "googleAccountID", googleAccountID)
+
+	user, err := data.SelectOrInsertGoogleUser(ctx, state.Pdb.Query, googleAccountID, data.GoogleUserInst{
+		Username: username,
+		Country:  "us",
+		Elo:      data.StartElo,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to upsert verified google user: %w", err)
+	}
+
+	return handleLoginSession(ctx, state.Rdb, w, user)
 }
 
 type UpdatePasswordBody struct {

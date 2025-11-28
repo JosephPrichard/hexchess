@@ -2,13 +2,14 @@ package data
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"hexchess-svc/chess"
 	"hexchess-svc/util"
 	"math"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func assertStateRdb(t *testing.T, rdb *Redis, expState ChessState) {
@@ -68,7 +69,7 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 }
 
 func TestMakeMove(t *testing.T) {
-	dbs, closer := BeforeDatabasesTests(t, true)
+	databases, closer := BeforeDatabasesTests(t, true)
 	defer closer()
 
 	s1 := MakeState("test1", TcRealTime, TcRandom, nil)
@@ -98,7 +99,7 @@ func TestMakeMove(t *testing.T) {
 
 	for _, state := range []ChessState{s1, s2} {
 		state.Game.InitPieceMoves()
-		if _, err := SetChessState(ctx, dbs.Rdb, state.ID, state); err != nil {
+		if _, err := SetChessState(ctx, databases.Rdb, state.ID, state); err != nil {
 			t.Fatalf("failed initialize test state: %v", err)
 		}
 	}
@@ -133,7 +134,7 @@ func TestMakeMove(t *testing.T) {
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			if _, err := MakeGameMove(ctx, &dbs, test.state.ID, test.player, test.pm); err != nil {
+			if _, err := MakeGameMove(ctx, &databases, test.state.ID, test.player, test.pm); err != nil {
 				assert.Equal(t, test.expErr, err)
 			}
 		})
@@ -141,7 +142,7 @@ func TestMakeMove(t *testing.T) {
 }
 
 func TestForfeit_BlackForfeits(t *testing.T) {
-	dbs, closer := BeforeDatabasesTests(t, true)
+	databases, closer := BeforeDatabasesTests(t, true)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-forfeit")
@@ -154,16 +155,16 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 		PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}},
 	}}
 
-	if _, err := SetChessState(ctx, dbs.Rdb, gameID, inState); err != nil {
+	if _, err := SetChessState(ctx, databases.Rdb, gameID, inState); err != nil {
 		t.Fatalf("failed initialize test state: %v", err)
 	}
 
-	assert.NoError(t, ForfeitGame(ctx, &dbs, gameID, *inState.BlackPlayer))
+	assert.NoError(t, ForfeitGame(ctx, &databases, gameID, *inState.BlackPlayer))
 
 	expState := inState.DeepCopy()
 	expState.IsEnded = true
 
-	assertStateRdb(t, dbs.Rdb, expState)
+	assertStateRdb(t, databases.Rdb, expState)
 }
 
 func TestUpdateGameResultTx(t *testing.T) {

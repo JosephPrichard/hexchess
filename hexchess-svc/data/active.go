@@ -18,14 +18,14 @@ func GetActiveCount(ctx context.Context, conn redis.Conn, activeUsersZSet string
 func GetActiveCountWithExpiry(ctx context.Context, conn redis.Conn, activeUsersZSet string, expireBefore int64) (int64, error) {
 	count, err := redis.Int64(conn.Do("ZREMRANGEBYSCORE", activeUsersZSet, "-inf", expireBefore))
 	if err != nil {
-		return 0, fmt.Errorf("failed to expire users: %w", err)
+		return 0, fmt.Errorf("failed to 'ZREMRANGEBYSCORE' expireD users: %w", err)
 	}
 	if count > 0 {
 		slog.InfoContext(ctx, "expired users with keys", "count", count)
 	}
 	count, err = redis.Int64(conn.Do("ZCARD", activeUsersZSet))
 	if err != nil {
-		return 0, fmt.Errorf("failed to select users count: %w", err)
+		return 0, fmt.Errorf("failed to 'ZCARD' users count: %w", err)
 	}
 	slog.InfoContext(ctx, "selected users count", "count", count)
 	return count, err
@@ -36,7 +36,7 @@ func RetainActiveUser(ctx context.Context, rdb *Redis, id string) error {
 	defer conn.Close()
 
 	if _, err := conn.Do("ZADD", rdb.ActiveUsersZSet, "XX", float64(time.Now().UnixMilli()), id); err != nil {
-		return fmt.Errorf("failed to add user %s: %w", id, err)
+		return fmt.Errorf("failed to 'ZADD' user %s: %w", id, err)
 	}
 	slog.InfoContext(ctx, "retained active user", "id", id)
 	return nil
@@ -52,7 +52,7 @@ func AddActiveUserOn(ctx context.Context, rdb *Redis, id string, expire time.Tim
 	defer conn.Close()
 
 	if _, err := conn.Do("ZADD", rdb.ActiveUsersZSet, "NX", float64(expire.UnixMilli()), id); err != nil {
-		return 0, fmt.Errorf("failed to add user: %v: %w", id, err)
+		return 0, fmt.Errorf("failed to 'ZADD' user: %v: %w", id, err)
 	}
 	slog.InfoContext(ctx, "added active user", "id", id)
 	return GetActiveCountWithExpiry(ctx, conn, rdb.ActiveUsersZSet, expireBefore)
@@ -63,7 +63,7 @@ func RemoveActiveUser(ctx context.Context, rdb *Redis, id string) (int64, error)
 	defer conn.Close()
 
 	if _, err := conn.Do("ZREM", rdb.ActiveUsersZSet, id); err != nil {
-		return 0, fmt.Errorf("failed to remove user: %v: %w", id, err)
+		return 0, fmt.Errorf("failed to 'ZREM' user: %v: %w", id, err)
 	}
 	slog.InfoContext(ctx, "removed active user", "id", id)
 	return GetActiveCount(ctx, conn, rdb.ActiveUsersZSet)

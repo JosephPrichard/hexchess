@@ -6,18 +6,19 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
-	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/sync/errgroup"
 	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"log/slog"
 	"math"
 	"sort"
 	"time"
+
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/sync/errgroup"
 )
 
 type UserEntity struct {
@@ -140,15 +141,14 @@ func mapUserFromRow(row db.SelectUserByIDRow) UserEntity {
 }
 
 func InsertUser(ctx context.Context, query *db.Queries, inst UserInst) (UserEntity, error) {
-	fail := func(str string, err error) (UserEntity, error) {
-		err = fmt.Errorf("%s: %w", str, err)
+	fail := func(err error) (UserEntity, error) {
 		slog.ErrorContext(ctx, "failed to insert user", "inst", inst, "err", err)
 		return UserEntity{}, err
 	}
 
 	hash, err := hashPassword(inst.Password)
 	if err != nil {
-		return fail("failed to generate hash", err)
+		return fail(fmt.Errorf("failed to generate hash: %w", err))
 	}
 
 	row, err := query.InsertUser(ctx, mapInsertUserParams(inst, hash))
@@ -160,7 +160,7 @@ func InsertUser(ctx context.Context, query *db.Queries, inst UserInst) (UserEnti
 		}
 	}
 	if err != nil {
-		return fail("failed to insert user to db", err)
+		return fail(fmt.Errorf("failed to insert user to db: %w", err))
 	}
 
 	user := mapUserFromRow(db.SelectUserByIDRow(row))
@@ -173,6 +173,8 @@ func BatchInsertUsers(ctx context.Context, query *db.Queries, insts []UserInst) 
 
 	var eg errgroup.Group
 	for i, inst := range insts {
+		i := i
+		inst := inst
 		eg.Go(func() error {
 			hash, err := hashPassword(inst.Password)
 			if err != nil {
@@ -215,7 +217,6 @@ func VerifyUserTx(ctx context.Context, postgres *Postgres, username string, inpu
 		Ctx:      ctx,
 		Postgres: postgres,
 		TxFn: func(query *db.Queries) (VerifiedUser, error) {
-			// we want to wrap this in a txn, so only a single login attempt can be active at a time - to prevent DDOS attacks used to skip login attempt count
 			return VerifyUser(ctx, query, username, inputPassword)
 		},
 		ErrWhiteList: []error{ErrTooManyLoginAttempts, ErrUserNotFound},
@@ -228,13 +229,18 @@ const LockoutDuration = time.Minute * 1
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
 func VerifyUser(ctx context.Context, query *db.Queries, username string, inputPassword string) (VerifiedUser, error) {
+	fail := func(err error) (VerifiedUser, error) {
+		slog.ErrorContext(ctx, "failed to verify user", "username", username, "err", err)
+		return VerifiedUser{}, err
+	}
+
 	var u VerifiedUser
 
 	login, err := query.SelectLoginByName(ctx, username)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return u, ErrUserNotFound
 	} else if err != nil {
-		return u, fmt.Errorf("failed to select user '%s' by login: %w", username, err)
+		return fail(fmt.Errorf("failed to select user '%s' by login: %w", username, err))
 	}
 
 	isExceedAttempts := login.LoginAttempts > 0 && login.LoginAttempts%LoginAttemptsDivisor == 0
@@ -243,21 +249,79 @@ func VerifyUser(ctx context.Context, query *db.Queries, username string, inputPa
 	if isLocked {
 		return u, ErrTooManyLoginAttempts
 	}
+
 	saltedPassword := inputPassword + login.Salt
 	loginErr := bcrypt.CompareHashAndPassword([]byte(login.Password), []byte(saltedPassword))
 
 	if loginErr != nil {
 		if err := query.IncrLoginAttempts(ctx, login.ID); err != nil {
-			return VerifiedUser{}, fmt.Errorf("failed to incr user %d login attempts: %w", login.ID, err)
+			return fail(fmt.Errorf("failed to incr user %d login attempts: %w", login.ID, err))
 		}
 		slog.ErrorContext(ctx, "user login is invalid", "username", username, "err", loginErr)
 		return u, ErrUserNotFound
 	}
+
 	if err := query.ResetLoginAttempts(ctx, login.ID); err != nil {
-		return u, fmt.Errorf("failed to reset user %d login attempts: %w", login.ID, err)
+		return fail(fmt.Errorf("failed to reset user %d login attempts: %w", login.ID, err))
 	}
-	u = VerifiedUser{ID: login.ID, Username: login.Username, Country: login.Country.String, Elo: login.Elo}
+	u = VerifiedUser{
+		ID:       login.ID,
+		Username: login.Username,
+		Country:  login.Country.String,
+		Elo:      login.Elo,
+	}
 	slog.InfoContext(ctx, "user login is valid", "user", u)
+	return u, nil
+}
+
+type GoogleUserInst struct {
+	Username string
+	Country  string
+	Elo      float64
+	Wins     int
+	Losses   int
+}
+
+func SelectOrInsertGoogleUser(ctx context.Context, query *db.Queries, googleAccountID string, inst GoogleUserInst) (VerifiedUser, error) {
+	fail := func(err error) (VerifiedUser, error) {
+		slog.ErrorContext(ctx, "failed to select or insert google user", "googleAccountID", googleAccountID, "err", err)
+		return VerifiedUser{}, err
+	}
+
+	var u VerifiedUser
+	var isCreated bool
+
+	login, err := query.SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
+	if errors.Is(err, pgx.ErrNoRows) {
+		isCreated = false
+	} else if err != nil {
+		return fail(fmt.Errorf("failed to select user '%s' by google account id: %w", googleAccountID, err))
+	} else {
+		isCreated = true
+	}
+
+	if !isCreated {
+		if _, err := query.InsertUser(ctx, db.InsertUserParams{
+			Username:        inst.Username,
+			Country:         pgtype.Text{Valid: true, String: inst.Country},
+			Elo:             inst.Elo,
+			HighestElo:      inst.Elo,
+			Wins:            int32(inst.Wins),
+			Losses:          int32(inst.Losses),
+			GoogleAccountID: pgtype.Text{String: googleAccountID, Valid: true},
+		}); err != nil {
+			return fail(fmt.Errorf("failed to insert google user '%s': %w", googleAccountID, err))
+		}
+		slog.InfoContext(ctx, "inserted a google user account", "inst", inst, "googleAccountID", googleAccountID)
+	}
+
+	u = VerifiedUser{
+		ID:       login.ID,
+		Username: login.Username,
+		Country:  login.Country.String,
+		Elo:      login.Elo,
+	}
+	slog.InfoContext(ctx, "resolved verified user from googleAccountID", "user", u, "googleAccountID", googleAccountID)
 	return u, nil
 }
 
@@ -293,7 +357,11 @@ func UpdateUserPassword(ctx context.Context, query *db.Queries, id int64, newPas
 	if err != nil {
 		return fmt.Errorf("failed to hash password for user %d: %w", id, err)
 	}
-	err = query.UpdatePassword(ctx, db.UpdatePasswordParams{ID: id, Password: hash.HashedPassword, Salt: hash.Salt})
+	err = query.UpdatePassword(ctx, db.UpdatePasswordParams{
+		ID:       id,
+		Password: hash.HashedPassword,
+		Salt:     hash.Salt,
+	})
 	util.DynLog(ctx, "updated password", err, "id", id)
 	return err
 }
@@ -323,10 +391,12 @@ func GetUserByIDs(ctx context.Context, query *db.Queries, ids []int64) ([]UserEn
 		slog.ErrorContext(ctx, "failed to select many users", "ids", ids, "err", err)
 		return nil, fmt.Errorf("failed to select many users: %w", err)
 	}
+
 	var users []UserEntity
 	for _, row := range rows {
 		users = append(users, mapUserFromRow(db.SelectUserByIDRow(row)))
 	}
+
 	slog.InfoContext(ctx, "selected users", "ids", ids, "users", users)
 	return users, nil
 }
@@ -343,7 +413,11 @@ func SearchUsersByName(ctx context.Context, query *db.Queries, name string, page
 		return nil, ErrSearchLimit
 	}
 
-	rows, err := query.SelectUsersBySimilarity(ctx, db.SelectUsersBySimilarityParams{Username: name, Limit: perPage, Offset: offset})
+	rows, err := query.SelectUsersBySimilarity(ctx, db.SelectUsersBySimilarityParams{
+		Username: name,
+		Limit:    perPage,
+		Offset:   offset,
+	})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to select users by similarity", "err", err, "name", name, "page", page, "limit", perPage, "offset", offset)
 		return nil, fmt.Errorf("failed to select users by similarity: %w", err)

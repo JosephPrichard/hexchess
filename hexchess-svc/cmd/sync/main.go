@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"hexchess-svc/data"
 	"hexchess-svc/db"
 	"hexchess-svc/util"
@@ -10,6 +9,8 @@ import (
 	"log/slog"
 	"os"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -41,9 +42,9 @@ func main() {
 	rdb := data.MakeRdb(redisPrimaryURL, "")
 	defer rdb.Close()
 
-	stores := &data.Databases{Pdb: data.MakePostgres(q, pool), Rdb: rdb}
+	databases := &data.Databases{Pdb: data.MakePostgres(q, pool), Rdb: rdb}
 
-	if err := data.SyncLeaderboard(ctx, stores); err != nil {
+	if err := data.SyncLeaderboard(ctx, databases); err != nil {
 		util.LogFatalErr("failed to sync leaderboard", err)
 	}
 	log.Printf("finished syncing leaderboard: %v", time.Now().Sub(start))

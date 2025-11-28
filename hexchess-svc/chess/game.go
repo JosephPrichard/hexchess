@@ -212,7 +212,7 @@ func (g *Game) ValidateMove(move Move) error {
 }
 
 type HistMove struct {
-	// stores any information necessary to generate a move history notation
+	// databases any information necessary to generate a move history notation
 	PieceMove
 	Promotion Promotion
 	CollFile  bool

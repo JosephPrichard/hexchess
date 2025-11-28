@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"hexchess-svc/data"
 	"hexchess-svc/util"
 	"net/http"
@@ -16,6 +15,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func scanEventsFunc(resp *http.Response, expEvents int, fn func(string)) {
@@ -68,11 +69,11 @@ func parseEventData(input string) string {
 func TestHandleCountEvents(t *testing.T) {
 	rdb := data.BeforeRedisTests(t)
 	defer rdb.Close()
-	stores := data.Databases{Rdb: rdb}
+	databases := data.Databases{Rdb: rdb}
 
-	state := MakeServerState(stores, nil)
+	state := MakeDefaultServerState(databases)
 	state.MakeID = func() string { return "id1" }
-	data.ListenUnicastEvents(state.CountsCaster, stores.Rdb.PrimaryAddr)
+	data.ListenUnicastEvents(state.CountsCaster, databases.Rdb.PrimaryAddr)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
 	defer ts.Close()
@@ -87,8 +88,8 @@ func TestHandleCountEvents(t *testing.T) {
 	go func() {
 		ctx := context.WithValue(context.Background(), util.Trace, "broadcast-counts")
 		errChan <- errors.Join(nil,
-			data.BroadcastActiveCount(ctx, stores.Rdb, 2, "id3"),
-			data.BroadcastGameCount(ctx, stores.Rdb, 1, "id2"))
+			data.BroadcastActiveCount(ctx, databases.Rdb, 2, "id3"),
+			data.BroadcastGameCount(ctx, databases.Rdb, 1, "id2"))
 	}()
 
 	expEvents := []string{
@@ -105,13 +106,13 @@ func TestHandleCountEvents(t *testing.T) {
 func TestHandleUserEvents(t *testing.T) {
 	rdb := data.BeforeRedisTests(t)
 	defer rdb.Close()
-	stores := data.Databases{Rdb: rdb}
+	databases := data.Databases{Rdb: rdb}
 
-	state := MakeServerState(stores, nil)
+	state := MakeDefaultServerState(databases)
 	state.MakeID = func() string { return "id1" }
-	data.ListenUsersMessages(state.UsersCaster, stores.Rdb.PrimaryAddr)
+	data.ListenUsersMessages(state.UsersCaster, databases.Rdb.PrimaryAddr)
 
-	createTestSessions(t, stores.Rdb)
+	createTestSessions(t, databases.Rdb)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
 	defer ts.Close()
@@ -130,9 +131,9 @@ func TestHandleUserEvents(t *testing.T) {
 	go func() {
 		ctx := context.WithValue(context.Background(), util.Trace, "broadcast-user-events")
 		errChan <- errors.Join(nil,
-			data.BroadcastChallenge(ctx, stores.Rdb, 1, data.ChallengeEntity{ChallengerID: 1, TimeControl: data.TcRealTime, StartColor: data.TcWhite}),
-			data.BroadcastChallenge(ctx, stores.Rdb, 2, data.ChallengeEntity{ChallengerID: 2}),
-			data.BroadcastChallenge(ctx, stores.Rdb, 1, data.ChallengeEntity{ChallengerID: 1, TimeControl: data.TcRealTime, StartColor: data.TcWhite}))
+			data.BroadcastChallenge(ctx, databases.Rdb, 1, data.ChallengeEntity{ChallengerID: 1, TimeControl: data.TcRealTime, StartColor: data.TcWhite}),
+			data.BroadcastChallenge(ctx, databases.Rdb, 2, data.ChallengeEntity{ChallengerID: 2}),
+			data.BroadcastChallenge(ctx, databases.Rdb, 1, data.ChallengeEntity{ChallengerID: 1, TimeControl: data.TcRealTime, StartColor: data.TcWhite}))
 	}()
 
 	jsonData := `{"challengerId":1,"challengerName":"","challengerCountry":"","challengerElo":0,"challengeeId":0,"challengeeName":"","challengeeCountry":"","challengeeElo":0,"timeControl":"REAL_TIME","startColor":"WHITE","madeOn":"0001-01-01T00:00:00Z"}`
@@ -151,10 +152,10 @@ func TestHandleUserEvents(t *testing.T) {
 func TestHandleCountEvents_Throughput(t *testing.T) {
 	rdb := data.BeforeRedisTests(t)
 	defer rdb.Close()
-	stores := data.Databases{Rdb: rdb}
+	databases := data.Databases{Rdb: rdb}
 
-	state := MakeServerState(stores, nil)
-	data.ListenUnicastEvents(state.CountsCaster, stores.Rdb.PrimaryAddr)
+	state := MakeDefaultServerState(databases)
+	data.ListenUnicastEvents(state.CountsCaster, databases.Rdb.PrimaryAddr)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
 	defer ts.Close()

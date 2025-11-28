@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
 	"hexchess-svc/chess"
 	"hexchess-svc/data"
 	"hexchess-svc/util"
@@ -11,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type CasterState struct {
@@ -24,10 +25,15 @@ type CountryState struct {
 	CountryMap  map[string]struct{}
 }
 
+type APIKeys struct {
+	GoogleAPIKey string
+}
+
 type ServerState struct {
 	data.Databases
 	CasterState
 	CountryState
+	APIKeys
 	MakeID func() string
 }
 
@@ -50,12 +56,23 @@ func makeCountryState(countryList []string) CountryState {
 	return CountryState{CountryList: countryList, CountryMap: countryMap}
 }
 
-func MakeServerState(dbs data.Databases, countryList []string) ServerState {
+func MakeID() string { return uuid.NewString() }
+
+func MakeDefaultServerState(databases data.Databases) ServerState {
 	return ServerState{
-		Databases:    dbs,
+		Databases:   databases,
+		CasterState: makeCasterState(),
+		MakeID:      MakeID,
+	}
+}
+
+func MakeServerState(databases data.Databases, countryList []string, googleAPIKey string) ServerState {
+	return ServerState{
+		Databases:    databases,
 		CasterState:  makeCasterState(),
 		CountryState: makeCountryState(countryList),
-		MakeID:       func() string { return uuid.NewString() },
+		APIKeys:      APIKeys{GoogleAPIKey: googleAPIKey},
+		MakeID:       MakeID,
 	}
 }
 
@@ -109,6 +126,7 @@ func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 
 	handleRest("POST", "/api/register", HandleRegister)
 	handleRest("POST", "/api/login", HandleLogin)
+	handleRest("POST", "/api/login/google", HandleGoogleLogin)
 	handleRest("POST", "/api/session/temp", HandleCreateTempSession)
 	handleRest("POST", "/api/session/refresh", HandleRefreshSession)
 	handleRest("POST", "/api/logout", HandleLogout)

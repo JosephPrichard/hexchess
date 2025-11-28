@@ -1,4 +1,4 @@
-import type { ChessBoard, ChessGame, PieceMove, PieceMoves } from '../api/messages';
+import type { ChessBoard, ChessGame } from '../pb/messages';
 import type { Hex } from '../api/model';
 export const ranksPerFile = [6, 7, 8, 9, 10, 11, 10, 9, 8, 7, 6];
 
@@ -189,5 +189,5 @@ export function findKeyedPieces(boardState: ChessBoard, prevPieces?: [number, Pl
 			}
 		});
 	}
-	return nextPieces.entries().toArray();
+	return Array.from(nextPieces.entries());
 }

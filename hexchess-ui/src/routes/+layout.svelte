@@ -105,6 +105,9 @@
 	setNotificationsContext({ addNotification, deleteNotification, counts });
 </script>
 
+<svelte:head>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</svelte:head>
 <div class="bottom-right-anchor notifications-box">
 	{#each Object.values(notifications) as notification, i (i)}
 		<div in:fade={{ duration: 300, delay: 0 }} out:fade={{ duration: 300, delay: 0 }} class="notification">

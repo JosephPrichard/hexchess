@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/sync/errgroup"
 	"hexchess-svc/chess"
 	"hexchess-svc/data"
 	"hexchess-svc/db"
@@ -15,6 +13,9 @@ import (
 	"log/slog"
 	"os"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/sync/errgroup"
 )
 
 func readMockFile[V any](filename string) []V {
@@ -59,7 +60,7 @@ func main() {
 	dbURL := os.Getenv("DB_URL")
 	redisPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
 
-	ctx := context.WithValue(context.Background(), util.Trace, "seed-stores-script")
+	ctx := context.WithValue(context.Background(), util.Trace, "seed-databases-script")
 
 	slog.InfoContext(ctx, "connecting to postgres db", "dbURL", dbURL)
 	pool, err := pgxpool.New(ctx, dbURL)

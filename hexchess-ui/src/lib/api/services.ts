@@ -2,7 +2,7 @@ import { codes } from '$lib/utils/error';
 import type { Action, ChallengeModel, ChessModel, ReplayModel, ServiceModel, SessionModel, UserModel, FullUserModel } from './model';
 import { v4 as uuidv4 } from 'uuid';
 import { env } from '$env/dynamic/public';
-import { MoveReplay } from './messages';
+import { MoveReplay } from '../pb/messages';
 
 export function appBaseURL() {
 	return env.PUBLIC_APP_BASE_URL || 'http://localhost:5173';
@@ -95,6 +95,15 @@ function postLogin(username: string, password: string) {
 		method: 'POST',
 		credentials: 'include',
 		body: JSON.stringify({ username, password }),
+	});
+}
+
+
+function postGoogleLogin(token: string) {
+	return requestJSON<SessionModel>(`${baseURL()}/login/google`, {
+		method: 'POST',
+		credentials: 'include',
+		body: JSON.stringify({ token }),
 	});
 }
 
@@ -268,6 +277,7 @@ const getCountries = cached(async (fetch?: FetchFn) => {
 
 export default {
 	postLogin,
+	postGoogleLogin,
 	postRegister,
 	postUpdateUser,
 	postUpdatePassword,

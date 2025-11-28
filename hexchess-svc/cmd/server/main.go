@@ -39,9 +39,8 @@ func main() {
 	redisPubSubURL := os.Getenv("REDIS_PUBSUB_URL")
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 	pprofPort := os.Getenv("PPROF_PORT")
+	// googleAPIKey := os.Getenv("GOOGLE_APIKEY")
 	//cookieDomain := os.Getenv("COOKIE_DOMAIN")
-
-	slog.Info("loaded environment variables", "envs", envMap)
 
 	var countryList []string
 	if err := json.Unmarshal(static.CountryListJson, &countryList); err != nil {
@@ -66,7 +65,7 @@ func main() {
 	rdb := data.MakeRdb(redisPrimaryURL, redisPubSubURL)
 	defer rdb.Close()
 
-	state := web.MakeServerState(data.Databases{Rdb: rdb, Pdb: postgres}, countryList)
+	state := web.MakeServerState(data.Databases{Rdb: rdb, Pdb: postgres}, countryList, "")
 
 	data.ListenGameMessages(state.GamesCaster, rdb.PubsubAddr)
 	data.ListenUsersMessages(state.UsersCaster, rdb.PubsubAddr)

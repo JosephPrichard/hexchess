@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"hexchess-svc/chess"
 	"hexchess-svc/data"
 	"hexchess-svc/db"
@@ -12,6 +11,8 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // scripts to easily view any protobuf serialized record in the database in text format for debugging
@@ -25,7 +26,7 @@ func main() {
 
 	dbURL := os.Getenv("DB_URL")
 
-	ctx := context.WithValue(context.Background(), util.Trace, "seed-stores-script")
+	ctx := context.WithValue(context.Background(), util.Trace, "seed-databases-script")
 
 	slog.InfoContext(ctx, "connecting to postgres db", "dbURL", dbURL)
 	pool, err := pgxpool.New(ctx, dbURL)

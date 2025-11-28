@@ -9,15 +9,11 @@ Starts the redis infrastructure used for caching and message delivery.
 
 `$ docker compose up`
 
+### Prebuild
+
+`make`
+
 ## Build & Execution (Local)
-
-### Compile
-
-Run `build.sh` contained in the root directory. 
-This will run `sqlc` to generate the Go DB client, 
-    `protoc` to generate the Go serializers, 
-    `npm run protogen` to generate the TypeScript serializers,
-    and `go build` to generate WASM artifacts for the UI.
 
 ### Env Variables
 
@@ -36,7 +32,7 @@ COOKIE_DOMAIN=localhost
 
 `$ cd hexchess-svc`
 
-`$ go run ./cmd/server/main.go`
+`$ go run cmd/server/main.go`
 
 ### Run UI
 

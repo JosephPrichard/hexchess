@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS users (
     password VARCHAR NOT NULL,
     salt VARCHAR NOT NULL,
     login_attempts INTEGER NOT NULL DEFAULT 0,
-    last_login_attempt TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    last_login_attempt TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    google_account_id VARCHAR
 );
 
 CREATE TABLE IF NOT EXISTS users_metadata (
