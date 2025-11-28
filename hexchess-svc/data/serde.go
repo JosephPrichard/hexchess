@@ -130,7 +130,7 @@ func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {
 	return nil, fmt.Errorf("unknown message type: %T", pbUm)
 }
 
-func SerializeChallengeMsg(id int64, ce ChallengeEntity) pb.UserMsg {
+func SerializeChallengeMsg(id int64, ce ChallengeEntity) *pb.UserMsg {
 	cm := &pb.UserMsg_Challenge{
 		Challenge: &pb.ChallengeMsg{
 			ChallengerId:      ce.ChallengerID,
@@ -146,5 +146,5 @@ func SerializeChallengeMsg(id int64, ce ChallengeEntity) pb.UserMsg {
 			MadeOn:            ce.MadeOn.Format(time.RFC3339),
 		},
 	}
-	return pb.UserMsg{UserId: strconv.Itoa(int(id)), Value: cm}
+	return &pb.UserMsg{UserId: strconv.Itoa(int(id)), Value: cm}
 }

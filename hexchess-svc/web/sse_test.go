@@ -73,7 +73,7 @@ func TestHandleCountEvents(t *testing.T) {
 
 	state := MakeDefaultServerState(databases)
 	state.MakeID = func() string { return "id1" }
-	data.ListenUnicastEvents(state.CountsCaster, databases.Rdb.PrimaryAddr)
+	<-data.ListenUnicastEvents(state.CountsCaster, databases.Rdb.PrimaryAddr)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
 	defer ts.Close()
@@ -110,7 +110,7 @@ func TestHandleUserEvents(t *testing.T) {
 
 	state := MakeDefaultServerState(databases)
 	state.MakeID = func() string { return "id1" }
-	data.ListenUsersMessages(state.UsersCaster, databases.Rdb.PrimaryAddr)
+	<-data.ListenUsersMessages(state.UsersCaster, databases.Rdb.PrimaryAddr)
 
 	createTestSessions(t, databases.Rdb)
 
@@ -155,7 +155,7 @@ func TestHandleCountEvents_Throughput(t *testing.T) {
 	databases := data.Databases{Rdb: rdb}
 
 	state := MakeDefaultServerState(databases)
-	data.ListenUnicastEvents(state.CountsCaster, databases.Rdb.PrimaryAddr)
+	<-data.ListenUnicastEvents(state.CountsCaster, databases.Rdb.PrimaryAddr)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
 	defer ts.Close()

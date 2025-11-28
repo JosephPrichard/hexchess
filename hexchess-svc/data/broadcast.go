@@ -53,85 +53,89 @@ func BroadcastGameCount(ctx context.Context, rdb *Redis, count int64, id string)
 
 func BroadcastChallenge(ctx context.Context, rdb *Redis, id int64, c ChallengeEntity) error {
 	um := SerializeChallengeMsg(id, c)
-	b, err := proto.Marshal(&um)
+	b, err := proto.Marshal(um)
 	if err != nil {
 		return fmt.Errorf("failed to marshal user challenge message: %w", err)
 	}
 	return BroadcastMessage(ctx, rdb, rdb.UsersChan, b)
 }
 
-func ListenGameMessages(m *MultiCasterMap, addr string) {
-	conn, err := redis.Dial("tcp", addr)
-	if err != nil {
-		slog.Error("failed to get conn for pubsub", "err", err)
-		return
-	}
-	psc := redis.PubSubConn{Conn: conn}
-	psc.Subscribe(GamesChan)
-	go listenGameMessages(psc, m)
-}
-
-func listenGameMessages(psc redis.PubSubConn, m *MultiCasterMap) {
-	defer psc.Close()
-	ch := GamesChan
-	slog.Info("starting channel subscriber", "channel", ch)
+func ListenRedis(addr string, recvLoop func(conn redis.Conn)) {
 	for {
-		switch v := psc.Receive().(type) {
-		case redis.Message:
-			var goi pb.GameOutputID
-			if err := proto.Unmarshal(v.Data, &goi); err != nil {
-				slog.Error("failed to unmarshal game message", "err", err, "channel", ch)
-				continue
-			}
-			slog.Info("received message on channel", "ID", goi.GameId, "channel", v.Channel)
-			go m.Broadcast(goi.GameId, v.Data)
-		case redis.Subscription:
-			slog.Info("received subscription on channel", "value", v, "channel", ch)
-		case error:
-			slog.Error("failed to receive from games channel", "err", v, "channel", ch)
-			return
+		conn, err := redis.Dial("tcp", addr)
+		defer conn.Close()
+		if err != nil {
+			slog.Error("failed to get conn for pubsub", "err", err)
+		} else {
+			recvLoop(conn)
 		}
+		<-time.After(time.Second)
 	}
 }
 
-func ListenUsersMessages(m *MultiCasterMap, addr string) {
-	conn, err := redis.Dial("tcp", addr)
-	if err != nil {
-		slog.Error("failed to get conn for pubsub", "err", err)
-		return
-	}
-	psc := redis.PubSubConn{Conn: conn}
-	psc.Subscribe(UsersChan)
-	go listenUserMessages(psc, m)
+func ListenGameMessages(m *MultiCasterMap, addr string) chan struct{} {
+	connCh := make(chan struct{})
+	go ListenRedis(addr, func(conn redis.Conn) {
+		redisChan := GamesChan
+		psc := redis.PubSubConn{Conn: conn}
+		psc.Subscribe(GamesChan)
+		slog.Info("starting channel subscriber", "channel", redisChan)
+		connCh <- struct{}{}
+		for {
+			switch v := psc.Receive().(type) {
+			case redis.Message:
+				var goi pb.GameOutputID
+				if err := proto.Unmarshal(v.Data, &goi); err != nil {
+					slog.Error("failed to unmarshal game message", "err", err, "channel", redisChan)
+					continue
+				}
+				slog.Info("received message on channel", "ID", goi.GameId, "channel", v.Channel)
+				go m.Broadcast(goi.GameId, v.Data)
+			case redis.Subscription:
+				slog.Info("received subscription on channel", "value", v, "channel", redisChan)
+			case error:
+				slog.Error("failed to receive from games channel", "err", v, "channel", redisChan)
+				return
+			}
+		}
+	})
+	return connCh
 }
 
-func listenUserMessages(psc redis.PubSubConn, m *MultiCasterMap) {
-	defer psc.Close()
-	ch := UsersChan
-	slog.Info("starting channel subscriber", "channel", ch)
-	for {
-		switch v := psc.Receive().(type) {
-		case redis.Message:
-			var um pb.UserMsg
-			if err := proto.Unmarshal(v.Data, &um); err != nil {
-				slog.Error("failed to unmarshal user message", "err", err, "channel", ch)
-				continue
-			}
-			slog.Info("received message on channel", "userID", um.UserId, "channel", v.Channel)
 
-			buf, err := MarshalUserMsgJson(&um)
-			if err != nil {
-				slog.Error("failed to marshal user message", "err", err, "channel", ch)
-				continue
+func ListenUsersMessages(m *MultiCasterMap, addr string) chan struct{} {
+	connCh := make(chan struct{})
+	go ListenRedis(addr, func(conn redis.Conn) {
+		redisChan := UsersChan
+		psc := redis.PubSubConn{Conn: conn}
+		psc.Subscribe(UsersChan)
+		slog.Info("starting channel subscriber", "channel", redisChan)
+		connCh <- struct{}{}
+		for {
+			switch v := psc.Receive().(type) {
+			case redis.Message:
+				var um pb.UserMsg
+				if err := proto.Unmarshal(v.Data, &um); err != nil {
+					slog.Error("failed to unmarshal user message", "err", err, "channel", redisChan)
+					continue
+				}
+				slog.Info("received message on channel", "userID", um.UserId, "channel", v.Channel)
+
+				buf, err := MarshalUserMsgJson(&um)
+				if err != nil {
+					slog.Error("failed to marshal user message", "err", err, "channel", redisChan)
+					continue
+				}
+				m.Broadcast(um.UserId, buf)
+			case redis.Subscription:
+				slog.Info("received subscription on channel", "value", v, "channel", redisChan)
+			case error:
+				slog.Error("failed to receive from channel", "err", v, "channel", redisChan)
+				return
 			}
-			m.Broadcast(um.UserId, buf)
-		case redis.Subscription:
-			slog.Info("received subscription on channel", "value", v, "channel", ch)
-		case error:
-			slog.Error("failed to receive from channel", "err", v, "channel", ch)
-			return
 		}
-	}
+	})
+	return connCh
 }
 
 var EventMap = map[string]UcEventKind{
@@ -139,40 +143,35 @@ var EventMap = map[string]UcEventKind{
 	GamesCountChan:  UcGamesEk,
 }
 
-func ListenUnicastEvents(m *UniCaster, addr string) {
-	conn, err := redis.Dial("tcp", addr)
-	if err != nil {
-		slog.Error("failed to get conn for pubsub", "err", err)
-		return
-	}
-	psc := redis.PubSubConn{Conn: conn}
-	for ch := range EventMap {
-		psc.Subscribe(ch)
-	}
-	go listenUnicastEvents(psc, m)
-}
-
-func listenUnicastEvents(psc redis.PubSubConn, m *UniCaster) {
-	defer psc.Close()
-	slog.Info("starting channel subscriber", "eventMap", EventMap)
-	for {
-		switch v := psc.Receive().(type) {
-		case redis.Message:
-			strData := string(v.Data)
-			slog.Info("received event on channel", "event", strData, "channel", v.Channel) // unicast broadcasting is only being used to broadcastGameCounts counts (small data), so it is safe to log
-			eKind, ok := EventMap[v.Channel]
-			if !ok {
-				slog.Error("received event on unmapped channel", "channel", v.Channel, "eventMap", EventMap)
-				continue
-			}
-			m.Broadcast(UcEvent{Kind: eKind, Data: strData})
-		case redis.Subscription:
-			slog.Info("received subscription on channels", "value", v, "eventMap", EventMap)
-		case error:
-			slog.Error("failed to receive from channels", "err", v, "eventMap", EventMap)
-			return
+func ListenUnicastEvents(m *UniCaster, addr string) chan struct{} {
+	connCh := make(chan struct{})
+	go ListenRedis(addr, func(conn redis.Conn) {
+		psc := redis.PubSubConn{Conn: conn}
+		for redisChan := range EventMap {
+			psc.Subscribe(redisChan)
 		}
-	}
+		slog.Info("starting channel subscriber", "eventMap", EventMap)
+		connCh <- struct{}{}
+		for {
+			switch v := psc.Receive().(type) {
+			case redis.Message:
+				strData := string(v.Data)
+				slog.Info("received event on channel", "event", strData, "channel", v.Channel) // unicast broadcasting is only being used to broadcastGameCounts counts (small data), so it is safe to log
+				eKind, ok := EventMap[v.Channel]
+				if !ok {
+					slog.Error("received event on unmapped channel", "channel", v.Channel, "eventMap", EventMap)
+					continue
+				}
+				m.Broadcast(UcEvent{Kind: eKind, Data: strData})
+			case redis.Subscription:
+				slog.Info("received subscription on channels", "value", v, "eventMap", EventMap)
+			case error:
+				slog.Error("failed to receive from channels", "err", v, "eventMap", EventMap)
+				return
+			}
+		}
+	})
+	return connCh
 }
 
 type MultiCasterMap struct {
@@ -251,7 +250,7 @@ func (m *MultiCasterMap) Expire(expireDur time.Duration) {
 
 	m.mu.Lock()
 	for key, br := range m.m {
-		et := time.Now().Sub(br.GetLastAccess())
+		et := time.Since(br.GetLastAccess())
 		if et > expireDur {
 			expiredBrs = append(expiredBrs, pair{key, br})
 			delete(m.m, key)

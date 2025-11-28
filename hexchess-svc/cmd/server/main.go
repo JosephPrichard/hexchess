@@ -67,9 +67,9 @@ func main() {
 
 	state := web.MakeServerState(data.Databases{Rdb: rdb, Pdb: postgres}, countryList, "")
 
-	data.ListenGameMessages(state.GamesCaster, rdb.PubsubAddr)
-	data.ListenUsersMessages(state.UsersCaster, rdb.PubsubAddr)
-	data.ListenUnicastEvents(state.CountsCaster, rdb.PubsubAddr)
+	<-data.ListenGameMessages(state.GamesCaster, rdb.PubsubAddr)
+	<-data.ListenUsersMessages(state.UsersCaster, rdb.PubsubAddr)
+	<-data.ListenUnicastEvents(state.CountsCaster, rdb.PubsubAddr)
 
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 

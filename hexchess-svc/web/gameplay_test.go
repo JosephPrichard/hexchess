@@ -53,7 +53,7 @@ func TestHandleGameplayWs(t *testing.T) {
 	createTestChessStates(t, rdb)
 
 	state := MakeDefaultServerState(data.Databases{Rdb: rdb})
-	data.ListenGameMessages(state.GamesCaster, rdb.PrimaryAddr)
+	<-data.ListenGameMessages(state.GamesCaster, rdb.PrimaryAddr)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
 	defer ts.Close()
