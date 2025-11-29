@@ -4,8 +4,8 @@
 	import { ChessBoard, type ChessGame } from '$lib/pb/messages';
 	import { makeMoveState } from '$lib/state/move.svelte';
 	import Banner from '$lib/Banner.svelte';
-	import { clearBoard, defaultGame, makeGame, mapHexagons, moveBoardPiece, placeBoardPiece, removeBoardPiece, setBoardTurn } from '$lib/utils/chess.js';
-	import type { Hex } from '$lib/api/model';
+	import { defaultGame, makeGame, deserializeHexList, isLastRank } from '$lib/utils/chess.js';
+	import type { Hex } from '$lib/api/models';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import SmallTrashIcon from '$lib/components/icons/SmallTrashIcon.svelte';
 	import RedoIcon from '$lib/components/icons/RedoIcon.svelte';
@@ -15,161 +15,162 @@
 	import { boardToFenWasm, fenToGameWasm, getInitialGameWasm, getMoveNotationsWasm, getMovesWasm, makeMoveWasm } from '$lib/api/wasm';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import TurnWrapper from '$lib/components/chess/TurnWrapper.svelte';
-	import { makeMoveSelectionState } from '$lib/state/selection.svelte';
+	import { makeSelectionState } from '$lib/state/selection.svelte';
+	import TurnDropdown from '$lib/components/chess/TurnDropdown.svelte';
+	import { makeGameState } from '$lib/state/game.svelte';
 
 	export interface SandboxProps {
-	fen: string;
-}
-
-const { data: props }: { data: SandboxProps } = $props();
-
-const { addNotification } = getNotificationsContext();
-
-let boardElement: HTMLElement | undefined = $state(undefined);
-
-const moveState = makeMoveState();
-const selectionState = makeMoveSelectionState();
-
-let mode: "edit" | "play" = $state("edit");
-let isTrashcanSelect = $state(false);
-
-let hoveringHex: Hex | undefined = $state(undefined);
-let selectedPiece: number | undefined = $state(undefined);
-
-let fen = $state(props.fen);
-
-let game: ChessGame | undefined = $state(undefined);
-
-async function onSelectPiece(hex: Hex) {
-	if (isTrashcanSelect) {
-		game = removeBoardPiece($state.snapshot(game?.board), hex);
-		await setFen(game?.board);
-		onDeSelectPiece();
-	} else {
-		selectionState.select(game, hex);
+		fen: string;
 	}
-}
 
-function onDeSelectPiece() {
-	selectionState.deSelect();
-}
+	const { data: props }: { data: SandboxProps } = $props();
 
-async function handleSetBoardTurn(event: Event) {
-	const turn = (event.target as HTMLSelectElement).value == "WHITE";
-	game = setBoardTurn(game?.board, turn)
-	await setFen(game?.board);
-}
+	const { addNotification } = getNotificationsContext();
 
-async function onDropPieceSet(hex: Hex) {
-	if (selectedPiece && !isTrashcanSelect) {
-		const ret = placeBoardPiece($state.snapshot(game?.board), hex, selectedPiece);
-		if (ret) {
-			game = ret;
-			await setFen(game?.board);
-		}
-	}
-}
+	let boardElement: HTMLElement | undefined = $state(undefined);
 
-async function onClickClearBoard() {
-	onDeSelectPiece();
-	game = clearBoard($state.snapshot(game?.board));
-	await setFen(game?.board);
-}
+	const moveState = makeMoveState();
+	const selectionState = makeSelectionState();
+	const gameState = makeGameState();
 
-async function setFen(board?: ChessBoard) {
-	const f = await boardToFenWasm(board);
-	if (!f) {
-		return;
-	}
-	// await goto(`/sandbox?fen=${fen}`, { replaceState: true });
-	fen = f;
-	history.replaceState({}, "", `/sandbox?fen=${encodeURIComponent(fen)}`);
-}
+	let mode: "edit" | "play" = $state("edit");
+	let isTrashcanSelect = $state(false);
 
-async function onPieceMove(from: Hex, to: Hex) {
-	switch (mode) {
-	case "edit":
-		const ret = moveBoardPiece($state.snapshot(game?.board), from, to);
-		if (ret) {
-			game = ret;
-			await setFen(game?.board);
-		}
-		onDeSelectPiece();
-		break;
-	case "play":
-		const nextGame = await makeMoveWasm($state.snapshot(game), {from, to, promotion: 0});
-		if (nextGame !== undefined) {
-			await setFen(nextGame?.board); // update fen before the state so we can set the right game with move history after URL is updated
-			game = nextGame;
+	let hoveringHex: Hex | undefined = $state(undefined);
+	let selectedPiece: number | undefined = $state(undefined);
+
+	let fen = $state(props.fen);
+
+	async function onSelectPiece(hex: Hex) {
+		const game = gameState.value.game;
+		if (isTrashcanSelect) {
+			gameState.removePiece(hex);
 			onDeSelectPiece();
-		}
-		break;
-	}
-}
-
-async function setMode(newMode: "edit" | "play") {
-	const board = $state.snapshot(game?.board);
-	if (!board) {
-		return
-	}
-
-	switch (mode) {
-	case "edit":
-		const nextGame = await getMovesWasm(board);
-		if (nextGame !== undefined) {
-			game = nextGame
-		}
-		break;
-	case "play":
-		game = makeGame(board);
-		break;
-	}
-
-	selectedPiece = undefined;
-	mode = newMode;
-}
-
-async function loadInitialGame() {
-	game = await getInitialGameWasm();
-	await setFen(game?.board);
-	onDeSelectPiece();
-}
-
-async function loadBoardFen(fenInput: string) {
-	let isInitialGame = false;
-	if (fenInput != "") {
-		const result = await fenToGameWasm(fenInput);
-		if (typeof result === "string") {
-			addNotification({ type: 'string', message: result, isSuccess: false });
-			isInitialGame = true;
 		} else {
-			game = result || defaultGame;
-			await setFen(game?.board);
+			selectionState.select(game, hex);
 		}
-	} else {
-		isInitialGame = true;
 	}
-	if (isInitialGame) {
-		await loadInitialGame();
+
+	function onDeSelectPiece() {
+		selectionState.deSelect();
 	}
-}
 
-$effect(() => {
-	loadBoardFen(props.fen);
-});
+	async function handleSetBoardTurn(value: string) {
+		const turn = value == "WHITE";
+		gameState.setTurn(turn)
+	}
 
-const draggable = $derived.by(() => mode == "play" ? "turn" : "anyone");
+	async function onDropPieceSet(hex: Hex) {
+		if (selectedPiece && !isTrashcanSelect) {
+			gameState.placePiece(hex, selectedPiece);
+		}
+	}
 
-const prevMove = $derived.by(() => (
-	!game?.moves || game.moves.length == 0
-		? undefined
-		: game.moves[game.moves.length - 1]
-));
+	async function onClickClearBoard() {
+		onDeSelectPiece();
+		gameState.clear();
+	}
 
-const potentialMoves = $derived.by(() => mode === "play" ? mapHexagons(selectionState.value.potentialMoves?.moves) : undefined);
+	async function onPieceMove(from: Hex, to: Hex) {
+		const game = gameState.value.game;
+		switch (mode) {
+		case "edit":
+			gameState.movePiece(from, to);
+			break;
+		case "play":
+			if (isLastRank(to)) {
+				gameState.movePiece(from, to);
+				gameState.setPromotion({from, to});
+			} else {
+				const next = await makeMoveWasm($state.snapshot(game), {from, to, promotion: 0});
+				if (next !== undefined) {
+					gameState.setGame(next);
+				}
+			}
+			break;
+		}
+		onDeSelectPiece();
+	}
 
-const awaitingNotList = $derived.by(async () => await getMoveNotationsWasm(game?.moves));
+	async function onCompletePromotion(promotedPiece?: number) {
+		if (gameState.value.promotion === undefined) {
+			return;
+		}
+		if (promotedPiece !== undefined) {
+			const move = { from: gameState.value.promotion.from, to: gameState.value.promotion.to, promotion: promotedPiece };
+			const next = await makeMoveWasm($state.snapshot(gameState.value.prevGame), move);
+			if (next !== undefined) {
+				gameState.setGame(next);
+			}
+		} else {
+			gameState.revert();
+		}
+		gameState.setPromotion(undefined);
+	}
 
+	async function setMode(newMode: "edit" | "play") {
+		const game = gameState.value.game;
+		const board = $state.snapshot(game?.board);
+		if (!board) {
+			return
+		}
+		const next = await getMovesWasm(board);
+		if (next !== undefined) {
+			gameState.setGame(next);
+		}
+		selectedPiece = undefined;
+		mode = newMode;
+	}
+
+	async function loadInitialGame() {
+		gameState.setGame(await getInitialGameWasm());
+		onDeSelectPiece();
+	}
+
+	$effect(() => {
+		(async (fenInput: string) => {
+			let isInitialGame = false;
+			if (fenInput != "") {
+				const result = await fenToGameWasm(fenInput);
+				if (typeof result === "string") {
+					addNotification({ type: 'string', message: result, isSuccess: false });
+					isInitialGame = true;
+				} else {
+					gameState.setGame(result);
+				}
+			} else {
+				isInitialGame = true;
+			}
+			if (isInitialGame) {
+				await loadInitialGame();
+			}
+		})(props.fen)
+	});
+
+	$effect(() => {
+		const game = gameState.value.game;
+		(async (board?: ChessBoard) => {
+			const f = await boardToFenWasm(board);
+			if (!f) {
+				return;
+			}
+			fen = f;
+			history.replaceState({}, "", `/sandbox?fen=${encodeURIComponent(fen)}`);
+		})(game?.board)
+	});
+
+	const draggable = $derived.by(() => mode == "play" ? "turn" : "anyone");
+
+	const prevMove = $derived.by(() => {
+		const game = gameState.value.game;
+		return !game?.moves || game.moves.length == 0
+			? undefined
+			: game.moves[game.moves.length - 1]
+	});
+
+	const potentialMoves = $derived.by(() => mode === "play" ? deserializeHexList(selectionState.value.potentialMoves?.moves) : undefined);
+
+	const awaitingNotList = $derived.by(async () => await getMoveNotationsWasm(gameState.value.game?.moves));
 </script>
 <svelte:head>
 	<title>Sandbox - Hexchess</title>
@@ -178,24 +179,26 @@ const awaitingNotList = $derived.by(async () => await getMoveNotationsWasm(game?
 <div class="center-horizontal-container">
 	<div class="center-vertical-container" style="align-items: stretch;">
 		<Board
-			board={game?.board}
+			board={gameState.value.game?.board}
+			isWhitePerspective={moveState.value.isWhitePerspective}
 			fen={true}
 			bind:boardElement={boardElement}
-			{draggable}
-			isWhitePerspective={moveState.value.isWhitePerspective}
-			potentialMoves={potentialMoves}
-			selectedHexagon={selectionState.value.hex}
+			draggable={draggable}
+			selected={selectionState.value.hex}
+			promotion={gameState.value.promotion}
+			bind:hovering={hoveringHex}
 			prevMove={prevMove}
-			bind:hoveringHexagon={hoveringHex}
+			potentialMoves={potentialMoves}
 			onSelectPiece={onSelectPiece}
 			onDeSelectPiece={onDeSelectPiece}
 			onDropPiece={onPieceMove}
 			onSetPiece={onDropPieceSet}
+			onCompletePromotion={onCompletePromotion}
 		/>
 		<div class="side-bar side-table-capped" class:side-bar-short={mode === "edit"} class:side-bar-long={mode === "play"}>
 			{#if mode === "play"}
 				<div class="side-table growing-box sandbox-display">
-					<TurnWrapper isWhitePerspective={moveState.value.isWhitePerspective} isWhiteTurn={game?.board?.isWhiteTurn}>
+					<TurnWrapper isWhitePerspective={moveState.value.isWhitePerspective} isWhiteTurn={gameState.value.game?.board?.isWhiteTurn}>
 						{#await awaitingNotList then notList}
 							<MoveList moveList={notList} />
 						{/await}
@@ -203,15 +206,11 @@ const awaitingNotList = $derived.by(async () => await getMoveNotationsWasm(game?
 				</div>
 			{:else}
 				<div class="growing-box sandbox-display">
-					<select
-						class="turn-selector"
-						value={game?.board?.isWhiteTurn ? "WHITE" : "BLACK"}
-						name="player-turn"
-						onchange={handleSetBoardTurn}
-					>
-						<option value="WHITE">White to Play</option>
-						<option value="BLACK">Black to Play</option>
-					</select>
+					<TurnDropdown 
+						options={[{label: "White's Turn", value: "WHITE"}, {label: "Black's Turn", value: "BLACK"}]}
+						selected={gameState.value.game?.board?.isWhiteTurn ? "WHITE" : "BLACK"} 
+						onChange={handleSetBoardTurn}
+					/>
 					<div class="piece-panels-container">
 						<PieceEditor
 							isWhitePerspective={moveState.value.isWhitePerspective}
@@ -268,17 +267,6 @@ const awaitingNotList = $derived.by(async () => await getMoveNotationsWasm(game?
         -moz-user-select: none;
         -webkit-user-select: none;
 	}
-
-	.turn-selector {
-		/*width: 100%;*/
-		min-width: 165px;
-        box-sizing: border-box;
-		height: 40px;
-        margin: 0 0 10px;
-        user-select: none;
-        -moz-user-select: none;
-        -webkit-user-select: none;
-    }
 
     .piece-panels-container {
 		display: flex;

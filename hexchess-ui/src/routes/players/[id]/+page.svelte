@@ -2,14 +2,15 @@
 	import CreateGame from '$lib/components/modals/CreateGame.svelte';
 	import { onMount } from 'svelte';
 	import ChallengeIcon from '$lib/components/icons/ChallengeIcon.svelte';
-	import { formatJoinedOn, formatPlayedOn, formatReplayResult, getResultClasses, getWinrateClass } from '$lib/utils/format.js';
+	import { formatJoinedOn, formatPlayedOn, formatReplayResult } from '$lib/api/models.js';
 	import { getClientSession } from '$lib/utils/storage';
 	import Banner from '$lib/Banner.svelte';
 	import { goto } from '$app/navigation';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import { makeMessage } from '$lib/utils/error';
-	import type { ColorSelect, TimeControl, FullUserModel } from '$lib/api/model';
+	import type { ColorSelect, TimeControl, FullUserModel } from '$lib/api/models';
 	import services from '$lib/api/services';
+	import { derived } from 'svelte/store';
 
 	export interface PlayerProps {
 		fullUser: FullUserModel;
@@ -71,6 +72,16 @@
 		}
 		showCreateModal = true;
 	}
+
+	const winrateClass = $derived.by(() => {
+		if (user.winRate > 50) {
+			return 'green-color';
+		} else if (user.winRate < 50) {
+			return 'red-color';
+		} else {
+			return 'yellow-color';
+		}
+	});
 </script>
 
 <svelte:head>
@@ -103,7 +114,7 @@
 		<div class="panel-container" style="margin-bottom: 35px;">
 			<div class="panel-elem">
 				<div class="panel-title">Win%</div>
-				<div class={`panel-text ${getWinrateClass(user.winRate)}`}>{user.winRate}%</div>
+				<div class="panel-text {winrateClass}">{user.winRate}%</div>
 			</div>
 			<div class="panel-elem">
 				<div class="panel-title">Wins</div>
@@ -163,7 +174,19 @@
 				<tbody>
 					{#each nestedReplayList as replayList, i (i)}
 						{#each replayList as replay, i (i)}
-							{@const [whiteClass, blackClass] = getResultClasses(replay.result)}
+							{@const [whiteClass, blackClass] = function() {
+								switch (replay.result) {
+								case 'WHITE_WINS':
+									return ['green-color', 'red-color'];
+								case 'BLACK_WINS':
+									return ['red-color', 'green-color'];
+								case 'DRAW':
+									return ['yellow-color', 'yellow-color'];
+								default:
+									console.error('Unknown result case', replay.result);
+									return ['', ''];
+								}
+							}()}
 							<tr class="row-hover" onclick={() => goto(`/replay/${replay.id}`)}>
 								<td style="width: 25%">
 									<a href="/players/{replay.whiteId}" class="text-ul">{replay.whiteName}</a>

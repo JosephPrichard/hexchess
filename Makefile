@@ -7,6 +7,9 @@ SVC_DIR         := hexchess-svc
 UI_DIR          := hexchess-ui
 PB_DIR          := hexchess-pb
 
+# Artefact dirs
+SERVER_ENTRY    := cmd/server/main.go
+
 # Proto output dirs
 SVC_PB_OUT      := $(SVC_DIR)/pb
 UI_PB_OUT       := src/lib/pb
@@ -17,19 +20,12 @@ WASM_OUTPUT     := chess.wasm
 UI_WASM_DIR     := $(UI_DIR)/static/wasm
 
 # Default target
+build-ci: all ci
 all: generate-go generate-protos build-wasm install-wasm
-
-### ---------------------------
-###  Go Source Generation
-### ---------------------------
 
 generate-go:
 	@echo "Generating go sources"
 	cd $(SVC_DIR) && go generate ./...
-
-### ---------------------------
-###  Proto Generation
-### ---------------------------
 
 generate-protos: proto-backend proto-frontend
 
@@ -49,13 +45,9 @@ proto-frontend:
 		--proto_path ../$(PB_DIR) \
 		../$(PB_DIR)/messages.proto
 
-### ---------------------------
-###  WASM Build
-### ---------------------------
-
 build-wasm:
 	@echo "Compiling WASM chesslib"
-	cd $(WASM_SRC_DIR) && GOOS=js GOARCH=wasm go build -o $(WASM_OUTPUT)
+	cd $(WASM_SRC_DIR) && GOOS=js GOARCH=wasm go build -o $(WASM_OUTPUT) -tags=wasm
 
 install-wasm:
 	@echo "Installing WASM into UI"
@@ -64,13 +56,13 @@ install-wasm:
 	mkdir -p $(UI_WASM_DIR)
 	cp $(WASM_SRC_DIR)/$(WASM_OUTPUT) $(UI_WASM_DIR)/$(WASM_OUTPUT)
 
-### ---------------------------
-### Cleanup
-### ---------------------------
+ci:
+	@echo "Running server tests"
+	cd $(SVC_DIR) && go test $$(go list ./... | grep -v '^.*/cmd') -timeout=60s
 
 clean:
 	@echo "Cleaning WASM output"
 	rm -f $(WASM_SRC_DIR)/$(WASM_OUTPUT)
 	rm -f $(UI_WASM_DIR)/$(WASM_OUTPUT)
 
-.PHONY: all generate-go generate-protos proto-backend proto-frontend build-wasm install-wasm clean
+.PHONY: all generate-go generate-protos proto-backend proto-frontend build-wasm install-wasm ci clean

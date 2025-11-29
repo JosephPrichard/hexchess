@@ -1,9 +1,22 @@
 <script lang="ts">
-	import { formatElo, getResultClasses } from '$lib/utils/format';
-	import type { ReplayModel } from '$lib/api/model';
+	import { formatElo } from '$lib/api/models';
+	import type { ReplayModel } from '$lib/api/models';
 
 	const { replay }: { replay: ReplayModel } = $props();
-	const [whiteClass, blackClass] = $derived(getResultClasses(replay.result));
+	
+	const [whiteClass, blackClass] = $derived.by(() => {
+		switch (replay.result) {
+		case 'WHITE_WINS':
+			return ['green-color', 'red-color'];
+		case 'BLACK_WINS':
+			return ['red-color', 'green-color'];
+		case 'DRAW':
+			return ['yellow-color', 'yellow-color'];
+		default:
+			console.error('Unknown result case', replay.result);
+			return ['', ''];
+		}
+	});
 </script>
 
 <div class="side-table-header">

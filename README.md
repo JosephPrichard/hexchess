@@ -9,11 +9,17 @@ Starts the redis infrastructure used for caching and message delivery.
 
 `$ docker compose up`
 
-### Prebuild
+### Build
+
+Builds generated sources required for development, testing, and deployment.
 
 `make`
 
-## Build & Execution (Local)
+Alternatively, run a CI pipeline suitable build that also runs all tests.
+
+`make ci`
+
+## Execution (Local)
 
 ### Env Variables
 

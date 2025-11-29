@@ -1,5 +1,5 @@
 import type { ChessBoard, ChessGame } from '../pb/messages';
-import type { Hex } from '../api/model';
+import type { Hex } from '../api/models';
 export const ranksPerFile = [6, 7, 8, 9, 10, 11, 10, 9, 8, 7, 6];
 
 export const pieces = {
@@ -58,6 +58,14 @@ export const defaultBoard: ChessBoard = {
 	file: ranksPerFile.map(ranks => ({ pieces: Array(ranks).fill(0) }))
 };
 
+export function isInBounds(hex: Hex) {
+	return hex.file >= 0 && hex.file < ranksPerFile.length && hex.rank >= 0 && hex.rank < ranksPerFile[hex.file];
+}
+
+export function isLastRank(hex: Hex) {
+	return hex.rank === ranksPerFile[hex.file] - 1;
+}
+
 export function isPieceWhite(piece: number) {
 	return piece % 2 === 1;
 }
@@ -66,8 +74,12 @@ export function isPieceBlack(piece: number) {
 	return !isPieceWhite(piece);
 }
 
-export function mapHexagons(hexagonList?: bigint[]): Hex[] {
+export function deserializeHexList(hexagonList?: bigint[]): Hex[] {
 	return hexagonList?.map(h => ({ file: Number(h & 0xFFFFFFFFn), rank: Number((h >> 32n) & 0xFFFFFFFFn) })) || [];
+}
+
+export function hexEq(hex1?: {file?: number, rank?: number}, hex2?: {file?: number, rank?: number}) {
+	return hex1?.file === hex2?.file && hex1?.rank === hex2?.rank;
 }
 
 export const defaultGame = makeGame(defaultBoard);
@@ -81,54 +93,6 @@ export function makeGame(board: ChessBoard | undefined): ChessGame {
 		moves: [],
 		board: board
 	}
-}
-
-function isInBounds(hex: Hex) {
-	return hex.file >= 0 && hex.file < ranksPerFile.length && hex.rank >= 0 && hex.rank < ranksPerFile[hex.file];
-}
-
-export function moveBoardPiece(board: ChessBoard | undefined, from: Hex, to: Hex) {
-	if (board &&
-		(isInBounds(to) && (from.file != to.file || from.rank != to.rank))
-	) {
-		const piece = board.file[from.file].pieces[from.rank];
-		board.file[from.file].pieces[from.rank] = pieces.empty;
-		board.file[to.file].pieces[to.rank] = piece;
-		return makeGame(board);
-	}
-	return undefined;
-}
-
-export function clearBoard(board: ChessBoard | undefined) {
-	if (board) {
-		for (const file of board.file) {
-			file.pieces.fill(pieces.empty);
-		}
-	}
-	return makeGame(board);
-}
-
-export function removeBoardPiece(board: ChessBoard | undefined, hex: Hex) {
-	if (board) {
-		board.file[hex.file].pieces[hex.rank] = pieces.empty;
-	}
-	return makeGame(board);
-}
-
-export function placeBoardPiece(board: ChessBoard | undefined, hex: Hex, piece: number) {
-	if (isInBounds(hex) && board) {
-		board.file[hex.file].pieces[hex.rank] = piece;
-		return makeGame(board);
-	}
-	return undefined;
-}
-
-export function setBoardTurn(board: ChessBoard | undefined, turn: boolean) {
-	if (board) {
-		board.isWhiteTurn = turn;
-		return makeGame(board);
-	}
-	return undefined;
 }
 
 export function iterBoard(board: ChessBoard, cb: (file: number, rank: number, piece: number) => void) {

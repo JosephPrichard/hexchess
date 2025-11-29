@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { hexHeight, hexWidth } from '$lib/components/chess/render';
-	import { piecenames } from '$lib/utils/chess.js';
+	import { isPieceWhite, piecenames, pieces, promotions } from '$lib/utils/chess.js';
 	import { type SelectEvent, selectEvents } from '$lib/globals';
-	import { getGlobalID } from '$lib/components/chess/globals';
+
+	export type PromotionKind = "complete" | "cancel";
 
 	export interface PieceProps {
 		piece: number;
@@ -11,6 +12,7 @@
 		isAnnotatable?: boolean;
 		isDraggable?: boolean;
 		isTransparent?: boolean;
+		isPromoting?: boolean;
 		initialLeft: number;
 		initialTop: number;
 		onSelectHexagon?: (key: SelectEvent) => void;
@@ -18,10 +20,25 @@
 		onDeSelectPiece?: () => void;
 		onDragPiece?: (x: number, y: number) => void;
 		onDropPiece?: (x: number, y: number) => void;
+		onCompletePromotion?: (promotedPiece?: number) => void;
 	}
 
-	let { piece, isSelected, isAnnotatable, isDraggable, isTransparent, initialTop, initialLeft,
-		onSelectHexagon, onSelectPiece, onDeSelectPiece, onDragPiece, onDropPiece }: PieceProps = $props();
+	let { 
+		piece, 
+		isSelected,
+		isAnnotatable,
+		isDraggable,
+		isTransparent,
+		isPromoting, 
+		initialTop,
+		initialLeft,
+		onSelectHexagon,
+		onSelectPiece,
+		onDeSelectPiece,
+		onDragPiece,
+		onDropPiece,
+		onCompletePromotion
+	}: PieceProps = $props();
 
 	let element: HTMLDivElement | undefined;
 
@@ -118,14 +135,29 @@
 		}
 	}
 
+	function onMouseDownGlobal(e: MouseEvent) {
+		if (!(e.target as HTMLElement).closest("#promotions")) {
+			onCompletePromotion?.(undefined);
+		}
+	}
+
 	onMount(() => {
 		document.addEventListener('mousemove', onMove);
 		document.addEventListener('mouseup', onMouseUpDrag);
+		document.addEventListener('mousedown', onMouseDownGlobal);
 		return () => {
 			document.removeEventListener('mousemove', onMove);
 			document.removeEventListener('mouseup', onMouseUpDrag);
+			document.removeEventListener('mousedown', onMouseDownGlobal);
 		}
 	});
+
+	const promotePieces = $derived.by(() => isPieceWhite(piece) 
+		? [[pieces.whiteQueen, promotions.queen], [pieces.whiteRook, promotions.rook], [pieces.whiteBishop, promotions.bishop], [pieces.whiteKnight, promotions.knight]] 
+		: [[pieces.blackQueen, promotions.queen], [pieces.blackRook, promotions.rook], [pieces.blackBishop, promotions.bishop], [pieces.blackKnight, promotions.knight]])
+
+	const fmtPieceURL = (piece: number) => `/pieces/${piecenames[piece]}.png`;
+	const pieceImageURL = $derived.by(() => fmtPieceURL(piece));
 </script>
 
 <div
@@ -152,7 +184,7 @@
 	<img
 		class="piece-img-inner"
 		style:opacity={isTransparent ? "0.4" : 1}
-		src="/pieces/{piecenames[piece]}.png"
+		src={pieceImageURL}
 		alt=""
 		draggable={false}
 	/>
@@ -173,13 +205,44 @@
 		onmousedown={onMouseDown}
 		onmouseup={onMouseUpRelease}
 		class="piece-img-inner"
-		src="/pieces/{piecenames[piece]}.png"
+		src={pieceImageURL}
 		alt=""
 		draggable={false}
 	/>
+	{#if isPromoting}
+		<div
+			id="promotions"
+			class="promotion-wrapper"
+			style:left="{hexWidth / 8 + xOff}px"
+			style:top="{yOff}px"
+		>
+			{#each promotePieces as [piece, promotion]}
+				<img
+					onclick={() => onCompletePromotion?.(promotion)}
+					role="none"
+					class="piece-img-inner promotion-item"
+					src={fmtPieceURL(piece)}
+					alt=""
+					draggable={false}
+				/>
+			{/each}
+		</div>
+	{/if}
 </div>
 
 <style>
+	.promotion-wrapper {
+		z-index: 1000;
+		width: fit-content;
+		background-color: #2A2A2A;
+		border: 1px solid rgb(60, 60, 60);
+		border-radius: 6px;
+	}
+
+	.promotion-item:hover {
+		background-color: rgb(80,80,80);
+	}
+
     .annotation {
         z-index: 100;
         position: absolute;

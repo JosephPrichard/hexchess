@@ -7,7 +7,7 @@
 	import { getNotificationsContext } from '$lib/utils/context';
 	import { onMount } from 'svelte';
 	import { env } from '$env/dynamic/public';
-	import type { ServiceModel, SessionModel } from '$lib/api/model';
+	import type { ServiceModel, SessionModel } from '$lib/api/models';
 
 	let username = $state('');
 	let password = $state('');

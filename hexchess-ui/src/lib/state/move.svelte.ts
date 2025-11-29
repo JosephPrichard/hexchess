@@ -1,14 +1,14 @@
-interface MoveState {
-	moveIndex: number | undefined,
-	isWhitePerspective: boolean,
-	moveCount: number
+export interface MoveState {
+	moveIndex: number | undefined;
+	isWhitePerspective: boolean;
+	moveCount: number;
 }
 
 export function makeMoveState() {
 	let value: MoveState = $state({
 		moveIndex: undefined,
 		isWhitePerspective: true,
-		moveCount: 0
+		moveCount: 0,
 	})
 
 	function selectMove(i: number) {

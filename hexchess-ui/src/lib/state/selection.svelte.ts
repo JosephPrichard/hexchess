@@ -1,15 +1,15 @@
+import type { Hex } from '$lib/api/models';
 import type { ChessGame, PieceMoves } from '$lib/pb/messages';
-import type { Hex } from '$lib/api/model';
 
-export interface Selection {
+export interface SelectionState {
 	potentialMoves: PieceMoves | undefined;
 	hex: Hex | undefined;
 }
 
-export const NoSelection: Selection = { potentialMoves: undefined, hex: undefined };
+export const NoSelection: SelectionState = { potentialMoves: undefined, hex: undefined };
 
-export function makeMoveSelectionState() {
-	let value: Selection = $state({
+export function makeSelectionState() {
+	let value: SelectionState = $state({
 		potentialMoves: undefined,
 		hex: undefined,
 	});

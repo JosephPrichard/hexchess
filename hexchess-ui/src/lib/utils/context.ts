@@ -1,5 +1,5 @@
 import { getContext, setContext } from 'svelte';
-import type { ChallengeModel } from '../api/model';
+import type { ChallengeModel } from '../api/models';
 import type { Writable } from 'svelte/store';
 
 export interface NotificationValue {

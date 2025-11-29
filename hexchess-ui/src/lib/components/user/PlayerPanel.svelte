@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { PlayerModel } from '$lib/api/model';
+	import type { PlayerModel } from '$lib/api/models';
 	import type { PlayerState } from '$lib/pb/messages';
 
 	export interface PlayerPanelProps {

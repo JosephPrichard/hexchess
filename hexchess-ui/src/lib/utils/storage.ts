@@ -1,4 +1,4 @@
-import type { SessionModel } from '../api/model';
+import type { SessionModel } from '../api/models';
 
 const SESSION_KEY = 'session';
 

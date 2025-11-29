@@ -9,12 +9,12 @@
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import ReplayPanel from '$lib/components/user/ReplayPanel.svelte';
 	import { type ChessGame, type PieceMove } from '$lib/pb/messages';
-	import type { Hex, ReplayModel } from '$lib/api/model';
+	import type { Hex, ReplayModel } from '$lib/api/models';
 	import services from '$lib/api/services';
 	import { makeMoveState } from '$lib/state/move.svelte';
-	import { mapHexagons } from '$lib/utils/chess.js';
+	import { deserializeHexList } from '$lib/utils/chess.js';
 	import TurnWrapper from '$lib/components/chess/TurnWrapper.svelte';
-	import { makeMoveSelectionState } from '$lib/state/selection.svelte';
+	import { makeSelectionState } from '$lib/state/selection.svelte';
 
 	export interface ReplayProps {
 		replay: ReplayModel;
@@ -26,7 +26,7 @@
 	const { addNotification } = getNotificationsContext();
 
 	let moveState = makeMoveState();
-	const selectionState = makeMoveSelectionState();
+	const selectionState = makeSelectionState();
 
 	let subGameIndex: number | undefined = undefined;
 
@@ -105,7 +105,7 @@
 
 	const [game, _] = $derived.by(() => getGame(moveList, moveState.value.moveIndex));
 	const rootNotationList = $derived.by(() => moveList.map(move => move.notation));
-	const potentialMoves = $derived.by(() => mapHexagons(selectionState.value.potentialMoves?.moves));
+	const potentialMoves = $derived.by(() => deserializeHexList(selectionState.value.potentialMoves?.moves));
 </script>
 
 <svelte:head>

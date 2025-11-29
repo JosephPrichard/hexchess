@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ColorSelect, TimeControl } from '$lib/api/model';
+	import type { ColorSelect, TimeControl } from '$lib/api/models';
 
 	interface Props {
 		title: string;

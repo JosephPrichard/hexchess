@@ -1,5 +1,5 @@
 import { ChessBoard, ChessGame, HistMove, HistMoves, MakeMoveInput } from '$lib/pb/messages';
-import type { Hex } from '$lib/api/model';
+import type { Hex } from '$lib/api/models';
 import {defaultGame } from '$lib/utils/chess.js';
 import { browser } from '$app/environment';
 

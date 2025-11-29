@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { hexHeight, hexWidth, findHex } from '$lib/components/chess/render';
 	import Piece from './Piece.svelte';
-	import type { Hex } from '$lib/api/model';
+	import type { Hex } from '$lib/api/models';
 	import { type SelectEvent, selectEvents } from '$lib/globals';
 	import { blackPieces, whitePieces } from '$lib/utils/chess.js';
 	import CursorIcon from '$lib/components/icons/CursorIcon.svelte';
@@ -128,6 +128,7 @@
 	}
 
 	.piece-panel {
+		border: 1px solid rgb(100,100,100);
         margin-top: 20px;
         margin-bottom: 20px;
         border-radius: 3px;

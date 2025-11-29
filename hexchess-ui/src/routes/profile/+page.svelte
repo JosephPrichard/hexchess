@@ -4,7 +4,7 @@
 	import { clearClientSession, setClientSession, updateClientSession as updateClientUser } from '$lib/utils/storage';
 	import { makeMessage } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';
-	import type { UserModel } from '$lib/api/model';
+	import type { UserModel } from '$lib/api/models';
 	import services from '$lib/api/services';
 
 	export interface ProfileProps {

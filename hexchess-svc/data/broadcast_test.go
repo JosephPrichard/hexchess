@@ -97,54 +97,42 @@ func TestUnicaster(t *testing.T) {
 	assert.Equal(t, []UcEvent{e2}, <-mChan2)
 }
 
-func getChatMessages(t *testing.T, bytes [][]byte) []string {
-	var msgs []string
-	for _, b := range bytes {
-		var output pb.GameOutput
-		assert.NoError(t, proto.Unmarshal(b, &output))
-		msgs = append(msgs, output.GetChat().GetMessage())
-	}
-	return msgs
-}
-
-func testCountSub(t *testing.T, sub chan []byte, mChan chan [][]byte, count int) {
-	var messages [][]byte
-	for range count {
-		msg := <-sub
-		messages = append(messages, msg)
-	}
-	t.Logf("completed testing subscriber: %v: %v", sub, messages)
-	mChan <- messages
-}
-
-func makeTestChatOutput(t *testing.T, id string, msg string) []byte {
-	b, err := proto.Marshal(&pb.GameOutput{
-		GameId: id,
-		Value:  &pb.GameOutput_Chat{Chat: &pb.ChatOutput{Message: msg}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return b
-}
-
 func TestBroadcastGameMessage(t *testing.T) {
 	rdb := BeforeRedisTests(t)
-	defer rdb.Close() // this will also stop the goroutine listening to the pubsub channel
+	defer rdb.Close()
 
 	m := MakeMultiCasterMap("testing-broker-map", time.Hour*1)
 	<-ListenGameMessages(m, rdb.PubsubAddr)
 
+	expMsgCount := 2
+	
+	makeTestChatOutput := func(id string, msg string) []byte {
+		v, err := proto.Marshal(&pb.GameOutput{
+			GameId: id,
+			Value:  &pb.GameOutput_Chat{Chat: &pb.ChatOutput{Message: msg}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+
+	subChan := make(chan []byte)
+	m.Subscribe("1", subChan)
+
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-broadcast-game-message")
+	assert.NoError(t, BroadcastMessage(ctx, rdb, GamesChan, makeTestChatOutput("1", "test1")))
+	assert.NoError(t, BroadcastMessage(ctx, rdb, GamesChan, makeTestChatOutput("1", "test2")))
+	assert.NoError(t, BroadcastMessage(ctx, rdb, GamesChan, makeTestChatOutput("2", "test3")))
 
-	sub := make(chan []byte)
-	mChan := make(chan [][]byte)
-	go testCountSub(t, sub, mChan, 2)
-	m.Subscribe("1", sub)
+	var msgs []string
+	for range expMsgCount {
+		var o pb.GameOutput
+		if err := proto.Unmarshal(<-subChan, &o); err != nil {
+			t.Fatalf("failed to unmarshal game output: %v", err)
+		}
+		msgs = append(msgs, o.GetChat().GetMessage())
+	}
 
-	assert.NoError(t, BroadcastMessage(ctx, rdb, GamesChan, makeTestChatOutput(t, "1", "test1")))
-	assert.NoError(t, BroadcastMessage(ctx, rdb, GamesChan, makeTestChatOutput(t, "1", "test2")))
-	assert.NoError(t, BroadcastMessage(ctx, rdb, GamesChan, makeTestChatOutput(t, "2", "test3")))
-
-	assert.Equal(t, []string{"test1", "test2"}, getChatMessages(t, <-mChan))
+	assert.Equal(t, []string{"test1", "test2"}, msgs)
 }

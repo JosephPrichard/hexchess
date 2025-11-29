@@ -1,6 +1,7 @@
+import { browser } from '$app/environment';
 import { ranksPerFile } from '$lib/utils/chess.js';
 
-export const hexHeight = 56;
+export const hexHeight = browser ? window.screen.availWidth / 27 : 0;
 export const hexWidth = hexHeight * 1.2;
 export const verticalFileOffsets = [5, 4, 3, 2, 1, 0, 1, 2, 3, 4, 5];
 export const colors = ['rgb(255, 207, 159)', 'rgb(233, 172, 112)', 'rgb(210,140,69)'];

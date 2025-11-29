@@ -2,7 +2,7 @@
 	import Banner from '$lib/Banner.svelte';
 	import { makeMessage } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';
-	import type { Action, ChallengeModel } from '$lib/api/model';
+	import type { Action, ChallengeModel } from '$lib/api/models';
 	import services from '$lib/api/services';
 
 	export interface ChallengeProps {

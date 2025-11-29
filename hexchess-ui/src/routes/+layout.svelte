@@ -5,7 +5,7 @@
 	import { onMount } from 'svelte';
 	import { clearClientSession, updateClientSession } from '$lib/utils/storage';
 	import services, { baseURL } from '$lib/api/services';
-	import type { ChallengeModel } from '$lib/api/model';
+	import type { ChallengeModel } from '$lib/api/models';
 	import { writable } from 'svelte/store';
 	import { fade } from 'svelte/transition';
 

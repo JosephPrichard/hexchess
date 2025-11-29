@@ -5,7 +5,7 @@
 	import { getNotificationsContext } from '$lib/utils/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import Board from '$lib/components/chess/Board.svelte';
-	import { formatTimer } from '$lib/utils/format';
+	import { formatTimer } from '$lib/api/models';
 	import ClipboardIcon from '$lib/components/icons/ClipboardIcon.svelte';
 	import FlagIcon from '$lib/components/icons/FlagIcon.svelte';
 	import SettingsIcon from '$lib/components/icons/SettingsIcon.svelte';
@@ -13,9 +13,9 @@
 	import PieceList from '$lib/components/chess/PieceList.svelte';
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
 	import { type ChessGame, GameOutput, type PlayerState } from '$lib/pb/messages';
-	import type { Hex } from '$lib/api/model';
-	import { mapHexagons } from '$lib/utils/chess.js';
-	import { makeMoveSelectionState } from '$lib/state/selection.svelte';
+	import type { Hex } from '$lib/api/models';
+	import { deserializeHexList } from '$lib/utils/chess.js';
+	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import { getMoveNotationsWasm } from '$lib/api/wasm';
 	import { goto } from '$app/navigation';
 
@@ -37,7 +37,7 @@
 	let whiteTimer: number | undefined = $state(undefined);
 	let blackTimer: number | undefined = $state(undefined);
 
-	let selection = makeMoveSelectionState();
+	let selection = makeSelectionState();
 
 	let prevUpdatedAt = new Date(0);
 	let isForfeit: boolean = false;
@@ -157,9 +157,9 @@
 				<Board
 					board={game?.board}
 					isWhitePerspective={isPlayingAsWhite}
-					potentialMoves={mapHexagons(selection.value.potentialMoves?.moves)}
+					potentialMoves={deserializeHexList(selection.value.potentialMoves?.moves)}
 					onSelectPiece={onSelectPiece}
-					selectedHexagon={selection.value.hex}
+					selected={selection.value.hex}
 				/>
 			{/if}
 			<div class="side-table-wrapper">

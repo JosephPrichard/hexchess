@@ -4,9 +4,9 @@
 	import { makeMessage } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import { goto } from '$app/navigation';
-	import type { ChessModel, ColorSelect, SessionModel, TimeControl } from '$lib/api/model';
+	import type { ChessModel, ColorSelect, SessionModel, TimeControl } from '$lib/api/models';
 	import services from '$lib/api/services';
-	import { formatTimeControl } from '$lib/utils/format';
+	import { formatTimeControl } from '$lib/api/models';
 	import { onMount } from 'svelte';
 	import { getClientSession } from '$lib/utils/storage';
 	import { chessRowHeight, maxChessRows } from './globals';

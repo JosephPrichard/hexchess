@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { getWinrateClass } from '$lib/utils/format';
-	import type { UserModel } from '../../api/model';
+	import { getWinrateClass } from '$lib/api/models';
+	import type { UserModel } from '../../api/models';
 
 	interface Props {
 		userList: UserModel[];
@@ -25,6 +25,15 @@
 		</thead>
 		<tbody>
 			{#each userList as user (user.id)}
+				{@const wrClass = function() {
+					if (user.winRate > 50) {
+						return 'green-color';
+					} else if (user.winRate < 50) {
+						return 'red-color';
+					} else {
+						return 'yellow-color';
+					}
+				}()}
 				<tr class="row-hover" onclick={() => goto(`/players/${user.id}`)}>
 					<td>{user.rank}</td>
 					<td>
@@ -32,7 +41,7 @@
 						<img class="flag" src="/flags/{user.country}.png" alt="" />
 					</td>
 					<td >{user.elo}</td>
-					<td class={getWinrateClass(user.winRate)}>
+					<td class={wrClass}>
 						{user.winRate}%
 					</td>
 					<td class="green-color">
