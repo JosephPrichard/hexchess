@@ -168,7 +168,8 @@ func (g *Game) MakeMove(mv Move) HistMove {
 
 	g.Board.Set(from.File, from.Rank, Empty)
 	if isMvLastRank {
-		g.Board.Set(to.File, to.Rank, GetPromoPiece(promotion, g.Board.IsWhiteTurn))
+		promoPiece := GetPromoPiece(promotion, g.Board.IsWhiteTurn)
+		g.Board.Set(to.File, to.Rank, promoPiece)
 		hm.Promotion = promotion
 	} else {
 		g.Board.Set(to.File, to.Rank, pieceFrom)
@@ -179,34 +180,27 @@ func (g *Game) MakeMove(mv Move) HistMove {
 	return hm
 }
 
-var (
-	ErrViolatesOutOfBounds = errors.New("violates: out of bounds")
-	ErrViolatesNoop        = errors.New("violates: noop")
-	ErrViolatesIllegalMove = errors.New("violates: illegal move")
-	ErrViolatesPromotion   = errors.New("violates: piece promotion")
-)
-
 func (g *Game) ValidateMove(move Move) error {
 	if move.From.File == move.To.File && move.From.Rank == move.To.Rank {
-		return ErrViolatesNoop
+		return fmt.Errorf("move is a noop: %v", move)
 	}
 	if !g.Board.InBoundsHex(move.From) || !g.Board.InBoundsHex(move.To) {
-		return ErrViolatesOutOfBounds
+		return fmt.Errorf("move is out of bounds: %v", move)
 	}
 	if IsLastRank(move.To) && g.Board.Get(move.From.File, move.From.Rank).IsPawn() {
 		switch move.Promotion {
 		case QueenPromotion, RookPromotion, BishopPromotion, KnightPromotion:
 		default:
-			return ErrViolatesPromotion
+			return fmt.Errorf("promotion is invalid %v", move)
 		}
 	}
 	legalMoves := g.GetCurrMoves()
 	pmsIdx := slices.IndexFunc(legalMoves, func(moves PieceMoves) bool { return moves.From == move.From })
 	if pmsIdx < 0 {
-		return ErrViolatesIllegalMove
+		return fmt.Errorf("piece cannot move: %v", move)
 	}
 	if moveIdx := slices.IndexFunc(legalMoves[pmsIdx].Moves, func(to Hex) bool { return to == move.To }); moveIdx < 0 {
-		return ErrViolatesIllegalMove
+		return fmt.Errorf("piece cannot move to hex: %v", move)
 	}
 	return nil
 }

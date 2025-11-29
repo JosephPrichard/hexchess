@@ -314,7 +314,14 @@ func (p Piece) IsKing() bool {
 	return p == WhiteKing || p == BlackKing
 }
 
+var GlobalInitialBoard = MakeInitialBoard()
+
 func InitialBoard() Board {
+	// board is stored by value
+	return GlobalInitialBoard
+}
+
+func MakeInitialBoard() Board {
 	board := Board{IsWhiteTurn: true}
 
 	placements := []struct {

@@ -60,7 +60,7 @@ func MakeMove(_ js.Value, args []js.Value) interface{} {
 		if err := game.ValidateMove(pm); err != nil {
 			return jsErr(err)
 		}
-		game.MakeMove(chess.Move{From: pm.From, To: pm.To})
+		game.MakeMove(chess.Move{From: pm.From, To: pm.To, Promotion: chess.Promotion(pbMoveIn.Move.Promotion)})
 		game.InitPieceMoves()
 	}
 

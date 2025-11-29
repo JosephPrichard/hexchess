@@ -13,10 +13,17 @@ export interface GameState {
 export function makeGameState() {
     let value: GameState = $state({});
 
-    function updateValue(game: ChessGame) {
+    function updateGame(game: ChessGame) {
         value.promotion = undefined;
         value.prevGame = value.game;
         value.game = game;
+    }
+
+    function updateBoard(board: ChessBoard) {
+        updateGame({
+            ...(value.game || defaultGame),
+            board
+        });
     }
     
     function movePiece(from: Hex, to: Hex) {
@@ -29,7 +36,7 @@ export function makeGameState() {
             board.file[from.file].pieces[from.rank] = pieces.empty;
             board.file[to.file].pieces[to.rank] = piece;
 
-            updateValue(makeGame(board));
+            updateBoard(board);
         }
     }
     
@@ -39,7 +46,7 @@ export function makeGameState() {
             for (const file of board.file) {
                 file.pieces.fill(pieces.empty);
             }
-            updateValue(makeGame(board));
+            updateGame(makeGame(board));
         }
     }
     
@@ -47,7 +54,7 @@ export function makeGameState() {
         const board = $state.snapshot(value.game?.board);
         if (board) {
             board.file[hex.file].pieces[hex.rank] = pieces.empty;
-            updateValue(makeGame(board));
+            updateBoard(board);
         }
     }
     
@@ -55,7 +62,7 @@ export function makeGameState() {
         const board = $state.snapshot(value.game?.board);
         if (isInBounds(hex) && board) {
             board.file[hex.file].pieces[hex.rank] = piece;
-            updateValue(makeGame(board));
+            updateBoard(board);
         }
     }
     
@@ -63,12 +70,12 @@ export function makeGameState() {
         const board = $state.snapshot(value.game?.board);
         if (board) {
             board.isWhiteTurn = turn;
-            updateValue(makeGame(board));
+            updateGame(makeGame(board));
         }
     }
 
     function setGame(game?: ChessGame) {
-        updateValue(game || defaultGame);
+        updateGame(game || defaultGame);
     }
 
     function rollback() {

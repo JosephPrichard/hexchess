@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { getWinrateClass } from '$lib/api/models';
 	import type { UserModel } from '../../api/models';
 
 	interface Props {

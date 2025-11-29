@@ -16,7 +16,7 @@
 			{message || ''}
 		</p>
 		<p class="text-xsm">
-			Return to the <a class="highlight" href="/static">homepage</a>?
+			Return to the <a class="highlight" href="/">homepage</a>?
 		</p>
 		<img alt="Error" src="/error-image.jpg" style="margin: 20px; width: 550px; height: auto;" />
 	</div>

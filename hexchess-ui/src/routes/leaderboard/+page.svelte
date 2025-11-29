@@ -11,6 +11,8 @@
 	}
 
 	const { data: props }: { data: LeaderboardProps } = $props();
+
+	$inspect(props)
 </script>
 
 <svelte:head>

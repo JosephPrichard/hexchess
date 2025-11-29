@@ -52,7 +52,7 @@
 			return;
 		}
 		window.google?.accounts.id.renderButton(googleBtn, {
-			theme: "outline", 
+			theme: "filled_blue",
 			size: "large",
 			type: "standard"
 		});

@@ -22,9 +22,9 @@ export const pieces = {
 
 export const promotions = {
 	queen: 1,
-	rook: 3,
-	bishop: 5,
-	knight: 7,
+	rook: 2,
+	bishop: 3,
+	knight: 4,
 }
 
 export const whitePieces = [

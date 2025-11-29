@@ -101,6 +101,8 @@
 			const next = await makeMoveWasm($state.snapshot(gameState.value.prevGame), move);
 			if (next !== undefined) {
 				gameState.setGame(next);
+			} else {
+				gameState.revert();
 			}
 		} else {
 			gameState.revert();

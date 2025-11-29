@@ -166,12 +166,19 @@ func TestGame_MakeMove(t *testing.T) {
 	game := MakeStartGame(
 		NotMove{"c4", BlackKnight},
 		NotMove{"e5", WhiteKnight},
-		NotMove{"d5", BlackPawn})
-	game.MakeMove(Move{From: Hex{File: 3, Rank: 4}, To: Hex{File: 3, Rank: 3}, Promotion: QueenPromotion})
+		NotMove{"d5", WhitePawn},
+		NotMove{"k5", WhitePawn})
+	game1 := game.MakeMoved(Move{From: Hex{File: 3, Rank: 4}, To: Hex{File: 3, Rank: 3}, Promotion: QueenPromotion})
 
-	assert.Equal(t, Empty, game.Board.Pieces[3][4])
-	assert.Equal(t, BlackPawn, game.Board.Pieces[3][3])
-	assert.Equal(t, 1, len(game.Moves))
+	assert.Equal(t, Empty, game1.Board.Get(3, 4))
+	assert.Equal(t, WhitePawn, game1.Board.Get(3, 3))
+	assert.Equal(t, 1, len(game1.Moves))
+
+	game2 := game.MakeMoved(Move{From: Hex{File: 10, Rank: 4}, To: Hex{File: 10, Rank: 5}, Promotion: QueenPromotion})
+
+	assert.Equal(t, Empty, game2.Board.Get(10, 4))
+	assert.Equal(t, WhiteQueen, game2.Board.Get(10, 5))
+	assert.Equal(t, 1, len(game2.Moves))
 }
 
 func TestGame_GetMoveNotation(t *testing.T) {
