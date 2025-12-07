@@ -19,9 +19,8 @@ WASM_SRC_DIR    := $(SVC_DIR)/cmd/wasm
 WASM_OUTPUT     := chess.wasm
 UI_WASM_DIR     := $(UI_DIR)/static/wasm
 
-# Default target
-build-ci: all ci
-all: generate-go generate-protos build-wasm install-wasm
+all: sources ci
+sources: generate-go generate-protos build-wasm install-wasm
 
 generate-go:
 	@echo "Generating go sources"
@@ -65,4 +64,4 @@ clean:
 	rm -f $(WASM_SRC_DIR)/$(WASM_OUTPUT)
 	rm -f $(UI_WASM_DIR)/$(WASM_OUTPUT)
 
-.PHONY: all generate-go generate-protos proto-backend proto-frontend build-wasm install-wasm ci clean
+.PHONY: all clean

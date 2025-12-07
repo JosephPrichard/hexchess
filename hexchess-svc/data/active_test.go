@@ -2,10 +2,11 @@ package data
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"hexchess-svc/util"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestActiveUser(t *testing.T) {
@@ -27,7 +28,7 @@ func TestActiveUser(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), count)
 
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	count, err = GetActiveCountWithExpiry(ctx, conn, rdb.ActiveUsersZSet, 1000)

@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/gomodule/redigo/redis"
 	"log/slog"
 	"time"
+
+	"github.com/gomodule/redigo/redis"
 )
 
 const LeaderboardZSet = "leaderboard"
@@ -14,7 +15,7 @@ const LeaderboardZSet = "leaderboard"
 var ErrSessionNotFound = errors.New("session not found")
 
 func GetSession(ctx context.Context, rdb *Redis, sessionID string) (PlayerState, error) {
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	fullID := "session:" + sessionID
@@ -40,7 +41,7 @@ func SetSession(ctx context.Context, rdb *Redis, sessionID string, player Player
 		return err
 	}
 
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 	fullID := "session:" + sessionID
 
@@ -52,7 +53,7 @@ func SetSession(ctx context.Context, rdb *Redis, sessionID string, player Player
 }
 
 func UpdateSessionEx(ctx context.Context, rdb *Redis, sessionID string, expiry time.Duration) error {
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	fullID := "session:" + sessionID
@@ -65,7 +66,7 @@ func UpdateSessionEx(ctx context.Context, rdb *Redis, sessionID string, expiry t
 }
 
 func DeleteSession(ctx context.Context, rdb *Redis, sessionID string) error {
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	if _, err := conn.Do("DEL", "session:"+sessionID); err != nil {

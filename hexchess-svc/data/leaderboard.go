@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/gomodule/redigo/redis"
 	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"log/slog"
 	"math"
 	"strconv"
+
+	"github.com/gomodule/redigo/redis"
 )
 
 type UpdtLbChangeSet struct {
@@ -18,7 +19,7 @@ type UpdtLbChangeSet struct {
 }
 
 func SetLeaderboard(ctx context.Context, rdb *Redis, changes ...UpdtLbChangeSet) error {
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	conn.Send("MULTI")
@@ -34,7 +35,7 @@ func SetLeaderboard(ctx context.Context, rdb *Redis, changes ...UpdtLbChangeSet)
 }
 
 func IncrLeaderboard(ctx context.Context, rdb *Redis, changes ...UpdtLbChangeSet) error {
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	conn.Send("MULTI")
@@ -60,7 +61,7 @@ func GetLeaderboardRank(ctx context.Context, rdb *Redis, id int64) (int64, error
 		return 0, err
 	}
 
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	rank, err := redis.Int64(conn.Do("ZREVRANK", rdb.LeaderboardZSet, id))
@@ -85,7 +86,7 @@ func GetLeaderboard(ctx context.Context, rdb *Redis, startRank, count int64) (Le
 		return Leaderboard{}, err
 	}
 
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	end := startRank - 1 + count

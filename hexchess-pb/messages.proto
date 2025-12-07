@@ -189,3 +189,12 @@ message ChallengeMsg {
   string start_color = 10;
   string made_on = 11;
 }
+
+message EloHistory {
+  string timestamp = 1;
+  double elo = 2;
+}
+
+message EloHistories {
+  repeated EloHistory histories = 1;
+}

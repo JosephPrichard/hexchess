@@ -2,13 +2,14 @@ package data
 
 import (
 	"context"
-	"github.com/gomodule/redigo/redis"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"hexchess-svc/db"
 	"log/slog"
 	"slices"
 	"time"
+
+	"github.com/gomodule/redigo/redis"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type TxFn[Ret any] func(query *db.Queries) (Ret, error)
@@ -27,7 +28,7 @@ func (db Postgres) Close() {
 }
 
 type Redis struct {
-	Primary         *redis.Pool
+	Cache           *redis.Pool
 	PubSub          *redis.Pool
 	PrimaryAddr     string
 	PubsubAddr      string
@@ -41,8 +42,8 @@ type Redis struct {
 }
 
 func (rdb *Redis) Close() {
-	if rdb.Primary != nil {
-		rdb.Primary.Close()
+	if rdb.Cache != nil {
+		rdb.Cache.Close()
 	}
 	if rdb.PubSub != nil {
 		rdb.PubSub.Close()
@@ -62,7 +63,7 @@ func (s Databases) Close() {
 const MaxIdle = 3
 const IdleTimeout = 240 * time.Second
 
-func MakeRdb(primaryAddr string, pubsubAddr string) *Redis {
+func MakeRdb(cacheAddr string, pubsubAddr string) *Redis {
 	makeDial := func(addr string) func() (redis.Conn, error) {
 		return func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", addr)
@@ -81,13 +82,13 @@ func MakeRdb(primaryAddr string, pubsubAddr string) *Redis {
 		}
 	}
 	return &Redis{
-		Primary: &redis.Pool{
+		Cache: &redis.Pool{
 			MaxIdle:     MaxIdle,
 			IdleTimeout: IdleTimeout,
-			Dial:        makeDial(primaryAddr),
+			Dial:        makeDial(cacheAddr),
 		},
 		PubSub:          pubsub,
-		PrimaryAddr:     primaryAddr,
+		PrimaryAddr:     cacheAddr,
 		PubsubAddr:      pubsubAddr,
 		LeaderboardZSet: LeaderboardZSet,
 		GamesZSet:       GamesZSet,

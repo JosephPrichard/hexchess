@@ -29,6 +29,13 @@ SELECT move_history AS move_history_bytes
 FROM replays
 WHERE id = sqlc.arg('id');
 
+-- name: GetReplayElos :many
+SELECT played_on, white_id, black_id, result, win_elo, lose_elo
+FROM replays
+WHERE 
+    (white_id = sqlc.arg('id') OR black_id = sqlc.arg('id')) AND 
+    (played_on > sqlc.narg('played_after') OR sqlc.narg('played_after') IS NULL);
+
 -- name: GetUserReplays :many
 SELECT
     r.id,

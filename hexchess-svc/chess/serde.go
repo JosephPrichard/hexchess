@@ -96,7 +96,12 @@ func DeserializeHistMoveList(pbMoves []*pb.HistMove) []HistMove {
 	return moves
 }
 
+var ErrNilGame = errors.New("board must not be nil")
+
 func DeserializeGame(pbGame *pb.ChessGame) (Game, error) {
+	if pbGame == nil {
+		return Game{}, ErrNilGame
+	}
 	board, err := DeserializeBoard(pbGame.Board)
 	if err != nil {
 		return Game{}, fmt.Errorf("failed to deserialize board %v: %w", pbGame.Board, err)

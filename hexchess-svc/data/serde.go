@@ -2,7 +2,6 @@ package data
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
@@ -33,28 +32,23 @@ func DeserializePlayer(pbPlayer *pb.PlayerState) *PlayerState {
 	return player
 }
 
-var ErrNilChess = errors.New("chess board and game cannot be nil")
-
 func UnmarshalChessState(b []byte) (ChessState, error) {
-	var cs ChessState
+	var state ChessState
 
 	var pbChess pb.ChessState
 	if err := proto.Unmarshal(b, &pbChess); err != nil {
-		return cs, err
-	}
-	if pbChess.Game == nil || pbChess.Game.Board == nil {
-		return cs, ErrNilChess
+		return state, err
 	}
 	game, err := chess.DeserializeGame(pbChess.Game)
 	if err != nil {
-		return cs, fmt.Errorf("failed to deserialize game: %w", err)
+		return state, fmt.Errorf("failed to deserialize game: %w", err)
 	}
 	initialBoard, err := chess.DeserializeBoard(pbChess.Game.Board)
 	if err != nil {
-		return cs, fmt.Errorf("failed to deserialize board %v: %w", pbChess.Game.Board, err)
+		return state, fmt.Errorf("failed to deserialize board %v: %w", pbChess.Game.Board, err)
 	}
 
-	cs = ChessState{
+	state = ChessState{
 		Game:         game,
 		InitialBoard: initialBoard,
 		ChessMeta: ChessMeta{
@@ -67,7 +61,7 @@ func UnmarshalChessState(b []byte) (ChessState, error) {
 			Touch:       time.UnixMilli(pbChess.Touch),
 		},
 	}
-	return cs, nil
+	return state, nil
 }
 
 func SerializePlayer(p *PlayerState) *pb.PlayerState {

@@ -72,6 +72,55 @@ func (q *Queries) GetReplayByID(ctx context.Context, id int64) (GetReplayByIDRow
 	return i, err
 }
 
+const getReplayElos = `-- name: GetReplayElos :many
+SELECT played_on, white_id, black_id, result, win_elo, lose_elo
+FROM replays
+WHERE 
+    (white_id = $1 OR black_id = $1) AND 
+    (played_on > $2 OR $2 IS NULL)
+`
+
+type GetReplayElosParams struct {
+	ID          int64
+	PlayedAfter pgtype.Timestamptz
+}
+
+type GetReplayElosRow struct {
+	PlayedOn pgtype.Timestamptz
+	WhiteID  int64
+	BlackID  int64
+	Result   string
+	WinElo   float64
+	LoseElo  float64
+}
+
+func (q *Queries) GetReplayElos(ctx context.Context, arg GetReplayElosParams) ([]GetReplayElosRow, error) {
+	rows, err := q.db.Query(ctx, getReplayElos, arg.ID, arg.PlayedAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetReplayElosRow
+	for rows.Next() {
+		var i GetReplayElosRow
+		if err := rows.Scan(
+			&i.PlayedOn,
+			&i.WhiteID,
+			&i.BlackID,
+			&i.Result,
+			&i.WinElo,
+			&i.LoseElo,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getReplayMoveHistory = `-- name: GetReplayMoveHistory :one
 SELECT move_history AS move_history_bytes
 FROM replays

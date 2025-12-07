@@ -1955,6 +1955,102 @@ func (x *ChallengeMsg) GetMadeOn() string {
 	return ""
 }
 
+type EloHistory struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Timestamp     string                 `protobuf:"bytes,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Elo           float64                `protobuf:"fixed64,2,opt,name=elo,proto3" json:"elo,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EloHistory) Reset() {
+	*x = EloHistory{}
+	mi := &file_messages_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EloHistory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EloHistory) ProtoMessage() {}
+
+func (x *EloHistory) ProtoReflect() protoreflect.Message {
+	mi := &file_messages_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EloHistory.ProtoReflect.Descriptor instead.
+func (*EloHistory) Descriptor() ([]byte, []int) {
+	return file_messages_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *EloHistory) GetTimestamp() string {
+	if x != nil {
+		return x.Timestamp
+	}
+	return ""
+}
+
+func (x *EloHistory) GetElo() float64 {
+	if x != nil {
+		return x.Elo
+	}
+	return 0
+}
+
+type EloHistories struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Histories     []*EloHistory          `protobuf:"bytes,1,rep,name=histories,proto3" json:"histories,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EloHistories) Reset() {
+	*x = EloHistories{}
+	mi := &file_messages_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EloHistories) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EloHistories) ProtoMessage() {}
+
+func (x *EloHistories) ProtoReflect() protoreflect.Message {
+	mi := &file_messages_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EloHistories.ProtoReflect.Descriptor instead.
+func (*EloHistories) Descriptor() ([]byte, []int) {
+	return file_messages_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *EloHistories) GetHistories() []*EloHistory {
+	if x != nil {
+		return x.Histories
+	}
+	return nil
+}
+
 var File_messages_proto protoreflect.FileDescriptor
 
 const file_messages_proto_rawDesc = "" +
@@ -2104,7 +2200,13 @@ const file_messages_proto_rawDesc = "" +
 	"\vstart_color\x18\n" +
 	" \x01(\tR\n" +
 	"startColor\x12\x17\n" +
-	"\amade_on\x18\v \x01(\tR\x06madeOnB\x11Z\x0fhexchess-svc/pbb\x06proto3"
+	"\amade_on\x18\v \x01(\tR\x06madeOn\"<\n" +
+	"\n" +
+	"EloHistory\x12\x1c\n" +
+	"\ttimestamp\x18\x01 \x01(\tR\ttimestamp\x12\x10\n" +
+	"\x03elo\x18\x02 \x01(\x01R\x03elo\"B\n" +
+	"\fEloHistories\x122\n" +
+	"\thistories\x18\x01 \x03(\v2\x14.messages.EloHistoryR\thistoriesB\x11Z\x0fhexchess-svc/pbb\x06proto3"
 
 var (
 	file_messages_proto_rawDescOnce sync.Once
@@ -2118,7 +2220,7 @@ func file_messages_proto_rawDescGZIP() []byte {
 	return file_messages_proto_rawDescData
 }
 
-var file_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
+var file_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
 var file_messages_proto_goTypes = []any{
 	(*PlayerState)(nil),   // 0: messages.PlayerState
 	(*PieceMove)(nil),     // 1: messages.PieceMove
@@ -2149,6 +2251,8 @@ var file_messages_proto_goTypes = []any{
 	(*MakeMoveInput)(nil), // 26: messages.MakeMoveInput
 	(*UserMsg)(nil),       // 27: messages.UserMsg
 	(*ChallengeMsg)(nil),  // 28: messages.ChallengeMsg
+	(*EloHistory)(nil),    // 29: messages.EloHistory
+	(*EloHistories)(nil),  // 30: messages.EloHistories
 }
 var file_messages_proto_depIdxs = []int32{
 	3,  // 0: messages.ChessBoard.file:type_name -> messages.BoardFile
@@ -2189,11 +2293,12 @@ var file_messages_proto_depIdxs = []int32{
 	9,  // 35: messages.MakeMoveInput.move:type_name -> messages.Move
 	6,  // 36: messages.MakeMoveInput.game:type_name -> messages.ChessGame
 	28, // 37: messages.UserMsg.challenge:type_name -> messages.ChallengeMsg
-	38, // [38:38] is the sub-list for method output_type
-	38, // [38:38] is the sub-list for method input_type
-	38, // [38:38] is the sub-list for extension type_name
-	38, // [38:38] is the sub-list for extension extendee
-	0,  // [0:38] is the sub-list for field type_name
+	29, // 38: messages.EloHistories.histories:type_name -> messages.EloHistory
+	39, // [39:39] is the sub-list for method output_type
+	39, // [39:39] is the sub-list for method input_type
+	39, // [39:39] is the sub-list for extension type_name
+	39, // [39:39] is the sub-list for extension extendee
+	0,  // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_messages_proto_init() }
@@ -2223,7 +2328,7 @@ func file_messages_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_messages_proto_rawDesc), len(file_messages_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   29,
+			NumMessages:   31,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

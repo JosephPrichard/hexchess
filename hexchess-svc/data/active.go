@@ -3,9 +3,10 @@ package data
 import (
 	"context"
 	"fmt"
-	"github.com/gomodule/redigo/redis"
 	"log/slog"
 	"time"
+
+	"github.com/gomodule/redigo/redis"
 )
 
 const ActiveUsersZSet = "active_users"
@@ -32,7 +33,7 @@ func GetActiveCountWithExpiry(ctx context.Context, conn redis.Conn, activeUsersZ
 }
 
 func RetainActiveUser(ctx context.Context, rdb *Redis, id string) error {
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	if _, err := conn.Do("ZADD", rdb.ActiveUsersZSet, "XX", float64(time.Now().UnixMilli()), id); err != nil {
@@ -48,7 +49,7 @@ func AddActiveUser(ctx context.Context, rdb *Redis, id string) (int64, error) {
 }
 
 func AddActiveUserOn(ctx context.Context, rdb *Redis, id string, expiringOn time.Time, expireBefore int64) (int64, error) {
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	if _, err := conn.Do("ZADD", rdb.ActiveUsersZSet, "NX", float64(expiringOn.UnixMilli()), id); err != nil {
@@ -59,7 +60,7 @@ func AddActiveUserOn(ctx context.Context, rdb *Redis, id string, expiringOn time
 }
 
 func RemoveActiveUser(ctx context.Context, rdb *Redis, id string) (int64, error) {
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	if _, err := conn.Do("ZREM", rdb.ActiveUsersZSet, id); err != nil {

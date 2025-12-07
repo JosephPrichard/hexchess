@@ -10,7 +10,6 @@
 	import { makeMessage } from '$lib/utils/error';
 	import type { ColorSelect, TimeControl, FullUserModel } from '$lib/api/models';
 	import services from '$lib/api/services';
-	import { derived } from 'svelte/store';
 
 	export interface PlayerProps {
 		fullUser: FullUserModel;

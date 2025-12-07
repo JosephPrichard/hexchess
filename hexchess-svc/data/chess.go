@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/gomodule/redigo/redis"
-	"google.golang.org/protobuf/proto"
 	"log/slog"
 	"strconv"
 	"time"
+
+	"github.com/gomodule/redigo/redis"
+	"google.golang.org/protobuf/proto"
 )
 
 func getUserGameZSet(rdb *Redis, id int64) string {
@@ -20,7 +21,7 @@ var ErrNoChessState = errors.New("no chess state")
 func GetChessState(ctx context.Context, rdb *Redis, id string) (ChessState, error) {
 	var state ChessState
 
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	if err := ExpireChessStates(ctx, conn, rdb.GamesZSet); err != nil {
@@ -60,7 +61,7 @@ func SetChessStateAt(ctx context.Context, rdb *Redis, id string, state ChessStat
 		return state, fmt.Errorf("failed to marshal chess state: %w", err)
 	}
 
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	conn.Send("MULTI")
@@ -148,7 +149,7 @@ func GetChessMetas(ctx context.Context, rdb *Redis, zSetName string, page, count
 		return nil, err
 	}
 
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	if err := ExpireChessStates(ctx, conn, zSetName); err != nil {
@@ -182,7 +183,7 @@ func GetChessMetas(ctx context.Context, rdb *Redis, zSetName string, page, count
 }
 
 func GetChessStateCount(ctx context.Context, rdb *Redis) (int64, error) {
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	if err := ExpireChessStates(ctx, conn, rdb.GamesZSet); err != nil {

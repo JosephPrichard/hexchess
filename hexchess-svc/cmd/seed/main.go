@@ -82,7 +82,7 @@ func main() {
 		util.LogFatalErr("failed to create schema", err)
 	}
 
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	if _, err := conn.Do("FLUSHALL"); err != nil {

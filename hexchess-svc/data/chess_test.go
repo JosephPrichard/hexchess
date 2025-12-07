@@ -2,11 +2,12 @@ package data
 
 import (
 	"context"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"hexchess-svc/util"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetChessState(t *testing.T) {
@@ -99,7 +100,7 @@ func TestExpireChessStates(t *testing.T) {
 	_, err := SetChessStateAt(ctx, rdb, id1, state1, now.Add(2*-GameExpireFinished))
 	assert.NoError(t, err)
 
-	conn := rdb.Primary.Get()
+	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	assert.NoError(t, ExpireChessStates(ctx, conn, rdb.GamesZSet))

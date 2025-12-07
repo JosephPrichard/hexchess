@@ -169,7 +169,7 @@ func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 }
 
 func HandleHealthCheck(state *ServerState, w http.ResponseWriter, _ *http.Request) error {
-	connPrim := state.Rdb.Primary.Get()
+	connPrim := state.Rdb.Cache.Get()
 	defer connPrim.Close()
 
 	connPs := state.Rdb.PubSub.Get()
