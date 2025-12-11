@@ -17,10 +17,10 @@ import (
 func writeMessage(t *testing.T, conn *websocket.Conn, pbInput *pb.GameInput) {
 	b, err := proto.Marshal(pbInput)
 	if err != nil {
-		t.Fatalf("failed to marshal input: %v", err)
+		t.Fatalf("marshal input: %v", err)
 	}
 	if err := conn.WriteMessage(websocket.BinaryMessage, b); err != nil {
-		t.Fatalf("failed to write message: %v", err)
+		t.Fatalf("write message: %v", err)
 	}
 }
 
@@ -53,7 +53,7 @@ func TestHandleGameplayWs(t *testing.T) {
 	createTestChessStates(t, rdb)
 
 	state := MakeDefaultServerState(data.Databases{Rdb: rdb})
-	<-data.ListenGameMessages(state.GamesCaster, rdb.PrimaryAddr)
+	<-data.ListenGameMessages(state.GamesCaster, rdb.CacheAddr)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
 	defer ts.Close()
@@ -66,7 +66,7 @@ func TestHandleGameplayWs(t *testing.T) {
 	url := strings.Replace(fmt.Sprintf("%s/api/ws/game?gameId=%s&sessionId=%s", ts.URL, gameID, TestSessionID1), "http", "ws", 1)
 	conn, _, err := websocket.DefaultDialer.Dial(url, http.Header{})
 	if err != nil {
-		t.Fatalf("failed to dial websocket: %v", err)
+		t.Fatalf("dial websocket: %v", err)
 	}
 	defer conn.Close()
 
@@ -77,10 +77,10 @@ func TestHandleGameplayWs(t *testing.T) {
 	for i := range expCount1 {
 		_, b, err := conn.ReadMessage()
 		if err != nil {
-			t.Fatalf("failed to read ws message: %v", err)
+			t.Fatalf("read ws message: %v", err)
 		}
 		if err := proto.Unmarshal(b, &outputs1[i]); err != nil {
-			t.Fatalf("failed to marshal input: %v", err)
+			t.Fatalf("marshal input: %v", err)
 		}
 	}
 	outputs2 := <-outputs2Chan

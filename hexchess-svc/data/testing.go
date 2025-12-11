@@ -28,13 +28,13 @@ func TeardownTestInfra() {
 	log.Print("tearing down test infra")
 	if postgresCont != nil {
 		if err := testcontainers.TerminateContainer(postgresCont); err != nil {
-			util.LogFatalErr("failed to stop test db with err", err)
+			util.LogFatalErr("stop test db with err", err)
 		}
 		log.Print("stopped test postgres db")
 	}
 	if redisCont != nil {
 		if err := testcontainers.TerminateContainer(redisCont); err != nil {
-			util.LogFatalErr("failed to terminate container", err)
+			util.LogFatalErr("terminate container", err)
 		}
 		log.Print("stopped test redis container")
 	}
@@ -57,7 +57,7 @@ func BeforeRedisTests(t TestLogger) *Redis {
 		t.Logf("starting up the redis container")
 		cont, err := tcredis.Run(ctx, "redis:6-alpine", testcontainers.WithExposedPorts("6379"))
 		if err != nil {
-			t.Fatalf("failed to start cont: %s", err)
+			t.Fatalf("start cont: %s", err)
 		}
 		redisCont = cont
 		t.Logf("finished starting up the redis cont in %v", time.Now().Sub(start))
@@ -65,11 +65,11 @@ func BeforeRedisTests(t TestLogger) *Redis {
 
 	host, err := redisCont.Container.Host(ctx)
 	if err != nil {
-		t.Fatalf("failed to get redis cont host: %s", err)
+		t.Fatalf("get redis cont host: %s", err)
 	}
 	port, err := redisCont.Container.MappedPort(ctx, "6379/tcp")
 	if err != nil {
-		t.Fatalf("failed to get redis port: %s", err)
+		t.Fatalf("get redis port: %s", err)
 	}
 	addr := host + ":" + port.Port()
 
@@ -111,7 +111,7 @@ func BeforeDbTests(t TestLogger, useTestTx bool) (*Postgres, func()) {
 			Started:          true,
 		})
 		if err != nil {
-			t.Fatalf("failed to start postgres cont: %s", err)
+			t.Fatalf("start postgres cont: %s", err)
 		}
 		postgresCont = cont
 		shouldSeed = true
@@ -119,40 +119,40 @@ func BeforeDbTests(t TestLogger, useTestTx bool) (*Postgres, func()) {
 
 	host, err := postgresCont.Host(ctx)
 	if err != nil {
-		t.Fatalf("failed to get postgres cont host: %s", err)
+		t.Fatalf("get postgres cont host: %s", err)
 	}
 	port, err := postgresCont.MappedPort(ctx, "5432/tcp")
 	if err != nil {
-		t.Fatalf("failed to get postgres port: %s", err)
+		t.Fatalf("get postgres port: %s", err)
 	}
 
 	pool, err := pgxpool.New(ctx, fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", TestDbUser, TestDbPass, host, port.Port(), TestDbName))
 	if err != nil {
-		t.Fatalf("failed to create pool: %v", err)
+		t.Fatalf("create pool: %v", err)
 	}
 	q := db.New(pool)
 
 	if shouldSeed {
 		// initialize the schema and test data for the test postgres instance, but only after the container is created
 		if _, err := pool.Exec(ctx, "DROP SCHEMA public CASCADE;\nCREATE SCHEMA public;"); err != nil {
-			t.Fatalf("failed to create schema: %v", err)
+			t.Fatalf("create schema: %v", err)
 		}
 		if _, err := pool.Exec(ctx, db.CreateSchema); err != nil {
-			t.Fatalf("failed to create schema: %v", err)
+			t.Fatalf("create schema: %v", err)
 		}
-		CreateTestData(t, q)
+		InsertTestData(t, q)
 		t.Logf("finished setting up postgres test cont in %v", time.Now().Sub(start))
 	}
 
 	if useTestTx {
 		testTx, err := pool.Begin(ctx)
 		if err != nil {
-			t.Fatalf("failed to open testing tx %v", err)
+			t.Fatalf("open testing tx %v", err)
 		}
 		closer := func() {
 			t.Logf("shutting down test txn and pool")
 			if err := testTx.Rollback(context.Background()); err != nil {
-				t.Fatalf("failed to rollback test txn: %v", err)
+				t.Fatalf("rollback test txn: %v", err)
 			}
 			pool.Close()
 		}

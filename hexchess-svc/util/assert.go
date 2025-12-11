@@ -17,6 +17,7 @@ func AssertEqualIgnoring[T any](t *testing.T, expected, actual T, opts ...cmp.Op
 	}
 }
 func AssertRespBody[V any](t *testing.T, expBody any, w *httptest.ResponseRecorder, opts ...cmp.Option) {
+	t.Helper()
 	resp := w.Result()
 	defer resp.Body.Close()
 

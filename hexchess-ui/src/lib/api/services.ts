@@ -1,5 +1,5 @@
 import { codes } from '$lib/utils/error';
-import type { Action, ChallengeModel, ChessModel, ReplayModel, ServiceModel, SessionModel, UserModel, FullUserModel } from './models';
+import type { Action, ChallengeModel, ChessModel, ReplayModel, ServiceModel, SessionModel, UserModel, FullUserModel, Timeframe, EloHistory, EloBuckets } from './models';
 import { v4 as uuidv4 } from 'uuid';
 import { env } from '$env/dynamic/public';
 import { MoveReplay } from '../pb/messages';
@@ -230,7 +230,8 @@ function getUserWithReplays(id: string, fetch?: FetchFn) {
 
 function getSearchPlayers(username: string, page?: number, fetch?: FetchFn) {
 	const params = new URLSearchParams({ username });
-	if (page) params.set('page', String(page));
+	if (page)
+		params.set('page', String(page));
 	interface Response {
 		userList: UserModel[];
 	}
@@ -243,6 +244,17 @@ function getReplay(id: string, fetch?: FetchFn) {
 	}
 	const params = new URLSearchParams({ id });
 	return requestJSON<Response>(`${baseURL()}/replay?${params}`, { method: 'GET' }, fetch);
+}
+
+function getEloHistories(userId: number, timeframe: Timeframe, fetch?: FetchFn) {
+	const params = new URLSearchParams({
+		userId: userId.toString(),
+		timeframe
+	});
+	interface Response {
+		buckets: EloBuckets
+	}
+	return requestJSON<Response>(`${baseURL()}/replay/elo-history?${params}`, { method: 'GET' }, fetch);
 }
 
 async function getReplayMoveHistory(id: string, fetch?: FetchFn): Promise<Result<MoveReplay>> {
@@ -297,4 +309,5 @@ export default {
 	getReplayMoveHistory,
 	getChessRooms,
 	getCountries,
+	getEloHistories,
 };

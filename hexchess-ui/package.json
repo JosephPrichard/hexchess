@@ -44,6 +44,9 @@
 	},
 	"dependencies": {
 		"@protobuf-ts/plugin": "^2.11.0",
+		"chart.js": "^4.5.1",
+		"chartjs-adapter-date-fns": "^3.0.0",
+		"date-fns": "^4.1.0",
 		"protobufjs": "^7.5.3",
 		"protobufjs-cli": "^1.1.3",
 		"uuid": "^13.0.0"

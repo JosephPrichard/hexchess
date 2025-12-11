@@ -1,7 +1,23 @@
 -- name: InsertReplay :one
-INSERT INTO replays (white_id, black_id, result, cause, win_elo, lose_elo, move_history)
-VALUES (sqlc.arg('whiteID'), sqlc.arg('blackID'), sqlc.arg('result'), sqlc.arg('cause'), sqlc.arg('winElo'), sqlc.arg('loseElo'), sqlc.arg('moveHistory'))
+INSERT INTO replays (white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode, move_history)
+VALUES (
+        sqlc.arg('whiteID'),
+        sqlc.arg('blackID'),
+        sqlc.arg('result'),
+        sqlc.arg('cause'),
+        sqlc.arg('winElo'),
+        sqlc.arg('loseElo'),
+        COALESCE(sqlc.narg('whiteElo'), (SELECT elo FROM users WHERE id = sqlc.arg('whiteID')))::FLOAT8,
+        COALESCE(sqlc.narg('blackElo'), (SELECT elo FROM users WHERE id = sqlc.arg('blackID')))::FLOAT8,
+        COALESCE(sqlc.narg('playedOn'), CURRENT_TIMESTAMP)::TIMESTAMPTZ,
+        sqlc.arg('mode'),
+        sqlc.arg('moveHistory'))
 RETURNING id;
+
+-- name: GetReplayRowByID :one
+SELECT *
+FROM replays r
+WHERE r.id = sqlc.arg('id');
 
 -- name: GetReplayByID :one
 SELECT
@@ -11,8 +27,9 @@ SELECT
     r.result,
     r.cause,
     r.played_on,
-    r.win_elo,
-    r.lose_elo,
+    r.win_elo_diff,
+    r.lose_elo_diff,
+    r.mode,
     u1.username AS white_name,
     u1.country AS white_country,
     u1.elo AS white_elo,
@@ -30,7 +47,7 @@ FROM replays
 WHERE id = sqlc.arg('id');
 
 -- name: GetReplayElos :many
-SELECT played_on, white_id, black_id, result, win_elo, lose_elo
+SELECT id, mode, played_on, white_id, black_id, white_elo, black_elo -- gets the white/black elo at the time of insertion
 FROM replays
 WHERE 
     (white_id = sqlc.arg('id') OR black_id = sqlc.arg('id')) AND 
@@ -44,8 +61,9 @@ SELECT
     r.result,
     r.cause,
     r.played_on,
-    r.win_elo,
-    r.lose_elo,
+    r.win_elo_diff,
+    r.lose_elo_diff,
+    r.mode,
     u1.username AS white_name,
     u1.country AS white_country,
     u1.elo AS white_elo,
@@ -53,8 +71,9 @@ SELECT
     u2.country AS black_country,
     u2.elo AS black_elo
 FROM replays r
-         INNER JOIN users u1 ON u1.id = r.white_id
-         INNER JOIN users u2 ON u2.id = r.black_id
+        -- ensures we get the white/black elo at the time of retrieval
+        INNER JOIN users u1 ON u1.id = r.white_id
+        INNER JOIN users u2 ON u2.id = r.black_id
 WHERE r.id < sqlc.arg('afterID')
   AND (r.white_id = sqlc.arg('userID') OR r.black_id = sqlc.arg('userID'))
 ORDER BY r.id DESC

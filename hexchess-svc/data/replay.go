@@ -9,14 +9,14 @@ import (
 	"hexchess-svc/pb"
 	"log/slog"
 	"math"
-	"strconv"
 	"time"
 
-	"github.com/gomodule/redigo/redis"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jackc/pgx/v5/pgtype"
 	"google.golang.org/protobuf/proto"
 )
+
+var ReplayModes = []string{"UNLIMITED", "REAL_TIME", "CORRESPONDENCE"}
 
 type ReplayEntity struct {
 	ID           int64        `json:"id"`
@@ -28,8 +28,8 @@ type ReplayEntity struct {
 	BlackCountry string       `json:"blackCountry"`
 	Result       ReplayResult `json:"result"`
 	Cause        ReplayCause  `json:"cause"`
-	WinElo       float64      `json:"winElo"`
-	LoseElo      float64      `json:"loseElo"`
+	WinEloDiff   float64      `json:"winEloDiff"`
+	LoseEloDiff  float64      `json:"loseEloDiff"`
 	WhiteElo     float64      `json:"whiteElo"`
 	BlackElo     float64      `json:"blackElo"`
 	WhiteEloDiff float64      `json:"whiteEloDiff"`
@@ -38,6 +38,7 @@ type ReplayEntity struct {
 }
 
 var ReplayEntityCmpOpts = cmpopts.IgnoreFields(ReplayEntity{}, "PlayedOn")
+var ReplayRowCmpOpts = cmpopts.IgnoreFields(db.Replay{}, "PlayedOn")
 
 type ReplayResult string
 
@@ -54,19 +55,44 @@ const (
 	Forfeit   ReplayCause = "FORFEIT"
 )
 
+type ReplayMode string
+
+// contains the same value as time control by coincidence, in the future we want to add the timer value to the modes
+const (
+	ModeUnlimited      ReplayMode = "UNLIMITED"
+	ModeRealTime       ReplayMode = "REAL_TIME"
+	ModeCorrespondence ReplayMode = "CORRESPONDENCE"
+)
+
 type ReplayInst struct {
-	WhiteID          int64        `json:"whiteId"`
-	BlackID          int64        `json:"blackId"`
-	Result           ReplayResult `json:"result"`
-	Cause            ReplayCause  `json:"cause"`
-	WinElo           float64      `json:"winElo"`
-	LoseElo          float64      `json:"loseElo"`
+	WhiteID          int64
+	BlackID          int64
+	Result           ReplayResult
+	Cause            ReplayCause
+	Mode             ReplayMode
+	WinEloDiff       float64
+	LoseEloDiff      float64
+	BlackElo         float64
+	WhiteElo         float64
 	MoveHistoryProto []byte
+	PlayedOn         time.Time
 }
 
 func InsertReplay(ctx context.Context, query *db.Queries, inst ReplayInst) (int64, error) {
 	if inst.MoveHistoryProto == nil {
 		inst.MoveHistoryProto = []byte{}
+	}
+	playedOn := pgtype.Timestamptz{}
+	if !inst.PlayedOn.IsZero() {
+		playedOn = pgtype.Timestamptz{Valid: true, Time: inst.PlayedOn}
+	}
+	whiteElo := pgtype.Float8{}
+	if inst.WhiteElo != 0 {
+		whiteElo = pgtype.Float8{Valid: true, Float64: inst.WhiteElo}
+	}
+	blackElo := pgtype.Float8{}
+	if inst.BlackElo != 0 {
+		blackElo = pgtype.Float8{Valid: true, Float64: inst.BlackElo}
 	}
 
 	replayID, err := query.InsertReplay(ctx, db.InsertReplayParams{
@@ -74,27 +100,30 @@ func InsertReplay(ctx context.Context, query *db.Queries, inst ReplayInst) (int6
 		BlackID:     inst.BlackID,
 		Result:      string(inst.Result),
 		Cause:       string(inst.Cause),
-		WinElo:      inst.WinElo,
-		LoseElo:     inst.LoseElo,
+		Mode:        string(inst.Mode),
+		WinElo:      inst.WinEloDiff,
+		LoseElo:     inst.LoseEloDiff,
+		WhiteElo:    whiteElo,
+		BlackElo:    blackElo,
 		MoveHistory: inst.MoveHistoryProto,
+		PlayedOn:    playedOn,
 	})
+	inst.MoveHistoryProto = nil
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to create replay", "replay", inst, "err", err)
 		return 0, err
 	}
-
-	inst.MoveHistoryProto = nil
 	slog.InfoContext(ctx, "created a new replay", "replay", inst, "replayID", replayID)
 	return replayID, nil
 }
 
-func colorEloDiffs(result ReplayResult, winElo float64, loseElo float64) (float64, float64) {
+func getColorEloDiffs(result ReplayResult, winEloDiff float64, loseEloDiff float64) (float64, float64) {
 	var whiteEloDiff, blackEloDiff float64
 	switch result {
 	case WhiteWin:
-		whiteEloDiff, blackEloDiff = winElo, loseElo
+		whiteEloDiff, blackEloDiff = winEloDiff, loseEloDiff
 	case BlackWin:
-		whiteEloDiff, blackEloDiff = loseElo, winElo
+		whiteEloDiff, blackEloDiff = loseEloDiff, winEloDiff
 	default:
 	}
 	return whiteEloDiff, blackEloDiff
@@ -111,30 +140,31 @@ func mapReplayFromRow(row db.GetReplayByIDRow) (ReplayEntity, error) {
 		BlackCountry: row.BlackCountry.String,
 		Result:       ReplayResult(row.Result),
 		Cause:        ReplayCause(row.Cause),
-		WinElo:       row.WinElo,
-		LoseElo:      row.LoseElo,
+		WinEloDiff:   row.WinEloDiff,
+		LoseEloDiff:  row.LoseEloDiff,
 		WhiteElo:     row.WhiteElo,
 		BlackElo:     row.BlackElo,
 		PlayedOn:     row.PlayedOn.Time,
 	}
-	replay.WhiteEloDiff, replay.BlackEloDiff = colorEloDiffs(replay.Result, replay.WinElo, replay.LoseElo)
+	replay.WhiteEloDiff, replay.BlackEloDiff = getColorEloDiffs(replay.Result, replay.WinEloDiff, replay.LoseEloDiff)
 	return replay, nil
 }
 
 var ErrNoReplay = errors.New("replay not found")
 
 func GetReplay(ctx context.Context, query *db.Queries, id int64) (ReplayEntity, error) {
+	var replay ReplayEntity
+
 	row, err := query.GetReplayByID(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return ReplayEntity{}, ErrNoReplay
+		return replay, ErrNoReplay
 	}
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to select replay", "id", id, "err", err)
-		return ReplayEntity{}, fmt.Errorf("failed to get replay %d by id: %w", id, err)
+		return replay, fmt.Errorf("get replay %d by id: %w", id, err)
 	}
-	replay, err := mapReplayFromRow(row)
-	if err != nil {
-		return ReplayEntity{}, err
+	if replay, err = mapReplayFromRow(row); err != nil {
+		return replay, err
 	}
 
 	slog.InfoContext(ctx, "selected replay by id", "replay", replay)
@@ -147,14 +177,12 @@ func GetReplayMoveHistory(ctx context.Context, query *db.Queries, id int64) (*pb
 		return nil, ErrNoReplay
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to get replay %d move list by id: %w", id, err)
+		return nil, fmt.Errorf("get replay %d move list by id: %w", id, err)
 	}
-
 	var moveHist pb.MoveHistory
 	if err := proto.Unmarshal(b, &moveHist); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal move history: %w", err)
+		return nil, fmt.Errorf("unmarshal move history: %w", err)
 	}
-
 	return &moveHist, nil
 }
 
@@ -170,7 +198,7 @@ func GetUserReplays(ctx context.Context, query *db.Queries, userID int64, afterI
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to select replays", "userID", userID, "afterID", afterID, "err", err)
-		return nil, fmt.Errorf("failed to select replays: %w", err)
+		return nil, fmt.Errorf("select replays: %w", err)
 	}
 
 	var replays []ReplayEntity
@@ -185,107 +213,133 @@ func GetUserReplays(ctx context.Context, query *db.Queries, userID int64, afterI
 	return replays, nil
 }
 
-func GetEloHistories(ctx context.Context, rdb *Redis, userID int64) (*pb.EloHistories, error) {
-	key := "elo-history:" + strconv.Itoa(int(userID))
-	var isCached bool
+const (
+	ShortBucketDuration = 24 * time.Hour
+	LongBucketDuration  = 7 * 24 * time.Hour
+	LongMonthsThreshold = 12
+)
 
-	conn := rdb.Cache.Get()
-	defer conn.Close()
-
-	var pbEloHistories pb.EloHistories
-
-	v, err := redis.Bytes(conn.Do("GET", key))
-	if err != nil {
-		if errors.Is(err, redis.ErrNil) {
-			isCached = true
-		} else {
-			return nil, fmt.Errorf("failed to 'GET' cached elo histories for user %d: %w", userID, err)
-		}
-	}	
-	if isCached {
-		if err := proto.Unmarshal(v, &pbEloHistories); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal cached elo histories for user %d: %w", userID, err)
-		}
-	}
-
-	return &pbEloHistories, nil
+type EloHistoriesParams struct {
+	UserID int64 `json:"userID"`
+	Months int   `json:"months"`
 }
 
-func SetEloHistories(tx context.Context, rdb *Redis, userID int64, pbHistories *pb.EloHistories) error {
-	key := "elo-history:" + strconv.Itoa(int(userID))
+type EloHistoryBuckets map[string][]EloHistoryBucket
 
-	conn := rdb.Cache.Get()
-	defer conn.Close()
-
-	v, err := proto.Marshal(pbHistories)
-	if err != nil {
-		return fmt.Errorf("failed to marshal elo histories for user %d: %w", userID, err)
-	}
-	if _, err := conn.Do("SET", key, v); err != nil {
-		return fmt.Errorf("failed to 'SET' cached elo histories for user %d: %w", userID, err)
-	}
-	return nil
+type EloHistoryBucket struct {
+	Timestamp string  `json:"timestamp"`
+	Elo       float64 `json:"elo"`
 }
 
-func RetrieveEloHistories(ctx context.Context, pdb *Postgres, rdb *Redis, userID int64) (*pb.EloHistories, error) {
-	fail := func(err error) (*pb.EloHistories, error) {
-		slog.ErrorContext(ctx, "failed to get elo histories for user", "err", err, "userID", userID)
-		return nil, err
-	}
-	
-	pbEloHistories, err := GetEloHistories(ctx, rdb, userID)
-	if err != nil {
-		return fail(err)
-	}
+// RetrieveEloHistoryBuckets Returns the elo replay histories for a given user organized into buckets and categorized into a map keyed by replay "mode"
+// map will contain the keys "ALL" (contains data for all modes) plus all modes (ReplayModes)
+func RetrieveEloHistoryBuckets(ctx context.Context, dbs *Databases, timeUntil time.Time, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
+	var ehb EloHistoryBuckets
+	var bd time.Duration
 
-	var lastHistTs pgtype.Timestamptz
-	histElo := StartElo
-
-	if len(pbEloHistories.Histories) > 0 {
-		lastHist := pbEloHistories.Histories[len(pbEloHistories.Histories)-1]
-		if lastHist == nil {
-			return fail(errors.New("last elo history was nil, must not be"))
-		}
-		t, err := time.Parse(time.RFC3339, lastHist.Timestamp)
-		if err != nil {
-			return fail(fmt.Errorf("failed to parse elo history timestamp %s: %w", lastHist.Timestamp, err))
-		}
-		lastHistTs = pgtype.Timestamptz{Valid: true, Time: t}
-		histElo = lastHist.Elo
+	playedAfter := pgtype.Timestamptz{}
+	if params.Months != 0 {
+		playedAfter = pgtype.Timestamptz{Valid: true, Time: timeUntil.AddDate(0, -params.Months, 0)}
 	}
-
-	eloRows, err := pdb.Query.GetReplayElos(ctx, db.GetReplayElosParams{
-		ID: userID,
-		PlayedAfter: lastHistTs,
+	eloRows, err := dbs.Pdb.Query.GetReplayElos(ctx, db.GetReplayElosParams{
+		ID:          params.UserID,
+		PlayedAfter: playedAfter,
 	})
 	if err != nil {
-		return fail(fmt.Errorf("failed to select replay elos: %w", err))
+		return ehb, bd, fmt.Errorf("select replay elos: %w", err)
 	}
-	
-	beforeHistoriesCnt := len(pbEloHistories.Histories)
-	for _, row := range eloRows {
-		whiteEloDiff, blackEloDiff := colorEloDiffs(ReplayResult(row.Result), row.WinElo, row.LoseElo)
-		var eloDiff float64
-		switch userID {
-		case row.WhiteID:
-			eloDiff = whiteEloDiff
-		case row.BlackID:
-			eloDiff = blackEloDiff
-		default:
-			return fail(fmt.Errorf("assertion error: at least one elo hist row %v player IDs must match provided user ID %d", row, userID))
+	slog.InfoContext(ctx, "selected elo replay histories", "userID", params.UserID, "playedAfter", playedAfter, "eloRows", eloRows)
+
+	if ehb, bd, err = makeEloHistoryBuckets(eloRows, params); err != nil {
+		return ehb, bd, fmt.Errorf("make elo history buckets: %w", err)
+	}
+	slog.InfoContext(ctx, "retrieved elo histories", "userID", params.UserID, "eloHistoryBuckets", &ehb)
+	return ehb, bd, nil
+}
+
+func makeEloHistoryBuckets(eloRows []db.GetReplayElosRow, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
+	eloHistoryBuckets := make(EloHistoryBuckets)
+	var errs []error
+
+	if len(eloRows) == 0 {
+		return eloHistoryBuckets, 0, nil
+	}
+
+	bucketDuration := ShortBucketDuration
+	if params.Months >= LongMonthsThreshold || params.Months == 0 {
+		bucketDuration = LongBucketDuration
+	}
+
+	type bucketAcc struct {
+		buckets  []EloHistoryBucket
+		eloTotal float64
+		eloCount int
+		prevTime time.Time
+	}
+
+	bucketAccumulators := make(map[string]*bucketAcc)
+	bucketAccumulators["ALL"] = &bucketAcc{}
+	for _, mode := range ReplayModes {
+		bucketAccumulators[mode] = &bucketAcc{buckets: make([]EloHistoryBucket, 0)}
+	}
+
+	appendBucket := func(mode string) {
+		acc, ok := bucketAccumulators[mode]
+		if !ok {
+			errs = append(errs, fmt.Errorf("invalid mode '%s' while accumulating elo history bucket", mode))
+			return
 		}
-		histElo += eloDiff
-		pbEloHistories.Histories = append(pbEloHistories.Histories, &pb.EloHistory{
-			Timestamp: row.PlayedOn.Time.Format(time.RFC3339),
-			Elo: histElo,
+		if acc.eloCount <= 0 || acc.prevTime.IsZero() {
+			return
+		}
+		t := acc.prevTime.Truncate(bucketDuration)
+		acc.buckets = append(acc.buckets, EloHistoryBucket{
+			Elo:       acc.eloTotal / float64(acc.eloCount),
+			Timestamp: t.Format(time.RFC3339),
 		})
 	}
 
-	if len(pbEloHistories.Histories) != beforeHistoriesCnt {
-		if err := SetEloHistories(ctx, rdb, userID, pbEloHistories); err != nil {
-			return fail(err)
+	accumulateRow := func(row db.GetReplayElosRow, mode string) {
+		acc, ok := bucketAccumulators[mode]
+		if !ok {
+			errs = append(errs, fmt.Errorf("invalid mode '%s' while accumulating elo history row: %+v", mode, row))
+			return
+		}
+		bucketEnd := acc.prevTime.Add(bucketDuration)
+		isExceedBucket := row.PlayedOn.Time.After(bucketEnd)
+		var elo float64
+		switch params.UserID {
+		case row.WhiteID:
+			elo = row.WhiteElo
+		case row.BlackID:
+			elo = row.BlackElo
+		}
+		if acc.prevTime.IsZero() {
+			acc.eloTotal += elo
+			acc.eloCount++
+			acc.prevTime = row.PlayedOn.Time
+		} else if isExceedBucket {
+			appendBucket(mode)
+			acc.eloTotal = elo
+			acc.eloCount = 1
+			acc.prevTime = row.PlayedOn.Time
+		} else {
+			acc.eloTotal += elo
+			acc.eloCount++
 		}
 	}
 
-	return pbEloHistories, nil
+	for _, row := range eloRows {
+		accumulateRow(row, "ALL")
+		accumulateRow(row, row.Mode)
+	}
+	appendBucket("ALL")
+	for _, mode := range ReplayModes {
+		appendBucket(mode)
+	}
+
+	for mode, acc := range bucketAccumulators {
+		eloHistoryBuckets[mode] = acc.buckets
+	}
+	return eloHistoryBuckets, bucketDuration, errors.Join(errs...)
 }

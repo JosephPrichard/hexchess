@@ -40,7 +40,7 @@ func TestChallengeExpiration(t *testing.T) {
 			ChallengeeCountry: "us",
 			ChallengeeElo:     1000,
 			TimeControl:       TcUnlimited,
-			StartColor:        TcRandom,
+			StartColor:        CsRandom,
 			MadeOn:            time.Time{},
 		},
 		{
@@ -53,7 +53,7 @@ func TestChallengeExpiration(t *testing.T) {
 			ChallengeeCountry: "us",
 			ChallengeeElo:     2000,
 			TimeControl:       TcUnlimited,
-			StartColor:        TcRandom,
+			StartColor:        CsRandom,
 			MadeOn:            time.Time{},
 		},
 	}
@@ -69,7 +69,7 @@ func TestChallengeDeletion(t *testing.T) {
 
 	testUser := TestUserEntities[1] // ID: 2 will have no challenges at this point. if this changes, the test may break.
 
-	_, err := InsertChallengeRet(ctx, pdb.Query, ChallengeInst{testUser.ID, 3, TcUnlimited, TcRandom, time.Time{}})
+	_, err := InsertChallengeRet(ctx, pdb.Query, ChallengeInst{testUser.ID, 3, TcUnlimited, CsRandom, time.Time{}})
 	assert.NoError(t, err)
 
 	result, err := DeleteChallenge(ctx, pdb.Query, ChallengeKey{testUser.ID, 3})
@@ -79,5 +79,5 @@ func TestChallengeDeletion(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Empty(t, challenges)
-	assert.Equal(t, DeleteResult{ChallengerID: testUser.ID, ChallengeeID: 3, TimeControl: TcUnlimited, FirstColor: TcRandom}, result)
+	assert.Equal(t, DeleteResult{ChallengerID: testUser.ID, ChallengeeID: 3, TimeControl: TcUnlimited, FirstColor: CsRandom}, result)
 }

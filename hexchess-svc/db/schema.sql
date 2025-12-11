@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
     losses INTEGER NOT NULL,
     bio VARCHAR NOT NULL DEFAULT '',
     joined_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    start_elo FLOAT8 NOT NULL,
     password VARCHAR NOT NULL,
     salt VARCHAR NOT NULL,
     login_attempts INTEGER NOT NULL DEFAULT 0,
@@ -31,11 +32,14 @@ CREATE TABLE IF NOT EXISTS replays (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     white_id BIGINT NOT NULL,
     black_id BIGINT NOT NULL,
+    mode VARCHAR NOT NULL,
     result VARCHAR NOT NULL,
     cause VARCHAR NOT NULL,
     played_on TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    win_elo FLOAT8 NOT NULL,
-    lose_elo FLOAT8 NOT NULL,
+    win_elo_diff FLOAT8 NOT NULL,
+    lose_elo_diff FLOAT8 NOT NULL,
+    white_elo FLOAT8 NOT NULL,
+    black_elo FLOAT8 NOT NULL,
     move_history BYTEA NOT NULL
 );
 
@@ -62,6 +66,10 @@ ALTER TABLE replays
     CHECK (result IN ('DRAW', 'WHITE_WINS', 'BLACK_WINS'));
 
 ALTER TABLE replays
+    ADD CONSTRAINT mode_check
+        CHECK (mode IN ('REAL_TIME', 'CORRESPONDENCE', 'UNLIMITED'));
+
+ALTER TABLE replays
     ADD CONSTRAINT cause_check
     CHECK (cause IN ('CHECKMATE', 'FORFEIT'));
 
@@ -74,6 +82,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_username ON users (UPPER(username))
 CREATE INDEX IF NOT EXISTS idx_white_id ON replays(white_id, id);
 CREATE INDEX IF NOT EXISTS idx_black_id ON replays(black_id, id);
 CREATE INDEX IF NOT EXISTS idx_both_ids ON replays(white_id, black_id, id);
+CREATE INDEX IF NOT EXISTS idx_white_id ON replays(white_id, id);
+CREATE INDEX IF NOT EXISTS idx_both_ids_played_on ON replays(white_id, black_id, played_on);
+CREATE INDEX IF NOT EXISTS idx_both_ids_mode_played_on ON replays(white_id, black_id, mode, played_on);
 ALTER TABLE replays ADD FOREIGN KEY(white_id) REFERENCES users(id);
 ALTER TABLE replays ADD FOREIGN KEY(black_id) REFERENCES users(id);
 

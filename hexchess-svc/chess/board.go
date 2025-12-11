@@ -124,7 +124,7 @@ func ParseHexagon(notation string) (Hex, error) {
 	file := int(n1 - 'a')
 	rank, err := strconv.Atoi(n2)
 	if err != nil {
-		return Hex{}, fmt.Errorf("failed to parse hexagon: %w", err)
+		return Hex{}, fmt.Errorf("parse hexagon: %w", err)
 	}
 	return Hex{File: uint32(file), Rank: uint32(rank - 1)}, nil
 }
@@ -132,7 +132,7 @@ func ParseHexagon(notation string) (Hex, error) {
 func ParseHexagonUnsafe(notation string) Hex {
 	hex, err := ParseHexagon(notation)
 	if err != nil {
-		panic(fmt.Sprintf("failed to set piece at notation: %s", err))
+		panic(fmt.Sprintf("set piece at notation: %s", err))
 	}
 	return hex
 }

@@ -33,7 +33,7 @@ func makeGameErr(ctx context.Context, gameID string, err error) []byte {
 	default:
 		wsErr = ErrWsFatal
 	}
-	slog.ErrorContext(ctx, "error occurred while handling ws message", "err", err, "wsErr", wsErr)
+	slog.ErrorContext(ctx, "failed to error occurred while handling ws message", "err", err, "wsErr", wsErr)
 
 	bytes, err := proto.Marshal(MakePbGameOutputError(gameID, wsErr))
 	if err != nil {
@@ -52,7 +52,7 @@ func makeGameInitErr(ctx context.Context, gameID string, err error) []byte {
 	default:
 		wsErr = ErrWsFatal
 	}
-	slog.ErrorContext(ctx, "error occurred in initializing gameplay websocket", "err", err, "wsErr", wsErr)
+	slog.ErrorContext(ctx, "failed to error occurred in initializing gameplay websocket", "err", err, "wsErr", wsErr)
 	return makeGameErr(ctx, gameID, wsErr)
 }
 
@@ -140,7 +140,7 @@ func handleGameInit(gameID string, player data.PlayerState, state data.ChessStat
 	} {
 		b, err := proto.Marshal(o)
 		if err != nil {
-			return fmt.Errorf("failed to marshal game init output %d: %w", i, err)
+			return fmt.Errorf("marshal game init output %d: %w", i, err)
 		}
 		write(b)
 	}

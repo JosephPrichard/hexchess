@@ -71,8 +71,18 @@ func (q *Queries) IncrLoginAttempts(ctx context.Context, id int64) error {
 }
 
 const insertUser = `-- name: InsertUser :one
-INSERT INTO users (username, country, elo, highest_elo, wins, losses, password, salt, google_account_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO users (username, country, elo, highest_elo, start_elo, wins, losses, password, salt, google_account_id)
+VALUES (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        $8,
+        $9,
+        $10)
 RETURNING id, username, country, elo, highest_elo, wins, losses, bio, joined_on
 `
 
@@ -81,6 +91,7 @@ type InsertUserParams struct {
 	Country         pgtype.Text
 	Elo             float64
 	HighestElo      float64
+	StartElo        float64
 	Wins            int32
 	Losses          int32
 	Password        string
@@ -106,6 +117,7 @@ func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertU
 		arg.Country,
 		arg.Elo,
 		arg.HighestElo,
+		arg.StartElo,
 		arg.Wins,
 		arg.Losses,
 		arg.Password,
@@ -325,6 +337,24 @@ func (q *Queries) SelectUserByID(ctx context.Context, id int64) (SelectUserByIDR
 		&i.Bio,
 		&i.JoinedOn,
 	)
+	return i, err
+}
+
+const selectUserStartElo = `-- name: SelectUserStartElo :one
+SELECT start_elo, joined_on
+FROM users
+WHERE id = $1
+`
+
+type SelectUserStartEloRow struct {
+	StartElo float64
+	JoinedOn pgtype.Timestamptz
+}
+
+func (q *Queries) SelectUserStartElo(ctx context.Context, id int64) (SelectUserStartEloRow, error) {
+	row := q.db.QueryRow(ctx, selectUserStartElo, id)
+	var i SelectUserStartEloRow
+	err := row.Scan(&i.StartElo, &i.JoinedOn)
 	return i, err
 }
 

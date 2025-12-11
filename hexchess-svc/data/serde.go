@@ -41,11 +41,11 @@ func UnmarshalChessState(b []byte) (ChessState, error) {
 	}
 	game, err := chess.DeserializeGame(pbChess.Game)
 	if err != nil {
-		return state, fmt.Errorf("failed to deserialize game: %w", err)
+		return state, fmt.Errorf("deserialize game: %w", err)
 	}
 	initialBoard, err := chess.DeserializeBoard(pbChess.Game.Board)
 	if err != nil {
-		return state, fmt.Errorf("failed to deserialize board %v: %w", pbChess.Game.Board, err)
+		return state, fmt.Errorf("deserialize board %v: %w", pbChess.Game.Board, err)
 	}
 
 	state = ChessState{
@@ -88,7 +88,7 @@ func SerializeChessState(s ChessState) *pb.ChessState {
 func UnmarshalChessMeta(b []byte) (ChessMeta, error) {
 	var pbChess pb.ChessState
 	if err := proto.Unmarshal(b, &pbChess); err != nil {
-		return ChessMeta{}, fmt.Errorf("failed to unmarshal chess state: %w", err)
+		return ChessMeta{}, fmt.Errorf("unmarshal chess state: %w", err)
 	}
 	return ChessMeta{
 		ID:          pbChess.Id,
@@ -104,7 +104,7 @@ func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {
 	if cm := pbUm.GetChallenge(); cm != nil {
 		madeOn, err := time.Parse(time.RFC3339, cm.MadeOn)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse challenge made on: %w", err)
+			return nil, fmt.Errorf("parse challenge made on: %w", err)
 		}
 		ce := ChallengeEntity{
 			ChallengerID:      cm.ChallengerId,

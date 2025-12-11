@@ -17,7 +17,7 @@ func TestGetChessState(t *testing.T) {
 	id1 := "testing-id1-" + uuid.NewString()
 	id2 := "testing-id2-" + uuid.NewString()
 
-	state1 := MakeState(id1, TcRealTime, TcRandom, nil)
+	state1 := MakeState(id1, TcRealTime, CsRandom, nil)
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-set-then-get")
 
 	_, err := SetChessState(ctx, rdb, id1, state1)
@@ -40,9 +40,9 @@ func TestGetChessMetas(t *testing.T) {
 	id2 := "testing-id2-" + uuid.NewString()
 	id3 := "testing-id3-" + uuid.NewString()
 
-	state1 := MakeState(id1, TcRealTime, TcRandom, nil)
-	state2 := MakeState(id2, TcRealTime, TcRandom, nil)
-	state3 := MakeState(id3, TcRealTime, TcRandom, nil)
+	state1 := MakeState(id1, TcRealTime, CsRandom, nil)
+	state2 := MakeState(id2, TcRealTime, CsRandom, nil)
+	state3 := MakeState(id3, TcRealTime, CsRandom, nil)
 
 	state1.WhitePlayer = &PlayerState{ID: 1}
 	state1.BlackPlayer = &PlayerState{ID: 2}
@@ -71,9 +71,9 @@ func TestGetChessMetas(t *testing.T) {
 	metaList5, err := GetUserChessMetasPaged(ctx, rdb, 1, 2, 2)
 	assert.NoError(t, err)
 
-	m1 := ChessMeta{ID: id1, WhitePlayer: &PlayerState{ID: 1}, BlackPlayer: &PlayerState{ID: 2}, FirstColor: TcRandom, TimeControl: TcRealTime}
-	m2 := ChessMeta{ID: id2, BlackPlayer: &PlayerState{ID: 1}, FirstColor: TcRandom, TimeControl: TcRealTime}
-	m3 := ChessMeta{ID: id3, BlackPlayer: &PlayerState{ID: 1}, FirstColor: TcRandom, TimeControl: TcRealTime}
+	m1 := ChessMeta{ID: id1, WhitePlayer: &PlayerState{ID: 1}, BlackPlayer: &PlayerState{ID: 2}, FirstColor: CsRandom, TimeControl: TcRealTime}
+	m2 := ChessMeta{ID: id2, BlackPlayer: &PlayerState{ID: 1}, FirstColor: CsRandom, TimeControl: TcRealTime}
+	m3 := ChessMeta{ID: id3, BlackPlayer: &PlayerState{ID: 1}, FirstColor: CsRandom, TimeControl: TcRealTime}
 
 	assert.Equal(t, []ChessMeta{m3, m2, m1}, metaList1)
 	assert.Equal(t, []ChessMeta{m1}, metaList2)
@@ -88,7 +88,7 @@ func TestExpireChessStates(t *testing.T) {
 
 	id1 := "testing-id1-" + uuid.NewString()
 
-	state1 := MakeState(id1, TcRealTime, TcRandom, nil)
+	state1 := MakeState(id1, TcRealTime, CsRandom, nil)
 
 	state1.WhitePlayer = &PlayerState{ID: 1}
 	state1.BlackPlayer = &PlayerState{ID: 2}

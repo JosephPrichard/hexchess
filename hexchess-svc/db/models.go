@@ -20,11 +20,14 @@ type Replay struct {
 	ID          int64
 	WhiteID     int64
 	BlackID     int64
+	Mode        string
 	Result      string
 	Cause       string
 	PlayedOn    pgtype.Timestamptz
-	WinElo      float64
-	LoseElo     float64
+	WinEloDiff  float64
+	LoseEloDiff float64
+	WhiteElo    float64
+	BlackElo    float64
 	MoveHistory []byte
 }
 
@@ -38,6 +41,7 @@ type User struct {
 	Losses           int32
 	Bio              string
 	JoinedOn         pgtype.Timestamptz
+	StartElo         float64
 	Password         string
 	Salt             string
 	LoginAttempts    int32

@@ -2,7 +2,7 @@
 	import CreateGame from '$lib/components/modals/CreateGame.svelte';
 	import { onMount } from 'svelte';
 	import ChallengeIcon from '$lib/components/icons/ChallengeIcon.svelte';
-	import { formatJoinedOn, formatPlayedOn, formatReplayResult } from '$lib/api/models.js';
+	import { type EloBuckets, formatJoinedOn, formatPlayedOn, formatReplayResult, formatTimestamp, ReplayModeMap, type Timeframe } from '$lib/api/models.js';
 	import { getClientSession } from '$lib/utils/storage';
 	import Banner from '$lib/Banner.svelte';
 	import { goto } from '$app/navigation';
@@ -10,6 +10,21 @@
 	import { makeMessage } from '$lib/utils/error';
 	import type { ColorSelect, TimeControl, FullUserModel } from '$lib/api/models';
 	import services from '$lib/api/services';
+	import "chartjs-adapter-date-fns";
+	import "$lib/utils/chart"
+	import { Chart } from 'chart.js';
+	import { typedEntries } from '$lib/utils/array';
+	import { generateColors } from '$lib/utils/colors';
+	import { formatEloDiff } from '$lib/api/models';
+	import Dropdown from '$lib/components/util/Dropdown.svelte';
+
+	const timeframes: { label: string, value: Timeframe }[] = [
+		{ label: "All Time", value: "all" },
+		{ label: "1 Year", value: "1y" },
+		{ label: "6 Months", value: "6m" },
+		{ label: "3 Months", value: "3m" },
+		{ label: "1 Month", value: "1m" },
+	];
 
 	export interface PlayerProps {
 		fullUser: FullUserModel;
@@ -24,6 +39,9 @@
 	let showCreateModal = $state(false);
 	let hasMoreReplays = $state(true);
 	let isDifferentUser = $state(false);
+	let timeframeIndex = $state(0);
+
+	let chartElement: HTMLCanvasElement;
 
 	async function tryLoadReplays() {
 		const lastId = nestedReplayList.at(-1)?.at(-1)?.id;
@@ -34,8 +52,8 @@
 			const [data, err] = await services.getReplays(user.id, lastId);
 			if (err) {
 				console.error("Error loading replays: ", err);
+				return;
 			}
-
 			const replayList = data?.replayList || [];
 			console.log(`Loaded ${replayList.length} new replays`);
 
@@ -47,6 +65,65 @@
 			}
 		}
 	}
+
+	async function loadEloHistories(userId: number, timeframe: Timeframe, onLoaded: (buckets: EloBuckets) => void) {
+		const [data, err] = await services.getEloHistories(userId, timeframe);
+		if (data) {
+			onLoaded(data.buckets);
+		} else {
+			const message = makeMessage(err);
+			addNotification({ type: 'string', message, isSuccess: false });
+		}
+	}
+
+	function makeEloHistoriesChart(ctx: CanvasRenderingContext2D, buckets: EloBuckets) {
+		const entries = typedEntries(buckets);
+		const colors = generateColors(entries.length);
+
+		return new Chart(ctx, {
+			type: "line",
+			data: {
+				datasets: entries.map(([mode, eloHistories], i) => ({
+					label: ReplayModeMap[mode] || "Unknown Mode",
+					data: eloHistories.map((h) => ({ x: h.timestamp, y: h.elo})),
+					borderWidth: 2,
+					tension: 0.25,
+					pointRadius: 3,
+					borderColor: colors[i](1),
+					backgroundColor: colors[i](0.2),
+					fill: true,
+					pointBackgroundColor: colors[i](1)
+				}))
+			},
+			options: {
+				responsive: true,
+				scales: {
+					x: { type: "time" },
+					y: {
+						beginAtZero: false,
+						ticks: {
+							callback: (value) => String(value)
+						}
+					}
+				}
+			},
+		});
+	}
+
+	$effect(() => {
+		const ctx = chartElement.getContext("2d");
+		if (!ctx) return;
+		let chart: any;
+
+		const timeframe = timeframes[timeframeIndex].value;
+
+		loadEloHistories(user.id, timeframe, (buckets) => {
+			chart = makeEloHistoriesChart(ctx, buckets);
+		});
+		return () => {
+			if (chart) chart.destroy();
+		};
+	});
 
 	onMount(() => {
 		const client = getClientSession();
@@ -102,11 +179,11 @@
 			</div>
 			<div class="panel-elem">
 				<div class="panel-title">Elo</div>
-				<div class="panel-text">{user.elo}</div>
+				<div class="panel-text">{Math.round(user.elo)}</div>
 			</div>
 			<div class="panel-elem">
 				<div class="panel-title">Peak Elo</div>
-				<div class="panel-text">{user.highestElo}</div>
+				<div class="panel-text">{Math.round(user.highestElo)}</div>
 			</div>
 		</div>
 
@@ -155,9 +232,18 @@
 				</button>
 			</div>
 		{/if}
+		<div class="dropdown-wrapper">
+			<Dropdown
+				options={timeframes}
+				selected={timeframes[timeframeIndex].value}
+				onChange={value => timeframeIndex = timeframes.findIndex((t) => t.value === value)}
+			/>
+		</div>
+		<div class="canvas-wrapper">
+			<canvas bind:this={chartElement} width="650px" height="250px"></canvas>
+		</div>
 	</div>
 </div>
-
 <div class="center-horizontal-container" style="margin-top: 50px; margin-bottom: 50px;">
 	{#if (nestedReplayList[0] || []).length > 0}
 		<div class="wrapper">
@@ -191,20 +277,20 @@
 									<a href="/players/{replay.whiteId}" class="text-ul">{replay.whiteName}</a>
 									<img class="flag" src="/flags/{replay.whiteCountry}.png" alt="" />
 									<span class={whiteClass}>
-										{replay.whiteEloDiff}
+										{formatEloDiff(replay.whiteEloDiff)}
 									</span>
 								</td>
 								<td style="width: 25%">
 									<a href="/players/{replay.blackId}" class="text-ul">{replay.blackName}</a>
 									<img class="flag" src="/flags/{replay.blackCountry}.png" alt="" />
 									<span class={blackClass}>
-										{replay.blackEloDiff}
+										{formatEloDiff(replay.blackEloDiff)}
 									</span>
 								</td>
-								<td style="width: 25%">
+								<td style="width: 20%">
 									{formatReplayResult(replay.result)}
 								</td>
-								<td style="width: 25%">
+								<td style="width: 30%">
 									{formatPlayedOn(replay.playedOn)}
 								</td>
 							</tr>
@@ -219,8 +305,21 @@
 </div>
 
 <style>
+	.dropdown-wrapper {
+		margin-top: 25px;
+		margin-bottom: 25px;
+		width: 33%;
+		min-width: 200px;
+		font-size: 12px;
+	}
+
+	.canvas-wrapper {
+		margin-top: 25px;
+		display: block;
+	}
+
 	.player-panel {
-        width: 500px;
+        width: 600px;
 	}
 
     .panel-container {

@@ -1,11 +1,31 @@
 -- name: InsertUser :one
-INSERT INTO users (username, country, elo, highest_elo, wins, losses, password, salt, google_account_id)
-VALUES (sqlc.arg('username'), sqlc.arg('country'), sqlc.arg('elo'), sqlc.arg('highestElo'), sqlc.arg('wins'), sqlc.arg('losses'), sqlc.arg('password'), sqlc.arg('salt'), sqlc.arg('google_account_id'))
+INSERT INTO users (username, country, elo, highest_elo, start_elo, wins, losses, password, salt, google_account_id)
+VALUES (
+        sqlc.arg('username'),
+        sqlc.arg('country'),
+        sqlc.arg('elo'),
+        sqlc.arg('highestElo'),
+        sqlc.arg('startElo'),
+        sqlc.arg('wins'),
+        sqlc.arg('losses'),
+        sqlc.arg('password'),
+        sqlc.arg('salt'),
+        sqlc.arg('google_account_id'))
 RETURNING id, username, country, elo, highest_elo, wins, losses, bio, joined_on;
 
 -- name: BatchInsertUser :batchone
-INSERT INTO users (username, country, elo, highest_elo, wins, losses, password, salt, google_account_id)
-VALUES (sqlc.arg('username'), sqlc.arg('country'), sqlc.arg('elo'), sqlc.arg('highestElo'), sqlc.arg('wins'), sqlc.arg('losses'), sqlc.arg('password'), sqlc.arg('salt'), sqlc.arg('google_account_id'))
+INSERT INTO users (username, country, elo, highest_elo, start_elo, wins, losses, password, salt, google_account_id)
+VALUES (
+        sqlc.arg('username'),
+        sqlc.arg('country'),
+        sqlc.arg('elo'),
+        sqlc.arg('highestElo'),
+        sqlc.arg('startElo'),
+        sqlc.arg('wins'),
+        sqlc.arg('losses'),
+        sqlc.arg('password'),
+        sqlc.arg('salt'),
+        sqlc.arg('google_account_id'))
 RETURNING id, username, country, elo, highest_elo, wins, losses, bio, joined_on;
 
 -- name: SelectLoginByName :one
@@ -64,6 +84,11 @@ FROM users
 WHERE id > sqlc.arg('afterID')
 ORDER BY id
     LIMIT sqlc.arg('limit');
+
+-- name: SelectUserStartElo :one
+SELECT start_elo, joined_on
+FROM users
+WHERE id = sqlc.arg('id');
 
 -- name: UpdateUser :one
 UPDATE users

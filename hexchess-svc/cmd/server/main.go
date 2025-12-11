@@ -20,7 +20,7 @@ import (
 func main() {
 	f, err := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
-		util.LogFatalErr("failed to open log file", err)
+		util.LogFatalErr("open log file", err)
 	}
 	defer f.Close()
 
@@ -44,18 +44,18 @@ func main() {
 
 	var countryList []string
 	if err := json.Unmarshal(static.CountryListJson, &countryList); err != nil {
-		util.LogFatalErr("failed to unmarshal country list", err)
+		util.LogFatalErr("unmarshal country list", err)
 	}
 
 	slog.Info("connecting to postgres db", "dbURL", dbURL)
 	pool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
-		util.LogFatalErr("failed to create pool", err)
+		util.LogFatalErr("create pool", err)
 	}
 	defer pool.Close()
 	_, err = pool.Exec(context.Background(), "SELECT 1;")
 	if err != nil {
-		util.LogFatalErr("failed to execute startup query", err)
+		util.LogFatalErr("execute startup query", err)
 	}
 
 	q := db.New(pool)

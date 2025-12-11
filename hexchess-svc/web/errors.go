@@ -1,9 +1,7 @@
 package web
 
 import (
-	"context"
 	"errors"
-	"log/slog"
 	"net/http"
 )
 
@@ -73,7 +71,11 @@ func HttpStatusFromErr(err error) (int, string) {
 	}
 }
 
-func handleInvalidRequest(ctx context.Context, err error) error {
-	slog.ErrorContext(ctx, "error invalid request", "err", err)
-	return ErrHttpInvalidRequest
+func errsOr(errs ...error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

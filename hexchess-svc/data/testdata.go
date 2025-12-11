@@ -8,11 +8,15 @@ import (
 )
 
 var TestUsersInsts = []UserInst{
+	// used for user/challenge/replay tests
 	{Username: "user1", Password: "password1", Country: "us", Elo: 1000},
 	{Username: "user2", Password: "password2", Country: "us", Elo: 1000, Wins: 1},
 	{Username: "user3", Password: "password3", Country: "us", Elo: 900, Wins: 1, Losses: 8},
 	{Username: "user4", Password: "password4", Country: "us", Elo: 2000, Wins: 50, Losses: 20},
 	{Username: "user5", Password: "password5", Country: "us", Elo: 1500, Wins: 40, Losses: 35},
+	// used for elo histories tests.
+	{Username: "user6", Password: "password6", Country: "us", Elo: 1090, Wins: 3, Losses: 0},
+	{Username: "user7", Password: "password7", Country: "us", Elo: 910, Wins: 0, Losses: 3},
 }
 
 var TestUserEntities = []UserEntity{
@@ -44,16 +48,18 @@ var TestUserEntities = []UserEntity{
 	},
 }
 
+var LastUserID = int64(len(TestUsersInsts))
+
 func createTestUser(t TestLogger, query *db.Queries, inst UserInst) UserEntity {
 	ctx := context.WithValue(context.Background(), util.Trace, "create-test-user")
 	u, err := InsertUser(ctx, query, inst)
 	if err != nil {
-		t.Fatalf("failed to insert test user: %v", err)
+		t.Fatalf("insert test user: %v", err)
 	}
 	return u
 }
 
-func createTestUsers(t TestLogger, query *db.Queries, insts ...UserInst) []UserEntity {
+func insertTestUsers(t TestLogger, query *db.Queries, insts ...UserInst) []UserEntity {
 	var users []UserEntity
 	for _, inst := range insts {
 		users = append(users, createTestUser(t, query, inst))
@@ -62,9 +68,59 @@ func createTestUsers(t TestLogger, query *db.Queries, insts ...UserInst) []UserE
 }
 
 var TestReplayInsts = []ReplayInst{
-	{1, 2, WhiteWin, Checkmate, 30, -30, []byte{}},
-	{2, 3, BlackWin, Checkmate, 30, -30, []byte{}},
-	{3, 1, Draw, Checkmate, 30, -30, []byte{}},
+	// used for testing individual replays
+	{WhiteID: 1, BlackID: 2, Result: WhiteWin, Cause: Checkmate, Mode: ModeUnlimited, WinEloDiff: 30, LoseEloDiff: -30},
+	{WhiteID: 2, BlackID: 3, Result: BlackWin, Cause: Checkmate, Mode: ModeUnlimited, WinEloDiff: 30, LoseEloDiff: -30},
+	{WhiteID: 3, BlackID: 1, Result: Draw, Cause: Checkmate, Mode: ModeUnlimited, WinEloDiff: 0, LoseEloDiff: 0},
+	// used for testing elo histories
+	{
+		WhiteID:     6,
+		BlackID:     7,
+		Result:      WhiteWin,
+		Cause:       Checkmate,
+		Mode:        ModeUnlimited,
+		WinEloDiff:  30,
+		LoseEloDiff: -30,
+		WhiteElo:    1030,
+		BlackElo:    970,
+		PlayedOn:    time.Date(1900, 1, 1, 1, 0, 0, 0, time.UTC),
+	},
+	{
+		WhiteID:     6,
+		BlackID:     7,
+		Result:      WhiteWin,
+		Cause:       Checkmate,
+		Mode:        ModeRealTime,
+		WinEloDiff:  30,
+		LoseEloDiff: -30,
+		WhiteElo:    1060,
+		BlackElo:    940,
+		PlayedOn:    time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
+	},
+	{
+		WhiteID:     6,
+		BlackID:     7,
+		Result:      WhiteWin,
+		Cause:       Checkmate,
+		Mode:        ModeRealTime,
+		WinEloDiff:  30,
+		LoseEloDiff: -30,
+		WhiteElo:    1090,
+		BlackElo:    910,
+		PlayedOn:    time.Date(2020, 1, 1, 2, 0, 0, 0, time.UTC),
+	},
+	{
+		WhiteID:     6,
+		BlackID:     7,
+		Result:      WhiteWin,
+		Cause:       Checkmate,
+		Mode:        ModeUnlimited,
+		WinEloDiff:  30,
+		LoseEloDiff: -30,
+		WhiteElo:    1120,
+		BlackElo:    880,
+		PlayedOn:    time.Date(2020, 1, 3, 1, 0, 0, 0, time.UTC),
+	},
 }
 
 var TestReplayEntities = []ReplayEntity{
@@ -78,8 +134,8 @@ var TestReplayEntities = []ReplayEntity{
 		BlackCountry: "us",
 		Result:       Draw,
 		Cause:        Checkmate,
-		WinElo:       30,
-		LoseElo:      -30,
+		WinEloDiff:   0,
+		LoseEloDiff:  0,
 		WhiteElo:     900,
 		BlackElo:     1000,
 		WhiteEloDiff: 0,
@@ -95,8 +151,8 @@ var TestReplayEntities = []ReplayEntity{
 		BlackCountry: "us",
 		Result:       WhiteWin,
 		Cause:        Checkmate,
-		WinElo:       30,
-		LoseElo:      -30,
+		WinEloDiff:   30,
+		LoseEloDiff:  -30,
 		WhiteElo:     1000,
 		BlackElo:     1000,
 		WhiteEloDiff: 30,
@@ -104,23 +160,23 @@ var TestReplayEntities = []ReplayEntity{
 	},
 }
 
-func createTestReplays(t TestLogger, query *db.Queries, insts ...ReplayInst) {
+func insertTestReplays(t TestLogger, query *db.Queries, insts ...ReplayInst) {
 	ctx := context.WithValue(context.Background(), util.Trace, "create-test-replays")
 	for _, inst := range insts {
 		_, err := InsertReplay(ctx, query, inst)
 		if err != nil {
-			t.Fatalf("failed to insert test replay: %v", err)
+			t.Fatalf("insert test replay: %v", err)
 		}
 	}
 }
 
 var TestChallengeInsts = []ChallengeInst{
-	{1, 2, TcUnlimited, TcRandom, time.Now()},
-	{3, 1, TcUnlimited, TcRandom, time.Now()},
-	{5, 2, TcUnlimited, TcRandom, time.Unix(20500, 0)},
-	{5, 4, TcUnlimited, TcRandom, time.Unix(19500, 0)},
-	{5, 3, TcUnlimited, TcRandom, time.Unix(0, 0)},
-	{5, 1, TcUnlimited, TcRandom, time.Unix(0, 0)},
+	{ChallengerID: 1, ChallengeeID: 2, TimeControl: TcUnlimited, StartColor: CsRandom, MadeOn: time.Now()},
+	{ChallengerID: 3, ChallengeeID: 1, TimeControl: TcUnlimited, StartColor: CsRandom, MadeOn: time.Now()},
+	{ChallengerID: 5, ChallengeeID: 2, TimeControl: TcUnlimited, StartColor: CsRandom, MadeOn: time.Unix(20500, 0)},
+	{ChallengerID: 5, ChallengeeID: 4, TimeControl: TcUnlimited, StartColor: CsRandom, MadeOn: time.Unix(19500, 0)},
+	{ChallengerID: 5, ChallengeeID: 3, TimeControl: TcUnlimited, StartColor: CsRandom, MadeOn: time.Unix(0, 0)},
+	{ChallengerID: 5, ChallengeeID: 1, TimeControl: TcUnlimited, StartColor: CsRandom, MadeOn: time.Unix(0, 0)},
 }
 
 var TestChallengeEntities = []ChallengeEntity{
@@ -134,7 +190,7 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
 		TimeControl:       TcUnlimited,
-		StartColor:        TcRandom,
+		StartColor:        CsRandom,
 	},
 	{
 		ChallengerID:      3,
@@ -146,22 +202,22 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
 		TimeControl:       TcUnlimited,
-		StartColor:        TcRandom,
+		StartColor:        CsRandom,
 	},
 }
 
-func createTestChallenges(t TestLogger, query *db.Queries, insts ...ChallengeInst) {
+func insertTestChallenges(t TestLogger, query *db.Queries, insts ...ChallengeInst) {
 	ctx := context.WithValue(context.Background(), util.Trace, "create-test-challenges")
 	for _, c := range insts {
 		err := InsertChallenge(ctx, query, c)
 		if err != nil {
-			t.Fatalf("failed to insert test challenges: %v", err)
+			t.Fatalf("insert test challenges: %v", err)
 		}
 	}
 }
 
-func CreateTestData(t TestLogger, query *db.Queries) {
-	createTestUsers(t, query, TestUsersInsts...)
-	createTestReplays(t, query, TestReplayInsts...)
-	createTestChallenges(t, query, TestChallengeInsts...)
+func InsertTestData(t TestLogger, query *db.Queries) {
+	insertTestUsers(t, query, TestUsersInsts...)
+	insertTestReplays(t, query, TestReplayInsts...)
+	insertTestChallenges(t, query, TestChallengeInsts...)
 }

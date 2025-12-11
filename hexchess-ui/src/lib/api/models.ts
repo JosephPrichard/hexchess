@@ -4,6 +4,8 @@ export type ColorSelect = 'RANDOM' | 'WHITE' | 'BLACK';
 
 export type TimeControl = 'UNLIMITED' | 'REAL_TIME' | 'CORRESPONDENCE';
 
+export type Timeframe = "1m" | "3m" | "6m" | "1y" | "all";
+
 export interface SessionModel {
 	id: number;
 	username: string;
@@ -49,8 +51,6 @@ export interface ReplayModel {
 	blackName: string;
 	whiteCountry: string;
 	blackCountry: string;
-	winElo: number;
-	loseElo: number;
 	whiteElo: number;
 	blackElo: number;
 	playedOn: string;
@@ -58,6 +58,22 @@ export interface ReplayModel {
 	cause: number;
 	whiteEloDiff: number;
 	blackEloDiff: number;
+}
+
+export interface EloHistory {
+	timestamp: string;
+	elo: number;
+}
+
+export interface EloBuckets {
+	[mode: string]: EloHistory[];
+}
+
+export const ReplayModeMap: Record<string, string> = {
+	'ALL': "All Modes",
+	'CORRESPONDENCE': "Correspondence",
+	'REAL_TIME': "Real Time",
+	'UNLIMITED': 'Unlimited'
 }
 
 export interface FullUserModel {
@@ -120,8 +136,8 @@ export function formatTimeControl(timeControl: string) {
 	}
 }
 
-export function formatElo(elo: number) {
-	return (elo >= 0 ? '+' : '') + elo;
+export function formatEloDiff(elo: number) {
+	return (elo >= 0 ? '+' : '') + Math.round(elo);
 }
 
 export function formatTimer(ms: number) {

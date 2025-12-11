@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatElo } from '$lib/api/models';
+	import { formatEloDiff } from '$lib/api/models';
 	import type { ReplayModel } from '$lib/api/models';
 
 	const { replay }: { replay: ReplayModel } = $props();
@@ -25,19 +25,19 @@
 			<b>{replay.whiteName}</b>
 		</a>
 		<img class="flag" src="/flags/{replay.whiteCountry}.png" alt="" />
-		<span>({replay.whiteElo})</span>
+		<span>({Math.round(replay.whiteElo)})</span>
 		<span class={whiteClass}>
-		{formatElo(replay.whiteEloDiff)}
-	</span>
+			{formatEloDiff(replay.whiteEloDiff)}
+		</span>
 	</div>
 	<div class="side-table-header-elem">
 		<a href="/players/{replay.blackId}" class="text-ul">
 			<b>{replay.blackName}</b>
 		</a>
 		<img class="flag" src="/flags/{replay.blackCountry}.png" alt="" />
-		<span>({replay.blackElo})</span>
+		<span>({Math.round(replay.blackElo)})</span>
 		<span class={blackClass}>
-		{formatElo(replay.blackEloDiff)}
-	</span>
+			{formatEloDiff(replay.blackEloDiff)}
+		</span>
 	</div>
 </div>

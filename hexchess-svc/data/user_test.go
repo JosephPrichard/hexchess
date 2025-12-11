@@ -126,7 +126,7 @@ func TestSearchByName(t *testing.T) {
 	pdb, closer := BeforeDbTests(t, true)
 	defer closer()
 
-	createTestUsers(t, pdb.Query, UserInst{Username: "johnny", Password: "password6"}, UserInst{Username: "john", Password: "password7"})
+	insertTestUsers(t, pdb.Query, UserInst{Username: "johnny", Password: "password6"}, UserInst{Username: "john", Password: "password7"})
 
 	ctx := context.WithValue(context.Background(), util.Trace, "search-by-name")
 

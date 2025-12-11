@@ -25,7 +25,7 @@ func GetChessState(ctx context.Context, rdb *Redis, id string) (ChessState, erro
 	defer conn.Close()
 
 	if err := ExpireChessStates(ctx, conn, rdb.GamesZSet); err != nil {
-		return state, fmt.Errorf("failed to expire chess states: %w", err)
+		return state, fmt.Errorf("expire chess states: %w", err)
 	}
 
 	fullID := "game:" + id
@@ -34,12 +34,12 @@ func GetChessState(ctx context.Context, rdb *Redis, id string) (ChessState, erro
 	if errors.Is(err, redis.ErrNil) {
 		return ChessState{}, ErrNoChessState
 	} else if err != nil {
-		return state, fmt.Errorf("failed to 'GET' chess state: %w", err)
+		return state, fmt.Errorf("get chess state: %w", err)
 	}
 
 	state, err = UnmarshalChessState(data)
 	if err != nil {
-		return state, fmt.Errorf("failed to deserialize chess state: %w", err)
+		return state, fmt.Errorf("deserialize chess state: %w", err)
 	}
 
 	slog.InfoContext(ctx, "selected chess state", "key", fullID)
@@ -58,7 +58,7 @@ func SetChessStateAt(ctx context.Context, rdb *Redis, id string, state ChessStat
 
 	b, err := proto.Marshal(SerializeChessState(state))
 	if err != nil {
-		return state, fmt.Errorf("failed to marshal chess state: %w", err)
+		return state, fmt.Errorf("marshal chess state: %w", err)
 	}
 
 	conn := rdb.Cache.Get()
@@ -74,7 +74,7 @@ func SetChessStateAt(ctx context.Context, rdb *Redis, id string, state ChessStat
 		conn.Send("ZADD", getUserGameZSet(rdb, state.BlackPlayer.ID), touchSecs, fullID)
 	}
 	if _, err = conn.Do("EXEC"); err != nil {
-		return state, fmt.Errorf("failed to 'SET' chess state: %w", err)
+		return state, fmt.Errorf("set chess state: %w", err)
 	}
 
 	slog.InfoContext(ctx, "set chess state", "key", fullID, "touch", touch)
@@ -84,16 +84,11 @@ func SetChessStateAt(ctx context.Context, rdb *Redis, id string, state ChessStat
 const GameExpireFinished = 1 * time.Hour
 
 func ExpireChessStates(ctx context.Context, conn redis.Conn, zSetName string) error {
-	fail := func(err error) error {
-		slog.ErrorContext(ctx, "failed to expire chess states", "err", err, "zSetName", zSetName)
-		return err
-	}
-
 	expireBefore := time.Now().Add(-GameExpireFinished)
 
 	keys, err := redis.Values(conn.Do("ZRANGEBYSCORE", zSetName, "-inf", expireBefore.Unix()))
 	if err != nil {
-		return fail(fmt.Errorf("failed to 'ZRANGEBYSCORE' expired states: %w", err))
+		return fmt.Errorf("retrieve expired states by range: %w", err)
 	}
 	if len(keys) == 0 {
 		return nil
@@ -106,7 +101,7 @@ func ExpireChessStates(ctx context.Context, conn redis.Conn, zSetName string) er
 	conn.Send("DEL", delArgs...)
 	conn.Send("ZREM", zRemArgs...)
 	if _, err = conn.Do("EXEC"); err != nil {
-		return fail(fmt.Errorf("failed to 'DEL' expired states: %w", err))
+		return fmt.Errorf("delete expired states: %w", err)
 	}
 
 	keyStrs := make([]string, 0, len(keys))
@@ -144,28 +139,23 @@ func GetChessMetas(ctx context.Context, rdb *Redis, zSetName string, page, count
 		right = -1
 	}
 
-	fail := func(err error) ([]ChessMeta, error) {
-		slog.ErrorContext(ctx, "failed to get chess views", "err", err, "zSetName", zSetName, "page", page, "count", count)
-		return nil, err
-	}
-
 	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	if err := ExpireChessStates(ctx, conn, zSetName); err != nil {
-		return fail(fmt.Errorf("failed to expire chess states: %w", err))
+		return nil, fmt.Errorf("expire chess states: %w", err)
 	}
 
 	elements, err := redis.Values(conn.Do("ZREVRANGE", zSetName, left, right))
 	if err != nil {
-		return fail(fmt.Errorf("failed to 'ZREVRANGE' chess id: %w", err))
+		return nil, fmt.Errorf("retrieve chess ids by range: %w", err)
 	}
 
 	var bytesList [][]byte
 	if len(elements) > 0 {
 		bytesList, err = redis.ByteSlices(conn.Do("MGET", elements...))
 		if err != nil {
-			return fail(fmt.Errorf("failed to 'MGET' chess states: %w", err))
+			return nil, fmt.Errorf("get many chess states: %w", err)
 		}
 	}
 
@@ -173,7 +163,7 @@ func GetChessMetas(ctx context.Context, rdb *Redis, zSetName string, page, count
 	for _, bytes := range bytesList {
 		cv, err := UnmarshalChessMeta(bytes)
 		if err != nil {
-			return fail(fmt.Errorf("failed to unmarshal chess meta: %w", err))
+			return nil, fmt.Errorf("unmarshal chess meta: %w", err)
 		}
 		views = append(views, cv)
 	}
@@ -189,10 +179,9 @@ func GetChessStateCount(ctx context.Context, rdb *Redis) (int64, error) {
 	if err := ExpireChessStates(ctx, conn, rdb.GamesZSet); err != nil {
 		return 0, err
 	}
-
 	count, err := redis.Int64(conn.Do("ZCARD", rdb.GamesZSet))
 	if err != nil {
-		return 0, fmt.Errorf("failed to 'ZCARD' chess count: %w", err)
+		return 0, fmt.Errorf("count chess states: %w", err)
 	}
 
 	slog.InfoContext(ctx, "selected chess count", "count", count)

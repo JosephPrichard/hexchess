@@ -190,11 +190,11 @@ message ChallengeMsg {
   string made_on = 11;
 }
 
-message EloHistory {
+message EloHistoryBucket {
   string timestamp = 1;
   double elo = 2;
 }
 
-message EloHistories {
-  repeated EloHistory histories = 1;
+message EloHistoryBuckets {
+  repeated EloHistoryBucket buckets = 1;
 }

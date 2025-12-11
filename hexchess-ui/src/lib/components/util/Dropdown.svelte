@@ -65,7 +65,7 @@
     z-index: 1000;
     position: relative;
     /* width: 200px; */
-    font-size: 0.95rem;
+    /*font-size: 0.95rem;*/
   }
 
   .dropdown-selected {

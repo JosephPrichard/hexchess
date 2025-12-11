@@ -19,8 +19,9 @@ SELECT
     r.result,
     r.cause,
     r.played_on,
-    r.win_elo,
-    r.lose_elo,
+    r.win_elo_diff,
+    r.lose_elo_diff,
+    r.mode,
     u1.username AS white_name,
     u1.country AS white_country,
     u1.elo AS white_elo,
@@ -40,8 +41,9 @@ type GetReplayByIDRow struct {
 	Result       string
 	Cause        string
 	PlayedOn     pgtype.Timestamptz
-	WinElo       float64
-	LoseElo      float64
+	WinEloDiff   float64
+	LoseEloDiff  float64
+	Mode         string
 	WhiteName    string
 	WhiteCountry pgtype.Text
 	WhiteElo     float64
@@ -60,8 +62,9 @@ func (q *Queries) GetReplayByID(ctx context.Context, id int64) (GetReplayByIDRow
 		&i.Result,
 		&i.Cause,
 		&i.PlayedOn,
-		&i.WinElo,
-		&i.LoseElo,
+		&i.WinEloDiff,
+		&i.LoseEloDiff,
+		&i.Mode,
 		&i.WhiteName,
 		&i.WhiteCountry,
 		&i.WhiteElo,
@@ -73,7 +76,7 @@ func (q *Queries) GetReplayByID(ctx context.Context, id int64) (GetReplayByIDRow
 }
 
 const getReplayElos = `-- name: GetReplayElos :many
-SELECT played_on, white_id, black_id, result, win_elo, lose_elo
+SELECT id, mode, played_on, white_id, black_id, white_elo, black_elo -- gets the white/black elo at the time of insertion
 FROM replays
 WHERE 
     (white_id = $1 OR black_id = $1) AND 
@@ -86,12 +89,13 @@ type GetReplayElosParams struct {
 }
 
 type GetReplayElosRow struct {
+	ID       int64
+	Mode     string
 	PlayedOn pgtype.Timestamptz
 	WhiteID  int64
 	BlackID  int64
-	Result   string
-	WinElo   float64
-	LoseElo  float64
+	WhiteElo float64
+	BlackElo float64
 }
 
 func (q *Queries) GetReplayElos(ctx context.Context, arg GetReplayElosParams) ([]GetReplayElosRow, error) {
@@ -104,12 +108,13 @@ func (q *Queries) GetReplayElos(ctx context.Context, arg GetReplayElosParams) ([
 	for rows.Next() {
 		var i GetReplayElosRow
 		if err := rows.Scan(
+			&i.ID,
+			&i.Mode,
 			&i.PlayedOn,
 			&i.WhiteID,
 			&i.BlackID,
-			&i.Result,
-			&i.WinElo,
-			&i.LoseElo,
+			&i.WhiteElo,
+			&i.BlackElo,
 		); err != nil {
 			return nil, err
 		}
@@ -134,6 +139,32 @@ func (q *Queries) GetReplayMoveHistory(ctx context.Context, id int64) ([]byte, e
 	return move_history_bytes, err
 }
 
+const getReplayRowByID = `-- name: GetReplayRowByID :one
+SELECT id, white_id, black_id, mode, result, cause, played_on, win_elo_diff, lose_elo_diff, white_elo, black_elo, move_history
+FROM replays r
+WHERE r.id = $1
+`
+
+func (q *Queries) GetReplayRowByID(ctx context.Context, id int64) (Replay, error) {
+	row := q.db.QueryRow(ctx, getReplayRowByID, id)
+	var i Replay
+	err := row.Scan(
+		&i.ID,
+		&i.WhiteID,
+		&i.BlackID,
+		&i.Mode,
+		&i.Result,
+		&i.Cause,
+		&i.PlayedOn,
+		&i.WinEloDiff,
+		&i.LoseEloDiff,
+		&i.WhiteElo,
+		&i.BlackElo,
+		&i.MoveHistory,
+	)
+	return i, err
+}
+
 const getUserReplays = `-- name: GetUserReplays :many
 SELECT
     r.id,
@@ -142,8 +173,9 @@ SELECT
     r.result,
     r.cause,
     r.played_on,
-    r.win_elo,
-    r.lose_elo,
+    r.win_elo_diff,
+    r.lose_elo_diff,
+    r.mode,
     u1.username AS white_name,
     u1.country AS white_country,
     u1.elo AS white_elo,
@@ -151,8 +183,9 @@ SELECT
     u2.country AS black_country,
     u2.elo AS black_elo
 FROM replays r
-         INNER JOIN users u1 ON u1.id = r.white_id
-         INNER JOIN users u2 ON u2.id = r.black_id
+        -- ensures we get the white/black elo at the time of retrieval
+        INNER JOIN users u1 ON u1.id = r.white_id
+        INNER JOIN users u2 ON u2.id = r.black_id
 WHERE r.id < $1
   AND (r.white_id = $2 OR r.black_id = $2)
 ORDER BY r.id DESC
@@ -172,8 +205,9 @@ type GetUserReplaysRow struct {
 	Result       string
 	Cause        string
 	PlayedOn     pgtype.Timestamptz
-	WinElo       float64
-	LoseElo      float64
+	WinEloDiff   float64
+	LoseEloDiff  float64
+	Mode         string
 	WhiteName    string
 	WhiteCountry pgtype.Text
 	WhiteElo     float64
@@ -198,8 +232,9 @@ func (q *Queries) GetUserReplays(ctx context.Context, arg GetUserReplaysParams) 
 			&i.Result,
 			&i.Cause,
 			&i.PlayedOn,
-			&i.WinElo,
-			&i.LoseElo,
+			&i.WinEloDiff,
+			&i.LoseEloDiff,
+			&i.Mode,
 			&i.WhiteName,
 			&i.WhiteCountry,
 			&i.WhiteElo,
@@ -218,8 +253,19 @@ func (q *Queries) GetUserReplays(ctx context.Context, arg GetUserReplaysParams) 
 }
 
 const insertReplay = `-- name: InsertReplay :one
-INSERT INTO replays (white_id, black_id, result, cause, win_elo, lose_elo, move_history)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO replays (white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode, move_history)
+VALUES (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        COALESCE($7, (SELECT elo FROM users WHERE id = $1))::FLOAT8,
+        COALESCE($8, (SELECT elo FROM users WHERE id = $2))::FLOAT8,
+        COALESCE($9, CURRENT_TIMESTAMP)::TIMESTAMPTZ,
+        $10,
+        $11)
 RETURNING id
 `
 
@@ -230,6 +276,10 @@ type InsertReplayParams struct {
 	Cause       string
 	WinElo      float64
 	LoseElo     float64
+	WhiteElo    pgtype.Float8
+	BlackElo    pgtype.Float8
+	PlayedOn    pgtype.Timestamptz
+	Mode        string
 	MoveHistory []byte
 }
 
@@ -241,6 +291,10 @@ func (q *Queries) InsertReplay(ctx context.Context, arg InsertReplayParams) (int
 		arg.Cause,
 		arg.WinElo,
 		arg.LoseElo,
+		arg.WhiteElo,
+		arg.BlackElo,
+		arg.PlayedOn,
+		arg.Mode,
 		arg.MoveHistory,
 	)
 	var id int64

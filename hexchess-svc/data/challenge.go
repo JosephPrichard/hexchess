@@ -17,9 +17,9 @@ import (
 type ColorSelect string
 
 const (
-	TcWhite  ColorSelect = "WHITE"
-	TcBlack  ColorSelect = "BLACK"
-	TcRandom ColorSelect = "RANDOM"
+	CsWhite  ColorSelect = "WHITE"
+	CsBlack  ColorSelect = "BLACK"
+	CsRandom ColorSelect = "RANDOM"
 )
 
 type TimeControl string
@@ -147,7 +147,7 @@ func GetChallengesByParticipantOn(ctx context.Context, query *db.Queries, key Ch
 		Since:        pgtype.Timestamptz{Valid: true, Time: t},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get challenges by participant %v: %w", key, err)
+		return nil, fmt.Errorf("get challenges by participant %v: %w", key, err)
 	}
 
 	var challenges []ChallengeEntity
@@ -176,7 +176,7 @@ func DeleteChallenge(ctx context.Context, query *db.Queries, key ChallengeKey) (
 		return DeleteResult{}, ErrChallengeNotFound
 	}
 	if err != nil {
-		return DeleteResult{}, fmt.Errorf("failed to delete challenge %d: %w", key, err)
+		return DeleteResult{}, fmt.Errorf("delete challenge %d: %w", key, err)
 	}
 
 	dr := DeleteResult{

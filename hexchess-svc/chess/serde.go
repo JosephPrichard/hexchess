@@ -61,7 +61,7 @@ func DeserializeBoard(pbBoard *pb.ChessBoard) (Board, error) {
 	for file, bFile := range pbBoard.File {
 		for rank, piece := range bFile.Pieces {
 			if err := board.SetPiece(uint32(file), uint32(rank), Piece(piece)); err != nil {
-				return board, fmt.Errorf("failed to set piece: %w", err)
+				return board, fmt.Errorf("set piece: %w", err)
 			}
 		}
 	}
@@ -104,7 +104,7 @@ func DeserializeGame(pbGame *pb.ChessGame) (Game, error) {
 	}
 	board, err := DeserializeBoard(pbGame.Board)
 	if err != nil {
-		return Game{}, fmt.Errorf("failed to deserialize board %v: %w", pbGame.Board, err)
+		return Game{}, fmt.Errorf("deserialize board %v: %w", pbGame.Board, err)
 	}
 	return Game{
 		TakenWhitePieces: DeserializePieces(pbGame.TakenWhitePieces),

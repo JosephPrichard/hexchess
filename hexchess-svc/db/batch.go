@@ -18,8 +18,18 @@ var (
 )
 
 const batchInsertUser = `-- name: BatchInsertUser :batchone
-INSERT INTO users (username, country, elo, highest_elo, wins, losses, password, salt, google_account_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO users (username, country, elo, highest_elo, start_elo, wins, losses, password, salt, google_account_id)
+VALUES (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        $8,
+        $9,
+        $10)
 RETURNING id, username, country, elo, highest_elo, wins, losses, bio, joined_on
 `
 
@@ -34,6 +44,7 @@ type BatchInsertUserParams struct {
 	Country         pgtype.Text
 	Elo             float64
 	HighestElo      float64
+	StartElo        float64
 	Wins            int32
 	Losses          int32
 	Password        string
@@ -61,6 +72,7 @@ func (q *Queries) BatchInsertUser(ctx context.Context, arg []BatchInsertUserPara
 			a.Country,
 			a.Elo,
 			a.HighestElo,
+			a.StartElo,
 			a.Wins,
 			a.Losses,
 			a.Password,

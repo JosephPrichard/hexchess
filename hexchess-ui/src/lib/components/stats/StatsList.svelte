@@ -39,7 +39,7 @@
 						{user.username}
 						<img class="flag" src="/flags/{user.country}.png" alt="" />
 					</td>
-					<td >{user.elo}</td>
+					<td>{Math.round(user.elo)}</td>
 					<td class={wrClass}>
 						{user.winRate}%
 					</td>

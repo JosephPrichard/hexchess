@@ -105,7 +105,7 @@ func TestBroadcastGameMessage(t *testing.T) {
 	<-ListenGameMessages(m, rdb.PubsubAddr)
 
 	expMsgCount := 2
-	
+
 	makeTestChatOutput := func(id string, msg string) []byte {
 		v, err := proto.Marshal(&pb.GameOutput{
 			GameId: id,
@@ -129,7 +129,7 @@ func TestBroadcastGameMessage(t *testing.T) {
 	for range expMsgCount {
 		var o pb.GameOutput
 		if err := proto.Unmarshal(<-subChan, &o); err != nil {
-			t.Fatalf("failed to unmarshal game output: %v", err)
+			t.Fatalf("unmarshal game output: %v", err)
 		}
 		msgs = append(msgs, o.GetChat().GetMessage())
 	}

@@ -16,7 +16,7 @@
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import TurnWrapper from '$lib/components/chess/TurnWrapper.svelte';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
-	import TurnDropdown from '$lib/components/chess/TurnDropdown.svelte';
+	import Dropdown from '$lib/components/util/Dropdown.svelte';
 	import { makeGameState } from '$lib/state/game.svelte';
 
 	export interface SandboxProps {
@@ -208,7 +208,7 @@
 				</div>
 			{:else}
 				<div class="growing-box sandbox-display">
-					<TurnDropdown 
+					<Dropdown
 						options={[{label: "White's Turn", value: "WHITE"}, {label: "Black's Turn", value: "BLACK"}]}
 						selected={gameState.value.game?.board?.isWhiteTurn ? "WHITE" : "BLACK"} 
 						onChange={handleSetBoardTurn}

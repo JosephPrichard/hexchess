@@ -63,17 +63,17 @@ func parseEventData(input string) string {
 			return strings.TrimPrefix(line, "data: ")
 		}
 	}
-	panic(fmt.Sprintf("failed to parse event data: %s", input))
+	panic(fmt.Sprintf("parse event data: %s", input))
 }
 
 func TestHandleCountEvents(t *testing.T) {
 	rdb := data.BeforeRedisTests(t)
 	defer rdb.Close()
-	databases := data.Databases{Rdb: rdb}
+	dbs := data.Databases{Rdb: rdb}
 
-	state := MakeDefaultServerState(databases)
-	state.MakeID = func() string { return "id1" }
-	<-data.ListenUnicastEvents(state.CountsCaster, databases.Rdb.PrimaryAddr)
+	state := MakeServerState(dbs, nil, "")
+	state.Generators = &mockUUIDGenerator{id: "id1"}
+	<-data.ListenUnicastEvents(state.CountsCaster, dbs.Rdb.CacheAddr)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
 	defer ts.Close()
@@ -88,8 +88,8 @@ func TestHandleCountEvents(t *testing.T) {
 	go func() {
 		ctx := context.WithValue(context.Background(), util.Trace, "broadcast-counts")
 		errChan <- errors.Join(nil,
-			data.BroadcastActiveCount(ctx, databases.Rdb, 2, "id3"),
-			data.BroadcastGameCount(ctx, databases.Rdb, 1, "id2"))
+			data.BroadcastActiveCount(ctx, dbs.Rdb, 2, "id3"),
+			data.BroadcastGameCount(ctx, dbs.Rdb, 1, "id2"))
 	}()
 
 	expEvents := []string{
@@ -106,13 +106,13 @@ func TestHandleCountEvents(t *testing.T) {
 func TestHandleUserEvents(t *testing.T) {
 	rdb := data.BeforeRedisTests(t)
 	defer rdb.Close()
-	databases := data.Databases{Rdb: rdb}
+	dbs := data.Databases{Rdb: rdb}
 
-	state := MakeDefaultServerState(databases)
-	state.MakeID = func() string { return "id1" }
-	<-data.ListenUsersMessages(state.UsersCaster, databases.Rdb.PrimaryAddr)
+	state := MakeServerState(dbs, nil, "")
+	state.Generators = &mockUUIDGenerator{id: "id1"}
+	<-data.ListenUsersMessages(state.UsersCaster, dbs.Rdb.CacheAddr)
 
-	createTestSessions(t, databases.Rdb)
+	createTestSessions(t, dbs.Rdb)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
 	defer ts.Close()
@@ -131,9 +131,9 @@ func TestHandleUserEvents(t *testing.T) {
 	go func() {
 		ctx := context.WithValue(context.Background(), util.Trace, "broadcast-user-events")
 		errChan <- errors.Join(nil,
-			data.BroadcastChallenge(ctx, databases.Rdb, 1, data.ChallengeEntity{ChallengerID: 1, TimeControl: data.TcRealTime, StartColor: data.TcWhite}),
-			data.BroadcastChallenge(ctx, databases.Rdb, 2, data.ChallengeEntity{ChallengerID: 2}),
-			data.BroadcastChallenge(ctx, databases.Rdb, 1, data.ChallengeEntity{ChallengerID: 1, TimeControl: data.TcRealTime, StartColor: data.TcWhite}))
+			data.BroadcastChallenge(ctx, dbs.Rdb, 1, data.ChallengeEntity{ChallengerID: 1, TimeControl: data.TcRealTime, StartColor: data.CsWhite}),
+			data.BroadcastChallenge(ctx, dbs.Rdb, 2, data.ChallengeEntity{ChallengerID: 2}),
+			data.BroadcastChallenge(ctx, dbs.Rdb, 1, data.ChallengeEntity{ChallengerID: 1, TimeControl: data.TcRealTime, StartColor: data.CsWhite}))
 	}()
 
 	jsonData := `{"challengerId":1,"challengerName":"","challengerCountry":"","challengerElo":0,"challengeeId":0,"challengeeName":"","challengeeCountry":"","challengeeElo":0,"timeControl":"REAL_TIME","startColor":"WHITE","madeOn":"0001-01-01T00:00:00Z"}`
@@ -152,10 +152,10 @@ func TestHandleUserEvents(t *testing.T) {
 func TestHandleCountEvents_Throughput(t *testing.T) {
 	rdb := data.BeforeRedisTests(t)
 	defer rdb.Close()
-	databases := data.Databases{Rdb: rdb}
+	dbs := data.Databases{Rdb: rdb}
 
-	state := MakeDefaultServerState(databases)
-	<-data.ListenUnicastEvents(state.CountsCaster, databases.Rdb.PrimaryAddr)
+	state := MakeServerState(dbs, nil, "")
+	<-data.ListenUnicastEvents(state.CountsCaster, rdb.CacheAddr)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
 	defer ts.Close()
@@ -180,7 +180,7 @@ func TestHandleCountEvents_Throughput(t *testing.T) {
 		start := time.Now()
 		resp, err := http.Get(ts.URL + "/api/events/count")
 		if err != nil {
-			t.Fatalf("failed to open sse: %v", err)
+			t.Fatalf("open sse: %v", err)
 		}
 		// wait for initial events before we start the next SSE
 		// this guarantees in the routine below, we will be listening to broadcasts from other SSE connections
@@ -198,7 +198,7 @@ func TestHandleCountEvents_Throughput(t *testing.T) {
 				d := parseEventData(event)
 				var ce data.CountEvent
 				if err := json.Unmarshal([]byte(d), &ce); err != nil {
-					t.Logf("failed to unmarshal count event: %v", err)
+					t.Logf("unmarshal count event: %v", err)
 					return
 				}
 				subMap[ce.ID] = msg{

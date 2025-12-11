@@ -24,7 +24,7 @@ func BroadcastMessage(ctx context.Context, rdb *Redis, channel string, b []byte)
 	defer conn.Close()
 
 	if _, err := conn.Do("PUBLISH", channel, b); err != nil {
-		return fmt.Errorf("failed to publish message: %w", err)
+		return fmt.Errorf("publish message: %w", err)
 	}
 	slog.InfoContext(ctx, "broadcasted message to channel", "channel", channel, "bytesCount", len(b))
 	return nil
@@ -38,7 +38,7 @@ type CountEvent struct {
 func BroadcastCountEvent(ctx context.Context, rdb *Redis, channel string, count int64, id string) error {
 	b, err := json.Marshal(CountEvent{ID: id, Count: count})
 	if err != nil {
-		return fmt.Errorf("failed to marshal count event message: %w", err)
+		return fmt.Errorf("marshal count event message: %w", err)
 	}
 	return BroadcastMessage(ctx, rdb, channel, b)
 }
@@ -55,7 +55,7 @@ func BroadcastChallenge(ctx context.Context, rdb *Redis, id int64, c ChallengeEn
 	um := SerializeChallengeMsg(id, c)
 	b, err := proto.Marshal(um)
 	if err != nil {
-		return fmt.Errorf("failed to marshal user challenge message: %w", err)
+		return fmt.Errorf("marshal user challenge message: %w", err)
 	}
 	return BroadcastMessage(ctx, rdb, rdb.UsersChan, b)
 }
@@ -80,7 +80,7 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redis.Mes
 			case redis.Subscription:
 				slog.Info("received subscription on channel", "value", v, "channel", v.Channel)
 			case error:
-				slog.Error("failed to receive from channel", "err", v, "channel", chans)
+				slog.Error("receive from channel", "err", v, "channel", chans)
 				return
 			}
 		}
@@ -90,7 +90,7 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redis.Mes
 		for {
 			conn, err := redis.Dial("tcp", addr)
 			if err != nil {
-				slog.Error("failed to get conn for pubsub", "err", err)
+				slog.Error("get conn for pubsub", "err", err)
 			} else {
 				recvLoop(conn)
 			}
@@ -105,7 +105,7 @@ func ListenGameMessages(m *MultiCasterMap, addr string) chan struct{} {
 	onMessage := func(v redis.Message) {
 		var goi pb.GameOutputID
 		if err := proto.Unmarshal(v.Data, &goi); err != nil {
-			slog.Error("failed to unmarshal game message", "err", err, "channel", v.Channel)
+			slog.Error("unmarshal game message", "err", err, "channel", v.Channel)
 			return
 		}
 		slog.Info("received message on channel", "ID", goi.GameId, "channel", v.Channel)
@@ -114,19 +114,18 @@ func ListenGameMessages(m *MultiCasterMap, addr string) chan struct{} {
 	return listenRedisChannels(addr, []string{GamesChan}, onMessage)
 }
 
-
 func ListenUsersMessages(m *MultiCasterMap, addr string) chan struct{} {
 	onMessage := func(v redis.Message) {
 		var um pb.UserMsg
 		if err := proto.Unmarshal(v.Data, &um); err != nil {
-			slog.Error("failed to unmarshal user message", "err", err, "channel", v.Channel)
+			slog.Error("unmarshal user message", "err", err, "channel", v.Channel)
 			return
 		}
 		slog.Info("received message on channel", "userID", um.UserId, "channel", v.Channel)
 
 		buf, err := MarshalUserMsgJson(&um)
 		if err != nil {
-			slog.Error("failed to marshal user message", "err", err, "channel", v.Channel)
+			slog.Error("marshal user message", "err", err, "channel", v.Channel)
 			return
 		}
 		m.Broadcast(um.UserId, buf)
@@ -148,8 +147,8 @@ func ListenUnicastEvents(m *UniCaster, addr string) chan struct{} {
 	onMessage := func(v redis.Message) {
 		strData := string(v.Data)
 		// unicast broadcasting is only being used to game counts (small data), so it is safe to log
-		slog.Info("received event on channel", "event", strData, "channel", v.Channel) 
-		
+		slog.Info("received event on channel", "event", strData, "channel", v.Channel)
+
 		eKind, ok := EventMap[v.Channel]
 		if !ok {
 			slog.Error("received event on unmapped channel", "channel", v.Channel, "eventMap", EventMap)

@@ -34,18 +34,10 @@ type ServerState struct {
 	CasterState
 	CountryState
 	APIKeys
-	MakeID func() string
+	Generators
 }
 
-func makeCasterState() CasterState {
-	return CasterState{
-		CountsCaster: data.MakeUniCaster("counts-caster"),
-		GamesCaster:  data.MakeMultiCasterMap("games-caster", data.GameExpireDur),
-		UsersCaster:  data.MakeMultiCasterMap("users-caster", -1),
-	}
-}
-
-func makeCountryState(countryList []string) CountryState {
+func MakeServerState(databases data.Databases, countryList []string, googleAPIKey string) ServerState {
 	if countryList == nil {
 		countryList = []string{}
 	}
@@ -53,26 +45,22 @@ func makeCountryState(countryList []string) CountryState {
 	for _, c := range countryList {
 		countryMap[c] = struct{}{}
 	}
-	return CountryState{CountryList: countryList, CountryMap: countryMap}
-}
 
-func MakeID() string { return uuid.NewString() }
-
-func MakeDefaultServerState(databases data.Databases) ServerState {
 	return ServerState{
-		Databases:   databases,
-		CasterState: makeCasterState(),
-		MakeID:      MakeID,
-	}
-}
-
-func MakeServerState(databases data.Databases, countryList []string, googleAPIKey string) ServerState {
-	return ServerState{
-		Databases:    databases,
-		CasterState:  makeCasterState(),
-		CountryState: makeCountryState(countryList),
-		APIKeys:      APIKeys{GoogleAPIKey: googleAPIKey},
-		MakeID:       MakeID,
+		Databases: databases,
+		CasterState: CasterState{
+			CountsCaster: data.MakeUniCaster("counts-caster"),
+			GamesCaster:  data.MakeMultiCasterMap("games-caster", data.GameExpireDur),
+			UsersCaster:  data.MakeMultiCasterMap("users-caster", -1),
+		},
+		CountryState: CountryState{
+			CountryList: countryList,
+			CountryMap:  countryMap,
+		},
+		APIKeys: APIKeys{
+			GoogleAPIKey: googleAPIKey,
+		},
+		Generators: &UUIDGenerator{},
 	}
 }
 
@@ -144,6 +132,7 @@ func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 	handleRest("GET", "/api/replays", HandleGetUserReplays)
 	handleRest("GET", "/api/chess/rooms", HandleGetChessRoomList)
 	handleRest("GET", "/api/replay", HandleGetReplay)
+	handleRest("GET", "/api/replay/elo-history", HandleGetEloHistories)
 	handleRest("GET", "/api/replay/move-list", HandleGetReplayMoveList)
 
 	handleSse("GET", "/api/events/count", HandleCountEvents)

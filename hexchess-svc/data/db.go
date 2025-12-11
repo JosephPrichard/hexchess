@@ -30,7 +30,7 @@ func (db Postgres) Close() {
 type Redis struct {
 	Cache           *redis.Pool
 	PubSub          *redis.Pool
-	PrimaryAddr     string
+	CacheAddr       string
 	PubsubAddr      string
 	LeaderboardZSet string
 	GamesZSet       string
@@ -88,7 +88,7 @@ func MakeRdb(cacheAddr string, pubsubAddr string) *Redis {
 			Dial:        makeDial(cacheAddr),
 		},
 		PubSub:          pubsub,
-		PrimaryAddr:     cacheAddr,
+		CacheAddr:       cacheAddr,
 		PubsubAddr:      pubsubAddr,
 		LeaderboardZSet: LeaderboardZSet,
 		GamesZSet:       GamesZSet,

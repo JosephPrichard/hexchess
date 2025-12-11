@@ -10,6 +10,7 @@ import (
 	"hexchess-svc/util"
 	"log/slog"
 	"math/big"
+	"time"
 )
 
 const GamesZSet = "games"
@@ -75,9 +76,9 @@ func JoinGame(ctx context.Context, rdb *Redis, gameID string, player *PlayerStat
 	if state.WhitePlayer == nil && state.BlackPlayer == nil {
 		n, err := rand.Int(rand.Reader, big.NewInt(1000))
 		if err != nil {
-			return ChessState{}, fmt.Errorf("failed to generate randint used to select first color: %w", err)
+			return ChessState{}, fmt.Errorf("generate randint used to select first color: %w", err)
 		}
-		pickWhite := state.FirstColor == TcRandom && n.Int64()%2 == 0 || state.FirstColor == TcWhite
+		pickWhite := state.FirstColor == CsRandom && n.Int64()%2 == 0 || state.FirstColor == CsWhite
 		if pickWhite {
 			state.WhitePlayer = player
 		} else {
@@ -148,10 +149,10 @@ func DoMakeMove(ctx context.Context, state ChessState, player PlayerState, move 
 	return mr, nil
 }
 
-func MakeGameMove(ctx context.Context, databases *Databases, gameID string, player PlayerState, move chess.Move) (MoveResult, error) {
+func MakeGameMove(ctx context.Context, dbs *Databases, gameID string, player PlayerState, move chess.Move) (MoveResult, error) {
 	var mr MoveResult
 
-	state, err := GetChessState(ctx, databases.Rdb, gameID)
+	state, err := GetChessState(ctx, dbs.Rdb, gameID)
 	if err != nil {
 		return mr, err
 	}
@@ -160,21 +161,24 @@ func MakeGameMove(ctx context.Context, databases *Databases, gameID string, play
 		return mr, err
 	}
 	if state.IsEnded {
-		isWhiteWin := !state.Game.Board.IsWhiteTurn
-		if err := WriteFinishedGame(ctx, databases, state, isWhiteWin, Checkmate); err != nil {
-			return mr, fmt.Errorf("failed to write checkmate game result: %w", err)
+		result := WhiteWin
+		if state.Game.Board.IsWhiteTurn {
+			result = BlackWin
+		}
+		if err := WriteFinishedGame(ctx, dbs, state, result, Checkmate); err != nil {
+			return mr, fmt.Errorf("write checkmate game result: %w", err)
 		}
 	}
 	slog.InfoContext(ctx, "made move on game", "player", player.ID, "move", move, "state", state)
 
-	if _, err = SetChessState(ctx, databases.Rdb, gameID, state); err != nil {
+	if _, err = SetChessState(ctx, dbs.Rdb, gameID, state); err != nil {
 		return mr, err
 	}
 	return mr, nil
 }
 
-func ForfeitGame(ctx context.Context, databases *Databases, gameID string, player PlayerState) error {
-	state, err := GetChessState(ctx, databases.Rdb, gameID)
+func ForfeitGame(ctx context.Context, dbs *Databases, gameID string, player PlayerState) error {
+	state, err := GetChessState(ctx, dbs.Rdb, gameID)
 	if err != nil {
 		return err
 	}
@@ -183,70 +187,68 @@ func ForfeitGame(ctx context.Context, databases *Databases, gameID string, playe
 		return nil
 	}
 
-	didBlackForfeit := state.BlackPlayer.ID == player.ID
+	result := BlackWin
+	if state.BlackPlayer.ID == player.ID {
+		result = WhiteWin
+	}
 	state.IsEnded = true
 
-	if _, err := SetChessState(ctx, databases.Rdb, gameID, state); err != nil {
+	if _, err := SetChessState(ctx, dbs.Rdb, gameID, state); err != nil {
 		return err
 	}
-	if err := WriteFinishedGame(ctx, databases, state, didBlackForfeit, Forfeit); err != nil {
-		return fmt.Errorf("failed to write forfeit game result: %w", err)
+	if err := WriteFinishedGame(ctx, dbs, state, result, Forfeit); err != nil {
+		return fmt.Errorf("write forfeit game result: %w", err)
 	}
 
 	slog.InfoContext(ctx, "player forfeited game", "playerID", player.ID, "gameId", gameID)
 	return nil
 }
 
-func WriteFinishedGame(ctx context.Context, databases *Databases, state ChessState, isWhiteWin bool, cause ReplayCause) error {
-	fail := func(err error) error {
-		slog.ErrorContext(ctx, "failed to finish game", "err", err)
-		return err
-	}
-
+func WriteFinishedGame(ctx context.Context, dbs *Databases, state ChessState, result ReplayResult, cause ReplayCause) error {
 	if state.WhitePlayer == nil || state.BlackPlayer == nil {
-		return fmt.Errorf("assertion error: room players must not be nil on a finished game: roomID: %s", state.ID)
+		return fmt.Errorf("room players must not be nil on a finished game: roomID: %s", state.ID)
 	}
 	whiteID := state.WhitePlayer.ID
 	blackID := state.BlackPlayer.ID
 
 	moveHistBytes, err := chess.MarshalMoveHistory(state.InitialBoard, state.Game.Moves)
 	if err != nil {
-		return fail(fmt.Errorf("failed to marshal move history: %w", err))
+		return fmt.Errorf("marshal move history: %w", err)
 	}
-	cs, err := UpdateGameResultTx(ctx, databases.Pdb, GRParams{
+	cs, err := InsertGameResultTx(ctx, dbs.Pdb, time.Now(), GameResult{
 		WhiteID:          whiteID,
 		BlackID:          blackID,
 		Cause:            cause,
-		IsWhiteWin:       isWhiteWin,
+		Result:           result,
+		Mode:             ReplayMode(state.TimeControl), // as of right now, the replay modes only contain the time control, so we can directly cast
 		MoveHistoryProto: moveHistBytes,
 	})
 	if err != nil {
-		return fail(fmt.Errorf("failed to execute finish game tx: %w", err))
+		return fmt.Errorf("execute finish game tx: %w", err)
 	}
 	if cs == (GRChangeSet{}) {
 		slog.WarnContext(ctx, "game result update is a noop", "room", state.ID)
 		return nil
 	}
-
-	slog.InfoContext(ctx, "applying ELO change set to leaderboard", "changeSet", cs, "room", state.ID)
+	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", cs, "room", state.ID)
 
 	if err := IncrLeaderboard(ctx,
-		databases.Rdb,
+		dbs.Rdb,
 		UpdtLbChangeSet{ID: cs.WinID, EloDiff: cs.WinEloDiff},
 		UpdtLbChangeSet{ID: cs.LoseID, EloDiff: cs.LoseEloDiff},
 	); err != nil {
-		return fail(fmt.Errorf("failed to increment user leaderboard stats: %w", err))
+		return fmt.Errorf("increment user leaderboard stats: %w", err)
 	}
-
 	slog.InfoContext(ctx, "finished game", "room", state.ID)
 	return nil
 }
 
-type GRParams struct {
-	WhiteID          int64       `json:"whiteId"`
-	BlackID          int64       `json:"blackId"`
-	Cause            ReplayCause `json:"cause"`
-	IsWhiteWin       bool        `json:"isWhiteWin"`
+type GameResult struct {
+	WhiteID          int64        `json:"whiteId"`
+	BlackID          int64        `json:"blackId"`
+	Cause            ReplayCause  `json:"cause"`
+	Result           ReplayResult `json:"result"`
+	Mode             ReplayMode   `json:"mode"`
 	MoveHistoryProto []byte
 }
 
@@ -258,71 +260,73 @@ type GRChangeSet struct {
 	LoseEloDiff float64
 }
 
-func UpdateGameResultTx(ctx context.Context, postgres *Postgres, params GRParams) (GRChangeSet, error) {
+func InsertGameResultTx(ctx context.Context, postgres *Postgres, timeAt time.Time, params GameResult) (GRChangeSet, error) {
 	return WithTxn(TxnArgs[GRChangeSet]{
 		Ctx:      ctx,
 		Postgres: postgres,
 		TxFn: func(query *db.Queries) (GRChangeSet, error) {
-			return updateGameResult(ctx, query, params)
+			return insertGameResult(ctx, query, timeAt, params)
 		},
 	})
 }
 
-func updateGameResult(ctx context.Context, query *db.Queries, params GRParams) (GRChangeSet, error) {
-	result, winID, loseID := func() (result ReplayResult, winID, loseID int64) {
-		if params.IsWhiteWin {
-			return WhiteWin, params.WhiteID, params.BlackID
-		} else {
-			return BlackWin, params.BlackID, params.WhiteID
+func getContestants(result ReplayResult, whiteID int64, blackID int64) (int64, int64, bool) {
+	switch result {
+	case WhiteWin:
+		return whiteID, blackID, true
+	case BlackWin:
+		return blackID, whiteID, true
+	default:
+		return 0, 0, false
+	}
+}
+
+func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, result GameResult) (GRChangeSet, error) {
+	var cs GRChangeSet
+	winID, loseID, isUpdtElo := getContestants(result.Result, result.WhiteID, result.BlackID)
+
+	var winEloDiff, loseEloDiff float64
+	if isUpdtElo {
+		winElo, err := query.GetElo(ctx, winID)
+		if err != nil {
+			return cs, fmt.Errorf("select winner elo: %w", err)
 		}
-	}()
+		loseElo, err := query.GetElo(ctx, loseID)
+		if err != nil {
+			return cs, fmt.Errorf("select loser elo: %w", err)
+		}
 
-	fail := func(err error) (GRChangeSet, error) {
-		slog.ErrorContext(ctx, "failed to update stats", "winID", winID, "loseID", loseID, "err", err)
-		return GRChangeSet{}, err
-	}
+		winEloNext := winElo + 30*(1.0-ProbabilityWins(loseElo, winElo))
+		loseEloNext := loseElo + (-30 * ProbabilityWins(winElo, loseElo))
+		winEloDiff = winEloNext - winElo
+		loseEloDiff = loseEloNext - loseElo
 
-	winElo, err := query.GetElo(ctx, winID)
-	if err != nil {
-		return fail(fmt.Errorf("failed to get winner elo: %w", err))
-	}
-	loseElo, err := query.GetElo(ctx, loseID)
-	if err != nil {
-		return fail(fmt.Errorf("failed to get loser elo: %w", err))
-	}
-
-	winEloNext := winElo + 30*(1.0-ProbabilityWins(loseElo, winElo))
-	loseEloNext := loseElo + (-30 * ProbabilityWins(winElo, loseElo))
-	winEloDiff := winEloNext - winElo
-	loseEloDiff := loseEloNext - loseElo
-
-	if winEloDiff == 0 && loseEloDiff == 0 {
-		slog.InfoContext(ctx, "user stats update is a noop", "winId", winID, "loseId", loseID)
-		return GRChangeSet{}, nil
-	}
-
-	if err := query.UpdateWins(ctx, db.UpdateWinsParams{ID: winID, Elo: winEloNext}); err != nil {
-		return fail(fmt.Errorf("failed to update win elo: %w", err))
-	}
-	if err := query.UpdateLosses(ctx, db.UpdateLossesParams{ID: loseID, Elo: loseEloNext}); err != nil {
-		return fail(fmt.Errorf("failed to update lose elo: %w", err))
+		if err := query.UpdateWins(ctx, db.UpdateWinsParams{ID: winID, Elo: winEloNext}); err != nil {
+			return cs, fmt.Errorf("update winner elo: %w", err)
+		}
+		if err := query.UpdateLosses(ctx, db.UpdateLossesParams{ID: loseID, Elo: loseEloNext}); err != nil {
+			return cs, fmt.Errorf("update loser elo: %w", err)
+		}
 	}
 
 	inst := ReplayInst{
-		WhiteID:          params.WhiteID,
-		BlackID:          params.BlackID,
-		Result:           result,
-		Cause:            params.Cause,
-		WinElo:           winEloDiff,
-		LoseElo:          loseEloDiff,
-		MoveHistoryProto: params.MoveHistoryProto,
+		WhiteID:          result.WhiteID,
+		BlackID:          result.BlackID,
+		Result:           result.Result,
+		Cause:            result.Cause,
+		Mode:             result.Mode,
+		WinEloDiff:       winEloDiff,
+		LoseEloDiff:      loseEloDiff,
+		MoveHistoryProto: result.MoveHistoryProto,
+		PlayedOn:         timeAt,
 	}
 	replayID, err := InsertReplay(ctx, query, inst)
 	if err != nil {
-		return fail(fmt.Errorf("failed to insert replay: %w", err))
+		return cs, fmt.Errorf("insert replay %v: %w", inst, err)
 	}
+	cs = GRChangeSet{ReplayID: replayID, WinID: winID, LoseID: loseID, WinEloDiff: winEloDiff, LoseEloDiff: loseEloDiff}
 
-	cs := GRChangeSet{ReplayID: replayID, WinID: winID, LoseID: loseID, WinEloDiff: winEloDiff, LoseEloDiff: loseEloDiff}
+	inst.MoveHistoryProto = nil
 	slog.InfoContext(ctx, "updated user stats", "inst", inst, "changeSet", cs)
 	return cs, nil
 }

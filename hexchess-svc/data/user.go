@@ -88,7 +88,7 @@ type HashResult struct {
 func hashPassword(password string) (HashResult, error) {
 	saltBytes := make([]byte, 16)
 	if _, err := rand.Read(saltBytes); err != nil {
-		return HashResult{}, fmt.Errorf("failed to generate salt: %w", err)
+		return HashResult{}, fmt.Errorf("generate salt: %w", err)
 	}
 	salt := base64.StdEncoding.EncodeToString(saltBytes)
 
@@ -96,7 +96,7 @@ func hashPassword(password string) (HashResult, error) {
 
 	hashed, err := bcrypt.GenerateFromPassword(saltedPassword, 12)
 	if err != nil {
-		return HashResult{}, fmt.Errorf("failed to hash password: %w", err)
+		return HashResult{}, fmt.Errorf("hash password: %w", err)
 	}
 
 	return HashResult{Salt: salt, HashedPassword: string(hashed)}, nil
@@ -108,6 +108,7 @@ func mapInsertUserParams(inst UserInst, hash HashResult) db.InsertUserParams {
 		Country:    pgtype.Text{Valid: true, String: inst.Country},
 		Elo:        inst.Elo,
 		HighestElo: inst.Elo,
+		StartElo:   StartElo,
 		Wins:       int32(inst.Wins),
 		Losses:     int32(inst.Losses),
 		Password:   hash.HashedPassword,
@@ -141,14 +142,10 @@ func mapUserFromRow(row db.SelectUserByIDRow) UserEntity {
 }
 
 func InsertUser(ctx context.Context, query *db.Queries, inst UserInst) (UserEntity, error) {
-	fail := func(err error) (UserEntity, error) {
-		slog.ErrorContext(ctx, "failed to insert user", "inst", inst, "err", err)
-		return UserEntity{}, err
-	}
-
+	var u UserEntity
 	hash, err := hashPassword(inst.Password)
 	if err != nil {
-		return fail(fmt.Errorf("failed to generate hash: %w", err))
+		return u, fmt.Errorf("generate hash: %w", err)
 	}
 
 	row, err := query.InsertUser(ctx, mapInsertUserParams(inst, hash))
@@ -156,16 +153,16 @@ func InsertUser(ctx context.Context, query *db.Queries, inst UserInst) (UserEnti
 	if errors.As(err, &pgErr) {
 		if pgErr.Code == "23505" {
 			slog.InfoContext(ctx, "player already exists", "inst", inst, "err", pgErr)
-			return UserEntity{}, ErrTakenUsername
+			return u, ErrTakenUsername
 		}
 	}
 	if err != nil {
-		return fail(fmt.Errorf("failed to insert user to db: %w", err))
+		return u, fmt.Errorf("insert user to db: %w", err)
 	}
 
-	user := mapUserFromRow(db.SelectUserByIDRow(row))
-	slog.InfoContext(ctx, "created a new user", "user", user)
-	return user, nil
+	u = mapUserFromRow(db.SelectUserByIDRow(row))
+	slog.InfoContext(ctx, "created a new user", "user", u)
+	return u, nil
 }
 
 func BatchInsertUsers(ctx context.Context, query *db.Queries, insts []UserInst) ([]UserEntity, error) {
@@ -178,7 +175,7 @@ func BatchInsertUsers(ctx context.Context, query *db.Queries, insts []UserInst) 
 		eg.Go(func() error {
 			hash, err := hashPassword(inst.Password)
 			if err != nil {
-				return fmt.Errorf("failed to hash password for inst index %d: %w", i, err)
+				return fmt.Errorf("hash password for inst index %d: %w", i, err)
 			}
 			batch := mapInsertUserParams(inst, hash)
 			batches[i] = db.BatchInsertUserParams(batch)
@@ -229,18 +226,13 @@ const LockoutDuration = time.Minute * 1
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
 func VerifyUser(ctx context.Context, query *db.Queries, username string, inputPassword string) (VerifiedUser, error) {
-	fail := func(err error) (VerifiedUser, error) {
-		slog.ErrorContext(ctx, "failed to verify user", "username", username, "err", err)
-		return VerifiedUser{}, err
-	}
-
 	var u VerifiedUser
 
 	login, err := query.SelectLoginByName(ctx, username)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return u, ErrUserNotFound
 	} else if err != nil {
-		return fail(fmt.Errorf("failed to select user '%s' by login: %w", username, err))
+		return u, fmt.Errorf("select user '%s' by login: %w", username, err)
 	}
 
 	isExceedAttempts := login.LoginAttempts > 0 && login.LoginAttempts%LoginAttemptsDivisor == 0
@@ -255,14 +247,14 @@ func VerifyUser(ctx context.Context, query *db.Queries, username string, inputPa
 
 	if loginErr != nil {
 		if err := query.IncrLoginAttempts(ctx, login.ID); err != nil {
-			return fail(fmt.Errorf("failed to incr user %d login attempts: %w", login.ID, err))
+			return u, fmt.Errorf("incr user %d login attempts: %w", login.ID, err)
 		}
-		slog.ErrorContext(ctx, "user login is invalid", "username", username, "err", loginErr)
+		slog.ErrorContext(ctx, "failed to user login is invalid", "username", username, "err", loginErr)
 		return u, ErrUserNotFound
 	}
 
 	if err := query.ResetLoginAttempts(ctx, login.ID); err != nil {
-		return fail(fmt.Errorf("failed to reset user %d login attempts: %w", login.ID, err))
+		return u, fmt.Errorf("reset user %d login attempts: %w", login.ID, err)
 	}
 	u = VerifiedUser{
 		ID:       login.ID,
@@ -283,11 +275,6 @@ type GoogleUserInst struct {
 }
 
 func SelectOrInsertGoogleUser(ctx context.Context, query *db.Queries, googleAccountID string, inst GoogleUserInst) (VerifiedUser, error) {
-	fail := func(err error) (VerifiedUser, error) {
-		slog.ErrorContext(ctx, "failed to select or insert google user", "googleAccountID", googleAccountID, "err", err)
-		return VerifiedUser{}, err
-	}
-
 	var u VerifiedUser
 	var isCreated bool
 
@@ -295,7 +282,7 @@ func SelectOrInsertGoogleUser(ctx context.Context, query *db.Queries, googleAcco
 	if errors.Is(err, pgx.ErrNoRows) {
 		isCreated = false
 	} else if err != nil {
-		return fail(fmt.Errorf("failed to select user '%s' by google account id: %w", googleAccountID, err))
+		return u, fmt.Errorf("select user '%s' by google account id: %w", googleAccountID, err)
 	} else {
 		isCreated = true
 	}
@@ -310,7 +297,7 @@ func SelectOrInsertGoogleUser(ctx context.Context, query *db.Queries, googleAcco
 			Losses:          int32(inst.Losses),
 			GoogleAccountID: pgtype.Text{String: googleAccountID, Valid: true},
 		}); err != nil {
-			return fail(fmt.Errorf("failed to insert google user '%s': %w", googleAccountID, err))
+			return u, fmt.Errorf("insert google user '%s': %w", googleAccountID, err)
 		}
 		slog.InfoContext(ctx, "inserted a google user account", "inst", inst, "googleAccountID", googleAccountID)
 	}
@@ -355,7 +342,7 @@ func UpdateUser(ctx context.Context, query *db.Queries, id int64, updt UpdtUserP
 func UpdateUserPassword(ctx context.Context, query *db.Queries, id int64, newPassword string) error {
 	hash, err := hashPassword(newPassword)
 	if err != nil {
-		return fmt.Errorf("failed to hash password for user %d: %w", id, err)
+		return fmt.Errorf("hash password for user %d: %w", id, err)
 	}
 	err = query.UpdatePassword(ctx, db.UpdatePasswordParams{
 		ID:       id,
@@ -370,7 +357,7 @@ func GetUserByID(ctx context.Context, query *db.Queries, id int64) (UserEntity, 
 	row, err := query.SelectUserByID(ctx, id)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to select user", "id", id, "err", err)
-		return UserEntity{}, fmt.Errorf("failed to select user %d: %w", id, err)
+		return UserEntity{}, fmt.Errorf("select user %d: %w", id, err)
 	}
 	user := mapUserFromRow(row)
 	slog.InfoContext(ctx, "selected user", "id", id, "user", user)
@@ -389,7 +376,7 @@ func GetUserByIDs(ctx context.Context, query *db.Queries, ids []int64) ([]UserEn
 	rows, err := query.SelectUsersByIDs(ctx, ids)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to select many users", "ids", ids, "err", err)
-		return nil, fmt.Errorf("failed to select many users: %w", err)
+		return nil, fmt.Errorf("select many users: %w", err)
 	}
 
 	var users []UserEntity
@@ -409,7 +396,7 @@ func SearchUsersByName(ctx context.Context, query *db.Queries, name string, page
 	page = max(page, 1)
 	offset := (page - 1) * perPage
 	if offset > MaxSearchOffset {
-		slog.ErrorContext(ctx, "search offset exceeds maximum", "offset", offset, "maxOffset", MaxSearchOffset)
+		slog.ErrorContext(ctx, "failed to search offset exceeds maximum", "offset", offset, "maxOffset", MaxSearchOffset)
 		return nil, ErrSearchLimit
 	}
 
@@ -420,7 +407,7 @@ func SearchUsersByName(ctx context.Context, query *db.Queries, name string, page
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to select users by similarity", "err", err, "name", name, "page", page, "limit", perPage, "offset", offset)
-		return nil, fmt.Errorf("failed to select users by similarity: %w", err)
+		return nil, fmt.Errorf("select users by similarity: %w", err)
 	}
 
 	var users []UserEntity

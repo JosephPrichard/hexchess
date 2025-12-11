@@ -24,12 +24,12 @@ func GetSession(ctx context.Context, rdb *Redis, sessionID string) (PlayerState,
 		return PlayerState{}, ErrSessionNotFound
 	}
 	if err != nil {
-		return PlayerState{}, fmt.Errorf("failed to get session %s: %w", sessionID, err)
+		return PlayerState{}, fmt.Errorf("get session %s: %w", sessionID, err)
 	}
 
 	player, err := UnmarshalPlayer(data)
 	if err != nil {
-		return PlayerState{}, fmt.Errorf("failed to unmarshal session: %w", err)
+		return PlayerState{}, fmt.Errorf("unmarshal session: %w", err)
 	}
 	slog.InfoContext(ctx, "selected session", "sessionID", sessionID, "player", player)
 	return player, nil

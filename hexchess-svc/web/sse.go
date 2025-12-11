@@ -43,7 +43,7 @@ const ActiveCountEvent = "activeCountEvents"
 
 func writeEvent(w http.ResponseWriter, e string, d string) {
 	if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", e, d); err != nil {
-		slog.Error("failed to write to sse", "err", err)
+		slog.Error("write to sse", "err", err)
 	}
 }
 
@@ -65,7 +65,7 @@ func writeCountEvent(w http.ResponseWriter, event data.UcEvent) {
 func makeCountEvent(count int64, sseID string) string {
 	b, err := json.Marshal(data.CountEvent{Count: count, ID: sseID})
 	if err != nil {
-		slog.Error("failed to marshal count event", "sseID", sseID, "err", err)
+		slog.Error("marshal count event", "sseID", sseID, "err", err)
 	}
 	return string(b)
 }
