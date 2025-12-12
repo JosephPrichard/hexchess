@@ -1,4 +1,4 @@
-package data
+package dpl
 
 import (
 	"github.com/google/go-cmp/cmp/cmpopts"

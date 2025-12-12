@@ -32,7 +32,7 @@ func LogFatal(msg string, args ...any) {
 }
 
 func LogFatalErr(msg string, err error) {
-	slog.Error(msg, "err", err)
+	slog.Error("failed to "+msg, "err", err)
 	os.Exit(1)
 	//log.Fatalf("%s: %v", msg, err)
 }

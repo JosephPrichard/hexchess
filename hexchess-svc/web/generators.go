@@ -6,16 +6,16 @@ type Generators interface {
 	MakeID() string
 }
 
-type UUIDGenerator struct{}
+type RandGenerator struct{}
 
-func (_ *UUIDGenerator) MakeID() string {
+func (_ *RandGenerator) MakeID() string {
 	return uuid.NewString()
 }
 
-type mockUUIDGenerator struct {
+type mockGenerator struct {
 	id string
 }
 
-func (m *mockUUIDGenerator) MakeID() string {
+func (m *mockGenerator) MakeID() string {
 	return m.id
 }

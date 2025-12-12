@@ -7,8 +7,8 @@ VALUES (
         sqlc.arg('cause'),
         sqlc.arg('winElo'),
         sqlc.arg('loseElo'),
-        COALESCE(sqlc.narg('whiteElo'), (SELECT elo FROM users WHERE id = sqlc.arg('whiteID')))::FLOAT8,
-        COALESCE(sqlc.narg('blackElo'), (SELECT elo FROM users WHERE id = sqlc.arg('blackID')))::FLOAT8,
+        sqlc.arg('whiteElo'),
+        sqlc.arg('blackElo'),
         COALESCE(sqlc.narg('playedOn'), CURRENT_TIMESTAMP)::TIMESTAMPTZ,
         sqlc.arg('mode'),
         sqlc.arg('moveHistory'))

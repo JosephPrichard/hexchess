@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
-	"hexchess-svc/data"
 	"hexchess-svc/db"
+	"hexchess-svc/dpl"
+	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"log"
 	"log/slog"
@@ -39,12 +40,12 @@ func main() {
 	q := db.New(pool)
 
 	slog.InfoContext(ctx, "connecting to redis db", "redisPrimaryURL", redisPrimaryURL)
-	rdb := data.MakeRdb(redisPrimaryURL, "")
+	rdb := infra.MakeRdb(redisPrimaryURL, "")
 	defer rdb.Close()
 
-	databases := &data.Databases{Pdb: data.MakePostgres(q, pool), Rdb: rdb}
+	databases := &infra.Databases{Pdb: infra.MakePostgres(q, pool), Rdb: rdb}
 
-	if err := data.SyncLeaderboard(ctx, databases); err != nil {
+	if err := dpl.SyncLeaderboard(ctx, databases); err != nil {
 		util.LogFatalErr("sync leaderboard", err)
 	}
 	log.Printf("finished syncing leaderboard: %v", time.Now().Sub(start))

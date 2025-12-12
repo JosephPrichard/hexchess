@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"hexchess-svc/chess"
-	"hexchess-svc/data"
 	"hexchess-svc/db"
+	"hexchess-svc/dpl"
+	"hexchess-svc/infra"
 	"hexchess-svc/static"
 	"hexchess-svc/util"
 	"log"
@@ -32,9 +33,9 @@ func readMockFile[V any](filename string) []V {
 func main() {
 	start := time.Now()
 
-	challenges := readMockFile[data.ChallengeInst]("test/challenge_insts.json")
-	gameResults := readMockFile[data.GameResult]("test/game_results.json")
-	userInsts := readMockFile[data.UserInst]("test/user_insts.json")
+	challenges := readMockFile[dpl.ChallengeInst]("test/challenge_insts.json")
+	gameResults := readMockFile[dpl.GameResult]("test/game_results.json")
+	userInsts := readMockFile[dpl.UserInst]("test/user_insts.json")
 
 	util.InitLoggers(nil)
 	util.InitEnv()
@@ -52,10 +53,10 @@ func main() {
 	defer pool.Close()
 
 	q := db.New(pool)
-	pdb := data.MakePostgres(q, pool)
+	pdb := infra.MakePostgres(q, pool)
 
 	slog.InfoContext(ctx, "connecting to redis db", "redisPrimaryURL", redisPrimaryURL)
-	rdb := data.MakeRdb(redisPrimaryURL, "")
+	rdb := infra.MakeRdb(infra.RedisAddrs{CacheAddr: redisPrimaryURL}, infra.DefaultRedisNames)
 	defer rdb.Close()
 
 	if _, err := pool.Exec(context.Background(), "DROP SCHEMA public CASCADE;\nCREATE SCHEMA public;"); err != nil {
@@ -72,38 +73,50 @@ func main() {
 		util.LogFatalErr("flush redis", err)
 	}
 
-	users, err := data.BatchInsertUsers(ctx, q, userInsts)
+	users, err := dpl.BatchInsertUsers(ctx, q, userInsts)
 	if err != nil {
 		util.LogFatalErr("insert users", err)
 	}
-	var changes []data.UpdtLbChangeSet
+	var changes []dpl.UpdtLbChangeSet
 	for _, u := range users {
-		changes = append(changes, data.UpdtLbChangeSet{ID: u.ID, EloDiff: u.Elo})
+		changes = append(changes, dpl.UpdtLbChangeSet{ID: u.ID, EloDiff: u.Elo})
 	}
 
 	eg, egCtx := errgroup.WithContext(ctx)
 
-	eg.Go(func() error { return data.SetLeaderboard(egCtx, rdb, changes...) })
+	eg.Go(func() error {
+		return dpl.SetLeaderboard(egCtx, rdb, changes...)
+	})
 	for _, c := range challenges {
-		eg.Go(func() error { return data.InsertChallenge(egCtx, q, c) })
+		eg.Go(func() error {
+			return dpl.InsertChallenge(egCtx, q, c)
+		})
 	}
 
 	timeAt := time.Now().Add(-1 * time.Hour * 24 * 100)
-	for i, params := range gameResults {
-		game := chess.MakeStartGame()
-		moveSeq, err := chess.RandomMoveSeq(game, 10, 30)
-		if err != nil {
-			util.LogFatalErr("generate random move list", err)
-		}
-		moveHistBytes, err := chess.MarshalMoveHistory(game.Board, moveSeq)
-		if err != nil {
-			util.LogFatalErr("marshal move history: %w", err)
-		}
-		params.MoveHistoryProto = moveHistBytes
+	var timesAt []time.Time
+	for i := range gameResults {
+		timesAt = append(timesAt, timeAt.Add(time.Duration(i)*time.Hour*24))
+	}
 
-		if _, err = data.InsertGameResultTx(ctx, pdb, timeAt.Add(time.Duration(i)*time.Hour*24), params); err != nil {
-			util.LogFatalErr("insert game result", err)
-		}
+	for i, params := range gameResults {
+		eg.Go(func() error {
+			game := chess.MakeStartGame()
+			moveSeq, err := chess.RandomMoveSeq(game, 10, 30)
+			if err != nil {
+				util.LogFatalErr("generate random move list", err)
+			}
+			moveHistBytes, err := chess.MarshalMoveHistory(game.Board, moveSeq)
+			if err != nil {
+				util.LogFatalErr("marshal move history: %w", err)
+			}
+			params.SerializedMoveHist = moveHistBytes
+
+			if _, err = dpl.InsertGameResultTx(ctx, pdb, timesAt[i], params); err != nil {
+				util.LogFatalErr("insert game result", err)
+			}
+			return nil
+		})
 	}
 
 	if err := eg.Wait(); err != nil {

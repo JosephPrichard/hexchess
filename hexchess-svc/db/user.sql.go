@@ -11,19 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const getElo = `-- name: GetElo :one
-SELECT elo
-FROM users
-WHERE id = $1
-`
-
-func (q *Queries) GetElo(ctx context.Context, id int64) (float64, error) {
-	row := q.db.QueryRow(ctx, getElo, id)
-	var elo float64
-	err := row.Scan(&elo)
-	return elo, err
-}
-
 const getEloList = `-- name: GetEloList :many
 SELECT id, elo FROM users WHERE id > $1 ORDER BY id LIMIT $2
 `
@@ -47,6 +34,37 @@ func (q *Queries) GetEloList(ctx context.Context, arg GetEloListParams) ([]GetEl
 	var items []GetEloListRow
 	for rows.Next() {
 		var i GetEloListRow
+		if err := rows.Scan(&i.ID, &i.Elo); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getElos = `-- name: GetElos :many
+SELECT id, elo
+FROM users
+WHERE id = ANY($1::bigint[])
+`
+
+type GetElosRow struct {
+	ID  int64
+	Elo float64
+}
+
+func (q *Queries) GetElos(ctx context.Context, id []int64) ([]GetElosRow, error) {
+	rows, err := q.db.Query(ctx, getElos, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetElosRow
+	for rows.Next() {
+		var i GetElosRow
 		if err := rows.Scan(&i.ID, &i.Elo); err != nil {
 			return nil, err
 		}
@@ -475,20 +493,24 @@ func (q *Queries) SelectUsersBySimilarity(ctx context.Context, arg SelectUsersBy
 	return items, nil
 }
 
-const updateLosses = `-- name: UpdateLosses :exec
+const updateElo = `-- name: UpdateElo :exec
 UPDATE users
-SET elo = $1,
-    losses = losses + 1
-WHERE id = $2
+SET
+    elo = $1,
+    highest_elo = GREATEST(highest_elo, $1),
+    wins = wins + CASE WHEN $2::boolean THEN 1 ELSE 0 END,
+    losses = losses + CASE WHEN NOT $2::boolean THEN 1 ELSE 0 END
+WHERE id = $3
 `
 
-type UpdateLossesParams struct {
+type UpdateEloParams struct {
 	Elo float64
+	Won bool
 	ID  int64
 }
 
-func (q *Queries) UpdateLosses(ctx context.Context, arg UpdateLossesParams) error {
-	_, err := q.db.Exec(ctx, updateLosses, arg.Elo, arg.ID)
+func (q *Queries) UpdateElo(ctx context.Context, arg UpdateEloParams) error {
+	_, err := q.db.Exec(ctx, updateElo, arg.Elo, arg.Won, arg.ID)
 	return err
 }
 
@@ -567,22 +589,4 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (UpdateU
 		&i.JoinedOn,
 	)
 	return i, err
-}
-
-const updateWins = `-- name: UpdateWins :exec
-UPDATE users
-SET elo = $1,
-    wins = wins + 1,
-    highest_elo = GREATEST(highest_elo, $1)
-WHERE id = $2
-`
-
-type UpdateWinsParams struct {
-	Elo float64
-	ID  int64
-}
-
-func (q *Queries) UpdateWins(ctx context.Context, arg UpdateWinsParams) error {
-	_, err := q.db.Exec(ctx, updateWins, arg.Elo, arg.ID)
-	return err
 }

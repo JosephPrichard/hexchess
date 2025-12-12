@@ -1,9 +1,10 @@
-package data
+package dpl
 
 import (
 	"context"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
+	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"math"
 	"strconv"
@@ -13,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func assertStateRdb(t *testing.T, rdb *Redis, expState ChessState) {
+func assertStateRdb(t *testing.T, rdb *infra.Redis, expState ChessState) {
 	ctx := context.WithValue(context.Background(), util.Trace, "assert-chess-states")
 	actualState, err := GetChessState(ctx, rdb, expState.ID)
 	if err != nil {
@@ -23,7 +24,7 @@ func assertStateRdb(t *testing.T, rdb *Redis, expState ChessState) {
 }
 
 func TestJoinGame_JoinWhite(t *testing.T) {
-	rdb := BeforeRedisTests(t)
+	rdb := infra.BeforeRedisTests(t)
 	defer rdb.Close()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-join-game")
@@ -48,7 +49,7 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 }
 
 func TestJoinGame_BothPlayersExist(t *testing.T) {
-	rdb := BeforeRedisTests(t)
+	rdb := infra.BeforeRedisTests(t)
 	defer rdb.Close()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-join-game-both-players")
@@ -70,7 +71,7 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 }
 
 func TestMakeMove(t *testing.T) {
-	dbs, closer := BeforeDatabasesTests(t, true)
+	dbs, closer := BeforeDbTests(t)
 	defer closer()
 
 	s1 := MakeState("test1", TcRealTime, CsRandom, nil)
@@ -143,7 +144,7 @@ func TestMakeMove(t *testing.T) {
 }
 
 func TestForfeit_BlackForfeits(t *testing.T) {
-	dbs, closer := BeforeDatabasesTests(t, true)
+	dbs, closer := BeforeDbTxnTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-forfeit")
@@ -169,7 +170,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 }
 
 func TestUpdateGameResultTx(t *testing.T) {
-	pdb, closer := BeforeDbTests(t, true)
+	pdb, closer := BeforePgTxnTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-update-stats")
@@ -177,28 +178,25 @@ func TestUpdateGameResultTx(t *testing.T) {
 	testUser0 := TestUserEntities[0]
 	testUser1 := TestUserEntities[1]
 
-	gameResult, err := InsertGameResultTx(ctx, pdb, time.Now(), GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, Cause: Checkmate, Result: WhiteWin, Mode: ModeUnlimited, MoveHistoryProto: []byte{}})
+	cs, err := InsertGameResultTx(ctx, pdb, time.Now(), GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, Cause: Checkmate, Result: WhiteWin, Mode: ModeUnlimited, SerializedMoveHist: []byte{}})
 	assert.NoError(t, err)
 
-	// assert that updates were performed correctly
+	// assert database rows
 	u1, err := GetUserByID(ctx, pdb.Query, testUser0.ID)
 	assert.NoError(t, err)
 	u2, err := GetUserByID(ctx, pdb.Query, testUser1.ID)
 	assert.NoError(t, err)
 
-	// assert a value relatively close to the actual value
-	gameResult.WinEloDiff = math.Round(gameResult.WinEloDiff)
-	gameResult.LoseEloDiff = math.Round(gameResult.LoseEloDiff)
 	u1.Elo = math.Round(u1.Elo)
 	u2.Elo = math.Round(u2.Elo)
 	assert.Equal(t, float64(1015), u1.Elo)
 	assert.Equal(t, float64(985), u2.Elo)
 
-	r1, err := pdb.Query.GetReplayRowByID(ctx, gameResult.ReplayID)
+	r1, err := pdb.Query.GetReplayRowByID(ctx, cs.ReplayID)
 	assert.NoError(t, err)
 
 	expReplay := db.Replay{
-		ID:          gameResult.ReplayID,
+		ID:          cs.ReplayID,
 		WhiteID:     testUser0.ID,
 		BlackID:     testUser1.ID,
 		Result:      string(WhiteWin),
@@ -212,7 +210,10 @@ func TestUpdateGameResultTx(t *testing.T) {
 	}
 	util.AssertEqualIgnoring(t, expReplay, r1, ReplayRowCmpOpts)
 
-	gameResult.ReplayID = 0
+	// assert return value
+	cs.ReplayID = 0
+	cs.WinEloDiff = math.Round(cs.WinEloDiff)
+	cs.LoseEloDiff = math.Round(cs.LoseEloDiff)
 	expChange := GRChangeSet{WinID: testUser0.ID, LoseID: testUser1.ID, WinEloDiff: 15, LoseEloDiff: -15}
-	assert.Equal(t, expChange, gameResult)
+	assert.Equal(t, expChange, cs)
 }

@@ -1,4 +1,4 @@
-package data
+package dpl
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/db"
+	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"log/slog"
 	"math"
@@ -209,14 +210,14 @@ type VerifiedUser struct {
 	Elo      float64 `json:"elo"`
 }
 
-func VerifyUserTx(ctx context.Context, postgres *Postgres, username string, inputPassword string) (VerifiedUser, error) {
-	return WithTxn(TxnArgs[VerifiedUser]{
+func VerifyUserTx(ctx context.Context, postgres *infra.Postgres, username string, inputPassword string) (VerifiedUser, error) {
+	return infra.WithTxn(infra.TxnArgs[VerifiedUser]{
 		Ctx:      ctx,
 		Postgres: postgres,
 		TxFn: func(query *db.Queries) (VerifiedUser, error) {
-			return VerifyUser(ctx, query, username, inputPassword)
+			return verifyUser(ctx, query, username, inputPassword)
 		},
-		ErrWhiteList: []error{ErrTooManyLoginAttempts, ErrUserNotFound},
+		ErrAllowList: []error{ErrTooManyLoginAttempts, ErrUserNotFound},
 	})
 }
 
@@ -225,7 +226,7 @@ const LockoutDuration = time.Minute * 1
 
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
-func VerifyUser(ctx context.Context, query *db.Queries, username string, inputPassword string) (VerifiedUser, error) {
+func verifyUser(ctx context.Context, query *db.Queries, username string, inputPassword string) (VerifiedUser, error) {
 	var u VerifiedUser
 
 	login, err := query.SelectLoginByName(ctx, username)

@@ -3,7 +3,7 @@ package web
 import (
 	"context"
 	"fmt"
-	"hexchess-svc/data"
+	"hexchess-svc/dpl"
 	"hexchess-svc/util"
 	"net/http"
 	"net/http/httptest"
@@ -23,7 +23,7 @@ func TestHandleRegister(t *testing.T) {
 	}{
 		{
 			body:        `{"username": "test-name", "password": "test-password", "confirmPassword": "test-password"}`,
-			successResp: SessionView{ID: data.LastUserID + 1, Username: "test-name", Country: "us", Elo: 1000},
+			successResp: SessionView{ID: dpl.LastUserID + 1, Username: "test-name", Country: "us", Elo: 1000},
 			expStatus:   http.StatusOK,
 		},
 		{
@@ -32,13 +32,13 @@ func TestHandleRegister(t *testing.T) {
 			expStatus: 400,
 		},
 		{
-			body:      fmt.Sprintf(`{"username": "%s", "password": "test-password2", "confirmPassword": "test-password2"}`, data.TestUsersInsts[0].Username),
+			body:      fmt.Sprintf(`{"username": "%s", "password": "test-password2", "confirmPassword": "test-password2"}`, dpl.TestUsersInsts[0].Username),
 			failResp:  ServiceView{Status: 400, Message: ErrHttpDuplicateUsername.Error()},
 			expStatus: 400,
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			dbs, closer := data.BeforeDatabasesTests(t, true)
+			dbs, closer := BeforeDbTxnTests(t)
 			defer closer()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/register", strings.NewReader(test.body))
@@ -57,10 +57,10 @@ func TestHandleRegister(t *testing.T) {
 }
 
 func TestHandleLogin(t *testing.T) {
-	dbs, closer := data.BeforeDatabasesTests(t, true)
+	dbs, closer := BeforeDbTxnTests(t)
 	defer closer()
 
-	user := data.TestUsersInsts[0]
+	user := dpl.TestUsersInsts[0]
 
 	for i, test := range []struct {
 		body        string
@@ -96,7 +96,7 @@ func TestHandleLogin(t *testing.T) {
 }
 
 func TestHandleUpdateUser(t *testing.T) {
-	dbs, closer := data.BeforeDatabasesTests(t, true)
+	dbs, closer := BeforeDbTxnTests(t)
 	defer closer()
 	createTestSessions(t, dbs.Rdb)
 
@@ -135,7 +135,7 @@ func TestHandleUpdateUser(t *testing.T) {
 }
 
 func TestHandleUpdatePassword(t *testing.T) {
-	dbs, closer := data.BeforeDatabasesTests(t, true)
+	dbs, closer := BeforeDbTxnTests(t)
 	defer closer()
 	createTestSessions(t, dbs.Rdb)
 
@@ -179,7 +179,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 }
 
 func TestHandleUpdateChallenge(t *testing.T) {
-	dbs, closer := data.BeforeDatabasesTests(t, true)
+	dbs, closer := BeforeDbTxnTests(t)
 	defer closer()
 
 	createTestSessions(t, dbs.Rdb)
@@ -220,7 +220,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 }
 
 func TestHandleCreateChallenge(t *testing.T) {
-	dbs, closer := data.BeforeDatabasesTests(t, true)
+	dbs, closer := BeforeDbTxnTests(t)
 	defer closer()
 	createTestSessions(t, dbs.Rdb)
 
@@ -238,11 +238,11 @@ func TestHandleCreateChallenge(t *testing.T) {
 }
 
 func TestGetLeaderboard(t *testing.T) {
-	dbs, closer := data.BeforeDatabasesTests(t, false)
+	dbs, closer := BeforeDbTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "setup-get-leaderboard")
-	assert.NoError(t, data.SetLeaderboard(ctx, dbs.Rdb, data.UpdtLbChangeSet{ID: 1, EloDiff: 1000}))
+	assert.NoError(t, dpl.SetLeaderboard(ctx, dbs.Rdb, dpl.UpdtLbChangeSet{ID: 1, EloDiff: 1000}))
 
 	r := httptest.NewRequest(http.MethodGet, "/api/leaderboard", nil)
 	w := httptest.NewRecorder()
@@ -253,7 +253,7 @@ func TestGetLeaderboard(t *testing.T) {
 }
 
 func TestGetPlayer(t *testing.T) {
-	dbs, closer := data.BeforeDatabasesTests(t, false)
+	dbs, closer := BeforeDbTests(t)
 	defer closer()
 
 	for i, test := range []struct {
@@ -265,8 +265,8 @@ func TestGetPlayer(t *testing.T) {
 		{
 			id: "1",
 			successResp: FullUserResp{
-				User:       data.TestUserEntities[0],
-				ReplayList: []data.ReplayEntity{data.TestReplayEntities[0], data.TestReplayEntities[1]},
+				User:       dpl.TestUserEntities[0],
+				ReplayList: []dpl.ReplayEntity{dpl.TestReplayEntities[0], dpl.TestReplayEntities[1]},
 			},
 			expStatus: http.StatusOK,
 		},
@@ -284,7 +284,7 @@ func TestGetPlayer(t *testing.T) {
 
 			assert.Equal(t, test.expStatus, w.Code)
 			if test.expStatus == http.StatusOK {
-				util.AssertRespBody[FullUserResp](t, test.successResp, w, data.UserEntityCmpOpts, data.ReplayEntityCmpOpts)
+				util.AssertRespBody[FullUserResp](t, test.successResp, w, dpl.UserEntityCmpOpts, dpl.ReplayEntityCmpOpts)
 			} else {
 				util.AssertRespBody[ServiceView](t, test.failResp, w)
 			}
@@ -293,7 +293,7 @@ func TestGetPlayer(t *testing.T) {
 }
 
 func TestGetChallenges(t *testing.T) {
-	dbs, closer := data.BeforeDatabasesTests(t, false)
+	dbs, closer := BeforeDbTests(t)
 	defer closer()
 	createTestSessions(t, dbs.Rdb)
 
@@ -305,14 +305,14 @@ func TestGetChallenges(t *testing.T) {
 		{
 			participants: "sent",
 			successResp: GetChallengesResp{
-				ChallengeList: []data.ChallengeEntity{data.TestChallengeEntities[0]},
+				ChallengeList: []dpl.ChallengeEntity{dpl.TestChallengeEntities[0]},
 			},
 			expStatus: http.StatusOK,
 		},
 		{
 			participants: "received",
 			successResp: GetChallengesResp{
-				ChallengeList: []data.ChallengeEntity{data.TestChallengeEntities[1]},
+				ChallengeList: []dpl.ChallengeEntity{dpl.TestChallengeEntities[1]},
 			},
 			expStatus: http.StatusOK,
 		},
@@ -325,13 +325,13 @@ func TestGetChallenges(t *testing.T) {
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, test.expStatus, w.Code)
-			util.AssertRespBody[GetChallengesResp](t, test.successResp, w, data.ChallengeEntityCmpOpts)
+			util.AssertRespBody[GetChallengesResp](t, test.successResp, w, dpl.ChallengeEntityCmpOpts)
 		})
 	}
 }
 
 func TestHandleGetUserReplays(t *testing.T) {
-	dbs, closer := data.BeforeDatabasesTests(t, true)
+	dbs, closer := BeforeDbTxnTests(t)
 	defer closer()
 
 	for i, test := range []struct {
@@ -345,15 +345,15 @@ func TestHandleGetUserReplays(t *testing.T) {
 			afterID:     "0",
 			userID:      "999", // nonexistent user
 			expStatus:   http.StatusOK,
-			successResp: GetUserReplaysResp{ReplayList: []data.ReplayEntity{}},
+			successResp: GetUserReplaysResp{ReplayList: []dpl.ReplayEntity{}},
 		},
 		{
 			afterID:   "-1",
 			userID:    "1",
 			expStatus: http.StatusOK,
-			successResp: GetUserReplaysResp{ReplayList: []data.ReplayEntity{
-				data.TestReplayEntities[0],
-				data.TestReplayEntities[1],
+			successResp: GetUserReplaysResp{ReplayList: []dpl.ReplayEntity{
+				dpl.TestReplayEntities[0],
+				dpl.TestReplayEntities[1],
 			}},
 		},
 		{
@@ -378,7 +378,7 @@ func TestHandleGetUserReplays(t *testing.T) {
 
 			assert.Equal(t, test.expStatus, w.Code)
 			if w.Code == http.StatusOK {
-				util.AssertRespBody[GetUserReplaysResp](t, test.successResp, w, data.ReplayEntityCmpOpts)
+				util.AssertRespBody[GetUserReplaysResp](t, test.successResp, w, dpl.ReplayEntityCmpOpts)
 			} else {
 				util.AssertRespBody[ServiceView](t, test.failResp, w)
 			}
@@ -387,7 +387,7 @@ func TestHandleGetUserReplays(t *testing.T) {
 }
 
 func TestHandleGetChessViews(t *testing.T) {
-	dbs, closer := data.BeforeDatabasesTests(t, false)
+	dbs, closer := BeforeDbTests(t)
 	defer closer()
 	createTestSessions(t, dbs.Rdb)
 	createTestChessStates(t, dbs.Rdb)
@@ -399,32 +399,32 @@ func TestHandleGetChessViews(t *testing.T) {
 	h.ServeHTTP(w, r)
 
 	expResp := ChessRoomListResp{
-		ChessList: []data.ChessMeta{
-			{ID: "game3", FirstColor: data.CsRandom, TimeControl: data.TcRealTime},
-			{ID: "game2", FirstColor: data.CsRandom, TimeControl: data.TcRealTime},
+		ChessList: []dpl.ChessMeta{
+			{ID: "game3", FirstColor: dpl.CsRandom, TimeControl: dpl.TcRealTime},
+			{ID: "game2", FirstColor: dpl.CsRandom, TimeControl: dpl.TcRealTime},
 			{
 				ID: "game1",
-				WhitePlayer: &data.PlayerState{
+				WhitePlayer: &dpl.PlayerState{
 					ID:      2,
 					Name:    "user2",
 					Country: "us",
 					Elo:     1000,
 				},
-				FirstColor:  data.CsRandom,
-				TimeControl: data.TcRealTime,
+				FirstColor:  dpl.CsRandom,
+				TimeControl: dpl.TcRealTime,
 			},
 		},
-		SelfChessList: []data.ChessMeta{
+		SelfChessList: []dpl.ChessMeta{
 			{
 				ID: "game1",
-				WhitePlayer: &data.PlayerState{
+				WhitePlayer: &dpl.PlayerState{
 					ID:      2,
 					Name:    "user2",
 					Country: "us",
 					Elo:     1000,
 				},
-				FirstColor:  data.CsRandom,
-				TimeControl: data.TcRealTime,
+				FirstColor:  dpl.CsRandom,
+				TimeControl: dpl.TcRealTime,
 			},
 		},
 	}

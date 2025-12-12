@@ -1,7 +1,8 @@
-package data
+package dpl
 
 import (
 	"context"
+	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"testing"
 	"time"
@@ -11,7 +12,7 @@ import (
 )
 
 func TestGetChessState(t *testing.T) {
-	rdb := BeforeRedisTests(t)
+	rdb := infra.BeforeRedisTests(t)
 	defer rdb.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
@@ -33,7 +34,7 @@ func TestGetChessState(t *testing.T) {
 }
 
 func TestGetChessMetas(t *testing.T) {
-	rdb := BeforeRedisTests(t)
+	rdb := infra.BeforeRedisTests(t)
 	defer rdb.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
@@ -83,7 +84,7 @@ func TestGetChessMetas(t *testing.T) {
 }
 
 func TestExpireChessStates(t *testing.T) {
-	rdb := BeforeRedisTests(t)
+	rdb := infra.BeforeRedisTests(t)
 	defer rdb.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()

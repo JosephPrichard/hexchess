@@ -1,4 +1,4 @@
-package data
+package dpl
 
 import (
 	"context"
@@ -8,21 +8,23 @@ import (
 	"time"
 )
 
-func TestInsertThenGet(t *testing.T) {
-	pdb, closer := BeforeDbTests(t, true)
+func TestInsertThenGetReplay(t *testing.T) {
+	pdb, closer := BeforePgTxnTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-insert-get")
 
 	id, err := InsertReplay(ctx, pdb.Query, ReplayInst{
-		WhiteID:          2,
-		BlackID:          3,
-		Result:           WhiteWin,
-		Cause:            Checkmate,
-		Mode:             ModeUnlimited,
-		WinEloDiff:       35,
-		LoseEloDiff:      -25,
-		MoveHistoryProto: []byte{},
+		WhiteID:            2,
+		BlackID:            3,
+		Result:             WhiteWin,
+		Cause:              Checkmate,
+		Mode:               ModeUnlimited,
+		WinEloDiff:         35,
+		LoseEloDiff:        -25,
+		ReplayWhiteElo:     1050,
+		ReplayBlackElo:     950,
+		SerializedMoveHist: []byte{},
 	})
 	assert.NoError(t, err)
 
@@ -50,7 +52,7 @@ func TestInsertThenGet(t *testing.T) {
 }
 
 func TestGetUserReplays(t *testing.T) {
-	pdb, closer := BeforeDbTests(t, true)
+	pdb, closer := BeforePgTxnTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-replays")
@@ -70,7 +72,7 @@ func TestGetUserReplays(t *testing.T) {
 }
 
 func TestGetReplayMoveList(t *testing.T) {
-	pdb, closer := BeforeDbTests(t, true)
+	pdb, closer := BeforePgTxnTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-move-list")
@@ -80,7 +82,7 @@ func TestGetReplayMoveList(t *testing.T) {
 }
 
 func TestRetrieveEloHistories(t *testing.T) {
-	dbs, closer := BeforeDatabasesTests(t, false)
+	dbs, closer := BeforeDbTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-retrieve-elo-histories")
@@ -89,13 +91,11 @@ func TestRetrieveEloHistories(t *testing.T) {
 
 	for _, test := range []struct {
 		params            EloHistoriesParams
-		timeFrom          time.Time
 		expBucketDuration time.Duration
 		expEloBuckets     EloHistoryBuckets
 	}{
 		{
 			params:            EloHistoriesParams{UserID: 6},
-			timeFrom:          time.Date(2020, 2, 0, 0, 0, 0, 0, time.UTC),
 			expBucketDuration: LongBucketDuration,
 			expEloBuckets: EloHistoryBuckets{
 				"ALL": {
@@ -114,7 +114,6 @@ func TestRetrieveEloHistories(t *testing.T) {
 		},
 		{
 			params:            EloHistoriesParams{UserID: 6, Months: 3},
-			timeFrom:          time.Date(2020, 2, 0, 0, 0, 0, 0, time.UTC),
 			expBucketDuration: ShortBucketDuration,
 			expEloBuckets: EloHistoryBuckets{
 				"ALL": {

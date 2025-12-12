@@ -1,8 +1,9 @@
-package data
+package dpl
 
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
+	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"math"
 	"math/rand"
@@ -10,7 +11,7 @@ import (
 )
 
 func TestLeaderboard(t *testing.T) {
-	rdb := BeforeRedisTests(t)
+	rdb := infra.BeforeRedisTests(t)
 	defer rdb.Close()
 
 	id1 := int64(rand.Intn(math.MaxInt64))

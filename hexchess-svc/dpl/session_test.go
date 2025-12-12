@@ -1,15 +1,16 @@
-package data
+package dpl
 
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
+	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"testing"
 	"time"
 )
 
 func TestSessions(t *testing.T) {
-	rdb := BeforeRedisTests(t)
+	rdb := infra.BeforeRedisTests(t)
 	defer rdb.Close()
 
 	player := PlayerState{ID: 1, Name: "testing-name1"}

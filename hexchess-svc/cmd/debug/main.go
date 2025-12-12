@@ -5,8 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"hexchess-svc/chess"
-	"hexchess-svc/data"
 	"hexchess-svc/db"
+	"hexchess-svc/dpl"
 	"hexchess-svc/util"
 	"log/slog"
 	"os"
@@ -44,7 +44,7 @@ func main() {
 			util.LogFatalErr("parse id os arg", err)
 		}
 
-		pbMoveHist, err := data.GetReplayMoveHistory(ctx, q, int64(id))
+		pbMoveHist, err := dpl.GetReplayMoveHistory(ctx, q, int64(id))
 		if err != nil {
 			util.LogFatalErr("get replay move list", err)
 		}

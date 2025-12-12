@@ -1,20 +1,19 @@
-package data
+package dpl
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"hexchess-svc/infra"
 	"log/slog"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
 )
 
-const LeaderboardZSet = "leaderboard"
-
 var ErrSessionNotFound = errors.New("session not found")
 
-func GetSession(ctx context.Context, rdb *Redis, sessionID string) (PlayerState, error) {
+func GetSession(ctx context.Context, rdb *infra.Redis, sessionID string) (PlayerState, error) {
 	conn := rdb.Cache.Get()
 	defer conn.Close()
 
@@ -35,7 +34,7 @@ func GetSession(ctx context.Context, rdb *Redis, sessionID string) (PlayerState,
 	return player, nil
 }
 
-func SetSession(ctx context.Context, rdb *Redis, sessionID string, player PlayerState, expiry time.Duration) error {
+func SetSession(ctx context.Context, rdb *infra.Redis, sessionID string, player PlayerState, expiry time.Duration) error {
 	data, err := MarshalPlayer(&player)
 	if err != nil {
 		return err
@@ -52,7 +51,7 @@ func SetSession(ctx context.Context, rdb *Redis, sessionID string, player Player
 	return nil
 }
 
-func UpdateSessionEx(ctx context.Context, rdb *Redis, sessionID string, expiry time.Duration) error {
+func UpdateSessionEx(ctx context.Context, rdb *infra.Redis, sessionID string, expiry time.Duration) error {
 	conn := rdb.Cache.Get()
 	defer conn.Close()
 
@@ -65,7 +64,7 @@ func UpdateSessionEx(ctx context.Context, rdb *Redis, sessionID string, expiry t
 	return nil
 }
 
-func DeleteSession(ctx context.Context, rdb *Redis, sessionID string) error {
+func DeleteSession(ctx context.Context, rdb *infra.Redis, sessionID string) error {
 	conn := rdb.Cache.Get()
 	defer conn.Close()
 

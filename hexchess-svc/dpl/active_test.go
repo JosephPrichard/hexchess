@@ -1,7 +1,8 @@
-package data
+package dpl
 
 import (
 	"context"
+	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"testing"
 	"time"
@@ -10,7 +11,7 @@ import (
 )
 
 func TestActiveUser(t *testing.T) {
-	rdb := BeforeRedisTests(t)
+	rdb := infra.BeforeRedisTests(t)
 	defer rdb.Close()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-active-user")

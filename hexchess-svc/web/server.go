@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 	"hexchess-svc/chess"
-	"hexchess-svc/data"
+	"hexchess-svc/dpl"
+	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"log/slog"
 	"net/http"
@@ -15,9 +16,9 @@ import (
 )
 
 type CasterState struct {
-	CountsCaster *data.UniCaster
-	GamesCaster  *data.MultiCasterMap
-	UsersCaster  *data.MultiCasterMap
+	CountsCaster *dpl.UniCaster
+	GamesCaster  *dpl.MultiCasterMap
+	UsersCaster  *dpl.MultiCasterMap
 }
 
 type CountryState struct {
@@ -30,14 +31,14 @@ type APIKeys struct {
 }
 
 type ServerState struct {
-	data.Databases
+	infra.Databases
 	CasterState
 	CountryState
 	APIKeys
 	Generators
 }
 
-func MakeServerState(databases data.Databases, countryList []string, googleAPIKey string) ServerState {
+func MakeServerState(databases infra.Databases, countryList []string, googleAPIKey string) ServerState {
 	if countryList == nil {
 		countryList = []string{}
 	}
@@ -49,9 +50,9 @@ func MakeServerState(databases data.Databases, countryList []string, googleAPIKe
 	return ServerState{
 		Databases: databases,
 		CasterState: CasterState{
-			CountsCaster: data.MakeUniCaster("counts-caster"),
-			GamesCaster:  data.MakeMultiCasterMap("games-caster", data.GameExpireDur),
-			UsersCaster:  data.MakeMultiCasterMap("users-caster", -1),
+			CountsCaster: dpl.MakeUniCaster("counts-caster"),
+			GamesCaster:  dpl.MakeMultiCasterMap("games-caster", dpl.GameExpireDur),
+			UsersCaster:  dpl.MakeMultiCasterMap("users-caster", -1),
 		},
 		CountryState: CountryState{
 			CountryList: countryList,
@@ -60,7 +61,7 @@ func MakeServerState(databases data.Databases, countryList []string, googleAPIKe
 		APIKeys: APIKeys{
 			GoogleAPIKey: googleAPIKey,
 		},
-		Generators: &UUIDGenerator{},
+		Generators: &RandGenerator{},
 	}
 }
 

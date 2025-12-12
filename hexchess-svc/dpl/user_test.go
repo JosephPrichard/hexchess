@@ -1,4 +1,4 @@
-package data
+package dpl
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 )
 
 func TestInsertThenVerify(t *testing.T) {
-	pdb, closer := BeforeDbTests(t, true)
+	pdb, closer := BeforePgTxnTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-insert-then-verify")
@@ -40,7 +40,7 @@ func TestInsertThenVerify(t *testing.T) {
 }
 
 func TestBatchInsertThenGet(t *testing.T) {
-	pdb, closer := BeforeDbTests(t, true)
+	pdb, closer := BeforePgTxnTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-batch-insert-then-get")
@@ -65,7 +65,7 @@ func TestBatchInsertThenGet(t *testing.T) {
 }
 
 func TestUpdateUser(t *testing.T) {
-	pdb, closer := BeforeDbTests(t, true)
+	pdb, closer := BeforePgTxnTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-update-user")
@@ -106,8 +106,8 @@ func TestUpdateUser(t *testing.T) {
 	}
 }
 
-func TestUpdatePassword(t *testing.T) {
-	pdb, closer := BeforeDbTests(t, true)
+func TestUpdatePasswordThenVerify(t *testing.T) {
+	pdb, closer := BeforePgTxnTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "update-password")
@@ -116,14 +116,14 @@ func TestUpdatePassword(t *testing.T) {
 
 	u1, err := GetUserByID(ctx, pdb.Query, TestUserEntities[0].ID)
 	assert.NoError(t, err)
-	v1, err := VerifyUser(ctx, pdb.Query, TestUserEntities[0].Username, "password-new")
+	v1, err := verifyUser(ctx, pdb.Query, TestUserEntities[0].Username, "password-new")
 	assert.NoError(t, err)
 
 	assert.Equal(t, u1.ID, v1.ID)
 }
 
 func TestSearchByName(t *testing.T) {
-	pdb, closer := BeforeDbTests(t, true)
+	pdb, closer := BeforePgTxnTests(t)
 	defer closer()
 
 	insertTestUsers(t, pdb.Query, UserInst{Username: "johnny", Password: "password6"}, UserInst{Username: "john", Password: "password7"})

@@ -1,15 +1,15 @@
-package data
+package dpl
 
 import (
 	"context"
 	"fmt"
+	"hexchess-svc/infra"
 	"log/slog"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
 )
 
-const ActiveUsersZSet = "active_users"
 const ActiveUserExpireFinished = time.Minute // the caller should manually remove, but this is a stopgap in case the server is stopped before that is the case
 
 func GetActiveCount(ctx context.Context, conn redis.Conn, activeUsersZSet string) (int64, error) {
@@ -32,7 +32,7 @@ func GetActiveCountWithExpiry(ctx context.Context, conn redis.Conn, activeUsersZ
 	return count, err
 }
 
-func RetainActiveUser(ctx context.Context, rdb *Redis, id string) error {
+func RetainActiveUser(ctx context.Context, rdb *infra.Redis, id string) error {
 	conn := rdb.Cache.Get()
 	defer conn.Close()
 
@@ -43,12 +43,12 @@ func RetainActiveUser(ctx context.Context, rdb *Redis, id string) error {
 	return nil
 }
 
-func AddActiveUser(ctx context.Context, rdb *Redis, id string) (int64, error) {
+func AddActiveUser(ctx context.Context, rdb *infra.Redis, id string) (int64, error) {
 	now := time.Now()
 	return AddActiveUserOn(ctx, rdb, id, now, now.Add(-ActiveUserExpireFinished).UnixMilli())
 }
 
-func AddActiveUserOn(ctx context.Context, rdb *Redis, id string, expiringOn time.Time, expireBefore int64) (int64, error) {
+func AddActiveUserOn(ctx context.Context, rdb *infra.Redis, id string, expiringOn time.Time, expireBefore int64) (int64, error) {
 	conn := rdb.Cache.Get()
 	defer conn.Close()
 
@@ -59,7 +59,7 @@ func AddActiveUserOn(ctx context.Context, rdb *Redis, id string, expiringOn time
 	return GetActiveCountWithExpiry(ctx, conn, rdb.ActiveUsersZSet, expireBefore)
 }
 
-func RemoveActiveUser(ctx context.Context, rdb *Redis, id string) (int64, error) {
+func RemoveActiveUser(ctx context.Context, rdb *infra.Redis, id string) (int64, error) {
 	conn := rdb.Cache.Get()
 	defer conn.Close()
 

@@ -1,4 +1,4 @@
-package data
+package dpl
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestChallengeExpiration(t *testing.T) {
-	postgres, closer := BeforeDbTests(t, true)
+	postgres, closer := BeforePgTxnTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-expiration")
@@ -62,7 +62,7 @@ func TestChallengeExpiration(t *testing.T) {
 }
 
 func TestChallengeDeletion(t *testing.T) {
-	pdb, closer := BeforeDbTests(t, true)
+	pdb, closer := BeforePgTxnTests(t)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-delete")

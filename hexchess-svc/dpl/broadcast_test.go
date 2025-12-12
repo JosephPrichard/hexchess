@@ -1,9 +1,10 @@
-package data
+package dpl
 
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
+	"hexchess-svc/infra"
 	"hexchess-svc/pb"
 	"hexchess-svc/util"
 	"testing"
@@ -98,11 +99,11 @@ func TestUnicaster(t *testing.T) {
 }
 
 func TestBroadcastGameMessage(t *testing.T) {
-	rdb := BeforeRedisTests(t)
+	rdb := infra.BeforeRedisTests(t)
 	defer rdb.Close()
 
 	m := MakeMultiCasterMap("testing-broker-map", time.Hour*1)
-	<-ListenGameMessages(m, rdb.PubsubAddr)
+	<-ListenGameMessages(m, rdb)
 
 	expMsgCount := 2
 
@@ -121,9 +122,9 @@ func TestBroadcastGameMessage(t *testing.T) {
 	m.Subscribe("1", subChan)
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-broadcast-game-message")
-	assert.NoError(t, BroadcastMessage(ctx, rdb, GamesChan, makeTestChatOutput("1", "test1")))
-	assert.NoError(t, BroadcastMessage(ctx, rdb, GamesChan, makeTestChatOutput("1", "test2")))
-	assert.NoError(t, BroadcastMessage(ctx, rdb, GamesChan, makeTestChatOutput("2", "test3")))
+	assert.NoError(t, BroadcastMessage(ctx, rdb, rdb.GamesChan, makeTestChatOutput("1", "test1")))
+	assert.NoError(t, BroadcastMessage(ctx, rdb, rdb.GamesChan, makeTestChatOutput("1", "test2")))
+	assert.NoError(t, BroadcastMessage(ctx, rdb, rdb.GamesChan, makeTestChatOutput("2", "test3")))
 
 	var msgs []string
 	for range expMsgCount {

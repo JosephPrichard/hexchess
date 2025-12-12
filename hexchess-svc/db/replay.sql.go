@@ -261,8 +261,8 @@ VALUES (
         $4,
         $5,
         $6,
-        COALESCE($7, (SELECT elo FROM users WHERE id = $1))::FLOAT8,
-        COALESCE($8, (SELECT elo FROM users WHERE id = $2))::FLOAT8,
+        $7,
+        $8,
         COALESCE($9, CURRENT_TIMESTAMP)::TIMESTAMPTZ,
         $10,
         $11)
@@ -276,8 +276,8 @@ type InsertReplayParams struct {
 	Cause       string
 	WinElo      float64
 	LoseElo     float64
-	WhiteElo    pgtype.Float8
-	BlackElo    pgtype.Float8
+	WhiteElo    float64
+	BlackElo    float64
 	PlayedOn    pgtype.Timestamptz
 	Mode        string
 	MoveHistory []byte

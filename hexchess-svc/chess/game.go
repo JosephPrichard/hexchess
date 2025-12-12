@@ -13,7 +13,7 @@ import (
 type AttackTable = [Files][MaxRanks]bool
 
 type Game struct {
-	// data fields that store the state of the game itself
+	// dpl fields that store the state of the game itself
 	Board            Board
 	WhiteMoves       []PieceMoves
 	BlackMoves       []PieceMoves

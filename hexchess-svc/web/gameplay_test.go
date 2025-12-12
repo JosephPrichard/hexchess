@@ -5,7 +5,8 @@ import (
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
-	"hexchess-svc/data"
+	"hexchess-svc/dpl"
+	"hexchess-svc/infra"
 	"hexchess-svc/pb"
 	"hexchess-svc/util"
 	"net/http"
@@ -46,20 +47,21 @@ func TestHandleGameplayWs(t *testing.T) {
 	expCount1 := 4
 	expCount2 := 1
 
-	rdb := data.BeforeRedisTests(t)
+	rdb := infra.BeforeRedisTests(t)
 	defer rdb.Close()
 
 	createTestSessions(t, rdb)
 	createTestChessStates(t, rdb)
 
-	state := MakeDefaultServerState(data.Databases{Rdb: rdb})
-	<-data.ListenGameMessages(state.GamesCaster, rdb.CacheAddr)
+	state := MakeServerState(infra.Databases{Rdb: rdb}, nil, "")
+	<-dpl.ListenGameMessages(state.GamesCaster, rdb)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
 	defer ts.Close()
 
 	subChan := make(chan []byte)
 	state.GamesCaster.Subscribe(gameID, subChan)
+
 	outputs2Chan := make(chan []any)
 	go readOutputs(outputs2Chan, subChan, expCount2)
 

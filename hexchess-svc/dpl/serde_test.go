@@ -1,4 +1,4 @@
-package data
+package dpl
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ func TestChessSerializer(t *testing.T) {
 	input1 := MakeState(uuid.NewString(), TcRealTime, CsRandom, nil)
 	input2 := MakeState(uuid.NewString(), TcRealTime, CsRandom, nil)
 	input2.Game.InitPieceMoves()
-	input2.Game.ClearTables() // since we're asserting the output back to the input, we must clear data that isn't serialized
+	input2.Game.ClearTables() // since we're asserting the output back to the input, we must clear dpl that isn't serialized
 
 	for i, input := range []ChessState{
 		input1,

@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"hexchess-svc/data"
 	"hexchess-svc/db"
+	"hexchess-svc/dpl"
+	"hexchess-svc/infra"
 	"hexchess-svc/static"
 	"hexchess-svc/util"
 	"hexchess-svc/web"
@@ -59,17 +60,17 @@ func main() {
 	}
 
 	q := db.New(pool)
-	postgres := data.MakePostgres(q, pool)
+	postgres := infra.MakePostgres(q, pool)
 
 	slog.Info("connecting to redis db", "primaryURL", redisPrimaryURL, "pubsubURL", redisPubSubURL)
-	rdb := data.MakeRdb(redisPrimaryURL, redisPubSubURL)
+	rdb := infra.MakeRdb(infra.RedisAddrs{CacheAddr: redisPrimaryURL, PubsubAddr: redisPubSubURL}, infra.DefaultRedisNames)
 	defer rdb.Close()
 
-	state := web.MakeServerState(data.Databases{Rdb: rdb, Pdb: postgres}, countryList, "")
+	state := web.MakeServerState(infra.Databases{Rdb: rdb, Pdb: postgres}, countryList, "")
 
-	<-data.ListenGameMessages(state.GamesCaster, rdb.PubsubAddr)
-	<-data.ListenUsersMessages(state.UsersCaster, rdb.PubsubAddr)
-	<-data.ListenUnicastEvents(state.CountsCaster, rdb.PubsubAddr)
+	<-dpl.ListenGameMessages(state.GamesCaster, rdb)
+	<-dpl.ListenUsersMessages(state.UsersCaster, rdb)
+	<-dpl.ListenUnicastEvents(state.CountsCaster, rdb)
 
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 

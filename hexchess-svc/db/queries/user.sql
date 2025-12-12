@@ -143,20 +143,16 @@ UPDATE users
 SET password = sqlc.arg('password'), salt = sqlc.arg('salt')
 WHERE id = sqlc.arg('id');
 
--- name: GetElo :one
-SELECT elo
+-- name: GetElos :many
+SELECT id, elo
 FROM users
-WHERE id = sqlc.arg('id');
+WHERE id = ANY(sqlc.arg('id')::bigint[]);
 
--- name: UpdateWins :exec
+-- name: UpdateElo :exec
 UPDATE users
-SET elo = sqlc.arg('elo'),
-    wins = wins + 1,
-    highest_elo = GREATEST(highest_elo, sqlc.arg('elo'))
-WHERE id = sqlc.arg('id');
-
--- name: UpdateLosses :exec
-UPDATE users
-SET elo = sqlc.arg('elo'),
-    losses = losses + 1
+SET
+    elo = sqlc.arg('elo'),
+    highest_elo = GREATEST(highest_elo, sqlc.arg('elo')),
+    wins = wins + CASE WHEN sqlc.arg('won')::boolean THEN 1 ELSE 0 END,
+    losses = losses + CASE WHEN NOT sqlc.arg('won')::boolean THEN 1 ELSE 0 END
 WHERE id = sqlc.arg('id');

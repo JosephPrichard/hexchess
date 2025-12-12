@@ -1,10 +1,11 @@
-package data
+package dpl
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"hexchess-svc/db"
+	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"log/slog"
 	"math"
@@ -18,7 +19,7 @@ type UpdtLbChangeSet struct {
 	EloDiff float64
 }
 
-func SetLeaderboard(ctx context.Context, rdb *Redis, changes ...UpdtLbChangeSet) error {
+func SetLeaderboard(ctx context.Context, rdb *infra.Redis, changes ...UpdtLbChangeSet) error {
 	conn := rdb.Cache.Get()
 	defer conn.Close()
 
@@ -34,7 +35,7 @@ func SetLeaderboard(ctx context.Context, rdb *Redis, changes ...UpdtLbChangeSet)
 	return nil
 }
 
-func IncrLeaderboard(ctx context.Context, rdb *Redis, changes ...UpdtLbChangeSet) error {
+func IncrLeaderboard(ctx context.Context, rdb *infra.Redis, changes ...UpdtLbChangeSet) error {
 	conn := rdb.Cache.Get()
 	defer conn.Close()
 
@@ -55,7 +56,7 @@ type Leaderboard struct {
 	PageCount int          `json:"pageCount"`
 }
 
-func GetLeaderboardRank(ctx context.Context, rdb *Redis, id int64) (int64, error) {
+func GetLeaderboardRank(ctx context.Context, rdb *infra.Redis, id int64) (int64, error) {
 	conn := rdb.Cache.Get()
 	defer conn.Close()
 
@@ -78,7 +79,7 @@ func GetLeaderboardRank(ctx context.Context, rdb *Redis, id int64) (int64, error
 	return rank + 1, nil
 }
 
-func GetLeaderboard(ctx context.Context, rdb *Redis, startRank, count int64) (Leaderboard, error) {
+func GetLeaderboard(ctx context.Context, rdb *infra.Redis, startRank, count int64) (Leaderboard, error) {
 	var lbd Leaderboard
 
 	conn := rdb.Cache.Get()
@@ -110,7 +111,7 @@ func GetLeaderboard(ctx context.Context, rdb *Redis, startRank, count int64) (Le
 	return lbd, nil
 }
 
-func GetLeaderboardPage(ctx context.Context, rdb *Redis, page, perPage int64) (Leaderboard, error) {
+func GetLeaderboardPage(ctx context.Context, rdb *infra.Redis, page, perPage int64) (Leaderboard, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -121,7 +122,7 @@ func GetLeaderboardPage(ctx context.Context, rdb *Redis, page, perPage int64) (L
 	return leaderboard, err
 }
 
-func SyncLeaderboard(ctx context.Context, dbs *Databases) error {
+func SyncLeaderboard(ctx context.Context, dbs *infra.Databases) error {
 	afterID := int64(0)
 	for {
 		rows, err := dbs.Pdb.Query.SelectEloListAfterID(ctx, db.SelectEloListAfterIDParams{AfterID: afterID, Limit: 20})

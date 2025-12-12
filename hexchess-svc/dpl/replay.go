@@ -1,4 +1,4 @@
-package data
+package dpl
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/db"
+	"hexchess-svc/infra"
 	"hexchess-svc/pb"
 	"log/slog"
 	"math"
@@ -42,6 +43,10 @@ var ReplayRowCmpOpts = cmpopts.IgnoreFields(db.Replay{}, "PlayedOn")
 
 type ReplayResult string
 
+func (r ReplayResult) IsWin() bool {
+	return r == WhiteWin || r == BlackWin
+}
+
 const (
 	WhiteWin ReplayResult = "WHITE_WINS"
 	BlackWin ReplayResult = "BLACK_WINS"
@@ -65,34 +70,27 @@ const (
 )
 
 type ReplayInst struct {
-	WhiteID          int64
-	BlackID          int64
-	Result           ReplayResult
-	Cause            ReplayCause
-	Mode             ReplayMode
-	WinEloDiff       float64
-	LoseEloDiff      float64
-	BlackElo         float64
-	WhiteElo         float64
-	MoveHistoryProto []byte
-	PlayedOn         time.Time
+	WhiteID     int64
+	BlackID     int64
+	Result      ReplayResult
+	Cause       ReplayCause
+	Mode        ReplayMode
+	WinEloDiff  float64
+	LoseEloDiff float64
+	// white and block elos at the time of insertion
+	ReplayBlackElo     float64
+	ReplayWhiteElo     float64
+	PlayedOn           time.Time
+	SerializedMoveHist []byte
 }
 
 func InsertReplay(ctx context.Context, query *db.Queries, inst ReplayInst) (int64, error) {
-	if inst.MoveHistoryProto == nil {
-		inst.MoveHistoryProto = []byte{}
+	if inst.SerializedMoveHist == nil {
+		inst.SerializedMoveHist = []byte{}
 	}
 	playedOn := pgtype.Timestamptz{}
 	if !inst.PlayedOn.IsZero() {
 		playedOn = pgtype.Timestamptz{Valid: true, Time: inst.PlayedOn}
-	}
-	whiteElo := pgtype.Float8{}
-	if inst.WhiteElo != 0 {
-		whiteElo = pgtype.Float8{Valid: true, Float64: inst.WhiteElo}
-	}
-	blackElo := pgtype.Float8{}
-	if inst.BlackElo != 0 {
-		blackElo = pgtype.Float8{Valid: true, Float64: inst.BlackElo}
 	}
 
 	replayID, err := query.InsertReplay(ctx, db.InsertReplayParams{
@@ -103,14 +101,13 @@ func InsertReplay(ctx context.Context, query *db.Queries, inst ReplayInst) (int6
 		Mode:        string(inst.Mode),
 		WinElo:      inst.WinEloDiff,
 		LoseElo:     inst.LoseEloDiff,
-		WhiteElo:    whiteElo,
-		BlackElo:    blackElo,
-		MoveHistory: inst.MoveHistoryProto,
+		WhiteElo:    inst.ReplayWhiteElo,
+		BlackElo:    inst.ReplayBlackElo,
+		MoveHistory: inst.SerializedMoveHist,
 		PlayedOn:    playedOn,
 	})
-	inst.MoveHistoryProto = nil
+	inst.SerializedMoveHist = nil
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to create replay", "replay", inst, "err", err)
 		return 0, err
 	}
 	slog.InfoContext(ctx, "created a new replay", "replay", inst, "replayID", replayID)
@@ -160,7 +157,6 @@ func GetReplay(ctx context.Context, query *db.Queries, id int64) (ReplayEntity, 
 		return replay, ErrNoReplay
 	}
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to select replay", "id", id, "err", err)
 		return replay, fmt.Errorf("get replay %d by id: %w", id, err)
 	}
 	if replay, err = mapReplayFromRow(row); err != nil {
@@ -197,8 +193,7 @@ func GetUserReplays(ctx context.Context, query *db.Queries, userID int64, afterI
 		PerPage: perPage,
 	})
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to select replays", "userID", userID, "afterID", afterID, "err", err)
-		return nil, fmt.Errorf("select replays: %w", err)
+		return nil, fmt.Errorf("select replays by user id %d: %w", userID, err)
 	}
 
 	var replays []ReplayEntity
@@ -232,8 +227,9 @@ type EloHistoryBucket struct {
 }
 
 // RetrieveEloHistoryBuckets Returns the elo replay histories for a given user organized into buckets and categorized into a map keyed by replay "mode"
-// map will contain the keys "ALL" (contains data for all modes) plus all modes (ReplayModes)
-func RetrieveEloHistoryBuckets(ctx context.Context, dbs *Databases, timeUntil time.Time, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
+// map will contain the keys "ALL" (contains dpl for all modes) plus all modes (ReplayModes)
+func RetrieveEloHistoryBuckets(ctx context.Context, dbs *infra.Databases, timeUntil time.Time, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
+	// todo: add caching for elo histories
 	var ehb EloHistoryBuckets
 	var bd time.Duration
 

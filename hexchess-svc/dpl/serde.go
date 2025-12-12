@@ -1,4 +1,4 @@
-package data
+package dpl
 
 import (
 	"encoding/json"

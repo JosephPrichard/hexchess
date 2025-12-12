@@ -2,7 +2,7 @@ package web
 
 import (
 	"flag"
-	"hexchess-svc/data"
+	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"strconv"
 	"testing"
@@ -24,7 +24,7 @@ func sseCountFlag() int {
 
 func TestMain(m *testing.M) {
 	defer flag.Parse()
-	defer data.TeardownTestInfra()
+	defer infra.TeardownTestInfra()
 	util.InitLoggers(nil)
 	m.Run()
 }

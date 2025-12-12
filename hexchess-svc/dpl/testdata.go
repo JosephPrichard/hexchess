@@ -1,8 +1,9 @@
-package data
+package dpl
 
 import (
 	"context"
 	"hexchess-svc/db"
+	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"time"
 )
@@ -50,7 +51,7 @@ var TestUserEntities = []UserEntity{
 
 var LastUserID = int64(len(TestUsersInsts))
 
-func createTestUser(t TestLogger, query *db.Queries, inst UserInst) UserEntity {
+func createTestUser(t infra.TestLogger, query *db.Queries, inst UserInst) UserEntity {
 	ctx := context.WithValue(context.Background(), util.Trace, "create-test-user")
 	u, err := InsertUser(ctx, query, inst)
 	if err != nil {
@@ -59,7 +60,7 @@ func createTestUser(t TestLogger, query *db.Queries, inst UserInst) UserEntity {
 	return u
 }
 
-func insertTestUsers(t TestLogger, query *db.Queries, insts ...UserInst) []UserEntity {
+func insertTestUsers(t infra.TestLogger, query *db.Queries, insts ...UserInst) []UserEntity {
 	var users []UserEntity
 	for _, inst := range insts {
 		users = append(users, createTestUser(t, query, inst))
@@ -69,57 +70,88 @@ func insertTestUsers(t TestLogger, query *db.Queries, insts ...UserInst) []UserE
 
 var TestReplayInsts = []ReplayInst{
 	// used for testing individual replays
-	{WhiteID: 1, BlackID: 2, Result: WhiteWin, Cause: Checkmate, Mode: ModeUnlimited, WinEloDiff: 30, LoseEloDiff: -30},
-	{WhiteID: 2, BlackID: 3, Result: BlackWin, Cause: Checkmate, Mode: ModeUnlimited, WinEloDiff: 30, LoseEloDiff: -30},
-	{WhiteID: 3, BlackID: 1, Result: Draw, Cause: Checkmate, Mode: ModeUnlimited, WinEloDiff: 0, LoseEloDiff: 0},
+	{
+		WhiteID:        1,
+		BlackID:        2,
+		Result:         WhiteWin,
+		Cause:          Checkmate,
+		Mode:           ModeUnlimited,
+		WinEloDiff:     30,
+		LoseEloDiff:    -30,
+		ReplayWhiteElo: 1000,
+		ReplayBlackElo: 1000,
+	},
+	{
+		WhiteID:        2,
+		BlackID:        3,
+		Result:         BlackWin,
+		Cause:          Checkmate,
+		Mode:           ModeUnlimited,
+		WinEloDiff:     30,
+		LoseEloDiff:    -30,
+		ReplayWhiteElo: 1030,
+		ReplayBlackElo: 900,
+	},
+	{
+		WhiteID:        3,
+		BlackID:        1,
+		Result:         Draw,
+		Cause:          Checkmate,
+		Mode:           ModeUnlimited,
+		WinEloDiff:     0,
+		LoseEloDiff:    0,
+		ReplayWhiteElo: 900,
+		ReplayBlackElo: 1000,
+	},
+
 	// used for testing elo histories
 	{
-		WhiteID:     6,
-		BlackID:     7,
-		Result:      WhiteWin,
-		Cause:       Checkmate,
-		Mode:        ModeUnlimited,
-		WinEloDiff:  30,
-		LoseEloDiff: -30,
-		WhiteElo:    1030,
-		BlackElo:    970,
-		PlayedOn:    time.Date(1900, 1, 1, 1, 0, 0, 0, time.UTC),
+		WhiteID:        6,
+		BlackID:        7,
+		Result:         WhiteWin,
+		Cause:          Checkmate,
+		Mode:           ModeUnlimited,
+		WinEloDiff:     30,
+		LoseEloDiff:    -30,
+		ReplayWhiteElo: 1030,
+		ReplayBlackElo: 970,
+		PlayedOn:       time.Date(1900, 1, 1, 1, 0, 0, 0, time.UTC),
 	},
 	{
-		WhiteID:     6,
-		BlackID:     7,
-		Result:      WhiteWin,
-		Cause:       Checkmate,
-		Mode:        ModeRealTime,
-		WinEloDiff:  30,
-		LoseEloDiff: -30,
-		WhiteElo:    1060,
-		BlackElo:    940,
-		PlayedOn:    time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
+		WhiteID:        6,
+		BlackID:        7,
+		Result:         WhiteWin,
+		Cause:          Checkmate,
+		Mode:           ModeRealTime,
+		WinEloDiff:     30,
+		LoseEloDiff:    -30,
+		ReplayWhiteElo: 1060,
+		ReplayBlackElo: 940,
+		PlayedOn:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
 	},
 	{
-		WhiteID:     6,
-		BlackID:     7,
-		Result:      WhiteWin,
-		Cause:       Checkmate,
-		Mode:        ModeRealTime,
-		WinEloDiff:  30,
-		LoseEloDiff: -30,
-		WhiteElo:    1090,
-		BlackElo:    910,
-		PlayedOn:    time.Date(2020, 1, 1, 2, 0, 0, 0, time.UTC),
+		WhiteID:        6,
+		BlackID:        7,
+		Result:         WhiteWin,
+		Cause:          Checkmate,
+		Mode:           ModeRealTime,
+		WinEloDiff:     30,
+		LoseEloDiff:    -30,
+		ReplayWhiteElo: 1090,
+		ReplayBlackElo: 910,
+		PlayedOn:       time.Date(2020, 1, 1, 2, 0, 0, 0, time.UTC),
 	},
 	{
-		WhiteID:     6,
-		BlackID:     7,
-		Result:      WhiteWin,
-		Cause:       Checkmate,
-		Mode:        ModeUnlimited,
-		WinEloDiff:  30,
-		LoseEloDiff: -30,
-		WhiteElo:    1120,
-		BlackElo:    880,
-		PlayedOn:    time.Date(2020, 1, 3, 1, 0, 0, 0, time.UTC),
+		WhiteID:        6,
+		BlackID:        7,
+		Result:         WhiteWin,
+		Cause:          Checkmate,
+		Mode:           ModeUnlimited,
+		WinEloDiff:     30,
+		LoseEloDiff:    -30,
+		ReplayWhiteElo: 1120,
+		ReplayBlackElo: 880,
+		PlayedOn:       time.Date(2020, 1, 3, 1, 0, 0, 0, time.UTC),
 	},
 }
 
@@ -160,11 +192,10 @@ var TestReplayEntities = []ReplayEntity{
 	},
 }
 
-func insertTestReplays(t TestLogger, query *db.Queries, insts ...ReplayInst) {
+func insertTestReplays(t infra.TestLogger, query *db.Queries, insts ...ReplayInst) {
 	ctx := context.WithValue(context.Background(), util.Trace, "create-test-replays")
 	for _, inst := range insts {
-		_, err := InsertReplay(ctx, query, inst)
-		if err != nil {
+		if _, err := InsertReplay(ctx, query, inst); err != nil {
 			t.Fatalf("insert test replay: %v", err)
 		}
 	}
@@ -206,17 +237,16 @@ var TestChallengeEntities = []ChallengeEntity{
 	},
 }
 
-func insertTestChallenges(t TestLogger, query *db.Queries, insts ...ChallengeInst) {
+func insertTestChallenges(t infra.TestLogger, query *db.Queries, insts ...ChallengeInst) {
 	ctx := context.WithValue(context.Background(), util.Trace, "create-test-challenges")
 	for _, c := range insts {
-		err := InsertChallenge(ctx, query, c)
-		if err != nil {
+		if err := InsertChallenge(ctx, query, c); err != nil {
 			t.Fatalf("insert test challenges: %v", err)
 		}
 	}
 }
 
-func InsertTestData(t TestLogger, query *db.Queries) {
+func InsertTestData(t infra.TestLogger, query *db.Queries) {
 	insertTestUsers(t, query, TestUsersInsts...)
 	insertTestReplays(t, query, TestReplayInsts...)
 	insertTestChallenges(t, query, TestChallengeInsts...)
