@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gomodule/redigo/redis"
+	"github.com/redis/go-redis/v9"
 )
 
 var ErrSessionNotFound = errors.New("session not found")
@@ -16,19 +16,18 @@ var ErrSessionNotFound = errors.New("session not found")
 func GetSession(ctx context.Context, rdb *infra.Redis, sessionID string) (PlayerState, error) {
 	var p PlayerState
 
-	conn := rdb.Cache.Get()
-	defer conn.Close()
-
 	fullID := "session:" + sessionID
-	data, err := redis.Bytes(conn.Do("GET", fullID))
-	if errors.Is(err, redis.ErrNil) {
-		return p, ErrSessionNotFound
-	}
+	data, err := rdb.Cache.Get(ctx, fullID).Bytes()
 	if err != nil {
-		return p, fmt.Errorf("get session %s: %w", sessionID, err)
+		if err == redis.Nil {
+			return p, ErrSessionNotFound
+		} else {
+			return p, fmt.Errorf("get session %s: %w", sessionID, err)
+		}
 	}
 
-	if p, err = UnmarshalPlayer(data); err != nil {
+	p, err = UnmarshalPlayer(data)
+	if err != nil {
 		return p, fmt.Errorf("unmarshal session: %w", err)
 	}
 	slog.InfoContext(ctx, "selected session", "sessionID", sessionID, "player", p)
@@ -40,37 +39,27 @@ func SetSession(ctx context.Context, rdb *infra.Redis, sessionID string, player 
 	if err != nil {
 		return err
 	}
-
-	conn := rdb.Cache.Get()
-	defer conn.Close()
 	fullID := "session:" + sessionID
-
-	if _, err := conn.Do("SETEX", fullID, int(expiry.Seconds()), data); err != nil {
-		return err
+	if err := rdb.Cache.SetEx(ctx, fullID, data, expiry).Err(); err != nil {
+		return fmt.Errorf("set session: %w", err)
 	}
 	slog.InfoContext(ctx, "set session", "sessionID", sessionID, "player", player)
 	return nil
 }
 
 func UpdateSessionEx(ctx context.Context, rdb *infra.Redis, sessionID string, expiry time.Duration) error {
-	conn := rdb.Cache.Get()
-	defer conn.Close()
-
 	fullID := "session:" + sessionID
-
-	if _, err := conn.Do("EXPIRE", fullID, int(expiry.Seconds())); err != nil {
-		return err
+	if err := rdb.Cache.Expire(ctx, fullID, expiry).Err(); err != nil {
+		return fmt.Errorf("update session expiry: %w", err)
 	}
 	slog.InfoContext(ctx, "updated session expiry", "sessionID", sessionID)
 	return nil
 }
 
 func DeleteSession(ctx context.Context, rdb *infra.Redis, sessionID string) error {
-	conn := rdb.Cache.Get()
-	defer conn.Close()
-
-	if _, err := conn.Do("DEL", "session:"+sessionID); err != nil {
-		return err
+	fullID := "session:" + sessionID
+	if err := rdb.Cache.Del(ctx, fullID).Err(); err != nil {
+		return fmt.Errorf("delete session: %w", err)
 	}
 	slog.InfoContext(ctx, "deleted session", "sessionID", sessionID)
 	return nil

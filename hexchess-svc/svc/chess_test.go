@@ -45,14 +45,9 @@ func TestGetChessMetas(t *testing.T) {
 	id2 := "testing-id2-" + uuid.NewString()
 	id3 := "testing-id3-" + uuid.NewString()
 
-	state1 := MakeState(StateSetup{ID: id1, TimeControl: TcRealTime, FirstColor: ColorRandom})
-	state2 := MakeState(StateSetup{ID: id2, TimeControl: TcRealTime, FirstColor: ColorRandom})
-	state3 := MakeState(StateSetup{ID: id3, TimeControl: TcRealTime, FirstColor: ColorRandom})
-
-	state1.WhitePlayer = &PlayerState{ID: 1}
-	state1.BlackPlayer = &PlayerState{ID: 2}
-	state2.BlackPlayer = &PlayerState{ID: 1}
-	state3.BlackPlayer = &PlayerState{ID: 1}
+	state1 := MakeState(StateSetup{ID: id1, TimeControl: TcRealTime, FirstColor: ColorRandom, White: &PlayerState{ID: 1}, Black: &PlayerState{ID: 2}})
+	state2 := MakeState(StateSetup{ID: id2, TimeControl: TcRealTime, FirstColor: ColorRandom, Black: &PlayerState{ID: 1}})
+	state3 := MakeState(StateSetup{ID: id3, TimeControl: TcRealTime, FirstColor: ColorRandom, Black: &PlayerState{ID: 1}})
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-metas")
 	now := time.Now()

@@ -10,31 +10,33 @@ import (
 )
 
 func TestSessions(t *testing.T) {
+	// given
 	rdb := infra.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	player := PlayerState{ID: 1, Name: "testing-name1"}
+	playerIn := PlayerState{ID: 1, Name: "testing-name1"}
 	sessionID1 := "session1"
 	sessionID2 := "session2"
 	sessionID3 := "session3"
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-sessions")
 
-	assert.NoError(t, SetSession(ctx, rdb, sessionID1, player, 100*time.Second))
-	assert.NoError(t, SetSession(ctx, rdb, sessionID2, player, 100*time.Second))
-	assert.NoError(t, SetSession(ctx, rdb, sessionID3, player, 100*time.Second))
+	// when
+	assert.NoError(t, SetSession(ctx, rdb, sessionID1, playerIn, 100*time.Second))
+	assert.NoError(t, SetSession(ctx, rdb, sessionID2, playerIn, 100*time.Second))
+	assert.NoError(t, SetSession(ctx, rdb, sessionID3, playerIn, 100*time.Second))
 
-	rdbPlayer1, err := GetSession(ctx, rdb, sessionID1)
+	playerOut, err := GetSession(ctx, rdb, sessionID1)
 	assert.NoError(t, err)
-	assert.Equal(t, player, rdbPlayer1)
 
 	assert.NoError(t, DeleteSession(ctx, rdb, sessionID2))
-
 	assert.NoError(t, UpdateSessionEx(ctx, rdb, sessionID3, 0))
 
-	_, err = GetSession(ctx, rdb, sessionID2)
-	assert.Equal(t, ErrSessionNotFound, err)
+	_, badIDErr1 := GetSession(ctx, rdb, sessionID2)
+	_, badIDErr2 := GetSession(ctx, rdb, sessionID3)
 
-	_, err = GetSession(ctx, rdb, sessionID3)
-	assert.Equal(t, ErrSessionNotFound, err)
+	// then
+	assert.Equal(t, ErrSessionNotFound, badIDErr1)
+	assert.Equal(t, ErrSessionNotFound, badIDErr2)
+	assert.Equal(t, playerIn, playerOut)
 }

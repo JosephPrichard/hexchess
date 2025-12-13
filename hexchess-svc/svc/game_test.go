@@ -151,9 +151,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-forfeit")
 
 	gameID := "test123"
-	inState := MakeState(StateSetup{ID: gameID, TimeControl: TcRealTime, FirstColor: ColorRandom})
-	inState.WhitePlayer = &PlayerState{ID: 1}
-	inState.BlackPlayer = &PlayerState{ID: 2}
+	inState := MakeState(StateSetup{ID: gameID, TimeControl: TcRealTime, FirstColor: ColorRandom, White: &PlayerState{ID: 1}, Black: &PlayerState{ID: 2}})
 	inState.Game.Moves = []chess.HistMove{{
 		PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}},
 	}}

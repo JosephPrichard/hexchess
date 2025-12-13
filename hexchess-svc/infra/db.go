@@ -2,14 +2,12 @@ package infra
 
 import (
 	"context"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"hexchess-svc/db"
 	"log/slog"
 	"slices"
-	"time"
-
-	"github.com/gomodule/redigo/redis"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type RedisAddrs struct {
@@ -74,8 +72,8 @@ func (pdb *Pdb) GetTxn() pgx.Tx {
 }
 
 type Redis struct {
-	Cache  *redis.Pool
-	PubSub *redis.Pool
+	Cache  *redis.Client
+	PubSub *redis.Client
 	RedisAddrs
 	RedisNames
 }
@@ -99,35 +97,18 @@ func (s Databases) Close() {
 	s.Rdb.Close()
 }
 
-const MaxIdle = 3
-const IdleTimeout = 240 * time.Second
-
-func makeRedisDial(addr string) func() (redis.Conn, error) {
-	return func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", addr)
-		if err != nil {
-			return nil, err
-		}
-		return c, err
-	}
-}
-
 func MakeRdb(addrs RedisAddrs, names RedisNames) *Redis {
-	var pubsub *redis.Pool
+	var ps *redis.Client
 	if addrs.PubsubAddr != "" {
-		pubsub = &redis.Pool{
-			MaxIdle:     MaxIdle,
-			IdleTimeout: IdleTimeout,
-			Dial:        makeRedisDial(addrs.PubsubAddr),
-		}
+		ps = redis.NewClient(&redis.Options{
+			Addr: addrs.PubsubAddr,
+		})
 	}
 	return &Redis{
-		Cache: &redis.Pool{
-			MaxIdle:     MaxIdle,
-			IdleTimeout: IdleTimeout,
-			Dial:        makeRedisDial(addrs.CacheAddr),
-		},
-		PubSub:     pubsub,
+		Cache: redis.NewClient(&redis.Options{
+			Addr: addrs.CacheAddr,
+		}),
+		PubSub:     ps,
 		RedisAddrs: addrs,
 		RedisNames: names,
 	}

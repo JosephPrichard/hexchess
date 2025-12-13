@@ -11,7 +11,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/gomodule/redigo/redis"
+	"github.com/redis/go-redis/v9"
 )
 
 type UpdtLbChangeSet struct {
@@ -20,33 +20,25 @@ type UpdtLbChangeSet struct {
 }
 
 func SetLeaderboard(ctx context.Context, rdb *infra.Redis, changes ...UpdtLbChangeSet) error {
-	conn := rdb.Cache.Get()
-	defer conn.Close()
-
-	conn.Send("MULTI")
+	pipe := rdb.Cache.TxPipeline()
 	for _, cs := range changes {
-		conn.Send("ZADD", rdb.LeaderboardZSet, "NX", cs.EloDiff, cs.ID)
+		pipe.ZAddNX(ctx, rdb.LeaderboardZSet, redis.Z{Score: cs.EloDiff, Member: cs.ID})
 	}
-	if _, err := conn.Do("EXEC"); err != nil {
+	if _, err := pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("'ZADD' leaderboard users: %w", err)
 	}
-
 	slog.InfoContext(ctx, "set leaderboard users", "changes", changes)
 	return nil
 }
 
 func IncrLeaderboard(ctx context.Context, rdb *infra.Redis, changes ...UpdtLbChangeSet) error {
-	conn := rdb.Cache.Get()
-	defer conn.Close()
-
-	conn.Send("MULTI")
+	pipe := rdb.Cache.TxPipeline()
 	for _, cs := range changes {
-		conn.Send("ZINCRBY", rdb.LeaderboardZSet, cs.EloDiff, cs.ID)
+		pipe.ZIncrBy(ctx, rdb.LeaderboardZSet, cs.EloDiff, fmt.Sprint(cs.ID))
 	}
-	if _, err := conn.Do("EXEC"); err != nil {
+	if _, err := pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("'ZINCRBY' leaderboard user: %w", err)
 	}
-
 	slog.InfoContext(ctx, "incremented leaderboard user", "changes", changes)
 	return nil
 }
@@ -57,20 +49,19 @@ type Leaderboard struct {
 }
 
 func GetLeaderboardRank(ctx context.Context, rdb *infra.Redis, id int64) (int64, error) {
-	conn := rdb.Cache.Get()
-	defer conn.Close()
-
-	rank, err := redis.Int64(conn.Do("ZREVRANK", rdb.LeaderboardZSet, id))
-	if errors.Is(err, redis.ErrNil) {
+	rank, err := rdb.Cache.ZRevRank(ctx, rdb.LeaderboardZSet, fmt.Sprint(id)).Result()
+	if errors.Is(err, redis.Nil) {
 		rank = -1
 	} else if err != nil {
 		return 0, fmt.Errorf("get leaderboard rank: %w", err)
 	}
+
 	if rank == -1 {
-		if _, err := conn.Do("ZINCRBY", rdb.LeaderboardZSet, StartElo, id); err != nil {
+		if err := rdb.Cache.ZIncrBy(ctx, rdb.LeaderboardZSet, StartElo, fmt.Sprint(id)).Err(); err != nil {
 			return 0, fmt.Errorf("incr leaderboard rank: %w", err)
 		}
-		if rank, err = redis.Int64(conn.Do("ZREVRANK", rdb.LeaderboardZSet, id)); err != nil {
+		rank, err = rdb.Cache.ZRevRank(ctx, rdb.LeaderboardZSet, fmt.Sprint(id)).Result()
+		if err != nil {
 			return 0, fmt.Errorf("get leaderboard rank: %w", err)
 		}
 	}
@@ -82,15 +73,13 @@ func GetLeaderboardRank(ctx context.Context, rdb *infra.Redis, id int64) (int64,
 func GetLeaderboard(ctx context.Context, rdb *infra.Redis, startRank, count int64) (Leaderboard, error) {
 	var lbd Leaderboard
 
-	conn := rdb.Cache.Get()
-	defer conn.Close()
-
 	end := startRank - 1 + count
-	ids, err := redis.Strings(conn.Do("ZREVRANGE", rdb.LeaderboardZSet, startRank, end))
+	ids, err := rdb.Cache.ZRevRange(ctx, rdb.LeaderboardZSet, startRank, end).Result()
 	if err != nil {
 		return lbd, fmt.Errorf("retrieve leaderboard by range: %w", err)
 	}
-	elemCount, err := redis.Int64(conn.Do("ZCOUNT", rdb.LeaderboardZSet, "-inf", "+inf"))
+
+	elemCount, err := rdb.Cache.ZCount(ctx, rdb.LeaderboardZSet, "-inf", "+inf").Result()
 	if err != nil {
 		return lbd, fmt.Errorf("count leaderboard: %w", err)
 	}
@@ -105,8 +94,8 @@ func GetLeaderboard(ctx context.Context, rdb *infra.Redis, startRank, count int6
 	}
 
 	pageCount := int((elemCount / count) + int64(math.Min(float64(elemCount%count), 1)))
-
 	lbd = Leaderboard{Users: users, PageCount: pageCount}
+
 	slog.InfoContext(ctx, "retrieved leaderboard", "startRank", startRank, "count", count, "leaderboard", lbd)
 	return lbd, nil
 }
@@ -141,7 +130,7 @@ func SyncLeaderboard(ctx context.Context, dbs *infra.Databases) error {
 			break
 		}
 		if err := SetLeaderboard(ctx, dbs.Rdb, changes...); err != nil {
-			return fmt.Errorf("incr leaderboard: %w", err)
+			return fmt.Errorf("set leaderboard: %w", err)
 		}
 	}
 	return nil

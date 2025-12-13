@@ -40,7 +40,7 @@ func main() {
 	q := db.New(pool)
 
 	slog.InfoContext(ctx, "connecting to redis db", "redisPrimaryURL", redisPrimaryURL)
-	rdb := infra.MakeRdb(redisPrimaryURL, "")
+	rdb := infra.MakeRdb(infra.RedisAddrs{CacheAddr: redisPrimaryURL}, infra.DefaultRedisNames)
 	defer rdb.Close()
 
 	databases := &infra.Databases{Pdb: infra.MakePostgres(q, pool), Rdb: rdb}

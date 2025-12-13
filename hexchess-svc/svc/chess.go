@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gomodule/redigo/redis"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -22,17 +22,14 @@ var ErrNoChessState = errors.New("no chess state")
 func GetChessState(ctx context.Context, rdb *infra.Redis, id string) (ChessState, error) {
 	var state ChessState
 
-	conn := rdb.Cache.Get()
-	defer conn.Close()
-
-	if err := ExpireChessStatesConn(ctx, conn, rdb.GamesZSet); err != nil {
+	if err := ExpireChessStates(ctx, rdb, rdb.GamesZSet); err != nil {
 		return state, fmt.Errorf("expire chess states: %w", err)
 	}
 
 	fullID := "game:" + id
 
-	data, err := redis.Bytes(conn.Do("GET", fullID))
-	if errors.Is(err, redis.ErrNil) {
+	data, err := rdb.Cache.Get(ctx, fullID).Bytes()
+	if errors.Is(err, redis.Nil) {
 		return ChessState{}, ErrNoChessState
 	} else if err != nil {
 		return state, fmt.Errorf("get chess state: %w", err)
@@ -62,19 +59,18 @@ func SetChessStateAt(ctx context.Context, rdb *infra.Redis, id string, state Che
 		return state, fmt.Errorf("marshal chess state: %w", err)
 	}
 
-	conn := rdb.Cache.Get()
-	defer conn.Close()
-
-	conn.Send("MULTI")
-	conn.Send("SET", fullID, b)
-	conn.Send("ZADD", rdb.GamesZSet, touchSecs, fullID)
+	// Use a pipeline (MULTI)
+	pipe := rdb.Cache.TxPipeline()
+	pipe.Set(ctx, fullID, b, 0)
+	pipe.ZAdd(ctx, rdb.GamesZSet, redis.Z{Score: touchSecs, Member: fullID})
 	if state.WhitePlayer != nil {
-		conn.Send("ZADD", getUserGameZSet(rdb, state.WhitePlayer.ID), touchSecs, fullID)
+		pipe.ZAdd(ctx, getUserGameZSet(rdb, state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
 	}
 	if state.BlackPlayer != nil {
-		conn.Send("ZADD", getUserGameZSet(rdb, state.BlackPlayer.ID), touchSecs, fullID)
+		pipe.ZAdd(ctx, getUserGameZSet(rdb, state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
 	}
-	if _, err = conn.Do("EXEC"); err != nil {
+
+	if _, err := pipe.Exec(ctx); err != nil {
 		return state, fmt.Errorf("set chess state: %w", err)
 	}
 
@@ -82,18 +78,15 @@ func SetChessStateAt(ctx context.Context, rdb *infra.Redis, id string, state Che
 	return state, nil
 }
 
-func ExpireChessStates(ctx context.Context, rdb *infra.Redis, zSetName string) error {
-	conn := rdb.Cache.Get()
-	defer conn.Close()
-	return ExpireChessStatesConn(ctx, conn, zSetName)
-}
-
 const GameExpireFinished = 1 * time.Hour
 
-func ExpireChessStatesConn(ctx context.Context, conn redis.Conn, zSetName string) error {
-	expireBefore := time.Now().Add(-GameExpireFinished)
+func ExpireChessStates(ctx context.Context, rdb *infra.Redis, zSetName string) error {
+	expireBefore := time.Now().Add(-GameExpireFinished).Unix()
 
-	keys, err := redis.Values(conn.Do("ZRANGEBYSCORE", zSetName, "-inf", expireBefore.Unix()))
+	keys, err := rdb.Cache.ZRangeByScore(ctx, zSetName, &redis.ZRangeBy{
+		Min: "-inf",
+		Max: strconv.FormatInt(expireBefore, 10),
+	}).Result()
 	if err != nil {
 		return fmt.Errorf("retrieve expired states by range: %w", err)
 	}
@@ -101,22 +94,16 @@ func ExpireChessStatesConn(ctx context.Context, conn redis.Conn, zSetName string
 		return nil
 	}
 
-	delArgs := keys
-	zRemArgs := append([]interface{}{zSetName}, keys...)
-
-	conn.Send("MULTI")
-	conn.Send("DEL", delArgs...)
-	conn.Send("ZREM", zRemArgs...)
-	if _, err = conn.Do("EXEC"); err != nil {
+	pipe := rdb.Cache.TxPipeline()
+	for _, key := range keys {
+		pipe.Del(ctx, key)
+	}
+	pipe.ZRem(ctx, zSetName, keys)
+	if _, err := pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("delete expired states: %w", err)
 	}
 
-	keyStrs := make([]string, 0, len(keys))
-	for _, key := range keys {
-		keyStrs = append(keyStrs, fmt.Sprintf("%s", key))
-	}
-
-	slog.InfoContext(ctx, "expired chess states", "zSetName", zSetName, "keys", keyStrs, "expireBefore", expireBefore)
+	slog.InfoContext(ctx, "expired chess states", "zSetName", zSetName, "keys", keys, "expireBefore", expireBefore)
 	return nil
 }
 
@@ -137,38 +124,42 @@ func GetChessMetas(ctx context.Context, rdb *infra.Redis, zSetName string, page,
 		page = 1
 	}
 
-	var left, right int64
+	var start, stop int64
 	if count >= 0 {
-		left = int64((page - 1) * count)
-		right = left + int64(count) - 1
+		start = int64((page - 1) * count)
+		stop = start + int64(count) - 1
 	} else {
-		left = 0
-		right = -1
+		start = 0
+		stop = -1
 	}
 
-	conn := rdb.Cache.Get()
-	defer conn.Close()
-
-	if err := ExpireChessStatesConn(ctx, conn, zSetName); err != nil {
+	if err := ExpireChessStates(ctx, rdb, zSetName); err != nil {
 		return nil, fmt.Errorf("expire chess states: %w", err)
 	}
 
-	elements, err := redis.Values(conn.Do("ZREVRANGE", zSetName, left, right))
+	elements, err := rdb.Cache.ZRevRange(ctx, zSetName, start, stop).Result()
 	if err != nil {
 		return nil, fmt.Errorf("retrieve chess ids by range: %w", err)
 	}
-
-	var bytesList [][]byte
-	if len(elements) > 0 {
-		bytesList, err = redis.ByteSlices(conn.Do("MGET", elements...))
-		if err != nil {
-			return nil, fmt.Errorf("get many chess states: %w", err)
-		}
+	if len(elements) == 0 {
+		return nil, nil
 	}
 
-	views := make([]ChessMeta, 0)
-	for _, bytes := range bytesList {
-		cv, err := UnmarshalChessMeta(bytes)
+	strList, err := rdb.Cache.MGet(ctx, elements...).Result()
+	if err != nil {
+		return nil, fmt.Errorf("get many chess states: %w", err)
+	}
+
+	views := make([]ChessMeta, 0, len(strList))
+	for _, val := range strList {
+		if val == nil {
+			continue
+		}
+		b, ok := val.(string)
+		if !ok {
+			continue
+		}
+		cv, err := UnmarshalChessMeta([]byte(b))
 		if err != nil {
 			return nil, fmt.Errorf("unmarshal chess meta: %w", err)
 		}
@@ -180,13 +171,10 @@ func GetChessMetas(ctx context.Context, rdb *infra.Redis, zSetName string, page,
 }
 
 func GetChessStateCount(ctx context.Context, rdb *infra.Redis) (int64, error) {
-	conn := rdb.Cache.Get()
-	defer conn.Close()
-
-	if err := ExpireChessStatesConn(ctx, conn, rdb.GamesZSet); err != nil {
+	if err := ExpireChessStates(ctx, rdb, rdb.GamesZSet); err != nil {
 		return 0, err
 	}
-	count, err := redis.Int64(conn.Do("ZCARD", rdb.GamesZSet))
+	count, err := rdb.Cache.ZCard(ctx, rdb.GamesZSet).Result()
 	if err != nil {
 		return 0, fmt.Errorf("count chess states: %w", err)
 	}

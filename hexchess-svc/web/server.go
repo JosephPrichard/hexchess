@@ -161,12 +161,6 @@ func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 func HandleHealthCheck(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	connPrim := state.Rdb.Cache.Get()
-	defer connPrim.Close()
-
-	connPs := state.Rdb.PubSub.Get()
-	defer connPs.Close()
-
 	healthChecks := []struct {
 		Name  string
 		Check func() error
@@ -174,14 +168,14 @@ func HandleHealthCheck(state *ServerState, w http.ResponseWriter, r *http.Reques
 		{
 			Name: "redisPrimary",
 			Check: func() error {
-				_, err := connPrim.Do("PING")
+				_, err := state.Rdb.Cache.Ping(ctx).Result()
 				return err
 			},
 		},
 		{
 			Name: "redisPubsub",
 			Check: func() error {
-				_, err := connPs.Do("PING")
+				_, err := state.Rdb.PubSub.Ping(ctx).Result()
 				return err
 			},
 		},

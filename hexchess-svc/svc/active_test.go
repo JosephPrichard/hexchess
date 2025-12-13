@@ -28,9 +28,7 @@ func TestActiveUser(t *testing.T) {
 	countAfterRemoveAndAdd, err := AddActiveUserOn(ctx, rdb, "3", time.UnixMilli(100), 0)
 	assert.NoError(t, err)
 
-	conn := rdb.Cache.Get()
-	defer conn.Close()
-	countAfterExpiry, err := GetActiveCountWithExpiry(ctx, conn, rdb.ActiveUsersZSet, 1000)
+	countAfterExpiry, err := GetActiveCountWithExpiry(ctx, rdb, rdb.ActiveUsersZSet, 1000)
 	assert.NoError(t, err)
 
 	// then
