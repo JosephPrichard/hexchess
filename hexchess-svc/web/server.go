@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"hexchess-svc/chess"
-	"hexchess-svc/dpl"
 	"hexchess-svc/infra"
+	"hexchess-svc/svc"
 	"hexchess-svc/util"
 	"log/slog"
 	"net/http"
@@ -16,9 +16,9 @@ import (
 )
 
 type CasterState struct {
-	CountsCaster *dpl.UniCaster
-	GamesCaster  *dpl.MultiCasterMap
-	UsersCaster  *dpl.MultiCasterMap
+	CountsCaster *svc.UniCaster
+	GamesCaster  *svc.MultiCasterMap
+	UsersCaster  *svc.MultiCasterMap
 }
 
 type CountryState struct {
@@ -50,9 +50,9 @@ func MakeServerState(databases infra.Databases, countryList []string, googleAPIK
 	return ServerState{
 		Databases: databases,
 		CasterState: CasterState{
-			CountsCaster: dpl.MakeUniCaster("counts-caster"),
-			GamesCaster:  dpl.MakeMultiCasterMap("games-caster", dpl.GameExpireDur),
-			UsersCaster:  dpl.MakeMultiCasterMap("users-caster", -1),
+			CountsCaster: svc.MakeUniCaster("counts-caster"),
+			GamesCaster:  svc.MakeMultiCasterMap("games-caster", svc.GameExpireDur),
+			UsersCaster:  svc.MakeMultiCasterMap("users-caster", -1),
 		},
 		CountryState: CountryState{
 			CountryList: countryList,
@@ -158,30 +158,50 @@ func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 	return mux
 }
 
-func HandleHealthCheck(state *ServerState, w http.ResponseWriter, _ *http.Request) error {
+func HandleHealthCheck(state *ServerState, w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+
 	connPrim := state.Rdb.Cache.Get()
 	defer connPrim.Close()
 
 	connPs := state.Rdb.PubSub.Get()
 	defer connPs.Close()
 
-	_, primErr := connPrim.Do("PING")
-	_, psErr := connPs.Do("PING")
-	_, dbErr := state.Pdb.Pool.Exec(context.Background(), "SELECT 1;")
+	healthChecks := []struct {
+		Name  string
+		Check func() error
+	}{
+		{
+			Name: "redisPrimary",
+			Check: func() error {
+				_, err := connPrim.Do("PING")
+				return err
+			},
+		},
+		{
+			Name: "redisPubsub",
+			Check: func() error {
+				_, err := connPs.Do("PING")
+				return err
+			},
+		},
+		{
+			Name: "postgresDB",
+			Check: func() error {
+				_, err := state.Pdb.GetPool().Exec(ctx, "SELECT 1;")
+				return err
+			},
+		},
+	}
 
 	failures := make(map[string]string)
-	if primErr != nil {
-		failures["redisPrimary"] = primErr.Error()
+	for h := range healthChecks {
+		if err := healthChecks[h].Check(); err != nil {
+			failures["redisPrimary"] = err.Error()
+		}
 	}
-	if psErr != nil {
-		failures["redisPubsub"] = psErr.Error()
-	}
-	if dbErr != nil {
-		failures["postgresDB"] = dbErr.Error()
-	}
-
 	status := "OK"
-	if len(failures) == 3 {
+	if len(failures) == len(healthChecks) {
 		status = "DOWN"
 	} else if len(failures) > 0 {
 		status = "PARTIAL"

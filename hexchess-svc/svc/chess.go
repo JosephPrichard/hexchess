@@ -1,4 +1,4 @@
-package dpl
+package svc
 
 import (
 	"context"
@@ -25,7 +25,7 @@ func GetChessState(ctx context.Context, rdb *infra.Redis, id string) (ChessState
 	conn := rdb.Cache.Get()
 	defer conn.Close()
 
-	if err := ExpireChessStates(ctx, conn, rdb.GamesZSet); err != nil {
+	if err := ExpireChessStatesConn(ctx, conn, rdb.GamesZSet); err != nil {
 		return state, fmt.Errorf("expire chess states: %w", err)
 	}
 
@@ -82,9 +82,15 @@ func SetChessStateAt(ctx context.Context, rdb *infra.Redis, id string, state Che
 	return state, nil
 }
 
+func ExpireChessStates(ctx context.Context, rdb *infra.Redis, zSetName string) error {
+	conn := rdb.Cache.Get()
+	defer conn.Close()
+	return ExpireChessStatesConn(ctx, conn, zSetName)
+}
+
 const GameExpireFinished = 1 * time.Hour
 
-func ExpireChessStates(ctx context.Context, conn redis.Conn, zSetName string) error {
+func ExpireChessStatesConn(ctx context.Context, conn redis.Conn, zSetName string) error {
 	expireBefore := time.Now().Add(-GameExpireFinished)
 
 	keys, err := redis.Values(conn.Do("ZRANGEBYSCORE", zSetName, "-inf", expireBefore.Unix()))
@@ -143,7 +149,7 @@ func GetChessMetas(ctx context.Context, rdb *infra.Redis, zSetName string, page,
 	conn := rdb.Cache.Get()
 	defer conn.Close()
 
-	if err := ExpireChessStates(ctx, conn, zSetName); err != nil {
+	if err := ExpireChessStatesConn(ctx, conn, zSetName); err != nil {
 		return nil, fmt.Errorf("expire chess states: %w", err)
 	}
 
@@ -177,7 +183,7 @@ func GetChessStateCount(ctx context.Context, rdb *infra.Redis) (int64, error) {
 	conn := rdb.Cache.Get()
 	defer conn.Close()
 
-	if err := ExpireChessStates(ctx, conn, rdb.GamesZSet); err != nil {
+	if err := ExpireChessStatesConn(ctx, conn, rdb.GamesZSet); err != nil {
 		return 0, err
 	}
 	count, err := redis.Int64(conn.Do("ZCARD", rdb.GamesZSet))

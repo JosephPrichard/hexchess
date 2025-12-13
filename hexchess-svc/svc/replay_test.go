@@ -1,19 +1,23 @@
-package dpl
+package svc
 
 import (
 	"context"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
+	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"testing"
 	"time"
 )
 
 func TestInsertThenGetReplay(t *testing.T) {
-	pdb, closer := BeforePgTxnTests(t)
+	// given
+	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-insert-get")
 
+	// when
 	id, err := InsertReplay(ctx, pdb.Query, ReplayInst{
 		WhiteID:            2,
 		BlackID:            3,
@@ -31,6 +35,7 @@ func TestInsertThenGetReplay(t *testing.T) {
 	actualReplay1, err := GetReplay(ctx, pdb.Query, id)
 	assert.NoError(t, err)
 
+	// then
 	expReplay := ReplayEntity{
 		ID:           id,
 		WhiteID:      2,
@@ -52,16 +57,19 @@ func TestInsertThenGetReplay(t *testing.T) {
 }
 
 func TestGetUserReplays(t *testing.T) {
-	pdb, closer := BeforePgTxnTests(t)
+	// given
+	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-replays")
 
+	// when
 	actualReplayList1, err := GetUserReplays(ctx, pdb.Query, 1, -1, 5)
 	assert.NoError(t, err)
 	actualReplayList2, err := GetUserReplays(ctx, pdb.Query, 1, 3, 5)
 	assert.NoError(t, err)
 
+	// then
 	replay1 := TestReplayEntities[1]
 	replay3 := TestReplayEntities[0]
 	expectedReplayList1 := []ReplayEntity{replay3, replay1}
@@ -72,17 +80,19 @@ func TestGetUserReplays(t *testing.T) {
 }
 
 func TestGetReplayMoveList(t *testing.T) {
-	pdb, closer := BeforePgTxnTests(t)
+	// given
+	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-move-list")
 
+	// when and then
 	_, err := GetReplayMoveHistory(ctx, pdb.Query, 1)
 	assert.NoError(t, err)
 }
 
 func TestRetrieveEloHistories(t *testing.T) {
-	dbs, closer := BeforeDbTests(t)
+	dbs, closer := infra.BeforeDbTest(t, false, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-retrieve-elo-histories")
@@ -135,4 +145,12 @@ func TestRetrieveEloHistories(t *testing.T) {
 		assert.Equal(t, test.expEloBuckets, eloHistories)
 		assert.Equal(t, test.expBucketDuration, bd)
 	}
+}
+
+func assertReplay(ctx context.Context, t *testing.T, txn pgxpool.Tx, userID int64, expectedElo float64) {
+	var elo float64
+	if err := txn.QueryRow(ctx, "SELECT elo FROM users WHERE id = $1", userID).Scan(&elo); err != nil {
+		t.Fatalf("failed to select user elo: %v", err)
+	}
+	assert.Equal(t, expectedElo, elo)
 }

@@ -5,9 +5,9 @@ import (
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
-	"hexchess-svc/dpl"
 	"hexchess-svc/infra"
 	"hexchess-svc/pb"
+	"hexchess-svc/svc"
 	"hexchess-svc/util"
 	"net/http"
 	"net/http/httptest"
@@ -25,7 +25,7 @@ func writeMessage(t *testing.T, conn *websocket.Conn, pbInput *pb.GameInput) {
 	}
 }
 
-func readOutputs(outputsChan chan []any, subChan chan []byte, count int) {
+func readBroadcasted(outputsChan chan []any, subChan chan []byte, count int) {
 	var outputs []any
 	for range count {
 		b, ok := <-subChan
@@ -43,18 +43,19 @@ func readOutputs(outputsChan chan []any, subChan chan []byte, count int) {
 }
 
 func TestHandleGameplayWs(t *testing.T) {
+	// given
 	gameID := "game1"
 	expCount1 := 4
 	expCount2 := 1
 
-	rdb := infra.BeforeRedisTests(t)
+	rdb := infra.BeforeRedisTest(t)
 	defer rdb.Close()
 
 	createTestSessions(t, rdb)
 	createTestChessStates(t, rdb)
 
 	state := MakeServerState(infra.Databases{Rdb: rdb}, nil, "")
-	<-dpl.ListenGameMessages(state.GamesCaster, rdb)
+	<-svc.ListenGameMessages(state.GamesCaster, rdb)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
 	defer ts.Close()
@@ -62,9 +63,10 @@ func TestHandleGameplayWs(t *testing.T) {
 	subChan := make(chan []byte)
 	state.GamesCaster.Subscribe(gameID, subChan)
 
-	outputs2Chan := make(chan []any)
-	go readOutputs(outputs2Chan, subChan, expCount2)
+	brdCastChan := make(chan []any)
+	go readBroadcasted(brdCastChan, subChan, expCount2)
 
+	// when
 	url := strings.Replace(fmt.Sprintf("%s/api/ws/game?gameId=%s&sessionId=%s", ts.URL, gameID, TestSessionID1), "http", "ws", 1)
 	conn, _, err := websocket.DefaultDialer.Dial(url, http.Header{})
 	if err != nil {
@@ -75,19 +77,20 @@ func TestHandleGameplayWs(t *testing.T) {
 	writeMessage(t, conn, &pb.GameInput{Value: &pb.GameInput_Move{Move: &pb.MoveInput{Move: &pb.Move{FromFile: 1, FromRank: 1, ToFile: 2, ToRank: 1}}}})
 	writeMessage(t, conn, &pb.GameInput{Value: &pb.GameInput_Chat{Chat: &pb.ChatInput{Message: "Hello World"}}})
 
-	outputs1 := make([]pb.GameOutput, expCount1)
+	// then
+	msgOutputs := make([]pb.GameOutput, expCount1)
 	for i := range expCount1 {
 		_, b, err := conn.ReadMessage()
 		if err != nil {
 			t.Fatalf("read ws message: %v", err)
 		}
-		if err := proto.Unmarshal(b, &outputs1[i]); err != nil {
+		if err := proto.Unmarshal(b, &msgOutputs[i]); err != nil {
 			t.Fatalf("marshal input: %v", err)
 		}
 	}
-	outputs2 := <-outputs2Chan
+	brdCastOutputs := <-brdCastChan
 
-	expected1 := []pb.GameOutput{
+	expectedMsgs := []pb.GameOutput{
 		{
 			GameId: gameID,
 			Value:  &pb.GameOutput_Init{Init: &pb.InitOutput{}}, // this information is too complex to assert in this test.
@@ -112,7 +115,7 @@ func TestHandleGameplayWs(t *testing.T) {
 			}},
 		},
 	}
-	expected2 := []any{
+	expectedBrdCast := []any{
 		&pb.GameOutput{
 			GameId: gameID,
 			Value: &pb.GameOutput_Chat{Chat: &pb.ChatOutput{
@@ -120,6 +123,6 @@ func TestHandleGameplayWs(t *testing.T) {
 			}},
 		},
 	}
-	util.AssertEqualIgnoring(t, expected1, outputs1, protocmp.Transform(), protocmp.IgnoreFields(&pb.InitOutput{}, "state", "self"))
-	util.AssertEqualIgnoring(t, expected2, outputs2, protocmp.Transform())
+	util.AssertEqualIgnoring(t, expectedMsgs, msgOutputs, protocmp.Transform(), protocmp.IgnoreFields(&pb.InitOutput{}, "state", "self"))
+	util.AssertEqualIgnoring(t, expectedBrdCast, brdCastOutputs, protocmp.Transform())
 }

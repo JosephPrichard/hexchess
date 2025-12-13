@@ -13,7 +13,7 @@ import (
 type AttackTable = [Files][MaxRanks]bool
 
 type Game struct {
-	// dpl fields that store the state of the game itself
+	// data fields that store the state of the game itself
 	Board            Board
 	WhiteMoves       []PieceMoves
 	BlackMoves       []PieceMoves
@@ -35,8 +35,8 @@ func MakeStartGame(initial ...NotMove) Game {
 	return Game{Board: MakeStartBoard(initial...)}
 }
 
-func MakeEmptyGame(initial ...NotMove) Game {
-	return Game{Board: MakeEmptyBoard(initial...)}
+func MakeEmptyGame(isWhiteTurn bool, initial ...NotMove) Game {
+	return Game{Board: MakeEmptyBoard(isWhiteTurn, initial...)}
 }
 
 func (g *Game) SetPieces(initial ...NotMove) {

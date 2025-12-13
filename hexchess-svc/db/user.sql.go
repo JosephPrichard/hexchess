@@ -45,26 +45,26 @@ func (q *Queries) GetEloList(ctx context.Context, arg GetEloListParams) ([]GetEl
 	return items, nil
 }
 
-const getElos = `-- name: GetElos :many
+const getElosByIds = `-- name: GetElosByIds :many
 SELECT id, elo
 FROM users
 WHERE id = ANY($1::bigint[])
 `
 
-type GetElosRow struct {
+type GetElosByIdsRow struct {
 	ID  int64
 	Elo float64
 }
 
-func (q *Queries) GetElos(ctx context.Context, id []int64) ([]GetElosRow, error) {
-	rows, err := q.db.Query(ctx, getElos, id)
+func (q *Queries) GetElosByIds(ctx context.Context, id []int64) ([]GetElosByIdsRow, error) {
+	rows, err := q.db.Query(ctx, getElosByIds, id)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetElosRow
+	var items []GetElosByIdsRow
 	for rows.Next() {
-		var i GetElosRow
+		var i GetElosByIdsRow
 		if err := rows.Scan(&i.ID, &i.Elo); err != nil {
 			return nil, err
 		}

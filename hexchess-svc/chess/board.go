@@ -384,8 +384,8 @@ func MakeStartBoard(initial ...NotMove) Board {
 	return board
 }
 
-func MakeEmptyBoard(initial ...NotMove) Board {
-	board := Board{IsWhiteTurn: true}
+func MakeEmptyBoard(isWhiteTurn bool, initial ...NotMove) Board {
+	board := Board{IsWhiteTurn: isWhiteTurn}
 	for _, pm := range initial {
 		board.SetPieceNot(pm.Not, pm.Piece)
 	}

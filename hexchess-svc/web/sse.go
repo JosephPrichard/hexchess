@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hexchess-svc/dpl"
+	"hexchess-svc/svc"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -42,17 +42,17 @@ const GamesCountEvent = "gameCountEvents"
 const ActiveCountEvent = "activeCountEvents"
 
 func writeEvent(w http.ResponseWriter, e string, d string) {
-	if _, err := fmt.Fprintf(w, "event: %s\ndpl: %s\n\n", e, d); err != nil {
+	if _, err := fmt.Fprintf(w, "event: %s\nsvc: %s\n\n", e, d); err != nil {
 		slog.Error("write to sse", "err", err)
 	}
 }
 
-func writeCountEvent(w http.ResponseWriter, event dpl.UcEvent) {
+func writeCountEvent(w http.ResponseWriter, event svc.UcEvent) {
 	var e string
 	switch event.Kind {
-	case dpl.UcActiveEk:
+	case svc.UcActiveEk:
 		e = ActiveCountEvent
-	case dpl.UcGamesEk:
+	case svc.UcGamesEk:
 		e = GamesCountEvent
 	}
 	if e == "" {
@@ -63,7 +63,7 @@ func writeCountEvent(w http.ResponseWriter, event dpl.UcEvent) {
 }
 
 func makeCountEvent(count int64, sseID string) string {
-	b, err := json.Marshal(dpl.CountEvent{Count: count, ID: sseID})
+	b, err := json.Marshal(svc.CountEvent{Count: count, ID: sseID})
 	if err != nil {
 		slog.Error("marshal count event", "sseID", sseID, "err", err)
 	}
@@ -81,7 +81,7 @@ func makePingTicker(ctx context.Context, state *ServerState, sseID string) chan 
 				slog.InfoContext(ctx, "finished ping ticker", "sseID", sseID)
 				return
 			case <-pingTicker.C:
-				if err := dpl.RetainActiveUser(ctx, state.Rdb, sseID); err != nil {
+				if err := svc.RetainActiveUser(ctx, state.Rdb, sseID); err != nil {
 					slog.ErrorContext(ctx, "failed to retain active user", "sseID", sseID, "err", err)
 				}
 			}
@@ -94,23 +94,23 @@ func HandleCountEvents(state *ServerState, w http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	sseID := state.MakeID()
 
-	gamesCount, err := dpl.GetChessStateCount(ctx, state.Rdb)
+	gamesCount, err := svc.GetChessStateCount(ctx, state.Rdb)
 	if err != nil {
 		return err
 	}
-	activeCount, err := dpl.AddActiveUser(ctx, state.Rdb, sseID)
+	activeCount, err := svc.AddActiveUser(ctx, state.Rdb, sseID)
 	if err != nil {
 		return err
 	}
 
 	writeEvent(w, MetaEvent, sseID)
-	writeCountEvent(w, dpl.UcEvent{Kind: dpl.UcGamesEk, Data: makeCountEvent(gamesCount, sseID)})
+	writeCountEvent(w, svc.UcEvent{Kind: svc.UcGamesEk, Data: makeCountEvent(gamesCount, sseID)})
 	f.Flush()
 
-	countsChan := make(chan dpl.UcEvent)
+	countsChan := make(chan svc.UcEvent)
 	state.CountsCaster.Subscribe(countsChan)
 
-	if err := dpl.BroadcastActiveCount(ctx, state.Rdb, activeCount, sseID); err != nil {
+	if err := svc.BroadcastActiveCount(ctx, state.Rdb, activeCount, sseID); err != nil {
 		slog.ErrorContext(ctx, "failed to broadcast active count", "sseID", sseID, "err", err)
 	}
 
@@ -118,11 +118,11 @@ func HandleCountEvents(state *ServerState, w http.ResponseWriter, r *http.Reques
 
 	shutdown := func() error {
 		stopPingChan <- struct{}{}
-		ac, err := dpl.RemoveActiveUser(ctx, state.Rdb, sseID)
+		ac, err := svc.RemoveActiveUser(ctx, state.Rdb, sseID)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to remove active user", "sseID", sseID, "err", err)
 		}
-		if err := dpl.BroadcastActiveCount(ctx, state.Rdb, ac, sseID); err != nil {
+		if err := svc.BroadcastActiveCount(ctx, state.Rdb, ac, sseID); err != nil {
 			slog.ErrorContext(ctx, "failed to broadcast active count on removal", "sseID", sseID, "err", err)
 		}
 		return nil
@@ -155,7 +155,7 @@ func HandleUserEvents(state *ServerState, w http.ResponseWriter, r *http.Request
 	sseID := state.MakeID()
 
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
-	if errors.Is(err, dpl.ErrSessionNotFound) {
+	if errors.Is(err, svc.ErrSessionNotFound) {
 		return ErrHttpSessionExpired
 	}
 	if err != nil {

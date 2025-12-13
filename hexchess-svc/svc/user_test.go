@@ -1,16 +1,18 @@
-package dpl
+package svc
 
 import (
 	"context"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"testing"
 	"time"
 )
 
 func TestInsertThenVerify(t *testing.T) {
-	pdb, closer := BeforePgTxnTests(t)
+	// given
+	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-insert-then-verify")
@@ -18,6 +20,7 @@ func TestInsertThenVerify(t *testing.T) {
 	user1 := "user1-test"
 	user2 := "user2-test"
 
+	// when
 	u1, err := InsertUser(ctx, pdb.Query, UserInst{Username: user1, Password: "password1"})
 	assert.NoError(t, err)
 	u2, err := InsertUser(ctx, pdb.Query, UserInst{Username: user2, Password: "password2"})
@@ -35,16 +38,19 @@ func TestInsertThenVerify(t *testing.T) {
 	_, err = VerifyUserTx(ctx, pdb, user2, "wrong-password")
 	assert.Equal(t, ErrTooManyLoginAttempts, err)
 
+	// then
 	assert.Equal(t, u1.ID, v1.ID)
 	assert.Equal(t, u2.ID, v2.ID)
 }
 
 func TestBatchInsertThenGet(t *testing.T) {
-	pdb, closer := BeforePgTxnTests(t)
+	// given
+	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-batch-insert-then-get")
 
+	// when
 	insts := []UserInst{
 		{Username: "user1-test", Password: "password1", Country: "us", Elo: 1005, Wins: 10, Losses: 10},
 		{Username: "user2-test", Password: "password2", Country: "eu", Elo: 1035, Wins: 12, Losses: 0},
@@ -60,12 +66,13 @@ func TestBatchInsertThenGet(t *testing.T) {
 		{Username: insts[1].Username, Country: "eu", Elo: 1035, HighestElo: 1035, Wins: 12, Losses: 0, Total: 12, WinRate: 100.0},
 	}
 
+	// then
 	assert.Equal(t, expUsers, users)
 	assert.NoError(t, err)
 }
 
-func TestUpdateUser(t *testing.T) {
-	pdb, closer := BeforePgTxnTests(t)
+func TestInsertAndUpdateUser(t *testing.T) {
+	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-update-user")
@@ -92,9 +99,10 @@ func TestUpdateUser(t *testing.T) {
 			expCountry:  "eu",
 		},
 	} {
-		testUser := createTestUser(t, pdb.Query, test.inst)
+		testUser, err := InsertUser(ctx, pdb.Query, test.inst)
+		assert.NoError(t, err)
 
-		_, err := UpdateUser(ctx, pdb.Query, testUser.ID, test.udpt)
+		_, err = UpdateUser(ctx, pdb.Query, testUser.ID, test.udpt)
 		assert.NoError(t, err)
 
 		u, err := GetUserByID(ctx, pdb.Query, testUser.ID)
@@ -107,30 +115,40 @@ func TestUpdateUser(t *testing.T) {
 }
 
 func TestUpdatePasswordThenVerify(t *testing.T) {
-	pdb, closer := BeforePgTxnTests(t)
+	// given
+	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "update-password")
 
-	assert.NoError(t, UpdateUserPassword(ctx, pdb.Query, TestUserEntities[0].ID, "password-new"))
+	// when
+	err := UpdateUserPassword(ctx, pdb.Query, TestUserEntities[0].ID, "password-new")
+	assert.NoError(t, err)
 
 	u1, err := GetUserByID(ctx, pdb.Query, TestUserEntities[0].ID)
 	assert.NoError(t, err)
 	v1, err := verifyUser(ctx, pdb.Query, TestUserEntities[0].Username, "password-new")
 	assert.NoError(t, err)
 
+	// then
 	assert.Equal(t, u1.ID, v1.ID)
 }
 
-func TestSearchByName(t *testing.T) {
-	pdb, closer := BeforePgTxnTests(t)
+func TestInsertThenSearchByName(t *testing.T) {
+	// given
+	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
-
-	insertTestUsers(t, pdb.Query, UserInst{Username: "johnny", Password: "password6"}, UserInst{Username: "john", Password: "password7"})
 
 	ctx := context.WithValue(context.Background(), util.Trace, "search-by-name")
 
+	// when
+	for _, inst := range []UserInst{{Username: "johnny", Password: "password6"}, {Username: "john", Password: "password7"}} {
+		_, err := InsertUser(ctx, pdb.Query, inst)
+		assert.NoError(t, err)
+	}
 	list, err := SearchUsersByName(ctx, pdb.Query, "john", 1, 20)
 	assert.NoError(t, err)
+
+	// then
 	assert.Len(t, list, 2)
 }

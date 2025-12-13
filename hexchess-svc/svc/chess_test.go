@@ -1,4 +1,4 @@
-package dpl
+package svc
 
 import (
 	"context"
@@ -11,39 +11,43 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetChessState(t *testing.T) {
-	rdb := infra.BeforeRedisTests(t)
+func TestEchoChessState(t *testing.T) {
+	// given
+	rdb := infra.BeforeRedisTest(t)
 	defer rdb.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 	id2 := "testing-id2-" + uuid.NewString()
 
-	state1 := MakeState(id1, TcRealTime, CsRandom, nil)
+	state1 := MakeState(StateSetup{ID: id1, TimeControl: TcRealTime, FirstColor: ColorRandom})
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-set-then-get")
 
+	// when
 	_, err := SetChessState(ctx, rdb, id1, state1)
 	assert.NoError(t, err)
 
 	outState1, err := GetChessState(ctx, rdb, id1)
 	assert.NoError(t, err)
 
-	util.AssertEqualIgnoring(t, state1, outState1, ChessMetaCmpOpts)
+	_, errBadID := GetChessState(ctx, rdb, id2)
 
-	_, err = GetChessState(ctx, rdb, id2)
-	assert.Equal(t, ErrNoChessState, err)
+	// then
+	assert.Equal(t, ErrNoChessState, errBadID)
+	util.AssertEqualIgnoring(t, state1, outState1, ChessMetaCmpOpts)
 }
 
 func TestGetChessMetas(t *testing.T) {
-	rdb := infra.BeforeRedisTests(t)
+	// given
+	rdb := infra.BeforeRedisTest(t)
 	defer rdb.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 	id2 := "testing-id2-" + uuid.NewString()
 	id3 := "testing-id3-" + uuid.NewString()
 
-	state1 := MakeState(id1, TcRealTime, CsRandom, nil)
-	state2 := MakeState(id2, TcRealTime, CsRandom, nil)
-	state3 := MakeState(id3, TcRealTime, CsRandom, nil)
+	state1 := MakeState(StateSetup{ID: id1, TimeControl: TcRealTime, FirstColor: ColorRandom})
+	state2 := MakeState(StateSetup{ID: id2, TimeControl: TcRealTime, FirstColor: ColorRandom})
+	state3 := MakeState(StateSetup{ID: id3, TimeControl: TcRealTime, FirstColor: ColorRandom})
 
 	state1.WhitePlayer = &PlayerState{ID: 1}
 	state1.BlackPlayer = &PlayerState{ID: 2}
@@ -53,6 +57,7 @@ func TestGetChessMetas(t *testing.T) {
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-metas")
 	now := time.Now()
 
+	// when
 	// these times must be after now.Add(-GameExpireFinished)
 	_, err := SetChessStateAt(ctx, rdb, id1, state1, now.Add(-100*time.Second))
 	assert.NoError(t, err)
@@ -72,9 +77,10 @@ func TestGetChessMetas(t *testing.T) {
 	metaList5, err := GetUserChessMetasPaged(ctx, rdb, 1, 2, 2)
 	assert.NoError(t, err)
 
-	m1 := ChessMeta{ID: id1, WhitePlayer: &PlayerState{ID: 1}, BlackPlayer: &PlayerState{ID: 2}, FirstColor: CsRandom, TimeControl: TcRealTime}
-	m2 := ChessMeta{ID: id2, BlackPlayer: &PlayerState{ID: 1}, FirstColor: CsRandom, TimeControl: TcRealTime}
-	m3 := ChessMeta{ID: id3, BlackPlayer: &PlayerState{ID: 1}, FirstColor: CsRandom, TimeControl: TcRealTime}
+	// then
+	m1 := ChessMeta{ID: id1, WhitePlayer: &PlayerState{ID: 1}, BlackPlayer: &PlayerState{ID: 2}, FirstColor: ColorRandom, TimeControl: TcRealTime}
+	m2 := ChessMeta{ID: id2, BlackPlayer: &PlayerState{ID: 1}, FirstColor: ColorRandom, TimeControl: TcRealTime}
+	m3 := ChessMeta{ID: id3, BlackPlayer: &PlayerState{ID: 1}, FirstColor: ColorRandom, TimeControl: TcRealTime}
 
 	assert.Equal(t, []ChessMeta{m3, m2, m1}, metaList1)
 	assert.Equal(t, []ChessMeta{m1}, metaList2)
@@ -84,12 +90,13 @@ func TestGetChessMetas(t *testing.T) {
 }
 
 func TestExpireChessStates(t *testing.T) {
-	rdb := infra.BeforeRedisTests(t)
+	// given
+	rdb := infra.BeforeRedisTest(t)
 	defer rdb.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 
-	state1 := MakeState(id1, TcRealTime, CsRandom, nil)
+	state1 := MakeState(StateSetup{ID: id1, TimeControl: TcRealTime, FirstColor: ColorRandom})
 
 	state1.WhitePlayer = &PlayerState{ID: 1}
 	state1.BlackPlayer = &PlayerState{ID: 2}
@@ -97,15 +104,16 @@ func TestExpireChessStates(t *testing.T) {
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-expire")
 	now := time.Now()
 
+	// when
 	// these times must be before now.Add(-GameExpireFinished)
 	_, err := SetChessStateAt(ctx, rdb, id1, state1, now.Add(2*-GameExpireFinished))
 	assert.NoError(t, err)
 
-	conn := rdb.Cache.Get()
-	defer conn.Close()
-
-	assert.NoError(t, ExpireChessStates(ctx, conn, rdb.GamesZSet))
+	err = ExpireChessStates(ctx, rdb, rdb.GamesZSet)
+	assert.NoError(t, err)
 
 	_, err = GetChessState(ctx, rdb, id1)
+
+	// then
 	assert.Equal(t, ErrNoChessState, err)
 }

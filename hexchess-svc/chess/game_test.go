@@ -28,7 +28,7 @@ func TestGame_GetSetPieces(t *testing.T) {
 }
 
 func TestGame_DetermineIsCheckmate(t *testing.T) {
-	game1 := MakeEmptyGame()
+	game1 := MakeEmptyGame(true)
 	game1.SetPieces(
 		NotMove{"f6", WhiteKing},
 		NotMove{"f4", BlackQueen},
@@ -37,7 +37,7 @@ func TestGame_DetermineIsCheckmate(t *testing.T) {
 		NotMove{"j4", BlackBishop},
 		NotMove{"f9", BlackKing})
 
-	game2 := MakeEmptyGame()
+	game2 := MakeEmptyGame(true)
 	game2.SetPieces(
 		NotMove{"f1", WhiteKing},
 		NotMove{"a1", BlackQueen},
@@ -115,21 +115,21 @@ func TestGame_findMoves(t *testing.T) {
 		},
 		{
 			name:     "KnightCenter",
-			game:     MakeEmptyGame(NotMove{"f6", WhiteKnight}),
+			game:     MakeEmptyGame(true, NotMove{"f6", WhiteKnight}),
 			hex:      Hex{File: 5, Rank: 5},
 			f:        (*Game).findKnightMoves,
 			expMoves: []string{"h7", "g8", "h3", "g3", "d7", "e8", "d3", "e3", "c5", "c4", "i5", "i4"},
 		},
 		{
 			name:     "KnightLeft",
-			game:     MakeEmptyGame(NotMove{"d3", WhiteKnight}),
+			game:     MakeEmptyGame(true, NotMove{"d3", WhiteKnight}),
 			hex:      Hex{File: 3, Rank: 2},
 			f:        (*Game).findKnightMoves,
 			expMoves: []string{"f6", "e6", "f2", "e1", "b4", "c5", "a2", "a1", "g4", "g3"},
 		},
 		{
 			name:     "KnightRight",
-			game:     MakeEmptyGame(NotMove{"h7", WhiteKnight}),
+			game:     MakeEmptyGame(true, NotMove{"h7", WhiteKnight}),
 			hex:      Hex{File: 7, Rank: 6},
 			f:        (*Game).findKnightMoves,
 			expMoves: []string{"j4", "i4", "f10", "g10", "f6", "g5", "e8", "e7", "k6", "k5"},
@@ -182,7 +182,7 @@ func TestGame_MakeMove(t *testing.T) {
 }
 
 func TestGame_GetMoveNotation(t *testing.T) {
-	game := MakeEmptyGame(
+	game := MakeEmptyGame(true,
 		NotMove{"f5", WhitePawn},
 		NotMove{"a1", WhiteKing},
 		NotMove{"k6", BlackKing},

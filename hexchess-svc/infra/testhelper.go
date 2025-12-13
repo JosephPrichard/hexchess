@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
@@ -76,7 +77,7 @@ func getRedisAddr(t TestLogger, cont *tcredis.RedisContainer) string {
 	return addr
 }
 
-func BeforeRedisTests(t TestLogger) *Redis {
+func BeforeRedisTest(t TestLogger) *Redis {
 	muRedis.Lock()
 	defer muRedis.Unlock()
 
@@ -144,7 +145,7 @@ func createPgPool(t TestLogger, cont testcontainers.Container) *pgxpool.Pool {
 	return pool
 }
 
-func seedPostgres(t TestLogger, pool *pgxpool.Pool, insertTestData func(TestLogger, *db.Queries)) {
+func seedPostgres(t TestLogger, pool *pgxpool.Pool, insertTestData func(TestLogger, *pgxpool.Pool)) {
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"); err != nil {
 		t.Fatalf("reset schema: %v", err)
@@ -152,10 +153,10 @@ func seedPostgres(t TestLogger, pool *pgxpool.Pool, insertTestData func(TestLogg
 	if _, err := pool.Exec(ctx, db.CreateSchema); err != nil {
 		t.Fatalf("create schema: %v", err)
 	}
-	insertTestData(t, db.New(pool))
+	insertTestData(t, pool)
 }
 
-func beginTestTx(t TestLogger, q *db.Queries, pool *pgxpool.Pool) (*db.Queries, func()) {
+func beginTestTx(t TestLogger, pool *pgxpool.Pool) (pgx.Tx, func()) {
 	ctx := context.Background()
 	testTx, err := pool.Begin(ctx)
 	if err != nil {
@@ -167,10 +168,10 @@ func beginTestTx(t TestLogger, q *db.Queries, pool *pgxpool.Pool) (*db.Queries, 
 		}
 		pool.Close()
 	}
-	return q.WithTx(testTx), closer
+	return testTx, closer
 }
 
-func BeforePgTests(t TestLogger, useTestTx bool, insertTestData func(TestLogger, *db.Queries)) (*Postgres, func()) {
+func BeforePostgresTest(t TestLogger, useTestTx bool, insertTestData func(TestLogger, *pgxpool.Pool)) (*Pdb, func()) {
 	muPostgres.Lock()
 	defer muPostgres.Unlock()
 
@@ -181,20 +182,20 @@ func BeforePgTests(t TestLogger, useTestTx bool, insertTestData func(TestLogger,
 	}
 
 	pool := createPgPool(t, postgresCont)
-	q := db.New(pool)
-
 	if shouldSeed {
 		seedPostgres(t, pool, insertTestData)
 	}
+
 	if useTestTx {
-		qWithTx, closer := beginTestTx(t, q, pool)
-		return MakeFakePostgres(qWithTx), closer
+		txn, closer := beginTestTx(t, pool)
+		return MakeTxnPostgres(txn), closer
+	} else {
+		return MakePostgres(db.New(pool), pool), func() { pool.Close() }
 	}
-	return MakePostgres(q, pool), func() { pool.Close() }
 }
 
-func BeforeDbTests(t TestLogger, useTx bool, insertTestData func(TestLogger, *db.Queries)) (Databases, func()) {
-	postgres, dbCloser := BeforePgTests(t, useTx, insertTestData)
-	rdb := BeforeRedisTests(t)
-	return Databases{Pdb: postgres, Rdb: rdb}, func() { dbCloser(); rdb.Close() }
+func BeforeDbTest(t TestLogger, useTx bool, insertTestData func(TestLogger, *pgxpool.Pool)) (Databases, func()) {
+	pdb, pdbCloser := BeforePostgresTest(t, useTx, insertTestData)
+	rdb := BeforeRedisTest(t)
+	return Databases{Pdb: pdb, Rdb: rdb}, func() { pdbCloser(); rdb.Close() }
 }

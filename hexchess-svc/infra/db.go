@@ -12,21 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type TxFn[Ret any] func(query *db.Queries) (Ret, error)
-type BeginTxFn = func(ctx context.Context) (pgx.Tx, error)
-
-type Postgres struct {
-	Query   *db.Queries
-	Pool    *pgxpool.Pool
-	noopTxn bool
-}
-
-func (db Postgres) Close() {
-	if db.Pool != nil {
-		db.Pool.Close()
-	}
-}
-
 type RedisAddrs struct {
 	CacheAddr  string
 	PubsubAddr string
@@ -62,6 +47,32 @@ var DefaultRedisNames = RedisNames{
 	ActiveCountChan: ActiveCountChan,
 }
 
+type Pdb struct {
+	Query *db.Queries   // always initialized, used by application code to talk with the db
+	pool  *pgxpool.Pool // used for creating new txn whenever Pdb is not a txn
+	txn   pgx.Tx        // a postgres struct can be a txn - this is used in testing where we want to fake an operation as a txn
+}
+
+func (pdb *Pdb) Close() {
+	if pdb.pool != nil {
+		pdb.pool.Close()
+	}
+}
+
+func (pdb *Pdb) GetPool() *pgxpool.Pool {
+	if pdb.pool == nil {
+		panic("pgxpool not initialized")
+	}
+	return pdb.pool
+}
+
+func (pdb *Pdb) GetTxn() pgx.Tx {
+	if pdb.txn == nil {
+		panic("txn not initialized")
+	}
+	return pdb.txn
+}
+
 type Redis struct {
 	Cache  *redis.Pool
 	PubSub *redis.Pool
@@ -79,7 +90,7 @@ func (rdb *Redis) Close() {
 }
 
 type Databases struct {
-	Pdb *Postgres
+	Pdb *Pdb
 	Rdb *Redis
 }
 
@@ -122,28 +133,32 @@ func MakeRdb(addrs RedisAddrs, names RedisNames) *Redis {
 	}
 }
 
-func MakePostgres(query *db.Queries, pool *pgxpool.Pool) *Postgres {
-	return &Postgres{Query: query, Pool: pool}
+func MakePostgres(query *db.Queries, pool *pgxpool.Pool) *Pdb {
+	return &Pdb{Query: query, pool: pool}
 }
 
-func MakeFakePostgres(query *db.Queries) *Postgres {
-	return &Postgres{Query: query, noopTxn: true}
+func MakeTxnPostgres(txn pgx.Tx) *Pdb {
+	return &Pdb{Query: db.New(txn), txn: txn}
 }
+
+type TxFn[Ret any] func(query *db.Queries) (Ret, error)
+type BeginTxFn = func(ctx context.Context) (pgx.Tx, error)
 
 type TxnArgs[Ret any] struct {
 	Ctx          context.Context
-	Postgres     *Postgres
+	Pdb          *Pdb
 	TxFn         TxFn[Ret]
 	ErrAllowList []error // errors where we are allowed to commit instead of rollback
 }
 
 func WithTxn[Ret any](args TxnArgs[Ret]) (ret Ret, err error) {
-	if args.Postgres.noopTxn {
-		return args.TxFn(args.Postgres.Query)
+	pdb := args.Pdb
+	if pdb.txn != nil {
+		return args.TxFn(db.New(pdb.txn))
 	}
 
 	ctx := args.Ctx
-	tx, err := args.Postgres.Pool.Begin(args.Ctx)
+	tx, err := pdb.GetPool().Begin(args.Ctx)
 	if err != nil {
 		return ret, err
 	}
@@ -169,6 +184,6 @@ func WithTxn[Ret any](args TxnArgs[Ret]) (ret Ret, err error) {
 		}
 	}()
 
-	ret, err = args.TxFn(args.Postgres.Query.WithTx(tx))
+	ret, err = args.TxFn(pdb.Query.WithTx(tx))
 	return
 }

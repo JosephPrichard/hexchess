@@ -1,4 +1,4 @@
-package dpl
+package svc
 
 import (
 	"context"
@@ -24,23 +24,25 @@ func assertStateRdb(t *testing.T, rdb *infra.Redis, expState ChessState) {
 }
 
 func TestJoinGame_JoinWhite(t *testing.T) {
-	rdb := infra.BeforeRedisTests(t)
+	// given
+	rdb := infra.BeforeRedisTest(t)
 	defer rdb.Close()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-join-game")
 
 	gameID := "test123"
-	inState := MakeState(gameID, TcRealTime, CsRandom, nil)
-	inState.FirstColor = CsWhite
+	inState := MakeState(StateSetup{ID: gameID, TimeControl: TcRealTime, FirstColor: ColorRandom})
+	inState.FirstColor = ColorWhite
 	player := PlayerState{ID: 1, Name: "name", Country: "us", Elo: 0}
 
-	if _, err := SetChessState(ctx, rdb, gameID, inState); err != nil {
-		t.Fatalf("failed initialize test state: %v", err)
-	}
+	// when
+	_, err := SetChessState(ctx, rdb, gameID, inState)
+	assert.NoError(t, err)
 
 	updated, err := JoinGame(ctx, rdb, gameID, &player)
 	assert.NoError(t, err)
 
+	// then
 	expState := inState.DeepCopy()
 	expState.WhitePlayer = &player
 
@@ -49,53 +51,52 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 }
 
 func TestJoinGame_BothPlayersExist(t *testing.T) {
-	rdb := infra.BeforeRedisTests(t)
+	// given
+	rdb := infra.BeforeRedisTest(t)
 	defer rdb.Close()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-join-game-both-players")
 
 	gameID := "test123"
-	inState := MakeState(gameID, TcRealTime, CsRandom, nil)
-	inState.WhitePlayer = &PlayerState{ID: 1, Name: "white"}
-	inState.BlackPlayer = &PlayerState{ID: 2, Name: "black"}
+	inState := MakeState(StateSetup{ID: gameID, TimeControl: TcRealTime, FirstColor: ColorRandom, White: &PlayerState{ID: 1, Name: "white"}, Black: &PlayerState{ID: 2, Name: "black"}})
 
-	if _, err := SetChessState(ctx, rdb, gameID, inState); err != nil {
-		t.Fatalf("failed initialize test state: %v", err)
-	}
+	// when
+	_, err := SetChessState(ctx, rdb, gameID, inState)
+	assert.NoError(t, err)
 
 	result, err := JoinGame(ctx, rdb, gameID, &PlayerState{ID: 3, Name: "test"})
-
 	assert.NoError(t, err)
+
+	// then
 	util.AssertEqualIgnoring(t, inState, result, ChessMetaCmpOpts)
 	assertStateRdb(t, rdb, inState)
 }
 
 func TestMakeMove(t *testing.T) {
-	dbs, closer := BeforeDbTests(t)
+	dbs, closer := infra.BeforeDbTest(t, false, InsertTestData)
 	defer closer()
 
-	s1 := MakeState("test1", TcRealTime, CsRandom, nil)
-	s1.WhitePlayer = &PlayerState{ID: 1}
-	s1.BlackPlayer = &PlayerState{ID: 2}
-
-	s2 := ChessState{
-		Game: chess.MakeEmptyGame(),
-		ChessMeta: ChessMeta{
-			ID:          "test2",
-			FirstColor:  CsRandom,
-			TimeControl: TcRealTime,
-			Touch:       time.UnixMilli(0),
-			WhitePlayer: &PlayerState{ID: 3},
-			BlackPlayer: &PlayerState{ID: 4},
-		},
-	}
-	s2.Game.Board.IsWhiteTurn = false
-	s2.Game.SetPieces(
-		chess.NotMove{Not: "f1", Piece: chess.WhiteKing},
-		chess.NotMove{Not: "a2", Piece: chess.BlackQueen},
-		chess.NotMove{Not: "h1", Piece: chess.BlackRook},
-		chess.NotMove{Not: "f3", Piece: chess.BlackRook},
-		chess.NotMove{Not: "f9", Piece: chess.BlackKing})
+	s1 := MakeState(StateSetup{
+		ID:          "test1",
+		TimeControl: TcRealTime,
+		FirstColor:  ColorRandom,
+		White:       &PlayerState{ID: 1},
+		Black:       &PlayerState{ID: 2},
+	})
+	s2 := MakeState(StateSetup{
+		ID:          "test2",
+		TimeControl: TcRealTime,
+		FirstColor:  ColorRandom,
+		White:       &PlayerState{ID: 3},
+		Black:       &PlayerState{ID: 4},
+		Game: util.PtrOf(chess.MakeEmptyGame(false,
+			chess.NotMove{Not: "f1", Piece: chess.WhiteKing},
+			chess.NotMove{Not: "a2", Piece: chess.BlackQueen},
+			chess.NotMove{Not: "h1", Piece: chess.BlackRook},
+			chess.NotMove{Not: "f3", Piece: chess.BlackRook},
+			chess.NotMove{Not: "f9", Piece: chess.BlackKing},
+		)),
+	})
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-make-move")
 
@@ -136,41 +137,42 @@ func TestMakeMove(t *testing.T) {
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			if _, err := MakeGameMove(ctx, &dbs, test.state.ID, test.player, test.pm); err != nil {
-				assert.Equal(t, test.expErr, err)
-			}
+			_, err := MakeGameMove(ctx, &dbs, test.state.ID, test.player, test.pm)
+			assert.Equal(t, test.expErr, err)
 		})
 	}
 }
 
 func TestForfeit_BlackForfeits(t *testing.T) {
-	dbs, closer := BeforeDbTxnTests(t)
+	// given
+	dbs, closer := infra.BeforeDbTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-forfeit")
 
 	gameID := "test123"
-	inState := MakeState(gameID, TcRealTime, CsRandom, nil)
+	inState := MakeState(StateSetup{ID: gameID, TimeControl: TcRealTime, FirstColor: ColorRandom})
 	inState.WhitePlayer = &PlayerState{ID: 1}
 	inState.BlackPlayer = &PlayerState{ID: 2}
 	inState.Game.Moves = []chess.HistMove{{
 		PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}},
 	}}
 
-	if _, err := SetChessState(ctx, dbs.Rdb, gameID, inState); err != nil {
-		t.Fatalf("failed initialize test state: %v", err)
-	}
-
+	// when
+	_, err := SetChessState(ctx, dbs.Rdb, gameID, inState)
+	assert.NoError(t, err)
 	assert.NoError(t, ForfeitGame(ctx, &dbs, gameID, *inState.BlackPlayer))
 
+	// then
 	expState := inState.DeepCopy()
 	expState.IsEnded = true
 
 	assertStateRdb(t, dbs.Rdb, expState)
 }
 
-func TestUpdateGameResultTx(t *testing.T) {
-	pdb, closer := BeforePgTxnTests(t)
+func TestInsertGameResultTx(t *testing.T) {
+	// given
+	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-update-stats")
@@ -178,19 +180,18 @@ func TestUpdateGameResultTx(t *testing.T) {
 	testUser0 := TestUserEntities[0]
 	testUser1 := TestUserEntities[1]
 
+	// when
 	cs, err := InsertGameResultTx(ctx, pdb, time.Now(), GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, Cause: Checkmate, Result: WhiteWin, Mode: ModeUnlimited, SerializedMoveHist: []byte{}})
 	assert.NoError(t, err)
 
-	// assert database rows
-	u1, err := GetUserByID(ctx, pdb.Query, testUser0.ID)
+	// then
+	e1, err := pdb.Query.GetElosByIds(ctx, []int64{testUser0.ID})
 	assert.NoError(t, err)
-	u2, err := GetUserByID(ctx, pdb.Query, testUser1.ID)
+	e2, err := pdb.Query.GetElosByIds(ctx, []int64{testUser1.ID})
 	assert.NoError(t, err)
 
-	u1.Elo = math.Round(u1.Elo)
-	u2.Elo = math.Round(u2.Elo)
-	assert.Equal(t, float64(1015), u1.Elo)
-	assert.Equal(t, float64(985), u2.Elo)
+	assert.Equal(t, e1[0].Elo, float64(1015))
+	assert.Equal(t, e2[0].Elo, float64(985))
 
 	r1, err := pdb.Query.GetReplayRowByID(ctx, cs.ReplayID)
 	assert.NoError(t, err)
@@ -210,7 +211,6 @@ func TestUpdateGameResultTx(t *testing.T) {
 	}
 	util.AssertEqualIgnoring(t, expReplay, r1, ReplayRowCmpOpts)
 
-	// assert return value
 	cs.ReplayID = 0
 	cs.WinEloDiff = math.Round(cs.WinEloDiff)
 	cs.LoseEloDiff = math.Round(cs.LoseEloDiff)

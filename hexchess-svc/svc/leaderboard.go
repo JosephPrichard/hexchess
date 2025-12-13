@@ -1,4 +1,4 @@
-package dpl
+package svc
 
 import (
 	"context"

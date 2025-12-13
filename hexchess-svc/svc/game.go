@@ -1,4 +1,4 @@
-package dpl
+package svc
 
 import (
 	"context"
@@ -28,7 +28,7 @@ func CreateGame(ctx context.Context, rdb *infra.Redis, color ColorSelect, timeCo
 	}
 	strID := string(bID)
 
-	state := MakeState(strID, timeControl, color, initialBoard)
+	state := MakeState(StateSetup{ID: strID, TimeControl: timeControl, FirstColor: color, InitialBoard: initialBoard})
 	state.Game.InitPieceMoves()
 
 	slog.InfoContext(ctx, "created chess game", "state", state)
@@ -78,7 +78,7 @@ func JoinGame(ctx context.Context, rdb *infra.Redis, gameID string, player *Play
 		if err != nil {
 			return ChessState{}, fmt.Errorf("generate randint used to select first color: %w", err)
 		}
-		pickWhite := state.FirstColor == CsRandom && n.Int64()%2 == 0 || state.FirstColor == CsWhite
+		pickWhite := state.FirstColor == ColorRandom && n.Int64()%2 == 0 || state.FirstColor == ColorWhite
 		if pickWhite {
 			state.WhitePlayer = player
 		} else {
@@ -263,10 +263,10 @@ func (cs GRChangeSet) IsNoop() bool {
 	return cs.LoseEloDiff == 0 && cs.WinEloDiff == 0
 }
 
-func InsertGameResultTx(ctx context.Context, postgres *infra.Postgres, timeAt time.Time, params GameResult) (GRChangeSet, error) {
+func InsertGameResultTx(ctx context.Context, pdb *infra.Pdb, timeAt time.Time, params GameResult) (GRChangeSet, error) {
 	return infra.WithTxn(infra.TxnArgs[GRChangeSet]{
-		Ctx:      ctx,
-		Postgres: postgres,
+		Ctx: ctx,
+		Pdb: pdb,
 		TxFn: func(query *db.Queries) (GRChangeSet, error) {
 			return insertGameResult(ctx, query, timeAt, params)
 		},
@@ -279,21 +279,18 @@ type EloPair struct {
 }
 
 func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, gr GameResult) (cs GRChangeSet, err error) {
-	// retrieve elos while maintaining a consistent ID argument order prevent deadlocks
 	ids := []int64{gr.WhiteID, gr.BlackID}
-	slices.SortFunc(ids, func(left, right int64) int { return int(left - right) })
+	slices.SortFunc(ids, func(left, right int64) int { return int(left - right) }) // consistent query order
 
-	rows, err := query.GetElos(ctx, ids)
+	rows, err := query.GetElosByIds(ctx, ids)
 	if err != nil {
 		return cs, fmt.Errorf("select users %+v elo: %w", ids, err)
 	}
 	var whiteElo, blackElo float64
-	for _, row := range rows {
-		if row.ID == gr.WhiteID {
-			whiteElo = row.Elo
-		} else {
-			blackElo = row.Elo
-		}
+	if rows[0].ID == gr.WhiteID {
+		whiteElo, blackElo = rows[0].Elo, rows[1].Elo
+	} else {
+		whiteElo, blackElo = rows[1].Elo, rows[0].Elo
 	}
 
 	var winID, loseID int64
@@ -319,9 +316,8 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 			whiteEloNext, blackEloNext = loseEloNext, winEloNext
 		}
 
-		// update elos while maintaining a consistent query execution order relative to ID to prevent deadlocks
 		updts := []db.UpdateEloParams{{ID: winID, Elo: winEloNext, Won: true}, {ID: loseID, Elo: loseEloNext, Won: false}}
-		slices.SortFunc(updts, func(left, right db.UpdateEloParams) int { return int(left.ID - right.ID) })
+		slices.SortFunc(updts, func(left, right db.UpdateEloParams) int { return int(left.ID - right.ID) }) // consistent update order
 
 		for _, u := range updts {
 			if err := query.UpdateElo(ctx, u); err != nil {

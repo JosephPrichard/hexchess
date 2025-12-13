@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"hexchess-svc/db"
-	"hexchess-svc/dpl"
 	"hexchess-svc/infra"
 	"hexchess-svc/static"
+	"hexchess-svc/svc"
 	"hexchess-svc/util"
 	"hexchess-svc/web"
 	"log"
@@ -68,9 +68,9 @@ func main() {
 
 	state := web.MakeServerState(infra.Databases{Rdb: rdb, Pdb: postgres}, countryList, "")
 
-	<-dpl.ListenGameMessages(state.GamesCaster, rdb)
-	<-dpl.ListenUsersMessages(state.UsersCaster, rdb)
-	<-dpl.ListenUnicastEvents(state.CountsCaster, rdb)
+	<-svc.ListenGameMessages(state.GamesCaster, rdb)
+	<-svc.ListenUsersMessages(state.UsersCaster, rdb)
+	<-svc.ListenUnicastEvents(state.CountsCaster, rdb)
 
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 

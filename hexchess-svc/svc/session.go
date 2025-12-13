@@ -1,4 +1,4 @@
-package dpl
+package svc
 
 import (
 	"context"
@@ -14,24 +14,25 @@ import (
 var ErrSessionNotFound = errors.New("session not found")
 
 func GetSession(ctx context.Context, rdb *infra.Redis, sessionID string) (PlayerState, error) {
+	var p PlayerState
+
 	conn := rdb.Cache.Get()
 	defer conn.Close()
 
 	fullID := "session:" + sessionID
 	data, err := redis.Bytes(conn.Do("GET", fullID))
 	if errors.Is(err, redis.ErrNil) {
-		return PlayerState{}, ErrSessionNotFound
+		return p, ErrSessionNotFound
 	}
 	if err != nil {
-		return PlayerState{}, fmt.Errorf("get session %s: %w", sessionID, err)
+		return p, fmt.Errorf("get session %s: %w", sessionID, err)
 	}
 
-	player, err := UnmarshalPlayer(data)
-	if err != nil {
-		return PlayerState{}, fmt.Errorf("unmarshal session: %w", err)
+	if p, err = UnmarshalPlayer(data); err != nil {
+		return p, fmt.Errorf("unmarshal session: %w", err)
 	}
-	slog.InfoContext(ctx, "selected session", "sessionID", sessionID, "player", player)
-	return player, nil
+	slog.InfoContext(ctx, "selected session", "sessionID", sessionID, "player", p)
+	return p, nil
 }
 
 func SetSession(ctx context.Context, rdb *infra.Redis, sessionID string, player PlayerState, expiry time.Duration) error {

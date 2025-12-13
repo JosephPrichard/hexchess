@@ -143,7 +143,7 @@ UPDATE users
 SET password = sqlc.arg('password'), salt = sqlc.arg('salt')
 WHERE id = sqlc.arg('id');
 
--- name: GetElos :many
+-- name: GetElosByIds :many
 SELECT id, elo
 FROM users
 WHERE id = ANY(sqlc.arg('id')::bigint[]);

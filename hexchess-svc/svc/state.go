@@ -1,4 +1,4 @@
-package dpl
+package svc
 
 import (
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -32,21 +32,38 @@ type ChessMeta struct {
 
 var ChessMetaCmpOpts = cmpopts.IgnoreFields(ChessMeta{}, "Touch")
 
-func MakeState(id string, timeControl TimeControl, firstColor ColorSelect, initialBoard *chess.Board) ChessState {
+type StateSetup struct {
+	ID           string
+	TimeControl  TimeControl
+	FirstColor   ColorSelect
+	White        *PlayerState
+	Black        *PlayerState
+	InitialBoard *chess.Board
+	Game         *chess.Game
+}
+
+func MakeState(s StateSetup) ChessState {
 	b := chess.MakeStartBoard()
-	if initialBoard != nil {
-		b = *initialBoard
+	if s.InitialBoard != nil {
+		b = *s.InitialBoard
 	}
-	return ChessState{
+	game := chess.Game{Board: b}
+	if s.Game != nil {
+		game = *s.Game
+	}
+	state := ChessState{
 		InitialBoard: b,
-		Game:         chess.Game{Board: b},
+		Game:         game,
 		ChessMeta: ChessMeta{
-			ID:          id,
-			FirstColor:  firstColor,
-			TimeControl: timeControl,
+			ID:          s.ID,
+			FirstColor:  s.FirstColor,
+			TimeControl: s.TimeControl,
 			Touch:       time.UnixMilli(0),
+			WhitePlayer: s.White,
+			BlackPlayer: s.Black,
 		},
 	}
+	return state
 }
 
 func (s *ChessState) CurrPlayer() *PlayerState {

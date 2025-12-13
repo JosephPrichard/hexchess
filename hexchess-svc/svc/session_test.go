@@ -1,4 +1,4 @@
-package dpl
+package svc
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 )
 
 func TestSessions(t *testing.T) {
-	rdb := infra.BeforeRedisTests(t)
+	rdb := infra.BeforeRedisTest(t)
 	defer rdb.Close()
 
 	player := PlayerState{ID: 1, Name: "testing-name1"}

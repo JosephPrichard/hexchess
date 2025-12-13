@@ -6,8 +6,8 @@ import (
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
-	"hexchess-svc/dpl"
 	"hexchess-svc/pb"
+	"hexchess-svc/svc"
 	"log/slog"
 	"net/http"
 )
@@ -15,19 +15,19 @@ import (
 type GameSocketState struct {
 	ServerState
 	gameID string
-	player dpl.PlayerState
+	player svc.PlayerState
 }
 
 func makeGameErr(ctx context.Context, gameID string, err error) []byte {
 	var wsErr error
 	switch err {
-	case dpl.ErrFinishedGame:
+	case svc.ErrFinishedGame:
 		wsErr = ErrWsFinishedGame
-	case dpl.ErrTurn:
+	case svc.ErrTurn:
 		wsErr = ErrWsTurn
-	case dpl.ErrInvalidMove:
+	case svc.ErrInvalidMove:
 		wsErr = ErrWsInvalidMove
-	case dpl.ErrNoChessState:
+	case svc.ErrNoChessState:
 		// if the state cannot be found, it has expired while an inactive connection has been open
 		wsErr = ErrWsExpiration
 	default:
@@ -47,7 +47,7 @@ func makeGameErr(ctx context.Context, gameID string, err error) []byte {
 func makeGameInitErr(ctx context.Context, gameID string, err error) []byte {
 	var wsErr error
 	switch err {
-	case dpl.ErrNoChessState:
+	case svc.ErrNoChessState:
 		wsErr = ErrWsInvalidGame
 	default:
 		wsErr = ErrWsFatal
@@ -69,12 +69,12 @@ func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState ServerStat
 	}
 	defer conn.Close()
 
-	var sessPlayer *dpl.PlayerState
+	var sessPlayer *svc.PlayerState
 
-	player, err := dpl.GetSession(ctx, serverState.Rdb, sessionID)
+	player, err := svc.GetSession(ctx, serverState.Rdb, sessionID)
 	if err != nil {
 		switch err {
-		case dpl.ErrSessionNotFound:
+		case svc.ErrSessionNotFound:
 			sessPlayer = nil
 		default:
 			writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
@@ -83,7 +83,7 @@ func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState ServerStat
 	} else {
 		sessPlayer = &player
 	}
-	chessState, err := dpl.JoinGame(ctx, serverState.Rdb, gameID, sessPlayer)
+	chessState, err := svc.JoinGame(ctx, serverState.Rdb, gameID, sessPlayer)
 	if err != nil {
 		writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
 		return
@@ -125,17 +125,17 @@ func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState ServerStat
 	}
 }
 
-func handleGameInit(gameID string, player dpl.PlayerState, state dpl.ChessState, write func([]byte)) error {
+func handleGameInit(gameID string, player svc.PlayerState, state svc.ChessState, write func([]byte)) error {
 	for i, o := range []*pb.GameOutput{
 		MakePbGameOutputInit(
 			gameID,
-			dpl.SerializeChessState(state),
-			dpl.SerializePlayer(&player),
+			svc.SerializeChessState(state),
+			svc.SerializePlayer(&player),
 		),
 		MakePbGameOutputPlayers(
 			gameID,
-			dpl.SerializePlayer(state.WhitePlayer),
-			dpl.SerializePlayer(state.BlackPlayer),
+			svc.SerializePlayer(state.WhitePlayer),
+			svc.SerializePlayer(state.BlackPlayer),
 		),
 	} {
 		b, err := proto.Marshal(o)
@@ -171,18 +171,18 @@ func handleGameMessage(ctx context.Context, state GameSocketState, msg []byte, w
 }
 
 func handleGameForfeit(ctx context.Context, state GameSocketState) error {
-	if err := dpl.ForfeitGame(ctx, &state.Databases, state.gameID, state.player); err != nil {
+	if err := svc.ForfeitGame(ctx, &state.Databases, state.gameID, state.player); err != nil {
 		return err
 	}
 	bytes, err := proto.Marshal(MakePbGameOutputForfeit(state.gameID))
 	if err != nil {
 		return err
 	}
-	return dpl.BroadcastMessage(ctx, state.Rdb, state.Rdb.GamesChan, bytes)
+	return svc.BroadcastMessage(ctx, state.Rdb, state.Rdb.GamesChan, bytes)
 }
 
 func handleGameMove(ctx context.Context, state GameSocketState, pbInput *pb.MoveInput) error {
-	result, err := dpl.MakeGameMove(ctx, &state.Databases, state.gameID, state.player, chess.DeserializeMove(pbInput.Move))
+	result, err := svc.MakeGameMove(ctx, &state.Databases, state.gameID, state.player, chess.DeserializeMove(pbInput.Move))
 	if err != nil {
 		return err
 	}
@@ -196,7 +196,7 @@ func handleGameMove(ctx context.Context, state GameSocketState, pbInput *pb.Move
 	if err != nil {
 		return err
 	}
-	return dpl.BroadcastMessage(ctx, state.Rdb, state.Rdb.GamesChan, bytes)
+	return svc.BroadcastMessage(ctx, state.Rdb, state.Rdb.GamesChan, bytes)
 }
 
 func handleGameChat(ctx context.Context, state GameSocketState, pbInput *pb.ChatInput) error {
@@ -204,5 +204,5 @@ func handleGameChat(ctx context.Context, state GameSocketState, pbInput *pb.Chat
 	if err != nil {
 		return err
 	}
-	return dpl.BroadcastMessage(ctx, state.Rdb, state.Rdb.GamesChan, bytes)
+	return svc.BroadcastMessage(ctx, state.Rdb, state.Rdb.GamesChan, bytes)
 }

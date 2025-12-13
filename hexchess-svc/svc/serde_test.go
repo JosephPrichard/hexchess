@@ -1,4 +1,4 @@
-package dpl
+package svc
 
 import (
 	"encoding/json"
@@ -10,10 +10,10 @@ import (
 )
 
 func TestChessSerializer(t *testing.T) {
-	input1 := MakeState(uuid.NewString(), TcRealTime, CsRandom, nil)
-	input2 := MakeState(uuid.NewString(), TcRealTime, CsRandom, nil)
+	input1 := MakeState(StateSetup{ID: uuid.NewString(), TimeControl: TcRealTime, FirstColor: ColorRandom})
+	input2 := MakeState(StateSetup{ID: uuid.NewString(), TimeControl: TcRealTime, FirstColor: ColorRandom})
 	input2.Game.InitPieceMoves()
-	input2.Game.ClearTables() // since we're asserting the output back to the input, we must clear dpl that isn't serialized
+	input2.Game.ClearTables() // since we're asserting the output back to the input, we must clear data that isn't serialized
 
 	for i, input := range []ChessState{
 		input1,
@@ -24,7 +24,6 @@ func TestChessSerializer(t *testing.T) {
 			if err != nil {
 				t.Fatalf("marshal chess state: %v", err)
 			}
-
 			output, err := UnmarshalChessState(b)
 			if err != nil {
 				t.Fatalf("deserialize state: %v", err)
@@ -37,7 +36,7 @@ func TestChessSerializer(t *testing.T) {
 }
 
 func BenchmarkProtoChessSerializer(b *testing.B) {
-	input := MakeState(uuid.NewString(), TcRealTime, CsRandom, nil)
+	input := MakeState(StateSetup{ID: uuid.NewString(), TimeControl: TcRealTime, FirstColor: ColorRandom})
 	input.Game.InitPieceMoves()
 
 	b.ResetTimer()
@@ -53,7 +52,7 @@ func BenchmarkProtoChessSerializer(b *testing.B) {
 }
 
 func BenchmarkJsonChessSerializer(b *testing.B) {
-	input := MakeState(uuid.NewString(), TcRealTime, CsRandom, nil)
+	input := MakeState(StateSetup{ID: uuid.NewString(), TimeControl: TcRealTime, FirstColor: ColorRandom})
 	input.Game.InitPieceMoves()
 
 	b.ResetTimer()

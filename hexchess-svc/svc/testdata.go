@@ -1,8 +1,11 @@
-package dpl
+package svc
 
 import (
 	"context"
-	"hexchess-svc/db"
+	"crypto/rand"
+	"encoding/base64"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/crypto/bcrypt"
 	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"time"
@@ -51,21 +54,36 @@ var TestUserEntities = []UserEntity{
 
 var LastUserID = int64(len(TestUsersInsts))
 
-func createTestUser(t infra.TestLogger, query *db.Queries, inst UserInst) UserEntity {
-	ctx := context.WithValue(context.Background(), util.Trace, "create-test-user")
-	u, err := InsertUser(ctx, query, inst)
-	if err != nil {
-		t.Fatalf("insert test user: %v", err)
-	}
-	return u
-}
+func insertTestUser(t infra.TestLogger, pool *pgxpool.Pool, inst UserInst) {
+	ctx := context.WithValue(context.Background(), util.Trace, "insert-test-users")
 
-func insertTestUsers(t infra.TestLogger, query *db.Queries, insts ...UserInst) []UserEntity {
-	var users []UserEntity
-	for _, inst := range insts {
-		users = append(users, createTestUser(t, query, inst))
+	saltBytes := make([]byte, 16)
+	if _, err := rand.Read(saltBytes); err != nil {
+		t.Fatalf("failed to generate salt: %v", err)
 	}
-	return users
+	salt := base64.StdEncoding.EncodeToString(saltBytes)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(inst.Password+salt), 12)
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO users (username, country, elo, highest_elo, start_elo, wins, losses, password, salt, google_account_id)
+    	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		`,
+		inst.Username,
+		inst.Country,
+		inst.Elo,
+		inst.Elo,
+		inst.Elo,
+		inst.Wins,
+		inst.Losses,
+		hashedPassword,
+		salt,
+		"",
+	); err != nil {
+		t.Fatalf("failed to insert test challenge: %v", err)
+	}
 }
 
 var TestReplayInsts = []ReplayInst{
@@ -192,22 +210,13 @@ var TestReplayEntities = []ReplayEntity{
 	},
 }
 
-func insertTestReplays(t infra.TestLogger, query *db.Queries, insts ...ReplayInst) {
-	ctx := context.WithValue(context.Background(), util.Trace, "create-test-replays")
-	for _, inst := range insts {
-		if _, err := InsertReplay(ctx, query, inst); err != nil {
-			t.Fatalf("insert test replay: %v", err)
-		}
-	}
-}
-
 var TestChallengeInsts = []ChallengeInst{
-	{ChallengerID: 1, ChallengeeID: 2, TimeControl: TcUnlimited, StartColor: CsRandom, MadeOn: time.Now()},
-	{ChallengerID: 3, ChallengeeID: 1, TimeControl: TcUnlimited, StartColor: CsRandom, MadeOn: time.Now()},
-	{ChallengerID: 5, ChallengeeID: 2, TimeControl: TcUnlimited, StartColor: CsRandom, MadeOn: time.Unix(20500, 0)},
-	{ChallengerID: 5, ChallengeeID: 4, TimeControl: TcUnlimited, StartColor: CsRandom, MadeOn: time.Unix(19500, 0)},
-	{ChallengerID: 5, ChallengeeID: 3, TimeControl: TcUnlimited, StartColor: CsRandom, MadeOn: time.Unix(0, 0)},
-	{ChallengerID: 5, ChallengeeID: 1, TimeControl: TcUnlimited, StartColor: CsRandom, MadeOn: time.Unix(0, 0)},
+	{ChallengerID: 1, ChallengeeID: 2, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: time.Now()},
+	{ChallengerID: 3, ChallengeeID: 1, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: time.Now()},
+	{ChallengerID: 5, ChallengeeID: 2, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: time.Unix(20500, 0)},
+	{ChallengerID: 5, ChallengeeID: 4, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: time.Unix(19500, 0)},
+	{ChallengerID: 5, ChallengeeID: 3, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: time.Unix(0, 0)},
+	{ChallengerID: 5, ChallengeeID: 1, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: time.Unix(0, 0)},
 }
 
 var TestChallengeEntities = []ChallengeEntity{
@@ -221,7 +230,7 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
 		TimeControl:       TcUnlimited,
-		StartColor:        CsRandom,
+		StartColor:        ColorRandom,
 	},
 	{
 		ChallengerID:      3,
@@ -233,21 +242,48 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
 		TimeControl:       TcUnlimited,
-		StartColor:        CsRandom,
+		StartColor:        ColorRandom,
 	},
 }
 
-func insertTestChallenges(t infra.TestLogger, query *db.Queries, insts ...ChallengeInst) {
-	ctx := context.WithValue(context.Background(), util.Trace, "create-test-challenges")
-	for _, c := range insts {
-		if err := InsertChallenge(ctx, query, c); err != nil {
-			t.Fatalf("insert test challenges: %v", err)
+func InsertTestData(t infra.TestLogger, pool *pgxpool.Pool) {
+	ctx := context.WithValue(context.Background(), util.Trace, "insert-test-data")
+
+	for _, inst := range TestUsersInsts {
+		insertTestUser(t, pool, inst)
+	}
+	for _, inst := range TestReplayInsts {
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO replays (white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode, move_history)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
+			`,
+			inst.WhiteID,
+			inst.BlackID,
+			inst.Result,
+			inst.Cause,
+			inst.WinEloDiff,
+			inst.LoseEloDiff,
+			inst.ReplayWhiteElo,
+			inst.ReplayBlackElo,
+			inst.PlayedOn,
+			inst.Mode,
+			[]byte{},
+		); err != nil {
+			t.Fatalf("faile to insert test replay: %v", err)
 		}
 	}
-}
-
-func InsertTestData(t infra.TestLogger, query *db.Queries) {
-	insertTestUsers(t, query, TestUsersInsts...)
-	insertTestReplays(t, query, TestReplayInsts...)
-	insertTestChallenges(t, query, TestChallengeInsts...)
+	for _, inst := range TestChallengeInsts {
+		if _, err := pool.Exec(ctx, `
+		 	INSERT INTO challenges (challenger_id, challengee_id, time_control, start_color, made_on)
+    		VALUES ($1, $2, $3, $4, $5);
+			`,
+			inst.ChallengerID,
+			inst.ChallengeeID,
+			inst.TimeControl,
+			inst.StartColor,
+			inst.MadeOn,
+		); err != nil {
+			t.Fatalf("failed to insert test challenge: %v", err)
+		}
+	}
 }

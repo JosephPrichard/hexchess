@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
-	"hexchess-svc/dpl"
 	"hexchess-svc/infra"
 	"hexchess-svc/static"
+	"hexchess-svc/svc"
 	"hexchess-svc/util"
 	"log"
 	"log/slog"
@@ -33,9 +33,9 @@ func readMockFile[V any](filename string) []V {
 func main() {
 	start := time.Now()
 
-	challenges := readMockFile[dpl.ChallengeInst]("test/challenge_insts.json")
-	gameResults := readMockFile[dpl.GameResult]("test/game_results.json")
-	userInsts := readMockFile[dpl.UserInst]("test/user_insts.json")
+	challenges := readMockFile[svc.ChallengeInst]("test/challenge_insts.json")
+	gameResults := readMockFile[svc.GameResult]("test/game_results.json")
+	userInsts := readMockFile[svc.UserInst]("test/user_insts.json")
 
 	util.InitLoggers(nil)
 	util.InitEnv()
@@ -73,23 +73,23 @@ func main() {
 		util.LogFatalErr("flush redis", err)
 	}
 
-	users, err := dpl.BatchInsertUsers(ctx, q, userInsts)
+	users, err := svc.BatchInsertUsers(ctx, q, userInsts)
 	if err != nil {
 		util.LogFatalErr("insert users", err)
 	}
-	var changes []dpl.UpdtLbChangeSet
+	var changes []svc.UpdtLbChangeSet
 	for _, u := range users {
-		changes = append(changes, dpl.UpdtLbChangeSet{ID: u.ID, EloDiff: u.Elo})
+		changes = append(changes, svc.UpdtLbChangeSet{ID: u.ID, EloDiff: u.Elo})
 	}
 
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() error {
-		return dpl.SetLeaderboard(egCtx, rdb, changes...)
+		return svc.SetLeaderboard(egCtx, rdb, changes...)
 	})
 	for _, c := range challenges {
 		eg.Go(func() error {
-			return dpl.InsertChallenge(egCtx, q, c)
+			return svc.InsertChallenge(egCtx, q, c)
 		})
 	}
 
@@ -112,7 +112,7 @@ func main() {
 			}
 			params.SerializedMoveHist = moveHistBytes
 
-			if _, err = dpl.InsertGameResultTx(ctx, pdb, timesAt[i], params); err != nil {
+			if _, err = svc.InsertGameResultTx(ctx, pdb, timesAt[i], params); err != nil {
 				util.LogFatalErr("insert game result", err)
 			}
 			return nil

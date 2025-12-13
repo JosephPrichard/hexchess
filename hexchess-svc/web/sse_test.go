@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hexchess-svc/dpl"
 	"hexchess-svc/infra"
+	"hexchess-svc/svc"
 	"hexchess-svc/util"
 	"net/http"
 	"net/http/httptest"
@@ -60,25 +60,27 @@ func scanEvents(resp *http.Response, expEvents int) []string {
 func parseEventData(input string) string {
 	lines := strings.Split(input, "\n")
 	for _, line := range lines {
-		if strings.HasPrefix(line, "dpl: ") {
-			return strings.TrimPrefix(line, "dpl: ")
+		if strings.HasPrefix(line, "svc: ") {
+			return strings.TrimPrefix(line, "svc: ")
 		}
 	}
-	panic(fmt.Sprintf("parse event dpl: %s", input))
+	panic(fmt.Sprintf("parse event svc: %s", input))
 }
 
 func TestHandleCountEvents(t *testing.T) {
-	rdb := infra.BeforeRedisTests(t)
+	// given
+	rdb := infra.BeforeRedisTest(t)
 	defer rdb.Close()
 	dbs := infra.Databases{Rdb: rdb}
 
 	state := MakeServerState(dbs, nil, "")
 	state.Generators = &mockGenerator{id: "id1"}
-	<-dpl.ListenUnicastEvents(state.CountsCaster, dbs.Rdb)
+	<-svc.ListenUnicastEvents(state.CountsCaster, dbs.Rdb)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
 	defer ts.Close()
 
+	// when
 	resp, err := http.Get(ts.URL + "/api/events/count")
 	assert.NoError(t, err)
 	defer resp.Body.Close()
@@ -89,35 +91,38 @@ func TestHandleCountEvents(t *testing.T) {
 	go func() {
 		ctx := context.WithValue(context.Background(), util.Trace, "broadcast-counts")
 		errChan <- errors.Join(
-			dpl.BroadcastActiveCount(ctx, dbs.Rdb, 2, "id3"),
-			dpl.BroadcastGameCount(ctx, dbs.Rdb, 1, "id2"))
+			svc.BroadcastActiveCount(ctx, dbs.Rdb, 2, "id3"),
+			svc.BroadcastGameCount(ctx, dbs.Rdb, 1, "id2"))
 	}()
 
+	// then
 	expEvents := []string{
-		fmt.Sprintf("event: %s\ndpl: %s\n", MetaEvent, "id1"),
-		fmt.Sprintf("event: %s\ndpl: %s\n", GamesCountEvent, `{"id":"id1","count":0}`),
-		fmt.Sprintf("event: %s\ndpl: %s\n", ActiveCountEvent, `{"id":"id1","count":1}`),
-		fmt.Sprintf("event: %s\ndpl: %s\n", ActiveCountEvent, `{"id":"id3","count":2}`),
-		fmt.Sprintf("event: %s\ndpl: %s\n", GamesCountEvent, `{"id":"id2","count":1}`),
+		fmt.Sprintf("event: %s\nsvc: %s\n", MetaEvent, "id1"),
+		fmt.Sprintf("event: %s\nsvc: %s\n", GamesCountEvent, `{"id":"id1","count":0}`),
+		fmt.Sprintf("event: %s\nsvc: %s\n", ActiveCountEvent, `{"id":"id1","count":1}`),
+		fmt.Sprintf("event: %s\nsvc: %s\n", ActiveCountEvent, `{"id":"id3","count":2}`),
+		fmt.Sprintf("event: %s\nsvc: %s\n", GamesCountEvent, `{"id":"id2","count":1}`),
 	}
 	events := scanEvents(resp, len(expEvents))
 	assert.ElementsMatch(t, expEvents, events)
 }
 
 func TestHandleUserEvents(t *testing.T) {
-	rdb := infra.BeforeRedisTests(t)
+	// given
+	rdb := infra.BeforeRedisTest(t)
 	defer rdb.Close()
 	dbs := infra.Databases{Rdb: rdb}
 
 	state := MakeServerState(dbs, nil, "")
 	state.Generators = &mockGenerator{id: "id1"}
-	<-dpl.ListenUsersMessages(state.UsersCaster, dbs.Rdb)
+	<-svc.ListenUsersMessages(state.UsersCaster, dbs.Rdb)
 
 	createTestSessions(t, dbs.Rdb)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
 	defer ts.Close()
 
+	// when
 	req, err := http.NewRequest(http.MethodGet, ts.URL+"/api/events/user", nil)
 	assert.NoError(t, err)
 	req.Header.Set("Cookie", FmtCookie(TestSessionID1))
@@ -132,16 +137,17 @@ func TestHandleUserEvents(t *testing.T) {
 	go func() {
 		ctx := context.WithValue(context.Background(), util.Trace, "broadcast-user-events")
 		errChan <- errors.Join(
-			dpl.BroadcastChallenge(ctx, dbs.Rdb, 1, dpl.ChallengeEntity{ChallengerID: 1, TimeControl: dpl.TcRealTime, StartColor: dpl.CsWhite}),
-			dpl.BroadcastChallenge(ctx, dbs.Rdb, 2, dpl.ChallengeEntity{ChallengerID: 2}),
-			dpl.BroadcastChallenge(ctx, dbs.Rdb, 1, dpl.ChallengeEntity{ChallengerID: 1, TimeControl: dpl.TcRealTime, StartColor: dpl.CsWhite}))
+			svc.BroadcastChallenge(ctx, dbs.Rdb, 1, svc.ChallengeEntity{ChallengerID: 1, TimeControl: svc.TcRealTime, StartColor: svc.ColorWhite}),
+			svc.BroadcastChallenge(ctx, dbs.Rdb, 2, svc.ChallengeEntity{ChallengerID: 2}),
+			svc.BroadcastChallenge(ctx, dbs.Rdb, 1, svc.ChallengeEntity{ChallengerID: 1, TimeControl: svc.TcRealTime, StartColor: svc.ColorWhite}))
 	}()
 
+	// then
 	jsonData := `{"challengerId":1,"challengerName":"","challengerCountry":"","challengerElo":0,"challengeeId":0,"challengeeName":"","challengeeCountry":"","challengeeElo":0,"timeControl":"REAL_TIME","startColor":"WHITE","madeOn":"0001-01-01T00:00:00Z"}`
 	expEvents := []string{
-		fmt.Sprintf("event: %s\ndpl: %s\n", MetaEvent, "id1"),
-		fmt.Sprintf("event: %s\ndpl: %s\n", UserChallengeEvent, jsonData),
-		fmt.Sprintf("event: %s\ndpl: %s\n", UserChallengeEvent, jsonData),
+		fmt.Sprintf("event: %s\nsvc: %s\n", MetaEvent, "id1"),
+		fmt.Sprintf("event: %s\nsvc: %s\n", UserChallengeEvent, jsonData),
+		fmt.Sprintf("event: %s\nsvc: %s\n", UserChallengeEvent, jsonData),
 	}
 	events := scanEvents(resp, len(expEvents))
 	assert.ElementsMatch(t, expEvents, events)
@@ -151,12 +157,12 @@ func TestHandleUserEvents(t *testing.T) {
 }
 
 func TestHandleCountEvents_Throughput(t *testing.T) {
-	rdb := infra.BeforeRedisTests(t)
+	rdb := infra.BeforeRedisTest(t)
 	defer rdb.Close()
 	dbs := infra.Databases{Rdb: rdb}
 
 	state := MakeServerState(dbs, nil, "")
-	<-dpl.ListenUnicastEvents(state.CountsCaster, rdb)
+	<-svc.ListenUnicastEvents(state.CountsCaster, rdb)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
 	defer ts.Close()
@@ -197,17 +203,13 @@ func TestHandleCountEvents_Throughput(t *testing.T) {
 			defer wg.Done()
 			scanEventsFunc(resp, runs-i, func(event string) {
 				d := parseEventData(event)
-				var ce dpl.CountEvent
+				var ce svc.CountEvent
 				if err := json.Unmarshal([]byte(d), &ce); err != nil {
 					t.Logf("unmarshal count event: %v", err)
 					return
 				}
-				subMap[ce.ID] = msg{
-					recvTime: time.Now(),
-					count:    ce.Count,
-				}
+				subMap[ce.ID] = msg{recvTime: time.Now(), count: ce.Count}
 			})
-			//fmt.Printf("sse finished: %d\n", i)
 		}()
 	}
 

@@ -1,4 +1,4 @@
-package dpl
+package svc
 
 import (
 	"context"
@@ -17,9 +17,9 @@ import (
 type ColorSelect string
 
 const (
-	CsWhite  ColorSelect = "WHITE"
-	CsBlack  ColorSelect = "BLACK"
-	CsRandom ColorSelect = "RANDOM"
+	ColorWhite  ColorSelect = "WHITE"
+	ColorBlack  ColorSelect = "BLACK"
+	ColorRandom ColorSelect = "RANDOM"
 )
 
 type TimeControl string

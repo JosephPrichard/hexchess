@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"fmt"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"hexchess-svc/dpl"
 	"hexchess-svc/infra"
+	"hexchess-svc/svc"
 	"math/big"
 	"net/http"
 	"time"
@@ -41,25 +41,25 @@ func MakeSessionID() (string, error) {
 	return string(bytes), nil
 }
 
-func GetSessionPlayer(ctx context.Context, rdb *infra.Redis, r *http.Request) (dpl.PlayerState, string, error) {
+func GetSessionPlayer(ctx context.Context, rdb *infra.Redis, r *http.Request) (svc.PlayerState, string, error) {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
-		return dpl.PlayerState{}, "", dpl.ErrSessionNotFound
+		return svc.PlayerState{}, "", svc.ErrSessionNotFound
 	}
 	sessionID := cookie.Value
-	player, err := dpl.GetSession(ctx, rdb, sessionID)
+	player, err := svc.GetSession(ctx, rdb, sessionID)
 	if err != nil {
-		return dpl.PlayerState{}, "", err
+		return svc.PlayerState{}, "", err
 	}
 	return player, sessionID, nil
 }
 
-func SetSessionPlayer(ctx context.Context, rdb *infra.Redis, w http.ResponseWriter, player dpl.PlayerState) (time.Duration, error) {
+func SetSessionPlayer(ctx context.Context, rdb *infra.Redis, w http.ResponseWriter, player svc.PlayerState) (time.Duration, error) {
 	sessionID, err := MakeSessionID()
 	if err != nil {
 		return 0, err
 	}
-	if err := dpl.SetSession(ctx, rdb, sessionID, player, SessionMaxAge); err != nil {
+	if err := svc.SetSession(ctx, rdb, sessionID, player, SessionMaxAge); err != nil {
 		return 0, err
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))

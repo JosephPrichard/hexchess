@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/chess"
-	"hexchess-svc/dpl"
 	"hexchess-svc/infra"
+	"hexchess-svc/svc"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -80,19 +80,19 @@ func HandleRegister(state *ServerState, w http.ResponseWriter, r *http.Request) 
 	}
 
 	ctx := r.Context()
-	user, err := dpl.InsertUser(ctx, state.Pdb.Query, dpl.UserInst{
+	user, err := svc.InsertUser(ctx, state.Pdb.Query, svc.UserInst{
 		Username: body.Username,
 		Password: body.Password,
 		Country:  "us",
-		Elo:      dpl.StartElo,
+		Elo:      svc.StartElo,
 	})
-	if errors.Is(err, dpl.ErrTakenUsername) {
+	if errors.Is(err, svc.ErrTakenUsername) {
 		return ErrHttpDuplicateUsername
 	}
 	if err != nil {
 		return fmt.Errorf("insert user: %w", err)
 	}
-	t, err := SetSessionPlayer(ctx, state.Rdb, w, dpl.PlayerState{
+	t, err := SetSessionPlayer(ctx, state.Rdb, w, svc.PlayerState{
 		ID:      user.ID,
 		Name:    user.Username,
 		Country: user.Country,
@@ -114,8 +114,8 @@ func HandleRegister(state *ServerState, w http.ResponseWriter, r *http.Request) 
 	return nil
 }
 
-func handleLoginSession(ctx context.Context, rdb *infra.Redis, w http.ResponseWriter, user dpl.VerifiedUser) error {
-	t, err := SetSessionPlayer(ctx, rdb, w, dpl.PlayerState{
+func handleLoginSession(ctx context.Context, rdb *infra.Redis, w http.ResponseWriter, user svc.VerifiedUser) error {
+	t, err := SetSessionPlayer(ctx, rdb, w, svc.PlayerState{
 		ID:      user.ID,
 		Name:    user.Username,
 		Country: user.Country,
@@ -149,12 +149,12 @@ func HandleLogin(state *ServerState, w http.ResponseWriter, r *http.Request) err
 	}
 
 	ctx := r.Context()
-	user, err := dpl.VerifyUserTx(ctx, state.Pdb, body.Username, body.Password)
+	user, err := svc.VerifyUserTx(ctx, state.Pdb, body.Username, body.Password)
 	if err != nil {
 		switch err {
-		case dpl.ErrUserNotFound:
+		case svc.ErrUserNotFound:
 			return ErrHttpInvalidLogin
-		case dpl.ErrTooManyLoginAttempts:
+		case svc.ErrTooManyLoginAttempts:
 			return ErrHttpTooManyLoginAttempts
 		default:
 			return fmt.Errorf("verify user: %w", err)
@@ -190,10 +190,10 @@ func HandleGoogleLogin(state *ServerState, w http.ResponseWriter, r *http.Reques
 
 	slog.InfoContext(ctx, "validated google account id token", "googleAccountID", googleAccountID)
 
-	user, err := dpl.SelectOrInsertGoogleUser(ctx, state.Pdb.Query, googleAccountID, dpl.GoogleUserInst{
+	user, err := svc.SelectOrInsertGoogleUser(ctx, state.Pdb.Query, googleAccountID, svc.GoogleUserInst{
 		Username: username,
 		Country:  "us",
-		Elo:      dpl.StartElo,
+		Elo:      svc.StartElo,
 	})
 	if err != nil {
 		return fmt.Errorf("upsert verified google user: %w", err)
@@ -222,14 +222,14 @@ func HandleUpdatePassword(state *ServerState, w http.ResponseWriter, r *http.Req
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
-	user, err := dpl.VerifyUserTx(ctx, state.Pdb, player.Name, body.Password)
-	if errors.Is(err, dpl.ErrUserNotFound) {
+	user, err := svc.VerifyUserTx(ctx, state.Pdb, player.Name, body.Password)
+	if errors.Is(err, svc.ErrUserNotFound) {
 		return ErrHttpInvalidLogin
 	}
 	if err != nil {
 		return fmt.Errorf("verify user: %w", err)
 	}
-	if err := dpl.UpdateUserPassword(ctx, state.Pdb.Query, user.ID, body.NewPassword); err != nil {
+	if err := svc.UpdateUserPassword(ctx, state.Pdb.Query, user.ID, body.NewPassword); err != nil {
 		return fmt.Errorf("update user password: %w", err)
 	}
 	slog.InfoContext(ctx, "user has updated password", "user", user)
@@ -259,7 +259,7 @@ func HandleUpdateUser(state *ServerState, w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
-	user, err := dpl.UpdateUser(ctx, state.Pdb.Query, player.ID, dpl.UpdtUserParams{
+	user, err := svc.UpdateUser(ctx, state.Pdb.Query, player.ID, svc.UpdtUserParams{
 		Username: body.NewUsername,
 		Bio:      body.NewBio,
 		Country:  body.NewCountry,
@@ -285,7 +285,7 @@ type TempSessionResp struct {
 func HandleCreateTempSession(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
-	if errors.Is(err, dpl.ErrSessionNotFound) {
+	if errors.Is(err, svc.ErrSessionNotFound) {
 		return ErrHttpSessionExpired
 	}
 	if err != nil {
@@ -295,7 +295,7 @@ func HandleCreateTempSession(state *ServerState, w http.ResponseWriter, r *http.
 	if err != nil {
 		return err
 	}
-	if err := dpl.SetSession(ctx, state.Rdb, sessionID, player, TempSessionMaxAge); err != nil {
+	if err := svc.SetSession(ctx, state.Rdb, sessionID, player, TempSessionMaxAge); err != nil {
 		return fmt.Errorf("set session: %w", err)
 	}
 
@@ -312,14 +312,14 @@ type RefreshResp struct {
 func HandleRefreshSession(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	player, sessionID, err := GetSessionPlayer(ctx, state.Rdb, r)
-	if errors.Is(err, dpl.ErrSessionNotFound) {
+	if errors.Is(err, svc.ErrSessionNotFound) {
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
-	if err := dpl.UpdateSessionEx(ctx, state.Rdb, sessionID, SessionMaxAge); err != nil {
+	if err := svc.UpdateSessionEx(ctx, state.Rdb, sessionID, SessionMaxAge); err != nil {
 		return fmt.Errorf("update session: %w", err)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
@@ -344,7 +344,7 @@ func HandleLogout(state *ServerState, w http.ResponseWriter, r *http.Request) er
 	sessionID := cookie.Value
 
 	ctx := r.Context()
-	if err := dpl.DeleteSession(ctx, state.Rdb, sessionID); err != nil {
+	if err := svc.DeleteSession(ctx, state.Rdb, sessionID); err != nil {
 		return fmt.Errorf("delete session: %w", err)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
@@ -380,7 +380,7 @@ func HandleCreateGame(state *ServerState, w http.ResponseWriter, r *http.Request
 		initialBoard = &board
 	}
 
-	gameID, err := dpl.CreateGame(ctx, state.Rdb, dpl.ColorSelect(body.FirstColor), dpl.TimeControl(body.TimeControl), initialBoard)
+	gameID, err := svc.CreateGame(ctx, state.Rdb, svc.ColorSelect(body.FirstColor), svc.TimeControl(body.TimeControl), initialBoard)
 	if err != nil {
 		return fmt.Errorf("create game: %w", err)
 	}
@@ -427,8 +427,8 @@ func HandleUpdateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 		return ErrHttpUpdateChallenge
 	}
 
-	dr, err := dpl.DeleteChallenge(ctx, state.Pdb.Query, dpl.ChallengeKey{ChallengerID: body.ChallengerID, ChallengeeID: body.ChallengeeID})
-	if errors.Is(err, dpl.ErrChallengeNotFound) {
+	dr, err := svc.DeleteChallenge(ctx, state.Pdb.Query, svc.ChallengeKey{ChallengerID: body.ChallengerID, ChallengeeID: body.ChallengeeID})
+	if errors.Is(err, svc.ErrChallengeNotFound) {
 		return ErrHttpNotFoundChallenge
 	}
 	if err != nil {
@@ -438,7 +438,7 @@ func HandleUpdateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 
 	gameID := ""
 	if body.Action == "ACCEPT" {
-		gameID, err = dpl.CreateGame(ctx, state.Rdb, dr.FirstColor, dr.TimeControl, nil)
+		gameID, err = svc.CreateGame(ctx, state.Rdb, dr.FirstColor, dr.TimeControl, nil)
 		if err != nil {
 			return fmt.Errorf("create game: %w", err)
 		}
@@ -467,20 +467,20 @@ func HandleCreateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 		return fmt.Errorf("get session player: %w", err)
 	}
 
-	ret, err := dpl.InsertChallengeRet(ctx, state.Pdb.Query, dpl.ChallengeInst{
+	ret, err := svc.InsertChallengeRet(ctx, state.Pdb.Query, svc.ChallengeInst{
 		ChallengerID: player.ID,
 		ChallengeeID: body.ChallengeeID,
-		TimeControl:  dpl.TimeControl(body.TimeControl),
-		StartColor:   dpl.ColorSelect(body.StartColor),
+		TimeControl:  svc.TimeControl(body.TimeControl),
+		StartColor:   svc.ColorSelect(body.StartColor),
 		MadeOn:       time.Now(),
 	})
 	if err != nil {
 		switch err {
-		case dpl.ErrDuplicateChallenge:
+		case svc.ErrDuplicateChallenge:
 			return ErrHttpDuplicateChallenge
-		case dpl.ErrParticipantConflict:
+		case svc.ErrParticipantConflict:
 			return ErrHttpInvalidParticipants
-		case dpl.ErrSelfChallenge:
+		case svc.ErrSelfChallenge:
 			return ErrHttpSelfChallenge
 		default:
 			return fmt.Errorf("insert challenge: %w", err)
@@ -489,10 +489,10 @@ func HandleCreateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
 
 	ctx = context.WithoutCancel(ctx)
-	if err := dpl.BroadcastChallenge(ctx, state.Rdb, player.ID, ret); err != nil {
+	if err := svc.BroadcastChallenge(ctx, state.Rdb, player.ID, ret); err != nil {
 		slog.ErrorContext(ctx, "failed to broadcast challenge", "challenge", ret, "err", err)
 	}
-	if err := dpl.DeleteExpiredChallenges(ctx, state.Pdb.Query, player.ID, dpl.ExpireChallengeThreshold); err != nil {
+	if err := svc.DeleteExpiredChallenges(ctx, state.Pdb.Query, player.ID, svc.ExpireChallengeThreshold); err != nil {
 		slog.ErrorContext(ctx, "failed to delete expired challenges", "challenge", ret, "err", err)
 	}
 	return nil
@@ -502,7 +502,7 @@ func HandleGetSelf(state *ServerState, w http.ResponseWriter, r *http.Request) e
 	ctx := r.Context()
 
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
-	if errors.Is(err, dpl.ErrSessionNotFound) {
+	if errors.Is(err, svc.ErrSessionNotFound) {
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
 	}
@@ -510,7 +510,7 @@ func HandleGetSelf(state *ServerState, w http.ResponseWriter, r *http.Request) e
 		return fmt.Errorf("get session player: %w", err)
 	}
 
-	user, err := dpl.GetUserByID(ctx, state.Pdb.Query, player.ID)
+	user, err := svc.GetUserByID(ctx, state.Pdb.Query, player.ID)
 	if err != nil {
 		return fmt.Errorf("get user by id %+v: %w", player, err)
 	}
@@ -522,7 +522,7 @@ func HandleGetSelf(state *ServerState, w http.ResponseWriter, r *http.Request) e
 
 type LeaderboardResp struct {
 	TotalPages int              `json:"totalPages"`
-	UserList   []dpl.UserEntity `json:"userList,omitempty"`
+	UserList   []svc.UserEntity `json:"userList,omitempty"`
 }
 
 func HandleGetLeaderboard(state *ServerState, w http.ResponseWriter, r *http.Request) error {
@@ -534,29 +534,29 @@ func HandleGetLeaderboard(state *ServerState, w http.ResponseWriter, r *http.Req
 		return err
 	}
 
-	lbd, err := dpl.GetLeaderboardPage(ctx, state.Rdb, int64(page), PerPage)
+	lbd, err := svc.GetLeaderboardPage(ctx, state.Rdb, int64(page), PerPage)
 	if err != nil {
 		return fmt.Errorf("get leaderboard page %d: %w", page, err)
 	}
-	users, err := dpl.GetRankedUsers(ctx, state.Pdb.Query, lbd.Users)
+	users, err := svc.GetRankedUsers(ctx, state.Pdb.Query, lbd.Users)
 	if err != nil {
 		return fmt.Errorf("get ranked users: %w", err)
 	}
-	if err := dpl.JoinRanks(lbd.Users, users); err != nil {
+	if err := svc.JoinRanks(lbd.Users, users); err != nil {
 		return err
 	}
 	slog.InfoContext(ctx, "retrieved leaderboard", "users", users)
 
 	if users == nil {
-		users = []dpl.UserEntity{}
+		users = []svc.UserEntity{}
 	}
 	writeJSON(w, http.StatusOK, LeaderboardResp{TotalPages: lbd.PageCount, UserList: users})
 	return nil
 }
 
 type FullUserResp struct {
-	User       dpl.UserEntity     `json:"user"`
-	ReplayList []dpl.ReplayEntity `json:"replayList,omitempty"`
+	User       svc.UserEntity     `json:"user"`
+	ReplayList []svc.ReplayEntity `json:"replayList,omitempty"`
 }
 
 func HandleGetPlayer(state *ServerState, w http.ResponseWriter, r *http.Request) error {
@@ -569,12 +569,12 @@ func HandleGetPlayer(state *ServerState, w http.ResponseWriter, r *http.Request)
 
 	eg, egCtx := errgroup.WithContext(ctx)
 
-	var user dpl.UserEntity
+	var user svc.UserEntity
 	var userRank int64
-	var replayList []dpl.ReplayEntity
+	var replayList []svc.ReplayEntity
 
 	eg.Go(func() error {
-		u, err := dpl.GetUserByID(egCtx, state.Pdb.Query, int64(id))
+		u, err := svc.GetUserByID(egCtx, state.Pdb.Query, int64(id))
 		if err != nil {
 			return fmt.Errorf("get user %d by id: %w", id, err)
 		}
@@ -582,7 +582,7 @@ func HandleGetPlayer(state *ServerState, w http.ResponseWriter, r *http.Request)
 		return nil
 	})
 	eg.Go(func() error {
-		rs, err := dpl.GetUserReplays(egCtx, state.Pdb.Query, int64(id), -1, PerPage)
+		rs, err := svc.GetUserReplays(egCtx, state.Pdb.Query, int64(id), -1, PerPage)
 		if err != nil {
 			return fmt.Errorf("get user replays %d by id: %w", id, err)
 		}
@@ -590,7 +590,7 @@ func HandleGetPlayer(state *ServerState, w http.ResponseWriter, r *http.Request)
 		return err
 	})
 	eg.Go(func() error {
-		ur, err := dpl.GetLeaderboardRank(egCtx, state.Rdb, int64(id))
+		ur, err := svc.GetLeaderboardRank(egCtx, state.Rdb, int64(id))
 		if err != nil {
 			return fmt.Errorf("failed leaderboard %d rank by id: %w", id, err)
 		}
@@ -604,7 +604,7 @@ func HandleGetPlayer(state *ServerState, w http.ResponseWriter, r *http.Request)
 	user.Rank = userRank
 
 	if replayList == nil {
-		replayList = []dpl.ReplayEntity{}
+		replayList = []svc.ReplayEntity{}
 	}
 	slog.InfoContext(ctx, "retrieved user with replays", "user", user, "replays", replayList)
 	writeJSON(w, http.StatusOK, FullUserResp{User: user, ReplayList: replayList})
@@ -612,7 +612,7 @@ func HandleGetPlayer(state *ServerState, w http.ResponseWriter, r *http.Request)
 }
 
 type SearchPlayersResp struct {
-	UserList []dpl.UserEntity `json:"userList,omitempty"`
+	UserList []svc.UserEntity `json:"userList,omitempty"`
 }
 
 func HandleSearchPlayers(state *ServerState, w http.ResponseWriter, r *http.Request) error {
@@ -627,10 +627,10 @@ func HandleSearchPlayers(state *ServerState, w http.ResponseWriter, r *http.Requ
 
 	slog.InfoContext(ctx, "searching players", "page", page, "name", name)
 
-	var userList []dpl.UserEntity
+	var userList []svc.UserEntity
 	if name != "" {
-		userList, err = dpl.SearchUsersByName(ctx, state.Pdb.Query, name, int32(page), PerPage)
-		if errors.Is(err, dpl.ErrSearchLimit) {
+		userList, err = svc.SearchUsersByName(ctx, state.Pdb.Query, name, int32(page), PerPage)
+		if errors.Is(err, svc.ErrSearchLimit) {
 			return ErrHttpSearchLimit
 		}
 		if err != nil {
@@ -639,14 +639,14 @@ func HandleSearchPlayers(state *ServerState, w http.ResponseWriter, r *http.Requ
 	}
 
 	if userList == nil {
-		userList = []dpl.UserEntity{}
+		userList = []svc.UserEntity{}
 	}
 	writeJSON(w, http.StatusOK, SearchPlayersResp{UserList: userList})
 	return nil
 }
 
 type GetReplayResp struct {
-	Replay dpl.ReplayEntity `json:"replay"`
+	Replay svc.ReplayEntity `json:"replay"`
 }
 
 func HandleGetReplay(state *ServerState, w http.ResponseWriter, r *http.Request) error {
@@ -657,7 +657,7 @@ func HandleGetReplay(state *ServerState, w http.ResponseWriter, r *http.Request)
 		return err
 	}
 
-	replay, err := dpl.GetReplay(ctx, state.Pdb.Query, int64(id))
+	replay, err := svc.GetReplay(ctx, state.Pdb.Query, int64(id))
 	if err != nil {
 		return fmt.Errorf("get replay: %w", err)
 	}
@@ -673,7 +673,7 @@ func HandleGetReplayMoveList(state *ServerState, w http.ResponseWriter, r *http.
 		return err
 	}
 
-	pbMoveHist, err := dpl.GetReplayMoveHistory(ctx, state.Pdb.Query, int64(id))
+	pbMoveHist, err := svc.GetReplayMoveHistory(ctx, state.Pdb.Query, int64(id))
 	if err != nil {
 		return fmt.Errorf("get replay %d moveHistory: %w", id, err)
 	}
@@ -688,7 +688,7 @@ func HandleGetReplayMoveList(state *ServerState, w http.ResponseWriter, r *http.
 }
 
 type GetUserReplaysResp struct {
-	ReplayList []dpl.ReplayEntity `json:"replayList"`
+	ReplayList []svc.ReplayEntity `json:"replayList"`
 }
 
 func HandleGetUserReplays(state *ServerState, w http.ResponseWriter, r *http.Request) error {
@@ -701,20 +701,20 @@ func HandleGetUserReplays(state *ServerState, w http.ResponseWriter, r *http.Req
 		return err
 	}
 
-	replays, err := dpl.GetUserReplays(ctx, state.Pdb.Query, int64(userID), int64(afterID), PerPage)
+	replays, err := svc.GetUserReplays(ctx, state.Pdb.Query, int64(userID), int64(afterID), PerPage)
 	if err != nil {
 		return fmt.Errorf("get user %d replays: %w", userID, err)
 	}
 
 	if replays == nil {
-		replays = []dpl.ReplayEntity{}
+		replays = []svc.ReplayEntity{}
 	}
 	writeJSON(w, http.StatusOK, GetUserReplaysResp{ReplayList: replays})
 	return nil
 }
 
 type GetChallengesResp struct {
-	ChallengeList []dpl.ChallengeEntity `json:"challengeList"`
+	ChallengeList []svc.ChallengeEntity `json:"challengeList"`
 }
 
 func HandleGetChallenges(state *ServerState, w http.ResponseWriter, r *http.Request) error {
@@ -727,19 +727,19 @@ func HandleGetChallenges(state *ServerState, w http.ResponseWriter, r *http.Requ
 		return fmt.Errorf("get session player: %w", err)
 	}
 
-	var challengeList []dpl.ChallengeEntity
+	var challengeList []svc.ChallengeEntity
 	switch participants {
 	case "sent":
-		challengeList, err = dpl.GetChallengesByParticipant(ctx, state.Pdb.Query, dpl.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1}, dpl.ExpireChallengeThreshold)
+		challengeList, err = svc.GetChallengesByParticipant(ctx, state.Pdb.Query, svc.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1}, svc.ExpireChallengeThreshold)
 	case "received":
-		challengeList, err = dpl.GetChallengesByParticipant(ctx, state.Pdb.Query, dpl.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID}, dpl.ExpireChallengeThreshold)
+		challengeList, err = svc.GetChallengesByParticipant(ctx, state.Pdb.Query, svc.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID}, svc.ExpireChallengeThreshold)
 	}
 	if err != nil {
 		return fmt.Errorf("get challenges by participant: %w", err)
 	}
 
 	if challengeList == nil {
-		challengeList = []dpl.ChallengeEntity{}
+		challengeList = []svc.ChallengeEntity{}
 	}
 	slog.InfoContext(ctx, "retrieved challenges", "challengeList", challengeList)
 	writeJSON(w, http.StatusOK, GetChallengesResp{ChallengeList: challengeList})
@@ -747,8 +747,8 @@ func HandleGetChallenges(state *ServerState, w http.ResponseWriter, r *http.Requ
 }
 
 type ChessRoomListResp struct {
-	ChessList     []dpl.ChessMeta `json:"chessList"`
-	SelfChessList []dpl.ChessMeta `json:"selfChessList"`
+	ChessList     []svc.ChessMeta `json:"chessList"`
+	SelfChessList []svc.ChessMeta `json:"selfChessList"`
 }
 
 func HandleGetChessRoomList(state *ServerState, w http.ResponseWriter, r *http.Request) error {
@@ -765,20 +765,20 @@ func HandleGetChessRoomList(state *ServerState, w http.ResponseWriter, r *http.R
 
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
 	if err != nil {
-		if err != dpl.ErrSessionNotFound {
+		if err != svc.ErrSessionNotFound {
 			return fmt.Errorf("get session player: %w", err)
 		}
 	} else {
 		hasSession = true
 	}
 
-	chessList, err := dpl.GetAllChessMetas(ctx, state.Rdb, page, count)
+	chessList, err := svc.GetAllChessMetas(ctx, state.Rdb, page, count)
 	if err != nil {
 		return fmt.Errorf("get all chess meta views: %w", err)
 	}
-	var selfChessList []dpl.ChessMeta
+	var selfChessList []svc.ChessMeta
 	if hasSession {
-		chessList, err := dpl.GetUserChessMetas(ctx, state.Rdb, player.ID)
+		chessList, err := svc.GetUserChessMetas(ctx, state.Rdb, player.ID)
 		if err != nil {
 			return fmt.Errorf("get all chess meta views: %w", err)
 		}
@@ -790,7 +790,7 @@ func HandleGetChessRoomList(state *ServerState, w http.ResponseWriter, r *http.R
 }
 
 type EloHistoriesResp struct {
-	Buckets dpl.EloHistoryBuckets `json:"buckets"`
+	Buckets svc.EloHistoryBuckets `json:"buckets"`
 }
 
 var timeframeMap = map[string]int{
@@ -819,7 +819,7 @@ func HandleGetEloHistories(state *ServerState, w http.ResponseWriter, r *http.Re
 		return ErrHttpInvalidRequest
 	}
 
-	eloBuckets, _, err := dpl.RetrieveEloHistoryBuckets(ctx, &state.Databases, time.Now(), dpl.EloHistoriesParams{UserID: int64(userID), Months: months})
+	eloBuckets, _, err := svc.RetrieveEloHistoryBuckets(ctx, &state.Databases, time.Now(), svc.EloHistoriesParams{UserID: int64(userID), Months: months})
 	if err != nil {
 		return fmt.Errorf("retrieve elo histories buckets: %w", err)
 	}

@@ -1,4 +1,4 @@
-package dpl
+package svc
 
 import (
 	"context"
@@ -103,21 +103,7 @@ func hashPassword(password string) (HashResult, error) {
 	return HashResult{Salt: salt, HashedPassword: string(hashed)}, nil
 }
 
-func mapInsertUserParams(inst UserInst, hash HashResult) db.InsertUserParams {
-	return db.InsertUserParams{
-		Username:   inst.Username,
-		Country:    pgtype.Text{Valid: true, String: inst.Country},
-		Elo:        inst.Elo,
-		HighestElo: inst.Elo,
-		StartElo:   StartElo,
-		Wins:       int32(inst.Wins),
-		Losses:     int32(inst.Losses),
-		Password:   hash.HashedPassword,
-		Salt:       hash.Salt,
-	}
-}
-
-func winrate(wins int32, total int32) int64 {
+func calcUserWinrate(wins int32, total int32) int64 {
 	wr := float64(0)
 	if total > 0 {
 		wr = float64(wins) / float64(total) * 100.0
@@ -137,8 +123,22 @@ func mapUserFromRow(row db.SelectUserByIDRow) UserEntity {
 		Losses:     row.Losses,
 		Bio:        row.Bio,
 		JoinedOn:   row.JoinedOn.Time,
-		WinRate:    winrate(row.Wins, total),
+		WinRate:    calcUserWinrate(row.Wins, total),
 		Total:      int64(total),
+	}
+}
+
+func mapInsertUserParams(inst UserInst, hash HashResult) db.InsertUserParams {
+	return db.InsertUserParams{
+		Username:   inst.Username,
+		Country:    pgtype.Text{Valid: true, String: inst.Country},
+		Elo:        inst.Elo,
+		HighestElo: inst.Elo,
+		StartElo:   StartElo,
+		Wins:       int32(inst.Wins),
+		Losses:     int32(inst.Losses),
+		Password:   hash.HashedPassword,
+		Salt:       hash.Salt,
 	}
 }
 
@@ -210,10 +210,10 @@ type VerifiedUser struct {
 	Elo      float64 `json:"elo"`
 }
 
-func VerifyUserTx(ctx context.Context, postgres *infra.Postgres, username string, inputPassword string) (VerifiedUser, error) {
+func VerifyUserTx(ctx context.Context, pdb *infra.Pdb, username string, inputPassword string) (VerifiedUser, error) {
 	return infra.WithTxn(infra.TxnArgs[VerifiedUser]{
-		Ctx:      ctx,
-		Postgres: postgres,
+		Ctx: ctx,
+		Pdb: pdb,
 		TxFn: func(query *db.Queries) (VerifiedUser, error) {
 			return verifyUser(ctx, query, username, inputPassword)
 		},
@@ -424,7 +424,7 @@ func SearchUsersByName(ctx context.Context, query *db.Queries, name string, page
 			Losses:   row.Losses,
 			Rank:     int64(rank),
 			Total:    int64(total),
-			WinRate:  winrate(row.Wins, total),
+			WinRate:  calcUserWinrate(row.Wins, total),
 		})
 	}
 

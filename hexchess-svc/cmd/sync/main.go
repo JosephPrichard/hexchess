@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"hexchess-svc/db"
-	"hexchess-svc/dpl"
 	"hexchess-svc/infra"
+	"hexchess-svc/svc"
 	"hexchess-svc/util"
 	"log"
 	"log/slog"
@@ -45,7 +45,7 @@ func main() {
 
 	databases := &infra.Databases{Pdb: infra.MakePostgres(q, pool), Rdb: rdb}
 
-	if err := dpl.SyncLeaderboard(ctx, databases); err != nil {
+	if err := svc.SyncLeaderboard(ctx, databases); err != nil {
 		util.LogFatalErr("sync leaderboard", err)
 	}
 	log.Printf("finished syncing leaderboard: %v", time.Now().Sub(start))

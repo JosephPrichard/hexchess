@@ -1,4 +1,4 @@
-package dpl
+package svc
 
 import (
 	"context"
@@ -11,28 +11,30 @@ import (
 )
 
 func TestActiveUser(t *testing.T) {
-	rdb := infra.BeforeRedisTests(t)
+	// given
+	rdb := infra.BeforeRedisTest(t)
 	defer rdb.Close()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-active-user")
 
+	// when
 	_, err := AddActiveUser(ctx, rdb, "1")
 	assert.NoError(t, err)
-	count, err := AddActiveUser(ctx, rdb, "2")
+	countAfterAdding, err := AddActiveUser(ctx, rdb, "2")
 	assert.NoError(t, err)
-
-	assert.Equal(t, int64(2), count)
 
 	_, err = RemoveActiveUser(ctx, rdb, "2")
 	assert.NoError(t, err)
-	count, err = AddActiveUserOn(ctx, rdb, "3", time.UnixMilli(100), 0)
+	countAfterRemoveAndAdd, err := AddActiveUserOn(ctx, rdb, "3", time.UnixMilli(100), 0)
 	assert.NoError(t, err)
-	assert.Equal(t, int64(2), count)
 
 	conn := rdb.Cache.Get()
 	defer conn.Close()
-
-	count, err = GetActiveCountWithExpiry(ctx, conn, rdb.ActiveUsersZSet, 1000)
+	countAfterExpiry, err := GetActiveCountWithExpiry(ctx, conn, rdb.ActiveUsersZSet, 1000)
 	assert.NoError(t, err)
-	assert.Equal(t, int64(1), count)
+
+	// then
+	assert.Equal(t, int64(2), countAfterAdding)
+	assert.Equal(t, int64(2), countAfterRemoveAndAdd)
+	assert.Equal(t, int64(1), countAfterExpiry)
 }
