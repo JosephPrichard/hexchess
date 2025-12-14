@@ -5,7 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"hexchess-svc/svc"
 	"math/big"
 	"net/http"
@@ -41,7 +41,7 @@ func MakeSessionID() (string, error) {
 	return string(bytes), nil
 }
 
-func GetSessionPlayer(ctx context.Context, rdb *infra.Redis, r *http.Request) (svc.PlayerState, string, error) {
+func GetSessionPlayer(ctx context.Context, rdb *db.Redis, r *http.Request) (svc.PlayerState, string, error) {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
 		return svc.PlayerState{}, "", svc.ErrSessionNotFound
@@ -54,7 +54,7 @@ func GetSessionPlayer(ctx context.Context, rdb *infra.Redis, r *http.Request) (s
 	return player, sessionID, nil
 }
 
-func SetSessionPlayer(ctx context.Context, rdb *infra.Redis, w http.ResponseWriter, player svc.PlayerState) (time.Duration, error) {
+func SetSessionPlayer(ctx context.Context, rdb *db.Redis, w http.ResponseWriter, player svc.PlayerState) (time.Duration, error) {
 	sessionID, err := MakeSessionID()
 	if err != nil {
 		return 0, err

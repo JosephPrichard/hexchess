@@ -11,7 +11,7 @@ SET idle_in_transaction_session_timeout = 0;
 SET transaction_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
+SELECT pg_catalog.set_config('search_path', 'public', false);
 SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
@@ -59,8 +59,8 @@ CREATE TABLE public.challenges (
     time_control character varying NOT NULL,
     start_color character varying NOT NULL,
     made_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT start_color_check CHECK (((start_color)::text = ANY ((ARRAY['RANDOM'::character varying, 'BLACK'::character varying, 'WHITE'::character varying])::text[]))),
-    CONSTRAINT time_control_check CHECK (((time_control)::text = ANY ((ARRAY['REAL_TIME'::character varying, 'CORRESPONDENCE'::character varying, 'UNLIMITED'::character varying])::text[])))
+    CONSTRAINT start_color_check CHECK (((start_color)::text = ANY (ARRAY[('RANDOM'::character varying)::text, ('BLACK'::character varying)::text, ('WHITE'::character varying)::text]))),
+    CONSTRAINT time_control_check CHECK (((time_control)::text = ANY (ARRAY[('REAL_TIME'::character varying)::text, ('CORRESPONDENCE'::character varying)::text, ('UNLIMITED'::character varying)::text])))
 );
 
 
@@ -81,9 +81,9 @@ CREATE TABLE public.replays (
     white_elo double precision NOT NULL,
     black_elo double precision NOT NULL,
     move_history bytea NOT NULL,
-    CONSTRAINT cause_check CHECK (((cause)::text = ANY ((ARRAY['CHECKMATE'::character varying, 'FORFEIT'::character varying])::text[]))),
-    CONSTRAINT mode_check CHECK (((mode)::text = ANY ((ARRAY['REAL_TIME'::character varying, 'CORRESPONDENCE'::character varying, 'UNLIMITED'::character varying])::text[]))),
-    CONSTRAINT result_check CHECK (((result)::text = ANY ((ARRAY['DRAW'::character varying, 'WHITE_WINS'::character varying, 'BLACK_WINS'::character varying])::text[])))
+    CONSTRAINT cause_check CHECK (((cause)::text = ANY (ARRAY[('CHECKMATE'::character varying)::text, ('FORFEIT'::character varying)::text]))),
+    CONSTRAINT mode_check CHECK (((mode)::text = ANY (ARRAY[('REAL_TIME'::character varying)::text, ('CORRESPONDENCE'::character varying)::text, ('UNLIMITED'::character varying)::text]))),
+    CONSTRAINT result_check CHECK (((result)::text = ANY (ARRAY[('DRAW'::character varying)::text, ('WHITE_WINS'::character varying)::text, ('BLACK_WINS'::character varying)::text])))
 );
 
 

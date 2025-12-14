@@ -1,13 +1,13 @@
 package svc
 
 import (
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"testing"
 )
 
 func TestMain(m *testing.M) {
-	defer infra.TeardownTestInfra()
+	defer db.TeardownTestInfra()
 	util.InitLoggers(nil)
 	m.Run()
 }

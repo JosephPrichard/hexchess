@@ -2,9 +2,8 @@ package svc
 
 import (
 	"context"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"testing"
 	"time"
@@ -12,7 +11,7 @@ import (
 
 func TestInsertThenGetReplay(t *testing.T) {
 	// given
-	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-insert-get")
@@ -58,7 +57,7 @@ func TestInsertThenGetReplay(t *testing.T) {
 
 func TestGetUserReplays(t *testing.T) {
 	// given
-	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-replays")
@@ -81,7 +80,7 @@ func TestGetUserReplays(t *testing.T) {
 
 func TestGetReplayMoveList(t *testing.T) {
 	// given
-	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-move-list")
@@ -92,7 +91,7 @@ func TestGetReplayMoveList(t *testing.T) {
 }
 
 func TestRetrieveEloHistories(t *testing.T) {
-	dbs, closer := infra.BeforeDbTest(t, false, InsertTestData)
+	dbs, closer := db.BeforeDbTest(t, false, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-retrieve-elo-histories")
@@ -145,12 +144,4 @@ func TestRetrieveEloHistories(t *testing.T) {
 		assert.Equal(t, test.expEloBuckets, eloHistories)
 		assert.Equal(t, test.expBucketDuration, bd)
 	}
-}
-
-func assertReplay(ctx context.Context, t *testing.T, txn pgxpool.Tx, userID int64, expectedElo float64) {
-	var elo float64
-	if err := txn.QueryRow(ctx, "SELECT elo FROM users WHERE id = $1", userID).Scan(&elo); err != nil {
-		t.Fatalf("failed to select user elo: %v", err)
-	}
-	assert.Equal(t, expectedElo, elo)
 }

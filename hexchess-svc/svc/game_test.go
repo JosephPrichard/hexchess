@@ -4,7 +4,6 @@ import (
 	"context"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
-	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"math"
 	"strconv"
@@ -14,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func assertStateRdb(t *testing.T, rdb *infra.Redis, expState ChessState) {
+func assertStateRdb(t *testing.T, rdb *db.Redis, expState ChessState) {
 	ctx := context.WithValue(context.Background(), util.Trace, "assert-chess-states")
 	actualState, err := GetChessState(ctx, rdb, expState.ID)
 	if err != nil {
@@ -25,7 +24,7 @@ func assertStateRdb(t *testing.T, rdb *infra.Redis, expState ChessState) {
 
 func TestJoinGame_JoinWhite(t *testing.T) {
 	// given
-	rdb := infra.BeforeRedisTest(t)
+	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-join-game")
@@ -52,7 +51,7 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 
 func TestJoinGame_BothPlayersExist(t *testing.T) {
 	// given
-	rdb := infra.BeforeRedisTest(t)
+	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-join-game-both-players")
@@ -73,7 +72,7 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 }
 
 func TestMakeMove(t *testing.T) {
-	dbs, closer := infra.BeforeDbTest(t, false, InsertTestData)
+	dbs, closer := db.BeforeDbTest(t, false, InsertTestData)
 	defer closer()
 
 	s1 := MakeState(StateSetup{
@@ -145,7 +144,7 @@ func TestMakeMove(t *testing.T) {
 
 func TestForfeit_BlackForfeits(t *testing.T) {
 	// given
-	dbs, closer := infra.BeforeDbTest(t, true, InsertTestData)
+	dbs, closer := db.BeforeDbTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-forfeit")
@@ -170,7 +169,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 
 func TestInsertGameResultTx(t *testing.T) {
 	// given
-	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-update-stats")
@@ -179,7 +178,7 @@ func TestInsertGameResultTx(t *testing.T) {
 	testUser1 := TestUserEntities[1]
 
 	// when
-	cs, err := InsertGameResultTx(ctx, pdb, time.Now(), GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, Cause: Checkmate, Result: WhiteWin, Mode: ModeUnlimited, SerializedMoveHist: []byte{}})
+	cs, err := InsertGameResultTx(ctx, pdb, time.Now(), GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Checkmate, ReplayResult: WhiteWin, ReplayMode: ModeUnlimited, SerializedMoveHist: []byte{}})
 	assert.NoError(t, err)
 
 	// then

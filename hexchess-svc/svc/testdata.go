@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"time"
 )
@@ -54,7 +54,7 @@ var TestUserEntities = []UserEntity{
 
 var LastUserID = int64(len(TestUsersInsts))
 
-func insertTestUser(t infra.TestLogger, pool *pgxpool.Pool, inst UserInst) {
+func insertTestUser(t db.TestLogger, pool *pgxpool.Pool, inst UserInst) {
 	ctx := context.WithValue(context.Background(), util.Trace, "insert-test-users")
 
 	saltBytes := make([]byte, 16)
@@ -246,7 +246,7 @@ var TestChallengeEntities = []ChallengeEntity{
 	},
 }
 
-func InsertTestData(t infra.TestLogger, pool *pgxpool.Pool) {
+func InsertTestData(t db.TestLogger, pool *pgxpool.Pool) {
 	ctx := context.WithValue(context.Background(), util.Trace, "insert-test-data")
 
 	for _, inst := range TestUsersInsts {

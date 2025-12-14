@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"hexchess-svc/db"
-	"hexchess-svc/infra"
 	"hexchess-svc/static"
 	"hexchess-svc/svc"
 	"hexchess-svc/util"
@@ -60,13 +59,13 @@ func main() {
 	}
 
 	q := db.New(pool)
-	postgres := infra.MakePostgres(q, pool)
+	postgres := db.MakePostgres(q, pool)
 
 	slog.Info("connecting to redis db", "primaryURL", redisPrimaryURL, "pubsubURL", redisPubSubURL)
-	rdb := infra.MakeRdb(infra.RedisAddrs{CacheAddr: redisPrimaryURL, PubsubAddr: redisPubSubURL}, infra.DefaultRedisNames)
+	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: redisPrimaryURL, PubsubAddr: redisPubSubURL}, db.DefaultRedisNames)
 	defer rdb.Close()
 
-	state := web.MakeServerState(infra.Databases{Rdb: rdb, Pdb: postgres}, countryList, "")
+	state := web.MakeServerState(db.Databases{Rdb: rdb, Pdb: postgres}, countryList, "")
 
 	<-svc.ListenGameMessages(state.GamesCaster, rdb)
 	<-svc.ListenUsersMessages(state.UsersCaster, rdb)

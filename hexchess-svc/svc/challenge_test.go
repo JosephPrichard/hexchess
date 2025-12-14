@@ -3,7 +3,7 @@ package svc
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"testing"
 	"time"
@@ -11,7 +11,7 @@ import (
 
 func TestChallengeExpiration(t *testing.T) {
 	// given
-	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-expiration")
@@ -59,7 +59,7 @@ func TestChallengeExpiration(t *testing.T) {
 
 func TestChallengeInsertAndDelete(t *testing.T) {
 	// given
-	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-delete")

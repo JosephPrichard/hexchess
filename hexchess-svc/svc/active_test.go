@@ -2,7 +2,7 @@ package svc
 
 import (
 	"context"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"testing"
 	"time"
@@ -12,7 +12,7 @@ import (
 
 func TestActiveUser(t *testing.T) {
 	// given
-	rdb := infra.BeforeRedisTest(t)
+	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-active-user")

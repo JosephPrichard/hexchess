@@ -35,10 +35,6 @@ Run a Migration (down)
 
 `$env:DB_URL="<url>"; $env:MIGRATION_TYPE="DOWN"; & go run main.go`
 
-Dump the Schema into the app's 'db' dir (example)
-
-`$env:PGPASSWORD="<password>"; & "C:\Program Files\PostgreSQL\17\bin\pg_dump.exe" -s --no-owner --no-privileges -h localhost -p 5432 -U postgres -d hexachess2 -f "C:\Users\Joseph\Documents\Programs\hexachess\hexchess-svc\db\schema.sql"`
-
 ## Execution (Local)
 
 ### Env Variables

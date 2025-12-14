@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"log/slog"
 	"time"
 
@@ -13,7 +13,7 @@ import (
 
 var ErrSessionNotFound = errors.New("session not found")
 
-func GetSession(ctx context.Context, rdb *infra.Redis, sessionID string) (PlayerState, error) {
+func GetSession(ctx context.Context, rdb *db.Redis, sessionID string) (PlayerState, error) {
 	var p PlayerState
 
 	fullID := "session:" + sessionID
@@ -34,7 +34,7 @@ func GetSession(ctx context.Context, rdb *infra.Redis, sessionID string) (Player
 	return p, nil
 }
 
-func SetSession(ctx context.Context, rdb *infra.Redis, sessionID string, player PlayerState, expiry time.Duration) error {
+func SetSession(ctx context.Context, rdb *db.Redis, sessionID string, player PlayerState, expiry time.Duration) error {
 	data, err := MarshalPlayer(&player)
 	if err != nil {
 		return err
@@ -47,7 +47,7 @@ func SetSession(ctx context.Context, rdb *infra.Redis, sessionID string, player 
 	return nil
 }
 
-func UpdateSessionEx(ctx context.Context, rdb *infra.Redis, sessionID string, expiry time.Duration) error {
+func UpdateSessionEx(ctx context.Context, rdb *db.Redis, sessionID string, expiry time.Duration) error {
 	fullID := "session:" + sessionID
 	if err := rdb.Cache.Expire(ctx, fullID, expiry).Err(); err != nil {
 		return fmt.Errorf("update session expiry: %w", err)
@@ -56,7 +56,7 @@ func UpdateSessionEx(ctx context.Context, rdb *infra.Redis, sessionID string, ex
 	return nil
 }
 
-func DeleteSession(ctx context.Context, rdb *infra.Redis, sessionID string) error {
+func DeleteSession(ctx context.Context, rdb *db.Redis, sessionID string) error {
 	fullID := "session:" + sessionID
 	if err := rdb.Cache.Del(ctx, fullID).Err(); err != nil {
 		return fmt.Errorf("delete session: %w", err)

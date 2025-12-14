@@ -3,7 +3,7 @@ package svc
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"testing"
 	"time"
@@ -11,7 +11,7 @@ import (
 
 func TestSessions(t *testing.T) {
 	// given
-	rdb := infra.BeforeRedisTest(t)
+	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
 	playerIn := PlayerState{ID: 1, Name: "testing-name1"}

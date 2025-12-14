@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"hexchess-svc/chess"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"hexchess-svc/svc"
 	"hexchess-svc/util"
 	"log/slog"
@@ -31,14 +31,14 @@ type APIKeys struct {
 }
 
 type ServerState struct {
-	infra.Databases
+	db.Databases
 	CasterState
 	CountryState
 	APIKeys
 	Generators
 }
 
-func MakeServerState(databases infra.Databases, countryList []string, googleAPIKey string) ServerState {
+func MakeServerState(databases db.Databases, countryList []string, googleAPIKey string) ServerState {
 	if countryList == nil {
 		countryList = []string{}
 	}

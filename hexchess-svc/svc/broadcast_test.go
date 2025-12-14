@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"hexchess-svc/pb"
 	"hexchess-svc/util"
 	"testing"
@@ -104,7 +104,7 @@ func TestUnicaster(t *testing.T) {
 
 func TestBroadcastGameMessage(t *testing.T) {
 	// given
-	rdb := infra.BeforeRedisTest(t)
+	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
 	m := MakeMultiCasterMap("testing-broker-map", time.Hour*1)

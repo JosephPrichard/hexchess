@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"hexchess-svc/pb"
 	"hexchess-svc/util"
 	"log/slog"
@@ -34,7 +34,7 @@ func listenRedisChannels(rdb *redis.Client, chans []string, onMessage func(m *re
 	return connCh
 }
 
-func ListenGameMessages(m *MultiCasterMap, rdb *infra.Redis) chan struct{} {
+func ListenGameMessages(m *MultiCasterMap, rdb *db.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubSub, []string{rdb.GamesChan}, func(v *redis.Message) {
 		payload := []byte(v.Payload)
 		var outputID pb.GameOutputID
@@ -47,7 +47,7 @@ func ListenGameMessages(m *MultiCasterMap, rdb *infra.Redis) chan struct{} {
 	})
 }
 
-func ListenUsersMessages(m *MultiCasterMap, rdb *infra.Redis) chan struct{} {
+func ListenUsersMessages(m *MultiCasterMap, rdb *db.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubSub, []string{rdb.UsersChan}, func(v *redis.Message) {
 		var userMsg pb.UserMsg
 		if err := proto.Unmarshal([]byte(v.Payload), &userMsg); err != nil {
@@ -65,7 +65,7 @@ func ListenUsersMessages(m *MultiCasterMap, rdb *infra.Redis) chan struct{} {
 	})
 }
 
-func ListenUnicastEvents(m *UniCaster, rdb *infra.Redis) chan struct{} {
+func ListenUnicastEvents(m *UniCaster, rdb *db.Redis) chan struct{} {
 	var eventMap = map[string]UcEventKind{
 		rdb.ActiveCountChan: UcActiveEk,
 		rdb.GamesCountChan:  UcGamesEk,
@@ -90,7 +90,7 @@ func ListenUnicastEvents(m *UniCaster, rdb *infra.Redis) chan struct{} {
 	})
 }
 
-func BroadcastMessage(ctx context.Context, rdb *infra.Redis, channel string, b []byte) error {
+func BroadcastMessage(ctx context.Context, rdb *db.Redis, channel string, b []byte) error {
 	res := rdb.Cache.Publish(ctx, channel, b)
 	if err := res.Err(); err != nil {
 		return fmt.Errorf("publish message: %w", err)
@@ -104,7 +104,7 @@ type CountEvent struct {
 	Count int64  `json:"count"`
 }
 
-func BroadcastCountEvent(ctx context.Context, rdb *infra.Redis, channel string, count int64, id string) error {
+func BroadcastCountEvent(ctx context.Context, rdb *db.Redis, channel string, count int64, id string) error {
 	b, err := json.Marshal(CountEvent{ID: id, Count: count})
 	if err != nil {
 		return fmt.Errorf("marshal count event message: %w", err)
@@ -112,15 +112,15 @@ func BroadcastCountEvent(ctx context.Context, rdb *infra.Redis, channel string, 
 	return BroadcastMessage(ctx, rdb, channel, b)
 }
 
-func BroadcastActiveCount(ctx context.Context, rdb *infra.Redis, count int64, id string) error {
+func BroadcastActiveCount(ctx context.Context, rdb *db.Redis, count int64, id string) error {
 	return BroadcastCountEvent(ctx, rdb, rdb.ActiveCountChan, count, id)
 }
 
-func BroadcastGameCount(ctx context.Context, rdb *infra.Redis, count int64, id string) error {
+func BroadcastGameCount(ctx context.Context, rdb *db.Redis, count int64, id string) error {
 	return BroadcastCountEvent(ctx, rdb, rdb.GamesCountChan, count, id)
 }
 
-func BroadcastChallenge(ctx context.Context, rdb *infra.Redis, id int64, c ChallengeEntity) error {
+func BroadcastChallenge(ctx context.Context, rdb *db.Redis, id int64, c ChallengeEntity) error {
 	um := SerializeChallengeMsg(id, c)
 	b, err := proto.Marshal(um)
 	if err != nil {

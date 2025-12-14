@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
-	"hexchess-svc/infra"
 	"hexchess-svc/static"
 	"hexchess-svc/svc"
 	"hexchess-svc/util"
@@ -18,7 +18,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func readMockFile[V any](filename string) []V {
+func readTestdataFile[V any](filename string) []V {
 	b, err := static.Mocks.ReadFile(filename)
 	if err != nil {
 		log.Fatal(err)
@@ -33,9 +33,9 @@ func readMockFile[V any](filename string) []V {
 func main() {
 	start := time.Now()
 
-	challenges := readMockFile[svc.ChallengeInst]("test/challenge_insts.json")
-	gameResults := readMockFile[svc.GameResult]("test/game_results.json")
-	userInsts := readMockFile[svc.UserInst]("test/user_insts.json")
+	challenges := readTestdataFile[svc.ChallengeInst]("test/challenge_insts.json")
+	gameResults := readTestdataFile[svc.GameResult]("test/game_results.json")
+	userInsts := readTestdataFile[svc.UserInst]("test/user_insts.json")
 
 	util.InitLoggers(nil)
 	util.InitEnv()
@@ -53,17 +53,18 @@ func main() {
 	defer pool.Close()
 
 	q := db.New(pool)
-	pdb := infra.MakePostgres(q, pool)
+	pdb := db.MakePostgres(q, pool)
 
 	slog.InfoContext(ctx, "connecting to redis db", "redisPrimaryURL", redisPrimaryURL)
-	rdb := infra.MakeRdb(infra.RedisAddrs{CacheAddr: redisPrimaryURL}, infra.DefaultRedisNames)
+	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: redisPrimaryURL}, db.DefaultRedisNames)
 	defer rdb.Close()
 
-	if _, err := pool.Exec(context.Background(), "DROP SCHEMA public CASCADE;\nCREATE SCHEMA public;"); err != nil {
+	_, err = pool.Exec(ctx, `
+		TRUNCATE TABLE users, replays, challenges
+    	RESTART IDENTITY
+		CASCADE;`)
+	if err != nil {
 		util.LogFatalErr("drop schema", err)
-	}
-	if _, err := pool.Exec(context.Background(), db.CreateSchema); err != nil {
-		util.LogFatalErr("create schema", err)
 	}
 
 	if err := rdb.Cache.FlushAll(ctx).Err(); err != nil {
@@ -101,16 +102,16 @@ func main() {
 			game := chess.MakeStartGame()
 			moveSeq, err := chess.RandomMoveSeq(game, 10, 30)
 			if err != nil {
-				util.LogFatalErr("generate random move list", err)
+				return fmt.Errorf("generate random move list: %w", err)
 			}
 			moveHistBytes, err := chess.MarshalMoveHistory(game.Board, moveSeq)
 			if err != nil {
-				util.LogFatalErr("marshal move history: %w", err)
+				return fmt.Errorf("marshal move history: %w", err)
 			}
 			params.SerializedMoveHist = moveHistBytes
 
 			if _, err = svc.InsertGameResultTx(ctx, pdb, timesAt[i], params); err != nil {
-				util.LogFatalErr("insert game result", err)
+				return fmt.Errorf("insert game result: %w", err)
 			}
 			return nil
 		})

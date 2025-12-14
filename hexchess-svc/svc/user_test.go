@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"testing"
 	"time"
@@ -12,7 +12,7 @@ import (
 
 func TestInsertThenVerify(t *testing.T) {
 	// given
-	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-insert-then-verify")
@@ -45,7 +45,7 @@ func TestInsertThenVerify(t *testing.T) {
 
 func TestBatchInsertThenGet(t *testing.T) {
 	// given
-	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-batch-insert-then-get")
@@ -72,7 +72,7 @@ func TestBatchInsertThenGet(t *testing.T) {
 }
 
 func TestInsertAndUpdateUser(t *testing.T) {
-	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-update-user")
@@ -116,7 +116,7 @@ func TestInsertAndUpdateUser(t *testing.T) {
 
 func TestUpdatePasswordThenVerify(t *testing.T) {
 	// given
-	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "update-password")
@@ -136,7 +136,7 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 
 func TestInsertThenSearchByName(t *testing.T) {
 	// given
-	pdb, closer := infra.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "search-by-name")

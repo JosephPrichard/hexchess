@@ -2,7 +2,7 @@ package web
 
 import (
 	"context"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"hexchess-svc/svc"
 	"hexchess-svc/util"
 	"testing"
@@ -11,7 +11,7 @@ import (
 var TestSessionID1 = "test-session-id-1"
 var TestSessionID2 = "test-session-id-2"
 
-func createTestSessions(t *testing.T, rdb *infra.Redis) {
+func createTestSessions(t *testing.T, rdb *db.Redis) {
 	ctx := context.WithValue(context.Background(), util.Trace, "create-test-session-1")
 	if err := svc.SetSession(ctx, rdb, TestSessionID1, svc.PlayerState{ID: 1, Name: "user1", Country: "us", Elo: 1000}, SessionMaxAge); err != nil {
 		t.Fatalf("create test sessions: %v", err)
@@ -21,7 +21,7 @@ func createTestSessions(t *testing.T, rdb *infra.Redis) {
 	}
 }
 
-func createTestChessStates(t *testing.T, rdb *infra.Redis) {
+func createTestChessStates(t *testing.T, rdb *db.Redis) {
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-update-password")
 
 	state1 := svc.MakeState(svc.StateSetup{ID: "game1", TimeControl: svc.TcRealTime, FirstColor: svc.ColorRandom})

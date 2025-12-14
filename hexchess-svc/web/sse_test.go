@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"hexchess-svc/svc"
 	"hexchess-svc/util"
 	"net/http"
@@ -69,9 +69,9 @@ func parseEventData(input string) string {
 
 func TestHandleCountEvents(t *testing.T) {
 	// given
-	rdb := infra.BeforeRedisTest(t)
+	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
-	dbs := infra.Databases{Rdb: rdb}
+	dbs := db.Databases{Rdb: rdb}
 
 	state := MakeServerState(dbs, nil, "")
 	state.Generators = &mockGenerator{id: "id1"}
@@ -109,9 +109,9 @@ func TestHandleCountEvents(t *testing.T) {
 
 func TestHandleUserEvents(t *testing.T) {
 	// given
-	rdb := infra.BeforeRedisTest(t)
+	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
-	dbs := infra.Databases{Rdb: rdb}
+	dbs := db.Databases{Rdb: rdb}
 
 	state := MakeServerState(dbs, nil, "")
 	state.Generators = &mockGenerator{id: "id1"}
@@ -157,9 +157,9 @@ func TestHandleUserEvents(t *testing.T) {
 }
 
 func TestHandleCountEvents_Throughput(t *testing.T) {
-	rdb := infra.BeforeRedisTest(t)
+	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
-	dbs := infra.Databases{Rdb: rdb}
+	dbs := db.Databases{Rdb: rdb}
 
 	state := MakeServerState(dbs, nil, "")
 	<-svc.ListenUnicastEvents(state.CountsCaster, rdb)

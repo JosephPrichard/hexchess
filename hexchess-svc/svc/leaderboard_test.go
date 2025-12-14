@@ -3,7 +3,7 @@ package svc
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"math"
 	"math/rand"
@@ -12,7 +12,7 @@ import (
 
 func TestLeaderboard(t *testing.T) {
 	// given
-	rdb := infra.BeforeRedisTest(t)
+	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
 	id1 := int64(rand.Intn(math.MaxInt64))

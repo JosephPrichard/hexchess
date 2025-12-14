@@ -59,7 +59,7 @@ func main() {
 	}
 	source, err := iofs.New(migrationsFS, "migrations")
 	if err != nil {
-		log.Fatalf("failed to iofs source: %v", err)
+		log.Fatalf("failed to make iofs source: %v", err)
 	}
 	m, err := migrate.NewWithInstance("iofs", source, "postgres", driver)
 	if err != nil {

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/chess"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"hexchess-svc/svc"
 	"log/slog"
 	"net/http"
@@ -114,7 +114,7 @@ func HandleRegister(state *ServerState, w http.ResponseWriter, r *http.Request) 
 	return nil
 }
 
-func handleLoginSession(ctx context.Context, rdb *infra.Redis, w http.ResponseWriter, user svc.VerifiedUser) error {
+func handleLoginSession(ctx context.Context, rdb *db.Redis, w http.ResponseWriter, user svc.VerifiedUser) error {
 	t, err := SetSessionPlayer(ctx, rdb, w, svc.PlayerState{
 		ID:      user.ID,
 		Name:    user.Username,
@@ -785,6 +785,12 @@ func HandleGetChessRoomList(state *ServerState, w http.ResponseWriter, r *http.R
 		selfChessList = chessList
 	}
 
+	if chessList == nil {
+		chessList = []svc.ChessMeta{}
+	}
+	if selfChessList == nil {
+		selfChessList = []svc.ChessMeta{}
+	}
 	writeJSON(w, http.StatusOK, ChessRoomListResp{ChessList: chessList, SelfChessList: selfChessList})
 	return nil
 }

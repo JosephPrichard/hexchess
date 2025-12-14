@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/db"
-	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"log/slog"
 	"math"
@@ -210,15 +209,16 @@ type VerifiedUser struct {
 	Elo      float64 `json:"elo"`
 }
 
-func VerifyUserTx(ctx context.Context, pdb *infra.Pdb, username string, inputPassword string) (VerifiedUser, error) {
-	return infra.WithTxn(infra.TxnArgs[VerifiedUser]{
-		Ctx: ctx,
-		Pdb: pdb,
-		TxFn: func(query *db.Queries) (VerifiedUser, error) {
-			return verifyUser(ctx, query, username, inputPassword)
+func VerifyUserTx(ctx context.Context, pdb *db.PostgreSQL, username string, inputPassword string) (VerifiedUser, error) {
+	var u VerifiedUser
+	err := pdb.RunInTx(ctx, []error{ErrTooManyLoginAttempts, ErrUserNotFound},
+		func(ctx context.Context, query *db.Queries) error {
+			ret, err := verifyUser(ctx, query, username, inputPassword)
+			u = ret
+			return err
 		},
-		ErrAllowList: []error{ErrTooManyLoginAttempts, ErrUserNotFound},
-	})
+	)
+	return u, err
 }
 
 const LoginAttemptsDivisor = 10

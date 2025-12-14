@@ -3,7 +3,7 @@ package web
 import (
 	"context"
 	"fmt"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"hexchess-svc/svc"
 	"hexchess-svc/util"
 	"net/http"
@@ -39,7 +39,7 @@ func TestHandleRegister(t *testing.T) {
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			dbs, closer := infra.BeforeDbTest(t, true, svc.InsertTestData)
+			dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 			defer closer()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/register", strings.NewReader(test.body))
@@ -58,7 +58,7 @@ func TestHandleRegister(t *testing.T) {
 }
 
 func TestHandleLogin(t *testing.T) {
-	dbs, closer := infra.BeforeDbTest(t, true, svc.InsertTestData)
+	dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 	defer closer()
 
 	user := svc.TestUsersInsts[0]
@@ -97,7 +97,7 @@ func TestHandleLogin(t *testing.T) {
 }
 
 func TestHandleUpdateUser(t *testing.T) {
-	dbs, closer := infra.BeforeDbTest(t, true, svc.InsertTestData)
+	dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 	defer closer()
 	createTestSessions(t, dbs.Rdb)
 
@@ -136,7 +136,7 @@ func TestHandleUpdateUser(t *testing.T) {
 }
 
 func TestHandleUpdatePassword(t *testing.T) {
-	dbs, closer := infra.BeforeDbTest(t, true, svc.InsertTestData)
+	dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 	defer closer()
 	createTestSessions(t, dbs.Rdb)
 
@@ -180,7 +180,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 }
 
 func TestHandleUpdateChallenge(t *testing.T) {
-	dbs, closer := infra.BeforeDbTest(t, true, svc.InsertTestData)
+	dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 	defer closer()
 
 	createTestSessions(t, dbs.Rdb)
@@ -222,7 +222,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 
 func TestHandleCreateChallenge(t *testing.T) {
 	// given
-	dbs, closer := infra.BeforeDbTest(t, true, svc.InsertTestData)
+	dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 	defer closer()
 	createTestSessions(t, dbs.Rdb)
 
@@ -244,7 +244,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 
 func TestGetLeaderboard(t *testing.T) {
 	// given
-	dbs, closer := infra.BeforeDbTest(t, false, svc.InsertTestData)
+	dbs, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(context.Background(), util.Trace, "setup-get-leaderboard")
@@ -262,7 +262,7 @@ func TestGetLeaderboard(t *testing.T) {
 }
 
 func TestGetPlayer(t *testing.T) {
-	dbs, closer := infra.BeforeDbTest(t, false, svc.InsertTestData)
+	dbs, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
 	defer closer()
 
 	for i, test := range []struct {
@@ -302,7 +302,7 @@ func TestGetPlayer(t *testing.T) {
 }
 
 func TestGetChallenges(t *testing.T) {
-	dbs, closer := infra.BeforeDbTest(t, false, svc.InsertTestData)
+	dbs, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
 	defer closer()
 	createTestSessions(t, dbs.Rdb)
 
@@ -340,7 +340,7 @@ func TestGetChallenges(t *testing.T) {
 }
 
 func TestHandleGetUserReplays(t *testing.T) {
-	dbs, closer := infra.BeforeDbTest(t, true, svc.InsertTestData)
+	dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 	defer closer()
 
 	for i, test := range []struct {
@@ -396,7 +396,7 @@ func TestHandleGetUserReplays(t *testing.T) {
 }
 
 func TestHandleGetChessViews(t *testing.T) {
-	dbs, closer := infra.BeforeDbTest(t, false, svc.InsertTestData)
+	dbs, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
 	defer closer()
 	createTestSessions(t, dbs.Rdb)
 	createTestChessStates(t, dbs.Rdb)

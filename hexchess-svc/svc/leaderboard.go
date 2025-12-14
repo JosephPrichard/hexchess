@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/db"
-	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"log/slog"
 	"math"
@@ -19,7 +18,7 @@ type UpdtLbChangeSet struct {
 	EloDiff float64
 }
 
-func SetLeaderboard(ctx context.Context, rdb *infra.Redis, changes ...UpdtLbChangeSet) error {
+func SetLeaderboard(ctx context.Context, rdb *db.Redis, changes ...UpdtLbChangeSet) error {
 	pipe := rdb.Cache.TxPipeline()
 	for _, cs := range changes {
 		pipe.ZAddNX(ctx, rdb.LeaderboardZSet, redis.Z{Score: cs.EloDiff, Member: cs.ID})
@@ -31,7 +30,7 @@ func SetLeaderboard(ctx context.Context, rdb *infra.Redis, changes ...UpdtLbChan
 	return nil
 }
 
-func IncrLeaderboard(ctx context.Context, rdb *infra.Redis, changes ...UpdtLbChangeSet) error {
+func IncrLeaderboard(ctx context.Context, rdb *db.Redis, changes ...UpdtLbChangeSet) error {
 	pipe := rdb.Cache.TxPipeline()
 	for _, cs := range changes {
 		pipe.ZIncrBy(ctx, rdb.LeaderboardZSet, cs.EloDiff, fmt.Sprint(cs.ID))
@@ -48,7 +47,7 @@ type Leaderboard struct {
 	PageCount int          `json:"pageCount"`
 }
 
-func GetLeaderboardRank(ctx context.Context, rdb *infra.Redis, id int64) (int64, error) {
+func GetLeaderboardRank(ctx context.Context, rdb *db.Redis, id int64) (int64, error) {
 	rank, err := rdb.Cache.ZRevRank(ctx, rdb.LeaderboardZSet, fmt.Sprint(id)).Result()
 	if errors.Is(err, redis.Nil) {
 		rank = -1
@@ -70,7 +69,7 @@ func GetLeaderboardRank(ctx context.Context, rdb *infra.Redis, id int64) (int64,
 	return rank + 1, nil
 }
 
-func GetLeaderboard(ctx context.Context, rdb *infra.Redis, startRank, count int64) (Leaderboard, error) {
+func GetLeaderboard(ctx context.Context, rdb *db.Redis, startRank, count int64) (Leaderboard, error) {
 	var lbd Leaderboard
 
 	end := startRank - 1 + count
@@ -100,7 +99,7 @@ func GetLeaderboard(ctx context.Context, rdb *infra.Redis, startRank, count int6
 	return lbd, nil
 }
 
-func GetLeaderboardPage(ctx context.Context, rdb *infra.Redis, page, perPage int64) (Leaderboard, error) {
+func GetLeaderboardPage(ctx context.Context, rdb *db.Redis, page, perPage int64) (Leaderboard, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -111,7 +110,7 @@ func GetLeaderboardPage(ctx context.Context, rdb *infra.Redis, page, perPage int
 	return leaderboard, err
 }
 
-func SyncLeaderboard(ctx context.Context, dbs *infra.Databases) error {
+func SyncLeaderboard(ctx context.Context, dbs *db.Databases) error {
 	afterID := int64(0)
 	for {
 		rows, err := dbs.Pdb.Query.SelectEloListAfterID(ctx, db.SelectEloListAfterIDParams{AfterID: afterID, Limit: 20})

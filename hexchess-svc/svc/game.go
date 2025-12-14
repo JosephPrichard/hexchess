@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
-	"hexchess-svc/infra"
 	"hexchess-svc/util"
 	"log/slog"
 	"math/big"
@@ -15,7 +14,7 @@ import (
 	"time"
 )
 
-func CreateGame(ctx context.Context, rdb *infra.Redis, color ColorSelect, timeControl TimeControl, initialBoard *chess.Board) (string, error) {
+func CreateGame(ctx context.Context, rdb *db.Redis, color ColorSelect, timeControl TimeControl, initialBoard *chess.Board) (string, error) {
 	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
 	bID := make([]byte, 8)
@@ -41,7 +40,7 @@ func CreateGame(ctx context.Context, rdb *infra.Redis, color ColorSelect, timeCo
 	return strID, nil
 }
 
-func broadcastGameCounts(rdb *infra.Redis, strID string) {
+func broadcastGameCounts(rdb *db.Redis, strID string) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Warn("recovered in panic while broadcasting game event", "err", r)
@@ -61,7 +60,7 @@ func broadcastGameCounts(rdb *infra.Redis, strID string) {
 	slog.InfoContext(ctx, "counted chess states after creating game", "count", count)
 }
 
-func JoinGame(ctx context.Context, rdb *infra.Redis, gameID string, player *PlayerState) (ChessState, error) {
+func JoinGame(ctx context.Context, rdb *db.Redis, gameID string, player *PlayerState) (ChessState, error) {
 	state, err := GetChessState(ctx, rdb, gameID)
 	if err != nil {
 		return ChessState{}, err
@@ -149,7 +148,7 @@ func DoMakeMove(ctx context.Context, state ChessState, player PlayerState, move 
 	return mr, nil
 }
 
-func MakeGameMove(ctx context.Context, dbs *infra.Databases, gameID string, player PlayerState, move chess.Move) (MoveResult, error) {
+func MakeGameMove(ctx context.Context, dbs *db.Databases, gameID string, player PlayerState, move chess.Move) (MoveResult, error) {
 	var mr MoveResult
 
 	state, err := GetChessState(ctx, dbs.Rdb, gameID)
@@ -177,7 +176,7 @@ func MakeGameMove(ctx context.Context, dbs *infra.Databases, gameID string, play
 	return mr, nil
 }
 
-func ForfeitGame(ctx context.Context, dbs *infra.Databases, gameID string, player PlayerState) error {
+func ForfeitGame(ctx context.Context, dbs *db.Databases, gameID string, player PlayerState) error {
 	state, err := GetChessState(ctx, dbs.Rdb, gameID)
 	if err != nil {
 		return err
@@ -204,7 +203,7 @@ func ForfeitGame(ctx context.Context, dbs *infra.Databases, gameID string, playe
 	return nil
 }
 
-func WriteFinishedGame(ctx context.Context, dbs *infra.Databases, state ChessState, result ReplayResult, cause ReplayCause) error {
+func WriteFinishedGame(ctx context.Context, dbs *db.Databases, state ChessState, result ReplayResult, cause ReplayCause) error {
 	if state.WhitePlayer == nil || state.BlackPlayer == nil {
 		return fmt.Errorf("room players must not be nil on a finished game: roomID: %s", state.ID)
 	}
@@ -218,9 +217,9 @@ func WriteFinishedGame(ctx context.Context, dbs *infra.Databases, state ChessSta
 	cs, err := InsertGameResultTx(ctx, dbs.Pdb, time.Now(), GameResult{
 		WhiteID:            whiteID,
 		BlackID:            blackID,
-		Cause:              cause,
-		Result:             result,
-		Mode:               ReplayMode(state.TimeControl), // as of right now, the replay modes only contain the time control, so we can directly cast
+		ReplayCause:        cause,
+		ReplayResult:       result,
+		ReplayMode:         ReplayMode(state.TimeControl), // as of right now, the replay modes only contain the time control, so we can directly cast
 		SerializedMoveHist: moveHistBytes,
 	})
 	if err != nil {
@@ -245,9 +244,9 @@ func WriteFinishedGame(ctx context.Context, dbs *infra.Databases, state ChessSta
 type GameResult struct {
 	WhiteID            int64        `json:"whiteId"`
 	BlackID            int64        `json:"blackId"`
-	Cause              ReplayCause  `json:"cause"`
-	Result             ReplayResult `json:"result"`
-	Mode               ReplayMode   `json:"mode"`
+	ReplayCause        ReplayCause  `json:"cause"`
+	ReplayResult       ReplayResult `json:"result"`
+	ReplayMode         ReplayMode   `json:"mode"`
 	SerializedMoveHist []byte
 }
 
@@ -263,14 +262,16 @@ func (cs GRChangeSet) IsNoop() bool {
 	return cs.LoseEloDiff == 0 && cs.WinEloDiff == 0
 }
 
-func InsertGameResultTx(ctx context.Context, pdb *infra.Pdb, timeAt time.Time, params GameResult) (GRChangeSet, error) {
-	return infra.WithTxn(infra.TxnArgs[GRChangeSet]{
-		Ctx: ctx,
-		Pdb: pdb,
-		TxFn: func(query *db.Queries) (GRChangeSet, error) {
-			return insertGameResult(ctx, query, timeAt, params)
+func InsertGameResultTx(ctx context.Context, pdb *db.PostgreSQL, timeAt time.Time, params GameResult) (GRChangeSet, error) {
+	var cs GRChangeSet
+	err := pdb.RunInTx(ctx, nil,
+		func(ctx context.Context, query *db.Queries) error {
+			ret, err := insertGameResult(ctx, query, timeAt, params)
+			cs = ret
+			return err
 		},
-	})
+	)
+	return cs, err
 }
 
 type EloPair struct {
@@ -278,16 +279,19 @@ type EloPair struct {
 	BlackElo float64
 }
 
-func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, gr GameResult) (cs GRChangeSet, err error) {
-	ids := []int64{gr.WhiteID, gr.BlackID}
+func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, result GameResult) (cs GRChangeSet, err error) {
+	ids := []int64{result.WhiteID, result.BlackID}
 	slices.SortFunc(ids, func(left, right int64) int { return int(left - right) }) // consistent query order
 
 	rows, err := query.GetElosByIds(ctx, ids)
 	if err != nil {
 		return cs, fmt.Errorf("select users %+v elo: %w", ids, err)
 	}
+	if len(rows) != 2 {
+		return cs, fmt.Errorf("expected 2 users to have elo, got %d", len(rows))
+	}
 	var whiteElo, blackElo float64
-	if rows[0].ID == gr.WhiteID {
+	if rows[0].ID == result.WhiteID {
 		whiteElo, blackElo = rows[0].Elo, rows[1].Elo
 	} else {
 		whiteElo, blackElo = rows[1].Elo, rows[0].Elo
@@ -296,20 +300,20 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 	var winID, loseID int64
 	var winElo, loseElo, whiteEloNext, blackEloNext, winEloDiff, loseEloDiff float64
 
-	switch gr.Result {
+	switch result.ReplayResult {
 	case WhiteWin:
-		winID, loseID, winElo, loseElo = gr.WhiteID, gr.BlackID, whiteElo, blackElo
+		winID, loseID, winElo, loseElo = result.WhiteID, result.BlackID, whiteElo, blackElo
 	case BlackWin:
-		winID, loseID, winElo, loseElo = gr.BlackID, gr.WhiteID, blackElo, whiteElo
+		winID, loseID, winElo, loseElo = result.BlackID, result.WhiteID, blackElo, whiteElo
 	}
 
-	if gr.Result.IsWin() {
+	if result.ReplayResult.IsWin() {
 		winEloNext := winElo + 30*(1.0-ProbabilityWins(loseElo, winElo))
 		loseEloNext := loseElo + (-30 * ProbabilityWins(winElo, loseElo))
 		winEloDiff = winEloNext - winElo
 		loseEloDiff = loseEloNext - loseElo
 
-		switch gr.Result {
+		switch result.ReplayResult {
 		case WhiteWin:
 			whiteEloNext, blackEloNext = winEloNext, loseEloNext
 		case BlackWin:
@@ -327,21 +331,22 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 	}
 
 	replayID, err := InsertReplay(ctx, query, ReplayInst{
-		WhiteID:            gr.WhiteID,
-		BlackID:            gr.BlackID,
-		Result:             gr.Result,
-		Cause:              gr.Cause,
-		Mode:               gr.Mode,
+		WhiteID:            result.WhiteID,
+		BlackID:            result.BlackID,
+		Result:             result.ReplayResult,
+		Cause:              result.ReplayCause,
+		Mode:               result.ReplayMode,
 		WinEloDiff:         winEloDiff,
 		LoseEloDiff:        loseEloDiff,
 		ReplayWhiteElo:     whiteEloNext,
 		ReplayBlackElo:     blackEloNext,
-		SerializedMoveHist: gr.SerializedMoveHist,
+		SerializedMoveHist: result.SerializedMoveHist,
 		PlayedOn:           timeAt,
 	})
 	if err != nil {
 		return cs, fmt.Errorf("insert replay: %w", err)
 	}
+
 	cs = GRChangeSet{ReplayID: replayID, WinID: winID, LoseID: loseID, WinEloDiff: winEloDiff, LoseEloDiff: loseEloDiff}
 	slog.InfoContext(ctx, "inserted game result", "changeSet", cs)
 	return cs, nil

@@ -1,4 +1,4 @@
-package infra
+package db
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"log"
 	"sync"
@@ -105,7 +104,7 @@ func startPostgresContainer(t TestLogger) testcontainers.Container {
 	defer cancel()
 
 	req := testcontainers.ContainerRequest{
-		Image:        "postgres:16",
+		Image:        "postgres:17",
 		ExposedPorts: []string{"5432/tcp"},
 		Env: map[string]string{
 			"POSTGRES_USER":     TestDbUser,
@@ -136,9 +135,7 @@ func createPgPool(t TestLogger, cont testcontainers.Container) *pgxpool.Pool {
 	if err != nil {
 		t.Fatalf("get postgres container port: %s", err)
 	}
-
-	pool, err := pgxpool.New(ctx,
-		fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", TestDbUser, TestDbPass, host, port.Port(), TestDbName))
+	pool, err := pgxpool.New(ctx, fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", TestDbUser, TestDbPass, host, port.Port(), TestDbName))
 	if err != nil {
 		t.Fatalf("create pgx pool: %v", err)
 	}
@@ -147,10 +144,15 @@ func createPgPool(t TestLogger, cont testcontainers.Container) *pgxpool.Pool {
 
 func seedPostgres(t TestLogger, pool *pgxpool.Pool, insertTestData func(TestLogger, *pgxpool.Pool)) {
 	ctx := context.Background()
+	var version string
+	if err := pool.QueryRow(ctx, "SELECT version();").Scan(&version); err != nil {
+		t.Fatalf("get postgres version: %v", err)
+	}
+	t.Logf("seeding postgres version: %s", version)
 	if _, err := pool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"); err != nil {
 		t.Fatalf("reset schema: %v", err)
 	}
-	if _, err := pool.Exec(ctx, db.CreateSchema); err != nil {
+	if _, err := pool.Exec(ctx, CreateSchema); err != nil {
 		t.Fatalf("create schema: %v", err)
 	}
 	insertTestData(t, pool)
@@ -171,7 +173,7 @@ func beginTestTx(t TestLogger, pool *pgxpool.Pool) (pgx.Tx, func()) {
 	return testTx, closer
 }
 
-func BeforePostgresTest(t TestLogger, useTestTx bool, insertTestData func(TestLogger, *pgxpool.Pool)) (*Pdb, func()) {
+func BeforePostgresTest(t TestLogger, useTestTx bool, insertTestData func(TestLogger, *pgxpool.Pool)) (*PostgreSQL, func()) {
 	muPostgres.Lock()
 	defer muPostgres.Unlock()
 
@@ -188,9 +190,9 @@ func BeforePostgresTest(t TestLogger, useTestTx bool, insertTestData func(TestLo
 
 	if useTestTx {
 		txn, closer := beginTestTx(t, pool)
-		return MakeTxnPostgres(txn), closer
+		return MakeTestTxnPostgres(txn), closer
 	} else {
-		return MakePostgres(db.New(pool), pool), func() { pool.Close() }
+		return MakePostgres(New(pool), pool), func() { pool.Close() }
 	}
 }
 

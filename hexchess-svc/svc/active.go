@@ -3,7 +3,7 @@ package svc
 import (
 	"context"
 	"fmt"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"log/slog"
 	"time"
 
@@ -12,11 +12,11 @@ import (
 
 const ActiveUserExpireFinished = time.Minute // the caller should manually remove, but this is a stopgap in case the server is stopped before that is the case
 
-func GetActiveCount(ctx context.Context, rdb *infra.Redis, activeUsersZSet string) (int64, error) {
+func GetActiveCount(ctx context.Context, rdb *db.Redis, activeUsersZSet string) (int64, error) {
 	return GetActiveCountWithExpiry(ctx, rdb, activeUsersZSet, time.Now().Add(-ActiveUserExpireFinished).UnixMilli())
 }
 
-func GetActiveCountWithExpiry(ctx context.Context, rdb *infra.Redis, activeUsersZSet string, expireBefore int64) (int64, error) {
+func GetActiveCountWithExpiry(ctx context.Context, rdb *db.Redis, activeUsersZSet string, expireBefore int64) (int64, error) {
 	removed, err := rdb.Cache.ZRemRangeByScore(ctx, activeUsersZSet, "-inf", fmt.Sprintf("%d", expireBefore)).Result()
 	if err != nil {
 		return 0, fmt.Errorf("get expired active users by range: %w", err)
@@ -32,7 +32,7 @@ func GetActiveCountWithExpiry(ctx context.Context, rdb *infra.Redis, activeUsers
 	return count, nil
 }
 
-func RetainActiveUser(ctx context.Context, rdb *infra.Redis, id string) error {
+func RetainActiveUser(ctx context.Context, rdb *db.Redis, id string) error {
 	now := float64(time.Now().UnixMilli())
 	res, err := rdb.Cache.ZAddXX(ctx, rdb.ActiveUsersZSet, redis.Z{Score: now, Member: id}).Result()
 	if err != nil {
@@ -44,12 +44,12 @@ func RetainActiveUser(ctx context.Context, rdb *infra.Redis, id string) error {
 	return nil
 }
 
-func AddActiveUser(ctx context.Context, rdb *infra.Redis, id string) (int64, error) {
+func AddActiveUser(ctx context.Context, rdb *db.Redis, id string) (int64, error) {
 	now := time.Now()
 	return AddActiveUserOn(ctx, rdb, id, now, now.Add(-ActiveUserExpireFinished).UnixMilli())
 }
 
-func AddActiveUserOn(ctx context.Context, rdb *infra.Redis, id string, expiringOn time.Time, expireBefore int64) (int64, error) {
+func AddActiveUserOn(ctx context.Context, rdb *db.Redis, id string, expiringOn time.Time, expireBefore int64) (int64, error) {
 	_, err := rdb.Cache.ZAddNX(ctx, rdb.ActiveUsersZSet, redis.Z{Score: float64(expiringOn.UnixMilli()), Member: id}).Result()
 	if err != nil {
 		return 0, fmt.Errorf("add active user %v: %w", id, err)
@@ -59,7 +59,7 @@ func AddActiveUserOn(ctx context.Context, rdb *infra.Redis, id string, expiringO
 	return GetActiveCountWithExpiry(ctx, rdb, rdb.ActiveUsersZSet, expireBefore)
 }
 
-func RemoveActiveUser(ctx context.Context, rdb *infra.Redis, id string) (int64, error) {
+func RemoveActiveUser(ctx context.Context, rdb *db.Redis, id string) (int64, error) {
 	_, err := rdb.Cache.ZRem(ctx, rdb.ActiveUsersZSet, id).Result()
 	if err != nil {
 		return 0, fmt.Errorf("remove active user %v: %w", id, err)

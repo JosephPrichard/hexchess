@@ -2,7 +2,7 @@ package svc
 
 import (
 	"context"
-	"hexchess-svc/infra"
+	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"testing"
 	"time"
@@ -13,7 +13,7 @@ import (
 
 func TestEchoChessState(t *testing.T) {
 	// given
-	rdb := infra.BeforeRedisTest(t)
+	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
@@ -38,7 +38,7 @@ func TestEchoChessState(t *testing.T) {
 
 func TestGetChessMetas(t *testing.T) {
 	// given
-	rdb := infra.BeforeRedisTest(t)
+	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
@@ -86,7 +86,7 @@ func TestGetChessMetas(t *testing.T) {
 
 func TestExpireChessStates(t *testing.T) {
 	// given
-	rdb := infra.BeforeRedisTest(t)
+	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
