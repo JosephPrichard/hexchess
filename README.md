@@ -25,11 +25,15 @@ Alternatively, run a CI pipeline suitable build that also runs all tests.
 
 Force Version the Schema (on setup)
 
-`$env:DB_URL="<url>"; $env:MIGRATION_VERSION="<version>"; & go run main.go`
+`$env:DB_URL="<url>"; $env:MIGRATION_TYPE="<version_number>"; & go run main.go`
 
 Run a Migration (up)
 
-`$env:DB_URL="<url>"; & go run main.go`
+`$env:DB_URL="<url>"; $env:MIGRATION_TYPE="UP"; & go run main.go`
+
+Run a Migration (down)
+
+`$env:DB_URL="<url>"; $env:MIGRATION_TYPE="DOWN"; & go run main.go`
 
 Dump the Schema into the app's 'db' dir (example)
 

@@ -45,7 +45,7 @@ func initEnv() {
 func main() {
 	initEnv()
 	dbURL := os.Getenv("DB_URL")
-	versionStr := os.Getenv("MIGRATE_VERSION")
+	migrType := os.Getenv("MIGRATION_TYPE")
 
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -72,21 +72,23 @@ func main() {
 	}
 	log.Printf("last database migration state, version=%d, dirty=%v", version, dirty)
 
-	if versionStr != "" {
-		version, err := strconv.Atoi(versionStr)
-		if err != nil {
-			log.Fatalf("failed to parse force version %s: %v", versionStr, err)
-		}
-		if err := m.Force(version); err != nil {
-			log.Fatalf("failed tp migrate force %d: %v", version, err)
-		}
-
-		log.Printf("database migration to version %d forced", version)
-	} else {
+	switch strings.ToUpper(migrType) {
+	case "DOWN":
+		log.Fatal("database migration down not supported")
+	case "UP":
 		if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 			log.Fatalf("failed to migrate up: %v", err)
 		}
 		log.Println("database migration up")
+	default:
+		version, err := strconv.Atoi(migrType)
+		if err != nil {
+			log.Fatalf("failed to parse force version %s: %v", migrType, err)
+		}
+		if err := m.Force(version); err != nil {
+			log.Fatalf("failed tp migrate force %d: %v", version, err)
+		}
+		log.Printf("database migration to version %d forced", version)
 	}
 
 	version, dirty, err = m.Version()
