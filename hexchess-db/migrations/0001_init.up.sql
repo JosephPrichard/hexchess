@@ -54,12 +54,12 @@ SET default_table_access_method = heap;
 --
 
 CREATE TABLE public.challenges (
-    challenger_id bigint NOT NULL,
-    challengee_id bigint NOT NULL,
-    time_control character varying NOT NULL,
-    start_color character varying NOT NULL,
-    made_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT start_color_check CHECK (((start_color)::text = ANY ((ARRAY['RANDOM'::character varying, 'BLACK'::character varying, 'WHITE'::character varying])::text[]))),
+                                   challenger_id bigint NOT NULL,
+                                   challengee_id bigint NOT NULL,
+                                   time_control character varying NOT NULL,
+                                   start_color character varying NOT NULL,
+                                   made_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                                   CONSTRAINT start_color_check CHECK (((start_color)::text = ANY ((ARRAY['RANDOM'::character varying, 'BLACK'::character varying, 'WHITE'::character varying])::text[]))),
     CONSTRAINT time_control_check CHECK (((time_control)::text = ANY ((ARRAY['REAL_TIME'::character varying, 'CORRESPONDENCE'::character varying, 'UNLIMITED'::character varying])::text[])))
 );
 
@@ -69,19 +69,19 @@ CREATE TABLE public.challenges (
 --
 
 CREATE TABLE public.replays (
-    id bigint NOT NULL,
-    white_id bigint NOT NULL,
-    black_id bigint NOT NULL,
-    mode character varying NOT NULL,
-    result character varying NOT NULL,
-    cause character varying NOT NULL,
-    played_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    win_elo_diff double precision NOT NULL,
-    lose_elo_diff double precision NOT NULL,
-    white_elo double precision NOT NULL,
-    black_elo double precision NOT NULL,
-    move_history bytea NOT NULL,
-    CONSTRAINT cause_check CHECK (((cause)::text = ANY ((ARRAY['CHECKMATE'::character varying, 'FORFEIT'::character varying])::text[]))),
+                                id bigint NOT NULL,
+                                white_id bigint NOT NULL,
+                                black_id bigint NOT NULL,
+                                mode character varying NOT NULL,
+                                result character varying NOT NULL,
+                                cause character varying NOT NULL,
+                                played_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                                win_elo_diff double precision NOT NULL,
+                                lose_elo_diff double precision NOT NULL,
+                                white_elo double precision NOT NULL,
+                                black_elo double precision NOT NULL,
+                                move_history bytea NOT NULL,
+                                CONSTRAINT cause_check CHECK (((cause)::text = ANY ((ARRAY['CHECKMATE'::character varying, 'FORFEIT'::character varying])::text[]))),
     CONSTRAINT mode_check CHECK (((mode)::text = ANY ((ARRAY['REAL_TIME'::character varying, 'CORRESPONDENCE'::character varying, 'UNLIMITED'::character varying])::text[]))),
     CONSTRAINT result_check CHECK (((result)::text = ANY ((ARRAY['DRAW'::character varying, 'WHITE_WINS'::character varying, 'BLACK_WINS'::character varying])::text[])))
 );
@@ -106,8 +106,8 @@ ALTER TABLE public.replays ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 --
 
 CREATE TABLE public.schema_migrations (
-    version bigint NOT NULL,
-    dirty boolean NOT NULL
+                                          version bigint NOT NULL,
+                                          dirty boolean NOT NULL
 );
 
 
@@ -116,21 +116,21 @@ CREATE TABLE public.schema_migrations (
 --
 
 CREATE TABLE public.users (
-    id bigint NOT NULL,
-    username character varying NOT NULL,
-    country character varying,
-    elo double precision NOT NULL,
-    highest_elo double precision NOT NULL,
-    wins integer NOT NULL,
-    losses integer NOT NULL,
-    bio character varying DEFAULT ''::character varying NOT NULL,
-    joined_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    start_elo double precision NOT NULL,
-    password character varying NOT NULL,
-    salt character varying NOT NULL,
-    login_attempts integer DEFAULT 0 NOT NULL,
-    last_login_attempt timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    google_account_id character varying
+                              id bigint NOT NULL,
+                              username character varying NOT NULL,
+                              country character varying,
+                              elo double precision NOT NULL,
+                              highest_elo double precision NOT NULL,
+                              wins integer NOT NULL,
+                              losses integer NOT NULL,
+                              bio character varying DEFAULT ''::character varying NOT NULL,
+                              joined_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                              start_elo double precision NOT NULL,
+                              password character varying NOT NULL,
+                              salt character varying NOT NULL,
+                              login_attempts integer DEFAULT 0 NOT NULL,
+                              last_login_attempt timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                              google_account_id character varying
 );
 
 
@@ -153,8 +153,8 @@ ALTER TABLE public.users ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 --
 
 CREATE TABLE public.users_metadata (
-    id bigint NOT NULL,
-    count integer
+                                       id bigint NOT NULL,
+                                       count integer
 );
 
 
@@ -210,6 +210,13 @@ CREATE INDEX idx_black_id ON public.replays USING btree (black_id, id);
 --
 
 CREATE INDEX idx_both_ids ON public.replays USING btree (white_id, black_id, id);
+
+
+--
+-- Name: idx_both_ids_mode_played_on; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_both_ids_mode_played_on ON public.replays USING btree (white_id, black_id, mode, played_on);
 
 
 --
@@ -298,7 +305,6 @@ ALTER TABLE ONLY public.replays
 
 ALTER TABLE ONLY public.replays
     ADD CONSTRAINT replays_white_id_fkey FOREIGN KEY (white_id) REFERENCES public.users(id);
-
 
 --
 -- PostgreSQL database dump complete

@@ -66,10 +66,7 @@ func main() {
 		util.LogFatalErr("create schema", err)
 	}
 
-	conn := rdb.Cache.Get()
-	defer conn.Close()
-
-	if _, err := conn.Do("FLUSHALL"); err != nil {
+	if err := rdb.Cache.FlushAll(ctx).Err(); err != nil {
 		util.LogFatalErr("flush redis", err)
 	}
 

@@ -230,10 +230,12 @@ func verifyUser(ctx context.Context, query *db.Queries, username string, inputPa
 	var u VerifiedUser
 
 	login, err := query.SelectLoginByName(ctx, username)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return u, ErrUserNotFound
-	} else if err != nil {
-		return u, fmt.Errorf("select user '%s' by login: %w", username, err)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return u, ErrUserNotFound
+		} else {
+			return u, fmt.Errorf("select user '%s' by login: %w", username, err)
+		}
 	}
 
 	isExceedAttempts := login.LoginAttempts > 0 && login.LoginAttempts%LoginAttemptsDivisor == 0

@@ -19,6 +19,22 @@ Alternatively, run a CI pipeline suitable build that also runs all tests.
 
 `make ci`
 
+## Database Migrations
+
+`cd hexchess-db`
+
+Force Version the Schema (on setup)
+
+`$env:DB_URL="<url>"; $env:MIGRATION_VERSION="<version>"; & go run main.go`
+
+Run a Migration (up)
+
+`$env:DB_URL="<url>"; & go run main.go`
+
+Dump the Schema into the app's 'db' dir (example)
+
+`$env:PGPASSWORD="<password>"; & "C:\Program Files\PostgreSQL\17\bin\pg_dump.exe" -s --no-owner --no-privileges -h localhost -p 5432 -U postgres -d hexachess2 -f "C:\Users\Joseph\Documents\Programs\hexachess\hexchess-svc\db\schema.sql"`
+
 ## Execution (Local)
 
 ### Env Variables
@@ -48,7 +64,7 @@ COOKIE_DOMAIN=localhost
 
 ## Build & Execution (Prod)
 
-Create an environment variables file in `root`
+Create an environment variable file in `root`
 ```
 PROXY_PORT=8080
 DB_URL=postgres://postgres:<db-password>@host.docker.internal:<db-port>/<db-name>

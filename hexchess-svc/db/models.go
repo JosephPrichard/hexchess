@@ -31,6 +31,11 @@ type Replay struct {
 	MoveHistory []byte
 }
 
+type SchemaMigration struct {
+	Version int64
+	Dirty   bool
+}
+
 type User struct {
 	ID               int64
 	Username         string
