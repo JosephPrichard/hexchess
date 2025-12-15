@@ -2,6 +2,7 @@ package svc
 
 import (
 	"context"
+	"fmt"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/util"
@@ -167,50 +168,99 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	assertStateRdb(t, dbs.Rdb, expState)
 }
 
-func TestInsertGameResultTx(t *testing.T) {
-	// given
-	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
-	defer closer()
-
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-update-stats")
+func TestInsertGameResult(t *testing.T) {
+	ctx := context.WithValue(context.Background(), util.Trace, "testing-insert-game-result")
 
 	testUser0 := TestUserEntities[0]
 	testUser1 := TestUserEntities[1]
 
-	// when
-	cs, err := InsertGameResultTx(ctx, pdb, time.Now(), GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Checkmate, ReplayResult: WhiteWin, ReplayMode: ModeUnlimited, SerializedMoveHist: []byte{}})
-	assert.NoError(t, err)
+	for i, test := range []struct {
+		result      GameResult
+		expWhiteElo float64
+		expBlackElo float64
+		expReplay   db.Replay
+		expChange   GRChangeSet
+	}{
+		{
+			result:      GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Stalemate, ReplayResult: Draw, ReplayMode: ModeRealTime},
+			expWhiteElo: 1000,
+			expBlackElo: 1000,
+			expReplay: db.Replay{
+				WhiteID:     testUser0.ID,
+				BlackID:     testUser1.ID,
+				Result:      string(Draw),
+				Cause:       string(Stalemate),
+				Mode:        string(ModeRealTime),
+				WinEloDiff:  0,
+				LoseEloDiff: 0,
+				WhiteElo:    1000,
+				BlackElo:    1000,
+				MoveHistory: []byte{},
+			},
+			expChange: GRChangeSet{},
+		},
+		{
+			result:      GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Checkmate, ReplayResult: WhiteWin, ReplayMode: ModeUnlimited},
+			expWhiteElo: 1015,
+			expBlackElo: 985,
+			expReplay: db.Replay{
+				WhiteID:     testUser0.ID,
+				BlackID:     testUser1.ID,
+				Result:      string(WhiteWin),
+				Cause:       string(Checkmate),
+				Mode:        string(TcUnlimited),
+				WinEloDiff:  15,
+				LoseEloDiff: -15,
+				WhiteElo:    1015,
+				BlackElo:    985,
+				MoveHistory: []byte{},
+			},
+			expChange: GRChangeSet{WinID: testUser0.ID, LoseID: testUser1.ID, WinEloDiff: 15, LoseEloDiff: -15},
+		},
+		{
+			result:      GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Forfeit, ReplayResult: BlackWin, ReplayMode: ModeCorrespondence},
+			expWhiteElo: 985,
+			expBlackElo: 1015,
+			expReplay: db.Replay{
+				WhiteID:     testUser0.ID,
+				BlackID:     testUser1.ID,
+				Result:      string(BlackWin),
+				Cause:       string(Forfeit),
+				Mode:        string(TcCorrespondence),
+				WinEloDiff:  15,
+				LoseEloDiff: -15,
+				WhiteElo:    985,
+				BlackElo:    1015,
+				MoveHistory: []byte{},
+			},
+			expChange: GRChangeSet{WinID: testUser1.ID, LoseID: testUser0.ID, WinEloDiff: 15, LoseEloDiff: -15},
+		},
+	} {
+		t.Run(fmt.Sprintf("%s-%d", test.result.ReplayResult, i), func(t *testing.T) {
+			// given
+			pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+			defer closer()
 
-	// then
-	e1, err := pdb.Query.GetElosByIds(ctx, []int64{testUser0.ID})
-	assert.NoError(t, err)
-	e2, err := pdb.Query.GetElosByIds(ctx, []int64{testUser1.ID})
-	assert.NoError(t, err)
+			// when
+			cs, err := InsertGameResultTx(ctx, pdb, time.Now(), test.result)
+			assert.NoError(t, err)
 
-	assert.Equal(t, e1[0].Elo, float64(1015))
-	assert.Equal(t, e2[0].Elo, float64(985))
+			// then
+			elos, err := pdb.Query.GetElosByIds(ctx, []int64{test.result.WhiteID, test.result.BlackID})
+			assert.NoError(t, err)
 
-	r1, err := pdb.Query.GetReplayRowByID(ctx, cs.ReplayID)
-	assert.NoError(t, err)
+			assert.Equal(t, elos[0].Elo, test.expWhiteElo)
+			assert.Equal(t, elos[1].Elo, test.expBlackElo)
 
-	expReplay := db.Replay{
-		ID:          cs.ReplayID,
-		WhiteID:     testUser0.ID,
-		BlackID:     testUser1.ID,
-		Result:      string(WhiteWin),
-		Cause:       string(Checkmate),
-		Mode:        string(TcUnlimited),
-		WinEloDiff:  15,
-		LoseEloDiff: -15,
-		WhiteElo:    1015,
-		BlackElo:    985,
-		MoveHistory: []byte{},
+			r1, err := pdb.Query.GetReplayRowByID(ctx, cs.ReplayID)
+			assert.NoError(t, err)
+
+			util.AssertEqualIgnoring(t, test.expReplay, r1, ReplayRowCmpOpts)
+
+			cs.ReplayID = 0
+			cs.WinEloDiff = math.Round(cs.WinEloDiff)
+			cs.LoseEloDiff = math.Round(cs.LoseEloDiff)
+			assert.Equal(t, test.expChange, cs)
+		})
 	}
-	util.AssertEqualIgnoring(t, expReplay, r1, ReplayRowCmpOpts)
-
-	cs.ReplayID = 0
-	cs.WinEloDiff = math.Round(cs.WinEloDiff)
-	cs.LoseEloDiff = math.Round(cs.LoseEloDiff)
-	expChange := GRChangeSet{WinID: testUser0.ID, LoseID: testUser1.ID, WinEloDiff: 15, LoseEloDiff: -15}
-	assert.Equal(t, expChange, cs)
 }

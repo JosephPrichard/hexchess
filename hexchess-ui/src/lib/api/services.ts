@@ -254,7 +254,7 @@ function getEloHistories(userId: number, timeframe: Timeframe, fetch?: FetchFn) 
 	interface Response {
 		buckets: EloBuckets
 	}
-	return requestJSON<Response>(`${baseURL()}/replay/elo-history?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${baseURL()}/replay/elo-histories?${params}`, { method: 'GET' }, fetch);
 }
 
 async function getReplayMoveHistory(id: string, fetch?: FetchFn): Promise<Result<MoveReplay>> {

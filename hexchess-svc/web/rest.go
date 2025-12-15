@@ -807,6 +807,8 @@ var timeframeMap = map[string]int{
 	"all": 0,
 }
 
+var GetEloHistoriesCacheControl = fmt.Sprintf("public, max-age=%f", svc.ShortBucketDuration.Seconds())
+
 func HandleGetEloHistories(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
@@ -825,12 +827,13 @@ func HandleGetEloHistories(state *ServerState, w http.ResponseWriter, r *http.Re
 		return ErrHttpInvalidRequest
 	}
 
-	eloBuckets, _, err := svc.RetrieveEloHistoryBuckets(ctx, &state.Databases, time.Now(), svc.EloHistoriesParams{UserID: int64(userID), Months: months})
+	params := svc.EloHistoriesParams{UserID: int64(userID), Months: months}
+	eloBuckets, _, err := svc.RetrieveEloHistoryBuckets(ctx, &state.Databases, time.Now(), params)
 	if err != nil {
-		return fmt.Errorf("retrieve elo histories buckets: %w", err)
+		return fmt.Errorf("retrieve elo histories buckets with params %v: %w", params, err)
 	}
 	writeJSON(w, http.StatusOK, EloHistoriesResp{Buckets: eloBuckets})
 
-	//w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%f", bucketDuration.Seconds()))
+	//w.Header().Set("Cache-Control", GetEloHistoriesCacheControl)
 	return nil
 }

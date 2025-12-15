@@ -6,7 +6,7 @@
 	import { goto } from '$app/navigation';
 	import type { ChessModel, ColorSelect, SessionModel, TimeControl } from '$lib/api/models';
 	import services from '$lib/api/services';
-	import { formatTimeControl } from '$lib/api/models';
+	import { formatTimeControl } from '$lib/utils/format';
 	import { onMount } from 'svelte';
 	import { getClientSession } from '$lib/utils/storage';
 	import { chessRowHeight, maxChessRows } from './globals';

@@ -51,7 +51,8 @@ SELECT id, mode, played_on, white_id, black_id, white_elo, black_elo -- gets the
 FROM replays
 WHERE 
     (white_id = sqlc.arg('id') OR black_id = sqlc.arg('id')) AND 
-    (played_on > sqlc.narg('played_after') OR sqlc.narg('played_after') IS NULL);
+    (played_on > sqlc.narg('played_after') OR sqlc.narg('played_after') IS NULL)
+ORDER BY played_on ASC;
 
 -- name: GetUserReplays :many
 SELECT

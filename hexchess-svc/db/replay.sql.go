@@ -81,6 +81,7 @@ FROM replays
 WHERE 
     (white_id = $1 OR black_id = $1) AND 
     (played_on > $2 OR $2 IS NULL)
+ORDER BY played_on ASC
 `
 
 type GetReplayElosParams struct {

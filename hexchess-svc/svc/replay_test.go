@@ -107,35 +107,16 @@ func TestRetrieveEloHistories(t *testing.T) {
 			params:            EloHistoriesParams{UserID: 6},
 			expBucketDuration: LongBucketDuration,
 			expEloBuckets: EloHistoryBuckets{
-				"ALL": {
-					{Timestamp: "1899-12-31T18:00:00-06:00", Elo: 1030},
-					{Timestamp: "2019-12-29T18:00:00-06:00", Elo: 1090},
-				},
-				"REAL_TIME": {
-					{Timestamp: "2019-12-29T18:00:00-06:00", Elo: 1075},
-				},
-				"CORRESPONDENCE": {},
-				"UNLIMITED": {
-					{Timestamp: "1899-12-31T18:00:00-06:00", Elo: 1030},
-					{Timestamp: "2019-12-29T18:00:00-06:00", Elo: 1120},
-				},
+				{Timestamp: "1899-12-31T18:00:00-06:00", Elo: 1030},
+				{Timestamp: "2019-12-29T18:00:00-06:00", Elo: 1090},
 			},
 		},
 		{
 			params:            EloHistoriesParams{UserID: 6, Months: 3},
 			expBucketDuration: ShortBucketDuration,
 			expEloBuckets: EloHistoryBuckets{
-				"ALL": {
-					{Timestamp: "2019-12-31T18:00:00-06:00", Elo: 1075},
-					{Timestamp: "2020-01-02T18:00:00-06:00", Elo: 1120},
-				},
-				"REAL_TIME": {
-					{Timestamp: "2019-12-31T18:00:00-06:00", Elo: 1075},
-				},
-				"CORRESPONDENCE": {},
-				"UNLIMITED": {
-					{Timestamp: "2020-01-02T18:00:00-06:00", Elo: 1120},
-				},
+				{Timestamp: "2019-12-31T18:00:00-06:00", Elo: 1075},
+				{Timestamp: "2020-01-02T18:00:00-06:00", Elo: 1120},
 			},
 		},
 	} {

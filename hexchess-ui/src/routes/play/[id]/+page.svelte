@@ -5,7 +5,6 @@
 	import { getNotificationsContext } from '$lib/utils/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import Board from '$lib/components/chess/Board.svelte';
-	import { formatTimer } from '$lib/api/models';
 	import ClipboardIcon from '$lib/components/icons/ClipboardIcon.svelte';
 	import FlagIcon from '$lib/components/icons/FlagIcon.svelte';
 	import SettingsIcon from '$lib/components/icons/SettingsIcon.svelte';
@@ -18,6 +17,7 @@
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import { getMoveNotationsWasm } from '$lib/api/wasm';
 	import { goto } from '$app/navigation';
+	import { formatTimer } from '$lib/utils/format';
 
 	export interface PlayProps {
 		gameId: string

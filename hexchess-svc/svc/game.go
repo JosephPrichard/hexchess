@@ -214,7 +214,7 @@ func WriteFinishedGame(ctx context.Context, dbs *db.Databases, state ChessState,
 	if err != nil {
 		return fmt.Errorf("marshal move history: %w", err)
 	}
-	cs, err := InsertGameResultTx(ctx, dbs.Pdb, time.Now(), GameResult{
+	cs, err := InsertGameResultTx(ctx, dbs.Pdb, time.Time{}, GameResult{
 		WhiteID:            whiteID,
 		BlackID:            blackID,
 		ReplayCause:        cause,
@@ -274,40 +274,48 @@ func InsertGameResultTx(ctx context.Context, pdb *db.PostgreSQL, timeAt time.Tim
 	return cs, err
 }
 
-type EloPair struct {
-	WhiteElo float64
-	BlackElo float64
-}
-
-func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, result GameResult) (cs GRChangeSet, err error) {
+func getWhiteBlackElo(ctx context.Context, query *db.Queries, result GameResult) (whiteElo, blackElo float64, err error) {
 	ids := []int64{result.WhiteID, result.BlackID}
 	slices.SortFunc(ids, func(left, right int64) int { return int(left - right) }) // consistent query order
 
 	rows, err := query.GetElosByIds(ctx, ids)
 	if err != nil {
-		return cs, fmt.Errorf("select users %+v elo: %w", ids, err)
+		return 0, 0, fmt.Errorf("select users %+v elo: %w", ids, err)
 	}
 	if len(rows) != 2 {
-		return cs, fmt.Errorf("expected 2 users to have elo, got %d", len(rows))
+		return 0, 0, fmt.Errorf("expected 2 users to have elo, got %d", len(rows))
 	}
-	var whiteElo, blackElo float64
+
 	if rows[0].ID == result.WhiteID {
 		whiteElo, blackElo = rows[0].Elo, rows[1].Elo
 	} else {
 		whiteElo, blackElo = rows[1].Elo, rows[0].Elo
 	}
 
-	var winID, loseID int64
-	var winElo, loseElo, whiteEloNext, blackEloNext, winEloDiff, loseEloDiff float64
+	return whiteElo, blackElo, nil
+}
 
-	switch result.ReplayResult {
-	case WhiteWin:
-		winID, loseID, winElo, loseElo = result.WhiteID, result.BlackID, whiteElo, blackElo
-	case BlackWin:
-		winID, loseID, winElo, loseElo = result.BlackID, result.WhiteID, blackElo, whiteElo
+func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, result GameResult) (cs GRChangeSet, err error) {
+	whiteElo, blackElo, err := getWhiteBlackElo(ctx, query, result)
+	if err != nil {
+		return cs, fmt.Errorf("get white and black elo: %w", err)
 	}
 
-	if result.ReplayResult.IsWin() {
+	var winID, loseID int64
+	var whiteEloNext, blackEloNext, winEloDiff, loseEloDiff float64
+
+	if result.ReplayResult == Draw {
+		whiteEloNext, blackEloNext = whiteElo, blackElo
+	} else {
+		var winElo, loseElo float64
+
+		switch result.ReplayResult {
+		case WhiteWin:
+			winID, loseID, winElo, loseElo = result.WhiteID, result.BlackID, whiteElo, blackElo
+		case BlackWin:
+			winID, loseID, winElo, loseElo = result.BlackID, result.WhiteID, blackElo, whiteElo
+		}
+
 		winEloNext := winElo + 30*(1.0-ProbabilityWins(loseElo, winElo))
 		loseEloNext := loseElo + (-30 * ProbabilityWins(winElo, loseElo))
 		winEloDiff = winEloNext - winElo

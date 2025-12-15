@@ -81,7 +81,7 @@ CREATE TABLE public.replays (
     white_elo double precision NOT NULL,
     black_elo double precision NOT NULL,
     move_history bytea NOT NULL,
-    CONSTRAINT cause_check CHECK (((cause)::text = ANY (ARRAY[('CHECKMATE'::character varying)::text, ('FORFEIT'::character varying)::text]))),
+    CONSTRAINT cause_check_1 CHECK (((cause)::text = ANY ((ARRAY['CHECKMATE'::character varying, 'FORFEIT'::character varying, 'STALEMATE'::character varying])::text[]))),
     CONSTRAINT mode_check CHECK (((mode)::text = ANY (ARRAY[('REAL_TIME'::character varying)::text, ('CORRESPONDENCE'::character varying)::text, ('UNLIMITED'::character varying)::text]))),
     CONSTRAINT result_check CHECK (((result)::text = ANY (ARRAY[('DRAW'::character varying)::text, ('WHITE_WINS'::character varying)::text, ('BLACK_WINS'::character varying)::text])))
 );

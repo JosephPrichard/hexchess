@@ -17,8 +17,8 @@ import (
 
 // scripts to easily view any protobuf serialized record in the database in text format for debugging
 
-var mode = flag.String("mode", "move-sequence", "Dump mode to execute.")
-var value = flag.String("value", "70", "The value to fetch.")
+var mode = flag.String("mode", "move-sequence", "dump mode to execute")
+var value = flag.String("value", "70", "the value to fetch")
 
 func main() {
 	util.InitLoggers(nil)

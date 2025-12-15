@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"embed"
 	"errors"
+	"flag"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/lib/pq"
 	"log"
@@ -42,10 +43,13 @@ func initEnv() {
 	}
 }
 
+var migrFlag = flag.String("migration", "UP", "the migration type to run, one of: up, down, or a version number")
+
 func main() {
+	flag.Parse()
 	initEnv()
+
 	dbURL := os.Getenv("DB_URL")
-	migrType := os.Getenv("MIGRATION_TYPE")
 
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -66,12 +70,7 @@ func main() {
 		log.Fatalf("failed to migrate instance: %v", err)
 	}
 
-	version, dirty, err := m.Version()
-	if err != nil {
-		log.Fatalf("failed to get migration version: %v", err)
-	}
-	log.Printf("last database migration state, version=%d, dirty=%v", version, dirty)
-
+	migrType := *migrFlag
 	switch strings.ToUpper(migrType) {
 	case "DOWN":
 		log.Fatal("database migration down not supported")
@@ -91,7 +90,7 @@ func main() {
 		log.Printf("database migration to version %d forced", version)
 	}
 
-	version, dirty, err = m.Version()
+	version, dirty, err := m.Version()
 	if err != nil {
 		log.Fatalf("failed to get migration version: %v", err)
 	}

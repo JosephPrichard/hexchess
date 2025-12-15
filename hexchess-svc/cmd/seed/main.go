@@ -92,13 +92,10 @@ func main() {
 	}
 
 	timeAt := time.Now().Add(-1 * time.Hour * 24 * 100)
-	var timesAt []time.Time
-	for i := range gameResults {
-		timesAt = append(timesAt, timeAt.Add(time.Duration(i)*time.Hour*24))
-	}
 
-	for i, params := range gameResults {
-		eg.Go(func() error {
+	eg.Go(func() error {
+		util.Shuffle(gameResults)
+		for i, params := range gameResults {
 			game := chess.MakeStartGame()
 			moveSeq, err := chess.RandomMoveSeq(game, 10, 30)
 			if err != nil {
@@ -110,12 +107,12 @@ func main() {
 			}
 			params.SerializedMoveHist = moveHistBytes
 
-			if _, err = svc.InsertGameResultTx(ctx, pdb, timesAt[i], params); err != nil {
+			if _, err = svc.InsertGameResultTx(ctx, pdb, timeAt.Add(time.Duration(i)*time.Hour*24), params); err != nil {
 				return fmt.Errorf("insert game result: %w", err)
 			}
-			return nil
-		})
-	}
+		}
+		return nil
+	})
 
 	if err := eg.Wait(); err != nil {
 		util.LogFatalErr("insert challenges and replays", err)

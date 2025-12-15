@@ -133,7 +133,7 @@ func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 	handleRest("GET", "/api/replays", HandleGetUserReplays)
 	handleRest("GET", "/api/chess/rooms", HandleGetChessRoomList)
 	handleRest("GET", "/api/replay", HandleGetReplay)
-	handleRest("GET", "/api/replay/elo-history", HandleGetEloHistories)
+	handleRest("GET", "/api/replay/elo-histories", HandleGetEloHistories)
 	handleRest("GET", "/api/replay/move-list", HandleGetReplayMoveList)
 
 	handleSse("GET", "/api/events/count", HandleCountEvents)

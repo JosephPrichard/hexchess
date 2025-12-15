@@ -38,7 +38,7 @@ type ReplayEntity struct {
 }
 
 var ReplayEntityCmpOpts = cmpopts.IgnoreFields(ReplayEntity{}, "PlayedOn")
-var ReplayRowCmpOpts = cmpopts.IgnoreFields(db.Replay{}, "PlayedOn")
+var ReplayRowCmpOpts = cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn")
 
 type ReplayResult string
 
@@ -57,6 +57,7 @@ type ReplayCause string
 const (
 	Checkmate ReplayCause = "CHECKMATE"
 	Forfeit   ReplayCause = "FORFEIT"
+	Stalemate ReplayCause = "STALEMATE"
 )
 
 type ReplayMode string
@@ -210,7 +211,6 @@ func GetUserReplays(ctx context.Context, query *db.Queries, userID int64, afterI
 const (
 	ShortBucketDuration = 24 * time.Hour
 	LongBucketDuration  = 7 * 24 * time.Hour
-	LongMonthsThreshold = 12
 )
 
 type EloHistoriesParams struct {
@@ -218,7 +218,7 @@ type EloHistoriesParams struct {
 	Months int   `json:"months"`
 }
 
-type EloHistoryBuckets map[string][]EloHistoryBucket
+type EloHistoryBuckets []EloHistoryBucket
 
 type EloHistoryBucket struct {
 	Timestamp string  `json:"timestamp"`
@@ -228,7 +228,6 @@ type EloHistoryBucket struct {
 // RetrieveEloHistoryBuckets Returns the elo replay histories for a given user organized into buckets and categorized into a map keyed by replay "mode"
 // map will contain the keys "ALL" (contains data for all modes) plus all modes (ReplayModes)
 func RetrieveEloHistoryBuckets(ctx context.Context, dbs *db.Databases, timeUntil time.Time, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
-	// todo: add caching for elo histories
 	var ehb EloHistoryBuckets
 	var bd time.Duration
 
@@ -241,11 +240,12 @@ func RetrieveEloHistoryBuckets(ctx context.Context, dbs *db.Databases, timeUntil
 		PlayedAfter: playedAfter,
 	})
 	if err != nil {
-		return ehb, bd, fmt.Errorf("select replay elos: %w", err)
+		return ehb, bd, fmt.Errorf("select replay elos for user %d after %v: %w", params.UserID, playedAfter, err)
 	}
 	slog.InfoContext(ctx, "selected elo replay histories", "userID", params.UserID, "playedAfter", playedAfter, "eloRows", eloRows)
 
-	if ehb, bd, err = makeEloHistoryBuckets(eloRows, params); err != nil {
+	ehb, bd, err = makeEloHistoryBuckets(eloRows, params)
+	if err != nil {
 		return ehb, bd, fmt.Errorf("make elo history buckets: %w", err)
 	}
 	slog.InfoContext(ctx, "retrieved elo histories", "userID", params.UserID, "eloHistoryBuckets", &ehb)
@@ -253,88 +253,69 @@ func RetrieveEloHistoryBuckets(ctx context.Context, dbs *db.Databases, timeUntil
 }
 
 func makeEloHistoryBuckets(eloRows []db.GetReplayElosRow, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
-	eloHistoryBuckets := make(EloHistoryBuckets)
+	eloHistoryBuckets := make(EloHistoryBuckets, 0)
 	var errs []error
 
 	if len(eloRows) == 0 {
 		return eloHistoryBuckets, 0, nil
 	}
 
+	firstTime := eloRows[0].PlayedOn.Time
+	lastTime := eloRows[len(eloRows)-1].PlayedOn.Time
+
+	isLongHistory := lastTime.Sub(firstTime) > 365*24*time.Hour
 	bucketDuration := ShortBucketDuration
-	if params.Months >= LongMonthsThreshold || params.Months == 0 {
+	if isLongHistory {
 		bucketDuration = LongBucketDuration
 	}
 
-	type bucketAcc struct {
-		buckets  []EloHistoryBucket
-		eloTotal float64
-		eloCount int
-		prevTime time.Time
-	}
+	var eloTotal float64
+	var eloCount int
+	var prevTime time.Time
 
-	bucketAccumulators := make(map[string]*bucketAcc)
-	bucketAccumulators["ALL"] = &bucketAcc{}
-	for _, mode := range ReplayModes {
-		bucketAccumulators[mode] = &bucketAcc{buckets: make([]EloHistoryBucket, 0)}
-	}
-
-	appendBucket := func(mode string) {
-		acc, ok := bucketAccumulators[mode]
-		if !ok {
-			errs = append(errs, fmt.Errorf("invalid mode '%s' while accumulating elo history bucket", mode))
+	appendBucket := func() {
+		if eloCount <= 0 || prevTime.IsZero() {
 			return
 		}
-		if acc.eloCount <= 0 || acc.prevTime.IsZero() {
-			return
-		}
-		t := acc.prevTime.Truncate(bucketDuration)
-		acc.buckets = append(acc.buckets, EloHistoryBucket{
-			Elo:       acc.eloTotal / float64(acc.eloCount),
+		t := prevTime.Truncate(bucketDuration)
+		eloHistoryBuckets = append(eloHistoryBuckets, EloHistoryBucket{
+			Elo:       eloTotal / float64(eloCount),
 			Timestamp: t.Format(time.RFC3339),
 		})
 	}
 
-	accumulateRow := func(row db.GetReplayElosRow, mode string) {
-		acc, ok := bucketAccumulators[mode]
-		if !ok {
-			errs = append(errs, fmt.Errorf("invalid mode '%s' while accumulating elo history row: %+v", mode, row))
-			return
-		}
-		bucketEnd := acc.prevTime.Add(bucketDuration)
-		isExceedBucket := row.PlayedOn.Time.After(bucketEnd)
+	accumulateRow := func(row db.GetReplayElosRow) {
 		var elo float64
 		switch params.UserID {
 		case row.WhiteID:
 			elo = row.WhiteElo
 		case row.BlackID:
 			elo = row.BlackElo
+		default:
+			errs = append(errs, fmt.Errorf("invalid user id %d in replay elo row %v", params.UserID, row))
+			return
 		}
-		if acc.prevTime.IsZero() {
-			acc.eloTotal += elo
-			acc.eloCount++
-			acc.prevTime = row.PlayedOn.Time
+		bucketEnd := prevTime.Add(bucketDuration)
+		isExceedBucket := row.PlayedOn.Time.After(bucketEnd)
+		if prevTime.IsZero() {
+			eloTotal += elo
+			eloCount++
+			prevTime = row.PlayedOn.Time
 		} else if isExceedBucket {
-			appendBucket(mode)
-			acc.eloTotal = elo
-			acc.eloCount = 1
-			acc.prevTime = row.PlayedOn.Time
+			appendBucket()
+			eloTotal = elo
+			eloCount = 1
+			prevTime = row.PlayedOn.Time
 		} else {
-			acc.eloTotal += elo
-			acc.eloCount++
+			eloTotal += elo
+			eloCount++
 		}
 	}
 
 	for _, row := range eloRows {
-		accumulateRow(row, "ALL")
-		accumulateRow(row, row.Mode)
+		accumulateRow(row)
 	}
-	appendBucket("ALL")
-	for _, mode := range ReplayModes {
-		appendBucket(mode)
-	}
+	appendBucket()
 
-	for mode, acc := range bucketAccumulators {
-		eloHistoryBuckets[mode] = acc.buckets
-	}
 	return eloHistoryBuckets, bucketDuration, errors.Join(errs...)
 }

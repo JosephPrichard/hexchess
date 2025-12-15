@@ -2,7 +2,7 @@
 	import CreateGame from '$lib/components/modals/CreateGame.svelte';
 	import { onMount } from 'svelte';
 	import ChallengeIcon from '$lib/components/icons/ChallengeIcon.svelte';
-	import { type EloBuckets, formatJoinedOn, formatPlayedOn, formatReplayResult, formatTimestamp, ReplayModeMap, type Timeframe } from '$lib/api/models.js';
+	import { type EloBuckets,  ReplayModeMap, type Timeframe } from '$lib/api/models.js';
 	import { getClientSession } from '$lib/utils/storage';
 	import Banner from '$lib/Banner.svelte';
 	import { goto } from '$app/navigation';
@@ -15,8 +15,8 @@
 	import { Chart } from 'chart.js';
 	import { typedEntries } from '$lib/utils/array';
 	import { generateColors } from '$lib/utils/colors';
-	import { formatEloDiff } from '$lib/api/models';
 	import Dropdown from '$lib/components/util/Dropdown.svelte';
+	import { formatEloDiff, formatJoinedOn, formatReplayResult, formatPlayedOn, normalizeToDay, formatTimestamp } from '$lib/utils/format';
 
 	const timeframes: { label: string, value: Timeframe }[] = [
 		{ label: "All Time", value: "all" },
@@ -77,7 +77,9 @@
 	}
 
 	function makeEloHistoriesChart(ctx: CanvasRenderingContext2D, buckets: EloBuckets) {
-		const entries = typedEntries(buckets);
+		const entries = Object.entries({
+			"ALL": buckets,
+		});
 		const colors = generateColors(entries.length);
 
 		return new Chart(ctx, {
@@ -85,7 +87,7 @@
 			data: {
 				datasets: entries.map(([mode, eloHistories], i) => ({
 					label: ReplayModeMap[mode] || "Unknown Mode",
-					data: eloHistories.map((h) => ({ x: h.timestamp, y: h.elo})),
+					data: eloHistories.map((h) => ({ x: normalizeToDay(h.timestamp), y: h.elo})),
 					borderWidth: 2,
 					tension: 0.25,
 					pointRadius: 3,
@@ -98,11 +100,37 @@
 			options: {
 				responsive: true,
 				scales: {
-					x: { type: "time" },
+					x: {
+						type: "time",
+						time: {
+							minUnit: 'day',
+						},
+						ticks: {
+							callback: formatTimestamp
+						},
+						title: {
+							display: true,
+							text: 'Date',
+							font: {
+								size: 14,
+								weight: 'bold'
+							},
+							color: 'rgb(120,120,120)'
+						}
+					},
 					y: {
 						beginAtZero: false,
 						ticks: {
 							callback: (value) => String(value)
+						},
+						title: {
+							display: true,
+							text: 'Elo',
+							font: {
+								size: 14,
+								weight: 'bold'
+							},
+							color: 'rgb(120,120,120)'
 						}
 					}
 				}

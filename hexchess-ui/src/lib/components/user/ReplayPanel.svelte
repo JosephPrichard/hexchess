@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { formatEloDiff } from '$lib/api/models';
 	import type { ReplayModel } from '$lib/api/models';
+	import { formatEloDiff } from '$lib/utils/format';
 
 	const { replay }: { replay: ReplayModel } = $props();
 	
