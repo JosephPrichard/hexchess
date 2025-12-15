@@ -20,7 +20,7 @@ func TestChessSerializer(t *testing.T) {
 		input2,
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			b, err := proto.Marshal(SerializeChessState(input))
+			b, err := proto.Marshal(SerializeChessState(&input))
 			if err != nil {
 				t.Fatalf("marshal chess state: %v", err)
 			}
@@ -41,7 +41,7 @@ func BenchmarkProtoChessSerializer(b *testing.B) {
 
 	b.ResetTimer()
 	for range b.N {
-		v, err := proto.Marshal(SerializeChessState(input))
+		v, err := proto.Marshal(SerializeChessState(&input))
 		if err != nil {
 			b.Fatalf("marshal chess state: %v", err)
 		}

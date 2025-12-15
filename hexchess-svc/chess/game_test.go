@@ -15,9 +15,9 @@ func TestHexagon_String(t *testing.T) {
 }
 
 func TestParseHexagon(t *testing.T) {
-	assert.Equal(t, Hex{File: 5, Rank: 8}, ParseHexagonUnsafe("f9"))
-	assert.Equal(t, Hex{File: 6, Rank: 9}, ParseHexagonUnsafe("g10"))
-	assert.Equal(t, Hex{File: 4, Rank: 4}, ParseHexagonUnsafe("e5"))
+	assert.Equal(t, Hex{File: 5, Rank: 8}, HexStr("f9"))
+	assert.Equal(t, Hex{File: 6, Rank: 9}, HexStr("g10"))
+	assert.Equal(t, Hex{File: 4, Rank: 4}, HexStr("e5"))
 }
 
 func TestGame_GetSetPieces(t *testing.T) {
@@ -58,7 +58,7 @@ func TestGame_DetermineIsCheckmate(t *testing.T) {
 func assertMoves(t *testing.T, actual []Hex, expected ...string) {
 	var expectedMoves []Hex
 	for _, s := range expected {
-		expectedMoves = append(expectedMoves, ParseHexagonUnsafe(s))
+		expectedMoves = append(expectedMoves, HexStr(s))
 	}
 	assert.ElementsMatch(t, expectedMoves, actual)
 }
@@ -200,8 +200,8 @@ func TestGame_GetMoveNotation(t *testing.T) {
 			hm: HistMove{
 				PieceMove: PieceMove{
 					Piece: WhitePawn,
-					From:  ParseHexagonUnsafe("e5"),
-					To:    ParseHexagonUnsafe("f6"),
+					From:  HexStr("e5"),
+					To:    HexStr("f6"),
 				},
 			},
 			not: "Pef6",
@@ -211,8 +211,8 @@ func TestGame_GetMoveNotation(t *testing.T) {
 			hm: HistMove{
 				PieceMove: PieceMove{
 					Piece: WhitePawn,
-					From:  ParseHexagonUnsafe("f7"),
-					To:    ParseHexagonUnsafe("f6"),
+					From:  HexStr("f7"),
+					To:    HexStr("f6"),
 				},
 			},
 			not: "P7f6",
@@ -222,8 +222,8 @@ func TestGame_GetMoveNotation(t *testing.T) {
 			hm: HistMove{
 				PieceMove: PieceMove{
 					Piece: WhitePawn,
-					From:  ParseHexagonUnsafe("k1"),
-					To:    ParseHexagonUnsafe("f6"),
+					From:  HexStr("k1"),
+					To:    HexStr("f6"),
 				},
 			},
 			not: "Pf6",
@@ -233,8 +233,8 @@ func TestGame_GetMoveNotation(t *testing.T) {
 			hm: HistMove{
 				PieceMove: PieceMove{
 					Piece: WhitePawn,
-					From:  ParseHexagonUnsafe("e5"),
-					To:    ParseHexagonUnsafe("f5"),
+					From:  HexStr("e5"),
+					To:    HexStr("f5"),
 				},
 				Promotion: QueenPromotion,
 			},
@@ -244,8 +244,8 @@ func TestGame_GetMoveNotation(t *testing.T) {
 		//	game: game,
 		//	hm: HistMove{
 		//		Piece: WhiteRook,
-		//		From:  ParseHexagonUnsafe("g9"),
-		//		To:    ParseHexagonUnsafe("g8"),
+		//		From:  HexStr("g9"),
+		//		To:    HexStr("g8"),
 		//	},
 		//	not: "R+g8",
 		//},

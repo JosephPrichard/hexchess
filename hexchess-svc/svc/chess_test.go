@@ -23,8 +23,7 @@ func TestEchoChessState(t *testing.T) {
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-set-then-get")
 
 	// when
-	_, err := SetChessState(ctx, rdb, id1, state1)
-	assert.NoError(t, err)
+	assert.NoError(t, SetChessState(ctx, rdb, id1, &state1))
 
 	outState1, err := GetChessState(ctx, rdb, id1)
 	assert.NoError(t, err)
@@ -33,7 +32,7 @@ func TestEchoChessState(t *testing.T) {
 
 	// then
 	assert.Equal(t, ErrNoChessState, errBadID)
-	util.AssertEqualIgnoring(t, state1, outState1, ChessMetaCmpOpts)
+	util.AssertEqualIgnoring(t, state1, *outState1, ChessMetaCmpOpts)
 }
 
 func TestGetChessMetas(t *testing.T) {
@@ -54,12 +53,9 @@ func TestGetChessMetas(t *testing.T) {
 
 	// when
 	// these times must be after now.Add(-GameExpireFinished)
-	_, err := SetChessStateAt(ctx, rdb, id1, state1, now.Add(-100*time.Second))
-	assert.NoError(t, err)
-	_, err = SetChessStateAt(ctx, rdb, id2, state2, now.Add(-50*time.Second))
-	assert.NoError(t, err)
-	_, err = SetChessStateAt(ctx, rdb, id3, state3, now.Add(-10*time.Second))
-	assert.NoError(t, err)
+	assert.NoError(t, SetChessStateAt(ctx, rdb, id1, &state1, now.Add(-100*time.Second)))
+	assert.NoError(t, SetChessStateAt(ctx, rdb, id2, &state2, now.Add(-50*time.Second)))
+	assert.NoError(t, SetChessStateAt(ctx, rdb, id3, &state3, now.Add(-10*time.Second)))
 
 	metaList1, err := GetUserChessMetas(ctx, rdb, 1)
 	assert.NoError(t, err)
@@ -101,14 +97,12 @@ func TestExpireChessStates(t *testing.T) {
 
 	// when
 	// these times must be before now.Add(-GameExpireFinished)
-	_, err := SetChessStateAt(ctx, rdb, id1, state1, now.Add(2*-GameExpireFinished))
-	assert.NoError(t, err)
+	assert.NoError(t, SetChessStateAt(ctx, rdb, id1, &state1, now.Add(2*-GameExpireFinished)))
 
-	err = ExpireChessStates(ctx, rdb, rdb.GamesZSet)
-	assert.NoError(t, err)
+	assert.NoError(t, ExpireChessStates(ctx, rdb, rdb.GamesZSet))
 
-	_, err = GetChessState(ctx, rdb, id1)
+	_, errExpiredID := GetChessState(ctx, rdb, id1)
 
 	// then
-	assert.Equal(t, ErrNoChessState, err)
+	assert.Equal(t, ErrNoChessState, errExpiredID)
 }

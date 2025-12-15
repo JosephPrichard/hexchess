@@ -19,47 +19,44 @@ func getUserGameZSet(rdb *db.Redis, id int64) string {
 
 var ErrNoChessState = errors.New("no chess state")
 
-func GetChessState(ctx context.Context, rdb *db.Redis, id string) (ChessState, error) {
-	var state ChessState
-
+func GetChessState(ctx context.Context, rdb *db.Redis, id string) (*ChessState, error) {
 	if err := ExpireChessStates(ctx, rdb, rdb.GamesZSet); err != nil {
-		return state, fmt.Errorf("expire chess states: %w", err)
+		return nil, fmt.Errorf("expire chess states: %w", err)
 	}
 
 	fullID := "game:" + id
 
 	data, err := rdb.Cache.Get(ctx, fullID).Bytes()
 	if errors.Is(err, redis.Nil) {
-		return ChessState{}, ErrNoChessState
+		return nil, ErrNoChessState
 	} else if err != nil {
-		return state, fmt.Errorf("get chess state: %w", err)
+		return nil, fmt.Errorf("get chess state: %w", err)
 	}
 
-	state, err = UnmarshalChessState(data)
+	state, err := UnmarshalChessState(data)
 	if err != nil {
-		return state, fmt.Errorf("deserialize chess state: %w", err)
+		return nil, fmt.Errorf("deserialize chess state: %w", err)
 	}
 
 	slog.InfoContext(ctx, "selected chess state", "key", fullID)
-	return state, nil
+	return &state, nil
 }
 
-func SetChessState(ctx context.Context, rdb *db.Redis, id string, state ChessState) (ChessState, error) {
+func SetChessState(ctx context.Context, rdb *db.Redis, id string, state *ChessState) error {
 	touch := time.Now()
 	return SetChessStateAt(ctx, rdb, id, state, touch)
 }
 
-func SetChessStateAt(ctx context.Context, rdb *db.Redis, id string, state ChessState, touch time.Time) (ChessState, error) {
+func SetChessStateAt(ctx context.Context, rdb *db.Redis, id string, state *ChessState, touch time.Time) error {
 	state.Touch = touch
 	touchSecs := float64(state.Touch.Unix())
 	fullID := "game:" + id
 
 	b, err := proto.Marshal(SerializeChessState(state))
 	if err != nil {
-		return state, fmt.Errorf("marshal chess state: %w", err)
+		return fmt.Errorf("marshal chess state: %w", err)
 	}
 
-	// Use a pipeline (MULTI)
 	pipe := rdb.Cache.TxPipeline()
 	pipe.Set(ctx, fullID, b, 0)
 	pipe.ZAdd(ctx, rdb.GamesZSet, redis.Z{Score: touchSecs, Member: fullID})
@@ -71,11 +68,11 @@ func SetChessStateAt(ctx context.Context, rdb *db.Redis, id string, state ChessS
 	}
 
 	if _, err := pipe.Exec(ctx); err != nil {
-		return state, fmt.Errorf("set chess state: %w", err)
+		return fmt.Errorf("set chess state: %w", err)
 	}
 
 	slog.InfoContext(ctx, "set chess state", "key", fullID, "touch", touch)
-	return state, nil
+	return nil
 }
 
 const GameExpireFinished = 1 * time.Hour
@@ -178,7 +175,6 @@ func GetChessStateCount(ctx context.Context, rdb *db.Redis) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("count chess states: %w", err)
 	}
-
 	slog.InfoContext(ctx, "selected chess count", "count", count)
 	return count, nil
 }

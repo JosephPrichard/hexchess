@@ -32,7 +32,7 @@ func createTestChessStates(t *testing.T, rdb *db.Redis) {
 		svc.MakeState(svc.StateSetup{ID: "game2", TimeControl: svc.TcRealTime, FirstColor: svc.ColorRandom}),
 		svc.MakeState(svc.StateSetup{ID: "game3", TimeControl: svc.TcRealTime, FirstColor: svc.ColorRandom}),
 	} {
-		if _, err := svc.SetChessState(ctx, rdb, state.ID, state); err != nil {
+		if err := svc.SetChessState(ctx, rdb, state.ID, &state); err != nil {
 			t.Fatalf("create test states: %v", err)
 		}
 	}

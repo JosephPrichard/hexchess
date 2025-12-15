@@ -1,7 +1,9 @@
 package web
 
 import (
+	"hexchess-svc/chess"
 	"hexchess-svc/pb"
+	"hexchess-svc/svc"
 	"time"
 )
 
@@ -66,6 +68,21 @@ func MakePbGameOutputChat(gameID, message string) *pb.GameOutput {
 		Value: &pb.GameOutput_Chat{
 			Chat: &pb.ChatOutput{
 				Message: message,
+			},
+		},
+	}
+}
+
+func MakePbGameOutputUndo(gameID string, undoKind string, undoID int64, state *svc.ChessState) *pb.GameOutput {
+	var game *pb.ChessGame
+	if state != nil {
+		game = chess.SerializeGame(&state.Game)
+	}
+	return &pb.GameOutput{
+		GameId: gameID,
+		Value: &pb.GameOutput_Undo{
+			Undo: &pb.UndoOutput{
+				Kind: undoKind, UndoId: undoID, Game: game,
 			},
 		},
 	}

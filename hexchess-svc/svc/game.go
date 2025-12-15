@@ -31,8 +31,7 @@ func CreateGame(ctx context.Context, rdb *db.Redis, color ColorSelect, timeContr
 	state.Game.InitPieceMoves()
 
 	slog.InfoContext(ctx, "created chess game", "state", state)
-	state, err := SetChessState(ctx, rdb, strID, state)
-	if err != nil {
+	if err := SetChessState(ctx, rdb, strID, &state); err != nil {
 		return "", err
 	}
 
@@ -60,22 +59,22 @@ func broadcastGameCounts(rdb *db.Redis, strID string) {
 	slog.InfoContext(ctx, "counted chess states after creating game", "count", count)
 }
 
-func JoinGame(ctx context.Context, rdb *db.Redis, gameID string, player *PlayerState) (ChessState, error) {
+func JoinGame(ctx context.Context, rdb *db.Redis, gameID string, player *PlayerState) (*ChessState, error) {
 	state, err := GetChessState(ctx, rdb, gameID)
 	if err != nil {
-		return ChessState{}, err
+		return nil, err
 	}
 
 	if player == nil {
 		slog.WarnContext(ctx, "unprovided player did not join game", "state", state)
-		return state, nil
+		return nil, nil
 	}
 
 	var playerExists bool
 	if state.WhitePlayer == nil && state.BlackPlayer == nil {
 		n, err := rand.Int(rand.Reader, big.NewInt(1000))
 		if err != nil {
-			return ChessState{}, fmt.Errorf("generate randint used to select first color: %w", err)
+			return nil, fmt.Errorf("generate randint used to select first color: %w", err)
 		}
 		pickWhite := state.FirstColor == ColorRandom && n.Int64()%2 == 0 || state.FirstColor == ColorWhite
 		if pickWhite {
@@ -99,17 +98,17 @@ func JoinGame(ctx context.Context, rdb *db.Redis, gameID string, player *PlayerS
 
 	if playerExists {
 		slog.WarnContext(ctx, "player has already joined game", "playerID", player.ID, "state", state)
-		return state, nil
+		return nil, nil
 	}
 
-	state, err = SetChessState(ctx, rdb, gameID, state)
+	err = SetChessState(ctx, rdb, gameID, state)
 	util.DynLog(ctx, "player joined game", err, "playerID", player.ID, "state", state)
 	return state, err
 }
 
 type MoveResult struct {
-	Room ChessState
-	Move chess.HistMove
+	State *ChessState
+	Move  chess.HistMove
 }
 
 var (
@@ -118,7 +117,7 @@ var (
 	ErrInvalidMove  = errors.New("invalid move")
 )
 
-func DoMakeMove(ctx context.Context, state ChessState, player PlayerState, move chess.Move) (MoveResult, error) {
+func DoMakeMove(ctx context.Context, state *ChessState, player PlayerState, move chess.Move) (MoveResult, error) {
 	var mr MoveResult
 
 	game := &state.Game
@@ -140,11 +139,12 @@ func DoMakeMove(ctx context.Context, state ChessState, player PlayerState, move 
 
 	hm := game.MakeMove(move)
 	game.InitPieceMoves()
+	state.UndoState = UndoState{}
 
 	if game.Checkmate() {
 		state.IsEnded = true
 	}
-	mr = MoveResult{Room: state, Move: hm}
+	mr = MoveResult{State: state, Move: hm}
 	return mr, nil
 }
 
@@ -156,7 +156,8 @@ func MakeGameMove(ctx context.Context, dbs *db.Databases, gameID string, player 
 		return mr, err
 	}
 
-	if mr, err = DoMakeMove(ctx, state, player, move); err != nil {
+	mr, err = DoMakeMove(ctx, state, player, move)
+	if err != nil {
 		return mr, err
 	}
 	if state.IsEnded {
@@ -170,10 +171,49 @@ func MakeGameMove(ctx context.Context, dbs *db.Databases, gameID string, player 
 	}
 	slog.InfoContext(ctx, "made move on game", "player", player.ID, "move", move, "state", state)
 
-	if _, err = SetChessState(ctx, dbs.Rdb, gameID, state); err != nil {
+	if err := SetChessState(ctx, dbs.Rdb, gameID, state); err != nil {
 		return mr, err
 	}
 	return mr, nil
+}
+
+var ErrUndoNoop = errors.New("no undo to perform")
+
+type UndoKind int
+
+const (
+	UndoCreate UndoKind = iota
+	UndoAccept
+	UndoReject
+)
+
+func AttemptGameUndo(ctx context.Context, rdb *db.Redis, gameID string, player PlayerState, kind UndoKind) (*ChessState, error) {
+	state, err := GetChessState(ctx, rdb, gameID)
+	if err != nil {
+		return nil, err
+	}
+
+	switch kind {
+	case UndoCreate:
+		state.UndoID = player.ID
+	case UndoAccept:
+		if state.UndoID != player.ID {
+			if err := state.UndoMove(); err != nil {
+				return nil, err
+			}
+			state.UndoState = UndoState{}
+		} else {
+			slog.WarnContext(ctx, "undo: a player attempted to accept their own undo", "player", player.ID, "game", gameID)
+			return nil, ErrUndoNoop
+		}
+	case UndoReject:
+		state.UndoState = UndoState{}
+	}
+
+	if err := SetChessState(ctx, rdb, gameID, state); err != nil {
+		return nil, err
+	}
+	return state, nil
 }
 
 func ForfeitGame(ctx context.Context, dbs *db.Databases, gameID string, player PlayerState) error {
@@ -192,7 +232,7 @@ func ForfeitGame(ctx context.Context, dbs *db.Databases, gameID string, player P
 	}
 	state.IsEnded = true
 
-	if _, err := SetChessState(ctx, dbs.Rdb, gameID, state); err != nil {
+	if err := SetChessState(ctx, dbs.Rdb, gameID, state); err != nil {
 		return err
 	}
 	if err := WriteFinishedGame(ctx, dbs, state, result, Forfeit); err != nil {
@@ -203,7 +243,7 @@ func ForfeitGame(ctx context.Context, dbs *db.Databases, gameID string, player P
 	return nil
 }
 
-func WriteFinishedGame(ctx context.Context, dbs *db.Databases, state ChessState, result ReplayResult, cause ReplayCause) error {
+func WriteFinishedGame(ctx context.Context, dbs *db.Databases, state *ChessState, result ReplayResult, cause ReplayCause) error {
 	if state.WhitePlayer == nil || state.BlackPlayer == nil {
 		return fmt.Errorf("room players must not be nil on a finished game: roomID: %s", state.ID)
 	}

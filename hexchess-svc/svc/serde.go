@@ -51,6 +51,7 @@ func UnmarshalChessState(b []byte) (ChessState, error) {
 	state = ChessState{
 		Game:         game,
 		InitialBoard: initialBoard,
+		UndoState:    UndoState{UndoID: pbChess.UndoId},
 		ChessMeta: ChessMeta{
 			ID:          pbChess.Id,
 			WhitePlayer: DeserializePlayer(pbChess.WhitePlayer),
@@ -71,17 +72,21 @@ func SerializePlayer(p *PlayerState) *pb.PlayerState {
 	return &pb.PlayerState{Id: p.ID, Name: p.Name, Country: p.Country, Elo: p.Elo, IsGuest: p.IsGuest}
 }
 
-func SerializeChessState(s ChessState) *pb.ChessState {
+func SerializeChessState(s *ChessState) *pb.ChessState {
+	if s == nil {
+		return nil
+	}
 	return &pb.ChessState{
 		Id:           s.ID,
-		Game:         chess.SerializeGame(s.Game),
+		Game:         chess.SerializeGame(&s.Game),
 		WhitePlayer:  SerializePlayer(s.WhitePlayer),
 		BlackPlayer:  SerializePlayer(s.BlackPlayer),
 		IsEnded:      s.IsEnded,
 		FirstColor:   string(s.FirstColor),
 		TimeControl:  string(s.TimeControl),
 		Touch:        s.Touch.UnixMilli(),
-		InitialBoard: chess.SerializeBoard(s.InitialBoard),
+		InitialBoard: chess.SerializeBoard(&s.InitialBoard),
+		UndoId:       s.UndoID,
 	}
 }
 

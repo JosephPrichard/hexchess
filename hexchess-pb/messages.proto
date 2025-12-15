@@ -66,6 +66,7 @@ message ChessState {
   string time_control = 8;
   int64 touch = 9;
   ChessBoard initial_board = 10;
+  int64 undo_id = 11;
 }
 
 message ForfeitInput {}
@@ -91,7 +92,12 @@ message GameInput {
     ForfeitInput forfeit = 1;
     MoveInput move = 2;
     ChatInput chat = 3;
+    UndoInput undo = 4;
   }
+}
+
+message UndoInput {
+  string kind = 1;
 }
 
 message ErrorOutput {
@@ -121,6 +127,12 @@ message ChatOutput {
 
 message ForfeitOutput {}
 
+message UndoOutput {
+  string kind = 1;
+  int64 undo_id = 2;
+  ChessGame game = 3;
+}
+
 message GameOutputID {
   string game_id = 1;
   string message_id = 2;
@@ -136,6 +148,7 @@ message GameOutput {
     MoveOutput move = 6;
     ChatOutput chat = 7;
     ForfeitOutput forfeit = 8;
+    UndoOutput undo = 9;
   }
 }
 

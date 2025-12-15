@@ -125,7 +125,7 @@ func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState ServerStat
 	}
 }
 
-func handleGameInit(gameID string, player svc.PlayerState, state svc.ChessState, write func([]byte)) error {
+func handleGameInit(gameID string, player svc.PlayerState, state *svc.ChessState, write func([]byte)) error {
 	for i, o := range []*pb.GameOutput{
 		MakePbGameOutputInit(
 			gameID,
@@ -161,6 +161,8 @@ func handleGameMessage(ctx context.Context, state GameSocketState, msg []byte, w
 		err = handleGameMove(ctx, state, m)
 	} else if c := pbInput.GetChat(); c != nil {
 		err = handleGameChat(ctx, state, c)
+	} else if u := pbInput.GetUndo(); u != nil {
+		err = handleGameUndo(ctx, state, u)
 	} else {
 		err = ErrWsMessageType
 	}
@@ -190,8 +192,8 @@ func handleGameMove(ctx context.Context, state GameSocketState, pbInput *pb.Move
 	bytes, err := proto.Marshal(MakePbGameOutputMove(
 		state.gameID,
 		chess.SerializeHistMove(result.Move),
-		chess.SerializeGame(result.Room.Game),
-		result.Room.Touch,
+		chess.SerializeGame(&result.State.Game),
+		result.State.Touch,
 	))
 	if err != nil {
 		return err
@@ -201,6 +203,36 @@ func handleGameMove(ctx context.Context, state GameSocketState, pbInput *pb.Move
 
 func handleGameChat(ctx context.Context, state GameSocketState, pbInput *pb.ChatInput) error {
 	bytes, err := proto.Marshal(MakePbGameOutputChat(state.gameID, pbInput.Message))
+	if err != nil {
+		return err
+	}
+	return svc.BroadcastMessage(ctx, state.Rdb, state.Rdb.GamesChan, bytes)
+}
+
+func handleGameUndo(ctx context.Context, state GameSocketState, pbInput *pb.UndoInput) error {
+	var undoKind svc.UndoKind
+	switch pbInput.Kind {
+	case "CREATE":
+		undoKind = svc.UndoCreate
+	case "ACCEPT":
+		undoKind = svc.UndoAccept
+	case "REJECT":
+		undoKind = svc.UndoReject
+	default:
+		return fmt.Errorf("invalid undo kind: %s", pbInput.Kind)
+	}
+
+	result, err := svc.AttemptGameUndo(ctx, state.Databases.Rdb, state.gameID, state.player, undoKind)
+	if err != nil {
+		return err
+	}
+
+	bytes, err := proto.Marshal(MakePbGameOutputUndo(
+		state.gameID,
+		pbInput.Kind,
+		state.player.ID,
+		result,
+	))
 	if err != nil {
 		return err
 	}

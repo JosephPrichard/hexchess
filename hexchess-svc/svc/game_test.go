@@ -20,7 +20,14 @@ func assertStateRdb(t *testing.T, rdb *db.Redis, expState ChessState) {
 	if err != nil {
 		t.Fatalf("get chess for assert: %v", err)
 	}
-	util.AssertEqualIgnoring(t, expState, actualState, ChessMetaCmpOpts)
+	util.AssertEqualIgnoring(t, expState, *actualState, ChessMetaCmpOpts)
+}
+
+func assertChessState(t *testing.T, expState ChessState, actualState *ChessState) {
+	if actualState == nil {
+		t.Fatalf("chess state is nil")
+	}
+	util.AssertEqualIgnoring(t, expState, *actualState, ChessMetaCmpOpts)
 }
 
 func TestJoinGame_JoinWhite(t *testing.T) {
@@ -36,18 +43,17 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	player := PlayerState{ID: 1, Name: "name", Country: "us", Elo: 0}
 
 	// when
-	_, err := SetChessState(ctx, rdb, gameID, inState)
-	assert.NoError(t, err)
+	assert.NoError(t, SetChessState(ctx, rdb, gameID, &inState))
 
-	updated, err := JoinGame(ctx, rdb, gameID, &player)
+	updatedState, err := JoinGame(ctx, rdb, gameID, &player)
 	assert.NoError(t, err)
 
 	// then
 	expState := inState.DeepCopy()
 	expState.WhitePlayer = &player
 
-	util.AssertEqualIgnoring(t, expState, updated, ChessMetaCmpOpts)
-	assertStateRdb(t, rdb, updated)
+	assertChessState(t, expState, updatedState)
+	assertStateRdb(t, rdb, *updatedState)
 }
 
 func TestJoinGame_BothPlayersExist(t *testing.T) {
@@ -61,15 +67,93 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	inState := MakeState(StateSetup{ID: gameID, TimeControl: TcRealTime, FirstColor: ColorRandom, White: &PlayerState{ID: 1, Name: "white"}, Black: &PlayerState{ID: 2, Name: "black"}})
 
 	// when
-	_, err := SetChessState(ctx, rdb, gameID, inState)
-	assert.NoError(t, err)
+	assert.NoError(t, SetChessState(ctx, rdb, gameID, &inState))
 
-	result, err := JoinGame(ctx, rdb, gameID, &PlayerState{ID: 3, Name: "test"})
+	resultState, err := JoinGame(ctx, rdb, gameID, &PlayerState{ID: 3, Name: "test"})
 	assert.NoError(t, err)
 
 	// then
-	util.AssertEqualIgnoring(t, inState, result, ChessMetaCmpOpts)
+	assertChessState(t, inState, resultState)
 	assertStateRdb(t, rdb, inState)
+}
+
+func TestAttemptUndo(t *testing.T) {
+	// given
+	rdb := db.BeforeRedisTest(t)
+	defer rdb.Close()
+
+	ctx := context.WithValue(context.Background(), util.Trace, "testing-undo")
+
+	gameID := "test123"
+	inState := MakeState(StateSetup{ID: gameID, TimeControl: TcRealTime, FirstColor: ColorRandom, White: &PlayerState{ID: 1, Name: "white"}, Black: &PlayerState{ID: 2, Name: "black"}})
+
+	makeExpState := func(fn func(s *ChessState)) ChessState {
+		state := inState.DeepCopy()
+		fn(&state)
+		return state
+	}
+
+	if err := SetChessState(ctx, rdb, gameID, &inState); err != nil {
+		t.Fatalf("failed initialize test state: %v", err)
+	}
+
+	for i, test := range []struct {
+		kind     UndoKind
+		player   PlayerState
+		expState ChessState
+		expErr   error
+	}{
+		{
+			kind:   UndoCreate,
+			player: PlayerState{ID: 1},
+			expState: makeExpState(func(s *ChessState) {
+				s.UndoState = UndoState{UndoID: 1}
+			}),
+		},
+		{
+			kind:   UndoReject,
+			player: PlayerState{ID: 1},
+			expState: makeExpState(func(s *ChessState) {
+				s.UndoState = UndoState{}
+			}),
+		},
+		{
+			kind:   UndoCreate,
+			player: PlayerState{ID: 2},
+			expState: makeExpState(func(s *ChessState) {
+				s.UndoState = UndoState{UndoID: 2}
+			}),
+		},
+		{
+			kind:   UndoAccept,
+			player: PlayerState{ID: 2},
+			expErr: ErrUndoNoop,
+			expState: makeExpState(func(s *ChessState) {
+				s.UndoState = UndoState{UndoID: 2}
+			}),
+		},
+		{
+			kind:   UndoAccept,
+			player: PlayerState{ID: 1},
+			expErr: ErrNoMoveUndo,
+			expState: makeExpState(func(s *ChessState) {
+				s.UndoState = UndoState{}
+			}),
+		},
+	} {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			// when
+			state, err := AttemptGameUndo(ctx, rdb, gameID, test.player, test.kind)
+
+			// then
+			if test.expErr != nil {
+				assert.Equal(t, test.expErr, err)
+			} else {
+				assertChessState(t, test.expState, state)
+				assertStateRdb(t, rdb, *state)
+			}
+		})
+	}
 }
 
 func TestMakeMove(t *testing.T) {
@@ -102,7 +186,7 @@ func TestMakeMove(t *testing.T) {
 
 	for _, state := range []ChessState{s1, s2} {
 		state.Game.InitPieceMoves()
-		if _, err := SetChessState(ctx, dbs.Rdb, state.ID, state); err != nil {
+		if err := SetChessState(ctx, dbs.Rdb, state.ID, &state); err != nil {
 			t.Fatalf("failed initialize test state: %v", err)
 		}
 	}
@@ -126,12 +210,12 @@ func TestMakeMove(t *testing.T) {
 			expErr: ErrInvalidMove,
 		},
 		{
-			pm:     chess.Move{Promotion: chess.QueenPromotion, From: chess.Hex{File: 1, Rank: 0}, To: chess.Hex{File: 1, Rank: 1}}, // valid move
+			pm:     chess.Move{Promotion: chess.QueenPromotion, From: chess.HexStr("b1"), To: chess.HexStr("b2")}, // valid move
 			state:  s1,
 			player: *s1.WhitePlayer,
 		},
 		{
-			pm:     chess.Move{Promotion: chess.QueenPromotion, From: chess.Hex{File: 0, Rank: 1}, To: chess.Hex{File: 0, Rank: 0}}, // valid move
+			pm:     chess.Move{Promotion: chess.QueenPromotion, From: chess.HexStr("a2"), To: chess.HexStr("a1")}, // valid move
 			state:  s2,
 			player: *s2.BlackPlayer,
 		},
@@ -157,8 +241,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	}}
 
 	// when
-	_, err := SetChessState(ctx, dbs.Rdb, gameID, inState)
-	assert.NoError(t, err)
+	assert.NoError(t, SetChessState(ctx, dbs.Rdb, gameID, &inState))
 	assert.NoError(t, ForfeitGame(ctx, &dbs, gameID, *inState.BlackPlayer))
 
 	// then

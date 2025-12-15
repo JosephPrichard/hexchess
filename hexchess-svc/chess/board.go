@@ -129,7 +129,7 @@ func ParseHexagon(notation string) (Hex, error) {
 	return Hex{File: uint32(file), Rank: uint32(rank - 1)}, nil
 }
 
-func ParseHexagonUnsafe(notation string) Hex {
+func HexStr(notation string) Hex {
 	hex, err := ParseHexagon(notation)
 	if err != nil {
 		panic(fmt.Sprintf("set piece at notation: %s", err))
@@ -428,12 +428,12 @@ func (b *Board) GetPiece(file, rank uint32) (Piece, error) {
 
 // SetPieceNot GetPieceNot set piece notation, get piece notation
 func (b *Board) SetPieceNot(str string, p Piece) {
-	hex := ParseHexagonUnsafe(str)
+	hex := HexStr(str)
 	b.Set(hex.File, hex.Rank, p)
 }
 
 func (b *Board) GetPieceNot(str string) Piece {
-	hex := ParseHexagonUnsafe(str)
+	hex := HexStr(str)
 	return b.Get(hex.File, hex.Rank)
 }
 

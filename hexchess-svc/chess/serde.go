@@ -147,7 +147,10 @@ func SerializePiecesMoves(moves []PieceMoves) []*pb.PieceMoves {
 	return pbMoves
 }
 
-func SerializeBoard(board Board) *pb.ChessBoard {
+func SerializeBoard(board *Board) *pb.ChessBoard {
+	if board == nil {
+		return nil
+	}
 	files := make([]*pb.BoardFile, 0, Files)
 	for file := range Files {
 		ranksCount := RanksPerFile[file]
@@ -189,14 +192,17 @@ func SerializeMoveList(moves []HistMove) []*pb.HistMove {
 	return pbMoveList
 }
 
-func SerializeGame(game Game) *pb.ChessGame {
+func SerializeGame(game *Game) *pb.ChessGame {
+	if game == nil {
+		return nil
+	}
 	pbGame := &pb.ChessGame{
 		TakenWhitePieces: SerializePieces(game.TakenWhitePieces),
 		TakenBlackPieces: SerializePieces(game.TakenBlackPieces),
 		BlackMoves:       SerializePiecesMoves(game.BlackMoves),
 		WhiteMoves:       SerializePiecesMoves(game.WhiteMoves),
 		Moves:            SerializeMoveList(game.Moves),
-		Board:            SerializeBoard(game.Board),
+		Board:            SerializeBoard(&game.Board),
 	}
 	return pbGame
 }
@@ -229,7 +235,7 @@ func MarshalMoveHistory(initialBoard Board, moveSeq []HistMove) ([]byte, error) 
 	game := Game{Board: initialBoard}
 	game.InitPieceMoves()
 
-	pbInitialGame := SerializeGame(game)
+	pbInitialGame := SerializeGame(&game)
 
 	var pbMoveSteps []*pb.MoveStep
 	for _, m := range moveSeq {
@@ -237,7 +243,7 @@ func MarshalMoveHistory(initialBoard Board, moveSeq []HistMove) ([]byte, error) 
 		game.InitPieceMoves()
 
 		pbMoveSteps = append(pbMoveSteps, &pb.MoveStep{
-			Game: SerializeGame(game),
+			Game: SerializeGame(&game),
 			Move: SerializeHistMove(m),
 		})
 	}

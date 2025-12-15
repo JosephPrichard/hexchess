@@ -1,6 +1,7 @@
 package svc
 
 import (
+	"errors"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"hexchess-svc/chess"
 	"time"
@@ -14,10 +15,31 @@ type PlayerState struct {
 	IsGuest bool    `json:"isGuest"`
 }
 
+type UndoState struct {
+	UndoID int64
+}
+
 type ChessState struct {
 	ChessMeta
+	UndoState
 	InitialBoard chess.Board
 	Game         chess.Game
+}
+
+var ErrNoMoveUndo = errors.New("no move to undo")
+
+func (s *ChessState) UndoMove() error {
+	if len(s.Game.Moves) == 0 {
+		return ErrNoMoveUndo
+	}
+	undoGame := chess.Game{Board: s.InitialBoard}
+	movesExceptLast := s.Game.Moves[:len(s.Game.Moves)-1]
+	for _, move := range movesExceptLast {
+		undoGame.MakeMove(chess.Move{From: move.To, To: move.From, Promotion: move.Promotion})
+	}
+	s.Game = undoGame
+	s.Game.InitPieceMoves()
+	return nil
 }
 
 type ChessMeta struct {
@@ -28,6 +50,20 @@ type ChessMeta struct {
 	FirstColor  ColorSelect  `json:"firstColor"`
 	TimeControl TimeControl  `json:"timeControl"`
 	Touch       time.Time    `json:"touch"`
+}
+
+func (m *ChessMeta) GetWhiteID() int64 {
+	if m == nil || m.WhitePlayer == nil {
+		return -1
+	}
+	return m.WhitePlayer.ID
+}
+
+func (m *ChessMeta) GetBlackID() int64 {
+	if m == nil || m.BlackPlayer == nil {
+		return -1
+	}
+	return m.BlackPlayer.ID
 }
 
 var ChessMetaCmpOpts = cmpopts.IgnoreFields(ChessMeta{}, "Touch")
@@ -76,6 +112,7 @@ func (s *ChessState) CurrPlayer() *PlayerState {
 func (s *ChessState) DeepCopy() ChessState {
 	s2 := ChessState{
 		Game:         s.Game.DeepCopy(),
+		UndoState:    s.UndoState,
 		InitialBoard: s.InitialBoard,
 		ChessMeta: ChessMeta{
 			ID:          s.ID,
