@@ -40,17 +40,17 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	gameID := "test123"
 	inState := MakeState(StateSetup{ID: gameID, TimeControl: TcRealTime, FirstColor: ColorRandom})
 	inState.FirstColor = ColorWhite
-	player := PlayerState{ID: 1, Name: "name", Country: "us", Elo: 0}
+	player := MakePlayer(1, "name", "us", 0)
 
 	// when
 	assert.NoError(t, SetChessState(ctx, rdb, gameID, &inState))
 
-	updatedState, err := JoinGame(ctx, rdb, gameID, &player)
+	updatedState, err := JoinGame(ctx, rdb, gameID, player)
 	assert.NoError(t, err)
 
 	// then
 	expState := inState.DeepCopy()
-	expState.WhitePlayer = &player
+	expState.WhitePlayer = player
 
 	assertChessState(t, expState, updatedState)
 	assertStateRdb(t, rdb, *updatedState)
@@ -64,12 +64,18 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-join-game-both-players")
 
 	gameID := "test123"
-	inState := MakeState(StateSetup{ID: gameID, TimeControl: TcRealTime, FirstColor: ColorRandom, White: &PlayerState{ID: 1, Name: "white"}, Black: &PlayerState{ID: 2, Name: "black"}})
+	inState := MakeState(StateSetup{
+		ID:          gameID,
+		TimeControl: TcRealTime,
+		FirstColor:  ColorRandom,
+		White:       util.Ptr(MakeNamePlayer(1, "white")),
+		Black:       util.Ptr(MakeNamePlayer(2, "name")),
+	})
 
 	// when
 	assert.NoError(t, SetChessState(ctx, rdb, gameID, &inState))
 
-	resultState, err := JoinGame(ctx, rdb, gameID, &PlayerState{ID: 3, Name: "test"})
+	resultState, err := JoinGame(ctx, rdb, gameID, MakeNamePlayer(3, "test"))
 	assert.NoError(t, err)
 
 	// then
@@ -85,7 +91,13 @@ func TestAttemptUndo(t *testing.T) {
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-undo")
 
 	gameID := "test123"
-	inState := MakeState(StateSetup{ID: gameID, TimeControl: TcRealTime, FirstColor: ColorRandom, White: &PlayerState{ID: 1, Name: "white"}, Black: &PlayerState{ID: 2, Name: "black"}})
+	inState := MakeState(StateSetup{
+		ID:          gameID,
+		TimeControl: TcRealTime,
+		FirstColor:  ColorRandom,
+		White:       util.Ptr(MakeNamePlayer(1, "white")),
+		Black:       util.Ptr(MakeNamePlayer(2, "black")),
+	})
 
 	makeExpState := func(fn func(s *ChessState)) ChessState {
 		state := inState.DeepCopy()
@@ -105,28 +117,28 @@ func TestAttemptUndo(t *testing.T) {
 	}{
 		{
 			kind:   UndoCreate,
-			player: PlayerState{ID: 1},
+			player: MakeIDPlayer(1),
 			expState: makeExpState(func(s *ChessState) {
 				s.UndoState = UndoState{UndoID: 1}
 			}),
 		},
 		{
 			kind:   UndoReject,
-			player: PlayerState{ID: 1},
+			player: MakeIDPlayer(1),
 			expState: makeExpState(func(s *ChessState) {
 				s.UndoState = UndoState{}
 			}),
 		},
 		{
 			kind:   UndoCreate,
-			player: PlayerState{ID: 2},
+			player: MakeIDPlayer(2),
 			expState: makeExpState(func(s *ChessState) {
 				s.UndoState = UndoState{UndoID: 2}
 			}),
 		},
 		{
 			kind:   UndoAccept,
-			player: PlayerState{ID: 2},
+			player: MakeIDPlayer(2),
 			expErr: ErrUndoNoop,
 			expState: makeExpState(func(s *ChessState) {
 				s.UndoState = UndoState{UndoID: 2}
@@ -134,7 +146,7 @@ func TestAttemptUndo(t *testing.T) {
 		},
 		{
 			kind:   UndoAccept,
-			player: PlayerState{ID: 1},
+			player: MakeIDPlayer(1),
 			expErr: ErrNoMoveUndo,
 			expState: makeExpState(func(s *ChessState) {
 				s.UndoState = UndoState{}
@@ -157,23 +169,23 @@ func TestAttemptUndo(t *testing.T) {
 }
 
 func TestMakeMove(t *testing.T) {
-	dbs, closer := db.BeforeDbTest(t, false, InsertTestData)
+	dbs, closer := db.BeforeDbTest(t, true, InsertTestData)
 	defer closer()
 
 	s1 := MakeState(StateSetup{
 		ID:          "test1",
 		TimeControl: TcRealTime,
 		FirstColor:  ColorRandom,
-		White:       &PlayerState{ID: 1},
-		Black:       &PlayerState{ID: 2},
+		White:       util.Ptr(MakeIDPlayer(1)),
+		Black:       util.Ptr(MakeIDPlayer(2)),
 	})
 	s2 := MakeState(StateSetup{
 		ID:          "test2",
 		TimeControl: TcRealTime,
 		FirstColor:  ColorRandom,
-		White:       &PlayerState{ID: 3},
-		Black:       &PlayerState{ID: 4},
-		Game: util.PtrOf(chess.MakeEmptyGame(false,
+		White:       util.Ptr(MakeIDPlayer(3)),
+		Black:       util.Ptr(MakeIDPlayer(4)),
+		Game: util.Ptr(chess.MakeEmptyGame(false,
 			chess.NotMove{Not: "f1", Piece: chess.WhiteKing},
 			chess.NotMove{Not: "a2", Piece: chess.BlackQueen},
 			chess.NotMove{Not: "h1", Piece: chess.BlackRook},
@@ -200,24 +212,24 @@ func TestMakeMove(t *testing.T) {
 		{
 			pm:     chess.Move{To: chess.Hex{File: 1}}, // invalid turn
 			state:  s1,
-			player: *s1.BlackPlayer,
+			player: s1.BlackPlayer,
 			expErr: ErrTurn,
 		},
 		{
 			pm:     chess.Move{To: chess.Hex{File: 1}}, // invalid move
 			state:  s1,
-			player: *s1.WhitePlayer,
+			player: s1.WhitePlayer,
 			expErr: ErrInvalidMove,
 		},
 		{
 			pm:     chess.Move{Promotion: chess.QueenPromotion, From: chess.HexStr("b1"), To: chess.HexStr("b2")}, // valid move
 			state:  s1,
-			player: *s1.WhitePlayer,
+			player: s1.WhitePlayer,
 		},
 		{
 			pm:     chess.Move{Promotion: chess.QueenPromotion, From: chess.HexStr("a2"), To: chess.HexStr("a1")}, // valid move
 			state:  s2,
-			player: *s2.BlackPlayer,
+			player: s2.BlackPlayer,
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
@@ -235,14 +247,20 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-forfeit")
 
 	gameID := "test123"
-	inState := MakeState(StateSetup{ID: gameID, TimeControl: TcRealTime, FirstColor: ColorRandom, White: &PlayerState{ID: 1}, Black: &PlayerState{ID: 2}})
+	inState := MakeState(StateSetup{
+		ID:          gameID,
+		TimeControl: TcRealTime,
+		FirstColor:  ColorRandom,
+		White:       util.Ptr(MakeIDPlayer(1)),
+		Black:       util.Ptr(MakeIDPlayer(2)),
+	})
 	inState.Game.Moves = []chess.HistMove{{
 		PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}},
 	}}
 
 	// when
 	assert.NoError(t, SetChessState(ctx, dbs.Rdb, gameID, &inState))
-	assert.NoError(t, ForfeitGame(ctx, &dbs, gameID, *inState.BlackPlayer))
+	assert.NoError(t, ForfeitGame(ctx, &dbs, gameID, inState.BlackPlayer))
 
 	// then
 	expState := inState.DeepCopy()

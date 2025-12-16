@@ -4,15 +4,15 @@
 
 	export interface PlayerPanelProps {
 		player: PlayerModel | PlayerState | undefined,
+		self: PlayerModel | PlayerState | undefined,
 		isTurn: boolean
 	}
 
-	const { player, isTurn }: PlayerPanelProps = $props();
+	const { player, self, isTurn }: PlayerPanelProps = $props();
 </script>
 
-
 {#if player}
-	<div class="side-table-header-elem text-xsm">
+	<div class="side-table-header-elem text-xsm" class:self-color={self !== undefined && player?.id === self?.id}>
 		<div class="turn-circle" class:turn-circle-green={isTurn}></div>
 		{#if !player.isGuest}
 			<a href="/players/{player.id}" class="text-ul">
@@ -28,7 +28,21 @@
 			<span>({player.elo})</span>
 		{/if}
 	</div>
+{:else}
+	<div class="side-table-header-elem text-xsm">
+		<div class="turn-circle" class:turn-circle-green={isTurn}></div>
+		<span class="waiting-text">
+			Waiting for player...
+		</span>
+	</div>
 {/if}
 
 <style>
+	.self-color {
+		color: dodgerblue;
+	}
+
+	.waiting-text {
+		color: rgb(150, 150, 150);
+	}
 </style>

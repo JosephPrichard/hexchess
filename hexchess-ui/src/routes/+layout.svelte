@@ -8,6 +8,7 @@
 	import type { ChallengeModel } from '$lib/api/models';
 	import { writable } from 'svelte/store';
 	import { fade } from 'svelte/transition';
+	import Banner from '$lib/Banner.svelte';
 
 	const { children }: LayoutProps = $props();
 
@@ -108,6 +109,7 @@
 <svelte:head>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </svelte:head>
+<Banner />
 <div class="bottom-right-anchor notifications-box">
 	{#each Object.values(notifications) as notification, i (i)}
 		<div in:fade={{ duration: 300, delay: 0 }} out:fade={{ duration: 300, delay: 0 }} class="notification">
@@ -132,7 +134,25 @@
 
 {@render children()}
 
+<footer class="footer">
+	<p>
+		&copy; 2025 Hesketh Prichard, Joseph. All rights reserved.
+	</p>
+	<p>
+		<a href="https://github.com/JosephPrichard/hexchess" target="_blank" rel="noopener noreferrer">Source code</a> |
+		<a href="/terms-and-conditions" target="_blank">Terms &amp; Conditions</a>
+	</p>
+</footer>
+
 <style>
+	.footer {
+        text-align: center;
+		padding: 20px;
+		font-size: 14px;
+		margin-top: 50px;
+		color: rgb(160, 160, 160);
+	}
+
     .notifications-box {
         width: 350px;
         z-index: 10000;

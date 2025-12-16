@@ -85,6 +85,7 @@ export interface PlayerModel {
 	country: string;
 	elo: number;
 	isGuest: boolean;
+	present: boolean;
 }
 
 export interface Hex {
@@ -93,12 +94,12 @@ export interface Hex {
 }
 
 export interface ChessModel {
-	id: string,
-	whitePlayer: PlayerModel | null,
-	blackPlayer: PlayerModel | null,
-	firstColor: string,
-	timeControl: string,
-	ended: boolean
+	id: string;
+	whitePlayer: PlayerModel;
+	blackPlayer: PlayerModel;
+	firstColor: string;
+	timeControl: string;
+	ended: boolean;
 }
 
 export interface ServiceModel {

@@ -84,7 +84,7 @@
 <svelte:head>
 	<title>Profile - Hexchess</title>
 </svelte:head>
-<Banner />
+
 <div class="center-horizontal-container">
 	<div class="profile-wrapper">
 		<div class="title-lg" style="padding-left: 0">Edit Profile</div>

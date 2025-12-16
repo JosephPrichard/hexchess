@@ -177,7 +177,7 @@
 <svelte:head>
 	<title>Sandbox - Hexchess</title>
 </svelte:head>
-<Banner />
+
 <div class="center-horizontal-container">
 	<div class="center-vertical-container" style="align-items: stretch;">
 		<Board

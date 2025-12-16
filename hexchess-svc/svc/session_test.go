@@ -14,7 +14,7 @@ func TestSessions(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	playerIn := PlayerState{ID: 1, Name: "testing-name1"}
+	playerIn := MakePlayer(1, "testing-session", "country", 0)
 	sessionID1 := "session1"
 	sessionID2 := "session2"
 	sessionID3 := "session3"

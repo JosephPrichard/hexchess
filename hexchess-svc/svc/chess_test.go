@@ -44,9 +44,9 @@ func TestGetChessMetas(t *testing.T) {
 	id2 := "testing-id2-" + uuid.NewString()
 	id3 := "testing-id3-" + uuid.NewString()
 
-	state1 := MakeState(StateSetup{ID: id1, TimeControl: TcRealTime, FirstColor: ColorRandom, White: &PlayerState{ID: 1}, Black: &PlayerState{ID: 2}})
-	state2 := MakeState(StateSetup{ID: id2, TimeControl: TcRealTime, FirstColor: ColorRandom, Black: &PlayerState{ID: 1}})
-	state3 := MakeState(StateSetup{ID: id3, TimeControl: TcRealTime, FirstColor: ColorRandom, Black: &PlayerState{ID: 1}})
+	state1 := MakeState(StateSetup{ID: id1, TimeControl: TcRealTime, FirstColor: ColorRandom, White: util.Ptr(MakeIDPlayer(1)), Black: util.Ptr(MakeIDPlayer(2))})
+	state2 := MakeState(StateSetup{ID: id2, TimeControl: TcRealTime, FirstColor: ColorRandom, Black: util.Ptr(MakeIDPlayer(1))})
+	state3 := MakeState(StateSetup{ID: id3, TimeControl: TcRealTime, FirstColor: ColorRandom, Black: util.Ptr(MakeIDPlayer(1))})
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-metas")
 	now := time.Now()
@@ -69,9 +69,9 @@ func TestGetChessMetas(t *testing.T) {
 	assert.NoError(t, err)
 
 	// then
-	m1 := ChessMeta{ID: id1, WhitePlayer: &PlayerState{ID: 1}, BlackPlayer: &PlayerState{ID: 2}, FirstColor: ColorRandom, TimeControl: TcRealTime}
-	m2 := ChessMeta{ID: id2, BlackPlayer: &PlayerState{ID: 1}, FirstColor: ColorRandom, TimeControl: TcRealTime}
-	m3 := ChessMeta{ID: id3, BlackPlayer: &PlayerState{ID: 1}, FirstColor: ColorRandom, TimeControl: TcRealTime}
+	m1 := ChessMeta{ID: id1, WhitePlayer: MakeIDPlayer(1), BlackPlayer: MakeIDPlayer(2), FirstColor: ColorRandom, TimeControl: TcRealTime}
+	m2 := ChessMeta{ID: id2, BlackPlayer: MakeIDPlayer(1), FirstColor: ColorRandom, TimeControl: TcRealTime}
+	m3 := ChessMeta{ID: id3, BlackPlayer: MakeIDPlayer(1), FirstColor: ColorRandom, TimeControl: TcRealTime}
 
 	assert.Equal(t, []ChessMeta{m3, m2, m1}, metaList1)
 	assert.Equal(t, []ChessMeta{m1}, metaList2)
@@ -89,8 +89,8 @@ func TestExpireChessStates(t *testing.T) {
 
 	state1 := MakeState(StateSetup{ID: id1, TimeControl: TcRealTime, FirstColor: ColorRandom})
 
-	state1.WhitePlayer = &PlayerState{ID: 1}
-	state1.BlackPlayer = &PlayerState{ID: 2}
+	state1.WhitePlayer = MakeIDPlayer(1)
+	state1.BlackPlayer = MakeIDPlayer(2)
 
 	ctx := context.WithValue(context.Background(), util.Trace, "testing-expire")
 	now := time.Now()

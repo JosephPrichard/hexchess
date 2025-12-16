@@ -69,21 +69,17 @@ func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState ServerStat
 	}
 	defer conn.Close()
 
-	var sessPlayer *svc.PlayerState
-
 	player, err := svc.GetSession(ctx, serverState.Rdb, sessionID)
 	if err != nil {
 		switch err {
 		case svc.ErrSessionNotFound:
-			sessPlayer = nil
+			//player = svc.MakeGuest()
 		default:
 			writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
 			return
 		}
-	} else {
-		sessPlayer = &player
 	}
-	chessState, err := svc.JoinGame(ctx, serverState.Rdb, gameID, sessPlayer)
+	chessState, err := svc.JoinGame(ctx, serverState.Rdb, gameID, player)
 	if err != nil {
 		writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
 		return
@@ -130,7 +126,7 @@ func handleGameInit(gameID string, player svc.PlayerState, state *svc.ChessState
 		MakePbGameOutputInit(
 			gameID,
 			svc.SerializeChessState(state),
-			svc.SerializePlayer(&player),
+			svc.SerializePlayer(player),
 		),
 		MakePbGameOutputPlayers(
 			gameID,

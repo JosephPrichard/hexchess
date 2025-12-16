@@ -60,11 +60,11 @@ func scanEvents(resp *http.Response, expEvents int) []string {
 func parseEventData(input string) string {
 	lines := strings.Split(input, "\n")
 	for _, line := range lines {
-		if strings.HasPrefix(line, "svc: ") {
-			return strings.TrimPrefix(line, "svc: ")
+		if strings.HasPrefix(line, "data: ") {
+			return strings.TrimPrefix(line, "data: ")
 		}
 	}
-	panic(fmt.Sprintf("parse event svc: %s", input))
+	panic(fmt.Sprintf("parse event data: %s", input))
 }
 
 func TestHandleCountEvents(t *testing.T) {
@@ -97,11 +97,11 @@ func TestHandleCountEvents(t *testing.T) {
 
 	// then
 	expEvents := []string{
-		fmt.Sprintf("event: %s\nsvc: %s\n", MetaEvent, "id1"),
-		fmt.Sprintf("event: %s\nsvc: %s\n", GamesCountEvent, `{"id":"id1","count":0}`),
-		fmt.Sprintf("event: %s\nsvc: %s\n", ActiveCountEvent, `{"id":"id1","count":1}`),
-		fmt.Sprintf("event: %s\nsvc: %s\n", ActiveCountEvent, `{"id":"id3","count":2}`),
-		fmt.Sprintf("event: %s\nsvc: %s\n", GamesCountEvent, `{"id":"id2","count":1}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, "id1"),
+		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"id":"id1","count":0}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, `{"id":"id1","count":1}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, `{"id":"id3","count":2}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"id":"id2","count":1}`),
 	}
 	events := scanEvents(resp, len(expEvents))
 	assert.ElementsMatch(t, expEvents, events)
@@ -145,9 +145,9 @@ func TestHandleUserEvents(t *testing.T) {
 	// then
 	jsonData := `{"challengerId":1,"challengerName":"","challengerCountry":"","challengerElo":0,"challengeeId":0,"challengeeName":"","challengeeCountry":"","challengeeElo":0,"timeControl":"REAL_TIME","startColor":"WHITE","madeOn":"0001-01-01T00:00:00Z"}`
 	expEvents := []string{
-		fmt.Sprintf("event: %s\nsvc: %s\n", MetaEvent, "id1"),
-		fmt.Sprintf("event: %s\nsvc: %s\n", UserChallengeEvent, jsonData),
-		fmt.Sprintf("event: %s\nsvc: %s\n", UserChallengeEvent, jsonData),
+		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, "id1"),
+		fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, jsonData),
+		fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, jsonData),
 	}
 	events := scanEvents(resp, len(expEvents))
 	assert.ElementsMatch(t, expEvents, events)
@@ -250,5 +250,9 @@ func TestHandleCountEvents_Throughput(t *testing.T) {
 		}
 		expected = append(expected, counts)
 	}
-	assert.Equal(t, expected, results)
+
+	assert.Len(t, results, len(expected))
+	for i := range expected {
+		assert.Equal(t, expected[i], results[i])
+	}
 }

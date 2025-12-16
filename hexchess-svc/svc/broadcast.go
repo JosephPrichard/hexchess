@@ -91,7 +91,7 @@ func ListenUnicastEvents(m *UniCaster, rdb *db.Redis) chan struct{} {
 }
 
 func BroadcastMessage(ctx context.Context, rdb *db.Redis, channel string, b []byte) error {
-	res := rdb.Cache.Publish(ctx, channel, b)
+	res := rdb.PubSub.Publish(ctx, channel, b)
 	if err := res.Err(); err != nil {
 		return fmt.Errorf("publish message: %w", err)
 	}

@@ -15,7 +15,7 @@ func UnmarshalPlayer(b []byte) (PlayerState, error) {
 	if err := proto.Unmarshal(b, &pbPlayer); err != nil {
 		return PlayerState{}, err
 	}
-	player := PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Elo: pbPlayer.Elo, IsGuest: pbPlayer.IsGuest}
+	player := PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Elo: pbPlayer.Elo, IsGuest: pbPlayer.IsGuest, Present: true}
 	return player, nil
 }
 
@@ -24,10 +24,10 @@ func MarshalPlayer(p *PlayerState) ([]byte, error) {
 	return proto.Marshal(&pbPlayer)
 }
 
-func DeserializePlayer(pbPlayer *pb.PlayerState) *PlayerState {
-	var player *PlayerState
+func DeserializePlayer(pbPlayer *pb.PlayerState) PlayerState {
+	var player PlayerState
 	if pbPlayer != nil {
-		player = &PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Elo: pbPlayer.Elo, IsGuest: pbPlayer.IsGuest}
+		player = PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Elo: pbPlayer.Elo, IsGuest: pbPlayer.IsGuest, Present: true}
 	}
 	return player
 }
@@ -65,11 +65,11 @@ func UnmarshalChessState(b []byte) (ChessState, error) {
 	return state, nil
 }
 
-func SerializePlayer(p *PlayerState) *pb.PlayerState {
-	if p == nil {
-		return nil
+func SerializePlayer(p PlayerState) *pb.PlayerState {
+	if p.Present {
+		return &pb.PlayerState{Id: p.ID, Name: p.Name, Country: p.Country, Elo: p.Elo, IsGuest: p.IsGuest}
 	}
-	return &pb.PlayerState{Id: p.ID, Name: p.Name, Country: p.Country, Elo: p.Elo, IsGuest: p.IsGuest}
+	return nil
 }
 
 func SerializeChessState(s *ChessState) *pb.ChessState {

@@ -15,9 +15,10 @@
 	import type { Hex } from '$lib/api/models';
 	import { deserializeHexList } from '$lib/utils/chess.js';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
-	import { getMoveNotationsWasm } from '$lib/api/wasm';
+	import { getInitialGameWasm, getMoveNotationsWasm } from '$lib/api/wasm';
 	import { goto } from '$app/navigation';
 	import { formatTimer } from '$lib/utils/format';
+	import { onMount } from 'svelte';
 
 	export interface PlayProps {
 		gameId: string
@@ -46,7 +47,7 @@
 
 	async function onClickCopy() {
 		await navigator.clipboard.writeText(link);
-		addNotification({ type: 'string', message: "Copied to clipboard!", isSuccess: true, duration: 2000 });
+		addNotification({ type: 'string', message: "Copied share link", isSuccess: true, duration: 2000 });
 	}
 
 	function onClickForfeit() {}
@@ -135,94 +136,85 @@
 		};
 	});
 
+	onMount(() => {
+		getInitialGameWasm().then(x => game = x);
+	});
+
 	const awaitingNotList = $derived.by(async () => await getMoveNotationsWasm(game?.moves));
+
+	const isPlayingAsWhite = $derived.by(() => selfPlayer?.id !== blackPlayer?.id);
+	const isTurn = $derived(game?.board?.isWhiteTurn && isPlayingAsWhite);
+	const bottomPlayer = $derived(isPlayingAsWhite ? blackPlayer : whitePlayer);
+	const topPlayer = $derived(isPlayingAsWhite ? whitePlayer : blackPlayer);
+	const bottomTimer = $derived(isPlayingAsWhite ? whiteTimer : blackTimer);
+	const topTimer = $derived(isPlayingAsWhite ? blackTimer : whiteTimer);
+	const topTakenPieces = $derived(isPlayingAsWhite ? game?.takenWhitePieces : game?.takenBlackPieces);
+	const bottomTakenPieces = $derived(isPlayingAsWhite ? game?.takenBlackPieces : game?.takenWhitePieces);
 </script>
 
 <svelte:head>
 	<title>Play - Hexchess</title>
 </svelte:head>
-<Banner />
 <div class="center-horizontal-container">
 	<div class="center-vertical-container" style="align-items: stretch;">
-		{#if whitePlayer && blackPlayer}
-			{@const isPlayingAsWhite = selfPlayer?.id === whitePlayer?.id}
-			{@const isTurn = game?.board?.isWhiteTurn && isPlayingAsWhite}
-			{@const bottomPlayer = isPlayingAsWhite ? blackPlayer : whitePlayer}
-			{@const topPlayer = isPlayingAsWhite ? whitePlayer : blackPlayer}
-			{@const bottomTimer = isPlayingAsWhite ? whiteTimer : blackTimer}
-			{@const topTimer = isPlayingAsWhite ? blackTimer : whiteTimer}
-			{@const topTakenPieces = isPlayingAsWhite ? game?.takenWhitePieces : game?.takenBlackPieces}
-			{@const bottomTakenPieces = isPlayingAsWhite ? game?.takenBlackPieces : game?.takenWhitePieces}
-			{#if game?.board}
-				<Board
-					board={game?.board}
-					isWhitePerspective={isPlayingAsWhite}
-					potentialMoves={deserializeHexList(selection.value.potentialMoves?.moves)}
-					onSelectPiece={onSelectPiece}
-					selected={selection.value.hex}
-				/>
+		{#if game?.board}
+			<Board
+				board={game?.board}
+				fen={true}
+				isWhitePerspective={isPlayingAsWhite}
+				potentialMoves={deserializeHexList(selection.value.potentialMoves?.moves)}
+				onSelectPiece={onSelectPiece}
+				selected={selection.value.hex}
+			/>
+		{/if}
+		<div class="side-table-wrapper">
+			<PieceList pieces={bottomTakenPieces || []} />
+			{#if topTimer}
+				<div class="timer" class:timer-warn={topTimer < 15000}>
+					{formatTimer(topTimer)}
+				</div>
 			{/if}
-			<div class="side-table-wrapper">
-				<PieceList pieces={bottomTakenPieces || []} />
-				{#if topTimer}
-					<div class="timer" class:timer-warn={topTimer < 15000}>
-						{formatTimer(topTimer)}
+			<div class="side-table move-table-wrapper">
+				<div class="side-table-header player-panel">
+					<PlayerPanel player={bottomPlayer} self={selfPlayer} isTurn={!isTurn} />
+				</div>
+				{#if whitePlayer === undefined || blackPlayer === undefined}
+					<div class="growing-scrollbox parent-lobby">
+						<div class="lobby-container">
+							<div class="spinner"></div>
+							<span class="lobby-text">Waiting for opponents...</span>
+						</div>
 					</div>
-				{/if}
-				<div class="side-table move-table-wrapper">
-					<div class="side-table-header player-panel">
-						<PlayerPanel player={bottomPlayer} isTurn={!isTurn} />
-					</div>
+					{:else}
 					{#await awaitingNotList then notList}
 						<MoveList moveList={notList} />
 					{/await}
-					<div class="icons">
-						<button title="Forfeit" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickForfeit}>
-							<FlagIcon />
-						</button>
-						<button title="Undo Move" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickUndo}>
-							<UndoIcon />
-						</button>
-						<button title="Settings" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickSettings}>
-							<SettingsIcon />
-						</button>
-					</div>
-					<div class="side-table-header-bottom player-panel">
-						<PlayerPanel player={topPlayer} isTurn={isTurn || false} />
-					</div>
-				</div>
-				{#if bottomTimer}
-					<div class="timer" class:timer-warn={bottomTimer < 15000}>
-						{formatTimer(bottomTimer)}
-					</div>
 				{/if}
-				<PieceList pieces={topTakenPieces || []} />
-			</div>
-		{:else}
-			<div class="panel lobby">
-				<div class="text-lg" style:margin-bottom="20px">
-					Challenge to a game
+				<div class="icons">
+					<button title="Forfeit" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickForfeit}>
+						<FlagIcon />
+					</button>
+					<button title="Undo Move" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickUndo}>
+						<UndoIcon />
+					</button>
+					<button title="Settings" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickSettings}>
+						<SettingsIcon />
+					</button>
+					<button title="Settings" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickCopy}>
+						<ClipboardIcon />
+					</button>
 				</div>
-				<div style:margin-bottom="10px">
-					To invite someone to play, send them this URL.
-				</div>
-				<div class="text-outline text-xsm" style:margin-bottom="10px">
-					<span class="svg-container">
-						<span style:margin-right="10px">
-							{link}
-						</span>
-						<button class="svg-container invisible-button copy-button" onclick={onClickCopy}>
-							<span style:margin-left="auto">
-								<ClipboardIcon/>
-							</span>
-						</button>
-					</span>
-				</div>
-				<div style:margin-bottom="10px">
-					The first person who visits the link will be your opponent.
+				<div class="side-table-header-bottom player-panel">
+					<PlayerPanel player={topPlayer} self={selfPlayer} isTurn={isTurn || false} />
 				</div>
 			</div>
-		{/if}
+			{#if bottomTimer}
+				<div class="timer" class:timer-warn={bottomTimer < 15000}>
+					{formatTimer(bottomTimer)}
+				</div>
+			{/if}
+			<PieceList pieces={topTakenPieces || []} />
+		</div>
 	</div>
 </div>
 
@@ -230,28 +222,6 @@
     .player-panel {
         padding-top: 15px;
         padding-bottom: 15px;
-    }
-
-    .text-outline {
-        width: fit-content;
-        border: 1px solid rgb(58, 58, 58);
-        border-radius: 5px;
-        padding: 5px 15px 5px 15px;
-        line-height: 25px;
-    }
-
-    .copy-button {
-        padding: 2px;
-    }
-
-    .copy-button:hover {
-        background-color: rgb(58, 58, 58);
-        border-radius: 2px;
-    }
-
-    .lobby {
-        width: 600px;
-        height: 500px;
     }
 
     .icons {
@@ -289,5 +259,39 @@
         margin-top: 10px;
         margin-bottom: 10px;
 		height: 350px;
+    }
+
+    .lobby-container {
+        display: flex;
+        align-items: center; /* vertically centers spinner with text */
+        gap: 8px; /* space between spinner and text */
+    }
+
+    .spinner {
+        width: 20px;
+        height: 20px;
+        border: 4px solid rgb(120, 120, 120);; /* blue ring */
+        border-top: 4px solid transparent; /* top is transparent for spinning effect */
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(360deg); }
+    }
+
+    .lobby-text {
+        font-family: sans-serif;
+        font-size: 16px;
+        font-weight: 500;
+		color: rgb(120, 120, 120);
+    }
+
+    .parent-lobby {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
     }
 </style>

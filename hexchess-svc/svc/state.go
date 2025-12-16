@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"hexchess-svc/chess"
+	"math/rand/v2" // concurrency safe
 	"time"
 )
 
@@ -13,6 +14,26 @@ type PlayerState struct {
 	Country string  `json:"country"`
 	Elo     float64 `json:"elo"`
 	IsGuest bool    `json:"isGuest"`
+	Present bool    `json:"present"`
+}
+
+// Use the constructor functions to create games so the boolean flags will be properly initialized - as opposed to remembering to flag them
+
+func MakeGuest() PlayerState {
+	// concurrency safe to use rand - we are also using random negative integers for guests so we will never have a collision with an actual player
+	return PlayerState{ID: -rand.Int64(), Name: "Anonymous", IsGuest: true, Present: true}
+}
+
+func MakeIDPlayer(id int64) PlayerState {
+	return PlayerState{ID: id, Present: true}
+}
+
+func MakeNamePlayer(id int64, name string) PlayerState {
+	return PlayerState{ID: id, Name: name, Present: true}
+}
+
+func MakePlayer(id int64, name string, country string, elo float64) PlayerState {
+	return PlayerState{ID: id, Name: name, Country: country, Elo: elo, Present: true}
 }
 
 type UndoState struct {
@@ -43,27 +64,13 @@ func (s *ChessState) UndoMove() error {
 }
 
 type ChessMeta struct {
-	ID          string       `json:"id"`
-	WhitePlayer *PlayerState `json:"whitePlayer"`
-	BlackPlayer *PlayerState `json:"blackPlayer"`
-	IsEnded     bool         `json:"isEnded"`
-	FirstColor  ColorSelect  `json:"firstColor"`
-	TimeControl TimeControl  `json:"timeControl"`
-	Touch       time.Time    `json:"touch"`
-}
-
-func (m *ChessMeta) GetWhiteID() int64 {
-	if m == nil || m.WhitePlayer == nil {
-		return -1
-	}
-	return m.WhitePlayer.ID
-}
-
-func (m *ChessMeta) GetBlackID() int64 {
-	if m == nil || m.BlackPlayer == nil {
-		return -1
-	}
-	return m.BlackPlayer.ID
+	ID          string      `json:"id"`
+	WhitePlayer PlayerState `json:"whitePlayer"`
+	BlackPlayer PlayerState `json:"blackPlayer"`
+	IsEnded     bool        `json:"isEnded"`
+	FirstColor  ColorSelect `json:"firstColor"`
+	TimeControl TimeControl `json:"timeControl"`
+	Touch       time.Time   `json:"touch"`
 }
 
 var ChessMetaCmpOpts = cmpopts.IgnoreFields(ChessMeta{}, "Touch")
@@ -87,6 +94,13 @@ func MakeState(s StateSetup) ChessState {
 	if s.Game != nil {
 		game = *s.Game
 	}
+	var whitePlayer, blackPlayer PlayerState
+	if s.White != nil {
+		whitePlayer = *s.White
+	}
+	if s.Black != nil {
+		blackPlayer = *s.Black
+	}
 	state := ChessState{
 		InitialBoard: b,
 		Game:         game,
@@ -95,14 +109,14 @@ func MakeState(s StateSetup) ChessState {
 			FirstColor:  s.FirstColor,
 			TimeControl: s.TimeControl,
 			Touch:       time.UnixMilli(0),
-			WhitePlayer: s.White,
-			BlackPlayer: s.Black,
+			WhitePlayer: whitePlayer,
+			BlackPlayer: blackPlayer,
 		},
 	}
 	return state
 }
 
-func (s *ChessState) CurrPlayer() *PlayerState {
+func (s *ChessState) CurrPlayer() PlayerState {
 	if s.Game.Board.IsWhiteTurn {
 		return s.WhitePlayer
 	}
@@ -122,11 +136,7 @@ func (s *ChessState) DeepCopy() ChessState {
 			Touch:       s.Touch,
 		},
 	}
-	if s.WhitePlayer != nil {
-		s2.WhitePlayer = &(*s.WhitePlayer)
-	}
-	if s.BlackPlayer != nil {
-		s2.BlackPlayer = &(*s.BlackPlayer)
-	}
+	s2.WhitePlayer = s.WhitePlayer
+	s2.BlackPlayer = s.BlackPlayer
 	return s2
 }

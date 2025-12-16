@@ -72,8 +72,6 @@ func main() {
 
 	migrType := *migrFlag
 	switch strings.ToUpper(migrType) {
-	case "DOWN":
-		log.Fatal("database migration down not supported")
 	case "UP":
 		if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 			log.Fatalf("failed to migrate up: %v", err)

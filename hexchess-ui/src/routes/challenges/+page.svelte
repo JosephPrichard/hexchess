@@ -77,7 +77,7 @@
 <svelte:head>
 	<title>Challenges - Hexchess</title>
 </svelte:head>
-<Banner />
+
 <div class="center-horizontal-container challenge-bottom">
 	<div class="challenge-wrapper">
 		<div class="tabs-group">

@@ -59,7 +59,7 @@
 <svelte:head>
 	<title>Hexchess</title>
 </svelte:head>
-<Banner />
+
 <CreateGame title="Create a Game?" bind:show={showCreateModal} onSubmit={onSubmitCreateGame} bind:fen={fen}/>
 <div class="center-horizontal-container">
 	<div class="center-vertical-container index-container">
@@ -86,7 +86,7 @@
 				{#each chessList as chess (chess.id)}
 					<tr class="row-hover chess-table-row" style="height: {chessRowHeight}px" onclick={() => goto(`/play/${chess.id}`)}>
 						<td>
-							{#if chess.whitePlayer}
+							{#if chess.whitePlayer && chess.whitePlayer.present}
 								{chess.whitePlayer.name}
 								<img class="flag" src="/flags/{chess.whitePlayer.country}.png" alt="" />
 							{:else}
@@ -96,7 +96,7 @@
 							{/if}
 						</td>
 						<td>
-							{#if chess.blackPlayer}
+							{#if chess.blackPlayer && chess.blackPlayer.present}
 								{chess.blackPlayer.name}
 								<img class="flag" src="/flags/{chess.blackPlayer.country}.png" alt="" />
 							{:else}

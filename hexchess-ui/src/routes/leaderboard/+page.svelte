@@ -18,7 +18,7 @@
 <svelte:head>
 	<title>Leaderboard - Hexchess</title>
 </svelte:head>
-<Banner />
+
 <div class="center-horizontal-container">
 	<div class="title-lg">Leaderboard</div>
 	<div class="wrapper">

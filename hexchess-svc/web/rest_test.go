@@ -412,26 +412,16 @@ func TestHandleGetChessViews(t *testing.T) {
 			{ID: "game3", FirstColor: svc.ColorRandom, TimeControl: svc.TcRealTime},
 			{ID: "game2", FirstColor: svc.ColorRandom, TimeControl: svc.TcRealTime},
 			{
-				ID: "game1",
-				WhitePlayer: &svc.PlayerState{
-					ID:      2,
-					Name:    "user2",
-					Country: "us",
-					Elo:     1000,
-				},
+				ID:          "game1",
+				WhitePlayer: svc.MakePlayer(2, "user2", "us", 1000),
 				FirstColor:  svc.ColorRandom,
 				TimeControl: svc.TcRealTime,
 			},
 		},
 		SelfChessList: []svc.ChessMeta{
 			{
-				ID: "game1",
-				WhitePlayer: &svc.PlayerState{
-					ID:      2,
-					Name:    "user2",
-					Country: "us",
-					Elo:     1000,
-				},
+				ID:          "game1",
+				WhitePlayer: svc.MakePlayer(2, "user2", "us", 1000),
 				FirstColor:  svc.ColorRandom,
 				TimeControl: svc.TcRealTime,
 			},

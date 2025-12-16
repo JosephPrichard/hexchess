@@ -92,13 +92,7 @@ func HandleRegister(state *ServerState, w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		return fmt.Errorf("insert user: %w", err)
 	}
-	t, err := SetSessionPlayer(ctx, state.Rdb, w, svc.PlayerState{
-		ID:      user.ID,
-		Name:    user.Username,
-		Country: user.Country,
-		Elo:     user.Elo,
-		IsGuest: false,
-	})
+	t, err := SetSessionPlayer(ctx, state.Rdb, w, svc.MakePlayer(user.ID, user.Username, user.Country, user.Elo))
 	if err != nil {
 		return fmt.Errorf("set session player: %w", err)
 	}
@@ -115,13 +109,7 @@ func HandleRegister(state *ServerState, w http.ResponseWriter, r *http.Request) 
 }
 
 func handleLoginSession(ctx context.Context, rdb *db.Redis, w http.ResponseWriter, user svc.VerifiedUser) error {
-	t, err := SetSessionPlayer(ctx, rdb, w, svc.PlayerState{
-		ID:      user.ID,
-		Name:    user.Username,
-		Country: user.Country,
-		Elo:     user.Elo,
-		IsGuest: false,
-	})
+	t, err := SetSessionPlayer(ctx, rdb, w, svc.MakePlayer(user.ID, user.Username, user.Country, user.Elo))
 	if err != nil {
 		return fmt.Errorf("set session player: %w", err)
 	}

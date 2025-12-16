@@ -192,7 +192,7 @@
 	<title>{user ? user.username : 'User'} - Hexchess</title>
 </svelte:head>
 <svelte:window onscroll={tryLoadReplays} />
-<Banner />
+
 <CreateGame title="Create a Challenge?" bind:show={showCreateModal} onSubmit={onSubmitCreateChallenge} />
 <div class="center-horizontal-container">
 	<div class="panel player-panel">

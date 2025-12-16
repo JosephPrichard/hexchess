@@ -1,5 +1,5 @@
 package util
 
-func PtrOf[T any](v T) *T {
+func Ptr[T any](v T) *T {
 	return &v
 }

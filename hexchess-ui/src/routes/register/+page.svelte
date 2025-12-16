@@ -38,7 +38,7 @@
 <svelte:head>
 	<title>Register - Hexchess</title>
 </svelte:head>
-<Banner />
+
 <div class="center-horizontal-container">
 	<div class="title-lg">Register</div>
 	<div class="register-wrapper">

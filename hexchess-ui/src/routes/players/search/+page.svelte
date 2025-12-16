@@ -17,7 +17,7 @@
 <svelte:head>
 	<title>Search - Hexchess</title>
 </svelte:head>
-<Banner />
+
 <div class="center-horizontal-container">
 	<div class="title-lg">Search</div>
 	<div class="wrapper">

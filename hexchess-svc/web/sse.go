@@ -42,7 +42,7 @@ const GamesCountEvent = "gameCountEvents"
 const ActiveCountEvent = "activeCountEvents"
 
 func writeEvent(w http.ResponseWriter, e string, d string) {
-	if _, err := fmt.Fprintf(w, "event: %s\nsvc: %s\n\n", e, d); err != nil {
+	if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", e, d); err != nil {
 		slog.Error("write to sse", "err", err)
 	}
 }
@@ -118,6 +118,7 @@ func HandleCountEvents(state *ServerState, w http.ResponseWriter, r *http.Reques
 
 	shutdown := func() error {
 		stopPingChan <- struct{}{}
+		ctx := context.WithoutCancel(ctx)
 		ac, err := svc.RemoveActiveUser(ctx, state.Rdb, sseID)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to remove active user", "sseID", sseID, "err", err)

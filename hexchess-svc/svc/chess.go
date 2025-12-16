@@ -60,10 +60,10 @@ func SetChessStateAt(ctx context.Context, rdb *db.Redis, id string, state *Chess
 	pipe := rdb.Cache.TxPipeline()
 	pipe.Set(ctx, fullID, b, 0)
 	pipe.ZAdd(ctx, rdb.GamesZSet, redis.Z{Score: touchSecs, Member: fullID})
-	if state.WhitePlayer != nil {
+	if state.WhitePlayer.Present {
 		pipe.ZAdd(ctx, getUserGameZSet(rdb, state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
 	}
-	if state.BlackPlayer != nil {
+	if state.BlackPlayer.Present {
 		pipe.ZAdd(ctx, getUserGameZSet(rdb, state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
 	}
 

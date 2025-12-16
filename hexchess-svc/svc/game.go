@@ -59,19 +59,19 @@ func broadcastGameCounts(rdb *db.Redis, strID string) {
 	slog.InfoContext(ctx, "counted chess states after creating game", "count", count)
 }
 
-func JoinGame(ctx context.Context, rdb *db.Redis, gameID string, player *PlayerState) (*ChessState, error) {
+func JoinGame(ctx context.Context, rdb *db.Redis, gameID string, player PlayerState) (*ChessState, error) {
 	state, err := GetChessState(ctx, rdb, gameID)
 	if err != nil {
 		return nil, err
 	}
 
-	if player == nil {
-		slog.WarnContext(ctx, "unprovided player did not join game", "state", state)
-		return nil, nil
+	if !player.Present {
+		slog.WarnContext(ctx, "player did not join the game", "playerID", player.ID)
+		return state, nil
 	}
 
 	var playerExists bool
-	if state.WhitePlayer == nil && state.BlackPlayer == nil {
+	if !state.WhitePlayer.Present && !state.BlackPlayer.Present {
 		n, err := rand.Int(rand.Reader, big.NewInt(1000))
 		if err != nil {
 			return nil, fmt.Errorf("generate randint used to select first color: %w", err)
@@ -82,13 +82,13 @@ func JoinGame(ctx context.Context, rdb *db.Redis, gameID string, player *PlayerS
 		} else {
 			state.BlackPlayer = player
 		}
-	} else if state.BlackPlayer != nil && state.WhitePlayer == nil {
+	} else if state.BlackPlayer.Present && !state.WhitePlayer.Present {
 		if state.BlackPlayer.ID == player.ID {
 			playerExists = true
 		} else {
 			state.WhitePlayer = player
 		}
-	} else if state.WhitePlayer != nil && state.BlackPlayer == nil {
+	} else if state.WhitePlayer.Present && !state.BlackPlayer.Present {
 		if state.WhitePlayer.ID == player.ID {
 			playerExists = true
 		} else {
@@ -98,7 +98,7 @@ func JoinGame(ctx context.Context, rdb *db.Redis, gameID string, player *PlayerS
 
 	if playerExists {
 		slog.WarnContext(ctx, "player has already joined game", "playerID", player.ID, "state", state)
-		return nil, nil
+		return state, nil
 	}
 
 	err = SetChessState(ctx, rdb, gameID, state)
@@ -128,7 +128,7 @@ func DoMakeMove(ctx context.Context, state *ChessState, player PlayerState, move
 		slog.WarnContext(ctx, "make move: attempted on ended game", "gameId", gameID)
 		return mr, ErrFinishedGame
 	}
-	if currPlayer == nil || *currPlayer != player {
+	if !currPlayer.Present || currPlayer.ID != player.ID {
 		slog.WarnContext(ctx, "make move: invalid turn", "player", player.ID, "game", gameID)
 		return mr, ErrTurn
 	}
@@ -221,7 +221,7 @@ func ForfeitGame(ctx context.Context, dbs *db.Databases, gameID string, player P
 	if err != nil {
 		return err
 	}
-	if state.WhitePlayer == nil || state.BlackPlayer == nil {
+	if !state.WhitePlayer.Present || !state.BlackPlayer.Present {
 		slog.Warn("game does not have both players, cannot forfeit", "game", gameID)
 		return nil
 	}
@@ -244,7 +244,7 @@ func ForfeitGame(ctx context.Context, dbs *db.Databases, gameID string, player P
 }
 
 func WriteFinishedGame(ctx context.Context, dbs *db.Databases, state *ChessState, result ReplayResult, cause ReplayCause) error {
-	if state.WhitePlayer == nil || state.BlackPlayer == nil {
+	if !state.WhitePlayer.Present || !state.BlackPlayer.Present {
 		return fmt.Errorf("room players must not be nil on a finished game: roomID: %s", state.ID)
 	}
 	whiteID := state.WhitePlayer.ID
