@@ -168,16 +168,7 @@ func TestHandleCountEvents_Throughput(t *testing.T) {
 	defer ts.Close()
 
 	runs := sseCountFlag()
-
-	type msg struct {
-		recvTime time.Time
-		count    int64
-	}
-	type group struct {
-		startTime time.Time
-		subMap    map[string]msg
-	}
-	sseMap := make(map[string]group)
+	sseMap := make(map[string]sseGroup)
 
 	var wg sync.WaitGroup
 
@@ -194,8 +185,8 @@ func TestHandleCountEvents_Throughput(t *testing.T) {
 		events := scanEvents(resp, 2)
 
 		sseID := parseEventData(events[0])
-		subMap := make(map[string]msg)
-		sseMap[sseID] = group{startTime: start, subMap: subMap}
+		subMap := make(map[string]sseMsgData)
+		sseMap[sseID] = sseGroup{startTime: start, subMap: subMap}
 
 		// expect one message from every single SSE that connects afterward
 		go func() {
@@ -208,16 +199,36 @@ func TestHandleCountEvents_Throughput(t *testing.T) {
 					t.Logf("unmarshal count event: %v", err)
 					return
 				}
-				subMap[ce.ID] = msg{recvTime: time.Now(), count: ce.Count}
+				subMap[ce.ID] = sseMsgData{recvTime: time.Now(), count: ce.Count}
 			})
 		}()
 	}
 
 	wg.Wait()
 
-	count := 0
-	total := time.Duration(0)
+	total, count, results, expected := transformSseMap(t, runs, sseMap)
 
+	t.Logf("avg duration: %v", time.Duration(int(total)/count))
+
+	assert.Len(t, results, len(expected))
+	for i := range expected {
+		assert.Equal(t, expected[i], results[i])
+	}
+}
+
+type sseMsgData struct {
+	recvTime time.Time
+	count    int64
+}
+
+type sseGroup struct {
+	startTime time.Time
+	subMap    map[string]sseMsgData
+}
+
+func transformSseMap(t *testing.T, runs int, sseMap map[string]sseGroup) (time.Duration, int, [][]int64, [][]int64) {
+	total := time.Duration(0)
+	count := 0
 	// ordering and sseIDs are non-deterministic - prepare sorted messages by len and count content for assertions
 	var results [][]int64
 
@@ -239,9 +250,6 @@ func TestHandleCountEvents_Throughput(t *testing.T) {
 	}
 	sort.Slice(results, func(i, j int) bool { return len(results[i]) > len(results[j]) })
 
-	avg := time.Duration(int(total) / count)
-	t.Logf("avg duration: %v", avg)
-
 	var expected [][]int64
 	for i := range runs {
 		var counts []int64
@@ -251,8 +259,5 @@ func TestHandleCountEvents_Throughput(t *testing.T) {
 		expected = append(expected, counts)
 	}
 
-	assert.Len(t, results, len(expected))
-	for i := range expected {
-		assert.Equal(t, expected[i], results[i])
-	}
+	return total, count, results, expected
 }

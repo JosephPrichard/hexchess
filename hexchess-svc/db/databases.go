@@ -1,9 +1,11 @@
 package db
 
 import (
+	redigo "github.com/gomodule/redigo/redis"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	"time"
 )
 
 type RedisAddrs struct {
@@ -62,7 +64,7 @@ func (pdb *PostgreSQL) GetPool() *pgxpool.Pool {
 
 type Redis struct {
 	Cache  *redis.Client
-	PubSub *redis.Client
+	PubSub *redigo.Pool
 	RedisAddrs
 	RedisNames
 }
@@ -87,11 +89,19 @@ func (s Databases) Close() {
 }
 
 func MakeRdb(addrs RedisAddrs, names RedisNames) *Redis {
-	var ps *redis.Client
+	var ps *redigo.Pool
 	if addrs.PubsubAddr != "" {
-		ps = redis.NewClient(&redis.Options{
-			Addr: addrs.PubsubAddr,
-		})
+		ps = &redigo.Pool{
+			MaxIdle:     1,
+			IdleTimeout: 240 * time.Second,
+			Dial: func() (redigo.Conn, error) {
+				c, err := redigo.Dial("tcp", addrs.PubsubAddr)
+				if err != nil {
+					return nil, err
+				}
+				return c, err
+			},
+		}
 	}
 	return &Redis{
 		Cache: redis.NewClient(&redis.Options{

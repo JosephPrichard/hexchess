@@ -6,16 +6,20 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/svc"
+	"hexchess-svc/util"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 )
 
-type SseHandler = func(state *ServerState, w http.ResponseWriter, r *http.Request, f http.Flusher) error
+type SseHandler = func(state *ServerState, w SSEWriter, r *http.Request) error
 
 func makeSseHandler(state *ServerState, h SseHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sseID := state.MakeID()
+
+		r = r.WithContext(context.WithValue(r.Context(), util.Trace, sseID))
 		slog.InfoContext(r.Context(), "received sse request", "method", r.Method, "url", r.URL)
 
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -27,27 +31,31 @@ func makeSseHandler(state *ServerState, h SseHandler) http.Handler {
 			http.Error(w, "streaming is unsupported", http.StatusInternalServerError)
 			return
 		}
-		if err := h(state, w, r, f); err != nil {
+		ctx := r.Context()
+		if err := h(state, SSEWriter{ctx, sseID, w, f}, r); err != nil {
 			status, m := HttpStatusFromErr(err)
-			slog.ErrorContext(r.Context(), "sse request failed", "err", err, "method", r.Method, "url", r.URL)
+			slog.ErrorContext(ctx, "sse request failed", "err", err, "method", r.Method, "url", r.URL)
 			http.Error(w, fmt.Sprintf("%s:%s", MetaEvent, m), status)
 		}
-		slog.InfoContext(r.Context(), "finished sse request", "method", r.Method, "url", r.URL)
+		slog.InfoContext(ctx, "finished sse request", "method", r.Method, "url", r.URL)
 	})
 }
 
-const MetaEvent = "meta"
-const UserChallengeEvent = "userEvents"
-const GamesCountEvent = "gameCountEvents"
-const ActiveCountEvent = "activeCountEvents"
-
-func writeEvent(w http.ResponseWriter, e string, d string) {
-	if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", e, d); err != nil {
-		slog.Error("write to sse", "err", err)
-	}
+type SSEWriter struct {
+	ctx   context.Context
+	sseID string
+	w     http.ResponseWriter
+	f     http.Flusher
 }
 
-func writeCountEvent(w http.ResponseWriter, event svc.UcEvent) {
+func (sse SSEWriter) writeEvent(e string, d string) {
+	if _, err := fmt.Fprintf(sse.w, "event: %s\ndata: %s\n\n", e, d); err != nil {
+		slog.ErrorContext(sse.ctx, "write to sse", "err", err, "sseID", sse.sseID)
+	}
+	sse.f.Flush()
+}
+
+func (sse SSEWriter) writeCountEvent(event svc.UcEvent) {
 	var e string
 	switch event.Kind {
 	case svc.UcActiveEk:
@@ -56,43 +64,28 @@ func writeCountEvent(w http.ResponseWriter, event svc.UcEvent) {
 		e = GamesCountEvent
 	}
 	if e == "" {
-		slog.Error("unknown count event key", "event", e)
+		slog.ErrorContext(sse.ctx, "unknown count event key", "event", e, "sseID", sse.sseID)
 		return
 	}
-	writeEvent(w, e, event.Data)
+	sse.writeEvent(e, event.Data)
 }
 
-func makeCountEvent(count int64, sseID string) string {
+func (sse SSEWriter) writeGamesCountEvent(count int64, sseID string) {
 	b, err := json.Marshal(svc.CountEvent{Count: count, ID: sseID})
 	if err != nil {
-		slog.Error("marshal count event", "sseID", sseID, "err", err)
+		slog.ErrorContext(sse.ctx, "marshal count event", "sseID", sseID, "err", err)
 	}
-	return string(b)
+	sse.writeCountEvent(svc.UcEvent{Kind: svc.UcGamesEk, Data: string(b)})
 }
 
-func makePingTicker(ctx context.Context, state *ServerState, sseID string) chan struct{} {
-	ctx = context.WithoutCancel(ctx)
-	stopPingChan := make(chan struct{})
-	go func() {
-		pingTicker := time.NewTicker(time.Second * 60)
-		for {
-			select {
-			case <-stopPingChan:
-				slog.InfoContext(ctx, "finished ping ticker", "sseID", sseID)
-				return
-			case <-pingTicker.C:
-				if err := svc.RetainActiveUser(ctx, state.Rdb, sseID); err != nil {
-					slog.ErrorContext(ctx, "failed to retain active user", "sseID", sseID, "err", err)
-				}
-			}
-		}
-	}()
-	return stopPingChan
-}
+const MetaEvent = "meta"
+const UserChallengeEvent = "userEvents"
+const GamesCountEvent = "gameCountEvents"
+const ActiveCountEvent = "activeCountEvents"
 
-func HandleCountEvents(state *ServerState, w http.ResponseWriter, r *http.Request, f http.Flusher) error {
+func HandleCountEvents(state *ServerState, w SSEWriter, r *http.Request) error {
 	ctx := r.Context()
-	sseID := state.MakeID()
+	sseID := w.sseID
 
 	gamesCount, err := svc.GetChessStateCount(ctx, state.Rdb)
 	if err != nil {
@@ -103,9 +96,8 @@ func HandleCountEvents(state *ServerState, w http.ResponseWriter, r *http.Reques
 		return err
 	}
 
-	writeEvent(w, MetaEvent, sseID)
-	writeCountEvent(w, svc.UcEvent{Kind: svc.UcGamesEk, Data: makeCountEvent(gamesCount, sseID)})
-	f.Flush()
+	w.writeEvent(MetaEvent, sseID)
+	w.writeGamesCountEvent(gamesCount, sseID)
 
 	countsChan := make(chan svc.UcEvent)
 	state.CountsCaster.Subscribe(countsChan)
@@ -114,10 +106,20 @@ func HandleCountEvents(state *ServerState, w http.ResponseWriter, r *http.Reques
 		slog.ErrorContext(ctx, "failed to broadcast active count", "sseID", sseID, "err", err)
 	}
 
-	stopPingChan := makePingTicker(ctx, state, sseID)
+	stopPing := util.Every(time.Minute, func() bool {
+		if err := svc.RetainActiveUser(ctx, state.Rdb, sseID); err != nil {
+			slog.ErrorContext(ctx, "failed to retain active user", "err", err)
+		}
+		return true
+	})
 
-	shutdown := func() error {
-		stopPingChan <- struct{}{}
+	go func() {
+		<-ctx.Done()
+		stopPing <- true
+		state.CountsCaster.Unsubscribe(countsChan)
+		slog.InfoContext(ctx, "finished handle user events sse", "sseID", sseID)
+
+		// shutdown
 		ctx := context.WithoutCancel(ctx)
 		ac, err := svc.RemoveActiveUser(ctx, state.Rdb, sseID)
 		if err != nil {
@@ -126,13 +128,6 @@ func HandleCountEvents(state *ServerState, w http.ResponseWriter, r *http.Reques
 		if err := svc.BroadcastActiveCount(ctx, state.Rdb, ac, sseID); err != nil {
 			slog.ErrorContext(ctx, "failed to broadcast active count on removal", "sseID", sseID, "err", err)
 		}
-		return nil
-	}
-
-	go func() {
-		<-ctx.Done()
-		state.CountsCaster.Unsubscribe(countsChan)
-		slog.InfoContext(ctx, "finished handle user events sse", "sseID", sseID)
 	}()
 
 	keepAliveTicker := time.NewTicker(time.Second * 15)
@@ -140,20 +135,18 @@ func HandleCountEvents(state *ServerState, w http.ResponseWriter, r *http.Reques
 		select {
 		case e, ok := <-countsChan:
 			if !ok {
-				return shutdown()
+				return nil
 			}
-			writeCountEvent(w, e)
-			f.Flush()
+			w.writeCountEvent(e)
 		case <-keepAliveTicker.C:
-			writeEvent(w, MetaEvent, "KeepAlive")
-			f.Flush()
+			w.writeEvent(MetaEvent, "KeepAlive")
 		}
 	}
 }
 
-func HandleUserEvents(state *ServerState, w http.ResponseWriter, r *http.Request, f http.Flusher) error {
+func HandleUserEvents(state *ServerState, w SSEWriter, r *http.Request) error {
 	ctx := r.Context()
-	sseID := state.MakeID()
+	sseID := w.sseID
 
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
@@ -164,8 +157,7 @@ func HandleUserEvents(state *ServerState, w http.ResponseWriter, r *http.Request
 	}
 	strID := strconv.Itoa(int(player.ID))
 
-	writeEvent(w, MetaEvent, sseID)
-	f.Flush()
+	w.writeEvent(MetaEvent, sseID)
 
 	usersChan := make(chan []byte)
 	state.UsersCaster.Subscribe(strID, usersChan)
@@ -183,11 +175,9 @@ func HandleUserEvents(state *ServerState, w http.ResponseWriter, r *http.Request
 			if !ok {
 				return nil
 			}
-			writeEvent(w, UserChallengeEvent, string(m))
-			f.Flush()
+			w.writeEvent(UserChallengeEvent, string(m))
 		case <-keepAliveTicker.C:
-			writeEvent(w, MetaEvent, "KeepAlive")
-			f.Flush()
+			w.writeEvent(MetaEvent, "KeepAlive")
 		}
 	}
 }

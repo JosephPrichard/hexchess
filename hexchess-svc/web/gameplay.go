@@ -38,7 +38,7 @@ func makeGameErr(ctx context.Context, gameID string, err error) []byte {
 	bytes, err := proto.Marshal(MakePbGameOutputError(gameID, wsErr))
 	if err != nil {
 		// log with a noop response
-		slog.ErrorContext(ctx, "failed to marshal err output msg", "err", err)
+		slog.ErrorContext(ctx, "failed to marshal err output sseMsgData", "err", err)
 		bytes = nil
 	}
 	return bytes

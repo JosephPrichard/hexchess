@@ -175,7 +175,9 @@ func HandleHealthCheck(state *ServerState, w http.ResponseWriter, r *http.Reques
 		{
 			Name: "redisPubsub",
 			Check: func() error {
-				_, err := state.Rdb.PubSub.Ping(ctx).Result()
+				conn := state.Rdb.PubSub.Get()
+				defer conn.Close()
+				_, err := conn.Do("PING")
 				return err
 			},
 		},

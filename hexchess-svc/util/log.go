@@ -11,6 +11,10 @@ type TraceType string
 
 var Trace TraceType = "trace"
 
+type SseIDType string
+
+var SseID SseIDType = "sseID"
+
 func DynLog(ctx context.Context, msg string, err error, args ...any) {
 	if err != nil {
 		ea := make([]any, len(args)+2)

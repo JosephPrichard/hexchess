@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/redis/go-redis/v9"
+	redigo "github.com/gomodule/redigo/redis"
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/db"
 	"hexchess-svc/pb"
-	"hexchess-svc/util"
 	"log/slog"
 	"slices"
 	"sync"
@@ -16,41 +15,61 @@ import (
 	"time"
 )
 
-func listenRedisChannels(rdb *redis.Client, chans []string, onMessage func(m *redis.Message)) chan struct{} {
-	connCh := make(chan struct{})
-	ctx := context.WithValue(context.Background(), util.Trace, fmt.Sprintf("redis-channel-listener-%v", chans))
-	go func() {
-		pubsub := rdb.Subscribe(ctx, chans...)
-		defer pubsub.Close()
-
+func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Message)) chan struct{} {
+	connCh := make(chan struct{}) // send a signal whenever the connection is complete
+	recvLoop := func(conn redigo.Conn) {
+		psc := redigo.PubSubConn{Conn: conn}
+		defer psc.Close()
+		for _, ch := range chans {
+			psc.Subscribe(ch)
+		}
 		slog.Info("starting channel subscriber", "channels", chans)
 
-		ch := pubsub.Channel()
+		// signals to the caller whenever the background routine is *actually* listening on the channels
 		connCh <- struct{}{}
-		for msg := range ch {
-			onMessage(msg)
+		for {
+			switch v := psc.Receive().(type) {
+			case redigo.Message:
+				onMessage(v)
+			case redigo.Subscription:
+				slog.Info("received subscription on channel", "value", v, "channel", v.Channel)
+			case error:
+				slog.Error("receive from channel", "err", v, "channel", chans)
+				return
+			}
+		}
+	}
+	go func() {
+		// listens to the redis channel, creating a new connection if for whatever reason the recv loop fails
+		for {
+			conn, err := redigo.Dial("tcp", addr)
+			if err != nil {
+				slog.Error("get conn for pubsub", "err", err)
+			} else {
+				recvLoop(conn)
+			}
+			<-time.After(time.Second)
 		}
 	}()
 	return connCh
 }
 
 func ListenGameMessages(m *MultiCasterMap, rdb *db.Redis) chan struct{} {
-	return listenRedisChannels(rdb.PubSub, []string{rdb.GamesChan}, func(v *redis.Message) {
-		payload := []byte(v.Payload)
+	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.GamesChan}, func(v redigo.Message) {
 		var outputID pb.GameOutputID
-		if err := proto.Unmarshal(payload, &outputID); err != nil {
+		if err := proto.Unmarshal(v.Data, &outputID); err != nil {
 			slog.Error("unmarshal game message", "err", err, "channel", v.Channel)
 			return
 		}
 		slog.Info("received message on channel", "ID", outputID.GameId, "channel", v.Channel)
-		go m.Broadcast(outputID.GameId, payload)
+		go m.Broadcast(outputID.GameId, v.Data)
 	})
 }
 
 func ListenUsersMessages(m *MultiCasterMap, rdb *db.Redis) chan struct{} {
-	return listenRedisChannels(rdb.PubSub, []string{rdb.UsersChan}, func(v *redis.Message) {
+	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.UsersChan}, func(v redigo.Message) {
 		var userMsg pb.UserMsg
-		if err := proto.Unmarshal([]byte(v.Payload), &userMsg); err != nil {
+		if err := proto.Unmarshal(v.Data, &userMsg); err != nil {
 			slog.Error("unmarshal user message", "err", err, "channel", v.Channel)
 			return
 		}
@@ -76,8 +95,8 @@ func ListenUnicastEvents(m *UniCaster, rdb *db.Redis) chan struct{} {
 		channels = append(channels, ch)
 	}
 
-	return listenRedisChannels(rdb.PubSub, channels, func(v *redis.Message) {
-		strData := v.Payload
+	return listenRedisChannels(rdb.PubsubAddr, channels, func(v redigo.Message) {
+		strData := string(v.Data)
 		// unicast broadcasting is only being used to game counts (small data), so it is safe to log
 		slog.Info("received event on channel", "event", strData, "channel", v.Channel)
 
@@ -91,8 +110,10 @@ func ListenUnicastEvents(m *UniCaster, rdb *db.Redis) chan struct{} {
 }
 
 func BroadcastMessage(ctx context.Context, rdb *db.Redis, channel string, b []byte) error {
-	res := rdb.PubSub.Publish(ctx, channel, b)
-	if err := res.Err(); err != nil {
+	conn := rdb.PubSub.Get()
+	defer conn.Close()
+
+	if _, err := conn.Do("PUBLISH", channel, b); err != nil {
 		return fmt.Errorf("publish message: %w", err)
 	}
 	slog.InfoContext(ctx, "broadcasted message to channel", "channel", channel, "bytesCount", len(b))
