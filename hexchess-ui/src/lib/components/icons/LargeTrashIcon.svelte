@@ -1,4 +1,4 @@
-<svg fill="rgb(0,0,0)" height="40px" width="40px" viewBox="-3 0 32 32" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:sketch="http://www.bohemiancoding.com/sketch/ns">
+<svg fill="rgb(0,0,0)" height="40px" width="40px" viewBox="-3 0 32 32" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:sketch="http://www.bohemiancoding.com/sketch/ns">
 	<g id="SVGRepo_bgCarrier" stroke-width="0"></g>
 	<g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier">
 	<title>trash</title>

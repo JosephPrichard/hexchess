@@ -21,7 +21,7 @@ type PlayerState struct {
 
 func MakeGuest() PlayerState {
 	// concurrency safe to use rand - we are also using random negative integers for guests so we will never have a collision with an actual player
-	return PlayerState{ID: -rand.Int64(), Name: "Anonymous", IsGuest: true, Present: true}
+	return PlayerState{ID: -rand.Int64(), Name: "Guest", IsGuest: true, Present: true}
 }
 
 func MakeIDPlayer(id int64) PlayerState {

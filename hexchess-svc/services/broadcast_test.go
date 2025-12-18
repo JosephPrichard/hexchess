@@ -110,7 +110,7 @@ func TestBroadcastGameMessage(t *testing.T) {
 	m := MakeMultiCasterMap("testing-broker-map", time.Hour*1)
 	<-ListenGameMessages(m, rdb)
 
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-broadcast-game-message")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-broadcast-game-message")
 
 	// when
 	subChan := make(chan []byte)

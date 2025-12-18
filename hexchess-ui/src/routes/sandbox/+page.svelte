@@ -1,10 +1,9 @@
 <script lang="ts">
 	import Board from '$lib/components/chess/Board.svelte';
 	import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
-	import { ChessBoard, type ChessGame } from '$lib/pb/messages';
+	import { ChessBoard } from '$lib/pb/messages';
 	import { makeMoveState } from '$lib/state/move.svelte';
-	import Banner from '$lib/Banner.svelte';
-	import { defaultGame, makeGame, deserializeHexList, isLastRank } from '$lib/utils/chess.js';
+	import { deserializeHexList, isLastRank } from '$lib/utils/chess.js';
 	import type { Hex } from '$lib/api/models';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import SmallTrashIcon from '$lib/components/icons/SmallTrashIcon.svelte';

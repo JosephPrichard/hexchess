@@ -2,7 +2,6 @@ package svc
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"hexchess-svc/db"
 	"hexchess-svc/util"
@@ -15,7 +14,7 @@ func TestInsertThenVerify(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-insert-then-verify")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-insert-then-verify")
 
 	user1 := "user1-test"
 	user2 := "user2-test"
@@ -48,7 +47,7 @@ func TestBatchInsertThenGet(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-batch-insert-then-get")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-batch-insert-then-get")
 
 	// when
 	insts := []UserInst{
@@ -71,41 +70,38 @@ func TestBatchInsertThenGet(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestInsertAndUpdateUser(t *testing.T) {
+func TestUpdateUser(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-update-user")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-update-user")
 
 	for _, test := range []struct {
-		inst        UserInst
+		userID      int64
 		udpt        UpdtUserParams
 		expUsername string
 		expBio      string
 		expCountry  string
 	}{
 		{
-			inst:        UserInst{Username: "user1" + uuid.NewString(), Password: "password1", Country: "us", Elo: 1000},
+			userID:      1,
 			udpt:        UpdtUserParams{Username: "user1-changed", Bio: "Testing123"},
 			expUsername: "user1-changed",
 			expBio:      "Testing123",
 			expCountry:  "us",
 		},
 		{
-			inst:        UserInst{Username: "user2" + uuid.NewString(), Password: "password2", Country: "us", Elo: 1000},
+			userID:      2,
 			udpt:        UpdtUserParams{Username: "user2-changed", Country: "eu"},
 			expUsername: "user2-changed",
 			expBio:      "",
 			expCountry:  "eu",
 		},
 	} {
-		testUser, err := InsertUser(ctx, pdb.Query, test.inst)
+		_, err := UpdateUser(ctx, pdb.Query, test.userID, test.udpt)
 		assert.NoError(t, err)
 
-		_, err = UpdateUser(ctx, pdb.Query, testUser.ID, test.udpt)
-		assert.NoError(t, err)
-
-		u, err := GetUserByID(ctx, pdb.Query, testUser.ID)
+		u, err := GetUserByID(ctx, pdb.Query, test.userID)
 		assert.NoError(t, err)
 
 		assert.Equal(t, test.expUsername, u.Username)
@@ -114,12 +110,36 @@ func TestInsertAndUpdateUser(t *testing.T) {
 	}
 }
 
+func TestSelectOrInsertGoogleUser(t *testing.T) {
+	// given
+	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+	defer closer()
+
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-insert-google-user")
+
+	testAccountID := "test-account-id"
+
+	inst := GoogleUserInst{Username: "userame", Country: "1", Elo: 1030, Wins: 2, Losses: 1}
+
+	// when
+	u1, err := SelectOrInsertGoogleUser(ctx, pdb.Query, testAccountID, inst)
+	assert.NoError(t, err)
+
+	u2, err := SelectOrInsertGoogleUser(ctx, pdb.Query, testAccountID, inst)
+	assert.NoError(t, err)
+
+	// then
+	verifiedUser := VerifiedUser{ID: LastUserID + 1, Username: "userame", Country: "1", Elo: 1030}
+	assert.Equal(t, verifiedUser, u1)
+	assert.Equal(t, verifiedUser, u2)
+}
+
 func TestUpdatePasswordThenVerify(t *testing.T) {
 	// given
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), util.Trace, "update-password")
+	ctx := context.WithValue(t.Context(), util.Trace, "update-password")
 
 	// when
 	err := UpdateUserPassword(ctx, pdb.Query, TestUserEntities[0].ID, "password-new")
@@ -139,7 +159,7 @@ func TestInsertThenSearchByName(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), util.Trace, "search-by-name")
+	ctx := context.WithValue(t.Context(), util.Trace, "search-by-name")
 
 	// when
 	for _, inst := range []UserInst{{Username: "johnny", Password: "password6"}, {Username: "john", Password: "password7"}} {

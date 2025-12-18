@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
-	"hexchess-svc/svc"
+	"hexchess-svc/outbound"
+	"hexchess-svc/services"
 	"hexchess-svc/util"
 	"log/slog"
 	"net/http"
@@ -15,53 +16,72 @@ import (
 	"github.com/google/uuid"
 )
 
-type CasterState struct {
+type Broadcasters struct {
 	CountsCaster *svc.UniCaster
 	GamesCaster  *svc.MultiCasterMap
 	UsersCaster  *svc.MultiCasterMap
 }
 
-type CountryState struct {
+type CountryData struct {
 	CountryList []string
-	CountryMap  map[string]struct{}
+	CountryMap  map[string]bool
+}
+
+type ServerState struct {
+	// data
+	CountryData
+	// infra
+	db.Databases
+	Broadcasters
+	// interfaces
+	Generators
+	outbound.OutboundAPIs
 }
 
 type APIKeys struct {
 	GoogleAPIKey string
 }
 
-type ServerState struct {
-	db.Databases
-	CasterState
-	CountryState
-	APIKeys
-	Generators
+type ServerSetup struct {
+	Databases    db.Databases
+	CountryList  []string
+	APIKeys      APIKeys
+	Generators   Generators
+	OutboundAPIs *outbound.OutboundAPIs
 }
 
-func MakeServerState(databases db.Databases, countryList []string, googleAPIKey string) ServerState {
-	if countryList == nil {
-		countryList = []string{}
+func MakeServerState(setup ServerSetup) ServerState {
+	// default initialize setup data, used for tests
+	if setup.CountryList == nil {
+		setup.CountryList = []string{}
 	}
-	countryMap := make(map[string]struct{})
-	for _, c := range countryList {
-		countryMap[c] = struct{}{}
+	countryMap := make(map[string]bool)
+	for _, country := range setup.CountryList {
+		countryMap[country] = true
+	}
+
+	if setup.Generators == nil {
+		setup.Generators = &RandGenerator{}
+	}
+	if setup.OutboundAPIs == nil {
+		setup.OutboundAPIs = &outbound.OutboundAPIs{
+			GoogleAPI: &outbound.RemoteGoogleAPI{APIKey: setup.APIKeys.GoogleAPIKey},
+		}
 	}
 
 	return ServerState{
-		Databases: databases,
-		CasterState: CasterState{
+		// data
+		CountryData: CountryData{CountryList: setup.CountryList, CountryMap: countryMap},
+		// infra
+		Databases: setup.Databases,
+		Broadcasters: Broadcasters{
 			CountsCaster: svc.MakeUniCaster("counts-caster"),
 			GamesCaster:  svc.MakeMultiCasterMap("games-caster", svc.GameExpireDur),
 			UsersCaster:  svc.MakeMultiCasterMap("users-caster", -1),
 		},
-		CountryState: CountryState{
-			CountryList: countryList,
-			CountryMap:  countryMap,
-		},
-		APIKeys: APIKeys{
-			GoogleAPIKey: googleAPIKey,
-		},
-		Generators: &RandGenerator{},
+		// interfaces
+		Generators:   setup.Generators,
+		OutboundAPIs: *setup.OutboundAPIs,
 	}
 }
 

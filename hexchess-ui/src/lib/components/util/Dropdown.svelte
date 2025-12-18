@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+	import { onMount } from 'svelte';
 
-  interface Option {
+	interface Option {
       label: string;
       value: string;
   }

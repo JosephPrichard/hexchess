@@ -35,7 +35,7 @@ func GetSession(ctx context.Context, rdb *db.Redis, sessionID string) (PlayerSta
 }
 
 func SetSession(ctx context.Context, rdb *db.Redis, sessionID string, player PlayerState, expiry time.Duration) error {
-	data, err := MarshalPlayer(&player)
+	data, err := MarshalPlayer(player)
 	if err != nil {
 		return err
 	}

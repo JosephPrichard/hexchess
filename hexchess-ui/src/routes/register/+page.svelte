@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Banner from '$lib/Banner.svelte';
 	import { goto } from '$app/navigation';
 	import { makeMessage } from '$lib/utils/error';
 	import { setClientSession } from '$lib/utils/storage';

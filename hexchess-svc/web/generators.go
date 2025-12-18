@@ -1,9 +1,13 @@
 package web
 
-import "github.com/google/uuid"
+import (
+	"github.com/google/uuid"
+	"time"
+)
 
 type Generators interface {
 	MakeID() string
+	GetNow() time.Time
 }
 
 type RandGenerator struct{}
@@ -12,10 +16,19 @@ func (_ *RandGenerator) MakeID() string {
 	return uuid.NewString()
 }
 
-type mockGenerator struct {
-	id string
+func (_ *RandGenerator) GetNow() time.Time {
+	return time.Now()
 }
 
-func (m *mockGenerator) MakeID() string {
-	return m.id
+type stableGenerator struct {
+	id   string
+	time time.Time
+}
+
+func (g *stableGenerator) MakeID() string {
+	return g.id
+}
+
+func (g *stableGenerator) GetNow() time.Time {
+	return g.time
 }

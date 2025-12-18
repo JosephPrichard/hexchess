@@ -5,17 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
-	"hexchess-svc/svc"
+	"hexchess-svc/services"
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
-
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/api/idtoken"
-	"google.golang.org/protobuf/proto"
 )
 
 type RestHandler = func(state *ServerState, w http.ResponseWriter, r *http.Request) error
@@ -85,6 +82,7 @@ func HandleRegister(state *ServerState, w http.ResponseWriter, r *http.Request) 
 		Password: body.Password,
 		Country:  "us",
 		Elo:      svc.StartElo,
+		JoinedOn: state.GetNow(),
 	})
 	if errors.Is(err, svc.ErrTakenUsername) {
 		return ErrHttpDuplicateUsername
@@ -156,30 +154,21 @@ type GoogleLoginBody struct {
 	Token string `json:"token"`
 }
 
-const UsernameClaim string = "email"
-
 func HandleGoogleLogin(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body GoogleLoginBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		return err
 	}
-
 	ctx := r.Context()
 
-	payload, err := idtoken.Validate(ctx, body.Token, state.GoogleAPIKey)
+	payload, err := state.ValidateIDToken(ctx, body.Token)
 	if err != nil {
-		return fmt.Errorf("validate google id token: %w", err)
+		return err
 	}
-	googleAccountID := payload.Subject
-	username, ok := payload.Claims[UsernameClaim].(string)
-	if !ok {
-		return fmt.Errorf("expected claim '%s' to be provided in payload: %v", UsernameClaim, payload)
-	}
+	slog.InfoContext(ctx, "validated google account id token", "googleAccountID", payload.AccountID)
 
-	slog.InfoContext(ctx, "validated google account id token", "googleAccountID", googleAccountID)
-
-	user, err := svc.SelectOrInsertGoogleUser(ctx, state.Pdb.Query, googleAccountID, svc.GoogleUserInst{
-		Username: username,
+	user, err := svc.SelectOrInsertGoogleUser(ctx, state.Pdb.Query, payload.AccountID, svc.GoogleUserInst{
+		Username: payload.Username,
 		Country:  "us",
 		Elo:      svc.StartElo,
 	})
@@ -460,7 +449,7 @@ func HandleCreateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 		ChallengeeID: body.ChallengeeID,
 		TimeControl:  svc.TimeControl(body.TimeControl),
 		StartColor:   svc.ColorSelect(body.StartColor),
-		MadeOn:       time.Now(),
+		MadeOn:       state.GetNow(),
 	})
 	if err != nil {
 		switch err {
@@ -477,7 +466,7 @@ func HandleCreateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
 
 	ctx = context.WithoutCancel(ctx)
-	if err := svc.BroadcastChallenge(ctx, state.Rdb, player.ID, ret); err != nil {
+	if err := svc.BroadcastChallenge(ctx, state.Rdb, ret); err != nil {
 		slog.ErrorContext(ctx, "failed to broadcast challenge", "challenge", ret, "err", err)
 	}
 	if err := svc.DeleteExpiredChallenges(ctx, state.Pdb.Query, player.ID, svc.ExpireChallengeThreshold); err != nil {
@@ -715,12 +704,14 @@ func HandleGetChallenges(state *ServerState, w http.ResponseWriter, r *http.Requ
 		return fmt.Errorf("get session player: %w", err)
 	}
 
+	since := svc.MakeGetChallengesSince(state.GetNow())
+
 	var challengeList []svc.ChallengeEntity
 	switch participants {
 	case "sent":
-		challengeList, err = svc.GetChallengesByParticipant(ctx, state.Pdb.Query, svc.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1}, svc.ExpireChallengeThreshold)
+		challengeList, err = svc.GetChallengesByParticipant(ctx, state.Pdb.Query, svc.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1}, since)
 	case "received":
-		challengeList, err = svc.GetChallengesByParticipant(ctx, state.Pdb.Query, svc.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID}, svc.ExpireChallengeThreshold)
+		challengeList, err = svc.GetChallengesByParticipant(ctx, state.Pdb.Query, svc.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID}, since)
 	}
 	if err != nil {
 		return fmt.Errorf("get challenges by participant: %w", err)
@@ -787,7 +778,7 @@ type EloHistoriesResp struct {
 	Buckets svc.EloHistoryBuckets `json:"buckets"`
 }
 
-var timeframeMap = map[string]int{
+var timeframeMap = map[string]uint{
 	"1m":  1,
 	"3m":  3,
 	"6m":  6,
@@ -815,8 +806,8 @@ func HandleGetEloHistories(state *ServerState, w http.ResponseWriter, r *http.Re
 		return ErrHttpInvalidRequest
 	}
 
-	params := svc.EloHistoriesParams{UserID: int64(userID), Months: months}
-	eloBuckets, _, err := svc.RetrieveEloHistoryBuckets(ctx, &state.Databases, time.Now(), params)
+	params := svc.EloHistoriesParams{UserID: int64(userID), Months: months, TimeUntil: state.GetNow()}
+	eloBuckets, _, err := svc.RetrieveEloHistoryBuckets(ctx, &state.Databases, params)
 	if err != nil {
 		return fmt.Errorf("retrieve elo histories buckets with params %v: %w", params, err)
 	}

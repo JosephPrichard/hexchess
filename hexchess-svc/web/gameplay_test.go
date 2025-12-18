@@ -7,7 +7,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	"hexchess-svc/db"
 	"hexchess-svc/pb"
-	"hexchess-svc/svc"
+	"hexchess-svc/services"
 	"hexchess-svc/util"
 	"net/http"
 	"net/http/httptest"
@@ -54,7 +54,7 @@ func TestHandleGameplayWs(t *testing.T) {
 	createTestSessions(t, rdb)
 	createTestChessStates(t, rdb)
 
-	state := MakeServerState(db.Databases{Rdb: rdb}, nil, "")
+	state := MakeServerState(ServerSetup{Databases: db.Databases{Rdb: rdb}})
 	<-svc.ListenGameMessages(state.GamesCaster, rdb)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))

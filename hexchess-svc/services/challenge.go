@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/db"
@@ -42,9 +41,8 @@ type ChallengeEntity struct {
 	TimeControl       TimeControl `json:"timeControl"`
 	StartColor        ColorSelect `json:"startColor"` // from challenger's perspective
 	MadeOn            time.Time   `json:"madeOn"`
+	ExpiresOn         time.Time   `json:"expiresOn"`
 }
-
-var ChallengeEntityCmpOpts = cmpopts.IgnoreFields(ChallengeEntity{}, "MadeOn")
 
 var (
 	ErrDuplicateChallenge  = errors.New("duplicate challenge")
@@ -76,6 +74,7 @@ func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) (ChallengeEnti
 		TimeControl:       TimeControl(row.TimeControl),
 		StartColor:        ColorSelect(row.StartColor),
 		MadeOn:            row.MadeOn.Time,
+		ExpiresOn:         row.MadeOn.Time.Add(ExpireChallengeThreshold),
 	}, nil
 }
 
@@ -125,11 +124,12 @@ type ChallengeKey struct {
 	ChallengeeID int64
 }
 
-func GetChallengesByParticipant(ctx context.Context, query *db.Queries, key ChallengeKey, threshold time.Duration) ([]ChallengeEntity, error) {
-	return GetChallengesByParticipantOn(ctx, query, key, time.Now().Add(-threshold))
+func MakeGetChallengesSince(now time.Time) time.Time {
+	return now.Add(-ExpireChallengeThreshold)
 }
 
-func GetChallengesByParticipantOn(ctx context.Context, query *db.Queries, key ChallengeKey, t time.Time) ([]ChallengeEntity, error) {
+// GetChallengesByParticipant will select challenges by the participant after the 'since' time
+func GetChallengesByParticipant(ctx context.Context, query *db.Queries, key ChallengeKey, since time.Time) ([]ChallengeEntity, error) {
 	var pgChallengerID pgtype.Int8
 	if key.ChallengerID != -1 {
 		pgChallengerID.Valid = true
@@ -144,7 +144,7 @@ func GetChallengesByParticipantOn(ctx context.Context, query *db.Queries, key Ch
 	rows, err := query.SelectChallengesByParticipant(ctx, db.SelectChallengesByParticipantParams{
 		ChallengerID: pgChallengerID,
 		ChallengeeID: pgChallengeeID,
-		Since:        pgtype.Timestamptz{Valid: true, Time: t},
+		Since:        pgtype.Timestamptz{Valid: true, Time: since},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("get challenges by participant %v: %w", key, err)
@@ -159,7 +159,7 @@ func GetChallengesByParticipantOn(ctx context.Context, query *db.Queries, key Ch
 		challenges = append(challenges, challenge)
 	}
 
-	slog.InfoContext(ctx, "got challenges by participant", "challengeKey", key, "since", t, "challenges", challenges)
+	slog.InfoContext(ctx, "got challenges by participant", "challengeKey", key, "since", since, "challenges", challenges)
 	return challenges, nil
 }
 

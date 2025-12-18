@@ -1,5 +1,6 @@
 import type { ChessBoard, ChessGame } from '../pb/messages';
 import type { Hex } from '../api/models';
+
 export const ranksPerFile = [6, 7, 8, 9, 10, 11, 10, 9, 8, 7, 6];
 
 export const pieces = {

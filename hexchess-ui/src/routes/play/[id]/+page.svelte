@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Banner from '$lib/Banner.svelte';
 	import services, { appBaseURL, baseURL } from '$lib/api/services';
 	import { codes, makeMessage } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';

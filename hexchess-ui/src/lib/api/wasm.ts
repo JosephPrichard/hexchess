@@ -1,6 +1,6 @@
 import { ChessBoard, ChessGame, HistMove, HistMoves, MakeMoveInput } from '$lib/pb/messages';
 import type { Hex } from '$lib/api/models';
-import {defaultGame } from '$lib/utils/chess.js';
+import { defaultGame } from '$lib/utils/chess.js';
 import { browser } from '$app/environment';
 
 declare const Go: any; // imported in the initWasm fn

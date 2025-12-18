@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Banner from '$lib/Banner.svelte';
 	import Pagination from '$lib/Pagination.svelte';
 	import StatsList from '$lib/components/stats/StatsList.svelte';
 	import type { UserModel } from '$lib/api/models';

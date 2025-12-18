@@ -39,8 +39,8 @@ export interface ChallengeModel {
 	challengeeCountry: string;
 	challengeeElo: number;
 	timeControl: string;
-	madeAgo: string;
-	expiresIn: string;
+	madeOn: string;
+	expiresOn: string;
 }
 
 export interface ReplayModel {

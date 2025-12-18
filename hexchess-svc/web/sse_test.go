@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/db"
-	"hexchess-svc/svc"
+	"hexchess-svc/services"
 	"hexchess-svc/util"
 	"net/http"
 	"net/http/httptest"
@@ -73,8 +73,7 @@ func TestHandleCountEvents(t *testing.T) {
 	defer rdb.Close()
 	dbs := db.Databases{Rdb: rdb}
 
-	state := MakeServerState(dbs, nil, "")
-	state.Generators = &mockGenerator{id: "id1"}
+	state := MakeServerState(ServerSetup{Databases: dbs, Generators: &stableGenerator{id: "id1"}})
 	<-svc.ListenUnicastEvents(state.CountsCaster, dbs.Rdb)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))
@@ -113,8 +112,7 @@ func TestHandleUserEvents(t *testing.T) {
 	defer rdb.Close()
 	dbs := db.Databases{Rdb: rdb}
 
-	state := MakeServerState(dbs, nil, "")
-	state.Generators = &mockGenerator{id: "id1"}
+	state := MakeServerState(ServerSetup{Databases: dbs, Generators: &stableGenerator{id: "id1"}})
 	<-svc.ListenUsersMessages(state.UsersCaster, dbs.Rdb)
 
 	createTestSessions(t, dbs.Rdb)
@@ -137,9 +135,9 @@ func TestHandleUserEvents(t *testing.T) {
 	go func() {
 		ctx := context.WithValue(context.Background(), util.Trace, "broadcast-user-events")
 		errChan <- errors.Join(
-			svc.BroadcastChallenge(ctx, dbs.Rdb, 1, svc.ChallengeEntity{ChallengerID: 1, TimeControl: svc.TcRealTime, StartColor: svc.ColorWhite}),
-			svc.BroadcastChallenge(ctx, dbs.Rdb, 2, svc.ChallengeEntity{ChallengerID: 2}),
-			svc.BroadcastChallenge(ctx, dbs.Rdb, 1, svc.ChallengeEntity{ChallengerID: 1, TimeControl: svc.TcRealTime, StartColor: svc.ColorWhite}))
+			svc.BroadcastChallenge(ctx, dbs.Rdb, svc.ChallengeEntity{ChallengerID: 1, TimeControl: svc.TcRealTime, StartColor: svc.ColorWhite}),
+			svc.BroadcastChallenge(ctx, dbs.Rdb, svc.ChallengeEntity{ChallengerID: 2}),
+			svc.BroadcastChallenge(ctx, dbs.Rdb, svc.ChallengeEntity{ChallengerID: 1, TimeControl: svc.TcRealTime, StartColor: svc.ColorWhite}))
 	}()
 
 	// then
@@ -161,7 +159,7 @@ func TestHandleCountEvents_Throughput(t *testing.T) {
 	defer rdb.Close()
 	dbs := db.Databases{Rdb: rdb}
 
-	state := MakeServerState(dbs, nil, "")
+	state := MakeServerState(ServerSetup{Databases: dbs})
 	<-svc.ListenUnicastEvents(state.CountsCaster, rdb)
 
 	ts := httptest.NewServer(HandleRoot(state, ""))

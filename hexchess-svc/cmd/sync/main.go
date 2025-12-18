@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"hexchess-svc/db"
-	"hexchess-svc/svc"
+	"hexchess-svc/services"
 	"hexchess-svc/util"
 	"log"
 	"log/slog"

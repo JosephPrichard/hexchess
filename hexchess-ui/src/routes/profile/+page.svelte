@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import Banner from '$lib/Banner.svelte';
-	import { clearClientSession, setClientSession, updateClientSession as updateClientUser } from '$lib/utils/storage';
+	import { clearClientSession, updateClientSession as updateClientUser } from '$lib/utils/storage';
 	import { makeMessage } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import type { UserModel } from '$lib/api/models';

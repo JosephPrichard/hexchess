@@ -1,9 +1,9 @@
 <script lang="ts">
-	import Banner from '$lib/Banner.svelte';
 	import { makeMessage } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import type { Action, ChallengeModel } from '$lib/api/models';
 	import services from '$lib/api/services';
+	import { formatRelativeTime } from '$lib/utils/format';
 
 	export interface ChallengeProps {
 		participants: string;
@@ -93,20 +93,20 @@
 								<a href="/players/{challenge.challengerId}" class="text-ul bold-link">{challenge.challengerName}</a>
 								{#if !isSender}
 									<img class="flag" src="/flags/{challenge.challengerCountry}.png" alt="" />
-									<b>({challenge.challengerElo})</b>
+									<b>({Math.round(challenge.challengerElo)})</b>
 								{/if}
 								vs
 								<a href="/players/{challenge.challengeeId}" class="text-ul bold-link">{challenge.challengeeName}</a>
 								{#if isSender}
 									<img class="flag" src="/flags/{challenge.challengeeCountry}.png" alt="" />
-									<b>({challenge.challengeeElo})</b>
+									<b>({Math.round(challenge.challengeeElo)})</b>
 								{/if}
 							</div>
 							<div style="margin-bottom: 6px">
-								Sent {challenge.madeAgo}
+								Sent {formatRelativeTime(challenge.madeOn)}
 							</div>
 							<div style="margin-bottom: 6px">
-								Expires {challenge.expiresIn}
+								Expires {formatRelativeTime(challenge.expiresOn)}
 							</div>
 						</div>
 						<div class="center-relative">

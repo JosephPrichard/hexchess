@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Banner from '$lib/Banner.svelte';
 	import Board from '$lib/components/chess/Board.svelte';
 	import RightIcon from '$lib/components/icons/RightIcon.svelte';
 	import LeftIcon from '$lib/components/icons/LeftIcon.svelte';

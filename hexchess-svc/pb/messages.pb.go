@@ -2359,7 +2359,7 @@ const file_messages_proto_rawDesc = "" +
 	"\ttimestamp\x18\x01 \x01(\tR\ttimestamp\x12\x10\n" +
 	"\x03elo\x18\x02 \x01(\x01R\x03elo\"I\n" +
 	"\x11EloHistoryBuckets\x124\n" +
-	"\abuckets\x18\x01 \x03(\v2\x1a.messages.EloHistoryBucketR\abucketsB\x11Z\x0fhexchess-svc/pbb\x06proto3"
+	"\abuckets\x18\x01 \x03(\v2\x1a.messages.EloHistoryBucketR\abucketsB\x11Z\x0fhexchess-services/pbb\x06proto3"
 
 var (
 	file_messages_proto_rawDescOnce sync.Once

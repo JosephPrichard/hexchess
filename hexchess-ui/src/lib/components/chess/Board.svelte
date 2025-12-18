@@ -1,9 +1,9 @@
 <script lang="ts">
 	import type { ChessBoard, PieceMove } from '$lib/pb/messages';
-	import Piece, { type PromotionKind } from './Piece.svelte';
+	import Piece from './Piece.svelte';
 	import type { Hex } from '$lib/api/models';
 	import { defaultBoard, findKeyedPieces, hexEq, isPieceBlack, isPieceWhite, pieces, type PlacedPiece, ranksPerFile } from '$lib/utils/chess.js';
-	import { getLeft, getTop, hexHeight, hexWidth, selectedColor, colors, colorsOffset, findHex, highlightedColor, hoveringColor } from '$lib/components/chess/render';
+	import { colors, colorsOffset, findHex, getLeft, getTop, hexHeight, hexWidth, highlightedColor, hoveringColor, selectedColor } from '$lib/components/chess/render';
 	import Fen from '$lib/components/chess/Fen.svelte';
 	import { browser } from '$app/environment';
 	import { boardToFenWasm } from '$lib/api/wasm';

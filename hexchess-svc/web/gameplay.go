@@ -7,7 +7,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
-	"hexchess-svc/svc"
+	"hexchess-svc/services"
 	"log/slog"
 	"net/http"
 )
@@ -71,13 +71,8 @@ func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState ServerStat
 
 	player, err := svc.GetSession(ctx, serverState.Rdb, sessionID)
 	if err != nil {
-		switch err {
-		case svc.ErrSessionNotFound:
-			//player = svc.MakeGuest()
-		default:
-			writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
-			return
-		}
+		writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
+		return
 	}
 	chessState, err := svc.JoinGame(ctx, serverState.Rdb, gameID, player)
 	if err != nil {

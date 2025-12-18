@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Banner from '$lib/Banner.svelte';
 	import CreateGame from '$lib/components/modals/CreateGame.svelte';
 	import { makeMessage } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';

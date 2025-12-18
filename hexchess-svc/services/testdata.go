@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 	"hexchess-svc/db"
@@ -11,16 +12,27 @@ import (
 	"time"
 )
 
-var TestUsersInsts = []UserInst{
+// TestTimeNow a stable and consistent constant we use mock out the 'now' value in our test data
+var TestTimeNow = time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC)
+
+var TestUsersInsts = []struct {
+	Username string
+	Password string
+	Country  string
+	Elo      float64
+	Wins     int
+	Losses   int
+	JoinedOn time.Time
+}{
 	// used for user/challenge/replay tests
-	{Username: "user1", Password: "password1", Country: "us", Elo: 1000},
-	{Username: "user2", Password: "password2", Country: "us", Elo: 1000, Wins: 1},
-	{Username: "user3", Password: "password3", Country: "us", Elo: 900, Wins: 1, Losses: 8},
-	{Username: "user4", Password: "password4", Country: "us", Elo: 2000, Wins: 50, Losses: 20},
-	{Username: "user5", Password: "password5", Country: "us", Elo: 1500, Wins: 40, Losses: 35},
+	{Username: "user1", Password: "password1", Country: "us", Elo: 1000, JoinedOn: TestTimeNow},
+	{Username: "user2", Password: "password2", Country: "us", Elo: 1000, Wins: 1, JoinedOn: TestTimeNow},
+	{Username: "user3", Password: "password3", Country: "us", Elo: 900, Wins: 1, Losses: 8, JoinedOn: TestTimeNow},
+	{Username: "user4", Password: "password4", Country: "us", Elo: 2000, Wins: 50, Losses: 20, JoinedOn: TestTimeNow},
+	{Username: "user5", Password: "password5", Country: "us", Elo: 1500, Wins: 40, Losses: 35, JoinedOn: TestTimeNow},
 	// used for elo histories tests.
-	{Username: "user6", Password: "password6", Country: "us", Elo: 1090, Wins: 3, Losses: 0},
-	{Username: "user7", Password: "password7", Country: "us", Elo: 910, Wins: 0, Losses: 3},
+	{Username: "user6", Password: "password6", Country: "us", Elo: 1090, Wins: 3, Losses: 0, JoinedOn: TestTimeNow},
+	{Username: "user7", Password: "password7", Country: "us", Elo: 910, Wins: 0, Losses: 3, JoinedOn: TestTimeNow},
 }
 
 var TestUserEntities = []UserEntity{
@@ -36,6 +48,7 @@ var TestUserEntities = []UserEntity{
 		Bio:        "",
 		Total:      0,
 		WinRate:    0,
+		JoinedOn:   TestTimeNow.Local(),
 	},
 	{
 		ID:         2,
@@ -49,44 +62,24 @@ var TestUserEntities = []UserEntity{
 		Bio:        "",
 		Total:      1,
 		WinRate:    100,
+		JoinedOn:   TestTimeNow.Local(),
 	},
 }
 
 var LastUserID = int64(len(TestUsersInsts))
 
-func insertTestUser(t db.TestLogger, pool *pgxpool.Pool, inst UserInst) {
-	ctx := context.WithValue(context.Background(), util.Trace, "insert-test-users")
-
-	saltBytes := make([]byte, 16)
-	if _, err := rand.Read(saltBytes); err != nil {
-		t.Fatalf("failed to generate salt: %v", err)
-	}
-	salt := base64.StdEncoding.EncodeToString(saltBytes)
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(inst.Password+salt), 12)
-	if err != nil {
-		t.Fatalf("failed to hash password: %v", err)
-	}
-
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO users (username, country, elo, highest_elo, start_elo, wins, losses, password, salt, google_account_id)
-    	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		`,
-		inst.Username,
-		inst.Country,
-		inst.Elo,
-		inst.Elo,
-		inst.Elo,
-		inst.Wins,
-		inst.Losses,
-		hashedPassword,
-		salt,
-		"",
-	); err != nil {
-		t.Fatalf("failed to insert test challenge: %v", err)
-	}
-}
-
-var TestReplayInsts = []ReplayInst{
+var TestReplayInsts = []struct {
+	WhiteID        int64
+	BlackID        int64
+	Result         ReplayResult
+	Cause          ReplayCause
+	Mode           ReplayMode
+	WinEloDiff     float64
+	LoseEloDiff    float64
+	ReplayBlackElo float64
+	ReplayWhiteElo float64
+	PlayedOn       time.Time
+}{
 	// used for testing individual replays
 	{
 		WhiteID:        1,
@@ -98,6 +91,7 @@ var TestReplayInsts = []ReplayInst{
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1000,
 		ReplayBlackElo: 1000,
+		PlayedOn:       TestTimeNow,
 	},
 	{
 		WhiteID:        2,
@@ -109,6 +103,7 @@ var TestReplayInsts = []ReplayInst{
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1030,
 		ReplayBlackElo: 900,
+		PlayedOn:       TestTimeNow,
 	},
 	{
 		WhiteID:        3,
@@ -120,6 +115,7 @@ var TestReplayInsts = []ReplayInst{
 		LoseEloDiff:    0,
 		ReplayWhiteElo: 900,
 		ReplayBlackElo: 1000,
+		PlayedOn:       TestTimeNow,
 	},
 
 	// used for testing elo histories
@@ -190,6 +186,7 @@ var TestReplayEntities = []ReplayEntity{
 		BlackElo:     1000,
 		WhiteEloDiff: 0,
 		BlackEloDiff: 0,
+		PlayedOn:     TestTimeNow.Local(),
 	},
 	{
 		ID:           1,
@@ -207,12 +204,19 @@ var TestReplayEntities = []ReplayEntity{
 		BlackElo:     1000,
 		WhiteEloDiff: 30,
 		BlackEloDiff: -30,
+		PlayedOn:     TestTimeNow.Local(),
 	},
 }
 
-var TestChallengeInsts = []ChallengeInst{
-	{ChallengerID: 1, ChallengeeID: 2, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: time.Now()},
-	{ChallengerID: 3, ChallengeeID: 1, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: time.Now()},
+var TestChallengeInsts = []struct {
+	ChallengerID int64
+	ChallengeeID int64
+	TimeControl  TimeControl
+	StartColor   ColorSelect
+	MadeOn       time.Time
+}{
+	{ChallengerID: 1, ChallengeeID: 2, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: TestTimeNow},
+	{ChallengerID: 3, ChallengeeID: 1, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: TestTimeNow},
 	{ChallengerID: 5, ChallengeeID: 2, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: time.Unix(20500, 0)},
 	{ChallengerID: 5, ChallengeeID: 4, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: time.Unix(19500, 0)},
 	{ChallengerID: 5, ChallengeeID: 3, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: time.Unix(0, 0)},
@@ -231,6 +235,8 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeElo:     1000,
 		TimeControl:       TcUnlimited,
 		StartColor:        ColorRandom,
+		MadeOn:            TestTimeNow.Local(),
+		ExpiresOn:         TestTimeNow.Local().Add(ExpireChallengeThreshold),
 	},
 	{
 		ChallengerID:      3,
@@ -243,18 +249,46 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeElo:     1000,
 		TimeControl:       TcUnlimited,
 		StartColor:        ColorRandom,
+		MadeOn:            TestTimeNow.Local(),
+		ExpiresOn:         TestTimeNow.Local().Add(ExpireChallengeThreshold),
 	},
 }
 
 func InsertTestData(t db.TestLogger, pool *pgxpool.Pool) {
 	ctx := context.WithValue(context.Background(), util.Trace, "insert-test-data")
 
+	batch := &pgx.Batch{}
+
 	for _, inst := range TestUsersInsts {
-		insertTestUser(t, pool, inst)
+		saltBytes := make([]byte, 16)
+		if _, err := rand.Read(saltBytes); err != nil {
+			t.Fatalf("failed to generate salt for user: %v", err)
+		}
+		salt := base64.StdEncoding.EncodeToString(saltBytes)
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(inst.Password+salt), 12)
+		if err != nil {
+			t.Fatalf("failed to hash password for user: %v", err)
+		}
+		batch.Queue(`
+			INSERT INTO users (username, country, elo, highest_elo, start_elo, wins, losses, password, salt, google_account_id, joined_on)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			`,
+			inst.Username,
+			inst.Country,
+			inst.Elo,
+			inst.Elo,
+			inst.Elo,
+			inst.Wins,
+			inst.Losses,
+			hashedPassword,
+			salt,
+			"",
+			inst.JoinedOn,
+		)
 	}
 	for _, inst := range TestReplayInsts {
-		if _, err := pool.Exec(ctx, `
-			INSERT INTO replays (white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode, move_history)
+		batch.Queue(`
+			INSERT INTO replays (white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode, move_history) 
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
 			`,
 			inst.WhiteID,
@@ -268,21 +302,33 @@ func InsertTestData(t db.TestLogger, pool *pgxpool.Pool) {
 			inst.PlayedOn,
 			inst.Mode,
 			[]byte{},
-		); err != nil {
-			t.Fatalf("faile to insert test replay: %v", err)
-		}
+		)
 	}
 	for _, inst := range TestChallengeInsts {
-		if _, err := pool.Exec(ctx, `
-		 	INSERT INTO challenges (challenger_id, challengee_id, time_control, start_color, made_on)
-    		VALUES ($1, $2, $3, $4, $5);
-			`,
+		batch.Queue("INSERT INTO challenges (challenger_id, challengee_id, time_control, start_color, made_on) VALUES ($1, $2, $3, $4, $5);",
 			inst.ChallengerID,
 			inst.ChallengeeID,
 			inst.TimeControl,
 			inst.StartColor,
 			inst.MadeOn,
-		); err != nil {
+		)
+	}
+
+	br := pool.SendBatch(ctx, batch)
+	defer br.Close()
+
+	for range TestUsersInsts {
+		if _, err := br.Exec(); err != nil {
+			t.Fatalf("failed to insert test user: %v", err)
+		}
+	}
+	for range TestReplayInsts {
+		if _, err := br.Exec(); err != nil {
+			t.Fatalf("failed to insert test replay: %v", err)
+		}
+	}
+	for range TestChallengeInsts {
+		if _, err := br.Exec(); err != nil {
 			t.Fatalf("failed to insert test challenge: %v", err)
 		}
 	}

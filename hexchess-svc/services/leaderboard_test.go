@@ -20,7 +20,7 @@ func TestLeaderboard(t *testing.T) {
 	id3 := int64(rand.Intn(math.MaxInt64))
 	id4 := int64(rand.Intn(math.MaxInt64))
 
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-leaderboard")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-leaderboard")
 
 	// when
 	assert.NoError(t, IncrLeaderboard(ctx, rdb, UpdtLbChangeSet{id1, 1500}))

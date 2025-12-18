@@ -2,21 +2,19 @@
 	import CreateGame from '$lib/components/modals/CreateGame.svelte';
 	import { onMount } from 'svelte';
 	import ChallengeIcon from '$lib/components/icons/ChallengeIcon.svelte';
-	import { type EloBuckets,  ReplayModeMap, type Timeframe } from '$lib/api/models.js';
+	import { type EloBuckets, ReplayModeMap, type Timeframe } from '$lib/api/models.js';
 	import { getClientSession } from '$lib/utils/storage';
-	import Banner from '$lib/Banner.svelte';
 	import { goto } from '$app/navigation';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import { makeMessage } from '$lib/utils/error';
-	import type { ColorSelect, TimeControl, FullUserModel } from '$lib/api/models';
+	import type { ColorSelect, FullUserModel, TimeControl } from '$lib/api/models';
 	import services from '$lib/api/services';
-	import "chartjs-adapter-date-fns";
-	import "$lib/utils/chart"
+	import 'chartjs-adapter-date-fns';
+	import '$lib/utils/chart';
 	import { Chart } from 'chart.js';
-	import { typedEntries } from '$lib/utils/array';
 	import { generateColors } from '$lib/utils/colors';
 	import Dropdown from '$lib/components/util/Dropdown.svelte';
-	import { formatEloDiff, formatJoinedOn, formatReplayResult, formatPlayedOn, normalizeToDay, formatTimestamp } from '$lib/utils/format';
+	import { formatEloDiff, formatJoinedOn, formatPlayedOn, formatReplayResult, formatTimestamp, normalizeToDay } from '$lib/utils/format';
 
 	const timeframes: { label: string, value: Timeframe }[] = [
 		{ label: "All Time", value: "all" },

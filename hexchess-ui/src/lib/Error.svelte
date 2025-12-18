@@ -7,8 +7,8 @@
 	const { status, message }: Props = $props();
 </script>
 
-<div class="center-container">
-	<div class="panel" style="width: 600px; height: 600px; margin-top: 75px; text-align: center">
+<div class="center-horizontal-container">
+	<div class="panel" style="width: 600px; height: 600px; margin-top: 20px; text-align: center">
 		<div class="text-xlg">
 			Error {status}
 		</div>

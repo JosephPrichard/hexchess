@@ -19,7 +19,7 @@ func UnmarshalPlayer(b []byte) (PlayerState, error) {
 	return player, nil
 }
 
-func MarshalPlayer(p *PlayerState) ([]byte, error) {
+func MarshalPlayer(p PlayerState) ([]byte, error) {
 	pbPlayer := pb.PlayerState{Id: p.ID, Name: p.Name, Country: p.Country, Elo: p.Elo, IsGuest: p.IsGuest}
 	return proto.Marshal(&pbPlayer)
 }
@@ -129,7 +129,7 @@ func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {
 	return nil, fmt.Errorf("unknown message type: %T", pbUm)
 }
 
-func SerializeChallengeMsg(id int64, ce ChallengeEntity) *pb.UserMsg {
+func SerializeChallengeMsg(ce ChallengeEntity) *pb.UserMsg {
 	cm := &pb.UserMsg_Challenge{
 		Challenge: &pb.ChallengeMsg{
 			ChallengerId:      ce.ChallengerID,
@@ -145,5 +145,5 @@ func SerializeChallengeMsg(id int64, ce ChallengeEntity) *pb.UserMsg {
 			MadeOn:            ce.MadeOn.Format(time.RFC3339),
 		},
 	}
-	return &pb.UserMsg{UserId: strconv.Itoa(int(id)), Value: cm}
+	return &pb.UserMsg{UserId: strconv.Itoa(int(ce.ChallengeeID)), Value: cm}
 }

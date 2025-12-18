@@ -1,6 +1,6 @@
-import type { Hex } from "$lib/api/models";
-import type { ChessBoard, ChessGame } from "$lib/pb/messages";
-import { makeGame, pieces, isInBounds, defaultGame } from "$lib/utils/chess";
+import type { Hex } from '$lib/api/models';
+import type { ChessBoard, ChessGame } from '$lib/pb/messages';
+import { defaultGame, isInBounds, makeGame, pieces } from '$lib/utils/chess';
 
 export interface Promotion {
     from: Hex; 

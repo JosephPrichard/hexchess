@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"hexchess-svc/db"
-	"hexchess-svc/svc"
+	"hexchess-svc/services"
 	"math/big"
 	"net/http"
 	"time"

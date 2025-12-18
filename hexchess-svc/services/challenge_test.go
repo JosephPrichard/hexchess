@@ -14,16 +14,16 @@ func TestChallengeExpiration(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-expiration")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-expiration")
 
 	// when
-	challenges, err := GetChallengesByParticipantOn(ctx, pdb.Query, ChallengeKey{int64(5), -1}, time.Unix(10000, 0))
+	challenges, err := GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{int64(5), -1}, time.Unix(10000, 0))
 	assert.NoError(t, err)
 
 	assert.NoError(t, DeleteExpiredChallengesOn(ctx, pdb.Query, 5, time.Unix(10000, 0)))
 
 	// get all challenges to prove that the deletion worked
-	challengesDel, err := GetChallengesByParticipantOn(ctx, pdb.Query, ChallengeKey{int64(5), -1}, time.Unix(0, 0))
+	challengesDel, err := GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{int64(5), -1}, time.Unix(0, 0))
 	assert.NoError(t, err)
 
 	// then
@@ -39,6 +39,8 @@ func TestChallengeExpiration(t *testing.T) {
 			ChallengeeElo:     1000,
 			TimeControl:       TcUnlimited,
 			StartColor:        ColorRandom,
+			MadeOn:            time.Unix(20500, 0),
+			ExpiresOn:         time.Unix(20500, 0).Add(ExpireChallengeThreshold),
 		},
 		{
 			ChallengerID:      5,
@@ -51,10 +53,12 @@ func TestChallengeExpiration(t *testing.T) {
 			ChallengeeElo:     2000,
 			TimeControl:       TcUnlimited,
 			StartColor:        ColorRandom,
+			MadeOn:            time.Unix(19500, 0),
+			ExpiresOn:         time.Unix(19500, 0).Add(ExpireChallengeThreshold),
 		},
 	}
-	util.AssertEqualIgnoring(t, expected, challenges, ChallengeEntityCmpOpts)
-	util.AssertEqualIgnoring(t, expected, challengesDel, ChallengeEntityCmpOpts)
+	assert.Equal(t, expected, challenges)
+	assert.Equal(t, expected, challengesDel)
 }
 
 func TestChallengeInsertAndDelete(t *testing.T) {
@@ -62,21 +66,29 @@ func TestChallengeInsertAndDelete(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-delete")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-delete")
 
 	testUser := TestUserEntities[1] // user ID: 2 will have no challenges at this point
 
+	timeOn := TestTimeNow
+
 	// when
-	err := InsertChallenge(ctx, pdb.Query, ChallengeInst{testUser.ID, 3, TcUnlimited, ColorRandom, time.Time{}})
+	err := InsertChallenge(ctx, pdb.Query, ChallengeInst{
+		ChallengerID: testUser.ID,
+		ChallengeeID: 3,
+		TimeControl:  TcUnlimited,
+		StartColor:   ColorRandom,
+		MadeOn:       timeOn,
+	})
 	assert.NoError(t, err)
 
-	challengesBeforeDelete, err := GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{testUser.ID, -1}, ExpireChallengeThreshold)
+	challengesBeforeDelete, err := GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{testUser.ID, -1}, timeOn)
 	assert.NoError(t, err)
 
 	dr, err := DeleteChallenge(ctx, pdb.Query, ChallengeKey{testUser.ID, 3})
 	assert.NoError(t, err)
 
-	challengesAfterDelete, err := GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{testUser.ID, -1}, ExpireChallengeThreshold)
+	challengesAfterDelete, err := GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{testUser.ID, -1}, timeOn)
 	assert.NoError(t, err)
 
 	// then
@@ -91,8 +103,10 @@ func TestChallengeInsertAndDelete(t *testing.T) {
 		ChallengeeElo:     900,
 		TimeControl:       TcUnlimited,
 		StartColor:        ColorRandom,
+		MadeOn:            timeOn.Local(),
+		ExpiresOn:         timeOn.Local().Add(ExpireChallengeThreshold),
 	}}
-	util.AssertEqualIgnoring(t, expChallengesBefore, challengesBeforeDelete, ChallengeEntityCmpOpts)
+	assert.Equal(t, expChallengesBefore, challengesBeforeDelete)
 	assert.Empty(t, challengesAfterDelete)
 	assert.Equal(t, DeleteResult{ChallengerID: testUser.ID, ChallengeeID: 3, TimeControl: TcUnlimited, FirstColor: ColorRandom}, dr)
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { hexHeight, hexWidth, findHex } from '$lib/components/chess/render';
+	import { findHex, hexHeight, hexWidth } from '$lib/components/chess/render';
 	import Piece from './Piece.svelte';
 	import type { Hex } from '$lib/api/models';
 	import { type SelectEvent, selectEvents } from '$lib/globals';

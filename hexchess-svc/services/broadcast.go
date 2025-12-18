@@ -141,8 +141,8 @@ func BroadcastGameCount(ctx context.Context, rdb *db.Redis, count int64, id stri
 	return BroadcastCountEvent(ctx, rdb, rdb.GamesCountChan, count, id)
 }
 
-func BroadcastChallenge(ctx context.Context, rdb *db.Redis, id int64, c ChallengeEntity) error {
-	um := SerializeChallengeMsg(id, c)
+func BroadcastChallenge(ctx context.Context, rdb *db.Redis, c ChallengeEntity) error {
+	um := SerializeChallengeMsg(c)
 	b, err := proto.Marshal(um)
 	if err != nil {
 		return fmt.Errorf("marshal user challenge message: %w", err)
@@ -316,7 +316,7 @@ const (
 )
 
 type UcEvent struct {
-	Kind UcEventKind // event kind, an unicaster is used to broadcast all global event types in hexchess-svc
+	Kind UcEventKind // event kind, an unicaster is used to broadcast all global event types in hexchess-services
 	Data string
 }
 

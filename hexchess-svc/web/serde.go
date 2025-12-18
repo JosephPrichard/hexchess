@@ -3,7 +3,7 @@ package web
 import (
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
-	"hexchess-svc/svc"
+	"hexchess-svc/services"
 	"time"
 )
 
@@ -22,10 +22,7 @@ func MakePbGameOutputInit(gameID string, state *pb.ChessState, self *pb.PlayerSt
 	return &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Init{
-			Init: &pb.InitOutput{
-				State: state,
-				Self:  self,
-			},
+			Init: &pb.InitOutput{State: state, Self: self},
 		},
 	}
 }

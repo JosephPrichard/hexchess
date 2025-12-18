@@ -3,6 +3,7 @@ package svc
 import (
 	"context"
 	"fmt"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/util"
@@ -15,7 +16,7 @@ import (
 )
 
 func assertStateRdb(t *testing.T, rdb *db.Redis, expState ChessState) {
-	ctx := context.WithValue(context.Background(), util.Trace, "assert-chess-states")
+	ctx := context.WithValue(t.Context(), util.Trace, "assert-chess-states")
 	actualState, err := GetChessState(ctx, rdb, expState.ID)
 	if err != nil {
 		t.Fatalf("get chess for assert: %v", err)
@@ -35,7 +36,7 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-join-game")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-join-game")
 
 	gameID := "test123"
 	inState := MakeState(StateSetup{ID: gameID, TimeControl: TcRealTime, FirstColor: ColorRandom})
@@ -61,7 +62,7 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-join-game-both-players")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-join-game-both-players")
 
 	gameID := "test123"
 	inState := MakeState(StateSetup{
@@ -88,7 +89,7 @@ func TestAttemptUndo(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-undo")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-undo")
 
 	gameID := "test123"
 	inState := MakeState(StateSetup{
@@ -194,7 +195,7 @@ func TestMakeMove(t *testing.T) {
 		)),
 	})
 
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-make-move")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-make-move")
 
 	for _, state := range []ChessState{s1, s2} {
 		state.Game.InitPieceMoves()
@@ -244,7 +245,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	dbs, closer := db.BeforeDbTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-forfeit")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-forfeit")
 
 	gameID := "test123"
 	inState := MakeState(StateSetup{
@@ -270,7 +271,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 }
 
 func TestInsertGameResult(t *testing.T) {
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-insert-game-result")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-insert-game-result")
 
 	testUser0 := TestUserEntities[0]
 	testUser1 := TestUserEntities[1]
@@ -356,7 +357,7 @@ func TestInsertGameResult(t *testing.T) {
 			r1, err := pdb.Query.GetReplayRowByID(ctx, cs.ReplayID)
 			assert.NoError(t, err)
 
-			util.AssertEqualIgnoring(t, test.expReplay, r1, ReplayRowCmpOpts)
+			util.AssertEqualIgnoring(t, test.expReplay, r1, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn"))
 
 			cs.ReplayID = 0
 			cs.WinEloDiff = math.Round(cs.WinEloDiff)

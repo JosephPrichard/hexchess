@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
-	"hexchess-svc/svc"
+	"hexchess-svc/services"
 	"hexchess-svc/util"
 	"log/slog"
 	"os"

@@ -1,5 +1,5 @@
 -- name: InsertUser :one
-INSERT INTO users (username, country, elo, highest_elo, start_elo, wins, losses, password, salt, google_account_id)
+INSERT INTO users (username, country, elo, highest_elo, start_elo, wins, losses, password, salt, google_account_id, joined_on)
 VALUES (
         sqlc.arg('username'),
         sqlc.arg('country'),
@@ -10,11 +10,12 @@ VALUES (
         sqlc.arg('losses'),
         sqlc.arg('password'),
         sqlc.arg('salt'),
-        sqlc.arg('google_account_id'))
+        sqlc.arg('google_account_id'),
+        COALESCE(sqlc.narg('joined_on'), CURRENT_TIMESTAMP))
 RETURNING id, username, country, elo, highest_elo, wins, losses, bio, joined_on;
 
 -- name: BatchInsertUser :batchone
-INSERT INTO users (username, country, elo, highest_elo, start_elo, wins, losses, password, salt, google_account_id)
+INSERT INTO users (username, country, elo, highest_elo, start_elo, wins, losses, password, salt, google_account_id, joined_on)
 VALUES (
         sqlc.arg('username'),
         sqlc.arg('country'),
@@ -25,7 +26,8 @@ VALUES (
         sqlc.arg('losses'),
         sqlc.arg('password'),
         sqlc.arg('salt'),
-        sqlc.arg('google_account_id'))
+        sqlc.arg('google_account_id'),
+        COALESCE(sqlc.narg('joined_on'), CURRENT_TIMESTAMP))
 RETURNING id, username, country, elo, highest_elo, wins, losses, bio, joined_on;
 
 -- name: SelectLoginByName :one

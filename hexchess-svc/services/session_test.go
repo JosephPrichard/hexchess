@@ -19,7 +19,7 @@ func TestSessions(t *testing.T) {
 	sessionID2 := "session2"
 	sessionID3 := "session3"
 
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-sessions")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-sessions")
 
 	// when
 	assert.NoError(t, SetSession(ctx, rdb, sessionID1, playerIn, 100*time.Second))

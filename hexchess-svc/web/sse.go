@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hexchess-svc/svc"
+	"hexchess-svc/services"
 	"hexchess-svc/util"
 	"log/slog"
 	"net/http"
@@ -19,7 +19,7 @@ func makeSseHandler(state *ServerState, h SseHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sseID := state.MakeID()
 
-		r = r.WithContext(context.WithValue(r.Context(), util.Trace, sseID))
+		r = r.WithContext(context.WithValue(r.Context(), util.SseID, sseID))
 		slog.InfoContext(r.Context(), "received sse request", "method", r.Method, "url", r.URL)
 
 		w.Header().Set("Content-Type", "text/event-stream")

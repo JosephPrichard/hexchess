@@ -1,5 +1,5 @@
 import { codes } from '$lib/utils/error';
-import type { Action, ChallengeModel, ChessModel, ReplayModel, ServiceModel, SessionModel, UserModel, FullUserModel, Timeframe, EloHistory, EloBuckets } from './models';
+import type { Action, ChallengeModel, ChessModel, EloBuckets, FullUserModel, ReplayModel, ServiceModel, SessionModel, Timeframe, UserModel } from './models';
 import { v4 as uuidv4 } from 'uuid';
 import { env } from '$env/dynamic/public';
 import { MoveReplay } from '../pb/messages';

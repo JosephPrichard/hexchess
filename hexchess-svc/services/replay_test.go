@@ -14,7 +14,7 @@ func TestInsertThenGetReplay(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-insert-get")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-insert-get")
 
 	// when
 	id, err := InsertReplay(ctx, pdb.Query, ReplayInst{
@@ -27,6 +27,7 @@ func TestInsertThenGetReplay(t *testing.T) {
 		LoseEloDiff:        -25,
 		ReplayWhiteElo:     1050,
 		ReplayBlackElo:     950,
+		PlayedOn:           TestTimeNow,
 		SerializedMoveHist: []byte{},
 	})
 	assert.NoError(t, err)
@@ -51,8 +52,9 @@ func TestInsertThenGetReplay(t *testing.T) {
 		BlackEloDiff: -25,
 		WhiteElo:     1000,
 		BlackElo:     900,
+		PlayedOn:     TestTimeNow.Local(),
 	}
-	util.AssertEqualIgnoring(t, expReplay, actualReplay1, ReplayEntityCmpOpts)
+	assert.Equal(t, expReplay, actualReplay1)
 }
 
 func TestGetUserReplays(t *testing.T) {
@@ -60,7 +62,7 @@ func TestGetUserReplays(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-replays")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-get-replays")
 
 	// when
 	actualReplayList1, err := GetUserReplays(ctx, pdb.Query, 1, -1, 5)
@@ -74,8 +76,8 @@ func TestGetUserReplays(t *testing.T) {
 	expectedReplayList1 := []ReplayEntity{replay3, replay1}
 	expectedReplayList2 := []ReplayEntity{replay1}
 
-	util.AssertEqualIgnoring(t, expectedReplayList1, actualReplayList1, ReplayEntityCmpOpts)
-	util.AssertEqualIgnoring(t, expectedReplayList2, actualReplayList2, ReplayEntityCmpOpts)
+	assert.Equal(t, expectedReplayList1, actualReplayList1)
+	assert.Equal(t, expectedReplayList2, actualReplayList2)
 }
 
 func TestGetReplayMoveList(t *testing.T) {
@@ -83,7 +85,7 @@ func TestGetReplayMoveList(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-get-move-list")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-get-move-list")
 
 	// when and then
 	_, err := GetReplayMoveHistory(ctx, pdb.Query, 1)
@@ -94,9 +96,9 @@ func TestRetrieveEloHistories(t *testing.T) {
 	dbs, closer := db.BeforeDbTest(t, false, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), util.Trace, "testing-retrieve-elo-histories")
+	ctx := context.WithValue(t.Context(), util.Trace, "testing-retrieve-elo-histories")
 
-	now := time.Date(2020, 2, 2, 2, 0, 0, 0, time.UTC)
+	timeUntil := time.Date(2020, 2, 2, 2, 0, 0, 0, time.UTC)
 
 	for _, test := range []struct {
 		params            EloHistoriesParams
@@ -104,7 +106,7 @@ func TestRetrieveEloHistories(t *testing.T) {
 		expEloBuckets     EloHistoryBuckets
 	}{
 		{
-			params:            EloHistoriesParams{UserID: 6},
+			params:            EloHistoriesParams{UserID: 6, TimeUntil: timeUntil},
 			expBucketDuration: LongBucketDuration,
 			expEloBuckets: EloHistoryBuckets{
 				{Timestamp: "1899-12-31T18:00:00-06:00", Elo: 1030},
@@ -112,7 +114,7 @@ func TestRetrieveEloHistories(t *testing.T) {
 			},
 		},
 		{
-			params:            EloHistoriesParams{UserID: 6, Months: 3},
+			params:            EloHistoriesParams{UserID: 6, Months: 3, TimeUntil: timeUntil},
 			expBucketDuration: ShortBucketDuration,
 			expEloBuckets: EloHistoryBuckets{
 				{Timestamp: "2019-12-31T18:00:00-06:00", Elo: 1075},
@@ -120,7 +122,7 @@ func TestRetrieveEloHistories(t *testing.T) {
 			},
 		},
 	} {
-		eloHistories, bd, err := RetrieveEloHistoryBuckets(ctx, &dbs, now, test.params)
+		eloHistories, bd, err := RetrieveEloHistoryBuckets(ctx, &dbs, test.params)
 		assert.NoError(t, err)
 		assert.Equal(t, test.expEloBuckets, eloHistories)
 		assert.Equal(t, test.expBucketDuration, bd)

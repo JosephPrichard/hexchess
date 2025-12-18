@@ -11,7 +11,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jackc/pgx/v5/pgtype"
 	"google.golang.org/protobuf/proto"
 )
@@ -36,9 +35,6 @@ type ReplayEntity struct {
 	BlackEloDiff float64      `json:"blackEloDiff"`
 	PlayedOn     time.Time    `json:"playedOn"`
 }
-
-var ReplayEntityCmpOpts = cmpopts.IgnoreFields(ReplayEntity{}, "PlayedOn")
-var ReplayRowCmpOpts = cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn")
 
 type ReplayResult string
 
@@ -214,8 +210,9 @@ const (
 )
 
 type EloHistoriesParams struct {
-	UserID int64 `json:"userID"`
-	Months int   `json:"months"`
+	UserID    int64     `json:"userID"`
+	Months    uint      `json:"months"`
+	TimeUntil time.Time `json:"timeUntil"`
 }
 
 type EloHistoryBuckets []EloHistoryBucket
@@ -227,13 +224,17 @@ type EloHistoryBucket struct {
 
 // RetrieveEloHistoryBuckets Returns the elo replay histories for a given user organized into buckets and categorized into a map keyed by replay "mode"
 // map will contain the keys "ALL" (contains data for all modes) plus all modes (ReplayModes)
-func RetrieveEloHistoryBuckets(ctx context.Context, dbs *db.Databases, timeUntil time.Time, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
+func RetrieveEloHistoryBuckets(ctx context.Context, dbs *db.Databases, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
+	if params.TimeUntil.IsZero() {
+		params.TimeUntil = time.Now()
+	}
+
 	var ehb EloHistoryBuckets
 	var bd time.Duration
 
 	playedAfter := pgtype.Timestamptz{}
 	if params.Months != 0 {
-		playedAfter = pgtype.Timestamptz{Valid: true, Time: timeUntil.AddDate(0, -params.Months, 0)}
+		playedAfter = pgtype.Timestamptz{Valid: true, Time: params.TimeUntil.AddDate(0, -int(params.Months), 0)}
 	}
 	eloRows, err := dbs.Pdb.Query.GetReplayElos(ctx, db.GetReplayElosParams{
 		ID:          params.UserID,

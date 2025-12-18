@@ -13,7 +13,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -35,8 +34,6 @@ type UserEntity struct {
 	Total      int64     `json:"total"`
 	WinRate    int64     `json:"winRate"`
 }
-
-var UserEntityCmpOpts = cmpopts.IgnoreFields(UserEntity{}, "JoinedOn")
 
 const StartElo float64 = 1000
 
@@ -78,6 +75,7 @@ type UserInst struct {
 	Elo      float64 `json:"elo"`
 	Wins     int     `json:"wins"`
 	Losses   int     `json:"losses"`
+	JoinedOn time.Time
 }
 
 type HashResult struct {
@@ -128,6 +126,9 @@ func mapUserFromRow(row db.SelectUserByIDRow) UserEntity {
 }
 
 func mapInsertUserParams(inst UserInst, hash HashResult) db.InsertUserParams {
+	if inst.JoinedOn.IsZero() {
+		inst.JoinedOn = time.Now()
+	}
 	return db.InsertUserParams{
 		Username:   inst.Username,
 		Country:    pgtype.Text{Valid: true, String: inst.Country},
@@ -138,6 +139,7 @@ func mapInsertUserParams(inst UserInst, hash HashResult) db.InsertUserParams {
 		Losses:     int32(inst.Losses),
 		Password:   hash.HashedPassword,
 		Salt:       hash.Salt,
+		JoinedOn:   inst.JoinedOn,
 	}
 }
 
@@ -291,7 +293,7 @@ func SelectOrInsertGoogleUser(ctx context.Context, query *db.Queries, googleAcco
 	}
 
 	if !isCreated {
-		if _, err := query.InsertUser(ctx, db.InsertUserParams{
+		row, err := query.InsertUser(ctx, db.InsertUserParams{
 			Username:        inst.Username,
 			Country:         pgtype.Text{Valid: true, String: inst.Country},
 			Elo:             inst.Elo,
@@ -299,18 +301,26 @@ func SelectOrInsertGoogleUser(ctx context.Context, query *db.Queries, googleAcco
 			Wins:            int32(inst.Wins),
 			Losses:          int32(inst.Losses),
 			GoogleAccountID: pgtype.Text{String: googleAccountID, Valid: true},
-		}); err != nil {
+		})
+		if err != nil {
 			return u, fmt.Errorf("insert google user '%s': %w", googleAccountID, err)
 		}
+		u = VerifiedUser{
+			ID:       row.ID,
+			Username: row.Username,
+			Country:  row.Country.String,
+			Elo:      row.Elo,
+		}
 		slog.InfoContext(ctx, "inserted a google user account", "inst", inst, "googleAccountID", googleAccountID)
+	} else {
+		u = VerifiedUser{
+			ID:       login.ID,
+			Username: login.Username,
+			Country:  login.Country.String,
+			Elo:      login.Elo,
+		}
 	}
 
-	u = VerifiedUser{
-		ID:       login.ID,
-		Username: login.Username,
-		Country:  login.Country.String,
-		Elo:      login.Elo,
-	}
 	slog.InfoContext(ctx, "resolved verified user from googleAccountID", "user", u, "googleAccountID", googleAccountID)
 	return u, nil
 }

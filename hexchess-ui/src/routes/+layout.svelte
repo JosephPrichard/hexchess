@@ -47,7 +47,7 @@
 		userSse.addEventListener('userEvents', (event) => {
 			console.log('Sse: /events/user userEvents', event.data);
 			const data: ChallengeModel = JSON.parse(event.data);
-			addNotification({ type: 'challenge', message: data, isSuccess: true });
+			addNotification({ type: 'challenge', message: data, isSuccess: true, duration: 6000 });
 		});
 	}
 
@@ -121,7 +121,7 @@
 						{notification?.message}
 					{:else if notification?.type === 'challenge'}
 						{@const challenge = notification?.message}
-						Player <a href="/players/{challenge.challengeeId}"> {challenge.challengeeName} </a>
+						Player <a href="/players/{challenge.challengerId}"> {challenge.challengerName} </a>
 						has challenged you to a <a href="/challenges?participants=received"> game </a>
 					{/if}
 				</div>
