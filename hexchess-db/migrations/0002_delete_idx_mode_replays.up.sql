@@ -1,1 +1,0 @@
-DROP INDEX IF EXISTS idx_both_ids_mode_played_on;

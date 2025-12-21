@@ -19,51 +19,52 @@ var TestUsersInsts = []struct {
 	Username string
 	Password string
 	Country  string
-	Elo      float64
-	Wins     int
-	Losses   int
 	JoinedOn time.Time
 }{
 	// used for user/challenge/replay tests
-	{Username: "user1", Password: "password1", Country: "us", Elo: 1000, JoinedOn: TestTimeNow},
-	{Username: "user2", Password: "password2", Country: "us", Elo: 1000, Wins: 1, JoinedOn: TestTimeNow},
-	{Username: "user3", Password: "password3", Country: "us", Elo: 900, Wins: 1, Losses: 8, JoinedOn: TestTimeNow},
-	{Username: "user4", Password: "password4", Country: "us", Elo: 2000, Wins: 50, Losses: 20, JoinedOn: TestTimeNow},
-	{Username: "user5", Password: "password5", Country: "us", Elo: 1500, Wins: 40, Losses: 35, JoinedOn: TestTimeNow},
+	{Username: "user1", Password: "password1", Country: "us", JoinedOn: TestTimeNow},
+	{Username: "user2", Password: "password2", Country: "us", JoinedOn: TestTimeNow},
+	{Username: "user3", Password: "password3", Country: "us", JoinedOn: TestTimeNow},
+	{Username: "user4", Password: "password4", Country: "us", JoinedOn: TestTimeNow},
+	{Username: "user5", Password: "password5", Country: "us", JoinedOn: TestTimeNow},
 	// used for elo histories tests.
-	{Username: "user6", Password: "password6", Country: "us", Elo: 1090, Wins: 3, Losses: 0, JoinedOn: TestTimeNow},
-	{Username: "user7", Password: "password7", Country: "us", Elo: 910, Wins: 0, Losses: 3, JoinedOn: TestTimeNow},
+	{Username: "user6", Password: "password6", Country: "us", JoinedOn: TestTimeNow},
+	{Username: "user7", Password: "password7", Country: "us", JoinedOn: TestTimeNow},
 }
 
 var TestUserEntities = []UserEntity{
 	{
-		ID:         1,
-		Username:   "user1",
-		Country:    "us",
-		Elo:        1000,
-		HighestElo: 1000,
-		Wins:       0,
-		Losses:     0,
-		Rank:       1,
-		Bio:        "",
-		Total:      0,
-		WinRate:    0,
-		JoinedOn:   TestTimeNow.Local(),
+		ID:       1,
+		Username: "user1",
+		Country:  "us",
+		Bio:      "",
+		JoinedOn: TestTimeNow.Local(),
 	},
 	{
-		ID:         2,
-		Username:   "user2",
-		Country:    "us",
-		Elo:        1000,
-		HighestElo: 1000,
-		Wins:       1,
-		Losses:     0,
-		Rank:       2,
-		Bio:        "",
-		Total:      1,
-		WinRate:    100,
-		JoinedOn:   TestTimeNow.Local(),
+		ID:       2,
+		Username: "user2",
+		Country:  "us",
+		Bio:      "",
+		JoinedOn: TestTimeNow.Local(),
 	},
+}
+
+var TestUserModeElos = []struct {
+	UserID int64
+	Mode   GameMode
+	Elo    int64
+	Wins   int32
+	Losses int32
+}{
+	{UserID: 1, Mode: ModeCorrespondence7, Elo: 1000},
+	{UserID: 1, Mode: ModeTimed3Plus2, Elo: 1020},
+	{UserID: 1, Mode: ModeTimed15Plus10, Elo: 1030},
+	{UserID: 1, Mode: ModeTimed1Plus0, Elo: 1000},
+	{UserID: 2, Mode: ModeTimed1Plus0, Elo: 1000},
+	{UserID: 3, Mode: ModeCorrespondence7, Elo: 900},
+	{UserID: 3, Mode: ModeCorrespondence1, Elo: 900},
+	{UserID: 4, Mode: ModeCorrespondence1, Elo: 2000},
+	{UserID: 5, Mode: ModeCorrespondence1, Elo: 1500},
 }
 
 var LastUserID = int64(len(TestUsersInsts))
@@ -73,7 +74,7 @@ var TestReplayInsts = []struct {
 	BlackID        int64
 	Result         ReplayResult
 	Cause          ReplayCause
-	Mode           ReplayMode
+	Mode           GameMode
 	WinEloDiff     float64
 	LoseEloDiff    float64
 	ReplayBlackElo float64
@@ -86,7 +87,7 @@ var TestReplayInsts = []struct {
 		BlackID:        2,
 		Result:         WhiteWin,
 		Cause:          Checkmate,
-		Mode:           ModeUnlimited,
+		Mode:           ModeCorrespondence7,
 		WinEloDiff:     30,
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1000,
@@ -98,7 +99,7 @@ var TestReplayInsts = []struct {
 		BlackID:        3,
 		Result:         BlackWin,
 		Cause:          Checkmate,
-		Mode:           ModeUnlimited,
+		Mode:           ModeCorrespondence7,
 		WinEloDiff:     30,
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1030,
@@ -110,7 +111,7 @@ var TestReplayInsts = []struct {
 		BlackID:        1,
 		Result:         Draw,
 		Cause:          Checkmate,
-		Mode:           ModeUnlimited,
+		Mode:           ModeCorrespondence7,
 		WinEloDiff:     0,
 		LoseEloDiff:    0,
 		ReplayWhiteElo: 900,
@@ -124,7 +125,7 @@ var TestReplayInsts = []struct {
 		BlackID:        7,
 		Result:         WhiteWin,
 		Cause:          Checkmate,
-		Mode:           ModeUnlimited,
+		Mode:           ModeCorrespondence7,
 		WinEloDiff:     30,
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1030,
@@ -136,7 +137,7 @@ var TestReplayInsts = []struct {
 		BlackID:        7,
 		Result:         WhiteWin,
 		Cause:          Checkmate,
-		Mode:           ModeRealTime,
+		Mode:           ModeTimed1Plus0,
 		WinEloDiff:     30,
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1060,
@@ -148,7 +149,7 @@ var TestReplayInsts = []struct {
 		BlackID:        7,
 		Result:         WhiteWin,
 		Cause:          Checkmate,
-		Mode:           ModeRealTime,
+		Mode:           ModeTimed1Plus0,
 		WinEloDiff:     30,
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1090,
@@ -160,7 +161,7 @@ var TestReplayInsts = []struct {
 		BlackID:        7,
 		Result:         WhiteWin,
 		Cause:          Checkmate,
-		Mode:           ModeUnlimited,
+		Mode:           ModeCorrespondence7,
 		WinEloDiff:     30,
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1120,
@@ -178,6 +179,7 @@ var TestReplayEntities = []ReplayEntity{
 		BlackName:    "user1",
 		WhiteCountry: "us",
 		BlackCountry: "us",
+		Mode:         ModeCorrespondence7,
 		Result:       Draw,
 		Cause:        Checkmate,
 		WinEloDiff:   0,
@@ -196,6 +198,7 @@ var TestReplayEntities = []ReplayEntity{
 		BlackName:    "user2",
 		WhiteCountry: "us",
 		BlackCountry: "us",
+		Mode:         ModeCorrespondence7,
 		Result:       WhiteWin,
 		Cause:        Checkmate,
 		WinEloDiff:   30,
@@ -211,16 +214,16 @@ var TestReplayEntities = []ReplayEntity{
 var TestChallengeInsts = []struct {
 	ChallengerID int64
 	ChallengeeID int64
-	TimeControl  TimeControl
+	Mode         GameMode
 	StartColor   ColorSelect
 	MadeOn       time.Time
 }{
-	{ChallengerID: 1, ChallengeeID: 2, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: TestTimeNow},
-	{ChallengerID: 3, ChallengeeID: 1, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: TestTimeNow},
-	{ChallengerID: 5, ChallengeeID: 2, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: time.Unix(20500, 0)},
-	{ChallengerID: 5, ChallengeeID: 4, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: time.Unix(19500, 0)},
-	{ChallengerID: 5, ChallengeeID: 3, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: time.Unix(0, 0)},
-	{ChallengerID: 5, ChallengeeID: 1, TimeControl: TcUnlimited, StartColor: ColorRandom, MadeOn: time.Unix(0, 0)},
+	{ChallengerID: 1, ChallengeeID: 2, Mode: ModeTimed3Plus2, StartColor: ColorRandom, MadeOn: TestTimeNow},
+	{ChallengerID: 3, ChallengeeID: 1, Mode: ModeCorrespondence1, StartColor: ColorRandom, MadeOn: TestTimeNow},
+	{ChallengerID: 5, ChallengeeID: 2, Mode: ModeCorrespondence1, StartColor: ColorRandom, MadeOn: time.Unix(20500, 0)},
+	{ChallengerID: 5, ChallengeeID: 4, Mode: ModeCorrespondence1, StartColor: ColorRandom, MadeOn: time.Unix(19500, 0)},
+	{ChallengerID: 5, ChallengeeID: 3, Mode: ModeCorrespondence1, StartColor: ColorRandom, MadeOn: time.Unix(0, 0)},
+	{ChallengerID: 5, ChallengeeID: 1, Mode: ModeCorrespondence1, StartColor: ColorRandom, MadeOn: time.Unix(0, 0)},
 }
 
 var TestChallengeEntities = []ChallengeEntity{
@@ -228,12 +231,12 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengerID:      1,
 		ChallengerName:    "user1",
 		ChallengerCountry: "us",
-		ChallengerElo:     1000,
+		ChallengerElo:     1020,
 		ChallengeeID:      2,
 		ChallengeeName:    "user2",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
-		TimeControl:       TcUnlimited,
+		Mode:              ModeTimed3Plus2,
 		StartColor:        ColorRandom,
 		MadeOn:            TestTimeNow.Local(),
 		ExpiresOn:         TestTimeNow.Local().Add(ExpireChallengeThreshold),
@@ -247,10 +250,38 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeName:    "user1",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
-		TimeControl:       TcUnlimited,
+		Mode:              ModeCorrespondence1,
 		StartColor:        ColorRandom,
 		MadeOn:            TestTimeNow.Local(),
 		ExpiresOn:         TestTimeNow.Local().Add(ExpireChallengeThreshold),
+	},
+	{
+		ChallengerID:      5,
+		ChallengerName:    "user5",
+		ChallengerCountry: "us",
+		ChallengerElo:     1500,
+		ChallengeeID:      2,
+		ChallengeeName:    "user2",
+		ChallengeeCountry: "us",
+		ChallengeeElo:     1000,
+		Mode:              ModeCorrespondence1,
+		StartColor:        ColorRandom,
+		MadeOn:            time.Unix(20500, 0),
+		ExpiresOn:         time.Unix(20500, 0).Add(ExpireChallengeThreshold),
+	},
+	{
+		ChallengerID:      5,
+		ChallengerName:    "user5",
+		ChallengerCountry: "us",
+		ChallengerElo:     1500,
+		ChallengeeID:      4,
+		ChallengeeName:    "user4",
+		ChallengeeCountry: "us",
+		ChallengeeElo:     2000,
+		Mode:              ModeCorrespondence1,
+		StartColor:        ColorRandom,
+		MadeOn:            time.Unix(19500, 0),
+		ExpiresOn:         time.Unix(19500, 0).Add(ExpireChallengeThreshold),
 	},
 }
 
@@ -258,6 +289,8 @@ func InsertTestData(t db.TestLogger, pool *pgxpool.Pool) {
 	ctx := context.WithValue(context.Background(), util.Trace, "insert-test-data")
 
 	batch := &pgx.Batch{}
+
+	instCount := len(TestUsersInsts) + len(TestUserModeElos) + len(TestReplayInsts) + len(TestChallengeInsts)
 
 	for _, inst := range TestUsersInsts {
 		saltBytes := make([]byte, 16)
@@ -270,20 +303,27 @@ func InsertTestData(t db.TestLogger, pool *pgxpool.Pool) {
 			t.Fatalf("failed to hash password for user: %v", err)
 		}
 		batch.Queue(`
-			INSERT INTO users (username, country, elo, highest_elo, start_elo, wins, losses, password, salt, google_account_id, joined_on)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			INSERT INTO users (username, country, password, salt, joined_on)
+			VALUES ($1, $2, $3, $4, $5)
 			`,
 			inst.Username,
 			inst.Country,
-			inst.Elo,
+			hashedPassword,
+			salt,
+			inst.JoinedOn,
+		)
+	}
+	for _, inst := range TestUserModeElos {
+		batch.Queue(`
+			INSERT INTO user_mode_elos (user_id, mode, elo, highest_elo, wins, losses) 
+			VALUES ($1, $2, $3, $4, $5, $6);
+			`,
+			inst.UserID,
+			inst.Mode,
 			inst.Elo,
 			inst.Elo,
 			inst.Wins,
 			inst.Losses,
-			hashedPassword,
-			salt,
-			"",
-			inst.JoinedOn,
 		)
 	}
 	for _, inst := range TestReplayInsts {
@@ -305,10 +345,10 @@ func InsertTestData(t db.TestLogger, pool *pgxpool.Pool) {
 		)
 	}
 	for _, inst := range TestChallengeInsts {
-		batch.Queue("INSERT INTO challenges (challenger_id, challengee_id, time_control, start_color, made_on) VALUES ($1, $2, $3, $4, $5);",
+		batch.Queue("INSERT INTO challenges (challenger_id, challengee_id, mode, start_color, made_on) VALUES ($1, $2, $3, $4, $5);",
 			inst.ChallengerID,
 			inst.ChallengeeID,
-			inst.TimeControl,
+			inst.Mode,
 			inst.StartColor,
 			inst.MadeOn,
 		)
@@ -317,19 +357,9 @@ func InsertTestData(t db.TestLogger, pool *pgxpool.Pool) {
 	br := pool.SendBatch(ctx, batch)
 	defer br.Close()
 
-	for range TestUsersInsts {
+	for range instCount {
 		if _, err := br.Exec(); err != nil {
-			t.Fatalf("failed to insert test user: %v", err)
-		}
-	}
-	for range TestReplayInsts {
-		if _, err := br.Exec(); err != nil {
-			t.Fatalf("failed to insert test replay: %v", err)
-		}
-	}
-	for range TestChallengeInsts {
-		if _, err := br.Exec(); err != nil {
-			t.Fatalf("failed to insert test challenge: %v", err)
+			t.Fatalf("failed to insert seed data: %v", err)
 		}
 	}
 }

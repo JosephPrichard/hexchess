@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"database/sql"
 	"embed"
-	"errors"
 	"flag"
+	"fmt"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/lib/pq"
 	"log"
@@ -43,7 +43,8 @@ func initEnv() {
 	}
 }
 
-var migrFlag = flag.String("migration", "UP", "the migration type to run, one of: up, down, or a version number")
+var migrFlag = flag.String("migration", "", "the migration type to run, one of: up, down, goto, force")
+var versionFlag = flag.String("version", "", "the migration version to run to")
 
 func main() {
 	flag.Parse()
@@ -69,28 +70,46 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to migrate instance: %v", err)
 	}
-
 	migrType := *migrFlag
-	switch strings.ToUpper(migrType) {
-	case "UP":
-		if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-			log.Fatalf("failed to migrate up: %v", err)
-		}
-		log.Println("database migration up")
-	default:
-		version, err := strconv.Atoi(migrType)
-		if err != nil {
-			log.Fatalf("failed to parse force version %s: %v", migrType, err)
-		}
-		if err := m.Force(version); err != nil {
-			log.Fatalf("failed tp migrate force %d: %v", version, err)
-		}
-		log.Printf("database migration to version %d forced", version)
+	if err := runMigration(m, migrType, *versionFlag); err != nil {
+		log.Fatalf("failed to run migration: %v", err)
 	}
-
 	version, dirty, err := m.Version()
 	if err != nil {
 		log.Fatalf("failed to get migration version: %v", err)
 	}
 	log.Printf("database migrations applied successfully, version=%d, dirty=%v", version, dirty)
+}
+
+func runMigration(m *migrate.Migrate, migrType string, versionFlag string) error {
+	switch strings.ToUpper(migrType) {
+
+	case "UP":
+		if err := m.Up(); err != nil {
+			return fmt.Errorf("failed to migrate UP: %w", err)
+		}
+	case "DOWN":
+		if err := m.Down(); err != nil {
+			return fmt.Errorf("failed to migrate DOWN: %w", err)
+		}
+	case "FORCE":
+		version, err := strconv.Atoi(versionFlag)
+		if err != nil {
+			return fmt.Errorf("failed to parse FORCE version %q: %w", versionFlag, err)
+		}
+		if err := m.Force(version); err != nil {
+			return fmt.Errorf("failed to migrate FORCE %d: %w", version, err)
+		}
+	case "GOTO":
+		steps, err := strconv.Atoi(versionFlag)
+		if err != nil {
+			return fmt.Errorf("failed to parse GOTO version %q: %w", versionFlag, err)
+		}
+		if err := m.Steps(steps); err != nil {
+			return fmt.Errorf("failed to migrate GOTO %d: %w", steps, err)
+		}
+	default:
+		return fmt.Errorf("invalid migration type: %s", migrType)
+	}
+	return nil
 }

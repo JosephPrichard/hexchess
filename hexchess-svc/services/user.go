@@ -21,21 +21,24 @@ import (
 )
 
 type UserEntity struct {
-	ID         int64     `json:"id"`
-	Username   string    `json:"username"`
-	Country    string    `json:"country"`
-	Elo        float64   `json:"elo"`
-	HighestElo float64   `json:"highestElo"`
-	Wins       int32     `json:"wins"`
-	Losses     int32     `json:"losses"`
-	Rank       int64     `json:"rank"`
-	Bio        string    `json:"bio"`
-	JoinedOn   time.Time `json:"joinedOn"`
-	Total      int64     `json:"total"`
-	WinRate    int64     `json:"winRate"`
+	ID       int64     `json:"id"`
+	Username string    `json:"username"`
+	Country  string    `json:"country"`
+	Rank     int64     `json:"rank"`
+	Bio      string    `json:"bio"`
+	JoinedOn time.Time `json:"joinedOn"`
 }
 
 const StartElo float64 = 1000
+const DefaultCountry = "un"
+
+func defaultElo(elo pgtype.Float8) float64 {
+	if elo.Valid {
+		return elo.Float64
+	} else {
+		return StartElo
+	}
+}
 
 type RankedUser struct {
 	ID   int64
@@ -68,16 +71,6 @@ func JoinRanks(rankedUsers []RankedUser, users []UserEntity) error {
 
 var ErrTakenUsername = errors.New("username already taken")
 
-type UserInst struct {
-	Username string  `json:"username"`
-	Password string  `json:"password"`
-	Country  string  `json:"country"`
-	Elo      float64 `json:"elo"`
-	Wins     int     `json:"wins"`
-	Losses   int     `json:"losses"`
-	JoinedOn time.Time
-}
-
 type HashResult struct {
 	Salt           string
 	HashedPassword string
@@ -109,56 +102,48 @@ func calcUserWinrate(wins int32, total int32) int64 {
 }
 
 func mapUserFromRow(row db.SelectUserByIDRow) UserEntity {
-	total := row.Wins + row.Losses
 	return UserEntity{
-		ID:         row.ID,
-		Username:   row.Username,
-		Country:    row.Country.String,
-		Elo:        row.Elo,
-		HighestElo: row.HighestElo,
-		Wins:       row.Wins,
-		Losses:     row.Losses,
-		Bio:        row.Bio,
-		JoinedOn:   row.JoinedOn.Time,
-		WinRate:    calcUserWinrate(row.Wins, total),
-		Total:      int64(total),
+		ID:       row.ID,
+		Username: row.Username,
+		Country:  row.Country,
+		Bio:      row.Bio,
+		JoinedOn: row.JoinedOn.Time,
 	}
 }
 
-func mapInsertUserParams(inst UserInst, hash HashResult) db.InsertUserParams {
-	if inst.JoinedOn.IsZero() {
-		inst.JoinedOn = time.Now()
-	}
-	return db.InsertUserParams{
-		Username:   inst.Username,
-		Country:    pgtype.Text{Valid: true, String: inst.Country},
-		Elo:        inst.Elo,
-		HighestElo: inst.Elo,
-		StartElo:   StartElo,
-		Wins:       int32(inst.Wins),
-		Losses:     int32(inst.Losses),
-		Password:   hash.HashedPassword,
-		Salt:       hash.Salt,
-		JoinedOn:   inst.JoinedOn,
-	}
+type UserInst struct {
+	Username string
+	Password string
+	Country  string
+	JoinedOn time.Time
 }
 
 func InsertUser(ctx context.Context, query *db.Queries, inst UserInst) (UserEntity, error) {
+	if inst.JoinedOn.IsZero() {
+		inst.JoinedOn = time.Now()
+	}
+
 	var u UserEntity
 	hash, err := hashPassword(inst.Password)
 	if err != nil {
 		return u, fmt.Errorf("generate hash: %w", err)
 	}
 
-	row, err := query.InsertUser(ctx, mapInsertUserParams(inst, hash))
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		if pgErr.Code == "23505" {
-			slog.InfoContext(ctx, "player already exists", "inst", inst, "err", pgErr)
-			return u, ErrTakenUsername
-		}
-	}
+	row, err := query.InsertUser(ctx, db.InsertUserParams{
+		Username: inst.Username,
+		Country:  inst.Country,
+		Password: hash.HashedPassword,
+		Salt:     hash.Salt,
+		JoinedOn: pgtype.Timestamptz{Valid: true, Time: inst.JoinedOn},
+	})
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			if pgErr.Code == "23505" {
+				slog.InfoContext(ctx, "player already exists", "inst", inst, "err", pgErr)
+				return u, ErrTakenUsername
+			}
+		}
 		return u, fmt.Errorf("insert user to db: %w", err)
 	}
 
@@ -167,7 +152,17 @@ func InsertUser(ctx context.Context, query *db.Queries, inst UserInst) (UserEnti
 	return u, nil
 }
 
-func BatchInsertUsers(ctx context.Context, query *db.Queries, insts []UserInst) ([]UserEntity, error) {
+type BatchUserInst struct {
+	Username string  `json:"username"`
+	Password string  `json:"password"`
+	Country  string  `json:"country"`
+	Elo      float64 `json:"elo"`
+	Wins     int     `json:"wins"`
+	Losses   int     `json:"losses"`
+	JoinedOn time.Time
+}
+
+func BatchInsertUsers(ctx context.Context, query *db.Queries, insts []BatchUserInst) ([]UserEntity, error) {
 	batches := make([]db.BatchInsertUserParams, len(insts))
 
 	var eg errgroup.Group
@@ -179,8 +174,13 @@ func BatchInsertUsers(ctx context.Context, query *db.Queries, insts []UserInst) 
 			if err != nil {
 				return fmt.Errorf("hash password for inst index %d: %w", i, err)
 			}
-			batch := mapInsertUserParams(inst, hash)
-			batches[i] = db.BatchInsertUserParams(batch)
+			batches[i] = db.BatchInsertUserParams{
+				Username: inst.Username,
+				Country:  inst.Country,
+				Password: hash.HashedPassword,
+				Salt:     hash.Salt,
+				JoinedOn: pgtype.Timestamptz{Valid: true, Time: inst.JoinedOn},
+			}
 			return nil
 		})
 	}
@@ -205,22 +205,18 @@ func BatchInsertUsers(ctx context.Context, query *db.Queries, insts []UserInst) 
 }
 
 type VerifiedUser struct {
-	ID       int64   `json:"id"`
-	Username string  `json:"username"`
-	Country  string  `json:"country"`
-	Elo      float64 `json:"elo"`
+	ID       int64  `json:"id"`
+	Username string `json:"username"`
+	Country  string `json:"country"`
 }
 
 func VerifyUserTx(ctx context.Context, pdb *db.PostgreSQL, username string, inputPassword string) (VerifiedUser, error) {
-	var u VerifiedUser
-	err := pdb.RunInTx(ctx, []error{ErrTooManyLoginAttempts, ErrUserNotFound},
-		func(ctx context.Context, query *db.Queries) error {
-			ret, err := verifyUser(ctx, query, username, inputPassword)
-			u = ret
-			return err
+	return db.RunInTx(ctx, pdb,
+		[]error{ErrTooManyLoginAttempts, ErrUserNotFound},
+		func(ctx context.Context, query *db.Queries) (VerifiedUser, error) {
+			return verifyUser(ctx, query, username, inputPassword)
 		},
 	)
-	return u, err
 }
 
 const LoginAttemptsDivisor = 10
@@ -264,8 +260,7 @@ func verifyUser(ctx context.Context, query *db.Queries, username string, inputPa
 	u = VerifiedUser{
 		ID:       login.ID,
 		Username: login.Username,
-		Country:  login.Country.String,
-		Elo:      login.Elo,
+		Country:  login.Country,
 	}
 	slog.InfoContext(ctx, "user login is valid", "user", u)
 	return u, nil
@@ -274,17 +269,15 @@ func verifyUser(ctx context.Context, query *db.Queries, username string, inputPa
 type GoogleUserInst struct {
 	Username string
 	Country  string
-	Elo      float64
-	Wins     int
-	Losses   int
+	JoinedOn time.Time
 }
 
-func SelectOrInsertGoogleUser(ctx context.Context, query *db.Queries, googleAccountID string, inst GoogleUserInst) (VerifiedUser, error) {
+func SelectOrInsertGoogleUser(ctx context.Context, query *db.Queries, googleAccountID string, googleInst GoogleUserInst) (VerifiedUser, error) {
 	var u VerifiedUser
 	var isCreated bool
 
 	login, err := query.SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
-	if errors.Is(err, pgx.ErrNoRows) {
+	if err == pgx.ErrNoRows {
 		isCreated = false
 	} else if err != nil {
 		return u, fmt.Errorf("select user '%s' by google account id: %w", googleAccountID, err)
@@ -294,12 +287,9 @@ func SelectOrInsertGoogleUser(ctx context.Context, query *db.Queries, googleAcco
 
 	if !isCreated {
 		row, err := query.InsertUser(ctx, db.InsertUserParams{
-			Username:        inst.Username,
-			Country:         pgtype.Text{Valid: true, String: inst.Country},
-			Elo:             inst.Elo,
-			HighestElo:      inst.Elo,
-			Wins:            int32(inst.Wins),
-			Losses:          int32(inst.Losses),
+			Username:        googleInst.Username,
+			Country:         googleInst.Country,
+			JoinedOn:        pgtype.Timestamptz{Time: googleInst.JoinedOn, Valid: true},
 			GoogleAccountID: pgtype.Text{String: googleAccountID, Valid: true},
 		})
 		if err != nil {
@@ -308,16 +298,14 @@ func SelectOrInsertGoogleUser(ctx context.Context, query *db.Queries, googleAcco
 		u = VerifiedUser{
 			ID:       row.ID,
 			Username: row.Username,
-			Country:  row.Country.String,
-			Elo:      row.Elo,
+			Country:  row.Country,
 		}
-		slog.InfoContext(ctx, "inserted a google user account", "inst", inst, "googleAccountID", googleAccountID)
+		slog.InfoContext(ctx, "inserted a google user account", "inst", googleInst, "googleAccountID", googleAccountID)
 	} else {
 		u = VerifiedUser{
 			ID:       login.ID,
 			Username: login.Username,
-			Country:  login.Country.String,
-			Elo:      login.Elo,
+			Country:  login.Country,
 		}
 	}
 
@@ -369,7 +357,6 @@ func UpdateUserPassword(ctx context.Context, query *db.Queries, id int64, newPas
 func GetUserByID(ctx context.Context, query *db.Queries, id int64) (UserEntity, error) {
 	row, err := query.SelectUserByID(ctx, id)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to select user", "id", id, "err", err)
 		return UserEntity{}, fmt.Errorf("select user %d: %w", id, err)
 	}
 	user := mapUserFromRow(row)
@@ -426,17 +413,11 @@ func SearchUsersByName(ctx context.Context, query *db.Queries, name string, page
 	var users []UserEntity
 	for i, row := range rows {
 		rank := (page-1)*perPage + int32(i) + 1
-		total := row.Wins + row.Losses
 		users = append(users, UserEntity{
 			ID:       row.ID,
 			Username: row.Username,
-			Country:  row.Country.String,
-			Elo:      row.Elo,
-			Wins:     row.Wins,
-			Losses:   row.Losses,
+			Country:  row.Country,
 			Rank:     int64(rank),
-			Total:    int64(total),
-			WinRate:  calcUserWinrate(row.Wins, total),
 		})
 	}
 

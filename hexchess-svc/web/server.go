@@ -35,7 +35,7 @@ type ServerState struct {
 	Broadcasters
 	// interfaces
 	Generators
-	outbound.OutboundAPIs
+	outbound.APIs
 }
 
 type APIKeys struct {
@@ -47,10 +47,10 @@ type ServerSetup struct {
 	CountryList  []string
 	APIKeys      APIKeys
 	Generators   Generators
-	OutboundAPIs *outbound.OutboundAPIs
+	OutboundAPIs outbound.APIs
 }
 
-func MakeServerState(setup ServerSetup) ServerState {
+func MakeServerState(setup ServerSetup) *ServerState {
 	// default initialize setup data, used for tests
 	if setup.CountryList == nil {
 		setup.CountryList = []string{}
@@ -59,17 +59,7 @@ func MakeServerState(setup ServerSetup) ServerState {
 	for _, country := range setup.CountryList {
 		countryMap[country] = true
 	}
-
-	if setup.Generators == nil {
-		setup.Generators = &RandGenerator{}
-	}
-	if setup.OutboundAPIs == nil {
-		setup.OutboundAPIs = &outbound.OutboundAPIs{
-			GoogleAPI: &outbound.RemoteGoogleAPI{APIKey: setup.APIKeys.GoogleAPIKey},
-		}
-	}
-
-	return ServerState{
+	return &ServerState{
 		// data
 		CountryData: CountryData{CountryList: setup.CountryList, CountryMap: countryMap},
 		// infra
@@ -80,8 +70,8 @@ func MakeServerState(setup ServerSetup) ServerState {
 			UsersCaster:  svc.MakeMultiCasterMap("users-caster", -1),
 		},
 		// interfaces
-		Generators:   setup.Generators,
-		OutboundAPIs: *setup.OutboundAPIs,
+		Generators: setup.Generators,
+		APIs:       setup.OutboundAPIs,
 	}
 }
 
@@ -114,7 +104,7 @@ func withCors(next http.Handler, allowedOrigins string) http.Handler {
 	})
 }
 
-func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
+func HandleRoot(state *ServerState, allowedOrigins string) http.Handler {
 	mux := http.NewServeMux()
 
 	var sb strings.Builder
@@ -127,10 +117,10 @@ func HandleRoot(state ServerState, allowedOrigins string) http.Handler {
 		sb.WriteString(fmt.Sprintf("\t%s\n", pattern))
 	}
 	handleRest := func(method string, pattern string, handler RestHandler) {
-		handle(method, pattern, makeRestHandler(&state, handler))
+		handle(method, pattern, makeRestHandler(state, handler))
 	}
 	handleSse := func(method string, pattern string, handler SseHandler) {
-		handle(method, pattern, makeSseHandler(&state, handler))
+		handle(method, pattern, makeSseHandler(state, handler))
 	}
 
 	handleRest("POST", "/api/register", HandleRegister)

@@ -16,7 +16,7 @@ func AssertEqualIgnoring[T any](t *testing.T, expected, actual T, opts ...cmp.Op
 		t.Errorf("\n%s", diff)
 	}
 }
-func AssertRespBody[V any](t *testing.T, expBody any, w *httptest.ResponseRecorder, opts ...cmp.Option) {
+func AssertRespBody[V any](t *testing.T, wantBody any, w *httptest.ResponseRecorder, opts ...cmp.Option) {
 	t.Helper()
 	resp := w.Result()
 	defer resp.Body.Close()
@@ -26,14 +26,14 @@ func AssertRespBody[V any](t *testing.T, expBody any, w *httptest.ResponseRecord
 		t.Fatal(err)
 	}
 
-	switch expBody := expBody.(type) {
+	switch wantBody := wantBody.(type) {
 	case V:
 		var actualBody V
 		if err = json.Unmarshal(b, &actualBody); err != nil {
 			t.Fatal(err)
 		}
-		AssertEqualIgnoring[V](t, expBody, actualBody, opts...)
+		AssertEqualIgnoring[V](t, wantBody, actualBody, opts...)
 	default:
-		assert.Fail(t, fmt.Sprintf("unsupported type in body assert: %T", expBody))
+		assert.Fail(t, fmt.Sprintf("unsupported type in body assert: %T", wantBody))
 	}
 }

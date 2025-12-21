@@ -1,5 +1,5 @@
 package outbound
 
-type OutboundAPIs struct {
+type APIs struct {
 	GoogleAPI
 }

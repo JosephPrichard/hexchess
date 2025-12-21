@@ -9,9 +9,9 @@ import (
 
 func TestChessState_UndoMove(t *testing.T) {
 	tests := []struct {
-		setup    func() *ChessState
-		expErr   error
-		expMoves int
+		setup     func() *ChessState
+		wantErr   error
+		wantMoves int
 	}{
 		{
 			setup: func() *ChessState {
@@ -20,8 +20,8 @@ func TestChessState_UndoMove(t *testing.T) {
 					Game:         chess.MakeStartGame(),
 				}
 			},
-			expErr:   ErrNoMoveUndo,
-			expMoves: 0,
+			wantErr:   ErrNoMoveUndo,
+			wantMoves: 0,
 		},
 		{
 			setup: func() *ChessState {
@@ -32,8 +32,8 @@ func TestChessState_UndoMove(t *testing.T) {
 				cs.Game.MakeMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")})
 				return cs
 			},
-			expErr:   nil,
-			expMoves: 0,
+			wantErr:   nil,
+			wantMoves: 0,
 		},
 	}
 
@@ -43,13 +43,13 @@ func TestChessState_UndoMove(t *testing.T) {
 
 			err := cs.UndoMove()
 
-			if test.expErr != nil {
-				assert.Equal(t, err, test.expErr)
+			if test.wantErr != nil {
+				assert.Equal(t, err, test.wantErr)
 				return
 			}
 
 			assert.NoError(t, err)
-			assert.Len(t, cs.Game.Moves, test.expMoves)
+			assert.Len(t, cs.Game.Moves, test.wantMoves)
 		})
 	}
 }

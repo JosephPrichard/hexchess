@@ -5,6 +5,7 @@
 	import { getNotificationsContext } from '$lib/utils/context';
 	import type { UserModel } from '$lib/api/models';
 	import services from '$lib/api/services';
+	import Banner from '$lib/Banner.svelte';
 
 	export interface ProfileProps {
 		countryList: string[];
@@ -34,8 +35,7 @@
 			updateClientUser(data);
 			addNotification({ type: 'string', message: 'Updated your profile!', isSuccess: true });
 		} else {
-			const message = makeMessage(err);
-			addNotification({ type: 'string', message, isSuccess: false });
+			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
 		}
 
 		isLoading = false;
@@ -49,8 +49,7 @@
 			const message = 'Successfully updated password!';
 			addNotification({ type: 'string', message, isSuccess: true });
 		} else {
-			const message = makeMessage(err);
-			addNotification({ type: 'string', message, isSuccess: false });
+			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
 		}
 	}
 
@@ -69,8 +68,7 @@
 			clearClientSession();
 			await goto('/');
 		} else {
-			const message = makeMessage(err);
-			addNotification({ type: 'string', message, isSuccess: false });
+			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
 		}
 	}
 
@@ -83,7 +81,7 @@
 <svelte:head>
 	<title>Profile - Hexchess</title>
 </svelte:head>
-
+<Banner />
 <div class="center-horizontal-container">
 	<div class="profile-wrapper">
 		<div class="title-lg" style="padding-left: 0">Edit Profile</div>

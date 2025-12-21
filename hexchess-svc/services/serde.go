@@ -58,7 +58,7 @@ func UnmarshalChessState(b []byte) (ChessState, error) {
 			BlackPlayer: DeserializePlayer(pbChess.BlackPlayer),
 			IsEnded:     pbChess.IsEnded,
 			FirstColor:  ColorSelect(pbChess.FirstColor),
-			TimeControl: TimeControl(pbChess.TimeControl),
+			Mode:        GameMode(pbChess.Mode),
 			Touch:       time.UnixMilli(pbChess.Touch),
 		},
 	}
@@ -83,7 +83,7 @@ func SerializeChessState(s *ChessState) *pb.ChessState {
 		BlackPlayer:  SerializePlayer(s.BlackPlayer),
 		IsEnded:      s.IsEnded,
 		FirstColor:   string(s.FirstColor),
-		TimeControl:  string(s.TimeControl),
+		Mode:         string(s.Mode),
 		Touch:        s.Touch.UnixMilli(),
 		InitialBoard: chess.SerializeBoard(&s.InitialBoard),
 		UndoId:       s.UndoID,
@@ -101,7 +101,7 @@ func UnmarshalChessMeta(b []byte) (ChessMeta, error) {
 		BlackPlayer: DeserializePlayer(pbChess.BlackPlayer),
 		IsEnded:     pbChess.IsEnded,
 		FirstColor:  ColorSelect(pbChess.FirstColor),
-		TimeControl: TimeControl(pbChess.TimeControl),
+		Mode:        GameMode(pbChess.Mode),
 	}, nil
 }
 
@@ -120,7 +120,7 @@ func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {
 			ChallengeeName:    cm.ChallengeeName,
 			ChallengeeCountry: cm.ChallengeeCountry,
 			ChallengeeElo:     cm.ChallengeeElo,
-			TimeControl:       TimeControl(cm.TimeControl),
+			Mode:              GameMode(cm.Mode),
 			StartColor:        ColorSelect(cm.StartColor),
 			MadeOn:            madeOn,
 		}
@@ -140,7 +140,7 @@ func SerializeChallengeMsg(ce ChallengeEntity) *pb.UserMsg {
 			ChallengeeName:    ce.ChallengeeName,
 			ChallengeeCountry: ce.ChallengeeCountry,
 			ChallengeeElo:     ce.ChallengeeElo,
-			TimeControl:       string(ce.TimeControl),
+			Mode:              string(ce.Mode),
 			StartColor:        string(ce.StartColor),
 			MadeOn:            ce.MadeOn.Format(time.RFC3339),
 		},

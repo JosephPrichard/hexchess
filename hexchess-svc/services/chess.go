@@ -14,7 +14,7 @@ import (
 )
 
 func getUserGameZSet(rdb *db.Redis, id int64) string {
-	return rdb.GamesZSet + "_user_" + strconv.FormatInt(id, 10)
+	return rdb.GamesZSet + "_user_" + strconv.Itoa(int(id))
 }
 
 var ErrNoChessState = errors.New("no chess state")

@@ -223,8 +223,8 @@ function getProfile(fetch?: FetchFn) {
 	return requestJSON<UserModel>(`${baseURL()}/players/self`, { method: 'GET' }, fetch);
 }
 
-function getUserWithReplays(id: string, fetch?: FetchFn) {
-	const params = new URLSearchParams({ id });
+function getUser(id: string, withReplays: boolean, fetch?: FetchFn) {
+	const params = new URLSearchParams({ id, withReplays: withReplays.toString() });
 	return requestJSON<FullUserModel>(`${baseURL()}/players?${params}`, { method: 'GET' }, fetch);
 }
 
@@ -303,7 +303,7 @@ export default {
 	getChallenges,
 	getLeaderboard,
 	getProfile,
-	getUserWithReplays,
+	getUser,
 	getSearchPlayers,
 	getReplay,
 	getReplayMoveHistory,

@@ -2,6 +2,7 @@
 	import Pagination from '$lib/Pagination.svelte';
 	import StatsList from '$lib/components/stats/StatsList.svelte';
 	import type { UserModel } from '$lib/api/models';
+	import Banner from '$lib/Banner.svelte';
 
 	export interface SearchProps {
 		searchText: string;
@@ -16,7 +17,7 @@
 <svelte:head>
 	<title>Search - Hexchess</title>
 </svelte:head>
-
+<Banner />
 <div class="center-horizontal-container">
 	<div class="title-lg">Search</div>
 	<div class="wrapper">

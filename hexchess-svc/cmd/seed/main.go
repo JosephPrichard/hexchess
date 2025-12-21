@@ -35,7 +35,7 @@ func main() {
 
 	challenges := readTestdataFile[svc.ChallengeInst]("test/challenge_insts.json")
 	gameResults := readTestdataFile[svc.GameResult]("test/game_results.json")
-	userInsts := readTestdataFile[svc.UserInst]("test/user_insts.json")
+	userInsts := readTestdataFile[svc.BatchUserInst]("test/user_insts.json")
 
 	util.InitLoggers(nil)
 	util.InitEnv()

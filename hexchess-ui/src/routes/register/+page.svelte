@@ -4,6 +4,7 @@
 	import { setClientSession } from '$lib/utils/storage';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import services from '$lib/api/services';
+	import Banner from '$lib/Banner.svelte';
 
 	let username = $state('');
 	let password = $state('');
@@ -26,8 +27,7 @@
 
 			await goto('/');
 		} else {
-			const message = makeMessage(err);
-			addNotification({ type: 'string', message, isSuccess: false });
+			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
 		}
 
 		isLoading = false;
@@ -37,7 +37,7 @@
 <svelte:head>
 	<title>Register - Hexchess</title>
 </svelte:head>
-
+<Banner />
 <div class="center-horizontal-container">
 	<div class="title-lg">Register</div>
 	<div class="register-wrapper">

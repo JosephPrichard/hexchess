@@ -19,6 +19,9 @@ const TestDbUser = "postgres"
 const TestDbName = "postgres"
 const TestDbPass = "postgres"
 
+const RedisContTag = "redis:8.4.0"
+const PostgresContTag = "postgres:17"
+
 var muPostgres sync.Mutex
 var muRedis sync.Mutex
 var postgresCont testcontainers.Container
@@ -51,7 +54,7 @@ func startRedisContainer(t TestLogger) *tcredis.RedisContainer {
 
 	start := time.Now()
 	t.Logf("starting redis container")
-	cont, err := tcredis.Run(ctx, "redis:6-alpine", testcontainers.WithExposedPorts("6379"))
+	cont, err := tcredis.Run(ctx, RedisContTag, testcontainers.WithExposedPorts("6379"))
 	if err != nil {
 		t.Fatalf("start redis container: %s", err)
 	}
@@ -104,7 +107,7 @@ func startPostgresContainer(t TestLogger) testcontainers.Container {
 	defer cancel()
 
 	req := testcontainers.ContainerRequest{
-		Image:        "postgres:17",
+		Image:        PostgresContTag,
 		ExposedPorts: []string{"5432/tcp"},
 		Env: map[string]string{
 			"POSTGRES_USER":     TestDbUser,
@@ -168,6 +171,7 @@ func beginTestTx(t TestLogger, pool *pgxpool.Pool) (pgx.Tx, func()) {
 		if err := testTx.Rollback(context.Background()); err != nil {
 			t.Fatalf("rollback test tx: %v", err)
 		}
+		t.Logf("rolled back test tx")
 		pool.Close()
 	}
 	return testTx, closer

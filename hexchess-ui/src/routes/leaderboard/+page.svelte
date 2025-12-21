@@ -2,6 +2,7 @@
 	import Pagination from '$lib/Pagination.svelte';
 	import StatsList from '$lib/components/stats/StatsList.svelte';
 	import type { UserModel } from '$lib/api/models';
+	import Banner from '$lib/Banner.svelte';
 
 	export interface LeaderboardProps {
 		page: number;
@@ -17,7 +18,7 @@
 <svelte:head>
 	<title>Leaderboard - Hexchess</title>
 </svelte:head>
-
+<Banner />
 <div class="center-horizontal-container">
 	<div class="title-lg">Leaderboard</div>
 	<div class="wrapper">

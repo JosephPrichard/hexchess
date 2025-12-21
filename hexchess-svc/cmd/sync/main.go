@@ -44,8 +44,10 @@ func main() {
 
 	databases := &db.Databases{Pdb: db.MakePostgres(q, pool), Rdb: rdb}
 
-	if err := svc.SyncLeaderboard(ctx, databases); err != nil {
-		util.LogFatalErr("sync leaderboard", err)
+	for _, mode := range svc.AllGameModes {
+		if err := svc.SyncLeaderboard(ctx, mode, databases); err != nil {
+			util.LogFatalErr("sync leaderboard", err)
+		}
 	}
 	log.Printf("finished syncing leaderboard: %v", time.Now().Sub(start))
 }

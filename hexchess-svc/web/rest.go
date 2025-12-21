@@ -80,17 +80,16 @@ func HandleRegister(state *ServerState, w http.ResponseWriter, r *http.Request) 
 	user, err := svc.InsertUser(ctx, state.Pdb.Query, svc.UserInst{
 		Username: body.Username,
 		Password: body.Password,
-		Country:  "us",
-		Elo:      svc.StartElo,
+		Country:  svc.DefaultCountry,
 		JoinedOn: state.GetNow(),
 	})
-	if errors.Is(err, svc.ErrTakenUsername) {
-		return ErrHttpDuplicateUsername
-	}
 	if err != nil {
+		if errors.Is(err, svc.ErrTakenUsername) {
+			return ErrHttpDuplicateUsername
+		}
 		return fmt.Errorf("insert user: %w", err)
 	}
-	t, err := SetSessionPlayer(ctx, state.Rdb, w, svc.MakePlayer(user.ID, user.Username, user.Country, user.Elo))
+	t, err := SetSessionPlayer(ctx, state.Rdb, w, svc.MakePlayer(user.ID, user.Username, user.Country))
 	if err != nil {
 		return fmt.Errorf("set session player: %w", err)
 	}
@@ -100,14 +99,13 @@ func HandleRegister(state *ServerState, w http.ResponseWriter, r *http.Request) 
 		ID:       user.ID,
 		Username: user.Username,
 		Country:  user.Country,
-		Elo:      user.Elo,
 		TTLSecs:  t,
 	})
 	return nil
 }
 
 func handleLoginSession(ctx context.Context, rdb *db.Redis, w http.ResponseWriter, user svc.VerifiedUser) error {
-	t, err := SetSessionPlayer(ctx, rdb, w, svc.MakePlayer(user.ID, user.Username, user.Country, user.Elo))
+	t, err := SetSessionPlayer(ctx, rdb, w, svc.MakePlayer(user.ID, user.Username, user.Country))
 	if err != nil {
 		return fmt.Errorf("set session player: %w", err)
 	}
@@ -117,7 +115,6 @@ func handleLoginSession(ctx context.Context, rdb *db.Redis, w http.ResponseWrite
 		ID:       user.ID,
 		Username: user.Username,
 		Country:  user.Country,
-		Elo:      user.Elo,
 		TTLSecs:  t,
 	})
 	return nil
@@ -169,8 +166,7 @@ func HandleGoogleLogin(state *ServerState, w http.ResponseWriter, r *http.Reques
 
 	user, err := svc.SelectOrInsertGoogleUser(ctx, state.Pdb.Query, payload.AccountID, svc.GoogleUserInst{
 		Username: payload.Username,
-		Country:  "us",
-		Elo:      svc.StartElo,
+		Country:  svc.DefaultCountry,
 	})
 	if err != nil {
 		return fmt.Errorf("upsert verified google user: %w", err)
@@ -250,7 +246,6 @@ func HandleUpdateUser(state *ServerState, w http.ResponseWriter, r *http.Request
 		ID:       user.ID,
 		Username: user.Username,
 		Country:  user.Country,
-		Elo:      user.Elo,
 	})
 	return nil
 }
@@ -307,7 +302,6 @@ func HandleRefreshSession(state *ServerState, w http.ResponseWriter, r *http.Req
 		ID:       player.ID,
 		Username: player.Name,
 		Country:  player.Country,
-		Elo:      player.Elo,
 		TTLSecs:  SessionMaxAge,
 	}})
 	return nil
@@ -357,7 +351,7 @@ func HandleCreateGame(state *ServerState, w http.ResponseWriter, r *http.Request
 		initialBoard = &board
 	}
 
-	gameID, err := svc.CreateGame(ctx, state.Rdb, svc.ColorSelect(body.FirstColor), svc.TimeControl(body.TimeControl), initialBoard)
+	gameID, err := svc.CreateGame(ctx, state.Rdb, svc.ColorSelect(body.FirstColor), svc.GameMode(body.TimeControl), initialBoard)
 	if err != nil {
 		return fmt.Errorf("create game: %w", err)
 	}
@@ -415,7 +409,7 @@ func HandleUpdateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 
 	gameID := ""
 	if body.Action == "ACCEPT" {
-		gameID, err = svc.CreateGame(ctx, state.Rdb, dr.FirstColor, dr.TimeControl, nil)
+		gameID, err = svc.CreateGame(ctx, state.Rdb, dr.FirstColor, dr.Mode, nil)
 		if err != nil {
 			return fmt.Errorf("create game: %w", err)
 		}
@@ -429,7 +423,7 @@ func HandleUpdateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 type CreateChallengeBody struct {
 	ChallengeeID int64  `json:"challengeeID"`
 	StartColor   string `json:"startColor"`
-	TimeControl  string `json:"timeControl"`
+	Mode         string `json:"mode"`
 }
 
 func HandleCreateChallenge(state *ServerState, w http.ResponseWriter, r *http.Request) error {
@@ -447,7 +441,7 @@ func HandleCreateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 	ret, err := svc.InsertChallengeRet(ctx, state.Pdb.Query, svc.ChallengeInst{
 		ChallengerID: player.ID,
 		ChallengeeID: body.ChallengeeID,
-		TimeControl:  svc.TimeControl(body.TimeControl),
+		Mode:         svc.GameMode(body.Mode),
 		StartColor:   svc.ColorSelect(body.StartColor),
 		MadeOn:       state.GetNow(),
 	})
@@ -510,8 +504,12 @@ func HandleGetLeaderboard(state *ServerState, w http.ResponseWriter, r *http.Req
 	if err != nil {
 		return err
 	}
+	mode, err := parseModeQuery(ctx, query)
+	if err != nil {
+		return err
+	}
 
-	lbd, err := svc.GetLeaderboardPage(ctx, state.Rdb, int64(page), PerPage)
+	lbd, err := svc.GetLeaderboardPage(ctx, state.Rdb, mode, int64(page), PerPage)
 	if err != nil {
 		return fmt.Errorf("get leaderboard page %d: %w", page, err)
 	}
@@ -533,21 +531,24 @@ func HandleGetLeaderboard(state *ServerState, w http.ResponseWriter, r *http.Req
 
 type FullUserResp struct {
 	User       svc.UserEntity     `json:"user"`
-	ReplayList []svc.ReplayEntity `json:"replayList,omitempty"`
+	ReplayList []svc.ReplayEntity `json:"replayList"`
+	Ranks      map[svc.GameMode]svc.LbRank
 }
 
 func HandleGetPlayer(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	id, err := parseIntQuery(ctx, r.URL.Query(), "id")
+	query := r.URL.Query()
+	id, err := parseIntQuery(ctx, query, "id")
 	if err != nil {
 		return err
 	}
+	withReplays := query.Get("withReplays")
 
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	var user svc.UserEntity
-	var userRank int64
+	var userRanks map[svc.GameMode]svc.LbRank
 	var replayList []svc.ReplayEntity
 
 	eg.Go(func() error {
@@ -558,33 +559,33 @@ func HandleGetPlayer(state *ServerState, w http.ResponseWriter, r *http.Request)
 		user = u
 		return nil
 	})
+	if withReplays == "true" {
+		eg.Go(func() error {
+			rs, err := svc.GetUserReplays(egCtx, state.Pdb.Query, int64(id), -1, PerPage)
+			if err != nil {
+				return fmt.Errorf("get user %d replays by id: %w", id, err)
+			}
+			replayList = rs
+			return err
+		})
+	}
 	eg.Go(func() error {
-		rs, err := svc.GetUserReplays(egCtx, state.Pdb.Query, int64(id), -1, PerPage)
+		ranks, err := svc.GetLeaderboardRanks(egCtx, state.Rdb, int64(id), svc.AllGameModes)
 		if err != nil {
-			return fmt.Errorf("get user replays %d by id: %w", id, err)
+			return fmt.Errorf("user %d leaderboard ranks by id: %w", id, err)
 		}
-		replayList = rs
-		return err
-	})
-	eg.Go(func() error {
-		ur, err := svc.GetLeaderboardRank(egCtx, state.Rdb, int64(id))
-		if err != nil {
-			return fmt.Errorf("failed leaderboard %d rank by id: %w", id, err)
-		}
-		userRank = ur
+		userRanks = ranks
 		return nil
 	})
 	if err := eg.Wait(); err != nil {
 		return err
 	}
 
-	user.Rank = userRank
-
 	if replayList == nil {
 		replayList = []svc.ReplayEntity{}
 	}
 	slog.InfoContext(ctx, "retrieved user with replays", "user", user, "replays", replayList)
-	writeJSON(w, http.StatusOK, FullUserResp{User: user, ReplayList: replayList})
+	writeJSON(w, http.StatusOK, FullUserResp{User: user, ReplayList: replayList, Ranks: userRanks})
 	return nil
 }
 

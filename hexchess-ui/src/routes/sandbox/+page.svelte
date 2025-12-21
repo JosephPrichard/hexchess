@@ -17,6 +17,7 @@
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import Dropdown from '$lib/components/util/Dropdown.svelte';
 	import { makeGameState } from '$lib/state/game.svelte';
+	import Banner from '$lib/Banner.svelte';
 
 	export interface SandboxProps {
 		fen: string;
@@ -176,7 +177,7 @@
 <svelte:head>
 	<title>Sandbox - Hexchess</title>
 </svelte:head>
-
+<Banner />
 <div class="center-horizontal-container">
 	<div class="center-vertical-container" style="align-items: stretch;">
 		<Board

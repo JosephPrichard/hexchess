@@ -45,6 +45,21 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
 COMMENT ON EXTENSION pg_trgm IS 'text similarity measurement and index searching based on trigrams';
 
 
+--
+-- Name: mode_enum; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.mode_enum AS ENUM (
+    'TIMED_1+0',
+    'TIMED_3+2',
+    'TIMED_15+10',
+    'CORRESPONDENCE_1',
+    'CORRESPONDENCE_7',
+    'CORRESPONDENCE_14',
+    'TIMED_5+0'
+);
+
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -56,11 +71,10 @@ SET default_table_access_method = heap;
 CREATE TABLE public.challenges (
     challenger_id bigint NOT NULL,
     challengee_id bigint NOT NULL,
-    time_control character varying NOT NULL,
     start_color character varying NOT NULL,
     made_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT start_color_check CHECK (((start_color)::text = ANY (ARRAY[('RANDOM'::character varying)::text, ('BLACK'::character varying)::text, ('WHITE'::character varying)::text]))),
-    CONSTRAINT time_control_check CHECK (((time_control)::text = ANY (ARRAY[('REAL_TIME'::character varying)::text, ('CORRESPONDENCE'::character varying)::text, ('UNLIMITED'::character varying)::text])))
+    mode public.mode_enum NOT NULL,
+    CONSTRAINT start_color_check CHECK (((start_color)::text = ANY (ARRAY[('RANDOM'::character varying)::text, ('BLACK'::character varying)::text, ('WHITE'::character varying)::text])))
 );
 
 
@@ -72,7 +86,7 @@ CREATE TABLE public.replays (
     id bigint NOT NULL,
     white_id bigint NOT NULL,
     black_id bigint NOT NULL,
-    mode character varying NOT NULL,
+    mode public.mode_enum NOT NULL,
     result character varying NOT NULL,
     cause character varying NOT NULL,
     played_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -82,7 +96,6 @@ CREATE TABLE public.replays (
     black_elo double precision NOT NULL,
     move_history bytea NOT NULL,
     CONSTRAINT cause_check_1 CHECK (((cause)::text = ANY ((ARRAY['CHECKMATE'::character varying, 'FORFEIT'::character varying, 'STALEMATE'::character varying])::text[]))),
-    CONSTRAINT mode_check CHECK (((mode)::text = ANY (ARRAY[('REAL_TIME'::character varying)::text, ('CORRESPONDENCE'::character varying)::text, ('UNLIMITED'::character varying)::text]))),
     CONSTRAINT result_check CHECK (((result)::text = ANY (ARRAY[('DRAW'::character varying)::text, ('WHITE_WINS'::character varying)::text, ('BLACK_WINS'::character varying)::text])))
 );
 
@@ -112,20 +125,29 @@ CREATE TABLE public.schema_migrations (
 
 
 --
+-- Name: user_mode_elos; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_mode_elos (
+    user_id bigint NOT NULL,
+    mode public.mode_enum NOT NULL,
+    elo double precision NOT NULL,
+    highest_elo double precision NOT NULL,
+    wins integer DEFAULT 0 NOT NULL,
+    losses integer DEFAULT 0 NOT NULL
+);
+
+
+--
 -- Name: users; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.users (
     id bigint NOT NULL,
     username character varying NOT NULL,
-    country character varying,
-    elo double precision NOT NULL,
-    highest_elo double precision NOT NULL,
-    wins integer NOT NULL,
-    losses integer NOT NULL,
+    country character varying NOT NULL,
     bio character varying DEFAULT ''::character varying NOT NULL,
     joined_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    start_elo double precision NOT NULL,
     password character varying NOT NULL,
     salt character varying NOT NULL,
     login_attempts integer DEFAULT 0 NOT NULL,
@@ -183,6 +205,14 @@ ALTER TABLE ONLY public.schema_migrations
 
 
 --
+-- Name: user_mode_elos user_mode_elos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_mode_elos
+    ADD CONSTRAINT user_mode_elos_pkey PRIMARY KEY (user_id, mode);
+
+
+--
 -- Name: users_metadata users_metadata_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -234,10 +264,10 @@ CREATE INDEX idx_challenger ON public.challenges USING btree (challenger_id, mad
 
 
 --
--- Name: idx_elo; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_google_account_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_elo ON public.users USING btree (elo);
+CREATE UNIQUE INDEX idx_google_account_id ON public.users USING btree (google_account_id);
 
 
 --
@@ -252,6 +282,13 @@ CREATE INDEX idx_trgm_username ON public.users USING gist (username public.gist_
 --
 
 CREATE UNIQUE INDEX idx_unique_username ON public.users USING btree (upper((username)::text));
+
+
+--
+-- Name: idx_user_mode_elos_userid; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_mode_elos_userid ON public.user_mode_elos USING btree (user_id);
 
 
 --
@@ -298,6 +335,14 @@ ALTER TABLE ONLY public.replays
 
 ALTER TABLE ONLY public.replays
     ADD CONSTRAINT replays_white_id_fkey FOREIGN KEY (white_id) REFERENCES public.users(id);
+
+
+--
+-- Name: user_mode_elos user_mode_elos_userid_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_mode_elos
+    ADD CONSTRAINT user_mode_elos_userid_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --

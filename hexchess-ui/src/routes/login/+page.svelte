@@ -7,6 +7,7 @@
 	import { onMount } from 'svelte';
 	import { env } from '$env/dynamic/public';
 	import type { ServiceModel, SessionModel } from '$lib/api/models';
+	import Banner from '$lib/Banner.svelte';
 
 	let username = $state('');
 	let password = $state('');
@@ -61,7 +62,7 @@
 <svelte:head>
 	<title>Login - Hexchess</title>
 </svelte:head>
-
+<Banner />
 <div class="center-horizontal-container">
 	<div class="title-lg">Login</div>
 	<div class="login-wrapper">

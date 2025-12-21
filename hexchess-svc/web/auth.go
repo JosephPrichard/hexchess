@@ -20,7 +20,6 @@ type SessionView struct {
 	ID       int64         `json:"id"`
 	Username string        `json:"username"`
 	Country  string        `json:"country"`
-	Elo      float64       `json:"elo"`
 	TTLSecs  time.Duration `json:"ttlSecs,omitempty"`
 }
 

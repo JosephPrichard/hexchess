@@ -22,7 +22,7 @@ func TestInsertThenGetReplay(t *testing.T) {
 		BlackID:            3,
 		Result:             WhiteWin,
 		Cause:              Checkmate,
-		Mode:               ModeUnlimited,
+		Mode:               ModeCorrespondence7,
 		WinEloDiff:         35,
 		LoseEloDiff:        -25,
 		ReplayWhiteElo:     1050,
@@ -36,7 +36,7 @@ func TestInsertThenGetReplay(t *testing.T) {
 	assert.NoError(t, err)
 
 	// then
-	expReplay := ReplayEntity{
+	wantReplay := ReplayEntity{
 		ID:           id,
 		WhiteID:      2,
 		BlackID:      3,
@@ -44,6 +44,7 @@ func TestInsertThenGetReplay(t *testing.T) {
 		BlackName:    "user3",
 		WhiteCountry: "us",
 		BlackCountry: "us",
+		Mode:         ModeCorrespondence7,
 		Result:       WhiteWin,
 		Cause:        Checkmate,
 		WinEloDiff:   35,
@@ -54,7 +55,7 @@ func TestInsertThenGetReplay(t *testing.T) {
 		BlackElo:     900,
 		PlayedOn:     TestTimeNow.Local(),
 	}
-	assert.Equal(t, expReplay, actualReplay1)
+	assert.Equal(t, wantReplay, actualReplay1)
 }
 
 func TestGetUserReplays(t *testing.T) {
@@ -101,22 +102,22 @@ func TestRetrieveEloHistories(t *testing.T) {
 	timeUntil := time.Date(2020, 2, 2, 2, 0, 0, 0, time.UTC)
 
 	for _, test := range []struct {
-		params            EloHistoriesParams
-		expBucketDuration time.Duration
-		expEloBuckets     EloHistoryBuckets
+		params             EloHistoriesParams
+		wantBucketDuration time.Duration
+		wantEloBuckets     EloHistoryBuckets
 	}{
 		{
-			params:            EloHistoriesParams{UserID: 6, TimeUntil: timeUntil},
-			expBucketDuration: LongBucketDuration,
-			expEloBuckets: EloHistoryBuckets{
+			params:             EloHistoriesParams{UserID: 6, TimeUntil: timeUntil},
+			wantBucketDuration: LongBucketDuration,
+			wantEloBuckets: EloHistoryBuckets{
 				{Timestamp: "1899-12-31T18:00:00-06:00", Elo: 1030},
 				{Timestamp: "2019-12-29T18:00:00-06:00", Elo: 1090},
 			},
 		},
 		{
-			params:            EloHistoriesParams{UserID: 6, Months: 3, TimeUntil: timeUntil},
-			expBucketDuration: ShortBucketDuration,
-			expEloBuckets: EloHistoryBuckets{
+			params:             EloHistoriesParams{UserID: 6, Months: 3, TimeUntil: timeUntil},
+			wantBucketDuration: ShortBucketDuration,
+			wantEloBuckets: EloHistoryBuckets{
 				{Timestamp: "2019-12-31T18:00:00-06:00", Elo: 1075},
 				{Timestamp: "2020-01-02T18:00:00-06:00", Elo: 1120},
 			},
@@ -124,7 +125,7 @@ func TestRetrieveEloHistories(t *testing.T) {
 	} {
 		eloHistories, bd, err := RetrieveEloHistoryBuckets(ctx, &dbs, test.params)
 		assert.NoError(t, err)
-		assert.Equal(t, test.expEloBuckets, eloHistories)
-		assert.Equal(t, test.expBucketDuration, bd)
+		assert.Equal(t, test.wantEloBuckets, eloHistories)
+		assert.Equal(t, test.wantBucketDuration, bd)
 	}
 }

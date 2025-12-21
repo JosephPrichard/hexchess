@@ -100,17 +100,6 @@ ALTER TABLE public.replays ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
     CACHE 1
 );
 
-
---
--- Name: schema_migrations; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.schema_migrations (
-                                          version bigint NOT NULL,
-                                          dirty boolean NOT NULL
-);
-
-
 --
 -- Name: users; Type: TABLE; Schema: public; Owner: -
 --
@@ -118,7 +107,7 @@ CREATE TABLE public.schema_migrations (
 CREATE TABLE public.users (
                               id bigint NOT NULL,
                               username character varying NOT NULL,
-                              country character varying,
+                              country character varying NOT NULL,
                               elo double precision NOT NULL,
                               highest_elo double precision NOT NULL,
                               wins integer NOT NULL,
@@ -173,15 +162,6 @@ ALTER TABLE ONLY public.challenges
 ALTER TABLE ONLY public.replays
     ADD CONSTRAINT replays_pkey PRIMARY KEY (id);
 
-
---
--- Name: schema_migrations schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.schema_migrations
-    ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (version);
-
-
 --
 -- Name: users_metadata users_metadata_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
@@ -210,13 +190,6 @@ CREATE INDEX idx_black_id ON public.replays USING btree (black_id, id);
 --
 
 CREATE INDEX idx_both_ids ON public.replays USING btree (white_id, black_id, id);
-
-
---
--- Name: idx_both_ids_mode_played_on; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_both_ids_mode_played_on ON public.replays USING btree (white_id, black_id, mode, played_on);
 
 
 --

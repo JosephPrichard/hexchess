@@ -14,6 +14,7 @@
 	import { deserializeHexList } from '$lib/utils/chess.js';
 	import TurnWrapper from '$lib/components/chess/TurnWrapper.svelte';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
+	import Banner from '$lib/Banner.svelte';
 
 	export interface ReplayProps {
 		replay: ReplayModel;
@@ -110,7 +111,7 @@
 <svelte:head>
 	<title>Replay - Hexchess</title>
 </svelte:head>
-
+<Banner />
 <div class="center-horizontal-container">
 	<div class="center-vertical-container" style="align-items: stretch;">
 		<Board

@@ -45,8 +45,8 @@ func readBroadcasted(outputsChan chan []any, subChan chan []byte, count int) {
 func TestHandleGameplayWs(t *testing.T) {
 	// given
 	gameID := "game1"
-	expCount1 := 4
-	expCount2 := 1
+	wantCount1 := 4
+	wantCount2 := 1
 
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
@@ -64,7 +64,7 @@ func TestHandleGameplayWs(t *testing.T) {
 	state.GamesCaster.Subscribe(gameID, subChan)
 
 	brdCastChan := make(chan []any)
-	go readBroadcasted(brdCastChan, subChan, expCount2)
+	go readBroadcasted(brdCastChan, subChan, wantCount2)
 
 	// when
 	url := strings.Replace(fmt.Sprintf("%s/api/ws/game?gameId=%s&sessionId=%s", ts.URL, gameID, TestSessionID1), "http", "ws", 1)
@@ -78,8 +78,8 @@ func TestHandleGameplayWs(t *testing.T) {
 	writeMessage(t, conn, &pb.GameInput{Value: &pb.GameInput_Chat{Chat: &pb.ChatInput{Message: "Hello World"}}})
 
 	// then
-	msgOutputs := make([]pb.GameOutput, expCount1)
-	for i := range expCount1 {
+	msgOutputs := make([]pb.GameOutput, wantCount1)
+	for i := range wantCount1 {
 		_, b, err := conn.ReadMessage()
 		if err != nil {
 			t.Fatalf("read ws message: %v", err)

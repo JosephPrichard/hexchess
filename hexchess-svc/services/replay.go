@@ -25,6 +25,7 @@ type ReplayEntity struct {
 	BlackName    string       `json:"blackName"`
 	WhiteCountry string       `json:"whiteCountry"`
 	BlackCountry string       `json:"blackCountry"`
+	Mode         GameMode     `json:"mode"`
 	Result       ReplayResult `json:"result"`
 	Cause        ReplayCause  `json:"cause"`
 	WinEloDiff   float64      `json:"winEloDiff"`
@@ -56,21 +57,12 @@ const (
 	Stalemate ReplayCause = "STALEMATE"
 )
 
-type ReplayMode string
-
-// contains the same value as time control by coincidence, in the future we want to add the timer value to the modes
-const (
-	ModeUnlimited      ReplayMode = "UNLIMITED"
-	ModeRealTime       ReplayMode = "REAL_TIME"
-	ModeCorrespondence ReplayMode = "CORRESPONDENCE"
-)
-
 type ReplayInst struct {
 	WhiteID     int64
 	BlackID     int64
 	Result      ReplayResult
 	Cause       ReplayCause
-	Mode        ReplayMode
+	Mode        GameMode
 	WinEloDiff  float64
 	LoseEloDiff float64
 	// white and block elos at the time of insertion
@@ -94,7 +86,7 @@ func InsertReplay(ctx context.Context, query *db.Queries, inst ReplayInst) (int6
 		BlackID:     inst.BlackID,
 		Result:      string(inst.Result),
 		Cause:       string(inst.Cause),
-		Mode:        string(inst.Mode),
+		Mode:        db.ModeEnum(inst.Mode),
 		WinElo:      inst.WinEloDiff,
 		LoseElo:     inst.LoseEloDiff,
 		WhiteElo:    inst.ReplayWhiteElo,
@@ -129,14 +121,15 @@ func mapReplayFromRow(row db.GetReplayByIDRow) (ReplayEntity, error) {
 		BlackID:      row.BlackID,
 		WhiteName:    row.WhiteName,
 		BlackName:    row.BlackName,
-		WhiteCountry: row.WhiteCountry.String,
-		BlackCountry: row.BlackCountry.String,
+		WhiteCountry: row.WhiteCountry,
+		BlackCountry: row.BlackCountry,
 		Result:       ReplayResult(row.Result),
 		Cause:        ReplayCause(row.Cause),
+		Mode:         GameMode(row.Mode),
 		WinEloDiff:   row.WinEloDiff,
 		LoseEloDiff:  row.LoseEloDiff,
-		WhiteElo:     row.WhiteElo,
-		BlackElo:     row.BlackElo,
+		WhiteElo:     defaultElo(row.WhiteElo),
+		BlackElo:     defaultElo(row.BlackElo),
 		PlayedOn:     row.PlayedOn.Time,
 	}
 	replay.WhiteEloDiff, replay.BlackEloDiff = getColorEloDiffs(replay.Result, replay.WinEloDiff, replay.LoseEloDiff)

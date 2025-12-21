@@ -17,29 +17,39 @@ func TestInsertThenVerify(t *testing.T) {
 	ctx := context.WithValue(t.Context(), util.Trace, "testing-insert-then-verify")
 
 	user1 := "user1-test"
-	user2 := "user2-test"
 
 	// when
-	u1, err := InsertUser(ctx, pdb.Query, UserInst{Username: user1, Password: "password1"})
-	assert.NoError(t, err)
-	u2, err := InsertUser(ctx, pdb.Query, UserInst{Username: user2, Password: "password2"})
+	u1, err := InsertUser(ctx, pdb.Query, UserInst{Username: user1, Password: "password1", Country: "us", JoinedOn: TestTimeNow})
 	assert.NoError(t, err)
 
-	v1, err := VerifyUserTx(ctx, pdb, user1, "password1")
-	assert.NoError(t, err)
-	v2, err := VerifyUserTx(ctx, pdb, user2, "password2")
+	v1, err := verifyUser(ctx, pdb.Query, user1, "password1")
 	assert.NoError(t, err)
 
+	dbU1, err := GetUserByID(ctx, pdb.Query, LastUserID+1)
+	assert.NoError(t, err)
+
+	var attemptsErrs []error
 	for range LoginAttemptsDivisor {
-		_, err := VerifyUserTx(ctx, pdb, user2, "wrong-password")
-		assert.Equal(t, ErrUserNotFound, err)
+		_, err := verifyUser(ctx, pdb.Query, user1, "wrong-password")
+		attemptsErrs = append(attemptsErrs, err)
 	}
-	_, err = VerifyUserTx(ctx, pdb, user2, "wrong-password")
-	assert.Equal(t, ErrTooManyLoginAttempts, err)
+	_, errTooMany := verifyUser(ctx, pdb.Query, user1, "wrong-password")
 
 	// then
+	var wantAttemptErrs []error
+	for range LoginAttemptsDivisor {
+		wantAttemptErrs = append(wantAttemptErrs, ErrUserNotFound)
+	}
+	assert.Equal(t, wantAttemptErrs, attemptsErrs)
+	assert.Equal(t, ErrTooManyLoginAttempts, errTooMany)
+
 	assert.Equal(t, u1.ID, v1.ID)
-	assert.Equal(t, u2.ID, v2.ID)
+	assert.Equal(t, UserEntity{
+		ID:       LastUserID + 1,
+		Username: "user1-test",
+		Country:  "us",
+		JoinedOn: TestTimeNow.Local(),
+	}, dbU1)
 }
 
 func TestBatchInsertThenGet(t *testing.T) {
@@ -50,24 +60,24 @@ func TestBatchInsertThenGet(t *testing.T) {
 	ctx := context.WithValue(t.Context(), util.Trace, "testing-batch-insert-then-get")
 
 	// when
-	insts := []UserInst{
-		{Username: "user1-test", Password: "password1", Country: "us", Elo: 1005, Wins: 10, Losses: 10},
-		{Username: "user2-test", Password: "password2", Country: "eu", Elo: 1035, Wins: 12, Losses: 0},
+	insts := []BatchUserInst{
+		{Username: "user1-test", Password: "password1", Country: "us", Elo: 1005},
+		{Username: "user2-test", Password: "password2", Country: "eu", Elo: 1035},
 	}
-	users, err := BatchInsertUsers(ctx, pdb.Query, insts)
+	users, batchErr := BatchInsertUsers(ctx, pdb.Query, insts)
 
 	for i := range users {
 		users[i].ID = 0
 		users[i].JoinedOn = time.Time{}
 	}
-	expUsers := []UserEntity{
-		{Username: insts[0].Username, Country: "us", Elo: 1005, HighestElo: 1005, Wins: 10, Losses: 10, Total: 20, WinRate: 50.0},
-		{Username: insts[1].Username, Country: "eu", Elo: 1035, HighestElo: 1035, Wins: 12, Losses: 0, Total: 12, WinRate: 100.0},
+	wantUsers := []UserEntity{
+		{Username: insts[0].Username, Country: "us"},
+		{Username: insts[1].Username, Country: "eu"},
 	}
 
 	// then
-	assert.Equal(t, expUsers, users)
-	assert.NoError(t, err)
+	assert.Equal(t, wantUsers, users)
+	assert.NoError(t, batchErr)
 }
 
 func TestUpdateUser(t *testing.T) {
@@ -77,25 +87,25 @@ func TestUpdateUser(t *testing.T) {
 	ctx := context.WithValue(t.Context(), util.Trace, "testing-update-user")
 
 	for _, test := range []struct {
-		userID      int64
-		udpt        UpdtUserParams
-		expUsername string
-		expBio      string
-		expCountry  string
+		userID       int64
+		udpt         UpdtUserParams
+		wantUsername string
+		wantBio      string
+		wantCountry  string
 	}{
 		{
-			userID:      1,
-			udpt:        UpdtUserParams{Username: "user1-changed", Bio: "Testing123"},
-			expUsername: "user1-changed",
-			expBio:      "Testing123",
-			expCountry:  "us",
+			userID:       1,
+			udpt:         UpdtUserParams{Username: "user1-changed", Bio: "Testing123"},
+			wantUsername: "user1-changed",
+			wantBio:      "Testing123",
+			wantCountry:  "us",
 		},
 		{
-			userID:      2,
-			udpt:        UpdtUserParams{Username: "user2-changed", Country: "eu"},
-			expUsername: "user2-changed",
-			expBio:      "",
-			expCountry:  "eu",
+			userID:       2,
+			udpt:         UpdtUserParams{Username: "user2-changed", Country: "eu"},
+			wantUsername: "user2-changed",
+			wantBio:      "",
+			wantCountry:  "eu",
 		},
 	} {
 		_, err := UpdateUser(ctx, pdb.Query, test.userID, test.udpt)
@@ -104,9 +114,9 @@ func TestUpdateUser(t *testing.T) {
 		u, err := GetUserByID(ctx, pdb.Query, test.userID)
 		assert.NoError(t, err)
 
-		assert.Equal(t, test.expUsername, u.Username)
-		assert.Equal(t, test.expBio, u.Bio)
-		assert.Equal(t, test.expCountry, u.Country)
+		assert.Equal(t, test.wantUsername, u.Username)
+		assert.Equal(t, test.wantBio, u.Bio)
+		assert.Equal(t, test.wantCountry, u.Country)
 	}
 }
 
@@ -119,7 +129,7 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 
 	testAccountID := "test-account-id"
 
-	inst := GoogleUserInst{Username: "userame", Country: "1", Elo: 1030, Wins: 2, Losses: 1}
+	inst := GoogleUserInst{Username: "username", Country: "us", JoinedOn: TestTimeNow}
 
 	// when
 	u1, err := SelectOrInsertGoogleUser(ctx, pdb.Query, testAccountID, inst)
@@ -128,10 +138,20 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 	u2, err := SelectOrInsertGoogleUser(ctx, pdb.Query, testAccountID, inst)
 	assert.NoError(t, err)
 
+	dbU1, err := GetUserByID(ctx, pdb.Query, u1.ID)
+	assert.NoError(t, err)
+
 	// then
-	verifiedUser := VerifiedUser{ID: LastUserID + 1, Username: "userame", Country: "1", Elo: 1030}
+	verifiedUser := VerifiedUser{ID: LastUserID + 1, Username: "username", Country: "us"}
 	assert.Equal(t, verifiedUser, u1)
 	assert.Equal(t, verifiedUser, u2)
+
+	assert.Equal(t, UserEntity{
+		ID:       LastUserID + 1,
+		Username: "username",
+		Country:  "us",
+		JoinedOn: TestTimeNow.Local(),
+	}, dbU1)
 }
 
 func TestUpdatePasswordThenVerify(t *testing.T) {
@@ -162,10 +182,9 @@ func TestInsertThenSearchByName(t *testing.T) {
 	ctx := context.WithValue(t.Context(), util.Trace, "search-by-name")
 
 	// when
-	for _, inst := range []UserInst{{Username: "johnny", Password: "password6"}, {Username: "john", Password: "password7"}} {
-		_, err := InsertUser(ctx, pdb.Query, inst)
-		assert.NoError(t, err)
-	}
+	_, err := BatchInsertUsers(ctx, pdb.Query, []BatchUserInst{{Username: "john", Password: "password5"}, {Username: "johnny", Password: "password5"}})
+	assert.NoError(t, err)
+
 	list, err := SearchUsersByName(ctx, pdb.Query, "john", 1, 20)
 	assert.NoError(t, err)
 

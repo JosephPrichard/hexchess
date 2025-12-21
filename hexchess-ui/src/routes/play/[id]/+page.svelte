@@ -18,6 +18,7 @@
 	import { goto } from '$app/navigation';
 	import { formatTimer } from '$lib/utils/format';
 	import { onMount } from 'svelte';
+	import Banner from '$lib/Banner.svelte';
 
 	export interface PlayProps {
 		gameId: string
@@ -118,8 +119,7 @@
 				connectGame(gameId);
 			});
 		} else {
-			const message = makeMessage(err);
-			addNotification({ type: 'string', message, isSuccess: false });
+			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
 		}
 	}
 	function connectGame(gameId: string) {
@@ -154,6 +154,7 @@
 <svelte:head>
 	<title>Play - Hexchess</title>
 </svelte:head>
+<Banner />
 <div class="center-horizontal-container">
 	<div class="center-vertical-container" style="align-items: stretch;">
 		{#if game?.board}

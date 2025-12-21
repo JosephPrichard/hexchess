@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { makeMessage } from '$lib/utils/error';
+	import { formatJoinedOn } from '$lib/utils/format';
 	import { getNotificationsContext } from '$lib/utils/context';
-	import type { Action, ChallengeModel } from '$lib/api/models';
+	import type { Action, ChallengeModel, UserModel } from '$lib/api/models';
 	import services from '$lib/api/services';
-	import { formatRelativeTime } from '$lib/utils/format';
+	import { formatRelativeTime, getWinrateClass } from '$lib/utils/format';
+	import Banner from '$lib/Banner.svelte';
 
 	export interface ChallengeProps {
 		participants: string;
@@ -67,8 +69,7 @@
 			});
 			challengeList.splice(index, 1);
 		} else {
-			const message = makeMessage(err);
-			addNotification({ type: 'string', message, isSuccess: false });
+			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
 			challengeList[index].isLoading[action] = false;
 		}
 	}
@@ -77,26 +78,36 @@
 <svelte:head>
 	<title>Challenges - Hexchess</title>
 </svelte:head>
-
-<div class="center-horizontal-container challenge-bottom">
+<Banner />
+<div class="center-vertical-container challenge-bottom">
 	<div class="challenge-wrapper">
 		<div class="tabs-group">
 			<a class="tab" class:tab-selected={!isSender} href="?participants=received"> Received </a>
 			<a class="tab" class:tab-selected={isSender} href="?participants=sent"> Sent </a>
 		</div>
 		{#if challengeList.length > 0}
-			<div class="challenge-list">
+			<div class="challenge-panel">
 				{#each challengeList as { challenge, isLoading }, index (index)}
 					<div id="{challenge.challengeeId}+{challenge.challengerId}" class="challenge-box">
 						<div>
 							<div style="margin-bottom: 6px">
-								<a href="/players/{challenge.challengerId}" class="text-ul bold-link">{challenge.challengerName}</a>
+								<a
+									href="/players/{challenge.challengerId}"
+									class="text-ul bold-link"
+								>
+									{challenge.challengerName}
+								</a>
 								{#if !isSender}
 									<img class="flag" src="/flags/{challenge.challengerCountry}.png" alt="" />
 									<b>({Math.round(challenge.challengerElo)})</b>
 								{/if}
 								vs
-								<a href="/players/{challenge.challengeeId}" class="text-ul bold-link">{challenge.challengeeName}</a>
+								<a
+									href="/players/{challenge.challengeeId}"
+									class="text-ul bold-link"
+								>
+									{challenge.challengeeName}
+								</a>
 								{#if isSender}
 									<img class="flag" src="/flags/{challenge.challengeeCountry}.png" alt="" />
 									<b>({Math.round(challenge.challengeeElo)})</b>
@@ -173,11 +184,11 @@
 		width: 600px;
 	}
 
-    .challenge-list {
+    .challenge-panel {
         padding: 15px 30px;
         border-radius: 5px;
         background-color: rgb(42, 42, 42);
-        /*box-shadow: rgba(0, 0, 0, 0.24) 0 2px 4px;*/
+        box-shadow: rgba(0, 0, 0, 0.16) 0 1px 2px;
     }
 
     .challenge-box {

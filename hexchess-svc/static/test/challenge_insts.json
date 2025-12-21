@@ -1,11 +1,11 @@
 [
-  { "challengerId": 1, "challengeeId": 2, "timeControl": "UNLIMITED",     "startColor": "RANDOM" },
-  { "challengerId": 1, "challengeeId": 3, "timeControl": "UNLIMITED",     "startColor": "RANDOM" },
-  { "challengerId": 1, "challengeeId": 4, "timeControl": "CORRESPONDENCE","startColor": "BLACK"  },
-  { "challengerId": 1, "challengeeId": 5, "timeControl": "CORRESPONDENCE","startColor": "RANDOM" },
-  { "challengerId": 1, "challengeeId": 6, "timeControl": "REAL_TIME",     "startColor": "BLACK"  },
-  { "challengerId": 1, "challengeeId": 7, "timeControl": "REAL_TIME",     "startColor": "RANDOM" },
-  { "challengerId": 2, "challengeeId": 1, "timeControl": "CORRESPONDENCE","startColor": "WHITE"  },
-  { "challengerId": 3, "challengeeId": 1, "timeControl": "UNLIMITED",     "startColor": "RANDOM" },
-  { "challengerId": 4, "challengeeId": 1, "timeControl": "REAL_TIME",     "startColor": "WHITE"  }
+  { "challengerId": 1, "challengeeId": 2, "mode": "UNLIMITED",     "startColor": "RANDOM" },
+  { "challengerId": 1, "challengeeId": 3, "mode": "UNLIMITED",     "startColor": "RANDOM" },
+  { "challengerId": 1, "challengeeId": 4, "mode": "CORRESPONDENCE","startColor": "BLACK"  },
+  { "challengerId": 1, "challengeeId": 5, "mode": "CORRESPONDENCE","startColor": "RANDOM" },
+  { "challengerId": 1, "challengeeId": 6, "mode": "REAL_TIME",     "startColor": "BLACK"  },
+  { "challengerId": 1, "challengeeId": 7, "mode": "REAL_TIME",     "startColor": "RANDOM" },
+  { "challengerId": 2, "challengeeId": 1, "mode": "CORRESPONDENCE","startColor": "WHITE"  },
+  { "challengerId": 3, "challengeeId": 1, "mode": "UNLIMITED",     "startColor": "RANDOM" },
+  { "challengerId": 4, "challengeeId": 1, "mode": "REAL_TIME",     "startColor": "WHITE"  }
 ]

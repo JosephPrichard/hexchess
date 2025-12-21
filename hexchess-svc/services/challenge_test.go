@@ -27,41 +27,12 @@ func TestChallengeExpiration(t *testing.T) {
 	assert.NoError(t, err)
 
 	// then
-	expected := []ChallengeEntity{
-		{
-			ChallengerID:      5,
-			ChallengerName:    "user5",
-			ChallengerCountry: "us",
-			ChallengerElo:     1500,
-			ChallengeeID:      2,
-			ChallengeeName:    "user2",
-			ChallengeeCountry: "us",
-			ChallengeeElo:     1000,
-			TimeControl:       TcUnlimited,
-			StartColor:        ColorRandom,
-			MadeOn:            time.Unix(20500, 0),
-			ExpiresOn:         time.Unix(20500, 0).Add(ExpireChallengeThreshold),
-		},
-		{
-			ChallengerID:      5,
-			ChallengerName:    "user5",
-			ChallengerCountry: "us",
-			ChallengerElo:     1500,
-			ChallengeeID:      4,
-			ChallengeeName:    "user4",
-			ChallengeeCountry: "us",
-			ChallengeeElo:     2000,
-			TimeControl:       TcUnlimited,
-			StartColor:        ColorRandom,
-			MadeOn:            time.Unix(19500, 0),
-			ExpiresOn:         time.Unix(19500, 0).Add(ExpireChallengeThreshold),
-		},
-	}
+	expected := []ChallengeEntity{TestChallengeEntities[2], TestChallengeEntities[3]}
 	assert.Equal(t, expected, challenges)
 	assert.Equal(t, expected, challengesDel)
 }
 
-func TestChallengeInsertAndDelete(t *testing.T) {
+func TestChallengeEchoDelete(t *testing.T) {
 	// given
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
@@ -76,7 +47,7 @@ func TestChallengeInsertAndDelete(t *testing.T) {
 	err := InsertChallenge(ctx, pdb.Query, ChallengeInst{
 		ChallengerID: testUser.ID,
 		ChallengeeID: 3,
-		TimeControl:  TcUnlimited,
+		Mode:         ModeCorrespondence7,
 		StartColor:   ColorRandom,
 		MadeOn:       timeOn,
 	})
@@ -92,7 +63,7 @@ func TestChallengeInsertAndDelete(t *testing.T) {
 	assert.NoError(t, err)
 
 	// then
-	expChallengesBefore := []ChallengeEntity{{
+	wantChallengesBefore := []ChallengeEntity{{
 		ChallengerID:      2,
 		ChallengerName:    "user2",
 		ChallengerCountry: "us",
@@ -101,12 +72,12 @@ func TestChallengeInsertAndDelete(t *testing.T) {
 		ChallengeeName:    "user3",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     900,
-		TimeControl:       TcUnlimited,
+		Mode:              ModeCorrespondence7,
 		StartColor:        ColorRandom,
 		MadeOn:            timeOn.Local(),
 		ExpiresOn:         timeOn.Local().Add(ExpireChallengeThreshold),
 	}}
-	assert.Equal(t, expChallengesBefore, challengesBeforeDelete)
+	assert.Equal(t, wantChallengesBefore, challengesBeforeDelete)
 	assert.Empty(t, challengesAfterDelete)
-	assert.Equal(t, DeleteResult{ChallengerID: testUser.ID, ChallengeeID: 3, TimeControl: TcUnlimited, FirstColor: ColorRandom}, dr)
+	assert.Equal(t, DeleteResult{ChallengerID: testUser.ID, ChallengeeID: 3, Mode: ModeCorrespondence7, FirstColor: ColorRandom}, dr)
 }

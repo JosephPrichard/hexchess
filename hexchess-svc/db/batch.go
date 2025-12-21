@@ -18,20 +18,24 @@ var (
 )
 
 const batchInsertUser = `-- name: BatchInsertUser :batchone
-INSERT INTO users (username, country, elo, highest_elo, start_elo, wins, losses, password, salt, google_account_id, joined_on)
+INSERT INTO users (
+       username,
+       country,
+       password,
+       salt,
+       joined_on)
 VALUES (
         $1,
         $2,
         $3,
         $4,
-        $5,
-        $6,
-        $7,
-        $8,
-        $9,
-        $10,
-        COALESCE($11, CURRENT_TIMESTAMP))
-RETURNING id, username, country, elo, highest_elo, wins, losses, bio, joined_on
+        $5)
+RETURNING
+    id,
+    username,
+    country,
+    bio,
+    joined_on
 `
 
 type BatchInsertUserBatchResults struct {
@@ -41,29 +45,19 @@ type BatchInsertUserBatchResults struct {
 }
 
 type BatchInsertUserParams struct {
-	Username        string
-	Country         pgtype.Text
-	Elo             float64
-	HighestElo      float64
-	StartElo        float64
-	Wins            int32
-	Losses          int32
-	Password        string
-	Salt            string
-	GoogleAccountID pgtype.Text
-	JoinedOn        interface{}
+	Username string
+	Country  string
+	Password string
+	Salt     string
+	JoinedOn pgtype.Timestamptz
 }
 
 type BatchInsertUserRow struct {
-	ID         int64
-	Username   string
-	Country    pgtype.Text
-	Elo        float64
-	HighestElo float64
-	Wins       int32
-	Losses     int32
-	Bio        string
-	JoinedOn   pgtype.Timestamptz
+	ID       int64
+	Username string
+	Country  string
+	Bio      string
+	JoinedOn pgtype.Timestamptz
 }
 
 func (q *Queries) BatchInsertUser(ctx context.Context, arg []BatchInsertUserParams) *BatchInsertUserBatchResults {
@@ -72,14 +66,8 @@ func (q *Queries) BatchInsertUser(ctx context.Context, arg []BatchInsertUserPara
 		vals := []interface{}{
 			a.Username,
 			a.Country,
-			a.Elo,
-			a.HighestElo,
-			a.StartElo,
-			a.Wins,
-			a.Losses,
 			a.Password,
 			a.Salt,
-			a.GoogleAccountID,
 			a.JoinedOn,
 		}
 		batch.Queue(batchInsertUser, vals...)
@@ -103,10 +91,6 @@ func (b *BatchInsertUserBatchResults) QueryRow(f func(int, BatchInsertUserRow, e
 			&i.ID,
 			&i.Username,
 			&i.Country,
-			&i.Elo,
-			&i.HighestElo,
-			&i.Wins,
-			&i.Losses,
 			&i.Bio,
 			&i.JoinedOn,
 		)

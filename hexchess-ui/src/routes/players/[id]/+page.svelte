@@ -14,7 +14,8 @@
 	import { Chart } from 'chart.js';
 	import { generateColors } from '$lib/utils/colors';
 	import Dropdown from '$lib/components/util/Dropdown.svelte';
-	import { formatEloDiff, formatJoinedOn, formatPlayedOn, formatReplayResult, formatTimestamp, normalizeToDay } from '$lib/utils/format';
+	import { formatEloDiff, formatJoinedOn, formatPlayedOn, formatReplayResult, formatTimestamp, getWinrateClass, normalizeToDay } from '$lib/utils/format';
+	import Banner from '$lib/Banner.svelte';
 
 	const timeframes: { label: string, value: Timeframe }[] = [
 		{ label: "All Time", value: "all" },
@@ -69,8 +70,7 @@
 		if (data) {
 			onLoaded(data.buckets);
 		} else {
-			const message = makeMessage(err);
-			addNotification({ type: 'string', message, isSuccess: false });
+			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
 		}
 	}
 
@@ -117,6 +117,8 @@
 						}
 					},
 					y: {
+						suggestedMin: 0,
+						suggestedMax: 1000,
 						beginAtZero: false,
 						ticks: {
 							callback: (value) => String(value)
@@ -169,28 +171,17 @@
 				duration: 3000
 			});
 		} else {
-			const message = makeMessage(err);
-			addNotification({ type: 'string', message, isSuccess: false });
+			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
 		}
 		showCreateModal = true;
 	}
-
-	const winrateClass = $derived.by(() => {
-		if (user.winRate > 50) {
-			return 'green-color';
-		} else if (user.winRate < 50) {
-			return 'red-color';
-		} else {
-			return 'yellow-color';
-		}
-	});
 </script>
 
 <svelte:head>
 	<title>{user ? user.username : 'User'} - Hexchess</title>
 </svelte:head>
 <svelte:window onscroll={tryLoadReplays} />
-
+<Banner />
 <CreateGame title="Create a Challenge?" bind:show={showCreateModal} onSubmit={onSubmitCreateChallenge} />
 <div class="center-horizontal-container">
 	<div class="panel player-panel">
@@ -216,7 +207,7 @@
 		<div class="panel-container" style="margin-bottom: 35px;">
 			<div class="panel-elem">
 				<div class="panel-title">Win%</div>
-				<div class="panel-text {winrateClass}">{user.winRate}%</div>
+				<div class="panel-text {getWinrateClass(user.winRate)}">{user.winRate}%</div>
 			</div>
 			<div class="panel-elem">
 				<div class="panel-title">Wins</div>

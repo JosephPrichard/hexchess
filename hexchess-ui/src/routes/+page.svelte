@@ -11,6 +11,7 @@
 	import { chessRowHeight, maxChessRows } from './globals';
 	import { getInitialGameWasm } from '$lib/api/wasm';
 	import { boardToFenWasm } from '$lib/api/wasm.js';
+	import Banner from '$lib/Banner.svelte';
 
 	export interface IndexProps {
 		chessList: ChessModel[];
@@ -43,8 +44,7 @@
 		if (data) {
 			await goto(`play/${data.gameId}`);
 		} else {
-			const message = makeMessage(err);
-			addNotification({ type: 'string', message, isSuccess: false });
+			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
 		}
 	}
 
@@ -58,7 +58,7 @@
 <svelte:head>
 	<title>Hexchess</title>
 </svelte:head>
-
+<Banner />
 <CreateGame title="Create a Game?" bind:show={showCreateModal} onSubmit={onSubmitCreateGame} bind:fen={fen}/>
 <div class="center-horizontal-container">
 	<div class="center-vertical-container index-container">

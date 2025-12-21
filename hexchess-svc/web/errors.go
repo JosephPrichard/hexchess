@@ -25,6 +25,7 @@ var (
 	ErrHttpUpdateChallenge      = errors.New("ERROR_UPDATE_CHALLENGE")
 	ErrHttpUserNotFound         = errors.New("ERROR_NOT_FOUND_USER")
 	ErrHttpInvalidRequest       = errors.New("ERROR_INVALID_REQUEST")
+	ErrHttpInvalidMode          = errors.New("ERROR_INVALID_MODE")
 	ErrHttpSearchLimit          = errors.New("ERROR_SEARCH_LIMIT")
 	ErrInvalidFen               = errors.New("ERROR_INVALID_FEN")
 )

@@ -5,22 +5,72 @@
 package db
 
 import (
+	"database/sql/driver"
+	"fmt"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type ModeEnum string
+
+const (
+	ModeEnumTIMED10          ModeEnum = "TIMED_1+0"
+	ModeEnumTIMED32          ModeEnum = "TIMED_3+2"
+	ModeEnumTIMED1510        ModeEnum = "TIMED_15+10"
+	ModeEnumCORRESPONDENCE1  ModeEnum = "CORRESPONDENCE_1"
+	ModeEnumCORRESPONDENCE7  ModeEnum = "CORRESPONDENCE_7"
+	ModeEnumCORRESPONDENCE14 ModeEnum = "CORRESPONDENCE_14"
+	ModeEnumTIMED50          ModeEnum = "TIMED_5+0"
+)
+
+func (e *ModeEnum) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ModeEnum(s)
+	case string:
+		*e = ModeEnum(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ModeEnum: %T", src)
+	}
+	return nil
+}
+
+type NullModeEnum struct {
+	ModeEnum ModeEnum
+	Valid    bool // Valid is true if ModeEnum is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullModeEnum) Scan(value interface{}) error {
+	if value == nil {
+		ns.ModeEnum, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ModeEnum.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullModeEnum) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ModeEnum), nil
+}
 
 type Challenge struct {
 	ChallengerID int64
 	ChallengeeID int64
-	TimeControl  string
 	StartColor   string
 	MadeOn       pgtype.Timestamptz
+	Mode         ModeEnum
 }
 
 type Replay struct {
 	ID          int64
 	WhiteID     int64
 	BlackID     int64
-	Mode        string
+	Mode        ModeEnum
 	Result      string
 	Cause       string
 	PlayedOn    pgtype.Timestamptz
@@ -39,19 +89,23 @@ type SchemaMigration struct {
 type User struct {
 	ID               int64
 	Username         string
-	Country          pgtype.Text
-	Elo              float64
-	HighestElo       float64
-	Wins             int32
-	Losses           int32
+	Country          string
 	Bio              string
 	JoinedOn         pgtype.Timestamptz
-	StartElo         float64
 	Password         string
 	Salt             string
 	LoginAttempts    int32
 	LastLoginAttempt pgtype.Timestamptz
 	GoogleAccountID  pgtype.Text
+}
+
+type UserModeElo struct {
+	UserID     int64
+	Mode       ModeEnum
+	Elo        float64
+	HighestElo float64
+	Wins       int32
+	Losses     int32
 }
 
 type UsersMetadatum struct {

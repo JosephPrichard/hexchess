@@ -3,9 +3,11 @@ package web
 import (
 	"context"
 	"encoding/json"
+	svc "hexchess-svc/services"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 )
 
@@ -58,6 +60,20 @@ func parsePageQuery(ctx context.Context, query url.Values) (int, error) {
 		return 0, ErrHttpInvalidRequest
 	}
 	return page, nil
+}
+
+func parseModeQuery(ctx context.Context, query url.Values) (svc.GameMode, error) {
+	strMode := query.Get("mode")
+	if strMode == "" {
+		slog.ErrorContext(ctx, "mode query is a required field")
+		return "", ErrHttpInvalidMode
+	}
+	mode := svc.GameMode(strMode)
+	if !slices.Contains(svc.AllGameModes, mode) {
+		slog.ErrorContext(ctx, "mode is invalid", "mode", strMode, "validModes", svc.AllGameModes)
+		return "", ErrHttpInvalidMode
+	}
+	return mode, nil
 }
 
 func parseCountQuery(ctx context.Context, query url.Values) (int, error) {

@@ -103,3 +103,13 @@ export function normalizeToDay(input: Date | string | number): string {
 	d.setHours(0, 0, 0, 0);
 	return d.toISOString();
 }
+
+export function getWinrateClass(winRate: number) {
+	if (winRate > 50) {
+		return 'green-color';
+	} else if (winRate < 50) {
+		return 'red-color';
+	} else {
+		return 'yellow-color';
+	}
+}

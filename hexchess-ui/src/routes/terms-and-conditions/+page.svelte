@@ -1,4 +1,5 @@
 <script>
+import Banner from '$lib/Banner.svelte';
 </script>
 
 <svelte:head>
@@ -6,6 +7,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Terms and Conditions</title>
 </svelte:head>
+<Banner />
 <div class="container">
 	<h1>Terms and Conditions</h1>
 	<p>Welcome to Hexachess!</p>

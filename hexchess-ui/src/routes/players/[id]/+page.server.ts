@@ -7,7 +7,7 @@ import type { PlayerProps } from './+page.svelte';
 export const load: PageServerLoad = async ({ params, setHeaders, fetch }): Promise<PlayerProps> => {
 	const id = params.id;
 
-	const [data, err] = await services.getUserWithReplays(id, fetch);
+	const [data, err] = await services.getUser(id, true, fetch);
 
 	if (err || data === undefined) {
 		error(err?.status || 500, makeMessage(err));

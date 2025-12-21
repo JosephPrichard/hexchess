@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"hexchess-svc/db"
+	"hexchess-svc/outbound"
 	"hexchess-svc/services"
 	"hexchess-svc/static"
 	"hexchess-svc/util"
@@ -65,7 +66,17 @@ func main() {
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: redisPrimaryURL, PubsubAddr: redisPubSubURL}, db.DefaultRedisNames)
 	defer rdb.Close()
 
-	state := web.MakeServerState(db.Databases{Rdb: rdb, Pdb: postgres}, countryList, "")
+	state := web.MakeServerState(web.ServerSetup{
+		Databases: db.Databases{
+			Rdb: rdb,
+			Pdb: postgres,
+		},
+		CountryList: countryList,
+		Generators:  &web.RandGenerator{},
+		OutboundAPIs: outbound.APIs{
+			GoogleAPI: &outbound.RemoteGoogleAPI{},
+		},
+	})
 
 	<-svc.ListenGameMessages(state.GamesCaster, rdb)
 	<-svc.ListenUsersMessages(state.UsersCaster, rdb)

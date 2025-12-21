@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { getClientSession } from '$lib/utils/storage';
 	import type { SessionModel } from './api/models';
+	import { onMount } from 'svelte';
 
 	const id = $props.id();
 

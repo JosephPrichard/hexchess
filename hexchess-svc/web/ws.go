@@ -21,6 +21,6 @@ func writeConn(ctx context.Context, conn *websocket.Conn, bytes []byte) {
 		return
 	}
 	if err := conn.WriteMessage(websocket.BinaryMessage, bytes); err != nil {
-		slog.ErrorContext(ctx, "failed to write ws message", "err", err)
+		slog.WarnContext(ctx, "failed to write ws message", "err", err)
 	}
 }

@@ -32,13 +32,16 @@ SELECT
     r.mode,
     u1.username AS white_name,
     u1.country AS white_country,
-    u1.elo AS white_elo,
+    e1.elo AS white_elo,
     u2.username AS black_name,
     u2.country AS black_country,
-    u2.elo AS black_elo
+    e2.elo AS black_elo
 FROM replays r
+         -- ensures we get the white/black elo for mode at the time of retrieval
          INNER JOIN users u1 ON u1.id = r.white_id
          INNER JOIN users u2 ON u2.id = r.black_id
+         LEFT JOIN user_mode_elos e1 ON e1.user_id = r.white_id AND e1.mode = r.mode
+         LEFT JOIN user_mode_elos e2 ON e2.user_id = r.black_id AND e2.mode = r.mode
 WHERE r.id = sqlc.arg('id');
 
 -- name: GetReplayMoveHistory :one
@@ -50,7 +53,8 @@ WHERE id = sqlc.arg('id');
 SELECT id, mode, played_on, white_id, black_id, white_elo, black_elo -- gets the white/black elo at the time of insertion
 FROM replays
 WHERE 
-    (white_id = sqlc.arg('id') OR black_id = sqlc.arg('id')) AND 
+    (white_id = sqlc.arg('id') OR black_id = sqlc.arg('id'))
+  AND
     (played_on > sqlc.narg('played_after') OR sqlc.narg('played_after') IS NULL)
 ORDER BY played_on ASC;
 
@@ -67,15 +71,21 @@ SELECT
     r.mode,
     u1.username AS white_name,
     u1.country AS white_country,
-    u1.elo AS white_elo,
+    e1.elo AS white_elo,
     u2.username AS black_name,
     u2.country AS black_country,
-    u2.elo AS black_elo
+    e2.elo AS black_elo
 FROM replays r
-        -- ensures we get the white/black elo at the time of retrieval
+        -- ensures we get the white/black elo for mode at the time of retrieval
         INNER JOIN users u1 ON u1.id = r.white_id
         INNER JOIN users u2 ON u2.id = r.black_id
-WHERE r.id < sqlc.arg('afterID')
-  AND (r.white_id = sqlc.arg('userID') OR r.black_id = sqlc.arg('userID'))
+        LEFT JOIN user_mode_elos e1 ON e1.user_id = r.white_id AND e1.mode = r.mode
+        LEFT JOIN user_mode_elos e2 ON e2.user_id = r.black_id AND e2.mode = r.mode
+WHERE
+    r.id < sqlc.arg('afterID')
+  AND (
+      r.white_id = sqlc.arg('userID')
+      OR r.black_id = sqlc.arg('userID')
+  )
 ORDER BY r.id DESC
-    LIMIT sqlc.arg('perPage');
+LIMIT sqlc.arg('perPage');

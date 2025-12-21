@@ -14,7 +14,7 @@ import (
 const deleteChallenge = `-- name: DeleteChallenge :one
 DELETE FROM challenges
 WHERE challenger_id = $1 AND challengee_id = $2
-    RETURNING challenger_id, challengee_id, time_control, start_color
+    RETURNING challenger_id, challengee_id, mode, start_color
 `
 
 type DeleteChallengeParams struct {
@@ -25,7 +25,7 @@ type DeleteChallengeParams struct {
 type DeleteChallengeRow struct {
 	ChallengerID int64
 	ChallengeeID int64
-	TimeControl  string
+	Mode         ModeEnum
 	StartColor   string
 }
 
@@ -35,7 +35,7 @@ func (q *Queries) DeleteChallenge(ctx context.Context, arg DeleteChallengeParams
 	err := row.Scan(
 		&i.ChallengerID,
 		&i.ChallengeeID,
-		&i.TimeControl,
+		&i.Mode,
 		&i.StartColor,
 	)
 	return i, err
@@ -43,8 +43,10 @@ func (q *Queries) DeleteChallenge(ctx context.Context, arg DeleteChallengeParams
 
 const deleteExpiredChallenges = `-- name: DeleteExpiredChallenges :exec
 DELETE FROM challenges
-WHERE (challengee_id = $1 OR challenger_id = $1)
-  AND made_on < $2
+WHERE
+    (challengee_id = $1
+        OR challenger_id = $1)
+    AND made_on < $2
 `
 
 type DeleteExpiredChallengesParams struct {
@@ -59,31 +61,33 @@ func (q *Queries) DeleteExpiredChallenges(ctx context.Context, arg DeleteExpired
 
 const insertChallenge = `-- name: InsertChallenge :one
 WITH inserted_challenges AS (
-    INSERT INTO challenges (challenger_id, challengee_id, time_control, start_color, made_on)
+    INSERT INTO challenges (challenger_id, challengee_id, mode, start_color, made_on)
     VALUES ($1, $2, $3, $4, $5)
-    RETURNING challenger_id, challengee_id, time_control, start_color, made_on
+    RETURNING challenger_id, challengee_id, start_color, made_on, mode
 )
 SELECT
     c.challenger_id,
     c.challengee_id,
     u2.username AS challenger_name,
     u2.country AS challenger_country,
-    u2.elo AS challenger_elo,
+    e2.elo AS challenger_elo,
     u1.username AS challengee_name,
     u1.country AS challengee_country,
-    u1.elo AS challengee_elo,
-    c.time_control,
+    e1.elo AS challengee_elo,
+    c.mode,
     c.start_color,
     c.made_on
 FROM inserted_challenges c
          INNER JOIN users u1 ON u1.id = c.challengee_id
          INNER JOIN users u2 ON u2.id = c.challenger_id
+         LEFT JOIN user_mode_elos e1 ON e1.user_id = c.challengee_id AND e1.mode = c.mode
+         LEFT JOIN user_mode_elos e2 ON e2.user_id = c.challenger_id AND e2.mode = c.mode
 `
 
 type InsertChallengeParams struct {
 	ChallengerID int64
 	ChallengeeID int64
-	TimeControl  string
+	Mode         ModeEnum
 	StartColor   string
 	MadeOn       pgtype.Timestamptz
 }
@@ -92,12 +96,12 @@ type InsertChallengeRow struct {
 	ChallengerID      int64
 	ChallengeeID      int64
 	ChallengerName    string
-	ChallengerCountry pgtype.Text
-	ChallengerElo     float64
+	ChallengerCountry string
+	ChallengerElo     pgtype.Float8
 	ChallengeeName    string
-	ChallengeeCountry pgtype.Text
-	ChallengeeElo     float64
-	TimeControl       string
+	ChallengeeCountry string
+	ChallengeeElo     pgtype.Float8
+	Mode              ModeEnum
 	StartColor        string
 	MadeOn            pgtype.Timestamptz
 }
@@ -106,7 +110,7 @@ func (q *Queries) InsertChallenge(ctx context.Context, arg InsertChallengeParams
 	row := q.db.QueryRow(ctx, insertChallenge,
 		arg.ChallengerID,
 		arg.ChallengeeID,
-		arg.TimeControl,
+		arg.Mode,
 		arg.StartColor,
 		arg.MadeOn,
 	)
@@ -120,7 +124,7 @@ func (q *Queries) InsertChallenge(ctx context.Context, arg InsertChallengeParams
 		&i.ChallengeeName,
 		&i.ChallengeeCountry,
 		&i.ChallengeeElo,
-		&i.TimeControl,
+		&i.Mode,
 		&i.StartColor,
 		&i.MadeOn,
 	)
@@ -133,19 +137,26 @@ SELECT
     c.challengee_id,
     u2.username AS challenger_name,
     u2.country AS challenger_country,
-    u2.elo AS challenger_elo,
+    e2.elo AS challenger_elo,
     u1.username AS challengee_name,
     u1.country AS challengee_country,
-    u1.elo AS challengee_elo,
-    c.time_control,
+    e1.elo AS challengee_elo,
+    c.mode,
     c.start_color,
     c.made_on
 FROM challenges c
          INNER JOIN users u1 ON u1.id = c.challengee_id
          INNER JOIN users u2 ON u2.id = c.challenger_id
-WHERE ($1::BIGINT IS NULL OR challenger_id = $1::BIGINT)
-  AND ($2::BIGINT IS NULL OR challengee_id = $2::BIGINT)
-  AND made_on >= $3
+         LEFT JOIN user_mode_elos e1 ON e1.user_id = c.challengee_id AND e1.mode = c.mode
+         LEFT JOIN user_mode_elos e2 ON e2.user_id = c.challenger_id AND e2.mode = c.mode
+WHERE (
+    $1::BIGINT IS NULL
+        OR challenger_id = $1::BIGINT)
+  AND (
+    $2::BIGINT IS NULL
+        OR challengee_id = $2::BIGINT)
+  AND
+    made_on >= $3
 ORDER BY made_on DESC
 `
 
@@ -159,12 +170,12 @@ type SelectChallengesByParticipantRow struct {
 	ChallengerID      int64
 	ChallengeeID      int64
 	ChallengerName    string
-	ChallengerCountry pgtype.Text
-	ChallengerElo     float64
+	ChallengerCountry string
+	ChallengerElo     pgtype.Float8
 	ChallengeeName    string
-	ChallengeeCountry pgtype.Text
-	ChallengeeElo     float64
-	TimeControl       string
+	ChallengeeCountry string
+	ChallengeeElo     pgtype.Float8
+	Mode              ModeEnum
 	StartColor        string
 	MadeOn            pgtype.Timestamptz
 }
@@ -187,7 +198,7 @@ func (q *Queries) SelectChallengesByParticipant(ctx context.Context, arg SelectC
 			&i.ChallengeeName,
 			&i.ChallengeeCountry,
 			&i.ChallengeeElo,
-			&i.TimeControl,
+			&i.Mode,
 			&i.StartColor,
 			&i.MadeOn,
 		); err != nil {

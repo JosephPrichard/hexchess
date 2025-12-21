@@ -24,13 +24,16 @@ SELECT
     r.mode,
     u1.username AS white_name,
     u1.country AS white_country,
-    u1.elo AS white_elo,
+    e1.elo AS white_elo,
     u2.username AS black_name,
     u2.country AS black_country,
-    u2.elo AS black_elo
+    e2.elo AS black_elo
 FROM replays r
+         -- ensures we get the white/black elo for mode at the time of retrieval
          INNER JOIN users u1 ON u1.id = r.white_id
          INNER JOIN users u2 ON u2.id = r.black_id
+         LEFT JOIN user_mode_elos e1 ON e1.user_id = r.white_id AND e1.mode = r.mode
+         LEFT JOIN user_mode_elos e2 ON e2.user_id = r.black_id AND e2.mode = r.mode
 WHERE r.id = $1
 `
 
@@ -43,13 +46,13 @@ type GetReplayByIDRow struct {
 	PlayedOn     pgtype.Timestamptz
 	WinEloDiff   float64
 	LoseEloDiff  float64
-	Mode         string
+	Mode         ModeEnum
 	WhiteName    string
-	WhiteCountry pgtype.Text
-	WhiteElo     float64
+	WhiteCountry string
+	WhiteElo     pgtype.Float8
 	BlackName    string
-	BlackCountry pgtype.Text
-	BlackElo     float64
+	BlackCountry string
+	BlackElo     pgtype.Float8
 }
 
 func (q *Queries) GetReplayByID(ctx context.Context, id int64) (GetReplayByIDRow, error) {
@@ -79,7 +82,8 @@ const getReplayElos = `-- name: GetReplayElos :many
 SELECT id, mode, played_on, white_id, black_id, white_elo, black_elo -- gets the white/black elo at the time of insertion
 FROM replays
 WHERE 
-    (white_id = $1 OR black_id = $1) AND 
+    (white_id = $1 OR black_id = $1)
+  AND
     (played_on > $2 OR $2 IS NULL)
 ORDER BY played_on ASC
 `
@@ -91,7 +95,7 @@ type GetReplayElosParams struct {
 
 type GetReplayElosRow struct {
 	ID       int64
-	Mode     string
+	Mode     ModeEnum
 	PlayedOn pgtype.Timestamptz
 	WhiteID  int64
 	BlackID  int64
@@ -179,18 +183,24 @@ SELECT
     r.mode,
     u1.username AS white_name,
     u1.country AS white_country,
-    u1.elo AS white_elo,
+    e1.elo AS white_elo,
     u2.username AS black_name,
     u2.country AS black_country,
-    u2.elo AS black_elo
+    e2.elo AS black_elo
 FROM replays r
-        -- ensures we get the white/black elo at the time of retrieval
+        -- ensures we get the white/black elo for mode at the time of retrieval
         INNER JOIN users u1 ON u1.id = r.white_id
         INNER JOIN users u2 ON u2.id = r.black_id
-WHERE r.id < $1
-  AND (r.white_id = $2 OR r.black_id = $2)
+        LEFT JOIN user_mode_elos e1 ON e1.user_id = r.white_id AND e1.mode = r.mode
+        LEFT JOIN user_mode_elos e2 ON e2.user_id = r.black_id AND e2.mode = r.mode
+WHERE
+    r.id < $1
+  AND (
+      r.white_id = $2
+      OR r.black_id = $2
+  )
 ORDER BY r.id DESC
-    LIMIT $3
+LIMIT $3
 `
 
 type GetUserReplaysParams struct {
@@ -208,13 +218,13 @@ type GetUserReplaysRow struct {
 	PlayedOn     pgtype.Timestamptz
 	WinEloDiff   float64
 	LoseEloDiff  float64
-	Mode         string
+	Mode         ModeEnum
 	WhiteName    string
-	WhiteCountry pgtype.Text
-	WhiteElo     float64
+	WhiteCountry string
+	WhiteElo     pgtype.Float8
 	BlackName    string
-	BlackCountry pgtype.Text
-	BlackElo     float64
+	BlackCountry string
+	BlackElo     pgtype.Float8
 }
 
 func (q *Queries) GetUserReplays(ctx context.Context, arg GetUserReplaysParams) ([]GetUserReplaysRow, error) {
@@ -280,7 +290,7 @@ type InsertReplayParams struct {
 	WhiteElo    float64
 	BlackElo    float64
 	PlayedOn    pgtype.Timestamptz
-	Mode        string
+	Mode        ModeEnum
 	MoveHistory []byte
 }
 

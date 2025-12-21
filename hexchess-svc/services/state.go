@@ -32,8 +32,8 @@ func MakeNamePlayer(id int64, name string) PlayerState {
 	return PlayerState{ID: id, Name: name, Present: true}
 }
 
-func MakePlayer(id int64, name string, country string, elo float64) PlayerState {
-	return PlayerState{ID: id, Name: name, Country: country, Elo: elo, Present: true}
+func MakePlayer(id int64, name string, country string) PlayerState {
+	return PlayerState{ID: id, Name: name, Country: country, Present: true}
 }
 
 type UndoState struct {
@@ -69,7 +69,7 @@ type ChessMeta struct {
 	BlackPlayer PlayerState `json:"blackPlayer"`
 	IsEnded     bool        `json:"isEnded"`
 	FirstColor  ColorSelect `json:"firstColor"`
-	TimeControl TimeControl `json:"timeControl"`
+	Mode        GameMode    `json:"mode"`
 	Touch       time.Time   `json:"touch"`
 }
 
@@ -77,7 +77,7 @@ var ChessMetaCmpOpts = cmpopts.IgnoreFields(ChessMeta{}, "Touch")
 
 type StateSetup struct {
 	ID           string
-	TimeControl  TimeControl
+	Mode         GameMode
 	FirstColor   ColorSelect
 	White        *PlayerState
 	Black        *PlayerState
@@ -107,7 +107,7 @@ func MakeState(s StateSetup) ChessState {
 		ChessMeta: ChessMeta{
 			ID:          s.ID,
 			FirstColor:  s.FirstColor,
-			TimeControl: s.TimeControl,
+			Mode:        s.Mode,
 			Touch:       time.UnixMilli(0),
 			WhitePlayer: whitePlayer,
 			BlackPlayer: blackPlayer,
@@ -129,11 +129,11 @@ func (s *ChessState) DeepCopy() ChessState {
 		UndoState:    s.UndoState,
 		InitialBoard: s.InitialBoard,
 		ChessMeta: ChessMeta{
-			ID:          s.ID,
-			IsEnded:     s.IsEnded,
-			FirstColor:  s.FirstColor,
-			TimeControl: s.TimeControl,
-			Touch:       s.Touch,
+			ID:         s.ID,
+			IsEnded:    s.IsEnded,
+			FirstColor: s.FirstColor,
+			Mode:       s.Mode,
+			Touch:      s.Touch,
 		},
 	}
 	s2.WhitePlayer = s.WhitePlayer

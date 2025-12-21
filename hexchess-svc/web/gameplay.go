@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
@@ -12,10 +11,11 @@ import (
 	"net/http"
 )
 
-type GameSocketState struct {
-	ServerState
-	gameID string
-	player svc.PlayerState
+type GameSocketContext struct {
+	*ServerState
+	Context context.Context
+	GameID  string
+	Player  svc.PlayerState
 }
 
 func makeGameErr(ctx context.Context, gameID string, err error) []byte {
@@ -56,7 +56,7 @@ func makeGameInitErr(ctx context.Context, gameID string, err error) []byte {
 	return makeGameErr(ctx, gameID, wsErr)
 }
 
-func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState ServerState) {
+func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState *ServerState) {
 	ctx := r.Context()
 
 	query := r.URL.Query()
@@ -87,14 +87,15 @@ func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState ServerStat
 		return
 	}
 
-	state := GameSocketState{
+	gameCtx := GameSocketContext{
+		Context:     ctx,
 		ServerState: serverState,
-		gameID:      gameID,
-		player:      player,
+		GameID:      gameID,
+		Player:      player,
 	}
 
 	writeChan := make(chan []byte)
-	state.GamesCaster.Subscribe(state.gameID, writeChan)
+	serverState.GamesCaster.Subscribe(gameID, writeChan)
 
 	go func() {
 		for b := range writeChan {
@@ -102,17 +103,14 @@ func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState ServerStat
 		}
 	}()
 
-	defer state.GamesCaster.Unsubscribe(state.gameID, writeChan)
+	defer serverState.GamesCaster.Unsubscribe(gameID, writeChan)
 	for {
 		_, msg, err := conn.ReadMessage()
-		if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
-			break
-		}
 		if err != nil {
-			slog.ErrorContext(ctx, "failed to read ws message", "err", err)
+			slog.WarnContext(ctx, "failed to read ws message", "err", err)
 			break
 		}
-		handleGameMessage(ctx, state, msg, writeChan)
+		go handleGameMessage(gameCtx, msg, writeChan)
 	}
 }
 
@@ -138,50 +136,50 @@ func handleGameInit(gameID string, player svc.PlayerState, state *svc.ChessState
 	return nil
 }
 
-func handleGameMessage(ctx context.Context, state GameSocketState, msg []byte, writeChan chan []byte) {
+func handleGameMessage(ctx GameSocketContext, msg []byte, writeChan chan []byte) {
 	var pbInput pb.GameInput
 	if err := proto.Unmarshal(msg, &pbInput); err != nil {
-		writeChan <- makeGameErr(ctx, state.gameID, err)
+		writeChan <- makeGameErr(ctx.Context, ctx.GameID, err)
 		return
 	}
 
 	var err error
 	if f := pbInput.GetForfeit(); f != nil {
-		err = handleGameForfeit(ctx, state)
+		err = handleGameForfeit(ctx)
 	} else if m := pbInput.GetMove(); m != nil {
-		err = handleGameMove(ctx, state, m)
+		err = handleGameMove(ctx, m)
 	} else if c := pbInput.GetChat(); c != nil {
-		err = handleGameChat(ctx, state, c)
+		err = handleGameChat(ctx, c)
 	} else if u := pbInput.GetUndo(); u != nil {
-		err = handleGameUndo(ctx, state, u)
+		err = handleGameUndo(ctx, u)
 	} else {
 		err = ErrWsMessageType
 	}
 
 	if err != nil {
-		writeChan <- makeGameErr(ctx, state.gameID, err)
+		writeChan <- makeGameErr(ctx.Context, ctx.GameID, err)
 	}
 }
 
-func handleGameForfeit(ctx context.Context, state GameSocketState) error {
-	if err := svc.ForfeitGame(ctx, &state.Databases, state.gameID, state.player); err != nil {
+func handleGameForfeit(ctx GameSocketContext) error {
+	if err := svc.ForfeitGame(ctx.Context, &ctx.Databases, ctx.GameID, ctx.Player); err != nil {
 		return err
 	}
-	bytes, err := proto.Marshal(MakePbGameOutputForfeit(state.gameID))
+	bytes, err := proto.Marshal(MakePbGameOutputForfeit(ctx.GameID))
 	if err != nil {
 		return err
 	}
-	return svc.BroadcastMessage(ctx, state.Rdb, state.Rdb.GamesChan, bytes)
+	return svc.BroadcastMessage(ctx.Context, ctx.Rdb, ctx.Rdb.GamesChan, bytes)
 }
 
-func handleGameMove(ctx context.Context, state GameSocketState, pbInput *pb.MoveInput) error {
-	result, err := svc.MakeGameMove(ctx, &state.Databases, state.gameID, state.player, chess.DeserializeMove(pbInput.Move))
+func handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) error {
+	result, err := svc.MakeGameMove(ctx.Context, &ctx.Databases, ctx.GameID, ctx.Player, chess.DeserializeMove(pbInput.Move))
 	if err != nil {
 		return err
 	}
 
 	bytes, err := proto.Marshal(MakePbGameOutputMove(
-		state.gameID,
+		ctx.GameID,
 		chess.SerializeHistMove(result.Move),
 		chess.SerializeGame(&result.State.Game),
 		result.State.Touch,
@@ -189,18 +187,18 @@ func handleGameMove(ctx context.Context, state GameSocketState, pbInput *pb.Move
 	if err != nil {
 		return err
 	}
-	return svc.BroadcastMessage(ctx, state.Rdb, state.Rdb.GamesChan, bytes)
+	return svc.BroadcastMessage(ctx.Context, ctx.Rdb, ctx.Rdb.GamesChan, bytes)
 }
 
-func handleGameChat(ctx context.Context, state GameSocketState, pbInput *pb.ChatInput) error {
-	bytes, err := proto.Marshal(MakePbGameOutputChat(state.gameID, pbInput.Message))
+func handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput) error {
+	bytes, err := proto.Marshal(MakePbGameOutputChat(ctx.GameID, pbInput.Message))
 	if err != nil {
 		return err
 	}
-	return svc.BroadcastMessage(ctx, state.Rdb, state.Rdb.GamesChan, bytes)
+	return svc.BroadcastMessage(ctx.Context, ctx.Rdb, ctx.Rdb.GamesChan, bytes)
 }
 
-func handleGameUndo(ctx context.Context, state GameSocketState, pbInput *pb.UndoInput) error {
+func handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput) error {
 	var undoKind svc.UndoKind
 	switch pbInput.Kind {
 	case "CREATE":
@@ -213,19 +211,19 @@ func handleGameUndo(ctx context.Context, state GameSocketState, pbInput *pb.Undo
 		return fmt.Errorf("invalid undo kind: %s", pbInput.Kind)
 	}
 
-	result, err := svc.AttemptGameUndo(ctx, state.Databases.Rdb, state.gameID, state.player, undoKind)
+	result, err := svc.AttemptGameUndo(ctx.Context, ctx.Databases.Rdb, ctx.GameID, ctx.Player, undoKind)
 	if err != nil {
 		return err
 	}
 
 	bytes, err := proto.Marshal(MakePbGameOutputUndo(
-		state.gameID,
+		ctx.GameID,
 		pbInput.Kind,
-		state.player.ID,
+		ctx.Player.ID,
 		result,
 	))
 	if err != nil {
 		return err
 	}
-	return svc.BroadcastMessage(ctx, state.Rdb, state.Rdb.GamesChan, bytes)
+	return svc.BroadcastMessage(ctx.Context, ctx.Rdb, ctx.Rdb.GamesChan, bytes)
 }

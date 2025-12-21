@@ -6,15 +6,15 @@ import (
 	"slices"
 )
 
-type TxFn func(ctx context.Context, query *Queries) error
+type TxFn[T any] func(ctx context.Context, query *Queries) (T, error)
 
-func (pdb *PostgreSQL) RunInTx(ctx context.Context, errAllowList []error, txFn TxFn) (err error) {
+func RunInTx[T any](ctx context.Context, pdb *PostgreSQL, errAllowList []error, txFn TxFn[T]) (ret T, err error) {
 	if pdb.testingTxn != nil {
 		return txFn(ctx, New(pdb.testingTxn))
 	}
 	tx, err := pdb.GetPool().Begin(ctx)
 	if err != nil {
-		return err
+		return ret, err
 	}
 
 	defer func() {
@@ -36,6 +36,6 @@ func (pdb *PostgreSQL) RunInTx(ctx context.Context, errAllowList []error, txFn T
 		}
 	}()
 
-	err = txFn(ctx, pdb.Query.WithTx(tx))
+	ret, err = txFn(ctx, pdb.Query.WithTx(tx))
 	return
 }

@@ -63,7 +63,7 @@ message ChessState {
   PlayerState black_player = 5;
   bool is_ended = 6;
   string first_color = 7;
-  string time_control = 8;
+  string mode = 8;
   int64 touch = 9;
   ChessBoard initial_board = 10;
   int64 undo_id = 11;
@@ -198,7 +198,7 @@ message ChallengeMsg {
   string challengee_name = 6;
   string challengee_country = 7;
   double challengee_elo = 8;
-  string time_control = 9;
+  string mode = 9;
   string start_color = 10;
   string made_on = 11;
 }

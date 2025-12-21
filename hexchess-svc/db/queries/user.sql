@@ -1,42 +1,52 @@
 -- name: InsertUser :one
-INSERT INTO users (username, country, elo, highest_elo, start_elo, wins, losses, password, salt, google_account_id, joined_on)
+INSERT INTO users (
+       username,
+       country,
+       password,
+       salt,
+       google_account_id,
+       joined_on)
 VALUES (
         sqlc.arg('username'),
         sqlc.arg('country'),
-        sqlc.arg('elo'),
-        sqlc.arg('highestElo'),
-        sqlc.arg('startElo'),
-        sqlc.arg('wins'),
-        sqlc.arg('losses'),
         sqlc.arg('password'),
         sqlc.arg('salt'),
         sqlc.arg('google_account_id'),
-        COALESCE(sqlc.narg('joined_on'), CURRENT_TIMESTAMP))
-RETURNING id, username, country, elo, highest_elo, wins, losses, bio, joined_on;
+        COALESCE(sqlc.narg('joined_on')::TIMESTAMPTZ, CURRENT_TIMESTAMP))
+RETURNING
+    id,
+    username,
+    country,
+    bio,
+    joined_on;
 
 -- name: BatchInsertUser :batchone
-INSERT INTO users (username, country, elo, highest_elo, start_elo, wins, losses, password, salt, google_account_id, joined_on)
+INSERT INTO users (
+       username,
+       country,
+       password,
+       salt,
+       joined_on)
 VALUES (
         sqlc.arg('username'),
         sqlc.arg('country'),
-        sqlc.arg('elo'),
-        sqlc.arg('highestElo'),
-        sqlc.arg('startElo'),
-        sqlc.arg('wins'),
-        sqlc.arg('losses'),
         sqlc.arg('password'),
         sqlc.arg('salt'),
-        sqlc.arg('google_account_id'),
-        COALESCE(sqlc.narg('joined_on'), CURRENT_TIMESTAMP))
-RETURNING id, username, country, elo, highest_elo, wins, losses, bio, joined_on;
+        sqlc.arg('joined_on'))
+RETURNING
+    id,
+    username,
+    country,
+    bio,
+    joined_on;
 
 -- name: SelectLoginByName :one
-SELECT id, username, country, elo, password, salt, login_attempts, last_login_attempt
+SELECT id, username, country, password, salt, login_attempts, last_login_attempt
 FROM users
 WHERE UPPER(username) = UPPER(sqlc.arg('username')::TEXT);
 
 -- name: SelectByGoogleAccountID :one
-SELECT id, username, country, elo
+SELECT id, username, country
 FROM users
 WHERE google_account_id = sqlc.arg('googleAccountID');
 
@@ -45,10 +55,6 @@ SELECT
     id,
     username,
     country,
-    elo,
-    highest_elo,
-    wins,
-    losses,
     bio,
     joined_on
 FROM users
@@ -59,38 +65,10 @@ SELECT
     id,
     username,
     country,
-    elo,
-    highest_elo,
-    wins,
-    losses,
     bio,
     joined_on
 FROM users
 WHERE id = ANY(sqlc.arg('ids')::bigint[]);
-
--- name: SelectAllUsers :many
-SELECT
-    id,
-    username,
-    country,
-    elo,
-    wins,
-    losses
-FROM users;
-
--- name: SelectEloListAfterID :many
-SELECT
-    id,
-    elo
-FROM users
-WHERE id > sqlc.arg('afterID')
-ORDER BY id
-    LIMIT sqlc.arg('limit');
-
--- name: SelectUserStartElo :one
-SELECT start_elo, joined_on
-FROM users
-WHERE id = sqlc.arg('id');
 
 -- name: UpdateUser :one
 UPDATE users
@@ -103,10 +81,6 @@ RETURNING
     id,
     username,
     country,
-    elo,
-    highest_elo,
-    wins,
-    losses,
     bio,
     joined_on;
 
@@ -115,18 +89,12 @@ SELECT
     id,
     username,
     country,
-    elo,
-    wins,
-    losses,
     (username <-> sqlc.arg('username'))::BIGINT AS rank
 FROM users
 WHERE username % sqlc.arg('username')::TEXT
 ORDER BY rank DESC
     LIMIT sqlc.arg('limit')
 OFFSET sqlc.arg('offset');
-
--- name: GetEloList :many
-SELECT id, elo FROM users WHERE id > sqlc.arg('id') ORDER BY id LIMIT sqlc.arg('limit');
 
 -- name: IncrLoginAttempts :exec
 UPDATE users
@@ -146,15 +114,29 @@ SET password = sqlc.arg('password'), salt = sqlc.arg('salt')
 WHERE id = sqlc.arg('id');
 
 -- name: GetElosByIds :many
-SELECT id, elo
-FROM users
-WHERE id = ANY(sqlc.arg('id')::bigint[]);
+SELECT user_id, elo
+FROM user_mode_elos
+WHERE user_id = ANY(sqlc.arg('id')::bigint[]) AND mode = sqlc.arg('mode');
 
--- name: UpdateElo :exec
-UPDATE users
+-- name: UpsertElo :exec
+INSERT INTO user_mode_elos AS u (user_id, mode, elo, highest_elo, wins, losses)
+VALUES (
+    sqlc.arg('userID'),
+    sqlc.arg('mode'),
+    sqlc.arg('elo'),
+    sqlc.arg('elo'),
+    sqlc.arg('wins'),
+    sqlc.arg('losses'))
+ON CONFLICT ON CONSTRAINT user_mode_elos_pkey
+DO UPDATE
 SET
     elo = sqlc.arg('elo'),
-    highest_elo = GREATEST(highest_elo, sqlc.arg('elo')),
-    wins = wins + CASE WHEN sqlc.arg('won')::boolean THEN 1 ELSE 0 END,
-    losses = losses + CASE WHEN NOT sqlc.arg('won')::boolean THEN 1 ELSE 0 END
-WHERE id = sqlc.arg('id');
+    highest_elo = GREATEST(u.highest_elo, sqlc.arg('elo')),
+    wins = u.wins + sqlc.arg('wins'),
+    losses = u.losses + sqlc.arg('losses');
+
+-- name: GetEloList :many
+SELECT user_id, elo FROM user_mode_elos
+WHERE user_id > sqlc.arg('id') AND mode = sqlc.arg('mode')
+ORDER BY user_id
+LIMIT sqlc.arg('limit');
