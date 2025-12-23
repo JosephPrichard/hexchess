@@ -2,7 +2,22 @@ export type Action = 'delete' | 'reject' | 'accept';
 
 export type ColorSelect = 'RANDOM' | 'WHITE' | 'BLACK';
 
-export type TimeControl = 'UNLIMITED' | 'REAL_TIME' | 'CORRESPONDENCE';
+export type GameMode =
+	| "TIMED_1+0"
+	| "TIMED_3+2"
+	| "TIMED_15+10"
+	| "CORRESPONDENCE_1"
+	| "CORRESPONDENCE_7"
+	| "CORRESPONDENCE_14";
+
+export const GameModeNameMap: Record<string, string> = {
+	"TIMED_1+0": "Bullet",
+	"TIMED_3+2": "Blitz",
+	"TIMED_15+10": "Rapid",
+	"CORRESPONDENCE_1": "Correspondence 1d",
+	"CORRESPONDENCE_7": "Correspondence 7d",
+	"CORRESPONDENCE_14": "Correspondence 14d",
+};
 
 export type Timeframe = "1m" | "3m" | "6m" | "1y" | "all";
 
@@ -18,16 +33,35 @@ export interface UserModel {
 	id: number;
 	username: string;
 	country: string;
+	rank: number;
+	bio: string;
+	joinedOn: string;
+}
+
+export type LbdUserModel = UserModel & {
 	elo: number;
 	highestElo: number;
 	wins: number;
 	losses: number;
-	rank: number;
-	bio: string;
-	joinedOn: string;
-	total: number;
-	winRate: number;
+	winrate: number;
 }
+
+export interface UserStatsEntity {
+	totalWins: number;
+	totalLosses: number;
+	avgElo: number;
+	highestElo: number;
+	totalWinrate: number;
+	modeStats: {
+		mode: GameMode;
+		rank: number;
+		wins: number;
+		losses: number;
+		winrate: number;
+		elo: number;
+		highestElo: number;
+	}[];
+};
 
 export interface ChallengeModel {
 	challengerId: number;
@@ -38,7 +72,7 @@ export interface ChallengeModel {
 	challengeeName: string;
 	challengeeCountry: string;
 	challengeeElo: number;
-	timeControl: string;
+	mode: string;
 	madeOn: string;
 	expiresOn: string;
 }
@@ -67,16 +101,11 @@ export interface EloHistory {
 
 export type EloBuckets = EloHistory[];
 
-export const ReplayModeMap: Record<string, string> = {
-	'ALL': "ALL Modes",
-	'CORRESPONDENCE': "Correspondence",
-	'REAL_TIME': "RealTime",
-	'UNLIMITED': 'Unlimited'
-}
 
 export interface FullUserModel {
 	user: UserModel;
 	replayList: ReplayModel[];
+	stats: UserStatsEntity;
 }
 
 export interface PlayerModel {
@@ -98,7 +127,7 @@ export interface ChessModel {
 	whitePlayer: PlayerModel;
 	blackPlayer: PlayerModel;
 	firstColor: string;
-	timeControl: string;
+	mode: string;
 	ended: boolean;
 }
 

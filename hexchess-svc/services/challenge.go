@@ -16,10 +16,13 @@ import (
 type ColorSelect string
 
 const (
-	ColorWhite  ColorSelect = "WHITE"
-	ColorBlack  ColorSelect = "BLACK"
-	ColorRandom ColorSelect = "RANDOM"
+	ColorUnknown ColorSelect = ""
+	ColorWhite   ColorSelect = "WHITE"
+	ColorBlack   ColorSelect = "BLACK"
+	ColorRandom  ColorSelect = "RANDOM"
 )
+
+var ColorSelects = []ColorSelect{ColorWhite, ColorBlack, ColorRandom}
 
 type ChallengeEntity struct {
 	ChallengerID      int64       `json:"challengerId"`

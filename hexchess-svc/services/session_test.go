@@ -3,6 +3,7 @@ package svc
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"testing"
@@ -22,15 +23,15 @@ func TestSessions(t *testing.T) {
 	ctx := context.WithValue(t.Context(), util.Trace, "testing-sessions")
 
 	// when
-	assert.NoError(t, SetSession(ctx, rdb, sessionID1, playerIn, 100*time.Second))
-	assert.NoError(t, SetSession(ctx, rdb, sessionID2, playerIn, 100*time.Second))
-	assert.NoError(t, SetSession(ctx, rdb, sessionID3, playerIn, 100*time.Second))
+	require.NoError(t, SetSession(ctx, rdb, sessionID1, playerIn, 100*time.Second))
+	require.NoError(t, SetSession(ctx, rdb, sessionID2, playerIn, 100*time.Second))
+	require.NoError(t, SetSession(ctx, rdb, sessionID3, playerIn, 100*time.Second))
 
 	playerOut, err := GetSession(ctx, rdb, sessionID1)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	assert.NoError(t, DeleteSession(ctx, rdb, sessionID2))
-	assert.NoError(t, UpdateSessionEx(ctx, rdb, sessionID3, 0))
+	require.NoError(t, DeleteSession(ctx, rdb, sessionID2))
+	require.NoError(t, UpdateSessionEx(ctx, rdb, sessionID3, 0))
 
 	_, badIDErr1 := GetSession(ctx, rdb, sessionID2)
 	_, badIDErr2 := GetSession(ctx, rdb, sessionID3)

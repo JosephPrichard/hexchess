@@ -98,8 +98,8 @@ func TestHandleGameplayWs(t *testing.T) {
 		{
 			GameId: gameID,
 			Value: &pb.GameOutput_Players{Players: &pb.PlayersOutput{
-				WhitePlayer: &pb.PlayerState{Id: 2, Name: "user2", Country: "us", Elo: 1000, IsGuest: false},
-				BlackPlayer: &pb.PlayerState{Id: 1, Name: "user1", Country: "us", Elo: 1000, IsGuest: false},
+				WhitePlayer: &pb.PlayerState{Id: 2, Name: "user2", Country: "us", IsGuest: false},
+				BlackPlayer: &pb.PlayerState{Id: 1, Name: "user1", Country: "us", IsGuest: false},
 			}},
 		},
 		{

@@ -3,9 +3,8 @@
 	import { makeMessage } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import { goto } from '$app/navigation';
-	import type { ChessModel, ColorSelect, SessionModel, TimeControl } from '$lib/api/models';
+	import { type ChessModel, type ColorSelect, type SessionModel, type GameMode, GameModeNameMap } from '$lib/api/models';
 	import services from '$lib/api/services';
-	import { formatTimeControl } from '$lib/utils/format';
 	import { onMount } from 'svelte';
 	import { getClientSession } from '$lib/utils/storage';
 	import { chessRowHeight, maxChessRows } from './globals';
@@ -39,8 +38,8 @@
 		gameCounts = value.gameCounts;
 	});
 
-	async function onSubmitCreateGame(timeControl: TimeControl, color: ColorSelect) {
-		const [data, err] = await services.postCreateGame(timeControl, color, fen);
+	async function onSubmitCreateGame(mode: GameMode, color: ColorSelect) {
+		const [data, err] = await services.postCreateGame(mode, color, fen);
 		if (data) {
 			await goto(`play/${data.gameId}`);
 		} else {
@@ -105,7 +104,7 @@
 							{/if}
 						</td>
 						<td>
-							{formatTimeControl(chess.timeControl)}
+							{GameModeNameMap[chess.mode] || "Unknown"}
 						</td>
 					</tr>
 				{/each}

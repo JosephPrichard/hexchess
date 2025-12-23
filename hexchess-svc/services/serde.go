@@ -6,7 +6,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
-	"strconv"
 	"time"
 )
 
@@ -145,5 +144,5 @@ func SerializeChallengeMsg(ce ChallengeEntity) *pb.UserMsg {
 			MadeOn:            ce.MadeOn.Format(time.RFC3339),
 		},
 	}
-	return &pb.UserMsg{UserId: strconv.Itoa(int(ce.ChallengeeID)), Value: cm}
+	return &pb.UserMsg{UserId: ce.ChallengeeID, Value: cm}
 }

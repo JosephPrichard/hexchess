@@ -49,31 +49,64 @@ func (q *Queries) GetEloList(ctx context.Context, arg GetEloListParams) ([]GetEl
 	return items, nil
 }
 
-const getElosByIds = `-- name: GetElosByIds :many
+const getUserElosById = `-- name: GetUserElosById :many
+SELECT user_id, mode, elo, highest_elo, wins, losses
+FROM user_mode_elos
+WHERE user_id = $1
+`
+
+func (q *Queries) GetUserElosById(ctx context.Context, id int64) ([]UserModeElo, error) {
+	rows, err := q.db.Query(ctx, getUserElosById, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserModeElo
+	for rows.Next() {
+		var i UserModeElo
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Mode,
+			&i.Elo,
+			&i.HighestElo,
+			&i.Wins,
+			&i.Losses,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserModeElosByIds = `-- name: GetUserModeElosByIds :many
 SELECT user_id, elo
 FROM user_mode_elos
 WHERE user_id = ANY($1::bigint[]) AND mode = $2
 `
 
-type GetElosByIdsParams struct {
+type GetUserModeElosByIdsParams struct {
 	ID   []int64
 	Mode ModeEnum
 }
 
-type GetElosByIdsRow struct {
+type GetUserModeElosByIdsRow struct {
 	UserID int64
 	Elo    float64
 }
 
-func (q *Queries) GetElosByIds(ctx context.Context, arg GetElosByIdsParams) ([]GetElosByIdsRow, error) {
-	rows, err := q.db.Query(ctx, getElosByIds, arg.ID, arg.Mode)
+func (q *Queries) GetUserModeElosByIds(ctx context.Context, arg GetUserModeElosByIdsParams) ([]GetUserModeElosByIdsRow, error) {
+	rows, err := q.db.Query(ctx, getUserModeElosByIds, arg.ID, arg.Mode)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetElosByIdsRow
+	var items []GetUserModeElosByIdsRow
 	for rows.Next() {
-		var i GetElosByIdsRow
+		var i GetUserModeElosByIdsRow
 		if err := rows.Scan(&i.UserID, &i.Elo); err != nil {
 			return nil, err
 		}
@@ -251,40 +284,59 @@ func (q *Queries) SelectUserByID(ctx context.Context, id int64) (SelectUserByIDR
 	return i, err
 }
 
-const selectUsersByIDs = `-- name: SelectUsersByIDs :many
+const selectUserWithEloByIDs = `-- name: SelectUserWithEloByIDs :many
 SELECT
-    id,
-    username,
-    country,
-    bio,
-    joined_on
-FROM users
-WHERE id = ANY($1::bigint[])
+    u.id,
+    u.username,
+    u.country,
+    u.bio,
+    u.joined_on,
+    e.elo,
+    e.highest_elo,
+    e.wins,
+    e.losses
+FROM users u
+INNER JOIN user_mode_elos e
+    ON u.id = e.user_id AND e.mode = $1
+WHERE id = ANY($2::bigint[])
 `
 
-type SelectUsersByIDsRow struct {
-	ID       int64
-	Username string
-	Country  string
-	Bio      string
-	JoinedOn pgtype.Timestamptz
+type SelectUserWithEloByIDsParams struct {
+	Mode ModeEnum
+	Ids  []int64
 }
 
-func (q *Queries) SelectUsersByIDs(ctx context.Context, ids []int64) ([]SelectUsersByIDsRow, error) {
-	rows, err := q.db.Query(ctx, selectUsersByIDs, ids)
+type SelectUserWithEloByIDsRow struct {
+	ID         int64
+	Username   string
+	Country    string
+	Bio        string
+	JoinedOn   pgtype.Timestamptz
+	Elo        float64
+	HighestElo float64
+	Wins       int32
+	Losses     int32
+}
+
+func (q *Queries) SelectUserWithEloByIDs(ctx context.Context, arg SelectUserWithEloByIDsParams) ([]SelectUserWithEloByIDsRow, error) {
+	rows, err := q.db.Query(ctx, selectUserWithEloByIDs, arg.Mode, arg.Ids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []SelectUsersByIDsRow
+	var items []SelectUserWithEloByIDsRow
 	for rows.Next() {
-		var i SelectUsersByIDsRow
+		var i SelectUserWithEloByIDsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Username,
 			&i.Country,
 			&i.Bio,
 			&i.JoinedOn,
+			&i.Elo,
+			&i.HighestElo,
+			&i.Wins,
+			&i.Losses,
 		); err != nil {
 			return nil, err
 		}

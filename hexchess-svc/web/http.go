@@ -11,6 +11,15 @@ import (
 	"strconv"
 )
 
+func parseJSON[T any](r *http.Request, body *T) error {
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		slog.Warn("failed to parse json body", "err", err)
+		return ErrHttpInvalidRequest
+	}
+	return nil
+}
+
 type ServiceView struct {
 	Status  int    `json:"status"`
 	Message string `json:"message"`
@@ -43,7 +52,7 @@ func parseIntQuery(ctx context.Context, query url.Values, key string) (int, erro
 	str := query.Get(key)
 	num, err := strconv.Atoi(str)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to parse integer query", "key", key, "str", str, "err", err)
+		slog.WarnContext(ctx, "failed to parse integer query", "key", key, "str", str, "err", err)
 		return 0, ErrHttpInvalidRequest
 	}
 	return num, nil
@@ -56,7 +65,7 @@ func parsePageQuery(ctx context.Context, query url.Values) (int, error) {
 	}
 	page, err := strconv.Atoi(strPage)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to parse page query", "page", strPage, "err", err)
+		slog.WarnContext(ctx, "failed to parse page query", "page", strPage, "err", err)
 		return 0, ErrHttpInvalidRequest
 	}
 	return page, nil
@@ -65,12 +74,12 @@ func parsePageQuery(ctx context.Context, query url.Values) (int, error) {
 func parseModeQuery(ctx context.Context, query url.Values) (svc.GameMode, error) {
 	strMode := query.Get("mode")
 	if strMode == "" {
-		slog.ErrorContext(ctx, "mode query is a required field")
+		slog.WarnContext(ctx, "mode query is a required field")
 		return "", ErrHttpInvalidMode
 	}
 	mode := svc.GameMode(strMode)
-	if !slices.Contains(svc.AllGameModes, mode) {
-		slog.ErrorContext(ctx, "mode is invalid", "mode", strMode, "validModes", svc.AllGameModes)
+	if !slices.Contains(svc.GameModes, mode) {
+		slog.WarnContext(ctx, "mode is invalid", "mode", strMode, "validModes", svc.GameModes)
 		return "", ErrHttpInvalidMode
 	}
 	return mode, nil
@@ -83,7 +92,7 @@ func parseCountQuery(ctx context.Context, query url.Values) (int, error) {
 	}
 	count, err := strconv.Atoi(strCount)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to parse count query", "count", strCount, "err", err)
+		slog.WarnContext(ctx, "failed to parse count query", "count", strCount, "err", err)
 		return 0, ErrHttpInvalidRequest
 	}
 	return count, nil

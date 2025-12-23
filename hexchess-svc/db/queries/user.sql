@@ -60,14 +60,20 @@ SELECT
 FROM users
 WHERE id = sqlc.arg('id');
 
--- name: SelectUsersByIDs :many
+-- name: SelectUserWithEloByIDs :many
 SELECT
-    id,
-    username,
-    country,
-    bio,
-    joined_on
-FROM users
+    u.id,
+    u.username,
+    u.country,
+    u.bio,
+    u.joined_on,
+    e.elo,
+    e.highest_elo,
+    e.wins,
+    e.losses
+FROM users u
+INNER JOIN user_mode_elos e
+    ON u.id = e.user_id AND e.mode = sqlc.arg('mode')
 WHERE id = ANY(sqlc.arg('ids')::bigint[]);
 
 -- name: UpdateUser :one
@@ -113,10 +119,15 @@ UPDATE users
 SET password = sqlc.arg('password'), salt = sqlc.arg('salt')
 WHERE id = sqlc.arg('id');
 
--- name: GetElosByIds :many
+-- name: GetUserModeElosByIds :many
 SELECT user_id, elo
 FROM user_mode_elos
 WHERE user_id = ANY(sqlc.arg('id')::bigint[]) AND mode = sqlc.arg('mode');
+
+-- name: GetUserElosById :many
+SELECT user_id, mode, elo, highest_elo, wins, losses
+FROM user_mode_elos
+WHERE user_id = sqlc.arg('id');
 
 -- name: UpsertElo :exec
 INSERT INTO user_mode_elos AS u (user_id, mode, elo, highest_elo, wins, losses)

@@ -3,6 +3,7 @@ package svc
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"testing"
@@ -30,10 +31,10 @@ func TestInsertThenGetReplay(t *testing.T) {
 		PlayedOn:           TestTimeNow,
 		SerializedMoveHist: []byte{},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	actualReplay1, err := GetReplay(ctx, pdb.Query, id)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// then
 	wantReplay := ReplayEntity{
@@ -67,9 +68,9 @@ func TestGetUserReplays(t *testing.T) {
 
 	// when
 	actualReplayList1, err := GetUserReplays(ctx, pdb.Query, 1, -1, 5)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	actualReplayList2, err := GetUserReplays(ctx, pdb.Query, 1, 3, 5)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// then
 	replay1 := TestReplayEntities[1]
@@ -90,7 +91,7 @@ func TestGetReplayMoveList(t *testing.T) {
 
 	// when and then
 	_, err := GetReplayMoveHistory(ctx, pdb.Query, 1)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestRetrieveEloHistories(t *testing.T) {
@@ -124,7 +125,7 @@ func TestRetrieveEloHistories(t *testing.T) {
 		},
 	} {
 		eloHistories, bd, err := RetrieveEloHistoryBuckets(ctx, &dbs, test.params)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, test.wantEloBuckets, eloHistories)
 		assert.Equal(t, test.wantBucketDuration, bd)
 	}

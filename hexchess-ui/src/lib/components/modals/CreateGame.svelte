@@ -1,17 +1,18 @@
 <script lang="ts">
-	import type { ColorSelect, TimeControl } from '$lib/api/models';
+	import { type ColorSelect, type GameMode, GameModeNameMap } from '$lib/api/models';
+	import Dropdown from '$lib/components/util/Dropdown.svelte';
 
 	interface Props {
 		title: string;
 		show: boolean;
-		onSubmit: (timeControl: TimeControl, color: ColorSelect) => void;
+		onSubmit: (mode: GameMode, color: ColorSelect) => void;
 		fen?: string;
 	}
 
 	let { title, show = $bindable(), onSubmit, fen = $bindable() }: Props = $props();
 
 	let color: ColorSelect = $state('RANDOM');
-	let timeControl: TimeControl = $state('UNLIMITED');
+	let mode: GameMode = $state('CORRESPONDENCE_1');
 
 	function onClickClose(e: MouseEvent) {
 		e.preventDefault();
@@ -20,13 +21,15 @@
 
 	function onSubmitForm(e: MouseEvent) {
 		e.preventDefault();
-		onSubmit(timeControl, color);
+		onSubmit(mode, color);
 	}
 
 	function onClickColor(e: MouseEvent, newColor: ColorSelect) {
 		e.preventDefault();
 		color = newColor;
 	}
+
+	const options = Object.entries(GameModeNameMap).map(([key, value]) => ({label: value, value: key as GameMode}));
 </script>
 
 <div class="modal-overlay" id="modal-overlay" style:display={show ? '' : 'none'}></div>
@@ -38,12 +41,14 @@
 			</div>
 			<button class="modal-x" onclick={onClickClose}> &#10006; </button>
 			<div class="modal-panel">
-				<label class="text-xsm" for="time-control"> Time control </label>
-				<select bind:value={timeControl} name="time-control" class="time-control-input">
-					<option value="UNLIMITED"> Unlimited</option>
-					<option value="REAL_TIME"> Real Time</option>
-					<option value="CORRESPONDENCE"> Correspondence</option>
-				</select>
+				<div class="text-xsm" style="margin-bottom: 5px"> Game Mode </div>
+				<div class="mode-input">
+					<Dropdown
+						options={options}
+						selected="TIMED_1+0"
+						onChange={value => mode = value}
+					/>
+				</div>
 			</div>
 			<div class="modal-panel">
 				<button class="piece-color invisible-button" style:display="inline-block" tabindex="-1" onclick={(e) => onClickColor(e, 'BLACK')} >
@@ -78,7 +83,7 @@
         width: 100%;
         height: 100%;
         background-color: rgba(0, 0, 0, 0.35);
-        z-index: 100;
+        z-index: 1000;
     }
 
     .modal {
@@ -120,7 +125,7 @@
 		cursor: pointer;
 	}
 
-	.time-control-input {
+	.mode-input {
 		height: 30px;
 		border-radius: 5px;
 	}

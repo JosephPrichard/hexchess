@@ -2,12 +2,12 @@
 	import CreateGame from '$lib/components/modals/CreateGame.svelte';
 	import { onMount } from 'svelte';
 	import ChallengeIcon from '$lib/components/icons/ChallengeIcon.svelte';
-	import { type EloBuckets, ReplayModeMap, type Timeframe } from '$lib/api/models.js';
+	import { type EloBuckets, GameModeNameMap, type Timeframe } from '$lib/api/models.js';
 	import { getClientSession } from '$lib/utils/storage';
 	import { goto } from '$app/navigation';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import { makeMessage } from '$lib/utils/error';
-	import type { ColorSelect, FullUserModel, TimeControl } from '$lib/api/models';
+	import type { ColorSelect, FullUserModel, GameMode } from '$lib/api/models';
 	import services from '$lib/api/services';
 	import 'chartjs-adapter-date-fns';
 	import '$lib/utils/chart';
@@ -30,7 +30,7 @@
 	}
 
 	const { data: props }: { data: PlayerProps } = $props();
-	const { user } = $derived(props.fullUser);
+	const { user, stats: userStats } = $derived(props.fullUser);
 
 	const { addNotification } = getNotificationsContext();
 
@@ -84,7 +84,7 @@
 			type: "line",
 			data: {
 				datasets: entries.map(([mode, eloHistories], i) => ({
-					label: ReplayModeMap[mode] || "Unknown Mode",
+					label: GameModeNameMap[mode] || "Unknown",
 					data: eloHistories.map((h) => ({ x: normalizeToDay(h.timestamp), y: h.elo})),
 					borderWidth: 2,
 					tension: 0.25,
@@ -160,7 +160,7 @@
 		tryLoadReplays();
 	});
 
-	async function onSubmitCreateChallenge(timeControl: TimeControl, color: ColorSelect) {
+	async function onSubmitCreateChallenge(timeControl: GameMode, color: ColorSelect) {
 		const [data, err] = await services.postCreateChallenge(timeControl, color, user.id);
 		showCreateModal = false;
 		if (data) {
@@ -184,46 +184,12 @@
 <Banner />
 <CreateGame title="Create a Challenge?" bind:show={showCreateModal} onSubmit={onSubmitCreateChallenge} />
 <div class="center-horizontal-container">
-	<div class="panel player-panel">
+	<div class="panel">
 		<div class="text-lg capped-size">{user.username}</div>
 		<img class="flag-lg" src={`/flags/${user.country}.png`} alt="" />
 		<br />
 
 		<div class="panel-container">
-			<div class="panel-elem">
-				<div class="panel-title">Rank</div>
-				<div class="panel-text">#{user.rank}</div>
-			</div>
-			<div class="panel-elem">
-				<div class="panel-title">Elo</div>
-				<div class="panel-text">{Math.round(user.elo)}</div>
-			</div>
-			<div class="panel-elem">
-				<div class="panel-title">Peak Elo</div>
-				<div class="panel-text">{Math.round(user.highestElo)}</div>
-			</div>
-		</div>
-
-		<div class="panel-container" style="margin-bottom: 35px;">
-			<div class="panel-elem">
-				<div class="panel-title">Win%</div>
-				<div class="panel-text {getWinrateClass(user.winRate)}">{user.winRate}%</div>
-			</div>
-			<div class="panel-elem">
-				<div class="panel-title">Wins</div>
-				<div class="panel-text green-color">{user.wins}</div>
-			</div>
-			<div class="panel-elem">
-				<div class="panel-title">Losses</div>
-				<div class="panel-text red-color">{user.losses}</div>
-			</div>
-			<div class="panel-elem">
-				<div class="panel-title">Total</div>
-				<div class="panel-text">{user.total}</div>
-			</div>
-		</div>
-
-		<div class="panel-container" style="margin-bottom: 0">
 			<div class="panel-elem">
 				<div class="panel-title">Joined On</div>
 				<div class="panel-text">{formatJoinedOn(user.joinedOn)}</div>
@@ -231,7 +197,7 @@
 		</div>
 
 		{#if user.bio}
-			<div class="panel-container" style="margin-top: 35px;">
+			<div class="panel-container bio">
 				<div class="panel-elem">
 					<div class="panel-title" style="margin-bottom: 5px">Biography</div>
 					<div class="panel-text" style="font-size: 16px">{user.bio}</div>
@@ -240,7 +206,7 @@
 		{/if}
 
 		{#if isDifferentUser}
-			<div style="margin-top: 25px">
+			<div style="margin-bottom: 25px;">
 				<button class="button button-grey" id="challenge-button" onclick={() => (showCreateModal = true)}>
 					<span class="svg-container">
 						<span style="margin-right: 8px">Challenge</span>
@@ -249,6 +215,90 @@
 				</button>
 			</div>
 		{/if}
+
+		<h3>
+			Total Stats
+		</h3>
+		<div class="panel-container">
+			<div class="panel-elem">
+				<div class="panel-title">Rank</div>
+				<div class="panel-text">#{user.rank}</div>
+			</div>
+			<div class="panel-elem">
+				<div class="panel-title">Elo</div>
+				<div class="panel-text">{Math.round(userStats.avgElo)}</div>
+			</div>
+			<div class="panel-elem">
+				<div class="panel-title">Peak Elo</div>
+				<div class="panel-text">{Math.round(userStats.highestElo)}</div>
+			</div>
+			<div class="panel-elem">
+				<div class="panel-title">Win%</div>
+				<div class="panel-text {getWinrateClass(userStats.totalWinrate)}">{userStats.totalWinrate}%</div>
+			</div>
+			<div class="panel-elem">
+				<div class="panel-title">Won</div>
+				<div class="panel-text green-color">{userStats.totalWins}</div>
+			</div>
+			<div class="panel-elem">
+				<div class="panel-title">Lost</div>
+				<div class="panel-text red-color">{userStats.totalLosses}</div>
+			</div>
+			<div class="panel-elem">
+				<div class="panel-title">Total</div>
+				<div class="panel-text">{userStats.totalWins+userStats.totalLosses}</div>
+			</div>
+		</div>
+
+		<div style="margin-bottom: 35px;">
+			<h3>
+				Mode Stats
+			</h3>
+			<table class="table-container">
+				<thead>
+				<tr>
+					<th style="width: 22%;">Mode</th>
+					<th style="width: 10%;">Rank</th>
+					<th style="width: 12%;">Elo</th>
+					<th style="width: 12%;">Peak Elo</th>
+					<th style="width: 10%;">Win%</th>
+					<th style="width: 8%;">Won</th>
+					<th style="width: 8%;">Lost</th>
+					<th style="width: 8%;">Total</th>
+				</tr>
+				</thead>
+				<tbody>
+				{#each userStats.modeStats as stats (stats.mode)}
+					{@const wrClass = function() {
+						if (stats.winrate > 50) {
+							return 'green-color';
+						} else if (stats.winrate < 50) {
+							return 'red-color';
+						} else {
+							return 'yellow-color';
+						}
+					}()}
+					<tr>
+						<td>{GameModeNameMap[stats.mode] || "Unknown"}</td>
+						<td>{stats.rank}</td>
+						<td>{Math.round(stats.elo)}</td>
+						<td>{Math.round(stats.highestElo)}</td>
+						<td class={wrClass}>
+							{stats.winrate}%
+						</td>
+						<td class="green-color">
+							{stats.wins}
+						</td>
+						<td class="red-color">
+							{stats.losses}
+						</td>
+						<td>{stats.wins+stats.losses}</td>
+					</tr>
+				{/each}
+				</tbody>
+			</table>
+		</div>
+
 		<div class="dropdown-wrapper">
 			<Dropdown
 				options={timeframes}
@@ -335,10 +385,6 @@
 		display: block;
 	}
 
-	.player-panel {
-        width: 600px;
-	}
-
     .panel-container {
 		min-width: 450px;
 		margin-bottom: 35px;
@@ -360,4 +406,8 @@
     .panel-text {
         font-size: 20px;
     }
+
+	.bio {
+		max-width: 750px;
+	}
 </style>

@@ -1,7 +1,6 @@
 package util
 
 import (
-	"log"
 	"time"
 )
 
@@ -10,7 +9,7 @@ func Every(duration time.Duration, work func() bool) chan bool {
 	stop := make(chan bool, 1)
 
 	go func() {
-		defer log.Println("ticker stopped")
+		//defer log.Println("ticker stopped")
 		for {
 			select {
 			case <-ticker.C:

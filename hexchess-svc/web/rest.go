@@ -66,7 +66,7 @@ func validatePassword(password, confirm string) error {
 
 func HandleRegister(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body RegisterBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := parseJSON(r, &body); err != nil {
 		return err
 	}
 	if len(body.Username) < 5 || len(body.Username) > 20 {
@@ -127,7 +127,7 @@ type LoginBody struct {
 
 func HandleLogin(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body LoginBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := parseJSON(r, &body); err != nil {
 		return err
 	}
 
@@ -153,7 +153,7 @@ type GoogleLoginBody struct {
 
 func HandleGoogleLogin(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body GoogleLoginBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := parseJSON(r, &body); err != nil {
 		return err
 	}
 	ctx := r.Context()
@@ -183,7 +183,7 @@ type UpdatePasswordBody struct {
 
 func HandleUpdatePassword(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body UpdatePasswordBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := parseJSON(r, &body); err != nil {
 		return err
 	}
 	if err := validatePassword(body.NewPassword, body.ConfirmNewPassword); err != nil {
@@ -219,7 +219,7 @@ type UpdateUserBody struct {
 
 func HandleUpdateUser(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body UpdateUserBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := parseJSON(r, &body); err != nil {
 		return err
 	}
 
@@ -325,9 +325,9 @@ func HandleLogout(state *ServerState, w http.ResponseWriter, r *http.Request) er
 }
 
 type CreateGameBody struct {
-	FirstColor  string `json:"firstColor"`
-	TimeControl string `json:"timeControl"`
-	InitialFEN  string `json:"initialFen"`
+	FirstColor svc.ColorSelect `json:"firstColor"`
+	Mode       svc.GameMode    `json:"mode"`
+	InitialFEN string          `json:"initialFen"`
 }
 
 type CreateGameResp struct {
@@ -336,7 +336,7 @@ type CreateGameResp struct {
 
 func HandleCreateGame(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body CreateGameBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := parseJSON(r, &body); err != nil {
 		return err
 	}
 	ctx := r.Context()
@@ -351,7 +351,7 @@ func HandleCreateGame(state *ServerState, w http.ResponseWriter, r *http.Request
 		initialBoard = &board
 	}
 
-	gameID, err := svc.CreateGame(ctx, state.Rdb, svc.ColorSelect(body.FirstColor), svc.GameMode(body.TimeControl), initialBoard)
+	gameID, err := svc.CreateGame(ctx, state.Rdb, body.FirstColor, body.Mode, initialBoard)
 	if err != nil {
 		return fmt.Errorf("create game: %w", err)
 	}
@@ -373,7 +373,7 @@ type UpdateChallengeResp struct {
 
 func HandleUpdateChallenge(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body UpdateChallengeBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := parseJSON(r, &body); err != nil {
 		return err
 	}
 
@@ -403,7 +403,7 @@ func HandleUpdateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 		return ErrHttpNotFoundChallenge
 	}
 	if err != nil {
-		return fmt.Errorf("delete challenge: %w", err)
+		return err
 	}
 	slog.InfoContext(ctx, "deleted challenge", "challengerID", body.ChallengerID, "challengeeID", body.ChallengeeID)
 
@@ -421,14 +421,14 @@ func HandleUpdateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 }
 
 type CreateChallengeBody struct {
-	ChallengeeID int64  `json:"challengeeID"`
-	StartColor   string `json:"startColor"`
-	Mode         string `json:"mode"`
+	ChallengeeID int64           `json:"challengeeID"`
+	StartColor   svc.ColorSelect `json:"startColor"`
+	Mode         svc.GameMode    `json:"mode"`
 }
 
 func HandleCreateChallenge(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body CreateChallengeBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := parseJSON(r, &body); err != nil {
 		return err
 	}
 
@@ -441,8 +441,8 @@ func HandleCreateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 	ret, err := svc.InsertChallengeRet(ctx, state.Pdb.Query, svc.ChallengeInst{
 		ChallengerID: player.ID,
 		ChallengeeID: body.ChallengeeID,
-		Mode:         svc.GameMode(body.Mode),
-		StartColor:   svc.ColorSelect(body.StartColor),
+		Mode:         body.Mode,
+		StartColor:   body.StartColor,
 		MadeOn:       state.GetNow(),
 	})
 	if err != nil {
@@ -492,8 +492,8 @@ func HandleGetSelf(state *ServerState, w http.ResponseWriter, r *http.Request) e
 }
 
 type LeaderboardResp struct {
-	TotalPages int              `json:"totalPages"`
-	UserList   []svc.UserEntity `json:"userList,omitempty"`
+	TotalPages int                 `json:"totalPages"`
+	UserList   []svc.LbdUserEntity `json:"userList,omitempty"`
 }
 
 func HandleGetLeaderboard(state *ServerState, w http.ResponseWriter, r *http.Request) error {
@@ -513,26 +513,23 @@ func HandleGetLeaderboard(state *ServerState, w http.ResponseWriter, r *http.Req
 	if err != nil {
 		return fmt.Errorf("get leaderboard page %d: %w", page, err)
 	}
-	users, err := svc.GetRankedUsers(ctx, state.Pdb.Query, lbd.Users)
+	users, err := svc.GetLeaderboardUsers(ctx, state.Pdb.Query, mode, lbd.RankedUsers)
 	if err != nil {
-		return fmt.Errorf("get ranked users: %w", err)
-	}
-	if err := svc.JoinRanks(lbd.Users, users); err != nil {
 		return err
 	}
 	slog.InfoContext(ctx, "retrieved leaderboard", "users", users)
 
 	if users == nil {
-		users = []svc.UserEntity{}
+		users = []svc.LbdUserEntity{}
 	}
 	writeJSON(w, http.StatusOK, LeaderboardResp{TotalPages: lbd.PageCount, UserList: users})
 	return nil
 }
 
 type FullUserResp struct {
-	User       svc.UserEntity     `json:"user"`
-	ReplayList []svc.ReplayEntity `json:"replayList"`
-	Ranks      map[svc.GameMode]svc.LbRank
+	User       svc.UserEntity      `json:"user"`
+	Stats      svc.UserStatsEntity `json:"stats"`
+	ReplayList []svc.ReplayEntity  `json:"replayList"`
 }
 
 func HandleGetPlayer(state *ServerState, w http.ResponseWriter, r *http.Request) error {
@@ -543,49 +540,49 @@ func HandleGetPlayer(state *ServerState, w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		return err
 	}
-	withReplays := query.Get("withReplays")
+	withReplaysStr := query.Get("withReplays")
+	withReplays := strings.ToLower(withReplaysStr) == "true"
 
 	eg, egCtx := errgroup.WithContext(ctx)
+	var resp FullUserResp
+	var lbRanks map[svc.GameMode]svc.LbRank
 
-	var user svc.UserEntity
-	var userRanks map[svc.GameMode]svc.LbRank
-	var replayList []svc.ReplayEntity
-
-	eg.Go(func() error {
-		u, err := svc.GetUserByID(egCtx, state.Pdb.Query, int64(id))
-		if err != nil {
-			return fmt.Errorf("get user %d by id: %w", id, err)
-		}
-		user = u
-		return nil
+	eg.Go(func() (err error) {
+		resp.User, err = svc.GetUserByID(egCtx, state.Pdb.Query, int64(id))
+		return err
 	})
-	if withReplays == "true" {
-		eg.Go(func() error {
-			rs, err := svc.GetUserReplays(egCtx, state.Pdb.Query, int64(id), -1, PerPage)
-			if err != nil {
-				return fmt.Errorf("get user %d replays by id: %w", id, err)
-			}
-			replayList = rs
+	eg.Go(func() (err error) {
+		resp.Stats, err = svc.GetUserElos(egCtx, state.Pdb.Query, int64(id))
+		return err
+	})
+	eg.Go(func() (err error) {
+		lbRanks, err = svc.GetLeaderboardRanks(egCtx, state.Rdb, int64(id), svc.GameModes)
+		return err
+	})
+	if withReplays {
+		eg.Go(func() (err error) {
+			resp.ReplayList, err = svc.GetUserReplays(egCtx, state.Pdb.Query, int64(id), -1, PerPage)
 			return err
 		})
 	}
-	eg.Go(func() error {
-		ranks, err := svc.GetLeaderboardRanks(egCtx, state.Rdb, int64(id), svc.AllGameModes)
-		if err != nil {
-			return fmt.Errorf("user %d leaderboard ranks by id: %w", id, err)
-		}
-		userRanks = ranks
-		return nil
-	})
 	if err := eg.Wait(); err != nil {
 		return err
 	}
 
-	if replayList == nil {
-		replayList = []svc.ReplayEntity{}
+	for i := range resp.Stats.ModeStats {
+		modeStats := &resp.Stats.ModeStats[i]
+		lbRank, ok := lbRanks[modeStats.Mode]
+		if !ok {
+			return fmt.Errorf("missing leaderboard rank for mode %s", modeStats.Mode)
+		}
+		modeStats.Rank = lbRank.Rank
 	}
-	slog.InfoContext(ctx, "retrieved user with replays", "user", user, "replays", replayList)
-	writeJSON(w, http.StatusOK, FullUserResp{User: user, ReplayList: replayList, Ranks: userRanks})
+
+	if resp.ReplayList == nil {
+		resp.ReplayList = []svc.ReplayEntity{}
+	}
+	slog.InfoContext(ctx, "retrieved user with replays", "fullUser", resp)
+	writeJSON(w, http.StatusOK, resp)
 	return nil
 }
 
@@ -629,7 +626,6 @@ type GetReplayResp struct {
 
 func HandleGetReplay(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-
 	id, err := parseIntQuery(ctx, r.URL.Query(), "id")
 	if err != nil {
 		return err
@@ -645,7 +641,6 @@ func HandleGetReplay(state *ServerState, w http.ResponseWriter, r *http.Request)
 
 func HandleGetReplayMoveList(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-
 	id, err := parseIntQuery(ctx, r.URL.Query(), "id")
 	if err != nil {
 		return err
@@ -745,7 +740,7 @@ func HandleGetChessRoomList(state *ServerState, w http.ResponseWriter, r *http.R
 
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
 	if err != nil {
-		if err != svc.ErrSessionNotFound {
+		if !errors.Is(err, svc.ErrSessionNotFound) {
 			return fmt.Errorf("get session player: %w", err)
 		}
 	} else {
@@ -754,13 +749,13 @@ func HandleGetChessRoomList(state *ServerState, w http.ResponseWriter, r *http.R
 
 	chessList, err := svc.GetAllChessMetas(ctx, state.Rdb, page, count)
 	if err != nil {
-		return fmt.Errorf("get all chess meta views: %w", err)
+		return fmt.Errorf("get page %d chess meta views: %w", page, err)
 	}
 	var selfChessList []svc.ChessMeta
 	if hasSession {
 		chessList, err := svc.GetUserChessMetas(ctx, state.Rdb, player.ID)
 		if err != nil {
-			return fmt.Errorf("get all chess meta views: %w", err)
+			return fmt.Errorf("get user %d chess meta views: %w", player.ID, err)
 		}
 		selfChessList = chessList
 	}

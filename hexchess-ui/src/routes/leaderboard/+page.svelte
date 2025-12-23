@@ -1,18 +1,20 @@
 <script lang="ts">
 	import Pagination from '$lib/Pagination.svelte';
 	import StatsList from '$lib/components/stats/StatsList.svelte';
-	import type { UserModel } from '$lib/api/models';
+	import { GameModeNameMap, type LbdUserModel } from '$lib/api/models';
 	import Banner from '$lib/Banner.svelte';
+	import Dropdown from '$lib/components/util/Dropdown.svelte';
+	import { goto } from '$app/navigation';
 
 	export interface LeaderboardProps {
 		page: number;
 		pageCount: number;
-		userList: UserModel[];
+		userList: LbdUserModel[];
 	}
 
 	const { data: props }: { data: LeaderboardProps } = $props();
 
-	$inspect(props)
+	const options = Object.entries(GameModeNameMap).map(([key, value]) => ({label: value, value: key}));
 </script>
 
 <svelte:head>
@@ -22,7 +24,23 @@
 <div class="center-horizontal-container">
 	<div class="title-lg">Leaderboard</div>
 	<div class="wrapper">
+		<div class="dropdown-wrapper">
+			<Dropdown
+				options={options}
+				selected={"TIMED_1+0"}
+				onChange={async (value) => {
+				await goto(`/leaderboard?mode=${encodeURIComponent(value)}`);
+			}}
+			/>
+		</div>
 		<StatsList userList={props.userList} />
 	</div>
 </div>
 <Pagination targetPage={props.page} totalPages={props.pageCount} />
+
+<style>
+	.dropdown-wrapper {
+		margin-bottom: 20px;
+		width: 200px;
+	}
+</style>

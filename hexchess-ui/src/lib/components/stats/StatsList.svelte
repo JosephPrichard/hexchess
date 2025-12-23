@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import type { UserModel } from '../../api/models';
+	import type { LbdUserModel } from '$lib/api/models';
 
 	interface Props {
-		userList: UserModel[];
+		userList: LbdUserModel[];
 	}
 
 	const { userList }: Props = $props();
@@ -25,9 +25,9 @@
 		<tbody>
 			{#each userList as user (user.id)}
 				{@const wrClass = function() {
-					if (user.winRate > 50) {
+					if (user.winrate > 50) {
 						return 'green-color';
-					} else if (user.winRate < 50) {
+					} else if (user.winrate < 50) {
 						return 'red-color';
 					} else {
 						return 'yellow-color';
@@ -41,7 +41,7 @@
 					</td>
 					<td>{Math.round(user.elo)}</td>
 					<td class={wrClass}>
-						{user.winRate}%
+						{user.winrate}%
 					</td>
 					<td class="green-color">
 						{user.wins}
@@ -49,7 +49,7 @@
 					<td class="red-color">
 						{user.losses}
 					</td>
-					<td>{user.total}</td>
+					<td>{user.wins+user.losses}</td>
 				</tr>
 			{/each}
 		</tbody>

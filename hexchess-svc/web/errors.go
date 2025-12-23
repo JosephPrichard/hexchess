@@ -55,7 +55,8 @@ func HttpStatusFromErr(err error) (int, string) {
 		ErrHttpInvalidCountry,
 		ErrHttpDuplicateUsername,
 		ErrInvalidFen,
-		ErrHttpDuplicateChallenge:
+		ErrHttpDuplicateChallenge,
+		ErrHttpInvalidMode:
 		return http.StatusBadRequest, err.Error()
 	case ErrHttpRequiredLogin,
 		ErrHttpInvalidLogin,

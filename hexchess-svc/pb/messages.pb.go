@@ -1903,7 +1903,7 @@ func (x *MakeMoveInput) GetGame() *ChessGame {
 
 type UserMsg struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
-	UserId string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	// Types that are valid to be assigned to Value:
 	//
 	//	*UserMsg_Challenge
@@ -1942,11 +1942,11 @@ func (*UserMsg) Descriptor() ([]byte, []int) {
 	return file_messages_proto_rawDescGZIP(), []int{29}
 }
 
-func (x *UserMsg) GetUserId() string {
+func (x *UserMsg) GetUserId() int64 {
 	if x != nil {
 		return x.UserId
 	}
-	return ""
+	return 0
 }
 
 func (x *UserMsg) GetValue() isUserMsg_Value {
@@ -2338,7 +2338,7 @@ const file_messages_proto_rawDesc = "" +
 	"\x04move\x18\x01 \x01(\v2\x0e.messages.MoveR\x04move\x12'\n" +
 	"\x04game\x18\x02 \x01(\v2\x13.messages.ChessGameR\x04game\"c\n" +
 	"\aUserMsg\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\x126\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x126\n" +
 	"\tchallenge\x18\x02 \x01(\v2\x16.messages.ChallengeMsgH\x00R\tchallengeB\a\n" +
 	"\x05value\"\xa4\x03\n" +
 	"\fChallengeMsg\x12#\n" +

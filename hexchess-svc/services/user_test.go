@@ -2,12 +2,17 @@ package svc
 
 import (
 	"context"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"testing"
 	"time"
 )
+
+var testUserCmptOpts = cmpopts.IgnoreFields(UserEntity{}, "ID")
+var testVerifiedUserCmptOpts = cmpopts.IgnoreFields(VerifiedUser{}, "ID")
 
 func TestInsertThenVerify(t *testing.T) {
 	// given
@@ -20,13 +25,13 @@ func TestInsertThenVerify(t *testing.T) {
 
 	// when
 	u1, err := InsertUser(ctx, pdb.Query, UserInst{Username: user1, Password: "password1", Country: "us", JoinedOn: TestTimeNow})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	v1, err := verifyUser(ctx, pdb.Query, user1, "password1")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	dbU1, err := GetUserByID(ctx, pdb.Query, LastUserID+1)
-	assert.NoError(t, err)
+	dbU1, err := GetUserByID(ctx, pdb.Query, v1.ID)
+	require.NoError(t, err)
 
 	var attemptsErrs []error
 	for range LoginAttemptsDivisor {
@@ -44,12 +49,12 @@ func TestInsertThenVerify(t *testing.T) {
 	assert.Equal(t, ErrTooManyLoginAttempts, errTooMany)
 
 	assert.Equal(t, u1.ID, v1.ID)
-	assert.Equal(t, UserEntity{
-		ID:       LastUserID + 1,
+	wantU1 := UserEntity{
 		Username: "user1-test",
 		Country:  "us",
 		JoinedOn: TestTimeNow.Local(),
-	}, dbU1)
+	}
+	util.AssertEqualIgnoring(t, wantU1, dbU1, testUserCmptOpts)
 }
 
 func TestBatchInsertThenGet(t *testing.T) {
@@ -60,9 +65,9 @@ func TestBatchInsertThenGet(t *testing.T) {
 	ctx := context.WithValue(t.Context(), util.Trace, "testing-batch-insert-then-get")
 
 	// when
-	insts := []BatchUserInst{
-		{Username: "user1-test", Password: "password1", Country: "us", Elo: 1005},
-		{Username: "user2-test", Password: "password2", Country: "eu", Elo: 1035},
+	insts := []UserInst{
+		{Username: "user1-test", Password: "password1", Country: "us"},
+		{Username: "user2-test", Password: "password2", Country: "eu"},
 	}
 	users, batchErr := BatchInsertUsers(ctx, pdb.Query, insts)
 
@@ -77,7 +82,7 @@ func TestBatchInsertThenGet(t *testing.T) {
 
 	// then
 	assert.Equal(t, wantUsers, users)
-	assert.NoError(t, batchErr)
+	require.NoError(t, batchErr)
 }
 
 func TestUpdateUser(t *testing.T) {
@@ -109,10 +114,10 @@ func TestUpdateUser(t *testing.T) {
 		},
 	} {
 		_, err := UpdateUser(ctx, pdb.Query, test.userID, test.udpt)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		u, err := GetUserByID(ctx, pdb.Query, test.userID)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, test.wantUsername, u.Username)
 		assert.Equal(t, test.wantBio, u.Bio)
@@ -133,25 +138,25 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 
 	// when
 	u1, err := SelectOrInsertGoogleUser(ctx, pdb.Query, testAccountID, inst)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	u2, err := SelectOrInsertGoogleUser(ctx, pdb.Query, testAccountID, inst)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	dbU1, err := GetUserByID(ctx, pdb.Query, u1.ID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// then
-	verifiedUser := VerifiedUser{ID: LastUserID + 1, Username: "username", Country: "us"}
-	assert.Equal(t, verifiedUser, u1)
-	assert.Equal(t, verifiedUser, u2)
+	verifiedUser := VerifiedUser{Username: "username", Country: "us"}
+	util.AssertEqualIgnoring(t, verifiedUser, u1, testVerifiedUserCmptOpts)
+	util.AssertEqualIgnoring(t, verifiedUser, u2, testVerifiedUserCmptOpts)
 
-	assert.Equal(t, UserEntity{
-		ID:       LastUserID + 1,
+	wantU1 := UserEntity{
 		Username: "username",
 		Country:  "us",
 		JoinedOn: TestTimeNow.Local(),
-	}, dbU1)
+	}
+	util.AssertEqualIgnoring(t, wantU1, dbU1, testUserCmptOpts)
 }
 
 func TestUpdatePasswordThenVerify(t *testing.T) {
@@ -163,12 +168,12 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 
 	// when
 	err := UpdateUserPassword(ctx, pdb.Query, TestUserEntities[0].ID, "password-new")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	u1, err := GetUserByID(ctx, pdb.Query, TestUserEntities[0].ID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	v1, err := verifyUser(ctx, pdb.Query, TestUserEntities[0].Username, "password-new")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// then
 	assert.Equal(t, u1.ID, v1.ID)
@@ -179,15 +184,30 @@ func TestInsertThenSearchByName(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "search-by-name")
+	ctx := context.WithValue(t.Context(), util.Trace, "search-name")
 
 	// when
-	_, err := BatchInsertUsers(ctx, pdb.Query, []BatchUserInst{{Username: "john", Password: "password5"}, {Username: "johnny", Password: "password5"}})
-	assert.NoError(t, err)
+	_, err := BatchInsertUsers(ctx, pdb.Query, []UserInst{{Username: "john", Password: "password5"}, {Username: "johnny", Password: "password5"}})
+	require.NoError(t, err)
 
 	list, err := SearchUsersByName(ctx, pdb.Query, "john", 1, 20)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// then
 	assert.Len(t, list, 2)
+}
+
+func TestGetUserElos(t *testing.T) {
+	// given
+	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+	defer closer()
+
+	ctx := context.WithValue(t.Context(), util.Trace, "get-user-elos")
+
+	// when
+	stats, err := GetUserElos(ctx, pdb.Query, 1)
+	require.NoError(t, err)
+
+	// then
+	assert.Equal(t, TestUserStats[0], stats)
 }

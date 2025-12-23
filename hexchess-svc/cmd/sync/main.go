@@ -42,12 +42,9 @@ func main() {
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: redisPrimaryURL}, db.DefaultRedisNames)
 	defer rdb.Close()
 
-	databases := &db.Databases{Pdb: db.MakePostgres(q, pool), Rdb: rdb}
-
-	for _, mode := range svc.AllGameModes {
-		if err := svc.SyncLeaderboard(ctx, mode, databases); err != nil {
-			util.LogFatalErr("sync leaderboard", err)
-		}
+	dbs := &db.Databases{Pdb: db.MakePostgres(q, pool), Rdb: rdb}
+	if err := svc.SyncLeaderboard(ctx, dbs); err != nil {
+		util.LogFatalErr("sync leaderboard", err)
 	}
 	log.Printf("finished syncing leaderboard: %v", time.Now().Sub(start))
 }

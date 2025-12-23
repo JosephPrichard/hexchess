@@ -1,5 +1,5 @@
 import { codes } from '$lib/utils/error';
-import type { Action, ChallengeModel, ChessModel, EloBuckets, FullUserModel, ReplayModel, ServiceModel, SessionModel, Timeframe, UserModel } from './models';
+import type { Action, ChallengeModel, ChessModel, EloBuckets, FullUserModel, LbdUserModel, ReplayModel, ServiceModel, SessionModel, Timeframe, UserModel } from './models';
 import { v4 as uuidv4 } from 'uuid';
 import { env } from '$env/dynamic/public';
 import { MoveReplay } from '../pb/messages';
@@ -135,11 +135,11 @@ function postUpdatePassword(password: string, newPassword: string, confirmNewPas
 	});
 }
 
-function postCreateChallenge(timeControl: string, startColor: string, challengeeId: number) {
+function postCreateChallenge(mode: string, startColor: string, challengeeId: number) {
 	return requestJSON<{}>(`${baseURL()}/challenges/create`, {
 		method: 'POST',
 		credentials: 'include',
-		body: JSON.stringify({ startColor, timeControl, challengeeId }),
+		body: JSON.stringify({ startColor, mode, challengeeId }),
 	});
 }
 
@@ -154,14 +154,14 @@ function postUpdateChallenge(challengerId: number, challengeeId: number, action:
 	});
 }
 
-function postCreateGame(timeControl: string, firstColor: string, fen: string) {
+function postCreateGame(mode: string, firstColor: string, fen: string) {
 	interface Response {
 		gameId?: string;
 	}
 	return requestJSON<Response>(`${baseURL()}/games/create`, {
 		method: 'POST',
 		credentials: 'include',
-		body: JSON.stringify({ firstColor, timeControl, fen }),
+		body: JSON.stringify({ firstColor, mode, fen }),
 	});
 }
 
@@ -210,12 +210,15 @@ function getChallenges(participants: string, fetch?: FetchFn) {
 	return requestJSON<Response>(`${baseURL()}/challenges?${params}`, { method: 'GET' }, fetch);
 }
 
-function getLeaderboard(page: number, fetch?: FetchFn) {
+function getLeaderboard(page: number, mode: string, fetch?: FetchFn) {
 	interface Response {
 		totalPages: number;
-		userList: UserModel[];
+		userList: LbdUserModel[];
 	}
-	const params = new URLSearchParams({ page: String(page) });
+	const params = new URLSearchParams({
+		page: String(page),
+		mode: mode,
+	});
 	return requestJSON<Response>(`${baseURL()}/leaderboard?${params}`, { method: 'GET' }, fetch);
 }
 

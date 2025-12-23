@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/require"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/util"
@@ -44,10 +45,10 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	player := MakePlayer(1, "name", "us")
 
 	// when
-	assert.NoError(t, SetChessState(ctx, rdb, gameID, &inState))
+	require.NoError(t, SetChessState(ctx, rdb, gameID, &inState))
 
 	updatedState, err := JoinGame(ctx, rdb, gameID, player)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// then
 	wantState := inState.DeepCopy()
@@ -74,10 +75,10 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	})
 
 	// when
-	assert.NoError(t, SetChessState(ctx, rdb, gameID, &inState))
+	require.NoError(t, SetChessState(ctx, rdb, gameID, &inState))
 
 	resultState, err := JoinGame(ctx, rdb, gameID, MakeNamePlayer(3, "test"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// then
 	assertChessState(t, inState, resultState)
@@ -260,8 +261,8 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	}}
 
 	// when
-	assert.NoError(t, SetChessState(ctx, dbs.Rdb, gameID, &inState))
-	assert.NoError(t, ForfeitGame(ctx, &dbs, gameID, inState.BlackPlayer))
+	require.NoError(t, SetChessState(ctx, dbs.Rdb, gameID, &inState))
+	require.NoError(t, ForfeitGame(ctx, &dbs, gameID, inState.BlackPlayer))
 
 	// then
 	wantState := inState.DeepCopy()
@@ -278,13 +279,13 @@ func TestInsertGameResult(t *testing.T) {
 
 	for i, test := range []struct {
 		result     GameResult
-		wantElos   []db.GetElosByIdsRow
+		wantElos   []db.GetUserModeElosByIdsRow
 		wantReplay db.Replay
 		wantChange GRChangeSet
 	}{
 		{
 			result:   GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Stalemate, ReplayResult: Draw, ReplayMode: ModeTimed1Plus0},
-			wantElos: []db.GetElosByIdsRow{{UserID: testUser0.ID, Elo: 1000}, {UserID: testUser1.ID, Elo: 1000}},
+			wantElos: []db.GetUserModeElosByIdsRow{{UserID: testUser0.ID, Elo: 1000}, {UserID: testUser1.ID, Elo: 1000}},
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
@@ -301,7 +302,7 @@ func TestInsertGameResult(t *testing.T) {
 		},
 		{
 			result:   GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Checkmate, ReplayResult: WhiteWin, ReplayMode: ModeCorrespondence1},
-			wantElos: []db.GetElosByIdsRow{{UserID: testUser0.ID, Elo: 1015}, {UserID: testUser1.ID, Elo: 985}},
+			wantElos: []db.GetUserModeElosByIdsRow{{UserID: testUser0.ID, Elo: 1015}, {UserID: testUser1.ID, Elo: 985}},
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
@@ -318,7 +319,7 @@ func TestInsertGameResult(t *testing.T) {
 		},
 		{
 			result:   GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Forfeit, ReplayResult: BlackWin, ReplayMode: ModeCorrespondence7},
-			wantElos: []db.GetElosByIdsRow{{UserID: testUser0.ID, Elo: 985}, {UserID: testUser1.ID, Elo: 1015}},
+			wantElos: []db.GetUserModeElosByIdsRow{{UserID: testUser0.ID, Elo: 985}, {UserID: testUser1.ID, Elo: 1015}},
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
@@ -341,16 +342,17 @@ func TestInsertGameResult(t *testing.T) {
 
 			// when
 			cs, err := insertGameResult(ctx, pdb.Query, time.Now(), test.result)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// then
-			rowElos, err := pdb.Query.GetElosByIds(ctx, db.GetElosByIdsParams{ID: []int64{test.result.WhiteID, test.result.BlackID}, Mode: db.ModeEnum(test.result.ReplayMode)})
-			assert.NoError(t, err)
+			rowElos, err := pdb.Query.GetUserModeElosByIds(ctx,
+				db.GetUserModeElosByIdsParams{ID: []int64{test.result.WhiteID, test.result.BlackID}, Mode: db.ModeEnum(test.result.ReplayMode)})
+			require.NoError(t, err)
 
 			assert.Equal(t, test.wantElos, rowElos)
 
 			r1, err := pdb.Query.GetReplayRowByID(ctx, cs.ReplayID)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			util.AssertEqualIgnoring(t, test.wantReplay, r1, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn"))
 

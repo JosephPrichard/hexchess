@@ -5,13 +5,15 @@ import { makeMessage } from '$lib/utils/error';
 import type { LeaderboardProps } from './+page.svelte';
 
 export const load: PageServerLoad = async ({ url, setHeaders, fetch }): Promise<LeaderboardProps> => {
+	const mode = url.searchParams.get('mode') || 'CORRESPONDENCE_7';
 	const page = Number(url.searchParams.get('page') || 1);
 	if (isNaN(page)) {
 		error(404, 'Page must be a valid number');
 	}
 
-	const [data, err] = await services.getLeaderboard(page, fetch);
+	const [data, err] = await services.getLeaderboard(page, mode, fetch);
 	if (err) {
+		console.log(err);
 		error(err.status, makeMessage(err));
 	}
 

@@ -2,6 +2,7 @@ package svc
 
 import (
 	"context"
+	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"testing"
@@ -19,17 +20,17 @@ func TestActiveUser(t *testing.T) {
 
 	// when
 	_, err := AddActiveUser(ctx, rdb, "1")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	countAfterAdding, err := AddActiveUser(ctx, rdb, "2")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = RemoveActiveUser(ctx, rdb, "2")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	countAfterRemoveAndAdd, err := AddActiveUserOn(ctx, rdb, "3", time.UnixMilli(100), 0)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	countAfterExpiry, err := GetActiveCountWithExpiry(ctx, rdb, rdb.ActiveUsersZSet, 1000)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// then
 	assert.Equal(t, int64(2), countAfterAdding)

@@ -12,20 +12,6 @@ export function formatReplayResult(result: string) {
 	}
 }
 
-export function formatTimeControl(timeControl: string) {
-	switch (timeControl) {
-		case "UNLIMITED":
-			return 'Unlimited ∞+0';
-		case "CORRESPONDENCE":
-			return `Correspondence ${10}+${1}`;
-		case "REAL_TIME":
-			return `Realtime ${5}+${3}`;
-		default:
-			console.error('Unknown time control: ' + timeControl);
-			return '-';
-	}
-}
-
 export function formatEloDiff(elo: number) {
 	return (elo >= 0 ? '+' : '') + Math.round(elo);
 }

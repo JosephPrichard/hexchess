@@ -3,6 +3,7 @@ package svc
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"testing"
@@ -18,13 +19,13 @@ func TestChallengeExpiration(t *testing.T) {
 
 	// when
 	challenges, err := GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{int64(5), -1}, time.Unix(10000, 0))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	assert.NoError(t, DeleteExpiredChallengesOn(ctx, pdb.Query, 5, time.Unix(10000, 0)))
+	require.NoError(t, DeleteExpiredChallengesOn(ctx, pdb.Query, 5, time.Unix(10000, 0)))
 
 	// get all challenges to prove that the deletion worked
 	challengesDel, err := GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{int64(5), -1}, time.Unix(0, 0))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// then
 	expected := []ChallengeEntity{TestChallengeEntities[2], TestChallengeEntities[3]}
@@ -51,16 +52,16 @@ func TestChallengeEchoDelete(t *testing.T) {
 		StartColor:   ColorRandom,
 		MadeOn:       timeOn,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	challengesBeforeDelete, err := GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{testUser.ID, -1}, timeOn)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	dr, err := DeleteChallenge(ctx, pdb.Query, ChallengeKey{testUser.ID, 3})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	challengesAfterDelete, err := GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{testUser.ID, -1}, timeOn)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// then
 	wantChallengesBefore := []ChallengeEntity{{

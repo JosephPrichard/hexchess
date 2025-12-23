@@ -2,6 +2,7 @@ package svc
 
 import (
 	"context"
+	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
 	"hexchess-svc/util"
 	"testing"
@@ -23,10 +24,10 @@ func TestEchoChessState(t *testing.T) {
 	ctx := context.WithValue(t.Context(), util.Trace, "testing-set-then-get")
 
 	// when
-	assert.NoError(t, SetChessState(ctx, rdb, id1, &state1))
+	require.NoError(t, SetChessState(ctx, rdb, id1, &state1))
 
 	outState1, err := GetChessState(ctx, rdb, id1)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, errBadID := GetChessState(ctx, rdb, id2)
 
@@ -53,20 +54,20 @@ func TestGetChessMetas(t *testing.T) {
 
 	// when
 	// these times must be after now.Add(-GameExpireFinished)
-	assert.NoError(t, SetChessStateAt(ctx, rdb, id1, &state1, now.Add(-100*time.Second)))
-	assert.NoError(t, SetChessStateAt(ctx, rdb, id2, &state2, now.Add(-50*time.Second)))
-	assert.NoError(t, SetChessStateAt(ctx, rdb, id3, &state3, now.Add(-10*time.Second)))
+	require.NoError(t, SetChessStateAt(ctx, rdb, id1, &state1, now.Add(-100*time.Second)))
+	require.NoError(t, SetChessStateAt(ctx, rdb, id2, &state2, now.Add(-50*time.Second)))
+	require.NoError(t, SetChessStateAt(ctx, rdb, id3, &state3, now.Add(-10*time.Second)))
 
 	metaList1, err := GetUserChessMetas(ctx, rdb, 1)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	metaList2, err := GetUserChessMetas(ctx, rdb, 2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	metaList3, err := GetUserChessMetas(ctx, rdb, 3)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	metaList4, err := GetUserChessMetasPaged(ctx, rdb, 1, 1, 2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	metaList5, err := GetUserChessMetasPaged(ctx, rdb, 1, 2, 2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// then
 	m1 := ChessMeta{ID: id1, WhitePlayer: MakeIDPlayer(1), BlackPlayer: MakeIDPlayer(2), FirstColor: ColorRandom, Mode: ModeCorrespondence1}
@@ -97,9 +98,9 @@ func TestExpireChessStates(t *testing.T) {
 
 	// when
 	// these times must be before now.Add(-GameExpireFinished)
-	assert.NoError(t, SetChessStateAt(ctx, rdb, id1, &state1, now.Add(2*-GameExpireFinished)))
+	require.NoError(t, SetChessStateAt(ctx, rdb, id1, &state1, now.Add(2*-GameExpireFinished)))
 
-	assert.NoError(t, ExpireChessStates(ctx, rdb, rdb.GamesZSet))
+	require.NoError(t, ExpireChessStates(ctx, rdb, rdb.GamesZSet))
 
 	_, errExpiredID := GetChessState(ctx, rdb, id1)
 

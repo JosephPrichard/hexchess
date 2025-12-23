@@ -15,8 +15,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var ReplayModes = []string{"UNLIMITED", "REAL_TIME", "CORRESPONDENCE"}
-
 type ReplayEntity struct {
 	ID           int64        `json:"id"`
 	WhiteID      int64        `json:"whiteId"`
@@ -44,18 +42,24 @@ func (r ReplayResult) IsWin() bool {
 }
 
 const (
-	WhiteWin ReplayResult = "WHITE_WINS"
-	BlackWin ReplayResult = "BLACK_WINS"
-	Draw     ReplayResult = "DRAW"
+	ResultUnknown ReplayResult = ""
+	WhiteWin      ReplayResult = "WHITE_WINS"
+	BlackWin      ReplayResult = "BLACK_WINS"
+	Draw          ReplayResult = "DRAW"
 )
+
+var ReplayResults = []ReplayResult{WhiteWin, BlackWin, Draw}
 
 type ReplayCause string
 
 const (
-	Checkmate ReplayCause = "CHECKMATE"
-	Forfeit   ReplayCause = "FORFEIT"
-	Stalemate ReplayCause = "STALEMATE"
+	CauseUnknown ReplayCause = ""
+	Checkmate    ReplayCause = "CHECKMATE"
+	Forfeit      ReplayCause = "FORFEIT"
+	Stalemate    ReplayCause = "STALEMATE"
 )
+
+var ReplayCauses = []ReplayCause{Checkmate, Forfeit, Stalemate}
 
 type ReplayInst struct {
 	WhiteID     int64
@@ -114,7 +118,7 @@ func getColorEloDiffs(result ReplayResult, winEloDiff float64, loseEloDiff float
 	return whiteEloDiff, blackEloDiff
 }
 
-func mapReplayFromRow(row db.GetReplayByIDRow) (ReplayEntity, error) {
+func mapReplayFromRow(row db.GetReplayByIDRow) ReplayEntity {
 	replay := ReplayEntity{
 		ID:           row.ID,
 		WhiteID:      row.WhiteID,
@@ -133,7 +137,7 @@ func mapReplayFromRow(row db.GetReplayByIDRow) (ReplayEntity, error) {
 		PlayedOn:     row.PlayedOn.Time,
 	}
 	replay.WhiteEloDiff, replay.BlackEloDiff = getColorEloDiffs(replay.Result, replay.WinEloDiff, replay.LoseEloDiff)
-	return replay, nil
+	return replay
 }
 
 var ErrNoReplay = errors.New("replay not found")
@@ -148,9 +152,7 @@ func GetReplay(ctx context.Context, query *db.Queries, id int64) (ReplayEntity, 
 	if err != nil {
 		return replay, fmt.Errorf("get replay %d by id: %w", id, err)
 	}
-	if replay, err = mapReplayFromRow(row); err != nil {
-		return replay, err
-	}
+	replay = mapReplayFromRow(row)
 
 	slog.InfoContext(ctx, "selected replay by id", "replay", replay)
 	return replay, nil
@@ -187,11 +189,7 @@ func GetUserReplays(ctx context.Context, query *db.Queries, userID int64, afterI
 
 	var replays []ReplayEntity
 	for _, row := range rows {
-		replay, err := mapReplayFromRow(db.GetReplayByIDRow(row))
-		if err != nil {
-			return nil, err
-		}
-		replays = append(replays, replay)
+		replays = append(replays, mapReplayFromRow(db.GetReplayByIDRow(row)))
 	}
 	slog.InfoContext(ctx, "selected replays", "replays", replays, "userID", userID, "afterID", afterID, "perPage", perPage)
 	return replays, nil

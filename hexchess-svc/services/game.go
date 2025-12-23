@@ -17,6 +17,7 @@ import (
 type GameMode string
 
 const (
+	ModeUnknown          GameMode = "UNKNOWN"
 	ModeTimed1Plus0      GameMode = "TIMED_1+0"
 	ModeTimed3Plus2      GameMode = "TIMED_3+2"
 	ModeTimed15Plus10    GameMode = "TIMED_15+10"
@@ -25,14 +26,7 @@ const (
 	ModeCorrespondence14 GameMode = "CORRESPONDENCE_14"
 )
 
-var AllGameModes = []GameMode{
-	ModeTimed1Plus0,
-	ModeTimed3Plus2,
-	ModeTimed15Plus10,
-	ModeCorrespondence1,
-	ModeCorrespondence7,
-	ModeCorrespondence14,
-}
+var GameModes = []GameMode{ModeTimed1Plus0, ModeTimed3Plus2, ModeTimed15Plus10, ModeCorrespondence1, ModeCorrespondence7, ModeCorrespondence14}
 
 func CreateGame(ctx context.Context, rdb *db.Redis, color ColorSelect, mode GameMode, initialBoard *chess.Board) (string, error) {
 	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
@@ -290,11 +284,9 @@ func WriteFinishedGame(ctx context.Context, dbs *db.Databases, state *ChessState
 	}
 	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", cs, "room", state.ID)
 
-	if err := IncrLeaderboard(ctx,
-		dbs.Rdb,
-		state.Mode,
-		UpdtLbChangeSet{ID: cs.WinID, EloDiff: cs.WinEloDiff},
-		UpdtLbChangeSet{ID: cs.LoseID, EloDiff: cs.LoseEloDiff},
+	if err := IncrLeaderboard(ctx, dbs.Rdb,
+		UpdtLbChangeSet{Mode: state.Mode, ID: cs.WinID, EloDiff: cs.WinEloDiff},
+		UpdtLbChangeSet{Mode: state.Mode, ID: cs.LoseID, EloDiff: cs.LoseEloDiff},
 	); err != nil {
 		return fmt.Errorf("increment user leaderboard stats: %w", err)
 	}
@@ -335,7 +327,7 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 	ids := []int64{result.WhiteID, result.BlackID}
 	slices.SortFunc(ids, func(left, right int64) int { return int(left - right) }) // consistent query order for transactions
 
-	rows, err := query.GetElosByIds(ctx, db.GetElosByIdsParams{
+	rows, err := query.GetUserModeElosByIds(ctx, db.GetUserModeElosByIdsParams{
 		ID:   ids,
 		Mode: db.ModeEnum(result.ReplayMode)},
 	)

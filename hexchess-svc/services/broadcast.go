@@ -10,6 +10,7 @@ import (
 	"hexchess-svc/pb"
 	"log/slog"
 	"slices"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -73,14 +74,14 @@ func ListenUsersMessages(m *MultiCasterMap, rdb *db.Redis) chan struct{} {
 			slog.Error("unmarshal user message", "err", err, "channel", v.Channel)
 			return
 		}
-		slog.Info("received message on channel", "userID", userMsg.UserId, "channel", v.Channel)
+		slog.Info("received message on channel", "user", &userMsg, "channel", v.Channel)
 
 		buf, err := MarshalUserMsgJson(&userMsg)
 		if err != nil {
 			slog.Error("marshal user message", "err", err, "channel", v.Channel)
 			return
 		}
-		m.Broadcast(userMsg.UserId, buf)
+		m.Broadcast(strconv.Itoa(int(userMsg.UserId)), buf)
 	})
 }
 

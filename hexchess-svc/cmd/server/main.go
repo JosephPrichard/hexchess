@@ -60,7 +60,7 @@ func main() {
 	}
 
 	q := db.New(pool)
-	postgres := db.MakePostgres(q, pool)
+	pdb := db.MakePostgres(q, pool)
 
 	slog.Info("connecting to redis db", "primaryURL", redisPrimaryURL, "pubsubURL", redisPubSubURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: redisPrimaryURL, PubsubAddr: redisPubSubURL}, db.DefaultRedisNames)
@@ -69,7 +69,7 @@ func main() {
 	state := web.MakeServerState(web.ServerSetup{
 		Databases: db.Databases{
 			Rdb: rdb,
-			Pdb: postgres,
+			Pdb: pdb,
 		},
 		CountryList: countryList,
 		Generators:  &web.RandGenerator{},

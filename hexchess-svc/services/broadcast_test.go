@@ -3,6 +3,7 @@ package svc
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/db"
 	"hexchess-svc/pb"
@@ -126,9 +127,9 @@ func TestBroadcastGameMessage(t *testing.T) {
 		}
 		return v
 	}
-	assert.NoError(t, BroadcastMessage(ctx, rdb, rdb.GamesChan, makeTestChatOutput("1", "test1")))
-	assert.NoError(t, BroadcastMessage(ctx, rdb, rdb.GamesChan, makeTestChatOutput("1", "test2")))
-	assert.NoError(t, BroadcastMessage(ctx, rdb, rdb.GamesChan, makeTestChatOutput("2", "test3")))
+	require.NoError(t, BroadcastMessage(ctx, rdb, rdb.GamesChan, makeTestChatOutput("1", "test1")))
+	require.NoError(t, BroadcastMessage(ctx, rdb, rdb.GamesChan, makeTestChatOutput("1", "test2")))
+	require.NoError(t, BroadcastMessage(ctx, rdb, rdb.GamesChan, makeTestChatOutput("2", "test3")))
 
 	// then
 	var messages []string

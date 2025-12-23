@@ -183,7 +183,7 @@ message MakeMoveInput {
 }
 
 message UserMsg {
-  string user_id = 1;
+  int64 user_id = 1;
   oneof value {
     ChallengeMsg challenge = 2;
   }

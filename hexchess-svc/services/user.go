@@ -10,7 +10,6 @@ import (
 	"hexchess-svc/util"
 	"log/slog"
 	"math"
-	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -24,7 +23,7 @@ type UserEntity struct {
 	ID       int64     `json:"id"`
 	Username string    `json:"username"`
 	Country  string    `json:"country"`
-	Rank     int64     `json:"rank"`
+	Rank     int64     `json:"rank"` // used for ranking users in searches, was previously used in leaderboard
 	Bio      string    `json:"bio"`
 	JoinedOn time.Time `json:"joinedOn"`
 }
@@ -46,29 +45,6 @@ type RankedUser struct {
 }
 
 var ErrUserNotFound = errors.New("user not found")
-
-func JoinRanks(rankedUsers []RankedUser, users []UserEntity) error {
-	for i := range users {
-		user := &users[i]
-		found := false
-		for _, rankedUser := range rankedUsers {
-			if rankedUser.ID == user.ID {
-				user.Rank = rankedUser.Rank
-				found = true
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("user %d not found in ranked users", user.ID)
-		}
-	}
-
-	sort.Slice(users, func(i, j int) bool {
-		return users[i].Rank < users[j].Rank
-	})
-	return nil
-}
-
 var ErrTakenUsername = errors.New("username already taken")
 
 type HashResult struct {
@@ -93,8 +69,9 @@ func hashPassword(password string) (HashResult, error) {
 	return HashResult{Salt: salt, HashedPassword: string(hashed)}, nil
 }
 
-func calcUserWinrate(wins int32, total int32) int64 {
+func calcUserWinrate(wins int32, losses int32) int64 {
 	wr := float64(0)
+	total := wins + losses
 	if total > 0 {
 		wr = float64(wins) / float64(total) * 100.0
 	}
@@ -112,9 +89,9 @@ func mapUserFromRow(row db.SelectUserByIDRow) UserEntity {
 }
 
 type UserInst struct {
-	Username string
-	Password string
-	Country  string
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Country  string `json:"country"`
 	JoinedOn time.Time
 }
 
@@ -138,11 +115,9 @@ func InsertUser(ctx context.Context, query *db.Queries, inst UserInst) (UserEnti
 	})
 	if err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			if pgErr.Code == "23505" {
-				slog.InfoContext(ctx, "player already exists", "inst", inst, "err", pgErr)
-				return u, ErrTakenUsername
-			}
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			slog.InfoContext(ctx, "player already exists", "inst", inst, "err", pgErr)
+			return u, ErrTakenUsername
 		}
 		return u, fmt.Errorf("insert user to db: %w", err)
 	}
@@ -152,23 +127,11 @@ func InsertUser(ctx context.Context, query *db.Queries, inst UserInst) (UserEnti
 	return u, nil
 }
 
-type BatchUserInst struct {
-	Username string  `json:"username"`
-	Password string  `json:"password"`
-	Country  string  `json:"country"`
-	Elo      float64 `json:"elo"`
-	Wins     int     `json:"wins"`
-	Losses   int     `json:"losses"`
-	JoinedOn time.Time
-}
-
-func BatchInsertUsers(ctx context.Context, query *db.Queries, insts []BatchUserInst) ([]UserEntity, error) {
+func BatchInsertUsers(ctx context.Context, query *db.Queries, insts []UserInst) ([]UserEntity, error) {
 	batches := make([]db.BatchInsertUserParams, len(insts))
 
 	var eg errgroup.Group
 	for i, inst := range insts {
-		i := i
-		inst := inst
 		eg.Go(func() error {
 			hash, err := hashPassword(inst.Password)
 			if err != nil {
@@ -364,30 +327,6 @@ func GetUserByID(ctx context.Context, query *db.Queries, id int64) (UserEntity, 
 	return user, nil
 }
 
-func GetRankedUsers(ctx context.Context, query *db.Queries, users []RankedUser) ([]UserEntity, error) {
-	var ids []int64
-	for _, user := range users {
-		ids = append(ids, user.ID)
-	}
-	return GetUserByIDs(ctx, query, ids)
-}
-
-func GetUserByIDs(ctx context.Context, query *db.Queries, ids []int64) ([]UserEntity, error) {
-	rows, err := query.SelectUsersByIDs(ctx, ids)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to select many users", "ids", ids, "err", err)
-		return nil, fmt.Errorf("select many users: %w", err)
-	}
-
-	var users []UserEntity
-	for _, row := range rows {
-		users = append(users, mapUserFromRow(db.SelectUserByIDRow(row)))
-	}
-
-	slog.InfoContext(ctx, "selected users", "ids", ids, "users", users)
-	return users, nil
-}
-
 const MaxSearchOffset = 1000
 
 var ErrSearchLimit = errors.New("search limit exceeded")
@@ -423,4 +362,54 @@ func SearchUsersByName(ctx context.Context, query *db.Queries, name string, page
 
 	slog.InfoContext(ctx, "selected users by name similarity", "users", users, "name", name, "page", page, "limit", page, "offset", offset)
 	return users, nil
+}
+
+type ModeStatsEntity struct {
+	Mode       GameMode `json:"mode"`
+	Rank       int64    `json:"rank"`
+	Wins       int32    `json:"wins"`
+	Losses     int32    `json:"losses"`
+	Winrate    int64    `json:"winrate"`
+	Elo        float64  `json:"elo"`
+	HighestElo float64  `json:"highestElo"`
+}
+
+type UserStatsEntity struct {
+	TotalWins    int32             `json:"totalWins"`
+	TotalLosses  int32             `json:"totalLosses"`
+	AvgElo       float64           `json:"avgElo"`     // average elo of all other modes
+	HighestElo   float64           `json:"highestElo"` // the absolute highest elo
+	TotalWinrate int64             `json:"totalWinrate"`
+	ModeStats    []ModeStatsEntity `json:"modeStats"`
+}
+
+func GetUserElos(ctx context.Context, query *db.Queries, id int64) (UserStatsEntity, error) {
+	stats := UserStatsEntity{HighestElo: math.SmallestNonzeroFloat64}
+
+	rows, err := query.GetUserElosById(ctx, id)
+	if err != nil {
+		return stats, fmt.Errorf("get user %d elos by id: %w", id, err)
+	}
+
+	for _, row := range rows {
+		modeStats := ModeStatsEntity{
+			Mode:       GameMode(row.Mode),
+			Wins:       row.Wins,
+			Losses:     row.Losses,
+			Winrate:    calcUserWinrate(row.Wins, row.Losses),
+			Elo:        row.Elo,
+			HighestElo: row.HighestElo,
+		}
+
+		stats.TotalWins += modeStats.Wins
+		stats.TotalLosses += modeStats.Losses
+		stats.HighestElo = max(stats.HighestElo, modeStats.HighestElo)
+		stats.AvgElo = (stats.AvgElo*float64(len(stats.ModeStats)) + modeStats.Elo) / float64(len(stats.ModeStats)+1)
+		stats.TotalWinrate = (stats.TotalWinrate*int64(len(stats.ModeStats)) + modeStats.Winrate) / int64(len(stats.ModeStats)+1)
+
+		stats.ModeStats = append(stats.ModeStats, modeStats)
+	}
+
+	slog.InfoContext(ctx, "selected user elos", "stats", stats)
+	return stats, nil
 }

@@ -2,6 +2,7 @@ package svc
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"hexchess-svc/chess"
 	"strconv"
 	"testing"
@@ -48,7 +49,7 @@ func TestChessState_UndoMove(t *testing.T) {
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Len(t, cs.Game.Moves, test.wantMoves)
 		})
 	}
