@@ -11,258 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const getReplayByID = `-- name: GetReplayByID :one
-SELECT
-    r.id,
-    r.white_id,
-    r.black_id,
-    r.result,
-    r.cause,
-    r.played_on,
-    r.win_elo_diff,
-    r.lose_elo_diff,
-    r.mode,
-    u1.username AS white_name,
-    u1.country AS white_country,
-    e1.elo AS white_elo,
-    u2.username AS black_name,
-    u2.country AS black_country,
-    e2.elo AS black_elo
-FROM replays r
-         -- ensures we get the white/black elo for mode at the time of retrieval
-         INNER JOIN users u1 ON u1.id = r.white_id
-         INNER JOIN users u2 ON u2.id = r.black_id
-         LEFT JOIN user_mode_elos e1 ON e1.user_id = r.white_id AND e1.mode = r.mode
-         LEFT JOIN user_mode_elos e2 ON e2.user_id = r.black_id AND e2.mode = r.mode
-WHERE r.id = $1
-`
-
-type GetReplayByIDRow struct {
-	ID           int64
-	WhiteID      int64
-	BlackID      int64
-	Result       string
-	Cause        string
-	PlayedOn     pgtype.Timestamptz
-	WinEloDiff   float64
-	LoseEloDiff  float64
-	Mode         ModeEnum
-	WhiteName    string
-	WhiteCountry string
-	WhiteElo     pgtype.Float8
-	BlackName    string
-	BlackCountry string
-	BlackElo     pgtype.Float8
-}
-
-func (q *Queries) GetReplayByID(ctx context.Context, id int64) (GetReplayByIDRow, error) {
-	row := q.db.QueryRow(ctx, getReplayByID, id)
-	var i GetReplayByIDRow
-	err := row.Scan(
-		&i.ID,
-		&i.WhiteID,
-		&i.BlackID,
-		&i.Result,
-		&i.Cause,
-		&i.PlayedOn,
-		&i.WinEloDiff,
-		&i.LoseEloDiff,
-		&i.Mode,
-		&i.WhiteName,
-		&i.WhiteCountry,
-		&i.WhiteElo,
-		&i.BlackName,
-		&i.BlackCountry,
-		&i.BlackElo,
-	)
-	return i, err
-}
-
-const getReplayElos = `-- name: GetReplayElos :many
-SELECT id, mode, played_on, white_id, black_id, white_elo, black_elo -- gets the white/black elo at the time of insertion
-FROM replays
-WHERE 
-    (white_id = $1 OR black_id = $1)
-  AND
-    (played_on > $2 OR $2 IS NULL)
-ORDER BY played_on ASC
-`
-
-type GetReplayElosParams struct {
-	ID          int64
-	PlayedAfter pgtype.Timestamptz
-}
-
-type GetReplayElosRow struct {
-	ID       int64
-	Mode     ModeEnum
-	PlayedOn pgtype.Timestamptz
-	WhiteID  int64
-	BlackID  int64
-	WhiteElo float64
-	BlackElo float64
-}
-
-func (q *Queries) GetReplayElos(ctx context.Context, arg GetReplayElosParams) ([]GetReplayElosRow, error) {
-	rows, err := q.db.Query(ctx, getReplayElos, arg.ID, arg.PlayedAfter)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetReplayElosRow
-	for rows.Next() {
-		var i GetReplayElosRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Mode,
-			&i.PlayedOn,
-			&i.WhiteID,
-			&i.BlackID,
-			&i.WhiteElo,
-			&i.BlackElo,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getReplayMoveHistory = `-- name: GetReplayMoveHistory :one
-SELECT move_history AS move_history_bytes
-FROM replays
-WHERE id = $1
-`
-
-func (q *Queries) GetReplayMoveHistory(ctx context.Context, id int64) ([]byte, error) {
-	row := q.db.QueryRow(ctx, getReplayMoveHistory, id)
-	var move_history_bytes []byte
-	err := row.Scan(&move_history_bytes)
-	return move_history_bytes, err
-}
-
-const getReplayRowByID = `-- name: GetReplayRowByID :one
-SELECT id, white_id, black_id, mode, result, cause, played_on, win_elo_diff, lose_elo_diff, white_elo, black_elo, move_history
-FROM replays r
-WHERE r.id = $1
-`
-
-func (q *Queries) GetReplayRowByID(ctx context.Context, id int64) (Replay, error) {
-	row := q.db.QueryRow(ctx, getReplayRowByID, id)
-	var i Replay
-	err := row.Scan(
-		&i.ID,
-		&i.WhiteID,
-		&i.BlackID,
-		&i.Mode,
-		&i.Result,
-		&i.Cause,
-		&i.PlayedOn,
-		&i.WinEloDiff,
-		&i.LoseEloDiff,
-		&i.WhiteElo,
-		&i.BlackElo,
-		&i.MoveHistory,
-	)
-	return i, err
-}
-
-const getUserReplays = `-- name: GetUserReplays :many
-SELECT
-    r.id,
-    r.white_id,
-    r.black_id,
-    r.result,
-    r.cause,
-    r.played_on,
-    r.win_elo_diff,
-    r.lose_elo_diff,
-    r.mode,
-    u1.username AS white_name,
-    u1.country AS white_country,
-    e1.elo AS white_elo,
-    u2.username AS black_name,
-    u2.country AS black_country,
-    e2.elo AS black_elo
-FROM replays r
-        -- ensures we get the white/black elo for mode at the time of retrieval
-        INNER JOIN users u1 ON u1.id = r.white_id
-        INNER JOIN users u2 ON u2.id = r.black_id
-        LEFT JOIN user_mode_elos e1 ON e1.user_id = r.white_id AND e1.mode = r.mode
-        LEFT JOIN user_mode_elos e2 ON e2.user_id = r.black_id AND e2.mode = r.mode
-WHERE
-    r.id < $1
-  AND (
-      r.white_id = $2
-      OR r.black_id = $2
-  )
-ORDER BY r.id DESC
-LIMIT $3
-`
-
-type GetUserReplaysParams struct {
-	AfterID int64
-	UserID  int64
-	PerPage int32
-}
-
-type GetUserReplaysRow struct {
-	ID           int64
-	WhiteID      int64
-	BlackID      int64
-	Result       string
-	Cause        string
-	PlayedOn     pgtype.Timestamptz
-	WinEloDiff   float64
-	LoseEloDiff  float64
-	Mode         ModeEnum
-	WhiteName    string
-	WhiteCountry string
-	WhiteElo     pgtype.Float8
-	BlackName    string
-	BlackCountry string
-	BlackElo     pgtype.Float8
-}
-
-func (q *Queries) GetUserReplays(ctx context.Context, arg GetUserReplaysParams) ([]GetUserReplaysRow, error) {
-	rows, err := q.db.Query(ctx, getUserReplays, arg.AfterID, arg.UserID, arg.PerPage)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetUserReplaysRow
-	for rows.Next() {
-		var i GetUserReplaysRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.WhiteID,
-			&i.BlackID,
-			&i.Result,
-			&i.Cause,
-			&i.PlayedOn,
-			&i.WinEloDiff,
-			&i.LoseEloDiff,
-			&i.Mode,
-			&i.WhiteName,
-			&i.WhiteCountry,
-			&i.WhiteElo,
-			&i.BlackName,
-			&i.BlackCountry,
-			&i.BlackElo,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const insertReplay = `-- name: InsertReplay :one
 INSERT INTO replays (white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode, move_history)
 VALUES (
@@ -311,4 +59,256 @@ func (q *Queries) InsertReplay(ctx context.Context, arg InsertReplayParams) (int
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const selectReplayByID = `-- name: SelectReplayByID :one
+SELECT
+    r.id,
+    r.white_id,
+    r.black_id,
+    r.result,
+    r.cause,
+    r.played_on,
+    r.win_elo_diff,
+    r.lose_elo_diff,
+    r.mode,
+    u1.username AS white_name,
+    u1.country AS white_country,
+    e1.elo AS white_elo,
+    u2.username AS black_name,
+    u2.country AS black_country,
+    e2.elo AS black_elo
+FROM replays r
+         -- ensures we get the white/black elo for mode at the time of retrieval
+         INNER JOIN users u1 ON u1.id = r.white_id
+         INNER JOIN users u2 ON u2.id = r.black_id
+         LEFT JOIN user_mode_elos e1 ON e1.user_id = r.white_id AND e1.mode = r.mode
+         LEFT JOIN user_mode_elos e2 ON e2.user_id = r.black_id AND e2.mode = r.mode
+WHERE r.id = $1
+`
+
+type SelectReplayByIDRow struct {
+	ID           int64
+	WhiteID      int64
+	BlackID      int64
+	Result       string
+	Cause        string
+	PlayedOn     pgtype.Timestamptz
+	WinEloDiff   float64
+	LoseEloDiff  float64
+	Mode         ModeEnum
+	WhiteName    string
+	WhiteCountry string
+	WhiteElo     pgtype.Float8
+	BlackName    string
+	BlackCountry string
+	BlackElo     pgtype.Float8
+}
+
+func (q *Queries) SelectReplayByID(ctx context.Context, id int64) (SelectReplayByIDRow, error) {
+	row := q.db.QueryRow(ctx, selectReplayByID, id)
+	var i SelectReplayByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.WhiteID,
+		&i.BlackID,
+		&i.Result,
+		&i.Cause,
+		&i.PlayedOn,
+		&i.WinEloDiff,
+		&i.LoseEloDiff,
+		&i.Mode,
+		&i.WhiteName,
+		&i.WhiteCountry,
+		&i.WhiteElo,
+		&i.BlackName,
+		&i.BlackCountry,
+		&i.BlackElo,
+	)
+	return i, err
+}
+
+const selectReplayElos = `-- name: SelectReplayElos :many
+SELECT id, mode, played_on, white_id, black_id, white_elo, black_elo -- gets the white/black elo at the time of insertion
+FROM replays
+WHERE 
+    (white_id = $1 OR black_id = $1)
+  AND
+    (played_on > $2 OR $2 IS NULL)
+ORDER BY played_on ASC
+`
+
+type SelectReplayElosParams struct {
+	ID          int64
+	PlayedAfter pgtype.Timestamptz
+}
+
+type SelectReplayElosRow struct {
+	ID       int64
+	Mode     ModeEnum
+	PlayedOn pgtype.Timestamptz
+	WhiteID  int64
+	BlackID  int64
+	WhiteElo float64
+	BlackElo float64
+}
+
+func (q *Queries) SelectReplayElos(ctx context.Context, arg SelectReplayElosParams) ([]SelectReplayElosRow, error) {
+	rows, err := q.db.Query(ctx, selectReplayElos, arg.ID, arg.PlayedAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SelectReplayElosRow
+	for rows.Next() {
+		var i SelectReplayElosRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Mode,
+			&i.PlayedOn,
+			&i.WhiteID,
+			&i.BlackID,
+			&i.WhiteElo,
+			&i.BlackElo,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const selectReplayMoveHistory = `-- name: SelectReplayMoveHistory :one
+SELECT move_history AS move_history_bytes
+FROM replays
+WHERE id = $1
+`
+
+func (q *Queries) SelectReplayMoveHistory(ctx context.Context, id int64) ([]byte, error) {
+	row := q.db.QueryRow(ctx, selectReplayMoveHistory, id)
+	var move_history_bytes []byte
+	err := row.Scan(&move_history_bytes)
+	return move_history_bytes, err
+}
+
+const selectReplayRowByID = `-- name: SelectReplayRowByID :one
+SELECT id, white_id, black_id, mode, result, cause, played_on, win_elo_diff, lose_elo_diff, white_elo, black_elo, move_history
+FROM replays r
+WHERE r.id = $1
+`
+
+func (q *Queries) SelectReplayRowByID(ctx context.Context, id int64) (Replay, error) {
+	row := q.db.QueryRow(ctx, selectReplayRowByID, id)
+	var i Replay
+	err := row.Scan(
+		&i.ID,
+		&i.WhiteID,
+		&i.BlackID,
+		&i.Mode,
+		&i.Result,
+		&i.Cause,
+		&i.PlayedOn,
+		&i.WinEloDiff,
+		&i.LoseEloDiff,
+		&i.WhiteElo,
+		&i.BlackElo,
+		&i.MoveHistory,
+	)
+	return i, err
+}
+
+const selectUserReplays = `-- name: SelectUserReplays :many
+SELECT
+    r.id,
+    r.white_id,
+    r.black_id,
+    r.result,
+    r.cause,
+    r.played_on,
+    r.win_elo_diff,
+    r.lose_elo_diff,
+    r.mode,
+    u1.username AS white_name,
+    u1.country AS white_country,
+    e1.elo AS white_elo,
+    u2.username AS black_name,
+    u2.country AS black_country,
+    e2.elo AS black_elo
+FROM replays r
+        -- ensures we get the white/black elo for mode at the time of retrieval
+        INNER JOIN users u1 ON u1.id = r.white_id
+        INNER JOIN users u2 ON u2.id = r.black_id
+        LEFT JOIN user_mode_elos e1 ON e1.user_id = r.white_id AND e1.mode = r.mode
+        LEFT JOIN user_mode_elos e2 ON e2.user_id = r.black_id AND e2.mode = r.mode
+WHERE
+    r.id < $1
+  AND (
+      r.white_id = $2
+      OR r.black_id = $2
+  )
+ORDER BY r.id DESC
+LIMIT $3
+`
+
+type SelectUserReplaysParams struct {
+	AfterID int64
+	UserID  int64
+	PerPage int32
+}
+
+type SelectUserReplaysRow struct {
+	ID           int64
+	WhiteID      int64
+	BlackID      int64
+	Result       string
+	Cause        string
+	PlayedOn     pgtype.Timestamptz
+	WinEloDiff   float64
+	LoseEloDiff  float64
+	Mode         ModeEnum
+	WhiteName    string
+	WhiteCountry string
+	WhiteElo     pgtype.Float8
+	BlackName    string
+	BlackCountry string
+	BlackElo     pgtype.Float8
+}
+
+func (q *Queries) SelectUserReplays(ctx context.Context, arg SelectUserReplaysParams) ([]SelectUserReplaysRow, error) {
+	rows, err := q.db.Query(ctx, selectUserReplays, arg.AfterID, arg.UserID, arg.PerPage)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SelectUserReplaysRow
+	for rows.Next() {
+		var i SelectUserReplaysRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WhiteID,
+			&i.BlackID,
+			&i.Result,
+			&i.Cause,
+			&i.PlayedOn,
+			&i.WinEloDiff,
+			&i.LoseEloDiff,
+			&i.Mode,
+			&i.WhiteName,
+			&i.WhiteCountry,
+			&i.WhiteElo,
+			&i.BlackName,
+			&i.BlackCountry,
+			&i.BlackElo,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

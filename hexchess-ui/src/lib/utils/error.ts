@@ -24,6 +24,13 @@ export const codes = {
 	errorNotFoundUser: 'ERROR_NOT_FOUND_USER',
 	errorSearchLimit: 'ERROR_SEARCH_LIMIT',
 	errorInvalidFEN: 'ERROR_INVALID_FEN',
+	errorInvalidCount: 'ERR_HTTP_INVALID_COUNT',
+	errorInvalidPage: 'ERR_HTTP_INVALID_PAGE',
+	errorInvalidID: 'ERR_HTTP_INVALID_ID',
+	errorInvalidJSON: 'ERR_HTTP_INVALID_JSON',
+	errorInvalidTimeframe: 'ERR_HTTP_INVALID_TIMEFRAME',
+	errorInvalidAction: 'ERR_HTTP_INVALID_ACTION',
+	errorBioLength: 'ERROR_BIO_LENGTH',
 
 	// WS codes
 	errorFatal: 'ERROR_FATAL',
@@ -59,6 +66,13 @@ export const messages: Record<string, string> = {
 	[codes.errorNotFoundUser]: 'The provided user is invalid or does not exist.',
 	[codes.errorSearchLimit]: 'The search limit has been reached.',
 	[codes.errorInvalidFEN]: 'The provided FEN string is invalid.',
+	[codes.errorBioLength]: 'Bio must be between 0 and 160 characters.',
+	[codes.errorInvalidCount]: 'The provided count parameter is invalid.',
+	[codes.errorInvalidPage]: 'The provided page parameter is invalid.',
+	[codes.errorInvalidID]: 'The provided id is invalid.',
+	[codes.errorInvalidJSON]: 'The request body contains invalid JSON.',
+	[codes.errorInvalidTimeframe]: 'The provided timeframe is invalid.',
+	[codes.errorInvalidAction]: 'The provided action is invalid.',
 
 	// WS messages
 	[codes.errorFatal]: 'A fatal error occurred. Please reconnect or try again later.',
@@ -70,7 +84,32 @@ export const messages: Record<string, string> = {
 	[codes.errorExpiredGame]: 'The game has expired due to inactivity.',
 };
 
-export function makeMessage(error?: ServiceModel | string) {
+function mapErr(code: string): string {
+	return messages[code] || 'An unexpected error has occurred'
+}
+
+export function errorToArray(error?: ServiceModel): string[] {
+	let messages: string[] = [];
+	if (typeof error?.errors === "string") {
+		messages = [error.errors];
+	} else if (typeof error?.errors === "object") {
+		messages = Object.values(error.errors);
+	}
+	return messages.map(message => mapErr(message));
+}
+
+export function makeMessage(error?: ServiceModel | string): string {
 	console.error(error);
-	return messages[(typeof error === "string" ? error : error?.message) || ''] || 'An unexpected error has occurred';
+
+	const codes: string[] = [];
+	if (typeof error === "string") {
+		codes.push(error)
+	} else if (typeof error?.errors === "string") {
+		codes.push(error.errors)
+	} else if (typeof error?.errors === "object") {
+		for (const key in error.errors) {
+			codes.push(error.errors[key])
+		}
+	}
+	return codes.map(code => mapErr(code)).join('\n');
 }

@@ -59,7 +59,7 @@ func UpdateSessionEx(ctx context.Context, rdb *db.Redis, sessionID string, expir
 func DeleteSession(ctx context.Context, rdb *db.Redis, sessionID string) error {
 	fullID := "session:" + sessionID
 	if err := rdb.Cache.Del(ctx, fullID).Err(); err != nil {
-		return fmt.Errorf("delete session: %w", err)
+		return fmt.Errorf("delete session '%s': %w", sessionID, err)
 	}
 	slog.InfoContext(ctx, "deleted session", "sessionID", sessionID)
 	return nil

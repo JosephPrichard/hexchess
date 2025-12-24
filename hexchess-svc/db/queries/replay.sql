@@ -14,12 +14,12 @@ VALUES (
         sqlc.arg('moveHistory'))
 RETURNING id;
 
--- name: GetReplayRowByID :one
+-- name: SelectReplayRowByID :one
 SELECT *
 FROM replays r
 WHERE r.id = sqlc.arg('id');
 
--- name: GetReplayByID :one
+-- name: SelectReplayByID :one
 SELECT
     r.id,
     r.white_id,
@@ -44,12 +44,12 @@ FROM replays r
          LEFT JOIN user_mode_elos e2 ON e2.user_id = r.black_id AND e2.mode = r.mode
 WHERE r.id = sqlc.arg('id');
 
--- name: GetReplayMoveHistory :one
+-- name: SelectReplayMoveHistory :one
 SELECT move_history AS move_history_bytes
 FROM replays
 WHERE id = sqlc.arg('id');
 
--- name: GetReplayElos :many
+-- name: SelectReplayElos :many
 SELECT id, mode, played_on, white_id, black_id, white_elo, black_elo -- gets the white/black elo at the time of insertion
 FROM replays
 WHERE 
@@ -58,7 +58,7 @@ WHERE
     (played_on > sqlc.narg('played_after') OR sqlc.narg('played_after') IS NULL)
 ORDER BY played_on ASC;
 
--- name: GetUserReplays :many
+-- name: SelectUserReplays :many
 SELECT
     r.id,
     r.white_id,

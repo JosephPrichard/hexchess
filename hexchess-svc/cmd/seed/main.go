@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hexchess-svc/assets"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/services"
-	"hexchess-svc/static"
 	"hexchess-svc/util"
 	"log"
 	"log/slog"
@@ -18,7 +18,7 @@ import (
 )
 
 func readTestdataFile[V any](filename string) []V {
-	b, err := static.Mocks.ReadFile(filename)
+	b, err := assets.Mocks.ReadFile(filename)
 	if err != nil {
 		log.Fatal(err)
 	}

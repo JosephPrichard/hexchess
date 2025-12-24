@@ -1,9 +1,9 @@
 <script lang="ts">
 	import services from '$lib/api/services';
 	import { goto } from '$app/navigation';
-	import { makeMessage } from '$lib/utils/error';
+	import { errorToArray } from '$lib/utils/error';
 	import { setClientSession } from '$lib/utils/storage';
-	import { getNotificationsContext } from '$lib/utils/context';
+	import { fade } from 'svelte/transition';
 	import { onMount } from 'svelte';
 	import { env } from '$env/dynamic/public';
 	import type { ServiceModel, SessionModel } from '$lib/api/models';
@@ -11,9 +11,9 @@
 
 	let username = $state('');
 	let password = $state('');
+	let messages = $state<string[]>([]);
 	let isLoading = $state(false);
-
-	const { addNotification } = getNotificationsContext();
+	let removeMessage: ReturnType<typeof setTimeout> | undefined = undefined;
 
 	async function onLoginComplete([data, err]: [data: SessionModel | undefined, err: ServiceModel | undefined]) {
 		if (data) {
@@ -21,32 +21,31 @@
 			setClientSession(data);
 			await goto('/');
 		} else {
-			const message = makeMessage(err);
-			console.log(message);
-			addNotification({ type: 'string', message, isSuccess: false });
+			if (removeMessage !== undefined) {
+				clearTimeout(removeMessage);
+			}
+			messages = errorToArray(err);
+			removeMessage = setTimeout(() => messages = [], 5000);
 		}
 	}
 
 	async function onSubmit(e: MouseEvent) {
 		e.preventDefault();
 		isLoading = true;
-		onLoginComplete(await services.postLogin(username, password));
+		await onLoginComplete(await services.postLogin(username, password));
 		isLoading = false;
 	}
 
 	const clientId = env.PUBLIC_APP_GOOGLE_CLIENT_ID || '1033197809490-ridcok3g354h4n31pmfqjig1k8t6un3d.apps.googleusercontent.com';
 
 	onMount(() => {
-		if (clientId === undefined) {
-			return;
-		}
+		if (clientId === undefined) return;
 		window.google?.accounts.id.initialize({
 			client_id: clientId,
 			callback: async (response: any) => {
-				onLoginComplete(await services.postGoogleLogin(response.credential));
+				await onLoginComplete(await services.postGoogleLogin(response.credential));
 			}
 		});
-
 		const googleBtn = document.getElementById("googleBtn");
 		if (googleBtn == null) {
 			return;
@@ -97,6 +96,12 @@
 			<div style="margin-top: 20px;">
 				Don't have an account? Register
 				<a href="/register" style="color: cornflowerblue;"> here! </a>
+			</div>
+
+			<div class="error-container">
+				{#each messages as message}
+					<div class="error-box" transition:fade>{message}</div>
+				{/each}
 			</div>
 		</form>
 	</div>

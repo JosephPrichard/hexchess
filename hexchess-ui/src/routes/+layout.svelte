@@ -8,7 +8,6 @@
 	import type { ChallengeModel } from '$lib/api/models';
 	import { writable } from 'svelte/store';
 	import { fade } from 'svelte/transition';
-	import Banner from '$lib/Banner.svelte';
 
 	const { children }: LayoutProps = $props();
 

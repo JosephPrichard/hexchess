@@ -12,12 +12,13 @@ import (
 	"hexchess-svc/services"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
 type RestHandler = func(state *ServerState, w http.ResponseWriter, r *http.Request) error
 
-func makeRestHandler(state *ServerState, h RestHandler) http.Handler {
+func MakeRestHandler(state *ServerState, h RestHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		slog.InfoContext(ctx, "request received", "method", r.Method, "url", r.URL, "headers", r.Header)
@@ -25,13 +26,13 @@ func makeRestHandler(state *ServerState, h RestHandler) http.Handler {
 		if err := h(state, w, r); err != nil {
 			slog.ErrorContext(ctx, "failed to request failed", "err", err, "method", r.Method, "url", r.URL)
 
-			status, m := HttpStatusFromErr(err)
-			writeJSON(w, status, ServiceView{Message: m, Status: status})
+			status, errs := HttpStatusFromErrs(err)
+			writeJSON(w, status, ServiceView{Errors: errs, Status: status})
 		}
 	})
 }
 
-func makeJsonHandler(v any) http.Handler {
+func MakeJsonHandler(v any) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, err := json.Marshal(v)
 		if err != nil {
@@ -46,6 +47,18 @@ func makeJsonHandler(v any) http.Handler {
 	})
 }
 
+func isPasswordValid(password string) bool {
+	return len(password) > 10
+}
+
+func isUsernameValid(username string) bool {
+	return len(username) >= 5 && len(username) <= 20
+}
+
+func isBioValid(bio string) bool {
+	return len(bio) <= 500
+}
+
 const PerPage = 25
 
 type RegisterBody struct {
@@ -54,25 +67,23 @@ type RegisterBody struct {
 	ConfirmPassword string `json:"confirmPassword"`
 }
 
-func validatePassword(password, confirm string) error {
-	if len(password) < 10 || len(password) > 100 {
-		return ErrHttpInvalidPassword
-	}
-	if password != confirm {
-		return ErrHttpConfirmPassword
-	}
-	return nil
-}
-
 func HandleRegister(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body RegisterBody
-	if err := parseJSON(r, &body); err != nil {
+	if err := readJSON(r, &body); err != nil {
 		return err
 	}
-	if len(body.Username) < 5 || len(body.Username) > 20 {
-		return ErrHttpInvalidUsername
+
+	var err error
+	if !isUsernameValid(body.Username) {
+		err = PutErrorMap(err, "username", ErrHttpInvalidUsername)
 	}
-	if err := validatePassword(body.Password, body.ConfirmPassword); err != nil {
+	if !isPasswordValid(body.Password) {
+		err = PutErrorMap(err, "password", ErrHttpInvalidPassword)
+	}
+	if body.Password != body.ConfirmPassword {
+		err = PutErrorMap(err, "confirmPassword", ErrHttpConfirmPassword)
+	}
+	if err != nil {
 		return err
 	}
 
@@ -83,10 +94,9 @@ func HandleRegister(state *ServerState, w http.ResponseWriter, r *http.Request) 
 		Country:  svc.DefaultCountry,
 		JoinedOn: state.GetNow(),
 	})
-	if err != nil {
-		if errors.Is(err, svc.ErrTakenUsername) {
-			return ErrHttpDuplicateUsername
-		}
+	if errors.Is(err, svc.ErrTakenUsername) {
+		return ErrHttpDuplicateUsername
+	} else if err != nil {
 		return fmt.Errorf("insert user: %w", err)
 	}
 	t, err := SetSessionPlayer(ctx, state.Rdb, w, svc.MakePlayer(user.ID, user.Username, user.Country))
@@ -127,23 +137,20 @@ type LoginBody struct {
 
 func HandleLogin(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body LoginBody
-	if err := parseJSON(r, &body); err != nil {
+	if err := readJSON(r, &body); err != nil {
 		return err
 	}
 
 	ctx := r.Context()
 	user, err := svc.VerifyUserTx(ctx, state.Pdb, body.Username, body.Password)
-	if err != nil {
-		switch err {
-		case svc.ErrUserNotFound:
-			return ErrHttpInvalidLogin
-		case svc.ErrTooManyLoginAttempts:
-			return ErrHttpTooManyLoginAttempts
-		default:
-			return fmt.Errorf("verify user: %w", err)
-		}
+	switch {
+	case err == svc.ErrUserNotFound:
+		return ErrHttpInvalidLogin
+	case err == svc.ErrTooManyLoginAttempts:
+		return ErrHttpTooManyLoginAttempts
+	case err != nil:
+		return fmt.Errorf("verify user: %w", err)
 	}
-
 	return handleLoginSession(ctx, state.Rdb, w, user)
 }
 
@@ -153,7 +160,7 @@ type GoogleLoginBody struct {
 
 func HandleGoogleLogin(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body GoogleLoginBody
-	if err := parseJSON(r, &body); err != nil {
+	if err := readJSON(r, &body); err != nil {
 		return err
 	}
 	ctx := r.Context()
@@ -171,7 +178,6 @@ func HandleGoogleLogin(state *ServerState, w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		return fmt.Errorf("upsert verified google user: %w", err)
 	}
-
 	return handleLoginSession(ctx, state.Rdb, w, user)
 }
 
@@ -183,10 +189,18 @@ type UpdatePasswordBody struct {
 
 func HandleUpdatePassword(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body UpdatePasswordBody
-	if err := parseJSON(r, &body); err != nil {
+	if err := readJSON(r, &body); err != nil {
 		return err
 	}
-	if err := validatePassword(body.NewPassword, body.ConfirmNewPassword); err != nil {
+
+	var err error
+	if !isPasswordValid(body.NewPassword) {
+		err = PutErrorMap(err, "newPassword", ErrHttpInvalidPassword)
+	}
+	if body.NewPassword != body.ConfirmNewPassword {
+		err = PutErrorMap(err, "confirmNewPassword", ErrHttpConfirmPassword)
+	}
+	if err != nil {
 		return err
 	}
 
@@ -195,13 +209,14 @@ func HandleUpdatePassword(state *ServerState, w http.ResponseWriter, r *http.Req
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
+
 	user, err := svc.VerifyUserTx(ctx, state.Pdb, player.Name, body.Password)
 	if errors.Is(err, svc.ErrUserNotFound) {
 		return ErrHttpInvalidLogin
-	}
-	if err != nil {
+	} else if err != nil {
 		return fmt.Errorf("verify user: %w", err)
 	}
+
 	if err := svc.UpdateUserPassword(ctx, state.Pdb.Query, user.ID, body.NewPassword); err != nil {
 		return fmt.Errorf("update user password: %w", err)
 	}
@@ -219,12 +234,19 @@ type UpdateUserBody struct {
 
 func HandleUpdateUser(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body UpdateUserBody
-	if err := parseJSON(r, &body); err != nil {
+	if err := readJSON(r, &body); err != nil {
 		return err
 	}
 
-	if _, ok := state.CountryMap[body.NewCountry]; !ok {
-		return ErrHttpInvalidCountry
+	var err error
+	if !isUsernameValid(body.NewUsername) {
+		err = PutErrorMap(err, "newUsername", ErrHttpInvalidUsername)
+	}
+	if !isBioValid(body.NewBio) {
+		err = PutErrorMap(err, "newBio", ErrHttpInvalidBio)
+	}
+	if _, ok := state.ValidCountries[body.NewCountry]; !ok {
+		return PutErrorMap(nil, "newCountry", ErrHttpInvalidCountry)
 	}
 
 	ctx := r.Context()
@@ -256,23 +278,20 @@ type TempSessionResp struct {
 
 func HandleCreateTempSession(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
+
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		return ErrHttpSessionExpired
-	}
-	if err != nil {
+	} else if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
-	sessionID, err := MakeSessionID()
-	if err != nil {
-		return err
-	}
+
+	sessionID := MakeSessionID()
 	if err := svc.SetSession(ctx, state.Rdb, sessionID, player, TempSessionMaxAge); err != nil {
 		return fmt.Errorf("set session: %w", err)
 	}
 
 	slog.InfoContext(ctx, "created temporary user session", "user", player)
-
 	writeJSON(w, http.StatusOK, TempSessionResp{SessionID: sessionID})
 	return nil
 }
@@ -287,8 +306,7 @@ func HandleRefreshSession(state *ServerState, w http.ResponseWriter, r *http.Req
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
-	}
-	if err != nil {
+	} else if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
 	if err := svc.UpdateSessionEx(ctx, state.Rdb, sessionID, SessionMaxAge); err != nil {
@@ -310,13 +328,13 @@ func HandleRefreshSession(state *ServerState, w http.ResponseWriter, r *http.Req
 func HandleLogout(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
-		return err
+		return fmt.Errorf("get cookie '%s': %w", CookieKey, err)
 	}
 	sessionID := cookie.Value
 
 	ctx := r.Context()
 	if err := svc.DeleteSession(ctx, state.Rdb, sessionID); err != nil {
-		return fmt.Errorf("delete session: %w", err)
+		return fmt.Errorf("logging out session '%s': %w", sessionID, err)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
 
@@ -336,7 +354,7 @@ type CreateGameResp struct {
 
 func HandleCreateGame(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body CreateGameBody
-	if err := parseJSON(r, &body); err != nil {
+	if err := readJSON(r, &body); err != nil {
 		return err
 	}
 	ctx := r.Context()
@@ -345,8 +363,8 @@ func HandleCreateGame(state *ServerState, w http.ResponseWriter, r *http.Request
 	if body.InitialFEN != "" {
 		board, err := chess.ParseFen(body.InitialFEN)
 		if err != nil {
-			slog.WarnContext(ctx, "parse initial fen", "fen", body.InitialFEN, "err", err)
-			return ErrInvalidFen
+			slog.WarnContext(ctx, "invalid initial FEN", "initialFEN", body.InitialFEN, "err", err)
+			return PutErrorMap(nil, "initialFEN", ErrInvalidFen)
 		}
 		initialBoard = &board
 	}
@@ -373,10 +391,9 @@ type UpdateChallengeResp struct {
 
 func HandleUpdateChallenge(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body UpdateChallengeBody
-	if err := parseJSON(r, &body); err != nil {
+	if err := readJSON(r, &body); err != nil {
 		return err
 	}
-
 	body.Action = strings.ToUpper(body.Action)
 
 	var targetID int64
@@ -386,7 +403,7 @@ func HandleUpdateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 	case "DELETE":
 		targetID = body.ChallengerID
 	default:
-		return ErrHttpInvalidRequest
+		return PutErrorMap(nil, "action", ErrHttpInvalidAction)
 	}
 
 	ctx := r.Context()
@@ -397,23 +414,18 @@ func HandleUpdateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 	if player.ID != targetID {
 		return ErrHttpUpdateChallenge
 	}
-
 	dr, err := svc.DeleteChallenge(ctx, state.Pdb.Query, svc.ChallengeKey{ChallengerID: body.ChallengerID, ChallengeeID: body.ChallengeeID})
 	if errors.Is(err, svc.ErrChallengeNotFound) {
 		return ErrHttpNotFoundChallenge
-	}
-	if err != nil {
+	} else if err != nil {
 		return err
 	}
-	slog.InfoContext(ctx, "deleted challenge", "challengerID", body.ChallengerID, "challengeeID", body.ChallengeeID)
-
-	gameID := ""
+	var gameID string
 	if body.Action == "ACCEPT" {
 		gameID, err = svc.CreateGame(ctx, state.Rdb, dr.FirstColor, dr.Mode, nil)
 		if err != nil {
 			return fmt.Errorf("create game: %w", err)
 		}
-		slog.InfoContext(ctx, "created game", "gameID", gameID)
 	}
 
 	writeJSON(w, http.StatusOK, UpdateChallengeResp{GameID: gameID})
@@ -428,7 +440,7 @@ type CreateChallengeBody struct {
 
 func HandleCreateChallenge(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	var body CreateChallengeBody
-	if err := parseJSON(r, &body); err != nil {
+	if err := readJSON(r, &body); err != nil {
 		return err
 	}
 
@@ -445,17 +457,15 @@ func HandleCreateChallenge(state *ServerState, w http.ResponseWriter, r *http.Re
 		StartColor:   body.StartColor,
 		MadeOn:       state.GetNow(),
 	})
-	if err != nil {
-		switch err {
-		case svc.ErrDuplicateChallenge:
-			return ErrHttpDuplicateChallenge
-		case svc.ErrParticipantConflict:
-			return ErrHttpInvalidParticipants
-		case svc.ErrSelfChallenge:
-			return ErrHttpSelfChallenge
-		default:
-			return fmt.Errorf("insert challenge: %w", err)
-		}
+	switch {
+	case err == svc.ErrDuplicateChallenge:
+		return ErrHttpDuplicateChallenge
+	case err == svc.ErrParticipantConflict:
+		return ErrHttpInvalidParticipants
+	case err == svc.ErrSelfChallenge:
+		return ErrHttpSelfChallenge
+	case err != nil:
+		return fmt.Errorf("insert challenge: %w", err)
 	}
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
 
@@ -499,14 +509,18 @@ type LeaderboardResp struct {
 func HandleGetLeaderboard(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	query := r.URL.Query()
-	page, err := parsePageQuery(ctx, query)
+	q := r.URL.Query()
+	var queryErr error
+	page, err := intQueryDefault(q, "page", 1)
 	if err != nil {
-		return err
+		queryErr = PutErrorMap(queryErr, "page", ErrHttpInvalidPage)
 	}
-	mode, err := parseModeQuery(ctx, query)
+	mode, err := svc.ModeFromString(q.Get("mode"))
 	if err != nil {
-		return err
+		queryErr = PutErrorMap(queryErr, "mode", ErrHttpInvalidMode)
+	}
+	if queryErr != nil {
+		return queryErr
 	}
 
 	lbd, err := svc.GetLeaderboardPage(ctx, state.Rdb, mode, int64(page), PerPage)
@@ -535,12 +549,12 @@ type FullUserResp struct {
 func HandleGetPlayer(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	query := r.URL.Query()
-	id, err := parseIntQuery(ctx, query, "id")
+	q := r.URL.Query()
+	id, err := intQuery(q, "id")
 	if err != nil {
-		return err
+		return PutErrorMap(nil, "id", ErrHttpInvalidID)
 	}
-	withReplaysStr := query.Get("withReplays")
+	withReplaysStr := q.Get("withReplays")
 	withReplays := strings.ToLower(withReplaysStr) == "true"
 
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -593,24 +607,25 @@ type SearchPlayersResp struct {
 func HandleSearchPlayers(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	query := r.URL.Query()
-	page, err := parsePageQuery(ctx, query)
+	q := r.URL.Query()
+	page, err := intQueryDefault(q, "page", 1)
 	if err != nil {
-		return err
+		return PutErrorMap(nil, "page", ErrHttpInvalidPage)
 	}
-	name := query.Get("username")
+	name := q.Get("username")
+	hasUser := name != ""
 
 	slog.InfoContext(ctx, "searching players", "page", page, "name", name)
 
 	var userList []svc.UserEntity
-	if name != "" {
-		userList, err = svc.SearchUsersByName(ctx, state.Pdb.Query, name, int32(page), PerPage)
+	if hasUser {
+		users, err := svc.SearchUsersByName(ctx, state.Pdb.Query, name, int32(page), PerPage)
 		if errors.Is(err, svc.ErrSearchLimit) {
 			return ErrHttpSearchLimit
-		}
-		if err != nil {
+		} else if err != nil {
 			return fmt.Errorf("search users by name '%s': %w", name, err)
 		}
+		userList = users
 	}
 
 	if userList == nil {
@@ -626,14 +641,15 @@ type GetReplayResp struct {
 
 func HandleGetReplay(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-	id, err := parseIntQuery(ctx, r.URL.Query(), "id")
+
+	id, err := strconv.Atoi(r.URL.Query().Get("id"))
 	if err != nil {
-		return err
+		return PutErrorMap(nil, "page", ErrHttpInvalidID)
 	}
 
 	replay, err := svc.GetReplay(ctx, state.Pdb.Query, int64(id))
 	if err != nil {
-		return fmt.Errorf("get replay: %w", err)
+		return fmt.Errorf("get replay %d: %w", id, err)
 	}
 	writeJSON(w, http.StatusOK, GetReplayResp{Replay: replay})
 	return nil
@@ -641,16 +657,17 @@ func HandleGetReplay(state *ServerState, w http.ResponseWriter, r *http.Request)
 
 func HandleGetReplayMoveList(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-	id, err := parseIntQuery(ctx, r.URL.Query(), "id")
+
+	q := r.URL.Query()
+	id, err := intQuery(q, "userId")
 	if err != nil {
-		return err
+		return PutErrorMap(nil, "page", ErrHttpInvalidID)
 	}
 
 	pbMoveHist, err := svc.GetReplayMoveHistory(ctx, state.Pdb.Query, int64(id))
 	if err != nil {
-		return fmt.Errorf("get replay %d moveHistory: %w", id, err)
+		return fmt.Errorf("get replay moveHistory: %w", err)
 	}
-
 	b, err := proto.Marshal(chess.SerializeMoveReplay(pbMoveHist))
 	if err != nil {
 		return fmt.Errorf("marshal replay %d move list : %w", id, err)
@@ -667,18 +684,24 @@ type GetUserReplaysResp struct {
 func HandleGetUserReplays(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	query := r.URL.Query()
-	afterID, aErr := parseIntQuery(ctx, query, "afterId")
-	userID, uErr := parseIntQuery(ctx, query, "userId")
-	if err := errsOr(aErr, uErr); err != nil {
-		return err
+	q := r.URL.Query()
+	var queryErr error
+	userID, err := intQuery(q, "userId")
+	if err != nil {
+		queryErr = PutErrorMap(queryErr, "userId", ErrHttpInvalidID)
+	}
+	afterID, err := intQuery(q, "afterId")
+	if err != nil {
+		queryErr = PutErrorMap(queryErr, "afterId", ErrHttpInvalidID)
+	}
+	if queryErr != nil {
+		return queryErr
 	}
 
 	replays, err := svc.GetUserReplays(ctx, state.Pdb.Query, int64(userID), int64(afterID), PerPage)
 	if err != nil {
 		return fmt.Errorf("get user %d replays: %w", userID, err)
 	}
-
 	if replays == nil {
 		replays = []svc.ReplayEntity{}
 	}
@@ -701,7 +724,6 @@ func HandleGetChallenges(state *ServerState, w http.ResponseWriter, r *http.Requ
 	}
 
 	since := svc.MakeGetChallengesSince(state.GetNow())
-
 	var challengeList []svc.ChallengeEntity
 	switch participants {
 	case "sent":
@@ -729,15 +751,21 @@ type ChessRoomListResp struct {
 func HandleGetChessRoomList(state *ServerState, w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	query := r.URL.Query()
-	page, pageErr := parsePageQuery(ctx, query)
-	count, countErr := parseCountQuery(ctx, query)
-	if err := errsOr(pageErr, countErr); err != nil {
-		return err
+	q := r.URL.Query()
+	var queryErr error
+	page, err := intQueryDefault(q, "page", 1)
+	if err != nil {
+		queryErr = PutErrorMap(queryErr, "page", ErrHttpInvalidPage)
+	}
+	count, err := intQueryDefault(q, "count", PerPage)
+	if err != nil {
+		queryErr = PutErrorMap(queryErr, "count", ErrHttpInvalidCount)
+	}
+	if queryErr != nil {
+		return queryErr
 	}
 
 	var hasSession bool
-
 	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
 	if err != nil {
 		if !errors.Is(err, svc.ErrSessionNotFound) {
@@ -753,11 +781,11 @@ func HandleGetChessRoomList(state *ServerState, w http.ResponseWriter, r *http.R
 	}
 	var selfChessList []svc.ChessMeta
 	if hasSession {
-		chessList, err := svc.GetUserChessMetas(ctx, state.Rdb, player.ID)
+		cl, err := svc.GetUserChessMetas(ctx, state.Rdb, player.ID)
 		if err != nil {
 			return fmt.Errorf("get user %d chess meta views: %w", player.ID, err)
 		}
-		selfChessList = chessList
+		selfChessList = cl
 	}
 
 	if chessList == nil {
@@ -785,23 +813,25 @@ var timeframeMap = map[string]uint{
 var GetEloHistoriesCacheControl = fmt.Sprintf("public, max-age=%f", svc.ShortBucketDuration.Seconds())
 
 func HandleGetEloHistories(state *ServerState, w http.ResponseWriter, r *http.Request) error {
-	ctx := r.Context()
-
-	query := r.URL.Query()
-	userID, err := parseIntQuery(ctx, query, "userId")
+	q := r.URL.Query()
+	var queryErr error
+	userID, err := intQuery(q, "userId")
 	if err != nil {
-		return err
+		queryErr = PutErrorMap(queryErr, "userID", ErrHttpInvalidPage)
 	}
-	timeframe := query.Get("timeframe")
+	timeframe := q.Get("timeframe")
 	if timeframe == "" {
 		timeframe = "all"
 	}
 	months, ok := timeframeMap[timeframe]
 	if !ok {
-		slog.WarnContext(ctx, "invalid timeframe", "timeframe", timeframe)
-		return ErrHttpInvalidRequest
+		queryErr = PutErrorMap(queryErr, "timeframe", ErrHttpInvalidTimeframe)
+	}
+	if queryErr != nil {
+		return queryErr
 	}
 
+	ctx := r.Context()
 	params := svc.EloHistoriesParams{UserID: int64(userID), Months: months, TimeUntil: state.GetNow()}
 	eloBuckets, _, err := svc.RetrieveEloHistoryBuckets(ctx, &state.Databases, params)
 	if err != nil {

@@ -279,13 +279,16 @@ func TestInsertGameResult(t *testing.T) {
 
 	for i, test := range []struct {
 		result     GameResult
-		wantElos   []db.GetUserModeElosByIdsRow
+		wantElos   []db.SelectUserModeElosByIdsRow
 		wantReplay db.Replay
 		wantChange GRChangeSet
 	}{
 		{
-			result:   GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Stalemate, ReplayResult: Draw, ReplayMode: ModeTimed1Plus0},
-			wantElos: []db.GetUserModeElosByIdsRow{{UserID: testUser0.ID, Elo: 1000}, {UserID: testUser1.ID, Elo: 1000}},
+			result: GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Stalemate, ReplayResult: Draw, ReplayMode: ModeTimed1Plus0},
+			wantElos: []db.SelectUserModeElosByIdsRow{
+				{UserID: testUser0.ID, Elo: 1000},
+				{UserID: testUser1.ID, Elo: 1000},
+			},
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
@@ -301,8 +304,11 @@ func TestInsertGameResult(t *testing.T) {
 			wantChange: GRChangeSet{},
 		},
 		{
-			result:   GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Checkmate, ReplayResult: WhiteWin, ReplayMode: ModeCorrespondence1},
-			wantElos: []db.GetUserModeElosByIdsRow{{UserID: testUser0.ID, Elo: 1015}, {UserID: testUser1.ID, Elo: 985}},
+			result: GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Checkmate, ReplayResult: WhiteWin, ReplayMode: ModeCorrespondence1},
+			wantElos: []db.SelectUserModeElosByIdsRow{
+				{UserID: testUser0.ID, Elo: 1015},
+				{UserID: testUser1.ID, Elo: 985},
+			},
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
@@ -318,8 +324,11 @@ func TestInsertGameResult(t *testing.T) {
 			wantChange: GRChangeSet{WinID: testUser0.ID, LoseID: testUser1.ID, WinEloDiff: 15, LoseEloDiff: -15},
 		},
 		{
-			result:   GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Forfeit, ReplayResult: BlackWin, ReplayMode: ModeCorrespondence7},
-			wantElos: []db.GetUserModeElosByIdsRow{{UserID: testUser0.ID, Elo: 985}, {UserID: testUser1.ID, Elo: 1015}},
+			result: GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Forfeit, ReplayResult: BlackWin, ReplayMode: ModeCorrespondence7},
+			wantElos: []db.SelectUserModeElosByIdsRow{
+				{UserID: testUser0.ID, Elo: 985},
+				{UserID: testUser1.ID, Elo: 1015},
+			},
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
@@ -345,13 +354,13 @@ func TestInsertGameResult(t *testing.T) {
 			require.NoError(t, err)
 
 			// then
-			rowElos, err := pdb.Query.GetUserModeElosByIds(ctx,
-				db.GetUserModeElosByIdsParams{ID: []int64{test.result.WhiteID, test.result.BlackID}, Mode: db.ModeEnum(test.result.ReplayMode)})
+			rowElos, err := pdb.Query.SelectUserModeElosByIds(ctx,
+				db.SelectUserModeElosByIdsParams{ID: []int64{test.result.WhiteID, test.result.BlackID}, Mode: db.ModeEnum(test.result.ReplayMode)})
 			require.NoError(t, err)
 
 			assert.Equal(t, test.wantElos, rowElos)
 
-			r1, err := pdb.Query.GetReplayRowByID(ctx, cs.ReplayID)
+			r1, err := pdb.Query.SelectReplayRowByID(ctx, cs.ReplayID)
 			require.NoError(t, err)
 
 			util.AssertEqualIgnoring(t, test.wantReplay, r1, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn"))

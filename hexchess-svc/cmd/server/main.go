@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"hexchess-svc/assets"
 	"hexchess-svc/db"
 	"hexchess-svc/outbound"
 	"hexchess-svc/services"
-	"hexchess-svc/static"
 	"hexchess-svc/util"
 	"hexchess-svc/web"
 	"log"
@@ -44,7 +44,7 @@ func main() {
 	//cookieDomain := os.Getenv("COOKIE_DOMAIN")
 
 	var countryList []string
-	if err := json.Unmarshal(static.CountryListJson, &countryList); err != nil {
+	if err := json.Unmarshal(assets.CountryListJson, &countryList); err != nil {
 		util.LogFatalErr("unmarshal country list", err)
 	}
 

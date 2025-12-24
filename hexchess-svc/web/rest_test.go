@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -16,38 +15,31 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
-	"strings"
 	"testing"
 )
 
 func TestHandleRegister(t *testing.T) {
 	insertTime := svc.TestTimeNow
 
-	type dbAssert struct {
-		username string
-		country  string
-		joinedOn pgtype.Timestamptz
-	}
-
 	for i, test := range []struct {
-		body        string
-		successResp SessionView
-		failResp    ServiceView
+		body        RegisterBody
+		wantSuccess SessionView
+		wantFail    ServiceView
 		wantStatus  int
 	}{
 		{
-			body:        `{"username": "test-name", "password": "test-password", "confirmPassword": "test-password"}`,
-			successResp: SessionView{Username: "test-name", Country: "un"},
+			body:        RegisterBody{Username: "test-name", Password: "test-password", ConfirmPassword: "test-password"},
+			wantSuccess: SessionView{Username: "test-name", Country: "un"},
 			wantStatus:  http.StatusOK,
 		},
 		{
-			body:       `{"username": "test-name1", "password": "test-password1", "confirmPassword": "wrong"}`,
-			failResp:   ServiceView{Status: 400, Message: ErrHttpConfirmPassword.Error()},
+			body:       RegisterBody{Username: "test-name1", Password: "test-password1", ConfirmPassword: "wrong"},
+			wantFail:   ServiceView{Status: 400, Errors: map[string]any{"confirmPassword": ErrHttpConfirmPassword.Error()}},
 			wantStatus: 400,
 		},
 		{
-			body:       fmt.Sprintf(`{"username": "%s", "password": "test-password2", "confirmPassword": "test-password2"}`, svc.TestUsersInsts[0].Username),
-			failResp:   ServiceView{Status: 400, Message: ErrHttpDuplicateUsername.Error()},
+			body:       RegisterBody{Username: svc.TestUsersInsts[0].Username, Password: "test-password2", ConfirmPassword: "test-password2"},
+			wantFail:   ServiceView{Status: 400, Errors: ErrHttpDuplicateUsername.Error()},
 			wantStatus: 400,
 		},
 	} {
@@ -55,16 +47,16 @@ func TestHandleRegister(t *testing.T) {
 			dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 			defer closer()
 
-			r := httptest.NewRequest(http.MethodPost, "/api/register", strings.NewReader(test.body))
+			r := httptest.NewRequest(http.MethodPost, "/api/register", util.AsJSONReader(test.body))
 			w := httptest.NewRecorder()
 			h := HandleRoot(MakeServerState(ServerSetup{Databases: dbs, Generators: &stableGenerator{time: insertTime}}), "")
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				util.AssertRespBody[SessionView](t, test.successResp, w, testSessionViewCmpOpts)
+				util.AssertRespBody[SessionView](t, test.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				util.AssertRespBody[ServiceView](t, test.failResp, w)
+				util.AssertRespBody[ServiceView](t, test.wantFail, w)
 			}
 		})
 	}
@@ -79,33 +71,33 @@ func TestHandleLogin(t *testing.T) {
 	user := svc.TestUsersInsts[0]
 
 	for i, test := range []struct {
-		body        string
-		successResp SessionView
-		failResp    ServiceView
+		body        LoginBody
+		wantSuccess SessionView
+		wantFail    ServiceView
 		wantStatus  int
 	}{
 		{
-			body:       `{"username": "test-name", "password": "test-password"}`,
-			failResp:   ServiceView{Status: 401, Message: ErrHttpInvalidLogin.Error()},
+			body:       LoginBody{Username: "test-name", Password: "test-password"},
+			wantFail:   ServiceView{Status: 401, Errors: ErrHttpInvalidLogin.Error()},
 			wantStatus: 401,
 		},
 		{
-			body:        fmt.Sprintf(`{"username": "%s", "password": "%s"}`, user.Username, user.Password),
-			successResp: SessionView{Username: user.Username, Country: "us"},
+			body:        LoginBody{Username: user.Username, Password: user.Password},
+			wantSuccess: SessionView{Username: user.Username, Country: "us"},
 			wantStatus:  http.StatusOK,
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(test.body))
+			r := httptest.NewRequest(http.MethodPost, "/api/login", util.AsJSONReader(test.body))
 			w := httptest.NewRecorder()
 
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				util.AssertRespBody[SessionView](t, test.successResp, w, testSessionViewCmpOpts)
+				util.AssertRespBody[SessionView](t, test.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				util.AssertRespBody[ServiceView](t, test.failResp, w)
+				util.AssertRespBody[ServiceView](t, test.wantFail, w)
 			}
 		})
 	}
@@ -118,9 +110,9 @@ func TestHandleLoginGoogleLogin(t *testing.T) {
 	for i, test := range []struct {
 		runCount    int
 		setupMocks  func(ctrl *gomock.Controller) outbound.GoogleAPI
-		body        string
-		successResp SessionView
-		failResp    ServiceView
+		body        GoogleLoginBody
+		wantSuccess SessionView
+		wantFail    ServiceView
 		wantStatus  int
 	}{
 		{
@@ -132,8 +124,8 @@ func TestHandleLoginGoogleLogin(t *testing.T) {
 					Return(outbound.GoogleIDTokenPayload{}, errors.New("invalid token"))
 				return m
 			},
-			body:       `{"token": "invalidToken123"}`,
-			failResp:   ServiceView{Status: 500, Message: ErrHttpFatal.Error()},
+			body:       GoogleLoginBody{Token: "invalidToken123"},
+			wantFail:   ServiceView{Status: 500, Errors: ErrHttpFatal.Error()},
 			wantStatus: 500,
 		},
 		{
@@ -145,8 +137,8 @@ func TestHandleLoginGoogleLogin(t *testing.T) {
 					Return(outbound.GoogleIDTokenPayload{AccountID: "account1", Username: "email@domain.com"}, nil)
 				return m
 			},
-			body:        `{"token": "testToken123"}`,
-			successResp: SessionView{Username: "email@domain.com", Country: "un"},
+			body:        GoogleLoginBody{Token: "testToken123"},
+			wantSuccess: SessionView{Username: "email@domain.com", Country: "un"},
 			wantStatus:  http.StatusOK,
 		},
 	} {
@@ -155,7 +147,7 @@ func TestHandleLoginGoogleLogin(t *testing.T) {
 			defer ctrl.Finish()
 
 			for range test.runCount {
-				r := httptest.NewRequest(http.MethodPost, "/api/login/google", strings.NewReader(test.body))
+				r := httptest.NewRequest(http.MethodPost, "/api/login/google", util.AsJSONReader(test.body))
 				w := httptest.NewRecorder()
 
 				state := MakeServerState(ServerSetup{
@@ -170,9 +162,9 @@ func TestHandleLoginGoogleLogin(t *testing.T) {
 
 				assert.Equal(t, test.wantStatus, w.Code)
 				if test.wantStatus == http.StatusOK {
-					util.AssertRespBody[SessionView](t, test.successResp, w, testSessionViewCmpOpts)
+					util.AssertRespBody[SessionView](t, test.wantSuccess, w, testSessionViewCmpOpts)
 				} else {
-					util.AssertRespBody[ServiceView](t, test.failResp, w)
+					util.AssertRespBody[ServiceView](t, test.wantFail, w)
 				}
 			}
 		})
@@ -187,24 +179,24 @@ func TestHandleUpdateUser(t *testing.T) {
 	h := HandleRoot(MakeServerState(ServerSetup{Databases: dbs, CountryList: []string{"eu"}}), "")
 
 	for i, test := range []struct {
-		body        string
-		successResp SessionView
-		failResp    ServiceView
+		body        UpdateUserBody
+		wantSuccess SessionView
+		wantFail    ServiceView
 		wantStatus  int
 	}{
 		{
-			body:       `{"newCountry": "test"}`,
-			failResp:   ServiceView{Status: 400, Message: ErrHttpInvalidCountry.Error()},
+			body:       UpdateUserBody{NewCountry: "test"},
+			wantFail:   ServiceView{Status: 400, Errors: map[string]any{"newCountry": ErrHttpInvalidCountry.Error()}},
 			wantStatus: 400,
 		},
 		{
-			body:        `{"newUsername": "new-username", "newBio": "test biography", "newCountry": "eu"}`,
-			successResp: SessionView{Username: "new-username", Country: "eu"},
+			body:        UpdateUserBody{NewUsername: "new-username", NewBio: "test biography", NewCountry: "eu"},
+			wantSuccess: SessionView{Username: "new-username", Country: "eu"},
 			wantStatus:  http.StatusOK,
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodPost, "/api/users", strings.NewReader(test.body))
+			r := httptest.NewRequest(http.MethodPost, "/api/users", util.AsJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
@@ -212,9 +204,9 @@ func TestHandleUpdateUser(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				util.AssertRespBody[SessionView](t, test.successResp, w, testSessionViewCmpOpts)
+				util.AssertRespBody[SessionView](t, test.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				util.AssertRespBody[ServiceView](t, test.failResp, w)
+				util.AssertRespBody[ServiceView](t, test.wantFail, w)
 			}
 		})
 	}
@@ -228,29 +220,29 @@ func TestHandleUpdatePassword(t *testing.T) {
 	h := HandleRoot(MakeServerState(ServerSetup{Databases: dbs}), "")
 
 	for i, test := range []struct {
-		body        string
-		successResp ServiceView
-		failResp    ServiceView
+		body        UpdatePasswordBody
+		wantSuccess ServiceView
+		wantFail    ServiceView
 		wantStatus  int
 	}{
 		{
-			body:       `{"password": "password2", "newPassword": "test-password", "confirmNewPassword": "test-password"}`,
-			failResp:   ServiceView{Status: 401, Message: ErrHttpInvalidLogin.Error()},
+			body:       UpdatePasswordBody{Password: "password2", NewPassword: "test-password", ConfirmNewPassword: "test-password"},
+			wantFail:   ServiceView{Status: 401, Errors: ErrHttpInvalidLogin.Error()},
 			wantStatus: 401,
 		},
 		{
-			body:       `{"password": "password1", "newPassword": "test-password1", "confirmNewPassword": "test-password"}`,
-			failResp:   ServiceView{Status: 400, Message: ErrHttpConfirmPassword.Error()},
+			body:       UpdatePasswordBody{Password: "password1", NewPassword: "test-password1", ConfirmNewPassword: "test-password"},
+			wantFail:   ServiceView{Status: 400, Errors: map[string]any{"confirmNewPassword": ErrHttpConfirmPassword.Error()}},
 			wantStatus: 400,
 		},
 		{
-			body:        `{"password": "password1", "newPassword": "test-password", "confirmNewPassword": "test-password"}`,
-			successResp: ServiceView{Status: http.StatusOK, Message: "SUCCESS"},
+			body:        UpdatePasswordBody{Password: "password1", NewPassword: "test-password", ConfirmNewPassword: "test-password"},
+			wantSuccess: ServiceView{Status: http.StatusOK, Message: "SUCCESS"},
 			wantStatus:  http.StatusOK,
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodPost, "/api/users/password", strings.NewReader(test.body))
+			r := httptest.NewRequest(http.MethodPost, "/api/users/password", util.AsJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
@@ -258,9 +250,9 @@ func TestHandleUpdatePassword(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				util.AssertRespBody[ServiceView](t, test.successResp, w)
+				util.AssertRespBody[ServiceView](t, test.wantSuccess, w)
 			} else {
-				util.AssertRespBody[ServiceView](t, test.failResp, w)
+				util.AssertRespBody[ServiceView](t, test.wantFail, w)
 			}
 		})
 	}
@@ -275,27 +267,32 @@ func TestHandleUpdateChallenge(t *testing.T) {
 	h := HandleRoot(MakeServerState(ServerSetup{Databases: dbs}), "")
 
 	for i, test := range []struct {
-		body       string
-		failResp   ServiceView
+		body       UpdateChallengeBody
+		wantFail   ServiceView
 		wantStatus int
 	}{
 		{
-			body:       `{"challengerID": 999, "challengeeID": 1, "action": "ACCEPT"}`,
-			failResp:   ServiceView{Status: 404, Message: ErrHttpNotFoundChallenge.Error()},
+			body:       UpdateChallengeBody{Action: "invalid"},
+			wantFail:   ServiceView{Status: 400, Errors: map[string]any{"action": ErrHttpInvalidAction.Error()}},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			body:       UpdateChallengeBody{ChallengerID: 999, ChallengeeID: 1, Action: "ACCEPT"},
+			wantFail:   ServiceView{Status: 404, Errors: ErrHttpNotFoundChallenge.Error()},
 			wantStatus: 404,
 		},
 		{
-			body:       `{"challengerID": 5, "challengeeID": 1, "action": "DELETE"}`,
-			failResp:   ServiceView{Status: 400, Message: ErrHttpUpdateChallenge.Error()},
+			body:       UpdateChallengeBody{ChallengerID: 5, ChallengeeID: 1, Action: "DELETE"},
+			wantFail:   ServiceView{Status: 400, Errors: ErrHttpUpdateChallenge.Error()},
 			wantStatus: 400,
 		},
 		{
-			body:       `{"challengerID": 5, "challengeeID": 1, "action": "ACCEPT"}`,
+			body:       UpdateChallengeBody{ChallengerID: 5, ChallengeeID: 1, Action: "ACCEPT"},
 			wantStatus: http.StatusOK,
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodPost, "/api/challenges/update", strings.NewReader(test.body))
+			r := httptest.NewRequest(http.MethodPost, "/api/challenges/update", util.AsJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
@@ -303,7 +300,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus != http.StatusOK {
-				util.AssertRespBody[ServiceView](t, test.failResp, w)
+				util.AssertRespBody[ServiceView](t, test.wantFail, w)
 			}
 		})
 	}
@@ -315,10 +312,10 @@ func TestHandleCreateChallenge(t *testing.T) {
 	defer closer()
 	createTestSessions(t, dbs.Rdb)
 
-	body := `{"challengeeID": 4, "startColor": "WHITE", "mode": "CORRESPONDENCE_1"}`
-	wantResp := ServiceView{Status: http.StatusOK, Message: "SUCCESS"}
+	body := CreateChallengeBody{ChallengeeID: 4, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"}
+	wantSuccess := ServiceView{Status: http.StatusOK, Message: "SUCCESS"}
 
-	r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", strings.NewReader(body))
+	r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", util.AsJSONReader(body))
 	r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 	w := httptest.NewRecorder()
 	h := HandleRoot(MakeServerState(ServerSetup{Databases: dbs, Generators: &stableGenerator{time: svc.TestTimeNow}}), "")
@@ -328,7 +325,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 
 	// then
 	assert.Equal(t, http.StatusOK, w.Code)
-	util.AssertRespBody[ServiceView](t, wantResp, w)
+	util.AssertRespBody[ServiceView](t, wantSuccess, w)
 }
 
 func TestGetLeaderboard(t *testing.T) {
@@ -380,14 +377,14 @@ func TestGetPlayer(t *testing.T) {
 	for i, test := range []struct {
 		id          string
 		withReplays bool
-		successResp FullUserResp
-		failResp    ServiceView
+		wantSuccess FullUserResp
+		wantFail    ServiceView
 		wantStatus  int
 	}{
 		{
 			id:          "1",
 			withReplays: true,
-			successResp: FullUserResp{
+			wantSuccess: FullUserResp{
 				User:       svc.TestUserEntities[0],
 				Stats:      svc.TestUserStats[0],
 				ReplayList: []svc.ReplayEntity{svc.TestReplayEntities[0], svc.TestReplayEntities[1]},
@@ -397,7 +394,7 @@ func TestGetPlayer(t *testing.T) {
 		{
 			id:          "1",
 			withReplays: false,
-			successResp: FullUserResp{
+			wantSuccess: FullUserResp{
 				User:       svc.TestUserEntities[0],
 				Stats:      svc.TestUserStats[0],
 				ReplayList: []svc.ReplayEntity{},
@@ -406,7 +403,7 @@ func TestGetPlayer(t *testing.T) {
 		},
 		{
 			id:         "test",
-			failResp:   ServiceView{Status: 400, Message: ErrHttpInvalidRequest.Error()},
+			wantFail:   ServiceView{Status: 400, Errors: map[string]any{"id": ErrHttpInvalidID.Error()}},
 			wantStatus: 400,
 		},
 	} {
@@ -418,9 +415,9 @@ func TestGetPlayer(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				util.AssertRespBody[FullUserResp](t, test.successResp, w)
+				util.AssertRespBody[FullUserResp](t, test.wantSuccess, w)
 			} else {
-				util.AssertRespBody[ServiceView](t, test.failResp, w)
+				util.AssertRespBody[ServiceView](t, test.wantFail, w)
 			}
 		})
 	}
@@ -435,19 +432,19 @@ func TestGetChallenges(t *testing.T) {
 
 	for i, test := range []struct {
 		participants string
-		successResp  GetChallengesResp
+		wantSuccess  GetChallengesResp
 		wantStatus   int
 	}{
 		{
 			participants: "sent",
-			successResp: GetChallengesResp{
+			wantSuccess: GetChallengesResp{
 				ChallengeList: []svc.ChallengeEntity{svc.TestChallengeEntities[0]},
 			},
 			wantStatus: http.StatusOK,
 		},
 		{
 			participants: "received",
-			successResp: GetChallengesResp{
+			wantSuccess: GetChallengesResp{
 				ChallengeList: []svc.ChallengeEntity{svc.TestChallengeEntities[1]},
 			},
 			wantStatus: http.StatusOK,
@@ -461,7 +458,7 @@ func TestGetChallenges(t *testing.T) {
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
-			util.AssertRespBody[GetChallengesResp](t, test.successResp, w)
+			util.AssertRespBody[GetChallengesResp](t, test.wantSuccess, w)
 		})
 	}
 }
@@ -475,35 +472,29 @@ func TestHandleGetUserReplays(t *testing.T) {
 	for i, test := range []struct {
 		afterID     string
 		userID      string
-		successResp GetUserReplaysResp
-		failResp    ServiceView
+		wantSuccess GetUserReplaysResp
+		wantFail    ServiceView
 		wantStatus  int
 	}{
 		{
 			afterID:     "0",
 			userID:      "999", // nonexistent user
 			wantStatus:  http.StatusOK,
-			successResp: GetUserReplaysResp{ReplayList: []svc.ReplayEntity{}},
+			wantSuccess: GetUserReplaysResp{ReplayList: []svc.ReplayEntity{}},
 		},
 		{
 			afterID:    "-1",
 			userID:     "1",
 			wantStatus: http.StatusOK,
-			successResp: GetUserReplaysResp{ReplayList: []svc.ReplayEntity{
+			wantSuccess: GetUserReplaysResp{ReplayList: []svc.ReplayEntity{
 				svc.TestReplayEntities[0],
 				svc.TestReplayEntities[1],
 			}},
 		},
 		{
-			afterID:    "abc",
-			userID:     "1", // invalid afterID
-			failResp:   ServiceView{Status: 400, Message: ErrHttpInvalidRequest.Error()},
-			wantStatus: 400,
-		},
-		{
-			afterID:    "0",
-			userID:     "xyz", // invalid afterID
-			failResp:   ServiceView{Status: 400, Message: ErrHttpInvalidRequest.Error()},
+			afterID:    "abc", // invalid afterID
+			userID:     "xyz", // invalid userID
+			wantFail:   ServiceView{Status: 400, Errors: map[string]any{"afterId": ErrHttpInvalidID.Error(), "userId": ErrHttpInvalidID.Error()}},
 			wantStatus: 400,
 		},
 	} {
@@ -516,9 +507,9 @@ func TestHandleGetUserReplays(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
-				util.AssertRespBody[GetUserReplaysResp](t, test.successResp, w)
+				util.AssertRespBody[GetUserReplaysResp](t, test.wantSuccess, w)
 			} else {
-				util.AssertRespBody[ServiceView](t, test.failResp, w)
+				util.AssertRespBody[ServiceView](t, test.wantFail, w)
 			}
 		})
 	}
@@ -557,7 +548,6 @@ func TestHandleGetChessViews(t *testing.T) {
 			},
 		},
 	}
-
 	assert.Equal(t, http.StatusOK, w.Code)
 	util.AssertRespBody[ChessRoomListResp](t, wantResp, w)
 }

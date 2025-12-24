@@ -2,7 +2,7 @@ package web
 
 import (
 	"errors"
-	"net/http"
+	"fmt"
 )
 
 // HTTP error codes
@@ -11,6 +11,7 @@ var (
 	ErrHttpInvalidPassword      = errors.New("ERROR_PASSWORD_LENGTH")
 	ErrHttpConfirmPassword      = errors.New("ERROR_CONFIRM_PASSWORD")
 	ErrHttpInvalidUsername      = errors.New("ERROR_USERNAME_LENGTH")
+	ErrHttpInvalidBio           = errors.New("ERROR_BIO_LENGTH")
 	ErrHttpUnsafeUsername       = errors.New("ERROR_UNSAFE_USERNAME")
 	ErrHttpInvalidParticipants  = errors.New("ERROR_INVALID_PARTICIPANTS")
 	ErrHttpDuplicateUsername    = errors.New("ERROR_DUPLICATE_USERNAME")
@@ -24,10 +25,15 @@ var (
 	ErrHttpDuplicateChallenge   = errors.New("ERROR_DUPLICATE_CHALLENGE")
 	ErrHttpUpdateChallenge      = errors.New("ERROR_UPDATE_CHALLENGE")
 	ErrHttpUserNotFound         = errors.New("ERROR_NOT_FOUND_USER")
-	ErrHttpInvalidRequest       = errors.New("ERROR_INVALID_REQUEST")
 	ErrHttpInvalidMode          = errors.New("ERROR_INVALID_MODE")
 	ErrHttpSearchLimit          = errors.New("ERROR_SEARCH_LIMIT")
 	ErrInvalidFen               = errors.New("ERROR_INVALID_FEN")
+	ErrHttpInvalidCount         = errors.New("ERR_HTTP_INVALID_COUNT")
+	ErrHttpInvalidPage          = errors.New("ERR_HTTP_INVALID_PAGE")
+	ErrHttpInvalidID            = errors.New("ERR_HTTP_INVALID_ID")
+	ErrHttpInvalidJSON          = errors.New("ERR_HTTP_INVALID_JSON")
+	ErrHttpInvalidTimeframe     = errors.New("ERR_HTTP_INVALID_TIMEFRAME")
+	ErrHttpInvalidAction        = errors.New("ERR_HTTP_INVALID_ACTION")
 )
 
 // WebSocket response codes
@@ -41,43 +47,28 @@ var (
 	ErrWsExpiration   = errors.New("ERROR_EXPIRED_GAME")
 )
 
-func HttpStatusFromErr(err error) (int, string) {
-	switch err {
-	case ErrHttpInvalidPassword,
-		ErrHttpConfirmPassword,
-		ErrHttpInvalidUsername,
-		ErrHttpUnsafeUsername,
-		ErrHttpInvalidParticipants,
-		ErrHttpInvalidRequest,
-		ErrHttpSelfChallenge,
-		ErrHttpUpdateChallenge,
-		ErrHttpSearchLimit,
-		ErrHttpInvalidCountry,
-		ErrHttpDuplicateUsername,
-		ErrInvalidFen,
-		ErrHttpDuplicateChallenge,
-		ErrHttpInvalidMode:
-		return http.StatusBadRequest, err.Error()
-	case ErrHttpRequiredLogin,
-		ErrHttpInvalidLogin,
-		ErrHttpSessionExpired,
-		ErrHttpTooManyLoginAttempts:
-		return http.StatusUnauthorized, err.Error()
-	case ErrHttpUserNotFound,
-		ErrHttpNotFoundChallenge:
-		return http.StatusNotFound, err.Error()
-	case ErrHttpFatal:
-		return http.StatusInternalServerError, err.Error()
-	default:
-		return http.StatusInternalServerError, ErrHttpFatal.Error()
-	}
+// ErrorMap is a utility for storing errors for each field in a request body in a map, inspired by multierror
+type ErrorMap struct {
+	Errors map[string]error
 }
 
-func errsOr(errs ...error) error {
-	for _, err := range errs {
-		if err != nil {
-			return err
-		}
+func PutErrorMap(left error, key string, right error) error {
+	if right == nil {
+		return left
 	}
-	return nil
+	if left == nil {
+		left = &ErrorMap{}
+	}
+	var errm, ok = left.(*ErrorMap)
+	if ok {
+		if errm.Errors == nil {
+			errm.Errors = make(map[string]error)
+		}
+		errm.Errors[key] = right
+	}
+	return left
+}
+
+func (m *ErrorMap) Error() string {
+	return fmt.Sprintf("%+v", m.Errors)
 }

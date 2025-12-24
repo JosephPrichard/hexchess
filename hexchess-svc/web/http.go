@@ -1,21 +1,93 @@
 package web
 
 import (
-	"context"
 	"encoding/json"
-	svc "hexchess-svc/services"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
-	"slices"
 	"strconv"
 )
 
-func parseJSON[T any](r *http.Request, body *T) error {
+func HttpStatusFromErr(err error) (int, string) {
+	switch err {
+	// 400 — Bad Request
+	case ErrHttpInvalidPassword,
+		ErrHttpConfirmPassword,
+		ErrHttpInvalidUsername,
+		ErrHttpInvalidBio,
+		ErrHttpUnsafeUsername,
+		ErrHttpInvalidParticipants,
+		ErrHttpInvalidCountry,
+		ErrHttpDuplicateUsername,
+		ErrHttpSelfChallenge,
+		ErrHttpDuplicateChallenge,
+		ErrHttpUpdateChallenge,
+		ErrHttpInvalidMode,
+		ErrHttpInvalidCount,
+		ErrHttpInvalidPage,
+		ErrHttpInvalidID,
+		ErrHttpInvalidJSON,
+		ErrHttpInvalidTimeframe,
+		ErrHttpInvalidAction,
+		ErrHttpSearchLimit,
+		ErrInvalidFen:
+		return http.StatusBadRequest, err.Error()
+
+	// 401 — Unauthorized
+	case ErrHttpRequiredLogin,
+		ErrHttpInvalidLogin,
+		ErrHttpSessionExpired,
+		ErrHttpTooManyLoginAttempts:
+		return http.StatusUnauthorized, err.Error()
+
+	// 404 — Not Found
+	case ErrHttpUserNotFound,
+		ErrHttpNotFoundChallenge:
+		return http.StatusNotFound, err.Error()
+
+	// 500 — Internal Server Error
+	case ErrHttpFatal:
+		return http.StatusInternalServerError, err.Error()
+
+	// fallback
+	default:
+		return http.StatusInternalServerError, ErrHttpFatal.Error()
+	}
+}
+
+func HttpStatusFromErrs(err error) (int, any) {
+	var errs map[string]error
+	var merr *ErrorMap
+	if ok := errors.As(err, &merr); ok {
+		errs = merr.Errors
+	} else {
+		return HttpStatusFromErr(err)
+	}
+
+	errStatus := 0
+	errStrs := make(map[string]string)
+
+	for key, err := range errs {
+		status, errStr := HttpStatusFromErr(err)
+		// yields the most 'severe' status. 500 is worse than 400, which is worse than 200
+		if status > errStatus {
+			errStatus = status
+		}
+		errStrs[key] = errStr
+	}
+
+	if errStatus == 0 {
+		errStatus = http.StatusInternalServerError
+	}
+	return errStatus, errStrs
+}
+
+func readJSON[T any](r *http.Request, body *T) error {
 	err := json.NewDecoder(r.Body).Decode(&body)
+	defer r.Body.Close()
 	if err != nil {
-		slog.Warn("failed to parse json body", "err", err)
-		return ErrHttpInvalidRequest
+		return ErrHttpInvalidJSON
 	}
 	return nil
 }
@@ -23,19 +95,20 @@ func parseJSON[T any](r *http.Request, body *T) error {
 type ServiceView struct {
 	Status  int    `json:"status"`
 	Message string `json:"message"`
+	Errors  any    `json:"errors,omitempty"`
 }
 
 func writeJSON[V any](w http.ResponseWriter, status int, data V) {
 	v, err := json.Marshal(data)
 	if err != nil {
-		slog.Error("marshal json response", "err", err)
+		slog.Error("failed to marshal json response", "err", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if _, err := w.Write(v); err != nil {
-		slog.Error("write json response", "err", err)
+		slog.Error("failed towrite json response", "err", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 	}
 }
@@ -48,52 +121,14 @@ func writeBytes(w http.ResponseWriter, status int, b []byte) {
 	}
 }
 
-func parseIntQuery(ctx context.Context, query url.Values, key string) (int, error) {
-	str := query.Get(key)
-	num, err := strconv.Atoi(str)
-	if err != nil {
-		slog.WarnContext(ctx, "failed to parse integer query", "key", key, "str", str, "err", err)
-		return 0, ErrHttpInvalidRequest
-	}
-	return num, nil
+func intQuery(values url.Values, key string) (int, error) {
+	return strconv.Atoi(values.Get(key))
 }
 
-func parsePageQuery(ctx context.Context, query url.Values) (int, error) {
-	strPage := query.Get("page")
-	if strPage == "" {
-		return 1, nil
+func intQueryDefault(values url.Values, key string, def int) (int, error) {
+	v := values.Get(key)
+	if v == "" {
+		return def, nil
 	}
-	page, err := strconv.Atoi(strPage)
-	if err != nil {
-		slog.WarnContext(ctx, "failed to parse page query", "page", strPage, "err", err)
-		return 0, ErrHttpInvalidRequest
-	}
-	return page, nil
-}
-
-func parseModeQuery(ctx context.Context, query url.Values) (svc.GameMode, error) {
-	strMode := query.Get("mode")
-	if strMode == "" {
-		slog.WarnContext(ctx, "mode query is a required field")
-		return "", ErrHttpInvalidMode
-	}
-	mode := svc.GameMode(strMode)
-	if !slices.Contains(svc.GameModes, mode) {
-		slog.WarnContext(ctx, "mode is invalid", "mode", strMode, "validModes", svc.GameModes)
-		return "", ErrHttpInvalidMode
-	}
-	return mode, nil
-}
-
-func parseCountQuery(ctx context.Context, query url.Values) (int, error) {
-	strCount := query.Get("count")
-	if strCount == "" {
-		return PerPage, nil
-	}
-	count, err := strconv.Atoi(strCount)
-	if err != nil {
-		slog.WarnContext(ctx, "failed to parse count query", "count", strCount, "err", err)
-		return 0, ErrHttpInvalidRequest
-	}
-	return count, nil
+	return strconv.Atoi(v)
 }

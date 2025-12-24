@@ -25,7 +25,7 @@ type SessionView struct {
 
 var testSessionViewCmpOpts = cmpopts.IgnoreFields(SessionView{}, "ID", "TTLSecs")
 
-func MakeSessionID() (string, error) {
+func MakeSessionID() string {
 	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 	const length = 100
 
@@ -33,11 +33,11 @@ func MakeSessionID() (string, error) {
 	for i := 0; i < length; i++ {
 		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(characters))))
 		if err != nil {
-			return "", fmt.Errorf("error generating session id: %w", err)
+			panic(fmt.Sprintf("error generating session id: %v", err))
 		}
 		bytes[i] = characters[n.Int64()]
 	}
-	return string(bytes), nil
+	return string(bytes)
 }
 
 func GetSessionPlayer(ctx context.Context, rdb *db.Redis, r *http.Request) (svc.PlayerState, string, error) {
@@ -54,10 +54,7 @@ func GetSessionPlayer(ctx context.Context, rdb *db.Redis, r *http.Request) (svc.
 }
 
 func SetSessionPlayer(ctx context.Context, rdb *db.Redis, w http.ResponseWriter, player svc.PlayerState) (time.Duration, error) {
-	sessionID, err := MakeSessionID()
-	if err != nil {
-		return 0, err
-	}
+	sessionID := MakeSessionID()
 	if err := svc.SetSession(ctx, rdb, sessionID, player, SessionMaxAge); err != nil {
 		return 0, err
 	}

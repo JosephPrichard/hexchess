@@ -6,7 +6,7 @@ import (
 	"google.golang.org/api/idtoken"
 )
 
-//go:generate mockgen -source=google.go -destination=./google_mock.go -package=ext
+//go:generate mockgen -source=google.go -destination=./google_mock.go -package=outbound
 
 type GoogleAPI interface {
 	ValidateIDToken(ctx context.Context, token string) (GoogleIDTokenPayload, error)
@@ -26,7 +26,7 @@ const UsernameClaim string = "email"
 func (g *RemoteGoogleAPI) ValidateIDToken(ctx context.Context, token string) (GoogleIDTokenPayload, error) {
 	payload, err := idtoken.Validate(ctx, token, g.APIKey)
 	if err != nil {
-		return GoogleIDTokenPayload{}, fmt.Errorf("validate google id token: %w", err)
+		return GoogleIDTokenPayload{}, fmt.Errorf("validate google id token %s: %w", token, err)
 	}
 	googleAccountID := payload.Subject
 	username, ok := payload.Claims[UsernameClaim].(string)

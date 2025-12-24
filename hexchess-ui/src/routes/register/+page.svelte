@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { makeMessage } from '$lib/utils/error';
+	import { errorToArray } from '$lib/utils/error';
+	import { fade } from 'svelte/transition';
 	import { setClientSession } from '$lib/utils/storage';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import services from '$lib/api/services';
@@ -10,6 +11,8 @@
 	let password = $state('');
 	let confirmPassword = $state('');
 	let isLoading = $state(false);
+	let messages = $state<string[]>([]);
+	let removeMessage: ReturnType<typeof setTimeout> | undefined = undefined;
 
 	const { addNotification } = getNotificationsContext();
 
@@ -27,7 +30,11 @@
 
 			await goto('/');
 		} else {
-			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
+			if (removeMessage !== undefined) {
+				clearTimeout(removeMessage);
+			}
+			messages = errorToArray(err);
+			removeMessage = setTimeout(() => messages = [], 5000);
 		}
 
 		isLoading = false;
@@ -78,6 +85,12 @@
 					Register
 				{/if}
 			</button>
+
+			<div class="error-container">
+				{#each messages as message}
+					<div class="error-box" transition:fade>{message}</div>
+				{/each}
+			</div>
 		</form>
 	</div>
 </div>

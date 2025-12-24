@@ -111,16 +111,26 @@ func TestRetrieveEloHistories(t *testing.T) {
 			params:             EloHistoriesParams{UserID: 6, TimeUntil: timeUntil},
 			wantBucketDuration: LongBucketDuration,
 			wantEloBuckets: EloHistoryBuckets{
-				{Timestamp: "1899-12-31T18:00:00-06:00", Elo: 1030},
-				{Timestamp: "2019-12-29T18:00:00-06:00", Elo: 1090},
+				ModeCorrespondence7: []EloHistoryBucket{
+					{Timestamp: "1899-12-31T18:00:00-06:00", Elo: 1030},
+					{Timestamp: "2019-12-29T18:00:00-06:00", Elo: 1090},
+				},
+				ModeCorrespondence1: []EloHistoryBucket{
+					{Timestamp: "2019-12-29T18:00:00-06:00", Elo: 1030},
+				},
 			},
 		},
 		{
 			params:             EloHistoriesParams{UserID: 6, Months: 3, TimeUntil: timeUntil},
 			wantBucketDuration: ShortBucketDuration,
 			wantEloBuckets: EloHistoryBuckets{
-				{Timestamp: "2019-12-31T18:00:00-06:00", Elo: 1075},
-				{Timestamp: "2020-01-02T18:00:00-06:00", Elo: 1120},
+				ModeCorrespondence7: []EloHistoryBucket{
+					{Timestamp: "2019-12-31T18:00:00-06:00", Elo: 1075},
+					{Timestamp: "2020-01-02T18:00:00-06:00", Elo: 1120},
+				},
+				ModeCorrespondence1: []EloHistoryBucket{
+					{Timestamp: "2020-01-04T18:00:00-06:00", Elo: 1030},
+				},
 			},
 		},
 	} {

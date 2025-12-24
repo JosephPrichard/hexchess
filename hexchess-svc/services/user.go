@@ -116,7 +116,6 @@ func InsertUser(ctx context.Context, query *db.Queries, inst UserInst) (UserEnti
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			slog.InfoContext(ctx, "player already exists", "inst", inst, "err", pgErr)
 			return u, ErrTakenUsername
 		}
 		return u, fmt.Errorf("insert user to db: %w", err)
@@ -335,7 +334,7 @@ func SearchUsersByName(ctx context.Context, query *db.Queries, name string, page
 	page = max(page, 1)
 	offset := (page - 1) * perPage
 	if offset > MaxSearchOffset {
-		slog.ErrorContext(ctx, "failed to search offset exceeds maximum", "offset", offset, "maxOffset", MaxSearchOffset)
+		slog.WarnContext(ctx, "failed to search offset exceeds maximum", "offset", offset, "maxOffset", MaxSearchOffset)
 		return nil, ErrSearchLimit
 	}
 
@@ -345,7 +344,6 @@ func SearchUsersByName(ctx context.Context, query *db.Queries, name string, page
 		Offset:   offset,
 	})
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to select users by similarity", "err", err, "name", name, "page", page, "limit", perPage, "offset", offset)
 		return nil, fmt.Errorf("select users by similarity: %w", err)
 	}
 
@@ -386,9 +384,9 @@ type UserStatsEntity struct {
 func GetUserElos(ctx context.Context, query *db.Queries, id int64) (UserStatsEntity, error) {
 	stats := UserStatsEntity{HighestElo: math.SmallestNonzeroFloat64}
 
-	rows, err := query.GetUserElosById(ctx, id)
+	rows, err := query.SelectUserElosById(ctx, id)
 	if err != nil {
-		return stats, fmt.Errorf("get user %d elos by id: %w", id, err)
+		return stats, fmt.Errorf("select user %d elos by id: %w", id, err)
 	}
 
 	for _, row := range rows {

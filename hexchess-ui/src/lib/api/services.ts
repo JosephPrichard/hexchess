@@ -38,7 +38,7 @@ export async function requestJSON<Response extends object | {}>(input: RequestIn
 		}
 	} catch (error) {
 		console.error(error);
-		return [undefined, { status: 500, message: codes.errorUnknown }];
+		return [undefined, { status: 500, message: "", errors: codes.errorUnknown }];
 	}
 }
 
@@ -64,7 +64,7 @@ export async function requestBuf(input: RequestInfo | URL, init?: RequestInit, r
 		}
 	} catch (error) {
 		console.error(error);
-		return [undefined, { status: 500, message: codes.errorUnknown }];
+		return [undefined, { status: 500, message: "", errors: codes.errorUnknown }];
 	}
 }
 
@@ -85,7 +85,7 @@ export function cached<Response>(get: RequestFn<Response>): RequestFn<Response> 
 			return [cache, undefined];
 		} catch (error) {
 			console.error(error);
-			return [undefined, { status: 500, message: codes.errorUnknown }];
+			return [undefined, { status: 500, message: "", errors: codes.errorUnknown }];
 		}
 	};
 }
@@ -255,7 +255,7 @@ function getEloHistories(userId: number, timeframe: Timeframe, fetch?: FetchFn) 
 		timeframe
 	});
 	interface Response {
-		buckets: EloBuckets
+		buckets: Record<string, EloBuckets>
 	}
 	return requestJSON<Response>(`${baseURL()}/replay/elo-histories?${params}`, { method: 'GET' }, fetch);
 }

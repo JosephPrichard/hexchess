@@ -65,7 +65,7 @@
 		}
 	}
 
-	async function loadEloHistories(userId: number, timeframe: Timeframe, onLoaded: (buckets: EloBuckets) => void) {
+	async function loadEloHistories(userId: number, timeframe: Timeframe, onLoaded: (buckets: Record<string, EloBuckets>) => void) {
 		const [data, err] = await services.getEloHistories(userId, timeframe);
 		if (data) {
 			onLoaded(data.buckets);
@@ -74,10 +74,8 @@
 		}
 	}
 
-	function makeEloHistoriesChart(ctx: CanvasRenderingContext2D, buckets: EloBuckets) {
-		const entries = Object.entries({
-			"ALL": buckets,
-		});
+	function makeEloHistoriesChart(ctx: CanvasRenderingContext2D, buckets: Record<string, EloBuckets>) {
+		const entries = Object.entries(buckets);
 		const colors = generateColors(entries.length);
 
 		return new Chart(ctx, {

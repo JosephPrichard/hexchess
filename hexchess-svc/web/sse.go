@@ -15,7 +15,7 @@ import (
 
 type SseHandler = func(state *ServerState, w SSEWriter, r *http.Request) error
 
-func makeSseHandler(state *ServerState, h SseHandler) http.Handler {
+func MakeSseHandler(state *ServerState, h SseHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sseID := state.MakeID()
 

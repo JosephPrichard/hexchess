@@ -178,9 +178,9 @@ func SyncLeaderboard(ctx context.Context, dbs *db.Databases) error {
 	for _, mode := range GameModes {
 		afterID := int64(0)
 		for {
-			rows, err := dbs.Pdb.Query.GetEloList(ctx, db.GetEloListParams{ID: afterID, Mode: db.ModeEnum(mode), Limit: 20})
+			rows, err := dbs.Pdb.Query.SelectEloList(ctx, db.SelectEloListParams{ID: afterID, Mode: db.ModeEnum(mode), Limit: 20})
 			if err != nil {
-				return fmt.Errorf("select elo list: %w", err)
+				return fmt.Errorf("select elo list afterID %d: %w", afterID, err)
 			}
 			var changes []UpdtLbChangeSet
 			for i, row := range rows {

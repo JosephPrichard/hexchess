@@ -119,12 +119,12 @@ UPDATE users
 SET password = sqlc.arg('password'), salt = sqlc.arg('salt')
 WHERE id = sqlc.arg('id');
 
--- name: GetUserModeElosByIds :many
+-- name: SelectUserModeElosByIds :many
 SELECT user_id, elo
 FROM user_mode_elos
 WHERE user_id = ANY(sqlc.arg('id')::bigint[]) AND mode = sqlc.arg('mode');
 
--- name: GetUserElosById :many
+-- name: SelectUserElosById :many
 SELECT user_id, mode, elo, highest_elo, wins, losses
 FROM user_mode_elos
 WHERE user_id = sqlc.arg('id');
@@ -146,7 +146,7 @@ SET
     wins = u.wins + sqlc.arg('wins'),
     losses = u.losses + sqlc.arg('losses');
 
--- name: GetEloList :many
+-- name: SelectEloList :many
 SELECT user_id, elo FROM user_mode_elos
 WHERE user_id > sqlc.arg('id') AND mode = sqlc.arg('mode')
 ORDER BY user_id

@@ -134,4 +134,5 @@ export interface ChessModel {
 export interface ServiceModel {
 	status: number;
 	message: string;
+	errors: string | Record<string, string>
 }

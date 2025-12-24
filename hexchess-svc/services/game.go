@@ -17,7 +17,7 @@ import (
 type GameMode string
 
 const (
-	ModeUnknown          GameMode = "UNKNOWN"
+	ModeUnknown          GameMode = ""
 	ModeTimed1Plus0      GameMode = "TIMED_1+0"
 	ModeTimed3Plus2      GameMode = "TIMED_3+2"
 	ModeTimed15Plus10    GameMode = "TIMED_15+10"
@@ -25,6 +25,14 @@ const (
 	ModeCorrespondence7  GameMode = "CORRESPONDENCE_7"
 	ModeCorrespondence14 GameMode = "CORRESPONDENCE_14"
 )
+
+func ModeFromString(str string) (GameMode, error) {
+	mode := GameMode(str)
+	if slices.Contains(GameModes, mode) {
+		return mode, nil
+	}
+	return ModeUnknown, fmt.Errorf("invalid game mode: %s", str)
+}
 
 var GameModes = []GameMode{ModeTimed1Plus0, ModeTimed3Plus2, ModeTimed15Plus10, ModeCorrespondence1, ModeCorrespondence7, ModeCorrespondence14}
 
@@ -327,7 +335,7 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 	ids := []int64{result.WhiteID, result.BlackID}
 	slices.SortFunc(ids, func(left, right int64) int { return int(left - right) }) // consistent query order for transactions
 
-	rows, err := query.GetUserModeElosByIds(ctx, db.GetUserModeElosByIdsParams{
+	rows, err := query.SelectUserModeElosByIds(ctx, db.SelectUserModeElosByIdsParams{
 		ID:   ids,
 		Mode: db.ModeEnum(result.ReplayMode)},
 	)

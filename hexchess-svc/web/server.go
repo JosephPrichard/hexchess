@@ -22,14 +22,14 @@ type Broadcasters struct {
 	UsersCaster  *svc.MultiCasterMap
 }
 
-type CountryData struct {
-	CountryList []string
-	CountryMap  map[string]bool
+type CountryRegistry struct {
+	CountryList    []string
+	ValidCountries map[string]bool
 }
 
 type ServerState struct {
 	// data
-	CountryData
+	CountryRegistry
 	// infra
 	db.Databases
 	Broadcasters
@@ -55,13 +55,14 @@ func MakeServerState(setup ServerSetup) *ServerState {
 	if setup.CountryList == nil {
 		setup.CountryList = []string{}
 	}
-	countryMap := make(map[string]bool)
+	validCountries := make(map[string]bool)
 	for _, country := range setup.CountryList {
-		countryMap[country] = true
+		validCountries[country] = true
 	}
+	// server state
 	return &ServerState{
 		// data
-		CountryData: CountryData{CountryList: setup.CountryList, CountryMap: countryMap},
+		CountryRegistry: CountryRegistry{CountryList: setup.CountryList, ValidCountries: validCountries},
 		// infra
 		Databases: setup.Databases,
 		Broadcasters: Broadcasters{
@@ -117,10 +118,10 @@ func HandleRoot(state *ServerState, allowedOrigins string) http.Handler {
 		sb.WriteString(fmt.Sprintf("\t%s\n", pattern))
 	}
 	handleRest := func(method string, pattern string, handler RestHandler) {
-		handle(method, pattern, makeRestHandler(state, handler))
+		handle(method, pattern, MakeRestHandler(state, handler))
 	}
 	handleSse := func(method string, pattern string, handler SseHandler) {
-		handle(method, pattern, makeSseHandler(state, handler))
+		handle(method, pattern, MakeSseHandler(state, handler))
 	}
 
 	handleRest("POST", "/api/register", HandleRegister)
@@ -149,8 +150,8 @@ func HandleRoot(state *ServerState, allowedOrigins string) http.Handler {
 	handleSse("GET", "/api/events/count", HandleCountEvents)
 	handleSse("GET", "/api/events/user", HandleUserEvents)
 
-	handle("GET", "/api/initial-board", makeJsonHandler(chess.InitialBoard()))
-	handle("GET", "/api/countries", makeJsonHandler(state.CountryList))
+	handle("GET", "/api/initial-board", MakeJsonHandler(chess.InitialBoard()))
+	handle("GET", "/api/countries", MakeJsonHandler(state.CountryList))
 
 	handle("GET", "/api/ws/game", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		slog.InfoContext(r.Context(), "begin game ws connection", "method", r.Method, "url", r.URL)
