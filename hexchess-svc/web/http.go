@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"errors"
+	"hexchess-svc/pkg/errmap"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -58,7 +59,7 @@ func HttpStatusFromErr(err error) (int, string) {
 
 func HttpStatusFromErrs(err error) (int, any) {
 	var errs map[string]error
-	var merr *ErrorMap
+	var merr *errmap.ErrorMap
 	if ok := errors.As(err, &merr); ok {
 		errs = merr.Errors
 	} else {
@@ -131,4 +132,12 @@ func intQueryDefault(values url.Values, key string, def int) (int, error) {
 		return def, nil
 	}
 	return strconv.Atoi(v)
+}
+
+func queryDefault(values url.Values, key, def string) string {
+	v := values.Get(key)
+	if v == "" {
+		return def
+	}
+	return v
 }

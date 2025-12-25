@@ -9,7 +9,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"hexchess-svc/util"
+	"hexchess-svc/pkg/logutil"
 	"log"
 	"sync"
 	"time"
@@ -31,13 +31,13 @@ func TeardownTestInfra() {
 	log.Print("tearing down test infra")
 	if postgresCont != nil {
 		if err := testcontainers.TerminateContainer(postgresCont); err != nil {
-			util.LogFatalErr("stop test db with err", err)
+			logutil.LogFatalErr("stop test db with err", err)
 		}
 		log.Print("stopped test postgres db")
 	}
 	if redisCont != nil {
 		if err := testcontainers.TerminateContainer(redisCont); err != nil {
-			util.LogFatalErr("terminate container", err)
+			logutil.LogFatalErr("terminate container", err)
 		}
 		log.Print("stopped test redis container")
 	}

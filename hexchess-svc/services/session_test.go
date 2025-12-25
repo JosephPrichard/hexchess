@@ -5,7 +5,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
-	"hexchess-svc/util"
+	"hexchess-svc/pkg/logutil"
 	"testing"
 	"time"
 )
@@ -20,7 +20,7 @@ func TestSessions(t *testing.T) {
 	sessionID2 := "session2"
 	sessionID3 := "session3"
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-sessions")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-sessions")
 
 	// when
 	require.NoError(t, SetSession(ctx, rdb, sessionID1, playerIn, 100*time.Second))

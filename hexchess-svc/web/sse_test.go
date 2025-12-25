@@ -9,8 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
+	"hexchess-svc/outbound"
+	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/services"
-	"hexchess-svc/util"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -58,10 +59,10 @@ func TestHandleCountEvents(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	state := MakeServerState(ServerSetup{Databases: db.Databases{Rdb: rdb}, Generators: &stableGenerator{id: "id1"}})
-	<-svc.ListenUnicastEvents(state.CountsCaster, rdb)
+	setup := RootSetup{Databases: db.Databases{Rdb: rdb}, Broadcasters: svc.MakeBroadcaster(), Generators: &outbound.MockGenerator{ID: "id1"}}
+	<-svc.ListenUnicastEvents(setup.Broadcasters.CountsCaster, rdb)
 
-	ts := httptest.NewServer(HandleRoot(state, ""))
+	ts := httptest.NewServer(HandleRoot(setup))
 	defer ts.Close()
 
 	// when
@@ -73,7 +74,7 @@ func TestHandleCountEvents(t *testing.T) {
 
 	errChan := make(chan error)
 	go func() {
-		ctx := context.WithValue(context.Background(), util.Trace, "broadcast-counts")
+		ctx := context.WithValue(context.Background(), logutil.Trace, "broadcast-counts")
 		errChan <- errors.Join(
 			svc.BroadcastActiveCount(ctx, rdb, 2, "id3"),
 			svc.BroadcastGameCount(ctx, rdb, 1, "id2"))
@@ -96,12 +97,12 @@ func TestHandleUserEvents(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	state := MakeServerState(ServerSetup{Databases: db.Databases{Rdb: rdb}, Generators: &stableGenerator{id: "id1"}})
-	<-svc.ListenUsersMessages(state.UsersCaster, rdb)
+	setup := RootSetup{Databases: db.Databases{Rdb: rdb}, Broadcasters: svc.MakeBroadcaster(), Generators: &outbound.MockGenerator{ID: "id1"}}
+	<-svc.ListenUsersMessages(setup.Broadcasters.UsersCaster, rdb)
 
 	createTestSessions(t, rdb)
 
-	ts := httptest.NewServer(HandleRoot(state, ""))
+	ts := httptest.NewServer(HandleRoot(setup))
 	defer ts.Close()
 
 	// when
@@ -119,7 +120,7 @@ func TestHandleUserEvents(t *testing.T) {
 
 	errChan := make(chan error)
 	go func() {
-		ctx := context.WithValue(context.Background(), util.Trace, "broadcast-user-events")
+		ctx := context.WithValue(context.Background(), logutil.Trace, "broadcast-user-events")
 		errChan <- errors.Join(
 			svc.BroadcastChallenge(ctx, rdb, ceInput),
 			svc.BroadcastChallenge(ctx, rdb, svc.ChallengeEntity{ChallengeeID: 2}),

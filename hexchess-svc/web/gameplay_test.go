@@ -7,8 +7,8 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	"hexchess-svc/db"
 	"hexchess-svc/pb"
+	"hexchess-svc/pkg/assertutil"
 	"hexchess-svc/services"
-	"hexchess-svc/util"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -54,14 +54,14 @@ func TestHandleGameplayWs(t *testing.T) {
 	createTestSessions(t, rdb)
 	createTestChessStates(t, rdb)
 
-	state := MakeServerState(ServerSetup{Databases: db.Databases{Rdb: rdb}})
-	<-svc.ListenGameMessages(state.GamesCaster, rdb)
+	setup := RootSetup{Databases: db.Databases{Rdb: rdb}, Broadcasters: svc.MakeBroadcaster()}
+	<-svc.ListenGameMessages(setup.Broadcasters.GamesCaster, rdb)
 
-	ts := httptest.NewServer(HandleRoot(state, ""))
+	ts := httptest.NewServer(HandleRoot(setup))
 	defer ts.Close()
 
 	subChan := make(chan []byte)
-	state.GamesCaster.Subscribe(gameID, subChan)
+	setup.Broadcasters.GamesCaster.Subscribe(gameID, subChan)
 
 	brdCastChan := make(chan []any)
 	go readBroadcasted(brdCastChan, subChan, wantCount2)
@@ -123,6 +123,6 @@ func TestHandleGameplayWs(t *testing.T) {
 			}},
 		},
 	}
-	util.AssertEqualIgnoring(t, expectedMsgs, msgOutputs, protocmp.Transform(), protocmp.IgnoreFields(&pb.InitOutput{}, "state", "self"))
-	util.AssertEqualIgnoring(t, expectedBrdCast, brdCastOutputs, protocmp.Transform())
+	assertutil.AssertEqualIgnoring(t, expectedMsgs, msgOutputs, protocmp.Transform(), protocmp.IgnoreFields(&pb.InitOutput{}, "state", "self"))
+	assertutil.AssertEqualIgnoring(t, expectedBrdCast, brdCastOutputs, protocmp.Transform())
 }

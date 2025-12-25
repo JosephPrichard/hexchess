@@ -1,4 +1,4 @@
-package web
+package outbound
 
 import (
 	"github.com/google/uuid"
@@ -20,15 +20,15 @@ func (_ *RandGenerator) GetNow() time.Time {
 	return time.Now()
 }
 
-type stableGenerator struct {
-	id   string
-	time time.Time
+type MockGenerator struct {
+	ID   string
+	Time time.Time
 }
 
-func (g *stableGenerator) MakeID() string {
-	return g.id
+func (g *MockGenerator) MakeID() string {
+	return g.ID
 }
 
-func (g *stableGenerator) GetNow() time.Time {
-	return g.time
+func (g *MockGenerator) GetNow() time.Time {
+	return g.Time
 }

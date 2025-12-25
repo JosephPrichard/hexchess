@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/db"
-	"hexchess-svc/util"
+	"hexchess-svc/pkg/logutil"
 	"log/slog"
 	"time"
 )
@@ -110,7 +110,7 @@ func InsertChallengeRet(ctx context.Context, query *db.Queries, inst ChallengeIn
 	}
 	challenge, err := mapChallengeFromRow(db.SelectChallengesByParticipantRow(row))
 
-	util.DynLog(ctx, "created a new challenge", err, "challenge", inst, "challenge", challenge)
+	logutil.DynLog(ctx, "created a new challenge", err, "challenge", inst, "challenge", challenge)
 	return challenge, err
 }
 
@@ -193,6 +193,6 @@ func DeleteExpiredChallengesOn(ctx context.Context, query *db.Queries, userID in
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: t},
 	})
-	util.DynLog(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", t)
+	logutil.DynLog(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", t)
 	return nil
 }

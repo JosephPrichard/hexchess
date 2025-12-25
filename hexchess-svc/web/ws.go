@@ -7,8 +7,6 @@ import (
 	"net/http"
 )
 
-type WsHandler = func(w http.ResponseWriter, r *http.Request, serverState ServerState)
-
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true

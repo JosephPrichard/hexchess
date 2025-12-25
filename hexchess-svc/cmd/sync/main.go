@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
+	"hexchess-svc/cmd"
 	"hexchess-svc/db"
+	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/services"
-	"hexchess-svc/util"
 	"log"
 	"log/slog"
 	"os"
@@ -18,22 +19,22 @@ func main() {
 
 	f, err := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
-		util.LogFatalErr("open log file", err)
+		logutil.LogFatalErr("open log file", err)
 	}
 	defer f.Close()
 
-	util.InitLoggers(f)
-	util.InitEnv()
+	logutil.InitLoggers(f)
+	cmd.InitEnv()
 
 	dbURL := os.Getenv("DB_URL")
 	redisPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
 
-	ctx := context.WithValue(context.Background(), util.Trace, "sync-leaderboard-script")
+	ctx := context.WithValue(context.Background(), logutil.Trace, "sync-leaderboard-script")
 
 	slog.InfoContext(ctx, "connecting to postgres db", "dbURL", dbURL)
 	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
-		util.LogFatalErr("create pool", err)
+		logutil.LogFatalErr("create pool", err)
 	}
 	defer pool.Close()
 	q := db.New(pool)
@@ -44,7 +45,7 @@ func main() {
 
 	dbs := &db.Databases{Pdb: db.MakePostgres(q, pool), Rdb: rdb}
 	if err := svc.SyncLeaderboard(ctx, dbs); err != nil {
-		util.LogFatalErr("sync leaderboard", err)
+		logutil.LogFatalErr("sync leaderboard", err)
 	}
 	log.Printf("finished syncing leaderboard: %v", time.Now().Sub(start))
 }

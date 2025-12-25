@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/db"
-	"hexchess-svc/util"
+	"hexchess-svc/pkg/logutil"
 	"log/slog"
 	"math"
 	"time"
@@ -162,7 +162,7 @@ func BatchInsertUsers(ctx context.Context, query *db.Queries, insts []UserInst) 
 		}
 	})
 
-	util.DynLog(ctx, "batch inserted user", errors.Join(errs...), "insts", insts, "users", users)
+	logutil.DynLog(ctx, "batch inserted user", errors.Join(errs...), "insts", insts, "users", users)
 	return users, nil
 }
 
@@ -298,7 +298,7 @@ func UpdateUser(ctx context.Context, query *db.Queries, id int64, updt UpdtUserP
 	})
 
 	user := mapUserFromRow(db.SelectUserByIDRow(row))
-	util.DynLog(ctx, "updated user", err, "user", user)
+	logutil.DynLog(ctx, "updated user", err, "user", user)
 	return user, err
 }
 
@@ -312,7 +312,7 @@ func UpdateUserPassword(ctx context.Context, query *db.Queries, id int64, newPas
 		Password: hash.HashedPassword,
 		Salt:     hash.Salt,
 	})
-	util.DynLog(ctx, "updated password", err, "id", id)
+	logutil.DynLog(ctx, "updated password", err, "id", id)
 	return err
 }
 

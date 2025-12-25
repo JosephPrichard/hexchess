@@ -5,7 +5,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
-	"hexchess-svc/util"
+	"hexchess-svc/pkg/logutil"
 	"testing"
 	"time"
 )
@@ -15,7 +15,7 @@ func TestChallengeExpiration(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-expiration")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-expiration")
 
 	// when
 	challenges, err := GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{int64(5), -1}, time.Unix(10000, 0))
@@ -38,7 +38,7 @@ func TestChallengeEchoDelete(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-delete")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-delete")
 
 	testUser := TestUserEntities[1] // user ID: 2 will have no challenges at this point
 

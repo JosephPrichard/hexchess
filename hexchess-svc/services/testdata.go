@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 	"hexchess-svc/db"
-	"hexchess-svc/util"
+	"hexchess-svc/pkg/logutil"
 	"time"
 )
 
@@ -312,7 +312,7 @@ var TestChallengeEntities = []ChallengeEntity{
 }
 
 func InsertTestData(t db.TestLogger, pool *pgxpool.Pool) {
-	ctx := context.WithValue(context.Background(), util.Trace, "insert-test-data")
+	ctx := context.WithValue(context.Background(), logutil.Trace, "insert-test-data")
 
 	batch := &pgx.Batch{}
 

@@ -1,7 +1,8 @@
-package util
+package cmd
 
 import (
 	"bufio"
+	"hexchess-svc/pkg/logutil"
 	"log/slog"
 	"os"
 	"strings"
@@ -19,7 +20,7 @@ func InitEnv() {
 		line := scanner.Text()
 		index := strings.Index(line, "=")
 		if index < 0 {
-			LogFatal("invalid line in .env file", "line", line)
+			logutil.LogFatal("invalid line in .env file", "line", line)
 		}
 		key, value := line[:index], line[index+1:]
 		if err := os.Setenv(key, value); err != nil {

@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"hexchess-svc/assets"
+	"hexchess-svc/cmd"
 	"hexchess-svc/db"
 	"hexchess-svc/outbound"
+	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/services"
-	"hexchess-svc/util"
 	"hexchess-svc/web"
 	"log"
 	"log/slog"
@@ -21,12 +22,12 @@ import (
 func main() {
 	f, err := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
-		util.LogFatalErr("open log file", err)
+		logutil.LogFatalErr("open log file", err)
 	}
 	defer f.Close()
 
-	util.InitLoggers(f)
-	util.InitEnv()
+	logutil.InitLoggers(f)
+	cmd.InitEnv()
 
 	envMap := make(map[string]string)
 	for _, e := range os.Environ() {
@@ -45,18 +46,18 @@ func main() {
 
 	var countryList []string
 	if err := json.Unmarshal(assets.CountryListJson, &countryList); err != nil {
-		util.LogFatalErr("unmarshal country list", err)
+		logutil.LogFatalErr("unmarshal country list", err)
 	}
 
 	slog.Info("connecting to postgres db", "dbURL", dbURL)
 	pool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
-		util.LogFatalErr("create pool", err)
+		logutil.LogFatalErr("create pool", err)
 	}
 	defer pool.Close()
 	_, err = pool.Exec(context.Background(), "SELECT 1;")
 	if err != nil {
-		util.LogFatalErr("execute startup query", err)
+		logutil.LogFatalErr("execute startup query", err)
 	}
 
 	q := db.New(pool)
@@ -66,21 +67,17 @@ func main() {
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: redisPrimaryURL, PubsubAddr: redisPubSubURL}, db.DefaultRedisNames)
 	defer rdb.Close()
 
-	state := web.MakeServerState(web.ServerSetup{
-		Databases: db.Databases{
-			Rdb: rdb,
-			Pdb: pdb,
-		},
-		CountryList: countryList,
-		Generators:  &web.RandGenerator{},
-		OutboundAPIs: outbound.APIs{
-			GoogleAPI: &outbound.RemoteGoogleAPI{},
-		},
-	})
-
-	<-svc.ListenGameMessages(state.GamesCaster, rdb)
-	<-svc.ListenUsersMessages(state.UsersCaster, rdb)
-	<-svc.ListenUnicastEvents(state.CountsCaster, rdb)
+	setup := web.RootSetup{
+		Databases:      db.Databases{Rdb: rdb, Pdb: pdb},
+		Broadcasters:   svc.MakeBroadcaster(),
+		Generators:     &outbound.RandGenerator{},
+		OutboundAPIs:   outbound.MakeRemoteAPIs(),
+		CountryList:    countryList,
+		AllowedOrigins: allowedOrigins,
+	}
+	<-svc.ListenGameMessages(setup.Broadcasters.GamesCaster, rdb)
+	<-svc.ListenUsersMessages(setup.Broadcasters.UsersCaster, rdb)
+	<-svc.ListenUnicastEvents(setup.Broadcasters.CountsCaster, rdb)
 
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 
@@ -89,7 +86,7 @@ func main() {
 			log.Println(http.ListenAndServe(":"+pprofPort, nil))
 		}()
 	}
-	if err := http.ListenAndServe(":"+serverPort, web.HandleRoot(state, allowedOrigins)); err != nil {
-		util.LogFatalErr("failed while serving", err)
+	if err := http.ListenAndServe(":"+serverPort, web.HandleRoot(setup)); err != nil {
+		logutil.LogFatalErr("failed while serving", err)
 	}
 }

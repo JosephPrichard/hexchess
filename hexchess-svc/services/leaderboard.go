@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"hexchess-svc/db"
-	"hexchess-svc/util"
+	"hexchess-svc/pkg/logutil"
 	"log/slog"
 	"math"
 	"sort"
@@ -170,7 +170,7 @@ func GetLeaderboardPage(ctx context.Context, rdb *db.Redis, mode GameMode, page,
 	offset := (page - 1) * perPage
 
 	leaderboard, err := GetLeaderboard(ctx, rdb, mode, offset, perPage)
-	util.DynLog(ctx, "retrieved leaderboard page", err, "page", page, "perPage", perPage, "leaderboard", leaderboard, "err", err)
+	logutil.DynLog(ctx, "retrieved leaderboard page", err, "page", page, "perPage", perPage, "leaderboard", leaderboard, "err", err)
 	return leaderboard, err
 }
 
@@ -211,6 +211,15 @@ type LbdUserEntity struct {
 	Rank       int64   `json:"rank"`
 }
 
+type ExpLdbError struct {
+	ExpCount    int64
+	ActualCount int64
+}
+
+func (e ExpLdbError) Error() string {
+	return fmt.Sprintf("expected leaderboard of length %d users, got %d", e.ExpCount, e.ActualCount)
+}
+
 func GetLeaderboardUsers(ctx context.Context, query *db.Queries, mode GameMode, rnkUsers []RankedUser) ([]LbdUserEntity, error) {
 	ids := make([]int64, 0, len(rnkUsers))
 	for _, user := range rnkUsers {
@@ -222,6 +231,9 @@ func GetLeaderboardUsers(ctx context.Context, query *db.Queries, mode GameMode, 
 	})
 	if err != nil {
 		return nil, fmt.Errorf("select many users %+v: %w", ids, err)
+	}
+	if len(rows) != len(rnkUsers) {
+		return nil, ExpLdbError{ExpCount: int64(len(rnkUsers)), ActualCount: int64(len(rows))}
 	}
 
 	var lbdUsers []LbdUserEntity
@@ -238,16 +250,11 @@ func GetLeaderboardUsers(ctx context.Context, query *db.Queries, mode GameMode, 
 
 	for i := range lbdUsers {
 		lbdUser := &lbdUsers[i]
-		found := false
 		for _, rnkUser := range rnkUsers {
 			if rnkUser.ID == lbdUser.ID {
 				lbdUser.Rank = rnkUser.Rank
-				found = true
 				break
 			}
-		}
-		if !found {
-			return nil, fmt.Errorf("while joining leaderboard ranks: user %d not found in ranked users", lbdUser.ID)
 		}
 	}
 	sort.Slice(lbdUsers, func(i, j int) bool {

@@ -5,7 +5,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
-	"hexchess-svc/util"
+	"hexchess-svc/pkg/logutil"
 	"testing"
 	"time"
 )
@@ -15,7 +15,7 @@ func TestInsertThenGetReplay(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-insert-get")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-insert-get")
 
 	// when
 	id, err := InsertReplay(ctx, pdb.Query, ReplayInst{
@@ -64,7 +64,7 @@ func TestGetUserReplays(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-get-replays")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-get-replays")
 
 	// when
 	actualReplayList1, err := GetUserReplays(ctx, pdb.Query, 1, -1, 5)
@@ -87,7 +87,7 @@ func TestGetReplayMoveList(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-get-move-list")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-get-move-list")
 
 	// when and then
 	_, err := GetReplayMoveHistory(ctx, pdb.Query, 1)
@@ -98,7 +98,7 @@ func TestRetrieveEloHistories(t *testing.T) {
 	dbs, closer := db.BeforeDbTest(t, false, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-retrieve-elo-histories")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-retrieve-elo-histories")
 
 	timeUntil := time.Date(2020, 2, 2, 2, 0, 0, 0, time.UTC)
 

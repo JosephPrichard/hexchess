@@ -151,6 +151,20 @@ func BroadcastChallenge(ctx context.Context, rdb *db.Redis, c ChallengeEntity) e
 	return BroadcastMessage(ctx, rdb, rdb.UsersChan, b)
 }
 
+type Broadcasters struct {
+	CountsCaster *UniCaster
+	GamesCaster  *MultiCasterMap
+	UsersCaster  *MultiCasterMap
+}
+
+func MakeBroadcaster() Broadcasters {
+	return Broadcasters{
+		CountsCaster: MakeUniCaster("counts-caster"),
+		GamesCaster:  MakeMultiCasterMap("games-caster", GameExpireDur),
+		UsersCaster:  MakeMultiCasterMap("users-caster", -1),
+	}
+}
+
 type MultiCasterMap struct {
 	mu       sync.RWMutex
 	ID       string

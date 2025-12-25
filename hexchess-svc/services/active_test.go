@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
-	"hexchess-svc/util"
+	"hexchess-svc/pkg/logutil"
 	"testing"
 	"time"
 
@@ -16,7 +16,7 @@ func TestActiveUser(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-active-user")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-active-user")
 
 	// when
 	_, err := AddActiveUser(ctx, rdb, "1")

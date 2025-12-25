@@ -6,7 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
-	"hexchess-svc/util"
+	"hexchess-svc/pkg/assertutil"
+	"hexchess-svc/pkg/logutil"
 	"testing"
 	"time"
 )
@@ -19,7 +20,7 @@ func TestInsertThenVerify(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-insert-then-verify")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-insert-then-verify")
 
 	user1 := "user1-test"
 
@@ -54,7 +55,7 @@ func TestInsertThenVerify(t *testing.T) {
 		Country:  "us",
 		JoinedOn: TestTimeNow.Local(),
 	}
-	util.AssertEqualIgnoring(t, wantU1, dbU1, testUserCmptOpts)
+	assertutil.AssertEqualIgnoring(t, wantU1, dbU1, testUserCmptOpts)
 }
 
 func TestBatchInsertThenGet(t *testing.T) {
@@ -62,7 +63,7 @@ func TestBatchInsertThenGet(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-batch-insert-then-get")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-batch-insert-then-get")
 
 	// when
 	insts := []UserInst{
@@ -89,7 +90,7 @@ func TestUpdateUser(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-update-user")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-update-user")
 
 	for _, test := range []struct {
 		userID       int64
@@ -130,7 +131,7 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-insert-google-user")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-insert-google-user")
 
 	testAccountID := "test-account-id"
 
@@ -148,15 +149,15 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 
 	// then
 	verifiedUser := VerifiedUser{Username: "username", Country: "us"}
-	util.AssertEqualIgnoring(t, verifiedUser, u1, testVerifiedUserCmptOpts)
-	util.AssertEqualIgnoring(t, verifiedUser, u2, testVerifiedUserCmptOpts)
+	assertutil.AssertEqualIgnoring(t, verifiedUser, u1, testVerifiedUserCmptOpts)
+	assertutil.AssertEqualIgnoring(t, verifiedUser, u2, testVerifiedUserCmptOpts)
 
 	wantU1 := UserEntity{
 		Username: "username",
 		Country:  "us",
 		JoinedOn: TestTimeNow.Local(),
 	}
-	util.AssertEqualIgnoring(t, wantU1, dbU1, testUserCmptOpts)
+	assertutil.AssertEqualIgnoring(t, wantU1, dbU1, testUserCmptOpts)
 }
 
 func TestUpdatePasswordThenVerify(t *testing.T) {
@@ -164,7 +165,7 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "update-password")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "update-password")
 
 	// when
 	err := UpdateUserPassword(ctx, pdb.Query, TestUserEntities[0].ID, "password-new")
@@ -184,7 +185,7 @@ func TestInsertThenSearchByName(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "search-name")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "search-name")
 
 	// when
 	_, err := BatchInsertUsers(ctx, pdb.Query, []UserInst{{Username: "john", Password: "password5"}, {Username: "johnny", Password: "password5"}})
@@ -202,12 +203,12 @@ func TestGetUserElos(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "get-user-elos")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "get-user-elos")
 
 	// when
 	stats, err := GetUserElos(ctx, pdb.Query, 1)
 	require.NoError(t, err)
 
 	// then
-	assert.Equal(t, TestUserStats[0], stats)
+	assertutil.AssertEqualIgnoring(t, TestUserStats[0], stats, cmpopts.IgnoreFields(ModeStatsEntity{}, "Rank"))
 }

@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hexchess-svc/db"
+	"hexchess-svc/outbound"
+	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/pkg/timeutil"
 	"hexchess-svc/services"
-	"hexchess-svc/util"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -36,8 +39,10 @@ func SSE(h func(w SSEWriter, r *http.Request) error) http.HandlerFunc {
 	}
 }
 
-type SSEApi struct {
-	*ServerState
+type SSEHandler struct {
+	Rdb *db.Redis
+	outbound.Generators
+	svc.Broadcasters
 }
 
 type SSEWriter struct {
@@ -81,16 +86,16 @@ const UserChallengeEvent = "userEvents"
 const GamesCountEvent = "gameCountEvents"
 const ActiveCountEvent = "activeCountEvents"
 
-func (api *SSEApi) HandleCountEvents(w SSEWriter, r *http.Request) error {
-	sseID := api.MakeID()
-	ctx := context.WithValue(r.Context(), util.SseID, sseID)
+func (h *SSEHandler) HandleCountEvents(w SSEWriter, r *http.Request) error {
+	sseID := h.MakeID()
+	ctx := context.WithValue(r.Context(), logutil.SseID, sseID)
 	w.ctx = ctx
 
-	gamesCount, err := svc.GetChessStateCount(ctx, api.Rdb)
+	gamesCount, err := svc.GetChessStateCount(ctx, h.Rdb)
 	if err != nil {
 		return err
 	}
-	activeCount, err := svc.AddActiveUser(ctx, api.Rdb, sseID)
+	activeCount, err := svc.AddActiveUser(ctx, h.Rdb, sseID)
 	if err != nil {
 		return err
 	}
@@ -99,14 +104,14 @@ func (api *SSEApi) HandleCountEvents(w SSEWriter, r *http.Request) error {
 	w.writeGamesCountEvent(gamesCount, sseID)
 
 	countsChan := make(chan svc.UcEvent)
-	api.CountsCaster.Subscribe(countsChan)
+	h.CountsCaster.Subscribe(countsChan)
 
-	if err := svc.BroadcastActiveCount(ctx, api.Rdb, activeCount, sseID); err != nil {
+	if err := svc.BroadcastActiveCount(ctx, h.Rdb, activeCount, sseID); err != nil {
 		slog.ErrorContext(ctx, "failed to broadcast active count", "sseID", sseID, "err", err)
 	}
 
-	stopPing := util.Every(time.Minute, func() bool {
-		if err := svc.RetainActiveUser(ctx, api.Rdb, sseID); err != nil {
+	stopPing := timeutil.Every(time.Minute, func() bool {
+		if err := svc.RetainActiveUser(ctx, h.Rdb, sseID); err != nil {
 			slog.ErrorContext(ctx, "failed to retain active user", "err", err)
 		}
 		return true
@@ -115,16 +120,16 @@ func (api *SSEApi) HandleCountEvents(w SSEWriter, r *http.Request) error {
 	go func() {
 		<-ctx.Done()
 		stopPing <- true
-		api.CountsCaster.Unsubscribe(countsChan)
+		h.CountsCaster.Unsubscribe(countsChan)
 		slog.InfoContext(ctx, "finished handle user events sse", "sseID", sseID)
 
 		// shutdown
 		ctx := context.WithoutCancel(ctx)
-		ac, err := svc.RemoveActiveUser(ctx, api.Rdb, sseID)
+		ac, err := svc.RemoveActiveUser(ctx, h.Rdb, sseID)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to remove active user", "sseID", sseID, "err", err)
 		}
-		if err := svc.BroadcastActiveCount(ctx, api.Rdb, ac, sseID); err != nil {
+		if err := svc.BroadcastActiveCount(ctx, h.Rdb, ac, sseID); err != nil {
 			slog.ErrorContext(ctx, "failed to broadcast active count on removal", "sseID", sseID, "err", err)
 		}
 	}()
@@ -143,12 +148,12 @@ func (api *SSEApi) HandleCountEvents(w SSEWriter, r *http.Request) error {
 	}
 }
 
-func (api *SSEApi) HandleUserEvents(w SSEWriter, r *http.Request) error {
-	sseID := api.MakeID()
-	ctx := context.WithValue(r.Context(), util.SseID, sseID)
+func (h *SSEHandler) HandleUserEvents(w SSEWriter, r *http.Request) error {
+	sseID := h.MakeID()
+	ctx := context.WithValue(r.Context(), logutil.SseID, sseID)
 	w.ctx = ctx
 
-	player, _, err := GetSessionPlayer(ctx, api.Rdb, r)
+	player, _, err := GetSessionPlayer(ctx, h.Rdb, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		return ErrHttpSessionExpired
 	}
@@ -160,11 +165,11 @@ func (api *SSEApi) HandleUserEvents(w SSEWriter, r *http.Request) error {
 	w.writeEvent(MetaEvent, sseID)
 
 	usersChan := make(chan []byte)
-	api.UsersCaster.Subscribe(strID, usersChan)
+	h.UsersCaster.Subscribe(strID, usersChan)
 
 	go func() {
 		<-ctx.Done()
-		api.UsersCaster.Unsubscribe(strID, usersChan)
+		h.UsersCaster.Unsubscribe(strID, usersChan)
 		slog.InfoContext(ctx, "finishing handle user events sse", "sseID", sseID)
 	}()
 

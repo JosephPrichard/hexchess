@@ -7,7 +7,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/db"
 	"hexchess-svc/pb"
-	"hexchess-svc/util"
+	"hexchess-svc/pkg/logutil"
 	"testing"
 	"time"
 )
@@ -111,7 +111,7 @@ func TestBroadcastGameMessage(t *testing.T) {
 	m := MakeMultiCasterMap("testing-broker-map", time.Hour*1)
 	<-ListenGameMessages(m, rdb)
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-broadcast-game-message")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-broadcast-game-message")
 
 	// when
 	subChan := make(chan []byte)

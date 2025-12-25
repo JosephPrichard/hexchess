@@ -8,8 +8,8 @@ import (
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/outbound"
+	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/services"
-	"hexchess-svc/util"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -18,66 +18,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type Broadcasters struct {
-	CountsCaster *svc.UniCaster
-	GamesCaster  *svc.MultiCasterMap
-	UsersCaster  *svc.MultiCasterMap
-}
-
-type CountryRegistry struct {
-	CountryList    []string
-	ValidCountries map[string]bool
-}
-
-type ServerState struct {
-	// data
-	CountryRegistry
-	// infra
-	db.Databases
-	Broadcasters
-	// interfaces
-	Generators
-	outbound.APIs
-}
-
-type APIKeys struct {
-	GoogleAPIKey string
-}
-
-type ServerSetup struct {
-	Databases    db.Databases
-	CountryList  []string
-	APIKeys      APIKeys
-	Generators   Generators
-	OutboundAPIs outbound.APIs
-}
-
-func MakeServerState(setup ServerSetup) *ServerState {
-	// default initialize setup data, used for tests
-	if setup.CountryList == nil {
-		setup.CountryList = []string{}
-	}
-	validCountries := make(map[string]bool)
-	for _, country := range setup.CountryList {
-		validCountries[country] = true
-	}
-	// server state
-	return &ServerState{
-		// data
-		CountryRegistry: CountryRegistry{CountryList: setup.CountryList, ValidCountries: validCountries},
-		// infra
-		Databases: setup.Databases,
-		Broadcasters: Broadcasters{
-			CountsCaster: svc.MakeUniCaster("counts-caster"),
-			GamesCaster:  svc.MakeMultiCasterMap("games-caster", svc.GameExpireDur),
-			UsersCaster:  svc.MakeMultiCasterMap("users-caster", -1),
-		},
-		// interfaces
-		Generators: setup.Generators,
-		APIs:       setup.OutboundAPIs,
-	}
-}
-
 func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -85,7 +25,7 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 			if trace == "" {
 				trace = uuid.NewString()
 			}
-			r = r.WithContext(context.WithValue(r.Context(), util.Trace, trace))
+			r = r.WithContext(context.WithValue(r.Context(), logutil.Trace, trace))
 
 			w.Header().Set("Access-Control-Allow-Origin", allowedOrigins)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -101,52 +41,67 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 	}
 }
 
-func HandleRoot(state *ServerState, allowedOrigins string) http.Handler {
+type RootSetup struct {
+	Databases      db.Databases
+	Broadcasters   svc.Broadcasters
+	Generators     outbound.Generators
+	OutboundAPIs   outbound.RemoteAPIs
+	CountryList    []string
+	AllowedOrigins string
+}
+
+func HandleRoot(setup RootSetup) http.Handler {
+	countryList := setup.CountryList
+	if countryList == nil {
+		countryList = []string{}
+	}
+	validCountries := make(map[string]bool)
+	for _, country := range setup.CountryList {
+		validCountries[country] = true
+	}
+
 	r := chi.NewRouter()
 
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-	r.Use(RouteMiddleware(allowedOrigins))
+	r.Use(RouteMiddleware(setup.AllowedOrigins))
 
-	restApi := RestApi{ServerState: state}
-	sseApi := SSEApi{ServerState: state}
-	gameplayApi := GameplayApi{ServerState: state}
-	healthcheckApi := HealthCheckApi{ServerState: state}
+	rest := RestHandler{setup.Databases, setup.Generators, setup.OutboundAPIs, validCountries}
+	sse := SSEHandler{setup.Databases.Rdb, setup.Generators, setup.Broadcasters}
+	gameplay := GameplayHandler{setup.Databases, setup.Broadcasters}
+	healthcheck := HealthCheckHandler{setup.Databases}
 
-	r.Post("/api/register", Rest(restApi.HandleRegister))
-	r.Post("/api/login", Rest(restApi.HandleLogin))
-	r.Post("/api/login/google", Rest(restApi.HandleGoogleLogin))
-	r.Post("/api/session/temp", Rest(restApi.HandleCreateTempSession))
-	r.Post("/api/session/refresh", Rest(restApi.HandleRefreshSession))
-	r.Post("/api/logout", Rest(restApi.HandleLogout))
-	r.Post("/api/users/password", Rest(restApi.HandleUpdatePassword))
-	r.Post("/api/users", Rest(restApi.HandleUpdateUser))
-	r.Post("/api/games/create", Rest(restApi.HandleCreateGame))
-	r.Post("/api/challenges/update", Rest(restApi.HandleUpdateChallenge))
-	r.Post("/api/challenges/create", Rest(restApi.HandleCreateChallenge))
+	r.Post("/api/register", Rest(rest.HandleRegister))
+	r.Post("/api/login", Rest(rest.HandleLogin))
+	r.Post("/api/login/google", Rest(rest.HandleGoogleLogin))
+	r.Post("/api/session/temp", Rest(rest.HandleCreateTempSession))
+	r.Post("/api/session/refresh", Rest(rest.HandleRefreshSession))
+	r.Post("/api/logout", Rest(rest.HandleLogout))
+	r.Post("/api/users/password", Rest(rest.HandleUpdatePassword))
+	r.Post("/api/users", Rest(rest.HandleUpdateUser))
+	r.Post("/api/games/create", Rest(rest.HandleCreateGame))
+	r.Post("/api/challenges/update", Rest(rest.HandleUpdateChallenge))
+	r.Post("/api/challenges/create", Rest(rest.HandleCreateChallenge))
 
-	r.Get("/api/players", Rest(restApi.HandleGetPlayer))
-	r.Get("/api/players/self", Rest(restApi.HandleGetSelf))
-	r.Get("/api/players/search", Rest(restApi.HandleSearchPlayers))
-	r.Get("/api/leaderboard", Rest(restApi.HandleGetLeaderboard))
-	r.Get("/api/challenges", Rest(restApi.HandleGetChallenges))
-	r.Get("/api/replays", Rest(restApi.HandleGetUserReplays))
-	r.Get("/api/chess/rooms", Rest(restApi.HandleGetChessRoomList))
-	r.Get("/api/replay", Rest(restApi.HandleGetReplay))
-	r.Get("/api/replay/elo-histories", Rest(restApi.HandleGetEloHistories))
-	r.Get("/api/replay/move-list", Rest(restApi.HandleGetReplayMoveList))
+	r.Get("/api/players", Rest(rest.HandleGetPlayer))
+	r.Get("/api/players/self", Rest(rest.HandleGetSelf))
+	r.Get("/api/players/search", Rest(rest.HandleSearchPlayers))
+	r.Get("/api/leaderboard", Rest(rest.HandleGetLeaderboard))
+	r.Get("/api/challenges", Rest(rest.HandleGetChallenges))
+	r.Get("/api/replays", Rest(rest.HandleGetUserReplays))
+	r.Get("/api/chess/rooms", Rest(rest.HandleGetChessRoomList))
+	r.Get("/api/replay", Rest(rest.HandleGetReplay))
+	r.Get("/api/replay/elo-histories", Rest(rest.HandleGetEloHistories))
+	r.Get("/api/replay/move-list", Rest(rest.HandleGetReplayMoveList))
 
-	r.Get("/api/events/count", SSE(sseApi.HandleCountEvents))
-	r.Get("/api/events/user", SSE(sseApi.HandleUserEvents))
+	r.Get("/api/events/count", SSE(sse.HandleCountEvents))
+	r.Get("/api/events/user", SSE(sse.HandleUserEvents))
 
 	r.Get("/api/initial-board", Json(chess.InitialBoard()))
-	r.Get("/api/countries", Json(state.CountryList))
+	r.Get("/api/countries", Json(countryList))
 
-	r.Get("/api/ws/game", gameplayApi.HandleGameWs)
+	r.Get("/api/ws/game", gameplay.HandleGameWs)
 
-	r.Get("/api/healthcheck", healthcheckApi.HandleHealthCheck)
+	r.Get("/api/healthcheck", healthcheck.HandleHealthCheck)
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		slog.ErrorContext(r.Context(), "route not found", "method", r.Method, "url", r.URL)
@@ -163,11 +118,11 @@ func HandleRoot(state *ServerState, allowedOrigins string) http.Handler {
 	return r
 }
 
-type HealthCheckApi struct {
-	*ServerState
+type HealthCheckHandler struct {
+	db.Databases
 }
 
-func (api *HealthCheckApi) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
+func (h *HealthCheckHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	healthChecks := []struct {
@@ -177,14 +132,14 @@ func (api *HealthCheckApi) HandleHealthCheck(w http.ResponseWriter, r *http.Requ
 		{
 			Name: "redisPrimary",
 			Check: func() error {
-				_, err := api.Rdb.Cache.Ping(ctx).Result()
+				_, err := h.Rdb.Cache.Ping(ctx).Result()
 				return err
 			},
 		},
 		{
 			Name: "redisPubsub",
 			Check: func() error {
-				conn := api.Rdb.PubSub.Get()
+				conn := h.Rdb.PubSub.Get()
 				defer conn.Close()
 				_, err := conn.Do("PING")
 				return err
@@ -193,7 +148,7 @@ func (api *HealthCheckApi) HandleHealthCheck(w http.ResponseWriter, r *http.Requ
 		{
 			Name: "postgresDB",
 			Check: func() error {
-				_, err := api.Pdb.GetPool().Exec(ctx, "SELECT 1;")
+				_, err := h.Pdb.GetPool().Exec(ctx, "SELECT 1;")
 				return err
 			},
 		},

@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"hexchess-svc/assets"
 	"hexchess-svc/chess"
+	"hexchess-svc/cmd"
 	"hexchess-svc/db"
+	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/services"
-	"hexchess-svc/util"
 	"log"
 	"log/slog"
+	"math/rand"
 	"os"
 	"time"
 
@@ -36,18 +38,18 @@ func main() {
 	gameResults := readTestdataFile[svc.GameResult]("test/game_results.json")
 	userInsts := readTestdataFile[svc.UserInst]("test/user_insts.json")
 
-	util.InitLoggers(nil)
-	util.InitEnv()
+	logutil.InitLoggers(nil)
+	cmd.InitEnv()
 
 	dbURL := os.Getenv("DB_URL")
 	redisPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
 
-	ctx := context.WithValue(context.Background(), util.Trace, "seed-databases-script")
+	ctx := context.WithValue(context.Background(), logutil.Trace, "seed-databases-script")
 
 	slog.InfoContext(ctx, "connecting to postgres db", "dbURL", dbURL)
 	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
-		util.LogFatalErr("create pool", err)
+		logutil.LogFatalErr("create pool", err)
 	}
 	defer pool.Close()
 
@@ -65,26 +67,26 @@ func main() {
     	RESTART IDENTITY
 		CASCADE;`)
 	if err != nil {
-		util.LogFatalErr("drop schema", err)
+		logutil.LogFatalErr("drop schema", err)
 	}
 
 	if err := rdb.Cache.FlushAll(ctx).Err(); err != nil {
-		util.LogFatalErr("flush redis", err)
+		logutil.LogFatalErr("flush redis", err)
 	}
 
 	if _, err := svc.BatchInsertUsers(ctx, q, userInsts); err != nil {
-		util.LogFatalErr("insert users", err)
+		logutil.LogFatalErr("insert users", err)
 	}
 	for _, chInst := range challenges {
 		if err := svc.InsertChallenge(ctx, q, chInst); err != nil {
-			util.LogFatalErr("insert challenge", err)
+			logutil.LogFatalErr("insert challenge", err)
 		}
 	}
 	if err := insertRandomizedGameResult(ctx, pdb, gameResults); err != nil {
-		util.LogFatalErr("insert game results", err)
+		logutil.LogFatalErr("insert game results", err)
 	}
 	if err := svc.SyncLeaderboard(ctx, dbs); err != nil {
-		util.LogFatalErr("sync leaderboard", err)
+		logutil.LogFatalErr("sync leaderboard", err)
 	}
 
 	log.Printf("finished seeding databases: %v", time.Now().Sub(start))
@@ -92,7 +94,11 @@ func main() {
 
 func insertRandomizedGameResult(ctx context.Context, pdb *db.PostgreSQL, gameResults []svc.GameResult) error {
 	timeAt := time.Now().Add(-1 * time.Hour * 24 * 100)
-	util.Shuffle(gameResults)
+
+	a := gameResults
+	rand.Shuffle(len(a), func(i, j int) {
+		a[i], a[j] = a[j], a[i]
+	})
 
 	for i, params := range gameResults {
 		game := chess.MakeStartGame()

@@ -5,7 +5,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
-	"hexchess-svc/util"
+	"hexchess-svc/pkg/assertutil"
+	"hexchess-svc/pkg/logutil"
+	"strconv"
 	"testing"
 )
 
@@ -19,7 +21,7 @@ func TestLeaderboard(t *testing.T) {
 	id3 := int64(3)
 	id4 := int64(4)
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-leaderboard")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-leaderboard")
 
 	// when
 	for _, c := range []UpdtLbChangeSet{
@@ -29,7 +31,6 @@ func TestLeaderboard(t *testing.T) {
 		{ModeCorrespondence7, id3, 950},
 		{ModeTimed1Plus0, id2, 1400},
 		{ModeTimed1Plus0, id4, 1010},
-		// {ModeTimed1Plus0, id3, 1000},
 		{ModeTimed1Plus0, id1, 900},
 	} {
 		require.NoError(t, IncrLeaderboard(ctx, rdb, c))
@@ -93,4 +94,62 @@ func TestLeaderboard(t *testing.T) {
 		},
 	}
 	assert.Equal(t, wantLeaderboards, leaderboards)
+}
+
+func TestGetLeaderboardUsers(t *testing.T) {
+	dbs, closer := db.BeforeDbTest(t, false, InsertTestData)
+	defer closer()
+
+	ctx := context.WithValue(context.Background(), logutil.Trace, "get-leaderboard-users")
+
+	for i, test := range []struct {
+		mode            GameMode
+		rankedUsers     []RankedUser
+		wantLeaderboard []LbdUserEntity
+		wantErr         error
+	}{
+		{
+			mode:        ModeTimed1Plus0,
+			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 999999}},
+			wantErr:     ExpLdbError{ExpCount: 2, ActualCount: 1},
+		},
+		{
+			mode:        ModeCorrespondence7,
+			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 3}},
+			wantLeaderboard: []LbdUserEntity{
+				{
+					UserEntity: UserEntity{
+						ID:       1,
+						Username: "user1",
+						Country:  "us",
+						JoinedOn: TestTimeNow,
+					},
+					Elo:        1000,
+					HighestElo: 1000,
+					Wins:       2,
+					Losses:     2,
+					Winrate:    50,
+					Rank:       1,
+				},
+				{
+					UserEntity: UserEntity{
+						ID:       3,
+						Username: "user3",
+						Country:  "us",
+						JoinedOn: TestTimeNow,
+					},
+					Elo:        900,
+					HighestElo: 900,
+					Rank:       2,
+				},
+			},
+		},
+	} {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			leaderboard, err := GetLeaderboardUsers(ctx, dbs.Pdb.Query, test.mode, test.rankedUsers)
+
+			assert.Equal(t, test.wantErr, err)
+			assertutil.AssertEqualIgnoring(t, test.wantLeaderboard, leaderboard)
+		})
+	}
 }

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
-	"hexchess-svc/util"
+	"hexchess-svc/pkg/logutil"
 	"log/slog"
 	"math/big"
 	"slices"
@@ -67,7 +67,7 @@ func broadcastGameCounts(rdb *db.Redis, strID string) {
 			slog.Warn("recovered in panic while broadcasting game event", "err", r)
 		}
 	}()
-	ctx := context.WithValue(context.Background(), util.Trace, "create-game-broadcast-handler")
+	ctx := context.WithValue(context.Background(), logutil.Trace, "create-game-broadcast-handler")
 
 	count, err := GetChessStateCount(ctx, rdb)
 	if err != nil {
@@ -124,7 +124,7 @@ func JoinGame(ctx context.Context, rdb *db.Redis, gameID string, player PlayerSt
 	}
 
 	err = SetChessState(ctx, rdb, gameID, state)
-	util.DynLog(ctx, "player joined game", err, "playerID", player.ID, "state", state)
+	logutil.DynLog(ctx, "player joined game", err, "playerID", player.ID, "state", state)
 	return state, err
 }
 

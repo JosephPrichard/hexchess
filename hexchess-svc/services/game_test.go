@@ -7,7 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
-	"hexchess-svc/util"
+	"hexchess-svc/pkg/assertutil"
+	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/pkg/ptr"
 	"math"
 	"strconv"
 	"testing"
@@ -17,19 +19,19 @@ import (
 )
 
 func assertStateRdb(t *testing.T, rdb *db.Redis, wantState ChessState) {
-	ctx := context.WithValue(t.Context(), util.Trace, "assert-chess-states")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "assert-chess-states")
 	actualState, err := GetChessState(ctx, rdb, wantState.ID)
 	if err != nil {
 		t.Fatalf("get chess for assert: %v", err)
 	}
-	util.AssertEqualIgnoring(t, wantState, *actualState, ChessMetaCmpOpts)
+	assertutil.AssertEqualIgnoring(t, wantState, *actualState, ChessMetaCmpOpts)
 }
 
 func assertChessState(t *testing.T, wantState ChessState, actualState *ChessState) {
 	if actualState == nil {
 		t.Fatalf("chess state is nil")
 	}
-	util.AssertEqualIgnoring(t, wantState, *actualState, ChessMetaCmpOpts)
+	assertutil.AssertEqualIgnoring(t, wantState, *actualState, ChessMetaCmpOpts)
 }
 
 func TestJoinGame_JoinWhite(t *testing.T) {
@@ -37,7 +39,7 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-join-game")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-join-game")
 
 	gameID := "test123"
 	inState := MakeState(StateSetup{ID: gameID, Mode: ModeCorrespondence1, FirstColor: ColorRandom})
@@ -63,15 +65,15 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-join-game-both-players")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-join-game-both-players")
 
 	gameID := "test123"
 	inState := MakeState(StateSetup{
 		ID:         gameID,
 		Mode:       ModeCorrespondence1,
 		FirstColor: ColorRandom,
-		White:      util.Ptr(MakeNamePlayer(1, "white")),
-		Black:      util.Ptr(MakeNamePlayer(2, "name")),
+		White:      ptr.New(MakeNamePlayer(1, "white")),
+		Black:      ptr.New(MakeNamePlayer(2, "name")),
 	})
 
 	// when
@@ -90,15 +92,15 @@ func TestAttemptUndo(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-undo")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-undo")
 
 	gameID := "test123"
 	inState := MakeState(StateSetup{
 		ID:         gameID,
 		Mode:       ModeCorrespondence1,
 		FirstColor: ColorRandom,
-		White:      util.Ptr(MakeNamePlayer(1, "white")),
-		Black:      util.Ptr(MakeNamePlayer(2, "black")),
+		White:      ptr.New(MakeNamePlayer(1, "white")),
+		Black:      ptr.New(MakeNamePlayer(2, "black")),
 	})
 
 	makeExpState := func(fn func(s *ChessState)) ChessState {
@@ -178,16 +180,16 @@ func TestMakeMove(t *testing.T) {
 		ID:         "test1",
 		Mode:       ModeCorrespondence1,
 		FirstColor: ColorRandom,
-		White:      util.Ptr(MakeIDPlayer(1)),
-		Black:      util.Ptr(MakeIDPlayer(2)),
+		White:      ptr.New(MakeIDPlayer(1)),
+		Black:      ptr.New(MakeIDPlayer(2)),
 	})
 	s2 := MakeState(StateSetup{
 		ID:         "test2",
 		Mode:       ModeCorrespondence1,
 		FirstColor: ColorRandom,
-		White:      util.Ptr(MakeIDPlayer(3)),
-		Black:      util.Ptr(MakeIDPlayer(4)),
-		Game: util.Ptr(chess.MakeEmptyGame(false,
+		White:      ptr.New(MakeIDPlayer(3)),
+		Black:      ptr.New(MakeIDPlayer(4)),
+		Game: ptr.New(chess.MakeEmptyGame(false,
 			chess.NotMove{Not: "f1", Piece: chess.WhiteKing},
 			chess.NotMove{Not: "a2", Piece: chess.BlackQueen},
 			chess.NotMove{Not: "h1", Piece: chess.BlackRook},
@@ -196,7 +198,7 @@ func TestMakeMove(t *testing.T) {
 		)),
 	})
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-make-move")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-make-move")
 
 	for _, state := range []ChessState{s1, s2} {
 		state.Game.InitPieceMoves()
@@ -246,15 +248,15 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	dbs, closer := db.BeforeDbTest(t, true, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-forfeit")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-forfeit")
 
 	gameID := "test123"
 	inState := MakeState(StateSetup{
 		ID:         gameID,
 		Mode:       ModeCorrespondence1,
 		FirstColor: ColorRandom,
-		White:      util.Ptr(MakeIDPlayer(1)),
-		Black:      util.Ptr(MakeIDPlayer(2)),
+		White:      ptr.New(MakeIDPlayer(1)),
+		Black:      ptr.New(MakeIDPlayer(2)),
 	})
 	inState.Game.Moves = []chess.HistMove{{
 		PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}},
@@ -272,7 +274,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 }
 
 func TestInsertGameResult(t *testing.T) {
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-insert-game-result")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-insert-game-result")
 
 	testUser0 := TestUserEntities[0]
 	testUser1 := TestUserEntities[1]
@@ -363,7 +365,7 @@ func TestInsertGameResult(t *testing.T) {
 			r1, err := pdb.Query.SelectReplayRowByID(ctx, cs.ReplayID)
 			require.NoError(t, err)
 
-			util.AssertEqualIgnoring(t, test.wantReplay, r1, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn"))
+			assertutil.AssertEqualIgnoring(t, test.wantReplay, r1, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn"))
 
 			cs.ReplayID = 0
 			cs.WinEloDiff = math.Round(cs.WinEloDiff)

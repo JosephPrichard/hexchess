@@ -4,7 +4,9 @@ import (
 	"context"
 	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
-	"hexchess-svc/util"
+	"hexchess-svc/pkg/assertutil"
+	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/pkg/ptr"
 	"testing"
 	"time"
 
@@ -21,7 +23,7 @@ func TestEchoChessState(t *testing.T) {
 	id2 := "testing-id2-" + uuid.NewString()
 
 	state1 := MakeState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: ColorRandom})
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-set-then-get")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-set-then-get")
 
 	// when
 	require.NoError(t, SetChessState(ctx, rdb, id1, &state1))
@@ -33,7 +35,7 @@ func TestEchoChessState(t *testing.T) {
 
 	// then
 	assert.Equal(t, ErrNoChessState, errBadID)
-	util.AssertEqualIgnoring(t, state1, *outState1, ChessMetaCmpOpts)
+	assertutil.AssertEqualIgnoring(t, state1, *outState1, ChessMetaCmpOpts)
 }
 
 func TestGetChessMetas(t *testing.T) {
@@ -45,11 +47,11 @@ func TestGetChessMetas(t *testing.T) {
 	id2 := "testing-id2-" + uuid.NewString()
 	id3 := "testing-id3-" + uuid.NewString()
 
-	state1 := MakeState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: ColorRandom, White: util.Ptr(MakeIDPlayer(1)), Black: util.Ptr(MakeIDPlayer(2))})
-	state2 := MakeState(StateSetup{ID: id2, Mode: ModeCorrespondence1, FirstColor: ColorRandom, Black: util.Ptr(MakeIDPlayer(1))})
-	state3 := MakeState(StateSetup{ID: id3, Mode: ModeCorrespondence1, FirstColor: ColorRandom, Black: util.Ptr(MakeIDPlayer(1))})
+	state1 := MakeState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: ColorRandom, White: ptr.New(MakeIDPlayer(1)), Black: ptr.New(MakeIDPlayer(2))})
+	state2 := MakeState(StateSetup{ID: id2, Mode: ModeCorrespondence1, FirstColor: ColorRandom, Black: ptr.New(MakeIDPlayer(1))})
+	state3 := MakeState(StateSetup{ID: id3, Mode: ModeCorrespondence1, FirstColor: ColorRandom, Black: ptr.New(MakeIDPlayer(1))})
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-get-metas")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-get-metas")
 	now := time.Now()
 
 	// when
@@ -93,7 +95,7 @@ func TestExpireChessStates(t *testing.T) {
 	state1.WhitePlayer = MakeIDPlayer(1)
 	state1.BlackPlayer = MakeIDPlayer(2)
 
-	ctx := context.WithValue(t.Context(), util.Trace, "testing-expire")
+	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-expire")
 	now := time.Now()
 
 	// when

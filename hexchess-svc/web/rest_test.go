@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/stretchr/testify/assert"
@@ -9,14 +10,24 @@ import (
 	"go.uber.org/mock/gomock"
 	"hexchess-svc/db"
 	"hexchess-svc/outbound"
+	"hexchess-svc/pkg/assertutil"
+	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/services"
-	"hexchess-svc/util"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
 )
+
+func asJSONReader(v any) *strings.Reader {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic("json.Marshal failed: " + err.Error())
+	}
+	return strings.NewReader(string(b))
+}
 
 func TestHandleRegister(t *testing.T) {
 	insertTime := svc.TestTimeNow
@@ -47,16 +58,16 @@ func TestHandleRegister(t *testing.T) {
 			dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 			defer closer()
 
-			r := httptest.NewRequest(http.MethodPost, "/api/register", util.AsJSONReader(test.body))
+			r := httptest.NewRequest(http.MethodPost, "/api/register", asJSONReader(test.body))
 			w := httptest.NewRecorder()
-			h := HandleRoot(MakeServerState(ServerSetup{Databases: dbs, Generators: &stableGenerator{time: insertTime}}), "")
+			h := HandleRoot(RootSetup{Databases: dbs, Generators: &outbound.MockGenerator{Time: insertTime}})
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				util.AssertRespBody[SessionView](t, test.wantSuccess, w, testSessionViewCmpOpts)
+				assertutil.AssertRespBody[SessionView](t, test.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				util.AssertRespBody[ServiceView](t, test.wantFail, w)
+				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
 			}
 		})
 	}
@@ -66,7 +77,7 @@ func TestHandleLogin(t *testing.T) {
 	dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 	defer closer()
 
-	h := HandleRoot(MakeServerState(ServerSetup{Databases: dbs}), "")
+	h := HandleRoot(RootSetup{Databases: dbs})
 
 	user := svc.TestUsersInsts[0]
 
@@ -88,16 +99,16 @@ func TestHandleLogin(t *testing.T) {
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodPost, "/api/login", util.AsJSONReader(test.body))
+			r := httptest.NewRequest(http.MethodPost, "/api/login", asJSONReader(test.body))
 			w := httptest.NewRecorder()
 
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				util.AssertRespBody[SessionView](t, test.wantSuccess, w, testSessionViewCmpOpts)
+				assertutil.AssertRespBody[SessionView](t, test.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				util.AssertRespBody[ServiceView](t, test.wantFail, w)
+				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
 			}
 		})
 	}
@@ -147,24 +158,22 @@ func TestHandleLoginGoogleLogin(t *testing.T) {
 			defer ctrl.Finish()
 
 			for range test.runCount {
-				r := httptest.NewRequest(http.MethodPost, "/api/login/google", util.AsJSONReader(test.body))
+				r := httptest.NewRequest(http.MethodPost, "/api/login/google", asJSONReader(test.body))
 				w := httptest.NewRecorder()
 
-				state := MakeServerState(ServerSetup{
+				h := HandleRoot(RootSetup{
 					Databases: dbs,
-					OutboundAPIs: outbound.APIs{
+					OutboundAPIs: outbound.RemoteAPIs{
 						GoogleAPI: test.setupMocks(ctrl),
 					},
 				})
-
-				h := HandleRoot(state, "")
 				h.ServeHTTP(w, r)
 
 				assert.Equal(t, test.wantStatus, w.Code)
 				if test.wantStatus == http.StatusOK {
-					util.AssertRespBody[SessionView](t, test.wantSuccess, w, testSessionViewCmpOpts)
+					assertutil.AssertRespBody[SessionView](t, test.wantSuccess, w, testSessionViewCmpOpts)
 				} else {
-					util.AssertRespBody[ServiceView](t, test.wantFail, w)
+					assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
 				}
 			}
 		})
@@ -176,7 +185,7 @@ func TestHandleUpdateUser(t *testing.T) {
 	defer closer()
 	createTestSessions(t, dbs.Rdb)
 
-	h := HandleRoot(MakeServerState(ServerSetup{Databases: dbs, CountryList: []string{"eu"}}), "")
+	h := HandleRoot(RootSetup{Databases: dbs, CountryList: []string{"eu"}})
 
 	for i, test := range []struct {
 		body        UpdateUserBody
@@ -196,7 +205,7 @@ func TestHandleUpdateUser(t *testing.T) {
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodPost, "/api/users", util.AsJSONReader(test.body))
+			r := httptest.NewRequest(http.MethodPost, "/api/users", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
@@ -204,9 +213,9 @@ func TestHandleUpdateUser(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				util.AssertRespBody[SessionView](t, test.wantSuccess, w, testSessionViewCmpOpts)
+				assertutil.AssertRespBody[SessionView](t, test.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				util.AssertRespBody[ServiceView](t, test.wantFail, w)
+				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
 			}
 		})
 	}
@@ -217,7 +226,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 	defer closer()
 	createTestSessions(t, dbs.Rdb)
 
-	h := HandleRoot(MakeServerState(ServerSetup{Databases: dbs}), "")
+	h := HandleRoot(RootSetup{Databases: dbs})
 
 	for i, test := range []struct {
 		body        UpdatePasswordBody
@@ -242,7 +251,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodPost, "/api/users/password", util.AsJSONReader(test.body))
+			r := httptest.NewRequest(http.MethodPost, "/api/users/password", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
@@ -250,9 +259,9 @@ func TestHandleUpdatePassword(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				util.AssertRespBody[ServiceView](t, test.wantSuccess, w)
+				assertutil.AssertRespBody[ServiceView](t, test.wantSuccess, w)
 			} else {
-				util.AssertRespBody[ServiceView](t, test.wantFail, w)
+				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
 			}
 		})
 	}
@@ -264,7 +273,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 
 	createTestSessions(t, dbs.Rdb)
 
-	h := HandleRoot(MakeServerState(ServerSetup{Databases: dbs}), "")
+	h := HandleRoot(RootSetup{Databases: dbs})
 
 	for i, test := range []struct {
 		body       UpdateChallengeBody
@@ -292,7 +301,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodPost, "/api/challenges/update", util.AsJSONReader(test.body))
+			r := httptest.NewRequest(http.MethodPost, "/api/challenges/update", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
@@ -300,7 +309,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus != http.StatusOK {
-				util.AssertRespBody[ServiceView](t, test.wantFail, w)
+				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
 			}
 		})
 	}
@@ -315,17 +324,17 @@ func TestHandleCreateChallenge(t *testing.T) {
 	body := CreateChallengeBody{ChallengeeID: 4, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"}
 	wantSuccess := ServiceView{Status: http.StatusOK, Message: "SUCCESS"}
 
-	r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", util.AsJSONReader(body))
+	r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", asJSONReader(body))
 	r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 	w := httptest.NewRecorder()
-	h := HandleRoot(MakeServerState(ServerSetup{Databases: dbs, Generators: &stableGenerator{time: svc.TestTimeNow}}), "")
+	h := HandleRoot(RootSetup{Databases: dbs, Generators: &outbound.MockGenerator{Time: svc.TestTimeNow}})
 
 	// when
 	h.ServeHTTP(w, r)
 
 	// then
 	assert.Equal(t, http.StatusOK, w.Code)
-	util.AssertRespBody[ServiceView](t, wantSuccess, w)
+	assertutil.AssertRespBody[ServiceView](t, wantSuccess, w)
 }
 
 func TestGetLeaderboard(t *testing.T) {
@@ -333,21 +342,21 @@ func TestGetLeaderboard(t *testing.T) {
 	dbs, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), util.Trace, "setup-get-leaderboard")
+	ctx := context.WithValue(context.Background(), logutil.Trace, "setup-get-leaderboard")
 	require.NoError(t, svc.SetLeaderboard(ctx, dbs.Rdb, svc.UpdtLbChangeSet{Mode: svc.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
 
 	q := url.Values{}
 	q.Set("mode", string(svc.ModeTimed1Plus0))
 	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/leaderboard?%s", q.Encode()), nil)
 	w := httptest.NewRecorder()
-	h := HandleRoot(MakeServerState(ServerSetup{Databases: dbs}), "")
+	h := HandleRoot(RootSetup{Databases: dbs})
 
 	// when
 	h.ServeHTTP(w, r)
 
 	// then
 	assert.Equal(t, http.StatusOK, w.Code)
-	util.AssertRespBody[LeaderboardResp](t, LeaderboardResp{
+	assertutil.AssertRespBody[LeaderboardResp](t, LeaderboardResp{
 		TotalPages: 1,
 		UserList: []svc.LbdUserEntity{
 			{
@@ -372,7 +381,7 @@ func TestGetPlayer(t *testing.T) {
 	dbs, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
 	defer closer()
 
-	h := HandleRoot(MakeServerState(ServerSetup{Databases: dbs}), "")
+	h := HandleRoot(RootSetup{Databases: dbs})
 
 	for i, test := range []struct {
 		id          string
@@ -415,9 +424,9 @@ func TestGetPlayer(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				util.AssertRespBody[FullUserResp](t, test.wantSuccess, w)
+				assertutil.AssertRespBody[FullUserResp](t, test.wantSuccess, w)
 			} else {
-				util.AssertRespBody[ServiceView](t, test.wantFail, w)
+				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
 			}
 		})
 	}
@@ -428,7 +437,7 @@ func TestGetChallenges(t *testing.T) {
 	defer closer()
 	createTestSessions(t, dbs.Rdb)
 
-	h := HandleRoot(MakeServerState(ServerSetup{Databases: dbs, Generators: &stableGenerator{time: svc.TestTimeNow}}), "")
+	h := HandleRoot(RootSetup{Databases: dbs, Generators: &outbound.MockGenerator{Time: svc.TestTimeNow}})
 
 	for i, test := range []struct {
 		participants string
@@ -458,7 +467,7 @@ func TestGetChallenges(t *testing.T) {
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
-			util.AssertRespBody[GetChallengesResp](t, test.wantSuccess, w)
+			assertutil.AssertRespBody[GetChallengesResp](t, test.wantSuccess, w)
 		})
 	}
 }
@@ -467,7 +476,7 @@ func TestHandleGetUserReplays(t *testing.T) {
 	dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 	defer closer()
 
-	h := HandleRoot(MakeServerState(ServerSetup{Databases: dbs}), "")
+	h := HandleRoot(RootSetup{Databases: dbs})
 
 	for i, test := range []struct {
 		afterID     string
@@ -507,9 +516,9 @@ func TestHandleGetUserReplays(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
-				util.AssertRespBody[GetUserReplaysResp](t, test.wantSuccess, w)
+				assertutil.AssertRespBody[GetUserReplaysResp](t, test.wantSuccess, w)
 			} else {
-				util.AssertRespBody[ServiceView](t, test.wantFail, w)
+				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
 			}
 		})
 	}
@@ -525,7 +534,7 @@ func TestHandleGetChessViews(t *testing.T) {
 	r.Header.Set("Cookie", FmtCookie(TestSessionID2))
 	w := httptest.NewRecorder()
 
-	h := HandleRoot(MakeServerState(ServerSetup{Databases: dbs}), "")
+	h := HandleRoot(RootSetup{Databases: dbs})
 	h.ServeHTTP(w, r)
 
 	wantResp := ChessRoomListResp{
@@ -549,5 +558,5 @@ func TestHandleGetChessViews(t *testing.T) {
 		},
 	}
 	assert.Equal(t, http.StatusOK, w.Code)
-	util.AssertRespBody[ChessRoomListResp](t, wantResp, w)
+	assertutil.AssertRespBody[ChessRoomListResp](t, wantResp, w)
 }

@@ -2,12 +2,12 @@ package svc
 
 import (
 	"hexchess-svc/db"
-	"hexchess-svc/util"
+	"hexchess-svc/pkg/logutil"
 	"testing"
 )
 
 func TestMain(m *testing.M) {
 	defer db.TeardownTestInfra()
-	util.InitLoggers(nil)
+	logutil.InitLoggers(nil)
 	m.Run()
 }

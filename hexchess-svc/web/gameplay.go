@@ -5,18 +5,19 @@ import (
 	"fmt"
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
+	"hexchess-svc/db"
 	"hexchess-svc/pb"
 	"hexchess-svc/services"
 	"log/slog"
 	"net/http"
 )
 
-type GameplayApi struct {
-	*ServerState
+type GameplayHandler struct {
+	db.Databases
+	svc.Broadcasters
 }
 
 type GameSocketContext struct {
-	*ServerState
 	Context context.Context
 	GameID  string
 	Player  svc.PlayerState
@@ -60,7 +61,7 @@ func makeGameInitErr(ctx context.Context, gameID string, err error) []byte {
 	return makeGameErr(ctx, gameID, wsErr)
 }
 
-func (api *GameplayApi) HandleGameWs(w http.ResponseWriter, r *http.Request) {
+func (h *GameplayHandler) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	query := r.URL.Query()
@@ -73,18 +74,18 @@ func (api *GameplayApi) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	player, err := svc.GetSession(ctx, api.Rdb, sessionID)
+	player, err := svc.GetSession(ctx, h.Rdb, sessionID)
 	if err != nil {
 		writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
 		return
 	}
-	chessState, err := svc.JoinGame(ctx, api.Rdb, gameID, player)
+	chessState, err := svc.JoinGame(ctx, h.Rdb, gameID, player)
 	if err != nil {
 		writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
 		return
 	}
 
-	if err := handleGameInit(gameID, player, chessState, func(b []byte) {
+	if err := h.handleGameInit(gameID, player, chessState, func(b []byte) {
 		writeConn(ctx, conn, b)
 	}); err != nil {
 		slog.ErrorContext(ctx, "failed to handle game init", "err", err)
@@ -92,14 +93,13 @@ func (api *GameplayApi) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	gameCtx := GameSocketContext{
-		Context:     ctx,
-		ServerState: api.ServerState,
-		GameID:      gameID,
-		Player:      player,
+		Context: ctx,
+		GameID:  gameID,
+		Player:  player,
 	}
 
 	writeChan := make(chan []byte)
-	api.GamesCaster.Subscribe(gameID, writeChan)
+	h.GamesCaster.Subscribe(gameID, writeChan)
 
 	go func() {
 		for b := range writeChan {
@@ -107,18 +107,18 @@ func (api *GameplayApi) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	defer api.GamesCaster.Unsubscribe(gameID, writeChan)
+	defer h.GamesCaster.Unsubscribe(gameID, writeChan)
 	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
 			slog.WarnContext(ctx, "failed to read ws message", "err", err)
 			break
 		}
-		go handleGameMessage(gameCtx, msg, writeChan)
+		go h.handleGameMessage(gameCtx, msg, writeChan)
 	}
 }
 
-func handleGameInit(gameID string, player svc.PlayerState, state *svc.ChessState, write func([]byte)) error {
+func (h *GameplayHandler) handleGameInit(gameID string, player svc.PlayerState, state *svc.ChessState, write func([]byte)) error {
 	for i, o := range []*pb.GameOutput{
 		MakePbGameOutputInit(
 			gameID,
@@ -140,7 +140,7 @@ func handleGameInit(gameID string, player svc.PlayerState, state *svc.ChessState
 	return nil
 }
 
-func handleGameMessage(ctx GameSocketContext, msg []byte, writeChan chan []byte) {
+func (h *GameplayHandler) handleGameMessage(ctx GameSocketContext, msg []byte, writeChan chan []byte) {
 	var pbInput pb.GameInput
 	if err := proto.Unmarshal(msg, &pbInput); err != nil {
 		writeChan <- makeGameErr(ctx.Context, ctx.GameID, err)
@@ -149,13 +149,13 @@ func handleGameMessage(ctx GameSocketContext, msg []byte, writeChan chan []byte)
 
 	var err error
 	if f := pbInput.GetForfeit(); f != nil {
-		err = handleGameForfeit(ctx)
+		err = h.handleGameForfeit(ctx)
 	} else if m := pbInput.GetMove(); m != nil {
-		err = handleGameMove(ctx, m)
+		err = h.handleGameMove(ctx, m)
 	} else if c := pbInput.GetChat(); c != nil {
-		err = handleGameChat(ctx, c)
+		err = h.handleGameChat(ctx, c)
 	} else if u := pbInput.GetUndo(); u != nil {
-		err = handleGameUndo(ctx, u)
+		err = h.handleGameUndo(ctx, u)
 	} else {
 		err = ErrWsMessageType
 	}
@@ -165,19 +165,19 @@ func handleGameMessage(ctx GameSocketContext, msg []byte, writeChan chan []byte)
 	}
 }
 
-func handleGameForfeit(ctx GameSocketContext) error {
-	if err := svc.ForfeitGame(ctx.Context, &ctx.Databases, ctx.GameID, ctx.Player); err != nil {
+func (h *GameplayHandler) handleGameForfeit(ctx GameSocketContext) error {
+	if err := svc.ForfeitGame(ctx.Context, &h.Databases, ctx.GameID, ctx.Player); err != nil {
 		return err
 	}
 	bytes, err := proto.Marshal(MakePbGameOutputForfeit(ctx.GameID))
 	if err != nil {
 		return err
 	}
-	return svc.BroadcastMessage(ctx.Context, ctx.Rdb, ctx.Rdb.GamesChan, bytes)
+	return svc.BroadcastMessage(ctx.Context, h.Rdb, h.Rdb.GamesChan, bytes)
 }
 
-func handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) error {
-	result, err := svc.MakeGameMove(ctx.Context, &ctx.Databases, ctx.GameID, ctx.Player, chess.DeserializeMove(pbInput.Move))
+func (h *GameplayHandler) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) error {
+	result, err := svc.MakeGameMove(ctx.Context, &h.Databases, ctx.GameID, ctx.Player, chess.DeserializeMove(pbInput.Move))
 	if err != nil {
 		return err
 	}
@@ -191,18 +191,18 @@ func handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) error {
 	if err != nil {
 		return err
 	}
-	return svc.BroadcastMessage(ctx.Context, ctx.Rdb, ctx.Rdb.GamesChan, bytes)
+	return svc.BroadcastMessage(ctx.Context, h.Rdb, h.Rdb.GamesChan, bytes)
 }
 
-func handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput) error {
+func (h *GameplayHandler) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput) error {
 	bytes, err := proto.Marshal(MakePbGameOutputChat(ctx.GameID, pbInput.Message))
 	if err != nil {
 		return err
 	}
-	return svc.BroadcastMessage(ctx.Context, ctx.Rdb, ctx.Rdb.GamesChan, bytes)
+	return svc.BroadcastMessage(ctx.Context, h.Rdb, h.Rdb.GamesChan, bytes)
 }
 
-func handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput) error {
+func (h *GameplayHandler) handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput) error {
 	var undoKind svc.UndoKind
 	switch pbInput.Kind {
 	case "CREATE":
@@ -215,7 +215,7 @@ func handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput) error {
 		return fmt.Errorf("invalid undo kind: %s", pbInput.Kind)
 	}
 
-	result, err := svc.AttemptGameUndo(ctx.Context, ctx.Databases.Rdb, ctx.GameID, ctx.Player, undoKind)
+	result, err := svc.AttemptGameUndo(ctx.Context, h.Databases.Rdb, ctx.GameID, ctx.Player, undoKind)
 	if err != nil {
 		return err
 	}
@@ -229,5 +229,5 @@ func handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput) error {
 	if err != nil {
 		return err
 	}
-	return svc.BroadcastMessage(ctx.Context, ctx.Rdb, ctx.Rdb.GamesChan, bytes)
+	return svc.BroadcastMessage(ctx.Context, h.Rdb, h.Rdb.GamesChan, bytes)
 }

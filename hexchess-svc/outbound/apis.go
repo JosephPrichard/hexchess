@@ -1,5 +1,11 @@
 package outbound
 
-type APIs struct {
+type RemoteAPIs struct {
 	GoogleAPI
+}
+
+func MakeRemoteAPIs() RemoteAPIs {
+	return RemoteAPIs{
+		GoogleAPI: &RemoteGoogleAPI{},
+	}
 }

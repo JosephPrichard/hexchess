@@ -9,10 +9,11 @@ import (
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
+	"hexchess-svc/outbound"
+	"hexchess-svc/pkg/errmap"
 	"hexchess-svc/services"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 )
 
@@ -45,8 +46,11 @@ func Json(v any) http.HandlerFunc {
 	}
 }
 
-type RestApi struct {
-	*ServerState
+type RestHandler struct {
+	db.Databases
+	outbound.Generators
+	outbound.RemoteAPIs
+	ValidCountries map[string]bool
 }
 
 func isPasswordValid(password string) bool {
@@ -69,39 +73,40 @@ type RegisterBody struct {
 	ConfirmPassword string `json:"confirmPassword"`
 }
 
-func (api *RestApi) HandleRegister(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleRegister(w http.ResponseWriter, r *http.Request) error {
 	var body RegisterBody
 	if err := readJSON(r, &body); err != nil {
 		return err
 	}
 
-	var err error
+	var errm error
 	if !isUsernameValid(body.Username) {
-		err = PutErrorMap(err, "username", ErrHttpInvalidUsername)
+		errm = errmap.PutErrorMap(errm, "username", ErrHttpInvalidUsername)
 	}
 	if !isPasswordValid(body.Password) {
-		err = PutErrorMap(err, "password", ErrHttpInvalidPassword)
+		errm = errmap.PutErrorMap(errm, "password", ErrHttpInvalidPassword)
 	}
 	if body.Password != body.ConfirmPassword {
-		err = PutErrorMap(err, "confirmPassword", ErrHttpConfirmPassword)
+		errm = errmap.PutErrorMap(errm, "confirmPassword", ErrHttpConfirmPassword)
 	}
-	if err != nil {
-		return err
+	if errm != nil {
+		return errm
 	}
 
 	ctx := r.Context()
-	user, err := svc.InsertUser(ctx, api.Pdb.Query, svc.UserInst{
+	user, err := svc.InsertUser(ctx, h.Pdb.Query, svc.UserInst{
 		Username: body.Username,
 		Password: body.Password,
 		Country:  svc.DefaultCountry,
-		JoinedOn: api.GetNow(),
+		JoinedOn: h.GetNow(),
 	})
 	if errors.Is(err, svc.ErrTakenUsername) {
 		return ErrHttpDuplicateUsername
 	} else if err != nil {
 		return fmt.Errorf("insert user: %w", err)
 	}
-	t, err := SetSessionPlayer(ctx, api.Rdb, w, svc.MakePlayer(user.ID, user.Username, user.Country))
+
+	t, err := SetSessionPlayer(ctx, h.Rdb, w, svc.MakePlayer(user.ID, user.Username, user.Country))
 	if err != nil {
 		return fmt.Errorf("set session player: %w", err)
 	}
@@ -137,50 +142,52 @@ type LoginBody struct {
 	Password string `json:"password"`
 }
 
-func (api *RestApi) HandleLogin(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 	var body LoginBody
 	if err := readJSON(r, &body); err != nil {
 		return err
 	}
 
 	ctx := r.Context()
-	user, err := svc.VerifyUserTx(ctx, api.Pdb, body.Username, body.Password)
-	switch {
-	case err == svc.ErrUserNotFound:
-		return ErrHttpInvalidLogin
-	case err == svc.ErrTooManyLoginAttempts:
-		return ErrHttpTooManyLoginAttempts
-	case err != nil:
-		return fmt.Errorf("verify user: %w", err)
+	user, err := svc.VerifyUserTx(ctx, h.Pdb, body.Username, body.Password)
+	if err != nil {
+		switch err {
+		case svc.ErrUserNotFound:
+			return ErrHttpInvalidLogin
+		case svc.ErrTooManyLoginAttempts:
+			return ErrHttpTooManyLoginAttempts
+		default:
+			return fmt.Errorf("verify user: %w", err)
+		}
 	}
-	return handleLoginSession(ctx, api.Rdb, w, user)
+	return handleLoginSession(ctx, h.Rdb, w, user)
 }
 
 type GoogleLoginBody struct {
 	Token string `json:"token"`
 }
 
-func (api *RestApi) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) error {
 	var body GoogleLoginBody
 	if err := readJSON(r, &body); err != nil {
 		return err
 	}
 	ctx := r.Context()
 
-	payload, err := api.ValidateIDToken(ctx, body.Token)
+	payload, err := h.ValidateIDToken(ctx, body.Token)
 	if err != nil {
 		return err
 	}
 	slog.InfoContext(ctx, "validated google account id token", "googleAccountID", payload.AccountID)
 
-	user, err := svc.SelectOrInsertGoogleUser(ctx, api.Pdb.Query, payload.AccountID, svc.GoogleUserInst{
+	user, err := svc.SelectOrInsertGoogleUser(ctx, h.Pdb.Query, payload.AccountID, svc.GoogleUserInst{
 		Username: payload.Username,
 		Country:  svc.DefaultCountry,
 	})
 	if err != nil {
 		return fmt.Errorf("upsert verified google user: %w", err)
 	}
-	return handleLoginSession(ctx, api.Rdb, w, user)
+	return handleLoginSession(ctx, h.Rdb, w, user)
 }
 
 type UpdatePasswordBody struct {
@@ -189,37 +196,37 @@ type UpdatePasswordBody struct {
 	ConfirmNewPassword string `json:"confirmNewPassword"`
 }
 
-func (api *RestApi) HandleUpdatePassword(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleUpdatePassword(w http.ResponseWriter, r *http.Request) error {
 	var body UpdatePasswordBody
 	if err := readJSON(r, &body); err != nil {
 		return err
 	}
 
-	var err error
+	var errm error
 	if !isPasswordValid(body.NewPassword) {
-		err = PutErrorMap(err, "newPassword", ErrHttpInvalidPassword)
+		errm = errmap.PutErrorMap(errm, "newPassword", ErrHttpInvalidPassword)
 	}
 	if body.NewPassword != body.ConfirmNewPassword {
-		err = PutErrorMap(err, "confirmNewPassword", ErrHttpConfirmPassword)
+		errm = errmap.PutErrorMap(errm, "confirmNewPassword", ErrHttpConfirmPassword)
 	}
-	if err != nil {
-		return err
+	if errm != nil {
+		return errm
 	}
 
 	ctx := r.Context()
-	player, _, err := GetSessionPlayer(ctx, api.Rdb, r)
+	player, _, err := GetSessionPlayer(ctx, h.Rdb, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
 
-	user, err := svc.VerifyUserTx(ctx, api.Pdb, player.Name, body.Password)
+	user, err := svc.VerifyUserTx(ctx, h.Pdb, player.Name, body.Password)
 	if errors.Is(err, svc.ErrUserNotFound) {
 		return ErrHttpInvalidLogin
 	} else if err != nil {
 		return fmt.Errorf("verify user: %w", err)
 	}
 
-	if err := svc.UpdateUserPassword(ctx, api.Pdb.Query, user.ID, body.NewPassword); err != nil {
+	if err := svc.UpdateUserPassword(ctx, h.Pdb.Query, user.ID, body.NewPassword); err != nil {
 		return fmt.Errorf("update user password: %w", err)
 	}
 	slog.InfoContext(ctx, "user has updated password", "user", user)
@@ -234,29 +241,29 @@ type UpdateUserBody struct {
 	NewBio      string `json:"newBio"`
 }
 
-func (api *RestApi) HandleUpdateUser(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleUpdateUser(w http.ResponseWriter, r *http.Request) error {
 	var body UpdateUserBody
 	if err := readJSON(r, &body); err != nil {
 		return err
 	}
 
-	var err error
+	var errm error
 	if !isUsernameValid(body.NewUsername) {
-		err = PutErrorMap(err, "newUsername", ErrHttpInvalidUsername)
+		errm = errmap.PutErrorMap(errm, "newUsername", ErrHttpInvalidUsername)
 	}
 	if !isBioValid(body.NewBio) {
-		err = PutErrorMap(err, "newBio", ErrHttpInvalidBio)
+		errm = errmap.PutErrorMap(errm, "newBio", ErrHttpInvalidBio)
 	}
-	if _, ok := api.ValidCountries[body.NewCountry]; !ok {
-		return PutErrorMap(nil, "newCountry", ErrHttpInvalidCountry)
+	if _, ok := h.ValidCountries[body.NewCountry]; !ok {
+		return errmap.PutErrorMap(nil, "newCountry", ErrHttpInvalidCountry)
 	}
 
 	ctx := r.Context()
-	player, _, err := GetSessionPlayer(ctx, api.Rdb, r)
+	player, _, err := GetSessionPlayer(ctx, h.Rdb, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
-	user, err := svc.UpdateUser(ctx, api.Pdb.Query, player.ID, svc.UpdtUserParams{
+	user, err := svc.UpdateUser(ctx, h.Pdb.Query, player.ID, svc.UpdtUserParams{
 		Username: body.NewUsername,
 		Bio:      body.NewBio,
 		Country:  body.NewCountry,
@@ -278,10 +285,10 @@ type TempSessionResp struct {
 	SessionID string `json:"sessionId"`
 }
 
-func (api *RestApi) HandleCreateTempSession(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleCreateTempSession(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	player, _, err := GetSessionPlayer(ctx, api.Rdb, r)
+	player, _, err := GetSessionPlayer(ctx, h.Rdb, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		return ErrHttpSessionExpired
 	} else if err != nil {
@@ -289,7 +296,7 @@ func (api *RestApi) HandleCreateTempSession(w http.ResponseWriter, r *http.Reque
 	}
 
 	sessionID := MakeSessionID()
-	if err := svc.SetSession(ctx, api.Rdb, sessionID, player, TempSessionMaxAge); err != nil {
+	if err := svc.SetSession(ctx, h.Rdb, sessionID, player, TempSessionMaxAge); err != nil {
 		return fmt.Errorf("set session: %w", err)
 	}
 
@@ -302,16 +309,16 @@ type RefreshResp struct {
 	Session *SessionView `json:"session,omitempty"`
 }
 
-func (api *RestApi) HandleRefreshSession(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleRefreshSession(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-	player, sessionID, err := GetSessionPlayer(ctx, api.Rdb, r)
+	player, sessionID, err := GetSessionPlayer(ctx, h.Rdb, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
-	if err := svc.UpdateSessionEx(ctx, api.Rdb, sessionID, SessionMaxAge); err != nil {
+	if err := svc.UpdateSessionEx(ctx, h.Rdb, sessionID, SessionMaxAge); err != nil {
 		return fmt.Errorf("update session: %w", err)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
@@ -327,7 +334,7 @@ func (api *RestApi) HandleRefreshSession(w http.ResponseWriter, r *http.Request)
 	return nil
 }
 
-func (api *RestApi) HandleLogout(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleLogout(w http.ResponseWriter, r *http.Request) error {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
 		return fmt.Errorf("get cookie '%s': %w", CookieKey, err)
@@ -335,7 +342,7 @@ func (api *RestApi) HandleLogout(w http.ResponseWriter, r *http.Request) error {
 	sessionID := cookie.Value
 
 	ctx := r.Context()
-	if err := svc.DeleteSession(ctx, api.Rdb, sessionID); err != nil {
+	if err := svc.DeleteSession(ctx, h.Rdb, sessionID); err != nil {
 		return fmt.Errorf("logging out session '%s': %w", sessionID, err)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
@@ -354,7 +361,7 @@ type CreateGameResp struct {
 	GameID string `json:"gameId"`
 }
 
-func (api *RestApi) HandleCreateGame(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleCreateGame(w http.ResponseWriter, r *http.Request) error {
 	var body CreateGameBody
 	if err := readJSON(r, &body); err != nil {
 		return err
@@ -366,12 +373,12 @@ func (api *RestApi) HandleCreateGame(w http.ResponseWriter, r *http.Request) err
 		board, err := chess.ParseFen(body.InitialFEN)
 		if err != nil {
 			slog.WarnContext(ctx, "invalid initial FEN", "initialFEN", body.InitialFEN, "err", err)
-			return PutErrorMap(nil, "initialFEN", ErrInvalidFen)
+			return errmap.PutErrorMap(nil, "initialFEN", ErrInvalidFen)
 		}
 		initialBoard = &board
 	}
 
-	gameID, err := svc.CreateGame(ctx, api.Rdb, body.FirstColor, body.Mode, initialBoard)
+	gameID, err := svc.CreateGame(ctx, h.Rdb, body.FirstColor, body.Mode, initialBoard)
 	if err != nil {
 		return fmt.Errorf("create game: %w", err)
 	}
@@ -391,7 +398,7 @@ type UpdateChallengeResp struct {
 	GameID string `json:"challengeID"`
 }
 
-func (api *RestApi) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) error {
 	var body UpdateChallengeBody
 	if err := readJSON(r, &body); err != nil {
 		return err
@@ -405,18 +412,18 @@ func (api *RestApi) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request
 	case "DELETE":
 		targetID = body.ChallengerID
 	default:
-		return PutErrorMap(nil, "action", ErrHttpInvalidAction)
+		return errmap.PutErrorMap(nil, "action", ErrHttpInvalidAction)
 	}
 
 	ctx := r.Context()
-	player, _, err := GetSessionPlayer(ctx, api.Rdb, r)
+	player, _, err := GetSessionPlayer(ctx, h.Rdb, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
 	if player.ID != targetID {
 		return ErrHttpUpdateChallenge
 	}
-	dr, err := svc.DeleteChallenge(ctx, api.Pdb.Query, svc.ChallengeKey{ChallengerID: body.ChallengerID, ChallengeeID: body.ChallengeeID})
+	dr, err := svc.DeleteChallenge(ctx, h.Pdb.Query, svc.ChallengeKey{ChallengerID: body.ChallengerID, ChallengeeID: body.ChallengeeID})
 	if errors.Is(err, svc.ErrChallengeNotFound) {
 		return ErrHttpNotFoundChallenge
 	} else if err != nil {
@@ -424,7 +431,7 @@ func (api *RestApi) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request
 	}
 	var gameID string
 	if body.Action == "ACCEPT" {
-		gameID, err = svc.CreateGame(ctx, api.Rdb, dr.FirstColor, dr.Mode, nil)
+		gameID, err = svc.CreateGame(ctx, h.Rdb, dr.FirstColor, dr.Mode, nil)
 		if err != nil {
 			return fmt.Errorf("create game: %w", err)
 		}
@@ -440,51 +447,53 @@ type CreateChallengeBody struct {
 	Mode         svc.GameMode    `json:"mode"`
 }
 
-func (api *RestApi) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) error {
 	var body CreateChallengeBody
 	if err := readJSON(r, &body); err != nil {
 		return err
 	}
 
 	ctx := r.Context()
-	player, _, err := GetSessionPlayer(ctx, api.Rdb, r)
+	player, _, err := GetSessionPlayer(ctx, h.Rdb, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
 
-	ret, err := svc.InsertChallengeRet(ctx, api.Pdb.Query, svc.ChallengeInst{
+	ret, err := svc.InsertChallengeRet(ctx, h.Pdb.Query, svc.ChallengeInst{
 		ChallengerID: player.ID,
 		ChallengeeID: body.ChallengeeID,
 		Mode:         body.Mode,
 		StartColor:   body.StartColor,
-		MadeOn:       api.GetNow(),
+		MadeOn:       h.GetNow(),
 	})
-	switch {
-	case err == svc.ErrDuplicateChallenge:
-		return ErrHttpDuplicateChallenge
-	case err == svc.ErrParticipantConflict:
-		return ErrHttpInvalidParticipants
-	case err == svc.ErrSelfChallenge:
-		return ErrHttpSelfChallenge
-	case err != nil:
-		return fmt.Errorf("insert challenge: %w", err)
+	if err != nil {
+		switch err {
+		case svc.ErrDuplicateChallenge:
+			return ErrHttpDuplicateChallenge
+		case svc.ErrParticipantConflict:
+			return ErrHttpInvalidParticipants
+		case svc.ErrSelfChallenge:
+			return ErrHttpSelfChallenge
+		default:
+			return fmt.Errorf("insert challenge: %w", err)
+		}
 	}
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
 
 	ctx = context.WithoutCancel(ctx)
-	if err := svc.BroadcastChallenge(ctx, api.Rdb, ret); err != nil {
+	if err := svc.BroadcastChallenge(ctx, h.Rdb, ret); err != nil {
 		slog.ErrorContext(ctx, "failed to broadcast challenge", "challenge", ret, "err", err)
 	}
-	if err := svc.DeleteExpiredChallenges(ctx, api.Pdb.Query, player.ID, svc.ExpireChallengeThreshold); err != nil {
+	if err := svc.DeleteExpiredChallenges(ctx, h.Pdb.Query, player.ID, svc.ExpireChallengeThreshold); err != nil {
 		slog.ErrorContext(ctx, "failed to delete expired challenges", "challenge", ret, "err", err)
 	}
 	return nil
 }
 
-func (api *RestApi) HandleGetSelf(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleGetSelf(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	player, _, err := GetSessionPlayer(ctx, api.Rdb, r)
+	player, _, err := GetSessionPlayer(ctx, h.Rdb, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
@@ -493,7 +502,7 @@ func (api *RestApi) HandleGetSelf(w http.ResponseWriter, r *http.Request) error 
 		return fmt.Errorf("get session player: %w", err)
 	}
 
-	user, err := svc.GetUserByID(ctx, api.Pdb.Query, player.ID)
+	user, err := svc.GetUserByID(ctx, h.Pdb.Query, player.ID)
 	if err != nil {
 		return fmt.Errorf("get user by id %+v: %w", player, err)
 	}
@@ -508,28 +517,28 @@ type LeaderboardResp struct {
 	UserList   []svc.LbdUserEntity `json:"userList,omitempty"`
 }
 
-func (api *RestApi) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-
 	q := r.URL.Query()
-	var queryErr error
+
+	var errm error
 	page, err := intQueryDefault(q, "page", 1)
 	if err != nil {
-		queryErr = PutErrorMap(queryErr, "page", ErrHttpInvalidPage)
+		errm = errmap.PutErrorMap(errm, "page", ErrHttpInvalidPage)
 	}
 	mode, err := svc.ModeFromString(q.Get("mode"))
 	if err != nil {
-		queryErr = PutErrorMap(queryErr, "mode", ErrHttpInvalidMode)
+		errm = errmap.PutErrorMap(errm, "mode", ErrHttpInvalidMode)
 	}
-	if queryErr != nil {
-		return queryErr
+	if errm != nil {
+		return errm
 	}
 
-	lbd, err := svc.GetLeaderboardPage(ctx, api.Rdb, mode, int64(page), PerPage)
+	lbd, err := svc.GetLeaderboardPage(ctx, h.Rdb, mode, int64(page), PerPage)
 	if err != nil {
 		return fmt.Errorf("get leaderboard page %d: %w", page, err)
 	}
-	users, err := svc.GetLeaderboardUsers(ctx, api.Pdb.Query, mode, lbd.RankedUsers)
+	users, err := svc.GetLeaderboardUsers(ctx, h.Pdb.Query, mode, lbd.RankedUsers)
 	if err != nil {
 		return err
 	}
@@ -548,36 +557,37 @@ type FullUserResp struct {
 	ReplayList []svc.ReplayEntity  `json:"replayList"`
 }
 
-func (api *RestApi) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-
 	q := r.URL.Query()
+
 	id, err := intQuery(q, "id")
 	if err != nil {
-		return PutErrorMap(nil, "id", ErrHttpInvalidID)
+		return errmap.PutErrorMap(nil, "id", ErrHttpInvalidID)
 	}
 	withReplaysStr := q.Get("withReplays")
 	withReplays := strings.ToLower(withReplaysStr) == "true"
 
 	eg, egCtx := errgroup.WithContext(ctx)
+
 	var resp FullUserResp
 	var lbRanks map[svc.GameMode]svc.LbRank
 
 	eg.Go(func() (err error) {
-		resp.User, err = svc.GetUserByID(egCtx, api.Pdb.Query, int64(id))
+		resp.User, err = svc.GetUserByID(egCtx, h.Pdb.Query, int64(id))
 		return err
 	})
 	eg.Go(func() (err error) {
-		resp.Stats, err = svc.GetUserElos(egCtx, api.Pdb.Query, int64(id))
+		resp.Stats, err = svc.GetUserElos(egCtx, h.Pdb.Query, int64(id))
 		return err
 	})
 	eg.Go(func() (err error) {
-		lbRanks, err = svc.GetLeaderboardRanks(egCtx, api.Rdb, int64(id), svc.GameModes)
+		lbRanks, err = svc.GetLeaderboardRanks(egCtx, h.Rdb, int64(id), svc.GameModes)
 		return err
 	})
 	if withReplays {
 		eg.Go(func() (err error) {
-			resp.ReplayList, err = svc.GetUserReplays(egCtx, api.Pdb.Query, int64(id), -1, PerPage)
+			resp.ReplayList, err = svc.GetUserReplays(egCtx, h.Pdb.Query, int64(id), -1, PerPage)
 			return err
 		})
 	}
@@ -606,13 +616,13 @@ type SearchPlayersResp struct {
 	UserList []svc.UserEntity `json:"userList,omitempty"`
 }
 
-func (api *RestApi) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-
 	q := r.URL.Query()
+
 	page, err := intQueryDefault(q, "page", 1)
 	if err != nil {
-		return PutErrorMap(nil, "page", ErrHttpInvalidPage)
+		return errmap.PutErrorMap(nil, "page", ErrHttpInvalidPage)
 	}
 	name := q.Get("username")
 	hasUser := name != ""
@@ -621,7 +631,7 @@ func (api *RestApi) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) 
 
 	var userList []svc.UserEntity
 	if hasUser {
-		users, err := svc.SearchUsersByName(ctx, api.Pdb.Query, name, int32(page), PerPage)
+		users, err := svc.SearchUsersByName(ctx, h.Pdb.Query, name, int32(page), PerPage)
 		if errors.Is(err, svc.ErrSearchLimit) {
 			return ErrHttpSearchLimit
 		} else if err != nil {
@@ -641,15 +651,15 @@ type GetReplayResp struct {
 	Replay svc.ReplayEntity `json:"replay"`
 }
 
-func (api *RestApi) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	id, err := strconv.Atoi(r.URL.Query().Get("id"))
+	id, err := intQuery(r.URL.Query(), "id")
 	if err != nil {
-		return PutErrorMap(nil, "page", ErrHttpInvalidID)
+		return errmap.PutErrorMap(nil, "page", ErrHttpInvalidID)
 	}
 
-	replay, err := svc.GetReplay(ctx, api.Pdb.Query, int64(id))
+	replay, err := svc.GetReplay(ctx, h.Pdb.Query, int64(id))
 	if err != nil {
 		return fmt.Errorf("get replay %d: %w", id, err)
 	}
@@ -657,16 +667,16 @@ func (api *RestApi) HandleGetReplay(w http.ResponseWriter, r *http.Request) erro
 	return nil
 }
 
-func (api *RestApi) HandleGetReplayMoveList(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleGetReplayMoveList(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-
 	q := r.URL.Query()
+
 	id, err := intQuery(q, "userId")
 	if err != nil {
-		return PutErrorMap(nil, "page", ErrHttpInvalidID)
+		return errmap.PutErrorMap(nil, "page", ErrHttpInvalidID)
 	}
 
-	pbMoveHist, err := svc.GetReplayMoveHistory(ctx, api.Pdb.Query, int64(id))
+	pbMoveHist, err := svc.GetReplayMoveHistory(ctx, h.Pdb.Query, int64(id))
 	if err != nil {
 		return fmt.Errorf("get replay moveHistory: %w", err)
 	}
@@ -683,24 +693,24 @@ type GetUserReplaysResp struct {
 	ReplayList []svc.ReplayEntity `json:"replayList"`
 }
 
-func (api *RestApi) HandleGetUserReplays(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleGetUserReplays(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-
 	q := r.URL.Query()
-	var queryErr error
+
+	var errm error
 	userID, err := intQuery(q, "userId")
 	if err != nil {
-		queryErr = PutErrorMap(queryErr, "userId", ErrHttpInvalidID)
+		errm = errmap.PutErrorMap(errm, "userId", ErrHttpInvalidID)
 	}
 	afterID, err := intQuery(q, "afterId")
 	if err != nil {
-		queryErr = PutErrorMap(queryErr, "afterId", ErrHttpInvalidID)
+		errm = errmap.PutErrorMap(errm, "afterId", ErrHttpInvalidID)
 	}
-	if queryErr != nil {
-		return queryErr
+	if errm != nil {
+		return errm
 	}
 
-	replays, err := svc.GetUserReplays(ctx, api.Pdb.Query, int64(userID), int64(afterID), PerPage)
+	replays, err := svc.GetUserReplays(ctx, h.Pdb.Query, int64(userID), int64(afterID), PerPage)
 	if err != nil {
 		return fmt.Errorf("get user %d replays: %w", userID, err)
 	}
@@ -715,23 +725,23 @@ type GetChallengesResp struct {
 	ChallengeList []svc.ChallengeEntity `json:"challengeList"`
 }
 
-func (api *RestApi) HandleGetChallenges(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleGetChallenges(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	participants := r.URL.Query().Get("participants")
 
-	player, _, err := GetSessionPlayer(ctx, api.Rdb, r)
+	player, _, err := GetSessionPlayer(ctx, h.Rdb, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
 
-	since := svc.MakeGetChallengesSince(api.GetNow())
+	since := svc.MakeGetChallengesSince(h.GetNow())
 	var challengeList []svc.ChallengeEntity
 	switch participants {
 	case "sent":
-		challengeList, err = svc.GetChallengesByParticipant(ctx, api.Pdb.Query, svc.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1}, since)
+		challengeList, err = svc.GetChallengesByParticipant(ctx, h.Pdb.Query, svc.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1}, since)
 	case "received":
-		challengeList, err = svc.GetChallengesByParticipant(ctx, api.Pdb.Query, svc.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID}, since)
+		challengeList, err = svc.GetChallengesByParticipant(ctx, h.Pdb.Query, svc.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID}, since)
 	}
 	if err != nil {
 		return fmt.Errorf("get challenges by participant: %w", err)
@@ -750,40 +760,36 @@ type ChessRoomListResp struct {
 	SelfChessList []svc.ChessMeta `json:"selfChessList"`
 }
 
-func (api *RestApi) HandleGetChessRoomList(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleGetChessRoomList(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-
 	q := r.URL.Query()
-	var queryErr error
+
+	var errm error
 	page, err := intQueryDefault(q, "page", 1)
 	if err != nil {
-		queryErr = PutErrorMap(queryErr, "page", ErrHttpInvalidPage)
+		errm = errmap.PutErrorMap(errm, "page", ErrHttpInvalidPage)
 	}
 	count, err := intQueryDefault(q, "count", PerPage)
 	if err != nil {
-		queryErr = PutErrorMap(queryErr, "count", ErrHttpInvalidCount)
+		errm = errmap.PutErrorMap(errm, "count", ErrHttpInvalidCount)
 	}
-	if queryErr != nil {
-		return queryErr
-	}
-
-	var hasSession bool
-	player, _, err := GetSessionPlayer(ctx, api.Rdb, r)
-	if err != nil {
-		if !errors.Is(err, svc.ErrSessionNotFound) {
-			return fmt.Errorf("get session player: %w", err)
-		}
-	} else {
-		hasSession = true
+	if errm != nil {
+		return errm
 	}
 
-	chessList, err := svc.GetAllChessMetas(ctx, api.Rdb, page, count)
+	player, _, err := GetSessionPlayer(ctx, h.Rdb, r)
+	if err != nil && !errors.Is(err, svc.ErrSessionNotFound) {
+		return fmt.Errorf("get session player: %w", err)
+	}
+	hasSession := !errors.Is(err, svc.ErrSessionNotFound)
+
+	chessList, err := svc.GetAllChessMetas(ctx, h.Rdb, page, count)
 	if err != nil {
 		return fmt.Errorf("get page %d chess meta views: %w", page, err)
 	}
 	var selfChessList []svc.ChessMeta
 	if hasSession {
-		cl, err := svc.GetUserChessMetas(ctx, api.Rdb, player.ID)
+		cl, err := svc.GetUserChessMetas(ctx, h.Rdb, player.ID)
 		if err != nil {
 			return fmt.Errorf("get user %d chess meta views: %w", player.ID, err)
 		}
@@ -814,28 +820,25 @@ var timeframeMap = map[string]uint{
 
 var GetEloHistoriesCacheControl = fmt.Sprintf("public, max-age=%f", svc.ShortBucketDuration.Seconds())
 
-func (api *RestApi) HandleGetEloHistories(w http.ResponseWriter, r *http.Request) error {
+func (h *RestHandler) HandleGetEloHistories(w http.ResponseWriter, r *http.Request) error {
 	q := r.URL.Query()
-	var queryErr error
+
+	var errm error
 	userID, err := intQuery(q, "userId")
 	if err != nil {
-		queryErr = PutErrorMap(queryErr, "userID", ErrHttpInvalidPage)
+		errm = errmap.PutErrorMap(errm, "userID", ErrHttpInvalidPage)
 	}
-	timeframe := q.Get("timeframe")
-	if timeframe == "" {
-		timeframe = "all"
-	}
-	months, ok := timeframeMap[timeframe]
+	months, ok := timeframeMap[queryDefault(q, "timeframe", "all")]
 	if !ok {
-		queryErr = PutErrorMap(queryErr, "timeframe", ErrHttpInvalidTimeframe)
+		errm = errmap.PutErrorMap(errm, "timeframe", ErrHttpInvalidTimeframe)
 	}
-	if queryErr != nil {
-		return queryErr
+	if errm != nil {
+		return errm
 	}
 
 	ctx := r.Context()
-	params := svc.EloHistoriesParams{UserID: int64(userID), Months: months, TimeUntil: api.GetNow()}
-	eloBuckets, _, err := svc.RetrieveEloHistoryBuckets(ctx, &api.Databases, params)
+	params := svc.EloHistoriesParams{UserID: int64(userID), Months: months, TimeUntil: h.GetNow()}
+	eloBuckets, _, err := svc.RetrieveEloHistoryBuckets(ctx, &h.Databases, params)
 	if err != nil {
 		return fmt.Errorf("retrieve elo histories buckets with params %v: %w", params, err)
 	}

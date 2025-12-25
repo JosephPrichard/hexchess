@@ -1,4 +1,4 @@
-package util
+package assertutil
 
 import (
 	"encoding/json"
@@ -16,6 +16,7 @@ func AssertEqualIgnoring[T any](t *testing.T, expected, actual T, opts ...cmp.Op
 		t.Errorf("\n%s", diff)
 	}
 }
+
 func AssertRespBody[V any](t *testing.T, wantBody any, w *httptest.ResponseRecorder, opts ...cmp.Option) {
 	t.Helper()
 	resp := w.Result()
