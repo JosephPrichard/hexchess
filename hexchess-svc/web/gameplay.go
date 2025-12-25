@@ -11,6 +11,10 @@ import (
 	"net/http"
 )
 
+type GameplayApi struct {
+	*ServerState
+}
+
 type GameSocketContext struct {
 	*ServerState
 	Context context.Context
@@ -56,7 +60,7 @@ func makeGameInitErr(ctx context.Context, gameID string, err error) []byte {
 	return makeGameErr(ctx, gameID, wsErr)
 }
 
-func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState *ServerState) {
+func (api *GameplayApi) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	query := r.URL.Query()
@@ -69,12 +73,12 @@ func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState *ServerSta
 	}
 	defer conn.Close()
 
-	player, err := svc.GetSession(ctx, serverState.Rdb, sessionID)
+	player, err := svc.GetSession(ctx, api.Rdb, sessionID)
 	if err != nil {
 		writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
 		return
 	}
-	chessState, err := svc.JoinGame(ctx, serverState.Rdb, gameID, player)
+	chessState, err := svc.JoinGame(ctx, api.Rdb, gameID, player)
 	if err != nil {
 		writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
 		return
@@ -89,13 +93,13 @@ func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState *ServerSta
 
 	gameCtx := GameSocketContext{
 		Context:     ctx,
-		ServerState: serverState,
+		ServerState: api.ServerState,
 		GameID:      gameID,
 		Player:      player,
 	}
 
 	writeChan := make(chan []byte)
-	serverState.GamesCaster.Subscribe(gameID, writeChan)
+	api.GamesCaster.Subscribe(gameID, writeChan)
 
 	go func() {
 		for b := range writeChan {
@@ -103,7 +107,7 @@ func HandleGameWs(w http.ResponseWriter, r *http.Request, serverState *ServerSta
 		}
 	}()
 
-	defer serverState.GamesCaster.Unsubscribe(gameID, writeChan)
+	defer api.GamesCaster.Unsubscribe(gameID, writeChan)
 	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {

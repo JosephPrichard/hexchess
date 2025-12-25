@@ -13,13 +13,8 @@ import (
 	"time"
 )
 
-type SseHandler = func(state *ServerState, w SSEWriter, r *http.Request) error
-
-func MakeSseHandler(state *ServerState, h SseHandler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sseID := state.MakeID()
-
-		r = r.WithContext(context.WithValue(r.Context(), util.SseID, sseID))
+func SSE(h func(w SSEWriter, r *http.Request) error) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		slog.InfoContext(r.Context(), "received sse request", "method", r.Method, "url", r.URL)
 
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -32,25 +27,28 @@ func MakeSseHandler(state *ServerState, h SseHandler) http.Handler {
 			return
 		}
 		ctx := r.Context()
-		if err := h(state, SSEWriter{ctx, sseID, w, f}, r); err != nil {
+		if err := h(SSEWriter{ctx, w, f}, r); err != nil {
 			status, m := HttpStatusFromErr(err)
 			slog.ErrorContext(ctx, "sse request failed", "err", err, "method", r.Method, "url", r.URL)
 			http.Error(w, fmt.Sprintf("%s:%s", MetaEvent, m), status)
 		}
 		slog.InfoContext(ctx, "finished sse request", "method", r.Method, "url", r.URL)
-	})
+	}
+}
+
+type SSEApi struct {
+	*ServerState
 }
 
 type SSEWriter struct {
-	ctx   context.Context
-	sseID string
-	w     http.ResponseWriter
-	f     http.Flusher
+	ctx context.Context
+	w   http.ResponseWriter
+	f   http.Flusher
 }
 
 func (sse SSEWriter) writeEvent(e string, d string) {
 	if _, err := fmt.Fprintf(sse.w, "event: %s\ndata: %s\n\n", e, d); err != nil {
-		slog.ErrorContext(sse.ctx, "write to sse", "err", err, "sseID", sse.sseID)
+		slog.ErrorContext(sse.ctx, "write to sse", "err", err)
 	}
 	sse.f.Flush()
 }
@@ -64,7 +62,7 @@ func (sse SSEWriter) writeCountEvent(event svc.UcEvent) {
 		e = GamesCountEvent
 	}
 	if e == "" {
-		slog.ErrorContext(sse.ctx, "unknown count event key", "event", e, "sseID", sse.sseID)
+		slog.ErrorContext(sse.ctx, "unknown count event key", "event", e)
 		return
 	}
 	sse.writeEvent(e, event.Data)
@@ -83,15 +81,16 @@ const UserChallengeEvent = "userEvents"
 const GamesCountEvent = "gameCountEvents"
 const ActiveCountEvent = "activeCountEvents"
 
-func HandleCountEvents(state *ServerState, w SSEWriter, r *http.Request) error {
-	ctx := r.Context()
-	sseID := w.sseID
+func (api *SSEApi) HandleCountEvents(w SSEWriter, r *http.Request) error {
+	sseID := api.MakeID()
+	ctx := context.WithValue(r.Context(), util.SseID, sseID)
+	w.ctx = ctx
 
-	gamesCount, err := svc.GetChessStateCount(ctx, state.Rdb)
+	gamesCount, err := svc.GetChessStateCount(ctx, api.Rdb)
 	if err != nil {
 		return err
 	}
-	activeCount, err := svc.AddActiveUser(ctx, state.Rdb, sseID)
+	activeCount, err := svc.AddActiveUser(ctx, api.Rdb, sseID)
 	if err != nil {
 		return err
 	}
@@ -100,14 +99,14 @@ func HandleCountEvents(state *ServerState, w SSEWriter, r *http.Request) error {
 	w.writeGamesCountEvent(gamesCount, sseID)
 
 	countsChan := make(chan svc.UcEvent)
-	state.CountsCaster.Subscribe(countsChan)
+	api.CountsCaster.Subscribe(countsChan)
 
-	if err := svc.BroadcastActiveCount(ctx, state.Rdb, activeCount, sseID); err != nil {
+	if err := svc.BroadcastActiveCount(ctx, api.Rdb, activeCount, sseID); err != nil {
 		slog.ErrorContext(ctx, "failed to broadcast active count", "sseID", sseID, "err", err)
 	}
 
 	stopPing := util.Every(time.Minute, func() bool {
-		if err := svc.RetainActiveUser(ctx, state.Rdb, sseID); err != nil {
+		if err := svc.RetainActiveUser(ctx, api.Rdb, sseID); err != nil {
 			slog.ErrorContext(ctx, "failed to retain active user", "err", err)
 		}
 		return true
@@ -116,16 +115,16 @@ func HandleCountEvents(state *ServerState, w SSEWriter, r *http.Request) error {
 	go func() {
 		<-ctx.Done()
 		stopPing <- true
-		state.CountsCaster.Unsubscribe(countsChan)
+		api.CountsCaster.Unsubscribe(countsChan)
 		slog.InfoContext(ctx, "finished handle user events sse", "sseID", sseID)
 
 		// shutdown
 		ctx := context.WithoutCancel(ctx)
-		ac, err := svc.RemoveActiveUser(ctx, state.Rdb, sseID)
+		ac, err := svc.RemoveActiveUser(ctx, api.Rdb, sseID)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to remove active user", "sseID", sseID, "err", err)
 		}
-		if err := svc.BroadcastActiveCount(ctx, state.Rdb, ac, sseID); err != nil {
+		if err := svc.BroadcastActiveCount(ctx, api.Rdb, ac, sseID); err != nil {
 			slog.ErrorContext(ctx, "failed to broadcast active count on removal", "sseID", sseID, "err", err)
 		}
 	}()
@@ -144,11 +143,12 @@ func HandleCountEvents(state *ServerState, w SSEWriter, r *http.Request) error {
 	}
 }
 
-func HandleUserEvents(state *ServerState, w SSEWriter, r *http.Request) error {
-	ctx := r.Context()
-	sseID := w.sseID
+func (api *SSEApi) HandleUserEvents(w SSEWriter, r *http.Request) error {
+	sseID := api.MakeID()
+	ctx := context.WithValue(r.Context(), util.SseID, sseID)
+	w.ctx = ctx
 
-	player, _, err := GetSessionPlayer(ctx, state.Rdb, r)
+	player, _, err := GetSessionPlayer(ctx, api.Rdb, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		return ErrHttpSessionExpired
 	}
@@ -160,11 +160,11 @@ func HandleUserEvents(state *ServerState, w SSEWriter, r *http.Request) error {
 	w.writeEvent(MetaEvent, sseID)
 
 	usersChan := make(chan []byte)
-	state.UsersCaster.Subscribe(strID, usersChan)
+	api.UsersCaster.Subscribe(strID, usersChan)
 
 	go func() {
 		<-ctx.Done()
-		state.UsersCaster.Unsubscribe(strID, usersChan)
+		api.UsersCaster.Unsubscribe(strID, usersChan)
 		slog.InfoContext(ctx, "finishing handle user events sse", "sseID", sseID)
 	}()
 

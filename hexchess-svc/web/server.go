@@ -3,6 +3,8 @@ package web
 import (
 	"context"
 	"fmt"
+	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/outbound"
@@ -76,100 +78,96 @@ func MakeServerState(setup ServerSetup) *ServerState {
 	}
 }
 
-func withTrace(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		trace := r.Header.Get("X-trace")
-		if trace == "" {
-			trace = uuid.NewString()
-		}
-		r = r.WithContext(context.WithValue(r.Context(), util.Trace, trace))
-		next.ServeHTTP(w, r)
-	})
-}
+func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			trace := r.Header.Get("X-trace")
+			if trace == "" {
+				trace = uuid.NewString()
+			}
+			r = r.WithContext(context.WithValue(r.Context(), util.Trace, trace))
 
-func withCors(next http.Handler, allowedOrigins string) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Set CORS headers
-		w.Header().Set("Access-Control-Allow-Origin", allowedOrigins)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-trace")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Origin", allowedOrigins)
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-trace")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 
-		// Handle preflight (OPTIONS)
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
+			if r.Method == "OPTIONS" {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func HandleRoot(state *ServerState, allowedOrigins string) http.Handler {
-	mux := http.NewServeMux()
+	r := chi.NewRouter()
 
-	var sb strings.Builder
-	sb.WriteString("starting server with registered routes:\n")
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(RouteMiddleware(allowedOrigins))
 
-	handle := func(method string, pattern string, handler http.Handler) {
-		handler = withTrace(withCors(handler, allowedOrigins))
-		mux.Handle(method+" "+pattern, handler)
-		mux.Handle("OPTIONS "+pattern, handler)
-		sb.WriteString(fmt.Sprintf("\t%s\n", pattern))
-	}
-	handleRest := func(method string, pattern string, handler RestHandler) {
-		handle(method, pattern, MakeRestHandler(state, handler))
-	}
-	handleSse := func(method string, pattern string, handler SseHandler) {
-		handle(method, pattern, MakeSseHandler(state, handler))
-	}
+	restApi := RestApi{ServerState: state}
+	sseApi := SSEApi{ServerState: state}
+	gameplayApi := GameplayApi{ServerState: state}
+	healthcheckApi := HealthCheckApi{ServerState: state}
 
-	handleRest("POST", "/api/register", HandleRegister)
-	handleRest("POST", "/api/login", HandleLogin)
-	handleRest("POST", "/api/login/google", HandleGoogleLogin)
-	handleRest("POST", "/api/session/temp", HandleCreateTempSession)
-	handleRest("POST", "/api/session/refresh", HandleRefreshSession)
-	handleRest("POST", "/api/logout", HandleLogout)
-	handleRest("POST", "/api/users/password", HandleUpdatePassword)
-	handleRest("POST", "/api/users", HandleUpdateUser)
-	handleRest("POST", "/api/games/create", HandleCreateGame)
-	handleRest("POST", "/api/challenges/update", HandleUpdateChallenge)
-	handleRest("POST", "/api/challenges/create", HandleCreateChallenge)
+	r.Post("/api/register", Rest(restApi.HandleRegister))
+	r.Post("/api/login", Rest(restApi.HandleLogin))
+	r.Post("/api/login/google", Rest(restApi.HandleGoogleLogin))
+	r.Post("/api/session/temp", Rest(restApi.HandleCreateTempSession))
+	r.Post("/api/session/refresh", Rest(restApi.HandleRefreshSession))
+	r.Post("/api/logout", Rest(restApi.HandleLogout))
+	r.Post("/api/users/password", Rest(restApi.HandleUpdatePassword))
+	r.Post("/api/users", Rest(restApi.HandleUpdateUser))
+	r.Post("/api/games/create", Rest(restApi.HandleCreateGame))
+	r.Post("/api/challenges/update", Rest(restApi.HandleUpdateChallenge))
+	r.Post("/api/challenges/create", Rest(restApi.HandleCreateChallenge))
 
-	handleRest("GET", "/api/players", HandleGetPlayer)
-	handleRest("GET", "/api/players/self", HandleGetSelf)
-	handleRest("GET", "/api/players/search", HandleSearchPlayers)
-	handleRest("GET", "/api/leaderboard", HandleGetLeaderboard)
-	handleRest("GET", "/api/challenges", HandleGetChallenges)
-	handleRest("GET", "/api/replays", HandleGetUserReplays)
-	handleRest("GET", "/api/chess/rooms", HandleGetChessRoomList)
-	handleRest("GET", "/api/replay", HandleGetReplay)
-	handleRest("GET", "/api/replay/elo-histories", HandleGetEloHistories)
-	handleRest("GET", "/api/replay/move-list", HandleGetReplayMoveList)
+	r.Get("/api/players", Rest(restApi.HandleGetPlayer))
+	r.Get("/api/players/self", Rest(restApi.HandleGetSelf))
+	r.Get("/api/players/search", Rest(restApi.HandleSearchPlayers))
+	r.Get("/api/leaderboard", Rest(restApi.HandleGetLeaderboard))
+	r.Get("/api/challenges", Rest(restApi.HandleGetChallenges))
+	r.Get("/api/replays", Rest(restApi.HandleGetUserReplays))
+	r.Get("/api/chess/rooms", Rest(restApi.HandleGetChessRoomList))
+	r.Get("/api/replay", Rest(restApi.HandleGetReplay))
+	r.Get("/api/replay/elo-histories", Rest(restApi.HandleGetEloHistories))
+	r.Get("/api/replay/move-list", Rest(restApi.HandleGetReplayMoveList))
 
-	handleSse("GET", "/api/events/count", HandleCountEvents)
-	handleSse("GET", "/api/events/user", HandleUserEvents)
+	r.Get("/api/events/count", SSE(sseApi.HandleCountEvents))
+	r.Get("/api/events/user", SSE(sseApi.HandleUserEvents))
 
-	handle("GET", "/api/initial-board", MakeJsonHandler(chess.InitialBoard()))
-	handle("GET", "/api/countries", MakeJsonHandler(state.CountryList))
+	r.Get("/api/initial-board", Json(chess.InitialBoard()))
+	r.Get("/api/countries", Json(state.CountryList))
 
-	handle("GET", "/api/ws/game", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		slog.InfoContext(r.Context(), "begin game ws connection", "method", r.Method, "url", r.URL)
-		HandleGameWs(w, r, state)
-	}))
+	r.Get("/api/ws/game", gameplayApi.HandleGameWs)
 
-	handleRest("GET", "/api/healthcheck", HandleHealthCheck)
+	r.Get("/api/healthcheck", healthcheckApi.HandleHealthCheck)
 
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		slog.ErrorContext(r.Context(), "route not found", "method", r.Method, "url", r.URL)
 		writeJSON(w, http.StatusNotFound, ServiceView{Status: http.StatusNotFound, Message: "ROUTE_NOT_FOUND"})
 	})
 
-	fmt.Fprintf(util.LogWriter, "%s", sb.String())
-	return mux
+	var sb strings.Builder
+	_ = chi.Walk(r, func(method string, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		sb.WriteString(fmt.Sprintf("%s %s\n", method, route))
+		return nil
+	})
+	fmt.Println(sb.String())
+
+	return r
 }
 
-func HandleHealthCheck(state *ServerState, w http.ResponseWriter, r *http.Request) error {
+type HealthCheckApi struct {
+	*ServerState
+}
+
+func (api *HealthCheckApi) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	healthChecks := []struct {
@@ -179,14 +177,14 @@ func HandleHealthCheck(state *ServerState, w http.ResponseWriter, r *http.Reques
 		{
 			Name: "redisPrimary",
 			Check: func() error {
-				_, err := state.Rdb.Cache.Ping(ctx).Result()
+				_, err := api.Rdb.Cache.Ping(ctx).Result()
 				return err
 			},
 		},
 		{
 			Name: "redisPubsub",
 			Check: func() error {
-				conn := state.Rdb.PubSub.Get()
+				conn := api.Rdb.PubSub.Get()
 				defer conn.Close()
 				_, err := conn.Do("PING")
 				return err
@@ -195,7 +193,7 @@ func HandleHealthCheck(state *ServerState, w http.ResponseWriter, r *http.Reques
 		{
 			Name: "postgresDB",
 			Check: func() error {
-				_, err := state.Pdb.GetPool().Exec(ctx, "SELECT 1;")
+				_, err := api.Pdb.GetPool().Exec(ctx, "SELECT 1;")
 				return err
 			},
 		},
@@ -223,6 +221,4 @@ func HandleHealthCheck(state *ServerState, w http.ResponseWriter, r *http.Reques
 		Timestamp: time.Now(),
 		Failures:  failures,
 	})
-
-	return nil
 }
