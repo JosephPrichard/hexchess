@@ -51,20 +51,20 @@ var TestUserEntities = []UserEntity{
 
 var TestUserModeElos = []struct {
 	UserID int64
-	Mode   GameMode
+	Mode   string
 	Elo    int64
 	Wins   int32
 	Losses int32
 }{
-	{UserID: 1, Mode: ModeCorrespondence7, Elo: 1000, Wins: 2, Losses: 2},
-	{UserID: 1, Mode: ModeTimed3Plus2, Elo: 1020, Wins: 5, Losses: 4},
-	{UserID: 1, Mode: ModeTimed15Plus10, Elo: 1030, Wins: 4, Losses: 3},
-	{UserID: 1, Mode: ModeTimed1Plus0, Elo: 1000, Wins: 5, Losses: 5},
-	{UserID: 2, Mode: ModeTimed1Plus0, Elo: 1000},
-	{UserID: 3, Mode: ModeCorrespondence7, Elo: 900},
-	{UserID: 3, Mode: ModeCorrespondence1, Elo: 900},
-	{UserID: 4, Mode: ModeCorrespondence1, Elo: 2000},
-	{UserID: 5, Mode: ModeCorrespondence1, Elo: 1500},
+	{UserID: 1, Mode: ModeCorrespondence7.Value, Elo: 1000, Wins: 2, Losses: 2},
+	{UserID: 1, Mode: ModeTimed3Plus2.Value, Elo: 1020, Wins: 5, Losses: 4},
+	{UserID: 1, Mode: ModeTimed15Plus10.Value, Elo: 1030, Wins: 4, Losses: 3},
+	{UserID: 1, Mode: ModeTimed1Plus0.Value, Elo: 1000, Wins: 5, Losses: 5},
+	{UserID: 2, Mode: ModeTimed1Plus0.Value, Elo: 1000},
+	{UserID: 3, Mode: ModeCorrespondence7.Value, Elo: 900},
+	{UserID: 3, Mode: ModeCorrespondence1.Value, Elo: 900},
+	{UserID: 4, Mode: ModeCorrespondence1.Value, Elo: 2000},
+	{UserID: 5, Mode: ModeCorrespondence1.Value, Elo: 1500},
 }
 
 var TestUserStats = []UserStatsEntity{
@@ -86,9 +86,9 @@ var TestUserStats = []UserStatsEntity{
 var TestReplayInsts = []struct {
 	WhiteID        int64
 	BlackID        int64
-	Result         ReplayResult
-	Cause          ReplayCause
-	Mode           GameMode
+	Result         string
+	Cause          string
+	Mode           string
 	WinEloDiff     float64
 	LoseEloDiff    float64
 	ReplayBlackElo float64
@@ -99,9 +99,9 @@ var TestReplayInsts = []struct {
 	{
 		WhiteID:        1,
 		BlackID:        2,
-		Result:         WhiteWin,
-		Cause:          Checkmate,
-		Mode:           ModeCorrespondence7,
+		Result:         WhiteWin.Value,
+		Cause:          Checkmate.Value,
+		Mode:           ModeCorrespondence7.Value,
 		WinEloDiff:     30,
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1000,
@@ -111,9 +111,9 @@ var TestReplayInsts = []struct {
 	{
 		WhiteID:        2,
 		BlackID:        3,
-		Result:         BlackWin,
-		Cause:          Checkmate,
-		Mode:           ModeCorrespondence7,
+		Result:         BlackWin.Value,
+		Cause:          Checkmate.Value,
+		Mode:           ModeCorrespondence7.Value,
 		WinEloDiff:     30,
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1030,
@@ -123,9 +123,9 @@ var TestReplayInsts = []struct {
 	{
 		WhiteID:        3,
 		BlackID:        1,
-		Result:         Draw,
-		Cause:          Checkmate,
-		Mode:           ModeCorrespondence7,
+		Result:         Draw.Value,
+		Cause:          Checkmate.Value,
+		Mode:           ModeCorrespondence7.Value,
 		WinEloDiff:     0,
 		LoseEloDiff:    0,
 		ReplayWhiteElo: 900,
@@ -137,9 +137,9 @@ var TestReplayInsts = []struct {
 	{
 		WhiteID:        6,
 		BlackID:        7,
-		Result:         WhiteWin,
-		Cause:          Checkmate,
-		Mode:           ModeCorrespondence7,
+		Result:         WhiteWin.Value,
+		Cause:          Checkmate.Value,
+		Mode:           ModeCorrespondence7.Value,
 		WinEloDiff:     30,
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1030,
@@ -149,9 +149,9 @@ var TestReplayInsts = []struct {
 	{
 		WhiteID:        6,
 		BlackID:        7,
-		Result:         WhiteWin,
-		Cause:          Checkmate,
-		Mode:           ModeCorrespondence7,
+		Result:         WhiteWin.Value,
+		Cause:          Checkmate.Value,
+		Mode:           ModeCorrespondence7.Value,
 		WinEloDiff:     30,
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1060,
@@ -161,9 +161,9 @@ var TestReplayInsts = []struct {
 	{
 		WhiteID:        6,
 		BlackID:        7,
-		Result:         WhiteWin,
-		Cause:          Checkmate,
-		Mode:           ModeCorrespondence7,
+		Result:         WhiteWin.Value,
+		Cause:          Checkmate.Value,
+		Mode:           ModeCorrespondence7.Value,
 		WinEloDiff:     30,
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1090,
@@ -173,9 +173,9 @@ var TestReplayInsts = []struct {
 	{
 		WhiteID:        6,
 		BlackID:        7,
-		Result:         WhiteWin,
-		Cause:          Checkmate,
-		Mode:           ModeCorrespondence7,
+		Result:         WhiteWin.Value,
+		Cause:          Checkmate.Value,
+		Mode:           ModeCorrespondence7.Value,
 		WinEloDiff:     30,
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1120,
@@ -185,9 +185,9 @@ var TestReplayInsts = []struct {
 	{
 		WhiteID:        6,
 		BlackID:        7,
-		Result:         WhiteWin,
-		Cause:          Checkmate,
-		Mode:           ModeCorrespondence1,
+		Result:         WhiteWin.Value,
+		Cause:          Checkmate.Value,
+		Mode:           ModeCorrespondence1.Value,
 		WinEloDiff:     30,
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1030,
@@ -240,16 +240,16 @@ var TestReplayEntities = []ReplayEntity{
 var TestChallengeInsts = []struct {
 	ChallengerID int64
 	ChallengeeID int64
-	Mode         GameMode
-	StartColor   ColorSelect
+	Mode         string
+	StartColor   string
 	MadeOn       time.Time
 }{
-	{ChallengerID: 1, ChallengeeID: 2, Mode: ModeTimed3Plus2, StartColor: ColorRandom, MadeOn: TestTimeNow},
-	{ChallengerID: 3, ChallengeeID: 1, Mode: ModeCorrespondence1, StartColor: ColorRandom, MadeOn: TestTimeNow},
-	{ChallengerID: 5, ChallengeeID: 2, Mode: ModeCorrespondence1, StartColor: ColorRandom, MadeOn: time.Unix(20500, 0)},
-	{ChallengerID: 5, ChallengeeID: 4, Mode: ModeCorrespondence1, StartColor: ColorRandom, MadeOn: time.Unix(19500, 0)},
-	{ChallengerID: 5, ChallengeeID: 3, Mode: ModeCorrespondence1, StartColor: ColorRandom, MadeOn: time.Unix(0, 0)},
-	{ChallengerID: 5, ChallengeeID: 1, Mode: ModeCorrespondence1, StartColor: ColorRandom, MadeOn: time.Unix(0, 0)},
+	{ChallengerID: 1, ChallengeeID: 2, Mode: ModeTimed3Plus2.Value, StartColor: Random.Value, MadeOn: TestTimeNow},
+	{ChallengerID: 3, ChallengeeID: 1, Mode: ModeCorrespondence1.Value, StartColor: Random.Value, MadeOn: TestTimeNow},
+	{ChallengerID: 5, ChallengeeID: 2, Mode: ModeCorrespondence1.Value, StartColor: Random.Value, MadeOn: time.Unix(20500, 0)},
+	{ChallengerID: 5, ChallengeeID: 4, Mode: ModeCorrespondence1.Value, StartColor: Random.Value, MadeOn: time.Unix(19500, 0)},
+	{ChallengerID: 5, ChallengeeID: 3, Mode: ModeCorrespondence1.Value, StartColor: Random.Value, MadeOn: time.Unix(0, 0)},
+	{ChallengerID: 5, ChallengeeID: 1, Mode: ModeCorrespondence1.Value, StartColor: Random.Value, MadeOn: time.Unix(0, 0)},
 }
 
 var TestChallengeEntities = []ChallengeEntity{
@@ -263,7 +263,7 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
 		Mode:              ModeTimed3Plus2,
-		StartColor:        ColorRandom,
+		StartColor:        Random,
 		MadeOn:            TestTimeNow.Local(),
 		ExpiresOn:         TestTimeNow.Local().Add(ExpireChallengeThreshold),
 	},
@@ -277,7 +277,7 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
 		Mode:              ModeCorrespondence1,
-		StartColor:        ColorRandom,
+		StartColor:        Random,
 		MadeOn:            TestTimeNow.Local(),
 		ExpiresOn:         TestTimeNow.Local().Add(ExpireChallengeThreshold),
 	},
@@ -291,7 +291,7 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
 		Mode:              ModeCorrespondence1,
-		StartColor:        ColorRandom,
+		StartColor:        Random,
 		MadeOn:            time.Unix(20500, 0),
 		ExpiresOn:         time.Unix(20500, 0).Add(ExpireChallengeThreshold),
 	},
@@ -305,7 +305,7 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeCountry: "us",
 		ChallengeeElo:     2000,
 		Mode:              ModeCorrespondence1,
-		StartColor:        ColorRandom,
+		StartColor:        Random,
 		MadeOn:            time.Unix(19500, 0),
 		ExpiresOn:         time.Unix(19500, 0).Add(ExpireChallengeThreshold),
 	},

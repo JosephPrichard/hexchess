@@ -11,6 +11,92 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type CauseEnum string
+
+const (
+	CauseEnumCHECKMATE CauseEnum = "CHECKMATE"
+	CauseEnumFORFEIT   CauseEnum = "FORFEIT"
+	CauseEnumSTALEMATE CauseEnum = "STALEMATE"
+)
+
+func (e *CauseEnum) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CauseEnum(s)
+	case string:
+		*e = CauseEnum(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CauseEnum: %T", src)
+	}
+	return nil
+}
+
+type NullCauseEnum struct {
+	CauseEnum CauseEnum
+	Valid     bool // Valid is true if CauseEnum is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCauseEnum) Scan(value interface{}) error {
+	if value == nil {
+		ns.CauseEnum, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CauseEnum.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCauseEnum) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CauseEnum), nil
+}
+
+type ColorEnum string
+
+const (
+	ColorEnumWHITE  ColorEnum = "WHITE"
+	ColorEnumBLACK  ColorEnum = "BLACK"
+	ColorEnumRANDOM ColorEnum = "RANDOM"
+)
+
+func (e *ColorEnum) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ColorEnum(s)
+	case string:
+		*e = ColorEnum(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ColorEnum: %T", src)
+	}
+	return nil
+}
+
+type NullColorEnum struct {
+	ColorEnum ColorEnum
+	Valid     bool // Valid is true if ColorEnum is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullColorEnum) Scan(value interface{}) error {
+	if value == nil {
+		ns.ColorEnum, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ColorEnum.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullColorEnum) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ColorEnum), nil
+}
+
 type ModeEnum string
 
 const (
@@ -58,10 +144,54 @@ func (ns NullModeEnum) Value() (driver.Value, error) {
 	return string(ns.ModeEnum), nil
 }
 
+type ResultEnum string
+
+const (
+	ResultEnumWHITEWINS ResultEnum = "WHITE_WINS"
+	ResultEnumBLACKWINS ResultEnum = "BLACK_WINS"
+	ResultEnumDRAW      ResultEnum = "DRAW"
+	ResultEnumRANDOM    ResultEnum = "RANDOM"
+)
+
+func (e *ResultEnum) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ResultEnum(s)
+	case string:
+		*e = ResultEnum(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ResultEnum: %T", src)
+	}
+	return nil
+}
+
+type NullResultEnum struct {
+	ResultEnum ResultEnum
+	Valid      bool // Valid is true if ResultEnum is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullResultEnum) Scan(value interface{}) error {
+	if value == nil {
+		ns.ResultEnum, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ResultEnum.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullResultEnum) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ResultEnum), nil
+}
+
 type Challenge struct {
 	ChallengerID int64
 	ChallengeeID int64
-	StartColor   string
+	StartColor   ColorEnum
 	MadeOn       pgtype.Timestamptz
 	Mode         ModeEnum
 }
@@ -71,8 +201,8 @@ type Replay struct {
 	WhiteID     int64
 	BlackID     int64
 	Mode        ModeEnum
-	Result      string
-	Cause       string
+	Result      ResultEnum
+	Cause       CauseEnum
 	PlayedOn    pgtype.Timestamptz
 	WinEloDiff  float64
 	LoseEloDiff float64

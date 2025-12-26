@@ -26,7 +26,7 @@ type DeleteChallengeRow struct {
 	ChallengerID int64
 	ChallengeeID int64
 	Mode         ModeEnum
-	StartColor   string
+	StartColor   ColorEnum
 }
 
 func (q *Queries) DeleteChallenge(ctx context.Context, arg DeleteChallengeParams) (DeleteChallengeRow, error) {
@@ -88,7 +88,7 @@ type InsertChallengeParams struct {
 	ChallengerID int64
 	ChallengeeID int64
 	Mode         ModeEnum
-	StartColor   string
+	StartColor   ColorEnum
 	MadeOn       pgtype.Timestamptz
 }
 
@@ -102,7 +102,7 @@ type InsertChallengeRow struct {
 	ChallengeeCountry string
 	ChallengeeElo     pgtype.Float8
 	Mode              ModeEnum
-	StartColor        string
+	StartColor        ColorEnum
 	MadeOn            pgtype.Timestamptz
 }
 
@@ -176,7 +176,7 @@ type SelectChallengesByParticipantRow struct {
 	ChallengeeCountry string
 	ChallengeeElo     pgtype.Float8
 	Mode              ModeEnum
-	StartColor        string
+	StartColor        ColorEnum
 	MadeOn            pgtype.Timestamptz
 }
 

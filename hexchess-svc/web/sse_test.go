@@ -116,7 +116,7 @@ func TestHandleUserEvents(t *testing.T) {
 
 	assert.Equal(t, resp.Header.Get("Content-Type"), "text/event-stream")
 
-	ceInput := svc.ChallengeEntity{ChallengeeID: 1, Mode: svc.ModeCorrespondence1, StartColor: svc.ColorWhite}
+	ceInput := svc.ChallengeEntity{ChallengeeID: 1, Mode: svc.ModeCorrespondence1, StartColor: svc.White}
 
 	errChan := make(chan error)
 	go func() {

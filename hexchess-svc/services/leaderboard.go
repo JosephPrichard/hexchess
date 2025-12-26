@@ -14,7 +14,7 @@ import (
 )
 
 func getLeaderboardZSet(rdb *db.Redis, mode GameMode) string {
-	return rdb.LeaderboardZSet + "_mode_" + string(mode)
+	return rdb.LeaderboardZSet + "_mode_" + mode.Value
 }
 
 type UpdtLbChangeSet struct {
@@ -72,7 +72,7 @@ func GetLeaderboardRanks(ctx context.Context, rdb *db.Redis, id int64, modes []G
 		cmd  *redis.RankWithScoreCmd
 	}
 	pipeline := rdb.Cache.Pipeline()
-	getExecs := make([]getExec, 0, len(GameModes))
+	getExecs := make([]getExec, 0, len(modes))
 
 	for _, mode := range modes {
 		getExecs = append(getExecs, getExec{
@@ -175,10 +175,10 @@ func GetLeaderboardPage(ctx context.Context, rdb *db.Redis, mode GameMode, page,
 }
 
 func SyncLeaderboard(ctx context.Context, dbs *db.Databases) error {
-	for _, mode := range GameModes {
+	for _, mode := range ModesValues {
 		afterID := int64(0)
 		for {
-			rows, err := dbs.Pdb.Query.SelectEloList(ctx, db.SelectEloListParams{ID: afterID, Mode: db.ModeEnum(mode), Limit: 20})
+			rows, err := dbs.Pdb.Query.SelectEloList(ctx, db.SelectEloListParams{ID: afterID, Mode: db.ModeEnum(mode.Value), Limit: 20})
 			if err != nil {
 				return fmt.Errorf("select elo list afterID %d: %w", afterID, err)
 			}
@@ -227,7 +227,7 @@ func GetLeaderboardUsers(ctx context.Context, query *db.Queries, mode GameMode, 
 	}
 	rows, err := query.SelectUserWithEloByIDs(ctx, db.SelectUserWithEloByIDsParams{
 		Ids:  ids,
-		Mode: db.ModeEnum(mode),
+		Mode: db.ModeEnum(mode.Value),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("select many users %+v: %w", ids, err)

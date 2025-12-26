@@ -315,26 +315,102 @@ func TestHandleUpdateChallenge(t *testing.T) {
 	}
 }
 
-func TestHandleCreateChallenge(t *testing.T) {
-	// given
+func TestHandleCreateGame(t *testing.T) {
 	dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 	defer closer()
 	createTestSessions(t, dbs.Rdb)
 
-	body := CreateChallengeBody{ChallengeeID: 4, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"}
-	wantSuccess := ServiceView{Status: http.StatusOK, Message: "SUCCESS"}
+	tests := []struct {
+		body       CreateGameBody
+		wantStatus int
+		wantFail   ServiceView
+	}{
+		{
+			body:       CreateGameBody{FirstColor: "WHITE", Mode: "CORRESPONDENCE_1"},
+			wantStatus: http.StatusOK,
+		},
+		{
+			body:       CreateGameBody{InitialFEN: "invalid", FirstColor: "invalid", Mode: "invalid"},
+			wantStatus: http.StatusBadRequest,
+			wantFail: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]any{
+					"firstColor": ErrHttpInvalidColor.Error(),
+					"mode":       ErrHttpInvalidMode.Error(),
+					"initialFen": ErrHttpInvalidFen.Error(),
+				},
+			},
+		},
+	}
 
-	r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", asJSONReader(body))
-	r.Header.Set("Cookie", FmtCookie(TestSessionID1))
-	w := httptest.NewRecorder()
-	h := HandleRoot(RootSetup{Databases: dbs, Generators: &outbound.MockGenerator{Time: svc.TestTimeNow}})
+	h := HandleRoot(RootSetup{
+		Databases:  dbs,
+		Generators: &outbound.MockGenerator{Time: svc.TestTimeNow},
+	})
 
-	// when
-	h.ServeHTTP(w, r)
+	for i, test := range tests {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodPost, "/api/games/create", asJSONReader(test.body))
+			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
+			w := httptest.NewRecorder()
 
-	// then
-	assert.Equal(t, http.StatusOK, w.Code)
-	assertutil.AssertRespBody[ServiceView](t, wantSuccess, w)
+			h.ServeHTTP(w, r)
+
+			assert.Equal(t, test.wantStatus, w.Code)
+			if test.wantStatus != http.StatusOK {
+				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
+			}
+		})
+	}
+}
+
+func TestHandleCreateChallenge(t *testing.T) {
+	dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+	defer closer()
+	createTestSessions(t, dbs.Rdb)
+
+	tests := []struct {
+		body       CreateChallengeBody
+		wantStatus int
+		wantResp   ServiceView
+	}{
+		{
+			body: CreateChallengeBody{
+				ChallengeeID: 4,
+				StartColor:   "WHITE",
+				Mode:         "CORRESPONDENCE_1",
+			},
+			wantStatus: http.StatusOK,
+			wantResp:   ServiceView{Status: http.StatusOK, Message: "SUCCESS"},
+		},
+		{
+			body: CreateChallengeBody{
+				ChallengeeID: 4,
+				StartColor:   "invalid",
+				Mode:         "invalid",
+			},
+			wantStatus: http.StatusBadRequest,
+			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"startColor": ErrHttpInvalidColor.Error(), "mode": ErrHttpInvalidMode.Error()}},
+		},
+	}
+
+	h := HandleRoot(RootSetup{
+		Databases:  dbs,
+		Generators: &outbound.MockGenerator{Time: svc.TestTimeNow},
+	})
+
+	for i, test := range tests {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", asJSONReader(test.body))
+			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
+			w := httptest.NewRecorder()
+
+			h.ServeHTTP(w, r)
+
+			assert.Equal(t, test.wantStatus, w.Code)
+			assertutil.AssertRespBody[ServiceView](t, test.wantResp, w)
+		})
+	}
 }
 
 func TestGetLeaderboard(t *testing.T) {
@@ -346,7 +422,7 @@ func TestGetLeaderboard(t *testing.T) {
 	require.NoError(t, svc.SetLeaderboard(ctx, dbs.Rdb, svc.UpdtLbChangeSet{Mode: svc.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
 
 	q := url.Values{}
-	q.Set("mode", string(svc.ModeTimed1Plus0))
+	q.Set("mode", "TIMED_1+0")
 	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/leaderboard?%s", q.Encode()), nil)
 	w := httptest.NewRecorder()
 	h := HandleRoot(RootSetup{Databases: dbs})
@@ -539,12 +615,12 @@ func TestHandleGetChessViews(t *testing.T) {
 
 	wantResp := ChessRoomListResp{
 		ChessList: []svc.ChessMeta{
-			{ID: "game3", FirstColor: svc.ColorRandom, Mode: svc.ModeCorrespondence1},
-			{ID: "game2", FirstColor: svc.ColorRandom, Mode: svc.ModeCorrespondence1},
+			{ID: "game3", FirstColor: svc.Random, Mode: svc.ModeCorrespondence1},
+			{ID: "game2", FirstColor: svc.Random, Mode: svc.ModeCorrespondence1},
 			{
 				ID:          "game1",
 				WhitePlayer: svc.MakePlayer(2, "user2", "us"),
-				FirstColor:  svc.ColorRandom,
+				FirstColor:  svc.Random,
 				Mode:        svc.ModeCorrespondence1,
 			},
 		},
@@ -552,7 +628,7 @@ func TestHandleGetChessViews(t *testing.T) {
 			{
 				ID:          "game1",
 				WhitePlayer: svc.MakePlayer(2, "user2", "us"),
-				FirstColor:  svc.ColorRandom,
+				FirstColor:  svc.Random,
 				Mode:        svc.ModeCorrespondence1,
 			},
 		},

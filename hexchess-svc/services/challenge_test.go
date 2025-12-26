@@ -49,7 +49,7 @@ func TestChallengeEchoDelete(t *testing.T) {
 		ChallengerID: testUser.ID,
 		ChallengeeID: 3,
 		Mode:         ModeCorrespondence7,
-		StartColor:   ColorRandom,
+		StartColor:   Random,
 		MadeOn:       timeOn,
 	})
 	require.NoError(t, err)
@@ -74,11 +74,11 @@ func TestChallengeEchoDelete(t *testing.T) {
 		ChallengeeCountry: "us",
 		ChallengeeElo:     900,
 		Mode:              ModeCorrespondence7,
-		StartColor:        ColorRandom,
+		StartColor:        Random,
 		MadeOn:            timeOn.Local(),
 		ExpiresOn:         timeOn.Local().Add(ExpireChallengeThreshold),
 	}}
 	assert.Equal(t, wantChallengesBefore, challengesBeforeDelete)
 	assert.Empty(t, challengesAfterDelete)
-	assert.Equal(t, DeleteResult{ChallengerID: testUser.ID, ChallengeeID: 3, Mode: ModeCorrespondence7, FirstColor: ColorRandom}, dr)
+	assert.Equal(t, DeleteResult{ChallengerID: testUser.ID, ChallengeeID: 3, Mode: ModeCorrespondence7, FirstColor: Random}, dr)
 }

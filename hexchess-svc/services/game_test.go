@@ -42,8 +42,8 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-join-game")
 
 	gameID := "test123"
-	inState := MakeState(StateSetup{ID: gameID, Mode: ModeCorrespondence1, FirstColor: ColorRandom})
-	inState.FirstColor = ColorWhite
+	inState := MakeState(StateSetup{ID: gameID, Mode: ModeCorrespondence1, FirstColor: Random})
+	inState.FirstColor = White
 	player := MakePlayer(1, "name", "us")
 
 	// when
@@ -71,7 +71,7 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	inState := MakeState(StateSetup{
 		ID:         gameID,
 		Mode:       ModeCorrespondence1,
-		FirstColor: ColorRandom,
+		FirstColor: Random,
 		White:      ptr.New(MakeNamePlayer(1, "white")),
 		Black:      ptr.New(MakeNamePlayer(2, "name")),
 	})
@@ -98,7 +98,7 @@ func TestAttemptUndo(t *testing.T) {
 	inState := MakeState(StateSetup{
 		ID:         gameID,
 		Mode:       ModeCorrespondence1,
-		FirstColor: ColorRandom,
+		FirstColor: Random,
 		White:      ptr.New(MakeNamePlayer(1, "white")),
 		Black:      ptr.New(MakeNamePlayer(2, "black")),
 	})
@@ -179,14 +179,14 @@ func TestMakeMove(t *testing.T) {
 	s1 := MakeState(StateSetup{
 		ID:         "test1",
 		Mode:       ModeCorrespondence1,
-		FirstColor: ColorRandom,
+		FirstColor: Random,
 		White:      ptr.New(MakeIDPlayer(1)),
 		Black:      ptr.New(MakeIDPlayer(2)),
 	})
 	s2 := MakeState(StateSetup{
 		ID:         "test2",
 		Mode:       ModeCorrespondence1,
-		FirstColor: ColorRandom,
+		FirstColor: Random,
 		White:      ptr.New(MakeIDPlayer(3)),
 		Black:      ptr.New(MakeIDPlayer(4)),
 		Game: ptr.New(chess.MakeEmptyGame(false,
@@ -254,7 +254,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	inState := MakeState(StateSetup{
 		ID:         gameID,
 		Mode:       ModeCorrespondence1,
-		FirstColor: ColorRandom,
+		FirstColor: Random,
 		White:      ptr.New(MakeIDPlayer(1)),
 		Black:      ptr.New(MakeIDPlayer(2)),
 	})
@@ -294,9 +294,9 @@ func TestInsertGameResult(t *testing.T) {
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
-				Result:      string(Draw),
-				Cause:       string(Stalemate),
-				Mode:        db.ModeEnum(ModeTimed1Plus0),
+				Result:      db.ResultEnum(Draw.Value),
+				Cause:       db.CauseEnum(Stalemate.Value),
+				Mode:        db.ModeEnum(ModeTimed1Plus0.Value),
 				WinEloDiff:  0,
 				LoseEloDiff: 0,
 				WhiteElo:    1000,
@@ -314,9 +314,9 @@ func TestInsertGameResult(t *testing.T) {
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
-				Result:      string(WhiteWin),
-				Cause:       string(Checkmate),
-				Mode:        db.ModeEnum(ModeCorrespondence1),
+				Result:      db.ResultEnum(WhiteWin.Value),
+				Cause:       db.CauseEnum(Checkmate.Value),
+				Mode:        db.ModeEnum(ModeCorrespondence1.Value),
 				WinEloDiff:  15,
 				LoseEloDiff: -15,
 				WhiteElo:    1015,
@@ -334,9 +334,9 @@ func TestInsertGameResult(t *testing.T) {
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
-				Result:      string(BlackWin),
-				Cause:       string(Forfeit),
-				Mode:        db.ModeEnum(ModeCorrespondence7),
+				Result:      db.ResultEnum(BlackWin.Value),
+				Cause:       db.CauseEnum(Forfeit.Value),
+				Mode:        db.ModeEnum(ModeCorrespondence7.Value),
 				WinEloDiff:  15,
 				LoseEloDiff: -15,
 				WhiteElo:    985,
@@ -356,8 +356,10 @@ func TestInsertGameResult(t *testing.T) {
 			require.NoError(t, err)
 
 			// then
-			rowElos, err := pdb.Query.SelectUserModeElosByIds(ctx,
-				db.SelectUserModeElosByIdsParams{ID: []int64{test.result.WhiteID, test.result.BlackID}, Mode: db.ModeEnum(test.result.ReplayMode)})
+			rowElos, err := pdb.Query.SelectUserModeElosByIds(ctx, db.SelectUserModeElosByIdsParams{
+				ID:   []int64{test.result.WhiteID, test.result.BlackID},
+				Mode: db.ModeEnum(test.result.ReplayMode.Value),
+			})
 			require.NoError(t, err)
 
 			assert.Equal(t, test.wantElos, rowElos)

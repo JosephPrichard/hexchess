@@ -22,7 +22,7 @@ func TestEchoChessState(t *testing.T) {
 	id1 := "testing-id1-" + uuid.NewString()
 	id2 := "testing-id2-" + uuid.NewString()
 
-	state1 := MakeState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: ColorRandom})
+	state1 := MakeState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-set-then-get")
 
 	// when
@@ -47,9 +47,9 @@ func TestGetChessMetas(t *testing.T) {
 	id2 := "testing-id2-" + uuid.NewString()
 	id3 := "testing-id3-" + uuid.NewString()
 
-	state1 := MakeState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: ColorRandom, White: ptr.New(MakeIDPlayer(1)), Black: ptr.New(MakeIDPlayer(2))})
-	state2 := MakeState(StateSetup{ID: id2, Mode: ModeCorrespondence1, FirstColor: ColorRandom, Black: ptr.New(MakeIDPlayer(1))})
-	state3 := MakeState(StateSetup{ID: id3, Mode: ModeCorrespondence1, FirstColor: ColorRandom, Black: ptr.New(MakeIDPlayer(1))})
+	state1 := MakeState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random, White: ptr.New(MakeIDPlayer(1)), Black: ptr.New(MakeIDPlayer(2))})
+	state2 := MakeState(StateSetup{ID: id2, Mode: ModeCorrespondence1, FirstColor: Random, Black: ptr.New(MakeIDPlayer(1))})
+	state3 := MakeState(StateSetup{ID: id3, Mode: ModeCorrespondence1, FirstColor: Random, Black: ptr.New(MakeIDPlayer(1))})
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-get-metas")
 	now := time.Now()
@@ -72,9 +72,9 @@ func TestGetChessMetas(t *testing.T) {
 	require.NoError(t, err)
 
 	// then
-	m1 := ChessMeta{ID: id1, WhitePlayer: MakeIDPlayer(1), BlackPlayer: MakeIDPlayer(2), FirstColor: ColorRandom, Mode: ModeCorrespondence1}
-	m2 := ChessMeta{ID: id2, BlackPlayer: MakeIDPlayer(1), FirstColor: ColorRandom, Mode: ModeCorrespondence1}
-	m3 := ChessMeta{ID: id3, BlackPlayer: MakeIDPlayer(1), FirstColor: ColorRandom, Mode: ModeCorrespondence1}
+	m1 := ChessMeta{ID: id1, WhitePlayer: MakeIDPlayer(1), BlackPlayer: MakeIDPlayer(2), FirstColor: Random, Mode: ModeCorrespondence1}
+	m2 := ChessMeta{ID: id2, BlackPlayer: MakeIDPlayer(1), FirstColor: Random, Mode: ModeCorrespondence1}
+	m3 := ChessMeta{ID: id3, BlackPlayer: MakeIDPlayer(1), FirstColor: Random, Mode: ModeCorrespondence1}
 
 	assert.Equal(t, []ChessMeta{m3, m2, m1}, metaList1)
 	assert.Equal(t, []ChessMeta{m1}, metaList2)
@@ -90,7 +90,7 @@ func TestExpireChessStates(t *testing.T) {
 
 	id1 := "testing-id1-" + uuid.NewString()
 
-	state1 := MakeState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: ColorRandom})
+	state1 := MakeState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
 
 	state1.WhitePlayer = MakeIDPlayer(1)
 	state1.BlackPlayer = MakeIDPlayer(2)

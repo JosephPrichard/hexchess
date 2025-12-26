@@ -14,29 +14,7 @@ import (
 	"time"
 )
 
-type GameMode string
-
-const (
-	ModeUnknown          GameMode = ""
-	ModeTimed1Plus0      GameMode = "TIMED_1+0"
-	ModeTimed3Plus2      GameMode = "TIMED_3+2"
-	ModeTimed15Plus10    GameMode = "TIMED_15+10"
-	ModeCorrespondence1  GameMode = "CORRESPONDENCE_1"
-	ModeCorrespondence7  GameMode = "CORRESPONDENCE_7"
-	ModeCorrespondence14 GameMode = "CORRESPONDENCE_14"
-)
-
-func ModeFromString(str string) (GameMode, error) {
-	mode := GameMode(str)
-	if slices.Contains(GameModes, mode) {
-		return mode, nil
-	}
-	return ModeUnknown, fmt.Errorf("invalid game mode: %s", str)
-}
-
-var GameModes = []GameMode{ModeTimed1Plus0, ModeTimed3Plus2, ModeTimed15Plus10, ModeCorrespondence1, ModeCorrespondence7, ModeCorrespondence14}
-
-func CreateGame(ctx context.Context, rdb *db.Redis, color ColorSelect, mode GameMode, initialBoard *chess.Board) (string, error) {
+func CreateGame(ctx context.Context, rdb *db.Redis, color Color, mode GameMode, initialBoard *chess.Board) (string, error) {
 	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
 	bID := make([]byte, 8)
@@ -98,7 +76,7 @@ func JoinGame(ctx context.Context, rdb *db.Redis, gameID string, player PlayerSt
 		if err != nil {
 			return nil, fmt.Errorf("generate randint used to select first color: %w", err)
 		}
-		pickWhite := state.FirstColor == ColorRandom && n.Int64()%2 == 0 || state.FirstColor == ColorWhite
+		pickWhite := state.FirstColor == Random && n.Int64()%2 == 0 || state.FirstColor == White
 		if pickWhite {
 			state.WhitePlayer = player
 		} else {
@@ -337,7 +315,7 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 
 	rows, err := query.SelectUserModeElosByIds(ctx, db.SelectUserModeElosByIdsParams{
 		ID:   ids,
-		Mode: db.ModeEnum(result.ReplayMode)},
+		Mode: db.ModeEnum(result.ReplayMode.Value)},
 	)
 	if err != nil {
 		return cs, fmt.Errorf("select users %+v elo: %w", ids, err)
@@ -379,8 +357,8 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 		}
 
 		updts := []db.UpsertEloParams{
-			{UserID: winID, Mode: db.ModeEnum(result.ReplayMode), Elo: winEloNext, Wins: 1},
-			{UserID: loseID, Mode: db.ModeEnum(result.ReplayMode), Elo: loseEloNext, Losses: 1}}
+			{UserID: winID, Mode: db.ModeEnum(result.ReplayMode.Value), Elo: winEloNext, Wins: 1},
+			{UserID: loseID, Mode: db.ModeEnum(result.ReplayMode.Value), Elo: loseEloNext, Losses: 1}}
 		slices.SortFunc(updts, func(left, right db.UpsertEloParams) int { return int(left.UserID - right.UserID) }) // consistent update order
 
 		for _, updt := range updts {

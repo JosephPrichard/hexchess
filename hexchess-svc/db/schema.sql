@@ -46,6 +46,28 @@ COMMENT ON EXTENSION pg_trgm IS 'text similarity measurement and index searching
 
 
 --
+-- Name: cause_enum; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.cause_enum AS ENUM (
+    'CHECKMATE',
+    'FORFEIT',
+    'STALEMATE'
+);
+
+
+--
+-- Name: color_enum; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.color_enum AS ENUM (
+    'WHITE',
+    'BLACK',
+    'RANDOM'
+);
+
+
+--
 -- Name: mode_enum; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -60,6 +82,18 @@ CREATE TYPE public.mode_enum AS ENUM (
 );
 
 
+--
+-- Name: result_enum; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.result_enum AS ENUM (
+    'WHITE_WINS',
+    'BLACK_WINS',
+    'DRAW',
+    'RANDOM'
+);
+
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -71,10 +105,9 @@ SET default_table_access_method = heap;
 CREATE TABLE public.challenges (
     challenger_id bigint NOT NULL,
     challengee_id bigint NOT NULL,
-    start_color character varying NOT NULL,
+    start_color public.color_enum NOT NULL,
     made_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    mode public.mode_enum NOT NULL,
-    CONSTRAINT start_color_check CHECK (((start_color)::text = ANY (ARRAY[('RANDOM'::character varying)::text, ('BLACK'::character varying)::text, ('WHITE'::character varying)::text])))
+    mode public.mode_enum NOT NULL
 );
 
 
@@ -87,16 +120,14 @@ CREATE TABLE public.replays (
     white_id bigint NOT NULL,
     black_id bigint NOT NULL,
     mode public.mode_enum NOT NULL,
-    result character varying NOT NULL,
-    cause character varying NOT NULL,
+    result public.result_enum NOT NULL,
+    cause public.cause_enum NOT NULL,
     played_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     win_elo_diff double precision NOT NULL,
     lose_elo_diff double precision NOT NULL,
     white_elo double precision NOT NULL,
     black_elo double precision NOT NULL,
-    move_history bytea NOT NULL,
-    CONSTRAINT cause_check_1 CHECK (((cause)::text = ANY ((ARRAY['CHECKMATE'::character varying, 'FORFEIT'::character varying, 'STALEMATE'::character varying])::text[]))),
-    CONSTRAINT result_check CHECK (((result)::text = ANY (ARRAY[('DRAW'::character varying)::text, ('WHITE_WINS'::character varying)::text, ('BLACK_WINS'::character varying)::text])))
+    move_history bytea NOT NULL
 );
 
 

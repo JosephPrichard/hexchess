@@ -352,9 +352,9 @@ func (h *RestHandler) HandleLogout(w http.ResponseWriter, r *http.Request) error
 }
 
 type CreateGameBody struct {
-	FirstColor svc.ColorSelect `json:"firstColor"`
-	Mode       svc.GameMode    `json:"mode"`
-	InitialFEN string          `json:"initialFen"`
+	FirstColor string `json:"firstColor"`
+	Mode       string `json:"mode"`
+	InitialFEN string `json:"initialFen"`
 }
 
 type CreateGameResp struct {
@@ -369,16 +369,34 @@ func (h *RestHandler) HandleCreateGame(w http.ResponseWriter, r *http.Request) e
 	ctx := r.Context()
 
 	var initialBoard *chess.Board
+	var color svc.Color
+	var mode svc.GameMode
+	var errm error
+
 	if body.InitialFEN != "" {
 		board, err := chess.ParseFen(body.InitialFEN)
 		if err != nil {
 			slog.WarnContext(ctx, "invalid initial FEN", "initialFEN", body.InitialFEN, "err", err)
-			return errmap.PutErrorMap(nil, "initialFEN", ErrInvalidFen)
+			errm = errmap.PutErrorMap(errm, "initialFen", ErrHttpInvalidFen)
+		} else {
+			initialBoard = &board
 		}
-		initialBoard = &board
+	}
+	if c := svc.Colors.Parse(body.FirstColor); c == nil {
+		errm = errmap.PutErrorMap(errm, "firstColor", ErrHttpInvalidColor)
+	} else {
+		color = *c
+	}
+	if m := svc.Modes.Parse(body.Mode); m == nil {
+		errm = errmap.PutErrorMap(errm, "mode", ErrHttpInvalidMode)
+	} else {
+		mode = *m
+	}
+	if errm != nil {
+		return errm
 	}
 
-	gameID, err := svc.CreateGame(ctx, h.Rdb, body.FirstColor, body.Mode, initialBoard)
+	gameID, err := svc.CreateGame(ctx, h.Rdb, color, mode, initialBoard)
 	if err != nil {
 		return fmt.Errorf("create game: %w", err)
 	}
@@ -423,12 +441,14 @@ func (h *RestHandler) HandleUpdateChallenge(w http.ResponseWriter, r *http.Reque
 	if player.ID != targetID {
 		return ErrHttpUpdateChallenge
 	}
+
 	dr, err := svc.DeleteChallenge(ctx, h.Pdb.Query, svc.ChallengeKey{ChallengerID: body.ChallengerID, ChallengeeID: body.ChallengeeID})
 	if errors.Is(err, svc.ErrChallengeNotFound) {
 		return ErrHttpNotFoundChallenge
 	} else if err != nil {
 		return err
 	}
+
 	var gameID string
 	if body.Action == "ACCEPT" {
 		gameID, err = svc.CreateGame(ctx, h.Rdb, dr.FirstColor, dr.Mode, nil)
@@ -442,9 +462,9 @@ func (h *RestHandler) HandleUpdateChallenge(w http.ResponseWriter, r *http.Reque
 }
 
 type CreateChallengeBody struct {
-	ChallengeeID int64           `json:"challengeeID"`
-	StartColor   svc.ColorSelect `json:"startColor"`
-	Mode         svc.GameMode    `json:"mode"`
+	ChallengeeID int64  `json:"challengeeID"`
+	StartColor   string `json:"startColor"`
+	Mode         string `json:"mode"`
 }
 
 func (h *RestHandler) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) error {
@@ -459,11 +479,29 @@ func (h *RestHandler) HandleCreateChallenge(w http.ResponseWriter, r *http.Reque
 		return fmt.Errorf("get session player: %w", err)
 	}
 
+	var color svc.Color
+	var mode svc.GameMode
+	var errm error
+
+	if c := svc.Colors.Parse(body.StartColor); c == nil {
+		errm = errmap.PutErrorMap(errm, "startColor", ErrHttpInvalidColor)
+	} else {
+		color = *c
+	}
+	if m := svc.Modes.Parse(body.Mode); m == nil {
+		errm = errmap.PutErrorMap(errm, "mode", ErrHttpInvalidMode)
+	} else {
+		mode = *m
+	}
+	if errm != nil {
+		return errm
+	}
+
 	ret, err := svc.InsertChallengeRet(ctx, h.Pdb.Query, svc.ChallengeInst{
 		ChallengerID: player.ID,
 		ChallengeeID: body.ChallengeeID,
-		Mode:         body.Mode,
-		StartColor:   body.StartColor,
+		Mode:         mode,
+		StartColor:   color,
 		MadeOn:       h.GetNow(),
 	})
 	if err != nil {
@@ -526,9 +564,11 @@ func (h *RestHandler) HandleGetLeaderboard(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		errm = errmap.PutErrorMap(errm, "page", ErrHttpInvalidPage)
 	}
-	mode, err := svc.ModeFromString(q.Get("mode"))
-	if err != nil {
+	var mode svc.GameMode
+	if m := svc.Modes.Parse(q.Get("mode")); m == nil {
 		errm = errmap.PutErrorMap(errm, "mode", ErrHttpInvalidMode)
+	} else {
+		mode = *m
 	}
 	if errm != nil {
 		return errm
@@ -582,7 +622,7 @@ func (h *RestHandler) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 		return err
 	})
 	eg.Go(func() (err error) {
-		lbRanks, err = svc.GetLeaderboardRanks(egCtx, h.Rdb, int64(id), svc.GameModes)
+		lbRanks, err = svc.GetLeaderboardRanks(egCtx, h.Rdb, int64(id), svc.ModesValues)
 		return err
 	})
 	if withReplays {

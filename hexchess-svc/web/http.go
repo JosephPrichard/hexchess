@@ -25,6 +25,7 @@ func HttpStatusFromErr(err error) (int, string) {
 		ErrHttpDuplicateChallenge,
 		ErrHttpUpdateChallenge,
 		ErrHttpInvalidMode,
+		ErrHttpInvalidColor,
 		ErrHttpInvalidCount,
 		ErrHttpInvalidPage,
 		ErrHttpInvalidID,
@@ -32,7 +33,7 @@ func HttpStatusFromErr(err error) (int, string) {
 		ErrHttpInvalidTimeframe,
 		ErrHttpInvalidAction,
 		ErrHttpSearchLimit,
-		ErrInvalidFen:
+		ErrHttpInvalidFen:
 		return http.StatusBadRequest, err.Error()
 
 	// 401 — Unauthorized

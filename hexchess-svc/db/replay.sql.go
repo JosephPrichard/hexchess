@@ -31,8 +31,8 @@ RETURNING id
 type InsertReplayParams struct {
 	WhiteID     int64
 	BlackID     int64
-	Result      string
-	Cause       string
+	Result      ResultEnum
+	Cause       CauseEnum
 	WinElo      float64
 	LoseElo     float64
 	WhiteElo    float64
@@ -91,8 +91,8 @@ type SelectReplayByIDRow struct {
 	ID           int64
 	WhiteID      int64
 	BlackID      int64
-	Result       string
-	Cause        string
+	Result       ResultEnum
+	Cause        CauseEnum
 	PlayedOn     pgtype.Timestamptz
 	WinEloDiff   float64
 	LoseEloDiff  float64
@@ -263,8 +263,8 @@ type SelectUserReplaysRow struct {
 	ID           int64
 	WhiteID      int64
 	BlackID      int64
-	Result       string
-	Cause        string
+	Result       ResultEnum
+	Cause        CauseEnum
 	PlayedOn     pgtype.Timestamptz
 	WinEloDiff   float64
 	LoseEloDiff  float64

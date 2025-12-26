@@ -47,6 +47,15 @@ func UnmarshalChessState(b []byte) (ChessState, error) {
 		return state, fmt.Errorf("deserialize board %v: %w", pbChess.Game.Board, err)
 	}
 
+	color := Colors.Parse(pbChess.FirstColor)
+	if color == nil {
+		return state, MakeColorError(pbChess.FirstColor)
+	}
+	mode := Modes.Parse(pbChess.Mode)
+	if mode == nil {
+		return state, MakeGameModeError(pbChess.Mode)
+	}
+
 	state = ChessState{
 		Game:         game,
 		InitialBoard: initialBoard,
@@ -56,8 +65,8 @@ func UnmarshalChessState(b []byte) (ChessState, error) {
 			WhitePlayer: DeserializePlayer(pbChess.WhitePlayer),
 			BlackPlayer: DeserializePlayer(pbChess.BlackPlayer),
 			IsEnded:     pbChess.IsEnded,
-			FirstColor:  ColorSelect(pbChess.FirstColor),
-			Mode:        GameMode(pbChess.Mode),
+			FirstColor:  *color,
+			Mode:        *mode,
 			Touch:       time.UnixMilli(pbChess.Touch),
 		},
 	}
@@ -81,8 +90,8 @@ func SerializeChessState(s *ChessState) *pb.ChessState {
 		WhitePlayer:  SerializePlayer(s.WhitePlayer),
 		BlackPlayer:  SerializePlayer(s.BlackPlayer),
 		IsEnded:      s.IsEnded,
-		FirstColor:   string(s.FirstColor),
-		Mode:         string(s.Mode),
+		FirstColor:   s.FirstColor.Value,
+		Mode:         s.Mode.Value,
 		Touch:        s.Touch.UnixMilli(),
 		InitialBoard: chess.SerializeBoard(&s.InitialBoard),
 		UndoId:       s.UndoID,
@@ -90,18 +99,31 @@ func SerializeChessState(s *ChessState) *pb.ChessState {
 }
 
 func UnmarshalChessMeta(b []byte) (ChessMeta, error) {
+	var m ChessMeta
+
 	var pbChess pb.ChessState
 	if err := proto.Unmarshal(b, &pbChess); err != nil {
-		return ChessMeta{}, fmt.Errorf("unmarshal chess state: %w", err)
+		return m, fmt.Errorf("unmarshal chess state: %w", err)
 	}
-	return ChessMeta{
+
+	color := Colors.Parse(pbChess.FirstColor)
+	if color == nil {
+		return m, MakeColorError(pbChess.FirstColor)
+	}
+	mode := Modes.Parse(pbChess.Mode)
+	if mode == nil {
+		return m, MakeGameModeError(pbChess.Mode)
+	}
+
+	m = ChessMeta{
 		ID:          pbChess.Id,
 		WhitePlayer: DeserializePlayer(pbChess.WhitePlayer),
 		BlackPlayer: DeserializePlayer(pbChess.BlackPlayer),
 		IsEnded:     pbChess.IsEnded,
-		FirstColor:  ColorSelect(pbChess.FirstColor),
-		Mode:        GameMode(pbChess.Mode),
-	}, nil
+		FirstColor:  *color,
+		Mode:        *mode,
+	}
+	return m, nil
 }
 
 func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {
@@ -110,6 +132,16 @@ func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parse challenge made on: %w", err)
 		}
+
+		color := Colors.Parse(cm.StartColor)
+		if color == nil {
+			return nil, MakeColorError(cm.StartColor)
+		}
+		mode := Modes.Parse(cm.Mode)
+		if mode == nil {
+			return nil, MakeGameModeError(cm.Mode)
+		}
+
 		ce := ChallengeEntity{
 			ChallengerID:      cm.ChallengerId,
 			ChallengerName:    cm.ChallengerName,
@@ -119,8 +151,8 @@ func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {
 			ChallengeeName:    cm.ChallengeeName,
 			ChallengeeCountry: cm.ChallengeeCountry,
 			ChallengeeElo:     cm.ChallengeeElo,
-			Mode:              GameMode(cm.Mode),
-			StartColor:        ColorSelect(cm.StartColor),
+			Mode:              *mode,
+			StartColor:        *color,
 			MadeOn:            madeOn,
 		}
 		return json.Marshal(ce)
@@ -139,8 +171,8 @@ func SerializeChallengeMsg(ce ChallengeEntity) *pb.UserMsg {
 			ChallengeeName:    ce.ChallengeeName,
 			ChallengeeCountry: ce.ChallengeeCountry,
 			ChallengeeElo:     ce.ChallengeeElo,
-			Mode:              string(ce.Mode),
-			StartColor:        string(ce.StartColor),
+			Mode:              ce.Mode.Value,
+			StartColor:        ce.StartColor.Value,
 			MadeOn:            ce.MadeOn.Format(time.RFC3339),
 		},
 	}

@@ -68,7 +68,7 @@ type ChessMeta struct {
 	WhitePlayer PlayerState `json:"whitePlayer"`
 	BlackPlayer PlayerState `json:"blackPlayer"`
 	IsEnded     bool        `json:"isEnded"`
-	FirstColor  ColorSelect `json:"firstColor"`
+	FirstColor  Color       `json:"firstColor"`
 	Mode        GameMode    `json:"mode"`
 	Touch       time.Time   `json:"touch"`
 }
@@ -78,7 +78,7 @@ var ChessMetaCmpOpts = cmpopts.IgnoreFields(ChessMeta{}, "Touch")
 type StateSetup struct {
 	ID           string
 	Mode         GameMode
-	FirstColor   ColorSelect
+	FirstColor   Color
 	White        *PlayerState
 	Black        *PlayerState
 	InitialBoard *chess.Board
