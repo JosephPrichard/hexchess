@@ -45,9 +45,9 @@ func TestInsertThenGetReplay(t *testing.T) {
 		BlackName:    "user3",
 		WhiteCountry: "us",
 		BlackCountry: "us",
-		Mode:         ModeCorrespondence7,
-		Result:       WhiteWin,
-		Cause:        Checkmate,
+		Mode:         ModeCorrespondence7.String(),
+		Result:       WhiteWin.String(),
+		Cause:        Checkmate.String(),
 		WinEloDiff:   35,
 		LoseEloDiff:  -25,
 		WhiteEloDiff: 35,
@@ -73,8 +73,8 @@ func TestGetUserReplays(t *testing.T) {
 	require.NoError(t, err)
 
 	// then
-	replay1 := TestReplayEntities[1]
-	replay3 := TestReplayEntities[0]
+	replay1 := TestReplayEntities[0]
+	replay3 := TestReplayEntities[1]
 	expectedReplayList1 := []ReplayEntity{replay3, replay1}
 	expectedReplayList2 := []ReplayEntity{replay1}
 
@@ -98,16 +98,16 @@ func TestRetrieveEloHistories(t *testing.T) {
 	dbs, closer := db.BeforeDbTest(t, false, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-retrieve-elo-histories")
-
 	timeUntil := time.Date(2020, 2, 2, 2, 0, 0, 0, time.UTC)
 
 	for _, test := range []struct {
+		name               string
 		params             EloHistoriesParams
 		wantBucketDuration time.Duration
 		wantEloBuckets     EloHistoryBuckets
 	}{
 		{
+			name:               "retrieve all elo histories",
 			params:             EloHistoriesParams{UserID: 6, TimeUntil: timeUntil},
 			wantBucketDuration: LongBucketDuration,
 			wantEloBuckets: EloHistoryBuckets{
@@ -121,6 +121,7 @@ func TestRetrieveEloHistories(t *testing.T) {
 			},
 		},
 		{
+			name:               "retrieve elo histories past 3 months",
 			params:             EloHistoriesParams{UserID: 6, Months: 3, TimeUntil: timeUntil},
 			wantBucketDuration: ShortBucketDuration,
 			wantEloBuckets: EloHistoryBuckets{
@@ -134,9 +135,14 @@ func TestRetrieveEloHistories(t *testing.T) {
 			},
 		},
 	} {
-		eloHistories, bd, err := RetrieveEloHistoryBuckets(ctx, &dbs, test.params)
-		require.NoError(t, err)
-		assert.Equal(t, test.wantEloBuckets, eloHistories)
-		assert.Equal(t, test.wantBucketDuration, bd)
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
+
+			eloHistories, bd, err := RetrieveEloHistoryBuckets(ctx, &dbs, test.params)
+			require.NoError(t, err)
+
+			assert.Equal(t, test.wantEloBuckets, eloHistories)
+			assert.Equal(t, test.wantBucketDuration, bd)
+		})
 	}
 }

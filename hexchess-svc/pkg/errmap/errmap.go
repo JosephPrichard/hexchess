@@ -7,7 +7,7 @@ type ErrorMap struct {
 	Errors map[string]error
 }
 
-func PutErrorMap(left error, key string, right error) error {
+func Put(left error, key string, right error) error {
 	if right == nil {
 		return left
 	}

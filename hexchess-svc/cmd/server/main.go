@@ -65,19 +65,21 @@ func main() {
 
 	slog.Info("connecting to redis db", "primaryURL", redisPrimaryURL, "pubsubURL", redisPubSubURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: redisPrimaryURL, PubsubAddr: redisPubSubURL}, db.DefaultRedisNames)
-	defer rdb.Close()
 
-	setup := web.RootSetup{
-		Databases:      db.Databases{Rdb: rdb, Pdb: pdb},
+	dbs := db.Databases{Rdb: rdb, Pdb: pdb}
+	dbs.Close()
+
+	state := web.State{
+		Databases:      dbs,
 		Broadcasters:   svc.MakeBroadcaster(),
 		Generators:     &outbound.RandGenerator{},
 		OutboundAPIs:   outbound.MakeRemoteAPIs(),
 		CountryList:    countryList,
 		AllowedOrigins: allowedOrigins,
 	}
-	<-svc.ListenGameMessages(setup.Broadcasters.GamesCaster, rdb)
-	<-svc.ListenUsersMessages(setup.Broadcasters.UsersCaster, rdb)
-	<-svc.ListenUnicastEvents(setup.Broadcasters.CountsCaster, rdb)
+	<-state.Broadcasters.ListenGameMessages(rdb)
+	<-state.Broadcasters.ListenUsersMessages(rdb)
+	<-state.Broadcasters.ListenUnicastEvents(rdb)
 
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 
@@ -86,7 +88,7 @@ func main() {
 			log.Println(http.ListenAndServe(":"+pprofPort, nil))
 		}()
 	}
-	if err := http.ListenAndServe(":"+serverPort, web.HandleRoot(setup)); err != nil {
+	if err := http.ListenAndServe(":"+serverPort, web.HandleRoot(state)); err != nil {
 		logutil.LogFatalErr("failed while serving", err)
 	}
 }

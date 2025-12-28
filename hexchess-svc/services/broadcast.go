@@ -55,7 +55,13 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 	return connCh
 }
 
-func ListenGameMessages(m *MultiCasterMap, rdb *db.Redis) chan struct{} {
+type Broadcasters struct {
+	CountsCaster *UniCaster
+	GamesCaster  *MultiCasterMap
+	UsersCaster  *MultiCasterMap
+}
+
+func (b *Broadcasters) ListenGameMessages(rdb *db.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.GamesChan}, func(v redigo.Message) {
 		var outputID pb.GameOutputID
 		if err := proto.Unmarshal(v.Data, &outputID); err != nil {
@@ -63,11 +69,11 @@ func ListenGameMessages(m *MultiCasterMap, rdb *db.Redis) chan struct{} {
 			return
 		}
 		slog.Info("received message on channel", "ID", outputID.GameId, "channel", v.Channel)
-		go m.Broadcast(outputID.GameId, v.Data)
+		go b.GamesCaster.Broadcast(outputID.GameId, v.Data)
 	})
 }
 
-func ListenUsersMessages(m *MultiCasterMap, rdb *db.Redis) chan struct{} {
+func (b *Broadcasters) ListenUsersMessages(rdb *db.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.UsersChan}, func(v redigo.Message) {
 		var userMsg pb.UserMsg
 		if err := proto.Unmarshal(v.Data, &userMsg); err != nil {
@@ -81,11 +87,11 @@ func ListenUsersMessages(m *MultiCasterMap, rdb *db.Redis) chan struct{} {
 			slog.Error("marshal user message", "err", err, "channel", v.Channel)
 			return
 		}
-		m.Broadcast(strconv.Itoa(int(userMsg.UserId)), buf)
+		b.UsersCaster.Broadcast(strconv.Itoa(int(userMsg.UserId)), buf)
 	})
 }
 
-func ListenUnicastEvents(m *UniCaster, rdb *db.Redis) chan struct{} {
+func (b *Broadcasters) ListenUnicastEvents(rdb *db.Redis) chan struct{} {
 	var eventMap = map[string]UcEventKind{
 		rdb.ActiveCountChan: UcActiveEk,
 		rdb.GamesCountChan:  UcGamesEk,
@@ -106,7 +112,7 @@ func ListenUnicastEvents(m *UniCaster, rdb *db.Redis) chan struct{} {
 			slog.Error("received event on unmapped channel", "channel", v.Channel, "eventMap", eventMap)
 			return
 		}
-		m.Broadcast(UcEvent{Kind: eKind, Data: strData})
+		b.CountsCaster.Broadcast(UcEvent{Kind: eKind, Data: strData})
 	})
 }
 
@@ -149,12 +155,6 @@ func BroadcastChallenge(ctx context.Context, rdb *db.Redis, c ChallengeEntity) e
 		return fmt.Errorf("marshal user challenge message: %w", err)
 	}
 	return BroadcastMessage(ctx, rdb, rdb.UsersChan, b)
-}
-
-type Broadcasters struct {
-	CountsCaster *UniCaster
-	GamesCaster  *MultiCasterMap
-	UsersCaster  *MultiCasterMap
 }
 
 func MakeBroadcaster() Broadcasters {
@@ -315,7 +315,11 @@ func (mc *MultiCaster) Broadcast(msg []byte) {
 
 	mc.mu.RLock()
 	for _, sub := range mc.subscribers {
-		sub <- msg
+		select {
+		case sub <- msg:
+		default:
+			// drop a message if the consumer is slow
+		}
 		subStrs = append(subStrs, fmt.Sprintf("%v", sub))
 	}
 	mc.mu.RUnlock()
@@ -377,7 +381,11 @@ func (uc *UniCaster) Broadcast(msg UcEvent) {
 	uc.mu.Lock()
 	for sub := range uc.m {
 		count++
-		sub <- msg
+		select {
+		case sub <- msg:
+		default:
+			// drop a message if the consumer is slow
+		}
 	}
 	uc.mu.Unlock()
 

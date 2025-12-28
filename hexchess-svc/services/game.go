@@ -30,7 +30,7 @@ func CreateGame(ctx context.Context, rdb *db.Redis, color Color, mode GameMode, 
 	state := MakeState(StateSetup{ID: strID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
 	state.Game.InitPieceMoves()
 
-	slog.InfoContext(ctx, "created chess game", "state", state)
+	slog.InfoContext(ctx, "created chess game", "chessMeta", state.ChessMeta)
 	if err := SetChessState(ctx, rdb, strID, &state); err != nil {
 		return "", err
 	}
@@ -97,12 +97,12 @@ func JoinGame(ctx context.Context, rdb *db.Redis, gameID string, player PlayerSt
 	}
 
 	if playerExists {
-		slog.WarnContext(ctx, "player has already joined game", "playerID", player.ID, "state", state)
+		slog.WarnContext(ctx, "player has already joined game", "playerID", player.ID, "chessMeta", state.ChessMeta)
 		return state, nil
 	}
 
 	err = SetChessState(ctx, rdb, gameID, state)
-	logutil.DynLog(ctx, "player joined game", err, "playerID", player.ID, "state", state)
+	logutil.DynLog(ctx, "player joined game", err, "playerID", player.ID, "chessMeta", state.ChessMeta)
 	return state, err
 }
 
@@ -169,7 +169,7 @@ func MakeGameMove(ctx context.Context, dbs *db.Databases, gameID string, player 
 			return mr, fmt.Errorf("write checkmate game result: %w", err)
 		}
 	}
-	slog.InfoContext(ctx, "made move on game", "player", player.ID, "move", move, "state", state)
+	slog.InfoContext(ctx, "made move on game", "player", player.ID, "move", move, "chessMeta", state.ChessMeta)
 
 	if err := SetChessState(ctx, dbs.Rdb, gameID, state); err != nil {
 		return mr, err
@@ -315,7 +315,7 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 
 	rows, err := query.SelectUserModeElosByIds(ctx, db.SelectUserModeElosByIdsParams{
 		ID:   ids,
-		Mode: db.ModeEnum(result.ReplayMode.Value)},
+		Mode: db.ModeEnum(result.ReplayMode.String())},
 	)
 	if err != nil {
 		return cs, fmt.Errorf("select users %+v elo: %w", ids, err)
@@ -342,6 +342,7 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 			winID, loseID, winElo, loseElo = result.WhiteID, result.BlackID, whiteElo, blackElo
 		case BlackWin:
 			winID, loseID, winElo, loseElo = result.BlackID, result.WhiteID, blackElo, whiteElo
+		default:
 		}
 
 		winEloNext := winElo + 30*(1.0-ProbabilityWins(loseElo, winElo))
@@ -354,11 +355,12 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 			whiteEloNext, blackEloNext = winEloNext, loseEloNext
 		case BlackWin:
 			whiteEloNext, blackEloNext = loseEloNext, winEloNext
+		default:
 		}
 
 		updts := []db.UpsertEloParams{
-			{UserID: winID, Mode: db.ModeEnum(result.ReplayMode.Value), Elo: winEloNext, Wins: 1},
-			{UserID: loseID, Mode: db.ModeEnum(result.ReplayMode.Value), Elo: loseEloNext, Losses: 1}}
+			{UserID: winID, Mode: db.ModeEnum(result.ReplayMode.String()), Elo: winEloNext, Wins: 1},
+			{UserID: loseID, Mode: db.ModeEnum(result.ReplayMode.String()), Elo: loseEloNext, Losses: 1}}
 		slices.SortFunc(updts, func(left, right db.UpsertEloParams) int { return int(left.UserID - right.UserID) }) // consistent update order
 
 		for _, updt := range updts {

@@ -22,8 +22,8 @@ type ChallengeEntity struct {
 	ChallengeeName    string    `json:"challengeeName"`
 	ChallengeeCountry string    `json:"challengeeCountry"`
 	ChallengeeElo     float64   `json:"challengeeElo"`
-	Mode              GameMode  `json:"mode"`
-	StartColor        Color     `json:"startColor"` // from challenger's perspective
+	Mode              string    `json:"mode"`
+	StartColor        string    `json:"startColor"` // from challenger's perspective
 	MadeOn            time.Time `json:"madeOn"`
 	ExpiresOn         time.Time `json:"expiresOn"`
 }
@@ -31,7 +31,7 @@ type ChallengeEntity struct {
 var (
 	ErrDuplicateChallenge  = errors.New("duplicate challenge")
 	ErrSelfChallenge       = errors.New("cannot challenge yourself")
-	ErrParticipantConflict = errors.New("user already in a challenge")
+	ErrParticipantConflict = errors.New("one or more participants are invalid")
 	ErrChallengeNotFound   = errors.New("challenge not found")
 )
 
@@ -47,14 +47,14 @@ type ChallengeInst struct {
 
 func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) (ChallengeEntity, error) {
 	var ce ChallengeEntity
-	startColor := Colors.Parse(string(row.StartColor))
-	if startColor == nil {
-		return ce, fmt.Errorf("invalid start color: %s, expected: %v", row.StartColor, Colors.Values())
+
+	if _, err := ParseColor(row.StartColor); err != nil {
+		return ce, err
 	}
-	mode := Modes.Parse(string(row.Mode))
-	if mode == nil {
-		return ce, MakeGameModeError(string(row.Mode))
+	if _, err := ParseGameMode(row.Mode); err != nil {
+		return ce, err
 	}
+
 	ce = ChallengeEntity{
 		ChallengerID:      row.ChallengerID,
 		ChallengerName:    row.ChallengerName,
@@ -64,8 +64,8 @@ func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) (ChallengeEnti
 		ChallengeeName:    row.ChallengeeName,
 		ChallengeeCountry: row.ChallengeeCountry,
 		ChallengeeElo:     defaultElo(row.ChallengeeElo),
-		Mode:              *mode,
-		StartColor:        *startColor,
+		Mode:              string(row.Mode),
+		StartColor:        string(row.StartColor),
 		MadeOn:            row.MadeOn.Time,
 		ExpiresOn:         row.MadeOn.Time.Add(ExpireChallengeThreshold),
 	}
@@ -88,8 +88,8 @@ func InsertChallengeRet(ctx context.Context, query *db.Queries, inst ChallengeIn
 	row, dbErr := query.InsertChallenge(ctx, db.InsertChallengeParams{
 		ChallengerID: inst.ChallengerID,
 		ChallengeeID: inst.ChallengeeID,
-		Mode:         db.ModeEnum(inst.Mode.Value),
-		StartColor:   db.ColorEnum(inst.StartColor.Value),
+		Mode:         db.ModeEnum(inst.Mode.String()),
+		StartColor:   db.ColorEnum(inst.StartColor.String()),
 		MadeOn:       pgtype.Timestamptz{Valid: true, Time: inst.MadeOn},
 	})
 
@@ -174,20 +174,20 @@ func DeleteChallenge(ctx context.Context, query *db.Queries, key ChallengeKey) (
 		return dr, fmt.Errorf("delete challenge %d: %w", key, err)
 	}
 
-	startColor := Colors.Parse(string(row.StartColor))
-	if startColor == nil {
-		return dr, MakeColorError(string(row.Mode))
+	startColor, err := ParseColor(row.StartColor)
+	if err != nil {
+		return dr, err
 	}
-	mode := Modes.Parse(string(row.Mode))
-	if mode == nil {
-		return dr, MakeGameModeError(string(row.Mode))
+	mode, err := ParseGameMode(row.Mode)
+	if err != nil {
+		return dr, err
 	}
 
 	dr = DeleteResult{
 		ChallengerID: row.ChallengerID,
 		ChallengeeID: row.ChallengeeID,
-		Mode:         *mode,
-		FirstColor:   *startColor,
+		Mode:         mode,
+		FirstColor:   startColor,
 	}
 	slog.InfoContext(ctx, "deleted challenge", "challengeKey", key, "dr", dr, "err", err)
 	return dr, err

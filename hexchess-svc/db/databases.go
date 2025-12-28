@@ -1,6 +1,8 @@
 package db
 
 import (
+	"context"
+	"fmt"
 	redigo "github.com/gomodule/redigo/redis"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -44,22 +46,20 @@ var DefaultRedisNames = RedisNames{
 }
 
 type PostgreSQL struct {
-	Query      *Queries      // always initialized, used by application code to talk with the db
-	pool       *pgxpool.Pool // used for creating new txn whenever PostgreSQL is not a testingTxn
-	testingTxn pgx.Tx        // a postgres struct can be a testingTxn - this is used in testing where we want to fake an operation as a txm
+	Query      *Queries
+	Pool       *pgxpool.Pool
+	testingTxn pgx.Tx
 }
 
 func (pdb *PostgreSQL) Close() {
-	if pdb.pool != nil {
-		pdb.pool.Close()
+	if pdb.Pool != nil {
+		pdb.Pool.Close()
 	}
-}
-
-func (pdb *PostgreSQL) GetPool() *pgxpool.Pool {
-	if pdb.pool == nil {
-		panic("pgxpool not initialized")
+	if pdb.testingTxn != nil {
+		if err := pdb.testingTxn.Rollback(context.Background()); err != nil {
+			panic(fmt.Sprintf("failed to rollback testing txn: %v", err))
+		}
 	}
-	return pdb.pool
 }
 
 type Redis struct {
@@ -84,8 +84,12 @@ type Databases struct {
 }
 
 func (s Databases) Close() {
-	s.Pdb.Close()
-	s.Rdb.Close()
+	if s.Pdb != nil {
+		s.Pdb.Close()
+	}
+	if s.Rdb != nil {
+		s.Rdb.Close()
+	}
 }
 
 func MakeRdb(addrs RedisAddrs, names RedisNames) *Redis {
@@ -113,8 +117,8 @@ func MakeRdb(addrs RedisAddrs, names RedisNames) *Redis {
 	}
 }
 
-func MakePostgres(query *Queries, pool *pgxpool.Pool) *PostgreSQL {
-	return &PostgreSQL{Query: query, pool: pool}
+func MakePostgres(pool *pgxpool.Pool) *PostgreSQL {
+	return &PostgreSQL{Query: New(pool), Pool: pool}
 }
 
 func MakeTestTxnPostgres(txn pgx.Tx) *PostgreSQL {

@@ -4,42 +4,39 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"hexchess-svc/chess"
-	"strconv"
 	"testing"
 )
 
 func TestChessState_UndoMove(t *testing.T) {
-	tests := []struct {
+	for _, test := range []struct {
+		name      string
 		setup     func() *ChessState
 		wantErr   error
 		wantMoves int
 	}{
 		{
+			name: "no moves to undo",
 			setup: func() *ChessState {
-				return &ChessState{
-					InitialBoard: chess.MakeStartBoard(),
-					Game:         chess.MakeStartGame(),
-				}
+				return &ChessState{InitialBoard: chess.MakeStartBoard(), Game: chess.MakeStartGame()}
 			},
 			wantErr:   ErrNoMoveUndo,
 			wantMoves: 0,
 		},
 		{
+			name: "successfully undo-ing move",
 			setup: func() *ChessState {
-				cs := &ChessState{
+				state := &ChessState{
 					InitialBoard: chess.MakeStartBoard(),
 					Game:         chess.MakeStartGame(),
 				}
-				cs.Game.MakeMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")})
-				return cs
+				state.Game.MakeMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")})
+				return state
 			},
 			wantErr:   nil,
 			wantMoves: 0,
 		},
-	}
-
-	for tt, test := range tests {
-		t.Run(strconv.Itoa(tt), func(t *testing.T) {
+	} {
+		t.Run(test.name, func(t *testing.T) {
 			cs := test.setup()
 
 			err := cs.UndoMove()

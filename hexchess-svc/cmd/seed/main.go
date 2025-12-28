@@ -51,16 +51,14 @@ func main() {
 	if err != nil {
 		logutil.LogFatalErr("create pool", err)
 	}
-	defer pool.Close()
-
 	q := db.New(pool)
 	pdb := db.MakePostgres(q, pool)
 
 	slog.InfoContext(ctx, "connecting to redis db", "redisPrimaryURL", redisPrimaryURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: redisPrimaryURL}, db.DefaultRedisNames)
-	defer rdb.Close()
 
 	dbs := &db.Databases{Rdb: rdb, Pdb: pdb}
+	defer dbs.Close()
 
 	_, err = pool.Exec(ctx, `
 		TRUNCATE TABLE users, replays, challenges

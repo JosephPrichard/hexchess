@@ -5,7 +5,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
-	"strconv"
 	"testing"
 )
 
@@ -15,12 +14,15 @@ func TestChessSerializer(t *testing.T) {
 	input2.Game.InitPieceMoves()
 	input2.Game.ClearTables() // since we're asserting the output back to the input, we must clear data that isn't serialized
 
-	for i, input := range []ChessState{
-		input1,
-		input2,
+	for _, test := range []struct {
+		name  string
+		state ChessState
+	}{
+		{name: "echo serialize empty state", state: input1},
+		{name: "echo serialize state with moves", state: input2},
 	} {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			b, err := proto.Marshal(SerializeChessState(&input))
+		t.Run(test.name, func(t *testing.T) {
+			b, err := proto.Marshal(SerializeChessState(&test.state))
 			if err != nil {
 				t.Fatalf("marshal chess state: %v", err)
 			}
@@ -30,7 +32,7 @@ func TestChessSerializer(t *testing.T) {
 			}
 
 			t.Logf("deserialized state: %v, board: %v", output, output.Game.Board.String())
-			assert.Equal(t, input, output)
+			assert.Equal(t, test.state, output)
 		})
 	}
 }

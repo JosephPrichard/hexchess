@@ -7,7 +7,6 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/pkg/assertutil"
 	"hexchess-svc/pkg/logutil"
-	"strconv"
 	"testing"
 )
 
@@ -40,7 +39,7 @@ func TestLeaderboard(t *testing.T) {
 	leaderboards := make([]Leaderboard, 0)
 
 	for _, id := range []int64{id1, id2, id3, id4} {
-		rank, err := GetLeaderboardRanks(ctx, rdb, id, []GameMode{ModeCorrespondence7, ModeTimed1Plus0})
+		rank, err := GetLeaderboardRanks(ctx, rdb, id, map[string]GameMode{"CORRESPONDENCE_7": ModeCorrespondence7, "TIMED_1+0": ModeTimed1Plus0})
 		require.NoError(t, err)
 		ranks = append(ranks, rank)
 	}
@@ -100,20 +99,21 @@ func TestGetLeaderboardUsers(t *testing.T) {
 	dbs, closer := db.BeforeDbTest(t, false, InsertTestData)
 	defer closer()
 
-	ctx := context.WithValue(context.Background(), logutil.Trace, "get-leaderboard-users")
-
-	for i, test := range []struct {
+	for _, test := range []struct {
+		name            string
 		mode            GameMode
 		rankedUsers     []RankedUser
 		wantLeaderboard []LbdUserEntity
 		wantErr         error
 	}{
 		{
+			name:        "invalid ranked user ID",
 			mode:        ModeTimed1Plus0,
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 999999}},
 			wantErr:     ExpLdbError{ExpCount: 2, ActualCount: 1},
 		},
 		{
+			name:        "getting valid leaderboard users",
 			mode:        ModeCorrespondence7,
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 3}},
 			wantLeaderboard: []LbdUserEntity{
@@ -145,7 +145,9 @@ func TestGetLeaderboardUsers(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
+
 			leaderboard, err := GetLeaderboardUsers(ctx, dbs.Pdb.Query, test.mode, test.rankedUsers)
 
 			assert.Equal(t, test.wantErr, err)

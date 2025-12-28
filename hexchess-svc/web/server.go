@@ -41,7 +41,7 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 	}
 }
 
-type RootSetup struct {
+type State struct {
 	Databases      db.Databases
 	Broadcasters   svc.Broadcasters
 	Generators     outbound.Generators
@@ -50,25 +50,25 @@ type RootSetup struct {
 	AllowedOrigins string
 }
 
-func HandleRoot(setup RootSetup) http.Handler {
-	countryList := setup.CountryList
+func HandleRoot(state State) http.Handler {
+	countryList := state.CountryList
 	if countryList == nil {
 		countryList = []string{}
 	}
 	validCountries := make(map[string]bool)
-	for _, country := range setup.CountryList {
+	for _, country := range state.CountryList {
 		validCountries[country] = true
 	}
 
 	r := chi.NewRouter()
 
 	r.Use(middleware.Recoverer)
-	r.Use(RouteMiddleware(setup.AllowedOrigins))
+	r.Use(RouteMiddleware(state.AllowedOrigins))
 
-	rest := RestHandler{setup.Databases, setup.Generators, setup.OutboundAPIs, validCountries}
-	sse := SSEHandler{setup.Databases.Rdb, setup.Generators, setup.Broadcasters}
-	gameplay := GameplayHandler{setup.Databases, setup.Broadcasters}
-	healthcheck := HealthCheckHandler{setup.Databases}
+	rest := RestHandler{state.Databases, state.Generators, state.OutboundAPIs, validCountries}
+	sse := SSEHandler{state.Databases.Rdb, state.Generators, state.Broadcasters}
+	gameplay := GameplayHandler{state.Databases, state.Broadcasters, state.Generators}
+	healthcheck := HealthCheckHandler{state.Databases}
 
 	r.Post("/api/register", Rest(rest.HandleRegister))
 	r.Post("/api/login", Rest(rest.HandleLogin))
@@ -148,7 +148,7 @@ func (h *HealthCheckHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Re
 		{
 			Name: "postgresDB",
 			Check: func() error {
-				_, err := h.Pdb.GetPool().Exec(ctx, "SELECT 1;")
+				_, err := h.Pdb.Pool.Exec(ctx, "SELECT 1;")
 				return err
 			},
 		},

@@ -14,7 +14,7 @@ import (
 )
 
 func getLeaderboardZSet(rdb *db.Redis, mode GameMode) string {
-	return rdb.LeaderboardZSet + "_mode_" + mode.Value
+	return rdb.LeaderboardZSet + "_mode_" + mode.String()
 }
 
 type UpdtLbChangeSet struct {
@@ -58,7 +58,7 @@ type LbRank struct {
 	Score float64 `json:"score"`
 }
 
-func GetLeaderboardRanks(ctx context.Context, rdb *db.Redis, id int64, modes []GameMode) (map[GameMode]LbRank, error) {
+func GetLeaderboardRanks(ctx context.Context, rdb *db.Redis, id int64, modes map[string]GameMode) (map[GameMode]LbRank, error) {
 	ranks := make(map[GameMode]LbRank)
 	setRank := func(mode GameMode, rs redis.RankScore) {
 		ranks[mode] = LbRank{Rank: rs.Rank + 1, Score: rs.Score} // redis ranks start from 0, hexchess ranks start from 1.
@@ -175,10 +175,10 @@ func GetLeaderboardPage(ctx context.Context, rdb *db.Redis, mode GameMode, page,
 }
 
 func SyncLeaderboard(ctx context.Context, dbs *db.Databases) error {
-	for _, mode := range ModesValues {
+	for _, mode := range GameModeMap {
 		afterID := int64(0)
 		for {
-			rows, err := dbs.Pdb.Query.SelectEloList(ctx, db.SelectEloListParams{ID: afterID, Mode: db.ModeEnum(mode.Value), Limit: 20})
+			rows, err := dbs.Pdb.Query.SelectEloList(ctx, db.SelectEloListParams{ID: afterID, Mode: db.ModeEnum(mode.String()), Limit: 20})
 			if err != nil {
 				return fmt.Errorf("select elo list afterID %d: %w", afterID, err)
 			}
@@ -227,7 +227,7 @@ func GetLeaderboardUsers(ctx context.Context, query *db.Queries, mode GameMode, 
 	}
 	rows, err := query.SelectUserWithEloByIDs(ctx, db.SelectUserWithEloByIDsParams{
 		Ids:  ids,
-		Mode: db.ModeEnum(mode.Value),
+		Mode: db.ModeEnum(mode.String()),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("select many users %+v: %w", ids, err)

@@ -59,10 +59,10 @@ func TestHandleCountEvents(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	setup := RootSetup{Databases: db.Databases{Rdb: rdb}, Broadcasters: svc.MakeBroadcaster(), Generators: &outbound.MockGenerator{ID: "id1"}}
-	<-svc.ListenUnicastEvents(setup.Broadcasters.CountsCaster, rdb)
+	state := State{Databases: db.Databases{Rdb: rdb}, Broadcasters: svc.MakeBroadcaster(), Generators: &outbound.MockGenerator{ID: "id1"}}
+	<-state.Broadcasters.ListenUnicastEvents(rdb)
 
-	ts := httptest.NewServer(HandleRoot(setup))
+	ts := httptest.NewServer(HandleRoot(state))
 	defer ts.Close()
 
 	// when
@@ -97,12 +97,12 @@ func TestHandleUserEvents(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	setup := RootSetup{Databases: db.Databases{Rdb: rdb}, Broadcasters: svc.MakeBroadcaster(), Generators: &outbound.MockGenerator{ID: "id1"}}
-	<-svc.ListenUsersMessages(setup.Broadcasters.UsersCaster, rdb)
+	state := State{Databases: db.Databases{Rdb: rdb}, Broadcasters: svc.MakeBroadcaster(), Generators: &outbound.MockGenerator{ID: "id1"}}
+	<-state.Broadcasters.ListenUsersMessages(rdb)
 
 	createTestSessions(t, rdb)
 
-	ts := httptest.NewServer(HandleRoot(setup))
+	ts := httptest.NewServer(HandleRoot(state))
 	defer ts.Close()
 
 	// when
@@ -116,7 +116,7 @@ func TestHandleUserEvents(t *testing.T) {
 
 	assert.Equal(t, resp.Header.Get("Content-Type"), "text/event-stream")
 
-	ceInput := svc.ChallengeEntity{ChallengeeID: 1, Mode: svc.ModeCorrespondence1, StartColor: svc.White}
+	ceInput := svc.ChallengeEntity{ChallengeeID: 1, Mode: svc.ModeCorrespondence1.String(), StartColor: svc.White.String()}
 
 	errChan := make(chan error)
 	go func() {
@@ -128,7 +128,8 @@ func TestHandleUserEvents(t *testing.T) {
 	}()
 
 	// then
-	ceJson, _ := json.Marshal(ceInput)
+	ceJson, err := json.Marshal(ceInput)
+	require.NoError(t, err)
 
 	wantEvents := []string{
 		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, "id1"),

@@ -2,78 +2,168 @@ package svc
 
 import (
 	"fmt"
-	"github.com/orsinium-labs/enum"
 )
 
-type ReplayResult enum.Member[string]
+type ReplayResult int
 
-var (
-	ResultBuilder  = enum.NewBuilder[string, ReplayResult]()
-	WhiteWin       = ResultBuilder.Add(ReplayResult{Value: "WHITE_WINS"})
-	BlackWin       = ResultBuilder.Add(ReplayResult{Value: "BLACK_WINS"})
-	Draw           = ResultBuilder.Add(ReplayResult{Value: "DRAW"})
-	ReplayResults  = ResultBuilder.Enum()
-	ResultsStrings = ReplayResults.Values()
+const (
+	_ ReplayResult = iota
+	WhiteWin
+	BlackWin
+	Draw
 )
 
-type ReplayCause enum.Member[string]
+func (r ReplayResult) String() string {
+	switch r {
+	case WhiteWin:
+		return "WHITE_WINS"
+	case BlackWin:
+		return "BLACK_WINS"
+	case Draw:
+		return "DRAW"
+	default:
+		return "UNKNOWN"
+	}
+}
 
-var (
-	CauseBuilder  = enum.NewBuilder[string, ReplayCause]()
-	Checkmate     = CauseBuilder.Add(ReplayCause{Value: "CHECKMATE"})
-	Forfeit       = CauseBuilder.Add(ReplayCause{Value: "FORFEIT"})
-	Stalemate     = CauseBuilder.Add(ReplayCause{Value: "STALEMATE"})
-	ReplayCauses  = CauseBuilder.Enum()
-	CausesStrings = ReplayResults.Values()
+var ReplayResultMap = map[string]ReplayResult{
+	"WHITE_WINS": WhiteWin,
+	"BLACK_WINS": BlackWin,
+	"DRAW":       Draw,
+}
+
+type ReplayCause int
+
+const (
+	_ ReplayCause = iota
+	Checkmate
+	Forfeit
+	Stalemate
 )
 
-type GameMode enum.Member[string]
+func (c ReplayCause) String() string {
+	switch c {
+	case Checkmate:
+		return "CHECKMATE"
+	case Forfeit:
+		return "FORFEIT"
+	case Stalemate:
+		return "STALEMATE"
+	default:
+		return "UNKNOWN"
+	}
+}
 
-var (
-	ModeBuilder          = enum.NewBuilder[string, GameMode]()
-	ModeTimed1Plus0      = ModeBuilder.Add(GameMode{Value: "TIMED_1+0"})
-	ModeTimed3Plus2      = ModeBuilder.Add(GameMode{Value: "TIMED_3+2"})
-	ModeTimed15Plus10    = ModeBuilder.Add(GameMode{Value: "TIMED_15+10"})
-	ModeCorrespondence1  = ModeBuilder.Add(GameMode{Value: "CORRESPONDENCE_1"})
-	ModeCorrespondence7  = ModeBuilder.Add(GameMode{Value: "CORRESPONDENCE_7"})
-	ModeCorrespondence14 = ModeBuilder.Add(GameMode{Value: "CORRESPONDENCE_14"})
-	Modes                = ModeBuilder.Enum()
-	ModesValues          = Modes.Members()
-	ModesStrings         = Modes.Values()
+var ReplayCauseMap = map[string]ReplayCause{
+	"CHECKMATE": Checkmate,
+	"FORFEIT":   Forfeit,
+	"STALEMATE": Stalemate,
+}
+
+type GameMode int
+
+const (
+	_ GameMode = iota
+	ModeTimed1Plus0
+	ModeTimed3Plus2
+	ModeTimed15Plus10
+	ModeCorrespondence1
+	ModeCorrespondence7
+	ModeCorrespondence14
 )
 
-type Color enum.Member[string]
+func (m GameMode) String() string {
+	switch m {
+	case ModeTimed1Plus0:
+		return "TIMED_1+0"
+	case ModeTimed3Plus2:
+		return "TIMED_3+2"
+	case ModeTimed15Plus10:
+		return "TIMED_15+10"
+	case ModeCorrespondence1:
+		return "CORRESPONDENCE_1"
+	case ModeCorrespondence7:
+		return "CORRESPONDENCE_7"
+	case ModeCorrespondence14:
+		return "CORRESPONDENCE_14"
+	default:
+		return "UNKNOWN"
+	}
+}
 
-var (
-	ColorBuilder  = enum.NewBuilder[string, Color]()
-	White         = ColorBuilder.Add(Color{Value: "WHITE"})
-	Black         = ColorBuilder.Add(Color{Value: "BLACK"})
-	Random        = ColorBuilder.Add(Color{Value: "RANDOM"})
-	Colors        = ColorBuilder.Enum()
-	ColorsStrings = Colors.Values()
+var GameModeMap = map[string]GameMode{
+	"TIMED_1+0":         ModeTimed1Plus0,
+	"TIMED_3+2":         ModeTimed3Plus2,
+	"TIMED_15+10":       ModeTimed15Plus10,
+	"CORRESPONDENCE_1":  ModeCorrespondence1,
+	"CORRESPONDENCE_7":  ModeCorrespondence7,
+	"CORRESPONDENCE_14": ModeCorrespondence14,
+}
+
+type Color int
+
+const (
+	Random Color = iota
+	White
+	Black
 )
 
-type OneOfError struct {
-	Expected []string
+func (c Color) String() string {
+	switch c {
+	case White:
+		return "WHITE"
+	case Black:
+		return "BLACK"
+	case Random:
+		return "RANDOM"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+var ColorMap = map[string]Color{
+	"WHITE":  White,
+	"BLACK":  Black,
+	"RANDOM": Random,
+}
+
+func ParseReplayCause[S ~string](s S) (ReplayCause, error) {
+	c, ok := ReplayCauseMap[string(s)]
+	if !ok {
+		return 0, &OneOfError[ReplayCause]{Expected: ReplayCauseMap, Actual: string(s)}
+	}
+	return c, nil
+}
+
+func ParseReplayResult[S ~string](s S) (ReplayResult, error) {
+	r, ok := ReplayResultMap[string(s)]
+	if !ok {
+		return 0, &OneOfError[ReplayResult]{Expected: ReplayResultMap, Actual: string(s)}
+	}
+	return r, nil
+}
+
+func ParseGameMode[S ~string](s S) (GameMode, error) {
+	m, ok := GameModeMap[string(s)]
+	if !ok {
+		return 0, &OneOfError[GameMode]{Expected: GameModeMap, Actual: string(s)}
+	}
+	return m, nil
+}
+
+func ParseColor[StringLike ~string](s StringLike) (Color, error) {
+	c, ok := ColorMap[string(s)]
+	if !ok {
+		return 0, &OneOfError[Color]{Expected: ColorMap, Actual: string(s)}
+	}
+	return c, nil
+}
+
+type OneOfError[T any] struct {
+	Expected map[string]T
 	Actual   string
 }
 
-func (err *OneOfError) Error() string {
+func (err *OneOfError[T]) Error() string {
 	return fmt.Sprintf("expected one of %v, got %v", err.Expected, err.Actual)
-}
-
-func MakeReplayResultError(actual string) error {
-	return &OneOfError{Expected: ResultsStrings, Actual: actual}
-}
-
-func MakeReplayCauseError(actual string) error {
-	return &OneOfError{Expected: CausesStrings, Actual: actual}
-}
-
-func MakeGameModeError(actual string) error {
-	return &OneOfError{Expected: ModesStrings, Actual: actual}
-}
-
-func MakeColorError(actual string) error {
-	return &OneOfError{Expected: ColorsStrings, Actual: actual}
 }

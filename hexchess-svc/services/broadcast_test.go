@@ -16,10 +16,15 @@ func TestMultiCaster(t *testing.T) {
 	// given
 	m := MakeMultiCasterMap("testing-mc", time.Hour*1)
 
-	sub1 := make(chan []byte)
-	sub2 := make(chan []byte)
-	sub3 := make(chan []byte)
-	sub4 := make(chan []byte)
+	wantSub1Msgs := []string{"test1", "test2", "test3"}
+	wantSub2Msgs := []string{"test2", "test3"}
+	wantSub3Msgs := []string{"test2"}
+	wantSub4Msgs := []string{"test4"}
+
+	sub1 := make(chan []byte, len(wantSub1Msgs))
+	sub2 := make(chan []byte, len(wantSub2Msgs))
+	sub3 := make(chan []byte, len(wantSub3Msgs))
+	sub4 := make(chan []byte, len(wantSub4Msgs))
 
 	mChan1 := make(chan []string)
 	mChan2 := make(chan []string)
@@ -58,18 +63,23 @@ func TestMultiCaster(t *testing.T) {
 	m.Unsubscribe("2", sub4)
 
 	// then
-	assert.Equal(t, []string{"test1", "test2", "test3"}, <-mChan1)
-	assert.Equal(t, []string{"test2", "test3"}, <-mChan2)
-	assert.Equal(t, []string{"test2"}, <-mChan3)
-	assert.Equal(t, []string{"test4"}, <-mChan4)
+	assert.Equal(t, wantSub1Msgs, <-mChan1)
+	assert.Equal(t, wantSub2Msgs, <-mChan2)
+	assert.Equal(t, wantSub3Msgs, <-mChan3)
+	assert.Equal(t, wantSub4Msgs, <-mChan4)
 }
 
 func TestUnicaster(t *testing.T) {
 	// given
 	m := MakeUniCaster("testing-uc")
 
-	sub1 := make(chan UcEvent)
-	sub2 := make(chan UcEvent)
+	e1 := UcEvent{Kind: 0, Data: "test1"}
+	e2 := UcEvent{Kind: 1, Data: "test2"}
+	wantSub1Events := []UcEvent{e1, e2}
+	wantSub2Events := []UcEvent{e2}
+
+	sub1 := make(chan UcEvent, len(wantSub1Events))
+	sub2 := make(chan UcEvent, len(wantSub2Events))
 
 	mChan1 := make(chan []UcEvent)
 	mChan2 := make(chan []UcEvent)
@@ -85,9 +95,6 @@ func TestUnicaster(t *testing.T) {
 	go testSub(sub1, mChan1)
 	go testSub(sub2, mChan2)
 
-	e1 := UcEvent{Kind: 0, Data: "test1"}
-	e2 := UcEvent{Kind: 1, Data: "test2"}
-
 	// when
 	m.Subscribe(sub1)
 	m.Broadcast(e1)
@@ -99,8 +106,8 @@ func TestUnicaster(t *testing.T) {
 	m.Unsubscribe(sub2)
 
 	// then
-	assert.Equal(t, []UcEvent{e1, e2}, <-mChan1)
-	assert.Equal(t, []UcEvent{e2}, <-mChan2)
+	assert.Equal(t, wantSub1Events, <-mChan1)
+	assert.Equal(t, wantSub2Events, <-mChan2)
 }
 
 func TestBroadcastGameMessage(t *testing.T) {
@@ -108,14 +115,16 @@ func TestBroadcastGameMessage(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	m := MakeMultiCasterMap("testing-broker-map", time.Hour*1)
-	<-ListenGameMessages(m, rdb)
+	b := Broadcasters{GamesCaster: MakeMultiCasterMap("testing-broker-map", time.Hour*1)}
+	<-b.ListenGameMessages(rdb)
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-broadcast-game-message")
 
+	wantMsgCount := 2
+
 	// when
-	subChan := make(chan []byte)
-	m.Subscribe("1", subChan)
+	subChan := make(chan []byte, wantMsgCount)
+	b.GamesCaster.Subscribe("1", subChan)
 
 	makeTestChatOutput := func(id string, msg string) []byte {
 		v, err := proto.Marshal(&pb.GameOutput{
@@ -132,13 +141,11 @@ func TestBroadcastGameMessage(t *testing.T) {
 	require.NoError(t, BroadcastMessage(ctx, rdb, rdb.GamesChan, makeTestChatOutput("2", "test3")))
 
 	// then
-	var messages []string
-	for range 2 {
-		var o pb.GameOutput
-		if err := proto.Unmarshal(<-subChan, &o); err != nil {
-			t.Fatalf("unmarshal game output: %v", err)
-		}
-		messages = append(messages, o.GetChat().GetMessage())
+	var msgs []string
+	for range wantMsgCount {
+		var output pb.GameOutput
+		require.NoError(t, proto.Unmarshal(<-subChan, &output))
+		msgs = append(msgs, output.GetChat().GetMessage())
 	}
-	assert.Equal(t, []string{"test1", "test2"}, messages)
+	assert.Equal(t, []string{"test1", "test2"}, msgs)
 }

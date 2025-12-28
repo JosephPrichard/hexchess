@@ -33,6 +33,58 @@ func TestChallengeExpiration(t *testing.T) {
 	assert.Equal(t, expected, challengesDel)
 }
 
+func TestInsertChallenge(t *testing.T) {
+	for _, test := range []struct {
+		name         string
+		challengerID int64
+		challengeeID int64
+		wantErr      error
+	}{
+		{
+			name:         "cannot challenge self",
+			challengerID: 1,
+			challengeeID: 1,
+			wantErr:      ErrSelfChallenge,
+		},
+		{
+			name:         "invalid user",
+			challengerID: 9000,
+			challengeeID: 1,
+			wantErr:      ErrParticipantConflict,
+		},
+		{
+			name:         "duplicate challenge",
+			challengerID: 1,
+			challengeeID: 2,
+			wantErr:      ErrDuplicateChallenge,
+		},
+		{
+			name:         "valid challenge",
+			challengerID: 2,
+			challengeeID: 1,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			// given
+			pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+			defer closer()
+
+			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
+
+			// when
+			err := InsertChallenge(ctx, pdb.Query, ChallengeInst{
+				ChallengerID: test.challengerID,
+				ChallengeeID: test.challengeeID,
+				Mode:         ModeCorrespondence7,
+				StartColor:   Random,
+			})
+
+			// then
+			assert.Equal(t, test.wantErr, err)
+		})
+	}
+}
+
 func TestChallengeEchoDelete(t *testing.T) {
 	// given
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
@@ -73,8 +125,8 @@ func TestChallengeEchoDelete(t *testing.T) {
 		ChallengeeName:    "user3",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     900,
-		Mode:              ModeCorrespondence7,
-		StartColor:        Random,
+		Mode:              ModeCorrespondence7.String(),
+		StartColor:        Random.String(),
 		MadeOn:            timeOn.Local(),
 		ExpiresOn:         timeOn.Local().Add(ExpireChallengeThreshold),
 	}}

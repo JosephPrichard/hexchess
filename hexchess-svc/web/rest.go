@@ -15,18 +15,23 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 )
 
 func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		slog.InfoContext(ctx, "request received", "method", r.Method, "url", r.URL, "headers", r.Header)
+		slog.InfoContext(ctx, "received REST call", "method", r.Method, "url", r.URL, "headers", r.Header)
 
 		if err := h(w, r); err != nil {
-			slog.ErrorContext(ctx, "failed to request failed", "err", err, "method", r.Method, "url", r.URL)
+			resp := HttpStatusFromErrs(err)
+			writeJSON(w, resp.Status, resp)
 
-			status, errs := HttpStatusFromErrs(err)
-			writeJSON(w, status, ServiceView{Errors: errs, Status: status})
+			level := slog.LevelWarn
+			if resp.Status == http.StatusInternalServerError {
+				level = slog.LevelError
+			}
+			slog.Log(ctx, level, "failed to handle REST call", "err", err, "method", r.Method, "url", r.URL)
 		}
 	}
 }
@@ -53,19 +58,26 @@ type RestHandler struct {
 	ValidCountries map[string]bool
 }
 
+const (
+	perPage           = 25
+	minPasswordLength = 11
+	minUsernameLength = 5
+	maxUsernameLength = 20
+	maxBioLength      = 500
+)
+
 func isPasswordValid(password string) bool {
-	return len(password) > 10
+	return len(password) >= minPasswordLength
 }
 
 func isUsernameValid(username string) bool {
-	return len(username) >= 5 && len(username) <= 20
+	l := len(username)
+	return l >= minUsernameLength && l <= maxUsernameLength
 }
 
 func isBioValid(bio string) bool {
-	return len(bio) <= 500
+	return len(bio) <= maxBioLength
 }
-
-const PerPage = 25
 
 type RegisterBody struct {
 	Username        string `json:"username"`
@@ -81,13 +93,13 @@ func (h *RestHandler) HandleRegister(w http.ResponseWriter, r *http.Request) err
 
 	var errm error
 	if !isUsernameValid(body.Username) {
-		errm = errmap.PutErrorMap(errm, "username", ErrHttpInvalidUsername)
+		errm = errmap.Put(errm, "username", ErrHttpInvalidUsername)
 	}
 	if !isPasswordValid(body.Password) {
-		errm = errmap.PutErrorMap(errm, "password", ErrHttpInvalidPassword)
+		errm = errmap.Put(errm, "password", ErrHttpInvalidPassword)
 	}
 	if body.Password != body.ConfirmPassword {
-		errm = errmap.PutErrorMap(errm, "confirmPassword", ErrHttpConfirmPassword)
+		errm = errmap.Put(errm, "confirmPassword", ErrHttpConfirmPassword)
 	}
 	if errm != nil {
 		return errm
@@ -149,17 +161,17 @@ func (h *RestHandler) HandleLogin(w http.ResponseWriter, r *http.Request) error 
 	}
 
 	ctx := r.Context()
+
 	user, err := svc.VerifyUserTx(ctx, h.Pdb, body.Username, body.Password)
-	if err != nil {
-		switch err {
-		case svc.ErrUserNotFound:
-			return ErrHttpInvalidLogin
-		case svc.ErrTooManyLoginAttempts:
-			return ErrHttpTooManyLoginAttempts
-		default:
-			return fmt.Errorf("verify user: %w", err)
-		}
+	switch {
+	case errors.Is(err, svc.ErrUserNotFound):
+		return ErrHttpInvalidLogin
+	case errors.Is(err, svc.ErrTooManyLoginAttempts):
+		return ErrHttpTooManyLoginAttempts
+	case err != nil:
+		return fmt.Errorf("verify user: %w", err)
 	}
+
 	return handleLoginSession(ctx, h.Rdb, w, user)
 }
 
@@ -176,7 +188,7 @@ func (h *RestHandler) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) 
 
 	payload, err := h.ValidateIDToken(ctx, body.Token)
 	if err != nil {
-		return err
+		return fmt.Errorf("validate google login id token: %w", err)
 	}
 	slog.InfoContext(ctx, "validated google account id token", "googleAccountID", payload.AccountID)
 
@@ -204,10 +216,10 @@ func (h *RestHandler) HandleUpdatePassword(w http.ResponseWriter, r *http.Reques
 
 	var errm error
 	if !isPasswordValid(body.NewPassword) {
-		errm = errmap.PutErrorMap(errm, "newPassword", ErrHttpInvalidPassword)
+		errm = errmap.Put(errm, "newPassword", ErrHttpInvalidPassword)
 	}
 	if body.NewPassword != body.ConfirmNewPassword {
-		errm = errmap.PutErrorMap(errm, "confirmNewPassword", ErrHttpConfirmPassword)
+		errm = errmap.Put(errm, "confirmNewPassword", ErrHttpConfirmPassword)
 	}
 	if errm != nil {
 		return errm
@@ -248,14 +260,23 @@ func (h *RestHandler) HandleUpdateUser(w http.ResponseWriter, r *http.Request) e
 	}
 
 	var errm error
-	if !isUsernameValid(body.NewUsername) {
-		errm = errmap.PutErrorMap(errm, "newUsername", ErrHttpInvalidUsername)
+	if body.NewUsername != "" {
+		if !isUsernameValid(body.NewUsername) {
+			errm = errmap.Put(errm, "newUsername", ErrHttpInvalidUsername)
+		}
 	}
-	if !isBioValid(body.NewBio) {
-		errm = errmap.PutErrorMap(errm, "newBio", ErrHttpInvalidBio)
+	if body.NewBio != "" {
+		if !isBioValid(body.NewBio) {
+			errm = errmap.Put(errm, "newBio", ErrHttpInvalidBio)
+		}
 	}
-	if _, ok := h.ValidCountries[body.NewCountry]; !ok {
-		return errmap.PutErrorMap(nil, "newCountry", ErrHttpInvalidCountry)
+	if body.NewCountry != "" {
+		if _, ok := h.ValidCountries[body.NewCountry]; !ok {
+			errm = errmap.Put(errm, "newCountry", ErrHttpInvalidCountry)
+		}
+	}
+	if errm != nil {
+		return errm
 	}
 
 	ctx := r.Context()
@@ -263,6 +284,7 @@ func (h *RestHandler) HandleUpdateUser(w http.ResponseWriter, r *http.Request) e
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
+
 	user, err := svc.UpdateUser(ctx, h.Pdb.Query, player.ID, svc.UpdtUserParams{
 		Username: body.NewUsername,
 		Bio:      body.NewBio,
@@ -311,6 +333,7 @@ type RefreshResp struct {
 
 func (h *RestHandler) HandleRefreshSession(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
+
 	player, sessionID, err := GetSessionPlayer(ctx, h.Rdb, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
@@ -321,8 +344,8 @@ func (h *RestHandler) HandleRefreshSession(w http.ResponseWriter, r *http.Reques
 	if err := svc.UpdateSessionEx(ctx, h.Rdb, sessionID, SessionMaxAge); err != nil {
 		return fmt.Errorf("update session: %w", err)
 	}
-	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
 
+	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
 	slog.InfoContext(ctx, "refreshed user session", "user", player)
 
 	writeJSON(w, http.StatusOK, RefreshResp{Session: &SessionView{
@@ -341,8 +364,7 @@ func (h *RestHandler) HandleLogout(w http.ResponseWriter, r *http.Request) error
 	}
 	sessionID := cookie.Value
 
-	ctx := r.Context()
-	if err := svc.DeleteSession(ctx, h.Rdb, sessionID); err != nil {
+	if err := svc.DeleteSession(r.Context(), h.Rdb, sessionID); err != nil {
 		return fmt.Errorf("logging out session '%s': %w", sessionID, err)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
@@ -369,28 +391,24 @@ func (h *RestHandler) HandleCreateGame(w http.ResponseWriter, r *http.Request) e
 	ctx := r.Context()
 
 	var initialBoard *chess.Board
-	var color svc.Color
-	var mode svc.GameMode
 	var errm error
 
 	if body.InitialFEN != "" {
 		board, err := chess.ParseFen(body.InitialFEN)
 		if err != nil {
 			slog.WarnContext(ctx, "invalid initial FEN", "initialFEN", body.InitialFEN, "err", err)
-			errm = errmap.PutErrorMap(errm, "initialFen", ErrHttpInvalidFen)
+			errm = errmap.Put(errm, "initialFen", ErrHttpInvalidFen)
 		} else {
 			initialBoard = &board
 		}
 	}
-	if c := svc.Colors.Parse(body.FirstColor); c == nil {
-		errm = errmap.PutErrorMap(errm, "firstColor", ErrHttpInvalidColor)
-	} else {
-		color = *c
+	color, ok := svc.ColorMap[body.FirstColor]
+	if !ok {
+		errm = errmap.Put(errm, "firstColor", ErrHttpInvalidColor)
 	}
-	if m := svc.Modes.Parse(body.Mode); m == nil {
-		errm = errmap.PutErrorMap(errm, "mode", ErrHttpInvalidMode)
-	} else {
-		mode = *m
+	mode, ok := svc.GameModeMap[body.Mode]
+	if !ok {
+		errm = errmap.Put(errm, "mode", ErrHttpInvalidMode)
 	}
 	if errm != nil {
 		return errm
@@ -430,7 +448,7 @@ func (h *RestHandler) HandleUpdateChallenge(w http.ResponseWriter, r *http.Reque
 	case "DELETE":
 		targetID = body.ChallengerID
 	default:
-		return errmap.PutErrorMap(nil, "action", ErrHttpInvalidAction)
+		return errmap.Put(nil, "action", ErrHttpInvalidAction)
 	}
 
 	ctx := r.Context()
@@ -479,19 +497,14 @@ func (h *RestHandler) HandleCreateChallenge(w http.ResponseWriter, r *http.Reque
 		return fmt.Errorf("get session player: %w", err)
 	}
 
-	var color svc.Color
-	var mode svc.GameMode
 	var errm error
-
-	if c := svc.Colors.Parse(body.StartColor); c == nil {
-		errm = errmap.PutErrorMap(errm, "startColor", ErrHttpInvalidColor)
-	} else {
-		color = *c
+	color, ok := svc.ColorMap[body.StartColor]
+	if !ok {
+		errm = errmap.Put(errm, "startColor", ErrHttpInvalidColor)
 	}
-	if m := svc.Modes.Parse(body.Mode); m == nil {
-		errm = errmap.PutErrorMap(errm, "mode", ErrHttpInvalidMode)
-	} else {
-		mode = *m
+	mode, ok := svc.GameModeMap[body.Mode]
+	if !ok {
+		errm = errmap.Put(errm, "mode", ErrHttpInvalidMode)
 	}
 	if errm != nil {
 		return errm
@@ -504,18 +517,17 @@ func (h *RestHandler) HandleCreateChallenge(w http.ResponseWriter, r *http.Reque
 		StartColor:   color,
 		MadeOn:       h.GetNow(),
 	})
-	if err != nil {
-		switch err {
-		case svc.ErrDuplicateChallenge:
-			return ErrHttpDuplicateChallenge
-		case svc.ErrParticipantConflict:
-			return ErrHttpInvalidParticipants
-		case svc.ErrSelfChallenge:
-			return ErrHttpSelfChallenge
-		default:
-			return fmt.Errorf("insert challenge: %w", err)
-		}
+	switch {
+	case errors.Is(err, svc.ErrDuplicateChallenge):
+		return ErrHttpDuplicateChallenge
+	case errors.Is(err, svc.ErrParticipantConflict):
+		return ErrHttpInvalidParticipants
+	case errors.Is(err, svc.ErrSelfChallenge):
+		return ErrHttpSelfChallenge
+	case err != nil:
+		return fmt.Errorf("insert challenge: %w", err)
 	}
+
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
 
 	ctx = context.WithoutCancel(ctx)
@@ -562,19 +574,17 @@ func (h *RestHandler) HandleGetLeaderboard(w http.ResponseWriter, r *http.Reques
 	var errm error
 	page, err := intQueryDefault(q, "page", 1)
 	if err != nil {
-		errm = errmap.PutErrorMap(errm, "page", ErrHttpInvalidPage)
+		errm = errmap.Put(errm, "page", ErrHttpInvalidPage)
 	}
-	var mode svc.GameMode
-	if m := svc.Modes.Parse(q.Get("mode")); m == nil {
-		errm = errmap.PutErrorMap(errm, "mode", ErrHttpInvalidMode)
-	} else {
-		mode = *m
+	mode, ok := svc.GameModeMap[q.Get("mode")]
+	if !ok {
+		errm = errmap.Put(errm, "mode", ErrHttpInvalidMode)
 	}
 	if errm != nil {
 		return errm
 	}
 
-	lbd, err := svc.GetLeaderboardPage(ctx, h.Rdb, mode, int64(page), PerPage)
+	lbd, err := svc.GetLeaderboardPage(ctx, h.Rdb, mode, int64(page), perPage)
 	if err != nil {
 		return fmt.Errorf("get leaderboard page %d: %w", page, err)
 	}
@@ -603,7 +613,7 @@ func (h *RestHandler) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 
 	id, err := intQuery(q, "id")
 	if err != nil {
-		return errmap.PutErrorMap(nil, "id", ErrHttpInvalidID)
+		return errmap.Put(nil, "id", ErrHttpInvalidID)
 	}
 	withReplaysStr := q.Get("withReplays")
 	withReplays := strings.ToLower(withReplaysStr) == "true"
@@ -622,12 +632,12 @@ func (h *RestHandler) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 		return err
 	})
 	eg.Go(func() (err error) {
-		lbRanks, err = svc.GetLeaderboardRanks(egCtx, h.Rdb, int64(id), svc.ModesValues)
+		lbRanks, err = svc.GetLeaderboardRanks(egCtx, h.Rdb, int64(id), svc.GameModeMap)
 		return err
 	})
 	if withReplays {
 		eg.Go(func() (err error) {
-			resp.ReplayList, err = svc.GetUserReplays(egCtx, h.Pdb.Query, int64(id), -1, PerPage)
+			resp.ReplayList, err = svc.GetUserReplays(egCtx, h.Pdb.Query, int64(id), -1, perPage)
 			return err
 		})
 	}
@@ -662,7 +672,7 @@ func (h *RestHandler) HandleSearchPlayers(w http.ResponseWriter, r *http.Request
 
 	page, err := intQueryDefault(q, "page", 1)
 	if err != nil {
-		return errmap.PutErrorMap(nil, "page", ErrHttpInvalidPage)
+		return errmap.Put(nil, "page", ErrHttpInvalidPage)
 	}
 	name := q.Get("username")
 	hasUser := name != ""
@@ -671,7 +681,7 @@ func (h *RestHandler) HandleSearchPlayers(w http.ResponseWriter, r *http.Request
 
 	var userList []svc.UserEntity
 	if hasUser {
-		users, err := svc.SearchUsersByName(ctx, h.Pdb.Query, name, int32(page), PerPage)
+		users, err := svc.SearchUsersByName(ctx, h.Pdb.Query, name, int32(page), perPage)
 		if errors.Is(err, svc.ErrSearchLimit) {
 			return ErrHttpSearchLimit
 		} else if err != nil {
@@ -696,7 +706,7 @@ func (h *RestHandler) HandleGetReplay(w http.ResponseWriter, r *http.Request) er
 
 	id, err := intQuery(r.URL.Query(), "id")
 	if err != nil {
-		return errmap.PutErrorMap(nil, "page", ErrHttpInvalidID)
+		return errmap.Put(nil, "id", ErrHttpInvalidID)
 	}
 
 	replay, err := svc.GetReplay(ctx, h.Pdb.Query, int64(id))
@@ -713,7 +723,7 @@ func (h *RestHandler) HandleGetReplayMoveList(w http.ResponseWriter, r *http.Req
 
 	id, err := intQuery(q, "userId")
 	if err != nil {
-		return errmap.PutErrorMap(nil, "page", ErrHttpInvalidID)
+		return errmap.Put(nil, "page", ErrHttpInvalidID)
 	}
 
 	pbMoveHist, err := svc.GetReplayMoveHistory(ctx, h.Pdb.Query, int64(id))
@@ -740,17 +750,17 @@ func (h *RestHandler) HandleGetUserReplays(w http.ResponseWriter, r *http.Reques
 	var errm error
 	userID, err := intQuery(q, "userId")
 	if err != nil {
-		errm = errmap.PutErrorMap(errm, "userId", ErrHttpInvalidID)
+		errm = errmap.Put(errm, "userId", ErrHttpInvalidID)
 	}
 	afterID, err := intQuery(q, "afterId")
 	if err != nil {
-		errm = errmap.PutErrorMap(errm, "afterId", ErrHttpInvalidID)
+		errm = errmap.Put(errm, "afterId", ErrHttpInvalidID)
 	}
 	if errm != nil {
 		return errm
 	}
 
-	replays, err := svc.GetUserReplays(ctx, h.Pdb.Query, int64(userID), int64(afterID), PerPage)
+	replays, err := svc.GetUserReplays(ctx, h.Pdb.Query, int64(userID), int64(afterID), perPage)
 	if err != nil {
 		return fmt.Errorf("get user %d replays: %w", userID, err)
 	}
@@ -767,7 +777,6 @@ type GetChallengesResp struct {
 
 func (h *RestHandler) HandleGetChallenges(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-
 	participants := r.URL.Query().Get("participants")
 
 	player, _, err := GetSessionPlayer(ctx, h.Rdb, r)
@@ -779,12 +788,13 @@ func (h *RestHandler) HandleGetChallenges(w http.ResponseWriter, r *http.Request
 	var challengeList []svc.ChallengeEntity
 	switch participants {
 	case "sent":
-		challengeList, err = svc.GetChallengesByParticipant(ctx, h.Pdb.Query, svc.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1}, since)
+		if challengeList, err = svc.GetChallengesByParticipant(ctx, h.Pdb.Query, svc.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1}, since); err != nil {
+			return fmt.Errorf("get challenges by challenger: %w", err)
+		}
 	case "received":
-		challengeList, err = svc.GetChallengesByParticipant(ctx, h.Pdb.Query, svc.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID}, since)
-	}
-	if err != nil {
-		return fmt.Errorf("get challenges by participant: %w", err)
+		if challengeList, err = svc.GetChallengesByParticipant(ctx, h.Pdb.Query, svc.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID}, since); err != nil {
+			return fmt.Errorf("get challenges by challengee: %w", err)
+		}
 	}
 
 	if challengeList == nil {
@@ -795,9 +805,35 @@ func (h *RestHandler) HandleGetChallenges(w http.ResponseWriter, r *http.Request
 	return nil
 }
 
-type ChessRoomListResp struct {
-	ChessList     []svc.ChessMeta `json:"chessList"`
-	SelfChessList []svc.ChessMeta `json:"selfChessList"`
+type ChessMeta struct {
+	ID          string          `json:"id"`
+	WhitePlayer svc.PlayerState `json:"whitePlayer"`
+	BlackPlayer svc.PlayerState `json:"blackPlayer"`
+	IsEnded     bool            `json:"isEnded"`
+	FirstColor  string          `json:"firstColor"`
+	Mode        string          `json:"mode"`
+	Touch       time.Time       `json:"touch"`
+}
+
+func mapChessMetas(svcMetas []svc.ChessMeta) []ChessMeta {
+	metas := make([]ChessMeta, 0)
+	for _, svcMeta := range svcMetas {
+		metas = append(metas, ChessMeta{
+			ID:          svcMeta.ID,
+			WhitePlayer: svcMeta.WhitePlayer,
+			BlackPlayer: svcMeta.BlackPlayer,
+			IsEnded:     svcMeta.IsEnded,
+			FirstColor:  svcMeta.FirstColor.String(),
+			Mode:        svcMeta.Mode.String(),
+			Touch:       svcMeta.Touch,
+		})
+	}
+	return metas
+}
+
+type ChessMetasResp struct {
+	ChessList     []ChessMeta `json:"chessList"`
+	SelfChessList []ChessMeta `json:"selfChessList"`
 }
 
 func (h *RestHandler) HandleGetChessRoomList(w http.ResponseWriter, r *http.Request) error {
@@ -807,42 +843,39 @@ func (h *RestHandler) HandleGetChessRoomList(w http.ResponseWriter, r *http.Requ
 	var errm error
 	page, err := intQueryDefault(q, "page", 1)
 	if err != nil {
-		errm = errmap.PutErrorMap(errm, "page", ErrHttpInvalidPage)
+		errm = errmap.Put(errm, "page", ErrHttpInvalidPage)
 	}
-	count, err := intQueryDefault(q, "count", PerPage)
+	count, err := intQueryDefault(q, "count", perPage)
 	if err != nil {
-		errm = errmap.PutErrorMap(errm, "count", ErrHttpInvalidCount)
+		errm = errmap.Put(errm, "count", ErrHttpInvalidCount)
 	}
 	if errm != nil {
 		return errm
 	}
 
 	player, _, err := GetSessionPlayer(ctx, h.Rdb, r)
-	if err != nil && !errors.Is(err, svc.ErrSessionNotFound) {
+	hasSession := !errors.Is(err, svc.ErrSessionNotFound)
+	if err != nil && hasSession {
 		return fmt.Errorf("get session player: %w", err)
 	}
-	hasSession := !errors.Is(err, svc.ErrSessionNotFound)
 
-	chessList, err := svc.GetAllChessMetas(ctx, h.Rdb, page, count)
+	allChessMetas, err := svc.GetAllChessMetas(ctx, h.Rdb, page, count)
 	if err != nil {
 		return fmt.Errorf("get page %d chess meta views: %w", page, err)
 	}
-	var selfChessList []svc.ChessMeta
+	var myChessMetas []svc.ChessMeta
 	if hasSession {
-		cl, err := svc.GetUserChessMetas(ctx, h.Rdb, player.ID)
+		chessMetas, err := svc.GetUserChessMetas(ctx, h.Rdb, player.ID)
 		if err != nil {
 			return fmt.Errorf("get user %d chess meta views: %w", player.ID, err)
 		}
-		selfChessList = cl
+		myChessMetas = chessMetas
 	}
 
-	if chessList == nil {
-		chessList = []svc.ChessMeta{}
-	}
-	if selfChessList == nil {
-		selfChessList = []svc.ChessMeta{}
-	}
-	writeJSON(w, http.StatusOK, ChessRoomListResp{ChessList: chessList, SelfChessList: selfChessList})
+	writeJSON(w, http.StatusOK, ChessMetasResp{
+		ChessList:     mapChessMetas(allChessMetas),
+		SelfChessList: mapChessMetas(myChessMetas),
+	})
 	return nil
 }
 
@@ -866,11 +899,11 @@ func (h *RestHandler) HandleGetEloHistories(w http.ResponseWriter, r *http.Reque
 	var errm error
 	userID, err := intQuery(q, "userId")
 	if err != nil {
-		errm = errmap.PutErrorMap(errm, "userID", ErrHttpInvalidPage)
+		errm = errmap.Put(errm, "userID", ErrHttpInvalidPage)
 	}
 	months, ok := timeframeMap[queryDefault(q, "timeframe", "all")]
 	if !ok {
-		errm = errmap.PutErrorMap(errm, "timeframe", ErrHttpInvalidTimeframe)
+		errm = errmap.Put(errm, "timeframe", ErrHttpInvalidTimeframe)
 	}
 	if errm != nil {
 		return errm

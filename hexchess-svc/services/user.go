@@ -390,12 +390,12 @@ func GetUserElos(ctx context.Context, query *db.Queries, id int64) (UserStatsEnt
 	}
 
 	for _, row := range rows {
-		mode := Modes.Parse(string(row.Mode))
-		if mode == nil {
-			return stats, MakeGameModeError(string(row.Mode))
+		mode, err := ParseGameMode(row.Mode)
+		if err != nil {
+			return stats, err
 		}
 		modeStats := ModeStatsEntity{
-			Mode:       *mode,
+			Mode:       mode,
 			Wins:       row.Wins,
 			Losses:     row.Losses,
 			Winrate:    calcUserWinrate(row.Wins, row.Losses),

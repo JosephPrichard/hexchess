@@ -2,10 +2,12 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
+	"hexchess-svc/outbound"
 	"hexchess-svc/pb"
 	"hexchess-svc/services"
 	"log/slog"
@@ -15,6 +17,7 @@ import (
 type GameplayHandler struct {
 	db.Databases
 	svc.Broadcasters
+	outbound.Generators
 }
 
 type GameSocketContext struct {
@@ -25,20 +28,21 @@ type GameSocketContext struct {
 
 func makeGameErr(ctx context.Context, gameID string, err error) []byte {
 	var wsErr error
-	switch err {
-	case svc.ErrFinishedGame:
+	switch {
+	case errors.Is(err, svc.ErrFinishedGame):
 		wsErr = ErrWsFinishedGame
-	case svc.ErrTurn:
+	case errors.Is(err, svc.ErrTurn):
 		wsErr = ErrWsTurn
-	case svc.ErrInvalidMove:
+	case errors.Is(err, svc.ErrInvalidMove):
 		wsErr = ErrWsInvalidMove
-	case svc.ErrNoChessState:
+	case errors.Is(err, svc.ErrNoChessState):
 		// if the state cannot be found, it has expired while an inactive connection has been open
 		wsErr = ErrWsExpiration
 	default:
 		wsErr = ErrWsFatal
 	}
-	slog.ErrorContext(ctx, "failed to error occurred while handling ws message", "err", err, "wsErr", wsErr)
+
+	slog.WarnContext(ctx, "failed to error occurred while handling ws message", "err", err, "wsErr", wsErr)
 
 	bytes, err := proto.Marshal(MakePbGameOutputError(gameID, wsErr))
 	if err != nil {
@@ -51,15 +55,18 @@ func makeGameErr(ctx context.Context, gameID string, err error) []byte {
 
 func makeGameInitErr(ctx context.Context, gameID string, err error) []byte {
 	var wsErr error
-	switch err {
-	case svc.ErrNoChessState:
+	switch {
+	case errors.Is(err, svc.ErrNoChessState):
 		wsErr = ErrWsInvalidGame
 	default:
 		wsErr = ErrWsFatal
 	}
-	slog.ErrorContext(ctx, "failed to error occurred in initializing gameplay websocket", "err", err, "wsErr", wsErr)
+	slog.WarnContext(ctx, "failed to error occurred in initializing gameplay websocket", "err", err, "wsErr", wsErr)
 	return makeGameErr(ctx, gameID, wsErr)
 }
+
+// GameplayChanBufCap start dropping messages when a websocket is behind by this many messages
+const GameplayChanBufCap = 10
 
 func (h *GameplayHandler) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -92,13 +99,9 @@ func (h *GameplayHandler) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	gameCtx := GameSocketContext{
-		Context: ctx,
-		GameID:  gameID,
-		Player:  player,
-	}
+	gameCtx := GameSocketContext{Context: ctx, GameID: gameID, Player: player}
 
-	writeChan := make(chan []byte)
+	writeChan := make(chan []byte, GameplayChanBufCap)
 	h.GamesCaster.Subscribe(gameID, writeChan)
 
 	go func() {
@@ -146,6 +149,8 @@ func (h *GameplayHandler) handleGameMessage(ctx GameSocketContext, msg []byte, w
 		writeChan <- makeGameErr(ctx.Context, ctx.GameID, err)
 		return
 	}
+
+	slog.InfoContext(ctx.Context, "received game input", "pbInput", &pbInput)
 
 	var err error
 	if f := pbInput.GetForfeit(); f != nil {

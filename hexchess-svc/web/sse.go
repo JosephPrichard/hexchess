@@ -81,10 +81,14 @@ func (sse SSEWriter) writeGamesCountEvent(count int64, sseID string) {
 	sse.writeCountEvent(svc.UcEvent{Kind: svc.UcGamesEk, Data: string(b)})
 }
 
-const MetaEvent = "meta"
-const UserChallengeEvent = "userEvents"
-const GamesCountEvent = "gameCountEvents"
-const ActiveCountEvent = "activeCountEvents"
+const (
+	MetaEvent          = "meta"
+	UserChallengeEvent = "userEvents"
+	GamesCountEvent    = "gameCountEvents"
+	ActiveCountEvent   = "activeCountEvents"
+	// SSEChanBufCap start dropping messages after an SSE connection is lagging behind by this many messages
+	SSEChanBufCap = 10
+)
 
 func (h *SSEHandler) HandleCountEvents(w SSEWriter, r *http.Request) error {
 	sseID := h.MakeID()
@@ -103,7 +107,7 @@ func (h *SSEHandler) HandleCountEvents(w SSEWriter, r *http.Request) error {
 	w.writeEvent(MetaEvent, sseID)
 	w.writeGamesCountEvent(gamesCount, sseID)
 
-	countsChan := make(chan svc.UcEvent)
+	countsChan := make(chan svc.UcEvent, SSEChanBufCap)
 	h.CountsCaster.Subscribe(countsChan)
 
 	if err := svc.BroadcastActiveCount(ctx, h.Rdb, activeCount, sseID); err != nil {
@@ -164,7 +168,7 @@ func (h *SSEHandler) HandleUserEvents(w SSEWriter, r *http.Request) error {
 
 	w.writeEvent(MetaEvent, sseID)
 
-	usersChan := make(chan []byte)
+	usersChan := make(chan []byte, SSEChanBufCap)
 	h.UsersCaster.Subscribe(strID, usersChan)
 
 	go func() {

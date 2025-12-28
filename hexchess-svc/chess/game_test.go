@@ -46,7 +46,7 @@ func TestGame_DetermineIsCheckmate(t *testing.T) {
 		NotMove{"f9", BlackKing})
 
 	for i, game := range []Game{game1, game2} {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			game.InitPieceMoves()
 			t.Logf("game:\n%s", game.StringColor(!game.Board.IsWhiteTurn))
 			isCheckmate := game.Checkmate()

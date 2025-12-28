@@ -12,7 +12,7 @@ func RunInTx[T any](ctx context.Context, pdb *PostgreSQL, errAllowList []error, 
 	if pdb.testingTxn != nil {
 		return txFn(ctx, New(pdb.testingTxn))
 	}
-	tx, err := pdb.GetPool().Begin(ctx)
+	tx, err := pdb.Pool.Begin(ctx)
 	if err != nil {
 		return ret, err
 	}

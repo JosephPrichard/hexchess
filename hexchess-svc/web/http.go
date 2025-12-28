@@ -58,13 +58,14 @@ func HttpStatusFromErr(err error) (int, string) {
 	}
 }
 
-func HttpStatusFromErrs(err error) (int, any) {
+func HttpStatusFromErrs(err error) ServiceView {
 	var errs map[string]error
 	var merr *errmap.ErrorMap
 	if ok := errors.As(err, &merr); ok {
 		errs = merr.Errors
 	} else {
-		return HttpStatusFromErr(err)
+		status, errStr := HttpStatusFromErr(err)
+		return ServiceView{Status: status, Errors: errStr}
 	}
 
 	errStatus := 0
@@ -82,7 +83,7 @@ func HttpStatusFromErrs(err error) (int, any) {
 	if errStatus == 0 {
 		errStatus = http.StatusInternalServerError
 	}
-	return errStatus, errStrs
+	return ServiceView{Status: errStatus, Errors: errStrs}
 }
 
 func readJSON[T any](r *http.Request, body *T) error {

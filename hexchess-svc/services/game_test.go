@@ -2,7 +2,6 @@ package svc
 
 import (
 	"context"
-	"fmt"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 	"hexchess-svc/chess"
@@ -11,7 +10,6 @@ import (
 	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/pkg/ptr"
 	"math"
-	"strconv"
 	"testing"
 	"time"
 
@@ -103,7 +101,7 @@ func TestAttemptUndo(t *testing.T) {
 		Black:      ptr.New(MakeNamePlayer(2, "black")),
 	})
 
-	makeExpState := func(fn func(s *ChessState)) ChessState {
+	makeWantState := func(fn func(s *ChessState)) ChessState {
 		state := inState.DeepCopy()
 		fn(&state)
 		return state
@@ -113,51 +111,48 @@ func TestAttemptUndo(t *testing.T) {
 		t.Fatalf("failed initialize test state: %v", err)
 	}
 
-	for i, test := range []struct {
+	for _, test := range []struct {
+		name      string
 		kind      UndoKind
 		player    PlayerState
 		wantState ChessState
 		wantErr   error
 	}{
+		// attempt undo table driven tests must be executed sequentially
 		{
-			kind:   UndoCreate,
-			player: MakeIDPlayer(1),
-			wantState: makeExpState(func(s *ChessState) {
-				s.UndoState = UndoState{UndoID: 1}
-			}),
+			name:      "creating an undo",
+			kind:      UndoCreate,
+			player:    MakeIDPlayer(1),
+			wantState: makeWantState(func(s *ChessState) { s.UndoState = UndoState{UndoID: 1} }),
 		},
 		{
-			kind:   UndoReject,
-			player: MakeIDPlayer(1),
-			wantState: makeExpState(func(s *ChessState) {
-				s.UndoState = UndoState{}
-			}),
+			name:      "rejecting an undo",
+			kind:      UndoReject,
+			player:    MakeIDPlayer(1),
+			wantState: makeWantState(func(s *ChessState) { s.UndoState = UndoState{} }),
 		},
 		{
-			kind:   UndoCreate,
-			player: MakeIDPlayer(2),
-			wantState: makeExpState(func(s *ChessState) {
-				s.UndoState = UndoState{UndoID: 2}
-			}),
+			name:      "creating an undo for another player",
+			kind:      UndoCreate,
+			player:    MakeIDPlayer(2),
+			wantState: makeWantState(func(s *ChessState) { s.UndoState = UndoState{UndoID: 2} }),
 		},
 		{
-			kind:    UndoAccept,
-			player:  MakeIDPlayer(2),
-			wantErr: ErrUndoNoop,
-			wantState: makeExpState(func(s *ChessState) {
-				s.UndoState = UndoState{UndoID: 2}
-			}),
+			name:      "accepting an undo as creator",
+			kind:      UndoAccept,
+			player:    MakeIDPlayer(2),
+			wantErr:   ErrUndoNoop,
+			wantState: makeWantState(func(s *ChessState) { s.UndoState = UndoState{UndoID: 2} }),
 		},
 		{
-			kind:    UndoAccept,
-			player:  MakeIDPlayer(1),
-			wantErr: ErrNoMoveUndo,
-			wantState: makeExpState(func(s *ChessState) {
-				s.UndoState = UndoState{}
-			}),
+			name:      "accepting an undo with no previous moves",
+			kind:      UndoAccept,
+			player:    MakeIDPlayer(1),
+			wantErr:   ErrNoMoveUndo,
+			wantState: makeWantState(func(s *ChessState) { s.UndoState = UndoState{} }),
 		},
 	} {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			// when
 			state, err := AttemptGameUndo(ctx, rdb, gameID, test.player, test.kind)
 
@@ -207,36 +202,48 @@ func TestMakeMove(t *testing.T) {
 		}
 	}
 
-	for i, test := range []struct {
+	for _, test := range []struct {
+		name    string
 		pm      chess.Move
 		state   ChessState
 		player  PlayerState
 		wantErr error
 	}{
 		{
-			pm:      chess.Move{To: chess.Hex{File: 1}}, // invalid turn
+			name:    "invalid turn",
+			pm:      chess.Move{To: chess.Hex{File: 1}},
 			state:   s1,
 			player:  s1.BlackPlayer,
 			wantErr: ErrTurn,
 		},
 		{
-			pm:      chess.Move{To: chess.Hex{File: 1}}, // invalid move
+			name:    "invalid move",
+			pm:      chess.Move{To: chess.Hex{File: 1}},
 			state:   s1,
 			player:  s1.WhitePlayer,
 			wantErr: ErrInvalidMove,
 		},
 		{
+			name:    "invalid move",
+			pm:      chess.Move{To: chess.Hex{File: 1}},
+			state:   s1,
+			player:  s1.WhitePlayer,
+			wantErr: ErrInvalidMove,
+		},
+		{
+			name:   "valid move as white",
 			pm:     chess.Move{Promotion: chess.QueenPromotion, From: chess.HexStr("b1"), To: chess.HexStr("b2")}, // valid move
 			state:  s1,
 			player: s1.WhitePlayer,
 		},
 		{
+			name:   "valid move as black",
 			pm:     chess.Move{Promotion: chess.QueenPromotion, From: chess.HexStr("a2"), To: chess.HexStr("a1")}, // valid move
 			state:  s2,
 			player: s2.BlackPlayer,
 		},
 	} {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			_, err := MakeGameMove(ctx, &dbs, test.state.ID, test.player, test.pm)
 			assert.Equal(t, test.wantErr, err)
 		})
@@ -279,13 +286,15 @@ func TestInsertGameResult(t *testing.T) {
 	testUser0 := TestUserEntities[0]
 	testUser1 := TestUserEntities[1]
 
-	for i, test := range []struct {
+	for _, test := range []struct {
+		name       string
 		result     GameResult
 		wantElos   []db.SelectUserModeElosByIdsRow
 		wantReplay db.Replay
 		wantChange GRChangeSet
 	}{
 		{
+			name:   "draw by stalemate",
 			result: GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Stalemate, ReplayResult: Draw, ReplayMode: ModeTimed1Plus0},
 			wantElos: []db.SelectUserModeElosByIdsRow{
 				{UserID: testUser0.ID, Elo: 1000},
@@ -294,9 +303,9 @@ func TestInsertGameResult(t *testing.T) {
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
-				Result:      db.ResultEnum(Draw.Value),
-				Cause:       db.CauseEnum(Stalemate.Value),
-				Mode:        db.ModeEnum(ModeTimed1Plus0.Value),
+				Result:      db.ResultEnum(Draw.String()),
+				Cause:       db.CauseEnum(Stalemate.String()),
+				Mode:        db.ModeEnum(ModeTimed1Plus0.String()),
 				WinEloDiff:  0,
 				LoseEloDiff: 0,
 				WhiteElo:    1000,
@@ -306,6 +315,7 @@ func TestInsertGameResult(t *testing.T) {
 			wantChange: GRChangeSet{},
 		},
 		{
+			name:   "white wins by checkmate",
 			result: GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Checkmate, ReplayResult: WhiteWin, ReplayMode: ModeCorrespondence1},
 			wantElos: []db.SelectUserModeElosByIdsRow{
 				{UserID: testUser0.ID, Elo: 1015},
@@ -314,9 +324,9 @@ func TestInsertGameResult(t *testing.T) {
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
-				Result:      db.ResultEnum(WhiteWin.Value),
-				Cause:       db.CauseEnum(Checkmate.Value),
-				Mode:        db.ModeEnum(ModeCorrespondence1.Value),
+				Result:      db.ResultEnum(WhiteWin.String()),
+				Cause:       db.CauseEnum(Checkmate.String()),
+				Mode:        db.ModeEnum(ModeCorrespondence1.String()),
 				WinEloDiff:  15,
 				LoseEloDiff: -15,
 				WhiteElo:    1015,
@@ -326,6 +336,7 @@ func TestInsertGameResult(t *testing.T) {
 			wantChange: GRChangeSet{WinID: testUser0.ID, LoseID: testUser1.ID, WinEloDiff: 15, LoseEloDiff: -15},
 		},
 		{
+			name:   "black wins by forfeit",
 			result: GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Forfeit, ReplayResult: BlackWin, ReplayMode: ModeCorrespondence7},
 			wantElos: []db.SelectUserModeElosByIdsRow{
 				{UserID: testUser0.ID, Elo: 985},
@@ -334,9 +345,9 @@ func TestInsertGameResult(t *testing.T) {
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
-				Result:      db.ResultEnum(BlackWin.Value),
-				Cause:       db.CauseEnum(Forfeit.Value),
-				Mode:        db.ModeEnum(ModeCorrespondence7.Value),
+				Result:      db.ResultEnum(BlackWin.String()),
+				Cause:       db.CauseEnum(Forfeit.String()),
+				Mode:        db.ModeEnum(ModeCorrespondence7.String()),
 				WinEloDiff:  15,
 				LoseEloDiff: -15,
 				WhiteElo:    985,
@@ -346,7 +357,7 @@ func TestInsertGameResult(t *testing.T) {
 			wantChange: GRChangeSet{WinID: testUser1.ID, LoseID: testUser0.ID, WinEloDiff: 15, LoseEloDiff: -15},
 		},
 	} {
-		t.Run(fmt.Sprintf("%s-%d", test.result.ReplayResult, i), func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			// given
 			pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
 			defer closer()
@@ -358,7 +369,7 @@ func TestInsertGameResult(t *testing.T) {
 			// then
 			rowElos, err := pdb.Query.SelectUserModeElosByIds(ctx, db.SelectUserModeElosByIdsParams{
 				ID:   []int64{test.result.WhiteID, test.result.BlackID},
-				Mode: db.ModeEnum(test.result.ReplayMode.Value),
+				Mode: db.ModeEnum(test.result.ReplayMode.String()),
 			})
 			require.NoError(t, err)
 

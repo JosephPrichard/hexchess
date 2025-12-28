@@ -27,7 +27,6 @@
 
 	async function onSubmitUser(e: MouseEvent) {
 		e.preventDefault();
-
 		isLoading = true;
 
 		const [data, err] = await services.postUpdateUser(username, bio, country);
