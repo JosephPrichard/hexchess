@@ -1,9 +1,7 @@
 package chess
 
 import (
-	"fmt"
 	"github.com/stretchr/testify/assert"
-	"strconv"
 	"testing"
 )
 
@@ -45,8 +43,15 @@ func TestGame_DetermineIsCheckmate(t *testing.T) {
 		NotMove{"f3", BlackRook},
 		NotMove{"f9", BlackKing})
 
-	for i, game := range []Game{game1, game2} {
+	for _, test := range []struct{
+		name string
+		game Game
+	} {
+		{name: "surronded king is checked", game: game1},
+		{name: "cornered king is checked", game: game2},
+	} {
 		t.Run(test.name, func(t *testing.T) {
+			game := &test.game
 			game.InitPieceMoves()
 			t.Logf("game:\n%s", game.StringColor(!game.Board.IsWhiteTurn))
 			isCheckmate := game.Checkmate()
@@ -68,94 +73,94 @@ func TestGame_findMoves(t *testing.T) {
 		name      string
 		game      Game
 		hex       Hex
-		f         func(*Game, Hex) PieceMoves
+		fn         func(*Game, Hex) PieceMoves
 		wantMoves []string
 	}{
 		{
-			name:      "TestCenterRook",
+			name:      "center rook",
 			game:      MakeStartGame(NotMove{"f6", BlackRook}),
 			hex:       Hex{File: 5, Rank: 5},
-			f:         (*Game).findRookMoves,
+			fn:         (*Game).findRookMoves,
 			wantMoves: []string{"f5", "e5", "d4", "c3", "b2", "a1", "g5", "h4", "i3", "j2", "k1", "e6", "d6", "c6", "b6", "a6", "g6", "h6", "i6", "j6", "k6"},
 		},
 		{
-			name:      "RookLeft",
+			name:      "rook left",
 			game:      MakeStartGame(NotMove{"c8", BlackRook}),
 			hex:       Hex{File: 2, Rank: 7},
-			f:         (*Game).findRookMoves,
+			fn:         (*Game).findRookMoves,
 			wantMoves: []string{"d8", "e8", "f8"},
 		},
 		{
-			name:      "RookRight",
+			name:      "rook right",
 			game:      MakeStartGame(NotMove{"h4", BlackRook}),
 			hex:       Hex{File: 7, Rank: 3},
-			f:         (*Game).findRookMoves,
+			fn:         (*Game).findRookMoves,
 			wantMoves: []string{"h5", "h6", "h3", "g4", "i3", "j2", "k1", "g5", "f6", "e6", "d6", "c6", "b6", "a6", "i4", "j4", "k4"},
 		},
 		{
-			name:      "BishopCenter",
+			name:      "bishop center",
 			game:      MakeStartGame(NotMove{"f6", BlackBishop}),
 			hex:       Hex{File: 5, Rank: 5},
-			f:         (*Game).findBishopMoves,
+			fn:         (*Game).findBishopMoves,
 			wantMoves: []string{"h5", "j4", "d5", "b4", "g4", "e4"},
 		},
 		{
-			name:      "BishopLeft",
+			name:      "bishop left",
 			game:      MakeStartGame(NotMove{"c8", BlackBishop}),
 			hex:       Hex{File: 2, Rank: 7},
-			f:         (*Game).findBishopMoves,
+			fn:         (*Game).findBishopMoves,
 			wantMoves: []string{"e9", "g9", "b6", "a4"},
 		},
 		{
-			name:      "BishopRight",
+			name:      "bishop right",
 			game:      MakeStartGame(NotMove{"h4", BlackBishop}),
 			hex:       Hex{File: 7, Rank: 3},
-			f:         (*Game).findBishopMoves,
+			fn:         (*Game).findBishopMoves,
 			wantMoves: []string{"j3", "f5", "i5", "j6", "g6", "f8", "e9", "i2", "g3", "f2"},
 		},
 		{
-			name:      "KnightCenter",
+			name:      "knight center",
 			game:      MakeEmptyGame(true, NotMove{"f6", WhiteKnight}),
 			hex:       Hex{File: 5, Rank: 5},
-			f:         (*Game).findKnightMoves,
+			fn:         (*Game).findKnightMoves,
 			wantMoves: []string{"h7", "g8", "h3", "g3", "d7", "e8", "d3", "e3", "c5", "c4", "i5", "i4"},
 		},
 		{
-			name:      "KnightLeft",
+			name:      "knight left",
 			game:      MakeEmptyGame(true, NotMove{"d3", WhiteKnight}),
 			hex:       Hex{File: 3, Rank: 2},
-			f:         (*Game).findKnightMoves,
+			fn:         (*Game).findKnightMoves,
 			wantMoves: []string{"f6", "e6", "f2", "e1", "b4", "c5", "a2", "a1", "g4", "g3"},
 		},
 		{
-			name:      "KnightRight",
+			name:      "knight right",
 			game:      MakeEmptyGame(true, NotMove{"h7", WhiteKnight}),
 			hex:       Hex{File: 7, Rank: 6},
-			f:         (*Game).findKnightMoves,
+			fn:         (*Game).findKnightMoves,
 			wantMoves: []string{"j4", "i4", "f10", "g10", "f6", "g5", "e8", "e7", "k6", "k5"},
 		},
 		{
-			name:      "PawnFirstMove",
+			name:      "pawn first move",
 			game:      MakeStartGame(NotMove{"g4", WhitePawn}),
 			hex:       Hex{File: 6, Rank: 3},
-			f:         (*Game).findPawnMovesWhite,
+			fn:         (*Game).findPawnMovesWhite,
 			wantMoves: []string{"g5", "g6"},
 		},
 		{
-			name: "PawnTakeMove",
+			name: "pawn take move",
 			game: MakeStartGame(
 				NotMove{"c4", BlackKnight},
 				NotMove{"e5", WhiteKnight},
 				NotMove{"d5", BlackPawn},
 			),
 			hex:       Hex{File: 3, Rank: 4},
-			f:         (*Game).findPawnMovesBlack,
+			fn:         (*Game).findPawnMovesBlack,
 			wantMoves: []string{"d4", "e5"},
 		},
 	} {
-		t.Run(fmt.Sprintf("%s", test.name), func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			t.Logf("testing moves for piece at: %v on game:%s", test.hex, test.game.Board.String())
-			moves := test.f(&test.game, test.hex).Moves
+			moves := test.fn(&test.game, test.hex).Moves
 			t.Logf("after move: %v on game:%s", test.hex, test.game.Board.StringMoves(moves))
 			assertMoves(t, moves, test.wantMoves...)
 		})

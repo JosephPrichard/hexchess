@@ -3,13 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"hexchess-svc/assets"
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
 	"hexchess-svc/outbound"
 	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/services"
+	svc "hexchess-svc/services"
 	"hexchess-svc/web"
 	"log"
 	"log/slog"
@@ -17,6 +16,8 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"strings"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -60,17 +61,16 @@ func main() {
 		logutil.LogFatalErr("execute startup query", err)
 	}
 
-	q := db.New(pool)
-	pdb := db.MakePostgres(q, pool)
+	pdb := db.MakePostgres(pool)
 
 	slog.Info("connecting to redis db", "primaryURL", redisPrimaryURL, "pubsubURL", redisPubSubURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: redisPrimaryURL, PubsubAddr: redisPubSubURL}, db.DefaultRedisNames)
 
-	dbs := db.Databases{Rdb: rdb, Pdb: pdb}
-	dbs.Close()
+	databases := db.Databases{Rdb: rdb, Pdb: pdb}
+	databases.Close()
 
 	state := web.State{
-		Databases:      dbs,
+		Databases:      databases,
 		Broadcasters:   svc.MakeBroadcaster(),
 		Generators:     &outbound.RandGenerator{},
 		OutboundAPIs:   outbound.MakeRemoteAPIs(),

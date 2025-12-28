@@ -2,31 +2,26 @@ package web
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 	"hexchess-svc/db"
 	"hexchess-svc/outbound"
 	"hexchess-svc/pkg/assertutil"
 	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/services"
+	svc "hexchess-svc/services"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-func asJSONReader(v any) *strings.Reader {
-	b, err := json.Marshal(v)
-	if err != nil {
-		panic("json.Marshal failed: " + err.Error())
-	}
-	return strings.NewReader(string(b))
-}
+// rest tests are block box tests that make assertions on rest api call output for a given input
+// no db assertions are made and any outbound network calls are mocked
 
 func TestHandleRegister(t *testing.T) {
 	insertTime := svc.TestTimeNow
@@ -64,13 +59,13 @@ func TestHandleRegister(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+			databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 			defer closer()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/register", asJSONReader(test.body))
 			w := httptest.NewRecorder()
 
-			HandleRoot(State{Databases: dbs, Generators: &outbound.MockGenerator{Time: insertTime}}).ServeHTTP(w, r)
+			HandleRoot(State{Databases: databases, Generators: &outbound.MockGenerator{Time: insertTime}}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
@@ -106,13 +101,13 @@ func TestHandleLogin(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+			databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 			defer closer()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/login", asJSONReader(test.body))
 			w := httptest.NewRecorder()
 
-			HandleRoot(State{Databases: dbs}).ServeHTTP(w, r)
+			HandleRoot(State{Databases: databases}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
@@ -124,11 +119,11 @@ func TestHandleLogin(t *testing.T) {
 	}
 }
 
-func TestHandleLoginGoogleLogin(t *testing.T) {
+func TestHandleGoogleLogin(t *testing.T) {
 	for _, test := range []struct {
 		name        string
 		runCount    int
-		setupMocks  func(ctrl *gomock.Controller) outbound.GoogleAPI
+		setupMocks  func(*gomock.Controller) outbound.GoogleAPI
 		body        GoogleLoginBody
 		wantSuccess SessionView
 		wantFail    ServiceView
@@ -164,7 +159,7 @@ func TestHandleLoginGoogleLogin(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+			databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 			defer closer()
 
 			ctrl := gomock.NewController(t)
@@ -175,7 +170,7 @@ func TestHandleLoginGoogleLogin(t *testing.T) {
 				w := httptest.NewRecorder()
 
 				h := HandleRoot(State{
-					Databases: dbs,
+					Databases: databases,
 					OutboundAPIs: outbound.RemoteAPIs{
 						GoogleAPI: test.setupMocks(ctrl),
 					},
@@ -227,15 +222,15 @@ func TestHandleUpdateUser(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+			databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 			defer closer()
-			createTestSessions(t, dbs.Rdb)
+			createTestSessions(t, databases.Rdb)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/users", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			HandleRoot(State{Databases: dbs, CountryList: []string{"eu"}}).ServeHTTP(w, r)
+			HandleRoot(State{Databases: databases, CountryList: []string{"eu"}}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
@@ -281,15 +276,15 @@ func TestHandleUpdatePassword(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+			databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 			defer closer()
-			createTestSessions(t, dbs.Rdb)
+			createTestSessions(t, databases.Rdb)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/users/password", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			HandleRoot(State{Databases: dbs}).ServeHTTP(w, r)
+			HandleRoot(State{Databases: databases}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
@@ -344,16 +339,16 @@ func TestHandleUpdateChallenge(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+			databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 			defer closer()
 
-			createTestSessions(t, dbs.Rdb)
+			createTestSessions(t, databases.Rdb)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/challenges/update", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			HandleRoot(State{Databases: dbs}).ServeHTTP(w, r)
+			HandleRoot(State{Databases: databases}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus != http.StatusOK {
@@ -372,7 +367,7 @@ func TestHandleCreateGame(t *testing.T) {
 	}{
 		{
 			name:       "created game",
-			body:       CreateGameBody{FirstColor: "WHITE", Mode: "CORRESPONDENCE_1"},
+			body:       CreateGameBody{FirstColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
 			wantStatus: http.StatusOK,
 		},
 		{
@@ -390,15 +385,15 @@ func TestHandleCreateGame(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+			databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 			defer closer()
-			createTestSessions(t, dbs.Rdb)
+			createTestSessions(t, databases.Rdb)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/games/create", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			HandleRoot(State{Databases: dbs, Generators: &outbound.MockGenerator{Time: svc.TestTimeNow}}).ServeHTTP(w, r)
+			HandleRoot(State{Databases: databases, Generators: &outbound.MockGenerator{Time: svc.TestTimeNow}}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus != http.StatusOK {
@@ -417,25 +412,25 @@ func TestHandleCreateChallenge(t *testing.T) {
 	}{
 		{
 			name:       "challenging self",
-			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
+			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpSelfChallenge.Error()},
 		},
 		{
 			name:       "challenging invalid user",
-			body:       CreateChallengeBody{ChallengeeID: 999, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
+			body:       CreateChallengeBody{ChallengeeID: 999, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpInvalidParticipants.Error()},
 		},
 		{
 			name:       "creating duplicate challenge",
-			body:       CreateChallengeBody{ChallengeeID: 2, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
+			body:       CreateChallengeBody{ChallengeeID: 2, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpDuplicateChallenge.Error()},
 		},
 		{
 			name:       "created challenge",
-			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
+			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
 			wantStatus: http.StatusOK,
 			wantResp:   ServiceView{Status: http.StatusOK, Message: "SUCCESS"},
 		},
@@ -447,15 +442,15 @@ func TestHandleCreateChallenge(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+			databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 			defer closer()
-			createTestSessions(t, dbs.Rdb)
+			createTestSessions(t, databases.Rdb)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			HandleRoot(State{Databases: dbs, Generators: &outbound.MockGenerator{Time: svc.TestTimeNow}}).ServeHTTP(w, r)
+			HandleRoot(State{Databases: databases, Generators: &outbound.MockGenerator{Time: svc.TestTimeNow}}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			assertutil.AssertRespBody[ServiceView](t, test.wantResp, w)
@@ -464,50 +459,78 @@ func TestHandleCreateChallenge(t *testing.T) {
 }
 
 func TestGetLeaderboard(t *testing.T) {
-	// given
-	dbs, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
-	defer closer()
-
-	ctx := context.WithValue(context.Background(), logutil.Trace, "setup-get-leaderboard")
-	require.NoError(t, svc.SetLeaderboard(ctx, dbs.Rdb, svc.UpdtLbChangeSet{Mode: svc.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
-
-	q := url.Values{}
-	q.Set("mode", "TIMED_1+0")
-	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/leaderboard?%s", q.Encode()), nil)
-	w := httptest.NewRecorder()
-	h := HandleRoot(State{Databases: dbs})
-
-	// when
-	h.ServeHTTP(w, r)
-
-	// then
-	assert.Equal(t, http.StatusOK, w.Code)
-	assertutil.AssertRespBody[LeaderboardResp](t, LeaderboardResp{
-		TotalPages: 1,
-		UserList: []svc.LbdUserEntity{
-			{
-				UserEntity: svc.UserEntity{
-					ID:       1,
-					Username: "user1",
-					Country:  "us",
-					JoinedOn: svc.TestTimeNow,
-				},
-				Elo:        1000,
-				HighestElo: 1000,
-				Wins:       5,
-				Losses:     5,
-				Winrate:    50,
-				Rank:       1,
+	for _, test := range []struct {
+		mode string
+		page string
+		wantStatus int
+		wantSuccess LeaderboardResp
+		wantFail ServiceView
+	} {
+		{
+			mode: "invalid",
+			page: "invalid",
+			wantStatus: http.StatusBadRequest,
+			wantFail: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]any{"mode": ErrHttpInvalidMode.Error(), "page": ErrHttpInvalidPage.Error()},
 			},
 		},
-	}, w)
+		{
+			mode: svc.ModeTimed1Plus0.String(),
+			wantStatus: http.StatusOK,
+			wantSuccess: LeaderboardResp{
+				TotalPages: 1,
+				UserList: []svc.LbdUserEntity{
+					{
+						UserEntity: svc.UserEntity{
+							ID:       1,
+							Username: "user1",
+							Country:  "us",
+							JoinedOn: svc.TestTimeNow,
+						},
+						Elo:        1000,
+						HighestElo: 1000,
+						Wins:       5,
+						Losses:     5,
+						Winrate:    50,
+						Rank:       1,
+					},
+				},
+			},
+		},
+	} {
+		// given
+		databases, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
+		defer closer()
+
+		ctx := context.WithValue(context.Background(), logutil.Trace, "setup-get-leaderboard")
+		require.NoError(t, svc.SetLeaderboard(ctx, databases.Rdb, svc.UpdtLbChangeSet{Mode: svc.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
+
+		q := url.Values{}
+		q.Set("mode", test.mode)
+		q.Set("page", test.page)
+		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/leaderboard?%s", q.Encode()), nil)
+		w := httptest.NewRecorder()
+		h := HandleRoot(State{Databases: databases})
+
+		// when
+		h.ServeHTTP(w, r)
+
+		// then
+		assert.Equal(t, test.wantStatus, w.Code)
+		if w.Code == http.StatusOK {
+			assertutil.AssertRespBody[LeaderboardResp](t, test.wantSuccess, w)
+		} else {
+			assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
+		}
+	}
 }
 
 func TestGetPlayer(t *testing.T) {
-	dbs, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
+	databases, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
 	defer closer()
 
-	h := HandleRoot(State{Databases: dbs})
+	h := HandleRoot(State{Databases: databases})
 
 	for _, test := range []struct {
 		name        string
@@ -563,11 +586,11 @@ func TestGetPlayer(t *testing.T) {
 }
 
 func TestGetChallenges(t *testing.T) {
-	dbs, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
+	databases, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
 	defer closer()
-	createTestSessions(t, dbs.Rdb)
+	createTestSessions(t, databases.Rdb)
 
-	h := HandleRoot(State{Databases: dbs, Generators: &outbound.MockGenerator{Time: svc.TestTimeNow}})
+	h := HandleRoot(State{Databases: databases, Generators: &outbound.MockGenerator{Time: svc.TestTimeNow}})
 
 	for _, test := range []struct {
 		name         string
@@ -606,10 +629,10 @@ func TestGetChallenges(t *testing.T) {
 }
 
 func TestHandleGetUserReplays(t *testing.T) {
-	dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+	databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 	defer closer()
 
-	h := HandleRoot(State{Databases: dbs})
+	h := HandleRoot(State{Databases: databases})
 
 	for _, test := range []struct {
 		name        string
@@ -661,10 +684,10 @@ func TestHandleGetUserReplays(t *testing.T) {
 }
 
 func TestHandleGetReplay(t *testing.T) {
-	dbs, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+	databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
 	defer closer()
 
-	h := HandleRoot(State{Databases: dbs})
+	h := HandleRoot(State{Databases: databases})
 
 	for _, test := range []struct {
 		name        string
@@ -703,16 +726,16 @@ func TestHandleGetReplay(t *testing.T) {
 }
 
 func TestHandleGetChessMetas(t *testing.T) {
-	dbs, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
+	databases, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
 	defer closer()
-	createTestSessions(t, dbs.Rdb)
-	createTestChessStates(t, dbs.Rdb)
+	createTestSessions(t, databases.Rdb)
+	createTestChessStates(t, databases.Rdb)
 
 	r := httptest.NewRequest(http.MethodGet, "/api/chess/rooms", nil)
 	r.Header.Set("Cookie", FmtCookie(TestSessionID2))
 	w := httptest.NewRecorder()
 
-	h := HandleRoot(State{Databases: dbs})
+	h := HandleRoot(State{Databases: databases})
 	h.ServeHTTP(w, r)
 
 	wantResp := ChessMetasResp{

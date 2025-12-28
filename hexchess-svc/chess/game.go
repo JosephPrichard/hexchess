@@ -285,8 +285,8 @@ func (g *Game) InitPieceMoves() {
 	g.WhiteMoves = g.findPieceMoves(true)
 	g.BlackMoves = g.findPieceMoves(false)
 
-	whiteKingHex, wkOk := g.Board.FindKing(true)
-	blackKingHex, bkOk := g.Board.FindKing(false)
+	whiteKingHex, hasWk := g.Board.FindKing(true)
+	blackKingHex, hasBk := g.Board.FindKing(false)
 
 	handleCheck := func(kingHex Hex) {
 		isAttacked := g.GetTurnAttackTable(g.Board.IsWhiteTurn)
@@ -296,16 +296,16 @@ func (g *Game) InitPieceMoves() {
 			g.clearCurrentMoves()
 		}
 	}
-	if g.Board.IsWhiteTurn && wkOk {
+	if g.Board.IsWhiteTurn && hasWk {
 		handleCheck(whiteKingHex)
-	} else if bkOk {
+	} else if hasBk {
 		handleCheck(blackKingHex)
 	}
 
-	if wkOk {
+	if hasWk {
 		g.WhiteMoves = append(g.WhiteMoves, g.findKingMovesFiltered(whiteKingHex))
 	}
-	if bkOk {
+	if hasBk {
 		g.BlackMoves = append(g.BlackMoves, g.findKingMovesFiltered(blackKingHex))
 	}
 }

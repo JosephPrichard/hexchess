@@ -209,7 +209,7 @@ type EloHistoryBucket struct {
 
 // RetrieveEloHistoryBuckets Returns the elo replay histories for a given user organized into buckets and categorized into a map keyed by replay "mode"
 // map will contain the keys "ALL" (contains data for all modes) plus all modes (ReplayModes)
-func RetrieveEloHistoryBuckets(ctx context.Context, dbs *db.Databases, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
+func RetrieveEloHistoryBuckets(ctx context.Context, databases *db.Databases, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
 	if params.TimeUntil.IsZero() {
 		params.TimeUntil = time.Now()
 	}
@@ -218,7 +218,7 @@ func RetrieveEloHistoryBuckets(ctx context.Context, dbs *db.Databases, params El
 		playedAfter = pgtype.Timestamptz{Valid: true, Time: params.TimeUntil.AddDate(0, -int(params.Months), 0)}
 	}
 
-	eloRows, err := dbs.Pdb.Query.SelectReplayElos(ctx, db.SelectReplayElosParams{
+	eloRows, err := databases.Pdb.Query.SelectReplayElos(ctx, db.SelectReplayElosParams{
 		ID:          params.UserID,
 		PlayedAfter: playedAfter,
 	})

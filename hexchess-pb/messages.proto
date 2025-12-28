@@ -125,7 +125,9 @@ message ChatOutput {
   string message = 2;
 }
 
-message ForfeitOutput {}
+message ForfeitOutput {
+  int64 replay_id = 1;
+}
 
 message UndoOutput {
   string kind = 1;

@@ -9,7 +9,7 @@ import (
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
 	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/services"
+	svc "hexchess-svc/services"
 	"log"
 	"log/slog"
 	"math/rand"
@@ -52,13 +52,13 @@ func main() {
 		logutil.LogFatalErr("create pool", err)
 	}
 	q := db.New(pool)
-	pdb := db.MakePostgres(q, pool)
+	pdb := db.MakePostgres(pool)
 
 	slog.InfoContext(ctx, "connecting to redis db", "redisPrimaryURL", redisPrimaryURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: redisPrimaryURL}, db.DefaultRedisNames)
 
-	dbs := &db.Databases{Rdb: rdb, Pdb: pdb}
-	defer dbs.Close()
+	databases := &db.Databases{Rdb: rdb, Pdb: pdb}
+	defer databases.Close()
 
 	_, err = pool.Exec(ctx, `
 		TRUNCATE TABLE users, replays, challenges
@@ -83,11 +83,11 @@ func main() {
 	if err := insertRandomizedGameResult(ctx, pdb, gameResults); err != nil {
 		logutil.LogFatalErr("insert game results", err)
 	}
-	if err := svc.SyncLeaderboard(ctx, dbs); err != nil {
+	if err := svc.SyncLeaderboard(ctx, databases); err != nil {
 		logutil.LogFatalErr("sync leaderboard", err)
 	}
 
-	log.Printf("finished seeding databases: %v", time.Now().Sub(start))
+	log.Printf("finished seeding databases: %v", time.Since(start))
 }
 
 func insertRandomizedGameResult(ctx context.Context, pdb *db.PostgreSQL, gameResults []svc.GameResult) error {

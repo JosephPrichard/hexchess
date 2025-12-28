@@ -42,7 +42,7 @@ func makeGameErr(ctx context.Context, gameID string, err error) []byte {
 		wsErr = ErrWsFatal
 	}
 
-	slog.WarnContext(ctx, "failed to error occurred while handling ws message", "err", err, "wsErr", wsErr)
+	slog.WarnContext(ctx, "failed to handle ws message", "err", err, "wsErr", wsErr)
 
 	bytes, err := proto.Marshal(MakePbGameOutputError(gameID, wsErr))
 	if err != nil {
@@ -61,7 +61,7 @@ func makeGameInitErr(ctx context.Context, gameID string, err error) []byte {
 	default:
 		wsErr = ErrWsFatal
 	}
-	slog.WarnContext(ctx, "failed to error occurred in initializing gameplay websocket", "err", err, "wsErr", wsErr)
+	slog.WarnContext(ctx, "failed to initialize gameplay websocket", "err", err, "wsErr", wsErr)
 	return makeGameErr(ctx, gameID, wsErr)
 }
 
@@ -171,14 +171,15 @@ func (h *GameplayHandler) handleGameMessage(ctx GameSocketContext, msg []byte, w
 }
 
 func (h *GameplayHandler) handleGameForfeit(ctx GameSocketContext) error {
-	if err := svc.ForfeitGame(ctx.Context, &h.Databases, ctx.GameID, ctx.Player); err != nil {
-		return err
-	}
-	bytes, err := proto.Marshal(MakePbGameOutputForfeit(ctx.GameID))
+	replayID, err := svc.ForfeitGame(ctx.Context, &h.Databases, ctx.GameID, ctx.Player); 
 	if err != nil {
 		return err
 	}
-	return svc.BroadcastMessage(ctx.Context, h.Rdb, h.Rdb.GamesChan, bytes)
+	bytes, err := proto.Marshal(MakePbGameOutputForfeit(ctx.GameID, replayID))
+	if err != nil {
+		return err
+	}
+	return svc.BroadcastGamesEvent(ctx.Context, h.Rdb, bytes)
 }
 
 func (h *GameplayHandler) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) error {
@@ -196,7 +197,7 @@ func (h *GameplayHandler) handleGameMove(ctx GameSocketContext, pbInput *pb.Move
 	if err != nil {
 		return err
 	}
-	return svc.BroadcastMessage(ctx.Context, h.Rdb, h.Rdb.GamesChan, bytes)
+	return svc.BroadcastGamesEvent(ctx.Context, h.Rdb, bytes)
 }
 
 func (h *GameplayHandler) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput) error {
@@ -204,7 +205,7 @@ func (h *GameplayHandler) handleGameChat(ctx GameSocketContext, pbInput *pb.Chat
 	if err != nil {
 		return err
 	}
-	return svc.BroadcastMessage(ctx.Context, h.Rdb, h.Rdb.GamesChan, bytes)
+	return svc.BroadcastGamesEvent(ctx.Context, h.Rdb, bytes)
 }
 
 func (h *GameplayHandler) handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput) error {
@@ -234,5 +235,5 @@ func (h *GameplayHandler) handleGameUndo(ctx GameSocketContext, pbInput *pb.Undo
 	if err != nil {
 		return err
 	}
-	return svc.BroadcastMessage(ctx.Context, h.Rdb, h.Rdb.GamesChan, bytes)
+	return svc.BroadcastGamesEvent(ctx.Context, h.Rdb, bytes)
 }

@@ -2,12 +2,13 @@ package svc
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
 	"hexchess-svc/pkg/logutil"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestInsertThenGetReplay(t *testing.T) {
@@ -95,7 +96,7 @@ func TestGetReplayMoveList(t *testing.T) {
 }
 
 func TestRetrieveEloHistories(t *testing.T) {
-	dbs, closer := db.BeforeDbTest(t, false, InsertTestData)
+	databases, closer := db.BeforeDbTest(t, false, InsertTestData)
 	defer closer()
 
 	timeUntil := time.Date(2020, 2, 2, 2, 0, 0, 0, time.UTC)
@@ -138,7 +139,7 @@ func TestRetrieveEloHistories(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
 
-			eloHistories, bd, err := RetrieveEloHistoryBuckets(ctx, &dbs, test.params)
+			eloHistories, bd, err := RetrieveEloHistoryBuckets(ctx, &databases, test.params)
 			require.NoError(t, err)
 
 			assert.Equal(t, test.wantEloBuckets, eloHistories)

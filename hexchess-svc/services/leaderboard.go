@@ -2,6 +2,7 @@ package svc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hexchess-svc/db"
 	"hexchess-svc/pkg/logutil"
@@ -85,9 +86,10 @@ func GetLeaderboardRanks(ctx context.Context, rdb *db.Redis, id int64, modes map
 	}
 	for _, exec := range getExecs {
 		rs, err := exec.cmd.Result()
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			continue
-		} else if err != nil {
+		}
+		if err != nil {
 			return nil, fmt.Errorf("get leaderboard rank for mode %v: %w", exec.mode, err)
 		}
 		setRank(exec.mode, rs)
@@ -174,11 +176,11 @@ func GetLeaderboardPage(ctx context.Context, rdb *db.Redis, mode GameMode, page,
 	return leaderboard, err
 }
 
-func SyncLeaderboard(ctx context.Context, dbs *db.Databases) error {
+func SyncLeaderboard(ctx context.Context, databases *db.Databases) error {
 	for _, mode := range GameModeMap {
 		afterID := int64(0)
 		for {
-			rows, err := dbs.Pdb.Query.SelectEloList(ctx, db.SelectEloListParams{ID: afterID, Mode: db.ModeEnum(mode.String()), Limit: 20})
+			rows, err := databases.Pdb.Query.SelectEloList(ctx, db.SelectEloListParams{ID: afterID, Mode: db.ModeEnum(mode.String()), Limit: 20})
 			if err != nil {
 				return fmt.Errorf("select elo list afterID %d: %w", afterID, err)
 			}
@@ -193,7 +195,7 @@ func SyncLeaderboard(ctx context.Context, dbs *db.Databases) error {
 			if len(changes) == 0 {
 				break
 			}
-			if err := SetLeaderboard(ctx, dbs.Rdb, changes...); err != nil {
+			if err := SetLeaderboard(ctx, databases.Rdb, changes...); err != nil {
 				return fmt.Errorf("set leaderboard: %w", err)
 			}
 		}

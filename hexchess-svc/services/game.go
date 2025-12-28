@@ -107,6 +107,7 @@ func JoinGame(ctx context.Context, rdb *db.Redis, gameID string, player PlayerSt
 }
 
 type MoveResult struct {
+	ReplayID int64
 	State *ChessState
 	Move  chess.HistMove
 }
@@ -121,6 +122,10 @@ func DoMakeMove(ctx context.Context, state *ChessState, player PlayerState, move
 	var mr MoveResult
 
 	game := &state.Game
+	if game.BlackMoves == nil || game.WhiteMoves == nil {
+		game.InitPieceMoves()
+	}
+
 	gameID := state.ID
 	currPlayer := state.CurrPlayer()
 
@@ -148,10 +153,10 @@ func DoMakeMove(ctx context.Context, state *ChessState, player PlayerState, move
 	return mr, nil
 }
 
-func MakeGameMove(ctx context.Context, dbs *db.Databases, gameID string, player PlayerState, move chess.Move) (MoveResult, error) {
+func MakeGameMove(ctx context.Context, databases *db.Databases, gameID string, player PlayerState, move chess.Move) (MoveResult, error) {
 	var mr MoveResult
 
-	state, err := GetChessState(ctx, dbs.Rdb, gameID)
+	state, err := GetChessState(ctx, databases.Rdb, gameID)
 	if err != nil {
 		return mr, err
 	}
@@ -165,13 +170,15 @@ func MakeGameMove(ctx context.Context, dbs *db.Databases, gameID string, player 
 		if state.Game.Board.IsWhiteTurn {
 			result = BlackWin
 		}
-		if err := WriteFinishedGame(ctx, dbs, state, result, Checkmate); err != nil {
+		replayID, err := WriteFinishedGame(ctx, databases, state, result, Checkmate); 
+		if err != nil {
 			return mr, fmt.Errorf("write checkmate game result: %w", err)
 		}
+		mr.ReplayID = replayID
 	}
 	slog.InfoContext(ctx, "made move on game", "player", player.ID, "move", move, "chessMeta", state.ChessMeta)
 
-	if err := SetChessState(ctx, dbs.Rdb, gameID, state); err != nil {
+	if err := SetChessState(ctx, databases.Rdb, gameID, state); err != nil {
 		return mr, err
 	}
 	return mr, nil
@@ -216,14 +223,14 @@ func AttemptGameUndo(ctx context.Context, rdb *db.Redis, gameID string, player P
 	return state, nil
 }
 
-func ForfeitGame(ctx context.Context, dbs *db.Databases, gameID string, player PlayerState) error {
-	state, err := GetChessState(ctx, dbs.Rdb, gameID)
+func ForfeitGame(ctx context.Context, databases *db.Databases, gameID string, player PlayerState) (int64, error) {
+	state, err := GetChessState(ctx, databases.Rdb, gameID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if !state.WhitePlayer.Present || !state.BlackPlayer.Present {
-		slog.Warn("game does not have both players, cannot forfeit", "game", gameID)
-		return nil
+		slog.WarnContext(ctx, "game does not have both players, cannot forfeit", "game", gameID)
+		return 0, nil
 	}
 
 	result := BlackWin
@@ -232,29 +239,30 @@ func ForfeitGame(ctx context.Context, dbs *db.Databases, gameID string, player P
 	}
 	state.IsEnded = true
 
-	if err := SetChessState(ctx, dbs.Rdb, gameID, state); err != nil {
-		return err
+	if err := SetChessState(ctx, databases.Rdb, gameID, state); err != nil {
+		return 0, err
 	}
-	if err := WriteFinishedGame(ctx, dbs, state, result, Forfeit); err != nil {
-		return fmt.Errorf("write forfeit game result: %w", err)
+	replayID, err := WriteFinishedGame(ctx, databases, state, result, Forfeit); 
+	if err != nil {
+		return 0, fmt.Errorf("write forfeit game result: %w", err)
 	}
 
 	slog.InfoContext(ctx, "player forfeited game", "playerID", player.ID, "gameId", gameID)
-	return nil
+	return replayID, nil
 }
 
-func WriteFinishedGame(ctx context.Context, dbs *db.Databases, state *ChessState, result ReplayResult, cause ReplayCause) error {
+func WriteFinishedGame(ctx context.Context, databases *db.Databases, state *ChessState, result ReplayResult, cause ReplayCause) (int64, error) {
 	if !state.WhitePlayer.Present || !state.BlackPlayer.Present {
-		return fmt.Errorf("room players must not be nil on a finished game: roomID: %s", state.ID)
+		return 0, fmt.Errorf("room players must not be nil on a finished game: roomID: %s", state.ID)
 	}
 	whiteID := state.WhitePlayer.ID
 	blackID := state.BlackPlayer.ID
 
 	moveHistBytes, err := chess.MarshalMoveHistory(state.InitialBoard, state.Game.Moves)
 	if err != nil {
-		return fmt.Errorf("marshal move history: %w", err)
+		return 0, fmt.Errorf("marshal move history: %w", err)
 	}
-	cs, err := InsertGameResultTx(ctx, dbs.Pdb, time.Time{}, GameResult{
+	cs, err := InsertGameResultTx(ctx, databases.Pdb, time.Time{}, GameResult{
 		WhiteID:            whiteID,
 		BlackID:            blackID,
 		ReplayCause:        cause,
@@ -263,21 +271,21 @@ func WriteFinishedGame(ctx context.Context, dbs *db.Databases, state *ChessState
 		SerializedMoveHist: moveHistBytes,
 	})
 	if err != nil {
-		return fmt.Errorf("execute finish game tx: %w", err)
+		return 0, fmt.Errorf("execute finish game tx: %w", err)
 	}
 	if cs.IsNoop() {
-		return nil
+		return 0, nil
 	}
 	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", cs, "room", state.ID)
 
-	if err := IncrLeaderboard(ctx, dbs.Rdb,
+	if err := IncrLeaderboard(ctx, databases.Rdb,
 		UpdtLbChangeSet{Mode: state.Mode, ID: cs.WinID, EloDiff: cs.WinEloDiff},
 		UpdtLbChangeSet{Mode: state.Mode, ID: cs.LoseID, EloDiff: cs.LoseEloDiff},
 	); err != nil {
-		return fmt.Errorf("increment user leaderboard stats: %w", err)
+		return 0, fmt.Errorf("increment user leaderboard stats: %w", err)
 	}
-	slog.InfoContext(ctx, "finished game", "room", state.ID)
-	return nil
+	slog.InfoContext(ctx, "completed writing finished game", "stateID", state.ID)
+	return cs.ReplayID, nil
 }
 
 type GameResult struct {
@@ -322,9 +330,10 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 	}
 	whiteElo, blackElo := StartElo, StartElo
 	for _, row := range rows {
-		if row.UserID == result.WhiteID {
+		switch row.UserID {
+		case result.WhiteID:
 			whiteElo = row.Elo
-		} else if row.UserID == result.BlackID {
+		case result.BlackID:
 			blackElo = row.Elo
 		}
 	}

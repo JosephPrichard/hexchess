@@ -5,7 +5,7 @@ import (
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
 	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/services"
+	svc "hexchess-svc/services"
 	"log"
 	"log/slog"
 	"os"
@@ -37,14 +37,13 @@ func main() {
 		logutil.LogFatalErr("create pool", err)
 	}
 	defer pool.Close()
-	q := db.New(pool)
 
 	slog.InfoContext(ctx, "connecting to redis db", "redisPrimaryURL", redisPrimaryURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: redisPrimaryURL}, db.DefaultRedisNames)
 	defer rdb.Close()
 
-	dbs := &db.Databases{Pdb: db.MakePostgres(q, pool), Rdb: rdb}
-	if err := svc.SyncLeaderboard(ctx, dbs); err != nil {
+	databases := &db.Databases{Pdb: db.MakePostgres(pool), Rdb: rdb}
+	if err := svc.SyncLeaderboard(ctx, databases); err != nil {
 		logutil.LogFatalErr("sync leaderboard", err)
 	}
 	log.Printf("finished syncing leaderboard: %v", time.Now().Sub(start))

@@ -39,10 +39,12 @@ func MakePbGameOutputPlayers(gameID string, white, black *pb.PlayerState) *pb.Ga
 	}
 }
 
-func MakePbGameOutputForfeit(gameID string) *pb.GameOutput {
+func MakePbGameOutputForfeit(gameID string, replayID int64) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
-		Value:  &pb.GameOutput_Forfeit{Forfeit: &pb.ForfeitOutput{}},
+		Value:  &pb.GameOutput_Forfeit{Forfeit: &pb.ForfeitOutput{
+			ReplayId: replayID,
+		}},
 	}
 }
 

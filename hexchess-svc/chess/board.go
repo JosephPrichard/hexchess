@@ -3,6 +3,7 @@ package chess
 import (
 	"errors"
 	"fmt"
+	"hexchess-svc/pb"
 	"slices"
 	"strconv"
 	"strings"
@@ -132,9 +133,24 @@ func ParseHexagon(notation string) (Hex, error) {
 func HexStr(notation string) Hex {
 	hex, err := ParseHexagon(notation)
 	if err != nil {
-		panic(fmt.Sprintf("set piece at notation: %s", err))
+		panic(err)
 	}
 	return hex
+}
+
+func MoveStr(from string, to string) Move {
+	return Move{From: HexStr(from), To: HexStr(to)}
+}
+
+func PbMoveStr(from string, to string) *pb.Move {
+	fromHex := HexStr(from)
+	toHex := HexStr(to)
+	return &pb.Move{
+		FromFile: int32(fromHex.File),
+		FromRank: int32(fromHex.Rank),
+		ToFile: int32(toHex.File),
+		ToRank: int32(toHex.Rank),
+	}
 }
 
 func (h Hex) String() string {

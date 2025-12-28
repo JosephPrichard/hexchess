@@ -3,15 +3,16 @@ package db
 import (
 	"context"
 	"fmt"
+	"hexchess-svc/pkg/logutil"
+	"log"
+	"sync"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"hexchess-svc/pkg/logutil"
-	"log"
-	"sync"
-	"time"
 )
 
 const TestDbUser = "postgres"
@@ -166,6 +167,6 @@ func BeforePostgresTest(t TestLogger, useTestTx bool, insertTestData func(TestLo
 func BeforeDbTest(t TestLogger, useTx bool, insertTestData func(TestLogger, *pgxpool.Pool)) (Databases, func()) {
 	pdb, pdbCloser := BeforePostgresTest(t, useTx, insertTestData)
 	rdb := BeforeRedisTest(t)
-	dbs := Databases{Pdb: pdb, Rdb: rdb}
-	return dbs, func() { pdbCloser(); rdb.Close() }
+	databases := Databases{Pdb: pdb, Rdb: rdb}
+	return databases, func() { pdbCloser(); rdb.Close() }
 }

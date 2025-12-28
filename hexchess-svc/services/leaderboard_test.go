@@ -2,12 +2,13 @@ package svc
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
 	"hexchess-svc/pkg/assertutil"
 	"hexchess-svc/pkg/logutil"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLeaderboard(t *testing.T) {
@@ -96,7 +97,7 @@ func TestLeaderboard(t *testing.T) {
 }
 
 func TestGetLeaderboardUsers(t *testing.T) {
-	dbs, closer := db.BeforeDbTest(t, false, InsertTestData)
+	databases, closer := db.BeforeDbTest(t, false, InsertTestData)
 	defer closer()
 
 	for _, test := range []struct {
@@ -148,7 +149,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
 
-			leaderboard, err := GetLeaderboardUsers(ctx, dbs.Pdb.Query, test.mode, test.rankedUsers)
+			leaderboard, err := GetLeaderboardUsers(ctx, databases.Pdb.Query, test.mode, test.rankedUsers)
 
 			assert.Equal(t, test.wantErr, err)
 			assertutil.AssertEqualIgnoring(t, test.wantLeaderboard, leaderboard)

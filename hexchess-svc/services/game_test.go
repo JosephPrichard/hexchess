@@ -2,8 +2,6 @@ package svc
 
 import (
 	"context"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/stretchr/testify/require"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/pkg/assertutil"
@@ -13,24 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/require"
+
 	"github.com/stretchr/testify/assert"
 )
-
-func assertStateRdb(t *testing.T, rdb *db.Redis, wantState ChessState) {
-	ctx := context.WithValue(t.Context(), logutil.Trace, "assert-chess-states")
-	actualState, err := GetChessState(ctx, rdb, wantState.ID)
-	if err != nil {
-		t.Fatalf("get chess for assert: %v", err)
-	}
-	assertutil.AssertEqualIgnoring(t, wantState, *actualState, ChessMetaCmpOpts)
-}
-
-func assertChessState(t *testing.T, wantState ChessState, actualState *ChessState) {
-	if actualState == nil {
-		t.Fatalf("chess state is nil")
-	}
-	assertutil.AssertEqualIgnoring(t, wantState, *actualState, ChessMetaCmpOpts)
-}
 
 func TestJoinGame_JoinWhite(t *testing.T) {
 	// given
@@ -54,8 +39,8 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	wantState := inState.DeepCopy()
 	wantState.WhitePlayer = player
 
-	assertChessState(t, wantState, updatedState)
-	assertStateRdb(t, rdb, *updatedState)
+	AssertChessState(t, wantState, updatedState)
+	AssertRedisChess(t, rdb, *updatedState)
 }
 
 func TestJoinGame_BothPlayersExist(t *testing.T) {
@@ -81,8 +66,8 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	require.NoError(t, err)
 
 	// then
-	assertChessState(t, inState, resultState)
-	assertStateRdb(t, rdb, inState)
+	AssertChessState(t, inState, resultState)
+	AssertRedisChess(t, rdb, inState)
 }
 
 func TestAttemptUndo(t *testing.T) {
@@ -160,15 +145,15 @@ func TestAttemptUndo(t *testing.T) {
 			if test.wantErr != nil {
 				assert.Equal(t, test.wantErr, err)
 			} else {
-				assertChessState(t, test.wantState, state)
-				assertStateRdb(t, rdb, *state)
+				AssertChessState(t, test.wantState, state)
+				AssertRedisChess(t, rdb, *state)
 			}
 		})
 	}
 }
 
 func TestMakeMove(t *testing.T) {
-	dbs, closer := db.BeforeDbTest(t, true, InsertTestData)
+	databases, closer := db.BeforeDbTest(t, true, InsertTestData)
 	defer closer()
 
 	s1 := MakeState(StateSetup{
@@ -197,7 +182,7 @@ func TestMakeMove(t *testing.T) {
 
 	for _, state := range []ChessState{s1, s2} {
 		state.Game.InitPieceMoves()
-		if err := SetChessState(ctx, dbs.Rdb, state.ID, &state); err != nil {
+		if err := SetChessState(ctx, databases.Rdb, state.ID, &state); err != nil {
 			t.Fatalf("failed initialize test state: %v", err)
 		}
 	}
@@ -244,7 +229,7 @@ func TestMakeMove(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := MakeGameMove(ctx, &dbs, test.state.ID, test.player, test.pm)
+			_, err := MakeGameMove(ctx, &databases, test.state.ID, test.player, test.pm)
 			assert.Equal(t, test.wantErr, err)
 		})
 	}
@@ -252,7 +237,7 @@ func TestMakeMove(t *testing.T) {
 
 func TestForfeit_BlackForfeits(t *testing.T) {
 	// given
-	dbs, closer := db.BeforeDbTest(t, true, InsertTestData)
+	databases, closer := db.BeforeDbTest(t, true, InsertTestData)
 	defer closer()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-forfeit")
@@ -270,14 +255,30 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	}}
 
 	// when
-	require.NoError(t, SetChessState(ctx, dbs.Rdb, gameID, &inState))
-	require.NoError(t, ForfeitGame(ctx, &dbs, gameID, inState.BlackPlayer))
+	require.NoError(t, SetChessState(ctx, databases.Rdb, gameID, &inState))
+	replayID, err := ForfeitGame(ctx, &databases, gameID, inState.BlackPlayer)
+	require.NoError(t, err)
 
 	// then
+	wantReplay := db.Replay{
+		WhiteID:     1,
+		BlackID:     2,
+		Mode:        "CORRESPONDENCE_1",
+		Result:      "WHITE_WINS",
+		Cause:       "FORFEIT",
+		WinEloDiff:  15,
+		LoseEloDiff: -15,
+		WhiteElo:    1015,
+		BlackElo:    985,
+	}
 	wantState := inState.DeepCopy()
 	wantState.IsEnded = true
 
-	assertStateRdb(t, dbs.Rdb, wantState)
+	AssertRedisChess(t, databases.Rdb, wantState)
+
+	replay, err := databases.Pdb.Query.SelectReplayRowByID(ctx, replayID)
+	require.NoError(t, err)
+	assertutil.AssertEqualIgnoring(t, wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn", "MoveHistory"))
 }
 
 func TestInsertGameResult(t *testing.T) {
@@ -303,14 +304,13 @@ func TestInsertGameResult(t *testing.T) {
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
-				Result:      db.ResultEnum(Draw.String()),
-				Cause:       db.CauseEnum(Stalemate.String()),
-				Mode:        db.ModeEnum(ModeTimed1Plus0.String()),
+				Result:      "DRAW",
+				Cause:       "STALEMATE",
+				Mode:        "TIMED_1+0",
 				WinEloDiff:  0,
 				LoseEloDiff: 0,
 				WhiteElo:    1000,
 				BlackElo:    1000,
-				MoveHistory: []byte{},
 			},
 			wantChange: GRChangeSet{},
 		},
@@ -324,14 +324,13 @@ func TestInsertGameResult(t *testing.T) {
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
-				Result:      db.ResultEnum(WhiteWin.String()),
-				Cause:       db.CauseEnum(Checkmate.String()),
-				Mode:        db.ModeEnum(ModeCorrespondence1.String()),
+				Result:      "WHITE_WINS",
+				Cause:       "CHECKMATE",
+				Mode:        "CORRESPONDENCE_1",
 				WinEloDiff:  15,
 				LoseEloDiff: -15,
 				WhiteElo:    1015,
 				BlackElo:    985,
-				MoveHistory: []byte{},
 			},
 			wantChange: GRChangeSet{WinID: testUser0.ID, LoseID: testUser1.ID, WinEloDiff: 15, LoseEloDiff: -15},
 		},
@@ -345,14 +344,13 @@ func TestInsertGameResult(t *testing.T) {
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
-				Result:      db.ResultEnum(BlackWin.String()),
-				Cause:       db.CauseEnum(Forfeit.String()),
-				Mode:        db.ModeEnum(ModeCorrespondence7.String()),
+				Result:      "BLACK_WINS",
+				Cause:       "FORFEIT",
+				Mode:        "CORRESPONDENCE_7",
 				WinEloDiff:  15,
 				LoseEloDiff: -15,
 				WhiteElo:    985,
 				BlackElo:    1015,
-				MoveHistory: []byte{},
 			},
 			wantChange: GRChangeSet{WinID: testUser1.ID, LoseID: testUser0.ID, WinEloDiff: 15, LoseEloDiff: -15},
 		},
@@ -375,10 +373,10 @@ func TestInsertGameResult(t *testing.T) {
 
 			assert.Equal(t, test.wantElos, rowElos)
 
-			r1, err := pdb.Query.SelectReplayRowByID(ctx, cs.ReplayID)
+			replay, err := pdb.Query.SelectReplayRowByID(ctx, cs.ReplayID)
 			require.NoError(t, err)
 
-			assertutil.AssertEqualIgnoring(t, test.wantReplay, r1, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn"))
+			assertutil.AssertEqualIgnoring(t, test.wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn", "MoveHistory"))
 
 			cs.ReplayID = 0
 			cs.WinEloDiff = math.Round(cs.WinEloDiff)

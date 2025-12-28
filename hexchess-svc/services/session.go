@@ -19,11 +19,10 @@ func GetSession(ctx context.Context, rdb *db.Redis, sessionID string) (PlayerSta
 	fullID := "session:" + sessionID
 	data, err := rdb.Cache.Get(ctx, fullID).Bytes()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return p, ErrSessionNotFound
-		} else {
-			return p, fmt.Errorf("get session %s: %w", sessionID, err)
 		}
+		return p, fmt.Errorf("get session %s: %w", sessionID, err)
 	}
 
 	p, err = UnmarshalPlayer(data)

@@ -17,7 +17,7 @@ import (
 )
 
 func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Message)) chan struct{} {
-	connCh := make(chan struct{}) // send a signal whenever the connection is complete
+	connCh := make(chan struct{}, 1) // send a signal whenever the connection is complete
 	recvLoop := func(conn redigo.Conn) {
 		psc := redigo.PubSubConn{Conn: conn}
 		defer psc.Close()
@@ -45,7 +45,7 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 		for {
 			conn, err := redigo.Dial("tcp", addr)
 			if err != nil {
-				slog.Error("get conn for pubsub", "err", err)
+				slog.Error("failed to get conn for pubsub", "err", err)
 			} else {
 				recvLoop(conn)
 			}
@@ -146,6 +146,10 @@ func BroadcastActiveCount(ctx context.Context, rdb *db.Redis, count int64, id st
 
 func BroadcastGameCount(ctx context.Context, rdb *db.Redis, count int64, id string) error {
 	return BroadcastCountEvent(ctx, rdb, rdb.GamesCountChan, count, id)
+}
+
+func BroadcastGamesEvent(ctx context.Context, rdb *db.Redis, b []byte) error {
+	return BroadcastMessage(ctx, rdb, rdb.GamesChan, b)
 }
 
 func BroadcastChallenge(ctx context.Context, rdb *db.Redis, c ChallengeEntity) error {
