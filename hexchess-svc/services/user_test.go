@@ -180,24 +180,6 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 	assert.Equal(t, u1.ID, v1.ID)
 }
 
-func TestInsertThenSearchByName(t *testing.T) {
-	// given
-	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
-	defer closer()
-
-	ctx := context.WithValue(t.Context(), logutil.Trace, "search-name")
-
-	// when
-	_, err := BatchInsertUsers(ctx, pdb.Query, []UserInst{{Username: "john", Password: "password5"}, {Username: "johnny", Password: "password5"}})
-	require.NoError(t, err)
-
-	list, err := SearchUsersByName(ctx, pdb.Query, "john", 1, 20)
-	require.NoError(t, err)
-
-	// then
-	assert.Len(t, list, 2)
-}
-
 func TestGetUserElos(t *testing.T) {
 	// given
 	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
@@ -206,7 +188,7 @@ func TestGetUserElos(t *testing.T) {
 	ctx := context.WithValue(t.Context(), logutil.Trace, "get-user-elos")
 
 	// when
-	stats, err := GetUserElos(ctx, pdb.Query, 1)
+	stats, err := GetUserStats(ctx, pdb.Query, 1)
 	require.NoError(t, err)
 
 	// then

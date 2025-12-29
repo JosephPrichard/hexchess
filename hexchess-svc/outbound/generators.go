@@ -5,30 +5,31 @@ import (
 	"time"
 )
 
-type Generators interface {
+// Generator is a generator for generating things my program determines "non-deterministic" and therefore must be mocked in tests
+type Generator interface {
 	MakeID() string
 	GetNow() time.Time
 }
 
-type RandGenerator struct{}
+type RandomGenerator struct{}
 
-func (_ *RandGenerator) MakeID() string {
+func (_ *RandomGenerator) MakeID() string {
 	return uuid.NewString()
 }
 
-func (_ *RandGenerator) GetNow() time.Time {
+func (_ *RandomGenerator) GetNow() time.Time {
 	return time.Now()
 }
 
-type MockGenerator struct {
+type StableGenerator struct {
 	ID   string
 	Time time.Time
 }
 
-func (g *MockGenerator) MakeID() string {
+func (g *StableGenerator) MakeID() string {
 	return g.ID
 }
 
-func (g *MockGenerator) GetNow() time.Time {
+func (g *StableGenerator) GetNow() time.Time {
 	return g.Time
 }

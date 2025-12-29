@@ -45,4 +45,5 @@ var (
 	ErrWsFinishedGame = errors.New("ERROR_FINISHED_GAME")
 	ErrWsInvalidGame  = errors.New("ERROR_INVALID_GAME")
 	ErrWsExpiration   = errors.New("ERROR_EXPIRED_GAME")
+	ErrWsUndoAction   = errors.New("ERR_UNDO_ACTION")
 )

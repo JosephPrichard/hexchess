@@ -59,9 +59,9 @@ type LbRank struct {
 	Score float64 `json:"score"`
 }
 
-func GetLeaderboardRanks(ctx context.Context, rdb *db.Redis, id int64, modes map[string]GameMode) (map[GameMode]LbRank, error) {
-	ranks := make(map[GameMode]LbRank)
-	setRank := func(mode GameMode, rs redis.RankScore) {
+func GetLeaderboardRanks(ctx context.Context, rdb *db.Redis, id int64, modes map[string]GameMode) (map[string]LbRank, error) {
+	ranks := make(map[string]LbRank)
+	setRank := func(mode string, rs redis.RankScore) {
 		ranks[mode] = LbRank{Rank: rs.Rank + 1, Score: rs.Score} // redis ranks start from 0, hexchess ranks start from 1.
 	}
 
@@ -69,7 +69,7 @@ func GetLeaderboardRanks(ctx context.Context, rdb *db.Redis, id int64, modes map
 
 	// fetch and read ranks for each mode in a single pipeline
 	type getExec struct {
-		mode GameMode
+		mode string
 		cmd  *redis.RankWithScoreCmd
 	}
 	pipeline := rdb.Cache.Pipeline()
@@ -77,7 +77,7 @@ func GetLeaderboardRanks(ctx context.Context, rdb *db.Redis, id int64, modes map
 
 	for _, mode := range modes {
 		getExecs = append(getExecs, getExec{
-			mode: mode,
+			mode: mode.String(),
 			cmd:  rdb.Cache.ZRevRankWithScore(ctx, getLeaderboardZSet(rdb, mode), strID),
 		})
 	}
@@ -105,7 +105,7 @@ func GetLeaderboardRanks(ctx context.Context, rdb *db.Redis, id int64, modes map
 	var addExecs []addExec
 
 	for _, mode := range modes {
-		if _, ok := ranks[mode]; ok {
+		if _, ok := ranks[mode.String()]; ok {
 			continue
 		}
 		modeLbZSet := getLeaderboardZSet(rdb, mode)
@@ -126,7 +126,7 @@ func GetLeaderboardRanks(ctx context.Context, rdb *db.Redis, id int64, modes map
 		if err != nil {
 			return nil, fmt.Errorf("get after add leaderboard rank for mode %v: %w", exec.mode, err)
 		}
-		setRank(exec.mode, rs)
+		setRank(exec.mode.String(), rs)
 	}
 
 	slog.InfoContext(ctx, "retrieved leaderboard ranks", "id", id, "ranks", ranks)
@@ -265,4 +265,80 @@ func GetLeaderboardUsers(ctx context.Context, query *db.Queries, mode GameMode, 
 
 	slog.InfoContext(ctx, "selected users", "ids", ids, "ldbUsers", lbdUsers, "rnkUsers", rnkUsers)
 	return lbdUsers, nil
+}
+
+const MaxSearchOffset = 1000
+
+var ErrSearchLimit = errors.New("search limit exceeded")
+
+func GetFuzzySearchLeaderboard(ctx context.Context, query *db.Queries, name string, page, perPage int32) ([]LbdUserEntity, error) {
+	page = max(page, 1)
+	offset := (page - 1) * perPage
+	if offset > MaxSearchOffset {
+		slog.WarnContext(ctx, "failed to search offset exceeds maximum", "offset", offset, "maxOffset", MaxSearchOffset)
+		return nil, ErrSearchLimit
+	}
+
+	userRows, err := query.SelectUsersBySimilarity(ctx, db.SelectUsersBySimilarityParams{
+		Username: name,
+		Limit:    perPage,
+		Offset:   offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("select users by similarity: %w", err)
+	}
+
+	var userIDs []int64
+	for _, row := range userRows {
+		userIDs = append(userIDs, row.ID)
+	}
+	eloRows, err := query.SelectManyUserElosById(ctx, userIDs)
+	if err != nil {
+		return nil, fmt.Errorf("select elos by user ids %v: %w", userIDs, err)
+	}
+
+	eloAggrMap := make(map[int64]struct {
+		HighestElo float64
+		Elo        float64
+		Datapoints int
+		Wins       int32
+		Losses     int32
+		Winrate    int64
+	})
+	for _, row := range eloRows {
+		aggr := eloAggrMap[row.UserID]
+
+		aggr.Elo = avg(aggr.Elo, aggr.Datapoints, row.Elo)
+		aggr.HighestElo = max(aggr.HighestElo, row.Elo)
+		aggr.Winrate = avg(aggr.Winrate, aggr.Datapoints, calcUserWinrate(row.Wins, row.Losses))
+		aggr.Losses += row.Losses
+		aggr.Wins += row.Wins
+		aggr.Datapoints += 1
+
+		eloAggrMap[row.UserID] = aggr
+	}
+
+	var users []LbdUserEntity
+	for i, userRow := range userRows {
+		searchRank := (page-1)*perPage + int32(i) + 1
+
+		aggr := eloAggrMap[userRow.ID]
+
+		users = append(users, LbdUserEntity{
+			UserEntity: UserEntity{
+				ID:       userRow.ID,
+				Username: userRow.Username,
+				Country:  userRow.Country,
+			},
+			Elo:        aggr.Elo,
+			HighestElo: aggr.HighestElo,
+			Wins:       aggr.Wins,
+			Losses:     aggr.Losses,
+			Winrate:    aggr.Winrate,
+			Rank:       int64(searchRank),
+		})
+	}
+
+	slog.InfoContext(ctx, "selected users by name similarity", "users", users, "name", name, "page", page, "limit", page, "offset", offset)
+	return users, nil
 }

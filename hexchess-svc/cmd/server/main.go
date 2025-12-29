@@ -67,12 +67,12 @@ func main() {
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: redisPrimaryURL, PubsubAddr: redisPubSubURL}, db.DefaultRedisNames)
 
 	databases := db.Databases{Rdb: rdb, Pdb: pdb}
-	databases.Close()
+	defer databases.Close()
 
 	state := web.State{
 		Databases:      databases,
 		Broadcasters:   svc.MakeBroadcaster(),
-		Generators:     &outbound.RandGenerator{},
+		Generators:     &outbound.RandomGenerator{},
 		OutboundAPIs:   outbound.MakeRemoteAPIs(),
 		CountryList:    countryList,
 		AllowedOrigins: allowedOrigins,

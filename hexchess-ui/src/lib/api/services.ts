@@ -236,7 +236,7 @@ function getSearchPlayers(username: string, page?: number, fetch?: FetchFn) {
 	if (page)
 		params.set('page', String(page));
 	interface Response {
-		userList: UserModel[];
+		userList: LbdUserModel[];
 	}
 	return requestJSON<Response>(`${baseURL()}/players/search?${params}`, { method: 'GET' }, fetch);
 }

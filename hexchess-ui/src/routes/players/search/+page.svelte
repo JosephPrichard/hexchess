@@ -1,13 +1,13 @@
 <script lang="ts">
 	import Pagination from '$lib/Pagination.svelte';
 	import StatsList from '$lib/components/stats/StatsList.svelte';
-	import type { UserModel } from '$lib/api/models';
+	import type { LbdUserModel, UserModel } from '$lib/api/models';
 	import Banner from '$lib/Banner.svelte';
 
 	export interface SearchProps {
 		searchText: string;
 		page: number;
-		userList: UserModel[];
+		userList: LbdUserModel[];
 		message: string;
 	}
 

@@ -35,7 +35,7 @@ func TestEchoChessState(t *testing.T) {
 
 	// then
 	assert.Equal(t, ErrNoChessState, errBadID)
-	assertutil.AssertEqualIgnoring(t, state1, *outState1, ChessMetaCmpOpts)
+	assertutil.AssertEqualIgnoring(t, state1, *outState1, ChessMetaCmpOpt)
 }
 
 func TestGetChessMetas(t *testing.T) {

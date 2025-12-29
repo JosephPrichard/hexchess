@@ -39,8 +39,8 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	wantState := inState.DeepCopy()
 	wantState.WhitePlayer = player
 
-	AssertChessState(t, wantState, updatedState)
-	AssertRedisChess(t, rdb, *updatedState)
+	AssertChessState(t, wantState, updatedState, ChessMetaCmpOpt)
+	AssertRedisChess(t, rdb, *updatedState, ChessMetaCmpOpt)
 }
 
 func TestJoinGame_BothPlayersExist(t *testing.T) {
@@ -66,96 +66,147 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	require.NoError(t, err)
 
 	// then
-	AssertChessState(t, inState, resultState)
-	AssertRedisChess(t, rdb, inState)
+	AssertChessState(t, inState, resultState, ChessMetaCmpOpt)
+	AssertRedisChess(t, rdb, inState, ChessMetaCmpOpt)
 }
 
 func TestAttemptUndo(t *testing.T) {
-	// given
-	rdb := db.BeforeRedisTest(t)
-	defer rdb.Close()
-
-	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-undo")
-
-	gameID := "test123"
-	inState := MakeState(StateSetup{
-		ID:         gameID,
+	inState1 := MakeState(StateSetup{
+		ID:         "test1",
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      ptr.New(MakeNamePlayer(1, "white")),
 		Black:      ptr.New(MakeNamePlayer(2, "black")),
 	})
+	inState2 := MakeState(StateSetup{
+		ID:         "test2",
+		Mode:       ModeCorrespondence1,
+		FirstColor: Random,
+		White:      ptr.New(MakeNamePlayer(1, "white")),
+		Black:      ptr.New(MakeNamePlayer(2, "black")),
+	})
+	inState2.Game.Moves = []chess.HistMove{{PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}}}}
 
-	makeWantState := func(fn func(s *ChessState)) ChessState {
+	states := []ChessState{inState1, inState2}
+
+	makeWantState := func(inState *ChessState, fn func(s *ChessState)) ChessState {
 		state := inState.DeepCopy()
 		fn(&state)
 		return state
 	}
 
-	if err := SetChessState(ctx, rdb, gameID, &inState); err != nil {
-		t.Fatalf("failed initialize test state: %v", err)
-	}
-
-	for _, test := range []struct {
-		name      string
+	type subTest struct {
 		kind      UndoKind
 		player    PlayerState
 		wantState ChessState
 		wantErr   error
+	}
+
+	for _, test := range []struct {
+		name   string
+		gameID string
+		tests  []subTest
 	}{
-		// attempt undo table driven tests must be executed sequentially
 		{
-			name:      "creating an undo",
-			kind:      UndoCreate,
-			player:    MakeIDPlayer(1),
-			wantState: makeWantState(func(s *ChessState) { s.UndoState = UndoState{UndoID: 1} }),
+			name:   "creating then rejecting an undo",
+			gameID: "test1",
+			tests: []subTest{
+				{
+					kind:      UndoCreate,
+					player:    MakeIDPlayer(1),
+					wantState: makeWantState(&inState1, func(s *ChessState) { s.UndoState = UndoState{UndoID: 1} }),
+				},
+				{
+					kind:      UndoReject,
+					player:    MakeIDPlayer(1),
+					wantState: makeWantState(&inState1, func(s *ChessState) { s.UndoState = UndoState{} }),
+				},
+			},
 		},
 		{
-			name:      "rejecting an undo",
-			kind:      UndoReject,
-			player:    MakeIDPlayer(1),
-			wantState: makeWantState(func(s *ChessState) { s.UndoState = UndoState{} }),
+			name:   "rejecting and accepting an undo without creating",
+			gameID: "test1",
+			tests: []subTest{
+				{
+					kind:    UndoReject,
+					player:  MakeIDPlayer(1),
+					wantErr: ErrNoUndo,
+				},
+				{
+					kind:    UndoAccept,
+					player:  MakeIDPlayer(1),
+					wantErr: ErrNoUndo,
+				},
+			},
 		},
 		{
-			name:      "creating an undo for another player",
-			kind:      UndoCreate,
-			player:    MakeIDPlayer(2),
-			wantState: makeWantState(func(s *ChessState) { s.UndoState = UndoState{UndoID: 2} }),
+			name:   "creating then accepting an undo",
+			gameID: "test2",
+			tests: []subTest{
+				{
+					kind:      UndoCreate,
+					player:    MakeIDPlayer(1),
+					wantState: makeWantState(&inState2, func(s *ChessState) { s.UndoState = UndoState{UndoID: 1} }),
+				},
+				{
+					kind:      UndoAccept,
+					player:    MakeIDPlayer(2),
+					wantState: makeWantState(&inState2, func(s *ChessState) { s.UndoState = UndoState{} }),
+				},
+			},
 		},
 		{
-			name:      "accepting an undo as creator",
-			kind:      UndoAccept,
-			player:    MakeIDPlayer(2),
-			wantErr:   ErrUndoNoop,
-			wantState: makeWantState(func(s *ChessState) { s.UndoState = UndoState{UndoID: 2} }),
-		},
-		{
-			name:      "accepting an undo with no previous moves",
-			kind:      UndoAccept,
-			player:    MakeIDPlayer(1),
-			wantErr:   ErrNoMoveUndo,
-			wantState: makeWantState(func(s *ChessState) { s.UndoState = UndoState{} }),
+			name:   "creating an undo, accepting it as the creator, then accepting it with no previous moves",
+			gameID: "test1",
+			tests: []subTest{
+				{
+					kind:      UndoCreate,
+					player:    MakeIDPlayer(2),
+					wantState: makeWantState(&inState1, func(s *ChessState) { s.UndoState = UndoState{UndoID: 2} }),
+				},
+				{
+					kind:    UndoAccept,
+					player:  MakeIDPlayer(2),
+					wantErr: ErrUndoNoop,
+				},
+				{
+					kind:    UndoAccept,
+					player:  MakeIDPlayer(1),
+					wantErr: ErrNoMoveUndo,
+				},
+			},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			// when
-			state, err := AttemptGameUndo(ctx, rdb, gameID, test.player, test.kind)
+			// given
+			rdb := db.BeforeRedisTest(t)
+			defer rdb.Close()
 
-			// then
-			if test.wantErr != nil {
-				assert.Equal(t, test.wantErr, err)
-			} else {
-				AssertChessState(t, test.wantState, state)
-				AssertRedisChess(t, rdb, *state)
+			ctx := context.WithValue(t.Context(), logutil.Trace, "testing-undo")
+
+			for _, state := range states {
+				if err := SetChessState(ctx, rdb, state.ID, &state); err != nil {
+					t.Fatalf("failed initialize test state: %v", err)
+				}
+			}
+
+			for _, subTest := range test.tests {
+				// when
+				state, err := AttemptGameUndo(ctx, rdb, test.gameID, subTest.player, subTest.kind)
+
+				// then
+				assert.Equal(t, subTest.wantErr, err)
+				if subTest.wantErr == nil {
+					cmptOpts := cmpopts.IgnoreFields(ChessState{}, "Game", "Touch")
+					AssertChessState(t, subTest.wantState, state, cmptOpts)
+					AssertRedisChess(t, rdb, *state, cmptOpts)
+				}
 			}
 		})
 	}
 }
 
 func TestMakeMove(t *testing.T) {
-	databases, closer := db.BeforeDbTest(t, true, InsertTestData)
-	defer closer()
-
 	s1 := MakeState(StateSetup{
 		ID:         "test1",
 		Mode:       ModeCorrespondence1,
@@ -178,59 +229,87 @@ func TestMakeMove(t *testing.T) {
 		)),
 	})
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-make-move")
-
-	for _, state := range []ChessState{s1, s2} {
-		state.Game.InitPieceMoves()
-		if err := SetChessState(ctx, databases.Rdb, state.ID, &state); err != nil {
-			t.Fatalf("failed initialize test state: %v", err)
-		}
-	}
-
-	for _, test := range []struct {
-		name    string
+	type subTest struct {
 		pm      chess.Move
 		state   ChessState
 		player  PlayerState
 		wantErr error
+	}
+	for _, test := range []struct {
+		name  string
+		tests []subTest
 	}{
 		{
-			name:    "invalid turn",
-			pm:      chess.Move{To: chess.Hex{File: 1}},
-			state:   s1,
-			player:  s1.BlackPlayer,
-			wantErr: ErrTurn,
+			name: "invalid turn",
+			tests: []subTest{
+				{
+					pm:      chess.Move{To: chess.Hex{File: 1}},
+					state:   s1,
+					player:  s1.BlackPlayer,
+					wantErr: ErrTurn,
+				},
+			},
 		},
 		{
-			name:    "invalid move",
-			pm:      chess.Move{To: chess.Hex{File: 1}},
-			state:   s1,
-			player:  s1.WhitePlayer,
-			wantErr: ErrInvalidMove,
+			name: "invalid move",
+			tests: []subTest{
+				{
+
+					pm:      chess.Move{To: chess.Hex{File: 1}},
+					state:   s1,
+					player:  s1.WhitePlayer,
+					wantErr: ErrInvalidMove,
+				},
+			},
 		},
 		{
-			name:    "invalid move",
-			pm:      chess.Move{To: chess.Hex{File: 1}},
-			state:   s1,
-			player:  s1.WhitePlayer,
-			wantErr: ErrInvalidMove,
+			name: "invalid move",
+			tests: []subTest{
+				{
+					pm:      chess.Move{To: chess.Hex{File: 1}},
+					state:   s1,
+					player:  s1.WhitePlayer,
+					wantErr: ErrInvalidMove,
+				},
+			},
 		},
 		{
-			name:   "valid move as white",
-			pm:     chess.Move{Promotion: chess.QueenPromotion, From: chess.HexStr("b1"), To: chess.HexStr("b2")}, // valid move
-			state:  s1,
-			player: s1.WhitePlayer,
-		},
-		{
-			name:   "valid move as black",
-			pm:     chess.Move{Promotion: chess.QueenPromotion, From: chess.HexStr("a2"), To: chess.HexStr("a1")}, // valid move
-			state:  s2,
-			player: s2.BlackPlayer,
+			name: "valid move as white THEN black",
+			tests: []subTest{
+				{
+					pm:     chess.Move{Promotion: chess.QueenPromotion, From: chess.HexStr("b1"), To: chess.HexStr("b2")}, // valid move
+					state:  s1,
+					player: s1.WhitePlayer,
+				},
+				{
+					pm:     chess.Move{Promotion: chess.QueenPromotion, From: chess.HexStr("a2"), To: chess.HexStr("a1")}, // valid move
+					state:  s2,
+					player: s2.BlackPlayer,
+				},
+			},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := MakeGameMove(ctx, &databases, test.state.ID, test.player, test.pm)
-			assert.Equal(t, test.wantErr, err)
+			// given
+			ctx := context.WithValue(t.Context(), logutil.Trace, "testing-make-move")
+
+			databases, closer := db.BeforeDbTest(t, true, InsertTestData)
+			defer closer()
+
+			for _, state := range []ChessState{s1, s2} {
+				state.Game.InitPieceMoves()
+				if err := SetChessState(ctx, databases.Rdb, state.ID, &state); err != nil {
+					t.Fatalf("failed initialize test state: %v", err)
+				}
+			}
+
+			for _, subTest := range test.tests {
+				// when
+				_, err := MakeGameMove(ctx, &databases, subTest.state.ID, subTest.player, subTest.pm)
+
+				// then
+				assert.Equal(t, subTest.wantErr, err)
+			}
 		})
 	}
 }
@@ -274,7 +353,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	wantState := inState.DeepCopy()
 	wantState.IsEnded = true
 
-	AssertRedisChess(t, databases.Rdb, wantState)
+	AssertRedisChess(t, databases.Rdb, wantState, ChessMetaCmpOpt)
 
 	replay, err := databases.Pdb.Query.SelectReplayRowByID(ctx, replayID)
 	require.NoError(t, err)

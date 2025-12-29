@@ -65,7 +65,7 @@ func TestHandleRegister(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/api/register", asJSONReader(test.body))
 			w := httptest.NewRecorder()
 
-			HandleRoot(State{Databases: databases, Generators: &outbound.MockGenerator{Time: insertTime}}).ServeHTTP(w, r)
+			HandleRoot(State{Databases: databases, Generators: &outbound.StableGenerator{Time: insertTime}}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
@@ -393,7 +393,7 @@ func TestHandleCreateGame(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			HandleRoot(State{Databases: databases, Generators: &outbound.MockGenerator{Time: svc.TestTimeNow}}).ServeHTTP(w, r)
+			HandleRoot(State{Databases: databases, Generators: &outbound.StableGenerator{Time: svc.TestTimeNow}}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus != http.StatusOK {
@@ -450,7 +450,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			HandleRoot(State{Databases: databases, Generators: &outbound.MockGenerator{Time: svc.TestTimeNow}}).ServeHTTP(w, r)
+			HandleRoot(State{Databases: databases, Generators: &outbound.StableGenerator{Time: svc.TestTimeNow}}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			assertutil.AssertRespBody[ServiceView](t, test.wantResp, w)
@@ -460,15 +460,17 @@ func TestHandleCreateChallenge(t *testing.T) {
 
 func TestGetLeaderboard(t *testing.T) {
 	for _, test := range []struct {
-		mode string
-		page string
-		wantStatus int
+		name        string
+		mode        string
+		page        string
+		wantStatus  int
 		wantSuccess LeaderboardResp
-		wantFail ServiceView
-	} {
+		wantFail    ServiceView
+	}{
 		{
-			mode: "invalid",
-			page: "invalid",
+			name:       "invalid page and mode",
+			mode:       "invalid",
+			page:       "invalid",
 			wantStatus: http.StatusBadRequest,
 			wantFail: ServiceView{
 				Status: http.StatusBadRequest,
@@ -476,7 +478,8 @@ func TestGetLeaderboard(t *testing.T) {
 			},
 		},
 		{
-			mode: svc.ModeTimed1Plus0.String(),
+			name:       "valid leaderboard",
+			mode:       svc.ModeTimed1Plus0.String(),
 			wantStatus: http.StatusOK,
 			wantSuccess: LeaderboardResp{
 				TotalPages: 1,
@@ -499,30 +502,32 @@ func TestGetLeaderboard(t *testing.T) {
 			},
 		},
 	} {
-		// given
-		databases, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
-		defer closer()
+		t.Run(test.name, func(t *testing.T) {
+			// given
+			databases, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
+			defer closer()
 
-		ctx := context.WithValue(context.Background(), logutil.Trace, "setup-get-leaderboard")
-		require.NoError(t, svc.SetLeaderboard(ctx, databases.Rdb, svc.UpdtLbChangeSet{Mode: svc.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
+			ctx := context.WithValue(context.Background(), logutil.Trace, "setup-get-leaderboard")
+			require.NoError(t, svc.SetLeaderboard(ctx, databases.Rdb, svc.UpdtLbChangeSet{Mode: svc.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
 
-		q := url.Values{}
-		q.Set("mode", test.mode)
-		q.Set("page", test.page)
-		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/leaderboard?%s", q.Encode()), nil)
-		w := httptest.NewRecorder()
-		h := HandleRoot(State{Databases: databases})
+			q := url.Values{}
+			q.Set("mode", test.mode)
+			q.Set("page", test.page)
+			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/leaderboard?%s", q.Encode()), nil)
+			w := httptest.NewRecorder()
+			h := HandleRoot(State{Databases: databases})
 
-		// when
-		h.ServeHTTP(w, r)
+			// when
+			h.ServeHTTP(w, r)
 
-		// then
-		assert.Equal(t, test.wantStatus, w.Code)
-		if w.Code == http.StatusOK {
-			assertutil.AssertRespBody[LeaderboardResp](t, test.wantSuccess, w)
-		} else {
-			assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
-		}
+			// then
+			assert.Equal(t, test.wantStatus, w.Code)
+			if w.Code == http.StatusOK {
+				assertutil.AssertRespBody[LeaderboardResp](t, test.wantSuccess, w)
+			} else {
+				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
+			}
+		})
 	}
 }
 
@@ -590,7 +595,7 @@ func TestGetChallenges(t *testing.T) {
 	defer closer()
 	createTestSessions(t, databases.Rdb)
 
-	h := HandleRoot(State{Databases: databases, Generators: &outbound.MockGenerator{Time: svc.TestTimeNow}})
+	h := HandleRoot(State{Databases: databases, Generators: &outbound.StableGenerator{Time: svc.TestTimeNow}})
 
 	for _, test := range []struct {
 		name         string
@@ -744,7 +749,7 @@ func TestHandleGetChessMetas(t *testing.T) {
 			{ID: "game2", FirstColor: svc.Random.String(), Mode: svc.ModeCorrespondence1.String()},
 			{
 				ID:          TestGameID1,
-				WhitePlayer: svc.MakePlayer(2, "user2", "us"),
+				BlackPlayer: svc.MakePlayer(2, "user2", "us"),
 				FirstColor:  svc.Random.String(),
 				Mode:        svc.ModeCorrespondence1.String(),
 			},
@@ -752,7 +757,7 @@ func TestHandleGetChessMetas(t *testing.T) {
 		SelfChessList: []ChessMeta{
 			{
 				ID:          TestGameID1,
-				WhitePlayer: svc.MakePlayer(2, "user2", "us"),
+				BlackPlayer: svc.MakePlayer(2, "user2", "us"),
 				FirstColor:  svc.Random.String(),
 				Mode:        svc.ModeCorrespondence1.String(),
 			},

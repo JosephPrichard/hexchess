@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/exp/constraints"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -23,7 +24,6 @@ type UserEntity struct {
 	ID       int64     `json:"id"`
 	Username string    `json:"username"`
 	Country  string    `json:"country"`
-	Rank     int64     `json:"rank"` // used for ranking users in searches, was previously used in leaderboard
 	Bio      string    `json:"bio"`
 	JoinedOn time.Time `json:"joinedOn"`
 }
@@ -325,50 +325,14 @@ func GetUserByID(ctx context.Context, query *db.Queries, id int64) (UserEntity, 
 	return user, nil
 }
 
-const MaxSearchOffset = 1000
-
-var ErrSearchLimit = errors.New("search limit exceeded")
-
-func SearchUsersByName(ctx context.Context, query *db.Queries, name string, page, perPage int32) ([]UserEntity, error) {
-	page = max(page, 1)
-	offset := (page - 1) * perPage
-	if offset > MaxSearchOffset {
-		slog.WarnContext(ctx, "failed to search offset exceeds maximum", "offset", offset, "maxOffset", MaxSearchOffset)
-		return nil, ErrSearchLimit
-	}
-
-	rows, err := query.SelectUsersBySimilarity(ctx, db.SelectUsersBySimilarityParams{
-		Username: name,
-		Limit:    perPage,
-		Offset:   offset,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("select users by similarity: %w", err)
-	}
-
-	var users []UserEntity
-	for i, row := range rows {
-		rank := (page-1)*perPage + int32(i) + 1
-		users = append(users, UserEntity{
-			ID:       row.ID,
-			Username: row.Username,
-			Country:  row.Country,
-			Rank:     int64(rank),
-		})
-	}
-
-	slog.InfoContext(ctx, "selected users by name similarity", "users", users, "name", name, "page", page, "limit", page, "offset", offset)
-	return users, nil
-}
-
 type ModeStatsEntity struct {
-	Mode       GameMode `json:"mode"`
-	Rank       int64    `json:"rank"`
-	Wins       int32    `json:"wins"`
-	Losses     int32    `json:"losses"`
-	Winrate    int64    `json:"winrate"`
-	Elo        float64  `json:"elo"`
-	HighestElo float64  `json:"highestElo"`
+	Mode       string  `json:"mode"`
+	Rank       int64   `json:"rank"`
+	Wins       int32   `json:"wins"`
+	Losses     int32   `json:"losses"`
+	Winrate    int64   `json:"winrate"`
+	Elo        float64 `json:"elo"`
+	HighestElo float64 `json:"highestElo"`
 }
 
 type UserStatsEntity struct {
@@ -380,7 +344,11 @@ type UserStatsEntity struct {
 	ModeStats    []ModeStatsEntity `json:"modeStats"`
 }
 
-func GetUserElos(ctx context.Context, query *db.Queries, id int64) (UserStatsEntity, error) {
+func avg[T constraints.Integer | constraints.Float](currAvg T, currCount int, nextValue T) T {
+	return (currAvg*T(currCount) + nextValue) / T(currCount+1)
+}
+
+func GetUserStats(ctx context.Context, query *db.Queries, id int64) (UserStatsEntity, error) {
 	stats := UserStatsEntity{HighestElo: math.SmallestNonzeroFloat64}
 
 	rows, err := query.SelectUserElosById(ctx, id)
@@ -389,12 +357,11 @@ func GetUserElos(ctx context.Context, query *db.Queries, id int64) (UserStatsEnt
 	}
 
 	for _, row := range rows {
-		mode, err := ParseGameMode(row.Mode)
-		if err != nil {
+		if _, err := ParseGameMode(row.Mode); err != nil {
 			return stats, err
 		}
 		modeStats := ModeStatsEntity{
-			Mode:       mode,
+			Mode:       string(row.Mode),
 			Wins:       row.Wins,
 			Losses:     row.Losses,
 			Winrate:    calcUserWinrate(row.Wins, row.Losses),
@@ -405,8 +372,8 @@ func GetUserElos(ctx context.Context, query *db.Queries, id int64) (UserStatsEnt
 		stats.TotalWins += modeStats.Wins
 		stats.TotalLosses += modeStats.Losses
 		stats.HighestElo = max(stats.HighestElo, modeStats.HighestElo)
-		stats.AvgElo = (stats.AvgElo*float64(len(stats.ModeStats)) + modeStats.Elo) / float64(len(stats.ModeStats)+1)
-		stats.TotalWinrate = (stats.TotalWinrate*int64(len(stats.ModeStats)) + modeStats.Winrate) / int64(len(stats.ModeStats)+1)
+		stats.AvgElo = avg(stats.AvgElo, len(stats.ModeStats), modeStats.Elo)
+		stats.TotalWinrate = avg(stats.TotalWinrate, len(stats.ModeStats), modeStats.Winrate)
 
 		stats.ModeStats = append(stats.ModeStats, modeStats)
 	}

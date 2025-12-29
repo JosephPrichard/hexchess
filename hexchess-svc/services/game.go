@@ -108,8 +108,8 @@ func JoinGame(ctx context.Context, rdb *db.Redis, gameID string, player PlayerSt
 
 type MoveResult struct {
 	ReplayID int64
-	State *ChessState
-	Move  chess.HistMove
+	State    *ChessState
+	Move     chess.HistMove
 }
 
 var (
@@ -170,7 +170,7 @@ func MakeGameMove(ctx context.Context, databases *db.Databases, gameID string, p
 		if state.Game.Board.IsWhiteTurn {
 			result = BlackWin
 		}
-		replayID, err := WriteFinishedGame(ctx, databases, state, result, Checkmate); 
+		replayID, err := WriteFinishedGame(ctx, databases, state, result, Checkmate)
 		if err != nil {
 			return mr, fmt.Errorf("write checkmate game result: %w", err)
 		}
@@ -184,7 +184,10 @@ func MakeGameMove(ctx context.Context, databases *db.Databases, gameID string, p
 	return mr, nil
 }
 
-var ErrUndoNoop = errors.New("no undo to perform")
+var (
+	ErrUndoNoop = errors.New("no undo to perform")
+	ErrNoUndo   = errors.New("no undo to accept")
+)
 
 type UndoKind int
 
@@ -204,6 +207,10 @@ func AttemptGameUndo(ctx context.Context, rdb *db.Redis, gameID string, player P
 	case UndoCreate:
 		state.UndoID = player.ID
 	case UndoAccept:
+		if state.UndoID == 0 {
+			slog.WarnContext(ctx, "undo: cannot accept an undo that was not created", "player", player.ID, "game", gameID)
+			return nil, ErrNoUndo
+		}
 		if state.UndoID != player.ID {
 			if err := state.UndoMove(); err != nil {
 				return nil, err
@@ -214,6 +221,10 @@ func AttemptGameUndo(ctx context.Context, rdb *db.Redis, gameID string, player P
 			return nil, ErrUndoNoop
 		}
 	case UndoReject:
+		if state.UndoID == 0 {
+			slog.WarnContext(ctx, "undo: cannot reject an undo that was not created", "player", player.ID, "game", gameID)
+			return nil, ErrNoUndo
+		}
 		state.UndoState = UndoState{}
 	}
 
@@ -242,7 +253,7 @@ func ForfeitGame(ctx context.Context, databases *db.Databases, gameID string, pl
 	if err := SetChessState(ctx, databases.Rdb, gameID, state); err != nil {
 		return 0, err
 	}
-	replayID, err := WriteFinishedGame(ctx, databases, state, result, Forfeit); 
+	replayID, err := WriteFinishedGame(ctx, databases, state, result, Forfeit)
 	if err != nil {
 		return 0, fmt.Errorf("write forfeit game result: %w", err)
 	}

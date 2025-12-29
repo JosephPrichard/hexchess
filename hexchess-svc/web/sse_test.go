@@ -61,7 +61,7 @@ func TestHandleCountEvents(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	state := State{Databases: db.Databases{Rdb: rdb}, Broadcasters: svc.MakeBroadcaster(), Generators: &outbound.MockGenerator{ID: "id1"}}
+	state := State{Databases: db.Databases{Rdb: rdb}, Broadcasters: svc.MakeBroadcaster(), Generators: &outbound.StableGenerator{ID: "id1"}}
 	<-state.Broadcasters.ListenUnicastEvents(rdb)
 
 	ts := httptest.NewServer(HandleRoot(state))
@@ -99,7 +99,7 @@ func TestHandleUserEvents(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	state := State{Databases: db.Databases{Rdb: rdb}, Broadcasters: svc.MakeBroadcaster(), Generators: &outbound.MockGenerator{ID: "id1"}}
+	state := State{Databases: db.Databases{Rdb: rdb}, Broadcasters: svc.MakeBroadcaster(), Generators: &outbound.StableGenerator{ID: "id1"}}
 	<-state.Broadcasters.ListenUsersMessages(rdb)
 
 	createTestSessions(t, rdb)

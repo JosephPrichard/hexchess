@@ -30,6 +30,9 @@ var TestUsersInsts = []struct {
 	// used for elo histories tests.
 	{Username: "user6", Password: "password6", Country: "us", JoinedOn: TestTimeNow},
 	{Username: "user7", Password: "password7", Country: "us", JoinedOn: TestTimeNow},
+	// used for search leaderboard tests.
+	{Username: "john", Password: "password8", Country: "us", JoinedOn: TestTimeNow},
+	{Username: "johnny", Password: "password9", Country: "us", JoinedOn: TestTimeNow},
 }
 
 var TestUserEntities = []UserEntity{
@@ -65,6 +68,9 @@ var TestUserModeElos = []struct {
 	{UserID: 3, Mode: ModeCorrespondence1.String(), Elo: 900},
 	{UserID: 4, Mode: ModeCorrespondence1.String(), Elo: 2000},
 	{UserID: 5, Mode: ModeCorrespondence1.String(), Elo: 1500},
+	{UserID: 8, Mode: ModeCorrespondence1.String(), Elo: 1000, Wins: 2, Losses: 2},
+	{UserID: 8, Mode: ModeCorrespondence7.String(), Elo: 2000, Wins: 10, Losses: 2},
+	{UserID: 9, Mode: ModeCorrespondence1.String(), Elo: 1500, Wins: 5, Losses: 2},
 }
 
 var TestUserStats = []UserStatsEntity{
@@ -75,10 +81,10 @@ var TestUserStats = []UserStatsEntity{
 		HighestElo:   1030,
 		TotalWinrate: 52,
 		ModeStats: []ModeStatsEntity{
-			{Mode: ModeCorrespondence7, Rank: 1, Wins: 2, Losses: 2, Winrate: 50, Elo: 1000, HighestElo: 1000},
-			{Mode: ModeTimed3Plus2, Rank: 1, Wins: 5, Losses: 4, Winrate: 55, Elo: 1020, HighestElo: 1020},
-			{Mode: ModeTimed15Plus10, Rank: 1, Wins: 4, Losses: 3, Winrate: 57, Elo: 1030, HighestElo: 1030},
-			{Mode: ModeTimed1Plus0, Rank: 1, Wins: 5, Losses: 5, Winrate: 50, Elo: 1000, HighestElo: 1000},
+			{Mode: ModeCorrespondence7.String(), Rank: 1, Wins: 2, Losses: 2, Winrate: 50, Elo: 1000, HighestElo: 1000},
+			{Mode: ModeTimed3Plus2.String(), Rank: 1, Wins: 5, Losses: 4, Winrate: 55, Elo: 1020, HighestElo: 1020},
+			{Mode: ModeTimed15Plus10.String(), Rank: 1, Wins: 4, Losses: 3, Winrate: 57, Elo: 1030, HighestElo: 1030},
+			{Mode: ModeTimed1Plus0.String(), Rank: 1, Wins: 5, Losses: 5, Winrate: 50, Elo: 1000, HighestElo: 1000},
 		},
 	},
 }

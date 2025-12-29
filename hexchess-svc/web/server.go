@@ -44,7 +44,7 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 type State struct {
 	Databases      db.Databases
 	Broadcasters   svc.Broadcasters
-	Generators     outbound.Generators
+	Generators     outbound.Generator
 	OutboundAPIs   outbound.RemoteAPIs
 	CountryList    []string
 	AllowedOrigins string
@@ -108,12 +108,12 @@ func HandleRoot(state State) http.Handler {
 		writeJSON(w, http.StatusNotFound, ServiceView{Status: http.StatusNotFound, Message: "ROUTE_NOT_FOUND"})
 	})
 
-	var sb strings.Builder
+	var strs []string
 	_ = chi.Walk(r, func(method string, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
-		sb.WriteString(fmt.Sprintf("%s %s\n", method, route))
+		strs = append(strs, fmt.Sprintf("%s %s", method, route))
 		return nil
 	})
-	fmt.Println(sb.String())
+	fmt.Println(strings.Join(strs, "\n"))
 
 	return r
 }

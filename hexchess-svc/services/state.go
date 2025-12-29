@@ -73,7 +73,7 @@ type ChessMeta struct {
 	Touch       time.Time   `json:"touch"`
 }
 
-var ChessMetaCmpOpts = cmpopts.IgnoreFields(ChessMeta{}, "Touch")
+var ChessMetaCmpOpt = cmpopts.IgnoreFields(ChessMeta{}, "Touch")
 
 type StateSetup struct {
 	ID           string

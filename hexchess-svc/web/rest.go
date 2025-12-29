@@ -53,7 +53,7 @@ func Json(v any) http.HandlerFunc {
 
 type RestHandler struct {
 	db.Databases
-	outbound.Generators
+	outbound.Generator
 	outbound.RemoteAPIs
 	ValidCountries map[string]bool
 }
@@ -621,14 +621,14 @@ func (h *RestHandler) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	var resp FullUserResp
-	var lbRanks map[svc.GameMode]svc.LbRank
+	var lbRanks map[string]svc.LbRank
 
 	eg.Go(func() (err error) {
 		resp.User, err = svc.GetUserByID(egCtx, h.Pdb.Query, int64(id))
 		return err
 	})
 	eg.Go(func() (err error) {
-		resp.Stats, err = svc.GetUserElos(egCtx, h.Pdb.Query, int64(id))
+		resp.Stats, err = svc.GetUserStats(egCtx, h.Pdb.Query, int64(id))
 		return err
 	})
 	eg.Go(func() (err error) {
@@ -663,7 +663,7 @@ func (h *RestHandler) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 }
 
 type SearchPlayersResp struct {
-	UserList []svc.UserEntity `json:"userList,omitempty"`
+	UserList []svc.LbdUserEntity `json:"userList,omitempty"`
 }
 
 func (h *RestHandler) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) error {
@@ -679,9 +679,9 @@ func (h *RestHandler) HandleSearchPlayers(w http.ResponseWriter, r *http.Request
 
 	slog.InfoContext(ctx, "searching players", "page", page, "name", name)
 
-	var userList []svc.UserEntity
+	var userList []svc.LbdUserEntity
 	if hasUser {
-		users, err := svc.SearchUsersByName(ctx, h.Pdb.Query, name, int32(page), perPage)
+		users, err := svc.GetFuzzySearchLeaderboard(ctx, h.Pdb.Query, name, int32(page), perPage)
 		if errors.Is(err, svc.ErrSearchLimit) {
 			return ErrHttpSearchLimit
 		} else if err != nil {
@@ -691,7 +691,7 @@ func (h *RestHandler) HandleSearchPlayers(w http.ResponseWriter, r *http.Request
 	}
 
 	if userList == nil {
-		userList = []svc.UserEntity{}
+		userList = []svc.LbdUserEntity{}
 	}
 	writeJSON(w, http.StatusOK, SearchPlayersResp{UserList: userList})
 	return nil

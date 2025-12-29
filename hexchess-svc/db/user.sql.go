@@ -183,6 +183,39 @@ func (q *Queries) SelectLoginByName(ctx context.Context, username string) (Selec
 	return i, err
 }
 
+const selectManyUserElosById = `-- name: SelectManyUserElosById :many
+SELECT user_id, mode, elo, highest_elo, wins, losses
+FROM user_mode_elos
+WHERE user_id = ANY($1::bigint[])
+`
+
+func (q *Queries) SelectManyUserElosById(ctx context.Context, id []int64) ([]UserModeElo, error) {
+	rows, err := q.db.Query(ctx, selectManyUserElosById, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserModeElo
+	for rows.Next() {
+		var i UserModeElo
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Mode,
+			&i.Elo,
+			&i.HighestElo,
+			&i.Wins,
+			&i.Losses,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const selectUserByID = `-- name: SelectUserByID :one
 SELECT
     id,

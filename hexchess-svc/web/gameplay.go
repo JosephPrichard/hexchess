@@ -17,7 +17,7 @@ import (
 type GameplayHandler struct {
 	db.Databases
 	svc.Broadcasters
-	outbound.Generators
+	outbound.Generator
 }
 
 type GameSocketContext struct {
@@ -38,6 +38,8 @@ func makeGameErr(ctx context.Context, gameID string, err error) []byte {
 	case errors.Is(err, svc.ErrNoChessState):
 		// if the state cannot be found, it has expired while an inactive connection has been open
 		wsErr = ErrWsExpiration
+	case errors.Is(err, svc.ErrNoMoveUndo) || errors.Is(err, svc.ErrUndoNoop) || errors.Is(err, svc.ErrNoUndo):
+		wsErr = ErrWsUndoAction
 	default:
 		wsErr = ErrWsFatal
 	}
@@ -81,25 +83,13 @@ func (h *GameplayHandler) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	player, err := svc.GetSession(ctx, h.Rdb, sessionID)
-	if err != nil {
-		writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
-		return
-	}
-	chessState, err := svc.JoinGame(ctx, h.Rdb, gameID, player)
-	if err != nil {
-		writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
-		return
-	}
-
-	if err := h.handleGameInit(gameID, player, chessState, func(b []byte) {
+	player, err := h.handleGameInit(ctx, gameID, sessionID, func(b []byte) {
 		writeConn(ctx, conn, b)
-	}); err != nil {
-		slog.ErrorContext(ctx, "failed to handle game init", "err", err)
+	})
+	if err != nil {
+		writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
 		return
 	}
-
-	gameCtx := GameSocketContext{Context: ctx, GameID: gameID, Player: player}
 
 	writeChan := make(chan []byte, GameplayChanBufCap)
 	h.GamesCaster.Subscribe(gameID, writeChan)
@@ -117,16 +107,27 @@ func (h *GameplayHandler) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 			slog.WarnContext(ctx, "failed to read ws message", "err", err)
 			break
 		}
-		go h.handleGameMessage(gameCtx, msg, writeChan)
+		go h.handleGameMessage(GameSocketContext{Context: ctx, GameID: gameID, Player: player}, msg, writeChan)
 	}
 }
 
-func (h *GameplayHandler) handleGameInit(gameID string, player svc.PlayerState, state *svc.ChessState, write func([]byte)) error {
+func (h *GameplayHandler) handleGameInit(ctx context.Context, gameID string, sessionID string, write func([]byte)) (svc.PlayerState, error) {
+	var p svc.PlayerState
+
+	p, err := svc.GetSession(ctx, h.Rdb, sessionID)
+	if err != nil {
+		return p, err
+	}
+	state, err := svc.JoinGame(ctx, h.Rdb, gameID, p)
+	if err != nil {
+		return p, err
+	}
+
 	for i, o := range []*pb.GameOutput{
 		MakePbGameOutputInit(
 			gameID,
 			svc.SerializeChessState(state),
-			svc.SerializePlayer(player),
+			svc.SerializePlayer(p),
 		),
 		MakePbGameOutputPlayers(
 			gameID,
@@ -136,11 +137,11 @@ func (h *GameplayHandler) handleGameInit(gameID string, player svc.PlayerState, 
 	} {
 		b, err := proto.Marshal(o)
 		if err != nil {
-			return fmt.Errorf("marshal game init output %d: %w", i, err)
+			return p, fmt.Errorf("marshal game init output %d: %w", i, err)
 		}
 		write(b)
 	}
-	return nil
+	return p, nil
 }
 
 func (h *GameplayHandler) handleGameMessage(ctx GameSocketContext, msg []byte, writeChan chan []byte) {
@@ -171,7 +172,7 @@ func (h *GameplayHandler) handleGameMessage(ctx GameSocketContext, msg []byte, w
 }
 
 func (h *GameplayHandler) handleGameForfeit(ctx GameSocketContext) error {
-	replayID, err := svc.ForfeitGame(ctx.Context, &h.Databases, ctx.GameID, ctx.Player); 
+	replayID, err := svc.ForfeitGame(ctx.Context, &h.Databases, ctx.GameID, ctx.Player)
 	if err != nil {
 		return err
 	}
@@ -192,7 +193,7 @@ func (h *GameplayHandler) handleGameMove(ctx GameSocketContext, pbInput *pb.Move
 		ctx.GameID,
 		chess.SerializeHistMove(result.Move),
 		chess.SerializeGame(&result.State.Game),
-		result.State.Touch,
+		h.GetNow(),
 	))
 	if err != nil {
 		return err
@@ -221,7 +222,7 @@ func (h *GameplayHandler) handleGameUndo(ctx GameSocketContext, pbInput *pb.Undo
 		return fmt.Errorf("invalid undo kind: %s", pbInput.Kind)
 	}
 
-	result, err := svc.AttemptGameUndo(ctx.Context, h.Databases.Rdb, ctx.GameID, ctx.Player, undoKind)
+	state, err := svc.AttemptGameUndo(ctx.Context, h.Databases.Rdb, ctx.GameID, ctx.Player, undoKind)
 	if err != nil {
 		return err
 	}
@@ -230,7 +231,7 @@ func (h *GameplayHandler) handleGameUndo(ctx GameSocketContext, pbInput *pb.Undo
 		ctx.GameID,
 		pbInput.Kind,
 		ctx.Player.ID,
-		result,
+		state,
 	))
 	if err != nil {
 		return err

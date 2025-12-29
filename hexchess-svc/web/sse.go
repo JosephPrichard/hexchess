@@ -41,7 +41,7 @@ func SSE(h func(w SSEWriter, r *http.Request) error) http.HandlerFunc {
 
 type SSEHandler struct {
 	Rdb *db.Redis
-	outbound.Generators
+	outbound.Generator
 	svc.Broadcasters
 }
 

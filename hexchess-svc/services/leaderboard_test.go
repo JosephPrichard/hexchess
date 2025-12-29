@@ -6,6 +6,7 @@ import (
 	"hexchess-svc/pkg/assertutil"
 	"hexchess-svc/pkg/logutil"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +37,7 @@ func TestLeaderboard(t *testing.T) {
 		require.NoError(t, IncrLeaderboard(ctx, rdb, c))
 	}
 
-	ranks := make([]map[GameMode]LbRank, 0)
+	ranks := make([]map[string]LbRank, 0)
 	leaderboards := make([]Leaderboard, 0)
 
 	for _, id := range []int64{id1, id2, id3, id4} {
@@ -59,22 +60,22 @@ func TestLeaderboard(t *testing.T) {
 	}
 
 	// then
-	wantRanks := []map[GameMode]LbRank{
+	wantRanks := []map[string]LbRank{
 		{
-			ModeCorrespondence7: {Rank: 1, Score: 1500},
-			ModeTimed1Plus0:     {Rank: 3, Score: 900}, // id1 has a value of "3" since id3 has not been lazily initialized yet
+			ModeCorrespondence7.String(): {Rank: 1, Score: 1500},
+			ModeTimed1Plus0.String():     {Rank: 3, Score: 900}, // id1 has a value of "3" since id3 has not been lazily initialized yet
 		},
 		{
-			ModeCorrespondence7: {Rank: 2, Score: 1000},
-			ModeTimed1Plus0:     {Rank: 1, Score: 1400},
+			ModeCorrespondence7.String(): {Rank: 2, Score: 1000},
+			ModeTimed1Plus0.String():     {Rank: 1, Score: 1400},
 		},
 		{
-			ModeCorrespondence7: {Rank: 3, Score: 950},
-			ModeTimed1Plus0:     {Rank: 3, Score: 1000},
+			ModeCorrespondence7.String(): {Rank: 3, Score: 950},
+			ModeTimed1Plus0.String():     {Rank: 3, Score: 1000},
 		},
 		{
-			ModeCorrespondence7: {Rank: 4, Score: 835},
-			ModeTimed1Plus0:     {Rank: 2, Score: 1010},
+			ModeCorrespondence7.String(): {Rank: 4, Score: 835},
+			ModeTimed1Plus0.String():     {Rank: 2, Score: 1010},
 		},
 	}
 	assert.Equal(t, wantRanks, ranks)
@@ -155,4 +156,35 @@ func TestGetLeaderboardUsers(t *testing.T) {
 			assertutil.AssertEqualIgnoring(t, test.wantLeaderboard, leaderboard)
 		})
 	}
+}
+
+func TestGetFuzzySearchLeaderboard(t *testing.T) {
+	// given
+	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+	defer closer()
+
+	ctx := context.WithValue(t.Context(), logutil.Trace, "search-name")
+
+	// when
+	users, err := GetFuzzySearchLeaderboard(ctx, pdb.Query, "john", 1, 20)
+	require.NoError(t, err)
+
+	// then
+	wantUsers := []LbdUserEntity{
+		{UserEntity: UserEntity{ID: 8, Username: "john", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+			Elo:        1500,
+			HighestElo: 2000,
+			Wins:       12,
+			Losses:     4,
+			Winrate:    66,
+			Rank:       1,
+		},
+		{UserEntity: UserEntity{ID: 9, Username: "johnny", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+			Elo:        1500,
+			HighestElo: 1500,
+			Wins:       5, Losses: 2,
+			Winrate: 71,
+			Rank:    2},
+	}
+	assert.Equal(t, wantUsers, users)
 }

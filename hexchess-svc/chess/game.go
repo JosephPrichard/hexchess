@@ -164,16 +164,22 @@ func (g *Game) MakeMove(mv Move) HistMove {
 		}
 	}
 
-	hm := g.AnnotateHistMove(HistMove{PieceMove: PieceMove{Piece: pieceFrom, From: from, To: to}})
+	var isPromo bool
 
 	g.Board.Set(from.File, from.Rank, Empty)
 	if isMvLastRank {
 		promoPiece := GetPromoPiece(promotion, g.Board.IsWhiteTurn)
 		g.Board.Set(to.File, to.Rank, promoPiece)
-		hm.Promotion = promotion
+		isPromo = true
 	} else {
 		g.Board.Set(to.File, to.Rank, pieceFrom)
 	}
+
+	hm := g.AnnotateHistMove(HistMove{PieceMove: PieceMove{Piece: pieceFrom, From: from, To: to}})
+	if isPromo {
+		hm.Promotion = promotion
+	}
+
 	g.Board.IsWhiteTurn = !g.Board.IsWhiteTurn
 
 	g.Moves = append(g.Moves, hm)
@@ -248,13 +254,15 @@ func (m *HistMove) String() string {
 }
 
 func (g *Game) AnnotateHistMove(hm HistMove) HistMove {
-	if g.Board.Get(hm.To.File, hm.To.Rank) != Empty {
+	boardPiece := g.Board.Get(hm.To.File, hm.To.Rank)
+	if boardPiece != Empty && boardPiece.IsWhite() != hm.Piece.IsWhite() {
 		hm.IsTake = true
 	}
 
 	moves := g.GetCurrMoves()
 	if index := slices.IndexFunc(moves, func(pms PieceMoves) bool { return pms.Piece == hm.Piece }); index > 0 {
-		for _, h := range moves[index].Moves {
+		pms := moves[index]
+		for _, h := range pms.Moves {
 			p := g.Board.Get(h.File, h.Rank)
 			if p.IsKing() {
 				hm.IsCheck = true
