@@ -20,7 +20,7 @@ func InitEnv() {
 		line := scanner.Text()
 		index := strings.Index(line, "=")
 		if index < 0 {
-			logutil.LogFatal("invalid line in .env file", "line", line)
+			logutil.Fatal("invalid line in .env file", "line", line)
 		}
 		key, value := line[:index], line[index+1:]
 		if err := os.Setenv(key, value); err != nil {

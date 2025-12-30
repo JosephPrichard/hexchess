@@ -23,7 +23,7 @@ import (
 func main() {
 	f, err := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
-		logutil.LogFatalErr("open log file", err)
+		logutil.FatalErr("open log file", err)
 	}
 	defer f.Close()
 
@@ -47,18 +47,18 @@ func main() {
 
 	var countryList []string
 	if err := json.Unmarshal(assets.CountryListJson, &countryList); err != nil {
-		logutil.LogFatalErr("unmarshal country list", err)
+		logutil.FatalErr("unmarshal country list", err)
 	}
 
 	slog.Info("connecting to postgres db", "dbURL", dbURL)
 	pool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
-		logutil.LogFatalErr("create pool", err)
+		logutil.FatalErr("create pool", err)
 	}
 	defer pool.Close()
 	_, err = pool.Exec(context.Background(), "SELECT 1;")
 	if err != nil {
-		logutil.LogFatalErr("execute startup query", err)
+		logutil.FatalErr("execute startup query", err)
 	}
 
 	pdb := db.MakePostgres(pool)
@@ -89,6 +89,6 @@ func main() {
 		}()
 	}
 	if err := http.ListenAndServe(":"+serverPort, web.HandleRoot(state)); err != nil {
-		logutil.LogFatalErr("failed while serving", err)
+		logutil.FatalErr("failed while serving", err)
 	}
 }

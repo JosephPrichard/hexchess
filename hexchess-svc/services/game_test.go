@@ -377,8 +377,8 @@ func TestInsertGameResult(t *testing.T) {
 			name:   "draw by stalemate",
 			result: GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Stalemate, ReplayResult: Draw, ReplayMode: ModeTimed1Plus0},
 			wantElos: []db.SelectUserModeElosByIdsRow{
-				{UserID: testUser0.ID, Elo: 1000},
-				{UserID: testUser1.ID, Elo: 1000},
+				{UserID: testUser0.ID, Elo: 1050, HighestElo: 1050, Draws: 1, Wins: 6, Losses: 5}, // update while maintaing old highest elo
+				{UserID: testUser1.ID, Elo: 1000, HighestElo: 1000, Draws: 1},                     // insert
 			},
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,
@@ -388,7 +388,7 @@ func TestInsertGameResult(t *testing.T) {
 				Mode:        "TIMED_1+0",
 				WinEloDiff:  0,
 				LoseEloDiff: 0,
-				WhiteElo:    1000,
+				WhiteElo:    1050,
 				BlackElo:    1000,
 			},
 			wantChange: GRChangeSet{},
@@ -397,8 +397,8 @@ func TestInsertGameResult(t *testing.T) {
 			name:   "white wins by checkmate",
 			result: GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Checkmate, ReplayResult: WhiteWin, ReplayMode: ModeCorrespondence1},
 			wantElos: []db.SelectUserModeElosByIdsRow{
-				{UserID: testUser0.ID, Elo: 1015},
-				{UserID: testUser1.ID, Elo: 985},
+				{UserID: testUser0.ID, Elo: 1015, HighestElo: 1015, Wins: 1},  // insert
+				{UserID: testUser1.ID, Elo: 985, HighestElo: 1000, Losses: 1}, // insert with elo lower than start elo
 			},
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,
@@ -417,8 +417,8 @@ func TestInsertGameResult(t *testing.T) {
 			name:   "black wins by forfeit",
 			result: GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Forfeit, ReplayResult: BlackWin, ReplayMode: ModeCorrespondence7},
 			wantElos: []db.SelectUserModeElosByIdsRow{
-				{UserID: testUser0.ID, Elo: 985},
-				{UserID: testUser1.ID, Elo: 1015},
+				{UserID: testUser0.ID, Elo: 985, HighestElo: 1000, Wins: 2, Losses: 3}, // update while setting new highest elo
+				{UserID: testUser1.ID, Elo: 1015, HighestElo: 1015, Wins: 1},           // update
 			},
 			wantReplay: db.Replay{
 				WhiteID:     testUser0.ID,

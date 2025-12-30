@@ -184,7 +184,7 @@ func (q *Queries) SelectLoginByName(ctx context.Context, username string) (Selec
 }
 
 const selectManyUserElosById = `-- name: SelectManyUserElosById :many
-SELECT user_id, mode, elo, highest_elo, wins, losses
+SELECT user_id, mode, elo, highest_elo, wins, losses, draws
 FROM user_mode_elos
 WHERE user_id = ANY($1::bigint[])
 `
@@ -205,6 +205,7 @@ func (q *Queries) SelectManyUserElosById(ctx context.Context, id []int64) ([]Use
 			&i.HighestElo,
 			&i.Wins,
 			&i.Losses,
+			&i.Draws,
 		); err != nil {
 			return nil, err
 		}
@@ -249,7 +250,7 @@ func (q *Queries) SelectUserByID(ctx context.Context, id int64) (SelectUserByIDR
 }
 
 const selectUserElosById = `-- name: SelectUserElosById :many
-SELECT user_id, mode, elo, highest_elo, wins, losses
+SELECT user_id, mode, elo, highest_elo, wins, losses, draws
 FROM user_mode_elos
 WHERE user_id = $1
 `
@@ -270,6 +271,7 @@ func (q *Queries) SelectUserElosById(ctx context.Context, id int64) ([]UserModeE
 			&i.HighestElo,
 			&i.Wins,
 			&i.Losses,
+			&i.Draws,
 		); err != nil {
 			return nil, err
 		}
@@ -282,7 +284,7 @@ func (q *Queries) SelectUserElosById(ctx context.Context, id int64) ([]UserModeE
 }
 
 const selectUserModeElosByIds = `-- name: SelectUserModeElosByIds :many
-SELECT user_id, elo
+SELECT user_id, elo, highest_elo, wins, losses, draws
 FROM user_mode_elos
 WHERE user_id = ANY($1::bigint[]) AND mode = $2
 `
@@ -293,8 +295,12 @@ type SelectUserModeElosByIdsParams struct {
 }
 
 type SelectUserModeElosByIdsRow struct {
-	UserID int64
-	Elo    float64
+	UserID     int64
+	Elo        float64
+	HighestElo float64
+	Wins       int32
+	Losses     int32
+	Draws      int32
 }
 
 func (q *Queries) SelectUserModeElosByIds(ctx context.Context, arg SelectUserModeElosByIdsParams) ([]SelectUserModeElosByIdsRow, error) {
@@ -306,7 +312,14 @@ func (q *Queries) SelectUserModeElosByIds(ctx context.Context, arg SelectUserMod
 	var items []SelectUserModeElosByIdsRow
 	for rows.Next() {
 		var i SelectUserModeElosByIdsRow
-		if err := rows.Scan(&i.UserID, &i.Elo); err != nil {
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Elo,
+			&i.HighestElo,
+			&i.Wins,
+			&i.Losses,
+			&i.Draws,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -327,9 +340,10 @@ SELECT
     e.elo,
     e.highest_elo,
     e.wins,
-    e.losses
+    e.losses,
+    e.draws
 FROM users u
-INNER JOIN user_mode_elos e
+LEFT JOIN user_mode_elos e
     ON u.id = e.user_id AND e.mode = $1
 WHERE id = ANY($2::bigint[])
 `
@@ -345,10 +359,11 @@ type SelectUserWithEloByIDsRow struct {
 	Country    string
 	Bio        string
 	JoinedOn   pgtype.Timestamptz
-	Elo        float64
-	HighestElo float64
-	Wins       int32
-	Losses     int32
+	Elo        pgtype.Float8
+	HighestElo pgtype.Float8
+	Wins       pgtype.Int4
+	Losses     pgtype.Int4
+	Draws      pgtype.Int4
 }
 
 func (q *Queries) SelectUserWithEloByIDs(ctx context.Context, arg SelectUserWithEloByIDsParams) ([]SelectUserWithEloByIDsRow, error) {
@@ -370,6 +385,7 @@ func (q *Queries) SelectUserWithEloByIDs(ctx context.Context, arg SelectUserWith
 			&i.HighestElo,
 			&i.Wins,
 			&i.Losses,
+			&i.Draws,
 		); err != nil {
 			return nil, err
 		}
@@ -498,29 +514,33 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (UpdateU
 }
 
 const upsertElo = `-- name: UpsertElo :exec
-INSERT INTO user_mode_elos AS u (user_id, mode, elo, highest_elo, wins, losses)
+INSERT INTO user_mode_elos AS u (user_id, mode, elo, highest_elo, wins, losses, draws)
 VALUES (
     $1,
     $2,
-    $3,
-    $3,
-    $4,
-    $5)
+    COALESCE($3::FLOAT8, $4::FLOAT8),
+    GREATEST($3, $4),
+    $5,
+    $6,
+    $7)
 ON CONFLICT ON CONSTRAINT user_mode_elos_pkey
 DO UPDATE
 SET
-    elo = $3,
+    elo = COALESCE($3, u.elo),
     highest_elo = GREATEST(u.highest_elo, $3),
-    wins = u.wins + $4,
-    losses = u.losses + $5
+    wins = u.wins + $5,
+    losses = u.losses + $6,
+    draws = u.draws + $7
 `
 
 type UpsertEloParams struct {
-	UserID int64
-	Mode   ModeEnum
-	Elo    float64
-	Wins   int32
-	Losses int32
+	UserID     int64
+	Mode       ModeEnum
+	Elo        pgtype.Float8
+	DefaultElo float64
+	Wins       int32
+	Losses     int32
+	Draws      int32
 }
 
 func (q *Queries) UpsertElo(ctx context.Context, arg UpsertEloParams) error {
@@ -528,8 +548,10 @@ func (q *Queries) UpsertElo(ctx context.Context, arg UpsertEloParams) error {
 		arg.UserID,
 		arg.Mode,
 		arg.Elo,
+		arg.DefaultElo,
 		arg.Wins,
 		arg.Losses,
+		arg.Draws,
 	)
 	return err
 }

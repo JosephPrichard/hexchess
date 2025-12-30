@@ -43,12 +43,14 @@ export type LbdUserModel = UserModel & {
 	highestElo: number;
 	wins: number;
 	losses: number;
+	draws: number;
 	winrate: number;
 }
 
 export interface UserStatsEntity {
 	totalWins: number;
 	totalLosses: number;
+	totalDraws: number;
 	avgElo: number;
 	highestElo: number;
 	totalWinrate: number;
@@ -56,12 +58,13 @@ export interface UserStatsEntity {
 		mode: GameMode;
 		rank: number;
 		wins: number;
+		draws: number;
 		losses: number;
 		winrate: number;
 		elo: number;
 		highestElo: number;
 	}[];
-};
+}
 
 export interface ChallengeModel {
 	challengerId: number;

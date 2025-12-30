@@ -236,6 +236,7 @@ type UserModeElo struct {
 	HighestElo float64
 	Wins       int32
 	Losses     int32
+	Draws      int32
 }
 
 type UsersMetadatum struct {

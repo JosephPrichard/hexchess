@@ -32,7 +32,7 @@ func main() {
 	slog.InfoContext(ctx, "connecting to postgres db", "dbURL", dbURL)
 	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
-		logutil.LogFatalErr("create pool", err)
+		logutil.FatalErr("create pool", err)
 	}
 	defer pool.Close()
 
@@ -42,18 +42,18 @@ func main() {
 	case "move-sequence":
 		id, err := strconv.Atoi(*value)
 		if err != nil {
-			logutil.LogFatalErr("parse id os arg", err)
+			logutil.FatalErr("parse id os arg", err)
 		}
 
 		pbMoveHist, err := svc.GetReplayMoveHistory(ctx, q, int64(id))
 		if err != nil {
-			logutil.LogFatalErr("get replay move list", err)
+			logutil.FatalErr("get replay move list", err)
 		}
 
 		for _, pbStep := range pbMoveHist.Steps {
 			game, err := chess.DeserializeGame(pbStep.Game)
 			if err != nil {
-				logutil.LogFatalErr("map game", err)
+				logutil.FatalErr("map game", err)
 			}
 			hm := chess.DeserializeHistMove(pbStep.Move)
 			fmt.Printf("game with move: %s: %s\n", hm.String(), game.Board.String())

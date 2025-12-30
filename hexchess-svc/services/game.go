@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/pkg/logutil"
@@ -328,14 +329,16 @@ func InsertGameResultTx(ctx context.Context, pdb *db.PostgreSQL, timeAt time.Tim
 	)
 }
 
+// insertGameResult processes a game result, updates player ELO scores, and records the match details in the database.
+// It handles win, loss, or draw scenarios and ensures a consistent update order for database operations to prevent deadlocking.
+// Returns a GRChangeSet summarizing the changes and any error encountered during processing.
 func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, result GameResult) (cs GRChangeSet, err error) {
 	ids := []int64{result.WhiteID, result.BlackID}
-	slices.SortFunc(ids, func(left, right int64) int { return int(left - right) }) // consistent query order for transactions
+	slices.SortFunc(ids, func(left, right int64) int { return int(left - right) }) // consistent query order
 
-	rows, err := query.SelectUserModeElosByIds(ctx, db.SelectUserModeElosByIdsParams{
-		ID:   ids,
-		Mode: db.ModeEnum(result.ReplayMode.String())},
-	)
+	mode := db.ModeEnum(result.ReplayMode.String())
+
+	rows, err := query.SelectUserModeElosByIds(ctx, db.SelectUserModeElosByIdsParams{ID: ids, Mode: mode})
 	if err != nil {
 		return cs, fmt.Errorf("select users %+v elo: %w", ids, err)
 	}
@@ -349,26 +352,37 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 		}
 	}
 
-	var winID, loseID int64
-	var whiteEloNext, blackEloNext, winEloDiff, loseEloDiff float64
+	var whiteEloNext, blackEloNext float64
 
 	if result.ReplayResult == Draw {
 		whiteEloNext, blackEloNext = whiteElo, blackElo
+
+		updts := []db.UpsertEloParams{
+			{UserID: result.WhiteID, Mode: mode, Draws: 1, DefaultElo: StartElo},
+			{UserID: result.BlackID, Mode: mode, Draws: 1, DefaultElo: StartElo},
+		}
+		slices.SortFunc(updts, func(left, right db.UpsertEloParams) int { return int(left.UserID - right.UserID) }) // consistent update order
+
+		for _, updt := range updts {
+			if err := query.UpsertElo(ctx, updt); err != nil {
+				return cs, fmt.Errorf("upserting draw elo for user %d: %w", updt.UserID, err)
+			}
+		}
 	} else {
 		var winElo, loseElo float64
 
 		switch result.ReplayResult {
 		case WhiteWin:
-			winID, loseID, winElo, loseElo = result.WhiteID, result.BlackID, whiteElo, blackElo
+			cs.WinID, cs.LoseID, winElo, loseElo = result.WhiteID, result.BlackID, whiteElo, blackElo
 		case BlackWin:
-			winID, loseID, winElo, loseElo = result.BlackID, result.WhiteID, blackElo, whiteElo
+			cs.WinID, cs.LoseID, winElo, loseElo = result.BlackID, result.WhiteID, blackElo, whiteElo
 		default:
 		}
 
 		winEloNext := winElo + 30*(1.0-ProbabilityWins(loseElo, winElo))
 		loseEloNext := loseElo + (-30 * ProbabilityWins(winElo, loseElo))
-		winEloDiff = winEloNext - winElo
-		loseEloDiff = loseEloNext - loseElo
+		cs.WinEloDiff = winEloNext - winElo
+		cs.LoseEloDiff = loseEloNext - loseElo
 
 		switch result.ReplayResult {
 		case WhiteWin:
@@ -379,13 +393,14 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 		}
 
 		updts := []db.UpsertEloParams{
-			{UserID: winID, Mode: db.ModeEnum(result.ReplayMode.String()), Elo: winEloNext, Wins: 1},
-			{UserID: loseID, Mode: db.ModeEnum(result.ReplayMode.String()), Elo: loseEloNext, Losses: 1}}
+			{UserID: cs.WinID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: winEloNext}, Wins: 1, DefaultElo: StartElo},
+			{UserID: cs.LoseID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: loseEloNext}, Losses: 1, DefaultElo: StartElo},
+		}
 		slices.SortFunc(updts, func(left, right db.UpsertEloParams) int { return int(left.UserID - right.UserID) }) // consistent update order
 
 		for _, updt := range updts {
 			if err := query.UpsertElo(ctx, updt); err != nil {
-				return cs, fmt.Errorf("upsert elo for user %d: %w", winID, err)
+				return cs, fmt.Errorf("upserting win/loss elo for user %d: %w", updt.UserID, err)
 			}
 		}
 	}
@@ -396,8 +411,8 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 		Result:             result.ReplayResult,
 		Cause:              result.ReplayCause,
 		Mode:               result.ReplayMode,
-		WinEloDiff:         winEloDiff,
-		LoseEloDiff:        loseEloDiff,
+		WinEloDiff:         cs.WinEloDiff,
+		LoseEloDiff:        cs.LoseEloDiff,
 		ReplayWhiteElo:     whiteEloNext,
 		ReplayBlackElo:     blackEloNext,
 		SerializedMoveHist: result.SerializedMoveHist,
@@ -406,8 +421,8 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 	if err != nil {
 		return cs, fmt.Errorf("insert replay: %w", err)
 	}
+	cs.ReplayID = replayID
 
-	cs = GRChangeSet{ReplayID: replayID, WinID: winID, LoseID: loseID, WinEloDiff: winEloDiff, LoseEloDiff: loseEloDiff}
 	slog.InfoContext(ctx, "inserted game result", "changeSet", cs)
 	return cs, nil
 }

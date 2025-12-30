@@ -31,11 +31,28 @@ func readTestdataFile[V any](filename string) []V {
 	return v
 }
 
+type ChallengeInst struct {
+	ChallengerID int64     `json:"challengerId"`
+	ChallengeeID int64     `json:"challengeeId"`
+	Mode         string    `json:"mode"`
+	StartColor   string    `json:"startColor"`
+	MadeOn       time.Time `json:"madeOn"`
+}
+
+type GameResult struct {
+	WhiteID            int64  `json:"whiteId"`
+	BlackID            int64  `json:"blackId"`
+	ReplayCause        string `json:"cause"`
+	ReplayResult       string `json:"result"`
+	ReplayMode         string `json:"mode"`
+	SerializedMoveHist []byte
+}
+
 func main() {
 	start := time.Now()
 
-	challenges := readTestdataFile[svc.ChallengeInst]("test/challenge_insts.json")
-	gameResults := readTestdataFile[svc.GameResult]("test/game_results.json")
+	challenges := readTestdataFile[ChallengeInst]("test/challenge_insts.json")
+	gameResults := readTestdataFile[GameResult]("test/game_results.json")
 	userInsts := readTestdataFile[svc.UserInst]("test/user_insts.json")
 
 	logutil.InitLoggers(nil)
@@ -49,7 +66,7 @@ func main() {
 	slog.InfoContext(ctx, "connecting to postgres db", "dbURL", dbURL)
 	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
-		logutil.LogFatalErr("create pool", err)
+		logutil.FatalErr("create pool", err)
 	}
 	q := db.New(pool)
 	pdb := db.MakePostgres(pool)
@@ -65,32 +82,42 @@ func main() {
     	RESTART IDENTITY
 		CASCADE;`)
 	if err != nil {
-		logutil.LogFatalErr("drop schema", err)
+		logutil.FatalErr("drop schema", err)
 	}
 
 	if err := rdb.Cache.FlushAll(ctx).Err(); err != nil {
-		logutil.LogFatalErr("flush redis", err)
+		logutil.FatalErr("flush redis", err)
 	}
 
 	if _, err := svc.BatchInsertUsers(ctx, q, userInsts); err != nil {
-		logutil.LogFatalErr("insert users", err)
+		logutil.FatalErr("insert users", err)
 	}
 	for _, chInst := range challenges {
-		if err := svc.InsertChallenge(ctx, q, chInst); err != nil {
-			logutil.LogFatalErr("insert challenge", err)
+		if err := svc.InsertChallenge(ctx, q, mapChallengeInst(chInst)); err != nil {
+			logutil.FatalErr("insert challenge", err)
 		}
 	}
 	if err := insertRandomizedGameResult(ctx, pdb, gameResults); err != nil {
-		logutil.LogFatalErr("insert game results", err)
+		logutil.FatalErr("insert game results", err)
 	}
 	if err := svc.SyncLeaderboard(ctx, databases); err != nil {
-		logutil.LogFatalErr("sync leaderboard", err)
+		logutil.FatalErr("sync leaderboard", err)
 	}
 
 	log.Printf("finished seeding databases: %v", time.Since(start))
 }
 
-func insertRandomizedGameResult(ctx context.Context, pdb *db.PostgreSQL, gameResults []svc.GameResult) error {
+func mapChallengeInst(chInst ChallengeInst) svc.ChallengeInst {
+	return svc.ChallengeInst{
+		ChallengerID: chInst.ChallengerID,
+		ChallengeeID: chInst.ChallengeeID,
+		Mode:         svc.ExpectGameMode(chInst.Mode),
+		StartColor:   svc.ExpectColor(chInst.StartColor),
+		MadeOn:       chInst.MadeOn,
+	}
+}
+
+func insertRandomizedGameResult(ctx context.Context, pdb *db.PostgreSQL, gameResults []GameResult) error {
 	timeAt := time.Now().Add(-1 * time.Hour * 24 * 100)
 
 	a := gameResults
@@ -112,7 +139,14 @@ func insertRandomizedGameResult(ctx context.Context, pdb *db.PostgreSQL, gameRes
 		}
 		params.SerializedMoveHist = moveHistBytes
 
-		if _, err = svc.InsertGameResultTx(ctx, pdb, timeAt.Add(time.Duration(i)*time.Hour*24), params); err != nil {
+		if _, err = svc.InsertGameResultTx(ctx, pdb, timeAt.Add(time.Duration(i)*time.Hour*24), svc.GameResult{
+			WhiteID:            params.WhiteID,
+			BlackID:            params.BlackID,
+			ReplayCause:        svc.ExpectReplayCause(params.ReplayCause),
+			ReplayResult:       svc.ExpectReplayResult(params.ReplayResult),
+			ReplayMode:         svc.ExpectGameMode(params.ReplayMode),
+			SerializedMoveHist: params.SerializedMoveHist,
+		}); err != nil {
 			return fmt.Errorf("insert game result: %w", err)
 		}
 	}

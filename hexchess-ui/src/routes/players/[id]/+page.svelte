@@ -77,6 +77,14 @@
 	function makeEloHistoriesChart(ctx: CanvasRenderingContext2D, buckets: Record<string, EloBuckets>) {
 		const entries = Object.entries(buckets);
 		const colors = generateColors(entries.length);
+		console.log(entries)
+
+		let maxElo = Math.max(...entries.flatMap(([, eloHistories]) => eloHistories.map((h) => h.elo)));
+		if (maxElo === 0) {
+			maxElo = 1000;
+		} else {
+			maxElo *= 2;
+		}
 
 		return new Chart(ctx, {
 			type: "line",
@@ -116,7 +124,7 @@
 					},
 					y: {
 						suggestedMin: 0,
-						suggestedMax: 1000,
+						suggestedMax: maxElo,
 						beginAtZero: false,
 						ticks: {
 							callback: (value) => String(value)
@@ -219,10 +227,6 @@
 		</h3>
 		<div class="panel-container">
 			<div class="panel-elem">
-				<div class="panel-title">Rank</div>
-				<div class="panel-text">#{user.rank}</div>
-			</div>
-			<div class="panel-elem">
 				<div class="panel-title">Elo</div>
 				<div class="panel-text">{Math.round(userStats.avgElo)}</div>
 			</div>
@@ -243,8 +247,12 @@
 				<div class="panel-text red-color">{userStats.totalLosses}</div>
 			</div>
 			<div class="panel-elem">
+				<div class="panel-title">Drawn</div>
+				<div class="panel-text yellow-color">{userStats.totalDraws}</div>
+			</div>
+			<div class="panel-elem">
 				<div class="panel-title">Total</div>
-				<div class="panel-text">{userStats.totalWins+userStats.totalLosses}</div>
+				<div class="panel-text">{userStats.totalWins+userStats.totalLosses+userStats.totalDraws}</div>
 			</div>
 		</div>
 
@@ -256,14 +264,15 @@
 				<table class="table-container">
 					<thead>
 					<tr>
-						<th style="width: 22%;">Mode</th>
-						<th style="width: 10%;">Rank</th>
-						<th style="width: 12%;">Elo</th>
-						<th style="width: 12%;">Peak Elo</th>
+						<th style="width: 20%;">Mode</th>
+						<th style="width: 8%;">#Rank</th>
+						<th style="width: 11%;">Elo</th>
+						<th style="width: 11%;">Peak Elo</th>
 						<th style="width: 10%;">Win%</th>
-						<th style="width: 8%;">Won</th>
-						<th style="width: 8%;">Lost</th>
-						<th style="width: 8%;">Total</th>
+						<th style="width: 10%;">Won</th>
+						<th style="width: 10%;">Lost</th>
+						<th style="width: 10%;">Drawn</th>
+						<th style="width: 10%;">Total</th>
 					</tr>
 					</thead>
 					<tbody>
@@ -291,7 +300,10 @@
 							<td class="red-color">
 								{stats.losses}
 							</td>
-							<td>{stats.wins+stats.losses}</td>
+							<td class="yellow-color">
+								{stats.draws}
+							</td>
+							<td>{stats.wins+stats.losses+stats.draws}</td>
 						</tr>
 					{/each}
 					</tbody>

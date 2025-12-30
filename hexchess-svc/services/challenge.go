@@ -45,17 +45,8 @@ type ChallengeInst struct {
 	MadeOn       time.Time `json:"madeOn"`
 }
 
-func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) (ChallengeEntity, error) {
-	var ce ChallengeEntity
-
-	if _, err := ParseColor(row.StartColor); err != nil {
-		return ce, err
-	}
-	if _, err := ParseGameMode(row.Mode); err != nil {
-		return ce, err
-	}
-
-	ce = ChallengeEntity{
+func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) ChallengeEntity {
+	return ChallengeEntity{
 		ChallengerID:      row.ChallengerID,
 		ChallengerName:    row.ChallengerName,
 		ChallengerCountry: row.ChallengerCountry,
@@ -69,7 +60,6 @@ func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) (ChallengeEnti
 		MadeOn:            row.MadeOn.Time,
 		ExpiresOn:         row.MadeOn.Time.Add(ExpireChallengeThreshold),
 	}
-	return ce, nil
 }
 
 func InsertChallenge(ctx context.Context, query *db.Queries, inst ChallengeInst) error {
@@ -107,10 +97,10 @@ func InsertChallengeRet(ctx context.Context, query *db.Queries, inst ChallengeIn
 	if dbErr != nil {
 		return ChallengeEntity{}, dbErr
 	}
-	challenge, err := mapChallengeFromRow(db.SelectChallengesByParticipantRow(row))
+	challenge := mapChallengeFromRow(db.SelectChallengesByParticipantRow(row))
 
-	logutil.DynLog(ctx, "created a new challenge", err, "challenge", inst, "challenge", challenge)
-	return challenge, err
+	slog.InfoContext(ctx, "created a new challenge", "challenge", inst, "challenge", challenge)
+	return challenge, nil
 }
 
 type ChallengeKey struct {
@@ -146,11 +136,7 @@ func GetChallengesByParticipant(ctx context.Context, query *db.Queries, key Chal
 
 	var challenges []ChallengeEntity
 	for _, row := range rows {
-		challenge, err := mapChallengeFromRow(row)
-		if err != nil {
-			return nil, err
-		}
-		challenges = append(challenges, challenge)
+		challenges = append(challenges, mapChallengeFromRow(row))
 	}
 
 	slog.InfoContext(ctx, "got challenges by participant", "challengeKey", key, "since", since, "challenges", challenges)

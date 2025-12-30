@@ -13,13 +13,14 @@
 	<table class="table-container">
 		<thead>
 			<tr>
-				<th style="width: 9%">Rank</th>
-				<th style="width: 43%">Player</th>
-				<th style="width: 12%">Elo</th>
-				<th style="width: 9%">Win%</th>
-				<th style="width: 9%">Won</th>
-				<th style="width: 9%">Lost</th>
-				<th style="width: 9%">Total</th>
+				<th style="width: 8%;">Rank</th>
+				<th style="width: 40%;">Player</th>
+				<th style="width: 12%;">Elo</th>
+				<th style="width: 8%;">Win%</th>
+				<th style="width: 8%;">Won</th>
+				<th style="width: 8%;">Lost</th>
+				<th style="width: 8%;">Drawn</th>
+				<th style="width: 8%;">Total</th>
 			</tr>
 		</thead>
 		<tbody>
@@ -49,7 +50,10 @@
 					<td class="red-color">
 						{user.losses}
 					</td>
-					<td>{user.wins+user.losses}</td>
+					<td class="yellow-color">
+						{user.draws}
+					</td>
+					<td>{user.wins+user.losses+user.draws}</td>
 				</tr>
 			{/each}
 		</tbody>

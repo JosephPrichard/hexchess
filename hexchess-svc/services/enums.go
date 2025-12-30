@@ -127,7 +127,7 @@ var ColorMap = map[string]Color{
 	"RANDOM": Random,
 }
 
-func ParseReplayCause[S ~string](s S) (ReplayCause, error) {
+func ParseReplayCause[StringLike ~string](s StringLike) (ReplayCause, error) {
 	c, ok := ReplayCauseMap[string(s)]
 	if !ok {
 		return 0, &OneOfError[ReplayCause]{Expected: ReplayCauseMap, Actual: string(s)}
@@ -135,7 +135,15 @@ func ParseReplayCause[S ~string](s S) (ReplayCause, error) {
 	return c, nil
 }
 
-func ParseReplayResult[S ~string](s S) (ReplayResult, error) {
+func ExpectReplayCause[StringLike ~string](s StringLike) ReplayCause {
+	c, err := ParseReplayCause(s)
+	if err != nil {
+		panic(err)
+	}
+	return c
+}
+
+func ParseReplayResult[StringLike ~string](s StringLike) (ReplayResult, error) {
 	r, ok := ReplayResultMap[string(s)]
 	if !ok {
 		return 0, &OneOfError[ReplayResult]{Expected: ReplayResultMap, Actual: string(s)}
@@ -143,12 +151,28 @@ func ParseReplayResult[S ~string](s S) (ReplayResult, error) {
 	return r, nil
 }
 
-func ParseGameMode[S ~string](s S) (GameMode, error) {
+func ExpectReplayResult[StringLike ~string](s StringLike) ReplayResult {
+	r, err := ParseReplayResult(s)
+	if err != nil {
+		panic(err)
+	}
+	return r
+}
+
+func ParseGameMode[StringLike ~string](s StringLike) (GameMode, error) {
 	m, ok := GameModeMap[string(s)]
 	if !ok {
 		return 0, &OneOfError[GameMode]{Expected: GameModeMap, Actual: string(s)}
 	}
 	return m, nil
+}
+
+func ExpectGameMode[StringLike ~string](s StringLike) GameMode {
+	m, err := ParseGameMode(s)
+	if err != nil {
+		panic(err)
+	}
+	return m
 }
 
 func ParseColor[StringLike ~string](s StringLike) (Color, error) {
@@ -157,6 +181,14 @@ func ParseColor[StringLike ~string](s StringLike) (Color, error) {
 		return 0, &OneOfError[Color]{Expected: ColorMap, Actual: string(s)}
 	}
 	return c, nil
+}
+
+func ExpectColor[StringLike ~string](s StringLike) Color {
+	m, err := ParseColor(s)
+	if err != nil {
+		panic(err)
+	}
+	return m
 }
 
 type OneOfError[T any] struct {

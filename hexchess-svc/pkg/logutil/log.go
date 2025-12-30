@@ -29,13 +29,13 @@ func DynLog(ctx context.Context, msg string, err error, args ...any) {
 	}
 }
 
-func LogFatal(msg string, args ...any) {
+func Fatal(msg string, args ...any) {
 	slog.Error(msg, args...)
 	os.Exit(1)
 	//log.Fatalf("%s: %v", msg, args)
 }
 
-func LogFatalErr(msg string, err error) {
+func FatalErr(msg string, err error) {
 	slog.Error("failed to "+msg, "err", err)
 	os.Exit(1)
 	//log.Fatalf("%s: %v", msg, err)

@@ -132,15 +132,7 @@ func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parse challenge made on: %w", err)
 		}
-
-		if _, err := ParseColor(cm.StartColor); err != nil {
-			return nil, err
-		}
-		if _, err := ParseGameMode(cm.Mode); err != nil {
-			return nil, err
-		}
-
-		ce := ChallengeEntity{
+		return json.Marshal(ChallengeEntity{
 			ChallengerID:      cm.ChallengerId,
 			ChallengerName:    cm.ChallengerName,
 			ChallengerCountry: cm.ChallengerCountry,
@@ -152,8 +144,7 @@ func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {
 			StartColor:        cm.StartColor,
 			Mode:              cm.Mode,
 			MadeOn:            madeOn,
-		}
-		return json.Marshal(ce)
+		})
 	}
 	return nil, fmt.Errorf("unknown message type: %T", pbUm)
 }

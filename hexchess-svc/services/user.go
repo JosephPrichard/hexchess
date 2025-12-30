@@ -69,9 +69,9 @@ func hashPassword(password string) (HashResult, error) {
 	return HashResult{Salt: salt, HashedPassword: string(hashed)}, nil
 }
 
-func calcUserWinrate(wins int32, losses int32) int64 {
+func calcUserWinrate(wins int32, losses int32, draws int32) int64 {
 	wr := float64(0)
-	total := wins + losses
+	total := wins + losses + draws
 	if total > 0 {
 		wr = float64(wins) / float64(total) * 100.0
 	}
@@ -131,18 +131,22 @@ func BatchInsertUsers(ctx context.Context, query *db.Queries, insts []UserInst) 
 
 	var eg errgroup.Group
 	for i, inst := range insts {
+		if inst.JoinedOn.IsZero() {
+			inst.JoinedOn = time.Now()
+		}
 		eg.Go(func() error {
 			hash, err := hashPassword(inst.Password)
 			if err != nil {
 				return fmt.Errorf("hash password for inst index %d: %w", i, err)
 			}
-			batches[i] = db.BatchInsertUserParams{
+			batch := db.BatchInsertUserParams{
 				Username: inst.Username,
 				Country:  inst.Country,
 				Password: hash.HashedPassword,
 				Salt:     hash.Salt,
 				JoinedOn: pgtype.Timestamptz{Valid: true, Time: inst.JoinedOn},
 			}
+			batches[i] = batch
 			return nil
 		})
 	}
@@ -330,6 +334,7 @@ type ModeStatsEntity struct {
 	Rank       int64   `json:"rank"`
 	Wins       int32   `json:"wins"`
 	Losses     int32   `json:"losses"`
+	Draws      int32   `json:"draws"`
 	Winrate    int64   `json:"winrate"`
 	Elo        float64 `json:"elo"`
 	HighestElo float64 `json:"highestElo"`
@@ -338,6 +343,7 @@ type ModeStatsEntity struct {
 type UserStatsEntity struct {
 	TotalWins    int32             `json:"totalWins"`
 	TotalLosses  int32             `json:"totalLosses"`
+	TotalDraws   int32             `json:"totalDraws"`
 	AvgElo       float64           `json:"avgElo"`     // average elo of all other modes
 	HighestElo   float64           `json:"highestElo"` // the absolute highest elo
 	TotalWinrate int64             `json:"totalWinrate"`
@@ -357,20 +363,20 @@ func GetUserStats(ctx context.Context, query *db.Queries, id int64) (UserStatsEn
 	}
 
 	for _, row := range rows {
-		if _, err := ParseGameMode(row.Mode); err != nil {
-			return stats, err
-		}
 		modeStats := ModeStatsEntity{
 			Mode:       string(row.Mode),
 			Wins:       row.Wins,
 			Losses:     row.Losses,
-			Winrate:    calcUserWinrate(row.Wins, row.Losses),
+			Draws:      row.Draws,
+			Winrate:    calcUserWinrate(row.Wins, row.Losses, row.Draws),
 			Elo:        row.Elo,
 			HighestElo: row.HighestElo,
 		}
 
 		stats.TotalWins += modeStats.Wins
 		stats.TotalLosses += modeStats.Losses
+		stats.TotalDraws += modeStats.Draws
+
 		stats.HighestElo = max(stats.HighestElo, modeStats.HighestElo)
 		stats.AvgElo = avg(stats.AvgElo, len(stats.ModeStats), modeStats.Elo)
 		stats.TotalWinrate = avg(stats.TotalWinrate, len(stats.ModeStats), modeStats.Winrate)

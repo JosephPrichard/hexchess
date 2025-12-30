@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
 	"hexchess-svc/pkg/logutil"
@@ -14,12 +15,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+var jobName = flag.String("job", "sync", "dump mode to execute")
+
 func main() {
 	start := time.Now()
 
 	f, err := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
-		logutil.LogFatalErr("open log file", err)
+		logutil.FatalErr("open log file", err)
 	}
 	defer f.Close()
 
@@ -34,7 +37,7 @@ func main() {
 	slog.InfoContext(ctx, "connecting to postgres db", "dbURL", dbURL)
 	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
-		logutil.LogFatalErr("create pool", err)
+		logutil.FatalErr("create pool", err)
 	}
 	defer pool.Close()
 
@@ -43,8 +46,14 @@ func main() {
 	defer rdb.Close()
 
 	databases := &db.Databases{Pdb: db.MakePostgres(pool), Rdb: rdb}
-	if err := svc.SyncLeaderboard(ctx, databases); err != nil {
-		logutil.LogFatalErr("sync leaderboard", err)
+
+	switch *jobName {
+	case "sync":
+		if err := svc.SyncLeaderboard(ctx, databases); err != nil {
+			logutil.FatalErr("sync leaderboard", err)
+		}
+		log.Printf("finished syncing leaderboard: %v", time.Now().Sub(start))
+	default:
+		log.Fatalf("unknown job: %s", *jobName)
 	}
-	log.Printf("finished syncing leaderboard: %v", time.Now().Sub(start))
 }

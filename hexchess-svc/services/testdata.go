@@ -62,7 +62,7 @@ var TestUserModeElos = []struct {
 	{UserID: 1, Mode: ModeCorrespondence7.String(), Elo: 1000, Wins: 2, Losses: 2},
 	{UserID: 1, Mode: ModeTimed3Plus2.String(), Elo: 1020, Wins: 5, Losses: 4},
 	{UserID: 1, Mode: ModeTimed15Plus10.String(), Elo: 1030, Wins: 4, Losses: 3},
-	{UserID: 1, Mode: ModeTimed1Plus0.String(), Elo: 1000, Wins: 5, Losses: 5},
+	{UserID: 1, Mode: ModeTimed1Plus0.String(), Elo: 1050, Wins: 6, Losses: 5},
 	{UserID: 2, Mode: ModeTimed1Plus0.String(), Elo: 1000},
 	{UserID: 3, Mode: ModeCorrespondence7.String(), Elo: 900},
 	{UserID: 3, Mode: ModeCorrespondence1.String(), Elo: 900},
@@ -75,16 +75,16 @@ var TestUserModeElos = []struct {
 
 var TestUserStats = []UserStatsEntity{
 	{
-		TotalWins:    16,
+		TotalWins:    17,
 		TotalLosses:  14,
-		AvgElo:       1012.5,
-		HighestElo:   1030,
-		TotalWinrate: 52,
+		AvgElo:       1025,
+		HighestElo:   1050,
+		TotalWinrate: 53,
 		ModeStats: []ModeStatsEntity{
 			{Mode: ModeCorrespondence7.String(), Rank: 1, Wins: 2, Losses: 2, Winrate: 50, Elo: 1000, HighestElo: 1000},
 			{Mode: ModeTimed3Plus2.String(), Rank: 1, Wins: 5, Losses: 4, Winrate: 55, Elo: 1020, HighestElo: 1020},
 			{Mode: ModeTimed15Plus10.String(), Rank: 1, Wins: 4, Losses: 3, Winrate: 57, Elo: 1030, HighestElo: 1030},
-			{Mode: ModeTimed1Plus0.String(), Rank: 1, Wins: 5, Losses: 5, Winrate: 50, Elo: 1000, HighestElo: 1000},
+			{Mode: ModeTimed1Plus0.String(), Rank: 1, Wins: 6, Losses: 5, Winrate: 54, Elo: 1050, HighestElo: 1050},
 		},
 	},
 }

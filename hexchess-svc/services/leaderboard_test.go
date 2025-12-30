@@ -106,13 +106,24 @@ func TestGetLeaderboardUsers(t *testing.T) {
 		mode            GameMode
 		rankedUsers     []RankedUser
 		wantLeaderboard []LbdUserEntity
-		wantErr         error
+		wantMissingIDs  []int64
 	}{
 		{
-			name:        "invalid ranked user ID",
+			name:        "getting leaderboard with invalid ID",
 			mode:        ModeTimed1Plus0,
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 999999}},
-			wantErr:     ExpLdbError{ExpCount: 2, ActualCount: 1},
+			wantLeaderboard: []LbdUserEntity{
+				{
+					UserEntity: UserEntity{ID: 1, Username: "user1", Country: "us", JoinedOn: TestTimeNow},
+					Elo:        1050,
+					HighestElo: 1050,
+					Wins:       6,
+					Losses:     5,
+					Winrate:    54,
+					Rank:       1,
+				},
+			},
+			wantMissingIDs: []int64{999999},
 		},
 		{
 			name:        "getting valid leaderboard users",
@@ -120,12 +131,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 3}},
 			wantLeaderboard: []LbdUserEntity{
 				{
-					UserEntity: UserEntity{
-						ID:       1,
-						Username: "user1",
-						Country:  "us",
-						JoinedOn: TestTimeNow,
-					},
+					UserEntity: UserEntity{ID: 1, Username: "user1", Country: "us", JoinedOn: TestTimeNow},
 					Elo:        1000,
 					HighestElo: 1000,
 					Wins:       2,
@@ -134,12 +140,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 					Rank:       1,
 				},
 				{
-					UserEntity: UserEntity{
-						ID:       3,
-						Username: "user3",
-						Country:  "us",
-						JoinedOn: TestTimeNow,
-					},
+					UserEntity: UserEntity{ID: 3, Username: "user3", Country: "us", JoinedOn: TestTimeNow},
 					Elo:        900,
 					HighestElo: 900,
 					Rank:       2,
@@ -150,9 +151,10 @@ func TestGetLeaderboardUsers(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
 
-			leaderboard, err := GetLeaderboardUsers(ctx, databases.Pdb.Query, test.mode, test.rankedUsers)
+			leaderboard, missingIDs, err := GetLeaderboardUsers(ctx, databases.Pdb.Query, test.mode, test.rankedUsers)
 
-			assert.Equal(t, test.wantErr, err)
+			assert.Equal(t, test.wantMissingIDs, missingIDs)
+			require.NoError(t, err)
 			assertutil.AssertEqualIgnoring(t, test.wantLeaderboard, leaderboard)
 		})
 	}

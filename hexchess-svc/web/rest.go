@@ -588,7 +588,7 @@ func (h *RestHandler) HandleGetLeaderboard(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		return fmt.Errorf("get leaderboard page %d: %w", page, err)
 	}
-	users, err := svc.GetLeaderboardUsers(ctx, h.Pdb.Query, mode, lbd.RankedUsers)
+	users, _, err := svc.GetLeaderboardUsers(ctx, h.Pdb.Query, mode, lbd.RankedUsers)
 	if err != nil {
 		return err
 	}

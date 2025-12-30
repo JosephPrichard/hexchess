@@ -209,6 +209,7 @@ type LbdUserEntity struct {
 	HighestElo float64 `json:"highestElo"`
 	Wins       int32   `json:"wins"`
 	Losses     int32   `json:"losses"`
+	Draws      int32   `json:"draws"`
 	Winrate    int64   `json:"winrate"`
 	Rank       int64   `json:"rank"`
 }
@@ -222,49 +223,54 @@ func (e ExpLdbError) Error() string {
 	return fmt.Sprintf("expected leaderboard of length %d users, got %d", e.ExpCount, e.ActualCount)
 }
 
-func GetLeaderboardUsers(ctx context.Context, query *db.Queries, mode GameMode, rnkUsers []RankedUser) ([]LbdUserEntity, error) {
+func GetLeaderboardUsers(ctx context.Context, query *db.Queries, mode GameMode, rnkUsers []RankedUser) ([]LbdUserEntity, []int64, error) {
 	ids := make([]int64, 0, len(rnkUsers))
 	for _, user := range rnkUsers {
 		ids = append(ids, user.ID)
 	}
-	rows, err := query.SelectUserWithEloByIDs(ctx, db.SelectUserWithEloByIDsParams{
+	userRows, err := query.SelectUserWithEloByIDs(ctx, db.SelectUserWithEloByIDsParams{
 		Ids:  ids,
 		Mode: db.ModeEnum(mode.String()),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("select many users %+v: %w", ids, err)
-	}
-	if len(rows) != len(rnkUsers) {
-		return nil, ExpLdbError{ExpCount: int64(len(rnkUsers)), ActualCount: int64(len(rows))}
+		return nil, nil, fmt.Errorf("select many users %+v: %w", ids, err)
 	}
 
 	var lbdUsers []LbdUserEntity
-	for _, row := range rows {
-		lbdUsers = append(lbdUsers, LbdUserEntity{
-			UserEntity: UserEntity{ID: row.ID, Username: row.Username, Country: row.Country, JoinedOn: row.JoinedOn.Time},
-			Elo:        row.Elo,
-			HighestElo: row.HighestElo,
-			Wins:       row.Wins,
-			Losses:     row.Losses,
-			Winrate:    calcUserWinrate(row.Wins, row.Losses),
-		})
-	}
+	var missingIDs []int64
 
-	for i := range lbdUsers {
-		lbdUser := &lbdUsers[i]
-		for _, rnkUser := range rnkUsers {
-			if rnkUser.ID == lbdUser.ID {
-				lbdUser.Rank = rnkUser.Rank
+	for _, rnkUser := range rnkUsers {
+		var found *db.SelectUserWithEloByIDsRow
+		for i := range userRows {
+			if userRows[i].ID == rnkUser.ID {
+				found = &userRows[i]
 				break
 			}
 		}
+		if found != nil {
+			lbdUsers = append(lbdUsers, LbdUserEntity{
+				UserEntity: UserEntity{ID: rnkUser.ID, Username: found.Username, Country: found.Country, JoinedOn: found.JoinedOn.Time},
+				Elo:        defaultElo(found.Elo),
+				HighestElo: defaultElo(found.HighestElo),
+				Wins:       found.Wins.Int32,
+				Losses:     found.Losses.Int32,
+				Winrate:    calcUserWinrate(found.Wins.Int32, found.Losses.Int32, found.Draws.Int32),
+				Rank:       rnkUser.Rank,
+			})
+		} else {
+			missingIDs = append(missingIDs, rnkUser.ID)
+		}
+	}
+
+	if len(missingIDs) > 0 {
+		slog.ErrorContext(ctx, "leaderboard users missing from database", "missingIDs", missingIDs)
 	}
 	sort.Slice(lbdUsers, func(i, j int) bool {
 		return lbdUsers[i].Rank < lbdUsers[j].Rank
 	})
 
 	slog.InfoContext(ctx, "selected users", "ids", ids, "ldbUsers", lbdUsers, "rnkUsers", rnkUsers)
-	return lbdUsers, nil
+	return lbdUsers, missingIDs, nil
 }
 
 const MaxSearchOffset = 1000
@@ -303,6 +309,7 @@ func GetFuzzySearchLeaderboard(ctx context.Context, query *db.Queries, name stri
 		Datapoints int
 		Wins       int32
 		Losses     int32
+		Draws      int32
 		Winrate    int64
 	})
 	for _, row := range eloRows {
@@ -310,9 +317,12 @@ func GetFuzzySearchLeaderboard(ctx context.Context, query *db.Queries, name stri
 
 		aggr.Elo = avg(aggr.Elo, aggr.Datapoints, row.Elo)
 		aggr.HighestElo = max(aggr.HighestElo, row.Elo)
-		aggr.Winrate = avg(aggr.Winrate, aggr.Datapoints, calcUserWinrate(row.Wins, row.Losses))
+		aggr.Winrate = avg(aggr.Winrate, aggr.Datapoints, calcUserWinrate(row.Wins, row.Losses, row.Draws))
+
 		aggr.Losses += row.Losses
 		aggr.Wins += row.Wins
+		aggr.Draws += row.Draws
+
 		aggr.Datapoints += 1
 
 		eloAggrMap[row.UserID] = aggr
@@ -334,6 +344,7 @@ func GetFuzzySearchLeaderboard(ctx context.Context, query *db.Queries, name stri
 			HighestElo: aggr.HighestElo,
 			Wins:       aggr.Wins,
 			Losses:     aggr.Losses,
+			Draws:      aggr.Draws,
 			Winrate:    aggr.Winrate,
 			Rank:       int64(searchRank),
 		})

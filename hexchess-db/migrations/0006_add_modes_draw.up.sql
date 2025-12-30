@@ -1,0 +1,2 @@
+ALTER TABLE user_mode_elos
+    ADD COLUMN draws INT NOT NULL DEFAULT 0;

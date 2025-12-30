@@ -165,7 +165,8 @@ CREATE TABLE public.user_mode_elos (
     elo double precision NOT NULL,
     highest_elo double precision NOT NULL,
     wins integer DEFAULT 0 NOT NULL,
-    losses integer DEFAULT 0 NOT NULL
+    losses integer DEFAULT 0 NOT NULL,
+    draws integer DEFAULT 0 NOT NULL
 );
 
 

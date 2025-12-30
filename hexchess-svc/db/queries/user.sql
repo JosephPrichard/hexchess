@@ -70,9 +70,10 @@ SELECT
     e.elo,
     e.highest_elo,
     e.wins,
-    e.losses
+    e.losses,
+    e.draws
 FROM users u
-INNER JOIN user_mode_elos e
+LEFT JOIN user_mode_elos e
     ON u.id = e.user_id AND e.mode = sqlc.arg('mode')
 WHERE id = ANY(sqlc.arg('ids')::bigint[]);
 
@@ -120,36 +121,38 @@ SET password = sqlc.arg('password'), salt = sqlc.arg('salt')
 WHERE id = sqlc.arg('id');
 
 -- name: SelectUserModeElosByIds :many
-SELECT user_id, elo
+SELECT user_id, elo, highest_elo, wins, losses, draws
 FROM user_mode_elos
 WHERE user_id = ANY(sqlc.arg('id')::bigint[]) AND mode = sqlc.arg('mode');
 
 -- name: SelectUserElosById :many
-SELECT user_id, mode, elo, highest_elo, wins, losses
+SELECT user_id, mode, elo, highest_elo, wins, losses, draws
 FROM user_mode_elos
 WHERE user_id = sqlc.arg('id');
 
 -- name: SelectManyUserElosById :many
-SELECT user_id, mode, elo, highest_elo, wins, losses
+SELECT user_id, mode, elo, highest_elo, wins, losses, draws
 FROM user_mode_elos
 WHERE user_id = ANY(sqlc.arg('id')::bigint[]);
 
 -- name: UpsertElo :exec
-INSERT INTO user_mode_elos AS u (user_id, mode, elo, highest_elo, wins, losses)
+INSERT INTO user_mode_elos AS u (user_id, mode, elo, highest_elo, wins, losses, draws)
 VALUES (
     sqlc.arg('userID'),
     sqlc.arg('mode'),
-    sqlc.arg('elo'),
-    sqlc.arg('elo'),
+    COALESCE(sqlc.narg('elo')::FLOAT8, sqlc.arg('defaultElo')::FLOAT8),
+    GREATEST(sqlc.narg('elo'), sqlc.arg('defaultElo')),
     sqlc.arg('wins'),
-    sqlc.arg('losses'))
+    sqlc.arg('losses'),
+    sqlc.arg('draws'))
 ON CONFLICT ON CONSTRAINT user_mode_elos_pkey
 DO UPDATE
 SET
-    elo = sqlc.arg('elo'),
-    highest_elo = GREATEST(u.highest_elo, sqlc.arg('elo')),
+    elo = COALESCE(sqlc.narg('elo'), u.elo),
+    highest_elo = GREATEST(u.highest_elo, sqlc.narg('elo')),
     wins = u.wins + sqlc.arg('wins'),
-    losses = u.losses + sqlc.arg('losses');
+    losses = u.losses + sqlc.arg('losses'),
+    draws = u.draws + sqlc.arg('draws');
 
 -- name: SelectEloList :many
 SELECT user_id, elo FROM user_mode_elos
