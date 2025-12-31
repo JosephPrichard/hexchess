@@ -41,7 +41,7 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 		}
 	}
 	go func() {
-		// listens to the redis channel, creating a new connection if for whatever reason the recv loop fails
+		// listens to the rdb channel, creating a new connection if for whatever reason the recv loop fails
 		for {
 			conn, err := redigo.Dial("tcp", addr)
 			if err != nil {
@@ -55,13 +55,13 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 	return connCh
 }
 
-type Broadcasters struct {
+type LocalBroadcasters struct {
 	CountsCaster *UniCaster
 	GamesCaster  *MultiCasterMap
 	UsersCaster  *MultiCasterMap
 }
 
-func (b *Broadcasters) ListenGameMessages(rdb *db.Redis) chan struct{} {
+func (b *LocalBroadcasters) ListenGameMessages(rdb *db.Rdb) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.GamesChan}, func(v redigo.Message) {
 		var outputID pb.GameOutputID
 		if err := proto.Unmarshal(v.Data, &outputID); err != nil {
@@ -73,7 +73,7 @@ func (b *Broadcasters) ListenGameMessages(rdb *db.Redis) chan struct{} {
 	})
 }
 
-func (b *Broadcasters) ListenUsersMessages(rdb *db.Redis) chan struct{} {
+func (b *LocalBroadcasters) ListenUsersMessages(rdb *db.Rdb) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.UsersChan}, func(v redigo.Message) {
 		var userMsg pb.UserMsg
 		if err := proto.Unmarshal(v.Data, &userMsg); err != nil {
@@ -91,7 +91,7 @@ func (b *Broadcasters) ListenUsersMessages(rdb *db.Redis) chan struct{} {
 	})
 }
 
-func (b *Broadcasters) ListenUnicastEvents(rdb *db.Redis) chan struct{} {
+func (b *LocalBroadcasters) ListenUnicastEvents(rdb *db.Rdb) chan struct{} {
 	var eventMap = map[string]UcEventKind{
 		rdb.ActiveCountChan: UcActiveEk,
 		rdb.GamesCountChan:  UcGamesEk,
@@ -116,7 +116,7 @@ func (b *Broadcasters) ListenUnicastEvents(rdb *db.Redis) chan struct{} {
 	})
 }
 
-func BroadcastMessage(ctx context.Context, rdb *db.Redis, channel string, b []byte) error {
+func BroadcastMessage(ctx context.Context, rdb *db.Rdb, channel string, b []byte) error {
 	conn := rdb.PubSub.Get()
 	defer conn.Close()
 
@@ -128,31 +128,30 @@ func BroadcastMessage(ctx context.Context, rdb *db.Redis, channel string, b []by
 }
 
 type CountEvent struct {
-	ID    string `json:"id"`
-	Count int64  `json:"count"`
+	Count int64 `json:"count"`
 }
 
-func BroadcastCountEvent(ctx context.Context, rdb *db.Redis, channel string, count int64, id string) error {
-	b, err := json.Marshal(CountEvent{ID: id, Count: count})
+func BroadcastCountEvent(ctx context.Context, rdb *db.Rdb, channel string, count int64) error {
+	b, err := json.Marshal(CountEvent{Count: count})
 	if err != nil {
 		return fmt.Errorf("marshal count event message: %w", err)
 	}
 	return BroadcastMessage(ctx, rdb, channel, b)
 }
 
-func BroadcastActiveCount(ctx context.Context, rdb *db.Redis, count int64, id string) error {
-	return BroadcastCountEvent(ctx, rdb, rdb.ActiveCountChan, count, id)
+func BroadcastActiveCount(ctx context.Context, rdb *db.Rdb, count int64) error {
+	return BroadcastCountEvent(ctx, rdb, rdb.ActiveCountChan, count)
 }
 
-func BroadcastGameCount(ctx context.Context, rdb *db.Redis, count int64, id string) error {
-	return BroadcastCountEvent(ctx, rdb, rdb.GamesCountChan, count, id)
+func BroadcastGameCount(ctx context.Context, rdb *db.Rdb, count int64) error {
+	return BroadcastCountEvent(ctx, rdb, rdb.GamesCountChan, count)
 }
 
-func BroadcastGamesEvent(ctx context.Context, rdb *db.Redis, b []byte) error {
+func BroadcastGamesEvent(ctx context.Context, rdb *db.Rdb, b []byte) error {
 	return BroadcastMessage(ctx, rdb, rdb.GamesChan, b)
 }
 
-func BroadcastChallenge(ctx context.Context, rdb *db.Redis, c ChallengeEntity) error {
+func BroadcastChallenge(ctx context.Context, rdb *db.Rdb, c ChallengeEntity) error {
 	um := SerializeChallengeMsg(c)
 	b, err := proto.Marshal(um)
 	if err != nil {
@@ -161,8 +160,8 @@ func BroadcastChallenge(ctx context.Context, rdb *db.Redis, c ChallengeEntity) e
 	return BroadcastMessage(ctx, rdb, rdb.UsersChan, b)
 }
 
-func MakeBroadcaster() Broadcasters {
-	return Broadcasters{
+func MakeBroadcaster() LocalBroadcasters {
+	return LocalBroadcasters{
 		CountsCaster: MakeUniCaster("counts-caster"),
 		GamesCaster:  MakeMultiCasterMap("games-caster", GameExpireDur),
 		UsersCaster:  MakeMultiCasterMap("users-caster", -1),
@@ -339,7 +338,7 @@ const (
 )
 
 type UcEvent struct {
-	Kind UcEventKind // event kind, an unicaster is used to broadcast all global event types in hexchess-services
+	Kind UcEventKind // event kind, an unicaster is used to broadcast all global event types in hexchess
 	Data string
 }
 

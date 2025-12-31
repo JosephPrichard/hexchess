@@ -40,7 +40,7 @@ func MakeSessionID() string {
 	return string(bytes)
 }
 
-func GetSessionPlayer(ctx context.Context, rdb *db.Redis, r *http.Request) (svc.PlayerState, string, error) {
+func GetSessionPlayer(ctx context.Context, rdb *db.Rdb, r *http.Request) (svc.PlayerState, string, error) {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
 		return svc.PlayerState{}, "", svc.ErrSessionNotFound
@@ -53,7 +53,7 @@ func GetSessionPlayer(ctx context.Context, rdb *db.Redis, r *http.Request) (svc.
 	return player, sessionID, nil
 }
 
-func SetSessionPlayer(ctx context.Context, rdb *db.Redis, w http.ResponseWriter, player svc.PlayerState) (time.Duration, error) {
+func SetSessionPlayer(ctx context.Context, rdb *db.Rdb, w http.ResponseWriter, player svc.PlayerState) (time.Duration, error) {
 	sessionID := MakeSessionID()
 	if err := svc.SetSession(ctx, rdb, sessionID, player, SessionMaxAge); err != nil {
 		return 0, err

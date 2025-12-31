@@ -176,7 +176,7 @@ type VerifiedUser struct {
 	Country  string `json:"country"`
 }
 
-func VerifyUserTx(ctx context.Context, pdb *db.PostgreSQL, username string, inputPassword string) (VerifiedUser, error) {
+func VerifyUserTx(ctx context.Context, pdb *db.Postgres, username string, inputPassword string) (VerifiedUser, error) {
 	return db.RunInTx(ctx, pdb,
 		[]error{ErrTooManyLoginAttempts, ErrUserNotFound},
 		func(ctx context.Context, query *db.Queries) (VerifiedUser, error) {

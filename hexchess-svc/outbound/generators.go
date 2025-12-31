@@ -11,16 +11,18 @@ type Generator interface {
 	GetNow() time.Time
 }
 
-type RandomGenerator struct{}
+// NDGenerator non-deterministic generator used in the production impl
+type NDGenerator struct{}
 
-func (_ *RandomGenerator) MakeID() string {
+func (_ *NDGenerator) MakeID() string {
 	return uuid.NewString()
 }
 
-func (_ *RandomGenerator) GetNow() time.Time {
+func (_ *NDGenerator) GetNow() time.Time {
 	return time.Now()
 }
 
+// StableGenerator is a generator that returns predefined mock values
 type StableGenerator struct {
 	ID   string
 	Time time.Time

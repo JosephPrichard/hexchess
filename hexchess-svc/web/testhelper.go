@@ -34,7 +34,7 @@ var TestStates = []svc.ChessState{
 	svc.MakeState(svc.StateSetup{ID: "game3", Mode: svc.ModeCorrespondence1, FirstColor: svc.Random}),
 }
 
-func createTestSessions(t *testing.T, rdb *db.Redis) {
+func createTestSessions(t *testing.T, rdb *db.Rdb) {
 	ctx := context.WithValue(context.Background(), logutil.Trace, "create-test-session-1")
 	if err := svc.SetSession(ctx, rdb, TestSessionID1, svc.MakePlayer(1, "user1", "us"), SessionMaxAge); err != nil {
 		t.Fatalf("create test sessions: %v", err)
@@ -44,7 +44,7 @@ func createTestSessions(t *testing.T, rdb *db.Redis) {
 	}
 }
 
-func createTestChessStates(t *testing.T, rdb *db.Redis) {
+func createTestChessStates(t *testing.T, rdb *db.Rdb) {
 	ctx := context.WithValue(context.Background(), logutil.Trace, "testing-update-password")
 
 	for _, state := range TestStates {

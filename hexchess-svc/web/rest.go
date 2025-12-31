@@ -106,7 +106,7 @@ func (h *RestHandler) HandleRegister(w http.ResponseWriter, r *http.Request) err
 	}
 
 	ctx := r.Context()
-	user, err := svc.InsertUser(ctx, h.Pdb.Query, svc.UserInst{
+	user, err := svc.InsertUser(ctx, h.Query, svc.UserInst{
 		Username: body.Username,
 		Password: body.Password,
 		Country:  svc.DefaultCountry,
@@ -133,7 +133,7 @@ func (h *RestHandler) HandleRegister(w http.ResponseWriter, r *http.Request) err
 	return nil
 }
 
-func handleLoginSession(ctx context.Context, rdb *db.Redis, w http.ResponseWriter, user svc.VerifiedUser) error {
+func handleLoginSession(ctx context.Context, rdb *db.Rdb, w http.ResponseWriter, user svc.VerifiedUser) error {
 	t, err := SetSessionPlayer(ctx, rdb, w, svc.MakePlayer(user.ID, user.Username, user.Country))
 	if err != nil {
 		return fmt.Errorf("set session player: %w", err)
@@ -162,7 +162,7 @@ func (h *RestHandler) HandleLogin(w http.ResponseWriter, r *http.Request) error 
 
 	ctx := r.Context()
 
-	user, err := svc.VerifyUserTx(ctx, h.Pdb, body.Username, body.Password)
+	user, err := svc.VerifyUserTx(ctx, h.Postgres, body.Username, body.Password)
 	switch {
 	case errors.Is(err, svc.ErrUserNotFound):
 		return ErrHttpInvalidLogin
@@ -192,7 +192,7 @@ func (h *RestHandler) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) 
 	}
 	slog.InfoContext(ctx, "validated google account id token", "googleAccountID", payload.AccountID)
 
-	user, err := svc.SelectOrInsertGoogleUser(ctx, h.Pdb.Query, payload.AccountID, svc.GoogleUserInst{
+	user, err := svc.SelectOrInsertGoogleUser(ctx, h.Query, payload.AccountID, svc.GoogleUserInst{
 		Username: payload.Username,
 		Country:  svc.DefaultCountry,
 	})
@@ -231,14 +231,14 @@ func (h *RestHandler) HandleUpdatePassword(w http.ResponseWriter, r *http.Reques
 		return fmt.Errorf("get session player: %w", err)
 	}
 
-	user, err := svc.VerifyUserTx(ctx, h.Pdb, player.Name, body.Password)
+	user, err := svc.VerifyUserTx(ctx, h.Postgres, player.Name, body.Password)
 	if errors.Is(err, svc.ErrUserNotFound) {
 		return ErrHttpInvalidLogin
 	} else if err != nil {
 		return fmt.Errorf("verify user: %w", err)
 	}
 
-	if err := svc.UpdateUserPassword(ctx, h.Pdb.Query, user.ID, body.NewPassword); err != nil {
+	if err := svc.UpdateUserPassword(ctx, h.Query, user.ID, body.NewPassword); err != nil {
 		return fmt.Errorf("update user password: %w", err)
 	}
 	slog.InfoContext(ctx, "user has updated password", "user", user)
@@ -285,7 +285,7 @@ func (h *RestHandler) HandleUpdateUser(w http.ResponseWriter, r *http.Request) e
 		return fmt.Errorf("get session player: %w", err)
 	}
 
-	user, err := svc.UpdateUser(ctx, h.Pdb.Query, player.ID, svc.UpdtUserParams{
+	user, err := svc.UpdateUser(ctx, h.Query, player.ID, svc.UpdtUserParams{
 		Username: body.NewUsername,
 		Bio:      body.NewBio,
 		Country:  body.NewCountry,
@@ -460,7 +460,7 @@ func (h *RestHandler) HandleUpdateChallenge(w http.ResponseWriter, r *http.Reque
 		return ErrHttpUpdateChallenge
 	}
 
-	dr, err := svc.DeleteChallenge(ctx, h.Pdb.Query, svc.ChallengeKey{ChallengerID: body.ChallengerID, ChallengeeID: body.ChallengeeID})
+	dr, err := svc.DeleteChallenge(ctx, h.Query, svc.ChallengeKey{ChallengerID: body.ChallengerID, ChallengeeID: body.ChallengeeID})
 	if errors.Is(err, svc.ErrChallengeNotFound) {
 		return ErrHttpNotFoundChallenge
 	} else if err != nil {
@@ -510,7 +510,7 @@ func (h *RestHandler) HandleCreateChallenge(w http.ResponseWriter, r *http.Reque
 		return errm
 	}
 
-	ret, err := svc.InsertChallengeRet(ctx, h.Pdb.Query, svc.ChallengeInst{
+	ret, err := svc.InsertChallengeRet(ctx, h.Query, svc.ChallengeInst{
 		ChallengerID: player.ID,
 		ChallengeeID: body.ChallengeeID,
 		Mode:         mode,
@@ -534,9 +534,10 @@ func (h *RestHandler) HandleCreateChallenge(w http.ResponseWriter, r *http.Reque
 	if err := svc.BroadcastChallenge(ctx, h.Rdb, ret); err != nil {
 		slog.ErrorContext(ctx, "failed to broadcast challenge", "challenge", ret, "err", err)
 	}
-	if err := svc.DeleteExpiredChallenges(ctx, h.Pdb.Query, player.ID, svc.ExpireChallengeThreshold); err != nil {
+	if err := svc.ChallengeScenario(h.Generator).DeleteExpiredChallenges(ctx, h.Query, player.ID); err != nil {
 		slog.ErrorContext(ctx, "failed to delete expired challenges", "challenge", ret, "err", err)
 	}
+
 	return nil
 }
 
@@ -552,7 +553,7 @@ func (h *RestHandler) HandleGetSelf(w http.ResponseWriter, r *http.Request) erro
 		return fmt.Errorf("get session player: %w", err)
 	}
 
-	user, err := svc.GetUserByID(ctx, h.Pdb.Query, player.ID)
+	user, err := svc.GetUserByID(ctx, h.Query, player.ID)
 	if err != nil {
 		return fmt.Errorf("get user by id %+v: %w", player, err)
 	}
@@ -588,7 +589,7 @@ func (h *RestHandler) HandleGetLeaderboard(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		return fmt.Errorf("get leaderboard page %d: %w", page, err)
 	}
-	users, _, err := svc.GetLeaderboardUsers(ctx, h.Pdb.Query, mode, lbd.RankedUsers)
+	users, _, err := svc.GetLeaderboardUsers(ctx, h.Query, mode, lbd.RankedUsers)
 	if err != nil {
 		return err
 	}
@@ -624,11 +625,11 @@ func (h *RestHandler) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 	var lbRanks map[string]svc.LbRank
 
 	eg.Go(func() (err error) {
-		resp.User, err = svc.GetUserByID(egCtx, h.Pdb.Query, int64(id))
+		resp.User, err = svc.GetUserByID(egCtx, h.Query, int64(id))
 		return err
 	})
 	eg.Go(func() (err error) {
-		resp.Stats, err = svc.GetUserStats(egCtx, h.Pdb.Query, int64(id))
+		resp.Stats, err = svc.GetUserStats(egCtx, h.Query, int64(id))
 		return err
 	})
 	eg.Go(func() (err error) {
@@ -637,7 +638,7 @@ func (h *RestHandler) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 	})
 	if withReplays {
 		eg.Go(func() (err error) {
-			resp.ReplayList, err = svc.GetUserReplays(egCtx, h.Pdb.Query, int64(id), -1, perPage)
+			resp.ReplayList, err = svc.GetUserReplays(egCtx, h.Query, int64(id), -1, perPage)
 			return err
 		})
 	}
@@ -681,7 +682,7 @@ func (h *RestHandler) HandleSearchPlayers(w http.ResponseWriter, r *http.Request
 
 	var userList []svc.LbdUserEntity
 	if hasUser {
-		users, err := svc.GetFuzzySearchLeaderboard(ctx, h.Pdb.Query, name, int32(page), perPage)
+		users, err := svc.GetFuzzySearchLeaderboard(ctx, h.Query, name, int32(page), perPage)
 		if errors.Is(err, svc.ErrSearchLimit) {
 			return ErrHttpSearchLimit
 		} else if err != nil {
@@ -709,7 +710,7 @@ func (h *RestHandler) HandleGetReplay(w http.ResponseWriter, r *http.Request) er
 		return errmap.Put(nil, "id", ErrHttpInvalidID)
 	}
 
-	replay, err := svc.GetReplay(ctx, h.Pdb.Query, int64(id))
+	replay, err := svc.GetReplay(ctx, h.Query, int64(id))
 	if err != nil {
 		return fmt.Errorf("get replay %d: %w", id, err)
 	}
@@ -726,7 +727,7 @@ func (h *RestHandler) HandleGetReplayMoveList(w http.ResponseWriter, r *http.Req
 		return errmap.Put(nil, "page", ErrHttpInvalidID)
 	}
 
-	pbMoveHist, err := svc.GetReplayMoveHistory(ctx, h.Pdb.Query, int64(id))
+	pbMoveHist, err := svc.GetReplayMoveHistory(ctx, h.Query, int64(id))
 	if err != nil {
 		return fmt.Errorf("get replay moveHistory: %w", err)
 	}
@@ -760,7 +761,7 @@ func (h *RestHandler) HandleGetUserReplays(w http.ResponseWriter, r *http.Reques
 		return errm
 	}
 
-	replays, err := svc.GetUserReplays(ctx, h.Pdb.Query, int64(userID), int64(afterID), perPage)
+	replays, err := svc.GetUserReplays(ctx, h.Query, int64(userID), int64(afterID), perPage)
 	if err != nil {
 		return fmt.Errorf("get user %d replays: %w", userID, err)
 	}
@@ -784,15 +785,16 @@ func (h *RestHandler) HandleGetChallenges(w http.ResponseWriter, r *http.Request
 		return fmt.Errorf("get session player: %w", err)
 	}
 
-	since := svc.MakeGetChallengesSince(h.GetNow())
+	scenario := svc.ChallengeScenario(h.Generator)
+
 	var challengeList []svc.ChallengeEntity
 	switch participants {
 	case "sent":
-		if challengeList, err = svc.GetChallengesByParticipant(ctx, h.Pdb.Query, svc.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1}, since); err != nil {
+		if challengeList, err = scenario.GetChallengesByParticipant(ctx, h.Query, svc.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1}); err != nil {
 			return fmt.Errorf("get challenges by challenger: %w", err)
 		}
 	case "received":
-		if challengeList, err = svc.GetChallengesByParticipant(ctx, h.Pdb.Query, svc.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID}, since); err != nil {
+		if challengeList, err = scenario.GetChallengesByParticipant(ctx, h.Query, svc.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID}); err != nil {
 			return fmt.Errorf("get challenges by challengee: %w", err)
 		}
 	}

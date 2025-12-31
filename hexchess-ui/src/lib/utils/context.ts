@@ -22,7 +22,6 @@ export type NotificationData = TextValue | ChallengeValue;
 interface NotificationsContext {
 	addNotification: (data: NotificationData) => void;
 	deleteNotification: (index: number) => void;
-	counts: Writable<{ usersCount: number; gameCounts: number; }>;
 }
 
 export function getNotificationsContext() {

@@ -146,7 +146,7 @@ func TestHandleGameplayWs(t *testing.T) {
 				require.NoError(t, err)
 				assert.True(t, actualState.IsEnded)
 
-				replay, err := databases.Pdb.Query.SelectReplayRowByID(context.Background(), replayID)
+				replay, err := databases.Query.SelectReplayRowByID(context.Background(), replayID)
 				require.NoError(t, err)
 				assert.Equal(t, replay.Cause, db.CauseEnum("FORFEIT"))
 			},

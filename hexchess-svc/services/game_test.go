@@ -355,7 +355,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 
 	AssertRedisChess(t, databases.Rdb, wantState, ChessMetaCmpOpt)
 
-	replay, err := databases.Pdb.Query.SelectReplayRowByID(ctx, replayID)
+	replay, err := databases.Query.SelectReplayRowByID(ctx, replayID)
 	require.NoError(t, err)
 	assertutil.AssertEqualIgnoring(t, wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn", "MoveHistory"))
 }

@@ -43,7 +43,7 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 
 type State struct {
 	Databases      db.Databases
-	Broadcasters   svc.Broadcasters
+	Broadcasters   svc.LocalBroadcasters
 	Generators     outbound.Generator
 	OutboundAPIs   outbound.RemoteAPIs
 	CountryList    []string
@@ -66,7 +66,7 @@ func HandleRoot(state State) http.Handler {
 	r.Use(RouteMiddleware(state.AllowedOrigins))
 
 	rest := RestHandler{state.Databases, state.Generators, state.OutboundAPIs, validCountries}
-	sse := SSEHandler{state.Databases.Rdb, state.Generators, state.Broadcasters}
+	sse := SSEHandler{state.Databases.Rdb, state.Broadcasters, state.Generators}
 	gameplay := GameplayHandler{state.Databases, state.Broadcasters, state.Generators}
 	healthcheck := HealthCheckHandler{state.Databases}
 
@@ -95,6 +95,7 @@ func HandleRoot(state State) http.Handler {
 
 	r.Get("/api/events/count", SSE(sse.HandleCountEvents))
 	r.Get("/api/events/user", SSE(sse.HandleUserEvents))
+	r.Get("/api/events/active", SSE(sse.HandleActiveCountConn))
 
 	r.Get("/api/initial-board", Json(chess.InitialBoard()))
 	r.Get("/api/countries", Json(countryList))
@@ -130,14 +131,14 @@ func (h *HealthCheckHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Re
 		Check func() error
 	}{
 		{
-			Name: "redisPrimary",
+			Name: "rdbPrimary",
 			Check: func() error {
 				_, err := h.Rdb.Cache.Ping(ctx).Result()
 				return err
 			},
 		},
 		{
-			Name: "redisPubsub",
+			Name: "rdbPubsub",
 			Check: func() error {
 				conn := h.Rdb.PubSub.Get()
 				defer conn.Close()
@@ -148,7 +149,7 @@ func (h *HealthCheckHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Re
 		{
 			Name: "postgresDB",
 			Check: func() error {
-				_, err := h.Pdb.Pool.Exec(ctx, "SELECT 1;")
+				_, err := h.Postgres.Pool.Exec(ctx, "SELECT 1;")
 				return err
 			},
 		},
@@ -157,7 +158,7 @@ func (h *HealthCheckHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Re
 	failures := make(map[string]string)
 	for h := range healthChecks {
 		if err := healthChecks[h].Check(); err != nil {
-			failures["redisPrimary"] = err.Error()
+			failures["rdbPrimary"] = err.Error()
 		}
 	}
 	status := "OK"

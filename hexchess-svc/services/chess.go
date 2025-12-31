@@ -13,13 +13,13 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func getUserGameZSet(rdb *db.Redis, id int64) string {
+func getUserGameZSet(rdb *db.Rdb, id int64) string {
 	return rdb.GamesZSet + "_user_" + strconv.Itoa(int(id))
 }
 
 var ErrNoChessState = errors.New("no chess state")
 
-func GetChessState(ctx context.Context, rdb *db.Redis, id string) (*ChessState, error) {
+func GetChessState(ctx context.Context, rdb *db.Rdb, id string) (*ChessState, error) {
 	if err := ExpireChessStates(ctx, rdb, rdb.GamesZSet); err != nil {
 		return nil, fmt.Errorf("expire chess states: %w", err)
 	}
@@ -42,12 +42,12 @@ func GetChessState(ctx context.Context, rdb *db.Redis, id string) (*ChessState, 
 	return &state, nil
 }
 
-func SetChessState(ctx context.Context, rdb *db.Redis, id string, state *ChessState) error {
+func SetChessState(ctx context.Context, rdb *db.Rdb, id string, state *ChessState) error {
 	touch := time.Now()
 	return SetChessStateAt(ctx, rdb, id, state, touch)
 }
 
-func SetChessStateAt(ctx context.Context, rdb *db.Redis, id string, state *ChessState, touch time.Time) error {
+func SetChessStateAt(ctx context.Context, rdb *db.Rdb, id string, state *ChessState, touch time.Time) error {
 	state.Touch = touch
 	touchSecs := float64(state.Touch.Unix())
 	fullID := "game:" + id
@@ -77,7 +77,7 @@ func SetChessStateAt(ctx context.Context, rdb *db.Redis, id string, state *Chess
 
 const GameExpireFinished = 1 * time.Hour
 
-func ExpireChessStates(ctx context.Context, rdb *db.Redis, zSetName string) error {
+func ExpireChessStates(ctx context.Context, rdb *db.Rdb, zSetName string) error {
 	expireBefore := time.Now().Add(-GameExpireFinished).Unix()
 
 	keys, err := rdb.Cache.ZRangeByScore(ctx, zSetName, &redis.ZRangeBy{
@@ -104,19 +104,19 @@ func ExpireChessStates(ctx context.Context, rdb *db.Redis, zSetName string) erro
 	return nil
 }
 
-func GetUserChessMetas(ctx context.Context, rdb *db.Redis, userID int64) ([]ChessMeta, error) {
+func GetUserChessMetas(ctx context.Context, rdb *db.Rdb, userID int64) ([]ChessMeta, error) {
 	return GetChessMetas(ctx, rdb, getUserGameZSet(rdb, userID), 1, -1)
 }
 
-func GetUserChessMetasPaged(ctx context.Context, rdb *db.Redis, userID int64, page, count int) ([]ChessMeta, error) {
+func GetUserChessMetasPaged(ctx context.Context, rdb *db.Rdb, userID int64, page, count int) ([]ChessMeta, error) {
 	return GetChessMetas(ctx, rdb, getUserGameZSet(rdb, userID), page, count)
 }
 
-func GetAllChessMetas(ctx context.Context, rdb *db.Redis, page, count int) ([]ChessMeta, error) {
+func GetAllChessMetas(ctx context.Context, rdb *db.Rdb, page, count int) ([]ChessMeta, error) {
 	return GetChessMetas(ctx, rdb, rdb.GamesZSet, page, count)
 }
 
-func GetChessMetas(ctx context.Context, rdb *db.Redis, zSetName string, page, count int) ([]ChessMeta, error) {
+func GetChessMetas(ctx context.Context, rdb *db.Rdb, zSetName string, page, count int) ([]ChessMeta, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -167,7 +167,7 @@ func GetChessMetas(ctx context.Context, rdb *db.Redis, zSetName string, page, co
 	return views, nil
 }
 
-func GetChessStateCount(ctx context.Context, rdb *db.Redis) (int64, error) {
+func GetChessStateCount(ctx context.Context, rdb *db.Rdb) (int64, error) {
 	if err := ExpireChessStates(ctx, rdb, rdb.GamesZSet); err != nil {
 		return 0, err
 	}

@@ -4,27 +4,35 @@ import (
 	"context"
 	"fmt"
 	"hexchess-svc/db"
+	"hexchess-svc/outbound"
 	"log/slog"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
-const ActiveUserExpireFinished = time.Minute // the caller should manually remove, but this is a stopgap in case the server is stopped before that is the case
-
-func GetActiveCount(ctx context.Context, rdb *db.Redis, activeUsersZSet string) (int64, error) {
-	return GetActiveCountWithExpiry(ctx, rdb, activeUsersZSet, time.Now().Add(-ActiveUserExpireFinished).UnixMilli())
+type ActiveScenario struct {
+	outbound.Generator
+	maxAge time.Duration
 }
 
-func GetActiveCountWithExpiry(ctx context.Context, rdb *db.Redis, activeUsersZSet string, expireBefore int64) (int64, error) {
-	removed, err := rdb.Cache.ZRemRangeByScore(ctx, activeUsersZSet, "-inf", fmt.Sprintf("%d", expireBefore)).Result()
+func MakeActiveScenario() ActiveScenario {
+	return ActiveScenario{&outbound.NDGenerator{}, ActiveUserMaxage}
+}
+
+const ActiveUserMaxage = time.Minute // the caller should manually remove, but this is a stopgap in case the server is stopped before that is the case
+
+func (s ActiveScenario) GetActiveCount(ctx context.Context, rdb *db.Rdb) (int64, error) {
+	expireBefore := s.GetNow().Add(-s.maxAge).UnixMilli()
+
+	removed, err := rdb.Cache.ZRemRangeByScore(ctx, rdb.ActiveUsersZSet, "-inf", fmt.Sprintf("%d", expireBefore)).Result()
 	if err != nil {
 		return 0, fmt.Errorf("get expired active users by range: %w", err)
 	}
 	if removed > 0 {
-		slog.InfoContext(ctx, "expired users with keys", "count", removed)
+		slog.InfoContext(ctx, "expired users with keys", "count", removed, "expireBefore", expireBefore)
 	}
-	count, err := rdb.Cache.ZCard(ctx, activeUsersZSet).Result()
+	count, err := rdb.Cache.ZCard(ctx, rdb.ActiveUsersZSet).Result()
 	if err != nil {
 		return 0, fmt.Errorf("count active users: %w", err)
 	}
@@ -32,39 +40,39 @@ func GetActiveCountWithExpiry(ctx context.Context, rdb *db.Redis, activeUsersZSe
 	return count, nil
 }
 
-func RetainActiveUser(ctx context.Context, rdb *db.Redis, id string) error {
-	now := float64(time.Now().UnixMilli())
-	res, err := rdb.Cache.ZAddXX(ctx, rdb.ActiveUsersZSet, redis.Z{Score: now, Member: id}).Result()
+func (s ActiveScenario) RetainActiveUser(ctx context.Context, rdb *db.Rdb, id string) error {
+	now := float64(s.GetNow().UnixMilli())
+
+	_, err := rdb.Cache.ZAddXX(ctx, rdb.ActiveUsersZSet, redis.Z{Score: now, Member: id}).Result()
 	if err != nil {
-		return fmt.Errorf("add active user %s: %w", id, err)
+		return fmt.Errorf("retain active user %s: %w", id, err)
 	}
-	if res > 0 {
-		slog.InfoContext(ctx, "retained active user", "id", id)
-	}
+	slog.InfoContext(ctx, "retained active user", "id", id, "score", now)
 	return nil
 }
 
-func AddActiveUser(ctx context.Context, rdb *db.Redis, id string) (int64, error) {
-	now := time.Now()
-	return AddActiveUserOn(ctx, rdb, id, now, now.Add(-ActiveUserExpireFinished).UnixMilli())
-}
+func (s ActiveScenario) AddActiveUser(ctx context.Context, rdb *db.Rdb, id string) (int64, error) {
+	now := float64(s.GetNow().UnixMilli())
 
-func AddActiveUserOn(ctx context.Context, rdb *db.Redis, id string, expiringOn time.Time, expireBefore int64) (int64, error) {
-	_, err := rdb.Cache.ZAddNX(ctx, rdb.ActiveUsersZSet, redis.Z{Score: float64(expiringOn.UnixMilli()), Member: id}).Result()
+	_, err := rdb.Cache.ZAddNX(ctx, rdb.ActiveUsersZSet, redis.Z{Score: now, Member: id}).Result()
 	if err != nil {
 		return 0, fmt.Errorf("add active user %v: %w", id, err)
 	}
-	slog.InfoContext(ctx, "added active user", "id", id)
+	slog.InfoContext(ctx, "added active user", "id", id, "score", now)
 
-	return GetActiveCountWithExpiry(ctx, rdb, rdb.ActiveUsersZSet, expireBefore)
+	return s.GetActiveCount(ctx, rdb)
 }
 
-func RemoveActiveUser(ctx context.Context, rdb *db.Redis, id string) (int64, error) {
-	_, err := rdb.Cache.ZRem(ctx, rdb.ActiveUsersZSet, id).Result()
+func (s ActiveScenario) RemoveActiveUser(ctx context.Context, rdb *db.Rdb, id string) (int64, error) {
+	res, err := rdb.Cache.ZRem(ctx, rdb.ActiveUsersZSet, id).Result()
 	if err != nil {
 		return 0, fmt.Errorf("remove active user %v: %w", id, err)
 	}
-	slog.InfoContext(ctx, "removed active user", "id", id)
+	if res > 0 {
+		slog.InfoContext(ctx, "removed active user", "id", id)
+	} else {
+		slog.WarnContext(ctx, "did not remove active user", "id", id)
+	}
 
-	return GetActiveCount(ctx, rdb, rdb.ActiveUsersZSet)
+	return s.GetActiveCount(ctx, rdb)
 }

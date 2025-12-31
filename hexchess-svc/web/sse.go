@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"hexchess-svc/db"
 	"hexchess-svc/outbound"
-	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/pkg/timeutil"
 	"hexchess-svc/services"
 	"log/slog"
@@ -40,9 +39,9 @@ func SSE(h func(w SSEWriter, r *http.Request) error) http.HandlerFunc {
 }
 
 type SSEHandler struct {
-	Rdb *db.Redis
+	Rdb *db.Rdb
+	svc.LocalBroadcasters
 	outbound.Generator
-	svc.Broadcasters
 }
 
 type SSEWriter struct {
@@ -58,7 +57,7 @@ func (sse SSEWriter) writeEvent(e string, d string) {
 	sse.f.Flush()
 }
 
-func (sse SSEWriter) writeCountEvent(event svc.UcEvent) {
+func (sse SSEWriter) writeUcEvent(event svc.UcEvent) {
 	var e string
 	switch event.Kind {
 	case svc.UcActiveEk:
@@ -73,12 +72,12 @@ func (sse SSEWriter) writeCountEvent(event svc.UcEvent) {
 	sse.writeEvent(e, event.Data)
 }
 
-func (sse SSEWriter) writeGamesCountEvent(count int64, sseID string) {
-	b, err := json.Marshal(svc.CountEvent{Count: count, ID: sseID})
+func (sse SSEWriter) writeCountEvent(kind svc.UcEventKind, count int64) {
+	b, err := json.Marshal(svc.CountEvent{Count: count})
 	if err != nil {
-		slog.ErrorContext(sse.ctx, "marshal count event", "sseID", sseID, "err", err)
+		slog.ErrorContext(sse.ctx, "marshal count event", "err", err)
 	}
-	sse.writeCountEvent(svc.UcEvent{Kind: svc.UcGamesEk, Data: string(b)})
+	sse.writeUcEvent(svc.UcEvent{Kind: kind, Data: string(b)})
 }
 
 const (
@@ -90,52 +89,28 @@ const (
 	SSEChanBufCap = 10
 )
 
-func (h *SSEHandler) HandleCountEvents(w SSEWriter, r *http.Request) error {
-	sseID := h.MakeID()
-	ctx := context.WithValue(r.Context(), logutil.SseID, sseID)
-	w.ctx = ctx
+func (h *SSEHandler) HandleCountEvents(w SSEWriter, _ *http.Request) error {
+	ctx := w.ctx
 
+	activeCount, err := svc.MakeActiveScenario().GetActiveCount(ctx, h.Rdb)
+	if err != nil {
+		return err
+	}
 	gamesCount, err := svc.GetChessStateCount(ctx, h.Rdb)
 	if err != nil {
 		return err
 	}
-	activeCount, err := svc.AddActiveUser(ctx, h.Rdb, sseID)
-	if err != nil {
-		return err
-	}
 
-	w.writeEvent(MetaEvent, sseID)
-	w.writeGamesCountEvent(gamesCount, sseID)
+	w.writeCountEvent(svc.UcActiveEk, activeCount)
+	w.writeCountEvent(svc.UcGamesEk, gamesCount)
 
 	countsChan := make(chan svc.UcEvent, SSEChanBufCap)
 	h.CountsCaster.Subscribe(countsChan)
 
-	if err := svc.BroadcastActiveCount(ctx, h.Rdb, activeCount, sseID); err != nil {
-		slog.ErrorContext(ctx, "failed to broadcast active count", "sseID", sseID, "err", err)
-	}
-
-	stopPing := timeutil.Every(time.Minute, func() bool {
-		if err := svc.RetainActiveUser(ctx, h.Rdb, sseID); err != nil {
-			slog.ErrorContext(ctx, "failed to retain active user", "err", err)
-		}
-		return true
-	})
-
 	go func() {
 		<-ctx.Done()
-		stopPing <- true
 		h.CountsCaster.Unsubscribe(countsChan)
-		slog.InfoContext(ctx, "finished handle user events sse", "sseID", sseID)
-
-		// shutdown
-		ctx := context.WithoutCancel(ctx)
-		ac, err := svc.RemoveActiveUser(ctx, h.Rdb, sseID)
-		if err != nil {
-			slog.ErrorContext(ctx, "failed to remove active user", "sseID", sseID, "err", err)
-		}
-		if err := svc.BroadcastActiveCount(ctx, h.Rdb, ac, sseID); err != nil {
-			slog.ErrorContext(ctx, "failed to broadcast active count on removal", "sseID", sseID, "err", err)
-		}
+		slog.InfoContext(ctx, "finished handle user events sse")
 	}()
 
 	keepAliveTicker := time.NewTicker(time.Second * 15)
@@ -145,28 +120,65 @@ func (h *SSEHandler) HandleCountEvents(w SSEWriter, r *http.Request) error {
 			if !ok {
 				return nil
 			}
-			w.writeCountEvent(e)
+			w.writeUcEvent(e)
 		case <-keepAliveTicker.C:
 			w.writeEvent(MetaEvent, "KeepAlive")
 		}
 	}
 }
 
-func (h *SSEHandler) HandleUserEvents(w SSEWriter, r *http.Request) error {
+// HandleActiveCountConn a long-lived TCP connection used to maintain an active connection, it only ever receives "meta" messages
+func (h *SSEHandler) HandleActiveCountConn(w SSEWriter, _ *http.Request) error {
+	ctx := w.ctx
+	scenario := svc.MakeActiveScenario()
+
 	sseID := h.MakeID()
-	ctx := context.WithValue(r.Context(), logutil.SseID, sseID)
-	w.ctx = ctx
+
+	count, err := scenario.AddActiveUser(ctx, h.Rdb, sseID)
+	if err != nil {
+		return err
+	}
+	if err := svc.BroadcastActiveCount(ctx, h.Rdb, count); err != nil {
+		return fmt.Errorf("broadcast active user count after adding %d: %w", count, err)
+	}
+
+	stopTimer := timeutil.Every(time.Second*15, func() bool {
+		if err := scenario.RetainActiveUser(ctx, h.Rdb, sseID); err != nil {
+			slog.ErrorContext(ctx, "failed to retain active user", "sseID", sseID, "err", err)
+		}
+		w.writeEvent(MetaEvent, "KeepAlive")
+		return true
+	})
+
+	w.writeEvent(MetaEvent, sseID)
+
+	shtdwnCtx := context.WithoutCancel(ctx)
+	<-ctx.Done()
+	stopTimer <- true
+
+	if count, err = scenario.RemoveActiveUser(shtdwnCtx, h.Rdb, sseID); err != nil {
+		slog.ErrorContext(shtdwnCtx, "failed to remove active user", "sseID", sseID, "err", err)
+	}
+	if err := svc.BroadcastActiveCount(shtdwnCtx, h.Rdb, count); err != nil {
+		slog.ErrorContext(shtdwnCtx, "broadcast active user count after removing", "err", err)
+	}
+
+	return nil
+}
+
+func (h *SSEHandler) HandleUserEvents(w SSEWriter, r *http.Request) error {
+	ctx := w.ctx
 
 	player, _, err := GetSessionPlayer(ctx, h.Rdb, r)
-	if errors.Is(err, svc.ErrSessionNotFound) {
-		return ErrHttpSessionExpired
-	}
 	if err != nil {
+		if errors.Is(err, svc.ErrSessionNotFound) {
+			return ErrHttpSessionExpired
+		}
 		return err
 	}
 	strID := strconv.Itoa(int(player.ID))
 
-	w.writeEvent(MetaEvent, sseID)
+	w.writeEvent(MetaEvent, strconv.FormatInt(player.ID, 10))
 
 	usersChan := make(chan []byte, SSEChanBufCap)
 	h.UsersCaster.Subscribe(strID, usersChan)
@@ -174,7 +186,7 @@ func (h *SSEHandler) HandleUserEvents(w SSEWriter, r *http.Request) error {
 	go func() {
 		<-ctx.Done()
 		h.UsersCaster.Unsubscribe(strID, usersChan)
-		slog.InfoContext(ctx, "finishing handle user events sse", "sseID", sseID)
+		slog.InfoContext(ctx, "finishing handle user events sse")
 	}()
 
 	keepAliveTicker := time.NewTicker(time.Second * 15)

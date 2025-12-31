@@ -4,7 +4,7 @@
 	import { getNotificationsContext } from '$lib/utils/context';
 	import { goto } from '$app/navigation';
 	import { type ChessModel, type ColorSelect, type SessionModel, type GameMode, GameModeNameMap } from '$lib/api/models';
-	import services from '$lib/api/services';
+	import services, { baseURL } from '$lib/api/services';
 	import { onMount } from 'svelte';
 	import { getClientSession } from '$lib/utils/storage';
 	import { chessRowHeight, maxChessRows } from './globals';
@@ -21,6 +21,10 @@
 
 	const { data: props }: { data: IndexProps } = $props();
 
+	const { addNotification } = getNotificationsContext();
+
+	let countSse: EventSource | undefined = undefined;
+
 	let showSelf = $state(false);
 	let showCreateModal = $state(props.showCreateModal || false);
 	let fen = $state(props.fen || '');
@@ -28,15 +32,43 @@
 	let gameCounts = $state(0);
 	let client: SessionModel | null = $state(null);
 
-	const chessList = $derived.by(() => showSelf ? props.selfChessList : props.chessList);
-	const bottomPadding = $derived.by(() => (chessRowHeight * maxChessRows) - (chessRowHeight * chessList.length));
+	function connectCountEvents() {
+		countSse = new EventSource(`${baseURL()}/events/count`);
+		countSse.addEventListener('meta', (event) => {
+			console.log('SSE: COUNT_EVENTS meta', event.data);
+		});
+		countSse.addEventListener('activeCountEvents', (event) => {
+			console.log('SSE: COUNT_EVENTS activeCountEvents', event.data);
+			const count = JSON.parse(event.data).count;
+			if (!Number.isNaN(count)) {
+				userCounts = count;
+			} else {
+				console.error('Invalid count received from server: ', count);
+			}
+		});
+		countSse.addEventListener('gameCountEvents', (event) => {
+			console.log('SSE: COUNT_EVENTS gameCountEvents', event.data);
+			const count = JSON.parse(event.data).count;
+			if (!Number.isNaN(count)) {
+				gameCounts = count;
+			}  else {
+				console.error('Invalid count received from server: ', count);
+			}
+		});
+	}
 
-	const { addNotification, counts } = getNotificationsContext();
-
-	counts.subscribe((value) => {
-		userCounts = value.usersCount;
-		gameCounts = value.gameCounts;
+	onMount(() => {
+		connectCountEvents();
+		return () => {
+			if (countSse) countSse.close();
+		};
 	});
+
+	onMount(async () => {
+		client = getClientSession();
+		fen = await boardToFenWasm((await getInitialGameWasm()).board);
+	});
+	$inspect(client, 'client session');
 
 	async function onSubmitCreateGame(mode: GameMode, color: ColorSelect) {
 		const [data, err] = await services.postCreateGame(mode, color, fen);
@@ -47,11 +79,8 @@
 		}
 	}
 
-	onMount(async () => {
-		client = getClientSession();
-		fen = await boardToFenWasm((await getInitialGameWasm()).board);
-	});
-	$inspect(client, 'client session');
+	const chessList = $derived.by(() => showSelf ? props.selfChessList : props.chessList);
+	const bottomPadding = $derived.by(() => (chessRowHeight * maxChessRows) - (chessRowHeight * chessList.length));
 </script>
 
 <svelte:head>

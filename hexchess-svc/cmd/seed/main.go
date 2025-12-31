@@ -59,7 +59,7 @@ func main() {
 	cmd.InitEnv()
 
 	dbURL := os.Getenv("DB_URL")
-	redisPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
+	rdbPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
 
 	ctx := context.WithValue(context.Background(), logutil.Trace, "seed-databases-script")
 
@@ -71,10 +71,10 @@ func main() {
 	q := db.New(pool)
 	pdb := db.MakePostgres(pool)
 
-	slog.InfoContext(ctx, "connecting to redis db", "redisPrimaryURL", redisPrimaryURL)
-	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: redisPrimaryURL}, db.DefaultRedisNames)
+	slog.InfoContext(ctx, "connecting to rdb db", "rdbPrimaryURL", rdbPrimaryURL)
+	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL}, db.DefaultRedisNames)
 
-	databases := &db.Databases{Rdb: rdb, Pdb: pdb}
+	databases := &db.Databases{Rdb: rdb, Postgres: pdb}
 	defer databases.Close()
 
 	_, err = pool.Exec(ctx, `
@@ -86,7 +86,7 @@ func main() {
 	}
 
 	if err := rdb.Cache.FlushAll(ctx).Err(); err != nil {
-		logutil.FatalErr("flush redis", err)
+		logutil.FatalErr("flush rdb", err)
 	}
 
 	if _, err := svc.BatchInsertUsers(ctx, q, userInsts); err != nil {
@@ -117,7 +117,7 @@ func mapChallengeInst(chInst ChallengeInst) svc.ChallengeInst {
 	}
 }
 
-func insertRandomizedGameResult(ctx context.Context, pdb *db.PostgreSQL, gameResults []GameResult) error {
+func insertRandomizedGameResult(ctx context.Context, pdb *db.Postgres, gameResults []GameResult) error {
 	timeAt := time.Now().Add(-1 * time.Hour * 24 * 100)
 
 	a := gameResults

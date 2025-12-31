@@ -11,9 +11,7 @@ func MakePbGameOutputError(gameID string, err error) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Error{
-			Error: &pb.ErrorOutput{
-				Message: err.Error(),
-			},
+			Error: &pb.ErrorOutput{Message: err.Error()},
 		},
 	}
 }
@@ -42,7 +40,7 @@ func MakePbGameOutputPlayers(gameID string, white, black *pb.PlayerState) *pb.Ga
 func MakePbGameOutputForfeit(gameID string, replayID int64) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
-		Value:  &pb.GameOutput_Forfeit{Forfeit: &pb.ForfeitOutput{
+		Value: &pb.GameOutput_Forfeit{Forfeit: &pb.ForfeitOutput{
 			ReplayId: replayID,
 		}},
 	}

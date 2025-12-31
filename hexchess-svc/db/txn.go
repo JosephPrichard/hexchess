@@ -8,7 +8,7 @@ import (
 
 type TxFn[T any] func(ctx context.Context, query *Queries) (T, error)
 
-func RunInTx[T any](ctx context.Context, pdb *PostgreSQL, errAllowList []error, txFn TxFn[T]) (ret T, err error) {
+func RunInTx[T any](ctx context.Context, pdb *Postgres, errAllowList []error, txFn TxFn[T]) (ret T, err error) {
 	if pdb.testingTxn != nil {
 		return txFn(ctx, New(pdb.testingTxn))
 	}

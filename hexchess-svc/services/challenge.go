@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/db"
+	"hexchess-svc/outbound"
 	"hexchess-svc/pkg/logutil"
 	"log/slog"
 	"time"
@@ -35,7 +36,7 @@ var (
 	ErrChallengeNotFound   = errors.New("challenge not found")
 )
 
-const ExpireChallengeThreshold = time.Hour * 24 * 7
+const ExpireChallengeMaxAge = time.Hour * 24 * 7
 
 type ChallengeInst struct {
 	ChallengerID int64     `json:"challengerId"`
@@ -58,8 +59,17 @@ func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) ChallengeEntit
 		Mode:              string(row.Mode),
 		StartColor:        string(row.StartColor),
 		MadeOn:            row.MadeOn.Time,
-		ExpiresOn:         row.MadeOn.Time.Add(ExpireChallengeThreshold),
+		ExpiresOn:         row.MadeOn.Time.Add(ExpireChallengeMaxAge),
 	}
+}
+
+type ExpireChallengeFixture struct {
+	outbound.Generator
+	MaxAge time.Duration
+}
+
+func ChallengeScenario(generator outbound.Generator) *ExpireChallengeFixture {
+	return &ExpireChallengeFixture{generator, ExpireChallengeMaxAge}
 }
 
 func InsertChallenge(ctx context.Context, query *db.Queries, inst ChallengeInst) error {
@@ -108,12 +118,10 @@ type ChallengeKey struct {
 	ChallengeeID int64
 }
 
-func MakeGetChallengesSince(now time.Time) time.Time {
-	return now.Add(-ExpireChallengeThreshold)
-}
-
 // GetChallengesByParticipant will select challenges by the participant after the 'since' time
-func GetChallengesByParticipant(ctx context.Context, query *db.Queries, key ChallengeKey, since time.Time) ([]ChallengeEntity, error) {
+func (s ExpireChallengeFixture) GetChallengesByParticipant(ctx context.Context, query *db.Queries, key ChallengeKey) ([]ChallengeEntity, error) {
+	since := s.GetNow().Add(-s.MaxAge)
+
 	var pgChallengerID pgtype.Int8
 	if key.ChallengerID != -1 {
 		pgChallengerID.Valid = true
@@ -179,11 +187,8 @@ func DeleteChallenge(ctx context.Context, query *db.Queries, key ChallengeKey) (
 	return dr, err
 }
 
-func DeleteExpiredChallenges(ctx context.Context, query *db.Queries, userID int64, threshold time.Duration) error {
-	return DeleteExpiredChallengesOn(ctx, query, userID, time.Now().Add(-threshold))
-}
-
-func DeleteExpiredChallengesOn(ctx context.Context, query *db.Queries, userID int64, t time.Time) error {
+func (s ExpireChallengeFixture) DeleteExpiredChallenges(ctx context.Context, query *db.Queries, userID int64) error {
+	t := s.GetNow().Add(-s.MaxAge)
 	err := query.DeleteExpiredChallenges(ctx, db.DeleteExpiredChallengesParams{
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: t},

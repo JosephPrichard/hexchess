@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func AssertRedisChess(t *testing.T, rdb *db.Redis, wantState ChessState, options ...cmp.Option) {
+func AssertRedisChess(t *testing.T, rdb *db.Rdb, wantState ChessState, options ...cmp.Option) {
 	t.Helper()
 	ctx := context.WithValue(t.Context(), logutil.Trace, "assert-chess-states")
 	actualState, err := GetChessState(ctx, rdb, wantState.ID)

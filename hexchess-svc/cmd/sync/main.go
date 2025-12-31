@@ -30,7 +30,7 @@ func main() {
 	cmd.InitEnv()
 
 	dbURL := os.Getenv("DB_URL")
-	redisPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
+	rdbPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
 
 	ctx := context.WithValue(context.Background(), logutil.Trace, "sync-leaderboard-script")
 
@@ -41,11 +41,11 @@ func main() {
 	}
 	defer pool.Close()
 
-	slog.InfoContext(ctx, "connecting to redis db", "redisPrimaryURL", redisPrimaryURL)
-	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: redisPrimaryURL}, db.DefaultRedisNames)
+	slog.InfoContext(ctx, "connecting to rdb db", "rdbPrimaryURL", rdbPrimaryURL)
+	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL}, db.DefaultRedisNames)
 	defer rdb.Close()
 
-	databases := &db.Databases{Pdb: db.MakePostgres(pool), Rdb: rdb}
+	databases := &db.Databases{Postgres: db.MakePostgres(pool), Rdb: rdb}
 
 	switch *jobName {
 	case "sync":

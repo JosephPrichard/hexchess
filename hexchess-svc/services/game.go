@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-func CreateGame(ctx context.Context, rdb *db.Redis, color Color, mode GameMode, initialBoard *chess.Board) (string, error) {
+func CreateGame(ctx context.Context, rdb *db.Rdb, color Color, mode GameMode, initialBoard *chess.Board) (string, error) {
 	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
 	bID := make([]byte, 8)
@@ -36,11 +36,11 @@ func CreateGame(ctx context.Context, rdb *db.Redis, color Color, mode GameMode, 
 		return "", err
 	}
 
-	go broadcastGameCounts(rdb, strID)
+	go broadcastGameCounts(rdb)
 	return strID, nil
 }
 
-func broadcastGameCounts(rdb *db.Redis, strID string) {
+func broadcastGameCounts(rdb *db.Rdb) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Warn("recovered in panic while broadcasting game event", "err", r)
@@ -53,14 +53,14 @@ func broadcastGameCounts(rdb *db.Redis, strID string) {
 		slog.ErrorContext(ctx, "failed to count chess states after creating game", "err", err)
 		return
 	}
-	if err := BroadcastGameCount(ctx, rdb, count, strID); err != nil {
+	if err := BroadcastGameCount(ctx, rdb, count); err != nil {
 		slog.ErrorContext(ctx, "failed to broadcast chess states count after creating game", "err", err)
 		return
 	}
 	slog.InfoContext(ctx, "counted chess states after creating game", "count", count)
 }
 
-func JoinGame(ctx context.Context, rdb *db.Redis, gameID string, player PlayerState) (*ChessState, error) {
+func JoinGame(ctx context.Context, rdb *db.Rdb, gameID string, player PlayerState) (*ChessState, error) {
 	state, err := GetChessState(ctx, rdb, gameID)
 	if err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ const (
 	UndoReject
 )
 
-func AttemptGameUndo(ctx context.Context, rdb *db.Redis, gameID string, player PlayerState, kind UndoKind) (*ChessState, error) {
+func AttemptGameUndo(ctx context.Context, rdb *db.Rdb, gameID string, player PlayerState, kind UndoKind) (*ChessState, error) {
 	state, err := GetChessState(ctx, rdb, gameID)
 	if err != nil {
 		return nil, err
@@ -274,7 +274,7 @@ func WriteFinishedGame(ctx context.Context, databases *db.Databases, state *Ches
 	if err != nil {
 		return 0, fmt.Errorf("marshal move history: %w", err)
 	}
-	cs, err := InsertGameResultTx(ctx, databases.Pdb, time.Time{}, GameResult{
+	cs, err := InsertGameResultTx(ctx, databases.Postgres, time.Time{}, GameResult{
 		WhiteID:            whiteID,
 		BlackID:            blackID,
 		ReplayCause:        cause,
@@ -321,7 +321,7 @@ func (cs GRChangeSet) IsNoop() bool {
 	return cs.LoseEloDiff == 0 && cs.WinEloDiff == 0
 }
 
-func InsertGameResultTx(ctx context.Context, pdb *db.PostgreSQL, timeAt time.Time, params GameResult) (GRChangeSet, error) {
+func InsertGameResultTx(ctx context.Context, pdb *db.Postgres, timeAt time.Time, params GameResult) (GRChangeSet, error) {
 	return db.RunInTx(ctx, pdb, nil,
 		func(ctx context.Context, query *db.Queries) (GRChangeSet, error) {
 			return insertGameResult(ctx, query, timeAt, params)
@@ -358,8 +358,8 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 		whiteEloNext, blackEloNext = whiteElo, blackElo
 
 		updts := []db.UpsertEloParams{
-			{UserID: result.WhiteID, Mode: mode, Draws: 1, DefaultElo: StartElo},
-			{UserID: result.BlackID, Mode: mode, Draws: 1, DefaultElo: StartElo},
+			{UserID: result.WhiteID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: whiteEloNext}, Draws: 1, DefaultElo: StartElo},
+			{UserID: result.BlackID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: blackEloNext}, Draws: 1, DefaultElo: StartElo},
 		}
 		slices.SortFunc(updts, func(left, right db.UpsertEloParams) int { return int(left.UserID - right.UserID) }) // consistent update order
 

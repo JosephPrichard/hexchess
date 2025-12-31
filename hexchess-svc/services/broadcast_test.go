@@ -115,8 +115,8 @@ func TestBroadcastGameMessage(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	b := Broadcasters{GamesCaster: MakeMultiCasterMap("testing-broker-map", time.Hour*1)}
-	<-b.ListenGameMessages(rdb)
+	lb := LocalBroadcasters{GamesCaster: MakeMultiCasterMap("testing-broker-map", time.Hour*1)}
+	<-lb.ListenGameMessages(rdb)
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-broadcast-game-message")
 
@@ -124,7 +124,7 @@ func TestBroadcastGameMessage(t *testing.T) {
 
 	// when
 	subChan := make(chan []byte, wantMsgCount)
-	b.GamesCaster.Subscribe("1", subChan)
+	lb.GamesCaster.Subscribe("1", subChan)
 
 	makeTestChatOutput := func(id string, msg string) []byte {
 		v, err := proto.Marshal(&pb.GameOutput{
@@ -136,9 +136,10 @@ func TestBroadcastGameMessage(t *testing.T) {
 		}
 		return v
 	}
-	require.NoError(t, BroadcastMessage(ctx, rdb, rdb.GamesChan, makeTestChatOutput("1", "test1")))
-	require.NoError(t, BroadcastMessage(ctx, rdb, rdb.GamesChan, makeTestChatOutput("1", "test2")))
-	require.NoError(t, BroadcastMessage(ctx, rdb, rdb.GamesChan, makeTestChatOutput("2", "test3")))
+
+	require.NoError(t, BroadcastGamesEvent(ctx, rdb, makeTestChatOutput("1", "test1")))
+	require.NoError(t, BroadcastGamesEvent(ctx, rdb, makeTestChatOutput("1", "test2")))
+	require.NoError(t, BroadcastGamesEvent(ctx, rdb, makeTestChatOutput("2", "test3")))
 
 	// then
 	var msgs []string

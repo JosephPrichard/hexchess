@@ -38,8 +38,8 @@ func main() {
 
 	serverPort := os.Getenv("SERVER_PORT")
 	dbURL := os.Getenv("DB_URL")
-	redisPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
-	redisPubSubURL := os.Getenv("REDIS_PUBSUB_URL")
+	rdbPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
+	rdbPubSubURL := os.Getenv("REDIS_PUBSUB_URL")
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 	pprofPort := os.Getenv("PPROF_PORT")
 	// googleAPIKey := os.Getenv("GOOGLE_APIKEY")
@@ -63,16 +63,16 @@ func main() {
 
 	pdb := db.MakePostgres(pool)
 
-	slog.Info("connecting to redis db", "primaryURL", redisPrimaryURL, "pubsubURL", redisPubSubURL)
-	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: redisPrimaryURL, PubsubAddr: redisPubSubURL}, db.DefaultRedisNames)
+	slog.Info("connecting to rdb db", "primaryURL", rdbPrimaryURL, "pubsubURL", rdbPubSubURL)
+	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL, PubsubAddr: rdbPubSubURL}, db.DefaultRedisNames)
 
-	databases := db.Databases{Rdb: rdb, Pdb: pdb}
+	databases := db.Databases{Rdb: rdb, Postgres: pdb}
 	defer databases.Close()
 
 	state := web.State{
 		Databases:      databases,
 		Broadcasters:   svc.MakeBroadcaster(),
-		Generators:     &outbound.RandomGenerator{},
+		Generators:     &outbound.NDGenerator{},
 		OutboundAPIs:   outbound.MakeRemoteAPIs(),
 		CountryList:    countryList,
 		AllowedOrigins: allowedOrigins,

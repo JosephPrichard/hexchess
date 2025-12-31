@@ -199,7 +199,7 @@ func RetrieveEloHistoryBuckets(ctx context.Context, databases *db.Databases, par
 		playedAfter = pgtype.Timestamptz{Valid: true, Time: params.TimeUntil.AddDate(0, -int(params.Months), 0)}
 	}
 
-	eloRows, err := databases.Pdb.Query.SelectReplayElos(ctx, db.SelectReplayElosParams{
+	eloRows, err := databases.Query.SelectReplayElos(ctx, db.SelectReplayElosParams{
 		ID:          params.UserID,
 		PlayedAfter: playedAfter,
 	})

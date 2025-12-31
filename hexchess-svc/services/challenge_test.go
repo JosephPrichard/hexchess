@@ -5,6 +5,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
+	"hexchess-svc/outbound"
 	"hexchess-svc/pkg/logutil"
 	"testing"
 	"time"
@@ -17,14 +18,17 @@ func TestChallengeExpiration(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-expiration")
 
+	cs1 := ExpireChallengeFixture{&outbound.StableGenerator{Time: time.Unix(10000, 0)}, 0}
+	cs2 := ExpireChallengeFixture{&outbound.StableGenerator{Time: time.Unix(0, 0)}, 0}
+
 	// when
-	challenges, err := GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{int64(5), -1}, time.Unix(10000, 0))
+	challenges, err := cs1.GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
-	require.NoError(t, DeleteExpiredChallengesOn(ctx, pdb.Query, 5, time.Unix(10000, 0)))
+	require.NoError(t, cs1.DeleteExpiredChallenges(ctx, pdb.Query, 5))
 
 	// get all challenges to prove that the deletion worked
-	challengesDel, err := GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{int64(5), -1}, time.Unix(0, 0))
+	challengesDel, err := cs2.GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
 	// then
@@ -106,13 +110,15 @@ func TestChallengeEchoDelete(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	challengesBeforeDelete, err := GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{testUser.ID, -1}, timeOn)
+	cs := ExpireChallengeFixture{&outbound.StableGenerator{Time: TestTimeNow}, 0}
+
+	challengesBeforeDelete, err := cs.GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{testUser.ID, -1})
 	require.NoError(t, err)
 
 	dr, err := DeleteChallenge(ctx, pdb.Query, ChallengeKey{testUser.ID, 3})
 	require.NoError(t, err)
 
-	challengesAfterDelete, err := GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{testUser.ID, -1}, timeOn)
+	challengesAfterDelete, err := cs.GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{testUser.ID, -1})
 	require.NoError(t, err)
 
 	// then
@@ -128,7 +134,7 @@ func TestChallengeEchoDelete(t *testing.T) {
 		Mode:              ModeCorrespondence7.String(),
 		StartColor:        Random.String(),
 		MadeOn:            timeOn.Local(),
-		ExpiresOn:         timeOn.Local().Add(ExpireChallengeThreshold),
+		ExpiresOn:         timeOn.Local().Add(ExpireChallengeMaxAge),
 	}}
 	assert.Equal(t, wantChallengesBefore, challengesBeforeDelete)
 	assert.Empty(t, challengesAfterDelete)

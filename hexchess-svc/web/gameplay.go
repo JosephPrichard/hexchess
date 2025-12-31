@@ -16,7 +16,7 @@ import (
 
 type GameplayHandler struct {
 	db.Databases
-	svc.Broadcasters
+	svc.LocalBroadcasters
 	outbound.Generator
 }
 

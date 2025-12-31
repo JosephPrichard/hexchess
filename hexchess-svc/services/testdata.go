@@ -270,7 +270,7 @@ var TestChallengeEntities = []ChallengeEntity{
 		Mode:              ModeTimed3Plus2.String(),
 		StartColor:        Random.String(),
 		MadeOn:            TestTimeNow.Local(),
-		ExpiresOn:         TestTimeNow.Local().Add(ExpireChallengeThreshold),
+		ExpiresOn:         TestTimeNow.Local().Add(ExpireChallengeMaxAge),
 	},
 	{
 		ChallengerID:      3,
@@ -284,7 +284,7 @@ var TestChallengeEntities = []ChallengeEntity{
 		Mode:              ModeCorrespondence1.String(),
 		StartColor:        Random.String(),
 		MadeOn:            TestTimeNow.Local(),
-		ExpiresOn:         TestTimeNow.Local().Add(ExpireChallengeThreshold),
+		ExpiresOn:         TestTimeNow.Local().Add(ExpireChallengeMaxAge),
 	},
 	{
 		ChallengerID:      5,
@@ -298,7 +298,7 @@ var TestChallengeEntities = []ChallengeEntity{
 		Mode:              ModeCorrespondence1.String(),
 		StartColor:        Random.String(),
 		MadeOn:            time.Unix(20500, 0),
-		ExpiresOn:         time.Unix(20500, 0).Add(ExpireChallengeThreshold),
+		ExpiresOn:         time.Unix(20500, 0).Add(ExpireChallengeMaxAge),
 	},
 	{
 		ChallengerID:      5,
@@ -312,7 +312,7 @@ var TestChallengeEntities = []ChallengeEntity{
 		Mode:              ModeCorrespondence1.String(),
 		StartColor:        Random.String(),
 		MadeOn:            time.Unix(19500, 0),
-		ExpiresOn:         time.Unix(19500, 0).Add(ExpireChallengeThreshold),
+		ExpiresOn:         time.Unix(19500, 0).Add(ExpireChallengeMaxAge),
 	},
 }
 

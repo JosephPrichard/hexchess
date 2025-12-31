@@ -78,17 +78,16 @@ func TestHandleCountEvents(t *testing.T) {
 	go func() {
 		ctx := context.WithValue(context.Background(), logutil.Trace, "broadcast-counts")
 		errChan <- errors.Join(
-			svc.BroadcastActiveCount(ctx, rdb, 2, "id3"),
-			svc.BroadcastGameCount(ctx, rdb, 1, "id2"))
+			svc.BroadcastActiveCount(ctx, rdb, 2),
+			svc.BroadcastGameCount(ctx, rdb, 1))
 	}()
 
 	// then
 	wantEvents := []string{
-		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, "id1"),
-		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"id":"id1","count":0}`),
-		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, `{"id":"id1","count":1}`),
-		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, `{"id":"id3","count":2}`),
-		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"id":"id2","count":1}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"count":0}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, `{"count":0}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, `{"count":2}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"count":1}`),
 	}
 	events := scanEvents(resp, len(wantEvents))
 	assert.ElementsMatch(t, wantEvents, events)
@@ -99,7 +98,7 @@ func TestHandleUserEvents(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	state := State{Databases: db.Databases{Rdb: rdb}, Broadcasters: svc.MakeBroadcaster(), Generators: &outbound.StableGenerator{ID: "id1"}}
+	state := State{Databases: db.Databases{Rdb: rdb}, Broadcasters: svc.MakeBroadcaster()}
 	<-state.Broadcasters.ListenUsersMessages(rdb)
 
 	createTestSessions(t, rdb)
@@ -134,7 +133,7 @@ func TestHandleUserEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	wantEvents := []string{
-		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, "id1"),
+		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, "1"),
 		fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, ceJson),
 		fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, ceJson),
 	}

@@ -151,7 +151,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
 
-			leaderboard, missingIDs, err := GetLeaderboardUsers(ctx, databases.Pdb.Query, test.mode, test.rankedUsers)
+			leaderboard, missingIDs, err := GetLeaderboardUsers(ctx, databases.Query, test.mode, test.rankedUsers)
 
 			assert.Equal(t, test.wantMissingIDs, missingIDs)
 			require.NoError(t, err)

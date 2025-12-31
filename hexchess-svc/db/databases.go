@@ -45,13 +45,13 @@ var DefaultRedisNames = RedisNames{
 	ActiveCountChan: ActiveCountChan,
 }
 
-type PostgreSQL struct {
+type Postgres struct {
 	Query      *Queries
 	Pool       *pgxpool.Pool
 	testingTxn pgx.Tx
 }
 
-func (pdb *PostgreSQL) Close() {
+func (pdb *Postgres) Close() {
 	if pdb.Pool != nil {
 		pdb.Pool.Close()
 	}
@@ -62,14 +62,14 @@ func (pdb *PostgreSQL) Close() {
 	}
 }
 
-type Redis struct {
+type Rdb struct {
 	Cache  *redis.Client
 	PubSub *redigo.Pool
 	RedisAddrs
 	RedisNames
 }
 
-func (rdb *Redis) Close() {
+func (rdb *Rdb) Close() {
 	if rdb.Cache != nil {
 		rdb.Cache.Close()
 	}
@@ -79,20 +79,20 @@ func (rdb *Redis) Close() {
 }
 
 type Databases struct {
-	Pdb *PostgreSQL
-	Rdb *Redis
+	*Postgres
+	*Rdb
 }
 
 func (s Databases) Close() {
-	if s.Pdb != nil {
-		s.Pdb.Close()
+	if s.Postgres != nil {
+		s.Postgres.Close()
 	}
 	if s.Rdb != nil {
 		s.Rdb.Close()
 	}
 }
 
-func MakeRdb(addrs RedisAddrs, names RedisNames) *Redis {
+func MakeRdb(addrs RedisAddrs, names RedisNames) *Rdb {
 	var ps *redigo.Pool
 	if addrs.PubsubAddr != "" {
 		ps = &redigo.Pool{
@@ -107,7 +107,7 @@ func MakeRdb(addrs RedisAddrs, names RedisNames) *Redis {
 			},
 		}
 	}
-	return &Redis{
+	return &Rdb{
 		Cache: redis.NewClient(&redis.Options{
 			Addr: addrs.CacheAddr,
 		}),
@@ -117,10 +117,10 @@ func MakeRdb(addrs RedisAddrs, names RedisNames) *Redis {
 	}
 }
 
-func MakePostgres(pool *pgxpool.Pool) *PostgreSQL {
-	return &PostgreSQL{Query: New(pool), Pool: pool}
+func MakePostgres(pool *pgxpool.Pool) *Postgres {
+	return &Postgres{Query: New(pool), Pool: pool}
 }
 
-func MakeTestTxnPostgres(txn pgx.Tx) *PostgreSQL {
-	return &PostgreSQL{Query: New(txn), testingTxn: txn}
+func MakeTestTxnPostgres(txn pgx.Tx) *Postgres {
+	return &Postgres{Query: New(txn), testingTxn: txn}
 }

@@ -6,18 +6,16 @@
 	import { clearClientSession, updateClientSession } from '$lib/utils/storage';
 	import services, { baseURL } from '$lib/api/services';
 	import type { ChallengeModel } from '$lib/api/models';
-	import { writable } from 'svelte/store';
 	import { fade } from 'svelte/transition';
 
 	const { children }: LayoutProps = $props();
 
 	let notifications: Record<number, NotificationData> = $state({});
-	let counts = writable({ usersCount: 0, gameCounts: 0 });
 
 	const timeouts: Record<number, ReturnType<typeof setTimeout>> = {};
 	let index = 0;
 	let userSse: EventSource | undefined = undefined;
-	let countSse: EventSource | undefined = undefined;
+	let activeSse: EventSource | undefined = undefined;
 	let refreshInterval: ReturnType<typeof setInterval> | undefined = undefined;
 
 	function deleteNotification(index: number) {
@@ -41,68 +39,50 @@
 			withCredentials: true
 		});
 		userSse.addEventListener('meta', (event) => {
-			console.log('Sse: /events/user meta', event.data);
+			console.log('Sse: USER_EVENTS meta', event.data);
 		});
 		userSse.addEventListener('userEvents', (event) => {
-			console.log('Sse: /events/user userEvents', event.data);
+			console.log('Sse: USER_EVENTS userEvents', event.data);
 			const data: ChallengeModel = JSON.parse(event.data);
 			addNotification({ type: 'challenge', message: data, isSuccess: true, duration: 6000 });
 		});
 	}
 
-	function connectCountEvents() {
-		countSse = new EventSource(`${baseURL()}/events/count`);
-		countSse.addEventListener('meta', (event) => {
-			console.log('Sse: /events/count meta', event.data);
-		});
-		countSse.addEventListener('activeCountEvents', (event) => {
-			console.log('Sse: /events/count activeCountEvents', event.data);
-
-			const count = JSON.parse(event.data).count;
-			if (!isNaN(count)) {
-				counts.update((value) => ({ ...value, usersCount: count }));
-			}
-		});
-		countSse.addEventListener('gameCountEvents', (event) => {
-			console.log('Sse: /events/count gameCountEvents', event.data);
-
-			const count = JSON.parse(event.data).count;
-			if (!isNaN(count)) {
-				counts.update((value) => ({ ...value, gameCounts: count }));
-			}
+	function connectActiveConn() {
+		activeSse = new EventSource(`${baseURL()}/events/active`);
+		activeSse.addEventListener('meta', (event) => {
+			console.log('SSE: ACTIVE meta', event.data);
 		});
 	}
 
-	async function refreshSession() {
-		const [data, _] = await services.postRefreshSession();
+	async function refreshSession(retries?: number) {
+		const [data, err] = await services.postRefreshSession();
 		if (data) {
 			if (data.session) {
 				updateClientSession(data.session);
 			} else {
 				clearClientSession();
 			}
+		} else {
+			console.error('error refreshing session', err);
+			const retry = retries || 1;
+			setTimeout(() => refreshSession(retry + 1), 50 * Math.pow(2, retry));
 		}
 	}
 
 	onMount(() => {
-		connectCountEvents();
+		connectActiveConn();
 		connectUserEvents();
 		refreshSession();
 		refreshInterval = setInterval(async () => refreshSession(), 900000); // 15 minutes
 		return () => {
-			if (refreshInterval) {
-				clearInterval(refreshInterval);
-			}
-			if (userSse) {
-				userSse.close();
-			}
-			if (countSse) {
-				countSse.close();
-			}
+			if (refreshInterval) clearInterval(refreshInterval);
+			if (userSse) userSse.close();
+			if (activeSse) activeSse.close();
 		};
 	});
 
-	setNotificationsContext({ addNotification, deleteNotification, counts });
+	setNotificationsContext({ addNotification, deleteNotification });
 </script>
 
 <svelte:head>

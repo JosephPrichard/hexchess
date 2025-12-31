@@ -4,17 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"hexchess-svc/db"
 	"hexchess-svc/pkg/logutil"
 	"log/slog"
 	"math"
 	"sort"
 	"strconv"
-
-	"github.com/redis/go-redis/v9"
 )
 
-func getLeaderboardZSet(rdb *db.Redis, mode GameMode) string {
+func getLeaderboardZSet(rdb *db.Rdb, mode GameMode) string {
 	return rdb.LeaderboardZSet + "_mode_" + mode.String()
 }
 
@@ -24,7 +23,7 @@ type UpdtLbChangeSet struct {
 	EloDiff float64
 }
 
-func SetLeaderboard(ctx context.Context, rdb *db.Redis, changes ...UpdtLbChangeSet) error {
+func SetLeaderboard(ctx context.Context, rdb *db.Rdb, changes ...UpdtLbChangeSet) error {
 	pipe := rdb.Cache.TxPipeline()
 	for _, cs := range changes {
 		modeLbZSet := getLeaderboardZSet(rdb, cs.Mode)
@@ -37,7 +36,7 @@ func SetLeaderboard(ctx context.Context, rdb *db.Redis, changes ...UpdtLbChangeS
 	return nil
 }
 
-func IncrLeaderboard(ctx context.Context, rdb *db.Redis, changes ...UpdtLbChangeSet) error {
+func IncrLeaderboard(ctx context.Context, rdb *db.Rdb, changes ...UpdtLbChangeSet) error {
 	pipe := rdb.Cache.TxPipeline()
 	for _, cs := range changes {
 		pipe.ZIncrBy(ctx, getLeaderboardZSet(rdb, cs.Mode), cs.EloDiff, strconv.Itoa(int(cs.ID)))
@@ -59,10 +58,10 @@ type LbRank struct {
 	Score float64 `json:"score"`
 }
 
-func GetLeaderboardRanks(ctx context.Context, rdb *db.Redis, id int64, modes map[string]GameMode) (map[string]LbRank, error) {
+func GetLeaderboardRanks(ctx context.Context, rdb *db.Rdb, id int64, modes map[string]GameMode) (map[string]LbRank, error) {
 	ranks := make(map[string]LbRank)
 	setRank := func(mode string, rs redis.RankScore) {
-		ranks[mode] = LbRank{Rank: rs.Rank + 1, Score: rs.Score} // redis ranks start from 0, hexchess ranks start from 1.
+		ranks[mode] = LbRank{Rank: rs.Rank + 1, Score: rs.Score} // rdb ranks start from 0, hexchess ranks start from 1.
 	}
 
 	strID := strconv.Itoa(int(id))
@@ -133,7 +132,7 @@ func GetLeaderboardRanks(ctx context.Context, rdb *db.Redis, id int64, modes map
 	return ranks, nil
 }
 
-func GetLeaderboard(ctx context.Context, rdb *db.Redis, mode GameMode, startRank, count int64) (Leaderboard, error) {
+func GetLeaderboard(ctx context.Context, rdb *db.Rdb, mode GameMode, startRank, count int64) (Leaderboard, error) {
 	modeLbZSet := getLeaderboardZSet(rdb, mode)
 
 	var lbd Leaderboard
@@ -165,7 +164,7 @@ func GetLeaderboard(ctx context.Context, rdb *db.Redis, mode GameMode, startRank
 	return lbd, nil
 }
 
-func GetLeaderboardPage(ctx context.Context, rdb *db.Redis, mode GameMode, page, perPage int64) (Leaderboard, error) {
+func GetLeaderboardPage(ctx context.Context, rdb *db.Rdb, mode GameMode, page, perPage int64) (Leaderboard, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -180,7 +179,7 @@ func SyncLeaderboard(ctx context.Context, databases *db.Databases) error {
 	for _, mode := range GameModeMap {
 		afterID := int64(0)
 		for {
-			rows, err := databases.Pdb.Query.SelectEloList(ctx, db.SelectEloListParams{ID: afterID, Mode: db.ModeEnum(mode.String()), Limit: 20})
+			rows, err := databases.Query.SelectEloList(ctx, db.SelectEloListParams{ID: afterID, Mode: db.ModeEnum(mode.String()), Limit: 20})
 			if err != nil {
 				return fmt.Errorf("select elo list afterID %d: %w", afterID, err)
 			}
