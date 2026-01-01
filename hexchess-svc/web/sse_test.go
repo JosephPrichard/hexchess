@@ -61,8 +61,8 @@ func TestHandleCountEvents(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	setup := Setup{Redis: rdb, Broadcasters: svc.MakeBroadcaster(), EntropySource: &out.StableSource{ID: "id1"}}
-	state := svc.State{Redis: rdb}
+	state := svc.State{Redis: rdb, EntropySource: &out.StableSource{ID: "id1"}}
+	setup := Setup{State: state, Broadcasters: svc.MakeBroadcaster()}
 
 	<-setup.Broadcasters.ListenUnicastEvents(rdb)
 
@@ -74,8 +74,6 @@ func TestHandleCountEvents(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	assert.Equal(t, resp.Header.Get("Content-Type"), "text/event-stream")
-
 	errChan := make(chan error)
 	go func() {
 		ctx := context.WithValue(context.Background(), logutil.Trace, "broadcast-counts")
@@ -85,14 +83,55 @@ func TestHandleCountEvents(t *testing.T) {
 	}()
 
 	// then
+	assert.Equal(t, resp.Header.Get("Content-Type"), "text/event-stream")
+
 	wantEvents := []string{
-		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"count":0}`),
 		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, `{"count":0}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"count":0}`),
 		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, `{"count":2}`),
 		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"count":1}`),
 	}
 	events := scanEvents(resp, len(wantEvents))
-	assert.ElementsMatch(t, wantEvents, events)
+	assert.Equal(t, wantEvents, events)
+	assert.NoError(t, <-errChan)
+}
+
+func TestHandleActiveConn(t *testing.T) {
+	// given
+	rdb := db.BeforeRedisTest(t)
+	defer rdb.Close()
+
+	state := svc.State{Redis: rdb, EntropySource: &out.StableSource{ID: "id1"}}
+	setup := Setup{State: state, Broadcasters: svc.MakeBroadcaster()}
+
+	<-setup.Broadcasters.ListenUnicastEvents(rdb)
+
+	wantBrdcasts := []svc.UcEvent{{Kind: svc.UcActiveEk, Data: `{"count":1}`}, {Kind: svc.UcActiveEk, Data: `{"count":0}`}}
+
+	brdcastCh := make(chan []svc.UcEvent)
+	go func() {
+		sub := make(chan svc.UcEvent, len(wantBrdcasts))
+		setup.Broadcasters.CountsCaster.Subscribe(sub)
+
+		var brdcasts []svc.UcEvent
+		for range len(wantBrdcasts) {
+			brdcasts = append(brdcasts, <-sub)
+		}
+		brdcastCh <- brdcasts
+	}()
+
+	ts := httptest.NewServer(MakeRoot(setup))
+	defer ts.Close()
+
+	// when
+	go func() {
+		resp, err := http.Get(ts.URL + "/api/events/active")
+		require.NoError(t, err)
+		defer resp.Body.Close() // this must execute before we "wantBrdcasts" since one brd cast is sent when the SSE drops
+	}()
+
+	// then
+	assert.Equal(t, wantBrdcasts, <-brdcastCh)
 }
 
 func TestHandleUserEvents(t *testing.T) {
@@ -100,12 +139,12 @@ func TestHandleUserEvents(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	setup := Setup{Redis: rdb, Broadcasters: svc.MakeBroadcaster()}
 	state := svc.State{Redis: rdb}
+	setup := Setup{State: state, Broadcasters: svc.MakeBroadcaster()}
 
 	<-setup.Broadcasters.ListenUsersMessages(rdb)
 
-	createTestSessions(t, rdb)
+	createTestSessions(t, state)
 
 	ts := httptest.NewServer(MakeRoot(setup))
 	defer ts.Close()
@@ -119,8 +158,6 @@ func TestHandleUserEvents(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	assert.Equal(t, resp.Header.Get("Content-Type"), "text/event-stream")
-
 	ceInput := svc.ChallengeEntity{ChallengeeID: 1, Mode: svc.ModeCorrespondence1.String(), StartColor: svc.White.String()}
 
 	errChan := make(chan error)
@@ -133,6 +170,8 @@ func TestHandleUserEvents(t *testing.T) {
 	}()
 
 	// then
+	assert.Equal(t, resp.Header.Get("Content-Type"), "text/event-stream")
+
 	ceJson, err := json.Marshal(ceInput)
 	require.NoError(t, err)
 
@@ -143,7 +182,5 @@ func TestHandleUserEvents(t *testing.T) {
 	}
 	events := scanEvents(resp, len(wantEvents))
 	assert.Equal(t, wantEvents, events)
-
-	err = <-errChan
-	require.NoError(t, err)
+	assert.NoError(t, <-errChan)
 }

@@ -7,13 +7,14 @@ import (
 	"os"
 )
 
+type TestLogger interface {
+	Logf(format string, args ...interface{})
+	Fatalf(format string, args ...any)
+}
+
 type TraceType string
 
 var Trace TraceType = "trace"
-
-type SseIDType string
-
-var SseID SseIDType = "sseID"
 
 func DynLog(ctx context.Context, msg string, err error, args ...any) {
 	if err != nil {

@@ -105,27 +105,30 @@ func (app *App) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 	app.CountsCaster.Subscribe(countsChan)
 
 	go func() {
-		<-ctx.Done()
+		<-ctx.Done() // stop from the client, so stop the RecvLoop by unsubscribing
 		app.CountsCaster.Unsubscribe(countsChan)
 		slog.InfoContext(ctx, "finished handle user events sse")
 	}()
 
 	keepAliveTicker := time.NewTicker(time.Second * 15)
+RecvLoop:
 	for {
 		select {
-		case e, ok := <-countsChan:
+		case e, ok := <-countsChan: // RecvLoop contuines until we unsubscribe
 			if !ok {
-				return nil
+				break RecvLoop
 			}
 			w.writeUcEvent(e)
 		case <-keepAliveTicker.C:
 			w.writeEvent(MetaEvent, "KeepAlive")
 		}
 	}
+
+	return nil
 }
 
-// HandleActiveCountConn a long-lived TCP connection used to maintain an active connection, it only ever receives "meta" messages
-func (app *App) HandleActiveCountConn(w SSEWriter, _ *http.Request) error {
+// HandleActiveConn a long-lived TCP connection used to maintain an active connection, it only ever receives "meta" messages
+func (app *App) HandleActiveConn(w SSEWriter, _ *http.Request) error {
 	ctx := w.ctx
 
 	sseID := app.MakeID()
@@ -138,25 +141,33 @@ func (app *App) HandleActiveCountConn(w SSEWriter, _ *http.Request) error {
 		return fmt.Errorf("broadcast active user count after adding %d: %w", count, err)
 	}
 
-	stopTimer := timeutil.Every(time.Second*15, func() bool {
+	stopTimer := timeutil.Every(time.Second*15, func() {
 		if err := app.State.RetainActiveUser(ctx, sseID); err != nil {
 			slog.ErrorContext(ctx, "failed to retain active user", "sseID", sseID, "err", err)
 		}
-		w.writeEvent(MetaEvent, "KeepAlive")
-		return true
 	})
 
 	w.writeEvent(MetaEvent, sseID)
 
-	shtdwnCtx := context.WithoutCancel(ctx)
-	<-ctx.Done()
+	keepAliveTicker := time.NewTicker(time.Second * 15)
+RecvLoop:
+	for {
+		select {
+		case <-ctx.Done():
+			break RecvLoop
+		case <-keepAliveTicker.C:
+			w.writeEvent(MetaEvent, "KeepAlive")
+		}
+	}
+
+	fnshCtx := context.WithoutCancel(ctx)
 	stopTimer <- true
 
-	if count, err = app.State.RemoveActiveUser(shtdwnCtx, sseID); err != nil {
-		slog.ErrorContext(shtdwnCtx, "failed to remove active user", "sseID", sseID, "err", err)
+	if count, err = app.State.RemoveActiveUser(fnshCtx, sseID); err != nil {
+		slog.ErrorContext(fnshCtx, "failed to remove active user", "sseID", sseID, "err", err)
 	}
-	if err := app.State.BroadcastActiveCount(shtdwnCtx, count); err != nil {
-		slog.ErrorContext(shtdwnCtx, "broadcast active user count after removing", "err", err)
+	if err := app.State.BroadcastActiveCount(fnshCtx, count); err != nil {
+		slog.ErrorContext(fnshCtx, "broadcast active user count after removing", "err", err)
 	}
 
 	return nil
@@ -180,21 +191,24 @@ func (app *App) HandleUserEvents(w SSEWriter, r *http.Request) error {
 	app.UsersCaster.Subscribe(strID, usersChan)
 
 	go func() {
-		<-ctx.Done()
+		<-ctx.Done() // stop from the client, so stop the RecvLoop by unsubscribing
 		app.UsersCaster.Unsubscribe(strID, usersChan)
 		slog.InfoContext(ctx, "finishing handle user events sse")
 	}()
 
 	keepAliveTicker := time.NewTicker(time.Second * 15)
+RecvLoop:
 	for {
 		select {
-		case m, ok := <-usersChan:
+		case m, ok := <-usersChan: // RecvLoop contuines until we unsubscribe
 			if !ok {
-				return nil
+				break RecvLoop
 			}
 			w.writeEvent(UserChallengeEvent, string(m))
 		case <-keepAliveTicker.C:
 			w.writeEvent(MetaEvent, "KeepAlive")
 		}
 	}
+
+	return nil
 }

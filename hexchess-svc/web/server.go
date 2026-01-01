@@ -6,7 +6,6 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"hexchess-svc/chess"
-	"hexchess-svc/db"
 	"hexchess-svc/out"
 	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/services"
@@ -42,17 +41,15 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 }
 
 type Setup struct {
-	Postgres       *db.Postgres
-	Redis          *db.Redis
+	State          svc.State
 	Broadcasters   svc.LocalBroadcasters
-	EntropySource  out.EntropySource
 	RemoteAPIs     out.RemoteAPIs
 	CountryList    []string
 	AllowedOrigins string
 }
 
 type App struct {
-	*svc.State
+	svc.State
 	RemoteApis out.RemoteAPIs
 	svc.LocalBroadcasters
 	ValidCountries map[string]bool
@@ -73,12 +70,7 @@ func MakeRoot(setup Setup) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(RouteMiddleware(setup.AllowedOrigins))
 
-	state := &svc.State{
-		Postgres:      setup.Postgres,
-		Redis:         setup.Redis,
-		EntropySource: setup.EntropySource,
-	}
-	app := App{state, setup.RemoteAPIs, setup.Broadcasters, validCountries}
+	app := App{setup.State, setup.RemoteAPIs, setup.Broadcasters, validCountries}
 
 	r.Post("/api/register", Rest(app.HandleRegister))
 	r.Post("/api/login", Rest(app.HandleLogin))
@@ -105,7 +97,7 @@ func MakeRoot(setup Setup) http.Handler {
 
 	r.Get("/api/events/count", SSE(app.HandleCountEvents))
 	r.Get("/api/events/user", SSE(app.HandleUserEvents))
-	r.Get("/api/events/active", SSE(app.HandleActiveCountConn))
+	r.Get("/api/events/active", SSE(app.HandleActiveConn))
 
 	r.Get("/api/initial-board", Json(chess.InitialBoard()))
 	r.Get("/api/countries", Json(countryList))

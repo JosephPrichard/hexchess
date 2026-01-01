@@ -183,7 +183,7 @@ var TestChallengeInsts = []struct {
 	{ChallengerID: 5, ChallengeeID: 1, Mode: "CORRESPONDENCE_1", StartColor: "RANDOM", MadeOn: TestTimeNow.Add(-1 * time.Hour * 24 * 365)},
 }
 
-func insertTestData(t TestLogger, pool *pgxpool.Pool) {
+func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
 	ctx := context.WithValue(context.Background(), logutil.Trace, "insert-test-data")
 
 	batch := &pgx.Batch{}

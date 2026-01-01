@@ -43,12 +43,7 @@ func TeardownTestInfra() {
 	}
 }
 
-type TestLogger interface {
-	Logf(format string, args ...interface{})
-	Fatalf(format string, args ...any)
-}
-
-func BeforeRedisTest(t TestLogger) *Redis {
+func BeforeRedisTest(t logutil.TestLogger) *Redis {
 	muRedis.Lock()
 	defer muRedis.Unlock()
 
@@ -93,7 +88,7 @@ func BeforeRedisTest(t TestLogger) *Redis {
 	)
 }
 
-func BeforePostgresTest(t TestLogger, useTestTx bool) (*Postgres, func()) {
+func BeforePostgresTest(t logutil.TestLogger, useTestTx bool) (*Postgres, func()) {
 	muPostgres.Lock()
 	defer muPostgres.Unlock()
 
@@ -162,10 +157,4 @@ func BeforePostgresTest(t TestLogger, useTestTx bool) (*Postgres, func()) {
 		pdb = MakePostgres(pool)
 	}
 	return pdb, func() { pdb.Close() }
-}
-
-func BeforeDatabasesTest(t TestLogger, useTx bool) (*Postgres, *Redis, func()) {
-	pdb, pdbCloser := BeforePostgresTest(t, useTx)
-	rdb := BeforeRedisTest(t)
-	return pdb, rdb, func() { pdbCloser(); rdb.Close() }
 }

@@ -65,7 +65,7 @@ func assertMoves(t *testing.T, actual []Hex, expected ...string) {
 	for _, s := range expected {
 		expectedMoves = append(expectedMoves, HexStr(s))
 	}
-	assert.ElementsMatch(t, expectedMoves, actual)
+	assert.Equal(t, expectedMoves, actual)
 }
 
 func TestGame_findMoves(t *testing.T) {

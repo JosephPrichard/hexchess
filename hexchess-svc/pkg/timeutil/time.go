@@ -4,18 +4,15 @@ import (
 	"time"
 )
 
-func Every(duration time.Duration, work func() bool) chan bool {
+func Every(duration time.Duration, work func()) chan bool {
 	ticker := time.NewTicker(duration)
 	stop := make(chan bool, 1)
 
 	go func() {
-		//defer log.Println("ticker stopped")
 		for {
 			select {
 			case <-ticker.C:
-				if !work() {
-					stop <- true
-				}
+				work()
 			case <-stop:
 				return
 			}

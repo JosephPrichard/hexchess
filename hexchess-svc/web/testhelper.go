@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"hexchess-svc/db"
 	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/pkg/ptr"
 	"hexchess-svc/services"
@@ -34,20 +33,20 @@ var TestStates = []svc.ChessState{
 	svc.MakeState(svc.StateSetup{ID: "game3", Mode: svc.ModeCorrespondence1, FirstColor: svc.Random}),
 }
 
-func createTestSessions(t *testing.T, rdb *db.Redis) {
+func createTestSessions(t *testing.T, s svc.State) {
 	ctx := context.WithValue(context.Background(), logutil.Trace, "create-test-session-1")
-	if err := (svc.State{Redis: rdb}).SetSession(ctx, TestSessionID1, svc.MakePlayer(1, "user1", "us"), SessionMaxAge); err != nil {
+	if err := s.SetSession(ctx, TestSessionID1, svc.MakePlayer(1, "user1", "us"), SessionMaxAge); err != nil {
 		t.Fatalf("create test sessions: %v", err)
 	}
-	if err := (svc.State{Redis: rdb}).SetSession(ctx, TestSessionID2, svc.MakePlayer(2, "user2", "us"), SessionMaxAge); err != nil {
+	if err := s.SetSession(ctx, TestSessionID2, svc.MakePlayer(2, "user2", "us"), SessionMaxAge); err != nil {
 		t.Fatalf("create test sessions: %v", err)
 	}
 }
 
-func createTestChessStates(t *testing.T, rdb *db.Redis) {
+func createTestChessStates(t *testing.T, s svc.State) {
 	ctx := context.WithValue(context.Background(), logutil.Trace, "testing-update-password")
 	for _, state := range TestStates {
-		if err := (svc.State{Redis: rdb}).SetChessState(ctx, state.ID, &state); err != nil {
+		if err := s.SetChessState(ctx, state.ID, &state); err != nil {
 			t.Fatalf("create test states: %v", err)
 		}
 	}

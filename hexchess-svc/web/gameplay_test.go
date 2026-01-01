@@ -79,7 +79,7 @@ func TestHandleGameplayWs(t *testing.T) {
 		inputMsgs       []*pb.GameInput
 		wantMsgs        []*pb.GameOutput
 		wantBrdcasts    []any
-		assertDatabases func(*testing.T, *svc.State, []*pb.GameOutput)
+		assertDatabases func(*testing.T, svc.State, []*pb.GameOutput)
 	}{
 		{
 			name: "move input (invalid)",
@@ -139,7 +139,7 @@ func TestHandleGameplayWs(t *testing.T) {
 			wantBrdcasts: []any{
 				&pb.GameOutput{GameId: gameID, Value: &pb.GameOutput_Forfeit{}},
 			},
-			assertDatabases: func(t *testing.T, state *svc.State, msgOutputs []*pb.GameOutput) {
+			assertDatabases: func(t *testing.T, state svc.State, msgOutputs []*pb.GameOutput) {
 				replayID := msgOutputs[2].GetForfeit().ReplayId // we can assume this is valid if the test reaches this point
 
 				actualState, err := state.GetChessState(ctx, gameID)
@@ -175,20 +175,20 @@ func TestHandleGameplayWs(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// given
-			pdb, rdb, closer := db.BeforeDatabasesTest(t, true)
+			state, closer := svc.BeforeStateTest(t, true)
 			defer closer()
 
-			setup := Setup{Postgres: pdb, Redis: rdb, Broadcasters: svc.MakeBroadcaster(), EntropySource: &out.StableSource{Time: db.TestTimeNow}}
-			state := &svc.State{Postgres: pdb, Redis: rdb}
+			state.EntropySource = &out.StableSource{Time: db.TestTimeNow}
+			setup := Setup{State: state, Broadcasters: svc.MakeBroadcaster()}
 
-			createTestSessions(t, rdb)
-			createTestChessStates(t, rdb)
+			createTestSessions(t, state)
+			createTestChessStates(t, state)
 
 			ts := httptest.NewServer(MakeRoot(setup))
 			defer ts.Close()
 
 			// (start, subcribe, and read broadcasts)
-			<-setup.Broadcasters.ListenGameMessages(rdb)
+			<-setup.Broadcasters.ListenGameMessages(state.Redis)
 			subChan := make(chan []byte)
 			setup.Broadcasters.GamesCaster.Subscribe(gameID, subChan)
 			brdCastChan := make(chan []any)
