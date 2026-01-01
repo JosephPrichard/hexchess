@@ -23,7 +23,7 @@ func BeforeStateTest(t logutil.TestLogger, useTx bool) (State, func()) {
 
 func AssertRedisChess(t *testing.T, s State, wantState ChessState, options ...cmp.Option) {
 	t.Helper()
-	ctx := context.WithValue(t.Context(), logutil.Trace, "assert-chess-states")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	actualState, err := s.GetChessState(ctx, wantState.ID)
 	if err != nil {
 		t.Fatalf("get chess for assert: %v", err)

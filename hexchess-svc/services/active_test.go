@@ -17,7 +17,7 @@ func TestActiveUser(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-active-user")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Redis: rdb, EntropySource: &out.StableSource{Time: time.UnixMilli(int64(ActiveUserMaxage * 5))}}
 
 	//s1 := MakeActiveScenario()

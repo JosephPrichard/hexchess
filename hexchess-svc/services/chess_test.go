@@ -24,7 +24,7 @@ func TestEchoChessState(t *testing.T) {
 	id2 := "testing-id2-" + uuid.NewString()
 
 	state1 := MakeState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
-	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-set-then-get")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Redis: rdb}
 
 	// when
@@ -53,7 +53,7 @@ func TestGetChessMetas(t *testing.T) {
 	state2 := MakeState(StateSetup{ID: id2, Mode: ModeCorrespondence1, FirstColor: Random, Black: ptr.New(MakeIDPlayer(1))})
 	state3 := MakeState(StateSetup{ID: id3, Mode: ModeCorrespondence1, FirstColor: Random, Black: ptr.New(MakeIDPlayer(1))})
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-get-metas")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Redis: rdb}
 	now := time.Now()
 
@@ -98,7 +98,7 @@ func TestExpireChessStates(t *testing.T) {
 	state1.WhitePlayer = MakeIDPlayer(1)
 	state1.BlackPlayer = MakeIDPlayer(2)
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-expire")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Redis: rdb}
 	now := time.Now()
 

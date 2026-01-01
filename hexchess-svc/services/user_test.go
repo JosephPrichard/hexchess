@@ -20,7 +20,7 @@ func TestInsertThenVerify(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-insert-then-verify")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Postgres: pdb}
 
 	user1 := "user1-test"
@@ -64,7 +64,7 @@ func TestBatchInsertThenGet(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-batch-insert-then-get")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Postgres: pdb}
 
 	// when
@@ -92,7 +92,7 @@ func TestUpdateUser(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-update-user")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Postgres: pdb}
 
 	for _, test := range []struct {
@@ -134,7 +134,7 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-insert-google-user")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Postgres: pdb}
 
 	testAccountID := "test-account-id"
@@ -169,7 +169,7 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "update-password")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Postgres: pdb}
 
 	// when
@@ -190,7 +190,7 @@ func TestGetUserElos(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "get-user-elos")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Postgres: pdb}
 
 	// when

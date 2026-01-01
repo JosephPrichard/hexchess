@@ -11,51 +11,36 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestInsertThenGetReplay(t *testing.T) {
+func TestGetReplay(t *testing.T) {
 	// given
 	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-insert-get")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Postgres: pdb}
 
 	// when
-	id, err := insertReplay(ctx, pdb.Query, ReplayInst{
-		WhiteID:            2,
-		BlackID:            3,
-		Result:             WhiteWin,
-		Cause:              Checkmate,
-		Mode:               ModeCorrespondence7,
-		WinEloDiff:         35,
-		LoseEloDiff:        -25,
-		ReplayWhiteElo:     1050,
-		ReplayBlackElo:     950,
-		PlayedOn:           db.TestTimeNow,
-		SerializedMoveHist: []byte{},
-	})
-	require.NoError(t, err)
-
-	actualReplay1, err := s.GetReplay(ctx, id)
+	actualReplay1, err := s.GetReplay(ctx, 1)
 	require.NoError(t, err)
 
 	// then
 	wantReplay := ReplayEntity{
-		ID:           id,
-		WhiteID:      2,
-		BlackID:      3,
-		WhiteName:    "user2",
-		BlackName:    "user3",
+		ID:           1,
+		WhiteID:      1,
+		BlackID:      2,
+		WhiteName:    "user1",
+		BlackName:    "user2",
 		WhiteCountry: "us",
 		BlackCountry: "us",
-		Mode:         ModeCorrespondence7.String(),
-		Result:       WhiteWin.String(),
-		Cause:        Checkmate.String(),
-		WinEloDiff:   35,
-		LoseEloDiff:  -25,
-		WhiteEloDiff: 35,
-		BlackEloDiff: -25,
+		Mode:         "CORRESPONDENCE_7",
+		Result:       "WHITE_WINS",
+		Cause:        "CHECKMATE",
+		WinEloDiff:   30,
+		LoseEloDiff:  -30,
 		WhiteElo:     1000,
-		BlackElo:     900,
+		BlackElo:     1000,
+		WhiteEloDiff: 30,
+		BlackEloDiff: -30,
 		PlayedOn:     db.TestTimeNow.Local(),
 	}
 	assert.Equal(t, wantReplay, actualReplay1)
@@ -66,7 +51,7 @@ func TestGetUserReplays(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-get-replays")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Postgres: pdb}
 
 	// when
@@ -90,7 +75,7 @@ func TestGetReplayMoveList(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-get-move-list")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Postgres: pdb}
 
 	// when and then

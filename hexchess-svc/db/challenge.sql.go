@@ -131,6 +131,29 @@ func (q *Queries) InsertChallenge(ctx context.Context, arg InsertChallengeParams
 	return i, err
 }
 
+const selectChallenge = `-- name: SelectChallenge :one
+SELECT challenger_id, challengee_id, start_color, made_on, mode FROM challenges
+WHERE challenger_id = $1 AND challengee_id = $2
+`
+
+type SelectChallengeParams struct {
+	ChallengerID int64
+	ChallengeeID int64
+}
+
+func (q *Queries) SelectChallenge(ctx context.Context, arg SelectChallengeParams) (Challenge, error) {
+	row := q.db.QueryRow(ctx, selectChallenge, arg.ChallengerID, arg.ChallengeeID)
+	var i Challenge
+	err := row.Scan(
+		&i.ChallengerID,
+		&i.ChallengeeID,
+		&i.StartColor,
+		&i.MadeOn,
+		&i.Mode,
+	)
+	return i, err
+}
+
 const selectChallengesByParticipant = `-- name: SelectChallengesByParticipant :many
 SELECT
     c.challenger_id,

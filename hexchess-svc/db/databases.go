@@ -106,7 +106,3 @@ func MakeRdb(addrs RedisAddrs, names RedisNames) *Redis {
 func MakePostgres(pool *pgxpool.Pool) *Postgres {
 	return &Postgres{Query: New(pool), Pool: pool}
 }
-
-func MakeTestTxnPostgres(txn pgx.Tx) *Postgres {
-	return &Postgres{Query: New(txn), testingTxn: txn}
-}

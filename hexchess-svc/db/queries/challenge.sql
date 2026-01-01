@@ -61,3 +61,7 @@ WHERE
     (challengee_id = sqlc.arg('userID')
         OR challenger_id = sqlc.arg('userID'))
     AND made_on < sqlc.arg('before');
+
+-- name: SelectChallenge :one
+SELECT * FROM challenges
+WHERE challenger_id = sqlc.arg('challengerID') AND challengee_id = sqlc.arg('challengeeID');

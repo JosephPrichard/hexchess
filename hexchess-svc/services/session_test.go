@@ -20,7 +20,7 @@ func TestSessions(t *testing.T) {
 	sessionID2 := "session2"
 	sessionID3 := "session3"
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-sessions")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Redis: rdb}
 
 	// when

@@ -22,7 +22,7 @@ func TestLeaderboard(t *testing.T) {
 	id3 := int64(3)
 	id4 := int64(4)
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-leaderboard")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Redis: rdb}
 
 	// when
@@ -170,7 +170,7 @@ func TestGetFuzzySearchLeaderboard(t *testing.T) {
 	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "search-name")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Postgres: pdb}
 
 	// when

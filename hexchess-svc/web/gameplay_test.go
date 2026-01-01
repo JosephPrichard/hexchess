@@ -72,7 +72,7 @@ func TestHandleGameplayWs(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "test-handle-gameplay-ws")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	for _, test := range []struct {
 		name            string

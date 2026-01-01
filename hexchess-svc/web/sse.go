@@ -141,13 +141,13 @@ func (app *App) HandleActiveConn(w SSEWriter, _ *http.Request) error {
 		return fmt.Errorf("broadcast active user count after adding %d: %w", count, err)
 	}
 
-	stopTimer := timeutil.Every(time.Second*15, func() {
+	w.writeEvent(MetaEvent, sseID)
+
+	stopTimer := timeutil.Every(svc.ActiveUserMaxage/2, func() {
 		if err := app.State.RetainActiveUser(ctx, sseID); err != nil {
 			slog.ErrorContext(ctx, "failed to retain active user", "sseID", sseID, "err", err)
 		}
 	})
-
-	w.writeEvent(MetaEvent, sseID)
 
 	keepAliveTicker := time.NewTicker(time.Second * 15)
 RecvLoop:
@@ -160,14 +160,14 @@ RecvLoop:
 		}
 	}
 
-	fnshCtx := context.WithoutCancel(ctx)
+	afterCtx := context.WithoutCancel(ctx)
 	stopTimer <- true
 
-	if count, err = app.State.RemoveActiveUser(fnshCtx, sseID); err != nil {
-		slog.ErrorContext(fnshCtx, "failed to remove active user", "sseID", sseID, "err", err)
+	if count, err = app.State.RemoveActiveUser(afterCtx, sseID); err != nil {
+		slog.ErrorContext(afterCtx, "failed to remove active user", "sseID", sseID, "err", err)
 	}
-	if err := app.State.BroadcastActiveCount(fnshCtx, count); err != nil {
-		slog.ErrorContext(fnshCtx, "broadcast active user count after removing", "err", err)
+	if err := app.State.BroadcastActiveCount(afterCtx, count); err != nil {
+		slog.ErrorContext(afterCtx, "broadcast active user count after removing", "err", err)
 	}
 
 	return nil

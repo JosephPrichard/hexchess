@@ -118,7 +118,7 @@ func TestBroadcastGameMessage(t *testing.T) {
 	lb := LocalBroadcasters{GamesCaster: MakeMultiCasterMap("testing-broker-map", time.Hour*1)}
 	<-lb.ListenGameMessages(rdb)
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-broadcast-game-message")
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Redis: rdb}
 
 	wantMsgCount := 2

@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"github.com/docker/go-connections/nat"
 	"hexchess-svc/pkg/logutil"
 	"log"
 	"sync"
@@ -88,12 +89,9 @@ func BeforeRedisTest(t logutil.TestLogger) *Redis {
 	)
 }
 
-func BeforePostgresTest(t logutil.TestLogger, useTestTx bool) (*Postgres, func()) {
+func GetPgContainerData(ctx context.Context, t logutil.TestLogger) (string, nat.Port, bool) {
 	muPostgres.Lock()
 	defer muPostgres.Unlock()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 
 	shouldSeed := false
 	if postgresCont == nil {
@@ -126,6 +124,16 @@ func BeforePostgresTest(t logutil.TestLogger, useTestTx bool) (*Postgres, func()
 	if err != nil {
 		t.Fatalf("failed to get postgres container port: %s", err)
 	}
+
+	return host, port, shouldSeed
+}
+
+func BeforePostgresTest(t logutil.TestLogger, useTestTx bool) (*Postgres, func()) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	host, port, shouldSeed := GetPgContainerData(ctx, t)
+
 	pool, err := pgxpool.New(ctx, fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", TestDbUser, TestDbPass, host, port.Port(), TestDbName))
 	if err != nil {
 		t.Fatalf("failed to create pgx conn: %v", err)
@@ -152,7 +160,7 @@ func BeforePostgresTest(t logutil.TestLogger, useTestTx bool) (*Postgres, func()
 		if err != nil {
 			t.Fatalf("failed to open test tx: %v", err)
 		}
-		pdb = MakeTestTxnPostgres(testTx)
+		pdb = &Postgres{Query: New(testTx), testingTxn: testTx}
 	} else {
 		pdb = MakePostgres(pool)
 	}
