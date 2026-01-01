@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-func CreateGame(ctx context.Context, rdb *db.Rdb, color Color, mode GameMode, initialBoard *chess.Board) (string, error) {
+func (s State) CreateGame(ctx context.Context, color Color, mode GameMode, initialBoard *chess.Board) (string, error) {
 	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
 	bID := make([]byte, 8)
@@ -32,15 +32,15 @@ func CreateGame(ctx context.Context, rdb *db.Rdb, color Color, mode GameMode, in
 	state.Game.InitPieceMoves()
 
 	slog.InfoContext(ctx, "created chess game", "chessMeta", state.ChessMeta)
-	if err := SetChessState(ctx, rdb, strID, &state); err != nil {
+	if err := s.SetChessState(ctx, strID, &state); err != nil {
 		return "", err
 	}
 
-	go broadcastGameCounts(rdb)
+	go s.broadcastGameCounts()
 	return strID, nil
 }
 
-func broadcastGameCounts(rdb *db.Rdb) {
+func (s State) broadcastGameCounts() {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Warn("recovered in panic while broadcasting game event", "err", r)
@@ -48,20 +48,20 @@ func broadcastGameCounts(rdb *db.Rdb) {
 	}()
 	ctx := context.WithValue(context.Background(), logutil.Trace, "create-game-broadcast-handler")
 
-	count, err := GetChessStateCount(ctx, rdb)
+	count, err := s.GetChessStateCount(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to count chess states after creating game", "err", err)
 		return
 	}
-	if err := BroadcastGameCount(ctx, rdb, count); err != nil {
+	if err := s.BroadcastGameCount(ctx, count); err != nil {
 		slog.ErrorContext(ctx, "failed to broadcast chess states count after creating game", "err", err)
 		return
 	}
 	slog.InfoContext(ctx, "counted chess states after creating game", "count", count)
 }
 
-func JoinGame(ctx context.Context, rdb *db.Rdb, gameID string, player PlayerState) (*ChessState, error) {
-	state, err := GetChessState(ctx, rdb, gameID)
+func (s State) JoinGame(ctx context.Context, gameID string, player PlayerState) (*ChessState, error) {
+	state, err := s.GetChessState(ctx, gameID)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +102,7 @@ func JoinGame(ctx context.Context, rdb *db.Rdb, gameID string, player PlayerStat
 		return state, nil
 	}
 
-	err = SetChessState(ctx, rdb, gameID, state)
+	err = s.SetChessState(ctx, gameID, state)
 	logutil.DynLog(ctx, "player joined game", err, "playerID", player.ID, "chessMeta", state.ChessMeta)
 	return state, err
 }
@@ -119,7 +119,7 @@ var (
 	ErrInvalidMove  = errors.New("invalid move")
 )
 
-func DoMakeMove(ctx context.Context, state *ChessState, player PlayerState, move chess.Move) (MoveResult, error) {
+func (s State) DoMakeMove(ctx context.Context, state *ChessState, player PlayerState, move chess.Move) (MoveResult, error) {
 	var mr MoveResult
 
 	game := &state.Game
@@ -154,15 +154,15 @@ func DoMakeMove(ctx context.Context, state *ChessState, player PlayerState, move
 	return mr, nil
 }
 
-func MakeGameMove(ctx context.Context, databases *db.Databases, gameID string, player PlayerState, move chess.Move) (MoveResult, error) {
+func (s State) MakeGameMove(ctx context.Context, gameID string, player PlayerState, move chess.Move) (MoveResult, error) {
 	var mr MoveResult
 
-	state, err := GetChessState(ctx, databases.Rdb, gameID)
+	state, err := s.GetChessState(ctx, gameID)
 	if err != nil {
 		return mr, err
 	}
 
-	mr, err = DoMakeMove(ctx, state, player, move)
+	mr, err = s.DoMakeMove(ctx, state, player, move)
 	if err != nil {
 		return mr, err
 	}
@@ -171,7 +171,7 @@ func MakeGameMove(ctx context.Context, databases *db.Databases, gameID string, p
 		if state.Game.Board.IsWhiteTurn {
 			result = BlackWin
 		}
-		replayID, err := WriteFinishedGame(ctx, databases, state, result, Checkmate)
+		replayID, err := s.WriteFinishedGame(ctx, state, result, Checkmate)
 		if err != nil {
 			return mr, fmt.Errorf("write checkmate game result: %w", err)
 		}
@@ -179,7 +179,7 @@ func MakeGameMove(ctx context.Context, databases *db.Databases, gameID string, p
 	}
 	slog.InfoContext(ctx, "made move on game", "player", player.ID, "move", move, "chessMeta", state.ChessMeta)
 
-	if err := SetChessState(ctx, databases.Rdb, gameID, state); err != nil {
+	if err := s.SetChessState(ctx, gameID, state); err != nil {
 		return mr, err
 	}
 	return mr, nil
@@ -198,8 +198,8 @@ const (
 	UndoReject
 )
 
-func AttemptGameUndo(ctx context.Context, rdb *db.Rdb, gameID string, player PlayerState, kind UndoKind) (*ChessState, error) {
-	state, err := GetChessState(ctx, rdb, gameID)
+func (s State) AttemptGameUndo(ctx context.Context, gameID string, player PlayerState, kind UndoKind) (*ChessState, error) {
+	state, err := s.GetChessState(ctx, gameID)
 	if err != nil {
 		return nil, err
 	}
@@ -229,14 +229,14 @@ func AttemptGameUndo(ctx context.Context, rdb *db.Rdb, gameID string, player Pla
 		state.UndoState = UndoState{}
 	}
 
-	if err := SetChessState(ctx, rdb, gameID, state); err != nil {
+	if err := s.SetChessState(ctx, gameID, state); err != nil {
 		return nil, err
 	}
 	return state, nil
 }
 
-func ForfeitGame(ctx context.Context, databases *db.Databases, gameID string, player PlayerState) (int64, error) {
-	state, err := GetChessState(ctx, databases.Rdb, gameID)
+func (s State) ForfeitGame(ctx context.Context, gameID string, player PlayerState) (int64, error) {
+	state, err := s.GetChessState(ctx, gameID)
 	if err != nil {
 		return 0, err
 	}
@@ -251,10 +251,10 @@ func ForfeitGame(ctx context.Context, databases *db.Databases, gameID string, pl
 	}
 	state.IsEnded = true
 
-	if err := SetChessState(ctx, databases.Rdb, gameID, state); err != nil {
+	if err := s.SetChessState(ctx, gameID, state); err != nil {
 		return 0, err
 	}
-	replayID, err := WriteFinishedGame(ctx, databases, state, result, Forfeit)
+	replayID, err := s.WriteFinishedGame(ctx, state, result, Forfeit)
 	if err != nil {
 		return 0, fmt.Errorf("write forfeit game result: %w", err)
 	}
@@ -263,7 +263,7 @@ func ForfeitGame(ctx context.Context, databases *db.Databases, gameID string, pl
 	return replayID, nil
 }
 
-func WriteFinishedGame(ctx context.Context, databases *db.Databases, state *ChessState, result ReplayResult, cause ReplayCause) (int64, error) {
+func (s State) WriteFinishedGame(ctx context.Context, state *ChessState, result ReplayResult, cause ReplayCause) (int64, error) {
 	if !state.WhitePlayer.Present || !state.BlackPlayer.Present {
 		return 0, fmt.Errorf("room players must not be nil on a finished game: roomID: %s", state.ID)
 	}
@@ -274,7 +274,7 @@ func WriteFinishedGame(ctx context.Context, databases *db.Databases, state *Ches
 	if err != nil {
 		return 0, fmt.Errorf("marshal move history: %w", err)
 	}
-	cs, err := InsertGameResultTx(ctx, databases.Postgres, time.Time{}, GameResult{
+	cs, err := s.InsertGameResultTx(ctx, time.Time{}, GameResult{
 		WhiteID:            whiteID,
 		BlackID:            blackID,
 		ReplayCause:        cause,
@@ -290,7 +290,7 @@ func WriteFinishedGame(ctx context.Context, databases *db.Databases, state *Ches
 	}
 	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", cs, "room", state.ID)
 
-	if err := IncrLeaderboard(ctx, databases.Rdb,
+	if err := s.IncrLeaderboard(ctx,
 		UpdtLbChangeSet{Mode: state.Mode, ID: cs.WinID, EloDiff: cs.WinEloDiff},
 		UpdtLbChangeSet{Mode: state.Mode, ID: cs.LoseID, EloDiff: cs.LoseEloDiff},
 	); err != nil {
@@ -321,8 +321,8 @@ func (cs GRChangeSet) IsNoop() bool {
 	return cs.LoseEloDiff == 0 && cs.WinEloDiff == 0
 }
 
-func InsertGameResultTx(ctx context.Context, pdb *db.Postgres, timeAt time.Time, params GameResult) (GRChangeSet, error) {
-	return db.RunInTx(ctx, pdb, nil,
+func (s State) InsertGameResultTx(ctx context.Context, timeAt time.Time, params GameResult) (GRChangeSet, error) {
+	return db.RunInTx(ctx, s.Postgres, nil,
 		func(ctx context.Context, query *db.Queries) (GRChangeSet, error) {
 			return insertGameResult(ctx, query, timeAt, params)
 		},
@@ -405,7 +405,7 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 		}
 	}
 
-	replayID, err := InsertReplay(ctx, query, ReplayInst{
+	replayID, err := insertReplay(ctx, query, ReplayInst{
 		WhiteID:            result.WhiteID,
 		BlackID:            result.BlackID,
 		Result:             result.ReplayResult,

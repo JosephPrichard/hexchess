@@ -21,20 +21,21 @@ func TestSessions(t *testing.T) {
 	sessionID3 := "session3"
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-sessions")
+	s := State{Redis: rdb}
 
 	// when
-	require.NoError(t, SetSession(ctx, rdb, sessionID1, playerIn, 100*time.Second))
-	require.NoError(t, SetSession(ctx, rdb, sessionID2, playerIn, 100*time.Second))
-	require.NoError(t, SetSession(ctx, rdb, sessionID3, playerIn, 100*time.Second))
+	require.NoError(t, s.SetSession(ctx, sessionID1, playerIn, 100*time.Second))
+	require.NoError(t, s.SetSession(ctx, sessionID2, playerIn, 100*time.Second))
+	require.NoError(t, s.SetSession(ctx, sessionID3, playerIn, 100*time.Second))
 
-	playerOut, err := GetSession(ctx, rdb, sessionID1)
+	playerOut, err := s.GetSession(ctx, sessionID1)
 	require.NoError(t, err)
 
-	require.NoError(t, DeleteSession(ctx, rdb, sessionID2))
-	require.NoError(t, UpdateSessionEx(ctx, rdb, sessionID3, 0))
+	require.NoError(t, s.DeleteSession(ctx, sessionID2))
+	require.NoError(t, s.UpdateSessionEx(ctx, sessionID3, 0))
 
-	_, badIDErr1 := GetSession(ctx, rdb, sessionID2)
-	_, badIDErr2 := GetSession(ctx, rdb, sessionID3)
+	_, badIDErr1 := s.GetSession(ctx, sessionID2)
+	_, badIDErr2 := s.GetSession(ctx, sessionID3)
 
 	// then
 	assert.Equal(t, ErrSessionNotFound, badIDErr1)

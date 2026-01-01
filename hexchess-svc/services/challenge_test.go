@@ -5,7 +5,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
-	"hexchess-svc/outbound"
+	"hexchess-svc/out"
 	"hexchess-svc/pkg/logutil"
 	"testing"
 	"time"
@@ -13,22 +13,22 @@ import (
 
 func TestChallengeExpiration(t *testing.T) {
 	// given
-	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-expiration")
-
-	cs1 := ExpireChallengeFixture{&outbound.StableGenerator{Time: time.Unix(10000, 0)}, 0}
-	cs2 := ExpireChallengeFixture{&outbound.StableGenerator{Time: time.Unix(0, 0)}, 0}
+	s := State{Postgres: pdb}
 
 	// when
-	challenges, err := cs1.GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{int64(5), -1})
+	s.EntropySource = &out.StableSource{Time: db.TestTimeNow}
+	challenges, err := s.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
-	require.NoError(t, cs1.DeleteExpiredChallenges(ctx, pdb.Query, 5))
+	require.NoError(t, s.DeleteExpiredChallenges(ctx, 5))
 
 	// get all challenges to prove that the deletion worked
-	challengesDel, err := cs2.GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{int64(5), -1})
+	s.EntropySource = &out.StableSource{Time: time.Unix(0, 0)}
+	challengesDel, err := s.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
 	// then
@@ -70,13 +70,14 @@ func TestInsertChallenge(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// given
-			pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+			pdb, closer := db.BeforePostgresTest(t, true)
 			defer closer()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
+			s := State{Postgres: pdb}
 
 			// when
-			err := InsertChallenge(ctx, pdb.Query, ChallengeInst{
+			err := s.InsertChallenge(ctx, ChallengeInst{
 				ChallengerID: test.challengerID,
 				ChallengeeID: test.challengeeID,
 				Mode:         ModeCorrespondence7,
@@ -91,17 +92,17 @@ func TestInsertChallenge(t *testing.T) {
 
 func TestChallengeEchoDelete(t *testing.T) {
 	// given
-	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-delete")
+	s := State{Postgres: pdb, EntropySource: &out.StableSource{Time: db.TestTimeNow}}
 
 	testUser := TestUserEntities[1] // user ID: 2 will have no challenges at this point
-
-	timeOn := TestTimeNow
+	timeOn := db.TestTimeNow
 
 	// when
-	err := InsertChallenge(ctx, pdb.Query, ChallengeInst{
+	err := s.InsertChallenge(ctx, ChallengeInst{
 		ChallengerID: testUser.ID,
 		ChallengeeID: 3,
 		Mode:         ModeCorrespondence7,
@@ -110,15 +111,13 @@ func TestChallengeEchoDelete(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	cs := ExpireChallengeFixture{&outbound.StableGenerator{Time: TestTimeNow}, 0}
-
-	challengesBeforeDelete, err := cs.GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{testUser.ID, -1})
+	challengesBeforeDelete, err := s.GetChallengesByParticipant(ctx, ChallengeKey{testUser.ID, -1})
 	require.NoError(t, err)
 
-	dr, err := DeleteChallenge(ctx, pdb.Query, ChallengeKey{testUser.ID, 3})
+	dr, err := s.DeleteChallenge(ctx, ChallengeKey{testUser.ID, 3})
 	require.NoError(t, err)
 
-	challengesAfterDelete, err := cs.GetChallengesByParticipant(ctx, pdb.Query, ChallengeKey{testUser.ID, -1})
+	challengesAfterDelete, err := s.GetChallengesByParticipant(ctx, ChallengeKey{testUser.ID, -1})
 	require.NoError(t, err)
 
 	// then

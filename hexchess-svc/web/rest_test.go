@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/db"
-	"hexchess-svc/outbound"
+	"hexchess-svc/out"
 	"hexchess-svc/pkg/assertutil"
 	"hexchess-svc/pkg/logutil"
 	svc "hexchess-svc/services"
@@ -21,10 +21,10 @@ import (
 )
 
 // rest tests are block box tests that make assertions on rest api call output for a given input
-// no db assertions are made and any outbound network calls are mocked
+// no db assertions are made and any out network calls are mocked
 
 func TestHandleRegister(t *testing.T) {
-	insertTime := svc.TestTimeNow
+	insertTime := db.TestTimeNow
 
 	for _, test := range []struct {
 		name        string
@@ -53,19 +53,19 @@ func TestHandleRegister(t *testing.T) {
 		},
 		{
 			name:       "invalid username (duplicate)",
-			body:       RegisterBody{Username: svc.TestUsersInsts[0].Username, Password: "test-password2", ConfirmPassword: "test-password2"},
+			body:       RegisterBody{Username: db.TestUsersInsts[0].Username, Password: "test-password2", ConfirmPassword: "test-password2"},
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpDuplicateUsername.Error()},
 			wantStatus: http.StatusBadRequest,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+			pdb, rdb, closer := db.BeforeDatabasesTest(t, true)
 			defer closer()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/register", asJSONReader(test.body))
 			w := httptest.NewRecorder()
 
-			HandleRoot(State{Databases: databases, Generators: &outbound.StableGenerator{Time: insertTime}}).ServeHTTP(w, r)
+			MakeRoot(Setup{Postgres: pdb, Redis: rdb, EntropySource: &out.StableSource{Time: insertTime}}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
@@ -78,7 +78,7 @@ func TestHandleRegister(t *testing.T) {
 }
 
 func TestHandleLogin(t *testing.T) {
-	user := svc.TestUsersInsts[0]
+	user := db.TestUsersInsts[0]
 
 	for _, test := range []struct {
 		name        string
@@ -101,13 +101,13 @@ func TestHandleLogin(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+			pdb, rdb, closer := db.BeforeDatabasesTest(t, true)
 			defer closer()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/login", asJSONReader(test.body))
 			w := httptest.NewRecorder()
 
-			HandleRoot(State{Databases: databases}).ServeHTTP(w, r)
+			MakeRoot(Setup{Postgres: pdb, Redis: rdb}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
@@ -123,7 +123,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 	for _, test := range []struct {
 		name        string
 		runCount    int
-		setupMocks  func(*gomock.Controller) outbound.GoogleAPI
+		setupMocks  func(*gomock.Controller) out.GoogleAPI
 		body        GoogleLoginBody
 		wantSuccess SessionView
 		wantFail    ServiceView
@@ -132,11 +132,11 @@ func TestHandleGoogleLogin(t *testing.T) {
 		{
 			name:     "invalid login token (mocked)",
 			runCount: 1,
-			setupMocks: func(ctrl *gomock.Controller) outbound.GoogleAPI {
-				m := outbound.NewMockGoogleAPI(ctrl)
+			setupMocks: func(ctrl *gomock.Controller) out.GoogleAPI {
+				m := out.NewMockGoogleAPI(ctrl)
 				m.EXPECT().
 					ValidateIDToken(gomock.Any(), "invalidToken123").
-					Return(outbound.GoogleIDTokenPayload{}, errors.New("invalid token"))
+					Return(out.GoogleIDTokenPayload{}, errors.New("invalid token"))
 				return m
 			},
 			body:       GoogleLoginBody{Token: "invalidToken123"},
@@ -146,11 +146,11 @@ func TestHandleGoogleLogin(t *testing.T) {
 		{
 			name:     "login with google token succesful",
 			runCount: 2, // the user is created the first time, the second time we log in with the already inserted account ID
-			setupMocks: func(ctrl *gomock.Controller) outbound.GoogleAPI {
-				m := outbound.NewMockGoogleAPI(ctrl)
+			setupMocks: func(ctrl *gomock.Controller) out.GoogleAPI {
+				m := out.NewMockGoogleAPI(ctrl)
 				m.EXPECT().
 					ValidateIDToken(gomock.Any(), "testToken123").
-					Return(outbound.GoogleIDTokenPayload{AccountID: "account1", Username: "email@domain.com"}, nil)
+					Return(out.GoogleIDTokenPayload{AccountID: "account1", Username: "email@domain.com"}, nil)
 				return m
 			},
 			body:        GoogleLoginBody{Token: "testToken123"},
@@ -159,7 +159,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+			pdb, rdb, closer := db.BeforeDatabasesTest(t, true)
 			defer closer()
 
 			ctrl := gomock.NewController(t)
@@ -169,12 +169,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 				r := httptest.NewRequest(http.MethodPost, "/api/login/google", asJSONReader(test.body))
 				w := httptest.NewRecorder()
 
-				h := HandleRoot(State{
-					Databases: databases,
-					OutboundAPIs: outbound.RemoteAPIs{
-						GoogleAPI: test.setupMocks(ctrl),
-					},
-				})
+				h := MakeRoot(Setup{Postgres: pdb, Redis: rdb, RemoteAPIs: out.RemoteAPIs{GoogleAPI: test.setupMocks(ctrl)}})
 				h.ServeHTTP(w, r)
 
 				assert.Equal(t, test.wantStatus, w.Code)
@@ -222,15 +217,15 @@ func TestHandleUpdateUser(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+			pdb, rdb, closer := db.BeforeDatabasesTest(t, true)
 			defer closer()
-			createTestSessions(t, databases.Rdb)
+			createTestSessions(t, rdb)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/users", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			HandleRoot(State{Databases: databases, CountryList: []string{"eu"}}).ServeHTTP(w, r)
+			MakeRoot(Setup{Postgres: pdb, Redis: rdb, CountryList: []string{"eu"}}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
@@ -276,15 +271,15 @@ func TestHandleUpdatePassword(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+			pdb, rdb, closer := db.BeforeDatabasesTest(t, true)
 			defer closer()
-			createTestSessions(t, databases.Rdb)
+			createTestSessions(t, rdb)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/users/password", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			HandleRoot(State{Databases: databases}).ServeHTTP(w, r)
+			MakeRoot(Setup{Postgres: pdb, Redis: rdb}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
@@ -339,16 +334,16 @@ func TestHandleUpdateChallenge(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+			pdb, rdb, closer := db.BeforeDatabasesTest(t, true)
 			defer closer()
 
-			createTestSessions(t, databases.Rdb)
+			createTestSessions(t, rdb)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/challenges/update", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			HandleRoot(State{Databases: databases}).ServeHTTP(w, r)
+			MakeRoot(Setup{Postgres: pdb, Redis: rdb}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus != http.StatusOK {
@@ -385,15 +380,15 @@ func TestHandleCreateGame(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+			pdb, rdb, closer := db.BeforeDatabasesTest(t, true)
 			defer closer()
-			createTestSessions(t, databases.Rdb)
+			createTestSessions(t, rdb)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/games/create", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			HandleRoot(State{Databases: databases, Generators: &outbound.StableGenerator{Time: svc.TestTimeNow}}).ServeHTTP(w, r)
+			MakeRoot(Setup{Postgres: pdb, Redis: rdb, EntropySource: &out.StableSource{Time: db.TestTimeNow}}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus != http.StatusOK {
@@ -442,15 +437,15 @@ func TestHandleCreateChallenge(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+			pdb, rdb, closer := db.BeforeDatabasesTest(t, true)
 			defer closer()
-			createTestSessions(t, databases.Rdb)
+			createTestSessions(t, rdb)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			HandleRoot(State{Databases: databases, Generators: &outbound.StableGenerator{Time: svc.TestTimeNow}}).ServeHTTP(w, r)
+			MakeRoot(Setup{Postgres: pdb, Redis: rdb, EntropySource: &out.StableSource{Time: db.TestTimeNow}}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			assertutil.AssertRespBody[ServiceView](t, test.wantResp, w)
@@ -489,7 +484,7 @@ func TestGetLeaderboard(t *testing.T) {
 							ID:       1,
 							Username: "user1",
 							Country:  "us",
-							JoinedOn: svc.TestTimeNow,
+							JoinedOn: db.TestTimeNow,
 						},
 						Elo:        1050,
 						HighestElo: 1050,
@@ -504,18 +499,20 @@ func TestGetLeaderboard(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// given
-			databases, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
+			pdb, rdb, closer := db.BeforeDatabasesTest(t, false)
 			defer closer()
 
+			state := svc.State{Postgres: pdb, Redis: rdb}
+
 			ctx := context.WithValue(context.Background(), logutil.Trace, "setup-get-leaderboard")
-			require.NoError(t, svc.SetLeaderboard(ctx, databases.Rdb, svc.UpdtLbChangeSet{Mode: svc.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
+			require.NoError(t, state.SetLeaderboard(ctx, svc.UpdtLbChangeSet{Mode: svc.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
 
 			q := url.Values{}
 			q.Set("mode", test.mode)
 			q.Set("page", test.page)
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/leaderboard?%s", q.Encode()), nil)
 			w := httptest.NewRecorder()
-			h := HandleRoot(State{Databases: databases})
+			h := MakeRoot(Setup{Postgres: pdb, Redis: rdb})
 
 			// when
 			h.ServeHTTP(w, r)
@@ -532,10 +529,10 @@ func TestGetLeaderboard(t *testing.T) {
 }
 
 func TestGetPlayer(t *testing.T) {
-	databases, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
+	pdb, rdb, closer := db.BeforeDatabasesTest(t, false)
 	defer closer()
 
-	h := HandleRoot(State{Databases: databases})
+	h := MakeRoot(Setup{Postgres: pdb, Redis: rdb})
 
 	for _, test := range []struct {
 		name        string
@@ -591,11 +588,11 @@ func TestGetPlayer(t *testing.T) {
 }
 
 func TestGetChallenges(t *testing.T) {
-	databases, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
+	pdb, rdb, closer := db.BeforeDatabasesTest(t, false)
 	defer closer()
-	createTestSessions(t, databases.Rdb)
+	createTestSessions(t, rdb)
 
-	h := HandleRoot(State{Databases: databases, Generators: &outbound.StableGenerator{Time: svc.TestTimeNow}})
+	h := MakeRoot(Setup{Postgres: pdb, Redis: rdb, EntropySource: &out.StableSource{Time: db.TestTimeNow}})
 
 	for _, test := range []struct {
 		name         string
@@ -634,10 +631,10 @@ func TestGetChallenges(t *testing.T) {
 }
 
 func TestHandleGetUserReplays(t *testing.T) {
-	databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+	pdb, rdb, closer := db.BeforeDatabasesTest(t, true)
 	defer closer()
 
-	h := HandleRoot(State{Databases: databases})
+	h := MakeRoot(Setup{Postgres: pdb, Redis: rdb})
 
 	for _, test := range []struct {
 		name        string
@@ -689,10 +686,10 @@ func TestHandleGetUserReplays(t *testing.T) {
 }
 
 func TestHandleGetReplay(t *testing.T) {
-	databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+	pdb, rdb, closer := db.BeforeDatabasesTest(t, true)
 	defer closer()
 
-	h := HandleRoot(State{Databases: databases})
+	h := MakeRoot(Setup{Postgres: pdb, Redis: rdb})
 
 	for _, test := range []struct {
 		name        string
@@ -731,16 +728,16 @@ func TestHandleGetReplay(t *testing.T) {
 }
 
 func TestHandleGetChessMetas(t *testing.T) {
-	databases, closer := db.BeforeDbTest(t, false, svc.InsertTestData)
+	pdb, rdb, closer := db.BeforeDatabasesTest(t, false)
 	defer closer()
-	createTestSessions(t, databases.Rdb)
-	createTestChessStates(t, databases.Rdb)
+	createTestSessions(t, rdb)
+	createTestChessStates(t, rdb)
 
 	r := httptest.NewRequest(http.MethodGet, "/api/chess/rooms", nil)
 	r.Header.Set("Cookie", FmtCookie(TestSessionID2))
 	w := httptest.NewRecorder()
 
-	h := HandleRoot(State{Databases: databases})
+	h := MakeRoot(Setup{Postgres: pdb, Redis: rdb})
 	h.ServeHTTP(w, r)
 
 	wantResp := ChessMetasResp{

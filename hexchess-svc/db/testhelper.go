@@ -19,7 +19,7 @@ const TestDbUser = "postgres"
 const TestDbName = "postgres"
 const TestDbPass = "postgres"
 
-const RedisContTag = "rdb:8.4.0"
+const RedisContTag = "redis:8.4.0"
 const PostgresContTag = "postgres:17"
 
 var muPostgres sync.Mutex
@@ -39,7 +39,7 @@ func TeardownTestInfra() {
 		if err := testcontainers.TerminateContainer(redisCont); err != nil {
 			logutil.FatalErr("terminate container", err)
 		}
-		log.Print("stopped test rdb container")
+		log.Print("stopped test redis container")
 	}
 }
 
@@ -48,7 +48,7 @@ type TestLogger interface {
 	Fatalf(format string, args ...any)
 }
 
-func BeforeRedisTest(t TestLogger) *Rdb {
+func BeforeRedisTest(t TestLogger) *Redis {
 	muRedis.Lock()
 	defer muRedis.Unlock()
 
@@ -57,27 +57,27 @@ func BeforeRedisTest(t TestLogger) *Rdb {
 
 	if redisCont == nil {
 		start := time.Now()
-		t.Logf("starting rdb container")
+		t.Logf("starting redis container")
 		cont, err := redis.Run(ctx, RedisContTag, testcontainers.WithExposedPorts("6379"))
 		if err != nil {
-			t.Fatalf("start rdb container: %s", err)
+			t.Fatalf("start redis container: %s", err)
 		}
 
 		redisCont = cont
-		t.Logf("finished starting rdb container in %v", time.Since(start))
+		t.Logf("finished starting redis container in %v", time.Since(start))
 	}
 
 	host, err := redisCont.Container.Host(ctx)
 	if err != nil {
-		t.Fatalf("get rdb host: %s", err)
+		t.Fatalf("get redis host: %s", err)
 	}
 	port, err := redisCont.Container.MappedPort(ctx, "6379/tcp")
 	if err != nil {
-		t.Fatalf("get rdb port: %s", err)
+		t.Fatalf("get redis port: %s", err)
 	}
 
 	addr := fmt.Sprintf("%s:%s", host, port.Port())
-	t.Logf("rdb addr: %s", addr)
+	t.Logf("redis addr: %s", addr)
 
 	return MakeRdb(
 		RedisAddrs{addr, addr},
@@ -93,7 +93,7 @@ func BeforeRedisTest(t TestLogger) *Rdb {
 	)
 }
 
-func BeforePostgresTest(t TestLogger, useTestTx bool, insertTestData func(TestLogger, *pgxpool.Pool)) (*Postgres, func()) {
+func BeforePostgresTest(t TestLogger, useTestTx bool) (*Postgres, func()) {
 	muPostgres.Lock()
 	defer muPostgres.Unlock()
 
@@ -164,9 +164,8 @@ func BeforePostgresTest(t TestLogger, useTestTx bool, insertTestData func(TestLo
 	return pdb, func() { pdb.Close() }
 }
 
-func BeforeDbTest(t TestLogger, useTx bool, insertTestData func(TestLogger, *pgxpool.Pool)) (Databases, func()) {
-	pdb, pdbCloser := BeforePostgresTest(t, useTx, insertTestData)
+func BeforeDatabasesTest(t TestLogger, useTx bool) (*Postgres, *Redis, func()) {
+	pdb, pdbCloser := BeforePostgresTest(t, useTx)
 	rdb := BeforeRedisTest(t)
-	databases := Databases{Postgres: pdb, Rdb: rdb}
-	return databases, func() { pdbCloser(); rdb.Close() }
+	return pdb, rdb, func() { pdbCloser(); rdb.Close() }
 }

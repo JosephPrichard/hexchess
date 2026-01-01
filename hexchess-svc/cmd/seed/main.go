@@ -68,14 +68,13 @@ func main() {
 	if err != nil {
 		logutil.FatalErr("create pool", err)
 	}
-	q := db.New(pool)
 	pdb := db.MakePostgres(pool)
 
 	slog.InfoContext(ctx, "connecting to rdb db", "rdbPrimaryURL", rdbPrimaryURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL}, db.DefaultRedisNames)
 
-	databases := &db.Databases{Rdb: rdb, Postgres: pdb}
-	defer databases.Close()
+	state := &svc.State{Redis: rdb, Postgres: pdb}
+	defer state.Close()
 
 	_, err = pool.Exec(ctx, `
 		TRUNCATE TABLE users, replays, challenges
@@ -89,18 +88,18 @@ func main() {
 		logutil.FatalErr("flush rdb", err)
 	}
 
-	if _, err := svc.BatchInsertUsers(ctx, q, userInsts); err != nil {
+	if _, err := state.BatchInsertUsers(ctx, userInsts); err != nil {
 		logutil.FatalErr("insert users", err)
 	}
 	for _, chInst := range challenges {
-		if err := svc.InsertChallenge(ctx, q, mapChallengeInst(chInst)); err != nil {
+		if err := state.InsertChallenge(ctx, mapChallengeInst(chInst)); err != nil {
 			logutil.FatalErr("insert challenge", err)
 		}
 	}
-	if err := insertRandomizedGameResult(ctx, pdb, gameResults); err != nil {
+	if err := insertRandomizedGameResult(ctx, state, gameResults); err != nil {
 		logutil.FatalErr("insert game results", err)
 	}
-	if err := svc.SyncLeaderboard(ctx, databases); err != nil {
+	if err := state.SyncLeaderboard(ctx); err != nil {
 		logutil.FatalErr("sync leaderboard", err)
 	}
 
@@ -117,7 +116,7 @@ func mapChallengeInst(chInst ChallengeInst) svc.ChallengeInst {
 	}
 }
 
-func insertRandomizedGameResult(ctx context.Context, pdb *db.Postgres, gameResults []GameResult) error {
+func insertRandomizedGameResult(ctx context.Context, state *svc.State, gameResults []GameResult) error {
 	timeAt := time.Now().Add(-1 * time.Hour * 24 * 100)
 
 	a := gameResults
@@ -139,7 +138,7 @@ func insertRandomizedGameResult(ctx context.Context, pdb *db.Postgres, gameResul
 		}
 		params.SerializedMoveHist = moveHistBytes
 
-		if _, err = svc.InsertGameResultTx(ctx, pdb, timeAt.Add(time.Duration(i)*time.Hour*24), svc.GameResult{
+		if _, err = state.InsertGameResultTx(ctx, timeAt.Add(time.Duration(i)*time.Hour*24), svc.GameResult{
 			WhiteID:            params.WhiteID,
 			BlackID:            params.BlackID,
 			ReplayCause:        svc.ExpectReplayCause(params.ReplayCause),

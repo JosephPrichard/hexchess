@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"hexchess-svc/db"
 	"hexchess-svc/services"
 	"math/big"
 	"net/http"
@@ -40,22 +39,22 @@ func MakeSessionID() string {
 	return string(bytes)
 }
 
-func GetSessionPlayer(ctx context.Context, rdb *db.Rdb, r *http.Request) (svc.PlayerState, string, error) {
+func GetSessionPlayer(ctx context.Context, s *svc.State, r *http.Request) (svc.PlayerState, string, error) {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
 		return svc.PlayerState{}, "", svc.ErrSessionNotFound
 	}
 	sessionID := cookie.Value
-	player, err := svc.GetSession(ctx, rdb, sessionID)
+	player, err := s.GetSession(ctx, sessionID)
 	if err != nil {
 		return svc.PlayerState{}, "", err
 	}
 	return player, sessionID, nil
 }
 
-func SetSessionPlayer(ctx context.Context, rdb *db.Rdb, w http.ResponseWriter, player svc.PlayerState) (time.Duration, error) {
+func SetSessionPlayer(ctx context.Context, s *svc.State, w http.ResponseWriter, player svc.PlayerState) (time.Duration, error) {
 	sessionID := MakeSessionID()
-	if err := svc.SetSession(ctx, rdb, sessionID, player, SessionMaxAge); err != nil {
+	if err := s.SetSession(ctx, sessionID, player, SessionMaxAge); err != nil {
 		return 0, err
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))

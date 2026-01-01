@@ -8,7 +8,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/db"
-	"hexchess-svc/outbound"
 	"hexchess-svc/pkg/logutil"
 	"log/slog"
 	"time"
@@ -63,21 +62,12 @@ func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) ChallengeEntit
 	}
 }
 
-type ExpireChallengeFixture struct {
-	outbound.Generator
-	MaxAge time.Duration
-}
-
-func ChallengeScenario(generator outbound.Generator) *ExpireChallengeFixture {
-	return &ExpireChallengeFixture{generator, ExpireChallengeMaxAge}
-}
-
-func InsertChallenge(ctx context.Context, query *db.Queries, inst ChallengeInst) error {
-	_, err := InsertChallengeRet(ctx, query, inst)
+func (s State) InsertChallenge(ctx context.Context, inst ChallengeInst) error {
+	_, err := s.InsertChallengeRet(ctx, inst)
 	return err
 }
 
-func InsertChallengeRet(ctx context.Context, query *db.Queries, inst ChallengeInst) (ChallengeEntity, error) {
+func (s State) InsertChallengeRet(ctx context.Context, inst ChallengeInst) (ChallengeEntity, error) {
 	if inst.ChallengerID == inst.ChallengeeID {
 		return ChallengeEntity{}, ErrSelfChallenge
 	}
@@ -85,7 +75,7 @@ func InsertChallengeRet(ctx context.Context, query *db.Queries, inst ChallengeIn
 		inst.MadeOn = time.Now()
 	}
 
-	row, dbErr := query.InsertChallenge(ctx, db.InsertChallengeParams{
+	row, dbErr := s.Query.InsertChallenge(ctx, db.InsertChallengeParams{
 		ChallengerID: inst.ChallengerID,
 		ChallengeeID: inst.ChallengeeID,
 		Mode:         db.ModeEnum(inst.Mode.String()),
@@ -119,8 +109,8 @@ type ChallengeKey struct {
 }
 
 // GetChallengesByParticipant will select challenges by the participant after the 'since' time
-func (s ExpireChallengeFixture) GetChallengesByParticipant(ctx context.Context, query *db.Queries, key ChallengeKey) ([]ChallengeEntity, error) {
-	since := s.GetNow().Add(-s.MaxAge)
+func (s State) GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]ChallengeEntity, error) {
+	since := s.GetNow().Add(-ExpireChallengeMaxAge)
 
 	var pgChallengerID pgtype.Int8
 	if key.ChallengerID != -1 {
@@ -133,7 +123,7 @@ func (s ExpireChallengeFixture) GetChallengesByParticipant(ctx context.Context, 
 		pgChallengeeID.Int64 = key.ChallengeeID
 	}
 
-	rows, err := query.SelectChallengesByParticipant(ctx, db.SelectChallengesByParticipantParams{
+	rows, err := s.Query.SelectChallengesByParticipant(ctx, db.SelectChallengesByParticipantParams{
 		ChallengerID: pgChallengerID,
 		ChallengeeID: pgChallengeeID,
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
@@ -158,9 +148,9 @@ type DeleteResult struct {
 	FirstColor   Color
 }
 
-func DeleteChallenge(ctx context.Context, query *db.Queries, key ChallengeKey) (DeleteResult, error) {
+func (s State) DeleteChallenge(ctx context.Context, key ChallengeKey) (DeleteResult, error) {
 	var dr DeleteResult
-	row, err := query.DeleteChallenge(ctx, db.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	row, err := s.Query.DeleteChallenge(ctx, db.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return dr, ErrChallengeNotFound
 	}
@@ -187,9 +177,9 @@ func DeleteChallenge(ctx context.Context, query *db.Queries, key ChallengeKey) (
 	return dr, err
 }
 
-func (s ExpireChallengeFixture) DeleteExpiredChallenges(ctx context.Context, query *db.Queries, userID int64) error {
-	t := s.GetNow().Add(-s.MaxAge)
-	err := query.DeleteExpiredChallenges(ctx, db.DeleteExpiredChallengesParams{
+func (s State) DeleteExpiredChallenges(ctx context.Context, userID int64) error {
+	t := s.GetNow().Add(-ExpireChallengeMaxAge)
+	err := s.Query.DeleteExpiredChallenges(ctx, db.DeleteExpiredChallengesParams{
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: t},
 	})

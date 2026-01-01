@@ -11,7 +11,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
-	"hexchess-svc/outbound"
+	"hexchess-svc/out"
 	"hexchess-svc/pb"
 	"hexchess-svc/pkg/assertutil"
 	"hexchess-svc/pkg/logutil"
@@ -79,7 +79,7 @@ func TestHandleGameplayWs(t *testing.T) {
 		inputMsgs       []*pb.GameInput
 		wantMsgs        []*pb.GameOutput
 		wantBrdcasts    []any
-		assertDatabases func(*testing.T, *db.Databases, []*pb.GameOutput)
+		assertDatabases func(*testing.T, *svc.State, []*pb.GameOutput)
 	}{
 		{
 			name: "move input (invalid)",
@@ -102,7 +102,7 @@ func TestHandleGameplayWs(t *testing.T) {
 				{
 					GameId: gameID,
 					Value: &pb.GameOutput_Move{Move: &pb.MoveOutput{
-						UpdatedAt: svc.TestTimeNow.Format(time.RFC3339),
+						UpdatedAt: db.TestTimeNow.Format(time.RFC3339),
 						Move:      &pb.HistMove{Piece: int32(chess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, CollFile: true, CollRank: true},
 					}},
 				},
@@ -111,7 +111,7 @@ func TestHandleGameplayWs(t *testing.T) {
 				&pb.GameOutput{
 					GameId: gameID,
 					Value: &pb.GameOutput_Move{Move: &pb.MoveOutput{
-						UpdatedAt: svc.TestTimeNow.Format(time.RFC3339),
+						UpdatedAt: db.TestTimeNow.Format(time.RFC3339),
 						Move:      &pb.HistMove{Piece: int32(chess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, CollFile: true, CollRank: true},
 					}},
 				}},
@@ -139,14 +139,14 @@ func TestHandleGameplayWs(t *testing.T) {
 			wantBrdcasts: []any{
 				&pb.GameOutput{GameId: gameID, Value: &pb.GameOutput_Forfeit{}},
 			},
-			assertDatabases: func(t *testing.T, databases *db.Databases, msgOutputs []*pb.GameOutput) {
+			assertDatabases: func(t *testing.T, state *svc.State, msgOutputs []*pb.GameOutput) {
 				replayID := msgOutputs[2].GetForfeit().ReplayId // we can assume this is valid if the test reaches this point
 
-				actualState, err := svc.GetChessState(ctx, databases.Rdb, gameID)
+				actualState, err := state.GetChessState(ctx, gameID)
 				require.NoError(t, err)
 				assert.True(t, actualState.IsEnded)
 
-				replay, err := databases.Query.SelectReplayRowByID(context.Background(), replayID)
+				replay, err := state.Query.SelectReplayRowByID(context.Background(), replayID)
 				require.NoError(t, err)
 				assert.Equal(t, replay.Cause, db.CauseEnum("FORFEIT"))
 			},
@@ -175,20 +175,22 @@ func TestHandleGameplayWs(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// given
-			databases, closer := db.BeforeDbTest(t, true, svc.InsertTestData)
+			pdb, rdb, closer := db.BeforeDatabasesTest(t, true)
 			defer closer()
 
-			createTestSessions(t, databases.Rdb)
-			createTestChessStates(t, databases.Rdb)
+			setup := Setup{Postgres: pdb, Redis: rdb, Broadcasters: svc.MakeBroadcaster(), EntropySource: &out.StableSource{Time: db.TestTimeNow}}
+			state := &svc.State{Postgres: pdb, Redis: rdb}
 
-			state := State{Databases: databases, Broadcasters: svc.MakeBroadcaster(), Generators: &outbound.StableGenerator{Time: svc.TestTimeNow}}
-			ts := httptest.NewServer(HandleRoot(state))
+			createTestSessions(t, rdb)
+			createTestChessStates(t, rdb)
+
+			ts := httptest.NewServer(MakeRoot(setup))
 			defer ts.Close()
 
 			// (start, subcribe, and read broadcasts)
-			<-state.Broadcasters.ListenGameMessages(databases.Rdb)
+			<-setup.Broadcasters.ListenGameMessages(rdb)
 			subChan := make(chan []byte)
-			state.Broadcasters.GamesCaster.Subscribe(gameID, subChan)
+			setup.Broadcasters.GamesCaster.Subscribe(gameID, subChan)
 			brdCastChan := make(chan []any)
 			go readBroadcasted(brdCastChan, subChan, len(test.wantBrdcasts))
 
@@ -235,7 +237,7 @@ func TestHandleGameplayWs(t *testing.T) {
 			assertutil.AssertEqualIgnoring(t, test.wantBrdcasts, brdCastOutputs, cmpOpts...)
 
 			if test.assertDatabases != nil {
-				test.assertDatabases(t, &databases, msgOutputs)
+				test.assertDatabases(t, state, msgOutputs)
 			}
 		})
 	}

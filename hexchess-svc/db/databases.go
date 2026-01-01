@@ -62,14 +62,14 @@ func (pdb *Postgres) Close() {
 	}
 }
 
-type Rdb struct {
+type Redis struct {
 	Cache  *redis.Client
 	PubSub *redigo.Pool
 	RedisAddrs
 	RedisNames
 }
 
-func (rdb *Rdb) Close() {
+func (rdb *Redis) Close() {
 	if rdb.Cache != nil {
 		rdb.Cache.Close()
 	}
@@ -78,21 +78,7 @@ func (rdb *Rdb) Close() {
 	}
 }
 
-type Databases struct {
-	*Postgres
-	*Rdb
-}
-
-func (s Databases) Close() {
-	if s.Postgres != nil {
-		s.Postgres.Close()
-	}
-	if s.Rdb != nil {
-		s.Rdb.Close()
-	}
-}
-
-func MakeRdb(addrs RedisAddrs, names RedisNames) *Rdb {
+func MakeRdb(addrs RedisAddrs, names RedisNames) *Redis {
 	var ps *redigo.Pool
 	if addrs.PubsubAddr != "" {
 		ps = &redigo.Pool{
@@ -107,7 +93,7 @@ func MakeRdb(addrs RedisAddrs, names RedisNames) *Rdb {
 			},
 		}
 	}
-	return &Rdb{
+	return &Redis{
 		Cache: redis.NewClient(&redis.Options{
 			Addr: addrs.CacheAddr,
 		}),

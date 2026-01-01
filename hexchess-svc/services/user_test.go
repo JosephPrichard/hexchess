@@ -17,21 +17,22 @@ var testVerifiedUserCmptOpts = cmpopts.IgnoreFields(VerifiedUser{}, "ID")
 
 func TestInsertThenVerify(t *testing.T) {
 	// given
-	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-insert-then-verify")
+	s := State{Postgres: pdb}
 
 	user1 := "user1-test"
 
 	// when
-	u1, err := InsertUser(ctx, pdb.Query, UserInst{Username: user1, Password: "password1", Country: "us", JoinedOn: TestTimeNow})
+	u1, err := s.InsertUser(ctx, UserInst{Username: user1, Password: "password1", Country: "us", JoinedOn: db.TestTimeNow})
 	require.NoError(t, err)
 
 	v1, err := verifyUser(ctx, pdb.Query, user1, "password1")
 	require.NoError(t, err)
 
-	dbU1, err := GetUserByID(ctx, pdb.Query, v1.ID)
+	dbU1, err := s.GetUserByID(ctx, v1.ID)
 	require.NoError(t, err)
 
 	var attemptsErrs []error
@@ -53,24 +54,25 @@ func TestInsertThenVerify(t *testing.T) {
 	wantU1 := UserEntity{
 		Username: "user1-test",
 		Country:  "us",
-		JoinedOn: TestTimeNow.Local(),
+		JoinedOn: db.TestTimeNow.Local(),
 	}
 	assertutil.AssertEqualIgnoring(t, wantU1, dbU1, testUserCmptOpts)
 }
 
 func TestBatchInsertThenGet(t *testing.T) {
 	// given
-	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-batch-insert-then-get")
+	s := State{Postgres: pdb}
 
 	// when
 	insts := []UserInst{
 		{Username: "user1-test", Password: "password1", Country: "us"},
 		{Username: "user2-test", Password: "password2", Country: "eu"},
 	}
-	users, batchErr := BatchInsertUsers(ctx, pdb.Query, insts)
+	users, batchErr := s.BatchInsertUsers(ctx, insts)
 
 	for i := range users {
 		users[i].ID = 0
@@ -87,10 +89,11 @@ func TestBatchInsertThenGet(t *testing.T) {
 }
 
 func TestUpdateUser(t *testing.T) {
-	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-update-user")
+	s := State{Postgres: pdb}
 
 	for _, test := range []struct {
 		userID       int64
@@ -114,10 +117,10 @@ func TestUpdateUser(t *testing.T) {
 			wantCountry:  "eu",
 		},
 	} {
-		_, err := UpdateUser(ctx, pdb.Query, test.userID, test.udpt)
+		_, err := s.UpdateUser(ctx, test.userID, test.udpt)
 		require.NoError(t, err)
 
-		u, err := GetUserByID(ctx, pdb.Query, test.userID)
+		u, err := s.GetUserByID(ctx, test.userID)
 		require.NoError(t, err)
 
 		assert.Equal(t, test.wantUsername, u.Username)
@@ -128,23 +131,24 @@ func TestUpdateUser(t *testing.T) {
 
 func TestSelectOrInsertGoogleUser(t *testing.T) {
 	// given
-	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-insert-google-user")
+	s := State{Postgres: pdb}
 
 	testAccountID := "test-account-id"
 
-	inst := GoogleUserInst{Username: "username", Country: "us", JoinedOn: TestTimeNow}
+	inst := GoogleUserInst{Username: "username", Country: "us", JoinedOn: db.TestTimeNow}
 
 	// when
-	u1, err := SelectOrInsertGoogleUser(ctx, pdb.Query, testAccountID, inst)
+	u1, err := s.SelectOrInsertGoogleUser(ctx, testAccountID, inst)
 	require.NoError(t, err)
 
-	u2, err := SelectOrInsertGoogleUser(ctx, pdb.Query, testAccountID, inst)
+	u2, err := s.SelectOrInsertGoogleUser(ctx, testAccountID, inst)
 	require.NoError(t, err)
 
-	dbU1, err := GetUserByID(ctx, pdb.Query, u1.ID)
+	dbU1, err := s.GetUserByID(ctx, u1.ID)
 	require.NoError(t, err)
 
 	// then
@@ -155,23 +159,24 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 	wantU1 := UserEntity{
 		Username: "username",
 		Country:  "us",
-		JoinedOn: TestTimeNow.Local(),
+		JoinedOn: db.TestTimeNow.Local(),
 	}
 	assertutil.AssertEqualIgnoring(t, wantU1, dbU1, testUserCmptOpts)
 }
 
 func TestUpdatePasswordThenVerify(t *testing.T) {
 	// given
-	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "update-password")
+	s := State{Postgres: pdb}
 
 	// when
-	err := UpdateUserPassword(ctx, pdb.Query, TestUserEntities[0].ID, "password-new")
+	err := s.UpdateUserPassword(ctx, TestUserEntities[0].ID, "password-new")
 	require.NoError(t, err)
 
-	u1, err := GetUserByID(ctx, pdb.Query, TestUserEntities[0].ID)
+	u1, err := s.GetUserByID(ctx, TestUserEntities[0].ID)
 	require.NoError(t, err)
 	v1, err := verifyUser(ctx, pdb.Query, TestUserEntities[0].Username, "password-new")
 	require.NoError(t, err)
@@ -182,13 +187,14 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 
 func TestGetUserElos(t *testing.T) {
 	// given
-	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "get-user-elos")
+	s := State{Postgres: pdb}
 
 	// when
-	stats, err := GetUserStats(ctx, pdb.Query, 1)
+	stats, err := s.GetUserStats(ctx, 1)
 	require.NoError(t, err)
 
 	// then

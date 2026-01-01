@@ -23,6 +23,7 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	defer rdb.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-join-game")
+	s := State{Redis: rdb}
 
 	gameID := "test123"
 	inState := MakeState(StateSetup{ID: gameID, Mode: ModeCorrespondence1, FirstColor: Random})
@@ -30,9 +31,9 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	player := MakePlayer(1, "name", "us")
 
 	// when
-	require.NoError(t, SetChessState(ctx, rdb, gameID, &inState))
+	require.NoError(t, s.SetChessState(ctx, gameID, &inState))
 
-	updatedState, err := JoinGame(ctx, rdb, gameID, player)
+	updatedState, err := s.JoinGame(ctx, gameID, player)
 	require.NoError(t, err)
 
 	// then
@@ -40,7 +41,7 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	wantState.WhitePlayer = player
 
 	AssertChessState(t, wantState, updatedState, ChessMetaCmpOpt)
-	AssertRedisChess(t, rdb, *updatedState, ChessMetaCmpOpt)
+	AssertRedisChess(t, s, *updatedState, ChessMetaCmpOpt)
 }
 
 func TestJoinGame_BothPlayersExist(t *testing.T) {
@@ -49,6 +50,7 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	defer rdb.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-join-game-both-players")
+	s := State{Redis: rdb}
 
 	gameID := "test123"
 	inState := MakeState(StateSetup{
@@ -60,14 +62,14 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	})
 
 	// when
-	require.NoError(t, SetChessState(ctx, rdb, gameID, &inState))
+	require.NoError(t, s.SetChessState(ctx, gameID, &inState))
 
-	resultState, err := JoinGame(ctx, rdb, gameID, MakeNamePlayer(3, "test"))
+	resultState, err := s.JoinGame(ctx, gameID, MakeNamePlayer(3, "test"))
 	require.NoError(t, err)
 
 	// then
 	AssertChessState(t, inState, resultState, ChessMetaCmpOpt)
-	AssertRedisChess(t, rdb, inState, ChessMetaCmpOpt)
+	AssertRedisChess(t, s, inState, ChessMetaCmpOpt)
 }
 
 func TestAttemptUndo(t *testing.T) {
@@ -183,23 +185,24 @@ func TestAttemptUndo(t *testing.T) {
 			defer rdb.Close()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, "testing-undo")
+			s := State{Redis: rdb}
 
 			for _, state := range states {
-				if err := SetChessState(ctx, rdb, state.ID, &state); err != nil {
+				if err := s.SetChessState(ctx, state.ID, &state); err != nil {
 					t.Fatalf("failed initialize test state: %v", err)
 				}
 			}
 
 			for _, subTest := range test.tests {
 				// when
-				state, err := AttemptGameUndo(ctx, rdb, test.gameID, subTest.player, subTest.kind)
+				state, err := s.AttemptGameUndo(ctx, test.gameID, subTest.player, subTest.kind)
 
 				// then
 				assert.Equal(t, subTest.wantErr, err)
 				if subTest.wantErr == nil {
 					cmptOpts := cmpopts.IgnoreFields(ChessState{}, "Game", "Touch")
 					AssertChessState(t, subTest.wantState, state, cmptOpts)
-					AssertRedisChess(t, rdb, *state, cmptOpts)
+					AssertRedisChess(t, s, *state, cmptOpts)
 				}
 			}
 		})
@@ -291,21 +294,22 @@ func TestMakeMove(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// given
-			ctx := context.WithValue(t.Context(), logutil.Trace, "testing-make-move")
-
-			databases, closer := db.BeforeDbTest(t, true, InsertTestData)
+			pdb, rdb, closer := db.BeforeDatabasesTest(t, true)
 			defer closer()
+
+			ctx := context.WithValue(t.Context(), logutil.Trace, "testing-make-move")
+			s := &State{Postgres: pdb, Redis: rdb}
 
 			for _, state := range []ChessState{s1, s2} {
 				state.Game.InitPieceMoves()
-				if err := SetChessState(ctx, databases.Rdb, state.ID, &state); err != nil {
+				if err := s.SetChessState(ctx, state.ID, &state); err != nil {
 					t.Fatalf("failed initialize test state: %v", err)
 				}
 			}
 
 			for _, subTest := range test.tests {
 				// when
-				_, err := MakeGameMove(ctx, &databases, subTest.state.ID, subTest.player, subTest.pm)
+				_, err := s.MakeGameMove(ctx, subTest.state.ID, subTest.player, subTest.pm)
 
 				// then
 				assert.Equal(t, subTest.wantErr, err)
@@ -316,10 +320,11 @@ func TestMakeMove(t *testing.T) {
 
 func TestForfeit_BlackForfeits(t *testing.T) {
 	// given
-	databases, closer := db.BeforeDbTest(t, true, InsertTestData)
+	pdb, rdb, closer := db.BeforeDatabasesTest(t, true)
 	defer closer()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-forfeit")
+	s := State{Postgres: pdb, Redis: rdb}
 
 	gameID := "test123"
 	inState := MakeState(StateSetup{
@@ -334,8 +339,8 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	}}
 
 	// when
-	require.NoError(t, SetChessState(ctx, databases.Rdb, gameID, &inState))
-	replayID, err := ForfeitGame(ctx, &databases, gameID, inState.BlackPlayer)
+	require.NoError(t, s.SetChessState(ctx, gameID, &inState))
+	replayID, err := s.ForfeitGame(ctx, gameID, inState.BlackPlayer)
 	require.NoError(t, err)
 
 	// then
@@ -353,9 +358,9 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	wantState := inState.DeepCopy()
 	wantState.IsEnded = true
 
-	AssertRedisChess(t, databases.Rdb, wantState, ChessMetaCmpOpt)
+	AssertRedisChess(t, s, wantState, ChessMetaCmpOpt)
 
-	replay, err := databases.Query.SelectReplayRowByID(ctx, replayID)
+	replay, err := s.Query.SelectReplayRowByID(ctx, replayID)
 	require.NoError(t, err)
 	assertutil.AssertEqualIgnoring(t, wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn", "MoveHistory"))
 }
@@ -436,7 +441,7 @@ func TestInsertGameResult(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// given
-			pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+			pdb, closer := db.BeforePostgresTest(t, true)
 			defer closer()
 
 			// when

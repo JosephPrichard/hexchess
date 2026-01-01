@@ -23,6 +23,7 @@ func TestLeaderboard(t *testing.T) {
 	id4 := int64(4)
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-leaderboard")
+	s := State{Redis: rdb}
 
 	// when
 	for _, c := range []UpdtLbChangeSet{
@@ -34,14 +35,14 @@ func TestLeaderboard(t *testing.T) {
 		{ModeTimed1Plus0, id4, 1010},
 		{ModeTimed1Plus0, id1, 900},
 	} {
-		require.NoError(t, IncrLeaderboard(ctx, rdb, c))
+		require.NoError(t, s.IncrLeaderboard(ctx, c))
 	}
 
 	ranks := make([]map[string]LbRank, 0)
 	leaderboards := make([]Leaderboard, 0)
 
 	for _, id := range []int64{id1, id2, id3, id4} {
-		rank, err := GetLeaderboardRanks(ctx, rdb, id, map[string]GameMode{"CORRESPONDENCE_7": ModeCorrespondence7, "TIMED_1+0": ModeTimed1Plus0})
+		rank, err := s.GetLeaderboardRanks(ctx, id, map[string]GameMode{"CORRESPONDENCE_7": ModeCorrespondence7, "TIMED_1+0": ModeTimed1Plus0})
 		require.NoError(t, err)
 		ranks = append(ranks, rank)
 	}
@@ -54,7 +55,7 @@ func TestLeaderboard(t *testing.T) {
 		{ModeCorrespondence7, 1, 2},
 		{ModeTimed1Plus0, 0, 4},
 	} {
-		leaderboard, err := GetLeaderboard(ctx, rdb, args.mode, args.offset, args.limit)
+		leaderboard, err := s.GetLeaderboard(ctx, args.mode, args.offset, args.limit)
 		require.NoError(t, err)
 		leaderboards = append(leaderboards, leaderboard)
 	}
@@ -98,9 +99,6 @@ func TestLeaderboard(t *testing.T) {
 }
 
 func TestGetLeaderboardUsers(t *testing.T) {
-	databases, closer := db.BeforeDbTest(t, false, InsertTestData)
-	defer closer()
-
 	for _, test := range []struct {
 		name            string
 		mode            GameMode
@@ -114,7 +112,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 999999}},
 			wantLeaderboard: []LbdUserEntity{
 				{
-					UserEntity: UserEntity{ID: 1, Username: "user1", Country: "us", JoinedOn: TestTimeNow},
+					UserEntity: UserEntity{ID: 1, Username: "user1", Country: "us", JoinedOn: db.TestTimeNow},
 					Elo:        1050,
 					HighestElo: 1050,
 					Wins:       6,
@@ -131,7 +129,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 3}},
 			wantLeaderboard: []LbdUserEntity{
 				{
-					UserEntity: UserEntity{ID: 1, Username: "user1", Country: "us", JoinedOn: TestTimeNow},
+					UserEntity: UserEntity{ID: 1, Username: "user1", Country: "us", JoinedOn: db.TestTimeNow},
 					Elo:        1000,
 					HighestElo: 1000,
 					Wins:       2,
@@ -140,7 +138,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 					Rank:       1,
 				},
 				{
-					UserEntity: UserEntity{ID: 3, Username: "user3", Country: "us", JoinedOn: TestTimeNow},
+					UserEntity: UserEntity{ID: 3, Username: "user3", Country: "us", JoinedOn: db.TestTimeNow},
 					Elo:        900,
 					HighestElo: 900,
 					Rank:       2,
@@ -149,10 +147,17 @@ func TestGetLeaderboardUsers(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			// given
+			pdb, closer := db.BeforePostgresTest(t, false)
+			defer closer()
+
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
+			s := State{Postgres: pdb}
 
-			leaderboard, missingIDs, err := GetLeaderboardUsers(ctx, databases.Query, test.mode, test.rankedUsers)
+			// when
+			leaderboard, missingIDs, err := s.GetLeaderboardUsers(ctx, test.mode, test.rankedUsers)
 
+			// then
 			assert.Equal(t, test.wantMissingIDs, missingIDs)
 			require.NoError(t, err)
 			assertutil.AssertEqualIgnoring(t, test.wantLeaderboard, leaderboard)
@@ -162,13 +167,14 @@ func TestGetLeaderboardUsers(t *testing.T) {
 
 func TestGetFuzzySearchLeaderboard(t *testing.T) {
 	// given
-	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "search-name")
+	s := State{Postgres: pdb}
 
 	// when
-	users, err := GetFuzzySearchLeaderboard(ctx, pdb.Query, "john", 1, 20)
+	users, err := s.GetFuzzySearchLeaderboard(ctx, "john", 1, 20)
 	require.NoError(t, err)
 
 	// then

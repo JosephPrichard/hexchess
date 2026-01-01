@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
-	"hexchess-svc/outbound"
+	"hexchess-svc/out"
 	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/services"
 	"log/slog"
@@ -41,68 +41,78 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 	}
 }
 
-type State struct {
-	Databases      db.Databases
+type Setup struct {
+	Postgres       *db.Postgres
+	Redis          *db.Redis
 	Broadcasters   svc.LocalBroadcasters
-	Generators     outbound.Generator
-	OutboundAPIs   outbound.RemoteAPIs
+	EntropySource  out.EntropySource
+	RemoteAPIs     out.RemoteAPIs
 	CountryList    []string
 	AllowedOrigins string
 }
 
-func HandleRoot(state State) http.Handler {
-	countryList := state.CountryList
+type App struct {
+	*svc.State
+	RemoteApis out.RemoteAPIs
+	svc.LocalBroadcasters
+	ValidCountries map[string]bool
+}
+
+func MakeRoot(setup Setup) http.Handler {
+	countryList := setup.CountryList
 	if countryList == nil {
 		countryList = []string{}
 	}
 	validCountries := make(map[string]bool)
-	for _, country := range state.CountryList {
+	for _, country := range setup.CountryList {
 		validCountries[country] = true
 	}
 
 	r := chi.NewRouter()
 
 	r.Use(middleware.Recoverer)
-	r.Use(RouteMiddleware(state.AllowedOrigins))
+	r.Use(RouteMiddleware(setup.AllowedOrigins))
 
-	rest := RestHandler{state.Databases, state.Generators, state.OutboundAPIs, validCountries}
-	sse := SSEHandler{state.Databases.Rdb, state.Broadcasters, state.Generators}
-	gameplay := GameplayHandler{state.Databases, state.Broadcasters, state.Generators}
-	healthcheck := HealthCheckHandler{state.Databases}
+	state := &svc.State{
+		Postgres:      setup.Postgres,
+		Redis:         setup.Redis,
+		EntropySource: setup.EntropySource,
+	}
+	app := App{state, setup.RemoteAPIs, setup.Broadcasters, validCountries}
 
-	r.Post("/api/register", Rest(rest.HandleRegister))
-	r.Post("/api/login", Rest(rest.HandleLogin))
-	r.Post("/api/login/google", Rest(rest.HandleGoogleLogin))
-	r.Post("/api/session/temp", Rest(rest.HandleCreateTempSession))
-	r.Post("/api/session/refresh", Rest(rest.HandleRefreshSession))
-	r.Post("/api/logout", Rest(rest.HandleLogout))
-	r.Post("/api/users/password", Rest(rest.HandleUpdatePassword))
-	r.Post("/api/users", Rest(rest.HandleUpdateUser))
-	r.Post("/api/games/create", Rest(rest.HandleCreateGame))
-	r.Post("/api/challenges/update", Rest(rest.HandleUpdateChallenge))
-	r.Post("/api/challenges/create", Rest(rest.HandleCreateChallenge))
+	r.Post("/api/register", Rest(app.HandleRegister))
+	r.Post("/api/login", Rest(app.HandleLogin))
+	r.Post("/api/login/google", Rest(app.HandleGoogleLogin))
+	r.Post("/api/session/temp", Rest(app.HandleCreateTempSession))
+	r.Post("/api/session/refresh", Rest(app.HandleRefreshSession))
+	r.Post("/api/logout", Rest(app.HandleLogout))
+	r.Post("/api/users/password", Rest(app.HandleUpdatePassword))
+	r.Post("/api/users", Rest(app.HandleUpdateUser))
+	r.Post("/api/games/create", Rest(app.HandleCreateGame))
+	r.Post("/api/challenges/update", Rest(app.HandleUpdateChallenge))
+	r.Post("/api/challenges/create", Rest(app.HandleCreateChallenge))
 
-	r.Get("/api/players", Rest(rest.HandleGetPlayer))
-	r.Get("/api/players/self", Rest(rest.HandleGetSelf))
-	r.Get("/api/players/search", Rest(rest.HandleSearchPlayers))
-	r.Get("/api/leaderboard", Rest(rest.HandleGetLeaderboard))
-	r.Get("/api/challenges", Rest(rest.HandleGetChallenges))
-	r.Get("/api/replays", Rest(rest.HandleGetUserReplays))
-	r.Get("/api/chess/rooms", Rest(rest.HandleGetChessRoomList))
-	r.Get("/api/replay", Rest(rest.HandleGetReplay))
-	r.Get("/api/replay/elo-histories", Rest(rest.HandleGetEloHistories))
-	r.Get("/api/replay/move-list", Rest(rest.HandleGetReplayMoveList))
+	r.Get("/api/players", Rest(app.HandleGetPlayer))
+	r.Get("/api/players/self", Rest(app.HandleGetSelf))
+	r.Get("/api/players/search", Rest(app.HandleSearchPlayers))
+	r.Get("/api/leaderboard", Rest(app.HandleGetLeaderboard))
+	r.Get("/api/challenges", Rest(app.HandleGetChallenges))
+	r.Get("/api/replays", Rest(app.HandleGetUserReplays))
+	r.Get("/api/chess/rooms", Rest(app.HandleGetChessRoomList))
+	r.Get("/api/replay", Rest(app.HandleGetReplay))
+	r.Get("/api/replay/elo-histories", Rest(app.HandleGetEloHistories))
+	r.Get("/api/replay/move-list", Rest(app.HandleGetReplayMoveList))
 
-	r.Get("/api/events/count", SSE(sse.HandleCountEvents))
-	r.Get("/api/events/user", SSE(sse.HandleUserEvents))
-	r.Get("/api/events/active", SSE(sse.HandleActiveCountConn))
+	r.Get("/api/events/count", SSE(app.HandleCountEvents))
+	r.Get("/api/events/user", SSE(app.HandleUserEvents))
+	r.Get("/api/events/active", SSE(app.HandleActiveCountConn))
 
 	r.Get("/api/initial-board", Json(chess.InitialBoard()))
 	r.Get("/api/countries", Json(countryList))
 
-	r.Get("/api/ws/game", gameplay.HandleGameWs)
+	r.Get("/api/ws/game", app.HandleGameWs)
 
-	r.Get("/api/healthcheck", healthcheck.HandleHealthCheck)
+	r.Get("/api/healthcheck", app.HandleHealthCheck)
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		slog.ErrorContext(r.Context(), "route not found", "method", r.Method, "url", r.URL)
@@ -119,11 +129,7 @@ func HandleRoot(state State) http.Handler {
 	return r
 }
 
-type HealthCheckHandler struct {
-	db.Databases
-}
-
-func (h *HealthCheckHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
+func (app *App) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	healthChecks := []struct {
@@ -133,14 +139,14 @@ func (h *HealthCheckHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Re
 		{
 			Name: "rdbPrimary",
 			Check: func() error {
-				_, err := h.Rdb.Cache.Ping(ctx).Result()
+				_, err := app.Redis.Cache.Ping(ctx).Result()
 				return err
 			},
 		},
 		{
 			Name: "rdbPubsub",
 			Check: func() error {
-				conn := h.Rdb.PubSub.Get()
+				conn := app.Redis.PubSub.Get()
 				defer conn.Close()
 				_, err := conn.Do("PING")
 				return err
@@ -149,7 +155,7 @@ func (h *HealthCheckHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Re
 		{
 			Name: "postgresDB",
 			Check: func() error {
-				_, err := h.Postgres.Pool.Exec(ctx, "SELECT 1;")
+				_, err := app.Postgres.Pool.Exec(ctx, "SELECT 1;")
 				return err
 			},
 		},

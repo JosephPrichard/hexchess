@@ -4,7 +4,6 @@ go 1.24.0
 
 require (
 	github.com/go-chi/chi v1.5.5
-	github.com/golang/mock v1.6.0
 	github.com/gomodule/redigo v1.9.3
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
@@ -16,6 +15,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/redis v0.39.0
 	go.uber.org/mock v0.6.0
 	golang.org/x/crypto v0.43.0
+	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93
 	golang.org/x/sync v0.19.0
 	google.golang.org/api v0.256.0
 	google.golang.org/protobuf v1.36.10
@@ -81,7 +81,6 @@ require (
 	go.opentelemetry.io/otel v1.37.0 // indirect
 	go.opentelemetry.io/otel/metric v1.37.0 // indirect
 	go.opentelemetry.io/otel/trace v1.37.0 // indirect
-	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 // indirect
 	golang.org/x/net v0.46.0 // indirect
 	golang.org/x/oauth2 v0.33.0 // indirect
 	golang.org/x/sys v0.37.0 // indirect

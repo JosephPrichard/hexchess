@@ -13,13 +13,14 @@ import (
 
 func TestInsertThenGetReplay(t *testing.T) {
 	// given
-	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-insert-get")
+	s := State{Postgres: pdb}
 
 	// when
-	id, err := InsertReplay(ctx, pdb.Query, ReplayInst{
+	id, err := insertReplay(ctx, pdb.Query, ReplayInst{
 		WhiteID:            2,
 		BlackID:            3,
 		Result:             WhiteWin,
@@ -29,12 +30,12 @@ func TestInsertThenGetReplay(t *testing.T) {
 		LoseEloDiff:        -25,
 		ReplayWhiteElo:     1050,
 		ReplayBlackElo:     950,
-		PlayedOn:           TestTimeNow,
+		PlayedOn:           db.TestTimeNow,
 		SerializedMoveHist: []byte{},
 	})
 	require.NoError(t, err)
 
-	actualReplay1, err := GetReplay(ctx, pdb.Query, id)
+	actualReplay1, err := s.GetReplay(ctx, id)
 	require.NoError(t, err)
 
 	// then
@@ -55,22 +56,23 @@ func TestInsertThenGetReplay(t *testing.T) {
 		BlackEloDiff: -25,
 		WhiteElo:     1000,
 		BlackElo:     900,
-		PlayedOn:     TestTimeNow.Local(),
+		PlayedOn:     db.TestTimeNow.Local(),
 	}
 	assert.Equal(t, wantReplay, actualReplay1)
 }
 
 func TestGetUserReplays(t *testing.T) {
 	// given
-	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-get-replays")
+	s := State{Postgres: pdb}
 
 	// when
-	actualReplayList1, err := GetUserReplays(ctx, pdb.Query, 1, -1, 5)
+	actualReplayList1, err := s.GetUserReplays(ctx, 1, -1, 5)
 	require.NoError(t, err)
-	actualReplayList2, err := GetUserReplays(ctx, pdb.Query, 1, 3, 5)
+	actualReplayList2, err := s.GetUserReplays(ctx, 1, 3, 5)
 	require.NoError(t, err)
 
 	// then
@@ -85,20 +87,18 @@ func TestGetUserReplays(t *testing.T) {
 
 func TestGetReplayMoveList(t *testing.T) {
 	// given
-	pdb, closer := db.BeforePostgresTest(t, true, InsertTestData)
+	pdb, closer := db.BeforePostgresTest(t, true)
 	defer closer()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-get-move-list")
+	s := State{Postgres: pdb}
 
 	// when and then
-	_, err := GetReplayMoveHistory(ctx, pdb.Query, 1)
+	_, err := s.GetReplayMoveHistory(ctx, 1)
 	require.NoError(t, err)
 }
 
 func TestRetrieveEloHistories(t *testing.T) {
-	databases, closer := db.BeforeDbTest(t, false, InsertTestData)
-	defer closer()
-
 	timeUntil := time.Date(2020, 2, 2, 2, 0, 0, 0, time.UTC)
 
 	for _, test := range []struct {
@@ -137,11 +137,18 @@ func TestRetrieveEloHistories(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
+			// given
+			pdb, closer := db.BeforePostgresTest(t, false)
+			defer closer()
 
-			eloHistories, bd, err := RetrieveEloHistoryBuckets(ctx, &databases, test.params)
+			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
+			s := State{Postgres: pdb}
+
+			// when
+			eloHistories, bd, err := s.RetrieveEloHistoryBuckets(ctx, test.params)
 			require.NoError(t, err)
 
+			// then
 			assert.Equal(t, test.wantEloBuckets, eloHistories)
 			assert.Equal(t, test.wantBucketDuration, bd)
 		})

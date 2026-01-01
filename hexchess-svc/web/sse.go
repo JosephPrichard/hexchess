@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hexchess-svc/db"
-	"hexchess-svc/outbound"
 	"hexchess-svc/pkg/timeutil"
 	"hexchess-svc/services"
 	"log/slog"
@@ -39,9 +37,8 @@ func SSE(h func(w SSEWriter, r *http.Request) error) http.HandlerFunc {
 }
 
 type SSEHandler struct {
-	Rdb *db.Rdb
+	*svc.State
 	svc.LocalBroadcasters
-	outbound.Generator
 }
 
 type SSEWriter struct {
@@ -89,14 +86,14 @@ const (
 	SSEChanBufCap = 10
 )
 
-func (h *SSEHandler) HandleCountEvents(w SSEWriter, _ *http.Request) error {
+func (app *App) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 	ctx := w.ctx
 
-	activeCount, err := svc.MakeActiveScenario().GetActiveCount(ctx, h.Rdb)
+	activeCount, err := app.State.GetActiveCount(ctx)
 	if err != nil {
 		return err
 	}
-	gamesCount, err := svc.GetChessStateCount(ctx, h.Rdb)
+	gamesCount, err := app.State.GetChessStateCount(ctx)
 	if err != nil {
 		return err
 	}
@@ -105,11 +102,11 @@ func (h *SSEHandler) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 	w.writeCountEvent(svc.UcGamesEk, gamesCount)
 
 	countsChan := make(chan svc.UcEvent, SSEChanBufCap)
-	h.CountsCaster.Subscribe(countsChan)
+	app.CountsCaster.Subscribe(countsChan)
 
 	go func() {
 		<-ctx.Done()
-		h.CountsCaster.Unsubscribe(countsChan)
+		app.CountsCaster.Unsubscribe(countsChan)
 		slog.InfoContext(ctx, "finished handle user events sse")
 	}()
 
@@ -128,22 +125,21 @@ func (h *SSEHandler) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 }
 
 // HandleActiveCountConn a long-lived TCP connection used to maintain an active connection, it only ever receives "meta" messages
-func (h *SSEHandler) HandleActiveCountConn(w SSEWriter, _ *http.Request) error {
+func (app *App) HandleActiveCountConn(w SSEWriter, _ *http.Request) error {
 	ctx := w.ctx
-	scenario := svc.MakeActiveScenario()
 
-	sseID := h.MakeID()
+	sseID := app.MakeID()
 
-	count, err := scenario.AddActiveUser(ctx, h.Rdb, sseID)
+	count, err := app.State.AddActiveUser(ctx, sseID)
 	if err != nil {
 		return err
 	}
-	if err := svc.BroadcastActiveCount(ctx, h.Rdb, count); err != nil {
+	if err := app.State.BroadcastActiveCount(ctx, count); err != nil {
 		return fmt.Errorf("broadcast active user count after adding %d: %w", count, err)
 	}
 
 	stopTimer := timeutil.Every(time.Second*15, func() bool {
-		if err := scenario.RetainActiveUser(ctx, h.Rdb, sseID); err != nil {
+		if err := app.State.RetainActiveUser(ctx, sseID); err != nil {
 			slog.ErrorContext(ctx, "failed to retain active user", "sseID", sseID, "err", err)
 		}
 		w.writeEvent(MetaEvent, "KeepAlive")
@@ -156,20 +152,20 @@ func (h *SSEHandler) HandleActiveCountConn(w SSEWriter, _ *http.Request) error {
 	<-ctx.Done()
 	stopTimer <- true
 
-	if count, err = scenario.RemoveActiveUser(shtdwnCtx, h.Rdb, sseID); err != nil {
+	if count, err = app.State.RemoveActiveUser(shtdwnCtx, sseID); err != nil {
 		slog.ErrorContext(shtdwnCtx, "failed to remove active user", "sseID", sseID, "err", err)
 	}
-	if err := svc.BroadcastActiveCount(shtdwnCtx, h.Rdb, count); err != nil {
+	if err := app.State.BroadcastActiveCount(shtdwnCtx, count); err != nil {
 		slog.ErrorContext(shtdwnCtx, "broadcast active user count after removing", "err", err)
 	}
 
 	return nil
 }
 
-func (h *SSEHandler) HandleUserEvents(w SSEWriter, r *http.Request) error {
+func (app *App) HandleUserEvents(w SSEWriter, r *http.Request) error {
 	ctx := w.ctx
 
-	player, _, err := GetSessionPlayer(ctx, h.Rdb, r)
+	player, _, err := GetSessionPlayer(ctx, app.State, r)
 	if err != nil {
 		if errors.Is(err, svc.ErrSessionNotFound) {
 			return ErrHttpSessionExpired
@@ -181,11 +177,11 @@ func (h *SSEHandler) HandleUserEvents(w SSEWriter, r *http.Request) error {
 	w.writeEvent(MetaEvent, strconv.FormatInt(player.ID, 10))
 
 	usersChan := make(chan []byte, SSEChanBufCap)
-	h.UsersCaster.Subscribe(strID, usersChan)
+	app.UsersCaster.Subscribe(strID, usersChan)
 
 	go func() {
 		<-ctx.Done()
-		h.UsersCaster.Unsubscribe(strID, usersChan)
+		app.UsersCaster.Unsubscribe(strID, usersChan)
 		slog.InfoContext(ctx, "finishing handle user events sse")
 	}()
 

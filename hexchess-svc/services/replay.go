@@ -50,7 +50,8 @@ type ReplayInst struct {
 	SerializedMoveHist []byte
 }
 
-func InsertReplay(ctx context.Context, query *db.Queries, inst ReplayInst) (int64, error) {
+// insertReplay A replay is only ever inserted as part of a game result transaction to ensure data consistency
+func insertReplay(ctx context.Context, query *db.Queries, inst ReplayInst) (int64, error) {
 	if inst.SerializedMoveHist == nil {
 		inst.SerializedMoveHist = []byte{}
 	}
@@ -110,10 +111,10 @@ func mapReplayFromRow(row db.SelectReplayByIDRow) (ReplayEntity, error) {
 
 var ErrNoReplay = errors.New("replay not found")
 
-func GetReplay(ctx context.Context, query *db.Queries, id int64) (ReplayEntity, error) {
+func (s State) GetReplay(ctx context.Context, id int64) (ReplayEntity, error) {
 	var replay ReplayEntity
 
-	row, err := query.SelectReplayByID(ctx, id)
+	row, err := s.Query.SelectReplayByID(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return replay, ErrNoReplay
 	}
@@ -129,8 +130,8 @@ func GetReplay(ctx context.Context, query *db.Queries, id int64) (ReplayEntity, 
 	return replay, nil
 }
 
-func GetReplayMoveHistory(ctx context.Context, query *db.Queries, id int64) (*pb.MoveHistory, error) {
-	b, err := query.SelectReplayMoveHistory(ctx, id)
+func (s State) GetReplayMoveHistory(ctx context.Context, id int64) (*pb.MoveHistory, error) {
+	b, err := s.Query.SelectReplayMoveHistory(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNoReplay
 	}
@@ -144,12 +145,12 @@ func GetReplayMoveHistory(ctx context.Context, query *db.Queries, id int64) (*pb
 	return &moveHist, nil
 }
 
-func GetUserReplays(ctx context.Context, query *db.Queries, userID int64, afterID int64, perPage int32) ([]ReplayEntity, error) {
+func (s State) GetUserReplays(ctx context.Context, userID int64, afterID int64, perPage int32) ([]ReplayEntity, error) {
 	if afterID < 0 {
 		afterID = int64(math.MaxInt64)
 	}
 
-	rows, err := query.SelectUserReplays(ctx, db.SelectUserReplaysParams{
+	rows, err := s.Query.SelectUserReplays(ctx, db.SelectUserReplaysParams{
 		UserID:  userID,
 		AfterID: afterID,
 		PerPage: perPage,
@@ -190,7 +191,7 @@ type EloHistoryBucket struct {
 
 // RetrieveEloHistoryBuckets Returns the elo replay histories for a given user organized into buckets and categorized into a map keyed by replay "mode"
 // map will contain the keys "ALL" (contains data for all modes) plus all modes (ReplayModes)
-func RetrieveEloHistoryBuckets(ctx context.Context, databases *db.Databases, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
+func (s State) RetrieveEloHistoryBuckets(ctx context.Context, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
 	if params.TimeUntil.IsZero() {
 		params.TimeUntil = time.Now()
 	}
@@ -199,7 +200,7 @@ func RetrieveEloHistoryBuckets(ctx context.Context, databases *db.Databases, par
 		playedAfter = pgtype.Timestamptz{Valid: true, Time: params.TimeUntil.AddDate(0, -int(params.Months), 0)}
 	}
 
-	eloRows, err := databases.Query.SelectReplayElos(ctx, db.SelectReplayElosParams{
+	eloRows, err := s.Query.SelectReplayElos(ctx, db.SelectReplayElosParams{
 		ID:          params.UserID,
 		PlayedAfter: playedAfter,
 	})

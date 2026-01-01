@@ -6,7 +6,7 @@ import (
 	"hexchess-svc/assets"
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
-	"hexchess-svc/outbound"
+	"hexchess-svc/out"
 	"hexchess-svc/pkg/logutil"
 	svc "hexchess-svc/services"
 	"hexchess-svc/web"
@@ -62,24 +62,24 @@ func main() {
 	}
 
 	pdb := db.MakePostgres(pool)
+	defer pdb.Close()
 
 	slog.Info("connecting to rdb db", "primaryURL", rdbPrimaryURL, "pubsubURL", rdbPubSubURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL, PubsubAddr: rdbPubSubURL}, db.DefaultRedisNames)
+	defer rdb.Close()
 
-	databases := db.Databases{Rdb: rdb, Postgres: pdb}
-	defer databases.Close()
-
-	state := web.State{
-		Databases:      databases,
+	setup := web.Setup{
+		Postgres:       pdb,
+		Redis:          rdb,
 		Broadcasters:   svc.MakeBroadcaster(),
-		Generators:     &outbound.NDGenerator{},
-		OutboundAPIs:   outbound.MakeRemoteAPIs(),
+		EntropySource:  &out.NDEntropySource{},
+		RemoteAPIs:     out.MakeRemoteAPIs(),
 		CountryList:    countryList,
 		AllowedOrigins: allowedOrigins,
 	}
-	<-state.Broadcasters.ListenGameMessages(rdb)
-	<-state.Broadcasters.ListenUsersMessages(rdb)
-	<-state.Broadcasters.ListenUnicastEvents(rdb)
+	<-setup.Broadcasters.ListenGameMessages(rdb)
+	<-setup.Broadcasters.ListenUsersMessages(rdb)
+	<-setup.Broadcasters.ListenUnicastEvents(rdb)
 
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 
@@ -88,7 +88,7 @@ func main() {
 			log.Println(http.ListenAndServe(":"+pprofPort, nil))
 		}()
 	}
-	if err := http.ListenAndServe(":"+serverPort, web.HandleRoot(state)); err != nil {
+	if err := http.ListenAndServe(":"+serverPort, web.MakeRoot(setup)); err != nil {
 		logutil.FatalErr("failed while serving", err)
 	}
 }

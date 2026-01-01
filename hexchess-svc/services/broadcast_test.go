@@ -119,6 +119,7 @@ func TestBroadcastGameMessage(t *testing.T) {
 	<-lb.ListenGameMessages(rdb)
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-broadcast-game-message")
+	s := State{Redis: rdb}
 
 	wantMsgCount := 2
 
@@ -137,9 +138,9 @@ func TestBroadcastGameMessage(t *testing.T) {
 		return v
 	}
 
-	require.NoError(t, BroadcastGamesEvent(ctx, rdb, makeTestChatOutput("1", "test1")))
-	require.NoError(t, BroadcastGamesEvent(ctx, rdb, makeTestChatOutput("1", "test2")))
-	require.NoError(t, BroadcastGamesEvent(ctx, rdb, makeTestChatOutput("2", "test3")))
+	require.NoError(t, s.BroadcastGamesEvent(ctx, makeTestChatOutput("1", "test1")))
+	require.NoError(t, s.BroadcastGamesEvent(ctx, makeTestChatOutput("1", "test2")))
+	require.NoError(t, s.BroadcastGamesEvent(ctx, makeTestChatOutput("2", "test3")))
 
 	// then
 	var msgs []string

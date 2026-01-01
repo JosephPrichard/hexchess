@@ -1,4 +1,4 @@
-package outbound
+package out
 
 type RemoteAPIs struct {
 	GoogleAPI

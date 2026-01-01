@@ -45,11 +45,11 @@ func main() {
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL}, db.DefaultRedisNames)
 	defer rdb.Close()
 
-	databases := &db.Databases{Postgres: db.MakePostgres(pool), Rdb: rdb}
+	state := &svc.State{Postgres: db.MakePostgres(pool), Redis: rdb}
 
 	switch *jobName {
 	case "sync":
-		if err := svc.SyncLeaderboard(ctx, databases); err != nil {
+		if err := state.SyncLeaderboard(ctx); err != nil {
 			logutil.FatalErr("sync leaderboard", err)
 		}
 		log.Printf("finished syncing leaderboard: %v", time.Now().Sub(start))

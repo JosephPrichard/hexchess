@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"hexchess-svc/db"
-	"hexchess-svc/outbound"
+	"hexchess-svc/out"
 	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/services"
 	"net/http"
@@ -61,10 +61,12 @@ func TestHandleCountEvents(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	state := State{Databases: db.Databases{Rdb: rdb}, Broadcasters: svc.MakeBroadcaster(), Generators: &outbound.StableGenerator{ID: "id1"}}
-	<-state.Broadcasters.ListenUnicastEvents(rdb)
+	setup := Setup{Redis: rdb, Broadcasters: svc.MakeBroadcaster(), EntropySource: &out.StableSource{ID: "id1"}}
+	state := svc.State{Redis: rdb}
 
-	ts := httptest.NewServer(HandleRoot(state))
+	<-setup.Broadcasters.ListenUnicastEvents(rdb)
+
+	ts := httptest.NewServer(MakeRoot(setup))
 	defer ts.Close()
 
 	// when
@@ -78,8 +80,8 @@ func TestHandleCountEvents(t *testing.T) {
 	go func() {
 		ctx := context.WithValue(context.Background(), logutil.Trace, "broadcast-counts")
 		errChan <- errors.Join(
-			svc.BroadcastActiveCount(ctx, rdb, 2),
-			svc.BroadcastGameCount(ctx, rdb, 1))
+			state.BroadcastActiveCount(ctx, 2),
+			state.BroadcastGameCount(ctx, 1))
 	}()
 
 	// then
@@ -98,12 +100,14 @@ func TestHandleUserEvents(t *testing.T) {
 	rdb := db.BeforeRedisTest(t)
 	defer rdb.Close()
 
-	state := State{Databases: db.Databases{Rdb: rdb}, Broadcasters: svc.MakeBroadcaster()}
-	<-state.Broadcasters.ListenUsersMessages(rdb)
+	setup := Setup{Redis: rdb, Broadcasters: svc.MakeBroadcaster()}
+	state := svc.State{Redis: rdb}
+
+	<-setup.Broadcasters.ListenUsersMessages(rdb)
 
 	createTestSessions(t, rdb)
 
-	ts := httptest.NewServer(HandleRoot(state))
+	ts := httptest.NewServer(MakeRoot(setup))
 	defer ts.Close()
 
 	// when
@@ -123,9 +127,9 @@ func TestHandleUserEvents(t *testing.T) {
 	go func() {
 		ctx := context.WithValue(context.Background(), logutil.Trace, "broadcast-user-events")
 		errChan <- errors.Join(
-			svc.BroadcastChallenge(ctx, rdb, ceInput),
-			svc.BroadcastChallenge(ctx, rdb, svc.ChallengeEntity{ChallengeeID: 2}),
-			svc.BroadcastChallenge(ctx, rdb, ceInput))
+			state.BroadcastChallenge(ctx, ceInput),
+			state.BroadcastChallenge(ctx, svc.ChallengeEntity{ChallengeeID: 2}),
+			state.BroadcastChallenge(ctx, ceInput))
 	}()
 
 	// then

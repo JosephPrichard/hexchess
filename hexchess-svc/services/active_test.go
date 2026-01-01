@@ -4,12 +4,12 @@ import (
 	"context"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"hexchess-svc/out"
+	"time"
 
 	"hexchess-svc/db"
-	"hexchess-svc/outbound"
 	"hexchess-svc/pkg/logutil"
 	"testing"
-	"time"
 )
 
 func TestActiveUser(t *testing.T) {
@@ -18,26 +18,29 @@ func TestActiveUser(t *testing.T) {
 	defer rdb.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, "testing-active-user")
+	s := State{Redis: rdb, EntropySource: &out.StableSource{Time: time.UnixMilli(int64(ActiveUserMaxage * 5))}}
 
-	s1 := MakeActiveScenario()
-	s2 := ActiveScenario{&outbound.StableGenerator{Time: time.UnixMilli(100)}, 100}
-	s3 := ActiveScenario{&outbound.StableGenerator{Time: time.UnixMilli(1000)}, 0}
+	//s1 := MakeActiveScenario()
+	//s2 := ActiveScenario{&out.StableSource{Time: time.UnixMilli(100)}, 100}
+	//s3 := ActiveScenario{&out.StableSource{Time: time.UnixMilli(1000)}, 0}
 
 	// when
-	_, err := s1.AddActiveUser(ctx, rdb, "1")
+	_, err := s.AddActiveUser(ctx, "1")
 	require.NoError(t, err)
-	countAfterAdding, err := s1.AddActiveUser(ctx, rdb, "2")
+	countAfterAdding, err := s.AddActiveUser(ctx, "2")
 	require.NoError(t, err)
 
-	countAfterRemoval, err := s1.RemoveActiveUser(ctx, rdb, "2")
+	countAfterRemoval, err := s.RemoveActiveUser(ctx, "2")
 	require.NoError(t, err)
 
 	// adds and does not expire
-	countAfterRemoveAndAdd, err := s2.AddActiveUser(ctx, rdb, "3")
+	s.EntropySource = &out.StableSource{Time: time.UnixMilli(int64(ActiveUserMaxage * 2))}
+	countAfterRemoveAndAdd, err := s.AddActiveUser(ctx, "3")
 	require.NoError(t, err)
 
 	// gets and expires the active user we just added, without expiring any others
-	countAfterExpiry, err := s3.GetActiveCount(ctx, rdb)
+	s.EntropySource = &out.StableSource{Time: time.UnixMilli(int64(ActiveUserMaxage * 3))}
+	countAfterExpiry, err := s.GetActiveCount(ctx)
 	require.NoError(t, err)
 
 	// then

@@ -3,16 +3,15 @@ package svc
 import (
 	"context"
 	"github.com/google/go-cmp/cmp"
-	"hexchess-svc/db"
 	"hexchess-svc/pkg/assertutil"
 	"hexchess-svc/pkg/logutil"
 	"testing"
 )
 
-func AssertRedisChess(t *testing.T, rdb *db.Rdb, wantState ChessState, options ...cmp.Option) {
+func AssertRedisChess(t *testing.T, s State, wantState ChessState, options ...cmp.Option) {
 	t.Helper()
 	ctx := context.WithValue(t.Context(), logutil.Trace, "assert-chess-states")
-	actualState, err := GetChessState(ctx, rdb, wantState.ID)
+	actualState, err := s.GetChessState(ctx, wantState.ID)
 	if err != nil {
 		t.Fatalf("get chess for assert: %v", err)
 	}

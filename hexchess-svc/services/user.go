@@ -95,7 +95,7 @@ type UserInst struct {
 	JoinedOn time.Time
 }
 
-func InsertUser(ctx context.Context, query *db.Queries, inst UserInst) (UserEntity, error) {
+func (s State) InsertUser(ctx context.Context, inst UserInst) (UserEntity, error) {
 	if inst.JoinedOn.IsZero() {
 		inst.JoinedOn = time.Now()
 	}
@@ -106,7 +106,7 @@ func InsertUser(ctx context.Context, query *db.Queries, inst UserInst) (UserEnti
 		return u, fmt.Errorf("generate hash: %w", err)
 	}
 
-	row, err := query.InsertUser(ctx, db.InsertUserParams{
+	row, err := s.Query.InsertUser(ctx, db.InsertUserParams{
 		Username: inst.Username,
 		Country:  inst.Country,
 		Password: hash.HashedPassword,
@@ -126,7 +126,7 @@ func InsertUser(ctx context.Context, query *db.Queries, inst UserInst) (UserEnti
 	return u, nil
 }
 
-func BatchInsertUsers(ctx context.Context, query *db.Queries, insts []UserInst) ([]UserEntity, error) {
+func (s State) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]UserEntity, error) {
 	batches := make([]db.BatchInsertUserParams, len(insts))
 
 	var eg errgroup.Group
@@ -158,7 +158,7 @@ func BatchInsertUsers(ctx context.Context, query *db.Queries, insts []UserInst) 
 	var users []UserEntity
 	var errs []error
 
-	query.BatchInsertUser(ctx, batches).QueryRow(func(i int, row db.BatchInsertUserRow, err error) {
+	s.Query.BatchInsertUser(ctx, batches).QueryRow(func(i int, row db.BatchInsertUserRow, err error) {
 		if err != nil {
 			errs = append(errs, err)
 		} else {
@@ -176,7 +176,7 @@ type VerifiedUser struct {
 	Country  string `json:"country"`
 }
 
-func VerifyUserTx(ctx context.Context, pdb *db.Postgres, username string, inputPassword string) (VerifiedUser, error) {
+func (s State) VerifyUserTx(ctx context.Context, pdb *db.Postgres, username string, inputPassword string) (VerifiedUser, error) {
 	return db.RunInTx(ctx, pdb,
 		[]error{ErrTooManyLoginAttempts, ErrUserNotFound},
 		func(ctx context.Context, query *db.Queries) (VerifiedUser, error) {
@@ -237,11 +237,11 @@ type GoogleUserInst struct {
 	JoinedOn time.Time
 }
 
-func SelectOrInsertGoogleUser(ctx context.Context, query *db.Queries, googleAccountID string, googleInst GoogleUserInst) (VerifiedUser, error) {
+func (s State) SelectOrInsertGoogleUser(ctx context.Context, googleAccountID string, googleInst GoogleUserInst) (VerifiedUser, error) {
 	var u VerifiedUser
 	var isCreated bool
 
-	login, err := query.SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
+	login, err := s.Query.SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
 	if errors.Is(err, pgx.ErrNoRows) {
 		isCreated = false
 	} else if err != nil {
@@ -251,7 +251,7 @@ func SelectOrInsertGoogleUser(ctx context.Context, query *db.Queries, googleAcco
 	}
 
 	if !isCreated {
-		row, err := query.InsertUser(ctx, db.InsertUserParams{
+		row, err := s.Query.InsertUser(ctx, db.InsertUserParams{
 			Username:        googleInst.Username,
 			Country:         googleInst.Country,
 			JoinedOn:        pgtype.Timestamptz{Time: googleInst.JoinedOn, Valid: true},
@@ -288,12 +288,12 @@ type UpdtUserParams struct {
 	Country  string
 }
 
-func UpdateUser(ctx context.Context, query *db.Queries, id int64, updt UpdtUserParams) (UserEntity, error) {
+func (s State) UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (UserEntity, error) {
 	if updt.Username == "" && updt.Bio == "" && updt.Country == "" {
 		return UserEntity{}, nil
 	}
 
-	row, err := query.UpdateUser(ctx, db.UpdateUserParams{
+	row, err := s.Query.UpdateUser(ctx, db.UpdateUserParams{
 		ID:       id,
 		Username: pgtype.Text{Valid: updt.Username != "", String: updt.Username},
 		Bio:      pgtype.Text{Valid: updt.Bio != "", String: updt.Bio},
@@ -305,12 +305,12 @@ func UpdateUser(ctx context.Context, query *db.Queries, id int64, updt UpdtUserP
 	return user, err
 }
 
-func UpdateUserPassword(ctx context.Context, query *db.Queries, id int64, newPassword string) error {
+func (s State) UpdateUserPassword(ctx context.Context, id int64, newPassword string) error {
 	hash, err := hashPassword(newPassword)
 	if err != nil {
 		return fmt.Errorf("hash password for user %d: %w", id, err)
 	}
-	err = query.UpdatePassword(ctx, db.UpdatePasswordParams{
+	err = s.Query.UpdatePassword(ctx, db.UpdatePasswordParams{
 		ID:       id,
 		Password: hash.HashedPassword,
 		Salt:     hash.Salt,
@@ -319,8 +319,8 @@ func UpdateUserPassword(ctx context.Context, query *db.Queries, id int64, newPas
 	return err
 }
 
-func GetUserByID(ctx context.Context, query *db.Queries, id int64) (UserEntity, error) {
-	row, err := query.SelectUserByID(ctx, id)
+func (s State) GetUserByID(ctx context.Context, id int64) (UserEntity, error) {
+	row, err := s.Query.SelectUserByID(ctx, id)
 	if err != nil {
 		return UserEntity{}, fmt.Errorf("select user %d: %w", id, err)
 	}
@@ -354,10 +354,10 @@ func avg[T constraints.Integer | constraints.Float](currAvg T, currCount int, ne
 	return (currAvg*T(currCount) + nextValue) / T(currCount+1)
 }
 
-func GetUserStats(ctx context.Context, query *db.Queries, id int64) (UserStatsEntity, error) {
+func (s State) GetUserStats(ctx context.Context, id int64) (UserStatsEntity, error) {
 	stats := UserStatsEntity{HighestElo: math.SmallestNonzeroFloat64}
 
-	rows, err := query.SelectUserElosById(ctx, id)
+	rows, err := s.Query.SelectUserElosById(ctx, id)
 	if err != nil {
 		return stats, fmt.Errorf("select user %d elos by id: %w", id, err)
 	}
