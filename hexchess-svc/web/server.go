@@ -50,8 +50,8 @@ type Setup struct {
 
 type App struct {
 	svc.State
-	RemoteApis out.RemoteAPIs
 	svc.LocalBroadcasters
+	RemoteApis     out.RemoteAPIs
 	ValidCountries map[string]bool
 }
 
@@ -70,7 +70,7 @@ func MakeRoot(setup Setup) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(RouteMiddleware(setup.AllowedOrigins))
 
-	app := App{setup.State, setup.RemoteAPIs, setup.Broadcasters, validCountries}
+	app := App{setup.State, setup.Broadcasters, setup.RemoteAPIs, validCountries}
 
 	r.Post("/api/register", Rest(app.HandleRegister))
 	r.Post("/api/login", Rest(app.HandleLogin))
@@ -116,7 +116,7 @@ func MakeRoot(setup Setup) http.Handler {
 		strs = append(strs, fmt.Sprintf("%s %s", method, route))
 		return nil
 	})
-	fmt.Println(strings.Join(strs, "\n"))
+	fmt.Fprintf(logutil.LogWriter, "%s\n", strings.Join(strs, "\n"))
 
 	return r
 }

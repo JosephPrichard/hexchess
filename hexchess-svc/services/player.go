@@ -2,6 +2,7 @@ package svc
 
 import (
 	"math/rand/v2" // concurrency safe
+	"strings"
 )
 
 type PlayerState struct {
@@ -13,11 +14,22 @@ type PlayerState struct {
 	Present bool    `json:"present"`
 }
 
+const GuestNumLen = 8
+
 // Use the constructor functions to create games so the boolean flags will be properly initialized - as opposed to remembering to flag them
 
 func MakeGuest() PlayerState {
+	const characters = "0123456789"
+
+	var name strings.Builder
+	name.WriteString("Guest")
+	for range GuestNumLen {
+		n := rand.IntN(len(characters))
+		name.WriteRune(rune(characters[n]))
+	}
+
 	// concurrency safe to use rand - we are also using random negative integers for guests so we will never have a collision with an actual player
-	return PlayerState{ID: -rand.Int64(), Name: "Guest", IsGuest: true, Present: true}
+	return PlayerState{ID: -rand.Int64(), Name: name.String(), IsGuest: true, Present: true}
 }
 
 func MakeIDPlayer(id int64) PlayerState {

@@ -59,11 +59,12 @@ func MakePbGameOutputMove(gameID string, move *pb.HistMove, game *pb.ChessGame, 
 	}
 }
 
-func MakePbGameOutputChat(gameID, message string) *pb.GameOutput {
+func MakePbGameOutputChat(gameID, message string, self *pb.PlayerState) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Chat{
 			Chat: &pb.ChatOutput{
+				Player:  self,
 				Message: message,
 			},
 		},

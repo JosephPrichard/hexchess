@@ -100,7 +100,7 @@ func main() {
 		logutil.FatalErr("insert game results", err)
 	}
 	if err := state.SyncLeaderboard(ctx); err != nil {
-		logutil.FatalErr("sync leaderboard", err)
+		logutil.FatalErr("jobs leaderboard", err)
 	}
 
 	log.Printf("finished seeding databases: %v", time.Since(start))

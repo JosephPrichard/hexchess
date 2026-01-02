@@ -46,7 +46,7 @@ func makeGameErr(ctx context.Context, gameID string, err error) []byte {
 	bytes, err := proto.Marshal(MakePbGameOutputError(gameID, wsErr))
 	if err != nil {
 		// log with a noop response
-		slog.ErrorContext(ctx, "failed to marshal err output sseMsgData", "err", err)
+		slog.ErrorContext(ctx, "failed to marshal err output", "err", err)
 		bytes = nil
 	}
 	return bytes
@@ -61,7 +61,14 @@ func makeGameInitErr(ctx context.Context, gameID string, err error) []byte {
 		wsErr = ErrWsFatal
 	}
 	slog.WarnContext(ctx, "failed to initialize gameplay websocket", "err", err, "wsErr", wsErr)
-	return makeGameErr(ctx, gameID, wsErr)
+
+	bytes, err := proto.Marshal(MakePbGameOutputError(gameID, wsErr))
+	if err != nil {
+		// log with a noop response
+		slog.ErrorContext(ctx, "failed to marshal err output", "err", err)
+		bytes = nil
+	}
+	return bytes
 }
 
 // GameplayChanBufCap start dropping messages when a websocket is behind by this many messages
@@ -78,15 +85,13 @@ func (app *App) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	defer conn.Close()
 
-	player, err := app.handleGameInit(ctx, gameID, sessionID, func(b []byte) {
-		writeConn(ctx, conn, b)
-	})
+	player, err := app.handleGameInit(ctx, gameID, sessionID, func(v []byte) { writeConn(ctx, conn, v) })
 	if err != nil {
 		writeConn(ctx, conn, makeGameInitErr(ctx, gameID, err))
 		return
 	}
+	defer conn.Close()
 
 	writeChan := make(chan []byte, GameplayChanBufCap)
 	app.GamesCaster.Subscribe(gameID, writeChan)
@@ -199,7 +204,7 @@ func (app *App) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) err
 }
 
 func (app *App) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput) error {
-	bytes, err := proto.Marshal(MakePbGameOutputChat(ctx.GameID, pbInput.Message))
+	bytes, err := proto.Marshal(MakePbGameOutputChat(ctx.GameID, pbInput.Message, svc.SerializePlayer(ctx.Player)))
 	if err != nil {
 		return err
 	}

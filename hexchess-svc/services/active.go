@@ -30,9 +30,9 @@ func (s State) GetActiveCount(ctx context.Context) (int64, error) {
 }
 
 func (s State) RetainActiveUser(ctx context.Context, id string) error {
-	now := float64(s.GetNow().UnixMilli())
+	now := s.GetNow()
 
-	_, err := s.Redis.Cache.ZAddXX(ctx, s.Redis.ActiveUsersZSet, redis.Z{Score: now, Member: id}).Result()
+	_, err := s.Redis.Cache.ZAddXX(ctx, s.Redis.ActiveUsersZSet, redis.Z{Score: float64(now.UnixMilli()), Member: id}).Result()
 	if err != nil {
 		return fmt.Errorf("retain active user %s: %w", id, err)
 	}
@@ -41,9 +41,9 @@ func (s State) RetainActiveUser(ctx context.Context, id string) error {
 }
 
 func (s State) AddActiveUser(ctx context.Context, id string) (int64, error) {
-	now := float64(s.GetNow().UnixMilli())
+	now := s.GetNow()
 
-	_, err := s.Redis.Cache.ZAddNX(ctx, s.Redis.ActiveUsersZSet, redis.Z{Score: now, Member: id}).Result()
+	_, err := s.Redis.Cache.ZAddNX(ctx, s.Redis.ActiveUsersZSet, redis.Z{Score: float64(now.UnixMilli()), Member: id}).Result()
 	if err != nil {
 		return 0, fmt.Errorf("add active user %v: %w", id, err)
 	}

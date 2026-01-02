@@ -24,9 +24,9 @@ func TestSessions(t *testing.T) {
 	s := State{Redis: rdb}
 
 	// when
-	require.NoError(t, s.SetSession(ctx, sessionID1, playerIn, 100*time.Second))
-	require.NoError(t, s.SetSession(ctx, sessionID2, playerIn, 100*time.Second))
-	require.NoError(t, s.SetSession(ctx, sessionID3, playerIn, 100*time.Second))
+	require.NoError(t, s.SetSessions(ctx, SessionInst{sessionID1, playerIn, 100 * time.Second}))
+	require.NoError(t, s.SetSessions(ctx, SessionInst{sessionID2, playerIn, 100 * time.Second}))
+	require.NoError(t, s.SetSessions(ctx, SessionInst{sessionID3, playerIn, 100 * time.Second}))
 
 	playerOut, err := s.GetSession(ctx, sessionID1)
 	require.NoError(t, err)

@@ -9,18 +9,21 @@
 	}
 
 	const { player, self, isTurn }: PlayerPanelProps = $props();
+
+	const playerName = $derived(player?.name !== "" ? player?.name : "-");
+	const isMe = $derived(self !== undefined && player?.id === self?.id);
 </script>
 
 {#if player}
-	<div class="side-table-header-elem text-xsm" class:self-color={self !== undefined && player?.id === self?.id}>
+	<div class="side-table-header-elem text-xsm" class:self-color={isMe}>
 		<div class="turn-circle" class:turn-circle-green={isTurn}></div>
 		{#if !player.isGuest}
 			<a href="/players/{player.id}" class="text-ul">
-				<b>{player.name}</b>
+				<b>{playerName}</b>
 			</a>
 		{:else}
 			<span class="text-ul">
-				<b>{player.name}</b>
+				<b>{playerName}</b>
 			</span>
 		{/if}
 		<img class="flag-md" src="/flags/{player.country}.png" alt="" />
@@ -39,7 +42,7 @@
 
 <style>
 	.self-color {
-		color: dodgerblue;
+		color: #F0E68C;
 	}
 
 	.waiting-text {

@@ -62,17 +62,16 @@ func main() {
 	}
 
 	pdb := db.MakePostgres(pool)
-	defer pdb.Close()
 
 	slog.Info("connecting to rdb db", "primaryURL", rdbPrimaryURL, "pubsubURL", rdbPubSubURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL, PubsubAddr: rdbPubSubURL}, db.DefaultRedisNames)
-	defer rdb.Close()
+
+	state := svc.State{Postgres: pdb, Redis: rdb, EntropySource: &out.NDEntropySource{}}
+	defer state.Close()
 
 	setup := web.Setup{
-		Postgres:       pdb,
-		Redis:          rdb,
+		State:          state,
 		Broadcasters:   svc.MakeBroadcaster(),
-		EntropySource:  &out.NDEntropySource{},
 		RemoteAPIs:     out.MakeRemoteAPIs(),
 		CountryList:    countryList,
 		AllowedOrigins: allowedOrigins,

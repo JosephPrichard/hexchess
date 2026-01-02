@@ -265,8 +265,13 @@ func (s State) ForfeitGame(ctx context.Context, gameID string, player PlayerStat
 
 func (s State) WriteFinishedGame(ctx context.Context, state *ChessState, result ReplayResult, cause ReplayCause) (int64, error) {
 	if !state.WhitePlayer.Present || !state.BlackPlayer.Present {
-		return 0, fmt.Errorf("room players must not be nil on a finished game: roomID: %s", state.ID)
+		return 0, fmt.Errorf("game players must be present on a finished game: %s", state.ID)
 	}
+	if state.WhitePlayer.ID < 0 || state.BlackPlayer.ID < 0 {
+		slog.WarnContext(ctx, "one or more players for game is a guest, did not write finished game", "gameID", state.ID, "white", state.WhitePlayer, "black", state.BlackPlayer)
+		return 0, nil
+	}
+
 	whiteID := state.WhitePlayer.ID
 	blackID := state.BlackPlayer.ID
 

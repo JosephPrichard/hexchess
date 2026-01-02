@@ -38,9 +38,6 @@
 			mode: 'cors',
 			withCredentials: true
 		});
-		userSse.addEventListener('meta', (event) => {
-			console.log('Sse: USER_EVENTS meta', event.data);
-		});
 		userSse.addEventListener('userEvents', (event) => {
 			console.log('Sse: USER_EVENTS userEvents', event.data);
 			const data: ChallengeModel = JSON.parse(event.data);
@@ -50,9 +47,6 @@
 
 	function connectActiveConn() {
 		activeSse = new EventSource(`${baseURL()}/events/active`);
-		activeSse.addEventListener('meta', (event) => {
-			console.log('SSE: ACTIVE meta', event.data);
-		});
 	}
 
 	async function refreshSession(retries?: number) {

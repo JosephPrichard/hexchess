@@ -35,11 +35,11 @@ var TestStates = []svc.ChessState{
 
 func createTestSessions(t *testing.T, s svc.State) {
 	ctx := context.WithValue(context.Background(), logutil.Trace, "create-test-session-1")
-	if err := s.SetSession(ctx, TestSessionID1, svc.MakePlayer(1, "user1", "us"), SessionMaxAge); err != nil {
-		t.Fatalf("create test sessions: %v", err)
-	}
-	if err := s.SetSession(ctx, TestSessionID2, svc.MakePlayer(2, "user2", "us"), SessionMaxAge); err != nil {
-		t.Fatalf("create test sessions: %v", err)
+	if err := s.SetSessions(ctx,
+		svc.SessionInst{SessionID: TestSessionID1, Player: svc.MakePlayer(1, "user1", "us"), Expiry: SessionMaxAge},
+		svc.SessionInst{SessionID: TestSessionID2, Player: svc.MakePlayer(2, "user2", "us"), Expiry: SessionMaxAge},
+	); err != nil {
+		t.Fatalf("create test session: %v", err)
 	}
 }
 

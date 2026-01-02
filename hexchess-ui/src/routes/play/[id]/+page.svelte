@@ -10,7 +10,7 @@
 	import UndoIcon from '$lib/components/icons/UndoIcon.svelte';
 	import PieceList from '$lib/components/chess/PieceList.svelte';
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
-	import { type ChessGame, GameOutput, type PlayerState } from '$lib/pb/messages';
+	import { type ChatOutput, type ChessGame, GameInput, GameOutput, type PlayerState } from '$lib/pb/messages';
 	import type { Hex } from '$lib/api/models';
 	import { deserializeHexList } from '$lib/utils/chess.js';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
@@ -32,6 +32,10 @@
 	let game = $state<ChessGame | undefined>(undefined);
 	let whitePlayer = $state<PlayerState | undefined>(undefined);
 	let blackPlayer = $state<PlayerState | undefined>(undefined);
+	let connectTries = $state(0);
+
+	const chats: ChatOutput[] = $state([]);
+	let chatText = $state("");
 
 	let selfPlayer: PlayerState | undefined = $state(undefined);
 
@@ -43,7 +47,6 @@
 	let prevUpdatedAt = new Date(0);
 	let isForfeit: boolean = false;
 	let ws: WebSocket | undefined = undefined;
-	let connectTries = 0;
 
 	async function onClickCopy() {
 		await navigator.clipboard.writeText(link);
@@ -55,6 +58,18 @@
 	function onClickUndo() {}
 
 	function onClickSettings() {}
+
+	function onInputChat(e: KeyboardEvent) {
+		if (e.key === 'Enter' && chatText.length > 0) {
+			const output: GameInput = {
+				value: {
+					oneofKind: 'chat',
+					chat: { message: chatText }
+				}
+			};
+			ws?.send?.(GameInput.toBinary(output));
+		}
+	}
 
 	function onSelectPiece(hex: Hex) {
 		selection.select(game, hex);
@@ -81,6 +96,8 @@
 			}
 		} else if (kind === 'forfeit') {
 			isForfeit = true;
+		} else if (kind === 'chat') {
+			chats.push(data.value.chat);
 		} else if (kind === 'error') {
 			const error = data.value.error;
 			switch (error.message) {
@@ -96,72 +113,101 @@
 
 	async function tryConnect(gameId: string) {
 		const [data, err] = await services.postTempSession();
-		if (data || err?.status === 401) {
-			const params = new URLSearchParams({ sessionId: data?.sessionId || "", gameId });
-			const url = `${baseURL()}/ws/game?${params}`;
-
-			ws = new WebSocket(url);
-			ws.binaryType = "arraybuffer";
-			ws.addEventListener('open', () => {
-				console.log(`Connected to game=${gameId} sessionId=${data?.sessionId} successfully!`);
-				connectTries = 0;
-			});
-			ws.addEventListener('message', (event) => {
-				if (event.data instanceof ArrayBuffer) {
-					const data = GameOutput.fromBinary(new Uint8Array(event.data));
-					console.log(`Received ${data.value.oneofKind} message`, data);
-					handleMessage(data);
-				}
-			});
-			ws.addEventListener('error', () => {
-				console.log(`Disconnected from game=${gameId} with error, trying to reconnect with ${connectTries} tries`);
-				connectTries += 1;
-				connectGame(gameId);
-			});
-		} else {
-			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
+		if (err) {
+			console.error(`Failed to create temporary session: ${err.message}`);
 		}
-	}
-	function connectGame(gameId: string) {
-		const timeout = connectTries !== 0 ? Math.pow(2, connectTries) * 1000 : 0;
-		console.log(`Trying to connect to game=${gameId} in timeout=${timeout}`);
-		setTimeout(() => tryConnect(gameId), timeout);
+		const sessionId = data?.sessionId || "";
+
+		const params = new URLSearchParams({ sessionId, gameId });
+		const url = `${baseURL()}/ws/game?${params}`;
+
+		const tempWs = new WebSocket(url);
+		tempWs.binaryType = "arraybuffer";
+		tempWs.addEventListener('open', () => {
+			console.log(`Connected to game=${gameId} sessionId=${sessionId} successfully!`);
+			connectTries = 0;
+			ws = tempWs;
+		});
+		tempWs.addEventListener('message', (event) => {
+			if (event.data instanceof ArrayBuffer) {
+				const data = GameOutput.fromBinary(new Uint8Array(event.data));
+				console.log(`Received ${data.value.oneofKind} message`, data);
+				handleMessage(data);
+			}
+		});
+		tempWs.addEventListener('close', () => {
+			console.log(`Disconnected from game=${gameId}, trying to reconnect with ${connectTries} tries`);
+			connectTries += 1;
+			ws = undefined;
+		});
 	}
 
 	$effect(() => {
-		connectGame(props.gameId);
+		if (!ws) {
+			const gameId = props.gameId;
+			let timeout = connectTries !== 0 ? connectTries * 250 : 0;
+			if (timeout > 2500) {
+				timeout = 2500;
+			}
+			console.log(`Trying to connect to game=${gameId} in timeout=${timeout}`);
+			if (timeout > 0) {
+				setTimeout(() => tryConnect(gameId), timeout);
+			} else {
+				tryConnect(gameId);
+			}
+		}
 		return () => {
-			if (ws) ws.close();
+			if (ws) {
+				ws.close();
+				ws = undefined;
+			}
 		};
 	});
 
 	onMount(() => {
-		getInitialGameWasm().then(x => game = x);
+		getInitialGameWasm().then(initialGame => game = initialGame);
 	});
+
+	const isErrorPage = $derived.by(() => connectTries > 0);
 
 	const awaitingNotList = $derived.by(async () => await getMoveNotationsWasm(game?.moves));
 
-	const isPlayingAsWhite = $derived.by(() => selfPlayer?.id !== blackPlayer?.id);
-	const isTurn = $derived(game?.board?.isWhiteTurn && isPlayingAsWhite);
-	const bottomPlayer = $derived(isPlayingAsWhite ? blackPlayer : whitePlayer);
-	const topPlayer = $derived(isPlayingAsWhite ? whitePlayer : blackPlayer);
-	const bottomTimer = $derived(isPlayingAsWhite ? whiteTimer : blackTimer);
-	const topTimer = $derived(isPlayingAsWhite ? blackTimer : whiteTimer);
-	const topTakenPieces = $derived(isPlayingAsWhite ? game?.takenWhitePieces : game?.takenBlackPieces);
-	const bottomTakenPieces = $derived(isPlayingAsWhite ? game?.takenBlackPieces : game?.takenWhitePieces);
+	const isWhitePerspective = $derived.by(() => selfPlayer === undefined || selfPlayer?.id !== blackPlayer?.id);
+	const bottomPlayer = $derived(isWhitePerspective ? blackPlayer : whitePlayer);
+	const topPlayer = $derived(isWhitePerspective ? whitePlayer : blackPlayer);
+	const isBottomTurn = $derived((bottomPlayer !== undefined && game?.board?.isWhiteTurn && bottomPlayer == whitePlayer) || false);
+	const isTopTurn = $derived((topPlayer !== undefined && game?.board?.isWhiteTurn && topPlayer == whitePlayer) || false);
+	const bottomTimer = $derived(isWhitePerspective ? whiteTimer : blackTimer);
+	const topTimer = $derived(isWhitePerspective ? blackTimer : whiteTimer);
+	const topTakenPieces = $derived(isWhitePerspective ? game?.takenWhitePieces : game?.takenBlackPieces);
+	const bottomTakenPieces = $derived(isWhitePerspective ? game?.takenBlackPieces : game?.takenWhitePieces);
 </script>
 
 <svelte:head>
 	<title>Play - Hexchess</title>
 </svelte:head>
 <Banner />
+<div class="disconnect-message" style:display={isErrorPage ? '' : 'none'}>
+	Disconnected. Attempting to regain a connection...
+</div>
 <div class="center-horizontal-container">
 	<div class="center-vertical-container" style="align-items: stretch;">
+		<div class="panel chat-wrapper">
+			Chat room
+			<div class="chats">
+				{#each chats as chat}
+					<div class="chat">
+						<b>{chat.player?.name || "-"}</b> : {chat.message}
+					</div>
+				{/each}
+			</div>
+			<input class="chat-input" bind:value={chatText} onkeydown={onInputChat}/>
+		</div>
 		{#if game?.board}
 			<Board
 				board={game?.board}
 				fen={true}
-				isWhitePerspective={isPlayingAsWhite}
+				isWhitePerspective={isWhitePerspective}
 				potentialMoves={deserializeHexList(selection.value.potentialMoves?.moves)}
 				onSelectPiece={onSelectPiece}
 				selected={selection.value.hex}
@@ -176,7 +222,7 @@
 			{/if}
 			<div class="side-table move-table-wrapper">
 				<div class="side-table-header player-panel">
-					<PlayerPanel player={bottomPlayer} self={selfPlayer} isTurn={!isTurn} />
+					<PlayerPanel player={bottomPlayer} self={selfPlayer} isTurn={isBottomTurn} />
 				</div>
 				{#if whitePlayer === undefined || blackPlayer === undefined}
 					<div class="growing-scrollbox parent-lobby">
@@ -205,7 +251,7 @@
 					</button>
 				</div>
 				<div class="side-table-header-bottom player-panel">
-					<PlayerPanel player={topPlayer} self={selfPlayer} isTurn={isTurn || false} />
+					<PlayerPanel player={topPlayer} self={selfPlayer} isTurn={isTopTurn} />
 				</div>
 			</div>
 			{#if bottomTimer}
@@ -219,6 +265,46 @@
 </div>
 
 <style>
+	.chat-wrapper {
+        width: 200px;
+		margin-right: 35px;
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+        margin-top: auto;
+        margin-bottom: auto;
+    }
+
+	.chat {
+        white-space: normal;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+		border-left: 2px solid dodgerblue;
+        padding: 2px 2px 2px 10px;
+    }
+
+    .chats {
+        margin-top: 10px;
+        margin-bottom: 10px;
+		height: 250px;
+        overflow-y: auto;
+    }
+
+	.chat-input {
+		min-height: 35px;
+	}
+
+    .disconnect-message {
+		padding: 20px;
+		border-top-left-radius: 4px;
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        z-index: 1000;
+		color: white;
+		background-color: #B7374E;
+    }
+
     .player-panel {
         padding-top: 15px;
         padding-bottom: 15px;
@@ -258,7 +344,7 @@
     .move-table-wrapper {
         margin-top: 10px;
         margin-bottom: 10px;
-		height: 350px;
+		height: 400px;
     }
 
     .lobby-container {

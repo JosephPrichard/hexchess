@@ -301,20 +301,39 @@ type TempSessionResp struct {
 func (app *App) HandleCreateTempSession(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
+	alreadyHasSession := true
+	var tempSessionID string
+
 	player, _, err := GetSessionPlayer(ctx, app.State, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
-		return ErrHttpSessionExpired
+		alreadyHasSession = false
 	} else if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
 
-	sessionID := MakeSessionID()
-	if err := app.State.SetSession(ctx, sessionID, player, TempSessionMaxAge); err != nil {
-		return fmt.Errorf("set session: %w", err)
+	if alreadyHasSession {
+		tempSessionID = MakeSessionID()
+		if err := app.State.SetSessions(ctx, svc.SessionInst{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge}); err != nil {
+			return fmt.Errorf("set session: %w", err)
+		}
+		slog.InfoContext(ctx, "created temporary user session", "user", player, "tempSessionID", tempSessionID)
+	} else {
+		player = svc.MakeGuest()
+		tempSessionID = MakeSessionID()
+		guestSessionID := MakeSessionID()
+
+		if err := app.State.SetSessions(ctx,
+			svc.SessionInst{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge},
+			svc.SessionInst{SessionID: guestSessionID, Player: player, Expiry: SessionMaxAge},
+		); err != nil {
+			return fmt.Errorf("set guest session: %w", err)
+		}
+
+		w.Header().Set("Set-Cookie", FmtCookie(guestSessionID))
+		slog.InfoContext(ctx, "created guest user session", "user", player, "tempSessionID", tempSessionID, "guestSessionID", guestSessionID)
 	}
 
-	slog.InfoContext(ctx, "created temporary user session", "user", player)
-	writeJSON(w, http.StatusOK, TempSessionResp{SessionID: sessionID})
+	writeJSON(w, http.StatusOK, TempSessionResp{SessionID: tempSessionID})
 	return nil
 }
 
@@ -844,9 +863,12 @@ func (app *App) HandleGetChessRoomList(w http.ResponseWriter, r *http.Request) e
 		return errm
 	}
 
+	hasSession := true
+
 	player, _, err := GetSessionPlayer(ctx, app.State, r)
-	hasSession := !errors.Is(err, svc.ErrSessionNotFound)
-	if err != nil && hasSession {
+	if errors.Is(err, svc.ErrSessionNotFound) {
+		hasSession = false
+	} else if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
 

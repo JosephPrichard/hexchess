@@ -22,3 +22,9 @@ func writeConn(ctx context.Context, conn *websocket.Conn, bytes []byte) {
 		slog.WarnContext(ctx, "failed to write ws message", "err", err)
 	}
 }
+
+func writeClose(ctx context.Context, conn *websocket.Conn, errCode string) {
+	if err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseTryAgainLater, errCode)); err != nil {
+		slog.WarnContext(ctx, "failed to write ws close message", "err", err)
+	}
+}

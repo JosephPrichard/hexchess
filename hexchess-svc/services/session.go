@@ -32,16 +32,27 @@ func (s State) GetSession(ctx context.Context, sessionID string) (PlayerState, e
 	return p, nil
 }
 
-func (s State) SetSession(ctx context.Context, sessionID string, player PlayerState, expiry time.Duration) error {
-	data, err := MarshalPlayer(player)
-	if err != nil {
-		return err
+type SessionInst struct {
+	SessionID string
+	Player    PlayerState
+	Expiry    time.Duration
+}
+
+func (s State) SetSessions(ctx context.Context, insts ...SessionInst) error {
+	slog.InfoContext(ctx, "setting sessions", "insts", insts)
+
+	pipe := s.Redis.Cache.TxPipeline()
+	for _, inst := range insts {
+		data, err := MarshalPlayer(inst.Player)
+		if err != nil {
+			return err
+		}
+		fullID := "session:" + inst.SessionID
+		pipe.SetEx(ctx, fullID, data, inst.Expiry)
 	}
-	fullID := "session:" + sessionID
-	if err := s.Redis.Cache.SetEx(ctx, fullID, data, expiry).Err(); err != nil {
-		return fmt.Errorf("set session: %w", err)
+	if _, err := pipe.Exec(ctx); err != nil {
+		return fmt.Errorf("set many sessions: %w", err)
 	}
-	slog.InfoContext(ctx, "set session", "sessionID", sessionID, "player", player)
 	return nil
 }
 

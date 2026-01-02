@@ -15,7 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var jobName = flag.String("job", "sync", "dump mode to execute")
+var jobName = flag.String("job", "jobs", "dump mode to execute")
 
 func main() {
 	start := time.Now()
@@ -32,25 +32,24 @@ func main() {
 	dbURL := os.Getenv("DB_URL")
 	rdbPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
 
-	ctx := context.WithValue(context.Background(), logutil.Trace, "sync-leaderboard-script")
+	ctx := context.WithValue(context.Background(), logutil.Trace, "jobs-leaderboard-script")
 
 	slog.InfoContext(ctx, "connecting to postgres db", "dbURL", dbURL)
 	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
 		logutil.FatalErr("create pool", err)
 	}
-	defer pool.Close()
 
 	slog.InfoContext(ctx, "connecting to rdb db", "rdbPrimaryURL", rdbPrimaryURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL}, db.DefaultRedisNames)
-	defer rdb.Close()
 
 	state := &svc.State{Postgres: db.MakePostgres(pool), Redis: rdb}
+	defer state.Close()
 
 	switch *jobName {
-	case "sync":
+	case "jobs":
 		if err := state.SyncLeaderboard(ctx); err != nil {
-			logutil.FatalErr("sync leaderboard", err)
+			logutil.FatalErr("jobs leaderboard", err)
 		}
 		log.Printf("finished syncing leaderboard: %v", time.Now().Sub(start))
 	default:

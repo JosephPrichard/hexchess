@@ -76,21 +76,6 @@
         margin-bottom: 25px;
 	}
 
-    .modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.35);
-        z-index: 1000;
-    }
-
-    .modal {
-        z-index: 1000;
-        width: 400px;
-    }
-
     .modal-x {
         position: absolute;
         top: 20px;
