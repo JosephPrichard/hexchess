@@ -25,6 +25,15 @@ func MakePbGameOutputInit(gameID string, state *pb.ChessState, self *pb.PlayerSt
 	}
 }
 
+func MakePbGameOutputBgInit(gameID string, chats []*pb.ChatMsg) *pb.GameOutput {
+	return &pb.GameOutput{
+		GameId: gameID,
+		Value: &pb.GameOutput_BgInit{
+			BgInit: &pb.BgInitOutput{Chats: chats},
+		},
+	}
+}
+
 func MakePbGameOutputPlayers(gameID string, white, black *pb.PlayerState) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
@@ -59,16 +68,17 @@ func MakePbGameOutputMove(gameID string, move *pb.HistMove, game *pb.ChessGame, 
 	}
 }
 
-func MakePbGameOutputChat(gameID, message string, self *pb.PlayerState) *pb.GameOutput {
-	return &pb.GameOutput{
+func MakePbGameOutputChat(gameID, message string, self svc.PlayerState, sentAt time.Time) (*pb.GameOutput, svc.StateChat) {
+	o := &pb.GameOutput{
 		GameId: gameID,
-		Value: &pb.GameOutput_Chat{
-			Chat: &pb.ChatOutput{
-				Player:  self,
-				Message: message,
-			},
-		},
+		Value: &pb.GameOutput_Chat{Chat: &pb.ChatOutput{
+			Player:  svc.SerializePlayer(self),
+			Message: message,
+			SentAt:  sentAt.Format(time.RFC3339),
+		}},
 	}
+	c := svc.StateChat{Player: self, Message: message, SentAt: sentAt}
+	return o, c
 }
 
 func MakePbGameOutputUndo(gameID string, undoKind string, undoID int64, state *svc.ChessState) *pb.GameOutput {

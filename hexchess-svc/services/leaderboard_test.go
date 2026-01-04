@@ -160,7 +160,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 			// then
 			assert.Equal(t, test.wantMissingIDs, missingIDs)
 			require.NoError(t, err)
-			assertutil.AssertEqualIgnoring(t, test.wantLeaderboard, leaderboard)
+			assertutil.Equal(t, test.wantLeaderboard, leaderboard)
 		})
 	}
 }

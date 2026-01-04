@@ -33,7 +33,7 @@ func (s State) CreateGame(ctx context.Context, color Color, mode GameMode, initi
 
 	slog.InfoContext(ctx, "created chess game", "chessMeta", state.ChessMeta)
 	if err := s.SetChessState(ctx, strID, &state); err != nil {
-		return "", err
+		return "", fmt.Errorf("set chess state by id %s: %w", strID, err)
 	}
 
 	go s.broadcastGameCounts()
@@ -63,7 +63,7 @@ func (s State) broadcastGameCounts() {
 func (s State) JoinGame(ctx context.Context, gameID string, player PlayerState) (*ChessState, error) {
 	state, err := s.GetChessState(ctx, gameID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get chess state by id %s: %w", gameID, err)
 	}
 
 	if !player.Present {
@@ -103,14 +103,11 @@ func (s State) JoinGame(ctx context.Context, gameID string, player PlayerState) 
 	}
 
 	err = s.SetChessState(ctx, gameID, state)
-	logutil.DynLog(ctx, "player joined game", err, "playerID", player.ID, "chessMeta", state.ChessMeta)
-	return state, err
-}
-
-type MoveResult struct {
-	ReplayID int64
-	State    *ChessState
-	Move     chess.HistMove
+	if err != nil {
+		return nil, fmt.Errorf("set chess state by id %s: %w", gameID, err)
+	}
+	slog.InfoContext(ctx, "player joined game", "playerID", player.ID, "chessMeta", state.ChessMeta)
+	return state, nil
 }
 
 var (
@@ -119,18 +116,27 @@ var (
 	ErrInvalidMove  = errors.New("invalid move")
 )
 
-func (s State) DoMakeMove(ctx context.Context, state *ChessState, player PlayerState, move chess.Move) (MoveResult, error) {
-	var mr MoveResult
+type MakeMoveResult struct {
+	ReplayID int64
+	State    *ChessState
+	Move     chess.HistMove
+}
+
+func (s State) MakeGameMove(ctx context.Context, gameID string, player PlayerState, move chess.Move) (mr MakeMoveResult, err error) {
+	state, err := s.GetChessState(ctx, gameID)
+	if err != nil {
+		return mr, fmt.Errorf("get chess state by id %s: %w", gameID, err)
+	}
+	gameID = state.ID
 
 	game := &state.Game
 	if game.BlackMoves == nil || game.WhiteMoves == nil {
 		game.InitPieceMoves()
 	}
 
-	gameID := state.ID
 	currPlayer := state.CurrPlayer()
 
-	if state.IsEnded {
+	if state.FinishState.IsEnded {
 		slog.WarnContext(ctx, "make move: attempted on ended game", "gameId", gameID)
 		return mr, ErrFinishedGame
 	}
@@ -146,41 +152,35 @@ func (s State) DoMakeMove(ctx context.Context, state *ChessState, player PlayerS
 	hm := game.MakeMove(move)
 	game.InitPieceMoves()
 	state.UndoState = UndoState{}
+	isEnding := game.Checkmate()
 
-	if game.Checkmate() {
-		state.IsEnded = true
-	}
-	mr = MoveResult{State: state, Move: hm}
-	return mr, nil
-}
+	mr = MakeMoveResult{State: state, Move: hm}
 
-func (s State) MakeGameMove(ctx context.Context, gameID string, player PlayerState, move chess.Move) (MoveResult, error) {
-	var mr MoveResult
-
-	state, err := s.GetChessState(ctx, gameID)
-	if err != nil {
-		return mr, err
-	}
-
-	mr, err = s.DoMakeMove(ctx, state, player, move)
-	if err != nil {
-		return mr, err
-	}
-	if state.IsEnded {
+	if isEnding {
 		result := WhiteWin
 		if state.Game.Board.IsWhiteTurn {
 			result = BlackWin
 		}
-		replayID, err := s.WriteFinishedGame(ctx, state, result, Checkmate)
+		cause := Checkmate
+		cs, err := s.WriteFinishedGame(ctx, state, result, cause)
 		if err != nil {
 			return mr, fmt.Errorf("write checkmate game result: %w", err)
 		}
-		mr.ReplayID = replayID
+		state.FinishState = FinishState{
+			IsEnded:     true,
+			Result:      result,
+			Cause:       cause,
+			WinID:       cs.WinID,
+			LoseID:      cs.LoseID,
+			WinEloDiff:  cs.WinEloDiff,
+			LoseEloDiff: cs.LoseEloDiff,
+		}
 	}
+
 	slog.InfoContext(ctx, "made move on game", "player", player.ID, "move", move, "chessMeta", state.ChessMeta)
 
 	if err := s.SetChessState(ctx, gameID, state); err != nil {
-		return mr, err
+		return mr, fmt.Errorf("set chess state by id %s: %w", gameID, err)
 	}
 	return mr, nil
 }
@@ -201,7 +201,7 @@ const (
 func (s State) AttemptGameUndo(ctx context.Context, gameID string, player PlayerState, kind UndoKind) (*ChessState, error) {
 	state, err := s.GetChessState(ctx, gameID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get chess state by id %s: %w", gameID, err)
 	}
 
 	switch kind {
@@ -230,46 +230,57 @@ func (s State) AttemptGameUndo(ctx context.Context, gameID string, player Player
 	}
 
 	if err := s.SetChessState(ctx, gameID, state); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("set chess state by id %s: %w", gameID, err)
 	}
 	return state, nil
 }
 
-func (s State) ForfeitGame(ctx context.Context, gameID string, player PlayerState) (int64, error) {
+func (s State) ForfeitGame(ctx context.Context, gameID string, player PlayerState) (cs GRChangeSet, err error) {
 	state, err := s.GetChessState(ctx, gameID)
 	if err != nil {
-		return 0, err
+		return cs, fmt.Errorf("get chess state by id %s: %w", gameID, err)
 	}
 	if !state.WhitePlayer.Present || !state.BlackPlayer.Present {
 		slog.WarnContext(ctx, "game does not have both players, cannot forfeit", "game", gameID)
-		return 0, nil
+		return cs, nil
 	}
 
 	result := BlackWin
 	if state.BlackPlayer.ID == player.ID {
 		result = WhiteWin
 	}
-	state.IsEnded = true
+	cause := Forfeit
 
-	if err := s.SetChessState(ctx, gameID, state); err != nil {
-		return 0, err
-	}
-	replayID, err := s.WriteFinishedGame(ctx, state, result, Forfeit)
+	changeSet, err := s.WriteFinishedGame(ctx, state, result, cause)
 	if err != nil {
-		return 0, fmt.Errorf("write forfeit game result: %w", err)
+		return cs, fmt.Errorf("write forfeit game result: %w", err)
+	}
+	cs = changeSet
+
+	state.FinishState = FinishState{
+		IsEnded:     true,
+		Result:      result,
+		Cause:       cause,
+		WinID:       cs.WinID,
+		LoseID:      cs.LoseID,
+		WinEloDiff:  cs.WinEloDiff,
+		LoseEloDiff: cs.LoseEloDiff,
+	}
+	if err := s.SetChessState(ctx, gameID, state); err != nil {
+		return cs, err
 	}
 
 	slog.InfoContext(ctx, "player forfeited game", "playerID", player.ID, "gameId", gameID)
-	return replayID, nil
+	return cs, nil
 }
 
-func (s State) WriteFinishedGame(ctx context.Context, state *ChessState, result ReplayResult, cause ReplayCause) (int64, error) {
+func (s State) WriteFinishedGame(ctx context.Context, state *ChessState, result ReplayResult, cause ReplayCause) (cs GRChangeSet, err error) {
 	if !state.WhitePlayer.Present || !state.BlackPlayer.Present {
-		return 0, fmt.Errorf("game players must be present on a finished game: %s", state.ID)
+		return cs, fmt.Errorf("game players must be present on a finished game: %s", state.ID)
 	}
 	if state.WhitePlayer.ID < 0 || state.BlackPlayer.ID < 0 {
 		slog.WarnContext(ctx, "one or more players for game is a guest, did not write finished game", "gameID", state.ID, "white", state.WhitePlayer, "black", state.BlackPlayer)
-		return 0, nil
+		return cs, nil
 	}
 
 	whiteID := state.WhitePlayer.ID
@@ -277,9 +288,9 @@ func (s State) WriteFinishedGame(ctx context.Context, state *ChessState, result 
 
 	moveHistBytes, err := chess.MarshalMoveHistory(state.InitialBoard, state.Game.Moves)
 	if err != nil {
-		return 0, fmt.Errorf("marshal move history: %w", err)
+		return cs, fmt.Errorf("marshal move history: %w", err)
 	}
-	cs, err := s.InsertGameResultTx(ctx, time.Time{}, GameResult{
+	changeSet, err := s.InsertGameResultTx(ctx, time.Time{}, GameResult{
 		WhiteID:            whiteID,
 		BlackID:            blackID,
 		ReplayCause:        cause,
@@ -288,10 +299,11 @@ func (s State) WriteFinishedGame(ctx context.Context, state *ChessState, result 
 		SerializedMoveHist: moveHistBytes,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("execute finish game tx: %w", err)
+		return cs, fmt.Errorf("execute finish game tx: %w", err)
 	}
+	cs = changeSet
 	if cs.IsNoop() {
-		return 0, nil
+		return cs, nil
 	}
 	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", cs, "room", state.ID)
 
@@ -299,10 +311,10 @@ func (s State) WriteFinishedGame(ctx context.Context, state *ChessState, result 
 		UpdtLbChangeSet{Mode: state.Mode, ID: cs.WinID, EloDiff: cs.WinEloDiff},
 		UpdtLbChangeSet{Mode: state.Mode, ID: cs.LoseID, EloDiff: cs.LoseEloDiff},
 	); err != nil {
-		return 0, fmt.Errorf("increment user leaderboard stats: %w", err)
+		return cs, fmt.Errorf("increment user leaderboard stats: %w", err)
 	}
 	slog.InfoContext(ctx, "completed writing finished game", "stateID", state.ID)
-	return cs.ReplayID, nil
+	return cs, nil
 }
 
 type GameResult struct {

@@ -56,7 +56,7 @@ func TestInsertThenVerify(t *testing.T) {
 		Country:  "us",
 		JoinedOn: db.TestTimeNow.Local(),
 	}
-	assertutil.AssertEqualIgnoring(t, wantU1, dbU1, testUserCmptOpts)
+	assertutil.Equal(t, wantU1, dbU1, testUserCmptOpts)
 }
 
 func TestBatchInsertThenGet(t *testing.T) {
@@ -153,15 +153,15 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 
 	// then
 	verifiedUser := VerifiedUser{Username: "username", Country: "us"}
-	assertutil.AssertEqualIgnoring(t, verifiedUser, u1, testVerifiedUserCmptOpts)
-	assertutil.AssertEqualIgnoring(t, verifiedUser, u2, testVerifiedUserCmptOpts)
+	assertutil.Equal(t, verifiedUser, u1, testVerifiedUserCmptOpts)
+	assertutil.Equal(t, verifiedUser, u2, testVerifiedUserCmptOpts)
 
 	wantU1 := UserEntity{
 		Username: "username",
 		Country:  "us",
 		JoinedOn: db.TestTimeNow.Local(),
 	}
-	assertutil.AssertEqualIgnoring(t, wantU1, dbU1, testUserCmptOpts)
+	assertutil.Equal(t, wantU1, dbU1, testUserCmptOpts)
 }
 
 func TestUpdatePasswordThenVerify(t *testing.T) {
@@ -198,5 +198,5 @@ func TestGetUserElos(t *testing.T) {
 	require.NoError(t, err)
 
 	// then
-	assertutil.AssertEqualIgnoring(t, TestUserStats[0], stats, cmpopts.IgnoreFields(ModeStatsEntity{}, "Rank"))
+	assertutil.Equal(t, TestUserStats[0], stats, cmpopts.IgnoreFields(ModeStatsEntity{}, "Rank"))
 }

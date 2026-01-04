@@ -56,17 +56,26 @@ message ChessGame {
   repeated HistMove moves = 6;
 }
 
+message FinishState {
+  int64 win_id = 1;
+  int64 lose_id = 2;
+  double win_elo_diff = 3;
+  double lose_elo_diff = 4;
+  string cause = 5;
+  string result = 6;
+}
+
 message ChessState {
   string id = 1;
   ChessGame game = 2;
   PlayerState white_player = 4;
   PlayerState black_player = 5;
-  bool is_ended = 6;
-  string first_color = 7;
-  string mode = 8;
-  int64 touch = 9;
-  ChessBoard initial_board = 10;
-  int64 undo_id = 11;
+  string first_color = 6;
+  string mode = 7;
+  int64 touch = 8;
+  ChessBoard initial_board = 9;
+  int64 undo_id = 10;
+  FinishState finish_state = 11;
 }
 
 message ForfeitInput {}
@@ -77,6 +86,12 @@ message Move {
   int32 fromRank = 3;
   int32 toFile = 4;
   int32 toRank = 5;
+}
+
+message ChatMsg {
+  PlayerState player = 1;
+  string message = 2;
+  string sent_at = 3;
 }
 
 message MoveInput {
@@ -109,6 +124,10 @@ message InitOutput {
   PlayerState self = 2;
 }
 
+message BgInitOutput {
+  repeated ChatMsg chats = 1;
+}
+
 message PlayersOutput {
   PlayerState white_player = 1;
   PlayerState black_player = 2;
@@ -123,6 +142,7 @@ message MoveOutput {
 message ChatOutput {
   PlayerState player = 1;
   string message = 2;
+  string sent_at = 3;
 }
 
 message ForfeitOutput {
@@ -151,6 +171,7 @@ message GameOutput {
     ChatOutput chat = 7;
     ForfeitOutput forfeit = 8;
     UndoOutput undo = 9;
+    BgInitOutput bgInit = 10;
   }
 }
 

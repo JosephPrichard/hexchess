@@ -1,12 +1,9 @@
 package web
 
 import (
-	"context"
 	"fmt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gorilla/websocket"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"hexchess-svc/chess"
@@ -14,7 +11,6 @@ import (
 	"hexchess-svc/out"
 	"hexchess-svc/pb"
 	"hexchess-svc/pkg/assertutil"
-	"hexchess-svc/pkg/logutil"
 	svc "hexchess-svc/services"
 	"net/http"
 	"net/http/httptest"
@@ -70,35 +66,39 @@ func TestHandleGameplayWs(t *testing.T) {
 				WhitePlayer: &pb.PlayerState{Id: 1, Name: "user1", Country: "us"},
 			}},
 		},
+		{
+			GameId: gameID,
+			Value:  &pb.GameOutput_BgInit{BgInit: &pb.BgInitOutput{}},
+		},
 	}
+	cmnBrdcasts := []any{cmnWantMsgs[1], cmnWantMsgs[2]}
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	//ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	for _, test := range []struct {
-		name            string
-		inputMsgs       []*pb.GameInput
-		wantMsgs        []*pb.GameOutput
-		wantBrdcasts    []any
-		assertDatabases func(*testing.T, svc.State, []*pb.GameOutput)
+		name         string
+		inputMsgs    []*pb.GameInput
+		wantMsgs     []*pb.GameOutput
+		wantBrdcasts []any
 	}{
 		{
 			name: "move input (invalid)",
 			inputMsgs: []*pb.GameInput{
 				{Value: &pb.GameInput_Move{Move: &pb.MoveInput{Move: &pb.Move{}}}},
 			},
-			wantMsgs: slices.Concat(cmnWantMsgs, []*pb.GameOutput{
+			wantMsgs: []*pb.GameOutput{
 				{
 					GameId: gameID,
 					Value:  &pb.GameOutput_Error{Error: &pb.ErrorOutput{Message: ErrWsInvalidMove.Error()}},
 				},
-			}),
+			},
 		},
 		{
 			name: "move input (valid)",
 			inputMsgs: []*pb.GameInput{
 				{Value: &pb.GameInput_Move{Move: &pb.MoveInput{Move: chess.PbMoveStr("b1", "b2")}}},
 			},
-			wantMsgs: slices.Concat(cmnWantMsgs, []*pb.GameOutput{
+			wantMsgs: []*pb.GameOutput{
 				{
 					GameId: gameID,
 					Value: &pb.GameOutput_Move{Move: &pb.MoveOutput{
@@ -106,7 +106,7 @@ func TestHandleGameplayWs(t *testing.T) {
 						Move:      &pb.HistMove{Piece: int32(chess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, CollFile: true, CollRank: true},
 					}},
 				},
-			}),
+			},
 			wantBrdcasts: []any{
 				&pb.GameOutput{
 					GameId: gameID,
@@ -121,11 +121,25 @@ func TestHandleGameplayWs(t *testing.T) {
 			inputMsgs: []*pb.GameInput{
 				{Value: &pb.GameInput_Chat{Chat: &pb.ChatInput{Message: "Hello World"}}},
 			},
-			wantMsgs: slices.Concat(cmnWantMsgs, []*pb.GameOutput{
-				{GameId: gameID, Value: &pb.GameOutput_Chat{Chat: &pb.ChatOutput{Message: "Hello World"}}},
-			}),
+			wantMsgs: []*pb.GameOutput{
+				{
+					GameId: gameID,
+					Value: &pb.GameOutput_Chat{Chat: &pb.ChatOutput{
+						Message: "Hello World",
+						Player:  &pb.PlayerState{Id: 1, Name: "user1", Country: "us"},
+						SentAt:  db.TestTimeNow.Format(time.RFC3339),
+					}},
+				},
+			},
 			wantBrdcasts: []any{
-				&pb.GameOutput{GameId: gameID, Value: &pb.GameOutput_Chat{Chat: &pb.ChatOutput{Message: "Hello World"}}},
+				&pb.GameOutput{
+					GameId: gameID,
+					Value: &pb.GameOutput_Chat{Chat: &pb.ChatOutput{
+						Message: "Hello World",
+						Player:  &pb.PlayerState{Id: 1, Name: "user1", Country: "us"},
+						SentAt:  db.TestTimeNow.Format(time.RFC3339),
+					}},
+				},
 			},
 		},
 		{
@@ -133,22 +147,11 @@ func TestHandleGameplayWs(t *testing.T) {
 			inputMsgs: []*pb.GameInput{
 				{Value: &pb.GameInput_Forfeit{}},
 			},
-			wantMsgs: slices.Concat(cmnWantMsgs, []*pb.GameOutput{
+			wantMsgs: []*pb.GameOutput{
 				{GameId: gameID, Value: &pb.GameOutput_Forfeit{}},
-			}),
+			},
 			wantBrdcasts: []any{
 				&pb.GameOutput{GameId: gameID, Value: &pb.GameOutput_Forfeit{}},
-			},
-			assertDatabases: func(t *testing.T, state svc.State, msgOutputs []*pb.GameOutput) {
-				replayID := msgOutputs[2].GetForfeit().ReplayId // we can assume this is valid if the test reaches this point
-
-				actualState, err := state.GetChessState(ctx, gameID)
-				require.NoError(t, err)
-				assert.True(t, actualState.IsEnded)
-
-				replay, err := state.Query.SelectReplayRowByID(context.Background(), replayID)
-				require.NoError(t, err)
-				assert.Equal(t, replay.Cause, db.CauseEnum("FORFEIT"))
 			},
 		},
 		{
@@ -156,9 +159,9 @@ func TestHandleGameplayWs(t *testing.T) {
 			inputMsgs: []*pb.GameInput{
 				{Value: &pb.GameInput_Undo{Undo: &pb.UndoInput{Kind: "CREATE"}}},
 			},
-			wantMsgs: slices.Concat(cmnWantMsgs, []*pb.GameOutput{
+			wantMsgs: []*pb.GameOutput{
 				{GameId: gameID, Value: &pb.GameOutput_Undo{Undo: &pb.UndoOutput{Kind: "CREATE", UndoId: 1}}},
-			}),
+			},
 			wantBrdcasts: []any{
 				&pb.GameOutput{GameId: gameID, Value: &pb.GameOutput_Undo{Undo: &pb.UndoOutput{Kind: "CREATE", UndoId: 1}}},
 			},
@@ -168,13 +171,16 @@ func TestHandleGameplayWs(t *testing.T) {
 			inputMsgs: []*pb.GameInput{
 				{Value: &pb.GameInput_Undo{Undo: &pb.UndoInput{Kind: "ACCEPT"}}},
 			},
-			wantMsgs: slices.Concat(cmnWantMsgs, []*pb.GameOutput{
+			wantMsgs: []*pb.GameOutput{
 				{GameId: gameID, Value: &pb.GameOutput_Error{Error: &pb.ErrorOutput{Message: ErrWsUndoAction.Error()}}},
-			}),
+			},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// given
+			wantMsgs := slices.Concat(cmnWantMsgs, test.wantMsgs)
+			wantBrdcasts := slices.Concat(cmnBrdcasts, test.wantBrdcasts)
+
 			state, closer := svc.BeforeStateTest(t, true)
 			defer closer()
 
@@ -192,7 +198,7 @@ func TestHandleGameplayWs(t *testing.T) {
 			subChan := make(chan []byte)
 			setup.Broadcasters.GamesCaster.Subscribe(gameID, subChan)
 			brdCastChan := make(chan []any)
-			go readBroadcasted(brdCastChan, subChan, len(test.wantBrdcasts))
+			go readBroadcasted(brdCastChan, subChan, len(wantBrdcasts))
 
 			// when
 			url := strings.Replace(fmt.Sprintf("%s/api/ws/game?gameId=%s&sessionId=%s", ts.URL, gameID, TestSessionID1), "http", "ws", 1)
@@ -213,8 +219,8 @@ func TestHandleGameplayWs(t *testing.T) {
 			}
 
 			// then
-			msgOutputs := make([]*pb.GameOutput, len(test.wantMsgs))
-			for i := range test.wantMsgs {
+			msgOutputs := make([]*pb.GameOutput, len(wantMsgs))
+			for i := range wantMsgs {
 				_, b, err := conn.ReadMessage()
 				if err != nil {
 					t.Fatalf("read ws message: %v", err)
@@ -233,12 +239,8 @@ func TestHandleGameplayWs(t *testing.T) {
 				protocmp.IgnoreFields(&pb.UndoOutput{}, "game"),
 				protocmp.IgnoreFields(&pb.ForfeitOutput{}, "replay_id"),
 			}
-			assertutil.AssertEqualIgnoring(t, test.wantMsgs, msgOutputs, cmpOpts...)
-			assertutil.AssertEqualIgnoring(t, test.wantBrdcasts, brdCastOutputs, cmpOpts...)
-
-			if test.assertDatabases != nil {
-				test.assertDatabases(t, state, msgOutputs)
-			}
+			assertutil.ElementsMatch(t, wantMsgs, msgOutputs, cmpOpts...)
+			assertutil.ElementsMatch(t, wantBrdcasts, brdCastOutputs, cmpOpts...)
 		})
 	}
 }

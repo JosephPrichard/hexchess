@@ -94,6 +94,7 @@ func MakeRoot(setup Setup) http.Handler {
 	r.Get("/api/replay", Rest(app.HandleGetReplay))
 	r.Get("/api/replay/elo-histories", Rest(app.HandleGetEloHistories))
 	r.Get("/api/replay/move-list", Rest(app.HandleGetReplayMoveList))
+	r.Get("/api/game/exists", Rest(app.HandleGameExistence))
 
 	r.Get("/api/events/count", SSE(app.HandleCountEvents))
 	r.Get("/api/events/user", SSE(app.HandleUserEvents))

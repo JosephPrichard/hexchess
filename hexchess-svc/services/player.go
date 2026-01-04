@@ -6,12 +6,11 @@ import (
 )
 
 type PlayerState struct {
-	ID      int64   `json:"id"`
-	Name    string  `json:"name"`
-	Country string  `json:"country"`
-	Elo     float64 `json:"elo"`
-	IsGuest bool    `json:"isGuest"`
-	Present bool    `json:"present"`
+	ID      int64  `json:"id"`
+	Name    string `json:"name"`
+	Country string `json:"country"`
+	IsGuest bool   `json:"isGuest"`
+	Present bool   `json:"present"`
 }
 
 const GuestNumLen = 8

@@ -7,13 +7,15 @@ import (
 	"net/http"
 )
 
+type message = []byte
+
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
 }
 
-func writeConn(ctx context.Context, conn *websocket.Conn, bytes []byte) {
+func writeMessage(ctx context.Context, conn *websocket.Conn, bytes []byte) {
 	if bytes == nil {
 		// a nil message is a "no-op", the caller does not need to check for errors
 		return

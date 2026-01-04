@@ -18,9 +18,20 @@ type UndoState struct {
 	UndoID int64
 }
 
+type FinishState struct {
+	IsEnded     bool
+	WinID       int64
+	LoseID      int64
+	WinEloDiff  float64
+	LoseEloDiff float64
+	Cause       ReplayCause
+	Result      ReplayResult
+}
+
 type ChessState struct {
 	ChessMeta
 	UndoState
+	FinishState  FinishState
 	InitialBoard chess.Board
 	Game         chess.Game
 }
@@ -45,7 +56,6 @@ type ChessMeta struct {
 	ID          string      `json:"id"`
 	WhitePlayer PlayerState `json:"whitePlayer"`
 	BlackPlayer PlayerState `json:"blackPlayer"`
-	IsEnded     bool        `json:"isEnded"`
 	FirstColor  Color       `json:"firstColor"`
 	Mode        GameMode    `json:"mode"`
 	Touch       time.Time   `json:"touch"`
@@ -108,10 +118,17 @@ func (s *ChessState) DeepCopy() ChessState {
 		InitialBoard: s.InitialBoard,
 		ChessMeta: ChessMeta{
 			ID:         s.ID,
-			IsEnded:    s.IsEnded,
 			FirstColor: s.FirstColor,
 			Mode:       s.Mode,
 			Touch:      s.Touch,
+		},
+		FinishState: FinishState{
+			WinID:       s.FinishState.WinID,
+			LoseID:      s.FinishState.LoseID,
+			WinEloDiff:  s.FinishState.WinEloDiff,
+			LoseEloDiff: s.FinishState.LoseEloDiff,
+			Cause:       s.FinishState.Cause,
+			Result:      s.FinishState.Result,
 		},
 	}
 	s2.WhitePlayer = s.WhitePlayer
@@ -123,27 +140,35 @@ func (s State) getUserGameZSet(id int64) string {
 	return s.Redis.GamesZSet + "_user_" + strconv.Itoa(int(id))
 }
 
+// IsGameAccessible we can just treat any inability to validate that the game exists as it "not existing", the client will just show a "404".
+func (s State) IsGameAccessible(ctx context.Context, id string) bool {
+	if err := s.ExpireChessStates(ctx, s.Redis.GamesZSet); err != nil {
+		return false
+	}
+	fullID := makeGameKey(id)
+	_, err := s.Redis.Cache.Exists(ctx, fullID).Result()
+	return err != nil
+}
+
 var ErrNoChessState = errors.New("no chess state")
 
 func (s State) GetChessState(ctx context.Context, id string) (*ChessState, error) {
 	if err := s.ExpireChessStates(ctx, s.Redis.GamesZSet); err != nil {
 		return nil, fmt.Errorf("expire chess states: %w", err)
 	}
-
-	fullID := "game:" + id
+	fullID := makeGameKey(id)
 
 	data, err := s.Redis.Cache.Get(ctx, fullID).Bytes()
 	if errors.Is(err, redis.Nil) {
 		return nil, ErrNoChessState
 	} else if err != nil {
-		return nil, fmt.Errorf("get chess state: %w", err)
+		return nil, fmt.Errorf("get chess state in redis: %w", err)
 	}
 
 	state, err := UnmarshalChessState(data)
 	if err != nil {
 		return nil, fmt.Errorf("deserialize chess state: %w", err)
 	}
-
 	slog.InfoContext(ctx, "selected chess state", "key", fullID)
 	return &state, nil
 }
@@ -153,10 +178,18 @@ func (s State) SetChessState(ctx context.Context, id string, state *ChessState) 
 	return s.SetChessStateAt(ctx, id, state, touch)
 }
 
+func makeGameKey(gameID string) string {
+	return "game:" + gameID
+}
+
+func makeGameChatsKey(gameKey string) string {
+	return gameKey + "_chats"
+}
+
 func (s State) SetChessStateAt(ctx context.Context, id string, state *ChessState, touch time.Time) error {
 	state.Touch = touch
 	touchSecs := float64(state.Touch.Unix())
-	fullID := "game:" + id
+	fullID := makeGameKey(id)
 
 	b, err := proto.Marshal(SerializeChessState(state))
 	if err != nil {
@@ -174,10 +207,47 @@ func (s State) SetChessStateAt(ctx context.Context, id string, state *ChessState
 	}
 
 	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("set chess state: %w", err)
+		return fmt.Errorf("update chess state in redis: %w", err)
 	}
 
 	slog.InfoContext(ctx, "set chess state", "key", fullID, "touch", touch)
+	return nil
+}
+
+type StateChat struct {
+	Player  PlayerState `json:"player"`
+	Message string      `json:"message"`
+	SentAt  time.Time   `json:"time"`
+}
+
+func (s State) GetStateChats(ctx context.Context, gameID string, count int64) ([]StateChat, error) {
+	strList, err := s.Cache.ZRevRange(ctx, makeGameChatsKey(makeGameKey(gameID)), 0, count).Result()
+	if err != nil {
+		return nil, fmt.Errorf("get the first %d chats: %w", count, err)
+	}
+
+	chats := make([]StateChat, 0, len(strList))
+	for i, str := range strList {
+		chat, err := UnmarshalChat([]byte(str))
+		if err != nil {
+			return nil, fmt.Errorf("unmarshal chat #%d for game '%s': %w", i, gameID, err)
+		}
+		chats = append(chats, chat)
+	}
+
+	slog.InfoContext(ctx, "retrieved chess state chats", "chats", chats)
+	return chats, nil
+}
+
+func (s State) InsertStateChat(ctx context.Context, gameID string, chat StateChat) error {
+	bytes, err := proto.Marshal(SerializeChat(chat))
+	if err != nil {
+		return fmt.Errorf("marshal chat: %w", err)
+	}
+	if err := s.Cache.ZAdd(ctx, makeGameChatsKey(makeGameKey(gameID)), redis.Z{Score: float64(chat.SentAt.UnixMilli()), Member: bytes}).Err(); err != nil {
+		return fmt.Errorf("add chat %v to zset: %w", chat, err)
+	}
+	slog.InfoContext(ctx, "inserted chess state chat", "chat", chat)
 	return nil
 }
 
@@ -200,8 +270,10 @@ func (s State) ExpireChessStates(ctx context.Context, zSetName string) error {
 	pipe := s.Redis.Cache.TxPipeline()
 	for _, key := range keys {
 		pipe.Del(ctx, key)
+		pipe.Del(ctx, makeGameChatsKey(key))
 	}
 	pipe.ZRem(ctx, zSetName, keys)
+
 	if _, err := pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("delete expired states: %w", err)
 	}

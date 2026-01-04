@@ -10,6 +10,16 @@ import (
 
 func TestChessSerializer(t *testing.T) {
 	input1 := MakeState(StateSetup{ID: uuid.NewString(), Mode: ModeCorrespondence1, FirstColor: Random})
+	input1.FinishState = FinishState{
+		IsEnded:     true,
+		WinID:       1,
+		LoseID:      2,
+		WinEloDiff:  30,
+		LoseEloDiff: -30,
+		Cause:       Checkmate,
+		Result:      WhiteWin,
+	}
+
 	input2 := MakeState(StateSetup{ID: uuid.NewString(), Mode: ModeCorrespondence1, FirstColor: Random})
 	input2.Game.InitPieceMoves()
 	input2.Game.ClearTables() // since we're asserting the output back to the input, we must clear data that isn't serialized
@@ -18,7 +28,7 @@ func TestChessSerializer(t *testing.T) {
 		name  string
 		state ChessState
 	}{
-		{name: "echo serialize empty state", state: input1},
+		{name: "echo serialize state with finish", state: input1},
 		{name: "echo serialize state with moves", state: input2},
 	} {
 		t.Run(test.name, func(t *testing.T) {

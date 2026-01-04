@@ -36,7 +36,7 @@ func (s State) RetainActiveUser(ctx context.Context, id string) error {
 	if err != nil {
 		return fmt.Errorf("retain active user %s: %w", id, err)
 	}
-	slog.InfoContext(ctx, "retained active user", "id", id, "score", now)
+	slog.InfoContext(ctx, "retained active user", "id", id)
 	return nil
 }
 
@@ -47,7 +47,7 @@ func (s State) AddActiveUser(ctx context.Context, id string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("add active user %v: %w", id, err)
 	}
-	slog.InfoContext(ctx, "added active user", "id", id, "score", now)
+	slog.InfoContext(ctx, "added active user", "id", id)
 
 	return s.GetActiveCount(ctx)
 }

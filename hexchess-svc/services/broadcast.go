@@ -121,7 +121,7 @@ func (s State) BroadcastMessage(ctx context.Context, channel string, b []byte) e
 	defer conn.Close()
 
 	if _, err := conn.Do("PUBLISH", channel, b); err != nil {
-		return fmt.Errorf("publish message: %w", err)
+		return fmt.Errorf("publish message to channel %s, %w", channel, err)
 	}
 	slog.InfoContext(ctx, "broadcasted message to channel", "channel", channel, "bytesCount", len(b))
 	return nil

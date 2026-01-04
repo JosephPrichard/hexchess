@@ -37,7 +37,9 @@ export async function requestJSON<Response extends object | {}>(input: RequestIn
 			return [data, undefined];
 		}
 	} catch (error) {
-		console.error(error);
+		if (!(error instanceof TypeError)) {
+			console.error(error);
+		}
 		return [undefined, { status: 500, message: "", errors: codes.errorUnknown }];
 	}
 }
@@ -63,7 +65,9 @@ export async function requestBuf(input: RequestInfo | URL, init?: RequestInit, r
 			return [data, undefined];
 		}
 	} catch (error) {
-		console.error(error);
+		if (!(error instanceof TypeError)) {
+			console.error(error);
+		}
 		return [undefined, { status: 500, message: "", errors: codes.errorUnknown }];
 	}
 }
@@ -231,6 +235,14 @@ function getUser(id: string, withReplays: boolean, fetch?: FetchFn) {
 	return requestJSON<FullUserModel>(`${baseURL()}/players?${params}`, { method: 'GET' }, fetch);
 }
 
+function getGameExistence(id: string, fetch?: FetchFn) {
+	interface Response {
+		message: string;
+	}
+	const params = new URLSearchParams({ gameId: id });
+	return requestJSON<Response>(`${baseURL()}/game/exists?${params}`, { method: 'GET' }, fetch);
+}
+
 function getSearchPlayers(username: string, page?: number, fetch?: FetchFn) {
 	const params = new URLSearchParams({ username });
 	if (page)
@@ -307,6 +319,7 @@ export default {
 	getLeaderboard,
 	getProfile,
 	getUser,
+	getGameExistence,
 	getSearchPlayers,
 	getReplay,
 	getReplayMoveHistory,

@@ -21,7 +21,7 @@ import (
 )
 
 // rest tests are block box tests that make assertions on rest api call output for a given input
-// no db assertions are made and any out network calls are mocked
+// no db assertions are made, and any out network calls are mocked
 
 func TestHandleRegister(t *testing.T) {
 	insertTime := db.TestTimeNow

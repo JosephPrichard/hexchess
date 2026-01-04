@@ -10,18 +10,22 @@
 	import UndoIcon from '$lib/components/icons/UndoIcon.svelte';
 	import PieceList from '$lib/components/chess/PieceList.svelte';
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
-	import { type ChatOutput, type ChessGame, GameInput, GameOutput, type PlayerState } from '$lib/pb/messages';
+	import { type ChatMsg, type ChatOutput, type ChessGame, GameInput, GameOutput, type PlayerState } from '$lib/pb/messages';
 	import type { Hex } from '$lib/api/models';
 	import { deserializeHexList } from '$lib/utils/chess.js';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import { getInitialGameWasm, getMoveNotationsWasm } from '$lib/api/wasm';
-	import { goto } from '$app/navigation';
 	import { formatTimer } from '$lib/utils/format';
 	import { onMount } from 'svelte';
 	import Banner from '$lib/Banner.svelte';
+	import Error from '$lib/Error.svelte';
+
+	const maxTimeout = 2500;
+	const successConnThresholdTime = 5000;
 
 	export interface PlayProps {
 		gameId: string
+		gameExists?: boolean
 	}
 
 	const { data: props }: { data: PlayProps } = $props();
@@ -32,21 +36,23 @@
 	let game = $state<ChessGame | undefined>(undefined);
 	let whitePlayer = $state<PlayerState | undefined>(undefined);
 	let blackPlayer = $state<PlayerState | undefined>(undefined);
-	let connectTries = $state(0);
-
-	const chats: ChatOutput[] = $state([]);
-	let chatText = $state("");
 
 	let selfPlayer: PlayerState | undefined = $state(undefined);
 
 	let whiteTimer: number | undefined = $state(undefined);
 	let blackTimer: number | undefined = $state(undefined);
 
+	let chats: (ChatOutput | ChatMsg)[] = $state([]);
+	let chatText = $state("");
+
 	let selection = makeSelectionState();
 
-	let prevUpdatedAt = new Date(0);
-	let isForfeit: boolean = false;
-	let ws: WebSocket | undefined = undefined;
+	interface ConnectionState {
+		tries: number
+		ws?: WebSocket
+		setAt?: Date
+	}
+	let connState = $state<ConnectionState>({ tries: 0 });
 
 	async function onClickCopy() {
 		await navigator.clipboard.writeText(link);
@@ -67,7 +73,7 @@
 					chat: { message: chatText }
 				}
 			};
-			ws?.send?.(GameInput.toBinary(output));
+			connState.ws?.send?.(GameInput.toBinary(output));
 		}
 	}
 
@@ -83,31 +89,23 @@
 			whitePlayer = init?.state?.whitePlayer;
 			blackPlayer = init?.state?.blackPlayer;
 			selfPlayer = init.self;
+		} else if (kind === 'bgInit') {
+			const init = data.value.bgInit;
+			chats = init?.chats;
 		} else if (kind === 'players') {
 			const players = data.value.players;
 			whitePlayer = players.whitePlayer;
 			blackPlayer = players.blackPlayer;
 		} else if (kind === 'move') {
 			const move = data.value.move;
-			const updatedAt = new Date(move.updatedAt);
-			if (updatedAt.getTime() > prevUpdatedAt.getTime()) {
-				game = move.game;
-				prevUpdatedAt = updatedAt;
-			}
+			game = move.game;
 		} else if (kind === 'forfeit') {
-			isForfeit = true;
+
 		} else if (kind === 'chat') {
 			chats.push(data.value.chat);
 		} else if (kind === 'error') {
-			const error = data.value.error;
-			switch (error.message) {
-			case codes.errorInvalidGame:
-				goto(`/`);
-				break;
-			default:
-				const message = makeMessage(error.message);
-				addNotification({ type: 'string', message, isSuccess: false });
-			}
+			const message = makeMessage(data.value.error.message);
+			addNotification({ type: 'string', message, isSuccess: false });
 		}
 	}
 
@@ -115,6 +113,8 @@
 		const [data, err] = await services.postTempSession();
 		if (err) {
 			console.error(`Failed to create temporary session: ${err.message}`);
+			connState.tries += 1;
+			return;
 		}
 		const sessionId = data?.sessionId || "";
 
@@ -125,8 +125,14 @@
 		tempWs.binaryType = "arraybuffer";
 		tempWs.addEventListener('open', () => {
 			console.log(`Connected to game=${gameId} sessionId=${sessionId} successfully!`);
-			connectTries = 0;
-			ws = tempWs;
+			const lastTime = connState.setAt?.getTime() || 0;
+			let tries = 0;
+			if (new Date().getTime() - lastTime > successConnThresholdTime) {
+				tries = 0;
+			} else {
+				tries = connState.tries + 1;
+			}
+			connState = { ...connState, tries: tries, ws: tempWs, setAt: new Date() };
 		});
 		tempWs.addEventListener('message', (event) => {
 			if (event.data instanceof ArrayBuffer) {
@@ -136,20 +142,21 @@
 			}
 		});
 		tempWs.addEventListener('close', () => {
-			console.log(`Disconnected from game=${gameId}, trying to reconnect with ${connectTries} tries`);
-			connectTries += 1;
-			ws = undefined;
+			console.log(`Disconnected from game=${gameId}`);
+			connState = { ...connState, tries: connState.tries + 1, ws: undefined };
 		});
 	}
 
 	$effect(() => {
-		if (!ws) {
+		const state = connState;
+		if (!props.gameExists) return;
+		if (!state.ws) {
 			const gameId = props.gameId;
-			let timeout = connectTries !== 0 ? connectTries * 250 : 0;
-			if (timeout > 2500) {
-				timeout = 2500;
+			let timeout = state.tries !== 0 ? state.tries * 250 : 0;
+			if (timeout > maxTimeout) {
+				timeout = maxTimeout;
 			}
-			console.log(`Trying to connect to game=${gameId} in timeout=${timeout}`);
+			console.log(`Trying to connect to game=${gameId} in timeout=${timeout} with tries=${state.tries}`);
 			if (timeout > 0) {
 				setTimeout(() => tryConnect(gameId), timeout);
 			} else {
@@ -157,9 +164,9 @@
 			}
 		}
 		return () => {
-			if (ws) {
-				ws.close();
-				ws = undefined;
+			if (state.ws) {
+				state.ws.close();
+				state.ws = undefined;
 			}
 		};
 	});
@@ -168,7 +175,7 @@
 		getInitialGameWasm().then(initialGame => game = initialGame);
 	});
 
-	const isErrorPage = $derived.by(() => connectTries > 0);
+	const isErrorPage = $derived.by(() => connState.tries > 0);
 
 	const awaitingNotList = $derived.by(async () => await getMoveNotationsWasm(game?.moves));
 
@@ -190,79 +197,83 @@
 <div class="disconnect-message" style:display={isErrorPage ? '' : 'none'}>
 	Disconnected. Attempting to regain a connection...
 </div>
-<div class="center-horizontal-container">
-	<div class="center-vertical-container" style="align-items: stretch;">
-		<div class="panel chat-wrapper">
-			Chat room
-			<div class="chats">
-				{#each chats as chat}
-					<div class="chat">
-						<b>{chat.player?.name || "-"}</b> : {chat.message}
-					</div>
-				{/each}
-			</div>
-			<input class="chat-input" bind:value={chatText} onkeydown={onInputChat}/>
-		</div>
-		{#if game?.board}
-			<Board
-				board={game?.board}
-				fen={true}
-				isWhitePerspective={isWhitePerspective}
-				potentialMoves={deserializeHexList(selection.value.potentialMoves?.moves)}
-				onSelectPiece={onSelectPiece}
-				selected={selection.value.hex}
-			/>
-		{/if}
-		<div class="side-table-wrapper">
-			<PieceList pieces={bottomTakenPieces || []} />
-			{#if topTimer}
-				<div class="timer" class:timer-warn={topTimer < 15000}>
-					{formatTimer(topTimer)}
-				</div>
-			{/if}
-			<div class="side-table move-table-wrapper">
-				<div class="side-table-header player-panel">
-					<PlayerPanel player={bottomPlayer} self={selfPlayer} isTurn={isBottomTurn} />
-				</div>
-				{#if whitePlayer === undefined || blackPlayer === undefined}
-					<div class="growing-scrollbox parent-lobby">
-						<div class="lobby-container">
-							<div class="spinner"></div>
-							<span class="lobby-text">Waiting for opponents...</span>
+{#if !props.gameExists}
+	<Error status={404} message="Game not found!"/>
+{:else}
+	<div class="center-horizontal-container">
+		<div class="center-vertical-container" style="align-items: stretch;">
+			<div class="panel chat-wrapper">
+				Chat room
+				<div class="chats">
+					{#each chats as chat}
+						<div class="chat">
+							<b>{chat.player?.name || "-"}</b> : {chat.message}
 						</div>
-					</div>
-					{:else}
-					{#await awaitingNotList then notList}
-						<MoveList moveList={notList} />
-					{/await}
-				{/if}
-				<div class="icons">
-					<button title="Forfeit" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickForfeit}>
-						<FlagIcon />
-					</button>
-					<button title="Undo Move" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickUndo}>
-						<UndoIcon />
-					</button>
-					<button title="Settings" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickSettings}>
-						<SettingsIcon />
-					</button>
-					<button title="Settings" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickCopy}>
-						<ClipboardIcon />
-					</button>
+					{/each}
 				</div>
-				<div class="side-table-header-bottom player-panel">
-					<PlayerPanel player={topPlayer} self={selfPlayer} isTurn={isTopTurn} />
-				</div>
+				<input class="chat-input" bind:value={chatText} onkeydown={onInputChat}/>
 			</div>
-			{#if bottomTimer}
-				<div class="timer" class:timer-warn={bottomTimer < 15000}>
-					{formatTimer(bottomTimer)}
-				</div>
+			{#if game?.board}
+				<Board
+					board={game?.board}
+					fen={true}
+					isWhitePerspective={isWhitePerspective}
+					potentialMoves={deserializeHexList(selection.value.potentialMoves?.moves)}
+					onSelectPiece={onSelectPiece}
+					selected={selection.value.hex}
+				/>
 			{/if}
-			<PieceList pieces={topTakenPieces || []} />
+			<div class="side-table-wrapper">
+				<PieceList pieces={bottomTakenPieces || []} />
+				{#if topTimer}
+					<div class="timer" class:timer-warn={topTimer < 15000}>
+						{formatTimer(topTimer)}
+					</div>
+				{/if}
+				<div class="side-table move-table-wrapper">
+					<div class="side-table-header player-panel">
+						<PlayerPanel player={bottomPlayer} self={selfPlayer} isTurn={isBottomTurn} />
+					</div>
+					{#if whitePlayer === undefined || blackPlayer === undefined}
+						<div class="growing-scrollbox parent-lobby">
+							<div class="lobby-container">
+								<div class="spinner"></div>
+								<span class="lobby-text">Waiting for opponents...</span>
+							</div>
+						</div>
+					{:else}
+						{#await awaitingNotList then notList}
+							<MoveList moveList={notList} />
+						{/await}
+					{/if}
+					<div class="icons">
+						<button title="Forfeit" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickForfeit}>
+							<FlagIcon />
+						</button>
+						<button title="Undo Move" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickUndo}>
+							<UndoIcon />
+						</button>
+						<button title="Settings" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickSettings}>
+							<SettingsIcon />
+						</button>
+						<button title="Settings" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickCopy}>
+							<ClipboardIcon />
+						</button>
+					</div>
+					<div class="side-table-header-bottom player-panel">
+						<PlayerPanel player={topPlayer} self={selfPlayer} isTurn={isTopTurn} />
+					</div>
+				</div>
+				{#if bottomTimer}
+					<div class="timer" class:timer-warn={bottomTimer < 15000}>
+						{formatTimer(bottomTimer)}
+					</div>
+				{/if}
+				<PieceList pieces={topTakenPieces || []} />
+			</div>
 		</div>
 	</div>
-</div>
+{/if}
 
 <style>
 	.chat-wrapper {
@@ -291,7 +302,9 @@
     }
 
 	.chat-input {
-		min-height: 35px;
+		padding-top: 2px;
+        padding-bottom: 2px;
+		height: 30px;
 	}
 
     .disconnect-message {

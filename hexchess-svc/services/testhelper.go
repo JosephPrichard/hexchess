@@ -28,7 +28,7 @@ func AssertRedisChess(t *testing.T, s State, wantState ChessState, options ...cm
 	if err != nil {
 		t.Fatalf("get chess for assert: %v", err)
 	}
-	assertutil.AssertEqualIgnoring(t, wantState, *actualState, options...)
+	assertutil.Equal(t, wantState, *actualState, options...)
 }
 
 func AssertChessState(t *testing.T, wantState ChessState, actualState *ChessState, options ...cmp.Option) {
@@ -36,5 +36,5 @@ func AssertChessState(t *testing.T, wantState ChessState, actualState *ChessStat
 	if actualState == nil {
 		t.Fatalf("chess state is nil")
 	}
-	assertutil.AssertEqualIgnoring(t, wantState, *actualState, options...)
+	assertutil.Equal(t, wantState, *actualState, options...)
 }

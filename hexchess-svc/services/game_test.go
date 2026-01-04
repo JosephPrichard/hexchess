@@ -338,7 +338,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 
 	// when
 	require.NoError(t, state.SetChessState(ctx, gameID, &inState))
-	replayID, err := state.ForfeitGame(ctx, gameID, inState.BlackPlayer)
+	cs, err := state.ForfeitGame(ctx, gameID, inState.BlackPlayer)
 	require.NoError(t, err)
 
 	// then
@@ -354,13 +354,21 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 		BlackElo:    985,
 	}
 	wantState := inState.DeepCopy()
-	wantState.IsEnded = true
+	wantState.FinishState = FinishState{
+		IsEnded:     true,
+		WinID:       1,
+		LoseID:      2,
+		WinEloDiff:  15,
+		LoseEloDiff: -15,
+		Cause:       Forfeit,
+		Result:      WhiteWin,
+	}
 
 	AssertRedisChess(t, state, wantState, ChessMetaCmpOpt)
 
-	replay, err := state.Query.SelectReplayRowByID(ctx, replayID)
+	replay, err := state.Query.SelectReplayRowByID(ctx, cs.ReplayID)
 	require.NoError(t, err)
-	assertutil.AssertEqualIgnoring(t, wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn", "MoveHistory"))
+	assertutil.Equal(t, wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn", "MoveHistory"))
 }
 
 func TestInsertGameResult(t *testing.T) {
@@ -458,7 +466,7 @@ func TestInsertGameResult(t *testing.T) {
 			replay, err := pdb.Query.SelectReplayRowByID(ctx, cs.ReplayID)
 			require.NoError(t, err)
 
-			assertutil.AssertEqualIgnoring(t, test.wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn", "MoveHistory"))
+			assertutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn", "MoveHistory"))
 
 			cs.ReplayID = 0
 			cs.WinEloDiff = math.Round(cs.WinEloDiff)

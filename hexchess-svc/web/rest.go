@@ -612,6 +612,25 @@ func (app *App) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) err
 	return nil
 }
 
+const (
+	GameExists    = "GAME_EXISTS"
+	GameNotExists = "GAME_NOT_EXISTS"
+)
+
+func (app *App) HandleGameExistence(w http.ResponseWriter, r *http.Request) error {
+	gameID := r.URL.Query().Get("gameId")
+
+	ctx := r.Context()
+	exists := app.State.IsGameAccessible(ctx, gameID)
+
+	respMsg := GameExists
+	if !exists {
+		respMsg = GameNotExists
+	}
+	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: respMsg})
+	return nil
+}
+
 type FullUserResp struct {
 	User       svc.UserEntity      `json:"user"`
 	Stats      svc.UserStatsEntity `json:"stats"`
@@ -819,7 +838,6 @@ type ChessMeta struct {
 	ID          string          `json:"id"`
 	WhitePlayer svc.PlayerState `json:"whitePlayer"`
 	BlackPlayer svc.PlayerState `json:"blackPlayer"`
-	IsEnded     bool            `json:"isEnded"`
 	FirstColor  string          `json:"firstColor"`
 	Mode        string          `json:"mode"`
 	Touch       time.Time       `json:"touch"`
@@ -832,7 +850,6 @@ func mapChessMetas(svcMetas []svc.ChessMeta) []ChessMeta {
 			ID:          svcMeta.ID,
 			WhitePlayer: svcMeta.WhitePlayer,
 			BlackPlayer: svcMeta.BlackPlayer,
-			IsEnded:     svcMeta.IsEnded,
 			FirstColor:  svcMeta.FirstColor.String(),
 			Mode:        svcMeta.Mode.String(),
 			Touch:       svcMeta.Touch,

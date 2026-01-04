@@ -37,7 +37,7 @@ func TestEchoChessState(t *testing.T) {
 
 	// then
 	assert.Equal(t, ErrNoChessState, errBadID)
-	assertutil.AssertEqualIgnoring(t, state1, *outState1, ChessMetaCmpOpt)
+	assertutil.Equal(t, state1, *outState1, ChessMetaCmpOpt)
 }
 
 func TestGetChessMetas(t *testing.T) {
@@ -86,6 +86,37 @@ func TestGetChessMetas(t *testing.T) {
 	assert.Equal(t, []ChessMeta{m1}, metaList5)
 }
 
+func TestEchoStateChats(t *testing.T) {
+	// given
+	rdb := db.BeforeRedisTest(t)
+	defer rdb.Close()
+
+	id1 := "testing-id1-" + uuid.NewString()
+
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	s := State{Redis: rdb}
+
+	chatsIn := []StateChat{
+		{
+			Player: PlayerState{ID: 1, Name: "name", Country: "us", IsGuest: false, Present: true},
+			SentAt: time.Date(2022, 1, 1, 0, 1, 0, 0, time.UTC),
+		},
+		{SentAt: time.Date(2022, 1, 1, 0, 2, 0, 0, time.UTC)},
+		{SentAt: time.Date(2022, 1, 1, 0, 3, 0, 0, time.UTC)},
+	}
+
+	// when
+	for _, chat := range chatsIn {
+		require.NoError(t, s.InsertStateChat(ctx, id1, chat))
+	}
+
+	chatsOut, err := s.GetStateChats(ctx, id1, 3)
+	require.NoError(t, err)
+
+	// then
+	assert.Equal(t, []StateChat{chatsIn[2], chatsIn[1], chatsIn[0]}, chatsOut)
+}
+
 func TestExpireChessStates(t *testing.T) {
 	// given
 	rdb := db.BeforeRedisTest(t)
@@ -105,13 +136,16 @@ func TestExpireChessStates(t *testing.T) {
 	// when
 	// these times must be before now.Add(-GameExpireFinished)
 	require.NoError(t, s.SetChessStateAt(ctx, id1, &state1, now.Add(2*-GameExpireFinished)))
-
+	require.NoError(t, s.InsertStateChat(ctx, id1, StateChat{}))
 	require.NoError(t, s.ExpireChessStates(ctx, rdb.GamesZSet))
 
 	_, errExpiredID := s.GetChessState(ctx, id1)
+	chats, err := s.GetStateChats(ctx, id1, 1)
+	require.NoError(t, err)
 
 	// then
 	assert.Equal(t, ErrNoChessState, errExpiredID)
+	assert.Empty(t, chats)
 }
 
 func TestChessState_UndoMove(t *testing.T) {
