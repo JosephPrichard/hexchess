@@ -10,6 +10,7 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/pkg/logutil"
 	"log/slog"
+	"math"
 	"math/big"
 	"slices"
 	"time"
@@ -127,13 +128,12 @@ func (s State) MakeGameMove(ctx context.Context, gameID string, player PlayerSta
 	if err != nil {
 		return mr, fmt.Errorf("get chess state by id %s: %w", gameID, err)
 	}
-	gameID = state.ID
 
+	gameID = state.ID
 	game := &state.Game
 	if game.BlackMoves == nil || game.WhiteMoves == nil {
 		game.InitPieceMoves()
 	}
-
 	currPlayer := state.CurrPlayer()
 
 	if state.FinishState.IsEnded {
@@ -152,11 +152,12 @@ func (s State) MakeGameMove(ctx context.Context, gameID string, player PlayerSta
 	hm := game.MakeMove(move)
 	game.InitPieceMoves()
 	state.UndoState = UndoState{}
-	isEnding := game.Checkmate()
 
 	mr = MakeMoveResult{State: state, Move: hm}
 
-	if isEnding {
+	if game.Checkmate() {
+		slog.InfoContext(ctx, "game has reached checkmate", "player", player.ID, "move", move, "chessMeta", state.ChessMeta)
+
 		result := WhiteWin
 		if state.Game.Board.IsWhiteTurn {
 			result = BlackWin
@@ -172,8 +173,8 @@ func (s State) MakeGameMove(ctx context.Context, gameID string, player PlayerSta
 			Cause:       cause,
 			WinID:       cs.WinID,
 			LoseID:      cs.LoseID,
-			WinEloDiff:  cs.WinEloDiff,
-			LoseEloDiff: cs.LoseEloDiff,
+			WinEloDiff:  int64(math.Round(cs.WinEloDiff)),
+			LoseEloDiff: int64(math.Round(cs.LoseEloDiff)),
 		}
 	}
 
@@ -235,14 +236,19 @@ func (s State) AttemptGameUndo(ctx context.Context, gameID string, player Player
 	return state, nil
 }
 
-func (s State) ForfeitGame(ctx context.Context, gameID string, player PlayerState) (cs GRChangeSet, err error) {
+func (s State) ForfeitGame(ctx context.Context, gameID string, player PlayerState) (replayID int64, fs FinishState, err error) {
 	state, err := s.GetChessState(ctx, gameID)
 	if err != nil {
-		return cs, fmt.Errorf("get chess state by id %s: %w", gameID, err)
+		return replayID, fs, fmt.Errorf("get chess state by id %s: %w", gameID, err)
 	}
 	if !state.WhitePlayer.Present || !state.BlackPlayer.Present {
 		slog.WarnContext(ctx, "game does not have both players, cannot forfeit", "game", gameID)
-		return cs, nil
+		return replayID, fs, nil
+	}
+
+	if state.FinishState.IsEnded {
+		slog.WarnContext(ctx, "forfeit game: attempted on ended game", "gameId", gameID)
+		return replayID, fs, ErrFinishedGame
 	}
 
 	result := BlackWin
@@ -251,27 +257,28 @@ func (s State) ForfeitGame(ctx context.Context, gameID string, player PlayerStat
 	}
 	cause := Forfeit
 
-	changeSet, err := s.WriteFinishedGame(ctx, state, result, cause)
+	cs, err := s.WriteFinishedGame(ctx, state, result, cause)
 	if err != nil {
-		return cs, fmt.Errorf("write forfeit game result: %w", err)
+		return replayID, fs, fmt.Errorf("write forfeit game result: %w", err)
 	}
-	cs = changeSet
+	replayID = cs.ReplayID
 
-	state.FinishState = FinishState{
+	fs = FinishState{
 		IsEnded:     true,
 		Result:      result,
 		Cause:       cause,
 		WinID:       cs.WinID,
 		LoseID:      cs.LoseID,
-		WinEloDiff:  cs.WinEloDiff,
-		LoseEloDiff: cs.LoseEloDiff,
+		WinEloDiff:  int64(math.Round(cs.WinEloDiff)),
+		LoseEloDiff: int64(math.Round(cs.LoseEloDiff)),
 	}
+	state.FinishState = fs
 	if err := s.SetChessState(ctx, gameID, state); err != nil {
-		return cs, err
+		return replayID, fs, err
 	}
 
 	slog.InfoContext(ctx, "player forfeited game", "playerID", player.ID, "gameId", gameID)
-	return cs, nil
+	return replayID, fs, nil
 }
 
 func (s State) WriteFinishedGame(ctx context.Context, state *ChessState, result ReplayResult, cause ReplayCause) (cs GRChangeSet, err error) {
@@ -355,12 +362,13 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 
 	mode := db.ModeEnum(result.ReplayMode.String())
 
-	rows, err := query.SelectUserModeElosByIds(ctx, db.SelectUserModeElosByIdsParams{ID: ids, Mode: mode})
+	rowElos, err := query.SelectUserModeElosByIds(ctx, db.SelectUserModeElosByIdsParams{ID: ids, Mode: mode})
 	if err != nil {
 		return cs, fmt.Errorf("select users %+v elo: %w", ids, err)
 	}
+
 	whiteElo, blackElo := StartElo, StartElo
-	for _, row := range rows {
+	for _, row := range rowElos {
 		switch row.UserID {
 		case result.WhiteID:
 			whiteElo = row.Elo

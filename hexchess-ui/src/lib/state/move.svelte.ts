@@ -5,39 +5,39 @@ export interface MoveState {
 }
 
 export function makeMoveState() {
-	let value: MoveState = $state({
+	let state: MoveState = $state({
 		moveIndex: undefined,
 		isWhitePerspective: true,
 		moveCount: 0,
 	})
 
 	function selectMove(i: number) {
-		value.moveIndex = i;
+		state.moveIndex = i;
 	}
 
 	function flip() {
-		value.isWhitePerspective = !value.isWhitePerspective;
+		state.isWhitePerspective = !state.isWhitePerspective;
 	}
 
 	function goLeft() {
-		if (value.moveIndex === undefined) {
-			value.moveIndex = 0;
-		} else if (value.moveIndex > 0) {
-			value.moveIndex--;
+		if (state.moveIndex === undefined) {
+			state.moveIndex = 0;
+		} else if (state.moveIndex > 0) {
+			state.moveIndex--;
 		}
 	}
 
 	function goRight() {
-		if (value.moveIndex === undefined) {
-			value.moveIndex = 0;
-		} else if (value.moveIndex < value.moveCount - 1) {
-			value.moveIndex++;
+		if (state.moveIndex === undefined) {
+			state.moveIndex = 0;
+		} else if (state.moveIndex < state.moveCount - 1) {
+			state.moveIndex++;
 		}
 	}
 
 	function updateMoveCount(count: number) {
-		value.moveCount = count;
+		state.moveCount = count;
 	}
 
-	return { value, selectMove, flip, goLeft, goRight, updateMoveCount }
+	return { state, selectMove, flip, goLeft, goRight, updateMoveCount }
 }

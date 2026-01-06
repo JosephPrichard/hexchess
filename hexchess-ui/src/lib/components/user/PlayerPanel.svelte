@@ -41,10 +41,6 @@
 {/if}
 
 <style>
-	.self-color {
-		color: #F0E68C;
-	}
-
 	.waiting-text {
 		color: rgb(150, 150, 150);
 	}

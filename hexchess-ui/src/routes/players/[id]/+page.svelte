@@ -2,7 +2,7 @@
 	import CreateGame from '$lib/components/modals/CreateGame.svelte';
 	import { onMount } from 'svelte';
 	import ChallengeIcon from '$lib/components/icons/ChallengeIcon.svelte';
-	import { type EloBuckets, GameModeNameMap, type Timeframe } from '$lib/api/models.js';
+	import { type EloBuckets, GameModeNameMap } from '$lib/api/models.js';
 	import { getClientSession } from '$lib/utils/storage';
 	import { goto } from '$app/navigation';
 	import { getNotificationsContext } from '$lib/utils/context';
@@ -17,12 +17,12 @@
 	import { formatEloDiff, formatJoinedOn, formatPlayedOn, formatReplayResult, formatTimestamp, getWinrateClass, normalizeToDay } from '$lib/utils/format';
 	import Banner from '$lib/Banner.svelte';
 
-	const timeframes: { label: string, value: Timeframe }[] = [
-		{ label: "All Time", value: "all" },
-		{ label: "1 Year", value: "1y" },
-		{ label: "6 Months", value: "6m" },
-		{ label: "3 Months", value: "3m" },
-		{ label: "1 Month", value: "1m" },
+	const timeframes: { label: string, value: string }[] = [
+		{ label: "All Time", state: "all" },
+		{ label: "1 Year", state: "1y" },
+		{ label: "6 Months", state: "6m" },
+		{ label: "3 Months", state: "3m" },
+		{ label: "1 Month", state: "1m" },
 	];
 
 	export interface PlayerProps {
@@ -65,7 +65,7 @@
 		}
 	}
 
-	async function loadEloHistories(userId: number, timeframe: Timeframe, onLoaded: (buckets: Record<string, EloBuckets>) => void) {
+	async function loadEloHistories(userId: number, timeframe: string, onLoaded: (buckets: Record<string, EloBuckets>) => void) {
 		const [data, err] = await services.getEloHistories(userId, timeframe);
 		if (data) {
 			onLoaded(data.buckets);

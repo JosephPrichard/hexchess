@@ -533,8 +533,8 @@ type FinishState struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	WinId         int64                  `protobuf:"varint,1,opt,name=win_id,json=winId,proto3" json:"win_id,omitempty"`
 	LoseId        int64                  `protobuf:"varint,2,opt,name=lose_id,json=loseId,proto3" json:"lose_id,omitempty"`
-	WinEloDiff    float64                `protobuf:"fixed64,3,opt,name=win_elo_diff,json=winEloDiff,proto3" json:"win_elo_diff,omitempty"`
-	LoseEloDiff   float64                `protobuf:"fixed64,4,opt,name=lose_elo_diff,json=loseEloDiff,proto3" json:"lose_elo_diff,omitempty"`
+	WinEloDiff    int32                  `protobuf:"varint,3,opt,name=win_elo_diff,json=winEloDiff,proto3" json:"win_elo_diff,omitempty"`
+	LoseEloDiff   int32                  `protobuf:"varint,4,opt,name=lose_elo_diff,json=loseEloDiff,proto3" json:"lose_elo_diff,omitempty"`
 	Cause         string                 `protobuf:"bytes,5,opt,name=cause,proto3" json:"cause,omitempty"`
 	Result        string                 `protobuf:"bytes,6,opt,name=result,proto3" json:"result,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -585,14 +585,14 @@ func (x *FinishState) GetLoseId() int64 {
 	return 0
 }
 
-func (x *FinishState) GetWinEloDiff() float64 {
+func (x *FinishState) GetWinEloDiff() int32 {
 	if x != nil {
 		return x.WinEloDiff
 	}
 	return 0
 }
 
-func (x *FinishState) GetLoseEloDiff() float64 {
+func (x *FinishState) GetLoseEloDiff() int32 {
 	if x != nil {
 		return x.LoseEloDiff
 	}
@@ -1462,6 +1462,7 @@ func (x *ChatOutput) GetSentAt() string {
 type ForfeitOutput struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ReplayId      int64                  `protobuf:"varint,1,opt,name=replay_id,json=replayId,proto3" json:"replay_id,omitempty"`
+	FinishState   *FinishState           `protobuf:"bytes,2,opt,name=finish_state,json=finishState,proto3" json:"finish_state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1501,6 +1502,13 @@ func (x *ForfeitOutput) GetReplayId() int64 {
 		return x.ReplayId
 	}
 	return 0
+}
+
+func (x *ForfeitOutput) GetFinishState() *FinishState {
+	if x != nil {
+		return x.FinishState
+	}
+	return nil
 }
 
 type UndoOutput struct {
@@ -2466,9 +2474,9 @@ const file_messages_proto_rawDesc = "" +
 	"\vFinishState\x12\x15\n" +
 	"\x06win_id\x18\x01 \x01(\x03R\x05winId\x12\x17\n" +
 	"\alose_id\x18\x02 \x01(\x03R\x06loseId\x12 \n" +
-	"\fwin_elo_diff\x18\x03 \x01(\x01R\n" +
+	"\fwin_elo_diff\x18\x03 \x01(\x05R\n" +
 	"winEloDiff\x12\"\n" +
-	"\rlose_elo_diff\x18\x04 \x01(\x01R\vloseEloDiff\x12\x14\n" +
+	"\rlose_elo_diff\x18\x04 \x01(\x05R\vloseEloDiff\x12\x14\n" +
 	"\x05cause\x18\x05 \x01(\tR\x05cause\x12\x16\n" +
 	"\x06result\x18\x06 \x01(\tR\x06result\"\x92\x03\n" +
 	"\n" +
@@ -2529,9 +2537,10 @@ const file_messages_proto_rawDesc = "" +
 	"ChatOutput\x12-\n" +
 	"\x06player\x18\x01 \x01(\v2\x15.messages.PlayerStateR\x06player\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x17\n" +
-	"\asent_at\x18\x03 \x01(\tR\x06sentAt\",\n" +
+	"\asent_at\x18\x03 \x01(\tR\x06sentAt\"f\n" +
 	"\rForfeitOutput\x12\x1b\n" +
-	"\treplay_id\x18\x01 \x01(\x03R\breplayId\"b\n" +
+	"\treplay_id\x18\x01 \x01(\x03R\breplayId\x128\n" +
+	"\ffinish_state\x18\x02 \x01(\v2\x15.messages.FinishStateR\vfinishState\"b\n" +
 	"\n" +
 	"UndoOutput\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x17\n" +
@@ -2675,33 +2684,34 @@ var file_messages_proto_depIdxs = []int32{
 	5,  // 21: messages.MoveOutput.move:type_name -> messages.HistMove
 	6,  // 22: messages.MoveOutput.game:type_name -> messages.ChessGame
 	0,  // 23: messages.ChatOutput.player:type_name -> messages.PlayerState
-	6,  // 24: messages.UndoOutput.game:type_name -> messages.ChessGame
-	16, // 25: messages.GameOutput.error:type_name -> messages.ErrorOutput
-	17, // 26: messages.GameOutput.init:type_name -> messages.InitOutput
-	19, // 27: messages.GameOutput.players:type_name -> messages.PlayersOutput
-	20, // 28: messages.GameOutput.move:type_name -> messages.MoveOutput
-	21, // 29: messages.GameOutput.chat:type_name -> messages.ChatOutput
-	22, // 30: messages.GameOutput.forfeit:type_name -> messages.ForfeitOutput
-	23, // 31: messages.GameOutput.undo:type_name -> messages.UndoOutput
-	18, // 32: messages.GameOutput.bgInit:type_name -> messages.BgInitOutput
-	5,  // 33: messages.HistMoves.moves:type_name -> messages.HistMove
-	6,  // 34: messages.MoveHistory.initial_game:type_name -> messages.ChessGame
-	28, // 35: messages.MoveHistory.steps:type_name -> messages.MoveStep
-	5,  // 36: messages.MoveStep.move:type_name -> messages.HistMove
-	6,  // 37: messages.MoveStep.game:type_name -> messages.ChessGame
-	6,  // 38: messages.MoveReplay.initial_game:type_name -> messages.ChessGame
-	30, // 39: messages.MoveReplay.steps:type_name -> messages.NotMoveStep
-	1,  // 40: messages.NotMoveStep.pm:type_name -> messages.PieceMove
-	6,  // 41: messages.NotMoveStep.game:type_name -> messages.ChessGame
-	10, // 42: messages.MakeMoveInput.move:type_name -> messages.Move
-	6,  // 43: messages.MakeMoveInput.game:type_name -> messages.ChessGame
-	33, // 44: messages.UserMsg.challenge:type_name -> messages.ChallengeMsg
-	34, // 45: messages.EloHistoryBuckets.buckets:type_name -> messages.EloHistoryBucket
-	46, // [46:46] is the sub-list for method output_type
-	46, // [46:46] is the sub-list for method input_type
-	46, // [46:46] is the sub-list for extension type_name
-	46, // [46:46] is the sub-list for extension extendee
-	0,  // [0:46] is the sub-list for field type_name
+	7,  // 24: messages.ForfeitOutput.finish_state:type_name -> messages.FinishState
+	6,  // 25: messages.UndoOutput.game:type_name -> messages.ChessGame
+	16, // 26: messages.GameOutput.error:type_name -> messages.ErrorOutput
+	17, // 27: messages.GameOutput.init:type_name -> messages.InitOutput
+	19, // 28: messages.GameOutput.players:type_name -> messages.PlayersOutput
+	20, // 29: messages.GameOutput.move:type_name -> messages.MoveOutput
+	21, // 30: messages.GameOutput.chat:type_name -> messages.ChatOutput
+	22, // 31: messages.GameOutput.forfeit:type_name -> messages.ForfeitOutput
+	23, // 32: messages.GameOutput.undo:type_name -> messages.UndoOutput
+	18, // 33: messages.GameOutput.bgInit:type_name -> messages.BgInitOutput
+	5,  // 34: messages.HistMoves.moves:type_name -> messages.HistMove
+	6,  // 35: messages.MoveHistory.initial_game:type_name -> messages.ChessGame
+	28, // 36: messages.MoveHistory.steps:type_name -> messages.MoveStep
+	5,  // 37: messages.MoveStep.move:type_name -> messages.HistMove
+	6,  // 38: messages.MoveStep.game:type_name -> messages.ChessGame
+	6,  // 39: messages.MoveReplay.initial_game:type_name -> messages.ChessGame
+	30, // 40: messages.MoveReplay.steps:type_name -> messages.NotMoveStep
+	1,  // 41: messages.NotMoveStep.pm:type_name -> messages.PieceMove
+	6,  // 42: messages.NotMoveStep.game:type_name -> messages.ChessGame
+	10, // 43: messages.MakeMoveInput.move:type_name -> messages.Move
+	6,  // 44: messages.MakeMoveInput.game:type_name -> messages.ChessGame
+	33, // 45: messages.UserMsg.challenge:type_name -> messages.ChallengeMsg
+	34, // 46: messages.EloHistoryBuckets.buckets:type_name -> messages.EloHistoryBucket
+	47, // [47:47] is the sub-list for method output_type
+	47, // [47:47] is the sub-list for method input_type
+	47, // [47:47] is the sub-list for extension type_name
+	47, // [47:47] is the sub-list for extension extendee
+	0,  // [0:47] is the sub-list for field type_name
 }
 
 func init() { file_messages_proto_init() }

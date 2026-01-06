@@ -34,12 +34,12 @@ function dynCall(name: string, ...args: unknown[]): unknown {
 
 export async function getInitialGameWasm(): Promise<ChessGame> {
 	await makeWasmAPI();
-	const out = dynCall("getInitialGame") as (Uint8Array | undefined);
-	if (out === undefined) {
-		console.error("Failed to get initial game");
-		return defaultGame;
+	const output = dynCall("getInitialGame");
+	if (output instanceof Uint8Array) {
+		return ChessGame.fromBinary(output);
 	}
-	return ChessGame.fromBinary(out);
+	console.error("Failed to get initial game");
+	return defaultGame;
 }
 
 export async function makeMoveWasm(game?: ChessGame, move?: { from: Hex, to: Hex, promotion: number }): Promise<ChessGame | undefined> {
@@ -55,36 +55,35 @@ export async function makeMoveWasm(game?: ChessGame, move?: { from: Hex, to: Hex
 		} : undefined
 	});
 
-	const output = dynCall("makeMove", input) as (Uint8Array | undefined);
-	if (output === undefined) {
-		return undefined;
+	const output = dynCall("makeMove", input);
+	if (output instanceof Uint8Array) {
+		return ChessGame.fromBinary(output);
 	}
-	return ChessGame.fromBinary(output);
+	console.error("Failed to make move");
 }
 
 export async function getMovesWasm(board: ChessBoard): Promise<ChessGame | undefined> {
 	await makeWasmAPI();
 	const input = ChessBoard.toBinary(board);
 
-	const output = dynCall("getMoves", input) as (Uint8Array | undefined);
-	if (output === undefined) {
-		return undefined;
+	const output = dynCall("getMoves", input);
+	if (output instanceof Uint8Array) {
+		return ChessGame.fromBinary(output);
 	}
-	return ChessGame.fromBinary(output);
+	console.error("Failed to get moves");
 }
 
-interface FenToGameResult {
-	err?: string;
-	game?: Uint8Array;
-}
-
-export async function fenToGameWasm(fen: string): Promise<ChessGame | string> {
+export async function fenToGameWasm(fen: string): Promise<[ChessGame | undefined, string]> {
 	await makeWasmAPI();
-	const output = dynCall("fenToGame", fen) as FenToGameResult | undefined;
-	if (output === undefined) {
-		return "Failed to parse fen to board";
+	const output = dynCall("fenToGame", fen) as any;
+	if (output?.game instanceof Uint8Array) {
+		return [ChessGame.fromBinary(output.game), ""];
 	}
-	return output.game ? ChessGame.fromBinary(output.game) : defaultGame;
+	if (typeof output?.err === "string") {
+		return [undefined, output.err];
+	}
+	console.error("Failed to parse fen to game");
+	return [undefined, "Failed to parse fen to game"];
 }
 
 export async function boardToFenWasm(board?: ChessBoard): Promise<string> {
@@ -92,7 +91,13 @@ export async function boardToFenWasm(board?: ChessBoard): Promise<string> {
 		return "";
 	await makeWasmAPI();
 	const input = ChessBoard.toBinary(board);
-	return (dynCall("boardToFen", input) || "") as string;
+
+	const output = dynCall("boardToFen", input);
+	if (typeof output === "string") {
+		return output;
+	}
+	console.error("Failed to convert board to fen");
+	return "";
 }
 
 export async function getMoveNotationsWasm(moves?: HistMove[]): Promise<string[]> {
@@ -100,5 +105,11 @@ export async function getMoveNotationsWasm(moves?: HistMove[]): Promise<string[]
 		return [];
 	await makeWasmAPI();
 	const input = HistMoves.toBinary({ moves });
-	return (dynCall("getMoveNotations", input) || []) as string[];
+
+	const output = dynCall("getMoveNotations", input);
+	if (Array.isArray(output) && output.every(item => typeof item === 'string')) {
+		return output;
+	}
+	console.error("Failed to get move notations");
+	return [];
 }

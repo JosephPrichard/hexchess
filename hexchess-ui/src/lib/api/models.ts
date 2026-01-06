@@ -1,3 +1,5 @@
+import type { PlayerState } from '$lib/pb/messages';
+
 export type Action = 'delete' | 'reject' | 'accept';
 
 export type ColorSelect = 'RANDOM' | 'WHITE' | 'BLACK';
@@ -19,8 +21,6 @@ export const GameModeNameMap: Record<string, string> = {
 	"CORRESPONDENCE_14": "Correspondence 14d",
 };
 
-export type Timeframe = "1m" | "3m" | "6m" | "1y" | "all";
-
 export interface SessionModel {
 	id: number;
 	username: string;
@@ -36,6 +36,10 @@ export interface UserModel {
 	rank: number;
 	bio: string;
 	joinedOn: string;
+}
+
+export function isGuestUser(user: PlayerState | PlayerModel) {
+	return user.id < 0;
 }
 
 export type LbdUserModel = UserModel & {

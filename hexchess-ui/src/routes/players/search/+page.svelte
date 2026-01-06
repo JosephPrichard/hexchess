@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Pagination from '$lib/Pagination.svelte';
-	import StatsList from '$lib/components/stats/StatsList.svelte';
+	import StatsList from '$lib/components/user/StatsList.svelte';
 	import type { LbdUserModel, UserModel } from '$lib/api/models';
 	import Banner from '$lib/Banner.svelte';
 

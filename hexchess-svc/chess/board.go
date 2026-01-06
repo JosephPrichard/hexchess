@@ -148,8 +148,8 @@ func PbMoveStr(from string, to string) *pb.Move {
 	return &pb.Move{
 		FromFile: int32(fromHex.File),
 		FromRank: int32(fromHex.Rank),
-		ToFile: int32(toHex.File),
-		ToRank: int32(toHex.Rank),
+		ToFile:   int32(toHex.File),
+		ToRank:   int32(toHex.Rank),
 	}
 }
 
@@ -392,7 +392,7 @@ func MakeInitialBoard() Board {
 	return board
 }
 
-func MakeStartBoard(initial ...NotMove) Board {
+func MakeStartBoard(initial ...Place) Board {
 	board := InitialBoard()
 	for _, pm := range initial {
 		board.SetPieceNot(pm.Not, pm.Piece)
@@ -400,7 +400,7 @@ func MakeStartBoard(initial ...NotMove) Board {
 	return board
 }
 
-func MakeEmptyBoard(isWhiteTurn bool, initial ...NotMove) Board {
+func MakeEmptyBoard(isWhiteTurn bool, initial ...Place) Board {
 	board := Board{IsWhiteTurn: isWhiteTurn}
 	for _, pm := range initial {
 		board.SetPieceNot(pm.Not, pm.Piece)

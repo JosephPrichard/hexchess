@@ -210,85 +210,77 @@ func TestAttemptUndo(t *testing.T) {
 }
 
 func TestMakeMove(t *testing.T) {
-	s1 := MakeState(StateSetup{
+	stateWhiteTurn := MakeState(StateSetup{
 		ID:         "test1",
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      ptr.New(MakeIDPlayer(1)),
 		Black:      ptr.New(MakeIDPlayer(2)),
 	})
-	s2 := MakeState(StateSetup{
+	stateBlackIntoCheckmate := MakeState(StateSetup{
 		ID:         "test2",
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      ptr.New(MakeIDPlayer(3)),
 		Black:      ptr.New(MakeIDPlayer(4)),
 		Game: ptr.New(chess.MakeEmptyGame(false,
-			chess.NotMove{Not: "f1", Piece: chess.WhiteKing},
-			chess.NotMove{Not: "a2", Piece: chess.BlackQueen},
-			chess.NotMove{Not: "h1", Piece: chess.BlackRook},
-			chess.NotMove{Not: "f3", Piece: chess.BlackRook},
-			chess.NotMove{Not: "f9", Piece: chess.BlackKing},
+			chess.Place{Not: "f1", Piece: chess.WhiteKing},
+			chess.Place{Not: "a2", Piece: chess.BlackQueen},
+			chess.Place{Not: "h1", Piece: chess.BlackRook},
+			chess.Place{Not: "f3", Piece: chess.BlackRook},
+			chess.Place{Not: "f9", Piece: chess.BlackKing},
 		)),
 	})
 
-	type subTest struct {
-		pm      chess.Move
-		state   ChessState
-		player  PlayerState
-		wantErr error
-	}
 	for _, test := range []struct {
-		name  string
-		tests []subTest
+		name            string
+		pm              chess.Move
+		stateID         string
+		player          PlayerState
+		wantErr         error
+		wantHasReplay   bool
+		wantFinishState FinishState
 	}{
 		{
-			name: "invalid turn",
-			tests: []subTest{
-				{
-					pm:      chess.Move{To: chess.Hex{File: 1}},
-					state:   s1,
-					player:  s1.BlackPlayer,
-					wantErr: ErrTurn,
-				},
-			},
+			name:    "invalid turn",
+			pm:      chess.Move{To: chess.Hex{File: 1}},
+			stateID: stateWhiteTurn.ID,
+			player:  stateWhiteTurn.BlackPlayer,
+			wantErr: ErrTurn,
 		},
 		{
-			name: "invalid move",
-			tests: []subTest{
-				{
-
-					pm:      chess.Move{To: chess.Hex{File: 1}},
-					state:   s1,
-					player:  s1.WhitePlayer,
-					wantErr: ErrInvalidMove,
-				},
-			},
+			name:    "invalid move",
+			pm:      chess.Move{To: chess.Hex{File: 1}},
+			stateID: stateWhiteTurn.ID,
+			player:  stateWhiteTurn.WhitePlayer,
+			wantErr: ErrInvalidMove,
 		},
 		{
-			name: "invalid move",
-			tests: []subTest{
-				{
-					pm:      chess.Move{To: chess.Hex{File: 1}},
-					state:   s1,
-					player:  s1.WhitePlayer,
-					wantErr: ErrInvalidMove,
-				},
-			},
+			name:    "invalid move",
+			pm:      chess.Move{To: chess.Hex{File: 1}},
+			stateID: stateWhiteTurn.ID,
+			player:  stateWhiteTurn.WhitePlayer,
+			wantErr: ErrInvalidMove,
 		},
 		{
-			name: "valid move as white THEN black",
-			tests: []subTest{
-				{
-					pm:     chess.Move{Promotion: chess.QueenPromotion, From: chess.HexStr("b1"), To: chess.HexStr("b2")}, // valid move
-					state:  s1,
-					player: s1.WhitePlayer,
-				},
-				{
-					pm:     chess.Move{Promotion: chess.QueenPromotion, From: chess.HexStr("a2"), To: chess.HexStr("a1")}, // valid move
-					state:  s2,
-					player: s2.BlackPlayer,
-				},
+			name:    "valid move as white",
+			pm:      chess.MoveStr("b1", "b2"), // valid move
+			stateID: stateWhiteTurn.ID,
+			player:  stateWhiteTurn.WhitePlayer,
+		},
+		{
+			name:    "valid move as black",
+			pm:      chess.MoveStr("a2", "a1"), // valid move
+			stateID: stateBlackIntoCheckmate.ID,
+			player:  stateBlackIntoCheckmate.BlackPlayer,
+			wantFinishState: FinishState{
+				IsEnded:     true,
+				WinID:       4,
+				LoseID:      3,
+				WinEloDiff:  30,
+				LoseEloDiff: -30,
+				Cause:       Checkmate,
+				Result:      BlackWin,
 			},
 		},
 	} {
@@ -299,19 +291,20 @@ func TestMakeMove(t *testing.T) {
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
 
-			for _, cs := range []ChessState{s1, s2} {
-				cs.Game.InitPieceMoves()
-				if err := state.SetChessState(ctx, cs.ID, &cs); err != nil {
+			for _, c := range []ChessState{stateWhiteTurn, stateBlackIntoCheckmate, stateBlackIntoCheckmate} {
+				if err := state.SetChessState(ctx, c.ID, &c); err != nil {
 					t.Fatalf("failed initialize test state: %v", err)
 				}
 			}
 
-			for _, subTest := range test.tests {
-				// when
-				_, err := state.MakeGameMove(ctx, subTest.state.ID, subTest.player, subTest.pm)
+			// when
+			mr, err := state.MakeGameMove(ctx, test.stateID, test.player, test.pm)
 
-				// then
-				assert.Equal(t, subTest.wantErr, err)
+			// then
+			assert.Equal(t, test.wantErr, err)
+			assert.Equal(t, test.wantHasReplay, mr.ReplayID != 0)
+			if mr.State != nil {
+				assert.Equal(t, test.wantFinishState, mr.State.FinishState)
 			}
 		})
 	}
@@ -338,7 +331,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 
 	// when
 	require.NoError(t, state.SetChessState(ctx, gameID, &inState))
-	cs, err := state.ForfeitGame(ctx, gameID, inState.BlackPlayer)
+	replayID, fs, err := state.ForfeitGame(ctx, gameID, inState.BlackPlayer)
 	require.NoError(t, err)
 
 	// then
@@ -353,8 +346,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 		WhiteElo:    1015,
 		BlackElo:    985,
 	}
-	wantState := inState.DeepCopy()
-	wantState.FinishState = FinishState{
+	wantFs := FinishState{
 		IsEnded:     true,
 		WinID:       1,
 		LoseID:      2,
@@ -363,10 +355,14 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 		Cause:       Forfeit,
 		Result:      WhiteWin,
 	}
+	wantState := inState.DeepCopy()
+	wantState.FinishState = wantFs
 
 	AssertRedisChess(t, state, wantState, ChessMetaCmpOpt)
 
-	replay, err := state.Query.SelectReplayRowByID(ctx, cs.ReplayID)
+	require.Equal(t, wantFs, fs)
+
+	replay, err := state.Query.SelectReplayRowByID(ctx, replayID)
 	require.NoError(t, err)
 	assertutil.Equal(t, wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn", "MoveHistory"))
 }

@@ -4,23 +4,29 @@
 	import { getNotificationsContext } from '$lib/utils/context';
 
 	interface FENProps {
-		fen: string
+		fen: string;
+		onChange?: (fen: string) => void;
 	}
 
 	const { addNotification } = getNotificationsContext();
 
-	const { fen }: FENProps = $props();
+	const { fen, onChange }: FENProps = $props();
 
 	function onClickCopy() {
 		navigator.clipboard.writeText(fen);
 		addNotification({ type: 'string', isSuccess: true, message: 'Copied to clipboard!' })
+	}
+
+	function onChangeInput(e: Event) {
+		const el = e.target as HTMLInputElement;
+		onChange?.(el.value);
 	}
 </script>
 
 <div style:width={getLeft(11.5) + "px"}>
 	<div class="fen-wrapper">
 		<label for="fen" class="fen-label">FEN</label>
-		<input id="text" type="text" class="fen-input" value={fen} disabled/>
+		<input id="text" type="text" class="fen-input" value={fen} readonly={onChange === undefined} onchange={onChangeInput}/>
 		<button class="icon" onclick={onClickCopy}>
 			<ClipboardIcon/>
 		</button>

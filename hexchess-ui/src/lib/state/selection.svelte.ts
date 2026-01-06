@@ -1,5 +1,6 @@
 import type { Hex } from '$lib/api/models';
 import type { ChessGame, PieceMoves } from '$lib/pb/messages';
+import { deserializeHexList } from '$lib/utils/chess';
 
 export interface SelectionState {
 	potentialMoves: PieceMoves | undefined;
@@ -9,7 +10,7 @@ export interface SelectionState {
 export const NoSelection: SelectionState = { potentialMoves: undefined, hex: undefined };
 
 export function makeSelectionState() {
-	let value: SelectionState = $state({
+	let state: SelectionState = $state({
 		potentialMoves: undefined,
 		hex: undefined,
 	});
@@ -29,14 +30,19 @@ export function makeSelectionState() {
 			potentialMoves = game.whiteMoves[index];
 		}
 
-		value.potentialMoves = potentialMoves;
-		value.hex = hex;
+		state.potentialMoves = potentialMoves;
+		state.hex = hex;
 	}
 
 	function deSelect() {
-		value.potentialMoves = NoSelection.potentialMoves;
-		value.hex = NoSelection.hex;
+		state.potentialMoves = NoSelection.potentialMoves;
+		state.hex = NoSelection.hex;
 	}
 
-	return { value, select, deSelect };
+	function getPotentialMoves() {
+		const pm = state.potentialMoves;
+		return deserializeHexList(pm?.moves);
+	}
+
+	return { state, getPotentialMoves, select, deSelect };
 }

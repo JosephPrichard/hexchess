@@ -1,14 +1,28 @@
 export function formatReplayResult(result: string) {
 	switch (result) {
-		case 'WHITE_WINS':
-			return 'White Victory';
-		case 'BLACK_WINS':
-			return 'Black Victory';
-		case 'DRAW':
-			return 'Draw';
-		default:
-			console.error('Unknown replay result', result);
-			return '';
+	case 'WHITE_WINS':
+		return 'White Victory';
+	case 'BLACK_WINS':
+		return 'Black Victory';
+	case 'DRAW':
+		return 'Draw';
+	default:
+		console.error('Unknown replay result', result);
+		return '';
+	}
+}
+
+export function getReplayColors(result: string) {
+	switch (result) {
+	case 'WHITE_WINS':
+		return ['green-color', 'red-color'];
+	case 'BLACK_WINS':
+		return ['red-color', 'green-color'];
+	case 'DRAW':
+		return ['yellow-color', 'yellow-color'];
+	default:
+		console.error('Unknown result case', result);
+		return ['', ''];
 	}
 }
 

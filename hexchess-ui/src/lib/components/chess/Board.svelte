@@ -8,6 +8,7 @@
 	import { browser } from '$app/environment';
 	import { boardToFenWasm } from '$lib/api/wasm';
 	import type { Promotion } from '$lib/state/game.svelte';
+	import type { BadPromotionType } from '$lib/components/chess/piece';
 
 	export interface BoardProps {
 		board?: ChessBoard;
@@ -24,7 +25,8 @@
 		onDeSelectPiece?: (hex: Hex) => void;
 		onDropPiece?: (from: Hex, to: Hex) => void;
 		onSetPiece?: (hex: Hex) => void;
-		onCompletePromotion?: (promotedPiece?: number) => void;
+		onCompletePromotion?: (promotedPiece: number | BadPromotionType) => void;
+		onChangeFen?: (fen: string) => void;
 	}
 
 	let { 
@@ -42,7 +44,8 @@
 		onDeSelectPiece,
 		onDropPiece,
 		onSetPiece,
-		onCompletePromotion 
+		onCompletePromotion,
+		onChangeFen
 	}: BoardProps = $props();
 
 	let prevPieces: [number, PlacedPiece][] | undefined = undefined;
@@ -76,7 +79,7 @@
 		return file + "," + rank;
 	}
 
-	const pmMap = $derived.by(() => {
+	const pieceMoves = $derived.by(() => {
 		const pmm: Map<string, boolean> = new Map();
 		if (potentialMoves) {
 			for (const move of potentialMoves) {
@@ -134,7 +137,7 @@
 			{@const { file, rank } = p}
 			{@const top = getTop(file, rank, isWhitePerspective)}
 			{@const left = getLeft(file, isWhitePerspective)}
-			{@const isMoveTarget = pmMap.get(makeMoveKey(file, rank))}
+			{@const isMoveTarget = pieceMoves.get(makeMoveKey(file, rank))}
 			{@const isSelected = hexEq(selected, p)}
 			{@const isPromoting = hexEq(promotion?.to, p)}
 			{@const isDraggable = draggable !== "none" && (draggable === "anyone" || (draggable === "turn"))}
@@ -168,7 +171,7 @@
 				{@const left = getLeft(file, isWhitePerspective)}
 				{@const bgIndex = (colorsOffset[file] + rank) % 3}
 				{@const isPrevMove = hexEq(prevMoveFrom, hex) || hexEq(prevMoveTo, hex)}
-				{@const isMoveTarget = pmMap.get(makeMoveKey(file, rank))}
+				{@const isMoveTarget = pieceMoves.get(makeMoveKey(file, rank))}
 				{@const isSelected = hexEq(selected, hex)}
 				{@const isHovering = hexEq(hovering, hex)}
 				{@const bgColor = pickTileBgColor({isPrevMove, isSelected, isMoveTarget, isHovering})}
@@ -244,7 +247,7 @@
 	</div>
 	{#await awaitingFen then fen}
 		{#if fen}
-			<Fen fen={fen}/>
+			<Fen fen={fen} onChange={onChangeFen}/>
 		{/if}
 	{/await}
 </div>

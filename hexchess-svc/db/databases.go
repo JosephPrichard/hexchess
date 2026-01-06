@@ -16,19 +16,21 @@ type RedisAddrs struct {
 }
 
 type RedisNames struct {
-	LeaderboardZSet string
-	GamesZSet       string
-	ActiveUsersZSet string
-	GamesChan       string
-	UsersChan       string
-	GamesCountChan  string
-	ActiveCountChan string
+	LeaderboardZSet  string
+	GamesZSet        string
+	ActiveUsersZSet  string
+	GameChatsPostfix string
+	GamesChan        string
+	UsersChan        string
+	GamesCountChan   string
+	ActiveCountChan  string
 }
 
 const (
 	LeaderboardZSet = "leaderboard"
 	GamesZSet       = "games"
 	ActiveUsersZSet = "active_users"
+	GameChatsPrefix = "chats"
 	GamesChan       = "games_chan"
 	UsersChan       = "users_chan"
 	GamesCountChan  = "games_count"
@@ -36,13 +38,14 @@ const (
 )
 
 var DefaultRedisNames = RedisNames{
-	LeaderboardZSet: LeaderboardZSet,
-	GamesZSet:       GamesZSet,
-	ActiveUsersZSet: ActiveUsersZSet,
-	GamesChan:       GamesChan,
-	UsersChan:       UsersChan,
-	GamesCountChan:  GamesCountChan,
-	ActiveCountChan: ActiveCountChan,
+	LeaderboardZSet:  LeaderboardZSet,
+	GamesZSet:        GamesZSet,
+	ActiveUsersZSet:  ActiveUsersZSet,
+	GameChatsPostfix: GameChatsPrefix,
+	GamesChan:        GamesChan,
+	UsersChan:        UsersChan,
+	GamesCountChan:   GamesCountChan,
+	ActiveCountChan:  ActiveCountChan,
 }
 
 type Postgres struct {

@@ -25,8 +25,8 @@
 
 	const { addNotification } = getNotificationsContext();
 
-	let moveState = makeMoveState();
-	const selectionState = makeSelectionState();
+	let move = makeMoveState();
+	const selection = makeSelectionState();
 
 	let subGameIndex: number | undefined = undefined;
 
@@ -57,7 +57,7 @@
 	});
 
 	$effect(() => {
-		moveState.updateMoveCount(moveList.length);
+		move.updateMoveCount(moveList.length);
 	});
 
 	function getGame(moveList: ReplayMoveRoot[], index?: number): [ChessGame | undefined, ReplayMove[]] {
@@ -70,8 +70,8 @@
 	}
 
 	const prevMove = $derived.by(() =>
-		moveList.length > 0 && moveState?.value.moveIndex !== undefined
-			? moveList[moveState.value.moveIndex].pm
+		moveList.length > 0 && move?.state.moveIndex !== undefined
+			? moveList[move.state.moveIndex].pm
 			: undefined);
 
 	// async function onPieceMove(from: Hex, to: Hex) {
@@ -91,21 +91,20 @@
 
 	async function onSelectMove(index: number) {
 		subGameIndex = undefined;
-		moveState.selectMove(index);
+		move.selectMove(index);
 		onDeSelect();
 	}
 
 	function onSelect(hex: Hex) {
-		selectionState.select(game, hex);
+		selection.select(game, hex);
 	}
 
 	function onDeSelect() {
-		selectionState.deSelect();
+		selection.deSelect();
 	}
 
-	const [game, _] = $derived.by(() => getGame(moveList, moveState.value.moveIndex));
+	const [game, _] = $derived.by(() => getGame(moveList, move.state.moveIndex));
 	const rootNotationList = $derived.by(() => moveList.map(move => move.notation));
-	const potentialMoves = $derived.by(() => deserializeHexList(selectionState.value.potentialMoves?.moves));
 </script>
 
 <svelte:head>
@@ -117,31 +116,31 @@
 		<Board
 			board={game?.board}
 			fen={true}
-			potentialMoves={potentialMoves}
+			potentialMoves={selection.getPotentialMoves()}
 			draggable="anyone"
-			isWhitePerspective={moveState.value.isWhitePerspective}
+			isWhitePerspective={move.state.isWhitePerspective}
 			prevMove={prevMove}
 			onSelectPiece={onSelect}
 			onDeSelectPiece={onDeSelect}
 		/>
 		<div class="side-table side-table-capped" style:width="300px">
 			<ReplayPanel replay={replay} />
-			<TurnWrapper isWhitePerspective={moveState.value.isWhitePerspective} isWhiteTurn={game?.board?.isWhiteTurn} isEdged>
+			<TurnWrapper isWhitePerspective={move.state.isWhitePerspective} isWhiteTurn={game?.board?.isWhiteTurn} isEdged>
 				<MoveList
 					moveList={rootNotationList}
 					onSelectMove={onSelectMove}
-					selectedMoveIndex={moveState.value.moveIndex}
+					selectedMoveIndex={move.state.moveIndex}
 				/>
 			</TurnWrapper>
 			<div class="side-table-footer">
 				<div class="move-table-nav-buttons">
-					<button title="Previous Move" class="button-transparent" style:padding-top="5px" onclick={moveState.goLeft}>
+					<button title="Previous Move" class="button-transparent" style:padding-top="5px" onclick={move.goLeft}>
 						<LeftIcon />
 					</button>
-					<button title="Flip Board" class="button-transparent" style:padding-top="5px" onclick={moveState.flip}>
+					<button title="Flip Board" class="button-transparent" style:padding-top="5px" onclick={move.flip}>
 						<FlipIcon />
 					</button>
-					<button title="Next Move" class="button-transparent" style:padding-top="5px" onclick={moveState.goRight}>
+					<button title="Next Move" class="button-transparent" style:padding-top="5px" onclick={move.goRight}>
 						<RightIcon />
 					</button>
 				</div>

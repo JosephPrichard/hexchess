@@ -59,8 +59,8 @@ message ChessGame {
 message FinishState {
   int64 win_id = 1;
   int64 lose_id = 2;
-  double win_elo_diff = 3;
-  double lose_elo_diff = 4;
+  int32 win_elo_diff = 3;
+  int32 lose_elo_diff = 4;
   string cause = 5;
   string result = 6;
 }
@@ -147,6 +147,7 @@ message ChatOutput {
 
 message ForfeitOutput {
   int64 replay_id = 1;
+  FinishState finish_state = 2;
 }
 
 message UndoOutput {

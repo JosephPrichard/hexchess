@@ -26,20 +26,20 @@ type Game struct {
 	PinTable         [Files][MaxRanks][]Hex
 }
 
-type NotMove struct {
+type Place struct {
 	Not   string
 	Piece Piece
 }
 
-func MakeStartGame(initial ...NotMove) Game {
+func MakeStartGame(initial ...Place) Game {
 	return Game{Board: MakeStartBoard(initial...)}
 }
 
-func MakeEmptyGame(isWhiteTurn bool, initial ...NotMove) Game {
+func MakeEmptyGame(isWhiteTurn bool, initial ...Place) Game {
 	return Game{Board: MakeEmptyBoard(isWhiteTurn, initial...)}
 }
 
-func (g *Game) SetPieces(initial ...NotMove) {
+func (g *Game) SetPieces(initial ...Place) {
 	for _, move := range initial {
 		g.Board.SetPieceNot(move.Not, move.Piece)
 	}
@@ -186,27 +186,62 @@ func (g *Game) MakeMove(mv Move) HistMove {
 	return hm
 }
 
+type MoveErrorKind int
+
+const (
+	MoveErrNoop MoveErrorKind = iota + 1
+	MoveErrOutOfBounds
+	MoveErrInvalidPromotion
+	MoveErrPieceCannotMove
+	MoveErrIllegalDestination
+	MoveErrIllegalTarget
+)
+
+type MoveError struct {
+	Kind MoveErrorKind
+	Move Move
+}
+
+func (e MoveError) Error() string {
+	switch e.Kind {
+	case MoveErrNoop:
+		return fmt.Sprintf("move is a noop: %v", e.Move)
+	case MoveErrOutOfBounds:
+		return fmt.Sprintf("move is out of bounds: %v", e.Move)
+	case MoveErrInvalidPromotion:
+		return fmt.Sprintf("promotion is invalid: %v", e.Move)
+	case MoveErrPieceCannotMove:
+		return fmt.Sprintf("piece cannot move: %v", e.Move)
+	case MoveErrIllegalDestination:
+		return fmt.Sprintf("piece cannot move to hex: %v", e.Move)
+	case MoveErrIllegalTarget:
+		return fmt.Sprintf("cannot move piece at hex: %v", e.Move)
+	default:
+		return fmt.Sprintf("invalid move: %v", e.Move)
+	}
+}
+
 func (g *Game) ValidateMove(move Move) error {
 	if move.From.File == move.To.File && move.From.Rank == move.To.Rank {
-		return fmt.Errorf("move is a noop: %v", move)
+		return MoveError{Kind: MoveErrNoop, Move: move}
 	}
 	if !g.Board.InBoundsHex(move.From) || !g.Board.InBoundsHex(move.To) {
-		return fmt.Errorf("move is out of bounds: %v", move)
+		return MoveError{Kind: MoveErrOutOfBounds, Move: move}
 	}
 	if IsLastRank(move.To) && g.Board.Get(move.From.File, move.From.Rank).IsPawn() {
 		switch move.Promotion {
 		case QueenPromotion, RookPromotion, BishopPromotion, KnightPromotion:
 		default:
-			return fmt.Errorf("promotion is invalid %v", move)
+			return MoveError{Kind: MoveErrInvalidPromotion, Move: move}
 		}
 	}
 	legalMoves := g.GetCurrMoves()
 	pmsIdx := slices.IndexFunc(legalMoves, func(moves PieceMoves) bool { return moves.From == move.From })
 	if pmsIdx < 0 {
-		return fmt.Errorf("piece cannot move: %v", move)
+		return MoveError{Kind: MoveErrIllegalTarget, Move: move}
 	}
 	if moveIdx := slices.IndexFunc(legalMoves[pmsIdx].Moves, func(to Hex) bool { return to == move.To }); moveIdx < 0 {
-		return fmt.Errorf("piece cannot move to hex: %v", move)
+		return MoveError{Kind: MoveErrIllegalDestination, Move: move}
 	}
 	return nil
 }

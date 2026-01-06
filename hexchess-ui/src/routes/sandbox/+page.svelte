@@ -16,8 +16,9 @@
 	import TurnWrapper from '$lib/components/chess/TurnWrapper.svelte';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import Dropdown from '$lib/components/util/Dropdown.svelte';
-	import { makeGameState } from '$lib/state/game.svelte';
+	import { makeSandboxState } from '$lib/state/game.svelte';
 	import Banner from '$lib/Banner.svelte';
+	import { BadPromotion, type BadPromotionType } from '$lib/components/chess/piece';
 
 	export interface SandboxProps {
 		fen: string;
@@ -29,9 +30,9 @@
 
 	let boardElement: HTMLElement | undefined = $state(undefined);
 
-	const moveState = makeMoveState();
-	const selectionState = makeSelectionState();
-	const gameState = makeGameState();
+	const move = makeMoveState();
+	const selection = makeSelectionState();
+	const sandbox = makeSandboxState();
 
 	let mode: "edit" | "play" = $state("edit");
 	let isTrashcanSelect = $state(false);
@@ -42,49 +43,49 @@
 	let fen = $state(props.fen);
 
 	async function onSelectPiece(hex: Hex) {
-		const game = gameState.value.game;
+		const game = sandbox.state.game;
 		if (isTrashcanSelect) {
-			gameState.removePiece(hex);
+			sandbox.removePiece(hex);
 			onDeSelectPiece();
 		} else {
-			selectionState.select(game, hex);
+			selection.select(game, hex);
 		}
 	}
 
 	function onDeSelectPiece() {
-		selectionState.deSelect();
+		selection.deSelect();
 	}
 
 	async function handleSetBoardTurn(value: string) {
 		const turn = value == "WHITE";
-		gameState.setTurn(turn)
+		sandbox.setTurn(turn)
 	}
 
 	async function onDropPieceSet(hex: Hex) {
 		if (selectedPiece && !isTrashcanSelect) {
-			gameState.placePiece(hex, selectedPiece);
+			sandbox.placePiece(hex, selectedPiece);
 		}
 	}
 
 	async function onClickClearBoard() {
 		onDeSelectPiece();
-		gameState.clear();
+		sandbox.clear();
 	}
 
 	async function onPieceMove(from: Hex, to: Hex) {
-		const game = gameState.value.game;
+		const game = sandbox.state.game;
 		switch (mode) {
 		case "edit":
-			gameState.movePiece(from, to);
+			sandbox.movePiece(from, to);
 			break;
 		case "play":
 			if (isLastRank(to)) {
-				gameState.movePiece(from, to);
-				gameState.setPromotion({from, to});
+				sandbox.movePiece(from, to);
+				sandbox.setPromotion({from, to});
 			} else {
 				const next = await makeMoveWasm($state.snapshot(game), {from, to, promotion: 0});
 				if (next !== undefined) {
-					gameState.setGame(next);
+					sandbox.setGame(next);
 				}
 			}
 			break;
@@ -92,87 +93,89 @@
 		onDeSelectPiece();
 	}
 
-	async function onCompletePromotion(promotedPiece?: number) {
-		if (gameState.value.promotion === undefined) {
+	async function onCompletePromotion(promotedPiece: number | BadPromotionType) {
+		if (sandbox.state.promotion === undefined) {
 			return;
 		}
-		if (promotedPiece !== undefined) {
-			const move = { from: gameState.value.promotion.from, to: gameState.value.promotion.to, promotion: promotedPiece };
-			const next = await makeMoveWasm($state.snapshot(gameState.value.prevGame), move);
-			if (next !== undefined) {
-				gameState.setGame(next);
-			} else {
-				gameState.revert();
-			}
+		if (promotedPiece === BadPromotion) {
+			sandbox.revert();
 		} else {
-			gameState.revert();
+			const move = { from: sandbox.state.promotion.from, to: sandbox.state.promotion.to, promotion: promotedPiece };
+			const next = await makeMoveWasm($state.snapshot(sandbox.state.prevGame), move);
+			if (next !== undefined) {
+				sandbox.setGame(next);
+			} else {
+				sandbox.revert();
+			}
 		}
-		gameState.setPromotion(undefined);
+		sandbox.setPromotion(undefined);
 	}
 
 	async function setMode(newMode: "edit" | "play") {
-		const game = gameState.value.game;
+		const game = sandbox.state.game;
 		const board = $state.snapshot(game?.board);
 		if (!board) {
 			return
 		}
 		const next = await getMovesWasm(board);
 		if (next !== undefined) {
-			gameState.setGame(next);
+			sandbox.setGame(next);
 		}
 		selectedPiece = undefined;
 		mode = newMode;
 	}
 
 	async function loadInitialGame() {
-		gameState.setGame(await getInitialGameWasm());
+		sandbox.setGame(await getInitialGameWasm());
 		onDeSelectPiece();
 	}
 
-	$effect(() => {
-		(async (fenInput: string) => {
-			let isInitialGame = false;
-			if (fenInput != "") {
-				const result = await fenToGameWasm(fenInput);
-				if (typeof result === "string") {
-					addNotification({ type: 'string', message: result, isSuccess: false });
-					isInitialGame = true;
-				} else {
-					gameState.setGame(result);
-				}
+	async function boardFromFenURL(fenInput: string) {
+		let isInitialGame = false;
+		if (fenInput != "") {
+			const [game, err] = await fenToGameWasm(fenInput);
+			if (game) {
+				sandbox.setGame(game);
 			} else {
+				addNotification({ type: 'string', message: err, isSuccess: false });
 				isInitialGame = true;
 			}
-			if (isInitialGame) {
-				await loadInitialGame();
-			}
-		})(props.fen)
+		} else {
+			isInitialGame = true;
+		}
+		if (isInitialGame) {
+			await loadInitialGame();
+		}
+	}
+
+	async function fenURLFromBoard(board?: ChessBoard) {
+		const f = await boardToFenWasm(board);
+		if (!f) {
+			return;
+		}
+		fen = f;
+		history.replaceState({}, "", `/sandbox?fen=${encodeURIComponent(fen)}`);
+	}
+
+	async function onChangeFen(fenInput: string) {
+		const [game, _] = await fenToGameWasm(fenInput);
+		if (game) {
+			sandbox.setGame(game);
+		}
+	}
+
+	$effect(() => {
+		boardFromFenURL(props.fen);
 	});
 
 	$effect(() => {
-		const game = gameState.value.game;
-		(async (board?: ChessBoard) => {
-			const f = await boardToFenWasm(board);
-			if (!f) {
-				return;
-			}
-			fen = f;
-			history.replaceState({}, "", `/sandbox?fen=${encodeURIComponent(fen)}`);
-		})(game?.board)
+		const game = sandbox.state.game;
+		fenURLFromBoard(game?.board)
 	});
 
 	const draggable = $derived.by(() => mode == "play" ? "turn" : "anyone");
-
-	const prevMove = $derived.by(() => {
-		const game = gameState.value.game;
-		return !game?.moves || game.moves.length == 0
-			? undefined
-			: game.moves[game.moves.length - 1]
-	});
-
-	const potentialMoves = $derived.by(() => mode === "play" ? deserializeHexList(selectionState.value.potentialMoves?.moves) : undefined);
-
-	const awaitingNotList = $derived.by(async () => await getMoveNotationsWasm(gameState.value.game?.moves));
+	const potentialMoves = $derived.by(() => mode === "play" ? selection.getPotentialMoves() : undefined);
+	const awaitingNotList = $derived.by(async () => await getMoveNotationsWasm(sandbox.state.game?.moves));
 </script>
 <svelte:head>
 	<title>Sandbox - Hexchess</title>
@@ -181,15 +184,16 @@
 <div class="center-horizontal-container">
 	<div class="center-vertical-container" style="align-items: stretch;">
 		<Board
-			board={gameState.value.game?.board}
-			isWhitePerspective={moveState.value.isWhitePerspective}
+			board={sandbox.state.game?.board}
+			isWhitePerspective={move.state.isWhitePerspective}
 			fen={true}
+			onChangeFen={onChangeFen}
 			bind:boardElement={boardElement}
 			draggable={draggable}
-			selected={selectionState.value.hex}
-			promotion={gameState.value.promotion}
+			selected={selection.state.hex}
+			promotion={sandbox.state.promotion}
 			bind:hovering={hoveringHex}
-			prevMove={prevMove}
+			prevMove={sandbox.getPrevMove()}
 			potentialMoves={potentialMoves}
 			onSelectPiece={onSelectPiece}
 			onDeSelectPiece={onDeSelectPiece}
@@ -200,7 +204,7 @@
 		<div class="side-bar side-table-capped" class:side-bar-short={mode === "edit"} class:side-bar-long={mode === "play"}>
 			{#if mode === "play"}
 				<div class="side-table growing-box sandbox-display">
-					<TurnWrapper isWhitePerspective={moveState.value.isWhitePerspective} isWhiteTurn={gameState.value.game?.board?.isWhiteTurn}>
+					<TurnWrapper isWhitePerspective={move.state.isWhitePerspective} isWhiteTurn={sandbox.state.game?.board?.isWhiteTurn}>
 						{#await awaitingNotList then notList}
 							<MoveList moveList={notList} />
 						{/await}
@@ -210,12 +214,12 @@
 				<div class="growing-box sandbox-display">
 					<Dropdown
 						options={[{label: "White's Turn", value: "WHITE"}, {label: "Black's Turn", value: "BLACK"}]}
-						selected={gameState.value.game?.board?.isWhiteTurn ? "WHITE" : "BLACK"} 
+						selected={sandbox.state.game?.board?.isWhiteTurn ? "WHITE" : "BLACK"}
 						onChange={handleSetBoardTurn}
 					/>
 					<div class="piece-panels-container">
 						<PieceEditor
-							isWhitePerspective={moveState.value.isWhitePerspective}
+							isWhitePerspective={move.state.isWhitePerspective}
 							bind:selectedPiece={selectedPiece}
 							bind:boardElement={boardElement}
 							bind:hoveringHexagon={hoveringHex}
@@ -241,7 +245,7 @@
 						</span>
 					</button>
 				{/if}
-				<button class="button-transparent side-bar-button" onclick={moveState.flip}>
+				<button class="button-transparent side-bar-button" onclick={move.flip}>
 					<FlipIcon />
 					<span class="button-text">
 						Flip Board

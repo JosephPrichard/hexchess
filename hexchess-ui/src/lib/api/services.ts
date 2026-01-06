@@ -1,5 +1,5 @@
 import { codes } from '$lib/utils/error';
-import type { Action, ChallengeModel, ChessModel, EloBuckets, FullUserModel, LbdUserModel, ReplayModel, ServiceModel, SessionModel, Timeframe, UserModel } from './models';
+import type { Action, ChallengeModel, ChessModel, EloBuckets, FullUserModel, LbdUserModel, ReplayModel, ServiceModel, SessionModel, UserModel } from './models';
 import { v4 as uuidv4 } from 'uuid';
 import { env } from '$env/dynamic/public';
 import { MoveReplay } from '../pb/messages';
@@ -261,7 +261,7 @@ function getReplay(id: string, fetch?: FetchFn) {
 	return requestJSON<Response>(`${baseURL()}/replay?${params}`, { method: 'GET' }, fetch);
 }
 
-function getEloHistories(userId: number, timeframe: Timeframe, fetch?: FetchFn) {
+function getEloHistories(userId: number, timeframe: string, fetch?: FetchFn) {
 	const params = new URLSearchParams({
 		userId: userId.toString(),
 		timeframe

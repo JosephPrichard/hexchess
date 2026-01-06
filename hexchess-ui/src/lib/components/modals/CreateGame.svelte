@@ -72,24 +72,24 @@
 </div>
 
 <style>
-	.modal-panel {
-        margin-bottom: 25px;
-	}
-
     .modal-x {
         position: absolute;
         top: 20px;
         right: 20px;
-		height: 25px;
+        height: 25px;
         cursor: pointer;
         background: rgb(210, 4, 45);
-		border: none;
-		border-radius: 2px;
+        border: none;
+        border-radius: 2px;
     }
 
-	.modal-x:hover {
+    .modal-x:hover {
         background: rgb(250, 44, 85);
-	}
+    }
+
+    .modal-panel {
+        margin-bottom: 25px;
+    }
 
     .color-piece-image {
         width: 65px;

@@ -41,7 +41,7 @@ func readBroadcasted(outputsChan chan []any, subChan chan []byte, count int) {
 // Database assertions run after message assertions and can assume that inbound websocket messages are valid
 func TestHandleGameplayWs(t *testing.T) {
 	gameID := TestGameID1
-	cmnWantMsgs := []*pb.GameOutput{
+	wantMsgs := []*pb.GameOutput{
 		{
 			GameId: gameID,
 			Value: &pb.GameOutput_Init{Init: &pb.InitOutput{
@@ -50,7 +50,6 @@ func TestHandleGameplayWs(t *testing.T) {
 					// ignoring Game and Touch.
 					WhitePlayer:  &pb.PlayerState{Id: 1, Name: "user1", Country: "us"},
 					BlackPlayer:  &pb.PlayerState{Id: 2, Name: "user2", Country: "us"},
-					IsEnded:      false,
 					FirstColor:   svc.Random.String(),
 					Mode:         svc.ModeCorrespondence1.String(),
 					InitialBoard: nil,
@@ -71,9 +70,31 @@ func TestHandleGameplayWs(t *testing.T) {
 			Value:  &pb.GameOutput_BgInit{BgInit: &pb.BgInitOutput{}},
 		},
 	}
-	cmnBrdcasts := []any{cmnWantMsgs[1], cmnWantMsgs[2]}
+	wantBrdcasts := []any{wantMsgs[1], wantMsgs[2]}
 
-	//ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	wantForfeit := &pb.GameOutput_Forfeit{Forfeit: &pb.ForfeitOutput{
+		ReplayId: 1,
+		FinishState: &pb.FinishState{
+			WinId:       2,
+			LoseId:      1,
+			WinEloDiff:  15,
+			LoseEloDiff: -15,
+			Cause:       "FORFEIT",
+			Result:      "BLACK_WINS",
+		},
+	}}
+	wantValidMove := &pb.GameOutput_Move{Move: &pb.MoveOutput{
+		UpdatedAt: db.TestTimeNow.Format(time.RFC3339),
+		Move:      &pb.HistMove{Piece: int32(chess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, CollFile: true, CollRank: true},
+	}}
+	wantChat := &pb.GameOutput{
+		GameId: gameID,
+		Value: &pb.GameOutput_Chat{Chat: &pb.ChatOutput{
+			Message: "Hello World",
+			Player:  &pb.PlayerState{Id: 1, Name: "user1", Country: "us"},
+			SentAt:  db.TestTimeNow.Format(time.RFC3339),
+		}},
+	}
 
 	for _, test := range []struct {
 		name         string
@@ -99,48 +120,19 @@ func TestHandleGameplayWs(t *testing.T) {
 				{Value: &pb.GameInput_Move{Move: &pb.MoveInput{Move: chess.PbMoveStr("b1", "b2")}}},
 			},
 			wantMsgs: []*pb.GameOutput{
-				{
-					GameId: gameID,
-					Value: &pb.GameOutput_Move{Move: &pb.MoveOutput{
-						UpdatedAt: db.TestTimeNow.Format(time.RFC3339),
-						Move:      &pb.HistMove{Piece: int32(chess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, CollFile: true, CollRank: true},
-					}},
-				},
+				{GameId: gameID, Value: wantValidMove},
 			},
 			wantBrdcasts: []any{
-				&pb.GameOutput{
-					GameId: gameID,
-					Value: &pb.GameOutput_Move{Move: &pb.MoveOutput{
-						UpdatedAt: db.TestTimeNow.Format(time.RFC3339),
-						Move:      &pb.HistMove{Piece: int32(chess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, CollFile: true, CollRank: true},
-					}},
-				}},
+				&pb.GameOutput{GameId: gameID, Value: wantValidMove},
+			},
 		},
 		{
 			name: "chat input",
 			inputMsgs: []*pb.GameInput{
 				{Value: &pb.GameInput_Chat{Chat: &pb.ChatInput{Message: "Hello World"}}},
 			},
-			wantMsgs: []*pb.GameOutput{
-				{
-					GameId: gameID,
-					Value: &pb.GameOutput_Chat{Chat: &pb.ChatOutput{
-						Message: "Hello World",
-						Player:  &pb.PlayerState{Id: 1, Name: "user1", Country: "us"},
-						SentAt:  db.TestTimeNow.Format(time.RFC3339),
-					}},
-				},
-			},
-			wantBrdcasts: []any{
-				&pb.GameOutput{
-					GameId: gameID,
-					Value: &pb.GameOutput_Chat{Chat: &pb.ChatOutput{
-						Message: "Hello World",
-						Player:  &pb.PlayerState{Id: 1, Name: "user1", Country: "us"},
-						SentAt:  db.TestTimeNow.Format(time.RFC3339),
-					}},
-				},
-			},
+			wantMsgs:     []*pb.GameOutput{wantChat},
+			wantBrdcasts: []any{wantChat},
 		},
 		{
 			name: "forfeit input",
@@ -148,10 +140,10 @@ func TestHandleGameplayWs(t *testing.T) {
 				{Value: &pb.GameInput_Forfeit{}},
 			},
 			wantMsgs: []*pb.GameOutput{
-				{GameId: gameID, Value: &pb.GameOutput_Forfeit{}},
+				{GameId: gameID, Value: wantForfeit},
 			},
 			wantBrdcasts: []any{
-				&pb.GameOutput{GameId: gameID, Value: &pb.GameOutput_Forfeit{}},
+				&pb.GameOutput{GameId: gameID, Value: wantForfeit},
 			},
 		},
 		{
@@ -178,8 +170,8 @@ func TestHandleGameplayWs(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// given
-			wantMsgs := slices.Concat(cmnWantMsgs, test.wantMsgs)
-			wantBrdcasts := slices.Concat(cmnBrdcasts, test.wantBrdcasts)
+			wantMsgs := slices.Concat(wantMsgs, test.wantMsgs)
+			wantBrdcasts := slices.Concat(wantBrdcasts, test.wantBrdcasts)
 
 			state, closer := svc.BeforeStateTest(t, true)
 			defer closer()

@@ -236,11 +236,15 @@ func (app *App) handleGameMessage(ctx GameSocketContext, input message) {
 }
 
 func (app *App) handleGameForfeit(ctx GameSocketContext) error {
-	cs, err := app.State.ForfeitGame(ctx.Context, ctx.GameID, ctx.Player)
+	replayID, fs, err := app.State.ForfeitGame(ctx.Context, ctx.GameID, ctx.Player)
 	if err != nil {
 		return fmt.Errorf("forfeit game %s: %w", ctx.GameID, err)
 	}
-	bytes, err := proto.Marshal(MakePbGameOutputForfeit(ctx.GameID, cs.ReplayID))
+	bytes, err := proto.Marshal(MakePbGameOutputForfeit(
+		ctx.GameID,
+		replayID,
+		svc.SerializeFinishState(fs),
+	))
 	if err != nil {
 		return err
 	}

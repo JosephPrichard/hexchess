@@ -6,11 +6,10 @@
 	import Board from '$lib/components/chess/Board.svelte';
 	import ClipboardIcon from '$lib/components/icons/ClipboardIcon.svelte';
 	import FlagIcon from '$lib/components/icons/FlagIcon.svelte';
-	import SettingsIcon from '$lib/components/icons/SettingsIcon.svelte';
 	import UndoIcon from '$lib/components/icons/UndoIcon.svelte';
 	import PieceList from '$lib/components/chess/PieceList.svelte';
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
-	import { type ChatMsg, type ChatOutput, type ChessGame, GameInput, GameOutput, type PlayerState } from '$lib/pb/messages';
+	import { type ChatMsg, type ChatOutput, type ChessGame, type FinishState, GameInput, GameOutput, type Move, type PlayerState } from '$lib/pb/messages';
 	import type { Hex } from '$lib/api/models';
 	import { deserializeHexList } from '$lib/utils/chess.js';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
@@ -19,9 +18,13 @@
 	import { onMount } from 'svelte';
 	import Banner from '$lib/Banner.svelte';
 	import Error from '$lib/Error.svelte';
+	import ChatIcon from '$lib/components/icons/ChatIcon.svelte';
+	import FinishPanel from '$lib/components/user/FinishPanel.svelte';
+	import type { Promotion } from '$lib/state/game.svelte';
 
 	const maxTimeout = 2500;
 	const successConnThresholdTime = 5000;
+	const dangerTimerThreshold = 15000;
 
 	export interface PlayProps {
 		gameId: string
@@ -36,6 +39,7 @@
 	let game = $state<ChessGame | undefined>(undefined);
 	let whitePlayer = $state<PlayerState | undefined>(undefined);
 	let blackPlayer = $state<PlayerState | undefined>(undefined);
+	let finishState = $state<FinishState | undefined>(undefined);
 
 	let selfPlayer: PlayerState | undefined = $state(undefined);
 
@@ -44,6 +48,13 @@
 
 	let chats: (ChatOutput | ChatMsg)[] = $state([]);
 	let chatText = $state("");
+
+	let promotion: Promotion | undefined = $state(undefined);
+
+	let showSideTable: "CHAT" | "MOVES" = $state("MOVES");
+	let showForfeitModal: boolean = $state(false);
+
+	let gameExists = $state(props.gameExists);
 
 	let selection = makeSelectionState();
 
@@ -54,32 +65,65 @@
 	}
 	let connState = $state<ConnectionState>({ tries: 0 });
 
+	function onClickToggleChat() {
+		switch (showSideTable) {
+		case "CHAT":
+			showSideTable = "MOVES";
+			break;
+		case "MOVES":
+			showSideTable = "CHAT";
+			break;
+		}
+	}
+
 	async function onClickCopy() {
 		await navigator.clipboard.writeText(link);
 		addNotification({ type: 'string', message: "Copied share link", isSuccess: true, duration: 2000 });
 	}
 
-	function onClickForfeit() {}
+	function onToggleForfeitModal() {
+		showForfeitModal = !showForfeitModal;
+	}
+
+	function onCloseForfeitModal() {
+		showForfeitModal = false
+	}
+
+	function onConfirmForfeit() {
+		connState.ws?.send?.(GameInput.toBinary({
+			value: {
+				oneofKind: 'forfeit',
+				forfeit: {}
+			}
+		}));
+	}
 
 	function onClickUndo() {}
 
-	function onClickSettings() {}
-
 	function onInputChat(e: KeyboardEvent) {
 		if (e.key === 'Enter' && chatText.length > 0) {
-			const output: GameInput = {
+			connState.ws?.send?.(GameInput.toBinary({
 				value: {
 					oneofKind: 'chat',
 					chat: { message: chatText }
 				}
-			};
-			connState.ws?.send?.(GameInput.toBinary(output));
+			}));
 		}
 	}
 
 	function onSelectPiece(hex: Hex) {
 		selection.select(game, hex);
 	}
+
+	function onDeSelectPiece() {
+		selection.deSelect();
+	}
+
+	function onPieceMove() {}
+
+	function onDropPieceSet() {}
+
+	function onCompletePromotion() {}
 
 	function handleMessage(data: GameOutput) {
 		const kind = data.value.oneofKind;
@@ -88,6 +132,7 @@
 			game = init?.state?.game;
 			whitePlayer = init?.state?.whitePlayer;
 			blackPlayer = init?.state?.blackPlayer;
+			finishState = init?.state?.finishState;
 			selfPlayer = init.self;
 		} else if (kind === 'bgInit') {
 			const init = data.value.bgInit;
@@ -100,12 +145,20 @@
 			const move = data.value.move;
 			game = move.game;
 		} else if (kind === 'forfeit') {
-
+			const forfeit = data.value.forfeit;
+			finishState = forfeit?.finishState;
 		} else if (kind === 'chat') {
 			chats.push(data.value.chat);
 		} else if (kind === 'error') {
-			const message = makeMessage(data.value.error.message);
-			addNotification({ type: 'string', message, isSuccess: false });
+			const code = data.value.error.message;
+			switch (code) {
+			case codes.errorInvalidGame:
+				gameExists = false;
+				break;
+			default:
+				const message = makeMessage(data.value.error.message);
+				addNotification({ type: 'string', message, isSuccess: false });
+			}
 		}
 	}
 
@@ -149,7 +202,7 @@
 
 	$effect(() => {
 		const state = connState;
-		if (!props.gameExists) return;
+		if (!gameExists) return;
 		if (!state.ws) {
 			const gameId = props.gameId;
 			let timeout = state.tries !== 0 ? state.tries * 250 : 0;
@@ -197,36 +250,30 @@
 <div class="disconnect-message" style:display={isErrorPage ? '' : 'none'}>
 	Disconnected. Attempting to regain a connection...
 </div>
-{#if !props.gameExists}
+{#if !gameExists}
 	<Error status={404} message="Game not found!"/>
 {:else}
 	<div class="center-horizontal-container">
 		<div class="center-vertical-container" style="align-items: stretch;">
-			<div class="panel chat-wrapper">
-				Chat room
-				<div class="chats">
-					{#each chats as chat}
-						<div class="chat">
-							<b>{chat.player?.name || "-"}</b> : {chat.message}
-						</div>
-					{/each}
-				</div>
-				<input class="chat-input" bind:value={chatText} onkeydown={onInputChat}/>
-			</div>
 			{#if game?.board}
 				<Board
 					board={game?.board}
 					fen={true}
 					isWhitePerspective={isWhitePerspective}
-					potentialMoves={deserializeHexList(selection.value.potentialMoves?.moves)}
+					potentialMoves={selection.getPotentialMoves()}
+					selected={selection.state.hex}
+					promotion={promotion}
 					onSelectPiece={onSelectPiece}
-					selected={selection.value.hex}
+					onDeSelectPiece={onDeSelectPiece}
+					onDropPiece={onPieceMove}
+					onSetPiece={onDropPieceSet}
+					onCompletePromotion={onCompletePromotion}
 				/>
 			{/if}
 			<div class="side-table-wrapper">
 				<PieceList pieces={bottomTakenPieces || []} />
 				{#if topTimer}
-					<div class="timer" class:timer-warn={topTimer < 15000}>
+					<div class="timer" class:timer-warn={topTimer < dangerTimerThreshold}>
 						{formatTimer(topTimer)}
 					</div>
 				{/if}
@@ -234,29 +281,66 @@
 					<div class="side-table-header player-panel">
 						<PlayerPanel player={bottomPlayer} self={selfPlayer} isTurn={isBottomTurn} />
 					</div>
-					{#if whitePlayer === undefined || blackPlayer === undefined}
-						<div class="growing-scrollbox parent-lobby">
-							<div class="lobby-container">
-								<div class="spinner"></div>
-								<span class="lobby-text">Waiting for opponents...</span>
+					{#if showSideTable === "CHAT"}
+						<div class="growing-scrollbox">
+							<div class="chats">
+								{#each chats as chat}
+									{@const isMe = selfPlayer !== undefined && chat?.player?.id === selfPlayer?.id}
+									<div class="chat">
+										<b class:self-color={isMe}>{chat.player?.name || "-"}</b> : {chat.message}
+									</div>
+								{/each}
 							</div>
 						</div>
-					{:else}
-						{#await awaitingNotList then notList}
-							<MoveList moveList={notList} />
-						{/await}
+						<input class="chat-input" bind:value={chatText} onkeydown={onInputChat}/>
+					{:else if showSideTable === "MOVES"}
+						{#if whitePlayer === undefined || blackPlayer === undefined}
+							<div class="growing-scrollbox parent-lobby">
+								<div class="lobby-container">
+									<div class="spinner"></div>
+									<span class="lobby-text">Waiting for opponents...</span>
+								</div>
+							</div>
+						{:else}
+							{#await awaitingNotList then notList}
+								<MoveList moveList={notList} />
+							{/await}
+							{#if finishState}
+								<FinishPanel state={finishState} whitePlayer={whitePlayer} blackPlayer={blackPlayer}/>
+							{/if}
+						{/if}
 					{/if}
 					<div class="icons">
-						<button title="Forfeit" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickForfeit}>
-							<FlagIcon />
+						{#if showForfeitModal}
+							<div class="forfeit-anchor">
+								<div class="forfeit-modal panel">
+									<div style:margin-bottom="10px">
+										Are you sure you want to forfeit?
+									</div>
+									<button class="yes-button" onclick={onConfirmForfeit}>
+										Yes
+									</button>
+									<button class="no-button" onclick={onCloseForfeitModal}>
+										No
+									</button>
+								</div>
+							</div>
+						{/if}
+						<button title={showSideTable ? "Show Moves" : "Show Chat"} class="button-transparent svg-container" style:padding-top="10px" onclick={onClickToggleChat}>
+							<ChatIcon />
 						</button>
-						<button title="Undo Move" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickUndo}>
-							<UndoIcon />
-						</button>
-						<button title="Settings" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickSettings}>
-							<SettingsIcon />
-						</button>
-						<button title="Settings" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickCopy}>
+						{#if !finishState}
+							<button title="Forfeit" class="button-transparent svg-container" style:padding-top="10px" onclick={onToggleForfeitModal}>
+								<FlagIcon />
+							</button>
+							<button title="Undo Move" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickUndo}>
+								<UndoIcon />
+							</button>
+						{/if}
+<!--						<button title="Settings" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickSettings}>-->
+<!--							<SettingsIcon />-->
+<!--						</button>-->
+						<button title="Share" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickCopy}>
 							<ClipboardIcon />
 						</button>
 					</div>
@@ -265,7 +349,7 @@
 					</div>
 				</div>
 				{#if bottomTimer}
-					<div class="timer" class:timer-warn={bottomTimer < 15000}>
+					<div class="timer" class:timer-warn={bottomTimer < dangerTimerThreshold}>
 						{formatTimer(bottomTimer)}
 					</div>
 				{/if}
@@ -276,15 +360,20 @@
 {/if}
 
 <style>
-	.chat-wrapper {
-        width: 200px;
-		margin-right: 35px;
-        padding: 15px;
-        display: flex;
-        flex-direction: column;
-        margin-top: auto;
-        margin-bottom: auto;
-    }
+	.forfeit-anchor {
+		position: relative;
+		width: 0;
+		height: 0;
+	}
+
+	.forfeit-modal {
+		position: absolute;
+        width: max-content;
+		bottom: 1px;
+        padding: 20px;
+		border-radius: 4px;
+		background-color: rgb(44, 44, 44);
+	}
 
 	.chat {
         white-space: normal;
@@ -297,7 +386,6 @@
     .chats {
         margin-top: 10px;
         margin-bottom: 10px;
-		height: 250px;
         overflow-y: auto;
     }
 
@@ -305,6 +393,7 @@
 		padding-top: 2px;
         padding-bottom: 2px;
 		height: 30px;
+		border-radius: 0;
 	}
 
     .disconnect-message {
@@ -393,4 +482,20 @@
         align-items: center;
         height: 100vh;
     }
+
+	.yes-button {
+		cursor: pointer;
+		border: 0;
+		padding: 10px;
+		border-radius: 2px;
+		background-color: green;
+	}
+
+	.no-button {
+        cursor: pointer;
+        border: 0;
+        padding: 10px;
+        border-radius: 2px;
+		background-color: rgb(100, 100, 100);
+	}
 </style>

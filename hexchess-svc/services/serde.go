@@ -38,8 +38,8 @@ func SerializeFinishState(state FinishState) *pb.FinishState {
 	return &pb.FinishState{
 		WinId:       state.WinID,
 		LoseId:      state.LoseID,
-		WinEloDiff:  state.WinEloDiff,
-		LoseEloDiff: state.LoseEloDiff,
+		WinEloDiff:  int32(state.WinEloDiff),
+		LoseEloDiff: int32(state.LoseEloDiff),
 		Result:      state.Result.String(),
 		Cause:       state.Cause.String(),
 	}
@@ -61,8 +61,8 @@ func DeserializeFinishState(pbFinishState *pb.FinishState) (state FinishState, e
 		IsEnded:     true,
 		WinID:       pbFinishState.WinId,
 		LoseID:      pbFinishState.LoseId,
-		WinEloDiff:  pbFinishState.WinEloDiff,
-		LoseEloDiff: pbFinishState.LoseEloDiff,
+		WinEloDiff:  int64(pbFinishState.WinEloDiff),
+		LoseEloDiff: int64(pbFinishState.LoseEloDiff),
 		Cause:       cause,
 		Result:      result,
 	}, nil

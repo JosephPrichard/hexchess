@@ -3,8 +3,7 @@
 	import { hexHeight, hexWidth } from '$lib/components/chess/render';
 	import { isPieceWhite, piecenames, pieces, promotions } from '$lib/utils/chess.js';
 	import { type SelectEvent, selectEvents } from '$lib/globals';
-
-	export type PromotionKind = "complete" | "cancel";
+	import { BadPromotion, type BadPromotionType } from '$lib/components/chess/piece';
 
 	export interface PieceProps {
 		piece: number;
@@ -20,7 +19,7 @@
 		onDeSelectPiece?: () => void;
 		onDragPiece?: (x: number, y: number) => void;
 		onDropPiece?: (x: number, y: number) => void;
-		onCompletePromotion?: (promotedPiece?: number) => void;
+		onCompletePromotion?: (promotedPiece: number | BadPromotionType) => void;
 	}
 
 	let { 
@@ -137,7 +136,7 @@
 
 	function onMouseDownGlobal(e: MouseEvent) {
 		if (!(e.target as HTMLElement).closest("#promotions")) {
-			onCompletePromotion?.(undefined);
+			onCompletePromotion?.(BadPromotion);
 		}
 	}
 

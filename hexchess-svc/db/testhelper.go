@@ -78,13 +78,14 @@ func BeforeRedisTest(t logutil.TestLogger) *Redis {
 	return MakeRdb(
 		RedisAddrs{addr, addr},
 		RedisNames{
-			LeaderboardZSet: LeaderboardZSet + "_" + uuid.NewString(),
-			GamesZSet:       GamesZSet + "_" + uuid.NewString(),
-			ActiveUsersZSet: ActiveUsersZSet + "_" + uuid.NewString(),
-			GamesChan:       GamesChan + "_" + uuid.NewString(),
-			UsersChan:       UsersChan + "_" + uuid.NewString(),
-			GamesCountChan:  GamesCountChan + "_" + uuid.NewString(),
-			ActiveCountChan: ActiveCountChan + "_" + uuid.NewString(),
+			LeaderboardZSet:  LeaderboardZSet + "_" + uuid.NewString(),
+			GamesZSet:        GamesZSet + "_" + uuid.NewString(),
+			ActiveUsersZSet:  ActiveUsersZSet + "_" + uuid.NewString(),
+			GameChatsPostfix: GameChatsPrefix + "_" + uuid.NewString(),
+			GamesChan:        GamesChan + "_" + uuid.NewString(),
+			UsersChan:        UsersChan + "_" + uuid.NewString(),
+			GamesCountChan:   GamesCountChan + "_" + uuid.NewString(),
+			ActiveCountChan:  ActiveCountChan + "_" + uuid.NewString(),
 		},
 	)
 }

@@ -675,3 +675,7 @@ select:disabled {
 	z-index: 1000;
 	width: 400px;
 }
+
+.self-color {
+	color: #F0E68C;
+}
