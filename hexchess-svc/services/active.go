@@ -9,7 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const ActiveUserMaxage = time.Minute // the caller should manually remove, but this is a stopgap in case the server is stopped before that is the case
+const ActiveUserMaxage = 5 * time.Minute // the caller should manually remove, but this is a stopgap in case the server is stopped before that is the case
 
 func (s State) GetActiveCount(ctx context.Context) (int64, error) {
 	expireBefore := s.GetNow().Add(-ActiveUserMaxage).UnixMilli()

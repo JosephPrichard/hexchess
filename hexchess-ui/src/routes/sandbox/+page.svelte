@@ -133,12 +133,9 @@
 	async function boardFromFenURL(fenInput: string) {
 		let isInitialGame = false;
 		if (fenInput != "") {
-			const [game, err] = await fenToGameWasm(fenInput);
+			const game = await fenToGameWasm(fenInput);
 			if (game) {
 				sandbox.setGame(game);
-			} else {
-				addNotification({ type: 'string', message: err, isSuccess: false });
-				isInitialGame = true;
 			}
 		} else {
 			isInitialGame = true;
@@ -158,9 +155,10 @@
 	}
 
 	async function onChangeFen(fenInput: string) {
-		const [game, _] = await fenToGameWasm(fenInput);
+		const game = await fenToGameWasm(fenInput);
 		if (game) {
 			sandbox.setGame(game);
+			await fenURLFromBoard(game.board);
 		}
 	}
 

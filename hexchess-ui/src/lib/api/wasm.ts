@@ -73,17 +73,17 @@ export async function getMovesWasm(board: ChessBoard): Promise<ChessGame | undef
 	console.error("Failed to get moves");
 }
 
-export async function fenToGameWasm(fen: string): Promise<[ChessGame | undefined, string]> {
+export async function fenToGameWasm(fen: string): Promise<ChessGame | undefined> {
 	await makeWasmAPI();
 	const output = dynCall("fenToGame", fen) as any;
-	if (output?.game instanceof Uint8Array) {
-		return [ChessGame.fromBinary(output.game), ""];
+	if (output[0] instanceof Uint8Array) {
+		return ChessGame.fromBinary(output[0]);
 	}
-	if (typeof output?.err === "string") {
-		return [undefined, output.err];
+	let message = "Failed to parse FEN string";
+	if (typeof output[1] === "string") {
+		message = output[1];
 	}
-	console.error("Failed to parse fen to game");
-	return [undefined, "Failed to parse fen to game"];
+	console.error(message);
 }
 
 export async function boardToFenWasm(board?: ChessBoard): Promise<string> {
