@@ -322,6 +322,10 @@ func (g *Game) AnnotateHistMove(hm HistMove) HistMove {
 	return hm
 }
 
+func (g *Game) HasFoundMove() bool {
+	return g.BlackMoves != nil && g.WhiteMoves != nil
+}
+
 func (g *Game) InitPieceMoves() {
 	g.ClearTables()
 

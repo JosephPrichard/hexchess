@@ -69,7 +69,7 @@ func ElementsMatch[T any](t *testing.T, listA, listB []T, opts ...cmp.Option) {
 	sb.WriteString("\nlistB:\n")
 	sb.WriteString(fmt.Sprintf("%+v\n\n", listB))
 
-	t.Errorf(sb.String())
+	t.Error(sb.String())
 }
 
 func Equal[T any](t *testing.T, expected, actual T, opts ...cmp.Option) {

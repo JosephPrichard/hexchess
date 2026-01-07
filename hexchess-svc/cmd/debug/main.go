@@ -34,18 +34,18 @@ func main() {
 	if err != nil {
 		logutil.FatalErr("create pool", err)
 	}
-	defer pool.Close()
-
-	q := db.New(pool)
+	postgres := db.MakePostgres(pool)
+	defer postgres.Close()
 
 	switch *mode {
 	case "move-sequence":
 		id, err := strconv.Atoi(*value)
 		if err != nil {
-			logutil.FatalErr("parse id os arg", err)
+			logutil.FatalErr("parse ID os arg", err)
 		}
 
-		pbMoveHist, err := svc.GetReplayMoveHistory(ctx, q, int64(id))
+		s := svc.State{Postgres: postgres}
+		pbMoveHist, err := s.GetReplayMoveHistory(ctx, int64(id))
 		if err != nil {
 			logutil.FatalErr("get replay move list", err)
 		}

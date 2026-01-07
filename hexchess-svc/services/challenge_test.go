@@ -90,7 +90,7 @@ func TestDeleteExpiredChallenges(t *testing.T) {
 	defer closer()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	s := State{Postgres: pdb}
+	s := State{Postgres: pdb, EntropySource: &out.StableSource{Time: db.TestTimeNow}}
 
 	// when
 	// gets only expired challenges

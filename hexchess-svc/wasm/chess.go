@@ -1,4 +1,6 @@
-package out
+//go:build wasm
+
+package wasm
 
 import (
 	"google.golang.org/protobuf/proto"
@@ -7,24 +9,24 @@ import (
 	"syscall/js"
 )
 
-type Wasm struct {
+type ChessWasm struct {
 	Global js.Value
 }
 
-func (w *Wasm) JsLog(args ...any) {
+func (w *ChessWasm) JsLog(args ...any) {
 	w.Global.Get("console").Call("log", args...)
 }
 
-func (w *Wasm) JsErr(err error) js.Value {
+func (w *ChessWasm) JsErr(err error) js.Value {
 	return w.JsErrStr(err.Error())
 }
 
-func (w *Wasm) JsErrStr(err string) js.Value {
+func (w *ChessWasm) JsErrStr(err string) js.Value {
 	w.Global.Get("console").Call("error", err)
 	return js.Undefined()
 }
 
-func (w *Wasm) GetInitialGame(_ js.Value, _ []js.Value) any {
+func (w *ChessWasm) GetInitialGame(_ js.Value, _ []js.Value) any {
 	game := chess.Game{Board: chess.InitialBoard()}
 	game.InitPieceMoves()
 
@@ -38,7 +40,7 @@ func (w *Wasm) GetInitialGame(_ js.Value, _ []js.Value) any {
 	return out
 }
 
-func (w *Wasm) MakeMove(_ js.Value, args []js.Value) any {
+func (w *ChessWasm) MakeMove(_ js.Value, args []js.Value) any {
 	if len(args) == 0 {
 		return w.JsErrStr("fn expects at least 1 args")
 	}
@@ -54,6 +56,9 @@ func (w *Wasm) MakeMove(_ js.Value, args []js.Value) any {
 	game, err := chess.DeserializeGame(pbMoveIn.Game)
 	if err != nil {
 		return w.JsErr(err)
+	}
+	if !game.HasFoundMove() {
+		game.InitPieceMoves()
 	}
 
 	if pbMoveIn.Move != nil {
@@ -75,7 +80,7 @@ func (w *Wasm) MakeMove(_ js.Value, args []js.Value) any {
 	return out
 }
 
-func (w *Wasm) GetMoves(_ js.Value, args []js.Value) any {
+func (w *ChessWasm) GetMoves(_ js.Value, args []js.Value) any {
 	if len(args) == 0 {
 		return w.JsErrStr("fn expects at least 1 args")
 	}
@@ -106,7 +111,7 @@ func (w *Wasm) GetMoves(_ js.Value, args []js.Value) any {
 	return out
 }
 
-func (w *Wasm) FenToGame(_ js.Value, args []js.Value) any {
+func (w *ChessWasm) FenToGame(_ js.Value, args []js.Value) any {
 	if len(args) == 0 {
 		return w.JsErrStr("fn expects at least 1 arg")
 	}
@@ -131,7 +136,7 @@ func (w *Wasm) FenToGame(_ js.Value, args []js.Value) any {
 	return js.ValueOf([]any{out, ""})
 }
 
-func (w *Wasm) BoardToFen(_ js.Value, args []js.Value) any {
+func (w *ChessWasm) BoardToFen(_ js.Value, args []js.Value) any {
 	if len(args) == 0 {
 		return w.JsErrStr("fn expects at least 1 arg")
 	}
@@ -151,7 +156,7 @@ func (w *Wasm) BoardToFen(_ js.Value, args []js.Value) any {
 	return js.ValueOf(board.Fen())
 }
 
-func (w *Wasm) GetMoveNotations(_ js.Value, args []js.Value) any {
+func (w *ChessWasm) GetMoveNotations(_ js.Value, args []js.Value) any {
 	if len(args) == 0 {
 		return w.JsErrStr("fn expects at least 1 arg")
 	}
@@ -173,8 +178,9 @@ func (w *Wasm) GetMoveNotations(_ js.Value, args []js.Value) any {
 	return js.ValueOf(moves)
 }
 
-func RegisterWasmModule(global js.Value) {
-	wasm := &Wasm{Global: global}
+func RegisterChessModule() {
+	global := js.Global()
+	wasm := &ChessWasm{Global: global}
 	global.Set("getInitialGame", js.FuncOf(wasm.GetInitialGame))
 	global.Set("makeMove", js.FuncOf(wasm.MakeMove))
 	global.Set("getMoves", js.FuncOf(wasm.GetMoves))

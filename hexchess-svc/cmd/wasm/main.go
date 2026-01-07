@@ -1,4 +1,4 @@
-// go:build wasm
+//go:build wasm
 package main
 
 import (
@@ -7,7 +7,6 @@ import (
 )
 
 func main() {
-	global := js.Global()
-	out.RegisterWasmModule(global)
+	wasm.RegisterChessModule()
 	select {}
 }

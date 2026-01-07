@@ -131,7 +131,7 @@ func (s State) MakeGameMove(ctx context.Context, gameID string, player PlayerSta
 
 	gameID = state.ID
 	game := &state.Game
-	if game.BlackMoves == nil || game.WhiteMoves == nil {
+	if !game.HasFoundMove() {
 		game.InitPieceMoves()
 	}
 	currPlayer := state.CurrPlayer()
