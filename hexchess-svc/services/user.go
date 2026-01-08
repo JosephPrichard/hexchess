@@ -106,7 +106,7 @@ func (s State) InsertUser(ctx context.Context, inst UserInst) (UserEntity, error
 		return u, fmt.Errorf("generate hash: %w", err)
 	}
 
-	row, err := s.Query.InsertUser(ctx, db.InsertUserParams{
+	row, err := s.Query().InsertUser(ctx, db.InsertUserParams{
 		Username: inst.Username,
 		Country:  inst.Country,
 		Password: hash.HashedPassword,
@@ -158,7 +158,7 @@ func (s State) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]UserEn
 	var users []UserEntity
 	var errs []error
 
-	s.Query.BatchInsertUser(ctx, batches).QueryRow(func(i int, row db.BatchInsertUserRow, err error) {
+	s.Query().BatchInsertUser(ctx, batches).QueryRow(func(i int, row db.BatchInsertUserRow, err error) {
 		if err != nil {
 			errs = append(errs, err)
 		} else {
@@ -176,13 +176,15 @@ type VerifiedUser struct {
 	Country  string `json:"country"`
 }
 
-func (s State) VerifyUserTx(ctx context.Context, pdb *db.Postgres, username string, inputPassword string) (VerifiedUser, error) {
-	return db.RunInTx(ctx, pdb,
-		[]error{ErrTooManyLoginAttempts, ErrUserNotFound},
-		func(ctx context.Context, query *db.Queries) (VerifiedUser, error) {
-			return verifyUser(ctx, query, username, inputPassword)
+func (s State) VerifyUserTx(ctx context.Context, username string, inputPassword string) (u VerifiedUser, err error) {
+	err = s.RunInTx(ctx, db.TxnArgs{
+		Fn: func(ctx context.Context, query *db.Queries) (err error) {
+			u, err = verifyUser(ctx, query, username, inputPassword)
+			return err
 		},
-	)
+		ErrAllowlist: []error{ErrTooManyLoginAttempts, ErrUserNotFound},
+	})
+	return u, err
 }
 
 const LoginAttemptsDivisor = 10
@@ -241,7 +243,7 @@ func (s State) SelectOrInsertGoogleUser(ctx context.Context, googleAccountID str
 	var u VerifiedUser
 	var isCreated bool
 
-	login, err := s.Query.SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
+	login, err := s.Query().SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
 	if errors.Is(err, pgx.ErrNoRows) {
 		isCreated = false
 	} else if err != nil {
@@ -251,7 +253,7 @@ func (s State) SelectOrInsertGoogleUser(ctx context.Context, googleAccountID str
 	}
 
 	if !isCreated {
-		row, err := s.Query.InsertUser(ctx, db.InsertUserParams{
+		row, err := s.Query().InsertUser(ctx, db.InsertUserParams{
 			Username:        googleInst.Username,
 			Country:         googleInst.Country,
 			JoinedOn:        pgtype.Timestamptz{Time: googleInst.JoinedOn, Valid: true},
@@ -293,7 +295,7 @@ func (s State) UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (U
 		return UserEntity{}, nil
 	}
 
-	row, err := s.Query.UpdateUser(ctx, db.UpdateUserParams{
+	row, err := s.Query().UpdateUser(ctx, db.UpdateUserParams{
 		ID:       id,
 		Username: pgtype.Text{Valid: updt.Username != "", String: updt.Username},
 		Bio:      pgtype.Text{Valid: updt.Bio != "", String: updt.Bio},
@@ -310,7 +312,7 @@ func (s State) UpdateUserPassword(ctx context.Context, id int64, newPassword str
 	if err != nil {
 		return fmt.Errorf("hash password for user %d: %w", id, err)
 	}
-	err = s.Query.UpdatePassword(ctx, db.UpdatePasswordParams{
+	err = s.Query().UpdatePassword(ctx, db.UpdatePasswordParams{
 		ID:       id,
 		Password: hash.HashedPassword,
 		Salt:     hash.Salt,
@@ -320,7 +322,7 @@ func (s State) UpdateUserPassword(ctx context.Context, id int64, newPassword str
 }
 
 func (s State) GetUserByID(ctx context.Context, id int64) (UserEntity, error) {
-	row, err := s.Query.SelectUserByID(ctx, id)
+	row, err := s.Query().SelectUserByID(ctx, id)
 	if err != nil {
 		return UserEntity{}, fmt.Errorf("select user %d: %w", id, err)
 	}
@@ -357,7 +359,7 @@ func avg[T constraints.Integer | constraints.Float](currAvg T, currCount int, ne
 func (s State) GetUserStats(ctx context.Context, id int64) (UserStatsEntity, error) {
 	stats := UserStatsEntity{HighestElo: math.SmallestNonzeroFloat64}
 
-	rows, err := s.Query.SelectUserElosById(ctx, id)
+	rows, err := s.Query().SelectUserElosById(ctx, id)
 	if err != nil {
 		return stats, fmt.Errorf("select user %d elos by id: %w", id, err)
 	}

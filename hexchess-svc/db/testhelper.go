@@ -129,7 +129,7 @@ func GetPgContainerData(ctx context.Context, t logutil.TestLogger) (string, nat.
 	return host, port, shouldSeed
 }
 
-func BeforePostgresTest(t logutil.TestLogger, useTestTx bool) (*Postgres, func()) {
+func BeforePostgresTest(t logutil.TestLogger, useTestTx bool) (Postgres, func()) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -155,13 +155,13 @@ func BeforePostgresTest(t logutil.TestLogger, useTestTx bool) (*Postgres, func()
 		insertTestData(t, pool)
 	}
 
-	var pdb *Postgres
+	var pdb Postgres
 	if useTestTx {
 		testTx, err := pool.Begin(ctx)
 		if err != nil {
 			t.Fatalf("failed to open test tx: %v", err)
 		}
-		pdb = &Postgres{Query: New(testTx), testingTxn: testTx}
+		pdb = MakeFakePostgres(testTx)
 	} else {
 		pdb = MakePostgres(pool)
 	}

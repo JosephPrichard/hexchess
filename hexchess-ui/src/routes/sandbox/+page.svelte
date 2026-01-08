@@ -26,8 +26,6 @@
 
 	const { data: props }: { data: SandboxProps } = $props();
 
-	const { addNotification } = getNotificationsContext();
-
 	let boardElement: HTMLElement | undefined = $state(undefined);
 
 	const move = makeMoveState();

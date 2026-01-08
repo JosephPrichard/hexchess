@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	redigo "github.com/gomodule/redigo/redis"
 	"github.com/jackc/pgx/v5"
@@ -48,21 +49,55 @@ var DefaultRedisNames = RedisNames{
 	ActiveCountChan:  ActiveCountChan,
 }
 
-type Postgres struct {
-	Query      *Queries
-	Pool       *pgxpool.Pool
+type Postgres interface {
+	Query() *Queries
+	HealthCheck(context.Context) error
+	RunInTx(context.Context, TxnArgs) error
+	Close()
+}
+
+type PostgresDB struct {
+	q    *Queries
+	pool *pgxpool.Pool
+}
+
+func (pdb *PostgresDB) HealthCheck(ctx context.Context) error {
+	_, err := pdb.pool.Exec(ctx, "SELECT 1;")
+	return err
+}
+
+func (pdb *PostgresDB) Query() *Queries {
+	return pdb.q
+}
+
+func (pdb *PostgresDB) Close() {
+	pdb.pool.Close()
+}
+
+type PostgresFake struct {
 	testingTxn pgx.Tx
 }
 
-func (pdb *Postgres) Close() {
-	if pdb.Pool != nil {
-		pdb.Pool.Close()
+func (pdb *PostgresFake) HealthCheck(_ context.Context) error {
+	return errors.New("health check failed for fake postgres impl")
+}
+
+func (pdb *PostgresFake) Query() *Queries {
+	return New(pdb.testingTxn)
+}
+
+func (pdb *PostgresFake) Close() {
+	if err := pdb.testingTxn.Rollback(context.Background()); err != nil {
+		panic(fmt.Sprintf("failed to rollback testing txn: %v", err))
 	}
-	if pdb.testingTxn != nil {
-		if err := pdb.testingTxn.Rollback(context.Background()); err != nil {
-			panic(fmt.Sprintf("failed to rollback testing txn: %v", err))
-		}
-	}
+}
+
+func MakePostgres(pool *pgxpool.Pool) Postgres {
+	return &PostgresDB{q: New(pool), pool: pool}
+}
+
+func MakeFakePostgres(txn pgx.Tx) Postgres {
+	return &PostgresFake{testingTxn: txn}
 }
 
 type Redis struct {
@@ -104,8 +139,4 @@ func MakeRdb(addrs RedisAddrs, names RedisNames) *Redis {
 		RedisAddrs: addrs,
 		RedisNames: names,
 	}
-}
-
-func MakePostgres(pool *pgxpool.Pool) *Postgres {
-	return &Postgres{Query: New(pool), Pool: pool}
 }

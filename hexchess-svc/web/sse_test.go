@@ -17,7 +17,7 @@ import (
 	"testing"
 )
 
-// SSE tests are black box tests that connects to a given server side event, simulate the sending of messages from a producer, and checks that we receive the correct response
+// SSE tests are black box tests that connect to a given server side event, simulate the sending of messages from a producer, and checks that we receive the correct response
 
 func scanEventsFunc(resp *http.Response, wantEvents int, fn func(string)) {
 	if wantEvents == 0 {

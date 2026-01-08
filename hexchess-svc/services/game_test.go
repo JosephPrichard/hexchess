@@ -362,7 +362,7 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 
 	require.Equal(t, wantFs, fs)
 
-	replay, err := state.Query.SelectReplayRowByID(ctx, replayID)
+	replay, err := state.Query().SelectReplayRowByID(ctx, replayID)
 	require.NoError(t, err)
 	assertutil.Equal(t, wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn", "MoveHistory"))
 }
@@ -447,11 +447,11 @@ func TestInsertGameResult(t *testing.T) {
 			defer closer()
 
 			// when
-			cs, err := insertGameResult(ctx, pdb.Query, time.Now(), test.result)
+			cs, err := insertGameResult(ctx, pdb.Query(), time.Now(), test.result)
 			require.NoError(t, err)
 
 			// then
-			rowElos, err := pdb.Query.SelectUserModeElosByIds(ctx, db.SelectUserModeElosByIdsParams{
+			rowElos, err := pdb.Query().SelectUserModeElosByIds(ctx, db.SelectUserModeElosByIdsParams{
 				ID:   []int64{test.result.WhiteID, test.result.BlackID},
 				Mode: db.ModeEnum(test.result.ReplayMode.String()),
 			})
@@ -459,7 +459,7 @@ func TestInsertGameResult(t *testing.T) {
 
 			assert.Equal(t, test.wantElos, rowElos)
 
-			replay, err := pdb.Query.SelectReplayRowByID(ctx, cs.ReplayID)
+			replay, err := pdb.Query().SelectReplayRowByID(ctx, cs.ReplayID)
 			require.NoError(t, err)
 
 			assertutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn", "MoveHistory"))

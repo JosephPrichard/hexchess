@@ -102,17 +102,20 @@ message ChatInput {
   string message = 1;
 }
 
+message UndoInput {
+  string kind = 1;
+}
+
+message PingInput {}
+
 message GameInput {
   oneof value {
     ForfeitInput forfeit = 1;
     MoveInput move = 2;
     ChatInput chat = 3;
     UndoInput undo = 4;
+    PingInput ping = 5;
   }
-}
-
-message UndoInput {
-  string kind = 1;
 }
 
 message ErrorOutput {

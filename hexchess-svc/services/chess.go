@@ -146,8 +146,8 @@ func (s State) IsGameAccessible(ctx context.Context, id string) bool {
 		return false
 	}
 	fullID := makeGameKey(id)
-	_, err := s.Redis.Cache.Exists(ctx, fullID).Result()
-	return err != nil
+	exists, err := s.Redis.Cache.Exists(ctx, fullID).Result()
+	return err == nil && exists == 1
 }
 
 var ErrNoChessState = errors.New("no chess state")

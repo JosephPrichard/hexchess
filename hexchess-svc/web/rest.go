@@ -153,7 +153,7 @@ func (app *App) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 
 	ctx := r.Context()
 
-	user, err := app.State.VerifyUserTx(ctx, app.Postgres, body.Username, body.Password)
+	user, err := app.State.VerifyUserTx(ctx, body.Username, body.Password)
 	switch {
 	case errors.Is(err, svc.ErrUserNotFound):
 		return ErrHttpInvalidLogin
@@ -222,7 +222,7 @@ func (app *App) HandleUpdatePassword(w http.ResponseWriter, r *http.Request) err
 		return fmt.Errorf("get session player: %w", err)
 	}
 
-	user, err := app.State.VerifyUserTx(ctx, app.Postgres, player.Name, body.Password)
+	user, err := app.State.VerifyUserTx(ctx, player.Name, body.Password)
 	if errors.Is(err, svc.ErrUserNotFound) {
 		return ErrHttpInvalidLogin
 	} else if err != nil {
@@ -352,7 +352,7 @@ func (app *App) HandleRefreshSession(w http.ResponseWriter, r *http.Request) err
 		return fmt.Errorf("get session player: %w", err)
 	}
 	if err := app.State.UpdateSessionEx(ctx, sessionID, SessionMaxAge); err != nil {
-		return fmt.Errorf("update session: %w", err)
+		return fmt.Errorf("update session with expiry: %d %w", SessionMaxAge, err)
 	}
 
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))

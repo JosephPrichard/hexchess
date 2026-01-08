@@ -148,8 +148,7 @@ func (app *App) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
 		{
 			Name: "postgresDB",
 			Check: func() error {
-				_, err := app.Postgres.Pool.Exec(ctx, "SELECT 1;")
-				return err
+				return app.Postgres.HealthCheck(ctx)
 			},
 		},
 	}

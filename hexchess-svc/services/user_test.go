@@ -29,7 +29,7 @@ func TestInsertThenVerify(t *testing.T) {
 	u1, err := s.InsertUser(ctx, UserInst{Username: user1, Password: "password1", Country: "us", JoinedOn: db.TestTimeNow})
 	require.NoError(t, err)
 
-	v1, err := verifyUser(ctx, pdb.Query, user1, "password1")
+	v1, err := verifyUser(ctx, pdb.Query(), user1, "password1")
 	require.NoError(t, err)
 
 	dbU1, err := s.GetUserByID(ctx, v1.ID)
@@ -37,10 +37,10 @@ func TestInsertThenVerify(t *testing.T) {
 
 	var attemptsErrs []error
 	for range LoginAttemptsDivisor {
-		_, err := verifyUser(ctx, pdb.Query, user1, "wrong-password")
+		_, err := verifyUser(ctx, pdb.Query(), user1, "wrong-password")
 		attemptsErrs = append(attemptsErrs, err)
 	}
-	_, errTooMany := verifyUser(ctx, pdb.Query, user1, "wrong-password")
+	_, errTooMany := verifyUser(ctx, pdb.Query(), user1, "wrong-password")
 
 	// then
 	var wantAttemptErrs []error
@@ -178,7 +178,7 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 
 	u1, err := s.GetUserByID(ctx, TestUserEntities[0].ID)
 	require.NoError(t, err)
-	v1, err := verifyUser(ctx, pdb.Query, TestUserEntities[0].Username, "password-new")
+	v1, err := verifyUser(ctx, pdb.Query(), TestUserEntities[0].Username, "password-new")
 	require.NoError(t, err)
 
 	// then

@@ -116,13 +116,13 @@ func TestDeleteChallenge(t *testing.T) {
 	key := ChallengeKey{ChallengerID: 1, ChallengeeID: 2}
 
 	// when
-	challengeBefore, err := s.Query.SelectChallenge(ctx, db.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	challengeBefore, err := s.Query().SelectChallenge(ctx, db.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
 	dr, err := s.DeleteChallenge(ctx, key)
 	require.NoError(t, err)
 
-	_, errAfterDelete := s.Query.SelectChallenge(ctx, db.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	_, errAfterDelete := s.Query().SelectChallenge(ctx, db.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
 	// then

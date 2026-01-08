@@ -7,7 +7,7 @@ import (
 
 // State is the information passed to any public service level API call (mocks, drivers, clients)
 type State struct {
-	*db.Postgres
+	db.Postgres
 	*db.Redis
 	out.EntropySource
 }

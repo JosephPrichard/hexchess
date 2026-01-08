@@ -114,7 +114,7 @@ var ErrNoReplay = errors.New("replay not found")
 func (s State) GetReplay(ctx context.Context, id int64) (ReplayEntity, error) {
 	var replay ReplayEntity
 
-	row, err := s.Query.SelectReplayByID(ctx, id)
+	row, err := s.Query().SelectReplayByID(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return replay, ErrNoReplay
 	}
@@ -131,7 +131,7 @@ func (s State) GetReplay(ctx context.Context, id int64) (ReplayEntity, error) {
 }
 
 func (s State) GetReplayMoveHistory(ctx context.Context, id int64) (*pb.MoveHistory, error) {
-	b, err := s.Query.SelectReplayMoveHistory(ctx, id)
+	b, err := s.Query().SelectReplayMoveHistory(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNoReplay
 	}
@@ -150,7 +150,7 @@ func (s State) GetUserReplays(ctx context.Context, userID int64, afterID int64, 
 		afterID = int64(math.MaxInt64)
 	}
 
-	rows, err := s.Query.SelectUserReplays(ctx, db.SelectUserReplaysParams{
+	rows, err := s.Query().SelectUserReplays(ctx, db.SelectUserReplaysParams{
 		UserID:  userID,
 		AfterID: afterID,
 		PerPage: perPage,
@@ -200,7 +200,7 @@ func (s State) RetrieveEloHistoryBuckets(ctx context.Context, params EloHistorie
 		playedAfter = pgtype.Timestamptz{Valid: true, Time: params.TimeUntil.AddDate(0, -int(params.Months), 0)}
 	}
 
-	eloRows, err := s.Query.SelectReplayElos(ctx, db.SelectReplayElosParams{
+	eloRows, err := s.Query().SelectReplayElos(ctx, db.SelectReplayElosParams{
 		ID:          params.UserID,
 		PlayedAfter: playedAfter,
 	})

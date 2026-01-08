@@ -179,7 +179,7 @@ func (s State) SyncLeaderboard(ctx context.Context) error {
 	for _, mode := range GameModeMap {
 		afterID := int64(0)
 		for {
-			rows, err := s.Query.SelectEloList(ctx, db.SelectEloListParams{ID: afterID, Mode: db.ModeEnum(mode.String()), Limit: 20})
+			rows, err := s.Query().SelectEloList(ctx, db.SelectEloListParams{ID: afterID, Mode: db.ModeEnum(mode.String()), Limit: 20})
 			if err != nil {
 				return fmt.Errorf("select elo list afterID %d: %w", afterID, err)
 			}
@@ -227,7 +227,7 @@ func (s State) GetLeaderboardUsers(ctx context.Context, mode GameMode, rnkUsers 
 	for _, user := range rnkUsers {
 		ids = append(ids, user.ID)
 	}
-	userRows, err := s.Query.SelectUserWithEloByIDs(ctx, db.SelectUserWithEloByIDsParams{
+	userRows, err := s.Query().SelectUserWithEloByIDs(ctx, db.SelectUserWithEloByIDsParams{
 		Ids:  ids,
 		Mode: db.ModeEnum(mode.String()),
 	})
@@ -284,7 +284,7 @@ func (s State) GetFuzzySearchLeaderboard(ctx context.Context, name string, page,
 		return nil, ErrSearchLimit
 	}
 
-	userRows, err := s.Query.SelectUsersBySimilarity(ctx, db.SelectUsersBySimilarityParams{
+	userRows, err := s.Query().SelectUsersBySimilarity(ctx, db.SelectUsersBySimilarityParams{
 		Username: name,
 		Limit:    perPage,
 		Offset:   offset,
@@ -297,7 +297,7 @@ func (s State) GetFuzzySearchLeaderboard(ctx context.Context, name string, page,
 	for _, row := range userRows {
 		userIDs = append(userIDs, row.ID)
 	}
-	eloRows, err := s.Query.SelectManyUserElosById(ctx, userIDs)
+	eloRows, err := s.Query().SelectManyUserElosById(ctx, userIDs)
 	if err != nil {
 		return nil, fmt.Errorf("select elos by user ids %v: %w", userIDs, err)
 	}

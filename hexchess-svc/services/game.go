@@ -345,12 +345,14 @@ func (cs GRChangeSet) IsNoop() bool {
 	return cs.LoseEloDiff == 0 && cs.WinEloDiff == 0
 }
 
-func (s State) InsertGameResultTx(ctx context.Context, timeAt time.Time, params GameResult) (GRChangeSet, error) {
-	return db.RunInTx(ctx, s.Postgres, nil,
-		func(ctx context.Context, query *db.Queries) (GRChangeSet, error) {
-			return insertGameResult(ctx, query, timeAt, params)
+func (s State) InsertGameResultTx(ctx context.Context, timeAt time.Time, params GameResult) (cs GRChangeSet, err error) {
+	err = s.RunInTx(ctx, db.TxnArgs{
+		Fn: func(ctx context.Context, query *db.Queries) (err error) {
+			cs, err = insertGameResult(ctx, query, timeAt, params)
+			return err
 		},
-	)
+	})
+	return cs, err
 }
 
 // insertGameResult processes a game result, updates player ELO scores, and records the match details in the database.

@@ -17,7 +17,6 @@
 
 	async function onLoginComplete([data, err]: [data: SessionModel | undefined, err: ServiceModel | undefined]) {
 		if (data) {
-			console.log('Logged in', data);
 			setClientSession(data);
 			await goto('/');
 		} else {
@@ -36,7 +35,7 @@
 		isLoading = false;
 	}
 
-	const clientId = env.PUBLIC_APP_GOOGLE_CLIENT_ID || '1033197809490-ridcok3g354h4n31pmfqjig1k8t6un3d.apps.googleusercontent.com';
+	const clientId = env.PUBLIC_APP_GOOGLE_CLIENT_ID;
 
 	onMount(() => {
 		if (clientId === undefined) return;

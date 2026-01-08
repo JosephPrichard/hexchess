@@ -219,15 +219,18 @@ func (app *App) handleGameMessage(ctx GameSocketContext, input message) {
 	slog.InfoContext(ctx.Context, "received game input", "pbInput", &pbInput)
 
 	var err error
-	if f := pbInput.GetForfeit(); f != nil {
+	switch p := pbInput.GetValue().(type) {
+	case *pb.GameInput_Forfeit:
 		err = app.handleGameForfeit(ctx)
-	} else if m := pbInput.GetMove(); m != nil {
-		err = app.handleGameMove(ctx, m)
-	} else if c := pbInput.GetChat(); c != nil {
-		err = app.handleGameChat(ctx, c)
-	} else if u := pbInput.GetUndo(); u != nil {
-		err = app.handleGameUndo(ctx, u)
-	} else {
+	case *pb.GameInput_Move:
+		err = app.handleGameMove(ctx, p.Move)
+	case *pb.GameInput_Chat:
+		err = app.handleGameChat(ctx, p.Chat)
+	case *pb.GameInput_Undo:
+		err = app.handleGameUndo(ctx, p.Undo)
+	case *pb.GameInput_Ping:
+		// no-op or heartbeat
+	default:
 		err = ErrWsMessageType
 	}
 	if err != nil {

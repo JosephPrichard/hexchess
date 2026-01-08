@@ -27,15 +27,19 @@
 		open = !open;
 	}
 
-	function outsideClick(e: MouseEvent) {
-		if (!(e.target as HTMLElement).closest("#dropdown")) {
-			open = false;
-		}
-	}
-
 	onMount(() => {
+		function outsideClick(e: MouseEvent) {
+			if (!(e.target as HTMLElement).closest("#dropdown")) {
+				open = false;
+			}
+		}
 		if (typeof window !== "undefined") {
 			window.addEventListener("click", outsideClick);
+		}
+		return () => {
+			if (typeof window !== "undefined") {
+				window.removeEventListener("click", outsideClick);
+			}
 		}
 	});
 </script>

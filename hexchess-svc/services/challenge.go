@@ -75,7 +75,7 @@ func (s State) InsertChallengeRet(ctx context.Context, inst ChallengeInst) (Chal
 		inst.MadeOn = time.Now()
 	}
 
-	row, dbErr := s.Query.InsertChallenge(ctx, db.InsertChallengeParams{
+	row, dbErr := s.Query().InsertChallenge(ctx, db.InsertChallengeParams{
 		ChallengerID: inst.ChallengerID,
 		ChallengeeID: inst.ChallengeeID,
 		Mode:         db.ModeEnum(inst.Mode.String()),
@@ -123,7 +123,7 @@ func (s State) GetChallengesByParticipant(ctx context.Context, key ChallengeKey)
 		pgChallengeeID.Int64 = key.ChallengeeID
 	}
 
-	rows, err := s.Query.SelectChallengesByParticipant(ctx, db.SelectChallengesByParticipantParams{
+	rows, err := s.Query().SelectChallengesByParticipant(ctx, db.SelectChallengesByParticipantParams{
 		ChallengerID: pgChallengerID,
 		ChallengeeID: pgChallengeeID,
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
@@ -150,7 +150,7 @@ type DeleteResult struct {
 
 func (s State) DeleteChallenge(ctx context.Context, key ChallengeKey) (DeleteResult, error) {
 	var dr DeleteResult
-	row, err := s.Query.DeleteChallenge(ctx, db.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	row, err := s.Query().DeleteChallenge(ctx, db.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return dr, ErrChallengeNotFound
 	}
@@ -179,7 +179,7 @@ func (s State) DeleteChallenge(ctx context.Context, key ChallengeKey) (DeleteRes
 
 func (s State) DeleteExpiredChallenges(ctx context.Context, userID int64) error {
 	t := s.GetNow().Add(-ExpireChallengeMaxAge)
-	err := s.Query.DeleteExpiredChallenges(ctx, db.DeleteExpiredChallengesParams{
+	err := s.Query().DeleteExpiredChallenges(ctx, db.DeleteExpiredChallengesParams{
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: t},
 	})

@@ -6,15 +6,15 @@ import (
 	"slices"
 )
 
-type TxFn[T any] func(ctx context.Context, query *Queries) (T, error)
+type TxnArgs struct {
+	Fn           func(ctx context.Context, query *Queries) error
+	ErrAllowlist []error
+}
 
-func RunInTx[T any](ctx context.Context, pdb *Postgres, errAllowList []error, txFn TxFn[T]) (ret T, err error) {
-	if pdb.testingTxn != nil {
-		return txFn(ctx, New(pdb.testingTxn))
-	}
-	tx, err := pdb.Pool.Begin(ctx)
+func (pdb *PostgresDB) RunInTx(ctx context.Context, args TxnArgs) (err error) {
+	tx, err := pdb.pool.Begin(ctx)
 	if err != nil {
-		return ret, err
+		return err
 	}
 
 	defer func() {
@@ -23,7 +23,7 @@ func RunInTx[T any](ctx context.Context, pdb *Postgres, errAllowList []error, tx
 				slog.ErrorContext(ctx, "failed to rollback tx", "err", err)
 			}
 			panic(p)
-		} else if err != nil && !slices.Contains(errAllowList, err) {
+		} else if err != nil && !slices.Contains(args.ErrAllowlist, err) {
 			if dbErr := tx.Rollback(ctx); dbErr != nil {
 				slog.ErrorContext(ctx, "failed to rollback tx", "err", dbErr)
 				err = dbErr
@@ -36,6 +36,10 @@ func RunInTx[T any](ctx context.Context, pdb *Postgres, errAllowList []error, tx
 		}
 	}()
 
-	ret, err = txFn(ctx, pdb.Query.WithTx(tx))
+	err = args.Fn(ctx, pdb.q.WithTx(tx))
 	return
+}
+
+func (pdb *PostgresFake) RunInTx(ctx context.Context, args TxnArgs) (err error) {
+	return args.Fn(ctx, New(pdb.testingTxn))
 }
