@@ -7,11 +7,12 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"hexchess-svc/chess"
-	"hexchess-svc/db"
-	"hexchess-svc/out"
+	"hexchess-svc/ext"
+	"hexchess-svc/itest"
 	"hexchess-svc/pb"
 	"hexchess-svc/pkg/assertutil"
 	svc "hexchess-svc/services"
+
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -37,7 +38,7 @@ func readBroadcasted(outputsChan chan []any, subChan chan []byte, count int) {
 	outputsChan <- outputs
 }
 
-// TestHandleGameplayWs is a high-level black box test that checks the broadcast and websocket output for every input case
+// TestHandleGameplayWs is a high-level black box testing that checks the broadcast and websocket output for every input case
 // Database assertions run after message assertions and can assume that inbound websocket messages are valid
 func TestHandleGameplayWs(t *testing.T) {
 	gameID := TestGameID1
@@ -84,7 +85,7 @@ func TestHandleGameplayWs(t *testing.T) {
 		},
 	}}
 	wantValidMove := &pb.GameOutput_Move{Move: &pb.MoveOutput{
-		UpdatedAt: db.TestTimeNow.Format(time.RFC3339),
+		UpdatedAt: itest.TimeNow.Format(time.RFC3339),
 		Move:      &pb.HistMove{Piece: int32(chess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, CollFile: true, CollRank: true},
 	}}
 	wantChat := &pb.GameOutput{
@@ -92,7 +93,7 @@ func TestHandleGameplayWs(t *testing.T) {
 		Value: &pb.GameOutput_Chat{Chat: &pb.ChatOutput{
 			Message: "Hello World",
 			Player:  &pb.PlayerState{Id: 1, Name: "user1", Country: "us"},
-			SentAt:  db.TestTimeNow.Format(time.RFC3339),
+			SentAt:  itest.TimeNow.Format(time.RFC3339),
 		}},
 	}
 
@@ -173,22 +174,22 @@ func TestHandleGameplayWs(t *testing.T) {
 			wantMsgs := slices.Concat(wantMsgs, test.wantMsgs)
 			wantBrdcasts := slices.Concat(wantBrdcasts, test.wantBrdcasts)
 
-			state, closer := svc.BeforeStateTest(t, true)
-			defer closer()
+			state := svc.SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis, itest.WithAws)
+			defer state.Close()
 
-			state.EntropySource = &out.StableSource{Time: db.TestTimeNow}
-			setup := Setup{State: state, Broadcasters: svc.MakeBroadcaster()}
+			state.EntropySource = &ext.StableSource{Time: itest.TimeNow}
+			state.LocalBroadcasters = svc.MakeBroadcaster()
 
 			createTestSessions(t, state)
 			createTestChessStates(t, state)
 
-			ts := httptest.NewServer(MakeRoot(setup))
+			ts := httptest.NewServer(MakeRoot(Setup{State: state}))
 			defer ts.Close()
 
 			// (start, subcribe, and read broadcasts)
-			<-setup.Broadcasters.ListenGameMessages(state.Redis)
+			<-state.LocalBroadcasters.ListenGameMessages(state.Redis)
 			subChan := make(chan []byte)
-			setup.Broadcasters.GamesCaster.Subscribe(gameID, subChan)
+			state.LocalBroadcasters.GamesCaster.Subscribe(gameID, subChan)
 			brdCastChan := make(chan []any)
 			go readBroadcasted(brdCastChan, subChan, len(wantBrdcasts))
 

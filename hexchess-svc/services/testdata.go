@@ -1,7 +1,7 @@
 package svc
 
 import (
-	"hexchess-svc/db"
+	"hexchess-svc/itest"
 )
 
 var TestUserEntities = []UserEntity{
@@ -10,14 +10,14 @@ var TestUserEntities = []UserEntity{
 		Username: "user1",
 		Country:  "us",
 		Bio:      "",
-		JoinedOn: db.TestTimeNow.Local(),
+		JoinedOn: itest.TimeNow.Local(),
 	},
 	{
 		ID:       2,
 		Username: "user2",
 		Country:  "us",
 		Bio:      "",
-		JoinedOn: db.TestTimeNow.Local(),
+		JoinedOn: itest.TimeNow.Local(),
 	},
 }
 
@@ -55,7 +55,7 @@ var TestReplayEntities = []ReplayEntity{
 		BlackElo:     1000,
 		WhiteEloDiff: 30,
 		BlackEloDiff: -30,
-		PlayedOn:     db.TestTimeNow.Local(),
+		PlayedOn:     itest.TimeNow.Local(),
 	},
 	{
 		ID:           3,
@@ -74,7 +74,7 @@ var TestReplayEntities = []ReplayEntity{
 		BlackElo:     1000,
 		WhiteEloDiff: 0,
 		BlackEloDiff: 0,
-		PlayedOn:     db.TestTimeNow.Local(),
+		PlayedOn:     itest.TimeNow.Local(),
 	},
 }
 
@@ -90,8 +90,8 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeElo:     1000,
 		Mode:              ModeTimed3Plus2.String(),
 		StartColor:        Random.String(),
-		MadeOn:            db.TestTimeNow.Local(),
-		ExpiresOn:         db.TestTimeNow.Local().Add(ExpireChallengeMaxAge),
+		MadeOn:            itest.TimeNow.Local(),
+		ExpiresOn:         itest.TimeNow.Local().Add(ExpireChallengeMaxAge),
 	},
 	{
 		ChallengerID:      3,
@@ -104,8 +104,8 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeElo:     1000,
 		Mode:              ModeCorrespondence1.String(),
 		StartColor:        Random.String(),
-		MadeOn:            db.TestTimeNow.Local(),
-		ExpiresOn:         db.TestTimeNow.Local().Add(ExpireChallengeMaxAge),
+		MadeOn:            itest.TimeNow.Local(),
+		ExpiresOn:         itest.TimeNow.Local().Add(ExpireChallengeMaxAge),
 	},
 	{
 		ChallengerID:      5,
@@ -118,8 +118,8 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeElo:     1000,
 		Mode:              ModeCorrespondence1.String(),
 		StartColor:        Random.String(),
-		MadeOn:            db.TestTimeNow.Local(),
-		ExpiresOn:         db.TestTimeNow.Local().Add(ExpireChallengeMaxAge),
+		MadeOn:            itest.TimeNow.Local(),
+		ExpiresOn:         itest.TimeNow.Local().Add(ExpireChallengeMaxAge),
 	},
 	{
 		ChallengerID:      5,
@@ -132,7 +132,7 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeElo:     2000,
 		Mode:              ModeCorrespondence1.String(),
 		StartColor:        Random.String(),
-		MadeOn:            db.TestTimeNow.Local(),
-		ExpiresOn:         db.TestTimeNow.Local().Add(ExpireChallengeMaxAge),
+		MadeOn:            itest.TimeNow.Local(),
+		ExpiresOn:         itest.TimeNow.Local().Add(ExpireChallengeMaxAge),
 	},
 }

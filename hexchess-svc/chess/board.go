@@ -418,11 +418,11 @@ func (b *Board) Set(file, rank uint32, p Piece) {
 
 func (b *Board) SetPiece(file, rank uint32, piece Piece) error {
 	if file >= uint32(len(b.Pieces)) {
-		return fmt.Errorf("file out of range: %d", file)
+		return fmt.Errorf("file ext of range: %d", file)
 	}
 	fileArr := &b.Pieces[file]
 	if rank >= RanksPerFile[file] {
-		return fmt.Errorf("rank out of range: %d for file: %d", rank, file)
+		return fmt.Errorf("rank ext of range: %d for file: %d", rank, file)
 	}
 	if piece.Rune() == '?' {
 		return fmt.Errorf("unknown piece type: %d", piece)
@@ -433,11 +433,11 @@ func (b *Board) SetPiece(file, rank uint32, piece Piece) error {
 
 func (b *Board) GetPiece(file, rank uint32) (Piece, error) {
 	if file >= uint32(len(b.Pieces)) {
-		return 0, fmt.Errorf("board file out of range: %d", file)
+		return 0, fmt.Errorf("board file ext of range: %d", file)
 	}
 	fileArr := &b.Pieces[file]
 	if rank >= RanksPerFile[file] {
-		return 0, fmt.Errorf("board rank out of range: %d for file: %d", rank, file)
+		return 0, fmt.Errorf("board rank ext of range: %d for file: %d", rank, file)
 	}
 	return fileArr[rank], nil
 }
@@ -512,7 +512,7 @@ func ParseFen(fen string) (Board, error) {
 			}
 			if isLetter {
 				if rank >= rps {
-					return Board{}, fmt.Errorf("%s is out of bounds", Hex{File: file, Rank: rank}.String())
+					return Board{}, fmt.Errorf("%s is ext of bounds", Hex{File: file, Rank: rank}.String())
 				}
 				piece, err := PieceFromRune(ch)
 				if err != nil {

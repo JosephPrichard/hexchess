@@ -1,10 +1,13 @@
 package svc
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
@@ -16,7 +19,7 @@ import (
 	"time"
 )
 
-func (s State) CreateGame(ctx context.Context, color Color, mode GameMode, initialBoard *chess.Board) (string, error) {
+func (s *State) CreateGame(ctx context.Context, color Color, mode GameMode, initialBoard *chess.Board) (string, error) {
 	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
 	bID := make([]byte, 8)
@@ -29,7 +32,7 @@ func (s State) CreateGame(ctx context.Context, color Color, mode GameMode, initi
 	}
 	strID := string(bID)
 
-	state := MakeState(StateSetup{ID: strID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
+	state := MakeChess(StateSetup{ID: strID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
 	state.Game.InitPieceMoves()
 
 	slog.InfoContext(ctx, "created chess game", "chessMeta", state.ChessMeta)
@@ -41,7 +44,7 @@ func (s State) CreateGame(ctx context.Context, color Color, mode GameMode, initi
 	return strID, nil
 }
 
-func (s State) broadcastGameCounts() {
+func (s *State) broadcastGameCounts() {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Warn("recovered in panic while broadcasting game event", "err", r)
@@ -61,7 +64,7 @@ func (s State) broadcastGameCounts() {
 	slog.InfoContext(ctx, "counted chess states after creating game", "count", count)
 }
 
-func (s State) JoinGame(ctx context.Context, gameID string, player PlayerState) (*ChessState, error) {
+func (s *State) JoinGame(ctx context.Context, gameID string, player PlayerState) (*ChessState, error) {
 	state, err := s.GetChessState(ctx, gameID)
 	if err != nil {
 		return nil, fmt.Errorf("get chess state by id %s: %w", gameID, err)
@@ -123,7 +126,7 @@ type MakeMoveResult struct {
 	Move     chess.HistMove
 }
 
-func (s State) MakeGameMove(ctx context.Context, gameID string, player PlayerState, move chess.Move) (mr MakeMoveResult, err error) {
+func (s *State) MakeGameMove(ctx context.Context, gameID string, player PlayerState, move chess.Move) (mr MakeMoveResult, err error) {
 	state, err := s.GetChessState(ctx, gameID)
 	if err != nil {
 		return mr, fmt.Errorf("get chess state by id %s: %w", gameID, err)
@@ -199,7 +202,7 @@ const (
 	UndoReject
 )
 
-func (s State) AttemptGameUndo(ctx context.Context, gameID string, player PlayerState, kind UndoKind) (*ChessState, error) {
+func (s *State) AttemptGameUndo(ctx context.Context, gameID string, player PlayerState, kind UndoKind) (*ChessState, error) {
 	state, err := s.GetChessState(ctx, gameID)
 	if err != nil {
 		return nil, fmt.Errorf("get chess state by id %s: %w", gameID, err)
@@ -236,7 +239,7 @@ func (s State) AttemptGameUndo(ctx context.Context, gameID string, player Player
 	return state, nil
 }
 
-func (s State) ForfeitGame(ctx context.Context, gameID string, player PlayerState) (replayID int64, fs FinishState, err error) {
+func (s *State) ForfeitGame(ctx context.Context, gameID string, player PlayerState) (replayID int64, fs FinishState, err error) {
 	state, err := s.GetChessState(ctx, gameID)
 	if err != nil {
 		return replayID, fs, fmt.Errorf("get chess state by id %s: %w", gameID, err)
@@ -281,7 +284,25 @@ func (s State) ForfeitGame(ctx context.Context, gameID string, player PlayerStat
 	return replayID, fs, nil
 }
 
-func (s State) WriteFinishedGame(ctx context.Context, state *ChessState, result ReplayResult, cause ReplayCause) (cs GRChangeSet, err error) {
+func (s *State) PutReplayMoveSeq(ctx context.Context, replayID int64, initialBoard chess.Board, moves []chess.HistMove) error {
+	moveHistBytes, err := chess.MarshalMoveHistory(initialBoard, moves)
+	if err != nil {
+		return fmt.Errorf("marshal move history to s3: %w", err)
+	}
+
+	key := MakeReplayMoveListKey(replayID)
+
+	if _, err := s.S3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(s.Aws.S3Bucket),
+		Key:    aws.String(key),
+		Body:   bytes.NewReader(moveHistBytes),
+	}); err != nil {
+		return fmt.Errorf("put move history '%s': to s3 bucket: '%s': %w", key, s.Aws.S3Bucket, err)
+	}
+	return nil
+}
+
+func (s *State) WriteFinishedGame(ctx context.Context, state *ChessState, result ReplayResult, cause ReplayCause) (cs GRChangeSet, err error) {
 	if !state.WhitePlayer.Present || !state.BlackPlayer.Present {
 		return cs, fmt.Errorf("game players must be present on a finished game: %s", state.ID)
 	}
@@ -293,26 +314,24 @@ func (s State) WriteFinishedGame(ctx context.Context, state *ChessState, result 
 	whiteID := state.WhitePlayer.ID
 	blackID := state.BlackPlayer.ID
 
-	moveHistBytes, err := chess.MarshalMoveHistory(state.InitialBoard, state.Game.Moves)
-	if err != nil {
-		return cs, fmt.Errorf("marshal move history: %w", err)
-	}
-	changeSet, err := s.InsertGameResultTx(ctx, time.Time{}, GameResult{
-		WhiteID:            whiteID,
-		BlackID:            blackID,
-		ReplayCause:        cause,
-		ReplayResult:       result,
-		ReplayMode:         state.Mode,
-		SerializedMoveHist: moveHistBytes,
+	cs, err = s.InsertGameResultTx(ctx, time.Time{}, GameResult{
+		WhiteID:      whiteID,
+		BlackID:      blackID,
+		ReplayCause:  cause,
+		ReplayResult: result,
+		ReplayMode:   state.Mode,
 	})
 	if err != nil {
 		return cs, fmt.Errorf("execute finish game tx: %w", err)
 	}
-	cs = changeSet
 	if cs.IsNoop() {
 		return cs, nil
 	}
 	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", cs, "room", state.ID)
+
+	if err := s.PutReplayMoveSeq(ctx, cs.ReplayID, state.InitialBoard, state.Game.Moves); err != nil {
+		return cs, err
+	}
 
 	if err := s.IncrLeaderboard(ctx,
 		UpdtLbChangeSet{Mode: state.Mode, ID: cs.WinID, EloDiff: cs.WinEloDiff},
@@ -325,12 +344,11 @@ func (s State) WriteFinishedGame(ctx context.Context, state *ChessState, result 
 }
 
 type GameResult struct {
-	WhiteID            int64        `json:"whiteId"`
-	BlackID            int64        `json:"blackId"`
-	ReplayCause        ReplayCause  `json:"cause"`
-	ReplayResult       ReplayResult `json:"result"`
-	ReplayMode         GameMode     `json:"mode"`
-	SerializedMoveHist []byte
+	WhiteID      int64        `json:"whiteId"`
+	BlackID      int64        `json:"blackId"`
+	ReplayCause  ReplayCause  `json:"cause"`
+	ReplayResult ReplayResult `json:"result"`
+	ReplayMode   GameMode     `json:"mode"`
 }
 
 type GRChangeSet struct {
@@ -345,7 +363,7 @@ func (cs GRChangeSet) IsNoop() bool {
 	return cs.LoseEloDiff == 0 && cs.WinEloDiff == 0
 }
 
-func (s State) InsertGameResultTx(ctx context.Context, timeAt time.Time, params GameResult) (cs GRChangeSet, err error) {
+func (s *State) InsertGameResultTx(ctx context.Context, timeAt time.Time, params GameResult) (cs GRChangeSet, err error) {
 	err = s.RunInTx(ctx, db.TxnArgs{
 		Fn: func(ctx context.Context, query *db.Queries) (err error) {
 			cs, err = insertGameResult(ctx, query, timeAt, params)
@@ -433,17 +451,16 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 	}
 
 	replayID, err := insertReplay(ctx, query, ReplayInst{
-		WhiteID:            result.WhiteID,
-		BlackID:            result.BlackID,
-		Result:             result.ReplayResult,
-		Cause:              result.ReplayCause,
-		Mode:               result.ReplayMode,
-		WinEloDiff:         cs.WinEloDiff,
-		LoseEloDiff:        cs.LoseEloDiff,
-		ReplayWhiteElo:     whiteEloNext,
-		ReplayBlackElo:     blackEloNext,
-		SerializedMoveHist: result.SerializedMoveHist,
-		PlayedOn:           timeAt,
+		WhiteID:        result.WhiteID,
+		BlackID:        result.BlackID,
+		Result:         result.ReplayResult,
+		Cause:          result.ReplayCause,
+		Mode:           result.ReplayMode,
+		WinEloDiff:     cs.WinEloDiff,
+		LoseEloDiff:    cs.LoseEloDiff,
+		ReplayWhiteElo: whiteEloNext,
+		ReplayBlackElo: blackEloNext,
+		PlayedOn:       timeAt,
 	})
 	if err != nil {
 		return cs, fmt.Errorf("insert replay: %w", err)

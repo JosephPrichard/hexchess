@@ -55,7 +55,7 @@ func TestParse_Fen(t *testing.T) {
 		{
 			name:    "too many pieces in a file",
 			fen:     "5kK/P5p/RP4pr/N1P3p1n/Q2P2p2q/BBB1P1p1bbb/K2P2p2k/N1P3p1n/RP4pr/P5p/6 w",
-			wantErr: errors.New("a7 is out of bounds"),
+			wantErr: errors.New("a7 is ext of bounds"),
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {

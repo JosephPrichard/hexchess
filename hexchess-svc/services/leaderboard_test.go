@@ -2,9 +2,10 @@ package svc
 
 import (
 	"context"
-	"hexchess-svc/db"
+	"hexchess-svc/itest"
 	"hexchess-svc/pkg/assertutil"
 	"hexchess-svc/pkg/logutil"
+
 	"testing"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 
 func TestLeaderboard(t *testing.T) {
 	// given
-	rdb := db.BeforeRedisTest(t)
+	rdb := itest.SetupRedisTest(t)
 	defer rdb.Close()
 
 	id1 := int64(1)
@@ -112,7 +113,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 999999}},
 			wantLeaderboard: []LbdUserEntity{
 				{
-					UserEntity: UserEntity{ID: 1, Username: "user1", Country: "us", JoinedOn: db.TestTimeNow},
+					UserEntity: UserEntity{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
 					Elo:        1050,
 					HighestElo: 1050,
 					Wins:       6,
@@ -129,7 +130,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 3}},
 			wantLeaderboard: []LbdUserEntity{
 				{
-					UserEntity: UserEntity{ID: 1, Username: "user1", Country: "us", JoinedOn: db.TestTimeNow},
+					UserEntity: UserEntity{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
 					Elo:        1000,
 					HighestElo: 1000,
 					Wins:       2,
@@ -138,7 +139,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 					Rank:       1,
 				},
 				{
-					UserEntity: UserEntity{ID: 3, Username: "user3", Country: "us", JoinedOn: db.TestTimeNow},
+					UserEntity: UserEntity{ID: 3, Username: "user3", Country: "us", JoinedOn: itest.TimeNow},
 					Elo:        900,
 					HighestElo: 900,
 					Rank:       2,
@@ -148,11 +149,10 @@ func TestGetLeaderboardUsers(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// given
-			pdb, closer := db.BeforePostgresTest(t, false)
-			defer closer()
+			s := SetupStateTest(t, itest.WithPostgres)
+			defer s.Close()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
-			s := State{Postgres: pdb}
 
 			// when
 			leaderboard, missingIDs, err := s.GetLeaderboardUsers(ctx, test.mode, test.rankedUsers)
@@ -167,12 +167,10 @@ func TestGetLeaderboardUsers(t *testing.T) {
 
 func TestGetFuzzySearchLeaderboard(t *testing.T) {
 	// given
-	pdb, closer := db.BeforePostgresTest(t, true)
-	defer closer()
+	s := SetupStateTest(t, itest.UseTxn, itest.WithPostgres)
+	defer s.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	s := State{Postgres: pdb}
-
 	// when
 	users, err := s.GetFuzzySearchLeaderboard(ctx, "john", 1, 20)
 	require.NoError(t, err)

@@ -18,11 +18,11 @@
 	import Banner from '$lib/Banner.svelte';
 
 	const timeframes: { label: string, value: string }[] = [
-		{ label: "All Time", state: "all" },
-		{ label: "1 Year", state: "1y" },
-		{ label: "6 Months", state: "6m" },
-		{ label: "3 Months", state: "3m" },
-		{ label: "1 Month", state: "1m" },
+		{ label: "All Time", value: "all" },
+		{ label: "1 Year", value: "1y" },
+		{ label: "6 Months", value: "6m" },
+		{ label: "3 Months", value: "3m" },
+		{ label: "1 Month", value: "1m" },
 	];
 
 	export interface PlayerProps {

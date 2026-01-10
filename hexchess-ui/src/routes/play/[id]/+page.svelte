@@ -14,12 +14,13 @@
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import { getInitialGameWasm, getMoveNotationsWasm } from '$lib/api/wasm';
 	import { formatTimer } from '$lib/utils/format';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import Banner from '$lib/Banner.svelte';
 	import Error from '$lib/Error.svelte';
 	import ChatIcon from '$lib/components/icons/ChatIcon.svelte';
 	import FinishPanel from '$lib/components/user/FinishPanel.svelte';
 	import type { Promotion } from '$lib/state/game.svelte';
+	import { defaultBoard, defaultGame, makeGame } from '$lib/utils/chess';
 
 	const forfeitModalIds = ["forfeit-modal", "forfeit-button"];
 	const maxTimeout = 2500;
@@ -38,7 +39,7 @@
 	const { addNotification } = getNotificationsContext();
 
 	// game life cycle states taken from ws responses
-	let game = $state<ChessGame | undefined>(undefined);
+	let game = $state<ChessGame | undefined>(defaultGame);
 	let whitePlayer = $state<PlayerState | undefined>(undefined);
 	let blackPlayer = $state<PlayerState | undefined>(undefined);
 	let selfPlayer: PlayerState | undefined = $state(undefined);
@@ -157,7 +158,7 @@
 
 	function onCompletePromotion() {}
 
-	function handleMessage(data: GameOutput) {
+	 function handleMessage(data: GameOutput) {
 		const kind = data.value.oneofKind;
 		if (kind === 'init') {
 			const init = data.value.init;
@@ -184,6 +185,9 @@
 		} else if (kind === 'error') {
 			const code = data.value.error.message;
 			switch (code) {
+			case codes.errorInvalidMove:
+				// this error can occur whenever the user makes a bad move, the UI will just snap the piece back in place instead of sending an error
+				break;
 			case codes.errorInvalidGame:
 				gameExpired = true;
 				break;
@@ -243,7 +247,7 @@
 			}
 			console.log(`Trying to connect to game=${gameId} in timeout=${timeout} with tries=${state.tries}`);
 			if (timeout > 0) {
-				setTimeout(() => tryConnect(gameId), timeout);
+				setTimeout(() => tryConnect(gameId), 0);
 			} else {
 				tryConnect(gameId);
 			}
@@ -285,11 +289,9 @@
 		}
 	});
 
-	onMount(() => {
-		getInitialGameWasm().then(initialGame => game = initialGame);
-	});
-
-
+	// onMount(() => {
+	// 	getInitialGameWasm().then(initialGame => game = initialGame);
+	// });
 </script>
 
 <svelte:head>
@@ -297,11 +299,11 @@
 </svelte:head>
 <Banner />
 {#if gameExpired}
-	<div class="disconnect-message">
+	<div class="bottom-right-error">
 		Game has expired due to inactivity.
 	</div>
 {:else if isErrorPage && props.gameExists}
-	<div class="disconnect-message">
+	<div class="bottom-right-error">
 		Disconnected. Attempting to regain a connection...
 	</div>
 {/if}
@@ -470,17 +472,6 @@
 		height: 30px;
 		border-radius: 0;
 	}
-
-    .disconnect-message {
-		padding: 20px;
-		border-top-left-radius: 4px;
-        position: fixed;
-        right: 0;
-        bottom: 0;
-        z-index: 1000;
-		color: white;
-		background-color: #B7374E;
-    }
 
     .player-panel {
         padding-top: 15px;

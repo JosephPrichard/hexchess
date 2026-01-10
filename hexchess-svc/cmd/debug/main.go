@@ -47,7 +47,7 @@ func main() {
 		s := svc.State{Postgres: postgres}
 		pbMoveHist, err := s.GetReplayMoveHistory(ctx, int64(id))
 		if err != nil {
-			logutil.FatalErr("get replay move list", err)
+			logutil.FatalErr("get replay move seq", err)
 		}
 
 		for _, pbStep := range pbMoveHist.Steps {

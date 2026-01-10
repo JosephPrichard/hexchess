@@ -2,8 +2,9 @@ package svc
 
 import (
 	"context"
-	"hexchess-svc/db"
+	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
+
 	"testing"
 	"time"
 
@@ -13,11 +14,10 @@ import (
 
 func TestGetReplay(t *testing.T) {
 	// given
-	pdb, closer := db.BeforePostgresTest(t, true)
-	defer closer()
+	s := SetupStateTest(t, itest.UseTxn, itest.WithPostgres)
+	defer s.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	s := State{Postgres: pdb}
 
 	// when
 	actualReplay1, err := s.GetReplay(ctx, 1)
@@ -41,18 +41,17 @@ func TestGetReplay(t *testing.T) {
 		BlackElo:     1000,
 		WhiteEloDiff: 30,
 		BlackEloDiff: -30,
-		PlayedOn:     db.TestTimeNow.Local(),
+		PlayedOn:     itest.TimeNow.Local(),
 	}
 	assert.Equal(t, wantReplay, actualReplay1)
 }
 
 func TestGetUserReplays(t *testing.T) {
 	// given
-	pdb, closer := db.BeforePostgresTest(t, true)
-	defer closer()
+	s := SetupStateTest(t, itest.UseTxn, itest.WithPostgres)
+	defer s.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	s := State{Postgres: pdb}
 
 	// when
 	actualReplayList1, err := s.GetUserReplays(ctx, 1, -1, 5)
@@ -68,19 +67,6 @@ func TestGetUserReplays(t *testing.T) {
 
 	assert.Equal(t, expectedReplayList1, actualReplayList1)
 	assert.Equal(t, expectedReplayList2, actualReplayList2)
-}
-
-func TestGetReplayMoveList(t *testing.T) {
-	// given
-	pdb, closer := db.BeforePostgresTest(t, true)
-	defer closer()
-
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	s := State{Postgres: pdb}
-
-	// when and then
-	_, err := s.GetReplayMoveHistory(ctx, 1)
-	require.NoError(t, err)
 }
 
 func TestRetrieveEloHistories(t *testing.T) {
@@ -123,11 +109,10 @@ func TestRetrieveEloHistories(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// given
-			pdb, closer := db.BeforePostgresTest(t, false)
-			defer closer()
+			s := SetupStateTest(t, itest.WithPostgres)
+			defer s.Close()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
-			s := State{Postgres: pdb}
 
 			// when
 			eloHistories, bd, err := s.RetrieveEloHistoryBuckets(ctx, test.params)

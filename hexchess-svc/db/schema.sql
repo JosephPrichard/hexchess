@@ -126,8 +126,7 @@ CREATE TABLE public.replays (
     win_elo_diff double precision NOT NULL,
     lose_elo_diff double precision NOT NULL,
     white_elo double precision NOT NULL,
-    black_elo double precision NOT NULL,
-    move_history bytea NOT NULL
+    black_elo double precision NOT NULL
 );
 
 

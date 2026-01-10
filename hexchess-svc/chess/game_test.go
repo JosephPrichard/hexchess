@@ -196,7 +196,7 @@ func TestGame_ValidateMove(t *testing.T) {
 			wantKind: MoveErrNoop,
 		},
 		{
-			name:     "out of bounds move",
+			name:     "ext of bounds move",
 			move:     Move{From: Hex{File: 1, Rank: 1}, To: Hex{File: 14, Rank: 1}},
 			wantKind: MoveErrOutOfBounds,
 		},

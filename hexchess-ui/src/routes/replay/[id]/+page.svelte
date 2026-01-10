@@ -15,6 +15,7 @@
 	import TurnWrapper from '$lib/components/chess/TurnWrapper.svelte';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import Banner from '$lib/Banner.svelte';
+	import Error from '$lib/Error.svelte';
 
 	export interface ReplayProps {
 		replay: ReplayModel;
@@ -28,8 +29,6 @@
 	let move = makeMoveState();
 	const selection = makeSelectionState();
 
-	let subGameIndex: number | undefined = undefined;
-
 	interface ReplayMove {
 		pm?: PieceMove
 		notation: string
@@ -39,6 +38,7 @@
 	type ReplayMoveRoot = ReplayMove & {moves: ReplayMove[]};
 
 	let moveList: ReplayMoveRoot[] = $state([]);
+	let moveListErr: string | undefined = $state(undefined);
 	let initialGame: ChessGame | undefined = undefined;
 
 	async function initMoveList(replayId: string) {
@@ -47,8 +47,7 @@
 			initialGame = data.initialGame;
 			moveList = data.steps.map(step => ({ pm: step.pm, notation: step.notMove, game: step.game, moves: [] }));
 		} else {
-			const message = 'Failed to load replay move list: ' + makeMessage(err);
-			addNotification({ type: 'string', message, isSuccess: false });
+			moveListErr = makeMessage(err);
 		}
 	}
 
@@ -60,37 +59,7 @@
 		move.updateMoveCount(moveList.length);
 	});
 
-	function getGame(moveList: ReplayMoveRoot[], index?: number): [ChessGame | undefined, ReplayMove[]] {
-		let moves: ReplayMove[] = moveList;
-		if (subGameIndex !== undefined) {
-			moves = moveList[subGameIndex]?.moves;
-		}
-		const game = index !== undefined ? moves[index]?.game : initialGame
-		return [game, moves];
-	}
-
-	const prevMove = $derived.by(() =>
-		moveList.length > 0 && move?.state.moveIndex !== undefined
-			? moveList[move.state.moveIndex].pm
-			: undefined);
-
-	// async function onPieceMove(from: Hex, to: Hex) {
-	// 	if (moveState.value.moveIndex === undefined)
-	// 		return;
-	//
-	// 	const [game, moves] = getGame(moveList, moveState.value.moveIndex);
-	//
-	// 	const nextGame = await makeMoveWasm($state.snapshot(game), {from, to});
-	// 	if (nextGame !== undefined) {
-	// 		moves.push({ pm: makeMove(from, to), notation: "", game: nextGame });
-	//
-	// 		subGameIndex = moveState.value.moveIndex;
-	// 		moveState.selectMove(0);
-	// 	}
-	// }
-
 	async function onSelectMove(index: number) {
-		subGameIndex = undefined;
 		move.selectMove(index);
 		onDeSelect();
 	}
@@ -103,7 +72,16 @@
 		selection.deSelect();
 	}
 
-	const [game, _] = $derived.by(() => getGame(moveList, move.state.moveIndex));
+	const [game, prevMove] = $derived.by(() => {
+		const index = move.state.moveIndex;
+		const game = index !== undefined
+			? moveList[index]?.game
+			: initialGame;
+		let prevMove = moveList.length > 0 && move?.state.moveIndex !== undefined
+			? moveList[move.state.moveIndex].pm
+			: undefined;
+		return [game, prevMove];
+	});
 	const rootNotationList = $derived.by(() => moveList.map(move => move.notation));
 </script>
 
@@ -111,6 +89,11 @@
 	<title>Replay - Hexchess</title>
 </svelte:head>
 <Banner />
+{#if moveListErr}
+	<div class="bottom-right-error">
+		Unable to retrieve replay's move sequence.
+	</div>
+{/if}
 <div class="center-horizontal-container">
 	<div class="center-vertical-container" style="align-items: stretch;">
 		<Board

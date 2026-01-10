@@ -73,7 +73,7 @@ type StateSetup struct {
 	Game         *chess.Game
 }
 
-func MakeState(s StateSetup) ChessState {
+func MakeChess(s StateSetup) ChessState {
 	b := chess.MakeStartBoard()
 	if s.InitialBoard != nil {
 		b = *s.InitialBoard
@@ -136,12 +136,12 @@ func (s *ChessState) DeepCopy() ChessState {
 	return s2
 }
 
-func (s State) getUserGameZSet(id int64) string {
+func (s *State) getUserGameZSet(id int64) string {
 	return s.Redis.GamesZSet + "/user_" + strconv.Itoa(int(id))
 }
 
 // IsGameAccessible we can just treat any inability to validate that the game exists as it "not existing", the client will just show a "404".
-func (s State) IsGameAccessible(ctx context.Context, id string) bool {
+func (s *State) IsGameAccessible(ctx context.Context, id string) bool {
 	if err := s.ExpireChessStates(ctx, s.Redis.GamesZSet); err != nil {
 		return false
 	}
@@ -152,7 +152,7 @@ func (s State) IsGameAccessible(ctx context.Context, id string) bool {
 
 var ErrNoChessState = errors.New("no chess state")
 
-func (s State) GetChessState(ctx context.Context, id string) (*ChessState, error) {
+func (s *State) GetChessState(ctx context.Context, id string) (*ChessState, error) {
 	if err := s.ExpireChessStates(ctx, s.Redis.GamesZSet); err != nil {
 		return nil, fmt.Errorf("expire chess states: %w", err)
 	}
@@ -173,7 +173,7 @@ func (s State) GetChessState(ctx context.Context, id string) (*ChessState, error
 	return &state, nil
 }
 
-func (s State) SetChessState(ctx context.Context, id string, state *ChessState) error {
+func (s *State) SetChessState(ctx context.Context, id string, state *ChessState) error {
 	touch := time.Now()
 	return s.SetChessStateAt(ctx, id, state, touch)
 }
@@ -182,11 +182,11 @@ func makeGameKey(gameID string) string {
 	return "game:" + gameID
 }
 
-func (s State) makeGameChatsKey(gameKey string) string {
+func (s *State) makeGameChatsKey(gameKey string) string {
 	return gameKey + "/" + s.GameChatsPostfix
 }
 
-func (s State) SetChessStateAt(ctx context.Context, id string, state *ChessState, touch time.Time) error {
+func (s *State) SetChessStateAt(ctx context.Context, id string, state *ChessState, touch time.Time) error {
 	state.Touch = touch
 	touchSecs := float64(state.Touch.Unix())
 	fullID := makeGameKey(id)
@@ -220,7 +220,7 @@ type StateChat struct {
 	SentAt  time.Time   `json:"time"`
 }
 
-func (s State) GetStateChats(ctx context.Context, gameID string, count int64) ([]StateChat, error) {
+func (s *State) GetStateChats(ctx context.Context, gameID string, count int64) ([]StateChat, error) {
 	zSetName := s.makeGameChatsKey(makeGameKey(gameID))
 	strList, err := s.Cache.ZRevRange(ctx, zSetName, 0, count).Result()
 	if err != nil {
@@ -240,7 +240,7 @@ func (s State) GetStateChats(ctx context.Context, gameID string, count int64) ([
 	return chats, nil
 }
 
-func (s State) InsertStateChat(ctx context.Context, gameID string, chat StateChat) error {
+func (s *State) InsertStateChat(ctx context.Context, gameID string, chat StateChat) error {
 	bytes, err := proto.Marshal(SerializeChat(chat))
 	if err != nil {
 		return fmt.Errorf("marshal chat: %w", err)
@@ -255,7 +255,7 @@ func (s State) InsertStateChat(ctx context.Context, gameID string, chat StateCha
 
 const GameExpireFinished = 1 * time.Hour
 
-func (s State) ExpireChessStates(ctx context.Context, gameZSetName string) error {
+func (s *State) ExpireChessStates(ctx context.Context, gameZSetName string) error {
 	expireBefore := time.Now().Add(-GameExpireFinished).Unix()
 
 	keys, err := s.Redis.Cache.ZRangeByScore(ctx, gameZSetName, &redis.ZRangeBy{
@@ -288,19 +288,19 @@ func (s State) ExpireChessStates(ctx context.Context, gameZSetName string) error
 	return nil
 }
 
-func (s State) GetUserChessMetas(ctx context.Context, userID int64) ([]ChessMeta, error) {
+func (s *State) GetUserChessMetas(ctx context.Context, userID int64) ([]ChessMeta, error) {
 	return s.GetChessMetas(ctx, s.getUserGameZSet(userID), 1, -1)
 }
 
-func (s State) GetUserChessMetasPaged(ctx context.Context, userID int64, page, count int) ([]ChessMeta, error) {
+func (s *State) GetUserChessMetasPaged(ctx context.Context, userID int64, page, count int) ([]ChessMeta, error) {
 	return s.GetChessMetas(ctx, s.getUserGameZSet(userID), page, count)
 }
 
-func (s State) GetAllChessMetas(ctx context.Context, page, count int) ([]ChessMeta, error) {
+func (s *State) GetAllChessMetas(ctx context.Context, page, count int) ([]ChessMeta, error) {
 	return s.GetChessMetas(ctx, s.Redis.GamesZSet, page, count)
 }
 
-func (s State) GetChessMetas(ctx context.Context, zSetName string, page, count int) ([]ChessMeta, error) {
+func (s *State) GetChessMetas(ctx context.Context, zSetName string, page, count int) ([]ChessMeta, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -351,7 +351,7 @@ func (s State) GetChessMetas(ctx context.Context, zSetName string, page, count i
 	return views, nil
 }
 
-func (s State) GetChessStateCount(ctx context.Context) (int64, error) {
+func (s *State) GetChessStateCount(ctx context.Context) (int64, error) {
 	if err := s.ExpireChessStates(ctx, s.Redis.GamesZSet); err != nil {
 		return 0, err
 	}

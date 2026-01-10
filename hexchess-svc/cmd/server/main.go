@@ -6,7 +6,7 @@ import (
 	"hexchess-svc/assets"
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
-	"hexchess-svc/out"
+	"hexchess-svc/ext"
 	"hexchess-svc/pkg/logutil"
 	svc "hexchess-svc/services"
 	"hexchess-svc/web"
@@ -40,6 +40,10 @@ func main() {
 	dbURL := os.Getenv("DB_URL")
 	rdbPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
 	rdbPubSubURL := os.Getenv("REDIS_PUBSUB_URL")
+	awsSecretID := os.Getenv("AWS_SECRET_ID")
+	awsSecretKey := os.Getenv("AWS_SECRET_KEY")
+	awsDefaultRegion := os.Getenv("AWS_DEFAULT_REGION")
+	awsEndpoint := os.Getenv("AWS_ENDPOINT")
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 	pprofPort := os.Getenv("PPROF_PORT")
 	// googleAPIKey := os.Getenv("GOOGLE_APIKEY")
@@ -66,19 +70,29 @@ func main() {
 	slog.Info("connecting to rdb db", "primaryURL", rdbPrimaryURL, "pubsubURL", rdbPubSubURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL, PubsubAddr: rdbPubSubURL}, db.DefaultRedisNames)
 
-	state := svc.State{Postgres: pdb, Redis: rdb, EntropySource: &out.NDEntropySource{}}
+	aws, err := ext.MakeAwsClients(context.Background(), ext.AwsConfig{
+		AwsDefaultRegion: awsDefaultRegion,
+		AwsSecretKey:     awsSecretKey,
+		AwsSecretID:      awsSecretID,
+		AwsEndpoint:      awsEndpoint,
+	})
+	if err != nil {
+		logutil.FatalErr("load aws config", err)
+	}
+
+	state := svc.State{
+		Postgres:          pdb,
+		Redis:             rdb,
+		Aws:               aws,
+		LocalBroadcasters: svc.MakeBroadcaster(),
+		RemoteAPIs:        ext.MakeRemoteAPIs(),
+		EntropySource:     &ext.NDEntropySource{},
+	}
 	defer state.Close()
 
-	setup := web.Setup{
-		State:          state,
-		Broadcasters:   svc.MakeBroadcaster(),
-		RemoteAPIs:     out.MakeRemoteAPIs(),
-		CountryList:    countryList,
-		AllowedOrigins: allowedOrigins,
-	}
-	<-setup.Broadcasters.ListenGameMessages(rdb)
-	<-setup.Broadcasters.ListenUsersMessages(rdb)
-	<-setup.Broadcasters.ListenUnicastEvents(rdb)
+	<-state.LocalBroadcasters.ListenGameMessages(rdb)
+	<-state.LocalBroadcasters.ListenUsersMessages(rdb)
+	<-state.LocalBroadcasters.ListenUnicastEvents(rdb)
 
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 
@@ -86,6 +100,12 @@ func main() {
 		go func() {
 			log.Println(http.ListenAndServe(":"+pprofPort, nil))
 		}()
+	}
+
+	setup := web.Setup{
+		State:          state,
+		CountryList:    countryList,
+		AllowedOrigins: allowedOrigins,
 	}
 	if err := http.ListenAndServe(":"+serverPort, web.MakeRoot(setup)); err != nil {
 		logutil.FatalErr("failed while serving", err)

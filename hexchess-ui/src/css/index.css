@@ -679,3 +679,14 @@ select:disabled {
 .self-color {
 	color: #F0E68C;
 }
+
+.bottom-right-error {
+	padding: 20px;
+	border-top-left-radius: 4px;
+	position: fixed;
+	right: 0;
+	bottom: 0;
+	z-index: 1000;
+	color: white;
+	background-color: #B7374E;
+}

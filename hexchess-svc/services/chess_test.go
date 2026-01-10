@@ -4,10 +4,11 @@ import (
 	"context"
 	"github.com/stretchr/testify/require"
 	"hexchess-svc/chess"
-	"hexchess-svc/db"
+	"hexchess-svc/itest"
 	"hexchess-svc/pkg/assertutil"
 	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/pkg/ptr"
+
 	"testing"
 	"time"
 
@@ -17,13 +18,13 @@ import (
 
 func TestEchoChessState(t *testing.T) {
 	// given
-	rdb := db.BeforeRedisTest(t)
+	rdb := itest.SetupRedisTest(t)
 	defer rdb.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 	id2 := "testing-id2-" + uuid.NewString()
 
-	state1 := MakeState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
+	state1 := MakeChess(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Redis: rdb}
 
@@ -42,16 +43,16 @@ func TestEchoChessState(t *testing.T) {
 
 func TestGetChessMetas(t *testing.T) {
 	// given
-	rdb := db.BeforeRedisTest(t)
+	rdb := itest.SetupRedisTest(t)
 	defer rdb.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 	id2 := "testing-id2-" + uuid.NewString()
 	id3 := "testing-id3-" + uuid.NewString()
 
-	state1 := MakeState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random, White: ptr.New(MakeIDPlayer(1)), Black: ptr.New(MakeIDPlayer(2))})
-	state2 := MakeState(StateSetup{ID: id2, Mode: ModeCorrespondence1, FirstColor: Random, Black: ptr.New(MakeIDPlayer(1))})
-	state3 := MakeState(StateSetup{ID: id3, Mode: ModeCorrespondence1, FirstColor: Random, Black: ptr.New(MakeIDPlayer(1))})
+	state1 := MakeChess(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random, White: ptr.New(MakeIDPlayer(1)), Black: ptr.New(MakeIDPlayer(2))})
+	state2 := MakeChess(StateSetup{ID: id2, Mode: ModeCorrespondence1, FirstColor: Random, Black: ptr.New(MakeIDPlayer(1))})
+	state3 := MakeChess(StateSetup{ID: id3, Mode: ModeCorrespondence1, FirstColor: Random, Black: ptr.New(MakeIDPlayer(1))})
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	s := State{Redis: rdb}
@@ -88,7 +89,7 @@ func TestGetChessMetas(t *testing.T) {
 
 func TestEchoStateChats(t *testing.T) {
 	// given
-	rdb := db.BeforeRedisTest(t)
+	rdb := itest.SetupRedisTest(t)
 	defer rdb.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
@@ -119,12 +120,12 @@ func TestEchoStateChats(t *testing.T) {
 
 func TestExpireChessStates(t *testing.T) {
 	// given
-	rdb := db.BeforeRedisTest(t)
+	rdb := itest.SetupRedisTest(t)
 	defer rdb.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 
-	state1 := MakeState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
+	state1 := MakeChess(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
 
 	state1.WhitePlayer = MakeIDPlayer(1)
 	state1.BlackPlayer = MakeIDPlayer(2)

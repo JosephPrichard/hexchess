@@ -116,7 +116,7 @@ func (rdb *Redis) Close() {
 	}
 }
 
-func MakeRdb(addrs RedisAddrs, names RedisNames) *Redis {
+func MakeRdb(addrs RedisAddrs, names RedisNames) Redis {
 	var ps *redigo.Pool
 	if addrs.PubsubAddr != "" {
 		ps = &redigo.Pool{
@@ -131,7 +131,7 @@ func MakeRdb(addrs RedisAddrs, names RedisNames) *Redis {
 			},
 		}
 	}
-	return &Redis{
+	return Redis{
 		Cache: redis.NewClient(&redis.Options{
 			Addr: addrs.CacheAddr,
 		}),

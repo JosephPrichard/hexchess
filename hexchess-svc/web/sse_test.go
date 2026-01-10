@@ -8,10 +8,11 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"hexchess-svc/db"
-	"hexchess-svc/out"
+	"hexchess-svc/ext"
+	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/services"
+
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -58,15 +59,13 @@ func scanEvents(resp *http.Response, wantEvents int) []string {
 
 func TestHandleCountEvents(t *testing.T) {
 	// given
-	rdb := db.BeforeRedisTest(t)
-	defer rdb.Close()
+	state := svc.SetupStateTest(t, itest.WithRedis)
+	defer state.Close()
 
-	state := svc.State{Redis: rdb, EntropySource: &out.StableSource{ID: "id1"}}
-	setup := Setup{State: state, Broadcasters: svc.MakeBroadcaster()}
+	state.LocalBroadcasters = svc.MakeBroadcaster()
+	<-state.LocalBroadcasters.ListenUnicastEvents(state.Redis)
 
-	<-setup.Broadcasters.ListenUnicastEvents(rdb)
-
-	ts := httptest.NewServer(MakeRoot(setup))
+	ts := httptest.NewServer(MakeRoot(Setup{State: state}))
 	defer ts.Close()
 
 	// when
@@ -98,20 +97,20 @@ func TestHandleCountEvents(t *testing.T) {
 
 func TestHandleActiveConn(t *testing.T) {
 	// given
-	rdb := db.BeforeRedisTest(t)
-	defer rdb.Close()
+	state := svc.SetupStateTest(t, itest.WithRedis)
+	defer state.Close()
 
-	state := svc.State{Redis: rdb, EntropySource: &out.StableSource{ID: "id1"}}
-	setup := Setup{State: state, Broadcasters: svc.MakeBroadcaster()}
+	state.LocalBroadcasters = svc.MakeBroadcaster()
+	state.EntropySource = &ext.StableSource{ID: "id1"}
 
-	<-setup.Broadcasters.ListenUnicastEvents(rdb)
+	<-state.LocalBroadcasters.ListenUnicastEvents(state.Redis)
 
 	wantBrdcasts := []svc.UcEvent{{Kind: svc.UcActiveEk, Data: `{"count":1}`}, {Kind: svc.UcActiveEk, Data: `{"count":0}`}}
 
 	brdcastCh := make(chan []svc.UcEvent)
 	go func() {
 		sub := make(chan svc.UcEvent, len(wantBrdcasts))
-		setup.Broadcasters.CountsCaster.Subscribe(sub)
+		state.LocalBroadcasters.CountsCaster.Subscribe(sub)
 
 		var brdcasts []svc.UcEvent
 		for range len(wantBrdcasts) {
@@ -120,7 +119,7 @@ func TestHandleActiveConn(t *testing.T) {
 		brdcastCh <- brdcasts
 	}()
 
-	ts := httptest.NewServer(MakeRoot(setup))
+	ts := httptest.NewServer(MakeRoot(Setup{State: state}))
 	defer ts.Close()
 
 	// when
@@ -136,17 +135,15 @@ func TestHandleActiveConn(t *testing.T) {
 
 func TestHandleUserEvents(t *testing.T) {
 	// given
-	rdb := db.BeforeRedisTest(t)
-	defer rdb.Close()
+	state := svc.SetupStateTest(t, itest.WithRedis)
+	defer state.Close()
 
-	state := svc.State{Redis: rdb}
-	setup := Setup{State: state, Broadcasters: svc.MakeBroadcaster()}
-
-	<-setup.Broadcasters.ListenUsersMessages(rdb)
+	state.LocalBroadcasters = svc.MakeBroadcaster()
+	<-state.LocalBroadcasters.ListenUsersMessages(state.Redis)
 
 	createTestSessions(t, state)
 
-	ts := httptest.NewServer(MakeRoot(setup))
+	ts := httptest.NewServer(MakeRoot(Setup{State: state}))
 	defer ts.Close()
 
 	// when

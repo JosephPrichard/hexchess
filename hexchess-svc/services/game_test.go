@@ -4,9 +4,11 @@ import (
 	"context"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
+	"hexchess-svc/itest"
 	"hexchess-svc/pkg/assertutil"
 	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/pkg/ptr"
+
 	"math"
 	"testing"
 	"time"
@@ -19,21 +21,20 @@ import (
 
 func TestJoinGame_JoinWhite(t *testing.T) {
 	// given
-	rdb := db.BeforeRedisTest(t)
-	defer rdb.Close()
+	state := SetupStateTest(t, itest.WithRedis)
+	defer state.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	s := State{Redis: rdb}
 
 	gameID := "test123"
-	inState := MakeState(StateSetup{ID: gameID, Mode: ModeCorrespondence1, FirstColor: Random})
+	inState := MakeChess(StateSetup{ID: gameID, Mode: ModeCorrespondence1, FirstColor: Random})
 	inState.FirstColor = White
 	player := MakePlayer(1, "name", "us")
 
 	// when
-	require.NoError(t, s.SetChessState(ctx, gameID, &inState))
+	require.NoError(t, state.SetChessState(ctx, gameID, &inState))
 
-	updatedState, err := s.JoinGame(ctx, gameID, player)
+	updatedState, err := state.JoinGame(ctx, gameID, player)
 	require.NoError(t, err)
 
 	// then
@@ -41,19 +42,18 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	wantState.WhitePlayer = player
 
 	AssertChessState(t, wantState, updatedState, ChessMetaCmpOpt)
-	AssertRedisChess(t, s, *updatedState, ChessMetaCmpOpt)
+	AssertRedisChess(t, &state, *updatedState, ChessMetaCmpOpt)
 }
 
 func TestJoinGame_BothPlayersExist(t *testing.T) {
 	// given
-	rdb := db.BeforeRedisTest(t)
-	defer rdb.Close()
+	state := SetupStateTest(t, itest.WithRedis)
+	defer state.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	s := State{Redis: rdb}
 
 	gameID := "test123"
-	inState := MakeState(StateSetup{
+	inState := MakeChess(StateSetup{
 		ID:         gameID,
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
@@ -62,25 +62,25 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	})
 
 	// when
-	require.NoError(t, s.SetChessState(ctx, gameID, &inState))
+	require.NoError(t, state.SetChessState(ctx, gameID, &inState))
 
-	resultState, err := s.JoinGame(ctx, gameID, MakeNamePlayer(3, "test"))
+	resultState, err := state.JoinGame(ctx, gameID, MakeNamePlayer(3, "testing"))
 	require.NoError(t, err)
 
 	// then
 	AssertChessState(t, inState, resultState, ChessMetaCmpOpt)
-	AssertRedisChess(t, s, inState, ChessMetaCmpOpt)
+	AssertRedisChess(t, &state, inState, ChessMetaCmpOpt)
 }
 
 func TestAttemptUndo(t *testing.T) {
-	inState1 := MakeState(StateSetup{
+	inState1 := MakeChess(StateSetup{
 		ID:         "test1",
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      ptr.New(MakeNamePlayer(1, "white")),
 		Black:      ptr.New(MakeNamePlayer(2, "black")),
 	})
-	inState2 := MakeState(StateSetup{
+	inState2 := MakeChess(StateSetup{
 		ID:         "test2",
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
@@ -181,28 +181,27 @@ func TestAttemptUndo(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// given
-			rdb := db.BeforeRedisTest(t)
-			defer rdb.Close()
+			state := SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis)
+			defer state.Close()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
-			s := State{Redis: rdb}
 
-			for _, state := range states {
-				if err := s.SetChessState(ctx, state.ID, &state); err != nil {
-					t.Fatalf("failed initialize test state: %v", err)
+			for _, cs := range states {
+				if err := state.SetChessState(ctx, cs.ID, &cs); err != nil {
+					t.Fatalf("failed initialize testing state: %v", err)
 				}
 			}
 
 			for _, subTest := range test.tests {
 				// when
-				state, err := s.AttemptGameUndo(ctx, test.gameID, subTest.player, subTest.kind)
+				cs, err := state.AttemptGameUndo(ctx, test.gameID, subTest.player, subTest.kind)
 
 				// then
 				assert.Equal(t, subTest.wantErr, err)
 				if subTest.wantErr == nil {
 					cmptOpts := cmpopts.IgnoreFields(ChessState{}, "Game", "Touch")
-					AssertChessState(t, subTest.wantState, state, cmptOpts)
-					AssertRedisChess(t, s, *state, cmptOpts)
+					AssertChessState(t, subTest.wantState, cs, cmptOpts)
+					AssertRedisChess(t, &state, *cs, cmptOpts)
 				}
 			}
 		})
@@ -210,14 +209,14 @@ func TestAttemptUndo(t *testing.T) {
 }
 
 func TestMakeMove(t *testing.T) {
-	stateWhiteTurn := MakeState(StateSetup{
+	stateWhiteTurn := MakeChess(StateSetup{
 		ID:         "test1",
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      ptr.New(MakeIDPlayer(1)),
 		Black:      ptr.New(MakeIDPlayer(2)),
 	})
-	stateBlackIntoCheckmate := MakeState(StateSetup{
+	stateBlackIntoCheckmate := MakeChess(StateSetup{
 		ID:         "test2",
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
@@ -286,14 +285,14 @@ func TestMakeMove(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// given
-			state, closer := BeforeStateTest(t, true)
-			defer closer()
+			state := SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis, itest.WithAws)
+			defer state.Close()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
 
 			for _, c := range []ChessState{stateWhiteTurn, stateBlackIntoCheckmate, stateBlackIntoCheckmate} {
 				if err := state.SetChessState(ctx, c.ID, &c); err != nil {
-					t.Fatalf("failed initialize test state: %v", err)
+					t.Fatalf("failed initialize testing state: %v", err)
 				}
 			}
 
@@ -312,13 +311,13 @@ func TestMakeMove(t *testing.T) {
 
 func TestForfeit_BlackForfeits(t *testing.T) {
 	// given
-	state, closer := BeforeStateTest(t, true)
-	defer closer()
+	state := SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis, itest.WithAws)
+	defer state.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	gameID := "test123"
-	inState := MakeState(StateSetup{
+	inState := MakeChess(StateSetup{
 		ID:         gameID,
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
@@ -335,6 +334,21 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 	require.NoError(t, err)
 
 	// then
+	wantFs := FinishState{
+		IsEnded:     true,
+		WinID:       1,
+		LoseID:      2,
+		WinEloDiff:  15,
+		LoseEloDiff: -15,
+		Cause:       Forfeit,
+		Result:      WhiteWin,
+	}
+	require.Equal(t, wantFs, fs)
+
+	wantState := inState.DeepCopy()
+	wantState.FinishState = wantFs
+	AssertRedisChess(t, &state, wantState, ChessMetaCmpOpt)
+
 	wantReplay := db.Replay{
 		WhiteID:     1,
 		BlackID:     2,
@@ -346,25 +360,9 @@ func TestForfeit_BlackForfeits(t *testing.T) {
 		WhiteElo:    1015,
 		BlackElo:    985,
 	}
-	wantFs := FinishState{
-		IsEnded:     true,
-		WinID:       1,
-		LoseID:      2,
-		WinEloDiff:  15,
-		LoseEloDiff: -15,
-		Cause:       Forfeit,
-		Result:      WhiteWin,
-	}
-	wantState := inState.DeepCopy()
-	wantState.FinishState = wantFs
-
-	AssertRedisChess(t, state, wantState, ChessMetaCmpOpt)
-
-	require.Equal(t, wantFs, fs)
-
 	replay, err := state.Query().SelectReplayRowByID(ctx, replayID)
 	require.NoError(t, err)
-	assertutil.Equal(t, wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn", "MoveHistory"))
+	assertutil.Equal(t, wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn"))
 }
 
 func TestInsertGameResult(t *testing.T) {
@@ -443,15 +441,15 @@ func TestInsertGameResult(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// given
-			pdb, closer := db.BeforePostgresTest(t, true)
-			defer closer()
+			s := SetupStateTest(t, itest.UseTxn, itest.WithPostgres)
+			defer s.Close()
 
 			// when
-			cs, err := insertGameResult(ctx, pdb.Query(), time.Now(), test.result)
+			cs, err := insertGameResult(ctx, s.Query(), time.Now(), test.result)
 			require.NoError(t, err)
 
 			// then
-			rowElos, err := pdb.Query().SelectUserModeElosByIds(ctx, db.SelectUserModeElosByIdsParams{
+			rowElos, err := s.Query().SelectUserModeElosByIds(ctx, db.SelectUserModeElosByIdsParams{
 				ID:   []int64{test.result.WhiteID, test.result.BlackID},
 				Mode: db.ModeEnum(test.result.ReplayMode.String()),
 			})
@@ -459,10 +457,10 @@ func TestInsertGameResult(t *testing.T) {
 
 			assert.Equal(t, test.wantElos, rowElos)
 
-			replay, err := pdb.Query().SelectReplayRowByID(ctx, cs.ReplayID)
+			replay, err := s.Query().SelectReplayRowByID(ctx, cs.ReplayID)
 			require.NoError(t, err)
 
-			assertutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn", "MoveHistory"))
+			assertutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn"))
 
 			cs.ReplayID = 0
 			cs.WinEloDiff = math.Round(cs.WinEloDiff)

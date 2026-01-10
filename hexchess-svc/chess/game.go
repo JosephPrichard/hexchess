@@ -20,7 +20,7 @@ type Game struct {
 	TakenWhitePieces []Piece
 	TakenBlackPieces []Piece
 	Moves            []HistMove
-	// keeps track of information while executing InitPieceMoves, zeroed out every time we calculate moves again
+	// keeps track of information while executing InitPieceMoves, zeroed ext every time we calculate moves again
 	WhiteAttackTable AttackTable
 	BlackAttackTable AttackTable
 	PinTable         [Files][MaxRanks][]Hex
@@ -207,7 +207,7 @@ func (e MoveError) Error() string {
 	case MoveErrNoop:
 		return fmt.Sprintf("move is a noop: %v", e.Move)
 	case MoveErrOutOfBounds:
-		return fmt.Sprintf("move is out of bounds: %v", e.Move)
+		return fmt.Sprintf("move is ext of bounds: %v", e.Move)
 	case MoveErrInvalidPromotion:
 		return fmt.Sprintf("promotion is invalid: %v", e.Move)
 	case MoveErrPieceCannotMove:

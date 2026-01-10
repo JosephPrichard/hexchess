@@ -1,4 +1,4 @@
-package db
+package itest
 
 import (
 	"context"
@@ -11,30 +11,30 @@ import (
 	"time"
 )
 
-// TestTimeNow is a stable and consistent constant we use mock out the 'now' value in our test data
-var TestTimeNow = time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC)
+// TimeNow is a stable and consistent constant we use mock ext the 'now' value in our testing data
+var TimeNow = time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC)
 
-var TestUsersInsts = []struct {
+var UsersInsts = []struct {
 	Username string
 	Password string
 	Country  string
 	JoinedOn time.Time
 }{
 	// used for user/challenge/replay tests
-	{Username: "user1", Password: "password1", Country: "us", JoinedOn: TestTimeNow},
-	{Username: "user2", Password: "password2", Country: "us", JoinedOn: TestTimeNow},
-	{Username: "user3", Password: "password3", Country: "us", JoinedOn: TestTimeNow},
-	{Username: "user4", Password: "password4", Country: "us", JoinedOn: TestTimeNow},
-	{Username: "user5", Password: "password5", Country: "us", JoinedOn: TestTimeNow},
+	{Username: "user1", Password: "password1", Country: "us", JoinedOn: TimeNow},
+	{Username: "user2", Password: "password2", Country: "us", JoinedOn: TimeNow},
+	{Username: "user3", Password: "password3", Country: "us", JoinedOn: TimeNow},
+	{Username: "user4", Password: "password4", Country: "us", JoinedOn: TimeNow},
+	{Username: "user5", Password: "password5", Country: "us", JoinedOn: TimeNow},
 	// used for elo histories tests.
-	{Username: "user6", Password: "password6", Country: "us", JoinedOn: TestTimeNow},
-	{Username: "user7", Password: "password7", Country: "us", JoinedOn: TestTimeNow},
+	{Username: "user6", Password: "password6", Country: "us", JoinedOn: TimeNow},
+	{Username: "user7", Password: "password7", Country: "us", JoinedOn: TimeNow},
 	// used for search leaderboard tests.
-	{Username: "john", Password: "password8", Country: "us", JoinedOn: TestTimeNow},
-	{Username: "johnny", Password: "password9", Country: "us", JoinedOn: TestTimeNow},
+	{Username: "john", Password: "password8", Country: "us", JoinedOn: TimeNow},
+	{Username: "johnny", Password: "password9", Country: "us", JoinedOn: TimeNow},
 }
 
-var TestUserModeElos = []struct {
+var UserModeElos = []struct {
 	UserID int64
 	Mode   string
 	Elo    int64
@@ -55,7 +55,7 @@ var TestUserModeElos = []struct {
 	{UserID: 9, Mode: "CORRESPONDENCE_1", Elo: 1500, Wins: 5, Losses: 2},
 }
 
-var TestReplayInsts = []struct {
+var ReplayInsts = []struct {
 	WhiteID        int64
 	BlackID        int64
 	Result         string
@@ -77,7 +77,7 @@ var TestReplayInsts = []struct {
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1000,
 		ReplayBlackElo: 1000,
-		PlayedOn:       TestTimeNow,
+		PlayedOn:       TimeNow,
 	},
 	{
 		WhiteID:        2,
@@ -89,7 +89,7 @@ var TestReplayInsts = []struct {
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1030,
 		ReplayBlackElo: 900,
-		PlayedOn:       TestTimeNow,
+		PlayedOn:       TimeNow,
 	},
 	{
 		WhiteID:        3,
@@ -101,7 +101,7 @@ var TestReplayInsts = []struct {
 		LoseEloDiff:    0,
 		ReplayWhiteElo: 900,
 		ReplayBlackElo: 1000,
-		PlayedOn:       TestTimeNow,
+		PlayedOn:       TimeNow,
 	},
 
 	// elo history tests
@@ -167,30 +167,30 @@ var TestReplayInsts = []struct {
 	},
 }
 
-var TestChallengeInsts = []struct {
+var ChallengeInsts = []struct {
 	ChallengerID int64
 	ChallengeeID int64
 	Mode         string
 	StartColor   string
 	MadeOn       time.Time
 }{
-	{ChallengerID: 1, ChallengeeID: 2, Mode: "TIMED_3+2", StartColor: "RANDOM", MadeOn: TestTimeNow},
-	{ChallengerID: 3, ChallengeeID: 1, Mode: "CORRESPONDENCE_1", StartColor: "RANDOM", MadeOn: TestTimeNow},
-	{ChallengerID: 5, ChallengeeID: 2, Mode: "CORRESPONDENCE_1", StartColor: "RANDOM", MadeOn: TestTimeNow},
-	{ChallengerID: 5, ChallengeeID: 4, Mode: "CORRESPONDENCE_1", StartColor: "RANDOM", MadeOn: TestTimeNow},
-	// two challenges that are longer than the challenge max age away from "Now", to test expiration
-	{ChallengerID: 5, ChallengeeID: 3, Mode: "CORRESPONDENCE_1", StartColor: "RANDOM", MadeOn: TestTimeNow.Add(-1 * time.Hour * 24 * 365)},
-	{ChallengerID: 5, ChallengeeID: 1, Mode: "CORRESPONDENCE_1", StartColor: "RANDOM", MadeOn: TestTimeNow.Add(-1 * time.Hour * 24 * 365)},
+	{ChallengerID: 1, ChallengeeID: 2, Mode: "TIMED_3+2", StartColor: "RANDOM", MadeOn: TimeNow},
+	{ChallengerID: 3, ChallengeeID: 1, Mode: "CORRESPONDENCE_1", StartColor: "RANDOM", MadeOn: TimeNow},
+	{ChallengerID: 5, ChallengeeID: 2, Mode: "CORRESPONDENCE_1", StartColor: "RANDOM", MadeOn: TimeNow},
+	{ChallengerID: 5, ChallengeeID: 4, Mode: "CORRESPONDENCE_1", StartColor: "RANDOM", MadeOn: TimeNow},
+	// two challenges that are longer than the challenge max age away from "Now", to testing expiration
+	{ChallengerID: 5, ChallengeeID: 3, Mode: "CORRESPONDENCE_1", StartColor: "RANDOM", MadeOn: TimeNow.Add(-1 * time.Hour * 24 * 365)},
+	{ChallengerID: 5, ChallengeeID: 1, Mode: "CORRESPONDENCE_1", StartColor: "RANDOM", MadeOn: TimeNow.Add(-1 * time.Hour * 24 * 365)},
 }
 
 func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
-	ctx := context.WithValue(context.Background(), logutil.Trace, "insert-test-data")
+	ctx := context.WithValue(context.Background(), logutil.Trace, "insert-testing-data")
 
 	batch := &pgx.Batch{}
 
-	instCount := len(TestUsersInsts) + len(TestUserModeElos) + len(TestReplayInsts) + len(TestChallengeInsts)
+	instCount := len(UsersInsts) + len(UserModeElos) + len(ReplayInsts) + len(ChallengeInsts)
 
-	for _, inst := range TestUsersInsts {
+	for _, inst := range UsersInsts {
 		saltBytes := make([]byte, 16)
 		if _, err := rand.Read(saltBytes); err != nil {
 			t.Fatalf("failed to generate salt for user: %v", err)
@@ -211,7 +211,7 @@ func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
 			inst.JoinedOn,
 		)
 	}
-	for _, inst := range TestUserModeElos {
+	for _, inst := range UserModeElos {
 		batch.Queue(`
 			INSERT INTO user_mode_elos (user_id, mode, elo, highest_elo, wins, losses) 
 			VALUES ($1, $2, $3, $4, $5, $6);
@@ -224,10 +224,10 @@ func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
 			inst.Losses,
 		)
 	}
-	for _, inst := range TestReplayInsts {
+	for _, inst := range ReplayInsts {
 		batch.Queue(`
-			INSERT INTO replays (white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode, move_history) 
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
+			INSERT INTO replays (white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode) 
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
 			`,
 			inst.WhiteID,
 			inst.BlackID,
@@ -239,10 +239,9 @@ func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
 			inst.ReplayBlackElo,
 			inst.PlayedOn,
 			inst.Mode,
-			[]byte{},
 		)
 	}
-	for _, inst := range TestChallengeInsts {
+	for _, inst := range ChallengeInsts {
 		batch.Queue("INSERT INTO challenges (challenger_id, challengee_id, mode, start_color, made_on) VALUES ($1, $2, $3, $4, $5);",
 			inst.ChallengerID,
 			inst.ChallengeeID,

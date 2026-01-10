@@ -1,14 +1,22 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-svc/db"
-	"hexchess-svc/out"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
+	"hexchess-svc/chess"
+	"hexchess-svc/ext"
+	"hexchess-svc/itest"
+	"hexchess-svc/pb"
 	"hexchess-svc/pkg/assertutil"
 	"hexchess-svc/pkg/logutil"
-	svc "hexchess-svc/services"
+	"hexchess-svc/services"
+	"io"
+	"mime/multipart"
+
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -21,10 +29,10 @@ import (
 )
 
 // rest tests are block box tests that make assertions on rest api call output for a given input
-// no db assertions are made, and any out network calls are mocked
+// no db assertions are made, and any ext network calls are mocked
 
 func TestHandleRegister(t *testing.T) {
-	insertTime := db.TestTimeNow
+	insertTime := itest.TimeNow
 
 	for _, test := range []struct {
 		name        string
@@ -35,13 +43,13 @@ func TestHandleRegister(t *testing.T) {
 	}{
 		{
 			name:        "valid username",
-			body:        RegisterBody{Username: "test-name", Password: "test-password", ConfirmPassword: "test-password"},
-			wantSuccess: SessionView{Username: "test-name", Country: "un"},
+			body:        RegisterBody{Username: "testing-name", Password: "testing-password", ConfirmPassword: "testing-password"},
+			wantSuccess: SessionView{Username: "testing-name", Country: "un"},
 			wantStatus:  http.StatusOK,
 		},
 		{
 			name:       "invalid password (confirm does not match)",
-			body:       RegisterBody{Username: "test-name1", Password: "test-password1", ConfirmPassword: "wrong"},
+			body:       RegisterBody{Username: "testing-name1", Password: "testing-password1", ConfirmPassword: "wrong"},
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"confirmPassword": ErrHttpConfirmPassword.Error()}},
 			wantStatus: http.StatusBadRequest,
 		},
@@ -53,19 +61,19 @@ func TestHandleRegister(t *testing.T) {
 		},
 		{
 			name:       "invalid username (duplicate)",
-			body:       RegisterBody{Username: db.TestUsersInsts[0].Username, Password: "test-password2", ConfirmPassword: "test-password2"},
+			body:       RegisterBody{Username: itest.UsersInsts[0].Username, Password: "testing-password2", ConfirmPassword: "testing-password2"},
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpDuplicateUsername.Error()},
 			wantStatus: http.StatusBadRequest,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state, closer := svc.BeforeStateTest(t, true)
-			defer closer()
+			state := svc.SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis)
+			defer state.Close()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/register", asJSONReader(test.body))
 			w := httptest.NewRecorder()
 
-			state.EntropySource = &out.StableSource{Time: insertTime}
+			state.EntropySource = &ext.StableSource{Time: insertTime}
 			MakeRoot(Setup{State: state}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -79,7 +87,7 @@ func TestHandleRegister(t *testing.T) {
 }
 
 func TestHandleLogin(t *testing.T) {
-	user := db.TestUsersInsts[0]
+	user := itest.UsersInsts[0]
 
 	for _, test := range []struct {
 		name        string
@@ -90,7 +98,7 @@ func TestHandleLogin(t *testing.T) {
 	}{
 		{
 			name:       "invalid login",
-			body:       LoginBody{Username: "test-name", Password: "test-password"},
+			body:       LoginBody{Username: "testing-name", Password: "testing-password"},
 			wantFail:   ServiceView{Status: http.StatusUnauthorized, Errors: ErrHttpInvalidLogin.Error()},
 			wantStatus: http.StatusUnauthorized,
 		},
@@ -102,13 +110,13 @@ func TestHandleLogin(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state, closer := svc.BeforeStateTest(t, true)
-			defer closer()
+			s := svc.SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis)
+			defer s.Close()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/login", asJSONReader(test.body))
 			w := httptest.NewRecorder()
 
-			MakeRoot(Setup{State: state}).ServeHTTP(w, r)
+			MakeRoot(Setup{State: s}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
@@ -124,7 +132,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 	for _, test := range []struct {
 		name        string
 		runCount    int
-		setupMocks  func(*gomock.Controller) out.GoogleAPI
+		setupMocks  func(*gomock.Controller) ext.GoogleAPI
 		body        GoogleLoginBody
 		wantSuccess SessionView
 		wantFail    ServiceView
@@ -133,11 +141,11 @@ func TestHandleGoogleLogin(t *testing.T) {
 		{
 			name:     "invalid login token (mocked)",
 			runCount: 1,
-			setupMocks: func(ctrl *gomock.Controller) out.GoogleAPI {
-				m := out.NewMockGoogleAPI(ctrl)
+			setupMocks: func(ctrl *gomock.Controller) ext.GoogleAPI {
+				m := ext.NewMockGoogleAPI(ctrl)
 				m.EXPECT().
 					ValidateIDToken(gomock.Any(), "invalidToken123").
-					Return(out.GoogleIDTokenPayload{}, errors.New("invalid token"))
+					Return(ext.GoogleIDTokenPayload{}, errors.New("invalid token"))
 				return m
 			},
 			body:       GoogleLoginBody{Token: "invalidToken123"},
@@ -147,11 +155,11 @@ func TestHandleGoogleLogin(t *testing.T) {
 		{
 			name:     "login with google token succesful",
 			runCount: 2, // the user is created the first time, the second time we log in with the already inserted account ID
-			setupMocks: func(ctrl *gomock.Controller) out.GoogleAPI {
-				m := out.NewMockGoogleAPI(ctrl)
+			setupMocks: func(ctrl *gomock.Controller) ext.GoogleAPI {
+				m := ext.NewMockGoogleAPI(ctrl)
 				m.EXPECT().
 					ValidateIDToken(gomock.Any(), "testToken123").
-					Return(out.GoogleIDTokenPayload{AccountID: "account1", Username: "email@domain.com"}, nil)
+					Return(ext.GoogleIDTokenPayload{AccountID: "account1", Username: "email@domain.com"}, nil)
 				return m
 			},
 			body:        GoogleLoginBody{Token: "testToken123"},
@@ -160,8 +168,8 @@ func TestHandleGoogleLogin(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state, closer := svc.BeforeStateTest(t, true)
-			defer closer()
+			state := svc.SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis)
+			defer state.Close()
 
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
@@ -170,7 +178,8 @@ func TestHandleGoogleLogin(t *testing.T) {
 				r := httptest.NewRequest(http.MethodPost, "/api/login/google", asJSONReader(test.body))
 				w := httptest.NewRecorder()
 
-				h := MakeRoot(Setup{State: state, RemoteAPIs: out.RemoteAPIs{GoogleAPI: test.setupMocks(ctrl)}})
+				state.RemoteAPIs = ext.RemoteAPIs{GoogleAPI: test.setupMocks(ctrl)}
+				h := MakeRoot(Setup{State: state})
 				h.ServeHTTP(w, r)
 
 				assert.Equal(t, test.wantStatus, w.Code)
@@ -200,26 +209,27 @@ func TestHandleUpdateUser(t *testing.T) {
 		},
 		{
 			name:       "invalid country (unknown)",
-			body:       UpdateUserBody{NewCountry: "wrong", NewUsername: "new-username", NewBio: "test biography"},
+			body:       UpdateUserBody{NewCountry: "wrong", NewUsername: "new-username", NewBio: "testing biography"},
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"newCountry": ErrHttpInvalidCountry.Error()}},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:        "updating bio only",
-			body:        UpdateUserBody{NewBio: "test biography"},
+			body:        UpdateUserBody{NewBio: "testing biography"},
 			wantSuccess: SessionView{Username: "user1", Country: "us"},
 			wantStatus:  http.StatusOK,
 		},
 		{
 			name:        "updating username, bio, and country",
-			body:        UpdateUserBody{NewUsername: "new-username", NewBio: "test biography", NewCountry: "eu"},
+			body:        UpdateUserBody{NewUsername: "new-username", NewBio: "testing biography", NewCountry: "eu"},
 			wantSuccess: SessionView{Username: "new-username", Country: "eu"},
 			wantStatus:  http.StatusOK,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state, closer := svc.BeforeStateTest(t, true)
-			defer closer()
+			state := svc.SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis)
+			defer state.Close()
+
 			createTestSessions(t, state)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/users", asJSONReader(test.body))
@@ -248,7 +258,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 	}{
 		{
 			name:       "invalid login",
-			body:       UpdatePasswordBody{Password: "password2", NewPassword: "test-password", ConfirmNewPassword: "test-password"},
+			body:       UpdatePasswordBody{Password: "password2", NewPassword: "testing-password", ConfirmNewPassword: "testing-password"},
 			wantFail:   ServiceView{Status: http.StatusUnauthorized, Errors: ErrHttpInvalidLogin.Error()},
 			wantStatus: http.StatusUnauthorized,
 		},
@@ -260,20 +270,21 @@ func TestHandleUpdatePassword(t *testing.T) {
 		},
 		{
 			name:       "invalid password (confirm does not match)",
-			body:       UpdatePasswordBody{Password: "password1", NewPassword: "test-password1", ConfirmNewPassword: "test-password"},
+			body:       UpdatePasswordBody{Password: "password1", NewPassword: "testing-password1", ConfirmNewPassword: "testing-password"},
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"confirmNewPassword": ErrHttpConfirmPassword.Error()}},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:        "valid password update",
-			body:        UpdatePasswordBody{Password: "password1", NewPassword: "test-password", ConfirmNewPassword: "test-password"},
+			body:        UpdatePasswordBody{Password: "password1", NewPassword: "testing-password", ConfirmNewPassword: "testing-password"},
 			wantSuccess: ServiceView{Status: http.StatusOK, Message: "SUCCESS"},
 			wantStatus:  http.StatusOK,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state, closer := svc.BeforeStateTest(t, true)
-			defer closer()
+			state := svc.SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis)
+			defer state.Close()
+
 			createTestSessions(t, state)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/users/password", asJSONReader(test.body))
@@ -335,8 +346,8 @@ func TestHandleUpdateChallenge(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state, closer := svc.BeforeStateTest(t, true)
-			defer closer()
+			state := svc.SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis)
+			defer state.Close()
 
 			createTestSessions(t, state)
 
@@ -381,15 +392,16 @@ func TestHandleCreateGame(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state, closer := svc.BeforeStateTest(t, true)
-			defer closer()
+			state := svc.SetupStateTest(t, itest.UseTxn, itest.WithRedis)
+			defer state.Close()
+
 			createTestSessions(t, state)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/games/create", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			state.EntropySource = &out.StableSource{Time: db.TestTimeNow}
+			state.EntropySource = &ext.StableSource{Time: itest.TimeNow}
 			MakeRoot(Setup{State: state}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -439,15 +451,16 @@ func TestHandleCreateChallenge(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state, closer := svc.BeforeStateTest(t, true)
-			defer closer()
+			state := svc.SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis)
+			defer state.Close()
+
 			createTestSessions(t, state)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			state.EntropySource = &out.StableSource{Time: db.TestTimeNow}
+			state.EntropySource = &ext.StableSource{Time: itest.TimeNow}
 			MakeRoot(Setup{State: state}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -487,7 +500,7 @@ func TestGetLeaderboard(t *testing.T) {
 							ID:       1,
 							Username: "user1",
 							Country:  "us",
-							JoinedOn: db.TestTimeNow,
+							JoinedOn: itest.TimeNow,
 						},
 						Elo:        1050,
 						HighestElo: 1050,
@@ -502,8 +515,8 @@ func TestGetLeaderboard(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// given
-			state, closer := svc.BeforeStateTest(t, false)
-			defer closer()
+			state := svc.SetupStateTest(t, itest.WithPostgres, itest.WithRedis)
+			defer state.Close()
 
 			ctx := context.WithValue(context.Background(), logutil.Trace, "setup-get-leaderboard")
 			require.NoError(t, state.SetLeaderboard(ctx, svc.UpdtLbChangeSet{Mode: svc.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
@@ -530,8 +543,8 @@ func TestGetLeaderboard(t *testing.T) {
 }
 
 func TestGetPlayer(t *testing.T) {
-	state, closer := svc.BeforeStateTest(t, false)
-	defer closer()
+	state := svc.SetupStateTest(t, itest.WithPostgres, itest.WithRedis)
+	defer state.Close()
 
 	h := MakeRoot(Setup{State: state})
 
@@ -567,7 +580,7 @@ func TestGetPlayer(t *testing.T) {
 		},
 		{
 			name:       "invalid user id",
-			id:         "test",
+			id:         "testing",
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"id": ErrHttpInvalidID.Error()}},
 			wantStatus: http.StatusBadRequest,
 		},
@@ -589,13 +602,6 @@ func TestGetPlayer(t *testing.T) {
 }
 
 func TestGetChallenges(t *testing.T) {
-	state, closer := svc.BeforeStateTest(t, false)
-	defer closer()
-	createTestSessions(t, state)
-
-	state.EntropySource = &out.StableSource{Time: db.TestTimeNow}
-	h := MakeRoot(Setup{State: state})
-
 	for _, test := range []struct {
 		name         string
 		participants string
@@ -624,6 +630,13 @@ func TestGetChallenges(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
+			state := svc.SetupStateTest(t, itest.WithPostgres, itest.WithRedis)
+			defer state.Close()
+
+			createTestSessions(t, state)
+
+			state.EntropySource = &ext.StableSource{Time: itest.TimeNow}
+			h := MakeRoot(Setup{State: state})
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -633,11 +646,6 @@ func TestGetChallenges(t *testing.T) {
 }
 
 func TestHandleGetUserReplays(t *testing.T) {
-	state, closer := svc.BeforeStateTest(t, true)
-	defer closer()
-
-	h := MakeRoot(Setup{State: state})
-
 	for _, test := range []struct {
 		name        string
 		afterID     string
@@ -675,6 +683,10 @@ func TestHandleGetUserReplays(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replays?afterId=%s&userId=%s", test.afterID, test.userID), nil)
 			w := httptest.NewRecorder()
 
+			state := svc.SetupStateTest(t, itest.WithPostgres)
+			defer state.Close()
+
+			h := MakeRoot(Setup{State: state})
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -688,8 +700,8 @@ func TestHandleGetUserReplays(t *testing.T) {
 }
 
 func TestHandleGetReplay(t *testing.T) {
-	state, closer := svc.BeforeStateTest(t, true)
-	defer closer()
+	state := svc.SetupStateTest(t, itest.WithPostgres)
+	defer state.Close()
 
 	h := MakeRoot(Setup{State: state})
 
@@ -730,8 +742,9 @@ func TestHandleGetReplay(t *testing.T) {
 }
 
 func TestHandleGetChessMetas(t *testing.T) {
-	state, closer := svc.BeforeStateTest(t, false)
-	defer closer()
+	state := svc.SetupStateTest(t, itest.WithPostgres, itest.WithRedis)
+	defer state.Close()
+
 	createTestSessions(t, state)
 	createTestChessStates(t, state)
 
@@ -764,4 +777,71 @@ func TestHandleGetChessMetas(t *testing.T) {
 	}
 	assert.Equal(t, http.StatusOK, w.Code)
 	assertutil.AssertRespBody[ChessMetasResp](t, wantResp, w)
+}
+
+func TestHandleGetMoveReplay(t *testing.T) {
+	// given
+	state := svc.SetupStateTest(t, itest.WithRedis, itest.WithAws)
+	defer state.Close()
+
+	wantInitialGame := chess.MakeEmptyGame(false)
+
+	b, err := proto.Marshal(&pb.MoveHistory{
+		InitialGame: chess.SerializeGame(&wantInitialGame),
+		Steps:       []*pb.MoveStep{},
+	})
+	require.NoError(t, err)
+	putS3Object(t, &state, "replays/moves/1", b)
+
+	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay/move-list?replayId=%d", 1), nil)
+	w := httptest.NewRecorder()
+
+	// when
+	h := MakeRoot(Setup{State: state})
+	h.ServeHTTP(w, r)
+
+	defer r.Body.Close()
+	body, err := io.ReadAll(r.Body)
+	require.NoError(t, err)
+
+	var pbMoveReplay pb.MoveReplay
+	require.NoError(t, proto.Unmarshal(body, &pbMoveReplay))
+
+	// then
+	wantMoveReplay := &pb.MoveReplay{
+		InitialGame: chess.SerializeGame(&wantInitialGame),
+		Steps:       []*pb.NotMoveStep{},
+	}
+	assert.Equal(t, http.StatusOK, w.Code)
+	assertutil.Equal(t, wantMoveReplay, &pbMoveReplay, protocmp.Transform())
+}
+
+func TestHandleUploadProfilePic(t *testing.T) {
+	// given
+	state := svc.SetupStateTest(t, itest.WithRedis, itest.WithAws)
+	defer state.Close()
+
+	createTestSessions(t, state)
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, _ := writer.CreateFormFile("file", "test.txt")
+	part.Write([]byte("testfiledata"))
+	writer.Close()
+
+	r := httptest.NewRequest(http.MethodPost, "/api/users/profile", body)
+	r.Header.Set("Content-Type", writer.FormDataContentType())
+	r.Header.Set("Cookie", FmtCookie(TestSessionID2))
+	w := httptest.NewRecorder()
+
+	// when
+	h := MakeRoot(Setup{State: state})
+	h.ServeHTTP(w, r)
+
+	// then
+	wantResp := ServiceView{Status: http.StatusOK, Message: "SUCCESS"}
+	assert.Equal(t, http.StatusOK, w.Code)
+	assertutil.AssertRespBody[ServiceView](t, wantResp, w)
+
+	assert.Equal(t, "testfiledata", getS3Object(t, &state, "users/profile-pic/2"))
 }

@@ -36,11 +36,6 @@ func SSE(h func(w SSEWriter, r *http.Request) error) http.HandlerFunc {
 	}
 }
 
-type SSEHandler struct {
-	*svc.State
-	svc.LocalBroadcasters
-}
-
 type SSEWriter struct {
 	ctx context.Context
 	w   http.ResponseWriter

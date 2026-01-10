@@ -3,10 +3,9 @@ package web
 import (
 	"context"
 	"fmt"
-	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"hexchess-svc/chess"
-	"hexchess-svc/out"
 	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/services"
 	"log/slog"
@@ -42,16 +41,12 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 
 type Setup struct {
 	State          svc.State
-	Broadcasters   svc.LocalBroadcasters
-	RemoteAPIs     out.RemoteAPIs
 	CountryList    []string
 	AllowedOrigins string
 }
 
 type App struct {
 	svc.State
-	svc.LocalBroadcasters
-	RemoteApis     out.RemoteAPIs
 	ValidCountries map[string]bool
 }
 
@@ -70,7 +65,7 @@ func MakeRoot(setup Setup) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(RouteMiddleware(setup.AllowedOrigins))
 
-	app := App{setup.State, setup.Broadcasters, setup.RemoteAPIs, validCountries}
+	app := App{setup.State, validCountries}
 
 	r.Post("/api/register", Rest(app.HandleRegister))
 	r.Post("/api/login", Rest(app.HandleLogin))
@@ -83,6 +78,7 @@ func MakeRoot(setup Setup) http.Handler {
 	r.Post("/api/games/create", Rest(app.HandleCreateGame))
 	r.Post("/api/challenges/update", Rest(app.HandleUpdateChallenge))
 	r.Post("/api/challenges/create", Rest(app.HandleCreateChallenge))
+	r.Post("/api/users/profile", Rest(app.HandleUploadProfilePic))
 
 	r.Get("/api/players", Rest(app.HandleGetPlayer))
 	r.Get("/api/players/self", Rest(app.HandleGetSelf))
@@ -93,7 +89,7 @@ func MakeRoot(setup Setup) http.Handler {
 	r.Get("/api/chess/rooms", Rest(app.HandleGetChessRoomList))
 	r.Get("/api/replay", Rest(app.HandleGetReplay))
 	r.Get("/api/replay/elo-histories", Rest(app.HandleGetEloHistories))
-	r.Get("/api/replay/move-list", Rest(app.HandleGetReplayMoveList))
+	r.Get("/api/replay/move-list", Rest(app.HandleGetMoveReplay))
 	r.Get("/api/game/exists", Rest(app.HandleGameExistence))
 
 	r.Get("/api/events/count", SSE(app.HandleCountEvents))

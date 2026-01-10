@@ -273,7 +273,7 @@ function getEloHistories(userId: number, timeframe: string, fetch?: FetchFn) {
 }
 
 async function getReplayMoveHistory(id: string, fetch?: FetchFn): Promise<Result<MoveReplay>> {
-	const params = new URLSearchParams({ id });
+	const params = new URLSearchParams({ replayId: id });
 	const [buf, error] = await requestBuf(`${baseURL()}/replay/move-list?${params}`, { method: 'GET' }, fetch);
 	if (buf) {
 		const timeNow = performance.now();

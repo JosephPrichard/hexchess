@@ -4,16 +4,17 @@ import (
 	"context"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"hexchess-svc/db"
+	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
+
 	"testing"
 	"time"
 )
 
 func TestSessions(t *testing.T) {
 	// given
-	rdb := db.BeforeRedisTest(t)
-	defer rdb.Close()
+	s := SetupStateTest(t, itest.WithRedis)
+	defer s.Close()
 
 	playerIn := MakePlayer(1, "testing-session", "country")
 	sessionID1 := "session1"
@@ -21,12 +22,11 @@ func TestSessions(t *testing.T) {
 	sessionID3 := "session3"
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	s := State{Redis: rdb}
 
 	// when
-	require.NoError(t, s.SetSessions(ctx, SessionInst{sessionID1, playerIn, 100 * time.Second}))
-	require.NoError(t, s.SetSessions(ctx, SessionInst{sessionID2, playerIn, 100 * time.Second}))
-	require.NoError(t, s.SetSessions(ctx, SessionInst{sessionID3, playerIn, 100 * time.Second}))
+	require.NoError(t, s.SetSessions(ctx, SessInst{sessionID1, playerIn, 100 * time.Second}))
+	require.NoError(t, s.SetSessions(ctx, SessInst{sessionID2, playerIn, 100 * time.Second}))
+	require.NoError(t, s.SetSessions(ctx, SessInst{sessionID3, playerIn, 100 * time.Second}))
 
 	playerOut, err := s.GetSession(ctx, sessionID1)
 	require.NoError(t, err)

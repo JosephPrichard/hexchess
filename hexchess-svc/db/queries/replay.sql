@@ -1,5 +1,5 @@
 -- name: InsertReplay :one
-INSERT INTO replays (white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode, move_history)
+INSERT INTO replays (white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode)
 VALUES (
         sqlc.arg('whiteID'),
         sqlc.arg('blackID'),
@@ -10,8 +10,7 @@ VALUES (
         sqlc.arg('whiteElo'),
         sqlc.arg('blackElo'),
         COALESCE(sqlc.narg('playedOn'), CURRENT_TIMESTAMP)::TIMESTAMPTZ,
-        sqlc.arg('mode'),
-        sqlc.arg('moveHistory'))
+        sqlc.arg('mode'))
 RETURNING id;
 
 -- name: SelectReplayRowByID :one
@@ -43,11 +42,6 @@ FROM replays r
          LEFT JOIN user_mode_elos e1 ON e1.user_id = r.white_id AND e1.mode = r.mode
          LEFT JOIN user_mode_elos e2 ON e2.user_id = r.black_id AND e2.mode = r.mode
 WHERE r.id = sqlc.arg('id');
-
--- name: SelectReplayMoveHistory :one
-SELECT move_history AS move_history_bytes
-FROM replays
-WHERE id = sqlc.arg('id');
 
 -- name: SelectReplayElos :many
 SELECT id, mode, played_on, white_id, black_id, white_elo, black_elo -- gets the white/black elo at the time of insertion

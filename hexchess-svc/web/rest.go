@@ -5,11 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
+	"hexchess-svc/pb"
 	"hexchess-svc/pkg/errmap"
 	"hexchess-svc/services"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -177,7 +181,7 @@ func (app *App) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) error 
 	}
 	ctx := r.Context()
 
-	payload, err := app.RemoteApis.ValidateIDToken(ctx, body.Token)
+	payload, err := app.RemoteAPIs.ValidateIDToken(ctx, body.Token)
 	if err != nil {
 		return fmt.Errorf("validate google login id token: %w", err)
 	}
@@ -313,7 +317,7 @@ func (app *App) HandleCreateTempSession(w http.ResponseWriter, r *http.Request) 
 
 	if alreadyHasSession {
 		tempSessionID = MakeSessionID()
-		if err := app.State.SetSessions(ctx, svc.SessionInst{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge}); err != nil {
+		if err := app.State.SetSessions(ctx, svc.SessInst{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge}); err != nil {
 			return fmt.Errorf("set session: %w", err)
 		}
 		slog.InfoContext(ctx, "created temporary user session", "user", player, "tempSessionID", tempSessionID)
@@ -323,8 +327,8 @@ func (app *App) HandleCreateTempSession(w http.ResponseWriter, r *http.Request) 
 		guestSessionID := MakeSessionID()
 
 		if err := app.State.SetSessions(ctx,
-			svc.SessionInst{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge},
-			svc.SessionInst{SessionID: guestSessionID, Player: player, Expiry: SessionMaxAge},
+			svc.SessInst{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge},
+			svc.SessInst{SessionID: guestSessionID, Player: player, Expiry: SessionMaxAge},
 		); err != nil {
 			return fmt.Errorf("set guest session: %w", err)
 		}
@@ -375,7 +379,7 @@ func (app *App) HandleLogout(w http.ResponseWriter, r *http.Request) error {
 	sessionID := cookie.Value
 
 	if err := app.State.DeleteSession(r.Context(), sessionID); err != nil {
-		return fmt.Errorf("logging out session '%s': %w", sessionID, err)
+		return fmt.Errorf("logging ext session '%s': %w", sessionID, err)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
 
@@ -747,24 +751,43 @@ func (app *App) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (app *App) HandleGetReplayMoveList(w http.ResponseWriter, r *http.Request) error {
+func (app *App) HandleGetMoveReplay(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	q := r.URL.Query()
 
-	id, err := intQuery(q, "userId")
+	id, err := intQuery(q, "replayId")
 	if err != nil {
-		return errmap.Put(nil, "page", ErrHttpInvalidID)
+		return errmap.Put(nil, "replayId", ErrHttpInvalidID)
 	}
 
-	pbMoveHist, err := app.State.GetReplayMoveHistory(ctx, int64(id))
+	objectKey := svc.MakeReplayMoveListKey(int64(id))
+
+	object, err := app.S3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(app.Aws.S3Bucket),
+		Key:    aws.String(objectKey),
+	})
 	if err != nil {
-		return fmt.Errorf("get replay moveHistory: %w", err)
+		return fmt.Errorf("get move history by key '%s' from s3: %w", objectKey, err)
 	}
-	b, err := proto.Marshal(chess.SerializeMoveReplay(pbMoveHist))
+	defer object.Body.Close()
+	bReplay, err := io.ReadAll(object.Body)
 	if err != nil {
-		return fmt.Errorf("marshal replay %d move list : %w", id, err)
+		return fmt.Errorf("read move history bytes with key '%s': %w", objectKey, err)
 	}
-	writeBytes(w, http.StatusOK, b)
+
+	slog.InfoContext(ctx, "retrieved move history from s3", "key", objectKey, "size", fmt.Sprintf("%dKB", len(bReplay)/1000))
+
+	var pbMoveHist pb.MoveHistory
+	if err := proto.Unmarshal(bReplay, &pbMoveHist); err != nil {
+		return fmt.Errorf("unmarshal move history with key '%s': %w", objectKey, err)
+	}
+	bResp, err := proto.Marshal(chess.SerializeMoveReplay(&pbMoveHist))
+	if err != nil {
+		return fmt.Errorf("marshal replay %d move seq : %w", id, err)
+	}
+
+	writeBytes(w, http.StatusOK, bResp)
+	// aggressive cache control because this resource does not change, but the algorithm we are using to transform it might if requirements change.
 	//w.Header().Set("Cache-Control", "public, max-age=3600")
 	return nil
 }
@@ -948,5 +971,41 @@ func (app *App) HandleGetEloHistories(w http.ResponseWriter, r *http.Request) er
 	writeJSON(w, http.StatusOK, EloHistoriesResp{Buckets: eloBuckets})
 
 	//w.Header().Set("Cache-Control", GetEloHistoriesCacheControl)
+	return nil
+}
+
+const MaxProfilePicSize = 10 << 20
+const ProfilePicPrefix = "users/profile-pic"
+
+func (app *App) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) error {
+	r.Body = http.MaxBytesReader(w, r.Body, MaxProfilePicSize)
+
+	ctx := r.Context()
+	player, _, err := GetSessionPlayer(ctx, app.State, r)
+	if err != nil {
+		return fmt.Errorf("get session player: %w", err)
+	}
+
+	// the maximum memory we are using is the same as the max bytes reader, so we will never write a temp file to disk and thus do not need cleanup
+	if err := r.ParseMultipartForm(MaxProfilePicSize); err != nil {
+		return fmt.Errorf("parse multipart form: %w", err)
+	}
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		return fmt.Errorf("get file from form with name: '%s': %w", file, err)
+	}
+	defer file.Close()
+
+	key := fmt.Sprintf("%s/%d", ProfilePicPrefix, player.ID)
+
+	if _, err := app.S3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(app.Aws.S3Bucket),
+		Key:    aws.String(key),
+		Body:   file,
+	}); err != nil {
+		return fmt.Errorf("put profile pic '%s': to s3 bucket: '%s': %w", key, app.Aws.S3Bucket, err)
+	}
+
+	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
 }

@@ -75,8 +75,12 @@ export function isPieceBlack(piece: number) {
 	return !isPieceWhite(piece);
 }
 
+export function deserializeHex(h: bigint) {
+	return { file: Number(h & 0xFFFFFFFFn), rank: Number((h >> 32n) & 0xFFFFFFFFn) }
+}
+
 export function deserializeHexList(hexagonList?: bigint[]): Hex[] {
-	return hexagonList?.map(h => ({ file: Number(h & 0xFFFFFFFFn), rank: Number((h >> 32n) & 0xFFFFFFFFn) })) || [];
+	return hexagonList?.map(deserializeHex) || [];
 }
 
 export function hexEq(hex1?: {file?: number, rank?: number}, hex2?: {file?: number, rank?: number}) {

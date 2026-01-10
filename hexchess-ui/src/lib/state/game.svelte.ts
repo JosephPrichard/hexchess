@@ -13,12 +13,6 @@ export interface GameState {
     promotion?: Promotion;
 }
 
-export interface GameDerivation {
-    prevMove?: HistMove;
-}
-
-
-
 export function makeSandboxState() {
     let state: GameState = $state({});
 

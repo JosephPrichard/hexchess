@@ -13,11 +13,6 @@ import (
 	"net/http"
 )
 
-type GameplayHandler struct {
-	*svc.State
-	svc.LocalBroadcasters
-}
-
 type GameSocketContext struct {
 	Context context.Context
 	GameID  string

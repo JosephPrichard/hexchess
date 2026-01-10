@@ -12,7 +12,7 @@ import (
 
 var ErrSessionNotFound = errors.New("session not found")
 
-func (s State) GetSession(ctx context.Context, sessionID string) (PlayerState, error) {
+func (s *State) GetSession(ctx context.Context, sessionID string) (PlayerState, error) {
 	var p PlayerState
 
 	fullID := "session:" + sessionID
@@ -32,16 +32,17 @@ func (s State) GetSession(ctx context.Context, sessionID string) (PlayerState, e
 	return p, nil
 }
 
-type SessionInst struct {
+type SessInst struct {
 	SessionID string
 	Player    PlayerState
 	Expiry    time.Duration
 }
 
-func (s State) SetSessions(ctx context.Context, insts ...SessionInst) error {
+func (s *State) SetSessions(ctx context.Context, insts ...SessInst) error {
 	slog.InfoContext(ctx, "setting sessions", "insts", insts)
 
 	pipe := s.Redis.Cache.TxPipeline()
+
 	for _, inst := range insts {
 		data, err := MarshalPlayer(inst.Player)
 		if err != nil {
@@ -50,13 +51,14 @@ func (s State) SetSessions(ctx context.Context, insts ...SessionInst) error {
 		fullID := "session:" + inst.SessionID
 		pipe.SetEx(ctx, fullID, data, inst.Expiry)
 	}
+
 	if _, err := pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("set many sessions: %w", err)
 	}
 	return nil
 }
 
-func (s State) UpdateSessionEx(ctx context.Context, sessionID string, expiry time.Duration) error {
+func (s *State) UpdateSessionEx(ctx context.Context, sessionID string, expiry time.Duration) error {
 	fullID := "session:" + sessionID
 	if err := s.Redis.Cache.Expire(ctx, fullID, expiry).Err(); err != nil {
 		return fmt.Errorf("update session expiry: %w", err)
@@ -65,7 +67,7 @@ func (s State) UpdateSessionEx(ctx context.Context, sessionID string, expiry tim
 	return nil
 }
 
-func (s State) DeleteSession(ctx context.Context, sessionID string) error {
+func (s *State) DeleteSession(ctx context.Context, sessionID string) error {
 	fullID := "session:" + sessionID
 	if err := s.Redis.Cache.Del(ctx, fullID).Err(); err != nil {
 		return fmt.Errorf("delete session '%s': %w", sessionID, err)

@@ -61,7 +61,7 @@ type LocalBroadcasters struct {
 	UsersCaster  *MultiCasterMap
 }
 
-func (b *LocalBroadcasters) ListenGameMessages(rdb *db.Redis) chan struct{} {
+func (b *LocalBroadcasters) ListenGameMessages(rdb db.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.GamesChan}, func(v redigo.Message) {
 		var outputID pb.GameOutputID
 		if err := proto.Unmarshal(v.Data, &outputID); err != nil {
@@ -73,7 +73,7 @@ func (b *LocalBroadcasters) ListenGameMessages(rdb *db.Redis) chan struct{} {
 	})
 }
 
-func (b *LocalBroadcasters) ListenUsersMessages(rdb *db.Redis) chan struct{} {
+func (b *LocalBroadcasters) ListenUsersMessages(rdb db.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.UsersChan}, func(v redigo.Message) {
 		var userMsg pb.UserMsg
 		if err := proto.Unmarshal(v.Data, &userMsg); err != nil {
@@ -91,7 +91,7 @@ func (b *LocalBroadcasters) ListenUsersMessages(rdb *db.Redis) chan struct{} {
 	})
 }
 
-func (b *LocalBroadcasters) ListenUnicastEvents(rdb *db.Redis) chan struct{} {
+func (b *LocalBroadcasters) ListenUnicastEvents(rdb db.Redis) chan struct{} {
 	var eventMap = map[string]UcEventKind{
 		rdb.ActiveCountChan: UcActiveEk,
 		rdb.GamesCountChan:  UcGamesEk,
@@ -116,7 +116,7 @@ func (b *LocalBroadcasters) ListenUnicastEvents(rdb *db.Redis) chan struct{} {
 	})
 }
 
-func (s State) BroadcastMessage(ctx context.Context, channel string, b []byte) error {
+func (s *State) BroadcastMessage(ctx context.Context, channel string, b []byte) error {
 	conn := s.Redis.PubSub.Get()
 	defer conn.Close()
 
@@ -131,7 +131,7 @@ type CountEvent struct {
 	Count int64 `json:"count"`
 }
 
-func (s State) BroadcastCountEvent(ctx context.Context, channel string, count int64) error {
+func (s *State) BroadcastCountEvent(ctx context.Context, channel string, count int64) error {
 	b, err := json.Marshal(CountEvent{Count: count})
 	if err != nil {
 		return fmt.Errorf("marshal count event message: %w", err)
@@ -139,19 +139,19 @@ func (s State) BroadcastCountEvent(ctx context.Context, channel string, count in
 	return s.BroadcastMessage(ctx, channel, b)
 }
 
-func (s State) BroadcastActiveCount(ctx context.Context, count int64) error {
+func (s *State) BroadcastActiveCount(ctx context.Context, count int64) error {
 	return s.BroadcastCountEvent(ctx, s.Redis.ActiveCountChan, count)
 }
 
-func (s State) BroadcastGameCount(ctx context.Context, count int64) error {
+func (s *State) BroadcastGameCount(ctx context.Context, count int64) error {
 	return s.BroadcastCountEvent(ctx, s.Redis.GamesCountChan, count)
 }
 
-func (s State) BroadcastGamesEvent(ctx context.Context, b []byte) error {
+func (s *State) BroadcastGamesEvent(ctx context.Context, b []byte) error {
 	return s.BroadcastMessage(ctx, s.Redis.GamesChan, b)
 }
 
-func (s State) BroadcastChallenge(ctx context.Context, c ChallengeEntity) error {
+func (s *State) BroadcastChallenge(ctx context.Context, c ChallengeEntity) error {
 	um := SerializeChallengeMsg(c)
 	b, err := proto.Marshal(um)
 	if err != nil {
@@ -240,7 +240,7 @@ func (m *MultiCasterMap) Expire(expireDur time.Duration) {
 		key string
 		br  *MultiCaster
 	}
-	var expiredBrs []pair // copy out so we can remove channels outside the lock
+	var expiredBrs []pair // copy ext so we can remove channels outside the lock
 
 	m.mu.Lock()
 	for key, br := range m.m {
@@ -314,7 +314,7 @@ func (mc *MultiCaster) UnsubscribeAll() {
 }
 
 func (mc *MultiCaster) Broadcast(msg []byte) {
-	var subStrs []string // copy out so logging doesn't keep the lock
+	var subStrs []string // copy ext so logging doesn't keep the lock
 
 	mc.mu.RLock()
 	for _, sub := range mc.subscribers {

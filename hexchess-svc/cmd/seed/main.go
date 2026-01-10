@@ -8,6 +8,7 @@ import (
 	"hexchess-svc/chess"
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
+	"hexchess-svc/ext"
 	"hexchess-svc/pkg/logutil"
 	svc "hexchess-svc/services"
 	"log"
@@ -40,12 +41,11 @@ type ChallengeInst struct {
 }
 
 type GameResult struct {
-	WhiteID            int64  `json:"whiteId"`
-	BlackID            int64  `json:"blackId"`
-	ReplayCause        string `json:"cause"`
-	ReplayResult       string `json:"result"`
-	ReplayMode         string `json:"mode"`
-	SerializedMoveHist []byte
+	WhiteID      int64  `json:"whiteId"`
+	BlackID      int64  `json:"blackId"`
+	ReplayCause  string `json:"cause"`
+	ReplayResult string `json:"result"`
+	ReplayMode   string `json:"mode"`
 }
 
 func main() {
@@ -60,6 +60,10 @@ func main() {
 
 	dbURL := os.Getenv("DB_URL")
 	rdbPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
+	awsSecretID := os.Getenv("AWS_SECRET_ID")
+	awsSecretKey := os.Getenv("AWS_SECRET_KEY")
+	awsDefaultRegion := os.Getenv("AWS_DEFAULT_REGION")
+	awsEndpoint := os.Getenv("AWS_ENDPOINT")
 
 	ctx := context.WithValue(context.Background(), logutil.Trace, "seed-databases-script")
 
@@ -73,7 +77,17 @@ func main() {
 	slog.InfoContext(ctx, "connecting to rdb db", "rdbPrimaryURL", rdbPrimaryURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL}, db.DefaultRedisNames)
 
-	state := &svc.State{Redis: rdb, Postgres: pdb}
+	aws, err := ext.MakeAwsClients(context.Background(), ext.AwsConfig{
+		AwsDefaultRegion: awsDefaultRegion,
+		AwsSecretKey:     awsSecretID,
+		AwsSecretID:      awsSecretKey,
+		AwsEndpoint:      awsEndpoint,
+	})
+	if err != nil {
+		logutil.FatalErr("make aws clients", err)
+	}
+
+	state := &svc.State{Redis: rdb, Postgres: pdb, Aws: aws}
 	defer state.Close()
 
 	_, err = pool.Exec(ctx, `
@@ -125,28 +139,24 @@ func insertRandomizedGameResult(ctx context.Context, state *svc.State, gameResul
 	})
 
 	for i, params := range gameResults {
-		game := chess.MakeStartGame()
+		cs, err := state.InsertGameResultTx(ctx, timeAt.Add(time.Duration(i)*time.Hour*24), svc.GameResult{
+			WhiteID:      params.WhiteID,
+			BlackID:      params.BlackID,
+			ReplayCause:  svc.ExpectReplayCause(params.ReplayCause),
+			ReplayResult: svc.ExpectReplayResult(params.ReplayResult),
+			ReplayMode:   svc.ExpectGameMode(params.ReplayMode),
+		})
+		if err != nil {
+			return fmt.Errorf("insert game result: %w", err)
+		}
 
+		game := chess.MakeStartGame()
 		moveSeq, err := chess.RandomMoveSeq(game, 10, 30)
 		if err != nil {
-			return fmt.Errorf("generate random move list: %w", err)
+			return fmt.Errorf("generate random move seq: %w", err)
 		}
-
-		moveHistBytes, err := chess.MarshalMoveHistory(game.Board, moveSeq)
-		if err != nil {
-			return fmt.Errorf("marshal move history: %w", err)
-		}
-		params.SerializedMoveHist = moveHistBytes
-
-		if _, err = state.InsertGameResultTx(ctx, timeAt.Add(time.Duration(i)*time.Hour*24), svc.GameResult{
-			WhiteID:            params.WhiteID,
-			BlackID:            params.BlackID,
-			ReplayCause:        svc.ExpectReplayCause(params.ReplayCause),
-			ReplayResult:       svc.ExpectReplayResult(params.ReplayResult),
-			ReplayMode:         svc.ExpectGameMode(params.ReplayMode),
-			SerializedMoveHist: params.SerializedMoveHist,
-		}); err != nil {
-			return fmt.Errorf("insert game result: %w", err)
+		if err := state.PutReplayMoveSeq(ctx, cs.ReplayID, game.Board, moveSeq); err != nil {
+			return err
 		}
 	}
 	return nil

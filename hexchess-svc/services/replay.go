@@ -6,14 +6,18 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/db"
-	"hexchess-svc/pb"
 	"log/slog"
 	"math"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"google.golang.org/protobuf/proto"
 )
+
+const ReplayMoveListPrefix = "replays/moves"
+
+func MakeReplayMoveListKey(replayID int64) string {
+	return fmt.Sprintf("%s/%d", ReplayMoveListPrefix, replayID)
+}
 
 type ReplayEntity struct {
 	ID           int64     `json:"id"`
@@ -44,36 +48,30 @@ type ReplayInst struct {
 	WinEloDiff  float64
 	LoseEloDiff float64
 	// white and block elos at the time of insertion
-	ReplayBlackElo     float64
-	ReplayWhiteElo     float64
-	PlayedOn           time.Time
-	SerializedMoveHist []byte
+	ReplayBlackElo float64
+	ReplayWhiteElo float64
+	PlayedOn       time.Time
 }
 
 // insertReplay A replay is only ever inserted as part of a game result transaction to ensure data consistency
 func insertReplay(ctx context.Context, query *db.Queries, inst ReplayInst) (int64, error) {
-	if inst.SerializedMoveHist == nil {
-		inst.SerializedMoveHist = []byte{}
-	}
 	playedOn := pgtype.Timestamptz{}
 	if !inst.PlayedOn.IsZero() {
 		playedOn = pgtype.Timestamptz{Valid: true, Time: inst.PlayedOn}
 	}
 
 	replayID, err := query.InsertReplay(ctx, db.InsertReplayParams{
-		WhiteID:     inst.WhiteID,
-		BlackID:     inst.BlackID,
-		Result:      db.ResultEnum(inst.Result.String()),
-		Cause:       db.CauseEnum(inst.Cause.String()),
-		Mode:        db.ModeEnum(inst.Mode.String()),
-		WinElo:      inst.WinEloDiff,
-		LoseElo:     inst.LoseEloDiff,
-		WhiteElo:    inst.ReplayWhiteElo,
-		BlackElo:    inst.ReplayBlackElo,
-		MoveHistory: inst.SerializedMoveHist,
-		PlayedOn:    playedOn,
+		WhiteID:  inst.WhiteID,
+		BlackID:  inst.BlackID,
+		Result:   db.ResultEnum(inst.Result.String()),
+		Cause:    db.CauseEnum(inst.Cause.String()),
+		Mode:     db.ModeEnum(inst.Mode.String()),
+		WinElo:   inst.WinEloDiff,
+		LoseElo:  inst.LoseEloDiff,
+		WhiteElo: inst.ReplayWhiteElo,
+		BlackElo: inst.ReplayBlackElo,
+		PlayedOn: playedOn,
 	})
-	inst.SerializedMoveHist = nil
 	if err != nil {
 		return 0, err
 	}
@@ -111,7 +109,7 @@ func mapReplayFromRow(row db.SelectReplayByIDRow) (ReplayEntity, error) {
 
 var ErrNoReplay = errors.New("replay not found")
 
-func (s State) GetReplay(ctx context.Context, id int64) (ReplayEntity, error) {
+func (s *State) GetReplay(ctx context.Context, id int64) (ReplayEntity, error) {
 	var replay ReplayEntity
 
 	row, err := s.Query().SelectReplayByID(ctx, id)
@@ -130,22 +128,7 @@ func (s State) GetReplay(ctx context.Context, id int64) (ReplayEntity, error) {
 	return replay, nil
 }
 
-func (s State) GetReplayMoveHistory(ctx context.Context, id int64) (*pb.MoveHistory, error) {
-	b, err := s.Query().SelectReplayMoveHistory(ctx, id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNoReplay
-	}
-	if err != nil {
-		return nil, fmt.Errorf("select replay %d move list by id: %w", id, err)
-	}
-	var moveHist pb.MoveHistory
-	if err := proto.Unmarshal(b, &moveHist); err != nil {
-		return nil, fmt.Errorf("unmarshal move history: %w", err)
-	}
-	return &moveHist, nil
-}
-
-func (s State) GetUserReplays(ctx context.Context, userID int64, afterID int64, perPage int32) ([]ReplayEntity, error) {
+func (s *State) GetUserReplays(ctx context.Context, userID int64, afterID int64, perPage int32) ([]ReplayEntity, error) {
 	if afterID < 0 {
 		afterID = int64(math.MaxInt64)
 	}
@@ -191,7 +174,7 @@ type EloHistoryBucket struct {
 
 // RetrieveEloHistoryBuckets Returns the elo replay histories for a given user organized into buckets and categorized into a map keyed by replay "mode"
 // map will contain the keys "ALL" (contains data for all modes) plus all modes (ReplayModes)
-func (s State) RetrieveEloHistoryBuckets(ctx context.Context, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
+func (s *State) RetrieveEloHistoryBuckets(ctx context.Context, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
 	if params.TimeUntil.IsZero() {
 		params.TimeUntil = time.Now()
 	}
