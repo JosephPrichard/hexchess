@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { clearClientSession, updateClientSession as updateClientUser } from '$lib/utils/storage';
+	import { updateClientSession as updateClientUser } from '$lib/utils/storage';
 	import { makeMessage } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import type { UserModel } from '$lib/api/models';
-	import services from '$lib/api/services';
+	import services, { baseURL } from '$lib/api/services';
 	import Banner from '$lib/Banner.svelte';
+	import ProfilePic from '$lib/components/user/ProfilePic.svelte';
 
 	export interface ProfileProps {
 		countryList: string[];
@@ -24,17 +24,26 @@
 	let password = $state('');
 	let newPassword = $state('');
 	let retypePassword = $state('');
+	let profilePic: File | undefined;
 
 	async function onSubmitUser(e: MouseEvent) {
 		e.preventDefault();
 		isLoading = true;
 
-		const [data, err] = await services.postUpdateUser(username, bio, country);
-		if (data) {
-			updateClientUser(data);
-			addNotification({ type: 'string', message: 'Updated your profile!', isSuccess: true });
+		const [[userData, userErr], profileResp] = await Promise.all([
+			services.postUpdateUser(username, bio, country),
+			profilePic ? services.postProfilePic(profilePic) : Promise.resolve(undefined)
+		]);
+		if (userData) {
+			updateClientUser(userData);
 		} else {
-			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
+			addNotification({ type: 'string', message: makeMessage(userErr), isSuccess: false });
+		}
+		if (profileResp) {
+			const [_, profileErr] = profileResp;
+			if (profileErr) {
+				addNotification({ type: 'string', message: makeMessage(profileErr), isSuccess: false });
+			}
 		}
 
 		isLoading = false;
@@ -43,11 +52,8 @@
 	async function onSubmitPassword(e: MouseEvent) {
 		e.preventDefault();
 
-		const [data, err] = await services.postUpdatePassword(password, newPassword, retypePassword);
-		if (data) {
-			const message = 'Successfully updated password!';
-			addNotification({ type: 'string', message, isSuccess: true });
-		} else {
+		const [_, err] = await services.postUpdatePassword(password, newPassword, retypePassword);
+		if (err) {
 			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
 		}
 	}
@@ -59,14 +65,8 @@
 	}
 
 	async function onClickSignOut() {
-		const [data, err] = await services.postLogout();
-		if (data) {
-			const message = 'Successfully signed out.';
-			addNotification({ type: 'string', message, isSuccess: true });
-
-			clearClientSession();
-			await goto('/');
-		} else {
+		const [_, err] = await services.postLogout();
+		if (err) {
 			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
 		}
 	}
@@ -74,6 +74,25 @@
 	function toggleCountryDropdown(e: MouseEvent) {
 		e.preventDefault();
 		showCountryOptions = !showCountryOptions;
+	}
+
+	async function onFileInputChange(event: Event) {
+		const input = event.target as HTMLInputElement;
+		if (!input.files) return;
+
+		const file = Array.from(input.files)[0];
+		if (!file) return;
+
+		profilePic = file;
+
+		// updates every instance of the profile pic for this user with this image, to keep in sync
+		const profilePicElements = document.getElementsByClassName('profile-pic-'+props.user.id);
+		for (const pic of profilePicElements) {
+			const picElem = pic as HTMLImageElement;
+			const imageUrl = URL.createObjectURL(file);
+			picElem.src = imageUrl;
+			picElem.onload = () => URL.revokeObjectURL(imageUrl);
+		}
 	}
 </script>
 
@@ -85,13 +104,20 @@
 	<div class="profile-wrapper">
 		<div class="title-lg" style="padding-left: 0">Edit Profile</div>
 		<form class="form-wrapper">
+			<div class="file-wrapper">
+				<input type="file" id="file-input" class="file-input" accept="image/*" onchange={onFileInputChange}/>
+				<label for="file-input" class="file-upload-label">
+					<ProfilePic userId={props.user.id} size={125}/>
+				</label>
+			</div>
+
 			<label for="username" style="font-size: 17px">Username</label>
-			<input bind:value={username} name="username" placeholder="Username" style="margin: 5px 0 10px;" />
+			<input bind:value={username} id="username" placeholder="Username" autocomplete="off" style="margin: 5px 0 10px;" />
 
 			<label for="bio" style="font-size: 17px">Biography</label>
-			<textarea bind:value={bio} name="bio" rows="8" style="padding: 8px; font-size: 14px"></textarea>
+			<textarea bind:value={bio} id="bio" rows="8" style="padding: 8px; font-size: 14px"></textarea>
 
-			<label for="country" style="font-size: 17px">Country</label>
+			<span style="font-size: 17px">Country</span>
 			<div class="country-wrapper">
 				<button class="invisible-button" onclick={toggleCountryDropdown}>
 					<img alt={country} class="country-image" src="/flags/{country}.png" />
@@ -111,7 +137,7 @@
 				{#if isLoading}
 					<div class="loader"></div>
 				{:else}
-					Submit
+					Save
 				{/if}
 			</button>
 		</form>
@@ -166,5 +192,17 @@
 
 	.profile-wrapper {
         width: 500px;
+	}
+
+	.file-input {
+        display: none;
+    }
+
+    .file-upload-label {
+        cursor: pointer;
+    }
+
+	.file-wrapper {
+		margin-bottom: 25px;
 	}
 </style>

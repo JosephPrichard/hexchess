@@ -9,18 +9,18 @@
 	import UndoIcon from '$lib/components/icons/UndoIcon.svelte';
 	import PieceList from '$lib/components/chess/PieceList.svelte';
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
-	import { type ChatMsg, type ChatOutput, type ChessGame, type FinishState, GameInput, GameOutput, PingInput, type PlayerState } from '$lib/pb/messages';
+	import { type ChatMsg, type ChatOutput, type ChessGame, type FinishState, GameInput, GameOutput, type PlayerState } from '$lib/pb/messages';
 	import type { Hex } from '$lib/api/models';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
-	import { getInitialGameWasm, getMoveNotationsWasm } from '$lib/api/wasm';
+	import { getMoveNotationsWasm } from '$lib/api/wasm';
 	import { formatTimer } from '$lib/utils/format';
-	import { onMount, tick } from 'svelte';
+	import { onMount } from 'svelte';
 	import Banner from '$lib/Banner.svelte';
 	import Error from '$lib/Error.svelte';
 	import ChatIcon from '$lib/components/icons/ChatIcon.svelte';
 	import FinishPanel from '$lib/components/user/FinishPanel.svelte';
 	import type { Promotion } from '$lib/state/game.svelte';
-	import { defaultBoard, defaultGame, makeGame } from '$lib/utils/chess';
+	import { defaultGame } from '$lib/utils/chess';
 
 	const forfeitModalIds = ["forfeit-modal", "forfeit-button"];
 	const maxTimeout = 2500;
@@ -355,7 +355,7 @@
 							<div class="growing-scrollbox parent-lobby">
 								<div class="lobby-container">
 									<div class="spinner"></div>
-									<span class="lobby-text">Waiting for opponents to join...</span>
+									<span class="lobby-text">Waiting for opponents...</span>
 								</div>
 							</div>
 						{:else}

@@ -9,7 +9,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-const S3Bucket = "hexchess-files"
+const S3ReplayBucket = "hexchess-replays"
+const S3ProfileBucket = "hexchess-profiles"
 
 type RemoteAPIs struct {
 	GoogleAPI
@@ -22,21 +23,28 @@ func MakeRemoteAPIs() RemoteAPIs {
 }
 
 type Aws struct {
-	S3Bucket string
-	S3Client *s3.Client
+	S3ReplayBucket  string
+	S3ProfileBucket string
+	S3Endpoint      string
+	S3Client        *s3.Client
 }
 
 type AwsConfig struct {
-	S3Bucket         string
 	AwsDefaultRegion string
 	AwsSecretKey     string
 	AwsSecretID      string
 	AwsEndpoint      string
+
+	S3ReplayBucket  string
+	S3ProfileBucket string
 }
 
 func MakeAwsClients(ctx context.Context, cfg AwsConfig) (Aws, error) {
-	if cfg.S3Bucket == "" {
-		cfg.S3Bucket = S3Bucket
+	if cfg.S3ReplayBucket == "" {
+		cfg.S3ReplayBucket = S3ReplayBucket
+	}
+	if cfg.S3ProfileBucket == "" {
+		cfg.S3ProfileBucket = S3ProfileBucket
 	}
 	awsCfg, err := config.LoadDefaultConfig(
 		ctx,
@@ -47,11 +55,17 @@ func MakeAwsClients(ctx context.Context, cfg AwsConfig) (Aws, error) {
 		return Aws{}, fmt.Errorf("load aws config %+v: %w", cfg, err)
 	}
 	return Aws{
-		S3Bucket: cfg.S3Bucket,
+		S3ReplayBucket:  cfg.S3ReplayBucket,
+		S3ProfileBucket: cfg.S3ProfileBucket,
+		S3Endpoint:      cfg.AwsEndpoint,
 		S3Client: s3.NewFromConfig(awsCfg, func(o *s3.Options) {
 			o.BaseEndpoint = aws.String(cfg.AwsEndpoint)
 			o.UsePathStyle = true
-			o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
+			//o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
 		}),
 	}, nil
+}
+
+func (aws *Aws) MakeS3Url(bucket string, key string) string {
+	return fmt.Sprintf("%s/%s/%s", aws.S3Endpoint, bucket, key)
 }

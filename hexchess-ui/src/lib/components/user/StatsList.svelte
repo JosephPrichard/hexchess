@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import type { LbdUserModel } from '$lib/api/models';
+	import ProfilePic from '$lib/components/user/ProfilePic.svelte';
 
 	interface Props {
 		userList: LbdUserModel[];
@@ -37,6 +38,7 @@
 				<tr class="row-hover" onclick={() => goto(`/players/${user.id}`)}>
 					<td>{user.rank}</td>
 					<td>
+<!--						<ProfilePic userId={user.id} size={20}/>-->
 						{user.username}
 						<img class="flag" src="/flags/{user.country}.png" alt="" />
 					</td>

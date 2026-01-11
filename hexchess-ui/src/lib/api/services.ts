@@ -22,6 +22,9 @@ export async function requestJSON<Response extends object | {}>(input: RequestIn
 	}
 	try {
 		const trace = uuidv4();
+		if (!init) {
+			init = {};
+		}
 		if (init) {
 			init.credentials = 'include';
 			init.headers = { 'Content-Type': 'application/json', 'X-trace': trace };
@@ -44,15 +47,18 @@ export async function requestJSON<Response extends object | {}>(input: RequestIn
 	}
 }
 
-export async function requestBuf(input: RequestInfo | URL, init?: RequestInit, request?: FetchFn): Promise<Result<ArrayBuffer>> {
+export async function requestBlob(input: RequestInfo | URL, init?: RequestInit, request?: FetchFn): Promise<Result<ArrayBuffer>> {
 	if (!request) {
 		request = fetch;
 	}
 	try {
 		const trace = uuidv4();
+		if (!init) {
+			init = {};
+		}
 		if (init) {
 			init.credentials = 'include';
-			init.headers = { 'Content-Type': 'application/json', 'X-trace': trace };
+			init.headers = { 'X-trace': trace };
 		}
 		console.log(`sending request to ${input} with trace ${trace}`);
 		const response = await request(input, init);
@@ -68,7 +74,7 @@ export async function requestBuf(input: RequestInfo | URL, init?: RequestInit, r
 		if (!(error instanceof TypeError)) {
 			console.error(error);
 		}
-		return [undefined, { status: 500, message: "", errors: codes.errorUnknown }];
+		return [undefined, { status: 500, errors: codes.errorUnknown }];
 	}
 }
 
@@ -89,7 +95,7 @@ export function cached<Response>(get: RequestFn<Response>): RequestFn<Response> 
 			return [cache, undefined];
 		} catch (error) {
 			console.error(error);
-			return [undefined, { status: 500, message: "", errors: codes.errorUnknown }];
+			return [undefined, { status: 500, errors: codes.errorUnknown }];
 		}
 	};
 }
@@ -196,6 +202,35 @@ function postRefreshSession() {
 	});
 }
 
+export async function postProfilePic(file: File) {
+	try {
+		const input = `${baseURL()}/users/profile-pics`;
+
+		const form = new FormData();
+		form.append("file", file, file.name);
+
+		const trace = uuidv4();
+		console.log(`sending request to ${input} with trace ${trace}`);
+		const response = await fetch(input, {
+			method: "POST",
+			body: form, // browser sets multipart boundary automatically
+			credentials: 'include',
+		});
+
+		const data: ServiceModel = await response.json();
+		if (!response.ok) {
+			return [undefined, data];
+		} else {
+			return [data, undefined];
+		}
+	} catch (error) {
+		if (!(error instanceof TypeError)) {
+			console.error(error);
+		}
+		return [undefined, { status: 500,errors: codes.errorUnknown }];
+	}
+}
+
 function getReplays(userId: number, afterId?: number, fetch?: FetchFn) {
 	interface Response {
 		replayList: ReplayModel[];
@@ -274,7 +309,7 @@ function getEloHistories(userId: number, timeframe: string, fetch?: FetchFn) {
 
 async function getReplayMoveHistory(id: string, fetch?: FetchFn): Promise<Result<MoveReplay>> {
 	const params = new URLSearchParams({ replayId: id });
-	const [buf, error] = await requestBuf(`${baseURL()}/replay/move-list?${params}`, { method: 'GET' }, fetch);
+	const [buf, error] = await requestBlob(`${baseURL()}/replay/move-list?${params}`, { method: 'GET' }, fetch);
 	if (buf) {
 		const timeNow = performance.now();
 		const result = MoveReplay.fromBinary(new Uint8Array(buf));
@@ -314,6 +349,7 @@ export default {
 	postLogout,
 	postTempSession,
 	postRefreshSession,
+	postProfilePic,
 	getReplays,
 	getChallenges,
 	getLeaderboard,

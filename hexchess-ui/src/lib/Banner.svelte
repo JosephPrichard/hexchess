@@ -2,6 +2,7 @@
 	import { getClientSession } from '$lib/utils/storage';
 	import type { SessionModel } from './api/models';
 	import { onMount } from 'svelte';
+	import ProfilePic from '$lib/components/user/ProfilePic.svelte';
 
 	const id = $props.id();
 
@@ -34,7 +35,10 @@
 		<a class="banner-elem color-hover" href="/profile" id="settings-link"> Profile </a>
 		<a aria-label="user-link-{id}" class="banner-elem color-hover" href={`/players/${client.id}`}>
 			{client.username}
+			<span style="margin-left: 10px"></span>
+			<ProfilePic userId={client.id} size={45} unique/>
 		</a>
+
 	{:else}
 		<a aria-label="login-link-{id}" class="banner-elem color-hover" href="/login"> Login </a>
 	{/if}

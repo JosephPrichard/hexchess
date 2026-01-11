@@ -15,11 +15,11 @@ import (
 
 func TestActiveUser(t *testing.T) {
 	// given
-	rdb := itest.SetupRedisTest(t)
-	defer rdb.Close()
+	s := SetupStateTest(t, itest.WithRedis)
+	defer s.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	s := State{Redis: rdb, EntropySource: &ext.StableSource{Time: time.UnixMilli(int64(ActiveUserMaxage * 5))}}
+	s.EntropySource = &ext.StableSource{Time: time.UnixMilli(int64(ActiveUserMaxage * 5))}
 
 	//s1 := MakeActiveScenario()
 	//s2 := ActiveScenario{&ext.StableSource{Time: time.UnixMilli(100)}, 100}

@@ -15,8 +15,8 @@ import (
 
 func TestLeaderboard(t *testing.T) {
 	// given
-	rdb := itest.SetupRedisTest(t)
-	defer rdb.Close()
+	s := SetupStateTest(t, itest.WithRedis)
+	defer s.Close()
 
 	id1 := int64(1)
 	id2 := int64(2)
@@ -24,7 +24,6 @@ func TestLeaderboard(t *testing.T) {
 	id4 := int64(4)
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	s := State{Redis: rdb}
 
 	// when
 	for _, c := range []UpdtLbChangeSet{

@@ -3,8 +3,10 @@ package web
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"hexchess-svc/chess"
@@ -781,17 +783,24 @@ func TestHandleGetChessMetas(t *testing.T) {
 
 func TestHandleGetMoveReplay(t *testing.T) {
 	// given
-	state := svc.SetupStateTest(t, itest.WithRedis, itest.WithAws)
+	state := svc.SetupStateTest(t, itest.WithAws)
 	defer state.Close()
 
 	wantInitialGame := chess.MakeEmptyGame(false)
+	pbInitialGame := chess.SerializeGame(&wantInitialGame)
 
-	b, err := proto.Marshal(&pb.MoveHistory{
-		InitialGame: chess.SerializeGame(&wantInitialGame),
-		Steps:       []*pb.MoveStep{},
+	// serialize a history that contains every field so we can check that the binary data is being stored correctly. this history doesn't actually respect game rules.
+	object, err := proto.Marshal(&pb.MoveHistory{
+		InitialGame: pbInitialGame,
+		Steps: []*pb.MoveStep{
+			{
+				Move: &pb.HistMove{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4, CollFile: false, CollRank: false, IsTake: true, IsCheck: true},
+				Game: pbInitialGame,
+			},
+		},
 	})
 	require.NoError(t, err)
-	putS3Object(t, &state, "replays/moves/1", b)
+	ext.PutS3Object(t, state.S3Client, state.S3ReplayBucket, "replays/moves/1", object)
 
 	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay/move-list?replayId=%d", 1), nil)
 	w := httptest.NewRecorder()
@@ -800,8 +809,7 @@ func TestHandleGetMoveReplay(t *testing.T) {
 	h := MakeRoot(Setup{State: state})
 	h.ServeHTTP(w, r)
 
-	defer r.Body.Close()
-	body, err := io.ReadAll(r.Body)
+	body, err := io.ReadAll(w.Body)
 	require.NoError(t, err)
 
 	var pbMoveReplay pb.MoveReplay
@@ -809,8 +817,14 @@ func TestHandleGetMoveReplay(t *testing.T) {
 
 	// then
 	wantMoveReplay := &pb.MoveReplay{
-		InitialGame: chess.SerializeGame(&wantInitialGame),
-		Steps:       []*pb.NotMoveStep{},
+		InitialGame: pbInitialGame,
+		Steps: []*pb.NotMoveStep{
+			{
+				NotMove: "P+xd5",
+				Pm:      &pb.PieceMove{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4},
+				Game:    pbInitialGame,
+			},
+		},
 	}
 	assert.Equal(t, http.StatusOK, w.Code)
 	assertutil.Equal(t, wantMoveReplay, &pbMoveReplay, protocmp.Transform())
@@ -829,7 +843,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 	part.Write([]byte("testfiledata"))
 	writer.Close()
 
-	r := httptest.NewRequest(http.MethodPost, "/api/users/profile", body)
+	r := httptest.NewRequest(http.MethodPost, "/api/users/profile-pics", body)
 	r.Header.Set("Content-Type", writer.FormDataContentType())
 	r.Header.Set("Cookie", FmtCookie(TestSessionID2))
 	w := httptest.NewRecorder()
@@ -839,9 +853,61 @@ func TestHandleUploadProfilePic(t *testing.T) {
 	h.ServeHTTP(w, r)
 
 	// then
-	wantResp := ServiceView{Status: http.StatusOK, Message: "SUCCESS"}
 	assert.Equal(t, http.StatusOK, w.Code)
-	assertutil.AssertRespBody[ServiceView](t, wantResp, w)
 
-	assert.Equal(t, "testfiledata", getS3Object(t, &state, "users/profile-pic/2"))
+	var view ServiceView
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &view))
+
+	assert.Equal(t, "testfiledata", ext.GetS3Object(t, state.S3Client, state.S3ProfileBucket, view.Message)) // key is contained in the mesage.
+}
+
+func TestHandleGetProfilePic(t *testing.T) {
+	// given
+	state := svc.SetupStateTest(t, itest.WithRedis, itest.WithAws)
+	defer state.Close()
+
+	key1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())
+	key2 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())
+	ext.PutS3Object(t, state.S3Client, state.S3ProfileBucket, key1, []byte("testfiledata1"))
+	ext.PutS3Object(t, state.S3Client, state.S3ProfileBucket, key2, []byte("testfiledata2"))
+
+	for _, test := range []struct {
+		userID          string
+		wantStatus      int
+		wantWithKey     string
+		wantWithoutKeys []string
+	}{
+		{
+			userID:          "1",
+			wantStatus:      http.StatusTemporaryRedirect,
+			wantWithKey:     key2,
+			wantWithoutKeys: []string{key1},
+		},
+		{
+			userID:          "2",
+			wantStatus:      http.StatusNotFound,
+			wantWithoutKeys: []string{key1, key2},
+		},
+	} {
+		// when
+		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/users/profile-pics?userId=%s", test.userID), nil)
+		w := httptest.NewRecorder()
+
+		h := MakeRoot(Setup{State: state})
+		h.ServeHTTP(w, r)
+
+		// then
+		resp := w.Body.String()
+		t.Logf("got profile pic redirect: %s", resp)
+
+		assert.Equal(t, test.wantStatus, w.Code)
+		for _, key := range test.wantWithoutKeys {
+			if strings.Contains(resp, key) {
+				t.Errorf("expected profile pic redirect to not contain key %s", key)
+			}
+		}
+		if !strings.Contains(resp, test.wantWithKey) {
+			t.Errorf("expected profile pic redirect to contain key %s", test.wantWithKey)
+		}
+	}
 }

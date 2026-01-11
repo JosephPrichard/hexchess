@@ -13,12 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const ReplayMoveListPrefix = "replays/moves"
-
-func MakeReplayMoveListKey(replayID int64) string {
-	return fmt.Sprintf("%s/%d", ReplayMoveListPrefix, replayID)
-}
-
 type ReplayEntity struct {
 	ID           int64     `json:"id"`
 	WhiteID      int64     `json:"whiteId"`

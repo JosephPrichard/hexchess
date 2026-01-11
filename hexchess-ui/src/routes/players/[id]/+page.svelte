@@ -16,6 +16,7 @@
 	import Dropdown from '$lib/components/util/Dropdown.svelte';
 	import { formatEloDiff, formatJoinedOn, formatPlayedOn, formatReplayResult, formatTimestamp, getWinrateClass, normalizeToDay } from '$lib/utils/format';
 	import Banner from '$lib/Banner.svelte';
+	import ProfilePic from '$lib/components/user/ProfilePic.svelte';
 
 	const timeframes: { label: string, value: string }[] = [
 		{ label: "All Time", value: "all" },
@@ -77,7 +78,6 @@
 	function makeEloHistoriesChart(ctx: CanvasRenderingContext2D, buckets: Record<string, EloBuckets>) {
 		const entries = Object.entries(buckets);
 		const colors = generateColors(entries.length);
-		console.log(entries)
 
 		let maxElo = Math.max(...entries.flatMap(([, eloHistories]) => eloHistories.map((h) => h.elo)));
 		if (maxElo === 0) {
@@ -168,7 +168,6 @@
 
 	async function onSubmitCreateChallenge(timeControl: GameMode, color: ColorSelect) {
 		const [data, err] = await services.postCreateChallenge(timeControl, color, user.id);
-		showCreateModal = false;
 		if (data) {
 			addNotification({
 				type: 'string',
@@ -179,7 +178,7 @@
 		} else {
 			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
 		}
-		showCreateModal = true;
+		showCreateModal = false;
 	}
 </script>
 
@@ -191,6 +190,7 @@
 <CreateGame title="Create a Challenge?" bind:show={showCreateModal} onSubmit={onSubmitCreateChallenge} />
 <div class="center-horizontal-container">
 	<div class="panel">
+		<ProfilePic userId={user.id} size={125}/>
 		<div class="text-lg capped-size">{user.username}</div>
 		<img class="flag-lg" src={`/flags/${user.country}.png`} alt="" />
 		<br />

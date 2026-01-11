@@ -78,7 +78,7 @@ func MakeRoot(setup Setup) http.Handler {
 	r.Post("/api/games/create", Rest(app.HandleCreateGame))
 	r.Post("/api/challenges/update", Rest(app.HandleUpdateChallenge))
 	r.Post("/api/challenges/create", Rest(app.HandleCreateChallenge))
-	r.Post("/api/users/profile", Rest(app.HandleUploadProfilePic))
+	r.Post("/api/users/profile-pics", Rest(app.HandleUploadProfilePic))
 
 	r.Get("/api/players", Rest(app.HandleGetPlayer))
 	r.Get("/api/players/self", Rest(app.HandleGetSelf))
@@ -91,6 +91,7 @@ func MakeRoot(setup Setup) http.Handler {
 	r.Get("/api/replay/elo-histories", Rest(app.HandleGetEloHistories))
 	r.Get("/api/replay/move-list", Rest(app.HandleGetMoveReplay))
 	r.Get("/api/game/exists", Rest(app.HandleGameExistence))
+	r.Get("/api/users/profile-pics", Rest(app.HandleGetProfilePic))
 
 	r.Get("/api/events/count", SSE(app.HandleCountEvents))
 	r.Get("/api/events/user", SSE(app.HandleUserEvents))

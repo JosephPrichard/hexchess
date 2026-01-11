@@ -24,8 +24,6 @@
 	const { data }: { data: ReplayProps } = $props();
 	const { replay } = $derived(data);
 
-	const { addNotification } = getNotificationsContext();
-
 	let move = makeMoveState();
 	const selection = makeSelectionState();
 

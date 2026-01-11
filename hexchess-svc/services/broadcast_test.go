@@ -113,14 +113,13 @@ func TestUnicaster(t *testing.T) {
 
 func TestBroadcastGameMessage(t *testing.T) {
 	// given
-	rdb := itest.SetupRedisTest(t)
-	defer rdb.Close()
+	s := SetupStateTest(t, itest.WithRedis)
+	defer s.Close()
 
 	lb := LocalBroadcasters{GamesCaster: MakeMultiCasterMap("testing-broker-map", time.Hour*1)}
-	<-lb.ListenGameMessages(rdb)
+	<-lb.ListenGameMessages(s.Redis)
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	s := State{Redis: rdb}
 
 	wantMsgCount := 2
 

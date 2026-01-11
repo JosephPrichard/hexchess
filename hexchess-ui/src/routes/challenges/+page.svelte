@@ -6,6 +6,7 @@
 	import services from '$lib/api/services';
 	import { formatRelativeTime, getWinrateClass } from '$lib/utils/format';
 	import Banner from '$lib/Banner.svelte';
+	import ProfilePic from '$lib/components/user/ProfilePic.svelte';
 
 	export interface ChallengeProps {
 		participants: string;
@@ -90,28 +91,30 @@
 				{#each challengeList as { challenge, isLoading }, index (index)}
 					<div id="{challenge.challengeeId}+{challenge.challengerId}" class="challenge-box">
 						<div>
-							<div style="margin-bottom: 6px">
-								<a
-									href="/players/{challenge.challengerId}"
-									class="text-ul bold-link"
-								>
-									{challenge.challengerName}
-								</a>
-								{#if !isSender}
-									<img class="flag" src="/flags/{challenge.challengerCountry}.png" alt="" />
-									<b>({Math.round(challenge.challengerElo)})</b>
-								{/if}
-								vs
-								<a
-									href="/players/{challenge.challengeeId}"
-									class="text-ul bold-link"
-								>
-									{challenge.challengeeName}
-								</a>
-								{#if isSender}
-									<img class="flag" src="/flags/{challenge.challengeeCountry}.png" alt="" />
-									<b>({Math.round(challenge.challengeeElo)})</b>
-								{/if}
+							<div class="pvp-wrapper">
+								<div class="player-wrapper">
+									<span class="pfp-wrapper"><ProfilePic userId={challenge.challengerId} size={45}/></span>
+									<a href="/players/{challenge.challengerId}" class="text-ul bold-link">
+										{challenge.challengerName}
+									</a>
+									{#if !isSender}
+										<img class="flag" src="/flags/{challenge.challengerCountry}.png" alt="" />
+										<b>({Math.round(challenge.challengerElo)})</b>
+									{/if}
+								</div>
+								<div class="vs-wrapper">
+									V.S.
+								</div>
+								<div class="player-wrapper">
+									<span class="pfp-wrapper"><ProfilePic userId={challenge.challengeeId} size={45}/></span>
+									<a href="/players/{challenge.challengeeId}" class="text-ul bold-link">
+										{challenge.challengeeName}
+									</a>
+									{#if isSender}
+										<img class="flag" src="/flags/{challenge.challengeeCountry}.png" alt="" />
+										<b>({Math.round(challenge.challengeeElo)})</b>
+									{/if}
+								</div>
 							</div>
 							<div style="margin-bottom: 6px">
 								Sent {formatRelativeTime(challenge.madeOn)}
@@ -161,6 +164,9 @@
 							</div>
 						</div>
 					</div>
+					{#if index !== challengeList.length - 1}
+						<div class="challenge-border"></div>
+					{/if}
 				{/each}
 			</div>
 		{:else}
@@ -176,6 +182,30 @@
 </div>
 
 <style>
+	.challenge-border {
+		height: 1px;
+		border-bottom: 1px solid rgb(62,62,62);
+	}
+
+	.pvp-wrapper {
+        margin-bottom: 6px;
+	}
+
+	.vs-wrapper {
+		width: 100%;
+		text-align: center;
+	}
+
+	.player-wrapper {
+		display: flex;
+		align-items: center;
+	}
+
+	.pfp-wrapper {
+		position: relative;
+		margin-right: 8px;
+	}
+
 	.challenge-bottom {
 		margin-bottom: 100px;
 	}

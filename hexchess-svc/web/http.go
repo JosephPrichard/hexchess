@@ -86,13 +86,29 @@ func HttpStatusFromErrs(err error) ServiceView {
 	return ServiceView{Status: errStatus, Errors: errStrs}
 }
 
-func readJSON[T any](r *http.Request, body *T) error {
+func parseJSON[B any](r *http.Request, body *B, validate func(B) error) error {
 	err := json.NewDecoder(r.Body).Decode(&body)
 	defer r.Body.Close()
 	if err != nil {
 		return ErrHttpInvalidJSON
 	}
+	if validate != nil {
+		if err := validate(*body); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func transformJSON[B any, O any](r *http.Request, transform func(B) (O, error)) (O, error) {
+	var body B
+	err := json.NewDecoder(r.Body).Decode(&body)
+	defer r.Body.Close()
+	if err != nil {
+		var o O
+		return o, ErrHttpInvalidJSON
+	}
+	return transform(body)
 }
 
 type ServiceView struct {

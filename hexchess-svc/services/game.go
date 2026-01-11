@@ -1,13 +1,10 @@
 package svc
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
@@ -282,24 +279,6 @@ func (s *State) ForfeitGame(ctx context.Context, gameID string, player PlayerSta
 
 	slog.InfoContext(ctx, "player forfeited game", "playerID", player.ID, "gameId", gameID)
 	return replayID, fs, nil
-}
-
-func (s *State) PutReplayMoveSeq(ctx context.Context, replayID int64, initialBoard chess.Board, moves []chess.HistMove) error {
-	moveHistBytes, err := chess.MarshalMoveHistory(initialBoard, moves)
-	if err != nil {
-		return fmt.Errorf("marshal move history to s3: %w", err)
-	}
-
-	key := MakeReplayMoveListKey(replayID)
-
-	if _, err := s.S3Client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(s.Aws.S3Bucket),
-		Key:    aws.String(key),
-		Body:   bytes.NewReader(moveHistBytes),
-	}); err != nil {
-		return fmt.Errorf("put move history '%s': to s3 bucket: '%s': %w", key, s.Aws.S3Bucket, err)
-	}
-	return nil
 }
 
 func (s *State) WriteFinishedGame(ctx context.Context, state *ChessState, result ReplayResult, cause ReplayCause) (cs GRChangeSet, err error) {

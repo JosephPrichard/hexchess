@@ -38,7 +38,7 @@ var redisCont testcontainers.Container
 var muPostgres sync.Mutex
 var postgresCont testcontainers.Container
 
-func GetRedisContainer(ctx context.Context, t logutil.TestLogger) string {
+func GetRedisContainer(ctx context.Context, t logutil.TestLogger) (string, error) {
 	muRedis.Lock()
 	defer muRedis.Unlock()
 
@@ -58,7 +58,7 @@ func GetRedisContainer(ctx context.Context, t logutil.TestLogger) string {
 			},
 		})
 		if err != nil {
-			t.Fatalf("failed to start redis container: %s", err)
+			return "", fmt.Errorf("failed to start redis container: %w", err)
 		}
 		redisCont = cont
 		t.Logf("finished starting redis container in %v", time.Since(start))
@@ -68,14 +68,17 @@ func GetRedisContainer(ctx context.Context, t logutil.TestLogger) string {
 	port, _ := redisCont.MappedPort(ctx, RedisContPort)
 	addr := fmt.Sprintf("%s:%s", host, port.Port())
 
-	return addr
+	return addr, nil
 }
 
-func SetupRedisTest(t logutil.TestLogger) db.Redis {
+func SetupRedisTest(t logutil.TestLogger) (rdb db.Redis, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	addr := GetRedisContainer(ctx, t)
+	addr, err := GetRedisContainer(ctx, t)
+	if err != nil {
+		return rdb, err
+	}
 
 	return db.MakeRdb(
 		db.RedisAddrs{CacheAddr: addr, PubsubAddr: addr},
@@ -89,10 +92,10 @@ func SetupRedisTest(t logutil.TestLogger) db.Redis {
 			GamesCountChan:   db.GamesCountChan + "_" + uuid.NewString(),
 			ActiveCountChan:  db.ActiveCountChan + "_" + uuid.NewString(),
 		},
-	)
+	), nil
 }
 
-func GetPgContainer(ctx context.Context, t logutil.TestLogger) (string, bool) {
+func GetPgContainer(ctx context.Context, t logutil.TestLogger) (string, bool, error) {
 	muPostgres.Lock()
 	defer muPostgres.Unlock()
 
@@ -113,7 +116,7 @@ func GetPgContainer(ctx context.Context, t logutil.TestLogger) (string, bool) {
 			},
 		})
 		if err != nil {
-			t.Fatalf("failed to start postgres container: %s", err)
+			return "", false, fmt.Errorf("failed to start postgres container: %w", err)
 		}
 		postgresCont = cont
 		createdContainer = true
@@ -123,49 +126,51 @@ func GetPgContainer(ctx context.Context, t logutil.TestLogger) (string, bool) {
 	host, _ := postgresCont.Host(ctx)
 	port, _ := postgresCont.MappedPort(ctx, PgContPort)
 
-	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", DbUser, DbPass, host, port.Port(), DbName), createdContainer
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", DbUser, DbPass, host, port.Port(), DbName), createdContainer, nil
 }
 
-func SetupPostgresTest(t logutil.TestLogger, useTestTx bool) db.Postgres {
+func SetupPostgresTest(t logutil.TestLogger, useTestTx bool) (pdb db.Postgres, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	connString, shouldSeed := GetPgContainer(ctx, t)
+	connString, shouldSeed, err := GetPgContainer(ctx, t)
+	if err != nil {
+		return nil, err
+	}
 
 	pool, err := pgxpool.New(ctx, connString)
 	if err != nil {
-		t.Fatalf("failed to create pgx conn: %v", err)
+		return nil, fmt.Errorf("failed to create pgx conn: %w", err)
 	}
 	if shouldSeed {
 		// seed logic can run outside the lock - the lock will return the `shouldSeed` flag is true once, as it is derived from the locked data.
 		if _, err := pool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"); err != nil {
-			t.Fatalf("failed to reset schema: %v", err)
+			return nil, fmt.Errorf("failed to reset schema: %w", err)
 		}
 		if _, err := pool.Exec(ctx, db.CreateSchema); err != nil {
-			t.Fatalf("failed to create schema: %v", err)
+			return nil, fmt.Errorf("failed to create schema: %w", err)
 		}
 		insertTestData(t, pool)
 	}
 
-	var pdb db.Postgres
 	if useTestTx {
 		testTx, err := pool.Begin(ctx)
 		if err != nil {
-			t.Fatalf("failed to open testing txn: %v", err)
+			return nil, fmt.Errorf("failed to open testing txn: %w", err)
 		}
 		pdb = db.MakeFakePostgres(testTx)
 	} else {
 		pdb = db.MakePostgres(pool)
 	}
 
-	return pdb
+	return pdb, nil
 }
 
-func SetupAwsTest(t logutil.TestLogger) ext.Aws {
+func SetupAwsTest(t logutil.TestLogger) (awsClient ext.Aws, err error) {
 	muLocalstack.Lock()
 	defer muLocalstack.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Hour)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	if localstackCont == nil {
@@ -179,7 +184,7 @@ func SetupAwsTest(t logutil.TestLogger) ext.Aws {
 			},
 		})
 		if err != nil {
-			t.Fatalf("start localstack container: %s", err)
+			return awsClient, fmt.Errorf("start localstack container: %s", err)
 		}
 		localstackCont = cont
 		t.Logf("finished starting localstack container in %v", time.Since(start))
@@ -187,23 +192,25 @@ func SetupAwsTest(t logutil.TestLogger) ext.Aws {
 
 	host, _ := localstackCont.Host(ctx)
 	port, _ := localstackCont.MappedPort(ctx, LocalStackContPort)
-	addr := fmt.Sprintf("http://%s:%s", host, port.Port())
+	endpoint := fmt.Sprintf("http://%s:%s", host, port.Port())
 
-	awsClients, err := ext.MakeAwsClients(ctx, ext.AwsConfig{
-		S3Bucket:         ext.S3Bucket + uuid.NewString(),
+	cfg := ext.AwsConfig{
+		S3ReplayBucket:   ext.S3ReplayBucket + "-" + uuid.NewString(),
+		S3ProfileBucket:  ext.S3ProfileBucket + "-" + uuid.NewString(),
 		AwsDefaultRegion: "us-east-1",
 		AwsSecretKey:     "testing",
 		AwsSecretID:      "testing",
-		AwsEndpoint:      addr,
-	})
+		AwsEndpoint:      endpoint,
+	}
+	awsClients, err := ext.MakeAwsClients(ctx, cfg)
 	if err != nil {
-		t.Fatalf("make aws clients: %s", err)
+		return awsClient, fmt.Errorf("make aws clients: %s", err)
 	}
 
-	if _, err := awsClients.S3Client.CreateBucket(ctx, &s3.CreateBucketInput{
-		Bucket: aws.String(awsClients.S3Bucket),
-	}); err != nil {
-		t.Fatalf("create s3 bucket: %v: %s", awsClients.S3Bucket, err)
+	for _, bucket := range []string{cfg.S3ReplayBucket, cfg.S3ProfileBucket} {
+		if _, err := awsClients.S3Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {
+			return awsClient, fmt.Errorf("create s3 bucket: %v: %s", bucket, err)
+		}
 	}
-	return awsClients
+	return awsClients, nil
 }

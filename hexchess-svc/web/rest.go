@@ -8,12 +8,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/proto"
+	"hexchess-svc/assets"
 	"hexchess-svc/chess"
-	"hexchess-svc/pb"
 	"hexchess-svc/pkg/errmap"
 	"hexchess-svc/services"
-	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -57,7 +55,7 @@ const (
 	perPage           = 25
 	minPasswordLength = 11
 	minUsernameLength = 5
-	maxUsernameLength = 20
+	maxUsernameLength = 35
 	maxBioLength      = 500
 )
 
@@ -80,24 +78,24 @@ type RegisterBody struct {
 	ConfirmPassword string `json:"confirmPassword"`
 }
 
-func (app *App) HandleRegister(w http.ResponseWriter, r *http.Request) error {
-	var body RegisterBody
-	if err := readJSON(r, &body); err != nil {
-		return err
-	}
-
+func validateRegisterBody(body RegisterBody) error {
 	var errm error
-	if !isUsernameValid(body.Username) {
-		errm = errmap.Put(errm, "username", ErrHttpInvalidUsername)
-	}
 	if !isPasswordValid(body.Password) {
 		errm = errmap.Put(errm, "password", ErrHttpInvalidPassword)
 	}
 	if body.Password != body.ConfirmPassword {
 		errm = errmap.Put(errm, "confirmPassword", ErrHttpConfirmPassword)
 	}
-	if errm != nil {
-		return errm
+	if !isUsernameValid(body.Username) {
+		errm = errmap.Put(errm, "username", ErrHttpInvalidUsername)
+	}
+	return errm
+}
+
+func (app *App) HandleRegister(w http.ResponseWriter, r *http.Request) error {
+	var body RegisterBody
+	if err := parseJSON(r, &body, validateRegisterBody); err != nil {
+		return err
 	}
 
 	ctx := r.Context()
@@ -151,7 +149,7 @@ type LoginBody struct {
 
 func (app *App) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 	var body LoginBody
-	if err := readJSON(r, &body); err != nil {
+	if err := parseJSON(r, &body, nil); err != nil {
 		return err
 	}
 
@@ -176,7 +174,7 @@ type GoogleLoginBody struct {
 
 func (app *App) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) error {
 	var body GoogleLoginBody
-	if err := readJSON(r, &body); err != nil {
+	if err := parseJSON(r, &body, nil); err != nil {
 		return err
 	}
 	ctx := r.Context()
@@ -203,12 +201,7 @@ type UpdatePasswordBody struct {
 	ConfirmNewPassword string `json:"confirmNewPassword"`
 }
 
-func (app *App) HandleUpdatePassword(w http.ResponseWriter, r *http.Request) error {
-	var body UpdatePasswordBody
-	if err := readJSON(r, &body); err != nil {
-		return err
-	}
-
+func validateUpdatePasswordBody(body UpdatePasswordBody) error {
 	var errm error
 	if !isPasswordValid(body.NewPassword) {
 		errm = errmap.Put(errm, "newPassword", ErrHttpInvalidPassword)
@@ -216,8 +209,13 @@ func (app *App) HandleUpdatePassword(w http.ResponseWriter, r *http.Request) err
 	if body.NewPassword != body.ConfirmNewPassword {
 		errm = errmap.Put(errm, "confirmNewPassword", ErrHttpConfirmPassword)
 	}
-	if errm != nil {
-		return errm
+	return errm
+}
+
+func (app *App) HandleUpdatePassword(w http.ResponseWriter, r *http.Request) error {
+	var body UpdatePasswordBody
+	if err := parseJSON(r, &body, validateUpdatePasswordBody); err != nil {
+		return err
 	}
 
 	ctx := r.Context()
@@ -248,12 +246,7 @@ type UpdateUserBody struct {
 	NewBio      string `json:"newBio"`
 }
 
-func (app *App) HandleUpdateUser(w http.ResponseWriter, r *http.Request) error {
-	var body UpdateUserBody
-	if err := readJSON(r, &body); err != nil {
-		return err
-	}
-
+func (app *App) validateUpdateUserBody(body UpdateUserBody) error {
 	var errm error
 	if body.NewUsername != "" {
 		if !isUsernameValid(body.NewUsername) {
@@ -270,8 +263,13 @@ func (app *App) HandleUpdateUser(w http.ResponseWriter, r *http.Request) error {
 			errm = errmap.Put(errm, "newCountry", ErrHttpInvalidCountry)
 		}
 	}
-	if errm != nil {
-		return errm
+	return errm
+}
+
+func (app *App) HandleUpdateUser(w http.ResponseWriter, r *http.Request) error {
+	var body UpdateUserBody
+	if err := parseJSON(r, &body, app.validateUpdateUserBody); err != nil {
+		return err
 	}
 
 	ctx := r.Context()
@@ -393,24 +391,19 @@ type CreateGameBody struct {
 	InitialFEN string `json:"initialFen"`
 }
 
-type CreateGameResp struct {
-	GameID string `json:"gameId"`
+type CreateGameArgs struct {
+	FirstColor   svc.Color
+	Mode         svc.GameMode
+	InitialBoard *chess.Board
 }
 
-func (app *App) HandleCreateGame(w http.ResponseWriter, r *http.Request) error {
-	var body CreateGameBody
-	if err := readJSON(r, &body); err != nil {
-		return err
-	}
-	ctx := r.Context()
-
+func transformCreateGame(body CreateGameBody) (CreateGameArgs, error) {
 	var initialBoard *chess.Board
 	var errm error
 
 	if body.InitialFEN != "" {
 		board, err := chess.ParseFen(body.InitialFEN)
 		if err != nil {
-			slog.WarnContext(ctx, "invalid initial FEN", "initialFEN", body.InitialFEN, "err", err)
 			errm = errmap.Put(errm, "initialFen", ErrHttpInvalidFen)
 		} else {
 			initialBoard = &board
@@ -425,10 +418,28 @@ func (app *App) HandleCreateGame(w http.ResponseWriter, r *http.Request) error {
 		errm = errmap.Put(errm, "mode", ErrHttpInvalidMode)
 	}
 	if errm != nil {
-		return errm
+		return CreateGameArgs{}, errm
 	}
 
-	gameID, err := app.State.CreateGame(ctx, color, mode, initialBoard)
+	return CreateGameArgs{
+		FirstColor:   color,
+		Mode:         mode,
+		InitialBoard: initialBoard,
+	}, nil
+}
+
+type CreateGameResp struct {
+	GameID string `json:"gameId"`
+}
+
+func (app *App) HandleCreateGame(w http.ResponseWriter, r *http.Request) error {
+	body, err := transformJSON(r, transformCreateGame)
+	if err != nil {
+		return err
+	}
+
+	ctx := r.Context()
+	gameID, err := app.State.CreateGame(ctx, body.FirstColor, body.Mode, body.InitialBoard)
 	if err != nil {
 		return fmt.Errorf("create game: %w", err)
 	}
@@ -444,25 +455,60 @@ type UpdateChallengeBody struct {
 	Action       string `json:"action"`
 }
 
+type Action int
+
+const (
+	Accept Action = iota
+	Reject
+	Delete
+)
+
+type UpdateChallengeArgs struct {
+	ChallengeeID int64
+	ChallengerID int64
+	TargetID     int64
+	Action       Action
+}
+
+func transformUpdateChallenge(body UpdateChallengeBody) (UpdateChallengeArgs, error) {
+	var action Action
+	switch strings.ToUpper(body.Action) {
+	case "ACCEPT":
+		action = Accept
+	case "REJECT":
+		action = Reject
+	case "DELETE":
+		action = Delete
+	default:
+		return UpdateChallengeArgs{}, errmap.Put(nil, "action", ErrHttpInvalidAction)
+	}
+
+	var targetID int64
+	switch action {
+	case Accept, Reject:
+		// reject, accept means challenge is directed at challengee
+		targetID = body.ChallengeeID
+	default:
+		// delete means challenge is directed at challenger
+		targetID = body.ChallengerID
+	}
+
+	return UpdateChallengeArgs{
+		ChallengeeID: body.ChallengeeID,
+		ChallengerID: body.ChallengerID,
+		TargetID:     targetID,
+		Action:       action,
+	}, nil
+}
+
 type UpdateChallengeResp struct {
 	GameID string `json:"challengeID"`
 }
 
 func (app *App) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) error {
-	var body UpdateChallengeBody
-	if err := readJSON(r, &body); err != nil {
+	body, err := transformJSON(r, transformUpdateChallenge)
+	if err != nil {
 		return err
-	}
-	body.Action = strings.ToUpper(body.Action)
-
-	var targetID int64
-	switch body.Action {
-	case "ACCEPT", "REJECT":
-		targetID = body.ChallengeeID
-	case "DELETE":
-		targetID = body.ChallengerID
-	default:
-		return errmap.Put(nil, "action", ErrHttpInvalidAction)
 	}
 
 	ctx := r.Context()
@@ -470,7 +516,7 @@ func (app *App) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) er
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
-	if player.ID != targetID {
+	if player.ID != body.TargetID {
 		return ErrHttpUpdateChallenge
 	}
 
@@ -482,7 +528,7 @@ func (app *App) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) er
 	}
 
 	var gameID string
-	if body.Action == "ACCEPT" {
+	if body.Action == Accept {
 		gameID, err = app.State.CreateGame(ctx, dr.FirstColor, dr.Mode, nil)
 		if err != nil {
 			return fmt.Errorf("create game: %w", err)
@@ -499,18 +545,13 @@ type CreateChallengeBody struct {
 	Mode         string `json:"mode"`
 }
 
-func (app *App) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) error {
-	var body CreateChallengeBody
-	if err := readJSON(r, &body); err != nil {
-		return err
-	}
+type CreateChallengeArgs struct {
+	ChallengeeID int64
+	StartColor   svc.Color
+	Mode         svc.GameMode
+}
 
-	ctx := r.Context()
-	player, _, err := GetSessionPlayer(ctx, app.State, r)
-	if err != nil {
-		return fmt.Errorf("get session player: %w", err)
-	}
-
+func transformCreateChallenge(body CreateChallengeBody) (CreateChallengeArgs, error) {
 	var errm error
 	color, ok := svc.ColorMap[body.StartColor]
 	if !ok {
@@ -520,15 +561,30 @@ func (app *App) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 	if !ok {
 		errm = errmap.Put(errm, "mode", ErrHttpInvalidMode)
 	}
-	if errm != nil {
-		return errm
+	return CreateChallengeArgs{
+		ChallengeeID: body.ChallengeeID,
+		StartColor:   color,
+		Mode:         mode,
+	}, errm
+}
+
+func (app *App) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) error {
+	body, err := transformJSON(r, transformCreateChallenge)
+	if err != nil {
+		return err
+	}
+
+	ctx := r.Context()
+	player, _, err := GetSessionPlayer(ctx, app.State, r)
+	if err != nil {
+		return fmt.Errorf("get session player: %w", err)
 	}
 
 	ret, err := app.State.InsertChallengeRet(ctx, svc.ChallengeInst{
 		ChallengerID: player.ID,
 		ChallengeeID: body.ChallengeeID,
-		Mode:         mode,
-		StartColor:   color,
+		Mode:         body.Mode,
+		StartColor:   body.StartColor,
 		MadeOn:       app.GetNow(),
 	})
 	switch {
@@ -542,9 +598,7 @@ func (app *App) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 		return fmt.Errorf("insert challenge: %w", err)
 	}
 
-	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
-
-	ctx = context.WithoutCancel(ctx)
+	// TODO: make this fire and forget
 	if err := app.State.BroadcastChallenge(ctx, ret); err != nil {
 		slog.ErrorContext(ctx, "failed to broadcast challenge", "challenge", ret, "err", err)
 	}
@@ -552,6 +606,7 @@ func (app *App) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 		slog.ErrorContext(ctx, "failed to delete expired challenges", "challenge", ret, "err", err)
 	}
 
+	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
 }
 
@@ -659,20 +714,20 @@ func (app *App) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
 
 	eg.Go(func() (err error) {
 		resp.User, err = app.State.GetUserByID(egCtx, int64(id))
-		return err
+		return
 	})
 	eg.Go(func() (err error) {
 		resp.Stats, err = app.State.GetUserStats(egCtx, int64(id))
-		return err
+		return
 	})
 	eg.Go(func() (err error) {
 		lbRanks, err = app.State.GetLeaderboardRanks(egCtx, int64(id), svc.GameModeMap)
-		return err
+		return
 	})
 	if withReplays {
 		eg.Go(func() (err error) {
 			resp.ReplayList, err = app.State.GetUserReplays(egCtx, int64(id), -1, perPage)
-			return err
+			return
 		})
 	}
 	if err := eg.Wait(); err != nil {
@@ -753,37 +808,11 @@ func (app *App) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 
 func (app *App) HandleGetMoveReplay(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-	q := r.URL.Query()
+	replayID := r.URL.Query().Get("replayId")
 
-	id, err := intQuery(q, "replayId")
+	bResp, err := app.State.GetReplayMoveReplay(ctx, replayID)
 	if err != nil {
-		return errmap.Put(nil, "replayId", ErrHttpInvalidID)
-	}
-
-	objectKey := svc.MakeReplayMoveListKey(int64(id))
-
-	object, err := app.S3Client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(app.Aws.S3Bucket),
-		Key:    aws.String(objectKey),
-	})
-	if err != nil {
-		return fmt.Errorf("get move history by key '%s' from s3: %w", objectKey, err)
-	}
-	defer object.Body.Close()
-	bReplay, err := io.ReadAll(object.Body)
-	if err != nil {
-		return fmt.Errorf("read move history bytes with key '%s': %w", objectKey, err)
-	}
-
-	slog.InfoContext(ctx, "retrieved move history from s3", "key", objectKey, "size", fmt.Sprintf("%dKB", len(bReplay)/1000))
-
-	var pbMoveHist pb.MoveHistory
-	if err := proto.Unmarshal(bReplay, &pbMoveHist); err != nil {
-		return fmt.Errorf("unmarshal move history with key '%s': %w", objectKey, err)
-	}
-	bResp, err := proto.Marshal(chess.SerializeMoveReplay(&pbMoveHist))
-	if err != nil {
-		return fmt.Errorf("marshal replay %d move seq : %w", id, err)
+		return err
 	}
 
 	writeBytes(w, http.StatusOK, bResp)
@@ -974,38 +1003,76 @@ func (app *App) HandleGetEloHistories(w http.ResponseWriter, r *http.Request) er
 	return nil
 }
 
-const MaxProfilePicSize = 10 << 20
-const ProfilePicPrefix = "users/profile-pic"
+// MaxProfilePicSize 5 MiB
+const MaxProfilePicSize = 5 << 20
 
 func (app *App) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) error {
-	r.Body = http.MaxBytesReader(w, r.Body, MaxProfilePicSize)
-
 	ctx := r.Context()
 	player, _, err := GetSessionPlayer(ctx, app.State, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
 
+	contentType := r.Header.Get("Content-Type")
+
 	// the maximum memory we are using is the same as the max bytes reader, so we will never write a temp file to disk and thus do not need cleanup
+	r.Body = http.MaxBytesReader(w, r.Body, MaxProfilePicSize)
+
 	if err := r.ParseMultipartForm(MaxProfilePicSize); err != nil {
 		return fmt.Errorf("parse multipart form: %w", err)
 	}
 	file, _, err := r.FormFile("file")
 	if err != nil {
-		return fmt.Errorf("get file from form with name: '%s': %w", file, err)
+		return fmt.Errorf("get file from form: %w", err)
 	}
 	defer file.Close()
 
-	key := fmt.Sprintf("%s/%d", ProfilePicPrefix, player.ID)
+	// uploading profile picture based off a computed key
+	key := svc.MakeProfileNewPicKey(player.ID)
+	slog.InfoContext(ctx, "uploading profile pic to s3", "key", key, "player", player)
+	start := time.Now()
 
-	if _, err := app.S3Client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(app.Aws.S3Bucket),
-		Key:    aws.String(key),
-		Body:   file,
-	}); err != nil {
-		return fmt.Errorf("put profile pic '%s': to s3 bucket: '%s': %w", key, app.Aws.S3Bucket, err)
+	putOutput, err := app.S3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(app.S3ProfileBucket),
+		Key:         aws.String(key),
+		Body:        file,
+		ContentType: aws.String(contentType),
+		// with max cache control. profile pics are immutable, since we issue a new unique key on upload.
+		CacheControl: aws.String("public, max-age=31536000"),
+	})
+	if err != nil {
+		return fmt.Errorf("put profile pic '%s': to s3 bucket: '%s': %w", key, app.S3ProfileBucket, err)
 	}
 
-	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
+	slog.InfoContext(ctx, "finished uploading profile pic to s3", "key", key, "took", time.Since(start), "player", player, "output", putOutput)
+
+	// TODO: make this fire and forget eventually, but making this sync allows for stronger tests
+	// removes old profile pictures on upload of a new profile pic, since retrieval function will always get the most recent file.
+	if err := app.DeleteOldProfilePics(ctx, int(player.ID)); err != nil {
+		slog.ErrorContext(ctx, "failed to remove old profile pics", "error", err)
+	}
+
+	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: key})
+	return nil
+}
+
+func (app *App) HandleGetProfilePic(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	userID := r.URL.Query().Get("userId")
+
+	key, err := app.GetProfilePicKey(ctx, userID)
+	if errors.Is(svc.ErrNoProfilePic, err) {
+		w.Write(assets.DefaultProfilePic)
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("get profile pic key for user %s: %w", userID, err)
+	}
+
+	url := app.MakeS3Url(app.S3ProfileBucket, key)
+	slog.InfoContext(ctx, "resolved user ID to S3 profile pic URL", "url", url, "userID", userID)
+
+	// cache control is for what URL is being redirected to, this only changes if the user uploads a new profile pic
+	//w.Header().Set("Cache-Control", "public, max-age=3600")
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 	return nil
 }

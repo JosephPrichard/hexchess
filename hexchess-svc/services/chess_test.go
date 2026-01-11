@@ -18,15 +18,14 @@ import (
 
 func TestEchoChessState(t *testing.T) {
 	// given
-	rdb := itest.SetupRedisTest(t)
-	defer rdb.Close()
+	s := SetupStateTest(t, itest.WithRedis)
+	defer s.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 	id2 := "testing-id2-" + uuid.NewString()
 
 	state1 := MakeChess(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	s := State{Redis: rdb}
 
 	// when
 	require.NoError(t, s.SetChessState(ctx, id1, &state1))
@@ -43,8 +42,8 @@ func TestEchoChessState(t *testing.T) {
 
 func TestGetChessMetas(t *testing.T) {
 	// given
-	rdb := itest.SetupRedisTest(t)
-	defer rdb.Close()
+	s := SetupStateTest(t, itest.WithRedis)
+	defer s.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 	id2 := "testing-id2-" + uuid.NewString()
@@ -55,7 +54,6 @@ func TestGetChessMetas(t *testing.T) {
 	state3 := MakeChess(StateSetup{ID: id3, Mode: ModeCorrespondence1, FirstColor: Random, Black: ptr.New(MakeIDPlayer(1))})
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	s := State{Redis: rdb}
 	now := time.Now()
 
 	// when
@@ -89,13 +87,12 @@ func TestGetChessMetas(t *testing.T) {
 
 func TestEchoStateChats(t *testing.T) {
 	// given
-	rdb := itest.SetupRedisTest(t)
-	defer rdb.Close()
+	s := SetupStateTest(t, itest.WithRedis)
+	defer s.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	s := State{Redis: rdb}
 
 	chatsIn := []StateChat{
 		{
@@ -120,8 +117,8 @@ func TestEchoStateChats(t *testing.T) {
 
 func TestExpireChessStates(t *testing.T) {
 	// given
-	rdb := itest.SetupRedisTest(t)
-	defer rdb.Close()
+	s := SetupStateTest(t, itest.WithRedis)
+	defer s.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 
@@ -131,14 +128,13 @@ func TestExpireChessStates(t *testing.T) {
 	state1.BlackPlayer = MakeIDPlayer(2)
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	s := State{Redis: rdb}
 	now := time.Now()
 
 	// when
 	// these times must be before now.Add(-GameExpireFinished)
 	require.NoError(t, s.SetChessStateAt(ctx, id1, &state1, now.Add(2*-GameExpireFinished)))
 	require.NoError(t, s.InsertStateChat(ctx, id1, StateChat{}))
-	require.NoError(t, s.ExpireChessStates(ctx, rdb.GamesZSet))
+	require.NoError(t, s.ExpireChessStates(ctx, s.Redis.GamesZSet))
 
 	_, errExpiredID := s.GetChessState(ctx, id1)
 	chats, err := s.GetStateChats(ctx, id1, 1)

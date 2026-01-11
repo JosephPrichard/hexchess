@@ -3,44 +3,43 @@ package svc
 import (
 	"context"
 	"github.com/google/go-cmp/cmp"
+	"golang.org/x/sync/errgroup"
 	"hexchess-svc/ext"
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/assertutil"
 	"hexchess-svc/pkg/logutil"
 
 	"slices"
-	"sync"
 	"testing"
 )
 
 func SetupStateTest(t logutil.TestLogger, flags ...itest.TestFlag) State {
 	var state State
-	var wg sync.WaitGroup
+	var eg errgroup.Group
 
 	if slices.Contains(flags, itest.WithPostgres) {
-		wg.Add(1)
-		go func() {
+		eg.Go(func() (err error) {
 			useTxn := slices.Contains(flags, itest.UseTxn)
-			state.Postgres = itest.SetupPostgresTest(t, useTxn)
-			wg.Done()
-		}()
+			state.Postgres, err = itest.SetupPostgresTest(t, useTxn)
+			return
+		})
 	}
 	if slices.Contains(flags, itest.WithRedis) {
-		wg.Add(1)
-		go func() {
-			state.Redis = itest.SetupRedisTest(t)
-			wg.Done()
-		}()
+		eg.Go(func() (err error) {
+			state.Redis, err = itest.SetupRedisTest(t)
+			return
+		})
 	}
 	if slices.Contains(flags, itest.WithAws) {
-		wg.Add(1)
-		go func() {
-			state.Aws = itest.SetupAwsTest(t)
-			wg.Done()
-		}()
+		eg.Go(func() (err error) {
+			state.Aws, err = itest.SetupAwsTest(t)
+			return
+		})
 	}
 
-	wg.Wait()
+	if err := eg.Wait(); err != nil {
+		t.Fatalf("failed to setup test state: %v", err)
+	}
 
 	state.EntropySource = &ext.NDEntropySource{}
 	return state
