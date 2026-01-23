@@ -3,7 +3,7 @@
 	import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
 	import { ChessBoard } from '$lib/pb/messages';
 	import { makeMoveState } from '$lib/state/move.svelte';
-	import { deserializeHexList, isLastRank } from '$lib/utils/chess.js';
+	import { deserializeHexList, isPromotion } from '$lib/utils/chess.js';
 	import type { Hex } from '$lib/api/models';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import SmallTrashIcon from '$lib/components/icons/SmallTrashIcon.svelte';
@@ -16,9 +16,9 @@
 	import TurnWrapper from '$lib/components/chess/TurnWrapper.svelte';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import Dropdown from '$lib/components/util/Dropdown.svelte';
-	import { makeSandboxState } from '$lib/state/game.svelte';
+	import { makeGameState } from '$lib/state/game.svelte';
 	import Banner from '$lib/Banner.svelte';
-	import { BadPromotion, type BadPromotionType } from '$lib/components/chess/piece';
+	import { BadPromotion, type BadPromotionType, type Promotion } from '$lib/components/chess/types';
 
 	export interface SandboxProps {
 		fen: string;
@@ -30,7 +30,7 @@
 
 	const move = makeMoveState();
 	const selection = makeSelectionState();
-	const sandbox = makeSandboxState();
+	const sandbox = makeGameState();
 
 	let mode: "edit" | "play" = $state("edit");
 	let isTrashcanSelect = $state(false);
@@ -77,8 +77,7 @@
 			sandbox.movePiece(from, to);
 			break;
 		case "play":
-			if (isLastRank(to)) {
-				sandbox.movePiece(from, to);
+			if (isPromotion(to)) {
 				sandbox.setPromotion({from, to});
 			} else {
 				const next = await makeMoveWasm($state.snapshot(game), {from, to, promotion: 0});
@@ -91,19 +90,17 @@
 		onDeSelectPiece();
 	}
 
-	async function onCompletePromotion(promotedPiece: number | BadPromotionType) {
-		if (sandbox.state.promotion === undefined) {
-			return;
-		}
-		if (promotedPiece === BadPromotion) {
-			sandbox.revert();
+	async function onCompletePromotion(promotion: Promotion | BadPromotionType) {
+		if (sandbox.state.promotion === undefined) return;
+		if (promotion === BadPromotion) {
+			sandbox.revertPromotion();
 		} else {
-			const move = { from: sandbox.state.promotion.from, to: sandbox.state.promotion.to, promotion: promotedPiece };
+			const move = { from: sandbox.state.promotion.from, to: sandbox.state.promotion.to, promotion: promotion.kind };
 			const next = await makeMoveWasm($state.snapshot(sandbox.state.prevGame), move);
 			if (next !== undefined) {
 				sandbox.setGame(next);
 			} else {
-				sandbox.revert();
+				sandbox.revertPromotion();
 			}
 		}
 		sandbox.setPromotion(undefined);
@@ -145,9 +142,7 @@
 
 	async function fenURLFromBoard(board?: ChessBoard) {
 		const f = await boardToFenWasm(board);
-		if (!f) {
-			return;
-		}
+		if (!f) return;
 		fen = f;
 		history.replaceState({}, "", `/sandbox?fen=${encodeURIComponent(fen)}`);
 	}

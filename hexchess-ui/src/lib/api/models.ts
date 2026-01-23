@@ -21,6 +21,8 @@ export const GameModeNameMap: Record<string, string> = {
 	"CORRESPONDENCE_14": "Correspondence 14d",
 };
 
+export const TimedGameModes = ["TIMED_1+0", "TIMED_3+2", "TIMED_15+10"];
+
 export interface SessionModel {
 	id: number;
 	username: string;
@@ -96,7 +98,8 @@ export interface ReplayModel {
 	blackElo: number;
 	playedOn: string;
 	result: string;
-	cause: number;
+	cause: string;
+	mode: string;
 	whiteEloDiff: number;
 	blackEloDiff: number;
 }

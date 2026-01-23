@@ -4,18 +4,25 @@
 	import LeftIcon from '$lib/components/icons/LeftIcon.svelte';
 	import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
 	import { makeMessage } from '$lib/utils/error';
-	import { getNotificationsContext } from '$lib/utils/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import ReplayPanel from '$lib/components/user/ReplayPanel.svelte';
-	import { type ChessGame, type PieceMove } from '$lib/pb/messages';
-	import type { Hex, ReplayModel } from '$lib/api/models';
+	import { type ChessGame, type HistMove, type NotMoveStep, type PieceMove } from '$lib/pb/messages';
+	import { type Hex, type ReplayModel, TimedGameModes } from '$lib/api/models';
 	import services from '$lib/api/services';
 	import { makeMoveState } from '$lib/state/move.svelte';
-	import { deserializeHexList } from '$lib/utils/chess.js';
 	import TurnWrapper from '$lib/components/chess/TurnWrapper.svelte';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import Banner from '$lib/Banner.svelte';
-	import Error from '$lib/Error.svelte';
+	import PlayIcon from '$lib/components/icons/PlayIcon.svelte';
+	import StopIcon from '$lib/components/icons/PauseIcon.svelte';
+	import { gameAtMoveIndex } from '$lib/api/wasm';
+	import { defaultBoard } from '$lib/utils/chess';
+
+	interface MoveStep {
+		notMove: string;
+		pm?: PieceMove;
+		hm?: HistMove;
+	}
 
 	export interface ReplayProps {
 		replay: ReplayModel;
@@ -24,26 +31,23 @@
 	const { data }: { data: ReplayProps } = $props();
 	const { replay } = $derived(data);
 
-	let move = makeMoveState();
+	const isRealTimeReplay = $derived(TimedGameModes.includes(replay.mode));
+
+	const move = makeMoveState();
 	const selection = makeSelectionState();
 
-	interface ReplayMove {
-		pm?: PieceMove
-		notation: string
-		game?: ChessGame;
-	}
-
-	type ReplayMoveRoot = ReplayMove & {moves: ReplayMove[]};
-
-	let moveList: ReplayMoveRoot[] = $state([]);
+	let initialGame: ChessGame | undefined = $state(undefined);
+	let game: ChessGame | undefined = $state(undefined);
+	let moveList: MoveStep[] = $state([]);
 	let moveListErr: string | undefined = $state(undefined);
-	let initialGame: ChessGame | undefined = undefined;
+
+	let isPlaying = $state(false);
 
 	async function initMoveList(replayId: string) {
 		const [data, err] = await services.getReplayMoveHistory(replayId);
 		if (data) {
 			initialGame = data.initialGame;
-			moveList = data.steps.map(step => ({ pm: step.pm, notation: step.notMove, game: step.game, moves: [] }));
+			moveList = data.steps.map((step) => ({ notMove: step.notMove, pm: step.pm, hm: step.hm }));
 		} else {
 			moveListErr = makeMessage(err);
 		}
@@ -57,30 +61,33 @@
 		move.updateMoveCount(moveList.length);
 	});
 
+	const togglePlayPause = () => isPlaying = !isPlaying;
+
 	async function onSelectMove(index: number) {
 		move.selectMove(index);
 		onDeSelect();
 	}
 
-	function onSelect(hex: Hex) {
-		selection.select(game, hex);
-	}
+	const onSelect = (hex: Hex) => selection.select(game, hex);
+	const onDeSelect = () => selection.deSelect();
 
-	function onDeSelect() {
-		selection.deSelect();
-	}
 
-	const [game, prevMove] = $derived.by(() => {
-		const index = move.state.moveIndex;
-		const game = index !== undefined
-			? moveList[index]?.game
-			: initialGame;
-		let prevMove = moveList.length > 0 && move?.state.moveIndex !== undefined
-			? moveList[move.state.moveIndex].pm
-			: undefined;
-		return [game, prevMove];
+	$effect(() => {
+		const moveIndex = move.state.moveIndex;
+		if (moveIndex === undefined) {
+			game = initialGame
+			return;
+		}
+		gameAtMoveIndex(initialGame?.board || defaultBoard, moveList.map(m => m.hm), moveIndex).then(g => game = g);
 	});
-	const rootNotationList = $derived.by(() => moveList.map(move => move.notation));
+
+	const prevMove = $derived.by(() => {
+		const moveIndex = move.state.moveIndex;
+		return moveList.length > 0 && moveIndex !== undefined ?
+			moveList[moveIndex - 1]?.pm :
+			undefined;
+	});
+	const rootNotationList = $derived.by(() => moveList.map(move => move.notMove));
 </script>
 
 <svelte:head>
@@ -113,15 +120,30 @@
 					selectedMoveIndex={move.state.moveIndex}
 				/>
 			</TurnWrapper>
+			{#if isRealTimeReplay}
+				<div class="side-table-footer" style="padding: 5px">
+					<div class="move-table-nav-buttons">
+						{#if !isPlaying}
+							<button title="Play" class="button-transparent" onclick={togglePlayPause}>
+								<PlayIcon />
+							</button>
+						{:else}
+							<button title="Stop" class="button-transparent" onclick={togglePlayPause}>
+								<StopIcon />
+							</button>
+						{/if}
+					</div>
+				</div>
+			{/if}
 			<div class="side-table-footer">
 				<div class="move-table-nav-buttons">
-					<button title="Previous Move" class="button-transparent" style:padding-top="5px" onclick={move.goLeft}>
+					<button title="Previous Move" class="button-transparent" onclick={move.goLeft}>
 						<LeftIcon />
 					</button>
-					<button title="Flip Board" class="button-transparent" style:padding-top="5px" onclick={move.flip}>
+					<button title="Flip Board" class="button-transparent" onclick={move.flip}>
 						<FlipIcon />
 					</button>
-					<button title="Next Move" class="button-transparent" style:padding-top="5px" onclick={move.goRight}>
+					<button title="Next Move" class="button-transparent" onclick={move.goRight}>
 						<RightIcon />
 					</button>
 				</div>

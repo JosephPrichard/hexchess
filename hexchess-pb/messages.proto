@@ -43,8 +43,9 @@ message HistMove {
   int32 toRank = 5;
   bool collFile = 6;
   bool collRank = 7;
-  bool  isTake = 8;
-  bool  isCheck = 9;
+  bool isTake = 8;
+  bool isCheck = 9;
+  string madeOn = 10;
 }
 
 message ChessGame {
@@ -57,12 +58,19 @@ message ChessGame {
 }
 
 message FinishState {
-  int64 win_id = 1;
-  int64 lose_id = 2;
-  int32 win_elo_diff = 3;
-  int32 lose_elo_diff = 4;
-  string cause = 5;
-  string result = 6;
+  int32 win_elo_diff = 1;
+  int32 lose_elo_diff = 2;
+  string cause = 3;
+  string result = 4;
+}
+
+message AbortState {}
+
+message EndState {
+  oneof value {
+    FinishState finish_state = 1;
+    AbortState abort_state = 2;
+  }
 }
 
 message ChessState {
@@ -75,7 +83,7 @@ message ChessState {
   int64 touch = 8;
   ChessBoard initial_board = 9;
   int64 undo_id = 10;
-  FinishState finish_state = 11;
+  EndState end_state = 11;
 }
 
 message ForfeitInput {}
@@ -150,7 +158,7 @@ message ChatOutput {
 
 message ForfeitOutput {
   int64 replay_id = 1;
-  FinishState finish_state = 2;
+  EndState end_state = 2;
 }
 
 message UndoOutput {
@@ -183,14 +191,13 @@ message HistMoves {
   repeated HistMove moves = 1;
 }
 
-message MoveHistory {
-  ChessGame initial_game = 1;
-  repeated MoveStep steps = 2;
+message PieceMoveList {
+  repeated PieceMove moves = 1;
 }
 
-message MoveStep {
-  HistMove move = 1;
-  ChessGame game = 3;
+message MoveHistory {
+  ChessGame initial_game = 1;
+  repeated HistMove steps = 2;
 }
 
 message MoveReplay {
@@ -201,12 +208,7 @@ message MoveReplay {
 message NotMoveStep {
   string notMove = 1;
   PieceMove pm = 2;
-  ChessGame game = 3;
-}
-
-message MakeMoveInput {
-  Move move = 1;
-  ChessGame game = 2;
+  HistMove hm = 3;
 }
 
 message UserMsg {

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type AttackTable = [Files][MaxRanks]bool
@@ -182,8 +183,17 @@ func (g *Game) MakeMove(mv Move) HistMove {
 
 	g.Board.IsWhiteTurn = !g.Board.IsWhiteTurn
 
-	g.Moves = append(g.Moves, hm)
+	//g.Moves = append(g.Moves, hm)
 	return hm
+}
+
+func (g *Game) MakeMoveAppend(mv Move) {
+	g.AddMoveHist(g.MakeMove(mv), time.Time{})
+}
+
+func (g *Game) AddMoveHist(hm HistMove, t time.Time) {
+	hm.MadeOn = t
+	g.Moves = append(g.Moves, hm)
 }
 
 type MoveErrorKind int
@@ -247,13 +257,13 @@ func (g *Game) ValidateMove(move Move) error {
 }
 
 type HistMove struct {
-	// stores any information necessary to generate a move history notation
 	PieceMove
 	Promotion Promotion
 	CollFile  bool
 	CollRank  bool
 	IsCheck   bool
 	IsTake    bool
+	MadeOn    time.Time
 }
 
 func (m *HistMove) String() string {
@@ -642,8 +652,6 @@ func (g *Game) StringColor(isWhite bool) string {
 	})
 }
 
-var ErrKingAssert = errors.New("assertion error: should never be allowed to make a move to the king")
-
 func RandomMoveSeq(game Game, low int, hi int) ([]HistMove, error) {
 	for range rand.Intn(low) + (low + hi) {
 		game.InitPieceMoves()
@@ -671,7 +679,7 @@ func RandomMoveSeq(game Game, low int, hi int) ([]HistMove, error) {
 		toPiece := game.Board.Get(pm.To.File, pm.To.Rank)
 		fromPiece := game.Board.Get(pm.From.File, pm.From.Rank)
 		if toPiece.IsKing() {
-			return nil, ErrKingAssert
+			return nil, errors.New("assertion error: should never be allowed to make a move to the king")
 		}
 		if pm.From == pm.To {
 			return nil, fmt.Errorf("expected from != to, got %v", pm)
@@ -680,9 +688,56 @@ func RandomMoveSeq(game Game, low int, hi int) ([]HistMove, error) {
 			return nil, fmt.Errorf("expected move to not be to piece of same color %v", pm)
 		}
 
-		game.MakeMove(Move{From: pm.From, To: pm.To, Promotion: QueenPromotion})
+		hm := game.MakeMove(Move{From: pm.From, To: pm.To, Promotion: QueenPromotion})
+		game.Moves = append(game.Moves, hm)
 	}
 
 	slog.Info("random move sequence", "len", len(game.Moves))
 	return game.Moves, nil
+}
+
+var ErrNoMoveUndo = errors.New("no move to undo")
+
+func (g *Game) Undo(initial Board) error {
+	if len(g.Moves) == 0 {
+		return ErrNoMoveUndo
+	}
+	return g.Rewind(initial, 1)
+}
+
+func JumpMoveIndex(initial Board, moves []HistMove, index int) (*Game, error) {
+	offset := len(moves) - (index + 1)
+	return Rewind(initial, moves, offset)
+}
+
+type RewindOffsetError struct {
+	Offset int
+	Len    int
+}
+
+func (e RewindOffsetError) Error() string {
+	return fmt.Sprintf("invalid rewind offset, must be between 0 and move length (%d), got: %d", e.Len, e.Offset)
+}
+
+func (g *Game) Rewind(initial Board, offset int) error {
+	game, err := Rewind(initial, g.Moves, offset)
+	if game != nil {
+		*g = *game
+	}
+	return err
+}
+
+func Rewind(initial Board, moves []HistMove, offset int) (*Game, error) {
+	index := len(moves) - offset
+	if index < 0 || index > len(moves) {
+		return nil, RewindOffsetError{Offset: offset, Len: len(moves)}
+	}
+	undoGame := &Game{Board: initial}
+	movesExceptLast := moves[:index]
+	for _, move := range movesExceptLast {
+		hm := undoGame.MakeMove(Move{From: move.From, To: move.To, Promotion: move.Promotion})
+		undoGame.AddMoveHist(hm, move.MadeOn)
+	}
+	undoGame.InitPieceMoves()
+	return undoGame, nil
 }

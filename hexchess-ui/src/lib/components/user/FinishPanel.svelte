@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatEloDiff, getReplayColors } from '$lib/utils/format.js';
+	import { formatCause, formatEloDiff, formatResult, getReplayColors } from '$lib/utils/format.js';
 	import type { FinishState, PlayerState } from '$lib/pb/messages';
 	import { isGuestUser } from '$lib/api/models';
 
@@ -9,51 +9,39 @@
 		blackPlayer: PlayerState;
 	}
 
+	interface FinishView  {
+		winClass: string;
+		loseClass: string;
+		winner: PlayerState;
+		loser: PlayerState;
+		result: string;
+		cause: string;
+		winEloDiff: number;
+		loseEloDiff: number;
+	}
 	const { state, whitePlayer, blackPlayer }: FinishPanelProps = $props();
 
-	const [winClass, loseClass] = getReplayColors(state.result);
-
-	const result = $derived.by(() => {
-		switch (state.result) {
-		case 'WHITE_WINS':
-			return "White Wins";
+	function getWinnerLoser(result: string): [PlayerState, PlayerState] {
+		switch (result) {
 		case 'BLACK_WINS':
-			return "Black Wins";
+			return [blackPlayer, whitePlayer];
+		case 'WHITE_WINS':
 		case 'DRAW':
-			return "Draw";
 		default:
-			return "-";
+			return [whitePlayer, blackPlayer];
 		}
-	});
+	}
 
-	const cause = $derived.by(() => {
-		switch (state.cause) {
-		case 'CHECKMATE':
-			return "checkmate";
-		case 'FORFEIT':
-			return "forfeit";
-		case 'STALEMATE':
-			return "stalemate";
-		default:
-			return "-";
-		}
-	});
+	const view: FinishView = $derived.by(() => {
+		const winEloDiff = state.winEloDiff;
+		const loseEloDiff = state.loseEloDiff;
 
-	const { winner, loser } = $derived.by(() => {
-		let winner: PlayerState | undefined = undefined;
+		const result = formatResult(state.result);
+		const cause = formatCause(state.cause);
+		const [winClass, loseClass] = getReplayColors(state.result);
+		const [winner, loser] = getWinnerLoser(state.result);
 
-		winner = whitePlayer?.id === state.winId ? whitePlayer : undefined;
-		winner = blackPlayer?.id === state.winId ? blackPlayer : undefined;
-
-		let loser: PlayerState | undefined = undefined;
-		loser = whitePlayer?.id === state.loseId ? whitePlayer : undefined;
-		loser = blackPlayer?.id === state.loseId ? blackPlayer : undefined;
-
-		if (!loser && !winner) {
-			winner = whitePlayer;
-			loser = blackPlayer;
-		}
-		return { winner, loser };
+		return { result, cause, winClass, loseClass, winner, loser, winEloDiff, loseEloDiff };
 	});
 
 	$inspect(state)
@@ -61,33 +49,33 @@
 
 <div class="finish-state">
 	<b class="result">
-		{result}
+		{view.result}
 	</b>
 	<div class="cause">
-		by {cause}
+		by {view.cause}
 	</div>
-	{#if winner && !isGuestUser(winner)}
+	{#if view.winner && !isGuestUser(view.winner)}
 		<div class="side-table-header-elem">
-			<a href="/players/{winner.id}" class="text-ul">
-				<b>{winner.name}</b>
+			<a href="/players/{view.winner.id}" class="text-ul">
+				<b>{view.winner.name}</b>
 			</a>
-			<img class="flag" src="/flags/{winner.country}.png" alt="" />
-			<span>({Math.round(winner.elo)})</span>
-			<span class={winClass}>
-			{formatEloDiff(state.winEloDiff)}
-		</span>
+			<img class="flag" src="/flags/{view.winner.country}.png" alt="" />
+			<span>({Math.round(view.winner.elo)})</span>
+			<span class={view.winClass}>
+				{formatEloDiff(view.winEloDiff)}
+			</span>
 		</div>
 	{/if}
-	{#if loser && !isGuestUser(loser)}
+	{#if view.loser && !isGuestUser(view.loser)}
 		<div class="side-table-header-elem">
-			<a href="/players/{loser.id}" class="text-ul">
-				<b>{loser.name}</b>
+			<a href="/players/{view.loser.id}" class="text-ul">
+				<b>{view.loser.name}</b>
 			</a>
-			<img class="flag" src="/flags/{loser.country}.png" alt="" />
-			<span>({Math.round(loser.elo)})</span>
-			<span class={loseClass}>
-			{formatEloDiff(state.loseEloDiff)}
-		</span>
+			<img class="flag" src="/flags/{view.loser.country}.png" alt="" />
+			<span>({Math.round(view.loser.elo)})</span>
+			<span class={view.loseClass}>
+				{formatEloDiff(view.loseEloDiff)}
+			</span>
 		</div>
 	{/if}
 </div>

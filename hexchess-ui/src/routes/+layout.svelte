@@ -10,7 +10,12 @@
 
 	const { children }: LayoutProps = $props();
 
-	let notifications: Record<number, NotificationData> = $state({});
+	interface Notification {
+		data: NotificationData;
+		index: number;
+	}
+
+	let notifications: Record<number, Notification> = $state({});
 
 	const timeouts: Record<number, ReturnType<typeof setTimeout>> = {};
 	let index = 0;
@@ -29,7 +34,7 @@
 
 	function addNotification(data: NotificationData) {
 		const i = index++;
-		notifications[i] = data;
+		notifications[i] = {data, index: i};
 		timeouts[i] = setTimeout(() => deleteNotification(i), data.duration || 3000);
 	}
 
@@ -83,10 +88,13 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </svelte:head>
 <div class="bottom-right-anchor notifications-box">
-	{#each Object.values(notifications) as notification, i (i)}
-		<div in:fade={{ duration: 300, delay: 0 }} out:fade={{ duration: 300, delay: 0 }} class="notification">
-			<div class="notification-border" class:notification-green={notification?.isSuccess} class:notification-red={!notification?.isSuccess}>
-			</div>
+	{#each Object.values(notifications) as {data: notification, index}}
+		<div
+			in:fade={{ duration: 300, delay: 0 }} out:fade={{ duration: 300, delay: 0 }}
+			class="notification"
+			class:notification-green={notification?.isSuccess}
+			class:notification-red={!notification?.isSuccess}
+		>
 			<div class="notification-body">
 				<div class="notification-text">
 					{#if notification?.type === 'string'}
@@ -98,7 +106,7 @@
 					{/if}
 				</div>
 				<div class="notification-space"></div>
-				<button class="notification-x" onclick={() => deleteNotification(i)}> &#10006; </button>
+				<button class="notification-x" onclick={() => deleteNotification(index)}> &#10006; </button>
 			</div>
 		</div>
 	{/each}
@@ -130,28 +138,22 @@
         z-index: 10000;
     }
 
-    .notification-border {
-        border-radius: 2px;
-        height: 3px;
-        width: 100%;
-    }
-
     .notification-green {
-        background: #2ea44f;
+        background-color: #2ea44f;
     }
 
     .notification-red {
-        background: crimson;
+        background-color: crimson;
     }
 
     .notification {
+		border-radius: 5px;
         display: flex;
         flex-direction: column;
         z-index: 10000;
         margin: 20px;
         color: white;
-        border-radius: 2px;
-        background-color: rgb(43, 43, 43);
+        /*background-color: rgb(43, 43, 43);*/
         transition:
 			opacity 0.2s ease,
 			transform ease;

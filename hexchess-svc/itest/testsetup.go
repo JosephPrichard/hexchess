@@ -22,7 +22,7 @@ const DbName = "postgres"
 const DbPass = "postgres"
 
 const LocalstackContTag = "localstack/localstack:3.0.2"
-const RedisContTag = "redis:8.4.0"
+const RedisContTag = "redis:7.4.0"
 const PostgresContTag = "postgres:17"
 
 const LocalStackContPort = "4566/tcp"

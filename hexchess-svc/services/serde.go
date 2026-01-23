@@ -31,41 +31,51 @@ func DeserializePlayer(pbPlayer *pb.PlayerState) PlayerState {
 	return player
 }
 
-func SerializeFinishState(state FinishState) *pb.FinishState {
-	if !state.IsEnded {
+func SerializeEndState(state EndState) *pb.EndState {
+	switch state.Kind {
+	case Aborted:
+		return &pb.EndState{Value: &pb.EndState_AbortState{}}
+	case Finished:
+		return &pb.EndState{Value: &pb.EndState_FinishState{
+			FinishState: &pb.FinishState{
+				WinEloDiff:  int32(state.WinEloDiff),
+				LoseEloDiff: int32(state.LoseEloDiff),
+				Cause:       state.Cause.String(),
+				Result:      state.Result.String(),
+			},
+		}}
+	default:
 		return nil
-	}
-	return &pb.FinishState{
-		WinId:       state.WinID,
-		LoseId:      state.LoseID,
-		WinEloDiff:  int32(state.WinEloDiff),
-		LoseEloDiff: int32(state.LoseEloDiff),
-		Result:      state.Result.String(),
-		Cause:       state.Cause.String(),
 	}
 }
 
-func DeserializeFinishState(pbFinishState *pb.FinishState) (state FinishState, err error) {
-	if pbFinishState == nil {
+func DeserializeEndState(pbEndState *pb.EndState) (state EndState, err error) {
+	if pbEndState == nil {
 		return state, nil
 	}
-	cause, err := ParseReplayCause(pbFinishState.Cause)
-	if err != nil {
-		return state, err
+	switch p := pbEndState.GetValue().(type) {
+	case *pb.EndState_FinishState:
+		finishState := p.FinishState
+		cause, err := ParseReplayCause(finishState.Cause)
+		if err != nil {
+			return state, err
+		}
+		result, err := ParseReplayResult(finishState.Result)
+		if err != nil {
+			return state, err
+		}
+		return EndState{
+			Kind:        Finished,
+			WinEloDiff:  int64(finishState.WinEloDiff),
+			LoseEloDiff: int64(finishState.LoseEloDiff),
+			Cause:       cause,
+			Result:      result,
+		}, nil
+	case *pb.EndState_AbortState:
+		return EndState{Kind: Aborted}, nil
+	default:
+		return state, fmt.Errorf("unknown end state type: %T", p)
 	}
-	result, err := ParseReplayResult(pbFinishState.Result)
-	if err != nil {
-		return state, err
-	}
-	return FinishState{
-		IsEnded:     true,
-		WinID:       pbFinishState.WinId,
-		LoseID:      pbFinishState.LoseId,
-		WinEloDiff:  int64(pbFinishState.WinEloDiff),
-		LoseEloDiff: int64(pbFinishState.LoseEloDiff),
-		Cause:       cause,
-		Result:      result,
-	}, nil
 }
 
 func UnmarshalChessState(b []byte) (st ChessState, err error) {
@@ -77,9 +87,9 @@ func UnmarshalChessState(b []byte) (st ChessState, err error) {
 	if err != nil {
 		return st, fmt.Errorf("deserialize game: %w", err)
 	}
-	initialBoard, err := chess.DeserializeBoard(pbChess.Game.Board)
+	initialBoard, err := chess.DeserializeBoard(pbChess.InitialBoard)
 	if err != nil {
-		return st, fmt.Errorf("deserialize board %v: %w", pbChess.Game.Board, err)
+		return st, fmt.Errorf("deserialize initial board %v: %w", pbChess.Game.Board, err)
 	}
 	color, err := ParseColor(pbChess.FirstColor)
 	if err != nil {
@@ -89,7 +99,7 @@ func UnmarshalChessState(b []byte) (st ChessState, err error) {
 	if err != nil {
 		return st, err
 	}
-	finishState, err := DeserializeFinishState(pbChess.FinishState)
+	endState, err := DeserializeEndState(pbChess.EndState)
 	if err != nil {
 		return st, err
 	}
@@ -97,7 +107,7 @@ func UnmarshalChessState(b []byte) (st ChessState, err error) {
 		Game:         game,
 		InitialBoard: initialBoard,
 		UndoState:    UndoState{UndoID: pbChess.UndoId},
-		FinishState:  finishState,
+		EndState:     endState,
 		ChessMeta: ChessMeta{
 			ID:          pbChess.Id,
 			WhitePlayer: DeserializePlayer(pbChess.WhitePlayer),
@@ -130,7 +140,7 @@ func SerializeChessState(s *ChessState) *pb.ChessState {
 		Touch:        s.Touch.UnixMilli(),
 		InitialBoard: chess.SerializeBoard(&s.InitialBoard),
 		UndoId:       s.UndoID,
-		FinishState:  SerializeFinishState(s.FinishState),
+		EndState:     SerializeEndState(s.EndState),
 	}
 }
 

@@ -17,7 +17,7 @@
 {#if children}
 	{@render children()}
 {/if}
-<div class="side-table-header-bottom" class:no-rounded={isEdged}>
+<div class="side-table-header-bottom side-table-header-bottom-shadow" class:no-rounded={isEdged}>
 	<div class="turn-circle" class:turn-circle-green={Boolean(isWhiteTurn) === isWhitePerspective}></div>
 	{isWhitePerspective ? "White's Turn" : "Black's Turn"}
 </div>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"golang.org/x/sync/errgroup"
 	"hexchess-svc/assets"
 	"hexchess-svc/chess"
 	"hexchess-svc/cmd"
@@ -102,15 +103,15 @@ func main() {
 		logutil.FatalErr("flush rdb", err)
 	}
 
+	// we need to inserts users before we can insert challenges and game results (they reference users)
 	if _, err := state.BatchInsertUsers(ctx, userInsts); err != nil {
 		logutil.FatalErr("insert users", err)
 	}
-	for _, chInst := range challenges {
-		if err := state.InsertChallenge(ctx, mapChallengeInst(chInst)); err != nil {
-			logutil.FatalErr("insert challenge", err)
-		}
+	if err := insertChallenges(ctx, state, challenges); err != nil {
+		logutil.FatalErr("insert challenges", err)
 	}
-	if err := insertRandomizedGameResult(ctx, state, gameResults); err != nil {
+	// performs stat updates to users, must happen before we sync the leaderboard (which copies from users table into redis)
+	if err := insertRandomizedGameResults(ctx, state, gameResults); err != nil {
 		logutil.FatalErr("insert game results", err)
 	}
 	if err := state.SyncLeaderboard(ctx); err != nil {
@@ -120,17 +121,22 @@ func main() {
 	log.Printf("finished seeding databases: %v", time.Since(start))
 }
 
-func mapChallengeInst(chInst ChallengeInst) svc.ChallengeInst {
-	return svc.ChallengeInst{
-		ChallengerID: chInst.ChallengerID,
-		ChallengeeID: chInst.ChallengeeID,
-		Mode:         svc.ExpectGameMode(chInst.Mode),
-		StartColor:   svc.ExpectColor(chInst.StartColor),
-		MadeOn:       chInst.MadeOn,
+func insertChallenges(ctx context.Context, state *svc.State, insts []ChallengeInst) error {
+	for _, chInst := range insts {
+		if err := state.InsertChallenge(ctx, svc.ChallengeInst{
+			ChallengerID: chInst.ChallengerID,
+			ChallengeeID: chInst.ChallengeeID,
+			Mode:         svc.ExpectGameMode(chInst.Mode),
+			StartColor:   svc.ExpectColor(chInst.StartColor),
+			MadeOn:       chInst.MadeOn,
+		}); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func insertRandomizedGameResult(ctx context.Context, state *svc.State, gameResults []GameResult) error {
+func insertRandomizedGameResults(ctx context.Context, state *svc.State, gameResults []GameResult) error {
 	timeAt := time.Now().Add(-1 * time.Hour * 24 * 100)
 
 	a := gameResults
@@ -138,26 +144,29 @@ func insertRandomizedGameResult(ctx context.Context, state *svc.State, gameResul
 		a[i], a[j] = a[j], a[i]
 	})
 
-	for i, params := range gameResults {
-		cs, err := state.InsertGameResultTx(ctx, timeAt.Add(time.Duration(i)*time.Hour*24), svc.GameResult{
-			WhiteID:      params.WhiteID,
-			BlackID:      params.BlackID,
-			ReplayCause:  svc.ExpectReplayCause(params.ReplayCause),
-			ReplayResult: svc.ExpectReplayResult(params.ReplayResult),
-			ReplayMode:   svc.ExpectGameMode(params.ReplayMode),
-		})
-		if err != nil {
-			return fmt.Errorf("insert game result: %w", err)
-		}
+	eg, egCtx := errgroup.WithContext(ctx)
 
-		game := chess.MakeStartGame()
-		moveSeq, err := chess.RandomMoveSeq(game, 10, 30)
-		if err != nil {
-			return fmt.Errorf("generate random move seq: %w", err)
-		}
-		if err := state.PutReplayMoveSeq(ctx, cs.ReplayID, game.Board, moveSeq); err != nil {
-			return err
-		}
+	for i, params := range gameResults {
+		eg.Go(func() error {
+			cs, err := state.InsertGameResultTx(egCtx, timeAt.Add(time.Duration(i)*time.Hour*24), svc.GameResult{
+				WhiteID:      params.WhiteID,
+				BlackID:      params.BlackID,
+				ReplayCause:  svc.ExpectReplayCause(params.ReplayCause),
+				ReplayResult: svc.ExpectReplayResult(params.ReplayResult),
+				ReplayMode:   svc.ExpectGameMode(params.ReplayMode),
+			})
+			if err != nil {
+				return fmt.Errorf("insert game result: %w", err)
+			}
+
+			game := chess.MakeStartGame()
+			moveSeq, err := chess.RandomMoveSeq(game, 10, 30)
+			if err != nil {
+				return fmt.Errorf("generate random move seq: %w", err)
+			}
+			return state.PutReplayMoveSeq(egCtx, cs.ReplayID, game.Board, moveSeq)
+		})
 	}
-	return nil
+
+	return eg.Wait()
 }

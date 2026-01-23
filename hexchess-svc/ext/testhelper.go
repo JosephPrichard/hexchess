@@ -21,7 +21,7 @@ func PutS3Object(t *testing.T, s3Client *s3.Client, bucket string, key string, b
 
 func GetS3Object(t *testing.T, s3Client *s3.Client, bucket string, key string) string {
 	t.Helper()
-	t.Logf("getting s3 object by key '%s'", key)
+	t.Logf("getting s3 object by key=%s", key)
 
 	object, err := s3Client.GetObject(t.Context(), &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
@@ -35,17 +35,16 @@ func GetS3Object(t *testing.T, s3Client *s3.Client, bucket string, key string) s
 	return string(b)
 }
 
-func S3ObjectExists(t *testing.T, s3Client *s3.Client, bucket string, key string) bool {
+func CountS3Objects(t *testing.T, s3Client *s3.Client, bucket string, prefix string) int {
 	t.Helper()
-	t.Logf("checking s3 object by key '%s'", key)
+	t.Logf("count s3 objects by prefix=%s", prefix)
 
-	object, err := s3Client.GetObject(t.Context(), &s3.GetObjectInput{
+	object, err := s3Client.ListObjectsV2(t.Context(), &s3.ListObjectsV2Input{
 		Bucket: aws.String(bucket),
-		Key:    aws.String(key),
+		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return false
+		return 0
 	}
-	defer object.Body.Close()
-	return true
+	return len(object.Contents)
 }

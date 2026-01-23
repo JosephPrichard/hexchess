@@ -12,6 +12,33 @@ export function formatReplayResult(result: string) {
 	}
 }
 
+export function formatResult(result: string) {
+	switch (result) {
+		case 'WHITE_WINS':
+			return "White Won";
+		case 'BLACK_WINS':
+			return "Black Won";
+		case 'DRAW':
+			return "Draw";
+		default:
+			return "-";
+	}
+}
+
+export function formatCause(cause: string) {
+	switch (cause) {
+		case 'CHECKMATE':
+			return "checkmate";
+		case 'FORFEIT':
+			return "forfeit";
+		case 'STALEMATE':
+			return "stalemate";
+		default:
+			return "-";
+	}
+}
+
+
 export function getReplayColors(result: string) {
 	switch (result) {
 	case 'WHITE_WINS':

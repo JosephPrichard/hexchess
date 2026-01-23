@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/google/uuid"
 	"log/slog"
 	"strconv"
@@ -21,7 +21,7 @@ func MakeProfileNewPicKey(userID int64) string {
 	return fmt.Sprintf("%s/%d/%s", ProfilePicPrefix, userID, uuid.NewString())
 }
 
-func findMostRecentKey(objects []types.Object) string {
+func findMostRecentKey(objects []s3Types.Object) string {
 	var mostRecentKey string
 	mostRecentCreTime := time.Time{}
 	for _, obj := range objects {
@@ -36,6 +36,20 @@ func findMostRecentKey(objects []types.Object) string {
 	return mostRecentKey
 }
 
+func filterLeastRecentKeys(objects []s3Types.Object) []s3Types.ObjectIdentifier {
+	mostRecentKey := findMostRecentKey(objects)
+
+	keys := make([]s3Types.ObjectIdentifier, 0)
+	for _, obj := range objects {
+		if obj.Key == nil || *obj.Key == mostRecentKey {
+			continue
+		}
+		keys = append(keys, s3Types.ObjectIdentifier{Key: obj.Key})
+	}
+
+	return keys
+}
+
 const ProfilePicPrefix = "users/profile-pics"
 
 func (s *State) DeleteOldProfilePics(ctx context.Context, playerID int) error {
@@ -47,31 +61,21 @@ func (s *State) DeleteOldProfilePics(ctx context.Context, playerID int) error {
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return fmt.Errorf("list profile pics by prefix '%s': from s3 bucket: '%s': %w", prefix, s.S3ProfileBucket, err)
+		return fmt.Errorf("list profile pics by prefix=%s: from s3 bucket: %s: %w", prefix, s.S3ProfileBucket, err)
 	}
 	slog.InfoContext(ctx, "listed profile pics for deletion", "listOutput", listOutput.Contents)
 
 	if len(listOutput.Contents) == 0 {
 		return nil
 	}
-
-	mostRecentKey := findMostRecentKey(listOutput.Contents)
-
-	var keys []types.ObjectIdentifier
-	for _, obj := range listOutput.Contents {
-		if obj.Key == nil || *obj.Key == mostRecentKey {
-			continue
-		}
-		keys = append(keys, types.ObjectIdentifier{Key: obj.Key})
-	}
-
+	keys := filterLeastRecentKeys(listOutput.Contents)
 	slog.InfoContext(ctx, "deleting profile pics", "keys", keys)
 
 	if _, err := s.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
 		Bucket: aws.String(s.S3ProfileBucket),
-		Delete: &types.Delete{Objects: keys},
+		Delete: &s3Types.Delete{Objects: keys},
 	}); err != nil {
-		return fmt.Errorf("delete profile pics by keys %v: from s3 bucket: '%s': %w", keys, s.S3ProfileBucket, err)
+		return fmt.Errorf("delete profile pics by keys %v: from s3 bucket: %s: %w", keys, s.S3ProfileBucket, err)
 	}
 	return nil
 }
@@ -87,14 +91,13 @@ func (s *State) GetProfilePicKey(ctx context.Context, userID string) (string, er
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return "", fmt.Errorf("list profile pics by prefix '%s': from s3 bucket: '%s': %w", prefix, s.S3ProfileBucket, err)
+		return "", fmt.Errorf("list profile pics by prefix=%s: from s3 bucket: %s: %w", prefix, s.S3ProfileBucket, err)
 	}
 
 	mostRecentKey := findMostRecentKey(listOutput.Contents)
 	if mostRecentKey == "" {
 		return "", ErrNoProfilePic
 	}
-
-	slog.InfoContext(ctx, "construucted profile pic", "key", mostRecentKey)
+	slog.InfoContext(ctx, "constructed profile pic", "key", mostRecentKey)
 	return mostRecentKey, nil
 }

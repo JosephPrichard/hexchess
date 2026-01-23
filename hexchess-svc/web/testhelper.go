@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/pkg/ptr"
 	"hexchess-svc/services"
 	"strings"
 	"testing"
@@ -27,7 +26,8 @@ var TestStates = []svc.ChessState{
 		ID:         TestGameID1,
 		Mode:       svc.ModeCorrespondence1,
 		FirstColor: svc.Random,
-		Black:      ptr.New(svc.MakePlayer(2, "user2", "us")),
+		Black:      svc.MakePlayer(2, "user2", "us"),
+		UndoState:  svc.UndoState{UndoID: 2},
 	}),
 	svc.MakeChess(svc.StateSetup{ID: "game2", Mode: svc.ModeCorrespondence1, FirstColor: svc.Random}),
 	svc.MakeChess(svc.StateSetup{ID: "game3", Mode: svc.ModeCorrespondence1, FirstColor: svc.Random}),

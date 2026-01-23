@@ -112,9 +112,11 @@ func (s *State) JoinGame(ctx context.Context, gameID string, player PlayerState)
 }
 
 var (
-	ErrFinishedGame = errors.New("move attempted on finished game")
-	ErrTurn         = errors.New("not player's turn")
-	ErrInvalidMove  = errors.New("invalid move")
+	ErrFinishedGame  = errors.New("move attempted on finished game")
+	ErrStartedGame   = errors.New("move attempted on not started game")
+	ErrTurn          = errors.New("not player's turn")
+	ErrInvalidMove   = errors.New("invalid move")
+	ErrForfeitPlayer = errors.New("must be a player to forfeit or abort")
 )
 
 type MakeMoveResult struct {
@@ -134,9 +136,14 @@ func (s *State) MakeGameMove(ctx context.Context, gameID string, player PlayerSt
 	if !game.HasFoundMove() {
 		game.InitPieceMoves()
 	}
+
 	currPlayer := state.CurrPlayer()
 
-	if state.FinishState.IsEnded {
+	if !state.HasBothPlayers() {
+		slog.WarnContext(ctx, "make move: does not have both players", "gameId", gameID)
+		return mr, ErrStartedGame
+	}
+	if state.EndState.Kind != NotEnded {
 		slog.WarnContext(ctx, "make move: attempted on ended game", "gameId", gameID)
 		return mr, ErrFinishedGame
 	}
@@ -150,6 +157,7 @@ func (s *State) MakeGameMove(ctx context.Context, gameID string, player PlayerSt
 	}
 
 	hm := game.MakeMove(move)
+	game.AddMoveHist(hm, time.Now())
 	game.InitPieceMoves()
 	state.UndoState = UndoState{}
 
@@ -167,12 +175,10 @@ func (s *State) MakeGameMove(ctx context.Context, gameID string, player PlayerSt
 		if err != nil {
 			return mr, fmt.Errorf("write checkmate game result: %w", err)
 		}
-		state.FinishState = FinishState{
-			IsEnded:     true,
+		state.EndState = EndState{
+			Kind:        Finished,
 			Result:      result,
 			Cause:       cause,
-			WinID:       cs.WinID,
-			LoseID:      cs.LoseID,
 			WinEloDiff:  int64(math.Round(cs.WinEloDiff)),
 			LoseEloDiff: int64(math.Round(cs.LoseEloDiff)),
 		}
@@ -187,8 +193,9 @@ func (s *State) MakeGameMove(ctx context.Context, gameID string, player PlayerSt
 }
 
 var (
-	ErrUndoNoop = errors.New("no undo to perform")
-	ErrNoUndo   = errors.New("no undo to accept")
+	ErrUndoNoop       = errors.New("no undo to perform")
+	ErrUndoCurrPlayer = errors.New("must not be the current player to undo a move")
+	ErrNoUndo         = errors.New("no undo to accept or reject")
 )
 
 type UndoKind int
@@ -207,24 +214,24 @@ func (s *State) AttemptGameUndo(ctx context.Context, gameID string, player Playe
 
 	switch kind {
 	case UndoCreate:
+		if player.IsSame(state.CurrPlayer()) {
+			return nil, ErrUndoCurrPlayer
+		}
 		state.UndoID = player.ID
 	case UndoAccept:
 		if state.UndoID == 0 {
-			slog.WarnContext(ctx, "undo: cannot accept an undo that was not created", "player", player.ID, "game", gameID)
 			return nil, ErrNoUndo
 		}
 		if state.UndoID != player.ID {
-			if err := state.UndoMove(); err != nil {
+			if err := state.Game.Undo(state.InitialBoard); err != nil {
 				return nil, err
 			}
 			state.UndoState = UndoState{}
 		} else {
-			slog.WarnContext(ctx, "undo: a player attempted to accept their own undo", "player", player.ID, "game", gameID)
 			return nil, ErrUndoNoop
 		}
 	case UndoReject:
 		if state.UndoID == 0 {
-			slog.WarnContext(ctx, "undo: cannot reject an undo that was not created", "player", player.ID, "game", gameID)
 			return nil, ErrNoUndo
 		}
 		state.UndoState = UndoState{}
@@ -236,45 +243,48 @@ func (s *State) AttemptGameUndo(ctx context.Context, gameID string, player Playe
 	return state, nil
 }
 
-func (s *State) ForfeitGame(ctx context.Context, gameID string, player PlayerState) (replayID int64, fs FinishState, err error) {
+func (s *State) ForfeitGame(ctx context.Context, gameID string, player PlayerState) (replayID int64, fs EndState, err error) {
 	state, err := s.GetChessState(ctx, gameID)
 	if err != nil {
 		return replayID, fs, fmt.Errorf("get chess state by id %s: %w", gameID, err)
 	}
-	if !state.WhitePlayer.Present || !state.BlackPlayer.Present {
-		slog.WarnContext(ctx, "game does not have both players, cannot forfeit", "game", gameID)
-		return replayID, fs, nil
-	}
-
-	if state.FinishState.IsEnded {
+	if state.EndState.Kind != NotEnded {
 		slog.WarnContext(ctx, "forfeit game: attempted on ended game", "gameId", gameID)
 		return replayID, fs, ErrFinishedGame
 	}
-
-	result := BlackWin
-	if state.BlackPlayer.ID == player.ID {
-		result = WhiteWin
+	if !state.IsEitherPlayer(player) {
+		return replayID, fs, ErrForfeitPlayer
 	}
-	cause := Forfeit
 
-	cs, err := s.WriteFinishedGame(ctx, state, result, cause)
-	if err != nil {
-		return replayID, fs, fmt.Errorf("write forfeit game result: %w", err)
-	}
-	replayID = cs.ReplayID
+	isForfeit := state.WhitePlayer.Present && state.BlackPlayer.Present
 
-	fs = FinishState{
-		IsEnded:     true,
-		Result:      result,
-		Cause:       cause,
-		WinID:       cs.WinID,
-		LoseID:      cs.LoseID,
-		WinEloDiff:  int64(math.Round(cs.WinEloDiff)),
-		LoseEloDiff: int64(math.Round(cs.LoseEloDiff)),
+	if isForfeit {
+		result := BlackWin
+		if state.BlackPlayer.ID == player.ID {
+			result = WhiteWin
+		}
+		cause := Forfeit
+
+		cs, err := s.WriteFinishedGame(ctx, state, result, cause)
+		if err != nil {
+			return replayID, fs, fmt.Errorf("write forfeit game result: %w", err)
+		}
+		replayID = cs.ReplayID
+
+		fs = EndState{
+			Kind:        Finished,
+			Result:      result,
+			Cause:       cause,
+			WinEloDiff:  int64(math.Round(cs.WinEloDiff)),
+			LoseEloDiff: int64(math.Round(cs.LoseEloDiff)),
+		}
+	} else {
+		fs = EndState{Kind: Aborted}
 	}
-	state.FinishState = fs
+
+	state.EndState = fs
 	if err := s.SetChessState(ctx, gameID, state); err != nil {
-		return replayID, fs, err
+		return replayID, fs, fmt.Errorf("set chess state by id %s: %w", gameID, err)
 	}
 
 	slog.InfoContext(ctx, "player forfeited game", "playerID", player.ID, "gameId", gameID)
@@ -308,16 +318,22 @@ func (s *State) WriteFinishedGame(ctx context.Context, state *ChessState, result
 	}
 	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", cs, "room", state.ID)
 
-	if err := s.PutReplayMoveSeq(ctx, cs.ReplayID, state.InitialBoard, state.Game.Moves); err != nil {
-		return cs, err
-	}
+	go func() {
+		if err := s.PutReplayMoveSeq(ctx, cs.ReplayID, state.InitialBoard, state.Game.Moves); err != nil {
+			// it is high unlikely that this fails, but consider adding a DLQ here
+			slog.ErrorContext(ctx, "failed upload replay move seq to S3", "err", err)
+		}
+	}()
+	go func() {
+		if err := s.IncrLeaderboard(ctx,
+			UpdtLbChangeSet{Mode: state.Mode, ID: cs.WinID, EloDiff: cs.WinEloDiff},
+			UpdtLbChangeSet{Mode: state.Mode, ID: cs.LoseID, EloDiff: cs.LoseEloDiff},
+		); err != nil {
+			// we can just log if this operation fails, the leaderboard will get sync'd eventually with the sync leaderboard job.
+			slog.ErrorContext(ctx, "failed to incr leaderboard", "err", err, "changeSet", cs)
+		}
+	}()
 
-	if err := s.IncrLeaderboard(ctx,
-		UpdtLbChangeSet{Mode: state.Mode, ID: cs.WinID, EloDiff: cs.WinEloDiff},
-		UpdtLbChangeSet{Mode: state.Mode, ID: cs.LoseID, EloDiff: cs.LoseEloDiff},
-	); err != nil {
-		return cs, fmt.Errorf("increment user leaderboard stats: %w", err)
-	}
 	slog.InfoContext(ctx, "completed writing finished game", "stateID", state.ID)
 	return cs, nil
 }

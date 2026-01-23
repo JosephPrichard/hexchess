@@ -31,7 +31,7 @@ func (g *RemoteGoogleAPI) ValidateIDToken(ctx context.Context, token string) (Go
 	googleAccountID := payload.Subject
 	username, ok := payload.Claims[UsernameClaim].(string)
 	if !ok {
-		return GoogleIDTokenPayload{}, fmt.Errorf("expected claim '%s' to be provided in payload: %v", UsernameClaim, payload)
+		return GoogleIDTokenPayload{}, fmt.Errorf("expected claim=%s to be provided in payload: %v", UsernameClaim, payload)
 	}
 	return GoogleIDTokenPayload{AccountID: googleAccountID, Username: username}, nil
 }

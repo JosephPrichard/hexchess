@@ -54,6 +54,14 @@ export const piecenames: Record<number, string> = {
 	[pieces.blackKing]: 'black-king'
 };
 
+export const piecepoints: Record<number, number> = {
+	[pieces.whitePawn]: 1,
+	[pieces.whiteKnight]: 3,
+	[pieces.whiteBishop]: 3,
+	[pieces.whiteRook]: 5,
+	[pieces.whiteQueen]: 9,
+};
+
 export const defaultBoard: ChessBoard = {
 	isWhiteTurn: true,
 	file: ranksPerFile.map(ranks => ({ pieces: Array(ranks).fill(0) }))
@@ -63,7 +71,7 @@ export function isInBounds(hex: Hex) {
 	return hex.file >= 0 && hex.file < ranksPerFile.length && hex.rank >= 0 && hex.rank < ranksPerFile[hex.file];
 }
 
-export function isLastRank(hex: Hex) {
+export function isPromotion(hex: Hex) {
 	return hex.rank === ranksPerFile[hex.file] - 1;
 }
 
@@ -75,6 +83,10 @@ export function isPieceBlack(piece: number) {
 	return !isPieceWhite(piece);
 }
 
+export function makePieceWhite(piece: number) {
+	return piece - ((piece + 1) % 2)
+}
+
 export function deserializeHex(h: bigint) {
 	return { file: Number(h & 0xFFFFFFFFn), rank: Number((h >> 32n) & 0xFFFFFFFFn) }
 }
@@ -83,8 +95,23 @@ export function deserializeHexList(hexagonList?: bigint[]): Hex[] {
 	return hexagonList?.map(deserializeHex) || [];
 }
 
+export function getPiecePoints(piece: number) {
+	return piecepoints[makePieceWhite(piece)] || 0;
+}
+
 export function hexEq(hex1?: {file?: number, rank?: number}, hex2?: {file?: number, rank?: number}) {
 	return hex1?.file === hex2?.file && hex1?.rank === hex2?.rank;
+}
+
+export function isValidMove(game: ChessGame | undefined, {from, to}: {from: Hex, to: Hex}, asWhite: boolean) {
+	const pms = (asWhite ? game?.whiteMoves : game?.blackMoves) || [];
+	let moveIdx = pms.findIndex((pm) => hexEq({file: pm.fromFile, rank: pm.fromRank}, from));
+	if (moveIdx < 0) {
+		return false;
+	}
+	const moves = deserializeHexList(pms[moveIdx].moves);
+	moveIdx = moves.findIndex((h) => hexEq(h, to));
+	return moveIdx !== -1;
 }
 
 export const defaultGame = makeGame(defaultBoard);
@@ -130,9 +157,7 @@ export function findKeyedPieces(boardState: ChessBoard, prevPieces?: [number, Pl
 			}
 		}
 		iterBoard(boardState, (file, rank, piece) => {
-			if (piece === pieces.empty) {
-				return;
-			}
+			if (piece === pieces.empty) return;
 			const arr = table.get(piece);
 			if (arr === undefined) {
 				nextPieces.set(GlobalPieceKey++, {file, rank, piece});

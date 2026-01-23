@@ -86,7 +86,7 @@ func HttpStatusFromErrs(err error) ServiceView {
 	return ServiceView{Status: errStatus, Errors: errStrs}
 }
 
-func parseJSON[B any](r *http.Request, body *B, validate func(B) error) error {
+func parseJSON[Body any](r *http.Request, body *Body, validate func(Body) error) error {
 	err := json.NewDecoder(r.Body).Decode(&body)
 	defer r.Body.Close()
 	if err != nil {
@@ -100,12 +100,12 @@ func parseJSON[B any](r *http.Request, body *B, validate func(B) error) error {
 	return nil
 }
 
-func transformJSON[B any, O any](r *http.Request, transform func(B) (O, error)) (O, error) {
-	var body B
+func transformJSON[Body any, Output any](r *http.Request, transform func(Body) (Output, error)) (Output, error) {
+	var body Body
 	err := json.NewDecoder(r.Body).Decode(&body)
 	defer r.Body.Close()
 	if err != nil {
-		var o O
+		var o Output
 		return o, ErrHttpInvalidJSON
 	}
 	return transform(body)
@@ -127,7 +127,7 @@ func writeJSON[V any](w http.ResponseWriter, status int, data V) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if _, err := w.Write(v); err != nil {
-		slog.Error("failed towrite json response", "err", err)
+		slog.Error("failed to write json response", "err", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 	}
 }
@@ -138,10 +138,6 @@ func writeBytes(w http.ResponseWriter, status int, b []byte) {
 	if _, err := w.Write(b); err != nil {
 		slog.Error("internal server error", "err", err)
 	}
-}
-
-func intQuery(values url.Values, key string) (int, error) {
-	return strconv.Atoi(values.Get(key))
 }
 
 func intQueryDefault(values url.Values, key string, def int) (int, error) {

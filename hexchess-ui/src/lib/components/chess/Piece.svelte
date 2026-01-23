@@ -3,7 +3,7 @@
 	import { hexHeight, hexWidth } from '$lib/components/chess/render';
 	import { isPieceWhite, piecenames, pieces, promotions } from '$lib/utils/chess.js';
 	import { type SelectEvent, selectEvents } from '$lib/globals';
-	import { BadPromotion, type BadPromotionType } from '$lib/components/chess/piece';
+	import { BadPromotion, type BadPromotionType, type Promotion } from '$lib/components/chess/types';
 
 	export interface PieceProps {
 		piece: number;
@@ -12,6 +12,7 @@
 		isDraggable?: boolean;
 		isTransparent?: boolean;
 		isPromoting?: boolean;
+		nextPromotion?: number;
 		initialLeft: number;
 		initialTop: number;
 		onSelectHexagon?: (key: SelectEvent) => void;
@@ -19,7 +20,7 @@
 		onDeSelectPiece?: () => void;
 		onDragPiece?: (x: number, y: number) => void;
 		onDropPiece?: (x: number, y: number) => void;
-		onCompletePromotion?: (promotedPiece: number | BadPromotionType) => void;
+		onCompletePromotion?: (promotedPiece: Promotion | BadPromotionType) => void;
 	}
 
 	let { 
@@ -28,7 +29,8 @@
 		isAnnotatable,
 		isDraggable,
 		isTransparent,
-		isPromoting, 
+		isPromoting,
+		nextPromotion,
 		initialTop,
 		initialLeft,
 		onSelectHexagon,
@@ -56,17 +58,12 @@
 
 	function onMouseDown(e: MouseEvent) {
 		e.preventDefault();
-		if (!element || selectEvents[e.button] === undefined) {
-			return
-		}
+		if (!element || selectEvents[e.button] === undefined) return;
 
 		if (onSelectHexagon) {
 			onSelectHexagon(selectEvents[e.button]);
 		}
-		if (e.button == 2) {
-			// mouse right click is already used for annotations, so prevent drag
-			return;
-		}
+		if (e.button == 2) return; // mouse right click is already used for annotations, so prevent drag
 
 		if (!isDraggable) {
 			if (isSelected) {
@@ -74,7 +71,7 @@
 			} else {
 				onSelectPiece?.();
 			}
-			return
+			return;
 		}
 		onSelectPiece?.();
 
@@ -151,12 +148,20 @@
 		}
 	});
 
-	const promotePieces = $derived.by(() => isPieceWhite(piece) 
-		? [[pieces.whiteQueen, promotions.queen], [pieces.whiteRook, promotions.rook], [pieces.whiteBishop, promotions.bishop], [pieces.whiteKnight, promotions.knight]] 
-		: [[pieces.blackQueen, promotions.queen], [pieces.blackRook, promotions.rook], [pieces.blackBishop, promotions.bishop], [pieces.blackKnight, promotions.knight]])
+	const whitePromotions = [[pieces.whiteQueen, promotions.queen], [pieces.whiteRook, promotions.rook], [pieces.whiteBishop, promotions.bishop], [pieces.whiteKnight, promotions.knight]];
+	const blackPromotions = [[pieces.blackQueen, promotions.queen], [pieces.blackRook, promotions.rook], [pieces.blackBishop, promotions.bishop], [pieces.blackKnight, promotions.knight]];
+	const promotePieces = $derived.by(() => isPieceWhite(piece) ? whitePromotions : blackPromotions);
 
 	const fmtPieceURL = (piece: number) => `/pieces/${piecenames[piece]}.png`;
 	const pieceImageURL = $derived.by(() => fmtPieceURL(piece));
+
+	function hexStyle(left: number, top: number) {
+		return `
+			left: ${hexWidth / 8 + left}px;
+			top: ${top}px;
+			width: ${hexWidth * 0.9}px;
+			height: ${hexHeight * 0.9}px;`;
+	}
 </script>
 
 <div
@@ -174,40 +179,31 @@
 	class="piece-img"
 	role="cell"
 	tabindex="0"
-	style:left="{hexWidth / 8 + initialLeft}px"
-	style:top="{initialTop}px"
-	style:width="{hexWidth * 0.9}px"
-	style:height="{hexHeight * 0.9}px"
+	style={hexStyle(initialLeft, initialTop)}
 	oncontextmenu={e => e.preventDefault()}
 >
-	<img
-		class="piece-img-inner"
-		style:opacity={isTransparent ? "0.4" : 1}
-		src={pieceImageURL}
-		alt=""
-		draggable={false}
-	/>
+	<img class="piece-img-inner" style:opacity={isTransparent ? "0.4" : 1} src={pieceImageURL} alt="" draggable={false} />
+</div>
+<div
+	class="piece-img"
+	role="cell"
+	tabindex="0"
+	style={hexStyle(initialLeft, initialTop)}
+	oncontextmenu={e => e.preventDefault()}
+>
+	{#if nextPromotion !== undefined}
+		<img class="piece-img-inner" style:opacity="0.4" src={fmtPieceURL(nextPromotion)} alt="" draggable={false} />
+	{/if}
 </div>
 <div
 	bind:this={element}
 	role="none"
 	class="piece-img"
-	style:left="{hexWidth / 8 + xOff}px"
-	style:top="{yOff}px"
-	style:width="{hexWidth * 0.9}px"
-	style:height="{hexHeight * 0.9}px"
+	style={hexStyle(xOff, yOff)}
 	style:z-index={dragging ? "101" : "100"}
 	oncontextmenu={onRightClick}
 >
-	<img
-		role="none"
-		onmousedown={onMouseDown}
-		onmouseup={onMouseUpRelease}
-		class="piece-img-inner"
-		src={pieceImageURL}
-		alt=""
-		draggable={false}
-	/>
+	<img role="none" onmousedown={onMouseDown} onmouseup={onMouseUpRelease} class="piece-img-inner" src={pieceImageURL} alt="" draggable={false} />
 	{#if isPromoting}
 		<div
 			id="promotions"
@@ -216,14 +212,7 @@
 			style:top="{yOff}px"
 		>
 			{#each promotePieces as [piece, promotion]}
-				<img
-					onclick={() => onCompletePromotion?.(promotion)}
-					role="none"
-					class="piece-img-inner promotion-item"
-					src={fmtPieceURL(piece)}
-					alt=""
-					draggable={false}
-				/>
+				<img onclick={() => onCompletePromotion?.({piece, kind:promotion})} role="none" class="piece-img-inner promotion-item" src={fmtPieceURL(piece)} alt="" draggable={false} />
 			{/each}
 		</div>
 	{/if}
@@ -233,13 +222,20 @@
 	.promotion-wrapper {
 		z-index: 1000;
 		width: fit-content;
-		background-color: #2A2A2A;
-		border: 1px solid rgb(60, 60, 60);
+		background-color: rgb(42, 42, 42);
+		border: 3px solid rgb(60, 60, 60);
 		border-radius: 6px;
 	}
 
+	.promotion-item {
+        display: block;
+		border-radius: 3px;
+        padding: 0 !important;
+		margin: 0 !important;
+	}
+
 	.promotion-item:hover {
-		background-color: rgb(80,80,80);
+		background-color: rgb(60,60,60);
 	}
 
     .annotation {

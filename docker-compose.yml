@@ -7,12 +7,13 @@ networks:
 volumes:
   redis_data:
     driver: local
-  es_data:
+  localstack-data:
     driver: local
 
 services:
   redis:
     image: redis/redis-stack-server
+    container_name: redis
     ports:
       - "6379:6379"
     volumes:
@@ -22,8 +23,25 @@ services:
       - REDIS_PORT=${REDIS_PORT}
   redis-pubsub:
     image: redis/redis-stack-server
+    container_name: redis-pubsub
     ports:
       - "6380:6379"
     environment:
       - REDIS_HOST=${REDIS_HOST}
       - REDIS_PORT=${REDIS_PORT}
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack
+    ports:
+      - "4566:4566"
+      - "4571:4571"
+    environment:
+      - SERVICES=s3,sqs,dynamodb
+      - DEBUG=1
+      - PERSISTENCE=1
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+    volumes:
+      - localstack-data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock

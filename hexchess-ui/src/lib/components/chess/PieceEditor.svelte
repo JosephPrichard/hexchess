@@ -20,8 +20,7 @@
 		isWhitePerspective, onDropPiece, isTrashSelector = $bindable() }: PieceEditorProps = $props();
 
 	function onSelectPiece(event: SelectEvent, piece: number) {
-		if (isTrashSelector)
-			return;
+		if (isTrashSelector) return;
 		switch (event) {
 		case "SELECT":
 			selectedPiece = piece;

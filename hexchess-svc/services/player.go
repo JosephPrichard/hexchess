@@ -13,6 +13,10 @@ type PlayerState struct {
 	Present bool   `json:"present"`
 }
 
+func (p PlayerState) IsSame(p1 PlayerState) bool {
+	return p.Present && p1.Present && p.ID == p1.ID
+}
+
 const GuestNumLen = 8
 
 // Use the constructor functions to create games so the boolean flags will be properly initialized - as opposed to remembering to flag them
@@ -29,14 +33,6 @@ func MakeGuest() PlayerState {
 
 	// concurrency safe to use rand - we are also using random negative integers for guests so we will never have a collision with an actual player
 	return PlayerState{ID: -rand.Int64(), Name: name.String(), IsGuest: true, Present: true}
-}
-
-func MakeIDPlayer(id int64) PlayerState {
-	return PlayerState{ID: id, Present: true}
-}
-
-func MakeNamePlayer(id int64, name string) PlayerState {
-	return PlayerState{ID: id, Name: name, Present: true}
 }
 
 func MakePlayer(id int64, name string, country string) PlayerState {

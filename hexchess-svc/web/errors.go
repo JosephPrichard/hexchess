@@ -38,12 +38,15 @@ var (
 
 // WebSocket response codes
 var (
-	ErrWsFatal        = errors.New("ERROR_FATAL")
-	ErrWsMessageType  = errors.New("ERROR_MESSAGE_TYPE")
-	ErrWsTurn         = errors.New("ERROR_TURN")
-	ErrWsInvalidMove  = errors.New("ERROR_INVALID_MOVE")
-	ErrWsFinishedGame = errors.New("ERROR_FINISHED_GAME")
-	ErrWsInvalidGame  = errors.New("ERROR_INVALID_GAME")
-	ErrWsExpiration   = errors.New("ERROR_EXPIRED_GAME")
-	ErrWsUndoAction   = errors.New("ERR_UNDO_ACTION")
+	ErrWsFatal          = errors.New("ERROR_FATAL")
+	ErrWsMessageType    = errors.New("ERROR_MESSAGE_TYPE")
+	ErrWsTurn           = errors.New("ERROR_TURN")
+	ErrWsInvalidMove    = errors.New("ERROR_INVALID_MOVE")
+	ErrWsFinishedGame   = errors.New("ERROR_FINISHED_GAME")
+	ErrWsStartedGame    = errors.New("ERROR_STARTED_GAME")
+	ErrWsForfeitPlayer  = errors.New("ERROR_FORFEIT_PLAYER")
+	ErrWsInvalidGame    = errors.New("ERROR_INVALID_GAME")
+	ErrWsExpiration     = errors.New("ERROR_EXPIRED_GAME")
+	ErrWsUndoCurrPlayer = errors.New("ERROR_UNDO_CURR_PLAYER")
+	ErrWsUndoAction     = errors.New("ERR_UNDO_ACTION")
 )

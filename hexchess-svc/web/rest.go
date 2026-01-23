@@ -14,6 +14,8 @@ import (
 	"hexchess-svc/services"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -372,12 +374,12 @@ func (app *App) HandleRefreshSession(w http.ResponseWriter, r *http.Request) err
 func (app *App) HandleLogout(w http.ResponseWriter, r *http.Request) error {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
-		return fmt.Errorf("get cookie '%s': %w", CookieKey, err)
+		return fmt.Errorf("get cookie %s: %w", CookieKey, err)
 	}
 	sessionID := cookie.Value
 
 	if err := app.State.DeleteSession(r.Context(), sessionID); err != nil {
-		return fmt.Errorf("logging ext session '%s': %w", sessionID, err)
+		return fmt.Errorf("logging ext session %s: %w", sessionID, err)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
 
@@ -632,15 +634,12 @@ func (app *App) HandleGetSelf(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-type LeaderboardResp struct {
-	TotalPages int                 `json:"totalPages"`
-	UserList   []svc.LbdUserEntity `json:"userList,omitempty"`
+type LeaderboardArg struct {
+	Page int
+	Mode svc.GameMode
 }
 
-func (app *App) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) error {
-	ctx := r.Context()
-	q := r.URL.Query()
-
+func (app *App) getLeaderboardQuery(q url.Values) (LeaderboardArg, error) {
 	var errm error
 	page, err := intQueryDefault(q, "page", 1)
 	if err != nil {
@@ -650,15 +649,29 @@ func (app *App) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) err
 	if !ok {
 		errm = errmap.Put(errm, "mode", ErrHttpInvalidMode)
 	}
-	if errm != nil {
-		return errm
+	return LeaderboardArg{
+		Page: page,
+		Mode: mode,
+	}, errm
+}
+
+type LeaderboardResp struct {
+	TotalPages int                 `json:"totalPages"`
+	UserList   []svc.LbdUserEntity `json:"userList,omitempty"`
+}
+
+func (app *App) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) error {
+	query, err := app.getLeaderboardQuery(r.URL.Query())
+	if err != nil {
+		return err
 	}
 
-	lbd, err := app.State.GetLeaderboardPage(ctx, mode, int64(page), perPage)
+	ctx := r.Context()
+	lbd, err := app.State.GetLeaderboardPage(ctx, query.Mode, int64(query.Page), perPage)
 	if err != nil {
-		return fmt.Errorf("get leaderboard page %d: %w", page, err)
+		return fmt.Errorf("get leaderboard page %d: %w", query.Page, err)
 	}
-	users, _, err := app.State.GetLeaderboardUsers(ctx, mode, lbd.RankedUsers)
+	users, _, err := app.State.GetLeaderboardUsers(ctx, query.Mode, lbd.RankedUsers)
 	if err != nil {
 		return err
 	}
@@ -690,43 +703,55 @@ func (app *App) HandleGameExistence(w http.ResponseWriter, r *http.Request) erro
 	return nil
 }
 
-type FullUserResp struct {
+type GetPlayerArgs struct {
+	UserID      int
+	WithReplays bool
+}
+
+func (app *App) getPlayerQuery(q url.Values) (GetPlayerArgs, error) {
+	var errm error
+	userID, err := strconv.Atoi(q.Get("id"))
+	if err != nil {
+		errm = errmap.Put(nil, "id", ErrHttpInvalidID)
+	}
+	withReplaysStr := q.Get("withReplays")
+	withReplays := strings.ToLower(withReplaysStr) == "true"
+	return GetPlayerArgs{UserID: userID, WithReplays: withReplays}, errm
+}
+
+type GetPlayersResp struct {
 	User       svc.UserEntity      `json:"user"`
 	Stats      svc.UserStatsEntity `json:"stats"`
 	ReplayList []svc.ReplayEntity  `json:"replayList"`
 }
 
 func (app *App) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
-	ctx := r.Context()
-	q := r.URL.Query()
-
-	id, err := intQuery(q, "id")
+	query, err := app.getPlayerQuery(r.URL.Query())
 	if err != nil {
-		return errmap.Put(nil, "id", ErrHttpInvalidID)
+		return err
 	}
-	withReplaysStr := q.Get("withReplays")
-	withReplays := strings.ToLower(withReplaysStr) == "true"
 
+	ctx := r.Context()
 	eg, egCtx := errgroup.WithContext(ctx)
 
-	var resp FullUserResp
+	var resp GetPlayersResp
 	var lbRanks map[string]svc.LbRank
 
 	eg.Go(func() (err error) {
-		resp.User, err = app.State.GetUserByID(egCtx, int64(id))
+		resp.User, err = app.State.GetUserByID(egCtx, int64(query.UserID))
 		return
 	})
 	eg.Go(func() (err error) {
-		resp.Stats, err = app.State.GetUserStats(egCtx, int64(id))
+		resp.Stats, err = app.State.GetUserStats(egCtx, int64(query.UserID))
 		return
 	})
 	eg.Go(func() (err error) {
-		lbRanks, err = app.State.GetLeaderboardRanks(egCtx, int64(id), svc.GameModeMap)
+		lbRanks, err = app.State.GetLeaderboardRanks(egCtx, int64(query.UserID), svc.GameModeMap)
 		return
 	})
-	if withReplays {
+	if query.WithReplays {
 		eg.Go(func() (err error) {
-			resp.ReplayList, err = app.State.GetUserReplays(egCtx, int64(id), -1, perPage)
+			resp.ReplayList, err = app.State.GetUserReplays(egCtx, int64(query.UserID), -1, perPage)
 			return
 		})
 	}
@@ -770,13 +795,12 @@ func (app *App) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) erro
 
 	var userList []svc.LbdUserEntity
 	if hasUser {
-		users, err := app.State.GetFuzzySearchLeaderboard(ctx, name, int32(page), perPage)
+		userList, err = app.State.GetFuzzySearchLeaderboard(ctx, name, int32(page), perPage)
 		if errors.Is(err, svc.ErrSearchLimit) {
 			return ErrHttpSearchLimit
 		} else if err != nil {
-			return fmt.Errorf("search users by name '%s': %w", name, err)
+			return fmt.Errorf("search users by name=%s: %w", name, err)
 		}
-		userList = users
 	}
 
 	if userList == nil {
@@ -793,7 +817,7 @@ type GetReplayResp struct {
 func (app *App) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	id, err := intQuery(r.URL.Query(), "id")
+	id, err := strconv.Atoi(r.URL.Query().Get("id"))
 	if err != nil {
 		return errmap.Put(nil, "id", ErrHttpInvalidID)
 	}
@@ -810,7 +834,7 @@ func (app *App) HandleGetMoveReplay(w http.ResponseWriter, r *http.Request) erro
 	ctx := r.Context()
 	replayID := r.URL.Query().Get("replayId")
 
-	bResp, err := app.State.GetReplayMoveReplay(ctx, replayID)
+	bResp, err := app.State.GetMoveReplay(ctx, replayID)
 	if err != nil {
 		return err
 	}
@@ -821,31 +845,43 @@ func (app *App) HandleGetMoveReplay(w http.ResponseWriter, r *http.Request) erro
 	return nil
 }
 
+type GetReplaysArg struct {
+	UserID  int
+	AfterID int
+}
+
+func (app *App) getReplaysQuery(q url.Values) (GetReplaysArg, error) {
+	var errm error
+	userID, err := strconv.Atoi(q.Get("userId"))
+	if err != nil {
+		errm = errmap.Put(errm, "userId", ErrHttpInvalidID)
+	}
+	afterID, err := strconv.Atoi(q.Get("afterId"))
+	if err != nil {
+		errm = errmap.Put(errm, "afterId", ErrHttpInvalidID)
+	}
+	return GetReplaysArg{
+		UserID:  userID,
+		AfterID: afterID,
+	}, errm
+}
+
 type GetUserReplaysResp struct {
 	ReplayList []svc.ReplayEntity `json:"replayList"`
 }
 
 func (app *App) HandleGetUserReplays(w http.ResponseWriter, r *http.Request) error {
+	query, err := app.getReplaysQuery(r.URL.Query())
+	if err != nil {
+		return err
+	}
+
 	ctx := r.Context()
-	q := r.URL.Query()
-
-	var errm error
-	userID, err := intQuery(q, "userId")
+	replays, err := app.State.GetUserReplays(ctx, int64(query.UserID), int64(query.AfterID), perPage)
 	if err != nil {
-		errm = errmap.Put(errm, "userId", ErrHttpInvalidID)
-	}
-	afterID, err := intQuery(q, "afterId")
-	if err != nil {
-		errm = errmap.Put(errm, "afterId", ErrHttpInvalidID)
-	}
-	if errm != nil {
-		return errm
+		return fmt.Errorf("get user %d replays: %w", query.UserID, err)
 	}
 
-	replays, err := app.State.GetUserReplays(ctx, int64(userID), int64(afterID), perPage)
-	if err != nil {
-		return fmt.Errorf("get user %d replays: %w", userID, err)
-	}
 	if replays == nil {
 		replays = []svc.ReplayEntity{}
 	}
@@ -910,15 +946,12 @@ func mapChessMetas(svcMetas []svc.ChessMeta) []ChessMeta {
 	return metas
 }
 
-type ChessMetasResp struct {
-	ChessList     []ChessMeta `json:"chessList"`
-	SelfChessList []ChessMeta `json:"selfChessList"`
+type ChessMetasArg struct {
+	Page  int
+	Count int
 }
 
-func (app *App) HandleGetChessRoomList(w http.ResponseWriter, r *http.Request) error {
-	ctx := r.Context()
-	q := r.URL.Query()
-
+func (app *App) getChessMetasQuery(q url.Values) (ChessMetasArg, error) {
 	var errm error
 	page, err := intQueryDefault(q, "page", 1)
 	if err != nil {
@@ -928,12 +961,26 @@ func (app *App) HandleGetChessRoomList(w http.ResponseWriter, r *http.Request) e
 	if err != nil {
 		errm = errmap.Put(errm, "count", ErrHttpInvalidCount)
 	}
-	if errm != nil {
-		return errm
+	return ChessMetasArg{
+		Page:  page,
+		Count: count,
+	}, errm
+}
+
+type ChessMetasResp struct {
+	ChessList     []ChessMeta `json:"chessList"`
+	SelfChessList []ChessMeta `json:"selfChessList"`
+}
+
+func (app *App) HandleGetChessMetas(w http.ResponseWriter, r *http.Request) error {
+	query, err := app.getChessMetasQuery(r.URL.Query())
+	if err != nil {
+		return err
 	}
 
 	hasSession := true
 
+	ctx := r.Context()
 	player, _, err := GetSessionPlayer(ctx, app.State, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		hasSession = false
@@ -941,17 +988,16 @@ func (app *App) HandleGetChessRoomList(w http.ResponseWriter, r *http.Request) e
 		return fmt.Errorf("get session player: %w", err)
 	}
 
-	allChessMetas, err := app.State.GetAllChessMetas(ctx, page, count)
+	allChessMetas, err := app.State.GetAllChessMetas(ctx, query.Page, query.Count)
 	if err != nil {
-		return fmt.Errorf("get page %d chess meta views: %w", page, err)
+		return fmt.Errorf("get page %d chess metas: %w", query.Page, err)
 	}
+
 	var myChessMetas []svc.ChessMeta
 	if hasSession {
-		chessMetas, err := app.State.GetUserChessMetas(ctx, player.ID)
-		if err != nil {
-			return fmt.Errorf("get user %d chess meta views: %w", player.ID, err)
+		if myChessMetas, err = app.State.GetUserChessMetas(ctx, player.ID); err != nil {
+			return fmt.Errorf("get user %d chess metas: %w", player.ID, err)
 		}
-		myChessMetas = chessMetas
 	}
 
 	writeJSON(w, http.StatusOK, ChessMetasResp{
@@ -961,8 +1007,9 @@ func (app *App) HandleGetChessRoomList(w http.ResponseWriter, r *http.Request) e
 	return nil
 }
 
-type EloHistoriesResp struct {
-	Buckets svc.EloHistoryBuckets `json:"buckets"`
+type EloHistoriesArg struct {
+	UserID int
+	Months uint
 }
 
 var timeframeMap = map[string]uint{
@@ -973,13 +1020,9 @@ var timeframeMap = map[string]uint{
 	"all": 0,
 }
 
-var GetEloHistoriesCacheControl = fmt.Sprintf("public, max-age=%f", svc.ShortBucketDuration.Seconds())
-
-func (app *App) HandleGetEloHistories(w http.ResponseWriter, r *http.Request) error {
-	q := r.URL.Query()
-
+func (app *App) getEloHistoriesQuery(q url.Values) (EloHistoriesArg, error) {
 	var errm error
-	userID, err := intQuery(q, "userId")
+	userID, err := strconv.Atoi(q.Get("userId"))
 	if err != nil {
 		errm = errmap.Put(errm, "userID", ErrHttpInvalidPage)
 	}
@@ -987,12 +1030,26 @@ func (app *App) HandleGetEloHistories(w http.ResponseWriter, r *http.Request) er
 	if !ok {
 		errm = errmap.Put(errm, "timeframe", ErrHttpInvalidTimeframe)
 	}
-	if errm != nil {
-		return errm
+	return EloHistoriesArg{
+		UserID: userID,
+		Months: months,
+	}, errm
+}
+
+type EloHistoriesResp struct {
+	Buckets svc.EloHistoryBuckets `json:"buckets"`
+}
+
+var GetEloHistoriesCacheControl = fmt.Sprintf("public, max-age=%f", svc.ShortBucketDuration.Seconds())
+
+func (app *App) HandleGetEloHistories(w http.ResponseWriter, r *http.Request) error {
+	query, err := app.getEloHistoriesQuery(r.URL.Query())
+	if err != nil {
+		return err
 	}
 
 	ctx := r.Context()
-	params := svc.EloHistoriesParams{UserID: int64(userID), Months: months, TimeUntil: app.GetNow()}
+	params := svc.EloHistoriesParams{UserID: int64(query.UserID), Months: query.Months, TimeUntil: app.GetNow()}
 	eloBuckets, _, err := app.State.RetrieveEloHistoryBuckets(ctx, params)
 	if err != nil {
 		return fmt.Errorf("retrieve elo histories buckets with params %v: %w", params, err)
@@ -1015,12 +1072,18 @@ func (app *App) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) e
 
 	contentType := r.Header.Get("Content-Type")
 
-	// the maximum memory we are using is the same as the max bytes reader, so we will never write a temp file to disk and thus do not need cleanup
+	// the maximum memory we are using is the same as the max bytes reader to prevent writing temp files to disk
 	r.Body = http.MaxBytesReader(w, r.Body, MaxProfilePicSize)
 
 	if err := r.ParseMultipartForm(MaxProfilePicSize); err != nil {
 		return fmt.Errorf("parse multipart form: %w", err)
 	}
+	defer func() {
+		// this isn't necessary if MaxBytesReader = MaxMemory, but it will become necessary if we change that
+		if r.MultipartForm != nil {
+			r.MultipartForm.RemoveAll()
+		}
+	}()
 	file, _, err := r.FormFile("file")
 	if err != nil {
 		return fmt.Errorf("get file from form: %w", err)
@@ -1041,16 +1104,22 @@ func (app *App) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) e
 		CacheControl: aws.String("public, max-age=31536000"),
 	})
 	if err != nil {
-		return fmt.Errorf("put profile pic '%s': to s3 bucket: '%s': %w", key, app.S3ProfileBucket, err)
+		return fmt.Errorf("put profile pic %s: to s3 bucket: %s: %w", key, app.S3ProfileBucket, err)
 	}
 
 	slog.InfoContext(ctx, "finished uploading profile pic to s3", "key", key, "took", time.Since(start), "player", player, "output", putOutput)
 
-	// TODO: make this fire and forget eventually, but making this sync allows for stronger tests
-	// removes old profile pictures on upload of a new profile pic, since retrieval function will always get the most recent file.
-	if err := app.DeleteOldProfilePics(ctx, int(player.ID)); err != nil {
-		slog.ErrorContext(ctx, "failed to remove old profile pics", "error", err)
-	}
+	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				slog.ErrorContext(ctx, "recovered from panic while deleting old profile pics", "error", err)
+			}
+		}()
+		// removes old profile pictures on upload of a new profile pic, since retrieval function will always get the most recent file.
+		if err := app.DeleteOldProfilePics(ctx, int(player.ID)); err != nil {
+			slog.ErrorContext(ctx, "failed to remove old profile pics", "error", err)
+		}
+	}()
 
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: key})
 	return nil
@@ -1068,11 +1137,11 @@ func (app *App) HandleGetProfilePic(w http.ResponseWriter, r *http.Request) erro
 		return fmt.Errorf("get profile pic key for user %s: %w", userID, err)
 	}
 
-	url := app.MakeS3Url(app.S3ProfileBucket, key)
-	slog.InfoContext(ctx, "resolved user ID to S3 profile pic URL", "url", url, "userID", userID)
+	s3URL := app.MakeS3Url(app.S3ProfileBucket, key)
+	slog.InfoContext(ctx, "resolved user ID to S3 profile pic URL", "url", s3URL, "userID", userID)
 
 	// cache control is for what URL is being redirected to, this only changes if the user uploads a new profile pic
 	//w.Header().Set("Cache-Control", "public, max-age=3600")
-	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+	http.Redirect(w, r, s3URL, http.StatusTemporaryRedirect)
 	return nil
 }

@@ -1,4 +1,4 @@
-import { ChessBoard, ChessGame, HistMove, HistMoves, MakeMoveInput } from '$lib/pb/messages';
+import { ChessBoard, ChessGame, HistMove, HistMoves, Move, PieceMove } from '$lib/pb/messages';
 import type { Hex } from '$lib/api/models';
 import { defaultGame } from '$lib/utils/chess.js';
 import { browser } from '$app/environment';
@@ -44,18 +44,17 @@ export async function getInitialGameWasm(): Promise<ChessGame> {
 
 export async function makeMoveWasm(game?: ChessGame, move?: { from: Hex, to: Hex, promotion: number }): Promise<ChessGame | undefined> {
 	await makeWasmAPI();
-	const input = MakeMoveInput.toBinary({
-		game,
-		move: move ? {
-			fromFile: move.from.file,
-			fromRank: move.from.rank,
-			toFile: move.to.file,
-			toRank: move.to.rank,
-			promotion: move.promotion
-		} : undefined
-	});
 
-	const output = dynCall("makeMove", input);
+	const gameInput = ChessGame.toBinary(game || defaultGame);
+	const moveInput = Move.toBinary({
+		fromFile: move?.from?.file || 0,
+		fromRank: move?.from?.rank || 0,
+		toFile: move?.to?.file || 0,
+		toRank: move?.to?.rank || 0,
+		promotion: move?.promotion || 0
+	})
+
+	const output = dynCall("makeMove", gameInput, moveInput);
 	if (output instanceof Uint8Array) {
 		return ChessGame.fromBinary(output);
 	}
@@ -112,4 +111,20 @@ export async function getMoveNotationsWasm(moves?: HistMove[]): Promise<string[]
 	}
 	console.error("Failed to get move notations");
 	return [];
+}
+
+export async function gameAtMoveIndex(initialBoard: ChessBoard, moves: (HistMove | undefined)[], index: number): Promise<ChessGame | undefined> {
+	await makeWasmAPI();
+
+	const movesList: HistMove[] = [];
+	for (const item of moves) {
+		if (item) movesList.push(item);
+	}
+	const inputMoves = HistMoves.toBinary({ moves: movesList });
+
+	const output = dynCall("gameAtMoveIndex", ChessBoard.toBinary(initialBoard), inputMoves, index);
+	if (output instanceof Uint8Array) {
+		return ChessGame.fromBinary(output);
+	}
+	console.error("Failed to make move");
 }

@@ -12,6 +12,7 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/services"
+	"time"
 
 	"net/http"
 	"net/http/httptest"
@@ -68,8 +69,15 @@ func TestHandleCountEvents(t *testing.T) {
 	ts := httptest.NewServer(MakeRoot(Setup{State: state}))
 	defer ts.Close()
 
+	// optimistic timeout incase of deadlock.
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
+	defer cancel()
+
 	// when
-	resp, err := http.Get(ts.URL + "/api/events/count")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+"/api/events/count", nil)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -90,8 +98,7 @@ func TestHandleCountEvents(t *testing.T) {
 		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, `{"count":2}`),
 		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"count":1}`),
 	}
-	events := scanEvents(resp, len(wantEvents))
-	assert.Equal(t, wantEvents, events)
+	assert.Equal(t, wantEvents, scanEvents(resp, len(wantEvents)))
 	assert.NoError(t, <-errChan)
 }
 
@@ -107,30 +114,38 @@ func TestHandleActiveConn(t *testing.T) {
 
 	wantBrdcasts := []svc.UcEvent{{Kind: svc.UcActiveEk, Data: `{"count":1}`}, {Kind: svc.UcActiveEk, Data: `{"count":0}`}}
 
-	brdcastCh := make(chan []svc.UcEvent)
-	go func() {
-		sub := make(chan svc.UcEvent, len(wantBrdcasts))
-		state.LocalBroadcasters.CountsCaster.Subscribe(sub)
+	// optimistic timeout incase of deadlock.
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
+	defer cancel()
 
-		var brdcasts []svc.UcEvent
-		for range len(wantBrdcasts) {
-			brdcasts = append(brdcasts, <-sub)
-		}
-		brdcastCh <- brdcasts
-	}()
+	sub := make(chan svc.UcEvent, len(wantBrdcasts))
+	state.LocalBroadcasters.CountsCaster.Subscribe(sub)
 
 	ts := httptest.NewServer(MakeRoot(Setup{State: state}))
 	defer ts.Close()
 
 	// when
 	go func() {
-		resp, err := http.Get(ts.URL + "/api/events/active")
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+"/api/events/active", nil)
 		require.NoError(t, err)
-		defer resp.Body.Close() // this must execute before we "wantBrdcasts" since one brd cast is sent when the SSE drops
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close() // this must execute before we assert "wantBrdcasts" since one msg is sent when the SSE drops
 	}()
 
 	// then
-	assert.Equal(t, wantBrdcasts, <-brdcastCh)
+	var brdcasts []svc.UcEvent
+ReadBrdcasts:
+	for range len(wantBrdcasts) {
+		select {
+		case e := <-sub:
+			brdcasts = append(brdcasts, e)
+		case <-ctx.Done():
+			break ReadBrdcasts
+		}
+	}
+	assert.Equal(t, wantBrdcasts, brdcasts)
 }
 
 func TestHandleUserEvents(t *testing.T) {
@@ -146,8 +161,12 @@ func TestHandleUserEvents(t *testing.T) {
 	ts := httptest.NewServer(MakeRoot(Setup{State: state}))
 	defer ts.Close()
 
+	// optimistic timeout incase of deadlock.
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
+	defer cancel()
+
 	// when
-	req, err := http.NewRequest(http.MethodGet, ts.URL+"/api/events/user", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+"/api/events/user", nil)
 	require.NoError(t, err)
 	req.Header.Set("Cookie", FmtCookie(TestSessionID1))
 
@@ -155,21 +174,21 @@ func TestHandleUserEvents(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	ceInput := svc.ChallengeEntity{ChallengeeID: 1, Mode: svc.ModeCorrespondence1.String(), StartColor: svc.White.String()}
+	ce := svc.ChallengeEntity{ChallengeeID: 1, Mode: svc.ModeCorrespondence1.String(), StartColor: svc.White.String()}
 
 	errChan := make(chan error)
 	go func() {
-		ctx := context.WithValue(context.Background(), logutil.Trace, "broadcast-user-events")
+		ctx := context.WithValue(t.Context(), logutil.Trace, "broadcast-user-events")
 		errChan <- errors.Join(
-			state.BroadcastChallenge(ctx, ceInput),
+			state.BroadcastChallenge(ctx, ce),
 			state.BroadcastChallenge(ctx, svc.ChallengeEntity{ChallengeeID: 2}),
-			state.BroadcastChallenge(ctx, ceInput))
+			state.BroadcastChallenge(ctx, ce))
 	}()
 
 	// then
 	assert.Equal(t, resp.Header.Get("Content-Type"), "text/event-stream")
 
-	ceJson, err := json.Marshal(ceInput)
+	ceJson, err := json.Marshal(ce)
 	require.NoError(t, err)
 
 	wantEvents := []string{
@@ -177,7 +196,6 @@ func TestHandleUserEvents(t *testing.T) {
 		fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, ceJson),
 		fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, ceJson),
 	}
-	events := scanEvents(resp, len(wantEvents))
-	assert.Equal(t, wantEvents, events)
+	assert.Equal(t, wantEvents, scanEvents(resp, len(wantEvents)))
 	assert.NoError(t, <-errChan)
 }

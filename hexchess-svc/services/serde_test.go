@@ -10,10 +10,8 @@ import (
 
 func TestChessSerializer(t *testing.T) {
 	input1 := MakeChess(StateSetup{ID: uuid.NewString(), Mode: ModeCorrespondence1, FirstColor: Random})
-	input1.FinishState = FinishState{
-		IsEnded:     true,
-		WinID:       1,
-		LoseID:      2,
+	input1.EndState = EndState{
+		Kind:        Finished,
 		WinEloDiff:  30,
 		LoseEloDiff: -30,
 		Cause:       Checkmate,

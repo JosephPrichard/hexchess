@@ -542,18 +542,23 @@ select:disabled {
 
 .side-table-header {
 	padding: 15px;
-	border-top-left-radius: 4px;
-	border-top-right-radius: 4px;
+	border-top-left-radius: 2px;
+	border-top-right-radius: 2px;
 	background-color: rgb(44, 44, 44);
 	border-bottom: 1px solid rgb(58, 58, 58);
+	box-shadow: 0 4px 4px -4px rgba(0, 0, 0, 0.6);
 }
 
 .side-table-header-bottom {
 	padding: 15px;
-	border-bottom-left-radius: 4px;
-	border-bottom-right-radius: 4px;
+	border-bottom-left-radius: 2px;
+	border-bottom-right-radius: 2px;
 	background-color: rgb(44, 44, 44);
 	border-top: 1px solid rgb(58, 58, 58);
+}
+
+.side-table-header-bottom-shadow {
+	box-shadow: 0 -4px 4px -4px rgba(0, 0, 0, 0.6);
 }
 
 .side-table-header-elem {
@@ -586,7 +591,13 @@ select:disabled {
 	all: unset;
 	cursor: pointer;
 	border-radius: 6px;
-	padding: 5px 8px;
+	padding: 5px 5px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background-color: rgb(45, 45, 45);
+	width: 35px;
+	height: 35px;
 }
 
 .button-transparent:hover {

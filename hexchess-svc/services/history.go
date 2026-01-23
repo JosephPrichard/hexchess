@@ -36,39 +36,38 @@ func (s *State) PutReplayMoveSeq(ctx context.Context, replayID int64, initialBoa
 		Key:    aws.String(key),
 		Body:   bytes.NewReader(moveHistBytes),
 	}); err != nil {
-		return fmt.Errorf("put move history '%s': to s3 bucket: '%s': %w", key, s.S3ReplayBucket, err)
+		return fmt.Errorf("put move history=%s: to s3 bucket: %s: %w", key, s.S3ReplayBucket, err)
 	}
 
 	slog.InfoContext(ctx, "finished uploading move history to s3", "key", key, "replayID", replayID, "took", time.Since(start))
 	return nil
 }
 
-func (s *State) GetReplayMoveReplay(ctx context.Context, replayID string) ([]byte, error) {
-	objectKey := MakeReplayMoveListKey(replayID)
+func (s *State) GetMoveReplay(ctx context.Context, replayID string) ([]byte, error) {
+	key := MakeReplayMoveListKey(replayID)
 
 	object, err := s.S3Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.S3ReplayBucket),
-		Key:    aws.String(objectKey),
+		Key:    aws.String(key),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("get move history by key '%s' from s3: %w", objectKey, err)
+		return nil, fmt.Errorf("get move history by key=%s from s3: %w", key, err)
 	}
 	defer object.Body.Close()
 	bReplay, err := io.ReadAll(object.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read move history bytes with key '%s': %w", objectKey, err)
+		return nil, fmt.Errorf("read move history bytes with  key=%s: %w", key, err)
 	}
 
-	slog.InfoContext(ctx, "retrieved move history from s3", "key", objectKey, "size", fmt.Sprintf("%dKB", len(bReplay)/1000))
+	slog.InfoContext(ctx, "retrieved move history from s3", "key", key, "size", fmt.Sprintf("%dKB", len(bReplay)/1000))
 
 	var pbMoveHist pb.MoveHistory
 	if err := proto.Unmarshal(bReplay, &pbMoveHist); err != nil {
-		return nil, fmt.Errorf("unmarshal move history with key '%s': %w", objectKey, err)
+		return nil, fmt.Errorf("unmarshal move history with  key=%s: %w", key, err)
 	}
-	bResp, err := proto.Marshal(chess.SerializeMoveReplay(&pbMoveHist))
+	bResp, err := chess.MarshalMoveReplay(&pbMoveHist)
 	if err != nil {
-		return nil, fmt.Errorf("marshal move replay with key '%s' move seq : %w", objectKey, err)
+		return nil, fmt.Errorf("marshal move replay with key=%s move seq : %w", key, err)
 	}
-
 	return bResp, nil
 }

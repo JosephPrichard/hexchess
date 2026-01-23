@@ -18,7 +18,6 @@ import (
 	"hexchess-svc/services"
 	"io"
 	"mime/multipart"
-
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -554,7 +553,7 @@ func TestGetPlayer(t *testing.T) {
 		name        string
 		id          string
 		withReplays bool
-		wantSuccess FullUserResp
+		wantSuccess GetPlayersResp
 		wantFail    ServiceView
 		wantStatus  int
 	}{
@@ -562,7 +561,7 @@ func TestGetPlayer(t *testing.T) {
 			name:        "get player with replays",
 			id:          "1",
 			withReplays: true,
-			wantSuccess: FullUserResp{
+			wantSuccess: GetPlayersResp{
 				User:       svc.TestUserEntities[0],
 				Stats:      svc.TestUserStats[0],
 				ReplayList: []svc.ReplayEntity{svc.TestReplayEntities[1], svc.TestReplayEntities[0]},
@@ -573,7 +572,7 @@ func TestGetPlayer(t *testing.T) {
 			name:        "get player without replays",
 			id:          "1",
 			withReplays: false,
-			wantSuccess: FullUserResp{
+			wantSuccess: GetPlayersResp{
 				User:       svc.TestUserEntities[0],
 				Stats:      svc.TestUserStats[0],
 				ReplayList: []svc.ReplayEntity{},
@@ -595,7 +594,7 @@ func TestGetPlayer(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				assertutil.AssertRespBody[FullUserResp](t, test.wantSuccess, w)
+				assertutil.AssertRespBody[GetPlayersResp](t, test.wantSuccess, w)
 			} else {
 				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
 			}
@@ -822,6 +821,7 @@ func TestHandleGetMoveReplay(t *testing.T) {
 			{
 				NotMove: "P+xd5",
 				Pm:      &pb.PieceMove{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4},
+				MadeOn:  "0001-01-01T00:00:00Z",
 				Game:    pbInitialGame,
 			},
 		},
@@ -866,7 +866,7 @@ func TestHandleGetProfilePic(t *testing.T) {
 	state := svc.SetupStateTest(t, itest.WithRedis, itest.WithAws)
 	defer state.Close()
 
-	key1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())
+	key1 := fmt.Sprintf("users/profile-pics/3/%s", uuid.NewString())
 	key2 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())
 	ext.PutS3Object(t, state.S3Client, state.S3ProfileBucket, key1, []byte("testfiledata1"))
 	ext.PutS3Object(t, state.S3Client, state.S3ProfileBucket, key2, []byte("testfiledata2"))
@@ -884,9 +884,8 @@ func TestHandleGetProfilePic(t *testing.T) {
 			wantWithoutKeys: []string{key1},
 		},
 		{
-			userID:          "2",
-			wantStatus:      http.StatusNotFound,
-			wantWithoutKeys: []string{key1, key2},
+			userID:     "2",
+			wantStatus: http.StatusOK,
 		},
 	} {
 		// when
@@ -898,16 +897,18 @@ func TestHandleGetProfilePic(t *testing.T) {
 
 		// then
 		resp := w.Body.String()
-		t.Logf("got profile pic redirect: %s", resp)
-
 		assert.Equal(t, test.wantStatus, w.Code)
-		for _, key := range test.wantWithoutKeys {
-			if strings.Contains(resp, key) {
-				t.Errorf("expected profile pic redirect to not contain key %s", key)
+
+		if w.Code == http.StatusTemporaryRedirect {
+			t.Logf("got profile pic redirect: %s", resp)
+			for _, key := range test.wantWithoutKeys {
+				if strings.Contains(resp, key) {
+					t.Errorf("expected profile pic redirect to not contain key %s", key)
+				}
 			}
-		}
-		if !strings.Contains(resp, test.wantWithKey) {
-			t.Errorf("expected profile pic redirect to contain key %s", test.wantWithKey)
+			if !strings.Contains(resp, test.wantWithKey) {
+				t.Fatalf("expected profile pic redirect to contain key %s", test.wantWithKey)
+			}
 		}
 	}
 }

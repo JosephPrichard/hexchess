@@ -1,9 +1,10 @@
 <script lang="ts">
-	import type { ReplayModel } from '$lib/api/models';
-	import { formatEloDiff, getReplayColors } from '$lib/utils/format';
+	import { GameModeNameMap, type ReplayModel } from '$lib/api/models';
+	import { formatCause, formatEloDiff, formatResult, getReplayColors } from '$lib/utils/format';
 
 	const { replay }: { replay: ReplayModel } = $props();
-	
+
+	const [result, cause, mode] = $derived.by(() => [formatResult(replay.result), formatCause(replay.cause), GameModeNameMap[replay.mode]]);
 	const [whiteClass, blackClass] = $derived.by(() => getReplayColors(replay.result));
 </script>
 
@@ -28,4 +29,35 @@
 			{formatEloDiff(replay.blackEloDiff)}
 		</span>
 	</div>
+	<div class="mode">
+		{mode}
+	</div>
+	<div class="result-cause">
+		<b class="result">
+			{result}
+		</b>
+		<span class="cause">
+		by {cause}
+	</span>
+	</div>
 </div>
+
+<style>
+	.mode {
+        padding-top: 2px;
+        padding-bottom: 2px;
+	}
+
+	.result-cause {
+		padding-top: 2px;
+		padding-bottom: 2px;
+	}
+
+    .result {
+        font-size: 14px;
+    }
+
+    .cause {
+        font-size: 14px;
+    }
+</style>

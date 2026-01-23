@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { updateClientSession as updateClientUser } from '$lib/utils/storage';
+	import { clearClientSession, updateClientSession, updateClientSession as updateClientUser } from '$lib/utils/storage';
 	import { makeMessage } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import type { UserModel } from '$lib/api/models';
 	import services, { baseURL } from '$lib/api/services';
 	import Banner from '$lib/Banner.svelte';
 	import ProfilePic from '$lib/components/user/ProfilePic.svelte';
+	import { goto } from '$app/navigation';
 
 	export interface ProfileProps {
 		countryList: string[];
@@ -65,8 +66,11 @@
 	}
 
 	async function onClickSignOut() {
-		const [_, err] = await services.postLogout();
-		if (err) {
+		const [data, err] = await services.postLogout();
+		if (data) {
+			clearClientSession();
+			await goto("/");
+		} else if (err) {
 			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
 		}
 	}

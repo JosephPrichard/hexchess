@@ -1,10 +1,7 @@
 //go:build wasm
 package main
 
-import (
-	"syscall/js"
-	"hexchess-svc/out"
-)
+import "hexchess-svc/wasm"
 
 func main() {
 	wasm.RegisterChessModule()

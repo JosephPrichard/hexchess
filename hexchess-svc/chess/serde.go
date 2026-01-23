@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/pb"
+	"time"
 )
 
 func DeserializePieces(src []int32) []Piece {
@@ -26,6 +27,17 @@ func DeserializeMove(pbPm *pb.Move) Move {
 		From:      Hex{File: uint32(pbPm.FromFile), Rank: uint32(pbPm.FromRank)},
 		To:        Hex{File: uint32(pbPm.ToFile), Rank: uint32(pbPm.ToRank)},
 		Promotion: Promotion(pbPm.Promotion),
+	}
+}
+
+func DeserializePiecesMove(pbPm *pb.PieceMove) PieceMove {
+	if pbPm == nil {
+		return PieceMove{}
+	}
+	return PieceMove{
+		Piece: Piece(pbPm.Piece),
+		From:  Hex{File: uint32(pbPm.FromFile), Rank: uint32(pbPm.FromRank)},
+		To:    Hex{File: uint32(pbPm.ToFile), Rank: uint32(pbPm.ToRank)},
 	}
 }
 
@@ -72,6 +84,11 @@ func DeserializeHistMove(pbHm *pb.HistMove) HistMove {
 	if pbHm == nil {
 		return HistMove{}
 	}
+	var madeOn time.Time
+	if pbHm.MadeOn != "" {
+		// this will be zero'd out a lot of the time. we don't want to fail if that is the case, let the consumer decide how to deal with an invalid time field
+		madeOn, _ = time.Parse(time.RFC3339, pbHm.MadeOn)
+	}
 	return HistMove{
 		PieceMove: PieceMove{
 			Piece: Piece(pbHm.Piece),
@@ -82,18 +99,19 @@ func DeserializeHistMove(pbHm *pb.HistMove) HistMove {
 		CollRank: pbHm.CollRank,
 		IsCheck:  pbHm.IsCheck,
 		IsTake:   pbHm.IsTake,
+		MadeOn:   madeOn,
 	}
 }
 
-func DeserializeHistMoveList(pbMoves []*pb.HistMove) []HistMove {
+func DeserializeHistMoveList(pbMoves []*pb.HistMove) ([]HistMove, error) {
 	if len(pbMoves) == 0 {
-		return nil
+		return nil, nil
 	}
 	moves := make([]HistMove, 0, len(pbMoves))
 	for _, pbHm := range pbMoves {
 		moves = append(moves, DeserializeHistMove(pbHm))
 	}
-	return moves
+	return moves, nil
 }
 
 var ErrNilGame = errors.New("board must not be nil")
@@ -106,12 +124,16 @@ func DeserializeGame(pbGame *pb.ChessGame) (Game, error) {
 	if err != nil {
 		return Game{}, fmt.Errorf("deserialize board %v: %w", pbGame.Board, err)
 	}
+	moves, err := DeserializeHistMoveList(pbGame.Moves)
+	if err != nil {
+		return Game{}, fmt.Errorf("deserialize moves: %w", err)
+	}
 	return Game{
 		TakenWhitePieces: DeserializePieces(pbGame.TakenWhitePieces),
 		TakenBlackPieces: DeserializePieces(pbGame.TakenBlackPieces),
 		BlackMoves:       DeserializePiecesMoves(pbGame.BlackMoves),
 		WhiteMoves:       DeserializePiecesMoves(pbGame.WhiteMoves),
-		Moves:            DeserializeHistMoveList(pbGame.Moves),
+		Moves:            moves,
 		Board:            board,
 	}, nil
 }
@@ -158,7 +180,8 @@ func SerializeBoard(board *Board) *pb.ChessBoard {
 		for rank := range ranksCount {
 			piece, err := board.GetPiece(file, rank)
 			if err != nil {
-				panic(err)
+				// we panic here because it is programmer error if this code fails.
+				panic(fmt.Errorf("get piece: %w", err))
 			}
 			pieces = append(pieces, uint32(piece))
 		}
@@ -178,6 +201,7 @@ func SerializeHistMove(hm HistMove) *pb.HistMove {
 		CollRank: hm.CollRank,
 		IsCheck:  hm.IsCheck,
 		IsTake:   hm.IsTake,
+		MadeOn:   hm.MadeOn.Format(time.RFC3339),
 	}
 }
 
@@ -215,20 +239,20 @@ func SerializePieces(pieces []Piece) []int32 {
 	return out
 }
 
-func SerializeMoveReplay(pbMoveHist *pb.MoveHistory) *pb.MoveReplay {
+func MarshalMoveReplay(pbMoveHist *pb.MoveHistory) ([]byte, error) {
 	pbFmtSteps := make([]*pb.NotMoveStep, 0, len(pbMoveHist.Steps))
 	for _, pbStep := range pbMoveHist.Steps {
-		hm := DeserializeHistMove(pbStep.Move)
+		hm := DeserializeHistMove(pbStep)
 		pbFmtSteps = append(pbFmtSteps, &pb.NotMoveStep{
-			Game:    pbStep.Game,
 			Pm:      SerializePieceMove(hm.PieceMove),
 			NotMove: hm.String(),
+			Hm:      pbStep,
 		})
 	}
-	return &pb.MoveReplay{
+	return proto.Marshal(&pb.MoveReplay{
 		InitialGame: pbMoveHist.InitialGame,
 		Steps:       pbFmtSteps,
-	}
+	})
 }
 
 func MarshalMoveHistory(initialBoard Board, moveSeq []HistMove) ([]byte, error) {
@@ -237,15 +261,12 @@ func MarshalMoveHistory(initialBoard Board, moveSeq []HistMove) ([]byte, error) 
 
 	pbInitialGame := SerializeGame(&game)
 
-	var pbMoveSteps []*pb.MoveStep
+	var pbMoveSteps []*pb.HistMove
 	for _, m := range moveSeq {
 		game.MakeMove(Move{From: m.From, To: m.To, Promotion: QueenPromotion})
 		game.InitPieceMoves()
 
-		pbMoveSteps = append(pbMoveSteps, &pb.MoveStep{
-			Game: SerializeGame(&game),
-			Move: SerializeHistMove(m),
-		})
+		pbMoveSteps = append(pbMoveSteps, SerializeHistMove(m))
 	}
 
 	return proto.Marshal(&pb.MoveHistory{InitialGame: pbInitialGame, Steps: pbMoveSteps})

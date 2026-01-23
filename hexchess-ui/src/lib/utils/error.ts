@@ -36,9 +36,12 @@ export const codes = {
 	errorFatal: 'ERROR_FATAL',
 	errorMessageType: 'ERROR_MESSAGE_TYPE',
 	errorTurn: 'ERROR_TURN',
+	errorFfPlayer: 'ERROR_FORFEIT_PLAYER',
 	errorInvalidMove: 'ERROR_INVALID_MOVE',
 	errorFinishedGame: 'ERROR_FINISHED_GAME',
+	errorStartedGame: 'ERROR_STARTED_GAME',
 	errorInvalidGame: 'ERROR_INVALID_GAME',
+	errorUndoCurrPlayer: 'ERROR_UNDO_CURR_PLAYER',
 	errorExpiredGame: 'ERROR_EXPIRED_GAME',
 };
 
@@ -78,9 +81,12 @@ export const messages: Record<string, string> = {
 	[codes.errorFatal]: 'A fatal error occurred. Please reconnect or try again later.',
 	[codes.errorMessageType]: 'Invalid message type received.',
 	[codes.errorTurn]: "It's not your turn.",
+	[codes.errorFfPlayer]: 'Cannot forfeit a game if you are not a player.',
 	[codes.errorInvalidMove]: 'That move is invalid. Please try again.',
 	[codes.errorFinishedGame]: 'The game has already finished.',
+	[codes.errorStartedGame]: 'Cannot make a move on a game that hasn\'t started yet.',
 	[codes.errorInvalidGame]: 'Cannot find a game for the given id.',
+	[codes.errorUndoCurrPlayer]: 'Cannot propose a takeback if it is your turn.',
 	[codes.errorExpiredGame]: 'The game has expired due to inactivity.',
 };
 

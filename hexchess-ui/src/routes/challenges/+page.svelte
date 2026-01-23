@@ -116,51 +116,51 @@
 									{/if}
 								</div>
 							</div>
-							<div style="margin-bottom: 6px">
-								Sent {formatRelativeTime(challenge.madeOn)}
+							<div class="times-wrapper">
+								<div style="margin-bottom: 6px">
+									Sent {formatRelativeTime(challenge.madeOn)}
+								</div>
+								<div style="margin-bottom: 6px">
+									Expires {formatRelativeTime(challenge.expiresOn)}
+								</div>
 							</div>
-							<div style="margin-bottom: 6px">
-								Expires {formatRelativeTime(challenge.expiresOn)}
-							</div>
+							{#if isSender}
+								<button
+									class="button-small button-small-red button-challenge"
+									onclick={() => onUpdateChallenge(challenge, index, 'delete')}
+								>
+									{#if isLoading.delete}
+										<div class="loader"></div>
+									{:else}
+										Delete
+									{/if}
+								</button>
+							{:else}
+								<button
+									class="button-small button-small-green button-challenge"
+									onclick={() => onUpdateChallenge(challenge, index, 'accept')}
+								>
+									{#if isLoading.accept}
+										<div class="loader"></div>
+									{:else}
+										Accept
+									{/if}
+								</button>
+								<button
+									class="button-small button-small-red button-challenge"
+									onclick={() => onUpdateChallenge(challenge, index, 'reject')}
+								>
+									{#if isLoading.reject}
+										<div class="loader"></div>
+									{:else}
+										Reject
+									{/if}
+								</button>
+							{/if}
 						</div>
 						<div class="center-relative">
 							<div class="vertical-align">
-								{#if isSender}
-									<button
-										class="button-small button-small-red"
-										onclick={() => onUpdateChallenge(challenge, index, 'delete')}
-										style="margin-left: 5px"
-									>
-										{#if isLoading.delete}
-											<div class="loader"></div>
-										{:else}
-											Delete
-										{/if}
-									</button>
-								{:else}
-									<button
-										class="button-small button-small-green"
-										onclick={() => onUpdateChallenge(challenge, index, 'accept')}
-										style="margin-left: 5px"
-									>
-										{#if isLoading.accept}
-											<div class="loader"></div>
-										{:else}
-											Accept
-										{/if}
-									</button>
-									<button
-										class="button-small button-small-red"
-										onclick={() => onUpdateChallenge(challenge, index, 'reject')}
-										style="margin-left: 5px"
-									>
-										{#if isLoading.reject}
-											<div class="loader"></div>
-										{:else}
-											Reject
-										{/if}
-									</button>
-								{/if}
+
 							</div>
 						</div>
 					</div>
@@ -230,4 +230,14 @@
         flex-direction: row;
         z-index: 2;
     }
+
+	.times-wrapper {
+		margin-top: 30px;
+		margin-bottom: 30px;
+	}
+
+	.button-challenge {
+        margin-right: 5px;
+		margin-bottom: 10px;
+	}
 </style>

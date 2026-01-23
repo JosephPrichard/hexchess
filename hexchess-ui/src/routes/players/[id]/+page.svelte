@@ -14,7 +14,7 @@
 	import { Chart } from 'chart.js';
 	import { generateColors } from '$lib/utils/colors';
 	import Dropdown from '$lib/components/util/Dropdown.svelte';
-	import { formatEloDiff, formatJoinedOn, formatPlayedOn, formatReplayResult, formatTimestamp, getWinrateClass, normalizeToDay } from '$lib/utils/format';
+	import { formatEloDiff, formatJoinedOn, formatPlayedOn, formatReplayResult, formatTimestamp, getReplayColors, getWinrateClass, normalizeToDay } from '$lib/utils/format';
 	import Banner from '$lib/Banner.svelte';
 	import ProfilePic from '$lib/components/user/ProfilePic.svelte';
 
@@ -334,34 +334,23 @@
 						<th>White</th>
 						<th>Black</th>
 						<th>Result</th>
+						<th>Mode</th>
 						<th>Played On</th>
 					</tr>
 				</thead>
 				<tbody>
 					{#each nestedReplayList as replayList, i (i)}
 						{#each replayList as replay, i (i)}
-							{@const [whiteClass, blackClass] = function() {
-								switch (replay.result) {
-								case 'WHITE_WINS':
-									return ['green-color', 'red-color'];
-								case 'BLACK_WINS':
-									return ['red-color', 'green-color'];
-								case 'DRAW':
-									return ['yellow-color', 'yellow-color'];
-								default:
-									console.error('Unknown result case', replay.result);
-									return ['', ''];
-								}
-							}()}
+							{@const [whiteClass, blackClass] = getReplayColors(replay.result)}
 							<tr class="row-hover" onclick={() => goto(`/replay/${replay.id}`)}>
-								<td style="width: 25%">
+								<td style="width: 20%">
 									<a href="/players/{replay.whiteId}" class="text-ul">{replay.whiteName}</a>
 									<img class="flag" src="/flags/{replay.whiteCountry}.png" alt="" />
 									<span class={whiteClass}>
 										{formatEloDiff(replay.whiteEloDiff)}
 									</span>
 								</td>
-								<td style="width: 25%">
+								<td style="width: 20%">
 									<a href="/players/{replay.blackId}" class="text-ul">{replay.blackName}</a>
 									<img class="flag" src="/flags/{replay.blackCountry}.png" alt="" />
 									<span class={blackClass}>
@@ -371,7 +360,10 @@
 								<td style="width: 20%">
 									{formatReplayResult(replay.result)}
 								</td>
-								<td style="width: 30%">
+								<td style="width: 20%">
+									{GameModeNameMap[replay.mode]}
+								</td>
+								<td style="width: 20%">
 									{formatPlayedOn(replay.playedOn)}
 								</td>
 							</tr>

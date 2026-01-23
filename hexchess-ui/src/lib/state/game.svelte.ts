@@ -2,28 +2,29 @@ import type { Hex } from '$lib/api/models';
 import type { ChessBoard, ChessGame, HistMove } from '$lib/pb/messages';
 import { defaultGame, isInBounds, makeGame, pieces } from '$lib/utils/chess';
 
-export interface Promotion {
-    from: Hex; 
+export interface PromotionMove {
+    from: Hex;
     to: Hex;
 }
 
 export interface GameState {
     game?: ChessGame;
     prevGame?: ChessGame;
-    promotion?: Promotion;
+    promotion?: PromotionMove;
 }
 
-export function makeSandboxState() {
-    let state: GameState = $state({});
+export function makeGameState(game?: ChessGame) {
+    let state: GameState = $state({ game });
 
-    function updateGame(game: ChessGame) {
+    function setGame(game?: ChessGame) {
+        if (!game) game = defaultGame;
         state.promotion = undefined;
         state.prevGame = state.game;
         state.game = game;
     }
 
-    function updateBoard(board: ChessBoard) {
-        updateGame({
+    function setBoard(board: ChessBoard) {
+        setGame({
             ...(state.game || defaultGame),
             board
         });
@@ -39,7 +40,7 @@ export function makeSandboxState() {
             board.file[from.file].pieces[from.rank] = pieces.empty;
             board.file[to.file].pieces[to.rank] = piece;
 
-            updateBoard(board);
+            setBoard(board);
         }
     }
     
@@ -49,7 +50,7 @@ export function makeSandboxState() {
             for (const file of board.file) {
                 file.pieces.fill(pieces.empty);
             }
-            updateGame(makeGame(board));
+            setGame(makeGame(board));
         }
     }
     
@@ -57,7 +58,7 @@ export function makeSandboxState() {
         const board = $state.snapshot(state.game?.board);
         if (board) {
             board.file[hex.file].pieces[hex.rank] = pieces.empty;
-            updateBoard(board);
+            setBoard(board);
         }
     }
     
@@ -65,7 +66,7 @@ export function makeSandboxState() {
         const board = $state.snapshot(state.game?.board);
         if (isInBounds(hex) && board) {
             board.file[hex.file].pieces[hex.rank] = piece;
-            updateBoard(board);
+            setBoard(board);
         }
     }
     
@@ -73,22 +74,21 @@ export function makeSandboxState() {
         const board = $state.snapshot(state.game?.board);
         if (board) {
             board.isWhiteTurn = turn;
-            updateGame(makeGame(board));
+            setGame(makeGame(board));
         }
     }
 
-    function setGame(game?: ChessGame) {
-        updateGame(game || defaultGame);
-    }
-
-    function rollback() {
+    function revertPromotion() {
         if (state.prevGame !== undefined) {
             state.game = state.prevGame;
             state.prevGame = undefined;
         }
     }
 
-    function setPromotion(promotion?: Promotion) {
+    function setPromotion(promotion?: PromotionMove) {
+        if (promotion) {
+            movePiece(promotion.from, promotion.to);
+        }
 		state.promotion = promotion;
 	}
 
@@ -100,5 +100,5 @@ export function makeSandboxState() {
         return game.moves[game.moves.length - 1];
     }
     
-    return { state, getPrevMove, movePiece, clear, removePiece, placePiece, setTurn, setGame, revert: rollback, setPromotion };
+    return { state, getPrevMove, movePiece, clear, removePiece, placePiece, setTurn, setGame, revertPromotion, setPromotion };
 }

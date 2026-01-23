@@ -86,7 +86,7 @@ func MakeRoot(setup Setup) http.Handler {
 	r.Get("/api/leaderboard", Rest(app.HandleGetLeaderboard))
 	r.Get("/api/challenges", Rest(app.HandleGetChallenges))
 	r.Get("/api/replays", Rest(app.HandleGetUserReplays))
-	r.Get("/api/chess/rooms", Rest(app.HandleGetChessRoomList))
+	r.Get("/api/chess/rooms", Rest(app.HandleGetChessMetas))
 	r.Get("/api/replay", Rest(app.HandleGetReplay))
 	r.Get("/api/replay/elo-histories", Rest(app.HandleGetEloHistories))
 	r.Get("/api/replay/move-list", Rest(app.HandleGetMoveReplay))

@@ -7,21 +7,21 @@ type ErrorMap struct {
 	Errors map[string]error
 }
 
-func Put(left error, key string, right error) error {
-	if right == nil {
-		return left
+func Put(err error, key string, newErr error) error {
+	if newErr == nil {
+		return err
 	}
-	if left == nil {
-		left = &ErrorMap{}
+	if err == nil {
+		err = &ErrorMap{}
 	}
-	var errm, ok = left.(*ErrorMap)
+	var errm, ok = err.(*ErrorMap)
 	if ok {
 		if errm.Errors == nil {
 			errm.Errors = make(map[string]error)
 		}
-		errm.Errors[key] = right
+		errm.Errors[key] = newErr
 	}
-	return left
+	return err
 }
 
 func (m *ErrorMap) Error() string {

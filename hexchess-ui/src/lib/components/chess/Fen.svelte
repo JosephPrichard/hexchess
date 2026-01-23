@@ -26,7 +26,16 @@
 <div style:width={getLeft(11.5) + "px"}>
 	<div class="fen-wrapper">
 		<label for="fen" class="fen-label">FEN</label>
-		<input id="text" type="text" class="fen-input" value={fen} readonly={onChange === undefined} onchange={onChangeInput}/>
+		<input
+			id="text"
+			type="text"
+			class="fen-input"
+			value={fen} onkeydown={(e) => e.preventDefault()}
+			onchange={onChangeInput}
+			autocomplete="off"
+			autocapitalize="off"
+			spellcheck="false"
+		/>
 		<button class="icon" onclick={onClickCopy}>
 			<ClipboardIcon/>
 		</button>

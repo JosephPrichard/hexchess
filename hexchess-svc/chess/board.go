@@ -334,7 +334,9 @@ var GlobalInitialBoard = MakeInitialBoard()
 
 func InitialBoard() Board {
 	// board is stored by value
-	return GlobalInitialBoard
+	board := GlobalInitialBoard
+	//board.SetPieceNot("k6", WhitePawn)
+	return board
 }
 
 func MakeInitialBoard() Board {

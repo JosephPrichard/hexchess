@@ -18,10 +18,16 @@ type UndoState struct {
 	UndoID int64
 }
 
-type FinishState struct {
-	IsEnded     bool
-	WinID       int64
-	LoseID      int64
+type EndKind int
+
+const (
+	NotEnded EndKind = iota
+	Aborted
+	Finished
+)
+
+type EndState struct {
+	Kind        EndKind
 	WinEloDiff  int64
 	LoseEloDiff int64
 	Cause       ReplayCause
@@ -31,25 +37,17 @@ type FinishState struct {
 type ChessState struct {
 	ChessMeta
 	UndoState
-	FinishState  FinishState
+	EndState     EndState
 	InitialBoard chess.Board
 	Game         chess.Game
 }
 
-var ErrNoMoveUndo = errors.New("no move to undo")
+func (s *ChessState) HasBothPlayers() bool {
+	return s.WhitePlayer.Present && s.BlackPlayer.Present
+}
 
-func (s *ChessState) UndoMove() error {
-	if len(s.Game.Moves) == 0 {
-		return ErrNoMoveUndo
-	}
-	undoGame := chess.Game{Board: s.InitialBoard}
-	movesExceptLast := s.Game.Moves[:len(s.Game.Moves)-1]
-	for _, move := range movesExceptLast {
-		undoGame.MakeMove(chess.Move{From: move.To, To: move.From, Promotion: move.Promotion})
-	}
-	s.Game = undoGame
-	s.Game.InitPieceMoves()
-	return nil
+func (s *ChessState) IsEitherPlayer(player PlayerState) bool {
+	return s.WhitePlayer.IsSame(player) || s.BlackPlayer.IsSame(player)
 }
 
 type ChessMeta struct {
@@ -67,10 +65,12 @@ type StateSetup struct {
 	ID           string
 	Mode         GameMode
 	FirstColor   Color
-	White        *PlayerState
-	Black        *PlayerState
+	White        PlayerState
+	Black        PlayerState
 	InitialBoard *chess.Board
 	Game         *chess.Game
+	FinishState  EndState
+	UndoState    UndoState
 }
 
 func MakeChess(s StateSetup) ChessState {
@@ -82,24 +82,19 @@ func MakeChess(s StateSetup) ChessState {
 	if s.Game != nil {
 		game = *s.Game
 	}
-	var whitePlayer, blackPlayer PlayerState
-	if s.White != nil {
-		whitePlayer = *s.White
-	}
-	if s.Black != nil {
-		blackPlayer = *s.Black
-	}
 	state := ChessState{
 		InitialBoard: b,
 		Game:         game,
+		UndoState:    s.UndoState,
 		ChessMeta: ChessMeta{
 			ID:          s.ID,
 			FirstColor:  s.FirstColor,
 			Mode:        s.Mode,
 			Touch:       time.UnixMilli(0),
-			WhitePlayer: whitePlayer,
-			BlackPlayer: blackPlayer,
+			WhitePlayer: s.White,
+			BlackPlayer: s.Black,
 		},
+		EndState: s.FinishState,
 	}
 	return state
 }
@@ -122,13 +117,11 @@ func (s *ChessState) DeepCopy() ChessState {
 			Mode:       s.Mode,
 			Touch:      s.Touch,
 		},
-		FinishState: FinishState{
-			WinID:       s.FinishState.WinID,
-			LoseID:      s.FinishState.LoseID,
-			WinEloDiff:  s.FinishState.WinEloDiff,
-			LoseEloDiff: s.FinishState.LoseEloDiff,
-			Cause:       s.FinishState.Cause,
-			Result:      s.FinishState.Result,
+		EndState: EndState{
+			WinEloDiff:  s.EndState.WinEloDiff,
+			LoseEloDiff: s.EndState.LoseEloDiff,
+			Cause:       s.EndState.Cause,
+			Result:      s.EndState.Result,
 		},
 	}
 	s2.WhitePlayer = s.WhitePlayer
@@ -136,15 +129,15 @@ func (s *ChessState) DeepCopy() ChessState {
 	return s2
 }
 
-func (s *State) getUserGameZSet(id int64) string {
+func (s *State) makeUserGameZSet(id int64) string {
 	return s.Redis.GamesZSet + "/user_" + strconv.Itoa(int(id))
 }
 
 // IsGameAccessible we can just treat any inability to validate that the game exists as it "not existing", the client will just show a "404".
 func (s *State) IsGameAccessible(ctx context.Context, id string) bool {
-	if err := s.ExpireChessStates(ctx, s.Redis.GamesZSet); err != nil {
-		return false
-	}
+	//if err := s.ExpireChessStates(ctx, s.Redis.GamesZSet); err != nil {
+	//	return false
+	//}
 	fullID := makeGameKey(id)
 	exists, err := s.Redis.Cache.Exists(ctx, fullID).Result()
 	return err == nil && exists == 1
@@ -153,9 +146,9 @@ func (s *State) IsGameAccessible(ctx context.Context, id string) bool {
 var ErrNoChessState = errors.New("no chess state")
 
 func (s *State) GetChessState(ctx context.Context, id string) (*ChessState, error) {
-	if err := s.ExpireChessStates(ctx, s.Redis.GamesZSet); err != nil {
-		return nil, fmt.Errorf("expire chess states: %w", err)
-	}
+	//if err := s.ExpireChessStates(ctx, s.Redis.GamesZSet); err != nil {
+	//	return nil, fmt.Errorf("expire chess states: %w", err)
+	//}
 	fullID := makeGameKey(id)
 
 	data, err := s.Redis.Cache.Get(ctx, fullID).Bytes()
@@ -198,16 +191,27 @@ func (s *State) SetChessStateAt(ctx context.Context, id string, state *ChessStat
 
 	pipe := s.Redis.Cache.TxPipeline()
 	pipe.Set(ctx, fullID, b, 0)
-	pipe.ZAdd(ctx, s.Redis.GamesZSet, redis.Z{Score: touchSecs, Member: fullID})
-	if state.WhitePlayer.Present {
-		pipe.ZAdd(ctx, s.getUserGameZSet(state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
-	}
-	if state.BlackPlayer.Present {
-		pipe.ZAdd(ctx, s.getUserGameZSet(state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
+
+	if state.EndState.Kind != Aborted {
+		pipe.ZAdd(ctx, s.Redis.GamesZSet, redis.Z{Score: touchSecs, Member: fullID})
+		if state.WhitePlayer.Present {
+			pipe.ZAdd(ctx, s.makeUserGameZSet(state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
+		}
+		if state.BlackPlayer.Present {
+			pipe.ZAdd(ctx, s.makeUserGameZSet(state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
+		}
+	} else {
+		pipe.ZRem(ctx, s.Redis.GamesZSet, fullID)
+		if state.WhitePlayer.Present {
+			pipe.ZRem(ctx, s.makeUserGameZSet(state.WhitePlayer.ID), fullID)
+		}
+		if state.BlackPlayer.Present {
+			pipe.ZRem(ctx, s.makeUserGameZSet(state.BlackPlayer.ID), fullID)
+		}
 	}
 
 	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("update chess state in redis: %w", err)
+		return fmt.Errorf("set chess state in redis: %w", err)
 	}
 
 	slog.InfoContext(ctx, "set chess state", "key", fullID, "touch", touch)
@@ -231,7 +235,7 @@ func (s *State) GetStateChats(ctx context.Context, gameID string, count int64) (
 	for i, str := range strList {
 		chat, err := UnmarshalChat([]byte(str))
 		if err != nil {
-			return nil, fmt.Errorf("unmarshal chat #%d for game '%s': %w", i, gameID, err)
+			return nil, fmt.Errorf("unmarshal chat #%d for game=%s: %w", i, gameID, err)
 		}
 		chats = append(chats, chat)
 	}
@@ -289,11 +293,11 @@ func (s *State) ExpireChessStates(ctx context.Context, gameZSetName string) erro
 }
 
 func (s *State) GetUserChessMetas(ctx context.Context, userID int64) ([]ChessMeta, error) {
-	return s.GetChessMetas(ctx, s.getUserGameZSet(userID), 1, -1)
+	return s.GetUserChessMetasPaged(ctx, userID, 1, -1)
 }
 
 func (s *State) GetUserChessMetasPaged(ctx context.Context, userID int64, page, count int) ([]ChessMeta, error) {
-	return s.GetChessMetas(ctx, s.getUserGameZSet(userID), page, count)
+	return s.GetChessMetas(ctx, s.makeUserGameZSet(userID), page, count)
 }
 
 func (s *State) GetAllChessMetas(ctx context.Context, page, count int) ([]ChessMeta, error) {
@@ -304,7 +308,6 @@ func (s *State) GetChessMetas(ctx context.Context, zSetName string, page, count 
 	if page < 1 {
 		page = 1
 	}
-
 	var start, stop int64
 	if count >= 0 {
 		start = int64((page - 1) * count)
@@ -314,9 +317,9 @@ func (s *State) GetChessMetas(ctx context.Context, zSetName string, page, count 
 		stop = -1
 	}
 
-	if err := s.ExpireChessStates(ctx, zSetName); err != nil {
-		return nil, fmt.Errorf("expire chess states: %w", err)
-	}
+	//if err := s.ExpireChessStates(ctx, zSetName); err != nil {
+	//	return nil, fmt.Errorf("expire chess states: %w", err)
+	//}
 
 	elements, err := s.Redis.Cache.ZRevRange(ctx, zSetName, start, stop).Result()
 	if err != nil {
@@ -326,19 +329,16 @@ func (s *State) GetChessMetas(ctx context.Context, zSetName string, page, count 
 		return nil, nil
 	}
 
-	strList, err := s.Redis.Cache.MGet(ctx, elements...).Result()
+	mgetList, err := s.Redis.Cache.MGet(ctx, elements...).Result()
 	if err != nil {
 		return nil, fmt.Errorf("get many chess states: %w", err)
 	}
 
-	views := make([]ChessMeta, 0, len(strList))
-	for _, val := range strList {
-		if val == nil {
-			continue
-		}
+	views := make([]ChessMeta, 0, len(mgetList))
+	for _, val := range mgetList {
 		b, ok := val.(string)
 		if !ok {
-			continue
+			return nil, fmt.Errorf("chess meta mget is not a string: %T", val)
 		}
 		cv, err := UnmarshalChessMeta([]byte(b))
 		if err != nil {
@@ -352,9 +352,9 @@ func (s *State) GetChessMetas(ctx context.Context, zSetName string, page, count 
 }
 
 func (s *State) GetChessStateCount(ctx context.Context) (int64, error) {
-	if err := s.ExpireChessStates(ctx, s.Redis.GamesZSet); err != nil {
-		return 0, err
-	}
+	//if err := s.ExpireChessStates(ctx, s.Redis.GamesZSet); err != nil {
+	//	return 0, err
+	//}
 	count, err := s.Redis.Cache.ZCard(ctx, s.Redis.GamesZSet).Result()
 	if err != nil {
 		return 0, fmt.Errorf("count chess states: %w", err)

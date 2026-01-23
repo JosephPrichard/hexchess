@@ -2,6 +2,7 @@ package chess
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -337,6 +338,109 @@ func TestGame_GetMoveNotation(t *testing.T) {
 			histMove := test.game.AnnotateHistMove(test.hm)
 			str := histMove.String()
 			assert.Equal(t, test.not, str)
+		})
+	}
+}
+
+func TestJumpMoveIndex(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		setup     func() Game
+		index     int
+		wantErr   error
+		wantMoves int
+	}{
+		{
+			name: "no move to jump to",
+			setup: func() Game {
+				return MakeStartGame()
+			},
+			index:   1,
+			wantErr: RewindOffsetError{Offset: -2, Len: 0},
+		},
+		{
+			name: "jumping to first move",
+			setup: func() Game {
+				game := MakeStartGame()
+				game.MakeMove(Move{From: HexStr("b1"), To: HexStr("b2")})
+				game.MakeMove(Move{From: HexStr("b7"), To: HexStr("b6")})
+				return game
+			},
+			index:     0,
+			wantMoves: 1,
+		},
+		{
+			name: "jumping to last move (noop)",
+			setup: func() Game {
+				game := MakeStartGame()
+				game.MakeMove(Move{From: HexStr("b1"), To: HexStr("b2")})
+				game.MakeMove(Move{From: HexStr("b7"), To: HexStr("b6")})
+				return game
+			},
+			index:     1,
+			wantMoves: 2,
+		},
+		{
+			name: "jumping to second move",
+			setup: func() Game {
+				game := MakeStartGame()
+				game.MakeMove(Move{From: HexStr("b1"), To: HexStr("b2")})
+				game.MakeMove(Move{From: HexStr("b7"), To: HexStr("b6")})
+				game.MakeMove(Move{From: HexStr("c2"), To: HexStr("c3")})
+				return game
+			},
+			index:     1,
+			wantMoves: 2,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			game, err := JumpMoveIndex(MakeStartBoard(), test.setup().Moves, test.index)
+
+			if test.wantErr != nil {
+				assert.Equal(t, err, test.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Len(t, game.Moves, test.wantMoves)
+		})
+	}
+}
+
+func TestGame_UndoMove(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		setup     func() Game
+		wantErr   error
+		wantMoves int
+	}{
+		{
+			name: "no moves to undo",
+			setup: func() Game {
+				return MakeStartGame()
+			},
+			wantErr: ErrNoMoveUndo,
+		},
+		{
+			name: "successfully undoing game with one move",
+			setup: func() Game {
+				game := MakeStartGame()
+				game.MakeMove(Move{From: HexStr("b1"), To: HexStr("b2")})
+				return game
+			},
+			wantMoves: 0,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			game := test.setup()
+
+			err := game.Undo(MakeStartBoard())
+
+			if test.wantErr != nil {
+				assert.Equal(t, err, test.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Len(t, game.Moves, test.wantMoves)
 		})
 	}
 }

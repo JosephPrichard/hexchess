@@ -9,40 +9,50 @@
 	const { moveList, onSelectMove, selectedMoveIndex, completeMessage }: MoveListProps = $props();
 </script>
 
-<div class="growing-scrollbox">
-	{#each moveList as moveOne, i (i)}
-		{#if i % 2 === 0}
-			{@const moveTwoIndex = i + 1}
-			{@const moveTwo = moveList[i + 1]}
-			<div class="move-row">
-				<div class="move-number">
-					{i / 2 + 1}.
+<div class="growing-scrollbox moves">
+	<div class="move-numbers">
+		{#each moveList as _, i (i)}
+			{#if i % 2 === 0}
+				<div class="move-row">
+					<div class="move-number" class:last-move-number={i === moveList.length-1}>
+						{i / 2 + 1}.
+					</div>
 				</div>
-				<button
-					class="move-button"
-					class:move-button-hover={onSelectMove !== undefined}
-					class:selected-move={selectedMoveIndex === i}
-					onclick={() => onSelectMove?.(i)}
-					tabindex="-1"
-				>
-					{moveOne}
-				</button>
-				{#if moveTwo}
+			{/if}
+		{/each}
+	</div>
+	<div class="move-pairs">
+		{#each moveList as moveOne, i (i)}
+			{#if i % 2 === 0}
+				{@const moveTwoIndex = i + 1}
+				{@const moveTwo = moveList[i + 1]}
+				<div class="move-row">
 					<button
 						class="move-button"
 						class:move-button-hover={onSelectMove !== undefined}
-						class:selected-move={selectedMoveIndex === moveTwoIndex}
-						onclick={() => onSelectMove?.(moveTwoIndex)}
+						class:selected-move={selectedMoveIndex === i}
+						onclick={() => onSelectMove?.(i)}
 						tabindex="-1"
 					>
-						{moveTwo}
+						{moveOne}
 					</button>
-				{:else}
-					<div class="move-button"></div>
-				{/if}
-			</div>
-		{/if}
-	{/each}
+					{#if moveTwo}
+						<button
+							class="move-button"
+							class:move-button-hover={onSelectMove !== undefined}
+							class:selected-move={selectedMoveIndex === moveTwoIndex}
+							onclick={() => onSelectMove?.(moveTwoIndex)}
+							tabindex="-1"
+						>
+							{moveTwo}
+						</button>
+					{:else}
+						<div class="move-button"></div>
+					{/if}
+				</div>
+			{/if}
+		{/each}
+	</div>
 	{#if completeMessage}
 		<div class="completed-message">
 			{completeMessage}
@@ -51,27 +61,45 @@
 </div>
 
 <style>
+	.moves {
+		display: flex;
+		flex-direction: row;
+	}
+
     .move-row {
         display: flex;
         flex-direction: row;
-        height: 40px;
+        height: 35px;
     }
 
+	.move-pairs {
+		flex: 0.8;
+		display: flex;
+		flex-direction: column;
+	}
+
+    .move-numbers {
+		flex: 0.2;
+		height: fit-content;
+        box-shadow: 4px 4px 4px -4px rgba(0, 0, 0, 0.6);
+	}
+
+	.last-move-number {
+        /*border-bottom-right-radius: 3px;*/
+	}
+
     .move-number {
-        flex: 0.2;
-		min-width: 40px;
-        line-height: 40px;
+        width: 100%;
+        line-height: 35px;
         text-align: center;
         background-color: rgb(48, 48, 48);
-        border-right: 1px solid rgb(58, 58, 58);
-        border-left: 1px solid rgb(58, 58, 58);
     }
 
     .move-button {
         all: unset;
         cursor: pointer;
-        flex: 0.4;
-        line-height: 40px;
+        flex: 0.5;
+        line-height: 35px;
         padding-left: 20px;
         border-radius: 1px;
         -moz-user-select: none;
@@ -81,11 +109,11 @@
     }
 
     .move-button-hover:hover {
-        border: rgb(65, 65, 65) solid 1px;
+        background-color: rgba(51, 153, 255, 0.25);
     }
 
     .selected-move {
-        background-color: rgba(51, 153, 255, 0.25);
+        background-color: rgba(51, 153, 255, 0.75) !important;
     }
 
     .completed-message {

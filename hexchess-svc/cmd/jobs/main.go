@@ -51,7 +51,7 @@ func main() {
 		if err := state.SyncLeaderboard(ctx); err != nil {
 			logutil.FatalErr("jobs leaderboard", err)
 		}
-		log.Printf("finished syncing leaderboard: %v", time.Now().Sub(start))
+		log.Printf("finished syncing leaderboard job: %v", time.Now().Sub(start))
 	default:
 		log.Fatalf("unknown job: %s", *jobName)
 	}

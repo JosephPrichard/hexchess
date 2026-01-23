@@ -200,7 +200,7 @@ func verifyUser(ctx context.Context, query *db.Queries, username string, inputPa
 		if errors.Is(err, pgx.ErrNoRows) {
 			return u, ErrUserNotFound
 		}
-		return u, fmt.Errorf("select user '%s' by login: %w", username, err)
+		return u, fmt.Errorf("select user=%s by login: %w", username, err)
 	}
 
 	isExceedAttempts := login.LoginAttempts > 0 && login.LoginAttempts%LoginAttemptsDivisor == 0
@@ -247,7 +247,7 @@ func (s *State) SelectOrInsertGoogleUser(ctx context.Context, googleAccountID st
 	if errors.Is(err, pgx.ErrNoRows) {
 		isCreated = false
 	} else if err != nil {
-		return u, fmt.Errorf("select user '%s' by google account id: %w", googleAccountID, err)
+		return u, fmt.Errorf("select user=%s by google account id: %w", googleAccountID, err)
 	} else {
 		isCreated = true
 	}
@@ -260,7 +260,7 @@ func (s *State) SelectOrInsertGoogleUser(ctx context.Context, googleAccountID st
 			GoogleAccountID: pgtype.Text{String: googleAccountID, Valid: true},
 		})
 		if err != nil {
-			return u, fmt.Errorf("insert google user '%s': %w", googleAccountID, err)
+			return u, fmt.Errorf("insert google user=%s: %w", googleAccountID, err)
 		}
 		u = VerifiedUser{
 			ID:       row.ID,

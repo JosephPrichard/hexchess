@@ -61,7 +61,6 @@ func MakeAwsClients(ctx context.Context, cfg AwsConfig) (Aws, error) {
 		S3Client: s3.NewFromConfig(awsCfg, func(o *s3.Options) {
 			o.BaseEndpoint = aws.String(cfg.AwsEndpoint)
 			o.UsePathStyle = true
-			//o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
 		}),
 	}, nil
 }

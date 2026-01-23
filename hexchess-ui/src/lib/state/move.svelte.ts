@@ -15,6 +15,10 @@ export function makeMoveState() {
 		state.moveIndex = i;
 	}
 
+	function deSelectMove() {
+		state.moveIndex = undefined;
+	}
+
 	function flip() {
 		state.isWhitePerspective = !state.isWhitePerspective;
 	}
@@ -39,5 +43,5 @@ export function makeMoveState() {
 		state.moveCount = count;
 	}
 
-	return { state, selectMove, flip, goLeft, goRight, updateMoveCount }
+	return { state, selectMove, deSelectMove, flip, goLeft, goRight, updateMoveCount }
 }
