@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getPiecePoints, makePieceWhite, piecenames } from '$lib/utils/chess.js';
+	import { getPiecePoints, makePieceWhite, piecenames } from '$lib/service/chess';
 
 	const { myPieces, theirPieces }: { myPieces?: number[]; theirPieces?: number[] } = $props();
 

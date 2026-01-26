@@ -1,24 +1,21 @@
 <script lang="ts">
 	import Board from '$lib/components/chess/Board.svelte';
 	import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
-	import { ChessBoard } from '$lib/pb/messages';
-	import { makeMoveState } from '$lib/state/move.svelte';
-	import { deserializeHexList, isPromotion } from '$lib/utils/chess.js';
+	import { isPromotion } from '$lib/service/chess';
 	import type { Hex } from '$lib/api/models';
-	import { getNotificationsContext } from '$lib/utils/context';
 	import SmallTrashIcon from '$lib/components/icons/SmallTrashIcon.svelte';
 	import RedoIcon from '$lib/components/icons/RedoIcon.svelte';
 	import PieceEditor from '$lib/components/chess/PieceEditor.svelte';
 	import EditIcon from '$lib/components/icons/EditIcon.svelte';
-	import KingIcon from '$lib/components/icons/MoveIcon.svelte';
-	import { boardToFenWasm, fenToGameWasm, getInitialGameWasm, getMoveNotationsWasm, getMovesWasm, makeMoveWasm } from '$lib/api/wasm';
+	import KingIcon from '$lib/components/icons/KingIcon.svelte';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
-	import TurnWrapper from '$lib/components/chess/TurnWrapper.svelte';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import Dropdown from '$lib/components/util/Dropdown.svelte';
-	import { makeGameState } from '$lib/state/game.svelte';
+	import { makeSandboxState } from '$lib/state/sandbox.svelte.js';
 	import Banner from '$lib/Banner.svelte';
-	import { BadPromotion, type BadPromotionType, type Promotion } from '$lib/components/chess/types';
+	import { CancelPromotion, type BadPromotionType, type Promotion } from '$lib/components/chess/types';
+	import { wasm } from '$lib/api/wasm';
+	import type { ChessBoard } from '$lib/pb/messages';
 
 	export interface SandboxProps {
 		fen: string;
@@ -28,21 +25,27 @@
 
 	let boardElement: HTMLElement | undefined = $state(undefined);
 
-	const move = makeMoveState();
 	const selection = makeSelectionState();
-	const sandbox = makeGameState();
+	const sandbox = makeSandboxState();
+
+	const game = $derived(sandbox.state.game);
+	const isWhiteTurn = $derived(game?.board?.isWhiteTurn);
+	const moves = $derived(game?.moves || []);
+	const moveIndex = $derived(moves.length - 1);
 
 	let mode: "edit" | "play" = $state("edit");
-	let isTrashcanSelect = $state(false);
-
-	let hoveringHex: Hex | undefined = $state(undefined);
-	let selectedPiece: number | undefined = $state(undefined);
-
+	let isTrashcanEdit = $state(false);
 	let fen = $state(props.fen);
 
+	let hoveringHex: Hex | undefined = $state(undefined);
+	let editPiece: number | undefined = $state(undefined);
+
+	let isWhitePerspective = $state(true);
+
+	const flip = () => isWhitePerspective = !isWhitePerspective;
+
 	async function onSelectPiece(hex: Hex) {
-		const game = sandbox.state.game;
-		if (isTrashcanSelect) {
+		if (isTrashcanEdit && mode === "edit") {
 			sandbox.removePiece(hex);
 			onDeSelectPiece();
 		} else {
@@ -50,19 +53,12 @@
 		}
 	}
 
-	function onDeSelectPiece() {
-		selection.deSelect();
-	}
+	const onDeSelectPiece = () => selection.deSelect();
 
-	async function handleSetBoardTurn(value: string) {
-		const turn = value == "WHITE";
-		sandbox.setTurn(turn)
-	}
+	const handleSetBoardTurn = (value: string) => sandbox.setTurn(value == "WHITE");
 
 	async function onDropPieceSet(hex: Hex) {
-		if (selectedPiece && !isTrashcanSelect) {
-			sandbox.placePiece(hex, selectedPiece);
-		}
+		if (editPiece && !isTrashcanEdit) sandbox.placePiece(hex, editPiece);
 	}
 
 	async function onClickClearBoard() {
@@ -71,102 +67,96 @@
 	}
 
 	async function onPieceMove(from: Hex, to: Hex) {
-		const game = sandbox.state.game;
 		switch (mode) {
 		case "edit":
-			sandbox.movePiece(from, to);
+			onEditMove(from, to);
 			break;
 		case "play":
-			if (isPromotion(to)) {
-				sandbox.setPromotion({from, to});
-			} else {
-				const next = await makeMoveWasm($state.snapshot(game), {from, to, promotion: 0});
-				if (next !== undefined) {
-					sandbox.setGame(next);
-				}
-			}
+			await onPlayMove(from, to);
 			break;
 		}
+	}
+
+	function onEditMove(from: Hex, to: Hex) {
+		sandbox.movePiece(from, to);
 		onDeSelectPiece();
+	}
+
+	async function onPlayMove(from: Hex, to: Hex) {
+		console.log(to);
+		if (isPromotion(game, from, to)) {
+			sandbox.setPromotion({ from, to });
+			onDeSelectPiece();
+		} else {
+			const didMove = await sandbox.makeMove({ from, to, promotion: 0 });
+			if (!didMove) return;
+			onDeSelectPiece();
+		}
 	}
 
 	async function onCompletePromotion(promotion: Promotion | BadPromotionType) {
-		if (sandbox.state.promotion === undefined) return;
-		if (promotion === BadPromotion) {
+		if (sandbox.state.promotion === undefined) return; // never trigger a promotion if there is not an active promotion
+		if (promotion === CancelPromotion) {
 			sandbox.revertPromotion();
 		} else {
-			const move = { from: sandbox.state.promotion.from, to: sandbox.state.promotion.to, promotion: promotion.kind };
-			const next = await makeMoveWasm($state.snapshot(sandbox.state.prevGame), move);
-			if (next !== undefined) {
-				sandbox.setGame(next);
-			} else {
-				sandbox.revertPromotion();
+			const didMove = await sandbox.makeMove({ from: sandbox.state.promotion.from, to: sandbox.state.promotion.to, promotion: promotion.kind });
+			if (didMove) {
+				onDeSelectPiece();
 			}
 		}
-		sandbox.setPromotion(undefined);
 	}
 
 	async function setMode(newMode: "edit" | "play") {
-		const game = sandbox.state.game;
-		const board = $state.snapshot(game?.board);
-		if (!board) {
-			return
-		}
-		const next = await getMovesWasm(board);
-		if (next !== undefined) {
-			sandbox.setGame(next);
-		}
-		selectedPiece = undefined;
 		mode = newMode;
-	}
-
-	async function loadInitialGame() {
-		sandbox.setGame(await getInitialGameWasm());
+		editPiece = undefined;
 		onDeSelectPiece();
+		await sandbox.initNewBoard();
 	}
 
-	async function boardFromFenURL(fenInput: string) {
+	async function onUpdateFen(fenInput: string) {
+		const game = await wasm.fenToGame(fenInput);
+		if (!game) return;
+
+		sandbox.setGame(game);
+		await boardToFenURL(game.board);
+	}
+
+	async function gameFromFenURL(fenInput: string) {
 		let isInitialGame = false;
 		if (fenInput != "") {
-			const game = await fenToGameWasm(fenInput);
-			if (game) {
-				sandbox.setGame(game);
-			}
+			const game = await wasm.fenToGame(fenInput);
+			if (game) sandbox.setGame(game);
 		} else {
 			isInitialGame = true;
 		}
 		if (isInitialGame) {
-			await loadInitialGame();
+			await sandbox.setInitialGame();
 		}
 	}
 
-	async function fenURLFromBoard(board?: ChessBoard) {
-		const f = await boardToFenWasm(board);
+	async function boardToFenURL(board?: ChessBoard) {
+		const f = await wasm.boardToFen(board);
 		if (!f) return;
 		fen = f;
-		history.replaceState({}, "", `/sandbox?fen=${encodeURIComponent(fen)}`);
-	}
-
-	async function onChangeFen(fenInput: string) {
-		const game = await fenToGameWasm(fenInput);
-		if (game) {
-			sandbox.setGame(game);
-			await fenURLFromBoard(game.board);
-		}
+		history.replaceState({}, "", `/sandbox?fen=${encodeURIComponent(fen)}`)
 	}
 
 	$effect(() => {
-		boardFromFenURL(props.fen);
+		gameFromFenURL(props.fen);
 	});
 
 	$effect(() => {
-		const game = sandbox.state.game;
-		fenURLFromBoard(game?.board)
+		boardToFenURL(game?.board);
 	});
 
-	const draggable = $derived.by(() => mode == "play" ? "turn" : "anyone");
+	const prevMove = $derived.by(() => {
+		if (!moveIndex) return moves.at(-1);
+		return moves?.[moveIndex]
+	});
+
+	const draggable = $derived.by(() => mode === "play" ? "turn" : "anyone");
 	const potentialMoves = $derived.by(() => mode === "play" ? selection.getPotentialMoves() : undefined);
-	const awaitingNotList = $derived.by(async () => await getMoveNotationsWasm(sandbox.state.game?.moves));
+	const awaitingNotList = $derived.by(async () => await wasm.getMoveNotations(game?.moves));
 </script>
 <svelte:head>
 	<title>Sandbox - Hexchess</title>
@@ -175,16 +165,16 @@
 <div class="center-horizontal-container">
 	<div class="center-vertical-container" style="align-items: stretch;">
 		<Board
-			board={sandbox.state.game?.board}
-			isWhitePerspective={move.state.isWhitePerspective}
+			board={game?.board}
+			isWhitePerspective={isWhitePerspective}
 			fen={true}
-			onChangeFen={onChangeFen}
+			onChangeFen={onUpdateFen}
 			bind:boardElement={boardElement}
 			draggable={draggable}
 			selected={selection.state.hex}
 			promotion={sandbox.state.promotion}
 			bind:hovering={hoveringHex}
-			prevMove={sandbox.getPrevMove()}
+			prevMove={prevMove}
 			potentialMoves={potentialMoves}
 			onSelectPiece={onSelectPiece}
 			onDeSelectPiece={onDeSelectPiece}
@@ -194,61 +184,67 @@
 		/>
 		<div class="side-bar side-table-capped" class:side-bar-short={mode === "edit"} class:side-bar-long={mode === "play"}>
 			{#if mode === "play"}
-				<div class="side-table growing-box sandbox-display">
-					<TurnWrapper isWhitePerspective={move.state.isWhitePerspective} isWhiteTurn={sandbox.state.game?.board?.isWhiteTurn}>
-						{#await awaitingNotList then notList}
-							<MoveList moveList={notList} />
-						{/await}
-					</TurnWrapper>
+				<div class="side-table growing-box">
+					<div class="side-table-header">
+						<div class="turn-circle" class:turn-circle-green={Boolean(isWhiteTurn) !== isWhitePerspective}></div>
+						{isWhitePerspective ? "Black's Turn" : "White's Turn"}
+					</div>
+					{#await awaitingNotList then notList}
+						<MoveList moveList={notList} selectedMoveIndex={moveIndex} />
+					{/await}
+					<div class="side-table-header-bottom side-table-header-bottom-shadow">
+						<div class="turn-circle" class:turn-circle-green={Boolean(isWhiteTurn) === isWhitePerspective}></div>
+						{isWhitePerspective ? "White's Turn" : "Black's Turn"}
+					</div>
 				</div>
 			{:else}
 				<div class="growing-box sandbox-display">
 					<Dropdown
 						options={[{label: "White's Turn", value: "WHITE"}, {label: "Black's Turn", value: "BLACK"}]}
-						selected={sandbox.state.game?.board?.isWhiteTurn ? "WHITE" : "BLACK"}
+						selected={game?.board?.isWhiteTurn ? "WHITE" : "BLACK"}
 						onChange={handleSetBoardTurn}
 					/>
 					<div class="piece-panels-container">
 						<PieceEditor
-							isWhitePerspective={move.state.isWhitePerspective}
-							bind:selectedPiece={selectedPiece}
+							isWhitePerspective={isWhitePerspective}
+							bind:selectedPiece={editPiece}
 							bind:boardElement={boardElement}
 							bind:hoveringHexagon={hoveringHex}
 							onDropPiece={onDropPieceSet}
-							bind:isTrashSelector={isTrashcanSelect}
+							bind:isTrashSelector={isTrashcanEdit}
 						/>
 					</div>
 				</div>
 			{/if}
 			<div class="sandbox-buttons">
 				{#if mode === "play" }
-					<button class="button-transparent side-bar-button"  onclick={() => setMode("edit")}>
+					<button class="button button-light-grey side-bar-button"  onclick={() => setMode("edit")}>
 						<EditIcon />
 						<span class="button-text">
 							Edit Board
 						</span>
 					</button>
 				{:else}
-					<button class="button-transparent side-bar-button" onclick={() => setMode("play")}>
+					<button class="button button-small-green side-bar-button" onclick={() => setMode("play")}>
 						<KingIcon />
 						<span class="button-text">
-							Make Moves
+							Load Board
 						</span>
 					</button>
 				{/if}
-				<button class="button-transparent side-bar-button" onclick={move.flip}>
-					<FlipIcon />
+				<button class="button button-light-grey side-bar-button" onclick={flip}>
+					<FlipIcon color="#D2D2D2"/>
 					<span class="button-text">
 						Flip Board
 					</span>
 				</button>
-				<button class="button-transparent side-bar-button" onclick={loadInitialGame}>
+				<button class="button button-light-grey side-bar-button" onclick={sandbox.setInitialGame}>
 					<RedoIcon />
 					<span class="button-text">
 						Reset Board
 					</span>
 				</button>
-				<button class="button-transparent side-bar-button" onclick={onClickClearBoard}>
+				<button class="button button-small-red side-bar-button" onclick={onClickClearBoard}>
 					<SmallTrashIcon />
 					<span class="button-text">
 						Clear Board
@@ -273,27 +269,22 @@
 	}
 
 	.side-bar {
-		width: 165px;
+        width: calc(70px * 3);
         display: flex;
         flex-direction: column;
 		gap: 10px;
 	}
 
-    .side-bar-short {
-        width: 165px;
-        margin-right: calc(225px - 165px);
-    }
-
-    .side-bar-long {
-        width: 225px;
-    }
-
 	.side-bar-button {
 		display: flex;
 		flex-direction: row;
         align-items: center;
-        gap: 10px;
-		width: calc(100% - 15px);
+        justify-content: center;
+        padding: 5px 0;
+		margin-top: 10px;
+		margin-bottom: 10px;
+        gap: 5px;
+		width: 100%;
 	}
 
 	.sandbox-display {

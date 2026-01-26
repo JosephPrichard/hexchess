@@ -135,7 +135,7 @@
 
     .notifications-box {
         width: 350px;
-        z-index: 10000;
+        z-index: 10;
     }
 
     .notification-green {
@@ -150,7 +150,7 @@
 		border-radius: 5px;
         display: flex;
         flex-direction: column;
-        z-index: 10000;
+        z-index: 10;
         margin: 20px;
         color: white;
         /*background-color: rgb(43, 43, 43);*/

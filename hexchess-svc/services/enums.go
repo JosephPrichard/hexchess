@@ -2,6 +2,8 @@ package svc
 
 import (
 	"fmt"
+	"golang.org/x/exp/slices"
+	"time"
 )
 
 type ReplayResult int
@@ -71,6 +73,38 @@ const (
 	ModeCorrespondence7
 	ModeCorrespondence14
 )
+
+var RealTimeModes = []GameMode{ModeTimed1Plus0, ModeTimed3Plus2, ModeTimed15Plus10}
+
+func (m GameMode) IsRealTime() bool {
+	return slices.Contains(RealTimeModes, m)
+}
+
+func (m GameMode) TotalTime() time.Duration {
+	switch m {
+	case ModeTimed1Plus0:
+		return 1 * time.Minute
+	case ModeTimed3Plus2:
+		return 3 * time.Minute
+	case ModeTimed15Plus10:
+		return 15 * time.Minute
+	default:
+		return 0
+	}
+}
+
+func (m GameMode) TimeIncr() time.Duration {
+	switch m {
+	case ModeTimed1Plus0:
+		return 0 * time.Second
+	case ModeTimed3Plus2:
+		return 2 * time.Second
+	case ModeTimed15Plus10:
+		return 10 * time.Second
+	default:
+		return 0
+	}
+}
 
 func (m GameMode) String() string {
 	switch m {

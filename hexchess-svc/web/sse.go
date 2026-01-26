@@ -138,7 +138,7 @@ func (app *App) HandleActiveConn(w SSEWriter, _ *http.Request) error {
 
 	w.writeEvent(MetaEvent, sseID)
 
-	stopTimer := timeutil.Every(svc.ActiveUserMaxage/2, func() {
+	stopTimer := timeutil.Every(svc.ActiveUserMaxage-time.Second, func() {
 		if err := app.State.RetainActiveUser(ctx, sseID); err != nil {
 			slog.ErrorContext(ctx, "failed to retain active user", "sseID", sseID, "err", err)
 		}

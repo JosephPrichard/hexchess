@@ -8,6 +8,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
+	"hexchess-svc/pkg/errutil"
 	"hexchess-svc/services"
 	"log/slog"
 	"net/http"
@@ -23,22 +24,22 @@ type GameSocketContext struct {
 func writeGameMsgErr(ctx context.Context, conn *websocket.Conn, gameID string, err error) {
 	wsErr := ErrWsFatal
 	switch {
-	case errors.Is(err, svc.ErrFinishedGame):
+	case errutil.IsType[svc.ErrFinishedGame](err):
 		wsErr = ErrWsFinishedGame
 	case errors.Is(err, svc.ErrForfeitPlayer):
 		wsErr = ErrWsForfeitPlayer
-	case errors.Is(err, svc.ErrStartedGame):
+	case errutil.IsType[svc.ErrStartedGame](err):
 		wsErr = ErrWsStartedGame
-	case errors.Is(err, svc.ErrTurn):
+	case errutil.IsType[svc.ErrTurn](err):
 		wsErr = ErrWsTurn
-	case errors.Is(err, svc.ErrInvalidMove):
+	case errutil.IsType[svc.ErrInvalidMove](err):
 		wsErr = ErrWsInvalidMove
 	case errors.Is(err, svc.ErrNoChessState):
 		// if the state cannot be found, it has expired while an inactive connection has been open
 		wsErr = ErrWsExpiration
 	case errors.Is(err, svc.ErrUndoCurrPlayer):
 		wsErr = ErrWsUndoCurrPlayer
-	case errors.Is(err, chess.ErrNoMoveUndo), errors.Is(err, svc.ErrUndoNoop), errors.Is(err, svc.ErrNoUndo):
+	case errors.Is(err, svc.ErrNoMoveUndo), errors.Is(err, svc.ErrUndoNoop), errors.Is(err, svc.ErrNoUndo):
 		wsErr = ErrWsUndoAction
 	}
 

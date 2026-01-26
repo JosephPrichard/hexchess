@@ -73,9 +73,9 @@ func assertGame(t *testing.T, wantGame *chess.Game, result js.Value) {
 }
 
 func TestGetInitialGame(t *testing.T) {
-	w := makeTestWasm()
+	wasm := makeTestWasm()
 
-	result := w.GetInitialGame(js.Undefined(), nil).(js.Value)
+	result := wasm.GetInitialGame(js.Undefined(), nil).(js.Value)
 
 	if !isUint8Array(result) {
 		t.Fatal("expected return value to be Uint8Array")
@@ -90,7 +90,7 @@ func TestGetInitialGame(t *testing.T) {
 }
 
 func TestMakeMove(t *testing.T) {
-	w := makeTestWasm()
+	wasm := makeTestWasm()
 
 	for _, test := range []struct {
 		name     string
@@ -137,7 +137,7 @@ func TestMakeMove(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			result := w.MakeMove(js.Undefined(), test.inputs).(js.Value)
+			result := wasm.MakeMove(js.Undefined(), test.inputs).(js.Value)
 
 			assertGame(t, test.wantGame, result)
 		})
@@ -145,11 +145,11 @@ func TestMakeMove(t *testing.T) {
 }
 
 func TestGetMoves(t *testing.T) {
-	w := makeTestWasm()
+	wasm := makeTestWasm()
 
 	input := makeInitialBoardJs(t)
 
-	result := w.GetMoves(js.Undefined(), []js.Value{input}).(js.Value)
+	result := wasm.GetMoves(js.Undefined(), []js.Value{input}).(js.Value)
 
 	if !isUint8Array(result) {
 		t.Fatal("expected return value to be Uint8Array")
@@ -167,7 +167,7 @@ func TestGetMoves(t *testing.T) {
 }
 
 func TestFenToGame(t *testing.T) {
-	w := makeTestWasm()
+	wasm := makeTestWasm()
 
 	for _, test := range []struct {
 		name     string
@@ -192,7 +192,7 @@ func TestFenToGame(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			result := w.FenToGame(js.Undefined(), []js.Value{js.ValueOf(test.fen)}).(js.Value)
+			result := wasm.FenToGame(js.Undefined(), []js.Value{js.ValueOf(test.fen)}).(js.Value)
 
 			if test.wantGame != nil {
 				ret0 := result.Index(0)
@@ -220,11 +220,11 @@ func TestFenToGame(t *testing.T) {
 }
 
 func TestBoardToFen(t *testing.T) {
-	w := makeTestWasm()
+	wasm := makeTestWasm()
 
 	input := makeInitialBoardJs(t)
 
-	result := w.BoardToFen(js.Undefined(), []js.Value{input}).(js.Value)
+	result := wasm.BoardToFen(js.Undefined(), []js.Value{input}).(js.Value)
 
 	if result.Type() != js.TypeString {
 		t.Fatalf("expected string, got %s", result.Type())
@@ -236,7 +236,7 @@ func TestBoardToFen(t *testing.T) {
 }
 
 func TestGetMoveNotations(t *testing.T) {
-	w := makeTestWasm()
+	wasm := makeTestWasm()
 
 	histMoves := []chess.HistMove{{
 		PieceMove: chess.PieceMove{Piece: chess.WhitePawn, From: chess.HexStr("k1"), To: chess.HexStr("f6")},
@@ -245,7 +245,7 @@ func TestGetMoveNotations(t *testing.T) {
 	requireNoError(t, err)
 	input := uint8ArrayFromBytes(bytes)
 
-	result := w.GetMoveNotations(js.Undefined(), []js.Value{input}).(js.Value)
+	result := wasm.GetMoveNotations(js.Undefined(), []js.Value{input}).(js.Value)
 
 	if result.Type() != js.TypeObject {
 		t.Fatalf("expected array, got %s", result.Type())
@@ -267,7 +267,7 @@ func TestGetMoveNotations(t *testing.T) {
 }
 
 func TestGameAtMoveIndex(t *testing.T) {
-	w := makeTestWasm()
+	wasm := makeTestWasm()
 
 	for _, test := range []struct {
 		name     string
@@ -310,8 +310,7 @@ func TestGameAtMoveIndex(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			result := w.GameAtMoveIndex(js.Undefined(), test.inputs).(js.Value)
-
+			result := wasm.GameAtMoveIndex(js.Undefined(), test.inputs).(js.Value)
 			assertGame(t, test.wantGame, result)
 		})
 	}

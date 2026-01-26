@@ -6,23 +6,16 @@
 	import { makeMessage } from '$lib/utils/error';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import ReplayPanel from '$lib/components/user/ReplayPanel.svelte';
-	import { type ChessGame, type HistMove, type NotMoveStep, type PieceMove } from '$lib/pb/messages';
-	import { type Hex, type ReplayModel, TimedGameModes } from '$lib/api/models';
+	import { type ChessGame, type NotMoveStep } from '$lib/pb/messages';
+	import { type Hex, type ReplayModel } from '$lib/api/models';
 	import services from '$lib/api/services';
 	import { makeMoveState } from '$lib/state/move.svelte';
-	import TurnWrapper from '$lib/components/chess/TurnWrapper.svelte';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import Banner from '$lib/Banner.svelte';
 	import PlayIcon from '$lib/components/icons/PlayIcon.svelte';
 	import StopIcon from '$lib/components/icons/PauseIcon.svelte';
-	import { gameAtMoveIndex } from '$lib/api/wasm';
-	import { defaultBoard } from '$lib/utils/chess';
-
-	interface MoveStep {
-		notMove: string;
-		pm?: PieceMove;
-		hm?: HistMove;
-	}
+	import Timer from '$lib/components/chess/Timer.svelte';
+	import { type CancelCountdown, gameAtStepIndex, getStepTimers, startCountdown, type TimerType } from './service';
 
 	export interface ReplayProps {
 		replay: ReplayModel;
@@ -31,70 +24,117 @@
 	const { data }: { data: ReplayProps } = $props();
 	const { replay } = $derived(data);
 
-	const isRealTimeReplay = $derived(TimedGameModes.includes(replay.mode));
-
 	const move = makeMoveState();
 	const selection = makeSelectionState();
 
 	let initialGame: ChessGame | undefined = $state(undefined);
 	let game: ChessGame | undefined = $state(undefined);
-	let moveList: MoveStep[] = $state([]);
-	let moveListErr: string | undefined = $state(undefined);
+	let steps: NotMoveStep[] = $state([]);
+	let moveHistErr: string | undefined = $state(undefined);
+	let isWhitePerspective = $state(false);
 
 	let isPlaying = $state(false);
+	let stepTimer: TimerType | undefined = $state(undefined);
+
+	let countdown: CancelCountdown | undefined = undefined;
+
+	const stepIndex = $derived.by(() => move.state.moveIndex);
+	const isWhiteTurn = $derived.by(() => game?.board?.isWhiteTurn);
+	const prevMove = $derived.by(() => steps.length > 0 && stepIndex !== undefined ? steps[stepIndex]?.pm : undefined);
+	const rootNotationList = $derived.by(() => steps.map(move => move.notMove));
 
 	async function initMoveList(replayId: string) {
 		const [data, err] = await services.getReplayMoveHistory(replayId);
 		if (data) {
 			initialGame = data.initialGame;
-			moveList = data.steps.map((step) => ({ notMove: step.notMove, pm: step.pm, hm: step.hm }));
+			steps = data.steps;
 		} else {
-			moveListErr = makeMessage(err);
+			moveHistErr = makeMessage(err);
 		}
 	}
+
+	function stepCountdown(remaining: number) {
+		if (!stepTimer) return;
+		const isWhiteTurn = stepIndex === undefined || stepIndex % 2 == 0;
+		if (!isWhiteTurn) {
+			stepTimer.whiteTimerMs = remaining + stepTimer.endWhiteTimerMs;
+		} else {
+			stepTimer.blackTimerMs = remaining + stepTimer.endBlackTimerMs;
+		}
+	}
+
+	function onCompleteCountdown() {
+		const diffMs = stepTimer?.diffMs ?? 0;
+		if (diffMs > 0) {
+			move.goRight();
+			beginCountdown();
+		} else {
+			cancelCountdown();
+		}
+	}
+
+	function cancelCountdown() {
+		if (countdown) countdown();
+		countdown = undefined;
+		isPlaying = false;
+	}
+
+	function beginCountdown() {
+		onDeSelectPiece();
+		if (!stepTimer) return;
+		countdown = startCountdown(stepTimer.diffMs, stepCountdown, onCompleteCountdown);
+	}
+
+	function togglePlayPause() {
+		isPlaying = !isPlaying;
+		if (isPlaying) {
+			beginCountdown();
+		} else {
+			cancelCountdown();
+		}
+	}
+
+	async function onSelectMove(index: number) {
+		cancelCountdown();
+		move.selectMove(index);
+	}
+
+	function goLeft() {
+		cancelCountdown();
+		move.goLeft();
+	}
+
+	function goRight() {
+		cancelCountdown();
+		move.goRight();
+	}
+
+	const onSelectPiece = (hex: Hex) => selection.select(game, hex);
+	const onDeSelectPiece = () => selection.deSelect();
+	const flip = () => isWhitePerspective = !isWhitePerspective;
 
 	$effect(() => {
 		initMoveList(String(replay.id));
 	});
 
 	$effect(() => {
-		move.updateMoveCount(moveList.length);
+		move.updateMoveCount(steps.length);
 	});
-
-	const togglePlayPause = () => isPlaying = !isPlaying;
-
-	async function onSelectMove(index: number) {
-		move.selectMove(index);
-		onDeSelect();
-	}
-
-	const onSelect = (hex: Hex) => selection.select(game, hex);
-	const onDeSelect = () => selection.deSelect();
-
 
 	$effect(() => {
-		const moveIndex = move.state.moveIndex;
-		if (moveIndex === undefined) {
-			game = initialGame
-			return;
-		}
-		gameAtMoveIndex(initialGame?.board || defaultBoard, moveList.map(m => m.hm), moveIndex).then(g => game = g);
+		gameAtStepIndex(initialGame, steps, stepIndex).then(g => game = g);
 	});
 
-	const prevMove = $derived.by(() => {
-		const moveIndex = move.state.moveIndex;
-		return moveList.length > 0 && moveIndex !== undefined ?
-			moveList[moveIndex - 1]?.pm :
-			undefined;
+	$effect(() => {
+		stepTimer = getStepTimers(stepIndex, steps, replay.mode);
 	});
-	const rootNotationList = $derived.by(() => moveList.map(move => move.notMove));
 </script>
 
 <svelte:head>
 	<title>Replay - Hexchess</title>
 </svelte:head>
 <Banner />
-{#if moveListErr}
+{#if moveHistErr}
 	<div class="bottom-right-error">
 		Unable to retrieve replay's move sequence.
 	</div>
@@ -105,45 +145,56 @@
 			board={game?.board}
 			fen={true}
 			potentialMoves={selection.getPotentialMoves()}
-			draggable="anyone"
-			isWhitePerspective={move.state.isWhitePerspective}
+			draggable="none"
+			isWhitePerspective={isWhitePerspective}
 			prevMove={prevMove}
-			onSelectPiece={onSelect}
-			onDeSelectPiece={onDeSelect}
+			selected={selection.state.hex}
+			onSelectPiece={onSelectPiece}
+			onDeSelectPiece={onDeSelectPiece}
 		/>
 		<div class="side-table side-table-capped" style:width="300px">
 			<ReplayPanel replay={replay} />
-			<TurnWrapper isWhitePerspective={move.state.isWhitePerspective} isWhiteTurn={game?.board?.isWhiteTurn} isEdged>
-				<MoveList
-					moveList={rootNotationList}
-					onSelectMove={onSelectMove}
-					selectedMoveIndex={move.state.moveIndex}
-				/>
-			</TurnWrapper>
-			{#if isRealTimeReplay}
-				<div class="side-table-footer" style="padding: 5px">
-					<div class="move-table-nav-buttons">
-						{#if !isPlaying}
-							<button title="Play" class="button-transparent" onclick={togglePlayPause}>
-								<PlayIcon />
-							</button>
-						{:else}
-							<button title="Stop" class="button-transparent" onclick={togglePlayPause}>
-								<StopIcon />
-							</button>
-						{/if}
+			<div class="side-table-header">
+				<div class="turn-circle" class:turn-circle-green={Boolean(isWhiteTurn) !== isWhitePerspective}></div>
+				{isWhitePerspective ? "Black to move" : "White to move"}
+			</div>
+			<MoveList
+				moveList={rootNotationList}
+				onSelectMove={onSelectMove}
+				selectedMoveIndex={move.state.moveIndex}
+			/>
+			<div class="side-table-header-bottom side-table-header-bottom-border">
+				<div class="turn-circle" class:turn-circle-green={Boolean(isWhiteTurn) === isWhitePerspective}></div>
+				{isWhitePerspective ? "White to move" : "Black to move"}
+			</div>
+			{#if stepTimer !== undefined}
+				<div class="replay-timers">
+					<div class="replay-timer left">
+						<Timer value={stepTimer.whiteTimerMs} size="sm" color="white"/>
+					</div>
+					<div class="replay-timer right">
+						<Timer value={stepTimer.blackTimerMs} size="sm" color="black"/>
 					</div>
 				</div>
 			{/if}
 			<div class="side-table-footer">
 				<div class="move-table-nav-buttons">
-					<button title="Previous Move" class="button-transparent" onclick={move.goLeft}>
+					{#if !isPlaying}
+						<button title="Play" class="button-transparent" onclick={togglePlayPause}>
+							<PlayIcon />
+						</button>
+					{:else}
+						<button title="Stop" class="button-transparent" onclick={togglePlayPause}>
+							<StopIcon />
+						</button>
+					{/if}
+					<button title="Previous Move" class="button-transparent" onclick={goLeft}>
 						<LeftIcon />
 					</button>
-					<button title="Flip Board" class="button-transparent" onclick={move.flip}>
-						<FlipIcon />
+					<button title="Flip Board" class="button-transparent" onclick={flip}>
+						<FlipIcon color="rgb(100,100,100)"/>
 					</button>
-					<button title="Next Move" class="button-transparent" onclick={move.goRight}>
+					<button title="Next Move" class="button-transparent" onclick={goRight}>
 						<RightIcon />
 					</button>
 				</div>
@@ -151,3 +202,29 @@
 		</div>
 	</div>
 </div>
+
+<style>
+	.replay-timers {
+        background-color: rgba(42, 42, 42);
+		display: flex;
+	}
+
+	.replay-timer {
+        flex: 0 0 calc(50% - 15px);
+        padding-left: 10px;
+        padding-right: 10px;
+		margin-top: 10px;
+		margin-bottom: 10px;
+		border-radius: 4px;
+	}
+
+	.left {
+		padding-left: 10px;
+        padding-right: 5px;
+	}
+
+	.right {
+		padding-right: 10px;
+		padding-left: 5px;
+	}
+</style>

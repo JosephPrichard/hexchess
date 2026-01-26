@@ -22,23 +22,23 @@
 	} from '$lib/pb/messages';
 	import type { Hex } from '$lib/api/models';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
-	import { gameAtMoveIndex, getMoveNotationsWasm } from '$lib/api/wasm';
+	import { wasm } from '$lib/api/wasm';
 	import { formatTimer } from '$lib/utils/format';
 	import { onMount } from 'svelte';
 	import Banner from '$lib/Banner.svelte';
 	import Error from '$lib/Error.svelte';
 	import ChatIcon from '$lib/components/icons/ChatIcon.svelte';
 	import FinishPanel from '$lib/components/user/FinishPanel.svelte';
-	import { makeGameState, type PromotionMove } from '$lib/state/game.svelte';
-	import { defaultBoard, defaultGame, isPromotion, isValidMove } from '$lib/utils/chess';
+	import { makeSandboxState, type PromotionMove } from '$lib/state/sandbox.svelte.js';
+	import { defaultBoard, defaultGame, isPromotion, isValidMove } from '../../../lib/service/chess';
 	import { type ConnectionState, sendChatInput, sendForfeitInput, sendMoveInput, sendPingInput, sendUndoInput } from './messages';
-	import { BadPromotion, type BadPromotionType, type MoveAction, NoPromotion, type Promotion } from '$lib/components/chess/types';
+	import { CancelPromotion, type BadPromotionType, type MoveAction, NoPromotion, type Promotion } from '$lib/components/chess/types';
 	import { makeMoveState } from '$lib/state/move.svelte';
+	import Timer from '$lib/components/chess/Timer.svelte';
 
 	const forfeitModalIds = ["forfeit-modal", "forfeit-button"];
 	const maxTimeout = 2500;
 	const successConnThresholdTime = 5000;
-	const dangerTimerThreshold = 15000;
 	const keepAliveTimeOut = 15000;
 
 	export interface PlayProps {
@@ -51,7 +51,7 @@
 	const { addNotification } = getNotificationsContext();
 
 	// game lifecycle states taken from ws responses
-	const gameplay = makeGameState();
+	const gameplay = makeSandboxState();
 	let whitePlayer = $state<PlayerState | undefined>(undefined);
 	let blackPlayer = $state<PlayerState | undefined>(undefined);
 	let selfPlayer: PlayerState | undefined = $state(undefined);
@@ -88,7 +88,7 @@
 	const game = $derived.by(() => gameplay.state.game || defaultGame);
 	const link = $derived(`${appBaseURL()}/play/${props.gameId}`);
 	const isErrorPage = $derived.by(() => connState.tries > 0);
-	const awaitingNotList = $derived.by(async () => await getMoveNotationsWasm(game?.moves));
+	const awaitingNotList = $derived.by(async () => await wasm.getMoveNotations(game?.moves));
 	const currPlayer = $derived.by(() => game?.board?.isWhiteTurn ? whitePlayer : blackPlayer);
 	const isCurrPlayer = $derived.by(() => selfPlayer?.id === currPlayer?.id);
 	const isEitherPlayer = $derived.by(() => whitePlayer?.id !== selfPlayer?.id || blackPlayer?.id !== selfPlayer?.id);
@@ -160,7 +160,7 @@
 	}
 
 	function onCompletePromotion(promoMove: PromotionMove | undefined, promotion: Promotion | BadPromotionType) {
-		if (promotion == BadPromotion) {
+		if (promotion == CancelPromotion) {
 			gameplay.revertPromotion();
 		} else {
 			// we don't need to validate moves by the time we complete a promotion - BUT we do need to check if this is a preloaded promotion or not
@@ -412,11 +412,7 @@
 			{/if}
 			<div class="side-table-wrapper">
 				<TakenPieceList myPieces={bottomTakenPieces} theirPieces={topTakenPieces}/>
-				{#if topTimer}
-					<div class="timer" class:timer-warn={topTimer < dangerTimerThreshold}>
-						{formatTimer(topTimer)}
-					</div>
-				{/if}
+				<Timer value={topTimer} size="lg"/>
 				<div class="side-table move-table-wrapper">
 					<div class="side-table-header player-panel">
 						<PlayerPanel player={bottomPlayer} self={selfPlayer} isTurn={isBottomTurn} />
@@ -511,38 +507,33 @@
 									</div>
 								</div>
 							{/if}
-							<button title={showMovesTable ? "Show Moves" : "Show Chat"} class="button-transparent svg-container" style:padding-top="10px" onclick={onClickToggleChat}>
-								<ChatIcon />
-							</button>
-							{#if canForfeit}
-								{#if selfPlayer?.id === whitePlayer?.id || selfPlayer?.id === blackPlayer?.id}
-									<button id="forfeit-button" title="Forfeit" class="button-transparent svg-container" style:padding-top="10px" onclick={onToggleForfeitModal}>
-										<FlagIcon />
+							<div class="button-wrapper">
+								<button title={showMovesTable ? "Show Moves" : "Show Chat"} class="button-transparent svg-container" style:padding-top="10px" onclick={onClickToggleChat}>
+									<ChatIcon />
+								</button>
+								{#if canForfeit}
+									{#if selfPlayer?.id === whitePlayer?.id || selfPlayer?.id === blackPlayer?.id}
+										<button id="forfeit-button" title="Forfeit" class="button-transparent svg-container" style:padding-top="10px" onclick={onToggleForfeitModal}>
+											<FlagIcon />
+										</button>
+									{/if}
+								{/if}
+								{#if canTakeback}
+									<button title="Undo Move" class="button-transparent svg-container" style:padding-top="10px" onclick={onCreateUndo}>
+										<UndoIcon />
 									</button>
 								{/if}
-							{/if}
-							{#if canTakeback}
-								<button title="Undo Move" class="button-transparent svg-container" style:padding-top="10px" onclick={onCreateUndo}>
-									<UndoIcon />
+								<button title="Share" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickCopy}>
+									<ClipboardIcon />
 								</button>
-							{/if}
-							<!--						<button title="Settings" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickSettings}>-->
-							<!--							<SettingsIcon />-->
-							<!--						</button>-->
-							<button title="Share" class="button-transparent svg-container" style:padding-top="10px" onclick={onClickCopy}>
-								<ClipboardIcon />
-							</button>
+							</div>
 						</div>
 						<div class="side-table-header-bottom player-panel">
 							<PlayerPanel player={topPlayer} self={selfPlayer} isTurn={isTopTurn} />
 						</div>
 					</div>
 				</div>
-				{#if bottomTimer}
-					<div class="timer" class:timer-warn={bottomTimer < dangerTimerThreshold}>
-						{formatTimer(bottomTimer)}
-					</div>
-				{/if}
+				<Timer value={bottomTimer} size="lg"/>
 				<TakenPieceList myPieces={topTakenPieces} theirPieces={bottomTakenPieces} />
 			</div>
 		</div>
@@ -624,22 +615,6 @@
         background-color: rgb(44, 44, 44);
         border-top: 1px solid rgb(58, 58, 58);
     }
-
-	.timer {
-		border-radius: 6px;
-		font-weight: bold;
-        background-color: rgba(42, 42, 42);
-		color: rgb(160, 160, 160);
-		font-size: 55px;
-		font-family: 'digital-clock-font';
-        letter-spacing: 0.2rem;
-		text-align: center;
-		padding: 20px;
-	}
-
-	.timer-warn {
-		color: rgba(255, 10, 10, 0.6);
-	}
 
 	.side-table-wrapper {
         display: flex;
@@ -754,4 +729,10 @@
 		width: 40px;
 		height: 40px;
     }
+
+	.button-wrapper {
+		display: flex;
+        justify-content: center;
+        align-items: center;
+	}
 </style>

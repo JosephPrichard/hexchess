@@ -1,4 +1,4 @@
-package errmap
+package errutil
 
 import "fmt"
 
@@ -7,7 +7,7 @@ type ErrorMap struct {
 	Errors map[string]error
 }
 
-func Put(err error, key string, newErr error) error {
+func PutMap(err error, key string, newErr error) error {
 	if newErr == nil {
 		return err
 	}

@@ -10,7 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"hexchess-svc/assets"
 	"hexchess-svc/chess"
-	"hexchess-svc/pkg/errmap"
+	"hexchess-svc/pkg/errutil"
 	"hexchess-svc/services"
 	"log/slog"
 	"net/http"
@@ -83,13 +83,13 @@ type RegisterBody struct {
 func validateRegisterBody(body RegisterBody) error {
 	var errm error
 	if !isPasswordValid(body.Password) {
-		errm = errmap.Put(errm, "password", ErrHttpInvalidPassword)
+		errm = errutil.PutMap(errm, "password", ErrHttpInvalidPassword)
 	}
 	if body.Password != body.ConfirmPassword {
-		errm = errmap.Put(errm, "confirmPassword", ErrHttpConfirmPassword)
+		errm = errutil.PutMap(errm, "confirmPassword", ErrHttpConfirmPassword)
 	}
 	if !isUsernameValid(body.Username) {
-		errm = errmap.Put(errm, "username", ErrHttpInvalidUsername)
+		errm = errutil.PutMap(errm, "username", ErrHttpInvalidUsername)
 	}
 	return errm
 }
@@ -206,10 +206,10 @@ type UpdatePasswordBody struct {
 func validateUpdatePasswordBody(body UpdatePasswordBody) error {
 	var errm error
 	if !isPasswordValid(body.NewPassword) {
-		errm = errmap.Put(errm, "newPassword", ErrHttpInvalidPassword)
+		errm = errutil.PutMap(errm, "newPassword", ErrHttpInvalidPassword)
 	}
 	if body.NewPassword != body.ConfirmNewPassword {
-		errm = errmap.Put(errm, "confirmNewPassword", ErrHttpConfirmPassword)
+		errm = errutil.PutMap(errm, "confirmNewPassword", ErrHttpConfirmPassword)
 	}
 	return errm
 }
@@ -252,17 +252,17 @@ func (app *App) validateUpdateUserBody(body UpdateUserBody) error {
 	var errm error
 	if body.NewUsername != "" {
 		if !isUsernameValid(body.NewUsername) {
-			errm = errmap.Put(errm, "newUsername", ErrHttpInvalidUsername)
+			errm = errutil.PutMap(errm, "newUsername", ErrHttpInvalidUsername)
 		}
 	}
 	if body.NewBio != "" {
 		if !isBioValid(body.NewBio) {
-			errm = errmap.Put(errm, "newBio", ErrHttpInvalidBio)
+			errm = errutil.PutMap(errm, "newBio", ErrHttpInvalidBio)
 		}
 	}
 	if body.NewCountry != "" {
 		if _, ok := app.ValidCountries[body.NewCountry]; !ok {
-			errm = errmap.Put(errm, "newCountry", ErrHttpInvalidCountry)
+			errm = errutil.PutMap(errm, "newCountry", ErrHttpInvalidCountry)
 		}
 	}
 	return errm
@@ -406,18 +406,18 @@ func transformCreateGame(body CreateGameBody) (CreateGameArgs, error) {
 	if body.InitialFEN != "" {
 		board, err := chess.ParseFen(body.InitialFEN)
 		if err != nil {
-			errm = errmap.Put(errm, "initialFen", ErrHttpInvalidFen)
+			errm = errutil.PutMap(errm, "initialFen", ErrHttpInvalidFen)
 		} else {
 			initialBoard = &board
 		}
 	}
 	color, ok := svc.ColorMap[body.FirstColor]
 	if !ok {
-		errm = errmap.Put(errm, "firstColor", ErrHttpInvalidColor)
+		errm = errutil.PutMap(errm, "firstColor", ErrHttpInvalidColor)
 	}
 	mode, ok := svc.GameModeMap[body.Mode]
 	if !ok {
-		errm = errmap.Put(errm, "mode", ErrHttpInvalidMode)
+		errm = errutil.PutMap(errm, "mode", ErrHttpInvalidMode)
 	}
 	if errm != nil {
 		return CreateGameArgs{}, errm
@@ -482,7 +482,7 @@ func transformUpdateChallenge(body UpdateChallengeBody) (UpdateChallengeArgs, er
 	case "DELETE":
 		action = Delete
 	default:
-		return UpdateChallengeArgs{}, errmap.Put(nil, "action", ErrHttpInvalidAction)
+		return UpdateChallengeArgs{}, errutil.PutMap(nil, "action", ErrHttpInvalidAction)
 	}
 
 	var targetID int64
@@ -557,11 +557,11 @@ func transformCreateChallenge(body CreateChallengeBody) (CreateChallengeArgs, er
 	var errm error
 	color, ok := svc.ColorMap[body.StartColor]
 	if !ok {
-		errm = errmap.Put(errm, "startColor", ErrHttpInvalidColor)
+		errm = errutil.PutMap(errm, "startColor", ErrHttpInvalidColor)
 	}
 	mode, ok := svc.GameModeMap[body.Mode]
 	if !ok {
-		errm = errmap.Put(errm, "mode", ErrHttpInvalidMode)
+		errm = errutil.PutMap(errm, "mode", ErrHttpInvalidMode)
 	}
 	return CreateChallengeArgs{
 		ChallengeeID: body.ChallengeeID,
@@ -643,11 +643,11 @@ func (app *App) getLeaderboardQuery(q url.Values) (LeaderboardArg, error) {
 	var errm error
 	page, err := intQueryDefault(q, "page", 1)
 	if err != nil {
-		errm = errmap.Put(errm, "page", ErrHttpInvalidPage)
+		errm = errutil.PutMap(errm, "page", ErrHttpInvalidPage)
 	}
 	mode, ok := svc.GameModeMap[q.Get("mode")]
 	if !ok {
-		errm = errmap.Put(errm, "mode", ErrHttpInvalidMode)
+		errm = errutil.PutMap(errm, "mode", ErrHttpInvalidMode)
 	}
 	return LeaderboardArg{
 		Page: page,
@@ -712,7 +712,7 @@ func (app *App) getPlayerQuery(q url.Values) (GetPlayerArgs, error) {
 	var errm error
 	userID, err := strconv.Atoi(q.Get("id"))
 	if err != nil {
-		errm = errmap.Put(nil, "id", ErrHttpInvalidID)
+		errm = errutil.PutMap(nil, "id", ErrHttpInvalidID)
 	}
 	withReplaysStr := q.Get("withReplays")
 	withReplays := strings.ToLower(withReplaysStr) == "true"
@@ -786,7 +786,7 @@ func (app *App) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) erro
 
 	page, err := intQueryDefault(q, "page", 1)
 	if err != nil {
-		return errmap.Put(nil, "page", ErrHttpInvalidPage)
+		return errutil.PutMap(nil, "page", ErrHttpInvalidPage)
 	}
 	name := q.Get("username")
 	hasUser := name != ""
@@ -819,7 +819,7 @@ func (app *App) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 
 	id, err := strconv.Atoi(r.URL.Query().Get("id"))
 	if err != nil {
-		return errmap.Put(nil, "id", ErrHttpInvalidID)
+		return errutil.PutMap(nil, "id", ErrHttpInvalidID)
 	}
 
 	replay, err := app.State.GetReplay(ctx, int64(id))
@@ -854,11 +854,11 @@ func (app *App) getReplaysQuery(q url.Values) (GetReplaysArg, error) {
 	var errm error
 	userID, err := strconv.Atoi(q.Get("userId"))
 	if err != nil {
-		errm = errmap.Put(errm, "userId", ErrHttpInvalidID)
+		errm = errutil.PutMap(errm, "userId", ErrHttpInvalidID)
 	}
 	afterID, err := strconv.Atoi(q.Get("afterId"))
 	if err != nil {
-		errm = errmap.Put(errm, "afterId", ErrHttpInvalidID)
+		errm = errutil.PutMap(errm, "afterId", ErrHttpInvalidID)
 	}
 	return GetReplaysArg{
 		UserID:  userID,
@@ -955,11 +955,11 @@ func (app *App) getChessMetasQuery(q url.Values) (ChessMetasArg, error) {
 	var errm error
 	page, err := intQueryDefault(q, "page", 1)
 	if err != nil {
-		errm = errmap.Put(errm, "page", ErrHttpInvalidPage)
+		errm = errutil.PutMap(errm, "page", ErrHttpInvalidPage)
 	}
 	count, err := intQueryDefault(q, "count", perPage)
 	if err != nil {
-		errm = errmap.Put(errm, "count", ErrHttpInvalidCount)
+		errm = errutil.PutMap(errm, "count", ErrHttpInvalidCount)
 	}
 	return ChessMetasArg{
 		Page:  page,
@@ -1024,11 +1024,11 @@ func (app *App) getEloHistoriesQuery(q url.Values) (EloHistoriesArg, error) {
 	var errm error
 	userID, err := strconv.Atoi(q.Get("userId"))
 	if err != nil {
-		errm = errmap.Put(errm, "userID", ErrHttpInvalidPage)
+		errm = errutil.PutMap(errm, "userID", ErrHttpInvalidPage)
 	}
 	months, ok := timeframeMap[queryDefault(q, "timeframe", "all")]
 	if !ok {
-		errm = errmap.Put(errm, "timeframe", ErrHttpInvalidTimeframe)
+		errm = errutil.PutMap(errm, "timeframe", ErrHttpInvalidTimeframe)
 	}
 	return EloHistoriesArg{
 		UserID: userID,

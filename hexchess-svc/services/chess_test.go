@@ -3,9 +3,11 @@ package svc
 import (
 	"context"
 	"github.com/stretchr/testify/require"
+	"hexchess-svc/chess"
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/assertutil"
 	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/pkg/ptr"
 
 	"testing"
 	"time"
@@ -141,4 +143,34 @@ func TestExpireChessStates(t *testing.T) {
 	// then
 	assert.Equal(t, ErrNoChessState, errExpiredID)
 	assert.Empty(t, chats)
+}
+
+func TestUndo(t *testing.T) {
+	t.Run("no moves to undo", func(t *testing.T) {
+		state := MakeChess(StateSetup{
+			ID:           "test",
+			Game:         ptr.New(chess.MakeStartGame()),
+			InitialBoard: ptr.New(chess.InitialBoard()),
+		})
+
+		err := state.Undo()
+
+		assert.Equal(t, ErrNoMoveUndo, err)
+	})
+
+	t.Run("successfully undoing game with one move", func(t *testing.T) {
+		game := chess.MakeStartGame()
+		game.Moves = append(game.Moves, game.MakeMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")}))
+
+		state := MakeChess(StateSetup{
+			ID:           "test",
+			Game:         ptr.New(game),
+			InitialBoard: ptr.New(chess.InitialBoard()),
+		})
+
+		err := state.Undo()
+
+		require.NoError(t, err)
+		assert.Len(t, state.Game.Moves, 0)
+	})
 }

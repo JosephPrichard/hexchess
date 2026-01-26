@@ -75,7 +75,8 @@ func TestHandleRegister(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			state.EntropySource = &ext.StableSource{Time: insertTime}
-			MakeRoot(Setup{State: state}).ServeHTTP(w, r)
+			hander := MakeRoot(Setup{State: state})
+			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
@@ -117,7 +118,8 @@ func TestHandleLogin(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/api/login", asJSONReader(test.body))
 			w := httptest.NewRecorder()
 
-			MakeRoot(Setup{State: s}).ServeHTTP(w, r)
+			hander := MakeRoot(Setup{State: s})
+			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
@@ -180,8 +182,8 @@ func TestHandleGoogleLogin(t *testing.T) {
 				w := httptest.NewRecorder()
 
 				state.RemoteAPIs = ext.RemoteAPIs{GoogleAPI: test.setupMocks(ctrl)}
-				h := MakeRoot(Setup{State: state})
-				h.ServeHTTP(w, r)
+				hander := MakeRoot(Setup{State: state})
+				hander.ServeHTTP(w, r)
 
 				assert.Equal(t, test.wantStatus, w.Code)
 				if test.wantStatus == http.StatusOK {
@@ -237,7 +239,8 @@ func TestHandleUpdateUser(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			MakeRoot(Setup{State: state, CountryList: []string{"eu"}}).ServeHTTP(w, r)
+			hander := MakeRoot(Setup{State: state, CountryList: []string{"eu"}})
+			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
@@ -356,7 +359,8 @@ func TestHandleUpdateChallenge(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			MakeRoot(Setup{State: state}).ServeHTTP(w, r)
+			hander := MakeRoot(Setup{State: state})
+			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus != http.StatusOK {
@@ -403,7 +407,8 @@ func TestHandleCreateGame(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			state.EntropySource = &ext.StableSource{Time: itest.TimeNow}
-			MakeRoot(Setup{State: state}).ServeHTTP(w, r)
+			hander := MakeRoot(Setup{State: state})
+			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus != http.StatusOK {
@@ -462,7 +467,8 @@ func TestHandleCreateChallenge(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			state.EntropySource = &ext.StableSource{Time: itest.TimeNow}
-			MakeRoot(Setup{State: state}).ServeHTTP(w, r)
+			hander := MakeRoot(Setup{State: state})
+			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			assertutil.AssertRespBody[ServiceView](t, test.wantResp, w)
@@ -527,10 +533,10 @@ func TestGetLeaderboard(t *testing.T) {
 			q.Set("page", test.page)
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/leaderboard?%s", q.Encode()), nil)
 			w := httptest.NewRecorder()
-			h := MakeRoot(Setup{State: state})
+			hander := MakeRoot(Setup{State: state})
 
 			// when
-			h.ServeHTTP(w, r)
+			hander.ServeHTTP(w, r)
 
 			// then
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -544,11 +550,6 @@ func TestGetLeaderboard(t *testing.T) {
 }
 
 func TestGetPlayer(t *testing.T) {
-	state := svc.SetupStateTest(t, itest.WithPostgres, itest.WithRedis)
-	defer state.Close()
-
-	h := MakeRoot(Setup{State: state})
-
 	for _, test := range []struct {
 		name        string
 		id          string
@@ -587,10 +588,14 @@ func TestGetPlayer(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			state := svc.SetupStateTest(t, itest.WithPostgres, itest.WithRedis)
+			defer state.Close()
+
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players?id=%s&withReplays=%v", test.id, test.withReplays), nil)
 			w := httptest.NewRecorder()
 
-			h.ServeHTTP(w, r)
+			hander := MakeRoot(Setup{State: state})
+			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
@@ -637,8 +642,8 @@ func TestGetChallenges(t *testing.T) {
 			createTestSessions(t, state)
 
 			state.EntropySource = &ext.StableSource{Time: itest.TimeNow}
-			h := MakeRoot(Setup{State: state})
-			h.ServeHTTP(w, r)
+			hander := MakeRoot(Setup{State: state})
+			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			assertutil.AssertRespBody[GetChallengesResp](t, test.wantSuccess, w)
@@ -687,8 +692,8 @@ func TestHandleGetUserReplays(t *testing.T) {
 			state := svc.SetupStateTest(t, itest.WithPostgres)
 			defer state.Close()
 
-			h := MakeRoot(Setup{State: state})
-			h.ServeHTTP(w, r)
+			hander := MakeRoot(Setup{State: state})
+			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
@@ -701,11 +706,6 @@ func TestHandleGetUserReplays(t *testing.T) {
 }
 
 func TestHandleGetReplay(t *testing.T) {
-	state := svc.SetupStateTest(t, itest.WithPostgres)
-	defer state.Close()
-
-	h := MakeRoot(Setup{State: state})
-
 	for _, test := range []struct {
 		name        string
 		userID      string
@@ -727,10 +727,14 @@ func TestHandleGetReplay(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			state := svc.SetupStateTest(t, itest.WithPostgres)
+			defer state.Close()
+
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay?id=%s", test.userID), nil)
 			w := httptest.NewRecorder()
 
-			h.ServeHTTP(w, r)
+			hander := MakeRoot(Setup{State: state})
+			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
@@ -791,11 +795,8 @@ func TestHandleGetMoveReplay(t *testing.T) {
 	// serialize a history that contains every field so we can check that the binary data is being stored correctly. this history doesn't actually respect game rules.
 	object, err := proto.Marshal(&pb.MoveHistory{
 		InitialGame: pbInitialGame,
-		Steps: []*pb.MoveStep{
-			{
-				Move: &pb.HistMove{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4, CollFile: false, CollRank: false, IsTake: true, IsCheck: true},
-				Game: pbInitialGame,
-			},
+		Steps: []*pb.HistMove{
+			{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4, CollFile: false, CollRank: false, IsTake: true, IsCheck: true},
 		},
 	})
 	require.NoError(t, err)
@@ -805,8 +806,8 @@ func TestHandleGetMoveReplay(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// when
-	h := MakeRoot(Setup{State: state})
-	h.ServeHTTP(w, r)
+	hander := MakeRoot(Setup{State: state})
+	hander.ServeHTTP(w, r)
 
 	body, err := io.ReadAll(w.Body)
 	require.NoError(t, err)
@@ -821,8 +822,7 @@ func TestHandleGetMoveReplay(t *testing.T) {
 			{
 				NotMove: "P+xd5",
 				Pm:      &pb.PieceMove{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4},
-				MadeOn:  "0001-01-01T00:00:00Z",
-				Game:    pbInitialGame,
+				Hm:      &pb.HistMove{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4, CollFile: false, CollRank: false, IsTake: true, IsCheck: true},
 			},
 		},
 	}
@@ -849,8 +849,8 @@ func TestHandleUploadProfilePic(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// when
-	h := MakeRoot(Setup{State: state})
-	h.ServeHTTP(w, r)
+	hander := MakeRoot(Setup{State: state})
+	hander.ServeHTTP(w, r)
 
 	// then
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -862,53 +862,59 @@ func TestHandleUploadProfilePic(t *testing.T) {
 }
 
 func TestHandleGetProfilePic(t *testing.T) {
-	// given
-	state := svc.SetupStateTest(t, itest.WithRedis, itest.WithAws)
-	defer state.Close()
-
 	key1 := fmt.Sprintf("users/profile-pics/3/%s", uuid.NewString())
 	key2 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())
-	ext.PutS3Object(t, state.S3Client, state.S3ProfileBucket, key1, []byte("testfiledata1"))
-	ext.PutS3Object(t, state.S3Client, state.S3ProfileBucket, key2, []byte("testfiledata2"))
 
 	for _, test := range []struct {
+		name            string
 		userID          string
 		wantStatus      int
 		wantWithKey     string
 		wantWithoutKeys []string
 	}{
 		{
+			name:            "user has profile pic in storage",
 			userID:          "1",
 			wantStatus:      http.StatusTemporaryRedirect,
 			wantWithKey:     key2,
 			wantWithoutKeys: []string{key1},
 		},
 		{
+			name:       "user has redirected profile pic",
 			userID:     "2",
 			wantStatus: http.StatusOK,
 		},
 	} {
-		// when
-		r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/users/profile-pics?userId=%s", test.userID), nil)
-		w := httptest.NewRecorder()
+		t.Run(test.userID, func(t *testing.T) {
+			// given
+			state := svc.SetupStateTest(t, itest.WithRedis, itest.WithAws)
+			defer state.Close()
 
-		h := MakeRoot(Setup{State: state})
-		h.ServeHTTP(w, r)
+			ext.PutS3Object(t, state.S3Client, state.S3ProfileBucket, key1, []byte("testfiledata1"))
+			ext.PutS3Object(t, state.S3Client, state.S3ProfileBucket, key2, []byte("testfiledata2"))
 
-		// then
-		resp := w.Body.String()
-		assert.Equal(t, test.wantStatus, w.Code)
+			// when
+			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/users/profile-pics?userId=%s", test.userID), nil)
+			w := httptest.NewRecorder()
 
-		if w.Code == http.StatusTemporaryRedirect {
-			t.Logf("got profile pic redirect: %s", resp)
-			for _, key := range test.wantWithoutKeys {
-				if strings.Contains(resp, key) {
-					t.Errorf("expected profile pic redirect to not contain key %s", key)
+			hander := MakeRoot(Setup{State: state})
+			hander.ServeHTTP(w, r)
+
+			// then
+			resp := w.Body.String()
+			assert.Equal(t, test.wantStatus, w.Code)
+
+			if w.Code == http.StatusTemporaryRedirect {
+				t.Logf("got profile pic redirect: %s", resp)
+				for _, key := range test.wantWithoutKeys {
+					if strings.Contains(resp, key) {
+						t.Errorf("expected profile pic redirect to not contain key %s", key)
+					}
+				}
+				if !strings.Contains(resp, test.wantWithKey) {
+					t.Fatalf("expected profile pic redirect to contain key %s", test.wantWithKey)
 				}
 			}
-			if !strings.Contains(resp, test.wantWithKey) {
-				t.Fatalf("expected profile pic redirect to contain key %s", test.wantWithKey)
-			}
-		}
+		})
 	}
 }

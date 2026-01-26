@@ -112,12 +112,46 @@ func (s *State) JoinGame(ctx context.Context, gameID string, player PlayerState)
 }
 
 var (
-	ErrFinishedGame  = errors.New("move attempted on finished game")
-	ErrStartedGame   = errors.New("move attempted on not started game")
-	ErrTurn          = errors.New("not player's turn")
-	ErrInvalidMove   = errors.New("invalid move")
+	ErrLockedGame    = errors.New("game is locked")
 	ErrForfeitPlayer = errors.New("must be a player to forfeit or abort")
 )
+
+type ErrStartedGame struct {
+	GameID string
+}
+
+func (e ErrStartedGame) Error() string {
+	return fmt.Sprintf("does not have both players (gameId=%s)", e.GameID)
+}
+
+type ErrFinishedGame struct {
+	GameID string
+	Kind   EndKind
+}
+
+func (e ErrFinishedGame) Error() string {
+	return fmt.Sprintf("attempted on ended game (gameId=%s, kind=%v)", e.GameID, e.Kind)
+}
+
+type ErrTurn struct {
+	GameID   string
+	PlayerID int64
+	CurrID   int64
+}
+
+func (e ErrTurn) Error() string {
+	return fmt.Sprintf("invalid turn (player=%d, curr=%d, game=%s)", e.PlayerID, e.CurrID, e.GameID)
+}
+
+type ErrInvalidMove struct {
+	GameID    string
+	PlayerID  int64
+	Violation error
+}
+
+func (e ErrInvalidMove) Error() string {
+	return fmt.Sprintf("invalid move (violation=%v, player=%d, game=%s)", e.Violation, e.PlayerID, e.GameID)
+}
 
 type MakeMoveResult struct {
 	ReplayID int64
@@ -139,31 +173,43 @@ func (s *State) MakeGameMove(ctx context.Context, gameID string, player PlayerSt
 
 	currPlayer := state.CurrPlayer()
 
+	// validate that the player is allowed to make the move.
 	if !state.HasBothPlayers() {
-		slog.WarnContext(ctx, "make move: does not have both players", "gameId", gameID)
-		return mr, ErrStartedGame
+		return mr, ErrStartedGame{GameID: gameID}
 	}
 	if state.EndState.Kind != NotEnded {
-		slog.WarnContext(ctx, "make move: attempted on ended game", "gameId", gameID)
-		return mr, ErrFinishedGame
+		return mr, ErrFinishedGame{GameID: gameID, Kind: state.EndState.Kind}
 	}
 	if !currPlayer.Present || currPlayer.ID != player.ID {
-		slog.WarnContext(ctx, "make move: invalid turn", "player", player.ID, "game", gameID)
-		return mr, ErrTurn
+		return mr, ErrTurn{GameID: gameID, PlayerID: player.ID, CurrID: currPlayer.ID}
 	}
 	if err := game.ValidateMove(move); err != nil {
-		slog.WarnContext(ctx, "make move: invalid move", "err", err, "player", player.ID, "move", move, "game", gameID)
-		return mr, ErrInvalidMove
+		return mr, ErrInvalidMove{GameID: gameID, PlayerID: player.ID, Violation: err}
 	}
 
+	// actually make the move, and record the move history
 	hm := game.MakeMove(move)
-	game.AddMoveHist(hm, time.Now())
-	game.InitPieceMoves()
+	game.Moves = append(game.Moves, hm)
+
+	// initialize the game state data after making the move.
 	state.UndoState = UndoState{}
+	game.InitPieceMoves()
+	isCheckmate := game.Checkmate()
 
 	mr = MakeMoveResult{State: state, Move: hm}
 
-	if game.Checkmate() {
+	// this lock is used to guarantee one client may write the game state at any given time.
+	// a client must retry the entire operation (and must read again) if it fails to acquire a lock, so we can acquire after reading.
+	ok := s.AcquireChessLock(ctx, gameID)
+	if !ok {
+		return mr, ErrLockedGame
+	}
+	defer func() {
+		s.ReleaseChessLock(ctx, gameID) // if this fails the lock will expire anyways, so don't handle the error.
+	}()
+
+	// write the results of the operation to all stores. if the game is complete, we must persist game stats information to the database.
+	if isCheckmate {
 		slog.InfoContext(ctx, "game has reached checkmate", "player", player.ID, "move", move, "chessMeta", state.ChessMeta)
 
 		result := WhiteWin
@@ -184,11 +230,11 @@ func (s *State) MakeGameMove(ctx context.Context, gameID string, player PlayerSt
 		}
 	}
 
-	slog.InfoContext(ctx, "made move on game", "player", player.ID, "move", move, "chessMeta", state.ChessMeta)
-
 	if err := s.SetChessState(ctx, gameID, state); err != nil {
 		return mr, fmt.Errorf("set chess state by id %s: %w", gameID, err)
 	}
+	slog.InfoContext(ctx, "made move on game", "player", player.ID, "move", move, "chessMeta", state.ChessMeta)
+
 	return mr, nil
 }
 
@@ -223,7 +269,7 @@ func (s *State) AttemptGameUndo(ctx context.Context, gameID string, player Playe
 			return nil, ErrNoUndo
 		}
 		if state.UndoID != player.ID {
-			if err := state.Game.Undo(state.InitialBoard); err != nil {
+			if err := state.Undo(); err != nil {
 				return nil, err
 			}
 			state.UndoState = UndoState{}
@@ -249,8 +295,7 @@ func (s *State) ForfeitGame(ctx context.Context, gameID string, player PlayerSta
 		return replayID, fs, fmt.Errorf("get chess state by id %s: %w", gameID, err)
 	}
 	if state.EndState.Kind != NotEnded {
-		slog.WarnContext(ctx, "forfeit game: attempted on ended game", "gameId", gameID)
-		return replayID, fs, ErrFinishedGame
+		return replayID, fs, ErrFinishedGame{GameID: gameID, Kind: state.EndState.Kind}
 	}
 	if !state.IsEitherPlayer(player) {
 		return replayID, fs, ErrForfeitPlayer

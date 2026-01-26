@@ -58,11 +58,13 @@ export function formatEloDiff(elo: number) {
 }
 
 export function formatTimer(ms: number) {
+	ms = Math.floor(ms);
 	const minutes = String(Math.floor(ms / 60000)).padStart(2, '0');
 	ms %= 60000;
 	const seconds = String(Math.floor(ms / 1000)).padStart(2, '0');
 	ms %= 1000;
-	return `${minutes}:${seconds}:${String(ms).padStart(2, '0')}`;
+	const millis = String(ms).padStart(3, '0');
+	return `${minutes}:${seconds}:${millis}`;
 }
 
 export function formatTimestamp(ts: Date | string | number): string {

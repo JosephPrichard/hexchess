@@ -67,8 +67,9 @@
 <style>
     .dropdown-container {
         width: 100%;
-        z-index: 500;
+        z-index: 10;
         position: relative;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
     }
 
     .dropdown-selected {
@@ -76,7 +77,6 @@
         box-sizing: border-box;
         width: 100%;
         background: rgb(64,64,64);
-        border: 1px solid rgb(100,100,100);
         padding: 0.6rem 0.8rem;
         border-radius: 6px;
         cursor: pointer;
@@ -85,6 +85,7 @@
         justify-content: space-between;
         align-items: center;
         transition: border-color 0.2s ease;
+        border: 1px solid rgb(100,100,100);
         z-index: 1;
     }
 
@@ -93,7 +94,7 @@
     }
 
     .dropdown-arrow {
-        font-size: 0.75rem;
+        font-size: 0.65rem;
         opacity: 0.6;
     }
 
@@ -109,7 +110,7 @@
         border-radius: 6px;
         padding: 4px 0;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-        z-index: 50;
+        z-index: 5;
     }
 
     .dropdown-item {

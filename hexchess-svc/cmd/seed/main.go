@@ -14,6 +14,7 @@ import (
 	svc "hexchess-svc/services"
 	"log"
 	"log/slog"
+	"math"
 	"math/rand"
 	"os"
 	"time"
@@ -136,6 +137,10 @@ func insertChallenges(ctx context.Context, state *svc.State, insts []ChallengeIn
 	return nil
 }
 
+func randRange(min, max float64) float64 {
+	return min + rand.Float64()*(max-min)
+}
+
 func insertRandomizedGameResults(ctx context.Context, state *svc.State, gameResults []GameResult) error {
 	timeAt := time.Now().Add(-1 * time.Hour * 24 * 100)
 
@@ -146,14 +151,15 @@ func insertRandomizedGameResults(ctx context.Context, state *svc.State, gameResu
 
 	eg, egCtx := errgroup.WithContext(ctx)
 
-	for i, params := range gameResults {
+	for gameIdx, params := range gameResults {
 		eg.Go(func() error {
-			cs, err := state.InsertGameResultTx(egCtx, timeAt.Add(time.Duration(i)*time.Hour*24), svc.GameResult{
+			mode := svc.ExpectGameMode(params.ReplayMode)
+			cs, err := state.InsertGameResultTx(egCtx, timeAt.Add(time.Duration(gameIdx)*time.Hour*24), svc.GameResult{
 				WhiteID:      params.WhiteID,
 				BlackID:      params.BlackID,
 				ReplayCause:  svc.ExpectReplayCause(params.ReplayCause),
 				ReplayResult: svc.ExpectReplayResult(params.ReplayResult),
-				ReplayMode:   svc.ExpectGameMode(params.ReplayMode),
+				ReplayMode:   mode,
 			})
 			if err != nil {
 				return fmt.Errorf("insert game result: %w", err)
@@ -164,6 +170,23 @@ func insertRandomizedGameResults(ctx context.Context, state *svc.State, gameResu
 			if err != nil {
 				return fmt.Errorf("generate random move seq: %w", err)
 			}
+
+			whiteTimer := mode.TotalTime()
+			blackTimer := mode.TotalTime()
+			if mode.IsRealTime() {
+				for moveIdx := range moveSeq {
+					timeIncr := float64(mode.TimeIncr().Milliseconds())
+					incr := math.Max(timeIncr, 1000) * randRange(0.5, 1.5)
+					if moveIdx%2 == 0 {
+						whiteTimer -= time.Duration(incr) * time.Millisecond
+					} else {
+						blackTimer -= time.Duration(incr) * time.Millisecond
+					}
+					moveSeq[moveIdx].WhiteTimer = whiteTimer
+					moveSeq[moveIdx].BlackTimer = blackTimer
+				}
+			}
+
 			return state.PutReplayMoveSeq(egCtx, cs.ReplayID, game.Board, moveSeq)
 		})
 	}

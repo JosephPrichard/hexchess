@@ -1,26 +1,16 @@
 export interface MoveState {
 	moveIndex: number | undefined;
-	isWhitePerspective: boolean;
 	moveCount: number;
 }
 
 export function makeMoveState() {
 	let state: MoveState = $state({
 		moveIndex: undefined,
-		isWhitePerspective: true,
 		moveCount: 0,
 	})
 
 	function selectMove(i: number) {
 		state.moveIndex = i;
-	}
-
-	function deSelectMove() {
-		state.moveIndex = undefined;
-	}
-
-	function flip() {
-		state.isWhitePerspective = !state.isWhitePerspective;
 	}
 
 	function goLeft() {
@@ -43,5 +33,5 @@ export function makeMoveState() {
 		state.moveCount = count;
 	}
 
-	return { state, selectMove, deSelectMove, flip, goLeft, goRight, updateMoveCount }
+	return { state, selectMove, goLeft, goRight, updateMoveCount }
 }

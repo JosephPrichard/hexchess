@@ -156,10 +156,10 @@ func TestHandleGameplayWs(t *testing.T) {
 			createTestSessions(t, state)
 			createTestChessStates(t, state)
 
-			ts := httptest.NewServer(MakeRoot(Setup{State: state}))
-			defer ts.Close()
+			testServer := httptest.NewServer(MakeRoot(Setup{State: state}))
+			defer testServer.Close()
 
-			// (start, subcribe, and read broadcasts)
+			// (start, subscribe, and read broadcasts)
 			<-state.LocalBroadcasters.ListenGameMessages(state.Redis)
 			subChan := make(chan []byte, len(wantBrdcasts))
 			state.LocalBroadcasters.GamesCaster.Subscribe(gameID, subChan)
@@ -168,7 +168,7 @@ func TestHandleGameplayWs(t *testing.T) {
 			defer cancel()
 
 			// when
-			url := strings.Replace(fmt.Sprintf("%s/api/ws/game?gameId=%s&sessionId=%s", ts.URL, gameID, TestSessionID1), "http", "ws", 1)
+			url := strings.Replace(fmt.Sprintf("%s/api/ws/game?gameId=%s&sessionId=%s", testServer.URL, gameID, TestSessionID1), "http", "ws", 1)
 			conn, _, err := websocket.DefaultDialer.DialContext(ctx, url, http.Header{})
 			require.NoError(t, err)
 			defer conn.Close()
@@ -198,7 +198,7 @@ func TestHandleGameplayWs(t *testing.T) {
 				protocmp.IgnoreFields(&pb.InitOutput{}, "state"),
 				protocmp.IgnoreFields(&pb.MoveOutput{}, "game"),
 				protocmp.IgnoreFields(&pb.UndoOutput{}, "game"),
-				protocmp.IgnoreFields(&pb.HistMove{}, "madeOn"),
+				protocmp.IgnoreFields(&pb.HistMove{}, "white_timer_ms", "black_timer_ms"),
 				protocmp.IgnoreFields(&pb.ForfeitOutput{}, "replay_id"),
 			}
 
@@ -216,21 +216,17 @@ func TestHandleGameplayWs(t *testing.T) {
 
 func readBroadcasts(ctx context.Context, wantBrdcasts int, subChan chan []byte) []any {
 	var brdcasts []any
-ReadBrdcasts:
 	for range wantBrdcasts {
 		select {
-		case b, ok := <-subChan:
-			if !ok {
-				break ReadBrdcasts
-			}
+		case <-ctx.Done():
+			return brdcasts
+		case v := <-subChan:
 			var pbGame pb.GameOutput
-			if err := proto.Unmarshal(b, &pbGame); err != nil {
+			if err := proto.Unmarshal(v, &pbGame); err != nil {
 				brdcasts = append(brdcasts, err)
 			} else {
 				brdcasts = append(brdcasts, &pbGame)
 			}
-		case <-ctx.Done():
-			break ReadBrdcasts
 		}
 	}
 	return brdcasts

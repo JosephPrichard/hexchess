@@ -3,7 +3,9 @@ package main
 
 import "hexchess-svc/wasm"
 
+var version = "test"
+
 func main() {
-	wasm.RegisterChessModule()
+	wasm.RegisterChessModule(version)
 	select {}
 }

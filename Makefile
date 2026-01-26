@@ -22,7 +22,7 @@ WASM_OUTPUT     := chess.wasm
 UI_WASM_DIR     := $(UI_DIR)/static/wasm
 
 all: sources ci
-sources: generate-go protos build-wasm install-wasm
+sources: generate-go protos install-wasm
 
 # Backend Build
 generate-go:
@@ -48,11 +48,9 @@ proto-frontend:
 		--proto_path ../$(PB_DIR) \
 		../$(PB_DIR)/messages.proto
 
-build-wasm:
+install-wasm:
 	@echo "Compiling WASM chesslib"
 	cd $(WASM_SRC_DIR) && GOOS=js GOARCH=wasm go build -o $(WASM_OUTPUT) -tags=wasm
-
-install-wasm:
 	@echo "Installing WASM into UI"
 	@echo "Copying wasm_exec.js from $(GOROOT)"
 	cp "$(GOROOT)/lib/wasm/wasm_exec.js" $(UI_WASM_DIR)

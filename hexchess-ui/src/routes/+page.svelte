@@ -8,9 +8,8 @@
 	import { onMount } from 'svelte';
 	import { getClientSession } from '$lib/utils/storage';
 	import { chessRowHeight, maxChessRows } from './globals';
-	import { getInitialGameWasm } from '$lib/api/wasm';
-	import { boardToFenWasm } from '$lib/api/wasm.js';
 	import Banner from '$lib/Banner.svelte';
+	import { wasm } from '$lib/api/wasm';
 
 	export interface IndexProps {
 		chessList: ChessModel[];
@@ -66,7 +65,7 @@
 
 	onMount(async () => {
 		client = getClientSession();
-		fen = await boardToFenWasm((await getInitialGameWasm()).board);
+		fen = await wasm.boardToFen((await wasm.getInitialGame()).board);
 	});
 	$inspect(client, 'client session');
 

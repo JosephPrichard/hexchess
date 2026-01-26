@@ -6,20 +6,43 @@ import (
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
+	"strings"
 	"syscall/js"
-	"time"
 )
 
 type ChessWasm struct {
-	Global js.Value
+	Global  js.Value
+	Version string
+}
+
+func (w *ChessWasm) IsDebug() bool {
+	//return w.Version == "debug"
+	return true
 }
 
 func (w *ChessWasm) JsLog(args ...any) {
 	w.Global.Get("console").Call("log", args...)
 }
 
+func (w *ChessWasm) JsDebugLog(args ...string) {
+	if w.IsDebug() {
+		var logStr strings.Builder
+		for _, arg := range args {
+			logStr.WriteString(arg + "\n\n")
+		}
+		w.Global.Get("console").Call("warn", logStr.String())
+	}
+}
+
 func (w *ChessWasm) JsErr(err error) js.Value {
 	return w.JsErrStr(err.Error())
+}
+
+func (w *ChessWasm) JsDebugErr(err error) js.Value {
+	if w.IsDebug() {
+		return w.JsErr(err)
+	}
+	return js.Undefined()
 }
 
 func (w *ChessWasm) JsErrStr(err string) js.Value {
@@ -105,6 +128,7 @@ func (w *ChessWasm) MakeMove(_ js.Value, args []js.Value) any {
 
 	gameUInt8Arr := args[0]
 	moveUint8Arr := args[1]
+	hasMove := !moveUint8Arr.IsUndefined()
 
 	game, err := w.deserializeGame(gameUInt8Arr)
 	if err != nil {
@@ -114,17 +138,16 @@ func (w *ChessWasm) MakeMove(_ js.Value, args []js.Value) any {
 	if !game.HasFoundMove() {
 		game.InitPieceMoves()
 	}
-
-	if !moveUint8Arr.IsUndefined() {
+	if hasMove {
 		pm, err := w.deserializeMove(moveUint8Arr)
 		if err != nil {
 			return w.JsErr(err)
 		}
 		if err := game.ValidateMove(pm); err != nil {
-			return w.JsErr(err)
+			return w.JsDebugErr(err)
 		}
-		hm := game.MakeMove(pm)
-		game.AddMoveHist(hm, time.Now())
+
+		game.Moves = append(game.Moves, game.MakeMove(pm))
 		game.InitPieceMoves()
 	}
 
@@ -203,8 +226,7 @@ func (w *ChessWasm) GetMoveNotations(_ js.Value, args []js.Value) any {
 
 	moves := make([]any, 0, len(pbHistMoves.Moves))
 	for _, pbHm := range pbHistMoves.Moves {
-		hm := chess.DeserializeHistMove(pbHm)
-		moves = append(moves, hm.String())
+		moves = append(moves, chess.DeserializeHistMove(pbHm).String())
 	}
 	return js.ValueOf(moves)
 }
@@ -241,9 +263,9 @@ func (w *ChessWasm) GameAtMoveIndex(_ js.Value, args []js.Value) any {
 	return w.serializeGame(game)
 }
 
-func RegisterChessModule() {
+func RegisterChessModule(version string) {
 	global := js.Global()
-	wasm := &ChessWasm{Global: global}
+	wasm := &ChessWasm{Global: global, Version: "debug"}
 	global.Set("getInitialGame", js.FuncOf(wasm.GetInitialGame))
 	global.Set("makeMove", js.FuncOf(wasm.MakeMove))
 	global.Set("getMoves", js.FuncOf(wasm.GetMoves))

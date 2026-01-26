@@ -242,17 +242,14 @@ func TestGame_MakeMove(t *testing.T) {
 		Place{"e5", WhiteKnight},
 		Place{"d5", WhitePawn},
 		Place{"k5", WhitePawn})
-	game1 := game.MakeMoved(Move{From: Hex{File: 3, Rank: 4}, To: Hex{File: 3, Rank: 3}, Promotion: QueenPromotion})
+	game1 := game.MakeMoved(Move{From: Hex{File: 3, Rank: 4}, To: Hex{File: 3, Rank: 3}})
 
 	assert.Equal(t, Empty, game1.Board.Get(3, 4))
 	assert.Equal(t, WhitePawn, game1.Board.Get(3, 3))
-	assert.Equal(t, 1, len(game1.Moves))
-
 	game2 := game.MakeMoved(Move{From: Hex{File: 10, Rank: 4}, To: Hex{File: 10, Rank: 5}, Promotion: QueenPromotion})
 
 	assert.Equal(t, Empty, game2.Board.Get(10, 4))
 	assert.Equal(t, WhiteQueen, game2.Board.Get(10, 5))
-	assert.Equal(t, 1, len(game2.Moves))
 }
 
 func TestGame_GetMoveNotation(t *testing.T) {
@@ -265,68 +262,80 @@ func TestGame_GetMoveNotation(t *testing.T) {
 	game.InitPieceMoves()
 
 	for _, test := range []struct {
-		name string
-		game Game
-		hm   HistMove
-		not  string
+		name      string
+		game      Game
+		pm        PieceMove
+		promotion Promotion
+		not       string
 	}{
 		{
 			name: "pawn move colision file",
 			game: game,
-			hm: HistMove{
-				PieceMove: PieceMove{
-					Piece: WhitePawn,
-					From:  HexStr("e5"),
-					To:    HexStr("f6"),
-				},
+			pm: PieceMove{
+				Piece: WhitePawn,
+				From:  HexStr("e5"),
+				To:    HexStr("f6"),
 			},
 			not: "Pef6",
 		},
 		{
 			name: "pawn move collision rank",
 			game: game,
-			hm: HistMove{
-				PieceMove: PieceMove{
-					Piece: WhitePawn,
-					From:  HexStr("f7"),
-					To:    HexStr("f6"),
-				},
+			pm: PieceMove{
+				Piece: WhitePawn,
+				From:  HexStr("f7"),
+				To:    HexStr("f6"),
 			},
 			not: "P7f6",
 		},
 		{
 			name: "pawn move no collision",
 			game: game,
-			hm: HistMove{
-				PieceMove: PieceMove{
-					Piece: WhitePawn,
-					From:  HexStr("k1"),
-					To:    HexStr("f6"),
-				},
+			pm: PieceMove{
+				Piece: WhitePawn,
+				From:  HexStr("k1"),
+				To:    HexStr("f6"),
 			},
 			not: "Pf6",
 		},
 		{
 			name: "pawn promotion",
 			game: game,
-			hm: HistMove{
-				PieceMove: PieceMove{
-					Piece: WhitePawn,
-					From:  HexStr("e5"),
-					To:    HexStr("f5"),
-				},
-				Promotion: QueenPromotion,
+			pm: PieceMove{
+				Piece: WhitePawn,
+				From:  HexStr("e5"),
+				To:    HexStr("f5"),
 			},
-			not: "Pf5=Q",
+			promotion: QueenPromotion,
+			not:       "Pf5=Q",
+		},
+		{
+			name: "moving white king",
+			game: game,
+			pm: PieceMove{
+				Piece: WhiteKing,
+				From:  HexStr("a1"),
+				To:    HexStr("a2"),
+			},
+			not: "Ka2",
+		},
+		{
+			name: "moving black king",
+			game: game,
+			pm: PieceMove{
+				Piece: BlackKing,
+				From:  HexStr("k6"),
+				To:    HexStr("k7"),
+			},
+			not: "kk7",
 		},
 		//{
+		//	name: "check",
 		//	game: game,
-		//	hm: HistMove{
-		//		PieceMove: PieceMove{
-		//			Piece: WhiteRook,
-		//			From:  HexStr("g9"),
-		//			To:    HexStr("g8"),
-		//		},
+		//	pm: PieceMove{
+		//		Piece: WhiteRook,
+		//		From:  HexStr("g9"),
+		//		To:    HexStr("g8"),
 		//	},
 		//	not: "R+g8",
 		//},
@@ -335,7 +344,9 @@ func TestGame_GetMoveNotation(t *testing.T) {
 			t.Logf("testing get move notation on game:%s", test.game.Board.StringMoves(test.game.GetCurrMoves()[0].Moves))
 			t.Logf("expecting move: %v", test.not)
 
-			histMove := test.game.AnnotateHistMove(test.hm)
+			test.game.InitPieceMoves()
+			histMove := test.game.MakeHistMove(test.pm)
+			histMove.Promotion = test.promotion
 			str := histMove.String()
 			assert.Equal(t, test.not, str)
 		})
@@ -343,106 +354,51 @@ func TestGame_GetMoveNotation(t *testing.T) {
 }
 
 func TestJumpMoveIndex(t *testing.T) {
-	for _, test := range []struct {
-		name      string
-		setup     func() Game
-		index     int
-		wantErr   error
-		wantMoves int
-	}{
-		{
-			name: "no move to jump to",
-			setup: func() Game {
-				return MakeStartGame()
-			},
-			index:   1,
-			wantErr: RewindOffsetError{Offset: -2, Len: 0},
-		},
-		{
-			name: "jumping to first move",
-			setup: func() Game {
-				game := MakeStartGame()
-				game.MakeMove(Move{From: HexStr("b1"), To: HexStr("b2")})
-				game.MakeMove(Move{From: HexStr("b7"), To: HexStr("b6")})
-				return game
-			},
-			index:     0,
-			wantMoves: 1,
-		},
-		{
-			name: "jumping to last move (noop)",
-			setup: func() Game {
-				game := MakeStartGame()
-				game.MakeMove(Move{From: HexStr("b1"), To: HexStr("b2")})
-				game.MakeMove(Move{From: HexStr("b7"), To: HexStr("b6")})
-				return game
-			},
-			index:     1,
-			wantMoves: 2,
-		},
-		{
-			name: "jumping to second move",
-			setup: func() Game {
-				game := MakeStartGame()
-				game.MakeMove(Move{From: HexStr("b1"), To: HexStr("b2")})
-				game.MakeMove(Move{From: HexStr("b7"), To: HexStr("b6")})
-				game.MakeMove(Move{From: HexStr("c2"), To: HexStr("c3")})
-				return game
-			},
-			index:     1,
-			wantMoves: 2,
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			game, err := JumpMoveIndex(MakeStartBoard(), test.setup().Moves, test.index)
+	t.Run("no move to jump to", func(t *testing.T) {
+		var moves []HistMove
 
-			if test.wantErr != nil {
-				assert.Equal(t, err, test.wantErr)
-			} else {
-				require.NoError(t, err)
-			}
-			assert.Len(t, game.Moves, test.wantMoves)
-		})
-	}
-}
+		game, err := JumpMoveIndex(MakeStartBoard(), moves, 1)
 
-func TestGame_UndoMove(t *testing.T) {
-	for _, test := range []struct {
-		name      string
-		setup     func() Game
-		wantErr   error
-		wantMoves int
-	}{
-		{
-			name: "no moves to undo",
-			setup: func() Game {
-				return MakeStartGame()
-			},
-			wantErr: ErrNoMoveUndo,
-		},
-		{
-			name: "successfully undoing game with one move",
-			setup: func() Game {
-				game := MakeStartGame()
-				game.MakeMove(Move{From: HexStr("b1"), To: HexStr("b2")})
-				return game
-			},
-			wantMoves: 0,
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			game := test.setup()
+		require.Equal(t, JumpIndexError{Count: 2, Len: 0}, err)
+		require.Nil(t, game)
+	})
 
-			err := game.Undo(MakeStartBoard())
+	t.Run("jumping to first move", func(t *testing.T) {
+		moves := ApplyMoveSeq(
+			Move{From: HexStr("b1"), To: HexStr("b2")},
+			Move{From: HexStr("b7"), To: HexStr("b6")})
 
-			if test.wantErr != nil {
-				assert.Equal(t, err, test.wantErr)
-			} else {
-				require.NoError(t, err)
-			}
-			assert.Len(t, game.Moves, test.wantMoves)
-		})
-	}
+		game, err := JumpMoveIndex(MakeStartBoard(), moves, 0)
+
+		require.NoError(t, err)
+		require.NotNil(t, game)
+		assert.Len(t, game.Moves, 1)
+	})
+
+	t.Run("jumping to last move (noop)", func(t *testing.T) {
+		moves := ApplyMoveSeq(
+			Move{From: HexStr("b1"), To: HexStr("b2")},
+			Move{From: HexStr("b7"), To: HexStr("b6")})
+
+		game, err := JumpMoveIndex(MakeStartBoard(), moves, 1)
+
+		require.NoError(t, err)
+		require.NotNil(t, game)
+		assert.Len(t, game.Moves, 2)
+	})
+
+	t.Run("jumping to second move", func(t *testing.T) {
+		moves := ApplyMoveSeq(
+			Move{From: HexStr("b1"), To: HexStr("b2")},
+			Move{From: HexStr("b7"), To: HexStr("b6")},
+			Move{From: HexStr("c2"), To: HexStr("c3")})
+
+		game, err := JumpMoveIndex(MakeStartBoard(), moves, 1)
+
+		require.NoError(t, err)
+		require.NotNil(t, game)
+		assert.Len(t, game.Moves, 2)
+	})
 }
 
 type PieceMoveNode struct {

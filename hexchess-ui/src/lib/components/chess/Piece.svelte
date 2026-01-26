@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { hexHeight, hexWidth } from '$lib/components/chess/render';
-	import { isPieceWhite, piecenames, pieces, promotions } from '$lib/utils/chess.js';
+	import { isPieceWhite, piecenames, pieces, promotions } from '$lib/service/chess';
 	import { type SelectEvent, selectEvents } from '$lib/globals';
-	import { BadPromotion, type BadPromotionType, type Promotion } from '$lib/components/chess/types';
+	import { type BadPromotionType, type Promotion } from '$lib/components/chess/types';
 
 	export interface PieceProps {
 		piece: number;
@@ -119,32 +119,20 @@
 
 	function onMouseUpRelease(e: MouseEvent) {
 		e.preventDefault();
-		if (isDraggable || e.button != 0) {
-			return
-		}
+		if (isDraggable || e.button != 0) return;
 	}
 
 	function onRightClick(e: MouseEvent) {
 		e.preventDefault();
-		if (isAnnotatable) {
-			isAnnotated = !isAnnotated;
-		}
-	}
-
-	function onMouseDownGlobal(e: MouseEvent) {
-		if (!(e.target as HTMLElement).closest("#promotions")) {
-			onCompletePromotion?.(BadPromotion);
-		}
+		if (isAnnotatable) isAnnotated = !isAnnotated;
 	}
 
 	onMount(() => {
 		document.addEventListener('mousemove', onMove);
 		document.addEventListener('mouseup', onMouseUpDrag);
-		document.addEventListener('mousedown', onMouseDownGlobal);
 		return () => {
 			document.removeEventListener('mousemove', onMove);
 			document.removeEventListener('mouseup', onMouseUpDrag);
-			document.removeEventListener('mousedown', onMouseDownGlobal);
 		}
 	});
 
@@ -200,30 +188,47 @@
 	role="none"
 	class="piece-img"
 	style={hexStyle(xOff, yOff)}
-	style:z-index={dragging ? "101" : "100"}
+	style:z-index={dragging ? "10000" : "10"}
 	oncontextmenu={onRightClick}
 >
 	<img role="none" onmousedown={onMouseDown} onmouseup={onMouseUpRelease} class="piece-img-inner" src={pieceImageURL} alt="" draggable={false} />
 	{#if isPromoting}
 		<div
-			id="promotions"
 			class="promotion-wrapper"
+			class:promotion-white={isPieceWhite(piece)}
+			class:promotion-black={!isPieceWhite(piece)}
 			style:left="{hexWidth / 8 + xOff}px"
 			style:top="{yOff}px"
 		>
 			{#each promotePieces as [piece, promotion]}
-				<img onclick={() => onCompletePromotion?.({piece, kind:promotion})} role="none" class="piece-img-inner promotion-item" src={fmtPieceURL(piece)} alt="" draggable={false} />
+				<img
+					onclick={() => onCompletePromotion?.({piece, kind: promotion})}
+					role="none"
+					class="piece-img-inner promotion-item"
+					src={fmtPieceURL(piece)}
+					alt=""
+					class:promotion-item-white={isPieceWhite(piece)}
+					class:promotion-item-black={!isPieceWhite(piece)}
+					draggable={false}
+				/>
 			{/each}
 		</div>
 	{/if}
 </div>
 
 <style>
-	.promotion-wrapper {
-		z-index: 1000;
-		width: fit-content;
+	.promotion-white {
+        border: 3px solid rgb(60, 60, 60);
 		background-color: rgb(42, 42, 42);
-		border: 3px solid rgb(60, 60, 60);
+	}
+
+	.promotion-black {
+        border: 3px solid rgb(120, 120, 120);
+		background-color: rgb(100, 100, 100);
+	}
+
+	.promotion-wrapper {
+		width: fit-content;
 		border-radius: 6px;
 	}
 
@@ -234,12 +239,16 @@
 		margin: 0 !important;
 	}
 
-	.promotion-item:hover {
+	.promotion-item-white:hover {
 		background-color: rgb(60,60,60);
 	}
 
+    .promotion-item-black:hover {
+        background-color: rgb(120,120,120);
+    }
+
     .annotation {
-        z-index: 100;
+        z-index: 4;
         position: absolute;
         border-radius: 50%;
         border: 4px solid red;
@@ -254,8 +263,7 @@
 	}
 
     .piece-img {
-        /*transition: all 0.5s ease-out;*/
-		z-index: 100;
+		z-index: 2;
         position: absolute;
         user-select: none;
         -moz-user-select: none;

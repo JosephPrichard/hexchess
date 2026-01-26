@@ -287,13 +287,18 @@ select:disabled {
 }
 
 .button-light-grey {
-	color: rgb(195, 195, 195);
-	padding: 15px 25px;
-	background: rgb(70, 70, 70);
+	background: rgb(100, 100, 100);
+	box-shadow: 0 5px rgb(80, 80, 80);
+}
+
+.button-light-grey:active {
+	top: 2px;
+	box-shadow: 0 3px rgb(80, 80, 80);
 }
 
 .button-light-grey:hover {
-	background: rgb(90, 90, 90);
+	background: rgb(120, 120, 120);
+	text-decoration: none;
 }
 
 .button-red {
@@ -557,6 +562,11 @@ select:disabled {
 	border-top: 1px solid rgb(58, 58, 58);
 }
 
+.side-table-header-bottom-border {
+	border-bottom: 1px solid rgb(58, 58, 58);
+	border-radius: 0;
+}
+
 .side-table-header-bottom-shadow {
 	box-shadow: 0 -4px 4px -4px rgba(0, 0, 0, 0.6);
 }
@@ -595,7 +605,6 @@ select:disabled {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background-color: rgb(45, 45, 45);
 	width: 35px;
 	height: 35px;
 }
@@ -609,7 +618,7 @@ select:disabled {
 	top: 50%;
 	left: 50%;
 	transform: translate(-50%, -50%);
-	z-index: 1000;
+	z-index: 2;
 }
 
 .invisible-button {
@@ -679,11 +688,11 @@ select:disabled {
 	width: 100%;
 	height: 100%;
 	background-color: rgba(0, 0, 0, 0.35);
-	z-index: 1000;
+	z-index: 2;
 }
 
 .modal {
-	z-index: 1000;
+	z-index: 3;
 	width: 400px;
 }
 
@@ -697,7 +706,7 @@ select:disabled {
 	position: fixed;
 	right: 0;
 	bottom: 0;
-	z-index: 1000;
+	z-index: 10;
 	color: white;
 	background-color: #B7374E;
 }

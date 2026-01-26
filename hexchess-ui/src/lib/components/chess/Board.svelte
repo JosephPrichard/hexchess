@@ -2,13 +2,13 @@
 	import type { ChessBoard, PieceMove } from '$lib/pb/messages';
 	import Piece from './Piece.svelte';
 	import type { Hex } from '$lib/api/models';
-	import { defaultBoard, findKeyedPieces, hexEq, pieces, type PlacedPiece, ranksPerFile } from '$lib/utils/chess.js';
+	import { defaultBoard, findKeyedPieces, hexEq, isPieceWhite, pieces, type PlacedPiece, ranksPerFile } from '$lib/service/chess';
 	import { bgColors, darkGreen, findHex, findHexColor, getLeft, getTop, hexHeight, hexWidth, lightGreen, lime, mediumPurple } from '$lib/components/chess/render';
 	import Fen from '$lib/components/chess/Fen.svelte';
 	import { browser } from '$app/environment';
-	import { boardToFenWasm } from '$lib/api/wasm';
-	import type { BadPromotionType, MoveAction, Promotion } from '$lib/components/chess/types';
-	import type { PromotionMove } from '$lib/state/game.svelte';
+	import { CancelPromotion, type BadPromotionType, type MoveAction, type Promotion } from '$lib/components/chess/types';
+	import { wasm } from '$lib/api/wasm';
+	import { onMount } from 'svelte';
 
 	export interface BoardProps {
 		board?: ChessBoard;
@@ -18,7 +18,7 @@
 		isWhitePerspective: boolean;
 		hovering?: Hex;
 		selected?: Hex;
-		promotion?: PromotionMove;
+		promotion?: {from: Hex, to: Hex};
 		prevMove?: PieceMove;
 		nextMove?: MoveAction;
 		potentialMoves?: Hex[];
@@ -60,12 +60,12 @@
 		hovering = undefined;
 		const hex = findHex(boardElement, isWhitePerspective, x, y);
 		if (!hex) return
-		// if (draggable === "anyone" ||
-		// 	draggable === "turn" && isPieceWhite(piece) && board?.isWhiteTurn ||
-		// 	draggable === "turn" && isPieceBlack(piece) && !board?.isWhiteTurn
-		// ) {
+		if (draggable === "anyone" ||
+			draggable === "turn" && isPieceWhite(piece) && board?.isWhiteTurn ||
+			draggable === "turn" && !isPieceWhite(piece) && !board?.isWhiteTurn
+		) {
 			onDropPiece?.(from, hex);
-		// }
+		}
 	}
 
 	function onClickHexagon(file: number, rank: number) {
@@ -95,7 +95,6 @@
 		if (browser) {
 			const boardPieces = findKeyedPieces(boardState, prevPieces)
 			prevPieces = boardPieces;
-			// console.log("pieceEntries", boardPieces);
 			return [boardState, boardPieces];
 		}
 		return [boardState, []];
@@ -105,7 +104,7 @@
 		if (typeof fen === "string") {
 			return Promise.resolve(fen);
 		} else if (fen && board && browser) {
-			return boardToFenWasm(board);
+			return wasm.boardToFen(board);
 		}
 	});
 
@@ -145,6 +144,18 @@
 				? file
 				: (boardState.file.length - 1) - file))
 	}
+
+	// onMount(() => {
+	// 	function onMouseDownGlobal(e: MouseEvent) {
+	// 		if (!(e.target as HTMLElement).closest("#promotions")) {
+	// 			onCompletePromotion?.(CancelPromotion);
+	// 		}
+	// 	}
+	// 	document.addEventListener('mousedown', onMouseDownGlobal);
+	// 	return () => {
+	// 		document.removeEventListener('mousedown', onMouseDownGlobal);
+	// 	}
+	// });
 </script>
 
 <div class="board-wrapper">
@@ -157,7 +168,7 @@
 			{@const isMoveTarget = pieceMoves.get(makeMoveKey(file, rank))}
 			{@const isSelected = hexEq(selected, p)}
 			{@const isPromoting = hexEq(promotion?.to, p)}
-			{@const isDraggable = draggable !== "none" && (draggable === "anyone" || (draggable === "turn"))}
+			{@const isDraggable = draggable !== "none" && (draggable === "anyone" || (board?.isWhiteTurn === isPieceWhite(p.piece) && draggable === "turn"))}
 			<div class="piece-wrapper">
 				<Piece
 					isSelected={isSelected}
@@ -187,24 +198,42 @@
 				{@const left = getLeft(file, isWhitePerspective)}
 				{@const bgIndex = findHexColor(hex)}
 				{@const [bgColor, isMoveTarget] = pickHexOverlays(hex)}
-				{#if file === 0 || (file <= 5 && rank === ranksPerFile[file]-1)}
-					<div
-						class="hexagon-label"
-						style:top="{top + (isWhitePerspective ? -hexHeight / 4 : hexHeight / 1.6)}px"
-						style:left="{getLeft(file, true) - hexWidth / 4.5}px"
-					>
-						{rankMarker}
-					</div>
-				{/if}
-				{#if file === boardState.file.length-1 || (file >= 5 && rank === ranksPerFile[file]-1)}
-					<div
-						class="hexagon-label"
-						style:top="{top + (isWhitePerspective ? -hexHeight / 4 : hexHeight / 1.6)}px"
-						style:left="{getLeft(file, true) + hexWidth}px"
-					>
-						{rankMarker}
-					</div>
-				{/if}
+				<!--{#if file === 0}-->
+				<!--	<div-->
+				<!--		class="hexagon-label"-->
+				<!--		style:top="{top + (isWhitePerspective ? -hexHeight / 4 : hexHeight / 1.5)}px"-->
+				<!--		style:left="{getLeft(file, true) - 10}px"-->
+				<!--	>-->
+				<!--		{rankMarker}-->
+				<!--	</div>-->
+				<!--{/if}-->
+				<!--{#if file === boardState.file.length-1}-->
+				<!--	<div-->
+				<!--		class="hexagon-label"-->
+				<!--		style:top="{top + (isWhitePerspective ? -hexHeight / 4 : hexHeight / 1.5)}px"-->
+				<!--		style:left="{getLeft(file, true) + hexWidth}px"-->
+				<!--	>-->
+				<!--		{rankMarker}-->
+				<!--	</div>-->
+				<!--{/if}-->
+				<!--{#if (file > 0 && file <= 5) && rank === ranksPerFile[file]-1}-->
+				<!--	<div-->
+				<!--		class="hexagon-label"-->
+				<!--		style:top="{top + (isWhitePerspective ? -hexHeight / 4.5 : hexHeight / 1.5)}px"-->
+				<!--		style:left="{getLeft(file, true) - 20}px"-->
+				<!--	>-->
+				<!--		{rankMarker}-->
+				<!--	</div>-->
+				<!--{/if}-->
+				<!--{#if (file >= 5 && file < 10) && rank === ranksPerFile[file]-1}-->
+				<!--	<div-->
+				<!--		class="hexagon-label"-->
+				<!--		style:top="{top + (isWhitePerspective ? -hexHeight / 4 : hexHeight / 1.5)}px"-->
+				<!--		style:left="{getLeft(file, true) + hexWidth-1}px"-->
+				<!--	>-->
+				<!--		{rankMarker}-->
+				<!--	</div>-->
+				<!--{/if}-->
 				<div
 					class="hexagon"
 					role="button"
@@ -219,6 +248,7 @@
 							points="50,0 150,0 200,86.6 150,173 50,173 0,86.6"
 							fill={bgColors[bgIndex]}
 							stroke="rgba(120, 90, 60, 0.5)"
+
 						/>
 						<polygon points="50,0 150,0 200,86.6 150,173 50,173 0,86.6" fill={bgColor} />
 						{#if piece !== pieces.empty}
@@ -235,9 +265,9 @@
 			{/each}
 			{@const top = isWhitePerspective ? getTop(file, -1, true) : getTop(file, -0.6, false)}
 			{@const left = getLeft(file)}
-			<div class="hexagon-label" style:top="{top}px" style:left="{left}px" style:width="{hexWidth}px" style:height="{hexHeight}px">
-				{fileMarker}
-			</div>
+<!--			<div class="hexagon-label" style:top="{top}px" style:left="{left}px" style:width="{hexWidth}px" style:height="{hexHeight}px">-->
+<!--				{fileMarker}-->
+<!--			</div>-->
 		{/each}
 	</div>
 	{#await awaitingFen then fen}

@@ -106,33 +106,39 @@ func (g *Game) GetOppositeMoves() []PieceMoves {
 type Promotion int
 
 const (
-	_ = iota
-	QueenPromotion
+	_              = iota
+	QueenPromotion = iota
 	RookPromotion
 	BishopPromotion
 	KnightPromotion
 )
 
-func IsLastRank(to Hex) bool {
-	return to.File < uint32(len(RanksPerFile)) && to.Rank == RanksPerFile[to.File]-1
-}
-
 func GetPromoPiece(promotion Promotion, isWhiteTurn bool) Piece {
-	piecePromo := Empty
-	switch promotion {
-	case QueenPromotion:
-		piecePromo = WhiteQueen
-	case RookPromotion:
-		piecePromo = WhiteRook
-	case BishopPromotion:
-		piecePromo = WhiteBishop
-	case KnightPromotion:
-		piecePromo = WhiteKnight
+	var piece Piece
+	if isWhiteTurn {
+		switch promotion {
+		case RookPromotion:
+			piece = WhiteRook
+		case BishopPromotion:
+			piece = WhiteBishop
+		case KnightPromotion:
+			piece = WhiteKnight
+		default:
+			piece = WhiteQueen
+		}
+	} else {
+		switch promotion {
+		case RookPromotion:
+			piece = BlackRook
+		case BishopPromotion:
+			piece = BlackBishop
+		case KnightPromotion:
+			piece = BlackKnight
+		default:
+			piece = BlackQueen
+		}
 	}
-	if !isWhiteTurn && piecePromo != Empty {
-		piecePromo += 1
-	}
-	return piecePromo
+	return piece
 }
 
 type Move struct {
@@ -147,15 +153,44 @@ func (g *Game) MakeMoved(mv Move) Game {
 	return game
 }
 
-func (g *Game) MakeMove(mv Move) HistMove {
+func (g *Game) IsPromotion(mv Move) bool {
+	isPawn := g.Board.Get(mv.From.File, mv.From.Rank).IsPawn()
+	if !isPawn {
+		return false
+	}
+	if g.Board.IsWhiteTurn {
+		return mv.To.File < uint32(len(RanksPerFile)) && mv.To.Rank == RanksPerFile[mv.To.File]-1
+	} else {
+		return mv.To.Rank == 0
+	}
+}
+
+func (g *Game) MakeMove(move Move) HistMove {
 	// preconditions: to and from are valid locations on the board, promotion is a valid promotion
-	from := mv.From
-	to := mv.To
-	promotion := mv.Promotion
-	isMvLastRank := IsLastRank(mv.To)
+	from := move.From
+	to := move.To
+	promotion := move.Promotion
 
 	pieceFrom := g.Board.Get(from.File, from.Rank)
 	pieceTo := g.Board.Get(to.File, to.Rank)
+	isPromotion := g.IsPromotion(move)
+
+	g.Board.Set(from.File, from.Rank, Empty)
+	if isPromotion {
+		if promotion == 0 {
+			promotion = QueenPromotion
+		}
+		g.Board.Set(to.File, to.Rank, GetPromoPiece(promotion, g.Board.IsWhiteTurn))
+	} else {
+		g.Board.Set(to.File, to.Rank, pieceFrom)
+	}
+
+	hm := g.MakeHistMove(PieceMove{Piece: pieceFrom, From: from, To: to})
+	if isPromotion {
+		hm.Promotion = promotion
+	}
+
+	g.Board.IsWhiteTurn = !g.Board.IsWhiteTurn
 
 	if pieceTo != Empty {
 		if g.Board.IsWhiteTurn {
@@ -164,36 +199,8 @@ func (g *Game) MakeMove(mv Move) HistMove {
 			g.TakenBlackPieces = append(g.TakenBlackPieces, pieceTo)
 		}
 	}
-
-	var isPromo bool
-
-	g.Board.Set(from.File, from.Rank, Empty)
-	if isMvLastRank {
-		promoPiece := GetPromoPiece(promotion, g.Board.IsWhiteTurn)
-		g.Board.Set(to.File, to.Rank, promoPiece)
-		isPromo = true
-	} else {
-		g.Board.Set(to.File, to.Rank, pieceFrom)
-	}
-
-	hm := g.AnnotateHistMove(HistMove{PieceMove: PieceMove{Piece: pieceFrom, From: from, To: to}})
-	if isPromo {
-		hm.Promotion = promotion
-	}
-
-	g.Board.IsWhiteTurn = !g.Board.IsWhiteTurn
-
 	//g.Moves = append(g.Moves, hm)
 	return hm
-}
-
-func (g *Game) MakeMoveAppend(mv Move) {
-	g.AddMoveHist(g.MakeMove(mv), time.Time{})
-}
-
-func (g *Game) AddMoveHist(hm HistMove, t time.Time) {
-	hm.MadeOn = t
-	g.Moves = append(g.Moves, hm)
 }
 
 type MoveErrorKind int
@@ -238,7 +245,7 @@ func (g *Game) ValidateMove(move Move) error {
 	if !g.Board.InBoundsHex(move.From) || !g.Board.InBoundsHex(move.To) {
 		return MoveError{Kind: MoveErrOutOfBounds, Move: move}
 	}
-	if IsLastRank(move.To) && g.Board.Get(move.From.File, move.From.Rank).IsPawn() {
+	if g.IsPromotion(move) {
 		switch move.Promotion {
 		case QueenPromotion, RookPromotion, BishopPromotion, KnightPromotion:
 		default:
@@ -258,15 +265,25 @@ func (g *Game) ValidateMove(move Move) error {
 
 type HistMove struct {
 	PieceMove
-	Promotion Promotion
-	CollFile  bool
-	CollRank  bool
-	IsCheck   bool
-	IsTake    bool
-	MadeOn    time.Time
+	Promotion  Promotion
+	CollFile   bool
+	CollRank   bool
+	IsCheck    bool
+	IsTake     bool
+	WhiteTimer time.Duration
+	BlackTimer time.Duration
 }
 
-func (m *HistMove) String() string {
+func (m HistMove) Equals(m1 HistMove) bool {
+	return m.PieceMove == m1.PieceMove &&
+		m.Promotion == m1.Promotion &&
+		m.CollFile == m1.CollFile &&
+		m.CollRank == m1.CollRank &&
+		m.IsCheck == m1.IsCheck &&
+		m.IsTake == m1.IsTake
+}
+
+func (m HistMove) String() string {
 	from := m.PieceMove.From
 	to := m.PieceMove.To
 
@@ -289,8 +306,8 @@ func (m *HistMove) String() string {
 	}
 
 	sb.WriteString(to.String())
-	piece := GetPromoPiece(m.Promotion, m.Piece.IsWhite())
-	if piece != Empty {
+	if m.Promotion != 0 {
+		piece := GetPromoPiece(m.Promotion, m.Piece.IsWhite())
 		sb.WriteRune('=')
 		sb.WriteRune(piece.Rune())
 	}
@@ -298,7 +315,8 @@ func (m *HistMove) String() string {
 	return sb.String()
 }
 
-func (g *Game) AnnotateHistMove(hm HistMove) HistMove {
+func (g *Game) MakeHistMove(pm PieceMove) HistMove {
+	hm := HistMove{PieceMove: pm}
 	boardPiece := g.Board.Get(hm.To.File, hm.To.Rank)
 	if boardPiece != Empty && boardPiece.IsWhite() != hm.Piece.IsWhite() {
 		hm.IsTake = true
@@ -679,7 +697,7 @@ func RandomMoveSeq(game Game, low int, hi int) ([]HistMove, error) {
 		toPiece := game.Board.Get(pm.To.File, pm.To.Rank)
 		fromPiece := game.Board.Get(pm.From.File, pm.From.Rank)
 		if toPiece.IsKing() {
-			return nil, errors.New("assertion error: should never be allowed to make a move to the king")
+			return nil, errors.New("should never be allowed to make a move to the king")
 		}
 		if pm.From == pm.To {
 			return nil, fmt.Errorf("expected from != to, got %v", pm)
@@ -696,47 +714,40 @@ func RandomMoveSeq(game Game, low int, hi int) ([]HistMove, error) {
 	return game.Moves, nil
 }
 
-var ErrNoMoveUndo = errors.New("no move to undo")
+func ApplyMoveSeq(moves ...Move) []HistMove {
+	game := MakeStartGame()
 
-func (g *Game) Undo(initial Board) error {
-	if len(g.Moves) == 0 {
-		return ErrNoMoveUndo
+	for _, m := range moves {
+		game.Moves = append(game.Moves, game.MakeMove(m))
 	}
-	return g.Rewind(initial, 1)
+
+	return game.Moves
+}
+
+type JumpIndexError struct {
+	Count int
+	Len   int
+}
+
+func (e JumpIndexError) Error() string {
+	return fmt.Sprintf("invalid rewind offset, must be between 0 and move length (%d), got: %d", e.Len, e.Count)
 }
 
 func JumpMoveIndex(initial Board, moves []HistMove, index int) (*Game, error) {
-	offset := len(moves) - (index + 1)
-	return Rewind(initial, moves, offset)
-}
+	count := index + 1 // requesting state 0 means reapplying 1 move.
 
-type RewindOffsetError struct {
-	Offset int
-	Len    int
-}
-
-func (e RewindOffsetError) Error() string {
-	return fmt.Sprintf("invalid rewind offset, must be between 0 and move length (%d), got: %d", e.Len, e.Offset)
-}
-
-func (g *Game) Rewind(initial Board, offset int) error {
-	game, err := Rewind(initial, g.Moves, offset)
-	if game != nil {
-		*g = *game
-	}
-	return err
-}
-
-func Rewind(initial Board, moves []HistMove, offset int) (*Game, error) {
-	index := len(moves) - offset
-	if index < 0 || index > len(moves) {
-		return nil, RewindOffsetError{Offset: offset, Len: len(moves)}
+	if count < 0 || count > len(moves) {
+		return nil, JumpIndexError{Count: count, Len: len(moves)}
 	}
 	undoGame := &Game{Board: initial}
-	movesExceptLast := moves[:index]
+	movesExceptLast := moves[:count]
 	for _, move := range movesExceptLast {
-		hm := undoGame.MakeMove(Move{From: move.From, To: move.To, Promotion: move.Promotion})
-		undoGame.AddMoveHist(hm, move.MadeOn)
+		_ = undoGame.MakeMove(Move{From: move.From, To: move.To, Promotion: move.Promotion})
+		// redoing the move has recomputed the hist move. this should be the same as the original move
+		//if !redoMove.Equals(move) {
+		//	return nil, fmt.Errorf("expected redoMove == move, got %#v != %#v", redoMove, move)
+		//}
+		undoGame.Moves = append(undoGame.Moves, move)
 	}
 	undoGame.InitPieceMoves()
 	return undoGame, nil

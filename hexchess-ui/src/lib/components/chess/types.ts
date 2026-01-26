@@ -1,7 +1,7 @@
 import type { Hex } from '$lib/api/models';
 
-export const BadPromotion = "INCOMPLETE_PROMOTION";
-export type BadPromotionType = typeof BadPromotion;
+export const CancelPromotion = "INCOMPLETE_PROMOTION";
+export type BadPromotionType = typeof CancelPromotion;
 
 export interface MoveAction {
 	from: Hex;

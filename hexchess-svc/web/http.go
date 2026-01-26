@@ -3,7 +3,7 @@ package web
 import (
 	"encoding/json"
 	"errors"
-	"hexchess-svc/pkg/errmap"
+	"hexchess-svc/pkg/errutil"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -60,7 +60,7 @@ func HttpStatusFromErr(err error) (int, string) {
 
 func HttpStatusFromErrs(err error) ServiceView {
 	var errs map[string]error
-	var merr *errmap.ErrorMap
+	var merr *errutil.ErrorMap
 	if ok := errors.As(err, &merr); ok {
 		errs = merr.Errors
 	} else {

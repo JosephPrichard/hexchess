@@ -340,15 +340,16 @@ func (x *ChessBoard) GetFile() []*BoardFile {
 type HistMove struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Piece         int32                  `protobuf:"varint,1,opt,name=piece,proto3" json:"piece,omitempty"`
-	FromFile      int32                  `protobuf:"varint,2,opt,name=fromFile,proto3" json:"fromFile,omitempty"`
-	FromRank      int32                  `protobuf:"varint,3,opt,name=fromRank,proto3" json:"fromRank,omitempty"`
-	ToFile        int32                  `protobuf:"varint,4,opt,name=toFile,proto3" json:"toFile,omitempty"`
-	ToRank        int32                  `protobuf:"varint,5,opt,name=toRank,proto3" json:"toRank,omitempty"`
-	CollFile      bool                   `protobuf:"varint,6,opt,name=collFile,proto3" json:"collFile,omitempty"`
-	CollRank      bool                   `protobuf:"varint,7,opt,name=collRank,proto3" json:"collRank,omitempty"`
-	IsTake        bool                   `protobuf:"varint,8,opt,name=isTake,proto3" json:"isTake,omitempty"`
-	IsCheck       bool                   `protobuf:"varint,9,opt,name=isCheck,proto3" json:"isCheck,omitempty"`
-	MadeOn        string                 `protobuf:"bytes,10,opt,name=madeOn,proto3" json:"madeOn,omitempty"`
+	FromFile      int32                  `protobuf:"varint,2,opt,name=from_file,json=fromFile,proto3" json:"from_file,omitempty"`
+	FromRank      int32                  `protobuf:"varint,3,opt,name=from_rank,json=fromRank,proto3" json:"from_rank,omitempty"`
+	ToFile        int32                  `protobuf:"varint,4,opt,name=to_file,json=toFile,proto3" json:"to_file,omitempty"`
+	ToRank        int32                  `protobuf:"varint,5,opt,name=to_rank,json=toRank,proto3" json:"to_rank,omitempty"`
+	CollFile      bool                   `protobuf:"varint,6,opt,name=coll_file,json=collFile,proto3" json:"coll_file,omitempty"`
+	CollRank      bool                   `protobuf:"varint,7,opt,name=coll_rank,json=collRank,proto3" json:"coll_rank,omitempty"`
+	IsTake        bool                   `protobuf:"varint,8,opt,name=is_take,json=isTake,proto3" json:"is_take,omitempty"`
+	IsCheck       bool                   `protobuf:"varint,9,opt,name=is_check,json=isCheck,proto3" json:"is_check,omitempty"`
+	WhiteTimerMs  int64                  `protobuf:"varint,10,opt,name=white_timer_ms,json=whiteTimerMs,proto3" json:"white_timer_ms,omitempty"`
+	BlackTimerMs  int64                  `protobuf:"varint,11,opt,name=black_timer_ms,json=blackTimerMs,proto3" json:"black_timer_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -446,11 +447,18 @@ func (x *HistMove) GetIsCheck() bool {
 	return false
 }
 
-func (x *HistMove) GetMadeOn() string {
+func (x *HistMove) GetWhiteTimerMs() int64 {
 	if x != nil {
-		return x.MadeOn
+		return x.WhiteTimerMs
 	}
-	return ""
+	return 0
+}
+
+func (x *HistMove) GetBlackTimerMs() int64 {
+	if x != nil {
+		return x.BlackTimerMs
+	}
+	return 0
 }
 
 type ChessGame struct {
@@ -2553,19 +2561,20 @@ const file_messages_proto_rawDesc = "" +
 	"\n" +
 	"ChessBoard\x12\"\n" +
 	"\ris_white_turn\x18\x01 \x01(\bR\visWhiteTurn\x12'\n" +
-	"\x04file\x18\x02 \x03(\v2\x13.messages.BoardFileR\x04file\"\x8a\x02\n" +
+	"\x04file\x18\x02 \x03(\v2\x13.messages.BoardFileR\x04file\"\xc6\x02\n" +
 	"\bHistMove\x12\x14\n" +
-	"\x05piece\x18\x01 \x01(\x05R\x05piece\x12\x1a\n" +
-	"\bfromFile\x18\x02 \x01(\x05R\bfromFile\x12\x1a\n" +
-	"\bfromRank\x18\x03 \x01(\x05R\bfromRank\x12\x16\n" +
-	"\x06toFile\x18\x04 \x01(\x05R\x06toFile\x12\x16\n" +
-	"\x06toRank\x18\x05 \x01(\x05R\x06toRank\x12\x1a\n" +
-	"\bcollFile\x18\x06 \x01(\bR\bcollFile\x12\x1a\n" +
-	"\bcollRank\x18\a \x01(\bR\bcollRank\x12\x16\n" +
-	"\x06isTake\x18\b \x01(\bR\x06isTake\x12\x18\n" +
-	"\aisCheck\x18\t \x01(\bR\aisCheck\x12\x16\n" +
-	"\x06madeOn\x18\n" +
-	" \x01(\tR\x06madeOn\"\xab\x02\n" +
+	"\x05piece\x18\x01 \x01(\x05R\x05piece\x12\x1b\n" +
+	"\tfrom_file\x18\x02 \x01(\x05R\bfromFile\x12\x1b\n" +
+	"\tfrom_rank\x18\x03 \x01(\x05R\bfromRank\x12\x17\n" +
+	"\ato_file\x18\x04 \x01(\x05R\x06toFile\x12\x17\n" +
+	"\ato_rank\x18\x05 \x01(\x05R\x06toRank\x12\x1b\n" +
+	"\tcoll_file\x18\x06 \x01(\bR\bcollFile\x12\x1b\n" +
+	"\tcoll_rank\x18\a \x01(\bR\bcollRank\x12\x17\n" +
+	"\ais_take\x18\b \x01(\bR\x06isTake\x12\x19\n" +
+	"\bis_check\x18\t \x01(\bR\aisCheck\x12$\n" +
+	"\x0ewhite_timer_ms\x18\n" +
+	" \x01(\x03R\fwhiteTimerMs\x12$\n" +
+	"\x0eblack_timer_ms\x18\v \x01(\x03R\fblackTimerMs\"\xab\x02\n" +
 	"\tChessGame\x12*\n" +
 	"\x05board\x18\x01 \x01(\v2\x14.messages.ChessBoardR\x05board\x125\n" +
 	"\vwhite_moves\x18\x02 \x03(\v2\x14.messages.PieceMovesR\n" +

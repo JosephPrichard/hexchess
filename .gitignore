@@ -33,4 +33,4 @@ wasm_exec.js
 chess.wasm
 
 graph.dot
-pg_dump.ps1
+*.ps1

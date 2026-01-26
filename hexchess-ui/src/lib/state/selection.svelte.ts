@@ -1,6 +1,6 @@
 import type { Hex } from '$lib/api/models';
 import type { ChessGame, PieceMoves } from '$lib/pb/messages';
-import { deserializeHexList } from '$lib/utils/chess';
+import { deserializeHexList, findPotentialMoves } from '$lib/service/chess';
 
 export interface SelectionState {
 	potentialMoves: PieceMoves | undefined;
@@ -16,21 +16,7 @@ export function makeSelectionState() {
 	});
 
 	function select(game: ChessGame | undefined, hex: Hex) {
-		if (!game) {
-			return
-		}
-		let potentialMoves: PieceMoves | undefined;
-
-		let index = game.blackMoves.findIndex((move) => hex.file === move?.fromFile && hex.rank == move?.fromRank);
-		if (index !== -1) {
-			potentialMoves = game.blackMoves[index];
-		}
-		index = game.whiteMoves.findIndex((move) => hex.file === move?.fromFile && hex.rank == move?.fromRank);
-		if (index !== -1) {
-			potentialMoves = game.whiteMoves[index];
-		}
-
-		state.potentialMoves = potentialMoves;
+		state.potentialMoves = findPotentialMoves(game, hex);
 		state.hex = hex;
 	}
 

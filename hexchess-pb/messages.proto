@@ -37,15 +37,16 @@ message ChessBoard {
 
 message HistMove {
   int32 piece = 1;
-  int32 fromFile = 2;
-  int32 fromRank = 3;
-  int32 toFile = 4;
-  int32 toRank = 5;
-  bool collFile = 6;
-  bool collRank = 7;
-  bool isTake = 8;
-  bool isCheck = 9;
-  string madeOn = 10;
+  int32 from_file = 2;
+  int32 from_rank = 3;
+  int32 to_file = 4;
+  int32 to_rank = 5;
+  bool coll_file = 6;
+  bool coll_rank = 7;
+  bool is_take = 8;
+  bool is_check = 9;
+  int64 white_timer_ms = 10;
+  int64 black_timer_ms = 11;
 }
 
 message ChessGame {

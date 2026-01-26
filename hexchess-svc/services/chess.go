@@ -74,16 +74,16 @@ type StateSetup struct {
 }
 
 func MakeChess(s StateSetup) ChessState {
-	b := chess.MakeStartBoard()
+	board := chess.MakeStartBoard()
 	if s.InitialBoard != nil {
-		b = *s.InitialBoard
+		board = *s.InitialBoard
 	}
-	game := chess.Game{Board: b}
+	game := chess.Game{Board: board}
 	if s.Game != nil {
 		game = *s.Game
 	}
 	state := ChessState{
-		InitialBoard: b,
+		InitialBoard: board,
 		Game:         game,
 		UndoState:    s.UndoState,
 		ChessMeta: ChessMeta{
@@ -97,6 +97,20 @@ func MakeChess(s StateSetup) ChessState {
 		EndState: s.FinishState,
 	}
 	return state
+}
+
+var ErrNoMoveUndo = errors.New("no move to undo")
+
+func (s *ChessState) Undo() error {
+	if len(s.Game.Moves) == 0 {
+		return ErrNoMoveUndo
+	}
+	index := len(s.Game.Moves) - 2 // last element minus one.
+	game, err := chess.JumpMoveIndex(s.InitialBoard, s.Game.Moves, index)
+	if game != nil {
+		s.Game = game.DeepCopy()
+	}
+	return err
 }
 
 func (s *ChessState) CurrPlayer() PlayerState {
@@ -138,9 +152,23 @@ func (s *State) IsGameAccessible(ctx context.Context, id string) bool {
 	//if err := s.ExpireChessStates(ctx, s.Redis.GamesZSet); err != nil {
 	//	return false
 	//}
-	fullID := makeGameKey(id)
-	exists, err := s.Redis.Cache.Exists(ctx, fullID).Result()
+	exists, err := s.Redis.Cache.Exists(ctx, makeGameKey(id)).Result()
 	return err == nil && exists == 1
+}
+
+// AcquireChessLock is used to make sure only one client is ever allowed to write to a game ID at any time
+// if the client fails to acquire the lock, the operation should fail rather than retry because the mutation will no longer be valid (underlying state will be swapped once freed)
+// consider a situation where client 1 has fetched state A and is transforming it to state B. client 2 wants to transform state A to C. by the time client 1 is done writing, state C is outdated since it is based on an older version of A
+func (s *State) AcquireChessLock(ctx context.Context, id string) bool {
+	exists, err := s.Redis.Cache.SetNX(ctx, makeGameKey(id), "true", time.Second*5).Result()
+	return err == nil && !exists // we acquired the lock, AND without errors.
+}
+
+func (s *State) ReleaseChessLock(ctx context.Context, id string) {
+	err := s.Redis.Cache.Del(ctx, makeGameKey(id)).Err()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to release chess state lock", "id", id, "err", err)
+	}
 }
 
 var ErrNoChessState = errors.New("no chess state")
@@ -179,6 +207,8 @@ func (s *State) makeGameChatsKey(gameKey string) string {
 	return gameKey + "/" + s.GameChatsPostfix
 }
 
+const SetChessRetries = 5
+
 func (s *State) SetChessStateAt(ctx context.Context, id string, state *ChessState, touch time.Time) error {
 	state.Touch = touch
 	touchSecs := float64(state.Touch.Unix())
@@ -189,29 +219,46 @@ func (s *State) SetChessStateAt(ctx context.Context, id string, state *ChessStat
 		return fmt.Errorf("marshal chess state: %w", err)
 	}
 
-	pipe := s.Redis.Cache.TxPipeline()
-	pipe.Set(ctx, fullID, b, 0)
+	// retries with exponential backoffs are used to handle intermittent network issues to increase the chance that writes suceed
+	backoff := 100 * time.Millisecond
 
-	if state.EndState.Kind != Aborted {
-		pipe.ZAdd(ctx, s.Redis.GamesZSet, redis.Z{Score: touchSecs, Member: fullID})
-		if state.WhitePlayer.Present {
-			pipe.ZAdd(ctx, s.makeUserGameZSet(state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
+	for range SetChessRetries {
+		pipe := s.Redis.Cache.TxPipeline()
+		pipe.Set(ctx, fullID, b, 0)
+
+		if state.EndState.Kind != Aborted {
+			pipe.ZAdd(ctx, s.Redis.GamesZSet, redis.Z{Score: touchSecs, Member: fullID})
+			if state.WhitePlayer.Present {
+				pipe.ZAdd(ctx, s.makeUserGameZSet(state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
+			}
+			if state.BlackPlayer.Present {
+				pipe.ZAdd(ctx, s.makeUserGameZSet(state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
+			}
+		} else {
+			pipe.ZRem(ctx, s.Redis.GamesZSet, fullID)
+			if state.WhitePlayer.Present {
+				pipe.ZRem(ctx, s.makeUserGameZSet(state.WhitePlayer.ID), fullID)
+			}
+			if state.BlackPlayer.Present {
+				pipe.ZRem(ctx, s.makeUserGameZSet(state.BlackPlayer.ID), fullID)
+			}
 		}
-		if state.BlackPlayer.Present {
-			pipe.ZAdd(ctx, s.makeUserGameZSet(state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
+
+		_, err = pipe.Exec(ctx)
+		if err == nil {
+			break
 		}
-	} else {
-		pipe.ZRem(ctx, s.Redis.GamesZSet, fullID)
-		if state.WhitePlayer.Present {
-			pipe.ZRem(ctx, s.makeUserGameZSet(state.WhitePlayer.ID), fullID)
-		}
-		if state.BlackPlayer.Present {
-			pipe.ZRem(ctx, s.makeUserGameZSet(state.BlackPlayer.ID), fullID)
+		slog.WarnContext(ctx, "failed to set chess state in redis, retrying", "err", err)
+
+		select {
+		case <-time.After(backoff):
+			backoff *= 2
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 	}
-
-	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("set chess state in redis: %w", err)
+	if err != nil {
+		return fmt.Errorf("set chess state in redis after %d retries: %w", SetChessRetries, err)
 	}
 
 	slog.InfoContext(ctx, "set chess state", "key", fullID, "touch", touch)

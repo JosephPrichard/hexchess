@@ -21,7 +21,13 @@ export const GameModeNameMap: Record<string, string> = {
 	"CORRESPONDENCE_14": "Correspondence 14d",
 };
 
-export const TimedGameModes = ["TIMED_1+0", "TIMED_3+2", "TIMED_15+10"];
+const msPerMin = 60_000;
+
+export const GameModeTimers = new Map<string, number>([
+	["TIMED_1+0", msPerMin],
+	["TIMED_3+2", 3 * msPerMin],
+	["TIMED_15+10", 15 * msPerMin],
+]);
 
 export interface SessionModel {
 	id: number;

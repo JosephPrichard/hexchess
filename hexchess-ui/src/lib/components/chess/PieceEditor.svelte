@@ -3,7 +3,7 @@
 	import Piece from './Piece.svelte';
 	import type { Hex } from '$lib/api/models';
 	import { type SelectEvent, selectEvents } from '$lib/globals';
-	import { blackPieces, whitePieces } from '$lib/utils/chess.js';
+	import { blackPieces, whitePieces } from '$lib/service/chess';
 	import CursorIcon from '$lib/components/icons/CursorIcon.svelte';
 	import LargeTrashIcon from '$lib/components/icons/LargeTrashIcon.svelte';
 
@@ -53,7 +53,6 @@
 
 <div class="piece-editor">
 	{#each [whitePieces, blackPieces] as panel, i}
-		{@const isCursor = i === 0}
 		<div class="piece-panel">
 			{#each panel as piece}
 				<div class="piece-tile-wrapper">
@@ -79,34 +78,42 @@
 					</div>
 				</div>
 			{/each}
-			<div
-				role="cell"
-				tabindex="0"
-				class="select-tile"
-				style:width="{hexWidth}px"
-				style:height="{hexHeight}px"
-				class:red-select-tile={isTrashSelector && !isCursor}
-				class:green-select-tile={!isTrashSelector && isCursor}
-				onmousedown={() => onSelectTrash(isCursor)}
-			>
-				{#if isCursor}
-					<CursorIcon/>
-				{:else}
-					<LargeTrashIcon/>
-				{/if}
-			</div>
 		</div>
 	{/each}
+	<div class="piece-panel select-tile-wrapper">
+		{#each ["CURSOR", "TRASH"] as selector, i}
+			{@const isCursor = selector === "CURSOR"}
+			<div>
+				<div
+					role="cell"
+					tabindex="0"
+					class="select-tile"
+					style:width="{hexWidth}px"
+					style:height="{hexHeight}px"
+					class:red-select-tile={isTrashSelector && !isCursor}
+					class:green-select-tile={!isTrashSelector && isCursor}
+					onmousedown={() => onSelectTrash(isCursor)}
+				>
+					{#if isCursor}
+						<CursorIcon/>
+					{:else}
+						<LargeTrashIcon/>
+					{/if}
+				</div>
+			</div>
+		{/each}
+	</div>
 </div>
 
 <style>
 	.piece-editor {
 		width: 100%;
 		display: flex;
-		flex-direction: row;
-		gap: 25px;
-        align-items: center;
-        justify-content: center;
+		flex-direction: column;
+		margin-top: 20px;
+        gap: 20px;
+        justify-content: space-between;
+		align-items: center;
 	}
 
 	.selected-tile {
@@ -127,17 +134,29 @@
 	}
 
 	.piece-panel {
-		border: 1px solid rgb(100,100,100);
-        margin-top: 20px;
-        margin-bottom: 20px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+        /*border: 1px solid rgb(100, 100, 100);*/
         border-radius: 3px;
         background: rgb(64, 64, 64);
+		display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+		text-align: center;
 	}
 
 	.piece-tile-wrapper {
+        width: 70px;
+		z-index: 1;
 		text-align: center;
-		width: 100%;
 	}
+
+    .piece-tile {
+        border-radius: 2px;
+        border: 1px solid rgb(100, 100, 100);
+        cursor: pointer;
+        position: relative;
+        margin: auto;
+    }
 
 	.select-tile {
 		cursor: pointer;
@@ -148,9 +167,7 @@
         transition: background-color 0.15s ease-out;
 	}
 
-    .piece-tile {
-		cursor: pointer;
-		position: relative;
-		margin: auto;
+	.select-tile-wrapper {
+        border: 1px solid rgb(100, 100, 100);
 	}
 </style>

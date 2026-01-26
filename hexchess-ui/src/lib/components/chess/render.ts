@@ -1,5 +1,4 @@
-import { browser } from '$app/environment';
-import { ranksPerFile } from '$lib/utils/chess.js';
+import { ranksPerFile } from '$lib/service/chess';
 import type { Hex } from '$lib/api/models';
 
 export const hexHeight = 56;

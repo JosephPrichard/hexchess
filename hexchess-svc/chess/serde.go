@@ -84,22 +84,18 @@ func DeserializeHistMove(pbHm *pb.HistMove) HistMove {
 	if pbHm == nil {
 		return HistMove{}
 	}
-	var madeOn time.Time
-	if pbHm.MadeOn != "" {
-		// this will be zero'd out a lot of the time. we don't want to fail if that is the case, let the consumer decide how to deal with an invalid time field
-		madeOn, _ = time.Parse(time.RFC3339, pbHm.MadeOn)
-	}
 	return HistMove{
 		PieceMove: PieceMove{
 			Piece: Piece(pbHm.Piece),
 			From:  Hex{File: uint32(pbHm.FromFile), Rank: uint32(pbHm.FromRank)},
 			To:    Hex{File: uint32(pbHm.ToFile), Rank: uint32(pbHm.ToRank)},
 		},
-		CollFile: pbHm.CollFile,
-		CollRank: pbHm.CollRank,
-		IsCheck:  pbHm.IsCheck,
-		IsTake:   pbHm.IsTake,
-		MadeOn:   madeOn,
+		CollFile:   pbHm.CollFile,
+		CollRank:   pbHm.CollRank,
+		IsCheck:    pbHm.IsCheck,
+		IsTake:     pbHm.IsTake,
+		WhiteTimer: time.Duration(pbHm.WhiteTimerMs) * time.Millisecond,
+		BlackTimer: time.Duration(pbHm.BlackTimerMs) * time.Millisecond,
 	}
 }
 
@@ -192,16 +188,17 @@ func SerializeBoard(board *Board) *pb.ChessBoard {
 
 func SerializeHistMove(hm HistMove) *pb.HistMove {
 	return &pb.HistMove{
-		Piece:    int32(hm.Piece),
-		FromFile: int32(hm.From.File),
-		FromRank: int32(hm.From.Rank),
-		ToFile:   int32(hm.To.File),
-		ToRank:   int32(hm.To.Rank),
-		CollFile: hm.CollFile,
-		CollRank: hm.CollRank,
-		IsCheck:  hm.IsCheck,
-		IsTake:   hm.IsTake,
-		MadeOn:   hm.MadeOn.Format(time.RFC3339),
+		Piece:        int32(hm.Piece),
+		FromFile:     int32(hm.From.File),
+		FromRank:     int32(hm.From.Rank),
+		ToFile:       int32(hm.To.File),
+		ToRank:       int32(hm.To.Rank),
+		CollFile:     hm.CollFile,
+		CollRank:     hm.CollRank,
+		IsCheck:      hm.IsCheck,
+		IsTake:       hm.IsTake,
+		WhiteTimerMs: hm.WhiteTimer.Milliseconds(),
+		BlackTimerMs: hm.BlackTimer.Milliseconds(),
 	}
 }
 

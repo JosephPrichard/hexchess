@@ -37,7 +37,6 @@ func TestMultiCaster(t *testing.T) {
 		for msg := range sub {
 			messages = append(messages, string(msg))
 		}
-		t.Logf("completed testing subscriber: %v: %v", sub, messages)
 		mChan <- messages
 	}
 	go testSub(sub1, mChan1)
@@ -90,7 +89,6 @@ func TestUnicaster(t *testing.T) {
 		for msg := range sub {
 			messages = append(messages, msg)
 		}
-		t.Logf("completed testing subscriber: %v: %v", sub, messages)
 		mChan <- messages
 	}
 	go testSub(sub1, mChan1)
@@ -119,7 +117,8 @@ func TestBroadcastGameMessage(t *testing.T) {
 	lb := LocalBroadcasters{GamesCaster: MakeMultiCasterMap("testing-broker-map", time.Hour*1)}
 	<-lb.ListenGameMessages(s.Redis)
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx, cancel := context.WithTimeout(context.WithValue(t.Context(), logutil.Trace, t.Name()), 1*time.Second)
+	defer cancel()
 
 	wantMsgCount := 2
 
@@ -127,27 +126,34 @@ func TestBroadcastGameMessage(t *testing.T) {
 	subChan := make(chan []byte, wantMsgCount)
 	lb.GamesCaster.Subscribe("1", subChan)
 
-	makeTestChatOutput := func(id string, msg string) []byte {
+	for _, input := range []struct {
+		id  string
+		msg string
+	}{
+		{id: "1", msg: "test1"},
+		{id: "2", msg: "test3"},
+		{id: "1", msg: "test2"},
+	} {
 		v, err := proto.Marshal(&pb.GameOutput{
-			GameId: id,
-			Value:  &pb.GameOutput_Chat{Chat: &pb.ChatOutput{Message: msg}},
+			GameId: input.id,
+			Value:  &pb.GameOutput_Chat{Chat: &pb.ChatOutput{Message: input.msg}},
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return v
+		require.NoError(t, err)
+		require.NoError(t, s.BroadcastGamesEvent(ctx, v))
 	}
-
-	require.NoError(t, s.BroadcastGamesEvent(ctx, makeTestChatOutput("1", "test1")))
-	require.NoError(t, s.BroadcastGamesEvent(ctx, makeTestChatOutput("1", "test2")))
-	require.NoError(t, s.BroadcastGamesEvent(ctx, makeTestChatOutput("2", "test3")))
 
 	// then
 	var msgs []string
+ReadMsgs:
 	for range wantMsgCount {
-		var output pb.GameOutput
-		require.NoError(t, proto.Unmarshal(<-subChan, &output))
-		msgs = append(msgs, output.GetChat().GetMessage())
+		select {
+		case <-ctx.Done():
+			break ReadMsgs
+		case v := <-subChan:
+			var output pb.GameOutput
+			require.NoError(t, proto.Unmarshal(v, &output))
+			msgs = append(msgs, output.GetChat().GetMessage())
+		}
 	}
 	assert.Equal(t, []string{"test1", "test2"}, msgs)
 }
