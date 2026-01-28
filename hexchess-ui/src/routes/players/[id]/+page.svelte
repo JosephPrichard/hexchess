@@ -54,7 +54,7 @@
 				console.error("Error loading replays: ", err);
 				return;
 			}
-			const replayList = data?.replayList || [];
+			const replayList = data?.replayList ?? [];
 			console.log(`Loaded ${replayList.length} new replays`);
 
 			if (replayList.length > 0) {
@@ -260,7 +260,7 @@
 			<h3>
 				Mode Stats
 			</h3>
-			{#if (userStats.modeStats || []).length > 0}
+			{#if (userStats.modeStats ?? []).length > 0}
 				<table class="table-container">
 					<thead>
 					<tr>
@@ -326,7 +326,7 @@
 	</div>
 </div>
 <div class="center-horizontal-container" style="margin-top: 50px; margin-bottom: 50px;">
-	{#if (nestedReplayList[0] || []).length > 0}
+	{#if (nestedReplayList[0] ?? []).length > 0}
 		<div class="wrapper">
 			<table class="table-container">
 				<thead>

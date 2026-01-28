@@ -12,5 +12,5 @@ export const load: PageLoad = async ({ url, fetch }): Promise<ChallengeProps> =>
 		error(err.status, makeMessage(err));
 	}
 
-	return { participants, challengeList: data?.challengeList || [] };
+	return { participants, challengeList: data?.challengeList ?? [] };
 };

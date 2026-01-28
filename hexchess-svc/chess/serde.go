@@ -90,10 +90,7 @@ func DeserializeHistMove(pbHm *pb.HistMove) HistMove {
 			From:  Hex{File: uint32(pbHm.FromFile), Rank: uint32(pbHm.FromRank)},
 			To:    Hex{File: uint32(pbHm.ToFile), Rank: uint32(pbHm.ToRank)},
 		},
-		CollFile:   pbHm.CollFile,
-		CollRank:   pbHm.CollRank,
-		IsCheck:    pbHm.IsCheck,
-		IsTake:     pbHm.IsTake,
+		Notation:   pbHm.Notation,
 		WhiteTimer: time.Duration(pbHm.WhiteTimerMs) * time.Millisecond,
 		BlackTimer: time.Duration(pbHm.BlackTimerMs) * time.Millisecond,
 	}
@@ -193,10 +190,7 @@ func SerializeHistMove(hm HistMove) *pb.HistMove {
 		FromRank:     int32(hm.From.Rank),
 		ToFile:       int32(hm.To.File),
 		ToRank:       int32(hm.To.Rank),
-		CollFile:     hm.CollFile,
-		CollRank:     hm.CollRank,
-		IsCheck:      hm.IsCheck,
-		IsTake:       hm.IsTake,
+		Notation:     hm.Notation,
 		WhiteTimerMs: hm.WhiteTimer.Milliseconds(),
 		BlackTimerMs: hm.BlackTimer.Milliseconds(),
 	}
@@ -234,22 +228,6 @@ func SerializePieces(pieces []Piece) []int32 {
 		out = append(out, int32(p))
 	}
 	return out
-}
-
-func MarshalMoveReplay(pbMoveHist *pb.MoveHistory) ([]byte, error) {
-	pbFmtSteps := make([]*pb.NotMoveStep, 0, len(pbMoveHist.Steps))
-	for _, pbStep := range pbMoveHist.Steps {
-		hm := DeserializeHistMove(pbStep)
-		pbFmtSteps = append(pbFmtSteps, &pb.NotMoveStep{
-			Pm:      SerializePieceMove(hm.PieceMove),
-			NotMove: hm.String(),
-			Hm:      pbStep,
-		})
-	}
-	return proto.Marshal(&pb.MoveReplay{
-		InitialGame: pbMoveHist.InitialGame,
-		Steps:       pbFmtSteps,
-	})
 }
 
 func MarshalMoveHistory(initialBoard Board, moveSeq []HistMove) ([]byte, error) {

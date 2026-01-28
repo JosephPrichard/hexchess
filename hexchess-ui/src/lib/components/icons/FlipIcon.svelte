@@ -1,8 +1,10 @@
 <script lang="ts">
-	const { color }: {color: string} = $props();
+	let { color, size }: {color: string, size?: number} = $props();
+
+	if (!size) size = 30;
 </script>
 
-<svg width="30px" height="30px" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="{size}px" height="{size}px" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
 	<path
 		d="M5 15H4L0 11L4 7H5V10H11C12.6569 10 14 8.65685 14 7C14 5.34315 12.6569 4 11 4H4V2H11C13.7614 2 16 4.23858 16 7C16 9.76142 13.7614 12 11 12H5V15Z"
 		fill={color}

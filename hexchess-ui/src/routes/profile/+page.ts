@@ -14,5 +14,5 @@ export const load: PageLoad = async ({ fetch }): Promise<ProfileProps> => {
 		error(profileErr?.status || 500, makeMessage(profileErr));
 	}
 
-	return { countryList: countryData || [], user: profileData };
+	return { countryList: countryData ?? [], user: profileData };
 };

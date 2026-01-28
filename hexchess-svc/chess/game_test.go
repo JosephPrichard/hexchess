@@ -345,9 +345,9 @@ func TestGame_GetMoveNotation(t *testing.T) {
 			t.Logf("expecting move: %v", test.not)
 
 			test.game.InitPieceMoves()
-			histMove := test.game.MakeHistMove(test.pm)
-			histMove.Promotion = test.promotion
-			str := histMove.String()
+			annotMove := test.game.MakeAnnotatedMove(test.pm)
+			annotMove.Promotion = test.promotion
+			str := annotMove.String()
 			assert.Equal(t, test.not, str)
 		})
 	}

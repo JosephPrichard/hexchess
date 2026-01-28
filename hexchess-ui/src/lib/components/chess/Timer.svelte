@@ -49,7 +49,7 @@
         background-color: rgba(42, 42, 42);
         color: rgb(160, 160, 160);
         font-family: monospace;
-        letter-spacing: 0.1rem;
+        letter-spacing: 0.05rem;
         text-align: center;
         padding: 15px;
     }

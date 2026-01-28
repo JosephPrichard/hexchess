@@ -1,4 +1,4 @@
-<svg viewBox="0 0 24 24" height="25px" width="25px" style="margin: 2.5px" xmlns="http://www.w3.org/2000/svg" fill="#D2D2D2">
+<svg viewBox="0 0 24 24" height="20px" width="20px" style="margin: 2.5px" xmlns="http://www.w3.org/2000/svg" fill="#D2D2D2">
 	<g id="SVGRepo_bgCarrier" stroke-width="0"></g>
 	<g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
 	<g id="SVGRepo_iconCarrier">

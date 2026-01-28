@@ -56,7 +56,7 @@ func TestHandleGameplayWs(t *testing.T) {
 	}}
 	wantValidMove := &pb.GameOutput_Move{Move: &pb.MoveOutput{
 		UpdatedAt: itest.TimeNow.Format(time.RFC3339),
-		Move:      &pb.HistMove{Piece: int32(chess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, CollFile: true, CollRank: true},
+		Move:      &pb.HistMove{Piece: int32(chess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, Notation: "Pb2"},
 	}}
 	wantChat := &pb.GameOutput{
 		GameId: gameID,

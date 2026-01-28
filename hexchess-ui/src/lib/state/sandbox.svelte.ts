@@ -10,8 +10,7 @@ export interface PromotionMove {
 
 export interface SandboxState {
     game?: ChessGame;
-    promotion?: PromotionMove;
-    prevGame?: ChessGame;
+    promotion?: {move: PromotionMove; game?: ChessGame};
 }
 
 export function makeSandboxState() {
@@ -40,19 +39,18 @@ export function makeSandboxState() {
     const setTurn = (turn: boolean) => mutateGame((g) => setBoardTurn(g, turn));
 
     function revertPromotion() {
-        if (state.prevGame !== undefined) {
-            state.game = state.prevGame;
-            state.prevGame = undefined;
+        if (state.promotion !== undefined) {
+            state.game = state.promotion.game;
         }
         state.promotion = undefined;
     }
 
     function setPromotion(promotion?: PromotionMove) {
         if (promotion) {
-            state.prevGame = $state.snapshot(state.game);
+            state.promotion = {move: promotion, game: $state.snapshot(state.game)};
             movePiece(promotion.from, promotion.to);
         }
-        state.promotion = promotion;
+        state.promotion = undefined;
     }
 
     async function makeMove(move: MakeMoveArgs) {
@@ -70,18 +68,12 @@ export function makeSandboxState() {
 
         const board = $state.snapshot(state.game?.board);
         if (!board) return;
-
-        const nextGame = await wasm.getMoves(board);
-        if (nextGame !== undefined) setGame(nextGame);
+        setGame(await wasm.getGame(board));
     }
 
     async function setInitialGame() {
         revertPromotion();
-
-        const initialGame = await wasm.getInitialGame();
-        if (!initialGame) return;
-
-        setGame(initialGame);
+        setGame(await wasm.getGame());
     }
 
     return {

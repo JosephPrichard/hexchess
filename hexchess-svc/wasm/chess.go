@@ -46,7 +46,7 @@ func (w *ChessWasm) JsDebugErr(err error) js.Value {
 }
 
 func (w *ChessWasm) JsErrStr(err string) js.Value {
-	w.Global.Get("console").Call("error", "an unexpected error occurred: "+err)
+	w.Global.Get("console").Call("error", "an error occurred: "+err)
 	return js.Undefined()
 }
 
@@ -115,9 +115,27 @@ func (w *ChessWasm) serializeGame(game *chess.Game) any {
 	return out
 }
 
-func (w *ChessWasm) GetInitialGame(_ js.Value, _ []js.Value) any {
-	game := chess.Game{Board: chess.InitialBoard()}
+func (w *ChessWasm) GetGame(_ js.Value, args []js.Value) any {
+	if len(args) < 1 {
+		return w.JsErrStr("fn expects at least 1 args")
+	}
+
+	boardUInt8Arr := args[0]
+
+	var board chess.Board
+	if boardUInt8Arr.IsUndefined() {
+		board = chess.InitialBoard()
+	} else {
+		b, err := w.deserializeBoard(boardUInt8Arr)
+		if err != nil {
+			return w.JsErr(err)
+		}
+		board = b
+	}
+
+	game := chess.Game{Board: board}
 	game.InitPieceMoves()
+
 	return w.serializeGame(&game)
 }
 
@@ -128,54 +146,25 @@ func (w *ChessWasm) MakeMove(_ js.Value, args []js.Value) any {
 
 	gameUInt8Arr := args[0]
 	moveUint8Arr := args[1]
-	hasMove := !moveUint8Arr.IsUndefined()
 
 	game, err := w.deserializeGame(gameUInt8Arr)
 	if err != nil {
 		return w.JsErr(err)
 	}
+	game.EnsurePieceMoves()
 
-	if !game.HasFoundMove() {
-		game.InitPieceMoves()
-	}
+	hasMove := !moveUint8Arr.IsUndefined()
 	if hasMove {
-		pm, err := w.deserializeMove(moveUint8Arr)
+		move, err := w.deserializeMove(moveUint8Arr)
 		if err != nil {
 			return w.JsErr(err)
 		}
-		if err := game.ValidateMove(pm); err != nil {
+		if _, err := game.MakeValidMove(move); err != nil {
 			return w.JsDebugErr(err)
 		}
-
-		game.Moves = append(game.Moves, game.MakeMove(pm))
-		game.InitPieceMoves()
 	}
 
 	return w.serializeGame(game)
-}
-
-func (w *ChessWasm) GetMoves(_ js.Value, args []js.Value) any {
-	if len(args) < 1 {
-		return w.JsErrStr("fn expects at least 1 args")
-	}
-
-	inputUInt8Arr := args[0]
-	board, err := w.deserializeBoard(inputUInt8Arr)
-	if err != nil {
-		return w.JsErr(err)
-	}
-
-	game := chess.Game{Board: board}
-	game.InitPieceMoves()
-
-	output, err := proto.Marshal(chess.SerializeGame(&game))
-	if err != nil {
-		return w.JsErr(err)
-	}
-
-	out := w.Global.Get("Uint8Array").New(len(output))
-	js.CopyBytesToJS(out, output)
-	return out
 }
 
 func (w *ChessWasm) FenToGame(_ js.Value, args []js.Value) any {
@@ -208,27 +197,6 @@ func (w *ChessWasm) BoardToFen(_ js.Value, args []js.Value) any {
 	}
 
 	return js.ValueOf(board.Fen())
-}
-
-func (w *ChessWasm) GetMoveNotations(_ js.Value, args []js.Value) any {
-	if len(args) < 1 {
-		return w.JsErrStr("fn expects at least 1 arg")
-	}
-
-	inputUInt8Arr := args[0]
-	input := make([]byte, inputUInt8Arr.Length())
-	js.CopyBytesToGo(input, inputUInt8Arr)
-
-	var pbHistMoves pb.HistMoves
-	if err := proto.Unmarshal(input, &pbHistMoves); err != nil {
-		return w.JsErr(err)
-	}
-
-	moves := make([]any, 0, len(pbHistMoves.Moves))
-	for _, pbHm := range pbHistMoves.Moves {
-		moves = append(moves, chess.DeserializeHistMove(pbHm).String())
-	}
-	return js.ValueOf(moves)
 }
 
 func (w *ChessWasm) GameAtMoveIndex(_ js.Value, args []js.Value) any {
@@ -266,11 +234,9 @@ func (w *ChessWasm) GameAtMoveIndex(_ js.Value, args []js.Value) any {
 func RegisterChessModule(version string) {
 	global := js.Global()
 	wasm := &ChessWasm{Global: global, Version: "debug"}
-	global.Set("getInitialGame", js.FuncOf(wasm.GetInitialGame))
+	global.Set("getGame", js.FuncOf(wasm.GetGame))
 	global.Set("makeMove", js.FuncOf(wasm.MakeMove))
-	global.Set("getMoves", js.FuncOf(wasm.GetMoves))
 	global.Set("fenToGame", js.FuncOf(wasm.FenToGame))
 	global.Set("boardToFen", js.FuncOf(wasm.BoardToFen))
-	global.Set("getMoveNotations", js.FuncOf(wasm.GetMoveNotations))
 	global.Set("gameAtMoveIndex", js.FuncOf(wasm.GameAtMoveIndex))
 }

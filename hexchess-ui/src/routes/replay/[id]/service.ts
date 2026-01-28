@@ -1,4 +1,4 @@
-import type { ChessGame, NotMoveStep } from '$lib/pb/messages';
+import type { ChessGame, HistMove } from '$lib/pb/messages';
 import { GameModeTimers } from '$lib/api/models';
 import { assertHistMove } from '$lib/utils/asserts';
 import { wasm } from '$lib/api/wasm';
@@ -41,23 +41,23 @@ export function startCountdown(durationMs: number, onTick: (remaining: number) =
 // 	return () => clearTimeout(timerId);
 // }
 
-export async function gameAtStepIndex(initialGame: ChessGame | undefined, steps: NotMoveStep[], stepIndex: number | undefined) {
+export async function gameAtStepIndex(initialGame: ChessGame | undefined, steps: HistMove[], stepIndex: number | undefined) {
 	if (stepIndex !== undefined) {
-		return await wasm.gameAtMoveIndex(initialGame?.board, steps.map(m => m.hm), stepIndex);
+		return await wasm.gameAtMoveIndex(initialGame?.board, steps, stepIndex);
 	} else {
 		return initialGame
 	}
 }
 
-export function getStepTimers(stepIndex: number | undefined, steps: NotMoveStep[], mode: string): TimerType | undefined {
+export function getStepTimers(stepIndex: number | undefined, steps: HistMove[], mode: string): TimerType | undefined {
 	if (steps.length == 0) return;
 
 	const startTimer = GameModeTimers.get(mode);
 	if (!startTimer) return;
 
 	if (stepIndex !== undefined) {
-		const currHm = assertHistMove(steps[stepIndex]?.hm);
-		const nextHm = steps[stepIndex + 1]?.hm;
+		const currHm = assertHistMove(steps[stepIndex]);
+		const nextHm = steps[stepIndex + 1];
 
 		let diffMs = 0; // no next move means we're at the last move, so there is no diff.
 		if (nextHm) {
@@ -70,7 +70,7 @@ export function getStepTimers(stepIndex: number | undefined, steps: NotMoveStep[
 
 		return { whiteTimerMs, blackTimerMs, endWhiteTimerMs: whiteTimerMs-diffMs, endBlackTimerMs: blackTimerMs-diffMs, diffMs };
 	} else {
-		const nextHm = assertHistMove(steps[0]?.hm);
+		const nextHm = assertHistMove(steps[0]);
 		const diffMs =  startTimer - Number(nextHm.whiteTimerMs); // at the initial state, the first move is always white.
 
 		return { whiteTimerMs: startTimer, blackTimerMs: startTimer, endWhiteTimerMs: startTimer-diffMs, endBlackTimerMs: startTimer-diffMs, diffMs};

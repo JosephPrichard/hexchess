@@ -1,14 +1,8 @@
 package chess
 
 import (
-	"errors"
 	"fmt"
-	"log/slog"
-	"math/rand"
 	"slices"
-	"strconv"
-	"strings"
-	"time"
 )
 
 type AttackTable = [Files][MaxRanks]bool
@@ -25,11 +19,6 @@ type Game struct {
 	WhiteAttackTable AttackTable
 	BlackAttackTable AttackTable
 	PinTable         [Files][MaxRanks][]Hex
-}
-
-type Place struct {
-	Not   string
-	Piece Piece
 }
 
 func MakeStartGame(initial ...Place) Game {
@@ -103,50 +92,6 @@ func (g *Game) GetOppositeMoves() []PieceMoves {
 	return g.GetTurnMoves(!g.Board.IsWhiteTurn)
 }
 
-type Promotion int
-
-const (
-	_              = iota
-	QueenPromotion = iota
-	RookPromotion
-	BishopPromotion
-	KnightPromotion
-)
-
-func GetPromoPiece(promotion Promotion, isWhiteTurn bool) Piece {
-	var piece Piece
-	if isWhiteTurn {
-		switch promotion {
-		case RookPromotion:
-			piece = WhiteRook
-		case BishopPromotion:
-			piece = WhiteBishop
-		case KnightPromotion:
-			piece = WhiteKnight
-		default:
-			piece = WhiteQueen
-		}
-	} else {
-		switch promotion {
-		case RookPromotion:
-			piece = BlackRook
-		case BishopPromotion:
-			piece = BlackBishop
-		case KnightPromotion:
-			piece = BlackKnight
-		default:
-			piece = BlackQueen
-		}
-	}
-	return piece
-}
-
-type Move struct {
-	From      Hex
-	To        Hex
-	Promotion Promotion
-}
-
 func (g *Game) MakeMoved(mv Move) Game {
 	game := g.DeepCopy()
 	game.MakeMove(mv)
@@ -185,9 +130,9 @@ func (g *Game) MakeMove(move Move) HistMove {
 		g.Board.Set(to.File, to.Rank, pieceFrom)
 	}
 
-	hm := g.MakeHistMove(PieceMove{Piece: pieceFrom, From: from, To: to})
+	annotMove := g.MakeAnnotatedMove(PieceMove{Piece: pieceFrom, From: from, To: to})
 	if isPromotion {
-		hm.Promotion = promotion
+		annotMove.Promotion = promotion
 	}
 
 	g.Board.IsWhiteTurn = !g.Board.IsWhiteTurn
@@ -199,43 +144,11 @@ func (g *Game) MakeMove(move Move) HistMove {
 			g.TakenBlackPieces = append(g.TakenBlackPieces, pieceTo)
 		}
 	}
-	//g.Moves = append(g.Moves, hm)
-	return hm
-}
 
-type MoveErrorKind int
+	g.WhiteMoves = nil
+	g.BlackMoves = nil
 
-const (
-	MoveErrNoop MoveErrorKind = iota + 1
-	MoveErrOutOfBounds
-	MoveErrInvalidPromotion
-	MoveErrPieceCannotMove
-	MoveErrIllegalDestination
-	MoveErrIllegalTarget
-)
-
-type MoveError struct {
-	Kind MoveErrorKind
-	Move Move
-}
-
-func (e MoveError) Error() string {
-	switch e.Kind {
-	case MoveErrNoop:
-		return fmt.Sprintf("move is a noop: %v", e.Move)
-	case MoveErrOutOfBounds:
-		return fmt.Sprintf("move is ext of bounds: %v", e.Move)
-	case MoveErrInvalidPromotion:
-		return fmt.Sprintf("promotion is invalid: %v", e.Move)
-	case MoveErrPieceCannotMove:
-		return fmt.Sprintf("piece cannot move: %v", e.Move)
-	case MoveErrIllegalDestination:
-		return fmt.Sprintf("piece cannot move to hex: %v", e.Move)
-	case MoveErrIllegalTarget:
-		return fmt.Sprintf("cannot move piece at hex: %v", e.Move)
-	default:
-		return fmt.Sprintf("invalid move: %v", e.Move)
-	}
+	return HistMove{PieceMove: annotMove.PieceMove, Promotion: annotMove.Promotion, Notation: annotMove.String()}
 }
 
 func (g *Game) ValidateMove(move Move) error {
@@ -263,71 +176,42 @@ func (g *Game) ValidateMove(move Move) error {
 	return nil
 }
 
-type HistMove struct {
-	PieceMove
-	Promotion  Promotion
-	CollFile   bool
-	CollRank   bool
-	IsCheck    bool
-	IsTake     bool
-	WhiteTimer time.Duration
-	BlackTimer time.Duration
+func (g *Game) MakeValidMove(move Move) (HistMove, error) {
+	if err := g.ValidateMove(move); err != nil {
+		return HistMove{}, err
+	}
+	hm := g.MakeMove(move)
+	g.Moves = append(g.Moves, hm)
+	g.InitPieceMoves()
+	return hm, nil
 }
 
-func (m HistMove) Equals(m1 HistMove) bool {
-	return m.PieceMove == m1.PieceMove &&
-		m.Promotion == m1.Promotion &&
-		m.CollFile == m1.CollFile &&
-		m.CollRank == m1.CollRank &&
-		m.IsCheck == m1.IsCheck &&
-		m.IsTake == m1.IsTake
+func (g *Game) MakeHistMove(move Move) {
+	g.Moves = append(g.Moves, g.MakeMove(move))
 }
 
-func (m HistMove) String() string {
-	from := m.PieceMove.From
-	to := m.PieceMove.To
+func (g *Game) MakeAnnotatedMove(pm PieceMove) AnnotatedMove {
+	hm := AnnotatedMove{PieceMove: pm}
 
-	var sb strings.Builder
-	sb.WriteString(m.PieceMove.Piece.String())
+	movingPiece := hm.Piece
+	moveTo := hm.To
+	moveFrom := hm.From
 
-	if m.IsCheck {
-		sb.WriteString("+")
-	}
-	if m.IsTake {
-		sb.WriteString("x")
-	}
-	if !m.CollFile || !m.CollRank {
-		if m.CollFile {
-			sb.WriteString(strconv.Itoa(int(from.Rank + 1)))
-		}
-		if m.CollRank {
-			sb.WriteRune(rune(from.File + 'a'))
-		}
-	}
-
-	sb.WriteString(to.String())
-	if m.Promotion != 0 {
-		piece := GetPromoPiece(m.Promotion, m.Piece.IsWhite())
-		sb.WriteRune('=')
-		sb.WriteRune(piece.Rune())
-	}
-
-	return sb.String()
-}
-
-func (g *Game) MakeHistMove(pm PieceMove) HistMove {
-	hm := HistMove{PieceMove: pm}
 	boardPiece := g.Board.Get(hm.To.File, hm.To.Rank)
-	if boardPiece != Empty && boardPiece.IsWhite() != hm.Piece.IsWhite() {
+	if boardPiece != Empty && boardPiece.IsWhite() != movingPiece.IsWhite() {
 		hm.IsTake = true
 	}
 
 	moves := g.GetCurrMoves()
-	if index := slices.IndexFunc(moves, func(pms PieceMoves) bool { return pms.Piece == hm.Piece }); index > 0 {
-		pms := moves[index]
-		for _, h := range pms.Moves {
-			p := g.Board.Get(h.File, h.Rank)
-			if p.IsKing() {
+	if index := slices.IndexFunc(moves, func(pms PieceMoves) bool { return pms.Piece == movingPiece }); index > 0 {
+		pieceMoves := moves[index]
+		for _, move := range pieceMoves.Moves {
+			target := g.Board.Get(move.File, move.Rank)
+
+			isCheckingBlack := movingPiece.IsWhite() && target == BlackKing
+			isCheckingWhite := !movingPiece.IsWhite() && target == WhiteKing
+
+			if isCheckingBlack || isCheckingWhite {
 				hm.IsCheck = true
 				break
 			}
@@ -335,14 +219,14 @@ func (g *Game) MakeHistMove(pm PieceMove) HistMove {
 	}
 
 	for _, pms := range moves {
-		if pms.Piece != hm.Piece {
+		if pms.Piece != movingPiece {
 			continue
 		}
-		if slices.ContainsFunc(pms.Moves, func(to Hex) bool { return to == hm.To }) {
-			if pms.From.File == hm.From.File {
+		if slices.ContainsFunc(pms.Moves, func(to Hex) bool { return to == moveTo }) {
+			if pms.From.File == moveFrom.File {
 				hm.CollFile = true
 			}
-			if pms.From.Rank == hm.From.Rank {
+			if pms.From.Rank == moveFrom.Rank {
 				hm.CollRank = true
 			}
 		}
@@ -350,8 +234,11 @@ func (g *Game) MakeHistMove(pm PieceMove) HistMove {
 	return hm
 }
 
-func (g *Game) HasFoundMove() bool {
-	return g.BlackMoves != nil && g.WhiteMoves != nil
+func (g *Game) EnsurePieceMoves() {
+	// initializes the piece moves only if they have not been assigned.
+	if g.BlackMoves == nil || g.WhiteMoves == nil {
+		g.InitPieceMoves()
+	}
 }
 
 func (g *Game) InitPieceMoves() {
@@ -668,50 +555,6 @@ func (g *Game) StringColor(isWhite bool) string {
 	return g.Board.StringFunc(func(hex Hex) rune {
 		return moveTable[hex.File][hex.Rank]
 	})
-}
-
-func RandomMoveSeq(game Game, low int, hi int) ([]HistMove, error) {
-	for range rand.Intn(low) + (low + hi) {
-		game.InitPieceMoves()
-
-		var pmsArr []PieceMoves
-		for _, pm := range game.GetCurrMoves() {
-			if len(pm.Moves) > 0 {
-				pmsArr = append(pmsArr, pm)
-			}
-		}
-		if len(pmsArr) == 0 {
-			break
-		}
-
-		pms := pmsArr[rand.Intn(len(pmsArr))]
-		if len(pms.Moves) == 0 {
-			return nil, fmt.Errorf("expected at least one move, got none for game: %v", game)
-		}
-		pm := PieceMove{
-			Piece: game.Board.Get(pms.From.File, pms.From.Rank),
-			From:  pms.From,
-			To:    pms.Moves[rand.Intn(len(pms.Moves))],
-		}
-
-		toPiece := game.Board.Get(pm.To.File, pm.To.Rank)
-		fromPiece := game.Board.Get(pm.From.File, pm.From.Rank)
-		if toPiece.IsKing() {
-			return nil, errors.New("should never be allowed to make a move to the king")
-		}
-		if pm.From == pm.To {
-			return nil, fmt.Errorf("expected from != to, got %v", pm)
-		}
-		if toPiece.SameColor(fromPiece) {
-			return nil, fmt.Errorf("expected move to not be to piece of same color %v", pm)
-		}
-
-		hm := game.MakeMove(Move{From: pm.From, To: pm.To, Promotion: QueenPromotion})
-		game.Moves = append(game.Moves, hm)
-	}
-
-	slog.Info("random move sequence", "len", len(game.Moves))
-	return game.Moves, nil
 }
 
 func ApplyMoveSeq(moves ...Move) []HistMove {

@@ -2,7 +2,7 @@ import { codes } from '$lib/utils/error';
 import type { Action, ChallengeModel, ChessModel, EloBuckets, FullUserModel, LbdUserModel, ReplayModel, ServiceModel, SessionModel, UserModel } from './models';
 import { v4 as uuidv4 } from 'uuid';
 import { env } from '$env/dynamic/public';
-import { MoveReplay } from '../pb/messages';
+import { MoveHistory } from '$lib/pb/messages';
 
 export function appBaseURL() {
 	return env.PUBLIC_APP_BASE_URL || 'http://localhost:5173';
@@ -307,12 +307,12 @@ function getEloHistories(userId: number, timeframe: string, fetch?: FetchFn) {
 	return requestJSON<Response>(`${baseURL()}/replay/elo-histories?${params}`, { method: 'GET' }, fetch);
 }
 
-async function getReplayMoveHistory(id: string, fetch?: FetchFn): Promise<Result<MoveReplay>> {
+async function getReplayMoveHistory(id: string, fetch?: FetchFn): Promise<Result<MoveHistory>> {
 	const params = new URLSearchParams({ replayId: id });
 	const [buf, error] = await requestBlob(`${baseURL()}/replay/move-list?${params}`, { method: 'GET' }, fetch);
 	if (buf) {
 		const timeNow = performance.now();
-		const result = MoveReplay.fromBinary(new Uint8Array(buf));
+		const result = MoveHistory.fromBinary(new Uint8Array(buf));
 
 		const timeTaken = performance.now() - timeNow;
 		console.log(`moveList deserialization took ${timeTaken}ms`);

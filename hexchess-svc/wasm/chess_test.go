@@ -6,10 +6,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
-	"reflect"
 	"syscall/js"
 	"testing"
-	"time"
 )
 
 func requireNoError(t *testing.T, err error) {
@@ -61,7 +59,7 @@ func assertGame(t *testing.T, wantGame *chess.Game, result js.Value) {
 		}
 
 		game := jsValueToGame(t, result)
-		diff := cmp.Diff(&game, wantGame, cmpopts.IgnoreFields(chess.HistMove{}, "MadeOn"))
+		diff := cmp.Diff(&game, wantGame, cmpopts.IgnoreFields(chess.HistMove{}, "WhiteTimer", "BlackTimer"))
 		if diff != "" {
 			t.Fatalf("expected games to be equal:\n%s", diff)
 		}
@@ -72,98 +70,96 @@ func assertGame(t *testing.T, wantGame *chess.Game, result js.Value) {
 	}
 }
 
-func TestGetInitialGame(t *testing.T) {
+func TestGetGame(t *testing.T) {
 	wasm := makeTestWasm()
 
-	result := wasm.GetInitialGame(js.Undefined(), nil).(js.Value)
+	t.Run("get initial game", func(t *testing.T) {
+		result := wasm.GetGame(js.Undefined(), []js.Value{js.Undefined()}).(js.Value)
 
-	if !isUint8Array(result) {
-		t.Fatal("expected return value to be Uint8Array")
-	}
-	game := jsValueToGame(t, result)
+		if !isUint8Array(result) {
+			t.Fatal("expected return value to be Uint8Array")
+		}
+		game := jsValueToGame(t, result)
 
-	wantBoard := chess.InitialBoard()
-	diff := cmp.Diff(game.Board, wantBoard)
-	if diff != "" {
-		t.Fatalf("expected boards to be equal:\n%s", diff)
-	}
+		wantBoard := chess.InitialBoard()
+		diff := cmp.Diff(game.Board, wantBoard)
+		if diff != "" {
+			t.Fatalf("expected boards to be equal:\n%s", diff)
+		}
+	})
+
+	t.Run("get game with moves", func(t *testing.T) {
+		input := makeInitialBoardJs(t)
+
+		result := wasm.GetGame(js.Undefined(), []js.Value{input}).(js.Value)
+
+		if !isUint8Array(result) {
+			t.Fatal("expected return value to be Uint8Array")
+		}
+		game := jsValueToGame(t, result)
+
+		wantGame := chess.Game{Board: chess.InitialBoard()}
+		wantGame.InitPieceMoves() // GetGame will just call this.
+		wantGame.ClearTables()    // not serialized.
+
+		diff := cmp.Diff(game, wantGame)
+		if diff != "" {
+			t.Fatalf("expected games to be equal:\n%s", diff)
+		}
+	})
 }
 
 func TestMakeMove(t *testing.T) {
 	wasm := makeTestWasm()
 
-	for _, test := range []struct {
-		name     string
-		inputs   []js.Value
-		wantGame *chess.Game
-	}{
-		{
-			name: "successfully make move",
-			inputs: func() []js.Value {
-				gameBytes, err := proto.Marshal(chess.SerializeGame(&chess.Game{Board: chess.InitialBoard()}))
-				requireNoError(t, err)
+	t.Run("successfully make move", func(t *testing.T) {
+		gameBytes, err := proto.Marshal(
+			chess.SerializeGame(&chess.Game{Board: chess.InitialBoard()}),
+		)
+		requireNoError(t, err)
 
-				moveBytes, err := proto.Marshal(&pb.Move{FromFile: 1, FromRank: 0, ToFile: 1, ToRank: 1})
-				requireNoError(t, err)
-
-				return []js.Value{uint8ArrayFromBytes(gameBytes), uint8ArrayFromBytes(moveBytes)}
-			}(),
-			wantGame: func() *chess.Game {
-				g := &chess.Game{Board: chess.InitialBoard()}
-				g.InitPieceMoves()                                                             // Moves are used while calculating histories in chess.MakeMove
-				g.MakeMoveAppend(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")}) // Applying the same move on our assertion
-				g.InitPieceMoves()                                                             // wasm MakeMove will generate moves after making the move
-				g.ClearTables()                                                                // not serialized.
-				return g
-			}(),
-		},
-		{
-			name: "invalid make move",
-			inputs: func() []js.Value {
-				gameBytes, err := proto.Marshal(chess.SerializeGame(&chess.Game{Board: chess.InitialBoard()}))
-				requireNoError(t, err)
-
-				moveBytes, err := proto.Marshal(&pb.Move{})
-				requireNoError(t, err)
-
-				return []js.Value{js.ValueOf(uint8ArrayFromBytes(gameBytes)), uint8ArrayFromBytes(moveBytes)}
-			}(),
-		},
-		{
-			name: "invalid arguments",
-			inputs: func() []js.Value {
-				return []js.Value{}
-			}(),
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			result := wasm.MakeMove(js.Undefined(), test.inputs).(js.Value)
-
-			assertGame(t, test.wantGame, result)
+		moveBytes, err := proto.Marshal(&pb.Move{
+			FromFile: 1, FromRank: 0,
+			ToFile: 1, ToRank: 1,
 		})
-	}
-}
+		requireNoError(t, err)
 
-func TestGetMoves(t *testing.T) {
-	wasm := makeTestWasm()
+		inputs := []js.Value{uint8ArrayFromBytes(gameBytes), uint8ArrayFromBytes(moveBytes)}
 
-	input := makeInitialBoardJs(t)
+		result := wasm.MakeMove(js.Undefined(), inputs).(js.Value)
 
-	result := wasm.GetMoves(js.Undefined(), []js.Value{input}).(js.Value)
+		wantGame := &chess.Game{Board: chess.InitialBoard()}
+		wantGame.InitPieceMoves() // used when calculating histories
+		wantGame.MakeHistMove(chess.Move{
+			From: chess.HexStr("b1"),
+			To:   chess.HexStr("b2"),
+		})
+		wantGame.InitPieceMoves() // wasm MakeMove regenerates moves
+		wantGame.ClearTables()    // not serialized
 
-	if !isUint8Array(result) {
-		t.Fatal("expected return value to be Uint8Array")
-	}
-	game := jsValueToGame(t, result)
+		assertGame(t, wantGame, result)
+	})
 
-	wantGame := chess.Game{Board: chess.InitialBoard()}
-	wantGame.InitPieceMoves() // GetMoves will just call this.
-	wantGame.ClearTables()    // not serialized.
+	t.Run("invalid make move", func(t *testing.T) {
+		gameBytes, err := proto.Marshal(
+			chess.SerializeGame(&chess.Game{Board: chess.InitialBoard()}),
+		)
+		requireNoError(t, err)
 
-	diff := cmp.Diff(game, wantGame)
-	if diff != "" {
-		t.Fatalf("expected games to be equal:\n%s", diff)
-	}
+		moveBytes, err := proto.Marshal(&pb.Move{})
+		requireNoError(t, err)
+
+		inputs := []js.Value{uint8ArrayFromBytes(gameBytes), uint8ArrayFromBytes(moveBytes)}
+
+		result := wasm.MakeMove(js.Undefined(), inputs).(js.Value)
+
+		assertGame(t, nil, result)
+	})
+
+	t.Run("invalid arguments", func(t *testing.T) {
+		result := wasm.MakeMove(js.Undefined(), nil).(js.Value)
+		assertGame(t, nil, result)
+	})
 }
 
 func TestFenToGame(t *testing.T) {
@@ -235,83 +231,42 @@ func TestBoardToFen(t *testing.T) {
 	}
 }
 
-func TestGetMoveNotations(t *testing.T) {
-	wasm := makeTestWasm()
-
-	histMoves := []chess.HistMove{{
-		PieceMove: chess.PieceMove{Piece: chess.WhitePawn, From: chess.HexStr("k1"), To: chess.HexStr("f6")},
-	}}
-	bytes, err := proto.Marshal(&pb.HistMoves{Moves: chess.SerializeMoveList(histMoves)})
-	requireNoError(t, err)
-	input := uint8ArrayFromBytes(bytes)
-
-	result := wasm.GetMoveNotations(js.Undefined(), []js.Value{input}).(js.Value)
-
-	if result.Type() != js.TypeObject {
-		t.Fatalf("expected array, got %s", result.Type())
-	}
-
-	var strs []string
-	for i := range result.Length() {
-		e := result.Index(i)
-		if e.Type() != js.TypeString {
-			t.Fatalf("expected element of return value to be string, got %s", e.Type())
-		}
-		strs = append(strs, e.String())
-	}
-
-	wantStrs := []string{"Pf6"}
-	if !reflect.DeepEqual(wantStrs, strs) {
-		t.Fatalf("expected %v, got %v", wantStrs, strs)
-	}
-}
-
 func TestGameAtMoveIndex(t *testing.T) {
 	wasm := makeTestWasm()
 
-	for _, test := range []struct {
-		name     string
-		inputs   []js.Value
-		wantGame *chess.Game
-		wantErr  string
-	}{
-		{
-			name: "jump to index 0",
-			inputs: func() []js.Value {
-				game := &chess.Game{Board: chess.InitialBoard()}
-				game.AddMoveHist(game.MakeMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")}), time.Now())
+	t.Run("jump to index 0", func(t *testing.T) {
+		game := &chess.Game{Board: chess.InitialBoard()}
+		game.MakeHistMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")})
+		game.MakeHistMove(chess.Move{From: chess.HexStr("b7"), To: chess.HexStr("b6")})
 
-				movesBytes, err := proto.Marshal(&pb.HistMoves{Moves: chess.SerializeMoveList(game.Moves)})
-				requireNoError(t, err)
+		movesBytes, err := proto.Marshal(&pb.HistMoves{Moves: chess.SerializeMoveList(game.Moves)})
+		requireNoError(t, err)
 
-				return []js.Value{makeInitialBoardJs(t), uint8ArrayFromBytes(movesBytes), js.ValueOf(0)}
-			}(),
-			wantGame: func() *chess.Game {
-				g := &chess.Game{Board: chess.InitialBoard()}
-				g.InitPieceMoves()
-				g.ClearTables()
-				return g
-			}(),
-		},
-		{
-			name: "invalid move index",
-			inputs: func() []js.Value {
-				movesBytes, err := proto.Marshal(&pb.HistMoves{})
-				requireNoError(t, err)
+		inputs := []js.Value{makeInitialBoardJs(t), uint8ArrayFromBytes(movesBytes), js.ValueOf(0)}
 
-				return []js.Value{makeInitialBoardJs(t), uint8ArrayFromBytes(movesBytes), js.ValueOf(10)}
-			}(),
-		},
-		{
-			name: "invalid arguments",
-			inputs: func() []js.Value {
-				return []js.Value{}
-			}(),
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			result := wasm.GameAtMoveIndex(js.Undefined(), test.inputs).(js.Value)
-			assertGame(t, test.wantGame, result)
-		})
-	}
+		result := wasm.GameAtMoveIndex(js.Undefined(), inputs).(js.Value)
+
+		wantGame := &chess.Game{Board: chess.InitialBoard()}
+		wantGame.MakeHistMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")})
+		wantGame.InitPieceMoves()
+		wantGame.ClearTables()
+
+		assertGame(t, wantGame, result)
+	})
+
+	t.Run("invalid move index", func(t *testing.T) {
+		movesBytes, err := proto.Marshal(&pb.HistMoves{})
+		requireNoError(t, err)
+
+		inputs := []js.Value{makeInitialBoardJs(t), uint8ArrayFromBytes(movesBytes), js.ValueOf(10)}
+
+		result := wasm.GameAtMoveIndex(js.Undefined(), inputs).(js.Value)
+
+		assertGame(t, nil, result)
+	})
+
+	t.Run("invalid arguments", func(t *testing.T) {
+		result := wasm.GameAtMoveIndex(js.Undefined(), nil).(js.Value)
+		assertGame(t, nil, result)
+	})
 }

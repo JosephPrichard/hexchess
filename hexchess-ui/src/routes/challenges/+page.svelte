@@ -92,7 +92,7 @@
 					<div id="{challenge.challengeeId}+{challenge.challengerId}" class="challenge-box">
 						<div>
 							<div class="pvp-wrapper">
-								<div class="player-wrapper">
+								<div class="player-points-wrapper">
 									<span class="pfp-wrapper"><ProfilePic userId={challenge.challengerId} size={45}/></span>
 									<a href="/players/{challenge.challengerId}" class="text-ul bold-link">
 										{challenge.challengerName}
@@ -105,7 +105,7 @@
 								<div class="vs-wrapper">
 									V.S.
 								</div>
-								<div class="player-wrapper">
+								<div class="player-points-wrapper">
 									<span class="pfp-wrapper"><ProfilePic userId={challenge.challengeeId} size={45}/></span>
 									<a href="/players/{challenge.challengeeId}" class="text-ul bold-link">
 										{challenge.challengeeName}
@@ -196,7 +196,7 @@
 		text-align: center;
 	}
 
-	.player-wrapper {
+	.player-points-wrapper {
 		display: flex;
 		align-items: center;
 	}

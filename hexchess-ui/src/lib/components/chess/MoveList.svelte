@@ -1,20 +1,23 @@
 <script lang="ts">
+	import { moveElementHeight } from '$lib/components/chess/render';
+
 	export interface MoveListProps {
+		containerElement?: HTMLElement;
 		moveList: string[];
 		onSelectMove?: (i: number) => void;
 		selectedMoveIndex?: number;
 		completeMessage?: string;
 	}
 
-	const { moveList, onSelectMove, selectedMoveIndex, completeMessage }: MoveListProps = $props();
+	let { containerElement = $bindable(), moveList, onSelectMove, selectedMoveIndex, completeMessage }: MoveListProps = $props();
 </script>
 
-<div class="growing-scrollbox moves">
+<div class="growing-scrollbox moves" bind:this={containerElement}>
 	<div class="move-numbers">
 		{#each moveList as _, i (i)}
 			{#if i % 2 === 0}
 				<div class="move-row">
-					<div class="move-number" class:last-move-number={i === moveList.length-1}>
+					<div class="move-number" style:line-height="{moveElementHeight}px" class:last-move-number={i === moveList.length-1}>
 						{i / 2 + 1}.
 					</div>
 				</div>
@@ -29,6 +32,7 @@
 				<div class="move-row">
 					<button
 						class="move-button"
+						style:height="{moveElementHeight}px"
 						class:move-button-hover={onSelectMove !== undefined}
 						class:selected-move={selectedMoveIndex === i}
 						onclick={() => onSelectMove?.(i)}
@@ -39,6 +43,7 @@
 					{#if moveTwo}
 						<button
 							class="move-button"
+							style:height="{moveElementHeight}px"
 							class:move-button-hover={onSelectMove !== undefined}
 							class:selected-move={selectedMoveIndex === moveTwoIndex}
 							onclick={() => onSelectMove?.(moveTwoIndex)}
@@ -81,7 +86,7 @@
     .move-numbers {
 		flex: 0.2;
 		height: fit-content;
-        box-shadow: 4px 4px 4px -4px rgba(0, 0, 0, 0.6);
+        /*box-shadow: 4px 4px 4px -4px rgba(0, 0, 0, 0.6);*/
 	}
 
 	.last-move-number {
@@ -90,7 +95,7 @@
 
     .move-number {
         width: 100%;
-        line-height: 35px;
+        /*line-height: 35px;*/
         text-align: center;
         background-color: rgb(48, 48, 48);
     }
@@ -99,13 +104,11 @@
         all: unset;
         cursor: pointer;
         flex: 0.5;
-        line-height: 35px;
+        /*line-height: 35px;*/
         padding-left: 20px;
-        border-radius: 1px;
         -moz-user-select: none;
         -khtml-user-select: none;
         -webkit-user-select: none;
-        border: rgba(0, 0, 0, 0) solid 1px;
     }
 
     .move-button-hover:hover {

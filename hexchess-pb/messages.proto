@@ -41,12 +41,9 @@ message HistMove {
   int32 from_rank = 3;
   int32 to_file = 4;
   int32 to_rank = 5;
-  bool coll_file = 6;
-  bool coll_rank = 7;
-  bool is_take = 8;
-  bool is_check = 9;
-  int64 white_timer_ms = 10;
-  int64 black_timer_ms = 11;
+  string notation = 6;
+  int64 white_timer_ms = 7;
+  int64 black_timer_ms = 8;
 }
 
 message ChessGame {
@@ -199,17 +196,6 @@ message PieceMoveList {
 message MoveHistory {
   ChessGame initial_game = 1;
   repeated HistMove steps = 2;
-}
-
-message MoveReplay {
-  ChessGame initial_game = 1;
-  repeated NotMoveStep steps = 2;
-}
-
-message NotMoveStep {
-  string notMove = 1;
-  PieceMove pm = 2;
-  HistMove hm = 3;
 }
 
 message UserMsg {

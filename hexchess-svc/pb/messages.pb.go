@@ -344,12 +344,9 @@ type HistMove struct {
 	FromRank      int32                  `protobuf:"varint,3,opt,name=from_rank,json=fromRank,proto3" json:"from_rank,omitempty"`
 	ToFile        int32                  `protobuf:"varint,4,opt,name=to_file,json=toFile,proto3" json:"to_file,omitempty"`
 	ToRank        int32                  `protobuf:"varint,5,opt,name=to_rank,json=toRank,proto3" json:"to_rank,omitempty"`
-	CollFile      bool                   `protobuf:"varint,6,opt,name=coll_file,json=collFile,proto3" json:"coll_file,omitempty"`
-	CollRank      bool                   `protobuf:"varint,7,opt,name=coll_rank,json=collRank,proto3" json:"coll_rank,omitempty"`
-	IsTake        bool                   `protobuf:"varint,8,opt,name=is_take,json=isTake,proto3" json:"is_take,omitempty"`
-	IsCheck       bool                   `protobuf:"varint,9,opt,name=is_check,json=isCheck,proto3" json:"is_check,omitempty"`
-	WhiteTimerMs  int64                  `protobuf:"varint,10,opt,name=white_timer_ms,json=whiteTimerMs,proto3" json:"white_timer_ms,omitempty"`
-	BlackTimerMs  int64                  `protobuf:"varint,11,opt,name=black_timer_ms,json=blackTimerMs,proto3" json:"black_timer_ms,omitempty"`
+	Notation      string                 `protobuf:"bytes,6,opt,name=notation,proto3" json:"notation,omitempty"`
+	WhiteTimerMs  int64                  `protobuf:"varint,7,opt,name=white_timer_ms,json=whiteTimerMs,proto3" json:"white_timer_ms,omitempty"`
+	BlackTimerMs  int64                  `protobuf:"varint,8,opt,name=black_timer_ms,json=blackTimerMs,proto3" json:"black_timer_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -419,32 +416,11 @@ func (x *HistMove) GetToRank() int32 {
 	return 0
 }
 
-func (x *HistMove) GetCollFile() bool {
+func (x *HistMove) GetNotation() string {
 	if x != nil {
-		return x.CollFile
+		return x.Notation
 	}
-	return false
-}
-
-func (x *HistMove) GetCollRank() bool {
-	if x != nil {
-		return x.CollRank
-	}
-	return false
-}
-
-func (x *HistMove) GetIsTake() bool {
-	if x != nil {
-		return x.IsTake
-	}
-	return false
-}
-
-func (x *HistMove) GetIsCheck() bool {
-	if x != nil {
-		return x.IsCheck
-	}
-	return false
+	return ""
 }
 
 func (x *HistMove) GetWhiteTimerMs() int64 {
@@ -2127,118 +2103,6 @@ func (x *MoveHistory) GetSteps() []*HistMove {
 	return nil
 }
 
-type MoveReplay struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	InitialGame   *ChessGame             `protobuf:"bytes,1,opt,name=initial_game,json=initialGame,proto3" json:"initial_game,omitempty"`
-	Steps         []*NotMoveStep         `protobuf:"bytes,2,rep,name=steps,proto3" json:"steps,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *MoveReplay) Reset() {
-	*x = MoveReplay{}
-	mi := &file_messages_proto_msgTypes[32]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *MoveReplay) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*MoveReplay) ProtoMessage() {}
-
-func (x *MoveReplay) ProtoReflect() protoreflect.Message {
-	mi := &file_messages_proto_msgTypes[32]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use MoveReplay.ProtoReflect.Descriptor instead.
-func (*MoveReplay) Descriptor() ([]byte, []int) {
-	return file_messages_proto_rawDescGZIP(), []int{32}
-}
-
-func (x *MoveReplay) GetInitialGame() *ChessGame {
-	if x != nil {
-		return x.InitialGame
-	}
-	return nil
-}
-
-func (x *MoveReplay) GetSteps() []*NotMoveStep {
-	if x != nil {
-		return x.Steps
-	}
-	return nil
-}
-
-type NotMoveStep struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	NotMove       string                 `protobuf:"bytes,1,opt,name=notMove,proto3" json:"notMove,omitempty"`
-	Pm            *PieceMove             `protobuf:"bytes,2,opt,name=pm,proto3" json:"pm,omitempty"`
-	Hm            *HistMove              `protobuf:"bytes,3,opt,name=hm,proto3" json:"hm,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *NotMoveStep) Reset() {
-	*x = NotMoveStep{}
-	mi := &file_messages_proto_msgTypes[33]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *NotMoveStep) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NotMoveStep) ProtoMessage() {}
-
-func (x *NotMoveStep) ProtoReflect() protoreflect.Message {
-	mi := &file_messages_proto_msgTypes[33]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NotMoveStep.ProtoReflect.Descriptor instead.
-func (*NotMoveStep) Descriptor() ([]byte, []int) {
-	return file_messages_proto_rawDescGZIP(), []int{33}
-}
-
-func (x *NotMoveStep) GetNotMove() string {
-	if x != nil {
-		return x.NotMove
-	}
-	return ""
-}
-
-func (x *NotMoveStep) GetPm() *PieceMove {
-	if x != nil {
-		return x.Pm
-	}
-	return nil
-}
-
-func (x *NotMoveStep) GetHm() *HistMove {
-	if x != nil {
-		return x.Hm
-	}
-	return nil
-}
-
 type UserMsg struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
 	UserId int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -2252,7 +2116,7 @@ type UserMsg struct {
 
 func (x *UserMsg) Reset() {
 	*x = UserMsg{}
-	mi := &file_messages_proto_msgTypes[34]
+	mi := &file_messages_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2264,7 +2128,7 @@ func (x *UserMsg) String() string {
 func (*UserMsg) ProtoMessage() {}
 
 func (x *UserMsg) ProtoReflect() protoreflect.Message {
-	mi := &file_messages_proto_msgTypes[34]
+	mi := &file_messages_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2277,7 +2141,7 @@ func (x *UserMsg) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserMsg.ProtoReflect.Descriptor instead.
 func (*UserMsg) Descriptor() ([]byte, []int) {
-	return file_messages_proto_rawDescGZIP(), []int{34}
+	return file_messages_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *UserMsg) GetUserId() int64 {
@@ -2332,7 +2196,7 @@ type ChallengeMsg struct {
 
 func (x *ChallengeMsg) Reset() {
 	*x = ChallengeMsg{}
-	mi := &file_messages_proto_msgTypes[35]
+	mi := &file_messages_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2344,7 +2208,7 @@ func (x *ChallengeMsg) String() string {
 func (*ChallengeMsg) ProtoMessage() {}
 
 func (x *ChallengeMsg) ProtoReflect() protoreflect.Message {
-	mi := &file_messages_proto_msgTypes[35]
+	mi := &file_messages_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2357,7 +2221,7 @@ func (x *ChallengeMsg) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChallengeMsg.ProtoReflect.Descriptor instead.
 func (*ChallengeMsg) Descriptor() ([]byte, []int) {
-	return file_messages_proto_rawDescGZIP(), []int{35}
+	return file_messages_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ChallengeMsg) GetChallengerId() int64 {
@@ -2447,7 +2311,7 @@ type EloHistoryBucket struct {
 
 func (x *EloHistoryBucket) Reset() {
 	*x = EloHistoryBucket{}
-	mi := &file_messages_proto_msgTypes[36]
+	mi := &file_messages_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2459,7 +2323,7 @@ func (x *EloHistoryBucket) String() string {
 func (*EloHistoryBucket) ProtoMessage() {}
 
 func (x *EloHistoryBucket) ProtoReflect() protoreflect.Message {
-	mi := &file_messages_proto_msgTypes[36]
+	mi := &file_messages_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2472,7 +2336,7 @@ func (x *EloHistoryBucket) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EloHistoryBucket.ProtoReflect.Descriptor instead.
 func (*EloHistoryBucket) Descriptor() ([]byte, []int) {
-	return file_messages_proto_rawDescGZIP(), []int{36}
+	return file_messages_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *EloHistoryBucket) GetTimestamp() string {
@@ -2498,7 +2362,7 @@ type EloHistoryBuckets struct {
 
 func (x *EloHistoryBuckets) Reset() {
 	*x = EloHistoryBuckets{}
-	mi := &file_messages_proto_msgTypes[37]
+	mi := &file_messages_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2510,7 +2374,7 @@ func (x *EloHistoryBuckets) String() string {
 func (*EloHistoryBuckets) ProtoMessage() {}
 
 func (x *EloHistoryBuckets) ProtoReflect() protoreflect.Message {
-	mi := &file_messages_proto_msgTypes[37]
+	mi := &file_messages_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2523,7 +2387,7 @@ func (x *EloHistoryBuckets) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EloHistoryBuckets.ProtoReflect.Descriptor instead.
 func (*EloHistoryBuckets) Descriptor() ([]byte, []int) {
-	return file_messages_proto_rawDescGZIP(), []int{37}
+	return file_messages_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *EloHistoryBuckets) GetBuckets() []*EloHistoryBucket {
@@ -2561,20 +2425,16 @@ const file_messages_proto_rawDesc = "" +
 	"\n" +
 	"ChessBoard\x12\"\n" +
 	"\ris_white_turn\x18\x01 \x01(\bR\visWhiteTurn\x12'\n" +
-	"\x04file\x18\x02 \x03(\v2\x13.messages.BoardFileR\x04file\"\xc6\x02\n" +
+	"\x04file\x18\x02 \x03(\v2\x13.messages.BoardFileR\x04file\"\xf4\x01\n" +
 	"\bHistMove\x12\x14\n" +
 	"\x05piece\x18\x01 \x01(\x05R\x05piece\x12\x1b\n" +
 	"\tfrom_file\x18\x02 \x01(\x05R\bfromFile\x12\x1b\n" +
 	"\tfrom_rank\x18\x03 \x01(\x05R\bfromRank\x12\x17\n" +
 	"\ato_file\x18\x04 \x01(\x05R\x06toFile\x12\x17\n" +
-	"\ato_rank\x18\x05 \x01(\x05R\x06toRank\x12\x1b\n" +
-	"\tcoll_file\x18\x06 \x01(\bR\bcollFile\x12\x1b\n" +
-	"\tcoll_rank\x18\a \x01(\bR\bcollRank\x12\x17\n" +
-	"\ais_take\x18\b \x01(\bR\x06isTake\x12\x19\n" +
-	"\bis_check\x18\t \x01(\bR\aisCheck\x12$\n" +
-	"\x0ewhite_timer_ms\x18\n" +
-	" \x01(\x03R\fwhiteTimerMs\x12$\n" +
-	"\x0eblack_timer_ms\x18\v \x01(\x03R\fblackTimerMs\"\xab\x02\n" +
+	"\ato_rank\x18\x05 \x01(\x05R\x06toRank\x12\x1a\n" +
+	"\bnotation\x18\x06 \x01(\tR\bnotation\x12$\n" +
+	"\x0ewhite_timer_ms\x18\a \x01(\x03R\fwhiteTimerMs\x12$\n" +
+	"\x0eblack_timer_ms\x18\b \x01(\x03R\fblackTimerMs\"\xab\x02\n" +
 	"\tChessGame\x12*\n" +
 	"\x05board\x18\x01 \x01(\v2\x14.messages.ChessBoardR\x05board\x125\n" +
 	"\vwhite_moves\x18\x02 \x03(\v2\x14.messages.PieceMovesR\n" +
@@ -2691,15 +2551,7 @@ const file_messages_proto_rawDesc = "" +
 	"\x05moves\x18\x01 \x03(\v2\x13.messages.PieceMoveR\x05moves\"o\n" +
 	"\vMoveHistory\x126\n" +
 	"\finitial_game\x18\x01 \x01(\v2\x13.messages.ChessGameR\vinitialGame\x12(\n" +
-	"\x05steps\x18\x02 \x03(\v2\x12.messages.HistMoveR\x05steps\"q\n" +
-	"\n" +
-	"MoveReplay\x126\n" +
-	"\finitial_game\x18\x01 \x01(\v2\x13.messages.ChessGameR\vinitialGame\x12+\n" +
-	"\x05steps\x18\x02 \x03(\v2\x15.messages.NotMoveStepR\x05steps\"p\n" +
-	"\vNotMoveStep\x12\x18\n" +
-	"\anotMove\x18\x01 \x01(\tR\anotMove\x12#\n" +
-	"\x02pm\x18\x02 \x01(\v2\x13.messages.PieceMoveR\x02pm\x12\"\n" +
-	"\x02hm\x18\x03 \x01(\v2\x12.messages.HistMoveR\x02hm\"c\n" +
+	"\x05steps\x18\x02 \x03(\v2\x12.messages.HistMoveR\x05steps\"c\n" +
 	"\aUserMsg\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x126\n" +
 	"\tchallenge\x18\x02 \x01(\v2\x16.messages.ChallengeMsgH\x00R\tchallengeB\a\n" +
@@ -2736,7 +2588,7 @@ func file_messages_proto_rawDescGZIP() []byte {
 	return file_messages_proto_rawDescData
 }
 
-var file_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
+var file_messages_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
 var file_messages_proto_goTypes = []any{
 	(*PlayerState)(nil),       // 0: messages.PlayerState
 	(*PieceMove)(nil),         // 1: messages.PieceMove
@@ -2770,12 +2622,10 @@ var file_messages_proto_goTypes = []any{
 	(*HistMoves)(nil),         // 29: messages.HistMoves
 	(*PieceMoveList)(nil),     // 30: messages.PieceMoveList
 	(*MoveHistory)(nil),       // 31: messages.MoveHistory
-	(*MoveReplay)(nil),        // 32: messages.MoveReplay
-	(*NotMoveStep)(nil),       // 33: messages.NotMoveStep
-	(*UserMsg)(nil),           // 34: messages.UserMsg
-	(*ChallengeMsg)(nil),      // 35: messages.ChallengeMsg
-	(*EloHistoryBucket)(nil),  // 36: messages.EloHistoryBucket
-	(*EloHistoryBuckets)(nil), // 37: messages.EloHistoryBuckets
+	(*UserMsg)(nil),           // 32: messages.UserMsg
+	(*ChallengeMsg)(nil),      // 33: messages.ChallengeMsg
+	(*EloHistoryBucket)(nil),  // 34: messages.EloHistoryBucket
+	(*EloHistoryBuckets)(nil), // 35: messages.EloHistoryBuckets
 }
 var file_messages_proto_depIdxs = []int32{
 	3,  // 0: messages.ChessBoard.file:type_name -> messages.BoardFile
@@ -2819,17 +2669,13 @@ var file_messages_proto_depIdxs = []int32{
 	1,  // 38: messages.PieceMoveList.moves:type_name -> messages.PieceMove
 	6,  // 39: messages.MoveHistory.initial_game:type_name -> messages.ChessGame
 	5,  // 40: messages.MoveHistory.steps:type_name -> messages.HistMove
-	6,  // 41: messages.MoveReplay.initial_game:type_name -> messages.ChessGame
-	33, // 42: messages.MoveReplay.steps:type_name -> messages.NotMoveStep
-	1,  // 43: messages.NotMoveStep.pm:type_name -> messages.PieceMove
-	5,  // 44: messages.NotMoveStep.hm:type_name -> messages.HistMove
-	35, // 45: messages.UserMsg.challenge:type_name -> messages.ChallengeMsg
-	36, // 46: messages.EloHistoryBuckets.buckets:type_name -> messages.EloHistoryBucket
-	47, // [47:47] is the sub-list for method output_type
-	47, // [47:47] is the sub-list for method input_type
-	47, // [47:47] is the sub-list for extension type_name
-	47, // [47:47] is the sub-list for extension extendee
-	0,  // [0:47] is the sub-list for field type_name
+	33, // 41: messages.UserMsg.challenge:type_name -> messages.ChallengeMsg
+	34, // 42: messages.EloHistoryBuckets.buckets:type_name -> messages.EloHistoryBucket
+	43, // [43:43] is the sub-list for method output_type
+	43, // [43:43] is the sub-list for method input_type
+	43, // [43:43] is the sub-list for extension type_name
+	43, // [43:43] is the sub-list for extension extendee
+	0,  // [0:43] is the sub-list for field type_name
 }
 
 func init() { file_messages_proto_init() }
@@ -2858,7 +2704,7 @@ func file_messages_proto_init() {
 		(*GameOutput_Undo)(nil),
 		(*GameOutput_BgInit)(nil),
 	}
-	file_messages_proto_msgTypes[34].OneofWrappers = []any{
+	file_messages_proto_msgTypes[32].OneofWrappers = []any{
 		(*UserMsg_Challenge)(nil),
 	}
 	type x struct{}
@@ -2867,7 +2713,7 @@ func file_messages_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_messages_proto_rawDesc), len(file_messages_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   38,
+			NumMessages:   36,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

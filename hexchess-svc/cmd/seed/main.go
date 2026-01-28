@@ -14,7 +14,6 @@ import (
 	svc "hexchess-svc/services"
 	"log"
 	"log/slog"
-	"math"
 	"math/rand"
 	"os"
 	"time"
@@ -137,10 +136,6 @@ func insertChallenges(ctx context.Context, state *svc.State, insts []ChallengeIn
 	return nil
 }
 
-func randRange(min, max float64) float64 {
-	return min + rand.Float64()*(max-min)
-}
-
 func insertRandomizedGameResults(ctx context.Context, state *svc.State, gameResults []GameResult) error {
 	timeAt := time.Now().Add(-1 * time.Hour * 24 * 100)
 
@@ -166,25 +161,9 @@ func insertRandomizedGameResults(ctx context.Context, state *svc.State, gameResu
 			}
 
 			game := chess.MakeStartGame()
-			moveSeq, err := chess.RandomMoveSeq(game, 10, 30)
+			moveSeq, err := svc.RandomMoveHistSeq(mode, game, 10, 30)
 			if err != nil {
 				return fmt.Errorf("generate random move seq: %w", err)
-			}
-
-			whiteTimer := mode.TotalTime()
-			blackTimer := mode.TotalTime()
-			if mode.IsRealTime() {
-				for moveIdx := range moveSeq {
-					timeIncr := float64(mode.TimeIncr().Milliseconds())
-					incr := math.Max(timeIncr, 1000) * randRange(0.5, 1.5)
-					if moveIdx%2 == 0 {
-						whiteTimer -= time.Duration(incr) * time.Millisecond
-					} else {
-						blackTimer -= time.Duration(incr) * time.Millisecond
-					}
-					moveSeq[moveIdx].WhiteTimer = whiteTimer
-					moveSeq[moveIdx].BlackTimer = blackTimer
-				}
 			}
 
 			return state.PutReplayMoveSeq(egCtx, cs.ReplayID, game.Board, moveSeq)

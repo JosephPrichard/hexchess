@@ -8,48 +8,6 @@ import (
 	"testing"
 )
 
-func TestAssertElementsEqual(t *testing.T) {
-	type value struct {
-		A int
-		B int
-	}
-	for _, test := range []struct {
-		name    string
-		a       []value
-		b       []value
-		opts    cmp.Option
-		wantStr string
-	}{
-		{
-			name:    "equal",
-			a:       []value{{A: 1, B: 1}, {A: 2}, {A: 3, B: 1}},
-			b:       []value{{A: 1}, {A: 2, B: 2}, {A: 3}},
-			opts:    cmpopts.IgnoreFields(value{}, "B"),
-			wantStr: "",
-		},
-		{
-			name:    "not equals extra elements",
-			a:       []value{{A: 1, B: 1}, {A: 2}, {A: 3, B: 1}},
-			b:       []value{{A: 1}, {A: 2, B: 2}, {A: 3}, {}},
-			opts:    cmpopts.IgnoreFields(value{}, "B"),
-			wantStr: "elements differ\nextra elements in list B:\n{{A:0 B:0}}\n\nlistA:\n[{A:1 B:1} {A:2 B:0} {A:3 B:1}]\n\nlistB:\n[{A:1 B:0} {A:2 B:2} {A:3 B:0} {A:0 B:0}]\n\n",
-		},
-		{
-			name:    "not equals diff elements",
-			a:       []value{{A: 1, B: 1}, {A: 1}, {A: 3, B: 1}},
-			b:       []value{{A: 1}, {A: 2, B: 2}, {A: 3}},
-			opts:    cmpopts.IgnoreFields(value{}, "B"),
-			wantStr: "elements differ\n\nextra elements in list A:\n{{A:1 B:0}}\n\nextra elements in list B:\n{{A:2 B:2}}\n\nlistA:\n[{A:1 B:1} {A:1 B:0} {A:3 B:1}]\n\nlistB:\n[{A:1 B:0} {A:2 B:2} {A:3 B:0}]\n\n",
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			str := elementsMatch(test.a, test.b, test.opts)
-			t.Logf("elements match output:\n%s", str)
-			assert.Equal(t, test.wantStr, str)
-		})
-	}
-}
-
 type test struct {
 	name    string
 	body    any

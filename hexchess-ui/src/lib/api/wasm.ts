@@ -32,14 +32,18 @@ function dynCall(name: string, ...args: unknown[]): unknown {
 	return (fn as Function)(...args);
 }
 
-async function getInitialGame(): Promise<ChessGame> {
+async function getGame(board?: ChessBoard): Promise<ChessGame> {
 	await makeWasmAPI();
-	const output = dynCall("getInitialGame");
+
+	const input = board ? ChessBoard.toBinary(board) : undefined;
+
+	const output = dynCall("getGame", input);
 	if (output instanceof Uint8Array) {
 		return ChessGame.fromBinary(output);
+	} else {
+		console.error("failed to get initial game");
+		return defaultGame;
 	}
-	console.error("failed to get initial game");
-	return defaultGame;
 }
 
 export type MakeMoveArgs = { from: Hex; to: Hex; promotion: number };
@@ -52,31 +56,21 @@ async function makeMove(
 
 	const gameInput = ChessGame.toBinary(game || defaultGame);
 	const moveInput = Move.toBinary({
-		fromFile: move?.from?.file || 0,
-		fromRank: move?.from?.rank || 0,
-		toFile: move?.to?.file || 0,
-		toRank: move?.to?.rank || 0,
-		promotion: move?.promotion || 0
+		fromFile: move?.from?.file ?? 0,
+		fromRank: move?.from?.rank ?? 0,
+		toFile: move?.to?.file ?? 0,
+		toRank: move?.to?.rank ?? 0,
+		promotion: move?.promotion ?? 0
 	});
 
 	const output = dynCall("makeMove", gameInput, moveInput);
 	if (output instanceof Uint8Array) {
 		return ChessGame.fromBinary(output);
 	}
+	return undefined;
 }
 
-async function getMoves(board: ChessBoard): Promise<ChessGame | undefined> {
-	await makeWasmAPI();
-	const input = ChessBoard.toBinary(board);
-
-	const output = dynCall("getMoves", input);
-	if (output instanceof Uint8Array) {
-		return ChessGame.fromBinary(output);
-	}
-	console.error("failed to get moves");
-}
-
-async function fenToGame(fen: string): Promise<ChessGame | undefined> {
+async function fenToGame(fen: string): Promise<ChessGame> {
 	await makeWasmAPI();
 	const output = dynCall("fenToGame", fen) as any;
 
@@ -89,6 +83,8 @@ async function fenToGame(fen: string): Promise<ChessGame | undefined> {
 		message = output[1];
 	}
 	console.error(message);
+
+	return defaultGame;
 }
 
 async function boardToFen(board?: ChessBoard): Promise<string> {
@@ -106,32 +102,17 @@ async function boardToFen(board?: ChessBoard): Promise<string> {
 	return "";
 }
 
-async function getMoveNotations(moves?: HistMove[]): Promise<string[]> {
-	if (!moves || moves.length === 0) return [];
-
-	await makeWasmAPI();
-	const input = HistMoves.toBinary({ moves });
-
-	const output = dynCall("getMoveNotations", input);
-	if (Array.isArray(output) && output.every(item => typeof item === "string")) {
-		return output;
-	}
-
-	console.error("failed to get move notations");
-	return [];
-}
-
 async function gameAtMoveIndex(
 	initialBoard: ChessBoard | undefined,
 	moves: (HistMove | undefined)[] | undefined,
 	index: number
-): Promise<ChessGame | undefined> {
+): Promise<ChessGame> {
 	await makeWasmAPI();
 
 	initialBoard = initialBoard || defaultBoard;
 
 	const movesList: HistMove[] = [];
-	for (const item of moves || []) {
+	for (const item of moves ?? []) {
 		if (item) movesList.push(item);
 	}
 
@@ -143,14 +124,13 @@ async function gameAtMoveIndex(
 	}
 
 	console.error("failed to make move");
+	return defaultGame;
 }
 
 export const wasm = {
-	getInitialGame,
+	getGame,
 	makeMove,
-	getMoves,
 	fenToGame,
 	boardToFen,
-	getMoveNotations,
 	gameAtMoveIndex
 };

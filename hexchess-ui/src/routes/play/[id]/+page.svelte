@@ -7,7 +7,7 @@
 	import ClipboardIcon from '$lib/components/icons/ClipboardIcon.svelte';
 	import FlagIcon from '$lib/components/icons/FlagIcon.svelte';
 	import UndoIcon from '$lib/components/icons/UndoIcon.svelte';
-	import TakenPieceList from '$lib/components/chess/PieceList.svelte';
+	import TakenTakenList from '$lib/components/chess/TakenList.svelte';
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
 	import {
 		type BgInitOutput,
@@ -88,7 +88,7 @@
 	const game = $derived.by(() => gameplay.state.game || defaultGame);
 	const link = $derived(`${appBaseURL()}/play/${props.gameId}`);
 	const isErrorPage = $derived.by(() => connState.tries > 0);
-	const awaitingNotList = $derived.by(async () => await wasm.getMoveNotations(game?.moves));
+	const notList = $derived.by(() => game?.moves.map((h) => h.notation) ?? []);
 	const currPlayer = $derived.by(() => game?.board?.isWhiteTurn ? whitePlayer : blackPlayer);
 	const isCurrPlayer = $derived.by(() => selfPlayer?.id === currPlayer?.id);
 	const isEitherPlayer = $derived.by(() => whitePlayer?.id !== selfPlayer?.id || blackPlayer?.id !== selfPlayer?.id);
@@ -299,7 +299,7 @@
 		tempWs.binaryType = "arraybuffer";
 		tempWs.addEventListener('open', () => {
 			console.log(`Connected to game=${gameId} sessionId=${sessionId} successfully!`);
-			const lastTime = connState.setAt?.getTime() || 0;
+			const lastTime = connState.setAt?.getTime() ?? [];
 			let tries = 0;
 			if (new Date().getTime() - lastTime > successConnThresholdTime) {
 				tries = 0;
@@ -411,7 +411,7 @@
 				/>
 			{/if}
 			<div class="side-table-wrapper">
-				<TakenPieceList myPieces={bottomTakenPieces} theirPieces={topTakenPieces}/>
+				<TakenTakenList myPieces={bottomTakenPieces} theirPieces={topTakenPieces}/>
 				<Timer value={topTimer} size="lg"/>
 				<div class="side-table move-table-wrapper">
 					<div class="side-table-header player-panel">
@@ -447,22 +447,20 @@
 								</div>
 							</div>
 						{:else}
-							{#await awaitingNotList then notList}
-								{#if notList.length > 0}
-									<MoveList moveList={notList} onSelectMove={onSelectMove} selectedMoveIndex={selectedMoveIndex}/>
-								{:else if endState === undefined}
-									<div class="growing-scrollbox moves-empty-text">
-										{#if selfPlayer?.id === whitePlayer?.id}
-											<div>
-												<div>You're playing as white</div>
-												<div>(It's your turn)</div>
-											</div>
-										{:else if selfPlayer?.id === blackPlayer?.id}
-											You're playing as black
-										{/if}
-									</div>
-								{/if}
-							{/await}
+							{#if notList.length > 0}
+								<MoveList moveList={notList} onSelectMove={onSelectMove} selectedMoveIndex={selectedMoveIndex}/>
+							{:else if endState === undefined}
+								<div class="growing-scrollbox moves-empty-text">
+									{#if selfPlayer?.id === whitePlayer?.id}
+										<div>
+											<div>You're playing as white</div>
+											<div>(It's your turn)</div>
+										</div>
+									{:else if selfPlayer?.id === blackPlayer?.id}
+										You're playing as black
+									{/if}
+								</div>
+							{/if}
 							{#if endState?.value.oneofKind === "finishState"}
 								<FinishPanel state={endState?.value.finishState} whitePlayer={whitePlayer} blackPlayer={blackPlayer}/>
 							{/if}
@@ -534,7 +532,7 @@
 					</div>
 				</div>
 				<Timer value={bottomTimer} size="lg"/>
-				<TakenPieceList myPieces={topTakenPieces} theirPieces={bottomTakenPieces} />
+				<TakenTakenList myPieces={topTakenPieces} theirPieces={bottomTakenPieces} />
 			</div>
 		</div>
 	</div>

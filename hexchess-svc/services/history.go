@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
-	"hexchess-svc/pb"
 	"io"
 	"log/slog"
 	"strconv"
@@ -54,20 +52,12 @@ func (s *State) GetMoveReplay(ctx context.Context, replayID string) ([]byte, err
 		return nil, fmt.Errorf("get move history by key=%s from s3: %w", key, err)
 	}
 	defer object.Body.Close()
+
 	bReplay, err := io.ReadAll(object.Body)
 	if err != nil {
 		return nil, fmt.Errorf("read move history bytes with  key=%s: %w", key, err)
 	}
 
 	slog.InfoContext(ctx, "retrieved move history from s3", "key", key, "size", fmt.Sprintf("%dKB", len(bReplay)/1000))
-
-	var pbMoveHist pb.MoveHistory
-	if err := proto.Unmarshal(bReplay, &pbMoveHist); err != nil {
-		return nil, fmt.Errorf("unmarshal move history with  key=%s: %w", key, err)
-	}
-	bResp, err := chess.MarshalMoveReplay(&pbMoveHist)
-	if err != nil {
-		return nil, fmt.Errorf("marshal move replay with key=%s move seq : %w", key, err)
-	}
-	return bResp, nil
+	return bReplay, nil
 }

@@ -556,8 +556,8 @@ select:disabled {
 
 .side-table-header-bottom {
 	padding: 15px;
-	border-bottom-left-radius: 2px;
-	border-bottom-right-radius: 2px;
+	/*border-bottom-left-radius: 2px;*/
+	/*border-bottom-right-radius: 2px;*/
 	background-color: rgb(44, 44, 44);
 	border-top: 1px solid rgb(58, 58, 58);
 }
@@ -568,7 +568,7 @@ select:disabled {
 }
 
 .side-table-header-bottom-shadow {
-	box-shadow: 0 -4px 4px -4px rgba(0, 0, 0, 0.6);
+	box-shadow: 0 -3px 4px -4px rgba(0, 0, 0, 0.6);
 }
 
 .side-table-header-elem {
@@ -592,9 +592,9 @@ select:disabled {
 }
 
 .growing-box {
-	height: 75%;
+	flex: 1 1 auto;
+	min-height: 0;
 	box-sizing: border-box;
-	flex-grow: 1;
 }
 
 .button-transparent {
@@ -618,7 +618,7 @@ select:disabled {
 	top: 50%;
 	left: 50%;
 	transform: translate(-50%, -50%);
-	z-index: 2;
+	z-index: 11;
 }
 
 .invisible-button {
@@ -692,7 +692,6 @@ select:disabled {
 }
 
 .modal {
-	z-index: 3;
 	width: 400px;
 }
 
@@ -709,4 +708,17 @@ select:disabled {
 	z-index: 10;
 	color: white;
 	background-color: #B7374E;
+}
+
+.taken-wrapper {
+	padding: 5px 10px;
+}
+
+.player-name-wrapper {
+	margin-right: 10px;
+}
+
+.player-points-wrapper {
+	display: flex;
+	align-items: center;
 }

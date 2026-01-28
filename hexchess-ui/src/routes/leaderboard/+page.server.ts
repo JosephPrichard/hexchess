@@ -20,5 +20,5 @@ export const load: PageServerLoad = async ({ url, setHeaders, fetch }): Promise<
 	// setHeaders({
 	// 	'cache-control': 'max-age=60'
 	// });
-	return { page, pageCount: data?.totalPages || 0, userList: data?.userList || [] };
+	return { page, pageCount: data?.totalPages ?? [], userList: data?.userList ?? [] };
 };

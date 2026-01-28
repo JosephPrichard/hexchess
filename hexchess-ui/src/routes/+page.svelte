@@ -65,7 +65,7 @@
 
 	onMount(async () => {
 		client = getClientSession();
-		fen = await wasm.boardToFen((await wasm.getInitialGame()).board);
+		fen = await wasm.boardToFen((await wasm.getGame()).board);
 	});
 	$inspect(client, 'client session');
 

@@ -796,7 +796,7 @@ func TestHandleGetMoveReplay(t *testing.T) {
 	object, err := proto.Marshal(&pb.MoveHistory{
 		InitialGame: pbInitialGame,
 		Steps: []*pb.HistMove{
-			{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4, CollFile: false, CollRank: false, IsTake: true, IsCheck: true},
+			{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4, Notation: "pc5"},
 		},
 	})
 	require.NoError(t, err)
@@ -812,22 +812,18 @@ func TestHandleGetMoveReplay(t *testing.T) {
 	body, err := io.ReadAll(w.Body)
 	require.NoError(t, err)
 
-	var pbMoveReplay pb.MoveReplay
-	require.NoError(t, proto.Unmarshal(body, &pbMoveReplay))
+	var pbMoveHist pb.MoveHistory
+	require.NoError(t, proto.Unmarshal(body, &pbMoveHist))
 
 	// then
-	wantMoveReplay := &pb.MoveReplay{
+	wantMoveReplay := &pb.MoveHistory{
 		InitialGame: pbInitialGame,
-		Steps: []*pb.NotMoveStep{
-			{
-				NotMove: "P+xd5",
-				Pm:      &pb.PieceMove{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4},
-				Hm:      &pb.HistMove{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4, CollFile: false, CollRank: false, IsTake: true, IsCheck: true},
-			},
+		Steps: []*pb.HistMove{
+			{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4, Notation: "pc5"},
 		},
 	}
 	assert.Equal(t, http.StatusOK, w.Code)
-	assertutil.Equal(t, wantMoveReplay, &pbMoveReplay, protocmp.Transform())
+	assertutil.Equal(t, wantMoveReplay, &pbMoveHist, protocmp.Transform())
 }
 
 func TestHandleUploadProfilePic(t *testing.T) {

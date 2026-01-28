@@ -10,33 +10,32 @@
 	export interface PieceEditorProps {
 		selectedPiece?: number;
 		boardElement?: HTMLElement;
-		hoveringHexagon?: Hex;
+		hovering?: {hex: Hex, piece: number};
 		isWhitePerspective?: boolean;
 		onDropPiece?: (to: Hex) => void;
 		isTrashSelector?: boolean;
 	}
 
-	let { selectedPiece = $bindable(), boardElement = $bindable(), hoveringHexagon = $bindable(),
+	let { selectedPiece = $bindable(), boardElement = $bindable(), hovering = $bindable(),
 		isWhitePerspective, onDropPiece, isTrashSelector = $bindable() }: PieceEditorProps = $props();
 
 	function onSelectPiece(event: SelectEvent, piece: number) {
 		if (isTrashSelector) return;
-		switch (event) {
-		case "SELECT":
+		if (event === "SELECT") {
 			selectedPiece = piece;
-			break;
-		case "DESELECT":
+		} else if (event === "DESELECT" && hovering?.piece !== piece) {
 			selectedPiece = undefined;
-			break;
 		}
 	}
 
-	function onDragEditorPiece(x: number, y: number) {
-		hoveringHexagon = findHex(boardElement, isWhitePerspective, x, y);
+	function onDragEditorPiece(piece: number, x: number, y: number) {
+		const hex = findHex(boardElement, isWhitePerspective, x, y);
+		if (!hex) return;
+		hovering = {piece, hex};
 	}
 
 	function onDropEditorPiece(x: number, y: number) {
-		hoveringHexagon = undefined;
+		hovering = undefined;
 		const hex = findHex(boardElement, isWhitePerspective, x, y);
 		if (hex) {
 			onDropPiece?.(hex);
@@ -45,15 +44,13 @@
 
 	function onSelectTrash(isCursor: boolean = false) {
 		isTrashSelector = !isCursor;
-		if (isTrashSelector) {
-			selectedPiece = undefined;
-		}
+		if (isTrashSelector) selectedPiece = undefined;
 	}
 </script>
 
 <div class="piece-editor">
-	{#each [whitePieces, blackPieces] as panel, i}
-		<div class="piece-panel">
+	<div class="piece-panel">
+		{#each [whitePieces, blackPieces] as panel}
 			{#each panel as piece}
 				<div class="piece-tile-wrapper">
 					<div
@@ -72,14 +69,14 @@
 							initialLeft={-5}
 							initialTop={0}
 							onSelectHexagon={(event) => onSelectPiece(event, piece)}
-							onDragPiece={onDragEditorPiece}
+							onDragPiece={(x, y) => onDragEditorPiece(piece, x, y)}
 							onDropPiece={onDropEditorPiece}
 						/>
 					</div>
 				</div>
 			{/each}
-		</div>
-	{/each}
+		{/each}
+	</div>
 	<div class="piece-panel select-tile-wrapper">
 		{#each ["CURSOR", "TRASH"] as selector, i}
 			{@const isCursor = selector === "CURSOR"}
@@ -134,18 +131,17 @@
 	}
 
 	.piece-panel {
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
         /*border: 1px solid rgb(100, 100, 100);*/
         border-radius: 3px;
-        background: rgb(64, 64, 64);
+        background: rgb(43, 43, 43);
 		display: flex;
         flex-direction: row;
         flex-wrap: wrap;
-		text-align: center;
 	}
 
 	.piece-tile-wrapper {
-        width: 70px;
+        width: 67px; /* todo: make this not hardcoded. */
 		z-index: 1;
 		text-align: center;
 	}
@@ -155,7 +151,8 @@
         border: 1px solid rgb(100, 100, 100);
         cursor: pointer;
         position: relative;
-        margin: auto;
+        margin: 0;
+		text-align: center;
     }
 
 	.select-tile {

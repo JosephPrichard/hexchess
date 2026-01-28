@@ -18,13 +18,13 @@
 		onSelectHexagon?: (key: SelectEvent) => void;
 		onSelectPiece?: () => void;
 		onDeSelectPiece?: () => void;
-		onDragPiece?: (x: number, y: number) => void;
+		onDragPiece?: (p: number, x: number, y: number) => void;
 		onDropPiece?: (x: number, y: number) => void;
 		onCompletePromotion?: (promotedPiece: Promotion | BadPromotionType) => void;
 	}
 
 	let { 
-		piece, 
+		piece,
 		isSelected,
 		isAnnotatable,
 		isDraggable,
@@ -60,9 +60,7 @@
 		e.preventDefault();
 		if (!element || selectEvents[e.button] === undefined) return;
 
-		if (onSelectHexagon) {
-			onSelectHexagon(selectEvents[e.button]);
-		}
+		if (onSelectHexagon) onSelectHexagon(selectEvents[e.button]);
 		if (e.button == 2) return; // mouse right click is already used for annotations, so prevent drag
 
 		if (!isDraggable) {
@@ -84,21 +82,15 @@
 	}
 
 	function onMove(e: MouseEvent) {
-		if (!element) {
-			return
-		}
-		if (!isDraggable) {
-			return
-		}
-		if (e.clientX >= screen.width || e.clientY >= screen.height) {
-			return
-		}
+		if (!element) return;
+		if (!isDraggable) return;
+		if (e.clientX >= screen.width || e.clientY >= screen.height) return;
 		if (dragging) {
 			xOff += e.clientX - lastX;
 			yOff += e.clientY - lastY;
 			lastX = e.clientX;
 			lastY = e.clientY;
-			onDragPiece?.(e.clientX, e.clientY);
+			onDragPiece?.(piece, e.clientX, e.clientY);
 		}
 	}
 
@@ -150,6 +142,14 @@
 			width: ${hexWidth * 0.9}px;
 			height: ${hexHeight * 0.9}px;`;
 	}
+
+	function rectHexStyle() {
+		return `
+			left: ${hexWidth / 8 + initialLeft}px;
+			top: ${hexWidth / 24 + initialTop}px;
+			width: ${hexWidth * 0.75}px;
+			height: ${hexWidth * 0.75}px;`;
+	}
 </script>
 
 <div
@@ -157,10 +157,7 @@
 	class:annotation-show={isAnnotated}
 	role="cell"
 	tabindex="0"
-	style:left="{hexWidth / 8 + initialLeft}px"
-	style:top="{hexWidth / 24 + initialTop}px"
-	style:width="{hexWidth * 0.75}px"
-	style:height="{hexWidth * 0.75}px"
+	style={rectHexStyle()}
 	oncontextmenu={e => e.preventDefault()}
 ></div>
 <div

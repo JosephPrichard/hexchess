@@ -6,7 +6,7 @@
 	import { makeMessage } from '$lib/utils/error';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import ReplayPanel from '$lib/components/user/ReplayPanel.svelte';
-	import { type ChessGame, type NotMoveStep } from '$lib/pb/messages';
+	import { type ChessGame, type HistMove } from '$lib/pb/messages';
 	import { type Hex, type ReplayModel } from '$lib/api/models';
 	import services from '$lib/api/services';
 	import { makeMoveState } from '$lib/state/move.svelte';
@@ -16,6 +16,8 @@
 	import StopIcon from '$lib/components/icons/PauseIcon.svelte';
 	import Timer from '$lib/components/chess/Timer.svelte';
 	import { type CancelCountdown, gameAtStepIndex, getStepTimers, startCountdown, type TimerType } from './service';
+	import TakenList from '$lib/components/chess/TakenList.svelte';
+	import { moveElementHeight } from '$lib/components/chess/render';
 
 	export interface ReplayProps {
 		replay: ReplayModel;
@@ -29,7 +31,7 @@
 
 	let initialGame: ChessGame | undefined = $state(undefined);
 	let game: ChessGame | undefined = $state(undefined);
-	let steps: NotMoveStep[] = $state([]);
+	let steps: HistMove[] = $state([]);
 	let moveHistErr: string | undefined = $state(undefined);
 	let isWhitePerspective = $state(false);
 
@@ -37,11 +39,14 @@
 	let stepTimer: TimerType | undefined = $state(undefined);
 
 	let countdown: CancelCountdown | undefined = undefined;
+	let movesScroller: HTMLDivElement | undefined = $state(undefined);
 
 	const stepIndex = $derived.by(() => move.state.moveIndex);
 	const isWhiteTurn = $derived.by(() => game?.board?.isWhiteTurn);
-	const prevMove = $derived.by(() => steps.length > 0 && stepIndex !== undefined ? steps[stepIndex]?.pm : undefined);
-	const rootNotationList = $derived.by(() => steps.map(move => move.notMove));
+	const prevMove = $derived.by(() => steps.length > 0 && stepIndex !== undefined ? steps[stepIndex] : undefined);
+	const notList = $derived.by(() => steps.map(move => move.notation));
+	const topTakenPieces = $derived.by(() => (isWhitePerspective ? game?.takenWhitePieces : game?.takenBlackPieces) ?? []);
+	const bottomTakenPieces = $derived.by(() => (isWhitePerspective ? game?.takenBlackPieces : game?.takenWhitePieces) ?? []);
 
 	async function initMoveList(replayId: string) {
 		const [data, err] = await services.getReplayMoveHistory(replayId);
@@ -63,10 +68,24 @@
 		}
 	}
 
+	function scrollToStep(stepIndex?: number) {
+		if (movesScroller) {
+			// find the top offset to scroll to in the moves scroller for a given index.
+			const startTop =  movesScroller.scrollTop;
+			const endTop = startTop + movesScroller.clientHeight;
+			const nextTop = moveElementHeight * Math.floor((stepIndex ?? 0) / 2);
+
+			if (nextTop > startTop && nextTop < endTop) return;
+
+			movesScroller.scrollTo({ top: nextTop, behavior: 'smooth' });
+		}
+	}
+
 	function onCompleteCountdown() {
 		const diffMs = stepTimer?.diffMs ?? 0;
 		if (diffMs > 0) {
 			move.goRight();
+			scrollToStep(stepIndex);
 			beginCountdown();
 		} else {
 			cancelCountdown();
@@ -87,7 +106,7 @@
 
 	function togglePlayPause() {
 		isPlaying = !isPlaying;
-		if (isPlaying) {
+		if (isPlaying && (stepTimer?.diffMs ?? 0) > 0) {
 			beginCountdown();
 		} else {
 			cancelCountdown();
@@ -158,17 +177,24 @@
 				<div class="turn-circle" class:turn-circle-green={Boolean(isWhiteTurn) !== isWhitePerspective}></div>
 				{isWhitePerspective ? "Black to move" : "White to move"}
 			</div>
+			<div class="side-table-header taken-wrapper">
+				<TakenList myPieces={topTakenPieces} theirPieces={bottomTakenPieces}/>
+			</div>
 			<MoveList
-				moveList={rootNotationList}
+				bind:containerElement={movesScroller}
+				moveList={notList}
 				onSelectMove={onSelectMove}
 				selectedMoveIndex={move.state.moveIndex}
 			/>
-			<div class="side-table-header-bottom side-table-header-bottom-border">
+			<div class="side-table-header-bottom side-table-header-bottom-shadow taken-wrapper">
+				<TakenList myPieces={bottomTakenPieces} theirPieces={topTakenPieces}/>
+			</div>
+			<div class="side-table-header-bottom">
 				<div class="turn-circle" class:turn-circle-green={Boolean(isWhiteTurn) === isWhitePerspective}></div>
 				{isWhitePerspective ? "White to move" : "Black to move"}
 			</div>
 			{#if stepTimer !== undefined}
-				<div class="replay-timers">
+				<div class="side-table-header-bottom replay-timers">
 					<div class="replay-timer left">
 						<Timer value={stepTimer.whiteTimerMs} size="sm" color="white"/>
 					</div>
@@ -179,14 +205,16 @@
 			{/if}
 			<div class="side-table-footer">
 				<div class="move-table-nav-buttons">
-					{#if !isPlaying}
-						<button title="Play" class="button-transparent" onclick={togglePlayPause}>
-							<PlayIcon />
-						</button>
-					{:else}
-						<button title="Stop" class="button-transparent" onclick={togglePlayPause}>
-							<StopIcon />
-						</button>
+					{#if stepTimer !== undefined}
+						{#if !isPlaying}
+							<button title="Play" class="button-transparent" onclick={togglePlayPause}>
+								<PlayIcon />
+							</button>
+						{:else}
+							<button title="Stop" class="button-transparent" onclick={togglePlayPause}>
+								<StopIcon />
+							</button>
+						{/if}
 					{/if}
 					<button title="Previous Move" class="button-transparent" onclick={goLeft}>
 						<LeftIcon />
@@ -207,6 +235,7 @@
 	.replay-timers {
         background-color: rgba(42, 42, 42);
 		display: flex;
+		padding: 0;
 	}
 
 	.replay-timer {

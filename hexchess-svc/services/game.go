@@ -167,13 +167,9 @@ func (s *State) MakeGameMove(ctx context.Context, gameID string, player PlayerSt
 
 	gameID = state.ID
 	game := &state.Game
-	if !game.HasFoundMove() {
-		game.InitPieceMoves()
-	}
-
 	currPlayer := state.CurrPlayer()
+	game.EnsurePieceMoves()
 
-	// validate that the player is allowed to make the move.
 	if !state.HasBothPlayers() {
 		return mr, ErrStartedGame{GameID: gameID}
 	}
@@ -183,23 +179,17 @@ func (s *State) MakeGameMove(ctx context.Context, gameID string, player PlayerSt
 	if !currPlayer.Present || currPlayer.ID != player.ID {
 		return mr, ErrTurn{GameID: gameID, PlayerID: player.ID, CurrID: currPlayer.ID}
 	}
-	if err := game.ValidateMove(move); err != nil {
+
+	hm, err := game.MakeValidMove(move)
+	if err != nil {
 		return mr, ErrInvalidMove{GameID: gameID, PlayerID: player.ID, Violation: err}
 	}
-
-	// actually make the move, and record the move history
-	hm := game.MakeMove(move)
-	game.Moves = append(game.Moves, hm)
-
-	// initialize the game state data after making the move.
-	state.UndoState = UndoState{}
-	game.InitPieceMoves()
 	isCheckmate := game.Checkmate()
+	state.UndoState = UndoState{}
 
 	mr = MakeMoveResult{State: state, Move: hm}
 
-	// this lock is used to guarantee one client may write the game state at any given time.
-	// a client must retry the entire operation (and must read again) if it fails to acquire a lock, so we can acquire after reading.
+	// this lock is used to guarantee one client may write the game state at any given time. a client will retry the operation (and read again) if it fails to acquire a lock, so we can acquire after reading.
 	ok := s.AcquireChessLock(ctx, gameID)
 	if !ok {
 		return mr, ErrLockedGame
@@ -208,7 +198,7 @@ func (s *State) MakeGameMove(ctx context.Context, gameID string, player PlayerSt
 		s.ReleaseChessLock(ctx, gameID) // if this fails the lock will expire anyways, so don't handle the error.
 	}()
 
-	// write the results of the operation to all stores. if the game is complete, we must persist game stats information to the database.
+	// write the results of the operation to all stores. if the game is complete, we must persist game stats information to the databases. this operation is not atomic.
 	if isCheckmate {
 		slog.InfoContext(ctx, "game has reached checkmate", "player", player.ID, "move", move, "chessMeta", state.ChessMeta)
 
