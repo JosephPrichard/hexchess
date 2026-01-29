@@ -12,7 +12,8 @@
 		isDraggable?: boolean;
 		isTransparent?: boolean;
 		isPromoting?: boolean;
-		nextPromotion?: number;
+		isMoveTarget?: boolean;
+		nextPromotionPiece?: number;
 		initialLeft: number;
 		initialTop: number;
 		onSelectHexagon?: (key: SelectEvent) => void;
@@ -30,7 +31,8 @@
 		isDraggable,
 		isTransparent,
 		isPromoting,
-		nextPromotion,
+		isMoveTarget, // used to disable click events for this piece, so "onClickHexagon" events take precedence.
+		nextPromotionPiece, // piece shadows for preloaded moves. if a preloaded move is a promotion, we should indicate the piece to be promoted.
 		initialTop,
 		initialLeft,
 		onSelectHexagon,
@@ -95,9 +97,7 @@
 	}
 
 	function onMouseUpDrag(e: MouseEvent) {
-		if (!isDraggable) {
-			return
-		}
+		if (!isDraggable) return;
 		if (dragging) {
 			if (Math.abs(xOff - initialLeft) > hexWidth / 2 || Math.abs(yOff - initialTop) > hexHeight / 2) {
 				onDeSelectPiece?.();
@@ -135,21 +135,17 @@
 	const fmtPieceURL = (piece: number) => `/pieces/${piecenames[piece]}.png`;
 	const pieceImageURL = $derived.by(() => fmtPieceURL(piece));
 
-	function hexStyle(left: number, top: number) {
-		return `
-			left: ${hexWidth / 8 + left}px;
-			top: ${top}px;
-			width: ${hexWidth * 0.9}px;
-			height: ${hexHeight * 0.9}px;`;
-	}
+	const hexStyle = (left: number, top: number) => `
+		left: ${hexWidth / 8 + left}px;
+		top: ${top}px;
+		width: ${hexWidth * 0.9}px;
+		height: ${hexHeight * 0.9}px;`
 
-	function rectHexStyle() {
-		return `
-			left: ${hexWidth / 8 + initialLeft}px;
-			top: ${hexWidth / 24 + initialTop}px;
-			width: ${hexWidth * 0.75}px;
-			height: ${hexWidth * 0.75}px;`;
-	}
+	const rectHexStyle = $derived.by(() => `
+		left: ${hexWidth / 8 + initialLeft}px;
+		top: ${hexWidth / 24 + initialTop}px;
+		width: ${hexWidth * 0.75}px;
+		height: ${hexWidth * 0.75}px;`);
 </script>
 
 <div
@@ -157,7 +153,7 @@
 	class:annotation-show={isAnnotated}
 	role="cell"
 	tabindex="0"
-	style={rectHexStyle()}
+	style={rectHexStyle}
 	oncontextmenu={e => e.preventDefault()}
 ></div>
 <div
@@ -176,8 +172,8 @@
 	style={hexStyle(initialLeft, initialTop)}
 	oncontextmenu={e => e.preventDefault()}
 >
-	{#if nextPromotion !== undefined}
-		<img class="piece-img-inner" style:opacity="0.4" src={fmtPieceURL(nextPromotion)} alt="" draggable={false} />
+	{#if nextPromotionPiece !== undefined}
+		<img class="piece-img-inner" style:opacity="0.4" src={fmtPieceURL(nextPromotionPiece)} alt="" draggable={false} />
 	{/if}
 </div>
 <div
@@ -188,7 +184,7 @@
 	style:z-index={dragging ? "10000" : "10"}
 	oncontextmenu={onRightClick}
 >
-	<img role="none" onmousedown={onMouseDown} onmouseup={onMouseUpRelease} class="piece-img-inner" src={pieceImageURL} alt="" draggable={false} />
+	<img role="none" onmousedown={!isMoveTarget ? onMouseDown : () => {}} onmouseup={onMouseUpRelease} class="piece-img-inner" src={pieceImageURL} alt="" draggable={false} />
 	{#if isPromoting}
 		<div
 			class="promotion-wrapper"

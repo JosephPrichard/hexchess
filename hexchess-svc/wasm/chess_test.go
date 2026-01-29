@@ -19,7 +19,7 @@ func requireNoError(t *testing.T, err error) {
 }
 
 func makeTestWasm() *ChessWasm {
-	return &ChessWasm{Global: js.Global()}
+	return &ChessWasm{Global: js.Global(), Version: "debug"}
 }
 
 func uint8ArrayFromBytes(b []byte) js.Value {

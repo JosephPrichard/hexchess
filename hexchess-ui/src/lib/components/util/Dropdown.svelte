@@ -53,10 +53,7 @@
 	{#if open}
 		<div class="dropdown-menu">
 			{#each options as option}
-				<button
-					class="dropdown-item {selected === option.value ? 'active' : ''}"
-					onclick={() => pick(option)}
-				>
+				<button class="dropdown-item {selected === option.value ? 'active' : ''}" onclick={() => pick(option)}>
 					{option.label}
 				</button>
 			{/each}
@@ -76,7 +73,7 @@
         all: unset;
         box-sizing: border-box;
         width: 100%;
-        background: rgb(43,43,43);
+        background: rgb(53,53,53);
         padding: 0.6rem 0.8rem;
         border-radius: 6px;
         cursor: pointer;
@@ -85,7 +82,7 @@
         justify-content: space-between;
         align-items: center;
         transition: border-color 0.2s ease;
-        border: 1px solid rgb(100,100,100);
+        /*border: 1px solid rgb(100,100,100);*/
         z-index: 1;
     }
 

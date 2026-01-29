@@ -7,7 +7,15 @@ export const moveElementHeight = 35;
 export const hexHeight = 56;
 export const hexWidth = hexHeight * 1.15;
 
+export const leftPlus = hexWidth * 0.55;
+export const leftMinus = hexWidth * -0.55;
+
+export const topOffset = (isWhite: boolean) => (isWhite ? -10 : 35);
+
 export const verticalFileOffsets = [5, 4, 3, 2, 1, 0, 1, 2, 3, 4, 5];
+export const ranksBeforeHalf = [0, 1, 2, 3, 4, 5];
+export const ranksAfterHalf = [6, 7, 8, 9, 10];
+export const halfRank = 5;
 
 export const bgColors = ['rgb(255, 207, 159)', 'rgb(233, 172, 112)', 'rgb(210,140,69)'];
 export const mediumPurple = 'rgba(150, 100, 150, 0.4)';
@@ -19,23 +27,23 @@ export const grey = 'rgba(120, 90, 60, 0.5)'
 export const hexColorsOffset = [0, 1, 2, 0, 1, 2, 1, 0, 2, 1, 0];
 
 export const maxRank = 10;
-export const viewportWidth = (11 * hexWidth) * 0.8 + 5;
-export const viewportHeight = 11 * hexHeight + maxRank;
+export const viewportWidth = (11 * hexWidth) * 0.8; // number of hexagons multiplied by a constant I "eyed"
+export const viewportHeight = 11 * hexHeight + hexHeight / 2; // number of hexagons, plus space for the file markers
 
 const baseW = 200;
 const baseH = 173;
 
-export function hexPoints(left: number, top: number, w: number, h: number) {
-	const pts = [
-		[50, 0],
-		[150, 0],
-		[200, 86.6],
-		[150, 173],
-		[50, 173],
-		[0, 86.6]
-	];
+const hexPts = [
+	[50, 0],
+	[150, 0],
+	[200, 86.6],
+	[150, 173],
+	[50, 173],
+	[0, 86.6],
+];
 
-	return pts
+export function hexPoints(left: number, top: number, w: number, h: number) {
+	return hexPts
 		.map(([x, y]) => {
 			const px = left + (x / baseW) * w;
 			const py = top  + (y / baseH) * h;
@@ -45,14 +53,7 @@ export function hexPoints(left: number, top: number, w: number, h: number) {
 }
 
 export function hexPathPoints(left: number, top: number, w: number, h: number) {
-	const pts = [
-		[50, 0],
-		[150, 0],
-		[200, 86.6],
-		[150, 173],
-		[50, 173],
-		[0, 86.6],
-	].map(([x, y]) => ({
+	const pts = hexPts.map(([x, y]) => ({
 		x: left + (x / baseW) * w,
 		y: top  + (y / baseH) * h,
 	}));
@@ -123,10 +124,13 @@ export function getFile(left: number, isWhitePerspective = true): number {
 
 export function findHex(element: HTMLElement | undefined, isWhitePerspective: boolean | undefined, x: number, y: number) {
 	if (!element) return undefined;
+
 	const rect = element.getBoundingClientRect();
 	const file = getFile(x - rect.left, isWhitePerspective);
 	const rank = getRank(y - rect.top, file, isWhitePerspective);
+
 	if (file < 0 || file > ranksPerFile.length || rank < 0 || rank > ranksPerFile[file]) return undefined;
+
 	return { file: file, rank: rank };
 }
 

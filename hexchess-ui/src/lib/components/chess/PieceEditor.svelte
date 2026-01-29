@@ -111,6 +111,7 @@
         gap: 20px;
         justify-content: space-between;
 		align-items: center;
+		z-index: 11;
 	}
 
 	.selected-tile {
@@ -134,7 +135,7 @@
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
         /*border: 1px solid rgb(100, 100, 100);*/
         border-radius: 3px;
-        background: rgb(43, 43, 43);
+        background: rgb(53,53,53);
 		display: flex;
         flex-direction: row;
         flex-wrap: wrap;
@@ -148,7 +149,6 @@
 
     .piece-tile {
         border-radius: 2px;
-        border: 1px solid rgb(100, 100, 100);
         cursor: pointer;
         position: relative;
         margin: 0;
@@ -165,6 +165,6 @@
 	}
 
 	.select-tile-wrapper {
-        border: 1px solid rgb(100, 100, 100);
+        /*border: 1px solid rgb(100, 100, 100);*/
 	}
 </style>

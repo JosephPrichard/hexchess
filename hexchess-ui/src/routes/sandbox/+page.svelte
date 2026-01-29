@@ -134,14 +134,10 @@
 	}
 
 	async function gameFromFenURL(fenInput: string) {
-		let isInitialGame = false;
 		if (fenInput != "") {
 			const game = await wasm.fenToGame(fenInput);
 			if (game) sandbox.setGame(game);
 		} else {
-			isInitialGame = true;
-		}
-		if (isInitialGame) {
 			await sandbox.setInitialGame();
 		}
 	}
@@ -212,7 +208,7 @@
 					<div class="side-table-header-bottom side-table-header-bottom-shadow taken-wrapper">
 						<TakenList myPieces={bottomTakenPieces} theirPieces={topTakenPieces} />
 					</div>
-					<div class="side-table-header-bottom">
+					<div class="side-table-header-bottom side-table-header-bottom-rounded">
 						<div class="turn-circle" class:turn-circle-green={Boolean(isWhiteTurn) === isWhitePerspective}></div>
 						{isWhitePerspective ? "White's Turn" : "Black's Turn"}
 					</div>

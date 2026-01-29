@@ -135,7 +135,7 @@
 
     .notifications-box {
         width: 350px;
-        z-index: 10;
+        z-index: 15;
     }
 
     .notification-green {

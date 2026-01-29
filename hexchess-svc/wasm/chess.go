@@ -16,8 +16,7 @@ type ChessWasm struct {
 }
 
 func (w *ChessWasm) IsDebug() bool {
-	//return w.Version == "debug"
-	return true
+	return w.Version == "debug"
 }
 
 func (w *ChessWasm) JsLog(args ...any) {
@@ -233,7 +232,7 @@ func (w *ChessWasm) GameAtMoveIndex(_ js.Value, args []js.Value) any {
 
 func RegisterChessModule(version string) {
 	global := js.Global()
-	wasm := &ChessWasm{Global: global, Version: "debug"}
+	wasm := &ChessWasm{Global: global, Version: version}
 	global.Set("getGame", js.FuncOf(wasm.GetGame))
 	global.Set("makeMove", js.FuncOf(wasm.MakeMove))
 	global.Set("fenToGame", js.FuncOf(wasm.FenToGame))
