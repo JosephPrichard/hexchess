@@ -18,29 +18,29 @@ var testVerifiedUserCmptOpts = cmpopts.IgnoreFields(VerifiedUser{}, "ID")
 
 func TestInsertThenVerify(t *testing.T) {
 	// given
-	s := SetupStateTest(t, itest.UseTxn, itest.WithPostgres)
-	defer s.Close()
+	services := SetupServicesTest(t, itest.RWPostgres)
+	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	user1 := "user1-testing"
 
 	// when
-	u1, err := s.InsertUser(ctx, UserInst{Username: user1, Password: "password1", Country: "us", JoinedOn: itest.TimeNow})
+	u1, err := services.InsertUser(ctx, UserInst{Username: user1, Password: "password1", Country: "us", JoinedOn: itest.TimeNow})
 	require.NoError(t, err)
 
-	v1, err := verifyUser(ctx, s.Query(), user1, "password1")
+	v1, err := verifyUser(ctx, services.Query(), user1, "password1")
 	require.NoError(t, err)
 
-	dbU1, err := s.GetUserByID(ctx, v1.ID)
+	dbU1, err := services.GetUserByID(ctx, v1.ID)
 	require.NoError(t, err)
 
 	var attemptsErrs []error
 	for range LoginAttemptsDivisor {
-		_, err := verifyUser(ctx, s.Query(), user1, "wrong-password")
+		_, err := verifyUser(ctx, services.Query(), user1, "wrong-password")
 		attemptsErrs = append(attemptsErrs, err)
 	}
-	_, errTooMany := verifyUser(ctx, s.Query(), user1, "wrong-password")
+	_, errTooMany := verifyUser(ctx, services.Query(), user1, "wrong-password")
 
 	// then
 	var wantAttemptErrs []error
@@ -61,8 +61,8 @@ func TestInsertThenVerify(t *testing.T) {
 
 func TestBatchInsertThenGet(t *testing.T) {
 	// given
-	s := SetupStateTest(t, itest.UseTxn, itest.WithPostgres)
-	defer s.Close()
+	services := SetupServicesTest(t, itest.RWPostgres)
+	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
@@ -71,7 +71,7 @@ func TestBatchInsertThenGet(t *testing.T) {
 		{Username: "user1-testing", Password: "password1", Country: "us"},
 		{Username: "user2-testing", Password: "password2", Country: "eu"},
 	}
-	users, batchErr := s.BatchInsertUsers(ctx, insts)
+	users, batchErr := services.BatchInsertUsers(ctx, insts)
 
 	for i := range users {
 		users[i].ID = 0
@@ -88,8 +88,8 @@ func TestBatchInsertThenGet(t *testing.T) {
 }
 
 func TestUpdateUser(t *testing.T) {
-	s := SetupStateTest(t, itest.UseTxn, itest.WithPostgres)
-	defer s.Close()
+	services := SetupServicesTest(t, itest.RWPostgres)
+	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
@@ -115,10 +115,10 @@ func TestUpdateUser(t *testing.T) {
 			wantCountry:  "eu",
 		},
 	} {
-		_, err := s.UpdateUser(ctx, test.userID, test.udpt)
+		_, err := services.UpdateUser(ctx, test.userID, test.udpt)
 		require.NoError(t, err)
 
-		u, err := s.GetUserByID(ctx, test.userID)
+		u, err := services.GetUserByID(ctx, test.userID)
 		require.NoError(t, err)
 
 		assert.Equal(t, test.wantUsername, u.Username)
@@ -129,8 +129,8 @@ func TestUpdateUser(t *testing.T) {
 
 func TestSelectOrInsertGoogleUser(t *testing.T) {
 	// given
-	s := SetupStateTest(t, itest.UseTxn, itest.WithPostgres)
-	defer s.Close()
+	services := SetupServicesTest(t, itest.RWPostgres)
+	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
@@ -139,13 +139,13 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 	inst := GoogleUserInst{Username: "username", Country: "us", JoinedOn: itest.TimeNow}
 
 	// when
-	u1, err := s.SelectOrInsertGoogleUser(ctx, testAccountID, inst)
+	u1, err := services.SelectOrInsertGoogleUser(ctx, testAccountID, inst)
 	require.NoError(t, err)
 
-	u2, err := s.SelectOrInsertGoogleUser(ctx, testAccountID, inst)
+	u2, err := services.SelectOrInsertGoogleUser(ctx, testAccountID, inst)
 	require.NoError(t, err)
 
-	dbU1, err := s.GetUserByID(ctx, u1.ID)
+	dbU1, err := services.GetUserByID(ctx, u1.ID)
 	require.NoError(t, err)
 
 	// then
@@ -163,18 +163,18 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 
 func TestUpdatePasswordThenVerify(t *testing.T) {
 	// given
-	s := SetupStateTest(t, itest.UseTxn, itest.WithPostgres)
-	defer s.Close()
+	services := SetupServicesTest(t, itest.RWPostgres)
+	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	// when
-	err := s.UpdateUserPassword(ctx, TestUserEntities[0].ID, "password-new")
+	err := services.UpdateUserPassword(ctx, TestUserEntities[0].ID, "password-new")
 	require.NoError(t, err)
 
-	u1, err := s.GetUserByID(ctx, TestUserEntities[0].ID)
+	u1, err := services.GetUserByID(ctx, TestUserEntities[0].ID)
 	require.NoError(t, err)
-	v1, err := verifyUser(ctx, s.Query(), TestUserEntities[0].Username, "password-new")
+	v1, err := verifyUser(ctx, services.Query(), TestUserEntities[0].Username, "password-new")
 	require.NoError(t, err)
 
 	// then
@@ -183,13 +183,13 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 
 func TestGetUserElos(t *testing.T) {
 	// given
-	s := SetupStateTest(t, itest.UseTxn, itest.WithPostgres)
-	defer s.Close()
+	services := SetupServicesTest(t, itest.RWPostgres)
+	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	// when
-	stats, err := s.GetUserStats(ctx, 1)
+	stats, err := services.GetUserStats(ctx, 1)
 	require.NoError(t, err)
 
 	// then

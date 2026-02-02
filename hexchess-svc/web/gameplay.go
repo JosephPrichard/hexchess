@@ -35,7 +35,7 @@ func writeGameMsgErr(ctx context.Context, conn *websocket.Conn, gameID string, e
 	case errutil.IsType[svc.ErrInvalidMove](err):
 		wsErr = ErrWsInvalidMove
 	case errors.Is(err, svc.ErrNoChessState):
-		// if the state cannot be found, it has expired while an inactive connection has been open
+		// if the s cannot be found, it has expired while an inactive connection has been open
 		wsErr = ErrWsExpiration
 	case errors.Is(err, svc.ErrUndoCurrPlayer):
 		wsErr = ErrWsUndoCurrPlayer
@@ -115,7 +115,7 @@ func (app *App) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 		slog.InfoContext(ctx, "gameplay websocket writer closed", "gameID", gameID)
 	}()
 
-	// begin the init phase, which retrieves state and writes back to clients
+	// begin the init phase, which retrieves s and writes back to clients
 	player, err := app.handleGameInit(ctx, gameID, sessionID, conn)
 	if err != nil {
 		writeGameInitErr(ctx, conn, gameID, err) // write an error and close if we run into any issues. init is idempotent so the client can retry until everything works
@@ -136,43 +136,43 @@ func (app *App) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 	slog.InfoContext(ctx, "gameplay websocket reader closed", "gameID", gameID)
 }
 
-func (app *App) handleGameInit(ctx context.Context, gameID string, sessionID string, conn *websocket.Conn) (svc.PlayerState, error) {
-	// apply state updates for the init phase
-	pl, err := app.State.GetSession(ctx, sessionID)
+func (app *App) handleGameInit(ctx context.Context, gameID string, sessionID string, conn *websocket.Conn) (player svc.PlayerState, err error) {
+	// apply s updates for the init phase
+	player, err = app.Services.GetSession(ctx, sessionID)
 	if err != nil {
-		return pl, fmt.Errorf("get session in game init phase: %w", err)
+		return player, fmt.Errorf("get session in game init phase: %w", err)
 	}
-	state, err := app.State.JoinGame(ctx, gameID, pl)
+	s, err := app.Services.JoinGame(ctx, gameID, player)
 	if err != nil {
-		return pl, fmt.Errorf("join game in init game phase: %w", err)
+		return player, fmt.Errorf("join game in init game phase: %w", err)
 	}
 
 	// produce messages for init phase
 	initBytes, err := proto.Marshal(MakePbGameOutputInit(
 		gameID,
-		svc.SerializeChessState(state),
-		svc.SerializePlayer(pl),
+		svc.SerializeChessState(s),
+		svc.SerializePlayer(player),
 	))
 	if err != nil {
-		return pl, fmt.Errorf("marshal init output: %w", err)
+		return player, fmt.Errorf("marshal init output: %w", err)
 	}
 
 	playersBytes, err := proto.Marshal(MakePbGameOutputPlayers(
 		gameID,
-		svc.SerializePlayer(state.WhitePlayer),
-		svc.SerializePlayer(state.BlackPlayer),
+		svc.SerializePlayer(s.WhitePlayer),
+		svc.SerializePlayer(s.BlackPlayer),
 	))
 	if err != nil {
-		return pl, fmt.Errorf("marshal players output: %w", err)
+		return player, fmt.Errorf("marshal players output: %w", err)
 	}
 
 	writeMessage(ctx, conn, initBytes)
-	if err := app.State.BroadcastGamesEvent(ctx, playersBytes); err != nil {
-		return pl, err
+	if err := app.Services.BroadcastGamesEvent(ctx, playersBytes); err != nil {
+		return player, err
 	}
 	go func() {
 		// we load this in the background because we don't care if for whatever reason we can't load the chat.
-		chats, err := app.State.GetStateChats(ctx, gameID, 100)
+		chats, err := app.Services.GetStateChats(ctx, gameID, 100)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to get game chats for broadcast", "err", err)
 			return
@@ -187,12 +187,12 @@ func (app *App) handleGameInit(ctx context.Context, gameID string, sessionID str
 			return
 		}
 
-		if err := app.State.BroadcastGamesEvent(ctx, bytes); err != nil {
+		if err := app.Services.BroadcastGamesEvent(ctx, bytes); err != nil {
 			slog.ErrorContext(ctx, "failed to broadcast bg init output", "err", err)
 		}
 	}()
 
-	return pl, nil
+	return player, nil
 }
 
 func (app *App) handleGameMessage(ctx GameSocketContext, input message) {
@@ -225,7 +225,7 @@ func (app *App) handleGameMessage(ctx GameSocketContext, input message) {
 }
 
 func (app *App) handleGameForfeit(ctx GameSocketContext) error {
-	replayID, fs, err := app.State.ForfeitGame(ctx.Context, ctx.GameID, ctx.Player)
+	replayID, fs, err := app.Services.ForfeitGame(ctx.Context, ctx.GameID, ctx.Player)
 	if err != nil {
 		return fmt.Errorf("forfeit game %s: %w", ctx.GameID, err)
 	}
@@ -237,11 +237,11 @@ func (app *App) handleGameForfeit(ctx GameSocketContext) error {
 	if err != nil {
 		return err
 	}
-	return app.State.BroadcastGamesEvent(ctx.Context, bytes)
+	return app.Services.BroadcastGamesEvent(ctx.Context, bytes)
 }
 
 func (app *App) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) error {
-	result, err := app.State.MakeGameMove(ctx.Context, ctx.GameID, ctx.Player, chess.DeserializeMove(pbInput.Move))
+	result, err := app.Services.MakeGameMove(ctx.Context, ctx.GameID, ctx.Player, chess.DeserializeMove(pbInput.Move))
 	if err != nil {
 		return fmt.Errorf("make move on game %s: %w", ctx.GameID, err)
 	}
@@ -254,7 +254,7 @@ func (app *App) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) err
 	if err != nil {
 		return err
 	}
-	return app.State.BroadcastGamesEvent(ctx.Context, bytes)
+	return app.Services.BroadcastGamesEvent(ctx.Context, bytes)
 }
 
 func (app *App) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput) error {
@@ -264,14 +264,14 @@ func (app *App) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput) err
 		ctx.Player,
 		app.GetNow(),
 	)
-	if err := app.State.InsertStateChat(ctx.Context, ctx.GameID, chatMsg); err != nil {
+	if err := app.Services.InsertStateChat(ctx.Context, ctx.GameID, chatMsg); err != nil {
 		return fmt.Errorf("insert chat on game %s: %w", ctx.GameID, err)
 	}
 	bytes, err := proto.Marshal(outputChat)
 	if err != nil {
 		return err
 	}
-	return app.State.BroadcastGamesEvent(ctx.Context, bytes)
+	return app.Services.BroadcastGamesEvent(ctx.Context, bytes)
 }
 
 func (app *App) handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput) error {
@@ -287,7 +287,7 @@ func (app *App) handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput) err
 		return fmt.Errorf("invalid undo kind: %s", pbInput.Kind)
 	}
 
-	state, err := app.State.AttemptGameUndo(ctx.Context, ctx.GameID, ctx.Player, undoKind)
+	s, err := app.Services.AttemptGameUndo(ctx.Context, ctx.GameID, ctx.Player, undoKind)
 	if err != nil {
 		return fmt.Errorf("%+v attempting undo on game %s: %w", ctx.Player, ctx.GameID, err)
 	}
@@ -295,10 +295,10 @@ func (app *App) handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput) err
 	bytes, err := proto.Marshal(MakePbGameOutputUndo(
 		ctx.GameID,
 		pbInput.Kind,
-		ctx.Player.ID, state,
+		ctx.Player.ID, s,
 	))
 	if err != nil {
 		return err
 	}
-	return app.State.BroadcastGamesEvent(ctx.Context, bytes)
+	return app.Services.BroadcastGamesEvent(ctx.Context, bytes)
 }

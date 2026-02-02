@@ -12,11 +12,11 @@ import (
 
 var ErrSessionNotFound = errors.New("session not found")
 
-func (s *State) GetSession(ctx context.Context, sessionID string) (PlayerState, error) {
+func (svc *Services) GetSession(ctx context.Context, sessionID string) (PlayerState, error) {
 	var p PlayerState
 
 	fullID := "session:" + sessionID
-	data, err := s.Redis.Cache.Get(ctx, fullID).Bytes()
+	data, err := svc.Redis.Cache.Get(ctx, fullID).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return p, ErrSessionNotFound
@@ -38,10 +38,10 @@ type SessInst struct {
 	Expiry    time.Duration
 }
 
-func (s *State) SetSessions(ctx context.Context, insts ...SessInst) error {
+func (svc *Services) SetSessions(ctx context.Context, insts ...SessInst) error {
 	slog.InfoContext(ctx, "setting sessions", "insts", insts)
 
-	pipe := s.Redis.Cache.TxPipeline()
+	pipe := svc.Redis.Cache.TxPipeline()
 
 	for _, inst := range insts {
 		data, err := MarshalPlayer(inst.Player)
@@ -58,18 +58,18 @@ func (s *State) SetSessions(ctx context.Context, insts ...SessInst) error {
 	return nil
 }
 
-func (s *State) UpdateSessionEx(ctx context.Context, sessionID string, expiry time.Duration) error {
+func (svc *Services) UpdateSessionEx(ctx context.Context, sessionID string, expiry time.Duration) error {
 	fullID := "session:" + sessionID
-	if err := s.Redis.Cache.Expire(ctx, fullID, expiry).Err(); err != nil {
+	if err := svc.Redis.Cache.Expire(ctx, fullID, expiry).Err(); err != nil {
 		return fmt.Errorf("update session expiry: %w", err)
 	}
 	slog.InfoContext(ctx, "updated session expiry", "sessionID", sessionID)
 	return nil
 }
 
-func (s *State) DeleteSession(ctx context.Context, sessionID string) error {
+func (svc *Services) DeleteSession(ctx context.Context, sessionID string) error {
 	fullID := "session:" + sessionID
-	if err := s.Redis.Cache.Del(ctx, fullID).Err(); err != nil {
+	if err := svc.Redis.Cache.Del(ctx, fullID).Err(); err != nil {
 		return fmt.Errorf("delete session=%s: %w", sessionID, err)
 	}
 	slog.InfoContext(ctx, "deleted session", "sessionID", sessionID)

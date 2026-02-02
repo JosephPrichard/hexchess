@@ -19,6 +19,27 @@ func PutS3Object(t *testing.T, s3Client *s3.Client, bucket string, key string, b
 	require.NoError(t, err)
 }
 
+func ListS3Objects(t *testing.T, s3Client *s3.Client, bucket string) []string {
+	t.Helper()
+
+	listObjects, err := s3Client.ListObjectsV2(t.Context(), &s3.ListObjectsV2Input{
+		Bucket: aws.String(bucket),
+	})
+	require.NoError(t, err)
+
+	var keys []string
+	for _, obj := range listObjects.Contents {
+		if obj.Key == nil {
+			continue
+		}
+		keys = append(keys, *obj.Key)
+	}
+
+	t.Logf("listed s3 objects in bucket=%s, keys=%s", bucket, keys)
+
+	return keys
+}
+
 func GetS3Object(t *testing.T, s3Client *s3.Client, bucket string, key string) string {
 	t.Helper()
 	t.Logf("getting s3 object by key=%s", key)

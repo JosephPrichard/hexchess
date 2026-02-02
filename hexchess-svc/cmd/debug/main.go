@@ -47,7 +47,7 @@ func main() {
 			logutil.FatalErr("parse ID os arg", err)
 		}
 
-		s := svc.State{Aws: aws}
+		s := core.Services{Aws: aws}
 		v, err := s.GetMoveReplay(ctx, strconv.Itoa(id))
 		if err != nil {
 			logutil.FatalErr("get replay move seq", err)

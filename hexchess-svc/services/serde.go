@@ -31,17 +31,17 @@ func DeserializePlayer(pbPlayer *pb.PlayerState) PlayerState {
 	return player
 }
 
-func SerializeEndState(state EndState) *pb.EndState {
-	switch state.Kind {
+func SerializeEndState(es EndState) *pb.EndState {
+	switch es.Kind {
 	case Aborted:
 		return &pb.EndState{Value: &pb.EndState_AbortState{}}
 	case Finished:
 		return &pb.EndState{Value: &pb.EndState_FinishState{
 			FinishState: &pb.FinishState{
-				WinEloDiff:  int32(state.WinEloDiff),
-				LoseEloDiff: int32(state.LoseEloDiff),
-				Cause:       state.Cause.String(),
-				Result:      state.Result.String(),
+				WinEloDiff:  int32(es.WinEloDiff),
+				LoseEloDiff: int32(es.LoseEloDiff),
+				Cause:       es.Cause.String(),
+				Result:      es.Result.String(),
 			},
 		}}
 	default:
@@ -49,20 +49,20 @@ func SerializeEndState(state EndState) *pb.EndState {
 	}
 }
 
-func DeserializeEndState(pbEndState *pb.EndState) (state EndState, err error) {
+func DeserializeEndState(pbEndState *pb.EndState) (s EndState, err error) {
 	if pbEndState == nil {
-		return state, nil
+		return s, nil
 	}
 	switch p := pbEndState.GetValue().(type) {
 	case *pb.EndState_FinishState:
 		finishState := p.FinishState
 		cause, err := ParseReplayCause(finishState.Cause)
 		if err != nil {
-			return state, err
+			return s, err
 		}
 		result, err := ParseReplayResult(finishState.Result)
 		if err != nil {
-			return state, err
+			return s, err
 		}
 		return EndState{
 			Kind:        Finished,
@@ -74,7 +74,7 @@ func DeserializeEndState(pbEndState *pb.EndState) (state EndState, err error) {
 	case *pb.EndState_AbortState:
 		return EndState{Kind: Aborted}, nil
 	default:
-		return state, fmt.Errorf("unknown end state type: %T", p)
+		return s, fmt.Errorf("unknown end s type: %T", p)
 	}
 }
 
@@ -147,7 +147,7 @@ func SerializeChessState(s *ChessState) *pb.ChessState {
 func UnmarshalChessMeta(b []byte) (m ChessMeta, err error) {
 	var pbChess pb.ChessState
 	if err := proto.Unmarshal(b, &pbChess); err != nil {
-		return m, fmt.Errorf("unmarshal chess state: %w", err)
+		return m, fmt.Errorf("unmarshal chess s: %w", err)
 	}
 
 	color, err := ParseColor(pbChess.FirstColor)

@@ -16,11 +16,11 @@ func MakePbGameOutputError(gameID string, err error) *pb.GameOutput {
 	}
 }
 
-func MakePbGameOutputInit(gameID string, state *pb.ChessState, self *pb.PlayerState) *pb.GameOutput {
+func MakePbGameOutputInit(gameID string, cs *pb.ChessState, self *pb.PlayerState) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Init{
-			Init: &pb.InitOutput{State: state, Self: self},
+			Init: &pb.InitOutput{State: cs, Self: self},
 		},
 	}
 }
@@ -82,10 +82,10 @@ func MakePbGameOutputChat(gameID, message string, self svc.PlayerState, sentAt t
 	return o, c
 }
 
-func MakePbGameOutputUndo(gameID string, undoKind string, undoID int64, state *svc.ChessState) *pb.GameOutput {
+func MakePbGameOutputUndo(gameID string, undoKind string, undoID int64, cs *svc.ChessState) *pb.GameOutput {
 	var game *pb.ChessGame
-	if state != nil {
-		game = chess.SerializeGame(&state.Game)
+	if cs != nil {
+		game = chess.SerializeGame(&cs.Game)
 	}
 	return &pb.GameOutput{
 		GameId: gameID,

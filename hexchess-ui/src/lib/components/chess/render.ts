@@ -22,7 +22,7 @@ export const mediumPurple = 'rgba(150, 100, 150, 0.4)';
 export const darkGreen = 'rgba(100, 111, 64, 0.6)';
 export const lime = 'rgb(205, 210, 106, 0.5)';
 export const lightGreen = 'rgb(245, 246, 130, 0.5)';
-export const white = 'rgb(255, 255, 255, 0.9)';
+export const white = 'rgb(240, 240, 240, 0.9)';
 export const grey = 'rgba(120, 90, 60, 0.5)'
 export const hexColorsOffset = [0, 1, 2, 0, 1, 2, 1, 0, 2, 1, 0];
 

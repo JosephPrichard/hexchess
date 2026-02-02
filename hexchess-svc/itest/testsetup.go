@@ -71,10 +71,7 @@ func GetRedisContainer(ctx context.Context, t logutil.TestLogger) (string, error
 	return addr, nil
 }
 
-func SetupRedisTest(t logutil.TestLogger) (rdb db.Redis, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
+func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (rdb db.Redis, err error) {
 	addr, err := GetRedisContainer(ctx, t)
 	if err != nil {
 		return rdb, err
@@ -129,10 +126,7 @@ func GetPgContainer(ctx context.Context, t logutil.TestLogger) (string, bool, er
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", DbUser, DbPass, host, port.Port(), DbName), createdContainer, nil
 }
 
-func SetupPostgresTest(t logutil.TestLogger, useTestTx bool) (pdb db.Postgres, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
+func SetupPostgresTest(ctx context.Context, t logutil.TestLogger, testingTx bool) (pdb db.Postgres, err error) {
 	connString, shouldSeed, err := GetPgContainer(ctx, t)
 	if err != nil {
 		return nil, err
@@ -153,7 +147,7 @@ func SetupPostgresTest(t logutil.TestLogger, useTestTx bool) (pdb db.Postgres, e
 		insertTestData(t, pool)
 	}
 
-	if useTestTx {
+	if testingTx {
 		testTx, err := pool.Begin(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open testing txn: %w", err)
@@ -166,12 +160,9 @@ func SetupPostgresTest(t logutil.TestLogger, useTestTx bool) (pdb db.Postgres, e
 	return pdb, nil
 }
 
-func SetupAwsTest(t logutil.TestLogger) (awsClient ext.Aws, err error) {
+func GetLocalstackContainer(ctx context.Context, t logutil.TestLogger) (string, error) {
 	muLocalstack.Lock()
 	defer muLocalstack.Unlock()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
 
 	if localstackCont == nil {
 		start := time.Now()
@@ -184,7 +175,7 @@ func SetupAwsTest(t logutil.TestLogger) (awsClient ext.Aws, err error) {
 			},
 		})
 		if err != nil {
-			return awsClient, fmt.Errorf("start localstack container: %s", err)
+			return "", fmt.Errorf("start localstack container: %s", err)
 		}
 		localstackCont = cont
 		t.Logf("finished starting localstack container in %v", time.Since(start))
@@ -193,6 +184,14 @@ func SetupAwsTest(t logutil.TestLogger) (awsClient ext.Aws, err error) {
 	host, _ := localstackCont.Host(ctx)
 	port, _ := localstackCont.MappedPort(ctx, LocalStackContPort)
 	endpoint := fmt.Sprintf("http://%s:%s", host, port.Port())
+	return endpoint, nil
+}
+
+func SetupAwsTest(ctx context.Context, t logutil.TestLogger) (awsClient ext.Aws, err error) {
+	endpoint, err := GetLocalstackContainer(ctx, t)
+	if err != nil {
+		return awsClient, err
+	}
 
 	cfg := ext.AwsConfig{
 		S3ReplayBucket:   ext.S3ReplayBucket + "-" + uuid.NewString(),
@@ -207,7 +206,10 @@ func SetupAwsTest(t logutil.TestLogger) (awsClient ext.Aws, err error) {
 		return awsClient, fmt.Errorf("make aws clients: %s", err)
 	}
 
-	for _, bucket := range []string{cfg.S3ReplayBucket, cfg.S3ProfileBucket} {
+	for _, bucket := range []string{
+		cfg.S3ReplayBucket,
+		cfg.S3ProfileBucket,
+	} {
 		if _, err := awsClients.S3Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {
 			return awsClient, fmt.Errorf("create s3 bucket: %v: %s", bucket, err)
 		}

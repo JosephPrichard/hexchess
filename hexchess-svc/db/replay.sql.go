@@ -203,6 +203,30 @@ func (q *Queries) SelectReplayRowByID(ctx context.Context, id int64) (Replay, er
 	return i, err
 }
 
+const selectReplaysExistsByIDs = `-- name: SelectReplaysExistsByIDs :many
+SELECT id FROM replays WHERE id = ANY ($1::bigint[])
+`
+
+func (q *Queries) SelectReplaysExistsByIDs(ctx context.Context, ids []int64) ([]int64, error) {
+	rows, err := q.db.Query(ctx, selectReplaysExistsByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const selectUserReplays = `-- name: SelectUserReplays :many
 SELECT
     r.id,
@@ -229,8 +253,7 @@ FROM replays r
 WHERE
     r.id < $1
   AND (
-      r.white_id = $2
-      OR r.black_id = $2
+      r.white_id = $2 OR r.black_id = $2
   )
 ORDER BY r.id DESC
 LIMIT $3

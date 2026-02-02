@@ -15,8 +15,8 @@ import (
 
 func TestLeaderboard(t *testing.T) {
 	// given
-	s := SetupStateTest(t, itest.WithRedis)
-	defer s.Close()
+	services := SetupServicesTest(t, itest.Redis)
+	defer services.Close()
 
 	id1 := int64(1)
 	id2 := int64(2)
@@ -35,14 +35,14 @@ func TestLeaderboard(t *testing.T) {
 		{ModeTimed1Plus0, id4, 1010},
 		{ModeTimed1Plus0, id1, 900},
 	} {
-		require.NoError(t, s.IncrLeaderboard(ctx, c))
+		require.NoError(t, services.IncrLeaderboard(ctx, c))
 	}
 
 	ranks := make([]map[string]LbRank, 0)
 	leaderboards := make([]Leaderboard, 0)
 
 	for _, id := range []int64{id1, id2, id3, id4} {
-		rank, err := s.GetLeaderboardRanks(ctx, id, map[string]GameMode{"CORRESPONDENCE_7": ModeCorrespondence7, "TIMED_1+0": ModeTimed1Plus0})
+		rank, err := services.GetLeaderboardRanks(ctx, id, map[string]GameMode{"CORRESPONDENCE_7": ModeCorrespondence7, "TIMED_1+0": ModeTimed1Plus0})
 		require.NoError(t, err)
 		ranks = append(ranks, rank)
 	}
@@ -55,7 +55,7 @@ func TestLeaderboard(t *testing.T) {
 		{ModeCorrespondence7, 1, 2},
 		{ModeTimed1Plus0, 0, 4},
 	} {
-		leaderboard, err := s.GetLeaderboard(ctx, args.mode, args.offset, args.limit)
+		leaderboard, err := services.GetLeaderboard(ctx, args.mode, args.offset, args.limit)
 		require.NoError(t, err)
 		leaderboards = append(leaderboards, leaderboard)
 	}
@@ -148,13 +148,13 @@ func TestGetLeaderboardUsers(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// given
-			s := SetupStateTest(t, itest.WithPostgres)
-			defer s.Close()
+			services := SetupServicesTest(t, itest.ROPostgres)
+			defer services.Close()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
 
 			// when
-			leaderboard, missingIDs, err := s.GetLeaderboardUsers(ctx, test.mode, test.rankedUsers)
+			leaderboard, missingIDs, err := services.GetLeaderboardUsers(ctx, test.mode, test.rankedUsers)
 
 			// then
 			assert.Equal(t, test.wantMissingIDs, missingIDs)
@@ -166,12 +166,12 @@ func TestGetLeaderboardUsers(t *testing.T) {
 
 func TestGetFuzzySearchLeaderboard(t *testing.T) {
 	// given
-	s := SetupStateTest(t, itest.UseTxn, itest.WithPostgres)
-	defer s.Close()
+	services := SetupServicesTest(t, itest.RWPostgres)
+	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	// when
-	users, err := s.GetFuzzySearchLeaderboard(ctx, "john", 1, 20)
+	users, err := services.GetFuzzySearchLeaderboard(ctx, "john", 1, 20)
 	require.NoError(t, err)
 
 	// then

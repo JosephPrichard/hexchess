@@ -149,6 +149,7 @@
 
     .piece-tile {
         border-radius: 2px;
+        border: 1px solid rgb(100, 100, 100);
         cursor: pointer;
         position: relative;
         margin: 0;
@@ -165,6 +166,6 @@
 	}
 
 	.select-tile-wrapper {
-        /*border: 1px solid rgb(100, 100, 100);*/
+        border: 1px solid rgb(100, 100, 100);
 	}
 </style>

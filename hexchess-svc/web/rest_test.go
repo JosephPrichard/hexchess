@@ -68,14 +68,14 @@ func TestHandleRegister(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state := svc.SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis)
-			defer state.Close()
+			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis)
+			defer services.Close()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/register", asJSONReader(test.body))
 			w := httptest.NewRecorder()
 
-			state.EntropySource = &ext.StableSource{Time: insertTime}
-			hander := MakeRoot(Setup{State: state})
+			services.EntropySource = &ext.StableSource{Time: insertTime}
+			hander := MakeRoot(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -112,13 +112,13 @@ func TestHandleLogin(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			s := svc.SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis)
-			defer s.Close()
+			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis)
+			defer services.Close()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/login", asJSONReader(test.body))
 			w := httptest.NewRecorder()
 
-			hander := MakeRoot(Setup{State: s})
+			hander := MakeRoot(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -171,8 +171,8 @@ func TestHandleGoogleLogin(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state := svc.SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis)
-			defer state.Close()
+			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis)
+			defer services.Close()
 
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
@@ -181,8 +181,8 @@ func TestHandleGoogleLogin(t *testing.T) {
 				r := httptest.NewRequest(http.MethodPost, "/api/login/google", asJSONReader(test.body))
 				w := httptest.NewRecorder()
 
-				state.RemoteAPIs = ext.RemoteAPIs{GoogleAPI: test.setupMocks(ctrl)}
-				hander := MakeRoot(Setup{State: state})
+				services.RemoteAPIs = ext.RemoteAPIs{GoogleAPI: test.setupMocks(ctrl)}
+				hander := MakeRoot(Setup{Services: services})
 				hander.ServeHTTP(w, r)
 
 				assert.Equal(t, test.wantStatus, w.Code)
@@ -230,16 +230,16 @@ func TestHandleUpdateUser(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state := svc.SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis)
-			defer state.Close()
+			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis)
+			defer services.Close()
 
-			createTestSessions(t, state)
+			createTestSessions(t, services)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/users", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			hander := MakeRoot(Setup{State: state, CountryList: []string{"eu"}})
+			hander := MakeRoot(Setup{Services: services, CountryList: []string{"eu"}})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -286,16 +286,16 @@ func TestHandleUpdatePassword(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state := svc.SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis)
-			defer state.Close()
+			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis)
+			defer services.Close()
 
-			createTestSessions(t, state)
+			createTestSessions(t, services)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/users/password", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			MakeRoot(Setup{State: state}).ServeHTTP(w, r)
+			MakeRoot(Setup{Services: services}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
@@ -350,16 +350,16 @@ func TestHandleUpdateChallenge(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state := svc.SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis)
-			defer state.Close()
+			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis)
+			defer services.Close()
 
-			createTestSessions(t, state)
+			createTestSessions(t, services)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/challenges/update", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			hander := MakeRoot(Setup{State: state})
+			hander := MakeRoot(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -397,17 +397,17 @@ func TestHandleCreateGame(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state := svc.SetupStateTest(t, itest.UseTxn, itest.WithRedis)
-			defer state.Close()
+			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis)
+			defer services.Close()
 
-			createTestSessions(t, state)
+			createTestSessions(t, services)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/games/create", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			state.EntropySource = &ext.StableSource{Time: itest.TimeNow}
-			hander := MakeRoot(Setup{State: state})
+			services.EntropySource = &ext.StableSource{Time: itest.TimeNow}
+			hander := MakeRoot(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -457,17 +457,17 @@ func TestHandleCreateChallenge(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state := svc.SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis)
-			defer state.Close()
+			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis)
+			defer services.Close()
 
-			createTestSessions(t, state)
+			createTestSessions(t, services)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", asJSONReader(test.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			state.EntropySource = &ext.StableSource{Time: itest.TimeNow}
-			hander := MakeRoot(Setup{State: state})
+			services.EntropySource = &ext.StableSource{Time: itest.TimeNow}
+			hander := MakeRoot(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -522,18 +522,18 @@ func TestGetLeaderboard(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// given
-			state := svc.SetupStateTest(t, itest.WithPostgres, itest.WithRedis)
-			defer state.Close()
+			services := svc.SetupServicesTest(t, itest.ROPostgres, itest.Redis)
+			defer services.Close()
 
 			ctx := context.WithValue(context.Background(), logutil.Trace, "setup-get-leaderboard")
-			require.NoError(t, state.SetLeaderboard(ctx, svc.UpdtLbChangeSet{Mode: svc.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
+			require.NoError(t, services.SetLeaderboard(ctx, svc.UpdtLbChangeSet{Mode: svc.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
 
 			q := url.Values{}
 			q.Set("mode", test.mode)
 			q.Set("page", test.page)
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/leaderboard?%s", q.Encode()), nil)
 			w := httptest.NewRecorder()
-			hander := MakeRoot(Setup{State: state})
+			hander := MakeRoot(Setup{Services: services})
 
 			// when
 			hander.ServeHTTP(w, r)
@@ -588,13 +588,13 @@ func TestGetPlayer(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state := svc.SetupStateTest(t, itest.WithPostgres, itest.WithRedis)
-			defer state.Close()
+			services := svc.SetupServicesTest(t, itest.ROPostgres, itest.Redis)
+			defer services.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players?id=%s&withReplays=%v", test.id, test.withReplays), nil)
 			w := httptest.NewRecorder()
 
-			hander := MakeRoot(Setup{State: state})
+			hander := MakeRoot(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -636,13 +636,13 @@ func TestGetChallenges(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			state := svc.SetupStateTest(t, itest.WithPostgres, itest.WithRedis)
-			defer state.Close()
+			services := svc.SetupServicesTest(t, itest.ROPostgres, itest.Redis)
+			defer services.Close()
 
-			createTestSessions(t, state)
+			createTestSessions(t, services)
 
-			state.EntropySource = &ext.StableSource{Time: itest.TimeNow}
-			hander := MakeRoot(Setup{State: state})
+			services.EntropySource = &ext.StableSource{Time: itest.TimeNow}
+			hander := MakeRoot(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -689,10 +689,10 @@ func TestHandleGetUserReplays(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replays?afterId=%s&userId=%s", test.afterID, test.userID), nil)
 			w := httptest.NewRecorder()
 
-			state := svc.SetupStateTest(t, itest.WithPostgres)
-			defer state.Close()
+			services := svc.SetupServicesTest(t, itest.ROPostgres)
+			defer services.Close()
 
-			hander := MakeRoot(Setup{State: state})
+			hander := MakeRoot(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -727,13 +727,13 @@ func TestHandleGetReplay(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state := svc.SetupStateTest(t, itest.WithPostgres)
-			defer state.Close()
+			services := svc.SetupServicesTest(t, itest.ROPostgres)
+			defer services.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay?id=%s", test.userID), nil)
 			w := httptest.NewRecorder()
 
-			hander := MakeRoot(Setup{State: state})
+			hander := MakeRoot(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -747,17 +747,17 @@ func TestHandleGetReplay(t *testing.T) {
 }
 
 func TestHandleGetChessMetas(t *testing.T) {
-	state := svc.SetupStateTest(t, itest.WithPostgres, itest.WithRedis)
-	defer state.Close()
+	services := svc.SetupServicesTest(t, itest.ROPostgres, itest.Redis)
+	defer services.Close()
 
-	createTestSessions(t, state)
-	createTestChessStates(t, state)
+	createTestSessions(t, services)
+	createTestChessStates(t, services)
 
 	r := httptest.NewRequest(http.MethodGet, "/api/chess/rooms", nil)
 	r.Header.Set("Cookie", FmtCookie(TestSessionID2))
 	w := httptest.NewRecorder()
 
-	h := MakeRoot(Setup{State: state})
+	h := MakeRoot(Setup{Services: services})
 	h.ServeHTTP(w, r)
 
 	wantResp := ChessMetasResp{
@@ -786,8 +786,8 @@ func TestHandleGetChessMetas(t *testing.T) {
 
 func TestHandleGetMoveReplay(t *testing.T) {
 	// given
-	state := svc.SetupStateTest(t, itest.WithAws)
-	defer state.Close()
+	services := svc.SetupServicesTest(t, itest.Aws)
+	defer services.Close()
 
 	wantInitialGame := chess.MakeEmptyGame(false)
 	pbInitialGame := chess.SerializeGame(&wantInitialGame)
@@ -800,13 +800,13 @@ func TestHandleGetMoveReplay(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	ext.PutS3Object(t, state.S3Client, state.S3ReplayBucket, "replays/moves/1", object)
+	ext.PutS3Object(t, services.S3Client, services.S3ReplayBucket, "replays/moves/1", object)
 
 	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay/move-list?replayId=%d", 1), nil)
 	w := httptest.NewRecorder()
 
 	// when
-	hander := MakeRoot(Setup{State: state})
+	hander := MakeRoot(Setup{Services: services})
 	hander.ServeHTTP(w, r)
 
 	body, err := io.ReadAll(w.Body)
@@ -828,10 +828,10 @@ func TestHandleGetMoveReplay(t *testing.T) {
 
 func TestHandleUploadProfilePic(t *testing.T) {
 	// given
-	state := svc.SetupStateTest(t, itest.WithRedis, itest.WithAws)
-	defer state.Close()
+	services := svc.SetupServicesTest(t, itest.Redis, itest.Aws)
+	defer services.Close()
 
-	createTestSessions(t, state)
+	createTestSessions(t, services)
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
@@ -845,7 +845,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// when
-	hander := MakeRoot(Setup{State: state})
+	hander := MakeRoot(Setup{Services: services})
 	hander.ServeHTTP(w, r)
 
 	// then
@@ -854,7 +854,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 	var view ServiceView
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &view))
 
-	assert.Equal(t, "testfiledata", ext.GetS3Object(t, state.S3Client, state.S3ProfileBucket, view.Message)) // key is contained in the mesage.
+	assert.Equal(t, "testfiledata", ext.GetS3Object(t, services.S3Client, services.S3ProfileBucket, view.Message)) // key is contained in the mesage.
 }
 
 func TestHandleGetProfilePic(t *testing.T) {
@@ -883,17 +883,17 @@ func TestHandleGetProfilePic(t *testing.T) {
 	} {
 		t.Run(test.userID, func(t *testing.T) {
 			// given
-			state := svc.SetupStateTest(t, itest.WithRedis, itest.WithAws)
-			defer state.Close()
+			services := svc.SetupServicesTest(t, itest.Redis, itest.Aws)
+			defer services.Close()
 
-			ext.PutS3Object(t, state.S3Client, state.S3ProfileBucket, key1, []byte("testfiledata1"))
-			ext.PutS3Object(t, state.S3Client, state.S3ProfileBucket, key2, []byte("testfiledata2"))
+			ext.PutS3Object(t, services.S3Client, services.S3ProfileBucket, key1, []byte("testfiledata1"))
+			ext.PutS3Object(t, services.S3Client, services.S3ProfileBucket, key2, []byte("testfiledata2"))
 
 			// when
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/users/profile-pics?userId=%s", test.userID), nil)
 			w := httptest.NewRecorder()
 
-			hander := MakeRoot(Setup{State: state})
+			hander := MakeRoot(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			// then

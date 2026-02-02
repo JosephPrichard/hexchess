@@ -88,8 +88,8 @@ func main() {
 		logutil.FatalErr("make aws clients", err)
 	}
 
-	state := &svc.State{Redis: rdb, Postgres: pdb, Aws: aws}
-	defer state.Close()
+	services := &svc.Services{Redis: rdb, Postgres: pdb, Aws: aws}
+	defer services.Close()
 
 	_, err = pool.Exec(ctx, `
 		TRUNCATE TABLE users, replays, challenges
@@ -104,26 +104,26 @@ func main() {
 	}
 
 	// we need to inserts users before we can insert challenges and game results (they reference users)
-	if _, err := state.BatchInsertUsers(ctx, userInsts); err != nil {
+	if _, err := services.BatchInsertUsers(ctx, userInsts); err != nil {
 		logutil.FatalErr("insert users", err)
 	}
-	if err := insertChallenges(ctx, state, challenges); err != nil {
+	if err := insertChallenges(ctx, services, challenges); err != nil {
 		logutil.FatalErr("insert challenges", err)
 	}
 	// performs stat updates to users, must happen before we sync the leaderboard (which copies from users table into redis)
-	if err := insertRandomizedGameResults(ctx, state, gameResults); err != nil {
+	if err := insertRandomizedGameResults(ctx, services, gameResults); err != nil {
 		logutil.FatalErr("insert game results", err)
 	}
-	if err := state.SyncLeaderboard(ctx); err != nil {
+	if err := services.SyncLeaderboard(ctx); err != nil {
 		logutil.FatalErr("jobs leaderboard", err)
 	}
 
 	log.Printf("finished seeding databases: %v", time.Since(start))
 }
 
-func insertChallenges(ctx context.Context, state *svc.State, insts []ChallengeInst) error {
+func insertChallenges(ctx context.Context, s *svc.Services, insts []ChallengeInst) error {
 	for _, chInst := range insts {
-		if err := state.InsertChallenge(ctx, svc.ChallengeInst{
+		if err := s.InsertChallenge(ctx, svc.ChallengeInst{
 			ChallengerID: chInst.ChallengerID,
 			ChallengeeID: chInst.ChallengeeID,
 			Mode:         svc.ExpectGameMode(chInst.Mode),
@@ -136,7 +136,7 @@ func insertChallenges(ctx context.Context, state *svc.State, insts []ChallengeIn
 	return nil
 }
 
-func insertRandomizedGameResults(ctx context.Context, state *svc.State, gameResults []GameResult) error {
+func insertRandomizedGameResults(ctx context.Context, s *svc.Services, gameResults []GameResult) error {
 	timeAt := time.Now().Add(-1 * time.Hour * 24 * 100)
 
 	a := gameResults
@@ -149,7 +149,7 @@ func insertRandomizedGameResults(ctx context.Context, state *svc.State, gameResu
 	for gameIdx, params := range gameResults {
 		eg.Go(func() error {
 			mode := svc.ExpectGameMode(params.ReplayMode)
-			cs, err := state.InsertGameResultTx(egCtx, timeAt.Add(time.Duration(gameIdx)*time.Hour*24), svc.GameResult{
+			cs, err := s.InsertGameResultTx(egCtx, timeAt.Add(time.Duration(gameIdx)*time.Hour*24), svc.GameResult{
 				WhiteID:      params.WhiteID,
 				BlackID:      params.BlackID,
 				ReplayCause:  svc.ExpectReplayCause(params.ReplayCause),
@@ -166,7 +166,7 @@ func insertRandomizedGameResults(ctx context.Context, state *svc.State, gameResu
 				return fmt.Errorf("generate random move seq: %w", err)
 			}
 
-			return state.PutReplayMoveSeq(egCtx, cs.ReplayID, game.Board, moveSeq)
+			return s.PutMovesHistory(egCtx, cs.ReplayID, game.Board, moveSeq)
 		})
 	}
 

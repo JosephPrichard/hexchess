@@ -18,59 +18,59 @@ import (
 
 func TestEchoChessState(t *testing.T) {
 	// given
-	s := SetupStateTest(t, itest.WithRedis)
-	defer s.Close()
+	services := SetupServicesTest(t, itest.Redis)
+	defer services.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 	id2 := "testing-id2-" + uuid.NewString()
 
-	state1 := MakeChess(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
+	s1 := MakeChess(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	// when
-	require.NoError(t, s.SetChessState(ctx, id1, &state1))
+	require.NoError(t, services.SetChessState(ctx, id1, &s1))
 
-	outState1, err := s.GetChessState(ctx, id1)
+	outState1, err := services.GetChessState(ctx, id1)
 	require.NoError(t, err)
 
-	_, errBadID := s.GetChessState(ctx, id2)
+	_, errBadID := services.GetChessState(ctx, id2)
 
 	// then
 	assert.Equal(t, ErrNoChessState, errBadID)
-	assertutil.Equal(t, state1, *outState1, ChessMetaCmpOpt)
+	assertutil.Equal(t, s1, *outState1, ChessMetaCmpOpt)
 }
 
 func TestGetChessMetas(t *testing.T) {
 	// given
-	s := SetupStateTest(t, itest.WithRedis)
-	defer s.Close()
+	services := SetupServicesTest(t, itest.Redis)
+	defer services.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 	id2 := "testing-id2-" + uuid.NewString()
 	id3 := "testing-id3-" + uuid.NewString()
 
-	state1 := MakeChess(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random, White: PlayerState{ID: 1, Present: true}, Black: PlayerState{ID: 2, Present: true}})
-	state2 := MakeChess(StateSetup{ID: id2, Mode: ModeCorrespondence1, FirstColor: Random, Black: PlayerState{ID: 1, Present: true}})
-	state3 := MakeChess(StateSetup{ID: id3, Mode: ModeCorrespondence1, FirstColor: Random, Black: PlayerState{ID: 1, Present: true}})
+	s1 := MakeChess(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random, White: PlayerState{ID: 1, Present: true}, Black: PlayerState{ID: 2, Present: true}})
+	s2 := MakeChess(StateSetup{ID: id2, Mode: ModeCorrespondence1, FirstColor: Random, Black: PlayerState{ID: 1, Present: true}})
+	s3 := MakeChess(StateSetup{ID: id3, Mode: ModeCorrespondence1, FirstColor: Random, Black: PlayerState{ID: 1, Present: true}})
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	now := time.Now()
 
 	// when
 	// these times must be after now.Add(-GameExpireFinished)
-	require.NoError(t, s.SetChessStateAt(ctx, id1, &state1, now.Add(-100*time.Second)))
-	require.NoError(t, s.SetChessStateAt(ctx, id2, &state2, now.Add(-50*time.Second)))
-	require.NoError(t, s.SetChessStateAt(ctx, id3, &state3, now.Add(-10*time.Second)))
+	require.NoError(t, services.SetChessStateAt(ctx, id1, &s1, now.Add(-100*time.Second)))
+	require.NoError(t, services.SetChessStateAt(ctx, id2, &s2, now.Add(-50*time.Second)))
+	require.NoError(t, services.SetChessStateAt(ctx, id3, &s3, now.Add(-10*time.Second)))
 
-	metaList1, err := s.GetUserChessMetas(ctx, 1)
+	metaList1, err := services.GetUserChessMetas(ctx, 1)
 	require.NoError(t, err)
-	metaList2, err := s.GetUserChessMetas(ctx, 2)
+	metaList2, err := services.GetUserChessMetas(ctx, 2)
 	require.NoError(t, err)
-	metaList3, err := s.GetUserChessMetas(ctx, 3)
+	metaList3, err := services.GetUserChessMetas(ctx, 3)
 	require.NoError(t, err)
-	metaList4, err := s.GetUserChessMetasPaged(ctx, 1, 1, 2)
+	metaList4, err := services.GetUserChessMetasPaged(ctx, 1, 1, 2)
 	require.NoError(t, err)
-	metaList5, err := s.GetUserChessMetasPaged(ctx, 1, 2, 2)
+	metaList5, err := services.GetUserChessMetasPaged(ctx, 1, 2, 2)
 	require.NoError(t, err)
 
 	// then
@@ -87,8 +87,8 @@ func TestGetChessMetas(t *testing.T) {
 
 func TestEchoStateChats(t *testing.T) {
 	// given
-	s := SetupStateTest(t, itest.WithRedis)
-	defer s.Close()
+	services := SetupServicesTest(t, itest.Redis)
+	defer services.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 
@@ -105,10 +105,10 @@ func TestEchoStateChats(t *testing.T) {
 
 	// when
 	for _, chat := range chatsIn {
-		require.NoError(t, s.InsertStateChat(ctx, id1, chat))
+		require.NoError(t, services.InsertStateChat(ctx, id1, chat))
 	}
 
-	chatsOut, err := s.GetStateChats(ctx, id1, 3)
+	chatsOut, err := services.GetStateChats(ctx, id1, 3)
 	require.NoError(t, err)
 
 	// then
@@ -117,27 +117,27 @@ func TestEchoStateChats(t *testing.T) {
 
 func TestExpireChessStates(t *testing.T) {
 	// given
-	s := SetupStateTest(t, itest.WithRedis)
-	defer s.Close()
+	services := SetupServicesTest(t, itest.Redis)
+	defer services.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 
-	state1 := MakeChess(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
+	s1 := MakeChess(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
 
-	state1.WhitePlayer = PlayerState{ID: 1, Present: true}
-	state1.BlackPlayer = PlayerState{ID: 2, Present: true}
+	s1.WhitePlayer = PlayerState{ID: 1, Present: true}
+	s1.BlackPlayer = PlayerState{ID: 2, Present: true}
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	now := time.Now()
 
 	// when
 	// these times must be before now.Add(-GameExpireFinished)
-	require.NoError(t, s.SetChessStateAt(ctx, id1, &state1, now.Add(2*-GameExpireFinished)))
-	require.NoError(t, s.InsertStateChat(ctx, id1, StateChat{}))
-	require.NoError(t, s.ExpireChessStates(ctx, s.Redis.GamesZSet))
+	require.NoError(t, services.SetChessStateAt(ctx, id1, &s1, now.Add(2*-GameExpireFinished)))
+	require.NoError(t, services.InsertStateChat(ctx, id1, StateChat{}))
+	require.NoError(t, services.ExpireChessStates(ctx, services.Redis.GamesZSet))
 
-	_, errExpiredID := s.GetChessState(ctx, id1)
-	chats, err := s.GetStateChats(ctx, id1, 1)
+	_, errExpiredID := services.GetChessState(ctx, id1)
+	chats, err := services.GetStateChats(ctx, id1, 1)
 	require.NoError(t, err)
 
 	// then
@@ -147,13 +147,13 @@ func TestExpireChessStates(t *testing.T) {
 
 func TestUndo(t *testing.T) {
 	t.Run("no moves to undo", func(t *testing.T) {
-		state := MakeChess(StateSetup{
+		s := MakeChess(StateSetup{
 			ID:           "test",
 			Game:         ptr.New(chess.MakeStartGame()),
 			InitialBoard: ptr.New(chess.InitialBoard()),
 		})
 
-		err := state.Undo()
+		err := s.Undo()
 
 		assert.Equal(t, ErrNoMoveUndo, err)
 	})
@@ -162,15 +162,15 @@ func TestUndo(t *testing.T) {
 		game := chess.MakeStartGame()
 		game.Moves = append(game.Moves, game.MakeMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")}))
 
-		state := MakeChess(StateSetup{
+		s := MakeChess(StateSetup{
 			ID:           "test",
 			Game:         ptr.New(game),
 			InitialBoard: ptr.New(chess.InitialBoard()),
 		})
 
-		err := state.Undo()
+		err := s.Undo()
 
 		require.NoError(t, err)
-		assert.Len(t, state.Game.Moves, 0)
+		assert.Len(t, s.Game.Moves, 0)
 	})
 }

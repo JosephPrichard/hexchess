@@ -80,7 +80,7 @@ func main() {
 		logutil.FatalErr("load aws config", err)
 	}
 
-	state := svc.State{
+	services := svc.Services{
 		Postgres:          pdb,
 		Redis:             rdb,
 		Aws:               aws,
@@ -88,11 +88,11 @@ func main() {
 		RemoteAPIs:        ext.MakeRemoteAPIs(),
 		EntropySource:     &ext.NDEntropySource{},
 	}
-	defer state.Close()
+	defer services.Close()
 
-	<-state.LocalBroadcasters.ListenGameMessages(rdb)
-	<-state.LocalBroadcasters.ListenUsersMessages(rdb)
-	<-state.LocalBroadcasters.ListenUnicastEvents(rdb)
+	<-services.LocalBroadcasters.ListenGameMessages(rdb)
+	<-services.LocalBroadcasters.ListenUsersMessages(rdb)
+	<-services.LocalBroadcasters.ListenUnicastEvents(rdb)
 
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 
@@ -103,7 +103,7 @@ func main() {
 	}
 
 	setup := web.Setup{
-		State:          state,
+		Services:       services,
 		CountryList:    countryList,
 		AllowedOrigins: allowedOrigins,
 	}

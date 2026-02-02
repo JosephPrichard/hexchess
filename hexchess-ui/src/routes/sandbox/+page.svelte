@@ -11,13 +11,12 @@
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import Dropdown from '$lib/components/util/Dropdown.svelte';
-	import { makeSandboxState } from '$lib/state/sandbox.svelte.js';
+	import { makeSandboxState } from './state.svelte.js';
 	import Banner from '$lib/Banner.svelte';
 	import { CancelPromotion, type BadPromotionType, type Promotion } from '$lib/components/chess/types';
 	import { wasm } from '$lib/api/wasm';
 	import type { ChessBoard } from '$lib/pb/messages';
 	import TakenList from '$lib/components/chess/TakenList.svelte';
-	import { moveElementHeight } from '$lib/components/chess/render';
 
 	export interface SandboxProps {
 		fen: string;
@@ -74,26 +73,18 @@
 
 	async function onPieceMove(from: Hex, to: Hex) {
 		if (mode === "edit") {
-			onEditMove(from, to);
+			sandbox.movePiece(from, to);
+			onDeSelectPiece();
 		} else if (mode === "play") {
-			await onPlayMove(from, to);
-		}
-	}
-
-	function onEditMove(from: Hex, to: Hex) {
-		sandbox.movePiece(from, to);
-		onDeSelectPiece();
-	}
-
-	async function onPlayMove(from: Hex, to: Hex) {
-		if (isPromotion(game, from, to)) {
-			sandbox.setPromotion({ from, to });
-			onDeSelectPiece();
-		} else {
-			const didMove = await sandbox.makeMove({ from, to, promotion: 0 });
-			if (!didMove) return;
-			onDeSelectPiece();
-			scrollToStep();
+			if (isPromotion(game, from, to)) {
+				sandbox.setPromotion({ from, to });
+				onDeSelectPiece();
+			} else {
+				const ok = await sandbox.makeMove({ from, to, promotion: 0 });
+				if (!ok) return;
+				onDeSelectPiece();
+				scrollToStep();
+			}
 		}
 	}
 
@@ -104,25 +95,28 @@
 		if (promotion === CancelPromotion) {
 			sandbox.revertPromotion();
 		} else {
-			const didMove = await sandbox.makeMove({ from: move.from, to: move.to, promotion: promotion.kind });
-			if (didMove) onDeSelectPiece();
+			const ok = await sandbox.makeMove({ from: move.from, to: move.to, promotion: promotion.kind });
+			if (!ok) return;
+			onDeSelectPiece();
 			scrollToStep();
 		}
 	}
 
 	async function setMode(newMode: "edit" | "play") {
-		mode = newMode;
+		// clear client states that vary per mode
 		editPiece = undefined;
 		onDeSelectPiece();
 		await sandbox.initNewBoard();
+
+		mode = newMode;
 	}
 
 	function toggleMode() {
-		if (mode === "edit") {
-			setMode("play");
-		} else if (mode === "play") {
-			setMode("edit");
-		}
+		const nextMode: Record<typeof mode, typeof mode> = {
+			edit: "play",
+			play: "edit",
+		};
+		setMode(nextMode[mode]);
 	}
 
 	async function onUpdateFen(fenInput: string) {
@@ -130,7 +124,7 @@
 		if (!game) return;
 
 		sandbox.setGame(game);
-		await boardToFenURL(game.board);
+		// await boardToFenURL(game.board);
 	}
 
 	async function gameFromFenURL(fenInput: string) {
@@ -295,9 +289,7 @@
         display: flex;
         flex-direction: row;
         align-items: center;
-        padding: 5px 10px 5px 10px;
-        margin-top: 10px;
-        margin-bottom: 10px;
+        padding: 7px 10px 7px 10px;
         gap: 10px;
         font-size: 15px;
         border-radius: 5px;

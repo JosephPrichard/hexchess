@@ -152,6 +152,30 @@ func (q *Queries) SelectEloList(ctx context.Context, arg SelectEloListParams) ([
 	return items, nil
 }
 
+const selectExistsUsersByIDs = `-- name: SelectExistsUsersByIDs :many
+SELECT id FROM users WHERE id = ANY ($1::bigint[])
+`
+
+func (q *Queries) SelectExistsUsersByIDs(ctx context.Context, ids []int64) ([]int64, error) {
+	rows, err := q.db.Query(ctx, selectExistsUsersByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const selectLoginByName = `-- name: SelectLoginByName :one
 SELECT id, username, country, password, salt, login_attempts, last_login_attempt
 FROM users

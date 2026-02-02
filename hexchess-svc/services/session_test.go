@@ -13,8 +13,8 @@ import (
 
 func TestSessions(t *testing.T) {
 	// given
-	s := SetupStateTest(t, itest.WithRedis)
-	defer s.Close()
+	services := SetupServicesTest(t, itest.Redis)
+	defer services.Close()
 
 	playerIn := MakePlayer(1, "testing-session", "country")
 	sessionID1 := "session1"
@@ -24,18 +24,18 @@ func TestSessions(t *testing.T) {
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	// when
-	require.NoError(t, s.SetSessions(ctx, SessInst{sessionID1, playerIn, 100 * time.Second}))
-	require.NoError(t, s.SetSessions(ctx, SessInst{sessionID2, playerIn, 100 * time.Second}))
-	require.NoError(t, s.SetSessions(ctx, SessInst{sessionID3, playerIn, 100 * time.Second}))
+	require.NoError(t, services.SetSessions(ctx, SessInst{sessionID1, playerIn, 100 * time.Second}))
+	require.NoError(t, services.SetSessions(ctx, SessInst{sessionID2, playerIn, 100 * time.Second}))
+	require.NoError(t, services.SetSessions(ctx, SessInst{sessionID3, playerIn, 100 * time.Second}))
 
-	playerOut, err := s.GetSession(ctx, sessionID1)
+	playerOut, err := services.GetSession(ctx, sessionID1)
 	require.NoError(t, err)
 
-	require.NoError(t, s.DeleteSession(ctx, sessionID2))
-	require.NoError(t, s.UpdateSessionEx(ctx, sessionID3, 0))
+	require.NoError(t, services.DeleteSession(ctx, sessionID2))
+	require.NoError(t, services.UpdateSessionEx(ctx, sessionID3, 0))
 
-	_, badIDErr1 := s.GetSession(ctx, sessionID2)
-	_, badIDErr2 := s.GetSession(ctx, sessionID3)
+	_, badIDErr1 := services.GetSession(ctx, sessionID2)
+	_, badIDErr2 := services.GetSession(ctx, sessionID3)
 
 	// then
 	assert.Equal(t, ErrSessionNotFound, badIDErr1)

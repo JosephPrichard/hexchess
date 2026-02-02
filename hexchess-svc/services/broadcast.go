@@ -116,8 +116,8 @@ func (b *LocalBroadcasters) ListenUnicastEvents(rdb db.Redis) chan struct{} {
 	})
 }
 
-func (s *State) BroadcastMessage(ctx context.Context, channel string, b []byte) error {
-	conn := s.Redis.PubSub.Get()
+func (svc *Services) BroadcastMessage(ctx context.Context, channel string, b []byte) error {
+	conn := svc.Redis.PubSub.Get()
 	defer conn.Close()
 
 	if _, err := conn.Do("PUBLISH", channel, b); err != nil {
@@ -131,33 +131,33 @@ type CountEvent struct {
 	Count int64 `json:"count"`
 }
 
-func (s *State) BroadcastCountEvent(ctx context.Context, channel string, count int64) error {
+func (svc *Services) BroadcastCountEvent(ctx context.Context, channel string, count int64) error {
 	b, err := json.Marshal(CountEvent{Count: count})
 	if err != nil {
 		return fmt.Errorf("marshal count event message: %w", err)
 	}
-	return s.BroadcastMessage(ctx, channel, b)
+	return svc.BroadcastMessage(ctx, channel, b)
 }
 
-func (s *State) BroadcastActiveCount(ctx context.Context, count int64) error {
-	return s.BroadcastCountEvent(ctx, s.Redis.ActiveCountChan, count)
+func (svc *Services) BroadcastActiveCount(ctx context.Context, count int64) error {
+	return svc.BroadcastCountEvent(ctx, svc.Redis.ActiveCountChan, count)
 }
 
-func (s *State) BroadcastGameCount(ctx context.Context, count int64) error {
-	return s.BroadcastCountEvent(ctx, s.Redis.GamesCountChan, count)
+func (svc *Services) BroadcastGameCount(ctx context.Context, count int64) error {
+	return svc.BroadcastCountEvent(ctx, svc.Redis.GamesCountChan, count)
 }
 
-func (s *State) BroadcastGamesEvent(ctx context.Context, b []byte) error {
-	return s.BroadcastMessage(ctx, s.Redis.GamesChan, b)
+func (svc *Services) BroadcastGamesEvent(ctx context.Context, b []byte) error {
+	return svc.BroadcastMessage(ctx, svc.Redis.GamesChan, b)
 }
 
-func (s *State) BroadcastChallenge(ctx context.Context, c ChallengeEntity) error {
+func (svc *Services) BroadcastChallenge(ctx context.Context, c ChallengeEntity) error {
 	um := SerializeChallengeMsg(c)
 	b, err := proto.Marshal(um)
 	if err != nil {
 		return fmt.Errorf("marshal user challenge message: %w", err)
 	}
-	return s.BroadcastMessage(ctx, s.Redis.UsersChan, b)
+	return svc.BroadcastMessage(ctx, svc.Redis.UsersChan, b)
 }
 
 func MakeBroadcaster() LocalBroadcasters {

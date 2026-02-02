@@ -8,31 +8,40 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/assertutil"
 	"hexchess-svc/pkg/logutil"
+	"time"
 
 	"slices"
 	"testing"
 )
 
-func SetupStateTest(t logutil.TestLogger, flags ...itest.TestFlag) State {
-	var state State
-	var eg errgroup.Group
+func SetupServicesTest(t logutil.TestLogger, flags ...itest.TestFlag) Services {
+	var services Services
 
-	if slices.Contains(flags, itest.WithPostgres) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	eg, egCtx := errgroup.WithContext(ctx)
+
+	roPostgres := slices.Contains(flags, itest.ROPostgres)
+	rwPostgres := slices.Contains(flags, itest.RWPostgres)
+	redis := slices.Contains(flags, itest.Redis)
+	aws := slices.Contains(flags, itest.Aws)
+
+	if roPostgres || rwPostgres {
 		eg.Go(func() (err error) {
-			useTxn := slices.Contains(flags, itest.UseTxn)
-			state.Postgres, err = itest.SetupPostgresTest(t, useTxn)
+			services.Postgres, err = itest.SetupPostgresTest(egCtx, t, rwPostgres)
 			return
 		})
 	}
-	if slices.Contains(flags, itest.WithRedis) {
+	if redis {
 		eg.Go(func() (err error) {
-			state.Redis, err = itest.SetupRedisTest(t)
+			services.Redis, err = itest.SetupRedisTest(egCtx, t)
 			return
 		})
 	}
-	if slices.Contains(flags, itest.WithAws) {
+	if aws {
 		eg.Go(func() (err error) {
-			state.Aws, err = itest.SetupAwsTest(t)
+			services.Aws, err = itest.SetupAwsTest(egCtx, t)
 			return
 		})
 	}
@@ -41,11 +50,11 @@ func SetupStateTest(t logutil.TestLogger, flags ...itest.TestFlag) State {
 		t.Fatalf("failed to setup test state: %v", err)
 	}
 
-	state.EntropySource = &ext.NDEntropySource{}
-	return state
+	services.EntropySource = &ext.NDEntropySource{}
+	return services
 }
 
-func AssertRedisChess(t *testing.T, s *State, wantState ChessState, options ...cmp.Option) {
+func AssertRedisChess(t *testing.T, s *Services, wantState ChessState, options ...cmp.Option) {
 	t.Helper()
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	actualState, err := s.GetChessState(ctx, wantState.ID)
@@ -58,7 +67,7 @@ func AssertRedisChess(t *testing.T, s *State, wantState ChessState, options ...c
 func AssertChessState(t *testing.T, wantState ChessState, actualState *ChessState, options ...cmp.Option) {
 	t.Helper()
 	if actualState == nil {
-		t.Fatalf("chess state is nil")
+		t.Fatalf("chess s is nil")
 	}
 	assertutil.Equal(t, wantState, *actualState, options...)
 }

@@ -148,14 +148,7 @@
 		height: ${hexWidth * 0.75}px;`);
 </script>
 
-<div
-	class="annotation"
-	class:annotation-show={isAnnotated}
-	role="cell"
-	tabindex="0"
-	style={rectHexStyle}
-	oncontextmenu={e => e.preventDefault()}
-></div>
+<div class="annotation" class:annotation-show={isAnnotated} role="cell" tabindex="0" style={rectHexStyle} oncontextmenu={e => e.preventDefault()}></div>
 <div
 	class="piece-img"
 	role="cell"

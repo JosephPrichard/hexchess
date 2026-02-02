@@ -18,23 +18,23 @@ import (
 
 func TestDeleteOldProfilePics(t *testing.T) {
 	// given
-	state := SetupStateTest(t, itest.WithAws)
-	defer state.Close()
+	services := SetupServicesTest(t, itest.Aws)
+	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	for _, user := range []string{"1", "1", "2", "2"} {
-		ext.PutS3Object(t, state.S3Client, state.S3ProfileBucket, fmt.Sprintf("users/profile-pics/%s/%s", user, uuid.NewString()), []byte("testfiledat2"))
+		ext.PutS3Object(t, services.S3Client, services.S3ProfileBucket, fmt.Sprintf("users/profile-pics/%s/%s", user, uuid.NewString()), []byte("testfiledat2"))
 	}
 
 	// when
-	require.NoError(t, state.DeleteOldProfilePics(ctx, 1))
+	require.NoError(t, services.DeleteOldProfilePics(ctx, 1))
 
 	// then
 	// this test verifies that the function will always retain a single file per user, and that files for other users are not touched
 	// we cannot verify which actual file is retainined because the uncertainty of LastModifiedTime is too high.
-	assert.Equal(t, 2, ext.CountS3Objects(t, state.S3Client, state.S3ProfileBucket, "users/profile-pics/2"))
-	assert.Equal(t, 1, ext.CountS3Objects(t, state.S3Client, state.S3ProfileBucket, "users/profile-pics/1"))
+	assert.Equal(t, 2, ext.CountS3Objects(t, services.S3Client, services.S3ProfileBucket, "users/profile-pics/2"))
+	assert.Equal(t, 1, ext.CountS3Objects(t, services.S3Client, services.S3ProfileBucket, "users/profile-pics/1"))
 }
 
 func TestFindMostRecentKey(t *testing.T) {

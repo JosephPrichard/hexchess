@@ -11,17 +11,17 @@ import (
 
 const ActiveUserMaxage = 5 * time.Minute // the caller should manually remove, but this is a stopgap in case the server is stopped before that is the case
 
-func (s *State) GetActiveCount(ctx context.Context) (int64, error) {
-	expireBefore := s.GetNow().Add(-ActiveUserMaxage).UnixMilli()
+func (svc *Services) GetActiveCount(ctx context.Context) (int64, error) {
+	expireBefore := svc.GetNow().Add(-ActiveUserMaxage).UnixMilli()
 
-	removed, err := s.Redis.Cache.ZRemRangeByScore(ctx, s.Redis.ActiveUsersZSet, "-inf", fmt.Sprintf("%d", expireBefore)).Result()
+	removed, err := svc.Redis.Cache.ZRemRangeByScore(ctx, svc.Redis.ActiveUsersZSet, "-inf", fmt.Sprintf("%d", expireBefore)).Result()
 	if err != nil {
 		return 0, fmt.Errorf("get expired active users by range: %w", err)
 	}
 	if removed > 0 {
 		slog.InfoContext(ctx, "expired users with keys", "count", removed, "expireBefore", expireBefore)
 	}
-	count, err := s.Redis.Cache.ZCard(ctx, s.Redis.ActiveUsersZSet).Result()
+	count, err := svc.Redis.Cache.ZCard(ctx, svc.Redis.ActiveUsersZSet).Result()
 	if err != nil {
 		return 0, fmt.Errorf("count active users: %w", err)
 	}
@@ -29,10 +29,10 @@ func (s *State) GetActiveCount(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (s *State) RetainActiveUser(ctx context.Context, id string) error {
-	now := s.GetNow()
+func (svc *Services) RetainActiveUser(ctx context.Context, id string) error {
+	now := svc.GetNow()
 
-	_, err := s.Redis.Cache.ZAddXX(ctx, s.Redis.ActiveUsersZSet, redis.Z{Score: float64(now.UnixMilli()), Member: id}).Result()
+	_, err := svc.Redis.Cache.ZAddXX(ctx, svc.Redis.ActiveUsersZSet, redis.Z{Score: float64(now.UnixMilli()), Member: id}).Result()
 	if err != nil {
 		return fmt.Errorf("retain active user %s: %w", id, err)
 	}
@@ -40,20 +40,20 @@ func (s *State) RetainActiveUser(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *State) AddActiveUser(ctx context.Context, id string) (int64, error) {
-	now := s.GetNow()
+func (svc *Services) AddActiveUser(ctx context.Context, id string) (int64, error) {
+	now := svc.GetNow()
 
-	_, err := s.Redis.Cache.ZAddNX(ctx, s.Redis.ActiveUsersZSet, redis.Z{Score: float64(now.UnixMilli()), Member: id}).Result()
+	_, err := svc.Redis.Cache.ZAddNX(ctx, svc.Redis.ActiveUsersZSet, redis.Z{Score: float64(now.UnixMilli()), Member: id}).Result()
 	if err != nil {
 		return 0, fmt.Errorf("add active user %v: %w", id, err)
 	}
 	slog.InfoContext(ctx, "added active user", "id", id)
 
-	return s.GetActiveCount(ctx)
+	return svc.GetActiveCount(ctx)
 }
 
-func (s *State) RemoveActiveUser(ctx context.Context, id string) (int64, error) {
-	res, err := s.Redis.Cache.ZRem(ctx, s.Redis.ActiveUsersZSet, id).Result()
+func (svc *Services) RemoveActiveUser(ctx context.Context, id string) (int64, error) {
+	res, err := svc.Redis.Cache.ZRem(ctx, svc.Redis.ActiveUsersZSet, id).Result()
 	if err != nil {
 		return 0, fmt.Errorf("remove active user %v: %w", id, err)
 	}
@@ -63,5 +63,5 @@ func (s *State) RemoveActiveUser(ctx context.Context, id string) (int64, error) 
 		slog.WarnContext(ctx, "did not remove active user", "id", id)
 	}
 
-	return s.GetActiveCount(ctx)
+	return svc.GetActiveCount(ctx)
 }

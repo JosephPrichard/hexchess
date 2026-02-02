@@ -78,8 +78,10 @@ FROM replays r
 WHERE
     r.id < sqlc.arg('afterID')
   AND (
-      r.white_id = sqlc.arg('userID')
-      OR r.black_id = sqlc.arg('userID')
+      r.white_id = sqlc.arg('userID') OR r.black_id = sqlc.arg('userID')
   )
 ORDER BY r.id DESC
 LIMIT sqlc.arg('perPage');
+
+-- name: SelectReplaysExistsByIDs :many
+SELECT id FROM replays WHERE id = ANY (sqlc.arg('ids')::bigint[]);

@@ -77,6 +77,9 @@ LEFT JOIN user_mode_elos e
     ON u.id = e.user_id AND e.mode = sqlc.arg('mode')
 WHERE id = ANY(sqlc.arg('ids')::bigint[]);
 
+-- name: SelectExistsUsersByIDs :many
+SELECT id FROM users WHERE id = ANY (sqlc.arg('ids')::bigint[]);
+
 -- name: UpdateUser :one
 UPDATE users
 SET

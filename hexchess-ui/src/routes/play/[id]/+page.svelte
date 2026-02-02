@@ -29,7 +29,7 @@
 	import Error from '$lib/Error.svelte';
 	import ChatIcon from '$lib/components/icons/ChatIcon.svelte';
 	import FinishPanel from '$lib/components/user/FinishPanel.svelte';
-	import { makeSandboxState, type PromotionMove } from '$lib/state/sandbox.svelte.js';
+	import { makeSandboxState, type PromotionMove } from '../../sandbox/state.svelte.js';
 	import { defaultBoard, defaultGame, isPromotion, isValidMove } from '../../../lib/service/chess';
 	import { type ConnectionState, sendChatInput, sendForfeitInput, sendMoveInput, sendPingInput, sendUndoInput } from './messages';
 	import { CancelPromotion, type BadPromotionType, type MoveAction, NoPromotion, type Promotion } from '$lib/components/chess/types';

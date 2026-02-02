@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"log/slog"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -19,6 +20,18 @@ func MakeProfilePicPrefix(userID string) string {
 
 func MakeProfileNewPicKey(userID int64) string {
 	return fmt.Sprintf("%s/%d/%s", ProfilePicPrefix, userID, uuid.NewString())
+}
+
+func ParseProfilePicKey(key string) (int64, error) {
+	tokens := strings.Split(key, "/")
+	if len(tokens) != 4 {
+		return 0, fmt.Errorf("invalid profile key, incorrect number of tokens: %s", key)
+	}
+	userID, err := strconv.ParseInt(tokens[2], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("profile key userID is not a valid integer: %s: %w", key, err)
+	}
+	return userID, nil
 }
 
 func findMostRecentKey(objects []s3Types.Object) string {
@@ -52,16 +65,16 @@ func filterLeastRecentKeys(objects []s3Types.Object) []s3Types.ObjectIdentifier 
 
 const ProfilePicPrefix = "users/profile-pics"
 
-func (s *State) DeleteOldProfilePics(ctx context.Context, playerID int) error {
+func (svc *Services) DeleteOldProfilePics(ctx context.Context, playerID int) error {
 	prefix := MakeProfilePicPrefix(strconv.Itoa(playerID))
 
 	// remove all but the newest keys. there should never be more 1000 keys, but if there are, this will never delete the newest key
-	listOutput, err := s.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket: aws.String(s.S3ProfileBucket),
+	listOutput, err := svc.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String(svc.S3ProfileBucket),
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return fmt.Errorf("list profile pics by prefix=%s: from s3 bucket: %s: %w", prefix, s.S3ProfileBucket, err)
+		return fmt.Errorf("list profile pics by prefix=%s: from s3 Bucket: %s: %w", prefix, svc.S3ProfileBucket, err)
 	}
 	slog.InfoContext(ctx, "listed profile pics for deletion", "listOutput", listOutput.Contents)
 
@@ -71,27 +84,27 @@ func (s *State) DeleteOldProfilePics(ctx context.Context, playerID int) error {
 	keys := filterLeastRecentKeys(listOutput.Contents)
 	slog.InfoContext(ctx, "deleting profile pics", "keys", keys)
 
-	if _, err := s.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
-		Bucket: aws.String(s.S3ProfileBucket),
+	if _, err := svc.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+		Bucket: aws.String(svc.S3ProfileBucket),
 		Delete: &s3Types.Delete{Objects: keys},
 	}); err != nil {
-		return fmt.Errorf("delete profile pics by keys %v: from s3 bucket: %s: %w", keys, s.S3ProfileBucket, err)
+		return fmt.Errorf("delete profile pics by keys %v: from s3 Bucket: %s: %w", keys, svc.S3ProfileBucket, err)
 	}
 	return nil
 }
 
 var ErrNoProfilePic = errors.New("no profile pic found for user")
 
-func (s *State) GetProfilePicKey(ctx context.Context, userID string) (string, error) {
+func (svc *Services) GetProfilePicKey(ctx context.Context, userID string) (string, error) {
 	// retrieves all profile pictures for any user and retrieves the most recent one. this runs on the assumption that we may not be deleting old profile pics.
 	prefix := MakeProfilePicPrefix(userID)
 
-	listOutput, err := s.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket: aws.String(s.S3ProfileBucket),
+	listOutput, err := svc.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String(svc.S3ProfileBucket),
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return "", fmt.Errorf("list profile pics by prefix=%s: from s3 bucket: %s: %w", prefix, s.S3ProfileBucket, err)
+		return "", fmt.Errorf("list profile pics by prefix=%s: from s3 Bucket: %s: %w", prefix, svc.S3ProfileBucket, err)
 	}
 
 	mostRecentKey := findMostRecentKey(listOutput.Contents)

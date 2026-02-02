@@ -8,9 +8,14 @@ export interface PromotionMove {
     to: Hex;
 }
 
+export interface PromotionState {
+    move: PromotionMove;
+    prevGame?: ChessGame;
+}
+
 export interface SandboxState {
     game?: ChessGame;
-    promotion?: {move: PromotionMove; game?: ChessGame};
+    promotion?: PromotionState;
 }
 
 export function makeSandboxState() {
@@ -18,7 +23,6 @@ export function makeSandboxState() {
 
     function setGame(game: ChessGame) {
         if (!game) game = defaultGame;
-        state.promotion = undefined;
         state.game = game;
     }
 
@@ -40,17 +44,18 @@ export function makeSandboxState() {
 
     function revertPromotion() {
         if (state.promotion !== undefined) {
-            state.game = state.promotion.game;
+            state.game = state.promotion.prevGame;
         }
         state.promotion = undefined;
     }
 
     function setPromotion(promotion?: PromotionMove) {
         if (promotion) {
-            state.promotion = {move: promotion, game: $state.snapshot(state.game)};
+            state.promotion = {move: promotion, prevGame: $state.snapshot(state.game)};
             movePiece(promotion.from, promotion.to);
+        } else {
+            state.promotion = undefined;
         }
-        state.promotion = undefined;
     }
 
     async function makeMove(move: MakeMoveArgs) {

@@ -64,7 +64,7 @@
 <style>
     .dropdown-container {
         width: 100%;
-        z-index: 10;
+        z-index: 15;
         position: relative;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
     }
@@ -73,7 +73,7 @@
         all: unset;
         box-sizing: border-box;
         width: 100%;
-        background: rgb(53,53,53);
+        background: rgb(64,64,64);
         padding: 0.6rem 0.8rem;
         border-radius: 6px;
         cursor: pointer;
@@ -82,7 +82,7 @@
         justify-content: space-between;
         align-items: center;
         transition: border-color 0.2s ease;
-        /*border: 1px solid rgb(100,100,100);*/
+        border: 1px solid rgb(100,100,100);
         z-index: 1;
     }
 

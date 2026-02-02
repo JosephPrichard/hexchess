@@ -84,11 +84,11 @@ const (
 func (app *App) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 	ctx := w.ctx
 
-	activeCount, err := app.State.GetActiveCount(ctx)
+	activeCount, err := app.Services.GetActiveCount(ctx)
 	if err != nil {
 		return err
 	}
-	gamesCount, err := app.State.GetChessStateCount(ctx)
+	gamesCount, err := app.Services.GetChessStateCount(ctx)
 	if err != nil {
 		return err
 	}
@@ -128,18 +128,18 @@ func (app *App) HandleActiveConn(w SSEWriter, _ *http.Request) error {
 
 	sseID := app.MakeID()
 
-	count, err := app.State.AddActiveUser(ctx, sseID)
+	count, err := app.Services.AddActiveUser(ctx, sseID)
 	if err != nil {
 		return err
 	}
-	if err := app.State.BroadcastActiveCount(ctx, count); err != nil {
+	if err := app.Services.BroadcastActiveCount(ctx, count); err != nil {
 		return fmt.Errorf("broadcast active user count after adding %d: %w", count, err)
 	}
 
 	w.writeEvent(MetaEvent, sseID)
 
 	stopTimer := timeutil.Every(svc.ActiveUserMaxage-time.Second, func() {
-		if err := app.State.RetainActiveUser(ctx, sseID); err != nil {
+		if err := app.Services.RetainActiveUser(ctx, sseID); err != nil {
 			slog.ErrorContext(ctx, "failed to retain active user", "sseID", sseID, "err", err)
 		}
 	})
@@ -158,10 +158,10 @@ RecvLoop:
 	afterCtx := context.WithoutCancel(ctx)
 	stopTimer <- true
 
-	if count, err = app.State.RemoveActiveUser(afterCtx, sseID); err != nil {
+	if count, err = app.Services.RemoveActiveUser(afterCtx, sseID); err != nil {
 		slog.ErrorContext(afterCtx, "failed to remove active user", "sseID", sseID, "err", err)
 	}
-	if err := app.State.BroadcastActiveCount(afterCtx, count); err != nil {
+	if err := app.Services.BroadcastActiveCount(afterCtx, count); err != nil {
 		slog.ErrorContext(afterCtx, "broadcast active user count after removing", "err", err)
 	}
 
@@ -171,7 +171,7 @@ RecvLoop:
 func (app *App) HandleUserEvents(w SSEWriter, r *http.Request) error {
 	ctx := w.ctx
 
-	player, _, err := GetSessionPlayer(ctx, app.State, r)
+	player, _, err := GetSessionPlayer(ctx, app.Services, r)
 	if err != nil {
 		if errors.Is(err, svc.ErrSessionNotFound) {
 			return ErrHttpSessionExpired

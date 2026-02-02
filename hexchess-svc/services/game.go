@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-func (s *State) CreateGame(ctx context.Context, color Color, mode GameMode, initialBoard *chess.Board) (string, error) {
+func (svc *Services) CreateGame(ctx context.Context, color Color, mode GameMode, initialBoard *chess.Board) (string, error) {
 	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
 	bID := make([]byte, 8)
@@ -33,15 +33,15 @@ func (s *State) CreateGame(ctx context.Context, color Color, mode GameMode, init
 	state.Game.InitPieceMoves()
 
 	slog.InfoContext(ctx, "created chess game", "chessMeta", state.ChessMeta)
-	if err := s.SetChessState(ctx, strID, &state); err != nil {
-		return "", fmt.Errorf("set chess state by id %s: %w", strID, err)
+	if err := svc.SetChessState(ctx, strID, &state); err != nil {
+		return "", fmt.Errorf("set chess s by id %s: %w", strID, err)
 	}
 
-	go s.broadcastGameCounts()
+	go svc.broadcastGameCounts()
 	return strID, nil
 }
 
-func (s *State) broadcastGameCounts() {
+func (svc *Services) broadcastGameCounts() {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Warn("recovered in panic while broadcasting game event", "err", r)
@@ -49,22 +49,22 @@ func (s *State) broadcastGameCounts() {
 	}()
 	ctx := context.WithValue(context.Background(), logutil.Trace, "create-game-broadcast-handler")
 
-	count, err := s.GetChessStateCount(ctx)
+	count, err := svc.GetChessStateCount(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to count chess states after creating game", "err", err)
+		slog.ErrorContext(ctx, "failed to count chess ss after creating game", "err", err)
 		return
 	}
-	if err := s.BroadcastGameCount(ctx, count); err != nil {
-		slog.ErrorContext(ctx, "failed to broadcast chess states count after creating game", "err", err)
+	if err := svc.BroadcastGameCount(ctx, count); err != nil {
+		slog.ErrorContext(ctx, "failed to broadcast chess ss count after creating game", "err", err)
 		return
 	}
-	slog.InfoContext(ctx, "counted chess states after creating game", "count", count)
+	slog.InfoContext(ctx, "counted chess ss after creating game", "count", count)
 }
 
-func (s *State) JoinGame(ctx context.Context, gameID string, player PlayerState) (*ChessState, error) {
-	state, err := s.GetChessState(ctx, gameID)
+func (svc *Services) JoinGame(ctx context.Context, gameID string, player PlayerState) (*ChessState, error) {
+	state, err := svc.GetChessState(ctx, gameID)
 	if err != nil {
-		return nil, fmt.Errorf("get chess state by id %s: %w", gameID, err)
+		return nil, fmt.Errorf("get chess s by id %s: %w", gameID, err)
 	}
 
 	if !player.Present {
@@ -103,9 +103,9 @@ func (s *State) JoinGame(ctx context.Context, gameID string, player PlayerState)
 		return state, nil
 	}
 
-	err = s.SetChessState(ctx, gameID, state)
+	err = svc.SetChessState(ctx, gameID, state)
 	if err != nil {
-		return nil, fmt.Errorf("set chess state by id %s: %w", gameID, err)
+		return nil, fmt.Errorf("set chess s by id %s: %w", gameID, err)
 	}
 	slog.InfoContext(ctx, "player joined game", "playerID", player.ID, "chessMeta", state.ChessMeta)
 	return state, nil
@@ -159,10 +159,10 @@ type MakeMoveResult struct {
 	Move     chess.HistMove
 }
 
-func (s *State) MakeGameMove(ctx context.Context, gameID string, player PlayerState, move chess.Move) (mr MakeMoveResult, err error) {
-	state, err := s.GetChessState(ctx, gameID)
+func (svc *Services) MakeGameMove(ctx context.Context, gameID string, player PlayerState, move chess.Move) (mr MakeMoveResult, err error) {
+	state, err := svc.GetChessState(ctx, gameID)
 	if err != nil {
-		return mr, fmt.Errorf("get chess state by id %s: %w", gameID, err)
+		return mr, fmt.Errorf("get chess s by id %s: %w", gameID, err)
 	}
 
 	gameID = state.ID
@@ -189,13 +189,13 @@ func (s *State) MakeGameMove(ctx context.Context, gameID string, player PlayerSt
 
 	mr = MakeMoveResult{State: state, Move: hm}
 
-	// this lock is used to guarantee one client may write the game state at any given time. a client will retry the operation (and read again) if it fails to acquire a lock, so we can acquire after reading.
-	ok := s.AcquireChessLock(ctx, gameID)
+	// this lock is used to guarantee one client may write the game s at any given time. a client will retry the operation (and read again) if it fails to acquire a lock, so we can acquire after reading.
+	ok := svc.AcquireChessLock(ctx, gameID)
 	if !ok {
 		return mr, ErrLockedGame
 	}
 	defer func() {
-		s.ReleaseChessLock(ctx, gameID) // if this fails the lock will expire anyways, so don't handle the error.
+		svc.ReleaseChessLock(ctx, gameID) // if this fails the lock will expire anyways, so don't handle the error.
 	}()
 
 	// write the results of the operation to all stores. if the game is complete, we must persist game stats information to the databases. this operation is not atomic.
@@ -207,7 +207,7 @@ func (s *State) MakeGameMove(ctx context.Context, gameID string, player PlayerSt
 			result = BlackWin
 		}
 		cause := Checkmate
-		cs, err := s.WriteFinishedGame(ctx, state, result, cause)
+		cs, err := svc.WriteFinishedGame(ctx, state, result, cause)
 		if err != nil {
 			return mr, fmt.Errorf("write checkmate game result: %w", err)
 		}
@@ -220,8 +220,8 @@ func (s *State) MakeGameMove(ctx context.Context, gameID string, player PlayerSt
 		}
 	}
 
-	if err := s.SetChessState(ctx, gameID, state); err != nil {
-		return mr, fmt.Errorf("set chess state by id %s: %w", gameID, err)
+	if err := svc.SetChessState(ctx, gameID, state); err != nil {
+		return mr, fmt.Errorf("set chess s by id %s: %w", gameID, err)
 	}
 	slog.InfoContext(ctx, "made move on game", "player", player.ID, "move", move, "chessMeta", state.ChessMeta)
 
@@ -242,10 +242,10 @@ const (
 	UndoReject
 )
 
-func (s *State) AttemptGameUndo(ctx context.Context, gameID string, player PlayerState, kind UndoKind) (*ChessState, error) {
-	state, err := s.GetChessState(ctx, gameID)
+func (svc *Services) AttemptGameUndo(ctx context.Context, gameID string, player PlayerState, kind UndoKind) (*ChessState, error) {
+	state, err := svc.GetChessState(ctx, gameID)
 	if err != nil {
-		return nil, fmt.Errorf("get chess state by id %s: %w", gameID, err)
+		return nil, fmt.Errorf("get chess s by id %s: %w", gameID, err)
 	}
 
 	switch kind {
@@ -273,16 +273,16 @@ func (s *State) AttemptGameUndo(ctx context.Context, gameID string, player Playe
 		state.UndoState = UndoState{}
 	}
 
-	if err := s.SetChessState(ctx, gameID, state); err != nil {
-		return nil, fmt.Errorf("set chess state by id %s: %w", gameID, err)
+	if err := svc.SetChessState(ctx, gameID, state); err != nil {
+		return nil, fmt.Errorf("set chess s by id %s: %w", gameID, err)
 	}
 	return state, nil
 }
 
-func (s *State) ForfeitGame(ctx context.Context, gameID string, player PlayerState) (replayID int64, fs EndState, err error) {
-	state, err := s.GetChessState(ctx, gameID)
+func (svc *Services) ForfeitGame(ctx context.Context, gameID string, player PlayerState) (replayID int64, fs EndState, err error) {
+	state, err := svc.GetChessState(ctx, gameID)
 	if err != nil {
-		return replayID, fs, fmt.Errorf("get chess state by id %s: %w", gameID, err)
+		return replayID, fs, fmt.Errorf("get chess s by id %s: %w", gameID, err)
 	}
 	if state.EndState.Kind != NotEnded {
 		return replayID, fs, ErrFinishedGame{GameID: gameID, Kind: state.EndState.Kind}
@@ -300,7 +300,7 @@ func (s *State) ForfeitGame(ctx context.Context, gameID string, player PlayerSta
 		}
 		cause := Forfeit
 
-		cs, err := s.WriteFinishedGame(ctx, state, result, cause)
+		cs, err := svc.WriteFinishedGame(ctx, state, result, cause)
 		if err != nil {
 			return replayID, fs, fmt.Errorf("write forfeit game result: %w", err)
 		}
@@ -318,15 +318,15 @@ func (s *State) ForfeitGame(ctx context.Context, gameID string, player PlayerSta
 	}
 
 	state.EndState = fs
-	if err := s.SetChessState(ctx, gameID, state); err != nil {
-		return replayID, fs, fmt.Errorf("set chess state by id %s: %w", gameID, err)
+	if err := svc.SetChessState(ctx, gameID, state); err != nil {
+		return replayID, fs, fmt.Errorf("set chess s by id %s: %w", gameID, err)
 	}
 
 	slog.InfoContext(ctx, "player forfeited game", "playerID", player.ID, "gameId", gameID)
 	return replayID, fs, nil
 }
 
-func (s *State) WriteFinishedGame(ctx context.Context, state *ChessState, result ReplayResult, cause ReplayCause) (cs GRChangeSet, err error) {
+func (svc *Services) WriteFinishedGame(ctx context.Context, state *ChessState, result ReplayResult, cause ReplayCause) (cs GRChangeSet, err error) {
 	if !state.WhitePlayer.Present || !state.BlackPlayer.Present {
 		return cs, fmt.Errorf("game players must be present on a finished game: %s", state.ID)
 	}
@@ -338,7 +338,7 @@ func (s *State) WriteFinishedGame(ctx context.Context, state *ChessState, result
 	whiteID := state.WhitePlayer.ID
 	blackID := state.BlackPlayer.ID
 
-	cs, err = s.InsertGameResultTx(ctx, time.Time{}, GameResult{
+	cs, err = svc.InsertGameResultTx(ctx, time.Time{}, GameResult{
 		WhiteID:      whiteID,
 		BlackID:      blackID,
 		ReplayCause:  cause,
@@ -354,13 +354,13 @@ func (s *State) WriteFinishedGame(ctx context.Context, state *ChessState, result
 	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", cs, "room", state.ID)
 
 	go func() {
-		if err := s.PutReplayMoveSeq(ctx, cs.ReplayID, state.InitialBoard, state.Game.Moves); err != nil {
+		if err := svc.PutMovesHistory(ctx, cs.ReplayID, state.InitialBoard, state.Game.Moves); err != nil {
 			// it is high unlikely that this fails, but consider adding a DLQ here
 			slog.ErrorContext(ctx, "failed upload replay move seq to S3", "err", err)
 		}
 	}()
 	go func() {
-		if err := s.IncrLeaderboard(ctx,
+		if err := svc.IncrLeaderboard(ctx,
 			UpdtLbChangeSet{Mode: state.Mode, ID: cs.WinID, EloDiff: cs.WinEloDiff},
 			UpdtLbChangeSet{Mode: state.Mode, ID: cs.LoseID, EloDiff: cs.LoseEloDiff},
 		); err != nil {
@@ -369,7 +369,7 @@ func (s *State) WriteFinishedGame(ctx context.Context, state *ChessState, result
 		}
 	}()
 
-	slog.InfoContext(ctx, "completed writing finished game", "stateID", state.ID)
+	slog.InfoContext(ctx, "completed writing finished game", "sID", state.ID)
 	return cs, nil
 }
 
@@ -393,8 +393,8 @@ func (cs GRChangeSet) IsNoop() bool {
 	return cs.LoseEloDiff == 0 && cs.WinEloDiff == 0
 }
 
-func (s *State) InsertGameResultTx(ctx context.Context, timeAt time.Time, params GameResult) (cs GRChangeSet, err error) {
-	err = s.RunInTx(ctx, db.TxnArgs{
+func (svc *Services) InsertGameResultTx(ctx context.Context, timeAt time.Time, params GameResult) (cs GRChangeSet, err error) {
+	err = svc.RunInTx(ctx, db.TxnArgs{
 		Fn: func(ctx context.Context, query *db.Queries) (err error) {
 			cs, err = insertGameResult(ctx, query, timeAt, params)
 			return err

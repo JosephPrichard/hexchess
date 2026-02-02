@@ -60,13 +60,13 @@ func scanEvents(resp *http.Response, wantEvents int) []string {
 
 func TestHandleCountEvents(t *testing.T) {
 	// given
-	state := svc.SetupStateTest(t, itest.WithRedis)
-	defer state.Close()
+	services := svc.SetupServicesTest(t, itest.Redis)
+	defer services.Close()
 
-	state.LocalBroadcasters = svc.MakeBroadcaster()
-	<-state.LocalBroadcasters.ListenUnicastEvents(state.Redis)
+	services.LocalBroadcasters = svc.MakeBroadcaster()
+	<-services.LocalBroadcasters.ListenUnicastEvents(services.Redis)
 
-	testServer := httptest.NewServer(MakeRoot(Setup{State: state}))
+	testServer := httptest.NewServer(MakeRoot(Setup{Services: services}))
 	defer testServer.Close()
 
 	// optimistic timeout incase of deadlock.
@@ -85,8 +85,8 @@ func TestHandleCountEvents(t *testing.T) {
 	go func() {
 		ctx := context.WithValue(context.Background(), logutil.Trace, "broadcast-counts")
 		errChan <- errors.Join(
-			state.BroadcastActiveCount(ctx, 2),
-			state.BroadcastGameCount(ctx, 1))
+			services.BroadcastActiveCount(ctx, 2),
+			services.BroadcastGameCount(ctx, 1))
 	}()
 
 	// then
@@ -104,13 +104,13 @@ func TestHandleCountEvents(t *testing.T) {
 
 func TestHandleActiveConn(t *testing.T) {
 	// given
-	state := svc.SetupStateTest(t, itest.WithRedis)
-	defer state.Close()
+	services := svc.SetupServicesTest(t, itest.Redis)
+	defer services.Close()
 
-	state.LocalBroadcasters = svc.MakeBroadcaster()
-	state.EntropySource = &ext.StableSource{ID: "id1"}
+	services.LocalBroadcasters = svc.MakeBroadcaster()
+	services.EntropySource = &ext.StableSource{ID: "id1"}
 
-	<-state.LocalBroadcasters.ListenUnicastEvents(state.Redis)
+	<-services.LocalBroadcasters.ListenUnicastEvents(services.Redis)
 
 	wantBrdcasts := []svc.UcEvent{{Kind: svc.UcActiveEk, Data: `{"count":1}`}, {Kind: svc.UcActiveEk, Data: `{"count":0}`}}
 
@@ -119,9 +119,9 @@ func TestHandleActiveConn(t *testing.T) {
 	defer cancel()
 
 	sub := make(chan svc.UcEvent, len(wantBrdcasts))
-	state.LocalBroadcasters.CountsCaster.Subscribe(sub)
+	services.LocalBroadcasters.CountsCaster.Subscribe(sub)
 
-	testServer := httptest.NewServer(MakeRoot(Setup{State: state}))
+	testServer := httptest.NewServer(MakeRoot(Setup{Services: services}))
 	defer testServer.Close()
 
 	// when
@@ -150,15 +150,15 @@ ReadBrdcasts:
 
 func TestHandleUserEvents(t *testing.T) {
 	// given
-	state := svc.SetupStateTest(t, itest.WithRedis)
-	defer state.Close()
+	services := svc.SetupServicesTest(t, itest.Redis)
+	defer services.Close()
 
-	state.LocalBroadcasters = svc.MakeBroadcaster()
-	<-state.LocalBroadcasters.ListenUsersMessages(state.Redis)
+	services.LocalBroadcasters = svc.MakeBroadcaster()
+	<-services.LocalBroadcasters.ListenUsersMessages(services.Redis)
 
-	createTestSessions(t, state)
+	createTestSessions(t, services)
 
-	testServer := httptest.NewServer(MakeRoot(Setup{State: state}))
+	testServer := httptest.NewServer(MakeRoot(Setup{Services: services}))
 	defer testServer.Close()
 
 	// optimistic timeout incase of deadlock.
@@ -180,9 +180,9 @@ func TestHandleUserEvents(t *testing.T) {
 	go func() {
 		ctx := context.WithValue(t.Context(), logutil.Trace, "broadcast-user-events")
 		errChan <- errors.Join(
-			state.BroadcastChallenge(ctx, brdcastedChallenge),
-			state.BroadcastChallenge(ctx, svc.ChallengeEntity{ChallengeeID: 2}),
-			state.BroadcastChallenge(ctx, brdcastedChallenge))
+			services.BroadcastChallenge(ctx, brdcastedChallenge),
+			services.BroadcastChallenge(ctx, svc.ChallengeEntity{ChallengeeID: 2}),
+			services.BroadcastChallenge(ctx, brdcastedChallenge))
 	}()
 
 	// then

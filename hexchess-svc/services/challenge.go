@@ -62,12 +62,12 @@ func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) ChallengeEntit
 	}
 }
 
-func (s *State) InsertChallenge(ctx context.Context, inst ChallengeInst) error {
-	_, err := s.InsertChallengeRet(ctx, inst)
+func (svc *Services) InsertChallenge(ctx context.Context, inst ChallengeInst) error {
+	_, err := svc.InsertChallengeRet(ctx, inst)
 	return err
 }
 
-func (s *State) InsertChallengeRet(ctx context.Context, inst ChallengeInst) (ChallengeEntity, error) {
+func (svc *Services) InsertChallengeRet(ctx context.Context, inst ChallengeInst) (ChallengeEntity, error) {
 	if inst.ChallengerID == inst.ChallengeeID {
 		return ChallengeEntity{}, ErrSelfChallenge
 	}
@@ -75,7 +75,7 @@ func (s *State) InsertChallengeRet(ctx context.Context, inst ChallengeInst) (Cha
 		inst.MadeOn = time.Now()
 	}
 
-	row, dbErr := s.Query().InsertChallenge(ctx, db.InsertChallengeParams{
+	row, dbErr := svc.Query().InsertChallenge(ctx, db.InsertChallengeParams{
 		ChallengerID: inst.ChallengerID,
 		ChallengeeID: inst.ChallengeeID,
 		Mode:         db.ModeEnum(inst.Mode.String()),
@@ -109,8 +109,8 @@ type ChallengeKey struct {
 }
 
 // GetChallengesByParticipant will select challenges by the participant after the 'since' time
-func (s *State) GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]ChallengeEntity, error) {
-	since := s.GetNow().Add(-ExpireChallengeMaxAge)
+func (svc *Services) GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]ChallengeEntity, error) {
+	since := svc.GetNow().Add(-ExpireChallengeMaxAge)
 
 	var pgChallengerID pgtype.Int8
 	if key.ChallengerID != -1 {
@@ -123,7 +123,7 @@ func (s *State) GetChallengesByParticipant(ctx context.Context, key ChallengeKey
 		pgChallengeeID.Int64 = key.ChallengeeID
 	}
 
-	rows, err := s.Query().SelectChallengesByParticipant(ctx, db.SelectChallengesByParticipantParams{
+	rows, err := svc.Query().SelectChallengesByParticipant(ctx, db.SelectChallengesByParticipantParams{
 		ChallengerID: pgChallengerID,
 		ChallengeeID: pgChallengeeID,
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
@@ -148,9 +148,9 @@ type DeleteResult struct {
 	FirstColor   Color
 }
 
-func (s *State) DeleteChallenge(ctx context.Context, key ChallengeKey) (DeleteResult, error) {
+func (svc *Services) DeleteChallenge(ctx context.Context, key ChallengeKey) (DeleteResult, error) {
 	var dr DeleteResult
-	row, err := s.Query().DeleteChallenge(ctx, db.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	row, err := svc.Query().DeleteChallenge(ctx, db.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return dr, ErrChallengeNotFound
 	}
@@ -177,9 +177,9 @@ func (s *State) DeleteChallenge(ctx context.Context, key ChallengeKey) (DeleteRe
 	return dr, err
 }
 
-func (s *State) DeleteExpiredChallenges(ctx context.Context, userID int64) error {
-	t := s.GetNow().Add(-ExpireChallengeMaxAge)
-	err := s.Query().DeleteExpiredChallenges(ctx, db.DeleteExpiredChallengesParams{
+func (svc *Services) DeleteExpiredChallenges(ctx context.Context, userID int64) error {
+	t := svc.GetNow().Add(-ExpireChallengeMaxAge)
+	err := svc.Query().DeleteExpiredChallenges(ctx, db.DeleteExpiredChallengesParams{
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: t},
 	})

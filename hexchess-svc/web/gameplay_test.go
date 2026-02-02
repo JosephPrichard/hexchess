@@ -13,7 +13,7 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
 	"hexchess-svc/pkg/assertutil"
-	svc "hexchess-svc/services"
+	"hexchess-svc/services"
 
 	"net/http"
 	"net/http/httptest"
@@ -31,7 +31,7 @@ func TestHandleGameplayWs(t *testing.T) {
 	wantInit := &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Init{Init: &pb.InitOutput{
-			State: &pb.ChessState{}, // ignoring state, we care about message count/type here.
+			State: &pb.ChessState{}, // ignoring services, we care about message count/type here.
 			Self:  &pb.PlayerState{Id: 1, Name: "user1", Country: "us"},
 		}},
 	}
@@ -147,22 +147,22 @@ func TestHandleGameplayWs(t *testing.T) {
 			wantMsgs := slices.Concat(wantMsgs, test.wantMsgs)
 			wantBrdcasts := slices.Concat(wantBrdcasts, test.wantBrdcasts)
 
-			state := svc.SetupStateTest(t, itest.UseTxn, itest.WithPostgres, itest.WithRedis, itest.WithAws)
-			defer state.Close()
+			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis, itest.Aws)
+			defer services.Close()
 
-			state.EntropySource = &ext.StableSource{Time: itest.TimeNow}
-			state.LocalBroadcasters = svc.MakeBroadcaster()
+			services.EntropySource = &ext.StableSource{Time: itest.TimeNow}
+			services.LocalBroadcasters = svc.MakeBroadcaster()
 
-			createTestSessions(t, state)
-			createTestChessStates(t, state)
+			createTestSessions(t, services)
+			createTestChessStates(t, services)
 
-			testServer := httptest.NewServer(MakeRoot(Setup{State: state}))
+			testServer := httptest.NewServer(MakeRoot(Setup{Services: services}))
 			defer testServer.Close()
 
 			// (start, subscribe, and read broadcasts)
-			<-state.LocalBroadcasters.ListenGameMessages(state.Redis)
+			<-services.LocalBroadcasters.ListenGameMessages(services.Redis)
 			subChan := make(chan []byte, len(wantBrdcasts))
-			state.LocalBroadcasters.GamesCaster.Subscribe(gameID, subChan)
+			services.LocalBroadcasters.GamesCaster.Subscribe(gameID, subChan)
 
 			ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 			defer cancel()
@@ -195,7 +195,7 @@ func TestHandleGameplayWs(t *testing.T) {
 
 			cmpOpts := []cmp.Option{
 				protocmp.Transform(),
-				protocmp.IgnoreFields(&pb.InitOutput{}, "state"),
+				protocmp.IgnoreFields(&pb.InitOutput{}, "s"),
 				protocmp.IgnoreFields(&pb.MoveOutput{}, "game"),
 				protocmp.IgnoreFields(&pb.UndoOutput{}, "game"),
 				protocmp.IgnoreFields(&pb.HistMove{}, "white_timer_ms", "black_timer_ms"),

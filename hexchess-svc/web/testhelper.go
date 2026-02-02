@@ -33,7 +33,7 @@ var TestStates = []svc.ChessState{
 	svc.MakeChess(svc.StateSetup{ID: "game3", Mode: svc.ModeCorrespondence1, FirstColor: svc.Random}),
 }
 
-func createTestSessions(t *testing.T, s svc.State) {
+func createTestSessions(t *testing.T, s svc.Services) {
 	t.Helper()
 	ctx := context.WithValue(context.Background(), logutil.Trace, "create-testing-session-1")
 	if err := s.SetSessions(ctx,
@@ -44,12 +44,12 @@ func createTestSessions(t *testing.T, s svc.State) {
 	}
 }
 
-func createTestChessStates(t *testing.T, s svc.State) {
+func createTestChessStates(t *testing.T, svc *svc.Services) {
 	t.Helper()
 	ctx := context.WithValue(context.Background(), logutil.Trace, "testing-update-password")
 	for _, state := range TestStates {
-		if err := s.SetChessState(ctx, state.ID, &state); err != nil {
-			t.Fatalf("create testing states: %v", err)
+		if err := svc.SetChessState(ctx, state.ID, &state); err != nil {
+			t.Fatalf("create testing ss: %v", err)
 		}
 	}
 }

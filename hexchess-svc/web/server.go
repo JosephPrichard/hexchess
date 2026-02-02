@@ -40,13 +40,13 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 }
 
 type Setup struct {
-	State          svc.State
+	Services       svc.Services
 	CountryList    []string
 	AllowedOrigins string
 }
 
 type App struct {
-	svc.State
+	svc.Services
 	ValidCountries map[string]bool
 }
 
@@ -65,7 +65,7 @@ func MakeRoot(setup Setup) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(RouteMiddleware(setup.AllowedOrigins))
 
-	app := App{setup.State, validCountries}
+	app := App{setup.Services, validCountries}
 
 	r.Post("/api/register", Rest(app.HandleRegister))
 	r.Post("/api/login", Rest(app.HandleLogin))

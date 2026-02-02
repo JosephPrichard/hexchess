@@ -10,16 +10,29 @@ import (
 	"io"
 	"log/slog"
 	"strconv"
+	"strings"
 	"time"
 )
 
 const ReplayMoveListPrefix = "replays/moves"
 
-func MakeReplayMoveListKey(replayID string) string {
+func MakeMoveHistoryKey(replayID string) string {
 	return fmt.Sprintf("%s/%s", ReplayMoveListPrefix, replayID)
 }
 
-func (s *State) PutReplayMoveSeq(ctx context.Context, replayID int64, initialBoard chess.Board, moves []chess.HistMove) error {
+func ParseMoveHistoryKey(key string) (int64, error) {
+	tokens := strings.Split(key, "/")
+	if len(tokens) != 3 {
+		return 0, fmt.Errorf("invalid history key, wrong number of tokens: %s", key)
+	}
+	replayID, err := strconv.ParseInt(tokens[2], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("history key replayID is not a valid integer: %s: %w", key, err)
+	}
+	return replayID, nil
+}
+
+func (svc *Services) PutMovesHistory(ctx context.Context, replayID int64, initialBoard chess.Board, moves []chess.HistMove) error {
 	slog.InfoContext(ctx, "uploading move history to s3", "replayID", replayID)
 	start := time.Now()
 
@@ -27,25 +40,25 @@ func (s *State) PutReplayMoveSeq(ctx context.Context, replayID int64, initialBoa
 	if err != nil {
 		return fmt.Errorf("marshal move history to s3: %w", err)
 	}
-	key := MakeReplayMoveListKey(strconv.Itoa(int(replayID)))
+	key := MakeMoveHistoryKey(strconv.Itoa(int(replayID)))
 
-	if _, err := s.S3Client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(s.S3ReplayBucket),
+	if _, err := svc.S3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(svc.S3ReplayBucket),
 		Key:    aws.String(key),
 		Body:   bytes.NewReader(moveHistBytes),
 	}); err != nil {
-		return fmt.Errorf("put move history=%s: to s3 bucket: %s: %w", key, s.S3ReplayBucket, err)
+		return fmt.Errorf("put move history=%s: to s3 Bucket: %s: %w", key, svc.S3ReplayBucket, err)
 	}
 
 	slog.InfoContext(ctx, "finished uploading move history to s3", "key", key, "replayID", replayID, "took", time.Since(start))
 	return nil
 }
 
-func (s *State) GetMoveReplay(ctx context.Context, replayID string) ([]byte, error) {
-	key := MakeReplayMoveListKey(replayID)
+func (svc *Services) GetMovesHistory(ctx context.Context, replayID string) ([]byte, error) {
+	key := MakeMoveHistoryKey(replayID)
 
-	object, err := s.S3Client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(s.S3ReplayBucket),
+	object, err := svc.S3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(svc.S3ReplayBucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {

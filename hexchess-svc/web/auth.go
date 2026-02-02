@@ -39,7 +39,7 @@ func MakeSessionID() string {
 	return string(bytes)
 }
 
-func GetSessionPlayer(ctx context.Context, s svc.State, r *http.Request) (svc.PlayerState, string, error) {
+func GetSessionPlayer(ctx context.Context, s svc.Services, r *http.Request) (svc.PlayerState, string, error) {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
 		return svc.PlayerState{}, "", svc.ErrSessionNotFound
@@ -52,7 +52,7 @@ func GetSessionPlayer(ctx context.Context, s svc.State, r *http.Request) (svc.Pl
 	return player, sessionID, nil
 }
 
-func SetSessionPlayer(ctx context.Context, s svc.State, w http.ResponseWriter, player svc.PlayerState) (time.Duration, error) {
+func SetSessionPlayer(ctx context.Context, s svc.Services, w http.ResponseWriter, player svc.PlayerState) (time.Duration, error) {
 	sessionID := MakeSessionID()
 	if err := s.SetSessions(ctx, svc.SessInst{SessionID: sessionID, Player: player, Expiry: SessionMaxAge}); err != nil {
 		return 0, err

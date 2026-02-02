@@ -111,11 +111,11 @@ func TestUnicaster(t *testing.T) {
 
 func TestBroadcastGameMessage(t *testing.T) {
 	// given
-	s := SetupStateTest(t, itest.WithRedis)
-	defer s.Close()
+	services := SetupServicesTest(t, itest.Redis)
+	defer services.Close()
 
 	lb := LocalBroadcasters{GamesCaster: MakeMultiCasterMap("testing-broker-map", time.Hour*1)}
-	<-lb.ListenGameMessages(s.Redis)
+	<-lb.ListenGameMessages(services.Redis)
 
 	ctx, cancel := context.WithTimeout(context.WithValue(t.Context(), logutil.Trace, t.Name()), 1*time.Second)
 	defer cancel()
@@ -139,7 +139,7 @@ func TestBroadcastGameMessage(t *testing.T) {
 			Value:  &pb.GameOutput_Chat{Chat: &pb.ChatOutput{Message: input.msg}},
 		})
 		require.NoError(t, err)
-		require.NoError(t, s.BroadcastGamesEvent(ctx, v))
+		require.NoError(t, services.BroadcastGamesEvent(ctx, v))
 	}
 
 	// then

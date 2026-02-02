@@ -14,13 +14,13 @@ import (
 
 func TestGetReplay(t *testing.T) {
 	// given
-	s := SetupStateTest(t, itest.UseTxn, itest.WithPostgres)
-	defer s.Close()
+	services := SetupServicesTest(t, itest.RWPostgres)
+	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	// when
-	actualReplay1, err := s.GetReplay(ctx, 1)
+	actualReplay1, err := services.GetReplay(ctx, 1)
 	require.NoError(t, err)
 
 	// then
@@ -48,15 +48,15 @@ func TestGetReplay(t *testing.T) {
 
 func TestGetUserReplays(t *testing.T) {
 	// given
-	s := SetupStateTest(t, itest.UseTxn, itest.WithPostgres)
-	defer s.Close()
+	services := SetupServicesTest(t, itest.RWPostgres)
+	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	// when
-	actualReplayList1, err := s.GetUserReplays(ctx, 1, -1, 5)
+	actualReplayList1, err := services.GetUserReplays(ctx, 1, -1, 5)
 	require.NoError(t, err)
-	actualReplayList2, err := s.GetUserReplays(ctx, 1, 3, 5)
+	actualReplayList2, err := services.GetUserReplays(ctx, 1, 3, 5)
 	require.NoError(t, err)
 
 	// then
@@ -109,13 +109,13 @@ func TestRetrieveEloHistories(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// given
-			s := SetupStateTest(t, itest.WithPostgres)
-			defer s.Close()
+			services := SetupServicesTest(t, itest.ROPostgres)
+			defer services.Close()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
 
 			// when
-			eloHistories, bd, err := s.RetrieveEloHistoryBuckets(ctx, test.params)
+			eloHistories, bd, err := services.RetrieveEloHistoryBuckets(ctx, test.params)
 			require.NoError(t, err)
 
 			// then

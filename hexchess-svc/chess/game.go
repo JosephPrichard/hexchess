@@ -8,7 +8,7 @@ import (
 type AttackTable = [Files][MaxRanks]bool
 
 type Game struct {
-	// data fields that store the state of the game itself
+	// data fields that store the s of the game itself
 	Board            Board
 	WhiteMoves       []PieceMoves
 	BlackMoves       []PieceMoves
@@ -577,7 +577,7 @@ func (e JumpIndexError) Error() string {
 }
 
 func JumpMoveIndex(initial Board, moves []HistMove, index int) (*Game, error) {
-	count := index + 1 // requesting state 0 means reapplying 1 move.
+	count := index + 1 // requesting chess 0 means reapplying 1 move.
 
 	if count < 0 || count > len(moves) {
 		return nil, JumpIndexError{Count: count, Len: len(moves)}
