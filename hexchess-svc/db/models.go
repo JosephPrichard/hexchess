@@ -210,6 +210,11 @@ type Replay struct {
 	BlackElo    float64
 }
 
+type ReplayMoveHistory struct {
+	ReplayID int64
+	Data     []byte
+}
+
 type SchemaMigration struct {
 	Version int64
 	Dirty   bool

@@ -226,14 +226,14 @@ func TestAttemptUndo(t *testing.T) {
 }
 
 func TestMakeMove(t *testing.T) {
-	sWhiteTurn := MakeChess(StateSetup{
+	stateWhiteTurn := MakeChess(StateSetup{
 		ID:         "test1",
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      PlayerState{ID: 1, Present: true},
 		Black:      PlayerState{ID: 2, Present: true},
 	})
-	sEnded := MakeChess(StateSetup{
+	stateEnded := MakeChess(StateSetup{
 		ID:         "test2",
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
@@ -247,13 +247,13 @@ func TestMakeMove(t *testing.T) {
 			Result:      WhiteWin,
 		},
 	})
-	sNotStarted := MakeChess(StateSetup{
+	stateNotStarted := MakeChess(StateSetup{
 		ID:         "test3",
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      PlayerState{ID: 1, Present: true},
 	})
-	sBlackIntoCheckmate := MakeChess(StateSetup{
+	stateBlackIntoCheckmate := MakeChess(StateSetup{
 		ID:         "test4",
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
@@ -267,7 +267,7 @@ func TestMakeMove(t *testing.T) {
 			chess.Place{Not: "f9", Piece: chess.BlackKing},
 		)),
 	})
-	ss := []ChessState{sWhiteTurn, sEnded, sNotStarted, sBlackIntoCheckmate}
+	ss := []ChessState{stateWhiteTurn, stateEnded, stateNotStarted, stateBlackIntoCheckmate}
 
 	for _, test := range []struct {
 		name            string
@@ -281,29 +281,29 @@ func TestMakeMove(t *testing.T) {
 		{
 			name:    "invalid turn",
 			pm:      chess.Move{To: chess.Hex{File: 1}},
-			sID:     sWhiteTurn.ID,
-			player:  sWhiteTurn.BlackPlayer,
+			sID:     stateWhiteTurn.ID,
+			player:  stateWhiteTurn.BlackPlayer,
 			wantErr: ErrTurn{GameID: "test1", PlayerID: 2, CurrID: 1},
 		},
 		{
 			name:    "invalid ended move",
 			pm:      chess.Move{To: chess.Hex{File: 1}},
-			sID:     sEnded.ID,
-			player:  sEnded.WhitePlayer,
+			sID:     stateEnded.ID,
+			player:  stateEnded.WhitePlayer,
 			wantErr: ErrFinishedGame{GameID: "test2", Kind: Finished},
 		},
 		{
 			name:    "invalid not started move",
 			pm:      chess.Move{To: chess.Hex{File: 1}},
-			sID:     sNotStarted.ID,
-			player:  sNotStarted.WhitePlayer,
+			sID:     stateNotStarted.ID,
+			player:  stateNotStarted.WhitePlayer,
 			wantErr: ErrStartedGame{GameID: "test3"},
 		},
 		{
 			name:   "invalid move",
 			pm:     chess.Move{To: chess.Hex{File: 1}},
-			sID:    sWhiteTurn.ID,
-			player: sWhiteTurn.WhitePlayer,
+			sID:    stateWhiteTurn.ID,
+			player: stateWhiteTurn.WhitePlayer,
 			wantErr: ErrInvalidMove{
 				GameID:    "test1",
 				PlayerID:  1,
@@ -313,14 +313,14 @@ func TestMakeMove(t *testing.T) {
 		{
 			name:   "valid move as white",
 			pm:     chess.MoveStr("b1", "b2"), // valid move
-			sID:    sWhiteTurn.ID,
-			player: sWhiteTurn.WhitePlayer,
+			sID:    stateWhiteTurn.ID,
+			player: stateWhiteTurn.WhitePlayer,
 		},
 		{
 			name:   "valid move as black",
 			pm:     chess.MoveStr("a2", "a1"), // valid move
-			sID:    sBlackIntoCheckmate.ID,
-			player: sBlackIntoCheckmate.BlackPlayer,
+			sID:    stateBlackIntoCheckmate.ID,
+			player: stateBlackIntoCheckmate.BlackPlayer,
 			wantFinishState: EndState{
 				Kind:        Finished,
 				WinEloDiff:  30,

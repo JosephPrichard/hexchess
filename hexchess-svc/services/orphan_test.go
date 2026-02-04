@@ -25,19 +25,9 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 		fmt.Sprintf("users/profile-pics/8000/%s", uuid.NewString()),
 		fmt.Sprintf("users/profile-pics/9000/%s", uuid.NewString()),
 	}
-	inputReplayKeys := []string{
-		"replays/moves/1",
-		"replays/moves/2",
-		"replays/moves/3",
-		"replays/moves/8000",
-		"replays/moves/9000",
-	}
 
 	for _, id := range inputProfileKeys {
 		ext.PutS3Object(t, services.S3Client, services.S3ProfileBucket, id, []byte("test"))
-	}
-	for _, id := range inputReplayKeys {
-		ext.PutS3Object(t, services.S3Client, services.S3ReplayBucket, id, []byte("test"))
 	}
 
 	// when
@@ -45,7 +35,6 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 
 	// then
 	profileKeys := ext.ListS3Objects(t, services.S3Client, services.S3ProfileBucket)
-	replayKeys := ext.ListS3Objects(t, services.S3Client, services.S3ReplayBucket)
 
 	assertKeyContainment := func(actual []string, shouldContain []string, shouldNotContain []string) {
 		t.Helper()
@@ -57,5 +46,4 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 		}
 	}
 	assertKeyContainment(profileKeys, inputProfileKeys[:3], inputProfileKeys[3:])
-	assertKeyContainment(replayKeys, inputReplayKeys[:3], inputReplayKeys[3:])
 }

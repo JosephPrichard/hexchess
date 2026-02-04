@@ -9,8 +9,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
+const S3ProfileBucket = "hexchess-profiles"
+
 type Aws struct {
-	S3ReplayBucket  string
 	S3ProfileBucket string
 	S3Endpoint      string
 	S3Client        *s3.Client
@@ -22,14 +23,10 @@ type AwsConfig struct {
 	AwsSecretID      string
 	AwsEndpoint      string
 
-	S3ReplayBucket  string
 	S3ProfileBucket string
 }
 
 func MakeAwsClients(ctx context.Context, cfg AwsConfig) (Aws, error) {
-	if cfg.S3ReplayBucket == "" {
-		cfg.S3ReplayBucket = S3ReplayBucket
-	}
 	if cfg.S3ProfileBucket == "" {
 		cfg.S3ProfileBucket = S3ProfileBucket
 	}
@@ -42,7 +39,6 @@ func MakeAwsClients(ctx context.Context, cfg AwsConfig) (Aws, error) {
 		return Aws{}, fmt.Errorf("load aws config %+v: %w", cfg, err)
 	}
 	return Aws{
-		S3ReplayBucket:  cfg.S3ReplayBucket,
 		S3ProfileBucket: cfg.S3ProfileBucket,
 		S3Endpoint:      cfg.AwsEndpoint,
 		S3Client: s3.NewFromConfig(awsCfg, func(o *s3.Options) {

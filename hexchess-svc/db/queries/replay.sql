@@ -13,6 +13,13 @@ VALUES (
         sqlc.arg('mode'))
 RETURNING id;
 
+-- name: InsertReplayMoveHistories :exec
+INSERT INTO replay_move_histories (replay_id, data)
+VALUES(sqlc.arg('replayID'), sqlc.arg('data'));
+
+-- name: SelectReplayMoveHistories :one
+SELECT * FROM replay_move_histories WHERE replay_id = sqlc.arg('replayID') ORDER BY replay_id DESC LIMIT 1;
+
 -- name: SelectReplayRowByID :one
 SELECT *
 FROM replays r

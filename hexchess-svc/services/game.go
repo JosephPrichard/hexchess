@@ -187,16 +187,12 @@ func (svc *Services) MakeGameMove(ctx context.Context, gameID string, player Pla
 	isCheckmate := game.Checkmate()
 	state.UndoState = UndoState{}
 
-	mr = MakeMoveResult{State: state, Move: hm}
-
 	// this lock is used to guarantee one client may write the game s at any given time. a client will retry the operation (and read again) if it fails to acquire a lock, so we can acquire after reading.
 	ok := svc.AcquireChessLock(ctx, gameID)
 	if !ok {
 		return mr, ErrLockedGame
 	}
-	defer func() {
-		svc.ReleaseChessLock(ctx, gameID) // if this fails the lock will expire anyways, so don't handle the error.
-	}()
+	defer svc.ReleaseChessLock(ctx, gameID) // if this fails the lock will expire anyways, so don't handle the error.
 
 	// write the results of the operation to all stores. if the game is complete, we must persist game stats information to the databases. this operation is not atomic.
 	if isCheckmate {
@@ -207,7 +203,7 @@ func (svc *Services) MakeGameMove(ctx context.Context, gameID string, player Pla
 			result = BlackWin
 		}
 		cause := Checkmate
-		cs, err := svc.WriteFinishedGame(ctx, state, result, cause)
+		cs, err := svc.InsertFinishedGame(ctx, state, result, cause)
 		if err != nil {
 			return mr, fmt.Errorf("write checkmate game result: %w", err)
 		}
@@ -225,7 +221,7 @@ func (svc *Services) MakeGameMove(ctx context.Context, gameID string, player Pla
 	}
 	slog.InfoContext(ctx, "made move on game", "player", player.ID, "move", move, "chessMeta", state.ChessMeta)
 
-	return mr, nil
+	return MakeMoveResult{State: state, Move: hm}, nil
 }
 
 var (
@@ -300,7 +296,7 @@ func (svc *Services) ForfeitGame(ctx context.Context, gameID string, player Play
 		}
 		cause := Forfeit
 
-		cs, err := svc.WriteFinishedGame(ctx, state, result, cause)
+		cs, err := svc.InsertFinishedGame(ctx, state, result, cause)
 		if err != nil {
 			return replayID, fs, fmt.Errorf("write forfeit game result: %w", err)
 		}
@@ -326,7 +322,7 @@ func (svc *Services) ForfeitGame(ctx context.Context, gameID string, player Play
 	return replayID, fs, nil
 }
 
-func (svc *Services) WriteFinishedGame(ctx context.Context, state *ChessState, result ReplayResult, cause ReplayCause) (cs GRChangeSet, err error) {
+func (svc *Services) InsertFinishedGame(ctx context.Context, state *ChessState, result ReplayResult, cause ReplayCause) (cs GRChangeSet, err error) {
 	if !state.WhitePlayer.Present || !state.BlackPlayer.Present {
 		return cs, fmt.Errorf("game players must be present on a finished game: %s", state.ID)
 	}
@@ -338,12 +334,18 @@ func (svc *Services) WriteFinishedGame(ctx context.Context, state *ChessState, r
 	whiteID := state.WhitePlayer.ID
 	blackID := state.BlackPlayer.ID
 
+	moveHistBlob, err := chess.MarshalMoveHistory(state.InitialBoard, state.Game.Moves)
+	if err != nil {
+		return cs, fmt.Errorf("marshal move history to s3: %w", err)
+	}
+
 	cs, err = svc.InsertGameResultTx(ctx, time.Time{}, GameResult{
 		WhiteID:      whiteID,
 		BlackID:      blackID,
 		ReplayCause:  cause,
 		ReplayResult: result,
 		ReplayMode:   state.Mode,
+		MoveHistBlob: moveHistBlob,
 	})
 	if err != nil {
 		return cs, fmt.Errorf("execute finish game tx: %w", err)
@@ -353,12 +355,6 @@ func (svc *Services) WriteFinishedGame(ctx context.Context, state *ChessState, r
 	}
 	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", cs, "room", state.ID)
 
-	go func() {
-		if err := svc.PutMovesHistory(ctx, cs.ReplayID, state.InitialBoard, state.Game.Moves); err != nil {
-			// it is high unlikely that this fails, but consider adding a DLQ here
-			slog.ErrorContext(ctx, "failed upload replay move seq to S3", "err", err)
-		}
-	}()
 	go func() {
 		if err := svc.IncrLeaderboard(ctx,
 			UpdtLbChangeSet{Mode: state.Mode, ID: cs.WinID, EloDiff: cs.WinEloDiff},
@@ -379,6 +375,7 @@ type GameResult struct {
 	ReplayCause  ReplayCause  `json:"cause"`
 	ReplayResult ReplayResult `json:"result"`
 	ReplayMode   GameMode     `json:"mode"`
+	MoveHistBlob []byte
 }
 
 type GRChangeSet struct {
@@ -491,6 +488,7 @@ func insertGameResult(ctx context.Context, query *db.Queries, timeAt time.Time, 
 		ReplayWhiteElo: whiteEloNext,
 		ReplayBlackElo: blackEloNext,
 		PlayedOn:       timeAt,
+		MoveHistBlob:   result.MoveHistBlob,
 	})
 	if err != nil {
 		return cs, fmt.Errorf("insert replay: %w", err)

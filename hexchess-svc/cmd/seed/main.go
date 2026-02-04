@@ -149,24 +149,28 @@ func insertRandomizedGameResults(ctx context.Context, s *svc.Services, gameResul
 	for gameIdx, params := range gameResults {
 		eg.Go(func() error {
 			mode := svc.ExpectGameMode(params.ReplayMode)
-			cs, err := s.InsertGameResultTx(egCtx, timeAt.Add(time.Duration(gameIdx)*time.Hour*24), svc.GameResult{
+
+			moveSeq, err := svc.RandomMoveHistSeq(mode, chess.MakeStartGame(), 10, 30)
+			if err != nil {
+				return fmt.Errorf("generate random move seq: %w", err)
+			}
+			moveHistBlob, err := chess.MarshalMoveHistory(chess.InitialBoard(), moveSeq)
+			if err != nil {
+				return fmt.Errorf("marshal move history to s3: %w", err)
+			}
+
+			if _, err = s.InsertGameResultTx(egCtx, timeAt.Add(time.Duration(gameIdx)*time.Hour*24), svc.GameResult{
 				WhiteID:      params.WhiteID,
 				BlackID:      params.BlackID,
 				ReplayCause:  svc.ExpectReplayCause(params.ReplayCause),
 				ReplayResult: svc.ExpectReplayResult(params.ReplayResult),
 				ReplayMode:   mode,
-			})
-			if err != nil {
+				MoveHistBlob: moveHistBlob,
+			}); err != nil {
 				return fmt.Errorf("insert game result: %w", err)
 			}
 
-			game := chess.MakeStartGame()
-			moveSeq, err := svc.RandomMoveHistSeq(mode, game, 10, 30)
-			if err != nil {
-				return fmt.Errorf("generate random move seq: %w", err)
-			}
-
-			return s.PutMovesHistory(egCtx, cs.ReplayID, game.Board, moveSeq)
+			return nil
 		})
 	}
 

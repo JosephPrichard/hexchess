@@ -112,6 +112,16 @@ CREATE TABLE public.challenges (
 
 
 --
+-- Name: replay_move_histories; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.replay_move_histories (
+    replay_id bigint NOT NULL,
+    data bytea NOT NULL
+);
+
+
+--
 -- Name: replays; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -217,6 +227,14 @@ CREATE TABLE public.users_metadata (
 
 ALTER TABLE ONLY public.challenges
     ADD CONSTRAINT challenges_pkey PRIMARY KEY (challenger_id, challengee_id);
+
+
+--
+-- Name: replay_move_histories replay_move_histories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.replay_move_histories
+    ADD CONSTRAINT replay_move_histories_pkey PRIMARY KEY (replay_id);
 
 
 --
@@ -350,6 +368,14 @@ ALTER TABLE ONLY public.challenges
 
 ALTER TABLE ONLY public.challenges
     ADD CONSTRAINT challenges_challenger_id_fkey FOREIGN KEY (challenger_id) REFERENCES public.users(id);
+
+
+--
+-- Name: replay_move_histories fk_replay_id; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.replay_move_histories
+    ADD CONSTRAINT fk_replay_id FOREIGN KEY (replay_id) REFERENCES public.replays(id) ON DELETE CASCADE;
 
 
 --

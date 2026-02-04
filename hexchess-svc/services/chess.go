@@ -170,7 +170,7 @@ func (svc *Services) ReleaseChessLock(ctx context.Context, id string) {
 	}
 }
 
-var ErrNoChessState = errors.New("no chess s")
+var ErrNoChessState = errors.New("no chess state")
 
 func (svc *Services) GetChessState(ctx context.Context, id string) (*ChessState, error) {
 	//if err := s.ExpireChessStates(ctx, s.Redis.GamesZSet); err != nil {
@@ -218,45 +218,28 @@ func (svc *Services) SetChessStateAt(ctx context.Context, id string, state *Ches
 		return fmt.Errorf("marshal chess s: %w", err)
 	}
 
-	// retries with exponential backoffs are used to handle intermittent network issues to increase the chance that writes suceed
-	backoff := 100 * time.Millisecond
+	pipe := svc.Redis.Cache.TxPipeline()
+	pipe.Set(ctx, fullID, b, 0)
 
-	for range SetChessRetries {
-		pipe := svc.Redis.Cache.TxPipeline()
-		pipe.Set(ctx, fullID, b, 0)
-
-		if state.EndState.Kind != Aborted {
-			pipe.ZAdd(ctx, svc.Redis.GamesZSet, redis.Z{Score: touchSecs, Member: fullID})
-			if state.WhitePlayer.Present {
-				pipe.ZAdd(ctx, svc.makeUserGameZSet(state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
-			}
-			if state.BlackPlayer.Present {
-				pipe.ZAdd(ctx, svc.makeUserGameZSet(state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
-			}
-		} else {
-			pipe.ZRem(ctx, svc.Redis.GamesZSet, fullID)
-			if state.WhitePlayer.Present {
-				pipe.ZRem(ctx, svc.makeUserGameZSet(state.WhitePlayer.ID), fullID)
-			}
-			if state.BlackPlayer.Present {
-				pipe.ZRem(ctx, svc.makeUserGameZSet(state.BlackPlayer.ID), fullID)
-			}
+	if state.EndState.Kind != Aborted {
+		pipe.ZAdd(ctx, svc.Redis.GamesZSet, redis.Z{Score: touchSecs, Member: fullID})
+		if state.WhitePlayer.Present {
+			pipe.ZAdd(ctx, svc.makeUserGameZSet(state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
 		}
-
-		_, err = pipe.Exec(ctx)
-		if err == nil {
-			break
+		if state.BlackPlayer.Present {
+			pipe.ZAdd(ctx, svc.makeUserGameZSet(state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
 		}
-		slog.WarnContext(ctx, "failed to set chess s in redis, retrying", "err", err)
-
-		select {
-		case <-time.After(backoff):
-			backoff *= 2
-		case <-ctx.Done():
-			return ctx.Err()
+	} else {
+		pipe.ZRem(ctx, svc.Redis.GamesZSet, fullID)
+		if state.WhitePlayer.Present {
+			pipe.ZRem(ctx, svc.makeUserGameZSet(state.WhitePlayer.ID), fullID)
+		}
+		if state.BlackPlayer.Present {
+			pipe.ZRem(ctx, svc.makeUserGameZSet(state.BlackPlayer.ID), fullID)
 		}
 	}
-	if err != nil {
+
+	if _, err = pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("set chess s in redis after %d retries: %w", SetChessRetries, err)
 	}
 

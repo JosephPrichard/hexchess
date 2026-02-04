@@ -16,13 +16,13 @@ func (svc *Services) ClearBucketOrphans(ctx context.Context, pageLength int32) {
 	var wg sync.WaitGroup
 
 	for _, config := range []RemoveOrphansOpts{
-		{
-			Bucket:     svc.S3ReplayBucket,
-			Prefix:     ReplayMoveListPrefix,
-			PageLength: pageLength,
-			parseID:    ParseMoveHistoryKey,
-			selectIDs:  svc.Query().SelectReplaysExistsByIDs,
-		},
+		//{
+		//	Bucket:     svc.S3ReplayBucket,
+		//	Prefix:     ReplayMoveListPrefix,
+		//	PageLength: pageLength,
+		//	parseID:    ParseMoveHistoryKey,
+		//	selectIDs:  svc.Query().SelectReplaysExistsByIDs,
+		//},
 		{
 			Bucket:     svc.S3ProfileBucket,
 			Prefix:     ProfilePicPrefix,

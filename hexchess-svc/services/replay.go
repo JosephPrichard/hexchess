@@ -41,6 +41,8 @@ type ReplayInst struct {
 	Mode        GameMode
 	WinEloDiff  float64
 	LoseEloDiff float64
+	// replay move history blob
+	MoveHistBlob []byte
 	// white and block elos at the time of insertion
 	ReplayBlackElo float64
 	ReplayWhiteElo float64
@@ -49,6 +51,10 @@ type ReplayInst struct {
 
 // insertReplay A replay is only ever inserted as part of a game result transaction to ensure data consistency
 func insertReplay(ctx context.Context, query *db.Queries, inst ReplayInst) (int64, error) {
+	if inst.MoveHistBlob == nil {
+		inst.MoveHistBlob = []byte{}
+	}
+
 	playedOn := pgtype.Timestamptz{}
 	if !inst.PlayedOn.IsZero() {
 		playedOn = pgtype.Timestamptz{Valid: true, Time: inst.PlayedOn}
@@ -67,6 +73,12 @@ func insertReplay(ctx context.Context, query *db.Queries, inst ReplayInst) (int6
 		PlayedOn: playedOn,
 	})
 	if err != nil {
+		return 0, err
+	}
+	if err = query.InsertReplayMoveHistories(ctx, db.InsertReplayMoveHistoriesParams{
+		ReplayID: replayID,
+		Data:     inst.MoveHistBlob,
+	}); err != nil {
 		return 0, err
 	}
 	slog.InfoContext(ctx, "created a new replay", "replay", inst, "replayID", replayID)
@@ -120,6 +132,14 @@ func (svc *Services) GetReplay(ctx context.Context, id int64) (ReplayEntity, err
 
 	slog.InfoContext(ctx, "selected replay by id", "replay", replay)
 	return replay, nil
+}
+
+func (svc *Services) GetMovesHistory(ctx context.Context, replayID int) ([]byte, error) {
+	row, err := svc.Query().SelectReplayMoveHistories(ctx, int64(replayID))
+	if err != nil {
+		return nil, fmt.Errorf("select replay move histories for replay %d: %w", replayID, err)
+	}
+	return row.Data, nil
 }
 
 func (svc *Services) GetUserReplays(ctx context.Context, userID int64, afterID int64, perPage int32) ([]ReplayEntity, error) {

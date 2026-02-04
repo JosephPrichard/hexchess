@@ -58,6 +58,21 @@ func (q *Queries) InsertReplay(ctx context.Context, arg InsertReplayParams) (int
 	return id, err
 }
 
+const insertReplayMoveHistories = `-- name: InsertReplayMoveHistories :exec
+INSERT INTO replay_move_histories (replay_id, data)
+VALUES($1, $2)
+`
+
+type InsertReplayMoveHistoriesParams struct {
+	ReplayID int64
+	Data     []byte
+}
+
+func (q *Queries) InsertReplayMoveHistories(ctx context.Context, arg InsertReplayMoveHistoriesParams) error {
+	_, err := q.db.Exec(ctx, insertReplayMoveHistories, arg.ReplayID, arg.Data)
+	return err
+}
+
 const selectReplayByID = `-- name: SelectReplayByID :one
 SELECT
     r.id,
@@ -176,6 +191,17 @@ func (q *Queries) SelectReplayElos(ctx context.Context, arg SelectReplayElosPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const selectReplayMoveHistories = `-- name: SelectReplayMoveHistories :one
+SELECT replay_id, data FROM replay_move_histories WHERE replay_id = $1 ORDER BY replay_id DESC LIMIT 1
+`
+
+func (q *Queries) SelectReplayMoveHistories(ctx context.Context, replayid int64) (ReplayMoveHistory, error) {
+	row := q.db.QueryRow(ctx, selectReplayMoveHistories, replayid)
+	var i ReplayMoveHistory
+	err := row.Scan(&i.ReplayID, &i.Data)
+	return i, err
 }
 
 const selectReplayRowByID = `-- name: SelectReplayRowByID :one

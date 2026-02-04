@@ -44,7 +44,7 @@ func createTestSessions(t *testing.T, s svc.Services) {
 	}
 }
 
-func createTestChessStates(t *testing.T, svc *svc.Services) {
+func createTestChessStates(t *testing.T, svc svc.Services) {
 	t.Helper()
 	ctx := context.WithValue(context.Background(), logutil.Trace, "testing-update-password")
 	for _, state := range TestStates {

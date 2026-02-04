@@ -837,7 +837,11 @@ func (app *App) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 
 func (app *App) HandleGetMoveReplay(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-	replayID := r.URL.Query().Get("replayId")
+
+	replayID, err := strconv.Atoi(r.URL.Query().Get("replayId"))
+	if err != nil {
+		return errutil.PutMap(nil, "id", ErrHttpInvalidID)
+	}
 
 	bResp, err := app.Services.GetMovesHistory(ctx, replayID)
 	if err != nil {

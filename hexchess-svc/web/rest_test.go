@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"hexchess-svc/chess"
+	"hexchess-svc/db"
 	"hexchess-svc/ext"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
@@ -786,7 +787,7 @@ func TestHandleGetChessMetas(t *testing.T) {
 
 func TestHandleGetMoveReplay(t *testing.T) {
 	// given
-	services := svc.SetupServicesTest(t, itest.Aws)
+	services := svc.SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
 
 	wantInitialGame := chess.MakeEmptyGame(false)
@@ -800,7 +801,10 @@ func TestHandleGetMoveReplay(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	ext.PutS3Object(t, services.S3Client, services.S3ReplayBucket, "replays/moves/1", object)
+	services.Query().InsertReplayMoveHistories(t.Context(), db.InsertReplayMoveHistoriesParams{
+		ReplayID: 1,
+		Data:     object,
+	})
 
 	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay/move-list?replayId=%d", 1), nil)
 	w := httptest.NewRecorder()

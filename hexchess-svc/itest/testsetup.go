@@ -194,7 +194,6 @@ func SetupAwsTest(ctx context.Context, t logutil.TestLogger) (awsClient ext.Aws,
 	}
 
 	cfg := ext.AwsConfig{
-		S3ReplayBucket:   ext.S3ReplayBucket + "-" + uuid.NewString(),
 		S3ProfileBucket:  ext.S3ProfileBucket + "-" + uuid.NewString(),
 		AwsDefaultRegion: "us-east-1",
 		AwsSecretKey:     "testing",
@@ -207,7 +206,6 @@ func SetupAwsTest(ctx context.Context, t logutil.TestLogger) (awsClient ext.Aws,
 	}
 
 	for _, bucket := range []string{
-		cfg.S3ReplayBucket,
 		cfg.S3ProfileBucket,
 	} {
 		if _, err := awsClients.S3Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {

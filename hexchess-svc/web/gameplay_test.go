@@ -195,7 +195,7 @@ func TestHandleGameplayWs(t *testing.T) {
 
 			cmpOpts := []cmp.Option{
 				protocmp.Transform(),
-				protocmp.IgnoreFields(&pb.InitOutput{}, "s"),
+				protocmp.IgnoreFields(&pb.InitOutput{}, "state"),
 				protocmp.IgnoreFields(&pb.MoveOutput{}, "game"),
 				protocmp.IgnoreFields(&pb.UndoOutput{}, "game"),
 				protocmp.IgnoreFields(&pb.HistMove{}, "white_timer_ms", "black_timer_ms"),
