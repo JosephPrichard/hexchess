@@ -2,6 +2,7 @@ package web
 
 import (
 	"errors"
+	"fmt"
 )
 
 // HTTP error codes
@@ -50,3 +51,33 @@ var (
 	ErrWsUndoCurrPlayer = errors.New("ERROR_UNDO_CURR_PLAYER")
 	ErrWsUndoAction     = errors.New("ERR_UNDO_ACTION")
 )
+
+type RespError struct {
+	Errors map[string]error
+}
+
+func (re *RespError) Put(key string, newErr error) {
+	if re.Errors == nil {
+		re.Errors = make(map[string]error)
+	}
+	re.Errors[key] = newErr
+}
+
+func OneRespError(key string, newErr error) error {
+	return &RespError{Errors: map[string]error{key: newErr}}
+}
+
+func (re *RespError) HasErrors() bool {
+	return len(re.Errors) > 0
+}
+
+func (re *RespError) Error() string {
+	return fmt.Sprintf("%+v", re.Errors)
+}
+
+func (re *RespError) Interface() error {
+	if re.HasErrors() {
+		return re
+	}
+	return nil
+}

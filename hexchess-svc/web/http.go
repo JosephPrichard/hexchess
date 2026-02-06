@@ -3,7 +3,6 @@ package web
 import (
 	"encoding/json"
 	"errors"
-	"hexchess-svc/pkg/errutil"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -59,10 +58,10 @@ func HttpStatusFromErr(err error) (int, string) {
 }
 
 func HttpStatusFromErrs(err error) ServiceView {
-	var errs map[string]error
-	var merr *errutil.ErrorMap
+	var respErr map[string]error
+	var merr *RespError
 	if ok := errors.As(err, &merr); ok {
-		errs = merr.Errors
+		respErr = merr.Errors
 	} else {
 		status, errStr := HttpStatusFromErr(err)
 		return ServiceView{Status: status, Errors: errStr}
@@ -71,7 +70,7 @@ func HttpStatusFromErrs(err error) ServiceView {
 	errStatus := 0
 	errStrs := make(map[string]string)
 
-	for key, err := range errs {
+	for key, err := range respErr {
 		status, errStr := HttpStatusFromErr(err)
 		// yields the most 'severe' status. 500 is worse than 400, which is worse than 200
 		if status > errStatus {
