@@ -713,8 +713,10 @@ func (app *App) getPlayerQuery(q url.Values) (GetPlayerArgs, error) {
 	if err != nil {
 		respErr.Put("id", ErrHttpInvalidID)
 	}
+
 	withReplaysStr := q.Get("withReplays")
 	withReplays := strings.ToLower(withReplaysStr) == "true"
+
 	return GetPlayerArgs{UserID: userID, WithReplays: withReplays}, respErr.Interface()
 }
 
@@ -799,12 +801,13 @@ func (app *App) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) erro
 
 	var userList []svc.LbdUserEntity
 	if hasUser {
-		userList, err = app.Services.GetFuzzySearchLeaderboard(ctx, name, int32(page), perPage)
+		users, err := app.Services.GetFuzzySearchLeaderboard(ctx, name, int32(page), perPage)
 		if errors.Is(err, svc.ErrSearchLimit) {
 			return ErrHttpSearchLimit
 		} else if err != nil {
 			return fmt.Errorf("search users by name=%s: %w", name, err)
 		}
+		userList = users
 	}
 
 	if userList == nil {
@@ -913,13 +916,17 @@ func (app *App) HandleGetChallenges(w http.ResponseWriter, r *http.Request) erro
 	var challengeList []svc.ChallengeEntity
 	switch participants {
 	case "sent":
-		if challengeList, err = app.Services.GetChallengesByParticipant(ctx, svc.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1}); err != nil {
+		byChallenger, err := app.Services.GetChallengesByParticipant(ctx, svc.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1})
+		if err != nil {
 			return fmt.Errorf("get challenges by challenger: %w", err)
 		}
+		challengeList = byChallenger
 	case "received":
-		if challengeList, err = app.Services.GetChallengesByParticipant(ctx, svc.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID}); err != nil {
+		byChallengee, err := app.Services.GetChallengesByParticipant(ctx, svc.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID})
+		if err != nil {
 			return fmt.Errorf("get challenges by challengee: %w", err)
 		}
+		challengeList = byChallengee
 	}
 
 	if challengeList == nil {
@@ -1003,9 +1010,11 @@ func (app *App) HandleGetChessMetas(w http.ResponseWriter, r *http.Request) erro
 
 	var myChessMetas []svc.ChessMeta
 	if hasSession {
-		if myChessMetas, err = app.Services.GetUserChessMetas(ctx, player.ID); err != nil {
+		chesMetas, err := app.Services.GetUserChessMetas(ctx, player.ID)
+		if err != nil {
 			return fmt.Errorf("get user %d chess metas: %w", player.ID, err)
 		}
+		myChessMetas = chesMetas
 	}
 
 	writeJSON(w, http.StatusOK, ChessMetasResp{

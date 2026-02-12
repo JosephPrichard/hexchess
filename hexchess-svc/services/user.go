@@ -180,7 +180,7 @@ type VerifiedUser struct {
 
 func (svc *Services) VerifyUserTx(ctx context.Context, username string, inputPassword string) (u VerifiedUser, err error) {
 	err = svc.RunInTx(ctx, db.TxnArgs{
-		Fn: func(ctx context.Context, query *db.Queries) (err error) {
+		QueryFn: func(ctx context.Context, query *db.Queries) (err error) {
 			u, err = verifyUser(ctx, query, username, inputPassword)
 			return err
 		},

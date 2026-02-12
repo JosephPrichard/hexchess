@@ -7,7 +7,7 @@ import (
 )
 
 type TxnArgs struct {
-	Fn           func(ctx context.Context, query *Queries) error
+	QueryFn      func(ctx context.Context, query *Queries) error
 	ErrAllowlist []error
 }
 
@@ -36,10 +36,11 @@ func (pdb *PostgresDB) RunInTx(ctx context.Context, args TxnArgs) (err error) {
 		}
 	}()
 
-	err = args.Fn(ctx, pdb.q.WithTx(tx))
+	err = args.QueryFn(ctx, pdb.q.WithTx(tx))
 	return
 }
 
 func (pdb *PostgresFake) RunInTx(ctx context.Context, args TxnArgs) (err error) {
-	return args.Fn(ctx, New(pdb.testingTxn))
+	// a fake postgres instance is already running in a txn, so noop the txn
+	return args.QueryFn(ctx, New(pdb.testingTxn))
 }

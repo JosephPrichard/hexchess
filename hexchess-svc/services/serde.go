@@ -74,7 +74,7 @@ func DeserializeEndState(pbEndState *pb.EndState) (s EndState, err error) {
 	case *pb.EndState_AbortState:
 		return EndState{Kind: Aborted}, nil
 	default:
-		return s, fmt.Errorf("unknown end s type: %T", p)
+		return s, fmt.Errorf("unknown end state type: %T", p)
 	}
 }
 

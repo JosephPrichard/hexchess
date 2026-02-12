@@ -148,33 +148,32 @@ type DeleteResult struct {
 	FirstColor   Color
 }
 
-func (svc *Services) DeleteChallenge(ctx context.Context, key ChallengeKey) (DeleteResult, error) {
-	var dr DeleteResult
+func (svc *Services) DeleteChallenge(ctx context.Context, key ChallengeKey) (delResult DeleteResult, err error) {
 	row, err := svc.Query().DeleteChallenge(ctx, db.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	if errors.Is(err, sql.ErrNoRows) {
-		return dr, ErrChallengeNotFound
+		return delResult, ErrChallengeNotFound
 	}
 	if err != nil {
-		return dr, fmt.Errorf("delete challenge %d: %w", key, err)
+		return delResult, fmt.Errorf("delete challenge %d: %w", key, err)
 	}
 
 	startColor, err := ParseColor(row.StartColor)
 	if err != nil {
-		return dr, err
+		return delResult, err
 	}
 	mode, err := ParseGameMode(row.Mode)
 	if err != nil {
-		return dr, err
+		return delResult, err
 	}
 
-	dr = DeleteResult{
+	delResult = DeleteResult{
 		ChallengerID: row.ChallengerID,
 		ChallengeeID: row.ChallengeeID,
 		Mode:         mode,
 		FirstColor:   startColor,
 	}
-	slog.InfoContext(ctx, "deleted challenge", "challengeKey", key, "dr", dr, "err", err)
-	return dr, err
+	slog.InfoContext(ctx, "deleted challenge", "challengeKey", key, "dr", delResult, "err", err)
+	return delResult, err
 }
 
 func (svc *Services) DeleteExpiredChallenges(ctx context.Context, userID int64) error {

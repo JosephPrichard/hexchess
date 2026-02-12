@@ -26,8 +26,8 @@ func TestChessSerializer(t *testing.T) {
 		name string
 		s    ChessState
 	}{
-		{name: "echo serialize s with finish", s: input1},
-		{name: "echo serialize s with moves", s: input2},
+		{name: "echo serialize state with finish", s: input1},
+		{name: "echo serialize state with moves", s: input2},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			b, err := proto.Marshal(SerializeChessState(&test.s))

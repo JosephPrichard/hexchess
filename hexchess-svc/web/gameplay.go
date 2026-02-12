@@ -35,7 +35,7 @@ func writeGameMsgErr(ctx context.Context, conn *websocket.Conn, gameID string, e
 	case errutil.IsType[svc.ErrInvalidMove](err):
 		wsErr = ErrWsInvalidMove
 	case errors.Is(err, svc.ErrNoChessState):
-		// if the s cannot be found, it has expired while an inactive connection has been open
+		// if the state cannot be found, it has expired while an inactive connection has been open
 		wsErr = ErrWsExpiration
 	case errors.Is(err, svc.ErrUndoCurrPlayer):
 		wsErr = ErrWsUndoCurrPlayer
@@ -137,7 +137,7 @@ func (app *App) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) handleGameInit(ctx context.Context, gameID string, sessionID string, conn *websocket.Conn) (player svc.PlayerState, err error) {
-	// apply s updates for the init phase
+	// apply state updates for the init phase
 	player, err = app.Services.GetSession(ctx, sessionID)
 	if err != nil {
 		return player, fmt.Errorf("get session in game init phase: %w", err)
@@ -225,14 +225,14 @@ func (app *App) handleGameMessage(ctx GameSocketContext, input message) {
 }
 
 func (app *App) handleGameForfeit(ctx GameSocketContext) error {
-	replayID, fs, err := app.Services.ForfeitGame(ctx.Context, ctx.GameID, ctx.Player)
+	endState, err := app.Services.ForfeitGame(ctx.Context, ctx.GameID, ctx.Player)
 	if err != nil {
 		return fmt.Errorf("forfeit game %s: %w", ctx.GameID, err)
 	}
 	bytes, err := proto.Marshal(MakePbGameOutputForfeit(
 		ctx.GameID,
-		replayID,
-		svc.SerializeEndState(fs),
+		endState.ReplayID, // only populated on initial creation, not serialized.
+		svc.SerializeEndState(endState),
 	))
 	if err != nil {
 		return err

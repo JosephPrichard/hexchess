@@ -67,7 +67,7 @@ func AssertRedisChess(t *testing.T, s *Services, wantState ChessState, options .
 func AssertChessState(t *testing.T, wantState ChessState, actualState *ChessState, options ...cmp.Option) {
 	t.Helper()
 	if actualState == nil {
-		t.Fatalf("chess s is nil")
+		t.Fatalf("chess state is nil")
 	}
 	assertutil.Equal(t, wantState, *actualState, options...)
 }

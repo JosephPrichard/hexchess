@@ -27,6 +27,7 @@ const (
 )
 
 type EndState struct {
+	ReplayID    int64 // initialized on end state creation but not serialized
 	Kind        EndKind
 	WinEloDiff  int64
 	LoseEloDiff int64
@@ -156,8 +157,8 @@ func (svc *Services) IsGameAccessible(ctx context.Context, id string) bool {
 }
 
 // AcquireChessLock is used to make sure only one client is ever allowed to write to a game ID at any time
-// if the client fails to acquire the lock, the operation should fail rather than retry because the mutation will no longer be valid (underlying s will be swapped once freed)
-// consider a situation where client 1 has fetched s A and is transforming it to s B. client 2 wants to transform s A to C. by the time client 1 is done writing, s C is outdated since it is based on an older version of A
+// if the client fails to acquire the lock, the operation should fail rather than retry because the mutation will no longer be valid (underlying state will be swapped once freed)
+// consider a situation where client 1 has fetched state A and is transforming it to state B. client 2 wants to transform state A to C. by the time client 1 is done writing, state C is outdated since it is based on an older version of A
 func (svc *Services) AcquireChessLock(ctx context.Context, id string) bool {
 	exists, err := svc.Redis.Cache.SetNX(ctx, makeGameKey(id), "true", time.Second*5).Result()
 	return err == nil && !exists // we acquired the lock, AND without errors.
@@ -166,7 +167,7 @@ func (svc *Services) AcquireChessLock(ctx context.Context, id string) bool {
 func (svc *Services) ReleaseChessLock(ctx context.Context, id string) {
 	err := svc.Redis.Cache.Del(ctx, makeGameKey(id)).Err()
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to release chess s lock", "id", id, "err", err)
+		slog.ErrorContext(ctx, "failed to release chess state lock", "id", id, "err", err)
 	}
 }
 
@@ -182,14 +183,14 @@ func (svc *Services) GetChessState(ctx context.Context, id string) (*ChessState,
 	if errors.Is(err, redis.Nil) {
 		return nil, ErrNoChessState
 	} else if err != nil {
-		return nil, fmt.Errorf("get chess s in redis: %w", err)
+		return nil, fmt.Errorf("get chess state in redis: %w", err)
 	}
 
 	state, err := UnmarshalChessState(data)
 	if err != nil {
-		return nil, fmt.Errorf("deserialize chess s: %w", err)
+		return nil, fmt.Errorf("deserialize chess state: %w", err)
 	}
-	slog.InfoContext(ctx, "selected chess s", "key", fullID)
+	slog.InfoContext(ctx, "selected chess state", "key", fullID)
 	return &state, nil
 }
 
@@ -240,10 +241,10 @@ func (svc *Services) SetChessStateAt(ctx context.Context, id string, state *Ches
 	}
 
 	if _, err = pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("set chess s in redis after %d retries: %w", SetChessRetries, err)
+		return fmt.Errorf("set chess state in redis after %d retries: %w", SetChessRetries, err)
 	}
 
-	slog.InfoContext(ctx, "set chess s", "key", fullID, "touch", touch)
+	slog.InfoContext(ctx, "set chess state", "key", fullID, "touch", touch)
 	return nil
 }
 
@@ -269,7 +270,7 @@ func (svc *Services) GetStateChats(ctx context.Context, gameID string, count int
 		chats = append(chats, chat)
 	}
 
-	slog.InfoContext(ctx, "retrieved chess s chats", "chats", chats, "zSetName", zSetName)
+	slog.InfoContext(ctx, "retrieved chess state chats", "chats", chats, "zSetName", zSetName)
 	return chats, nil
 }
 
@@ -282,7 +283,7 @@ func (svc *Services) InsertStateChat(ctx context.Context, gameID string, chat St
 	if err := svc.Cache.ZAdd(ctx, zSetName, redis.Z{Score: float64(chat.SentAt.UnixMilli()), Member: bytes}).Err(); err != nil {
 		return fmt.Errorf("add chat %v to zset: %w", chat, err)
 	}
-	slog.InfoContext(ctx, "inserted chess s chat", "chat", chat, "zSetName", zSetName)
+	slog.InfoContext(ctx, "inserted state chat", "chat", chat, "zSetName", zSetName)
 	return nil
 }
 
