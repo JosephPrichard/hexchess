@@ -81,9 +81,9 @@ func TestHandleRegister(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				assertutil.AssertRespBody[SessionView](t, test.wantSuccess, w, testSessionViewCmpOpts)
+				assertutil.AssertRespBody(t, test.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
+				assertutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -124,9 +124,9 @@ func TestHandleLogin(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				assertutil.AssertRespBody[SessionView](t, test.wantSuccess, w, testSessionViewCmpOpts)
+				assertutil.AssertRespBody(t, test.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
+				assertutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -188,9 +188,9 @@ func TestHandleGoogleLogin(t *testing.T) {
 
 				assert.Equal(t, test.wantStatus, w.Code)
 				if test.wantStatus == http.StatusOK {
-					assertutil.AssertRespBody[SessionView](t, test.wantSuccess, w, testSessionViewCmpOpts)
+					assertutil.AssertRespBody(t, test.wantSuccess, w, testSessionViewCmpOpts)
 				} else {
-					assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
+					assertutil.AssertRespBody(t, test.wantFail, w)
 				}
 			}
 		})
@@ -245,9 +245,9 @@ func TestHandleUpdateUser(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				assertutil.AssertRespBody[SessionView](t, test.wantSuccess, w, testSessionViewCmpOpts)
+				assertutil.AssertRespBody(t, test.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
+				assertutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -300,9 +300,9 @@ func TestHandleUpdatePassword(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				assertutil.AssertRespBody[ServiceView](t, test.wantSuccess, w)
+				assertutil.AssertRespBody(t, test.wantSuccess, w)
 			} else {
-				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
+				assertutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -365,7 +365,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus != http.StatusOK {
-				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
+				assertutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -413,7 +413,7 @@ func TestHandleCreateGame(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus != http.StatusOK {
-				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
+				assertutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -472,7 +472,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
-			assertutil.AssertRespBody[ServiceView](t, test.wantResp, w)
+			assertutil.AssertRespBody(t, test.wantResp, w)
 		})
 	}
 }
@@ -542,9 +542,9 @@ func TestGetLeaderboard(t *testing.T) {
 			// then
 			assert.Equal(t, test.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
-				assertutil.AssertRespBody[LeaderboardResp](t, test.wantSuccess, w)
+				assertutil.AssertRespBody(t, test.wantSuccess, w)
 			} else {
-				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
+				assertutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -600,9 +600,9 @@ func TestGetPlayer(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				assertutil.AssertRespBody[GetPlayersResp](t, test.wantSuccess, w)
+				assertutil.AssertRespBody(t, test.wantSuccess, w)
 			} else {
-				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
+				assertutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -647,7 +647,7 @@ func TestGetChallenges(t *testing.T) {
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
-			assertutil.AssertRespBody[GetChallengesResp](t, test.wantSuccess, w)
+			assertutil.AssertRespBody(t, test.wantSuccess, w)
 		})
 	}
 }
@@ -698,9 +698,9 @@ func TestHandleGetUserReplays(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
-				assertutil.AssertRespBody[GetUserReplaysResp](t, test.wantSuccess, w)
+				assertutil.AssertRespBody(t, test.wantSuccess, w)
 			} else {
-				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
+				assertutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -739,9 +739,9 @@ func TestHandleGetReplay(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
-				assertutil.AssertRespBody[GetReplayResp](t, test.wantSuccess, w)
+				assertutil.AssertRespBody(t, test.wantSuccess, w)
 			} else {
-				assertutil.AssertRespBody[ServiceView](t, test.wantFail, w)
+				assertutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -782,7 +782,7 @@ func TestHandleGetChessMetas(t *testing.T) {
 		},
 	}
 	assert.Equal(t, http.StatusOK, w.Code)
-	assertutil.AssertRespBody[ChessMetasResp](t, wantResp, w)
+	assertutil.AssertRespBody(t, wantResp, w)
 }
 
 func TestHandleGetMoveReplay(t *testing.T) {

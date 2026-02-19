@@ -2,7 +2,6 @@ package assertutil
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/google/go-cmp/cmp"
 	"io"
 	"net/http/httptest"
@@ -16,7 +15,7 @@ func Equal[T any](t *testing.T, expected, actual T, opts ...cmp.Option) {
 	}
 }
 
-func AssertRespBody[V any](t *testing.T, wantBody any, w *httptest.ResponseRecorder, opts ...cmp.Option) {
+func AssertRespBody[V any](t *testing.T, wantBody V, w *httptest.ResponseRecorder, opts ...cmp.Option) {
 	t.Helper()
 	str := assertRespBody[V](wantBody, w, opts...)
 	if str != "" {
@@ -24,7 +23,7 @@ func AssertRespBody[V any](t *testing.T, wantBody any, w *httptest.ResponseRecor
 	}
 }
 
-func assertRespBody[V any](wantBody any, w *httptest.ResponseRecorder, opts ...cmp.Option) string {
+func assertRespBody[V any](wantBody V, w *httptest.ResponseRecorder, opts ...cmp.Option) string {
 	resp := w.Result()
 	defer resp.Body.Close()
 
@@ -33,14 +32,9 @@ func assertRespBody[V any](wantBody any, w *httptest.ResponseRecorder, opts ...c
 		return err.Error()
 	}
 
-	switch wantBody := wantBody.(type) {
-	case V:
-		var actualBody V
-		if err = json.Unmarshal(b, &actualBody); err != nil {
-			return err.Error()
-		}
-		return cmp.Diff(wantBody, actualBody, opts...)
-	default:
-		return fmt.Sprintf("unsupported type in body assert: %T", wantBody)
+	var actualBody V
+	if err = json.Unmarshal(b, &actualBody); err != nil {
+		return err.Error()
 	}
+	return cmp.Diff(wantBody, actualBody, opts...)
 }

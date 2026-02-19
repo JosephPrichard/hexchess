@@ -151,19 +151,21 @@ func (app *App) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	failures := make(map[string]string)
-	for h := range healthChecks {
-		if err := healthChecks[h].Check(); err != nil {
+	for _, h := range healthChecks {
+		if err := h.Check(); err != nil {
 			failures["rdbPrimary"] = err.Error()
 		}
 	}
 	status := "OK"
-	if len(failures) == len(healthChecks) {
+	if len(failures) > 0 {
 		status = "DOWN"
-	} else if len(failures) > 0 {
-		status = "PARTIAL"
+	}
+	httpStatus := http.StatusOK
+	if status == "DOWN" {
+		httpStatus = http.StatusServiceUnavailable
 	}
 
-	writeJSON(w, http.StatusOK, struct {
+	writeJSON(w, httpStatus, struct {
 		Status    string            `json:"status"`
 		Timestamp time.Time         `json:"timestamp"`
 		Failures  map[string]string `json:"failures"`
