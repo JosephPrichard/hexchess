@@ -72,7 +72,7 @@ func HttpStatusFromErrs(err error) ServiceView {
 
 	for key, err := range respErr {
 		status, errStr := HttpStatusFromErr(err)
-		// yields the most 'severe' status. 500 is worse than 400, which is worse than 200
+		// yields the most 'severe' status
 		if status > errStatus {
 			errStatus = status
 		}
