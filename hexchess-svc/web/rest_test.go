@@ -6,17 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
-	"hexchess-svc/chess"
-	"hexchess-svc/db"
-	"hexchess-svc/ext"
-	"hexchess-svc/itest"
-	"hexchess-svc/pb"
-	"hexchess-svc/pkg/assertutil"
-	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/services"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -25,9 +17,18 @@ import (
 	"strings"
 	"testing"
 
+	"hexchess-svc/chess"
+	"hexchess-svc/db"
+	"hexchess-svc/ext"
+	"hexchess-svc/itest"
+	"hexchess-svc/pb"
+	"hexchess-svc/pkg/assertutil"
+	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/services"
+
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 // rest tests are block box tests that make assertions on rest api call output for a given input
@@ -81,9 +82,9 @@ func TestHandleRegister(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				assertutil.AssertRespBody(t, test.wantSuccess, w, testSessionViewCmpOpts)
+				testutil.AssertRespBody(t, test.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				assertutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -124,9 +125,9 @@ func TestHandleLogin(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				assertutil.AssertRespBody(t, test.wantSuccess, w, testSessionViewCmpOpts)
+				testutil.AssertRespBody(t, test.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				assertutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -188,9 +189,9 @@ func TestHandleGoogleLogin(t *testing.T) {
 
 				assert.Equal(t, test.wantStatus, w.Code)
 				if test.wantStatus == http.StatusOK {
-					assertutil.AssertRespBody(t, test.wantSuccess, w, testSessionViewCmpOpts)
+					testutil.AssertRespBody(t, test.wantSuccess, w, testSessionViewCmpOpts)
 				} else {
-					assertutil.AssertRespBody(t, test.wantFail, w)
+					testutil.AssertRespBody(t, test.wantFail, w)
 				}
 			}
 		})
@@ -245,9 +246,9 @@ func TestHandleUpdateUser(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				assertutil.AssertRespBody(t, test.wantSuccess, w, testSessionViewCmpOpts)
+				testutil.AssertRespBody(t, test.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				assertutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -300,9 +301,9 @@ func TestHandleUpdatePassword(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				assertutil.AssertRespBody(t, test.wantSuccess, w)
+				testutil.AssertRespBody(t, test.wantSuccess, w)
 			} else {
-				assertutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -365,7 +366,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus != http.StatusOK {
-				assertutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -413,7 +414,7 @@ func TestHandleCreateGame(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus != http.StatusOK {
-				assertutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -472,7 +473,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
-			assertutil.AssertRespBody(t, test.wantResp, w)
+			testutil.AssertRespBody(t, test.wantResp, w)
 		})
 	}
 }
@@ -542,9 +543,9 @@ func TestGetLeaderboard(t *testing.T) {
 			// then
 			assert.Equal(t, test.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
-				assertutil.AssertRespBody(t, test.wantSuccess, w)
+				testutil.AssertRespBody(t, test.wantSuccess, w)
 			} else {
-				assertutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -600,9 +601,9 @@ func TestGetPlayer(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
-				assertutil.AssertRespBody(t, test.wantSuccess, w)
+				testutil.AssertRespBody(t, test.wantSuccess, w)
 			} else {
-				assertutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -647,7 +648,7 @@ func TestGetChallenges(t *testing.T) {
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
-			assertutil.AssertRespBody(t, test.wantSuccess, w)
+			testutil.AssertRespBody(t, test.wantSuccess, w)
 		})
 	}
 }
@@ -698,9 +699,9 @@ func TestHandleGetUserReplays(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
-				assertutil.AssertRespBody(t, test.wantSuccess, w)
+				testutil.AssertRespBody(t, test.wantSuccess, w)
 			} else {
-				assertutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -739,9 +740,9 @@ func TestHandleGetReplay(t *testing.T) {
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
-				assertutil.AssertRespBody(t, test.wantSuccess, w)
+				testutil.AssertRespBody(t, test.wantSuccess, w)
 			} else {
-				assertutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, test.wantFail, w)
 			}
 		})
 	}
@@ -782,7 +783,7 @@ func TestHandleGetChessMetas(t *testing.T) {
 		},
 	}
 	assert.Equal(t, http.StatusOK, w.Code)
-	assertutil.AssertRespBody(t, wantResp, w)
+	testutil.AssertRespBody(t, wantResp, w)
 }
 
 func TestHandleGetMoveReplay(t *testing.T) {
@@ -827,7 +828,7 @@ func TestHandleGetMoveReplay(t *testing.T) {
 		},
 	}
 	assert.Equal(t, http.StatusOK, w.Code)
-	assertutil.Equal(t, wantMoveReplay, &pbMoveHist, protocmp.Transform())
+	testutil.Equal(t, wantMoveReplay, &pbMoveHist, protocmp.Transform())
 }
 
 func TestHandleUploadProfilePic(t *testing.T) {

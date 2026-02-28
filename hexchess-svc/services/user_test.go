@@ -2,15 +2,16 @@ package svc
 
 import (
 	"context"
+	"testing"
+	"time"
+
+	"hexchess-svc/itest"
+	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/pkg/testutil"
+
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"hexchess-svc/itest"
-	"hexchess-svc/pkg/assertutil"
-	"hexchess-svc/pkg/logutil"
-
-	"testing"
-	"time"
 )
 
 var testUserCmptOpts = cmpopts.IgnoreFields(UserEntity{}, "ID")
@@ -56,7 +57,7 @@ func TestInsertThenVerify(t *testing.T) {
 		Country:  "us",
 		JoinedOn: itest.TimeNow.Local(),
 	}
-	assertutil.Equal(t, wantU1, dbU1, testUserCmptOpts)
+	testutil.Equal(t, wantU1, dbU1, testUserCmptOpts)
 }
 
 func TestBatchInsertThenGet(t *testing.T) {
@@ -150,15 +151,15 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 
 	// then
 	verifiedUser := VerifiedUser{Username: "username", Country: "us"}
-	assertutil.Equal(t, verifiedUser, u1, testVerifiedUserCmptOpts)
-	assertutil.Equal(t, verifiedUser, u2, testVerifiedUserCmptOpts)
+	testutil.Equal(t, verifiedUser, u1, testVerifiedUserCmptOpts)
+	testutil.Equal(t, verifiedUser, u2, testVerifiedUserCmptOpts)
 
 	wantU1 := UserEntity{
 		Username: "username",
 		Country:  "us",
 		JoinedOn: itest.TimeNow.Local(),
 	}
-	assertutil.Equal(t, wantU1, dbU1, testUserCmptOpts)
+	testutil.Equal(t, wantU1, dbU1, testUserCmptOpts)
 }
 
 func TestUpdatePasswordThenVerify(t *testing.T) {
@@ -193,5 +194,5 @@ func TestGetUserElos(t *testing.T) {
 	require.NoError(t, err)
 
 	// then
-	assertutil.Equal(t, TestUserStats[0], stats, cmpopts.IgnoreFields(ModeStatsEntity{}, "Rank"))
+	testutil.Equal(t, TestUserStats[0], stats, cmpopts.IgnoreFields(ModeStatsEntity{}, "Rank"))
 }

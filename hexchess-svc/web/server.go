@@ -3,16 +3,17 @@ package web
 import (
 	"context"
 	"fmt"
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"hexchess-svc/chess"
-	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/services"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
+	"hexchess-svc/chess"
+	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/services"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 )
 

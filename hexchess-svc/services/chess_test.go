@@ -2,18 +2,17 @@ package svc
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
-	"hexchess-svc/chess"
-	"hexchess-svc/itest"
-	"hexchess-svc/pkg/assertutil"
-	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/pkg/ptr"
-
 	"testing"
 	"time"
 
+	"hexchess-svc/chess"
+	"hexchess-svc/itest"
+	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/pkg/testutil"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEchoChessState(t *testing.T) {
@@ -37,7 +36,7 @@ func TestEchoChessState(t *testing.T) {
 
 	// then
 	assert.Equal(t, ErrNoChessState, errBadID)
-	assertutil.Equal(t, s1, *outState1, ChessMetaCmpOpt)
+	testutil.Equal(t, s1, *outState1, ChessMetaCmpOpt)
 }
 
 func TestGetChessMetas(t *testing.T) {
@@ -149,8 +148,8 @@ func TestUndo(t *testing.T) {
 	t.Run("no moves to undo", func(t *testing.T) {
 		s := MakeChess(StateSetup{
 			ID:           "test",
-			Game:         ptr.New(chess.MakeStartGame()),
-			InitialBoard: ptr.New(chess.InitialBoard()),
+			Game:         New(chess.MakeStartGame()),
+			InitialBoard: New(chess.InitialBoard()),
 		})
 
 		err := s.Undo()
@@ -164,8 +163,8 @@ func TestUndo(t *testing.T) {
 
 		s := MakeChess(StateSetup{
 			ID:           "test",
-			Game:         ptr.New(game),
-			InitialBoard: ptr.New(chess.InitialBoard()),
+			Game:         New(game),
+			InitialBoard: New(chess.InitialBoard()),
 		})
 
 		err := s.Undo()

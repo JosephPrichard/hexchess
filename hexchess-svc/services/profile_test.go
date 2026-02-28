@@ -3,17 +3,18 @@ package svc
 import (
 	"context"
 	"fmt"
+	"testing"
+	"time"
+
+	"hexchess-svc/ext"
+	"hexchess-svc/itest"
+	"hexchess-svc/pkg/logutil"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"hexchess-svc/ext"
-	"hexchess-svc/itest"
-	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/pkg/ptr"
-	"testing"
-	"time"
 )
 
 func TestDeleteOldProfilePics(t *testing.T) {
@@ -47,14 +48,14 @@ func TestFindMostRecentKey(t *testing.T) {
 		{wantKey: ""},
 		{
 			objects: []s3Types.Object{
-				{Key: aws.String("a"), LastModified: ptr.New(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))},
-				{Key: aws.String("b"), LastModified: ptr.New(time.Date(2020, 2, 1, 0, 0, 0, 0, time.UTC))},
+				{Key: aws.String("a"), LastModified: New(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))},
+				{Key: aws.String("b"), LastModified: New(time.Date(2020, 2, 1, 0, 0, 0, 0, time.UTC))},
 			},
 			wantKey: "b",
 		},
 		{
 			objects: []s3Types.Object{
-				{Key: aws.String("b"), LastModified: ptr.New(time.Unix(1, 0))},
+				{Key: aws.String("b"), LastModified: New(time.Unix(1, 0))},
 			},
 			wantKey: "b",
 		},
@@ -75,8 +76,8 @@ func TestFilterLeastRecentKeys(t *testing.T) {
 		},
 		{
 			objects: []s3Types.Object{
-				{Key: aws.String("b"), LastModified: ptr.New(time.Date(2020, 2, 1, 0, 0, 0, 0, time.UTC))},
-				{Key: aws.String("a"), LastModified: ptr.New(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))},
+				{Key: aws.String("b"), LastModified: New(time.Date(2020, 2, 1, 0, 0, 0, 0, time.UTC))},
+				{Key: aws.String("a"), LastModified: New(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))},
 			},
 			wantKeys: []s3Types.ObjectIdentifier{
 				{Key: aws.String("a")},
@@ -84,7 +85,7 @@ func TestFilterLeastRecentKeys(t *testing.T) {
 		},
 		{
 			objects: []s3Types.Object{
-				{Key: aws.String("b"), LastModified: ptr.New(time.Unix(1, 0))},
+				{Key: aws.String("b"), LastModified: New(time.Unix(1, 0))},
 			},
 			wantKeys: []s3Types.ObjectIdentifier{},
 		},

@@ -3,11 +3,12 @@ package svc
 import (
 	"errors"
 	"fmt"
-	"hexchess-svc/chess"
 	"log/slog"
 	"math"
 	"math/rand"
 	"time"
+
+	"hexchess-svc/chess"
 )
 
 func RandomMoveHistSeq(mode GameMode, game chess.Game, low int, hi int) ([]chess.HistMove, error) {

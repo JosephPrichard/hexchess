@@ -2,8 +2,9 @@ package svc
 
 import (
 	"fmt"
-	"golang.org/x/exp/slices"
 	"time"
+
+	"golang.org/x/exp/slices"
 )
 
 type ReplayResult int

@@ -75,10 +75,10 @@ PPROF_PORT=6060
 DB_URL=postgres://postgres:<db-password>@host.docker.internal:<db-port>/<db-name>
 REDIS_PRIMARY_URL=host.docker.internal:6379
 REDIS_PUBSUB_URL=host.docker.internal:6380
-ALLOWED_ORIGINS=<ui application hostname in route53>
+ALLOWED_ORIGINS=<hostname>
 COOKIE_DOMAIN=localhost
-AWS_SECRET_ID=<automatically set in aws>
-AWS_SECRET_KEY=<automatically set in aws>
+AWS_SECRET_ID=<aws-credentials>
+AWS_SECRET_KEY=<aws-credentials>
 AWS_DEFAULT_REGION=us-east-1
 AWS_ENDPOINT=
 ```

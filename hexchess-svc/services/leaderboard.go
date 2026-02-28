@@ -4,13 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/redis/go-redis/v9"
-	"hexchess-svc/db"
-	"hexchess-svc/pkg/logutil"
 	"log/slog"
 	"math"
 	"sort"
 	"strconv"
+
+	"hexchess-svc/db"
+	"hexchess-svc/pkg/logutil"
+
+	"github.com/redis/go-redis/v9"
 )
 
 func (svc *Services) getLeaderboardZSet(mode GameMode) string {

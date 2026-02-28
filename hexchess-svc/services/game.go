@@ -5,15 +5,17 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/v5/pgtype"
-	"hexchess-svc/chess"
-	"hexchess-svc/db"
-	"hexchess-svc/pkg/logutil"
 	"log/slog"
 	"math"
 	"math/big"
 	"slices"
 	"time"
+
+	"hexchess-svc/chess"
+	"hexchess-svc/db"
+	"hexchess-svc/pkg/logutil"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func (svc *Services) CreateGame(ctx context.Context, color Color, mode GameMode, initialBoard *chess.Board) (string, error) {

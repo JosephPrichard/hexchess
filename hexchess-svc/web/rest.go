@@ -5,18 +5,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"golang.org/x/sync/errgroup"
-	"hexchess-svc/assets"
-	"hexchess-svc/chess"
-	"hexchess-svc/services"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"hexchess-svc/assets"
+	"hexchess-svc/chess"
+	"hexchess-svc/services"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"golang.org/x/sync/errgroup"
 )
 
 func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc {

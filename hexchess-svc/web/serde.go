@@ -1,10 +1,11 @@
 package web
 
 import (
+	"time"
+
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
 	"hexchess-svc/services"
-	"time"
 )
 
 func MakePbGameOutputError(gameID string, err error) *pb.GameOutput {

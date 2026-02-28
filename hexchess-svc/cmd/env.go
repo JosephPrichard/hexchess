@@ -2,10 +2,11 @@ package cmd
 
 import (
 	"bufio"
-	"hexchess-svc/pkg/logutil"
 	"log/slog"
 	"os"
 	"strings"
+
+	"hexchess-svc/pkg/logutil"
 )
 
 func InitEnv() {

@@ -2,9 +2,10 @@ package web
 
 import (
 	"context"
-	"github.com/gorilla/websocket"
 	"log/slog"
 	"net/http"
+
+	"github.com/gorilla/websocket"
 )
 
 type message = []byte

@@ -3,10 +3,11 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/services"
 	"strings"
 	"testing"
+
+	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/services"
 )
 
 var TestSessionID1 = "testing-session-id-1"

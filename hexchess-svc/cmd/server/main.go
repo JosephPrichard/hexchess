@@ -3,6 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"log"
+	"log/slog"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+	"strings"
+
 	"hexchess-svc/assets"
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
@@ -10,12 +17,6 @@ import (
 	"hexchess-svc/pkg/logutil"
 	svc "hexchess-svc/services"
 	"hexchess-svc/web"
-	"log"
-	"log/slog"
-	"net/http"
-	_ "net/http/pprof"
-	"os"
-	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

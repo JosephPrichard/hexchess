@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"google.golang.org/protobuf/proto"
+	"time"
+
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
-	"time"
 )
 
 func UnmarshalPlayer(b []byte) (PlayerState, error) {

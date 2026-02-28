@@ -4,16 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	redigo "github.com/gomodule/redigo/redis"
 	"google.golang.org/protobuf/proto"
-	"hexchess-svc/db"
-	"hexchess-svc/pb"
 	"log/slog"
 	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"hexchess-svc/db"
+	"hexchess-svc/pb"
+
+	redigo "github.com/gomodule/redigo/redis"
 )
 
 func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Message)) chan struct{} {

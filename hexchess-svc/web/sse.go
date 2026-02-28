@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hexchess-svc/pkg/timeutil"
-	"hexchess-svc/services"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
+
+	"hexchess-svc/pkg/timeutil"
+	"hexchess-svc/services"
 )
 
 func SSE(h func(w SSEWriter, r *http.Request) error) http.HandlerFunc {

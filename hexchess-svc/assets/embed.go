@@ -2,7 +2,7 @@ package assets
 
 import (
 	"embed"
-	_ "embed"
+	
 )
 
 //go:embed all:test

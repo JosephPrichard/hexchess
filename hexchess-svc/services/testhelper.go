@@ -2,16 +2,16 @@ package svc
 
 import (
 	"context"
-	"github.com/google/go-cmp/cmp"
-	"golang.org/x/sync/errgroup"
-	"hexchess-svc/ext"
-	"hexchess-svc/itest"
-	"hexchess-svc/pkg/assertutil"
-	"hexchess-svc/pkg/logutil"
-	"time"
-
 	"slices"
 	"testing"
+	"time"
+
+	"hexchess-svc/ext"
+	"hexchess-svc/itest"
+	"hexchess-svc/pkg/logutil"
+
+	"github.com/google/go-cmp/cmp"
+	"golang.org/x/sync/errgroup"
 )
 
 func SetupServicesTest(t logutil.TestLogger, flags ...itest.TestFlag) Services {
@@ -61,7 +61,7 @@ func AssertRedisChess(t *testing.T, s *Services, wantState ChessState, options .
 	if err != nil {
 		t.Fatalf("get chess for assert: %v", err)
 	}
-	assertutil.Equal(t, wantState, *actualState, options...)
+	testutil.Equal(t, wantState, *actualState, options...)
 }
 
 func AssertChessState(t *testing.T, wantState ChessState, actualState *ChessState, options ...cmp.Option) {
@@ -69,5 +69,5 @@ func AssertChessState(t *testing.T, wantState ChessState, actualState *ChessStat
 	if actualState == nil {
 		t.Fatalf("chess state is nil")
 	}
-	assertutil.Equal(t, wantState, *actualState, options...)
+	testutil.Equal(t, wantState, *actualState, options...)
 }

@@ -2,11 +2,11 @@ package svc
 
 import (
 	"context"
-	"hexchess-svc/itest"
-	"hexchess-svc/pkg/logutil"
-
 	"testing"
 	"time"
+
+	"hexchess-svc/itest"
+	"hexchess-svc/pkg/logutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -6,18 +6,19 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"golang.org/x/sync/errgroup"
-	"hexchess-svc/db"
-	"hexchess-svc/pkg/logutil"
 	"log/slog"
 	"math"
 	"time"
+
+	"hexchess-svc/db"
+	"hexchess-svc/pkg/logutil"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/exp/constraints"
+	"golang.org/x/sync/errgroup"
 )
 
 type UserEntity struct {

@@ -4,8 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"google.golang.org/protobuf/proto"
-	"hexchess-svc/pb"
 	"time"
+
+	"hexchess-svc/pb"
 )
 
 func DeserializePieces(src []int32) []Piece {

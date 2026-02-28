@@ -2,15 +2,16 @@ package svc
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"testing"
+	"time"
+
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
 	"hexchess-svc/pkg/logutil"
 
-	"testing"
-	"time"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMultiCaster(t *testing.T) {

@@ -2,17 +2,18 @@ package svc
 
 import (
 	"context"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"testing"
+	"time"
+
 	"hexchess-svc/db"
 	"hexchess-svc/ext"
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
 
-	"testing"
-	"time"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestInsertChallenge(t *testing.T) {

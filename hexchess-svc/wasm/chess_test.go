@@ -1,13 +1,15 @@
 package wasm
 
 import (
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"google.golang.org/protobuf/proto"
-	"hexchess-svc/chess"
-	"hexchess-svc/pb"
 	"syscall/js"
 	"testing"
+
+	"hexchess-svc/chess"
+	"hexchess-svc/pb"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 func requireNoError(t *testing.T, err error) {

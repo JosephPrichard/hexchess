@@ -2,22 +2,20 @@ package svc
 
 import (
 	"context"
-	"github.com/redis/go-redis/v9"
-	"hexchess-svc/chess"
-	"hexchess-svc/db"
-	"hexchess-svc/itest"
-	"hexchess-svc/pkg/assertutil"
-	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/pkg/ptr"
-
 	"math"
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/stretchr/testify/require"
+	"hexchess-svc/chess"
+	"hexchess-svc/db"
+	"hexchess-svc/itest"
+	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/pkg/testutil"
 
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestJoinGame_JoinWhite(t *testing.T) {
@@ -259,7 +257,7 @@ func TestMakeMove(t *testing.T) {
 		FirstColor: Random,
 		White:      PlayerState{ID: 3, Present: true},
 		Black:      PlayerState{ID: 4, Present: true},
-		Game: ptr.New(chess.MakeEmptyGame(false,
+		Game: New(chess.MakeEmptyGame(false,
 			chess.Place{Not: "f1", Piece: chess.WhiteKing},
 			chess.Place{Not: "a2", Piece: chess.BlackQueen},
 			chess.Place{Not: "h1", Piece: chess.BlackRook},
@@ -350,7 +348,7 @@ func TestMakeMove(t *testing.T) {
 			assert.Equal(t, test.wantErr, err)
 			assert.Equal(t, test.wantHasReplay, moveResult.ReplayID != 0)
 			if moveResult.State != nil {
-				assertutil.Equal(t, test.wantFinishState, moveResult.State.EndState, cmpopts.IgnoreFields(EndState{}, "ReplayID"))
+				testutil.Equal(t, test.wantFinishState, moveResult.State.EndState, cmpopts.IgnoreFields(EndState{}, "ReplayID"))
 			}
 		})
 	}
@@ -488,7 +486,7 @@ func TestForfeit(t *testing.T) {
 		Cause:       Forfeit,
 		Result:      WhiteWin,
 	}
-	assertutil.Equal(t, wantEndState, endState, cmpopts.IgnoreFields(EndState{}, "ReplayID"))
+	testutil.Equal(t, wantEndState, endState, cmpopts.IgnoreFields(EndState{}, "ReplayID"))
 
 	wantState := inState.DeepCopy()
 	wantState.EndState = wantEndState
@@ -507,7 +505,7 @@ func TestForfeit(t *testing.T) {
 	}
 	replay, err := services.Query().SelectReplayRowByID(ctx, endState.ReplayID)
 	require.NoError(t, err)
-	assertutil.Equal(t, wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn"))
+	testutil.Equal(t, wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn"))
 }
 
 func TestInsertGameResult(t *testing.T) {
@@ -605,7 +603,7 @@ func TestInsertGameResult(t *testing.T) {
 			replay, err := services.Query().SelectReplayRowByID(ctx, cs.ReplayID)
 			require.NoError(t, err)
 
-			assertutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn"))
+			testutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn"))
 
 			cs.ReplayID = 0
 			cs.WinEloDiff = math.Round(cs.WinEloDiff)

@@ -5,12 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
-	"hexchess-svc/db"
-	"hexchess-svc/pkg/logutil"
 	"log/slog"
 	"time"
+
+	"hexchess-svc/db"
+	"hexchess-svc/pkg/logutil"
+
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type ChallengeEntity struct {

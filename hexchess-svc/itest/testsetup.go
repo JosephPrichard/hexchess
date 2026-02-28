@@ -3,14 +3,15 @@ package itest
 import (
 	"context"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"hexchess-svc/db"
-	"hexchess-svc/ext"
-	"hexchess-svc/pkg/logutil"
 	"sync"
 	"time"
 
+	"hexchess-svc/db"
+	"hexchess-svc/ext"
+	"hexchess-svc/pkg/logutil"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"

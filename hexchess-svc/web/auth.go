@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"hexchess-svc/services"
 	"math/big"
 	"net/http"
 	"time"
+
+	"hexchess-svc/services"
+
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 const CookieKey = "session"

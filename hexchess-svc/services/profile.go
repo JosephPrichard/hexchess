@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/google/uuid"
 	"log/slog"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/google/uuid"
 )
 
 func MakeProfilePicPrefix(userID string) string {

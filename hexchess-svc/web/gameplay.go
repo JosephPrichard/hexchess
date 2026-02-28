@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
-	"hexchess-svc/chess"
-	"hexchess-svc/pb"
-	"hexchess-svc/pkg/errutil"
-	"hexchess-svc/services"
 	"log/slog"
 	"net/http"
+
+	"hexchess-svc/chess"
+	"hexchess-svc/pb"
+	"hexchess-svc/services"
+
+	"github.com/gorilla/websocket"
 )
 
 type GameSocketContext struct {
@@ -21,18 +22,23 @@ type GameSocketContext struct {
 	ErrChan chan error
 }
 
+func isType[T error](err error) bool {
+	var t T
+	return errors.As(err, &t)
+}
+
 func writeGameMsgErr(ctx context.Context, conn *websocket.Conn, gameID string, err error) {
 	wsErr := ErrWsFatal
 	switch {
-	case errutil.IsType[svc.ErrFinishedGame](err):
+	case isType[svc.ErrFinishedGame](err):
 		wsErr = ErrWsFinishedGame
 	case errors.Is(err, svc.ErrForfeitPlayer):
 		wsErr = ErrWsForfeitPlayer
-	case errutil.IsType[svc.ErrStartedGame](err):
+	case isType[svc.ErrStartedGame](err):
 		wsErr = ErrWsStartedGame
-	case errutil.IsType[svc.ErrTurn](err):
+	case isType[svc.ErrTurn](err):
 		wsErr = ErrWsTurn
-	case errutil.IsType[svc.ErrInvalidMove](err):
+	case isType[svc.ErrInvalidMove](err):
 		wsErr = ErrWsInvalidMove
 	case errors.Is(err, svc.ErrNoChessState):
 		// if the state cannot be found, it has expired while an inactive connection has been open

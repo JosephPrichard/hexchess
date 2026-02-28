@@ -5,10 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"hexchess-svc/db"
 	"log/slog"
 	"math"
 	"time"
+
+	"hexchess-svc/db"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )

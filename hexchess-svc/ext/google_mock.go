@@ -11,9 +11,8 @@ package ext
 
 import (
 	context "context"
-	reflect "reflect"
-
 	gomock "go.uber.org/mock/gomock"
+	reflect "reflect"
 )
 
 // MockGoogleAPI is a mock of GoogleAPI interface.

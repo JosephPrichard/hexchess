@@ -2,15 +2,15 @@ package svc
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"hexchess-svc/ext"
-	"hexchess-svc/itest"
-
+	"testing"
 	"time"
 
+	"hexchess-svc/ext"
+	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
-	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestActiveUser(t *testing.T) {

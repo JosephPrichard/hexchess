@@ -6,17 +6,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
 	"hexchess-svc/ext"
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/services"
-	"time"
 
-	"net/http"
-	"net/http/httptest"
-	"testing"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // SSE tests are black box tests that connect to a given server side event, simulate the sending of messages from a producer, and checks that we receive the correct response

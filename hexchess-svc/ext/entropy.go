@@ -1,8 +1,9 @@
 package ext
 
 import (
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // EntropySource is a generator for generating things my program determines "non-deterministic" and therefore must be mocked in tests

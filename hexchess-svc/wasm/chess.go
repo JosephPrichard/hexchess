@@ -4,10 +4,11 @@ package wasm
 
 import (
 	"google.golang.org/protobuf/proto"
-	"hexchess-svc/chess"
-	"hexchess-svc/pb"
 	"strings"
 	"syscall/js"
+
+	"hexchess-svc/chess"
+	"hexchess-svc/pb"
 )
 
 type ChessWasm struct {

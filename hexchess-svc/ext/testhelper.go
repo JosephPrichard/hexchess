@@ -2,11 +2,12 @@ package ext
 
 import (
 	"bytes"
+	"io"
+	"testing"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/stretchr/testify/require"
-	"io"
-	"testing"
 )
 
 func PutS3Object(t *testing.T, s3Client *s3.Client, bucket string, key string, b []byte) {

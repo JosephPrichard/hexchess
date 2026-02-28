@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"hexchess-svc/chess"
+	"google.golang.org/protobuf/proto"
 	"log/slog"
 	"strconv"
 	"time"
 
+	"hexchess-svc/chess"
+
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/redis/go-redis/v9"
-	"google.golang.org/protobuf/proto"
 )
 
 type UndoState struct {

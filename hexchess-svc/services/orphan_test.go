@@ -3,12 +3,14 @@ package svc
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
+	"testing"
+
 	"hexchess-svc/ext"
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
-	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRemoveOrphanedBucketObjects(t *testing.T) {

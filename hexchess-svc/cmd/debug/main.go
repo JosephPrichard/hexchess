@@ -5,13 +5,14 @@ import (
 	"flag"
 	"fmt"
 	"google.golang.org/protobuf/proto"
+	"os"
+	"strconv"
+
 	"hexchess-svc/cmd"
 	"hexchess-svc/ext"
 	"hexchess-svc/pb"
 	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/services"
-	"os"
-	"strconv"
+	svc "hexchess-svc/services"
 )
 
 // scripts to easily view any protobuf serialized record in the database in text format for debugging
@@ -47,8 +48,8 @@ func main() {
 			logutil.FatalErr("parse ID os arg", err)
 		}
 
-		s := core.Services{Aws: aws}
-		v, err := s.GetMoveReplay(ctx, strconv.Itoa(id))
+		services := svc.Services{Aws: aws}
+		v, err := services.GetMovesHistory(ctx, id)
 		if err != nil {
 			logutil.FatalErr("get replay move seq", err)
 		}

@@ -1,11 +1,12 @@
-package assertutil
+package testutil
 
 import (
 	"encoding/json"
-	"github.com/google/go-cmp/cmp"
 	"io"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func Equal[T any](t *testing.T, expected, actual T, opts ...cmp.Option) {

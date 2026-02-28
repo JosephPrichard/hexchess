@@ -2,12 +2,11 @@ package svc
 
 import (
 	"context"
-	"hexchess-svc/itest"
-	"hexchess-svc/pkg/assertutil"
-	"hexchess-svc/pkg/logutil"
-
 	"testing"
 	"time"
+
+	"hexchess-svc/itest"
+	"hexchess-svc/pkg/logutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -159,7 +158,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 			// then
 			assert.Equal(t, test.wantMissingIDs, missingIDs)
 			require.NoError(t, err)
-			assertutil.Equal(t, test.wantLeaderboard, leaderboard)
+			testutil.Equal(t, test.wantLeaderboard, leaderboard)
 		})
 	}
 }

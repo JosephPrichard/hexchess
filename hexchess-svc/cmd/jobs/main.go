@@ -3,14 +3,15 @@ package main
 import (
 	"context"
 	"flag"
-	"hexchess-svc/cmd"
-	"hexchess-svc/db"
-	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/services"
 	"log"
 	"log/slog"
 	"os"
 	"time"
+
+	"hexchess-svc/cmd"
+	"hexchess-svc/db"
+	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/services"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

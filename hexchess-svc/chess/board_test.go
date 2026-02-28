@@ -2,8 +2,9 @@ package chess
 
 import (
 	"errors"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestBoard_Fen(t *testing.T) {

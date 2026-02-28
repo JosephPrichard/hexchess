@@ -3,11 +3,15 @@ package web
 import (
 	"context"
 	"fmt"
-	"github.com/google/go-cmp/cmp"
-	"github.com/gorilla/websocket"
-	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"net/http"
+	"net/http/httptest"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
 	"hexchess-svc/chess"
 	"hexchess-svc/ext"
 	"hexchess-svc/itest"
@@ -15,12 +19,9 @@ import (
 	"hexchess-svc/pkg/assertutil"
 	"hexchess-svc/services"
 
-	"net/http"
-	"net/http/httptest"
-	"slices"
-	"strings"
-	"testing"
-	"time"
+	"github.com/google/go-cmp/cmp"
+	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/require"
 )
 
 // TestHandleGameplayWs is a high-level black box testing that checks the broadcast and websocket output for every input case
@@ -208,8 +209,8 @@ func TestHandleGameplayWs(t *testing.T) {
 			slices.SortFunc(brdcasts, func(a any, b any) int {
 				return getBrdcastSortOrd(a) - getBrdcastSortOrd(b)
 			})
-			assertutil.Equal(t, wantMsgs, msgs, cmpOpts...)
-			assertutil.Equal(t, wantBrdcasts, brdcasts, cmpOpts...)
+			testutil.Equal(t, wantMsgs, msgs, cmpOpts...)
+			testutil.Equal(t, wantBrdcasts, brdcasts, cmpOpts...)
 		})
 	}
 }

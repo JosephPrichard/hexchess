@@ -3,11 +3,12 @@ package chess
 import (
 	"errors"
 	"fmt"
-	"hexchess-svc/pb"
 	"slices"
 	"strconv"
 	"strings"
 	"unicode"
+
+	"hexchess-svc/pb"
 )
 
 type Piece byte

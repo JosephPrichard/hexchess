@@ -1,11 +1,12 @@
-package assertutil
+package testutil
 
 import (
+	"net/http/httptest"
+	"testing"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
-	"net/http/httptest"
-	"testing"
 )
 
 type test struct {

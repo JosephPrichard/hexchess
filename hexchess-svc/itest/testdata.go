@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"time"
+
+	"hexchess-svc/pkg/logutil"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
-	"hexchess-svc/pkg/logutil"
-	"time"
 )
 
 // TimeNow is a stable and consistent constant we use mock ext the 'now' value in our testing data

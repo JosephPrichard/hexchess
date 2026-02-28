@@ -4,7 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/sync/errgroup"
+	"log"
+	"log/slog"
+	"math/rand"
+	"os"
+	"time"
+
 	"hexchess-svc/assets"
 	"hexchess-svc/chess"
 	"hexchess-svc/cmd"
@@ -12,13 +17,9 @@ import (
 	"hexchess-svc/ext"
 	"hexchess-svc/pkg/logutil"
 	svc "hexchess-svc/services"
-	"log"
-	"log/slog"
-	"math/rand"
-	"os"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/sync/errgroup"
 )
 
 func readTestdataFile[V any](filename string) []V {

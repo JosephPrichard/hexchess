@@ -2,10 +2,11 @@ package svc
 
 import (
 	"encoding/json"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestChessSerializer(t *testing.T) {
