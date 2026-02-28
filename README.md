@@ -48,6 +48,10 @@ REDIS_PRIMARY_URL=localhost:6379
 REDIS_PUBSUB_URL=localhost:6380
 ALLOWED_ORIGINS=http://localhost:5173
 COOKIE_DOMAIN=localhost
+AWS_SECRET_ID=test
+AWS_SECRET_KEY=test
+AWS_DEFAULT_REGION=us-east-1
+AWS_ENDPOINT=http://localhost:4566
 ```
 
 ### Run Server
@@ -66,14 +70,17 @@ COOKIE_DOMAIN=localhost
 
 Create an environment variable file in `root`
 ```
-PROXY_PORT=8080
+SERVER_PORT=8080
+PPROF_PORT=6060
 DB_URL=postgres://postgres:<db-password>@host.docker.internal:<db-port>/<db-name>
 REDIS_PRIMARY_URL=host.docker.internal:6379
 REDIS_PUBSUB_URL=host.docker.internal:6380
-ALLOWED_ORIGINS=http://localhost:5173
+ALLOWED_ORIGINS=<ui application hostname in route53>
 COOKIE_DOMAIN=localhost
-PUBLIC_APP_BASE_URL=http://localhost:8080
-PUBLIC_BASE_URL=http://localhost:8080/api
+AWS_SECRET_ID=<automatically set in aws>
+AWS_SECRET_KEY=<automatically set in aws>
+AWS_DEFAULT_REGION=us-east-1
+AWS_ENDPOINT=
 ```
 
 This configuration connects to infra running outside the docker container.
@@ -84,9 +91,7 @@ This configuration connects to infra running outside the docker container.
 
 ## Environment Variables
 
-`PROXY_PORT` is the port in which the nginx reverse proxy in the docker container will run at, so the port you will hit if you want to use the app running in the docker container.
-
-`SERVER_PORT` is the port where `hexchess-svc` runs at, this is set automatically inside the docker container, but must be set if you are running the server by itself.
+`SERVER_PORT` is the port where `hexchess-svc` runs at, this is must be the same as what the ALB is configured to direct traffic to.
 
 `DB_URL` postgres connection url that the server will connect to
 
@@ -96,6 +101,10 @@ This configuration connects to infra running outside the docker container.
 
 `ALLOWED_ORIGINS` allowed origins used for CORs, this should be the url the UI is running at
 
-`PUBLIC_APP_BASE_URL` The URL the UI is hosted at
+`AWS_SECRET_ID` Standard AWS credentials environment variable.
 
-`PUBLIC_BASE_URL` The URL the backend api is hosted at
+`AWS_SECRET_KEY` Standard AWS credentials environment variable.
+
+`AWS_DEFAULT_REGION` The region the AWS infrastructure resources (only S3 as of right now) are in.
+
+`AWS_ENDPOINT` The AWS endpoint to point the S3 Client to, this can be set to localstack for testing but should be left empty for prod (points to real AWS endpoint by default).

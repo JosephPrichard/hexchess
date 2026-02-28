@@ -1,1 +1,0 @@
-ALTER TABLE replays DROP COLUMN move_history;

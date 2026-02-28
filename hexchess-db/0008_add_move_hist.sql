@@ -1,3 +1,4 @@
+-- +goose up
 CREATE TABLE replay_move_histories (
     replay_id BIGINT PRIMARY KEY,
     data      BYTEA NOT NULL,
@@ -7,3 +8,6 @@ CREATE TABLE replay_move_histories (
     REFERENCES replays(id)
     ON DELETE CASCADE
 );
+
+-- +goose Down
+DROP TABLE IF EXISTS replay_move_histories;

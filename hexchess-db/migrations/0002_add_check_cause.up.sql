@@ -1,6 +1,0 @@
-ALTER TABLE replays
-DROP CONSTRAINT IF EXISTS cause_check;
-
-ALTER TABLE replays
-    ADD CONSTRAINT cause_check_1
-    CHECK (cause IN ('CHECKMATE', 'FORFEIT', 'STALEMATE'));

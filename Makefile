@@ -63,7 +63,7 @@ install:
 	go install github.com/agnivade/wasmbrowsertest@latest
 	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-	go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+	go install github.com/pressly/goose/v3/cmd/goose@latest
 
 clean:
 	rm -f $(WASM_SRC_DIR)/$(WASM_OUTPUT)
