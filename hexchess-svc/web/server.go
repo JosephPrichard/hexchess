@@ -2,12 +2,14 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
+	"hexchess-svc/assets"
 	"hexchess-svc/chess"
 	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/services"
@@ -15,6 +17,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
+	"github.com/hellofresh/health-go/v5"
+	pgHealth "github.com/hellofresh/health-go/v5/checks/postgres"
+	redisHealth "github.com/hellofresh/health-go/v5/checks/redis"
 )
 
 func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.Handler {
@@ -42,31 +47,41 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 
 type Setup struct {
 	Services       svc.Services
-	CountryList    []string
 	AllowedOrigins string
 }
 
-type App struct {
-	svc.Services
+type ConstantData struct {
 	ValidCountries map[string]bool
+	CountryList    []string
 }
 
-func MakeRoot(setup Setup) http.Handler {
-	countryList := setup.CountryList
+func MakeConstantData() ConstantData {
+	var countryList []string
+	if err := json.Unmarshal(assets.CountryListJson, &countryList); err != nil {
+		logutil.FatalErr("unmarshal country list", err)
+	}
 	if countryList == nil {
 		countryList = []string{}
 	}
 	validCountries := make(map[string]bool)
-	for _, country := range setup.CountryList {
+	for _, country := range countryList {
 		validCountries[country] = true
 	}
+	return ConstantData{ValidCountries: validCountries, CountryList: countryList}
+}
 
+type App struct {
+	svc.Services
+	ConstantData
+}
+
+func MakeServeMux(setup Setup) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Recoverer)
 	r.Use(RouteMiddleware(setup.AllowedOrigins))
 
-	app := App{setup.Services, validCountries}
+	app := App{setup.Services, MakeConstantData()}
 
 	r.Post("/api/register", Rest(app.HandleRegister))
 	r.Post("/api/login", Rest(app.HandleLogin))
@@ -99,11 +114,9 @@ func MakeRoot(setup Setup) http.Handler {
 	r.Get("/api/events/active", SSE(app.HandleActiveConn))
 
 	r.Get("/api/initial-board", Json(chess.InitialBoard()))
-	r.Get("/api/countries", Json(countryList))
+	r.Get("/api/countries", Json(app.CountryList))
 
 	r.Get("/api/ws/game", app.HandleGameWs)
-
-	r.Get("/api/healthcheck", app.HandleHealthCheck)
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		slog.ErrorContext(r.Context(), "route not found", "method", r.Method, "url", r.URL)
@@ -120,59 +133,45 @@ func MakeRoot(setup Setup) http.Handler {
 	return r
 }
 
-func (app *App) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+type HealthCheckConfig struct {
+	PostgresDSN     string
+	RedisPrimaryDSN string
+	RedisPubSubDSN  string
+}
 
-	healthChecks := []struct {
-		Name  string
-		Check func() error
-	}{
-		{
-			Name: "rdbPrimary",
-			Check: func() error {
-				_, err := app.Redis.Cache.Ping(ctx).Result()
-				return err
-			},
-		},
-		{
-			Name: "rdbPubsub",
-			Check: func() error {
-				conn := app.Redis.PubSub.Get()
-				defer conn.Close()
-				_, err := conn.Do("PING")
-				return err
-			},
-		},
-		{
-			Name: "postgresDB",
-			Check: func() error {
-				return app.Postgres.HealthCheck(ctx)
-			},
-		},
-	}
+func WithHealthChecker(mux *chi.Mux, config HealthCheckConfig) {
+	h, err := health.New(
+		health.WithComponent(
+			health.Component{Name: "hexchess-svc", Version: "v1.0"},
+		),
+		health.WithChecks(
+			health.Config{
+				Name:    "Postgres",
+				Timeout: time.Second * 1,
 
-	failures := make(map[string]string)
-	for _, h := range healthChecks {
-		if err := h.Check(); err != nil {
-			failures["rdbPrimary"] = err.Error()
-		}
+				Check: pgHealth.New(pgHealth.Config{
+					DSN: config.PostgresDSN,
+				}),
+			},
+			health.Config{
+				Name:    "RedisPrimary",
+				Timeout: time.Second * 1,
+				Check: redisHealth.New(redisHealth.Config{
+					DSN: config.RedisPrimaryDSN,
+				}),
+			},
+			health.Config{
+				Name:      "RedisPubsub",
+				Timeout:   time.Second * 1,
+				SkipOnErr: true,
+				Check: redisHealth.New(redisHealth.Config{
+					DSN: config.RedisPubSubDSN,
+				}),
+			},
+		),
+	)
+	if err != nil {
+		logutil.FatalErr("failed to create health checker", err)
 	}
-	status := "OK"
-	if len(failures) > 0 {
-		status = "DOWN"
-	}
-	httpStatus := http.StatusOK
-	if status == "DOWN" {
-		httpStatus = http.StatusServiceUnavailable
-	}
-
-	writeJSON(w, httpStatus, struct {
-		Status    string            `json:"status"`
-		Timestamp time.Time         `json:"timestamp"`
-		Failures  map[string]string `json:"failures"`
-	}{
-		Status:    status,
-		Timestamp: time.Now(),
-		Failures:  failures,
-	})
+	mux.Get("/healthcheck", h.HandlerFunc)
 }

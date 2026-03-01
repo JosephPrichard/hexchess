@@ -114,7 +114,7 @@ func (app *App) HandleRegister(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("insert user: %w", err)
 	}
 
-	t, err := SetSessionPlayer(ctx, app.Services, w, svc.MakePlayer(user.ID, user.Username, user.Country))
+	ttl, err := SetSessionPlayer(ctx, app.Services, w, svc.MakePlayer(user.ID, user.Username, user.Country))
 	if err != nil {
 		return fmt.Errorf("set session player: %w", err)
 	}
@@ -124,7 +124,7 @@ func (app *App) HandleRegister(w http.ResponseWriter, r *http.Request) error {
 		ID:       user.ID,
 		Username: user.Username,
 		Country:  user.Country,
-		TTLSecs:  t,
+		TTLSecs:  ttl,
 	})
 	return nil
 }

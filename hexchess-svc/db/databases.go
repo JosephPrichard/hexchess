@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -52,7 +51,6 @@ var DefaultRedisNames = RedisNames{
 
 type Postgres interface {
 	Query() *Queries
-	HealthCheck(context.Context) error
 	RunInTx(context.Context, TxnArgs) error
 	Close()
 }
@@ -60,11 +58,6 @@ type Postgres interface {
 type PostgresDB struct {
 	q    *Queries
 	pool *pgxpool.Pool
-}
-
-func (pdb *PostgresDB) HealthCheck(ctx context.Context) error {
-	_, err := pdb.pool.Exec(ctx, "SELECT 1;")
-	return err
 }
 
 func (pdb *PostgresDB) Query() *Queries {
@@ -77,10 +70,6 @@ func (pdb *PostgresDB) Close() {
 
 type PostgresFake struct {
 	testingTxn pgx.Tx
-}
-
-func (pdb *PostgresFake) HealthCheck(_ context.Context) error {
-	return errors.New("health check failed for fake postgres impl")
 }
 
 func (pdb *PostgresFake) Query() *Queries {

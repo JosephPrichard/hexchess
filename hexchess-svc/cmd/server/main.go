@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"log/slog"
 	"net/http"
@@ -10,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"hexchess-svc/assets"
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
 	"hexchess-svc/ext"
@@ -49,11 +47,6 @@ func main() {
 	pprofPort := os.Getenv("PPROF_PORT")
 	// googleAPIKey := os.Getenv("GOOGLE_APIKEY")
 	//cookieDomain := os.Getenv("COOKIE_DOMAIN")
-
-	var countryList []string
-	if err := json.Unmarshal(assets.CountryListJson, &countryList); err != nil {
-		logutil.FatalErr("unmarshal country list", err)
-	}
 
 	slog.Info("connecting to postgres db", "dbURL", dbURL)
 	pool, err := pgxpool.New(context.Background(), dbURL)
@@ -105,10 +98,16 @@ func main() {
 
 	setup := web.Setup{
 		Services:       services,
-		CountryList:    countryList,
 		AllowedOrigins: allowedOrigins,
 	}
-	if err := http.ListenAndServe(":"+serverPort, web.MakeRoot(setup)); err != nil {
+
+	mux := web.MakeServeMux(setup)
+	web.WithHealthChecker(mux, web.HealthCheckConfig{
+		PostgresDSN:     dbURL,
+		RedisPrimaryDSN: rdbPrimaryURL,
+		RedisPubSubDSN:  rdbPubSubURL,
+	})
+	if err := http.ListenAndServe(":"+serverPort, mux); err != nil {
 		logutil.FatalErr("failed while serving", err)
 	}
 }

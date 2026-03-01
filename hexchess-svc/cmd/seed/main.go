@@ -89,7 +89,11 @@ func main() {
 		logutil.FatalErr("make aws clients", err)
 	}
 
-	services := &svc.Services{Redis: rdb, Postgres: pdb, Aws: aws}
+	services := &svc.Services{
+		Redis:    rdb,
+		Postgres: pdb,
+		Aws:      aws,
+	}
 	defer services.Close()
 
 	_, err = pool.Exec(ctx, `

@@ -44,7 +44,10 @@ func main() {
 	slog.InfoContext(ctx, "connecting to rdb db", "rdbPrimaryURL", rdbPrimaryURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL}, db.DefaultRedisNames)
 
-	services := &svc.Services{Postgres: db.MakePostgres(pool), Redis: rdb}
+	services := &svc.Services{
+		Postgres: db.MakePostgres(pool),
+		Redis:    rdb,
+	}
 	defer services.Close()
 
 	switch *jobName {

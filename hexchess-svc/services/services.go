@@ -5,7 +5,6 @@ import (
 	"hexchess-svc/ext"
 )
 
-// Services is the information passed to any public service level API call (mocks, drivers, clients)
 type Services struct {
 	db.Postgres
 	db.Redis

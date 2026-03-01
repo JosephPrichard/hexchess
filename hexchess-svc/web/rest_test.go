@@ -22,8 +22,8 @@ import (
 	"hexchess-svc/ext"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
-	"hexchess-svc/pkg/assertutil"
 	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/pkg/testutil"
 	"hexchess-svc/services"
 
 	"github.com/google/uuid"
@@ -77,7 +77,7 @@ func TestHandleRegister(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			services.EntropySource = &ext.StableSource{Time: insertTime}
-			hander := MakeRoot(Setup{Services: services})
+			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -120,7 +120,7 @@ func TestHandleLogin(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/api/login", asJSONReader(test.body))
 			w := httptest.NewRecorder()
 
-			hander := MakeRoot(Setup{Services: services})
+			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -184,7 +184,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 				w := httptest.NewRecorder()
 
 				services.RemoteAPIs = ext.RemoteAPIs{GoogleAPI: test.setupMocks(ctrl)}
-				hander := MakeRoot(Setup{Services: services})
+				hander := MakeServeMux(Setup{Services: services})
 				hander.ServeHTTP(w, r)
 
 				assert.Equal(t, test.wantStatus, w.Code)
@@ -241,7 +241,7 @@ func TestHandleUpdateUser(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			hander := MakeRoot(Setup{Services: services, CountryList: []string{"eu"}})
+			hander := MakeServeMux(Setup{Services: services, CountryList: []string{"eu"}})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -297,7 +297,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			MakeRoot(Setup{Services: services}).ServeHTTP(w, r)
+			MakeServeMux(Setup{Services: services}).ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
 			if test.wantStatus == http.StatusOK {
@@ -361,7 +361,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			hander := MakeRoot(Setup{Services: services})
+			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -409,7 +409,7 @@ func TestHandleCreateGame(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			services.EntropySource = &ext.StableSource{Time: itest.TimeNow}
-			hander := MakeRoot(Setup{Services: services})
+			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -469,7 +469,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			services.EntropySource = &ext.StableSource{Time: itest.TimeNow}
-			hander := MakeRoot(Setup{Services: services})
+			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -535,7 +535,7 @@ func TestGetLeaderboard(t *testing.T) {
 			q.Set("page", test.page)
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/leaderboard?%s", q.Encode()), nil)
 			w := httptest.NewRecorder()
-			hander := MakeRoot(Setup{Services: services})
+			hander := MakeServeMux(Setup{Services: services})
 
 			// when
 			hander.ServeHTTP(w, r)
@@ -596,7 +596,7 @@ func TestGetPlayer(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players?id=%s&withReplays=%v", test.id, test.withReplays), nil)
 			w := httptest.NewRecorder()
 
-			hander := MakeRoot(Setup{Services: services})
+			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -644,7 +644,7 @@ func TestGetChallenges(t *testing.T) {
 			createTestSessions(t, services)
 
 			services.EntropySource = &ext.StableSource{Time: itest.TimeNow}
-			hander := MakeRoot(Setup{Services: services})
+			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -694,7 +694,7 @@ func TestHandleGetUserReplays(t *testing.T) {
 			services := svc.SetupServicesTest(t, itest.ROPostgres)
 			defer services.Close()
 
-			hander := MakeRoot(Setup{Services: services})
+			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -735,7 +735,7 @@ func TestHandleGetReplay(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay?id=%s", test.userID), nil)
 			w := httptest.NewRecorder()
 
-			hander := MakeRoot(Setup{Services: services})
+			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -759,7 +759,7 @@ func TestHandleGetChessMetas(t *testing.T) {
 	r.Header.Set("Cookie", FmtCookie(TestSessionID2))
 	w := httptest.NewRecorder()
 
-	h := MakeRoot(Setup{Services: services})
+	h := MakeServeMux(Setup{Services: services})
 	h.ServeHTTP(w, r)
 
 	wantResp := ChessMetasResp{
@@ -811,7 +811,7 @@ func TestHandleGetMoveReplay(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// when
-	hander := MakeRoot(Setup{Services: services})
+	hander := MakeServeMux(Setup{Services: services})
 	hander.ServeHTTP(w, r)
 
 	body, err := io.ReadAll(w.Body)
@@ -850,7 +850,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	// when
-	hander := MakeRoot(Setup{Services: services})
+	hander := MakeServeMux(Setup{Services: services})
 	hander.ServeHTTP(w, r)
 
 	// then
@@ -898,7 +898,7 @@ func TestHandleGetProfilePic(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/users/profile-pics?userId=%s", test.userID), nil)
 			w := httptest.NewRecorder()
 
-			hander := MakeRoot(Setup{Services: services})
+			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			// then

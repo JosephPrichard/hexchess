@@ -157,7 +157,7 @@ func TestHandleGameplayWs(t *testing.T) {
 			createTestSessions(t, services)
 			createTestChessStates(t, services)
 
-			testServer := httptest.NewServer(MakeRoot(Setup{Services: services}))
+			testServer := httptest.NewServer(MakeServeMux(Setup{Services: services}))
 			defer testServer.Close()
 
 			// (start, subscribe, and read broadcasts)

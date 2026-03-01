@@ -67,7 +67,7 @@ func TestHandleCountEvents(t *testing.T) {
 	services.LocalBroadcasters = svc.MakeBroadcaster()
 	<-services.LocalBroadcasters.ListenUnicastEvents(services.Redis)
 
-	testServer := httptest.NewServer(MakeRoot(Setup{Services: services}))
+	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services}))
 	defer testServer.Close()
 
 	// optimistic timeout incase of deadlock.
@@ -122,7 +122,7 @@ func TestHandleActiveConn(t *testing.T) {
 	sub := make(chan svc.UcEvent, len(wantBrdcasts))
 	services.LocalBroadcasters.CountsCaster.Subscribe(sub)
 
-	testServer := httptest.NewServer(MakeRoot(Setup{Services: services}))
+	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services}))
 	defer testServer.Close()
 
 	// when
@@ -159,7 +159,7 @@ func TestHandleUserEvents(t *testing.T) {
 
 	createTestSessions(t, services)
 
-	testServer := httptest.NewServer(MakeRoot(Setup{Services: services}))
+	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services}))
 	defer testServer.Close()
 
 	// optimistic timeout incase of deadlock.

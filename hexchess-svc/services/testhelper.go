@@ -9,6 +9,7 @@ import (
 	"hexchess-svc/ext"
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/pkg/testutil"
 
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/sync/errgroup"
