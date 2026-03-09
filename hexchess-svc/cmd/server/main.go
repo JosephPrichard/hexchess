@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
@@ -11,7 +10,7 @@ import (
 
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
-	"hexchess-svc/ext"
+	"hexchess-svc/egress"
 	"hexchess-svc/pkg/logutil"
 	svc "hexchess-svc/services"
 	"hexchess-svc/web"
@@ -64,7 +63,7 @@ func main() {
 	slog.Info("connecting to rdb db", "primaryURL", rdbPrimaryURL, "pubsubURL", rdbPubSubURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL, PubsubAddr: rdbPubSubURL}, db.DefaultRedisNames)
 
-	aws, err := ext.MakeAwsClients(context.Background(), ext.AwsConfig{
+	aws, err := egress.MakeAwsClients(context.Background(), egress.AwsConfig{
 		AwsDefaultRegion: awsDefaultRegion,
 		AwsSecretKey:     awsSecretKey,
 		AwsSecretID:      awsSecretID,
@@ -79,8 +78,8 @@ func main() {
 		Redis:             rdb,
 		Aws:               aws,
 		LocalBroadcasters: svc.MakeBroadcaster(),
-		RemoteAPIs:        ext.MakeRemoteAPIs(),
-		EntropySource:     &ext.NDEntropySource{},
+		RemoteAPIs:        egress.MakeRemoteAPIs(),
+		EntropySource:     &svc.RealEntropySource{},
 	}
 	defer services.Close()
 
@@ -92,7 +91,9 @@ func main() {
 
 	if pprofPort != "" {
 		go func() {
-			log.Println(http.ListenAndServe(":"+pprofPort, nil))
+			if err := http.ListenAndServe(":"+pprofPort, nil); err != nil {
+				slog.Error("failed while serving pprof", "err", err)
+			}
 		}()
 	}
 
@@ -102,7 +103,7 @@ func main() {
 	}
 
 	mux := web.MakeServeMux(setup)
-	web.WithHealthChecker(mux, web.HealthCheckConfig{
+	web.WithHealthCheck(mux, web.HealthCheckConfig{
 		PostgresDSN:     dbURL,
 		RedisPrimaryDSN: rdbPrimaryURL,
 		RedisPubSubDSN:  rdbPubSubURL,

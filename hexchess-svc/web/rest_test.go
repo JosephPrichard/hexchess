@@ -19,7 +19,7 @@ import (
 
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
-	"hexchess-svc/ext"
+	"hexchess-svc/egress"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
 	"hexchess-svc/pkg/logutil"
@@ -35,6 +35,8 @@ import (
 // no db assertions are made, and any ext network calls are mocked
 
 func TestHandleRegister(t *testing.T) {
+	t.Parallel()
+
 	insertTime := itest.TimeNow
 
 	for _, test := range []struct {
@@ -76,7 +78,7 @@ func TestHandleRegister(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/api/register", asJSONReader(test.body))
 			w := httptest.NewRecorder()
 
-			services.EntropySource = &ext.StableSource{Time: insertTime}
+			services.EntropySource = &svc.StableEntropySource{Time: insertTime}
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
@@ -91,6 +93,8 @@ func TestHandleRegister(t *testing.T) {
 }
 
 func TestHandleLogin(t *testing.T) {
+	t.Parallel()
+
 	user := itest.UsersInsts[0]
 
 	for _, test := range []struct {
@@ -134,10 +138,12 @@ func TestHandleLogin(t *testing.T) {
 }
 
 func TestHandleGoogleLogin(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name        string
 		runCount    int
-		setupMocks  func(*gomock.Controller) ext.GoogleAPI
+		setupMocks  func(*gomock.Controller) egress.GoogleAPI
 		body        GoogleLoginBody
 		wantSuccess SessionView
 		wantFail    ServiceView
@@ -146,11 +152,11 @@ func TestHandleGoogleLogin(t *testing.T) {
 		{
 			name:     "invalid login token (mocked)",
 			runCount: 1,
-			setupMocks: func(ctrl *gomock.Controller) ext.GoogleAPI {
-				m := ext.NewMockGoogleAPI(ctrl)
+			setupMocks: func(ctrl *gomock.Controller) egress.GoogleAPI {
+				m := egress.NewMockGoogleAPI(ctrl)
 				m.EXPECT().
 					ValidateIDToken(gomock.Any(), "invalidToken123").
-					Return(ext.GoogleIDTokenPayload{}, errors.New("invalid token"))
+					Return(egress.GoogleIDTokenPayload{}, errors.New("invalid token"))
 				return m
 			},
 			body:       GoogleLoginBody{Token: "invalidToken123"},
@@ -160,11 +166,11 @@ func TestHandleGoogleLogin(t *testing.T) {
 		{
 			name:     "login with google token succesful",
 			runCount: 2, // the user is created the first time, the second time we log in with the already inserted account ID
-			setupMocks: func(ctrl *gomock.Controller) ext.GoogleAPI {
-				m := ext.NewMockGoogleAPI(ctrl)
+			setupMocks: func(ctrl *gomock.Controller) egress.GoogleAPI {
+				m := egress.NewMockGoogleAPI(ctrl)
 				m.EXPECT().
 					ValidateIDToken(gomock.Any(), "testToken123").
-					Return(ext.GoogleIDTokenPayload{AccountID: "account1", Username: "email@domain.com"}, nil)
+					Return(egress.GoogleIDTokenPayload{AccountID: "account1", Username: "email@domain.com"}, nil)
 				return m
 			},
 			body:        GoogleLoginBody{Token: "testToken123"},
@@ -183,7 +189,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 				r := httptest.NewRequest(http.MethodPost, "/api/login/google", asJSONReader(test.body))
 				w := httptest.NewRecorder()
 
-				services.RemoteAPIs = ext.RemoteAPIs{GoogleAPI: test.setupMocks(ctrl)}
+				services.RemoteAPIs = egress.RemoteAPIs{GoogleAPI: test.setupMocks(ctrl)}
 				hander := MakeServeMux(Setup{Services: services})
 				hander.ServeHTTP(w, r)
 
@@ -199,6 +205,8 @@ func TestHandleGoogleLogin(t *testing.T) {
 }
 
 func TestHandleUpdateUser(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name        string
 		body        UpdateUserBody
@@ -207,9 +215,10 @@ func TestHandleUpdateUser(t *testing.T) {
 		wantStatus  int
 	}{
 		{
-			name:       "invalid username and biography (length)",
-			body:       UpdateUserBody{NewCountry: "eu", NewUsername: "s", NewBio: strings.Repeat("a", 5001)},
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"newBio": ErrHttpInvalidBio.Error(), "newUsername": ErrHttpInvalidUsername.Error()}},
+			name: "invalid username and biography (length)",
+			body: UpdateUserBody{NewCountry: "us", NewUsername: "s", NewBio: strings.Repeat("a", 5001)},
+			wantFail: ServiceView{Status: http.StatusBadRequest,
+				Errors: map[string]any{"newBio": ErrHttpInvalidBio.Error(), "newUsername": ErrHttpInvalidUsername.Error()}},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
@@ -226,8 +235,8 @@ func TestHandleUpdateUser(t *testing.T) {
 		},
 		{
 			name:        "updating username, bio, and country",
-			body:        UpdateUserBody{NewUsername: "new-username", NewBio: "testing biography", NewCountry: "eu"},
-			wantSuccess: SessionView{Username: "new-username", Country: "eu"},
+			body:        UpdateUserBody{NewUsername: "new-username", NewBio: "testing biography", NewCountry: "un"},
+			wantSuccess: SessionView{Username: "new-username", Country: "un"},
 			wantStatus:  http.StatusOK,
 		},
 	} {
@@ -241,7 +250,7 @@ func TestHandleUpdateUser(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			hander := MakeServeMux(Setup{Services: services, CountryList: []string{"eu"}})
+			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, test.wantStatus, w.Code)
@@ -255,6 +264,8 @@ func TestHandleUpdateUser(t *testing.T) {
 }
 
 func TestHandleUpdatePassword(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name        string
 		body        UpdatePasswordBody
@@ -310,6 +321,8 @@ func TestHandleUpdatePassword(t *testing.T) {
 }
 
 func TestHandleUpdateChallenge(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name       string
 		body       UpdateChallengeBody
@@ -373,6 +386,8 @@ func TestHandleUpdateChallenge(t *testing.T) {
 }
 
 func TestHandleCreateGame(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name       string
 		body       CreateGameBody
@@ -408,7 +423,7 @@ func TestHandleCreateGame(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			services.EntropySource = &ext.StableSource{Time: itest.TimeNow}
+			services.EntropySource = &svc.StableEntropySource{Time: itest.TimeNow}
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
@@ -421,6 +436,8 @@ func TestHandleCreateGame(t *testing.T) {
 }
 
 func TestHandleCreateChallenge(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name       string
 		body       CreateChallengeBody
@@ -468,7 +485,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			services.EntropySource = &ext.StableSource{Time: itest.TimeNow}
+			services.EntropySource = &svc.StableEntropySource{Time: itest.TimeNow}
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
@@ -479,6 +496,8 @@ func TestHandleCreateChallenge(t *testing.T) {
 }
 
 func TestGetLeaderboard(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name        string
 		mode        string
@@ -522,8 +541,7 @@ func TestGetLeaderboard(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(test.name, func(t *testing.T) {
-			// given
+		t.Run(test.name, func(t *testing.T) { // given
 			services := svc.SetupServicesTest(t, itest.ROPostgres, itest.Redis)
 			defer services.Close()
 
@@ -552,6 +570,8 @@ func TestGetLeaderboard(t *testing.T) {
 }
 
 func TestGetPlayer(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name        string
 		id          string
@@ -610,6 +630,8 @@ func TestGetPlayer(t *testing.T) {
 }
 
 func TestGetChallenges(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name         string
 		participants string
@@ -643,7 +665,7 @@ func TestGetChallenges(t *testing.T) {
 
 			createTestSessions(t, services)
 
-			services.EntropySource = &ext.StableSource{Time: itest.TimeNow}
+			services.EntropySource = &svc.StableEntropySource{Time: itest.TimeNow}
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
@@ -654,6 +676,8 @@ func TestGetChallenges(t *testing.T) {
 }
 
 func TestHandleGetUserReplays(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name        string
 		afterID     string
@@ -708,6 +732,8 @@ func TestHandleGetUserReplays(t *testing.T) {
 }
 
 func TestHandleGetReplay(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name        string
 		userID      string
@@ -749,6 +775,8 @@ func TestHandleGetReplay(t *testing.T) {
 }
 
 func TestHandleGetChessMetas(t *testing.T) {
+	t.Parallel()
+
 	services := svc.SetupServicesTest(t, itest.ROPostgres, itest.Redis)
 	defer services.Close()
 
@@ -787,6 +815,8 @@ func TestHandleGetChessMetas(t *testing.T) {
 }
 
 func TestHandleGetMoveReplay(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := svc.SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
@@ -832,6 +862,8 @@ func TestHandleGetMoveReplay(t *testing.T) {
 }
 
 func TestHandleUploadProfilePic(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := svc.SetupServicesTest(t, itest.Redis, itest.Aws)
 	defer services.Close()
@@ -859,10 +891,12 @@ func TestHandleUploadProfilePic(t *testing.T) {
 	var view ServiceView
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &view))
 
-	assert.Equal(t, "testfiledata", ext.GetS3Object(t, services.S3Client, services.S3ProfileBucket, view.Message)) // key is contained in the mesage.
+	assert.Equal(t, "testfiledata", egress.GetS3Object(t, services.S3Client, services.S3ProfileBucket, view.Message)) // key is contained in the mesage.
 }
 
 func TestHandleGetProfilePic(t *testing.T) {
+	t.Parallel()
+
 	key1 := fmt.Sprintf("users/profile-pics/3/%s", uuid.NewString())
 	key2 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())
 
@@ -886,13 +920,12 @@ func TestHandleGetProfilePic(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 	} {
-		t.Run(test.userID, func(t *testing.T) {
-			// given
+		t.Run(test.userID, func(t *testing.T) { // given
 			services := svc.SetupServicesTest(t, itest.Redis, itest.Aws)
 			defer services.Close()
 
-			ext.PutS3Object(t, services.S3Client, services.S3ProfileBucket, key1, []byte("testfiledata1"))
-			ext.PutS3Object(t, services.S3Client, services.S3ProfileBucket, key2, []byte("testfiledata2"))
+			egress.PutS3Object(t, services.S3Client, services.S3ProfileBucket, key1, []byte("testfiledata1"))
+			egress.PutS3Object(t, services.S3Client, services.S3ProfileBucket, key2, []byte("testfiledata2"))
 
 			// when
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/users/profile-pics?userId=%s", test.userID), nil)

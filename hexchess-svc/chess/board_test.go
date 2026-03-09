@@ -8,12 +8,16 @@ import (
 )
 
 func TestBoard_Fen(t *testing.T) {
+	t.Parallel()
+
 	board := InitialBoard()
 	got := board.Fen()
 	assert.Equal(t, "6/P5p/RP4pr/N1P3p1n/Q2P2p2q/BBB1P1p1bbb/K2P2p2k/N1P3p1n/RP4pr/P5p/6 w", got)
 }
 
 func TestParse_Fen(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name      string
 		fen       string

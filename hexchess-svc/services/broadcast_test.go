@@ -15,6 +15,8 @@ import (
 )
 
 func TestMultiCaster(t *testing.T) {
+	t.Parallel()
+
 	// given
 	m := MakeMultiCasterMap("testing-mc", time.Hour*1)
 
@@ -71,6 +73,8 @@ func TestMultiCaster(t *testing.T) {
 }
 
 func TestUnicaster(t *testing.T) {
+	t.Parallel()
+
 	// given
 	m := MakeUniCaster("testing-uc")
 
@@ -111,6 +115,8 @@ func TestUnicaster(t *testing.T) {
 }
 
 func TestBroadcastGameMessage(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()

@@ -13,6 +13,8 @@ import (
 )
 
 func TestSessions(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()

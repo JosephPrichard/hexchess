@@ -18,6 +18,8 @@ var testUserCmptOpts = cmpopts.IgnoreFields(UserEntity{}, "ID")
 var testVerifiedUserCmptOpts = cmpopts.IgnoreFields(VerifiedUser{}, "ID")
 
 func TestInsertThenVerify(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
@@ -61,6 +63,8 @@ func TestInsertThenVerify(t *testing.T) {
 }
 
 func TestBatchInsertThenGet(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
@@ -89,6 +93,8 @@ func TestBatchInsertThenGet(t *testing.T) {
 }
 
 func TestUpdateUser(t *testing.T) {
+	t.Parallel()
+
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
 
@@ -129,6 +135,8 @@ func TestUpdateUser(t *testing.T) {
 }
 
 func TestSelectOrInsertGoogleUser(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
@@ -163,6 +171,8 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 }
 
 func TestUpdatePasswordThenVerify(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
@@ -183,6 +193,8 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 }
 
 func TestGetUserElos(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()

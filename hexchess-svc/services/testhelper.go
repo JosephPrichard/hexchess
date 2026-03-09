@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"hexchess-svc/ext"
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/pkg/testutil"
@@ -46,12 +45,11 @@ func SetupServicesTest(t logutil.TestLogger, flags ...itest.TestFlag) Services {
 			return
 		})
 	}
-
 	if err := eg.Wait(); err != nil {
 		t.Fatalf("failed to setup test state: %v", err)
 	}
 
-	services.EntropySource = &ext.NDEntropySource{}
+	services.EntropySource = &RealEntropySource{}
 	return services
 }
 

@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"hexchess-svc/ext"
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/services"
@@ -60,6 +59,8 @@ func scanEvents(resp *http.Response, wantEvents int) []string {
 }
 
 func TestHandleCountEvents(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := svc.SetupServicesTest(t, itest.Redis)
 	defer services.Close()
@@ -104,12 +105,14 @@ func TestHandleCountEvents(t *testing.T) {
 }
 
 func TestHandleActiveConn(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := svc.SetupServicesTest(t, itest.Redis)
 	defer services.Close()
 
 	services.LocalBroadcasters = svc.MakeBroadcaster()
-	services.EntropySource = &ext.StableSource{ID: "id1"}
+	services.EntropySource = &svc.StableEntropySource{ID: "id1"}
 
 	<-services.LocalBroadcasters.ListenUnicastEvents(services.Redis)
 
@@ -150,6 +153,8 @@ ReadBrdcasts:
 }
 
 func TestHandleUserEvents(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := svc.SetupServicesTest(t, itest.Redis)
 	defer services.Close()

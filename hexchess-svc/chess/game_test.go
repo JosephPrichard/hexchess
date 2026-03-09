@@ -223,8 +223,7 @@ func TestGame_ValidateMove(t *testing.T) {
 			wantKind: MoveErrIllegalTarget,
 		},
 	} {
-		t.Run(test.name, func(t *testing.T) {
-			// when
+		t.Run(test.name, func(t *testing.T) { // when
 			err := game.ValidateMove(test.move)
 
 			// then
@@ -445,7 +444,7 @@ func findBadGames(game Game, depth int, node *PieceMoveNode, b *BadGame) {
 	}
 }
 
-//func TestGame_NoKingCheckMove(t *testing.T) {
+//func TestGame_NoKingCheckMove(t(t *testing.T) {
 //	var b BadGame
 //	defer func() {
 //		if r := recover(); r != nil {

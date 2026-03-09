@@ -21,14 +21,11 @@ WASM_SRC_DIR    := $(SVC_DIR)/cmd/wasm
 WASM_OUTPUT     := chess.wasm
 UI_WASM_DIR     := $(UI_DIR)/static/wasm
 
-all: sources ci
-sources: generate-go protos install-wasm
+all: sources
 
 # Backend Build
 generate-go:
 	cd $(SVC_DIR) && go generate ./...
-
-protos: proto-backend proto-frontend
 
 proto-backend:
 	mkdir -p $(SVC_PB_OUT)
@@ -51,19 +48,27 @@ install-wasm:
 	mkdir -p $(UI_WASM_DIR)
 	cp $(WASM_SRC_DIR)/$(WASM_OUTPUT) $(UI_WASM_DIR)/$(WASM_OUTPUT)
 
-ci-server:
+# Both build
+protos: proto-backend proto-frontend
+
+sources: generate-go protos install-wasm
+
+# Testing
+test-server:
 	cd $(SVC_DIR) && go test $$(go list ./... | grep -v '^.*/cmd|/wasm/') -timeout=60s
 
-ci-wasm:
+test-wasm:
 	cd $(SVC_WASM_DIR) && GOOS=js GOARCH=wasm go test -timeout=60s -exec $(GOPATH)/bin/wasmbrowsertest
 
-ci: ci-server ci-wasm
+test: test-server test-wasm
 
+# Prerequisites
 install:
-	go install github.com/agnivade/wasmbrowsertest@latest
-	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-	go install github.com/pressly/goose/v3/cmd/goose@latest
+	go install github.com/agnivade/wasmbrowsertest@v0.11.0
+	go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+	go install github.com/pressly/goose/v3/cmd/goose@v3.27.0
+	go install go.uber.org/mock/mockgen@v0.6.0
 
 clean:
 	rm -f $(WASM_SRC_DIR)/$(WASM_OUTPUT)

@@ -13,10 +13,9 @@ import (
 	"time"
 
 	"hexchess-svc/chess"
-	"hexchess-svc/ext"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
-	"hexchess-svc/pkg/assertutil"
+	"hexchess-svc/pkg/testutil"
 	"hexchess-svc/services"
 
 	"github.com/google/go-cmp/cmp"
@@ -27,6 +26,8 @@ import (
 // TestHandleGameplayWs is a high-level black box testing that checks the broadcast and websocket output for every input case
 // Database assertions run after message assertions and can assume that inbound websocket messages are valid
 func TestHandleGameplayWs(t *testing.T) {
+	t.Parallel()
+
 	gameID := TestGameID1
 
 	wantInit := &pb.GameOutput{
@@ -151,7 +152,7 @@ func TestHandleGameplayWs(t *testing.T) {
 			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis, itest.Aws)
 			defer services.Close()
 
-			services.EntropySource = &ext.StableSource{Time: itest.TimeNow}
+			services.EntropySource = &svc.StableEntropySource{Time: itest.TimeNow}
 			services.LocalBroadcasters = svc.MakeBroadcaster()
 
 			createTestSessions(t, services)

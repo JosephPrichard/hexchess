@@ -73,9 +73,13 @@ func assertGame(t *testing.T, wantGame *chess.Game, result js.Value) {
 }
 
 func TestGetGame(t *testing.T) {
+	t.Parallel()
+
 	wasm := makeTestWasm()
 
 	t.Run("get initial game", func(t *testing.T) {
+		t.Parallel()
+
 		result := wasm.GetGame(js.Undefined(), []js.Value{js.Undefined()}).(js.Value)
 
 		if !isUint8Array(result) {
@@ -91,6 +95,8 @@ func TestGetGame(t *testing.T) {
 	})
 
 	t.Run("get game with moves", func(t *testing.T) {
+		t.Parallel()
+
 		input := makeInitialBoardJs(t)
 
 		result := wasm.GetGame(js.Undefined(), []js.Value{input}).(js.Value)
@@ -112,9 +118,13 @@ func TestGetGame(t *testing.T) {
 }
 
 func TestMakeMove(t *testing.T) {
+	t.Parallel()
+
 	wasm := makeTestWasm()
 
 	t.Run("successfully make move", func(t *testing.T) {
+		t.Parallel()
+
 		gameBytes, err := proto.Marshal(
 			chess.SerializeGame(&chess.Game{Board: chess.InitialBoard()}),
 		)
@@ -143,6 +153,8 @@ func TestMakeMove(t *testing.T) {
 	})
 
 	t.Run("invalid make move", func(t *testing.T) {
+		t.Parallel()
+
 		gameBytes, err := proto.Marshal(
 			chess.SerializeGame(&chess.Game{Board: chess.InitialBoard()}),
 		)
@@ -159,12 +171,16 @@ func TestMakeMove(t *testing.T) {
 	})
 
 	t.Run("invalid arguments", func(t *testing.T) {
+		t.Parallel()
+
 		result := wasm.MakeMove(js.Undefined(), nil).(js.Value)
 		assertGame(t, nil, result)
 	})
 }
 
 func TestFenToGame(t *testing.T) {
+	t.Parallel()
+
 	wasm := makeTestWasm()
 
 	for _, test := range []struct {
@@ -218,6 +234,8 @@ func TestFenToGame(t *testing.T) {
 }
 
 func TestBoardToFen(t *testing.T) {
+	t.Parallel()
+
 	wasm := makeTestWasm()
 
 	input := makeInitialBoardJs(t)
@@ -234,9 +252,13 @@ func TestBoardToFen(t *testing.T) {
 }
 
 func TestGameAtMoveIndex(t *testing.T) {
+	t.Parallel()
+
 	wasm := makeTestWasm()
 
 	t.Run("jump to index 0", func(t *testing.T) {
+		t.Parallel()
+
 		game := &chess.Game{Board: chess.InitialBoard()}
 		game.MakeHistMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")})
 		game.MakeHistMove(chess.Move{From: chess.HexStr("b7"), To: chess.HexStr("b6")})
@@ -257,6 +279,8 @@ func TestGameAtMoveIndex(t *testing.T) {
 	})
 
 	t.Run("invalid move index", func(t *testing.T) {
+		t.Parallel()
+
 		movesBytes, err := proto.Marshal(&pb.HistMoves{})
 		requireNoError(t, err)
 
@@ -268,6 +292,8 @@ func TestGameAtMoveIndex(t *testing.T) {
 	})
 
 	t.Run("invalid arguments", func(t *testing.T) {
+		t.Parallel()
+
 		result := wasm.GameAtMoveIndex(js.Undefined(), nil).(js.Value)
 		assertGame(t, nil, result)
 	})

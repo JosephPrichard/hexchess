@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"hexchess-svc/ext"
+	"hexchess-svc/egress"
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
 
@@ -18,6 +18,8 @@ import (
 )
 
 func TestDeleteOldProfilePics(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.Aws)
 	defer services.Close()
@@ -25,7 +27,7 @@ func TestDeleteOldProfilePics(t *testing.T) {
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	for _, user := range []string{"1", "1", "2", "2"} {
-		ext.PutS3Object(t, services.S3Client, services.S3ProfileBucket, fmt.Sprintf("users/profile-pics/%s/%s", user, uuid.NewString()), []byte("testfiledat2"))
+		egress.PutS3Object(t, services.S3Client, services.S3ProfileBucket, fmt.Sprintf("users/profile-pics/%s/%s", user, uuid.NewString()), []byte("testfiledat2"))
 	}
 
 	// when
@@ -34,11 +36,13 @@ func TestDeleteOldProfilePics(t *testing.T) {
 	// then
 	// this test verifies that the function will always retain a single file per user, and that files for other users are not touched
 	// we cannot verify which actual file is retainined because the uncertainty of LastModifiedTime is too high.
-	assert.Equal(t, 2, ext.CountS3Objects(t, services.S3Client, services.S3ProfileBucket, "users/profile-pics/2"))
-	assert.Equal(t, 1, ext.CountS3Objects(t, services.S3Client, services.S3ProfileBucket, "users/profile-pics/1"))
+	assert.Equal(t, 2, egress.CountS3Objects(t, services.S3Client, services.S3ProfileBucket, "users/profile-pics/2"))
+	assert.Equal(t, 1, egress.CountS3Objects(t, services.S3Client, services.S3ProfileBucket, "users/profile-pics/1"))
 }
 
 func TestFindMostRecentKey(t *testing.T) {
+	t.Parallel()
+
 	// tests most recent key logic since it cannot be tested in the s3 calls it is tested in
 	// this is because the 'LastModifiedTime' value is nondeterministic with regards to inserts that happen in +- 1 second
 	for _, test := range []struct {
@@ -65,6 +69,8 @@ func TestFindMostRecentKey(t *testing.T) {
 }
 
 func TestFilterLeastRecentKeys(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		objects  []s3Types.Object
 		wantKeys []s3Types.ObjectIdentifier

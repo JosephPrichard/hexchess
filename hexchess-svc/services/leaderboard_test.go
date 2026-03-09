@@ -2,6 +2,7 @@ package svc
 
 import (
 	"context"
+	"hexchess-svc/pkg/testutil"
 	"testing"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 )
 
 func TestLeaderboard(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()
@@ -98,6 +101,8 @@ func TestLeaderboard(t *testing.T) {
 }
 
 func TestGetLeaderboardUsers(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name            string
 		mode            GameMode
@@ -164,6 +169,8 @@ func TestGetLeaderboardUsers(t *testing.T) {
 }
 
 func TestGetFuzzySearchLeaderboard(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()

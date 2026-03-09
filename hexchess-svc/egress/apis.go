@@ -1,4 +1,4 @@
-package ext
+package egress
 
 type RemoteAPIs struct {
 	GoogleAPI

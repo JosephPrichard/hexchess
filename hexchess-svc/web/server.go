@@ -50,12 +50,12 @@ type Setup struct {
 	AllowedOrigins string
 }
 
-type ConstantData struct {
+type StaticData struct {
 	ValidCountries map[string]bool
 	CountryList    []string
 }
 
-func MakeConstantData() ConstantData {
+func MakeStaticData() StaticData {
 	var countryList []string
 	if err := json.Unmarshal(assets.CountryListJson, &countryList); err != nil {
 		logutil.FatalErr("unmarshal country list", err)
@@ -67,12 +67,12 @@ func MakeConstantData() ConstantData {
 	for _, country := range countryList {
 		validCountries[country] = true
 	}
-	return ConstantData{ValidCountries: validCountries, CountryList: countryList}
+	return StaticData{ValidCountries: validCountries, CountryList: countryList}
 }
 
 type App struct {
 	svc.Services
-	ConstantData
+	StaticData
 }
 
 func MakeServeMux(setup Setup) *chi.Mux {
@@ -81,7 +81,7 @@ func MakeServeMux(setup Setup) *chi.Mux {
 	r.Use(middleware.Recoverer)
 	r.Use(RouteMiddleware(setup.AllowedOrigins))
 
-	app := App{setup.Services, MakeConstantData()}
+	app := App{setup.Services, MakeStaticData()}
 
 	r.Post("/api/register", Rest(app.HandleRegister))
 	r.Post("/api/login", Rest(app.HandleLogin))
@@ -139,7 +139,7 @@ type HealthCheckConfig struct {
 	RedisPubSubDSN  string
 }
 
-func WithHealthChecker(mux *chi.Mux, config HealthCheckConfig) {
+func WithHealthCheck(mux *chi.Mux, config HealthCheckConfig) {
 	h, err := health.New(
 		health.WithComponent(
 			health.Component{Name: "hexchess-svc", Version: "v1.0"},

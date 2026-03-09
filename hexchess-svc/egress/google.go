@@ -1,4 +1,4 @@
-package ext
+package egress
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"google.golang.org/api/idtoken"
 )
 
-//go:generate mockgen -source=google.go -destination=./google_mock.go -package=outbound
+//go:generate mockgen -source=google.go -destination=./google_mock.go -package=egress
 
 type GoogleAPI interface {
 	ValidateIDToken(ctx context.Context, token string) (GoogleIDTokenPayload, error)

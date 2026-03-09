@@ -14,7 +14,7 @@ import (
 	"hexchess-svc/chess"
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
-	"hexchess-svc/ext"
+	"hexchess-svc/egress"
 	"hexchess-svc/pkg/logutil"
 	svc "hexchess-svc/services"
 
@@ -79,7 +79,7 @@ func main() {
 	slog.InfoContext(ctx, "connecting to rdb db", "rdbPrimaryURL", rdbPrimaryURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL}, db.DefaultRedisNames)
 
-	aws, err := ext.MakeAwsClients(context.Background(), ext.AwsConfig{
+	aws, err := egress.MakeAwsClients(context.Background(), egress.AwsConfig{
 		AwsDefaultRegion: awsDefaultRegion,
 		AwsSecretKey:     awsSecretID,
 		AwsSecretID:      awsSecretKey,

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"hexchess-svc/db"
-	"hexchess-svc/ext"
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
 
@@ -17,6 +16,8 @@ import (
 )
 
 func TestInsertChallenge(t *testing.T) {
+	t.Parallel()
+
 	for _, test := range []struct {
 		name         string
 		challengerID int64
@@ -69,6 +70,8 @@ func TestInsertChallenge(t *testing.T) {
 }
 
 func TestGetChallengesByParticipant(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.ROPostgres)
 	defer services.Close()
@@ -77,7 +80,7 @@ func TestGetChallengesByParticipant(t *testing.T) {
 
 	// when
 	// gets only expired challenges
-	services.EntropySource = &ext.StableSource{Time: itest.TimeNow}
+	services.EntropySource = &StableEntropySource{Time: itest.TimeNow}
 	challenges, err := services.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
@@ -86,6 +89,8 @@ func TestGetChallengesByParticipant(t *testing.T) {
 }
 
 func TestDeleteExpiredChallenges(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
@@ -94,11 +99,11 @@ func TestDeleteExpiredChallenges(t *testing.T) {
 
 	// when
 	// gets only expired challenges
-	services.EntropySource = &ext.StableSource{Time: itest.TimeNow}
+	services.EntropySource = &StableEntropySource{Time: itest.TimeNow}
 	require.NoError(t, services.DeleteExpiredChallenges(ctx, 5))
 
 	// gets ALL challenges to check that we deleted expired challenges
-	services.EntropySource = &ext.StableSource{Time: time.Unix(0, 0)}
+	services.EntropySource = &StableEntropySource{Time: time.Unix(0, 0)}
 	challengesDel, err := services.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
@@ -107,12 +112,14 @@ func TestDeleteExpiredChallenges(t *testing.T) {
 }
 
 func TestDeleteChallenge(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	services.EntropySource = &ext.StableSource{Time: itest.TimeNow}
+	services.EntropySource = &StableEntropySource{Time: itest.TimeNow}
 
 	key := ChallengeKey{ChallengerID: 1, ChallengeeID: 2}
 

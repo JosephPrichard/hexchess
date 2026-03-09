@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"hexchess-svc/ext"
+	"hexchess-svc/egress"
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
 
@@ -14,6 +14,8 @@ import (
 )
 
 func TestRemoveOrphanedBucketObjects(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.ROPostgres, itest.Aws)
 	defer services.Close()
@@ -29,14 +31,14 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 	}
 
 	for _, id := range inputProfileKeys {
-		ext.PutS3Object(t, services.S3Client, services.S3ProfileBucket, id, []byte("test"))
+		egress.PutS3Object(t, services.S3Client, services.S3ProfileBucket, id, []byte("test"))
 	}
 
 	// when
 	services.ClearBucketOrphans(ctx, 2)
 
 	// then
-	profileKeys := ext.ListS3Objects(t, services.S3Client, services.S3ProfileBucket)
+	profileKeys := egress.ListS3Objects(t, services.S3Client, services.S3ProfileBucket)
 
 	assertKeyContainment := func(actual []string, shouldContain []string, shouldNotContain []string) {
 		t.Helper()

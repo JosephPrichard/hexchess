@@ -19,6 +19,8 @@ import (
 )
 
 func TestJoinGame_JoinWhite(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()
@@ -45,6 +47,8 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 }
 
 func TestJoinGame_BothPlayersExist(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()
@@ -72,6 +76,8 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 }
 
 func TestAttemptUndo(t *testing.T) {
+	t.Parallel()
+
 	inState1 := MakeChess(StateSetup{
 		ID:         "test1",
 		Mode:       ModeCorrespondence1,
@@ -224,6 +230,8 @@ func TestAttemptUndo(t *testing.T) {
 }
 
 func TestMakeMove(t *testing.T) {
+	t.Parallel()
+
 	stateWhiteTurn := MakeChess(StateSetup{
 		ID:         "test1",
 		Mode:       ModeCorrespondence1,
@@ -328,8 +336,7 @@ func TestMakeMove(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(test.name, func(t *testing.T) {
-			// given
+		t.Run(test.name, func(t *testing.T) { // given
 			services := SetupServicesTest(t, itest.RWPostgres, itest.Redis, itest.Aws)
 			defer services.Close()
 
@@ -355,6 +362,8 @@ func TestMakeMove(t *testing.T) {
 }
 
 func TestForfeit_Errors(t *testing.T) {
+	t.Parallel()
+
 	gameID := "test123"
 
 	for _, test := range []struct {
@@ -401,8 +410,7 @@ func TestForfeit_Errors(t *testing.T) {
 			wantErr: ErrForfeitPlayer,
 		},
 	} {
-		t.Run(test.name, func(t *testing.T) {
-			// given
+		t.Run(test.name, func(t *testing.T) { // given
 			services := SetupServicesTest(t, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
@@ -419,6 +427,8 @@ func TestForfeit_Errors(t *testing.T) {
 }
 
 func TestForfeit_Abort(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.RWPostgres, itest.Redis)
 	defer services.Close()
@@ -455,6 +465,8 @@ func TestForfeit_Abort(t *testing.T) {
 }
 
 func TestForfeit(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.RWPostgres, itest.Redis, itest.Aws)
 	defer services.Close()
@@ -509,6 +521,8 @@ func TestForfeit(t *testing.T) {
 }
 
 func TestInsertGameResult(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	testUser0 := TestUserEntities[0]

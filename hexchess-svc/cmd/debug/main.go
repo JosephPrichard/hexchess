@@ -9,7 +9,7 @@ import (
 	"strconv"
 
 	"hexchess-svc/cmd"
-	"hexchess-svc/ext"
+	"hexchess-svc/egress"
 	"hexchess-svc/pb"
 	"hexchess-svc/pkg/logutil"
 	svc "hexchess-svc/services"
@@ -31,7 +31,7 @@ func main() {
 
 	ctx := context.WithValue(context.Background(), logutil.Trace, "seed-databases-script")
 
-	aws, err := ext.MakeAwsClients(context.Background(), ext.AwsConfig{
+	aws, err := egress.MakeAwsClients(context.Background(), egress.AwsConfig{
 		AwsDefaultRegion: awsDefaultRegion,
 		AwsSecretKey:     awsSecretKey,
 		AwsSecretID:      awsSecretID,

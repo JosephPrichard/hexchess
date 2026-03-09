@@ -2,15 +2,15 @@ package svc
 
 import (
 	"hexchess-svc/db"
-	"hexchess-svc/ext"
+	"hexchess-svc/egress"
 )
 
 type Services struct {
 	db.Postgres
 	db.Redis
-	ext.Aws
-	ext.RemoteAPIs
-	ext.EntropySource
+	egress.Aws
+	egress.RemoteAPIs
+	EntropySource
 	LocalBroadcasters
 }
 

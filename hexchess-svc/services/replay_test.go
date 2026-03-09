@@ -13,6 +13,8 @@ import (
 )
 
 func TestGetReplay(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
@@ -47,6 +49,8 @@ func TestGetReplay(t *testing.T) {
 }
 
 func TestGetUserReplays(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
@@ -70,6 +74,8 @@ func TestGetUserReplays(t *testing.T) {
 }
 
 func TestRetrieveEloHistories(t *testing.T) {
+	t.Parallel()
+
 	timeUntil := time.Date(2020, 2, 2, 2, 0, 0, 0, time.UTC)
 
 	for _, test := range []struct {

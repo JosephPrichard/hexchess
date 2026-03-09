@@ -16,6 +16,8 @@ import (
 )
 
 func TestEchoChessState(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()
@@ -40,6 +42,8 @@ func TestEchoChessState(t *testing.T) {
 }
 
 func TestGetChessMetas(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()
@@ -85,6 +89,8 @@ func TestGetChessMetas(t *testing.T) {
 }
 
 func TestEchoStateChats(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()
@@ -115,6 +121,8 @@ func TestEchoStateChats(t *testing.T) {
 }
 
 func TestExpireChessStates(t *testing.T) {
+	t.Parallel()
+
 	// given
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()
@@ -145,7 +153,11 @@ func TestExpireChessStates(t *testing.T) {
 }
 
 func TestUndo(t *testing.T) {
+	t.Parallel()
+
 	t.Run("no moves to undo", func(t *testing.T) {
+		t.Parallel()
+
 		s := MakeChess(StateSetup{
 			ID:           "test",
 			Game:         New(chess.MakeStartGame()),
@@ -158,6 +170,8 @@ func TestUndo(t *testing.T) {
 	})
 
 	t.Run("successfully undoing game with one move", func(t *testing.T) {
+		t.Parallel()
+
 		game := chess.MakeStartGame()
 		game.Moves = append(game.Moves, game.MakeMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")}))
 

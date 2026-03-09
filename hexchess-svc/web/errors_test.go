@@ -8,6 +8,8 @@ import (
 )
 
 func TestRespError_Put(t *testing.T) {
+	t.Parallel()
+
 	var resp RespError
 
 	resp.Put("key1", errors.New("testing1"))
