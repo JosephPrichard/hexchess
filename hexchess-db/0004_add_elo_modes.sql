@@ -47,7 +47,7 @@ ALTER TABLE replays
 ALTER TABLE replays
     ALTER COLUMN mode TYPE mode_enum USING mode::text::mode_enum;
 
--- +goose Down
+-- +goose down
 
 -- Revert replays.mode to 'text' (or previous type) and restore constraint
 ALTER TABLE replays

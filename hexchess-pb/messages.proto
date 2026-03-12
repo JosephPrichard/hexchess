@@ -55,23 +55,13 @@ message ChessGame {
   repeated HistMove moves = 6;
 }
 
-message FinishState {
-  int32 win_elo_diff = 1;
-  int32 lose_elo_diff = 2;
-  string cause = 3;
-  string result = 4;
-}
-
-message AbortState {}
-
-message EndState {
-  oneof value {
-    FinishState finish_state = 1;
-    AbortState abort_state = 2;
-  }
-}
-
 message ChessState {
+  enum EndKind {
+    NOT_ENDED = 0;
+    FINISHED = 1;
+    ABORTED = 2;
+  }
+
   string id = 1;
   ChessGame game = 2;
   PlayerState white_player = 4;
@@ -81,7 +71,7 @@ message ChessState {
   int64 touch = 8;
   ChessBoard initial_board = 9;
   int64 undo_id = 10;
-  EndState end_state = 11;
+  EndKind end_state = 11;
 }
 
 message ForfeitInput {}
@@ -156,7 +146,6 @@ message ChatOutput {
 
 message ForfeitOutput {
   int64 replay_id = 1;
-  EndState end_state = 2;
 }
 
 message UndoOutput {
@@ -183,6 +172,17 @@ message GameOutput {
     UndoOutput undo = 9;
     BgInitOutput bgInit = 10;
   }
+}
+
+message FinishGameEvent {
+  string game_id = 1;
+  ChessBoard board = 2;
+  repeated HistMove moves = 3;
+  PlayerState white_player = 4;
+  PlayerState black_player = 5;
+  string game_mode = 6;
+  string replay_result = 7;
+  string replay_cause = 8;
 }
 
 message HistMoves {
@@ -217,13 +217,4 @@ message ChallengeMsg {
   string mode = 9;
   string start_color = 10;
   string made_on = 11;
-}
-
-message EloHistoryBucket {
-  string timestamp = 1;
-  double elo = 2;
-}
-
-message EloHistoryBuckets {
-  repeated EloHistoryBucket buckets = 1;
 }

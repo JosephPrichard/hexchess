@@ -27,6 +27,10 @@ const (
 	Finished
 )
 
+func (kind EndKind) isEnded() bool {
+	return kind != NotEnded
+}
+
 type EndState struct {
 	ReplayID    int64 // initialized on end state creation but not serialized
 	Kind        EndKind
@@ -39,7 +43,7 @@ type EndState struct {
 type ChessState struct {
 	ChessMeta
 	UndoState
-	EndState     EndState
+	EndState     EndKind
 	InitialBoard chess.Board
 	Game         chess.Game
 }
@@ -71,7 +75,7 @@ type StateSetup struct {
 	Black        PlayerState
 	InitialBoard *chess.Board
 	Game         *chess.Game
-	FinishState  EndState
+	EndState     EndKind
 	UndoState    UndoState
 }
 
@@ -96,7 +100,7 @@ func MakeChess(s StateSetup) ChessState {
 			WhitePlayer: s.White,
 			BlackPlayer: s.Black,
 		},
-		EndState: s.FinishState,
+		EndState: s.EndState,
 	}
 }
 
@@ -132,12 +136,7 @@ func (s *ChessState) DeepCopy() ChessState {
 			Mode:       s.Mode,
 			Touch:      s.Touch,
 		},
-		EndState: EndState{
-			WinEloDiff:  s.EndState.WinEloDiff,
-			LoseEloDiff: s.EndState.LoseEloDiff,
-			Cause:       s.EndState.Cause,
-			Result:      s.EndState.Result,
-		},
+		EndState: s.EndState,
 	}
 	s2.WhitePlayer = s.WhitePlayer
 	s2.BlackPlayer = s.BlackPlayer
@@ -223,7 +222,14 @@ func (svc *Services) SetChessStateAt(ctx context.Context, id string, state *Ches
 	pipe := svc.Redis.Cache.TxPipeline()
 	pipe.Set(ctx, fullID, b, 0)
 
-	if state.EndState.Kind != Aborted {
+	pipe.ZAdd(ctx, svc.Redis.GamesZSet, redis.Z{Score: touchSecs, Member: fullID})
+	if state.WhitePlayer.Present {
+		pipe.ZAdd(ctx, svc.makeUserGameZSet(state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
+	}
+	if state.BlackPlayer.Present {
+		pipe.ZAdd(ctx, svc.makeUserGameZSet(state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
+	}
+	if state.EndState != Aborted {
 		pipe.ZAdd(ctx, svc.Redis.GamesZSet, redis.Z{Score: touchSecs, Member: fullID})
 		if state.WhitePlayer.Present {
 			pipe.ZAdd(ctx, svc.makeUserGameZSet(state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: fullID})

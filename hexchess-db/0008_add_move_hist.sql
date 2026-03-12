@@ -9,5 +9,5 @@ CREATE TABLE replay_move_histories (
     ON DELETE CASCADE
 );
 
--- +goose Down
+-- +goose down
 DROP TABLE IF EXISTS replay_move_histories;

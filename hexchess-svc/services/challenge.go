@@ -159,12 +159,11 @@ func (svc *Services) DeleteChallenge(ctx context.Context, key ChallengeKey) (del
 		return delResult, fmt.Errorf("delete challenge %d: %w", key, err)
 	}
 
-	startColor, err := ParseColor(row.StartColor)
-	if err != nil {
-		return delResult, err
-	}
-	mode, err := ParseGameMode(row.Mode)
-	if err != nil {
+	p := EnumParser{}
+	startColor := p.Color(string(row.StartColor))
+	mode := p.GameMode(string(row.Mode))
+
+	if err := p.Err(); err != nil {
 		return delResult, err
 	}
 

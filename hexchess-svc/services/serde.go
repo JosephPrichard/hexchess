@@ -10,6 +10,8 @@ import (
 	"hexchess-svc/pb"
 )
 
+// PlayerState
+
 func UnmarshalPlayer(b []byte) (PlayerState, error) {
 	var pbPlayer pb.PlayerState
 	if err := proto.Unmarshal(b, &pbPlayer); err != nil {
@@ -32,52 +34,42 @@ func DeserializePlayer(pbPlayer *pb.PlayerState) PlayerState {
 	return player
 }
 
-func SerializeEndState(es EndState) *pb.EndState {
-	switch es.Kind {
-	case Aborted:
-		return &pb.EndState{Value: &pb.EndState_AbortState{}}
-	case Finished:
-		return &pb.EndState{Value: &pb.EndState_FinishState{
-			FinishState: &pb.FinishState{
-				WinEloDiff:  int32(es.WinEloDiff),
-				LoseEloDiff: int32(es.LoseEloDiff),
-				Cause:       es.Cause.String(),
-				Result:      es.Result.String(),
-			},
-		}}
+func SerializePlayer(p PlayerState) *pb.PlayerState {
+	if p.Present {
+		return &pb.PlayerState{Id: p.ID, Name: p.Name, Country: p.Country, IsGuest: p.IsGuest}
+	}
+	return nil
+}
+
+// EndKind
+
+func DeserializeEndKind(pbEndKind pb.ChessState_EndKind) EndKind {
+	switch pbEndKind {
+	case pb.ChessState_NOT_ENDED:
+		return NotEnded
+	case pb.ChessState_FINISHED:
+		return Finished
+	case pb.ChessState_ABORTED:
+		return Aborted
 	default:
-		return nil
+		panic("unknown end state")
 	}
 }
 
-func DeserializeEndState(pbEndState *pb.EndState) (s EndState, err error) {
-	if pbEndState == nil {
-		return s, nil
-	}
-	switch p := pbEndState.GetValue().(type) {
-	case *pb.EndState_FinishState:
-		finishState := p.FinishState
-		cause, err := ParseReplayCause(finishState.Cause)
-		if err != nil {
-			return s, err
-		}
-		result, err := ParseReplayResult(finishState.Result)
-		if err != nil {
-			return s, err
-		}
-		return EndState{
-			Kind:        Finished,
-			WinEloDiff:  int64(finishState.WinEloDiff),
-			LoseEloDiff: int64(finishState.LoseEloDiff),
-			Cause:       cause,
-			Result:      result,
-		}, nil
-	case *pb.EndState_AbortState:
-		return EndState{Kind: Aborted}, nil
+func SerializeEndKind(endKind EndKind) pb.ChessState_EndKind {
+	switch endKind {
+	case NotEnded:
+		return pb.ChessState_NOT_ENDED
+	case Finished:
+		return pb.ChessState_FINISHED
+	case Aborted:
+		return pb.ChessState_ABORTED
 	default:
-		return s, fmt.Errorf("unknown end state type: %T", p)
+		panic("unknown end state")
 	}
 }
+
+// ChessState
 
 func UnmarshalChessState(b []byte) (st ChessState, err error) {
 	var pbChess pb.ChessState
@@ -92,23 +84,20 @@ func UnmarshalChessState(b []byte) (st ChessState, err error) {
 	if err != nil {
 		return st, fmt.Errorf("deserialize initial board %v: %w", pbChess.Game.Board, err)
 	}
-	color, err := ParseColor(pbChess.FirstColor)
-	if err != nil {
+
+	p := EnumParser{}
+	color := p.Color(pbChess.FirstColor)
+	mode := p.GameMode(pbChess.Mode)
+
+	if err := p.Err(); err != nil {
 		return st, err
 	}
-	mode, err := ParseGameMode(pbChess.Mode)
-	if err != nil {
-		return st, err
-	}
-	endState, err := DeserializeEndState(pbChess.EndState)
-	if err != nil {
-		return st, err
-	}
+
 	return ChessState{
 		Game:         game,
 		InitialBoard: initialBoard,
 		UndoState:    UndoState{UndoID: pbChess.UndoId},
-		EndState:     endState,
+		EndState:     DeserializeEndKind(pbChess.EndState),
 		ChessMeta: ChessMeta{
 			ID:          pbChess.Id,
 			WhitePlayer: DeserializePlayer(pbChess.WhitePlayer),
@@ -118,13 +107,6 @@ func UnmarshalChessState(b []byte) (st ChessState, err error) {
 			Touch:       time.UnixMilli(pbChess.Touch),
 		},
 	}, nil
-}
-
-func SerializePlayer(p PlayerState) *pb.PlayerState {
-	if p.Present {
-		return &pb.PlayerState{Id: p.ID, Name: p.Name, Country: p.Country, IsGuest: p.IsGuest}
-	}
-	return nil
 }
 
 func SerializeChessState(s *ChessState) *pb.ChessState {
@@ -141,9 +123,11 @@ func SerializeChessState(s *ChessState) *pb.ChessState {
 		Touch:        s.Touch.UnixMilli(),
 		InitialBoard: chess.SerializeBoard(&s.InitialBoard),
 		UndoId:       s.UndoID,
-		EndState:     SerializeEndState(s.EndState),
+		EndState:     SerializeEndKind(s.EndState),
 	}
 }
+
+// ChessMeta
 
 func UnmarshalChessMeta(b []byte) (m ChessMeta, err error) {
 	var pbChess pb.ChessState
@@ -151,12 +135,11 @@ func UnmarshalChessMeta(b []byte) (m ChessMeta, err error) {
 		return m, fmt.Errorf("unmarshal chess s: %w", err)
 	}
 
-	color, err := ParseColor(pbChess.FirstColor)
-	if err != nil {
-		return m, err
-	}
-	mode, err := ParseGameMode(pbChess.Mode)
-	if err != nil {
+	p := EnumParser{}
+	color := p.Color(pbChess.FirstColor)
+	mode := p.GameMode(pbChess.Mode)
+
+	if err := p.Err(); err != nil {
 		return m, err
 	}
 
@@ -169,27 +152,66 @@ func UnmarshalChessMeta(b []byte) (m ChessMeta, err error) {
 	}, nil
 }
 
+// ChatMsg
+
+func UnmarshalChat(b []byte) (chat StateChat, err error) {
+	var pbChat pb.ChatMsg
+	if err := proto.Unmarshal(b, &pbChat); err != nil {
+		return chat, fmt.Errorf("marshal chat: %w", err)
+	}
+	sentAt, err := time.Parse(time.RFC3339, pbChat.SentAt)
+	if err != nil {
+		return chat, fmt.Errorf("parse chat sent at %s: %w", pbChat.SentAt, err)
+	}
+	return StateChat{
+		Player:  DeserializePlayer(pbChat.Player),
+		Message: pbChat.Message,
+		SentAt:  sentAt,
+	}, nil
+}
+
+func SerializeChat(chat StateChat) *pb.ChatMsg {
+	return &pb.ChatMsg{
+		Player:  SerializePlayer(chat.Player),
+		Message: chat.Message,
+		SentAt:  chat.SentAt.Format(time.RFC3339),
+	}
+}
+
+func SerializeChats(chats []StateChat) []*pb.ChatMsg {
+	pbChats := make([]*pb.ChatMsg, 0, len(chats))
+	for _, chat := range chats {
+		pbChats = append(pbChats, SerializeChat(chat))
+	}
+	return pbChats
+}
+
+// UserMsg
+
 func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {
-	if cm := pbUm.GetChallenge(); cm != nil {
-		madeOn, err := time.Parse(time.RFC3339, cm.MadeOn)
+	switch message := (pbUm.Value).(type) {
+	case *pb.UserMsg_Challenge:
+		challenge := message.Challenge
+		madeOn, err := time.Parse(time.RFC3339, challenge.MadeOn)
 		if err != nil {
 			return nil, fmt.Errorf("parse challenge made on: %w", err)
 		}
 		return json.Marshal(ChallengeEntity{
-			ChallengerID:      cm.ChallengerId,
-			ChallengerName:    cm.ChallengerName,
-			ChallengerCountry: cm.ChallengerCountry,
-			ChallengerElo:     cm.ChallengerElo,
-			ChallengeeID:      cm.ChallengeeId,
-			ChallengeeName:    cm.ChallengeeName,
-			ChallengeeCountry: cm.ChallengeeCountry,
-			ChallengeeElo:     cm.ChallengeeElo,
-			StartColor:        cm.StartColor,
-			Mode:              cm.Mode,
+			ChallengerID:      challenge.ChallengerId,
+			ChallengerName:    challenge.ChallengerName,
+			ChallengerCountry: challenge.ChallengerCountry,
+			ChallengerElo:     challenge.ChallengerElo,
+			ChallengeeID:      challenge.ChallengeeId,
+			ChallengeeName:    challenge.ChallengeeName,
+			ChallengeeCountry: challenge.ChallengeeCountry,
+			ChallengeeElo:     challenge.ChallengeeElo,
+			StartColor:        challenge.StartColor,
+			Mode:              challenge.Mode,
 			MadeOn:            madeOn,
 		})
+	default:
+		return nil, fmt.Errorf("unknown message type: %T", pbUm)
 	}
-	return nil, fmt.Errorf("unknown message type: %T", pbUm)
 }
 
 func SerializeChallengeMsg(ce ChallengeEntity) *pb.UserMsg {
@@ -211,34 +233,53 @@ func SerializeChallengeMsg(ce ChallengeEntity) *pb.UserMsg {
 	return &pb.UserMsg{UserId: ce.ChallengeeID, Value: cm}
 }
 
-func SerializeChat(chat StateChat) *pb.ChatMsg {
-	return &pb.ChatMsg{
-		Player:  SerializePlayer(chat.Player),
-		Message: chat.Message,
-		SentAt:  chat.SentAt.Format(time.RFC3339),
-	}
-}
+// FinishGameEvent
 
-func SerializeChats(chats []StateChat) []*pb.ChatMsg {
-	pbChats := make([]*pb.ChatMsg, 0, len(chats))
-	for _, chat := range chats {
-		pbChats = append(pbChats, SerializeChat(chat))
+func UnmarshalFinishGameEvent(b []byte) (event FinishGameEvent, err error) {
+	var pbGameEvent pb.FinishGameEvent
+	if err := proto.Unmarshal(b, &pbGameEvent); err != nil {
+		return event, fmt.Errorf("unmarshal finish game event: %w", err)
 	}
-	return pbChats
-}
 
-func UnmarshalChat(b []byte) (chat StateChat, err error) {
-	var pbChat pb.ChatMsg
-	if err := proto.Unmarshal(b, &pbChat); err != nil {
-		return chat, fmt.Errorf("marshal chat: %w", err)
-	}
-	sentAt, err := time.Parse(time.RFC3339, pbChat.SentAt)
+	board, err := chess.DeserializeBoard(pbGameEvent.Board)
 	if err != nil {
-		return chat, fmt.Errorf("parse chat sent at %s: %w", pbChat.SentAt, err)
+		return event, fmt.Errorf("deserialize board %v: %w", pbGameEvent.Board, err)
 	}
-	return StateChat{
-		Player:  DeserializePlayer(pbChat.Player),
-		Message: pbChat.Message,
-		SentAt:  sentAt,
+	moves, err := chess.DeserializeHistMoveList(pbGameEvent.Moves)
+	if err != nil {
+		return event, fmt.Errorf("deserialize moves: %w", err)
+	}
+
+	p := EnumParser{}
+	mode := p.GameMode(pbGameEvent.GameMode)
+	replayResult := p.ReplayResult(pbGameEvent.ReplayResult)
+	replayCause := p.ReplayCause(pbGameEvent.ReplayCause)
+
+	if err := p.Err(); err != nil {
+		return event, err
+	}
+
+	return FinishGameEvent{
+		GameID:       pbGameEvent.GameId,
+		Board:        board,
+		Moves:        moves,
+		WhitePlayer:  DeserializePlayer(pbGameEvent.WhitePlayer),
+		BlackPlayer:  DeserializePlayer(pbGameEvent.BlackPlayer),
+		GameMode:     mode,
+		ReplayResult: replayResult,
+		ReplayCause:  replayCause,
 	}, nil
+}
+
+func MarshalFinishGameEvent(event FinishGameEvent) ([]byte, error) {
+	return proto.Marshal(&pb.FinishGameEvent{
+		GameId:       event.GameID,
+		Board:        chess.SerializeBoard(&event.Board),
+		Moves:        chess.SerializeMoveList(event.Moves),
+		WhitePlayer:  SerializePlayer(event.WhitePlayer),
+		BlackPlayer:  SerializePlayer(event.BlackPlayer),
+		GameMode:     event.GameMode.String(),
+		ReplayResult: event.ReplayResult.String(),
+		ReplayCause:  event.ReplayCause.String(),
+	})
 }

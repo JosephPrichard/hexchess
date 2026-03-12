@@ -162,15 +162,15 @@ var ColorMap = map[string]Color{
 	"RANDOM": Random,
 }
 
-func ParseReplayCause[StringLike ~string](s StringLike) (ReplayCause, error) {
-	c, ok := ReplayCauseMap[string(s)]
+func ParseReplayCause(s string) (ReplayCause, error) {
+	c, ok := ReplayCauseMap[s]
 	if !ok {
-		return 0, &OneOfError[ReplayCause]{Expected: ReplayCauseMap, Actual: string(s)}
+		return 0, &OneOfError[ReplayCause]{Expected: ReplayCauseMap, Actual: s}
 	}
 	return c, nil
 }
 
-func ExpectReplayCause[StringLike ~string](s StringLike) ReplayCause {
+func ExpectReplayCause(s string) ReplayCause {
 	c, err := ParseReplayCause(s)
 	if err != nil {
 		panic(err)
@@ -178,15 +178,15 @@ func ExpectReplayCause[StringLike ~string](s StringLike) ReplayCause {
 	return c
 }
 
-func ParseReplayResult[StringLike ~string](s StringLike) (ReplayResult, error) {
-	r, ok := ReplayResultMap[string(s)]
+func ParseReplayResult(s string) (ReplayResult, error) {
+	r, ok := ReplayResultMap[s]
 	if !ok {
-		return 0, &OneOfError[ReplayResult]{Expected: ReplayResultMap, Actual: string(s)}
+		return 0, &OneOfError[ReplayResult]{Expected: ReplayResultMap, Actual: s}
 	}
 	return r, nil
 }
 
-func ExpectReplayResult[StringLike ~string](s StringLike) ReplayResult {
+func ExpectReplayResult(s string) ReplayResult {
 	r, err := ParseReplayResult(s)
 	if err != nil {
 		panic(err)
@@ -194,15 +194,15 @@ func ExpectReplayResult[StringLike ~string](s StringLike) ReplayResult {
 	return r
 }
 
-func ParseGameMode[StringLike ~string](s StringLike) (GameMode, error) {
-	m, ok := GameModeMap[string(s)]
+func ParseGameMode(s string) (GameMode, error) {
+	m, ok := GameModeMap[s]
 	if !ok {
-		return 0, &OneOfError[GameMode]{Expected: GameModeMap, Actual: string(s)}
+		return 0, &OneOfError[GameMode]{Expected: GameModeMap, Actual: s}
 	}
 	return m, nil
 }
 
-func ExpectGameMode[StringLike ~string](s StringLike) GameMode {
+func ExpectGameMode(s string) GameMode {
 	m, err := ParseGameMode(s)
 	if err != nil {
 		panic(err)
@@ -210,20 +210,64 @@ func ExpectGameMode[StringLike ~string](s StringLike) GameMode {
 	return m
 }
 
-func ParseColor[StringLike ~string](s StringLike) (Color, error) {
-	c, ok := ColorMap[string(s)]
+func ParseColor(s string) (Color, error) {
+	c, ok := ColorMap[s]
 	if !ok {
-		return 0, &OneOfError[Color]{Expected: ColorMap, Actual: string(s)}
+		return 0, &OneOfError[Color]{Expected: ColorMap, Actual: s}
 	}
 	return c, nil
 }
 
-func ExpectColor[StringLike ~string](s StringLike) Color {
+func ExpectColor(s string) Color {
 	m, err := ParseColor(s)
 	if err != nil {
 		panic(err)
 	}
 	return m
+}
+
+type EnumParser struct {
+	err error
+}
+
+func (p *EnumParser) Err() error {
+	return p.err
+}
+
+func (p *EnumParser) ReplayCause(s string) ReplayCause {
+	if p.err != nil {
+		return 0
+	}
+	v, err := ParseReplayCause(s)
+	p.err = err
+	return v
+}
+
+func (p *EnumParser) ReplayResult(s string) ReplayResult {
+	if p.err != nil {
+		return 0
+	}
+	v, err := ParseReplayResult(s)
+	p.err = err
+	return v
+}
+
+func (p *EnumParser) GameMode(s string) GameMode {
+	if p.err != nil {
+		return 0
+	}
+	v, err := ParseGameMode(s)
+	p.err = err
+	return v
+}
+
+func (p *EnumParser) Color(s string) Color {
+	if p.err != nil {
+		return 0
+	}
+	v, err := ParseColor(s)
+	p.err = err
+	return v
 }
 
 type OneOfError[T any] struct {

@@ -47,14 +47,6 @@ func TestHandleGameplayWs(t *testing.T) {
 	wantBgInit := &pb.GameOutput{GameId: gameID, Value: &pb.GameOutput_BgInit{BgInit: &pb.BgInitOutput{}}}
 	wantForfeit := &pb.GameOutput_Forfeit{Forfeit: &pb.ForfeitOutput{
 		ReplayId: 1,
-		EndState: &pb.EndState{Value: &pb.EndState_FinishState{
-			FinishState: &pb.FinishState{
-				WinEloDiff:  15,
-				LoseEloDiff: -15,
-				Cause:       "FORFEIT",
-				Result:      "BLACK_WINS",
-			}},
-		},
 	}}
 	wantValidMove := &pb.GameOutput_Move{Move: &pb.MoveOutput{
 		UpdatedAt: itest.TimeNow.Format(time.RFC3339),

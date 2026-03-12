@@ -35,6 +35,7 @@ type ReplayEntity struct {
 }
 
 type ReplayInst struct {
+	GameID      string
 	WhiteID     int64
 	BlackID     int64
 	Result      ReplayResult
@@ -62,6 +63,7 @@ func insertReplay(ctx context.Context, query *db.Queries, inst ReplayInst) (int6
 	}
 
 	replayID, err := query.InsertReplay(ctx, db.InsertReplayParams{
+		GameID:   inst.GameID,
 		WhiteID:  inst.WhiteID,
 		BlackID:  inst.BlackID,
 		Result:   db.ResultEnum(inst.Result.String()),
@@ -258,7 +260,7 @@ func makeEloHistoryBuckets(eloRows []db.SelectReplayElosRow, params EloHistories
 
 	// fill buckets row by row. a Bucket is filled once the startTime is 'duration' ago relative to the current row
 	for _, row := range eloRows {
-		mode, err := ParseGameMode(row.Mode)
+		mode, err := ParseGameMode(string(row.Mode))
 		if err != nil {
 			return bucketMap, duration, err
 		}

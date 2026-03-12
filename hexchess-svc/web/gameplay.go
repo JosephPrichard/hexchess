@@ -231,7 +231,7 @@ func (app *App) handleGameMessage(ctx GameSocketContext, input message) {
 }
 
 func (app *App) handleGameForfeit(ctx GameSocketContext) error {
-	endState, err := app.Services.ForfeitGame(ctx.Context, ctx.GameID, ctx.Player)
+	endState, err := app.Services.EndGame(ctx.Context, ctx.GameID, ctx.Player)
 	if err != nil {
 		return fmt.Errorf("forfeit game %s: %w", ctx.GameID, err)
 	}

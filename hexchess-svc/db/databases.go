@@ -17,36 +17,40 @@ type RedisAddrs struct {
 }
 
 type RedisNames struct {
-	LeaderboardZSet  string
-	GamesZSet        string
-	ActiveUsersZSet  string
-	GameChatsPostfix string
-	GamesChan        string
-	UsersChan        string
-	GamesCountChan   string
-	ActiveCountChan  string
+	LeaderboardZSet         string
+	GamesZSet               string
+	ActiveUsersZSet         string
+	GameChatsPostfix        string
+	GamesChan               string
+	UsersChan               string
+	GamesCountChan          string
+	ActiveCountChan         string
+	FinishGameStreamKey     string
+	FinishGameConsumerGroup string
 }
 
 const (
-	LeaderboardZSet = "leaderboard"
-	GamesZSet       = "games"
-	ActiveUsersZSet = "active_users"
-	GameChatsPrefix = "chats"
-	GamesChan       = "games_chan"
-	UsersChan       = "users_chan"
-	GamesCountChan  = "games_count"
-	ActiveCountChan = "active_count"
+	LeaderboardZSet     = "leaderboard"
+	GamesZSet           = "games"
+	ActiveUsersZSet     = "active_users"
+	GameChatsPrefix     = "chats"
+	GamesChan           = "games_chan"
+	UsersChan           = "users_chan"
+	GamesCountChan      = "games_count"
+	ActiveCountChan     = "active_count"
+	FinishGameStreamKey = "finish_game:stream"
 )
 
 var DefaultRedisNames = RedisNames{
-	LeaderboardZSet:  LeaderboardZSet,
-	GamesZSet:        GamesZSet,
-	ActiveUsersZSet:  ActiveUsersZSet,
-	GameChatsPostfix: GameChatsPrefix,
-	GamesChan:        GamesChan,
-	UsersChan:        UsersChan,
-	GamesCountChan:   GamesCountChan,
-	ActiveCountChan:  ActiveCountChan,
+	LeaderboardZSet:     LeaderboardZSet,
+	GamesZSet:           GamesZSet,
+	ActiveUsersZSet:     ActiveUsersZSet,
+	GameChatsPostfix:    GameChatsPrefix,
+	GamesChan:           GamesChan,
+	UsersChan:           UsersChan,
+	GamesCountChan:      GamesCountChan,
+	ActiveCountChan:     ActiveCountChan,
+	FinishGameStreamKey: FinishGameStreamKey,
 }
 
 type Postgres interface {
@@ -93,6 +97,7 @@ func MakeFakePostgres(txn pgx.Tx) Postgres {
 type Redis struct {
 	Cache  *redis.Client
 	PubSub *redigo.Pool
+	Queue  *redis.Client
 	RedisAddrs
 	RedisNames
 }
@@ -113,16 +118,15 @@ func MakeRdb(addrs RedisAddrs, names RedisNames) Redis {
 			MaxIdle:     1,
 			IdleTimeout: 240 * time.Second,
 			Dial: func() (redigo.Conn, error) {
-				c, err := redigo.Dial("tcp", addrs.PubsubAddr)
-				if err != nil {
-					return nil, err
-				}
-				return c, err
+				return redigo.Dial("tcp", addrs.PubsubAddr)
 			},
 		}
 	}
 	return Redis{
 		Cache: redis.NewClient(&redis.Options{
+			Addr: addrs.CacheAddr,
+		}),
+		Queue: redis.NewClient(&redis.Options{
 			Addr: addrs.CacheAddr,
 		}),
 		PubSub:     ps,

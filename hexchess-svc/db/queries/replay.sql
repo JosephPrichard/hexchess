@@ -1,6 +1,7 @@
 -- name: InsertReplay :one
-INSERT INTO replays (white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode)
+INSERT INTO replays (game_id, white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode)
 VALUES (
+        sqlc.arg('gameID'),
         sqlc.arg('whiteID'),
         sqlc.arg('blackID'),
         sqlc.arg('result'),
@@ -92,3 +93,6 @@ LIMIT sqlc.arg('perPage');
 
 -- name: SelectReplaysExistsByIDs :many
 SELECT id FROM replays WHERE id = ANY (sqlc.arg('ids')::bigint[]);
+
+-- name: SelectHasReplayWithGameID :one
+SELECT COUNT(*) FROM replays WHERE game_id = sqlc.arg('gameID');

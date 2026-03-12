@@ -13,13 +13,7 @@ func TestChessSerializer(t *testing.T) {
 	t.Parallel()
 
 	input1 := MakeChess(StateSetup{ID: uuid.NewString(), Mode: ModeCorrespondence1, FirstColor: Random})
-	input1.EndState = EndState{
-		Kind:        Finished,
-		WinEloDiff:  30,
-		LoseEloDiff: -30,
-		Cause:       Checkmate,
-		Result:      WhiteWin,
-	}
+	input1.EndState = Finished
 
 	input2 := MakeChess(StateSetup{ID: uuid.NewString(), Mode: ModeCorrespondence1, FirstColor: Random})
 	input2.Game.InitPieceMoves()

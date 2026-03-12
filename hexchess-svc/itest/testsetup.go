@@ -53,16 +53,21 @@ func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (rdb db.Redis, er
 	return db.MakeRdb(
 		db.RedisAddrs{CacheAddr: addr, PubsubAddr: addr},
 		db.RedisNames{
-			LeaderboardZSet:  db.LeaderboardZSet + "_" + uuid.NewString(),
-			GamesZSet:        db.GamesZSet + "_" + uuid.NewString(),
-			ActiveUsersZSet:  db.ActiveUsersZSet + "_" + uuid.NewString(),
-			GameChatsPostfix: db.GameChatsPrefix + "_" + uuid.NewString(),
-			GamesChan:        db.GamesChan + "_" + uuid.NewString(),
-			UsersChan:        db.UsersChan + "_" + uuid.NewString(),
-			GamesCountChan:   db.GamesCountChan + "_" + uuid.NewString(),
-			ActiveCountChan:  db.ActiveCountChan + "_" + uuid.NewString(),
+			LeaderboardZSet:     unique(db.LeaderboardZSet),
+			GamesZSet:           unique(db.GamesZSet),
+			ActiveUsersZSet:     unique(db.ActiveUsersZSet),
+			GameChatsPostfix:    unique(db.GameChatsPrefix),
+			GamesChan:           unique(db.GamesChan),
+			UsersChan:           unique(db.UsersChan),
+			GamesCountChan:      unique(db.GamesCountChan),
+			ActiveCountChan:     unique(db.ActiveCountChan),
+			FinishGameStreamKey: unique(db.FinishGameStreamKey),
 		},
 	), nil
+}
+
+func unique(s string) string {
+	return s + "_" + uuid.NewString()
 }
 
 const PostgresContTag = "postgres:17"

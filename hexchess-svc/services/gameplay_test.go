@@ -2,20 +2,14 @@ package svc
 
 import (
 	"context"
-	"math"
-	"testing"
-	"time"
-
-	"hexchess-svc/chess"
-	"hexchess-svc/db"
-	"hexchess-svc/itest"
-	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/pkg/testutil"
-
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"hexchess-svc/chess"
+	"hexchess-svc/itest"
+	"hexchess-svc/pkg/logutil"
+	"testing"
 )
 
 func TestJoinGame_JoinWhite(t *testing.T) {
@@ -245,13 +239,7 @@ func TestMakeMove(t *testing.T) {
 		FirstColor: Random,
 		White:      PlayerState{ID: 1, Present: true},
 		Black:      PlayerState{ID: 2, Present: true},
-		FinishState: EndState{
-			Kind:        Finished,
-			WinEloDiff:  15,
-			LoseEloDiff: -15,
-			Cause:       Checkmate,
-			Result:      WhiteWin,
-		},
+		EndState:   Finished,
 	})
 	stateNotStarted := MakeChess(StateSetup{
 		ID:         "test3",
@@ -276,13 +264,13 @@ func TestMakeMove(t *testing.T) {
 	ss := []ChessState{stateWhiteTurn, stateEnded, stateNotStarted, stateBlackIntoCheckmate}
 
 	for _, test := range []struct {
-		name            string
-		move            chess.Move
-		sID             string
-		player          PlayerState
-		wantErr         error
-		wantHasReplay   bool
-		wantFinishState EndState
+		name          string
+		move          chess.Move
+		sID           string
+		player        PlayerState
+		wantErr       error
+		wantHasReplay bool
+		wantEndKind   EndKind
 	}{
 		{
 			name:    "invalid turn",
@@ -296,7 +284,7 @@ func TestMakeMove(t *testing.T) {
 			move:    chess.Move{To: chess.Hex{File: 1}},
 			sID:     stateEnded.ID,
 			player:  stateEnded.WhitePlayer,
-			wantErr: ErrFinishedGame{GameID: "test2", Kind: Finished},
+			wantErr: ErrFinishedGame{GameID: "test2"},
 		},
 		{
 			name:    "invalid not started move",
@@ -323,17 +311,11 @@ func TestMakeMove(t *testing.T) {
 			player: stateWhiteTurn.WhitePlayer,
 		},
 		{
-			name:   "valid move as black",
-			move:   chess.MoveStr("a2", "a1"), // valid move
-			sID:    stateBlackIntoCheckmate.ID,
-			player: stateBlackIntoCheckmate.BlackPlayer,
-			wantFinishState: EndState{
-				Kind:        Finished,
-				WinEloDiff:  30,
-				LoseEloDiff: -30,
-				Cause:       Checkmate,
-				Result:      BlackWin,
-			},
+			name:        "valid move as black",
+			move:        chess.MoveStr("a2", "a1"), // valid move
+			sID:         stateBlackIntoCheckmate.ID,
+			player:      stateBlackIntoCheckmate.BlackPlayer,
+			wantEndKind: Finished,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) { // given
@@ -355,7 +337,7 @@ func TestMakeMove(t *testing.T) {
 			assert.Equal(t, test.wantErr, err)
 			assert.Equal(t, test.wantHasReplay, moveResult.ReplayID != 0)
 			if moveResult.State != nil {
-				testutil.Equal(t, test.wantFinishState, moveResult.State.EndState, cmpopts.IgnoreFields(EndState{}, "ReplayID"))
+				assert.Equal(t, test.wantEndKind, moveResult.State.EndState)
 			}
 		})
 	}
@@ -380,13 +362,9 @@ func TestForfeit_Errors(t *testing.T) {
 				FirstColor: Random,
 				White:      PlayerState{ID: 1, Present: true},
 				Black:      PlayerState{ID: 2, Present: true},
-				FinishState: EndState{
-					Kind:   Finished,
-					Cause:  Checkmate,
-					Result: WhiteWin,
-				},
+				EndState:   Finished,
 			}),
-			wantErr: ErrFinishedGame{GameID: "test123", Kind: Finished},
+			wantErr: ErrFinishedGame{GameID: "test123"},
 		},
 		{
 			name: "cannot abort without being a player",
@@ -418,7 +396,7 @@ func TestForfeit_Errors(t *testing.T) {
 
 			// when
 			require.NoError(t, services.SetChessState(ctx, gameID, &test.s))
-			_, forfeitErr := services.ForfeitGame(ctx, gameID, PlayerState{ID: 1, Present: true})
+			forfeitErr := services.EndGame(ctx, gameID, PlayerState{ID: 1, Present: true})
 
 			// then
 			assert.Equal(t, test.wantErr, forfeitErr)
@@ -445,14 +423,12 @@ func TestForfeit_Abort(t *testing.T) {
 
 	// when
 	require.NoError(t, services.SetChessState(ctx, gameID, &inState))
-	endState, err := services.ForfeitGame(ctx, gameID, inState.WhitePlayer)
+	err := services.EndGame(ctx, gameID, inState.WhitePlayer)
 	require.NoError(t, err)
 
 	// then
-	wantEndState := EndState{Kind: Aborted}
-
 	wantState := inState.DeepCopy()
-	wantState.EndState = wantEndState
+	wantState.EndState = Aborted
 	AssertRedisChess(t, &services, wantState, ChessMetaCmpOpt)
 
 	// checks that the aborted state is removed from the games and users zsets
@@ -460,8 +436,6 @@ func TestForfeit_Abort(t *testing.T) {
 	assert.Equal(t, redis.Nil, zRankErr)
 	zRankErr = services.Redis.Cache.ZRank(ctx, services.makeUserGameZSet(inState.WhitePlayer.ID), makeGameKey(gameID)).Err()
 	assert.Equal(t, redis.Nil, zRankErr)
-
-	assert.Equal(t, wantEndState, endState)
 }
 
 func TestForfeit(t *testing.T) {
@@ -487,142 +461,11 @@ func TestForfeit(t *testing.T) {
 
 	// when
 	require.NoError(t, services.SetChessState(ctx, gameID, &inState))
-	endState, err := services.ForfeitGame(ctx, gameID, inState.BlackPlayer)
+	err := services.EndGame(ctx, gameID, inState.BlackPlayer)
 	require.NoError(t, err)
 
 	// then
-	wantEndState := EndState{
-		Kind:        Finished,
-		WinEloDiff:  15,
-		LoseEloDiff: -15,
-		Cause:       Forfeit,
-		Result:      WhiteWin,
-	}
-	testutil.Equal(t, wantEndState, endState, cmpopts.IgnoreFields(EndState{}, "ReplayID"))
-
 	wantState := inState.DeepCopy()
-	wantState.EndState = wantEndState
+	wantState.EndState = Finished
 	AssertRedisChess(t, &services, wantState, ChessMetaCmpOpt)
-
-	wantReplay := db.Replay{
-		WhiteID:     1,
-		BlackID:     2,
-		Mode:        "CORRESPONDENCE_1",
-		Result:      "WHITE_WINS",
-		Cause:       "FORFEIT",
-		WinEloDiff:  15,
-		LoseEloDiff: -15,
-		WhiteElo:    1015,
-		BlackElo:    985,
-	}
-	replay, err := services.Query().SelectReplayRowByID(ctx, endState.ReplayID)
-	require.NoError(t, err)
-	testutil.Equal(t, wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn"))
-}
-
-func TestInsertGameResult(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-
-	testUser0 := TestUserEntities[0]
-	testUser1 := TestUserEntities[1]
-
-	for _, test := range []struct {
-		name       string
-		result     GameResult
-		wantElos   []db.SelectUserModeElosByIdsRow
-		wantReplay db.Replay
-		wantChange GRChangeSet
-	}{
-		{
-			name:   "draw by stalemate",
-			result: GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Stalemate, ReplayResult: Draw, ReplayMode: ModeTimed1Plus0},
-			wantElos: []db.SelectUserModeElosByIdsRow{
-				{UserID: testUser0.ID, Elo: 1050, HighestElo: 1050, Draws: 1, Wins: 6, Losses: 5}, // update while maintaing old highest elo
-				{UserID: testUser1.ID, Elo: 1000, HighestElo: 1000, Draws: 1},                     // insert
-			},
-			wantReplay: db.Replay{
-				WhiteID:     testUser0.ID,
-				BlackID:     testUser1.ID,
-				Result:      "DRAW",
-				Cause:       "STALEMATE",
-				Mode:        "TIMED_1+0",
-				WinEloDiff:  0,
-				LoseEloDiff: 0,
-				WhiteElo:    1050,
-				BlackElo:    1000,
-			},
-			wantChange: GRChangeSet{},
-		},
-		{
-			name:   "white wins by checkmate",
-			result: GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Checkmate, ReplayResult: WhiteWin, ReplayMode: ModeCorrespondence1},
-			wantElos: []db.SelectUserModeElosByIdsRow{
-				{UserID: testUser0.ID, Elo: 1015, HighestElo: 1015, Wins: 1},  // insert
-				{UserID: testUser1.ID, Elo: 985, HighestElo: 1000, Losses: 1}, // insert with elo lower than start elo
-			},
-			wantReplay: db.Replay{
-				WhiteID:     testUser0.ID,
-				BlackID:     testUser1.ID,
-				Result:      "WHITE_WINS",
-				Cause:       "CHECKMATE",
-				Mode:        "CORRESPONDENCE_1",
-				WinEloDiff:  15,
-				LoseEloDiff: -15,
-				WhiteElo:    1015,
-				BlackElo:    985,
-			},
-			wantChange: GRChangeSet{WinID: testUser0.ID, LoseID: testUser1.ID, WinEloDiff: 15, LoseEloDiff: -15},
-		},
-		{
-			name:   "black wins by forfeit",
-			result: GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Forfeit, ReplayResult: BlackWin, ReplayMode: ModeCorrespondence7},
-			wantElos: []db.SelectUserModeElosByIdsRow{
-				{UserID: testUser0.ID, Elo: 985, HighestElo: 1000, Wins: 2, Losses: 3}, // update while setting new highest elo
-				{UserID: testUser1.ID, Elo: 1015, HighestElo: 1015, Wins: 1},           // update
-			},
-			wantReplay: db.Replay{
-				WhiteID:     testUser0.ID,
-				BlackID:     testUser1.ID,
-				Result:      "BLACK_WINS",
-				Cause:       "FORFEIT",
-				Mode:        "CORRESPONDENCE_7",
-				WinEloDiff:  15,
-				LoseEloDiff: -15,
-				WhiteElo:    985,
-				BlackElo:    1015,
-			},
-			wantChange: GRChangeSet{WinID: testUser1.ID, LoseID: testUser0.ID, WinEloDiff: 15, LoseEloDiff: -15},
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			// given
-			services := SetupServicesTest(t, itest.RWPostgres)
-			defer services.Close()
-
-			// when
-			cs, err := insertGameResult(ctx, services.Query(), time.Now(), test.result)
-			require.NoError(t, err)
-
-			// then
-			rowElos, err := services.Query().SelectUserModeElosByIds(ctx, db.SelectUserModeElosByIdsParams{
-				ID:   []int64{test.result.WhiteID, test.result.BlackID},
-				Mode: db.ModeEnum(test.result.ReplayMode.String()),
-			})
-			require.NoError(t, err)
-
-			assert.Equal(t, test.wantElos, rowElos)
-
-			replay, err := services.Query().SelectReplayRowByID(ctx, cs.ReplayID)
-			require.NoError(t, err)
-
-			testutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn"))
-
-			cs.ReplayID = 0
-			cs.WinEloDiff = math.Round(cs.WinEloDiff)
-			cs.LoseEloDiff = math.Round(cs.LoseEloDiff)
-			assert.Equal(t, test.wantChange, cs)
-		})
-	}
 }

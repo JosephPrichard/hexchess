@@ -29,6 +29,14 @@ services:
     environment:
       - REDIS_HOST=${REDIS_HOST}
       - REDIS_PORT=${REDIS_PORT}
+  redis-queue:
+    image: redis/redis-stack-server
+    container_name: hexchess-redis
+    ports:
+      - "6381:6379"
+    environment:
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
   localstack:
     image: localstack/localstack:latest
     container_name: hexchess-localstack

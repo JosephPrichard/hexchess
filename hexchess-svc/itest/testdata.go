@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"github.com/google/uuid"
 	"time"
 
 	"hexchess-svc/pkg/logutil"
@@ -57,7 +58,10 @@ var UserModeElos = []struct {
 	{UserID: 9, Mode: "CORRESPONDENCE_1", Elo: 1500, Wins: 5, Losses: 2},
 }
 
+var ConstantGameID = uuid.NewString()
+
 var ReplayInsts = []struct {
+	GameID         string
 	WhiteID        int64
 	BlackID        int64
 	Result         string
@@ -70,6 +74,7 @@ var ReplayInsts = []struct {
 	PlayedOn       time.Time
 }{
 	{
+		GameID:         ConstantGameID,
 		WhiteID:        1,
 		BlackID:        2,
 		Result:         "WHITE_WINS",
@@ -82,6 +87,7 @@ var ReplayInsts = []struct {
 		PlayedOn:       TimeNow,
 	},
 	{
+		GameID:         uuid.NewString(),
 		WhiteID:        2,
 		BlackID:        3,
 		Result:         "BLACK_WINS",
@@ -94,6 +100,7 @@ var ReplayInsts = []struct {
 		PlayedOn:       TimeNow,
 	},
 	{
+		GameID:         uuid.NewString(),
 		WhiteID:        3,
 		BlackID:        1,
 		Result:         "DRAW",
@@ -108,6 +115,7 @@ var ReplayInsts = []struct {
 
 	// elo history tests
 	{
+		GameID:         uuid.NewString(),
 		WhiteID:        6,
 		BlackID:        7,
 		Result:         "WHITE_WINS",
@@ -120,6 +128,7 @@ var ReplayInsts = []struct {
 		PlayedOn:       time.Date(1900, 1, 1, 1, 0, 0, 0, time.UTC),
 	},
 	{
+		GameID:         uuid.NewString(),
 		WhiteID:        6,
 		BlackID:        7,
 		Result:         "WHITE_WINS",
@@ -132,6 +141,7 @@ var ReplayInsts = []struct {
 		PlayedOn:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
 	},
 	{
+		GameID:         uuid.NewString(),
 		WhiteID:        6,
 		BlackID:        7,
 		Result:         "WHITE_WINS",
@@ -144,6 +154,7 @@ var ReplayInsts = []struct {
 		PlayedOn:       time.Date(2020, 1, 1, 2, 0, 0, 0, time.UTC),
 	},
 	{
+		GameID:         uuid.NewString(),
 		WhiteID:        6,
 		BlackID:        7,
 		Result:         "WHITE_WINS",
@@ -156,6 +167,7 @@ var ReplayInsts = []struct {
 		PlayedOn:       time.Date(2020, 1, 3, 1, 0, 0, 0, time.UTC),
 	},
 	{
+		GameID:         uuid.NewString(),
 		WhiteID:        6,
 		BlackID:        7,
 		Result:         "WHITE_WINS",
@@ -228,9 +240,10 @@ func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
 	}
 	for _, inst := range ReplayInsts {
 		batch.Queue(`
-			INSERT INTO replays (white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode) 
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+			INSERT INTO replays (game_id, white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode) 
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
 			`,
+			inst.GameID,
 			inst.WhiteID,
 			inst.BlackID,
 			inst.Result,

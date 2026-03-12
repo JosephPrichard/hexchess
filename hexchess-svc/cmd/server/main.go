@@ -87,6 +87,8 @@ func main() {
 	<-services.LocalBroadcasters.ListenUsersMessages(rdb)
 	<-services.LocalBroadcasters.ListenUnicastEvents(rdb)
 
+	svc.StartStreamReaders(context.Background(), &services)
+
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 
 	if pprofPort != "" {

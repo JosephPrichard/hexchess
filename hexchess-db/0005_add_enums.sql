@@ -39,7 +39,7 @@ ALTER TABLE replays
 ALTER COLUMN cause TYPE cause_enum USING cause::text::cause_enum;
 
 
--- +goose Down
+-- +goose down
 
 -- Revert replays.cause to TEXT and restore constraint
 ALTER TABLE replays
