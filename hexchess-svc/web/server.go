@@ -70,7 +70,7 @@ func MakeStaticData() StaticData {
 	return StaticData{ValidCountries: validCountries, CountryList: countryList}
 }
 
-type App struct {
+type Server struct {
 	svc.Services
 	StaticData
 }
@@ -81,42 +81,43 @@ func MakeServeMux(setup Setup) *chi.Mux {
 	r.Use(middleware.Recoverer)
 	r.Use(RouteMiddleware(setup.AllowedOrigins))
 
-	app := App{setup.Services, MakeStaticData()}
+	server := Server{setup.Services, MakeStaticData()}
 
-	r.Post("/api/register", Rest(app.HandleRegister))
-	r.Post("/api/login", Rest(app.HandleLogin))
-	r.Post("/api/login/google", Rest(app.HandleGoogleLogin))
-	r.Post("/api/session/temp", Rest(app.HandleCreateTempSession))
-	r.Post("/api/session/refresh", Rest(app.HandleRefreshSession))
-	r.Post("/api/logout", Rest(app.HandleLogout))
-	r.Post("/api/users/password", Rest(app.HandleUpdatePassword))
-	r.Post("/api/users", Rest(app.HandleUpdateUser))
-	r.Post("/api/games/create", Rest(app.HandleCreateGame))
-	r.Post("/api/challenges/update", Rest(app.HandleUpdateChallenge))
-	r.Post("/api/challenges/create", Rest(app.HandleCreateChallenge))
-	r.Post("/api/users/profile-pics", Rest(app.HandleUploadProfilePic))
+	r.Post("/api/register", Rest(server.HandleRegister))
+	r.Post("/api/login", Rest(server.HandleLogin))
+	r.Post("/api/login/google", Rest(server.HandleGoogleLogin))
+	r.Post("/api/session/temp", Rest(server.HandleCreateTempSession))
+	r.Post("/api/session/refresh", Rest(server.HandleRefreshSession))
+	r.Post("/api/logout", Rest(server.HandleLogout))
+	r.Post("/api/users/password", Rest(server.HandleUpdatePassword))
+	r.Post("/api/users", Rest(server.HandleUpdateUser))
+	r.Post("/api/games/create", Rest(server.HandleCreateGame))
+	r.Post("/api/challenges/update", Rest(server.HandleUpdateChallenge))
+	r.Post("/api/challenges/create", Rest(server.HandleCreateChallenge))
+	r.Post("/api/users/profile-pics", Rest(server.HandleUploadProfilePic))
 
-	r.Get("/api/players", Rest(app.HandleGetPlayer))
-	r.Get("/api/players/self", Rest(app.HandleGetSelf))
-	r.Get("/api/players/search", Rest(app.HandleSearchPlayers))
-	r.Get("/api/leaderboard", Rest(app.HandleGetLeaderboard))
-	r.Get("/api/challenges", Rest(app.HandleGetChallenges))
-	r.Get("/api/replays", Rest(app.HandleGetUserReplays))
-	r.Get("/api/chess/rooms", Rest(app.HandleGetChessMetas))
-	r.Get("/api/replay", Rest(app.HandleGetReplay))
-	r.Get("/api/replay/elo-histories", Rest(app.HandleGetEloHistories))
-	r.Get("/api/replay/move-list", Rest(app.HandleGetMoveReplay))
-	r.Get("/api/game/exists", Rest(app.HandleGameExistence))
-	r.Get("/api/users/profile-pics", Rest(app.HandleGetProfilePic))
+	r.Get("/api/players", Rest(server.HandleGetPlayer))
+	r.Get("/api/players/self", Rest(server.HandleGetSelf))
+	r.Get("/api/players/search", Rest(server.HandleSearchPlayers))
+	r.Get("/api/leaderboard", Rest(server.HandleGetLeaderboard))
+	r.Get("/api/challenges", Rest(server.HandleGetChallenges))
+	r.Get("/api/replays", Rest(server.HandleGetUserReplays))
+	r.Get("/api/chess/rooms", Rest(server.HandleGetChessMetas))
+	r.Get("/api/replay", Rest(server.HandleGetReplay))
+	r.Get("/api/replay/elo-histories", Rest(server.HandleGetEloHistories))
+	r.Get("/api/replay/move-list", Rest(server.HandleGetMoveReplay))
+	r.Get("/api/game/chats", Rest(server.HandleGetGameChats))
+	r.Get("/api/game/exists", Rest(server.HandleGameExistence))
+	r.Get("/api/users/profile-pics", Rest(server.HandleGetProfilePic))
 
-	r.Get("/api/events/count", SSE(app.HandleCountEvents))
-	r.Get("/api/events/user", SSE(app.HandleUserEvents))
-	r.Get("/api/events/active", SSE(app.HandleActiveConn))
+	r.Get("/api/events/count", SSE(server.HandleCountEvents))
+	r.Get("/api/events/user", SSE(server.HandleUserEvents))
+	r.Get("/api/events/active", SSE(server.HandleActiveConn))
 
 	r.Get("/api/initial-board", Json(chess.InitialBoard()))
-	r.Get("/api/countries", Json(app.CountryList))
+	r.Get("/api/countries", Json(server.CountryList))
 
-	r.Get("/api/ws/game", app.HandleGameWs)
+	r.Get("/api/ws/game", server.HandleGameWs)
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		slog.ErrorContext(r.Context(), "route not found", "method", r.Method, "url", r.URL)

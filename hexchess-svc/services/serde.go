@@ -188,9 +188,9 @@ func SerializeChats(chats []StateChat) []*pb.ChatMsg {
 
 // UserMsg
 
-func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {
-	switch message := (pbUm.Value).(type) {
-	case *pb.UserMsg_Challenge:
+func MarshalUserMessageJson(pbUserMessage *pb.UserMessage) ([]byte, error) {
+	switch message := (pbUserMessage.Value).(type) {
+	case *pb.UserMessage_Challenge:
 		challenge := message.Challenge
 		madeOn, err := time.Parse(time.RFC3339, challenge.MadeOn)
 		if err != nil {
@@ -210,27 +210,27 @@ func MarshalUserMsgJson(pbUm *pb.UserMsg) ([]byte, error) {
 			MadeOn:            madeOn,
 		})
 	default:
-		return nil, fmt.Errorf("unknown message type: %T", pbUm)
+		return nil, fmt.Errorf("unknown message type: %T", pbUserMessage)
 	}
 }
 
-func SerializeChallengeMsg(ce ChallengeEntity) *pb.UserMsg {
-	cm := &pb.UserMsg_Challenge{
-		Challenge: &pb.ChallengeMsg{
-			ChallengerId:      ce.ChallengerID,
-			ChallengerName:    ce.ChallengerName,
-			ChallengerCountry: ce.ChallengerCountry,
-			ChallengerElo:     ce.ChallengerElo,
-			ChallengeeId:      ce.ChallengeeID,
-			ChallengeeName:    ce.ChallengeeName,
-			ChallengeeCountry: ce.ChallengeeCountry,
-			ChallengeeElo:     ce.ChallengeeElo,
-			Mode:              ce.Mode,
-			StartColor:        ce.StartColor,
-			MadeOn:            ce.MadeOn.Format(time.RFC3339),
+func SerializeChallengeMessage(challenge ChallengeEntity) *pb.UserMessage {
+	userChallengeMessage := &pb.UserMessage_Challenge{
+		Challenge: &pb.ChallengeMessage{
+			ChallengerId:      challenge.ChallengerID,
+			ChallengerName:    challenge.ChallengerName,
+			ChallengerCountry: challenge.ChallengerCountry,
+			ChallengerElo:     challenge.ChallengerElo,
+			ChallengeeId:      challenge.ChallengeeID,
+			ChallengeeName:    challenge.ChallengeeName,
+			ChallengeeCountry: challenge.ChallengeeCountry,
+			ChallengeeElo:     challenge.ChallengeeElo,
+			Mode:              challenge.Mode,
+			StartColor:        challenge.StartColor,
+			MadeOn:            challenge.MadeOn.Format(time.RFC3339),
 		},
 	}
-	return &pb.UserMsg{UserId: ce.ChallengeeID, Value: cm}
+	return &pb.UserMessage{UserId: challenge.ChallengeeID, Value: userChallengeMessage}
 }
 
 // FinishGameEvent
@@ -282,4 +282,28 @@ func MarshalFinishGameEvent(event FinishGameEvent) ([]byte, error) {
 		ReplayResult: event.ReplayResult.String(),
 		ReplayCause:  event.ReplayCause.String(),
 	})
+}
+
+// Replay
+
+func SerializeReplayOutput(replay ReplayEntity) *pb.ReplayOutput {
+	return &pb.ReplayOutput{Replay: &pb.ReplayEntity{
+		Id:           replay.ID,
+		WhiteId:      replay.WhiteID,
+		BlackId:      replay.BlackID,
+		WhiteName:    replay.WhiteName,
+		BlackName:    replay.BlackName,
+		WhiteCountry: replay.WhiteCountry,
+		BlackCountry: replay.BlackCountry,
+		Mode:         replay.Mode,
+		Result:       replay.Result,
+		Cause:        replay.Cause,
+		WinEloDiff:   replay.WinEloDiff,
+		LoseEloDiff:  replay.LoseEloDiff,
+		WhiteElo:     replay.WhiteElo,
+		BlackElo:     replay.BlackElo,
+		WhiteEloDiff: replay.WhiteEloDiff,
+		BlackEloDiff: replay.BlackEloDiff,
+		PlayedOn:     replay.PlayedOn.Format(time.RFC3339),
+	}}
 }

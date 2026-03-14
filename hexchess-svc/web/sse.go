@@ -82,14 +82,14 @@ const (
 	SSEChanBufCap = 10
 )
 
-func (app *App) HandleCountEvents(w SSEWriter, _ *http.Request) error {
+func (server *Server) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 	ctx := w.ctx
 
-	activeCount, err := app.Services.GetActiveCount(ctx)
+	activeCount, err := server.Services.GetActiveCount(ctx)
 	if err != nil {
 		return err
 	}
-	gamesCount, err := app.Services.GetChessStateCount(ctx)
+	gamesCount, err := server.Services.GetChessStateCount(ctx)
 	if err != nil {
 		return err
 	}
@@ -98,11 +98,11 @@ func (app *App) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 	w.writeCountEvent(svc.UcGamesEk, gamesCount)
 
 	countsChan := make(chan svc.UcEvent, SSEChanBufCap)
-	app.CountsCaster.Subscribe(countsChan)
+	server.CountsCaster.Subscribe(countsChan)
 
 	go func() {
 		<-ctx.Done() // stop from the client, so stop the RecvLoop by unsubscribing
-		app.CountsCaster.Unsubscribe(countsChan)
+		server.CountsCaster.Unsubscribe(countsChan)
 		slog.InfoContext(ctx, "finished handle user events sse")
 	}()
 
@@ -124,23 +124,23 @@ RecvLoop:
 }
 
 // HandleActiveConn a long-lived TCP connection used to maintain an active connection, it only ever receives "meta" messages
-func (app *App) HandleActiveConn(w SSEWriter, _ *http.Request) error {
+func (server *Server) HandleActiveConn(w SSEWriter, _ *http.Request) error {
 	ctx := w.ctx
 
-	sseID := app.MakeID()
+	sseID := server.MakeID()
 
-	count, err := app.Services.AddActiveUser(ctx, sseID)
+	count, err := server.Services.AddActiveUser(ctx, sseID)
 	if err != nil {
 		return err
 	}
-	if err := app.Services.BroadcastActiveCount(ctx, count); err != nil {
+	if err := server.Services.BroadcastActiveCount(ctx, count); err != nil {
 		return fmt.Errorf("broadcast active user count after adding %d: %w", count, err)
 	}
 
 	w.writeEvent(MetaEvent, sseID)
 
 	stopTimer := timeutil.Every(svc.ActiveUserMaxage-time.Second, func() {
-		if err := app.Services.RetainActiveUser(ctx, sseID); err != nil {
+		if err := server.Services.RetainActiveUser(ctx, sseID); err != nil {
 			slog.ErrorContext(ctx, "failed to retain active user", "sseID", sseID, "err", err)
 		}
 	})
@@ -159,20 +159,20 @@ RecvLoop:
 	afterCtx := context.WithoutCancel(ctx)
 	stopTimer <- true
 
-	if count, err = app.Services.RemoveActiveUser(afterCtx, sseID); err != nil {
+	if count, err = server.Services.RemoveActiveUser(afterCtx, sseID); err != nil {
 		slog.ErrorContext(afterCtx, "failed to remove active user", "sseID", sseID, "err", err)
 	}
-	if err := app.Services.BroadcastActiveCount(afterCtx, count); err != nil {
+	if err := server.Services.BroadcastActiveCount(afterCtx, count); err != nil {
 		slog.ErrorContext(afterCtx, "broadcast active user count after removing", "err", err)
 	}
 
 	return nil
 }
 
-func (app *App) HandleUserEvents(w SSEWriter, r *http.Request) error {
+func (server *Server) HandleUserEvents(w SSEWriter, r *http.Request) error {
 	ctx := w.ctx
 
-	player, _, err := GetSessionPlayer(ctx, app.Services, r)
+	player, _, err := GetSessionPlayer(ctx, server.Services, r)
 	if err != nil {
 		if errors.Is(err, svc.ErrSessionNotFound) {
 			return ErrHttpSessionExpired
@@ -184,11 +184,11 @@ func (app *App) HandleUserEvents(w SSEWriter, r *http.Request) error {
 	w.writeEvent(MetaEvent, strconv.FormatInt(player.ID, 10))
 
 	usersChan := make(chan []byte, SSEChanBufCap)
-	app.UsersCaster.Subscribe(strID, usersChan)
+	server.UsersCaster.Subscribe(strID, usersChan)
 
 	go func() {
 		<-ctx.Done() // stop from the client, so stop the RecvLoop by unsubscribing
-		app.UsersCaster.Unsubscribe(strID, usersChan)
+		server.UsersCaster.Unsubscribe(strID, usersChan)
 		slog.InfoContext(ctx, "finishing handle user events sse")
 	}()
 

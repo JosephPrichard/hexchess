@@ -94,5 +94,5 @@ LIMIT sqlc.arg('perPage');
 -- name: SelectReplaysExistsByIDs :many
 SELECT id FROM replays WHERE id = ANY (sqlc.arg('ids')::bigint[]);
 
--- name: SelectHasReplayWithGameID :one
-SELECT COUNT(*) FROM replays WHERE game_id = sqlc.arg('gameID');
+-- name: SelectReplayIDByGameID :one
+SELECT id FROM replays WHERE game_id = sqlc.arg('gameID');

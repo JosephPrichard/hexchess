@@ -3,6 +3,8 @@ option go_package = "hexchess-svc/pb";
 
 package messages;
 
+// user state
+
 message PlayerState {
   int64 id = 1;
   string name = 2;
@@ -10,6 +12,8 @@ message PlayerState {
   double elo = 4;
   bool isGuest = 5;
 }
+
+// chess state
 
 message PieceMove {
   int32 piece = 1;
@@ -74,7 +78,7 @@ message ChessState {
   EndKind end_state = 11;
 }
 
-message ForfeitInput {}
+// abstract transit messages
 
 message Move {
   int32 promotion = 1;
@@ -89,6 +93,10 @@ message ChatMsg {
   string message = 2;
   string sent_at = 3;
 }
+
+// websocket api
+
+message ForfeitInput {}
 
 message MoveInput {
   Move move = 1;
@@ -123,10 +131,6 @@ message InitOutput {
   PlayerState self = 2;
 }
 
-message BgInitOutput {
-  repeated ChatMsg chats = 1;
-}
-
 message PlayersOutput {
   PlayerState white_player = 1;
   PlayerState black_player = 2;
@@ -144,14 +148,16 @@ message ChatOutput {
   string sent_at = 3;
 }
 
-message ForfeitOutput {
-  int64 replay_id = 1;
-}
-
 message UndoOutput {
   string kind = 1;
   int64 undo_id = 2;
   ChessGame game = 3;
+}
+
+message ForfeitOutput {}
+
+message ReplayOutput {
+  ReplayEntity replay = 1;
 }
 
 message GameOutputID {
@@ -168,22 +174,13 @@ message GameOutput {
     PlayersOutput players = 5;
     MoveOutput move = 6;
     ChatOutput chat = 7;
-    ForfeitOutput forfeit = 8;
-    UndoOutput undo = 9;
-    BgInitOutput bgInit = 10;
+    UndoOutput undo = 8;
+    ForfeitOutput forfeit = 9;
+    ReplayOutput replay = 10;
   }
 }
 
-message FinishGameEvent {
-  string game_id = 1;
-  ChessBoard board = 2;
-  repeated HistMove moves = 3;
-  PlayerState white_player = 4;
-  PlayerState black_player = 5;
-  string game_mode = 6;
-  string replay_result = 7;
-  string replay_cause = 8;
-}
+// chess state metadata
 
 message HistMoves {
   repeated HistMove moves = 1;
@@ -198,14 +195,16 @@ message MoveHistory {
   repeated HistMove steps = 2;
 }
 
-message UserMsg {
+// sse event messages
+
+message UserMessage {
   int64 user_id = 1;
   oneof value {
-    ChallengeMsg challenge = 2;
+    ChallengeMessage challenge = 2;
   }
 }
 
-message ChallengeMsg {
+message ChallengeMessage {
   int64 challenger_id = 1;
   string challenger_name = 2;
   string challenger_country = 3;
@@ -217,4 +216,43 @@ message ChallengeMsg {
   string mode = 9;
   string start_color = 10;
   string made_on = 11;
+}
+
+// proto api
+
+message ReplayEntity {
+  int64 id = 1;
+  int64 white_id = 2;
+  int64 black_id = 3;
+  string white_name = 4;
+  string black_name = 5;
+  string white_country = 6;
+  string black_country = 7;
+  string mode = 8;
+  string result = 9;
+  string cause = 10;
+  double win_elo_diff = 11;
+  double lose_elo_diff = 12;
+  double white_elo = 13;
+  double black_elo = 14;
+  double white_elo_diff = 15;
+  double black_elo_diff = 16;
+  string played_on = 17;
+}
+
+message GameChats {
+  repeated ChatMsg chats = 1;
+}
+
+// job queue events
+
+message FinishGameEvent {
+  string game_id = 1;
+  ChessBoard board = 2;
+  repeated HistMove moves = 3;
+  PlayerState white_player = 4;
+  PlayerState black_player = 5;
+  string game_mode = 6;
+  string replay_result = 7;
+  string replay_cause = 8;
 }

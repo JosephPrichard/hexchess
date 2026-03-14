@@ -44,10 +44,6 @@ func TestHandleGameplayWs(t *testing.T) {
 			BlackPlayer: &pb.PlayerState{Id: 2, Name: "user2", Country: "us"},
 		}},
 	}
-	wantBgInit := &pb.GameOutput{GameId: gameID, Value: &pb.GameOutput_BgInit{BgInit: &pb.BgInitOutput{}}}
-	wantForfeit := &pb.GameOutput_Forfeit{Forfeit: &pb.ForfeitOutput{
-		ReplayId: 1,
-	}}
 	wantValidMove := &pb.GameOutput_Move{Move: &pb.MoveOutput{
 		UpdatedAt: itest.TimeNow.Format(time.RFC3339),
 		Move:      &pb.HistMove{Piece: int32(chess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, Notation: "Pb2"},
@@ -61,8 +57,8 @@ func TestHandleGameplayWs(t *testing.T) {
 		}},
 	}
 
-	wantMsgs := []*pb.GameOutput{wantInit, wantPlayers, wantBgInit}
-	wantBrdcasts := []any{wantPlayers, wantBgInit}
+	wantMsgs := []*pb.GameOutput{wantInit, wantPlayers}
+	wantBrdcasts := []any{wantPlayers}
 
 	for _, test := range []struct {
 		name         string
@@ -101,18 +97,6 @@ func TestHandleGameplayWs(t *testing.T) {
 			},
 			wantMsgs:     []*pb.GameOutput{wantChat},
 			wantBrdcasts: []any{wantChat},
-		},
-		{
-			name: "forfeit input",
-			inputMsgs: []*pb.GameInput{
-				{Value: &pb.GameInput_Forfeit{}},
-			},
-			wantMsgs: []*pb.GameOutput{
-				{GameId: gameID, Value: wantForfeit},
-			},
-			wantBrdcasts: []any{
-				&pb.GameOutput{GameId: gameID, Value: wantForfeit},
-			},
 		},
 		{
 			name: "undo input (success)",
@@ -193,7 +177,6 @@ func TestHandleGameplayWs(t *testing.T) {
 				protocmp.IgnoreFields(&pb.MoveOutput{}, "game"),
 				protocmp.IgnoreFields(&pb.UndoOutput{}, "game"),
 				protocmp.IgnoreFields(&pb.HistMove{}, "white_timer_ms", "black_timer_ms"),
-				protocmp.IgnoreFields(&pb.ForfeitOutput{}, "replay_id"),
 			}
 
 			slices.SortFunc(msgs, func(a *pb.GameOutput, b *pb.GameOutput) int {
@@ -234,18 +217,14 @@ func getMsgSortOrd(o *pb.GameOutput) int {
 		return 1
 	case *pb.GameOutput_Players:
 		return 2
-	case *pb.GameOutput_BgInit:
-		return 3
 	case *pb.GameOutput_Move:
-		return 4
+		return 3
 	case *pb.GameOutput_Chat:
-		return 5
-	case *pb.GameOutput_Forfeit:
-		return 6
+		return 4
 	case *pb.GameOutput_Undo:
-		return 7
+		return 5
 	case *pb.GameOutput_Error:
-		return 8
+		return 6
 	default:
 		panic(fmt.Sprintf("unexpected output type: %T", o.Value))
 	}

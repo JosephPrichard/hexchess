@@ -130,11 +130,10 @@ func TestInsertGameResult(t *testing.T) {
 		wantElos   []db.SelectUserModeElosByIdsRow
 		wantReplay db.Replay
 		wantChange GRChangeSet
-		wantError  error
 	}{
 		{
 			name:   "draw by stalemate",
-			result: GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Stalemate, ReplayResult: Draw, ReplayMode: ModeTimed1Plus0},
+			result: GameResult{GameID: "game1", WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Stalemate, ReplayResult: Draw, ReplayMode: ModeTimed1Plus0},
 			wantElos: []db.SelectUserModeElosByIdsRow{
 				{UserID: testUser0.ID, Elo: 1050, HighestElo: 1050, Draws: 1, Wins: 6, Losses: 5}, // update while maintaing old highest elo
 				{UserID: testUser1.ID, Elo: 1000, HighestElo: 1000, Draws: 1},                     // insert
@@ -154,7 +153,7 @@ func TestInsertGameResult(t *testing.T) {
 		},
 		{
 			name:   "white wins by checkmate",
-			result: GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Checkmate, ReplayResult: WhiteWin, ReplayMode: ModeCorrespondence1},
+			result: GameResult{GameID: "game2", WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Checkmate, ReplayResult: WhiteWin, ReplayMode: ModeCorrespondence1},
 			wantElos: []db.SelectUserModeElosByIdsRow{
 				{UserID: testUser0.ID, Elo: 1015, HighestElo: 1015, Wins: 1},  // insert
 				{UserID: testUser1.ID, Elo: 985, HighestElo: 1000, Losses: 1}, // insert with elo lower than start elo
@@ -174,7 +173,7 @@ func TestInsertGameResult(t *testing.T) {
 		},
 		{
 			name:   "black wins by forfeit",
-			result: GameResult{WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Forfeit, ReplayResult: BlackWin, ReplayMode: ModeCorrespondence7},
+			result: GameResult{GameID: "game3", WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Forfeit, ReplayResult: BlackWin, ReplayMode: ModeCorrespondence7},
 			wantElos: []db.SelectUserModeElosByIdsRow{
 				{UserID: testUser0.ID, Elo: 985, HighestElo: 1000, Wins: 2, Losses: 3}, // update while setting new highest elo
 				{UserID: testUser1.ID, Elo: 1015, HighestElo: 1015, Wins: 1},           // update
@@ -193,9 +192,24 @@ func TestInsertGameResult(t *testing.T) {
 			wantChange: GRChangeSet{WinID: testUser1.ID, LoseID: testUser0.ID, WinEloDiff: 15, LoseEloDiff: -15},
 		},
 		{
-			name:      "cannot insert already persisted game result",
-			result:    GameResult{GameID: itest.ConstantGameID},
-			wantError: GameResultNoopErr,
+			name:   "inserting already persisted game result",
+			result: GameResult{GameID: itest.FirstReplayGameID, WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Forfeit, ReplayResult: BlackWin, ReplayMode: ModeCorrespondence7},
+			wantElos: []db.SelectUserModeElosByIdsRow{
+				{UserID: testUser0.ID, Elo: 1000, HighestElo: 1000, Wins: 2, Losses: 2, Draws: 0}, // no update
+			},
+			wantReplay: db.Replay{
+				WhiteID:     1,
+				BlackID:     2,
+				Mode:        "CORRESPONDENCE_7",
+				Result:      "WHITE_WINS",
+				Cause:       "CHECKMATE",
+				WinEloDiff:  30,
+				LoseEloDiff: -30,
+				WhiteElo:    1000,
+				BlackElo:    1000,
+				GameID:      itest.FirstReplayGameID,
+			},
+			wantChange: GRChangeSet{ReplayID: 1, AlreadyExists: true},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -204,12 +218,7 @@ func TestInsertGameResult(t *testing.T) {
 			defer services.Close()
 
 			// when
-			cs, err := insertGameResult(ctx, services.Query(), time.Now(), test.result)
-
-			if test.wantError != nil {
-				require.Equal(t, test.wantError, err)
-				return
-			}
+			changeSet, err := insertGameResult(ctx, services.Query(), time.Now(), test.result)
 			require.NoError(t, err)
 
 			// then
@@ -221,15 +230,14 @@ func TestInsertGameResult(t *testing.T) {
 
 			assert.Equal(t, test.wantElos, rowElos)
 
-			replay, err := services.Query().SelectReplayRowByID(ctx, cs.ReplayID)
+			replay, err := services.Query().SelectReplayRowByID(ctx, changeSet.ReplayID)
 			require.NoError(t, err)
 
 			testutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn"))
 
-			cs.ReplayID = 0
-			cs.WinEloDiff = math.Round(cs.WinEloDiff)
-			cs.LoseEloDiff = math.Round(cs.LoseEloDiff)
-			assert.Equal(t, test.wantChange, cs)
+			changeSet.WinEloDiff = math.Round(changeSet.WinEloDiff)
+			changeSet.LoseEloDiff = math.Round(changeSet.LoseEloDiff)
+			testutil.Equal(t, test.wantChange, changeSet, cmpopts.IgnoreFields(GRChangeSet{}, "ReplayID"))
 		})
 	}
 }

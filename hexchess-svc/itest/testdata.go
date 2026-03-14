@@ -58,7 +58,7 @@ var UserModeElos = []struct {
 	{UserID: 9, Mode: "CORRESPONDENCE_1", Elo: 1500, Wins: 5, Losses: 2},
 }
 
-var ConstantGameID = uuid.NewString()
+var FirstReplayGameID = uuid.NewString()
 
 var ReplayInsts = []struct {
 	GameID         string
@@ -74,7 +74,7 @@ var ReplayInsts = []struct {
 	PlayedOn       time.Time
 }{
 	{
-		GameID:         ConstantGameID,
+		GameID:         FirstReplayGameID, // replay ID 1.
 		WhiteID:        1,
 		BlackID:        2,
 		Result:         "WHITE_WINS",

@@ -141,12 +141,10 @@ func TestBroadcastGameMessage(t *testing.T) {
 		{id: "2", msg: "test3"},
 		{id: "1", msg: "test2"},
 	} {
-		v, err := proto.Marshal(&pb.GameOutput{
+		require.NoError(t, services.BroadcastGamesEvent(ctx, &pb.GameOutput{
 			GameId: input.id,
 			Value:  &pb.GameOutput_Chat{Chat: &pb.ChatOutput{Message: input.msg}},
-		})
-		require.NoError(t, err)
-		require.NoError(t, services.BroadcastGamesEvent(ctx, v))
+		}))
 	}
 
 	// then

@@ -77,19 +77,19 @@ func (b *LocalBroadcasters) ListenGameMessages(rdb db.Redis) chan struct{} {
 
 func (b *LocalBroadcasters) ListenUsersMessages(rdb db.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.UsersChan}, func(v redigo.Message) {
-		var userMsg pb.UserMsg
-		if err := proto.Unmarshal(v.Data, &userMsg); err != nil {
+		var userMessage pb.UserMessage
+		if err := proto.Unmarshal(v.Data, &userMessage); err != nil {
 			slog.Error("unmarshal user message", "err", err, "channel", v.Channel)
 			return
 		}
-		slog.Info("received message on channel", "user", &userMsg, "channel", v.Channel)
+		slog.Info("received message on channel", "user", &userMessage, "channel", v.Channel)
 
-		buf, err := MarshalUserMsgJson(&userMsg)
+		bytes, err := MarshalUserMessageJson(&userMessage)
 		if err != nil {
 			slog.Error("marshal user message", "err", err, "channel", v.Channel)
 			return
 		}
-		b.UsersCaster.Broadcast(strconv.Itoa(int(userMsg.UserId)), buf)
+		b.UsersCaster.Broadcast(strconv.Itoa(int(userMessage.UserId)), bytes)
 	})
 }
 
@@ -149,12 +149,16 @@ func (svc *Services) BroadcastGameCount(ctx context.Context, count int64) error 
 	return svc.BroadcastCountEvent(ctx, svc.Redis.GamesCountChan, count)
 }
 
-func (svc *Services) BroadcastGamesEvent(ctx context.Context, b []byte) error {
+func (svc *Services) BroadcastGamesEvent(ctx context.Context, message proto.Message) error {
+	b, err := proto.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("marshal game event message: %w", err)
+	}
 	return svc.BroadcastMessage(ctx, svc.Redis.GamesChan, b)
 }
 
 func (svc *Services) BroadcastChallenge(ctx context.Context, c ChallengeEntity) error {
-	um := SerializeChallengeMsg(c)
+	um := SerializeChallengeMessage(c)
 	b, err := proto.Marshal(um)
 	if err != nil {
 		return fmt.Errorf("marshal user challenge message: %w", err)

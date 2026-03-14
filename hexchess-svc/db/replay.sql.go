@@ -76,17 +76,6 @@ func (q *Queries) InsertReplayMoveHistories(ctx context.Context, arg InsertRepla
 	return err
 }
 
-const selectHasReplayWithGameID = `-- name: SelectHasReplayWithGameID :one
-SELECT COUNT(*) FROM replays WHERE game_id = $1
-`
-
-func (q *Queries) SelectHasReplayWithGameID(ctx context.Context, gameid string) (int64, error) {
-	row := q.db.QueryRow(ctx, selectHasReplayWithGameID, gameid)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const selectReplayByID = `-- name: SelectReplayByID :one
 SELECT
     r.id,
@@ -205,6 +194,17 @@ func (q *Queries) SelectReplayElos(ctx context.Context, arg SelectReplayElosPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const selectReplayIDByGameID = `-- name: SelectReplayIDByGameID :one
+SELECT id FROM replays WHERE game_id = $1
+`
+
+func (q *Queries) SelectReplayIDByGameID(ctx context.Context, gameid string) (int64, error) {
+	row := q.db.QueryRow(ctx, selectReplayIDByGameID, gameid)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const selectReplayMoveHistories = `-- name: SelectReplayMoveHistories :one
