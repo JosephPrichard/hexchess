@@ -164,12 +164,13 @@ func insertRandomizedGameResults(ctx context.Context, s *svc.Services, gameResul
 				return fmt.Errorf("marshal move history to s3: %w", err)
 			}
 
-			if _, err = s.InsertGameResultTx(egCtx, timeAt.Add(time.Duration(gameIdx)*time.Hour*24), svc.GameResult{
+			if _, err = s.InsertGameResultTx(egCtx, svc.GameResult{
 				WhiteID:      params.WhiteID,
 				BlackID:      params.BlackID,
 				ReplayCause:  svc.ExpectReplayCause(params.ReplayCause),
 				ReplayResult: svc.ExpectReplayResult(params.ReplayResult),
 				ReplayMode:   mode,
+				InsertedTime: timeAt.Add(time.Duration(gameIdx) * time.Hour * 24),
 				MoveHistBlob: moveHistBlob,
 			}); err != nil {
 				return fmt.Errorf("insert game result: %w", err)

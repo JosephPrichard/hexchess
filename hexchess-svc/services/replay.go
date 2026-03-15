@@ -9,7 +9,7 @@ import (
 	"math"
 	"time"
 
-	"hexchess-svc/db"
+	"hexchess-svc/db/repo"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -52,7 +52,7 @@ type ReplayInst struct {
 }
 
 // insertReplay A replay is only ever inserted as part of a game result transaction to ensure data consistency
-func insertReplay(ctx context.Context, query *db.Queries, inst ReplayInst) (int64, error) {
+func insertReplay(ctx context.Context, query *repo.Queries, inst ReplayInst) (int64, error) {
 	if inst.MoveHistBlob == nil {
 		inst.MoveHistBlob = []byte{}
 	}
@@ -62,13 +62,13 @@ func insertReplay(ctx context.Context, query *db.Queries, inst ReplayInst) (int6
 		playedOn = pgtype.Timestamptz{Valid: true, Time: inst.PlayedOn}
 	}
 
-	replayID, err := query.InsertReplay(ctx, db.InsertReplayParams{
+	replayID, err := query.InsertReplay(ctx, repo.InsertReplayParams{
 		GameID:   inst.GameID,
 		WhiteID:  inst.WhiteID,
 		BlackID:  inst.BlackID,
-		Result:   db.ResultEnum(inst.Result.String()),
-		Cause:    db.CauseEnum(inst.Cause.String()),
-		Mode:     db.ModeEnum(inst.Mode.String()),
+		Result:   repo.ResultEnum(inst.Result.String()),
+		Cause:    repo.CauseEnum(inst.Cause.String()),
+		Mode:     repo.ModeEnum(inst.Mode.String()),
 		WinElo:   inst.WinEloDiff,
 		LoseElo:  inst.LoseEloDiff,
 		WhiteElo: inst.ReplayWhiteElo,
@@ -78,7 +78,7 @@ func insertReplay(ctx context.Context, query *db.Queries, inst ReplayInst) (int6
 	if err != nil {
 		return 0, err
 	}
-	if err = query.InsertReplayMoveHistories(ctx, db.InsertReplayMoveHistoriesParams{
+	if err = query.InsertReplayMoveHistories(ctx, repo.InsertReplayMoveHistoriesParams{
 		ReplayID: replayID,
 		Data:     inst.MoveHistBlob,
 	}); err != nil {
@@ -88,7 +88,7 @@ func insertReplay(ctx context.Context, query *db.Queries, inst ReplayInst) (int6
 	return replayID, nil
 }
 
-func mapReplayFromRow(row db.SelectReplayByIDRow) (ReplayEntity, error) {
+func mapReplayFromRow(row repo.SelectReplayByIDRow) (ReplayEntity, error) {
 	replay := ReplayEntity{
 		ID:           row.ID,
 		WhiteID:      row.WhiteID,
@@ -150,7 +150,7 @@ func (svc *Services) GetUserReplays(ctx context.Context, userID int64, afterID i
 		afterID = int64(math.MaxInt64)
 	}
 
-	rows, err := svc.Query().SelectUserReplays(ctx, db.SelectUserReplaysParams{
+	rows, err := svc.Query().SelectUserReplays(ctx, repo.SelectUserReplaysParams{
 		UserID:  userID,
 		AfterID: afterID,
 		PerPage: perPage,
@@ -161,7 +161,7 @@ func (svc *Services) GetUserReplays(ctx context.Context, userID int64, afterID i
 
 	var replays []ReplayEntity
 	for _, row := range rows {
-		replay, err := mapReplayFromRow(db.SelectReplayByIDRow(row))
+		replay, err := mapReplayFromRow(repo.SelectReplayByIDRow(row))
 		if err != nil {
 			return nil, fmt.Errorf("map replay %d by id: %w", row.ID, err)
 		}
@@ -200,7 +200,7 @@ func (svc *Services) RetrieveEloHistoryBuckets(ctx context.Context, params EloHi
 		playedAfter = pgtype.Timestamptz{Valid: true, Time: params.TimeUntil.AddDate(0, -int(params.Months), 0)}
 	}
 
-	eloRows, err := svc.Query().SelectReplayElos(ctx, db.SelectReplayElosParams{
+	eloRows, err := svc.Query().SelectReplayElos(ctx, repo.SelectReplayElosParams{
 		ID:          params.UserID,
 		PlayedAfter: playedAfter,
 	})
@@ -219,7 +219,7 @@ func (svc *Services) RetrieveEloHistoryBuckets(ctx context.Context, params EloHi
 
 const year = 365 * 24 * time.Hour
 
-func makeEloHistoryBuckets(eloRows []db.SelectReplayElosRow, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
+func makeEloHistoryBuckets(eloRows []repo.SelectReplayElosRow, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
 	bucketMap := make(EloHistoryBuckets)
 
 	if len(eloRows) == 0 {

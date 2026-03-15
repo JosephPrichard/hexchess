@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strconv"
 
-	"hexchess-svc/db"
+	"hexchess-svc/db/repo"
 	"hexchess-svc/pkg/logutil"
 
 	"github.com/redis/go-redis/v9"
@@ -181,7 +181,7 @@ func (svc *Services) SyncLeaderboard(ctx context.Context) error {
 	for _, mode := range GameModeMap {
 		afterID := int64(0)
 		for {
-			rows, err := svc.Query().SelectEloList(ctx, db.SelectEloListParams{ID: afterID, Mode: db.ModeEnum(mode.String()), Limit: 20})
+			rows, err := svc.Query().SelectEloList(ctx, repo.SelectEloListParams{ID: afterID, Mode: repo.ModeEnum(mode.String()), Limit: 20})
 			if err != nil {
 				return fmt.Errorf("select elo list afterID %d: %w", afterID, err)
 			}
@@ -229,19 +229,19 @@ func (svc *Services) GetLeaderboardUsers(ctx context.Context, mode GameMode, rnk
 	for _, user := range rnkUsers {
 		ids = append(ids, user.ID)
 	}
-	userRows, err := svc.Query().SelectUserWithEloByIDs(ctx, db.SelectUserWithEloByIDsParams{
+	userRows, err := svc.Query().SelectUserWithEloByIDs(ctx, repo.SelectUserWithEloByIDsParams{
 		Ids:  ids,
-		Mode: db.ModeEnum(mode.String()),
+		Mode: repo.ModeEnum(mode.String()),
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("select many users %+v: %w", ids, err)
 	}
 
-	var lbdUsers []LbdUserEntity
+	var leaderboardUsers []LbdUserEntity
 	var missingIDs []int64
 
 	for _, rnkUser := range rnkUsers {
-		var found *db.SelectUserWithEloByIDsRow
+		var found *repo.SelectUserWithEloByIDsRow
 		for i := range userRows {
 			if userRows[i].ID == rnkUser.ID {
 				found = &userRows[i]
@@ -249,7 +249,7 @@ func (svc *Services) GetLeaderboardUsers(ctx context.Context, mode GameMode, rnk
 			}
 		}
 		if found != nil {
-			lbdUsers = append(lbdUsers, LbdUserEntity{
+			leaderboardUsers = append(leaderboardUsers, LbdUserEntity{
 				UserEntity: UserEntity{ID: rnkUser.ID, Username: found.Username, Country: found.Country, JoinedOn: found.JoinedOn.Time},
 				Elo:        defaultElo(found.Elo),
 				HighestElo: defaultElo(found.HighestElo),
@@ -266,12 +266,12 @@ func (svc *Services) GetLeaderboardUsers(ctx context.Context, mode GameMode, rnk
 	if len(missingIDs) > 0 {
 		slog.ErrorContext(ctx, "leaderboard users missing from database", "missingIDs", missingIDs)
 	}
-	sort.Slice(lbdUsers, func(i, j int) bool {
-		return lbdUsers[i].Rank < lbdUsers[j].Rank
+	sort.Slice(leaderboardUsers, func(i, j int) bool {
+		return leaderboardUsers[i].Rank < leaderboardUsers[j].Rank
 	})
 
-	slog.InfoContext(ctx, "selected users", "ids", ids, "ldbUsers", lbdUsers, "rnkUsers", rnkUsers)
-	return lbdUsers, missingIDs, nil
+	slog.InfoContext(ctx, "selected users", "ids", ids, "leaderboardUsers", leaderboardUsers, "rnkUsers", rnkUsers)
+	return leaderboardUsers, missingIDs, nil
 }
 
 const MaxSearchOffset = 1000
@@ -286,7 +286,7 @@ func (svc *Services) GetFuzzySearchLeaderboard(ctx context.Context, name string,
 		return nil, ErrSearchLimit
 	}
 
-	userRows, err := svc.Query().SelectUsersBySimilarity(ctx, db.SelectUsersBySimilarityParams{
+	userRows, err := svc.Query().SelectUsersBySimilarity(ctx, repo.SelectUsersBySimilarityParams{
 		Username: name,
 		Limit:    perPage,
 		Offset:   offset,

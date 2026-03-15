@@ -28,7 +28,7 @@ func (svc *Services) CreateGame(ctx context.Context, color Color, mode GameMode,
 	state.Game.InitPieceMoves()
 
 	slog.InfoContext(ctx, "created chess game", "chessMeta", state.ChessMeta)
-	if err := svc.SetChessState(ctx, strID, &state); err != nil {
+	if err := svc.SetChessStateNow(ctx, strID, &state); err != nil {
 		return "", fmt.Errorf("set chess state by id %s: %w", strID, err)
 	}
 
@@ -99,7 +99,7 @@ func (svc *Services) JoinGame(ctx context.Context, gameID string, player PlayerS
 		return state, nil
 	}
 
-	err = svc.SetChessState(ctx, gameID, state)
+	err = svc.SetChessStateNow(ctx, gameID, state)
 	if err != nil {
 		return nil, fmt.Errorf("set chess state by id %s: %w", gameID, err)
 	}
@@ -190,7 +190,7 @@ func (svc *Services) MakeGameMove(ctx context.Context, gameID string, player Pla
 	if isCheckmate {
 		state.EndState = Finished
 	}
-	if err := svc.SetChessState(ctx, gameID, state); err != nil {
+	if err := svc.SetChessStateNow(ctx, gameID, state); err != nil {
 		return mr, fmt.Errorf("set chess state by id %s: %w", gameID, err)
 	}
 
@@ -206,7 +206,7 @@ func (svc *Services) MakeGameMove(ctx context.Context, gameID string, player Pla
 			GameID:       gameID,
 			WhitePlayer:  state.WhitePlayer,
 			BlackPlayer:  state.BlackPlayer,
-			GameMode:     state.Mode,
+			ReplayMode:   state.Mode,
 			ReplayResult: result,
 			ReplayCause:  Checkmate,
 		}); err != nil {
@@ -264,7 +264,7 @@ func (svc *Services) AttemptGameUndo(ctx context.Context, gameID string, player 
 		state.UndoState = UndoState{}
 	}
 
-	if err := svc.SetChessState(ctx, gameID, state); err != nil {
+	if err := svc.SetChessStateNow(ctx, gameID, state); err != nil {
 		return nil, fmt.Errorf("set chess state by id %s: %w", gameID, err)
 	}
 	return state, nil
@@ -292,7 +292,7 @@ func (svc *Services) EndGame(ctx context.Context, gameID string, player PlayerSt
 	} else {
 		state.EndState = Aborted
 	}
-	if err := svc.SetChessState(ctx, gameID, state); err != nil {
+	if err := svc.SetChessStateNow(ctx, gameID, state); err != nil {
 		return fmt.Errorf("set chess state by id %s: %w", gameID, err)
 	}
 
@@ -306,7 +306,7 @@ func (svc *Services) EndGame(ctx context.Context, gameID string, player PlayerSt
 			GameID:       gameID,
 			WhitePlayer:  state.WhitePlayer,
 			BlackPlayer:  state.BlackPlayer,
-			GameMode:     state.Mode,
+			ReplayMode:   state.Mode,
 			ReplayResult: result,
 			ReplayCause:  Forfeit,
 		}); err != nil {

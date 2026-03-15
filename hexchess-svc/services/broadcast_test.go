@@ -2,9 +2,10 @@ package svc
 
 import (
 	"context"
-	"google.golang.org/protobuf/proto"
 	"testing"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
@@ -121,7 +122,7 @@ func TestBroadcastGameMessage(t *testing.T) {
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()
 
-	lb := LocalBroadcasters{GamesCaster: MakeMultiCasterMap("testing-broker-map", time.Hour*1)}
+	lb := LocalBroadcasters{GamesCaster: MakeMultiCasterMap("testing-map", time.Hour*1)}
 	<-lb.ListenGameMessages(services.Redis)
 
 	ctx, cancel := context.WithTimeout(context.WithValue(t.Context(), logutil.Trace, t.Name()), 1*time.Second)
@@ -148,7 +149,7 @@ func TestBroadcastGameMessage(t *testing.T) {
 	}
 
 	// then
-	var msgs []string
+	var messages []string
 ReadMsgs:
 	for range wantMsgCount {
 		select {
@@ -157,8 +158,8 @@ ReadMsgs:
 		case v := <-subChan:
 			var output pb.GameOutput
 			require.NoError(t, proto.Unmarshal(v, &output))
-			msgs = append(msgs, output.GetChat().GetMessage())
+			messages = append(messages, output.GetChat().GetMessage())
 		}
 	}
-	assert.Equal(t, []string{"test1", "test2"}, msgs)
+	assert.Equal(t, []string{"test1", "test2"}, messages)
 }

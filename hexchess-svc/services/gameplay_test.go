@@ -2,14 +2,16 @@ package svc
 
 import (
 	"context"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/redis/go-redis/v9"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"hexchess-svc/chess"
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
 	"testing"
+
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestJoinGame_JoinWhite(t *testing.T) {
@@ -21,13 +23,13 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	gameID := "test123"
+	gameID := uuid.NewString()
 	inState := MakeChess(StateSetup{ID: gameID, Mode: ModeCorrespondence1, FirstColor: Random})
 	inState.FirstColor = White
 	player := MakePlayer(1, "name", "us")
 
 	// when
-	require.NoError(t, services.SetChessState(ctx, gameID, &inState))
+	require.NoError(t, services.SetChessStateNow(ctx, gameID, &inState))
 
 	updatedState, err := services.JoinGame(ctx, gameID, player)
 	require.NoError(t, err)
@@ -49,7 +51,7 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	gameID := "test123"
+	gameID := uuid.NewString()
 	inState := MakeChess(StateSetup{
 		ID:         gameID,
 		Mode:       ModeCorrespondence1,
@@ -59,7 +61,7 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	})
 
 	// when
-	require.NoError(t, services.SetChessState(ctx, gameID, &inState))
+	require.NoError(t, services.SetChessStateNow(ctx, gameID, &inState))
 
 	resultState, err := services.JoinGame(ctx, gameID, PlayerState{ID: 3, Name: "testing", Present: true})
 	require.NoError(t, err)
@@ -114,12 +116,12 @@ func TestAttemptUndo(t *testing.T) {
 			tests: []subTest{
 				{
 					kind:      UndoCreate,
-					player:    PlayerState{ID: 2, Present: true},
+					player:    PlayerState{ID: 2, Name: "black", Present: true},
 					wantState: makeWantState(&inState2, func(s *ChessState) { s.UndoState = UndoState{UndoID: 2} }),
 				},
 				{
 					kind:      UndoAccept,
-					player:    PlayerState{ID: 1, Present: true},
+					player:    PlayerState{ID: 1, Name: "white", Present: true},
 					wantState: makeWantState(&inState2, func(s *ChessState) { s.UndoState = UndoState{} }),
 				},
 			},
@@ -130,12 +132,12 @@ func TestAttemptUndo(t *testing.T) {
 			tests: []subTest{
 				{
 					kind:      UndoCreate,
-					player:    PlayerState{ID: 2, Present: true},
+					player:    PlayerState{ID: 2, Name: "black", Present: true},
 					wantState: makeWantState(&inState1, func(s *ChessState) { s.UndoState = UndoState{UndoID: 2} }),
 				},
 				{
 					kind:      UndoReject,
-					player:    PlayerState{ID: 2, Present: true},
+					player:    PlayerState{ID: 2, Name: "black", Present: true},
 					wantState: makeWantState(&inState1, func(s *ChessState) { s.UndoState = UndoState{} }),
 				},
 			},
@@ -146,12 +148,12 @@ func TestAttemptUndo(t *testing.T) {
 			tests: []subTest{
 				{
 					kind:      UndoCreate,
-					player:    PlayerState{ID: 2, Present: true},
+					player:    PlayerState{ID: 2, Name: "black", Present: true},
 					wantState: makeWantState(&inState1, func(s *ChessState) { s.UndoState = UndoState{UndoID: 2} }),
 				},
 				{
 					kind:      UndoReject,
-					player:    PlayerState{ID: 1, Present: true},
+					player:    PlayerState{ID: 1, Name: "white", Present: true},
 					wantState: makeWantState(&inState1, func(s *ChessState) { s.UndoState = UndoState{} }),
 				},
 			},
@@ -162,12 +164,12 @@ func TestAttemptUndo(t *testing.T) {
 			tests: []subTest{
 				{
 					kind:    UndoReject,
-					player:  PlayerState{ID: 1, Present: true},
+					player:  PlayerState{ID: 1, Name: "white", Present: true},
 					wantErr: ErrNoUndo,
 				},
 				{
 					kind:    UndoAccept,
-					player:  PlayerState{ID: 1, Present: true},
+					player:  PlayerState{ID: 1, Name: "white", Present: true},
 					wantErr: ErrNoUndo,
 				},
 			},
@@ -178,17 +180,17 @@ func TestAttemptUndo(t *testing.T) {
 			tests: []subTest{
 				{
 					kind:      UndoCreate,
-					player:    PlayerState{ID: 2, Present: true},
+					player:    PlayerState{ID: 2, Name: "black", Present: true},
 					wantState: makeWantState(&inState1, func(s *ChessState) { s.UndoState = UndoState{UndoID: 2} }),
 				},
 				{
 					kind:    UndoAccept,
-					player:  PlayerState{ID: 2, Present: true},
+					player:  PlayerState{ID: 2, Name: "black", Present: true},
 					wantErr: ErrUndoNoop,
 				},
 				{
 					kind:    UndoAccept,
-					player:  PlayerState{ID: 1, Present: true},
+					player:  PlayerState{ID: 1, Name: "white", Present: true},
 					wantErr: ErrNoMoveUndo,
 				},
 			},
@@ -202,7 +204,7 @@ func TestAttemptUndo(t *testing.T) {
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
 
 			for _, cs := range ss {
-				if err := services.SetChessState(ctx, cs.ID, &cs); err != nil {
+				if err := services.SetChessStateNow(ctx, cs.ID, &cs); err != nil {
 					t.Fatalf("failed initialize testing s: %v", err)
 				}
 			}
@@ -325,7 +327,7 @@ func TestMakeMove(t *testing.T) {
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
 
 			for _, c := range ss {
-				if err := services.SetChessState(ctx, c.ID, &c); err != nil {
+				if err := services.SetChessStateNow(ctx, c.ID, &c); err != nil {
 					t.Fatalf("failed initialize testing state: %v", err)
 				}
 			}
@@ -346,7 +348,7 @@ func TestMakeMove(t *testing.T) {
 func TestForfeit_Errors(t *testing.T) {
 	t.Parallel()
 
-	gameID := "test123"
+	gameID := uuid.NewString()
 
 	for _, test := range []struct {
 		name    string
@@ -364,7 +366,7 @@ func TestForfeit_Errors(t *testing.T) {
 				Black:      PlayerState{ID: 2, Present: true},
 				EndState:   Finished,
 			}),
-			wantErr: ErrFinishedGame{GameID: "test123"},
+			wantErr: ErrFinishedGame{GameID: gameID},
 		},
 		{
 			name: "cannot abort without being a player",
@@ -395,7 +397,7 @@ func TestForfeit_Errors(t *testing.T) {
 			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 			// when
-			require.NoError(t, services.SetChessState(ctx, gameID, &test.s))
+			require.NoError(t, services.SetChessStateNow(ctx, gameID, &test.s))
 			forfeitErr := services.EndGame(ctx, gameID, PlayerState{ID: 1, Present: true})
 
 			// then
@@ -413,7 +415,7 @@ func TestForfeit_Abort(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	gameID := "test123"
+	gameID := uuid.NewString()
 	inState := MakeChess(StateSetup{
 		ID:         gameID,
 		Mode:       ModeCorrespondence1,
@@ -422,7 +424,7 @@ func TestForfeit_Abort(t *testing.T) {
 	})
 
 	// when
-	require.NoError(t, services.SetChessState(ctx, gameID, &inState))
+	require.NoError(t, services.SetChessStateNow(ctx, gameID, &inState))
 	err := services.EndGame(ctx, gameID, inState.WhitePlayer)
 	require.NoError(t, err)
 
@@ -447,7 +449,7 @@ func TestForfeit(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	gameID := "test123"
+	gameID := uuid.NewString()
 	inState := MakeChess(StateSetup{
 		ID:         gameID,
 		Mode:       ModeCorrespondence1,
@@ -460,7 +462,7 @@ func TestForfeit(t *testing.T) {
 	}}
 
 	// when
-	require.NoError(t, services.SetChessState(ctx, gameID, &inState))
+	require.NoError(t, services.SetChessStateNow(ctx, gameID, &inState))
 	err := services.EndGame(ctx, gameID, inState.BlackPlayer)
 	require.NoError(t, err)
 

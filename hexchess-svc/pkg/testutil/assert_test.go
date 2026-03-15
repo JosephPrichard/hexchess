@@ -9,25 +9,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type value struct {
+	A int `json:"a"`
+	B int `json:"b"`
+}
+
 type test struct {
 	name    string
-	body    any
+	body    value
 	w       *httptest.ResponseRecorder
 	opts    cmp.Option
 	wantStr string
 }
 
 func testAssertRestBody[V any](t *testing.T, test test) {
-	str := assertRespBody[V](test.body, test.w, test.opts)
+	str := assertRespBody(test.body, test.w, test.opts)
 	t.Logf("assert rest body:\n%s", str)
 	assert.Equal(t, test.wantStr, str)
 }
 
 func TestAssertRespBody(t *testing.T) {
-	type value struct {
-		A int `json:"a"`
-		B int `json:"b"`
-	}
+	
 	testAssertRestBody[value](t, test{
 		name: "equal",
 		body: value{A: 1, B: 3},

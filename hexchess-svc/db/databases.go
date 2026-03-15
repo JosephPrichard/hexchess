@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"hexchess-svc/db/repo"
 	"time"
 
 	redigo "github.com/gomodule/redigo/redis"
@@ -54,17 +55,17 @@ var DefaultRedisNames = RedisNames{
 }
 
 type Postgres interface {
-	Query() *Queries
+	Query() *repo.Queries
 	RunInTx(context.Context, TxnArgs) error
 	Close()
 }
 
 type PostgresDB struct {
-	q    *Queries
+	q    *repo.Queries
 	pool *pgxpool.Pool
 }
 
-func (pdb *PostgresDB) Query() *Queries {
+func (pdb *PostgresDB) Query() *repo.Queries {
 	return pdb.q
 }
 
@@ -76,8 +77,8 @@ type PostgresFake struct {
 	testingTxn pgx.Tx
 }
 
-func (pdb *PostgresFake) Query() *Queries {
-	return New(pdb.testingTxn)
+func (pdb *PostgresFake) Query() *repo.Queries {
+	return repo.New(pdb.testingTxn)
 }
 
 func (pdb *PostgresFake) Close() {
@@ -87,7 +88,7 @@ func (pdb *PostgresFake) Close() {
 }
 
 func MakePostgres(pool *pgxpool.Pool) Postgres {
-	return &PostgresDB{q: New(pool), pool: pool}
+	return &PostgresDB{q: repo.New(pool), pool: pool}
 }
 
 func MakeFakePostgres(txn pgx.Tx) Postgres {

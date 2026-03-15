@@ -2,12 +2,13 @@ package db
 
 import (
 	"context"
+	"hexchess-svc/db/repo"
 	"log/slog"
 	"slices"
 )
 
 type TxnArgs struct {
-	QueryFn      func(ctx context.Context, query *Queries) error
+	QueryFn      func(ctx context.Context, query *repo.Queries) error
 	ErrAllowlist []error
 }
 
@@ -42,5 +43,5 @@ func (pdb *PostgresDB) RunInTx(ctx context.Context, args TxnArgs) (err error) {
 
 func (pdb *PostgresFake) RunInTx(ctx context.Context, args TxnArgs) (err error) {
 	// a fake postgres instance is already running in a txn, so noop the txn
-	return args.QueryFn(ctx, New(pdb.testingTxn))
+	return args.QueryFn(ctx, repo.New(pdb.testingTxn))
 }

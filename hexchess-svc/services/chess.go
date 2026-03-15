@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/proto"
 	"log/slog"
 	"strconv"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 
 	"hexchess-svc/chess"
 
@@ -194,9 +195,9 @@ func (svc *Services) GetChessState(ctx context.Context, id string) (*ChessState,
 	return &state, nil
 }
 
-func (svc *Services) SetChessState(ctx context.Context, id string, state *ChessState) error {
+func (svc *Services) SetChessStateNow(ctx context.Context, id string, state *ChessState) error {
 	touch := time.Now()
-	return svc.SetChessStateAt(ctx, id, state, touch)
+	return svc.SetChessState(ctx, id, state, touch)
 }
 
 func makeGameKey(gameID string) string {
@@ -209,7 +210,7 @@ func (svc *Services) makeGameChatsKey(gameKey string) string {
 
 const SetChessRetries = 5
 
-func (svc *Services) SetChessStateAt(ctx context.Context, id string, state *ChessState, touch time.Time) error {
+func (svc *Services) SetChessState(ctx context.Context, id string, state *ChessState, touch time.Time) error {
 	state.Touch = touch
 	touchSecs := float64(state.Touch.Unix())
 	fullID := makeGameKey(id)
@@ -229,23 +230,23 @@ func (svc *Services) SetChessStateAt(ctx context.Context, id string, state *Ches
 	if state.BlackPlayer.Present {
 		pipe.ZAdd(ctx, svc.makeUserGameZSet(state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
 	}
-	if state.EndState != Aborted {
-		pipe.ZAdd(ctx, svc.Redis.GamesZSet, redis.Z{Score: touchSecs, Member: fullID})
-		if state.WhitePlayer.Present {
-			pipe.ZAdd(ctx, svc.makeUserGameZSet(state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
-		}
-		if state.BlackPlayer.Present {
-			pipe.ZAdd(ctx, svc.makeUserGameZSet(state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
-		}
-	} else {
-		pipe.ZRem(ctx, svc.Redis.GamesZSet, fullID)
-		if state.WhitePlayer.Present {
-			pipe.ZRem(ctx, svc.makeUserGameZSet(state.WhitePlayer.ID), fullID)
-		}
-		if state.BlackPlayer.Present {
-			pipe.ZRem(ctx, svc.makeUserGameZSet(state.BlackPlayer.ID), fullID)
-		}
-	}
+	// if state.EndState != Aborted {
+	// 	pipe.ZAdd(ctx, svc.Redis.GamesZSet, redis.Z{Score: touchSecs, Member: fullID})
+	// 	if state.WhitePlayer.Present {
+	// 		pipe.ZAdd(ctx, svc.makeUserGameZSet(state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
+	// 	}
+	// 	if state.BlackPlayer.Present {
+	// 		pipe.ZAdd(ctx, svc.makeUserGameZSet(state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: fullID})
+	// 	}
+	// } else {
+	// 	pipe.ZRem(ctx, svc.Redis.GamesZSet, fullID)
+	// 	if state.WhitePlayer.Present {
+	// 		pipe.ZRem(ctx, svc.makeUserGameZSet(state.WhitePlayer.ID), fullID)
+	// 	}
+	// 	if state.BlackPlayer.Present {
+	// 		pipe.ZRem(ctx, svc.makeUserGameZSet(state.BlackPlayer.ID), fullID)
+	// 	}
+	// }
 
 	if _, err = pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("set chess state in redis after %d retries: %w", SetChessRetries, err)

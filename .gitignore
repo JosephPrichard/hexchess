@@ -21,13 +21,16 @@ target/
 .idea
 
 hexchess-svc/app.log
+hexchess-svc/.env
+hexchess-svc/pb/*
+hexchess-svc/db/repo
+
 hexchess-ui/src/lib/pb/messages.ts
 hexchess-ui/build
+
 */.svelte-kit
 */node_modules
-hexchess-svc/.env
 .env
-hexchess-svc/src/main/resources/.env
 
 wasm_exec.js
 chess.wasm

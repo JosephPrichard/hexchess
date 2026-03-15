@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/services"
+	svc "hexchess-svc/services"
 )
 
 var TestSessionID1 = "testing-session-id-1"
@@ -49,7 +49,7 @@ func createTestChessStates(t *testing.T, svc svc.Services) {
 	t.Helper()
 	ctx := context.WithValue(context.Background(), logutil.Trace, "testing-update-password")
 	for _, state := range TestStates {
-		if err := svc.SetChessState(ctx, state.ID, &state); err != nil {
+		if err := svc.SetChessStateNow(ctx, state.ID, &state); err != nil {
 			t.Fatalf("create testing ss: %v", err)
 		}
 	}

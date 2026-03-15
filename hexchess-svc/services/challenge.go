@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"time"
 
-	"hexchess-svc/db"
+	"hexchess-svc/db/repo"
 	"hexchess-svc/pkg/logutil"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -47,7 +47,7 @@ type ChallengeInst struct {
 	MadeOn       time.Time `json:"madeOn"`
 }
 
-func mapChallengeFromRow(row db.SelectChallengesByParticipantRow) ChallengeEntity {
+func mapChallengeFromRow(row repo.SelectChallengesByParticipantRow) ChallengeEntity {
 	return ChallengeEntity{
 		ChallengerID:      row.ChallengerID,
 		ChallengerName:    row.ChallengerName,
@@ -77,11 +77,11 @@ func (svc *Services) InsertChallengeRet(ctx context.Context, inst ChallengeInst)
 		inst.MadeOn = time.Now()
 	}
 
-	row, dbErr := svc.Query().InsertChallenge(ctx, db.InsertChallengeParams{
+	row, dbErr := svc.Query().InsertChallenge(ctx, repo.InsertChallengeParams{
 		ChallengerID: inst.ChallengerID,
 		ChallengeeID: inst.ChallengeeID,
-		Mode:         db.ModeEnum(inst.Mode.String()),
-		StartColor:   db.ColorEnum(inst.StartColor.String()),
+		Mode:         repo.ModeEnum(inst.Mode.String()),
+		StartColor:   repo.ColorEnum(inst.StartColor.String()),
 		MadeOn:       pgtype.Timestamptz{Valid: true, Time: inst.MadeOn},
 	})
 
@@ -99,7 +99,7 @@ func (svc *Services) InsertChallengeRet(ctx context.Context, inst ChallengeInst)
 	if dbErr != nil {
 		return ChallengeEntity{}, dbErr
 	}
-	challenge := mapChallengeFromRow(db.SelectChallengesByParticipantRow(row))
+	challenge := mapChallengeFromRow(repo.SelectChallengesByParticipantRow(row))
 
 	slog.InfoContext(ctx, "created a new challenge", "challenge", inst, "challenge", challenge)
 	return challenge, nil
@@ -125,7 +125,7 @@ func (svc *Services) GetChallengesByParticipant(ctx context.Context, key Challen
 		pgChallengeeID.Int64 = key.ChallengeeID
 	}
 
-	rows, err := svc.Query().SelectChallengesByParticipant(ctx, db.SelectChallengesByParticipantParams{
+	rows, err := svc.Query().SelectChallengesByParticipant(ctx, repo.SelectChallengesByParticipantParams{
 		ChallengerID: pgChallengerID,
 		ChallengeeID: pgChallengeeID,
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
@@ -151,7 +151,7 @@ type DeleteResult struct {
 }
 
 func (svc *Services) DeleteChallenge(ctx context.Context, key ChallengeKey) (delResult DeleteResult, err error) {
-	row, err := svc.Query().DeleteChallenge(ctx, db.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	row, err := svc.Query().DeleteChallenge(ctx, repo.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return delResult, ErrChallengeNotFound
 	}
@@ -179,7 +179,7 @@ func (svc *Services) DeleteChallenge(ctx context.Context, key ChallengeKey) (del
 
 func (svc *Services) DeleteExpiredChallenges(ctx context.Context, userID int64) error {
 	t := svc.GetNow().Add(-ExpireChallengeMaxAge)
-	err := svc.Query().DeleteExpiredChallenges(ctx, db.DeleteExpiredChallengesParams{
+	err := svc.Query().DeleteExpiredChallenges(ctx, repo.DeleteExpiredChallengesParams{
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: t},
 	})

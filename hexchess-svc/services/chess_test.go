@@ -29,7 +29,7 @@ func TestEchoChessState(t *testing.T) {
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	// when
-	require.NoError(t, services.SetChessState(ctx, id1, &s1))
+	require.NoError(t, services.SetChessStateNow(ctx, id1, &s1))
 
 	outState1, err := services.GetChessState(ctx, id1)
 	require.NoError(t, err)
@@ -61,9 +61,9 @@ func TestGetChessMetas(t *testing.T) {
 
 	// when
 	// these times must be after now.Add(-GameExpireFinished)
-	require.NoError(t, services.SetChessStateAt(ctx, id1, &s1, now.Add(-100*time.Second)))
-	require.NoError(t, services.SetChessStateAt(ctx, id2, &s2, now.Add(-50*time.Second)))
-	require.NoError(t, services.SetChessStateAt(ctx, id3, &s3, now.Add(-10*time.Second)))
+	require.NoError(t, services.SetChessState(ctx, id1, &s1, now.Add(-100*time.Second)))
+	require.NoError(t, services.SetChessState(ctx, id2, &s2, now.Add(-50*time.Second)))
+	require.NoError(t, services.SetChessState(ctx, id3, &s3, now.Add(-10*time.Second)))
 
 	metaList1, err := services.GetUserChessMetas(ctx, 1)
 	require.NoError(t, err)
@@ -139,7 +139,7 @@ func TestExpireChessStates(t *testing.T) {
 
 	// when
 	// these times must be before now.Add(-GameExpireFinished)
-	require.NoError(t, services.SetChessStateAt(ctx, id1, &s1, now.Add(2*-GameExpireFinished)))
+	require.NoError(t, services.SetChessState(ctx, id1, &s1, now.Add(2*-GameExpireFinished)))
 	require.NoError(t, services.InsertStateChat(ctx, id1, StateChat{}))
 	require.NoError(t, services.ExpireChessStates(ctx, services.Redis.GamesZSet))
 

@@ -2,12 +2,8 @@ package web
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/testing/protocmp"
 	"hexchess-svc/chess"
-	"hexchess-svc/db"
+	"hexchess-svc/db/repo"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
 	"hexchess-svc/pkg/testutil"
@@ -16,6 +12,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 )
 
 func TestHandleGetMoveReplay(t *testing.T) {
@@ -36,7 +37,7 @@ func TestHandleGetMoveReplay(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	services.Query().InsertReplayMoveHistories(t.Context(), db.InsertReplayMoveHistoriesParams{
+	services.Query().InsertReplayMoveHistories(t.Context(), repo.InsertReplayMoveHistoriesParams{
 		ReplayID: 1,
 		Data:     object,
 	})

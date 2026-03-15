@@ -2,30 +2,35 @@ package svc
 
 import (
 	"context"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"hexchess-svc/chess"
-	"hexchess-svc/db"
+	"hexchess-svc/db/repo"
 	"hexchess-svc/itest"
+	"hexchess-svc/pb"
 	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/pkg/testutil"
 	"math"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 )
 
-type FakeGameHandler struct {
+type fakeGameEventHandler struct {
 	lock           sync.Mutex
 	cancel         func()
 	outputEvents   []FinishGameEvent
 	wantEventCount int
 }
 
-func (h *FakeGameHandler) handleFinishGameEvent(_ context.Context, event FinishGameEvent) error {
+func (h *fakeGameEventHandler) handleFinishGameEvent(_ context.Context, event FinishGameEvent) error {
 	h.lock.Lock()
 	h.outputEvents = append(h.outputEvents, event)
 	h.lock.Unlock()
@@ -36,7 +41,7 @@ func (h *FakeGameHandler) handleFinishGameEvent(_ context.Context, event FinishG
 	return nil
 }
 
-func TestGameFinishStreamer(t *testing.T) {
+func TestGameFinishStreamer_FakeGameEventHandler(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -55,7 +60,7 @@ func TestGameFinishStreamer(t *testing.T) {
 			},
 			WhitePlayer:  PlayerState{ID: 1, Name: "white1", Present: true},
 			BlackPlayer:  PlayerState{ID: 2, Name: "black1", Present: true},
-			GameMode:     ModeCorrespondence1,
+			ReplayMode:   ModeCorrespondence1,
 			ReplayCause:  Checkmate,
 			ReplayResult: WhiteWin,
 		},
@@ -64,7 +69,7 @@ func TestGameFinishStreamer(t *testing.T) {
 			Board:        chess.MakeEmptyBoard(true),
 			WhitePlayer:  PlayerState{ID: 3, Name: "white2", Present: true},
 			BlackPlayer:  PlayerState{ID: 4, Name: "black2", Present: true},
-			GameMode:     ModeTimed1Plus0,
+			ReplayMode:   ModeTimed1Plus0,
 			ReplayCause:  Forfeit,
 			ReplayResult: BlackWin,
 		},
@@ -73,7 +78,7 @@ func TestGameFinishStreamer(t *testing.T) {
 			Board:        chess.MakeEmptyBoard(true),
 			WhitePlayer:  PlayerState{ID: 5, Name: "white3", Present: true},
 			BlackPlayer:  PlayerState{ID: 6, Name: "black3", Present: true},
-			GameMode:     ModeTimed3Plus2,
+			ReplayMode:   ModeTimed3Plus2,
 			ReplayCause:  Stalemate,
 			ReplayResult: Draw,
 		},
@@ -87,16 +92,14 @@ func TestGameFinishStreamer(t *testing.T) {
 		},
 	}
 
-	handler := FakeGameHandler{
+	eventHandler := fakeGameEventHandler{
 		cancel:         cancel,
 		wantEventCount: len(validInputEvents),
 	}
-	stream := GameFinishStreamer{
-		Context:               ctx,
-		Services:              &services,
-		Concurrency:           2,
-		HandleFinishGameEvent: handler.handleFinishGameEvent,
-	}
+
+	stream := MakeFinishGameStreamer(ctx, &services)
+	stream.HandleMessage = eventHandler.handleFinishGameEvent
+	stream.StreamKey = services.FinishGameStreamKey
 
 	// when
 	for _, event := range invalidInputEvents {
@@ -110,10 +113,110 @@ func TestGameFinishStreamer(t *testing.T) {
 	for _, event := range validInputEvents {
 		services.PushFinishGameEvent(ctx, event)
 	}
-	stream.ReadGameFinishEvents()
+	stream.EventLoop()
 
 	// then
-	assert.ElementsMatch(t, validInputEvents, handler.outputEvents)
+	assert.ElementsMatch(t, validInputEvents, eventHandler.outputEvents)
+}
+
+func TestInsertFinishedGame(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.WithValue(t.Context(), logutil.Trace, t.Name()))
+	defer cancel()
+
+	testUser0 := TestUserEntities[0]
+	testUser1 := TestUserEntities[1]
+	gameID := uuid.NewString()
+
+	for _, test := range []struct {
+		name            string
+		event           FinishGameEvent
+		wantUserElos    []repo.SelectUserModeElosByIdsRow
+		wantLeaderboard Leaderboard
+		wantGameOutput  *pb.GameOutput
+	}{
+		{
+			name: "successful inserted finished game",
+			event: FinishGameEvent{
+				GameID:       gameID,
+				Board:        chess.MakeEmptyBoard(true),
+				Moves:        []chess.HistMove{},
+				WhitePlayer:  PlayerState{ID: testUser0.ID, Present: true}, // winner
+				BlackPlayer:  PlayerState{ID: testUser1.ID, Present: true}, //loser
+				ReplayMode:   ModeCorrespondence1,
+				ReplayCause:  Checkmate,
+				ReplayResult: WhiteWin,
+			},
+			wantUserElos: []repo.SelectUserModeElosByIdsRow{
+				{UserID: testUser0.ID, Elo: 1015, HighestElo: 1015, Wins: 1},  // winner
+				{UserID: testUser1.ID, Elo: 985, HighestElo: 1000, Losses: 1}, // loser
+			},
+			wantLeaderboard: Leaderboard{
+				RankedUsers: []RankedUser{
+					{ID: 1, Rank: 1}, // higher rank, this player won
+					{ID: 2, Rank: 2}, // lower rank, this player lost
+				},
+				PageCount: 1,
+			},
+			wantGameOutput: &pb.GameOutput{
+				GameId: gameID,
+				Value: &pb.GameOutput_Replay{Replay: &pb.ReplayOutput{Replay: &pb.ReplayEntity{
+					WhiteId:      testUser0.ID,
+					BlackId:      testUser1.ID,
+					WhiteName:    "user1",
+					BlackName:    "user2",
+					WhiteCountry: "us",
+					BlackCountry: "us",
+					Mode:         ModeCorrespondence1.String(),
+					Cause:        Checkmate.String(),
+					Result:       WhiteWin.String(),
+					WinEloDiff:   15,
+					LoseEloDiff:  -15,
+					WhiteElo:     1015,
+					BlackElo:     985,
+					WhiteEloDiff: 15,
+					BlackEloDiff: -15,
+				}}},
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			// given
+			services := SetupServicesTest(t, itest.RWPostgres, itest.Redis)
+			defer services.Close()
+
+			stream := MakeFinishGameStreamer(ctx, &services)
+			stream.StreamKey = services.FinishGameStreamKey
+
+			lb := LocalBroadcasters{GamesCaster: MakeMultiCasterMap("testing-map", time.Hour*1)}
+			<-lb.ListenGameMessages(services.Redis)
+
+			// when
+			subChan := make(chan []byte, 1)
+			lb.GamesCaster.Subscribe(gameID, subChan)
+
+			require.NoError(t, services.InsertFinishedGameEvent(ctx, test.event))
+
+			// then
+			userElos, err := services.Query().SelectUserModeElosByIds(ctx, repo.SelectUserModeElosByIdsParams{
+				ID:   []int64{test.event.WhitePlayer.ID, test.event.BlackPlayer.ID},
+				Mode: repo.ModeEnum(test.event.ReplayMode.String()),
+			})
+			require.NoError(t, err)
+
+			assert.Equal(t, test.wantUserElos, userElos)
+
+			leaderboardPage, err := services.GetLeaderboardPage(ctx, test.event.ReplayMode, 0, 2)
+			require.NoError(t, err)
+
+			assert.Equal(t, test.wantLeaderboard, leaderboardPage)
+
+			output := &pb.GameOutput{}
+			require.NoError(t, proto.Unmarshal(<-subChan, output))
+			testutil.Equal(t, test.wantGameOutput, output, protocmp.Transform(), protocmp.IgnoreFields(&pb.ReplayEntity{}, "id", "played_on"))
+		})
+	}
 }
 
 func TestInsertGameResult(t *testing.T) {
@@ -124,21 +227,32 @@ func TestInsertGameResult(t *testing.T) {
 	testUser0 := TestUserEntities[0]
 	testUser1 := TestUserEntities[1]
 
+	now := time.Now()
+
 	for _, test := range []struct {
-		name       string
-		result     GameResult
-		wantElos   []db.SelectUserModeElosByIdsRow
-		wantReplay db.Replay
-		wantChange GRChangeSet
+		name         string
+		result       GameResult
+		wantUserElos []repo.SelectUserModeElosByIdsRow
+		wantReplay   repo.Replay
+		wantChange   GameResultChangeSet
 	}{
 		{
 			name:   "draw by stalemate",
-			result: GameResult{GameID: "game1", WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Stalemate, ReplayResult: Draw, ReplayMode: ModeTimed1Plus0},
-			wantElos: []db.SelectUserModeElosByIdsRow{
+			result: GameResult{
+				GameID: "game1",
+				WhiteID: testUser0.ID, 
+				BlackID: testUser1.ID, 
+				ReplayCause: Stalemate, 
+				ReplayResult: Draw, 
+				ReplayMode: ModeTimed1Plus0,
+				InsertedTime: now,
+			},
+			wantUserElos: []repo.SelectUserModeElosByIdsRow{
 				{UserID: testUser0.ID, Elo: 1050, HighestElo: 1050, Draws: 1, Wins: 6, Losses: 5}, // update while maintaing old highest elo
 				{UserID: testUser1.ID, Elo: 1000, HighestElo: 1000, Draws: 1},                     // insert
 			},
-			wantReplay: db.Replay{
+			wantReplay: repo.Replay{
+				GameID:      "game1",
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
 				Result:      "DRAW",
@@ -148,17 +262,27 @@ func TestInsertGameResult(t *testing.T) {
 				LoseEloDiff: 0,
 				WhiteElo:    1050,
 				BlackElo:    1000,
+				PlayedOn:    pgtype.Timestamptz{Time: now, Valid: true},
 			},
-			wantChange: GRChangeSet{},
+			wantChange: GameResultChangeSet{},
 		},
 		{
 			name:   "white wins by checkmate",
-			result: GameResult{GameID: "game2", WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Checkmate, ReplayResult: WhiteWin, ReplayMode: ModeCorrespondence1},
-			wantElos: []db.SelectUserModeElosByIdsRow{
+			result: GameResult{
+				GameID: "game2", 
+				WhiteID: testUser0.ID, 
+				BlackID: testUser1.ID, 
+				ReplayCause: Checkmate, 
+				ReplayResult: WhiteWin, 
+				ReplayMode: ModeCorrespondence1,
+				InsertedTime: now,
+			},
+			wantUserElos: []repo.SelectUserModeElosByIdsRow{
 				{UserID: testUser0.ID, Elo: 1015, HighestElo: 1015, Wins: 1},  // insert
 				{UserID: testUser1.ID, Elo: 985, HighestElo: 1000, Losses: 1}, // insert with elo lower than start elo
 			},
-			wantReplay: db.Replay{
+			wantReplay: repo.Replay{
+				GameID:      "game2",
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
 				Result:      "WHITE_WINS",
@@ -168,17 +292,27 @@ func TestInsertGameResult(t *testing.T) {
 				LoseEloDiff: -15,
 				WhiteElo:    1015,
 				BlackElo:    985,
+				PlayedOn:    pgtype.Timestamptz{Time: now, Valid: true},
 			},
-			wantChange: GRChangeSet{WinID: testUser0.ID, LoseID: testUser1.ID, WinEloDiff: 15, LoseEloDiff: -15},
+			wantChange: GameResultChangeSet{WinID: testUser0.ID, LoseID: testUser1.ID, WinEloDiff: 15, LoseEloDiff: -15},
 		},
 		{
 			name:   "black wins by forfeit",
-			result: GameResult{GameID: "game3", WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Forfeit, ReplayResult: BlackWin, ReplayMode: ModeCorrespondence7},
-			wantElos: []db.SelectUserModeElosByIdsRow{
+			result: GameResult{
+				GameID: "game3", 
+				WhiteID: testUser0.ID,
+				BlackID: testUser1.ID,
+				ReplayCause: Forfeit, 
+				ReplayResult: BlackWin,
+				ReplayMode: ModeCorrespondence7,
+				InsertedTime: now,
+			},
+			wantUserElos: []repo.SelectUserModeElosByIdsRow{
 				{UserID: testUser0.ID, Elo: 985, HighestElo: 1000, Wins: 2, Losses: 3}, // update while setting new highest elo
 				{UserID: testUser1.ID, Elo: 1015, HighestElo: 1015, Wins: 1},           // update
 			},
-			wantReplay: db.Replay{
+			wantReplay: repo.Replay{
+				GameID:      "game3",
 				WhiteID:     testUser0.ID,
 				BlackID:     testUser1.ID,
 				Result:      "BLACK_WINS",
@@ -188,16 +322,26 @@ func TestInsertGameResult(t *testing.T) {
 				LoseEloDiff: -15,
 				WhiteElo:    985,
 				BlackElo:    1015,
+				PlayedOn:    pgtype.Timestamptz{Time: now, Valid: true},
 			},
-			wantChange: GRChangeSet{WinID: testUser1.ID, LoseID: testUser0.ID, WinEloDiff: 15, LoseEloDiff: -15},
+			wantChange: GameResultChangeSet{WinID: testUser1.ID, LoseID: testUser0.ID, WinEloDiff: 15, LoseEloDiff: -15},
 		},
 		{
 			name:   "inserting already persisted game result",
-			result: GameResult{GameID: itest.FirstReplayGameID, WhiteID: testUser0.ID, BlackID: testUser1.ID, ReplayCause: Forfeit, ReplayResult: BlackWin, ReplayMode: ModeCorrespondence7},
-			wantElos: []db.SelectUserModeElosByIdsRow{
+			result: GameResult{
+				GameID: itest.FirstReplayGameID, 
+				WhiteID: testUser0.ID, 
+				BlackID: testUser1.ID, 
+				ReplayCause: Forfeit, 
+				ReplayResult: BlackWin, 
+				ReplayMode: ModeCorrespondence7,
+				InsertedTime: now,
+			},
+			wantUserElos: []repo.SelectUserModeElosByIdsRow{
 				{UserID: testUser0.ID, Elo: 1000, HighestElo: 1000, Wins: 2, Losses: 2, Draws: 0}, // no update
 			},
-			wantReplay: db.Replay{
+			wantReplay: repo.Replay{
+				GameID:      itest.FirstReplayGameID,
 				WhiteID:     1,
 				BlackID:     2,
 				Mode:        "CORRESPONDENCE_7",
@@ -207,9 +351,9 @@ func TestInsertGameResult(t *testing.T) {
 				LoseEloDiff: -30,
 				WhiteElo:    1000,
 				BlackElo:    1000,
-				GameID:      itest.FirstReplayGameID,
+				PlayedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 			},
-			wantChange: GRChangeSet{ReplayID: 1, AlreadyExists: true},
+			wantChange: GameResultChangeSet{ReplayID: 1, AlreadyExists: true},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -218,26 +362,26 @@ func TestInsertGameResult(t *testing.T) {
 			defer services.Close()
 
 			// when
-			changeSet, err := insertGameResult(ctx, services.Query(), time.Now(), test.result)
+			changeSet, err := insertGameResult(ctx, services.Query(), test.result)
 			require.NoError(t, err)
 
 			// then
-			rowElos, err := services.Query().SelectUserModeElosByIds(ctx, db.SelectUserModeElosByIdsParams{
+			userElos, err := services.Query().SelectUserModeElosByIds(ctx, repo.SelectUserModeElosByIdsParams{
 				ID:   []int64{test.result.WhiteID, test.result.BlackID},
-				Mode: db.ModeEnum(test.result.ReplayMode.String()),
+				Mode: repo.ModeEnum(test.result.ReplayMode.String()),
 			})
 			require.NoError(t, err)
 
-			assert.Equal(t, test.wantElos, rowElos)
+			assert.Equal(t, test.wantUserElos, userElos)
 
 			replay, err := services.Query().SelectReplayRowByID(ctx, changeSet.ReplayID)
 			require.NoError(t, err)
 
-			testutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(db.Replay{}, "ID", "PlayedOn"))
+			testutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(repo.Replay{}, "ID"))
 
 			changeSet.WinEloDiff = math.Round(changeSet.WinEloDiff)
 			changeSet.LoseEloDiff = math.Round(changeSet.LoseEloDiff)
-			testutil.Equal(t, test.wantChange, changeSet, cmpopts.IgnoreFields(GRChangeSet{}, "ReplayID"))
+			testutil.Equal(t, test.wantChange, changeSet, cmpopts.IgnoreFields(GameResultChangeSet{}, "ReplayID"))
 		})
 	}
 }

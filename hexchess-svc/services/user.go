@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"hexchess-svc/db"
+	"hexchess-svc/db/repo"
 	"hexchess-svc/pkg/logutil"
 
 	"github.com/jackc/pgx/v5"
@@ -79,7 +80,7 @@ func calcUserWinrate(wins int32, losses int32, draws int32) int64 {
 	return int64(wr)
 }
 
-func mapUserFromRow(row db.SelectUserByIDRow) UserEntity {
+func mapUserFromRow(row repo.SelectUserByIDRow) UserEntity {
 	return UserEntity{
 		ID:       row.ID,
 		Username: row.Username,
@@ -107,7 +108,7 @@ func (svc *Services) InsertUser(ctx context.Context, inst UserInst) (UserEntity,
 		return u, fmt.Errorf("generate hash: %w", err)
 	}
 
-	row, err := svc.Query().InsertUser(ctx, db.InsertUserParams{
+	row, err := svc.Query().InsertUser(ctx, repo.InsertUserParams{
 		Username: inst.Username,
 		Country:  inst.Country,
 		Password: hash.HashedPassword,
@@ -122,13 +123,13 @@ func (svc *Services) InsertUser(ctx context.Context, inst UserInst) (UserEntity,
 		return u, fmt.Errorf("insert user to db: %w", err)
 	}
 
-	u = mapUserFromRow(db.SelectUserByIDRow(row))
+	u = mapUserFromRow(repo.SelectUserByIDRow(row))
 	slog.InfoContext(ctx, "created a new user", "user", u)
 	return u, nil
 }
 
 func (svc *Services) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]UserEntity, error) {
-	batches := make([]db.BatchInsertUserParams, len(insts))
+	batches := make([]repo.BatchInsertUserParams, len(insts))
 
 	var hashEg errgroup.Group // no context propagation because jobs are non-cancellable
 
@@ -141,7 +142,7 @@ func (svc *Services) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]
 			if err != nil {
 				return fmt.Errorf("hash password for inst index %d: %w", i, err)
 			}
-			batch := db.BatchInsertUserParams{
+			batch := repo.BatchInsertUserParams{
 				Username: inst.Username,
 				Country:  inst.Country,
 				Password: hash.HashedPassword,
@@ -159,11 +160,11 @@ func (svc *Services) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]
 	var users []UserEntity
 	var queryErrs []error
 
-	svc.Query().BatchInsertUser(ctx, batches).QueryRow(func(i int, row db.BatchInsertUserRow, err error) {
+	svc.Query().BatchInsertUser(ctx, batches).QueryRow(func(i int, row repo.BatchInsertUserRow, err error) {
 		if err != nil {
 			queryErrs = append(queryErrs, err)
 		} else {
-			users = append(users, mapUserFromRow(db.SelectUserByIDRow(row)))
+			users = append(users, mapUserFromRow(repo.SelectUserByIDRow(row)))
 		}
 	})
 
@@ -181,7 +182,7 @@ type VerifiedUser struct {
 
 func (svc *Services) VerifyUserTx(ctx context.Context, username string, inputPassword string) (u VerifiedUser, err error) {
 	err = svc.RunInTx(ctx, db.TxnArgs{
-		QueryFn: func(ctx context.Context, query *db.Queries) (err error) {
+		QueryFn: func(ctx context.Context, query *repo.Queries) (err error) {
 			u, err = verifyUser(ctx, query, username, inputPassword)
 			return err
 		},
@@ -195,7 +196,7 @@ const LockoutDuration = time.Minute * 1
 
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
-func verifyUser(ctx context.Context, query *db.Queries, username string, inputPassword string) (VerifiedUser, error) {
+func verifyUser(ctx context.Context, query *repo.Queries, username string, inputPassword string) (VerifiedUser, error) {
 	var u VerifiedUser
 
 	login, err := query.SelectLoginByName(ctx, username)
@@ -256,7 +257,7 @@ func (svc *Services) SelectOrInsertGoogleUser(ctx context.Context, googleAccount
 	}
 
 	if !isCreated {
-		row, err := svc.Query().InsertUser(ctx, db.InsertUserParams{
+		row, err := svc.Query().InsertUser(ctx, repo.InsertUserParams{
 			Username:        googleInst.Username,
 			Country:         googleInst.Country,
 			JoinedOn:        pgtype.Timestamptz{Time: googleInst.JoinedOn, Valid: true},
@@ -298,14 +299,14 @@ func (svc *Services) UpdateUser(ctx context.Context, id int64, updt UpdtUserPara
 		return UserEntity{}, nil
 	}
 
-	row, err := svc.Query().UpdateUser(ctx, db.UpdateUserParams{
+	row, err := svc.Query().UpdateUser(ctx, repo.UpdateUserParams{
 		ID:       id,
 		Username: pgtype.Text{Valid: updt.Username != "", String: updt.Username},
 		Bio:      pgtype.Text{Valid: updt.Bio != "", String: updt.Bio},
 		Country:  pgtype.Text{Valid: updt.Country != "", String: updt.Country},
 	})
 
-	user := mapUserFromRow(db.SelectUserByIDRow(row))
+	user := mapUserFromRow(repo.SelectUserByIDRow(row))
 	logutil.DynLog(ctx, "updated user", err, "user", user)
 	return user, err
 }
@@ -315,7 +316,7 @@ func (svc *Services) UpdateUserPassword(ctx context.Context, id int64, newPasswo
 	if err != nil {
 		return fmt.Errorf("hash password for user %d: %w", id, err)
 	}
-	err = svc.Query().UpdatePassword(ctx, db.UpdatePasswordParams{
+	err = svc.Query().UpdatePassword(ctx, repo.UpdatePasswordParams{
 		ID:       id,
 		Password: hash.HashedPassword,
 		Salt:     hash.Salt,

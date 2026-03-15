@@ -26,15 +26,6 @@ func MakePbGameOutputInit(gameID string, cs *pb.ChessState, self *pb.PlayerState
 	}
 }
 
-func MakePbGameOutputBgInit(gameID string, chats []*pb.ChatMsg) *pb.GameOutput {
-	return &pb.GameOutput{
-		GameId: gameID,
-		Value: &pb.GameOutput_BgInit{
-			BgInit: &pb.BgInitOutput{Chats: chats},
-		},
-	}
-}
-
 func MakePbGameOutputPlayers(gameID string, white, black *pb.PlayerState) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
@@ -44,16 +35,6 @@ func MakePbGameOutputPlayers(gameID string, white, black *pb.PlayerState) *pb.Ga
 				BlackPlayer: black,
 			},
 		},
-	}
-}
-
-func MakePbGameOutputForfeit(gameID string, replayID int64, endState *pb.EndState) *pb.GameOutput {
-	return &pb.GameOutput{
-		GameId: gameID,
-		Value: &pb.GameOutput_Forfeit{Forfeit: &pb.ForfeitOutput{
-			ReplayId: replayID,
-			EndState: endState,
-		}},
 	}
 }
 

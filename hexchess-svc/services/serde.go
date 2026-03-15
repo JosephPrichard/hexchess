@@ -3,8 +3,9 @@ package svc
 import (
 	"encoding/json"
 	"fmt"
-	"google.golang.org/protobuf/proto"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
@@ -265,7 +266,7 @@ func UnmarshalFinishGameEvent(b []byte) (event FinishGameEvent, err error) {
 		Moves:        moves,
 		WhitePlayer:  DeserializePlayer(pbGameEvent.WhitePlayer),
 		BlackPlayer:  DeserializePlayer(pbGameEvent.BlackPlayer),
-		GameMode:     mode,
+		ReplayMode:   mode,
 		ReplayResult: replayResult,
 		ReplayCause:  replayCause,
 	}, nil
@@ -278,7 +279,7 @@ func MarshalFinishGameEvent(event FinishGameEvent) ([]byte, error) {
 		Moves:        chess.SerializeMoveList(event.Moves),
 		WhitePlayer:  SerializePlayer(event.WhitePlayer),
 		BlackPlayer:  SerializePlayer(event.BlackPlayer),
-		GameMode:     event.GameMode.String(),
+		GameMode:     event.ReplayMode.String(),
 		ReplayResult: event.ReplayResult.String(),
 		ReplayCause:  event.ReplayCause.String(),
 	})
@@ -286,24 +287,27 @@ func MarshalFinishGameEvent(event FinishGameEvent) ([]byte, error) {
 
 // Replay
 
-func SerializeReplayOutput(replay ReplayEntity) *pb.ReplayOutput {
-	return &pb.ReplayOutput{Replay: &pb.ReplayEntity{
-		Id:           replay.ID,
-		WhiteId:      replay.WhiteID,
-		BlackId:      replay.BlackID,
-		WhiteName:    replay.WhiteName,
-		BlackName:    replay.BlackName,
-		WhiteCountry: replay.WhiteCountry,
-		BlackCountry: replay.BlackCountry,
-		Mode:         replay.Mode,
-		Result:       replay.Result,
-		Cause:        replay.Cause,
-		WinEloDiff:   replay.WinEloDiff,
-		LoseEloDiff:  replay.LoseEloDiff,
-		WhiteElo:     replay.WhiteElo,
-		BlackElo:     replay.BlackElo,
-		WhiteEloDiff: replay.WhiteEloDiff,
-		BlackEloDiff: replay.BlackEloDiff,
-		PlayedOn:     replay.PlayedOn.Format(time.RFC3339),
-	}}
+func SerializeReplayOutput(gameID string, replay ReplayEntity) *pb.GameOutput {
+	return &pb.GameOutput{
+		GameId: gameID,
+		Value: &pb.GameOutput_Replay{Replay: &pb.ReplayOutput{Replay: &pb.ReplayEntity{
+			Id:           replay.ID,
+			WhiteId:      replay.WhiteID,
+			BlackId:      replay.BlackID,
+			WhiteName:    replay.WhiteName,
+			BlackName:    replay.BlackName,
+			WhiteCountry: replay.WhiteCountry,
+			BlackCountry: replay.BlackCountry,
+			Mode:         replay.Mode,
+			Result:       replay.Result,
+			Cause:        replay.Cause,
+			WinEloDiff:   replay.WinEloDiff,
+			LoseEloDiff:  replay.LoseEloDiff,
+			WhiteElo:     replay.WhiteElo,
+			BlackElo:     replay.BlackElo,
+			WhiteEloDiff: replay.WhiteEloDiff,
+			BlackEloDiff: replay.BlackEloDiff,
+			PlayedOn:     replay.PlayedOn.Format(time.RFC3339),
+		}}},
+	}
 }
