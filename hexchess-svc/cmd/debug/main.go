@@ -4,9 +4,10 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"google.golang.org/protobuf/proto"
 	"os"
 	"strconv"
+
+	"google.golang.org/protobuf/proto"
 
 	"hexchess-svc/cmd"
 	"hexchess-svc/egress"
@@ -31,11 +32,11 @@ func main() {
 
 	ctx := context.WithValue(context.Background(), logutil.Trace, "seed-databases-script")
 
-	aws, err := egress.MakeAwsClients(context.Background(), egress.AwsConfig{
-		AwsDefaultRegion: awsDefaultRegion,
-		AwsSecretKey:     awsSecretKey,
-		AwsSecretID:      awsSecretID,
-		AwsEndpoint:      awsEndpoint,
+	aws, err := egress.MakeAwsClients(context.Background(), egress.AWSConfig{
+		AWSDefaultRegion: awsDefaultRegion,
+		AWSSecretKey:     awsSecretKey,
+		AWSSecretID:      awsSecretID,
+		AWSEndpoint:      awsEndpoint,
 	})
 	if err != nil {
 		logutil.FatalErr("load aws config", err)
@@ -48,7 +49,7 @@ func main() {
 			logutil.FatalErr("parse ID os arg", err)
 		}
 
-		services := svc.Services{Aws: aws}
+		services := svc.Services{AWS: aws}
 		v, err := services.GetMovesHistory(ctx, id)
 		if err != nil {
 			logutil.FatalErr("get replay move seq", err)

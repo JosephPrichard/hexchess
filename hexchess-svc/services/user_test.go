@@ -32,7 +32,7 @@ func TestInsertThenVerify(t *testing.T) {
 	u1, err := services.InsertUser(ctx, UserInst{Username: user1, Password: "password1", Country: "us", JoinedOn: itest.TimeNow})
 	require.NoError(t, err)
 
-	v1, err := verifyUser(ctx, services.Query(), user1, "password1")
+	v1, err := verifyUser(ctx, services.DB.Queries(), user1, "password1")
 	require.NoError(t, err)
 
 	dbU1, err := services.GetUserByID(ctx, v1.ID)
@@ -40,10 +40,10 @@ func TestInsertThenVerify(t *testing.T) {
 
 	var attemptsErrs []error
 	for range LoginAttemptsDivisor {
-		_, err := verifyUser(ctx, services.Query(), user1, "wrong-password")
+		_, err := verifyUser(ctx, services.DB.Queries(), user1, "wrong-password")
 		attemptsErrs = append(attemptsErrs, err)
 	}
-	_, errTooMany := verifyUser(ctx, services.Query(), user1, "wrong-password")
+	_, errTooMany := verifyUser(ctx, services.DB.Queries(), user1, "wrong-password")
 
 	// then
 	var wantAttemptErrs []error
@@ -185,7 +185,7 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 
 	u1, err := services.GetUserByID(ctx, TestUserEntities[0].ID)
 	require.NoError(t, err)
-	v1, err := verifyUser(ctx, services.Query(), TestUserEntities[0].Username, "password-new")
+	v1, err := verifyUser(ctx, services.DB.Queries(), TestUserEntities[0].Username, "password-new")
 	require.NoError(t, err)
 
 	// then

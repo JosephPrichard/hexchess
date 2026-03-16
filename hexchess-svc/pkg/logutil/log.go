@@ -8,6 +8,7 @@ import (
 )
 
 type TestLogger interface {
+	Context() context.Context
 	Logf(format string, args ...interface{})
 	Fatalf(format string, args ...any)
 }

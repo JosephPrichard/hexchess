@@ -2,15 +2,16 @@ package svc
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
-	"hexchess-svc/db/repo"
+	"hexchess-svc/db"
+	"hexchess-svc/db/sqlc"
 	"hexchess-svc/pkg/logutil"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -47,7 +48,7 @@ type ChallengeInst struct {
 	MadeOn       time.Time `json:"madeOn"`
 }
 
-func mapChallengeFromRow(row repo.SelectChallengesByParticipantRow) ChallengeEntity {
+func mapChallengeFromRow(row sqlc.SelectChallengesByParticipantRow) ChallengeEntity {
 	return ChallengeEntity{
 		ChallengerID:      row.ChallengerID,
 		ChallengerName:    row.ChallengerName,
@@ -69,37 +70,42 @@ func (svc *Services) InsertChallenge(ctx context.Context, inst ChallengeInst) er
 	return err
 }
 
-func (svc *Services) InsertChallengeRet(ctx context.Context, inst ChallengeInst) (ChallengeEntity, error) {
+func mapChallengeInsertErr(err error) error {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return err
+	}
+	switch pgErr.Code {
+	case db.ErrPgUniqueViolation:
+		return ErrDuplicateChallenge
+	case db.ErrPgForeignKeyViolation, db.ErrPgCheckViolation:
+		return ErrParticipantConflict
+	default:
+		return err
+	}
+}
+
+func (svc *Services) InsertChallengeRet(ctx context.Context, inst ChallengeInst) (challenge ChallengeEntity, err error) {
 	if inst.ChallengerID == inst.ChallengeeID {
-		return ChallengeEntity{}, ErrSelfChallenge
+		return challenge, ErrSelfChallenge
 	}
 	if inst.MadeOn.IsZero() {
 		inst.MadeOn = time.Now()
 	}
 
-	row, dbErr := svc.Query().InsertChallenge(ctx, repo.InsertChallengeParams{
+	row, dbErr := svc.Queries.InsertChallenge(ctx, sqlc.InsertChallengeParams{
 		ChallengerID: inst.ChallengerID,
 		ChallengeeID: inst.ChallengeeID,
-		Mode:         repo.ModeEnum(inst.Mode.String()),
-		StartColor:   repo.ColorEnum(inst.StartColor.String()),
+		Mode:         sqlc.ModeEnum(inst.Mode.String()),
+		StartColor:   sqlc.ColorEnum(inst.StartColor.String()),
 		MadeOn:       pgtype.Timestamptz{Valid: true, Time: inst.MadeOn},
 	})
-
-	var pgErr *pgconn.PgError
-	if errors.As(dbErr, &pgErr) {
-		switch pgErr.Code {
-		case "23505":
-			slog.InfoContext(ctx, "challenge already exists", "challenge", inst, "err", pgErr)
-			return ChallengeEntity{}, ErrDuplicateChallenge
-		case "23503", "23506":
-			slog.InfoContext(ctx, "violating key constraint when creating challenge", "challenge", inst, "err", pgErr)
-			return ChallengeEntity{}, ErrParticipantConflict
-		}
-	}
 	if dbErr != nil {
-		return ChallengeEntity{}, dbErr
+		svcErr := mapChallengeInsertErr(dbErr)
+		slog.WarnContext(ctx, "failed to insert challenge with db error", "dbErr", dbErr, "svcErr", svcErr)
+		return challenge, svcErr
 	}
-	challenge := mapChallengeFromRow(repo.SelectChallengesByParticipantRow(row))
+	challenge = mapChallengeFromRow(sqlc.SelectChallengesByParticipantRow(row))
 
 	slog.InfoContext(ctx, "created a new challenge", "challenge", inst, "challenge", challenge)
 	return challenge, nil
@@ -112,7 +118,7 @@ type ChallengeKey struct {
 
 // GetChallengesByParticipant will select challenges by the participant after the 'since' time
 func (svc *Services) GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]ChallengeEntity, error) {
-	since := svc.GetNow().Add(-ExpireChallengeMaxAge)
+	since := svc.EntropySource.GetNow().Add(-ExpireChallengeMaxAge)
 
 	var pgChallengerID pgtype.Int8
 	if key.ChallengerID != -1 {
@@ -125,7 +131,7 @@ func (svc *Services) GetChallengesByParticipant(ctx context.Context, key Challen
 		pgChallengeeID.Int64 = key.ChallengeeID
 	}
 
-	rows, err := svc.Query().SelectChallengesByParticipant(ctx, repo.SelectChallengesByParticipantParams{
+	rows, err := svc.Queries.SelectChallengesByParticipant(ctx, sqlc.SelectChallengesByParticipantParams{
 		ChallengerID: pgChallengerID,
 		ChallengeeID: pgChallengeeID,
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
@@ -151,8 +157,8 @@ type DeleteResult struct {
 }
 
 func (svc *Services) DeleteChallenge(ctx context.Context, key ChallengeKey) (delResult DeleteResult, err error) {
-	row, err := svc.Query().DeleteChallenge(ctx, repo.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
-	if errors.Is(err, sql.ErrNoRows) {
+	row, err := svc.Queries.DeleteChallenge(ctx, sqlc.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	if errors.Is(err, pgx.ErrNoRows) {
 		return delResult, ErrChallengeNotFound
 	}
 	if err != nil {
@@ -178,8 +184,8 @@ func (svc *Services) DeleteChallenge(ctx context.Context, key ChallengeKey) (del
 }
 
 func (svc *Services) DeleteExpiredChallenges(ctx context.Context, userID int64) error {
-	t := svc.GetNow().Add(-ExpireChallengeMaxAge)
-	err := svc.Query().DeleteExpiredChallenges(ctx, repo.DeleteExpiredChallengesParams{
+	t := svc.EntropySource.GetNow().Add(-ExpireChallengeMaxAge)
+	err := svc.Queries.DeleteExpiredChallenges(ctx, sqlc.DeleteExpiredChallengesParams{
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: t},
 	})

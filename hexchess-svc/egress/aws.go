@@ -12,43 +12,43 @@ import (
 
 const S3ProfileBucket = "hexchess-profiles"
 
-type Aws struct {
+type AWS struct {
 	S3ProfileBucket string
 	S3Endpoint      string
 	S3Client        *s3.Client
 }
 
-type AwsConfig struct {
-	AwsDefaultRegion string
-	AwsSecretKey     string
-	AwsSecretID      string
-	AwsEndpoint      string
+type AWSConfig struct {
+	AWSDefaultRegion string
+	AWSSecretKey     string
+	AWSSecretID      string
+	AWSEndpoint      string
 
 	S3ProfileBucket string
 }
 
-func MakeAwsClients(ctx context.Context, cfg AwsConfig) (Aws, error) {
+func MakeAwsClients(ctx context.Context, cfg AWSConfig) (AWS, error) {
 	if cfg.S3ProfileBucket == "" {
 		cfg.S3ProfileBucket = S3ProfileBucket
 	}
 	awsCfg, err := config.LoadDefaultConfig(
 		ctx,
-		config.WithRegion(cfg.AwsDefaultRegion),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(cfg.AwsSecretKey, cfg.AwsSecretID, "")),
+		config.WithRegion(cfg.AWSDefaultRegion),
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(cfg.AWSSecretKey, cfg.AWSSecretID, "")),
 	)
 	if err != nil {
-		return Aws{}, fmt.Errorf("load aws config %+v: %w", cfg, err)
+		return AWS{}, fmt.Errorf("load aws config %+v: %w", cfg, err)
 	}
-	return Aws{
+	return AWS{
 		S3ProfileBucket: cfg.S3ProfileBucket,
-		S3Endpoint:      cfg.AwsEndpoint,
+		S3Endpoint:      cfg.AWSEndpoint,
 		S3Client: s3.NewFromConfig(awsCfg, func(o *s3.Options) {
-			o.BaseEndpoint = aws.String(cfg.AwsEndpoint)
+			o.BaseEndpoint = aws.String(cfg.AWSEndpoint)
 			o.UsePathStyle = true
 		}),
 	}, nil
 }
 
-func (aws *Aws) MakeS3Url(bucket string, key string) string {
+func (aws *AWS) MakeS3Url(bucket string, key string) string {
 	return fmt.Sprintf("%s/%s/%s", aws.S3Endpoint, bucket, key)
 }

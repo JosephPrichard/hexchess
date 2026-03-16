@@ -29,7 +29,7 @@ func testAssertRestBody[V any](t *testing.T, test test) {
 }
 
 func TestAssertRespBody(t *testing.T) {
-	
+
 	testAssertRestBody[value](t, test{
 		name: "equal",
 		body: value{A: 1, B: 3},

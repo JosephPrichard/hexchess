@@ -179,7 +179,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 				r := httptest.NewRequest(http.MethodPost, "/api/login/google", asJSONReader(test.body))
 				w := httptest.NewRecorder()
 
-				services.RemoteAPIs = egress.RemoteAPIs{GoogleAPI: test.setupMocks(ctrl)}
+				services.Remote = egress.RemoteAPIs{GoogleAPI: test.setupMocks(ctrl)}
 				hander := MakeServeMux(Setup{Services: services})
 				hander.ServeHTTP(w, r)
 

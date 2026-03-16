@@ -9,15 +9,11 @@ import (
 	"sort"
 	"strconv"
 
-	"hexchess-svc/db/repo"
+	"hexchess-svc/db/sqlc"
 	"hexchess-svc/pkg/logutil"
 
 	"github.com/redis/go-redis/v9"
 )
-
-func (svc *Services) getLeaderboardZSet(mode GameMode) string {
-	return svc.Redis.LeaderboardZSet + "_mode_" + mode.String()
-}
 
 type UpdtLbChangeSet struct {
 	Mode    GameMode
@@ -27,9 +23,9 @@ type UpdtLbChangeSet struct {
 
 func (svc *Services) SetLeaderboard(ctx context.Context, changes ...UpdtLbChangeSet) error {
 	pipe := svc.Redis.Cache.TxPipeline()
-	for _, cs := range changes {
-		modeLbZSet := svc.getLeaderboardZSet(cs.Mode)
-		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: cs.EloDiff, Member: cs.ID})
+	for _, change := range changes {
+		modeLbZSet := svc.Redis.GetLeaderboardZSet(change.Mode.String())
+		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: change.EloDiff, Member: change.ID})
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("'ZADD' leaderboard users: %w", err)
@@ -40,8 +36,9 @@ func (svc *Services) SetLeaderboard(ctx context.Context, changes ...UpdtLbChange
 
 func (svc *Services) IncrLeaderboard(ctx context.Context, changes ...UpdtLbChangeSet) error {
 	pipe := svc.Redis.Cache.TxPipeline()
-	for _, cs := range changes {
-		pipe.ZIncrBy(ctx, svc.getLeaderboardZSet(cs.Mode), cs.EloDiff, strconv.Itoa(int(cs.ID)))
+	for _, change := range changes {
+		modeLbZSet := svc.Redis.GetLeaderboardZSet(change.Mode.String())
+		pipe.ZIncrBy(ctx, modeLbZSet, change.EloDiff, strconv.Itoa(int(change.ID)))
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("'ZINCRBY' leaderboard user: %w", err)
@@ -77,9 +74,10 @@ func (svc *Services) GetLeaderboardRanks(ctx context.Context, id int64, modes ma
 	getExecs := make([]getExec, 0, len(modes))
 
 	for _, mode := range modes {
+		modeLbZSet := svc.Redis.GetLeaderboardZSet(mode.String())
 		getExecs = append(getExecs, getExec{
 			mode: mode.String(),
-			cmd:  svc.Redis.Cache.ZRevRankWithScore(ctx, svc.getLeaderboardZSet(mode), strID),
+			cmd:  svc.Redis.Cache.ZRevRankWithScore(ctx, modeLbZSet, strID),
 		})
 	}
 	if _, err := pipeline.Exec(ctx); err != nil {
@@ -109,7 +107,7 @@ func (svc *Services) GetLeaderboardRanks(ctx context.Context, id int64, modes ma
 		if _, ok := ranks[mode.String()]; ok {
 			continue
 		}
-		modeLbZSet := svc.getLeaderboardZSet(mode)
+		modeLbZSet := svc.Redis.GetLeaderboardZSet(mode.String())
 		addExecs = append(addExecs, addExec{
 			mode:   mode,
 			addCmd: pipeline.ZAddNX(ctx, modeLbZSet, redis.Z{Member: strID, Score: StartElo}),
@@ -135,35 +133,35 @@ func (svc *Services) GetLeaderboardRanks(ctx context.Context, id int64, modes ma
 }
 
 func (svc *Services) GetLeaderboard(ctx context.Context, mode GameMode, startRank, count int64) (Leaderboard, error) {
-	modeLbZSet := svc.getLeaderboardZSet(mode)
+	modeLbZSet := svc.Redis.GetLeaderboardZSet(mode.String())
 
-	var lbd Leaderboard
+	var leaderboard Leaderboard
 
 	end := startRank - 1 + count
 	ids, err := svc.Redis.Cache.ZRevRange(ctx, modeLbZSet, startRank, end).Result()
 	if err != nil {
-		return lbd, fmt.Errorf("retrieve leaderboard by range: %w", err)
+		return leaderboard, fmt.Errorf("retrieve reverse leaderboard by range: %w", err)
 	}
 
 	elemCount, err := svc.Redis.Cache.ZCount(ctx, modeLbZSet, "-inf", "+inf").Result()
 	if err != nil {
-		return lbd, fmt.Errorf("count leaderboard: %w", err)
+		return leaderboard, fmt.Errorf("count leaderboard: %w", err)
 	}
 
 	users := make([]RankedUser, 0, len(ids))
 	for i, strID := range ids {
 		id, err := strconv.ParseInt(strID, 10, 64)
 		if err != nil {
-			return lbd, fmt.Errorf("parse ranked ID: %w", err)
+			return leaderboard, fmt.Errorf("parse ranked ID: %w", err)
 		}
 		users = append(users, RankedUser{ID: id, Rank: startRank + int64(i) + 1})
 	}
 
 	pageCount := int((elemCount / count) + int64(math.Min(float64(elemCount%count), 1)))
-	lbd = Leaderboard{RankedUsers: users, PageCount: pageCount}
+	leaderboard = Leaderboard{RankedUsers: users, PageCount: pageCount}
 
-	slog.InfoContext(ctx, "retrieved leaderboard", "modeLbZSet", modeLbZSet, "startRank", startRank, "count", count, "leaderboard", lbd)
-	return lbd, nil
+	slog.InfoContext(ctx, "retrieved leaderboard", "modeLbZSet", modeLbZSet, "startRank", startRank, "count", count, "leaderboard", leaderboard)
+	return leaderboard, nil
 }
 
 func (svc *Services) GetLeaderboardPage(ctx context.Context, mode GameMode, page, perPage int64) (Leaderboard, error) {
@@ -181,7 +179,7 @@ func (svc *Services) SyncLeaderboard(ctx context.Context) error {
 	for _, mode := range GameModeMap {
 		afterID := int64(0)
 		for {
-			rows, err := svc.Query().SelectEloList(ctx, repo.SelectEloListParams{ID: afterID, Mode: repo.ModeEnum(mode.String()), Limit: 20})
+			rows, err := svc.Queries.SelectEloList(ctx, sqlc.SelectEloListParams{ID: afterID, Mode: sqlc.ModeEnum(mode.String()), Limit: 20})
 			if err != nil {
 				return fmt.Errorf("select elo list afterID %d: %w", afterID, err)
 			}
@@ -229,9 +227,9 @@ func (svc *Services) GetLeaderboardUsers(ctx context.Context, mode GameMode, rnk
 	for _, user := range rnkUsers {
 		ids = append(ids, user.ID)
 	}
-	userRows, err := svc.Query().SelectUserWithEloByIDs(ctx, repo.SelectUserWithEloByIDsParams{
+	userRows, err := svc.Queries.SelectUserWithEloByIDs(ctx, sqlc.SelectUserWithEloByIDsParams{
 		Ids:  ids,
-		Mode: repo.ModeEnum(mode.String()),
+		Mode: sqlc.ModeEnum(mode.String()),
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("select many users %+v: %w", ids, err)
@@ -241,7 +239,7 @@ func (svc *Services) GetLeaderboardUsers(ctx context.Context, mode GameMode, rnk
 	var missingIDs []int64
 
 	for _, rnkUser := range rnkUsers {
-		var found *repo.SelectUserWithEloByIDsRow
+		var found *sqlc.SelectUserWithEloByIDsRow
 		for i := range userRows {
 			if userRows[i].ID == rnkUser.ID {
 				found = &userRows[i]
@@ -286,7 +284,7 @@ func (svc *Services) GetFuzzySearchLeaderboard(ctx context.Context, name string,
 		return nil, ErrSearchLimit
 	}
 
-	userRows, err := svc.Query().SelectUsersBySimilarity(ctx, repo.SelectUsersBySimilarityParams{
+	userRows, err := svc.Queries.SelectUsersBySimilarity(ctx, sqlc.SelectUsersBySimilarityParams{
 		Username: name,
 		Limit:    perPage,
 		Offset:   offset,
@@ -299,7 +297,7 @@ func (svc *Services) GetFuzzySearchLeaderboard(ctx context.Context, name string,
 	for _, row := range userRows {
 		userIDs = append(userIDs, row.ID)
 	}
-	eloRows, err := svc.Query().SelectManyUserElosById(ctx, userIDs)
+	eloRows, err := svc.Queries.SelectManyUserElosById(ctx, userIDs)
 	if err != nil {
 		return nil, fmt.Errorf("select elos by user ids %v: %w", userIDs, err)
 	}

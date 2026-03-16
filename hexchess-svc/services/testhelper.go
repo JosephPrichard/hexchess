@@ -4,7 +4,6 @@ import (
 	"context"
 	"slices"
 	"testing"
-	"time"
 
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
@@ -14,13 +13,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func SetupServicesTest(t logutil.TestLogger, flags ...itest.TestFlag) Services {
-	var services Services
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	eg, egCtx := errgroup.WithContext(ctx)
+func SetupServicesTest(t logutil.TestLogger, flags ...itest.TestFlag) (services Services) {
+	eg, egCtx := errgroup.WithContext(t.Context())
 
 	roPostgres := slices.Contains(flags, itest.ROPostgres)
 	rwPostgres := slices.Contains(flags, itest.RWPostgres)
@@ -29,7 +23,8 @@ func SetupServicesTest(t logutil.TestLogger, flags ...itest.TestFlag) Services {
 
 	if roPostgres || rwPostgres {
 		eg.Go(func() (err error) {
-			services.Postgres, err = itest.SetupPostgresTest(egCtx, t, rwPostgres)
+			services.DB, err = itest.SetupPostgresTest(egCtx, t, rwPostgres)
+			services.Queries = services.DB.Queries()
 			return
 		})
 	}
@@ -41,7 +36,7 @@ func SetupServicesTest(t logutil.TestLogger, flags ...itest.TestFlag) Services {
 	}
 	if aws {
 		eg.Go(func() (err error) {
-			services.Aws, err = itest.SetupAwsTest(egCtx, t)
+			services.AWS, err = itest.SetupAwsTest(egCtx, t)
 			return
 		})
 	}

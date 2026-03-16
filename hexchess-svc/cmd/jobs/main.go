@@ -11,7 +11,7 @@ import (
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
 	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/services"
+	svc "hexchess-svc/services"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -40,13 +40,15 @@ func main() {
 	if err != nil {
 		logutil.FatalErr("create pool", err)
 	}
+	pdb := db.MakeDB(pool)
 
 	slog.InfoContext(ctx, "connecting to rdb db", "rdbPrimaryURL", rdbPrimaryURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL}, db.DefaultRedisNames)
 
 	services := &svc.Services{
-		Postgres: db.MakePostgres(pool),
-		Redis:    rdb,
+		DB:      pdb,
+		Queries: pdb.Queries(),
+		Redis:   rdb,
 	}
 	defer services.Close()
 
@@ -55,10 +57,10 @@ func main() {
 		if err := services.SyncLeaderboard(ctx); err != nil {
 			logutil.FatalErr("failed to execute sync leaderboard job", err)
 		}
-		log.Printf("finished syncing leaderboard job: %v", time.Now().Sub(start))
+		log.Printf("finished syncing leaderboard job: %v", time.Since(start))
 	case "clear-s3-orphans":
 		services.ClearBucketOrphans(ctx, svc.PageLength)
-		log.Printf("finished clear bucket orphans job: %v", time.Now().Sub(start))
+		log.Printf("finished clear bucket orphans job: %v", time.Since(start))
 	default:
 		log.Fatalf("unknown job: %s", *jobName)
 	}

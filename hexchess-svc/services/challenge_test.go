@@ -2,14 +2,17 @@ package svc
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
-	"hexchess-svc/db/repo"
+	"hexchess-svc/db"
+	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -69,6 +72,45 @@ func TestInsertChallenge(t *testing.T) {
 	}
 }
 
+func TestMapChallengeInsertErr(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		input error
+		want  error
+	}{
+		{
+			name:  "unique violation returns ErrDuplicateChallenge",
+			input: &pgconn.PgError{Code: db.ErrPgUniqueViolation},
+			want:  ErrDuplicateChallenge,
+		},
+		{
+			name:  "foreign key violation returns ErrParticipantConflict",
+			input: &pgconn.PgError{Code: db.ErrPgForeignKeyViolation},
+			want:  ErrParticipantConflict,
+		},
+		{
+			name:  "check violation returns ErrParticipantConflict",
+			input: &pgconn.PgError{Code: db.ErrPgCheckViolation},
+			want:  ErrParticipantConflict,
+		},
+		{
+			name:  "unrecognised error is returned as-is",
+			input: errors.New("some unexpected db error"),
+			want:  errors.New("some unexpected db error"),
+		},
+		{
+			name:  "unknown pg error code is returned as-is",
+			input: &pgconn.PgError{Code: "99999"},
+			want:  &pgconn.PgError{Code: "99999"},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := mapChallengeInsertErr(test.input)
+			require.Equal(t, test.want, err)
+		})
+	}
+}
+
 func TestGetChallengesByParticipant(t *testing.T) {
 	t.Parallel()
 
@@ -124,17 +166,17 @@ func TestDeleteChallenge(t *testing.T) {
 	key := ChallengeKey{ChallengerID: 1, ChallengeeID: 2}
 
 	// when
-	challengeBefore, err := services.Query().SelectChallenge(ctx, repo.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	challengeBefore, err := services.DB.Queries().SelectChallenge(ctx, sqlc.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
 	dr, err := services.DeleteChallenge(ctx, key)
 	require.NoError(t, err)
 
-	_, errAfterDelete := services.Query().SelectChallenge(ctx, repo.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	_, errAfterDelete := services.DB.Queries().SelectChallenge(ctx, sqlc.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
 	// then
-	challenge := repo.Challenge{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, StartColor: "RANDOM", MadeOn: pgtype.Timestamptz{Valid: true, Time: itest.TimeNow.Local()}, Mode: "TIMED_3+2"}
+	challenge := sqlc.Challenge{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, StartColor: "RANDOM", MadeOn: pgtype.Timestamptz{Valid: true, Time: itest.TimeNow.Local()}, Mode: "TIMED_3+2"}
 	assert.Equal(t, challenge, challengeBefore)
 	assert.Error(t, pgx.ErrNoRows, errAfterDelete)
 	assert.Equal(t, DeleteResult{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, Mode: ModeTimed3Plus2, FirstColor: Random}, dr)

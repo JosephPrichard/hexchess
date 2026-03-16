@@ -74,25 +74,25 @@ func main() {
 	if err != nil {
 		logutil.FatalErr("create pool", err)
 	}
-	pdb := db.MakePostgres(pool)
+	pdb := db.MakeDB(pool)
 
 	slog.InfoContext(ctx, "connecting to rdb db", "rdbPrimaryURL", rdbPrimaryURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL}, db.DefaultRedisNames)
 
-	aws, err := egress.MakeAwsClients(context.Background(), egress.AwsConfig{
-		AwsDefaultRegion: awsDefaultRegion,
-		AwsSecretKey:     awsSecretID,
-		AwsSecretID:      awsSecretKey,
-		AwsEndpoint:      awsEndpoint,
+	aws, err := egress.MakeAwsClients(context.Background(), egress.AWSConfig{
+		AWSDefaultRegion: awsDefaultRegion,
+		AWSSecretKey:     awsSecretID,
+		AWSSecretID:      awsSecretKey,
+		AWSEndpoint:      awsEndpoint,
 	})
 	if err != nil {
 		logutil.FatalErr("make aws clients", err)
 	}
 
 	services := &svc.Services{
-		Redis:    rdb,
-		Postgres: pdb,
-		Aws:      aws,
+		Redis: rdb,
+		DB:    pdb,
+		AWS:   aws,
 	}
 	defer services.Close()
 

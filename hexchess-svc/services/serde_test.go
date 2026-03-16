@@ -21,23 +21,23 @@ func TestChessSerializer(t *testing.T) {
 
 	for _, test := range []struct {
 		name string
-		s    ChessState
+		state    ChessState
 	}{
-		{name: "echo serialize state with finish", s: input1},
-		{name: "echo serialize state with moves", s: input2},
+		{name: "echo serialize state with finish", state: input1},
+		{name: "echo serialize state with moves", state: input2},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			b, err := proto.Marshal(SerializeChessState(&test.s))
+			b, err := proto.Marshal(SerializeChessState(&test.state))
 			if err != nil {
-				t.Fatalf("marshal chess s: %v", err)
+				t.Fatalf("marshal chess state: %v", err)
 			}
 			output, err := UnmarshalChessState(b)
 			if err != nil {
-				t.Fatalf("deserialize s: %v", err)
+				t.Fatalf("deserialize state: %v", err)
 			}
 
-			t.Logf("deserialized s: %v, board: %v", output, output.Game.Board.String())
-			assert.Equal(t, test.s, output)
+			// t.Logf("deserialized state: %v, board: %v", output, output.Game.Board.String())
+			assert.Equal(t, test.state, output)
 		})
 	}
 }

@@ -70,12 +70,12 @@ func (svc *Services) DeleteOldProfilePics(ctx context.Context, playerID int) err
 	prefix := MakeProfilePicPrefix(strconv.Itoa(playerID))
 
 	// remove all but the newest keys. there should never be more 1000 keys, but if there are, this will never delete the newest key
-	listOutput, err := svc.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket: aws.String(svc.S3ProfileBucket),
+	listOutput, err := svc.AWS.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String(svc.AWS.S3ProfileBucket),
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return fmt.Errorf("list profile pics by prefix=%s: from s3 Bucket: %s: %w", prefix, svc.S3ProfileBucket, err)
+		return fmt.Errorf("list profile pics by prefix=%s: from s3 Bucket: %s: %w", prefix, svc.AWS.S3ProfileBucket, err)
 	}
 	slog.InfoContext(ctx, "listed profile pics for deletion", "listOutput", listOutput.Contents)
 
@@ -85,11 +85,11 @@ func (svc *Services) DeleteOldProfilePics(ctx context.Context, playerID int) err
 	keys := filterLeastRecentKeys(listOutput.Contents)
 	slog.InfoContext(ctx, "deleting profile pics", "keys", keys)
 
-	if _, err := svc.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
-		Bucket: aws.String(svc.S3ProfileBucket),
+	if _, err := svc.AWS.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+		Bucket: aws.String(svc.AWS.S3ProfileBucket),
 		Delete: &s3Types.Delete{Objects: keys},
 	}); err != nil {
-		return fmt.Errorf("delete profile pics by keys %v: from s3 Bucket: %s: %w", keys, svc.S3ProfileBucket, err)
+		return fmt.Errorf("delete profile pics by keys %v: from s3 Bucket: %s: %w", keys, svc.AWS.S3ProfileBucket, err)
 	}
 	return nil
 }
@@ -100,12 +100,12 @@ func (svc *Services) GetProfilePicKey(ctx context.Context, userID string) (strin
 	// retrieves all profile pictures for any user and retrieves the most recent one. this runs on the assumption that we may not be deleting old profile pics.
 	prefix := MakeProfilePicPrefix(userID)
 
-	listOutput, err := svc.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket: aws.String(svc.S3ProfileBucket),
+	listOutput, err := svc.AWS.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String(svc.AWS.S3ProfileBucket),
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return "", fmt.Errorf("list profile pics by prefix=%s: from s3 Bucket: %s: %w", prefix, svc.S3ProfileBucket, err)
+		return "", fmt.Errorf("list profile pics by prefix=%s: from s3 Bucket: %s: %w", prefix, svc.AWS.S3ProfileBucket, err)
 	}
 
 	mostRecentKey := findMostRecentKey(listOutput.Contents)

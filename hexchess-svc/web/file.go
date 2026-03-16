@@ -47,8 +47,8 @@ func (server *Server) HandleUploadProfilePic(w http.ResponseWriter, r *http.Requ
 	slog.InfoContext(ctx, "uploading profile pic to s3", "key", key, "player", player)
 	start := time.Now()
 
-	putOutput, err := server.S3Client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:      aws.String(server.S3ProfileBucket),
+	putOutput, err := server.AWS.S3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(server.AWS.S3ProfileBucket),
 		Key:         aws.String(key),
 		Body:        file,
 		ContentType: aws.String(contentType),
@@ -56,7 +56,7 @@ func (server *Server) HandleUploadProfilePic(w http.ResponseWriter, r *http.Requ
 		CacheControl: aws.String("public, max-age=31536000"),
 	})
 	if err != nil {
-		return fmt.Errorf("put profile pic %s: to s3 bucket: %s: %w", key, server.S3ProfileBucket, err)
+		return fmt.Errorf("put profile pic %s: to s3 bucket: %s: %w", key, server.AWS.S3ProfileBucket, err)
 	}
 
 	slog.InfoContext(ctx, "finished uploading profile pic to s3", "key", key, "took", time.Since(start), "player", player, "output", putOutput)
@@ -89,7 +89,7 @@ func (server *Server) HandleGetProfilePic(w http.ResponseWriter, r *http.Request
 		return fmt.Errorf("get profile pic key for user %s: %w", userID, err)
 	}
 
-	s3URL := server.MakeS3Url(server.S3ProfileBucket, key)
+	s3URL := server.AWS.MakeS3Url(server.AWS.S3ProfileBucket, key)
 	slog.InfoContext(ctx, "resolved user ID to S3 profile pic URL", "url", s3URL, "userID", userID)
 
 	// cache control is for what URL is being redirected to, this only changes if the user uploads a new profile pic

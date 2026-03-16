@@ -58,34 +58,35 @@ func main() {
 		logutil.FatalErr("execute startup query", err)
 	}
 
-	pdb := db.MakePostgres(pool)
+	pdb := db.MakeDB(pool)
 
 	slog.Info("connecting to rdb db", "primaryURL", rdbPrimaryURL, "pubsubURL", rdbPubSubURL)
 	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL, PubsubAddr: rdbPubSubURL}, db.DefaultRedisNames)
 
-	aws, err := egress.MakeAwsClients(context.Background(), egress.AwsConfig{
-		AwsDefaultRegion: awsDefaultRegion,
-		AwsSecretKey:     awsSecretKey,
-		AwsSecretID:      awsSecretID,
-		AwsEndpoint:      awsEndpoint,
+	aws, err := egress.MakeAwsClients(context.Background(), egress.AWSConfig{
+		AWSDefaultRegion: awsDefaultRegion,
+		AWSSecretKey:     awsSecretKey,
+		AWSSecretID:      awsSecretID,
+		AWSEndpoint:      awsEndpoint,
 	})
 	if err != nil {
 		logutil.FatalErr("load aws config", err)
 	}
 
 	services := svc.Services{
-		Postgres:          pdb,
-		Redis:             rdb,
-		Aws:               aws,
-		LocalBroadcasters: svc.MakeBroadcaster(),
-		RemoteAPIs:        egress.MakeRemoteAPIs(),
-		EntropySource:     &svc.RealEntropySource{},
+		DB:            pdb,
+		Queries:       pdb.Queries(),
+		Redis:         rdb,
+		AWS:           aws,
+		Broadcasters:  svc.MakeBroadcasters(),
+		Remote:        egress.MakeRemoteAPIs(),
+		EntropySource: &svc.RealEntropySource{},
 	}
 	defer services.Close()
 
-	<-services.LocalBroadcasters.ListenGameMessages(rdb)
-	<-services.LocalBroadcasters.ListenUsersMessages(rdb)
-	<-services.LocalBroadcasters.ListenUnicastEvents(rdb)
+	<-services.Broadcasters.ListenGameMessages(rdb)
+	<-services.Broadcasters.ListenUsersMessages(rdb)
+	<-services.Broadcasters.ListenUnicastEvents(rdb)
 
 	svc.StartStreamReaders(context.Background(), &services)
 

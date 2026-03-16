@@ -22,14 +22,14 @@ func (svc *Services) ClearBucketOrphans(ctx context.Context, pageLength int32) {
 		//	Prefix:     ReplayMoveListPrefix,
 		//	PageLength: pageLength,
 		//	parseID:    ParseMoveHistoryKey,
-		//	selectIDs:  svc.Query().SelectReplaysExistsByIDs,
+		//	selectIDs:  svc.Postgres.Query().SelectReplaysExistsByIDs,
 		//},
 		{
-			Bucket:     svc.S3ProfileBucket,
+			Bucket:     svc.AWS.S3ProfileBucket,
 			Prefix:     ProfilePicPrefix,
 			PageLength: pageLength,
 			parseID:    ParseProfilePicKey,
-			selectIDs:  svc.Query().SelectExistsUsersByIDs,
+			selectIDs:  svc.Queries.SelectExistsUsersByIDs,
 		},
 	} {
 		wg.Add(1)
@@ -57,7 +57,7 @@ type RemoveOrphansOpts struct {
 func (svc *Services) RemoveOrphanedObjects(ctx context.Context, opts RemoveOrphansOpts) error {
 	page := 0
 
-	paginator := s3.NewListObjectsV2Paginator(svc.S3Client, &s3.ListObjectsV2Input{
+	paginator := s3.NewListObjectsV2Paginator(svc.AWS.S3Client, &s3.ListObjectsV2Input{
 		Bucket:  aws.String(opts.Bucket),
 		Prefix:  aws.String(opts.Prefix),
 		MaxKeys: aws.Int32(opts.PageLength),
@@ -124,7 +124,7 @@ func (svc *Services) RemoveOrphanedObjects(ctx context.Context, opts RemoveOrpha
 		// we could make this a background goroutine, but since latency does not matter (this is background job), we keep it sync for simplicity
 		slog.InfoContext(ctx, "deleting orphaned keys", "keys", orphanedKeyStrs, "bucket", opts.Bucket)
 
-		if _, err := svc.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+		if _, err := svc.AWS.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
 			Bucket: aws.String(opts.Bucket),
 			Delete: &s3Types.Delete{Objects: orphanedKeys},
 		}); err != nil {

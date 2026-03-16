@@ -434,9 +434,10 @@ func TestForfeit_Abort(t *testing.T) {
 	AssertRedisChess(t, &services, wantState, ChessMetaCmpOpt)
 
 	// checks that the aborted state is removed from the games and users zsets
-	zRankErr := services.Redis.Cache.ZRank(ctx, services.Redis.GamesZSet, makeGameKey(gameID)).Err()
+	gameKey := services.Redis.MakeGameKey(gameID)
+	zRankErr := services.Redis.Cache.ZRank(ctx, services.Redis.GamesZSet, gameKey).Err()
 	assert.Equal(t, redis.Nil, zRankErr)
-	zRankErr = services.Redis.Cache.ZRank(ctx, services.makeUserGameZSet(inState.WhitePlayer.ID), makeGameKey(gameID)).Err()
+	zRankErr = services.Redis.Cache.ZRank(ctx, services.Redis.GetUserGameZSet(inState.WhitePlayer.ID), gameKey).Err()
 	assert.Equal(t, redis.Nil, zRankErr)
 }
 

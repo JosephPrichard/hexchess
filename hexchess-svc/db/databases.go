@@ -3,7 +3,8 @@ package db
 import (
 	"context"
 	"fmt"
-	"hexchess-svc/db/repo"
+	"hexchess-svc/db/sqlc"
+	"strconv"
 	"time"
 
 	redigo "github.com/gomodule/redigo/redis"
@@ -11,6 +12,47 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 )
+
+type DB interface {
+	Queries() *sqlc.Queries
+	ExecTx(context.Context, TxnArgs) error
+	Close()
+}
+
+type PostgresDB struct {
+	q    *sqlc.Queries
+	pool *pgxpool.Pool
+}
+
+func (pdb *PostgresDB) Queries() *sqlc.Queries {
+	return pdb.q
+}
+
+func (pdb *PostgresDB) Close() {
+	pdb.pool.Close()
+}
+
+type FakeDB struct {
+	testingTxn pgx.Tx
+}
+
+func (pdb *FakeDB) Queries() *sqlc.Queries {
+	return sqlc.New(pdb.testingTxn)
+}
+
+func (pdb *FakeDB) Close() {
+	if err := pdb.testingTxn.Rollback(context.Background()); err != nil {
+		panic(fmt.Sprintf("failed to rollback testing txn: %v", err))
+	}
+}
+
+func MakeDB(pool *pgxpool.Pool) DB {
+	return &PostgresDB{q: sqlc.New(pool), pool: pool}
+}
+
+func MakeFakeDB(txn pgx.Tx) DB {
+	return &FakeDB{testingTxn: txn}
+}
 
 type RedisAddrs struct {
 	CacheAddr  string
@@ -21,11 +63,11 @@ type RedisNames struct {
 	LeaderboardZSet         string
 	GamesZSet               string
 	ActiveUsersZSet         string
-	GameChatsPostfix        string
-	GamesChan               string
-	UsersChan               string
-	GamesCountChan          string
-	ActiveCountChan         string
+	GameChatsZSet           string
+	GamesChannel            string
+	UsersChannel            string
+	GamesCountChannel       string
+	ActiveCountChannel      string
 	FinishGameStreamKey     string
 	FinishGameConsumerGroup string
 }
@@ -34,65 +76,40 @@ const (
 	LeaderboardZSet     = "leaderboard"
 	GamesZSet           = "games"
 	ActiveUsersZSet     = "active_users"
-	GameChatsPrefix     = "chats"
-	GamesChan           = "games_chan"
-	UsersChan           = "users_chan"
-	GamesCountChan      = "games_count"
-	ActiveCountChan     = "active_count"
-	FinishGameStreamKey = "finish_game:stream"
+	GameChatsZSet       = "chats"
+	GamesChannel        = "games_channel"
+	UsersChannel        = "users_channel"
+	GamesCountChannel   = "games_count_channel"
+	ActiveCountChannel  = "active_count_channel"
+	FinishGameStreamKey = "finish_game_events"
 )
 
 var DefaultRedisNames = RedisNames{
 	LeaderboardZSet:     LeaderboardZSet,
 	GamesZSet:           GamesZSet,
 	ActiveUsersZSet:     ActiveUsersZSet,
-	GameChatsPostfix:    GameChatsPrefix,
-	GamesChan:           GamesChan,
-	UsersChan:           UsersChan,
-	GamesCountChan:      GamesCountChan,
-	ActiveCountChan:     ActiveCountChan,
+	GameChatsZSet:       GameChatsZSet,
+	GamesChannel:        GamesChannel,
+	UsersChannel:        UsersChannel,
+	GamesCountChannel:   GamesCountChannel,
+	ActiveCountChannel:  ActiveCountChannel,
 	FinishGameStreamKey: FinishGameStreamKey,
 }
 
-type Postgres interface {
-	Query() *repo.Queries
-	RunInTx(context.Context, TxnArgs) error
-	Close()
+func (names *RedisNames) GetLeaderboardZSet(mode string) string {
+	return names.LeaderboardZSet + "/mode/" + mode
 }
 
-type PostgresDB struct {
-	q    *repo.Queries
-	pool *pgxpool.Pool
+func (names *RedisNames) GetUserGameZSet(id int64) string {
+	return names.GamesZSet + "/user/" + strconv.Itoa(int(id))
 }
 
-func (pdb *PostgresDB) Query() *repo.Queries {
-	return pdb.q
+func (names *RedisNames) MakeGameKey(gameID string) string {
+	return "game/" + gameID
 }
 
-func (pdb *PostgresDB) Close() {
-	pdb.pool.Close()
-}
-
-type PostgresFake struct {
-	testingTxn pgx.Tx
-}
-
-func (pdb *PostgresFake) Query() *repo.Queries {
-	return repo.New(pdb.testingTxn)
-}
-
-func (pdb *PostgresFake) Close() {
-	if err := pdb.testingTxn.Rollback(context.Background()); err != nil {
-		panic(fmt.Sprintf("failed to rollback testing txn: %v", err))
-	}
-}
-
-func MakePostgres(pool *pgxpool.Pool) Postgres {
-	return &PostgresDB{q: repo.New(pool), pool: pool}
-}
-
-func MakeFakePostgres(txn pgx.Tx) Postgres {
-	return &PostgresFake{testingTxn: txn}
+func (names *RedisNames) GetGameChatsZSet(gameKey string) string {
+	return names.GameChatsZSet + "/" + gameKey
 }
 
 type Redis struct {

@@ -3,7 +3,7 @@ package web
 import (
 	"fmt"
 	"hexchess-svc/chess"
-	"hexchess-svc/db/repo"
+	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
 	"hexchess-svc/pkg/testutil"
@@ -37,7 +37,7 @@ func TestHandleGetMoveReplay(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	services.Query().InsertReplayMoveHistories(t.Context(), repo.InsertReplayMoveHistoriesParams{
+	services.DB.Queries().InsertReplayMoveHistories(t.Context(), sqlc.InsertReplayMoveHistoriesParams{
 		ReplayID: 1,
 		Data:     object,
 	})

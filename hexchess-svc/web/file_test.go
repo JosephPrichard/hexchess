@@ -47,7 +47,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 	var view ServiceView
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &view))
 
-	assert.Equal(t, "testfiledata", egress.GetS3Object(t, services.S3Client, services.S3ProfileBucket, view.Message)) // key is contained in the mesage.
+	assert.Equal(t, "testfiledata", egress.GetS3Object(t, services.AWS.S3Client, services.AWS.S3ProfileBucket, view.Message)) // key is contained in the mesage.
 }
 
 func TestHandleGetProfilePic(t *testing.T) {
@@ -80,8 +80,8 @@ func TestHandleGetProfilePic(t *testing.T) {
 			services := svc.SetupServicesTest(t, itest.Redis, itest.Aws)
 			defer services.Close()
 
-			egress.PutS3Object(t, services.S3Client, services.S3ProfileBucket, key1, []byte("testfiledata1"))
-			egress.PutS3Object(t, services.S3Client, services.S3ProfileBucket, key2, []byte("testfiledata2"))
+			egress.PutS3Object(t, services.AWS.S3Client, services.AWS.S3ProfileBucket, key1, []byte("testfiledata1"))
+			egress.PutS3Object(t, services.AWS.S3Client, services.AWS.S3ProfileBucket, key2, []byte("testfiledata2"))
 
 			// when
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/users/profile-pics?userId=%s", test.userID), nil)

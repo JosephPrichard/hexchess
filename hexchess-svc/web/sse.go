@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"hexchess-svc/pkg/timeutil"
-	"hexchess-svc/services"
+	svc "hexchess-svc/services"
 )
 
 func SSE(h func(w SSEWriter, r *http.Request) error) http.HandlerFunc {
@@ -98,11 +98,11 @@ func (server *Server) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 	w.writeCountEvent(svc.UcGamesEk, gamesCount)
 
 	countsChan := make(chan svc.UcEvent, SSEChanBufCap)
-	server.CountsCaster.Subscribe(countsChan)
+	server.Broadcasters.CountsCaster.Subscribe(countsChan)
 
 	go func() {
 		<-ctx.Done() // stop from the client, so stop the RecvLoop by unsubscribing
-		server.CountsCaster.Unsubscribe(countsChan)
+		server.Broadcasters.CountsCaster.Unsubscribe(countsChan)
 		slog.InfoContext(ctx, "finished handle user events sse")
 	}()
 
@@ -127,7 +127,7 @@ RecvLoop:
 func (server *Server) HandleActiveConn(w SSEWriter, _ *http.Request) error {
 	ctx := w.ctx
 
-	sseID := server.MakeID()
+	sseID := server.EntropySource.MakeID()
 
 	count, err := server.Services.AddActiveUser(ctx, sseID)
 	if err != nil {
@@ -184,11 +184,11 @@ func (server *Server) HandleUserEvents(w SSEWriter, r *http.Request) error {
 	w.writeEvent(MetaEvent, strconv.FormatInt(player.ID, 10))
 
 	usersChan := make(chan []byte, SSEChanBufCap)
-	server.UsersCaster.Subscribe(strID, usersChan)
+	server.Broadcasters.UsersCaster.Subscribe(strID, usersChan)
 
 	go func() {
 		<-ctx.Done() // stop from the client, so stop the RecvLoop by unsubscribing
-		server.UsersCaster.Unsubscribe(strID, usersChan)
+		server.Broadcasters.UsersCaster.Unsubscribe(strID, usersChan)
 		slog.InfoContext(ctx, "finishing handle user events sse")
 	}()
 

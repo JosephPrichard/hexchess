@@ -98,8 +98,8 @@ func (server *Server) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 
 	// subscribe before we begin init, so the number of messages we expect as a result of the initialization stage is deterministic.
 	subscriber := make(chan message, GameplayChanBufCap)
-	server.GamesCaster.Subscribe(gameID, subscriber)
-	defer server.GamesCaster.Unsubscribe(gameID, subscriber)
+	server.Broadcasters.GamesCaster.Subscribe(gameID, subscriber)
+	defer server.Broadcasters.GamesCaster.Unsubscribe(gameID, subscriber)
 
 	errChan := make(chan error)
 
@@ -220,7 +220,7 @@ func (server *Server) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInpu
 	return server.Services.BroadcastGamesEvent(ctx.Context, MakePbGameOutputMove(
 		ctx.GameID,
 		chess.SerializeHistMove(moveResult.Move),
-		chess.SerializeGame(&moveResult.State.Game), server.GetNow(),
+		chess.SerializeGame(&moveResult.State.Game), server.EntropySource.GetNow(),
 	))
 }
 
@@ -229,7 +229,7 @@ func (server *Server) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInpu
 		ctx.GameID,
 		pbInput.Message,
 		ctx.Player,
-		server.GetNow(),
+		server.EntropySource.GetNow(),
 	)
 	if err := server.Services.InsertStateChat(ctx.Context, ctx.GameID, chatMsg); err != nil {
 		return fmt.Errorf("insert chat on game %s: %w", ctx.GameID, err)

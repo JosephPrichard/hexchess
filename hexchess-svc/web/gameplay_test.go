@@ -3,8 +3,6 @@ package web
 import (
 	"context"
 	"fmt"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/testing/protocmp"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -12,11 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
+
 	"hexchess-svc/chess"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
 	"hexchess-svc/pkg/testutil"
-	"hexchess-svc/services"
+	svc "hexchess-svc/services"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gorilla/websocket"
@@ -129,7 +130,7 @@ func TestHandleGameplayWs(t *testing.T) {
 			defer services.Close()
 
 			services.EntropySource = &svc.StableEntropySource{Time: itest.TimeNow}
-			services.LocalBroadcasters = svc.MakeBroadcaster()
+			services.Broadcasters = svc.MakeBroadcasters()
 
 			createTestSessions(t, services)
 			createTestChessStates(t, services)
@@ -138,16 +139,13 @@ func TestHandleGameplayWs(t *testing.T) {
 			defer testServer.Close()
 
 			// (start, subscribe, and read broadcasts)
-			<-services.LocalBroadcasters.ListenGameMessages(services.Redis)
+			<-services.Broadcasters.ListenGameMessages(services.Redis)
 			subChan := make(chan []byte, len(wantBrdcasts))
-			services.LocalBroadcasters.GamesCaster.Subscribe(gameID, subChan)
-
-			ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
-			defer cancel()
+			services.Broadcasters.GamesCaster.Subscribe(gameID, subChan)
 
 			// when
 			url := strings.Replace(fmt.Sprintf("%s/api/ws/game?gameId=%s&sessionId=%s", testServer.URL, gameID, TestSessionID1), "http", "ws", 1)
-			conn, _, err := websocket.DefaultDialer.DialContext(ctx, url, http.Header{})
+			conn, _, err := websocket.DefaultDialer.DialContext(t.Context(), url, http.Header{})
 			require.NoError(t, err)
 			defer conn.Close()
 
@@ -169,7 +167,7 @@ func TestHandleGameplayWs(t *testing.T) {
 				msgs[i] = output
 			}
 
-			brdcasts := readBroadcasts(ctx, len(wantBrdcasts), subChan)
+			brdcasts := readBroadcasts(t.Context(), len(wantBrdcasts), subChan)
 
 			cmpOpts := []cmp.Option{
 				protocmp.Transform(),
@@ -194,16 +192,19 @@ func TestHandleGameplayWs(t *testing.T) {
 func readBroadcasts(ctx context.Context, wantBrdcasts int, subChan chan []byte) []any {
 	var brdcasts []any
 	for range wantBrdcasts {
+		var bytes []byte
+
 		select {
 		case <-ctx.Done():
 			return brdcasts
-		case v := <-subChan:
-			var pbGame pb.GameOutput
-			if err := proto.Unmarshal(v, &pbGame); err != nil {
-				brdcasts = append(brdcasts, err)
-			} else {
-				brdcasts = append(brdcasts, &pbGame)
-			}
+		case bytes = <-subChan:
+		}
+
+		var pbGame pb.GameOutput
+		if err := proto.Unmarshal(bytes, &pbGame); err != nil {
+			brdcasts = append(brdcasts, err)
+		} else {
+			brdcasts = append(brdcasts, &pbGame)
 		}
 	}
 	return brdcasts
@@ -235,7 +236,7 @@ func getBrdcastSortOrd(b any) int {
 	case *pb.GameOutput:
 		return getMsgSortOrd(o)
 	case error:
-		return 1
+		return 0
 	default:
 		panic(fmt.Sprintf("unexpected output type: %T", b))
 	}

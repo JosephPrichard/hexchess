@@ -56,11 +56,11 @@ func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (rdb db.Redis, er
 			LeaderboardZSet:     unique(db.LeaderboardZSet),
 			GamesZSet:           unique(db.GamesZSet),
 			ActiveUsersZSet:     unique(db.ActiveUsersZSet),
-			GameChatsPostfix:    unique(db.GameChatsPrefix),
-			GamesChan:           unique(db.GamesChan),
-			UsersChan:           unique(db.UsersChan),
-			GamesCountChan:      unique(db.GamesCountChan),
-			ActiveCountChan:     unique(db.ActiveCountChan),
+			GameChatsZSet:       unique(db.GameChatsZSet),
+			GamesChannel:        unique(db.GamesChannel),
+			UsersChannel:        unique(db.UsersChannel),
+			GamesCountChannel:   unique(db.GamesCountChannel),
+			ActiveCountChannel:  unique(db.ActiveCountChannel),
 			FinishGameStreamKey: unique(db.FinishGameStreamKey),
 		},
 	), nil
@@ -80,7 +80,7 @@ const DbPass = "postgres"
 var muPostgres sync.Mutex
 var postgresCont testcontainers.Container
 
-func SetupPostgresTest(ctx context.Context, t logutil.TestLogger, testingTx bool) (pdb db.Postgres, err error) {
+func SetupPostgresTest(ctx context.Context, t logutil.TestLogger, testingTx bool) (pdb db.DB, err error) {
 	muPostgres.Lock()
 	defer muPostgres.Unlock()
 
@@ -132,9 +132,9 @@ func SetupPostgresTest(ctx context.Context, t logutil.TestLogger, testingTx bool
 		if err != nil {
 			return nil, fmt.Errorf("failed to open testing txn: %w", err)
 		}
-		pdb = db.MakeFakePostgres(testTx)
+		pdb = db.MakeFakeDB(testTx)
 	} else {
-		pdb = db.MakePostgres(pool)
+		pdb = db.MakeDB(pool)
 	}
 
 	return pdb, nil
@@ -146,7 +146,7 @@ const LocalStackContPort = "4566/tcp"
 var muLocalstack sync.Mutex
 var localstackCont testcontainers.Container
 
-func SetupAwsTest(ctx context.Context, t logutil.TestLogger) (awsClient egress.Aws, err error) {
+func SetupAwsTest(ctx context.Context, t logutil.TestLogger) (awsClient egress.AWS, err error) {
 	muLocalstack.Lock()
 	defer muLocalstack.Unlock()
 
@@ -171,12 +171,12 @@ func SetupAwsTest(ctx context.Context, t logutil.TestLogger) (awsClient egress.A
 	port, _ := localstackCont.MappedPort(ctx, LocalStackContPort)
 	endpoint := fmt.Sprintf("http://%s:%s", host, port.Port())
 
-	cfg := egress.AwsConfig{
+	cfg := egress.AWSConfig{
 		S3ProfileBucket:  egress.S3ProfileBucket + "-" + uuid.NewString(),
-		AwsDefaultRegion: "us-east-1",
-		AwsSecretKey:     "testing",
-		AwsSecretID:      "testing",
-		AwsEndpoint:      endpoint,
+		AWSDefaultRegion: "us-east-1",
+		AWSSecretKey:     "testing",
+		AWSSecretID:      "testing",
+		AWSEndpoint:      endpoint,
 	}
 	awsClients, err := egress.MakeAwsClients(ctx, cfg)
 	if err != nil {

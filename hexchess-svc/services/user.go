@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"hexchess-svc/db"
-	"hexchess-svc/db/repo"
+	"hexchess-svc/db/sqlc"
 	"hexchess-svc/pkg/logutil"
 
 	"github.com/jackc/pgx/v5"
@@ -80,7 +80,7 @@ func calcUserWinrate(wins int32, losses int32, draws int32) int64 {
 	return int64(wr)
 }
 
-func mapUserFromRow(row repo.SelectUserByIDRow) UserEntity {
+func mapUserFromRow(row sqlc.SelectUserByIDRow) UserEntity {
 	return UserEntity{
 		ID:       row.ID,
 		Username: row.Username,
@@ -108,7 +108,7 @@ func (svc *Services) InsertUser(ctx context.Context, inst UserInst) (UserEntity,
 		return u, fmt.Errorf("generate hash: %w", err)
 	}
 
-	row, err := svc.Query().InsertUser(ctx, repo.InsertUserParams{
+	row, err := svc.Queries.InsertUser(ctx, sqlc.InsertUserParams{
 		Username: inst.Username,
 		Country:  inst.Country,
 		Password: hash.HashedPassword,
@@ -123,13 +123,13 @@ func (svc *Services) InsertUser(ctx context.Context, inst UserInst) (UserEntity,
 		return u, fmt.Errorf("insert user to db: %w", err)
 	}
 
-	u = mapUserFromRow(repo.SelectUserByIDRow(row))
+	u = mapUserFromRow(sqlc.SelectUserByIDRow(row))
 	slog.InfoContext(ctx, "created a new user", "user", u)
 	return u, nil
 }
 
 func (svc *Services) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]UserEntity, error) {
-	batches := make([]repo.BatchInsertUserParams, len(insts))
+	batches := make([]sqlc.BatchInsertUserParams, len(insts))
 
 	var hashEg errgroup.Group // no context propagation because jobs are non-cancellable
 
@@ -142,7 +142,7 @@ func (svc *Services) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]
 			if err != nil {
 				return fmt.Errorf("hash password for inst index %d: %w", i, err)
 			}
-			batch := repo.BatchInsertUserParams{
+			batch := sqlc.BatchInsertUserParams{
 				Username: inst.Username,
 				Country:  inst.Country,
 				Password: hash.HashedPassword,
@@ -160,11 +160,11 @@ func (svc *Services) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]
 	var users []UserEntity
 	var queryErrs []error
 
-	svc.Query().BatchInsertUser(ctx, batches).QueryRow(func(i int, row repo.BatchInsertUserRow, err error) {
+	svc.Queries.BatchInsertUser(ctx, batches).QueryRow(func(i int, row sqlc.BatchInsertUserRow, err error) {
 		if err != nil {
 			queryErrs = append(queryErrs, err)
 		} else {
-			users = append(users, mapUserFromRow(repo.SelectUserByIDRow(row)))
+			users = append(users, mapUserFromRow(sqlc.SelectUserByIDRow(row)))
 		}
 	})
 
@@ -181,8 +181,8 @@ type VerifiedUser struct {
 }
 
 func (svc *Services) VerifyUserTx(ctx context.Context, username string, inputPassword string) (u VerifiedUser, err error) {
-	err = svc.RunInTx(ctx, db.TxnArgs{
-		QueryFn: func(ctx context.Context, query *repo.Queries) (err error) {
+	err = svc.DB.ExecTx(ctx, db.TxnArgs{
+		QueryFn: func(ctx context.Context, query *sqlc.Queries) (err error) {
 			u, err = verifyUser(ctx, query, username, inputPassword)
 			return err
 		},
@@ -196,7 +196,7 @@ const LockoutDuration = time.Minute * 1
 
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
-func verifyUser(ctx context.Context, query *repo.Queries, username string, inputPassword string) (VerifiedUser, error) {
+func verifyUser(ctx context.Context, query *sqlc.Queries, username string, inputPassword string) (VerifiedUser, error) {
 	var u VerifiedUser
 
 	login, err := query.SelectLoginByName(ctx, username)
@@ -247,7 +247,7 @@ func (svc *Services) SelectOrInsertGoogleUser(ctx context.Context, googleAccount
 	var u VerifiedUser
 	var isCreated bool
 
-	login, err := svc.Query().SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
+	login, err := svc.Queries.SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
 	if errors.Is(err, pgx.ErrNoRows) {
 		isCreated = false
 	} else if err != nil {
@@ -257,7 +257,7 @@ func (svc *Services) SelectOrInsertGoogleUser(ctx context.Context, googleAccount
 	}
 
 	if !isCreated {
-		row, err := svc.Query().InsertUser(ctx, repo.InsertUserParams{
+		row, err := svc.Queries.InsertUser(ctx, sqlc.InsertUserParams{
 			Username:        googleInst.Username,
 			Country:         googleInst.Country,
 			JoinedOn:        pgtype.Timestamptz{Time: googleInst.JoinedOn, Valid: true},
@@ -299,14 +299,14 @@ func (svc *Services) UpdateUser(ctx context.Context, id int64, updt UpdtUserPara
 		return UserEntity{}, nil
 	}
 
-	row, err := svc.Query().UpdateUser(ctx, repo.UpdateUserParams{
+	row, err := svc.Queries.UpdateUser(ctx, sqlc.UpdateUserParams{
 		ID:       id,
 		Username: pgtype.Text{Valid: updt.Username != "", String: updt.Username},
 		Bio:      pgtype.Text{Valid: updt.Bio != "", String: updt.Bio},
 		Country:  pgtype.Text{Valid: updt.Country != "", String: updt.Country},
 	})
 
-	user := mapUserFromRow(repo.SelectUserByIDRow(row))
+	user := mapUserFromRow(sqlc.SelectUserByIDRow(row))
 	logutil.DynLog(ctx, "updated user", err, "user", user)
 	return user, err
 }
@@ -316,7 +316,7 @@ func (svc *Services) UpdateUserPassword(ctx context.Context, id int64, newPasswo
 	if err != nil {
 		return fmt.Errorf("hash password for user %d: %w", id, err)
 	}
-	err = svc.Query().UpdatePassword(ctx, repo.UpdatePasswordParams{
+	err = svc.Queries.UpdatePassword(ctx, sqlc.UpdatePasswordParams{
 		ID:       id,
 		Password: hash.HashedPassword,
 		Salt:     hash.Salt,
@@ -326,7 +326,7 @@ func (svc *Services) UpdateUserPassword(ctx context.Context, id int64, newPasswo
 }
 
 func (svc *Services) GetUserByID(ctx context.Context, id int64) (UserEntity, error) {
-	row, err := svc.Query().SelectUserByID(ctx, id)
+	row, err := svc.Queries.SelectUserByID(ctx, id)
 	if err != nil {
 		return UserEntity{}, fmt.Errorf("select user %d: %w", id, err)
 	}
@@ -363,7 +363,7 @@ func avg[T constraints.Integer | constraints.Float](currAvg T, currCount int, ne
 func (svc *Services) GetUserStats(ctx context.Context, id int64) (UserStatsEntity, error) {
 	stats := UserStatsEntity{HighestElo: math.SmallestNonzeroFloat64}
 
-	rows, err := svc.Query().SelectUserElosById(ctx, id)
+	rows, err := svc.Queries.SelectUserElosById(ctx, id)
 	if err != nil {
 		return stats, fmt.Errorf("select user %d elos by id: %w", id, err)
 	}

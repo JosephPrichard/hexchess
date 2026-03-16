@@ -103,7 +103,7 @@ func (server *Server) HandleRegister(w http.ResponseWriter, r *http.Request) err
 		Username: body.Username,
 		Password: body.Password,
 		Country:  svc.DefaultCountry,
-		JoinedOn: server.GetNow(),
+		JoinedOn: server.EntropySource.GetNow(),
 	})
 	if errors.Is(err, svc.ErrTakenUsername) {
 		return ErrHttpDuplicateUsername
@@ -179,7 +179,7 @@ func (server *Server) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) 
 	}
 	ctx := r.Context()
 
-	payload, err := server.RemoteAPIs.ValidateIDToken(ctx, body.Token)
+	payload, err := server.Remote.ValidateIDToken(ctx, body.Token)
 	if err != nil {
 		return fmt.Errorf("validate google login id token: %w", err)
 	}
@@ -585,7 +585,7 @@ func (server *Server) HandleCreateChallenge(w http.ResponseWriter, r *http.Reque
 		ChallengeeID: body.ChallengeeID,
 		Mode:         body.Mode,
 		StartColor:   body.StartColor,
-		MadeOn:       server.GetNow(),
+		MadeOn:       server.EntropySource.GetNow(),
 	})
 	switch {
 	case errors.Is(err, svc.ErrDuplicateChallenge):
@@ -1098,7 +1098,7 @@ func (server *Server) HandleGetEloHistories(w http.ResponseWriter, r *http.Reque
 	}
 
 	ctx := r.Context()
-	params := svc.EloHistoriesParams{UserID: int64(query.UserID), Months: query.Months, TimeUntil: server.GetNow()}
+	params := svc.EloHistoriesParams{UserID: int64(query.UserID), Months: query.Months, TimeUntil: server.EntropySource.GetNow()}
 	eloBuckets, _, err := server.Services.RetrieveEloHistoryBuckets(ctx, params)
 	if err != nil {
 		return fmt.Errorf("retrieve elo histories buckets with params %v: %w", params, err)

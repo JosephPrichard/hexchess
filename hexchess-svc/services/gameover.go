@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
-	"hexchess-svc/db/repo"
+	"hexchess-svc/db/sqlc"
 	"log/slog"
 	"slices"
 	"time"
@@ -132,8 +132,8 @@ func (cs GameResultChangeSet) IsNoop() bool {
 
 // InsertGameResultTx executes the insertGameResult operation in a transaction primarily to ensure
 func (svc *Services) InsertGameResultTx(ctx context.Context, params GameResult) (cs GameResultChangeSet, err error) {
-	err = svc.RunInTx(ctx, db.TxnArgs{
-		QueryFn: func(ctx context.Context, query *repo.Queries) (err error) {
+	err = svc.DB.ExecTx(ctx, db.TxnArgs{
+		QueryFn: func(ctx context.Context, query *sqlc.Queries) (err error) {
 			cs, err = insertGameResult(ctx, query, params)
 			return err
 		},
@@ -144,13 +144,13 @@ func (svc *Services) InsertGameResultTx(ctx context.Context, params GameResult) 
 // insertGameResult processes a game result, updates player ELO scores, and records the match details in the database.
 // It handles win, loss, or draw scenarios and ensures a consistent update order for database operations to prevent deadlocking.
 // Returns a GRChangeSet summarizing the changes and any error encountered during processing.
-func insertGameResult(ctx context.Context, query *repo.Queries, result GameResult) (GameResultChangeSet, error) {
+func insertGameResult(ctx context.Context, query *sqlc.Queries, result GameResult) (GameResultChangeSet, error) {
 	var changeSet GameResultChangeSet
 
 	ids := []int64{result.WhiteID, result.BlackID}
 	slices.SortFunc(ids, func(left, right int64) int { return int(left - right) }) // consistent query order
 
-	mode := repo.ModeEnum(result.ReplayMode.String())
+	mode := sqlc.ModeEnum(result.ReplayMode.String())
 
 	existingReplayID, err := query.SelectReplayIDByGameID(ctx, result.GameID)
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -161,7 +161,7 @@ func insertGameResult(ctx context.Context, query *repo.Queries, result GameResul
 		}
 	}
 
-	userModeElos, err := query.SelectUserModeElosByIds(ctx, repo.SelectUserModeElosByIdsParams{ID: ids, Mode: mode})
+	userModeElos, err := query.SelectUserModeElosByIds(ctx, sqlc.SelectUserModeElosByIdsParams{ID: ids, Mode: mode})
 	if err != nil {
 		return changeSet, fmt.Errorf("select users %+v elo: %w", ids, err)
 	}
@@ -177,12 +177,12 @@ func insertGameResult(ctx context.Context, query *repo.Queries, result GameResul
 	}
 
 	var whiteEloNext, blackEloNext float64
-	var updts []repo.UpsertEloParams
+	var updts []sqlc.UpsertEloParams
 
 	if result.ReplayResult == Draw {
 		whiteEloNext, blackEloNext = whiteElo, blackElo
 
-		updts = []repo.UpsertEloParams{
+		updts = []sqlc.UpsertEloParams{
 			{UserID: result.WhiteID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: whiteEloNext}, Draws: 1, DefaultElo: StartElo},
 			{UserID: result.BlackID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: blackEloNext}, Draws: 1, DefaultElo: StartElo},
 		}
@@ -212,13 +212,13 @@ func insertGameResult(ctx context.Context, query *repo.Queries, result GameResul
 		changeSet.WinEloDiff = winEloNext - winElo
 		changeSet.LoseEloDiff = loseEloNext - loseElo
 
-		updts = []repo.UpsertEloParams{
+		updts = []sqlc.UpsertEloParams{
 			{UserID: changeSet.WinID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: winEloNext}, Wins: 1, DefaultElo: StartElo},
 			{UserID: changeSet.LoseID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: loseEloNext}, Losses: 1, DefaultElo: StartElo},
 		}
 	}
 
-	slices.SortFunc(updts, func(left, right repo.UpsertEloParams) int { return int(left.UserID - right.UserID) }) // consistent update order
+	slices.SortFunc(updts, func(left, right sqlc.UpsertEloParams) int { return int(left.UserID - right.UserID) }) // consistent update order
 	for _, updt := range updts {
 		if err := query.UpsertElo(ctx, updt); err != nil {
 			return changeSet, fmt.Errorf("upserting elo for user %d: %w", updt.UserID, err)

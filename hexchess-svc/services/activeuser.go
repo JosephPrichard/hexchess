@@ -12,7 +12,7 @@ import (
 const ActiveUserMaxage = 5 * time.Minute // the caller should manually remove, but this is a stopgap in case the server is stopped before that is the case
 
 func (svc *Services) GetActiveCount(ctx context.Context) (int64, error) {
-	expireBefore := svc.GetNow().Add(-ActiveUserMaxage).UnixMilli()
+	expireBefore := svc.EntropySource.GetNow().Add(-ActiveUserMaxage).UnixMilli()
 
 	removed, err := svc.Redis.Cache.ZRemRangeByScore(ctx, svc.Redis.ActiveUsersZSet, "-inf", fmt.Sprintf("%d", expireBefore)).Result()
 	if err != nil {
@@ -30,7 +30,7 @@ func (svc *Services) GetActiveCount(ctx context.Context) (int64, error) {
 }
 
 func (svc *Services) RetainActiveUser(ctx context.Context, id string) error {
-	now := svc.GetNow()
+	now := svc.EntropySource.GetNow()
 
 	_, err := svc.Redis.Cache.ZAddXX(ctx, svc.Redis.ActiveUsersZSet, redis.Z{Score: float64(now.UnixMilli()), Member: id}).Result()
 	if err != nil {
@@ -41,7 +41,7 @@ func (svc *Services) RetainActiveUser(ctx context.Context, id string) error {
 }
 
 func (svc *Services) AddActiveUser(ctx context.Context, id string) (int64, error) {
-	now := svc.GetNow()
+	now := svc.EntropySource.GetNow()
 
 	_, err := svc.Redis.Cache.ZAddNX(ctx, svc.Redis.ActiveUsersZSet, redis.Z{Score: float64(now.UnixMilli()), Member: id}).Result()
 	if err != nil {
