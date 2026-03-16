@@ -27,7 +27,7 @@ func TestDeleteOldProfilePics(t *testing.T) {
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	for _, user := range []string{"1", "1", "2", "2"} {
-		egress.PutS3Object(t, services.AWS.S3Client, services.AWS.S3ProfileBucket, fmt.Sprintf("users/profile-pics/%s/%s", user, uuid.NewString()), []byte("testfiledat2"))
+		egress.PutTestS3Object(t, services.AWS.S3Client, services.AWS.S3ProfileBucket, fmt.Sprintf("users/profile-pics/%s/%s", user, uuid.NewString()), []byte("testfiledat2"))
 	}
 
 	// when

@@ -47,11 +47,10 @@ func TestBroadcastGameMessage(t *testing.T) {
 
 	// then
 	var messages []string
-ReadMsgs:
 	for range wantMsgCount {
 		select {
 		case <-ctx.Done():
-			break ReadMsgs
+			t.Errorf("test timed out: %v", ctx.Err())
 		case v := <-subChan:
 			messages = append(messages, mustUnmarshalChatMessage(t, v))
 		}

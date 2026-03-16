@@ -20,9 +20,7 @@ var Trace TraceType = "trace"
 func DynLog(ctx context.Context, msg string, err error, args ...any) {
 	if err != nil {
 		ea := make([]any, len(args)+2)
-		for i, arg := range args {
-			ea[i] = arg
-		}
+		copy(ea, args)
 		ea[len(args)] = "err"
 		ea[len(args)+1] = err
 		slog.ErrorContext(ctx, msg, ea...)
@@ -34,13 +32,11 @@ func DynLog(ctx context.Context, msg string, err error, args ...any) {
 func Fatal(msg string, args ...any) {
 	slog.Error(msg, args...)
 	os.Exit(1)
-	//log.Fatalf("%s: %v", msg, args)
 }
 
 func FatalErr(msg string, err error) {
 	slog.Error("failed to "+msg, "err", err)
 	os.Exit(1)
-	//log.Fatalf("%s: %v", msg, err)
 }
 
 type TraceHandler struct {

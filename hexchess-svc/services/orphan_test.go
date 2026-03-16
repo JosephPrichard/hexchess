@@ -31,7 +31,7 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 	}
 
 	for _, id := range inputProfileKeys {
-		egress.PutS3Object(t, services.AWS.S3Client, services.AWS.S3ProfileBucket, id, []byte("test"))
+		egress.PutTestS3Object(t, services.AWS.S3Client, services.AWS.S3ProfileBucket, id, []byte("test"))
 	}
 
 	// when

@@ -117,6 +117,8 @@ func TestHandleCountEvents(t *testing.T) {
 func TestHandleActiveConn(t *testing.T) {
 	t.Parallel()
 
+	ctx := t.Context()
+
 	// given
 	services := svc.SetupServicesTest(t, itest.Redis)
 	defer services.Close()
@@ -136,7 +138,7 @@ func TestHandleActiveConn(t *testing.T) {
 
 	// when
 	go func() {
-		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, testServer.URL+"/api/events/active", nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, testServer.URL+"/api/events/active", nil)
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
@@ -146,11 +148,10 @@ func TestHandleActiveConn(t *testing.T) {
 
 	// then
 	var brdcasts []svc.UcEvent
-ReadBrdcasts:
 	for range len(wantBrdcasts) {
 		select {
-		case <-t.Context().Done():
-			break ReadBrdcasts
+		case <-ctx.Done():
+			t.Errorf("test timed out: %v", ctx.Err())
 		case e := <-sub:
 			brdcasts = append(brdcasts, e)
 		}

@@ -3,7 +3,6 @@ package svc
 import (
 	"context"
 	"testing"
-	"time"
 
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
@@ -78,17 +77,13 @@ func TestBatchInsertThenGet(t *testing.T) {
 	}
 	users, batchErr := services.BatchInsertUsers(ctx, insts)
 
-	for i := range users {
-		users[i].ID = 0
-		users[i].JoinedOn = time.Time{}
-	}
 	wantUsers := []UserEntity{
 		{Username: insts[0].Username, Country: "us"},
 		{Username: insts[1].Username, Country: "eu"},
 	}
 
 	// then
-	assert.Equal(t, wantUsers, users)
+	testutil.Equal(t, wantUsers, users, cmpopts.IgnoreFields(UserEntity{}, "ID", "JoinedOn"))
 	require.NoError(t, batchErr)
 }
 

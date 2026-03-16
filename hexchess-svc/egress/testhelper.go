@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func PutS3Object(t *testing.T, s3Client *s3.Client, bucket string, key string, b []byte) {
+func PutTestS3Object(t *testing.T, s3Client *s3.Client, bucket string, key string, b []byte) {
 	t.Helper()
 	_, err := s3Client.PutObject(t.Context(), &s3.PutObjectInput{
 		Bucket: aws.String(bucket),
