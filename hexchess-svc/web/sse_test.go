@@ -128,9 +128,9 @@ func TestHandleActiveConn(t *testing.T) {
 
 	<-services.Broadcasters.ListenUnicastEvents(services.Redis)
 
-	wantBrdcasts := []svc.UcEvent{{Kind: svc.UcActiveEk, Data: `{"count":1}`}, {Kind: svc.UcActiveEk, Data: `{"count":0}`}}
+	wantBroadcasts := []svc.UcEvent{{Kind: svc.UcActiveEk, Data: `{"count":1}`}, {Kind: svc.UcActiveEk, Data: `{"count":0}`}}
 
-	sub := make(chan svc.UcEvent, len(wantBrdcasts))
+	sub := make(chan svc.UcEvent, len(wantBroadcasts))
 	services.Broadcasters.CountsCaster.Subscribe(sub)
 
 	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services}))
@@ -143,20 +143,20 @@ func TestHandleActiveConn(t *testing.T) {
 
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
-		defer resp.Body.Close() // this must execute before we assert "wantBrdcasts" since one msg is sent when the SSE drops
+		defer resp.Body.Close() // this must execute before we assert "wantBroadcasts" since one msg is sent when the SSE drops
 	}()
 
 	// then
-	var brdcasts []svc.UcEvent
-	for range len(wantBrdcasts) {
+	var broadcasts []svc.UcEvent
+	for range len(wantBroadcasts) {
 		select {
 		case <-ctx.Done():
 			t.Errorf("test timed out: %v", ctx.Err())
 		case e := <-sub:
-			brdcasts = append(brdcasts, e)
+			broadcasts = append(broadcasts, e)
 		}
 	}
-	assert.Equal(t, wantBrdcasts, brdcasts)
+	assert.Equal(t, wantBroadcasts, broadcasts)
 }
 
 func TestHandleUserEvents(t *testing.T) {

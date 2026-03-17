@@ -24,7 +24,7 @@ func (svc *Services) CreateGame(ctx context.Context, color Color, mode GameMode,
 	}
 	strID := string(bID)
 
-	state := MakeChess(StateSetup{ID: strID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
+	state := MakeChessState(StateSetup{ID: strID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
 	state.Game.InitPieceMoves()
 
 	slog.InfoContext(ctx, "created chess game", "chessMeta", state.ChessMeta)
@@ -149,41 +149,38 @@ func (e ErrInvalidMove) Error() string {
 }
 
 type MakeMoveResult struct {
-	ReplayID int64
 	State    *ChessState
 	Move     chess.HistMove
 }
 
 func (svc *Services) MakeGameMove(ctx context.Context, gameID string, player PlayerState, move chess.Move) (MakeMoveResult, error) {
-	var mr MakeMoveResult
-
 	state, err := svc.GetChessState(ctx, gameID)
 	if err != nil {
-		return mr, fmt.Errorf("get chess state by id %s: %w", gameID, err)
+		return MakeMoveResult{}, fmt.Errorf("get chess state by id %s: %w", gameID, err)
 	}
 	gameID = state.ID
 	state.Game.EnsurePieceMoves()
 
 	if !state.HasBothPlayers() {
-		return mr, ErrStartedGame{GameID: gameID}
+		return MakeMoveResult{}, ErrStartedGame{GameID: gameID}
 	}
 	if state.EndState.isEnded() {
-		return mr, ErrFinishedGame{GameID: gameID}
+		return MakeMoveResult{}, ErrFinishedGame{GameID: gameID}
 	}
 	currPlayer := state.CurrPlayer()
 	if !currPlayer.Present || currPlayer.ID != player.ID {
-		return mr, ErrTurn{GameID: gameID, PlayerID: player.ID, CurrID: currPlayer.ID}
+		return MakeMoveResult{}, ErrTurn{GameID: gameID, PlayerID: player.ID, CurrID: currPlayer.ID}
 	}
 	histMove, err := state.Game.MakeValidMove(move)
 	if err != nil {
-		return mr, ErrInvalidMove{GameID: gameID, PlayerID: player.ID, Violation: err}
+		return MakeMoveResult{}, ErrInvalidMove{GameID: gameID, PlayerID: player.ID, Violation: err}
 	}
 	isCheckmate := state.Game.Checkmate()
 	state.UndoState = UndoState{}
 
 	// this lock is used to guarantee one client may write the game state at any given time. a client will retry the operation (and read again) if it fails to acquire a lock, so we can acquire after reading.
-	if ok := svc.AcquireChessLock(ctx, gameID); !ok {
-		return mr, ErrLockedGame
+	if err := svc.AcquireChessLock(ctx, gameID); err != nil {
+		return MakeMoveResult{}, err
 	}
 	defer svc.ReleaseChessLock(ctx, gameID)
 
@@ -191,7 +188,7 @@ func (svc *Services) MakeGameMove(ctx context.Context, gameID string, player Pla
 		state.EndState = Finished
 	}
 	if err := svc.SetChessStateNow(ctx, gameID, state); err != nil {
-		return mr, fmt.Errorf("set chess state by id %s: %w", gameID, err)
+		return MakeMoveResult{}, fmt.Errorf("set chess state by id %s: %w", gameID, err)
 	}
 
 	// write the results of the operation to all stores. if the game is complete, we must persist game stats information to the databases. this operation is not atomic.
@@ -210,13 +207,13 @@ func (svc *Services) MakeGameMove(ctx context.Context, gameID string, player Pla
 			ReplayResult: result,
 			ReplayCause:  Checkmate,
 		}); err != nil {
-			return mr, fmt.Errorf("push finished game event: %w", err)
+			return MakeMoveResult{}, fmt.Errorf("push finished game event: %w", err)
 		}
 	}
 
-	mr = MakeMoveResult{State: state, Move: histMove}
-	slog.InfoContext(ctx, "made move on game", "player", player.ID, "mr", mr, "move", move, "chessMeta", state.ChessMeta)
-	return mr, nil
+	moveResult := MakeMoveResult{State: state, Move: histMove}
+	slog.InfoContext(ctx, "made move on game", "player", player.ID, "moveResult", moveResult, "move", move, "chessMeta", state.ChessMeta)
+	return moveResult, nil
 }
 
 var (
@@ -270,19 +267,19 @@ func (svc *Services) AttemptGameUndo(ctx context.Context, gameID string, player 
 	return state, nil
 }
 
-func (svc *Services) EndGame(ctx context.Context, gameID string, player PlayerState) error {
+func (svc *Services) EndGame(ctx context.Context, gameID string, player PlayerState) (EndKind, error) {
 	state, err := svc.GetChessState(ctx, gameID)
 	if err != nil {
-		return fmt.Errorf("get chess state by id %s: %w", gameID, err)
+		return state.EndState, fmt.Errorf("get chess state by id %s: %w", gameID, err)
 	}
 	if state.EndState.isEnded() {
-		return ErrFinishedGame{GameID: gameID}
+		return state.EndState, ErrFinishedGame{GameID: gameID}
 	}
 	if !state.IsEitherPlayer(player) {
-		return ErrForfeitPlayer
+		return state.EndState, ErrForfeitPlayer
 	}
 	if state.EndState.isEnded() {
-		return ErrFinishedGame{GameID: gameID}
+		return state.EndState, ErrFinishedGame{GameID: gameID}
 	}
 
 	isForfeit := state.WhitePlayer.Present && state.BlackPlayer.Present
@@ -293,7 +290,7 @@ func (svc *Services) EndGame(ctx context.Context, gameID string, player PlayerSt
 		state.EndState = Aborted
 	}
 	if err := svc.SetChessStateNow(ctx, gameID, state); err != nil {
-		return fmt.Errorf("set chess state by id %s: %w", gameID, err)
+		return state.EndState, fmt.Errorf("set chess state by id %s: %w", gameID, err)
 	}
 
 	if isForfeit {
@@ -310,10 +307,10 @@ func (svc *Services) EndGame(ctx context.Context, gameID string, player PlayerSt
 			ReplayResult: result,
 			ReplayCause:  Forfeit,
 		}); err != nil {
-			return fmt.Errorf("push finished game event: %w", err)
+			return state.EndState, fmt.Errorf("push finished game event: %w", err)
 		}
 	}
 
 	slog.InfoContext(ctx, "player forfeited game", "playerID", player.ID, "gameId", gameID)
-	return nil
+	return state.EndState, nil
 }

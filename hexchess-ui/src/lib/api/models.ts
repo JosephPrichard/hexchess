@@ -147,6 +147,12 @@ export interface ChessModel {
 	ended: boolean;
 }
 
+export interface Chat {
+	player: PlayerState;
+	message: string;
+	sentAt: string;
+}
+
 export interface ServiceModel {
 	status: number;
 	message?: string;

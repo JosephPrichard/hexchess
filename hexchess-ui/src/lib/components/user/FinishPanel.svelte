@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { formatCause, formatEloDiff, formatResult, getReplayColors } from '$lib/utils/format.js';
-	import type { FinishState, PlayerState } from '$lib/pb/messages';
+	import type { PlayerState, ReplayEntity, ReplayOutput } from '$lib/pb/messages';
 	import { isGuestUser } from '$lib/api/models';
 
 	interface FinishPanelProps {
-		state: FinishState;
+		replay: ReplayEntity;
 		whitePlayer: PlayerState;
 		blackPlayer: PlayerState;
 	}
@@ -19,7 +19,7 @@
 		winEloDiff: number;
 		loseEloDiff: number;
 	}
-	const { state, whitePlayer, blackPlayer }: FinishPanelProps = $props();
+	const { replay, whitePlayer, blackPlayer }: FinishPanelProps = $props();
 
 	function getWinnerLoser(result: string): [PlayerState, PlayerState] {
 		switch (result) {
@@ -33,18 +33,18 @@
 	}
 
 	const view: FinishView = $derived.by(() => {
-		const winEloDiff = state.winEloDiff;
-		const loseEloDiff = state.loseEloDiff;
+		const winEloDiff = replay.winEloDiff;
+		const loseEloDiff = replay.loseEloDiff;
 
-		const result = formatResult(state.result);
-		const cause = formatCause(state.cause);
-		const [winClass, loseClass] = getReplayColors(state.result);
-		const [winner, loser] = getWinnerLoser(state.result);
+		const result = formatResult(replay.result);
+		const cause = formatCause(replay.cause);
+		const [winClass, loseClass] = getReplayColors(replay.result);
+		const [winner, loser] = getWinnerLoser(replay.result);
 
 		return { result, cause, winClass, loseClass, winner, loser, winEloDiff, loseEloDiff };
 	});
 
-	$inspect(state)
+	$inspect(replay)
 </script>
 
 <div class="finish-state">

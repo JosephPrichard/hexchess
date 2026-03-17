@@ -10,8 +10,6 @@ import (
 	"hexchess-svc/egress"
 	"hexchess-svc/pkg/logutil"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
@@ -67,7 +65,7 @@ func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (rdb db.Redis, er
 }
 
 func unique(s string) string {
-	return s + "_" + uuid.NewString()
+	return s + "-" + uuid.NewString()
 }
 
 const PostgresContTag = "postgres:17"
@@ -171,24 +169,10 @@ func SetupAwsTest(ctx context.Context, t logutil.TestLogger) (awsClient egress.A
 	port, _ := localstackCont.MappedPort(ctx, LocalStackContPort)
 	endpoint := fmt.Sprintf("http://%s:%s", host, port.Port())
 
-	cfg := egress.AWSConfig{
-		S3ProfileBucket:  egress.S3ProfileBucket + "-" + uuid.NewString(),
+	return egress.MakeAwsClients(ctx, egress.AWSConfig{
+		S3ProfileBucket:  unique(egress.S3ProfileBucket),
 		AWSDefaultRegion: "us-east-1",
-		AWSSecretKey:     "testing",
-		AWSSecretID:      "testing",
+		IsLocalstack:     true,
 		AWSEndpoint:      endpoint,
-	}
-	awsClients, err := egress.MakeAwsClients(ctx, cfg)
-	if err != nil {
-		return awsClient, fmt.Errorf("make aws clients: %s", err)
-	}
-
-	for _, bucket := range []string{
-		cfg.S3ProfileBucket,
-	} {
-		if _, err := awsClients.S3Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {
-			return awsClient, fmt.Errorf("create s3 bucket: %v: %s", bucket, err)
-		}
-	}
-	return awsClients, nil
+	})
 }

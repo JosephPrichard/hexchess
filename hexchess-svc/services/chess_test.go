@@ -25,7 +25,7 @@ func TestEchoChessState(t *testing.T) {
 	id1 := "testing-id1-" + uuid.NewString()
 	id2 := "testing-id2-" + uuid.NewString()
 
-	s1 := MakeChess(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
+	s1 := MakeChessState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	// when
@@ -52,9 +52,9 @@ func TestGetChessMetas(t *testing.T) {
 	id2 := "testing-id2-" + uuid.NewString()
 	id3 := "testing-id3-" + uuid.NewString()
 
-	s1 := MakeChess(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random, White: PlayerState{ID: 1, Present: true}, Black: PlayerState{ID: 2, Present: true}})
-	s2 := MakeChess(StateSetup{ID: id2, Mode: ModeCorrespondence1, FirstColor: Random, Black: PlayerState{ID: 1, Present: true}})
-	s3 := MakeChess(StateSetup{ID: id3, Mode: ModeCorrespondence1, FirstColor: Random, Black: PlayerState{ID: 1, Present: true}})
+	s1 := MakeChessState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random, White: PlayerState{ID: 1, Present: true}, Black: PlayerState{ID: 2, Present: true}})
+	s2 := MakeChessState(StateSetup{ID: id2, Mode: ModeCorrespondence1, FirstColor: Random, Black: PlayerState{ID: 1, Present: true}})
+	s3 := MakeChessState(StateSetup{ID: id3, Mode: ModeCorrespondence1, FirstColor: Random, Black: PlayerState{ID: 1, Present: true}})
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	now := time.Now()
@@ -129,7 +129,7 @@ func TestExpireChessStates(t *testing.T) {
 
 	id1 := "testing-id1-" + uuid.NewString()
 
-	s1 := MakeChess(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
+	s1 := MakeChessState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
 
 	s1.WhitePlayer = PlayerState{ID: 1, Present: true}
 	s1.BlackPlayer = PlayerState{ID: 2, Present: true}
@@ -158,7 +158,7 @@ func TestUndo(t *testing.T) {
 	t.Run("no moves to undo", func(t *testing.T) {
 		t.Parallel()
 
-		s := MakeChess(StateSetup{
+		s := MakeChessState(StateSetup{
 			ID:           "test",
 			Game:         New(chess.MakeStartGame()),
 			InitialBoard: New(chess.InitialBoard()),
@@ -175,7 +175,7 @@ func TestUndo(t *testing.T) {
 		game := chess.MakeStartGame()
 		game.Moves = append(game.Moves, game.MakeMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")}))
 
-		s := MakeChess(StateSetup{
+		s := MakeChessState(StateSetup{
 			ID:           "test",
 			Game:         New(game),
 			InitialBoard: New(chess.InitialBoard()),

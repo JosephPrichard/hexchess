@@ -80,7 +80,7 @@ type StateSetup struct {
 	UndoState    UndoState
 }
 
-func MakeChess(s StateSetup) ChessState {
+func MakeChessState(s StateSetup) ChessState {
 	board := chess.MakeStartBoard()
 	if s.InitialBoard != nil {
 		board = *s.InitialBoard
@@ -147,25 +147,32 @@ func (s *ChessState) DeepCopy() ChessState {
 // IsGameAccessible we can just treat any inability to validate that the game exists as it "not existing", the client will just show a "404".
 func (svc *Services) IsGameAccessible(ctx context.Context, id string) bool {
 	gameKey := svc.Redis.MakeGameKey(id)
+
 	exists, err := svc.Redis.Cache.Exists(ctx, gameKey).Result()
+
 	return err == nil && exists == 1
 }
 
 // AcquireChessLock is used to make sure only one client is ever allowed to write to a game ID at any time
 // if the client fails to acquire the lock, the operation should fail rather than retry because the mutation will no longer be valid (underlying state will be swapped once freed)
 // consider a situation where client 1 has fetched state A and is transforming it to state B. client 2 wants to transform state A to C. by the time client 1 is done writing, state C is outdated since it is based on an older version of A
-func (svc *Services) AcquireChessLock(ctx context.Context, id string) bool {
-	gameKey := svc.Redis.MakeGameKey(id)
+func (svc *Services) AcquireChessLock(ctx context.Context, id string) error {
+	lockKey := svc.Redis.MakeGameKey(id) + "/lock"
 
-	exists, err := svc.Redis.Cache.SetNX(ctx, gameKey, "true", time.Second*5).Result()
+	ok, err := svc.Redis.Cache.SetNX(ctx, lockKey, "true", time.Second*5).Result()
 
-	return err == nil && !exists // we acquired the lock, AND without errors.
+	acquired := err == nil && ok // we acquired the lock, AND without errors.
+	if acquired {
+		return nil
+	} else {
+		return ErrLockedGame
+	}
 }
 
 func (svc *Services) ReleaseChessLock(ctx context.Context, id string) {
-	gameKey := svc.Redis.MakeGameKey(id)
+	lockKey := svc.Redis.MakeGameKey(id) + "/lock"
 
-	if err := svc.Redis.Cache.Del(ctx, gameKey).Err(); err != nil {
+	if err := svc.Redis.Cache.Del(ctx, lockKey).Err(); err != nil {
 		slog.ErrorContext(ctx, "failed to release chess state lock", "id", id, "err", err)
 	}
 }
@@ -176,9 +183,10 @@ func (svc *Services) GetChessState(ctx context.Context, id string) (*ChessState,
 	gameKey := svc.Redis.MakeGameKey(id)
 
 	data, err := svc.Redis.Cache.Get(ctx, gameKey).Bytes()
-	if errors.Is(err, redis.Nil) {
-		return nil, ErrNoChessState
-	} else if err != nil {
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, ErrNoChessState
+		}
 		return nil, fmt.Errorf("get chess state in redis: %w", err)
 	}
 
@@ -195,8 +203,6 @@ func (svc *Services) SetChessStateNow(ctx context.Context, id string, state *Che
 	return svc.SetChessState(ctx, id, state, touch)
 }
 
-const SetChessRetries = 5
-
 func (svc *Services) SetChessState(ctx context.Context, id string, state *ChessState, touch time.Time) error {
 	state.Touch = touch
 	touchSecs := float64(state.Touch.Unix())
@@ -211,6 +217,7 @@ func (svc *Services) SetChessState(ctx context.Context, id string, state *ChessS
 	pipe.Set(ctx, gameKey, bytes, 0)
 
 	if state.EndState != Aborted {
+		// keeps the game at the front of top of the sorted games sets on update
 		pipe.ZAdd(ctx, svc.Redis.GamesZSet, redis.Z{Score: touchSecs, Member: gameKey})
 		if state.WhitePlayer.Present {
 			pipe.ZAdd(ctx, svc.Redis.GetUserGameZSet(state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: gameKey})
@@ -219,6 +226,7 @@ func (svc *Services) SetChessState(ctx context.Context, id string, state *ChessS
 			pipe.ZAdd(ctx, svc.Redis.GetUserGameZSet(state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: gameKey})
 		}
 	} else {
+		// aborted games should be removed from sorted sets, although the game itself is technically accessible
 		pipe.ZRem(ctx, svc.Redis.GamesZSet, gameKey)
 		if state.WhitePlayer.Present {
 			pipe.ZRem(ctx, svc.Redis.GetUserGameZSet(state.WhitePlayer.ID), gameKey)
@@ -228,8 +236,8 @@ func (svc *Services) SetChessState(ctx context.Context, id string, state *ChessS
 		}
 	}
 
-	if _, err = pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("set chess state in redis after %d retries: %w", SetChessRetries, err)
+	if _, err := pipe.Exec(ctx); err != nil {
+		return fmt.Errorf("set chess state in redis: %w", err)
 	}
 
 	slog.InfoContext(ctx, "set chess state", "key", gameKey, "touch", touch)
@@ -239,7 +247,7 @@ func (svc *Services) SetChessState(ctx context.Context, id string, state *ChessS
 type StateChat struct {
 	Player  PlayerState `json:"player"`
 	Message string      `json:"message"`
-	SentAt  time.Time   `json:"time"`
+	SentAt  time.Time   `json:"sentAt"`
 }
 
 func (svc *Services) GetStateChats(ctx context.Context, gameID string, count int64) ([]StateChat, error) {
@@ -335,24 +343,25 @@ func (svc *Services) GetChessMetas(ctx context.Context, zSetName string, page, c
 		stop = -1
 	}
 
-	elements, err := svc.Redis.Cache.ZRevRange(ctx, zSetName, start, stop).Result()
+	chessKeys, err := svc.Redis.Cache.ZRevRange(ctx, zSetName, start, stop).Result()
 	if err != nil {
 		return nil, fmt.Errorf("retrieve chess ids by range: %w", err)
 	}
-	if len(elements) == 0 {
+	if len(chessKeys) == 0 {
 		return nil, nil
 	}
 
-	mgetList, err := svc.Redis.Cache.MGet(ctx, elements...).Result()
+	mgetList, err := svc.Redis.Cache.MGet(ctx, chessKeys...).Result()
 	if err != nil {
-		return nil, fmt.Errorf("get many chess ss: %w", err)
+		return nil, fmt.Errorf("get many chess states: %w", err)
 	}
 
 	chessViews := make([]ChessMeta, 0, len(mgetList))
 	for _, val := range mgetList {
 		str, ok := val.(string)
 		if !ok {
-			return nil, fmt.Errorf("chess meta mget is not a string: %T", val)
+			slog.Warn("chess meta mget output is not a string", "type", fmt.Sprintf("%T", val))
+			continue
 		}
 		view, err := UnmarshalChessMeta([]byte(str))
 		if err != nil {
@@ -361,7 +370,7 @@ func (svc *Services) GetChessMetas(ctx context.Context, zSetName string, page, c
 		chessViews = append(chessViews, view)
 	}
 
-	slog.InfoContext(ctx, "retrieved chess meta views", "views", chessViews, "zSetName", zSetName, "page", page)
+	slog.InfoContext(ctx, "retrieved chess meta views", "elements", chessKeys, "views", chessViews, "zSetName", zSetName, "page", page)
 	return chessViews, nil
 }
 

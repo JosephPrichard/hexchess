@@ -1,5 +1,5 @@
 import { codes } from '$lib/utils/error';
-import type { Action, ChallengeModel, ChessModel, EloBuckets, FullUserModel, LbdUserModel, ReplayModel, ServiceModel, SessionModel, UserModel } from './models';
+import type { Action, ChallengeModel, Chat, ChessModel, EloBuckets, FullUserModel, LbdUserModel, ReplayModel, ServiceModel, SessionModel, UserModel } from './models';
 import { v4 as uuidv4 } from 'uuid';
 import { env } from '$env/dynamic/public';
 import { MoveHistory } from '$lib/pb/messages';
@@ -275,7 +275,7 @@ function getGameExistence(id: string, fetch?: FetchFn) {
 		message: string;
 	}
 	const params = new URLSearchParams({ gameId: id });
-	return requestJSON<Response>(`${baseURL()}/game/exists?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${baseURL()}/game/rooms/exists?${params}`, { method: 'GET' }, fetch);
 }
 
 function getSearchPlayers(username: string, page?: number, fetch?: FetchFn) {
@@ -323,14 +323,22 @@ async function getReplayMoveHistory(id: string, fetch?: FetchFn): Promise<Result
 	}
 }
 
-function getChessRooms(count: number, page?: number, fetch?: FetchFn) {
+function getGameRooms(count: number, page?: number, fetch?: FetchFn) {
 	const params = new URLSearchParams({ count: String(count) });
 	if (page) params.set('page', String(page));
 	interface Response {
-		chessList: ChessModel[];
+		chats: ChessModel[];
 		selfChessList: ChessModel[];
 	}
-	return requestJSON<Response>(`${baseURL()}/chess/rooms?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${baseURL()}/game/rooms?${params}`, { method: 'GET' }, fetch);
+}
+
+function getGameChats(gameId: string) {
+	const params = new URLSearchParams({ gameId: String(gameId) });
+	interface Response {
+		chats: Chat[];
+	}
+	return requestJSON<Response>(`${baseURL()}/game/rooms/chats?${params}`, { method: 'GET' }, fetch);
 }
 
 const getCountries = cached(async (fetch?: FetchFn) => {
@@ -359,7 +367,7 @@ export default {
 	getSearchPlayers,
 	getReplay,
 	getReplayMoveHistory,
-	getChessRooms,
+	getChessRooms: getGameRooms,
 	getCountries,
 	getEloHistories,
 };

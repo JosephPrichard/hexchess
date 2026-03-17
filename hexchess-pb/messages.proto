@@ -59,13 +59,13 @@ message ChessGame {
   repeated HistMove moves = 6;
 }
 
-message ChessState {
-  enum EndKind {
-    NOT_ENDED = 0;
-    FINISHED = 1;
-    ABORTED = 2;
-  }
+enum EndKind {
+  NOT_ENDED = 0;
+  FINISHED = 1;
+  ABORTED = 2;
+}
 
+message ChessState {
   string id = 1;
   ChessGame game = 2;
   PlayerState white_player = 4;
@@ -154,7 +154,9 @@ message UndoOutput {
   ChessGame game = 3;
 }
 
-message ForfeitOutput {}
+message ForfeitOutput {
+  EndKind end_state = 1;
+}
 
 message ReplayOutput {
   ReplayEntity replay = 1;

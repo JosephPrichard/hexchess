@@ -38,7 +38,7 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 	services.ClearBucketOrphans(ctx, 2)
 
 	// then
-	profileKeys := egress.ListS3Objects(t, services.AWS.S3Client, services.AWS.S3ProfileBucket)
+	profileKeys := egress.ListTestS3Objects(t, services.AWS.S3Client, services.AWS.S3ProfileBucket)
 
 	assertKeyContainment := func(actual []string, shouldContain []string, shouldNotContain []string) {
 		t.Helper()

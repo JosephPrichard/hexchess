@@ -23,15 +23,15 @@ func asJSONReader(v any) *strings.Reader {
 }
 
 var TestStates = []svc.ChessState{
-	svc.MakeChess(svc.StateSetup{
+	svc.MakeChessState(svc.StateSetup{
 		ID:         TestGameID1,
 		Mode:       svc.ModeCorrespondence1,
 		FirstColor: svc.Random,
 		Black:      svc.MakePlayer(2, "user2", "us"),
 		UndoState:  svc.UndoState{UndoID: 2},
 	}),
-	svc.MakeChess(svc.StateSetup{ID: "game2", Mode: svc.ModeCorrespondence1, FirstColor: svc.Random}),
-	svc.MakeChess(svc.StateSetup{ID: "game3", Mode: svc.ModeCorrespondence1, FirstColor: svc.Random}),
+	svc.MakeChessState(svc.StateSetup{ID: "game2", Mode: svc.ModeCorrespondence1, FirstColor: svc.Random}),
+	svc.MakeChessState(svc.StateSetup{ID: "game3", Mode: svc.ModeCorrespondence1, FirstColor: svc.Random}),
 }
 
 func createTestSessions(t *testing.T, s svc.Services) {

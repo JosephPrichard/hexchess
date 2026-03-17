@@ -38,14 +38,13 @@ func main() {
 	dbURL := os.Getenv("DB_URL")
 	rdbPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
 	rdbPubSubURL := os.Getenv("REDIS_PUBSUB_URL")
-	awsSecretID := os.Getenv("AWS_SECRET_ID")
-	awsSecretKey := os.Getenv("AWS_SECRET_KEY")
+	isLocalstack := os.Getenv("IS_LOCALSTACK") == "true"
 	awsDefaultRegion := os.Getenv("AWS_DEFAULT_REGION")
 	awsEndpoint := os.Getenv("AWS_ENDPOINT")
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 	pprofPort := os.Getenv("PPROF_PORT")
 	// googleAPIKey := os.Getenv("GOOGLE_APIKEY")
-	//cookieDomain := os.Getenv("COOKIE_DOMAIN")
+	// cookieDomain := os.Getenv("COOKIE_DOMAIN")
 
 	slog.Info("connecting to postgres db", "dbURL", dbURL)
 	pool, err := pgxpool.New(context.Background(), dbURL)
@@ -65,9 +64,8 @@ func main() {
 
 	aws, err := egress.MakeAwsClients(context.Background(), egress.AWSConfig{
 		AWSDefaultRegion: awsDefaultRegion,
-		AWSSecretKey:     awsSecretKey,
-		AWSSecretID:      awsSecretID,
 		AWSEndpoint:      awsEndpoint,
+		IsLocalstack:     isLocalstack,
 	})
 	if err != nil {
 		logutil.FatalErr("load aws config", err)
@@ -100,12 +98,10 @@ func main() {
 		}()
 	}
 
-	setup := web.Setup{
+	mux := web.MakeServeMux(web.Setup{
 		Services:       services,
 		AllowedOrigins: allowedOrigins,
-	}
-
-	mux := web.MakeServeMux(setup)
+	})
 	web.WithHealthCheck(mux, web.HealthCheckConfig{
 		PostgresDSN:     dbURL,
 		RedisPrimaryDSN: rdbPrimaryURL,

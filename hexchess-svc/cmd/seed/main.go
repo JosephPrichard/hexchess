@@ -18,6 +18,7 @@ import (
 	"hexchess-svc/pkg/logutil"
 	svc "hexchess-svc/services"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
 )
@@ -62,8 +63,7 @@ func main() {
 
 	dbURL := os.Getenv("DB_URL")
 	rdbPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
-	awsSecretID := os.Getenv("AWS_SECRET_ID")
-	awsSecretKey := os.Getenv("AWS_SECRET_KEY")
+	isLocalstack := os.Getenv("IS_LOCALSTACK") == "true"
 	awsDefaultRegion := os.Getenv("AWS_DEFAULT_REGION")
 	awsEndpoint := os.Getenv("AWS_ENDPOINT")
 
@@ -81,18 +81,18 @@ func main() {
 
 	aws, err := egress.MakeAwsClients(context.Background(), egress.AWSConfig{
 		AWSDefaultRegion: awsDefaultRegion,
-		AWSSecretKey:     awsSecretID,
-		AWSSecretID:      awsSecretKey,
 		AWSEndpoint:      awsEndpoint,
+		IsLocalstack:     isLocalstack,
 	})
 	if err != nil {
 		logutil.FatalErr("make aws clients", err)
 	}
 
 	services := &svc.Services{
-		Redis: rdb,
-		DB:    pdb,
-		AWS:   aws,
+		DB:      pdb,
+		Queries: pdb.Queries(),
+		Redis:   rdb,
+		AWS:     aws,
 	}
 	defer services.Close()
 
@@ -165,6 +165,7 @@ func insertRandomizedGameResults(ctx context.Context, s *svc.Services, gameResul
 			}
 
 			if _, err = s.InsertGameResultTx(egCtx, svc.GameResult{
+				GameID:       uuid.NewString(),
 				WhiteID:      params.WhiteID,
 				BlackID:      params.BlackID,
 				ReplayCause:  svc.ExpectReplayCause(params.ReplayCause),

@@ -20,7 +20,7 @@ func PutTestS3Object(t *testing.T, s3Client *s3.Client, bucket string, key strin
 	require.NoError(t, err)
 }
 
-func ListS3Objects(t *testing.T, s3Client *s3.Client, bucket string) []string {
+func ListTestS3Objects(t *testing.T, s3Client *s3.Client, bucket string) []string {
 	t.Helper()
 
 	listObjects, err := s3Client.ListObjectsV2(t.Context(), &s3.ListObjectsV2Input{

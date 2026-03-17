@@ -25,8 +25,7 @@ func main() {
 	logutil.InitLoggers(nil)
 	cmd.InitEnv()
 
-	awsSecretID := os.Getenv("AWS_SECRET_ID")
-	awsSecretKey := os.Getenv("AWS_SECRET_KEY")
+	isLocalstack := os.Getenv("IS_LOCALSTACK") == "true"
 	awsDefaultRegion := os.Getenv("AWS_DEFAULT_REGION")
 	awsEndpoint := os.Getenv("AWS_ENDPOINT")
 
@@ -34,9 +33,8 @@ func main() {
 
 	aws, err := egress.MakeAwsClients(context.Background(), egress.AWSConfig{
 		AWSDefaultRegion: awsDefaultRegion,
-		AWSSecretKey:     awsSecretKey,
-		AWSSecretID:      awsSecretID,
 		AWSEndpoint:      awsEndpoint,
+		IsLocalstack:     isLocalstack,
 	})
 	if err != nil {
 		logutil.FatalErr("load aws config", err)

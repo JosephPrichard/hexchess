@@ -24,7 +24,7 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	gameID := uuid.NewString()
-	inState := MakeChess(StateSetup{ID: gameID, Mode: ModeCorrespondence1, FirstColor: Random})
+	inState := MakeChessState(StateSetup{ID: gameID, Mode: ModeCorrespondence1, FirstColor: Random})
 	inState.FirstColor = White
 	player := MakePlayer(1, "name", "us")
 
@@ -39,7 +39,7 @@ func TestJoinGame_JoinWhite(t *testing.T) {
 	wantState.WhitePlayer = player
 
 	AssertChessState(t, wantState, updatedState, ChessMetaCmpOpt)
-	AssertRedisChess(t, &services, *updatedState, ChessMetaCmpOpt)
+	AssertRedisChessState(t, &services, *updatedState, ChessMetaCmpOpt)
 }
 
 func TestJoinGame_BothPlayersExist(t *testing.T) {
@@ -52,7 +52,7 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	gameID := uuid.NewString()
-	inState := MakeChess(StateSetup{
+	inState := MakeChessState(StateSetup{
 		ID:         gameID,
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
@@ -68,20 +68,20 @@ func TestJoinGame_BothPlayersExist(t *testing.T) {
 
 	// then
 	AssertChessState(t, inState, resultState, ChessMetaCmpOpt)
-	AssertRedisChess(t, &services, inState, ChessMetaCmpOpt)
+	AssertRedisChessState(t, &services, inState, ChessMetaCmpOpt)
 }
 
 func TestAttemptUndo(t *testing.T) {
 	t.Parallel()
 
-	inState1 := MakeChess(StateSetup{
+	inState1 := MakeChessState(StateSetup{
 		ID:         "test1",
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      PlayerState{ID: 1, Name: "white", Present: true},
 		Black:      PlayerState{ID: 2, Name: "black", Present: true},
 	})
-	inState2 := MakeChess(StateSetup{
+	inState2 := MakeChessState(StateSetup{
 		ID:         "test2",
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
@@ -218,7 +218,7 @@ func TestAttemptUndo(t *testing.T) {
 				if subTest.wantErr == nil {
 					cmptOpts := cmpopts.IgnoreFields(ChessState{}, "Game", "Touch")
 					AssertChessState(t, subTest.wantState, cs, cmptOpts)
-					AssertRedisChess(t, &services, *cs, cmptOpts)
+					AssertRedisChessState(t, &services, *cs, cmptOpts)
 				}
 			}
 		})
@@ -228,14 +228,14 @@ func TestAttemptUndo(t *testing.T) {
 func TestMakeMove(t *testing.T) {
 	t.Parallel()
 
-	stateWhiteTurn := MakeChess(StateSetup{
+	stateWhiteTurn := MakeChessState(StateSetup{
 		ID:         "test1",
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      PlayerState{ID: 1, Present: true},
 		Black:      PlayerState{ID: 2, Present: true},
 	})
-	stateEnded := MakeChess(StateSetup{
+	stateEnded := MakeChessState(StateSetup{
 		ID:         "test2",
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
@@ -243,13 +243,13 @@ func TestMakeMove(t *testing.T) {
 		Black:      PlayerState{ID: 2, Present: true},
 		EndState:   Finished,
 	})
-	stateNotStarted := MakeChess(StateSetup{
+	stateNotStarted := MakeChessState(StateSetup{
 		ID:         "test3",
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      PlayerState{ID: 1, Present: true},
 	})
-	stateBlackIntoCheckmate := MakeChess(StateSetup{
+	stateBlackIntoCheckmate := MakeChessState(StateSetup{
 		ID:         "test4",
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
@@ -271,7 +271,6 @@ func TestMakeMove(t *testing.T) {
 		sID           string
 		player        PlayerState
 		wantErr       error
-		wantHasReplay bool
 		wantEndKind   EndKind
 	}{
 		{
@@ -337,10 +336,10 @@ func TestMakeMove(t *testing.T) {
 
 			// then
 			assert.Equal(t, test.wantErr, err)
-			assert.Equal(t, test.wantHasReplay, moveResult.ReplayID != 0)
 			if moveResult.State != nil {
 				assert.Equal(t, test.wantEndKind, moveResult.State.EndState)
 			}
+			// todo: assert on the gme state after the move
 		})
 	}
 }
@@ -358,7 +357,7 @@ func TestForfeit_Errors(t *testing.T) {
 	}{
 		{
 			name: "is already ended",
-			s: MakeChess(StateSetup{
+			s: MakeChessState(StateSetup{
 				ID:         gameID,
 				Mode:       ModeCorrespondence1,
 				FirstColor: Random,
@@ -370,7 +369,7 @@ func TestForfeit_Errors(t *testing.T) {
 		},
 		{
 			name: "cannot abort without being a player",
-			s: MakeChess(StateSetup{
+			s: MakeChessState(StateSetup{
 				ID:         gameID,
 				Mode:       ModeCorrespondence1,
 				FirstColor: Random,
@@ -380,7 +379,7 @@ func TestForfeit_Errors(t *testing.T) {
 		},
 		{
 			name: "isn't a player",
-			s: MakeChess(StateSetup{
+			s: MakeChessState(StateSetup{
 				ID:         gameID,
 				Mode:       ModeCorrespondence1,
 				FirstColor: Random,
@@ -398,7 +397,7 @@ func TestForfeit_Errors(t *testing.T) {
 
 			// when
 			require.NoError(t, services.SetChessStateNow(ctx, gameID, &test.s))
-			forfeitErr := services.EndGame(ctx, gameID, PlayerState{ID: 1, Present: true})
+			_, forfeitErr := services.EndGame(ctx, gameID, PlayerState{ID: 1, Present: true})
 
 			// then
 			assert.Equal(t, test.wantErr, forfeitErr)
@@ -416,7 +415,7 @@ func TestForfeit_Abort(t *testing.T) {
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	gameID := uuid.NewString()
-	inState := MakeChess(StateSetup{
+	inState := MakeChessState(StateSetup{
 		ID:         gameID,
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
@@ -425,13 +424,15 @@ func TestForfeit_Abort(t *testing.T) {
 
 	// when
 	require.NoError(t, services.SetChessStateNow(ctx, gameID, &inState))
-	err := services.EndGame(ctx, gameID, inState.WhitePlayer)
+	endState, err := services.EndGame(ctx, gameID, inState.WhitePlayer)
 	require.NoError(t, err)
+
+	assert.Equal(t, Aborted, endState)
 
 	// then
 	wantState := inState.DeepCopy()
 	wantState.EndState = Aborted
-	AssertRedisChess(t, &services, wantState, ChessMetaCmpOpt)
+	AssertRedisChessState(t, &services, wantState, ChessMetaCmpOpt)
 
 	// checks that the aborted state is removed from the games and users zsets
 	gameKey := services.Redis.MakeGameKey(gameID)
@@ -451,7 +452,7 @@ func TestForfeit(t *testing.T) {
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	gameID := uuid.NewString()
-	inState := MakeChess(StateSetup{
+	inState := MakeChessState(StateSetup{
 		ID:         gameID,
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
@@ -464,11 +465,13 @@ func TestForfeit(t *testing.T) {
 
 	// when
 	require.NoError(t, services.SetChessStateNow(ctx, gameID, &inState))
-	err := services.EndGame(ctx, gameID, inState.BlackPlayer)
+	endState, err := services.EndGame(ctx, gameID, inState.BlackPlayer)
 	require.NoError(t, err)
+
+	assert.Equal(t, Finished, endState)
 
 	// then
 	wantState := inState.DeepCopy()
 	wantState.EndState = Finished
-	AssertRedisChess(t, &services, wantState, ChessMetaCmpOpt)
+	AssertRedisChessState(t, &services, wantState, ChessMetaCmpOpt)
 }

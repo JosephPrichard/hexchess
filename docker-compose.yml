@@ -11,9 +11,9 @@ volumes:
     driver: local
 
 services:
-  redis:
+  redis-cache:
     image: redis/redis-stack-server
-    container_name: hexchess-redis
+    container_name: hexchess-redis-cache
     ports:
       - "6379:6379"
     volumes:
@@ -31,7 +31,7 @@ services:
       - REDIS_PORT=${REDIS_PORT}
   redis-queue:
     image: redis/redis-stack-server
-    container_name: hexchess-redis
+    container_name: hexchess-redis-queue
     ports:
       - "6381:6379"
     environment:

@@ -44,29 +44,29 @@ func SerializePlayer(p PlayerState) *pb.PlayerState {
 
 // EndKind
 
-func DeserializeEndKind(pbEndKind pb.ChessState_EndKind) EndKind {
+func DeserializeEndKind(pbEndKind pb.EndKind) EndKind {
 	switch pbEndKind {
-	case pb.ChessState_NOT_ENDED:
+	case pb.EndKind_NOT_ENDED:
 		return NotEnded
-	case pb.ChessState_FINISHED:
+	case pb.EndKind_FINISHED:
 		return Finished
-	case pb.ChessState_ABORTED:
+	case pb.EndKind_ABORTED:
 		return Aborted
 	default:
-		panic("unknown end state")
+		panic(fmt.Sprintf("unknown end state: %v", pbEndKind))
 	}
 }
 
-func SerializeEndKind(endKind EndKind) pb.ChessState_EndKind {
+func SerializeEndKind(endKind EndKind) pb.EndKind {
 	switch endKind {
 	case NotEnded:
-		return pb.ChessState_NOT_ENDED
+		return pb.EndKind_NOT_ENDED
 	case Finished:
-		return pb.ChessState_FINISHED
+		return pb.EndKind_FINISHED
 	case Aborted:
-		return pb.ChessState_ABORTED
+		return pb.EndKind_ABORTED
 	default:
-		panic("unknown end state")
+		panic(fmt.Sprintf("unknown end state: %v", endKind))
 	}
 }
 

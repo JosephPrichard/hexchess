@@ -205,10 +205,13 @@ func (server *Server) handleGameMessage(ctx GameSocketContext, input message) {
 }
 
 func (server *Server) handleGameForfeit(ctx GameSocketContext) error {
-	if err := server.Services.EndGame(ctx.Context, ctx.GameID, ctx.Player); err != nil {
+	endState, err := server.Services.EndGame(ctx.Context, ctx.GameID, ctx.Player); 
+	if err != nil {
 		return fmt.Errorf("forfeit game %s: %w", ctx.GameID, err)
 	}
-	return server.BroadcastGamesEvent(ctx.Context, &pb.ForfeitOutput{})
+	return server.BroadcastGamesEvent(ctx.Context, &pb.ForfeitOutput{
+		EndState: svc.SerializeEndKind(endState),
+	})
 }
 
 func (server *Server) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) error {

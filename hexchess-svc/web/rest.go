@@ -1037,7 +1037,7 @@ func (server *Server) HandleGetChessMetas(w http.ResponseWriter, r *http.Request
 
 	allChessMetas, err := server.Services.GetAllChessMetas(ctx, query.Page, query.Count)
 	if err != nil {
-		return fmt.Errorf("get page %d chess metas: %w", query.Page, err)
+		return fmt.Errorf("get chess metas page %d: %w", query.Page, err)
 	}
 
 	var myChessMetas []svc.ChessMeta
@@ -1115,7 +1115,6 @@ type GetChatsResp struct {
 
 func (server *Server) HandleGetGameChats(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-
 	gameID := r.URL.Query().Get("gameId")
 
 	chats, err := server.Services.GetStateChats(ctx, gameID, 100)

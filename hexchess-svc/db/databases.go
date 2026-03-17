@@ -112,6 +112,10 @@ func (names *RedisNames) GetGameChatsZSet(gameKey string) string {
 	return names.GameChatsZSet + "/" + gameKey
 }
 
+func (names *RedisNames) MakeSessionKey(sessionID string) string {
+	return "session/" + sessionID
+}
+
 type Redis struct {
 	Cache  *redis.Client
 	PubSub *redigo.Pool

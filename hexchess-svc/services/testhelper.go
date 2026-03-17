@@ -48,7 +48,7 @@ func SetupServicesTest(t logutil.TestLogger, flags ...itest.TestFlag) (services 
 	return services
 }
 
-func AssertRedisChess(t *testing.T, s *Services, wantState ChessState, options ...cmp.Option) {
+func AssertRedisChessState(t *testing.T, s *Services, wantState ChessState, options ...cmp.Option) {
 	t.Helper()
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	actualState, err := s.GetChessState(ctx, wantState.ID)

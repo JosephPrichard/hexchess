@@ -23,8 +23,8 @@ type GoogleIDTokenPayload struct {
 
 const UsernameClaim string = "email"
 
-func (g *RemoteGoogleAPI) ValidateIDToken(ctx context.Context, token string) (GoogleIDTokenPayload, error) {
-	payload, err := idtoken.Validate(ctx, token, g.APIKey)
+func (google *RemoteGoogleAPI) ValidateIDToken(ctx context.Context, token string) (GoogleIDTokenPayload, error) {
+	payload, err := idtoken.Validate(ctx, token, google.APIKey)
 	if err != nil {
 		return GoogleIDTokenPayload{}, fmt.Errorf("validate google id token %s: %w", token, err)
 	}

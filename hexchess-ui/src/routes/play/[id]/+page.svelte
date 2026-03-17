@@ -10,29 +10,27 @@
 	import TakenTakenList from '$lib/components/chess/TakenList.svelte';
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
 	import {
-		type BgInitOutput,
-		type ChatOutput, ChessBoard,
+		type ChatOutput,
 		type ChessGame,
-		type EndState, type ErrorOutput,
+		EndKind,
+		type ErrorOutput,
 		type ForfeitOutput,
 		GameOutput,
 		type InitOutput, type MoveOutput,
 		type PlayersOutput,
-		type PlayerState, type UndoOutput
+		type PlayerState, ReplayOutput, type UndoOutput
 	} from '$lib/pb/messages';
 	import type { Hex } from '$lib/api/models';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
-	import { wasm } from '$lib/api/wasm';
-	import { formatTimer } from '$lib/utils/format';
 	import { onMount } from 'svelte';
 	import Banner from '$lib/Banner.svelte';
 	import Error from '$lib/Error.svelte';
 	import ChatIcon from '$lib/components/icons/ChatIcon.svelte';
 	import FinishPanel from '$lib/components/user/FinishPanel.svelte';
-	import { makeSandboxState, type PromotionMove } from '../../sandbox/state.svelte.js';
-	import { defaultBoard, defaultGame, isPromotion, isValidMove } from '../../../lib/service/chess';
+	import { type PromotionMove } from '../../sandbox/state.svelte.js';
+	import { isValidMove } from '../../../lib/service/chess';
 	import { type ConnectionState, sendChatInput, sendForfeitInput, sendMoveInput, sendPingInput, sendUndoInput } from './messages';
-	import { CancelPromotion, type BadPromotionType, type MoveAction, NoPromotion, type Promotion } from '$lib/components/chess/types';
+	import { type BadPromotionType, type MoveAction, NoPromotion, type Promotion } from '$lib/components/chess/types';
 	import { makeMoveState } from '$lib/state/move.svelte';
 	import Timer from '$lib/components/chess/Timer.svelte';
 
@@ -51,11 +49,12 @@
 	const { addNotification } = getNotificationsContext();
 
 	// game lifecycle states taken from ws responses
-	const gameplay = makeSandboxState();
+	let game = $state<ChessGame | undefined>();
 	let whitePlayer = $state<PlayerState | undefined>(undefined);
 	let blackPlayer = $state<PlayerState | undefined>(undefined);
 	let selfPlayer: PlayerState | undefined = $state(undefined);
-	let endState = $state<EndState | undefined>(undefined);
+	let replay = $state<ReplayOutput | undefined>(undefined);
+	let endState = $state<EndKind>(EndKind.NOT_ENDED)
 	let undoPlayerId: bigint | undefined = $state(undefined);
 	let chats: ChatOutput[] = $state([]);
 	let gameExpired = $state(false);
@@ -79,13 +78,11 @@
 	// non-reactive states for client side logic
 	let keepAliveInterval: ReturnType<typeof setInterval> | undefined = undefined;
 	let chatElement: HTMLElement | null = $state(null);
-	let initialBoard: ChessBoard | undefined = undefined;
 
 	// network state
 	let connState = $state<ConnectionState>({ tries: 0 });
 
 	// calculated from the server's game state and kept in sync
-	const game = $derived.by(() => gameplay.state.game || defaultGame);
 	const link = $derived(`${appBaseURL()}/play/${props.gameId}`);
 	const isErrorPage = $derived.by(() => connState.tries > 0);
 	const notList = $derived.by(() => game?.moves.map((h) => h.notation) ?? []);
@@ -105,10 +102,8 @@
 	const topTakenPieces = $derived(isWhitePerspective ? game?.takenWhitePieces : game?.takenBlackPieces);
 	const bottomTakenPieces = $derived(isWhitePerspective ? game?.takenBlackPieces : game?.takenWhitePieces);
 	const prevMove = $derived.by(() => game ? game.moves[game.moves.length - 1] : undefined);
-	const canForfeit = $derived(!endState);
-	const canTakeback = $derived(prevMove !== undefined && !endState);
-	const selectedMoveIndex = $derived(move.state.moveIndex !== undefined ? move.state.moveIndex : game.moves.length-1)
-	// const displayGame = $derived(game);
+	const canForfeit = $derived(endState === EndKind.NOT_ENDED);
+	const canTakeback = $derived(prevMove !== undefined && endState === EndKind.NOT_ENDED);
 
 	// client side callbacks and interactivity. used to control modals/inputs that ultimately send websocket messages to the game server.
 	const onToggleForfeitModal = () => showForfeitModal = !showForfeitModal;
@@ -133,12 +128,6 @@
 
 	async function onSelectMove(index: number) {
 		move.selectMove(index);
-		// if (index === game.moves.length-1) {
-		// 	// selecting the last move is a special case - it means we are no longer viewing a specific move state (since the last move state is the current one)
-		// 	moveGame = undefined;
-		// } else {
-		// 	moveGame = await gameAtMoveIndex(initialBoard || defaultBoard, game, index);
-		// }
 		onDeSelectPiece();
 	}
 
@@ -146,35 +135,17 @@
 	const onDeSelectPiece = () => selection.deSelect();
 
 	function onPieceMove(from: Hex, to: Hex) {
-		if (moveGame) return; // we can't make any moves on a previous game
 		if (!isValidMove(game, {from, to}, isSelfWhite)) return;
 
 		const move = {from, to, promotion: NoPromotion};
-		if (isPromotion(to)) {
-			gameplay.setPromotion({from, to});
-		} else if (isCurrPlayer) {
+		if (isCurrPlayer) {
 			sendMoveInput(connState, move);
 		} else if (isEitherPlayer) {
 			preloadedMove = move;
 		}
 	}
 
-	function onCompletePromotion(promoMove: PromotionMove | undefined, promotion: Promotion | BadPromotionType) {
-		if (promotion == CancelPromotion) {
-			gameplay.revertPromotion();
-		} else {
-			// we don't need to validate moves by the time we complete a promotion - BUT we do need to check if this is a preloaded promotion or not
-			if (promoMove === undefined) return;
-			const move = {...promoMove, promotion };
-			if (isCurrPlayer) {
-				sendMoveInput(connState, move);
-			} else if (isEitherPlayer) {
-				preloadedMove = move;
-				gameplay.revertPromotion();
-			}
-		}
-		gameplay.setPromotion(undefined);
-	}
+	function onCompletePromotion(promoMove: PromotionMove | undefined, promotion: Promotion | BadPromotionType) {}
 
 	function checkPreloadedMove() {
 		if (!preloadedMove) return;
@@ -199,9 +170,6 @@
 		case "init":
 			handleInit(data.value.init);
 			break;
-		case "bgInit":
-			handleBgInit(data.value.bgInit);
-			break;
 		case "players":
 			handlePlayers(data.value.players);
 			break;
@@ -225,17 +193,12 @@
 
 	function handleInit(init: InitOutput) {
 		const state = init.state;
-		if (state?.game) gameplay.setGame(state.game);
+		if (state?.game) game = state.game;
 		whitePlayer = state?.whitePlayer;
 		blackPlayer = state?.blackPlayer;
-		endState = state?.endState;
+		if (state?.endState) endState = state?.endState;
 		selfPlayer = init?.self;
 		undoPlayerId = state?.undoId;
-		initialBoard = state?.initialBoard;
-	}
-
-	function handleBgInit(init: BgInitOutput) {
-		chats = init?.chats;
 	}
 
 	function handlePlayers(players: PlayersOutput) {
@@ -244,15 +207,12 @@
 	}
 
 	function handleMove(move: MoveOutput) {
-		gameplay.revertPromotion();
-		if (move?.game) gameplay.setGame(move.game);
+		if (move?.game) game = move.game;
 		checkPreloadedMove();
 		undoPlayerId = undefined;
 	}
 
-	function handleForfeit(forfeit: ForfeitOutput) {
-		endState = forfeit?.endState;
-	}
+	function handleForfeit(_: ForfeitOutput) {}
 
 	function handleChat(chat: ChatOutput) {
 		chats = [...chats, chat]; // copy so we can react to this state in the $effect
@@ -264,7 +224,7 @@
 		else if (undo.kind === "ACCEPT" || undo.kind === "REJECT")
 			undoPlayerId = undefined
 		if (undo.game)
-			gameplay.setGame(undo.game);
+			game = undo.game;
 	}
 
 	function handleError(error: ErrorOutput) {
@@ -299,7 +259,7 @@
 		tempWs.binaryType = "arraybuffer";
 		tempWs.addEventListener('open', () => {
 			console.log(`Connected to game=${gameId} sessionId=${sessionId} successfully!`);
-			const lastTime = connState.setAt?.getTime() ?? [];
+			const lastTime = connState.setAt?.getTime() ?? 0;
 			let tries = 0;
 			if (new Date().getTime() - lastTime > successConnThresholdTime) {
 				tries = 0;
@@ -401,13 +361,11 @@
 					isWhitePerspective={isWhitePerspective}
 					potentialMoves={selection.getPotentialMoves()}
 					selected={selection.state.hex}
-					promotion={gameplay.state.promotion}
 					prevMove={prevMove}
 					nextMove={preloadedMove}
 					onSelectPiece={onSelectPiece}
 					onDeSelectPiece={onDeSelectPiece}
 					onDropPiece={(from, to) => onPieceMove(from, to)}
-					onCompletePromotion={(promotion) => onCompletePromotion(gameplay.state.promotion, promotion)}
 				/>
 			{/if}
 			<div class="side-table-wrapper">
@@ -431,7 +389,7 @@
 						</div>
 						<input class="chat-input" bind:value={chatText} onkeydown={onInputChat} placeholder="Type a message here..."/>
 					{:else if showMovesTable}
-						{#if endState?.value.oneofKind === "abortState"}
+						{#if endState === EndKind.ABORTED}
 							<div class="growing-scrollbox">
 							</div>
 							<div class="abort-container">
@@ -448,7 +406,7 @@
 							</div>
 						{:else}
 							{#if notList.length > 0}
-								<MoveList moveList={notList} onSelectMove={onSelectMove} selectedMoveIndex={selectedMoveIndex}/>
+								<MoveList moveList={notList} />
 							{:else if endState === undefined}
 								<div class="growing-scrollbox moves-empty-text">
 									{#if selfPlayer?.id === whitePlayer?.id}
@@ -461,8 +419,10 @@
 									{/if}
 								</div>
 							{/if}
-							{#if endState?.value.oneofKind === "finishState"}
-								<FinishPanel state={endState?.value.finishState} whitePlayer={whitePlayer} blackPlayer={blackPlayer}/>
+							{#if endState === EndKind.FINISHED}
+								{#if replay?.replay}
+									<FinishPanel replay={replay.replay} whitePlayer={whitePlayer} blackPlayer={blackPlayer}/>
+								{/if}
 							{/if}
 							{#if undoPlayerId === selfPlayer?.id}
 								<div class="undo-panel">
