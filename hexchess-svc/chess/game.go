@@ -29,6 +29,13 @@ func MakeEmptyGame(isWhiteTurn bool, initial ...Place) Game {
 	return Game{Board: MakeEmptyBoard(isWhiteTurn, initial...)}
 }
 
+func (g *Game) LastMove() HistMove {
+	if len(g.Moves) == 0 {
+		panic("tried to retrieve the last move on a game with no moves")
+	}
+	return g.Moves[len(g.Moves)-1]
+}
+
 func (g *Game) SetPieces(initial ...Place) {
 	for _, move := range initial {
 		g.Board.SetPieceNot(move.Not, move.Piece)
@@ -313,7 +320,7 @@ func (g *Game) Checkmate() bool {
 }
 
 func (g *Game) findPieceMoves(isWhiteTurn bool) []PieceMoves {
-	var moves []PieceMoves
+	moves := make([]PieceMoves, 0)
 	for _, hex := range OrdHexagons {
 		piece := g.Board.Get(hex.File, hex.Rank)
 		if piece == Empty || !piece.IsPieceTurn(isWhiteTurn) {
@@ -414,7 +421,7 @@ func (g *Game) findPawnMoves(hex Hex, isWhiteTurn bool) PieceMoves {
 	}
 
 	basePiece := g.Board.Get(hex.File, hex.Rank)
-	var moves []Hex
+	moves := make([]Hex, 0)
 
 	move1 := hex.Walk(pick(isWhiteTurn, WhiteAhead, BlackAhead))
 	if g.Board.InBoundsHex(move1) && g.Board.Get(move1.File, move1.Rank) == Empty {
@@ -450,7 +457,7 @@ func (g *Game) findPawnMoves(hex Hex, isWhiteTurn bool) PieceMoves {
 
 func (g *Game) findMovesByTraveling(hex Hex, directions [][]Direction) []Hex {
 	basePiece := g.Board.Get(hex.File, hex.Rank)
-	var moves []Hex
+	moves := make([]Hex, 0)
 
 	//checkPinned := func(move Hex, dirSeq []Direction) {
 	//	for {
@@ -497,7 +504,7 @@ func (g *Game) findOffsetMoves(hex Hex, directions [][]Direction) []Hex {
 
 func (g *Game) findOffsetMovesFiltered(hex Hex, directions [][]Direction) []Hex {
 	basePiece := g.Board.Get(hex.File, hex.Rank)
-	var moves []Hex
+	moves := make([]Hex, 0)
 
 	for _, dirSeq := range directions {
 		move := hex.Walk(dirSeq)

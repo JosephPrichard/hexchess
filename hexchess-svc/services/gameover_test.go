@@ -9,6 +9,7 @@ import (
 	"hexchess-svc/pkg/logutil"
 	"hexchess-svc/pkg/testutil"
 	"math"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -148,12 +149,12 @@ func TestInsertFinishedGame(t *testing.T) {
 			},
 
 			wantLeaderboard: []string{
-				"1", // higher rank, this player won
-				"2", // lower rank, this player lost
+				strconv.Itoa(int(testUser0.ID)),
+				strconv.Itoa(int(testUser1.ID)),
 			},
 			wantGameOutput: &pb.GameOutput{
 				GameId: newGameID,
-				Value: &pb.GameOutput_Replay{Replay: &pb.ReplayOutput{Replay: &pb.ReplayEntity{
+				Value: &pb.GameOutput_Replay{Replay: &pb.ReplayEntity{
 					WhiteId:      testUser0.ID,
 					BlackId:      testUser1.ID,
 					WhiteName:    "user1",
@@ -169,7 +170,7 @@ func TestInsertFinishedGame(t *testing.T) {
 					BlackElo:     985,
 					WhiteEloDiff: 15,
 					BlackEloDiff: -15,
-				}}},
+				}},
 			},
 		},
 		{
@@ -178,7 +179,7 @@ func TestInsertFinishedGame(t *testing.T) {
 				GameID: itest.FirstReplayGameID,
 				Board:  chess.MakeEmptyBoard(true),
 				Moves:  []chess.HistMove{},
-				// used to validate
+				// used only for validat
 				WhitePlayer: PlayerState{ID: testUser0.ID, Present: true}, // winner
 				BlackPlayer: PlayerState{ID: testUser1.ID, Present: true}, //loser
 				// enum fields are ignored on a noop insertion.
@@ -189,7 +190,7 @@ func TestInsertFinishedGame(t *testing.T) {
 			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated if stats do not change.,
 			wantGameOutput: &pb.GameOutput{
 				GameId: itest.FirstReplayGameID,
-				Value: &pb.GameOutput_Replay{Replay: &pb.ReplayOutput{Replay: &pb.ReplayEntity{
+				Value: &pb.GameOutput_Replay{Replay: &pb.ReplayEntity{
 					WhiteId:      testUser0.ID,
 					BlackId:      testUser1.ID,
 					WhiteName:    "user1",
@@ -205,7 +206,7 @@ func TestInsertFinishedGame(t *testing.T) {
 					BlackElo:     1000,
 					WhiteEloDiff: 30,
 					BlackEloDiff: -30,
-				}}},
+				}},
 			},
 		},
 	} {
@@ -227,7 +228,7 @@ func TestInsertFinishedGame(t *testing.T) {
 			require.NoError(t, services.InsertFinishedGameEvent(ctx, test.event))
 
 			// then
-			modeLbZSet := services.Redis.GetLeaderboardZSet(test.event.ReplayMode.String())
+			modeLbZSet := services.GetLeaderboardZSet(test.event.ReplayMode.String())
 			leaderboard, err := services.Redis.Cache.ZRevRange(ctx, modeLbZSet, 0, 2).Result()
 			require.NoError(t, err)
 

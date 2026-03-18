@@ -10,7 +10,7 @@ type Services struct {
 	DB            db.DB
 	Queries       *sqlc.Queries
 	Redis         db.Redis
-    AWS           egress.AWS
+	AWS           egress.AWS
 	Remote        egress.RemoteAPIs
 	EntropySource EntropySource
 	Broadcasters  LocalBroadcasters

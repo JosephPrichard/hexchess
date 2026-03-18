@@ -467,10 +467,7 @@ func (b *Board) FindKing(isWhite bool) (Hex, bool) {
 }
 
 func (b *Board) InBounds(file, rank uint32) bool {
-	if file < 0 || file >= Files || rank < 0 {
-		return false
-	}
-	return rank < RanksPerFile[file]
+	return file < Files && rank < RanksPerFile[file]
 }
 
 func (b *Board) InBoundsHex(hex Hex) bool {

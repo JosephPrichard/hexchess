@@ -11,106 +11,7 @@ import (
 	"math/big"
 )
 
-func (svc *Services) CreateGame(ctx context.Context, color Color, mode GameMode, initialBoard *chess.Board) (string, error) {
-	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-
-	bID := make([]byte, 8)
-	for i := range bID {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(characters))))
-		if err != nil {
-			return "", fmt.Errorf("error generating game id: %w", err)
-		}
-		bID[i] = characters[n.Int64()]
-	}
-	strID := string(bID)
-
-	state := MakeChessState(StateSetup{ID: strID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
-	state.Game.InitPieceMoves()
-
-	slog.InfoContext(ctx, "created chess game", "chessMeta", state.ChessMeta)
-	if err := svc.SetChessStateNow(ctx, strID, &state); err != nil {
-		return "", fmt.Errorf("set chess state by id %s: %w", strID, err)
-	}
-
-	go func() {
-		if err := svc.broadcastGameCounts(); err != nil {
-			slog.ErrorContext(ctx, "failed to broadcast game count after creating game", "err", err)
-		}
-	}()
-	return strID, nil
-}
-
-func (svc *Services) broadcastGameCounts() error {
-	defer func() {
-		if r := recover(); r != nil {
-			slog.Warn("recovered in panic while broadcasting game event", "err", r)
-		}
-	}()
-	ctx := context.WithValue(context.Background(), logutil.Trace, "create-game-broadcast-handler")
-
-	count, err := svc.GetChessStateCount(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to count chess game after creating game: %w", err)
-	}
-	if err := svc.BroadcastGameCount(ctx, count); err != nil {
-		return fmt.Errorf("failed to broadcast chess game count after creating game: %w", err)
-	}
-	slog.InfoContext(ctx, "counted games after creating game", "count", count)
-	return nil
-}
-
-func (svc *Services) JoinGame(ctx context.Context, gameID string, player PlayerState) (*ChessState, error) {
-	state, err := svc.GetChessState(ctx, gameID)
-	if err != nil {
-		return nil, fmt.Errorf("get chess state by id %s: %w", gameID, err)
-	}
-	if !player.Present {
-		slog.WarnContext(ctx, "player did not join the game", "playerID", player.ID)
-		return state, nil
-	}
-
-	var playerExists bool
-	if !state.WhitePlayer.Present && !state.BlackPlayer.Present {
-		n, err := rand.Int(rand.Reader, big.NewInt(1000))
-		if err != nil {
-			return nil, fmt.Errorf("generate randint used to select first color: %w", err)
-		}
-		pickWhite := state.FirstColor == Random && n.Int64()%2 == 0 || state.FirstColor == White
-		if pickWhite {
-			state.WhitePlayer = player
-		} else {
-			state.BlackPlayer = player
-		}
-	} else if state.BlackPlayer.Present && !state.WhitePlayer.Present {
-		if state.BlackPlayer.ID == player.ID {
-			playerExists = true
-		} else {
-			state.WhitePlayer = player
-		}
-	} else if state.WhitePlayer.Present && !state.BlackPlayer.Present {
-		if state.WhitePlayer.ID == player.ID {
-			playerExists = true
-		} else {
-			state.BlackPlayer = player
-		}
-	}
-	if playerExists {
-		slog.WarnContext(ctx, "player has already joined game", "playerID", player.ID, "chessMeta", state.ChessMeta)
-		return state, nil
-	}
-
-	err = svc.SetChessStateNow(ctx, gameID, state)
-	if err != nil {
-		return nil, fmt.Errorf("set chess state by id %s: %w", gameID, err)
-	}
-	slog.InfoContext(ctx, "player joined game", "playerID", player.ID, "chessMeta", state.ChessMeta)
-	return state, nil
-}
-
-var (
-	ErrLockedGame    = errors.New("game is locked")
-	ErrForfeitPlayer = errors.New("must be a player to forfeit or abort")
-)
+var ErrForfeitPlayer = errors.New("must be a player to forfeit or abort")
 
 type ErrStartedGame struct {
 	GameID string
@@ -148,50 +49,145 @@ func (e ErrInvalidMove) Error() string {
 	return fmt.Sprintf("invalid move (violation=%v, player=%d, game=%s)", e.Violation, e.PlayerID, e.GameID)
 }
 
-type MakeMoveResult struct {
-	State    *ChessState
-	Move     chess.HistMove
+func makeGameID() (string, error) {
+	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+
+	bID := make([]byte, 8)
+	for i := range bID {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(characters))))
+		if err != nil {
+			return "", fmt.Errorf("error generating game id: %w", err)
+		}
+		bID[i] = characters[n.Int64()]
+	}
+	return string(bID), nil
 }
 
-func (svc *Services) MakeGameMove(ctx context.Context, gameID string, player PlayerState, move chess.Move) (MakeMoveResult, error) {
-	state, err := svc.GetChessState(ctx, gameID)
+func (svc *Services) CreateGame(ctx context.Context, color Color, mode GameMode, initialBoard *chess.Board) (string, error) {
+	strID, err := makeGameID()
 	if err != nil {
-		return MakeMoveResult{}, fmt.Errorf("get chess state by id %s: %w", gameID, err)
+		return "", err
 	}
-	gameID = state.ID
-	state.Game.EnsurePieceMoves()
 
-	if !state.HasBothPlayers() {
-		return MakeMoveResult{}, ErrStartedGame{GameID: gameID}
+	state := MakeChessState(StateSetup{ID: strID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
+	state.Game.InitPieceMoves()
+
+	slog.InfoContext(ctx, "created chess game", "chessMeta", state.ChessMeta)
+	if err := svc.SetChessState(ctx, strID, &state); err != nil {
+		return "", fmt.Errorf("set chess state by id %s: %w", strID, err)
 	}
-	if state.EndState.isEnded() {
-		return MakeMoveResult{}, ErrFinishedGame{GameID: gameID}
-	}
-	currPlayer := state.CurrPlayer()
-	if !currPlayer.Present || currPlayer.ID != player.ID {
-		return MakeMoveResult{}, ErrTurn{GameID: gameID, PlayerID: player.ID, CurrID: currPlayer.ID}
-	}
-	histMove, err := state.Game.MakeValidMove(move)
+
+	go func() {
+		if err := svc.broadcastGameCounts(); err != nil {
+			slog.ErrorContext(ctx, "failed to broadcast game count after creating game", "err", err)
+		}
+	}()
+	return strID, nil
+}
+
+func (svc *Services) broadcastGameCounts() error {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Warn("recovered in panic while broadcasting game event", "err", r)
+		}
+	}()
+	ctx := context.WithValue(context.Background(), logutil.Trace, "create-game-broadcast-handler")
+
+	count, err := svc.GetChessStateCount(ctx)
 	if err != nil {
-		return MakeMoveResult{}, ErrInvalidMove{GameID: gameID, PlayerID: player.ID, Violation: err}
+		return fmt.Errorf("failed to count chess game after creating game: %w", err)
 	}
-	isCheckmate := state.Game.Checkmate()
-	state.UndoState = UndoState{}
+	if err := svc.BroadcastGameCount(ctx, count); err != nil {
+		return fmt.Errorf("failed to broadcast chess game count after creating game: %w", err)
+	}
+	slog.InfoContext(ctx, "counted games after creating game", "count", count)
+	return nil
+}
 
-	// this lock is used to guarantee one client may write the game state at any given time. a client will retry the operation (and read again) if it fails to acquire a lock, so we can acquire after reading.
-	if err := svc.AcquireChessLock(ctx, gameID); err != nil {
-		return MakeMoveResult{}, err
-	}
-	defer svc.ReleaseChessLock(ctx, gameID)
+func (svc *Services) JoinGame(ctx context.Context, gameID string, player PlayerState) (*ChessState, error) {
+	state, err := svc.UpdateChessStateTxn(ctx, gameID, func(state *ChessState) error {
+		if !player.Present {
+			slog.WarnContext(ctx, "player did not join the game", "playerID", player.ID)
+			return nil
+		}
 
-	if isCheckmate {
-		state.EndState = Finished
+		var playerExists bool
+		if !state.WhitePlayer.Present && !state.BlackPlayer.Present {
+			n, err := rand.Int(rand.Reader, big.NewInt(1000))
+			if err != nil {
+				return fmt.Errorf("generate randint used to select first color: %w", err)
+			}
+			pickWhite := state.FirstColor == Random && n.Int64()%2 == 0 || state.FirstColor == White
+			if pickWhite {
+				state.WhitePlayer = player
+			} else {
+				state.BlackPlayer = player
+			}
+		} else if state.BlackPlayer.Present && !state.WhitePlayer.Present {
+			if state.BlackPlayer.ID == player.ID {
+				playerExists = true
+			} else {
+				state.WhitePlayer = player
+			}
+		} else if state.WhitePlayer.Present && !state.BlackPlayer.Present {
+			if state.WhitePlayer.ID == player.ID {
+				playerExists = true
+			} else {
+				state.BlackPlayer = player
+			}
+		}
+		if playerExists {
+			slog.WarnContext(ctx, "player has already joined game", "playerID", player.ID, "chessMeta", state.ChessMeta)
+			return nil
+		}
+		return nil
+	})
+	if state != nil {
+		slog.InfoContext(ctx, "player joined game", "playerID", player.ID, "chessMeta", state.ChessMeta)
 	}
-	if err := svc.SetChessStateNow(ctx, gameID, state); err != nil {
-		return MakeMoveResult{}, fmt.Errorf("set chess state by id %s: %w", gameID, err)
+	return state, err
+}
+
+type MoveResult struct {
+	State *ChessState
+	Move  chess.HistMove
+}
+
+func (svc *Services) MakeGameMove(ctx context.Context, gameID string, player PlayerState, move chess.Move) (MoveResult, error) {
+	state, err := svc.UpdateChessStateTxn(ctx, gameID, func(state *ChessState) error {
+		// pre move validations on chess state
+		if !state.HasBothPlayers() {
+			return ErrStartedGame{GameID: gameID}
+		}
+		if state.EndState.isEnded() {
+			return ErrFinishedGame{GameID: gameID}
+		}
+		currPlayer := state.CurrPlayer()
+		if !currPlayer.Present || currPlayer.ID != player.ID {
+			return ErrTurn{GameID: gameID, PlayerID: player.ID, CurrID: currPlayer.ID}
+		}
+
+		// perform move validations then move
+		state.Game.EnsurePieceMoves()
+		if _, err := state.Game.MakeValidMove(move); err != nil {
+			return ErrInvalidMove{GameID: gameID, PlayerID: player.ID, Violation: err}
+		}
+
+		// post move state mutations and processing
+		if state.Game.Checkmate() {
+			state.EndState = Finished
+		}
+		state.UndoState = UndoState{}
+		state.Game.ClearTables()
+
+		return nil
+	})
+	if err != nil {
+		return MoveResult{}, err
 	}
 
-	// write the results of the operation to all stores. if the game is complete, we must persist game stats information to the databases. this operation is not atomic.
+	histMove := state.Game.LastMove() // invariant: if this function does not error before this line, it will have at least one move.
+
 	if state.EndState.isEnded() {
 		slog.InfoContext(ctx, "game has reached checkmate", "player", player.ID, "move", move, "chessMeta", state.ChessMeta)
 
@@ -207,11 +203,11 @@ func (svc *Services) MakeGameMove(ctx context.Context, gameID string, player Pla
 			ReplayResult: result,
 			ReplayCause:  Checkmate,
 		}); err != nil {
-			return MakeMoveResult{}, fmt.Errorf("push finished game event: %w", err)
+			return MoveResult{}, fmt.Errorf("push finished game event: %w", err)
 		}
 	}
 
-	moveResult := MakeMoveResult{State: state, Move: histMove}
+	moveResult := MoveResult{State: state, Move: histMove}
 	slog.InfoContext(ctx, "made move on game", "player", player.ID, "moveResult", moveResult, "move", move, "chessMeta", state.ChessMeta)
 	return moveResult, nil
 }
@@ -231,69 +227,65 @@ const (
 )
 
 func (svc *Services) AttemptGameUndo(ctx context.Context, gameID string, player PlayerState, kind UndoKind) (*ChessState, error) {
-	state, err := svc.GetChessState(ctx, gameID)
-	if err != nil {
-		return nil, fmt.Errorf("get chess state by id %s: %w", gameID, err)
-	}
-
-	switch kind {
-	case UndoCreate:
-		if player.IsSame(state.CurrPlayer()) {
-			return nil, ErrUndoCurrPlayer
-		}
-		state.UndoID = player.ID
-	case UndoAccept:
-		if state.UndoID == 0 {
-			return nil, ErrNoUndo
-		}
-		if state.UndoID != player.ID {
-			if err := state.Undo(); err != nil {
-				return nil, err
+	state, err := svc.UpdateChessStateTxn(ctx, gameID, func(state *ChessState) error {
+		switch kind {
+		case UndoCreate:
+			if player.IsSame(state.CurrPlayer()) {
+				return ErrUndoCurrPlayer
+			}
+			state.UndoID = player.ID
+		case UndoAccept:
+			if state.UndoID == 0 {
+				return ErrNoUndo
+			}
+			if state.UndoID != player.ID {
+				if err := state.Undo(); err != nil {
+					return err
+				}
+				state.UndoState = UndoState{}
+			} else {
+				return ErrUndoNoop
+			}
+		case UndoReject:
+			if state.UndoID == 0 {
+				return ErrNoUndo
 			}
 			state.UndoState = UndoState{}
-		} else {
-			return nil, ErrUndoNoop
 		}
-	case UndoReject:
-		if state.UndoID == 0 {
-			return nil, ErrNoUndo
-		}
-		state.UndoState = UndoState{}
+		return nil
+	})
+	if state != nil {
+		slog.InfoContext(ctx, "attempt game undo", "playerID", player.ID, "chessMeta", state.ChessMeta)
 	}
-
-	if err := svc.SetChessStateNow(ctx, gameID, state); err != nil {
-		return nil, fmt.Errorf("set chess state by id %s: %w", gameID, err)
-	}
-	return state, nil
+	return state, err
 }
 
 func (svc *Services) EndGame(ctx context.Context, gameID string, player PlayerState) (EndKind, error) {
-	state, err := svc.GetChessState(ctx, gameID)
+	state, err := svc.UpdateChessStateTxn(ctx, gameID, func(state *ChessState) error {
+		if state.EndState.isEnded() {
+			return ErrFinishedGame{GameID: gameID}
+		}
+		if !state.IsEitherPlayer(player) {
+			return ErrForfeitPlayer
+		}
+		if state.EndState.isEnded() {
+			return ErrFinishedGame{GameID: gameID}
+		}
+
+		isForfeit := state.WhitePlayer.Present && state.BlackPlayer.Present
+
+		if isForfeit {
+			state.EndState = Finished
+		} else {
+			state.EndState = Aborted
+		}
+		return nil
+	})
 	if err != nil {
-		return state.EndState, fmt.Errorf("get chess state by id %s: %w", gameID, err)
-	}
-	if state.EndState.isEnded() {
-		return state.EndState, ErrFinishedGame{GameID: gameID}
-	}
-	if !state.IsEitherPlayer(player) {
-		return state.EndState, ErrForfeitPlayer
-	}
-	if state.EndState.isEnded() {
-		return state.EndState, ErrFinishedGame{GameID: gameID}
+		return NotEnded, err
 	}
 
-	isForfeit := state.WhitePlayer.Present && state.BlackPlayer.Present
-
-	if isForfeit {
-		state.EndState = Finished
-	} else {
-		state.EndState = Aborted
-	}
-	if err := svc.SetChessStateNow(ctx, gameID, state); err != nil {
-		return state.EndState, fmt.Errorf("set chess state by id %s: %w", gameID, err)
-	}
-
-	if isForfeit {
+	if state.EndState == Finished {
 		result := BlackWin
 		if state.BlackPlayer.ID == player.ID {
 			result = WhiteWin

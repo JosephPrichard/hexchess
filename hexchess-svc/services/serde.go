@@ -153,41 +153,17 @@ func UnmarshalChessMeta(b []byte) (m ChessMeta, err error) {
 	}, nil
 }
 
-// ChatMsg
+// ChatMessage
 
-func UnmarshalChat(b []byte) (chat StateChat, err error) {
-	var pbChat pb.ChatMsg
-	if err := proto.Unmarshal(b, &pbChat); err != nil {
-		return chat, fmt.Errorf("marshal chat: %w", err)
-	}
-	sentAt, err := time.Parse(time.RFC3339, pbChat.SentAt)
-	if err != nil {
-		return chat, fmt.Errorf("parse chat sent at %s: %w", pbChat.SentAt, err)
-	}
-	return StateChat{
-		Player:  DeserializePlayer(pbChat.Player),
-		Message: pbChat.Message,
-		SentAt:  sentAt,
-	}, nil
-}
-
-func SerializeChat(chat StateChat) *pb.ChatMsg {
-	return &pb.ChatMsg{
+func SerializeChat(chat Chat) *pb.ChatMessage {
+	return &pb.ChatMessage{
 		Player:  SerializePlayer(chat.Player),
 		Message: chat.Message,
 		SentAt:  chat.SentAt.Format(time.RFC3339),
 	}
 }
 
-func SerializeChats(chats []StateChat) []*pb.ChatMsg {
-	pbChats := make([]*pb.ChatMsg, 0, len(chats))
-	for _, chat := range chats {
-		pbChats = append(pbChats, SerializeChat(chat))
-	}
-	return pbChats
-}
-
-// UserMsg
+// UserMessage
 
 func MarshalUserMessageJson(pbUserMessage *pb.UserMessage) ([]byte, error) {
 	switch message := (pbUserMessage.Value).(type) {
@@ -290,7 +266,7 @@ func MarshalFinishGameEvent(event FinishGameEvent) ([]byte, error) {
 func SerializeReplayOutput(gameID string, replay ReplayEntity) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
-		Value: &pb.GameOutput_Replay{Replay: &pb.ReplayOutput{Replay: &pb.ReplayEntity{
+		Value: &pb.GameOutput_Replay{Replay: &pb.ReplayEntity{
 			Id:           replay.ID,
 			WhiteId:      replay.WhiteID,
 			BlackId:      replay.BlackID,
@@ -308,6 +284,6 @@ func SerializeReplayOutput(gameID string, replay ReplayEntity) *pb.GameOutput {
 			WhiteEloDiff: replay.WhiteEloDiff,
 			BlackEloDiff: replay.BlackEloDiff,
 			PlayedOn:     replay.PlayedOn.Format(time.RFC3339),
-		}}},
+		}},
 	}
 }

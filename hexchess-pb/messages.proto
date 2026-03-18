@@ -88,7 +88,7 @@ message Move {
   int32 toRank = 5;
 }
 
-message ChatMsg {
+message ChatMessage {
   PlayerState player = 1;
   string message = 2;
   string sent_at = 3;
@@ -142,12 +142,6 @@ message MoveOutput {
   string updated_at = 3;
 }
 
-message ChatOutput {
-  PlayerState player = 1;
-  string message = 2;
-  string sent_at = 3;
-}
-
 message UndoOutput {
   string kind = 1;
   int64 undo_id = 2;
@@ -175,10 +169,10 @@ message GameOutput {
     InitOutput init = 4;
     PlayersOutput players = 5;
     MoveOutput move = 6;
-    ChatOutput chat = 7;
+    ChatMessage chat = 7;
     UndoOutput undo = 8;
     ForfeitOutput forfeit = 9;
-    ReplayOutput replay = 10;
+    ReplayEntity replay = 10;
   }
 }
 
@@ -242,8 +236,8 @@ message ReplayEntity {
   string played_on = 17;
 }
 
-message GameChats {
-  repeated ChatMsg chats = 1;
+message ChatMessages {
+  repeated ChatMessage chats = 1;
 }
 
 // job queue events

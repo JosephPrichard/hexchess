@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"hexchess-svc/db/sqlc"
-	"strconv"
 	"time"
 
 	redigo "github.com/gomodule/redigo/redis"
@@ -94,26 +93,6 @@ var DefaultRedisNames = RedisNames{
 	GamesCountChannel:   GamesCountChannel,
 	ActiveCountChannel:  ActiveCountChannel,
 	FinishGameStreamKey: FinishGameStreamKey,
-}
-
-func (names *RedisNames) GetLeaderboardZSet(mode string) string {
-	return names.LeaderboardZSet + "/mode/" + mode
-}
-
-func (names *RedisNames) GetUserGameZSet(id int64) string {
-	return names.GamesZSet + "/user/" + strconv.Itoa(int(id))
-}
-
-func (names *RedisNames) MakeGameKey(gameID string) string {
-	return "game/" + gameID
-}
-
-func (names *RedisNames) GetGameChatsZSet(gameKey string) string {
-	return names.GameChatsZSet + "/" + gameKey
-}
-
-func (names *RedisNames) MakeSessionKey(sessionID string) string {
-	return "session/" + sessionID
 }
 
 type Redis struct {

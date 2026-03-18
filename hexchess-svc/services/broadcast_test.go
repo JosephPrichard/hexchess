@@ -41,7 +41,7 @@ func TestBroadcastGameMessage(t *testing.T) {
 	} {
 		require.NoError(t, services.BroadcastGamesEvent(ctx, &pb.GameOutput{
 			GameId: input.id,
-			Value:  &pb.GameOutput_Chat{Chat: &pb.ChatOutput{Message: input.msg}},
+			Value:  &pb.GameOutput_Chat{Chat: &pb.ChatMessage{Message: input.msg}},
 		}))
 	}
 
@@ -59,9 +59,9 @@ func TestBroadcastGameMessage(t *testing.T) {
 }
 
 func mustUnmarshalChatMessage(t *testing.T, b []byte) string {
-    t.Helper()
-	
-    var output pb.GameOutput
-    require.NoError(t, proto.Unmarshal(b, &output))
-    return output.GetChat().GetMessage()
+	t.Helper()
+
+	var output pb.GameOutput
+	require.NoError(t, proto.Unmarshal(b, &output))
+	return output.GetChat().GetMessage()
 }

@@ -1108,20 +1108,3 @@ func (server *Server) HandleGetEloHistories(w http.ResponseWriter, r *http.Reque
 	//w.Header().Set("Cache-Control", GetEloHistoriesCacheControl)
 	return nil
 }
-
-type GetChatsResp struct {
-	Chats []svc.StateChat `json:"chats"`
-}
-
-func (server *Server) HandleGetGameChats(w http.ResponseWriter, r *http.Request) error {
-	ctx := r.Context()
-	gameID := r.URL.Query().Get("gameId")
-
-	chats, err := server.Services.GetStateChats(ctx, gameID, 100)
-	if err != nil {
-		return fmt.Errorf("get state chats: %w", err)
-	}
-
-	writeJSON(w, http.StatusOK, GetChatsResp{Chats: chats})
-	return nil
-}

@@ -24,11 +24,11 @@ type UpdtLbChangeSet struct {
 func (svc *Services) SetLeaderboard(ctx context.Context, changes ...UpdtLbChangeSet) error {
 	pipe := svc.Redis.Cache.TxPipeline()
 	for _, change := range changes {
-		modeLbZSet := svc.Redis.GetLeaderboardZSet(change.Mode.String())
+		modeLbZSet := svc.GetLeaderboardZSet(change.Mode.String())
 		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: change.EloDiff, Member: change.ID})
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("'ZADD' leaderboard users: %w", err)
+		return fmt.Errorf("set leaderboard users: %w", err)
 	}
 	slog.InfoContext(ctx, "set leaderboard users", "changes", changes)
 	return nil
@@ -37,11 +37,11 @@ func (svc *Services) SetLeaderboard(ctx context.Context, changes ...UpdtLbChange
 func (svc *Services) IncrLeaderboard(ctx context.Context, changes ...UpdtLbChangeSet) error {
 	pipe := svc.Redis.Cache.TxPipeline()
 	for _, change := range changes {
-		modeLbZSet := svc.Redis.GetLeaderboardZSet(change.Mode.String())
+		modeLbZSet := svc.GetLeaderboardZSet(change.Mode.String())
 		pipe.ZIncrBy(ctx, modeLbZSet, change.EloDiff, strconv.Itoa(int(change.ID)))
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("'ZINCRBY' leaderboard user: %w", err)
+		return fmt.Errorf("incr leaderboard user: %w", err)
 	}
 	slog.InfoContext(ctx, "incremented leaderboard user", "changes", changes)
 	return nil
@@ -74,7 +74,7 @@ func (svc *Services) GetLeaderboardRanks(ctx context.Context, id int64, modes ma
 	getExecs := make([]getExec, 0, len(modes))
 
 	for _, mode := range modes {
-		modeLbZSet := svc.Redis.GetLeaderboardZSet(mode.String())
+		modeLbZSet := svc.GetLeaderboardZSet(mode.String())
 		getExecs = append(getExecs, getExec{
 			mode: mode.String(),
 			cmd:  svc.Redis.Cache.ZRevRankWithScore(ctx, modeLbZSet, strID),
@@ -107,7 +107,7 @@ func (svc *Services) GetLeaderboardRanks(ctx context.Context, id int64, modes ma
 		if _, ok := ranks[mode.String()]; ok {
 			continue
 		}
-		modeLbZSet := svc.Redis.GetLeaderboardZSet(mode.String())
+		modeLbZSet := svc.GetLeaderboardZSet(mode.String())
 		addExecs = append(addExecs, addExec{
 			mode:   mode,
 			addCmd: pipeline.ZAddNX(ctx, modeLbZSet, redis.Z{Member: strID, Score: StartElo}),
@@ -133,7 +133,7 @@ func (svc *Services) GetLeaderboardRanks(ctx context.Context, id int64, modes ma
 }
 
 func (svc *Services) GetLeaderboard(ctx context.Context, mode GameMode, startRank, count int64) (Leaderboard, error) {
-	modeLbZSet := svc.Redis.GetLeaderboardZSet(mode.String())
+	modeLbZSet := svc.GetLeaderboardZSet(mode.String())
 
 	var leaderboard Leaderboard
 

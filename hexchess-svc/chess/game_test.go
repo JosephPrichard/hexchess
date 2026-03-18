@@ -427,7 +427,6 @@ func findBadGames(game Game, depth int, node *PieceMoveNode, b *BadGame) {
 			if game.Board.IsWhiteTurn && toPiece == BlackKing || !game.Board.IsWhiteTurn && toPiece == WhiteKing {
 				*b = BadGame{Game: game, Node: node, Moves: pms.Moves}
 				panic("bad game")
-				return
 			}
 			game2 := game.MakeMoved(Move{From: pms.From, To: to, Promotion: QueenPromotion})
 			nextNode := &PieceMoveNode{

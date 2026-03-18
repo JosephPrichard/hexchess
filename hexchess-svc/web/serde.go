@@ -5,7 +5,7 @@ import (
 
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
-	"hexchess-svc/services"
+	svc "hexchess-svc/services"
 )
 
 func MakePbGameOutputError(gameID string, err error) *pb.GameOutput {
@@ -51,16 +51,16 @@ func MakePbGameOutputMove(gameID string, move *pb.HistMove, game *pb.ChessGame, 
 	}
 }
 
-func MakePbGameOutputChat(gameID, message string, self svc.PlayerState, sentAt time.Time) (*pb.GameOutput, svc.StateChat) {
+func MakePbGameOutputChat(gameID, message string, self svc.PlayerState, sentAt time.Time) (*pb.GameOutput, svc.Chat) {
 	o := &pb.GameOutput{
 		GameId: gameID,
-		Value: &pb.GameOutput_Chat{Chat: &pb.ChatOutput{
+		Value: &pb.GameOutput_Chat{Chat: &pb.ChatMessage{
 			Player:  svc.SerializePlayer(self),
 			Message: message,
 			SentAt:  sentAt.Format(time.RFC3339),
 		}},
 	}
-	c := svc.StateChat{Player: self, Message: message, SentAt: sentAt}
+	c := svc.Chat{Player: self, Message: message, SentAt: sentAt}
 	return o, c
 }
 

@@ -2,6 +2,7 @@ package svc
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -29,7 +30,7 @@ func TestEchoChessState(t *testing.T) {
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	// when
-	require.NoError(t, services.SetChessStateNow(ctx, id1, &s1))
+	require.NoError(t, services.SetChessState(ctx, id1, &s1))
 
 	outState1, err := services.GetChessState(ctx, id1)
 	require.NoError(t, err)
@@ -38,7 +39,84 @@ func TestEchoChessState(t *testing.T) {
 
 	// then
 	assert.Equal(t, ErrNoChessState, errBadID)
+	assert.NotNil(t, outState1)
 	testutil.Equal(t, s1, *outState1, ChessMetaCmpOpt)
+}
+
+func TestUpdateChessState(t *testing.T) {
+	t.Parallel()
+
+	// given
+	services := SetupServicesTest(t, itest.Redis)
+	defer services.Close()
+
+	testID := "testing-id1-" + uuid.NewString()
+
+	inState := MakeChessState(StateSetup{ID: testID, Mode: ModeCorrespondence1, FirstColor: Random})
+
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+
+	// when
+	require.NoError(t, services.SetChessState(ctx, testID, &inState))
+
+	outState, err := services.UpdateChessStateTxn(ctx, testID, func(state *ChessState) error {
+		state.EndState = Aborted // arbitrary state update
+		return nil
+	})
+	require.NoError(t, err)
+
+	// then
+	wantState := inState.DeepCopy()
+	wantState.EndState = Aborted
+
+	testutil.Equal(t, wantState, *outState, ChessMetaCmpOpt)
+}
+
+func TestUpdateChessState_Errors(t *testing.T) {
+	t.Parallel()
+
+	// given
+	services := SetupServicesTest(t, itest.Redis)
+	defer services.Close()
+
+	testID := "testing-id1-" + uuid.NewString()
+
+	inState := MakeChessState(StateSetup{ID: testID, Mode: ModeCorrespondence1, FirstColor: Random})
+	require.NoError(t, services.SetChessState(context.Background(), testID, &inState))
+
+	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+
+	t.Run("failing with unknown game id", func(t *testing.T) {
+		// when
+		_, err := services.UpdateChessStateTxn(ctx, uuid.NewString(), func(state *ChessState) error { return nil })
+
+		// then
+		assert.Equal(t, ErrNoChessState, err)
+	})
+
+	t.Run("failing in error closure", func(t *testing.T) {
+		// given
+		mockedErr := errors.New("failed in update closure")
+
+		// when
+		_, err := services.UpdateChessStateTxn(ctx, testID, func(state *ChessState) error {
+			return mockedErr
+		})
+
+		// then
+		assert.Equal(t, mockedErr, err)
+	})
+
+	t.Run("failing with interrupted update", func(t *testing.T) {
+		// when
+		_, err := services.UpdateChessStateTxn(ctx, testID, func(state *ChessState) error {
+			require.NoError(t, services.SetChessState(ctx, testID, &inState)) // the state value we set is arbitrary
+			return nil
+		})
+
+		// then
+		assert.Equal(t, ErrMaxChessStateRetries, err)
+	})
 }
 
 func TestGetChessMetas(t *testing.T) {
@@ -61,9 +139,9 @@ func TestGetChessMetas(t *testing.T) {
 
 	// when
 	// these times must be after now.Add(-GameExpireFinished)
-	require.NoError(t, services.SetChessState(ctx, id1, &s1, now.Add(-100*time.Second)))
-	require.NoError(t, services.SetChessState(ctx, id2, &s2, now.Add(-50*time.Second)))
-	require.NoError(t, services.SetChessState(ctx, id3, &s3, now.Add(-10*time.Second)))
+	require.NoError(t, services.SetChessStateAt(ctx, id1, &s1, now.Add(-100*time.Second)))
+	require.NoError(t, services.SetChessStateAt(ctx, id2, &s2, now.Add(-50*time.Second)))
+	require.NoError(t, services.SetChessStateAt(ctx, id3, &s3, now.Add(-10*time.Second)))
 
 	metaList1, err := services.GetUserChessMetas(ctx, 1)
 	require.NoError(t, err)
@@ -86,70 +164,6 @@ func TestGetChessMetas(t *testing.T) {
 	assert.Empty(t, metaList3)
 	assert.Equal(t, []ChessMeta{m3, m2}, metaList4)
 	assert.Equal(t, []ChessMeta{m1}, metaList5)
-}
-
-func TestEchoStateChats(t *testing.T) {
-	t.Parallel()
-
-	// given
-	services := SetupServicesTest(t, itest.Redis)
-	defer services.Close()
-
-	id1 := "testing-id1-" + uuid.NewString()
-
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-
-	chatsIn := []StateChat{
-		{
-			Player: PlayerState{ID: 1, Name: "name", Country: "us", IsGuest: false, Present: true},
-			SentAt: time.Date(2022, 1, 1, 0, 1, 0, 0, time.UTC),
-		},
-		{SentAt: time.Date(2022, 1, 1, 0, 2, 0, 0, time.UTC)},
-		{SentAt: time.Date(2022, 1, 1, 0, 3, 0, 0, time.UTC)},
-	}
-
-	// when
-	for _, chat := range chatsIn {
-		require.NoError(t, services.InsertStateChat(ctx, id1, chat))
-	}
-
-	chatsOut, err := services.GetStateChats(ctx, id1, 3)
-	require.NoError(t, err)
-
-	// then
-	assert.Equal(t, []StateChat{chatsIn[2], chatsIn[1], chatsIn[0]}, chatsOut)
-}
-
-func TestExpireChessStates(t *testing.T) {
-	t.Parallel()
-
-	// given
-	services := SetupServicesTest(t, itest.Redis)
-	defer services.Close()
-
-	id1 := "testing-id1-" + uuid.NewString()
-
-	s1 := MakeChessState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
-
-	s1.WhitePlayer = PlayerState{ID: 1, Present: true}
-	s1.BlackPlayer = PlayerState{ID: 2, Present: true}
-
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	now := time.Now()
-
-	// when
-	// these times must be before now.Add(-GameExpireFinished)
-	require.NoError(t, services.SetChessState(ctx, id1, &s1, now.Add(2*-GameExpireFinished)))
-	require.NoError(t, services.InsertStateChat(ctx, id1, StateChat{}))
-	require.NoError(t, services.ExpireChessStates(ctx, services.Redis.GamesZSet))
-
-	_, errExpiredID := services.GetChessState(ctx, id1)
-	chats, err := services.GetStateChats(ctx, id1, 1)
-	require.NoError(t, err)
-
-	// then
-	assert.Equal(t, ErrNoChessState, errExpiredID)
-	assert.Empty(t, chats)
 }
 
 func TestUndo(t *testing.T) {

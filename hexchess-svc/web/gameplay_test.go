@@ -51,7 +51,7 @@ func TestHandleGameplayWs(t *testing.T) {
 	}}
 	wantChat := &pb.GameOutput{
 		GameId: gameID,
-		Value: &pb.GameOutput_Chat{Chat: &pb.ChatOutput{
+		Value: &pb.GameOutput_Chat{Chat: &pb.ChatMessage{
 			Message: "Hello World",
 			Player:  &pb.PlayerState{Id: 1, Name: "user1", Country: "us"},
 			SentAt:  itest.TimeNow.Format(time.RFC3339),

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strconv"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -144,45 +143,28 @@ func (s *ChessState) DeepCopy() ChessState {
 	return s2
 }
 
-// IsGameAccessible we can just treat any inability to validate that the game exists as it "not existing", the client will just show a "404".
 func (svc *Services) IsGameAccessible(ctx context.Context, id string) bool {
-	gameKey := svc.Redis.MakeGameKey(id)
+	gameKey := svc.MakeGameKey(id)
 
 	exists, err := svc.Redis.Cache.Exists(ctx, gameKey).Result()
 
 	return err == nil && exists == 1
 }
 
-// AcquireChessLock is used to make sure only one client is ever allowed to write to a game ID at any time
-// if the client fails to acquire the lock, the operation should fail rather than retry because the mutation will no longer be valid (underlying state will be swapped once freed)
-// consider a situation where client 1 has fetched state A and is transforming it to state B. client 2 wants to transform state A to C. by the time client 1 is done writing, state C is outdated since it is based on an older version of A
-func (svc *Services) AcquireChessLock(ctx context.Context, id string) error {
-	lockKey := svc.Redis.MakeGameKey(id) + "/lock"
-
-	ok, err := svc.Redis.Cache.SetNX(ctx, lockKey, "true", time.Second*5).Result()
-
-	acquired := err == nil && ok // we acquired the lock, AND without errors.
-	if acquired {
-		return nil
-	} else {
-		return ErrLockedGame
-	}
-}
-
-func (svc *Services) ReleaseChessLock(ctx context.Context, id string) {
-	lockKey := svc.Redis.MakeGameKey(id) + "/lock"
-
-	if err := svc.Redis.Cache.Del(ctx, lockKey).Err(); err != nil {
-		slog.ErrorContext(ctx, "failed to release chess state lock", "id", id, "err", err)
-	}
-}
-
 var ErrNoChessState = errors.New("no chess state")
 
 func (svc *Services) GetChessState(ctx context.Context, id string) (*ChessState, error) {
-	gameKey := svc.Redis.MakeGameKey(id)
+	return svc.GetChessStateAbstract(ctx, svc.Redis.Cache, id)
+}
 
-	data, err := svc.Redis.Cache.Get(ctx, gameKey).Bytes()
+type RedisGetter interface {
+	Get(ctx context.Context, key string) *redis.StringCmd
+}
+
+func (svc *Services) GetChessStateAbstract(ctx context.Context, getter RedisGetter, id string) (*ChessState, error) {
+	gameKey := svc.MakeGameKey(id)
+
+	bytes, err := getter.Get(ctx, gameKey).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return nil, ErrNoChessState
@@ -190,132 +172,94 @@ func (svc *Services) GetChessState(ctx context.Context, id string) (*ChessState,
 		return nil, fmt.Errorf("get chess state in redis: %w", err)
 	}
 
-	state, err := UnmarshalChessState(data)
+	state, err := UnmarshalChessState(bytes)
 	if err != nil {
 		return nil, fmt.Errorf("deserialize chess state: %w", err)
 	}
-	slog.InfoContext(ctx, "selected chess state", "key", gameKey)
+
+	slog.InfoContext(ctx, "retrieved chess state", "key", gameKey)
 	return &state, nil
 }
 
-func (svc *Services) SetChessStateNow(ctx context.Context, id string, state *ChessState) error {
+func (svc *Services) SetChessState(ctx context.Context, id string, state *ChessState) error {
 	touch := time.Now()
-	return svc.SetChessState(ctx, id, state, touch)
+	return svc.SetChessStateAt(ctx, id, state, touch)
 }
 
-func (svc *Services) SetChessState(ctx context.Context, id string, state *ChessState, touch time.Time) error {
+func (svc *Services) SetChessStateAt(ctx context.Context, id string, state *ChessState, touch time.Time) error {
+	pipe := svc.Redis.Cache.TxPipeline()
+	if err := svc.SetChessStatePiped(ctx, pipe, id, state, touch); err != nil {
+		return err
+	}
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+func (svc *Services) SetChessStatePiped(ctx context.Context, pipe redis.Pipeliner, id string, state *ChessState, touch time.Time) error {
 	state.Touch = touch
 	touchSecs := float64(state.Touch.Unix())
-	gameKey := svc.Redis.MakeGameKey(id)
+	gameKey := svc.MakeGameKey(id)
 
 	bytes, err := proto.Marshal(SerializeChessState(state))
 	if err != nil {
-		return fmt.Errorf("marshal chess s: %w", err)
+		return fmt.Errorf("marshal chess state: %w", err)
 	}
-
-	pipe := svc.Redis.Cache.TxPipeline()
 	pipe.Set(ctx, gameKey, bytes, 0)
 
 	if state.EndState != Aborted {
-		// keeps the game at the front of top of the sorted games sets on update
+		// keeps the game at the front of top of the sorted games sets on update (only stores for non guests)
 		pipe.ZAdd(ctx, svc.Redis.GamesZSet, redis.Z{Score: touchSecs, Member: gameKey})
-		if state.WhitePlayer.Present {
-			pipe.ZAdd(ctx, svc.Redis.GetUserGameZSet(state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: gameKey})
+		if state.WhitePlayer.Present && !state.WhitePlayer.IsGuest {
+			pipe.ZAdd(ctx, svc.GetUserGameZSet(state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: gameKey})
 		}
-		if state.BlackPlayer.Present {
-			pipe.ZAdd(ctx, svc.Redis.GetUserGameZSet(state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: gameKey})
+		if state.BlackPlayer.Present && !state.BlackPlayer.IsGuest {
+			pipe.ZAdd(ctx, svc.GetUserGameZSet(state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: gameKey})
 		}
 	} else {
 		// aborted games should be removed from sorted sets, although the game itself is technically accessible
 		pipe.ZRem(ctx, svc.Redis.GamesZSet, gameKey)
-		if state.WhitePlayer.Present {
-			pipe.ZRem(ctx, svc.Redis.GetUserGameZSet(state.WhitePlayer.ID), gameKey)
-		}
-		if state.BlackPlayer.Present {
-			pipe.ZRem(ctx, svc.Redis.GetUserGameZSet(state.BlackPlayer.ID), gameKey)
-		}
-	}
-
-	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("set chess state in redis: %w", err)
+		pipe.ZRem(ctx, svc.GetUserGameZSet(state.WhitePlayer.ID), gameKey)
+		pipe.ZRem(ctx, svc.GetUserGameZSet(state.BlackPlayer.ID), gameKey)
 	}
 
 	slog.InfoContext(ctx, "set chess state", "key", gameKey, "touch", touch)
 	return nil
 }
 
-type StateChat struct {
-	Player  PlayerState `json:"player"`
-	Message string      `json:"message"`
-	SentAt  time.Time   `json:"sentAt"`
-}
+const MaxUpdateChessStateRetries = 5
+var ErrMaxChessStateRetries = errors.New("update chess state txn: reached max retries")
 
-func (svc *Services) GetStateChats(ctx context.Context, gameID string, count int64) ([]StateChat, error) {
-	chatsZSet := svc.Redis.GetGameChatsZSet(svc.Redis.MakeGameKey(gameID))
-	strList, err := svc.Redis.Cache.ZRevRange(ctx, chatsZSet, 0, count).Result()
-	if err != nil {
-		return nil, fmt.Errorf("get the first %d chats: %w", count, err)
-	}
+func (svc *Services) UpdateChessStateTxn(ctx context.Context, gameID string, update func(*ChessState) error) (*ChessState, error) {
+	gameKey := svc.MakeGameKey(gameID)
 
-	chats := make([]StateChat, 0, len(strList))
-	for i, str := range strList {
-		chat, err := UnmarshalChat([]byte(str))
-		if err != nil {
-			return nil, fmt.Errorf("unmarshal chat #%d for game=%s: %w", i, gameID, err)
+	for range MaxUpdateChessStateRetries {
+		var retState *ChessState
+
+		err := svc.Redis.Cache.Watch(ctx, func(txn *redis.Tx) error {
+			state, err := svc.GetChessStateAbstract(ctx, txn, gameID)
+			if err != nil {
+				return err
+			}
+	
+			if err := update(state); err != nil {
+				return err
+			}
+			
+			_, err = txn.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+				return svc.SetChessStatePiped(ctx, pipe, gameID, state, time.Now())
+			})
+			if err == nil {
+				retState = state
+			}
+			return err
+		}, gameKey)
+		if err == redis.TxFailedErr {
+			continue
 		}
-		chats = append(chats, chat)
+		return retState, err
 	}
 
-	slog.InfoContext(ctx, "retrieved chess state chats", "chats", chats, "zSetName", chatsZSet)
-	return chats, nil
-}
-
-func (svc *Services) InsertStateChat(ctx context.Context, gameID string, chat StateChat) error {
-	bytes, err := proto.Marshal(SerializeChat(chat))
-	if err != nil {
-		return fmt.Errorf("marshal chat: %w", err)
-	}
-	chatsZSet := svc.Redis.GetGameChatsZSet(svc.Redis.MakeGameKey(gameID))
-	if err := svc.Redis.Cache.ZAdd(ctx, chatsZSet, redis.Z{Score: float64(chat.SentAt.UnixMilli()), Member: bytes}).Err(); err != nil {
-		return fmt.Errorf("add chat %v to zset: %w", chat, err)
-	}
-	slog.InfoContext(ctx, "inserted state chat", "chat", chat, "zSetName", chatsZSet)
-	return nil
-}
-
-const GameExpireFinished = 1 * time.Hour
-
-func (svc *Services) ExpireChessStates(ctx context.Context, gameZSetName string) error {
-	expireBefore := time.Now().Add(-GameExpireFinished).Unix()
-
-	gameKeys, err := svc.Redis.Cache.ZRangeByScore(ctx, gameZSetName, &redis.ZRangeBy{
-		Min: "-inf",
-		Max: strconv.FormatInt(expireBefore, 10),
-	}).Result()
-	if err != nil {
-		return fmt.Errorf("retrieve expired state by range: %w", err)
-	}
-	if len(gameKeys) == 0 {
-		return nil
-	}
-
-	var chatsZSets []string
-
-	pipe := svc.Redis.Cache.TxPipeline()
-	for _, gameKey := range gameKeys {
-		chatZSet := svc.Redis.GetGameChatsZSet(gameKey)
-		chatsZSets = append(chatsZSets, chatZSet)
-		pipe.Del(ctx, gameKey)
-		pipe.Del(ctx, chatZSet)
-	}
-	pipe.ZRem(ctx, gameZSetName, gameKeys)
-
-	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("delete expired state: %w", err)
-	}
-
-	slog.InfoContext(ctx, "expired chess state", "gameZSetName", gameZSetName, "chatsZSetNames", chatsZSets, "keys", gameKeys, "expireBefore", expireBefore)
-	return nil
+	return nil, ErrMaxChessStateRetries
 }
 
 func (svc *Services) GetUserChessMetas(ctx context.Context, userID int64) ([]ChessMeta, error) {
@@ -323,7 +267,7 @@ func (svc *Services) GetUserChessMetas(ctx context.Context, userID int64) ([]Che
 }
 
 func (svc *Services) GetUserChessMetasPaged(ctx context.Context, userID int64, page, count int) ([]ChessMeta, error) {
-	return svc.GetChessMetas(ctx, svc.Redis.GetUserGameZSet(userID), page, count)
+	return svc.GetChessMetas(ctx, svc.GetUserGameZSet(userID), page, count)
 }
 
 func (svc *Services) GetAllChessMetas(ctx context.Context, page, count int) ([]ChessMeta, error) {

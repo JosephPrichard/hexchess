@@ -13,23 +13,21 @@ import (
 var ErrSessionNotFound = errors.New("session not found")
 
 func (svc *Services) GetSession(ctx context.Context, sessionID string) (PlayerState, error) {
-	var p PlayerState
-
-	sessionKey := svc.Redis.MakeSessionKey(sessionID)
+	sessionKey := svc.MakeSessionKey(sessionID)
 	data, err := svc.Redis.Cache.Get(ctx, sessionKey).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
-			return p, ErrSessionNotFound
+			return PlayerState{}, ErrSessionNotFound
 		}
-		return p, fmt.Errorf("get session %s: %w", sessionID, err)
+		return PlayerState{}, fmt.Errorf("get session %s: %w", sessionID, err)
 	}
 
-	p, err = UnmarshalPlayer(data)
+	player, err := UnmarshalPlayer(data)
 	if err != nil {
-		return p, fmt.Errorf("unmarshal session: %w", err)
+		return PlayerState{}, fmt.Errorf("unmarshal session: %w", err)
 	}
-	slog.InfoContext(ctx, "selected session", "sessionID", sessionID, "player", p)
-	return p, nil
+	slog.InfoContext(ctx, "selected session", "sessionID", sessionID, "player", player)
+	return player, nil
 }
 
 type SessInst struct {
@@ -48,7 +46,7 @@ func (svc *Services) SetSessions(ctx context.Context, insts ...SessInst) error {
 		if err != nil {
 			return err
 		}
-		sessionKey := svc.Redis.MakeSessionKey(inst.SessionID)
+		sessionKey := svc.MakeSessionKey(inst.SessionID)
 		pipe.SetEx(ctx, sessionKey, data, inst.Expiry)
 	}
 
@@ -59,7 +57,7 @@ func (svc *Services) SetSessions(ctx context.Context, insts ...SessInst) error {
 }
 
 func (svc *Services) UpdateSessionEx(ctx context.Context, sessionID string, expiry time.Duration) error {
-	sessionKey := svc.Redis.MakeSessionKey(sessionID)
+	sessionKey := svc.MakeSessionKey(sessionID)
 	if err := svc.Redis.Cache.Expire(ctx, sessionKey, expiry).Err(); err != nil {
 		return fmt.Errorf("update session expiry: %w", err)
 	}
@@ -68,7 +66,7 @@ func (svc *Services) UpdateSessionEx(ctx context.Context, sessionID string, expi
 }
 
 func (svc *Services) DeleteSession(ctx context.Context, sessionID string) error {
-	sessionKey := svc.Redis.MakeSessionKey(sessionID)
+	sessionKey := svc.MakeSessionKey(sessionID)
 	if err := svc.Redis.Cache.Del(ctx, sessionKey).Err(); err != nil {
 		return fmt.Errorf("delete session=%s: %w", sessionID, err)
 	}

@@ -126,11 +126,6 @@
 
 	const onClickToggleChat = () => showMovesTable = !showMovesTable;
 
-	async function onSelectMove(index: number) {
-		move.selectMove(index);
-		onDeSelectPiece();
-	}
-
 	const onSelectPiece = (hex: Hex) => selection.select(game, hex);
 	const onDeSelectPiece = () => selection.deSelect();
 
@@ -281,11 +276,22 @@
 		});
 	}
 
+	async function loadInitialChats(gameId: string) {
+		const [data, err] = await services.getGameChats(gameId);
+		if (data) {
+			
+		} else {
+			
+		}
+	}
+
 	$effect(() => {
 		const state = connState;
+		const gameId = props.gameId;
+
 		if (gameExpired || !props.gameExists) return;
+		
 		if (!state.ws) {
-			const gameId = props.gameId;
 			let timeout = state.tries !== 0 ? state.tries * 250 : 0;
 			if (timeout > maxTimeout) {
 				timeout = maxTimeout;
@@ -297,6 +303,11 @@
 				tryConnect(gameId);
 			}
 		}
+
+		if (chats.length == 0) {
+			loadInitialChats(gameId);
+		}
+
 		return () => {
 			if (state.ws) {
 				state.ws.close();

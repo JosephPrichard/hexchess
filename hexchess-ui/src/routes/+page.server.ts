@@ -13,7 +13,7 @@ export const load: PageServerLoad = async ({ url, fetch }): Promise<IndexProps> 
 		error(404, 'Page must be a valid number');
 	}
 
-	const [data, err] = await services.getChessRooms(maxChessRows, page, fetch);
+	const [data, err] = await services.getGameRooms(maxChessRows, page, fetch);
 	if (err || data === undefined) {
 		error(err?.status || 500, makeMessage(err));
 	}
