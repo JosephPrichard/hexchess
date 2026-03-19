@@ -48,20 +48,16 @@ func SetupServicesTest(t logutil.TestLogger, flags ...itest.TestFlag) (services 
 	return services
 }
 
-func AssertRedisChessState(t *testing.T, s *Services, wantState ChessState, options ...cmp.Option) {
+func AssertRedisChessState(t *testing.T, s *Services, wantState *ChessState, options ...cmp.Option) {
 	t.Helper()
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+
+	if wantState == nil {
+		return
+	}
 	actualState, err := s.GetChessState(ctx, wantState.ID)
 	if err != nil {
-		t.Fatalf("get chess for assert: %v", err)
+		t.Fatalf("failed to retrieve in redis chess state assert: %v", err)
 	}
-	testutil.Equal(t, wantState, *actualState, options...)
-}
-
-func AssertChessState(t *testing.T, wantState ChessState, actualState *ChessState, options ...cmp.Option) {
-	t.Helper()
-	if actualState == nil {
-		t.Fatalf("chess state is nil")
-	}
-	testutil.Equal(t, wantState, *actualState, options...)
+	testutil.Equal(t, wantState, actualState, options...)
 }

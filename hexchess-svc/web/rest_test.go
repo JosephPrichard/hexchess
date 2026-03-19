@@ -21,15 +21,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// rest tests are block box tests that make assertions on rest api call output for a given input
-// no db assertions are made, and any ext network calls are mocked
-
 func TestHandleRegister(t *testing.T) {
 	t.Parallel()
 
 	insertTime := itest.TimeNow
 
-	for _, test := range []struct {
+	tests := []struct {
 		name        string
 		body        RegisterBody
 		wantSuccess SessionView
@@ -37,46 +34,48 @@ func TestHandleRegister(t *testing.T) {
 		wantStatus  int
 	}{
 		{
-			name:        "valid username",
+			name:        "ValidUsername",
 			body:        RegisterBody{Username: "testing-name", Password: "testing-password", ConfirmPassword: "testing-password"},
 			wantSuccess: SessionView{Username: "testing-name", Country: "un"},
 			wantStatus:  http.StatusOK,
 		},
 		{
-			name:       "invalid password (confirm does not match)",
+			name:       "InvalidPasswordConfirmDoesNotMatch",
 			body:       RegisterBody{Username: "testing-name1", Password: "testing-password1", ConfirmPassword: "wrong"},
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"confirmPassword": ErrHttpConfirmPassword.Error()}},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "invalid username and password (too short)",
+			name:       "InvalidUsernameAndPasswordTooShort",
 			body:       RegisterBody{Username: "s", Password: "short", ConfirmPassword: "short"},
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"username": ErrHttpInvalidUsername.Error(), "password": ErrHttpInvalidPassword.Error()}},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "invalid username (duplicate)",
+			name:       "InvalidUsernameDuplicate",
 			body:       RegisterBody{Username: itest.UsersInsts[0].Username, Password: "testing-password2", ConfirmPassword: "testing-password2"},
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpDuplicateUsername.Error()},
 			wantStatus: http.StatusBadRequest,
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis)
 			defer services.Close()
-
-			r := httptest.NewRequest(http.MethodPost, "/api/register", asJSONReader(test.body))
-			w := httptest.NewRecorder()
-
 			services.EntropySource = &svc.StableEntropySource{Time: insertTime}
+
+			r := httptest.NewRequest(http.MethodPost, "/api/register", asJSONReader(tt.body))
+			w := httptest.NewRecorder()
+			
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
-			assert.Equal(t, test.wantStatus, w.Code)
-			if test.wantStatus == http.StatusOK {
-				testutil.AssertRespBody(t, test.wantSuccess, w, testSessionViewCmpOpts)
+			assert.Equal(t, tt.wantStatus, w.Code)
+			if tt.wantStatus == http.StatusOK {
+				testutil.AssertRespBody(t, tt.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				testutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w)
 			}
 		})
 	}
@@ -87,7 +86,7 @@ func TestHandleLogin(t *testing.T) {
 
 	user := itest.UsersInsts[0]
 
-	for _, test := range []struct {
+	tests := []struct {
 		name        string
 		body        LoginBody
 		wantSuccess SessionView
@@ -95,33 +94,35 @@ func TestHandleLogin(t *testing.T) {
 		wantStatus  int
 	}{
 		{
-			name:       "invalid login",
+			name:       "InvalidLogin",
 			body:       LoginBody{Username: "testing-name", Password: "testing-password"},
 			wantFail:   ServiceView{Status: http.StatusUnauthorized, Errors: ErrHttpInvalidLogin.Error()},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			name:        "valid login",
+			name:        "ValidLogin",
 			body:        LoginBody{Username: user.Username, Password: user.Password},
 			wantSuccess: SessionView{Username: user.Username, Country: "us"},
 			wantStatus:  http.StatusOK,
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
-			r := httptest.NewRequest(http.MethodPost, "/api/login", asJSONReader(test.body))
+			r := httptest.NewRequest(http.MethodPost, "/api/login", asJSONReader(tt.body))
 			w := httptest.NewRecorder()
 
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
-			assert.Equal(t, test.wantStatus, w.Code)
-			if test.wantStatus == http.StatusOK {
-				testutil.AssertRespBody(t, test.wantSuccess, w, testSessionViewCmpOpts)
+			assert.Equal(t, tt.wantStatus, w.Code)
+			if tt.wantStatus == http.StatusOK {
+				testutil.AssertRespBody(t, tt.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				testutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w)
 			}
 		})
 	}
@@ -130,7 +131,7 @@ func TestHandleLogin(t *testing.T) {
 func TestHandleGoogleLogin(t *testing.T) {
 	t.Parallel()
 
-	for _, test := range []struct {
+	tests := []struct {
 		name        string
 		runCount    int
 		setupMocks  func(*gomock.Controller) egress.GoogleAPI
@@ -140,7 +141,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 		wantStatus  int
 	}{
 		{
-			name:     "invalid login token (mocked)",
+			name:     "InvalidLoginTokenMocked",
 			runCount: 1,
 			setupMocks: func(ctrl *gomock.Controller) egress.GoogleAPI {
 				m := egress.NewMockGoogleAPI(ctrl)
@@ -154,7 +155,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 			wantStatus: http.StatusInternalServerError,
 		},
 		{
-			name:     "login with google token succesful",
+			name:     "LoginWithGoogleTokenSuccessful",
 			runCount: 2, // the user is created the first time, the second time we log in with the already inserted account ID
 			setupMocks: func(ctrl *gomock.Controller) egress.GoogleAPI {
 				m := egress.NewMockGoogleAPI(ctrl)
@@ -167,27 +168,30 @@ func TestHandleGoogleLogin(t *testing.T) {
 			wantSuccess: SessionView{Username: "email@domain.com", Country: "un"},
 			wantStatus:  http.StatusOK,
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			for range test.runCount {
-				r := httptest.NewRequest(http.MethodPost, "/api/login/google", asJSONReader(test.body))
+			for range tt.runCount {
+				r := httptest.NewRequest(http.MethodPost, "/api/login/google", asJSONReader(tt.body))
 				w := httptest.NewRecorder()
 
-				services.Remote = egress.RemoteAPIs{GoogleAPI: test.setupMocks(ctrl)}
+				services.Remote = egress.RemoteAPIs{GoogleAPI: tt.setupMocks(ctrl)}
+
 				hander := MakeServeMux(Setup{Services: services})
 				hander.ServeHTTP(w, r)
 
-				assert.Equal(t, test.wantStatus, w.Code)
-				if test.wantStatus == http.StatusOK {
-					testutil.AssertRespBody(t, test.wantSuccess, w, testSessionViewCmpOpts)
+				assert.Equal(t, tt.wantStatus, w.Code)
+				if tt.wantStatus == http.StatusOK {
+					testutil.AssertRespBody(t, tt.wantSuccess, w, testSessionViewCmpOpts)
 				} else {
-					testutil.AssertRespBody(t, test.wantFail, w)
+					testutil.AssertRespBody(t, tt.wantFail, w)
 				}
 			}
 		})
@@ -197,7 +201,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 func TestHandleUpdateUser(t *testing.T) {
 	t.Parallel()
 
-	for _, test := range []struct {
+	tests := []struct {
 		name        string
 		body        UpdateUserBody
 		wantSuccess SessionView
@@ -205,49 +209,51 @@ func TestHandleUpdateUser(t *testing.T) {
 		wantStatus  int
 	}{
 		{
-			name: "invalid username and biography (length)",
+			name: "InvalidUsernameAndBiographyLength",
 			body: UpdateUserBody{NewCountry: "us", NewUsername: "s", NewBio: strings.Repeat("a", 5001)},
 			wantFail: ServiceView{Status: http.StatusBadRequest,
 				Errors: map[string]any{"newBio": ErrHttpInvalidBio.Error(), "newUsername": ErrHttpInvalidUsername.Error()}},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "invalid country (unknown)",
+			name:       "InvalidCountryUnknown",
 			body:       UpdateUserBody{NewCountry: "wrong", NewUsername: "new-username", NewBio: "testing biography"},
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"newCountry": ErrHttpInvalidCountry.Error()}},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:        "updating bio only",
+			name:        "UpdatingBioOnly",
 			body:        UpdateUserBody{NewBio: "testing biography"},
 			wantSuccess: SessionView{Username: "user1", Country: "us"},
 			wantStatus:  http.StatusOK,
 		},
 		{
-			name:        "updating username, bio, and country",
+			name:        "UpdatingUsernameBioAndCountry",
 			body:        UpdateUserBody{NewUsername: "new-username", NewBio: "testing biography", NewCountry: "un"},
 			wantSuccess: SessionView{Username: "new-username", Country: "un"},
 			wantStatus:  http.StatusOK,
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			createTestSessions(t, services)
 
-			r := httptest.NewRequest(http.MethodPost, "/api/users", asJSONReader(test.body))
+			r := httptest.NewRequest(http.MethodPost, "/api/users", asJSONReader(tt.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
-
-			assert.Equal(t, test.wantStatus, w.Code)
-			if test.wantStatus == http.StatusOK {
-				testutil.AssertRespBody(t, test.wantSuccess, w, testSessionViewCmpOpts)
+			
+			assert.Equal(t, tt.wantStatus, w.Code)
+			if tt.wantStatus == http.StatusOK {
+				testutil.AssertRespBody(t, tt.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				testutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w)
 			}
 		})
 	}
@@ -256,7 +262,7 @@ func TestHandleUpdateUser(t *testing.T) {
 func TestHandleUpdatePassword(t *testing.T) {
 	t.Parallel()
 
-	for _, test := range []struct {
+	tests := []struct {
 		name        string
 		body        UpdatePasswordBody
 		wantSuccess ServiceView
@@ -264,47 +270,50 @@ func TestHandleUpdatePassword(t *testing.T) {
 		wantStatus  int
 	}{
 		{
-			name:       "invalid login",
+			name:       "InvalidLogin",
 			body:       UpdatePasswordBody{Password: "password2", NewPassword: "testing-password", ConfirmNewPassword: "testing-password"},
 			wantFail:   ServiceView{Status: http.StatusUnauthorized, Errors: ErrHttpInvalidLogin.Error()},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			name:       "invalid password (length)",
+			name:       "InvalidPasswordLength",
 			body:       UpdatePasswordBody{Password: "password1", NewPassword: "short", ConfirmNewPassword: "short"},
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"newPassword": ErrHttpInvalidPassword.Error()}},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "invalid password (confirm does not match)",
+			name:       "InvalidPasswordConfirmDoesNotMatch",
 			body:       UpdatePasswordBody{Password: "password1", NewPassword: "testing-password1", ConfirmNewPassword: "testing-password"},
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"confirmNewPassword": ErrHttpConfirmPassword.Error()}},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:        "valid password update",
+			name:        "ValidPasswordUpdate",
 			body:        UpdatePasswordBody{Password: "password1", NewPassword: "testing-password", ConfirmNewPassword: "testing-password"},
 			wantSuccess: ServiceView{Status: http.StatusOK, Message: "SUCCESS"},
 			wantStatus:  http.StatusOK,
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			createTestSessions(t, services)
 
-			r := httptest.NewRequest(http.MethodPost, "/api/users/password", asJSONReader(test.body))
+			r := httptest.NewRequest(http.MethodPost, "/api/users/password", asJSONReader(tt.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			MakeServeMux(Setup{Services: services}).ServeHTTP(w, r)
+			handler := MakeServeMux(Setup{Services: services})
+			handler.ServeHTTP(w, r)
 
-			assert.Equal(t, test.wantStatus, w.Code)
-			if test.wantStatus == http.StatusOK {
-				testutil.AssertRespBody(t, test.wantSuccess, w)
+			assert.Equal(t, tt.wantStatus, w.Code)
+			if tt.wantStatus == http.StatusOK {
+				testutil.AssertRespBody(t, tt.wantSuccess, w)
 			} else {
-				testutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w)
 			}
 		})
 	}
@@ -313,63 +322,65 @@ func TestHandleUpdatePassword(t *testing.T) {
 func TestHandleUpdateChallenge(t *testing.T) {
 	t.Parallel()
 
-	for _, test := range []struct {
+	tests := []struct {
 		name       string
 		body       UpdateChallengeBody
 		wantFail   ServiceView
 		wantStatus int
 	}{
 		{
-			name:       "invalid challenge action",
+			name:       "InvalidChallengeAction",
 			body:       UpdateChallengeBody{Action: "invalid"},
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"action": ErrHttpInvalidAction.Error()}},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "invalid challenge",
+			name:       "InvalidChallenge",
 			body:       UpdateChallengeBody{ChallengerID: 999, ChallengeeID: 1, Action: "ACCEPT"},
 			wantFail:   ServiceView{Status: 404, Errors: ErrHttpNotFoundChallenge.Error()},
 			wantStatus: 404,
 		},
 		{
-			name:       "invalid delete challenge (cannot delete challenge that is not your own)",
+			name:       "InvalidDeleteChallengeCannotDeleteNotOwn",
 			body:       UpdateChallengeBody{ChallengerID: 5, ChallengeeID: 1, Action: "DELETE"},
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpUpdateChallenge.Error()},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "valid delete challenge",
+			name:       "ValidDeleteChallenge",
 			body:       UpdateChallengeBody{ChallengerID: 1, ChallengeeID: 2, Action: "DELETE"},
 			wantStatus: http.StatusOK,
 		},
 		{
-			name:       "invalid accept challenge (cannot accept challenge that is your own)",
+			name:       "InvalidAcceptChallengeCannotAcceptOwn",
 			body:       UpdateChallengeBody{ChallengerID: 1, ChallengeeID: 2, Action: "ACCEPT"},
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpUpdateChallenge.Error()},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "valid accept challenge",
+			name:       "ValidAcceptChallenge",
 			body:       UpdateChallengeBody{ChallengerID: 5, ChallengeeID: 1, Action: "ACCEPT"},
 			wantStatus: http.StatusOK,
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			createTestSessions(t, services)
 
-			r := httptest.NewRequest(http.MethodPost, "/api/challenges/update", asJSONReader(test.body))
+			r := httptest.NewRequest(http.MethodPost, "/api/challenges/update", asJSONReader(tt.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
-			assert.Equal(t, test.wantStatus, w.Code)
-			if test.wantStatus != http.StatusOK {
-				testutil.AssertRespBody(t, test.wantFail, w)
+			assert.Equal(t, tt.wantStatus, w.Code)
+			if tt.wantStatus != http.StatusOK {
+				testutil.AssertRespBody(t, tt.wantFail, w)
 			}
 		})
 	}
@@ -378,19 +389,19 @@ func TestHandleUpdateChallenge(t *testing.T) {
 func TestHandleCreateGame(t *testing.T) {
 	t.Parallel()
 
-	for _, test := range []struct {
+	tests := []struct {
 		name       string
 		body       CreateGameBody
 		wantStatus int
 		wantFail   ServiceView
 	}{
 		{
-			name:       "created game",
+			name:       "CreatedGame",
 			body:       CreateGameBody{FirstColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
 			wantStatus: http.StatusOK,
 		},
 		{
-			name:       "invalid mode, color, and initial fen",
+			name:       "InvalidModeColorAndInitialFen",
 			body:       CreateGameBody{InitialFEN: "invalid", FirstColor: "invalid", Mode: "invalid"},
 			wantStatus: http.StatusBadRequest,
 			wantFail: ServiceView{
@@ -402,24 +413,26 @@ func TestHandleCreateGame(t *testing.T) {
 				},
 			},
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis)
 			defer services.Close()
+			services.EntropySource = &svc.StableEntropySource{Time: itest.TimeNow}
 
 			createTestSessions(t, services)
 
-			r := httptest.NewRequest(http.MethodPost, "/api/games/create", asJSONReader(test.body))
+			r := httptest.NewRequest(http.MethodPost, "/api/games/create", asJSONReader(tt.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			services.EntropySource = &svc.StableEntropySource{Time: itest.TimeNow}
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
-			assert.Equal(t, test.wantStatus, w.Code)
-			if test.wantStatus != http.StatusOK {
-				testutil.AssertRespBody(t, test.wantFail, w)
+			assert.Equal(t, tt.wantStatus, w.Code)
+			if tt.wantStatus != http.StatusOK {
+				testutil.AssertRespBody(t, tt.wantFail, w)
 			}
 		})
 	}
@@ -428,59 +441,62 @@ func TestHandleCreateGame(t *testing.T) {
 func TestHandleCreateChallenge(t *testing.T) {
 	t.Parallel()
 
-	for _, test := range []struct {
+	tests := []struct {
 		name       string
 		body       CreateChallengeBody
 		wantStatus int
 		wantResp   ServiceView
 	}{
 		{
-			name:       "challenging self",
+			name:       "ChallengingSelf",
 			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpSelfChallenge.Error()},
 		},
 		{
-			name:       "challenging invalid user",
+			name:       "ChallengingInvalidUser",
 			body:       CreateChallengeBody{ChallengeeID: 999, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpInvalidParticipants.Error()},
 		},
 		{
-			name:       "creating duplicate challenge",
+			name:       "CreatingDuplicateChallenge",
 			body:       CreateChallengeBody{ChallengeeID: 2, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpDuplicateChallenge.Error()},
 		},
 		{
-			name:       "created challenge",
+			name:       "CreatedChallenge",
 			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
 			wantStatus: http.StatusOK,
 			wantResp:   ServiceView{Status: http.StatusOK, Message: "SUCCESS"},
 		},
 		{
-			name:       "invalid mode and color",
+			name:       "InvalidModeAndColor",
 			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "invalid", Mode: "invalid"},
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"startColor": ErrHttpInvalidColor.Error(), "mode": ErrHttpInvalidMode.Error()}},
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis)
 			defer services.Close()
+			services.EntropySource = &svc.StableEntropySource{Time: itest.TimeNow}
+
 
 			createTestSessions(t, services)
 
-			r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", asJSONReader(test.body))
+			r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", asJSONReader(tt.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
-			w := httptest.NewRecorder()
+			w := httptest.NewRecorder()	
 
-			services.EntropySource = &svc.StableEntropySource{Time: itest.TimeNow}
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
-			assert.Equal(t, test.wantStatus, w.Code)
-			testutil.AssertRespBody(t, test.wantResp, w)
+			assert.Equal(t, tt.wantStatus, w.Code)
+			testutil.AssertRespBody(t, tt.wantResp, w)
 		})
 	}
 }
@@ -488,7 +504,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 func TestGetLeaderboard(t *testing.T) {
 	t.Parallel()
 
-	for _, test := range []struct {
+	tests := []struct {
 		name        string
 		mode        string
 		page        string
@@ -497,7 +513,7 @@ func TestGetLeaderboard(t *testing.T) {
 		wantFail    ServiceView
 	}{
 		{
-			name:       "invalid page and mode",
+			name:       "InvalidPageAndMode",
 			mode:       "invalid",
 			page:       "invalid",
 			wantStatus: http.StatusBadRequest,
@@ -507,7 +523,7 @@ func TestGetLeaderboard(t *testing.T) {
 			},
 		},
 		{
-			name:       "valid leaderboard",
+			name:       "ValidLeaderboard",
 			mode:       svc.ModeTimed1Plus0.String(),
 			wantStatus: http.StatusOK,
 			wantSuccess: LeaderboardResp{
@@ -530,8 +546,10 @@ func TestGetLeaderboard(t *testing.T) {
 				},
 			},
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) { // given
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			services := svc.SetupServicesTest(t, itest.ROPostgres, itest.Redis)
 			defer services.Close()
 
@@ -539,21 +557,19 @@ func TestGetLeaderboard(t *testing.T) {
 			require.NoError(t, services.SetLeaderboard(ctx, svc.UpdtLbChangeSet{Mode: svc.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
 
 			q := url.Values{}
-			q.Set("mode", test.mode)
-			q.Set("page", test.page)
+			q.Set("mode", tt.mode)
+			q.Set("page", tt.page)
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/leaderboard?%s", q.Encode()), nil)
 			w := httptest.NewRecorder()
 			hander := MakeServeMux(Setup{Services: services})
 
-			// when
 			hander.ServeHTTP(w, r)
 
-			// then
-			assert.Equal(t, test.wantStatus, w.Code)
+			assert.Equal(t, tt.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
-				testutil.AssertRespBody(t, test.wantSuccess, w)
+				testutil.AssertRespBody(t, tt.wantSuccess, w)
 			} else {
-				testutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w)
 			}
 		})
 	}
@@ -562,7 +578,7 @@ func TestGetLeaderboard(t *testing.T) {
 func TestGetPlayer(t *testing.T) {
 	t.Parallel()
 
-	for _, test := range []struct {
+	tests := []struct {
 		name        string
 		id          string
 		withReplays bool
@@ -571,7 +587,7 @@ func TestGetPlayer(t *testing.T) {
 		wantStatus  int
 	}{
 		{
-			name:        "get player with replays",
+			name:        "GetPlayerWithReplays",
 			id:          "1",
 			withReplays: true,
 			wantSuccess: GetPlayersResp{
@@ -582,7 +598,7 @@ func TestGetPlayer(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
-			name:        "get player without replays",
+			name:        "GetPlayerWithoutReplays",
 			id:          "1",
 			withReplays: false,
 			wantSuccess: GetPlayersResp{
@@ -593,27 +609,29 @@ func TestGetPlayer(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
-			name:       "invalid user id",
+			name:       "InvalidUserID",
 			id:         "testing",
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"id": ErrHttpInvalidID.Error()}},
 			wantStatus: http.StatusBadRequest,
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			services := svc.SetupServicesTest(t, itest.ROPostgres, itest.Redis)
 			defer services.Close()
 
-			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players?id=%s&withReplays=%v", test.id, test.withReplays), nil)
+			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players?id=%s&withReplays=%v", tt.id, tt.withReplays), nil)
 			w := httptest.NewRecorder()
-
+			
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
-			assert.Equal(t, test.wantStatus, w.Code)
-			if test.wantStatus == http.StatusOK {
-				testutil.AssertRespBody(t, test.wantSuccess, w)
+			assert.Equal(t, tt.wantStatus, w.Code)
+			if tt.wantStatus == http.StatusOK {
+				testutil.AssertRespBody(t, tt.wantSuccess, w)
 			} else {
-				testutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w)
 			}
 		})
 	}
@@ -622,14 +640,14 @@ func TestGetPlayer(t *testing.T) {
 func TestGetChallenges(t *testing.T) {
 	t.Parallel()
 
-	for _, test := range []struct {
+	tests := []struct {
 		name         string
 		participants string
 		wantSuccess  GetChallengesResp
 		wantStatus   int
 	}{
 		{
-			name:         "got sent challenges",
+			name:         "GotSentChallenges",
 			participants: "sent",
 			wantSuccess: GetChallengesResp{
 				ChallengeList: []svc.ChallengeEntity{svc.TestChallengeEntities[0]},
@@ -637,30 +655,32 @@ func TestGetChallenges(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
-			name:         "got received challenges",
+			name:         "GotReceivedChallenges",
 			participants: "received",
 			wantSuccess: GetChallengesResp{
 				ChallengeList: []svc.ChallengeEntity{svc.TestChallengeEntities[1]},
 			},
 			wantStatus: http.StatusOK,
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/challenges?participants=%s", test.participants), nil)
-			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
-			w := httptest.NewRecorder()
+	}
 
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			services := svc.SetupServicesTest(t, itest.ROPostgres, itest.Redis)
 			defer services.Close()
 
 			createTestSessions(t, services)
 
+			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/challenges?participants=%s", tt.participants), nil)
+			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
+			w := httptest.NewRecorder()
+
 			services.EntropySource = &svc.StableEntropySource{Time: itest.TimeNow}
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
-			assert.Equal(t, test.wantStatus, w.Code)
-			testutil.AssertRespBody(t, test.wantSuccess, w)
+			assert.Equal(t, tt.wantStatus, w.Code)
+			testutil.AssertRespBody(t, tt.wantSuccess, w)
 		})
 	}
 }
@@ -668,7 +688,7 @@ func TestGetChallenges(t *testing.T) {
 func TestHandleGetUserReplays(t *testing.T) {
 	t.Parallel()
 
-	for _, test := range []struct {
+	tests := []struct {
 		name        string
 		afterID     string
 		userID      string
@@ -677,14 +697,14 @@ func TestHandleGetUserReplays(t *testing.T) {
 		wantStatus  int
 	}{
 		{
-			name:        "got no replays for nonexistent user",
+			name:        "GotNoReplaysForNonexistentUser",
 			userID:      "999",
 			afterID:     "0",
 			wantStatus:  http.StatusOK,
 			wantSuccess: GetUserReplaysResp{ReplayList: []svc.ReplayEntity{}},
 		},
 		{
-			name:       "got user replays",
+			name:       "GotUserReplays",
 			afterID:    "-1",
 			userID:     "1",
 			wantStatus: http.StatusOK,
@@ -694,28 +714,30 @@ func TestHandleGetUserReplays(t *testing.T) {
 			}},
 		},
 		{
-			name:       "invalid user id and after id",
+			name:       "InvalidUserIDAndAfterID",
 			afterID:    "abc",
 			userID:     "xyz",
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"afterId": ErrHttpInvalidID.Error(), "userId": ErrHttpInvalidID.Error()}},
 			wantStatus: http.StatusBadRequest,
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replays?afterId=%s&userId=%s", test.afterID, test.userID), nil)
-			w := httptest.NewRecorder()
+	}
 
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			services := svc.SetupServicesTest(t, itest.ROPostgres)
 			defer services.Close()
+
+			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replays?afterId=%s&userId=%s", tt.afterID, tt.userID), nil)
+			w := httptest.NewRecorder()
 
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
-			assert.Equal(t, test.wantStatus, w.Code)
+			assert.Equal(t, tt.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
-				testutil.AssertRespBody(t, test.wantSuccess, w)
+				testutil.AssertRespBody(t, tt.wantSuccess, w)
 			} else {
-				testutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w)
 			}
 		})
 	}
@@ -724,7 +746,7 @@ func TestHandleGetUserReplays(t *testing.T) {
 func TestHandleGetReplay(t *testing.T) {
 	t.Parallel()
 
-	for _, test := range []struct {
+	tests := []struct {
 		name        string
 		userID      string
 		wantSuccess GetReplayResp
@@ -732,33 +754,35 @@ func TestHandleGetReplay(t *testing.T) {
 		wantStatus  int
 	}{
 		{
-			name:        "got a replay",
+			name:        "GotAReplay",
 			userID:      "1",
 			wantStatus:  http.StatusOK,
 			wantSuccess: GetReplayResp{Replay: svc.TestReplayEntities[0]},
 		},
 		{
-			name:       "invalid user id",
+			name:       "InvalidUserID",
 			userID:     "xyz",
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"id": ErrHttpInvalidID.Error()}},
 			wantStatus: http.StatusBadRequest,
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			services := svc.SetupServicesTest(t, itest.ROPostgres)
 			defer services.Close()
 
-			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay?id=%s", test.userID), nil)
+			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay?id=%s", tt.userID), nil)
 			w := httptest.NewRecorder()
-
+			
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
-			assert.Equal(t, test.wantStatus, w.Code)
+			assert.Equal(t, tt.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
-				testutil.AssertRespBody(t, test.wantSuccess, w)
+				testutil.AssertRespBody(t, tt.wantSuccess, w)
 			} else {
-				testutil.AssertRespBody(t, test.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w)
 			}
 		})
 	}
@@ -773,10 +797,10 @@ func TestHandleGetChessMetas(t *testing.T) {
 	createTestSessions(t, services)
 	createTestChessStates(t, services)
 
-	r := httptest.NewRequest(http.MethodGet, "/api/chess/rooms", nil)
+	r := httptest.NewRequest(http.MethodGet, "/api/game/rooms", nil)
 	r.Header.Set("Cookie", FmtCookie(TestSessionID2))
-	w := httptest.NewRecorder()
 
+	w := httptest.NewRecorder()
 	h := MakeServeMux(Setup{Services: services})
 	h.ServeHTTP(w, r)
 

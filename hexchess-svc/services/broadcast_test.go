@@ -16,7 +16,6 @@ import (
 func TestBroadcastGameMessage(t *testing.T) {
 	// t.Parallel()
 
-	// given
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()
 
@@ -27,7 +26,6 @@ func TestBroadcastGameMessage(t *testing.T) {
 
 	wantMsgCount := 2
 
-	// when
 	subChan := make(chan []byte, wantMsgCount)
 	broadcasters.GamesCaster.Subscribe("1", subChan)
 
@@ -39,13 +37,13 @@ func TestBroadcastGameMessage(t *testing.T) {
 		{id: "2", msg: "test3"},
 		{id: "1", msg: "test2"},
 	} {
-		require.NoError(t, services.BroadcastGamesEvent(ctx, &pb.GameOutput{
+		err := services.BroadcastGamesEvent(ctx, &pb.GameOutput{
 			GameId: input.id,
 			Value:  &pb.GameOutput_Chat{Chat: &pb.ChatMessage{Message: input.msg}},
-		}))
+		})
+		require.NoError(t, err)
 	}
 
-	// then
 	var messages []string
 	for range wantMsgCount {
 		select {

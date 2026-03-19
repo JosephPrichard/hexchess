@@ -16,7 +16,6 @@ import (
 func TestLeaderboard(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()
 
@@ -27,8 +26,7 @@ func TestLeaderboard(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	// when
-	for _, c := range []UpdtLbChangeSet{
+	for _, change := range []UpdtLbChangeSet{
 		{ModeCorrespondence7, id4, 835},
 		{ModeCorrespondence7, id1, 1500},
 		{ModeCorrespondence7, id2, 1000},
@@ -37,7 +35,7 @@ func TestLeaderboard(t *testing.T) {
 		{ModeTimed1Plus0, id4, 1010},
 		{ModeTimed1Plus0, id1, 900},
 	} {
-		require.NoError(t, services.IncrLeaderboard(ctx, c))
+		require.NoError(t, services.IncrLeaderboard(ctx, change))
 	}
 
 	ranks := make([]map[string]LbRank, 0)
@@ -62,7 +60,6 @@ func TestLeaderboard(t *testing.T) {
 		leaderboards = append(leaderboards, leaderboard)
 	}
 
-	// then
 	wantRanks := []map[string]LbRank{
 		{
 			ModeCorrespondence7.String(): {Rank: 1, Score: 1500},
@@ -103,7 +100,7 @@ func TestLeaderboard(t *testing.T) {
 func TestGetLeaderboardUsers(t *testing.T) {
 	t.Parallel()
 
-	for _, test := range []struct {
+	tests := []struct {
 		name            string
 		mode            GameMode
 		rankedUsers     []RankedUser
@@ -111,7 +108,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 		wantMissingIDs  []int64
 	}{
 		{
-			name:        "getting leaderboard with invalid ID",
+			name:        "GettingLeaderboardWithInvalidID",
 			mode:        ModeTimed1Plus0,
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 999999}},
 			wantLeaderboard: []LbdUserEntity{
@@ -128,7 +125,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 			wantMissingIDs: []int64{999999},
 		},
 		{
-			name:        "getting valid leaderboard users",
+			name:        "GettingValidLeaderboardUsers",
 			mode:        ModeCorrespondence7,
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 3}},
 			wantLeaderboard: []LbdUserEntity{
@@ -149,21 +146,21 @@ func TestGetLeaderboardUsers(t *testing.T) {
 				},
 			},
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			// given
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
 			services := SetupServicesTest(t, itest.ROPostgres)
 			defer services.Close()
 
-			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
+			ctx := context.WithValue(t.Context(), logutil.Trace, tt.name)
 
-			// when
-			leaderboard, missingIDs, err := services.GetLeaderboardUsers(ctx, test.mode, test.rankedUsers)
+			leaderboard, missingIDs, err := services.GetLeaderboardUsers(ctx, tt.mode, tt.rankedUsers)
 
-			// then
-			assert.Equal(t, test.wantMissingIDs, missingIDs)
+			assert.Equal(t, tt.wantMissingIDs, missingIDs)
 			require.NoError(t, err)
-			testutil.Equal(t, test.wantLeaderboard, leaderboard)
+			testutil.Equal(t, tt.wantLeaderboard, leaderboard)
 		})
 	}
 }
@@ -171,16 +168,14 @@ func TestGetLeaderboardUsers(t *testing.T) {
 func TestGetFuzzySearchLeaderboard(t *testing.T) {
 	t.Parallel()
 
-	// given
-	services := SetupServicesTest(t, itest.RWPostgres)
+	services := SetupServicesTest(t, itest.ROPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-	// when
+
 	users, err := services.GetFuzzySearchLeaderboard(ctx, "john", 1, 20)
 	require.NoError(t, err)
 
-	// then
 	wantUsers := []LbdUserEntity{
 		{UserEntity: UserEntity{ID: 8, Username: "john", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
 			Elo:        1500,

@@ -15,17 +15,14 @@ import (
 func TestGetReplay(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	// when
 	actualReplay1, err := services.GetReplay(ctx, 1)
 	require.NoError(t, err)
 
-	// then
 	wantReplay := ReplayEntity{
 		ID:           1,
 		WhiteID:      1,
@@ -51,19 +48,16 @@ func TestGetReplay(t *testing.T) {
 func TestGetUserReplays(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	// when
 	actualReplayList1, err := services.GetUserReplays(ctx, 1, -1, 5)
 	require.NoError(t, err)
 	actualReplayList2, err := services.GetUserReplays(ctx, 1, 3, 5)
 	require.NoError(t, err)
 
-	// then
 	replay1 := TestReplayEntities[0]
 	replay3 := TestReplayEntities[1]
 	expectedReplayList1 := []ReplayEntity{replay3, replay1}
@@ -114,17 +108,15 @@ func TestRetrieveEloHistories(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			// given
+
 			services := SetupServicesTest(t, itest.ROPostgres)
 			defer services.Close()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
 
-			// when
 			eloHistories, bd, err := services.RetrieveEloHistoryBuckets(ctx, test.params)
 			require.NoError(t, err)
 
-			// then
 			assert.Equal(t, test.wantEloBuckets, eloHistories)
 			assert.Equal(t, test.wantBucketDuration, bd)
 		})

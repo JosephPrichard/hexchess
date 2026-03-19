@@ -22,7 +22,6 @@ import (
 func TestHandleGetMoveReplay(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := svc.SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
 
@@ -45,7 +44,6 @@ func TestHandleGetMoveReplay(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay/move-list?replayId=%d", 1), nil)
 	w := httptest.NewRecorder()
 
-	// when
 	hander := MakeServeMux(Setup{Services: services})
 	hander.ServeHTTP(w, r)
 
@@ -55,7 +53,6 @@ func TestHandleGetMoveReplay(t *testing.T) {
 	var pbMoveHist pb.MoveHistory
 	require.NoError(t, proto.Unmarshal(body, &pbMoveHist))
 
-	// then
 	wantMoveReplay := &pb.MoveHistory{
 		InitialGame: pbInitialGame,
 		Steps: []*pb.HistMove{

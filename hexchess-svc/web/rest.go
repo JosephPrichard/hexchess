@@ -1040,18 +1040,18 @@ func (server *Server) HandleGetChessMetas(w http.ResponseWriter, r *http.Request
 		return fmt.Errorf("get chess metas page %d: %w", query.Page, err)
 	}
 
-	var myChessMetas []svc.ChessMeta
+	var selfChessMetas []svc.ChessMeta
 	if hasSession {
-		chesMetas, err := server.Services.GetUserChessMetas(ctx, player.ID)
+		chessMetas, err := server.Services.GetUserChessMetas(ctx, player.ID)
 		if err != nil {
 			return fmt.Errorf("get user %d chess metas: %w", player.ID, err)
 		}
-		myChessMetas = chesMetas
+		selfChessMetas = chessMetas
 	}
 
 	writeJSON(w, http.StatusOK, ChessMetasResp{
 		ChessList:     mapChessMetas(allChessMetas),
-		SelfChessList: mapChessMetas(myChessMetas),
+		SelfChessList: mapChessMetas(selfChessMetas),
 	})
 	return nil
 }

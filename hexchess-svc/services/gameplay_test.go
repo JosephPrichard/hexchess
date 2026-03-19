@@ -5,6 +5,7 @@ import (
 	"hexchess-svc/chess"
 	"hexchess-svc/itest"
 	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/pkg/testutil"
 	"testing"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -14,118 +15,123 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestJoinGame_JoinWhite(t *testing.T) {
-	t.Parallel()
-
-	// given
-	services := SetupServicesTest(t, itest.Redis)
-	defer services.Close()
-
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-
-	gameID := uuid.NewString()
-	inState := MakeChessState(StateSetup{ID: gameID, Mode: ModeCorrespondence1, FirstColor: Random})
-	inState.FirstColor = White
-	player := MakePlayer(1, "name", "us")
-
-	// when
-	require.NoError(t, services.SetChessState(ctx, gameID, &inState))
-
-	updatedState, err := services.JoinGame(ctx, gameID, player)
-	require.NoError(t, err)
-
-	// then
-	wantState := inState.DeepCopy()
-	wantState.WhitePlayer = player
-
-	AssertChessState(t, wantState, updatedState, ChessMetaCmpOpt)
-	AssertRedisChessState(t, &services, *updatedState, ChessMetaCmpOpt)
+func mutateGame(state *ChessState, fn func(s *ChessState)) *ChessState {
+	s := state.DeepCopy()
+	fn(&s)
+	return &s
 }
 
-func TestJoinGame_BothPlayersExist(t *testing.T) {
+func seedGames(t *testing.T, services *Services, games ...*ChessState) {
+	t.Helper()
+	for _, g := range games {
+		require.NoError(t, services.SetChessState(t.Context(), g.ID, g))
+	}
+}
+
+func TestJoinGame(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-
-	gameID := uuid.NewString()
-	inState := MakeChessState(StateSetup{
-		ID:         gameID,
+	whiteGame := MakeChessState(StateSetup{
+		ID:         "test-join-white-" + uuid.NewString(),
+		Mode:       ModeCorrespondence1,
+		FirstColor: White,
+	})
+	fullGame := MakeChessState(StateSetup{
+		ID:         "test-join-full-" + uuid.NewString(),
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      PlayerState{ID: 1, Name: "white", Present: true},
 		Black:      PlayerState{ID: 2, Name: "black", Present: true},
 	})
+	missingGameID := "test-join-missing-" + uuid.NewString()
 
-	// when
-	require.NoError(t, services.SetChessState(ctx, gameID, &inState))
+	seedGames(t, &services, whiteGame, fullGame)
 
-	resultState, err := services.JoinGame(ctx, gameID, PlayerState{ID: 3, Name: "testing", Present: true})
-	require.NoError(t, err)
+	tests := []struct {
+		name       string
+		gameID     string
+		joinPlayer PlayerState
+		wantGame   *ChessState
+		wantErr    error
+	}{
+		{
+			name:       "JoinWhite",
+			gameID:     whiteGame.ID,
+			joinPlayer: MakePlayer(1, "name", "us"),
+			wantGame: mutateGame(whiteGame, func(s *ChessState) {
+				s.WhitePlayer = MakePlayer(1, "name", "us")
+			}),
+		},
+		{
+			name:       "BothPlayersExist",
+			gameID:     fullGame.ID,
+			joinPlayer: PlayerState{ID: 3, Name: "testing", Present: true},
+			wantGame:   fullGame,
+		},
+		{
+			name:       "GameNotFound",
+			gameID:     missingGameID,
+			joinPlayer: MakePlayer(4, "ghost", "us"),
+			wantErr:    ErrNoChessState,
+		},
+	}
 
-	// then
-	AssertChessState(t, inState, resultState, ChessMetaCmpOpt)
-	AssertRedisChessState(t, &services, inState, ChessMetaCmpOpt)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+
+			updatedState, err := services.JoinGame(ctx, tt.gameID, tt.joinPlayer)
+
+			assert.Equal(t, tt.wantErr, err)
+			testutil.Equal(t, tt.wantGame, updatedState, ChessMetaCmpOpt)
+			AssertRedisChessState(t, &services, tt.wantGame, ChessMetaCmpOpt)
+		})
+	}
 }
 
 func TestAttemptUndo(t *testing.T) {
 	t.Parallel()
 
-	// given
-	testID1 := "test1_" + uuid.NewString()
-	testID2 := "test2_" + uuid.NewString()
-	inState1 := MakeChessState(StateSetup{
-		ID:         testID1,
-		Mode:       ModeCorrespondence1,
-		FirstColor: Random,
-		White:      PlayerState{ID: 1, Name: "white", Present: true},
-		Black:      PlayerState{ID: 2, Name: "black", Present: true},
-	})
-	inState2 := MakeChessState(StateSetup{
-		ID:         testID2,
-		Mode:       ModeCorrespondence1,
-		FirstColor: Random,
-		White:      PlayerState{ID: 1, Name: "white", Present: true},
-		Black:      PlayerState{ID: 2, Name: "black", Present: true},
-	})
-	inState2.Game.Moves = []chess.HistMove{{PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}}}}
-
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()
-	
-	for _, state := range []ChessState{
-		inState1, 
-		inState2,
-	} {
-		if err := services.SetChessState(context.Background(), state.ID, &state); err != nil {
-			t.Fatalf("failed initialize testing s: %v", err)
-		}
-	}
 
-	makeWantState := func(inState *ChessState, fn func(s *ChessState)) ChessState {
-		s := inState.DeepCopy()
-		fn(&s)
-		return s
-	}
+	noMovesGame := MakeChessState(StateSetup{
+		ID:         "test-undo-no-moves-" + uuid.NewString(),
+		Mode:       ModeCorrespondence1,
+		FirstColor: Random,
+		White:      PlayerState{ID: 1, Name: "white", Present: true},
+		Black:      PlayerState{ID: 2, Name: "black", Present: true},
+	})
+	withMovesGame := MakeChessState(StateSetup{
+		ID:         "test-undo-with-moves-" + uuid.NewString(),
+		Mode:       ModeCorrespondence1,
+		FirstColor: Random,
+		White:      PlayerState{ID: 1, Name: "white", Present: true},
+		Black:      PlayerState{ID: 2, Name: "black", Present: true},
+	})
+	withMovesGame.Game.Moves = []chess.HistMove{{PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}}}}
+	missingGameID := "test-undo-missing-" + uuid.NewString()
+
+	seedGames(t, &services, noMovesGame, withMovesGame)
 
 	type subTest struct {
-		kind      UndoKind
-		player    PlayerState
-		wantState ChessState
-		wantErr   error
+		kind     UndoKind
+		player   PlayerState
+		wantGame *ChessState
+		wantErr  error
 	}
 
-	for _, test := range []struct {
+	tests := []struct {
 		name   string
 		gameID string
 		tests  []subTest
 	}{
 		{
-			name:   "trying to undo an invalid game",
-			gameID: uuid.NewString(),
+			name:   "TryingToUndoAnInvalidGame",
+			gameID: missingGameID,
 			tests: []subTest{
 				{
 					wantErr: ErrNoChessState,
@@ -133,56 +139,68 @@ func TestAttemptUndo(t *testing.T) {
 			},
 		},
 		{
-			name:   "creating then accepting an undo",
-			gameID: testID2,
+			name:   "CreatingThenAcceptingAnUndo",
+			gameID: withMovesGame.ID,
 			tests: []subTest{
 				{
-					kind:      UndoCreate,
-					player:    PlayerState{ID: 2, Name: "black", Present: true},
-					wantState: makeWantState(&inState2, func(s *ChessState) { s.UndoState = UndoState{UndoID: 2} }),
+					kind:   UndoCreate,
+					player: PlayerState{ID: 2, Name: "black", Present: true},
+					wantGame: mutateGame(withMovesGame, func(s *ChessState) {
+						s.UndoState = UndoState{UndoID: 2}
+					}),
 				},
 				{
-					kind:      UndoAccept,
-					player:    PlayerState{ID: 1, Name: "white", Present: true},
-					wantState: makeWantState(&inState2, func(s *ChessState) { s.UndoState = UndoState{} }),
+					kind:   UndoAccept,
+					player: PlayerState{ID: 1, Name: "white", Present: true},
+					wantGame: mutateGame(withMovesGame, func(s *ChessState) {
+						s.UndoState = UndoState{}
+					}),
 				},
 			},
 		},
 		{
-			name:   "creating then rejecting own undo",
-			gameID: testID1,
+			name:   "CreatingThenRejectingOwnUndo",
+			gameID: noMovesGame.ID,
 			tests: []subTest{
 				{
-					kind:      UndoCreate,
-					player:    PlayerState{ID: 2, Name: "black", Present: true},
-					wantState: makeWantState(&inState1, func(s *ChessState) { s.UndoState = UndoState{UndoID: 2} }),
+					kind:   UndoCreate,
+					player: PlayerState{ID: 2, Name: "black", Present: true},
+					wantGame: mutateGame(noMovesGame, func(s *ChessState) {
+						s.UndoState = UndoState{UndoID: 2}
+					}),
 				},
 				{
-					kind:      UndoReject,
-					player:    PlayerState{ID: 2, Name: "black", Present: true},
-					wantState: makeWantState(&inState1, func(s *ChessState) { s.UndoState = UndoState{} }),
+					kind:   UndoReject,
+					player: PlayerState{ID: 2, Name: "black", Present: true},
+					wantGame: mutateGame(noMovesGame, func(s *ChessState) {
+						s.UndoState = UndoState{}
+					}),
 				},
 			},
 		},
 		{
-			name:   "creating then rejecting undo",
-			gameID: testID1,
+			name:   "CreatingThenRejectingUndo",
+			gameID: noMovesGame.ID,
 			tests: []subTest{
 				{
-					kind:      UndoCreate,
-					player:    PlayerState{ID: 2, Name: "black", Present: true},
-					wantState: makeWantState(&inState1, func(s *ChessState) { s.UndoState = UndoState{UndoID: 2} }),
+					kind:   UndoCreate,
+					player: PlayerState{ID: 2, Name: "black", Present: true},
+					wantGame: mutateGame(noMovesGame, func(s *ChessState) {
+						s.UndoState = UndoState{UndoID: 2}
+					}),
 				},
 				{
-					kind:      UndoReject,
-					player:    PlayerState{ID: 1, Name: "white", Present: true},
-					wantState: makeWantState(&inState1, func(s *ChessState) { s.UndoState = UndoState{} }),
+					kind:   UndoReject,
+					player: PlayerState{ID: 1, Name: "white", Present: true},
+					wantGame: mutateGame(noMovesGame, func(s *ChessState) {
+						s.UndoState = UndoState{}
+					}),
 				},
 			},
 		},
 		{
-			name:   "rejecting and accepting an undo without creating",
-			gameID: testID1,
+			name:   "RejectingAndAcceptingAnUndoWithoutCreating",
+			gameID: noMovesGame.ID,
 			tests: []subTest{
 				{
 					kind:    UndoReject,
@@ -197,13 +215,15 @@ func TestAttemptUndo(t *testing.T) {
 			},
 		},
 		{
-			name:   "creating an undo, accepting it as the creator, then accepting it with no previous moves",
-			gameID: testID1,
+			name:   "CreatingAnUndoAcceptingAsCreatorThenAcceptingWithNoPreviousMoves",
+			gameID: noMovesGame.ID,
 			tests: []subTest{
 				{
-					kind:      UndoCreate,
-					player:    PlayerState{ID: 2, Name: "black", Present: true},
-					wantState: makeWantState(&inState1, func(s *ChessState) { s.UndoState = UndoState{UndoID: 2} }),
+					kind:   UndoCreate,
+					player: PlayerState{ID: 2, Name: "black", Present: true},
+					wantGame: mutateGame(noMovesGame, func(s *ChessState) {
+						s.UndoState = UndoState{UndoID: 2}
+					}),
 				},
 				{
 					kind:    UndoAccept,
@@ -217,23 +237,21 @@ func TestAttemptUndo(t *testing.T) {
 				},
 			},
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			// given
-			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
+	}
 
-			for _, subTest := range test.tests {
-				// when
-				state, err := services.AttemptGameUndo(ctx, test.gameID, subTest.player, subTest.kind)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.WithValue(t.Context(), logutil.Trace, tt.name)
 
-				// then
+			for _, subTest := range tt.tests {
+
+				updatedState, err := services.AttemptGameUndo(ctx, tt.gameID, subTest.player, subTest.kind)
+
 				assert.Equal(t, subTest.wantErr, err)
-				
-				if subTest.wantErr == nil {
-					cmptOpts := cmpopts.IgnoreFields(ChessState{}, "Game", "Touch")
-					AssertChessState(t, subTest.wantState, state, cmptOpts)
-					AssertRedisChessState(t, &services, *state, cmptOpts)
-				}
+
+				cmptOpts := cmpopts.IgnoreFields(ChessState{}, "Game", "Touch")
+				testutil.Equal(t, subTest.wantGame, updatedState, cmptOpts)
+				AssertRedisChessState(t, &services, updatedState, cmptOpts)
 			}
 		})
 	}
@@ -242,16 +260,15 @@ func TestAttemptUndo(t *testing.T) {
 func TestMakeMove(t *testing.T) {
 	t.Parallel()
 
-	// given
 	stateWhiteTurn := MakeChessState(StateSetup{
-		ID:         "test1",
+		ID:         "test-makemove-white-turn-" + uuid.NewString(),
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      PlayerState{ID: 1, Present: true},
 		Black:      PlayerState{ID: 2, Present: true},
 	})
 	stateEnded := MakeChessState(StateSetup{
-		ID:         "test2",
+		ID:         "test-makemove-ended-" + uuid.NewString(),
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      PlayerState{ID: 1, Present: true},
@@ -259,13 +276,13 @@ func TestMakeMove(t *testing.T) {
 		EndState:   Finished,
 	})
 	stateNotStarted := MakeChessState(StateSetup{
-		ID:         "test3",
+		ID:         "test-makemove-not-started-" + uuid.NewString(),
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      PlayerState{ID: 1, Present: true},
 	})
-	stateBlackIntoCheckmate := MakeChessState(StateSetup{
-		ID:         "test4",
+	stateIntoCheckmate := MakeChessState(StateSetup{
+		ID:         "test-makemove-checkmate-" + uuid.NewString(),
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      PlayerState{ID: 3, Present: true},
@@ -278,272 +295,235 @@ func TestMakeMove(t *testing.T) {
 			chess.Place{Not: "f9", Piece: chess.BlackKing},
 		)),
 	})
+	missingGameID := "test-makemove-missing-" + uuid.NewString()
 
-	stateWtMutated := stateWhiteTurn.DeepCopy()
-	stateWtMutated.Game.MakeMove(chess.MoveStr("b1", "b2"))
-	stateWtMutated.Game.InitPieceMoves()
-	stateWtMutated.Game.ClearTables()
-	stateWtMutated.Game.Moves = []chess.HistMove{
-		{PieceMove: chess.PieceMove{Piece: chess.WhitePawn, From: chess.HexStr("b1"), To: chess.HexStr("b2")}, Notation: "Pb2"},
-	}
-
-	stateCheckmateMutated := stateBlackIntoCheckmate.DeepCopy()
-	stateCheckmateMutated.Game.MakeMove(chess.MoveStr("a2", "a1"))
-	stateCheckmateMutated.Game.InitPieceMoves()
-	stateCheckmateMutated.Game.ClearTables()
-	stateCheckmateMutated.Game.Moves = []chess.HistMove{
-		{PieceMove: chess.PieceMove{Piece: chess.BlackQueen, From: chess.HexStr("a2"), To: chess.HexStr("a1")}, Notation: "qa1"},
-	}
-	stateCheckmateMutated.EndState = Finished
+	stateWhiteMoved := mutateGame(stateWhiteTurn, func(s *ChessState) {
+		s.Game.MakeMove(chess.MoveStr("b1", "b2"))
+		s.Game.InitPieceMoves()
+		s.Game.ClearTables()
+		s.Game.Moves = []chess.HistMove{
+			{PieceMove: chess.PieceMove{Piece: chess.WhitePawn, From: chess.HexStr("b1"), To: chess.HexStr("b2")}, Notation: "Pb2"},
+		}
+	})
+	stateCheckmated := mutateGame(stateIntoCheckmate, func(s *ChessState) {
+		s.Game.MakeMove(chess.MoveStr("a2", "a1"))
+		s.Game.InitPieceMoves()
+		s.Game.ClearTables()
+		s.Game.Moves = []chess.HistMove{
+			{PieceMove: chess.PieceMove{Piece: chess.BlackQueen, From: chess.HexStr("a2"), To: chess.HexStr("a1")}, Notation: "qa1"},
+		}
+		s.EndState = Finished
+	})
 
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()
 
-	for _, state := range []ChessState{
-		stateWhiteTurn,
-		stateEnded,
-		stateNotStarted,
-		stateBlackIntoCheckmate,
-	} {
-		if err := services.SetChessState(context.Background(), state.ID, &state); err != nil {
-			t.Fatalf("failed initialize test state: %v", err)
-		}
-	}
+	seedGames(t, &services, stateWhiteTurn, stateEnded, stateNotStarted, stateIntoCheckmate)
 
-	for _, test := range []struct {
-		name        string
-		move        chess.Move
-		stateID     string
-		player      PlayerState
-		wantErr     error
-		wantEndKind EndKind
-		wantState   *ChessState
+	tests := []struct {
+		name     string
+		move     chess.Move
+		stateID  string
+		player   PlayerState
+		wantErr  error
+		wantGame *ChessState
 	}{
 		{
-			name:   "game doesn't exist",
-			stateID: uuid.NewString(),
+			name:    "GameDoesNotExist",
+			stateID: missingGameID,
 			wantErr: ErrNoChessState,
 		},
 		{
-			name:      "invalid turn",
-			move:      chess.Move{To: chess.Hex{File: 1}},
-			stateID:   stateWhiteTurn.ID,
-			player:    stateWhiteTurn.BlackPlayer,
-			wantErr:   ErrTurn{GameID: "test1", PlayerID: 2, CurrID: 1},
-			wantState: &stateWhiteTurn,
+			name:     "InvalidTurn",
+			move:     chess.Move{To: chess.Hex{File: 1}},
+			stateID:  stateWhiteTurn.ID,
+			player:   stateWhiteTurn.BlackPlayer,
+			wantErr:  ErrTurn{GameID: stateWhiteTurn.ID, PlayerID: 2, CurrID: 1},
+			wantGame: stateWhiteTurn,
 		},
 		{
-			name:      "invalid ended move",
-			move:      chess.Move{To: chess.Hex{File: 1}},
-			stateID:   stateEnded.ID,
-			player:    stateEnded.WhitePlayer,
-			wantErr:   ErrFinishedGame{GameID: "test2"},
-			wantState: &stateEnded,
+			name:     "InvalidEndedMove",
+			move:     chess.Move{To: chess.Hex{File: 1}},
+			stateID:  stateEnded.ID,
+			player:   stateEnded.WhitePlayer,
+			wantErr:  ErrFinishedGame{GameID: stateEnded.ID},
+			wantGame: stateEnded,
 		},
 		{
-			name:      "invalid not started move",
-			move:      chess.Move{To: chess.Hex{File: 1}},
-			stateID:   stateNotStarted.ID,
-			player:    stateNotStarted.WhitePlayer,
-			wantErr:   ErrStartedGame{GameID: "test3"},
-			wantState: &stateNotStarted,
+			name:     "InvalidNotStartedMove",
+			move:     chess.Move{To: chess.Hex{File: 1}},
+			stateID:  stateNotStarted.ID,
+			player:   stateNotStarted.WhitePlayer,
+			wantErr:  ErrStartedGame{GameID: stateNotStarted.ID},
+			wantGame: stateNotStarted,
 		},
 		{
-			name:    "invalid move",
+			name:    "InvalidMove",
 			move:    chess.Move{To: chess.Hex{File: 1}},
 			stateID: stateWhiteTurn.ID,
 			player:  stateWhiteTurn.WhitePlayer,
 			wantErr: ErrInvalidMove{
-				GameID:    "test1",
+				GameID:    stateWhiteTurn.ID,
 				PlayerID:  1,
 				Violation: chess.MoveError{Kind: chess.MoveErrIllegalTarget, Move: chess.Move{To: chess.Hex{File: 1}}},
 			},
-			wantState: &stateWhiteTurn,
+			wantGame: stateWhiteTurn,
 		},
 		{
-			name:      "valid move as white",
-			move:      chess.MoveStr("b1", "b2"), // valid move
-			stateID:   stateWhiteTurn.ID,
-			player:    stateWhiteTurn.WhitePlayer,
-			wantState: &stateWtMutated,
+			name:     "ValidMoveAsWhite",
+			move:     chess.MoveStr("b1", "b2"),
+			stateID:  stateWhiteTurn.ID,
+			player:   stateWhiteTurn.WhitePlayer,
+			wantGame: stateWhiteMoved,
 		},
 		{
-			name:        "valid move as black into checkmate",
-			move:        chess.MoveStr("a2", "a1"), // valid move
-			stateID:     stateBlackIntoCheckmate.ID,
-			player:      stateBlackIntoCheckmate.BlackPlayer,
-			wantEndKind: Finished,
-			wantState:   &stateCheckmateMutated,
+			name:     "ValidMoveAsBlackIntoCheckmate",
+			move:     chess.MoveStr("a2", "a1"),
+			stateID:  stateIntoCheckmate.ID,
+			player:   stateIntoCheckmate.BlackPlayer,
+			wantGame: stateCheckmated,
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			// when
-			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
-			moveResult, err := services.MakeGameMove(ctx, test.stateID, test.player, test.move)
+	}
 
-			// then
-			assert.Equal(t, test.wantErr, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.WithValue(t.Context(), logutil.Trace, tt.name)
 
-			if test.wantState != nil {
-				AssertRedisChessState(t, &services, *test.wantState, ChessMetaCmpOpt)
-			}
-			if test.wantState != nil && moveResult.State != nil {
-				AssertChessState(t, *test.wantState, moveResult.State, ChessMetaCmpOpt)
+			moveResult, err := services.MakeGameMove(ctx, tt.stateID, tt.player, tt.move)
+
+			assert.Equal(t, tt.wantErr, err)
+			AssertRedisChessState(t, &services, tt.wantGame, ChessMetaCmpOpt)
+			if tt.wantErr == nil {
+				testutil.Equal(t, tt.wantGame, moveResult.State, ChessMetaCmpOpt)
 			}
 		})
 	}
 }
 
+func TestForfeit(t *testing.T) {
+	t.Parallel()
+
+	services := SetupServicesTest(t, itest.Redis)
+	defer services.Close()
+
+	abortGame := MakeChessState(StateSetup{
+		ID:         "test-forfeit-abort-" + uuid.NewString(),
+		Mode:       ModeCorrespondence1,
+		FirstColor: Random,
+		White:      PlayerState{ID: 1, Present: true},
+	})
+	forfeitGame := MakeChessState(StateSetup{
+		ID:         "test-forfeit-full-" + uuid.NewString(),
+		Mode:       ModeCorrespondence1,
+		FirstColor: Random,
+		White:      PlayerState{ID: 1, Present: true},
+		Black:      PlayerState{ID: 2, Present: true},
+	})
+	forfeitGame.Game.Moves = []chess.HistMove{{
+		PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}},
+	}}
+
+	seedGames(t, &services, abortGame, forfeitGame)
+
+	t.Run("Abort", func(t *testing.T) {
+		ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+
+		endState, err := services.EndGame(ctx, abortGame.ID, abortGame.WhitePlayer)
+		require.NoError(t, err)
+		assert.Equal(t, Aborted, endState)
+
+		wantGame := mutateGame(abortGame, func(s *ChessState) {
+			s.EndState = Aborted
+		})
+		AssertRedisChessState(t, &services, wantGame, ChessMetaCmpOpt)
+
+		gameKey := services.MakeGameKey(abortGame.ID)
+		zRankErr := services.Redis.Cache.ZRank(ctx, services.Redis.GamesZSet, gameKey).Err()
+		assert.Equal(t, redis.Nil, zRankErr)
+		zRankErr = services.Redis.Cache.ZRank(ctx, services.GetUserGameZSet(abortGame.WhitePlayer.ID), gameKey).Err()
+		assert.Equal(t, redis.Nil, zRankErr)
+	})
+
+	t.Run("Forfeit", func(t *testing.T) {
+		ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+
+		endState, err := services.EndGame(ctx, forfeitGame.ID, forfeitGame.BlackPlayer)
+		require.NoError(t, err)
+		assert.Equal(t, Finished, endState)
+
+		wantGame := mutateGame(forfeitGame, func(s *ChessState) {
+			s.EndState = Finished
+		})
+		AssertRedisChessState(t, &services, wantGame, ChessMetaCmpOpt)
+	})
+}
+
 func TestForfeit_Errors(t *testing.T) {
 	t.Parallel()
 
-	// given
-	gameID1 := "testing-id1-" + uuid.NewString()
-	gameID2 := "testing-id2-" + uuid.NewString()
-	gameID3 := "testing-id2-" + uuid.NewString()
+	services := SetupServicesTest(t, itest.Redis)
+	defer services.Close()
 
-	state1 := MakeChessState(StateSetup{
-		ID:         gameID1,
+	endedGame := MakeChessState(StateSetup{
+		ID:         "test-forfeit-err-ended-" + uuid.NewString(),
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      PlayerState{ID: 1, Present: true},
 		Black:      PlayerState{ID: 2, Present: true},
 		EndState:   Finished,
 	})
-	state2 := MakeChessState(StateSetup{
-		ID:         gameID2,
+	cannotAbortGame := MakeChessState(StateSetup{
+		ID:         "test-forfeit-err-cannot-abort-" + uuid.NewString(),
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      PlayerState{ID: 2, Present: true},
 	})
-	state3 := MakeChessState(StateSetup{
-		ID:         gameID3,
+	notPlayerGame := MakeChessState(StateSetup{
+		ID:         "test-forfeit-err-not-player-" + uuid.NewString(),
 		Mode:       ModeCorrespondence1,
 		FirstColor: Random,
 		White:      PlayerState{ID: 3, Present: true},
 		Black:      PlayerState{ID: 4, Present: true},
 	})
+	missingGameID := "test-forfeit-err-missing-" + uuid.NewString()
 
-	services := SetupServicesTest(t, itest.Redis)
-	defer services.Close()
+	seedGames(t, &services, endedGame, cannotAbortGame, notPlayerGame)
 
-	for _, state := range []ChessState{
-		state1,
-		state2,
-		state3,
-	} {
-		if err := services.SetChessState(context.Background(), state.ID, &state); err != nil {
-			t.Fatalf("failed initialize test state: %v", err)
-		}
-	}
-
-	for _, test := range []struct {
+	tests := []struct {
 		name    string
 		gameID  string
 		player  PlayerState
 		wantErr error
 	}{
 		{
-			name: "game doesn't exist",
-			gameID: uuid.NewString(),
+			name:    "GameDoesNotExist",
+			gameID:  missingGameID,
 			wantErr: ErrNoChessState,
 		},
 		{
-			name: "is already ended",
-			gameID: gameID1,
-			wantErr: ErrFinishedGame{GameID: gameID1},
+			name:    "IsAlreadyEnded",
+			gameID:  endedGame.ID,
+			wantErr: ErrFinishedGame{GameID: endedGame.ID},
 		},
 		{
-			name: "cannot abort without being a player",
-			gameID: gameID2,
+			name:    "CannotAbortWithoutBeingAPlayer",
+			gameID:  cannotAbortGame.ID,
 			wantErr: ErrForfeitPlayer,
 		},
 		{
-			name: "isn't a player",
-			gameID: gameID3,
+			name:    "IsNotAPlayer",
+			gameID:  notPlayerGame.ID,
 			wantErr: ErrForfeitPlayer,
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) { 
-			// given
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-			// when
-			_, forfeitErr := services.EndGame(ctx, test.gameID, PlayerState{ID: 1, Present: true})
+			_, forfeitErr := services.EndGame(ctx, tt.gameID, PlayerState{ID: 1, Present: true})
 
-			// then
-			assert.Equal(t, test.wantErr, forfeitErr)
+			assert.Equal(t, tt.wantErr, forfeitErr)
 		})
 	}
-}
-
-func TestForfeit_Abort(t *testing.T) {
-	t.Parallel()
-
-	// given
-	services := SetupServicesTest(t, itest.Redis)
-	defer services.Close()
-
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-
-	gameID := uuid.NewString()
-	inState := MakeChessState(StateSetup{
-		ID:         gameID,
-		Mode:       ModeCorrespondence1,
-		FirstColor: Random,
-		White:      PlayerState{ID: 1, Present: true},
-	})
-
-	// when
-	require.NoError(t, services.SetChessState(ctx, gameID, &inState))
-	endState, err := services.EndGame(ctx, gameID, inState.WhitePlayer)
-	require.NoError(t, err)
-
-	assert.Equal(t, Aborted, endState)
-
-	// then
-	wantState := inState.DeepCopy()
-	wantState.EndState = Aborted
-	AssertRedisChessState(t, &services, wantState, ChessMetaCmpOpt)
-
-	// checks that the aborted state is removed from the games and users zsets
-	gameKey := services.MakeGameKey(gameID)
-	zRankErr := services.Redis.Cache.ZRank(ctx, services.Redis.GamesZSet, gameKey).Err()
-	assert.Equal(t, redis.Nil, zRankErr)
-	zRankErr = services.Redis.Cache.ZRank(ctx, services.GetUserGameZSet(inState.WhitePlayer.ID), gameKey).Err()
-	assert.Equal(t, redis.Nil, zRankErr)
-}
-
-func TestForfeit(t *testing.T) {
-	t.Parallel()
-
-	// given
-	services := SetupServicesTest(t, itest.Redis)
-	defer services.Close()
-
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-
-	gameID := uuid.NewString()
-	inState := MakeChessState(StateSetup{
-		ID:         gameID,
-		Mode:       ModeCorrespondence1,
-		FirstColor: Random,
-		White:      PlayerState{ID: 1, Present: true},
-		Black:      PlayerState{ID: 2, Present: true},
-	})
-	inState.Game.Moves = []chess.HistMove{{
-		PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}},
-	}}
-
-	// when
-	require.NoError(t, services.SetChessState(ctx, gameID, &inState))
-	endState, err := services.EndGame(ctx, gameID, inState.BlackPlayer)
-	require.NoError(t, err)
-
-	assert.Equal(t, Finished, endState)
-
-	// then
-	wantState := inState.DeepCopy()
-	wantState.EndState = Finished
-	AssertRedisChessState(t, &services, wantState, ChessMetaCmpOpt)
 }

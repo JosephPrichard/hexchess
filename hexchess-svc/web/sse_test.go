@@ -22,7 +22,7 @@ import (
 
 func scanEvents(ctx context.Context, resp *http.Response, wantEvents int) []string {
 	var events []string
-	
+
 	defer resp.Body.Close()
 
 	if wantEvents == 0 {
@@ -62,7 +62,7 @@ func scanEvents(ctx context.Context, resp *http.Response, wantEvents int) []stri
 		} else {
 			event += line + "\n"
 			events = append(events, event)
-			count++	
+			count++
 			event = ""
 		}
 		if count >= wantEvents {
@@ -76,7 +76,6 @@ func scanEvents(ctx context.Context, resp *http.Response, wantEvents int) []stri
 func TestHandleCountEvents(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := svc.SetupServicesTest(t, itest.Redis)
 	defer services.Close()
 
@@ -86,7 +85,6 @@ func TestHandleCountEvents(t *testing.T) {
 	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services}))
 	defer testServer.Close()
 
-	// when
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, testServer.URL+"/api/events/count", nil)
 	require.NoError(t, err)
 
@@ -101,7 +99,6 @@ func TestHandleCountEvents(t *testing.T) {
 			services.BroadcastGameCount(ctx, 1))
 	}()
 
-	// then
 	assert.Equal(t, resp.Header.Get("Content-Type"), "text/event-stream")
 
 	wantEvents := []string{
@@ -119,7 +116,6 @@ func TestHandleActiveConn(t *testing.T) {
 
 	ctx := t.Context()
 
-	// given
 	services := svc.SetupServicesTest(t, itest.Redis)
 	defer services.Close()
 
@@ -136,7 +132,6 @@ func TestHandleActiveConn(t *testing.T) {
 	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services}))
 	defer testServer.Close()
 
-	// when
 	go func() {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, testServer.URL+"/api/events/active", nil)
 		require.NoError(t, err)
@@ -146,7 +141,6 @@ func TestHandleActiveConn(t *testing.T) {
 		defer resp.Body.Close() // this must execute before we assert "wantBroadcasts" since one msg is sent when the SSE drops
 	}()
 
-	// then
 	var broadcasts []svc.UcEvent
 	for range len(wantBroadcasts) {
 		select {
@@ -162,7 +156,6 @@ func TestHandleActiveConn(t *testing.T) {
 func TestHandleUserEvents(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := svc.SetupServicesTest(t, itest.Redis)
 	defer services.Close()
 
@@ -174,7 +167,6 @@ func TestHandleUserEvents(t *testing.T) {
 	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services}))
 	defer testServer.Close()
 
-	// when
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, testServer.URL+"/api/events/user", nil)
 	require.NoError(t, err)
 	req.Header.Set("Cookie", FmtCookie(TestSessionID1))
@@ -193,7 +185,6 @@ func TestHandleUserEvents(t *testing.T) {
 			services.BroadcastChallenge(ctx, brdcastedChallenge))
 	}()
 
-	// then
 	assert.Equal(t, resp.Header.Get("Content-Type"), "text/event-stream")
 
 	challengeJson, err := json.Marshal(brdcastedChallenge)

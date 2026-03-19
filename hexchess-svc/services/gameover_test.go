@@ -45,7 +45,6 @@ func (h *fakeGameEventHandler) handleFinishGameEvent(_ context.Context, event Fi
 func TestGameFinishStreamer_FakeGameEventHandler(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()
 
@@ -102,7 +101,6 @@ func TestGameFinishStreamer_FakeGameEventHandler(t *testing.T) {
 	stream.HandleMessage = eventHandler.handleFinishGameEvent
 	stream.StreamKey = services.Redis.FinishGameStreamKey
 
-	// when
 	for _, event := range invalidInputEvents {
 		rdb := &services.Redis
 		err := rdb.Queue.XAdd(ctx, &redis.XAddArgs{
@@ -116,7 +114,6 @@ func TestGameFinishStreamer_FakeGameEventHandler(t *testing.T) {
 	}
 	stream.EventLoop()
 
-	// then
 	assert.ElementsMatch(t, validInputEvents, eventHandler.outputEvents)
 }
 
@@ -211,7 +208,7 @@ func TestInsertFinishedGame(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			// given
+
 			services := SetupServicesTest(t, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
@@ -221,13 +218,11 @@ func TestInsertFinishedGame(t *testing.T) {
 			lb := LocalBroadcasters{GamesCaster: MakeMultiCasterMap("testing-map", time.Hour*1)}
 			<-lb.ListenGameMessages(services.Redis)
 
-			// when
 			subChan := make(chan []byte, 1)
 			lb.GamesCaster.Subscribe(test.event.GameID, subChan) // expect the game event to come on the following gameID (derived from input) channel. test times out and fails if it does not.
 
 			require.NoError(t, services.InsertFinishedGameEvent(ctx, test.event))
 
-			// then
 			modeLbZSet := services.GetLeaderboardZSet(test.event.ReplayMode.String())
 			leaderboard, err := services.Redis.Cache.ZRevRange(ctx, modeLbZSet, 0, 2).Result()
 			require.NoError(t, err)
@@ -379,15 +374,13 @@ func TestInsertGameResult(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			// given
+
 			services := SetupServicesTest(t, itest.RWPostgres)
 			defer services.Close()
 
-			// when
 			changeSet, err := insertGameResult(ctx, services.DB.Queries(), test.resultInput)
 			require.NoError(t, err)
 
-			// then
 			userElos, err := services.DB.Queries().SelectUserModeElosByIds(ctx, sqlc.SelectUserModeElosByIdsParams{
 				ID:   []int64{test.resultInput.WhiteID, test.resultInput.BlackID},
 				Mode: sqlc.ModeEnum(test.resultInput.ReplayMode.String()),

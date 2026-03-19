@@ -21,7 +21,6 @@ import (
 func TestHandleUploadProfilePic(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := svc.SetupServicesTest(t, itest.Redis, itest.Aws)
 	defer services.Close()
 
@@ -38,11 +37,9 @@ func TestHandleUploadProfilePic(t *testing.T) {
 	r.Header.Set("Cookie", FmtCookie(TestSessionID2))
 	w := httptest.NewRecorder()
 
-	// when
 	hander := MakeServeMux(Setup{Services: services})
 	hander.ServeHTTP(w, r)
 
-	// then
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	var view ServiceView
@@ -57,7 +54,7 @@ func TestHandleGetProfilePic(t *testing.T) {
 	key1 := fmt.Sprintf("users/profile-pics/3/%s", uuid.NewString())
 	key2 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())
 
-	for _, test := range []struct {
+	tests := []struct {
 		name            string
 		userID          string
 		wantStatus      int
@@ -76,34 +73,35 @@ func TestHandleGetProfilePic(t *testing.T) {
 			userID:     "2",
 			wantStatus: http.StatusOK,
 		},
-	} {
-		t.Run(test.userID, func(t *testing.T) { // given
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.userID, func(t *testing.T) {
+
 			services := svc.SetupServicesTest(t, itest.Redis, itest.Aws)
 			defer services.Close()
 
 			egress.PutTestS3Object(t, services.AWS.S3Client, services.AWS.S3ProfileBucket, key1, []byte("testfiledata1"))
 			egress.PutTestS3Object(t, services.AWS.S3Client, services.AWS.S3ProfileBucket, key2, []byte("testfiledata2"))
 
-			// when
-			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/users/profile-pics?userId=%s", test.userID), nil)
+			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/users/profile-pics?userId=%s", tt.userID), nil)
 			w := httptest.NewRecorder()
 
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
-			// then
 			resp := w.Body.String()
-			assert.Equal(t, test.wantStatus, w.Code)
+			assert.Equal(t, tt.wantStatus, w.Code)
 
 			if w.Code == http.StatusTemporaryRedirect {
 				t.Logf("got profile pic redirect: %s", resp)
-				for _, key := range test.wantWithoutKeys {
+				for _, key := range tt.wantWithoutKeys {
 					if strings.Contains(resp, key) {
 						t.Errorf("expected profile pic redirect to not contain key %s", key)
 					}
 				}
-				if !strings.Contains(resp, test.wantWithKey) {
-					t.Fatalf("expected profile pic redirect to contain key %s", test.wantWithKey)
+				if !strings.Contains(resp, tt.wantWithKey) {
+					t.Fatalf("expected profile pic redirect to contain key %s", tt.wantWithKey)
 				}
 			}
 		})

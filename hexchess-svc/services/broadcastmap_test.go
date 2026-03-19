@@ -8,7 +8,7 @@ import (
 )
 
 func TestMultiCasterMap(t *testing.T) {
-	// given
+
 	m := MakeMultiCasterMap("testing-mc", time.Hour*1)
 
 	wantSub1Msgs := []string{"test1", "test2", "test3"}
@@ -38,7 +38,6 @@ func TestMultiCasterMap(t *testing.T) {
 	go testSub(sub3, mChan3)
 	go testSub(sub4, mChan4)
 
-	// when
 	m.Subscribe("1", sub1)
 	m.Subscribe("2", sub4)
 	m.Broadcast("1", []byte("test1"))
@@ -56,7 +55,6 @@ func TestMultiCasterMap(t *testing.T) {
 	m.Unsubscribe("1", sub2)
 	m.Unsubscribe("2", sub4)
 
-	// then
 	assert.Equal(t, wantSub1Msgs, <-mChan1)
 	assert.Equal(t, wantSub2Msgs, <-mChan2)
 	assert.Equal(t, wantSub3Msgs, <-mChan3)
@@ -64,7 +62,7 @@ func TestMultiCasterMap(t *testing.T) {
 }
 
 func TestUnicasterMap(t *testing.T) {
-	// given
+
 	m := MakeUniCaster("testing-uc")
 
 	e1 := UcEvent{Kind: 0, Data: "test1"}
@@ -88,7 +86,6 @@ func TestUnicasterMap(t *testing.T) {
 	go testSub(sub1, mChan1)
 	go testSub(sub2, mChan2)
 
-	// when
 	m.Subscribe(sub1)
 	m.Broadcast(e1)
 
@@ -98,7 +95,6 @@ func TestUnicasterMap(t *testing.T) {
 	m.Unsubscribe(sub1)
 	m.Unsubscribe(sub2)
 
-	// then
 	assert.Equal(t, wantSub1Events, <-mChan1)
 	assert.Equal(t, wantSub2Events, <-mChan2)
 }

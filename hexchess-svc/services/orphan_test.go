@@ -16,7 +16,6 @@ import (
 func TestRemoveOrphanedBucketObjects(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := SetupServicesTest(t, itest.ROPostgres, itest.Aws)
 	defer services.Close()
 
@@ -34,10 +33,8 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 		egress.PutTestS3Object(t, services.AWS.S3Client, services.AWS.S3ProfileBucket, id, []byte("test"))
 	}
 
-	// when
 	services.ClearBucketOrphans(ctx, 2)
 
-	// then
 	profileKeys := egress.ListTestS3Objects(t, services.AWS.S3Client, services.AWS.S3ProfileBucket)
 
 	assertKeyContainment := func(actual []string, shouldContain []string, shouldNotContain []string) {

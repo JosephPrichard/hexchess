@@ -73,7 +73,8 @@ func (svc *Services) CreateGame(ctx context.Context, color Color, mode GameMode,
 	state.Game.InitPieceMoves()
 
 	slog.InfoContext(ctx, "created chess game", "chessMeta", state.ChessMeta)
-	if err := svc.SetChessState(ctx, strID, &state); err != nil {
+	
+	if err := svc.SetChessState(ctx, strID, state); err != nil {
 		return "", fmt.Errorf("set chess state by id %s: %w", strID, err)
 	}
 

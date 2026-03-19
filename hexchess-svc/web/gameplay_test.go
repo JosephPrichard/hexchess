@@ -61,7 +61,7 @@ func TestHandleGameplayWs(t *testing.T) {
 	wantMsgs := []*pb.GameOutput{wantInit, wantPlayers}
 	wantBrdcasts := []any{wantPlayers}
 
-	for _, test := range []struct {
+	tests := []struct {
 		name         string
 		inputMsgs    []*pb.GameInput
 		wantMsgs     []*pb.GameOutput
@@ -120,11 +120,13 @@ func TestHandleGameplayWs(t *testing.T) {
 				{GameId: gameID, Value: &pb.GameOutput_Error{Error: &pb.ErrorOutput{Message: ErrWsUndoAction.Error()}}},
 			},
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			// given
-			wantMsgs := slices.Concat(wantMsgs, test.wantMsgs)
-			wantBrdcasts := slices.Concat(wantBrdcasts, test.wantBrdcasts)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			wantMsgs := slices.Concat(wantMsgs, tt.wantMsgs)
+			wantBrdcasts := slices.Concat(wantBrdcasts, tt.wantBrdcasts)
 
 			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis, itest.Aws)
 			defer services.Close()
@@ -143,26 +145,24 @@ func TestHandleGameplayWs(t *testing.T) {
 			subChan := make(chan []byte, len(wantBrdcasts))
 			services.Broadcasters.GamesCaster.Subscribe(gameID, subChan)
 
-			// when
 			url := strings.Replace(fmt.Sprintf("%s/api/ws/game?gameId=%s&sessionId=%s", testServer.URL, gameID, TestSessionID1), "http", "ws", 1)
 			conn, _, err := websocket.DefaultDialer.DialContext(t.Context(), url, http.Header{})
 			require.NoError(t, err)
 			defer conn.Close()
 
-			for _, input := range test.inputMsgs {
-				b, err := proto.Marshal(input)
+			for _, input := range tt.inputMsgs {
+				bytes, err := proto.Marshal(input)
 				require.NoError(t, err)
-				require.NoError(t, conn.WriteMessage(websocket.BinaryMessage, b))
+				require.NoError(t, conn.WriteMessage(websocket.BinaryMessage, bytes))
 			}
 
-			// then
 			msgs := make([]*pb.GameOutput, len(wantMsgs))
 			for i := range wantMsgs {
-				_, b, err := conn.ReadMessage()
+				_, bytes, err := conn.ReadMessage()
 				require.NoError(t, err)
 
 				output := &pb.GameOutput{}
-				require.NoError(t, proto.Unmarshal(b, output))
+				require.NoError(t, proto.Unmarshal(bytes, output))
 
 				msgs[i] = output
 			}

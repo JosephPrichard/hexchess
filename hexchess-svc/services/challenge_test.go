@@ -21,92 +21,94 @@ import (
 func TestInsertChallenge(t *testing.T) {
 	t.Parallel()
 
-	for _, test := range []struct {
+	tests := []struct {
 		name         string
 		challengerID int64
 		challengeeID int64
 		wantErr      error
 	}{
 		{
-			name:         "cannot challenge self",
+			name:         "CannotChallengeSelf",
 			challengerID: 1,
 			challengeeID: 1,
 			wantErr:      ErrSelfChallenge,
 		},
 		{
-			name:         "invalid user",
+			name:         "InvalidUser",
 			challengerID: 9000,
 			challengeeID: 1,
 			wantErr:      ErrParticipantConflict,
 		},
 		{
-			name:         "duplicate challenge",
+			name:         "DuplicateChallenge",
 			challengerID: 1,
 			challengeeID: 2,
 			wantErr:      ErrDuplicateChallenge,
 		},
 		{
-			name:         "valid challenge",
+			name:         "ValidChallenge",
 			challengerID: 2,
 			challengeeID: 1,
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			// given
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
 			services := SetupServicesTest(t, itest.RWPostgres)
 			defer services.Close()
 
-			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
+			ctx := context.WithValue(t.Context(), logutil.Trace, tt.name)
 
-			// when
 			err := services.InsertChallenge(ctx, ChallengeInst{
-				ChallengerID: test.challengerID,
-				ChallengeeID: test.challengeeID,
+				ChallengerID: tt.challengerID,
+				ChallengeeID: tt.challengeeID,
 				Mode:         ModeCorrespondence7,
 				StartColor:   Random,
 			})
 
-			// then
-			assert.Equal(t, test.wantErr, err)
+			assert.Equal(t, tt.wantErr, err)
 		})
 	}
 }
 
 func TestMapChallengeInsertErr(t *testing.T) {
-	for _, test := range []struct {
+	tests := []struct {
 		name  string
 		input error
 		want  error
 	}{
 		{
-			name:  "unique violation returns ErrDuplicateChallenge",
+			name:  "UniqueViolationReturnsErrDuplicateChallenge",
 			input: &pgconn.PgError{Code: db.ErrPgUniqueViolation},
 			want:  ErrDuplicateChallenge,
 		},
 		{
-			name:  "foreign key violation returns ErrParticipantConflict",
+			name:  "ForeignKeyViolationReturnsErrParticipantConflict",
 			input: &pgconn.PgError{Code: db.ErrPgForeignKeyViolation},
 			want:  ErrParticipantConflict,
 		},
 		{
-			name:  "check violation returns ErrParticipantConflict",
+			name:  "CheckViolationReturnsErrParticipantConflict",
 			input: &pgconn.PgError{Code: db.ErrPgCheckViolation},
 			want:  ErrParticipantConflict,
 		},
 		{
-			name:  "unrecognised error is returned as-is",
+			name:  "UnrecognisedErrorIsReturnedAsIs",
 			input: errors.New("some unexpected db error"),
 			want:  errors.New("some unexpected db error"),
 		},
 		{
-			name:  "unknown pg error code is returned as-is",
+			name:  "UnknownPgErrorCodeIsReturnedAsIs",
 			input: &pgconn.PgError{Code: "99999"},
 			want:  &pgconn.PgError{Code: "99999"},
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			err := mapChallengeInsertErr(test.input)
-			require.Equal(t, test.want, err)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := mapChallengeInsertErr(tt.input)
+			require.Equal(t, tt.want, err)
 		})
 	}
 }
@@ -114,32 +116,27 @@ func TestMapChallengeInsertErr(t *testing.T) {
 func TestGetChallengesByParticipant(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := SetupServicesTest(t, itest.ROPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	// when
 	// gets only expired challenges
 	services.EntropySource = &StableEntropySource{Time: itest.TimeNow}
 	challenges, err := services.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
-	// then
 	assert.Equal(t, []ChallengeEntity{TestChallengeEntities[2], TestChallengeEntities[3]}, challenges)
 }
 
 func TestDeleteExpiredChallenges(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	// when
 	// gets only expired challenges
 	services.EntropySource = &StableEntropySource{Time: itest.TimeNow}
 	require.NoError(t, services.DeleteExpiredChallenges(ctx, 5))
@@ -149,14 +146,12 @@ func TestDeleteExpiredChallenges(t *testing.T) {
 	challengesDel, err := services.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
-	// then
 	assert.Equal(t, []ChallengeEntity{TestChallengeEntities[2], TestChallengeEntities[3]}, challengesDel)
 }
 
 func TestDeleteChallenge(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
 
@@ -165,7 +160,6 @@ func TestDeleteChallenge(t *testing.T) {
 
 	key := ChallengeKey{ChallengerID: 1, ChallengeeID: 2}
 
-	// when
 	challengeBefore, err := services.DB.Queries().SelectChallenge(ctx, sqlc.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
@@ -175,7 +169,6 @@ func TestDeleteChallenge(t *testing.T) {
 	_, errAfterDelete := services.DB.Queries().SelectChallenge(ctx, sqlc.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
-	// then
 	challenge := sqlc.Challenge{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, StartColor: "RANDOM", MadeOn: pgtype.Timestamptz{Valid: true, Time: itest.TimeNow.Local()}, Mode: "TIMED_3+2"}
 	assert.Equal(t, challenge, challengeBefore)
 	assert.Error(t, pgx.ErrNoRows, errAfterDelete)

@@ -19,7 +19,6 @@ var testVerifiedUserCmptOpts = cmpopts.IgnoreFields(VerifiedUser{}, "ID")
 func TestInsertThenVerify(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
 
@@ -27,7 +26,6 @@ func TestInsertThenVerify(t *testing.T) {
 
 	user1 := "user1-testing"
 
-	// when
 	u1, err := services.InsertUser(ctx, UserInst{Username: user1, Password: "password1", Country: "us", JoinedOn: itest.TimeNow})
 	require.NoError(t, err)
 
@@ -44,7 +42,6 @@ func TestInsertThenVerify(t *testing.T) {
 	}
 	_, errTooMany := verifyUser(ctx, services.DB.Queries(), user1, "wrong-password")
 
-	// then
 	var wantAttemptErrs []error
 	for range LoginAttemptsDivisor {
 		wantAttemptErrs = append(wantAttemptErrs, ErrUserNotFound)
@@ -64,13 +61,11 @@ func TestInsertThenVerify(t *testing.T) {
 func TestBatchInsertThenGet(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	// when
 	insts := []UserInst{
 		{Username: "user1-testing", Password: "password1", Country: "us"},
 		{Username: "user2-testing", Password: "password2", Country: "eu"},
@@ -82,7 +77,6 @@ func TestBatchInsertThenGet(t *testing.T) {
 		{Username: insts[1].Username, Country: "eu"},
 	}
 
-	// then
 	testutil.Equal(t, wantUsers, users, cmpopts.IgnoreFields(UserEntity{}, "ID", "JoinedOn"))
 	require.NoError(t, batchErr)
 }
@@ -90,12 +84,8 @@ func TestBatchInsertThenGet(t *testing.T) {
 func TestUpdateUser(t *testing.T) {
 	t.Parallel()
 
-	services := SetupServicesTest(t, itest.RWPostgres)
-	defer services.Close()
-
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-
-	for _, test := range []struct {
+	tests := []struct {
+		name         string
 		userID       int64
 		udpt         UpdtUserParams
 		wantUsername string
@@ -103,6 +93,7 @@ func TestUpdateUser(t *testing.T) {
 		wantCountry  string
 	}{
 		{
+			name:         "UpdateNameAndBio",
 			userID:       1,
 			udpt:         UpdtUserParams{Username: "user1-changed", Bio: "Testing123"},
 			wantUsername: "user1-changed",
@@ -110,29 +101,39 @@ func TestUpdateUser(t *testing.T) {
 			wantCountry:  "us",
 		},
 		{
+			name:         "UpdateNameAndCountry",
 			userID:       2,
 			udpt:         UpdtUserParams{Username: "user2-changed", Country: "eu"},
 			wantUsername: "user2-changed",
 			wantBio:      "",
 			wantCountry:  "eu",
 		},
-	} {
-		_, err := services.UpdateUser(ctx, test.userID, test.udpt)
-		require.NoError(t, err)
+	}
 
-		u, err := services.GetUserByID(ctx, test.userID)
-		require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 
-		assert.Equal(t, test.wantUsername, u.Username)
-		assert.Equal(t, test.wantBio, u.Bio)
-		assert.Equal(t, test.wantCountry, u.Country)
+			services := SetupServicesTest(t, itest.RWPostgres)
+			defer services.Close()
+
+			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+
+			_, err := services.UpdateUser(ctx, tt.userID, tt.udpt)
+			require.NoError(t, err)
+
+			user, err := services.GetUserByID(ctx, tt.userID)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.wantUsername, user.Username)
+			assert.Equal(t, tt.wantBio, user.Bio)
+			assert.Equal(t, tt.wantCountry, user.Country)
+		})
 	}
 }
 
 func TestSelectOrInsertGoogleUser(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
 
@@ -142,39 +143,35 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 
 	inst := GoogleUserInst{Username: "username", Country: "us", JoinedOn: itest.TimeNow}
 
-	// when
-	u1, err := services.SelectOrInsertGoogleUser(ctx, testAccountID, inst)
+	user1, err := services.SelectOrInsertGoogleUser(ctx, testAccountID, inst)
 	require.NoError(t, err)
 
-	u2, err := services.SelectOrInsertGoogleUser(ctx, testAccountID, inst)
+	user2, err := services.SelectOrInsertGoogleUser(ctx, testAccountID, inst)
 	require.NoError(t, err)
 
-	dbU1, err := services.GetUserByID(ctx, u1.ID)
+	dbUser1, err := services.GetUserByID(ctx, user1.ID)
 	require.NoError(t, err)
 
-	// then
 	verifiedUser := VerifiedUser{Username: "username", Country: "us"}
-	testutil.Equal(t, verifiedUser, u1, testVerifiedUserCmptOpts)
-	testutil.Equal(t, verifiedUser, u2, testVerifiedUserCmptOpts)
+	testutil.Equal(t, verifiedUser, user1, testVerifiedUserCmptOpts)
+	testutil.Equal(t, verifiedUser, user2, testVerifiedUserCmptOpts)
 
-	wantU1 := UserEntity{
+	wantDbUser1 := UserEntity{
 		Username: "username",
 		Country:  "us",
 		JoinedOn: itest.TimeNow.Local(),
 	}
-	testutil.Equal(t, wantU1, dbU1, testUserCmptOpts)
+	testutil.Equal(t, wantDbUser1, dbUser1, testUserCmptOpts)
 }
 
 func TestUpdatePasswordThenVerify(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	// when
 	err := services.UpdateUserPassword(ctx, TestUserEntities[0].ID, "password-new")
 	require.NoError(t, err)
 
@@ -183,23 +180,19 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 	v1, err := verifyUser(ctx, services.DB.Queries(), TestUserEntities[0].Username, "password-new")
 	require.NoError(t, err)
 
-	// then
 	assert.Equal(t, u1.ID, v1.ID)
 }
 
 func TestGetUserElos(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	// when
 	stats, err := services.GetUserStats(ctx, 1)
 	require.NoError(t, err)
 
-	// then
 	testutil.Equal(t, TestUserStats[0], stats, cmpopts.IgnoreFields(ModeStatsEntity{}, "Rank"))
 }

@@ -15,7 +15,6 @@ import (
 func TestSessions(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()
 
@@ -26,7 +25,6 @@ func TestSessions(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	// when
 	require.NoError(t, services.SetSessions(ctx, SessInst{sessionID1, playerIn, 100 * time.Second}))
 	require.NoError(t, services.SetSessions(ctx, SessInst{sessionID2, playerIn, 100 * time.Second}))
 	require.NoError(t, services.SetSessions(ctx, SessInst{sessionID3, playerIn, 100 * time.Second}))
@@ -40,7 +38,6 @@ func TestSessions(t *testing.T) {
 	_, badIDErr1 := services.GetSession(ctx, sessionID2)
 	_, badIDErr2 := services.GetSession(ctx, sessionID3)
 
-	// then
 	assert.Equal(t, ErrSessionNotFound, badIDErr1)
 	assert.Equal(t, ErrSessionNotFound, badIDErr2)
 	assert.Equal(t, playerIn, playerOut)

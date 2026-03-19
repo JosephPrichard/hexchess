@@ -170,7 +170,7 @@ func TestGame_findMoves(t *testing.T) {
 }
 
 func TestGame_ValidateMove(t *testing.T) {
-	// given
+
 	game := MakeStartGame(
 		Place{"a1", WhiteKnight},
 		Place{"a5", WhitePawn},
@@ -223,10 +223,9 @@ func TestGame_ValidateMove(t *testing.T) {
 			wantKind: MoveErrIllegalTarget,
 		},
 	} {
-		t.Run(test.name, func(t *testing.T) { // when
+		t.Run(test.name, func(t *testing.T) {
 			err := game.ValidateMove(test.move)
 
-			// then
 			if test.wantKind >= 0 {
 				assert.Equal(t, MoveError{Kind: test.wantKind, Move: test.move}, err)
 			} else {

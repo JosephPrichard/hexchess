@@ -22,7 +22,7 @@ func asJSONReader(v any) *strings.Reader {
 	return strings.NewReader(string(b))
 }
 
-var TestStates = []svc.ChessState{
+var TestStates = []*svc.ChessState{
 	svc.MakeChessState(svc.StateSetup{
 		ID:         TestGameID1,
 		Mode:       svc.ModeCorrespondence1,
@@ -49,7 +49,7 @@ func createTestChessStates(t *testing.T, svc svc.Services) {
 	t.Helper()
 	ctx := context.WithValue(context.Background(), logutil.Trace, "testing-update-password")
 	for _, state := range TestStates {
-		if err := svc.SetChessState(ctx, state.ID, &state); err != nil {
+		if err := svc.SetChessState(ctx, state.ID, state); err != nil {
 			t.Fatalf("create testing ss: %v", err)
 		}
 	}

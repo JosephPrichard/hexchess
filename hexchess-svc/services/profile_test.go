@@ -20,7 +20,6 @@ import (
 func TestDeleteOldProfilePics(t *testing.T) {
 	t.Parallel()
 
-	// given
 	services := SetupServicesTest(t, itest.Aws)
 	defer services.Close()
 
@@ -30,10 +29,8 @@ func TestDeleteOldProfilePics(t *testing.T) {
 		egress.PutTestS3Object(t, services.AWS.S3Client, services.AWS.S3ProfileBucket, fmt.Sprintf("users/profile-pics/%s/%s", user, uuid.NewString()), []byte("testfiledat2"))
 	}
 
-	// when
 	require.NoError(t, services.DeleteOldProfilePics(ctx, 1))
 
-	// then
 	// this test verifies that the function will always retain a single file per user, and that files for other users are not touched
 	// we cannot verify which actual file is retainined because the uncertainty of LastModifiedTime is too high.
 	assert.Equal(t, 2, egress.CountS3Objects(t, services.AWS.S3Client, services.AWS.S3ProfileBucket, "users/profile-pics/2"))
@@ -45,7 +42,7 @@ func TestFindMostRecentKey(t *testing.T) {
 
 	// tests most recent key logic since it cannot be tested in the s3 calls it is tested in
 	// this is because the 'LastModifiedTime' value is nondeterministic with regards to inserts that happen in +- 1 second
-	for _, test := range []struct {
+	tests := []struct {
 		objects []s3Types.Object
 		wantKey string
 	}{
@@ -63,15 +60,17 @@ func TestFindMostRecentKey(t *testing.T) {
 			},
 			wantKey: "b",
 		},
-	} {
-		assert.Equal(t, test.wantKey, findMostRecentKey(test.objects))
+	}
+
+	for _, tt := range tests {
+		assert.Equal(t, tt.wantKey, findMostRecentKey(tt.objects))
 	}
 }
 
 func TestFilterLeastRecentKeys(t *testing.T) {
 	t.Parallel()
 
-	for _, test := range []struct {
+	tests := []struct {
 		objects  []s3Types.Object
 		wantKeys []s3Types.ObjectIdentifier
 	}{
@@ -95,7 +94,9 @@ func TestFilterLeastRecentKeys(t *testing.T) {
 			},
 			wantKeys: []s3Types.ObjectIdentifier{},
 		},
-	} {
-		assert.Equal(t, test.wantKeys, filterLeastRecentKeys(test.objects))
+	}
+
+	for _, tt := range tests {
+		assert.Equal(t, tt.wantKeys, filterLeastRecentKeys(tt.objects))
 	}
 }
