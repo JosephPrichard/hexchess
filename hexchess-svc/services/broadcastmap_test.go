@@ -8,7 +8,6 @@ import (
 )
 
 func TestMultiCasterMap(t *testing.T) {
-
 	m := MakeMultiCasterMap("testing-mc", time.Hour*1)
 
 	wantSub1Msgs := []string{"test1", "test2", "test3"}
@@ -62,7 +61,6 @@ func TestMultiCasterMap(t *testing.T) {
 }
 
 func TestUnicasterMap(t *testing.T) {
-
 	m := MakeUniCaster("testing-uc")
 
 	e1 := UcEvent{Kind: 0, Data: "test1"}

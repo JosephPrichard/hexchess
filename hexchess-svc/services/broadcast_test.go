@@ -14,7 +14,7 @@ import (
 )
 
 func TestBroadcastGameMessage(t *testing.T) {
-	// t.Parallel()
+	t.Parallel()
 
 	services := SetupServicesTest(t, itest.Redis)
 	defer services.Close()

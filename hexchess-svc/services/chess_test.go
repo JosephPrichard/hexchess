@@ -80,14 +80,12 @@ func TestUpdateChessState_Errors(t *testing.T) {
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	t.Run("failing with unknown game id", func(t *testing.T) {
-
 		_, err := services.UpdateChessStateTxn(ctx, uuid.NewString(), func(state *ChessState) error { return nil })
 
 		assert.Equal(t, ErrNoChessState, err)
 	})
 
 	t.Run("failing in error closure", func(t *testing.T) {
-
 		mockedErr := errors.New("failed in update closure")
 
 		_, err := services.UpdateChessStateTxn(ctx, testID, func(state *ChessState) error {
@@ -98,7 +96,6 @@ func TestUpdateChessState_Errors(t *testing.T) {
 	})
 
 	t.Run("failing with interrupted update", func(t *testing.T) {
-
 		_, err := services.UpdateChessStateTxn(ctx, testID, func(state *ChessState) error {
 			require.NoError(t, services.SetChessState(ctx, testID, inState)) // the state value we set is arbitrary
 			return nil

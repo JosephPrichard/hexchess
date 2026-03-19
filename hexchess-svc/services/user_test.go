@@ -26,13 +26,13 @@ func TestInsertThenVerify(t *testing.T) {
 
 	user1 := "user1-testing"
 
-	u1, err := services.InsertUser(ctx, UserInst{Username: user1, Password: "password1", Country: "us", JoinedOn: itest.TimeNow})
+	users1, err := services.InsertUser(ctx, UserInst{Username: user1, Password: "password1", Country: "us", JoinedOn: itest.TimeNow})
 	require.NoError(t, err)
 
-	v1, err := verifyUser(ctx, services.DB.Queries(), user1, "password1")
+	verifyUser1, err := verifyUser(ctx, services.DB.Queries(), user1, "password1")
 	require.NoError(t, err)
 
-	dbU1, err := services.GetUserByID(ctx, v1.ID)
+	dbUser1, err := services.GetUserByID(ctx, verifyUser1.ID)
 	require.NoError(t, err)
 
 	var attemptsErrs []error
@@ -49,13 +49,13 @@ func TestInsertThenVerify(t *testing.T) {
 	assert.Equal(t, wantAttemptErrs, attemptsErrs)
 	assert.Equal(t, ErrTooManyLoginAttempts, errTooMany)
 
-	assert.Equal(t, u1.ID, v1.ID)
-	wantU1 := UserEntity{
+	assert.Equal(t, users1.ID, verifyUser1.ID)
+	wantDBU1 := UserEntity{
 		Username: "user1-testing",
 		Country:  "us",
 		JoinedOn: itest.TimeNow.Local(),
 	}
-	testutil.Equal(t, wantU1, dbU1, testUserCmptOpts)
+	testutil.Equal(t, wantDBU1, dbUser1, testUserCmptOpts)
 }
 
 func TestBatchInsertThenGet(t *testing.T) {
