@@ -13,7 +13,7 @@ import (
 var ErrSessionNotFound = errors.New("session not found")
 
 func (svc *Services) GetSession(ctx context.Context, sessionID string) (PlayerState, error) {
-	sessionKey := svc.MakeSessionKey(sessionID)
+	sessionKey := svc.makeSessionKey(sessionID)
 	data, err := svc.Redis.Cache.Get(ctx, sessionKey).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
@@ -46,7 +46,7 @@ func (svc *Services) SetSessions(ctx context.Context, insts ...SessInst) error {
 		if err != nil {
 			return err
 		}
-		sessionKey := svc.MakeSessionKey(inst.SessionID)
+		sessionKey := svc.makeSessionKey(inst.SessionID)
 		pipe.SetEx(ctx, sessionKey, data, inst.Expiry)
 	}
 
@@ -57,7 +57,7 @@ func (svc *Services) SetSessions(ctx context.Context, insts ...SessInst) error {
 }
 
 func (svc *Services) UpdateSessionEx(ctx context.Context, sessionID string, expiry time.Duration) error {
-	sessionKey := svc.MakeSessionKey(sessionID)
+	sessionKey := svc.makeSessionKey(sessionID)
 	if err := svc.Redis.Cache.Expire(ctx, sessionKey, expiry).Err(); err != nil {
 		return fmt.Errorf("update session expiry: %w", err)
 	}
@@ -66,7 +66,7 @@ func (svc *Services) UpdateSessionEx(ctx context.Context, sessionID string, expi
 }
 
 func (svc *Services) DeleteSession(ctx context.Context, sessionID string) error {
-	sessionKey := svc.MakeSessionKey(sessionID)
+	sessionKey := svc.makeSessionKey(sessionID)
 	if err := svc.Redis.Cache.Del(ctx, sessionKey).Err(); err != nil {
 		return fmt.Errorf("delete session=%s: %w", sessionID, err)
 	}

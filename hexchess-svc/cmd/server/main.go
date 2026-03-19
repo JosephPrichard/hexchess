@@ -36,8 +36,10 @@ func main() {
 
 	serverPort := os.Getenv("SERVER_PORT")
 	dbURL := os.Getenv("DB_URL")
-	rdbPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
+	rdbGameStoreURL := os.Getenv("REDIS_GAMESTORE_URL")
+	rdbCacheURL := os.Getenv("REDIS_CACHE_URL")
 	rdbPubSubURL := os.Getenv("REDIS_PUBSUB_URL")
+	rdbQueueURL := os.Getenv("REDIS_QUEUE_URL")
 	isLocalstack := os.Getenv("IS_LOCALSTACK") == "true"
 	awsDefaultRegion := os.Getenv("AWS_DEFAULT_REGION")
 	awsEndpoint := os.Getenv("AWS_ENDPOINT")
@@ -59,8 +61,14 @@ func main() {
 
 	pdb := db.MakeDB(pool)
 
-	slog.Info("connecting to rdb db", "primaryURL", rdbPrimaryURL, "pubsubURL", rdbPubSubURL)
-	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL, PubsubAddr: rdbPubSubURL}, db.DefaultRedisNames)
+	addrs := db.RedisAddrs{
+		CacheAddr: rdbCacheURL, 
+		GameStoreAddr: rdbGameStoreURL,
+		PubsubAddr: rdbPubSubURL,
+		QueueAddr: rdbQueueURL,
+	}
+	slog.Info("connecting to redis db", "addrs", addrs)
+	rdb := db.MakeRdb(addrs, nil)
 
 	aws, err := egress.MakeAwsClients(context.Background(), egress.AWSConfig{
 		AWSDefaultRegion: awsDefaultRegion,
@@ -104,7 +112,7 @@ func main() {
 	})
 	web.WithHealthCheck(mux, web.HealthCheckConfig{
 		PostgresDSN:     dbURL,
-		RedisPrimaryDSN: rdbPrimaryURL,
+		RedisPrimaryDSN: rdbCacheURL,
 		RedisPubSubDSN:  rdbPubSubURL,
 	})
 	if err := http.ListenAndServe(":"+serverPort, mux); err != nil {

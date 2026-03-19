@@ -49,8 +49,13 @@ func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (rdb db.Redis, er
 	addr := fmt.Sprintf("%s:%s", host, port.Port())
 
 	return db.MakeRdb(
-		db.RedisAddrs{CacheAddr: addr, PubsubAddr: addr},
-		db.RedisNames{
+		db.RedisAddrs{
+			GameStoreAddr: addr, 
+			CacheAddr: addr,
+			PubsubAddr: addr,
+			QueueAddr: addr,
+		},
+		&db.RedisNames{
 			LeaderboardZSet:     unique(db.LeaderboardZSet),
 			GamesZSet:           unique(db.GamesZSet),
 			ActiveUsersZSet:     unique(db.ActiveUsersZSet),

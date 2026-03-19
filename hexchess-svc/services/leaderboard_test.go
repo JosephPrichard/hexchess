@@ -55,7 +55,7 @@ func TestLeaderboard(t *testing.T) {
 		{ModeCorrespondence7, 1, 2},
 		{ModeTimed1Plus0, 0, 4},
 	} {
-		leaderboard, err := services.GetLeaderboard(ctx, args.mode, args.offset, args.limit)
+		leaderboard, err := services.getLeaderboard(ctx, args.mode, args.offset, args.limit)
 		require.NoError(t, err)
 		leaderboards = append(leaderboards, leaderboard)
 	}

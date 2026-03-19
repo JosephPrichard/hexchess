@@ -180,15 +180,16 @@ type VerifiedUser struct {
 	Country  string `json:"country"`
 }
 
-func (svc *Services) VerifyUserTx(ctx context.Context, username string, inputPassword string) (u VerifiedUser, err error) {
-	err = svc.DB.ExecTx(ctx, db.TxnArgs{
+func (svc *Services) VerifyUserTx(ctx context.Context, username string, inputPassword string) (VerifiedUser, error) {
+	var user VerifiedUser
+	err := svc.DB.ExecTx(ctx, db.TxnArgs{
 		QueryFn: func(ctx context.Context, query *sqlc.Queries) (err error) {
-			u, err = verifyUser(ctx, query, username, inputPassword)
+			user, err = verifyUser(ctx, query, username, inputPassword)
 			return err
 		},
 		ErrAllowlist: []error{ErrTooManyLoginAttempts, ErrUserNotFound},
 	})
-	return u, err
+	return user, err
 }
 
 const LoginAttemptsDivisor = 10
@@ -197,21 +198,19 @@ const LockoutDuration = time.Minute * 1
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
 func verifyUser(ctx context.Context, query *sqlc.Queries, username string, inputPassword string) (VerifiedUser, error) {
-	var u VerifiedUser
-
 	login, err := query.SelectLoginByName(ctx, username)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return u, ErrUserNotFound
+			return VerifiedUser{}, ErrUserNotFound
 		}
-		return u, fmt.Errorf("select user=%s by login: %w", username, err)
+		return VerifiedUser{}, fmt.Errorf("select user=%s by login: %w", username, err)
 	}
 
 	isExceedAttempts := login.LoginAttempts > 0 && login.LoginAttempts%LoginAttemptsDivisor == 0
 	nextLoginTime := login.LastLoginAttempt.Time.Add(LockoutDuration)
 	isLocked := isExceedAttempts && time.Now().Before(nextLoginTime)
 	if isLocked {
-		return u, ErrTooManyLoginAttempts
+		return VerifiedUser{}, ErrTooManyLoginAttempts
 	}
 
 	saltedPassword := inputPassword + login.Salt
@@ -219,22 +218,22 @@ func verifyUser(ctx context.Context, query *sqlc.Queries, username string, input
 
 	if loginErr != nil {
 		if err := query.IncrLoginAttempts(ctx, login.ID); err != nil {
-			return u, fmt.Errorf("incr user %d login attempts: %w", login.ID, err)
+			return VerifiedUser{}, fmt.Errorf("incr user %d login attempts: %w", login.ID, err)
 		}
 		slog.ErrorContext(ctx, "failed to user login is invalid", "username", username, "err", loginErr)
-		return u, ErrUserNotFound
+		return VerifiedUser{}, ErrUserNotFound
 	}
 
 	if err := query.ResetLoginAttempts(ctx, login.ID); err != nil {
-		return u, fmt.Errorf("reset user %d login attempts: %w", login.ID, err)
+		return VerifiedUser{}, fmt.Errorf("reset user %d login attempts: %w", login.ID, err)
 	}
-	u = VerifiedUser{
+	user := VerifiedUser{
 		ID:       login.ID,
 		Username: login.Username,
 		Country:  login.Country,
 	}
-	slog.InfoContext(ctx, "user login is valid", "user", u)
-	return u, nil
+	slog.InfoContext(ctx, "user login is valid", "user", user)
+	return user, nil
 }
 
 type GoogleUserInst struct {

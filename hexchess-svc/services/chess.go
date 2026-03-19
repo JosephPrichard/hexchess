@@ -31,15 +31,6 @@ func (kind EndKind) isEnded() bool {
 	return kind != NotEnded
 }
 
-type EndState struct {
-	ReplayID    int64 // initialized on end state creation but not serialized
-	Kind        EndKind
-	WinEloDiff  int64
-	LoseEloDiff int64
-	Cause       ReplayCause
-	Result      ReplayResult
-}
-
 type ChessState struct {
 	ChessMeta
 	UndoState
@@ -144,9 +135,9 @@ func (s *ChessState) DeepCopy() ChessState {
 }
 
 func (svc *Services) IsGameAccessible(ctx context.Context, id string) bool {
-	gameKey := svc.MakeGameKey(id)
+	gameKey := svc.makeGameKey(id)
 
-	exists, err := svc.Redis.Cache.Exists(ctx, gameKey).Result()
+	exists, err := svc.Redis.GameStore.Exists(ctx, gameKey).Result()
 
 	return err == nil && exists == 1
 }
@@ -154,15 +145,15 @@ func (svc *Services) IsGameAccessible(ctx context.Context, id string) bool {
 var ErrNoChessState = errors.New("no chess state")
 
 func (svc *Services) GetChessState(ctx context.Context, id string) (*ChessState, error) {
-	return svc.GetChessStateAbstract(ctx, svc.Redis.Cache, id)
+	return svc.getChessStateAbstract(ctx, svc.Redis.GameStore, id)
 }
 
 type RedisGetter interface {
 	Get(ctx context.Context, key string) *redis.StringCmd
 }
 
-func (svc *Services) GetChessStateAbstract(ctx context.Context, getter RedisGetter, id string) (*ChessState, error) {
-	gameKey := svc.MakeGameKey(id)
+func (svc *Services) getChessStateAbstract(ctx context.Context, getter RedisGetter, id string) (*ChessState, error) {
+	gameKey := svc.makeGameKey(id)
 
 	bytes, err := getter.Get(ctx, gameKey).Bytes()
 	if err != nil {
@@ -183,22 +174,22 @@ func (svc *Services) GetChessStateAbstract(ctx context.Context, getter RedisGett
 
 func (svc *Services) SetChessState(ctx context.Context, id string, state *ChessState) error {
 	touch := time.Now()
-	return svc.SetChessStateAt(ctx, id, state, touch)
+	return svc.setChessStateAt(ctx, id, state, touch)
 }
 
-func (svc *Services) SetChessStateAt(ctx context.Context, id string, state *ChessState, touch time.Time) error {
-	pipe := svc.Redis.Cache.TxPipeline()
-	if err := svc.SetChessStatePiped(ctx, pipe, id, state, touch); err != nil {
+func (svc *Services) setChessStateAt(ctx context.Context, id string, state *ChessState, touch time.Time) error {
+	pipe := svc.Redis.GameStore.TxPipeline()
+	if err := svc.setChessStatePiped(ctx, pipe, id, state, touch); err != nil {
 		return err
 	}
 	_, err := pipe.Exec(ctx)
 	return err
 }
 
-func (svc *Services) SetChessStatePiped(ctx context.Context, pipe redis.Pipeliner, id string, state *ChessState, touch time.Time) error {
+func (svc *Services) setChessStatePiped(ctx context.Context, pipe redis.Pipeliner, id string, state *ChessState, touch time.Time) error {
 	state.Touch = touch
 	touchSecs := float64(state.Touch.Unix())
-	gameKey := svc.MakeGameKey(id)
+	gameKey := svc.makeGameKey(id)
 
 	bytes, err := proto.Marshal(SerializeChessState(state))
 	if err != nil {
@@ -210,16 +201,16 @@ func (svc *Services) SetChessStatePiped(ctx context.Context, pipe redis.Pipeline
 		// keeps the game at the front of top of the sorted games sets on update (only stores for non guests)
 		pipe.ZAdd(ctx, svc.Redis.GamesZSet, redis.Z{Score: touchSecs, Member: gameKey})
 		if state.WhitePlayer.Present && !state.WhitePlayer.IsGuest {
-			pipe.ZAdd(ctx, svc.GetUserGameZSet(state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: gameKey})
+			pipe.ZAdd(ctx, svc.getUserGameZSet(state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: gameKey})
 		}
 		if state.BlackPlayer.Present && !state.BlackPlayer.IsGuest {
-			pipe.ZAdd(ctx, svc.GetUserGameZSet(state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: gameKey})
+			pipe.ZAdd(ctx, svc.getUserGameZSet(state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: gameKey})
 		}
 	} else {
 		// aborted games should be removed from sorted sets, although the game itself is technically accessible
 		pipe.ZRem(ctx, svc.Redis.GamesZSet, gameKey)
-		pipe.ZRem(ctx, svc.GetUserGameZSet(state.WhitePlayer.ID), gameKey)
-		pipe.ZRem(ctx, svc.GetUserGameZSet(state.BlackPlayer.ID), gameKey)
+		pipe.ZRem(ctx, svc.getUserGameZSet(state.WhitePlayer.ID), gameKey)
+		pipe.ZRem(ctx, svc.getUserGameZSet(state.BlackPlayer.ID), gameKey)
 	}
 
 	slog.InfoContext(ctx, "set chess state", "key", gameKey, "touch", touch)
@@ -227,26 +218,27 @@ func (svc *Services) SetChessStatePiped(ctx context.Context, pipe redis.Pipeline
 }
 
 const MaxUpdateChessStateRetries = 5
+
 var ErrMaxChessStateRetries = errors.New("update chess state txn: reached max retries")
 
 func (svc *Services) UpdateChessStateTxn(ctx context.Context, gameID string, update func(*ChessState) error) (*ChessState, error) {
-	gameKey := svc.MakeGameKey(gameID)
+	gameKey := svc.makeGameKey(gameID)
 
 	for range MaxUpdateChessStateRetries {
 		var retState *ChessState
 
-		err := svc.Redis.Cache.Watch(ctx, func(txn *redis.Tx) error {
-			state, err := svc.GetChessStateAbstract(ctx, txn, gameID)
+		err := svc.Redis.GameStore.Watch(ctx, func(txn *redis.Tx) error {
+			state, err := svc.getChessStateAbstract(ctx, txn, gameID)
 			if err != nil {
 				return err
 			}
-	
+
 			if err := update(state); err != nil {
 				return err
 			}
-			
+
 			_, err = txn.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-				return svc.SetChessStatePiped(ctx, pipe, gameID, state, time.Now())
+				return svc.setChessStatePiped(ctx, pipe, gameID, state, time.Now())
 			})
 			if err == nil {
 				retState = state
@@ -267,14 +259,14 @@ func (svc *Services) GetUserChessMetas(ctx context.Context, userID int64) ([]Che
 }
 
 func (svc *Services) GetUserChessMetasPaged(ctx context.Context, userID int64, page, count int) ([]ChessMeta, error) {
-	return svc.GetChessMetas(ctx, svc.GetUserGameZSet(userID), page, count)
+	return svc.getChessMetas(ctx, svc.getUserGameZSet(userID), page, count)
 }
 
 func (svc *Services) GetAllChessMetas(ctx context.Context, page, count int) ([]ChessMeta, error) {
-	return svc.GetChessMetas(ctx, svc.Redis.GamesZSet, page, count)
+	return svc.getChessMetas(ctx, svc.Redis.GamesZSet, page, count)
 }
 
-func (svc *Services) GetChessMetas(ctx context.Context, zSetName string, page, count int) ([]ChessMeta, error) {
+func (svc *Services) getChessMetas(ctx context.Context, zSetName string, page, count int) ([]ChessMeta, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -287,7 +279,7 @@ func (svc *Services) GetChessMetas(ctx context.Context, zSetName string, page, c
 		stop = -1
 	}
 
-	chessKeys, err := svc.Redis.Cache.ZRevRange(ctx, zSetName, start, stop).Result()
+	chessKeys, err := svc.Redis.GameStore.ZRevRange(ctx, zSetName, start, stop).Result()
 	if err != nil {
 		return nil, fmt.Errorf("retrieve chess ids by range: %w", err)
 	}
@@ -295,7 +287,7 @@ func (svc *Services) GetChessMetas(ctx context.Context, zSetName string, page, c
 		return nil, nil
 	}
 
-	mgetList, err := svc.Redis.Cache.MGet(ctx, chessKeys...).Result()
+	mgetList, err := svc.Redis.GameStore.MGet(ctx, chessKeys...).Result()
 	if err != nil {
 		return nil, fmt.Errorf("get many chess states: %w", err)
 	}
@@ -319,7 +311,7 @@ func (svc *Services) GetChessMetas(ctx context.Context, zSetName string, page, c
 }
 
 func (svc *Services) GetChessStateCount(ctx context.Context) (int64, error) {
-	count, err := svc.Redis.Cache.ZCard(ctx, svc.Redis.GamesZSet).Result()
+	count, err := svc.Redis.GameStore.ZCard(ctx, svc.Redis.GamesZSet).Result()
 	if err != nil {
 		return 0, fmt.Errorf("count chess state: %w", err)
 	}

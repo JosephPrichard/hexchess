@@ -31,7 +31,7 @@ func main() {
 	cmd.InitEnv()
 
 	dbURL := os.Getenv("DB_URL")
-	rdbPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
+	rdbCacheURL := os.Getenv("REDIS_CACHE_URL")
 
 	ctx := context.WithValue(context.Background(), logutil.Trace, "jobs-runner")
 
@@ -42,8 +42,9 @@ func main() {
 	}
 	pdb := db.MakeDB(pool)
 
-	slog.InfoContext(ctx, "connecting to rdb db", "rdbPrimaryURL", rdbPrimaryURL)
-	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL}, db.DefaultRedisNames)
+	addrs := db.RedisAddrs{CacheAddr: rdbCacheURL}
+	slog.InfoContext(ctx, "connecting to redis db", "addrs", addrs)
+	rdb := db.MakeRdb(addrs, nil)
 
 	services := &svc.Services{
 		DB:      pdb,

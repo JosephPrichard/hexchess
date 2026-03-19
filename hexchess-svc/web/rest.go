@@ -111,7 +111,7 @@ func (server *Server) HandleRegister(w http.ResponseWriter, r *http.Request) err
 		return fmt.Errorf("insert user: %w", err)
 	}
 
-	ttl, err := SetSessionPlayer(ctx, server.Services, w, svc.MakePlayer(user.ID, user.Username, user.Country))
+	ttl, err := server.SetSessionPlayer(ctx, w, svc.MakePlayer(user.ID, user.Username, user.Country))
 	if err != nil {
 		return fmt.Errorf("set session player: %w", err)
 	}
@@ -127,7 +127,7 @@ func (server *Server) HandleRegister(w http.ResponseWriter, r *http.Request) err
 }
 
 func (server *Server) handleLoginSession(ctx context.Context, w http.ResponseWriter, user svc.VerifiedUser) error {
-	t, err := SetSessionPlayer(ctx, server.Services, w, svc.MakePlayer(user.ID, user.Username, user.Country))
+	t, err := server.SetSessionPlayer(ctx, w, svc.MakePlayer(user.ID, user.Username, user.Country))
 	if err != nil {
 		return fmt.Errorf("set session player: %w", err)
 	}
@@ -219,7 +219,7 @@ func (server *Server) HandleUpdatePassword(w http.ResponseWriter, r *http.Reques
 	}
 
 	ctx := r.Context()
-	player, _, err := GetSessionPlayer(ctx, server.Services, r)
+	player, _, err := server.GetSessionPlayer(ctx, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
@@ -273,7 +273,7 @@ func (server *Server) HandleUpdateUser(w http.ResponseWriter, r *http.Request) e
 	}
 
 	ctx := r.Context()
-	player, _, err := GetSessionPlayer(ctx, server.Services, r)
+	player, _, err := server.GetSessionPlayer(ctx, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
@@ -306,7 +306,7 @@ func (server *Server) HandleCreateTempSession(w http.ResponseWriter, r *http.Req
 	alreadyHasSession := true
 	var tempSessionID string
 
-	player, _, err := GetSessionPlayer(ctx, server.Services, r)
+	player, _, err := server.GetSessionPlayer(ctx, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		alreadyHasSession = false
 	} else if err != nil {
@@ -346,7 +346,7 @@ type RefreshResp struct {
 func (server *Server) HandleRefreshSession(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	player, sessionID, err := GetSessionPlayer(ctx, server.Services, r)
+	player, sessionID, err := server.GetSessionPlayer(ctx, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
@@ -512,7 +512,7 @@ func (server *Server) HandleUpdateChallenge(w http.ResponseWriter, r *http.Reque
 	}
 
 	ctx := r.Context()
-	player, _, err := GetSessionPlayer(ctx, server.Services, r)
+	player, _, err := server.GetSessionPlayer(ctx, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
@@ -575,7 +575,7 @@ func (server *Server) HandleCreateChallenge(w http.ResponseWriter, r *http.Reque
 	}
 
 	ctx := r.Context()
-	player, _, err := GetSessionPlayer(ctx, server.Services, r)
+	player, _, err := server.GetSessionPlayer(ctx, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
@@ -613,7 +613,7 @@ func (server *Server) HandleCreateChallenge(w http.ResponseWriter, r *http.Reque
 func (server *Server) HandleGetSelf(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	player, _, err := GetSessionPlayer(ctx, server.Services, r)
+	player, _, err := server.GetSessionPlayer(ctx, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
@@ -940,7 +940,7 @@ func (server *Server) HandleGetChallenges(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	participants := r.URL.Query().Get("participants")
 
-	player, _, err := GetSessionPlayer(ctx, server.Services, r)
+	player, _, err := server.GetSessionPlayer(ctx, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
@@ -1028,7 +1028,7 @@ func (server *Server) HandleGetChessMetas(w http.ResponseWriter, r *http.Request
 	hasSession := true
 
 	ctx := r.Context()
-	player, _, err := GetSessionPlayer(ctx, server.Services, r)
+	player, _, err := server.GetSessionPlayer(ctx, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		hasSession = false
 	} else if err != nil {

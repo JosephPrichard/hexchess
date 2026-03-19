@@ -62,7 +62,7 @@ func main() {
 	cmd.InitEnv()
 
 	dbURL := os.Getenv("DB_URL")
-	rdbPrimaryURL := os.Getenv("REDIS_PRIMARY_URL")
+	rdbCacheURL := os.Getenv("REDIS_CACHE_URL")
 	isLocalstack := os.Getenv("IS_LOCALSTACK") == "true"
 	awsDefaultRegion := os.Getenv("AWS_DEFAULT_REGION")
 	awsEndpoint := os.Getenv("AWS_ENDPOINT")
@@ -76,8 +76,9 @@ func main() {
 	}
 	pdb := db.MakeDB(pool)
 
-	slog.InfoContext(ctx, "connecting to rdb db", "rdbPrimaryURL", rdbPrimaryURL)
-	rdb := db.MakeRdb(db.RedisAddrs{CacheAddr: rdbPrimaryURL}, db.DefaultRedisNames)
+	addrs := db.RedisAddrs{CacheAddr: rdbCacheURL}
+	slog.InfoContext(ctx, "connecting to redis db", "addrs", addrs)
+	rdb := db.MakeRdb(addrs, nil)
 
 	aws, err := egress.MakeAwsClients(context.Background(), egress.AWSConfig{
 		AWSDefaultRegion: awsDefaultRegion,

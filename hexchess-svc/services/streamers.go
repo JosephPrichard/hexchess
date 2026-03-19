@@ -23,7 +23,7 @@ func MakeFinishGameStreamer(ctx context.Context, svc *Services) *RedisStreamer[F
 		StreamKey:     svc.Redis.FinishGameStreamKey,
 		ConsumerGroup: FinishGameConsumerGroup,
 
-		HandleMessage:  svc.InsertFinishedGameEvent,
+		HandleMessage:  svc.insertFinishedGameEvent,
 		UnmarshalEvent: UnmarshalFinishGameEvent,
 	}
 }
@@ -49,7 +49,7 @@ const (
 	DontSendAck
 )
 
-func (stream *RedisStreamer[Evennt]) handleXReadMessage(msg redis.XMessage) {
+func (stream *RedisStreamer[Event]) handleXReadMessage(msg redis.XMessage) {
 	defer stream.waitGroup.Done()
 
 	streamKey := stream.StreamKey

@@ -11,32 +11,30 @@ volumes:
     driver: local
 
 services:
-  redis-cache:
+  redis-game-store:
     image: redis/redis-stack-server
-    container_name: hexchess-redis-cache
+    container_name: hexchess-redis-game-store
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    environment:
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
+  redis-cache:
+    image: redis/redis-stack-server
+    container_name: hexchess-redis-cache
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
   redis-pubsub:
     image: redis/redis-stack-server
     container_name: hexchess-redis-pubsub
     ports:
-      - "6380:6379"
-    environment:
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
+      - "6381:6379"
   redis-queue:
     image: redis/redis-stack-server
     container_name: hexchess-redis-queue
     ports:
-      - "6381:6379"
-    environment:
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
+      - "6382:6379"
   localstack:
     image: localstack/localstack:latest
     container_name: hexchess-localstack

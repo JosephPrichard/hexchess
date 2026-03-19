@@ -3,13 +3,10 @@ package web
 import (
 	"errors"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"hexchess-svc/assets"
 	svc "hexchess-svc/services"
 	"log/slog"
 	"net/http"
-	"time"
 )
 
 // MaxProfilePicSize 5 MiB
@@ -17,7 +14,7 @@ const MaxProfilePicSize = 5 << 20
 
 func (server *Server) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-	player, _, err := GetSessionPlayer(ctx, server.Services, r)
+	player, _, err := server.GetSessionPlayer(ctx, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
@@ -42,31 +39,12 @@ func (server *Server) HandleUploadProfilePic(w http.ResponseWriter, r *http.Requ
 	}
 	defer file.Close()
 
-	// uploading profile picture based off a computed key
-	key := svc.MakeProfileNewPicKey(player.ID)
-	slog.InfoContext(ctx, "uploading profile pic to s3", "key", key, "player", player)
-	start := time.Now()
-
-	putOutput, err := server.AWS.S3Client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:      aws.String(server.AWS.S3ProfileBucket),
-		Key:         aws.String(key),
-		Body:        file,
-		ContentType: aws.String(contentType),
-		// with max cache control. profile pics are immutable, since we issue a new unique key on upload.
-		CacheControl: aws.String("public, max-age=31536000"),
-	})
+	key, err := server.UploadProfilePic(ctx, player, file, contentType)
 	if err != nil {
-		return fmt.Errorf("put profile pic %s: to s3 bucket: %s: %w", key, server.AWS.S3ProfileBucket, err)
+		return err
 	}
 
-	slog.InfoContext(ctx, "finished uploading profile pic to s3", "key", key, "took", time.Since(start), "player", player, "output", putOutput)
-
 	go func() {
-		defer func() {
-			if err := recover(); err != nil {
-				slog.ErrorContext(ctx, "recovered from panic while deleting old profile pics", "error", err)
-			}
-		}()
 		// removes old profile pictures on upload of a new profile pic, since retrieval function will always get the most recent file.
 		if err := server.DeleteOldProfilePics(ctx, int(player.ID)); err != nil {
 			slog.ErrorContext(ctx, "failed to remove old profile pics", "error", err)

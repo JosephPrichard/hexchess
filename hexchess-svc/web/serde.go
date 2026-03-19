@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"time"
 
 	"hexchess-svc/chess"
@@ -8,7 +9,22 @@ import (
 	svc "hexchess-svc/services"
 )
 
-func MakePbGameOutputError(gameID string, err error) *pb.GameOutput {
+func DeserializeUndoInput(pbInput *pb.UndoInput) (svc.UndoKind, error) {
+	var undoKind svc.UndoKind
+	switch pbInput.Kind {
+	case "CREATE":
+		undoKind = svc.UndoCreate
+	case "ACCEPT":
+		undoKind = svc.UndoAccept
+	case "REJECT":
+		undoKind = svc.UndoReject
+	default:
+		return 0, fmt.Errorf("invalid undo kind: %s", pbInput.Kind)
+	}
+	return undoKind, nil
+}
+
+func SerializeGameOutputError(gameID string, err error) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Error{
@@ -17,16 +33,16 @@ func MakePbGameOutputError(gameID string, err error) *pb.GameOutput {
 	}
 }
 
-func MakePbGameOutputInit(gameID string, cs *pb.ChessState, self *pb.PlayerState) *pb.GameOutput {
+func SerializeGameOutputInit(gameID string, state *pb.ChessState, self *pb.PlayerState) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Init{
-			Init: &pb.InitOutput{State: cs, Self: self},
+			Init: &pb.InitOutput{State: state, Self: self},
 		},
 	}
 }
 
-func MakePbGameOutputPlayers(gameID string, white, black *pb.PlayerState) *pb.GameOutput {
+func SerializeGameOutputPlayers(gameID string, white, black *pb.PlayerState) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Players{
@@ -38,7 +54,18 @@ func MakePbGameOutputPlayers(gameID string, white, black *pb.PlayerState) *pb.Ga
 	}
 }
 
-func MakePbGameOutputMove(gameID string, move *pb.HistMove, game *pb.ChessGame, updatedAt time.Time) *pb.GameOutput {
+func SerializeGameOutputForfeit(gameID string, endState svc.EndKind) *pb.GameOutput {
+	return &pb.GameOutput{
+		GameId: gameID,
+		Value: &pb.GameOutput_Forfeit{
+			Forfeit: &pb.ForfeitOutput{
+				EndState: svc.SerializeEndKind(endState),
+			},
+		},
+	}
+}
+
+func SerializeGameOutputMove(gameID string, move *pb.HistMove, game *pb.ChessGame, updatedAt time.Time) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Move{
@@ -51,7 +78,7 @@ func MakePbGameOutputMove(gameID string, move *pb.HistMove, game *pb.ChessGame, 
 	}
 }
 
-func MakePbGameOutputChat(gameID, message string, self svc.PlayerState, sentAt time.Time) (*pb.GameOutput, svc.Chat) {
+func SerializeGameOutputChat(gameID, message string, self svc.PlayerState, sentAt time.Time) (*pb.GameOutput, svc.Chat) {
 	o := &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Chat{Chat: &pb.ChatMessage{
@@ -60,14 +87,13 @@ func MakePbGameOutputChat(gameID, message string, self svc.PlayerState, sentAt t
 			SentAt:  sentAt.Format(time.RFC3339),
 		}},
 	}
-	c := svc.Chat{Player: self, Message: message, SentAt: sentAt}
-	return o, c
+	return o, svc.Chat{Player: self, Message: message, SentAt: sentAt}
 }
 
-func MakePbGameOutputUndo(gameID string, undoKind string, undoID int64, cs *svc.ChessState) *pb.GameOutput {
+func SerializeGameOutputUndo(gameID string, undoKind string, undoID int64, state *svc.ChessState) *pb.GameOutput {
 	var game *pb.ChessGame
-	if cs != nil {
-		game = chess.SerializeGame(&cs.Game)
+	if state != nil {
+		game = chess.SerializeGame(&state.Game)
 	}
 	return &pb.GameOutput{
 		GameId: gameID,

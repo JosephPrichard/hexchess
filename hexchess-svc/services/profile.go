@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -12,16 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/google/uuid"
 )
-
-func MakeProfilePicPrefix(userID string) string {
-	return fmt.Sprintf("%s/%s", ProfilePicPrefix, userID)
-}
-
-func MakeProfileNewPicKey(userID int64) string {
-	return fmt.Sprintf("%s/%d/%s", ProfilePicPrefix, userID, uuid.NewString())
-}
 
 func ParseProfilePicKey(key string) (int64, error) {
 	tokens := strings.Split(key, "/")
@@ -67,7 +59,7 @@ func filterLeastRecentKeys(objects []s3Types.Object) []s3Types.ObjectIdentifier 
 const ProfilePicPrefix = "users/profile-pics"
 
 func (svc *Services) DeleteOldProfilePics(ctx context.Context, playerID int) error {
-	prefix := MakeProfilePicPrefix(strconv.Itoa(playerID))
+	prefix := makeProfilePicPrefix(strconv.Itoa(playerID))
 
 	// remove all but the newest keys. there should never be more 1000 keys, but if there are, this will never delete the newest key
 	listOutput, err := svc.AWS.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
@@ -94,11 +86,33 @@ func (svc *Services) DeleteOldProfilePics(ctx context.Context, playerID int) err
 	return nil
 }
 
+func (svc *Services) UploadProfilePic(ctx context.Context, uploader PlayerState, file io.Reader, contentType string) (string, error) {
+	// uploading profile picture based off a computed key
+	key := MakeProfileNewPicKey(uploader.ID)
+	slog.InfoContext(ctx, "uploading profile pic to s3", "key", key, "player", uploader)
+	start := time.Now()
+
+	putOutput, err := svc.AWS.S3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(svc.AWS.S3ProfileBucket),
+		Key:         aws.String(key),
+		Body:        file,
+		ContentType: aws.String(contentType),
+		// with max cache control. profile pics are immutable, since we issue a new unique key on upload.
+		CacheControl: aws.String("public, max-age=31536000"),
+	})
+	if err != nil {
+		return "", fmt.Errorf("put profile pic %s: to s3 bucket: %s: %w", key, svc.AWS.S3ProfileBucket, err)
+	}
+
+	slog.InfoContext(ctx, "finished uploading profile pic to s3", "key", key, "took", time.Since(start), "player", uploader, "output", putOutput)
+	return key, nil
+}
+
 var ErrNoProfilePic = errors.New("no profile pic found for user")
 
 func (svc *Services) GetProfilePicKey(ctx context.Context, userID string) (string, error) {
 	// retrieves all profile pictures for any user and retrieves the most recent one. this runs on the assumption that we may not be deleting old profile pics.
-	prefix := MakeProfilePicPrefix(userID)
+	prefix := makeProfilePicPrefix(userID)
 
 	listOutput, err := svc.AWS.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 		Bucket: aws.String(svc.AWS.S3ProfileBucket),

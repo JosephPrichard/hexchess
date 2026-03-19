@@ -24,7 +24,7 @@ type UpdtLbChangeSet struct {
 func (svc *Services) SetLeaderboard(ctx context.Context, changes ...UpdtLbChangeSet) error {
 	pipe := svc.Redis.Cache.TxPipeline()
 	for _, change := range changes {
-		modeLbZSet := svc.GetLeaderboardZSet(change.Mode.String())
+		modeLbZSet := svc.getLeaderboardZSet(change.Mode.String())
 		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: change.EloDiff, Member: change.ID})
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
@@ -37,7 +37,7 @@ func (svc *Services) SetLeaderboard(ctx context.Context, changes ...UpdtLbChange
 func (svc *Services) IncrLeaderboard(ctx context.Context, changes ...UpdtLbChangeSet) error {
 	pipe := svc.Redis.Cache.TxPipeline()
 	for _, change := range changes {
-		modeLbZSet := svc.GetLeaderboardZSet(change.Mode.String())
+		modeLbZSet := svc.getLeaderboardZSet(change.Mode.String())
 		pipe.ZIncrBy(ctx, modeLbZSet, change.EloDiff, strconv.Itoa(int(change.ID)))
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
@@ -74,7 +74,7 @@ func (svc *Services) GetLeaderboardRanks(ctx context.Context, id int64, modes ma
 	getExecs := make([]getExec, 0, len(modes))
 
 	for _, mode := range modes {
-		modeLbZSet := svc.GetLeaderboardZSet(mode.String())
+		modeLbZSet := svc.getLeaderboardZSet(mode.String())
 		getExecs = append(getExecs, getExec{
 			mode: mode.String(),
 			cmd:  svc.Redis.Cache.ZRevRankWithScore(ctx, modeLbZSet, strID),
@@ -107,7 +107,7 @@ func (svc *Services) GetLeaderboardRanks(ctx context.Context, id int64, modes ma
 		if _, ok := ranks[mode.String()]; ok {
 			continue
 		}
-		modeLbZSet := svc.GetLeaderboardZSet(mode.String())
+		modeLbZSet := svc.getLeaderboardZSet(mode.String())
 		addExecs = append(addExecs, addExec{
 			mode:   mode,
 			addCmd: pipeline.ZAddNX(ctx, modeLbZSet, redis.Z{Member: strID, Score: StartElo}),
@@ -132,8 +132,8 @@ func (svc *Services) GetLeaderboardRanks(ctx context.Context, id int64, modes ma
 	return ranks, nil
 }
 
-func (svc *Services) GetLeaderboard(ctx context.Context, mode GameMode, startRank, count int64) (Leaderboard, error) {
-	modeLbZSet := svc.GetLeaderboardZSet(mode.String())
+func (svc *Services) getLeaderboard(ctx context.Context, mode GameMode, startRank, count int64) (Leaderboard, error) {
+	modeLbZSet := svc.getLeaderboardZSet(mode.String())
 
 	var leaderboard Leaderboard
 
@@ -170,7 +170,7 @@ func (svc *Services) GetLeaderboardPage(ctx context.Context, mode GameMode, page
 	}
 	offset := (page - 1) * perPage
 
-	leaderboard, err := svc.GetLeaderboard(ctx, mode, offset, perPage)
+	leaderboard, err := svc.getLeaderboard(ctx, mode, offset, perPage)
 	logutil.DynLog(ctx, "retrieved leaderboard page", err, "page", page, "perPage", perPage, "leaderboard", leaderboard, "err", err)
 	return leaderboard, err
 }

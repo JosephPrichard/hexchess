@@ -123,9 +123,9 @@ func TestGetChessMetas(t *testing.T) {
 	now := time.Now()
 
 	// these times must be after now.Add(-GameExpireFinished)
-	require.NoError(t, services.SetChessStateAt(ctx, id1, s1, now.Add(-100*time.Second)))
-	require.NoError(t, services.SetChessStateAt(ctx, id2, s2, now.Add(-50*time.Second)))
-	require.NoError(t, services.SetChessStateAt(ctx, id3, s3, now.Add(-10*time.Second)))
+	require.NoError(t, services.setChessStateAt(ctx, id1, s1, now.Add(-100*time.Second)))
+	require.NoError(t, services.setChessStateAt(ctx, id2, s2, now.Add(-50*time.Second)))
+	require.NoError(t, services.setChessStateAt(ctx, id3, s3, now.Add(-10*time.Second)))
 
 	metaList1, err := services.GetUserChessMetas(ctx, 1)
 	require.NoError(t, err)

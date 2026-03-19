@@ -13,7 +13,7 @@ import (
 )
 
 func (svc *Services) GetStateChats(ctx context.Context, gameID string, count int64) ([]*pb.ChatMessage, error) {
-	chatsZSet := svc.GetGameChatsZSet(svc.MakeGameKey(gameID))
+	chatsZSet := svc.getGameChatsZSet(svc.makeGameKey(gameID))
 	strList, err := svc.Redis.Cache.ZRevRange(ctx, chatsZSet, 0, count).Result()
 	if err != nil {
 		return nil, fmt.Errorf("get the first %d chats: %w", count, err)
@@ -43,7 +43,7 @@ func (svc *Services) InsertStateChat(ctx context.Context, gameID string, chat Ch
 	if err != nil {
 		return fmt.Errorf("marshal chat: %w", err)
 	}
-	chatsZSet := svc.GetGameChatsZSet(svc.MakeGameKey(gameID))
+	chatsZSet := svc.getGameChatsZSet(svc.makeGameKey(gameID))
 	if err := svc.Redis.Cache.ZAdd(ctx, chatsZSet, redis.Z{Score: float64(chat.SentAt.UnixMilli()), Member: bytes}).Err(); err != nil {
 		return fmt.Errorf("add chat %v to zset: %w", chat, err)
 	}

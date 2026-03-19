@@ -73,26 +73,21 @@ func (svc *Services) CreateGame(ctx context.Context, color Color, mode GameMode,
 	state.Game.InitPieceMoves()
 
 	slog.InfoContext(ctx, "created chess game", "chessMeta", state.ChessMeta)
-	
+
 	if err := svc.SetChessState(ctx, strID, state); err != nil {
 		return "", fmt.Errorf("set chess state by id %s: %w", strID, err)
 	}
 
 	go func() {
-		if err := svc.broadcastGameCounts(); err != nil {
+		if err := svc.broadcastGameCounts(strID); err != nil {
 			slog.ErrorContext(ctx, "failed to broadcast game count after creating game", "err", err)
 		}
 	}()
 	return strID, nil
 }
 
-func (svc *Services) broadcastGameCounts() error {
-	defer func() {
-		if r := recover(); r != nil {
-			slog.Warn("recovered in panic while broadcasting game event", "err", r)
-		}
-	}()
-	ctx := context.WithValue(context.Background(), logutil.Trace, "create-game-broadcast-handler")
+func (svc *Services) broadcastGameCounts(strID string) error {
+	ctx := context.WithValue(context.Background(), logutil.Trace, "broadcastGameCounts:"+strID)
 
 	count, err := svc.GetChessStateCount(ctx)
 	if err != nil {

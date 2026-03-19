@@ -45,10 +45,13 @@ func TestHandleGameplayWs(t *testing.T) {
 			BlackPlayer: &pb.PlayerState{Id: 2, Name: "user2", Country: "us"},
 		}},
 	}
-	wantValidMove := &pb.GameOutput_Move{Move: &pb.MoveOutput{
-		UpdatedAt: itest.TimeNow.Format(time.RFC3339),
-		Move:      &pb.HistMove{Piece: int32(chess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, Notation: "Pb2"},
-	}}
+	wantValidMove := &pb.GameOutput{
+		GameId: gameID, 
+		Value: &pb.GameOutput_Move{Move: &pb.MoveOutput{
+			UpdatedAt: itest.TimeNow.Format(time.RFC3339),
+			Move:      &pb.HistMove{Piece: int32(chess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, Notation: "Pb2"},
+		}},
+	}
 	wantChat := &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Chat{Chat: &pb.ChatMessage{
@@ -57,76 +60,133 @@ func TestHandleGameplayWs(t *testing.T) {
 			SentAt:  itest.TimeNow.Format(time.RFC3339),
 		}},
 	}
-
-	wantMsgs := []*pb.GameOutput{wantInit, wantPlayers}
-	wantBrdcasts := []any{wantPlayers}
+	wantForfeit := &pb.GameOutput{
+		GameId: gameID,
+		Value: &pb.GameOutput_Forfeit{
+			Forfeit: &pb.ForfeitOutput{
+				EndState: pb.EndKind_FINISHED,
+			},
+		},
+	}
+	wantUndo := &pb.GameOutput{
+		GameId: gameID, 
+		Value: &pb.GameOutput_Undo{
+			Undo: &pb.UndoOutput{Kind: "REJECT", UndoId: 1},
+		},
+	}
 
 	tests := []struct {
 		name         string
-		inputMsgs    []*pb.GameInput
+		inputMsg    *pb.GameInput
 		wantMsgs     []*pb.GameOutput
 		wantBrdcasts []any
 	}{
 		{
-			name: "move input (invalid)",
-			inputMsgs: []*pb.GameInput{
-				{Value: &pb.GameInput_Move{Move: &pb.MoveInput{Move: &pb.Move{}}}},
-			},
-			wantMsgs: []*pb.GameOutput{
-				{
-					GameId: gameID,
-					Value:  &pb.GameOutput_Error{Error: &pb.ErrorOutput{Message: ErrWsInvalidMove.Error()}},
+			name: "MoveInvalid",
+			inputMsg: &pb.GameInput{
+				Value: &pb.GameInput_Move{
+					Move: &pb.MoveInput{Move: &pb.Move{}},
 				},
 			},
-		},
-		{
-			name: "move input (valid)",
-			inputMsgs: []*pb.GameInput{
-				{Value: &pb.GameInput_Move{Move: &pb.MoveInput{Move: chess.PbMoveStr("b1", "b2")}}},
-			},
 			wantMsgs: []*pb.GameOutput{
-				{GameId: gameID, Value: wantValidMove},
+				wantPlayers,
+				wantInit,
+				{
+					GameId: gameID,
+					Value:  &pb.GameOutput_Error{
+						Error: &pb.ErrorOutput{Message: ErrWsInvalidMove.Error()},
+					},
+				},
 			},
 			wantBrdcasts: []any{
-				&pb.GameOutput{GameId: gameID, Value: wantValidMove},
+				wantPlayers,
 			},
 		},
 		{
-			name: "chat input",
-			inputMsgs: []*pb.GameInput{
-				{Value: &pb.GameInput_Chat{Chat: &pb.ChatInput{Message: "Hello World"}}},
-			},
-			wantMsgs:     []*pb.GameOutput{wantChat},
-			wantBrdcasts: []any{wantChat},
-		},
-		{
-			name: "undo input (success)",
-			inputMsgs: []*pb.GameInput{
-				{Value: &pb.GameInput_Undo{Undo: &pb.UndoInput{Kind: "REJECT"}}},
+			name: "MoveValid",
+			inputMsg: &pb.GameInput{
+				Value: &pb.GameInput_Move{Move: &pb.MoveInput{Move: chess.PbMoveStr("b1", "b2")}},
 			},
 			wantMsgs: []*pb.GameOutput{
-				{GameId: gameID, Value: &pb.GameOutput_Undo{Undo: &pb.UndoOutput{Kind: "REJECT", UndoId: 1}}},
+				wantValidMove,
+				wantPlayers,
+				wantInit,
 			},
 			wantBrdcasts: []any{
-				&pb.GameOutput{GameId: gameID, Value: &pb.GameOutput_Undo{Undo: &pb.UndoOutput{Kind: "REJECT", UndoId: 1}}},
+				wantValidMove,
+				wantPlayers,
 			},
 		},
 		{
-			name: "undo input (fail)",
-			inputMsgs: []*pb.GameInput{
-				{Value: &pb.GameInput_Undo{Undo: &pb.UndoInput{Kind: "ACCEPT"}}},
+			name: "Chat",
+			inputMsg: &pb.GameInput{
+				Value: &pb.GameInput_Chat{Chat: &pb.ChatInput{Message: "Hello World"}},
 			},
 			wantMsgs: []*pb.GameOutput{
-				{GameId: gameID, Value: &pb.GameOutput_Error{Error: &pb.ErrorOutput{Message: ErrWsUndoAction.Error()}}},
+				wantChat, 
+				wantPlayers, 
+				wantInit,
+			},
+			wantBrdcasts: []any{
+				wantChat,
+				wantPlayers,
+			},
+		},
+		{
+			name: "Forfeit",
+			inputMsg: &pb.GameInput{
+				Value: &pb.GameInput_Forfeit{Forfeit: &pb.ForfeitInput{}},
+			},
+			wantMsgs:     []*pb.GameOutput{
+				wantForfeit,
+				wantPlayers, 
+				wantInit,
+			},
+			wantBrdcasts: []any{
+				wantForfeit,
+				wantPlayers,
+			},
+		},
+		{
+			name: "UndoInput",
+			inputMsg: &pb.GameInput{
+				Value: &pb.GameInput_Undo{Undo: &pb.UndoInput{Kind: "REJECT"}},
+			},
+			wantMsgs: []*pb.GameOutput{
+				wantUndo,
+				wantPlayers,
+				wantInit,
+			},
+			wantBrdcasts: []any{
+				wantUndo,
+				wantPlayers,
+			},
+		},
+		{
+			name: "UndoInputError",
+			inputMsg: &pb.GameInput{
+				Value: &pb.GameInput_Undo{Undo: &pb.UndoInput{Kind: "ACCEPT"}},
+			},
+			wantMsgs: []*pb.GameOutput{
+				wantPlayers,
+				wantInit,
+				{
+					GameId: gameID, 
+					Value: &pb.GameOutput_Error{
+						Error: &pb.ErrorOutput{Message: ErrWsUndoAction.Error()},
+					},
+				},
+			},
+			wantBrdcasts: []any{
+				wantPlayers,
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
-			wantMsgs := slices.Concat(wantMsgs, tt.wantMsgs)
-			wantBrdcasts := slices.Concat(wantBrdcasts, tt.wantBrdcasts)
+			wantMsgs := tt.wantMsgs
+			wantBrdcasts := tt.wantBrdcasts
 
 			services := svc.SetupServicesTest(t, itest.RWPostgres, itest.Redis, itest.Aws)
 			defer services.Close()
@@ -150,11 +210,9 @@ func TestHandleGameplayWs(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close()
 
-			for _, input := range tt.inputMsgs {
-				bytes, err := proto.Marshal(input)
-				require.NoError(t, err)
-				require.NoError(t, conn.WriteMessage(websocket.BinaryMessage, bytes))
-			}
+			bytes, err := proto.Marshal(tt.inputMsg)
+			require.NoError(t, err)
+			require.NoError(t, conn.WriteMessage(websocket.BinaryMessage, bytes))
 
 			msgs := make([]*pb.GameOutput, len(wantMsgs))
 			for i := range wantMsgs {
@@ -178,10 +236,10 @@ func TestHandleGameplayWs(t *testing.T) {
 			}
 
 			slices.SortFunc(msgs, func(a *pb.GameOutput, b *pb.GameOutput) int {
-				return getMsgSortOrd(a) - getMsgSortOrd(b)
+				return getMessageSortOrd(b) - getMessageSortOrd(a)
 			})
 			slices.SortFunc(brdcasts, func(a any, b any) int {
-				return getBrdcastSortOrd(a) - getBrdcastSortOrd(b)
+				return getBroadcastSortOrd(b) - getBroadcastSortOrd(a)
 			})
 			testutil.Equal(t, wantMsgs, msgs, cmpOpts...)
 			testutil.Equal(t, wantBrdcasts, brdcasts, cmpOpts...)
@@ -212,32 +270,20 @@ func readBroadcasts(ctx context.Context, wantBrdcasts int, subChan chan []byte) 
 
 // getMsgSortOrd and getBrdcastSortOrd create deterministic orderings of messages that are used in the assertions of websocket tests
 
-func getMsgSortOrd(o *pb.GameOutput) int {
-	switch o.Value.(type) {
-	case *pb.GameOutput_Init:
-		return 1
-	case *pb.GameOutput_Players:
-		return 2
-	case *pb.GameOutput_Move:
-		return 3
-	case *pb.GameOutput_Chat:
-		return 4
-	case *pb.GameOutput_Undo:
-		return 5
-	case *pb.GameOutput_Error:
-		return 6
-	default:
-		panic(fmt.Sprintf("unexpected output type: %T", o.Value))
+func getMessageSortOrd(o *pb.GameOutput) int {
+	oneof := o.ProtoReflect().Descriptor().Oneofs().ByName("value")
+	whichField := o.ProtoReflect().WhichOneof(oneof)
+	if whichField == nil {
+		return 0
 	}
+	return int(whichField.Number())
 }
 
-func getBrdcastSortOrd(b any) int {
+func getBroadcastSortOrd(b any) int {
 	switch o := b.(type) {
 	case *pb.GameOutput:
-		return getMsgSortOrd(o)
-	case error:
-		return 0
+		return getMessageSortOrd(o)
 	default:
-		panic(fmt.Sprintf("unexpected output type: %T", b))
+		return 0
 	}
 }

@@ -51,7 +51,7 @@ func (svc *Services) PushFinishGameEvent(ctx context.Context, event FinishGameEv
 	return nil
 }
 
-func (svc *Services) InsertFinishedGameEvent(ctx context.Context, event FinishGameEvent) error {
+func (svc *Services) insertFinishedGameEvent(ctx context.Context, event FinishGameEvent) error {
 	var changeSet GameResultChangeSet
 
 	if !event.WhitePlayer.Present || !event.BlackPlayer.Present {
@@ -131,14 +131,15 @@ func (cs GameResultChangeSet) IsNoop() bool {
 }
 
 // InsertGameResultTx executes the insertGameResult operation in a transaction primarily to ensure
-func (svc *Services) InsertGameResultTx(ctx context.Context, params GameResult) (cs GameResultChangeSet, err error) {
-	err = svc.DB.ExecTx(ctx, db.TxnArgs{
+func (svc *Services) InsertGameResultTx(ctx context.Context, params GameResult) (GameResultChangeSet, error) {
+	var changeSet GameResultChangeSet
+	err := svc.DB.ExecTx(ctx, db.TxnArgs{
 		QueryFn: func(ctx context.Context, query *sqlc.Queries) (err error) {
-			cs, err = insertGameResult(ctx, query, params)
+			changeSet, err = insertGameResult(ctx, query, params)
 			return err
 		},
 	})
-	return cs, err
+	return changeSet, err
 }
 
 // insertGameResult processes a game result, updates player ELO scores, and records the match details in the database.

@@ -54,21 +54,23 @@ func MakeFakeDB(txn pgx.Tx) DB {
 }
 
 type RedisAddrs struct {
-	CacheAddr  string
-	PubsubAddr string
+	GameStoreAddr string `json:"gameStoreAddr"`
+	CacheAddr     string `json:"cacheAddr"`
+	PubsubAddr    string `json:"pubsubAddr"`
+	QueueAddr     string `json:"queueAddr"`
 }
 
 type RedisNames struct {
-	LeaderboardZSet         string
-	GamesZSet               string
-	ActiveUsersZSet         string
-	GameChatsZSet           string
-	GamesChannel            string
-	UsersChannel            string
-	GamesCountChannel       string
-	ActiveCountChannel      string
-	FinishGameStreamKey     string
-	FinishGameConsumerGroup string
+	LeaderboardZSet         string `json:"leaderboardZSet"`
+	GamesZSet               string `json:"gamesZSet"`
+	ActiveUsersZSet         string `json:"activeUsersZSet"`
+	GameChatsZSet           string `json:"gameChatsZSet"`
+	GamesChannel            string `json:"gamesChannel"`
+	UsersChannel            string `json:"usersChannel"`
+	GamesCountChannel       string `json:"gamesCountChannel"`
+	ActiveCountChannel      string `json:"activeCountChannel"`
+	FinishGameStreamKey     string `json:"finishGameStreamKey"`
+	FinishGameConsumerGroup string `json:"finishGameConsumerGroup"`
 }
 
 const (
@@ -96,9 +98,10 @@ var DefaultRedisNames = RedisNames{
 }
 
 type Redis struct {
-	Cache  *redis.Client
-	PubSub *redigo.Pool
-	Queue  *redis.Client
+	GameStore *redis.Client
+	Cache     *redis.Client
+	PubSub    *redigo.Pool
+	Queue     *redis.Client
 	RedisAddrs
 	RedisNames
 }
@@ -112,7 +115,10 @@ func (rdb *Redis) Close() {
 	}
 }
 
-func MakeRdb(addrs RedisAddrs, names RedisNames) Redis {
+func MakeRdb(addrs RedisAddrs, names *RedisNames) Redis {
+	if names == nil {
+		names = &DefaultRedisNames
+	}
 	var ps *redigo.Pool
 	if addrs.PubsubAddr != "" {
 		ps = &redigo.Pool{
@@ -124,14 +130,17 @@ func MakeRdb(addrs RedisAddrs, names RedisNames) Redis {
 		}
 	}
 	return Redis{
+		GameStore: redis.NewClient(&redis.Options{
+			Addr: addrs.GameStoreAddr,
+		}),
 		Cache: redis.NewClient(&redis.Options{
 			Addr: addrs.CacheAddr,
 		}),
 		Queue: redis.NewClient(&redis.Options{
-			Addr: addrs.CacheAddr,
+			Addr: addrs.QueueAddr,
 		}),
 		PubSub:     ps,
 		RedisAddrs: addrs,
-		RedisNames: names,
+		RedisNames: *names,
 	}
 }

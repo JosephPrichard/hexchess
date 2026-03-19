@@ -172,7 +172,7 @@ RecvLoop:
 func (server *Server) HandleUserEvents(w SSEWriter, r *http.Request) error {
 	ctx := w.ctx
 
-	player, _, err := GetSessionPlayer(ctx, server.Services, r)
+	player, _, err := server.GetSessionPlayer(ctx, r)
 	if err != nil {
 		if errors.Is(err, svc.ErrSessionNotFound) {
 			return ErrHttpSessionExpired

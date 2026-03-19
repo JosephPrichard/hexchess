@@ -34,7 +34,7 @@ func (svc *Services) ClearBucketOrphans(ctx context.Context, pageLength int32) {
 	} {
 		wg.Add(1)
 		go func() {
-			if err := svc.RemoveOrphanedObjects(ctx, config); err != nil {
+			if err := svc.removeOrphanedObjects(ctx, config); err != nil {
 				slog.ErrorContext(ctx, "failed to remove orphaned objects", "config", config, "err", err)
 			}
 			wg.Done()
@@ -52,9 +52,9 @@ type RemoveOrphansOpts struct {
 	selectIDs  func(context.Context, []int64) ([]int64, error)
 }
 
-// RemoveOrphanedObjects is a generic algorithm to delete any orphaned keys by paginating all keys in a bucket
+// removeOrphanedObjects is a generic algorithm to delete any orphaned keys by paginating all keys in a bucket
 // it assumes that we can parse the id from any given key, and that we can lookup if that ID is valid or not from a database.
-func (svc *Services) RemoveOrphanedObjects(ctx context.Context, opts RemoveOrphansOpts) error {
+func (svc *Services) removeOrphanedObjects(ctx context.Context, opts RemoveOrphansOpts) error {
 	page := 0
 
 	paginator := s3.NewListObjectsV2Paginator(svc.AWS.S3Client, &s3.ListObjectsV2Input{

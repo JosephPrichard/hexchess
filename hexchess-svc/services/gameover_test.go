@@ -221,9 +221,9 @@ func TestInsertFinishedGame(t *testing.T) {
 			subChan := make(chan []byte, 1)
 			lb.GamesCaster.Subscribe(test.event.GameID, subChan) // expect the game event to come on the following gameID (derived from input) channel. test times out and fails if it does not.
 
-			require.NoError(t, services.InsertFinishedGameEvent(ctx, test.event))
+			require.NoError(t, services.insertFinishedGameEvent(ctx, test.event))
 
-			modeLbZSet := services.GetLeaderboardZSet(test.event.ReplayMode.String())
+			modeLbZSet := services.getLeaderboardZSet(test.event.ReplayMode.String())
 			leaderboard, err := services.Redis.Cache.ZRevRange(ctx, modeLbZSet, 0, 2).Result()
 			require.NoError(t, err)
 
