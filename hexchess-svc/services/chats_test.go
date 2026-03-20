@@ -26,7 +26,7 @@ func TestEchoStateChats(t *testing.T) {
 
 	chatsIn := []Chat{
 		{
-			Player:  PlayerState{ID: 1, Name: "name", Country: "us", IsGuest: false, Present: true},
+			Player:  PlayerState{ID: 1, Name: "name", Country: "us", Present: true},
 			Message: "test1",
 			SentAt:  time.Date(2022, 1, 1, 0, 1, 0, 0, time.UTC),
 		},

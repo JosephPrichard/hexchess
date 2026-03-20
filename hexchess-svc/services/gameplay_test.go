@@ -287,7 +287,7 @@ func TestMakeMove(t *testing.T) {
 		FirstColor: Random,
 		White:      PlayerState{ID: 3, Present: true},
 		Black:      PlayerState{ID: 4, Present: true},
-		Game: New(chess.MakeEmptyGame(false,
+		Game: new(chess.MakeEmptyGame(false,
 			chess.Place{Not: "f1", Piece: chess.WhiteKing},
 			chess.Place{Not: "a2", Piece: chess.BlackQueen},
 			chess.Place{Not: "h1", Piece: chess.BlackRook},

@@ -76,6 +76,25 @@ var TestReplayEntities = []ReplayEntity{
 		BlackEloDiff: 0,
 		PlayedOn:     itest.TimeNow.Local(),
 	},
+	{
+		ID:           4,
+		WhiteID:      1,
+		BlackID:      0,
+		WhiteName:    "user1",
+		BlackName:    "",
+		WhiteCountry: "us",
+		BlackCountry: "",
+		Mode:         "CORRESPONDENCE_7",
+		Result:       "WHITE_WINS",
+		Cause:        "CHECKMATE",
+		WinEloDiff:   0,
+		LoseEloDiff:  0,
+		WhiteElo:     1000,
+		BlackElo:     1000,
+		WhiteEloDiff: 0,
+		BlackEloDiff: 0,
+		PlayedOn:     itest.TimeNow.Local(),
+	},
 }
 
 var TestChallengeEntities = []ChallengeEntity{

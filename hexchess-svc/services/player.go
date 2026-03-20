@@ -9,12 +9,27 @@ type PlayerState struct {
 	ID      int64  `json:"id"`
 	Name    string `json:"name"`
 	Country string `json:"country"`
-	IsGuest bool   `json:"isGuest"`
 	Present bool   `json:"present"`
+}
+
+func (p PlayerState) IsGuest() bool {
+	return IsGuestID(p.ID)
+}
+
+func (p PlayerState) NonGuest() bool {
+	return !IsGuestID(p.ID) && p.Present
 }
 
 func (p PlayerState) IsSame(p1 PlayerState) bool {
 	return p.Present && p1.Present && p.ID == p1.ID
+}
+
+func IsNonGuestID(id int64) bool {
+	return id > 0
+}
+
+func IsGuestID(id int64) bool {
+	return id < 0
 }
 
 const GuestNumLen = 8
@@ -32,7 +47,7 @@ func MakeGuest() PlayerState {
 	}
 
 	// concurrency safe to use rand - we are also using random negative integers for guests so we will never have a collision with an actual player
-	return PlayerState{ID: -rand.Int64(), Name: name.String(), IsGuest: true, Present: true}
+	return PlayerState{ID: -rand.Int64(), Name: name.String(), Present: true}
 }
 
 func MakePlayer(id int64, name string, country string) PlayerState {

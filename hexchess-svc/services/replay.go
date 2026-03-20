@@ -63,8 +63,8 @@ func insertReplay(ctx context.Context, query *sqlc.Queries, inst ReplayInst) (in
 
 	replayID, err := query.InsertReplay(ctx, sqlc.InsertReplayParams{
 		GameID:   inst.GameID,
-		WhiteID:  inst.WhiteID,
-		BlackID:  inst.BlackID,
+		WhiteID:  pgtype.Int8{Int64: inst.WhiteID, Valid: IsNonGuestID(inst.WhiteID)},
+		BlackID:  pgtype.Int8{Int64: inst.BlackID, Valid: IsNonGuestID(inst.BlackID)},
 		Result:   sqlc.ResultEnum(inst.Result.String()),
 		Cause:    sqlc.CauseEnum(inst.Cause.String()),
 		Mode:     sqlc.ModeEnum(inst.Mode.String()),
@@ -92,12 +92,12 @@ func insertReplay(ctx context.Context, query *sqlc.Queries, inst ReplayInst) (in
 func mapReplayFromRow(row sqlc.SelectReplayByIDRow) ReplayEntity {
 	replay := ReplayEntity{
 		ID:           row.ID,
-		WhiteID:      row.WhiteID,
-		BlackID:      row.BlackID,
-		WhiteName:    row.WhiteName,
-		BlackName:    row.BlackName,
-		WhiteCountry: row.WhiteCountry,
-		BlackCountry: row.BlackCountry,
+		WhiteID:      row.WhiteID.Int64,
+		BlackID:      row.BlackID.Int64,
+		WhiteName:    row.WhiteName.String,
+		BlackName:    row.BlackName.String,
+		WhiteCountry: row.WhiteCountry.String,
+		BlackCountry: row.BlackCountry.String,
 		Result:       string(row.Result),
 		Cause:        string(row.Cause),
 		Mode:         string(row.Mode),
@@ -148,7 +148,7 @@ func (svc *Services) GetUserReplays(ctx context.Context, userID int64, afterID i
 	}
 
 	rows, err := svc.Queries.SelectUserReplays(ctx, sqlc.SelectUserReplaysParams{
-		UserID:  userID,
+		UserID:  pgtype.Int8{Int64: userID, Valid: true},
 		AfterID: afterID,
 		PerPage: perPage,
 	})
@@ -195,7 +195,7 @@ func (svc *Services) RetrieveEloHistoryBuckets(ctx context.Context, params EloHi
 	}
 
 	eloRows, err := svc.Queries.SelectReplayElos(ctx, sqlc.SelectReplayElosParams{
-		ID:          params.UserID,
+		ID:          pgtype.Int8{Int64: params.UserID, Valid: true},
 		PlayedAfter: playedAfter,
 	})
 	if err != nil {
@@ -265,9 +265,9 @@ func makeEloHistoryBuckets(eloRows []sqlc.SelectReplayElosRow, params EloHistori
 
 		var elo float64
 		switch params.UserID {
-		case row.WhiteID:
+		case row.WhiteID.Int64:
 			elo = row.WhiteElo
-		case row.BlackID:
+		case row.BlackID.Int64:
 			elo = row.BlackElo
 		default:
 			return bucketMap, duration, fmt.Errorf("invalid user id %d in replay elo row %v", params.UserID, row)

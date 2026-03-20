@@ -55,11 +55,7 @@ func (svc *Services) insertFinishedGameEvent(ctx context.Context, event FinishGa
 	var changeSet GameResultChangeSet
 
 	if !event.WhitePlayer.Present || !event.BlackPlayer.Present {
-		return fmt.Errorf("game players must be present on a finished game: %s", event.GameID)
-	}
-	if event.WhitePlayer.ID < 0 || event.BlackPlayer.ID < 0 {
-		slog.WarnContext(ctx, "one or more players for game is a guest, did not write finished game", "gameID", event.GameID, "white", event.WhitePlayer, "black", event.BlackPlayer)
-		return nil
+		return fmt.Errorf("both game players must be present on a finished game: %s", event.GameID)
 	}
 	whiteID := event.WhitePlayer.ID
 	blackID := event.BlackPlayer.ID
@@ -123,11 +119,13 @@ type GameResultChangeSet struct {
 	LoseID        int64
 	WinEloDiff    float64
 	LoseEloDiff   float64
+	WhiteEloNext  float64
+	BlackEloNext  float64
 	AlreadyExists bool
 }
 
-func (cs GameResultChangeSet) IsNoop() bool {
-	return cs.LoseEloDiff == 0 && cs.WinEloDiff == 0
+func (changeSet GameResultChangeSet) IsNoop() bool {
+	return changeSet.LoseEloDiff == 0 && changeSet.WinEloDiff == 0
 }
 
 // InsertGameResultTx executes the insertGameResult operation in a transaction primarily to ensure
@@ -146,83 +144,30 @@ func (svc *Services) InsertGameResultTx(ctx context.Context, params GameResult) 
 // It handles win, loss, or draw scenarios and ensures a consistent update order for database operations to prevent deadlocking.
 // Returns a GRChangeSet summarizing the changes and any error encountered during processing.
 func insertGameResult(ctx context.Context, query *sqlc.Queries, result GameResult) (GameResultChangeSet, error) {
-	var changeSet GameResultChangeSet
-
-	ids := []int64{result.WhiteID, result.BlackID}
-	slices.SortFunc(ids, func(left, right int64) int { return int(left - right) }) // consistent query order
-
 	mode := sqlc.ModeEnum(result.ReplayMode.String())
-
+	userIDs := []int64{result.WhiteID, result.BlackID}
+	
 	existingReplayID, err := query.SelectReplayIDByGameID(ctx, result.GameID)
 	if !errors.Is(err, pgx.ErrNoRows) {
 		if err != nil {
-			return changeSet, fmt.Errorf("select has replay with gameID: %w", err)
+			return GameResultChangeSet{}, fmt.Errorf("select has replay with gameID: %w", err)
 		} else {
 			return GameResultChangeSet{ReplayID: existingReplayID, AlreadyExists: true}, nil
 		}
 	}
-
-	userModeElos, err := query.SelectUserModeElosByIds(ctx, sqlc.SelectUserModeElosByIdsParams{ID: ids, Mode: mode})
+	
+	slices.SortFunc(userIDs, func(left, right int64) int { return int(left - right) }) // consistent query order
+	userElos, err := query.SelectUserModeElosByIds(ctx, sqlc.SelectUserModeElosByIdsParams{ID: userIDs, Mode: mode})
 	if err != nil {
-		return changeSet, fmt.Errorf("select users %+v elo: %w", ids, err)
+		return GameResultChangeSet{}, fmt.Errorf("select users %+v elo: %w", userIDs, err)
 	}
 
-	whiteElo, blackElo := StartElo, StartElo
-	for _, row := range userModeElos {
-		switch row.UserID {
-		case result.WhiteID:
-			whiteElo = row.Elo
-		case result.BlackID:
-			blackElo = row.Elo
-		}
-	}
+	changeSet, updts := makeInsertGameResultChangeSet(result, userElos)
 
-	var whiteEloNext, blackEloNext float64
-	var updts []sqlc.UpsertEloParams
-
-	if result.ReplayResult == Draw {
-		whiteEloNext, blackEloNext = whiteElo, blackElo
-
-		updts = []sqlc.UpsertEloParams{
-			{UserID: result.WhiteID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: whiteEloNext}, Draws: 1, DefaultElo: StartElo},
-			{UserID: result.BlackID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: blackEloNext}, Draws: 1, DefaultElo: StartElo},
-		}
-		// changeSet is unmodified so this becomes a noop changeSet
-	} else {
-		var winElo, loseElo float64
-
-		switch result.ReplayResult {
-		case WhiteWin:
-			changeSet.WinID, changeSet.LoseID, winElo, loseElo = result.WhiteID, result.BlackID, whiteElo, blackElo
-		case BlackWin:
-			changeSet.WinID, changeSet.LoseID, winElo, loseElo = result.BlackID, result.WhiteID, blackElo, whiteElo
-		default:
-		}
-
-		winEloNext := winElo + 30*(1.0-ProbabilityWins(loseElo, winElo))
-		loseEloNext := loseElo + (-30 * ProbabilityWins(winElo, loseElo))
-
-		switch result.ReplayResult {
-		case WhiteWin:
-			whiteEloNext, blackEloNext = winEloNext, loseEloNext
-		case BlackWin:
-			whiteEloNext, blackEloNext = loseEloNext, winEloNext
-		default:
-		}
-
-		changeSet.WinEloDiff = winEloNext - winElo
-		changeSet.LoseEloDiff = loseEloNext - loseElo
-
-		updts = []sqlc.UpsertEloParams{
-			{UserID: changeSet.WinID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: winEloNext}, Wins: 1, DefaultElo: StartElo},
-			{UserID: changeSet.LoseID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: loseEloNext}, Losses: 1, DefaultElo: StartElo},
-		}
-	}
-
-	slices.SortFunc(updts, func(left, right sqlc.UpsertEloParams) int { return int(left.UserID - right.UserID) }) // consistent update order
+	slices.SortFunc(updts, func(left, right sqlc.UpsertUserEloParams) int { return int(left.UserID - right.UserID) }) // consistent update order
 	for _, updt := range updts {
-		if err := query.UpsertElo(ctx, updt); err != nil {
-			return changeSet, fmt.Errorf("upserting elo for user %d: %w", updt.UserID, err)
+		if err := query.UpsertUserElo(ctx, updt); err != nil {
+			return GameResultChangeSet{}, fmt.Errorf("upserting elo for user %d: %w", updt.UserID, err)
 		}
 	}
 
@@ -235,17 +180,77 @@ func insertGameResult(ctx context.Context, query *sqlc.Queries, result GameResul
 		Mode:           result.ReplayMode,
 		WinEloDiff:     changeSet.WinEloDiff,
 		LoseEloDiff:    changeSet.LoseEloDiff,
-		ReplayWhiteElo: whiteEloNext,
-		ReplayBlackElo: blackEloNext,
+		ReplayWhiteElo: changeSet.WhiteEloNext,
+		ReplayBlackElo: changeSet.BlackEloNext,
 		PlayedOn:       result.InsertedTime,
 		MoveHistBlob:   result.MoveHistBlob,
 	})
 	if err != nil {
-		return changeSet, fmt.Errorf("insert replay: %w", err)
+		return GameResultChangeSet{}, fmt.Errorf("insert replay: %w", err)
 	}
-
 	changeSet.ReplayID = replayID
 
 	slog.InfoContext(ctx, "inserted game result", "changeSet", changeSet)
 	return changeSet, nil
+}
+
+
+func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.SelectUserModeElosByIdsRow) (GameResultChangeSet, []sqlc.UpsertUserEloParams) {
+	changeSet := GameResultChangeSet{}
+	var updts []sqlc.UpsertUserEloParams
+	
+	if IsGuestID(result.WhiteID) || IsGuestID(result.BlackID) {
+		return changeSet, updts
+	}
+	
+	mode := sqlc.ModeEnum(result.ReplayMode.String())
+	
+	whiteElo, blackElo := StartElo, StartElo
+	for _, row := range userModeElos {
+		switch row.UserID {
+		case result.WhiteID:
+			whiteElo = row.Elo
+		case result.BlackID:
+			blackElo = row.Elo
+		}
+	}
+
+	if result.ReplayResult == Draw {
+		// changeSet is unmodified in draw so this becomes a noop changeSet
+		changeSet.WhiteEloNext, changeSet.BlackEloNext = whiteElo, blackElo
+
+		updts = []sqlc.UpsertUserEloParams{
+			{UserID: result.WhiteID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.WhiteEloNext}, Draws: 1, DefaultElo: StartElo},
+			{UserID: result.BlackID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.BlackEloNext}, Draws: 1, DefaultElo: StartElo},
+		}
+	} else {
+		var winElo, loseElo float64
+
+		switch result.ReplayResult {
+		case WhiteWin:
+			changeSet.WinID, changeSet.LoseID, winElo, loseElo = result.WhiteID, result.BlackID, whiteElo, blackElo
+		case BlackWin:
+			changeSet.WinID, changeSet.LoseID, winElo, loseElo = result.BlackID, result.WhiteID, blackElo, whiteElo
+		}
+
+		winEloNext := winElo + 30*(1.0-ProbabilityWins(loseElo, winElo))
+		loseEloNext := loseElo + (-30 * ProbabilityWins(winElo, loseElo))
+
+		switch result.ReplayResult {
+		case WhiteWin:
+			changeSet.WhiteEloNext, changeSet.BlackEloNext = winEloNext, loseEloNext
+		case BlackWin:
+			changeSet.WhiteEloNext, changeSet.BlackEloNext = loseEloNext, winEloNext
+		}
+
+		changeSet.WinEloDiff = winEloNext - winElo
+		changeSet.LoseEloDiff = loseEloNext - loseElo
+
+		updts = []sqlc.UpsertUserEloParams{
+			{UserID: changeSet.WinID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: winEloNext}, Wins: 1, DefaultElo: StartElo},
+			{UserID: changeSet.LoseID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: loseEloNext}, Losses: 1, DefaultElo: StartElo},
+		}
+	}
+
+	return changeSet, updts
 }

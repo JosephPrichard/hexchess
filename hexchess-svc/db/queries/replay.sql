@@ -45,8 +45,8 @@ SELECT
     e2.elo AS black_elo
 FROM replays r
          -- ensures we get the white/black elo for mode at the time of retrieval
-         INNER JOIN users u1 ON u1.id = r.white_id
-         INNER JOIN users u2 ON u2.id = r.black_id
+         LEFT JOIN users u1 ON u1.id = r.white_id
+         LEFT JOIN users u2 ON u2.id = r.black_id
          LEFT JOIN user_mode_elos e1 ON e1.user_id = r.white_id AND e1.mode = r.mode
          LEFT JOIN user_mode_elos e2 ON e2.user_id = r.black_id AND e2.mode = r.mode
 WHERE r.id = sqlc.arg('id');
@@ -79,8 +79,8 @@ SELECT
     e2.elo AS black_elo
 FROM replays r
         -- ensures we get the white/black elo for mode at the time of retrieval
-        INNER JOIN users u1 ON u1.id = r.white_id
-        INNER JOIN users u2 ON u2.id = r.black_id
+        LEFT JOIN users u1 ON u1.id = r.white_id
+        LEFT JOIN users u2 ON u2.id = r.black_id
         LEFT JOIN user_mode_elos e1 ON e1.user_id = r.white_id AND e1.mode = r.mode
         LEFT JOIN user_mode_elos e2 ON e2.user_id = r.black_id AND e2.mode = r.mode
 WHERE

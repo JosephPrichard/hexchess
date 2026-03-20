@@ -138,7 +138,7 @@ SELECT user_id, mode, elo, highest_elo, wins, losses, draws
 FROM user_mode_elos
 WHERE user_id = ANY(sqlc.arg('id')::bigint[]);
 
--- name: UpsertElo :exec
+-- name: UpsertUserElo :exec
 INSERT INTO user_mode_elos AS u (user_id, mode, elo, highest_elo, wins, losses, draws)
 VALUES (
     sqlc.arg('userID'),

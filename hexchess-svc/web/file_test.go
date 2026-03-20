@@ -77,7 +77,6 @@ func TestHandleGetProfilePic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.userID, func(t *testing.T) {
-
 			services := svc.SetupServicesTest(t, itest.Redis, itest.Aws)
 			defer services.Close()
 

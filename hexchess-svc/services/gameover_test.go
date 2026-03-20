@@ -117,7 +117,7 @@ func TestGameFinishStreamer_FakeGameEventHandler(t *testing.T) {
 	assert.ElementsMatch(t, validInputEvents, eventHandler.outputEvents)
 }
 
-func TestInsertFinishedGame(t *testing.T) {
+func TestInsertFinishedGameEvent(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
@@ -270,8 +270,8 @@ func TestInsertGameResult(t *testing.T) {
 			},
 			wantReplay: sqlc.Replay{
 				GameID:      "game1",
-				WhiteID:     testUser0.ID,
-				BlackID:     testUser1.ID,
+				WhiteID:     pgtype.Int8{Int64: testUser0.ID, Valid: true},
+				BlackID:     pgtype.Int8{Int64: testUser1.ID, Valid: true},
 				Result:      "DRAW",
 				Cause:       "STALEMATE",
 				Mode:        "TIMED_1+0",
@@ -281,7 +281,10 @@ func TestInsertGameResult(t *testing.T) {
 				BlackElo:    1000,
 				PlayedOn:    pgtype.Timestamptz{Time: now, Valid: true},
 			},
-			wantChange: GameResultChangeSet{},
+			wantChange: GameResultChangeSet{
+				WhiteEloNext: 1050,
+				BlackEloNext: 1000,
+			},
 		},
 		{
 			name: "white wins by checkmate",
@@ -300,8 +303,8 @@ func TestInsertGameResult(t *testing.T) {
 			},
 			wantReplay: sqlc.Replay{
 				GameID:      "game2",
-				WhiteID:     testUser0.ID,
-				BlackID:     testUser1.ID,
+				WhiteID:     pgtype.Int8{Int64: testUser0.ID, Valid: true},
+				BlackID:     pgtype.Int8{Int64: testUser1.ID, Valid: true},
 				Result:      "WHITE_WINS",
 				Cause:       "CHECKMATE",
 				Mode:        "CORRESPONDENCE_1",
@@ -311,7 +314,14 @@ func TestInsertGameResult(t *testing.T) {
 				BlackElo:    985,
 				PlayedOn:    pgtype.Timestamptz{Time: now, Valid: true},
 			},
-			wantChange: GameResultChangeSet{WinID: testUser0.ID, LoseID: testUser1.ID, WinEloDiff: 15, LoseEloDiff: -15},
+			wantChange: GameResultChangeSet{
+				WinID: testUser0.ID, 
+				LoseID: testUser1.ID, 
+				WinEloDiff: 15,
+				LoseEloDiff: -15,
+				WhiteEloNext: 1015,
+				BlackEloNext: 985,
+			},
 		},
 		{
 			name: "black wins by forfeit",
@@ -330,8 +340,8 @@ func TestInsertGameResult(t *testing.T) {
 			},
 			wantReplay: sqlc.Replay{
 				GameID:      "game3",
-				WhiteID:     testUser0.ID,
-				BlackID:     testUser1.ID,
+				WhiteID:     pgtype.Int8{Int64: testUser0.ID, Valid: true},
+				BlackID:     pgtype.Int8{Int64: testUser1.ID, Valid: true},
 				Result:      "BLACK_WINS",
 				Cause:       "FORFEIT",
 				Mode:        "CORRESPONDENCE_7",
@@ -341,7 +351,14 @@ func TestInsertGameResult(t *testing.T) {
 				BlackElo:    1015,
 				PlayedOn:    pgtype.Timestamptz{Time: now, Valid: true},
 			},
-			wantChange: GameResultChangeSet{WinID: testUser1.ID, LoseID: testUser0.ID, WinEloDiff: 15, LoseEloDiff: -15},
+			wantChange: GameResultChangeSet{
+				WinID: testUser1.ID, 
+				LoseID: testUser0.ID, 
+				WinEloDiff: 15, 
+				LoseEloDiff: -15,
+				WhiteEloNext: 985,
+				BlackEloNext: 1015,
+			},
 		},
 		{
 			name: "inserting already persisted game result",
@@ -359,8 +376,8 @@ func TestInsertGameResult(t *testing.T) {
 			},
 			wantReplay: sqlc.Replay{
 				GameID:      itest.FirstReplayGameID,
-				WhiteID:     1,
-				BlackID:     2,
+				WhiteID:     pgtype.Int8{Int64: testUser0.ID, Valid: true},
+				BlackID:     pgtype.Int8{Int64: testUser1.ID, Valid: true},
 				Mode:        "CORRESPONDENCE_7",
 				Result:      "WHITE_WINS",
 				Cause:       "CHECKMATE",
@@ -371,6 +388,33 @@ func TestInsertGameResult(t *testing.T) {
 				PlayedOn:    pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 			},
 			wantChange: GameResultChangeSet{ReplayID: 1, AlreadyExists: true},
+		},
+		{
+			name: "game insert with guest players",
+			resultInput: GameResult{
+				GameID:       "game4",
+				WhiteID:      -10,
+				BlackID:      -11,
+				ReplayCause:  Forfeit,
+				ReplayResult: BlackWin,
+				ReplayMode:   ModeCorrespondence7,
+				InsertedTime: now,
+			},
+			wantUserElos: []sqlc.SelectUserModeElosByIdsRow(nil), // not inserted.
+			wantReplay: sqlc.Replay{
+				GameID:      "game4",
+				WhiteID:     pgtype.Int8{},
+				BlackID:     pgtype.Int8{},
+				Result:      "BLACK_WINS",
+				Cause:       "FORFEIT",
+				Mode:        "CORRESPONDENCE_7",
+				WinEloDiff:  0,
+				LoseEloDiff: 0,
+				WhiteElo:    0,
+				BlackElo:    0,
+				PlayedOn:    pgtype.Timestamptz{Time: now, Valid: true},
+			},
+			wantChange: GameResultChangeSet{},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {

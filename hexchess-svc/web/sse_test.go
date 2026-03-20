@@ -18,19 +18,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// SSE tests are black box tests that connect to a given server side event, simulate the sending of messages from a producer, and checks that we receive the correct response
-
 func scanEvents(ctx context.Context, resp *http.Response, wantEvents int) []string {
-	var events []string
-
 	defer resp.Body.Close()
 
+	var events []string
 	if wantEvents == 0 {
 		return events
 	}
 
-	event := ""
-	count := 0
+	var event string
+	var count int
 
 	linesChan := make(chan string)
 	scan := bufio.NewScanner(resp.Body)
@@ -43,7 +40,8 @@ func scanEvents(ctx context.Context, resp *http.Response, wantEvents int) []stri
 	}()
 
 	for {
-		line, ok := "", false
+		var line string
+		var ok bool
 
 		select {
 		case <-ctx.Done():
@@ -156,6 +154,8 @@ func TestHandleActiveConn(t *testing.T) {
 func TestHandleUserEvents(t *testing.T) {
 	t.Parallel()
 
+	ctx := t.Context()
+
 	services := svc.SetupServicesTest(t, itest.Redis)
 	defer services.Close()
 
@@ -167,7 +167,7 @@ func TestHandleUserEvents(t *testing.T) {
 	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services}))
 	defer testServer.Close()
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, testServer.URL+"/api/events/user", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, testServer.URL+"/api/events/user", nil)
 	require.NoError(t, err)
 	req.Header.Set("Cookie", FmtCookie(TestSessionID1))
 
@@ -178,7 +178,7 @@ func TestHandleUserEvents(t *testing.T) {
 
 	errChan := make(chan error)
 	go func() {
-		ctx := context.WithValue(t.Context(), logutil.Trace, "broadcast-user-events")
+		ctx := context.WithValue(ctx, logutil.Trace, "broadcast-user-events")
 		errChan <- errors.Join(
 			services.BroadcastChallenge(ctx, brdcastedChallenge),
 			services.BroadcastChallenge(ctx, svc.ChallengeEntity{ChallengeeID: 2}),

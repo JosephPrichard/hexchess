@@ -18,31 +18,23 @@ func TestGetReplay(t *testing.T) {
 	services := SetupServicesTest(t, itest.RWPostgres)
 	defer services.Close()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	t.Run("GetReplay", func(t *testing.T) {
+		ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	actualReplay1, err := services.GetReplay(ctx, 1)
-	require.NoError(t, err)
+		actualReplay1, err := services.GetReplay(ctx, itest.FirstReplayID)
+		require.NoError(t, err)
 
-	wantReplay := ReplayEntity{
-		ID:           1,
-		WhiteID:      1,
-		BlackID:      2,
-		WhiteName:    "user1",
-		BlackName:    "user2",
-		WhiteCountry: "us",
-		BlackCountry: "us",
-		Mode:         "CORRESPONDENCE_7",
-		Result:       "WHITE_WINS",
-		Cause:        "CHECKMATE",
-		WinEloDiff:   30,
-		LoseEloDiff:  -30,
-		WhiteElo:     1000,
-		BlackElo:     1000,
-		WhiteEloDiff: 30,
-		BlackEloDiff: -30,
-		PlayedOn:     itest.TimeNow.Local(),
-	}
-	assert.Equal(t, wantReplay, actualReplay1)
+		assert.Equal(t, TestReplayEntities[0], actualReplay1)
+	})
+
+	t.Run("GetReplayWithGuest", func(t *testing.T) {
+		ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+
+		actualReplay1, err := services.GetReplay(ctx, itest.GuestReplayID)
+		require.NoError(t, err)
+
+		assert.Equal(t, TestReplayEntities[2], actualReplay1)
+	})
 }
 
 func TestGetUserReplays(t *testing.T) {
@@ -60,7 +52,8 @@ func TestGetUserReplays(t *testing.T) {
 
 	replay1 := TestReplayEntities[0]
 	replay3 := TestReplayEntities[1]
-	expectedReplayList1 := []ReplayEntity{replay3, replay1}
+	replay4 := TestReplayEntities[2]
+	expectedReplayList1 := []ReplayEntity{replay4, replay3, replay1}
 	expectedReplayList2 := []ReplayEntity{replay1}
 
 	assert.Equal(t, expectedReplayList1, actualReplayList1)

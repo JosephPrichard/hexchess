@@ -18,26 +18,26 @@ func UnmarshalPlayer(b []byte) (PlayerState, error) {
 	if err := proto.Unmarshal(b, &pbPlayer); err != nil {
 		return PlayerState{}, err
 	}
-	player := PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, IsGuest: pbPlayer.IsGuest, Present: true}
+	player := PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Present: true}
 	return player, nil
 }
 
 func MarshalPlayer(p PlayerState) ([]byte, error) {
-	pbPlayer := pb.PlayerState{Id: p.ID, Name: p.Name, Country: p.Country, IsGuest: p.IsGuest}
+	pbPlayer := pb.PlayerState{Id: p.ID, Name: p.Name, Country: p.Country, IsGuest: IsGuestID(p.ID)}
 	return proto.Marshal(&pbPlayer)
 }
 
 func DeserializePlayer(pbPlayer *pb.PlayerState) PlayerState {
 	var player PlayerState
 	if pbPlayer != nil {
-		player = PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, IsGuest: pbPlayer.IsGuest, Present: true}
+		player = PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Present: true}
 	}
 	return player
 }
 
 func SerializePlayer(p PlayerState) *pb.PlayerState {
 	if p.Present {
-		return &pb.PlayerState{Id: p.ID, Name: p.Name, Country: p.Country, IsGuest: p.IsGuest}
+		return &pb.PlayerState{Id: p.ID, Name: p.Name, Country: p.Country, IsGuest: IsGuestID(p.ID)}
 	}
 	return nil
 }

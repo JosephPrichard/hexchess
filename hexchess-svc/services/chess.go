@@ -198,12 +198,12 @@ func (svc *Services) setChessStatePiped(ctx context.Context, pipe redis.Pipeline
 	pipe.Set(ctx, gameKey, bytes, 0)
 
 	if state.EndState != Aborted {
-		// keeps the game at the front of top of the sorted games sets on update (only stores for non guests)
+		// keeps the game at the front of top of the sorted sets on update (only stores for non guests)
 		pipe.ZAdd(ctx, svc.Redis.GamesZSet, redis.Z{Score: touchSecs, Member: gameKey})
-		if state.WhitePlayer.Present && !state.WhitePlayer.IsGuest {
+		if state.WhitePlayer.NonGuest() {
 			pipe.ZAdd(ctx, svc.getUserGameZSet(state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: gameKey})
 		}
-		if state.BlackPlayer.Present && !state.BlackPlayer.IsGuest {
+		if state.BlackPlayer.NonGuest() {
 			pipe.ZAdd(ctx, svc.getUserGameZSet(state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: gameKey})
 		}
 	} else {
