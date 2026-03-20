@@ -24,6 +24,9 @@ type UpdtLbChangeSet struct {
 func (svc *Services) SetLeaderboard(ctx context.Context, changes ...UpdtLbChangeSet) error {
 	pipe := svc.Redis.Cache.TxPipeline()
 	for _, change := range changes {
+		if IsGuestID(change.ID) {
+			continue
+		}
 		modeLbZSet := svc.getLeaderboardZSet(change.Mode.String())
 		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: change.EloDiff, Member: change.ID})
 	}
@@ -37,6 +40,9 @@ func (svc *Services) SetLeaderboard(ctx context.Context, changes ...UpdtLbChange
 func (svc *Services) IncrLeaderboard(ctx context.Context, changes ...UpdtLbChangeSet) error {
 	pipe := svc.Redis.Cache.TxPipeline()
 	for _, change := range changes {
+		if IsGuestID(change.ID) || change.EloDiff == 0 {
+			continue
+		}
 		modeLbZSet := svc.getLeaderboardZSet(change.Mode.String())
 		pipe.ZIncrBy(ctx, modeLbZSet, change.EloDiff, strconv.Itoa(int(change.ID)))
 	}

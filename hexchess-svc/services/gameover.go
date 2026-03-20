@@ -55,7 +55,8 @@ func (svc *Services) insertFinishedGameEvent(ctx context.Context, event FinishGa
 	var changeSet GameResultChangeSet
 
 	if !event.WhitePlayer.Present || !event.BlackPlayer.Present {
-		return fmt.Errorf("both game players must be present on a finished game: %s", event.GameID)
+		slog.Warn("both players must be present on a finished game", "gameID", event.GameID)
+		return nil
 	}
 	whiteID := event.WhitePlayer.ID
 	blackID := event.BlackPlayer.ID
@@ -79,15 +80,13 @@ func (svc *Services) insertFinishedGameEvent(ctx context.Context, event FinishGa
 		return fmt.Errorf("insert finish game tx: %w", err)
 	}
 
-	if !changeSet.IsNoop() {
-		slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", changeSet, "room", event.GameID)
+	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", changeSet, "room", event.GameID)
 
-		if err := svc.IncrLeaderboard(ctx,
-			UpdtLbChangeSet{Mode: event.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
-			UpdtLbChangeSet{Mode: event.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
-		); err != nil {
-			return fmt.Errorf("incr leaderboard %v: %w", changeSet, err)
-		}
+	if err := svc.IncrLeaderboard(ctx,
+		UpdtLbChangeSet{Mode: event.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
+		UpdtLbChangeSet{Mode: event.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
+	); err != nil {
+		return fmt.Errorf("incr leaderboard %v: %w", changeSet, err)
 	}
 
 	replayEntity, err := svc.GetReplay(ctx, changeSet.ReplayID)
@@ -98,7 +97,7 @@ func (svc *Services) insertFinishedGameEvent(ctx context.Context, event FinishGa
 		return fmt.Errorf("broadcast replay entity output: %w", err)
 	}
 
-	slog.InfoContext(ctx, "completed writing finished game", "ID", event.GameID)
+	slog.InfoContext(ctx, "completed inserting finished game event", "ID", event.GameID)
 	return nil
 }
 
