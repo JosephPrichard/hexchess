@@ -10,7 +10,7 @@
 	import TakenTakenList from '$lib/components/chess/TakenList.svelte';
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
 	import {
-		type ChatOutput,
+		type ChatMessage,
 		type ChessGame,
 		EndKind,
 		type ErrorOutput,
@@ -20,7 +20,7 @@
 		type PlayersOutput,
 		type PlayerState, ReplayOutput, type UndoOutput
 	} from '$lib/pb/messages';
-	import type { Hex } from '$lib/api/models';
+	import { mapChatMessage, type Chat, type Hex } from '$lib/api/models';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import { onMount } from 'svelte';
 	import Banner from '$lib/Banner.svelte';
@@ -31,8 +31,8 @@
 	import { isValidMove } from '../../../lib/service/chess';
 	import { type ConnectionState, sendChatInput, sendForfeitInput, sendMoveInput, sendPingInput, sendUndoInput } from './messages';
 	import { type BadPromotionType, type MoveAction, NoPromotion, type Promotion } from '$lib/components/chess/types';
-	import { makeMoveState } from '$lib/state/move.svelte';
 	import Timer from '$lib/components/chess/Timer.svelte';
+	import { captureRejectionSymbol } from 'events';
 
 	const forfeitModalIds = ["forfeit-modal", "forfeit-button"];
 	const maxTimeout = 2500;
@@ -56,11 +56,8 @@
 	let replay = $state<ReplayOutput | undefined>(undefined);
 	let endState = $state<EndKind>(EndKind.NOT_ENDED)
 	let undoPlayerId: bigint | undefined = $state(undefined);
-	let chats: ChatOutput[] = $state([]);
+	let chats: Chat[] = $state([]);
 	let gameExpired = $state(false);
-
-	// game view states that are calculated from lifecycle states and used to display temporary data
-	let moveGame = $state<ChessGame | undefined>(undefined);
 
 	// game lifecycle states that are calculated in sync with the server
 	let whiteTimer: number | undefined = $state(undefined);
@@ -68,7 +65,6 @@
 
 	// client side states used to interface with the game
 	const selection = makeSelectionState();
-	let move = makeMoveState();
 	let preloadedMove = $state<MoveAction | undefined>(undefined);
 	let chatText = $state("");
 
@@ -209,8 +205,8 @@
 
 	function handleForfeit(_: ForfeitOutput) {}
 
-	function handleChat(chat: ChatOutput) {
-		chats = [...chats, chat]; // copy so we can react to this state in the $effect
+	function handleChat(chat: ChatMessage) {
+		chats = [...chats, mapChatMessage(chat)]; // copy so we can react to this state in the $effect
 	}
 
 	function handleUndo(undo: UndoOutput) {
@@ -279,9 +275,11 @@
 	async function loadInitialChats(gameId: string) {
 		const [data, err] = await services.getGameChats(gameId);
 		if (data) {
-			
+			const nextChats = [...chats, ...data.chats.map(mapChatMessage)];
+			nextChats.sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime());
+			chats = nextChats;
 		} else {
-			
+			addNotification({ type: "string", message: makeMessage(err?.message), isSuccess: false });
 		}
 	}
 

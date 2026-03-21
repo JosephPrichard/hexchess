@@ -10,6 +10,7 @@ import (
 	"hexchess-svc/pkg/testutil"
 	"math"
 	"strconv"
+
 	"sync"
 	"testing"
 	"time"
@@ -125,12 +126,13 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 	testUser0 := TestUserEntities[0]
 	testUser1 := TestUserEntities[1]
 	newGameID := uuid.NewString()
+	newGameIDGuest := uuid.NewString()
 
 	for _, test := range []struct {
 		name            string
 		event           FinishGameEvent
 		wantLeaderboard []string
-		wantGameOutput  *pb.GameOutput
+		wantBroadcastOutput  *pb.GameOutput
 	}{
 		{
 			name: "insert finished game",
@@ -139,17 +141,16 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				Board:        chess.MakeEmptyBoard(true),
 				Moves:        []chess.HistMove{},
 				WhitePlayer:  PlayerState{ID: testUser0.ID, Present: true}, // winner
-				BlackPlayer:  PlayerState{ID: testUser1.ID, Present: true}, //loser
+				BlackPlayer:  PlayerState{ID: testUser1.ID, Present: true}, // loser
 				ReplayMode:   ModeCorrespondence1,
 				ReplayCause:  Checkmate,
 				ReplayResult: WhiteWin,
 			},
-
 			wantLeaderboard: []string{
 				strconv.Itoa(int(testUser0.ID)),
 				strconv.Itoa(int(testUser1.ID)),
 			},
-			wantGameOutput: &pb.GameOutput{
+			wantBroadcastOutput: &pb.GameOutput{
 				GameId: newGameID,
 				Value: &pb.GameOutput_Replay{Replay: &pb.ReplayEntity{
 					WhiteId:      testUser0.ID,
@@ -176,16 +177,16 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				GameID: itest.FirstReplayGameID,
 				Board:  chess.MakeEmptyBoard(true),
 				Moves:  []chess.HistMove{},
-				// used only for validat
-				WhitePlayer: PlayerState{ID: testUser0.ID, Present: true}, // winner
-				BlackPlayer: PlayerState{ID: testUser1.ID, Present: true}, //loser
+				// used only for validation
+				WhitePlayer: PlayerState{ID: testUser0.ID, Present: true},
+				BlackPlayer: PlayerState{ID: testUser1.ID, Present: true},
 				// enum fields are ignored on a noop insertion.
 				ReplayMode:   ModeCorrespondence1,
 				ReplayCause:  Forfeit,
 				ReplayResult: BlackWin,
 			},
-			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated if stats do not change.,
-			wantGameOutput: &pb.GameOutput{
+			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
+			wantBroadcastOutput: &pb.GameOutput{
 				GameId: itest.FirstReplayGameID,
 				Value: &pb.GameOutput_Replay{Replay: &pb.ReplayEntity{
 					WhiteId:      testUser0.ID,
@@ -206,20 +207,53 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				}},
 			},
 		},
+		{
+			name: "inserting a game with a guest",
+			event: FinishGameEvent{
+				GameID: newGameIDGuest,
+				Board:  chess.MakeEmptyBoard(true),
+				Moves:  []chess.HistMove{},
+				WhitePlayer: PlayerState{ID: testUser0.ID, Present: true}, // non-guest winner
+				BlackPlayer: PlayerState{ID: -10, Present: true}, // guest loser
+				ReplayMode:   ModeCorrespondence1,
+				ReplayCause:  Forfeit,
+				ReplayResult: BlackWin,
+			},
+			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
+			wantBroadcastOutput: &pb.GameOutput{
+				GameId: newGameIDGuest,
+				Value: &pb.GameOutput_Replay{Replay: &pb.ReplayEntity{
+					WhiteId:      testUser0.ID,
+					BlackId:      0,
+					WhiteName:    "user1",
+					BlackName:    "",
+					WhiteCountry: "us",
+					BlackCountry: "",
+					Mode:         ModeCorrespondence1.String(),
+					Cause:        Forfeit.String(),
+					Result:       BlackWin.String(),
+					WinEloDiff:   0,
+					LoseEloDiff:  0,
+					WhiteElo:     1000,
+					BlackElo:     1000,
+					WhiteEloDiff: 0,
+					BlackEloDiff: 0,
+				}},
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-
 			services := SetupServicesTest(t, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			stream := MakeFinishGameStreamer(ctx, &services)
 			stream.StreamKey = services.Redis.FinishGameStreamKey
 
-			lb := LocalBroadcasters{GamesCaster: MakeMultiCasterMap("testing-map", time.Hour*1)}
-			<-lb.ListenGameMessages(services.Redis)
+			broadcasters := LocalBroadcasters{GamesCaster: MakeMultiCasterMap("testing-map", time.Hour*1)}
+			<-broadcasters.ListenGameMessages(services.Redis)
 
 			subChan := make(chan []byte, 1)
-			lb.GamesCaster.Subscribe(test.event.GameID, subChan) // expect the game event to come on the following gameID (derived from input) channel. test times out and fails if it does not.
+			broadcasters.GamesCaster.Subscribe(test.event.GameID, subChan) // expect the game event to come on the following gameID (derived from input) channel. test times out and fails if it does not.
 
 			require.NoError(t, services.insertFinishedGameEvent(ctx, test.event))
 
@@ -231,7 +265,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 
 			output := &pb.GameOutput{}
 			require.NoError(t, proto.Unmarshal(<-subChan, output))
-			testutil.Equal(t, test.wantGameOutput, output, protocmp.Transform(), protocmp.IgnoreFields(&pb.ReplayEntity{}, "id", "played_on"))
+			testutil.Equal(t, test.wantBroadcastOutput, output, protocmp.Transform(), protocmp.IgnoreFields(&pb.ReplayEntity{}, "id", "played_on"))
 		})
 	}
 }
@@ -394,7 +428,7 @@ func TestInsertGameResult(t *testing.T) {
 			resultInput: GameResult{
 				GameID:       "game4",
 				WhiteID:      -10,
-				BlackID:      -11,
+				BlackID:      -20,
 				ReplayCause:  Forfeit,
 				ReplayResult: BlackWin,
 				ReplayMode:   ModeCorrespondence7,
@@ -418,7 +452,6 @@ func TestInsertGameResult(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-
 			services := SetupServicesTest(t, itest.RWPostgres)
 			defer services.Close()
 

@@ -1,4 +1,4 @@
-import type { PlayerState } from '$lib/pb/messages';
+import type { ChatMessage, PlayerState } from '$lib/pb/messages';
 
 export type Action = 'delete' | 'reject' | 'accept';
 
@@ -148,9 +148,17 @@ export interface ChessModel {
 }
 
 export interface Chat {
-	player: PlayerState;
-	message: string;
-	sentAt: string;
+    player?: PlayerState;
+    message: string;
+    sentAt: Date;
+}
+
+export function mapChatMessage(chat: ChatMessage) {
+	return {
+		player: chat.player,
+		message: chat.message,
+		sentAt: new Date(chat.sentAt),
+	};
 }
 
 export interface ServiceModel {
