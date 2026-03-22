@@ -13,8 +13,8 @@ import (
 )
 
 type DB interface {
-	Queries() *sqlc.Queries
-	ExecTx(context.Context, TxnArgs) error
+	Querier() sqlc.Querier
+	ExecTx(context.Context, Txn) error
 	Close()
 }
 
@@ -23,7 +23,7 @@ type PostgresDB struct {
 	pool *pgxpool.Pool
 }
 
-func (pdb *PostgresDB) Queries() *sqlc.Queries {
+func (pdb *PostgresDB) Querier() sqlc.Querier {
 	return pdb.q
 }
 
@@ -35,7 +35,7 @@ type FakeDB struct {
 	testingTxn pgx.Tx
 }
 
-func (pdb *FakeDB) Queries() *sqlc.Queries {
+func (pdb *FakeDB) Querier() sqlc.Querier {
 	return sqlc.New(pdb.testingTxn)
 }
 

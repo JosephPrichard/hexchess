@@ -108,7 +108,7 @@ func (svc *Services) InsertUser(ctx context.Context, inst UserInst) (UserEntity,
 		return u, fmt.Errorf("generate hash: %w", err)
 	}
 
-	row, err := svc.Queries.InsertUser(ctx, sqlc.InsertUserParams{
+	row, err := svc.Querier.InsertUser(ctx, sqlc.InsertUserParams{
 		Username: inst.Username,
 		Country:  inst.Country,
 		Password: hash.HashedPassword,
@@ -160,7 +160,7 @@ func (svc *Services) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]
 	var users []UserEntity
 	var queryErrs []error
 
-	svc.Queries.BatchInsertUser(ctx, batches).QueryRow(func(i int, row sqlc.BatchInsertUserRow, err error) {
+	svc.Querier.BatchInsertUser(ctx, batches).QueryRow(func(i int, row sqlc.BatchInsertUserRow, err error) {
 		if err != nil {
 			queryErrs = append(queryErrs, err)
 		} else {
@@ -182,13 +182,15 @@ type VerifiedUser struct {
 
 func (svc *Services) VerifyUserTx(ctx context.Context, username string, inputPassword string) (VerifiedUser, error) {
 	var user VerifiedUser
-	err := svc.DB.ExecTx(ctx, db.TxnArgs{
-		QueryFn: func(ctx context.Context, query *sqlc.Queries) (err error) {
+
+	err := svc.DB.ExecTx(ctx, db.Txn{
+		QueryFn: func(ctx context.Context, query sqlc.Querier) (err error) {
 			user, err = verifyUser(ctx, query, username, inputPassword)
 			return err
 		},
 		ErrAllowlist: []error{ErrTooManyLoginAttempts, ErrUserNotFound},
 	})
+
 	return user, err
 }
 
@@ -197,7 +199,7 @@ const LockoutDuration = time.Minute * 1
 
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
-func verifyUser(ctx context.Context, query *sqlc.Queries, username string, inputPassword string) (VerifiedUser, error) {
+func verifyUser(ctx context.Context, query sqlc.Querier, username string, inputPassword string) (VerifiedUser, error) {
 	login, err := query.SelectLoginByName(ctx, username)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -246,7 +248,7 @@ func (svc *Services) SelectOrInsertGoogleUser(ctx context.Context, googleAccount
 	var u VerifiedUser
 	var isCreated bool
 
-	login, err := svc.Queries.SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
+	login, err := svc.Querier.SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
 	if errors.Is(err, pgx.ErrNoRows) {
 		isCreated = false
 	} else if err != nil {
@@ -256,7 +258,7 @@ func (svc *Services) SelectOrInsertGoogleUser(ctx context.Context, googleAccount
 	}
 
 	if !isCreated {
-		row, err := svc.Queries.InsertUser(ctx, sqlc.InsertUserParams{
+		row, err := svc.Querier.InsertUser(ctx, sqlc.InsertUserParams{
 			Username:        googleInst.Username,
 			Country:         googleInst.Country,
 			JoinedOn:        pgtype.Timestamptz{Time: googleInst.JoinedOn, Valid: true},
@@ -298,7 +300,7 @@ func (svc *Services) UpdateUser(ctx context.Context, id int64, updt UpdtUserPara
 		return UserEntity{}, nil
 	}
 
-	row, err := svc.Queries.UpdateUser(ctx, sqlc.UpdateUserParams{
+	row, err := svc.Querier.UpdateUser(ctx, sqlc.UpdateUserParams{
 		ID:       id,
 		Username: pgtype.Text{Valid: updt.Username != "", String: updt.Username},
 		Bio:      pgtype.Text{Valid: updt.Bio != "", String: updt.Bio},
@@ -315,7 +317,7 @@ func (svc *Services) UpdateUserPassword(ctx context.Context, id int64, newPasswo
 	if err != nil {
 		return fmt.Errorf("hash password for user %d: %w", id, err)
 	}
-	err = svc.Queries.UpdatePassword(ctx, sqlc.UpdatePasswordParams{
+	err = svc.Querier.UpdatePassword(ctx, sqlc.UpdatePasswordParams{
 		ID:       id,
 		Password: hash.HashedPassword,
 		Salt:     hash.Salt,
@@ -325,7 +327,7 @@ func (svc *Services) UpdateUserPassword(ctx context.Context, id int64, newPasswo
 }
 
 func (svc *Services) GetUserByID(ctx context.Context, id int64) (UserEntity, error) {
-	row, err := svc.Queries.SelectUserByID(ctx, id)
+	row, err := svc.Querier.SelectUserByID(ctx, id)
 	if err != nil {
 		return UserEntity{}, fmt.Errorf("select user %d: %w", id, err)
 	}
@@ -362,7 +364,7 @@ func avg[T constraints.Integer | constraints.Float](currAvg T, currCount int, ne
 func (svc *Services) GetUserStats(ctx context.Context, id int64) (UserStatsEntity, error) {
 	stats := UserStatsEntity{HighestElo: math.SmallestNonzeroFloat64}
 
-	rows, err := svc.Queries.SelectUserElosById(ctx, id)
+	rows, err := svc.Querier.SelectUserElosById(ctx, id)
 	if err != nil {
 		return stats, fmt.Errorf("select user %d elos by id: %w", id, err)
 	}

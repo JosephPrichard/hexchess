@@ -51,7 +51,7 @@ type ReplayInst struct {
 }
 
 // insertReplay A replay is only ever inserted as part of a game result transaction to ensure data consistency
-func insertReplay(ctx context.Context, query *sqlc.Queries, inst ReplayInst) (int64, error) {
+func insertReplay(ctx context.Context, query sqlc.Querier, inst ReplayInst) (int64, error) {
 	if inst.MoveHistBlob == nil {
 		inst.MoveHistBlob = []byte{}
 	}
@@ -121,7 +121,7 @@ func mapReplayFromRow(row sqlc.SelectReplayByIDRow) ReplayEntity {
 var ErrNoReplay = errors.New("replay not found")
 
 func (svc *Services) GetReplay(ctx context.Context, id int64) (ReplayEntity, error) {
-	row, err := svc.Queries.SelectReplayByID(ctx, id)
+	row, err := svc.Querier.SelectReplayByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ReplayEntity{}, ErrNoReplay
@@ -135,7 +135,7 @@ func (svc *Services) GetReplay(ctx context.Context, id int64) (ReplayEntity, err
 }
 
 func (svc *Services) GetMovesHistory(ctx context.Context, replayID int) ([]byte, error) {
-	row, err := svc.Queries.SelectReplayMoveHistories(ctx, int64(replayID))
+	row, err := svc.Querier.SelectReplayMoveHistories(ctx, int64(replayID))
 	if err != nil {
 		return nil, fmt.Errorf("select replay move histories for replay %d: %w", replayID, err)
 	}
@@ -147,7 +147,7 @@ func (svc *Services) GetUserReplays(ctx context.Context, userID int64, afterID i
 		afterID = int64(math.MaxInt64)
 	}
 
-	rows, err := svc.Queries.SelectUserReplays(ctx, sqlc.SelectUserReplaysParams{
+	rows, err := svc.Querier.SelectUserReplays(ctx, sqlc.SelectUserReplaysParams{
 		UserID:  pgtype.Int8{Int64: userID, Valid: true},
 		AfterID: afterID,
 		PerPage: perPage,
@@ -194,7 +194,7 @@ func (svc *Services) RetrieveEloHistoryBuckets(ctx context.Context, params EloHi
 		playedAfter = pgtype.Timestamptz{Valid: true, Time: params.TimeUntil.AddDate(0, -int(params.Months), 0)}
 	}
 
-	eloRows, err := svc.Queries.SelectReplayElos(ctx, sqlc.SelectReplayElosParams{
+	eloRows, err := svc.Querier.SelectReplayElos(ctx, sqlc.SelectReplayElosParams{
 		ID:          pgtype.Int8{Int64: params.UserID, Valid: true},
 		PlayedAfter: playedAfter,
 	})

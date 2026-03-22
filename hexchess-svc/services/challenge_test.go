@@ -160,13 +160,13 @@ func TestDeleteChallenge(t *testing.T) {
 
 	key := ChallengeKey{ChallengerID: 1, ChallengeeID: 2}
 
-	challengeBefore, err := services.DB.Queries().SelectChallenge(ctx, sqlc.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	challengeBefore, err := services.DB.Querier().SelectChallenge(ctx, sqlc.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
 	dr, err := services.DeleteChallenge(ctx, key)
 	require.NoError(t, err)
 
-	_, errAfterDelete := services.DB.Queries().SelectChallenge(ctx, sqlc.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	_, errAfterDelete := services.DB.Querier().SelectChallenge(ctx, sqlc.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
 	challenge := sqlc.Challenge{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, StartColor: "RANDOM", MadeOn: pgtype.Timestamptz{Valid: true, Time: itest.TimeNow.Local()}, Mode: "TIMED_3+2"}

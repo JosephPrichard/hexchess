@@ -91,7 +91,7 @@ func main() {
 
 	services := &svc.Services{
 		DB:      pdb,
-		Queries: pdb.Queries(),
+		Querier: pdb.Querier(),
 		Redis:   rdb,
 		AWS:     aws,
 	}

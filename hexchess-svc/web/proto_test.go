@@ -36,7 +36,7 @@ func TestHandleGetMoveReplay(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	services.DB.Queries().InsertReplayMoveHistories(t.Context(), sqlc.InsertReplayMoveHistoriesParams{
+	services.DB.Querier().InsertReplayMoveHistories(t.Context(), sqlc.InsertReplayMoveHistoriesParams{
 		ReplayID: 1,
 		Data:     object,
 	})

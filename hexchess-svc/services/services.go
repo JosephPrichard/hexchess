@@ -8,7 +8,7 @@ import (
 
 type Services struct {
 	DB            db.DB
-	Queries       *sqlc.Queries
+	Querier       sqlc.Querier
 	Redis         db.Redis
 	AWS           egress.AWS
 	Remote        egress.RemoteAPIs

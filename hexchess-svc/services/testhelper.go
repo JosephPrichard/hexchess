@@ -24,7 +24,7 @@ func SetupServicesTest(t logutil.TestLogger, flags ...itest.TestFlag) (services 
 	if roPostgres || rwPostgres {
 		eg.Go(func() (err error) {
 			services.DB, err = itest.SetupPostgresTest(egCtx, t, rwPostgres)
-			services.Queries = services.DB.Queries()
+			services.Querier = services.DB.Querier()
 			return
 		})
 	}

@@ -129,10 +129,10 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 	newGameIDGuest := uuid.NewString()
 
 	for _, test := range []struct {
-		name            string
-		event           FinishGameEvent
-		wantLeaderboard []string
-		wantBroadcastOutput  *pb.GameOutput
+		name                string
+		event               FinishGameEvent
+		wantLeaderboard     []string
+		wantBroadcastOutput *pb.GameOutput
 	}{
 		{
 			name: "insert finished game",
@@ -210,11 +210,11 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 		{
 			name: "inserting a game with a guest",
 			event: FinishGameEvent{
-				GameID: newGameIDGuest,
-				Board:  chess.MakeEmptyBoard(true),
-				Moves:  []chess.HistMove{},
-				WhitePlayer: PlayerState{ID: testUser0.ID, Present: true}, // non-guest winner
-				BlackPlayer: PlayerState{ID: -10, Present: true}, // guest loser
+				GameID:       newGameIDGuest,
+				Board:        chess.MakeEmptyBoard(true),
+				Moves:        []chess.HistMove{},
+				WhitePlayer:  PlayerState{ID: testUser0.ID, Present: true}, // non-guest winner
+				BlackPlayer:  PlayerState{ID: -10, Present: true},          // guest loser
 				ReplayMode:   ModeCorrespondence1,
 				ReplayCause:  Forfeit,
 				ReplayResult: BlackWin,
@@ -349,10 +349,10 @@ func TestInsertGameResult(t *testing.T) {
 				PlayedOn:    pgtype.Timestamptz{Time: now, Valid: true},
 			},
 			wantChange: GameResultChangeSet{
-				WinID: testUser0.ID, 
-				LoseID: testUser1.ID, 
-				WinEloDiff: 15,
-				LoseEloDiff: -15,
+				WinID:        testUser0.ID,
+				LoseID:       testUser1.ID,
+				WinEloDiff:   15,
+				LoseEloDiff:  -15,
 				WhiteEloNext: 1015,
 				BlackEloNext: 985,
 			},
@@ -386,10 +386,10 @@ func TestInsertGameResult(t *testing.T) {
 				PlayedOn:    pgtype.Timestamptz{Time: now, Valid: true},
 			},
 			wantChange: GameResultChangeSet{
-				WinID: testUser1.ID, 
-				LoseID: testUser0.ID, 
-				WinEloDiff: 15, 
-				LoseEloDiff: -15,
+				WinID:        testUser1.ID,
+				LoseID:       testUser0.ID,
+				WinEloDiff:   15,
+				LoseEloDiff:  -15,
 				WhiteEloNext: 985,
 				BlackEloNext: 1015,
 			},
@@ -455,10 +455,10 @@ func TestInsertGameResult(t *testing.T) {
 			services := SetupServicesTest(t, itest.RWPostgres)
 			defer services.Close()
 
-			changeSet, err := insertGameResult(ctx, services.DB.Queries(), test.resultInput)
+			changeSet, err := insertGameResult(ctx, services.DB.Querier(), test.resultInput)
 			require.NoError(t, err)
 
-			userElos, err := services.DB.Queries().SelectUserModeElosByIds(ctx, sqlc.SelectUserModeElosByIdsParams{
+			userElos, err := services.DB.Querier().SelectUserModeElosByIds(ctx, sqlc.SelectUserModeElosByIdsParams{
 				ID:   []int64{test.resultInput.WhiteID, test.resultInput.BlackID},
 				Mode: sqlc.ModeEnum(test.resultInput.ReplayMode.String()),
 			})
@@ -466,7 +466,7 @@ func TestInsertGameResult(t *testing.T) {
 
 			assert.Equal(t, test.wantUserElos, userElos)
 
-			replay, err := services.DB.Queries().SelectReplayRowByID(ctx, changeSet.ReplayID)
+			replay, err := services.DB.Querier().SelectReplayRowByID(ctx, changeSet.ReplayID)
 			require.NoError(t, err)
 
 			testutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(sqlc.Replay{}, "ID"))

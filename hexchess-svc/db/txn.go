@@ -7,12 +7,14 @@ import (
 	"slices"
 )
 
-type TxnArgs struct {
-	QueryFn      func(ctx context.Context, query *sqlc.Queries) error
+type QueryFn func(ctx context.Context, query sqlc.Querier) error
+
+type Txn struct {
+	QueryFn      QueryFn
 	ErrAllowlist []error
 }
 
-func (pdb *PostgresDB) ExecTx(ctx context.Context, args TxnArgs) (err error) {
+func (pdb *PostgresDB) ExecTx(ctx context.Context, args Txn) (err error) {
 	tx, err := pdb.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -41,7 +43,7 @@ func (pdb *PostgresDB) ExecTx(ctx context.Context, args TxnArgs) (err error) {
 	return
 }
 
-func (pdb *FakeDB) ExecTx(ctx context.Context, args TxnArgs) (err error) {
-	// a fake postgres instance is already running in a txn, so noop the txn
+func (pdb *FakeDB) ExecTx(ctx context.Context, args Txn) (err error) {
+	// a fake postgres instance is already running in a txn, noop the txn
 	return args.QueryFn(ctx, sqlc.New(pdb.testingTxn))
 }

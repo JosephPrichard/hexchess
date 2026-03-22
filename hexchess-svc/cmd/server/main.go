@@ -62,10 +62,10 @@ func main() {
 	pdb := db.MakeDB(pool)
 
 	addrs := db.RedisAddrs{
-		CacheAddr: rdbCacheURL, 
+		CacheAddr:     rdbCacheURL,
 		GameStoreAddr: rdbGameStoreURL,
-		PubsubAddr: rdbPubSubURL,
-		QueueAddr: rdbQueueURL,
+		PubsubAddr:    rdbPubSubURL,
+		QueueAddr:     rdbQueueURL,
 	}
 	slog.Info("connecting to redis db", "addrs", addrs)
 	rdb := db.MakeRdb(addrs, nil)
@@ -81,7 +81,7 @@ func main() {
 
 	services := svc.Services{
 		DB:            pdb,
-		Queries:       pdb.Queries(),
+		Querier:       pdb.Querier(),
 		Redis:         rdb,
 		AWS:           aws,
 		Broadcasters:  svc.MakeBroadcasters(),

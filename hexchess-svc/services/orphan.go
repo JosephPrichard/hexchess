@@ -29,7 +29,7 @@ func (svc *Services) ClearBucketOrphans(ctx context.Context, pageLength int32) {
 			Prefix:     ProfilePicPrefix,
 			PageLength: pageLength,
 			parseID:    ParseProfilePicKey,
-			selectIDs:  svc.Queries.SelectExistsUsersByIDs,
+			selectIDs:  svc.Querier.SelectExistsUsersByIDs,
 		},
 	} {
 		wg.Add(1)

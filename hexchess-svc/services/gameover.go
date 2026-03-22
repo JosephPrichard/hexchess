@@ -130,22 +130,24 @@ func (changeSet GameResultChangeSet) IsNoop() bool {
 // InsertGameResultTx executes the insertGameResult operation in a transaction primarily to ensure
 func (svc *Services) InsertGameResultTx(ctx context.Context, params GameResult) (GameResultChangeSet, error) {
 	var changeSet GameResultChangeSet
-	err := svc.DB.ExecTx(ctx, db.TxnArgs{
-		QueryFn: func(ctx context.Context, query *sqlc.Queries) (err error) {
+
+	err := svc.DB.ExecTx(ctx, db.Txn{
+		QueryFn: func(ctx context.Context, query sqlc.Querier) (err error) {
 			changeSet, err = insertGameResult(ctx, query, params)
 			return err
 		},
 	})
+
 	return changeSet, err
 }
 
 // insertGameResult processes a game result, updates player ELO scores, and records the match details in the database.
 // It handles win, loss, or draw scenarios and ensures a consistent update order for database operations to prevent deadlocking.
 // Returns a GRChangeSet summarizing the changes and any error encountered during processing.
-func insertGameResult(ctx context.Context, query *sqlc.Queries, result GameResult) (GameResultChangeSet, error) {
+func insertGameResult(ctx context.Context, query sqlc.Querier, result GameResult) (GameResultChangeSet, error) {
 	mode := sqlc.ModeEnum(result.ReplayMode.String())
 	userIDs := []int64{result.WhiteID, result.BlackID}
-	
+
 	existingReplayID, err := query.SelectReplayIDByGameID(ctx, result.GameID)
 	if !errors.Is(err, pgx.ErrNoRows) {
 		if err != nil {
@@ -154,7 +156,7 @@ func insertGameResult(ctx context.Context, query *sqlc.Queries, result GameResul
 			return GameResultChangeSet{ReplayID: existingReplayID, AlreadyExists: true}, nil
 		}
 	}
-	
+
 	slices.SortFunc(userIDs, func(left, right int64) int { return int(left - right) }) // consistent query order
 	userElos, err := query.SelectUserModeElosByIds(ctx, sqlc.SelectUserModeElosByIdsParams{ID: userIDs, Mode: mode})
 	if err != nil {
@@ -193,17 +195,16 @@ func insertGameResult(ctx context.Context, query *sqlc.Queries, result GameResul
 	return changeSet, nil
 }
 
-
 func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.SelectUserModeElosByIdsRow) (GameResultChangeSet, []sqlc.UpsertUserEloParams) {
 	changeSet := GameResultChangeSet{}
 	var updts []sqlc.UpsertUserEloParams
-	
+
 	if IsGuestID(result.WhiteID) || IsGuestID(result.BlackID) {
 		return changeSet, updts
 	}
-	
+
 	mode := sqlc.ModeEnum(result.ReplayMode.String())
-	
+
 	whiteElo, blackElo := StartElo, StartElo
 	for _, row := range userModeElos {
 		switch row.UserID {
@@ -230,6 +231,7 @@ func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.Select
 			changeSet.WinID, changeSet.LoseID, winElo, loseElo = result.WhiteID, result.BlackID, whiteElo, blackElo
 		case BlackWin:
 			changeSet.WinID, changeSet.LoseID, winElo, loseElo = result.BlackID, result.WhiteID, blackElo, whiteElo
+		default:
 		}
 
 		winEloNext := winElo + 30*(1.0-ProbabilityWins(loseElo, winElo))
@@ -240,6 +242,7 @@ func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.Select
 			changeSet.WhiteEloNext, changeSet.BlackEloNext = winEloNext, loseEloNext
 		case BlackWin:
 			changeSet.WhiteEloNext, changeSet.BlackEloNext = loseEloNext, winEloNext
+		default:
 		}
 
 		changeSet.WinEloDiff = winEloNext - winElo

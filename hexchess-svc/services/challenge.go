@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"log/slog"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/pkg/logutil"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -93,7 +93,7 @@ func (svc *Services) InsertChallengeRet(ctx context.Context, inst ChallengeInst)
 		inst.MadeOn = time.Now()
 	}
 
-	row, dbErr := svc.Queries.InsertChallenge(ctx, sqlc.InsertChallengeParams{
+	row, dbErr := svc.Querier.InsertChallenge(ctx, sqlc.InsertChallengeParams{
 		ChallengerID: inst.ChallengerID,
 		ChallengeeID: inst.ChallengeeID,
 		Mode:         sqlc.ModeEnum(inst.Mode.String()),
@@ -131,7 +131,7 @@ func (svc *Services) GetChallengesByParticipant(ctx context.Context, key Challen
 		pgChallengeeID.Int64 = key.ChallengeeID
 	}
 
-	rows, err := svc.Queries.SelectChallengesByParticipant(ctx, sqlc.SelectChallengesByParticipantParams{
+	rows, err := svc.Querier.SelectChallengesByParticipant(ctx, sqlc.SelectChallengesByParticipantParams{
 		ChallengerID: pgChallengerID,
 		ChallengeeID: pgChallengeeID,
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
@@ -157,11 +157,11 @@ type DeleteResult struct {
 }
 
 func (svc *Services) DeleteChallenge(ctx context.Context, key ChallengeKey) (delResult DeleteResult, err error) {
-	row, err := svc.Queries.DeleteChallenge(ctx, sqlc.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return delResult, ErrChallengeNotFound
-	}
+	row, err := svc.Querier.DeleteChallenge(ctx, sqlc.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return delResult, ErrChallengeNotFound
+		}
 		return delResult, fmt.Errorf("delete challenge %d: %w", key, err)
 	}
 
@@ -185,7 +185,7 @@ func (svc *Services) DeleteChallenge(ctx context.Context, key ChallengeKey) (del
 
 func (svc *Services) DeleteExpiredChallenges(ctx context.Context, userID int64) error {
 	t := svc.EntropySource.GetNow().Add(-ExpireChallengeMaxAge)
-	err := svc.Queries.DeleteExpiredChallenges(ctx, sqlc.DeleteExpiredChallengesParams{
+	err := svc.Querier.DeleteExpiredChallenges(ctx, sqlc.DeleteExpiredChallengesParams{
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: t},
 	})

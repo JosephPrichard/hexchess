@@ -185,7 +185,7 @@ func (svc *Services) SyncLeaderboard(ctx context.Context) error {
 	for _, mode := range GameModeMap {
 		afterID := int64(0)
 		for {
-			rows, err := svc.Queries.SelectEloList(ctx, sqlc.SelectEloListParams{ID: afterID, Mode: sqlc.ModeEnum(mode.String()), Limit: 20})
+			rows, err := svc.Querier.SelectEloList(ctx, sqlc.SelectEloListParams{ID: afterID, Mode: sqlc.ModeEnum(mode.String()), Limit: 20})
 			if err != nil {
 				return fmt.Errorf("select elo list afterID %d: %w", afterID, err)
 			}
@@ -233,7 +233,7 @@ func (svc *Services) GetLeaderboardUsers(ctx context.Context, mode GameMode, rnk
 	for _, user := range rnkUsers {
 		ids = append(ids, user.ID)
 	}
-	userRows, err := svc.Queries.SelectUserWithEloByIDs(ctx, sqlc.SelectUserWithEloByIDsParams{
+	userRows, err := svc.Querier.SelectUserWithEloByIDs(ctx, sqlc.SelectUserWithEloByIDsParams{
 		Ids:  ids,
 		Mode: sqlc.ModeEnum(mode.String()),
 	})
@@ -290,7 +290,7 @@ func (svc *Services) GetFuzzySearchLeaderboard(ctx context.Context, name string,
 		return nil, ErrSearchLimit
 	}
 
-	userRows, err := svc.Queries.SelectUsersBySimilarity(ctx, sqlc.SelectUsersBySimilarityParams{
+	userRows, err := svc.Querier.SelectUsersBySimilarity(ctx, sqlc.SelectUsersBySimilarityParams{
 		Username: name,
 		Limit:    perPage,
 		Offset:   offset,
@@ -303,7 +303,7 @@ func (svc *Services) GetFuzzySearchLeaderboard(ctx context.Context, name string,
 	for _, row := range userRows {
 		userIDs = append(userIDs, row.ID)
 	}
-	eloRows, err := svc.Queries.SelectManyUserElosById(ctx, userIDs)
+	eloRows, err := svc.Querier.SelectManyUserElosById(ctx, userIDs)
 	if err != nil {
 		return nil, fmt.Errorf("select elos by user ids %v: %w", userIDs, err)
 	}
