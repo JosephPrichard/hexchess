@@ -33,7 +33,7 @@
 	const { data: props }: { data: PlayerProps } = $props();
 	const { user, stats: userStats } = $derived(props.fullUser);
 
-	const { addNotification } = getNotificationsContext();
+	const { addNotification, addErrorNotification } = getNotificationsContext();
 
 	let nestedReplayList = $state([props.fullUser.replayList]);
 	let showCreateModal = $state(false);
@@ -51,15 +51,13 @@
 		if (shouldLoadReplays) {
 			const [data, err] = await services.getReplays(user.id, lastId);
 			if (err) {
-				console.error("Error loading replays: ", err);
+				addErrorNotification(err);
 				return;
 			}
 			const replayList = data?.replayList ?? [];
-			console.log(`Loaded ${replayList.length} new replays`);
 
 			if (replayList.length > 0) {
 				nestedReplayList.push(replayList);
-				console.log(`There are ${nestedReplayList.length} replayList records in the nestedReplayList`);
 			} else {
 				hasMoreReplays = false;
 			}
@@ -71,7 +69,7 @@
 		if (data) {
 			onLoaded(data.buckets);
 		} else {
-			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
+			addErrorNotification(err);
 		}
 	}
 
@@ -176,7 +174,7 @@
 				duration: 3000
 			});
 		} else {
-			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
+			addErrorNotification(err);
 		}
 		showCreateModal = false;
 	}

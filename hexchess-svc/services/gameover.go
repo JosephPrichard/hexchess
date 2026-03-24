@@ -187,7 +187,7 @@ func insertGameResult(ctx context.Context, query sqlc.Querier, result GameResult
 		MoveHistBlob:   result.MoveHistBlob,
 	})
 	if err != nil {
-		return GameResultChangeSet{}, fmt.Errorf("insert replay: %w", err)
+		return GameResultChangeSet{}, err
 	}
 	changeSet.ReplayID = replayID
 

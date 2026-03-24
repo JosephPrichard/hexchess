@@ -75,13 +75,13 @@ func insertReplay(ctx context.Context, query sqlc.Querier, inst ReplayInst) (int
 		PlayedOn: playedOn,
 	})
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("insert replay: %w", err)
 	}
 	if err = query.InsertReplayMoveHistories(ctx, sqlc.InsertReplayMoveHistoriesParams{
 		ReplayID: replayID,
 		Data:     inst.MoveHistBlob,
 	}); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("insert replay move histories: %w", err)
 	}
 
 	inst.MoveHistBlob = nil

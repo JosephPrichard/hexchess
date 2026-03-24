@@ -1,5 +1,11 @@
 import { GameInput } from '$lib/pb/messages';
 import type { MoveAction } from '$lib/components/chess/types';
+import type { Chat } from '$lib/api/models';
+
+export function sortChats(chats: Chat[]): Chat[] {
+	chats.sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime());
+	return chats;
+}
 
 export interface ConnectionState {
 	tries: number

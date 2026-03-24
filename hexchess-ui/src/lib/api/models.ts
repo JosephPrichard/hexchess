@@ -1,4 +1,4 @@
-import type { ChatMessage, PlayerState } from '$lib/pb/messages';
+import type { ChatMessage, PlayerState, ReplayEntity } from '$lib/pb/messages';
 
 export type Action = 'delete' | 'reject' | 'accept';
 
@@ -108,7 +108,32 @@ export interface ReplayModel {
 	mode: string;
 	whiteEloDiff: number;
 	blackEloDiff: number;
+	winEloDiff: number;
+	loseEloDiff: number;
 }
+
+export function mapReplayEntity(replay: ReplayEntity): ReplayModel {
+	return {
+		id: Number(replay.id),
+		whiteId: Number(replay.whiteId),
+		blackId: Number(replay.blackId),
+		whiteName: replay.whiteName,
+		blackName: replay.blackName,
+		whiteCountry: replay.whiteCountry,
+		blackCountry: replay.blackCountry,
+		whiteElo: replay.whiteElo,
+		blackElo: replay.blackElo,
+		playedOn: replay.playedOn,
+		result: replay.result,
+		cause: replay.cause,
+		mode: replay.mode,
+		whiteEloDiff: replay.whiteEloDiff,
+		blackEloDiff: replay.blackEloDiff,
+		winEloDiff: replay.winEloDiff,
+		loseEloDiff: replay.loseEloDiff,
+	};
+}
+
 
 export interface EloHistory {
 	timestamp: string;
@@ -153,7 +178,7 @@ export interface Chat {
     sentAt: Date;
 }
 
-export function mapChatMessage(chat: ChatMessage) {
+export function mapChatMessage(chat: ChatMessage): Chat {
 	return {
 		player: chat.player,
 		message: chat.message,

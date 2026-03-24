@@ -1,6 +1,6 @@
 <script lang="ts">
 	import services, { appBaseURL, baseURL } from '$lib/api/services';
-	import { codes, makeMessage } from '$lib/utils/error';
+	import { codes } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import MoveList from '$lib/components/chess/MoveList.svelte';
 	import Board from '$lib/components/chess/Board.svelte';
@@ -9,18 +9,8 @@
 	import UndoIcon from '$lib/components/icons/UndoIcon.svelte';
 	import TakenTakenList from '$lib/components/chess/TakenList.svelte';
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
-	import {
-		type ChatMessage,
-		type ChessGame,
-		EndKind,
-		type ErrorOutput,
-		type ForfeitOutput,
-		GameOutput,
-		type InitOutput, type MoveOutput,
-		type PlayersOutput,
-		type PlayerState, ReplayOutput, type UndoOutput
-	} from '$lib/pb/messages';
-	import { mapChatMessage, type Chat, type Hex } from '$lib/api/models';
+	import { type ChatMessage, type ChessGame, EndKind, type ErrorOutput, type ForfeitOutput, GameOutput, type InitOutput, type MoveOutput, type PlayersOutput, type PlayerState, type ReplayEntity, type UndoOutput } from '$lib/pb/messages';
+	import { type Chat, type Hex, mapChatMessage, mapReplayEntity, type ReplayModel } from '$lib/api/models';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import { onMount } from 'svelte';
 	import Banner from '$lib/Banner.svelte';
@@ -28,11 +18,10 @@
 	import ChatIcon from '$lib/components/icons/ChatIcon.svelte';
 	import FinishPanel from '$lib/components/user/FinishPanel.svelte';
 	import { type PromotionMove } from '../../sandbox/state.svelte.js';
-	import { isValidMove } from '../../../lib/service/chess';
-	import { type ConnectionState, sendChatInput, sendForfeitInput, sendMoveInput, sendPingInput, sendUndoInput } from './messages';
+	import { isValidMove } from '$lib/service/chess';
+	import { type ConnectionState, sendChatInput, sendForfeitInput, sendMoveInput, sendPingInput, sendUndoInput, sortChats } from './service';
 	import { type BadPromotionType, type MoveAction, NoPromotion, type Promotion } from '$lib/components/chess/types';
 	import Timer from '$lib/components/chess/Timer.svelte';
-	import { captureRejectionSymbol } from 'events';
 
 	const forfeitModalIds = ["forfeit-modal", "forfeit-button"];
 	const maxTimeout = 2500;
@@ -46,14 +35,14 @@
 
 	const { data: props }: { data: PlayProps } = $props();
 
-	const { addNotification } = getNotificationsContext();
+	const { addNotification, addErrorNotification } = getNotificationsContext();
 
 	// game lifecycle states taken from ws responses
 	let game = $state<ChessGame | undefined>();
 	let whitePlayer = $state<PlayerState | undefined>(undefined);
 	let blackPlayer = $state<PlayerState | undefined>(undefined);
 	let selfPlayer: PlayerState | undefined = $state(undefined);
-	let replay = $state<ReplayOutput | undefined>(undefined);
+	let finishState = $state<ReplayModel | undefined>(undefined);
 	let endState = $state<EndKind>(EndKind.NOT_ENDED)
 	let undoPlayerId: bigint | undefined = $state(undefined);
 	let chats: Chat[] = $state([]);
@@ -86,8 +75,6 @@
 	const isCurrPlayer = $derived.by(() => selfPlayer?.id === currPlayer?.id);
 	const isEitherPlayer = $derived.by(() => whitePlayer?.id !== selfPlayer?.id || blackPlayer?.id !== selfPlayer?.id);
 	const isSelfWhite = $derived.by(() => selfPlayer?.id === whitePlayer?.id);
-	// const otherPlayer = $derived.by(() => !game?.board?.isWhiteTurn ? whitePlayer : blackPlayer);
-	// const isStarted = $derived(whitePlayer && blackPlayer && currPlayer !== undefined);
 	const isWhitePerspective = $derived.by(() => selfPlayer === undefined || selfPlayer.id !== blackPlayer?.id);
 	const bottomPlayer = $derived(isWhitePerspective ? blackPlayer : whitePlayer);
 	const topPlayer = $derived(isWhitePerspective ? whitePlayer : blackPlayer);
@@ -176,6 +163,9 @@
 		case "undo":
 			handleUndo(data.value.undo);
 			break;
+		case "replay":
+			handleReplay(data.value.replay);
+			break;
 		case "error":
 			handleError(data.value.error);
 			break;
@@ -188,8 +178,9 @@
 		whitePlayer = state?.whitePlayer;
 		blackPlayer = state?.blackPlayer;
 		if (state?.endState) endState = state?.endState;
-		selfPlayer = init?.self;
 		undoPlayerId = state?.undoId;
+
+		selfPlayer = init?.self;
 	}
 
 	function handlePlayers(players: PlayersOutput) {
@@ -203,19 +194,24 @@
 		undoPlayerId = undefined;
 	}
 
-	function handleForfeit(_: ForfeitOutput) {}
+	function handleForfeit(forfeit: ForfeitOutput) {
+
+	}
 
 	function handleChat(chat: ChatMessage) {
-		chats = [...chats, mapChatMessage(chat)]; // copy so we can react to this state in the $effect
+		chats = sortChats([...chats, mapChatMessage(chat)]); // copy so we can react to this state in the $effect
 	}
 
 	function handleUndo(undo: UndoOutput) {
-		if (undo.kind === "CREATE")
+		if (undo.kind === "CREATE") {
 			undoPlayerId = undo.undoId;
-		else if (undo.kind === "ACCEPT" || undo.kind === "REJECT")
+		} else if (undo.kind === "ACCEPT" || undo.kind === "REJECT") {
 			undoPlayerId = undefined
-		if (undo.game)
-			game = undo.game;
+		}
+		if (undo.game) game = undo.game;
+	}
+	function handleReplay(replay: ReplayEntity) {
+		if (replay) finishState = mapReplayEntity(replay);
 	}
 
 	function handleError(error: ErrorOutput) {
@@ -230,7 +226,7 @@
 			gameExpired = true;
 			break;
 		default:
-			addNotification({ type: "string", message: makeMessage(code), isSuccess: false });
+			addErrorNotification(code);
 		}
 	}
 
@@ -272,14 +268,21 @@
 		});
 	}
 
-	async function loadInitialChats(gameId: string) {
+	async function loadGameChats(gameId: string) {
 		const [data, err] = await services.getGameChats(gameId);
 		if (data) {
-			const nextChats = [...chats, ...data.chats.map(mapChatMessage)];
-			nextChats.sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime());
-			chats = nextChats;
+			chats = sortChats([...chats, ...data.chats.map(mapChatMessage)]);
 		} else {
-			addNotification({ type: "string", message: makeMessage(err?.message), isSuccess: false });
+			addErrorNotification(err);
+		}
+	}
+
+	async function loadReplay(gameId: string) {
+		const [data, err] = await services.getReplay(gameId);
+		if (data) {
+			finishState = data.replay;
+		} else {
+			addErrorNotification(err);
 		}
 	}
 
@@ -302,9 +305,8 @@
 			}
 		}
 
-		if (chats.length == 0) {
-			loadInitialChats(gameId);
-		}
+		loadGameChats(gameId);
+		loadReplay(gameId)
 
 		return () => {
 			if (state.ws) {
@@ -429,8 +431,8 @@
 								</div>
 							{/if}
 							{#if endState === EndKind.FINISHED}
-								{#if replay?.replay}
-									<FinishPanel replay={replay.replay} whitePlayer={whitePlayer} blackPlayer={blackPlayer}/>
+								{#if finishState}
+									<FinishPanel replay={finishState} whitePlayer={whitePlayer} blackPlayer={blackPlayer}/>
 								{/if}
 							{/if}
 							{#if undoPlayerId === selfPlayer?.id}

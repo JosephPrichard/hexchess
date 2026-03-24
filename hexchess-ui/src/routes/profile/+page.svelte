@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { clearClientSession, updateClientSession, updateClientSession as updateClientUser } from '$lib/utils/storage';
-	import { makeMessage } from '$lib/utils/error';
+	import { clearClientSession, updateClientSession as updateClientUser } from '$lib/utils/storage';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import type { UserModel } from '$lib/api/models';
 	import services, { baseURL } from '$lib/api/services';
@@ -15,7 +14,7 @@
 
 	const { data: props }: { data: ProfileProps } = $props();
 
-	const { addNotification } = getNotificationsContext();
+	const { addErrorNotification } = getNotificationsContext();
 
 	let showCountryOptions = $state(false);
 	let isLoading = $state(false);
@@ -38,12 +37,12 @@
 		if (userData) {
 			updateClientUser(userData);
 		} else {
-			addNotification({ type: 'string', message: makeMessage(userErr), isSuccess: false });
+			addErrorNotification(userErr);
 		}
 		if (profileResp) {
 			const [_, profileErr] = profileResp;
 			if (profileErr) {
-				addNotification({ type: 'string', message: makeMessage(profileErr), isSuccess: false });
+				addErrorNotification(profileErr);
 			}
 		}
 
@@ -55,7 +54,7 @@
 
 		const [_, err] = await services.postUpdatePassword(password, newPassword, retypePassword);
 		if (err) {
-			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
+			addErrorNotification(err);
 		}
 	}
 
@@ -71,7 +70,7 @@
 			clearClientSession();
 			await goto("/");
 		} else if (err) {
-			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
+			addErrorNotification(err);
 		}
 	}
 

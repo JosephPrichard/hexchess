@@ -20,7 +20,7 @@
 
 	const { data: props }: { data: IndexProps } = $props();
 
-	const { addNotification } = getNotificationsContext();
+	const { addNotification, addErrorNotification } = getNotificationsContext();
 
 	let countSse: EventSource | undefined = undefined;
 
@@ -74,7 +74,7 @@
 		if (data) {
 			await goto(`play/${data.gameId}`);
 		} else {
-			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
+			addErrorNotification(err);
 		}
 	}
 

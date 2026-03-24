@@ -38,7 +38,7 @@
 		}));
 	});
 
-	const { addNotification } = getNotificationsContext();
+	const { addNotification, addErrorNotification } = getNotificationsContext();
 
 	function formatSuccessMessage(challenge: ChallengeModel, action: Action) {
 		let message: string | undefined = undefined;
@@ -70,7 +70,7 @@
 			});
 			challengeList.splice(index, 1);
 		} else {
-			addNotification({ type: 'string', message: makeMessage(err), isSuccess: false });
+			addErrorNotification(err);
 			challengeList[index].isLoading[action] = false;
 		}
 	}

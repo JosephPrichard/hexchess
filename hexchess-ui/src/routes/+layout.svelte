@@ -1,12 +1,13 @@
 <script lang="ts">
 	import '../css/index.css';
 	import type { LayoutProps } from '../../.svelte-kit/types/src/routes/$types';
-	import { type NotificationData, setNotificationsContext } from '$lib/utils/context';
+	import { type AddNotification, type NotificationData, setNotificationsContext } from '$lib/utils/context';
 	import { onMount } from 'svelte';
 	import { clearClientSession, updateClientSession } from '$lib/utils/storage';
 	import services, { baseURL } from '$lib/api/services';
-	import type { ChallengeModel } from '$lib/api/models';
+	import type { ChallengeModel, ServiceModel } from '$lib/api/models';
 	import { fade } from 'svelte/transition';
+	import { makeMessage } from '$lib/utils/error';
 
 	const { children }: LayoutProps = $props();
 
@@ -36,6 +37,14 @@
 		const i = index++;
 		notifications[i] = {data, index: i};
 		timeouts[i] = setTimeout(() => deleteNotification(i), data.duration || 3000);
+	}
+
+	function addErrorNotification(message: string | ServiceModel | undefined) {
+		addNotification({
+			isSuccess: false,
+			message: makeMessage(message),
+			type: 'string'
+		});
 	}
 
 	function connectUserEvents() {
@@ -81,7 +90,7 @@
 		};
 	});
 
-	setNotificationsContext({ addNotification, deleteNotification });
+	setNotificationsContext({ addNotification, addErrorNotification, deleteNotification });
 </script>
 
 <svelte:head>
