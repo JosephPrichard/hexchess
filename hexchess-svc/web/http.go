@@ -43,7 +43,8 @@ func HttpStatusFromErr(err error) (int, string) {
 		return http.StatusUnauthorized, err.Error()
 
 	// 404 — Not Found
-	case ErrHttpUserNotFound,
+	case ErrHttpNotFoundUser,
+		ErrHttpNotFoundReplay,
 		ErrHttpNotFoundChallenge:
 		return http.StatusNotFound, err.Error()
 

@@ -161,7 +161,7 @@ func (svc *Services) BroadcastGamesEvent(ctx context.Context, message proto.Mess
 	return svc.BroadcastMessage(ctx, svc.Redis.GamesChannel, bytes)
 }
 
-func (svc *Services) BroadcastChallenge(ctx context.Context, c ChallengeEntity) error {
+func (svc *Services) BroadcastChallenge(ctx context.Context, c ChallengeDTO) error {
 	userMessage := SerializeChallengeMessage(c)
 	bytes, err := proto.Marshal(userMessage)
 	if err != nil {

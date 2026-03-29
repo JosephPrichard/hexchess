@@ -14,7 +14,6 @@ import (
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/pkg/logutil"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
@@ -22,7 +21,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type UserEntity struct {
+type UserDTO struct {
 	ID       int64     `json:"id"`
 	Username string    `json:"username"`
 	Country  string    `json:"country"`
@@ -80,8 +79,8 @@ func calcUserWinrate(wins int32, losses int32, draws int32) int64 {
 	return int64(wr)
 }
 
-func mapUserFromRow(row sqlc.SelectUserByIDRow) UserEntity {
-	return UserEntity{
+func mapUserFromRow(row sqlc.SelectUserByIDRow) UserDTO {
+	return UserDTO{
 		ID:       row.ID,
 		Username: row.Username,
 		Country:  row.Country,
@@ -97,15 +96,14 @@ type UserInst struct {
 	JoinedOn time.Time
 }
 
-func (svc *Services) InsertUser(ctx context.Context, inst UserInst) (UserEntity, error) {
+func (svc *Services) InsertUser(ctx context.Context, inst UserInst) (UserDTO, error) {
 	if inst.JoinedOn.IsZero() {
 		inst.JoinedOn = time.Now()
 	}
 
-	var u UserEntity
 	hash, err := hashPassword(inst.Password)
 	if err != nil {
-		return u, fmt.Errorf("generate hash: %w", err)
+		return UserDTO{}, fmt.Errorf("generate hash: %w", err)
 	}
 
 	row, err := svc.Querier.InsertUser(ctx, sqlc.InsertUserParams{
@@ -118,17 +116,17 @@ func (svc *Services) InsertUser(ctx context.Context, inst UserInst) (UserEntity,
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return u, ErrTakenUsername
+			return UserDTO{}, ErrTakenUsername
 		}
-		return u, fmt.Errorf("insert user to db: %w", err)
+		return UserDTO{}, fmt.Errorf("insert user to db: %w", err)
 	}
 
-	u = mapUserFromRow(sqlc.SelectUserByIDRow(row))
-	slog.InfoContext(ctx, "created a new user", "user", u)
-	return u, nil
+	user := mapUserFromRow(sqlc.SelectUserByIDRow(row))
+	slog.InfoContext(ctx, "created a new user", "user", user)
+	return user, nil
 }
 
-func (svc *Services) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]UserEntity, error) {
+func (svc *Services) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]UserDTO, error) {
 	batches := make([]sqlc.BatchInsertUserParams, len(insts))
 
 	var hashEg errgroup.Group // no context propagation because jobs are non-cancellable
@@ -157,14 +155,14 @@ func (svc *Services) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]
 		return nil, err
 	}
 
-	var users []UserEntity
+	var users []UserDTO
 	var queryErrs []error
 
 	svc.Querier.BatchInsertUser(ctx, batches).QueryRow(func(i int, row sqlc.BatchInsertUserRow, err error) {
-		if err != nil {
-			queryErrs = append(queryErrs, err)
-		} else {
+		if err == nil {
 			users = append(users, mapUserFromRow(sqlc.SelectUserByIDRow(row)))
+		} else {
+			queryErrs = append(queryErrs, err)
 		}
 	})
 
@@ -202,7 +200,7 @@ var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 func verifyUser(ctx context.Context, query sqlc.Querier, username string, inputPassword string) (VerifiedUser, error) {
 	login, err := query.SelectLoginByName(ctx, username)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if IsErrNoRows(err) {
 			return VerifiedUser{}, ErrUserNotFound
 		}
 		return VerifiedUser{}, fmt.Errorf("select user=%s by login: %w", username, err)
@@ -249,7 +247,7 @@ func (svc *Services) SelectOrInsertGoogleUser(ctx context.Context, googleAccount
 	var isCreated bool
 
 	login, err := svc.Querier.SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
-	if errors.Is(err, pgx.ErrNoRows) {
+	if IsErrNoRows(err) {
 		isCreated = false
 	} else if err != nil {
 		return u, fmt.Errorf("select user=%s by google account id: %w", googleAccountID, err)
@@ -295,9 +293,9 @@ type UpdtUserParams struct {
 	Country  string
 }
 
-func (svc *Services) UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (UserEntity, error) {
+func (svc *Services) UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (UserDTO, error) {
 	if updt.Username == "" && updt.Bio == "" && updt.Country == "" {
-		return UserEntity{}, nil
+		return UserDTO{}, nil
 	}
 
 	row, err := svc.Querier.UpdateUser(ctx, sqlc.UpdateUserParams{
@@ -326,43 +324,46 @@ func (svc *Services) UpdateUserPassword(ctx context.Context, id int64, newPasswo
 	return err
 }
 
-func (svc *Services) GetUserByID(ctx context.Context, id int64) (UserEntity, error) {
+func (svc *Services) GetUserByID(ctx context.Context, id int64) (UserDTO, error) {
 	row, err := svc.Querier.SelectUserByID(ctx, id)
 	if err != nil {
-		return UserEntity{}, fmt.Errorf("select user %d: %w", id, err)
+		if IsErrNoRows(err) {
+			return UserDTO{}, ErrUserNotFound
+		}
+		return UserDTO{}, fmt.Errorf("select user %d: %w", id, err)
 	}
 	user := mapUserFromRow(row)
 	slog.InfoContext(ctx, "selected user", "id", id, "user", user)
 	return user, nil
 }
 
-type ModeStatsEntity struct {
-	Mode       string  `json:"mode"`
-	Rank       int64   `json:"rank"`
-	Wins       int32   `json:"wins"`
-	Losses     int32   `json:"losses"`
-	Draws      int32   `json:"draws"`
-	Winrate    int64   `json:"winrate"`
-	Elo        float64 `json:"elo"`
-	HighestElo float64 `json:"highestElo"`
+type ModeStatsDTO struct {
+	Mode       GameMode `json:"mode"`
+	Rank       int64    `json:"rank"`
+	Wins       int32    `json:"wins"`
+	Losses     int32    `json:"losses"`
+	Draws      int32    `json:"draws"`
+	Winrate    int64    `json:"winrate"`
+	Elo        float64  `json:"elo"`
+	HighestElo float64  `json:"highestElo"`
 }
 
-type UserStatsEntity struct {
-	TotalWins    int32             `json:"totalWins"`
-	TotalLosses  int32             `json:"totalLosses"`
-	TotalDraws   int32             `json:"totalDraws"`
-	AvgElo       float64           `json:"avgElo"`     // average elo of all other modes
-	HighestElo   float64           `json:"highestElo"` // the absolute highest elo
-	TotalWinrate int64             `json:"totalWinrate"`
-	ModeStats    []ModeStatsEntity `json:"modeStats"`
+type UserStatsDTO struct {
+	TotalWins    int32          `json:"totalWins"`
+	TotalLosses  int32          `json:"totalLosses"`
+	TotalDraws   int32          `json:"totalDraws"`
+	AvgElo       float64        `json:"avgElo"`     // average elo of all other modes
+	HighestElo   float64        `json:"highestElo"` // the absolute highest elo
+	TotalWinrate int64          `json:"totalWinrate"`
+	ModeStats    []ModeStatsDTO `json:"modeStats"`
 }
 
 func avg[T constraints.Integer | constraints.Float](currAvg T, currCount int, nextValue T) T {
 	return (currAvg*T(currCount) + nextValue) / T(currCount+1)
 }
 
-func (svc *Services) GetUserStats(ctx context.Context, id int64) (UserStatsEntity, error) {
-	stats := UserStatsEntity{HighestElo: math.SmallestNonzeroFloat64}
+func (svc *Services) GetUserStats(ctx context.Context, id int64) (UserStatsDTO, error) {
+	stats := UserStatsDTO{HighestElo: math.SmallestNonzeroFloat64}
 
 	rows, err := svc.Querier.SelectUserElosById(ctx, id)
 	if err != nil {
@@ -370,8 +371,12 @@ func (svc *Services) GetUserStats(ctx context.Context, id int64) (UserStatsEntit
 	}
 
 	for _, row := range rows {
-		modeStats := ModeStatsEntity{
-			Mode:       string(row.Mode),
+		mode, err := ParseGameMode(row.Mode)
+		if err != nil {
+			return stats, err
+		}
+		modeStats := ModeStatsDTO{
+			Mode:       mode,
 			Wins:       row.Wins,
 			Losses:     row.Losses,
 			Draws:      row.Draws,

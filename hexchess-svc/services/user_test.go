@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var testUserCmptOpts = cmpopts.IgnoreFields(UserEntity{}, "ID")
+var testUserCmptOpts = cmpopts.IgnoreFields(UserDTO{}, "ID")
 var testVerifiedUserCmptOpts = cmpopts.IgnoreFields(VerifiedUser{}, "ID")
 
 func TestInsertThenVerify(t *testing.T) {
@@ -50,7 +50,7 @@ func TestInsertThenVerify(t *testing.T) {
 	assert.Equal(t, ErrTooManyLoginAttempts, errTooMany)
 
 	assert.Equal(t, users1.ID, verifyUser1.ID)
-	wantDBU1 := UserEntity{
+	wantDBU1 := UserDTO{
 		Username: "user1-testing",
 		Country:  "us",
 		JoinedOn: itest.TimeNow.Local(),
@@ -72,12 +72,12 @@ func TestBatchInsertThenGet(t *testing.T) {
 	}
 	users, batchErr := services.BatchInsertUsers(ctx, insts)
 
-	wantUsers := []UserEntity{
+	wantUsers := []UserDTO{
 		{Username: insts[0].Username, Country: "us"},
 		{Username: insts[1].Username, Country: "eu"},
 	}
 
-	testutil.Equal(t, wantUsers, users, cmpopts.IgnoreFields(UserEntity{}, "ID", "JoinedOn"))
+	testutil.Equal(t, wantUsers, users, cmpopts.IgnoreFields(UserDTO{}, "ID", "JoinedOn"))
 	require.NoError(t, batchErr)
 }
 
@@ -156,7 +156,7 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 	testutil.Equal(t, verifiedUser, user1, testVerifiedUserCmptOpts)
 	testutil.Equal(t, verifiedUser, user2, testVerifiedUserCmptOpts)
 
-	wantDbUser1 := UserEntity{
+	wantDbUser1 := UserDTO{
 		Username: "username",
 		Country:  "us",
 		JoinedOn: itest.TimeNow.Local(),
@@ -172,12 +172,12 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	err := services.UpdateUserPassword(ctx, TestUserEntities[0].ID, "password-new")
+	err := services.UpdateUserPassword(ctx, TestUserDTOs[0].ID, "password-new")
 	require.NoError(t, err)
 
-	u1, err := services.GetUserByID(ctx, TestUserEntities[0].ID)
+	u1, err := services.GetUserByID(ctx, TestUserDTOs[0].ID)
 	require.NoError(t, err)
-	v1, err := verifyUser(ctx, services.DB.Querier(), TestUserEntities[0].Username, "password-new")
+	v1, err := verifyUser(ctx, services.DB.Querier(), TestUserDTOs[0].Username, "password-new")
 	require.NoError(t, err)
 
 	assert.Equal(t, u1.ID, v1.ID)
@@ -194,5 +194,5 @@ func TestGetUserElos(t *testing.T) {
 	stats, err := services.GetUserStats(ctx, 1)
 	require.NoError(t, err)
 
-	testutil.Equal(t, TestUserStats[0], stats, cmpopts.IgnoreFields(ModeStatsEntity{}, "Rank"))
+	testutil.Equal(t, TestUserStats[0], stats, cmpopts.IgnoreFields(ModeStatsDTO{}, "Rank"))
 }

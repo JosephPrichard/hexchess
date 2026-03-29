@@ -157,8 +157,8 @@ func TestUndo(t *testing.T) {
 
 		s := MakeChessState(StateSetup{
 			ID:           "test",
-			Game:         new(chess.MakeStartGame()),
-			InitialBoard: new(chess.InitialBoard()),
+			Game:         ptr(chess.MakeStartGame()),
+			InitialBoard: ptr(chess.InitialBoard()),
 		})
 
 		err := s.Undo()
@@ -174,8 +174,8 @@ func TestUndo(t *testing.T) {
 
 		s := MakeChessState(StateSetup{
 			ID:           "test",
-			Game:         new(game),
-			InitialBoard: new(chess.InitialBoard()),
+			Game:         ptr(game),
+			InitialBoard: ptr(chess.InitialBoard()),
 		})
 
 		err := s.Undo()

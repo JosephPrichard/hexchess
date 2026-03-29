@@ -35,14 +35,14 @@ func TestLeaderboard(t *testing.T) {
 		{ModeTimed1Plus0, id4, 1010},
 		{ModeTimed1Plus0, id1, 900},
 	} {
-		require.NoError(t, services.IncrLeaderboard(ctx, change))
+		require.NoError(t, services.incrLeaderboard(ctx, change))
 	}
 
 	ranks := make([]map[string]LbRank, 0)
 	leaderboards := make([]Leaderboard, 0)
 
 	for _, id := range []int64{id1, id2, id3, id4} {
-		rank, err := services.GetLeaderboardRanks(ctx, id, map[string]GameMode{"CORRESPONDENCE_7": ModeCorrespondence7, "TIMED_1+0": ModeTimed1Plus0})
+		rank, err := services.GetUserLeaderboardRanks(ctx, id, map[string]GameMode{"CORRESPONDENCE_7": ModeCorrespondence7, "TIMED_1+0": ModeTimed1Plus0})
 		require.NoError(t, err)
 		ranks = append(ranks, rank)
 	}
@@ -104,16 +104,16 @@ func TestGetLeaderboardUsers(t *testing.T) {
 		name            string
 		mode            GameMode
 		rankedUsers     []RankedUser
-		wantLeaderboard []LbdUserEntity
+		wantLeaderboard []LbdUserDTO
 		wantMissingIDs  []int64
 	}{
 		{
 			name:        "GettingLeaderboardWithInvalidID",
 			mode:        ModeTimed1Plus0,
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 999999}},
-			wantLeaderboard: []LbdUserEntity{
+			wantLeaderboard: []LbdUserDTO{
 				{
-					UserEntity: UserEntity{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
+					UserDTO:    UserDTO{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
 					Elo:        1050,
 					HighestElo: 1050,
 					Wins:       6,
@@ -128,9 +128,9 @@ func TestGetLeaderboardUsers(t *testing.T) {
 			name:        "GettingValidLeaderboardUsers",
 			mode:        ModeCorrespondence7,
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 3}},
-			wantLeaderboard: []LbdUserEntity{
+			wantLeaderboard: []LbdUserDTO{
 				{
-					UserEntity: UserEntity{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
+					UserDTO:    UserDTO{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
 					Elo:        1000,
 					HighestElo: 1000,
 					Wins:       2,
@@ -139,7 +139,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 					Rank:       1,
 				},
 				{
-					UserEntity: UserEntity{ID: 3, Username: "user3", Country: "us", JoinedOn: itest.TimeNow},
+					UserDTO:    UserDTO{ID: 3, Username: "user3", Country: "us", JoinedOn: itest.TimeNow},
 					Elo:        900,
 					HighestElo: 900,
 					Rank:       2,
@@ -176,8 +176,9 @@ func TestGetFuzzySearchLeaderboard(t *testing.T) {
 	users, err := services.GetFuzzySearchLeaderboard(ctx, "john", 1, 20)
 	require.NoError(t, err)
 
-	wantUsers := []LbdUserEntity{
-		{UserEntity: UserEntity{ID: 8, Username: "john", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+	wantUsers := []LbdUserDTO{
+		{
+			UserDTO:    UserDTO{ID: 8, Username: "john", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
 			Elo:        1500,
 			HighestElo: 2000,
 			Wins:       12,
@@ -185,12 +186,15 @@ func TestGetFuzzySearchLeaderboard(t *testing.T) {
 			Winrate:    66,
 			Rank:       1,
 		},
-		{UserEntity: UserEntity{ID: 9, Username: "johnny", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+		{
+			UserDTO:    UserDTO{ID: 9, Username: "johnny", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
 			Elo:        1500,
 			HighestElo: 1500,
-			Wins:       5, Losses: 2,
-			Winrate: 71,
-			Rank:    2},
+			Wins:       5,
+			Losses:     2,
+			Winrate:    71,
+			Rank:       2,
+		},
 	}
 	assert.Equal(t, wantUsers, users)
 }

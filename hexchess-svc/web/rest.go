@@ -520,16 +520,17 @@ func (server *Server) HandleUpdateChallenge(w http.ResponseWriter, r *http.Reque
 		return ErrHttpUpdateChallenge
 	}
 
-	dr, err := server.Services.DeleteChallenge(ctx, svc.ChallengeKey{ChallengerID: body.ChallengerID, ChallengeeID: body.ChallengeeID})
-	if errors.Is(err, svc.ErrChallengeNotFound) {
-		return ErrHttpNotFoundChallenge
-	} else if err != nil {
+	deleteResult, err := server.Services.DeleteChallenge(ctx, svc.ChallengeKey{ChallengerID: body.ChallengerID, ChallengeeID: body.ChallengeeID})
+	if err != nil {
+		if errors.Is(err, svc.ErrChallengeNotFound) {
+			return ErrHttpNotFoundChallenge
+		}
 		return err
 	}
 
 	var gameID string
 	if body.Action == Accept {
-		gameID, err = server.Services.CreateGame(ctx, dr.FirstColor, dr.Mode, nil)
+		gameID, err = server.Services.CreateGame(ctx, deleteResult.FirstColor, deleteResult.Mode, nil)
 		if err != nil {
 			return fmt.Errorf("create game: %w", err)
 		}
@@ -654,8 +655,8 @@ func (server *Server) getLeaderboardQuery(q url.Values) (LeaderboardArg, error) 
 }
 
 type LeaderboardResp struct {
-	TotalPages int                 `json:"totalPages"`
-	UserList   []svc.LbdUserEntity `json:"userList,omitempty"`
+	TotalPages int              `json:"totalPages"`
+	UserList   []svc.LbdUserDTO `json:"userList,omitempty"`
 }
 
 func (server *Server) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) error {
@@ -676,7 +677,7 @@ func (server *Server) HandleGetLeaderboard(w http.ResponseWriter, r *http.Reques
 	slog.InfoContext(ctx, "retrieved leaderboard", "users", users)
 
 	if users == nil {
-		users = []svc.LbdUserEntity{}
+		users = []svc.LbdUserDTO{}
 	}
 	writeJSON(w, http.StatusOK, LeaderboardResp{TotalPages: lbd.PageCount, UserList: users})
 	return nil
@@ -720,9 +721,9 @@ func (server *Server) getPlayerQuery(q url.Values) (GetPlayerArgs, error) {
 }
 
 type GetPlayersResp struct {
-	User       svc.UserEntity      `json:"user"`
-	Stats      svc.UserStatsEntity `json:"stats"`
-	ReplayList []svc.ReplayEntity  `json:"replayList"`
+	User       svc.UserDTO      `json:"user"`
+	Stats      svc.UserStatsDTO `json:"stats"`
+	ReplayList []svc.ReplayDTO  `json:"replayList"`
 }
 
 func (server *Server) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
@@ -732,9 +733,9 @@ func (server *Server) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 	}
 	loadReplays := query.WithReplays
 
-	var user svc.UserEntity
-	var stats svc.UserStatsEntity
-	var replayList []svc.ReplayEntity
+	var user svc.UserDTO
+	var stats svc.UserStatsDTO
+	var replayList []svc.ReplayDTO
 	var lbRanks map[string]svc.LbRank
 
 	ctx := r.Context()
@@ -749,7 +750,7 @@ func (server *Server) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 		return
 	})
 	eg.Go(func() (err error) {
-		lbRanks, err = server.Services.GetLeaderboardRanks(egCtx, int64(query.UserID), svc.GameModeMap)
+		lbRanks, err = server.Services.GetUserLeaderboardRanks(egCtx, int64(query.UserID), svc.GameModeMap)
 		return
 	})
 	if loadReplays {
@@ -759,12 +760,17 @@ func (server *Server) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 		})
 	}
 	if err := eg.Wait(); err != nil {
-		return err
+		switch {
+		case errors.Is(err, svc.ErrUserNotFound):
+			return ErrHttpNotFoundUser
+		default:
+			return err
+		}
 	}
 
 	for i := range stats.ModeStats {
 		modeStats := &stats.ModeStats[i]
-		lbRank, ok := lbRanks[modeStats.Mode]
+		lbRank, ok := lbRanks[modeStats.Mode.String()]
 		if !ok {
 			return fmt.Errorf("missing leaderboard rank for mode %s", modeStats.Mode)
 		}
@@ -772,7 +778,7 @@ func (server *Server) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 	}
 
 	if replayList == nil {
-		replayList = []svc.ReplayEntity{}
+		replayList = []svc.ReplayDTO{}
 	}
 	playersResp := GetPlayersResp{User: user, Stats: stats, ReplayList: replayList}
 
@@ -782,7 +788,7 @@ func (server *Server) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 }
 
 type SearchPlayersResp struct {
-	UserList []svc.LbdUserEntity `json:"userList,omitempty"`
+	UserList []svc.LbdUserDTO `json:"userList,omitempty"`
 }
 
 func (server *Server) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) error {
@@ -798,7 +804,7 @@ func (server *Server) HandleSearchPlayers(w http.ResponseWriter, r *http.Request
 
 	slog.InfoContext(ctx, "searching players", "page", page, "name", name)
 
-	var userList []svc.LbdUserEntity
+	var userList []svc.LbdUserDTO
 	if hasUser {
 		users, err := server.Services.GetFuzzySearchLeaderboard(ctx, name, int32(page), perPage)
 		if errors.Is(err, svc.ErrSearchLimit) {
@@ -810,78 +816,65 @@ func (server *Server) HandleSearchPlayers(w http.ResponseWriter, r *http.Request
 	}
 
 	if userList == nil {
-		userList = []svc.LbdUserEntity{}
+		userList = []svc.LbdUserDTO{}
 	}
 	writeJSON(w, http.StatusOK, SearchPlayersResp{UserList: userList})
 	return nil
 }
 
-type GetReplayKind int
-
-const (
-	ReplayByReplayID GetReplayKind = iota
-	ReplayByGameID
-)
-
 type GetReplayQuery struct {
-	ID   int64
-	Kind GetReplayKind // defaults to ReplayByReplayID
+	ReplayID int64
+	GameID   string
 }
 
 func (server *Server) getReplayQuery(q url.Values) (GetReplayQuery, error) {
 	var respErr RespError
-	id, err := strconv.Atoi(q.Get("id"))
-	if err != nil {
-		respErr.Put("id", ErrHttpInvalidID)
-	}
 
-	kindStr := q.Get("byGameID")
+	kindStr := q.Get("idKind")
 	if kindStr == "" {
 		kindStr = "BY_REPLAY_ID"
 	}
 
-	var kind GetReplayKind
+	var replayID int64
+	var gameID string
+
 	switch kindStr {
 	case "BY_REPLAY_ID":
-		kind = ReplayByReplayID
+		intID, err := strconv.Atoi(q.Get("id"))
+		if err != nil {
+			respErr.Put("id", ErrHttpInvalidID)
+		}
+		replayID = int64(intID)
 	case "BY_GAME_ID":
-		kind = ReplayByGameID
+		gameID = q.Get("id")
 	}
 
-	return GetReplayQuery{
-		ID:   int64(id),
-		Kind: kind,
-	}, respErr.Interface()
+	return GetReplayQuery{ReplayID: replayID, GameID: gameID}, respErr.Interface()
 }
 
 type GetReplayResp struct {
-	Replay svc.ReplayEntity `json:"replay"`
+	Replay svc.ReplayDTO `json:"replay"`
 }
 
 func (server *Server) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
-	ctx := r.Context()
-
 	query, err := server.getReplayQuery(r.URL.Query())
 	if err != nil {
 		return err
 	}
 
-	var replay svc.ReplayEntity
+	var replay svc.ReplayDTO
 
-	switch query.Kind {
-	case ReplayByReplayID:
-		r, err := server.Services.GetReplay(ctx, query.ID)
-		if err != nil {
-			return fmt.Errorf("get replay by replay id %d: %w", query.ID, err)
+	ctx := r.Context()
+	if query.ReplayID != 0 {
+		replay, err = server.Services.GetReplay(ctx, query.ReplayID)
+	} else if query.GameID != "" {
+		replay, err = server.Services.GetReplayByGameID(ctx, query.GameID)
+	}
+	if err != nil {
+		if errors.Is(err, svc.ErrNoReplay) {
+			return ErrHttpNotFoundReplay
 		}
-		replay = r
-	case ReplayByGameID:
-		// todo: implement select replay by game id
-		r, err := server.Services.GetReplay(ctx, query.ID)
-		if err != nil {
-			return fmt.Errorf("get replay by game id %d: %w", query.ID, err)
-		}
-		replay = r
+		return fmt.Errorf("get replay by id %s: %w", query.GameID, err)
 	}
 
 	writeJSON(w, http.StatusOK, GetReplayResp{Replay: replay})
@@ -910,7 +903,7 @@ func (server *Server) getReplaysQuery(q url.Values) (GetReplaysArg, error) {
 }
 
 type GetUserReplaysResp struct {
-	ReplayList []svc.ReplayEntity `json:"replayList"`
+	ReplayList []svc.ReplayDTO `json:"replayList"`
 }
 
 func (server *Server) HandleGetUserReplays(w http.ResponseWriter, r *http.Request) error {
@@ -926,14 +919,14 @@ func (server *Server) HandleGetUserReplays(w http.ResponseWriter, r *http.Reques
 	}
 
 	if replays == nil {
-		replays = []svc.ReplayEntity{}
+		replays = []svc.ReplayDTO{}
 	}
 	writeJSON(w, http.StatusOK, GetUserReplaysResp{ReplayList: replays})
 	return nil
 }
 
 type GetChallengesResp struct {
-	ChallengeList []svc.ChallengeEntity `json:"challengeList"`
+	ChallengeList []svc.ChallengeDTO `json:"challengeList"`
 }
 
 func (server *Server) HandleGetChallenges(w http.ResponseWriter, r *http.Request) error {
@@ -945,7 +938,7 @@ func (server *Server) HandleGetChallenges(w http.ResponseWriter, r *http.Request
 		return fmt.Errorf("get session player: %w", err)
 	}
 
-	var challengeList []svc.ChallengeEntity
+	var challengeList []svc.ChallengeDTO
 	switch participants {
 	case "sent":
 		byChallenger, err := server.Services.GetChallengesByParticipant(ctx, svc.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1})
@@ -962,7 +955,7 @@ func (server *Server) HandleGetChallenges(w http.ResponseWriter, r *http.Request
 	}
 
 	if challengeList == nil {
-		challengeList = []svc.ChallengeEntity{}
+		challengeList = []svc.ChallengeDTO{}
 	}
 	slog.InfoContext(ctx, "retrieved challenges", "challengeList", challengeList)
 	writeJSON(w, http.StatusOK, GetChallengesResp{ChallengeList: challengeList})
@@ -1106,5 +1099,17 @@ func (server *Server) HandleGetEloHistories(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, EloHistoriesResp{Buckets: eloBuckets})
 
 	//w.Header().Set("Cache-Control", GetEloHistoriesCacheControl)
+	return nil
+}
+
+func (server *Server) HandleCreateTournament(w http.ResponseWriter, r *http.Request) error {
+	return nil
+}
+
+func (server *Server) HandleGetTournament(w http.ResponseWriter, r *http.Request) error {
+	return nil
+}
+
+func (server *Server) HandleGetTournaments(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }

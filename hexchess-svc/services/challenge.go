@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/v5"
 	"log/slog"
 	"time"
 
@@ -16,7 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type ChallengeEntity struct {
+type ChallengeDTO struct {
 	ChallengerID      int64     `json:"challengerId"`
 	ChallengerName    string    `json:"challengerName"`
 	ChallengerCountry string    `json:"challengerCountry"`
@@ -25,8 +24,8 @@ type ChallengeEntity struct {
 	ChallengeeName    string    `json:"challengeeName"`
 	ChallengeeCountry string    `json:"challengeeCountry"`
 	ChallengeeElo     float64   `json:"challengeeElo"`
-	Mode              string    `json:"mode"`
-	StartColor        string    `json:"startColor"` // from challenger's perspective
+	Mode              GameMode  `json:"mode"`
+	StartColor        Color     `json:"startColor"` // from challenger's perspective
 	MadeOn            time.Time `json:"madeOn"`
 	ExpiresOn         time.Time `json:"expiresOn"`
 }
@@ -48,8 +47,17 @@ type ChallengeInst struct {
 	MadeOn       time.Time `json:"madeOn"`
 }
 
-func mapChallengeFromRow(row sqlc.SelectChallengesByParticipantRow) ChallengeEntity {
-	return ChallengeEntity{
+func mapChallengeFromRow(row sqlc.SelectChallengesByParticipantRow) (ChallengeDTO, error) {
+	startColor, err := ParseColor(row.StartColor)
+	if err != nil {
+		return ChallengeDTO{}, err
+	}
+	mode, err := ParseGameMode(row.Mode)
+	if err != nil {
+		return ChallengeDTO{}, err
+	}
+
+	return ChallengeDTO{
 		ChallengerID:      row.ChallengerID,
 		ChallengerName:    row.ChallengerName,
 		ChallengerCountry: row.ChallengerCountry,
@@ -58,11 +66,11 @@ func mapChallengeFromRow(row sqlc.SelectChallengesByParticipantRow) ChallengeEnt
 		ChallengeeName:    row.ChallengeeName,
 		ChallengeeCountry: row.ChallengeeCountry,
 		ChallengeeElo:     defaultElo(row.ChallengeeElo),
-		Mode:              string(row.Mode),
-		StartColor:        string(row.StartColor),
+		Mode:              mode,
+		StartColor:        startColor,
 		MadeOn:            row.MadeOn.Time,
 		ExpiresOn:         row.MadeOn.Time.Add(ExpireChallengeMaxAge),
-	}
+	}, nil
 }
 
 func (svc *Services) InsertChallenge(ctx context.Context, inst ChallengeInst) error {
@@ -85,9 +93,9 @@ func mapChallengeInsertErr(err error) error {
 	}
 }
 
-func (svc *Services) InsertChallengeRet(ctx context.Context, inst ChallengeInst) (challenge ChallengeEntity, err error) {
+func (svc *Services) InsertChallengeRet(ctx context.Context, inst ChallengeInst) (ChallengeDTO, error) {
 	if inst.ChallengerID == inst.ChallengeeID {
-		return challenge, ErrSelfChallenge
+		return ChallengeDTO{}, ErrSelfChallenge
 	}
 	if inst.MadeOn.IsZero() {
 		inst.MadeOn = time.Now()
@@ -103,10 +111,13 @@ func (svc *Services) InsertChallengeRet(ctx context.Context, inst ChallengeInst)
 	if dbErr != nil {
 		svcErr := mapChallengeInsertErr(dbErr)
 		slog.WarnContext(ctx, "failed to insert challenge with db error", "dbErr", dbErr, "svcErr", svcErr)
-		return challenge, svcErr
+		return ChallengeDTO{}, svcErr
 	}
-	challenge = mapChallengeFromRow(sqlc.SelectChallengesByParticipantRow(row))
 
+	challenge, err := mapChallengeFromRow(sqlc.SelectChallengesByParticipantRow(row))
+	if err != nil {
+		return ChallengeDTO{}, fmt.Errorf("map challenge from row: %w", err)
+	}
 	slog.InfoContext(ctx, "created a new challenge", "challenge", inst, "challenge", challenge)
 	return challenge, nil
 }
@@ -117,7 +128,7 @@ type ChallengeKey struct {
 }
 
 // GetChallengesByParticipant will select challenges by the participant after the 'since' time
-func (svc *Services) GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]ChallengeEntity, error) {
+func (svc *Services) GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]ChallengeDTO, error) {
 	since := svc.EntropySource.GetNow().Add(-ExpireChallengeMaxAge)
 
 	var pgChallengerID pgtype.Int8
@@ -140,9 +151,13 @@ func (svc *Services) GetChallengesByParticipant(ctx context.Context, key Challen
 		return nil, fmt.Errorf("get challenges by participant %v: %w", key, err)
 	}
 
-	var challenges []ChallengeEntity
+	var challenges []ChallengeDTO
 	for _, row := range rows {
-		challenges = append(challenges, mapChallengeFromRow(row))
+		challenge, err := mapChallengeFromRow(row)
+		if err != nil {
+			return nil, fmt.Errorf("map challenge from row: %w", err)
+		}
+		challenges = append(challenges, challenge)
 	}
 
 	slog.InfoContext(ctx, "got challenges by participant", "challengeKey", key, "since", since, "challenges", challenges)
@@ -156,28 +171,29 @@ type DeleteResult struct {
 	FirstColor   Color
 }
 
-func (svc *Services) DeleteChallenge(ctx context.Context, key ChallengeKey) (delResult DeleteResult, err error) {
+func (svc *Services) DeleteChallenge(ctx context.Context, key ChallengeKey) (DeleteResult, error) {
 	row, err := svc.Querier.DeleteChallenge(ctx, sqlc.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return delResult, ErrChallengeNotFound
+		if IsErrNoRows(err) {
+			return DeleteResult{}, ErrChallengeNotFound
 		}
-		return delResult, fmt.Errorf("delete challenge %d: %w", key, err)
+		return DeleteResult{}, fmt.Errorf("delete challenge %d: %w", key, err)
 	}
 
-	p := EnumParser{}
-	startColor := p.Color(string(row.StartColor))
-	mode := p.GameMode(string(row.Mode))
-
-	if err := p.Err(); err != nil {
-		return delResult, err
+	color, err := ParseColor(row.StartColor)
+	if err != nil {
+		return DeleteResult{}, err
+	}
+	gameMode, err := ParseGameMode(row.Mode)
+	if err != nil {
+		return DeleteResult{}, err
 	}
 
-	delResult = DeleteResult{
+	delResult := DeleteResult{
 		ChallengerID: row.ChallengerID,
 		ChallengeeID: row.ChallengeeID,
-		Mode:         mode,
-		FirstColor:   startColor,
+		Mode:         gameMode,
+		FirstColor:   color,
 	}
 	slog.InfoContext(ctx, "deleted challenge", "challengeKey", key, "dr", delResult, "err", err)
 	return delResult, err

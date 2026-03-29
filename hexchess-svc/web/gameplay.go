@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"log/slog"
 	"net/http"
 
@@ -231,15 +232,18 @@ func (server *Server) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInpu
 }
 
 func (server *Server) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput) error {
-	outputChat, chatMsg := SerializeGameOutputChat(
-		ctx.GameID,
-		pbInput.Message,
-		ctx.Player,
-		server.EntropySource.GetNow(),
-	)
+	chatMsg := svc.Chat{
+		ID:      uuid.NewString(),
+		Player:  ctx.Player,
+		Message: pbInput.Message,
+		SentAt:  server.EntropySource.GetNow(),
+	}
+	outputChat := SerializeGameOutputChat(ctx.GameID, chatMsg)
+
 	if err := server.Services.InsertStateChat(ctx.Context, ctx.GameID, chatMsg); err != nil {
 		return fmt.Errorf("insert chat on game %s: %w", ctx.GameID, err)
 	}
+
 	return server.Services.BroadcastGamesEvent(ctx.Context, outputChat)
 }
 

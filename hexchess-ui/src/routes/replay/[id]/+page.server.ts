@@ -7,8 +7,11 @@ import services from '$lib/api/services';
 export const load: PageServerLoad = async ({ params, setHeaders, fetch }): Promise<ReplayProps> => {
 	const id = params.id;
 
-	const [data, err] = await services.getReplay(id, fetch);
+	const [data, err] = await services.getReplay(id, undefined, fetch);
 
+	if (err?.message === 'REPLAY_NOT_FOUND') {
+		error(err?.status || 404, makeMessage(err));
+	}
 	if (err || data === undefined) {
 		error(err?.status || 500, makeMessage(err));
 	}

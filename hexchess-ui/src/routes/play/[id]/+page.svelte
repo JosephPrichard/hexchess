@@ -9,8 +9,8 @@
 	import UndoIcon from '$lib/components/icons/UndoIcon.svelte';
 	import TakenTakenList from '$lib/components/chess/TakenList.svelte';
 	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
-	import { type ChatMessage, type ChessGame, EndKind, type ErrorOutput, type ForfeitOutput, GameOutput, type InitOutput, type MoveOutput, type PlayersOutput, type PlayerState, type ReplayEntity, type UndoOutput } from '$lib/pb/messages';
-	import { type Chat, type Hex, mapChatMessage, mapReplayEntity, type ReplayModel } from '$lib/api/models';
+	import { type ChatMessage, type ChessGame, EndKind, type ErrorOutput, type ForfeitOutput, GameOutput, type InitOutput, type MoveOutput, type PlayersOutput, type PlayerState, type Replay, type UndoOutput } from '$lib/pb/messages';
+	import { type Chat, type Hex, mapChatMessage, mapReplay, type ReplayModel } from '$lib/api/models';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import { onMount } from 'svelte';
 	import Banner from '$lib/Banner.svelte';
@@ -19,7 +19,7 @@
 	import FinishPanel from '$lib/components/user/FinishPanel.svelte';
 	import { type PromotionMove } from '../../sandbox/state.svelte.js';
 	import { isValidMove } from '$lib/service/chess';
-	import { type ConnectionState, sendChatInput, sendForfeitInput, sendMoveInput, sendPingInput, sendUndoInput, sortChats } from './service';
+	import { type ConnectionState, sendChatInput, sendForfeitInput, sendMoveInput, sendPingInput, sendUndoInput, formatChats } from './service';
 	import { type BadPromotionType, type MoveAction, NoPromotion, type Promotion } from '$lib/components/chess/types';
 	import Timer from '$lib/components/chess/Timer.svelte';
 
@@ -195,11 +195,11 @@
 	}
 
 	function handleForfeit(forfeit: ForfeitOutput) {
-
+		endState = forfeit.endState;
 	}
 
 	function handleChat(chat: ChatMessage) {
-		chats = sortChats([...chats, mapChatMessage(chat)]); // copy so we can react to this state in the $effect
+		chats = formatChats([...chats, mapChatMessage(chat)]); // copy so we can react to this state in the $effect
 	}
 
 	function handleUndo(undo: UndoOutput) {
@@ -210,8 +210,8 @@
 		}
 		if (undo.game) game = undo.game;
 	}
-	function handleReplay(replay: ReplayEntity) {
-		if (replay) finishState = mapReplayEntity(replay);
+	function handleReplay(replay: Replay) {
+		if (replay) finishState = mapReplay(replay);
 	}
 
 	function handleError(error: ErrorOutput) {
@@ -271,17 +271,19 @@
 	async function loadGameChats(gameId: string) {
 		const [data, err] = await services.getGameChats(gameId);
 		if (data) {
-			chats = sortChats([...chats, ...data.chats.map(mapChatMessage)]);
+			// chats = sortChats(data.chats.map(mapChatMessage));
+			chats = formatChats([...chats, ...data.chats.map(mapChatMessage)]);
 		} else {
 			addErrorNotification(err);
 		}
 	}
 
 	async function loadReplay(gameId: string) {
-		const [data, err] = await services.getReplay(gameId);
+		const [data, err] = await services.getReplay(gameId, "BY_GAME_ID");
 		if (data) {
 			finishState = data.replay;
 		} else {
+			if (err?.errors === codes.errorNotFoundReplay) return
 			addErrorNotification(err);
 		}
 	}
@@ -416,9 +418,7 @@
 								</div>
 							</div>
 						{:else}
-							{#if notList.length > 0}
-								<MoveList moveList={notList} />
-							{:else if endState === undefined}
+							{#if endState === undefined}
 								<div class="growing-scrollbox moves-empty-text">
 									{#if selfPlayer?.id === whitePlayer?.id}
 										<div>
@@ -429,6 +429,8 @@
 										You're playing as black
 									{/if}
 								</div>
+							{:else}
+								<MoveList moveList={notList} />
 							{/if}
 							{#if endState === EndKind.FINISHED}
 								{#if finishState}

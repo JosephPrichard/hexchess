@@ -25,7 +25,7 @@ export function getClientSession(): SessionModel | null {
 export function setClientSession(client: SessionModel) {
 	const record: LocalStorageRecord<SessionModel> = {
 		data: client,
-		expiry: new Date().getTime() + (client.ttlSecs ?? []) * 1000
+		expiry: new Date().getTime() + (client.ttlSecs ?? 0) * 1000
 	};
 	const recordStr = JSON.stringify(record);
 	localStorage.setItem(SESSION_KEY, recordStr);

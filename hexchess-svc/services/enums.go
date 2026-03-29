@@ -1,11 +1,85 @@
 package svc
 
 import (
+	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
-
-	"golang.org/x/exp/slices"
 )
+
+type stringLike interface {
+	~string
+}
+
+type enumEntry[T ~int] struct {
+	val  T
+	name string
+}
+
+func buildReverseMap[T ~int](entries []enumEntry[T]) map[string]T {
+	m := make(map[string]T, len(entries))
+	for _, e := range entries {
+		m[e.name] = e.val
+	}
+	return m
+}
+
+func enumString[T ~int](val T, entries []enumEntry[T]) string {
+	for _, e := range entries {
+		if e.val == val {
+			return e.name
+		}
+	}
+	return "UNKNOWN"
+}
+
+func marshalEnum[T ~int](val T, entries []enumEntry[T]) ([]byte, error) {
+	for _, e := range entries {
+		if e.val == val {
+			return json.Marshal(e.name)
+		}
+	}
+	return nil, fmt.Errorf("unknown enum value: %d", val)
+}
+
+func unmarshalEnum[T ~int](data []byte, entries []enumEntry[T], out *T) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if e.name == s {
+			*out = e.val
+			return nil
+		}
+	}
+	return fmt.Errorf("unknown enum value: %q", s)
+}
+
+func parseEnum[T ~int, S stringLike](s S, m map[string]T) (T, error) {
+	v, ok := m[string(s)]
+	if !ok {
+		return 0, OneOfError[T]{Expected: m, Actual: string(s)}
+	}
+	return v, nil
+}
+
+func expectEnum[T ~int, S stringLike](s S, m map[string]T) T {
+	v, err := parseEnum(s, m)
+	if err != nil {
+		panic(err.Error())
+	}
+	return v
+}
+
+type OneOfError[T any] struct {
+	Expected map[string]T
+	Actual   string
+}
+
+func (err OneOfError[T]) Error() string {
+	return fmt.Sprintf("expected one of %v, got %v", err.Expected, err.Actual)
+}
 
 type ReplayResult int
 
@@ -16,24 +90,20 @@ const (
 	Draw
 )
 
-func (r ReplayResult) String() string {
-	switch r {
-	case WhiteWin:
-		return "WHITE_WINS"
-	case BlackWin:
-		return "BLACK_WINS"
-	case Draw:
-		return "DRAW"
-	default:
-		return "UNKNOWN"
-	}
+var replayResultEntries = []enumEntry[ReplayResult]{
+	{WhiteWin, "WHITE_WINS"},
+	{BlackWin, "BLACK_WINS"},
+	{Draw, "DRAW"},
 }
 
-var ReplayResultMap = map[string]ReplayResult{
-	"WHITE_WINS": WhiteWin,
-	"BLACK_WINS": BlackWin,
-	"DRAW":       Draw,
-}
+var ReplayResultMap = buildReverseMap(replayResultEntries)
+
+func (r ReplayResult) String() string                { return enumString(r, replayResultEntries) }
+func (r ReplayResult) MarshalJSON() ([]byte, error)  { return marshalEnum(r, replayResultEntries) }
+func (r *ReplayResult) UnmarshalJSON(d []byte) error { return unmarshalEnum(d, replayResultEntries, r) }
+
+func ParseReplayResult[S stringLike](s S) (ReplayResult, error) { return parseEnum(s, ReplayResultMap) }
+func ExpectReplayResult[S stringLike](s S) ReplayResult         { return expectEnum(s, ReplayResultMap) }
 
 type ReplayCause int
 
@@ -44,24 +114,20 @@ const (
 	Stalemate
 )
 
-func (c ReplayCause) String() string {
-	switch c {
-	case Checkmate:
-		return "CHECKMATE"
-	case Forfeit:
-		return "FORFEIT"
-	case Stalemate:
-		return "STALEMATE"
-	default:
-		return "UNKNOWN"
-	}
+var replayCauseEntries = []enumEntry[ReplayCause]{
+	{Checkmate, "CHECKMATE"},
+	{Forfeit, "FORFEIT"},
+	{Stalemate, "STALEMATE"},
 }
 
-var ReplayCauseMap = map[string]ReplayCause{
-	"CHECKMATE": Checkmate,
-	"FORFEIT":   Forfeit,
-	"STALEMATE": Stalemate,
-}
+var ReplayCauseMap = buildReverseMap(replayCauseEntries)
+
+func (c ReplayCause) String() string                { return enumString(c, replayCauseEntries) }
+func (c ReplayCause) MarshalJSON() ([]byte, error)  { return marshalEnum(c, replayCauseEntries) }
+func (c *ReplayCause) UnmarshalJSON(d []byte) error { return unmarshalEnum(d, replayCauseEntries, c) }
+
+func ParseReplayCause[S stringLike](s S) (ReplayCause, error) { return parseEnum(s, ReplayCauseMap) }
+func ExpectReplayCause[S stringLike](s S) ReplayCause         { return expectEnum(s, ReplayCauseMap) }
 
 type GameMode int
 
@@ -75,11 +141,20 @@ const (
 	ModeCorrespondence14
 )
 
+var gameModeEntries = []enumEntry[GameMode]{
+	{ModeTimed1Plus0, "TIMED_1+0"},
+	{ModeTimed3Plus2, "TIMED_3+2"},
+	{ModeTimed15Plus10, "TIMED_15+10"},
+	{ModeCorrespondence1, "CORRESPONDENCE_1"},
+	{ModeCorrespondence7, "CORRESPONDENCE_7"},
+	{ModeCorrespondence14, "CORRESPONDENCE_14"},
+}
+
+var GameModeMap = buildReverseMap(gameModeEntries)
+
 var RealTimeModes = []GameMode{ModeTimed1Plus0, ModeTimed3Plus2, ModeTimed15Plus10}
 
-func (m GameMode) IsRealTime() bool {
-	return slices.Contains(RealTimeModes, m)
-}
+func (m GameMode) IsRealTime() bool { return slices.Contains(RealTimeModes, m) }
 
 func (m GameMode) TotalTime() time.Duration {
 	switch m {
@@ -107,33 +182,12 @@ func (m GameMode) TimeIncr() time.Duration {
 	}
 }
 
-func (m GameMode) String() string {
-	switch m {
-	case ModeTimed1Plus0:
-		return "TIMED_1+0"
-	case ModeTimed3Plus2:
-		return "TIMED_3+2"
-	case ModeTimed15Plus10:
-		return "TIMED_15+10"
-	case ModeCorrespondence1:
-		return "CORRESPONDENCE_1"
-	case ModeCorrespondence7:
-		return "CORRESPONDENCE_7"
-	case ModeCorrespondence14:
-		return "CORRESPONDENCE_14"
-	default:
-		return "UNKNOWN"
-	}
-}
+func (m GameMode) String() string                { return enumString(m, gameModeEntries) }
+func (m GameMode) MarshalJSON() ([]byte, error)  { return marshalEnum(m, gameModeEntries) }
+func (m *GameMode) UnmarshalJSON(d []byte) error { return unmarshalEnum(d, gameModeEntries, m) }
 
-var GameModeMap = map[string]GameMode{
-	"TIMED_1+0":         ModeTimed1Plus0,
-	"TIMED_3+2":         ModeTimed3Plus2,
-	"TIMED_15+10":       ModeTimed15Plus10,
-	"CORRESPONDENCE_1":  ModeCorrespondence1,
-	"CORRESPONDENCE_7":  ModeCorrespondence7,
-	"CORRESPONDENCE_14": ModeCorrespondence14,
-}
+func ParseGameMode[S stringLike](s S) (GameMode, error) { return parseEnum(s, GameModeMap) }
+func ExpectGameMode[S stringLike](s S) GameMode         { return expectEnum(s, GameModeMap) }
 
 type Color int
 
@@ -143,138 +197,49 @@ const (
 	Black
 )
 
-func (c Color) String() string {
-	switch c {
-	case White:
-		return "WHITE"
-	case Black:
-		return "BLACK"
-	case Random:
-		return "RANDOM"
-	default:
-		return "UNKNOWN"
-	}
+var colorEntries = []enumEntry[Color]{
+	{Random, "RANDOM"},
+	{White, "WHITE"},
+	{Black, "BLACK"},
 }
 
-var ColorMap = map[string]Color{
-	"WHITE":  White,
-	"BLACK":  Black,
-	"RANDOM": Random,
+var ColorMap = buildReverseMap(colorEntries)
+
+func (c Color) String() string                { return enumString(c, colorEntries) }
+func (c Color) MarshalJSON() ([]byte, error)  { return marshalEnum(c, colorEntries) }
+func (c *Color) UnmarshalJSON(d []byte) error { return unmarshalEnum(d, colorEntries, c) }
+
+func ParseColor[S stringLike](s S) (Color, error) { return parseEnum(s, ColorMap) }
+func ExpectColor[S stringLike](s S) Color         { return expectEnum(s, ColorMap) }
+
+type TournamentStatus int
+
+const (
+	_ TournamentStatus = iota
+	TournamentLobby
+	TournamentInProgress
+	TournamentFinished
+)
+
+var tournamentStatusEntries = []enumEntry[TournamentStatus]{
+	{TournamentLobby, "LOBBY"},
+	{TournamentInProgress, "IN_PROGRESS"},
+	{TournamentFinished, "FINISHED"},
 }
 
-func ParseReplayCause(s string) (ReplayCause, error) {
-	c, ok := ReplayCauseMap[s]
-	if !ok {
-		return 0, &OneOfError[ReplayCause]{Expected: ReplayCauseMap, Actual: s}
-	}
-	return c, nil
+var TournamentStatusMap = buildReverseMap(tournamentStatusEntries)
+
+func (t TournamentStatus) String() string { return enumString(t, tournamentStatusEntries) }
+func (t TournamentStatus) MarshalJSON() ([]byte, error) {
+	return marshalEnum(t, tournamentStatusEntries)
+}
+func (t *TournamentStatus) UnmarshalJSON(d []byte) error {
+	return unmarshalEnum(d, tournamentStatusEntries, t)
 }
 
-func ExpectReplayCause(s string) ReplayCause {
-	c, err := ParseReplayCause(s)
-	if err != nil {
-		panic(err)
-	}
-	return c
+func ParseTournamentStatus[S stringLike](s S) (TournamentStatus, error) {
+	return parseEnum(s, TournamentStatusMap)
 }
-
-func ParseReplayResult(s string) (ReplayResult, error) {
-	r, ok := ReplayResultMap[s]
-	if !ok {
-		return 0, &OneOfError[ReplayResult]{Expected: ReplayResultMap, Actual: s}
-	}
-	return r, nil
-}
-
-func ExpectReplayResult(s string) ReplayResult {
-	r, err := ParseReplayResult(s)
-	if err != nil {
-		panic(err)
-	}
-	return r
-}
-
-func ParseGameMode(s string) (GameMode, error) {
-	m, ok := GameModeMap[s]
-	if !ok {
-		return 0, &OneOfError[GameMode]{Expected: GameModeMap, Actual: s}
-	}
-	return m, nil
-}
-
-func ExpectGameMode(s string) GameMode {
-	m, err := ParseGameMode(s)
-	if err != nil {
-		panic(err)
-	}
-	return m
-}
-
-func ParseColor(s string) (Color, error) {
-	c, ok := ColorMap[s]
-	if !ok {
-		return 0, &OneOfError[Color]{Expected: ColorMap, Actual: s}
-	}
-	return c, nil
-}
-
-func ExpectColor(s string) Color {
-	m, err := ParseColor(s)
-	if err != nil {
-		panic(err)
-	}
-	return m
-}
-
-type EnumParser struct {
-	err error
-}
-
-func (p *EnumParser) Err() error {
-	return p.err
-}
-
-func (p *EnumParser) ReplayCause(s string) ReplayCause {
-	if p.err != nil {
-		return 0
-	}
-	v, err := ParseReplayCause(s)
-	p.err = err
-	return v
-}
-
-func (p *EnumParser) ReplayResult(s string) ReplayResult {
-	if p.err != nil {
-		return 0
-	}
-	v, err := ParseReplayResult(s)
-	p.err = err
-	return v
-}
-
-func (p *EnumParser) GameMode(s string) GameMode {
-	if p.err != nil {
-		return 0
-	}
-	v, err := ParseGameMode(s)
-	p.err = err
-	return v
-}
-
-func (p *EnumParser) Color(s string) Color {
-	if p.err != nil {
-		return 0
-	}
-	v, err := ParseColor(s)
-	p.err = err
-	return v
-}
-
-type OneOfError[T any] struct {
-	Expected map[string]T
-	Actual   string
-}
-
-func (err *OneOfError[T]) Error() string {
-	return fmt.Sprintf("expected one of %v, got %v", err.Expected, err.Actual)
+func ExpectTournamentStatus[S stringLike](s S) TournamentStatus {
+	return expectEnum(s, TournamentStatusMap)
 }

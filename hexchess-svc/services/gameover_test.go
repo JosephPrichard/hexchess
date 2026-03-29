@@ -123,8 +123,8 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	testUser0 := TestUserEntities[0]
-	testUser1 := TestUserEntities[1]
+	testUser0 := TestUserDTOs[0]
+	testUser1 := TestUserDTOs[1]
 	newGameID := uuid.NewString()
 	newGameIDGuest := uuid.NewString()
 
@@ -152,7 +152,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			},
 			wantBroadcastOutput: &pb.GameOutput{
 				GameId: newGameID,
-				Value: &pb.GameOutput_Replay{Replay: &pb.ReplayEntity{
+				Value: &pb.GameOutput_Replay{Replay: &pb.Replay{
 					WhiteId:      testUser0.ID,
 					BlackId:      testUser1.ID,
 					WhiteName:    "user1",
@@ -188,7 +188,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
 			wantBroadcastOutput: &pb.GameOutput{
 				GameId: itest.FirstReplayGameID,
-				Value: &pb.GameOutput_Replay{Replay: &pb.ReplayEntity{
+				Value: &pb.GameOutput_Replay{Replay: &pb.Replay{
 					WhiteId:      testUser0.ID,
 					BlackId:      testUser1.ID,
 					WhiteName:    "user1",
@@ -222,7 +222,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
 			wantBroadcastOutput: &pb.GameOutput{
 				GameId: newGameIDGuest,
-				Value: &pb.GameOutput_Replay{Replay: &pb.ReplayEntity{
+				Value: &pb.GameOutput_Replay{Replay: &pb.Replay{
 					WhiteId:      testUser0.ID,
 					BlackId:      0,
 					WhiteName:    "user1",
@@ -265,7 +265,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 
 			output := &pb.GameOutput{}
 			require.NoError(t, proto.Unmarshal(<-subChan, output))
-			testutil.Equal(t, test.wantBroadcastOutput, output, protocmp.Transform(), protocmp.IgnoreFields(&pb.ReplayEntity{}, "id", "played_on"))
+			testutil.Equal(t, test.wantBroadcastOutput, output, protocmp.Transform(), protocmp.IgnoreFields(&pb.Replay{}, "id", "played_on"))
 		})
 	}
 }
@@ -275,8 +275,8 @@ func TestInsertGameResult(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	testUser0 := TestUserEntities[0]
-	testUser1 := TestUserEntities[1]
+	testUser0 := TestUserDTOs[0]
+	testUser1 := TestUserDTOs[1]
 
 	now := time.Now()
 
@@ -455,7 +455,7 @@ func TestInsertGameResult(t *testing.T) {
 			services := SetupServicesTest(t, itest.RWPostgres)
 			defer services.Close()
 
-			changeSet, err := insertGameResult(ctx, services.DB.Querier(), test.resultInput)
+			changeSet, err := services.InsertGameResultTx(ctx, test.resultInput)
 			require.NoError(t, err)
 
 			userElos, err := services.DB.Querier().SelectUserModeElosByIds(ctx, sqlc.SelectUserModeElosByIdsParams{
@@ -469,7 +469,7 @@ func TestInsertGameResult(t *testing.T) {
 			replay, err := services.DB.Querier().SelectReplayRowByID(ctx, changeSet.ReplayID)
 			require.NoError(t, err)
 
-			testutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(sqlc.Replay{}, "ID"))
+			testutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(sqlc.Replay{}, "ID", "PlayedOn"))
 
 			changeSet.WinEloDiff = math.Round(changeSet.WinEloDiff)
 			changeSet.LoseEloDiff = math.Round(changeSet.LoseEloDiff)

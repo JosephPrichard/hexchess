@@ -28,6 +28,8 @@ hexchess-svc/db/sqlc
 hexchess-ui/src/lib/pb/messages.ts
 hexchess-ui/build
 
+*_mock.go
+
 */.svelte-kit
 */node_modules
 .env
@@ -36,4 +38,3 @@ wasm_exec.js
 chess.wasm
 
 graph.dot
-*.ps1

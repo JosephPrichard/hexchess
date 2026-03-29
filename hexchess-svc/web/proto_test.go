@@ -2,6 +2,10 @@ package web
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
@@ -12,11 +16,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/testing/protocmp"
 )
 
 func TestHandleGetMoveReplay(t *testing.T) {
@@ -29,17 +28,18 @@ func TestHandleGetMoveReplay(t *testing.T) {
 	pbInitialGame := chess.SerializeGame(&wantInitialGame)
 
 	// serialize a history that contains every field so we can check that the binary data is being stored correctly. this history doesn't actually respect game rules.
-	object, err := proto.Marshal(&pb.MoveHistory{
+	bytes, err := proto.Marshal(&pb.MoveHistory{
 		InitialGame: pbInitialGame,
 		Steps: []*pb.HistMove{
 			{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4, Notation: "pc5"},
 		},
 	})
 	require.NoError(t, err)
-	services.DB.Querier().InsertReplayMoveHistories(t.Context(), sqlc.InsertReplayMoveHistoriesParams{
+
+	require.NoError(t, services.DB.Querier().UpsertReplayMoveHistories(t.Context(), sqlc.UpsertReplayMoveHistoriesParams{
 		ReplayID: 1,
-		Data:     object,
-	})
+		Data:     bytes,
+	}))
 
 	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay/move-list?replayId=%d", 1), nil)
 	w := httptest.NewRecorder()

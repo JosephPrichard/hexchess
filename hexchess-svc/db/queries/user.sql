@@ -73,8 +73,8 @@ SELECT
     e.losses,
     e.draws
 FROM users u
-LEFT JOIN user_mode_elos e
-    ON u.id = e.user_id AND e.mode = sqlc.arg('mode')
+    LEFT JOIN user_mode_elos e
+        ON u.id = e.user_id AND e.mode = sqlc.arg('mode')
 WHERE id = ANY(sqlc.arg('ids')::bigint[]);
 
 -- name: SelectExistsUsersByIDs :many
@@ -138,7 +138,7 @@ SELECT user_id, mode, elo, highest_elo, wins, losses, draws
 FROM user_mode_elos
 WHERE user_id = ANY(sqlc.arg('id')::bigint[]);
 
--- name: UpsertUserElo :exec
+-- name: UpsertUserElo :batchexec
 INSERT INTO user_mode_elos AS u (user_id, mode, elo, highest_elo, wins, losses, draws)
 VALUES (
     sqlc.arg('userID'),

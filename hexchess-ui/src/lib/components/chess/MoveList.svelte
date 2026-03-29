@@ -69,6 +69,8 @@
 	.moves {
 		display: flex;
 		flex-direction: row;
+		border-right: 1px solid rgb(58, 58, 58);
+        border-left: 1px solid rgb(58, 58, 58);
 	}
 
     .move-row {
@@ -97,6 +99,8 @@
         width: 100%;
         /*line-height: 35px;*/
         text-align: center;
+		border-bottom: 1px solid rgb(58, 58, 58);
+        border-right: 1px solid rgb(58, 58, 58);
         background-color: rgb(48, 48, 48);
     }
 

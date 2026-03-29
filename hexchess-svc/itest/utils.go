@@ -1,5 +1,5 @@
 package itest
 
-func new[T any](v T) *T {
+func ptr[T any](v T) *T {
 	return &v
 }

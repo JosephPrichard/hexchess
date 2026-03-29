@@ -52,8 +52,6 @@ const (
 func (stream *RedisStreamer[Event]) handleXReadMessage(msg redis.XMessage) {
 	defer stream.waitGroup.Done()
 
-	streamKey := stream.StreamKey
-
 	ackSignal := func() AckSignal {
 		// send the ack if data is invalid OR message succeeds, retry otherwise
 		data, ok := msg.Values["data"].(string)
@@ -78,10 +76,10 @@ func (stream *RedisStreamer[Event]) handleXReadMessage(msg redis.XMessage) {
 	if ackSignal == DontSendAck {
 		return
 	}
-	if err := stream.Queue.XAck(stream.Context, streamKey, FinishGameConsumerGroup, msg.ID).Err(); err != nil {
-		slog.Error("failed to acknowledge finished game event", "id", msg.ID, "err", err)
+	if err := stream.Queue.XAck(stream.Context, stream.StreamKey, stream.ConsumerGroup, msg.ID).Err(); err != nil {
+		slog.Error("failed to acknowledge event", "id", msg.ID, "err", err)
 	} else {
-		slog.Info("acknowledged finished game event", "id", msg.ID)
+		slog.Info("acknowledged finished event", "id", msg.ID)
 	}
 }
 
@@ -89,16 +87,16 @@ func (stream *RedisStreamer[Event]) EventLoop() error {
 	consumerName := uuid.NewString()
 	streamKey := stream.StreamKey
 
-	err := stream.Queue.XGroupCreateMkStream(stream.Context, streamKey, FinishGameConsumerGroup, "0").Err()
+	err := stream.Queue.XGroupCreateMkStream(stream.Context, streamKey, stream.ConsumerGroup, "0").Err()
 	if err != nil && !redis.HasErrorPrefix(err, "BUSYGROUP") {
 		return fmt.Errorf("create games stream consumer group: %w", err)
 	}
 
 	slog.Info("created finish game event streamer", "consumerName", consumerName)
 
-	for range 1 {
+	for {
 		entries, err := stream.Queue.XReadGroup(stream.Context, &redis.XReadGroupArgs{
-			Group:    FinishGameConsumerGroup,
+			Group:    stream.ConsumerGroup,
 			Consumer: consumerName,
 			Streams:  []string{streamKey, ">"}, // ">" means only undelivered messages
 			Count:    stream.Concurrency,
@@ -108,10 +106,10 @@ func (stream *RedisStreamer[Event]) EventLoop() error {
 		case nil:
 			// handle the event
 		case context.Canceled:
-			slog.Info("context cancelled, exiting finish game event loop")
+			slog.Info("context cancelled, exiting finish event loop")
 			return nil
 		default:
-			slog.Error("failed to read from finish game redis stream", "err", err)
+			slog.Error("failed to read from finish redis stream", "err", err)
 			continue
 		}
 
@@ -123,6 +121,4 @@ func (stream *RedisStreamer[Event]) EventLoop() error {
 		}
 		stream.waitGroup.Wait()
 	}
-
-	return nil
 }

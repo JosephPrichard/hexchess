@@ -80,8 +80,8 @@ var ReplayInsts = []struct {
 }{
 	{
 		GameID:         FirstReplayGameID, // replay ID 1.
-		WhiteID:        new(1),
-		BlackID:        new(2),
+		WhiteID:        ptr(1),
+		BlackID:        ptr(2),
 		Result:         "WHITE_WINS",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_7",
@@ -93,8 +93,8 @@ var ReplayInsts = []struct {
 	},
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        new(2),
-		BlackID:        new(3),
+		WhiteID:        ptr(2),
+		BlackID:        ptr(3),
 		Result:         "BLACK_WINS",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_7",
@@ -106,8 +106,8 @@ var ReplayInsts = []struct {
 	},
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        new(3),
-		BlackID:        new(1),
+		WhiteID:        ptr(3),
+		BlackID:        ptr(1),
 		Result:         "DRAW",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_7",
@@ -119,7 +119,7 @@ var ReplayInsts = []struct {
 	},
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        new(1),
+		WhiteID:        ptr(1),
 		BlackID:        nil,
 		Result:         "WHITE_WINS",
 		Cause:          "CHECKMATE",
@@ -134,8 +134,8 @@ var ReplayInsts = []struct {
 	// elo history tests
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        new(6),
-		BlackID:        new(7),
+		WhiteID:        ptr(6),
+		BlackID:        ptr(7),
 		Result:         "WHITE_WINS",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_7",
@@ -147,8 +147,8 @@ var ReplayInsts = []struct {
 	},
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        new(6),
-		BlackID:        new(7),
+		WhiteID:        ptr(6),
+		BlackID:        ptr(7),
 		Result:         "WHITE_WINS",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_7",
@@ -160,8 +160,8 @@ var ReplayInsts = []struct {
 	},
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        new(6),
-		BlackID:        new(7),
+		WhiteID:        ptr(6),
+		BlackID:        ptr(7),
 		Result:         "WHITE_WINS",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_7",
@@ -173,8 +173,8 @@ var ReplayInsts = []struct {
 	},
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        new(6),
-		BlackID:        new(7),
+		WhiteID:        ptr(6),
+		BlackID:        ptr(7),
 		Result:         "WHITE_WINS",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_7",
@@ -186,8 +186,8 @@ var ReplayInsts = []struct {
 	},
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        new(6),
-		BlackID:        new(7),
+		WhiteID:        ptr(6),
+		BlackID:        ptr(7),
 		Result:         "WHITE_WINS",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_1",
@@ -196,6 +196,16 @@ var ReplayInsts = []struct {
 		ReplayWhiteElo: 1030,
 		ReplayBlackElo: -1030,
 		PlayedOn:       time.Date(2020, 1, 5, 1, 0, 0, 0, time.UTC),
+	},
+}
+
+var ReplayMoveHistoryInsts = []struct {
+	ReplayInst   int64
+	MoveHistBlob []byte
+}{
+	{
+		ReplayInst:   FirstReplayID,
+		MoveHistBlob: []byte{},
 	},
 }
 
@@ -272,6 +282,15 @@ func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
 			inst.ReplayBlackElo,
 			inst.PlayedOn,
 			inst.Mode,
+		)
+	}
+	for _, inst := range ReplayMoveHistoryInsts {
+		batch.Queue(`
+			INSERT INTO replay_move_histories (replay_id, data) 
+			VALUES ($1, $2);
+			`,
+			inst.ReplayInst,
+			inst.MoveHistBlob,
 		)
 	}
 	for _, inst := range ChallengeInsts {

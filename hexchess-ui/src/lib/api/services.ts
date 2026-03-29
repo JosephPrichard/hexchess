@@ -1,5 +1,5 @@
 import { codes } from '$lib/utils/error';
-import type { Action, ChallengeModel, Chat, ChessModel, EloBuckets, FullUserModel, LbdUserModel, ReplayModel, ServiceModel, SessionModel, UserModel } from './models';
+import type { Action, ChallengeModel, Chat, ChessModel, EloBuckets, FullPlayerModel, LbdUserModel, ReplayModel, ServiceModel, SessionModel, UserModel } from './models';
 import { v4 as uuidv4 } from 'uuid';
 import { env } from '$env/dynamic/public';
 import { ChatMessages, MoveHistory } from '$lib/pb/messages';
@@ -267,7 +267,7 @@ function getProfile(fetch?: FetchFn) {
 
 function getUser(id: string, withReplays: boolean, fetch?: FetchFn) {
 	const params = new URLSearchParams({ id, withReplays: withReplays.toString() });
-	return requestJSON<FullUserModel>(`${baseURL()}/players?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<FullPlayerModel>(`${baseURL()}/players?${params}`, { method: 'GET' }, fetch);
 }
 
 function getGameExistence(id: string, fetch?: FetchFn) {
@@ -288,11 +288,11 @@ function getSearchPlayers(username: string, page?: number, fetch?: FetchFn) {
 	return requestJSON<Response>(`${baseURL()}/players/search?${params}`, { method: 'GET' }, fetch);
 }
 
-function getReplay(id: string, fetch?: FetchFn) {
+function getReplay(id: string, idKind = "BY_REPLAY_ID", fetch?: FetchFn) {
 	interface Response {
 		replay: ReplayModel;
 	}
-	const params = new URLSearchParams({ id });
+	const params = new URLSearchParams({ id, idKind });
 	return requestJSON<Response>(`${baseURL()}/replay?${params}`, { method: 'GET' }, fetch);
 }
 

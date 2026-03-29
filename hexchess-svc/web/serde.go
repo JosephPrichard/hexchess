@@ -78,16 +78,15 @@ func SerializeGameOutputMove(gameID string, move *pb.HistMove, game *pb.ChessGam
 	}
 }
 
-func SerializeGameOutputChat(gameID, message string, self svc.PlayerState, sentAt time.Time) (*pb.GameOutput, svc.Chat) {
-	o := &pb.GameOutput{
+func SerializeGameOutputChat(gameID string, chat svc.Chat) *pb.GameOutput {
+	return &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Chat{Chat: &pb.ChatMessage{
-			Player:  svc.SerializePlayer(self),
-			Message: message,
-			SentAt:  sentAt.Format(time.RFC3339),
+			Player:  svc.SerializePlayer(chat.Player),
+			Message: chat.Message,
+			SentAt:  chat.SentAt.Format(time.RFC3339),
 		}},
 	}
-	return o, svc.Chat{Player: self, Message: message, SentAt: sentAt}
 }
 
 func SerializeGameOutputUndo(gameID string, undoKind string, undoID int64, state *svc.ChessState) *pb.GameOutput {

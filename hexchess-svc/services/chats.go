@@ -33,6 +33,7 @@ func (svc *Services) GetStateChats(ctx context.Context, gameID string, count int
 }
 
 type Chat struct {
+	ID      string      `json:"id"`
 	Player  PlayerState `json:"player"`
 	Message string      `json:"message"`
 	SentAt  time.Time   `json:"sentAt"`

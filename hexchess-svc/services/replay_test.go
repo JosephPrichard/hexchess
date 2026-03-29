@@ -24,7 +24,7 @@ func TestGetReplay(t *testing.T) {
 		actualReplay1, err := services.GetReplay(ctx, itest.FirstReplayID)
 		require.NoError(t, err)
 
-		assert.Equal(t, TestReplayEntities[0], actualReplay1)
+		assert.Equal(t, TestReplayDTOs[0], actualReplay1)
 	})
 
 	t.Run("GetReplayWithGuest", func(t *testing.T) {
@@ -33,7 +33,7 @@ func TestGetReplay(t *testing.T) {
 		actualReplay1, err := services.GetReplay(ctx, itest.GuestReplayID)
 		require.NoError(t, err)
 
-		assert.Equal(t, TestReplayEntities[2], actualReplay1)
+		assert.Equal(t, TestReplayDTOs[2], actualReplay1)
 	})
 }
 
@@ -50,11 +50,11 @@ func TestGetUserReplays(t *testing.T) {
 	actualReplayList2, err := services.GetUserReplays(ctx, 1, 3, 5)
 	require.NoError(t, err)
 
-	replay1 := TestReplayEntities[0]
-	replay3 := TestReplayEntities[1]
-	replay4 := TestReplayEntities[2]
-	expectedReplayList1 := []ReplayEntity{replay4, replay3, replay1}
-	expectedReplayList2 := []ReplayEntity{replay1}
+	replay1 := TestReplayDTOs[0]
+	replay3 := TestReplayDTOs[1]
+	replay4 := TestReplayDTOs[2]
+	expectedReplayList1 := []ReplayDTO{replay4, replay3, replay1}
+	expectedReplayList2 := []ReplayDTO{replay1}
 
 	assert.Equal(t, expectedReplayList1, actualReplayList1)
 	assert.Equal(t, expectedReplayList2, actualReplayList2)

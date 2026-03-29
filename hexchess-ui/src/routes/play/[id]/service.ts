@@ -2,8 +2,22 @@ import { GameInput } from '$lib/pb/messages';
 import type { MoveAction } from '$lib/components/chess/types';
 import type { Chat } from '$lib/api/models';
 
-export function sortChats(chats: Chat[]): Chat[] {
+export function formatChats(chats: Chat[]): Chat[] {
 	chats.sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime());
+
+	const usedIDs = new Set<string>();
+	const indicesToRemove = [];
+	for (const [index, chat] of chats.entries()) {
+		if (usedIDs.has(chat.id)) {
+			indicesToRemove.push(index);
+		}
+		usedIDs.add(chat.id);
+	}
+
+	for (const index of indicesToRemove) {
+		chats.splice(index, 1);
+	}
+
 	return chats;
 }
 

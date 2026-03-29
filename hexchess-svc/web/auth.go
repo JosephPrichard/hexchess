@@ -54,7 +54,7 @@ func (server *Server) GetSessionPlayer(ctx context.Context, r *http.Request) (sv
 	return player, sessionID, nil
 }
 
-func (server *Server) SetSessionPlayer(ctx context.Context,  w http.ResponseWriter, player svc.PlayerState) (time.Duration, error) {
+func (server *Server) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player svc.PlayerState) (time.Duration, error) {
 	sessionID := MakeSessionID()
 	if err := server.SetSessions(ctx, svc.SessInst{SessionID: sessionID, Player: player, Expiry: SessionMaxAge}); err != nil {
 		return 0, err
@@ -65,8 +65,4 @@ func (server *Server) SetSessionPlayer(ctx context.Context,  w http.ResponseWrit
 
 func FmtCookie(sessionID string) string {
 	return fmt.Sprintf("%s=%s; Max-Age=%d; Path=/", CookieKey, sessionID, int(SessionMaxAge.Seconds()))
-}
-
-func EmptyCookie(sessionID string) string {
-	return fmt.Sprintf("%s=%s; Max-Age=%d; Path=/", CookieKey, sessionID, 0)
 }

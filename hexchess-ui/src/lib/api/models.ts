@@ -1,4 +1,4 @@
-import type { ChatMessage, PlayerState, ReplayEntity } from '$lib/pb/messages';
+import type { ChatMessage, PlayerState, Replay } from '$lib/pb/messages';
 
 export type Action = 'delete' | 'reject' | 'accept';
 
@@ -112,7 +112,7 @@ export interface ReplayModel {
 	loseEloDiff: number;
 }
 
-export function mapReplayEntity(replay: ReplayEntity): ReplayModel {
+export function mapReplay(replay: Replay): ReplayModel {
 	return {
 		id: Number(replay.id),
 		whiteId: Number(replay.whiteId),
@@ -143,7 +143,7 @@ export interface EloHistory {
 export type EloBuckets = EloHistory[];
 
 
-export interface FullUserModel {
+export interface FullPlayerModel {
 	user: UserModel;
 	replayList: ReplayModel[];
 	stats: UserStatsEntity;
@@ -173,6 +173,7 @@ export interface ChessModel {
 }
 
 export interface Chat {
+	id: string;
     player?: PlayerState;
     message: string;
     sentAt: Date;
@@ -180,6 +181,7 @@ export interface Chat {
 
 export function mapChatMessage(chat: ChatMessage): Chat {
 	return {
+		id: chat.id,
 		player: chat.player,
 		message: chat.message,
 		sentAt: new Date(chat.sentAt),

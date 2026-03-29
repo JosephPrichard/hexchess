@@ -7,7 +7,7 @@
 	import { goto } from '$app/navigation';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import { makeMessage } from '$lib/utils/error';
-	import type { ColorSelect, FullUserModel, GameMode } from '$lib/api/models';
+	import type { ColorSelect, FullPlayerModel, GameMode } from '$lib/api/models';
 	import services from '$lib/api/services';
 	import 'chartjs-adapter-date-fns';
 	import '$lib/utils/chart';
@@ -27,15 +27,15 @@
 	];
 
 	export interface PlayerProps {
-		fullUser: FullUserModel;
+		fullPlayer: FullPlayerModel;
 	}
 
 	const { data: props }: { data: PlayerProps } = $props();
-	const { user, stats: userStats } = $derived(props.fullUser);
+	const { user, stats: userStats } = $derived(props.fullPlayer);
 
 	const { addNotification, addErrorNotification } = getNotificationsContext();
 
-	let nestedReplayList = $state([props.fullUser.replayList]);
+	let nestedReplayList = $state([props.fullPlayer.replayList]);
 	let showCreateModal = $state(false);
 	let hasMoreReplays = $state(true);
 	let isDifferentUser = $state(false);

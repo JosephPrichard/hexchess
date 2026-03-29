@@ -174,14 +174,14 @@ func TestHandleUserEvents(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	brdcastedChallenge := svc.ChallengeEntity{ChallengeeID: 1, Mode: svc.ModeCorrespondence1.String(), StartColor: svc.White.String()}
+	brdcastedChallenge := svc.ChallengeDTO{ChallengeeID: 1, Mode: svc.ModeCorrespondence1, StartColor: svc.White}
 
 	errChan := make(chan error)
 	go func() {
 		ctx := context.WithValue(ctx, logutil.Trace, "broadcast-user-events")
 		errChan <- errors.Join(
 			services.BroadcastChallenge(ctx, brdcastedChallenge),
-			services.BroadcastChallenge(ctx, svc.ChallengeEntity{ChallengeeID: 2}),
+			services.BroadcastChallenge(ctx, svc.ChallengeDTO{ChallengeeID: 2}),
 			services.BroadcastChallenge(ctx, brdcastedChallenge))
 	}()
 

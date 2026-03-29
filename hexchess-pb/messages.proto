@@ -92,6 +92,7 @@ message ChatMessage {
   PlayerState player = 1;
   string message = 2;
   string sent_at = 3;
+  string id = 4;
 }
 
 // websocket api
@@ -153,7 +154,7 @@ message ForfeitOutput {
 }
 
 message ReplayOutput {
-  ReplayEntity replay = 1;
+  Replay replay = 1;
 }
 
 message GameOutputID {
@@ -172,7 +173,7 @@ message GameOutput {
     ChatMessage chat = 7;
     UndoOutput undo = 8;
     ForfeitOutput forfeit = 9;
-    ReplayEntity replay = 10;
+    Replay replay = 10;
   }
 }
 
@@ -216,7 +217,7 @@ message ChallengeMessage {
 
 // proto api
 
-message ReplayEntity {
+message Replay {
   int64 id = 1;
   int64 white_id = 2;
   int64 black_id = 3;

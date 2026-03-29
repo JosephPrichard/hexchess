@@ -1,0 +1,76 @@
+-- name: InsertTournament :one
+INSERT INTO tournaments (depth, status, scheduled_on, created_on, updated_on, mode)
+VALUES (
+    sqlc.arg('depth'),
+    sqlc.arg('status'),
+    sqlc.arg('scheduled_on'),
+    sqlc.arg('created_on'),
+    sqlc.arg('updated_on'),
+    sqlc.arg('mode'))
+RETURNING id;
+
+-- name: SelectTournamentById :one
+SELECT id, depth, status, scheduled_on, created_on, updated_on, mode
+FROM tournaments WHERE id = sqlc.arg('id');
+
+-- name: SelectParticipantsByTournamentId :many
+SELECT
+    tp.tournament_id,
+    tp.joined_on as tournament_joined_on,
+    -- maintain parity with `SelectUserWithEloByIDsRow`
+    u.id as user_id,
+    u.username,
+    u.country,
+    u.bio,
+    u.joined_on as user_joined_on,
+    e.elo,
+    e.highest_elo,
+    e.wins,
+    e.losses,
+    e.draws
+FROM tournament_participants tp
+    INNER JOIN tournaments t
+        ON t.id = tp.tournament_id
+    INNER JOIN users u
+        ON u.id = tp.user_id
+    LEFT JOIN user_mode_elos e -- must be a left join because mode elos are lazily initialized when user plays the first game.
+        ON u.id = e.user_id AND e.mode = t.mode
+WHERE tournament_id = sqlc.arg('tournament_id');
+
+-- name: SelectMatchesByTournamentId :many
+SELECT
+    tm.id as tournament_match_id,
+    tm.game_id,
+    tm.tournament_id,
+    tm.depth,
+    tm.created_on,
+    r.id as replay_id,
+    r.white_id,
+    r.black_id,
+    r.result,
+    r.cause,
+    r.played_on,
+    r.win_elo_diff,
+    r.lose_elo_diff,
+    r.mode
+FROM tournament_matches tm
+     -- must be left join, if the game is not finished it does not have a replay yet
+    LEFT JOIN replays r
+        ON r.game_id = tm.game_id
+WHERE tournament_id = sqlc.arg('tournament_id');
+
+-- name: SelectTournaments :many
+SELECT id, depth, status, scheduled_on, created_on, updated_on, mode
+FROM tournaments
+WHERE id < sqlc.arg('afterID')
+ORDER BY id DESC
+LIMIT sqlc.arg('perPage');
+
+-- name: SelectTournamentsByParticipant :many
+SELECT t.id, t.depth, t.status, t.scheduled_on, t.created_on, t.updated_on, t.mode
+FROM tournament_participants tp
+INNER JOIN tournaments t
+    ON t.id = tp.tournament_id AND t.id < sqlc.arg('afterID')
+WHERE tp.user_id = sqlc.arg('userID')
+ORDER BY t.id DESC
+LIMIT sqlc.arg('perPage');

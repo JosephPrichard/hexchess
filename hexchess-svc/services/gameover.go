@@ -11,7 +11,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/redis/go-redis/v9"
 )
@@ -74,26 +73,32 @@ func (svc *Services) insertFinishedGameEvent(ctx context.Context, event FinishGa
 		ReplayResult: event.ReplayResult,
 		ReplayMode:   event.ReplayMode,
 		InsertedTime: svc.EntropySource.GetNow(),
-		MoveHistBlob: moveHistBlob,
 	})
 	if err != nil {
 		return fmt.Errorf("insert finish game tx: %w", err)
 	}
+	// note: this happens outside the transaction so we do need to hold a lock for an expended period of time.
+	if err = svc.Querier.UpsertReplayMoveHistories(ctx, sqlc.UpsertReplayMoveHistoriesParams{
+		ReplayID: changeSet.ReplayID,
+		Data:     moveHistBlob,
+	}); err != nil {
+		return fmt.Errorf("insert replay move histories: %w", err)
+	}
 
 	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", changeSet, "room", event.GameID)
 
-	if err := svc.IncrLeaderboard(ctx,
+	if err := svc.incrLeaderboard(ctx,
 		UpdtLbChangeSet{Mode: event.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
 		UpdtLbChangeSet{Mode: event.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
 	); err != nil {
 		return fmt.Errorf("incr leaderboard %v: %w", changeSet, err)
 	}
 
-	replayEntity, err := svc.GetReplay(ctx, changeSet.ReplayID)
+	replay, err := svc.GetReplay(ctx, changeSet.ReplayID)
 	if err != nil {
 		return fmt.Errorf("get replay: %w", err)
 	}
-	if err := svc.BroadcastGamesEvent(ctx, SerializeReplayOutput(event.GameID, replayEntity)); err != nil {
+	if err := svc.BroadcastGamesEvent(ctx, SerializeReplayOutput(event.GameID, replay)); err != nil {
 		return fmt.Errorf("broadcast replay entity output: %w", err)
 	}
 
@@ -108,8 +113,7 @@ type GameResult struct {
 	ReplayCause  ReplayCause  `json:"cause"`
 	ReplayResult ReplayResult `json:"result"`
 	ReplayMode   GameMode     `json:"mode"`
-	InsertedTime time.Time
-	MoveHistBlob []byte
+	InsertedTime time.Time    `json:"insertedTime"`
 }
 
 type GameResultChangeSet struct {
@@ -127,7 +131,7 @@ func (changeSet GameResultChangeSet) IsNoop() bool {
 	return changeSet.LoseEloDiff == 0 && changeSet.WinEloDiff == 0
 }
 
-// InsertGameResultTx executes the insertGameResult operation in a transaction primarily to ensure
+// InsertGameResultTx executes the insertGameResult operation in a transaction
 func (svc *Services) InsertGameResultTx(ctx context.Context, params GameResult) (GameResultChangeSet, error) {
 	var changeSet GameResultChangeSet
 
@@ -149,13 +153,12 @@ func insertGameResult(ctx context.Context, query sqlc.Querier, result GameResult
 	userIDs := []int64{result.WhiteID, result.BlackID}
 
 	existingReplayID, err := query.SelectReplayIDByGameID(ctx, result.GameID)
-	if !errors.Is(err, pgx.ErrNoRows) {
-		if err != nil {
-			return GameResultChangeSet{}, fmt.Errorf("select has replay with gameID: %w", err)
-		} else {
-			return GameResultChangeSet{ReplayID: existingReplayID, AlreadyExists: true}, nil
-		}
+	if err == nil {
+		return GameResultChangeSet{ReplayID: existingReplayID, AlreadyExists: true}, nil
+	} else if !IsErrNoRows(err) {
+		return GameResultChangeSet{}, fmt.Errorf("select has replay with gameID: %w", err)
 	}
+	// gameID has not been processed? continue executing the transaction.
 
 	slices.SortFunc(userIDs, func(left, right int64) int { return int(left - right) }) // consistent query order
 	userElos, err := query.SelectUserModeElosByIds(ctx, sqlc.SelectUserModeElosByIdsParams{ID: userIDs, Mode: mode})
@@ -166,29 +169,22 @@ func insertGameResult(ctx context.Context, query sqlc.Querier, result GameResult
 	changeSet, updts := makeInsertGameResultChangeSet(result, userElos)
 
 	slices.SortFunc(updts, func(left, right sqlc.UpsertUserEloParams) int { return int(left.UserID - right.UserID) }) // consistent update order
-	for _, updt := range updts {
-		if err := query.UpsertUserElo(ctx, updt); err != nil {
-			return GameResultChangeSet{}, fmt.Errorf("upserting elo for user %d: %w", updt.UserID, err)
+	var batchUpsertErrs []error
+	query.UpsertUserElo(ctx, updts).Exec(func(i int, err error) {
+		if err != nil {
+			batchUpsertErrs = append(batchUpsertErrs, fmt.Errorf("batch %d: upserting elo for updt %+v: %w", i, updts[i], err))
 		}
-	}
-
-	replayID, err := insertReplay(ctx, query, ReplayInst{
-		GameID:         result.GameID,
-		WhiteID:        result.WhiteID,
-		BlackID:        result.BlackID,
-		Result:         result.ReplayResult,
-		Cause:          result.ReplayCause,
-		Mode:           result.ReplayMode,
-		WinEloDiff:     changeSet.WinEloDiff,
-		LoseEloDiff:    changeSet.LoseEloDiff,
-		ReplayWhiteElo: changeSet.WhiteEloNext,
-		ReplayBlackElo: changeSet.BlackEloNext,
-		PlayedOn:       result.InsertedTime,
-		MoveHistBlob:   result.MoveHistBlob,
 	})
-	if err != nil {
+	if err := errors.Join(batchUpsertErrs...); err != nil {
 		return GameResultChangeSet{}, err
 	}
+
+	replayInst := mapReplayInst(result, changeSet)
+	replayID, err := query.InsertReplay(ctx, replayInst)
+	if err != nil {
+		return GameResultChangeSet{}, fmt.Errorf("insert replay for result %+v: %w", result, err)
+	}
+
 	changeSet.ReplayID = replayID
 
 	slog.InfoContext(ctx, "inserted game result", "changeSet", changeSet)

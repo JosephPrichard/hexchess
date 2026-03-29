@@ -83,8 +83,11 @@
 <style>
     .finish-state {
         text-align: center;
-        margin-top: 10px;
-        margin-bottom: 10px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+		color: rgb(250, 250, 250);
+		/*background-color: rgb(44, 44, 44);*/
+		background-color: #3d6eb5;
     }
 
 	.result {

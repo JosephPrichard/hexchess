@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/api/idtoken"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"hexchess-svc/egress"
 	"hexchess-svc/itest"
@@ -67,7 +69,7 @@ func TestHandleRegister(t *testing.T) {
 
 			r := httptest.NewRequest(http.MethodPost, "/api/register", asJSONReader(tt.body))
 			w := httptest.NewRecorder()
-			
+
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
@@ -131,6 +133,8 @@ func TestHandleLogin(t *testing.T) {
 func TestHandleGoogleLogin(t *testing.T) {
 	t.Parallel()
 
+	apiKey := "API_KEY"
+
 	tests := []struct {
 		name        string
 		runCount    int
@@ -144,11 +148,11 @@ func TestHandleGoogleLogin(t *testing.T) {
 			name:     "InvalidLoginTokenMocked",
 			runCount: 1,
 			setupMocks: func(ctrl *gomock.Controller) egress.GoogleAPI {
-				m := egress.NewMockGoogleAPI(ctrl)
+				m := egress.NewMockIDTokenValidator(ctrl)
 				m.EXPECT().
-					ValidateIDToken(gomock.Any(), "invalidToken123").
-					Return(egress.GoogleIDTokenPayload{}, errors.New("invalid token"))
-				return m
+					Validate(gomock.Any(), "invalidToken123", apiKey).
+					Return(&idtoken.Payload{}, errors.New("invalid token"))
+				return egress.MakeGoogleAPIWithValidator(apiKey, m)
 			},
 			body:       GoogleLoginBody{Token: "invalidToken123"},
 			wantFail:   ServiceView{Status: http.StatusInternalServerError, Errors: ErrHttpFatal.Error()},
@@ -158,11 +162,11 @@ func TestHandleGoogleLogin(t *testing.T) {
 			name:     "LoginWithGoogleTokenSuccessful",
 			runCount: 2, // the user is created the first time, the second time we log in with the already inserted account ID
 			setupMocks: func(ctrl *gomock.Controller) egress.GoogleAPI {
-				m := egress.NewMockGoogleAPI(ctrl)
+				m := egress.NewMockIDTokenValidator(ctrl)
 				m.EXPECT().
-					ValidateIDToken(gomock.Any(), "testToken123").
-					Return(egress.GoogleIDTokenPayload{AccountID: "account1", Username: "email@domain.com"}, nil)
-				return m
+					Validate(gomock.Any(), "testToken123", apiKey).
+					Return(&idtoken.Payload{Subject: "account1", Claims: map[string]any{"email": "email@domain.com"}}, nil)
+				return egress.MakeGoogleAPIWithValidator(apiKey, m)
 			},
 			body:        GoogleLoginBody{Token: "testToken123"},
 			wantSuccess: SessionView{Username: "email@domain.com", Country: "un"},
@@ -248,7 +252,7 @@ func TestHandleUpdateUser(t *testing.T) {
 
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
-			
+
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if tt.wantStatus == http.StatusOK {
 				testutil.AssertRespBody(t, tt.wantSuccess, w, testSessionViewCmpOpts)
@@ -485,18 +489,90 @@ func TestHandleCreateChallenge(t *testing.T) {
 			defer services.Close()
 			services.EntropySource = &svc.StableEntropySource{Time: itest.TimeNow}
 
-
 			createTestSessions(t, services)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", asJSONReader(tt.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
-			w := httptest.NewRecorder()	
+			w := httptest.NewRecorder()
 
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			testutil.AssertRespBody(t, tt.wantResp, w)
+		})
+	}
+}
+
+func TestHandleSearchPlayers(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		username    string
+		page        string
+		wantStatus  int
+		wantSuccess SearchPlayersResp
+		wantFail    ServiceView
+	}{
+		{
+			name:       "InvalidPage",
+			page:       "invalid",
+			wantStatus: http.StatusBadRequest,
+			wantFail: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]any{"page": ErrHttpInvalidPage.Error()},
+			},
+		},
+		{
+			name:       "SearchPlayers",
+			username:   "john",
+			wantStatus: http.StatusOK,
+			wantSuccess: SearchPlayersResp{
+				UserList: []svc.LbdUserDTO{
+					{
+						UserDTO:    svc.UserDTO{ID: 8, Username: "john", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+						Elo:        1500,
+						HighestElo: 2000,
+						Wins:       12,
+						Losses:     4,
+						Winrate:    66,
+						Rank:       1,
+					},
+					{
+						UserDTO:    svc.UserDTO{ID: 9, Username: "johnny", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+						Elo:        1500,
+						HighestElo: 1500,
+						Wins:       5,
+						Losses:     2,
+						Winrate:    71,
+						Rank:       2,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			services := svc.SetupServicesTest(t, itest.ROPostgres)
+			defer services.Close()
+
+			q := url.Values{}
+			q.Set("username", tt.username)
+			q.Set("page", tt.page)
+			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players/search?%s", q.Encode()), nil)
+			w := httptest.NewRecorder()
+
+			hander := MakeServeMux(Setup{Services: services})
+			hander.ServeHTTP(w, r)
+
+			assert.Equal(t, tt.wantStatus, w.Code)
+			if w.Code == http.StatusOK {
+				testutil.AssertRespBody(t, tt.wantSuccess, w)
+			} else {
+				testutil.AssertRespBody(t, tt.wantFail, w)
+			}
 		})
 	}
 }
@@ -528,9 +604,9 @@ func TestGetLeaderboard(t *testing.T) {
 			wantStatus: http.StatusOK,
 			wantSuccess: LeaderboardResp{
 				TotalPages: 1,
-				UserList: []svc.LbdUserEntity{
+				UserList: []svc.LbdUserDTO{
 					{
-						UserEntity: svc.UserEntity{
+						UserDTO: svc.UserDTO{
 							ID:       1,
 							Username: "user1",
 							Country:  "us",
@@ -561,8 +637,8 @@ func TestGetLeaderboard(t *testing.T) {
 			q.Set("page", tt.page)
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/leaderboard?%s", q.Encode()), nil)
 			w := httptest.NewRecorder()
-			hander := MakeServeMux(Setup{Services: services})
 
+			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
@@ -591,9 +667,13 @@ func TestGetPlayer(t *testing.T) {
 			id:          "1",
 			withReplays: true,
 			wantSuccess: GetPlayersResp{
-				User:       svc.TestUserEntities[0],
-				Stats:      svc.TestUserStats[0],
-				ReplayList: []svc.ReplayEntity{svc.TestReplayEntities[1], svc.TestReplayEntities[0]},
+				User:  svc.TestUserDTOs[0],
+				Stats: svc.TestUserStats[0],
+				ReplayList: []svc.ReplayDTO{
+					svc.TestReplayDTOs[2],
+					svc.TestReplayDTOs[1],
+					svc.TestReplayDTOs[0],
+				},
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -602,9 +682,9 @@ func TestGetPlayer(t *testing.T) {
 			id:          "1",
 			withReplays: false,
 			wantSuccess: GetPlayersResp{
-				User:       svc.TestUserEntities[0],
+				User:       svc.TestUserDTOs[0],
 				Stats:      svc.TestUserStats[0],
-				ReplayList: []svc.ReplayEntity{},
+				ReplayList: []svc.ReplayDTO{},
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -613,6 +693,12 @@ func TestGetPlayer(t *testing.T) {
 			id:         "testing",
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"id": ErrHttpInvalidID.Error()}},
 			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "GotNoUser",
+			id:         "998877",
+			wantFail:   ServiceView{Status: http.StatusNotFound, Errors: ErrHttpNotFoundUser.Error()},
+			wantStatus: http.StatusNotFound,
 		},
 	}
 
@@ -623,7 +709,7 @@ func TestGetPlayer(t *testing.T) {
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players?id=%s&withReplays=%v", tt.id, tt.withReplays), nil)
 			w := httptest.NewRecorder()
-			
+
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
@@ -650,7 +736,7 @@ func TestGetChallenges(t *testing.T) {
 			name:         "GotSentChallenges",
 			participants: "sent",
 			wantSuccess: GetChallengesResp{
-				ChallengeList: []svc.ChallengeEntity{svc.TestChallengeEntities[0]},
+				ChallengeList: []svc.ChallengeDTO{svc.TestChallengeDTOs[0]},
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -658,7 +744,7 @@ func TestGetChallenges(t *testing.T) {
 			name:         "GotReceivedChallenges",
 			participants: "received",
 			wantSuccess: GetChallengesResp{
-				ChallengeList: []svc.ChallengeEntity{svc.TestChallengeEntities[1]},
+				ChallengeList: []svc.ChallengeDTO{svc.TestChallengeDTOs[1]},
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -701,16 +787,17 @@ func TestHandleGetUserReplays(t *testing.T) {
 			userID:      "999",
 			afterID:     "0",
 			wantStatus:  http.StatusOK,
-			wantSuccess: GetUserReplaysResp{ReplayList: []svc.ReplayEntity{}},
+			wantSuccess: GetUserReplaysResp{ReplayList: []svc.ReplayDTO{}},
 		},
 		{
 			name:       "GotUserReplays",
 			afterID:    "-1",
 			userID:     "1",
 			wantStatus: http.StatusOK,
-			wantSuccess: GetUserReplaysResp{ReplayList: []svc.ReplayEntity{
-				svc.TestReplayEntities[1],
-				svc.TestReplayEntities[0],
+			wantSuccess: GetUserReplaysResp{ReplayList: []svc.ReplayDTO{
+				svc.TestReplayDTOs[2],
+				svc.TestReplayDTOs[1],
+				svc.TestReplayDTOs[0],
 			}},
 		},
 		{
@@ -754,16 +841,22 @@ func TestHandleGetReplay(t *testing.T) {
 		wantStatus  int
 	}{
 		{
-			name:        "GotAReplay",
+			name:        "GotReplay",
 			userID:      "1",
 			wantStatus:  http.StatusOK,
-			wantSuccess: GetReplayResp{Replay: svc.TestReplayEntities[0]},
+			wantSuccess: GetReplayResp{Replay: svc.TestReplayDTOs[0]},
 		},
 		{
 			name:       "InvalidUserID",
 			userID:     "xyz",
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"id": ErrHttpInvalidID.Error()}},
 			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "GotNoReplay",
+			userID:     "998877",
+			wantFail:   ServiceView{Status: http.StatusNotFound, Errors: ErrHttpNotFoundReplay.Error()},
+			wantStatus: http.StatusNotFound,
 		},
 	}
 
@@ -774,7 +867,7 @@ func TestHandleGetReplay(t *testing.T) {
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay?id=%s", tt.userID), nil)
 			w := httptest.NewRecorder()
-			
+
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 

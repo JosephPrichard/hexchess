@@ -27,9 +27,9 @@
 					<b>{playerName}</b>
 				</a>
 			{:else}
-			<span class="text-ul">
-				<b>{playerName}</b>
-			</span>
+				<span>
+					<b>{playerName}</b>
+				</span>
 			{/if}
 			{#if player.elo}
 				<span>({player.elo})</span>

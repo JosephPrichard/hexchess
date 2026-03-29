@@ -2,8 +2,8 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 17.5
--- Dumped by pg_dump version 17.9 (Homebrew)
+-- Dumped from database version 17.0
+-- Dumped by pg_dump version 17.0
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -11,6 +11,7 @@ SET idle_in_transaction_session_timeout = 0;
 SET transaction_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', 'public', false);
 SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
@@ -93,6 +94,17 @@ CREATE TYPE public.result_enum AS ENUM (
 );
 
 
+--
+-- Name: tournament_status_enum; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.tournament_status_enum AS ENUM (
+    'LOBBY',
+    'IN_PROGRESS',
+    'FINISHED'
+);
+
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -172,6 +184,75 @@ CREATE TABLE public.replays (
 
 ALTER TABLE public.replays ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
     SEQUENCE NAME public.replays_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: tournament_matches; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tournament_matches (
+    id bigint NOT NULL,
+    game_id text,
+    tournament_id bigint NOT NULL,
+    depth integer NOT NULL,
+    white_id bigint NOT NULL,
+    black_id bigint NOT NULL,
+    created_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: tournament_matches_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tournament_matches ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.tournament_matches_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: tournament_participants; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tournament_participants (
+    tournament_id bigint NOT NULL,
+    user_id bigint NOT NULL,
+    joined_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: tournaments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tournaments (
+    id bigint NOT NULL,
+    depth integer NOT NULL,
+    status public.tournament_status_enum NOT NULL,
+    scheduled_on timestamp with time zone,
+    created_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mode public.mode_enum NOT NULL
+);
+
+
+--
+-- Name: tournaments_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tournaments ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.tournaments_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -267,6 +348,30 @@ ALTER TABLE ONLY public.replay_move_histories
 
 ALTER TABLE ONLY public.replays
     ADD CONSTRAINT replays_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tournament_matches tournament_matches_game_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tournament_matches
+    ADD CONSTRAINT tournament_matches_game_id_key UNIQUE (game_id);
+
+
+--
+-- Name: tournament_matches tournament_matches_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tournament_matches
+    ADD CONSTRAINT tournament_matches_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tournaments tournaments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tournaments
+    ADD CONSTRAINT tournaments_pkey PRIMARY KEY (id);
 
 
 --
@@ -418,6 +523,46 @@ ALTER TABLE ONLY public.replays
 
 
 --
+-- Name: tournament_matches tournament_matches_black_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tournament_matches
+    ADD CONSTRAINT tournament_matches_black_id_fkey FOREIGN KEY (black_id) REFERENCES public.users(id);
+
+
+--
+-- Name: tournament_matches tournament_matches_tournament_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tournament_matches
+    ADD CONSTRAINT tournament_matches_tournament_id_fkey FOREIGN KEY (tournament_id) REFERENCES public.tournaments(id);
+
+
+--
+-- Name: tournament_matches tournament_matches_white_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tournament_matches
+    ADD CONSTRAINT tournament_matches_white_id_fkey FOREIGN KEY (white_id) REFERENCES public.users(id);
+
+
+--
+-- Name: tournament_participants tournament_participants_tournament_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tournament_participants
+    ADD CONSTRAINT tournament_participants_tournament_id_fkey FOREIGN KEY (tournament_id) REFERENCES public.tournaments(id);
+
+
+--
+-- Name: tournament_participants tournament_participants_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tournament_participants
+    ADD CONSTRAINT tournament_participants_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
 -- Name: user_mode_elos user_mode_elos_userid_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -428,3 +573,4 @@ ALTER TABLE ONLY public.user_mode_elos
 --
 -- PostgreSQL database dump complete
 --
+

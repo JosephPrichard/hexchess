@@ -4,7 +4,7 @@ import (
 	"hexchess-svc/itest"
 )
 
-var TestUserEntities = []UserEntity{
+var TestUserDTOs = []UserDTO{
 	{
 		ID:       1,
 		Username: "user1",
@@ -21,23 +21,23 @@ var TestUserEntities = []UserEntity{
 	},
 }
 
-var TestUserStats = []UserStatsEntity{
+var TestUserStats = []UserStatsDTO{
 	{
 		TotalWins:    17,
 		TotalLosses:  14,
 		AvgElo:       1025,
 		HighestElo:   1050,
 		TotalWinrate: 53,
-		ModeStats: []ModeStatsEntity{
-			{Mode: ModeCorrespondence7.String(), Rank: 1, Wins: 2, Losses: 2, Winrate: 50, Elo: 1000, HighestElo: 1000},
-			{Mode: ModeTimed3Plus2.String(), Rank: 1, Wins: 5, Losses: 4, Winrate: 55, Elo: 1020, HighestElo: 1020},
-			{Mode: ModeTimed15Plus10.String(), Rank: 1, Wins: 4, Losses: 3, Winrate: 57, Elo: 1030, HighestElo: 1030},
-			{Mode: ModeTimed1Plus0.String(), Rank: 1, Wins: 6, Losses: 5, Winrate: 54, Elo: 1050, HighestElo: 1050},
+		ModeStats: []ModeStatsDTO{
+			{Mode: ModeCorrespondence7, Rank: 1, Wins: 2, Losses: 2, Winrate: 50, Elo: 1000, HighestElo: 1000},
+			{Mode: ModeTimed3Plus2, Rank: 1, Wins: 5, Losses: 4, Winrate: 55, Elo: 1020, HighestElo: 1020},
+			{Mode: ModeTimed15Plus10, Rank: 1, Wins: 4, Losses: 3, Winrate: 57, Elo: 1030, HighestElo: 1030},
+			{Mode: ModeTimed1Plus0, Rank: 1, Wins: 6, Losses: 5, Winrate: 54, Elo: 1050, HighestElo: 1050},
 		},
 	},
 }
 
-var TestReplayEntities = []ReplayEntity{
+var TestReplayDTOs = []ReplayDTO{
 	{
 		ID:           1,
 		WhiteID:      1,
@@ -46,9 +46,9 @@ var TestReplayEntities = []ReplayEntity{
 		BlackName:    "user2",
 		WhiteCountry: "us",
 		BlackCountry: "us",
-		Mode:         ModeCorrespondence7.String(),
-		Result:       WhiteWin.String(),
-		Cause:        Checkmate.String(),
+		Mode:         ModeCorrespondence7,
+		Result:       WhiteWin,
+		Cause:        Checkmate,
 		WinEloDiff:   30,
 		LoseEloDiff:  -30,
 		WhiteElo:     1000,
@@ -65,9 +65,9 @@ var TestReplayEntities = []ReplayEntity{
 		BlackName:    "user1",
 		WhiteCountry: "us",
 		BlackCountry: "us",
-		Mode:         ModeCorrespondence7.String(),
-		Result:       Draw.String(),
-		Cause:        Checkmate.String(),
+		Mode:         ModeCorrespondence7,
+		Result:       Draw,
+		Cause:        Checkmate,
 		WinEloDiff:   0,
 		LoseEloDiff:  0,
 		WhiteElo:     900,
@@ -84,9 +84,9 @@ var TestReplayEntities = []ReplayEntity{
 		BlackName:    "",
 		WhiteCountry: "us",
 		BlackCountry: "",
-		Mode:         "CORRESPONDENCE_7",
-		Result:       "WHITE_WINS",
-		Cause:        "CHECKMATE",
+		Mode:         ModeCorrespondence7,
+		Result:       WhiteWin,
+		Cause:        Checkmate,
 		WinEloDiff:   0,
 		LoseEloDiff:  0,
 		WhiteElo:     1000,
@@ -97,7 +97,7 @@ var TestReplayEntities = []ReplayEntity{
 	},
 }
 
-var TestChallengeEntities = []ChallengeEntity{
+var TestChallengeDTOs = []ChallengeDTO{
 	{
 		ChallengerID:      1,
 		ChallengerName:    "user1",
@@ -107,8 +107,8 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeName:    "user2",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
-		Mode:              ModeTimed3Plus2.String(),
-		StartColor:        Random.String(),
+		Mode:              ModeTimed3Plus2,
+		StartColor:        Random,
 		MadeOn:            itest.TimeNow.Local(),
 		ExpiresOn:         itest.TimeNow.Local().Add(ExpireChallengeMaxAge),
 	},
@@ -121,8 +121,8 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeName:    "user1",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
-		Mode:              ModeCorrespondence1.String(),
-		StartColor:        Random.String(),
+		Mode:              ModeCorrespondence1,
+		StartColor:        Random,
 		MadeOn:            itest.TimeNow.Local(),
 		ExpiresOn:         itest.TimeNow.Local().Add(ExpireChallengeMaxAge),
 	},
@@ -135,8 +135,8 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeName:    "user2",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
-		Mode:              ModeCorrespondence1.String(),
-		StartColor:        Random.String(),
+		Mode:              ModeCorrespondence1,
+		StartColor:        Random,
 		MadeOn:            itest.TimeNow.Local(),
 		ExpiresOn:         itest.TimeNow.Local().Add(ExpireChallengeMaxAge),
 	},
@@ -149,8 +149,8 @@ var TestChallengeEntities = []ChallengeEntity{
 		ChallengeeName:    "user4",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     2000,
-		Mode:              ModeCorrespondence1.String(),
-		StartColor:        Random.String(),
+		Mode:              ModeCorrespondence1,
+		StartColor:        Random,
 		MadeOn:            itest.TimeNow.Local(),
 		ExpiresOn:         itest.TimeNow.Local().Add(ExpireChallengeMaxAge),
 	},

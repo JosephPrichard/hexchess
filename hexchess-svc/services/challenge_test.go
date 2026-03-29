@@ -126,7 +126,7 @@ func TestGetChallengesByParticipant(t *testing.T) {
 	challenges, err := services.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
-	assert.Equal(t, []ChallengeEntity{TestChallengeEntities[2], TestChallengeEntities[3]}, challenges)
+	assert.Equal(t, []ChallengeDTO{TestChallengeDTOs[2], TestChallengeDTOs[3]}, challenges)
 }
 
 func TestDeleteExpiredChallenges(t *testing.T) {
@@ -146,7 +146,7 @@ func TestDeleteExpiredChallenges(t *testing.T) {
 	challengesDel, err := services.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
-	assert.Equal(t, []ChallengeEntity{TestChallengeEntities[2], TestChallengeEntities[3]}, challengesDel)
+	assert.Equal(t, []ChallengeDTO{TestChallengeDTOs[2], TestChallengeDTOs[3]}, challengesDel)
 }
 
 func TestDeleteChallenge(t *testing.T) {

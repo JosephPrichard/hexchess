@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hexchess-svc/db/sqlc"
 	"log"
 	"log/slog"
 	"math/rand"
@@ -142,7 +143,7 @@ func insertChallenges(ctx context.Context, s *svc.Services, insts []ChallengeIns
 	return nil
 }
 
-func insertRandomizedGameResults(ctx context.Context, s *svc.Services, gameResults []GameResult) error {
+func insertRandomizedGameResults(ctx context.Context, services *svc.Services, gameResults []GameResult) error {
 	timeAt := time.Now().Add(-1 * time.Hour * 24 * 100)
 
 	a := gameResults
@@ -165,7 +166,7 @@ func insertRandomizedGameResults(ctx context.Context, s *svc.Services, gameResul
 				return fmt.Errorf("marshal move history to s3: %w", err)
 			}
 
-			if _, err = s.InsertGameResultTx(egCtx, svc.GameResult{
+			changeSet, err := services.InsertGameResultTx(egCtx, svc.GameResult{
 				GameID:       uuid.NewString(),
 				WhiteID:      params.WhiteID,
 				BlackID:      params.BlackID,
@@ -173,9 +174,16 @@ func insertRandomizedGameResults(ctx context.Context, s *svc.Services, gameResul
 				ReplayResult: svc.ExpectReplayResult(params.ReplayResult),
 				ReplayMode:   mode,
 				InsertedTime: timeAt.Add(time.Duration(gameIdx) * time.Hour * 24),
-				MoveHistBlob: moveHistBlob,
-			}); err != nil {
+			})
+			if err != nil {
 				return fmt.Errorf("insert game result: %w", err)
+			}
+			// note: don't forget to insert the move history - it exists outside of the game result tx
+			if err = services.Querier.UpsertReplayMoveHistories(ctx, sqlc.UpsertReplayMoveHistoriesParams{
+				ReplayID: changeSet.ReplayID,
+				Data:     moveHistBlob,
+			}); err != nil {
+				return fmt.Errorf("insert replay move histories: %w", err)
 			}
 
 			return nil

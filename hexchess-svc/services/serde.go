@@ -86,11 +86,12 @@ func UnmarshalChessState(b []byte) (st ChessState, err error) {
 		return st, fmt.Errorf("deserialize initial board %v: %w", pbChess.Game.Board, err)
 	}
 
-	p := EnumParser{}
-	color := p.Color(pbChess.FirstColor)
-	mode := p.GameMode(pbChess.Mode)
-
-	if err := p.Err(); err != nil {
+	color, err := ParseColor(pbChess.FirstColor)
+	if err != nil {
+		return st, err
+	}
+	mode, err := ParseGameMode(pbChess.Mode)
+	if err != nil {
 		return st, err
 	}
 
@@ -136,11 +137,12 @@ func UnmarshalChessMeta(b []byte) (m ChessMeta, err error) {
 		return m, fmt.Errorf("unmarshal chess s: %w", err)
 	}
 
-	p := EnumParser{}
-	color := p.Color(pbChess.FirstColor)
-	mode := p.GameMode(pbChess.Mode)
-
-	if err := p.Err(); err != nil {
+	color, err := ParseColor(pbChess.FirstColor)
+	if err != nil {
+		return m, err
+	}
+	mode, err := ParseGameMode(pbChess.Mode)
+	if err != nil {
 		return m, err
 	}
 
@@ -157,6 +159,7 @@ func UnmarshalChessMeta(b []byte) (m ChessMeta, err error) {
 
 func SerializeChat(chat Chat) *pb.ChatMessage {
 	return &pb.ChatMessage{
+		Id:      chat.ID,
 		Player:  SerializePlayer(chat.Player),
 		Message: chat.Message,
 		SentAt:  chat.SentAt.Format(time.RFC3339),
@@ -169,11 +172,21 @@ func MarshalUserMessageJson(pbUserMessage *pb.UserMessage) ([]byte, error) {
 	switch message := (pbUserMessage.Value).(type) {
 	case *pb.UserMessage_Challenge:
 		challenge := message.Challenge
+
 		madeOn, err := time.Parse(time.RFC3339, challenge.MadeOn)
 		if err != nil {
 			return nil, fmt.Errorf("parse challenge made on: %w", err)
 		}
-		return json.Marshal(ChallengeEntity{
+		startColor, err := ParseColor(challenge.StartColor)
+		if err != nil {
+			return nil, err
+		}
+		mode, err := ParseGameMode(challenge.Mode)
+		if err != nil {
+			return nil, err
+		}
+
+		return json.Marshal(ChallengeDTO{
 			ChallengerID:      challenge.ChallengerId,
 			ChallengerName:    challenge.ChallengerName,
 			ChallengerCountry: challenge.ChallengerCountry,
@@ -182,8 +195,8 @@ func MarshalUserMessageJson(pbUserMessage *pb.UserMessage) ([]byte, error) {
 			ChallengeeName:    challenge.ChallengeeName,
 			ChallengeeCountry: challenge.ChallengeeCountry,
 			ChallengeeElo:     challenge.ChallengeeElo,
-			StartColor:        challenge.StartColor,
-			Mode:              challenge.Mode,
+			StartColor:        startColor,
+			Mode:              mode,
 			MadeOn:            madeOn,
 		})
 	default:
@@ -191,7 +204,7 @@ func MarshalUserMessageJson(pbUserMessage *pb.UserMessage) ([]byte, error) {
 	}
 }
 
-func SerializeChallengeMessage(challenge ChallengeEntity) *pb.UserMessage {
+func SerializeChallengeMessage(challenge ChallengeDTO) *pb.UserMessage {
 	userChallengeMessage := &pb.UserMessage_Challenge{
 		Challenge: &pb.ChallengeMessage{
 			ChallengerId:      challenge.ChallengerID,
@@ -202,8 +215,8 @@ func SerializeChallengeMessage(challenge ChallengeEntity) *pb.UserMessage {
 			ChallengeeName:    challenge.ChallengeeName,
 			ChallengeeCountry: challenge.ChallengeeCountry,
 			ChallengeeElo:     challenge.ChallengeeElo,
-			Mode:              challenge.Mode,
-			StartColor:        challenge.StartColor,
+			Mode:              challenge.Mode.String(),
+			StartColor:        challenge.StartColor.String(),
 			MadeOn:            challenge.MadeOn.Format(time.RFC3339),
 		},
 	}
@@ -227,12 +240,16 @@ func UnmarshalFinishGameEvent(b []byte) (event FinishGameEvent, err error) {
 		return event, fmt.Errorf("deserialize moves: %w", err)
 	}
 
-	p := EnumParser{}
-	mode := p.GameMode(pbGameEvent.GameMode)
-	replayResult := p.ReplayResult(pbGameEvent.ReplayResult)
-	replayCause := p.ReplayCause(pbGameEvent.ReplayCause)
-
-	if err := p.Err(); err != nil {
+	mode, err := ParseGameMode(pbGameEvent.GameMode)
+	if err != nil {
+		return event, err
+	}
+	replayResult, err := ParseReplayResult(pbGameEvent.ReplayResult)
+	if err != nil {
+		return event, err
+	}
+	replayCause, err := ParseReplayCause(pbGameEvent.ReplayCause)
+	if err != nil {
 		return event, err
 	}
 
@@ -263,10 +280,10 @@ func MarshalFinishGameEvent(event FinishGameEvent) ([]byte, error) {
 
 // Replay
 
-func SerializeReplayOutput(gameID string, replay ReplayEntity) *pb.GameOutput {
+func SerializeReplayOutput(gameID string, replay ReplayDTO) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
-		Value: &pb.GameOutput_Replay{Replay: &pb.ReplayEntity{
+		Value: &pb.GameOutput_Replay{Replay: &pb.Replay{
 			Id:           replay.ID,
 			WhiteId:      replay.WhiteID,
 			BlackId:      replay.BlackID,
@@ -274,9 +291,9 @@ func SerializeReplayOutput(gameID string, replay ReplayEntity) *pb.GameOutput {
 			BlackName:    replay.BlackName,
 			WhiteCountry: replay.WhiteCountry,
 			BlackCountry: replay.BlackCountry,
-			Mode:         replay.Mode,
-			Result:       replay.Result,
-			Cause:        replay.Cause,
+			Mode:         replay.Mode.String(),
+			Result:       replay.Result.String(),
+			Cause:        replay.Cause.String(),
 			WinEloDiff:   replay.WinEloDiff,
 			LoseEloDiff:  replay.LoseEloDiff,
 			WhiteElo:     replay.WhiteElo,

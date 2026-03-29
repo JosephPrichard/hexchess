@@ -6,6 +6,6 @@ type RemoteAPIs struct {
 
 func MakeRemoteAPIs() RemoteAPIs {
 	return RemoteAPIs{
-		GoogleAPI: &RemoteGoogleAPI{},
+		GoogleAPI: MakeGoogleAPI("", nil),
 	}
 }
