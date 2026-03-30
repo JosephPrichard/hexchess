@@ -7,10 +7,12 @@ CREATE TYPE tournament_status_enum AS ENUM (
 
 CREATE TABLE tournaments (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    tournament_key TEXT NOT NULL UNIQUE,
     depth INT NOT NULL,
     status tournament_status_enum NOT NULL,
     scheduled_on TIMESTAMP WITH TIME ZONE,
     created_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by BIGINT NOT NULL REFERENCES users(id),
     updated_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     mode mode_enum NOT NULL
 );

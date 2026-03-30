@@ -48,7 +48,7 @@ func (replay ReplayDTO) Compute() ReplayDTO {
 	return replay
 }
 
-func mapReplayFromByIDRow(row sqlc.SelectReplayByIDRow) (ReplayDTO, error) {
+func mapReplayByIDRow(row sqlc.SelectReplayByIDRow) (ReplayDTO, error) {
 	result, err := ParseReplayResult(row.Result)
 	if err != nil {
 		return ReplayDTO{}, err
@@ -108,7 +108,7 @@ func mapGetReplayResult[ID string | int64](ctx context.Context, id ID, row sqlc.
 		return ReplayDTO{}, fmt.Errorf("select replay %v by id: %w", id, err)
 	}
 
-	replay, err := mapReplayFromByIDRow(row)
+	replay, err := mapReplayByIDRow(row)
 	if err != nil {
 		return ReplayDTO{}, fmt.Errorf("map replay %v from row: %w", id, err)
 	}
@@ -155,7 +155,7 @@ func (svc *Services) GetUserReplays(ctx context.Context, userID int64, afterID i
 
 	var replays []ReplayDTO
 	for _, row := range rows {
-		replay, err := mapReplayFromByIDRow(sqlc.SelectReplayByIDRow(row))
+		replay, err := mapReplayByIDRow(sqlc.SelectReplayByIDRow(row))
 		if err != nil {
 			return nil, fmt.Errorf("map replay from row: %w", err)
 		}

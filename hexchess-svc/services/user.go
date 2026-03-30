@@ -79,7 +79,7 @@ func calcUserWinrate(wins int32, losses int32, draws int32) int64 {
 	return int64(wr)
 }
 
-func mapUserFromRow(row sqlc.SelectUserByIDRow) UserDTO {
+func mapUserRow(row sqlc.SelectUserByIDRow) UserDTO {
 	return UserDTO{
 		ID:       row.ID,
 		Username: row.Username,
@@ -121,7 +121,7 @@ func (svc *Services) InsertUser(ctx context.Context, inst UserInst) (UserDTO, er
 		return UserDTO{}, fmt.Errorf("insert user to db: %w", err)
 	}
 
-	user := mapUserFromRow(sqlc.SelectUserByIDRow(row))
+	user := mapUserRow(sqlc.SelectUserByIDRow(row))
 	slog.InfoContext(ctx, "created a new user", "user", user)
 	return user, nil
 }
@@ -160,7 +160,7 @@ func (svc *Services) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]
 
 	svc.Querier.BatchInsertUser(ctx, batches).QueryRow(func(i int, row sqlc.BatchInsertUserRow, err error) {
 		if err == nil {
-			users = append(users, mapUserFromRow(sqlc.SelectUserByIDRow(row)))
+			users = append(users, mapUserRow(sqlc.SelectUserByIDRow(row)))
 		} else {
 			queryErrs = append(queryErrs, err)
 		}
@@ -172,14 +172,14 @@ func (svc *Services) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]
 	return users, err
 }
 
-type VerifiedUser struct {
+type VerifiedUserDTO struct {
 	ID       int64  `json:"id"`
 	Username string `json:"username"`
 	Country  string `json:"country"`
 }
 
-func (svc *Services) VerifyUserTx(ctx context.Context, username string, inputPassword string) (VerifiedUser, error) {
-	var user VerifiedUser
+func (svc *Services) VerifyUserTx(ctx context.Context, username string, inputPassword string) (VerifiedUserDTO, error) {
+	var user VerifiedUserDTO
 
 	err := svc.DB.ExecTx(ctx, db.Txn{
 		QueryFn: func(ctx context.Context, query sqlc.Querier) (err error) {
@@ -197,20 +197,20 @@ const LockoutDuration = time.Minute * 1
 
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
-func verifyUser(ctx context.Context, query sqlc.Querier, username string, inputPassword string) (VerifiedUser, error) {
+func verifyUser(ctx context.Context, query sqlc.Querier, username string, inputPassword string) (VerifiedUserDTO, error) {
 	login, err := query.SelectLoginByName(ctx, username)
 	if err != nil {
 		if IsErrNoRows(err) {
-			return VerifiedUser{}, ErrUserNotFound
+			return VerifiedUserDTO{}, ErrUserNotFound
 		}
-		return VerifiedUser{}, fmt.Errorf("select user=%s by login: %w", username, err)
+		return VerifiedUserDTO{}, fmt.Errorf("select user=%s by login: %w", username, err)
 	}
 
 	isExceedAttempts := login.LoginAttempts > 0 && login.LoginAttempts%LoginAttemptsDivisor == 0
 	nextLoginTime := login.LastLoginAttempt.Time.Add(LockoutDuration)
 	isLocked := isExceedAttempts && time.Now().Before(nextLoginTime)
 	if isLocked {
-		return VerifiedUser{}, ErrTooManyLoginAttempts
+		return VerifiedUserDTO{}, ErrTooManyLoginAttempts
 	}
 
 	saltedPassword := inputPassword + login.Salt
@@ -218,16 +218,16 @@ func verifyUser(ctx context.Context, query sqlc.Querier, username string, inputP
 
 	if loginErr != nil {
 		if err := query.IncrLoginAttempts(ctx, login.ID); err != nil {
-			return VerifiedUser{}, fmt.Errorf("incr user %d login attempts: %w", login.ID, err)
+			return VerifiedUserDTO{}, fmt.Errorf("incr user %d login attempts: %w", login.ID, err)
 		}
 		slog.ErrorContext(ctx, "failed to user login is invalid", "username", username, "err", loginErr)
-		return VerifiedUser{}, ErrUserNotFound
+		return VerifiedUserDTO{}, ErrUserNotFound
 	}
 
 	if err := query.ResetLoginAttempts(ctx, login.ID); err != nil {
-		return VerifiedUser{}, fmt.Errorf("reset user %d login attempts: %w", login.ID, err)
+		return VerifiedUserDTO{}, fmt.Errorf("reset user %d login attempts: %w", login.ID, err)
 	}
-	user := VerifiedUser{
+	user := VerifiedUserDTO{
 		ID:       login.ID,
 		Username: login.Username,
 		Country:  login.Country,
@@ -242,15 +242,15 @@ type GoogleUserInst struct {
 	JoinedOn time.Time
 }
 
-func (svc *Services) SelectOrInsertGoogleUser(ctx context.Context, googleAccountID string, googleInst GoogleUserInst) (VerifiedUser, error) {
-	var u VerifiedUser
+func (svc *Services) SelectOrInsertGoogleUser(ctx context.Context, googleAccountID string, googleInst GoogleUserInst) (VerifiedUserDTO, error) {
+	var verifiedUser VerifiedUserDTO
 	var isCreated bool
 
 	login, err := svc.Querier.SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
 	if IsErrNoRows(err) {
 		isCreated = false
 	} else if err != nil {
-		return u, fmt.Errorf("select user=%s by google account id: %w", googleAccountID, err)
+		return verifiedUser, fmt.Errorf("select user=%s by google account id: %w", googleAccountID, err)
 	} else {
 		isCreated = true
 	}
@@ -263,24 +263,24 @@ func (svc *Services) SelectOrInsertGoogleUser(ctx context.Context, googleAccount
 			GoogleAccountID: pgtype.Text{String: googleAccountID, Valid: true},
 		})
 		if err != nil {
-			return u, fmt.Errorf("insert google user=%s: %w", googleAccountID, err)
+			return verifiedUser, fmt.Errorf("insert google user=%s: %w", googleAccountID, err)
 		}
-		u = VerifiedUser{
+		verifiedUser = VerifiedUserDTO{
 			ID:       row.ID,
 			Username: row.Username,
 			Country:  row.Country,
 		}
 		slog.InfoContext(ctx, "inserted a google user account", "inst", googleInst, "googleAccountID", googleAccountID)
 	} else {
-		u = VerifiedUser{
+		verifiedUser = VerifiedUserDTO{
 			ID:       login.ID,
 			Username: login.Username,
 			Country:  login.Country,
 		}
 	}
 
-	slog.InfoContext(ctx, "resolved verified user from googleAccountID", "user", u, "googleAccountID", googleAccountID)
-	return u, nil
+	slog.InfoContext(ctx, "resolved verified user from googleAccountID", "user", verifiedUser, "googleAccountID", googleAccountID)
+	return verifiedUser, nil
 }
 
 func ProbabilityWins(elo1, elo2 float64) float64 {
@@ -305,7 +305,7 @@ func (svc *Services) UpdateUser(ctx context.Context, id int64, updt UpdtUserPara
 		Country:  pgtype.Text{Valid: updt.Country != "", String: updt.Country},
 	})
 
-	user := mapUserFromRow(sqlc.SelectUserByIDRow(row))
+	user := mapUserRow(sqlc.SelectUserByIDRow(row))
 	logutil.DynLog(ctx, "updated user", err, "user", user)
 	return user, err
 }
@@ -332,7 +332,7 @@ func (svc *Services) GetUserByID(ctx context.Context, id int64) (UserDTO, error)
 		}
 		return UserDTO{}, fmt.Errorf("select user %d: %w", id, err)
 	}
-	user := mapUserFromRow(row)
+	user := mapUserRow(row)
 	slog.InfoContext(ctx, "selected user", "id", id, "user", user)
 	return user, nil
 }

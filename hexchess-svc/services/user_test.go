@@ -14,7 +14,7 @@ import (
 )
 
 var testUserCmptOpts = cmpopts.IgnoreFields(UserDTO{}, "ID")
-var testVerifiedUserCmptOpts = cmpopts.IgnoreFields(VerifiedUser{}, "ID")
+var testVerifiedUserCmptOpts = cmpopts.IgnoreFields(VerifiedUserDTO{}, "ID")
 
 func TestInsertThenVerify(t *testing.T) {
 	t.Parallel()
@@ -152,7 +152,7 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 	dbUser1, err := services.GetUserByID(ctx, user1.ID)
 	require.NoError(t, err)
 
-	verifiedUser := VerifiedUser{Username: "username", Country: "us"}
+	verifiedUser := VerifiedUserDTO{Username: "username", Country: "us"}
 	testutil.Equal(t, verifiedUser, user1, testVerifiedUserCmptOpts)
 	testutil.Equal(t, verifiedUser, user2, testVerifiedUserCmptOpts)
 

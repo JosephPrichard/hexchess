@@ -47,7 +47,7 @@ type ChallengeInst struct {
 	MadeOn       time.Time `json:"madeOn"`
 }
 
-func mapChallengeFromRow(row sqlc.SelectChallengesByParticipantRow) (ChallengeDTO, error) {
+func mapChallengeRow(row sqlc.SelectChallengesByParticipantRow) (ChallengeDTO, error) {
 	startColor, err := ParseColor(row.StartColor)
 	if err != nil {
 		return ChallengeDTO{}, err
@@ -114,7 +114,7 @@ func (svc *Services) InsertChallengeRet(ctx context.Context, inst ChallengeInst)
 		return ChallengeDTO{}, svcErr
 	}
 
-	challenge, err := mapChallengeFromRow(sqlc.SelectChallengesByParticipantRow(row))
+	challenge, err := mapChallengeRow(sqlc.SelectChallengesByParticipantRow(row))
 	if err != nil {
 		return ChallengeDTO{}, fmt.Errorf("map challenge from row: %w", err)
 	}
@@ -153,7 +153,7 @@ func (svc *Services) GetChallengesByParticipant(ctx context.Context, key Challen
 
 	var challenges []ChallengeDTO
 	for _, row := range rows {
-		challenge, err := mapChallengeFromRow(row)
+		challenge, err := mapChallengeRow(row)
 		if err != nil {
 			return nil, fmt.Errorf("map challenge from row: %w", err)
 		}

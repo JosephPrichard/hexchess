@@ -238,10 +238,12 @@ CREATE TABLE public.tournament_participants (
 
 CREATE TABLE public.tournaments (
     id bigint NOT NULL,
+    tournament_key text NOT NULL,
     depth integer NOT NULL,
     status public.tournament_status_enum NOT NULL,
     scheduled_on timestamp with time zone,
     created_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by bigint NOT NULL,
     updated_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     mode public.mode_enum NOT NULL
 );
@@ -372,6 +374,14 @@ ALTER TABLE ONLY public.tournament_matches
 
 ALTER TABLE ONLY public.tournaments
     ADD CONSTRAINT tournaments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tournaments tournaments_tournament_key_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tournaments
+    ADD CONSTRAINT tournaments_tournament_key_key UNIQUE (tournament_key);
 
 
 --
@@ -560,6 +570,14 @@ ALTER TABLE ONLY public.tournament_participants
 
 ALTER TABLE ONLY public.tournament_participants
     ADD CONSTRAINT tournament_participants_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
+-- Name: tournaments tournaments_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tournaments
+    ADD CONSTRAINT tournaments_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
 
 
 --

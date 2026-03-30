@@ -10,7 +10,7 @@ VALUES (
 RETURNING id;
 
 -- name: SelectTournamentById :one
-SELECT id, depth, status, scheduled_on, created_on, updated_on, mode
+SELECT id, tournament_key, depth, status, scheduled_on, created_on, updated_on, created_by, mode
 FROM tournaments WHERE id = sqlc.arg('id');
 
 -- name: SelectParticipantsByTournamentId :many
@@ -60,14 +60,14 @@ FROM tournament_matches tm
 WHERE tournament_id = sqlc.arg('tournament_id');
 
 -- name: SelectTournaments :many
-SELECT id, depth, status, scheduled_on, created_on, updated_on, mode
+SELECT id, tournament_key, depth, status, scheduled_on, created_on, updated_on, created_by, mode
 FROM tournaments
 WHERE id < sqlc.arg('afterID')
 ORDER BY id DESC
 LIMIT sqlc.arg('perPage');
 
 -- name: SelectTournamentsByParticipant :many
-SELECT t.id, t.depth, t.status, t.scheduled_on, t.created_on, t.updated_on, t.mode
+SELECT t.id, t.tournament_key, t.depth, t.status, t.scheduled_on, t.created_on, t.updated_on, t.created_by, t.mode
 FROM tournament_participants tp
 INNER JOIN tournaments t
     ON t.id = tp.tournament_id AND t.id < sqlc.arg('afterID')

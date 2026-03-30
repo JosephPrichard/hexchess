@@ -66,7 +66,7 @@ func MatchesAtDepth(depth int32) int32 {
 	return PlayersAtDepth(depth) / 2
 }
 
-func mapTournamentFromRow(tournament sqlc.Tournament) (TournamentDTO, error) {
+func mapTournamentRow(tournament sqlc.SelectTournamentByIdRow) (TournamentDTO, error) {
 	status, err := ParseTournamentStatus(tournament.Status)
 	if err != nil {
 		return TournamentDTO{}, err
@@ -86,6 +86,22 @@ func mapTournamentFromRow(tournament sqlc.Tournament) (TournamentDTO, error) {
 		Status:         status,
 		Mode:           mode,
 	}, nil
+}
+
+type ManyTournamentRow interface {
+	sqlc.SelectTournamentsRow | sqlc.SelectTournamentsByParticipantRow
+}
+
+func mapTournamentRows[Row ManyTournamentRow](tournamentRows []Row, fn func(tournament Row) (TournamentDTO, error)) ([]TournamentDTO, error) {
+	var tournaments []TournamentDTO
+	for _, row := range tournamentRows {
+		tournament, err := fn(row)
+		if err != nil {
+			return nil, fmt.Errorf("map tournament from row: %w", err)
+		}
+		tournaments = append(tournaments, tournament)
+	}
+	return tournaments, nil
 }
 
 func mapTourneyParticipantFromRow(participant sqlc.SelectParticipantsByTournamentIdRow) TournamentParticipantDTO {
@@ -198,7 +214,7 @@ func (svc *Services) JoinTournament(ctx context.Context, userID int64) error {
 func (svc *Services) GetTournamentByID(ctx context.Context, tournamentID int64) (FullTournamentDTO, error) {
 	eg, egCtx := errgroup.WithContext(ctx)
 
-	var tournamentRow sqlc.Tournament
+	var tournamentRow sqlc.SelectTournamentByIdRow
 	var matchRows []sqlc.SelectMatchesByTournamentIdRow
 	var participantRows []sqlc.SelectParticipantsByTournamentIdRow
 
@@ -228,9 +244,9 @@ func (svc *Services) GetTournamentByID(ctx context.Context, tournamentID int64) 
 		return FullTournamentDTO{}, err
 	}
 
-	tournament, err := mapTournamentFromRow(tournamentRow)
+	tournament, err := mapTournamentRow(tournamentRow)
 	if err != nil {
-		return FullTournamentDTO{}, err
+		return FullTournamentDTO{}, fmt.Errorf("map tournament from row: %w", err)
 	}
 
 	participants := make([]TournamentParticipantDTO, 0, len(participantRows))
@@ -242,7 +258,7 @@ func (svc *Services) GetTournamentByID(ctx context.Context, tournamentID int64) 
 	for _, row := range matchRows {
 		match, err := mapTourneyMatchFromRow(row)
 		if err != nil {
-			return FullTournamentDTO{}, fmt.Errorf("map tourney match from row: %w", err)
+			return FullTournamentDTO{}, fmt.Errorf("map tournament match from row: %w", err)
 		}
 		matches = append(matches, match)
 	}
@@ -269,32 +285,33 @@ func (svc *Services) GetTournaments(ctx context.Context, participantID int64, af
 		afterID = int64(math.MaxInt64)
 	}
 
-	var tournamentRows []sqlc.Tournament
+	var tournaments []TournamentDTO
 	var err error
+
 	if participantID >= 0 {
+		var tournamentRows []sqlc.SelectTournamentsByParticipantRow
 		tournamentRows, err = svc.Querier.SelectTournamentsByParticipant(ctx, sqlc.SelectTournamentsByParticipantParams{
 			UserID:  participantID,
 			AfterID: afterID,
 			PerPage: perPage,
 		})
+		tournaments, err = mapTournamentRows(tournamentRows, func(t sqlc.SelectTournamentsByParticipantRow) (TournamentDTO, error) {
+			return mapTournamentRow(sqlc.SelectTournamentByIdRow(t))
+		})
 	} else {
+		var tournamentRows []sqlc.SelectTournamentsRow
 		tournamentRows, err = svc.Querier.SelectTournaments(ctx, sqlc.SelectTournamentsParams{
 			AfterID: afterID,
 			PerPage: perPage,
+		})
+		tournaments, err = mapTournamentRows(tournamentRows, func(t sqlc.SelectTournamentsRow) (TournamentDTO, error) {
+			return mapTournamentRow(sqlc.SelectTournamentByIdRow(t))
 		})
 	}
 	if err != nil {
 		return nil, fmt.Errorf("select tournaments by participantID %d, afterID %d: %w", participantID, afterID, err)
 	}
 
-	tournaments := make([]TournamentDTO, 0, len(tournamentRows))
-	for _, row := range tournamentRows {
-		tournament, err := mapTournamentFromRow(row)
-		if err != nil {
-			return nil, fmt.Errorf("map tournament from row: %w", err)
-		}
-		tournaments = append(tournaments, tournament)
-	}
 	slog.InfoContext(ctx, "selected tournaments", "tournaments", tournaments)
 
 	return tournaments, nil

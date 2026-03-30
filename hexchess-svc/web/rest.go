@@ -126,7 +126,7 @@ func (server *Server) HandleRegister(w http.ResponseWriter, r *http.Request) err
 	return nil
 }
 
-func (server *Server) handleLoginSession(ctx context.Context, w http.ResponseWriter, user svc.VerifiedUser) error {
+func (server *Server) handleLoginSession(ctx context.Context, w http.ResponseWriter, user svc.VerifiedUserDTO) error {
 	t, err := server.SetSessionPlayer(ctx, w, svc.MakePlayer(user.ID, user.Username, user.Country))
 	if err != nil {
 		return fmt.Errorf("set session player: %w", err)
