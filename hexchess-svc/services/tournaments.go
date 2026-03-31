@@ -13,11 +13,13 @@ import (
 
 type TournamentDTO struct {
 	ID             int64            `json:"id"`
+	Name           string           `json:"name"`
 	Depth          int32            `json:"depth"`
 	MaxPlayerCount int32            `json:"maxPlayerCount"`
 	ScheduledOn    time.Time        `json:"scheduledOn"`
 	IsScheduled    bool             `json:"isScheduled"`
 	CreatedOn      time.Time        `json:"createdOn"`
+	CreatedBy      int64            `json:"createdBy"`
 	Status         TournamentStatus `json:"status"`
 	Mode           GameMode         `json:"mode"`
 }
@@ -46,8 +48,8 @@ type TournamentMatchDTO struct {
 	Depth        int32  `json:"depth"`
 	//WhiteID      int64      `json:"whiteId"`
 	//BlackID      int64      `json:"blackId"`
-	CreatedOn time.Time  `json:"createdOn"`
-	Replay    *ReplayDTO `json:"replay"`
+	CreatedOn time.Time          `json:"createdOn"`
+	Replay    *ReplayWithViewDto `json:"replay"`
 }
 
 type FullTournamentDTO struct {
@@ -66,23 +68,25 @@ func MatchesAtDepth(depth int32) int32 {
 	return PlayersAtDepth(depth) / 2
 }
 
-func mapTournamentRow(tournament sqlc.SelectTournamentByIdRow) (TournamentDTO, error) {
+func mapTournamentRow(tournament sqlc.SelectTournamentByIdRow) (t TournamentDTO, err error) {
 	status, err := ParseTournamentStatus(tournament.Status)
 	if err != nil {
-		return TournamentDTO{}, err
+		return t, err
 	}
 	mode, err := ParseGameMode(tournament.Mode)
 	if err != nil {
-		return TournamentDTO{}, err
+		return t, err
 	}
 
 	return TournamentDTO{
 		ID:             tournament.ID,
+		Name:           tournament.Name,
 		Depth:          tournament.Depth,
 		MaxPlayerCount: PlayersAtDepth(tournament.Depth),
 		ScheduledOn:    tournament.ScheduledOn.Time,
 		IsScheduled:    tournament.ScheduledOn.Valid,
 		CreatedOn:      tournament.CreatedOn.Time,
+		CreatedBy:      tournament.CreatedBy,
 		Status:         status,
 		Mode:           mode,
 	}, nil
@@ -123,24 +127,24 @@ func mapTourneyParticipantFromRow(participant sqlc.SelectParticipantsByTournamen
 	}
 }
 
-func mapTourneyMatchFromRow(match sqlc.SelectMatchesByTournamentIdRow) (TournamentMatchDTO, error) {
+func mapTourneyMatchFromRow(match sqlc.SelectMatchesByTournamentIdRow) (t TournamentMatchDTO, err error) {
 	result, err := ParseReplayResult(match.Result.ResultEnum)
 	if err != nil {
-		return TournamentMatchDTO{}, err
+		return t, err
 	}
 	cause, err := ParseReplayCause(match.Cause.CauseEnum)
 	if err != nil {
-		return TournamentMatchDTO{}, err
+		return t, err
 	}
 	mode, err := ParseGameMode(match.Mode.ModeEnum)
 	if err != nil {
-		return TournamentMatchDTO{}, err
+		return t, err
 	}
 
-	var replay *ReplayDTO
+	var replayWithView *ReplayWithViewDto
 	if match.ReplayID.Valid {
 		// invariant: if replayID is non null, all other replay columns will also be non null.
-		replay = ptr(ReplayDTO{
+		replay := ReplayDTO{
 			ID:          match.ReplayID.Int64,
 			WhiteID:     match.WhiteID.Int64,
 			BlackID:     match.BlackID.Int64,
@@ -150,7 +154,11 @@ func mapTourneyMatchFromRow(match sqlc.SelectMatchesByTournamentIdRow) (Tourname
 			WinEloDiff:  match.WinEloDiff.Float64,
 			LoseEloDiff: match.LoseEloDiff.Float64,
 			PlayedOn:    match.PlayedOn.Time,
-		}.Compute())
+		}
+		replayWithView = ptr(ReplayWithViewDto{
+			ReplayDTO:     replay,
+			ReplayViewDto: MakeReplayViewDto(replay),
+		})
 	}
 
 	return TournamentMatchDTO{
@@ -159,7 +167,7 @@ func mapTourneyMatchFromRow(match sqlc.SelectMatchesByTournamentIdRow) (Tourname
 		TournamentID: match.TournamentID,
 		Depth:        match.Depth,
 		CreatedOn:    match.CreatedOn.Time,
-		Replay:       replay,
+		Replay:       replayWithView,
 	}, nil
 }
 
@@ -267,17 +275,14 @@ func (svc *Services) GetTournamentByID(ctx context.Context, tournamentID int64) 
 	if err != nil {
 		return FullTournamentDTO{}, fmt.Errorf("get users leaderboard rank: %w", err)
 	}
-	for _, participant := range participants {
-		participant.Rank = userLdbRanksMap[participant.ID]
+	for i := range participants {
+		participants[i].Rank = userLdbRanksMap[participants[i].ID]
 	}
 
-	slog.InfoContext(ctx, "selected tournament", "tournament", tournament, "participants", participants, "matches", matches)
+	fullTournament := FullTournamentDTO{TournamentDTO: tournament, Participants: participants, Matches: matches}
+	slog.InfoContext(ctx, "selected tournament", "tournament", fullTournament)
 
-	return FullTournamentDTO{
-		TournamentDTO: tournament,
-		Participants:  participants,
-		Matches:       matches,
-	}, nil
+	return fullTournament, nil
 }
 
 func (svc *Services) GetTournaments(ctx context.Context, participantID int64, afterID int64, perPage int32) ([]TournamentDTO, error) {

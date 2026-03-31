@@ -39,7 +39,6 @@ func main() {
 	rdbGameStoreURL := os.Getenv("REDIS_GAMESTORE_URL")
 	rdbCacheURL := os.Getenv("REDIS_CACHE_URL")
 	rdbPubSubURL := os.Getenv("REDIS_PUBSUB_URL")
-	rdbQueueURL := os.Getenv("REDIS_QUEUE_URL")
 	isLocalstack := os.Getenv("IS_LOCALSTACK") == "true"
 	awsDefaultRegion := os.Getenv("AWS_DEFAULT_REGION")
 	awsEndpoint := os.Getenv("AWS_ENDPOINT")
@@ -65,7 +64,6 @@ func main() {
 		CacheAddr:     rdbCacheURL,
 		GameStoreAddr: rdbGameStoreURL,
 		PubsubAddr:    rdbPubSubURL,
-		QueueAddr:     rdbQueueURL,
 	}
 	slog.Info("connecting to redis db", "addrs", addrs)
 	rdb := db.MakeRdb(addrs, nil)

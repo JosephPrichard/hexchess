@@ -47,50 +47,9 @@ type ChallengeInst struct {
 	MadeOn       time.Time `json:"madeOn"`
 }
 
-func mapChallengeRow(row sqlc.SelectChallengesByParticipantRow) (ChallengeDTO, error) {
-	startColor, err := ParseColor(row.StartColor)
-	if err != nil {
-		return ChallengeDTO{}, err
-	}
-	mode, err := ParseGameMode(row.Mode)
-	if err != nil {
-		return ChallengeDTO{}, err
-	}
-
-	return ChallengeDTO{
-		ChallengerID:      row.ChallengerID,
-		ChallengerName:    row.ChallengerName,
-		ChallengerCountry: row.ChallengerCountry,
-		ChallengerElo:     defaultElo(row.ChallengerElo),
-		ChallengeeID:      row.ChallengeeID,
-		ChallengeeName:    row.ChallengeeName,
-		ChallengeeCountry: row.ChallengeeCountry,
-		ChallengeeElo:     defaultElo(row.ChallengeeElo),
-		Mode:              mode,
-		StartColor:        startColor,
-		MadeOn:            row.MadeOn.Time,
-		ExpiresOn:         row.MadeOn.Time.Add(ExpireChallengeMaxAge),
-	}, nil
-}
-
 func (svc *Services) InsertChallenge(ctx context.Context, inst ChallengeInst) error {
 	_, err := svc.InsertChallengeRet(ctx, inst)
 	return err
-}
-
-func mapChallengeInsertErr(err error) error {
-	var pgErr *pgconn.PgError
-	if !errors.As(err, &pgErr) {
-		return err
-	}
-	switch pgErr.Code {
-	case db.ErrPgUniqueViolation:
-		return ErrDuplicateChallenge
-	case db.ErrPgForeignKeyViolation, db.ErrPgCheckViolation:
-		return ErrParticipantConflict
-	default:
-		return err
-	}
 }
 
 func (svc *Services) InsertChallengeRet(ctx context.Context, inst ChallengeInst) (ChallengeDTO, error) {
@@ -120,6 +79,21 @@ func (svc *Services) InsertChallengeRet(ctx context.Context, inst ChallengeInst)
 	}
 	slog.InfoContext(ctx, "created a new challenge", "challenge", inst, "challenge", challenge)
 	return challenge, nil
+}
+
+func mapChallengeInsertErr(err error) error {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return err
+	}
+	switch pgErr.Code {
+	case db.ErrPgUniqueViolation:
+		return ErrDuplicateChallenge
+	case db.ErrPgForeignKeyViolation, db.ErrPgCheckViolation:
+		return ErrParticipantConflict
+	default:
+		return err
+	}
 }
 
 type ChallengeKey struct {
@@ -207,4 +181,30 @@ func (svc *Services) DeleteExpiredChallenges(ctx context.Context, userID int64) 
 	})
 	logutil.DynLog(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", t)
 	return nil
+}
+
+func mapChallengeRow(row sqlc.SelectChallengesByParticipantRow) (ChallengeDTO, error) {
+	startColor, err := ParseColor(row.StartColor)
+	if err != nil {
+		return ChallengeDTO{}, err
+	}
+	mode, err := ParseGameMode(row.Mode)
+	if err != nil {
+		return ChallengeDTO{}, err
+	}
+
+	return ChallengeDTO{
+		ChallengerID:      row.ChallengerID,
+		ChallengerName:    row.ChallengerName,
+		ChallengerCountry: row.ChallengerCountry,
+		ChallengerElo:     defaultElo(row.ChallengerElo),
+		ChallengeeID:      row.ChallengeeID,
+		ChallengeeName:    row.ChallengeeName,
+		ChallengeeCountry: row.ChallengeeCountry,
+		ChallengeeElo:     defaultElo(row.ChallengeeElo),
+		Mode:              mode,
+		StartColor:        startColor,
+		MadeOn:            row.MadeOn.Time,
+		ExpiresOn:         row.MadeOn.Time.Add(ExpireChallengeMaxAge),
+	}, nil
 }

@@ -58,7 +58,7 @@ var UserModeElos = []struct {
 	{UserID: 9, Mode: "CORRESPONDENCE_1", Elo: 1500, Wins: 5, Losses: 2},
 }
 
-var FirstReplayGameID = uuid.NewString()
+var FirstReplayGameID = ReplayInsts[0].GameID
 
 const (
 	FirstReplayID = 1
@@ -79,7 +79,7 @@ var ReplayInsts = []struct {
 	PlayedOn       time.Time
 }{
 	{
-		GameID:         FirstReplayGameID, // replay ID 1.
+		GameID:         uuid.NewString(), // replay ID 1.
 		WhiteID:        ptr(1),
 		BlackID:        ptr(2),
 		Result:         "WHITE_WINS",
@@ -225,12 +225,137 @@ var ChallengeInsts = []struct {
 	{ChallengerID: 5, ChallengeeID: 1, Mode: "CORRESPONDENCE_1", StartColor: "RANDOM", MadeOn: TimeNow.Add(-1 * time.Hour * 24 * 365)},
 }
 
+var TournamentInsts = []struct {
+	TournamentKey string
+	Name          string
+	Depth         int32
+	ScheduledOn   *time.Time
+	CreatedOn     time.Time
+	UpdatedOn     time.Time
+	CreatedBy     int64
+	Status        string
+	Mode          string
+}{
+	{
+		TournamentKey: uuid.NewString(),
+		Name:          "Test Tournament 1",
+		Depth:         2,
+		ScheduledOn:   nil,
+		CreatedOn:     TimeNow,
+		UpdatedOn:     TimeNow,
+		CreatedBy:     1,
+		Status:        "LOBBY",
+		Mode:          "CORRESPONDENCE_1",
+	},
+	{
+		TournamentKey: uuid.NewString(),
+		Name:          "Test Tournament 2",
+		Depth:         2,
+		ScheduledOn:   nil,
+		CreatedOn:     TimeNow,
+		UpdatedOn:     TimeNow,
+		CreatedBy:     1,
+		Status:        "IN_PROGRESS",
+		Mode:          "CORRESPONDENCE_1",
+	},
+	{
+		TournamentKey: uuid.NewString(),
+		Name:          "Test Tournament 3",
+		Depth:         1,
+		ScheduledOn:   nil,
+		CreatedOn:     TimeNow,
+		UpdatedOn:     TimeNow,
+		CreatedBy:     1,
+		Status:        "FINISHED",
+		Mode:          "CORRESPONDENCE_1",
+	},
+}
+
+var TournamentParticipantInsts = []struct {
+	TournamentID int64
+	UserID       int64
+	JoinedOn     time.Time
+}{
+	// IN_PROGRESS tournament (max participants)
+	{
+		TournamentID: 2,
+		UserID:       1,
+		JoinedOn:     TimeNow,
+	},
+	{
+		TournamentID: 2,
+		UserID:       2,
+		JoinedOn:     TimeNow,
+	},
+	{
+		TournamentID: 2,
+		UserID:       3,
+		JoinedOn:     TimeNow,
+	},
+	{
+		TournamentID: 2,
+		UserID:       4,
+		JoinedOn:     TimeNow,
+	},
+	// FINISHED tournament participants (max participants)
+	{
+		TournamentID: 3,
+		UserID:       1,
+		JoinedOn:     TimeNow,
+	},
+	{
+		TournamentID: 3,
+		UserID:       2,
+		JoinedOn:     TimeNow,
+	},
+}
+
+var TournamentMatchInsts = []struct {
+	GameID       *string
+	TournamentID int64
+	Depth        int32
+	WhiteID      int64
+	BlackID      int64
+	CreatedOn    time.Time
+}{
+	// IN_PROGRESS tournmanet matches (some matches)
+	{
+		GameID:       ptr(uuid.NewString()), // (no replay, unfinished)
+		TournamentID: 3,
+		Depth:        1,
+		WhiteID:      1,
+		BlackID:      2,
+		CreatedOn:    TimeNow,
+	},
+	{
+		GameID:       ptr(uuid.NewString()), // (no replay, unfinished)
+		TournamentID: 3,
+		Depth:        1,
+		WhiteID:      1,
+		BlackID:      2,
+		CreatedOn:    TimeNow,
+	},
+	// FINISHED tournament matches (all matches)
+	{
+		GameID:       ptr(FirstReplayGameID), // (replay, finished)
+		TournamentID: 3,
+		Depth:        1,
+		WhiteID:      1,
+		BlackID:      2,
+		CreatedOn:    TimeNow,
+	},
+}
+
 func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
 	ctx := context.WithValue(context.Background(), logutil.Trace, "insert-testing-data")
 
 	batch := &pgx.Batch{}
+	instCount := 0
 
-	instCount := len(UsersInsts) + len(UserModeElos) + len(ReplayInsts) + len(ChallengeInsts)
+	batchQueue := func(sql string, args ...interface{}) {
+		batch.Queue(sql, args...)
+		instCount++
+	}
 
 	for _, inst := range UsersInsts {
 		saltBytes := make([]byte, 16)
@@ -242,10 +367,9 @@ func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
 		if err != nil {
 			t.Fatalf("failed to hash password for user: %v", err)
 		}
-		batch.Queue(`
+		batchQueue(`
 			INSERT INTO users (username, country, password, salt, joined_on)
-			VALUES ($1, $2, $3, $4, $5)
-			`,
+			VALUES ($1, $2, $3, $4, $5)`,
 			inst.Username,
 			inst.Country,
 			hashedPassword,
@@ -254,10 +378,9 @@ func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
 		)
 	}
 	for _, inst := range UserModeElos {
-		batch.Queue(`
+		batchQueue(`
 			INSERT INTO user_mode_elos (user_id, mode, elo, highest_elo, wins, losses) 
-			VALUES ($1, $2, $3, $4, $5, $6);
-			`,
+			VALUES ($1, $2, $3, $4, $5, $6);`,
 			inst.UserID,
 			inst.Mode,
 			inst.Elo,
@@ -267,10 +390,9 @@ func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
 		)
 	}
 	for _, inst := range ReplayInsts {
-		batch.Queue(`
+		batchQueue(`
 			INSERT INTO replays (game_id, white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode) 
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
-			`,
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);`,
 			inst.GameID,
 			inst.WhiteID,
 			inst.BlackID,
@@ -285,16 +407,15 @@ func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
 		)
 	}
 	for _, inst := range ReplayMoveHistoryInsts {
-		batch.Queue(`
+		batchQueue(`
 			INSERT INTO replay_move_histories (replay_id, data) 
-			VALUES ($1, $2);
-			`,
+			VALUES ($1, $2);`,
 			inst.ReplayInst,
 			inst.MoveHistBlob,
 		)
 	}
 	for _, inst := range ChallengeInsts {
-		batch.Queue("INSERT INTO challenges (challenger_id, challengee_id, mode, start_color, made_on) VALUES ($1, $2, $3, $4, $5);",
+		batchQueue("INSERT INTO challenges (challenger_id, challengee_id, mode, start_color, made_on) VALUES ($1, $2, $3, $4, $5);",
 			inst.ChallengerID,
 			inst.ChallengeeID,
 			inst.Mode,
@@ -302,12 +423,48 @@ func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
 			inst.MadeOn,
 		)
 	}
+	for _, inst := range TournamentInsts {
+		batchQueue(`
+			INSERT INTO tournaments (tournament_key, name, depth, scheduled_on, created_on, updated_on, created_by, status, mode)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
+			inst.TournamentKey,
+			inst.Name,
+			inst.Depth,
+			inst.ScheduledOn,
+			inst.CreatedOn,
+			inst.UpdatedOn,
+			inst.CreatedBy,
+			inst.Status,
+			inst.Mode,
+		)
+	}
+	for _, inst := range TournamentParticipantInsts {
+		batchQueue(`
+			INSERT INTO tournament_participants (tournament_id, user_id, joined_on)
+			VALUES ($1, $2, $3);`,
+			inst.TournamentID,
+			inst.UserID,
+			inst.JoinedOn,
+		)
+	}
+	for _, inst := range TournamentMatchInsts {
+		batchQueue(`
+			INSERT INTO tournament_matches (game_id, tournament_id, depth, white_id, black_id, created_on)
+			VALUES ($1, $2, $3, $4, $5, $6);`,
+			inst.GameID,
+			inst.TournamentID,
+			inst.Depth,
+			inst.WhiteID,
+			inst.BlackID,
+			inst.CreatedOn,
+		)
+	}
 
-	br := pool.SendBatch(ctx, batch)
-	defer br.Close()
+	batchResults := pool.SendBatch(ctx, batch)
+	defer batchResults.Close()
 
 	for range instCount {
-		if _, err := br.Exec(); err != nil {
+		if _, err := batchResults.Exec(); err != nil {
 			t.Fatalf("failed to insert seed data: %v", err)
 		}
 	}

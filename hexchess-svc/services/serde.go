@@ -278,29 +278,29 @@ func MarshalFinishGameEvent(event FinishGameEvent) ([]byte, error) {
 	})
 }
 
-// Replay
+// ReplayUsersDto
 
-func SerializeReplayOutput(gameID string, replay ReplayDTO) *pb.GameOutput {
+func SerializeReplayOutput(gameID string, replay FullReplayDto) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Replay{Replay: &pb.Replay{
 			Id:           replay.ID,
 			WhiteId:      replay.WhiteID,
 			BlackId:      replay.BlackID,
-			WhiteName:    replay.WhiteName,
-			BlackName:    replay.BlackName,
-			WhiteCountry: replay.WhiteCountry,
-			BlackCountry: replay.BlackCountry,
 			Mode:         replay.Mode.String(),
 			Result:       replay.Result.String(),
 			Cause:        replay.Cause.String(),
 			WinEloDiff:   replay.WinEloDiff,
 			LoseEloDiff:  replay.LoseEloDiff,
+			PlayedOn:     replay.PlayedOn.Format(time.RFC3339),
+			WhiteName:    replay.WhiteName,
+			BlackName:    replay.BlackName,
+			WhiteCountry: replay.WhiteCountry,
+			BlackCountry: replay.BlackCountry,
 			WhiteElo:     replay.WhiteElo,
 			BlackElo:     replay.BlackElo,
 			WhiteEloDiff: replay.WhiteEloDiff,
 			BlackEloDiff: replay.BlackEloDiff,
-			PlayedOn:     replay.PlayedOn.Format(time.RFC3339),
 		}},
 	}
 }

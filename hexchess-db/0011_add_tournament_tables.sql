@@ -7,6 +7,7 @@ CREATE TYPE tournament_status_enum AS ENUM (
 
 CREATE TABLE tournaments (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name TEXT NOT NULL,
     tournament_key TEXT NOT NULL UNIQUE,
     depth INT NOT NULL,
     status tournament_status_enum NOT NULL,

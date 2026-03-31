@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"hexchess-svc/chess"
 	"hexchess-svc/pkg/logutil"
 	"log/slog"
@@ -101,7 +102,7 @@ func (svc *Services) broadcastGameCounts(strID string) error {
 }
 
 func (svc *Services) JoinGame(ctx context.Context, gameID string, player PlayerState) (*ChessState, error) {
-	state, err := svc.UpdateChessStateTxn(ctx, gameID, func(state *ChessState) error {
+	update := func(state *ChessState) error {
 		if !player.Present {
 			slog.WarnContext(ctx, "player did not join the game", "playerID", player.ID)
 			return nil
@@ -137,7 +138,8 @@ func (svc *Services) JoinGame(ctx context.Context, gameID string, player PlayerS
 			return nil
 		}
 		return nil
-	})
+	}
+	state, err := svc.UpdateChessStateTxn(ctx, gameID, update, nil)
 	if state != nil {
 		slog.InfoContext(ctx, "player joined game", "playerID", player.ID, "chessMeta", state.ChessMeta)
 	}
@@ -150,7 +152,7 @@ type MoveResult struct {
 }
 
 func (svc *Services) MakeGameMove(ctx context.Context, gameID string, player PlayerState, move chess.Move) (MoveResult, error) {
-	state, err := svc.UpdateChessStateTxn(ctx, gameID, func(state *ChessState) error {
+	update := func(state *ChessState) error {
 		// pre move validations on chess state
 		if !state.HasBothPlayers() {
 			return ErrStartedGame{GameID: gameID}
@@ -177,31 +179,34 @@ func (svc *Services) MakeGameMove(ctx context.Context, gameID string, player Pla
 		state.Game.ClearTables()
 
 		return nil
-	})
+	}
+	commit := func(pipe redis.Pipeliner, state *ChessState) error {
+		if state.EndState.isEnded() {
+			slog.InfoContext(ctx, "game has reached checkmate", "player", player.ID, "move", move, "chessMeta", state.ChessMeta)
+
+			result := WhiteWin
+			if state.Game.Board.IsWhiteTurn {
+				result = BlackWin
+			}
+			if err := svc.pushFinishGameEvent(ctx, pipe, FinishGameEvent{
+				GameID:       gameID,
+				WhitePlayer:  state.WhitePlayer,
+				BlackPlayer:  state.BlackPlayer,
+				ReplayMode:   state.Mode,
+				ReplayResult: result,
+				ReplayCause:  Checkmate,
+			}); err != nil {
+				return fmt.Errorf("push finished game event: %w", err)
+			}
+		}
+		return nil
+	}
+	state, err := svc.UpdateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {
 		return MoveResult{}, err
 	}
 
 	histMove := state.Game.LastMove() // invariant: if this function does not error before this line, it will have at least one move.
-
-	if state.EndState.isEnded() {
-		slog.InfoContext(ctx, "game has reached checkmate", "player", player.ID, "move", move, "chessMeta", state.ChessMeta)
-
-		result := WhiteWin
-		if state.Game.Board.IsWhiteTurn {
-			result = BlackWin
-		}
-		if err := svc.PushFinishGameEvent(ctx, FinishGameEvent{
-			GameID:       gameID,
-			WhitePlayer:  state.WhitePlayer,
-			BlackPlayer:  state.BlackPlayer,
-			ReplayMode:   state.Mode,
-			ReplayResult: result,
-			ReplayCause:  Checkmate,
-		}); err != nil {
-			return MoveResult{}, fmt.Errorf("push finished game event: %w", err)
-		}
-	}
 
 	moveResult := MoveResult{State: state, Move: histMove}
 	slog.InfoContext(ctx, "made move on game", "player", player.ID, "moveResult", moveResult, "move", move, "chessMeta", state.ChessMeta)
@@ -223,7 +228,7 @@ const (
 )
 
 func (svc *Services) AttemptGameUndo(ctx context.Context, gameID string, player PlayerState, kind UndoKind) (*ChessState, error) {
-	state, err := svc.UpdateChessStateTxn(ctx, gameID, func(state *ChessState) error {
+	update := func(state *ChessState) error {
 		switch kind {
 		case UndoCreate:
 			if player.IsSame(state.CurrPlayer()) {
@@ -249,7 +254,8 @@ func (svc *Services) AttemptGameUndo(ctx context.Context, gameID string, player 
 			state.UndoState = UndoState{}
 		}
 		return nil
-	})
+	}
+	state, err := svc.UpdateChessStateTxn(ctx, gameID, update, nil)
 	if state != nil {
 		slog.InfoContext(ctx, "attempt game undo", "playerID", player.ID, "chessMeta", state.ChessMeta)
 	}
@@ -257,7 +263,7 @@ func (svc *Services) AttemptGameUndo(ctx context.Context, gameID string, player 
 }
 
 func (svc *Services) EndGame(ctx context.Context, gameID string, player PlayerState) (EndKind, error) {
-	state, err := svc.UpdateChessStateTxn(ctx, gameID, func(state *ChessState) error {
+	update := func(state *ChessState) error {
 		if state.EndState.isEnded() {
 			return ErrFinishedGame{GameID: gameID}
 		}
@@ -276,27 +282,30 @@ func (svc *Services) EndGame(ctx context.Context, gameID string, player PlayerSt
 			state.EndState = Aborted
 		}
 		return nil
-	})
+	}
+	commit := func(pipe redis.Pipeliner, state *ChessState) error {
+		if state.EndState == Finished {
+			result := BlackWin
+			if state.BlackPlayer.ID == player.ID {
+				result = WhiteWin
+			}
+
+			if err := svc.pushFinishGameEvent(ctx, pipe, FinishGameEvent{
+				GameID:       gameID,
+				WhitePlayer:  state.WhitePlayer,
+				BlackPlayer:  state.BlackPlayer,
+				ReplayMode:   state.Mode,
+				ReplayResult: result,
+				ReplayCause:  Forfeit,
+			}); err != nil {
+				return fmt.Errorf("push finished game event: %w", err)
+			}
+		}
+		return nil
+	}
+	state, err := svc.UpdateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {
 		return NotEnded, err
-	}
-
-	if state.EndState == Finished {
-		result := BlackWin
-		if state.BlackPlayer.ID == player.ID {
-			result = WhiteWin
-		}
-
-		if err := svc.PushFinishGameEvent(ctx, FinishGameEvent{
-			GameID:       gameID,
-			WhitePlayer:  state.WhitePlayer,
-			BlackPlayer:  state.BlackPlayer,
-			ReplayMode:   state.Mode,
-			ReplayResult: result,
-			ReplayCause:  Forfeit,
-		}); err != nil {
-			return state.EndState, fmt.Errorf("push finished game event: %w", err)
-		}
 	}
 
 	slog.InfoContext(ctx, "player forfeited game", "playerID", player.ID, "gameId", gameID)

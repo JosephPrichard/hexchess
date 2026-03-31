@@ -53,8 +53,8 @@ func TestGetUserReplays(t *testing.T) {
 	replay1 := TestReplayDTOs[0]
 	replay3 := TestReplayDTOs[1]
 	replay4 := TestReplayDTOs[2]
-	expectedReplayList1 := []ReplayDTO{replay4, replay3, replay1}
-	expectedReplayList2 := []ReplayDTO{replay1}
+	expectedReplayList1 := []FullReplayDto{replay4, replay3, replay1}
+	expectedReplayList2 := []FullReplayDto{replay1}
 
 	assert.Equal(t, expectedReplayList1, actualReplayList1)
 	assert.Equal(t, expectedReplayList2, actualReplayList2)

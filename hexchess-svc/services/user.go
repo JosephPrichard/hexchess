@@ -48,47 +48,6 @@ type RankedUser struct {
 var ErrUserNotFound = errors.New("user not found")
 var ErrTakenUsername = errors.New("username already taken")
 
-type HashResult struct {
-	Salt           string
-	HashedPassword string
-}
-
-func hashPassword(password string) (HashResult, error) {
-	saltBytes := make([]byte, 16)
-	if _, err := rand.Read(saltBytes); err != nil {
-		return HashResult{}, fmt.Errorf("generate salt: %w", err)
-	}
-	salt := base64.StdEncoding.EncodeToString(saltBytes)
-
-	saltedPassword := []byte(password + salt)
-
-	hashed, err := bcrypt.GenerateFromPassword(saltedPassword, 12)
-	if err != nil {
-		return HashResult{}, fmt.Errorf("hash password: %w", err)
-	}
-
-	return HashResult{Salt: salt, HashedPassword: string(hashed)}, nil
-}
-
-func calcUserWinrate(wins int32, losses int32, draws int32) int64 {
-	wr := float64(0)
-	total := wins + losses + draws
-	if total > 0 {
-		wr = float64(wins) / float64(total) * 100.0
-	}
-	return int64(wr)
-}
-
-func mapUserRow(row sqlc.SelectUserByIDRow) UserDTO {
-	return UserDTO{
-		ID:       row.ID,
-		Username: row.Username,
-		Country:  row.Country,
-		Bio:      row.Bio,
-		JoinedOn: row.JoinedOn.Time,
-	}
-}
-
 type UserInst struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -398,4 +357,45 @@ func (svc *Services) GetUserStats(ctx context.Context, id int64) (UserStatsDTO, 
 
 	slog.InfoContext(ctx, "selected user elos", "stats", stats)
 	return stats, nil
+}
+
+type HashResult struct {
+	Salt           string
+	HashedPassword string
+}
+
+func hashPassword(password string) (HashResult, error) {
+	saltBytes := make([]byte, 16)
+	if _, err := rand.Read(saltBytes); err != nil {
+		return HashResult{}, fmt.Errorf("generate salt: %w", err)
+	}
+	salt := base64.StdEncoding.EncodeToString(saltBytes)
+
+	saltedPassword := []byte(password + salt)
+
+	hashed, err := bcrypt.GenerateFromPassword(saltedPassword, 12)
+	if err != nil {
+		return HashResult{}, fmt.Errorf("hash password: %w", err)
+	}
+
+	return HashResult{Salt: salt, HashedPassword: string(hashed)}, nil
+}
+
+func calcUserWinrate(wins int32, losses int32, draws int32) int64 {
+	wr := float64(0)
+	total := wins + losses + draws
+	if total > 0 {
+		wr = float64(wins) / float64(total) * 100.0
+	}
+	return int64(wr)
+}
+
+func mapUserRow(row sqlc.SelectUserByIDRow) UserDTO {
+	return UserDTO{
+		ID:       row.ID,
+		Username: row.Username,
+		Country:  row.Country,
+		Bio:      row.Bio,
+		JoinedOn: row.JoinedOn.Time,
+	}
 }

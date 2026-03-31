@@ -30,11 +30,6 @@ services:
     container_name: hexchess-redis-pubsub
     ports:
       - "6381:6379"
-  redis-queue:
-    image: redis/redis-stack-server
-    container_name: hexchess-redis-queue
-    ports:
-      - "6382:6379"
   localstack:
     image: localstack/localstack:latest
     container_name: hexchess-localstack

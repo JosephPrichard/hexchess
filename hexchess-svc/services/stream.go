@@ -17,26 +17,26 @@ func StartStreamReaders(ctx context.Context, svc *Services) {
 func MakeFinishGameStreamer(ctx context.Context, svc *Services) *RedisStreamer[FinishGameEvent] {
 	return &RedisStreamer[FinishGameEvent]{
 		Context: ctx,
-		Queue:   svc.Redis.Queue,
+		Client:  svc.Redis.GameStore,
 
 		Concurrency:   8,
 		StreamKey:     svc.Redis.FinishGameStreamKey,
 		ConsumerGroup: FinishGameConsumerGroup,
 
-		HandleMessage:  svc.insertFinishedGameEvent,
+		HandleEvent:    svc.insertFinishedGameEvent,
 		UnmarshalEvent: UnmarshalFinishGameEvent,
 	}
 }
 
 type RedisStreamer[Event any] struct {
 	Context context.Context
-	Queue   *redis.Client
+	Client  *redis.Client
 
 	Concurrency   int64
 	StreamKey     string
 	ConsumerGroup string
 
-	HandleMessage  func(ctx context.Context, event Event) error
+	HandleEvent    func(ctx context.Context, event Event) error
 	UnmarshalEvent func([]byte) (Event, error)
 
 	waitGroup sync.WaitGroup
@@ -66,7 +66,7 @@ func (stream *RedisStreamer[Event]) handleXReadMessage(msg redis.XMessage) {
 			return SendAck
 		}
 
-		if err := stream.HandleMessage(stream.Context, event); err != nil {
+		if err := stream.HandleEvent(stream.Context, event); err != nil {
 			slog.Error("failed to handle event", "err", err)
 			return DontSendAck
 		}
@@ -76,7 +76,7 @@ func (stream *RedisStreamer[Event]) handleXReadMessage(msg redis.XMessage) {
 	if ackSignal == DontSendAck {
 		return
 	}
-	if err := stream.Queue.XAck(stream.Context, stream.StreamKey, stream.ConsumerGroup, msg.ID).Err(); err != nil {
+	if err := stream.Client.XAck(stream.Context, stream.StreamKey, stream.ConsumerGroup, msg.ID).Err(); err != nil {
 		slog.Error("failed to acknowledge event", "id", msg.ID, "err", err)
 	} else {
 		slog.Info("acknowledged finished event", "id", msg.ID)
@@ -87,7 +87,7 @@ func (stream *RedisStreamer[Event]) EventLoop() error {
 	consumerName := uuid.NewString()
 	streamKey := stream.StreamKey
 
-	err := stream.Queue.XGroupCreateMkStream(stream.Context, streamKey, stream.ConsumerGroup, "0").Err()
+	err := stream.Client.XGroupCreateMkStream(stream.Context, streamKey, stream.ConsumerGroup, "0").Err()
 	if err != nil && !redis.HasErrorPrefix(err, "BUSYGROUP") {
 		return fmt.Errorf("create games stream consumer group: %w", err)
 	}
@@ -95,7 +95,7 @@ func (stream *RedisStreamer[Event]) EventLoop() error {
 	slog.Info("created finish game event streamer", "consumerName", consumerName)
 
 	for {
-		entries, err := stream.Queue.XReadGroup(stream.Context, &redis.XReadGroupArgs{
+		entries, err := stream.Client.XReadGroup(stream.Context, &redis.XReadGroupArgs{
 			Group:    stream.ConsumerGroup,
 			Consumer: consumerName,
 			Streams:  []string{streamKey, ">"}, // ">" means only undelivered messages

@@ -13,7 +13,6 @@ import (
 )
 
 type ReplayDTO struct {
-	// fetched from replays table directly.
 	ID          int64        `json:"id"`
 	WhiteID     int64        `json:"whiteId"`
 	BlackID     int64        `json:"blackId"`
@@ -23,106 +22,52 @@ type ReplayDTO struct {
 	WinEloDiff  float64      `json:"winEloDiff"`
 	LoseEloDiff float64      `json:"loseEloDiff"`
 	PlayedOn    time.Time    `json:"playedOn"`
+}
 
-	// joined from users/elo tables, may be zero if not selected.
+type ReplayUsersDto struct {
 	WhiteName    string  `json:"whiteName"`
 	BlackName    string  `json:"blackName"`
 	WhiteCountry string  `json:"whiteCountry"`
 	BlackCountry string  `json:"blackCountry"`
 	WhiteElo     float64 `json:"whiteElo"`
 	BlackElo     float64 `json:"blackElo"`
+}
 
-	// 'view' fields that can be computed after construction.
+type ReplayViewDto struct {
 	WhiteEloDiff float64 `json:"whiteEloDiff"`
 	BlackEloDiff float64 `json:"blackEloDiff"`
 }
 
-func (replay ReplayDTO) Compute() ReplayDTO {
-	switch replay.Result {
+type FullReplayDto struct {
+	ReplayDTO
+	ReplayUsersDto
+	ReplayViewDto
+}
+
+type ReplayWithViewDto struct {
+	ReplayDTO
+	ReplayViewDto
+}
+
+func MakeReplayViewDto(input ReplayDTO) (output ReplayViewDto) {
+	switch input.Result {
 	case WhiteWin:
-		replay.WhiteEloDiff, replay.BlackEloDiff = replay.WinEloDiff, replay.LoseEloDiff
+		output.WhiteEloDiff, output.BlackEloDiff = input.WinEloDiff, input.LoseEloDiff
 	case BlackWin:
-		replay.WhiteEloDiff, replay.BlackEloDiff = replay.LoseEloDiff, replay.WinEloDiff
+		output.WhiteEloDiff, output.BlackEloDiff = input.LoseEloDiff, input.WinEloDiff
 	default:
 	}
-	return replay
-}
-
-func mapReplayByIDRow(row sqlc.SelectReplayByIDRow) (ReplayDTO, error) {
-	result, err := ParseReplayResult(row.Result)
-	if err != nil {
-		return ReplayDTO{}, err
-	}
-	cause, err := ParseReplayCause(row.Cause)
-	if err != nil {
-		return ReplayDTO{}, err
-	}
-	mode, err := ParseGameMode(row.Mode)
-	if err != nil {
-		return ReplayDTO{}, err
-	}
-
-	return ReplayDTO{
-		ID:          row.ID,
-		WhiteID:     row.WhiteID.Int64,
-		BlackID:     row.BlackID.Int64,
-		Result:      result,
-		Cause:       cause,
-		Mode:        mode,
-		WinEloDiff:  row.WinEloDiff,
-		LoseEloDiff: row.LoseEloDiff,
-		PlayedOn:    row.PlayedOn.Time,
-
-		WhiteName:    row.WhiteName.String,
-		BlackName:    row.BlackName.String,
-		WhiteCountry: row.WhiteCountry.String,
-		BlackCountry: row.BlackCountry.String,
-		WhiteElo:     defaultElo(row.WhiteElo),
-		BlackElo:     defaultElo(row.BlackElo),
-	}.Compute(), nil
-}
-
-func mapReplayInst(result GameResult, changeSet GameResultChangeSet) sqlc.InsertReplayParams {
-	return sqlc.InsertReplayParams{
-		GameID:   result.GameID,
-		WhiteID:  pgtype.Int8{Int64: result.WhiteID, Valid: IsNonGuestID(result.WhiteID)},
-		BlackID:  pgtype.Int8{Int64: result.BlackID, Valid: IsNonGuestID(result.BlackID)},
-		Result:   sqlc.ResultEnum(result.ReplayResult.String()),
-		Cause:    sqlc.CauseEnum(result.ReplayCause.String()),
-		Mode:     sqlc.ModeEnum(result.ReplayMode.String()),
-		WinElo:   changeSet.WinEloDiff,
-		LoseElo:  changeSet.LoseEloDiff,
-		WhiteElo: changeSet.WhiteEloNext,
-		BlackElo: changeSet.BlackEloNext,
-		PlayedOn: pgtype.Timestamptz{Valid: true, Time: result.InsertedTime},
-	}
+	return
 }
 
 var ErrNoReplay = errors.New("replay not found")
 
-func mapGetReplayResult[ID string | int64](ctx context.Context, id ID, row sqlc.SelectReplayByIDRow, err error) (ReplayDTO, error) {
-	if err != nil {
-		if IsErrNoRows(err) {
-			return ReplayDTO{}, ErrNoReplay
-		}
-		return ReplayDTO{}, fmt.Errorf("select replay %v by id: %w", id, err)
-	}
-
-	replay, err := mapReplayByIDRow(row)
-	if err != nil {
-		return ReplayDTO{}, fmt.Errorf("map replay %v from row: %w", id, err)
-	}
-
-	slog.InfoContext(ctx, "selected replay by id", "replay", replay, "id", id)
-	return replay, nil
-}
-
-func (svc *Services) GetReplayByGameID(ctx context.Context, gameID string) (ReplayDTO, error) {
+func (svc *Services) GetReplayByGameID(ctx context.Context, gameID string) (FullReplayDto, error) {
 	row, err := svc.Querier.SelectReplayByGameID(ctx, gameID)
 	return mapGetReplayResult(ctx, gameID, sqlc.SelectReplayByIDRow(row), err)
 }
 
-func (svc *Services) GetReplay(ctx context.Context, replayID int64) (ReplayDTO, error) {
+func (svc *Services) GetReplay(ctx context.Context, replayID int64) (FullReplayDto, error) {
 	row, err := svc.Querier.SelectReplayByID(ctx, replayID)
 	return mapGetReplayResult(ctx, replayID, row, err)
 }
@@ -136,7 +81,7 @@ func (svc *Services) GetMovesHistory(ctx context.Context, replayID int) ([]byte,
 	return row.Data, nil
 }
 
-func (svc *Services) GetUserReplays(ctx context.Context, userID int64, afterID int64, perPage int32) ([]ReplayDTO, error) {
+func (svc *Services) GetUserReplays(ctx context.Context, userID int64, afterID int64, perPage int32) ([]FullReplayDto, error) {
 	if afterID < 0 {
 		afterID = int64(math.MaxInt64)
 	}
@@ -153,9 +98,9 @@ func (svc *Services) GetUserReplays(ctx context.Context, userID int64, afterID i
 		return nil, fmt.Errorf("select replays by user id %d: %w", userID, err)
 	}
 
-	var replays []ReplayDTO
+	var replays []FullReplayDto
 	for _, row := range rows {
-		replay, err := mapReplayByIDRow(sqlc.SelectReplayByIDRow(row))
+		replay, err := mapFullReplayByIDRow(sqlc.SelectReplayByIDRow(row))
 		if err != nil {
 			return nil, fmt.Errorf("map replay from row: %w", err)
 		}
@@ -305,4 +250,83 @@ func makeEloHistoryBuckets(eloRows []sqlc.SelectReplayElosRow, params EloHistori
 		}
 	}
 	return bucketMap, duration, nil
+}
+
+func mapGetReplayResult[ID string | int64](ctx context.Context, id ID, row sqlc.SelectReplayByIDRow, err error) (FullReplayDto, error) {
+	if err != nil {
+		if IsErrNoRows(err) {
+			return FullReplayDto{}, ErrNoReplay
+		}
+		return FullReplayDto{}, fmt.Errorf("select replay %v by id: %w", id, err)
+	}
+
+	replay, err := mapFullReplayByIDRow(row)
+	if err != nil {
+		return FullReplayDto{}, fmt.Errorf("map replay %v from row: %w", id, err)
+	}
+
+	slog.InfoContext(ctx, "selected replay by id", "replay", replay, "id", id)
+	return replay, nil
+}
+
+func mapReplayByIDRow(row sqlc.SelectReplayByIDRow) (r ReplayDTO, err error) {
+	result, err := ParseReplayResult(row.Result)
+	if err != nil {
+		return r, err
+	}
+	cause, err := ParseReplayCause(row.Cause)
+	if err != nil {
+		return r, err
+	}
+	mode, err := ParseGameMode(row.Mode)
+	if err != nil {
+		return r, err
+	}
+
+	return ReplayDTO{
+		ID:          row.ID,
+		WhiteID:     row.WhiteID.Int64,
+		BlackID:     row.BlackID.Int64,
+		Result:      result,
+		Cause:       cause,
+		Mode:        mode,
+		WinEloDiff:  row.WinEloDiff,
+		LoseEloDiff: row.LoseEloDiff,
+		PlayedOn:    row.PlayedOn.Time,
+	}, nil
+}
+
+func mapFullReplayByIDRow(row sqlc.SelectReplayByIDRow) (r FullReplayDto, err error) {
+	replay, err := mapReplayByIDRow(row)
+	if err != nil {
+		return r, err
+	}
+	return FullReplayDto{
+		ReplayDTO: replay,
+		ReplayUsersDto: ReplayUsersDto{
+			WhiteName:    row.WhiteName.String,
+			BlackName:    row.BlackName.String,
+			WhiteCountry: row.WhiteCountry.String,
+			BlackCountry: row.BlackCountry.String,
+			WhiteElo:     defaultElo(row.WhiteElo),
+			BlackElo:     defaultElo(row.BlackElo),
+		},
+		ReplayViewDto: MakeReplayViewDto(replay),
+	}, nil
+}
+
+func mapReplayInst(result GameResult, changeSet GameResultChangeSet) sqlc.InsertReplayParams {
+	return sqlc.InsertReplayParams{
+		GameID:   result.GameID,
+		WhiteID:  pgtype.Int8{Int64: result.WhiteID, Valid: IsNonGuestID(result.WhiteID)},
+		BlackID:  pgtype.Int8{Int64: result.BlackID, Valid: IsNonGuestID(result.BlackID)},
+		Result:   sqlc.ResultEnum(result.ReplayResult.String()),
+		Cause:    sqlc.CauseEnum(result.ReplayCause.String()),
+		Mode:     sqlc.ModeEnum(result.ReplayMode.String()),
+		WinElo:   changeSet.WinEloDiff,
+		LoseElo:  changeSet.LoseEloDiff,
+		WhiteElo: changeSet.WhiteEloNext,
+		BlackElo: changeSet.BlackEloNext,
+		PlayedOn: pgtype.Timestamptz{Valid: true, Time: result.InsertedTime},
+	}
 }

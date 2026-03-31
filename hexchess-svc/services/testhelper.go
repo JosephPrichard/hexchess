@@ -48,14 +48,14 @@ func SetupServicesTest(t logutil.TestLogger, flags ...itest.TestFlag) (services 
 	return services
 }
 
-func AssertRedisChessState(t *testing.T, s *Services, wantState *ChessState, options ...cmp.Option) {
+func AssertRedisChessState(t *testing.T, services *Services, wantState *ChessState, options ...cmp.Option) {
 	t.Helper()
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	if wantState == nil {
 		return
 	}
-	actualState, err := s.GetChessState(ctx, wantState.ID)
+	actualState, err := services.GetChessState(ctx, wantState.ID)
 	if err != nil {
 		t.Fatalf("failed to retrieve in redis chess state assert: %v", err)
 	}

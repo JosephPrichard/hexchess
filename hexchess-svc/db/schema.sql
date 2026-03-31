@@ -238,6 +238,7 @@ CREATE TABLE public.tournament_participants (
 
 CREATE TABLE public.tournaments (
     id bigint NOT NULL,
+    name text NOT NULL,
     tournament_key text NOT NULL,
     depth integer NOT NULL,
     status public.tournament_status_enum NOT NULL,

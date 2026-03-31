@@ -50,10 +50,9 @@ func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (rdb db.Redis, er
 
 	return db.MakeRdb(
 		db.RedisAddrs{
-			GameStoreAddr: addr, 
-			CacheAddr: addr,
-			PubsubAddr: addr,
-			QueueAddr: addr,
+			GameStoreAddr: addr,
+			CacheAddr:     addr,
+			PubsubAddr:    addr,
 		},
 		&db.RedisNames{
 			LeaderboardZSet:     unique(db.LeaderboardZSet),

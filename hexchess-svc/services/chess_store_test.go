@@ -3,6 +3,7 @@ package svc
 import (
 	"context"
 	"errors"
+	"github.com/redis/go-redis/v9"
 	"testing"
 	"time"
 
@@ -47,6 +48,7 @@ func TestUpdateChessState(t *testing.T) {
 	defer services.Close()
 
 	testID := "testing-id1-" + uuid.NewString()
+	arbitraryKey := uuid.NewString()
 
 	inState := MakeChessState(StateSetup{ID: testID, Mode: ModeCorrespondence1, FirstColor: Random})
 
@@ -54,16 +56,25 @@ func TestUpdateChessState(t *testing.T) {
 
 	require.NoError(t, services.SetChessState(ctx, testID, inState))
 
-	outState, err := services.UpdateChessStateTxn(ctx, testID, func(state *ChessState) error {
+	update := func(state *ChessState) error {
 		state.EndState = Aborted // arbitrary state update
 		return nil
-	})
+	}
+	commit := func(pipe redis.Pipeliner, state *ChessState) error {
+		return pipe.Set(ctx, arbitraryKey, "test", 0).Err()
+	}
+	outState, err := services.UpdateChessStateTxn(ctx, testID, update, commit)
 	require.NoError(t, err)
 
 	wantState := inState.DeepCopy()
 	wantState.EndState = Aborted
 
-	testutil.Equal(t, wantState, *outState, ChessMetaCmpOpt)
+	testutil.Equal(t, &wantState, outState, ChessMetaCmpOpt)
+	AssertRedisChessState(t, &services, &wantState, ChessMetaCmpOpt)
+
+	arbitraryVal, err := services.Redis.Cache.Get(ctx, arbitraryKey).Result()
+	require.NoError(t, err)
+	assert.Equal(t, "test", arbitraryVal)
 }
 
 func TestUpdateChessState_Errors(t *testing.T) {
@@ -80,7 +91,7 @@ func TestUpdateChessState_Errors(t *testing.T) {
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	t.Run("failing with unknown game id", func(t *testing.T) {
-		_, err := services.UpdateChessStateTxn(ctx, uuid.NewString(), func(state *ChessState) error { return nil })
+		_, err := services.UpdateChessStateTxn(ctx, uuid.NewString(), func(state *ChessState) error { return nil }, nil)
 
 		assert.Equal(t, ErrNoChessState, err)
 	})
@@ -90,7 +101,7 @@ func TestUpdateChessState_Errors(t *testing.T) {
 
 		_, err := services.UpdateChessStateTxn(ctx, testID, func(state *ChessState) error {
 			return mockedErr
-		})
+		}, nil)
 
 		assert.Equal(t, mockedErr, err)
 	})
@@ -99,7 +110,7 @@ func TestUpdateChessState_Errors(t *testing.T) {
 		_, err := services.UpdateChessStateTxn(ctx, testID, func(state *ChessState) error {
 			require.NoError(t, services.SetChessState(ctx, testID, inState)) // the state value we set is arbitrary
 			return nil
-		})
+		}, nil)
 
 		assert.Equal(t, ErrMaxChessStateRetries, err)
 	})

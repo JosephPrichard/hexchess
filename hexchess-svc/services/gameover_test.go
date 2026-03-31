@@ -99,19 +99,19 @@ func TestGameFinishStreamer_FakeGameEventHandler(t *testing.T) {
 	}
 
 	stream := MakeFinishGameStreamer(ctx, &services)
-	stream.HandleMessage = eventHandler.handleFinishGameEvent
+	stream.HandleEvent = eventHandler.handleFinishGameEvent
 	stream.StreamKey = services.Redis.FinishGameStreamKey
 
 	for _, event := range invalidInputEvents {
-		rdb := &services.Redis
-		err := rdb.Queue.XAdd(ctx, &redis.XAddArgs{
-			Stream: rdb.FinishGameStreamKey,
+		xArgs := &redis.XAddArgs{
+			Stream: services.Redis.FinishGameStreamKey,
 			Values: event,
-		}).Err()
+		}
+		err := services.Redis.GameStore.XAdd(ctx, xArgs).Err()
 		require.NoError(t, err)
 	}
 	for _, event := range validInputEvents {
-		services.PushFinishGameEvent(ctx, event)
+		services.pushFinishGameEvent(ctx, services.Redis.GameStore, event)
 	}
 	stream.EventLoop()
 

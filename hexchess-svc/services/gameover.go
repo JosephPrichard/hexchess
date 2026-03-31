@@ -28,7 +28,11 @@ type FinishGameEvent struct {
 	ReplayCause  ReplayCause      `json:"replaycause"`
 }
 
-func (svc *Services) PushFinishGameEvent(ctx context.Context, event FinishGameEvent) error {
+type RedisXAdder interface {
+	XAdd(ctx context.Context, args *redis.XAddArgs) *redis.StringCmd
+}
+
+func (svc *Services) pushFinishGameEvent(ctx context.Context, xadder RedisXAdder, event FinishGameEvent) error {
 	streamKey := svc.Redis.FinishGameStreamKey
 
 	bytes, err := MarshalFinishGameEvent(event)
@@ -36,12 +40,11 @@ func (svc *Services) PushFinishGameEvent(ctx context.Context, event FinishGameEv
 		return fmt.Errorf("marshal finish game event: %w", err)
 	}
 
-	msgID, err := svc.Redis.Queue.XAdd(ctx, &redis.XAddArgs{
+	xArgs := &redis.XAddArgs{
 		Stream: streamKey,
-		Values: map[string]any{
-			"data": string(bytes),
-		},
-	}).Result()
+		Values: map[string]any{"data": string(bytes)},
+	}
+	msgID, err := xadder.XAdd(ctx, xArgs).Result()
 	if err != nil {
 		return fmt.Errorf("xadd finished game event: %w", err)
 	}

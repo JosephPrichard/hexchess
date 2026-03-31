@@ -57,7 +57,6 @@ type RedisAddrs struct {
 	GameStoreAddr string `json:"gameStoreAddr"`
 	CacheAddr     string `json:"cacheAddr"`
 	PubsubAddr    string `json:"pubsubAddr"`
-	QueueAddr     string `json:"queueAddr"`
 }
 
 type RedisNames struct {
@@ -101,7 +100,6 @@ type Redis struct {
 	GameStore *redis.Client
 	Cache     *redis.Client
 	PubSub    *redigo.Pool
-	Queue     *redis.Client
 	RedisAddrs
 	RedisNames
 }
@@ -135,9 +133,6 @@ func MakeRdb(addrs RedisAddrs, names *RedisNames) Redis {
 		}),
 		Cache: redis.NewClient(&redis.Options{
 			Addr: addrs.CacheAddr,
-		}),
-		Queue: redis.NewClient(&redis.Options{
-			Addr: addrs.QueueAddr,
 		}),
 		PubSub:     ps,
 		RedisAddrs: addrs,
