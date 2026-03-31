@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"hexchess-svc/egress"
+	"hexchess-svc/internal/logutil"
 	"hexchess-svc/itest"
-	"hexchess-svc/pkg/logutil"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

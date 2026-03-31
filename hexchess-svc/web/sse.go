@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"hexchess-svc/pkg/timeutil"
+	"hexchess-svc/internal/timeutil"
 	svc "hexchess-svc/services"
 )
 

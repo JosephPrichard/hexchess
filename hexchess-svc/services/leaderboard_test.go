@@ -2,12 +2,12 @@ package svc
 
 import (
 	"context"
-	"hexchess-svc/pkg/testutil"
+	"hexchess-svc/internal/testutil"
 	"testing"
 	"time"
 
+	"hexchess-svc/internal/logutil"
 	"hexchess-svc/itest"
-	"hexchess-svc/pkg/logutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,6 +26,7 @@ func TestLeaderboard(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
+	// testing `incrLeaderboard`, which is used to seed data for testing retreival operations
 	for _, change := range []UpdtLbChangeSet{
 		{ModeCorrespondence7, id4, 835},
 		{ModeCorrespondence7, id1, 1500},

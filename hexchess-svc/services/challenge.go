@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hexchess-svc/internal/enum"
 	"log/slog"
 	"time"
 
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/internal/logutil"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -25,7 +26,7 @@ type ChallengeDTO struct {
 	ChallengeeCountry string    `json:"challengeeCountry"`
 	ChallengeeElo     float64   `json:"challengeeElo"`
 	Mode              GameMode  `json:"mode"`
-	StartColor        Color     `json:"startColor"` // from challenger's perspective
+	StartColor        GameColor `json:"startColor"` // from challenger's perspective
 	MadeOn            time.Time `json:"madeOn"`
 	ExpiresOn         time.Time `json:"expiresOn"`
 }
@@ -43,7 +44,7 @@ type ChallengeInst struct {
 	ChallengerID int64     `json:"challengerId"`
 	ChallengeeID int64     `json:"challengeeId"`
 	Mode         GameMode  `json:"mode"`
-	StartColor   Color     `json:"startColor"`
+	StartColor   GameColor `json:"startColor"`
 	MadeOn       time.Time `json:"madeOn"`
 }
 
@@ -125,7 +126,7 @@ func (svc *Services) GetChallengesByParticipant(ctx context.Context, key Challen
 		return nil, fmt.Errorf("get challenges by participant %v: %w", key, err)
 	}
 
-	var challenges []ChallengeDTO
+	challenges := make([]ChallengeDTO, 0, len(rows))
 	for _, row := range rows {
 		challenge, err := mapChallengeRow(row)
 		if err != nil {
@@ -142,24 +143,20 @@ type DeleteResult struct {
 	ChallengerID int64
 	ChallengeeID int64
 	Mode         GameMode
-	FirstColor   Color
+	FirstColor   GameColor
 }
 
 func (svc *Services) DeleteChallenge(ctx context.Context, key ChallengeKey) (DeleteResult, error) {
 	row, err := svc.Querier.DeleteChallenge(ctx, sqlc.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
-	if err != nil {
-		if IsErrNoRows(err) {
-			return DeleteResult{}, ErrChallengeNotFound
-		}
+	if IsErrNoRows(err) {
+		return DeleteResult{}, ErrChallengeNotFound
+	} else if err != nil {
 		return DeleteResult{}, fmt.Errorf("delete challenge %d: %w", key, err)
 	}
 
-	color, err := ParseColor(row.StartColor)
-	if err != nil {
-		return DeleteResult{}, err
-	}
-	gameMode, err := ParseGameMode(row.Mode)
-	if err != nil {
+	gameColor, colorErr := enum.Parse(row.StartColor, GameColorMembers)
+	gameMode, modeErr := enum.Parse(row.Mode, GameModeMembers)
+	if err := errors.Join(colorErr, modeErr); err != nil {
 		return DeleteResult{}, err
 	}
 
@@ -167,7 +164,7 @@ func (svc *Services) DeleteChallenge(ctx context.Context, key ChallengeKey) (Del
 		ChallengerID: row.ChallengerID,
 		ChallengeeID: row.ChallengeeID,
 		Mode:         gameMode,
-		FirstColor:   color,
+		FirstColor:   gameColor,
 	}
 	slog.InfoContext(ctx, "deleted challenge", "challengeKey", key, "dr", delResult, "err", err)
 	return delResult, err
@@ -184,12 +181,9 @@ func (svc *Services) DeleteExpiredChallenges(ctx context.Context, userID int64) 
 }
 
 func mapChallengeRow(row sqlc.SelectChallengesByParticipantRow) (ChallengeDTO, error) {
-	startColor, err := ParseColor(row.StartColor)
-	if err != nil {
-		return ChallengeDTO{}, err
-	}
-	mode, err := ParseGameMode(row.Mode)
-	if err != nil {
+	gameColor, colorErr := enum.Parse(row.StartColor, GameColorMembers)
+	gameMode, modeErr := enum.Parse(row.Mode, GameModeMembers)
+	if err := errors.Join(colorErr, modeErr); err != nil {
 		return ChallengeDTO{}, err
 	}
 
@@ -202,8 +196,8 @@ func mapChallengeRow(row sqlc.SelectChallengesByParticipantRow) (ChallengeDTO, e
 		ChallengeeName:    row.ChallengeeName,
 		ChallengeeCountry: row.ChallengeeCountry,
 		ChallengeeElo:     defaultElo(row.ChallengeeElo),
-		Mode:              mode,
-		StartColor:        startColor,
+		Mode:              gameMode,
+		StartColor:        gameColor,
 		MadeOn:            row.MadeOn.Time,
 		ExpiresOn:         row.MadeOn.Time.Add(ExpireChallengeMaxAge),
 	}, nil

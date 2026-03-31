@@ -79,7 +79,7 @@ type RegisterBody struct {
 }
 
 func validateRegisterBody(body RegisterBody) error {
-	var respErr RespError
+	var respErr ResponseError
 	if !isPasswordValid(body.Password) {
 		respErr.Put("password", ErrHttpInvalidPassword)
 	}
@@ -202,7 +202,7 @@ type UpdatePasswordBody struct {
 }
 
 func validateUpdatePasswordBody(body UpdatePasswordBody) error {
-	var respErr RespError
+	var respErr ResponseError
 	if !isPasswordValid(body.NewPassword) {
 		respErr.Put("newPassword", ErrHttpInvalidPassword)
 	}
@@ -247,7 +247,7 @@ type UpdateUserBody struct {
 }
 
 func (server *Server) validateUpdateUserBody(body UpdateUserBody) error {
-	var respErr RespError
+	var respErr ResponseError
 	if body.NewUsername != "" {
 		if !isUsernameValid(body.NewUsername) {
 			respErr.Put("newUsername", ErrHttpInvalidUsername)
@@ -392,28 +392,28 @@ type CreateGameBody struct {
 }
 
 type CreateGameArgs struct {
-	FirstColor   svc.Color
+	FirstColor   svc.GameColor
 	Mode         svc.GameMode
-	InitialBoard *chess.Board
+	InitialBoard chess.Board
 }
 
 func transformCreateGame(body CreateGameBody) (CreateGameArgs, error) {
-	var initialBoard *chess.Board
-	var respErr RespError
+	initialBoard := chess.InitialBoard()
+	var respErr ResponseError
 
 	if body.InitialFEN != "" {
 		board, err := chess.ParseFen(body.InitialFEN)
 		if err != nil {
 			respErr.Put("initialFen", ErrHttpInvalidFen)
 		} else {
-			initialBoard = &board
+			initialBoard = board
 		}
 	}
-	color, ok := svc.ColorMap[body.FirstColor]
+	color, ok := svc.GameColorMembers[body.FirstColor]
 	if !ok {
 		respErr.Put("firstColor", ErrHttpInvalidColor)
 	}
-	mode, ok := svc.GameModeMap[body.Mode]
+	mode, ok := svc.GameModeMembers[body.Mode]
 	if !ok {
 		respErr.Put("mode", ErrHttpInvalidMode)
 	}
@@ -439,7 +439,7 @@ func (server *Server) HandleCreateGame(w http.ResponseWriter, r *http.Request) e
 	}
 
 	ctx := r.Context()
-	gameID, err := server.Services.CreateGame(ctx, body.FirstColor, body.Mode, body.InitialBoard)
+	gameID, err := server.Services.CreateGame(ctx, body.FirstColor, body.Mode, &body.InitialBoard)
 	if err != nil {
 		return fmt.Errorf("create game: %w", err)
 	}
@@ -548,17 +548,17 @@ type CreateChallengeBody struct {
 
 type CreateChallengeArgs struct {
 	ChallengeeID int64
-	StartColor   svc.Color
+	StartColor   svc.GameColor
 	Mode         svc.GameMode
 }
 
 func transformCreateChallenge(body CreateChallengeBody) (CreateChallengeArgs, error) {
-	var respErr RespError
-	color, ok := svc.ColorMap[body.StartColor]
+	var respErr ResponseError
+	color, ok := svc.GameColorMembers[body.StartColor]
 	if !ok {
 		respErr.Put("startColor", ErrHttpInvalidColor)
 	}
-	mode, ok := svc.GameModeMap[body.Mode]
+	mode, ok := svc.GameModeMembers[body.Mode]
 	if !ok {
 		respErr.Put("mode", ErrHttpInvalidMode)
 	}
@@ -639,12 +639,12 @@ type LeaderboardArg struct {
 }
 
 func (server *Server) getLeaderboardQuery(q url.Values) (LeaderboardArg, error) {
-	var respErr RespError
+	var respErr ResponseError
 	page, err := intQueryDefault(q, "page", 1)
 	if err != nil {
 		respErr.Put("page", ErrHttpInvalidPage)
 	}
-	mode, ok := svc.GameModeMap[q.Get("mode")]
+	mode, ok := svc.GameModeMembers[q.Get("mode")]
 	if !ok {
 		respErr.Put("mode", ErrHttpInvalidMode)
 	}
@@ -676,9 +676,6 @@ func (server *Server) HandleGetLeaderboard(w http.ResponseWriter, r *http.Reques
 	}
 	slog.InfoContext(ctx, "retrieved leaderboard", "users", users)
 
-	if users == nil {
-		users = []svc.LbdUserDTO{}
-	}
 	writeJSON(w, http.StatusOK, LeaderboardResp{TotalPages: lbd.PageCount, UserList: users})
 	return nil
 }
@@ -708,22 +705,21 @@ type GetPlayerArgs struct {
 }
 
 func (server *Server) getPlayerQuery(q url.Values) (GetPlayerArgs, error) {
-	var respErr RespError
 	userID, err := strconv.Atoi(q.Get("id"))
 	if err != nil {
-		respErr.Put("id", ErrHttpInvalidID)
+		return GetPlayerArgs{}, OneRespError("id", ErrHttpInvalidID)
 	}
 
 	withReplaysStr := q.Get("withReplays")
 	withReplays := strings.ToLower(withReplaysStr) == "true"
 
-	return GetPlayerArgs{UserID: userID, WithReplays: withReplays}, respErr.Interface()
+	return GetPlayerArgs{UserID: userID, WithReplays: withReplays}, nil
 }
 
 type GetPlayersResp struct {
-	User       svc.UserDTO      `json:"user"`
-	Stats      svc.UserStatsDTO `json:"stats"`
-	ReplayList []svc.ReplayDTO  `json:"replayList"`
+	User       svc.UserDTO         `json:"user"`
+	Stats      svc.UserStatsDTO    `json:"stats"`
+	ReplayList []svc.FullReplayDto `json:"replayList"`
 }
 
 func (server *Server) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
@@ -735,7 +731,7 @@ func (server *Server) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 
 	var user svc.UserDTO
 	var stats svc.UserStatsDTO
-	var replayList []svc.ReplayDTO
+	var replayList []svc.FullReplayDto
 	var lbRanks map[string]svc.LbRank
 
 	ctx := r.Context()
@@ -750,7 +746,7 @@ func (server *Server) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 		return
 	})
 	eg.Go(func() (err error) {
-		lbRanks, err = server.Services.GetUserLeaderboardRanks(egCtx, int64(query.UserID), svc.GameModeMap)
+		lbRanks, err = server.Services.GetUserLeaderboardRanks(egCtx, int64(query.UserID), svc.GameModeMembers)
 		return
 	})
 	if loadReplays {
@@ -777,9 +773,6 @@ func (server *Server) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 		modeStats.Rank = lbRank.Rank
 	}
 
-	if replayList == nil {
-		replayList = []svc.ReplayDTO{}
-	}
 	playersResp := GetPlayersResp{User: user, Stats: stats, ReplayList: replayList}
 
 	slog.InfoContext(ctx, "retrieved user with replays", "fullUser", playersResp)
@@ -815,9 +808,6 @@ func (server *Server) HandleSearchPlayers(w http.ResponseWriter, r *http.Request
 		userList = users
 	}
 
-	if userList == nil {
-		userList = []svc.LbdUserDTO{}
-	}
 	writeJSON(w, http.StatusOK, SearchPlayersResp{UserList: userList})
 	return nil
 }
@@ -828,7 +818,7 @@ type GetReplayQuery struct {
 }
 
 func (server *Server) getReplayQuery(q url.Values) (GetReplayQuery, error) {
-	var respErr RespError
+	var respErr ResponseError
 
 	kindStr := q.Get("idKind")
 	if kindStr == "" {
@@ -853,7 +843,7 @@ func (server *Server) getReplayQuery(q url.Values) (GetReplayQuery, error) {
 }
 
 type GetReplayResp struct {
-	Replay svc.ReplayDTO `json:"replay"`
+	Replay svc.FullReplayDto `json:"replay"`
 }
 
 func (server *Server) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
@@ -862,7 +852,7 @@ func (server *Server) HandleGetReplay(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	var replay svc.ReplayDTO
+	var replay svc.FullReplayDto
 
 	ctx := r.Context()
 	if query.ReplayID != 0 {
@@ -887,7 +877,7 @@ type GetReplaysArg struct {
 }
 
 func (server *Server) getReplaysQuery(q url.Values) (GetReplaysArg, error) {
-	var respErr RespError
+	var respErr ResponseError
 	userID, err := strconv.Atoi(q.Get("userId"))
 	if err != nil {
 		respErr.Put("userId", ErrHttpInvalidID)
@@ -903,7 +893,7 @@ func (server *Server) getReplaysQuery(q url.Values) (GetReplaysArg, error) {
 }
 
 type GetUserReplaysResp struct {
-	ReplayList []svc.ReplayDTO `json:"replayList"`
+	ReplayList []svc.FullReplayDto `json:"replayList"`
 }
 
 func (server *Server) HandleGetUserReplays(w http.ResponseWriter, r *http.Request) error {
@@ -918,9 +908,6 @@ func (server *Server) HandleGetUserReplays(w http.ResponseWriter, r *http.Reques
 		return fmt.Errorf("get user %d replays: %w", query.UserID, err)
 	}
 
-	if replays == nil {
-		replays = []svc.ReplayDTO{}
-	}
 	writeJSON(w, http.StatusOK, GetUserReplaysResp{ReplayList: replays})
 	return nil
 }
@@ -954,9 +941,6 @@ func (server *Server) HandleGetChallenges(w http.ResponseWriter, r *http.Request
 		challengeList = byChallengee
 	}
 
-	if challengeList == nil {
-		challengeList = []svc.ChallengeDTO{}
-	}
 	slog.InfoContext(ctx, "retrieved challenges", "challengeList", challengeList)
 	writeJSON(w, http.StatusOK, GetChallengesResp{ChallengeList: challengeList})
 	return nil
@@ -992,7 +976,7 @@ type ChessMetasArg struct {
 }
 
 func (server *Server) getChessMetasQuery(q url.Values) (ChessMetasArg, error) {
-	var respErr RespError
+	var respErr ResponseError
 	page, err := intQueryDefault(q, "page", 1)
 	if err != nil {
 		respErr.Put("page", ErrHttpInvalidPage)
@@ -1063,7 +1047,7 @@ var timeframeMap = map[string]uint{
 }
 
 func (server *Server) getEloHistoriesQuery(q url.Values) (EloHistoriesArg, error) {
-	var respErr RespError
+	var respErr ResponseError
 	userID, err := strconv.Atoi(q.Get("userId"))
 	if err != nil {
 		respErr.Put("userID", ErrHttpInvalidID)

@@ -10,7 +10,7 @@ import (
 	"strconv"
 
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/internal/logutil"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -64,10 +64,14 @@ type LbRank struct {
 	Score float64 `json:"score"`
 }
 
+func mapLbRank(rank int64) int64 {
+	return rank + 1
+}
+
 func (svc *Services) GetUserLeaderboardRanks(ctx context.Context, userID int64, modes map[string]GameMode) (map[string]LbRank, error) {
 	ranks := make(map[string]LbRank)
 	setRank := func(mode string, rankScore redis.RankScore) {
-		ranks[mode] = LbRank{Rank: rankScore.Rank + 1, Score: rankScore.Score} // rdb ranks start from 0, hexchess ranks start from 1.
+		ranks[mode] = LbRank{Rank: mapLbRank(rankScore.Rank), Score: rankScore.Score} // rdb ranks start from 0, hexchess ranks start from 1.
 	}
 
 	strID := strconv.Itoa(int(userID))
@@ -139,7 +143,7 @@ func (svc *Services) GetUserLeaderboardRanks(ctx context.Context, userID int64, 
 	return ranks, nil
 }
 
-func (svc *Services) getUsersLeaderboardRank(ctx context.Context, userID []int64, mode GameMode) (map[int64]int64, error) {
+func (svc *Services) getUsersLeaderboardRank(ctx context.Context, userIDs []int64, mode GameMode) (map[int64]int64, error) {
 	type getExec struct {
 		userID int64
 		cmd    *redis.IntCmd
@@ -148,11 +152,11 @@ func (svc *Services) getUsersLeaderboardRank(ctx context.Context, userID []int64
 	pipeline := svc.Redis.Cache.Pipeline()
 	var getExecs []getExec
 
-	for _, id := range userID {
+	for _, userID := range userIDs {
 		modeLbZSet := svc.getLeaderboardZSet(mode.String())
 		getExecs = append(getExecs, getExec{
-			userID: id,
-			cmd:    pipeline.ZRevRank(ctx, modeLbZSet, strconv.Itoa(int(id))),
+			userID: userID,
+			cmd:    pipeline.ZRevRank(ctx, modeLbZSet, strconv.Itoa(int(userID))),
 		})
 	}
 
@@ -166,11 +170,11 @@ func (svc *Services) getUsersLeaderboardRank(ctx context.Context, userID []int64
 		if err != nil {
 			return nil, fmt.Errorf("get leaderboard rank for user %v: %w", exec.userID, err)
 		}
-		leaderboardRanks[exec.userID] = rank + 1
+		leaderboardRanks[exec.userID] = mapLbRank(rank)
 	}
 
 	slog.InfoContext(ctx, "retrieved leaderboard ranks", "leaderboardRanks", leaderboardRanks, "mode", mode)
-	return nil, nil
+	return leaderboardRanks, nil
 }
 
 func (svc *Services) getLeaderboard(ctx context.Context, mode GameMode, startRank, count int64) (Leaderboard, error) {
@@ -215,7 +219,7 @@ func (svc *Services) GetLeaderboardPage(ctx context.Context, mode GameMode, page
 }
 
 func (svc *Services) SyncLeaderboard(ctx context.Context) error {
-	for _, mode := range GameModeMap {
+	for _, mode := range GameModeMembers {
 		afterID := int64(0)
 		for {
 			rows, err := svc.Querier.SelectEloList(ctx, sqlc.SelectEloListParams{ID: afterID, Mode: sqlc.ModeEnum(mode.String()), Limit: 20})
@@ -285,7 +289,7 @@ func (svc *Services) GetLeaderboardUsers(ctx context.Context, mode GameMode, rnk
 		return nil, nil, fmt.Errorf("select many users %+v: %w", ids, err)
 	}
 
-	var leaderboardUsers []LbdUserDTO
+	leaderboardUsers := make([]LbdUserDTO, 0, len(rnkUsers))
 	var missingIDs []int64
 
 	for _, rnkUser := range rnkUsers {
@@ -371,7 +375,7 @@ func (svc *Services) GetFuzzySearchLeaderboard(ctx context.Context, name string,
 		eloAggrMap[row.UserID] = aggr
 	}
 
-	var leaderboardUsers []LbdUserDTO
+	leaderboardUsers := make([]LbdUserDTO, 0, len(userRows))
 	for i, userRow := range userRows {
 		searchRank := (page-1)*perPage + int32(i) + 1
 

@@ -14,9 +14,9 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"hexchess-svc/chess"
+	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
-	"hexchess-svc/pkg/testutil"
 	svc "hexchess-svc/services"
 
 	"github.com/google/go-cmp/cmp"
@@ -46,7 +46,7 @@ func TestHandleGameplayWs(t *testing.T) {
 		}},
 	}
 	wantValidMove := &pb.GameOutput{
-		GameId: gameID, 
+		GameId: gameID,
 		Value: &pb.GameOutput_Move{Move: &pb.MoveOutput{
 			UpdatedAt: itest.TimeNow.Format(time.RFC3339),
 			Move:      &pb.HistMove{Piece: int32(chess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, Notation: "Pb2"},
@@ -69,7 +69,7 @@ func TestHandleGameplayWs(t *testing.T) {
 		},
 	}
 	wantUndo := &pb.GameOutput{
-		GameId: gameID, 
+		GameId: gameID,
 		Value: &pb.GameOutput_Undo{
 			Undo: &pb.UndoOutput{Kind: "REJECT", UndoId: 1},
 		},
@@ -77,7 +77,7 @@ func TestHandleGameplayWs(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		inputMsg    *pb.GameInput
+		inputMsg     *pb.GameInput
 		wantMsgs     []*pb.GameOutput
 		wantBrdcasts []any
 	}{
@@ -93,7 +93,7 @@ func TestHandleGameplayWs(t *testing.T) {
 				wantInit,
 				{
 					GameId: gameID,
-					Value:  &pb.GameOutput_Error{
+					Value: &pb.GameOutput_Error{
 						Error: &pb.ErrorOutput{Message: ErrWsInvalidMove.Error()},
 					},
 				},
@@ -123,8 +123,8 @@ func TestHandleGameplayWs(t *testing.T) {
 				Value: &pb.GameInput_Chat{Chat: &pb.ChatInput{Message: "Hello World"}},
 			},
 			wantMsgs: []*pb.GameOutput{
-				wantChat, 
-				wantPlayers, 
+				wantChat,
+				wantPlayers,
 				wantInit,
 			},
 			wantBrdcasts: []any{
@@ -137,9 +137,9 @@ func TestHandleGameplayWs(t *testing.T) {
 			inputMsg: &pb.GameInput{
 				Value: &pb.GameInput_Forfeit{Forfeit: &pb.ForfeitInput{}},
 			},
-			wantMsgs:     []*pb.GameOutput{
+			wantMsgs: []*pb.GameOutput{
 				wantForfeit,
-				wantPlayers, 
+				wantPlayers,
 				wantInit,
 			},
 			wantBrdcasts: []any{
@@ -171,7 +171,7 @@ func TestHandleGameplayWs(t *testing.T) {
 				wantPlayers,
 				wantInit,
 				{
-					GameId: gameID, 
+					GameId: gameID,
 					Value: &pb.GameOutput_Error{
 						Error: &pb.ErrorOutput{Message: ErrWsUndoAction.Error()},
 					},

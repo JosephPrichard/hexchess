@@ -2,6 +2,7 @@ package svc
 
 import (
 	"hexchess-svc/itest"
+	"time"
 )
 
 var TestUserDTOs = []UserDTO{
@@ -171,5 +172,104 @@ var TestChallengeDTOs = []ChallengeDTO{
 		StartColor:        Random,
 		MadeOn:            itest.TimeNow.Local(),
 		ExpiresOn:         itest.TimeNow.Local().Add(ExpireChallengeMaxAge),
+	},
+}
+
+var TournamentDTOs = []TournamentDTO{
+	{
+		ID:             1,
+		Name:           "Test Tournament 1",
+		Depth:          2,
+		MaxPlayerCount: 4,
+		ScheduledOn:    time.Time{},
+		IsScheduled:    false,
+		CreatedOn:      itest.TimeNow,
+		CreatedBy:      1,
+		Status:         TournamentLobby,
+		Mode:           ModeCorrespondence1,
+	},
+	{
+		ID:             2,
+		Name:           "Test Tournament 2",
+		Depth:          2,
+		MaxPlayerCount: 4,
+		ScheduledOn:    time.Time{},
+		IsScheduled:    false,
+		CreatedOn:      itest.TimeNow,
+		CreatedBy:      1,
+		Status:         TournamentInProgress,
+		Mode:           ModeCorrespondence1,
+	},
+	{
+		ID:             3,
+		Name:           "Test Tournament 3",
+		Depth:          1,
+		MaxPlayerCount: 2,
+		ScheduledOn:    time.Time{},
+		IsScheduled:    false,
+		CreatedOn:      itest.TimeNow,
+		CreatedBy:      1,
+		Status:         TournamentFinished,
+		Mode:           ModeCorrespondence1,
+	},
+}
+
+var ParticipantsDTOs = []ParticipantDTO{
+	{
+		TournamentID: 2,
+		JoinedOn:     itest.TimeNow,
+		LbdUserDTO: LbdUserDTO{
+			UserDTO:    UserDTO{ID: 4, Username: "user4", Country: "us", JoinedOn: itest.TimeNow},
+			Elo:        2000,
+			HighestElo: 2000,
+			Rank:       1,
+		},
+	},
+	{
+		TournamentID: 2,
+		JoinedOn:     itest.TimeNow,
+		LbdUserDTO: LbdUserDTO{
+			UserDTO:    UserDTO{ID: 3, Username: "user3", Country: "us", JoinedOn: itest.TimeNow},
+			Elo:        900,
+			HighestElo: 900,
+			Rank:       2,
+		},
+	},
+	{
+		TournamentID: 2,
+		JoinedOn:     itest.TimeNow,
+		LbdUserDTO: LbdUserDTO{
+			UserDTO:    UserDTO{ID: 2, Username: "user2", Country: "us", JoinedOn: itest.TimeNow},
+			Elo:        1000,
+			HighestElo: 1000,
+			Rank:       3,
+		},
+	},
+	{
+		TournamentID: 2,
+		JoinedOn:     itest.TimeNow,
+		LbdUserDTO: LbdUserDTO{
+			UserDTO:    UserDTO{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
+			Elo:        1000,
+			HighestElo: 1000,
+			Rank:       4,
+		},
+	},
+}
+
+var MatchDtos = []MatchDTO{
+	{
+		ID:           1,
+		GameID:       itest.TournamentMatchGameIDs[0],
+		CreatedOn:    itest.TimeNow,
+		TournamentID: 2,
+		Depth:        1,
+	},
+	{
+		ID:           2,
+		GameID:       itest.TournamentMatchGameIDs[1],
+		CreatedOn:    itest.TimeNow,
+		TournamentID: 2,
+		Depth:        1,
 	},
 }

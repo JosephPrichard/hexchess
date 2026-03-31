@@ -122,8 +122,9 @@ func DeserializeBoard(pbBoard *pb.ChessBoard) (Board, error) {
 	board := Board{IsWhiteTurn: pbBoard.IsWhiteTurn}
 	for file, bFile := range pbBoard.File {
 		for rank, piece := range bFile.Pieces {
-			if err := board.SetPiece(uint32(file), uint32(rank), Piece(piece)); err != nil {
-				return board, fmt.Errorf("set piece: %w", err)
+			p := Piece(piece)
+			if err := board.SetPiece(uint32(file), uint32(rank), p); err != nil {
+				return board, fmt.Errorf("set piece '%d' at (%d, %d): %w", p, rank, file, err)
 			}
 		}
 	}
@@ -169,15 +170,15 @@ func DeserializeHistMove(pbHm *pb.HistMove) HistMove {
 	}
 }
 
-func DeserializeHistMoveList(pbMoves []*pb.HistMove) ([]HistMove, error) {
+func DeserializeHistMoveList(pbMoves []*pb.HistMove) []HistMove {
 	if len(pbMoves) == 0 {
-		return nil, nil
+		return nil
 	}
 	moves := make([]HistMove, 0, len(pbMoves))
 	for _, pbHm := range pbMoves {
 		moves = append(moves, DeserializeHistMove(pbHm))
 	}
-	return moves, nil
+	return moves
 }
 
 func SerializeHistMove(hm HistMove) *pb.HistMove {
@@ -208,24 +209,20 @@ func SerializeMoveList(moves []HistMove) []*pb.HistMove {
 
 var ErrNilGame = errors.New("board must not be nil")
 
-func DeserializeGame(pbGame *pb.ChessGame) (Game, error) {
+func DeserializeGame(pbGame *pb.ChessGame) (g Game, err error) {
 	if pbGame == nil {
-		return Game{}, ErrNilGame
+		return g, ErrNilGame
 	}
 	board, err := DeserializeBoard(pbGame.Board)
 	if err != nil {
-		return Game{}, fmt.Errorf("deserialize board %v: %w", pbGame.Board, err)
-	}
-	moves, err := DeserializeHistMoveList(pbGame.Moves)
-	if err != nil {
-		return Game{}, fmt.Errorf("deserialize moves: %w", err)
+		return g, fmt.Errorf("deserialize board %v: %w", pbGame.Board, err)
 	}
 	return Game{
 		TakenWhitePieces: DeserializePieces(pbGame.TakenWhitePieces),
 		TakenBlackPieces: DeserializePieces(pbGame.TakenBlackPieces),
 		BlackMoves:       DeserializePiecesMoves(pbGame.BlackMoves),
 		WhiteMoves:       DeserializePiecesMoves(pbGame.WhiteMoves),
-		Moves:            moves,
+		Moves:            DeserializeHistMoveList(pbGame.Moves),
 		Board:            board,
 	}, nil
 }
@@ -234,7 +231,7 @@ func SerializeGame(game *Game) *pb.ChessGame {
 	if game == nil {
 		return nil
 	}
-	pbGame := &pb.ChessGame{
+	return &pb.ChessGame{
 		TakenWhitePieces: SerializePieces(game.TakenWhitePieces),
 		TakenBlackPieces: SerializePieces(game.TakenBlackPieces),
 		BlackMoves:       SerializePiecesMoves(game.BlackMoves),
@@ -242,7 +239,6 @@ func SerializeGame(game *Game) *pb.ChessGame {
 		Moves:            SerializeMoveList(game.Moves),
 		Board:            SerializeBoard(&game.Board),
 	}
-	return pbGame
 }
 
 // MoveHistory

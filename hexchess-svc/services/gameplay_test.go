@@ -3,9 +3,9 @@ package svc
 import (
 	"context"
 	"hexchess-svc/chess"
+	"hexchess-svc/internal/logutil"
+	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
-	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/pkg/testutil"
 	"testing"
 
 	"github.com/google/go-cmp/cmp/cmpopts"

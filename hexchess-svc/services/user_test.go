@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"hexchess-svc/internal/logutil"
+	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
-	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/pkg/testutil"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"

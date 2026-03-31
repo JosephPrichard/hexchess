@@ -15,7 +15,7 @@ func TestChessSerializer(t *testing.T) {
 
 	input1 := MakeChessState(StateSetup{ID: uuid.NewString(), Mode: ModeCorrespondence1, FirstColor: Random})
 	input1.EndState = Finished
-	
+
 	input2 := MakeChessState(StateSetup{ID: uuid.NewString(), Mode: ModeCorrespondence1, FirstColor: Random})
 	input2.Game.InitPieceMoves()
 	input2.Game.ClearTables() // since we're asserting the output back to the input, we must clear data that isn't serialized
@@ -39,7 +39,7 @@ func TestChessSerializer(t *testing.T) {
 				t.Fatalf("deserialize state: %v", err)
 			}
 			// t.Logf("deserialized state: %v, board: %v", output, output.Game.Board.String())
-			assert.Equal(t, tt.state, &output)
+			assert.Equal(t, tt.state, output)
 		})
 	}
 }

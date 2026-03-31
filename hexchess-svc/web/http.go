@@ -60,7 +60,7 @@ func HttpStatusFromErr(err error) (int, string) {
 
 func HttpStatusFromErrs(err error) ServiceView {
 	var respErr map[string]error
-	var merr *RespError
+	var merr *ResponseError
 	if ok := errors.As(err, &merr); ok {
 		respErr = merr.Errors
 	} else {

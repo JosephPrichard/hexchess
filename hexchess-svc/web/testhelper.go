@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/internal/logutil"
 	svc "hexchess-svc/services"
 )
 

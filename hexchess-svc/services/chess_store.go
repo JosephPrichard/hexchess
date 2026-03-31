@@ -34,20 +34,19 @@ func (svc *Services) getChessStateAbstract(ctx context.Context, getter RedisGett
 	gameKey := svc.makeGameKey(id)
 
 	bytes, err := getter.Get(ctx, gameKey).Bytes()
-	if err != nil {
-		if errors.Is(err, redis.Nil) {
-			return nil, ErrNoChessState
-		}
+	if errors.Is(err, redis.Nil) {
+		return nil, ErrNoChessState
+	} else if err != nil {
 		return nil, fmt.Errorf("get chess state in redis: %w", err)
 	}
 
 	state, err := UnmarshalChessState(bytes)
 	if err != nil {
-		return nil, fmt.Errorf("deserialize chess state: %w", err)
+		return nil, fmt.Errorf("unmarshal chess state: %w", err)
 	}
 
 	slog.InfoContext(ctx, "retrieved chess state", "key", gameKey)
-	return &state, nil
+	return state, nil
 }
 
 func (svc *Services) SetChessState(ctx context.Context, id string, state *ChessState) error {
@@ -107,7 +106,7 @@ func (svc *Services) UpdateChessStateTxn(ctx context.Context, gameID string, upd
 	updtTime := svc.EntropySource.GetNow()
 
 	for range MaxUpdateChessStateRetries {
-		var retState *ChessState
+		var ret *ChessState
 
 		err := svc.Redis.GameStore.Watch(ctx, func(txn *redis.Tx) error {
 			state, err := svc.getChessStateAbstract(ctx, txn, gameID)
@@ -130,14 +129,15 @@ func (svc *Services) UpdateChessStateTxn(ctx context.Context, gameID string, upd
 				return nil
 			})
 			if err == nil {
-				retState = state
+				ret = state
 			}
 			return err
 		}, gameKey)
+
 		if err == redis.TxFailedErr {
 			continue
 		}
-		return retState, err
+		return ret, err
 	}
 
 	return nil, ErrMaxChessStateRetries

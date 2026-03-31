@@ -334,10 +334,7 @@ func (p Piece) IsKing() bool {
 var GlobalInitialBoard = MakeInitialBoard()
 
 func InitialBoard() Board {
-	// board is stored by value
-	board := GlobalInitialBoard
-	//board.SetPieceNot("k6", WhitePawn)
-	return board
+	return GlobalInitialBoard
 }
 
 func MakeInitialBoard() Board {
@@ -421,11 +418,11 @@ func (b *Board) Set(file, rank uint32, p Piece) {
 
 func (b *Board) SetPiece(file, rank uint32, piece Piece) error {
 	if file >= uint32(len(b.Pieces)) {
-		return fmt.Errorf("file ext of range: %d", file)
+		return fmt.Errorf("file of range: %d", file)
 	}
 	fileArr := &b.Pieces[file]
 	if rank >= RanksPerFile[file] {
-		return fmt.Errorf("rank ext of range: %d for file: %d", rank, file)
+		return fmt.Errorf("rank of range: %d for file: %d", rank, file)
 	}
 	if piece.Rune() == '?' {
 		return fmt.Errorf("unknown piece type: %d", piece)
@@ -436,11 +433,11 @@ func (b *Board) SetPiece(file, rank uint32, piece Piece) error {
 
 func (b *Board) GetPiece(file, rank uint32) (Piece, error) {
 	if file >= uint32(len(b.Pieces)) {
-		return 0, fmt.Errorf("board file ext of range: %d", file)
+		return 0, fmt.Errorf("board file of range: %d", file)
 	}
 	fileArr := &b.Pieces[file]
 	if rank >= RanksPerFile[file] {
-		return 0, fmt.Errorf("board rank ext of range: %d for file: %d", rank, file)
+		return 0, fmt.Errorf("board rank of range: %d for file: %d", rank, file)
 	}
 	return fileArr[rank], nil
 }

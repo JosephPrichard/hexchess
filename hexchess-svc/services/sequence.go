@@ -61,7 +61,7 @@ func RandomMoveHistSeq(mode GameMode, game chess.Game, low int, hi int) ([]chess
 	blackTimer := mode.TotalTime()
 	if mode.IsRealTime() {
 		for moveIdx := range moveSeq {
-			timeIncr := float64(mode.TimeIncr().Milliseconds())
+			timeIncr := float64(mode.TimeIncrement().Milliseconds())
 			incr := math.Max(timeIncr, 1000) * randRange(0.5, 1.5)
 			if moveIdx%2 == 0 {
 				whiteTimer -= time.Duration(incr) * time.Millisecond

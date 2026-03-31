@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"hexchess-svc/chess"
+	"hexchess-svc/internal/logutil"
+	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
-	"hexchess-svc/pkg/logutil"
-	"hexchess-svc/pkg/testutil"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

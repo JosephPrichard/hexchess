@@ -1,10 +1,13 @@
 -- name: InsertTournament :one
-INSERT INTO tournaments (depth, status, scheduled_on, created_on, updated_on, mode)
+INSERT INTO tournaments (tournament_key, name, depth, status, scheduled_on, created_on, created_by, updated_on, mode)
 VALUES (
+    sqlc.arg('tournament_key'),
+    sqlc.arg('name'),
     sqlc.arg('depth'),
     sqlc.arg('status'),
     sqlc.arg('scheduled_on'),
     sqlc.arg('created_on'),
+    sqlc.arg('created_by'),
     sqlc.arg('updated_on'),
     sqlc.arg('mode'))
 RETURNING id;
@@ -35,7 +38,8 @@ FROM tournament_participants tp
         ON u.id = tp.user_id
     LEFT JOIN user_mode_elos e -- must be a left join because mode elos are lazily initialized when user plays the first game.
         ON u.id = e.user_id AND e.mode = t.mode
-WHERE tournament_id = sqlc.arg('tournament_id');
+WHERE tournament_id = sqlc.arg('tournament_id')
+ORDER BY tp.joined_on DESC;
 
 -- name: SelectMatchesByTournamentId :many
 SELECT
@@ -57,7 +61,8 @@ FROM tournament_matches tm
      -- must be left join, if the game is not finished it does not have a replay yet
     LEFT JOIN replays r
         ON r.game_id = tm.game_id
-WHERE tournament_id = sqlc.arg('tournament_id');
+WHERE tournament_id = sqlc.arg('tournament_id')
+ORDER BY tm.created_on DESC;
 
 -- name: SelectTournaments :many
 SELECT id, name, tournament_key, depth, status, scheduled_on, created_on, updated_on, created_by, mode

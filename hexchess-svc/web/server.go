@@ -11,7 +11,7 @@ import (
 
 	"hexchess-svc/assets"
 	"hexchess-svc/chess"
-	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/internal/logutil"
 	"hexchess-svc/services"
 
 	"github.com/go-chi/chi/v5"

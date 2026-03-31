@@ -2,7 +2,9 @@ package svc
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"hexchess-svc/internal/enum"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -13,17 +15,16 @@ import (
 
 // PlayerState
 
-func UnmarshalPlayer(b []byte) (PlayerState, error) {
+func UnmarshalPlayer(bytes []byte) (PlayerState, error) {
 	var pbPlayer pb.PlayerState
-	if err := proto.Unmarshal(b, &pbPlayer); err != nil {
-		return PlayerState{}, err
+	if err := proto.Unmarshal(bytes, &pbPlayer); err != nil {
+		return PlayerState{}, fmt.Errorf("unmarshal player: %w", err)
 	}
-	player := PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Present: true}
-	return player, nil
+	return PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Present: true}, nil
 }
 
-func MarshalPlayer(p PlayerState) ([]byte, error) {
-	pbPlayer := pb.PlayerState{Id: p.ID, Name: p.Name, Country: p.Country, IsGuest: IsGuestID(p.ID)}
+func MarshalPlayer(player PlayerState) ([]byte, error) {
+	pbPlayer := pb.PlayerState{Id: player.ID, Name: player.Name, Country: player.Country, IsGuest: IsGuestID(player.ID)}
 	return proto.Marshal(&pbPlayer)
 }
 
@@ -35,9 +36,9 @@ func DeserializePlayer(pbPlayer *pb.PlayerState) PlayerState {
 	return player
 }
 
-func SerializePlayer(p PlayerState) *pb.PlayerState {
-	if p.Present {
-		return &pb.PlayerState{Id: p.ID, Name: p.Name, Country: p.Country, IsGuest: IsGuestID(p.ID)}
+func SerializePlayer(player PlayerState) *pb.PlayerState {
+	if player.Present {
+		return &pb.PlayerState{Id: player.ID, Name: player.Name, Country: player.Country, IsGuest: IsGuestID(player.ID)}
 	}
 	return nil
 }
@@ -72,30 +73,28 @@ func SerializeEndKind(endKind EndKind) pb.EndKind {
 
 // ChessState
 
-func UnmarshalChessState(b []byte) (st ChessState, err error) {
+func UnmarshalChessState(bytes []byte) (*ChessState, error) {
 	var pbChess pb.ChessState
-	if err := proto.Unmarshal(b, &pbChess); err != nil {
-		return st, err
+	if err := proto.Unmarshal(bytes, &pbChess); err != nil {
+		return nil, fmt.Errorf("unmarshal chess state: %w", err)
 	}
+
 	game, err := chess.DeserializeGame(pbChess.Game)
 	if err != nil {
-		return st, fmt.Errorf("deserialize game: %w", err)
+		return nil, fmt.Errorf("deserialize game: %w", err)
 	}
 	initialBoard, err := chess.DeserializeBoard(pbChess.InitialBoard)
 	if err != nil {
-		return st, fmt.Errorf("deserialize initial board %v: %w", pbChess.Game.Board, err)
+		return nil, fmt.Errorf("deserialize initial board %v: %w", pbChess.Game.Board, err)
 	}
 
-	color, err := ParseColor(pbChess.FirstColor)
-	if err != nil {
-		return st, err
-	}
-	mode, err := ParseGameMode(pbChess.Mode)
-	if err != nil {
-		return st, err
+	mode, modeErr := enum.Parse(pbChess.Mode, GameModeMembers)
+	firstColor, colorErr := enum.Parse(pbChess.FirstColor, GameColorMembers)
+	if err := errors.Join(modeErr, colorErr); err != nil {
+		return nil, err
 	}
 
-	return ChessState{
+	return &ChessState{
 		Game:         game,
 		InitialBoard: initialBoard,
 		UndoState:    UndoState{UndoID: pbChess.UndoId},
@@ -104,53 +103,50 @@ func UnmarshalChessState(b []byte) (st ChessState, err error) {
 			ID:          pbChess.Id,
 			WhitePlayer: DeserializePlayer(pbChess.WhitePlayer),
 			BlackPlayer: DeserializePlayer(pbChess.BlackPlayer),
-			FirstColor:  color,
+			FirstColor:  firstColor,
 			Mode:        mode,
 			Touch:       time.UnixMilli(pbChess.Touch),
 		},
 	}, nil
 }
 
-func SerializeChessState(s *ChessState) *pb.ChessState {
-	if s == nil {
+func SerializeChessState(state *ChessState) *pb.ChessState {
+	if state == nil {
 		return nil
 	}
 	return &pb.ChessState{
-		Id:           s.ID,
-		Game:         chess.SerializeGame(&s.Game),
-		WhitePlayer:  SerializePlayer(s.WhitePlayer),
-		BlackPlayer:  SerializePlayer(s.BlackPlayer),
-		FirstColor:   s.FirstColor.String(),
-		Mode:         s.Mode.String(),
-		Touch:        s.Touch.UnixMilli(),
-		InitialBoard: chess.SerializeBoard(&s.InitialBoard),
-		UndoId:       s.UndoID,
-		EndState:     SerializeEndKind(s.EndState),
+		Id:           state.ID,
+		Game:         chess.SerializeGame(&state.Game),
+		WhitePlayer:  SerializePlayer(state.WhitePlayer),
+		BlackPlayer:  SerializePlayer(state.BlackPlayer),
+		FirstColor:   state.FirstColor.String(),
+		Mode:         state.Mode.String(),
+		Touch:        state.Touch.UnixMilli(),
+		InitialBoard: chess.SerializeBoard(&state.InitialBoard),
+		UndoId:       state.UndoID,
+		EndState:     SerializeEndKind(state.EndState),
 	}
 }
 
 // ChessMeta
 
-func UnmarshalChessMeta(b []byte) (m ChessMeta, err error) {
+func UnmarshalChessMeta(bytes []byte) (ChessMeta, error) {
 	var pbChess pb.ChessState
-	if err := proto.Unmarshal(b, &pbChess); err != nil {
-		return m, fmt.Errorf("unmarshal chess s: %w", err)
+	if err := proto.Unmarshal(bytes, &pbChess); err != nil {
+		return ChessMeta{}, fmt.Errorf("unmarshal chess meta: %w", err)
 	}
 
-	color, err := ParseColor(pbChess.FirstColor)
-	if err != nil {
-		return m, err
-	}
-	mode, err := ParseGameMode(pbChess.Mode)
-	if err != nil {
-		return m, err
+	mode, modeErr := enum.Parse(pbChess.Mode, GameModeMembers)
+	firstColor, colorErr := enum.Parse(pbChess.FirstColor, GameColorMembers)
+	if err := errors.Join(modeErr, colorErr); err != nil {
+		return ChessMeta{}, err
 	}
 
 	return ChessMeta{
 		ID:          pbChess.Id,
 		WhitePlayer: DeserializePlayer(pbChess.WhitePlayer),
 		BlackPlayer: DeserializePlayer(pbChess.BlackPlayer),
-		FirstColor:  color,
+		FirstColor:  firstColor,
 		Mode:        mode,
 	}, nil
 }
@@ -172,17 +168,14 @@ func MarshalUserMessageJson(pbUserMessage *pb.UserMessage) ([]byte, error) {
 	switch message := (pbUserMessage.Value).(type) {
 	case *pb.UserMessage_Challenge:
 		challenge := message.Challenge
-
 		madeOn, err := time.Parse(time.RFC3339, challenge.MadeOn)
 		if err != nil {
 			return nil, fmt.Errorf("parse challenge made on: %w", err)
 		}
-		startColor, err := ParseColor(challenge.StartColor)
-		if err != nil {
-			return nil, err
-		}
-		mode, err := ParseGameMode(challenge.Mode)
-		if err != nil {
+
+		mode, modeErr := enum.Parse(challenge.Mode, GameModeMembers)
+		startColor, colorErr := enum.Parse(challenge.StartColor, GameColorMembers)
+		if err := errors.Join(modeErr, colorErr); err != nil {
 			return nil, err
 		}
 
@@ -205,7 +198,7 @@ func MarshalUserMessageJson(pbUserMessage *pb.UserMessage) ([]byte, error) {
 }
 
 func SerializeChallengeMessage(challenge ChallengeDTO) *pb.UserMessage {
-	userChallengeMessage := &pb.UserMessage_Challenge{
+	challengeMessage := &pb.UserMessage_Challenge{
 		Challenge: &pb.ChallengeMessage{
 			ChallengerId:      challenge.ChallengerID,
 			ChallengerName:    challenge.ChallengerName,
@@ -220,43 +213,32 @@ func SerializeChallengeMessage(challenge ChallengeDTO) *pb.UserMessage {
 			MadeOn:            challenge.MadeOn.Format(time.RFC3339),
 		},
 	}
-	return &pb.UserMessage{UserId: challenge.ChallengeeID, Value: userChallengeMessage}
+	return &pb.UserMessage{UserId: challenge.ChallengeeID, Value: challengeMessage}
 }
 
 // FinishGameEvent
 
-func UnmarshalFinishGameEvent(b []byte) (event FinishGameEvent, err error) {
+func UnmarshalFinishGameEvent(bytes []byte) (FinishGameEvent, error) {
 	var pbGameEvent pb.FinishGameEvent
-	if err := proto.Unmarshal(b, &pbGameEvent); err != nil {
-		return event, fmt.Errorf("unmarshal finish game event: %w", err)
+	if err := proto.Unmarshal(bytes, &pbGameEvent); err != nil {
+		return FinishGameEvent{}, fmt.Errorf("unmarshal finish game event: %w", err)
 	}
-
 	board, err := chess.DeserializeBoard(pbGameEvent.Board)
 	if err != nil {
-		return event, fmt.Errorf("deserialize board %v: %w", pbGameEvent.Board, err)
-	}
-	moves, err := chess.DeserializeHistMoveList(pbGameEvent.Moves)
-	if err != nil {
-		return event, fmt.Errorf("deserialize moves: %w", err)
+		return FinishGameEvent{}, fmt.Errorf("deserialize board %v: %w", pbGameEvent.Board, err)
 	}
 
-	mode, err := ParseGameMode(pbGameEvent.GameMode)
-	if err != nil {
-		return event, err
-	}
-	replayResult, err := ParseReplayResult(pbGameEvent.ReplayResult)
-	if err != nil {
-		return event, err
-	}
-	replayCause, err := ParseReplayCause(pbGameEvent.ReplayCause)
-	if err != nil {
-		return event, err
+	mode, modeErr := enum.Parse(pbGameEvent.GameMode, GameModeMembers)
+	replayResult, resultErr := enum.Parse(pbGameEvent.ReplayResult, ReplayResultMembers)
+	replayCause, causeErr := enum.Parse(pbGameEvent.ReplayCause, ReplayCauseMembers)
+	if err := errors.Join(modeErr, resultErr, causeErr); err != nil {
+		return FinishGameEvent{}, err
 	}
 
 	return FinishGameEvent{
 		GameID:       pbGameEvent.GameId,
 		Board:        board,
-		Moves:        moves,
+		Moves:        chess.DeserializeHistMoveList(pbGameEvent.Moves),
 		WhitePlayer:  DeserializePlayer(pbGameEvent.WhitePlayer),
 		BlackPlayer:  DeserializePlayer(pbGameEvent.BlackPlayer),
 		ReplayMode:   mode,

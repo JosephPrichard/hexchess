@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"time"
 
-	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/internal/logutil"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -310,6 +310,11 @@ var TournamentParticipantInsts = []struct {
 	},
 }
 
+var TournamentMatchGameIDs = []string{
+	*TournamentMatchInsts[0].GameID,
+	*TournamentMatchInsts[1].GameID,
+}
+
 var TournamentMatchInsts = []struct {
 	GameID       *string
 	TournamentID int64
@@ -321,7 +326,7 @@ var TournamentMatchInsts = []struct {
 	// IN_PROGRESS tournmanet matches (some matches)
 	{
 		GameID:       ptr(uuid.NewString()), // (no replay, unfinished)
-		TournamentID: 3,
+		TournamentID: 2,
 		Depth:        1,
 		WhiteID:      1,
 		BlackID:      2,
@@ -329,7 +334,7 @@ var TournamentMatchInsts = []struct {
 	},
 	{
 		GameID:       ptr(uuid.NewString()), // (no replay, unfinished)
-		TournamentID: 3,
+		TournamentID: 2,
 		Depth:        1,
 		WhiteID:      1,
 		BlackID:      2,

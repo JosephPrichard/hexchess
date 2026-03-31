@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/redis/go-redis/v9"
 	"hexchess-svc/chess"
-	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/internal/logutil"
 	"log/slog"
 	"math/big"
 )
@@ -64,7 +64,7 @@ func makeGameID() (string, error) {
 	return string(bID), nil
 }
 
-func (svc *Services) CreateGame(ctx context.Context, color Color, mode GameMode, initialBoard *chess.Board) (string, error) {
+func (svc *Services) CreateGame(ctx context.Context, color GameColor, mode GameMode, initialBoard *chess.Board) (string, error) {
 	strID, err := makeGameID()
 	if err != nil {
 		return "", err

@@ -6,13 +6,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"hexchess-svc/internal/enum"
 	"log/slog"
 	"math"
 	"time"
 
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/internal/logutil"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -330,7 +331,7 @@ func (svc *Services) GetUserStats(ctx context.Context, id int64) (UserStatsDTO, 
 	}
 
 	for _, row := range rows {
-		mode, err := ParseGameMode(row.Mode)
+		mode, err := enum.Parse(row.Mode, GameModeMembers)
 		if err != nil {
 			return stats, err
 		}

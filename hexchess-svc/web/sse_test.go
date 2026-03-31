@@ -10,8 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"hexchess-svc/internal/logutil"
 	"hexchess-svc/itest"
-	"hexchess-svc/pkg/logutil"
 	svc "hexchess-svc/services"
 
 	"github.com/stretchr/testify/assert"

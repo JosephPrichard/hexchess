@@ -16,7 +16,7 @@ import (
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
 	"hexchess-svc/egress"
-	"hexchess-svc/pkg/logutil"
+	"hexchess-svc/internal/logutil"
 	svc "hexchess-svc/services"
 
 	"github.com/google/uuid"

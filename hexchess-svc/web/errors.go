@@ -53,11 +53,11 @@ var (
 	ErrWsUndoAction     = errors.New("ERR_UNDO_ACTION")
 )
 
-type RespError struct {
+type ResponseError struct {
 	Errors map[string]error
 }
 
-func (re *RespError) Put(key string, newErr error) {
+func (re *ResponseError) Put(key string, newErr error) {
 	if re.Errors == nil {
 		re.Errors = make(map[string]error)
 	}
@@ -65,18 +65,18 @@ func (re *RespError) Put(key string, newErr error) {
 }
 
 func OneRespError(key string, newErr error) error {
-	return &RespError{Errors: map[string]error{key: newErr}}
+	return &ResponseError{Errors: map[string]error{key: newErr}}
 }
 
-func (re *RespError) HasErrors() bool {
+func (re *ResponseError) HasErrors() bool {
 	return len(re.Errors) > 0
 }
 
-func (re *RespError) Error() string {
+func (re *ResponseError) Error() string {
 	return fmt.Sprintf("%+v", re.Errors)
 }
 
-func (re *RespError) Interface() error {
+func (re *ResponseError) Interface() error {
 	if re.HasErrors() {
 		return re
 	}

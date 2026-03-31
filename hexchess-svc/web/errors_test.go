@@ -8,13 +8,13 @@ import (
 )
 
 func TestRespError_Put(t *testing.T) {
-	var resp RespError
+	var resp ResponseError
 
 	resp.Put("key1", errors.New("testing1"))
 	resp.Put("key2", errors.New("testing2"))
 	resp.Put("key3", errors.New("testing3"))
 
-	assert.Equal(t, &RespError{
+	assert.Equal(t, &ResponseError{
 		Errors: map[string]error{
 			"key1": errors.New("testing1"),
 			"key2": errors.New("testing2"),
