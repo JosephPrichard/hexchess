@@ -6,9 +6,16 @@ import (
 	"fmt"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/api/idtoken"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
+	"hexchess-svc/chess"
+	"hexchess-svc/db/sqlc"
+	"hexchess-svc/pb"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -919,4 +926,87 @@ func TestHandleGetChessMetas(t *testing.T) {
 	}
 	assert.Equal(t, http.StatusOK, w.Code)
 	testutil.AssertRespBody(t, wantResp, w)
+}
+
+func TestHandleGetMoveReplay(t *testing.T) {
+	t.Parallel()
+
+	services := svc.SetupServicesTest(t, itest.RWPostgres)
+	defer services.Close()
+
+	wantInitialGame := chess.MakeEmptyGame(false)
+	pbInitialGame := chess.SerializeGame(&wantInitialGame)
+
+	// serialize a history that contains every field so we can check that the binary data is being stored correctly. this history doesn't actually respect game rules.
+	bytes, err := proto.Marshal(&pb.MoveHistory{
+		InitialGame: pbInitialGame,
+		Steps: []*pb.HistMove{
+			{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4, Notation: "pc5"},
+		},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, services.DB.Querier().UpsertReplayMoveHistories(t.Context(), sqlc.UpsertReplayMoveHistoriesParams{
+		ReplayID: 1,
+		Data:     bytes,
+	}))
+
+	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay/move-list?replayId=%d", 1), nil)
+	w := httptest.NewRecorder()
+
+	hander := MakeServeMux(Setup{Services: services})
+	hander.ServeHTTP(w, r)
+
+	body, err := io.ReadAll(w.Body)
+	require.NoError(t, err)
+
+	var pbMoveHist pb.MoveHistory
+	require.NoError(t, proto.Unmarshal(body, &pbMoveHist))
+
+	wantMoveReplay := &pb.MoveHistory{
+		InitialGame: pbInitialGame,
+		Steps: []*pb.HistMove{
+			{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4, Notation: "pc5"},
+		},
+	}
+	assert.Equal(t, http.StatusOK, w.Code)
+	testutil.Equal(t, wantMoveReplay, &pbMoveHist, protocmp.Transform())
+}
+
+func (server *Server) HandleGetMoveReplay(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+
+	replayID, err := strconv.Atoi(r.URL.Query().Get("replayId"))
+	if err != nil {
+		return OneRespError("id", ErrHttpInvalidID)
+	}
+
+	bytes, err := server.Services.GetMovesHistory(ctx, replayID)
+	if err != nil {
+		return err
+	}
+
+	writeBytes(w, http.StatusOK, bytes)
+	// aggressive cache control because this resource does not change, but the algorithm we are using to transform it might if requirements change.
+	//w.Header().Set("Cache-Control", "public, max-age=3600")
+	return nil
+}
+
+func (server *Server) HandleGetGameChats(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	gameID := r.URL.Query().Get("gameId")
+
+	chats, err := server.Services.GetStateChats(ctx, gameID, 100)
+	if err != nil {
+		return fmt.Errorf("get state chats: %w", err)
+	}
+	bytes, err := proto.Marshal(&pb.ChatMessages{
+		Chats: chats,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal chats: %w", err)
+	}
+
+	writeBytes(w, http.StatusOK, bytes)
+	return nil
 }
