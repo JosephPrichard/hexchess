@@ -2,6 +2,7 @@ package svc
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,24 +24,26 @@ func TestCreateTournament(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
+	key := uuid.New()
+
 	tournamentID, err := services.CreateTournament(ctx, TournamentInst{
-		TournamentKey: "tournament-1",
-		Name:          "Tournament 1",
-		Depth:         2,
-		Mode:          ModeCorrespondence1,
-		ScheduledIn:   time.Hour,
-		CreatedOn:     itest.TimeNow,
-		CreatedBy:     1,
+		Key:         key,
+		Name:        "Tournament 1",
+		Depth:       2,
+		Mode:        ModeCorrespondence1,
+		ScheduledIn: time.Hour,
+		CreatedOn:   itest.TimeNow,
+		CreatedBy:   1,
 	})
 	require.NoError(t, err)
 
-	tournament, err := services.Querier.SelectTournamentById(ctx, tournamentID)
+	tournament, err := services.Querier.SelectTournamentById(ctx, pgtype.UUID{Bytes: key, Valid: true})
 	require.NoError(t, err)
 
 	wantTournament := sqlc.SelectTournamentByIdRow{
 		ID:            tournamentID,
 		Name:          "Tournament 1",
-		TournamentKey: "tournament-1",
+		TournamentKey: pgtype.UUID{Bytes: key, Valid: true},
 		Depth:         2,
 		Status:        sqlc.TournamentStatusEnum(TournamentLobby.String()),
 		ScheduledOn:   pgtype.Timestamptz{Time: itest.TimeNow.Add(time.Hour).Local(), Valid: true},
@@ -59,30 +62,21 @@ var TournamentLbdChangeSets = []UpdtLbChangeSet{
 	{ModeCorrespondence1, 1, 1100},
 }
 
+// RankedParticipants Ordered by `JoinedOn`
 var RankedParticipants = []ParticipantDTO{
 	{
-		TournamentID: 2,
-		JoinedOn:     itest.TimeNow,
+		TournamentKey: itest.TournamentInsts[1].TournamentKey,
+		JoinedOn:      itest.TimeNow.Add(time.Minute * 4),
 		LbdUserDTO: LbdUserDTO{
-			UserDTO:    UserDTO{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
-			Elo:        1000,
-			HighestElo: 1000,
-			Rank:       4,
+			UserDTO:    UserDTO{ID: 4, Username: "user4", Country: "us", JoinedOn: itest.TimeNow},
+			Elo:        2000,
+			HighestElo: 2000,
+			Rank:       1,
 		},
 	},
 	{
-		TournamentID: 2,
-		JoinedOn:     itest.TimeNow,
-		LbdUserDTO: LbdUserDTO{
-			UserDTO:    UserDTO{ID: 2, Username: "user2", Country: "us", JoinedOn: itest.TimeNow},
-			Elo:        1000,
-			HighestElo: 1000,
-			Rank:       3,
-		},
-	},
-	{
-		TournamentID: 2,
-		JoinedOn:     itest.TimeNow,
+		TournamentKey: itest.TournamentInsts[1].TournamentKey,
+		JoinedOn:      itest.TimeNow.Add(time.Minute * 3),
 		LbdUserDTO: LbdUserDTO{
 			UserDTO:    UserDTO{ID: 3, Username: "user3", Country: "us", JoinedOn: itest.TimeNow},
 			Elo:        900,
@@ -91,13 +85,23 @@ var RankedParticipants = []ParticipantDTO{
 		},
 	},
 	{
-		TournamentID: 2,
-		JoinedOn:     itest.TimeNow,
+		TournamentKey: itest.TournamentInsts[1].TournamentKey,
+		JoinedOn:      itest.TimeNow.Add(time.Minute * 2),
 		LbdUserDTO: LbdUserDTO{
-			UserDTO:    UserDTO{ID: 4, Username: "user4", Country: "us", JoinedOn: itest.TimeNow},
-			Elo:        2000,
-			HighestElo: 2000,
-			Rank:       1,
+			UserDTO:    UserDTO{ID: 2, Username: "user2", Country: "us", JoinedOn: itest.TimeNow},
+			Elo:        1000,
+			HighestElo: 1000,
+			Rank:       3,
+		},
+	},
+	{
+		TournamentKey: itest.TournamentInsts[1].TournamentKey,
+		JoinedOn:      itest.TimeNow.Add(time.Minute * 1),
+		LbdUserDTO: LbdUserDTO{
+			UserDTO:    UserDTO{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
+			Elo:        1000,
+			HighestElo: 1000,
+			Rank:       4,
 		},
 	},
 }
@@ -117,13 +121,13 @@ func TestGetFullTournament(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		tournamentID   int64
+		tournamentKey  uuid.UUID
 		wantTournament FullTournamentDTO
 		wantErr        error
 	}{
 		{
-			name:         "EmptyLobbyTournament",
-			tournamentID: 1,
+			name:          "EmptyLobbyTournament",
+			tournamentKey: itest.TournamentInsts[0].TournamentKey,
 			wantTournament: FullTournamentDTO{
 				TournamentDTO: TournamentDTOs[0],
 				Participants:  []ParticipantDTO{},
@@ -131,24 +135,24 @@ func TestGetFullTournament(t *testing.T) {
 			},
 		},
 		{
-			name:         "RetrieveFullTournament",
-			tournamentID: 2,
+			name:          "RetrieveFullTournament",
+			tournamentKey: itest.TournamentInsts[1].TournamentKey,
 			wantTournament: FullTournamentDTO{
 				TournamentDTO: TournamentDTOs[1],
 				Participants:  RankedParticipants,
-				Matches:       []MatchDTO{MatchDtos[0], MatchDtos[1]},
+				Matches:       []MatchDTO{MatchDtos[1], MatchDtos[0]}, // Ordered by `CreatedOn`
 			},
 		},
 		{
-			name:         "TournamentDoesNotExist",
-			tournamentID: -999,
-			wantErr:      ErrNoTournament,
+			name:          "TournamentDoesNotExist",
+			tournamentKey: uuid.New(),
+			wantErr:       ErrTournamentNotFound,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tournament, err := services.GetTournamentByIDWithRanks(ctx, tt.tournamentID)
+			tournament, err := services.GetTournamentByIDWithRanks(ctx, tt.tournamentKey)
 
 			assert.Equal(t, tt.wantErr, err)
 			testutil.Equal(t, tt.wantTournament, tournament)
@@ -168,6 +172,7 @@ func TestGetTournaments(t *testing.T) {
 		name            string
 		participantID   int64
 		afterID         int64
+		perPage         int32
 		wantTournaments []TournamentDTO
 		wantErr         error
 	}{
@@ -175,6 +180,7 @@ func TestGetTournaments(t *testing.T) {
 			name:          "GetTournaments",
 			participantID: -1,
 			afterID:       -1,
+			perPage:       20,
 			wantTournaments: []TournamentDTO{
 				TournamentDTOs[2],
 			},
@@ -183,6 +189,7 @@ func TestGetTournaments(t *testing.T) {
 			name:          "GetTournamentsAfterID",
 			participantID: -1,
 			afterID:       2,
+			perPage:       1,
 			wantTournaments: []TournamentDTO{
 				TournamentDTOs[0],
 			},
@@ -191,6 +198,7 @@ func TestGetTournaments(t *testing.T) {
 			name:          "GetTournamentsParticipant",
 			participantID: 4,
 			afterID:       -1,
+			perPage:       20,
 			wantTournaments: []TournamentDTO{
 				TournamentDTOs[1],
 			},
@@ -199,7 +207,7 @@ func TestGetTournaments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tournaments, err := services.GetTournaments(ctx, tt.participantID, tt.afterID, 1)
+			tournaments, err := services.GetTournaments(ctx, tt.participantID, tt.afterID, tt.perPage)
 
 			assert.Equal(t, tt.wantErr, err)
 			testutil.Equal(t, tt.wantTournaments, tournaments)

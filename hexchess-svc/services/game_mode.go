@@ -26,7 +26,7 @@ var gameModeEntries = []enum.Entry[GameMode]{
 	{ModeTimed15Plus10, "TIMED_15+10"},
 }
 
-var GameModeMembers = enum.BuildReverseMap(gameModeEntries)
+var GameModeEnums = enum.BuildReverseMap(gameModeEntries)
 
 var RealTimeModes = []GameMode{
 	ModeTimed1Plus0,
@@ -71,9 +71,9 @@ func (m GameMode) MarshalJSON() ([]byte, error) {
 }
 
 func (m *GameMode) UnmarshalJSON(d []byte) error {
-	return enum.Unmarshal(d, GameModeMembers, m)
+	return enum.Unmarshal(d, GameModeEnums, m)
 }
 
 func ExpectGameMode[S enum.StringLike](s S) GameMode {
-	return enum.Expect(s, GameModeMembers)
+	return enum.Expect(s, GameModeEnums)
 }

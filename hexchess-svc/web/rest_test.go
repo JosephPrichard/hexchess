@@ -160,7 +160,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 		},
 		{
 			name:     "LoginWithGoogleTokenSuccessful",
-			runCount: 2, // the user is created the first time, the second time we log in with the already inserted account ID
+			runCount: 2, // the user is created the first time, the second time we log in with the already inserted account key
 			setupMocks: func(ctrl *gomock.Controller) egress.GoogleAPI {
 				m := egress.NewMockIDTokenValidator(ctrl)
 				m.EXPECT().
@@ -669,7 +669,7 @@ func TestGetPlayer(t *testing.T) {
 			wantSuccess: GetPlayersResp{
 				User:  svc.TestUserDTOs[0],
 				Stats: svc.TestUserStats[0],
-				ReplayList: []svc.ReplayDTO{
+				ReplayList: []svc.FullReplayDto{
 					svc.TestReplayDTOs[2],
 					svc.TestReplayDTOs[1],
 					svc.TestReplayDTOs[0],
@@ -684,7 +684,7 @@ func TestGetPlayer(t *testing.T) {
 			wantSuccess: GetPlayersResp{
 				User:       svc.TestUserDTOs[0],
 				Stats:      svc.TestUserStats[0],
-				ReplayList: []svc.ReplayDTO{},
+				ReplayList: []svc.FullReplayDto{},
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -787,14 +787,14 @@ func TestHandleGetUserReplays(t *testing.T) {
 			userID:      "999",
 			afterID:     "0",
 			wantStatus:  http.StatusOK,
-			wantSuccess: GetUserReplaysResp{ReplayList: []svc.ReplayDTO{}},
+			wantSuccess: GetUserReplaysResp{ReplayList: []svc.FullReplayDto{}},
 		},
 		{
 			name:       "GotUserReplays",
 			afterID:    "-1",
 			userID:     "1",
 			wantStatus: http.StatusOK,
-			wantSuccess: GetUserReplaysResp{ReplayList: []svc.ReplayDTO{
+			wantSuccess: GetUserReplaysResp{ReplayList: []svc.FullReplayDto{
 				svc.TestReplayDTOs[2],
 				svc.TestReplayDTOs[1],
 				svc.TestReplayDTOs[0],

@@ -79,7 +79,7 @@ var ReplayInsts = []struct {
 	PlayedOn       time.Time
 }{
 	{
-		GameID:         uuid.NewString(), // replay ID 1.
+		GameID:         uuid.NewString(), // replay key 1.
 		WhiteID:        ptr(1),
 		BlackID:        ptr(2),
 		Result:         "WHITE_WINS",
@@ -226,7 +226,7 @@ var ChallengeInsts = []struct {
 }
 
 var TournamentInsts = []struct {
-	TournamentKey string
+	TournamentKey uuid.UUID
 	Name          string
 	Depth         int32
 	ScheduledOn   *time.Time
@@ -237,7 +237,7 @@ var TournamentInsts = []struct {
 	Mode          string
 }{
 	{
-		TournamentKey: uuid.NewString(),
+		TournamentKey: uuid.New(),
 		Name:          "Test Tournament 1",
 		Depth:         2,
 		ScheduledOn:   nil,
@@ -248,7 +248,7 @@ var TournamentInsts = []struct {
 		Mode:          "CORRESPONDENCE_1",
 	},
 	{
-		TournamentKey: uuid.NewString(),
+		TournamentKey: uuid.New(),
 		Name:          "Test Tournament 2",
 		Depth:         2,
 		ScheduledOn:   nil,
@@ -259,7 +259,7 @@ var TournamentInsts = []struct {
 		Mode:          "CORRESPONDENCE_1",
 	},
 	{
-		TournamentKey: uuid.NewString(),
+		TournamentKey: uuid.New(),
 		Name:          "Test Tournament 3",
 		Depth:         1,
 		ScheduledOn:   nil,
@@ -271,83 +271,80 @@ var TournamentInsts = []struct {
 	},
 }
 
+// TournamentParticipantInsts JoinedOn must be deterministically ordered.
 var TournamentParticipantInsts = []struct {
-	TournamentID int64
-	UserID       int64
-	JoinedOn     time.Time
+	TournamentKey uuid.UUID
+	UserID        int64
+	JoinedOn      time.Time
 }{
 	// IN_PROGRESS tournament (max participants)
 	{
-		TournamentID: 2,
-		UserID:       1,
-		JoinedOn:     TimeNow,
+		TournamentKey: TournamentInsts[1].TournamentKey,
+		UserID:        1,
+		JoinedOn:      TimeNow.Add(time.Minute * 1),
 	},
 	{
-		TournamentID: 2,
-		UserID:       2,
-		JoinedOn:     TimeNow,
+		TournamentKey: TournamentInsts[1].TournamentKey,
+		UserID:        2,
+		JoinedOn:      TimeNow.Add(time.Minute * 2),
 	},
 	{
-		TournamentID: 2,
-		UserID:       3,
-		JoinedOn:     TimeNow,
+		TournamentKey: TournamentInsts[1].TournamentKey,
+		UserID:        3,
+		JoinedOn:      TimeNow.Add(time.Minute * 3),
 	},
 	{
-		TournamentID: 2,
-		UserID:       4,
-		JoinedOn:     TimeNow,
+		TournamentKey: TournamentInsts[1].TournamentKey,
+		UserID:        4,
+		JoinedOn:      TimeNow.Add(time.Minute * 4),
 	},
 	// FINISHED tournament participants (max participants)
 	{
-		TournamentID: 3,
-		UserID:       1,
-		JoinedOn:     TimeNow,
+		TournamentKey: TournamentInsts[2].TournamentKey,
+		UserID:        1,
+		JoinedOn:      TimeNow.Add(time.Minute * 5),
 	},
 	{
-		TournamentID: 3,
-		UserID:       2,
-		JoinedOn:     TimeNow,
+		TournamentKey: TournamentInsts[2].TournamentKey,
+		UserID:        2,
+		JoinedOn:      TimeNow.Add(time.Minute * 6),
 	},
 }
 
-var TournamentMatchGameIDs = []string{
-	*TournamentMatchInsts[0].GameID,
-	*TournamentMatchInsts[1].GameID,
-}
-
+// TournamentMatchInsts JoinedOn must be deterministically ordered.
 var TournamentMatchInsts = []struct {
-	GameID       *string
-	TournamentID int64
-	Depth        int32
-	WhiteID      int64
-	BlackID      int64
-	CreatedOn    time.Time
+	GameID        *string
+	TournamentKey uuid.UUID
+	Depth         int32
+	WhiteID       int64
+	BlackID       int64
+	CreatedOn     time.Time
 }{
 	// IN_PROGRESS tournmanet matches (some matches)
 	{
-		GameID:       ptr(uuid.NewString()), // (no replay, unfinished)
-		TournamentID: 2,
-		Depth:        1,
-		WhiteID:      1,
-		BlackID:      2,
-		CreatedOn:    TimeNow,
+		GameID:        ptr(uuid.NewString()), // (no replay, unfinished)
+		TournamentKey: TournamentInsts[1].TournamentKey,
+		Depth:         1,
+		WhiteID:       1,
+		BlackID:       2,
+		CreatedOn:     TimeNow.Add(time.Minute * 1),
 	},
 	{
-		GameID:       ptr(uuid.NewString()), // (no replay, unfinished)
-		TournamentID: 2,
-		Depth:        1,
-		WhiteID:      1,
-		BlackID:      2,
-		CreatedOn:    TimeNow,
+		GameID:        ptr(uuid.NewString()), // (no replay, unfinished)
+		TournamentKey: TournamentInsts[1].TournamentKey,
+		Depth:         1,
+		WhiteID:       1,
+		BlackID:       2,
+		CreatedOn:     TimeNow.Add(time.Minute * 2),
 	},
 	// FINISHED tournament matches (all matches)
 	{
-		GameID:       ptr(FirstReplayGameID), // (replay, finished)
-		TournamentID: 3,
-		Depth:        1,
-		WhiteID:      1,
-		BlackID:      2,
-		CreatedOn:    TimeNow,
+		GameID:        ptr(FirstReplayGameID), // (replay, finished)
+		TournamentKey: TournamentInsts[2].TournamentKey,
+		Depth:         1,
+		WhiteID:       1,
+		BlackID:       2,
+		CreatedOn:     TimeNow.Add(time.Minute * 3),
 	},
 }
 
@@ -430,7 +427,7 @@ func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
 	}
 	for _, inst := range TournamentInsts {
 		batchQueue(`
-			INSERT INTO tournaments (tournament_key, name, depth, scheduled_on, created_on, updated_on, created_by, status, mode)
+			INSERT INTO tournaments (tkey, name, depth, scheduled_on, created_on, updated_on, created_by, status, mode)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
 			inst.TournamentKey,
 			inst.Name,
@@ -445,19 +442,19 @@ func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
 	}
 	for _, inst := range TournamentParticipantInsts {
 		batchQueue(`
-			INSERT INTO tournament_participants (tournament_id, user_id, joined_on)
+			INSERT INTO tournament_participants (tournament_key, user_id, joined_on)
 			VALUES ($1, $2, $3);`,
-			inst.TournamentID,
+			inst.TournamentKey,
 			inst.UserID,
 			inst.JoinedOn,
 		)
 	}
 	for _, inst := range TournamentMatchInsts {
 		batchQueue(`
-			INSERT INTO tournament_matches (game_id, tournament_id, depth, white_id, black_id, created_on)
+			INSERT INTO tournament_matches (game_id, tournament_key, depth, white_id, black_id, created_on)
 			VALUES ($1, $2, $3, $4, $5, $6);`,
 			inst.GameID,
-			inst.TournamentID,
+			inst.TournamentKey,
 			inst.Depth,
 			inst.WhiteID,
 			inst.BlackID,

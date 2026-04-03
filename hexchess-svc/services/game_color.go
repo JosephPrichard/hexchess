@@ -16,7 +16,7 @@ var colorEntries = []enum.Entry[GameColor]{
 	{Black, "BLACK"},
 }
 
-var GameColorMembers = enum.BuildReverseMap(colorEntries)
+var GameColorEnums = enum.BuildReverseMap(colorEntries)
 
 func (c GameColor) String() string { return enum.String(c, colorEntries) }
 
@@ -25,9 +25,9 @@ func (c GameColor) MarshalJSON() ([]byte, error) {
 }
 
 func (c *GameColor) UnmarshalJSON(d []byte) error {
-	return enum.Unmarshal(d, GameColorMembers, c)
+	return enum.Unmarshal(d, GameColorEnums, c)
 }
 
 func ExpectColor[S enum.StringLike](s S) GameColor {
-	return enum.Expect(s, GameColorMembers)
+	return enum.Expect(s, GameColorEnums)
 }

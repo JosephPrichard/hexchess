@@ -7,8 +7,8 @@ CREATE TYPE tournament_status_enum AS ENUM (
 
 CREATE TABLE tournaments (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    tkey UUID NOT NULL UNIQUE,
     name TEXT NOT NULL,
-    tournament_key TEXT NOT NULL UNIQUE,
     depth INT NOT NULL,
     status tournament_status_enum NOT NULL,
     scheduled_on TIMESTAMP WITH TIME ZONE,
@@ -19,18 +19,16 @@ CREATE TABLE tournaments (
 );
 
 CREATE TABLE tournament_participants (
-    tournament_id BIGINT NOT NULL REFERENCES tournaments(id),
+    tournament_key UUID NOT NULL REFERENCES tournaments(tkey),
     user_id BIGINT NOT NULL REFERENCES users(id),
     joined_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE tournament_matches (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    game_id TEXT UNIQUE,
-    tournament_id BIGINT NOT NULL REFERENCES tournaments(id),
+    game_id UUID NOT NULL UNIQUE,
+    tournament_key UUID NOT NULL REFERENCES tournaments(tkey),
     depth INT NOT NULL,
-    white_id BIGINT NOT NULL REFERENCES users(id),
-    black_id BIGINT NOT NULL REFERENCES users(id),
     created_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

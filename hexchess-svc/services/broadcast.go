@@ -74,7 +74,7 @@ func (b *LocalBroadcasters) ListenGameMessages(rdb db.Redis) chan struct{} {
 			slog.Error("unmarshal game message", "err", err, "channel", v.Channel)
 			return
 		}
-		slog.Info("received message on channel", "ID", outputID.GameId, "channel", v.Channel)
+		slog.Info("received message on channel", "key", outputID.GameId, "channel", v.Channel)
 		go b.GamesCaster.Broadcast(outputID.GameId, v.Data)
 	})
 }

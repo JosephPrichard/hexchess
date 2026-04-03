@@ -178,6 +178,7 @@ var TestChallengeDTOs = []ChallengeDTO{
 var TournamentDTOs = []TournamentDTO{
 	{
 		ID:             1,
+		TournamentKey:  itest.TournamentInsts[0].TournamentKey,
 		Name:           "Test Tournament 1",
 		Depth:          2,
 		MaxPlayerCount: 4,
@@ -190,6 +191,7 @@ var TournamentDTOs = []TournamentDTO{
 	},
 	{
 		ID:             2,
+		TournamentKey:  itest.TournamentInsts[1].TournamentKey,
 		Name:           "Test Tournament 2",
 		Depth:          2,
 		MaxPlayerCount: 4,
@@ -202,6 +204,7 @@ var TournamentDTOs = []TournamentDTO{
 	},
 	{
 		ID:             3,
+		TournamentKey:  itest.TournamentInsts[2].TournamentKey,
 		Name:           "Test Tournament 3",
 		Depth:          1,
 		MaxPlayerCount: 2,
@@ -214,62 +217,19 @@ var TournamentDTOs = []TournamentDTO{
 	},
 }
 
-var ParticipantsDTOs = []ParticipantDTO{
-	{
-		TournamentID: 2,
-		JoinedOn:     itest.TimeNow,
-		LbdUserDTO: LbdUserDTO{
-			UserDTO:    UserDTO{ID: 4, Username: "user4", Country: "us", JoinedOn: itest.TimeNow},
-			Elo:        2000,
-			HighestElo: 2000,
-			Rank:       1,
-		},
-	},
-	{
-		TournamentID: 2,
-		JoinedOn:     itest.TimeNow,
-		LbdUserDTO: LbdUserDTO{
-			UserDTO:    UserDTO{ID: 3, Username: "user3", Country: "us", JoinedOn: itest.TimeNow},
-			Elo:        900,
-			HighestElo: 900,
-			Rank:       2,
-		},
-	},
-	{
-		TournamentID: 2,
-		JoinedOn:     itest.TimeNow,
-		LbdUserDTO: LbdUserDTO{
-			UserDTO:    UserDTO{ID: 2, Username: "user2", Country: "us", JoinedOn: itest.TimeNow},
-			Elo:        1000,
-			HighestElo: 1000,
-			Rank:       3,
-		},
-	},
-	{
-		TournamentID: 2,
-		JoinedOn:     itest.TimeNow,
-		LbdUserDTO: LbdUserDTO{
-			UserDTO:    UserDTO{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
-			Elo:        1000,
-			HighestElo: 1000,
-			Rank:       4,
-		},
-	},
-}
-
 var MatchDtos = []MatchDTO{
 	{
-		ID:           1,
-		GameID:       itest.TournamentMatchGameIDs[0],
-		CreatedOn:    itest.TimeNow,
-		TournamentID: 2,
-		Depth:        1,
+		ID:            1,
+		GameID:        *itest.TournamentMatchInsts[0].GameID,
+		CreatedOn:     itest.TimeNow.Add(time.Minute * 1),
+		TournamentKey: itest.TournamentInsts[1].TournamentKey,
+		Depth:         1,
 	},
 	{
-		ID:           2,
-		GameID:       itest.TournamentMatchGameIDs[1],
-		CreatedOn:    itest.TimeNow,
-		TournamentID: 2,
-		Depth:        1,
+		ID:            2,
+		GameID:        *itest.TournamentMatchInsts[1].GameID,
+		CreatedOn:     itest.TimeNow.Add(time.Minute * 2),
+		TournamentKey: itest.TournamentInsts[1].TournamentKey,
+		Depth:         1,
 	},
 }

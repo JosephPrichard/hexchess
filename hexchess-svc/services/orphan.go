@@ -53,7 +53,7 @@ type RemoveOrphansOpts struct {
 }
 
 // removeOrphanedObjects is a generic algorithm to delete any orphaned keys by paginating all keys in a bucket
-// it assumes that we can parse the id from any given key, and that we can lookup if that ID is valid or not from a database.
+// it assumes that we can parse the id from any given Key, and that we can lookup if that Key is valid or not from a database.
 func (svc *Services) removeOrphanedObjects(ctx context.Context, opts RemoveOrphansOpts) error {
 	page := 0
 
@@ -63,7 +63,7 @@ func (svc *Services) removeOrphanedObjects(ctx context.Context, opts RemoveOrpha
 		MaxKeys: aws.Int32(opts.PageLength),
 	})
 
-	// paginates through all keys in the Bucket page by page, collects each key, checks if they are orphaned or not, and deletes orphans.
+	// paginates through all keys in the Bucket page by page, collects each Key, checks if they are orphaned or not, and deletes orphans.
 	for paginator.HasMorePages() {
 		// list keys for this page.
 		listObjects, err := paginator.NextPage(ctx)
@@ -86,7 +86,7 @@ func (svc *Services) removeOrphanedObjects(ctx context.Context, opts RemoveOrpha
 			key := *obj.Key
 			objectID, err := opts.parseID(key)
 			if err != nil {
-				slog.ErrorContext(ctx, "failed to parse object key", "key", key, "err", err)
+				slog.ErrorContext(ctx, "failed to parse object Key", "key", key, "err", err)
 				continue
 			}
 			ids = append(ids, objectID)

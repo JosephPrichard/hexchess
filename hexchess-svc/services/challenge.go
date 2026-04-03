@@ -8,11 +8,9 @@ import (
 	"log/slog"
 	"time"
 
-	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/internal/logutil"
 
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -32,10 +30,10 @@ type ChallengeDTO struct {
 }
 
 var (
-	ErrDuplicateChallenge  = errors.New("duplicate challenge")
-	ErrSelfChallenge       = errors.New("cannot challenge yourself")
-	ErrParticipantConflict = errors.New("one or more participants are invalid")
-	ErrChallengeNotFound   = errors.New("challenge not found")
+	ErrDuplicateChallenge     = errors.New("duplicate challenge")
+	ErrSelfChallenge          = errors.New("cannot challenge yourself")
+	ErrInvalidChallengeMember = errors.New("one or more challenge participants are invalid")
+	ErrChallengeNotFound      = errors.New("challenge not found")
 )
 
 const ExpireChallengeMaxAge = time.Hour * 24 * 7
@@ -69,9 +67,10 @@ func (svc *Services) InsertChallengeRet(ctx context.Context, inst ChallengeInst)
 		MadeOn:       pgtype.Timestamptz{Valid: true, Time: inst.MadeOn},
 	})
 	if dbErr != nil {
-		svcErr := mapChallengeInsertErr(dbErr)
-		slog.WarnContext(ctx, "failed to insert challenge with db error", "dbErr", dbErr, "svcErr", svcErr)
-		return ChallengeDTO{}, svcErr
+		if svcErr := mapChallengeInsertErr(dbErr); svcErr != nil {
+			return ChallengeDTO{}, svcErr
+		}
+		return ChallengeDTO{}, fmt.Errorf("insert challenge %+v: %w", inst, dbErr)
 	}
 
 	challenge, err := mapChallengeRow(sqlc.SelectChallengesByParticipantRow(row))
@@ -83,18 +82,7 @@ func (svc *Services) InsertChallengeRet(ctx context.Context, inst ChallengeInst)
 }
 
 func mapChallengeInsertErr(err error) error {
-	var pgErr *pgconn.PgError
-	if !errors.As(err, &pgErr) {
-		return err
-	}
-	switch pgErr.Code {
-	case db.ErrPgUniqueViolation:
-		return ErrDuplicateChallenge
-	case db.ErrPgForeignKeyViolation, db.ErrPgCheckViolation:
-		return ErrParticipantConflict
-	default:
-		return err
-	}
+	return mapInsertErr(err, ErrDuplicateChallenge, ErrInvalidChallengeMember)
 }
 
 type ChallengeKey struct {
@@ -154,8 +142,8 @@ func (svc *Services) DeleteChallenge(ctx context.Context, key ChallengeKey) (Del
 		return DeleteResult{}, fmt.Errorf("delete challenge %d: %w", key, err)
 	}
 
-	gameColor, colorErr := enum.Parse(row.StartColor, GameColorMembers)
-	gameMode, modeErr := enum.Parse(row.Mode, GameModeMembers)
+	gameColor, colorErr := enum.Parse(row.StartColor, GameColorEnums)
+	gameMode, modeErr := enum.Parse(row.Mode, GameModeEnums)
 	if err := errors.Join(colorErr, modeErr); err != nil {
 		return DeleteResult{}, err
 	}
@@ -181,8 +169,8 @@ func (svc *Services) DeleteExpiredChallenges(ctx context.Context, userID int64) 
 }
 
 func mapChallengeRow(row sqlc.SelectChallengesByParticipantRow) (ChallengeDTO, error) {
-	gameColor, colorErr := enum.Parse(row.StartColor, GameColorMembers)
-	gameMode, modeErr := enum.Parse(row.Mode, GameModeMembers)
+	gameColor, colorErr := enum.Parse(row.StartColor, GameColorEnums)
+	gameMode, modeErr := enum.Parse(row.Mode, GameModeEnums)
 	if err := errors.Join(colorErr, modeErr); err != nil {
 		return ChallengeDTO{}, err
 	}

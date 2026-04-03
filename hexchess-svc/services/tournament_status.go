@@ -18,7 +18,7 @@ var tournamentStatusEntries = []enum.Entry[TournamentStatus]{
 	{TournamentFinished, "FINISHED"},
 }
 
-var TournamentStatusMembers = enum.BuildReverseMap(tournamentStatusEntries)
+var TournamentStatusEnums = enum.BuildReverseMap(tournamentStatusEntries)
 
 func (t TournamentStatus) String() string {
 	return enum.String(t, tournamentStatusEntries)
@@ -29,5 +29,5 @@ func (t TournamentStatus) MarshalJSON() ([]byte, error) {
 }
 
 func (t *TournamentStatus) UnmarshalJSON(d []byte) error {
-	return enum.Unmarshal(d, TournamentStatusMembers, t)
+	return enum.Unmarshal(d, TournamentStatusEnums, t)
 }

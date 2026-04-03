@@ -16,7 +16,7 @@ var replayCauseEntries = []enum.Entry[ReplayCause]{
 	{Stalemate, "STALEMATE"},
 }
 
-var ReplayCauseMembers = enum.BuildReverseMap(replayCauseEntries)
+var ReplayCauseEnums = enum.BuildReverseMap(replayCauseEntries)
 
 func (c ReplayCause) String() string { return enum.String(c, replayCauseEntries) }
 
@@ -25,9 +25,9 @@ func (c ReplayCause) MarshalJSON() ([]byte, error) {
 }
 
 func (c *ReplayCause) UnmarshalJSON(d []byte) error {
-	return enum.Unmarshal(d, ReplayCauseMembers, c)
+	return enum.Unmarshal(d, ReplayCauseEnums, c)
 }
 
 func ExpectReplayCause[S enum.StringLike](s S) ReplayCause {
-	return enum.Expect(s, ReplayCauseMembers)
+	return enum.Expect(s, ReplayCauseEnums)
 }

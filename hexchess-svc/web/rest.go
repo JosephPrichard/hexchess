@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -409,11 +410,11 @@ func transformCreateGame(body CreateGameBody) (CreateGameArgs, error) {
 			initialBoard = board
 		}
 	}
-	color, ok := svc.GameColorMembers[body.FirstColor]
+	color, ok := svc.GameColorEnums[body.FirstColor]
 	if !ok {
 		respErr.Put("firstColor", ErrHttpInvalidColor)
 	}
-	mode, ok := svc.GameModeMembers[body.Mode]
+	mode, ok := svc.GameModeEnums[body.Mode]
 	if !ok {
 		respErr.Put("mode", ErrHttpInvalidMode)
 	}
@@ -554,11 +555,11 @@ type CreateChallengeArgs struct {
 
 func transformCreateChallenge(body CreateChallengeBody) (CreateChallengeArgs, error) {
 	var respErr ResponseError
-	color, ok := svc.GameColorMembers[body.StartColor]
+	color, ok := svc.GameColorEnums[body.StartColor]
 	if !ok {
 		respErr.Put("startColor", ErrHttpInvalidColor)
 	}
-	mode, ok := svc.GameModeMembers[body.Mode]
+	mode, ok := svc.GameModeEnums[body.Mode]
 	if !ok {
 		respErr.Put("mode", ErrHttpInvalidMode)
 	}
@@ -591,7 +592,7 @@ func (server *Server) HandleCreateChallenge(w http.ResponseWriter, r *http.Reque
 	switch {
 	case errors.Is(err, svc.ErrDuplicateChallenge):
 		return ErrHttpDuplicateChallenge
-	case errors.Is(err, svc.ErrParticipantConflict):
+	case errors.Is(err, svc.ErrInvalidChallengeMember):
 		return ErrHttpInvalidParticipants
 	case errors.Is(err, svc.ErrSelfChallenge):
 		return ErrHttpSelfChallenge
@@ -644,7 +645,7 @@ func (server *Server) getLeaderboardQuery(q url.Values) (LeaderboardArg, error) 
 	if err != nil {
 		respErr.Put("page", ErrHttpInvalidPage)
 	}
-	mode, ok := svc.GameModeMembers[q.Get("mode")]
+	mode, ok := svc.GameModeEnums[q.Get("mode")]
 	if !ok {
 		respErr.Put("mode", ErrHttpInvalidMode)
 	}
@@ -746,7 +747,7 @@ func (server *Server) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 		return
 	})
 	eg.Go(func() (err error) {
-		lbRanks, err = server.Services.GetUserLeaderboardRanks(egCtx, int64(query.UserID), svc.GameModeMembers)
+		lbRanks, err = server.Services.GetUserLeaderboardRanks(egCtx, int64(query.UserID), svc.GameModeEnums)
 		return
 	})
 	if loadReplays {
@@ -813,8 +814,9 @@ func (server *Server) HandleSearchPlayers(w http.ResponseWriter, r *http.Request
 }
 
 type GetReplayQuery struct {
-	ReplayID int64
-	GameID   string
+	ReplayID  int64
+	GameID    uuid.UUID
+	HasGameID bool
 }
 
 func (server *Server) getReplayQuery(q url.Values) (GetReplayQuery, error) {
@@ -826,7 +828,8 @@ func (server *Server) getReplayQuery(q url.Values) (GetReplayQuery, error) {
 	}
 
 	var replayID int64
-	var gameID string
+	var gameUUID uuid.UUID
+	var hasGameID bool
 
 	switch kindStr {
 	case "BY_REPLAY_ID":
@@ -836,10 +839,15 @@ func (server *Server) getReplayQuery(q url.Values) (GetReplayQuery, error) {
 		}
 		replayID = int64(intID)
 	case "BY_GAME_ID":
-		gameID = q.Get("id")
+		gameID, err := uuid.Parse(q.Get("id"))
+		if err != nil {
+			respErr.Put("id", ErrHttpInvalidID)
+		}
+		gameUUID = gameID
+		hasGameID = true
 	}
 
-	return GetReplayQuery{ReplayID: replayID, GameID: gameID}, respErr.Interface()
+	return GetReplayQuery{ReplayID: replayID, GameID: gameUUID, HasGameID: hasGameID}, respErr.Interface()
 }
 
 type GetReplayResp struct {
@@ -855,10 +863,10 @@ func (server *Server) HandleGetReplay(w http.ResponseWriter, r *http.Request) er
 	var replay svc.FullReplayDto
 
 	ctx := r.Context()
-	if query.ReplayID != 0 {
-		replay, err = server.Services.GetReplay(ctx, query.ReplayID)
-	} else if query.GameID != "" {
+	if query.HasGameID {
 		replay, err = server.Services.GetReplayByGameID(ctx, query.GameID)
+	} else {
+		replay, err = server.Services.GetReplay(ctx, query.ReplayID)
 	}
 	if err != nil {
 		if errors.Is(err, svc.ErrNoReplay) {

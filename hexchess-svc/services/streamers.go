@@ -14,20 +14,6 @@ func StartStreamReaders(ctx context.Context, svc *Services) {
 	go MakeFinishGameStreamer(ctx, svc).EventLoop()
 }
 
-func MakeFinishGameStreamer(ctx context.Context, svc *Services) *RedisStreamer[FinishGameEvent] {
-	return &RedisStreamer[FinishGameEvent]{
-		Context: ctx,
-		Client:  svc.Redis.GameStore,
-
-		Concurrency:   8,
-		StreamKey:     svc.Redis.FinishGameStreamKey,
-		ConsumerGroup: FinishGameConsumerGroup,
-
-		HandleEvent:    svc.insertFinishedGameEvent,
-		UnmarshalEvent: UnmarshalFinishGameEvent,
-	}
-}
-
 type RedisStreamer[Event any] struct {
 	Context context.Context
 	Client  *redis.Client

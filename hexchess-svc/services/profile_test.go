@@ -40,7 +40,7 @@ func TestDeleteOldProfilePics(t *testing.T) {
 func TestFindMostRecentKey(t *testing.T) {
 	t.Parallel()
 
-	// tests most recent key logic since it cannot be tested in the s3 calls it is tested in
+	// tests most recent Key logic since it cannot be tested in the s3 calls it is tested in
 	// this is because the 'LastModifiedTime' value is nondeterministic with regards to inserts that happen in +- 1 second
 	tests := []struct {
 		objects []s3Types.Object

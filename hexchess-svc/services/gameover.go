@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
@@ -12,13 +13,12 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/redis/go-redis/v9"
 )
 
 var FinishGameConsumerGroup = "finish_game:consumer"
 
 type FinishGameEvent struct {
-	GameID       string           `json:"id"`
+	GameID       uuid.UUID        `json:"id"`
 	Board        chess.Board      `json:"board"`
 	Moves        []chess.HistMove `json:"moves"`
 	WhitePlayer  PlayerState      `json:"whitePlayer"`
@@ -26,31 +26,6 @@ type FinishGameEvent struct {
 	ReplayMode   GameMode         `json:"mode"`
 	ReplayResult ReplayResult     `json:"replayresult"`
 	ReplayCause  ReplayCause      `json:"replaycause"`
-}
-
-type RedisXAdder interface {
-	XAdd(ctx context.Context, args *redis.XAddArgs) *redis.StringCmd
-}
-
-func (svc *Services) pushFinishGameEvent(ctx context.Context, xadder RedisXAdder, event FinishGameEvent) error {
-	streamKey := svc.Redis.FinishGameStreamKey
-
-	bytes, err := MarshalFinishGameEvent(event)
-	if err != nil {
-		return fmt.Errorf("marshal finish game event: %w", err)
-	}
-
-	xArgs := &redis.XAddArgs{
-		Stream: streamKey,
-		Values: map[string]any{"data": string(bytes)},
-	}
-	msgID, err := xadder.XAdd(ctx, xArgs).Result()
-	if err != nil {
-		return fmt.Errorf("xadd finished game event: %w", err)
-	}
-
-	slog.InfoContext(ctx, "pushed finished game event", "id", msgID, "gameID", event.GameID)
-	return nil
 }
 
 func (svc *Services) insertFinishedGameEvent(ctx context.Context, event FinishGameEvent) error {
@@ -105,12 +80,12 @@ func (svc *Services) insertFinishedGameEvent(ctx context.Context, event FinishGa
 		return fmt.Errorf("broadcast replay entity output: %w", err)
 	}
 
-	slog.InfoContext(ctx, "completed inserting finished game event", "ID", event.GameID)
+	slog.InfoContext(ctx, "completed inserting finished game event", "key", event.GameID)
 	return nil
 }
 
 type GameResult struct {
-	GameID       string       `json:"gameId"`
+	GameID       uuid.UUID    `json:"gameId"`
 	WhiteID      int64        `json:"whiteId"`
 	BlackID      int64        `json:"blackId"`
 	ReplayCause  ReplayCause  `json:"cause"`
@@ -151,11 +126,11 @@ func (svc *Services) InsertGameResultTx(ctx context.Context, params GameResult) 
 // insertGameResult processes a game result, updates player ELO scores, and records the match details in the database.
 // It handles win, loss, or draw scenarios and ensures a consistent update order for database operations to prevent deadlocking.
 // Returns a GRChangeSet summarizing the changes and any error encountered during processing.
-func insertGameResult(ctx context.Context, query sqlc.Querier, result GameResult) (GameResultChangeSet, error) {
+func insertGameResult(ctx context.Context, querier sqlc.Querier, result GameResult) (GameResultChangeSet, error) {
 	mode := sqlc.ModeEnum(result.ReplayMode.String())
 	userIDs := []int64{result.WhiteID, result.BlackID}
 
-	existingReplayID, err := query.SelectReplayIDByGameID(ctx, result.GameID)
+	existingReplayID, err := querier.SelectReplayIDByGameID(ctx, pgtype.UUID{Bytes: result.GameID, Valid: true})
 	if err == nil {
 		return GameResultChangeSet{ReplayID: existingReplayID, AlreadyExists: true}, nil
 	} else if !IsErrNoRows(err) {
@@ -164,7 +139,7 @@ func insertGameResult(ctx context.Context, query sqlc.Querier, result GameResult
 	// gameID has not been processed? continue executing the transaction.
 
 	slices.SortFunc(userIDs, func(left, right int64) int { return int(left - right) }) // consistent query order
-	userElos, err := query.SelectUserModeElosByIds(ctx, sqlc.SelectUserModeElosByIdsParams{ID: userIDs, Mode: mode})
+	userElos, err := querier.SelectUserModeElosByIds(ctx, sqlc.SelectUserModeElosByIdsParams{ID: userIDs, Mode: mode})
 	if err != nil {
 		return GameResultChangeSet{}, fmt.Errorf("select users %+v elo: %w", userIDs, err)
 	}
@@ -173,7 +148,7 @@ func insertGameResult(ctx context.Context, query sqlc.Querier, result GameResult
 
 	slices.SortFunc(updts, func(left, right sqlc.UpsertUserEloParams) int { return int(left.UserID - right.UserID) }) // consistent update order
 	var batchUpsertErrs []error
-	query.UpsertUserElo(ctx, updts).Exec(func(i int, err error) {
+	querier.UpsertUserElo(ctx, updts).Exec(func(i int, err error) {
 		if err != nil {
 			batchUpsertErrs = append(batchUpsertErrs, fmt.Errorf("batch %d: upserting elo for updt %+v: %w", i, updts[i], err))
 		}
@@ -182,8 +157,8 @@ func insertGameResult(ctx context.Context, query sqlc.Querier, result GameResult
 		return GameResultChangeSet{}, err
 	}
 
-	replayInst := mapReplayInst(result, changeSet)
-	replayID, err := query.InsertReplay(ctx, replayInst)
+	replayInst := mapReplayInstFromGameResult(result, changeSet)
+	replayID, err := querier.InsertReplay(ctx, replayInst)
 	if err != nil {
 		return GameResultChangeSet{}, fmt.Errorf("insert replay for result %+v: %w", result, err)
 	}
@@ -254,4 +229,20 @@ func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.Select
 	}
 
 	return changeSet, updts
+}
+
+func mapReplayInstFromGameResult(result GameResult, changeSet GameResultChangeSet) sqlc.InsertReplayParams {
+	return sqlc.InsertReplayParams{
+		GameID:   pgtype.UUID{Bytes: result.GameID, Valid: true},
+		WhiteID:  pgtype.Int8{Int64: result.WhiteID, Valid: IsNonGuestID(result.WhiteID)},
+		BlackID:  pgtype.Int8{Int64: result.BlackID, Valid: IsNonGuestID(result.BlackID)},
+		Result:   sqlc.ResultEnum(result.ReplayResult.String()),
+		Cause:    sqlc.CauseEnum(result.ReplayCause.String()),
+		Mode:     sqlc.ModeEnum(result.ReplayMode.String()),
+		WinElo:   changeSet.WinEloDiff,
+		LoseElo:  changeSet.LoseEloDiff,
+		WhiteElo: changeSet.WhiteEloNext,
+		BlackElo: changeSet.BlackEloNext,
+		PlayedOn: pgtype.Timestamptz{Valid: true, Time: result.InsertedTime},
+	}
 }

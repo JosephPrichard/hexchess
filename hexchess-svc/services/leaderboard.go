@@ -195,7 +195,7 @@ func (svc *Services) getLeaderboard(ctx context.Context, mode GameMode, startRan
 	for i, strID := range ids {
 		id, err := strconv.ParseInt(strID, 10, 64)
 		if err != nil {
-			return Leaderboard{}, fmt.Errorf("parse ranked ID: %w", err)
+			return Leaderboard{}, fmt.Errorf("parse ranked Key: %w", err)
 		}
 		users = append(users, RankedUser{ID: id, Rank: startRank + int64(i) + 1})
 	}
@@ -219,7 +219,7 @@ func (svc *Services) GetLeaderboardPage(ctx context.Context, mode GameMode, page
 }
 
 func (svc *Services) SyncLeaderboard(ctx context.Context) error {
-	for _, mode := range GameModeMembers {
+	for _, mode := range GameModeEnums {
 		afterID := int64(0)
 		for {
 			rows, err := svc.Querier.SelectEloList(ctx, sqlc.SelectEloListParams{ID: afterID, Mode: sqlc.ModeEnum(mode.String()), Limit: 20})

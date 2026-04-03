@@ -41,6 +41,15 @@ func defaultElo(elo pgtype.Float8) float64 {
 	}
 }
 
+func calcUserWinrate(wins int32, losses int32, draws int32) int64 {
+	wr := float64(0)
+	total := wins + losses + draws
+	if total > 0 {
+		wr = float64(wins) / float64(total) * 100.0
+	}
+	return int64(wr)
+}
+
 type RankedUser struct {
 	ID   int64
 	Rank int64
@@ -81,7 +90,7 @@ func (svc *Services) InsertUser(ctx context.Context, inst UserInst) (UserDTO, er
 		return UserDTO{}, fmt.Errorf("insert user to db: %w", err)
 	}
 
-	user := mapUserRow(sqlc.SelectUserByIDRow(row))
+	user := UserDTO{ID: row.ID, Username: row.Username, Country: row.Country, Bio: row.Bio, JoinedOn: row.JoinedOn.Time}
 	slog.InfoContext(ctx, "created a new user", "user", user)
 	return user, nil
 }
@@ -120,7 +129,7 @@ func (svc *Services) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]
 
 	svc.Querier.BatchInsertUser(ctx, batches).QueryRow(func(i int, row sqlc.BatchInsertUserRow, err error) {
 		if err == nil {
-			users = append(users, mapUserRow(sqlc.SelectUserByIDRow(row)))
+			users = append(users, UserDTO{ID: row.ID, Username: row.Username, Country: row.Country, Bio: row.Bio, JoinedOn: row.JoinedOn.Time})
 		} else {
 			queryErrs = append(queryErrs, err)
 		}
@@ -157,8 +166,8 @@ const LockoutDuration = time.Minute * 1
 
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
-func verifyUser(ctx context.Context, query sqlc.Querier, username string, inputPassword string) (VerifiedUserDTO, error) {
-	login, err := query.SelectLoginByName(ctx, username)
+func verifyUser(ctx context.Context, querier sqlc.Querier, username string, inputPassword string) (VerifiedUserDTO, error) {
+	login, err := querier.SelectLoginByName(ctx, username)
 	if err != nil {
 		if IsErrNoRows(err) {
 			return VerifiedUserDTO{}, ErrUserNotFound
@@ -177,14 +186,14 @@ func verifyUser(ctx context.Context, query sqlc.Querier, username string, inputP
 	loginErr := bcrypt.CompareHashAndPassword([]byte(login.Password), []byte(saltedPassword))
 
 	if loginErr != nil {
-		if err := query.IncrLoginAttempts(ctx, login.ID); err != nil {
+		if err := querier.IncrLoginAttempts(ctx, login.ID); err != nil {
 			return VerifiedUserDTO{}, fmt.Errorf("incr user %d login attempts: %w", login.ID, err)
 		}
 		slog.ErrorContext(ctx, "failed to user login is invalid", "username", username, "err", loginErr)
 		return VerifiedUserDTO{}, ErrUserNotFound
 	}
 
-	if err := query.ResetLoginAttempts(ctx, login.ID); err != nil {
+	if err := querier.ResetLoginAttempts(ctx, login.ID); err != nil {
 		return VerifiedUserDTO{}, fmt.Errorf("reset user %d login attempts: %w", login.ID, err)
 	}
 	user := VerifiedUserDTO{
@@ -264,9 +273,12 @@ func (svc *Services) UpdateUser(ctx context.Context, id int64, updt UpdtUserPara
 		Bio:      pgtype.Text{Valid: updt.Bio != "", String: updt.Bio},
 		Country:  pgtype.Text{Valid: updt.Country != "", String: updt.Country},
 	})
+	if err != nil {
+		return UserDTO{}, fmt.Errorf("update user %d: %w", id, err)
+	}
 
-	user := mapUserRow(sqlc.SelectUserByIDRow(row))
-	logutil.DynLog(ctx, "updated user", err, "user", user)
+	user := UserDTO{ID: row.ID, Username: row.Username, Country: row.Country, Bio: row.Bio, JoinedOn: row.JoinedOn.Time}
+	slog.InfoContext(ctx, "updated user", err, "user", user)
 	return user, err
 }
 
@@ -292,7 +304,7 @@ func (svc *Services) GetUserByID(ctx context.Context, id int64) (UserDTO, error)
 		}
 		return UserDTO{}, fmt.Errorf("select user %d: %w", id, err)
 	}
-	user := mapUserRow(row)
+	user := UserDTO{ID: row.ID, Username: row.Username, Country: row.Country, Bio: row.Bio, JoinedOn: row.JoinedOn.Time}
 	slog.InfoContext(ctx, "selected user", "id", id, "user", user)
 	return user, nil
 }
@@ -331,7 +343,7 @@ func (svc *Services) GetUserStats(ctx context.Context, id int64) (UserStatsDTO, 
 	}
 
 	for _, row := range rows {
-		mode, err := enum.Parse(row.Mode, GameModeMembers)
+		mode, err := enum.Parse(row.Mode, GameModeEnums)
 		if err != nil {
 			return stats, err
 		}
@@ -380,23 +392,4 @@ func hashPassword(password string) (HashResult, error) {
 	}
 
 	return HashResult{Salt: salt, HashedPassword: string(hashed)}, nil
-}
-
-func calcUserWinrate(wins int32, losses int32, draws int32) int64 {
-	wr := float64(0)
-	total := wins + losses + draws
-	if total > 0 {
-		wr = float64(wins) / float64(total) * 100.0
-	}
-	return int64(wr)
-}
-
-func mapUserRow(row sqlc.SelectUserByIDRow) UserDTO {
-	return UserDTO{
-		ID:       row.ID,
-		Username: row.Username,
-		Country:  row.Country,
-		Bio:      row.Bio,
-		JoinedOn: row.JoinedOn.Time,
-	}
 }

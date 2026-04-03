@@ -77,7 +77,7 @@ func TestBatchInsertThenGet(t *testing.T) {
 		{Username: insts[1].Username, Country: "eu"},
 	}
 
-	testutil.Equal(t, wantUsers, users, cmpopts.IgnoreFields(UserDTO{}, "ID", "JoinedOn"))
+	testutil.Equal(t, wantUsers, users, cmpopts.IgnoreFields(UserDTO{}, "key", "JoinedOn"))
 	require.NoError(t, batchErr)
 }
 

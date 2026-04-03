@@ -253,3 +253,7 @@ message FinishGameEvent {
   string replay_result = 7;
   string replay_cause = 8;
 }
+
+message AdvanceTournamentEvent {
+  string tournament_key = 1;
+}

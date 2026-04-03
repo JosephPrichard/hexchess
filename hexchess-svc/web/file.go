@@ -68,7 +68,7 @@ func (server *Server) HandleGetProfilePic(w http.ResponseWriter, r *http.Request
 	}
 
 	s3URL := server.AWS.MakeS3Url(server.AWS.S3ProfileBucket, key)
-	slog.InfoContext(ctx, "resolved user ID to S3 profile pic URL", "url", s3URL, "userID", userID)
+	slog.InfoContext(ctx, "resolved user key to S3 profile pic URL", "url", s3URL, "userID", userID)
 
 	// cache control is for what URL is being redirected to, this only changes if the user uploads a new profile pic
 	//w.Header().Set("Cache-Control", "public, max-age=3600")

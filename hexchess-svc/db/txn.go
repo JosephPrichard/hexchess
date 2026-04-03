@@ -7,7 +7,7 @@ import (
 	"slices"
 )
 
-type QueryFn func(ctx context.Context, query sqlc.Querier) error
+type QueryFn func(ctx context.Context, querier sqlc.Querier) error
 
 type Txn struct {
 	QueryFn      QueryFn

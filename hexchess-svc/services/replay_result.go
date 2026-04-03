@@ -16,7 +16,7 @@ var replayResultEntries = []enum.Entry[ReplayResult]{
 	{Draw, "DRAW"},
 }
 
-var ReplayResultMembers = enum.BuildReverseMap(replayResultEntries)
+var ReplayResultEnums = enum.BuildReverseMap(replayResultEntries)
 
 func (r ReplayResult) String() string { return enum.String(r, replayResultEntries) }
 
@@ -25,9 +25,9 @@ func (r ReplayResult) MarshalJSON() ([]byte, error) {
 }
 
 func (r *ReplayResult) UnmarshalJSON(d []byte) error {
-	return enum.Unmarshal(d, ReplayResultMembers, r)
+	return enum.Unmarshal(d, ReplayResultEnums, r)
 }
 
 func ExpectReplayResult[S enum.StringLike](s S) ReplayResult {
-	return enum.Expect(s, ReplayResultMembers)
+	return enum.Expect(s, ReplayResultEnums)
 }

@@ -37,7 +37,7 @@ func TestInsertChallenge(t *testing.T) {
 			name:         "InvalidUser",
 			challengerID: 9000,
 			challengeeID: 1,
-			wantErr:      ErrParticipantConflict,
+			wantErr:      ErrInvalidChallengeMember,
 		},
 		{
 			name:         "DuplicateChallenge",
@@ -86,12 +86,12 @@ func TestMapChallengeInsertErr(t *testing.T) {
 		{
 			name:  "ForeignKeyViolationReturnsErrParticipantConflict",
 			input: &pgconn.PgError{Code: db.ErrPgForeignKeyViolation},
-			want:  ErrParticipantConflict,
+			want:  ErrInvalidChallengeMember,
 		},
 		{
 			name:  "CheckViolationReturnsErrParticipantConflict",
 			input: &pgconn.PgError{Code: db.ErrPgCheckViolation},
-			want:  ErrParticipantConflict,
+			want:  ErrInvalidChallengeMember,
 		},
 		{
 			name:  "UnrecognisedErrorIsReturnedAsIs",

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"hexchess-svc/internal/enum"
 	"time"
 
@@ -88,8 +89,8 @@ func UnmarshalChessState(bytes []byte) (*ChessState, error) {
 		return nil, fmt.Errorf("deserialize initial board %v: %w", pbChess.Game.Board, err)
 	}
 
-	mode, modeErr := enum.Parse(pbChess.Mode, GameModeMembers)
-	firstColor, colorErr := enum.Parse(pbChess.FirstColor, GameColorMembers)
+	mode, modeErr := enum.Parse(pbChess.Mode, GameModeEnums)
+	firstColor, colorErr := enum.Parse(pbChess.FirstColor, GameColorEnums)
 	if err := errors.Join(modeErr, colorErr); err != nil {
 		return nil, err
 	}
@@ -136,8 +137,8 @@ func UnmarshalChessMeta(bytes []byte) (ChessMeta, error) {
 		return ChessMeta{}, fmt.Errorf("unmarshal chess meta: %w", err)
 	}
 
-	mode, modeErr := enum.Parse(pbChess.Mode, GameModeMembers)
-	firstColor, colorErr := enum.Parse(pbChess.FirstColor, GameColorMembers)
+	mode, modeErr := enum.Parse(pbChess.Mode, GameModeEnums)
+	firstColor, colorErr := enum.Parse(pbChess.FirstColor, GameColorEnums)
 	if err := errors.Join(modeErr, colorErr); err != nil {
 		return ChessMeta{}, err
 	}
@@ -173,8 +174,8 @@ func MarshalUserMessageJson(pbUserMessage *pb.UserMessage) ([]byte, error) {
 			return nil, fmt.Errorf("parse challenge made on: %w", err)
 		}
 
-		mode, modeErr := enum.Parse(challenge.Mode, GameModeMembers)
-		startColor, colorErr := enum.Parse(challenge.StartColor, GameColorMembers)
+		mode, modeErr := enum.Parse(challenge.Mode, GameModeEnums)
+		startColor, colorErr := enum.Parse(challenge.StartColor, GameColorEnums)
 		if err := errors.Join(modeErr, colorErr); err != nil {
 			return nil, err
 		}
@@ -223,20 +224,26 @@ func UnmarshalFinishGameEvent(bytes []byte) (FinishGameEvent, error) {
 	if err := proto.Unmarshal(bytes, &pbGameEvent); err != nil {
 		return FinishGameEvent{}, fmt.Errorf("unmarshal finish game event: %w", err)
 	}
+
+	mode, modeErr := enum.Parse(pbGameEvent.GameMode, GameModeEnums)
+	replayResult, resultErr := enum.Parse(pbGameEvent.ReplayResult, ReplayResultEnums)
+	replayCause, causeErr := enum.Parse(pbGameEvent.ReplayCause, ReplayCauseEnums)
+	if err := errors.Join(modeErr, resultErr, causeErr); err != nil {
+		return FinishGameEvent{}, err
+	}
+
+	gameID, err := uuid.Parse(pbGameEvent.GameId)
+	if err != nil {
+		return FinishGameEvent{}, fmt.Errorf("parse game uuid: %w", err)
+	}
+
 	board, err := chess.DeserializeBoard(pbGameEvent.Board)
 	if err != nil {
 		return FinishGameEvent{}, fmt.Errorf("deserialize board %v: %w", pbGameEvent.Board, err)
 	}
 
-	mode, modeErr := enum.Parse(pbGameEvent.GameMode, GameModeMembers)
-	replayResult, resultErr := enum.Parse(pbGameEvent.ReplayResult, ReplayResultMembers)
-	replayCause, causeErr := enum.Parse(pbGameEvent.ReplayCause, ReplayCauseMembers)
-	if err := errors.Join(modeErr, resultErr, causeErr); err != nil {
-		return FinishGameEvent{}, err
-	}
-
 	return FinishGameEvent{
-		GameID:       pbGameEvent.GameId,
+		GameID:       gameID,
 		Board:        board,
 		Moves:        chess.DeserializeHistMoveList(pbGameEvent.Moves),
 		WhitePlayer:  DeserializePlayer(pbGameEvent.WhitePlayer),
@@ -249,7 +256,7 @@ func UnmarshalFinishGameEvent(bytes []byte) (FinishGameEvent, error) {
 
 func MarshalFinishGameEvent(event FinishGameEvent) ([]byte, error) {
 	return proto.Marshal(&pb.FinishGameEvent{
-		GameId:       event.GameID,
+		GameId:       event.GameID.String(),
 		Board:        chess.SerializeBoard(&event.Board),
 		Moves:        chess.SerializeMoveList(event.Moves),
 		WhitePlayer:  SerializePlayer(event.WhitePlayer),
@@ -260,11 +267,19 @@ func MarshalFinishGameEvent(event FinishGameEvent) ([]byte, error) {
 	})
 }
 
+// AdvanceTournamentEvent
+
+func MarshalAdvanceTournamentEvent(tournamentKey uuid.UUID) ([]byte, error) {
+	return proto.Marshal(&pb.AdvanceTournamentEvent{
+		TournamentKey: tournamentKey.String(),
+	})
+}
+
 // ReplayUsersDto
 
-func SerializeReplayOutput(gameID string, replay FullReplayDto) *pb.GameOutput {
+func SerializeReplayOutput(gameID uuid.UUID, replay FullReplayDto) *pb.GameOutput {
 	return &pb.GameOutput{
-		GameId: gameID,
+		GameId: gameID.String(),
 		Value: &pb.GameOutput_Replay{Replay: &pb.Replay{
 			Id:           replay.ID,
 			WhiteId:      replay.WhiteID,

@@ -18,11 +18,11 @@ import (
 func ParseProfilePicKey(key string) (int64, error) {
 	tokens := strings.Split(key, "/")
 	if len(tokens) != 4 {
-		return 0, fmt.Errorf("invalid profile key, incorrect number of tokens: %s", key)
+		return 0, fmt.Errorf("invalid profile Key, incorrect number of tokens: %s", key)
 	}
 	userID, err := strconv.ParseInt(tokens[2], 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("profile key userID is not a valid integer: %s: %w", key, err)
+		return 0, fmt.Errorf("profile Key userID is not a valid integer: %s: %w", key, err)
 	}
 	return userID, nil
 }
@@ -61,7 +61,7 @@ const ProfilePicPrefix = "users/profile-pics"
 func (svc *Services) DeleteOldProfilePics(ctx context.Context, playerID int) error {
 	prefix := makeProfilePicPrefix(strconv.Itoa(playerID))
 
-	// remove all but the newest keys. there should never be more 1000 keys, but if there are, this will never delete the newest key
+	// remove all but the newest keys. there should never be more 1000 keys, but if there are, this will never delete the newest Key
 	listOutput, err := svc.AWS.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 		Bucket: aws.String(svc.AWS.S3ProfileBucket),
 		Prefix: aws.String(prefix),
@@ -87,7 +87,7 @@ func (svc *Services) DeleteOldProfilePics(ctx context.Context, playerID int) err
 }
 
 func (svc *Services) UploadProfilePic(ctx context.Context, uploader PlayerState, file io.Reader, contentType string) (string, error) {
-	// uploading profile picture based off a computed key
+	// uploading profile picture based off a computed Key
 	key := MakeProfileNewPicKey(uploader.ID)
 	slog.InfoContext(ctx, "uploading profile pic to s3", "key", key, "player", uploader)
 	start := time.Now()
@@ -97,7 +97,7 @@ func (svc *Services) UploadProfilePic(ctx context.Context, uploader PlayerState,
 		Key:         aws.String(key),
 		Body:        file,
 		ContentType: aws.String(contentType),
-		// with max cache control. profile pics are immutable, since we issue a new unique key on upload.
+		// with max cache control. profile pics are immutable, since we issue a new unique Key on upload.
 		CacheControl: aws.String("public, max-age=31536000"),
 	})
 	if err != nil {
