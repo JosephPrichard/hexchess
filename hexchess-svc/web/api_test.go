@@ -676,7 +676,7 @@ func TestGetPlayer(t *testing.T) {
 			wantSuccess: GetPlayersResp{
 				User:  svc.TestUserDTOs[0],
 				Stats: svc.TestUserStats[0],
-				ReplayList: []svc.FullReplayDto{
+				ReplayList: []svc.FullReplayDTO{
 					svc.TestReplayDTOs[2],
 					svc.TestReplayDTOs[1],
 					svc.TestReplayDTOs[0],
@@ -691,7 +691,7 @@ func TestGetPlayer(t *testing.T) {
 			wantSuccess: GetPlayersResp{
 				User:       svc.TestUserDTOs[0],
 				Stats:      svc.TestUserStats[0],
-				ReplayList: []svc.FullReplayDto{},
+				ReplayList: []svc.FullReplayDTO{},
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -794,14 +794,14 @@ func TestHandleGetUserReplays(t *testing.T) {
 			userID:      "999",
 			afterID:     "0",
 			wantStatus:  http.StatusOK,
-			wantSuccess: GetUserReplaysResp{ReplayList: []svc.FullReplayDto{}},
+			wantSuccess: GetUserReplaysResp{ReplayList: []svc.FullReplayDTO{}},
 		},
 		{
 			name:       "GotUserReplays",
 			afterID:    "-1",
 			userID:     "1",
 			wantStatus: http.StatusOK,
-			wantSuccess: GetUserReplaysResp{ReplayList: []svc.FullReplayDto{
+			wantSuccess: GetUserReplaysResp{ReplayList: []svc.FullReplayDTO{
 				svc.TestReplayDTOs[2],
 				svc.TestReplayDTOs[1],
 				svc.TestReplayDTOs[0],

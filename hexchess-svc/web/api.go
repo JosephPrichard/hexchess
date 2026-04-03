@@ -722,7 +722,7 @@ func (server *Server) getPlayerQuery(q url.Values) (GetPlayerArgs, error) {
 type GetPlayersResp struct {
 	User       svc.UserDTO         `json:"user"`
 	Stats      svc.UserStatsDTO    `json:"stats"`
-	ReplayList []svc.FullReplayDto `json:"replayList"`
+	ReplayList []svc.FullReplayDTO `json:"replayList"`
 }
 
 func (server *Server) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
@@ -734,7 +734,7 @@ func (server *Server) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 
 	var user svc.UserDTO
 	var stats svc.UserStatsDTO
-	var replayList []svc.FullReplayDto
+	var replayList []svc.FullReplayDTO
 	var lbRanks map[string]svc.LbRank
 
 	ctx := r.Context()
@@ -853,7 +853,7 @@ func (server *Server) getReplayQuery(q url.Values) (GetReplayQuery, error) {
 }
 
 type GetReplayResp struct {
-	Replay svc.FullReplayDto `json:"replay"`
+	Replay svc.FullReplayDTO `json:"replay"`
 }
 
 func (server *Server) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
@@ -862,7 +862,7 @@ func (server *Server) HandleGetReplay(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	var replay svc.FullReplayDto
+	var replay svc.FullReplayDTO
 
 	ctx := r.Context()
 	if query.HasGameID {
@@ -903,7 +903,7 @@ func (server *Server) getReplaysQuery(q url.Values) (GetReplaysArg, error) {
 }
 
 type GetUserReplaysResp struct {
-	ReplayList []svc.FullReplayDto `json:"replayList"`
+	ReplayList []svc.FullReplayDTO `json:"replayList"`
 }
 
 func (server *Server) HandleGetUserReplays(w http.ResponseWriter, r *http.Request) error {

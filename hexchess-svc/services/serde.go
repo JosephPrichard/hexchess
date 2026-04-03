@@ -275,9 +275,9 @@ func MarshalAdvanceTournamentEvent(tournamentKey uuid.UUID) ([]byte, error) {
 	})
 }
 
-// ReplayUsersDto
+// ReplayUsersDTO
 
-func SerializeReplayOutput(gameID uuid.UUID, replay FullReplayDto) *pb.GameOutput {
+func SerializeReplayOutput(gameID uuid.UUID, replay FullReplayDTO) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID.String(),
 		Value: &pb.GameOutput_Replay{Replay: &pb.Replay{

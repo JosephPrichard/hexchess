@@ -38,7 +38,7 @@ var TestUserStats = []UserStatsDTO{
 	},
 }
 
-var TestReplayDTOs = []FullReplayDto{
+var TestReplayDTOs = []FullReplayDTO{
 	{
 		ReplayDTO: ReplayDTO{
 			ID:          1,
@@ -51,7 +51,7 @@ var TestReplayDTOs = []FullReplayDto{
 			LoseEloDiff: -30,
 			PlayedOn:    itest.TimeNow.Local(),
 		},
-		ReplayUsersDto: ReplayUsersDto{
+		ReplayUsersDTO: ReplayUsersDTO{
 			WhiteName:    "user1",
 			BlackName:    "user2",
 			WhiteCountry: "us",
@@ -59,7 +59,7 @@ var TestReplayDTOs = []FullReplayDto{
 			WhiteElo:     1000,
 			BlackElo:     1000,
 		},
-		ReplayViewDto: ReplayViewDto{
+		ReplayViewDTO: ReplayViewDTO{
 			WhiteEloDiff: 30,
 			BlackEloDiff: -30,
 		},
@@ -76,7 +76,7 @@ var TestReplayDTOs = []FullReplayDto{
 			LoseEloDiff: 0,
 			PlayedOn:    itest.TimeNow.Local(),
 		},
-		ReplayUsersDto: ReplayUsersDto{
+		ReplayUsersDTO: ReplayUsersDTO{
 			WhiteName:    "user3",
 			BlackName:    "user1",
 			WhiteCountry: "us",
@@ -84,7 +84,7 @@ var TestReplayDTOs = []FullReplayDto{
 			WhiteElo:     900,
 			BlackElo:     1000,
 		},
-		ReplayViewDto: ReplayViewDto{
+		ReplayViewDTO: ReplayViewDTO{
 			WhiteEloDiff: 0,
 			BlackEloDiff: 0,
 		},
@@ -101,7 +101,7 @@ var TestReplayDTOs = []FullReplayDto{
 			LoseEloDiff: 0,
 			PlayedOn:    itest.TimeNow.Local(),
 		},
-		ReplayUsersDto: ReplayUsersDto{
+		ReplayUsersDTO: ReplayUsersDTO{
 			WhiteName:    "user1",
 			BlackName:    "",
 			WhiteCountry: "us",
@@ -109,7 +109,7 @@ var TestReplayDTOs = []FullReplayDto{
 			WhiteElo:     1000,
 			BlackElo:     1000,
 		},
-		ReplayViewDto: ReplayViewDto{
+		ReplayViewDTO: ReplayViewDTO{
 			WhiteEloDiff: 0,
 			BlackEloDiff: 0,
 		},
@@ -217,7 +217,7 @@ var TournamentDTOs = []TournamentDTO{
 	},
 }
 
-var MatchDtos = []MatchDTO{
+var MatchDTOs = []MatchDTO{
 	{
 		ID:            1,
 		GameID:        *itest.TournamentMatchInsts[0].GameID,

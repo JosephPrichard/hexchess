@@ -26,7 +26,7 @@ type ReplayDTO struct {
 	PlayedOn    time.Time    `json:"playedOn"`
 }
 
-type ReplayUsersDto struct {
+type ReplayUsersDTO struct {
 	WhiteName    string  `json:"whiteName"`
 	BlackName    string  `json:"blackName"`
 	WhiteCountry string  `json:"whiteCountry"`
@@ -35,18 +35,18 @@ type ReplayUsersDto struct {
 	BlackElo     float64 `json:"blackElo"`
 }
 
-type ReplayViewDto struct {
+type ReplayViewDTO struct {
 	WhiteEloDiff float64 `json:"whiteEloDiff"`
 	BlackEloDiff float64 `json:"blackEloDiff"`
 }
 
-type FullReplayDto struct {
+type FullReplayDTO struct {
 	ReplayDTO
-	ReplayUsersDto
-	ReplayViewDto
+	ReplayUsersDTO
+	ReplayViewDTO
 }
 
-func MakeReplayViewDto(input ReplayDTO) (output ReplayViewDto) {
+func MakeReplayViewDTO(input ReplayDTO) (output ReplayViewDTO) {
 	switch input.Result {
 	case WhiteWin:
 		output.WhiteEloDiff, output.BlackEloDiff = input.WinEloDiff, input.LoseEloDiff
@@ -59,40 +59,40 @@ func MakeReplayViewDto(input ReplayDTO) (output ReplayViewDto) {
 
 var ErrNoReplay = errors.New("replay not found")
 
-func (svc *Services) GetReplayByGameID(ctx context.Context, gameID uuid.UUID) (FullReplayDto, error) {
+func (svc *Services) GetReplayByGameID(ctx context.Context, gameID uuid.UUID) (FullReplayDTO, error) {
 	row, err := svc.Querier.SelectReplayByGameID(ctx, pgtype.UUID{Bytes: gameID, Valid: true})
 	return mapGetReplayResult(ctx, gameID, sqlc.SelectReplayByIDRow(row), err)
 }
 
-func (svc *Services) GetReplay(ctx context.Context, replayID int64) (FullReplayDto, error) {
+func (svc *Services) GetReplay(ctx context.Context, replayID int64) (FullReplayDTO, error) {
 	row, err := svc.Querier.SelectReplayByID(ctx, replayID)
 	return mapGetReplayResult(ctx, replayID, row, err)
 }
 
-func mapGetReplayResult[ID any](ctx context.Context, id ID, row sqlc.SelectReplayByIDRow, err error) (FullReplayDto, error) {
+func mapGetReplayResult[ID any](ctx context.Context, id ID, row sqlc.SelectReplayByIDRow, err error) (FullReplayDTO, error) {
 	if IsErrNoRows(err) {
-		return FullReplayDto{}, ErrNoReplay
+		return FullReplayDTO{}, ErrNoReplay
 	} else if err != nil {
-		return FullReplayDto{}, fmt.Errorf("select replay %v by id: %w", id, err)
+		return FullReplayDTO{}, fmt.Errorf("select replay %v by id: %w", id, err)
 	}
 
 	replay, err := mapFullReplayByIDRow(row)
 	if err != nil {
-		return FullReplayDto{}, fmt.Errorf("map replay %v from row: %w", id, err)
+		return FullReplayDTO{}, fmt.Errorf("map replay %v from row: %w", id, err)
 	}
 
 	slog.InfoContext(ctx, "selected replay by id", "replay", replay, "id", id)
 	return replay, nil
 }
 
-func mapFullReplayByIDRow(row sqlc.SelectReplayByIDRow) (FullReplayDto, error) {
+func mapFullReplayByIDRow(row sqlc.SelectReplayByIDRow) (FullReplayDTO, error) {
 	replay, err := mapReplayByIDRow(row)
 	if err != nil {
-		return FullReplayDto{}, err
+		return FullReplayDTO{}, err
 	}
-	return FullReplayDto{
+	return FullReplayDTO{
 		ReplayDTO: replay,
-		ReplayUsersDto: ReplayUsersDto{
+		ReplayUsersDTO: ReplayUsersDTO{
 			WhiteName:    row.WhiteName.String,
 			BlackName:    row.BlackName.String,
 			WhiteCountry: row.WhiteCountry.String,
@@ -100,7 +100,7 @@ func mapFullReplayByIDRow(row sqlc.SelectReplayByIDRow) (FullReplayDto, error) {
 			WhiteElo:     defaultElo(row.WhiteElo),
 			BlackElo:     defaultElo(row.BlackElo),
 		},
-		ReplayViewDto: MakeReplayViewDto(replay),
+		ReplayViewDTO: MakeReplayViewDTO(replay),
 	}, nil
 }
 
@@ -135,7 +135,7 @@ func (svc *Services) GetMovesHistory(ctx context.Context, replayID int) ([]byte,
 	return row.Data, nil
 }
 
-func (svc *Services) GetUserReplays(ctx context.Context, userID int64, afterID int64, perPage int32) ([]FullReplayDto, error) {
+func (svc *Services) GetUserReplays(ctx context.Context, userID int64, afterID int64, perPage int32) ([]FullReplayDTO, error) {
 	if afterID < 0 {
 		afterID = int64(math.MaxInt64)
 	}
@@ -152,7 +152,7 @@ func (svc *Services) GetUserReplays(ctx context.Context, userID int64, afterID i
 		return nil, fmt.Errorf("select replays by user id %d: %w", userID, err)
 	}
 
-	replays := make([]FullReplayDto, 0, len(rows))
+	replays := make([]FullReplayDTO, 0, len(rows))
 	for _, row := range rows {
 		replay, err := mapFullReplayByIDRow(sqlc.SelectReplayByIDRow(row))
 		if err != nil {

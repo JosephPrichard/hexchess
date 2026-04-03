@@ -140,7 +140,7 @@ func TestGetFullTournament(t *testing.T) {
 			wantTournament: FullTournamentDTO{
 				TournamentDTO: TournamentDTOs[1],
 				Participants:  RankedParticipants,
-				Matches:       []MatchDTO{MatchDtos[1], MatchDtos[0]}, // Ordered by `CreatedOn`
+				Matches:       []MatchDTO{MatchDTOs[1], MatchDTOs[0]}, // Ordered by `CreatedOn`
 			},
 		},
 		{

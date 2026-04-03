@@ -36,7 +36,7 @@ type ParticipantDTO struct {
 }
 type TournamentReplay struct {
 	ReplayDTO
-	ReplayViewDto
+	ReplayViewDTO
 }
 
 type MatchDTO struct {
@@ -221,7 +221,7 @@ func mapTourneyMatchFromRow(match sqlc.SelectMatchesByTournamentIdRow) (MatchDTO
 		}
 		tournamentReplay = ptr(TournamentReplay{
 			ReplayDTO:     replay,
-			ReplayViewDto: MakeReplayViewDto(replay),
+			ReplayViewDTO: MakeReplayViewDTO(replay),
 		})
 	}
 	return MatchDTO{
