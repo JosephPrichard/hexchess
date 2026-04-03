@@ -87,7 +87,7 @@ CREATE TYPE public.mode_enum AS ENUM (
 --
 
 CREATE TYPE public.outbox_queue_type_enum AS ENUM (
-    'TOURNAMENT_ADVANCE'
+    'TOURNAMENT_ADVANCE_EVENT'
 );
 
 
@@ -165,7 +165,8 @@ CREATE TABLE public.outbox_queue (
     id integer NOT NULL,
     type public.outbox_queue_type_enum NOT NULL,
     data bytea NOT NULL,
-    created_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    created_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    processed_on timestamp with time zone
 );
 
 
@@ -215,7 +216,7 @@ CREATE TABLE public.replays (
     lose_elo_diff double precision NOT NULL,
     white_elo double precision NOT NULL,
     black_elo double precision NOT NULL,
-    game_id uuid DEFAULT gen_random_uuid() NOT NULL
+    game_id text DEFAULT gen_random_uuid() NOT NULL
 );
 
 
@@ -408,11 +409,11 @@ ALTER TABLE ONLY public.replays
 
 
 --
--- Name: replays replays_temp_uuid_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: replays replays_temp_text_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.replays
-    ADD CONSTRAINT replays_temp_uuid_key UNIQUE (game_id);
+    ADD CONSTRAINT replays_temp_text_key UNIQUE (game_id);
 
 
 --

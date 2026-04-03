@@ -41,7 +41,7 @@ FROM tournament_participants tp
 WHERE tournament_key = sqlc.arg('tournament_key')
 ORDER BY tp.joined_on DESC;
 
--- name: SelectMatchesByTournamentId :many
+-- name: SelectMatchesByTournamentID :many
 SELECT
     tm.id as tournament_match_id,
     tm.game_id,

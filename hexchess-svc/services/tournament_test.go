@@ -37,10 +37,10 @@ func TestCreateTournament(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	tournament, err := services.Querier.SelectTournamentById(ctx, pgtype.UUID{Bytes: key, Valid: true})
+	tournament, err := services.Querier.SelectTournamentByID(ctx, pgtype.UUID{Bytes: key, Valid: true})
 	require.NoError(t, err)
 
-	wantTournament := sqlc.SelectTournamentByIdRow{
+	wantTournament := sqlc.SelectTournamentByIDRow{
 		ID:            tournamentID,
 		Name:          "Tournament 1",
 		TournamentKey: pgtype.UUID{Bytes: key, Valid: true},

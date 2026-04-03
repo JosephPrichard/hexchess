@@ -16,7 +16,7 @@ import (
 )
 
 type TournamentDTO struct {
-	ID             int64            `json:"id"`
+	ID             int64            `json:"ID"`
 	TournamentKey  uuid.UUID        `json:"TournamentKey"`
 	Name           string           `json:"name"`
 	Depth          int32            `json:"depth"`
@@ -40,8 +40,8 @@ type TournamentReplay struct {
 }
 
 type MatchDTO struct {
-	ID            int64             `json:"id"`
-	GameID        string            `json:"gameId"`
+	ID            int64             `json:"ID"`
+	GameID        string            `json:"gameID"`
 	TournamentKey uuid.UUID         `json:"tournamentKey"`
 	Depth         int32             `json:"depth"`
 	CreatedOn     time.Time         `json:"createdOn"`
@@ -122,32 +122,32 @@ var ErrTournamentNotFound = fmt.Errorf("tournament does not exist")
 func (svc *Services) getTournamentByID(ctx context.Context, tournamentKey uuid.UUID) (FullTournamentDTO, error) {
 	pgKey := pgtype.UUID{Bytes: tournamentKey, Valid: true}
 
-	var tournamentRow sqlc.SelectTournamentByIdRow
-	var matchRows []sqlc.SelectMatchesByTournamentIdRow
-	var participantRows []sqlc.SelectParticipantsByTournamentIdRow
+	var tournamentRow sqlc.SelectTournamentByIDRow
+	var matchRows []sqlc.SelectMatchesByTournamentIDRow
+	var participantRows []sqlc.SelectParticipantsByTournamentIDRow
 
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() (err error) {
-		tournamentRow, err = svc.Querier.SelectTournamentById(egCtx, pgKey)
+		tournamentRow, err = svc.Querier.SelectTournamentByID(egCtx, pgKey)
 		if IsErrNoRows(err) {
 			return ErrTournamentNotFound
 		} else if err != nil {
-			return fmt.Errorf("select tournament by id %v: %w", tournamentKey, err)
+			return fmt.Errorf("select tournament by ID %v: %w", tournamentKey, err)
 		}
 		return nil
 	})
 	eg.Go(func() (err error) {
-		participantRows, err = svc.Querier.SelectParticipantsByTournamentId(egCtx, pgKey)
+		participantRows, err = svc.Querier.SelectParticipantsByTournamentID(egCtx, pgKey)
 		if err != nil {
-			return fmt.Errorf("select participants by tournament id %v: %w", tournamentKey, err)
+			return fmt.Errorf("select participants by tournament ID %v: %w", tournamentKey, err)
 		}
 		return nil
 	})
 	eg.Go(func() (err error) {
-		matchRows, err = svc.Querier.SelectMatchesByTournamentId(egCtx, pgKey)
+		matchRows, err = svc.Querier.SelectMatchesByTournamentID(egCtx, pgKey)
 		if err != nil {
-			return fmt.Errorf("select matches by tournament id %v: %w", tournamentKey, err)
+			return fmt.Errorf("select matches by tournament ID %v: %w", tournamentKey, err)
 		}
 		return nil
 	})
@@ -177,7 +177,7 @@ func (svc *Services) getTournamentByID(ctx context.Context, tournamentKey uuid.U
 	return FullTournamentDTO{TournamentDTO: tournament, Participants: participants, Matches: matches}, nil
 }
 
-func mapTourneyParticipantFromRow(participant sqlc.SelectParticipantsByTournamentIdRow) ParticipantDTO {
+func mapTourneyParticipantFromRow(participant sqlc.SelectParticipantsByTournamentIDRow) ParticipantDTO {
 	return ParticipantDTO{
 		TournamentKey: participant.TournamentKey.Bytes,
 		JoinedOn:      participant.TournamentJoinedOn.Time,
@@ -196,7 +196,7 @@ func mapTourneyParticipantFromRow(participant sqlc.SelectParticipantsByTournamen
 	}
 }
 
-func mapTourneyMatchFromRow(match sqlc.SelectMatchesByTournamentIdRow) (MatchDTO, error) {
+func mapTourneyMatchFromRow(match sqlc.SelectMatchesByTournamentIDRow) (MatchDTO, error) {
 	var tournamentReplay *TournamentReplay
 	// invariant: if replayID is non null, all other replay columns will also be non null.
 	if match.ReplayID.Valid {
@@ -234,7 +234,7 @@ func mapTourneyMatchFromRow(match sqlc.SelectMatchesByTournamentIdRow) (MatchDTO
 	}, nil
 }
 
-func mapTournamentRow(tournament sqlc.SelectTournamentByIdRow) (TournamentDTO, error) {
+func mapTournamentRow(tournament sqlc.SelectTournamentByIDRow) (TournamentDTO, error) {
 	tournamentStatus, statusErr := enum.Parse(tournament.Status, TournamentStatusEnums)
 	gameMode, modeErr := enum.Parse(tournament.Mode, GameModeEnums)
 
@@ -296,7 +296,7 @@ func (svc *Services) GetTournaments(ctx context.Context, participantID int64, af
 			PerPage: perPage,
 		})
 		tournaments, err = mapTournamentRows(tournamentRows, func(t sqlc.SelectTournamentsByParticipantRow) (TournamentDTO, error) {
-			return mapTournamentRow(sqlc.SelectTournamentByIdRow(t))
+			return mapTournamentRow(sqlc.SelectTournamentByIDRow(t))
 		})
 	} else {
 		var tournamentRows []sqlc.SelectTournamentsRow
@@ -305,7 +305,7 @@ func (svc *Services) GetTournaments(ctx context.Context, participantID int64, af
 			PerPage: perPage,
 		})
 		tournaments, err = mapTournamentRows(tournamentRows, func(t sqlc.SelectTournamentsRow) (TournamentDTO, error) {
-			return mapTournamentRow(sqlc.SelectTournamentByIdRow(t))
+			return mapTournamentRow(sqlc.SelectTournamentByIDRow(t))
 		})
 	}
 	if err != nil {
@@ -355,7 +355,7 @@ func (svc *Services) joinTournamentTx(ctx context.Context, inst JoinTournamentIn
 }
 
 func joinTournament(ctx context.Context, querier sqlc.Querier, inst JoinTournamentInst) error {
-	tournamentRow, err := querier.SelectTournamentWithParticipantCount(ctx, pgtype.UUID{Bytes: inst.TournamentKey, Valid: true})
+	tournamentRow, err := querier.SelectTournamentWithParticipantCountByID(ctx, pgtype.UUID{Bytes: inst.TournamentKey, Valid: true})
 	if IsErrNoRows(err) {
 		return ErrTournamentNotFound
 	} else if err != nil {

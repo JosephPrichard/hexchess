@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
@@ -18,7 +17,7 @@ import (
 var FinishGameConsumerGroup = "finish_game:consumer"
 
 type FinishGameEvent struct {
-	GameID       uuid.UUID        `json:"id"`
+	GameID       string           `json:"id"`
 	Board        chess.Board      `json:"board"`
 	Moves        []chess.HistMove `json:"moves"`
 	WhitePlayer  PlayerState      `json:"whitePlayer"`
@@ -85,7 +84,7 @@ func (svc *Services) insertFinishedGameEvent(ctx context.Context, event FinishGa
 }
 
 type GameResult struct {
-	GameID       uuid.UUID    `json:"gameId"`
+	GameID       string       `json:"gameId"`
 	WhiteID      int64        `json:"whiteId"`
 	BlackID      int64        `json:"blackId"`
 	ReplayCause  ReplayCause  `json:"cause"`
@@ -123,22 +122,20 @@ func (svc *Services) InsertGameResultTx(ctx context.Context, params GameResult) 
 	return changeSet, err
 }
 
-// insertGameResult processes a game result, updates player ELO scores, and records the match details in the database.
-// It handles win, loss, or draw scenarios and ensures a consistent update order for database operations to prevent deadlocking.
-// Returns a GRChangeSet summarizing the changes and any error encountered during processing.
 func insertGameResult(ctx context.Context, querier sqlc.Querier, result GameResult) (GameResultChangeSet, error) {
 	mode := sqlc.ModeEnum(result.ReplayMode.String())
 	userIDs := []int64{result.WhiteID, result.BlackID}
 
-	existingReplayID, err := querier.SelectReplayIDByGameID(ctx, pgtype.UUID{Bytes: result.GameID, Valid: true})
+	existingReplayID, err := querier.SelectReplayIDByGameID(ctx, result.GameID)
 	if err == nil {
 		return GameResultChangeSet{ReplayID: existingReplayID, AlreadyExists: true}, nil
 	} else if !IsErrNoRows(err) {
 		return GameResultChangeSet{}, fmt.Errorf("select has replay with gameID: %w", err)
 	}
 	// gameID has not been processed? continue executing the transaction.
+	// selects and updates are sorted by id to prevent deadlocks
 
-	slices.SortFunc(userIDs, func(left, right int64) int { return int(left - right) }) // consistent query order
+	slices.SortFunc(userIDs, func(left, right int64) int { return int(left - right) })
 	userElos, err := querier.SelectUserModeElosByIds(ctx, sqlc.SelectUserModeElosByIdsParams{ID: userIDs, Mode: mode})
 	if err != nil {
 		return GameResultChangeSet{}, fmt.Errorf("select users %+v elo: %w", userIDs, err)
@@ -146,7 +143,7 @@ func insertGameResult(ctx context.Context, querier sqlc.Querier, result GameResu
 
 	changeSet, updts := makeInsertGameResultChangeSet(result, userElos)
 
-	slices.SortFunc(updts, func(left, right sqlc.UpsertUserEloParams) int { return int(left.UserID - right.UserID) }) // consistent update order
+	slices.SortFunc(updts, func(left, right sqlc.UpsertUserEloParams) int { return int(left.UserID - right.UserID) })
 	var batchUpsertErrs []error
 	querier.UpsertUserElo(ctx, updts).Exec(func(i int, err error) {
 		if err != nil {
@@ -157,7 +154,19 @@ func insertGameResult(ctx context.Context, querier sqlc.Querier, result GameResu
 		return GameResultChangeSet{}, err
 	}
 
-	replayInst := mapReplayInstFromGameResult(result, changeSet)
+	replayInst := sqlc.InsertReplayParams{
+		GameID:   result.GameID,
+		WhiteID:  pgtype.Int8{Int64: result.WhiteID, Valid: IsNonGuestID(result.WhiteID)},
+		BlackID:  pgtype.Int8{Int64: result.BlackID, Valid: IsNonGuestID(result.BlackID)},
+		Result:   sqlc.ResultEnum(result.ReplayResult.String()),
+		Cause:    sqlc.CauseEnum(result.ReplayCause.String()),
+		Mode:     sqlc.ModeEnum(result.ReplayMode.String()),
+		WinElo:   changeSet.WinEloDiff,
+		LoseElo:  changeSet.LoseEloDiff,
+		WhiteElo: changeSet.WhiteEloNext,
+		BlackElo: changeSet.BlackEloNext,
+		PlayedOn: pgtype.Timestamptz{Valid: true, Time: result.InsertedTime},
+	}
 	replayID, err := querier.InsertReplay(ctx, replayInst)
 	if err != nil {
 		return GameResultChangeSet{}, fmt.Errorf("insert replay for result %+v: %w", result, err)
@@ -229,20 +238,4 @@ func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.Select
 	}
 
 	return changeSet, updts
-}
-
-func mapReplayInstFromGameResult(result GameResult, changeSet GameResultChangeSet) sqlc.InsertReplayParams {
-	return sqlc.InsertReplayParams{
-		GameID:   pgtype.UUID{Bytes: result.GameID, Valid: true},
-		WhiteID:  pgtype.Int8{Int64: result.WhiteID, Valid: IsNonGuestID(result.WhiteID)},
-		BlackID:  pgtype.Int8{Int64: result.BlackID, Valid: IsNonGuestID(result.BlackID)},
-		Result:   sqlc.ResultEnum(result.ReplayResult.String()),
-		Cause:    sqlc.CauseEnum(result.ReplayCause.String()),
-		Mode:     sqlc.ModeEnum(result.ReplayMode.String()),
-		WinElo:   changeSet.WinEloDiff,
-		LoseElo:  changeSet.LoseEloDiff,
-		WhiteElo: changeSet.WhiteEloNext,
-		BlackElo: changeSet.BlackEloNext,
-		PlayedOn: pgtype.Timestamptz{Valid: true, Time: result.InsertedTime},
-	}
 }

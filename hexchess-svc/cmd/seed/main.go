@@ -19,7 +19,6 @@ import (
 	"hexchess-svc/internal/logutil"
 	svc "hexchess-svc/services"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
 )
@@ -167,7 +166,7 @@ func insertRandomizedGameResults(ctx context.Context, services *svc.Services, ga
 			}
 
 			changeSet, err := services.InsertGameResultTx(egCtx, svc.GameResult{
-				GameID:       uuid.NewString(),
+				GameID:       svc.MakeGameID(),
 				WhiteID:      params.WhiteID,
 				BlackID:      params.BlackID,
 				ReplayCause:  svc.ExpectReplayCause(params.ReplayCause),

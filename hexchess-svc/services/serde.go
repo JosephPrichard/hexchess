@@ -232,18 +232,13 @@ func UnmarshalFinishGameEvent(bytes []byte) (FinishGameEvent, error) {
 		return FinishGameEvent{}, err
 	}
 
-	gameID, err := uuid.Parse(pbGameEvent.GameId)
-	if err != nil {
-		return FinishGameEvent{}, fmt.Errorf("parse game uuid: %w", err)
-	}
-
 	board, err := chess.DeserializeBoard(pbGameEvent.Board)
 	if err != nil {
 		return FinishGameEvent{}, fmt.Errorf("deserialize board %v: %w", pbGameEvent.Board, err)
 	}
 
 	return FinishGameEvent{
-		GameID:       gameID,
+		GameID:       pbGameEvent.GameId,
 		Board:        board,
 		Moves:        chess.DeserializeHistMoveList(pbGameEvent.Moves),
 		WhitePlayer:  DeserializePlayer(pbGameEvent.WhitePlayer),
@@ -256,7 +251,7 @@ func UnmarshalFinishGameEvent(bytes []byte) (FinishGameEvent, error) {
 
 func MarshalFinishGameEvent(event FinishGameEvent) ([]byte, error) {
 	return proto.Marshal(&pb.FinishGameEvent{
-		GameId:       event.GameID.String(),
+		GameId:       event.GameID,
 		Board:        chess.SerializeBoard(&event.Board),
 		Moves:        chess.SerializeMoveList(event.Moves),
 		WhitePlayer:  SerializePlayer(event.WhitePlayer),
@@ -277,9 +272,9 @@ func MarshalAdvanceTournamentEvent(tournamentKey uuid.UUID) ([]byte, error) {
 
 // ReplayUsersDTO
 
-func SerializeReplayOutput(gameID uuid.UUID, replay FullReplayDTO) *pb.GameOutput {
+func SerializeReplayOutput(gameID string, replay FullReplayDTO) *pb.GameOutput {
 	return &pb.GameOutput{
-		GameId: gameID.String(),
+		GameId: gameID,
 		Value: &pb.GameOutput_Replay{Replay: &pb.Replay{
 			Id:           replay.ID,
 			WhiteId:      replay.WhiteID,

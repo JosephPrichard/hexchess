@@ -12,5 +12,5 @@ CREATE TABLE outbox_queue (
 );
 
 -- +goose down
-DROP TYPE IF EXISTS outbox_queue_type_enum;
 DROP TABLE IF EXISTS outbox_queue;
+DROP TYPE IF EXISTS outbox_queue_type_enum;

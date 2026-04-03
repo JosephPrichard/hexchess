@@ -50,25 +50,22 @@ func (e ErrInvalidMove) Error() string {
 	return fmt.Sprintf("invalid move (violation=%v, player=%d, game=%s)", e.Violation, e.PlayerID, e.GameID)
 }
 
-func makeGameID() (string, error) {
+func MakeGameID() string {
 	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
-	bID := make([]byte, 8)
-	for i := range bID {
+	bytesID := make([]byte, 8)
+	for i := range bytesID {
 		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(characters))))
 		if err != nil {
-			return "", fmt.Errorf("error generating game id: %w", err)
+			panic("failed to generate random number: " + err.Error())
 		}
-		bID[i] = characters[n.Int64()]
+		bytesID[i] = characters[n.Int64()]
 	}
-	return string(bID), nil
+	return string(bytesID)
 }
 
 func (svc *Services) CreateGame(ctx context.Context, color GameColor, mode GameMode, initialBoard *chess.Board) (string, error) {
-	strID, err := makeGameID()
-	if err != nil {
-		return "", err
-	}
+	strID := MakeGameID()
 
 	state := MakeChessState(StateSetup{ID: strID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
 	state.Game.InitPieceMoves()
