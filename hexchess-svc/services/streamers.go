@@ -48,7 +48,7 @@ func (stream *RedisStreamer[Event]) handleXReadMessage(msg redis.XMessage) {
 
 		event, err := stream.UnmarshalEvent([]byte(data))
 		if err != nil {
-			slog.Error("failed to unmarshal event", "err", err)
+			slog.Error("failed to unmarshal event", "err", err, "type", fmt.Sprintf("%T", event))
 			return SendAck
 		}
 

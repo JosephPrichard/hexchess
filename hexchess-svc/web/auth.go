@@ -24,7 +24,7 @@ type SessionView struct {
 	TTLSecs  time.Duration `json:"ttlSecs,omitempty"`
 }
 
-var testSessionViewCmpOpts = cmpopts.IgnoreFields(SessionView{}, "key", "TTLSecs")
+var testSessionViewCmpOpts = cmpopts.IgnoreFields(SessionView{}, "ID", "TTLSecs")
 
 func MakeSessionID() string {
 	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"

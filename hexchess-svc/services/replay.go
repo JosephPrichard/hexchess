@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/internal/enum"
 	"log/slog"
@@ -59,8 +58,8 @@ func MakeReplayViewDTO(input ReplayDTO) (output ReplayViewDTO) {
 
 var ErrNoReplay = errors.New("replay not found")
 
-func (svc *Services) GetReplayByGameID(ctx context.Context, gameID uuid.UUID) (FullReplayDTO, error) {
-	row, err := svc.Querier.SelectReplayByGameID(ctx, pgtype.UUID{Bytes: gameID, Valid: true})
+func (svc *Services) GetReplayByGameID(ctx context.Context, gameID string) (FullReplayDTO, error) {
+	row, err := svc.Querier.SelectReplayByGameID(ctx, gameID)
 	return mapGetReplayResult(ctx, gameID, sqlc.SelectReplayByIDRow(row), err)
 }
 
@@ -75,12 +74,10 @@ func mapGetReplayResult[ID any](ctx context.Context, id ID, row sqlc.SelectRepla
 	} else if err != nil {
 		return FullReplayDTO{}, fmt.Errorf("select replay %v by id: %w", id, err)
 	}
-
 	replay, err := mapFullReplayByIDRow(row)
 	if err != nil {
-		return FullReplayDTO{}, fmt.Errorf("map replay %v from row: %w", id, err)
+		return FullReplayDTO{}, err
 	}
-
 	slog.InfoContext(ctx, "selected replay by id", "replay", replay, "id", id)
 	return replay, nil
 }
@@ -146,9 +143,6 @@ func (svc *Services) GetUserReplays(ctx context.Context, userID int64, afterID i
 		PerPage: perPage,
 	})
 	if err != nil {
-		if IsErrNoRows(err) {
-			return nil, ErrUserNotFound
-		}
 		return nil, fmt.Errorf("select replays by user id %d: %w", userID, err)
 	}
 
@@ -156,7 +150,7 @@ func (svc *Services) GetUserReplays(ctx context.Context, userID int64, afterID i
 	for _, row := range rows {
 		replay, err := mapFullReplayByIDRow(sqlc.SelectReplayByIDRow(row))
 		if err != nil {
-			return nil, fmt.Errorf("map replay from row: %w", err)
+			return nil, err
 		}
 		replays = append(replays, replay)
 	}

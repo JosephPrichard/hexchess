@@ -9,7 +9,7 @@ CREATE TABLE tournaments (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     tkey UUID NOT NULL UNIQUE,
     name TEXT NOT NULL,
-    depth INT NOT NULL,
+    rounds INT NOT NULL,
     status tournament_status_enum NOT NULL,
     scheduled_on TIMESTAMP WITH TIME ZONE,
     created_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -21,16 +21,26 @@ CREATE TABLE tournaments (
 CREATE TABLE tournament_participants (
     tournament_key UUID NOT NULL REFERENCES tournaments(tkey),
     user_id BIGINT NOT NULL REFERENCES users(id),
-    joined_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+    joined_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT tournament_participants_pkey PRIMARY KEY (tournament_key, user_id)
 );
 
 CREATE TABLE tournament_matches (
-    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    game_id UUID NOT NULL UNIQUE,
+    ordering BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     tournament_key UUID NOT NULL REFERENCES tournaments(tkey),
-    depth INT NOT NULL,
+    round INT NOT NULL,
+    game_id TEXT NOT NULL UNIQUE,
     created_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX idx_tournament_participants_userid
+    ON tournament_participants (user_id);
+
+CREATE INDEX idx_tournament_participants_tournament_key
+    ON tournament_participants (tournament_key);
+
+CREATE INDEX idx_tournament_matches_tournament_key
+    ON tournament_matches (tournament_key);
 
 -- +goose down
 DROP TABLE IF EXISTS tournament_matches;

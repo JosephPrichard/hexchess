@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"hexchess-svc/internal/enum"
 	"log/slog"
 	"math"
@@ -150,12 +151,22 @@ type VerifiedUserDTO struct {
 func (svc *Services) VerifyUserTx(ctx context.Context, username string, inputPassword string) (VerifiedUserDTO, error) {
 	var user VerifiedUserDTO
 
-	err := svc.DB.ExecTx(ctx, db.Txn{
+	err := svc.DB.ExecTx(ctx, db.Tx{
+		// Serializable is required to prevent the following race conditions
+		// Case 1 (Non-Repeatable Read):
+		// T1 is allowed to login due to valid login attempts L1 and but increases login attempt count from L1 to L2
+		// In between reading L1 and updating from L1 to L2, another query updates the login attempts, so L1 will return an inconsistent value
+		// Case 2 (Write Skew):
+		// T1 and T2 attempt to login at the same time, with LoginAttempts-1 (L1) one less than an invalid threshold
+		// T1 and T2 are both permitted to attempt to login since L1 is valid, even though only one login attempt is allowed
+		// L2 will be L1+2 after update, even though it should not have permitted both attempts
+		Isolation: pgx.Serializable,
 		QueryFn: func(ctx context.Context, query sqlc.Querier) (err error) {
 			user, err = verifyUser(ctx, query, username, inputPassword)
 			return err
 		},
 		ErrAllowlist: []error{ErrTooManyLoginAttempts, ErrUserNotFound},
+		RetryCount:   3,
 	})
 
 	return user, err
@@ -166,42 +177,42 @@ const LockoutDuration = time.Minute * 1
 
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
-func verifyUser(ctx context.Context, querier sqlc.Querier, username string, inputPassword string) (VerifiedUserDTO, error) {
-	login, err := querier.SelectLoginByName(ctx, username)
-	if err != nil {
-		if IsErrNoRows(err) {
-			return VerifiedUserDTO{}, ErrUserNotFound
-		}
-		return VerifiedUserDTO{}, fmt.Errorf("select user=%s by login: %w", username, err)
+func verifyUser(ctx context.Context, querier sqlc.Querier, username string, inputPassword string) (u VerifiedUserDTO, err error) {
+	loginRow, err := querier.SelectLoginByName(ctx, username)
+	if IsErrNoRows(err) {
+		return u, ErrUserNotFound
+	} else if err != nil {
+		return u, fmt.Errorf("select user=%s by loginRow: %w", username, err)
 	}
 
-	isExceedAttempts := login.LoginAttempts > 0 && login.LoginAttempts%LoginAttemptsDivisor == 0
-	nextLoginTime := login.LastLoginAttempt.Time.Add(LockoutDuration)
+	isExceedAttempts := loginRow.LoginAttempts > 0 && loginRow.LoginAttempts%LoginAttemptsDivisor == 0
+	nextLoginTime := loginRow.LastLoginAttempt.Time.Add(LockoutDuration)
 	isLocked := isExceedAttempts && time.Now().Before(nextLoginTime)
 	if isLocked {
-		return VerifiedUserDTO{}, ErrTooManyLoginAttempts
+		return u, ErrTooManyLoginAttempts
 	}
 
-	saltedPassword := inputPassword + login.Salt
-	loginErr := bcrypt.CompareHashAndPassword([]byte(login.Password), []byte(saltedPassword))
+	saltedPassword := inputPassword + loginRow.Salt
+	loginErr := bcrypt.CompareHashAndPassword([]byte(loginRow.Password), []byte(saltedPassword))
 
 	if loginErr != nil {
-		if err := querier.IncrLoginAttempts(ctx, login.ID); err != nil {
-			return VerifiedUserDTO{}, fmt.Errorf("incr user %d login attempts: %w", login.ID, err)
+		if err := querier.IncrLoginAttempts(ctx, loginRow.ID); err != nil {
+			return u, fmt.Errorf("incr user %d loginRow attempts: %w", loginRow.ID, err)
 		}
-		slog.ErrorContext(ctx, "failed to user login is invalid", "username", username, "err", loginErr)
-		return VerifiedUserDTO{}, ErrUserNotFound
+		slog.ErrorContext(ctx, "failed to login, credentials are invalid", "username", username, "err", loginErr)
+		return u, ErrUserNotFound
 	}
 
-	if err := querier.ResetLoginAttempts(ctx, login.ID); err != nil {
-		return VerifiedUserDTO{}, fmt.Errorf("reset user %d login attempts: %w", login.ID, err)
+	if err := querier.ResetLoginAttempts(ctx, loginRow.ID); err != nil {
+		return u, fmt.Errorf("reset user %d loginRow attempts: %w", loginRow.ID, err)
 	}
+
 	user := VerifiedUserDTO{
-		ID:       login.ID,
-		Username: login.Username,
-		Country:  login.Country,
+		ID:       loginRow.ID,
+		Username: loginRow.Username,
+		Country:  loginRow.Country,
 	}
-	slog.InfoContext(ctx, "user login is valid", "user", user)
+	slog.InfoContext(ctx, "user loginRow is valid", "user", user)
 	return user, nil
 }
 
@@ -278,7 +289,7 @@ func (svc *Services) UpdateUser(ctx context.Context, id int64, updt UpdtUserPara
 	}
 
 	user := UserDTO{ID: row.ID, Username: row.Username, Country: row.Country, Bio: row.Bio, JoinedOn: row.JoinedOn.Time}
-	slog.InfoContext(ctx, "updated user", err, "user", user)
+	slog.InfoContext(ctx, "updated user", "user", user)
 	return user, err
 }
 
@@ -335,17 +346,22 @@ func avg[T constraints.Integer | constraints.Float](currAvg T, currCount int, ne
 }
 
 func (svc *Services) GetUserStats(ctx context.Context, id int64) (UserStatsDTO, error) {
-	stats := UserStatsDTO{HighestElo: math.SmallestNonzeroFloat64}
-
-	rows, err := svc.Querier.SelectUserElosById(ctx, id)
+	modeEloRows, err := svc.Querier.SelectUserElosByID(ctx, id)
 	if err != nil {
-		return stats, fmt.Errorf("select user %d elos by id: %w", id, err)
+		return UserStatsDTO{}, fmt.Errorf("select user %d elos by id: %w", id, err)
 	}
 
-	for _, row := range rows {
+	var stats UserStatsDTO
+	if len(modeEloRows) == 0 {
+		stats = UserStatsDTO{HighestElo: StartElo, AvgElo: StartElo}
+	} else {
+		stats = UserStatsDTO{HighestElo: math.SmallestNonzeroFloat64}
+	}
+
+	for _, row := range modeEloRows {
 		mode, err := enum.Parse(row.Mode, GameModeEnums)
 		if err != nil {
-			return stats, err
+			return UserStatsDTO{}, err
 		}
 		modeStats := ModeStatsDTO{
 			Mode:       mode,

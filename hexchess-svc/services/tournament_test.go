@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/internal/logutil"
@@ -29,7 +28,7 @@ func TestCreateTournament(t *testing.T) {
 	tournamentID, err := services.CreateTournament(ctx, TournamentInst{
 		Key:         key,
 		Name:        "Tournament 1",
-		Depth:       2,
+		Rounds:      2,
 		Mode:        ModeCorrespondence1,
 		ScheduledIn: time.Hour,
 		CreatedOn:   itest.TimeNow,
@@ -144,6 +143,15 @@ func TestGetFullTournament(t *testing.T) {
 			},
 		},
 		{
+			name:          "RetrieveFullTournamentWithReplay",
+			tournamentKey: itest.TournamentInsts[2].TournamentKey,
+			wantTournament: FullTournamentDTO{
+				TournamentDTO: TournamentDTOs[2],
+				Participants:  RankedParticipants,
+				Matches:       []MatchDTO{MatchDTOs[1], MatchDTOs[0]}, // Ordered by `CreatedOn`
+			},
+		},
+		{
 			name:          "TournamentDoesNotExist",
 			tournamentKey: uuid.New(),
 			wantErr:       ErrTournamentNotFound,
@@ -152,9 +160,9 @@ func TestGetFullTournament(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tournament, err := services.GetTournamentByIDWithRanks(ctx, tt.tournamentKey)
+			tournament, err := services.GetFullTournamentByID(ctx, tt.tournamentKey)
 
-			assert.Equal(t, tt.wantErr, err)
+			require.Equal(t, tt.wantErr, err)
 			testutil.Equal(t, tt.wantTournament, tournament)
 		})
 	}
@@ -180,9 +188,11 @@ func TestGetTournaments(t *testing.T) {
 			name:          "GetTournaments",
 			participantID: -1,
 			afterID:       -1,
-			perPage:       20,
+			perPage:       100,
 			wantTournaments: []TournamentDTO{
 				TournamentDTOs[2],
+				TournamentDTOs[1],
+				TournamentDTOs[0],
 			},
 		},
 		{
@@ -209,7 +219,7 @@ func TestGetTournaments(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tournaments, err := services.GetTournaments(ctx, tt.participantID, tt.afterID, tt.perPage)
 
-			assert.Equal(t, tt.wantErr, err)
+			require.Equal(t, tt.wantErr, err)
 			testutil.Equal(t, tt.wantTournaments, tournaments)
 		})
 	}

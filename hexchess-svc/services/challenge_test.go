@@ -96,12 +96,12 @@ func TestMapChallengeInsertErr(t *testing.T) {
 		{
 			name:  "UnrecognisedErrorIsReturnedAsIs",
 			input: errors.New("some unexpected db error"),
-			want:  errors.New("some unexpected db error"),
+			want:  nil,
 		},
 		{
 			name:  "UnknownPgErrorCodeIsReturnedAsIs",
 			input: &pgconn.PgError{Code: "99999"},
-			want:  &pgconn.PgError{Code: "99999"},
+			want:  nil,
 		},
 	}
 

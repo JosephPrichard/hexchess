@@ -3,6 +3,7 @@ package itest
 import (
 	"context"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"sync"
 	"time"
 
@@ -126,11 +127,15 @@ func SetupPostgresTest(ctx context.Context, t logutil.TestLogger, testingTx bool
 		if _, err := pool.Exec(ctx, db.CreateSchema); err != nil {
 			return nil, fmt.Errorf("failed to create schema: %w", err)
 		}
-		insertTestData(t, pool)
+		if err := insertTestData(pool); err != nil {
+			return nil, fmt.Errorf("failed to insert test data: %w", err)
+		}
 	}
 
 	if testingTx {
-		testTx, err := pool.Begin(ctx)
+		testTx, err := pool.BeginTx(ctx, pgx.TxOptions{
+			IsoLevel: pgx.Serializable,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to open testing txn: %w", err)
 		}

@@ -118,7 +118,7 @@ func (svc *Services) GetChallengesByParticipant(ctx context.Context, key Challen
 	for _, row := range rows {
 		challenge, err := mapChallengeRow(row)
 		if err != nil {
-			return nil, fmt.Errorf("map challenge from row: %w", err)
+			return nil, err
 		}
 		challenges = append(challenges, challenge)
 	}

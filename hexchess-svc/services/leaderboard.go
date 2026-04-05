@@ -345,7 +345,7 @@ func (svc *Services) GetFuzzySearchLeaderboard(ctx context.Context, name string,
 	for _, row := range userRows {
 		userIDs = append(userIDs, row.ID)
 	}
-	eloRows, err := svc.Querier.SelectManyUserElosById(ctx, userIDs)
+	eloRows, err := svc.Querier.SelectManyUserElosByID(ctx, userIDs)
 	if err != nil {
 		return nil, fmt.Errorf("select elos by user ids %v: %w", userIDs, err)
 	}

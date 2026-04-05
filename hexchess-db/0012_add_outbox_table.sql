@@ -4,7 +4,7 @@ CREATE TYPE outbox_queue_type_enum AS ENUM (
 );
 
 CREATE TABLE outbox_queue (
-    id SERIAL PRIMARY KEY,
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     type outbox_queue_type_enum NOT NULL,
     data BYTEA NOT NULL,
     created_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,

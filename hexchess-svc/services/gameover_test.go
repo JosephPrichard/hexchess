@@ -283,7 +283,7 @@ func TestInsertGameResult(t *testing.T) {
 	for _, test := range []struct {
 		name         string
 		resultInput  GameResult
-		wantUserElos []sqlc.SelectUserModeElosByIdsRow
+		wantUserElos []sqlc.SelectUserModeElosByIDsRow
 		wantReplay   sqlc.Replay
 		wantChange   GameResultChangeSet
 	}{
@@ -298,7 +298,7 @@ func TestInsertGameResult(t *testing.T) {
 				ReplayMode:   ModeTimed1Plus0,
 				InsertedTime: now,
 			},
-			wantUserElos: []sqlc.SelectUserModeElosByIdsRow{
+			wantUserElos: []sqlc.SelectUserModeElosByIDsRow{
 				{UserID: testUser0.ID, Elo: 1050, HighestElo: 1050, Draws: 1, Wins: 6, Losses: 5}, // update while maintaing old highest elo
 				{UserID: testUser1.ID, Elo: 1000, HighestElo: 1000, Draws: 1},                     // insert
 			},
@@ -331,7 +331,7 @@ func TestInsertGameResult(t *testing.T) {
 				ReplayMode:   ModeCorrespondence1,
 				InsertedTime: now,
 			},
-			wantUserElos: []sqlc.SelectUserModeElosByIdsRow{
+			wantUserElos: []sqlc.SelectUserModeElosByIDsRow{
 				{UserID: testUser0.ID, Elo: 1015, HighestElo: 1015, Wins: 1},  // insert
 				{UserID: testUser1.ID, Elo: 985, HighestElo: 1000, Losses: 1}, // insert with elo lower than start elo
 			},
@@ -368,7 +368,7 @@ func TestInsertGameResult(t *testing.T) {
 				ReplayMode:   ModeCorrespondence7,
 				InsertedTime: now,
 			},
-			wantUserElos: []sqlc.SelectUserModeElosByIdsRow{
+			wantUserElos: []sqlc.SelectUserModeElosByIDsRow{
 				{UserID: testUser0.ID, Elo: 985, HighestElo: 1000, Wins: 2, Losses: 3}, // update while setting new highest elo
 				{UserID: testUser1.ID, Elo: 1015, HighestElo: 1015, Wins: 1},           // update
 			},
@@ -405,7 +405,7 @@ func TestInsertGameResult(t *testing.T) {
 				ReplayMode:   ModeCorrespondence7,
 				InsertedTime: now,
 			},
-			wantUserElos: []sqlc.SelectUserModeElosByIdsRow{
+			wantUserElos: []sqlc.SelectUserModeElosByIDsRow{
 				{UserID: testUser0.ID, Elo: 1000, HighestElo: 1000, Wins: 2, Losses: 2, Draws: 0}, // no update
 			},
 			wantReplay: sqlc.Replay{
@@ -434,7 +434,7 @@ func TestInsertGameResult(t *testing.T) {
 				ReplayMode:   ModeCorrespondence7,
 				InsertedTime: now,
 			},
-			wantUserElos: []sqlc.SelectUserModeElosByIdsRow(nil), // not inserted.
+			wantUserElos: []sqlc.SelectUserModeElosByIDsRow(nil), // not inserted.
 			wantReplay: sqlc.Replay{
 				GameID:      "game4",
 				WhiteID:     pgtype.Int8{},
@@ -458,7 +458,7 @@ func TestInsertGameResult(t *testing.T) {
 			changeSet, err := services.InsertGameResultTx(ctx, test.resultInput)
 			require.NoError(t, err)
 
-			userElos, err := services.DB.Querier().SelectUserModeElosByIds(ctx, sqlc.SelectUserModeElosByIdsParams{
+			userElos, err := services.DB.Querier().SelectUserModeElosByIDs(ctx, sqlc.SelectUserModeElosByIDsParams{
 				ID:   []int64{test.resultInput.WhiteID, test.resultInput.BlackID},
 				Mode: sqlc.ModeEnum(test.resultInput.ReplayMode.String()),
 			})
@@ -469,7 +469,7 @@ func TestInsertGameResult(t *testing.T) {
 			replay, err := services.DB.Querier().SelectReplayRowByID(ctx, changeSet.ReplayID)
 			require.NoError(t, err)
 
-			testutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(sqlc.Replay{}, "key", "PlayedOn"))
+			testutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(sqlc.Replay{}, "ID", "PlayedOn"))
 
 			changeSet.WinEloDiff = math.Round(changeSet.WinEloDiff)
 			changeSet.LoseEloDiff = math.Round(changeSet.LoseEloDiff)

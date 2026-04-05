@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/pb"
 	"log/slog"
@@ -817,7 +816,7 @@ func (server *Server) HandleSearchPlayers(w http.ResponseWriter, r *http.Request
 
 type GetReplayQuery struct {
 	ReplayID  int64
-	GameID    uuid.UUID
+	GameID    string
 	HasGameID bool
 }
 
@@ -830,7 +829,7 @@ func (server *Server) getReplayQuery(q url.Values) (GetReplayQuery, error) {
 	}
 
 	var replayID int64
-	var gameUUID uuid.UUID
+	var gameID string
 	var hasGameID bool
 
 	switch kindStr {
@@ -841,15 +840,11 @@ func (server *Server) getReplayQuery(q url.Values) (GetReplayQuery, error) {
 		}
 		replayID = int64(intID)
 	case "BY_GAME_ID":
-		gameID, err := uuid.Parse(q.Get("id"))
-		if err != nil {
-			respErr.Put("id", ErrHttpInvalidID)
-		}
-		gameUUID = gameID
+		gameID = q.Get("id")
 		hasGameID = true
 	}
 
-	return GetReplayQuery{ReplayID: replayID, GameID: gameUUID, HasGameID: hasGameID}, respErr.Interface()
+	return GetReplayQuery{ReplayID: replayID, GameID: gameID, HasGameID: hasGameID}, respErr.Interface()
 }
 
 type GetReplayResp struct {

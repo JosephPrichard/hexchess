@@ -14,7 +14,7 @@ import (
 
 type DB interface {
 	Querier() sqlc.Querier
-	ExecTx(context.Context, Txn) error
+	ExecTx(context.Context, Tx) error
 	Close()
 }
 

@@ -19,7 +19,7 @@ import (
 func UnmarshalPlayer(bytes []byte) (PlayerState, error) {
 	var pbPlayer pb.PlayerState
 	if err := proto.Unmarshal(bytes, &pbPlayer); err != nil {
-		return PlayerState{}, fmt.Errorf("unmarshal player: %w", err)
+		return PlayerState{}, err
 	}
 	return PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Present: true}, nil
 }
@@ -77,7 +77,7 @@ func SerializeEndKind(endKind EndKind) pb.EndKind {
 func UnmarshalChessState(bytes []byte) (*ChessState, error) {
 	var pbChess pb.ChessState
 	if err := proto.Unmarshal(bytes, &pbChess); err != nil {
-		return nil, fmt.Errorf("unmarshal chess state: %w", err)
+		return nil, err
 	}
 
 	game, err := chess.DeserializeGame(pbChess.Game)
@@ -134,7 +134,7 @@ func SerializeChessState(state *ChessState) *pb.ChessState {
 func UnmarshalChessMeta(bytes []byte) (ChessMeta, error) {
 	var pbChess pb.ChessState
 	if err := proto.Unmarshal(bytes, &pbChess); err != nil {
-		return ChessMeta{}, fmt.Errorf("unmarshal chess meta: %w", err)
+		return ChessMeta{}, err
 	}
 
 	mode, modeErr := enum.Parse(pbChess.Mode, GameModeEnums)
@@ -169,9 +169,10 @@ func MarshalUserMessageJson(pbUserMessage *pb.UserMessage) ([]byte, error) {
 	switch message := (pbUserMessage.Value).(type) {
 	case *pb.UserMessage_Challenge:
 		challenge := message.Challenge
+
 		madeOn, err := time.Parse(time.RFC3339, challenge.MadeOn)
 		if err != nil {
-			return nil, fmt.Errorf("parse challenge made on: %w", err)
+			return nil, err
 		}
 
 		mode, modeErr := enum.Parse(challenge.Mode, GameModeEnums)
@@ -222,7 +223,7 @@ func SerializeChallengeMessage(challenge ChallengeDTO) *pb.UserMessage {
 func UnmarshalFinishGameEvent(bytes []byte) (FinishGameEvent, error) {
 	var pbGameEvent pb.FinishGameEvent
 	if err := proto.Unmarshal(bytes, &pbGameEvent); err != nil {
-		return FinishGameEvent{}, fmt.Errorf("unmarshal finish game event: %w", err)
+		return FinishGameEvent{}, err
 	}
 
 	mode, modeErr := enum.Parse(pbGameEvent.GameMode, GameModeEnums)
@@ -264,10 +265,45 @@ func MarshalFinishGameEvent(event FinishGameEvent) ([]byte, error) {
 
 // AdvanceTournamentEvent
 
-func MarshalAdvanceTournamentEvent(tournamentKey uuid.UUID) ([]byte, error) {
-	return proto.Marshal(&pb.AdvanceTournamentEvent{
+func SerializeAdvanceTournamentEvent(tournamentKey uuid.UUID, matches []AdvanceTournamentMatchDTO) *pb.AdvanceTournamentEvent {
+	var pbMatches []*pb.AdvanceTournamentMatch
+	for _, match := range matches {
+		pbMatches = append(pbMatches, &pb.AdvanceTournamentMatch{
+			GameId:      match.GameID,
+			PlayerOneId: match.PlayerOneID,
+			PlayerTwoId: match.PlayerTwoID,
+			GameMode:    match.GameMode.String(),
+		})
+	}
+	return &pb.AdvanceTournamentEvent{
 		TournamentKey: tournamentKey.String(),
-	})
+		Matches:       pbMatches,
+	}
+}
+
+func UnmarshalAdvanceTournamentEvent(bytes []byte) (uuid.UUID, []AdvanceTournamentMatchDTO, error) {
+	var pbEvent pb.AdvanceTournamentEvent
+	if err := proto.Unmarshal(bytes, &pbEvent); err != nil {
+		return uuid.UUID{}, nil, err
+	}
+	tournamentKey, err := uuid.Parse(pbEvent.TournamentKey)
+	if err != nil {
+		return uuid.UUID{}, nil, err
+	}
+	var matches []AdvanceTournamentMatchDTO
+	for _, pbMatch := range pbEvent.Matches {
+		mode, err := enum.Parse(pbMatch.GameMode, GameModeEnums)
+		if err != nil {
+			return uuid.UUID{}, nil, err
+		}
+		matches = append(matches, AdvanceTournamentMatchDTO{
+			GameID:      pbMatch.GameId,
+			PlayerOneID: pbMatch.PlayerOneId,
+			PlayerTwoID: pbMatch.PlayerTwoId,
+			GameMode:    mode,
+		})
+	}
+	return tournamentKey, matches, nil
 }
 
 // ReplayUsersDTO

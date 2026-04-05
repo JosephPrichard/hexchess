@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
@@ -68,12 +69,12 @@ func (svc *Services) insertFinishedGameEvent(ctx context.Context, event FinishGa
 		UpdtLbChangeSet{Mode: event.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
 		UpdtLbChangeSet{Mode: event.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
 	); err != nil {
-		return fmt.Errorf("incr leaderboard %v: %w", changeSet, err)
+		return fmt.Errorf("incr leaderboard %+v: %w", changeSet, err)
 	}
 
 	replay, err := svc.GetReplay(ctx, changeSet.ReplayID)
 	if err != nil {
-		return fmt.Errorf("get replay: %w", err)
+		return fmt.Errorf("get replay by ID %d: %w", changeSet.ReplayID, err)
 	}
 	if err := svc.BroadcastGamesEvent(ctx, SerializeReplayOutput(event.GameID, replay)); err != nil {
 		return fmt.Errorf("broadcast replay entity output: %w", err)
@@ -108,15 +109,21 @@ func (changeSet GameResultChangeSet) IsNoop() bool {
 	return changeSet.LoseEloDiff == 0 && changeSet.WinEloDiff == 0
 }
 
-// InsertGameResultTx executes the insertGameResult operation in a transaction
 func (svc *Services) InsertGameResultTx(ctx context.Context, params GameResult) (GameResultChangeSet, error) {
 	var changeSet GameResultChangeSet
 
-	err := svc.DB.ExecTx(ctx, db.Txn{
+	err := svc.DB.ExecTx(ctx, db.Tx{
+		// RepeatableRead is required to prevent the following race conditions
+		// Case 1 (Lost Update):
+		// T1 selects the user elos E1 and uses calculate and insert user elos E2
+		// Between reading E1 and writing E2, another query sets user elos to E3
+		// User elos (E3) will be overwritten to E2, the update that progressed E1 to E3 will be lost
+		Isolation: pgx.RepeatableRead,
 		QueryFn: func(ctx context.Context, query sqlc.Querier) (err error) {
 			changeSet, err = insertGameResult(ctx, query, params)
 			return err
 		},
+		RetryCount: 3,
 	})
 
 	return changeSet, err
@@ -132,18 +139,18 @@ func insertGameResult(ctx context.Context, querier sqlc.Querier, result GameResu
 	} else if !IsErrNoRows(err) {
 		return GameResultChangeSet{}, fmt.Errorf("select has replay with gameID: %w", err)
 	}
-	// gameID has not been processed? continue executing the transaction.
-	// selects and updates are sorted by id to prevent deadlocks
+	// gameID has not been processed, continue executing the transaction
 
-	slices.SortFunc(userIDs, func(left, right int64) int { return int(left - right) })
-	userElos, err := querier.SelectUserModeElosByIds(ctx, sqlc.SelectUserModeElosByIdsParams{ID: userIDs, Mode: mode})
+	userElos, err := querier.SelectUserModeElosByIDs(ctx, sqlc.SelectUserModeElosByIDsParams{ID: userIDs, Mode: mode})
 	if err != nil {
 		return GameResultChangeSet{}, fmt.Errorf("select users %+v elo: %w", userIDs, err)
 	}
 
 	changeSet, updts := makeInsertGameResultChangeSet(result, userElos)
 
+	// updates are sorted by userID to prevent deadlocks
 	slices.SortFunc(updts, func(left, right sqlc.UpsertUserEloParams) int { return int(left.UserID - right.UserID) })
+
 	var batchUpsertErrs []error
 	querier.UpsertUserElo(ctx, updts).Exec(func(i int, err error) {
 		if err != nil {
@@ -178,7 +185,7 @@ func insertGameResult(ctx context.Context, querier sqlc.Querier, result GameResu
 	return changeSet, nil
 }
 
-func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.SelectUserModeElosByIdsRow) (GameResultChangeSet, []sqlc.UpsertUserEloParams) {
+func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.SelectUserModeElosByIDsRow) (GameResultChangeSet, []sqlc.UpsertUserEloParams) {
 	changeSet := GameResultChangeSet{}
 	var updts []sqlc.UpsertUserEloParams
 

@@ -24,7 +24,6 @@ func SetupServicesTest(t logutil.TestLogger, flags ...itest.TestFlag) (services 
 	if roPostgres || rwPostgres {
 		eg.Go(func() (err error) {
 			services.DB, err = itest.SetupPostgresTest(egCtx, t, rwPostgres)
-			services.Querier = services.DB.Querier()
 			return
 		})
 	}
@@ -44,6 +43,9 @@ func SetupServicesTest(t logutil.TestLogger, flags ...itest.TestFlag) (services 
 		t.Fatalf("failed to setup test state: %v", err)
 	}
 
+	if services.DB != nil {
+		services.Querier = services.DB.Querier()
+	}
 	services.EntropySource = &RealEntropySource{}
 	return services
 }

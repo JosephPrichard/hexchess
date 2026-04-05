@@ -108,6 +108,7 @@ func (svc *Services) UpdateChessStateTxn(ctx context.Context, gameID string, upd
 	for range MaxUpdateChessStateRetries {
 		var ret *ChessState
 
+		// standard redis Watch+Tx optimisic locking pattern to prevent the 'LostUpdate' race condition
 		err := svc.Redis.GameStore.Watch(ctx, func(txn *redis.Tx) error {
 			state, err := svc.getChessStateAbstract(ctx, txn, gameID)
 			if err != nil {
@@ -123,6 +124,7 @@ func (svc *Services) UpdateChessStateTxn(ctx context.Context, gameID string, upd
 				if err != nil {
 					return err
 				}
+				// enables another operation to be executed atomically if chess state update is successful
 				if commit != nil {
 					return commit(pipe, state)
 				}
@@ -170,29 +172,36 @@ func (svc *Services) getChessMetas(ctx context.Context, zSetName string, page, c
 
 	chessKeys, err := svc.Redis.GameStore.ZRevRange(ctx, zSetName, start, stop).Result()
 	if err != nil {
-		return nil, fmt.Errorf("retrieve chess ids by range: %w", err)
+		return nil, fmt.Errorf("retrieve chess ids by range %d to %d: %w", start, stop, err)
 	}
 	if len(chessKeys) == 0 {
 		return nil, nil
 	}
 
-	mgetList, err := svc.Redis.GameStore.MGet(ctx, chessKeys...).Result()
+	mGetList, err := svc.Redis.GameStore.MGet(ctx, chessKeys...).Result()
 	if err != nil {
 		return nil, fmt.Errorf("get many chess states: %w", err)
 	}
 
-	chessViews := make([]ChessMeta, 0, len(mgetList))
-	for _, val := range mgetList {
-		str, ok := val.(string)
+	chessViews := make([]ChessMeta, 0, len(mGetList))
+	var marshalErrs []error
+
+	for i, mGetElement := range mGetList {
+		mGetString, ok := mGetElement.(string)
 		if !ok {
-			slog.Warn("chess meta mget output is not a string", "type", fmt.Sprintf("%T", val))
+			marshalErrs = append(marshalErrs, fmt.Errorf("chess meta %d mget output is not a string, is %T", i, mGetElement))
 			continue
 		}
-		view, err := UnmarshalChessMeta([]byte(str))
+		view, err := UnmarshalChessMeta([]byte(mGetString))
 		if err != nil {
-			return nil, fmt.Errorf("unmarshal chess meta: %w", err)
+			marshalErrs = append(marshalErrs, fmt.Errorf("unmarshal chess meta %d: %w", i, err))
+			continue
 		}
 		chessViews = append(chessViews, view)
+	}
+
+	if err := errors.Join(marshalErrs...); err != nil {
+		return nil, err
 	}
 
 	slog.InfoContext(ctx, "retrieved chess meta views", "elements", chessKeys, "views", chessViews, "zSetName", zSetName, "page", page)

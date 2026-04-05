@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
 	"github.com/google/uuid"
 	"time"
 
@@ -316,8 +317,6 @@ var TournamentMatchInsts = []struct {
 	GameID        *string
 	TournamentKey uuid.UUID
 	Depth         int32
-	WhiteID       int64
-	BlackID       int64
 	CreatedOn     time.Time
 }{
 	// IN_PROGRESS tournmanet matches (some matches)
@@ -325,16 +324,12 @@ var TournamentMatchInsts = []struct {
 		GameID:        ptr(uuid.NewString()), // (no replay, unfinished)
 		TournamentKey: TournamentInsts[1].TournamentKey,
 		Depth:         1,
-		WhiteID:       1,
-		BlackID:       2,
 		CreatedOn:     TimeNow.Add(time.Minute * 1),
 	},
 	{
 		GameID:        ptr(uuid.NewString()), // (no replay, unfinished)
 		TournamentKey: TournamentInsts[1].TournamentKey,
 		Depth:         1,
-		WhiteID:       1,
-		BlackID:       2,
 		CreatedOn:     TimeNow.Add(time.Minute * 2),
 	},
 	// FINISHED tournament matches (all matches)
@@ -342,13 +337,11 @@ var TournamentMatchInsts = []struct {
 		GameID:        ptr(FirstReplayGameID), // (replay, finished)
 		TournamentKey: TournamentInsts[2].TournamentKey,
 		Depth:         1,
-		WhiteID:       1,
-		BlackID:       2,
 		CreatedOn:     TimeNow.Add(time.Minute * 3),
 	},
 }
 
-func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
+func insertTestData(pool *pgxpool.Pool) error {
 	ctx := context.WithValue(context.Background(), logutil.Trace, "insert-testing-data")
 
 	batch := &pgx.Batch{}
@@ -362,12 +355,12 @@ func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
 	for _, inst := range UsersInsts {
 		saltBytes := make([]byte, 16)
 		if _, err := rand.Read(saltBytes); err != nil {
-			t.Fatalf("failed to generate salt for user: %v", err)
+			return fmt.Errorf("failed to generate salt for user: %v", err)
 		}
 		salt := base64.StdEncoding.EncodeToString(saltBytes)
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(inst.Password+salt), 12)
 		if err != nil {
-			t.Fatalf("failed to hash password for user: %v", err)
+			return fmt.Errorf("failed to hash password for user: %v", err)
 		}
 		batchQueue(`
 			INSERT INTO users (username, country, password, salt, joined_on)
@@ -451,13 +444,11 @@ func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
 	}
 	for _, inst := range TournamentMatchInsts {
 		batchQueue(`
-			INSERT INTO tournament_matches (game_id, tournament_key, depth, white_id, black_id, created_on)
-			VALUES ($1, $2, $3, $4, $5, $6);`,
+			INSERT INTO tournament_matches (game_id, tournament_key, depth, created_on)
+			VALUES ($1, $2, $3, $4);`,
 			inst.GameID,
 			inst.TournamentKey,
 			inst.Depth,
-			inst.WhiteID,
-			inst.BlackID,
 			inst.CreatedOn,
 		)
 	}
@@ -467,7 +458,8 @@ func insertTestData(t logutil.TestLogger, pool *pgxpool.Pool) {
 
 	for range instCount {
 		if _, err := batchResults.Exec(); err != nil {
-			t.Fatalf("failed to insert seed data: %v", err)
+			return fmt.Errorf("failed to insert seed data: %v", err)
 		}
 	}
+	return nil
 }
