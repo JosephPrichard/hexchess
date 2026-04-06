@@ -254,12 +254,16 @@ message FinishGameEvent {
   string replay_cause = 8;
 }
 
-message AdvanceTournamentEvent {
+message CreateTournamentMatchesEvent {
   string tournament_key = 1;
-  repeated AdvanceTournamentMatch matches = 2;
+  repeated CreateTournamentMatch matches = 2;
 }
 
-message AdvanceTournamentMatch {
+message AdvanceTournamentEvent {
+  string tournament_key = 1;
+}
+
+message CreateTournamentMatch {
   string game_id = 1;
   int64 player_one_id = 2;
   int64 player_two_id = 3;

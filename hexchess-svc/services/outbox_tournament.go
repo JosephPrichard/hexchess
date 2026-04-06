@@ -8,24 +8,30 @@ import (
 	"hexchess-svc/db/sqlc"
 )
 
-func pushAdvanceTournamentEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, matches []AdvanceTournamentMatchDTO) error {
-	bytes, err := proto.Marshal(SerializeAdvanceTournamentEvent(tournamentKey, matches))
+type CreateTournamentMatchesEvent struct {
+	TournamentKey uuid.UUID
+	Matches       []CreateTournamentMatchDTO
+}
+
+func pushCreateTournamentMatchesEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, matches []CreateTournamentMatchDTO) error {
+	event := CreateTournamentMatchesEvent{TournamentKey: tournamentKey, Matches: matches}
+	bytes, err := proto.Marshal(SerializeCreateTournamentMatchesEvent(event))
 	if err != nil {
-		return fmt.Errorf("marshal advance tournament event: %w", err)
+		return fmt.Errorf("marshal create tournament matches event: %w", err)
 	}
 	if err := querier.InsertOutboxQueue(ctx, sqlc.InsertOutboxQueueParams{
-		Type: sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
+		Type: sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
 		Data: bytes,
 	}); err != nil {
-		return fmt.Errorf("insert advance tournament event into task queue: %w", err)
+		return fmt.Errorf("insert create tournament matches into task queue: %w", err)
 	}
 	return nil
 }
 
-func (svc *Services) handleAdvanceTournamentEvent(ctx context.Context, bytes []byte) error {
-	tournamentKey, matches, err := UnmarshalAdvanceTournamentEvent(bytes)
+func (svc *Services) handleCreateTournamentMatchesEvent(ctx context.Context, bytes []byte) error {
+	event, err := UnmarshalCreateTournamentMatchesEvent(bytes)
 	if err != nil {
-		return fmt.Errorf("unmarshal advance tournament event: %w", err)
+		return fmt.Errorf("unmarshal create tournament matches event: %w", err)
 	}
 
 	return nil

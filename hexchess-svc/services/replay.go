@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/internal/enum"
+	"hexchess-svc/util/enum"
 	"log/slog"
 	"math"
 	"time"

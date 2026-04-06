@@ -14,10 +14,10 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"hexchess-svc/chess"
-	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
 	svc "hexchess-svc/services"
+	"hexchess-svc/util/testutil"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gorilla/websocket"

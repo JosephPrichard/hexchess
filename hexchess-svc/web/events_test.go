@@ -10,9 +10,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"hexchess-svc/internal/logutil"
 	"hexchess-svc/itest"
 	svc "hexchess-svc/services"
+	"hexchess-svc/util/logutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

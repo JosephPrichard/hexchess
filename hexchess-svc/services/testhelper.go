@@ -5,15 +5,17 @@ import (
 	"slices"
 	"testing"
 
-	"hexchess-svc/internal/logutil"
-	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
+	"hexchess-svc/util/logutil"
+	"hexchess-svc/util/testutil"
 
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/sync/errgroup"
 )
 
-func SetupServicesTest(t logutil.TestLogger, flags ...itest.TestFlag) (services Services) {
+func SetupServicesTest(t logutil.TestLogger, flags ...itest.TestFlag) *Services {
+	services := &Services{}
+
 	eg, egCtx := errgroup.WithContext(t.Context())
 
 	roPostgres := slices.Contains(flags, itest.ROPostgres)

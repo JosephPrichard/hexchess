@@ -24,7 +24,10 @@ ON CONFLICT ON CONSTRAINT tournament_matches_pkey DO NOTHING;
 
 -- name: UpdateTournamentStatus :exec
 UPDATE tournaments
-SET status = sqlc.arg('status'), updated_on = sqlc.arg('updated_on')
+SET status = sqlc.arg('status'),
+    updated_on = sqlc.arg('updated_on'),
+    rounds = COALESCE(sqlc.narg('rounds'), rounds),
+    winner_id = COALESCE(sqlc.narg('winner_id'), winner_id)
 WHERE tkey = sqlc.arg('tournament_key');
 
 -- name: DeleteTournamentParticipant :many
@@ -38,7 +41,7 @@ WHERE
 RETURNING user_id;
 
 -- name: SelectTournamentByID :one
-SELECT id, tkey as tournament_key, name, rounds, ruleset, status, scheduled_on, created_on, updated_on, created_by, mode
+SELECT id, tkey as tournament_key, name, rounds, ruleset, status, winner_id, scheduled_on, created_on, updated_on, created_by, mode
 FROM tournaments WHERE tkey = sqlc.arg('tkey')::uuid;
 
 -- name: SelectParticipantsByTournamentID :many
@@ -89,14 +92,14 @@ WHERE tm.tournament_key = sqlc.arg('tournament_key')::uuid
 ORDER BY tm.ordering DESC;
 
 -- name: SelectTournaments :many
-SELECT id, tkey as tournament_key, name, rounds, ruleset, status, scheduled_on, created_on, updated_on, created_by, mode
+SELECT id, tkey as tournament_key, name, rounds, ruleset, status, winner_id, scheduled_on, created_on, updated_on, created_by, mode
 FROM tournaments
 WHERE id < sqlc.arg('afterID')
 ORDER BY id DESC
 LIMIT sqlc.arg('perPage');
 
 -- name: SelectTournamentsByParticipant :many
-SELECT t.id, t.tkey as tournament_key, t.name, t.rounds, t.ruleset, t.status, t.scheduled_on, t.created_on, t.updated_on, t.created_by, t.mode
+SELECT t.id, t.tkey as tournament_key, t.name, t.rounds, t.ruleset, t.status, t.winner_id, t.scheduled_on, t.created_on, t.updated_on, t.created_by, t.mode
 FROM tournament_participants tp
 INNER JOIN tournaments t
     ON t.tkey = tp.tournament_key AND t.id < sqlc.arg('afterID')
@@ -119,15 +122,22 @@ WHERE t.tkey = sqlc.arg('key');
 -- name: SelectParticipantIDsByTournamentID :many
 SELECT user_id FROM tournament_participants WHERE tournament_key = sqlc.arg('tournament_key');
 
--- name: SelectLastMatchesByTournamentID :many
+-- name: SelectMatchesByTournamentID :many
 SELECT
     tm.round,
     r.white_id,
     r.black_id,
-    r.result
+    r.result,
+    e1.elo as white_elo,
+    e2.elo as black_elo
 FROM tournament_matches tm
+    INNER JOIN tournaments t
+        ON t.tkey = tm.tournament_key
     LEFT JOIN replays r
         ON r.game_id = tm.game_id
-WHERE tm.tournament_key = sqlc.arg('tournament_key') AND
-      tm.round = (SELECT MAX(tm.round) FROM tournament_matches WHERE tournament_key = sqlc.arg('tournament_key'))
-ORDER BY tm.ordering;
+    LEFT JOIN user_mode_elos e1
+        ON tm.white_id = e1.user_id AND e1.mode = t.mode
+    LEFT JOIN user_mode_elos e2
+        ON tm.black_id = e2.user_id AND e2.mode = t.mode
+WHERE tm.tournament_key = sqlc.arg('tournament_key')
+ORDER BY tm.round, tm.ordering;

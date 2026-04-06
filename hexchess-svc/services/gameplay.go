@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/redis/go-redis/v9"
 	"hexchess-svc/chess"
-	"hexchess-svc/internal/logutil"
+	"hexchess-svc/util/logutil"
 	"log/slog"
 	"math/big"
 )

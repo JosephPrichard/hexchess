@@ -2,10 +2,10 @@ package svc
 
 import (
 	"context"
-	"hexchess-svc/internal/logutil"
-	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
+	"hexchess-svc/util/logutil"
+	"hexchess-svc/util/testutil"
 	"testing"
 	"time"
 

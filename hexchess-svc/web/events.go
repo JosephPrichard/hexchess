@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"hexchess-svc/internal/timeutil"
 	svc "hexchess-svc/services"
 )
 
@@ -123,6 +122,24 @@ RecvLoop:
 	return nil
 }
 
+func every(duration time.Duration, work func()) chan bool {
+	ticker := time.NewTicker(duration)
+	stop := make(chan bool, 1)
+
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				work()
+			case <-stop:
+				return
+			}
+		}
+	}()
+
+	return stop
+}
+
 // HandleActiveConn a long-lived TCP connection used to maintain an active connection, it only ever receives "meta" messages
 func (server *Server) HandleActiveConn(w SSEWriter, _ *http.Request) error {
 	ctx := w.ctx
@@ -139,7 +156,7 @@ func (server *Server) HandleActiveConn(w SSEWriter, _ *http.Request) error {
 
 	w.writeEvent(MetaEvent, sseID)
 
-	stopTimer := timeutil.Every(svc.ActiveUserMaxage-time.Second, func() {
+	stopTimer := every(svc.ActiveUserMaxage-time.Second, func() {
 		if err := server.Services.RetainActiveUser(ctx, sseID); err != nil {
 			slog.ErrorContext(ctx, "failed to retain active user", "sseID", sseID, "err", err)
 		}

@@ -21,10 +21,10 @@ import (
 	"time"
 
 	"hexchess-svc/egress"
-	"hexchess-svc/internal/logutil"
-	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
 	"hexchess-svc/services"
+	"hexchess-svc/util/logutil"
+	"hexchess-svc/util/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

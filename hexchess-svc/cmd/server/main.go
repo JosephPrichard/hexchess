@@ -11,8 +11,8 @@ import (
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
 	"hexchess-svc/egress"
-	"hexchess-svc/internal/logutil"
 	svc "hexchess-svc/services"
+	"hexchess-svc/util/logutil"
 	"hexchess-svc/web"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -77,7 +77,7 @@ func main() {
 		logutil.FatalErr("load aws config", err)
 	}
 
-	services := svc.Services{
+	services := &svc.Services{
 		DB:            pdb,
 		Querier:       pdb.Querier(),
 		Redis:         rdb,
@@ -92,7 +92,8 @@ func main() {
 	<-services.Broadcasters.ListenUsersMessages(rdb)
 	<-services.Broadcasters.ListenUnicastEvents(rdb)
 
-	svc.StartStreamReaders(context.Background(), &services)
+	svc.StartStreamReaders(context.Background(), services)
+	svc.StartOutboxQueueConsumer(context.Background(), services)
 
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 

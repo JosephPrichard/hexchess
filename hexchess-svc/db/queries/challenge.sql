@@ -17,11 +17,14 @@ SELECT
     c.start_color,
     c.made_on
 FROM inserted_challenges c
-         INNER JOIN users u1 ON u1.id = c.challengee_id
-         INNER JOIN users u2 ON u2.id = c.challenger_id
-         LEFT JOIN user_mode_elos e1 ON e1.user_id = c.challengee_id AND e1.mode = c.mode
-         LEFT JOIN user_mode_elos e2 ON e2.user_id = c.challenger_id AND e2.mode = c.mode;
-
+    INNER JOIN users u1
+     ON u1.id = c.challengee_id
+    INNER JOIN users u2
+     ON u2.id = c.challenger_id
+    LEFT JOIN user_mode_elos e1
+     ON e1.user_id = c.challengee_id AND e1.mode = c.mode
+    LEFT JOIN user_mode_elos e2
+     ON e2.user_id = c.challenger_id AND e2.mode = c.mode;
 -- name: DeleteChallenge :one
 DELETE FROM challenges
 WHERE challenger_id = sqlc.arg('challengerID') AND challengee_id = sqlc.arg('challengeeID')
@@ -41,18 +44,27 @@ SELECT
     c.start_color,
     c.made_on
 FROM challenges c
-         INNER JOIN users u1 ON u1.id = c.challengee_id
-         INNER JOIN users u2 ON u2.id = c.challenger_id
-         LEFT JOIN user_mode_elos e1 ON e1.user_id = c.challengee_id AND e1.mode = c.mode
-         LEFT JOIN user_mode_elos e2 ON e2.user_id = c.challenger_id AND e2.mode = c.mode
-WHERE (
-    sqlc.narg('challengerID')::BIGINT IS NULL
-        OR challenger_id = sqlc.narg('challengerID')::BIGINT)
-  AND (
-    sqlc.narg('challengeeID')::BIGINT IS NULL
-        OR challengee_id = sqlc.narg('challengeeID')::BIGINT)
-  AND
-    made_on >= sqlc.arg('since')
+    INNER JOIN users u1
+        ON u1.id = c.challengee_id
+    INNER JOIN users u2
+        ON u2.id = c.challenger_id
+    LEFT JOIN user_mode_elos e1
+        ON e1.user_id = c.challengee_id AND e1.mode = c.mode
+    LEFT JOIN user_mode_elos e2
+        ON e2.user_id = c.challenger_id AND e2.mode = c.mode
+WHERE
+    (
+        sqlc.narg('challengerID')::BIGINT IS NULL
+        OR
+        challenger_id = sqlc.narg('challengerID')::BIGINT
+    )
+    AND
+    (
+        sqlc.narg('challengeeID')::BIGINT IS NULL
+        OR
+        challengee_id = sqlc.narg('challengeeID')::BIGINT
+    )
+    AND made_on >= sqlc.arg('since')
 ORDER BY made_on DESC;
 
 -- name: DeleteExpiredChallenges :exec

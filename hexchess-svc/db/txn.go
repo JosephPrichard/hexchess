@@ -65,7 +65,7 @@ func (pdb *PostgresDB) ExecTx(ctx context.Context, args Tx) error {
 		err = execTx(ctx, args)
 
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == ErrPgSerializationFailure {
+		if errors.As(err, &pgErr) && (pgErr.Code == ErrPgSerializationFailure || pgErr.Code == ErrPgDeadlock) {
 			continue
 		}
 		break

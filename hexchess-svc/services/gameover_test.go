@@ -4,10 +4,10 @@ import (
 	"context"
 	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/internal/logutil"
-	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
+	"hexchess-svc/util/logutil"
+	"hexchess-svc/util/testutil"
 	"math"
 	"strconv"
 

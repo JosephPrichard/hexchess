@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"hexchess-svc/internal/logutil"
 	svc "hexchess-svc/services"
+	"hexchess-svc/util/logutil"
 )
 
 var TestSessionID1 = "testing-session-id-1"
@@ -34,10 +34,10 @@ var TestStates = []*svc.ChessState{
 	svc.MakeChessState(svc.StateSetup{ID: "game3", Mode: svc.ModeCorrespondence1, FirstColor: svc.Random}),
 }
 
-func createTestSessions(t *testing.T, s svc.Services) {
+func createTestSessions(t *testing.T, services *svc.Services) {
 	t.Helper()
 	ctx := context.WithValue(context.Background(), logutil.Trace, "create-testing-session-1")
-	if err := s.SetSessions(ctx,
+	if err := services.SetSessions(ctx,
 		svc.SessInst{SessionID: TestSessionID1, Player: svc.MakePlayer(1, "user1", "us"), Expiry: SessionMaxAge},
 		svc.SessInst{SessionID: TestSessionID2, Player: svc.MakePlayer(2, "user2", "us"), Expiry: SessionMaxAge},
 	); err != nil {
@@ -45,11 +45,11 @@ func createTestSessions(t *testing.T, s svc.Services) {
 	}
 }
 
-func createTestChessStates(t *testing.T, svc svc.Services) {
+func createTestChessStates(t *testing.T, services *svc.Services) {
 	t.Helper()
 	ctx := context.WithValue(context.Background(), logutil.Trace, "testing-update-password")
 	for _, state := range TestStates {
-		if err := svc.SetChessState(ctx, state.ID, state); err != nil {
+		if err := services.SetChessState(ctx, state.ID, state); err != nil {
 			t.Fatalf("create testing ss: %v", err)
 		}
 	}

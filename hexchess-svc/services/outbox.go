@@ -22,8 +22,8 @@ type handleOutboxEvent func(ctx context.Context, event sqlc.SelectOutboxQueueRow
 func (svc *Services) handleOutboxEvent(ctx context.Context, event sqlc.SelectOutboxQueueRow) error {
 	switch event.Type {
 	// add each type as a switch case
-	case sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT:
-		return svc.handleAdvanceTournamentEvent(ctx, event.Data)
+	case sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT:
+		return svc.handleCreateTournamentMatchesEvent(ctx, event.Data)
 	default:
 		return fmt.Errorf("unknown outbox queue event type %s", event.Type)
 	}
@@ -81,6 +81,10 @@ func pollOutboxQueueEvents(ctx context.Context, querier sqlc.Querier, handleOutb
 	}
 
 	return nil
+}
+
+func StartOutboxQueueConsumer(ctx context.Context, svc *Services) {
+	go PollOutboxQueueLoop(ctx, svc, OutboxPollInterval)
 }
 
 func PollOutboxQueueLoop(ctx context.Context, svc *Services, pollInterval time.Duration) {

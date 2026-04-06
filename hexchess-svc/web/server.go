@@ -11,8 +11,8 @@ import (
 
 	"hexchess-svc/assets"
 	"hexchess-svc/chess"
-	"hexchess-svc/internal/logutil"
 	"hexchess-svc/services"
+	"hexchess-svc/util/logutil"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -46,7 +46,7 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 }
 
 type Setup struct {
-	Services       svc.Services
+	Services       *svc.Services
 	AllowedOrigins string
 }
 
@@ -71,7 +71,7 @@ func MakeStaticData() StaticData {
 }
 
 type Server struct {
-	svc.Services
+	*svc.Services
 	StaticData
 }
 

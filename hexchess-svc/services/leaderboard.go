@@ -10,7 +10,7 @@ import (
 	"strconv"
 
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/internal/logutil"
+	"hexchess-svc/util/logutil"
 
 	"github.com/redis/go-redis/v9"
 )

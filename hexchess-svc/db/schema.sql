@@ -87,7 +87,8 @@ CREATE TYPE public.mode_enum AS ENUM (
 --
 
 CREATE TYPE public.outbox_queue_type_enum AS ENUM (
-    'TOURNAMENT_ADVANCE_EVENT'
+    'TOURNAMENT_ADVANCE_EVENT',
+    'TOURNAMENT_CREATE_MATCHES_EVENT'
 );
 
 
@@ -292,7 +293,8 @@ CREATE TABLE public.tournaments (
     created_by bigint NOT NULL,
     updated_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     mode public.mode_enum NOT NULL,
-    ruleset public.tournament_ruleset_enum DEFAULT 'KNOCKOUT'::public.tournament_ruleset_enum NOT NULL
+    ruleset public.tournament_ruleset_enum DEFAULT 'KNOCKOUT'::public.tournament_ruleset_enum NOT NULL,
+    winner_id bigint
 );
 
 
@@ -543,6 +545,13 @@ CREATE INDEX idx_tournament_participants_userid ON public.tournament_participant
 
 
 --
+-- Name: idx_tournament_winner_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_tournament_winner_id ON public.tournaments USING btree (winner_id);
+
+
+--
 -- Name: idx_trgm_username; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -647,6 +656,14 @@ ALTER TABLE ONLY public.tournament_participants
 
 ALTER TABLE ONLY public.tournaments
     ADD CONSTRAINT tournaments_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+
+
+--
+-- Name: tournaments tournaments_winner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tournaments
+    ADD CONSTRAINT tournaments_winner_id_fkey FOREIGN KEY (winner_id) REFERENCES public.users(id);
 
 
 --

@@ -43,29 +43,6 @@ func DeserializeMove(pbPm *pb.Move) Move {
 	}
 }
 
-// PieceMove
-
-func DeserializePiecesMove(pbPm *pb.PieceMove) PieceMove {
-	if pbPm == nil {
-		return PieceMove{}
-	}
-	return PieceMove{
-		Piece: Piece(pbPm.Piece),
-		From:  Hex{File: uint32(pbPm.FromFile), Rank: uint32(pbPm.FromRank)},
-		To:    Hex{File: uint32(pbPm.ToFile), Rank: uint32(pbPm.ToRank)},
-	}
-}
-
-func SerializePieceMove(pm PieceMove) *pb.PieceMove {
-	return &pb.PieceMove{
-		Piece:    int32(pm.Piece),
-		FromFile: int32(pm.From.File),
-		FromRank: int32(pm.From.Rank),
-		ToFile:   int32(pm.To.File),
-		ToRank:   int32(pm.To.Rank),
-	}
-}
-
 // PiecesMoves
 
 func DeserializePiecesMoves(pbMoves []*pb.PieceMoves) []PieceMoves {
@@ -119,16 +96,20 @@ func DeserializeBoard(pbBoard *pb.ChessBoard) (Board, error) {
 	if pbBoard == nil {
 		return Board{}, ErrNilBoard
 	}
+
+	var serdeErrs []error
+
 	board := Board{IsWhiteTurn: pbBoard.IsWhiteTurn}
 	for file, bFile := range pbBoard.File {
 		for rank, piece := range bFile.Pieces {
 			p := Piece(piece)
 			if err := board.SetPiece(uint32(file), uint32(rank), p); err != nil {
-				return board, fmt.Errorf("set piece '%d' at (%d, %d): %w", p, rank, file, err)
+				serdeErrs = append(serdeErrs, err)
+				continue
 			}
 		}
 	}
-	return board, nil
+	return board, errors.Join(serdeErrs...)
 }
 
 func SerializeBoard(board *Board) *pb.ChessBoard {

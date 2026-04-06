@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
-	"hexchess-svc/internal/enum"
+	"hexchess-svc/util/enum"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -265,45 +265,49 @@ func MarshalFinishGameEvent(event FinishGameEvent) ([]byte, error) {
 
 // AdvanceTournamentEvent
 
-func SerializeAdvanceTournamentEvent(tournamentKey uuid.UUID, matches []AdvanceTournamentMatchDTO) *pb.AdvanceTournamentEvent {
-	var pbMatches []*pb.AdvanceTournamentMatch
-	for _, match := range matches {
-		pbMatches = append(pbMatches, &pb.AdvanceTournamentMatch{
+func SerializeCreateTournamentMatchesEvent(event CreateTournamentMatchesEvent) *pb.CreateTournamentMatchesEvent {
+	var pbMatches []*pb.CreateTournamentMatch
+	for _, match := range event.Matches {
+		pbMatches = append(pbMatches, &pb.CreateTournamentMatch{
 			GameId:      match.GameID,
-			PlayerOneId: match.PlayerOneID,
-			PlayerTwoId: match.PlayerTwoID,
+			PlayerOneId: match.WhiteID,
+			PlayerTwoId: match.BlackID,
 			GameMode:    match.GameMode.String(),
 		})
 	}
-	return &pb.AdvanceTournamentEvent{
-		TournamentKey: tournamentKey.String(),
+	return &pb.CreateTournamentMatchesEvent{
+		TournamentKey: event.TournamentKey.String(),
 		Matches:       pbMatches,
 	}
 }
 
-func UnmarshalAdvanceTournamentEvent(bytes []byte) (uuid.UUID, []AdvanceTournamentMatchDTO, error) {
-	var pbEvent pb.AdvanceTournamentEvent
+func UnmarshalCreateTournamentMatchesEvent(bytes []byte) (e CreateTournamentMatchesEvent, err error) {
+	var pbEvent pb.CreateTournamentMatchesEvent
 	if err := proto.Unmarshal(bytes, &pbEvent); err != nil {
-		return uuid.UUID{}, nil, err
+		return e, err
 	}
+
+	var serdeErrs []error
+
 	tournamentKey, err := uuid.Parse(pbEvent.TournamentKey)
 	if err != nil {
-		return uuid.UUID{}, nil, err
+		serdeErrs = append(serdeErrs, err)
 	}
-	var matches []AdvanceTournamentMatchDTO
+	var matches []CreateTournamentMatchDTO
 	for _, pbMatch := range pbEvent.Matches {
 		mode, err := enum.Parse(pbMatch.GameMode, GameModeEnums)
 		if err != nil {
-			return uuid.UUID{}, nil, err
+			serdeErrs = append(serdeErrs, err)
+			continue
 		}
-		matches = append(matches, AdvanceTournamentMatchDTO{
-			GameID:      pbMatch.GameId,
-			PlayerOneID: pbMatch.PlayerOneId,
-			PlayerTwoID: pbMatch.PlayerTwoId,
-			GameMode:    mode,
+		matches = append(matches, CreateTournamentMatchDTO{
+			GameID:   pbMatch.GameId,
+			WhiteID:  pbMatch.PlayerOneId,
+			BlackID:  pbMatch.PlayerTwoId,
+			GameMode: mode,
 		})
 	}
-	return tournamentKey, matches, nil
+	return CreateTournamentMatchesEvent{TournamentKey: tournamentKey, Matches: matches}, errors.Join(serdeErrs...)
 }
 
 // ReplayUsersDTO

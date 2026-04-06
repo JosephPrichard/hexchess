@@ -1,6 +1,6 @@
 package svc
 
-import "hexchess-svc/internal/enum"
+import "hexchess-svc/util/enum"
 
 type ReplayResult int
 

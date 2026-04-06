@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-svc/internal/enum"
+	"hexchess-svc/util/enum"
 	"log/slog"
 	"time"
 
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/internal/logutil"
+	"hexchess-svc/util/logutil"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )

@@ -9,7 +9,7 @@ import (
 
 	"hexchess-svc/db"
 	"hexchess-svc/egress"
-	"hexchess-svc/internal/logutil"
+	"hexchess-svc/util/logutil"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"

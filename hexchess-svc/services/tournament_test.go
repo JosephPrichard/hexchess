@@ -6,9 +6,9 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/internal/logutil"
-	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
+	"hexchess-svc/util/logutil"
+	"hexchess-svc/util/testutil"
 	"testing"
 	"time"
 )

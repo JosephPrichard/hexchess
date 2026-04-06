@@ -6,7 +6,12 @@ CREATE TYPE tournament_ruleset_enum AS ENUM (
 );
 
 ALTER TABLE tournaments ADD COLUMN ruleset tournament_ruleset_enum NOT NULL DEFAULT 'KNOCKOUT';
+ALTER TABLE tournaments ADD COLUMN winner_id BIGINT REFERENCES users(id);
+
+CREATE INDEX idx_tournament_winner_id ON tournaments (winner_id);
 
 -- +goose down
+DROP INDEX IF EXISTS idx_tournament_winner_id;
 ALTER TABLE tournaments DROP COLUMN IF EXISTS ruleset;
+ALTER TABLE tournaments DROP COLUMN IF EXISTS winner_id;
 DROP TYPE IF EXISTS tournament_ruleset_enum;

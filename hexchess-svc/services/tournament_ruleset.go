@@ -1,7 +1,7 @@
 package svc
 
 import (
-	"hexchess-svc/internal/enum"
+	"hexchess-svc/util/enum"
 )
 
 type TournamentRuleset int

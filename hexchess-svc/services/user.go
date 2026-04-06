@@ -7,14 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v5"
-	"hexchess-svc/internal/enum"
+	"hexchess-svc/util/enum"
 	"log/slog"
 	"math"
 	"time"
 
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/internal/logutil"
+	"hexchess-svc/util/logutil"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
