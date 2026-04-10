@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"hexchess-svc/db/sqlc"
 	"log"
 	"log/slog"
 	"math/rand"
@@ -16,7 +15,7 @@ import (
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
 	"hexchess-svc/egress"
-	svc "hexchess-svc/services"
+	"hexchess-svc/service"
 	"hexchess-svc/util/logutil"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -89,12 +88,12 @@ func main() {
 		logutil.FatalErr("make aws clients", err)
 	}
 
-	services := &svc.Services{
+	services := svc.MakeHexchessServices(svc.Setup{
 		DB:      pdb,
 		Querier: pdb.Querier(),
 		Redis:   rdb,
 		AWS:     aws,
-	}
+	})
 	defer services.Close()
 
 	_, err = pool.Exec(ctx, `
@@ -127,7 +126,7 @@ func main() {
 	log.Printf("finished seeding databases: %v", time.Since(start))
 }
 
-func insertChallenges(ctx context.Context, s *svc.Services, insts []ChallengeInst) error {
+func insertChallenges(ctx context.Context, s *svc.HexchessServices, insts []ChallengeInst) error {
 	for _, chInst := range insts {
 		if err := s.InsertChallenge(ctx, svc.ChallengeInst{
 			ChallengerID: chInst.ChallengerID,
@@ -142,7 +141,7 @@ func insertChallenges(ctx context.Context, s *svc.Services, insts []ChallengeIns
 	return nil
 }
 
-func insertRandomizedGameResults(ctx context.Context, services *svc.Services, gameResults []GameResult) error {
+func insertRandomizedGameResults(ctx context.Context, services *svc.HexchessServices, gameResults []GameResult) error {
 	timeAt := time.Now().Add(-1 * time.Hour * 24 * 100)
 
 	a := gameResults
@@ -178,13 +177,9 @@ func insertRandomizedGameResults(ctx context.Context, services *svc.Services, ga
 				return fmt.Errorf("insert game result: %w", err)
 			}
 			// note: don't forget to insert the move history - it exists outside of the game result tx
-			if err = services.Querier.UpsertReplayMoveHistories(ctx, sqlc.UpsertReplayMoveHistoriesParams{
-				ReplayID: changeSet.ReplayID,
-				Data:     moveHistBlob,
-			}); err != nil {
+			if err = services.UpsertReplayMoveHistories(ctx, changeSet.ReplayID, moveHistBlob); err != nil {
 				return fmt.Errorf("insert replay move histories: %w", err)
 			}
-
 			return nil
 		})
 	}

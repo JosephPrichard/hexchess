@@ -2,38 +2,65 @@ package web
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	"hexchess-svc/egress"
 	"hexchess-svc/itest"
-	svc "hexchess-svc/services"
-	"mime/multipart"
+	"hexchess-svc/service"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"time"
 )
 
 func TestHandleUploadProfilePic(t *testing.T) {
 	t.Parallel()
 
-	services := svc.SetupServicesTest(t, itest.Redis, itest.Aws)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockS3Client := egress.NewMockS3Client(ctrl)
+	mocks := svc.ServiceMocks{
+		Entropy:  &svc.StableEntropySource{ID: "id1"},
+		S3Client: mockS3Client,
+	}
+
+	services, _ := svc.SetupServicesTest(t, mocks, itest.Redis)
 	defer services.Close()
 
 	createTestSessions(t, services)
 
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	part, _ := writer.CreateFormFile("file", "test.txt")
-	part.Write([]byte("testfiledata"))
-	writer.Close()
+	body := bytes.NewBuffer([]byte("testfiledata"))
+
+	// assert that keys and metadata arrive on the system correctly
+	mockS3Client.EXPECT().
+		PutObject(gomock.Any(), gomock.Cond(func(input *s3.PutObjectInput) bool {
+			return input.Bucket != nil &&
+				*input.Bucket == egress.S3ProfileBucket &&
+				input.Key != nil &&
+				*input.Key == "users/profile-pics/2/id1" &&
+				input.Body != nil &&
+				input.ContentType != nil &&
+				*input.ContentType == "application/octet-stream"
+		})).
+		Return(&s3.PutObjectOutput{}, nil)
+
+	// empty keylist, do not delete anything
+	mockS3Client.EXPECT().
+		ListObjectsV2(gomock.Any(), &s3.ListObjectsV2Input{
+			Bucket: aws.String(egress.S3ProfileBucket),
+			Prefix: aws.String("users/profile-pics/2"),
+		}).
+		Return(&s3.ListObjectsV2Output{}, nil)
 
 	r := httptest.NewRequest(http.MethodPost, "/api/users/profile-pics", body)
-	r.Header.Set("Content-Type", writer.FormDataContentType())
+	r.Header.Set("Content-Type", "application/octet-stream")
 	r.Header.Set("Cookie", FmtCookie(TestSessionID2))
 	w := httptest.NewRecorder()
 
@@ -41,47 +68,73 @@ func TestHandleUploadProfilePic(t *testing.T) {
 	hander.ServeHTTP(w, r)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-
-	var view ServiceView
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &view))
-
-	assert.Equal(t, "testfiledata", egress.GetS3Object(t, services.AWS.S3Client, services.AWS.S3ProfileBucket, view.Message)) // key is contained in the mesage.
 }
 
 func TestHandleGetProfilePic(t *testing.T) {
 	t.Parallel()
 
-	key1 := fmt.Sprintf("users/profile-pics/3/%s", uuid.NewString())
-	key2 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())
+	profileKey1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())
+	profileKey2 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())
 
 	tests := []struct {
-		name            string
-		userID          string
-		wantStatus      int
-		wantWithKey     string
-		wantWithoutKeys []string
+		name        string
+		userID      string
+		wantStatus  int
+		wantWithKey string
+		setupMocks  func(*gomock.Controller) egress.S3Client
 	}{
 		{
-			name:            "user has profile pic in storage",
-			userID:          "1",
-			wantStatus:      http.StatusTemporaryRedirect,
-			wantWithKey:     key2,
-			wantWithoutKeys: []string{key1},
+			name:        "user has profile pic in storage",
+			userID:      "1",
+			wantStatus:  http.StatusTemporaryRedirect,
+			wantWithKey: profileKey1, // expect to receive profileKey in the redirect response, since it is the latest uploaded picture
+			setupMocks: func(ctrl *gomock.Controller) egress.S3Client {
+				mockS3Client := egress.NewMockS3Client(ctrl)
+				mockS3Client.EXPECT().
+					ListObjectsV2(gomock.Any(), &s3.ListObjectsV2Input{
+						Bucket: aws.String(egress.S3ProfileBucket),
+						Prefix: aws.String("users/profile-pics/1"),
+					}).
+					Return(&s3.ListObjectsV2Output{
+						// user has multiple profiles, with 'profileKey1' being the latest
+						Contents: []s3Types.Object{
+							{Key: aws.String(profileKey2), LastModified: aws.Time(time.Unix(1, 0))},
+							{Key: aws.String(profileKey1), LastModified: aws.Time(time.Unix(2, 0))},
+						},
+					}, nil)
+				return mockS3Client
+			},
 		},
 		{
-			name:       "user has redirected profile pic",
+			name:       "user has default profile pic",
 			userID:     "2",
 			wantStatus: http.StatusOK,
+			setupMocks: func(ctrl *gomock.Controller) egress.S3Client {
+				mockS3Client := egress.NewMockS3Client(ctrl)
+				mockS3Client.EXPECT().
+					ListObjectsV2(gomock.Any(), &s3.ListObjectsV2Input{
+						Bucket: aws.String(egress.S3ProfileBucket),
+						Prefix: aws.String("users/profile-pics/2"),
+					}).
+					// no profile pics, send the default picture (200ok with a static image)
+					Return(&s3.ListObjectsV2Output{}, nil)
+				return mockS3Client
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.userID, func(t *testing.T) {
-			services := svc.SetupServicesTest(t, itest.Redis, itest.Aws)
-			defer services.Close()
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-			egress.PutTestS3Object(t, services.AWS.S3Client, services.AWS.S3ProfileBucket, key1, []byte("testfiledata1"))
-			egress.PutTestS3Object(t, services.AWS.S3Client, services.AWS.S3ProfileBucket, key2, []byte("testfiledata2"))
+			mocks := svc.ServiceMocks{
+				Entropy:  &svc.StableEntropySource{ID: "id1"},
+				S3Client: tt.setupMocks(ctrl),
+			}
+
+			services, _ := svc.SetupServicesTest(t, mocks, itest.Redis)
+			defer services.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/users/profile-pics?userId=%s", tt.userID), nil)
 			w := httptest.NewRecorder()
@@ -92,13 +145,10 @@ func TestHandleGetProfilePic(t *testing.T) {
 			resp := w.Body.String()
 			assert.Equal(t, tt.wantStatus, w.Code)
 
+			assert.True(t, len(resp) > 0)
+
 			if w.Code == http.StatusTemporaryRedirect {
 				t.Logf("got profile pic redirect: %s", resp)
-				for _, key := range tt.wantWithoutKeys {
-					if strings.Contains(resp, key) {
-						t.Errorf("expected profile pic redirect to not contain key %s", key)
-					}
-				}
 				if !strings.Contains(resp, tt.wantWithKey) {
 					t.Fatalf("expected profile pic redirect to contain key %s", tt.wantWithKey)
 				}

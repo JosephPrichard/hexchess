@@ -11,7 +11,7 @@ import (
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
 	"hexchess-svc/egress"
-	svc "hexchess-svc/services"
+	"hexchess-svc/service"
 	"hexchess-svc/util/logutil"
 	"hexchess-svc/web"
 
@@ -77,23 +77,22 @@ func main() {
 		logutil.FatalErr("load aws config", err)
 	}
 
-	services := &svc.Services{
-		DB:            pdb,
-		Querier:       pdb.Querier(),
-		Redis:         rdb,
-		AWS:           aws,
-		Broadcasters:  svc.MakeBroadcasters(),
-		Remote:        egress.MakeRemoteAPIs(),
-		EntropySource: &svc.RealEntropySource{},
-	}
+	services := svc.MakeHexchessServices(svc.Setup{
+		DB:     pdb,
+		Redis:  rdb,
+		AWS:    aws,
+		Remote: egress.MakeRemoteAPIs(),
+	})
 	defer services.Close()
 
-	<-services.Broadcasters.ListenGameMessages(rdb)
-	<-services.Broadcasters.ListenUsersMessages(rdb)
-	<-services.Broadcasters.ListenUnicastEvents(rdb)
+	broadcasters := svc.MakeLocalBroadcasters()
+
+	<-broadcasters.ListenGameMessages(rdb)
+	<-broadcasters.ListenUsersMessages(rdb)
+	<-broadcasters.ListenUnicastEvents(rdb)
 
 	svc.StartStreamReaders(context.Background(), services)
-	svc.StartOutboxQueueConsumer(context.Background(), services)
+	svc.StartOutboxQueueConsumers(context.Background(), services)
 
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 

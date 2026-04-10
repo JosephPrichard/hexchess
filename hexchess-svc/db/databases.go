@@ -65,6 +65,7 @@ type RedisNames struct {
 	ActiveUsersZSet         string `json:"activeUsersZSet"`
 	GameChatsZSet           string `json:"gameChatsZSet"`
 	GamesChannel            string `json:"gamesChannel"`
+	TournamentsChannel      string `json:"tournamentsChannel"`
 	UsersChannel            string `json:"usersChannel"`
 	GamesCountChannel       string `json:"gamesCountChannel"`
 	ActiveCountChannel      string `json:"activeCountChannel"`

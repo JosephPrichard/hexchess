@@ -229,9 +229,9 @@ var ChallengeInsts = []struct {
 var TournamentInsts = []struct {
 	TournamentKey uuid.UUID
 	Name          string
-	Depth         int32
+	Rounds        int32
 	ScheduledOn   *time.Time
-	CreatedOn     time.Time
+	Countdown     time.Duration
 	UpdatedOn     time.Time
 	CreatedBy     int64
 	Status        string
@@ -240,9 +240,9 @@ var TournamentInsts = []struct {
 	{
 		TournamentKey: uuid.New(),
 		Name:          "Test Tournament 1",
-		Depth:         2,
+		Rounds:        2,
 		ScheduledOn:   nil,
-		CreatedOn:     TimeNow,
+		Countdown:     5 * time.Minute,
 		UpdatedOn:     TimeNow,
 		CreatedBy:     1,
 		Status:        "LOBBY",
@@ -251,9 +251,9 @@ var TournamentInsts = []struct {
 	{
 		TournamentKey: uuid.New(),
 		Name:          "Test Tournament 2",
-		Depth:         2,
+		Rounds:        2,
 		ScheduledOn:   nil,
-		CreatedOn:     TimeNow,
+		Countdown:     5 * time.Minute,
 		UpdatedOn:     TimeNow,
 		CreatedBy:     1,
 		Status:        "IN_PROGRESS",
@@ -262,9 +262,9 @@ var TournamentInsts = []struct {
 	{
 		TournamentKey: uuid.New(),
 		Name:          "Test Tournament 3",
-		Depth:         1,
+		Rounds:        1,
 		ScheduledOn:   nil,
-		CreatedOn:     TimeNow,
+		Countdown:     5 * time.Minute,
 		UpdatedOn:     TimeNow,
 		CreatedBy:     1,
 		Status:        "FINISHED",
@@ -316,27 +316,27 @@ var TournamentParticipantInsts = []struct {
 var TournamentMatchInsts = []struct {
 	GameID        *string
 	TournamentKey uuid.UUID
-	Depth         int32
+	Round         int32
 	CreatedOn     time.Time
 }{
 	// IN_PROGRESS tournmanet matches (some matches)
 	{
 		GameID:        ptr(uuid.NewString()), // (no replay, unfinished)
 		TournamentKey: TournamentInsts[1].TournamentKey,
-		Depth:         1,
+		Round:         1,
 		CreatedOn:     TimeNow.Add(time.Minute * 1),
 	},
 	{
 		GameID:        ptr(uuid.NewString()), // (no replay, unfinished)
 		TournamentKey: TournamentInsts[1].TournamentKey,
-		Depth:         1,
+		Round:         1,
 		CreatedOn:     TimeNow.Add(time.Minute * 2),
 	},
 	// FINISHED tournament matches (all matches)
 	{
 		GameID:        ptr(FirstReplayGameID), // (replay, finished)
 		TournamentKey: TournamentInsts[2].TournamentKey,
-		Depth:         1,
+		Round:         1,
 		CreatedOn:     TimeNow.Add(time.Minute * 3),
 	},
 }
@@ -418,40 +418,40 @@ func insertTestData(pool *pgxpool.Pool) error {
 			inst.MadeOn,
 		)
 	}
-	for _, inst := range TournamentInsts {
-		batchQueue(`
-			INSERT INTO tournaments (tkey, name, depth, scheduled_on, created_on, updated_on, created_by, status, mode)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
-			inst.TournamentKey,
-			inst.Name,
-			inst.Depth,
-			inst.ScheduledOn,
-			inst.CreatedOn,
-			inst.UpdatedOn,
-			inst.CreatedBy,
-			inst.Status,
-			inst.Mode,
-		)
-	}
-	for _, inst := range TournamentParticipantInsts {
-		batchQueue(`
-			INSERT INTO tournament_participants (tournament_key, user_id, joined_on)
-			VALUES ($1, $2, $3);`,
-			inst.TournamentKey,
-			inst.UserID,
-			inst.JoinedOn,
-		)
-	}
-	for _, inst := range TournamentMatchInsts {
-		batchQueue(`
-			INSERT INTO tournament_matches (game_id, tournament_key, depth, created_on)
-			VALUES ($1, $2, $3, $4);`,
-			inst.GameID,
-			inst.TournamentKey,
-			inst.Depth,
-			inst.CreatedOn,
-		)
-	}
+	//for _, inst := range TournamentInsts {
+	//	batchQueue(`
+	//		INSERT INTO tournaments (tournament_key, name, rounds, countdown, created_on, updated_on, created_by, status, mode)
+	//		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
+	//		inst.TournamentKey,
+	//		inst.Name,
+	//		inst.Rounds,
+	//		inst.ScheduledOn,
+	//		inst.Countdown.Milliseconds(),
+	//		inst.UpdatedOn,
+	//		inst.CreatedBy,
+	//		inst.Status,
+	//		inst.Mode,
+	//	)
+	//}
+	//for _, inst := range TournamentParticipantInsts {
+	//	batchQueue(`
+	//		INSERT INTO tournament_participants (tournament_key, user_id, joined_on)
+	//		VALUES ($1, $2, $3);`,
+	//		inst.TournamentKey,
+	//		inst.UserID,
+	//		inst.JoinedOn,
+	//	)
+	//}
+	//for _, inst := range TournamentMatchInsts {
+	//	batchQueue(`
+	//		INSERT INTO tournament_matches (game_id, tournament_key, round, created_on)
+	//		VALUES ($1, $2, $3, $4);`,
+	//		inst.GameID,
+	//		inst.TournamentKey,
+	//		inst.Round,
+	//		inst.CreatedOn,
+	//	)
+	//}
 
 	batchResults := pool.SendBatch(ctx, batch)
 	defer batchResults.Close()

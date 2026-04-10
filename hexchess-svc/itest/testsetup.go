@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"hexchess-svc/db"
-	"hexchess-svc/egress"
 	"hexchess-svc/util/logutil"
 
 	"github.com/google/uuid"
@@ -145,43 +144,4 @@ func SetupPostgresTest(ctx context.Context, t logutil.TestLogger, testingTx bool
 	}
 
 	return pdb, nil
-}
-
-const LocalstackContTag = "localstack/localstack:3.0.2"
-const LocalStackContPort = "4566/tcp"
-
-var muLocalstack sync.Mutex
-var localstackCont testcontainers.Container
-
-func SetupAwsTest(ctx context.Context, t logutil.TestLogger) (awsClient egress.AWS, err error) {
-	muLocalstack.Lock()
-	defer muLocalstack.Unlock()
-
-	if localstackCont == nil {
-		start := time.Now()
-		cont, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-			Started: true,
-			ContainerRequest: testcontainers.ContainerRequest{
-				Image:        LocalstackContTag,
-				ExposedPorts: []string{LocalStackContPort},
-				WaitingFor:   wait.ForListeningPort(LocalStackContPort),
-			},
-		})
-		if err != nil {
-			return awsClient, fmt.Errorf("start localstack container: %s", err)
-		}
-		localstackCont = cont
-		t.Logf("finished starting localstack container in %v", time.Since(start))
-	}
-
-	host, _ := localstackCont.Host(ctx)
-	port, _ := localstackCont.MappedPort(ctx, LocalStackContPort)
-	endpoint := fmt.Sprintf("http://%s:%s", host, port.Port())
-
-	return egress.MakeAwsClients(ctx, egress.AWSConfig{
-		S3ProfileBucket:  unique(egress.S3ProfileBucket),
-		AWSDefaultRegion: "us-east-1",
-		IsLocalstack:     true,
-		AWSEndpoint:      endpoint,
-	})
 }

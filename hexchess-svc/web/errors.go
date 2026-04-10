@@ -76,7 +76,7 @@ func (re *ResponseError) Error() string {
 	return fmt.Sprintf("%+v", re.Errors)
 }
 
-func (re *ResponseError) Interface() error {
+func (re *ResponseError) AsError() error {
 	if re.HasErrors() {
 		return re
 	}

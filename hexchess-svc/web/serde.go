@@ -6,7 +6,7 @@ import (
 
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
-	svc "hexchess-svc/services"
+	"hexchess-svc/service"
 )
 
 func DeserializeUndoInput(pbInput *pb.UndoInput) (svc.UndoKind, error) {

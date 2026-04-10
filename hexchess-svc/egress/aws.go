@@ -12,24 +12,28 @@ import (
 
 const S3ProfileBucket = "hexchess-profiles"
 
+//go:generate mockgen -source=aws.go -destination=./aws_mock.go -package=egress
+
+type S3Client interface {
+	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
+	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
+	DeleteObjects(ctx context.Context, params *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error)
+}
+
 type AWS struct {
-	S3ProfileBucket string
-	S3Endpoint      string
-	S3Client        *s3.Client
+	S3Endpoint string
+	S3Client   S3Client
 }
 
 type AWSConfig struct {
 	AWSDefaultRegion string
 	AWSEndpoint      string
 	IsLocalstack     bool
-	S3ProfileBucket string
+	S3ProfileBucket  string
 }
 
 func MakeAwsClients(ctx context.Context, cfg AWSConfig) (AWS, error) {
-	if cfg.S3ProfileBucket == "" {
-		cfg.S3ProfileBucket = S3ProfileBucket
-	}
-
 	awsOpts := []func(*config.LoadOptions) error{
 		config.WithRegion(cfg.AWSDefaultRegion),
 	}
@@ -42,20 +46,17 @@ func MakeAwsClients(ctx context.Context, cfg AWSConfig) (AWS, error) {
 		return AWS{}, fmt.Errorf("load aws config %+v: %w", cfg, err)
 	}
 
-	awsClient := AWS{
-		S3ProfileBucket: cfg.S3ProfileBucket,
-		S3Endpoint:      cfg.AWSEndpoint,
-		S3Client: s3.NewFromConfig(awsCfg, func(o *s3.Options) {
-			o.BaseEndpoint = aws.String(cfg.AWSEndpoint)
-			o.UsePathStyle = true
-		}),
-	}
+	s3Client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(cfg.AWSEndpoint)
+		o.UsePathStyle = true
+	})
+	awsClient := AWS{S3Endpoint: cfg.AWSEndpoint, S3Client: s3Client}
 
 	// creates all buckets by default.
 	for _, bucket := range []string{
 		cfg.S3ProfileBucket,
 	} {
-		if _, err := awsClient.S3Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {
+		if _, err := s3Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {
 			return awsClient, fmt.Errorf("create s3 bucket: %v: %s", bucket, err)
 		}
 	}

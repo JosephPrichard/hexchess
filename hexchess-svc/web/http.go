@@ -48,7 +48,7 @@ func HttpStatusFromErr(err error) (int, string) {
 		ErrHttpNotFoundChallenge:
 		return http.StatusNotFound, err.Error()
 
-	// 500 — Internal Server Error
+	// 500 — Internal API Error
 	case ErrHttpFatal:
 		return http.StatusInternalServerError, err.Error()
 

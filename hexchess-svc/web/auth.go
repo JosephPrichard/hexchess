@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"hexchess-svc/services"
+	"hexchess-svc/service"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
@@ -41,22 +41,26 @@ func MakeSessionID() string {
 	return string(bytes)
 }
 
-func (server *Server) GetSessionPlayer(ctx context.Context, r *http.Request) (svc.PlayerState, string, error) {
+type Authenticator struct {
+	services *svc.HexchessServices
+}
+
+func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request) (svc.PlayerState, string, error) {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
 		return svc.PlayerState{}, "", svc.ErrSessionNotFound
 	}
 	sessionID := cookie.Value
-	player, err := server.GetSession(ctx, sessionID)
+	player, err := auth.services.GetSession(ctx, sessionID)
 	if err != nil {
 		return svc.PlayerState{}, "", err
 	}
 	return player, sessionID, nil
 }
 
-func (server *Server) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player svc.PlayerState) (time.Duration, error) {
+func (auth *Authenticator) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player svc.PlayerState) (time.Duration, error) {
 	sessionID := MakeSessionID()
-	if err := server.SetSessions(ctx, svc.SessInst{SessionID: sessionID, Player: player, Expiry: SessionMaxAge}); err != nil {
+	if err := auth.services.SetSessions(ctx, svc.SessionInst{SessionID: sessionID, Player: player, Expiry: SessionMaxAge}); err != nil {
 		return 0, err
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))

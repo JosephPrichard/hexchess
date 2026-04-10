@@ -10,7 +10,7 @@ import (
 
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
-	svc "hexchess-svc/services"
+	"hexchess-svc/service"
 	"hexchess-svc/util/logutil"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -46,11 +46,10 @@ func main() {
 	slog.InfoContext(ctx, "connecting to redis db", "addrs", addrs)
 	rdb := db.MakeRdb(addrs, nil)
 
-	services := &svc.Services{
-		DB:      pdb,
-		Querier: pdb.Querier(),
-		Redis:   rdb,
-	}
+	services := svc.MakeHexchessServices(svc.Setup{
+		DB:    pdb,
+		Redis: rdb,
+	})
 	defer services.Close()
 
 	switch *jobName {

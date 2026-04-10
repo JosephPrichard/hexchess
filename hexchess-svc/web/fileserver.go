@@ -1,10 +1,12 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"hexchess-svc/assets"
-	svc "hexchess-svc/services"
+	"hexchess-svc/service"
+	"io"
 	"log/slog"
 	"net/http"
 )
@@ -12,62 +14,48 @@ import (
 // MaxProfilePicSize 5 MiB
 const MaxProfilePicSize = 5 << 20
 
-func (server *Server) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) error {
+func (api *API) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-	player, _, err := server.GetSessionPlayer(ctx, r)
+	player, _, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
 
 	contentType := r.Header.Get("Content-Type")
 
-	// the maximum memory we are using is the same as the max bytes reader to prevent writing temp files to disk
-	r.Body = http.MaxBytesReader(w, r.Body, MaxProfilePicSize)
+	bodyFile := io.LimitReader(r.Body, MaxProfilePicSize)
+	defer r.Body.Close()
 
-	if err := r.ParseMultipartForm(MaxProfilePicSize); err != nil {
-		return fmt.Errorf("parse multipart form: %w", err)
-	}
-	defer func() {
-		// this isn't necessary if MaxBytesReader = MaxMemory, but it will become necessary if we change that
-		if r.MultipartForm != nil {
-			r.MultipartForm.RemoveAll()
-		}
-	}()
-	file, _, err := r.FormFile("file")
-	if err != nil {
-		return fmt.Errorf("get file from form: %w", err)
-	}
-	defer file.Close()
-
-	key, err := server.UploadProfilePic(ctx, player, file, contentType)
+	key, err := api.services.UploadProfilePic(ctx, player, bodyFile, contentType)
 	if err != nil {
 		return err
 	}
 
-	go func() {
-		// removes old profile pictures on upload of a new profile pic, since retrieval function will always get the most recent file.
-		if err := server.DeleteOldProfilePics(ctx, int(player.ID)); err != nil {
-			slog.ErrorContext(ctx, "failed to remove old profile pics", "error", err)
-		}
-	}()
-
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: key})
+
+	// removes old profile pictures on upload of a new profile pic, since retrieval function will always get the most recent file.
+	deleteCtx := context.WithoutCancel(ctx)
+	if err := api.services.DeleteOldProfilePics(deleteCtx, int(player.ID)); err != nil {
+		slog.ErrorContext(deleteCtx, "failed to remove old profile pics", "error", err)
+	}
+
 	return nil
 }
 
-func (server *Server) HandleGetProfilePic(w http.ResponseWriter, r *http.Request) error {
+func (api *API) HandleGetProfilePic(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	userID := r.URL.Query().Get("userId")
 
-	key, err := server.GetProfilePicKey(ctx, userID)
+	key, err := api.services.GetProfilePicKey(ctx, userID)
 	if errors.Is(svc.ErrNoProfilePic, err) {
-		w.Write(assets.DefaultProfilePic)
-		return nil
-	} else if err != nil {
+		_, err := w.Write(assets.DefaultProfilePic)
+		return err
+	}
+	if err != nil {
 		return fmt.Errorf("get profile pic key for user %s: %w", userID, err)
 	}
 
-	s3URL := server.AWS.MakeS3Url(server.AWS.S3ProfileBucket, key)
+	s3URL := api.services.MakeProfileURL(key)
 	slog.InfoContext(ctx, "resolved user key to S3 profile pic URL", "url", s3URL, "userID", userID)
 
 	// cache control is for what URL is being redirected to, this only changes if the user uploads a new profile pic

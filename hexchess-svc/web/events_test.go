@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"hexchess-svc/itest"
-	svc "hexchess-svc/services"
+	"hexchess-svc/service"
 	"hexchess-svc/util/logutil"
 
 	"github.com/stretchr/testify/assert"
@@ -74,13 +74,13 @@ func scanEvents(ctx context.Context, resp *http.Response, wantEvents int) []stri
 func TestHandleCountEvents(t *testing.T) {
 	t.Parallel()
 
-	services := svc.SetupServicesTest(t, itest.Redis)
+	services, testinfra := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.Redis)
 	defer services.Close()
 
-	services.Broadcasters = svc.MakeBroadcasters()
-	<-services.Broadcasters.ListenUnicastEvents(services.Redis)
+	broadcasters := svc.MakeLocalBroadcasters()
+	<-broadcasters.ListenUnicastEvents(testinfra.Redis)
 
-	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services}))
+	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services, Broadcasers: broadcasters}))
 	defer testServer.Close()
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, testServer.URL+"/api/events/count", nil)
@@ -114,20 +114,20 @@ func TestHandleActiveConn(t *testing.T) {
 
 	ctx := t.Context()
 
-	services := svc.SetupServicesTest(t, itest.Redis)
+	mocks := svc.ServiceMocks{Entropy: &svc.StableEntropySource{ID: "id1"}}
+
+	services, testinfra := svc.SetupServicesTest(t, mocks, itest.Redis)
 	defer services.Close()
 
-	services.Broadcasters = svc.MakeBroadcasters()
-	services.EntropySource = &svc.StableEntropySource{ID: "id1"}
-
-	<-services.Broadcasters.ListenUnicastEvents(services.Redis)
+	broadcasters := svc.MakeLocalBroadcasters()
+	<-broadcasters.ListenUnicastEvents(testinfra.Redis)
 
 	wantBroadcasts := []svc.UcEvent{{Kind: svc.UcActiveEk, Data: `{"count":1}`}, {Kind: svc.UcActiveEk, Data: `{"count":0}`}}
 
 	sub := make(chan svc.UcEvent, len(wantBroadcasts))
-	services.Broadcasters.CountsCaster.Subscribe(sub)
+	broadcasters.CountsCaster.Subscribe(sub)
 
-	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services}))
+	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services, Broadcasers: broadcasters}))
 	defer testServer.Close()
 
 	go func() {
@@ -156,15 +156,15 @@ func TestHandleUserEvents(t *testing.T) {
 
 	ctx := t.Context()
 
-	services := svc.SetupServicesTest(t, itest.Redis)
+	services, testinfra := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.Redis)
 	defer services.Close()
 
-	services.Broadcasters = svc.MakeBroadcasters()
-	<-services.Broadcasters.ListenUsersMessages(services.Redis)
+	broadcasters := svc.MakeLocalBroadcasters()
+	<-broadcasters.ListenUsersMessages(testinfra.Redis)
 
 	createTestSessions(t, services)
 
-	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services}))
+	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services, Broadcasers: broadcasters}))
 	defer testServer.Close()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, testServer.URL+"/api/events/user", nil)

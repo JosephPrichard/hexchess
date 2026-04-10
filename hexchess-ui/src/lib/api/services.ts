@@ -206,14 +206,11 @@ export async function postProfilePic(file: File) {
 	try {
 		const input = `${baseURL()}/users/profile-pics`;
 
-		const form = new FormData();
-		form.append("file", file, file.name);
-
 		const trace = uuidv4();
 		console.log(`sending request to ${input} with trace ${trace}`);
 		const response = await fetch(input, {
 			method: "POST",
-			body: form, // browser sets multipart boundary automatically
+			body: file, // set the file as binary body data
 			credentials: 'include',
 		});
 

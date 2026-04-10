@@ -133,10 +133,15 @@ SELECT user_id, mode, elo, highest_elo, wins, losses, draws
 FROM user_mode_elos
 WHERE user_id = sqlc.arg('id');
 
--- name: SelectManyUserElosByID :many
+-- name: SelectUserElosByIDs :many
 SELECT user_id, mode, elo, highest_elo, wins, losses, draws
 FROM user_mode_elos
 WHERE user_id = ANY(sqlc.arg('id')::bigint[]);
+
+-- name: SelectUserPlayerDataByIDs :many
+SELECT id, username, country
+FROM users
+WHERE id = ANY(sqlc.arg('id')::bigint[]);
 
 -- name: UpsertUserElo :batchexec
 INSERT INTO user_mode_elos AS u (user_id, mode, elo, highest_elo, wins, losses, draws)

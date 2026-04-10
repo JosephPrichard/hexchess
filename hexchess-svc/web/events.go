@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	svc "hexchess-svc/services"
+	"hexchess-svc/service"
 )
 
 func SSE(h func(w SSEWriter, r *http.Request) error) http.HandlerFunc {
@@ -81,14 +81,14 @@ const (
 	SSEChanBufCap = 10
 )
 
-func (server *Server) HandleCountEvents(w SSEWriter, _ *http.Request) error {
+func (api *API) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 	ctx := w.ctx
 
-	activeCount, err := server.Services.GetActiveCount(ctx)
+	activeCount, err := api.services.GetActiveCount(ctx)
 	if err != nil {
 		return err
 	}
-	gamesCount, err := server.Services.GetChessStateCount(ctx)
+	gamesCount, err := api.services.GetChessStateCount(ctx)
 	if err != nil {
 		return err
 	}
@@ -97,11 +97,11 @@ func (server *Server) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 	w.writeCountEvent(svc.UcGamesEk, gamesCount)
 
 	countsChan := make(chan svc.UcEvent, SSEChanBufCap)
-	server.Broadcasters.CountsCaster.Subscribe(countsChan)
+	api.broadcasters.CountsCaster.Subscribe(countsChan)
 
 	go func() {
 		<-ctx.Done() // stop from the client, so stop the RecvLoop by unsubscribing
-		server.Broadcasters.CountsCaster.Unsubscribe(countsChan)
+		api.broadcasters.CountsCaster.Unsubscribe(countsChan)
 		slog.InfoContext(ctx, "finished handle user events sse")
 	}()
 
@@ -141,23 +141,23 @@ func every(duration time.Duration, work func()) chan bool {
 }
 
 // HandleActiveConn a long-lived TCP connection used to maintain an active connection, it only ever receives "meta" messages
-func (server *Server) HandleActiveConn(w SSEWriter, _ *http.Request) error {
+func (api *API) HandleActiveConn(w SSEWriter, _ *http.Request) error {
 	ctx := w.ctx
 
-	sseID := server.EntropySource.MakeID()
+	sseID := api.entropy.MakeID()
 
-	count, err := server.Services.AddActiveUser(ctx, sseID)
+	count, err := api.services.AddActiveUser(ctx, sseID)
 	if err != nil {
 		return err
 	}
-	if err := server.Services.BroadcastActiveCount(ctx, count); err != nil {
+	if err := api.services.BroadcastActiveCount(ctx, count); err != nil {
 		return fmt.Errorf("broadcast active user count after adding %d: %w", count, err)
 	}
 
 	w.writeEvent(MetaEvent, sseID)
 
 	stopTimer := every(svc.ActiveUserMaxage-time.Second, func() {
-		if err := server.Services.RetainActiveUser(ctx, sseID); err != nil {
+		if err := api.services.RetainActiveUser(ctx, sseID); err != nil {
 			slog.ErrorContext(ctx, "failed to retain active user", "sseID", sseID, "err", err)
 		}
 	})
@@ -176,20 +176,20 @@ RecvLoop:
 	afterCtx := context.WithoutCancel(ctx)
 	stopTimer <- true
 
-	if count, err = server.Services.RemoveActiveUser(afterCtx, sseID); err != nil {
+	if count, err = api.services.RemoveActiveUser(afterCtx, sseID); err != nil {
 		slog.ErrorContext(afterCtx, "failed to remove active user", "sseID", sseID, "err", err)
 	}
-	if err := server.Services.BroadcastActiveCount(afterCtx, count); err != nil {
+	if err := api.services.BroadcastActiveCount(afterCtx, count); err != nil {
 		slog.ErrorContext(afterCtx, "broadcast active user count after removing", "err", err)
 	}
 
 	return nil
 }
 
-func (server *Server) HandleUserEvents(w SSEWriter, r *http.Request) error {
+func (api *API) HandleUserEvents(w SSEWriter, r *http.Request) error {
 	ctx := w.ctx
 
-	player, _, err := server.GetSessionPlayer(ctx, r)
+	player, _, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
 		if errors.Is(err, svc.ErrSessionNotFound) {
 			return ErrHttpSessionExpired
@@ -201,11 +201,11 @@ func (server *Server) HandleUserEvents(w SSEWriter, r *http.Request) error {
 	w.writeEvent(MetaEvent, strconv.FormatInt(player.ID, 10))
 
 	usersChan := make(chan []byte, SSEChanBufCap)
-	server.Broadcasters.UsersCaster.Subscribe(strID, usersChan)
+	api.broadcasters.UsersCaster.Subscribe(strID, usersChan)
 
 	go func() {
 		<-ctx.Done() // stop from the client, so stop the RecvLoop by unsubscribing
-		server.Broadcasters.UsersCaster.Unsubscribe(strID, usersChan)
+		api.broadcasters.UsersCaster.Unsubscribe(strID, usersChan)
 		slog.InfoContext(ctx, "finishing handle user events sse")
 	}()
 

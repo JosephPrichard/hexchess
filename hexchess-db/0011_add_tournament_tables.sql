@@ -1,25 +1,28 @@
 -- +goose up
 CREATE TYPE tournament_status_enum AS ENUM (
     'LOBBY',
+    'SCHEDULED',
     'IN_PROGRESS',
-    'FINISHED'
+    'FINISHED',
+    'CANCELLED'
 );
 
 CREATE TABLE tournaments (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    tkey UUID NOT NULL UNIQUE,
+    tournament_key UUID NOT NULL UNIQUE,
     name TEXT NOT NULL,
     rounds INT NOT NULL,
     status tournament_status_enum NOT NULL,
-    scheduled_on TIMESTAMP WITH TIME ZONE,
+    mode mode_enum NOT NULL,
+    countdown BIGINT NOT NULL,
+    countdown_started_on TIMESTAMP WITH TIME ZONE,
     created_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_by BIGINT NOT NULL REFERENCES users(id),
     updated_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    mode mode_enum NOT NULL
 );
 
 CREATE TABLE tournament_participants (
-    tournament_key UUID NOT NULL REFERENCES tournaments(tkey),
+    tournament_key UUID NOT NULL REFERENCES tournaments(tournament_key),
     user_id BIGINT NOT NULL REFERENCES users(id),
     joined_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT tournament_participants_pkey PRIMARY KEY (tournament_key, user_id)
@@ -27,7 +30,7 @@ CREATE TABLE tournament_participants (
 
 CREATE TABLE tournament_matches (
     ordering BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    tournament_key UUID NOT NULL REFERENCES tournaments(tkey),
+    tournament_key UUID NOT NULL REFERENCES tournaments(tournament_key),
     round INT NOT NULL,
     game_id TEXT NOT NULL UNIQUE,
     created_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP

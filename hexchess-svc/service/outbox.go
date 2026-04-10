@@ -1,0 +1,252 @@
+package svc
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"google.golang.org/protobuf/proto"
+	"hexchess-svc/db"
+	"hexchess-svc/db/sqlc"
+	"hexchess-svc/pb"
+	"log/slog"
+	"sync"
+	"time"
+)
+
+type queuePollHandler struct {
+	kind         sqlc.OutboxQueueTypeEnum
+	pollInterval time.Duration
+	pollCount    int32
+	fn           func(ctx context.Context, bytes []byte) error
+}
+
+func makeOutboxQueueTable(services *HexchessServices) map[sqlc.OutboxQueueTypeEnum]queuePollHandler {
+	handlerList := []queuePollHandler{
+		{
+			kind:         sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
+			pollInterval: 5 * time.Second,
+			pollCount:    64,
+			fn:           services.handleCreateTournamentMatchesEvent,
+		},
+		{
+			kind:         sqlc.OutboxQueueTypeEnumTOURNAMENTSCHEDULEDEVENT,
+			pollInterval: 1 * time.Second,
+			pollCount:    32,
+			fn:           services.handleScheduledTournamentEvent,
+		},
+	}
+
+	handlerTable := make(map[sqlc.OutboxQueueTypeEnum]queuePollHandler)
+	for _, handler := range handlerList {
+		handlerTable[handler.kind] = handler
+	}
+
+	return handlerTable
+}
+
+func pollOutboxQueueEvents(ctx context.Context, querier sqlc.Querier, handler queuePollHandler, getProcessedOn func() time.Time) error {
+	// locks events for the duration of the function
+	eventRows, err := querier.SelectOutboxQueue(ctx, sqlc.SelectOutboxQueueParams{
+		Type:  handler.kind,
+		Limit: handler.pollCount,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to select %d messages for event kind %s from outbox queue: %w", handler.pollCount, handler.kind, err)
+	}
+
+	type eventResult struct {
+		eventID int64
+		err     error
+	}
+
+	var wg sync.WaitGroup
+	processedEvents := make([]eventResult, len(eventRows))
+
+	for i, event := range eventRows {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := handler.fn(ctx, event.Data)
+
+			processedEvents[i] = eventResult{eventID: event.ID, err: err}
+		}()
+	}
+
+	wg.Done()
+
+	processedEventIDs := make([]int64, 0, len(processedEvents))
+	var errProcessedEvents []eventResult
+
+	for _, event := range processedEvents {
+		if event.err == nil {
+			processedEventIDs = append(processedEventIDs, event.eventID)
+		} else {
+			errProcessedEvents = append(errProcessedEvents, event)
+		}
+	}
+	if len(errProcessedEvents) > 0 {
+		slog.ErrorContext(ctx, "failed to handle outbox queue event", "events", errProcessedEvents)
+	}
+
+	if err := querier.UpdateOutboxQueueProcessedByID(ctx, sqlc.UpdateOutboxQueueProcessedByIDParams{
+		Ids:           processedEventIDs,
+		ProcessedTime: pgtype.Timestamptz{Time: getProcessedOn(), Valid: true},
+	}); err != nil {
+		return fmt.Errorf("failed to acknolwedge outbox queue messages %+v: %w", processedEvents, err)
+	}
+
+	return nil
+}
+
+func StartOutboxQueueConsumers(ctx context.Context, svc *HexchessServices) {
+	handlerTable := makeOutboxQueueTable(svc)
+	for kind, handler := range handlerTable {
+		go PollOutboxQueueLoop(ctx, svc, handler)
+		slog.InfoContext(ctx, "started outbox queue consumer for handler", "kind", kind)
+	}
+}
+
+func PollOutboxQueueLoop(ctx context.Context, svc *HexchessServices, handler queuePollHandler) {
+	ticker := time.NewTicker(handler.pollInterval)
+	for {
+		select {
+		case <-ticker.C:
+			err := svc.db.ExecTx(ctx, db.Tx{
+				// ReadCommitted is used as a basic 'Default` isolation level, the primary purpose of the transaction is atomicity
+				// if handlers fail to acknowledge an event, it is not marked as processed and the lock is released at the end of the transaction, to allow retries
+				Isolation: pgx.ReadCommitted,
+				QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
+					return pollOutboxQueueEvents(ctx, querier, handler, svc.entropy.GetNow)
+				},
+				RetryCount: 1,
+			})
+			if err != nil {
+				slog.ErrorContext(ctx, "failed to poll outbox queue", "err", err)
+			}
+		case <-ctx.Done():
+			slog.InfoContext(ctx, "exiting outbox queue polling loop")
+			return
+		}
+	}
+}
+
+type CreateTournamentMatchesEvent struct {
+	TournamentKey uuid.UUID
+	Matches       []CreateTournamentMatchDTO
+}
+
+func pushCreateTournamentMatchesEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, matches []CreateTournamentMatchDTO) error {
+	event := CreateTournamentMatchesEvent{TournamentKey: tournamentKey, Matches: matches}
+	bytes, err := proto.Marshal(SerializeCreateTournamentMatchesEvent(event))
+	if err != nil {
+		return fmt.Errorf("marshal create tournament matches event: %w", err)
+	}
+	if err := querier.InsertOutboxQueue(ctx, sqlc.InsertOutboxQueueParams{
+		Type: sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
+		Data: bytes,
+	}); err != nil {
+		return fmt.Errorf("insert create tournament matches event into task queue: %w", err)
+	}
+	return nil
+}
+
+func pushScheduledTournamentEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, scheduledOn time.Time) error {
+	bytes, err := proto.Marshal(&pb.ScheduledTourmmentEvent{
+		TournamentKey: tournamentKey.String(),
+	})
+	if err != nil {
+		return fmt.Errorf("marshal scheduled tournament event: %w", err)
+	}
+	if err := querier.InsertOutboxQueue(ctx, sqlc.InsertOutboxQueueParams{
+		Type:        sqlc.OutboxQueueTypeEnumTOURNAMENTSCHEDULEDEVENT,
+		Data:        bytes,
+		ScheduledOn: pgtype.Timestamptz{Time: scheduledOn, Valid: true},
+	}); err != nil {
+		return fmt.Errorf("insert scheduled tournament event into task queue: %w", err)
+	}
+	return nil
+}
+
+func (svc *HexchessServices) handleCreateTournamentMatchesEvent(ctx context.Context, bytes []byte) error {
+	event, err := UnmarshalCreateTournamentMatchesEvent(bytes)
+	if err != nil {
+		return fmt.Errorf("unmarshal create tournament matches event: %w", err)
+	}
+
+	userIDs := make([]int64, 0, len(event.Matches)*2)
+	for _, match := range event.Matches {
+		userIDs = append(userIDs, match.WhiteID)
+		userIDs = append(userIDs, match.BlackID)
+	}
+
+	playerDataRows, err := svc.querier.SelectUserPlayerDataByIDs(ctx, userIDs)
+	if err != nil {
+		return fmt.Errorf("select user player data by ids: %w", err)
+	}
+
+	playerDataMap := make(map[int64]sqlc.SelectUserPlayerDataByIDsRow)
+	for _, row := range playerDataRows {
+		playerDataMap[row.ID] = row
+	}
+
+	updtTime := svc.entropy.GetNow()
+
+	pipe := svc.redis.GameStore.TxPipeline()
+	for _, match := range event.Matches {
+		whitePlayerData, okWhite := playerDataMap[match.WhiteID]
+		blackPlayerData, okBlack := playerDataMap[match.BlackID]
+
+		if !okWhite || !okBlack {
+			// invariant: white and black should be valid IDs if they have been pushed to the queue
+			return fmt.Errorf("missing player data for match: %+v", match)
+		}
+
+		state := MakeChessState(StateSetup{
+			ID:         match.GameID,
+			Mode:       match.GameMode,
+			FirstColor: White,
+			White:      MakePlayer(match.WhiteID, whitePlayerData.Username, whitePlayerData.Country),
+			Black:      MakePlayer(match.BlackID, blackPlayerData.Username, blackPlayerData.Country),
+		})
+
+		svc.setChessState(ctx, pipe, match.GameID, state, updtTime)
+	}
+
+	if _, err := pipe.Exec(ctx); err != nil {
+		// starting tournament games is atomic, job queue will retry until all creates are created in one shot
+		return fmt.Errorf("set tournament games +%v: %w", event.Matches, err)
+	}
+
+	return nil
+}
+
+func (svc *HexchessServices) handleScheduledTournamentEvent(ctx context.Context, bytes []byte) error {
+	var pbEvent pb.CreateTournamentMatchesEvent
+	if err := proto.Unmarshal(bytes, &pbEvent); err != nil {
+		return fmt.Errorf("unmarshal create scheduled tournament event: %w", err)
+	}
+
+	tournamenKey, err := uuid.Parse(pbEvent.TournamentKey)
+	if err != nil {
+		return fmt.Errorf("parse tournament key: %w", err)
+	}
+
+	// attempt to start the tournament, broadcast the result (successful or otherwise)
+	err = svc.StartTournamentTx(ctx, tournamenKey)
+
+	var matchStateError MatchInvariantError
+	switch {
+	case errors.As(err, &matchStateError):
+		// known error: state issue. signal failure to subscribers.
+	case err != nil:
+		// unknown error? log and propagate (triggers retry)
+		return fmt.Errorf("start tournament %s: %w", tournamenKey, err)
+	default:
+		// successful: signal success to subscribers
+	}
+
+	return nil
+}

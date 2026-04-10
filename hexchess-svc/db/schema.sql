@@ -88,7 +88,8 @@ CREATE TYPE public.mode_enum AS ENUM (
 
 CREATE TYPE public.outbox_queue_type_enum AS ENUM (
     'TOURNAMENT_ADVANCE_EVENT',
-    'TOURNAMENT_CREATE_MATCHES_EVENT'
+    'TOURNAMENT_CREATE_MATCHES_EVENT',
+    'TOURNAMENT_SCHEDULED_EVENT'
 );
 
 
@@ -121,8 +122,10 @@ CREATE TYPE public.tournament_ruleset_enum AS ENUM (
 
 CREATE TYPE public.tournament_status_enum AS ENUM (
     'LOBBY',
+    'SCHEDULED',
     'IN_PROGRESS',
-    'FINISHED'
+    'FINISHED',
+    'CANCELLED'
 );
 
 
@@ -178,7 +181,8 @@ CREATE TABLE public.outbox_queue (
     type public.outbox_queue_type_enum NOT NULL,
     data bytea NOT NULL,
     created_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    processed_on timestamp with time zone
+    processed_on timestamp with time zone,
+    scheduled_on timestamp with time zone
 );
 
 
@@ -249,7 +253,9 @@ CREATE TABLE public.tournament_matches (
     tournament_key uuid NOT NULL,
     round integer NOT NULL,
     game_id text NOT NULL,
-    created_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    created_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    white_id bigint DEFAULT 0 NOT NULL,
+    black_id bigint DEFAULT 0 NOT NULL
 );
 
 
@@ -284,15 +290,16 @@ CREATE TABLE public.tournament_participants (
 
 CREATE TABLE public.tournaments (
     id bigint NOT NULL,
-    tkey uuid NOT NULL,
+    tournament_key uuid NOT NULL,
     name text NOT NULL,
     rounds integer NOT NULL,
     status public.tournament_status_enum NOT NULL,
-    scheduled_on timestamp with time zone,
+    mode public.mode_enum NOT NULL,
+    countdown bigint NOT NULL,
+    countdown_started_on timestamp with time zone,
     created_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_by bigint NOT NULL,
     updated_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    mode public.mode_enum NOT NULL,
     ruleset public.tournament_ruleset_enum DEFAULT 'KNOCKOUT'::public.tournament_ruleset_enum NOT NULL,
     winner_id bigint
 );
@@ -450,11 +457,11 @@ ALTER TABLE ONLY public.tournaments
 
 
 --
--- Name: tournaments tournaments_tkey_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: tournaments tournaments_tournament_key_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.tournaments
-    ADD CONSTRAINT tournaments_tkey_key UNIQUE (tkey);
+    ADD CONSTRAINT tournaments_tournament_key_key UNIQUE (tournament_key);
 
 
 --
@@ -521,6 +528,13 @@ CREATE INDEX idx_challenger ON public.challenges USING btree (challenger_id, mad
 --
 
 CREATE UNIQUE INDEX idx_google_account_id ON public.users USING btree (google_account_id);
+
+
+--
+-- Name: idx_outbox_queue; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_outbox_queue ON public.outbox_queue USING btree (processed_on, type, scheduled_on);
 
 
 --
@@ -627,11 +641,27 @@ ALTER TABLE ONLY public.replays
 
 
 --
+-- Name: tournament_matches tournament_matches_black_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tournament_matches
+    ADD CONSTRAINT tournament_matches_black_id_fkey FOREIGN KEY (black_id) REFERENCES public.users(id);
+
+
+--
 -- Name: tournament_matches tournament_matches_tournament_key_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.tournament_matches
-    ADD CONSTRAINT tournament_matches_tournament_key_fkey FOREIGN KEY (tournament_key) REFERENCES public.tournaments(tkey);
+    ADD CONSTRAINT tournament_matches_tournament_key_fkey FOREIGN KEY (tournament_key) REFERENCES public.tournaments(tournament_key);
+
+
+--
+-- Name: tournament_matches tournament_matches_white_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tournament_matches
+    ADD CONSTRAINT tournament_matches_white_id_fkey FOREIGN KEY (white_id) REFERENCES public.users(id);
 
 
 --
@@ -639,7 +669,7 @@ ALTER TABLE ONLY public.tournament_matches
 --
 
 ALTER TABLE ONLY public.tournament_participants
-    ADD CONSTRAINT tournament_participants_tournament_key_fkey FOREIGN KEY (tournament_key) REFERENCES public.tournaments(tkey);
+    ADD CONSTRAINT tournament_participants_tournament_key_fkey FOREIGN KEY (tournament_key) REFERENCES public.tournaments(tournament_key);
 
 
 --

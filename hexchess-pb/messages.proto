@@ -78,7 +78,87 @@ message ChessState {
   EndKind end_state = 11;
 }
 
-// abstract transit messages
+message HistMoves {
+  repeated HistMove moves = 1;
+}
+
+message PieceMoveList {
+  repeated PieceMove moves = 1;
+}
+
+message MoveHistory {
+  ChessGame initial_game = 1;
+  repeated HistMove steps = 2;
+}
+
+// entities
+message LbdUser {
+  int64 id = 1;
+  string username = 2;
+  string country = 3;
+  string bio = 4;
+  string joined_on = 5;
+  double elo = 6;
+  double highest_elo = 7;
+  int32 wins = 8;
+  int32 losses = 9;
+  int32 draws = 10;
+  int64 winrate = 11;
+  int64 rank = 12;
+}
+
+message TournamentMatch {
+  int64 id = 1;
+  string game_id = 2;
+  string tournament_key = 3;
+  int64 round = 4;
+  string created_on = 5;
+  int64 white_id = 6;
+  int64 black_id = 7;
+}
+
+message Challenge {
+  int64 challenger_id = 1;
+  string challenger_name = 2;
+  string challenger_country = 3;
+  double challenger_elo = 4;
+  int64 challengee_id = 5;
+  string challengee_name = 6;
+  string challengee_country = 7;
+  double challengee_elo = 8;
+  string mode = 9;
+  string start_color = 10;
+  string made_on = 11;
+}
+
+message Replay {
+  int64 id = 1;
+  int64 white_id = 2;
+  int64 black_id = 3;
+  string white_name = 4;
+  string black_name = 5;
+  string white_country = 6;
+  string black_country = 7;
+  string mode = 8;
+  string result = 9;
+  string cause = 10;
+  double win_elo_diff = 11;
+  double lose_elo_diff = 12;
+  double white_elo = 13;
+  double black_elo = 14;
+  double white_elo_diff = 15;
+  double black_elo_diff = 16;
+  string played_on = 17;
+}
+
+// transit messages
+
+message CreateTournamentMatch {
+  string game_id = 1;
+  int64 white_id = 2;
+  int64 black_id = 3;
+  string game_mode = 4;
+}
 
 message Move {
   int32 promotion = 1;
@@ -95,7 +175,7 @@ message ChatMessage {
   string id = 4;
 }
 
-// websocket api
+// game ws api
 
 message ForfeitInput {}
 
@@ -177,19 +257,30 @@ message GameOutput {
   }
 }
 
-// chess state metadata
+// tournament ws api
 
-message HistMoves {
-  repeated HistMove moves = 1;
+message ParticipantOutput {
+  LbdUser participant = 1;
 }
 
-message PieceMoveList {
-  repeated PieceMove moves = 1;
+message BeginCountdownOutput {}
+
+message MatchmakingOutput {
+  repeated TournamentMatch matches = 1;
 }
 
-message MoveHistory {
-  ChessGame initial_game = 1;
-  repeated HistMove steps = 2;
+message TournamentOutputID {
+  string tournament_key = 1;
+}
+
+message TournamentOutput {
+  string tournament_key = 1;
+  oneof value {
+    ErrorOutput error = 2;
+    ParticipantOutput participant = 3;
+    BeginCountdownOutput countdown = 4;
+    MatchmakingOutput matchmaking = 5;
+  }
 }
 
 // sse event messages
@@ -197,44 +288,8 @@ message MoveHistory {
 message UserMessage {
   int64 user_id = 1;
   oneof value {
-    ChallengeMessage challenge = 2;
+    Challenge challenge = 2;
   }
-}
-
-message ChallengeMessage {
-  int64 challenger_id = 1;
-  string challenger_name = 2;
-  string challenger_country = 3;
-  double challenger_elo = 4;
-  int64 challengee_id = 5;
-  string challengee_name = 6;
-  string challengee_country = 7;
-  double challengee_elo = 8;
-  string mode = 9;
-  string start_color = 10;
-  string made_on = 11;
-}
-
-// proto api
-
-message Replay {
-  int64 id = 1;
-  int64 white_id = 2;
-  int64 black_id = 3;
-  string white_name = 4;
-  string black_name = 5;
-  string white_country = 6;
-  string black_country = 7;
-  string mode = 8;
-  string result = 9;
-  string cause = 10;
-  double win_elo_diff = 11;
-  double lose_elo_diff = 12;
-  double white_elo = 13;
-  double black_elo = 14;
-  double white_elo_diff = 15;
-  double black_elo_diff = 16;
-  string played_on = 17;
 }
 
 message ChatMessages {
@@ -254,18 +309,15 @@ message FinishGameEvent {
   string replay_cause = 8;
 }
 
+message AdvanceTournamentEvent {
+  string triggering_game_id = 1;
+}
+
 message CreateTournamentMatchesEvent {
   string tournament_key = 1;
   repeated CreateTournamentMatch matches = 2;
 }
 
-message AdvanceTournamentEvent {
+message ScheduledTourmmentEvent {
   string tournament_key = 1;
-}
-
-message CreateTournamentMatch {
-  string game_id = 1;
-  int64 player_one_id = 2;
-  int64 player_two_id = 3;
-  string game_mode = 4;
 }
