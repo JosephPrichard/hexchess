@@ -27,7 +27,7 @@ func (svc *HexchessServices) SetLeaderboard(ctx context.Context, changes ...Updt
 		if IsGuestID(change.ID) {
 			continue
 		}
-		modeLbZSet := svc.getLeaderboardZSet(change.Mode.String())
+		modeLbZSet := svc.leaderboardZSet(change.Mode.String())
 		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: change.EloDiff, Member: change.ID})
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
@@ -44,7 +44,7 @@ func (svc *HexchessServices) incrLeaderboard(ctx context.Context, changes ...Upd
 			// noop zero value changes.
 			continue
 		}
-		modeLbZSet := svc.getLeaderboardZSet(change.Mode.String())
+		modeLbZSet := svc.leaderboardZSet(change.Mode.String())
 		pipe.ZIncrBy(ctx, modeLbZSet, change.EloDiff, strconv.Itoa(int(change.ID)))
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
@@ -85,7 +85,7 @@ func (svc *HexchessServices) GetUserLeaderboardRanks(ctx context.Context, userID
 	getExecs := make([]getExec, 0, len(modes))
 
 	for _, mode := range modes {
-		modeLbZSet := svc.getLeaderboardZSet(mode.String())
+		modeLbZSet := svc.leaderboardZSet(mode.String())
 		getExecs = append(getExecs, getExec{
 			mode: mode.String(),
 			cmd:  svc.redis.Cache.ZRevRankWithScore(ctx, modeLbZSet, strID),
@@ -118,7 +118,7 @@ func (svc *HexchessServices) GetUserLeaderboardRanks(ctx context.Context, userID
 		if _, ok := ranks[mode.String()]; ok {
 			continue
 		}
-		modeLbZSet := svc.getLeaderboardZSet(mode.String())
+		modeLbZSet := svc.leaderboardZSet(mode.String())
 		addExecs = append(addExecs, addExec{
 			mode:   mode,
 			addCmd: pipeline.ZAddNX(ctx, modeLbZSet, redis.Z{Member: strID, Score: StartElo}),
@@ -153,7 +153,7 @@ func (svc *HexchessServices) getUsersLeaderboardRank(ctx context.Context, userID
 	var getExecs []getExec
 
 	for _, userID := range userIDs {
-		modeLbZSet := svc.getLeaderboardZSet(mode.String())
+		modeLbZSet := svc.leaderboardZSet(mode.String())
 		getExecs = append(getExecs, getExec{
 			userID: userID,
 			cmd:    pipeline.ZRevRank(ctx, modeLbZSet, strconv.Itoa(int(userID))),
@@ -178,7 +178,7 @@ func (svc *HexchessServices) getUsersLeaderboardRank(ctx context.Context, userID
 }
 
 func (svc *HexchessServices) getLeaderboard(ctx context.Context, mode GameMode, startRank, count int64) (Leaderboard, error) {
-	modeLbZSet := svc.getLeaderboardZSet(mode.String())
+	modeLbZSet := svc.leaderboardZSet(mode.String())
 
 	end := startRank - 1 + count
 	ids, err := svc.redis.Cache.ZRevRange(ctx, modeLbZSet, startRank, end).Result()

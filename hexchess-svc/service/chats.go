@@ -13,7 +13,7 @@ import (
 )
 
 func (svc *HexchessServices) GetStateChats(ctx context.Context, gameID string, count int64) ([]*pb.ChatMessage, error) {
-	chatsZSet := svc.getGameChatsZSet(svc.makeGameKey(gameID))
+	chatsZSet := svc.gameChatsZSet(svc.gameKey(gameID))
 	strList, err := svc.redis.Cache.ZRevRange(ctx, chatsZSet, 0, count).Result()
 	if err != nil {
 		return nil, fmt.Errorf("get the first %d chats: %w", count, err)
@@ -44,7 +44,7 @@ func (svc *HexchessServices) InsertStateChat(ctx context.Context, gameID string,
 	if err != nil {
 		return fmt.Errorf("marshal chat: %w", err)
 	}
-	chatsZSet := svc.getGameChatsZSet(svc.makeGameKey(gameID))
+	chatsZSet := svc.gameChatsZSet(svc.gameKey(gameID))
 	if err := svc.redis.Cache.ZAdd(ctx, chatsZSet, redis.Z{Score: float64(chat.SentAt.UnixMilli()), Member: bytes}).Err(); err != nil {
 		return fmt.Errorf("add chat %v to zset: %w", chat, err)
 	}

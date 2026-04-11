@@ -257,7 +257,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 
 			require.NoError(t, services.insertFinishedGameEvent(ctx, test.event))
 
-			modeLbZSet := services.getLeaderboardZSet(test.event.ReplayMode.String())
+			modeLbZSet := services.leaderboardZSet(test.event.ReplayMode.String())
 			leaderboard, err := services.redis.Cache.ZRevRange(ctx, modeLbZSet, 0, 2).Result()
 			require.NoError(t, err)
 

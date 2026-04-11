@@ -437,10 +437,10 @@ func TestForfeit(t *testing.T) {
 		})
 		AssertRedisChessState(t, services, wantGame, ChessMetaCmpOpt)
 
-		gameKey := services.makeGameKey(abortGame.ID)
+		gameKey := services.gameKey(abortGame.ID)
 		zRankErr := services.redis.Cache.ZRank(ctx, services.redis.GamesZSet, gameKey).Err()
 		assert.Equal(t, redis.Nil, zRankErr)
-		zRankErr = services.redis.Cache.ZRank(ctx, services.getUserGameZSet(abortGame.WhitePlayer.ID), gameKey).Err()
+		zRankErr = services.redis.Cache.ZRank(ctx, services.userGameZSet(abortGame.WhitePlayer.ID), gameKey).Err()
 		assert.Equal(t, redis.Nil, zRankErr)
 	})
 

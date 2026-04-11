@@ -51,45 +51,12 @@ func Json(v any) http.HandlerFunc {
 	}
 }
 
-const (
-	perPage           = 25
-	minPasswordLength = 11
-	minUsernameLength = 5
-	maxUsernameLength = 35
-	maxBioLength      = 500
-)
-
-func isPasswordValid(password string) bool {
-	return len(password) >= minPasswordLength
-}
-
-func isUsernameValid(username string) bool {
-	l := len(username)
-	return l >= minUsernameLength && l <= maxUsernameLength
-}
-
-func isBioValid(bio string) bool {
-	return len(bio) <= maxBioLength
-}
+const perPage = 25
 
 type RegisterBody struct {
 	Username        string `json:"username"`
 	Password        string `json:"password"`
 	ConfirmPassword string `json:"confirmPassword"`
-}
-
-func validateRegisterBody(body RegisterBody) error {
-	var respErr ResponseError
-	if !isPasswordValid(body.Password) {
-		respErr.Put("password", ErrHttpInvalidPassword)
-	}
-	if body.Password != body.ConfirmPassword {
-		respErr.Put("confirmPassword", ErrHttpConfirmPassword)
-	}
-	if !isUsernameValid(body.Username) {
-		respErr.Put("username", ErrHttpInvalidUsername)
-	}
-	return respErr.AsError()
 }
 
 func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) error {
@@ -201,17 +168,6 @@ type UpdatePasswordBody struct {
 	ConfirmNewPassword string `json:"confirmNewPassword"`
 }
 
-func validateUpdatePasswordBody(body UpdatePasswordBody) error {
-	var respErr ResponseError
-	if !isPasswordValid(body.NewPassword) {
-		respErr.Put("newPassword", ErrHttpInvalidPassword)
-	}
-	if body.NewPassword != body.ConfirmNewPassword {
-		respErr.Put("confirmNewPassword", ErrHttpConfirmPassword)
-	}
-	return respErr.AsError()
-}
-
 func (api *API) HandleUpdatePassword(w http.ResponseWriter, r *http.Request) error {
 	var body UpdatePasswordBody
 	if err := parseJSON(r, &body, validateUpdatePasswordBody); err != nil {
@@ -244,26 +200,6 @@ type UpdateUserBody struct {
 	NewUsername string `json:"newUsername"`
 	NewCountry  string `json:"newCountry"`
 	NewBio      string `json:"newBio"`
-}
-
-func (api *API) validateUpdateUserBody(body UpdateUserBody) error {
-	var respErr ResponseError
-	if body.NewUsername != "" {
-		if !isUsernameValid(body.NewUsername) {
-			respErr.Put("newUsername", ErrHttpInvalidUsername)
-		}
-	}
-	if body.NewBio != "" {
-		if !isBioValid(body.NewBio) {
-			respErr.Put("newBio", ErrHttpInvalidBio)
-		}
-	}
-	if body.NewCountry != "" {
-		if _, ok := api.staticData.validCountries[body.NewCountry]; !ok {
-			respErr.Put("newCountry", ErrHttpInvalidCountry)
-		}
-	}
-	return respErr.AsError()
 }
 
 func (api *API) HandleUpdateUser(w http.ResponseWriter, r *http.Request) error {
@@ -304,35 +240,39 @@ func (api *API) HandleCreateTempSession(w http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 
 	alreadyHasSession := true
-	var tempSessionID string
 
-	player, _, err := api.authenticator.GetSessionPlayer(ctx, r)
+	sessionPlayer, _, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		alreadyHasSession = false
 	} else if err != nil {
-		return fmt.Errorf("get session player: %w", err)
+		return fmt.Errorf("get session sessionPlayer: %w", err)
 	}
+
+	var tempSessionID string
+	var sessions []svc.SessionInst
 
 	if alreadyHasSession {
 		tempSessionID = MakeSessionID()
-		if err := api.services.SetSessions(ctx, svc.SessionInst{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge}); err != nil {
-			return fmt.Errorf("set session: %w", err)
+		sessions = []svc.SessionInst{
+			{SessionID: tempSessionID, Player: sessionPlayer, Expiry: TempSessionMaxAge},
 		}
-		slog.InfoContext(ctx, "created temporary user session", "user", player, "tempSessionID", tempSessionID)
 	} else {
-		player = svc.MakeGuest()
+		sessionPlayer = svc.MakeGuest()
 		tempSessionID = MakeSessionID()
 		guestSessionID := MakeSessionID()
 
-		if err := api.services.SetSessions(ctx,
-			svc.SessionInst{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge},
-			svc.SessionInst{SessionID: guestSessionID, Player: player, Expiry: SessionMaxAge},
-		); err != nil {
-			return fmt.Errorf("set guest session: %w", err)
+		sessions = []svc.SessionInst{
+			{SessionID: tempSessionID, Player: sessionPlayer, Expiry: TempSessionMaxAge},
+			{SessionID: guestSessionID, Player: sessionPlayer, Expiry: SessionMaxAge},
 		}
 
 		w.Header().Set("Set-Cookie", FmtCookie(guestSessionID))
-		slog.InfoContext(ctx, "created guest user session", "user", player, "tempSessionID", tempSessionID, "guestSessionID", guestSessionID)
+	}
+
+	slog.InfoContext(ctx, "created sessions", "sessions", sessions)
+
+	if err := api.services.SetSessions(ctx, sessions...); err != nil {
+		return fmt.Errorf("set sessions: %w", err)
 	}
 
 	writeJSON(w, http.StatusOK, TempSessionResp{SessionID: tempSessionID})
@@ -353,6 +293,7 @@ func (api *API) HandleRefreshSession(w http.ResponseWriter, r *http.Request) err
 	} else if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
+
 	if err := api.services.UpdateSessionEx(ctx, sessionID, SessionMaxAge); err != nil {
 		return fmt.Errorf("update session with expiry: %d %w", SessionMaxAge, err)
 	}
@@ -407,25 +348,9 @@ func (api *API) HandleGetSelf(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-type LeaderboardArg struct {
+type LeaderboardArgs struct {
 	Page int
 	Mode svc.GameMode
-}
-
-func (api *API) getLeaderboardQuery(q url.Values) (LeaderboardArg, error) {
-	var respErr ResponseError
-	page, err := intQueryDefault(q, "page", 1)
-	if err != nil {
-		respErr.Put("page", ErrHttpInvalidPage)
-	}
-	mode, ok := svc.GameModeEnums[q.Get("mode")]
-	if !ok {
-		respErr.Put("mode", ErrHttpInvalidMode)
-	}
-	return LeaderboardArg{
-		Page: page,
-		Mode: mode,
-	}, respErr.AsError()
 }
 
 type LeaderboardResp struct {
@@ -584,42 +509,11 @@ const (
 	Delete
 )
 
-type UpdateChallengeArgs struct {
+type UpdateChallengeTBody struct {
 	ChallengeeID int64
 	ChallengerID int64
 	TargetID     int64
 	Action       Action
-}
-
-func transformUpdateChallenge(body UpdateChallengeBody) (UpdateChallengeArgs, error) {
-	var action Action
-	switch strings.ToUpper(body.Action) {
-	case "ACCEPT":
-		action = Accept
-	case "REJECT":
-		action = Reject
-	case "DELETE":
-		action = Delete
-	default:
-		return UpdateChallengeArgs{}, OneRespError("action", ErrHttpInvalidAction)
-	}
-
-	var targetID int64
-	switch action {
-	case Accept, Reject:
-		// reject, accept means challenge is directed at challengee
-		targetID = body.ChallengeeID
-	default:
-		// delete means challenge is directed at challenger
-		targetID = body.ChallengerID
-	}
-
-	return UpdateChallengeArgs{
-		ChallengeeID: body.ChallengeeID,
-		ChallengerID: body.ChallengerID,
-		TargetID:     targetID,
-		Action:       action,
-	}, nil
 }
 
 type UpdateChallengeResp struct {
@@ -667,27 +561,10 @@ type CreateChallengeBody struct {
 	Mode         string `json:"mode"`
 }
 
-type CreateChallengeArgs struct {
+type CreateChallengeTBody struct {
 	ChallengeeID int64
 	StartColor   svc.GameColor
 	Mode         svc.GameMode
-}
-
-func transformCreateChallenge(body CreateChallengeBody) (CreateChallengeArgs, error) {
-	var respErr ResponseError
-	color, ok := svc.GameColorEnums[body.StartColor]
-	if !ok {
-		respErr.Put("startColor", ErrHttpInvalidColor)
-	}
-	mode, ok := svc.GameModeEnums[body.Mode]
-	if !ok {
-		respErr.Put("mode", ErrHttpInvalidMode)
-	}
-	return CreateChallengeArgs{
-		ChallengeeID: body.ChallengeeID,
-		StartColor:   color,
-		Mode:         mode,
-	}, respErr.AsError()
 }
 
 func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) error {
@@ -773,41 +650,10 @@ type CreateGameBody struct {
 	InitialFEN string `json:"initialFen"`
 }
 
-type CreateGameArgs struct {
+type CreateGameTBody struct {
 	FirstColor   svc.GameColor
 	Mode         svc.GameMode
 	InitialBoard chess.Board
-}
-
-func transformCreateGame(body CreateGameBody) (CreateGameArgs, error) {
-	initialBoard := chess.InitialBoard()
-	var respErr ResponseError
-
-	if body.InitialFEN != "" {
-		board, err := chess.ParseFen(body.InitialFEN)
-		if err != nil {
-			respErr.Put("initialFen", ErrHttpInvalidFen)
-		} else {
-			initialBoard = board
-		}
-	}
-	color, ok := svc.GameColorEnums[body.FirstColor]
-	if !ok {
-		respErr.Put("firstColor", ErrHttpInvalidColor)
-	}
-	mode, ok := svc.GameModeEnums[body.Mode]
-	if !ok {
-		respErr.Put("mode", ErrHttpInvalidMode)
-	}
-	if respErr.HasErrors() {
-		return CreateGameArgs{}, respErr.AsError()
-	}
-
-	return CreateGameArgs{
-		FirstColor:   color,
-		Mode:         mode,
-		InitialBoard: initialBoard,
-	}, nil
 }
 
 type CreateGameResp struct {
@@ -874,25 +720,9 @@ func mapChessMetas(svcMetas []svc.ChessMeta) []ChessMeta {
 	return metas
 }
 
-type ChessMetasArg struct {
+type ChessMetasQuery struct {
 	Page  int
 	Count int
-}
-
-func (api *API) getChessMetasQuery(q url.Values) (ChessMetasArg, error) {
-	var respErr ResponseError
-	page, err := intQueryDefault(q, "page", 1)
-	if err != nil {
-		respErr.Put("page", ErrHttpInvalidPage)
-	}
-	count, err := intQueryDefault(q, "count", perPage)
-	if err != nil {
-		respErr.Put("count", ErrHttpInvalidCount)
-	}
-	return ChessMetasArg{
-		Page:  page,
-		Count: count,
-	}, respErr.AsError()
 }
 
 type ChessMetasResp struct {
@@ -901,7 +731,7 @@ type ChessMetasResp struct {
 }
 
 func (api *API) HandleGetChessMetas(w http.ResponseWriter, r *http.Request) error {
-	query, err := api.getChessMetasQuery(r.URL.Query())
+	query, err := api.transformChessMetasQuery(r.URL.Query())
 	if err != nil {
 		return err
 	}
@@ -962,39 +792,12 @@ type GetReplayQuery struct {
 	HasGameID bool
 }
 
-func (api *API) getReplayQuery(q url.Values) (GetReplayQuery, error) {
-	var respErr ResponseError
-
-	kindStr := q.Get("idKind")
-	if kindStr == "" {
-		kindStr = "BY_REPLAY_ID"
-	}
-
-	var replayID int64
-	var gameID string
-	var hasGameID bool
-
-	switch kindStr {
-	case "BY_REPLAY_ID":
-		intID, err := strconv.Atoi(q.Get("id"))
-		if err != nil {
-			respErr.Put("id", ErrHttpInvalidID)
-		}
-		replayID = int64(intID)
-	case "BY_GAME_ID":
-		gameID = q.Get("id")
-		hasGameID = true
-	}
-
-	return GetReplayQuery{ReplayID: replayID, GameID: gameID, HasGameID: hasGameID}, respErr.AsError()
-}
-
 type GetReplayResp struct {
 	Replay svc.FullReplayDTO `json:"replay"`
 }
 
 func (api *API) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
-	query, err := api.getReplayQuery(r.URL.Query())
+	query, err := api.transformReplayQuery(r.URL.Query())
 	if err != nil {
 		return err
 	}
@@ -1033,10 +836,8 @@ func (api *API) getReplaysQuery(q url.Values) (GetReplaysArg, error) {
 	if err != nil {
 		respErr.Put("afterId", ErrHttpInvalidID)
 	}
-	return GetReplaysArg{
-		UserID:  userID,
-		AfterID: afterID,
-	}, respErr.AsError()
+	args := GetReplaysArg{UserID: userID, AfterID: afterID}
+	return args, respErr.AsError()
 }
 
 type GetUserReplaysResp struct {
@@ -1059,33 +860,9 @@ func (api *API) HandleGetUserReplays(w http.ResponseWriter, r *http.Request) err
 	return nil
 }
 
-type EloHistoriesArg struct {
+type EloHistoriesQuery struct {
 	UserID int
 	Months uint
-}
-
-var timeframeMap = map[string]uint{
-	"1m":  1,
-	"3m":  3,
-	"6m":  6,
-	"1y":  12,
-	"all": 0,
-}
-
-func (api *API) getEloHistoriesQuery(q url.Values) (EloHistoriesArg, error) {
-	var respErr ResponseError
-	userID, err := strconv.Atoi(q.Get("userId"))
-	if err != nil {
-		respErr.Put("userID", ErrHttpInvalidID)
-	}
-	months, ok := timeframeMap[queryDefault(q, "timeframe", "all")]
-	if !ok {
-		respErr.Put("timeframe", ErrHttpInvalidTimeframe)
-	}
-	return EloHistoriesArg{
-		UserID: userID,
-		Months: months,
-	}, respErr.AsError()
 }
 
 type EloHistoriesResp struct {
@@ -1095,7 +872,7 @@ type EloHistoriesResp struct {
 var GetEloHistoriesCacheControl = fmt.Sprintf("public, max-age=%f", svc.ShortBucketDuration.Seconds())
 
 func (api *API) HandleGetEloHistories(w http.ResponseWriter, r *http.Request) error {
-	query, err := api.getEloHistoriesQuery(r.URL.Query())
+	query, err := api.transformEloHistoriesQuery(r.URL.Query())
 	if err != nil {
 		return err
 	}

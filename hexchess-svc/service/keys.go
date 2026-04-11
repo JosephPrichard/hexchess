@@ -5,23 +5,23 @@ import (
 	"strconv"
 )
 
-func (svc *HexchessServices) getLeaderboardZSet(mode string) string {
+func (svc *HexchessServices) leaderboardZSet(mode string) string {
 	return svc.redis.LeaderboardZSet + "/mode:" + mode
 }
 
-func (svc *HexchessServices) getUserGameZSet(id int64) string {
+func (svc *HexchessServices) userGameZSet(id int64) string {
 	return svc.redis.GamesZSet + "/user/" + strconv.Itoa(int(id))
 }
 
-func (svc *HexchessServices) makeGameKey(gameID string) string {
+func (svc *HexchessServices) gameKey(gameID string) string {
 	return "game/" + gameID
 }
 
-func (svc *HexchessServices) getGameChatsZSet(gameKey string) string {
+func (svc *HexchessServices) gameChatsZSet(gameKey string) string {
 	return svc.redis.GameChatsZSet + "/" + gameKey
 }
 
-func (svc *HexchessServices) makeSessionKey(sessionID string) string {
+func makeSessionKey(sessionID string) string {
 	return "session/" + sessionID
 }
 

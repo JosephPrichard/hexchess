@@ -54,17 +54,7 @@ func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (rdb db.Redis, er
 			CacheAddr:     addr,
 			PubsubAddr:    addr,
 		},
-		&db.RedisNames{
-			LeaderboardZSet:     unique(db.LeaderboardZSet),
-			GamesZSet:           unique(db.GamesZSet),
-			ActiveUsersZSet:     unique(db.ActiveUsersZSet),
-			GameChatsZSet:       unique(db.GameChatsZSet),
-			GamesChannel:        unique(db.GamesChannel),
-			UsersChannel:        unique(db.UsersChannel),
-			GamesCountChannel:   unique(db.GamesCountChannel),
-			ActiveCountChannel:  unique(db.ActiveCountChannel),
-			FinishGameStreamKey: unique(db.FinishGameStreamKey),
-		},
+		db.MakeTestRedisNames(),
 	), nil
 }
 
