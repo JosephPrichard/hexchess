@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/util/enum"
+	"hexchess-svc/util/errutil"
 	"log/slog"
 	"math"
 	"time"
@@ -189,7 +190,7 @@ func verifyUser(ctx context.Context, querier sqlc.Querier, username string, inpu
 	if IsErrNoRows(err) {
 		return u, ErrUserNotFound
 	} else if err != nil {
-		return u, fmt.Errorf("select user=%s by loginRow: %w", username, err)
+		return u, fmt.Errorf("select user [%s] by login: %w", username, err)
 	}
 
 	isExceedAttempts := loginRow.LoginAttempts > 0 && loginRow.LoginAttempts%LoginAttemptsDivisor == 0
@@ -204,14 +205,14 @@ func verifyUser(ctx context.Context, querier sqlc.Querier, username string, inpu
 
 	if loginErr != nil {
 		if err := querier.IncrLoginAttempts(ctx, loginRow.ID); err != nil {
-			return u, fmt.Errorf("incr user %d loginRow attempts: %w", loginRow.ID, err)
+			return u, fmt.Errorf("increment user [%d] login attempts: %w", loginRow.ID, err)
 		}
 		slog.ErrorContext(ctx, "failed to login, credentials are invalid", "username", username, "err", loginErr)
 		return u, ErrUserNotFound
 	}
 
 	if err := querier.ResetLoginAttempts(ctx, loginRow.ID); err != nil {
-		return u, fmt.Errorf("reset user %d loginRow attempts: %w", loginRow.ID, err)
+		return u, fmt.Errorf("reset user [%d] login attempts: %w", loginRow.ID, err)
 	}
 
 	user := VerifiedUserDTO{
@@ -219,7 +220,7 @@ func verifyUser(ctx context.Context, querier sqlc.Querier, username string, inpu
 		Username: loginRow.Username,
 		Country:  loginRow.Country,
 	}
-	slog.InfoContext(ctx, "user loginRow is valid", "user", user)
+	slog.InfoContext(ctx, "user login is valid", "user", user)
 	return user, nil
 }
 
@@ -237,7 +238,7 @@ func (svc *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, googl
 	if IsErrNoRows(err) {
 		isCreated = false
 	} else if err != nil {
-		return verifiedUser, fmt.Errorf("select user=%s by google account id: %w", googleAccountID, err)
+		return verifiedUser, fmt.Errorf("select user [%s] by google account id: %w", googleAccountID, err)
 	} else {
 		isCreated = true
 	}
@@ -250,7 +251,7 @@ func (svc *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, googl
 			GoogleAccountID: pgtype.Text{String: googleAccountID, Valid: true},
 		})
 		if err != nil {
-			return verifiedUser, fmt.Errorf("insert google user=%s: %w", googleAccountID, err)
+			return verifiedUser, fmt.Errorf("insert google user [%s]: %w", googleAccountID, err)
 		}
 		verifiedUser = VerifiedUserDTO{
 			ID:       userRow.ID,
@@ -303,7 +304,7 @@ func (svc *HexchessServices) UpdateUser(ctx context.Context, id int64, updt Updt
 func (svc *HexchessServices) UpdateUserPassword(ctx context.Context, id int64, newPassword string) error {
 	hash, err := hashPassword(newPassword)
 	if err != nil {
-		return fmt.Errorf("hash password for user %d: %w", id, err)
+		return fmt.Errorf("hash password for user [%d]: %w", id, err)
 	}
 	err = svc.querier.UpdatePassword(ctx, sqlc.UpdatePasswordParams{
 		ID:       id,
@@ -320,7 +321,7 @@ func (svc *HexchessServices) GetUserByID(ctx context.Context, id int64) (UserDTO
 		if IsErrNoRows(err) {
 			return UserDTO{}, ErrUserNotFound
 		}
-		return UserDTO{}, fmt.Errorf("select user %d: %w", id, err)
+		return UserDTO{}, fmt.Errorf("select user [%d]: %w", id, err)
 	}
 	user := UserDTO{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
 	slog.InfoContext(ctx, "selected user", "id", id, "user", user)
@@ -355,7 +356,7 @@ func avg[T constraints.Integer | constraints.Float](currAvg T, currCount int, ne
 func (svc *HexchessServices) GetUserStats(ctx context.Context, id int64) (UserStatsDTO, error) {
 	modeEloRows, err := svc.querier.SelectUserElosByID(ctx, id)
 	if err != nil {
-		return UserStatsDTO{}, fmt.Errorf("select user %d elos by id: %w", id, err)
+		return UserStatsDTO{}, fmt.Errorf("select user [%d] elos by id: %w", id, err)
 	}
 
 	var stats UserStatsDTO
@@ -366,10 +367,7 @@ func (svc *HexchessServices) GetUserStats(ctx context.Context, id int64) (UserSt
 	}
 
 	for _, row := range modeEloRows {
-		mode, err := enum.Parse(row.Mode, GameModeEnums)
-		if err != nil {
-			return UserStatsDTO{}, err
-		}
+		mode := enum.Expect(row.Mode, GameModeEnums)
 		modeStats := ModeStatsDTO{
 			Mode:       mode,
 			Wins:       row.Wins,
@@ -411,20 +409,20 @@ func (svc *HexchessServices) GetFullUser(ctx context.Context, userID int64, perP
 
 	eg.Go(func() (err error) {
 		user, err = svc.GetUserByID(egCtx, userID)
-		return
+		return errutil.Guardf("get user %d", err, userID)
 	})
 	eg.Go(func() (err error) {
 		stats, err = svc.GetUserStats(egCtx, userID)
-		return
+		return errutil.Guardf("get user %d stats", err, userID)
 	})
 	eg.Go(func() (err error) {
 		lbRanks, err = svc.GetUserLeaderboardRanks(egCtx, userID, GameModeEnums)
-		return
+		return errutil.Guardf("get user %d leaderboard ranks", err, userID)
 	})
 	if withReplays {
 		eg.Go(func() (err error) {
 			replayList, err = svc.GetUserReplays(egCtx, userID, -1, perPage)
-			return
+			return errutil.Guardf("get user %d replays", err, userID)
 		})
 	}
 

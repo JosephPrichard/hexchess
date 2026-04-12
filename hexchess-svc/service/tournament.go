@@ -7,6 +7,7 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/util/enum"
+	"hexchess-svc/util/errutil"
 	"log/slog"
 	"math"
 	"time"
@@ -81,18 +82,14 @@ func mapTourneyParticipantFromRow(participant sqlc.SelectParticipantsByTournamen
 	}
 }
 
-func mapTourneyMatchFromRow(match sqlc.SelectReplayMatchesByTournamentIDRow) (MatchDTO, error) {
+func mapTourneyMatchFromRow(match sqlc.SelectReplayMatchesByTournamentIDRow) MatchDTO {
 	var tournamentReplay *TournamentReplay
 
 	// invariant: if replayID is non null, all other replay columns will also be non null.
 	if match.ReplayID.Valid {
-		replayResult, resultErr := enum.Parse(match.Result.ResultEnum, ReplayResultEnums)
-		replayCause, causeErr := enum.Parse(match.Cause.CauseEnum, ReplayCauseEnums)
-		replayMode, modeErr := enum.Parse(match.Mode.ModeEnum, GameModeEnums)
-
-		if err := errors.Join(resultErr, causeErr, modeErr); err != nil {
-			return MatchDTO{}, err
-		}
+		replayResult := enum.Expect(match.Result.ResultEnum, ReplayResultEnums)
+		replayCause := enum.Expect(match.Cause.CauseEnum, ReplayCauseEnums)
+		replayMode := enum.Expect(match.Mode.ModeEnum, GameModeEnums)
 
 		replay := ReplayDTO{
 			ID:          match.ReplayID.Int64,
@@ -119,16 +116,12 @@ func mapTourneyMatchFromRow(match sqlc.SelectReplayMatchesByTournamentIDRow) (Ma
 		Replay:        tournamentReplay,
 		WhiteID:       match.WhiteID,
 		BlackID:       match.BlackID,
-	}, nil
+	}
 }
 
-func mapTournamentByIdRow(tournament sqlc.SelectTournamentByIDRow) (TournamentDTO, error) {
-	tournamentStatus, statusErr := enum.Parse(tournament.Status, TournamentStatusEnums)
-	gameMode, modeErr := enum.Parse(tournament.Mode, GameModeEnums)
-
-	if err := errors.Join(statusErr, modeErr); err != nil {
-		return TournamentDTO{}, err
-	}
+func mapTournamentByIdRow(tournament sqlc.SelectTournamentByIDRow) TournamentDTO {
+	tournamentStatus := enum.Expect(tournament.Status, TournamentStatusEnums)
+	gameMode := enum.Expect(tournament.Mode, GameModeEnums)
 
 	return TournamentDTO{
 		ID:                 tournament.ID,
@@ -144,7 +137,7 @@ func mapTournamentByIdRow(tournament sqlc.SelectTournamentByIDRow) (TournamentDT
 		CreatedBy:          tournament.CreatedBy,
 		Status:             tournamentStatus,
 		Mode:               gameMode,
-	}, nil
+	}
 }
 
 var ErrTournamentNotFound = fmt.Errorf("tournament does not exist")
@@ -160,24 +153,15 @@ func (svc *HexchessServices) GetFullTournamentByKey(ctx context.Context, tournam
 
 	eg.Go(func() (err error) {
 		tournamentRow, err = svc.querier.SelectTournamentByID(egCtx, pgKey)
-		if err != nil {
-			return fmt.Errorf("select tournament by key %v: %w", tournamentKey, err)
-		}
-		return nil
+		return errutil.Guardf("select tournament by key [%v]", err, tournamentKey)
 	})
 	eg.Go(func() (err error) {
 		participantRows, err = svc.querier.SelectParticipantsByTournamentID(egCtx, pgKey)
-		if err != nil {
-			return fmt.Errorf("select participants by tournament key %v: %w", tournamentKey, err)
-		}
-		return nil
+		return errutil.Guardf("select participants by tournament key [%v]", err, tournamentKey)
 	})
 	eg.Go(func() (err error) {
 		matchRows, err = svc.querier.SelectReplayMatchesByTournamentID(egCtx, pgKey)
-		if err != nil {
-			return fmt.Errorf("select matches by tournament key %v: %w", tournamentKey, err)
-		}
-		return nil
+		return errutil.Guardf("select replay matches by tournament key [%v]", err, tournamentKey)
 	})
 
 	if err := eg.Wait(); err != nil {
@@ -189,14 +173,11 @@ func (svc *HexchessServices) GetFullTournamentByKey(ctx context.Context, tournam
 
 	slog.InfoContext(ctx, "selected tournament", "tournament", tournamentRow, "matchRows", matchRows, "participantRows", participantRows)
 
-	fullTournament, err := mapFullTournament(mapFullTournamentArgs{
+	fullTournament := mapFullTournament(mapFullTournamentArgs{
 		tournamentRow:   tournamentRow,
 		matchRows:       matchRows,
 		participantRows: participantRows,
 	})
-	if err != nil {
-		return t, err
-	}
 
 	participantIDs := make([]int64, 0, len(fullTournament.Participants))
 	for _, participant := range fullTournament.Participants {
@@ -205,7 +186,7 @@ func (svc *HexchessServices) GetFullTournamentByKey(ctx context.Context, tournam
 
 	userLdbRanksMap, err := svc.getUsersLeaderboardRank(ctx, participantIDs, fullTournament.Mode)
 	if err != nil {
-		return t, fmt.Errorf("get users %+v leaderboard rank: %w", participantIDs, err)
+		return t, fmt.Errorf("get participants [%+v] leaderboard rank: %w", participantIDs, err)
 	}
 	for i := range fullTournament.Participants {
 		fullTournament.Participants[i].Rank = userLdbRanksMap[fullTournament.Participants[i].ID]
@@ -221,32 +202,20 @@ type mapFullTournamentArgs struct {
 	participantRows []sqlc.SelectParticipantsByTournamentIDRow
 }
 
-func mapFullTournament(args mapFullTournamentArgs) (FullTournamentDTO, error) {
-	var tournament TournamentDTO
+func mapFullTournament(args mapFullTournamentArgs) FullTournamentDTO {
+	tournament := mapTournamentByIdRow(args.tournamentRow)
+
 	participants := make([]ParticipantDTO, 0, len(args.participantRows))
-	matches := make([]MatchDTO, 0, len(args.matchRows))
-
-	var mapErrors []error
-
-	tournament, err := mapTournamentByIdRow(args.tournamentRow)
-	if err != nil {
-		mapErrors = append(mapErrors, fmt.Errorf("map tournament row: %w", err))
-	}
-
 	for _, row := range args.participantRows {
 		participants = append(participants, mapTourneyParticipantFromRow(row))
 	}
 
-	for i, row := range args.matchRows {
-		match, err := mapTourneyMatchFromRow(row)
-		if err != nil {
-			mapErrors = append(mapErrors, fmt.Errorf("map match %d row: %w", i, err))
-			continue
-		}
-		matches = append(matches, match)
+	matches := make([]MatchDTO, 0, len(args.matchRows))
+	for _, row := range args.matchRows {
+		matches = append(matches, mapTourneyMatchFromRow(row))
 	}
 
-	return FullTournamentDTO{TournamentDTO: tournament, Participants: participants, Matches: matches}, nil
+	return FullTournamentDTO{TournamentDTO: tournament, Participants: participants, Matches: matches}
 }
 
 const NoParticipantSignifier = -1
@@ -257,29 +226,26 @@ func (svc *HexchessServices) GetTournaments(ctx context.Context, participantID i
 	}
 
 	var tournaments []TournamentDTO
-	var err error
 
 	if participantID == NoParticipantSignifier {
-		var tournamentRows []sqlc.SelectTournamentsRow
-		tournamentRows, err = svc.querier.SelectTournaments(ctx, sqlc.SelectTournamentsParams{
+		tournamentRows, err := svc.querier.SelectTournaments(ctx, sqlc.SelectTournamentsParams{
 			AfterID: afterID,
 			PerPage: perPage,
 		})
-		tournaments, err = mapTournamentRows(tournamentRows, mapSelectTournamentRow)
 		if err != nil {
 			return nil, fmt.Errorf("select tournaments after id %d: %w", afterID, err)
 		}
+		tournaments = mapTournamentRows(tournamentRows, mapSelectTournamentRow)
 	} else {
-		var tournamentRows []sqlc.SelectTournamentsByParticipantRow
-		tournamentRows, err = svc.querier.SelectTournamentsByParticipant(ctx, sqlc.SelectTournamentsByParticipantParams{
+		tournamentRows, err := svc.querier.SelectTournamentsByParticipant(ctx, sqlc.SelectTournamentsByParticipantParams{
 			UserID:  participantID,
 			AfterID: afterID,
 			PerPage: perPage,
 		})
-		tournaments, err = mapTournamentRows(tournamentRows, mapTournamentByParticipantRow)
 		if err != nil {
-			return nil, fmt.Errorf("select tournaments by participant id %d after id %d: %w", participantID, afterID, err)
+			return nil, fmt.Errorf("select tournaments by participant [%d] after id %d: %w", participantID, afterID, err)
 		}
+		tournaments = mapTournamentRows(tournamentRows, mapTournamentByParticipantRow)
 	}
 
 	slog.InfoContext(ctx, "selected tournaments", "tournaments", tournaments)
@@ -290,24 +256,20 @@ type tournamentRowType interface {
 	sqlc.SelectTournamentsRow | sqlc.SelectTournamentsByParticipantRow
 }
 
-func mapTournamentByParticipantRow(t sqlc.SelectTournamentsByParticipantRow) (TournamentDTO, error) {
+func mapTournamentByParticipantRow(t sqlc.SelectTournamentsByParticipantRow) TournamentDTO {
 	return mapTournamentByIdRow(sqlc.SelectTournamentByIDRow(t))
 }
 
-func mapSelectTournamentRow(t sqlc.SelectTournamentsRow) (TournamentDTO, error) {
+func mapSelectTournamentRow(t sqlc.SelectTournamentsRow) TournamentDTO {
 	return mapTournamentByIdRow(sqlc.SelectTournamentByIDRow(t))
 }
 
-func mapTournamentRows[Row tournamentRowType](tournamentRows []Row, fn func(tournament Row) (TournamentDTO, error)) ([]TournamentDTO, error) {
+func mapTournamentRows[Row tournamentRowType](tournamentRows []Row, fn func(tournament Row) TournamentDTO) []TournamentDTO {
 	var tournaments []TournamentDTO
 	for _, row := range tournamentRows {
-		tournament, err := fn(row)
-		if err != nil {
-			return nil, err
-		}
-		tournaments = append(tournaments, tournament)
+		tournaments = append(tournaments, fn(row))
 	}
-	return tournaments, nil
+	return tournaments
 }
 
 type TournamentInst struct {
@@ -392,26 +354,23 @@ func (svc *HexchessServices) BeginTournamentCountdownTx(ctx context.Context, tou
 	return result, err
 }
 
-func beginTournamentCountdown(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, userID int64, getUpdateTime func() time.Time) (r BeginTourneyCountdown, err error) {
+func beginTournamentCountdown(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, userID int64, getUpdateTime func() time.Time) (b BeginTourneyCountdown, err error) {
 	pgKey := pgtype.UUID{Bytes: tournamentKey, Valid: true}
 	updateTime := getUpdateTime()
 
 	tournamentRow, err := querier.SelectTournamentByID(ctx, pgKey)
 	if err != nil {
-		return r, fmt.Errorf("select tournament by key %v: %w", tournamentKey, err)
+		return b, fmt.Errorf("select tournament by key %v: %w", tournamentKey, err)
 	}
 	tournamentCountdownMs := int32(tournamentRow.Countdown)
 
-	tournamentStatus, err := enum.Parse(tournamentRow.Status, TournamentStatusEnums)
-	if err != nil {
-		return r, err
-	}
+	tournamentStatus := enum.Expect(tournamentRow.Status, TournamentStatusEnums)
 
 	if tournamentStatus != TournamentLobby {
-		return r, ErrInvalidCountdownTournamentStatus
+		return b, ErrInvalidCountdownTournamentStatus
 	}
 	if userID != tournamentRow.CreatedBy {
-		return r, ErrTournamentCountdownPermissions
+		return b, ErrTournamentCountdownPermissions
 	}
 
 	nextTournamentStatus := TournamentScheduled
@@ -421,13 +380,13 @@ func beginTournamentCountdown(ctx context.Context, querier sqlc.Querier, tournam
 		Status:             sqlc.TournamentStatusEnum(nextTournamentStatus.String()),
 		UpdatedOn:          pgtype.Timestamptz{Time: updateTime, Valid: true},
 	}); err != nil {
-		return r, fmt.Errorf("update tournament %s status to %s: %w", tournamentKey, nextTournamentStatus, err)
+		return b, fmt.Errorf("update tournament %s status to %s: %w", tournamentKey, nextTournamentStatus, err)
 	}
 
 	scheduledOn := updateTime.Add(time.Duration(tournamentRow.Countdown) * time.Millisecond)
 
 	if err := pushScheduledTournamentEvent(ctx, querier, tournamentKey, scheduledOn); err != nil {
-		return r, fmt.Errorf("push scheduled tournament %s event: %w", tournamentKey, err)
+		return b, fmt.Errorf("push scheduled tournament [%s] event: %w", tournamentKey, err)
 	}
 
 	slog.InfoContext(ctx, "begin tournament countdown", "tournamentRow", tournamentRow)
@@ -493,15 +452,12 @@ func joinTournament(ctx context.Context, querier sqlc.Querier, inst JoinTourname
 	if IsErrNoRows(err) {
 		return r, ErrTournamentNotFound
 	} else if err != nil {
-		return r, fmt.Errorf("select tournament %v: %w", inst.TournamentKey, err)
+		return r, fmt.Errorf("select tournament [%s]: %w", inst.TournamentKey, err)
 	}
 
-	gameMode, modeErr := enum.Parse(tournamentRow.Mode, GameModeEnums)
-	status, statusErr := enum.Parse(tournamentRow.Status, TournamentStatusEnums)
-	ruleset, rulesetErr := enum.Parse(tournamentRow.Ruleset, TournamentRulesetEnums)
-	if err := errors.Join(modeErr, statusErr, rulesetErr); err != nil {
-		return r, err
-	}
+	gameMode := enum.Expect(tournamentRow.Mode, GameModeEnums)
+	status := enum.Expect(tournamentRow.Status, TournamentStatusEnums)
+	ruleset := enum.Expect(tournamentRow.Ruleset, TournamentRulesetEnums)
 
 	if status != TournamentLobby {
 		return r, ErrTournamentNotLobby
@@ -524,11 +480,10 @@ func joinTournament(ctx context.Context, querier sqlc.Querier, inst JoinTourname
 		if svcErr := mapTournamentInsertErr(dbErr); svcErr != nil {
 			return r, svcErr
 		}
-		return r, fmt.Errorf("insert tournament participant %+v: %w", inst, dbErr)
+		return r, fmt.Errorf("insert tournament participant [%+v]: %w", inst, dbErr)
 	}
 
-	slog.InfoContext(ctx, "joined tournament",
-		"tournamentKey", inst.TournamentKey, "tournamentRow", tournamentRow, "joiningUserID", inst.JoiningUserID)
+	slog.InfoContext(ctx, "joined tournament", "tournamentKey", inst.TournamentKey, "tournamentRow", tournamentRow, "joiningUserID", inst.JoiningUserID)
 	return JoinTournamentResult{TournamentKey: inst.TournamentKey, Mode: gameMode}, nil
 }
 
@@ -563,20 +518,16 @@ func startTournament(ctx context.Context, querier sqlc.Querier, tournamentKey uu
 
 	tournamentRow, err := querier.SelectTournamentByID(ctx, pgTournamentKey)
 	if err != nil {
-		return fmt.Errorf("select tournament by key %v: %w", tournamentKey, err)
+		return fmt.Errorf("select tournament [%s]: %w", tournamentKey, err)
 	}
 	participantRows, err := querier.SelectParticipantsForMatchmakingByTournamentID(ctx, pgTournamentKey)
 	if err != nil {
-		return fmt.Errorf("select participant ids by tournament key %s: %w", tournamentKey, err)
+		return fmt.Errorf("select participant ids by tournament key [%s]: %w", tournamentKey, err)
 	}
 
-	status, statusErr := enum.Parse(tournamentRow.Status, TournamentStatusEnums)
-	mode, modeErr := enum.Parse(tournamentRow.Mode, GameModeEnums)
-	ruleset, rulesetErr := enum.Parse(tournamentRow.Ruleset, TournamentRulesetEnums)
-
-	if err := errors.Join(statusErr, modeErr, rulesetErr); err != nil {
-		return wrapMatchError(tournamentKey, err)
-	}
+	status := enum.Expect(tournamentRow.Status, TournamentStatusEnums)
+	mode := enum.Expect(tournamentRow.Mode, GameModeEnums)
+	ruleset := enum.Expect(tournamentRow.Ruleset, TournamentRulesetEnums)
 
 	if status != TournamentScheduled {
 		return wrapMatchError(tournamentKey, ErrInvalidStartTournamentStatus)
@@ -596,7 +547,7 @@ func startTournament(ctx context.Context, querier sqlc.Querier, tournamentKey uu
 		return wrapMatchError(tournamentKey, err)
 	}
 
-	if err := putTournamentMatches(ctx, querier, putMatchesInst{
+	if err := insertTournamentMatches(ctx, querier, putMatchesInst{
 		tournamentKey:        tournamentKey,
 		nextTournamentStatus: TournamentInProgress,
 		round:                1,
@@ -604,7 +555,7 @@ func startTournament(ctx context.Context, querier sqlc.Querier, tournamentKey uu
 		getInsertionTime:     getInsertionTime,
 		matches:              matchmakingResult.Matches,
 	}); err != nil {
-		return fmt.Errorf("put tournament %s matches: %w", tournamentKey, err)
+		return fmt.Errorf("insert tournament [%s] matches: %w", tournamentKey, err)
 	}
 
 	slog.InfoContext(ctx, "started tournament", "tournamentKey", tournamentKey, "matchmakingResult", matchmakingResult)
@@ -655,18 +606,11 @@ func advanceTournament(ctx context.Context, querier sqlc.Querier, tournamentKey 
 		return fmt.Errorf("select participant ids by tournament key %s: %w", tournamentKey, err)
 	}
 
-	prevMatches, err := mapPreviousMatches(matchRows)
-	if err != nil {
-		return wrapMatchError(tournamentKey, err)
-	}
+	prevMatches := mapPreviousMatches(matchRows)
 
-	status, statusErr := enum.Parse(tournamentRow.Status, TournamentStatusEnums)
-	mode, modeErr := enum.Parse(tournamentRow.Mode, GameModeEnums)
-	ruleset, rulesetErr := enum.Parse(tournamentRow.Ruleset, TournamentRulesetEnums)
-
-	if err := errors.Join(statusErr, modeErr, rulesetErr); err != nil {
-		return wrapMatchError(tournamentKey, err)
-	}
+	status := enum.Expect(tournamentRow.Status, TournamentStatusEnums)
+	mode := enum.Expect(tournamentRow.Mode, GameModeEnums)
+	ruleset := enum.Expect(tournamentRow.Ruleset, TournamentRulesetEnums)
 
 	// invariant: a tournament should not have been advance if it is not already in progress
 	if status != TournamentInProgress {
@@ -683,7 +627,7 @@ func advanceTournament(ctx context.Context, querier sqlc.Querier, tournamentKey 
 		return wrapMatchError(tournamentKey, err)
 	}
 
-	if err := putTournamentMatches(ctx, querier, putMatchesInst{
+	if err := insertTournamentMatches(ctx, querier, putMatchesInst{
 		tournamentKey:        tournamentKey,
 		nextTournamentStatus: matchmakingResult.NextStatus,
 		round:                matchmakingResult.NextMatchRound,
@@ -691,7 +635,7 @@ func advanceTournament(ctx context.Context, querier sqlc.Querier, tournamentKey 
 		getInsertionTime:     getInsertionTime,
 		matches:              matchmakingResult.NextMatches,
 	}); err != nil {
-		return fmt.Errorf("put tournament %s matches: %w", tournamentKey, err)
+		return fmt.Errorf("insert tournament [%s] matches: %w", tournamentKey, err)
 	}
 
 	slog.InfoContext(ctx, "advanced tournament", "tournamentKey", tournamentKey, "matchmakingResult", matchmakingResult)
@@ -704,16 +648,11 @@ func advanceTournament(ctx context.Context, querier sqlc.Querier, tournamentKey 
 	return nil
 }
 
-func mapPreviousMatches(matchRows []sqlc.SelectMatchesByTournamentIDRow) ([]PrevMatchDTO, error) {
+func mapPreviousMatches(matchRows []sqlc.SelectMatchesByTournamentIDRow) []PrevMatchDTO {
 	var matches []PrevMatchDTO
-	var parseErrs []error
 
 	for _, row := range matchRows {
-		result, err := enum.Parse(row.Result, ReplayResultEnums)
-		if err != nil {
-			parseErrs = append(parseErrs, err)
-			continue
-		}
+		result := enum.Expect(row.Result, ReplayResultEnums)
 		matches = append(matches, PrevMatchDTO{
 			Round:    row.Round,
 			WhiteID:  row.WhiteID,
@@ -724,7 +663,7 @@ func mapPreviousMatches(matchRows []sqlc.SelectMatchesByTournamentIDRow) ([]Prev
 		})
 	}
 
-	return matches, errors.Join(parseErrs...)
+	return matches
 }
 
 type putMatchesInst struct {
@@ -737,7 +676,7 @@ type putMatchesInst struct {
 	matches              []CreateTournamentMatchDTO
 }
 
-func putTournamentMatches(ctx context.Context, querier sqlc.Querier, inst putMatchesInst) error {
+func insertTournamentMatches(ctx context.Context, querier sqlc.Querier, inst putMatchesInst) error {
 	if len(inst.matches) == 0 {
 		return nil
 	}
@@ -752,7 +691,7 @@ func putTournamentMatches(ctx context.Context, querier sqlc.Querier, inst putMat
 		WinnerID:      pgtype.Int8{Int64: inst.winnerID, Valid: updateWinnerID},
 		UpdatedOn:     pgtype.Timestamptz{Time: inst.getInsertionTime(), Valid: true},
 	}); err != nil {
-		return fmt.Errorf("update tournament %s status to %s: %w", inst.tournamentKey, inst.nextTournamentStatus, err)
+		return fmt.Errorf("update tournament [%s] status to %s: %w", inst.tournamentKey, inst.nextTournamentStatus, err)
 	}
 
 	var matchInsts []sqlc.BatchInsertTournamentMatchParams
@@ -770,7 +709,7 @@ func putTournamentMatches(ctx context.Context, querier sqlc.Querier, inst putMat
 	var batchInsertErrs []error
 	querier.BatchInsertTournamentMatch(ctx, matchInsts).Exec(func(i int, err error) {
 		if err != nil {
-			batchInsertErrs = append(batchInsertErrs, fmt.Errorf("batch %d: inserting tournament matches %+v: %w", i, matchInsts[i], err))
+			batchInsertErrs = append(batchInsertErrs, fmt.Errorf("batch [%d]: inserting tournament matches %+v: %w", i, matchInsts[i], err))
 		}
 	})
 	if err := errors.Join(batchInsertErrs...); err != nil {

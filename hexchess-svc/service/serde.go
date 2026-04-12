@@ -92,6 +92,7 @@ func UnmarshalChessState(bytes []byte) (*ChessState, error) {
 
 	mode, modeErr := enum.Parse(pbChess.Mode, GameModeEnums)
 	firstColor, colorErr := enum.Parse(pbChess.FirstColor, GameColorEnums)
+	
 	if err := errors.Join(modeErr, colorErr); err != nil {
 		return nil, err
 	}

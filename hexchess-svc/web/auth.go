@@ -9,6 +9,7 @@ import (
 	"time"
 
 	svc "hexchess-svc/service"
+	"hexchess-svc/util/errutil"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
@@ -52,7 +53,7 @@ func (auth *Authenticator) GetSessionPlayerAndID(ctx context.Context, r *http.Re
 	}
 	sessionToken := cookie.Value
 	player, err := auth.services.GetSession(ctx, sessionToken)
-	return player, sessionToken, err
+	return player, sessionToken, errutil.Guardf("get session player", err)
 }
 
 func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request) (svc.PlayerState, error) {
@@ -63,7 +64,7 @@ func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request
 func (auth *Authenticator) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player svc.PlayerState) (time.Duration, error) {
 	sessionID := MakeSessionID()
 	if err := auth.services.SetSessions(ctx, svc.SessionInst{SessionID: sessionID, Player: player, Expiry: SessionMaxAge}); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("set session player [%d]: %w", player.ID, err)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
 	return SessionMaxAge, nil

@@ -3,6 +3,7 @@ package enum
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 )
 
 type StringLike interface {
@@ -61,9 +62,15 @@ func Parse[T ~int, S StringLike](s S, m map[string]T) (T, error) {
 	return v, nil
 }
 
+func ParseOk[T ~int, S StringLike](s S, m map[string]T) (T, bool) {
+	v, ok := m[string(s)]
+	return v, ok
+}
+
 func Expect[T ~int, S StringLike](s S, m map[string]T) T {
 	v, err := Parse(s, m)
 	if err != nil {
+		slog.Error("failed to parse enum", "enum", fmt.Sprintf("%T", v), "err", err)
 		panic(err.Error())
 	}
 	return v

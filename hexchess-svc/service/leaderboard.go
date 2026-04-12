@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/util/errutil"
 	"hexchess-svc/util/logutil"
 
 	"github.com/redis/go-redis/v9"
@@ -96,8 +97,8 @@ func (svc *HexchessServices) GetUserLeaderboardRanks(ctx context.Context, userID
 		})
 	}
 
-	if _, err := pipeline.Exec(ctx); err != nil {
-		return nil, err
+	if _, err := pipeline.Exec(ctx); err != nil && !errors.Is(redis.Nil, err) {
+		return nil, fmt.Errorf("exec get ranks pipeline: %w", err)
 	}
 
 	for _, exec := range getExecs {
@@ -107,7 +108,7 @@ func (svc *HexchessServices) GetUserLeaderboardRanks(ctx context.Context, userID
 			continue
 		}
 		if err != nil {
-			return nil, fmt.Errorf("get leaderboard rank for %s: %w", exec.mode, err)
+			return nil, fmt.Errorf("get leaderboard rank: %w", err)
 		}
 		ranks[exec.mode] = LbRank{Rank: mapLbRank(rankScore.Rank), Score: rankScore.Score}
 	}
@@ -128,17 +129,17 @@ func (svc *HexchessServices) GetUserLeaderboardRanks(ctx context.Context, userID
 		})
 	}
 
-	if _, err := pipeline.Exec(ctx); err != nil {
-		return nil, err
+	if _, err := pipeline.Exec(ctx); err != nil && !errors.Is(redis.Nil, err) {
+		return nil, fmt.Errorf("exec add then get ranks pipeline: %w", err)
 	}
 
 	for _, exec := range addExecs {
 		if _, err := exec.addCmd.Result(); err != nil {
-			return nil, fmt.Errorf("add leaderboard rank for %s: %w", exec.mode, err)
+			return nil, fmt.Errorf("add leaderboard rank: %w", err)
 		}
 		rankScore, err := exec.getCmd.Result()
 		if err != nil {
-			return nil, fmt.Errorf("get leaderboard rank for %s: %w", exec.mode, err)
+			return nil, fmt.Errorf("get leaderboard rank: %w", err)
 		}
 		ranks[exec.mode.String()] = LbRank{Rank: mapLbRank(rankScore.Rank), Score: rankScore.Score}
 	}
@@ -296,17 +297,11 @@ func (svc *HexchessServices) GetLeaderboardUser(ctx context.Context, userID int6
 			ID: userID,
 			Mode: sqlc.ModeEnum(mode.String()),
 		})
-		if err != nil {
-			return fmt.Errorf("select user with elos by id %d: %w", userID, err)
-		}
-		return nil
+		return errutil.Guardf("select user with elos by id %d", err, userID)
 	})
 	eg.Go(func() (err error) {
 		rankScore, err = svc.redis.Cache.ZRankWithScore(egCtx, svc.leaderboardZSet(mode.String()), strUserID).Result()
-		if err != nil { 
-			return fmt.Errorf("get user rank by id: %s: %w", strUserID, err)
-		}
-		return nil
+		return errutil.Guardf("get user rank by id: %d", err, userID)
 	})
 
 	if err := eg.Wait(); err != nil {

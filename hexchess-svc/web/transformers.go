@@ -3,6 +3,7 @@ package web
 import (
 	"hexchess-svc/chess"
 	svc "hexchess-svc/service"
+	"hexchess-svc/util/enum"
 	"net/url"
 	"strconv"
 	"strings"
@@ -66,11 +67,11 @@ type CreateChallengeTBody struct {
 func transformCreateChallenge(body CreateChallengeBody) (CreateChallengeTBody, error) {
 	var respErr ResponseError
 
-	color, ok := svc.GameColorEnums[body.StartColor]
+	color, ok := enum.ParseOk(body.StartColor, svc.GameColorEnums)
 	if !ok {
 		respErr.Put("startColor", ErrHttpInvalidColor)
 	}
-	mode, ok := svc.GameModeEnums[body.Mode]
+	mode, ok := enum.ParseOk(body.Mode, svc.GameModeEnums)
 	if !ok {
 		respErr.Put("mode", ErrHttpInvalidMode)
 	}
@@ -98,11 +99,11 @@ func transformCreateGame(body CreateGameBody) (CreateGameTBody, error) {
 		}
 	}
 
-	color, ok := svc.GameColorEnums[body.FirstColor]
+	color, ok := enum.ParseOk(body.FirstColor, svc.GameColorEnums)
 	if !ok {
 		respErr.Put("firstColor", ErrHttpInvalidColor)
 	}
-	mode, ok := svc.GameModeEnums[body.Mode]
+	mode, ok := enum.ParseOk(body.Mode, svc.GameModeEnums)
 	if !ok {
 		respErr.Put("mode", ErrHttpInvalidMode)
 	}
@@ -122,13 +123,13 @@ type CreateTournamentTBody struct {
 func transformCreateTournament(body CreateTournamentBody) (CreateTournamentTBody, error) {
 	var respErr ResponseError
 
-	mode, ok := svc.GameModeEnums[body.Mode]
+	mode, ok := enum.ParseOk(body.Mode, svc.GameModeEnums)
 	if !ok {
 		respErr.Put("mode", ErrHttpInvalidMode)
 	}
-	ruleset, ok := svc.TournamentRulesetEnums[body.Ruleset]
+	ruleset, ok := enum.ParseOk(body.Ruleset, svc.TournamentRulesetEnums)
 	if !ok {
-		respErr.Put("mode", ErrHttpInvalidRuleset)
+		respErr.Put("ruleset", ErrHttpInvalidRuleset)
 	}
 
 	tbody := CreateTournamentTBody{Name: body.Name, Mode: mode, Ruleset: ruleset, Rounds: body.Rounds, Countdown: body.Countdown}
@@ -152,14 +153,14 @@ type ChessMetasQuery struct {
 	Count int
 }
 
-func transformChessMetasQuery(q url.Values) (ChessMetasQuery, error) {
+func transformChessMetasQuery(values url.Values) (ChessMetasQuery, error) {
 	var respErr ResponseError
 
-	page, err := intQueryDefault(q, "page", 1)
+	page, err := intQueryDefault(values, "page", 1)
 	if err != nil {
 		respErr.Put("page", ErrHttpInvalidPage)
 	}
-	count, err := intQueryDefault(q, "count", perPage)
+	count, err := intQueryDefault(values, "count", perPage)
 	if err != nil {
 		respErr.Put("count", ErrHttpInvalidCount)
 	}
@@ -179,10 +180,10 @@ type GetReplayQuery struct {
 	HasGameID bool
 }
 
-func transformReplayQuery(q url.Values) (GetReplayQuery, error) {
+func transformReplayQuery(values url.Values) (GetReplayQuery, error) {
 	var respErr ResponseError
 
-	kindStr := q.Get("idKind")
+	kindStr := values.Get("idKind")
 	if kindStr == "" {
 		kindStr = ByReplayID
 	}
@@ -193,13 +194,13 @@ func transformReplayQuery(q url.Values) (GetReplayQuery, error) {
 
 	switch kindStr {
 	case ByReplayID:
-		intID, err := strconv.Atoi(q.Get("id"))
+		intID, err := strconv.Atoi(values.Get("id"))
 		if err != nil {
 			respErr.Put("id", ErrHttpInvalidID)
 		}
 		replayID = int64(intID)
 	case ByGameID:
-		gameID = q.Get("id")
+		gameID = values.Get("id")
 		hasGameID = true
 	}
 
@@ -220,15 +221,15 @@ type EloHistoriesQuery struct {
 	Months uint
 }
 
-func transformEloHistoriesQuery(q url.Values) (EloHistoriesQuery, error) {
+func transformEloHistoriesQuery(values url.Values) (EloHistoriesQuery, error) {
 	var respErr ResponseError
 
-	userID, err := strconv.Atoi(q.Get("userId"))
+	userID, err := strconv.Atoi(values.Get("userId"))
 	if err != nil {
 		respErr.Put("userID", ErrHttpInvalidID)
 	}
 
-	months, ok := timeframeMap[queryDefault(q, "timeframe", "all")]
+	months, ok := timeframeMap[queryDefault(values, "timeframe", "all")]
 	if !ok {
 		respErr.Put("timeframe", ErrHttpInvalidTimeframe)
 	}
@@ -242,13 +243,13 @@ type GetPlayerQuery struct {
 	WithReplays bool
 }
 
-func transformPlayerQuery(q url.Values) (GetPlayerQuery, error) {
-	userID, err := strconv.Atoi(q.Get("id"))
+func transformPlayerQuery(values url.Values) (GetPlayerQuery, error) {
+	userID, err := strconv.Atoi(values.Get("id"))
 	if err != nil {
 		return GetPlayerQuery{}, OneRespError("id", ErrHttpInvalidID)
 	}
 
-	withReplaysStr := q.Get("withReplays")
+	withReplaysStr := values.Get("withReplays")
 	withReplays := strings.ToLower(withReplaysStr) == "true"
 
 	return GetPlayerQuery{UserID: userID, WithReplays: withReplays}, nil
@@ -259,14 +260,14 @@ type GetReplaysQuery struct {
 	AfterID int
 }
 
-func transformReplaysQuery(q url.Values) (GetReplaysQuery, error) {
+func transformReplaysQuery(values url.Values) (GetReplaysQuery, error) {
 	var respErr ResponseError
 
-	userID, err := strconv.Atoi(q.Get("userId"))
+	userID, err := strconv.Atoi(values.Get("userId"))
 	if err != nil {
 		respErr.Put("userId", ErrHttpInvalidID)
 	}
-	afterID, err := strconv.Atoi(q.Get("afterId"))
+	afterID, err := strconv.Atoi(values.Get("afterId"))
 	if err != nil {
 		respErr.Put("afterId", ErrHttpInvalidID)
 	}
@@ -281,20 +282,19 @@ type GetTournamentQuery struct {
 	ByParticipant bool
 }
 
-func transformTournamentsQuery(q url.Values) (GetTournamentQuery, error) {
+func transformTournamentsQuery(values url.Values) (q GetTournamentQuery, err error) {
 	var respErr ResponseError
 
-	userIDStr := q.Get("userId")
+	userIDStr := values.Get("userId")
 	userID := svc.NoParticipantSignifier
 	
 	if userIDStr != "" {
-		id, err := strconv.Atoi(userIDStr)
+		userID, err = strconv.Atoi(userIDStr)
 		if err != nil {
 			respErr.Put("userId", ErrHttpInvalidID)
 		}
-		userID = id
 	}
-	afterID, err := strconv.Atoi(q.Get("afterId"))
+	afterID, err := strconv.Atoi(values.Get("afterId"))
 	if err != nil {
 		respErr.Put("afterId", ErrHttpInvalidID)
 	}

@@ -73,10 +73,8 @@ func (svc *HexchessServices) InsertChallengeRet(ctx context.Context, inst Challe
 		return ChallengeDTO{}, fmt.Errorf("insert challenge %+v: %w", inst, dbErr)
 	}
 
-	challenge, err := mapChallengeRow(sqlc.SelectChallengesByParticipantRow(row))
-	if err != nil {
-		return ChallengeDTO{}, fmt.Errorf("map challenge from row: %w", err)
-	}
+	challenge := mapChallengeRow(sqlc.SelectChallengesByParticipantRow(row))
+
 	slog.InfoContext(ctx, "created a new challenge", "challenge", inst, "challenge", challenge)
 	return challenge, nil
 }
@@ -116,11 +114,7 @@ func (svc *HexchessServices) GetChallengesByParticipant(ctx context.Context, key
 
 	challenges := make([]ChallengeDTO, 0, len(rows))
 	for _, row := range rows {
-		challenge, err := mapChallengeRow(row)
-		if err != nil {
-			return nil, err
-		}
-		challenges = append(challenges, challenge)
+		challenges = append(challenges, mapChallengeRow(row))
 	}
 
 	slog.InfoContext(ctx, "got challenges by participant", "challengeKey", key, "since", since, "challenges", challenges)
@@ -142,11 +136,8 @@ func (svc *HexchessServices) DeleteChallenge(ctx context.Context, key ChallengeK
 		return DeleteResult{}, fmt.Errorf("delete challenge %d: %w", key, err)
 	}
 
-	gameColor, colorErr := enum.Parse(challengeRow.StartColor, GameColorEnums)
-	gameMode, modeErr := enum.Parse(challengeRow.Mode, GameModeEnums)
-	if err := errors.Join(colorErr, modeErr); err != nil {
-		return DeleteResult{}, err
-	}
+	gameColor := enum.Expect(challengeRow.StartColor, GameColorEnums)
+	gameMode := enum.Expect(challengeRow.Mode, GameModeEnums)
 
 	delResult := DeleteResult{
 		ChallengerID: challengeRow.ChallengerID,
@@ -168,12 +159,9 @@ func (svc *HexchessServices) DeleteExpiredChallenges(ctx context.Context, userID
 	return nil
 }
 
-func mapChallengeRow(row sqlc.SelectChallengesByParticipantRow) (ChallengeDTO, error) {
-	gameColor, colorErr := enum.Parse(row.StartColor, GameColorEnums)
-	gameMode, modeErr := enum.Parse(row.Mode, GameModeEnums)
-	if err := errors.Join(colorErr, modeErr); err != nil {
-		return ChallengeDTO{}, err
-	}
+func mapChallengeRow(row sqlc.SelectChallengesByParticipantRow) ChallengeDTO {
+	gameColor := enum.Expect(row.StartColor, GameColorEnums)
+	gameMode := enum.Expect(row.Mode, GameModeEnums)
 
 	return ChallengeDTO{
 		ChallengerID:      row.ChallengerID,
@@ -188,5 +176,5 @@ func mapChallengeRow(row sqlc.SelectChallengesByParticipantRow) (ChallengeDTO, e
 		StartColor:        gameColor,
 		MadeOn:            row.MadeOn.Time,
 		ExpiresOn:         row.MadeOn.Time.Add(ExpireChallengeMaxAge),
-	}, nil
+	}
 }

@@ -684,11 +684,7 @@ func TestGetPlayer(t *testing.T) {
 				FullUserDTO: svc.FullUserDTO{
 					User:  svc.TestUserDTOs[0],
 					Stats: svc.TestUserStats[0],
-					ReplayList: []svc.FullReplayDTO{
-						svc.TestReplayDTOs[2],
-						svc.TestReplayDTOs[1],
-						svc.TestReplayDTOs[0],
-					},
+					ReplayList: []svc.FullReplayDTO{svc.TestReplayDTOs[2], svc.TestReplayDTOs[1], svc.TestReplayDTOs[0]},
 				},
 			},
 			wantStatus: http.StatusOK,

@@ -124,7 +124,7 @@ func TestHandleGetProfilePic(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.userID, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 

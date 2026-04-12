@@ -25,7 +25,7 @@ func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc
 			resp := HttpStatusFromErrs(err)
 			writeJSON(w, resp.Status, resp)
 
-			level := slog.LevelWarn
+			level := slog.LevelInfo
 			if resp.Status == http.StatusInternalServerError {
 				level = slog.LevelError
 			}
@@ -78,7 +78,7 @@ func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) error {
 
 	ttl, err := api.authenticator.SetSessionPlayer(ctx, w, svc.MakePlayer(user.ID, user.Username, user.Country))
 	if err != nil {
-		return fmt.Errorf("set session player: %w", err)
+		return err
 	}
 	slog.InfoContext(ctx, "registered user", "user", user)
 
@@ -94,7 +94,7 @@ func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) error {
 func (api *API) handleLoginSession(ctx context.Context, w http.ResponseWriter, user svc.VerifiedUserDTO) error {
 	t, err := api.authenticator.SetSessionPlayer(ctx, w, svc.MakePlayer(user.ID, user.Username, user.Country))
 	if err != nil {
-		return fmt.Errorf("set session player: %w", err)
+		return err
 	}
 	slog.InfoContext(ctx, "user has logged in", "user", user)
 
@@ -170,7 +170,7 @@ func (api *API) HandleUpdatePassword(w http.ResponseWriter, r *http.Request) err
 	ctx := r.Context()
 	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
-		return fmt.Errorf("get session player: %w", err)
+		return err
 	}
 
 	// read body after headers are authorized
@@ -205,7 +205,7 @@ func (api *API) HandleUpdateUser(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
-		return fmt.Errorf("get session player: %w", err)
+		return err
 	}
 
 	// read body after headers are authorized
@@ -293,7 +293,7 @@ func (api *API) HandleRefreshSession(w http.ResponseWriter, r *http.Request) err
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
 	} else if err != nil {
-		return fmt.Errorf("get session player: %w", err)
+		return err
 	}
 
 	if err := api.services.UpdateSessionEx(ctx, sessionID, SessionMaxAge); err != nil {
@@ -339,7 +339,7 @@ func (api *API) HandleGetSelf(w http.ResponseWriter, r *http.Request) error {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("get session player: %w", err)
+		return err
 	}
 
 	user, err := api.services.GetUserByID(ctx, player.ID)
@@ -394,6 +394,7 @@ func (api *API) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	ctx := r.Context()
+
 	fullUser, err := api.services.GetFullUser(ctx, int64(query.UserID), perPage, query.WithReplays)
 	if errors.Is(err, svc.ErrUserNotFound) {
 		return ErrHttpNotFoundUser
@@ -455,7 +456,7 @@ func (api *API) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) er
 	ctx := r.Context()
 	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
-		return fmt.Errorf("get session player: %w", err)
+		return err
 	}
 
 	// read body after headers are authorized
@@ -478,11 +479,10 @@ func (api *API) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) er
 
 	var gameID string
 	if body.Action == Accept {
-		id, err := api.services.CreateGame(ctx, deleteResult.FirstColor, deleteResult.Mode, nil)
+		gameID, err = api.services.CreateGame(ctx, deleteResult.FirstColor, deleteResult.Mode, nil)
 		if err != nil {
 			return fmt.Errorf("create game: %w", err)
 		}
-		gameID = id
 	}
 
 	writeJSON(w, http.StatusOK, UpdateChallengeResp{GameID: gameID})
@@ -499,7 +499,7 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 	ctx := r.Context()
 	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
-		return fmt.Errorf("get session player: %w", err)
+		return err
 	}
 
 	// read body after headers are authorized
@@ -556,23 +556,23 @@ func (api *API) HandleGetChallenges(w http.ResponseWriter, r *http.Request) erro
 
 	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
-		return fmt.Errorf("get session player: %w", err)
+		return err
 	}
 
 	var challengeList []svc.ChallengeDTO
 	switch participants {
 	case SentParticipantsTarget:
-		byChallenger, err := api.services.GetChallengesByParticipant(ctx, svc.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1})
+		listByChallenger, err := api.services.GetChallengesByParticipant(ctx, svc.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1})
 		if err != nil {
 			return fmt.Errorf("get challenges by challenger: %w", err)
 		}
-		challengeList = byChallenger
+		challengeList = listByChallenger
 	case ReceivedParticipantTarget:
-		byChallengee, err := api.services.GetChallengesByParticipant(ctx, svc.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID})
+		listByChallengee, err := api.services.GetChallengesByParticipant(ctx, svc.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID})
 		if err != nil {
 			return fmt.Errorf("get challenges by challengee: %w", err)
 		}
-		challengeList = byChallengee
+		challengeList = listByChallengee
 	}
 
 	slog.InfoContext(ctx, "retrieved challenges", "challengeList", challengeList)
@@ -668,7 +668,7 @@ func (api *API) HandleGetChessMetas(w http.ResponseWriter, r *http.Request) erro
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		hasSession = false
 	} else if err != nil {
-		return fmt.Errorf("get session player: %w", err)
+		return err
 	}
 
 	allChessMetas, err := api.services.GetAllChessMetas(ctx, query.Page, query.Count)
@@ -819,7 +819,7 @@ func (api *API) HandleCreateTournament(w http.ResponseWriter, r *http.Request) e
 	ctx := r.Context()
 	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
-		return fmt.Errorf("get session player: %w", err)
+		return err
 	}
 
 	// read body after headers are authorized
@@ -859,7 +859,7 @@ func (api *API) HandleJoinTournament(w http.ResponseWriter, r *http.Request) err
 	ctx := r.Context()
 	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
-		return fmt.Errorf("get session player: %w", err)
+		return err
 	}
 
 	// read body after headers are authorized
@@ -903,7 +903,7 @@ func (api *API) HandleBeginCountdownTournament(w http.ResponseWriter, r *http.Re
 	ctx := r.Context()
 	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
-		return fmt.Errorf("get session player: %w", err)
+		return err
 	}
 
 	// read body after headers are authorized
@@ -990,7 +990,7 @@ func (api *API) HandleLeaveTournament(w http.ResponseWriter, r *http.Request) er
 	ctx := r.Context()
 	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
-		return fmt.Errorf("get session player: %w", err)
+		return err
 	}
 
 	didLeave, err := api.services.LeaveTournament(ctx, tournamentKey, player.ID); 
