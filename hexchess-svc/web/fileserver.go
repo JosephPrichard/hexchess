@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/assets"
-	"hexchess-svc/service"
+	svc "hexchess-svc/service"
 	"io"
 	"log/slog"
 	"net/http"
@@ -16,7 +16,7 @@ const MaxProfilePicSize = 5 << 20
 
 func (api *API) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-	player, _, err := api.authenticator.GetSessionPlayer(ctx, r)
+	player, _, err := api.authenticator.GetSessionPlayerAndID(ctx, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}

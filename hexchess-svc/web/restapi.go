@@ -5,17 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/proto"
-	"hexchess-svc/chess"
 	"hexchess-svc/pb"
-	"hexchess-svc/service"
+	svc "hexchess-svc/service"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strconv"
-	"strings"
 	"time"
+
+	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 )
 
 func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc {
@@ -36,6 +34,8 @@ func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc
 	}
 }
 
+const perPage = 25
+
 func Json(v any) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		b, err := json.Marshal(v)
@@ -50,8 +50,6 @@ func Json(v any) http.HandlerFunc {
 		}
 	}
 }
-
-const perPage = 25
 
 type RegisterBody struct {
 	Username        string `json:"username"`
@@ -169,15 +167,16 @@ type UpdatePasswordBody struct {
 }
 
 func (api *API) HandleUpdatePassword(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	player, err := api.authenticator.GetSessionPlayer(ctx, r)
+	if err != nil {
+		return fmt.Errorf("get session player: %w", err)
+	}
+
+	// read body after headers are authorized
 	var body UpdatePasswordBody
 	if err := parseJSON(r, &body, validateUpdatePasswordBody); err != nil {
 		return err
-	}
-
-	ctx := r.Context()
-	player, _, err := api.authenticator.GetSessionPlayer(ctx, r)
-	if err != nil {
-		return fmt.Errorf("get session player: %w", err)
 	}
 
 	user, err := api.services.VerifyUserTx(ctx, player.Name, body.Password)
@@ -203,15 +202,18 @@ type UpdateUserBody struct {
 }
 
 func (api *API) HandleUpdateUser(w http.ResponseWriter, r *http.Request) error {
-	var body UpdateUserBody
-	if err := parseJSON(r, &body, api.validateUpdateUserBody); err != nil {
-		return err
-	}
-
 	ctx := r.Context()
-	player, _, err := api.authenticator.GetSessionPlayer(ctx, r)
+	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
+	}
+
+	// read body after headers are authorized
+	var body UpdateUserBody
+	if err := parseJSON(r, &body, func(body UpdateUserBody) error {
+		return validateUpdateUserBody(api.staticData, body)
+	}); err != nil {
+		return err
 	}
 
 	user, err := api.services.UpdateUser(ctx, player.ID, svc.UpdtUserParams{
@@ -241,7 +243,7 @@ func (api *API) HandleCreateTempSession(w http.ResponseWriter, r *http.Request) 
 
 	alreadyHasSession := true
 
-	sessionPlayer, _, err := api.authenticator.GetSessionPlayer(ctx, r)
+	sessionPlayer, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		alreadyHasSession = false
 	} else if err != nil {
@@ -286,7 +288,7 @@ type RefreshResp struct {
 func (api *API) HandleRefreshSession(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	player, sessionID, err := api.authenticator.GetSessionPlayer(ctx, r)
+	player, sessionID, err := api.authenticator.GetSessionPlayerAndID(ctx, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
@@ -301,12 +303,14 @@ func (api *API) HandleRefreshSession(w http.ResponseWriter, r *http.Request) err
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
 	slog.InfoContext(ctx, "refreshed user session", "user", player)
 
-	writeJSON(w, http.StatusOK, RefreshResp{Session: &SessionView{
-		ID:       player.ID,
-		Username: player.Name,
-		Country:  player.Country,
-		TTLSecs:  SessionMaxAge,
-	}})
+	writeJSON(w, http.StatusOK, RefreshResp{
+		Session: &SessionView{
+			ID:       player.ID,
+			Username: player.Name,
+			Country:  player.Country,
+			TTLSecs:  SessionMaxAge,
+		},
+	})
 	return nil
 }
 
@@ -329,7 +333,7 @@ func (api *API) HandleLogout(w http.ResponseWriter, r *http.Request) error {
 func (api *API) HandleGetSelf(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	player, _, err := api.authenticator.GetSessionPlayer(ctx, r)
+	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
@@ -359,106 +363,48 @@ type LeaderboardResp struct {
 }
 
 func (api *API) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) error {
-	query, err := api.getLeaderboardQuery(r.URL.Query())
+	query, err := getLeaderboardQuery(r.URL.Query())
 	if err != nil {
 		return err
 	}
 
 	ctx := r.Context()
-	lbd, err := api.services.GetLeaderboardPage(ctx, query.Mode, int64(query.Page), perPage)
+	leaderboard, err := api.services.GetLeaderboardPage(ctx, query.Mode, int64(query.Page), perPage)
 	if err != nil {
 		return fmt.Errorf("get leaderboard page %d: %w", query.Page, err)
 	}
-	users, _, err := api.services.GetLeaderboardUsers(ctx, query.Mode, lbd.RankedUsers)
+	users, _, err := api.services.GetLeaderboardUsers(ctx, query.Mode, leaderboard.RankedUsers)
 	if err != nil {
 		return err
 	}
 	slog.InfoContext(ctx, "retrieved leaderboard", "users", users)
 
-	writeJSON(w, http.StatusOK, LeaderboardResp{TotalPages: lbd.PageCount, UserList: users})
+	writeJSON(w, http.StatusOK, LeaderboardResp{TotalPages: leaderboard.PageCount, UserList: users})
 	return nil
 }
 
-type GetPlayerArgs struct {
-	UserID      int
-	WithReplays bool
-}
-
-func (api *API) getPlayerQuery(q url.Values) (GetPlayerArgs, error) {
-	userID, err := strconv.Atoi(q.Get("id"))
-	if err != nil {
-		return GetPlayerArgs{}, OneRespError("id", ErrHttpInvalidID)
-	}
-
-	withReplaysStr := q.Get("withReplays")
-	withReplays := strings.ToLower(withReplaysStr) == "true"
-
-	return GetPlayerArgs{UserID: userID, WithReplays: withReplays}, nil
-}
-
 type GetPlayersResp struct {
-	User       svc.UserDTO         `json:"user"`
-	Stats      svc.UserStatsDTO    `json:"stats"`
-	ReplayList []svc.FullReplayDTO `json:"replayList"`
+	svc.FullUserDTO
 }
 
 func (api *API) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
-	query, err := api.getPlayerQuery(r.URL.Query())
+	query, err := transformPlayerQuery(r.URL.Query())
 	if err != nil {
 		return err
 	}
-	loadReplays := query.WithReplays
-
-	var user svc.UserDTO
-	var stats svc.UserStatsDTO
-	var replayList []svc.FullReplayDTO
-	var lbRanks map[string]svc.LbRank
 
 	ctx := r.Context()
-	eg, egCtx := errgroup.WithContext(ctx)
-
-	eg.Go(func() (err error) {
-		user, err = api.services.GetUserByID(egCtx, int64(query.UserID))
-		return
-	})
-	eg.Go(func() (err error) {
-		stats, err = api.services.GetUserStats(egCtx, int64(query.UserID))
-		return
-	})
-	eg.Go(func() (err error) {
-		lbRanks, err = api.services.GetUserLeaderboardRanks(egCtx, int64(query.UserID), svc.GameModeEnums)
-		return
-	})
-	if loadReplays {
-		eg.Go(func() (err error) {
-			replayList, err = api.services.GetUserReplays(egCtx, int64(query.UserID), -1, perPage)
-			return
-		})
-	}
-	if err := eg.Wait(); err != nil {
-		switch {
-		case errors.Is(err, svc.ErrUserNotFound):
-			return ErrHttpNotFoundUser
-		default:
-			return err
-		}
+	fullUser, err := api.services.GetFullUser(ctx, int64(query.UserID), perPage, query.WithReplays)
+	if errors.Is(err, svc.ErrUserNotFound) {
+		return ErrHttpNotFoundUser
+	} else if err != nil {
+		return fmt.Errorf("get full user %d: %w", query.UserID, err)
 	}
 
-	for i := range stats.ModeStats {
-		modeStats := &stats.ModeStats[i]
-		lbRank, ok := lbRanks[modeStats.Mode.String()]
-		if !ok {
-			return fmt.Errorf("missing leaderboard rank for mode %s", modeStats.Mode)
-		}
-		modeStats.Rank = lbRank.Rank
-	}
-
-	if replayList == nil {
-		replayList = []svc.FullReplayDTO{}
-	}
-	playersResp := GetPlayersResp{User: user, Stats: stats, ReplayList: replayList}
+	playersResp := GetPlayersResp{FullUserDTO: fullUser}
 
 	slog.InfoContext(ctx, "retrieved user with replays", "fullUser", playersResp)
+
 	writeJSON(w, http.StatusOK, playersResp)
 	return nil
 }
@@ -501,36 +447,23 @@ type UpdateChallengeBody struct {
 	Action       string `json:"action"`
 }
 
-type Action int
-
-const (
-	Accept Action = iota
-	Reject
-	Delete
-)
-
-type UpdateChallengeTBody struct {
-	ChallengeeID int64
-	ChallengerID int64
-	TargetID     int64
-	Action       Action
-}
-
 type UpdateChallengeResp struct {
 	GameID string `json:"challengeID"`
 }
 
 func (api *API) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	player, err := api.authenticator.GetSessionPlayer(ctx, r)
+	if err != nil {
+		return fmt.Errorf("get session player: %w", err)
+	}
+
+	// read body after headers are authorized
 	body, err := transformJSON(r, transformUpdateChallenge)
 	if err != nil {
 		return err
 	}
 
-	ctx := r.Context()
-	player, _, err := api.authenticator.GetSessionPlayer(ctx, r)
-	if err != nil {
-		return fmt.Errorf("get session player: %w", err)
-	}
 	if player.ID != body.TargetID {
 		return ErrHttpUpdateChallenge
 	}
@@ -545,10 +478,11 @@ func (api *API) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) er
 
 	var gameID string
 	if body.Action == Accept {
-		gameID, err = api.services.CreateGame(ctx, deleteResult.FirstColor, deleteResult.Mode, nil)
+		id, err := api.services.CreateGame(ctx, deleteResult.FirstColor, deleteResult.Mode, nil)
 		if err != nil {
 			return fmt.Errorf("create game: %w", err)
 		}
+		gameID = id
 	}
 
 	writeJSON(w, http.StatusOK, UpdateChallengeResp{GameID: gameID})
@@ -561,22 +495,17 @@ type CreateChallengeBody struct {
 	Mode         string `json:"mode"`
 }
 
-type CreateChallengeTBody struct {
-	ChallengeeID int64
-	StartColor   svc.GameColor
-	Mode         svc.GameMode
-}
-
 func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	player, err := api.authenticator.GetSessionPlayer(ctx, r)
+	if err != nil {
+		return fmt.Errorf("get session player: %w", err)
+	}
+
+	// read body after headers are authorized
 	body, err := transformJSON(r, transformCreateChallenge)
 	if err != nil {
 		return err
-	}
-
-	ctx := r.Context()
-	player, _, err := api.authenticator.GetSessionPlayer(ctx, r)
-	if err != nil {
-		return fmt.Errorf("get session player: %w", err)
 	}
 
 	ret, err := api.services.InsertChallengeRet(ctx, svc.ChallengeInst{
@@ -597,16 +526,18 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 		return fmt.Errorf("insert challenge: %w", err)
 	}
 
+	go func() {
+		detatchedCtx := context.WithoutCancel(ctx)
+
+		if err := api.services.BroadcastChallenge(detatchedCtx, ret); err != nil {
+			slog.ErrorContext(detatchedCtx, "failed to broadcast challenge", "challenge", ret, "err", err)
+		}
+		if err := api.services.DeleteExpiredChallenges(detatchedCtx, player.ID); err != nil {
+			slog.ErrorContext(detatchedCtx, "failed to delete expired challenges", "challenge", ret, "err", err)
+		}
+	}()
+
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
-
-	detatchedCtx := context.WithoutCancel(ctx)
-	if err := api.services.BroadcastChallenge(detatchedCtx, ret); err != nil {
-		slog.ErrorContext(detatchedCtx, "failed to broadcast challenge", "challenge", ret, "err", err)
-	}
-	if err := api.services.DeleteExpiredChallenges(detatchedCtx, player.ID); err != nil {
-		slog.ErrorContext(detatchedCtx, "failed to delete expired challenges", "challenge", ret, "err", err)
-	}
-
 	return nil
 }
 
@@ -614,24 +545,29 @@ type GetChallengesResp struct {
 	ChallengeList []svc.ChallengeDTO `json:"challengeList"`
 }
 
+const (
+	SentParticipantsTarget    = "sent"
+	ReceivedParticipantTarget = "received"
+)
+
 func (api *API) HandleGetChallenges(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	participants := r.URL.Query().Get("participants")
 
-	player, _, err := api.authenticator.GetSessionPlayer(ctx, r)
+	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
 
 	var challengeList []svc.ChallengeDTO
 	switch participants {
-	case "sent":
+	case SentParticipantsTarget:
 		byChallenger, err := api.services.GetChallengesByParticipant(ctx, svc.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1})
 		if err != nil {
 			return fmt.Errorf("get challenges by challenger: %w", err)
 		}
 		challengeList = byChallenger
-	case "received":
+	case ReceivedParticipantTarget:
 		byChallengee, err := api.services.GetChallengesByParticipant(ctx, svc.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID})
 		if err != nil {
 			return fmt.Errorf("get challenges by challengee: %w", err)
@@ -648,12 +584,6 @@ type CreateGameBody struct {
 	FirstColor string `json:"firstColor"`
 	Mode       string `json:"mode"`
 	InitialFEN string `json:"initialFen"`
-}
-
-type CreateGameTBody struct {
-	FirstColor   svc.GameColor
-	Mode         svc.GameMode
-	InitialBoard chess.Board
 }
 
 type CreateGameResp struct {
@@ -720,18 +650,13 @@ func mapChessMetas(svcMetas []svc.ChessMeta) []ChessMeta {
 	return metas
 }
 
-type ChessMetasQuery struct {
-	Page  int
-	Count int
-}
-
 type ChessMetasResp struct {
 	ChessList     []ChessMeta `json:"chessList"`
 	SelfChessList []ChessMeta `json:"selfChessList"`
 }
 
 func (api *API) HandleGetChessMetas(w http.ResponseWriter, r *http.Request) error {
-	query, err := api.transformChessMetasQuery(r.URL.Query())
+	query, err := transformChessMetasQuery(r.URL.Query())
 	if err != nil {
 		return err
 	}
@@ -739,7 +664,7 @@ func (api *API) HandleGetChessMetas(w http.ResponseWriter, r *http.Request) erro
 	hasSession := true
 
 	ctx := r.Context()
-	player, _, err := api.authenticator.GetSessionPlayer(ctx, r)
+	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		hasSession = false
 	} else if err != nil {
@@ -786,18 +711,12 @@ func (api *API) HandleGetGameChats(w http.ResponseWriter, r *http.Request) error
 	return nil
 }
 
-type GetReplayQuery struct {
-	ReplayID  int64
-	GameID    string
-	HasGameID bool
-}
-
 type GetReplayResp struct {
 	Replay svc.FullReplayDTO `json:"replay"`
 }
 
 func (api *API) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
-	query, err := api.transformReplayQuery(r.URL.Query())
+	query, err := transformReplayQuery(r.URL.Query())
 	if err != nil {
 		return err
 	}
@@ -821,31 +740,12 @@ func (api *API) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-type GetReplaysArg struct {
-	UserID  int
-	AfterID int
-}
-
-func (api *API) getReplaysQuery(q url.Values) (GetReplaysArg, error) {
-	var respErr ResponseError
-	userID, err := strconv.Atoi(q.Get("userId"))
-	if err != nil {
-		respErr.Put("userId", ErrHttpInvalidID)
-	}
-	afterID, err := strconv.Atoi(q.Get("afterId"))
-	if err != nil {
-		respErr.Put("afterId", ErrHttpInvalidID)
-	}
-	args := GetReplaysArg{UserID: userID, AfterID: afterID}
-	return args, respErr.AsError()
-}
-
 type GetUserReplaysResp struct {
 	ReplayList []svc.FullReplayDTO `json:"replayList"`
 }
 
 func (api *API) HandleGetUserReplays(w http.ResponseWriter, r *http.Request) error {
-	query, err := api.getReplaysQuery(r.URL.Query())
+	query, err := transformReplaysQuery(r.URL.Query())
 	if err != nil {
 		return err
 	}
@@ -860,11 +760,6 @@ func (api *API) HandleGetUserReplays(w http.ResponseWriter, r *http.Request) err
 	return nil
 }
 
-type EloHistoriesQuery struct {
-	UserID int
-	Months uint
-}
-
 type EloHistoriesResp struct {
 	Buckets svc.EloHistoryBuckets `json:"buckets"`
 }
@@ -872,7 +767,7 @@ type EloHistoriesResp struct {
 var GetEloHistoriesCacheControl = fmt.Sprintf("public, max-age=%f", svc.ShortBucketDuration.Seconds())
 
 func (api *API) HandleGetEloHistories(w http.ResponseWriter, r *http.Request) error {
-	query, err := api.transformEloHistoriesQuery(r.URL.Query())
+	query, err := transformEloHistoriesQuery(r.URL.Query())
 	if err != nil {
 		return err
 	}
@@ -908,22 +803,203 @@ func (api *API) HandleGetMoveReplay(w http.ResponseWriter, r *http.Request) erro
 	return nil
 }
 
+type CreateTournamentBody struct {
+	Name      string        `json:"name"`
+	Mode      string        `json:"mode"`
+	Ruleset   string        `json:"ruleset"`
+	Rounds    int32         `json:"rounds"`
+	Countdown time.Duration `json:"duration"`
+}
+
+type CreateTournamentResp struct {
+	TournamentKey string `json:"tournamentKey"`
+}
+
 func (api *API) HandleCreateTournament(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	player, err := api.authenticator.GetSessionPlayer(ctx, r)
+	if err != nil {
+		return fmt.Errorf("get session player: %w", err)
+	}
+
+	// read body after headers are authorized
+	body, err := transformJSON(r, transformCreateTournament)
+	if err != nil {
+		return err
+	}
+
+	tournamentKey := uuid.New()
+	tournamentID, err := api.services.CreateTournamentTx(ctx, svc.TournamentInst{
+		Key:       tournamentKey,
+		Name:      body.Name,
+		Rounds:    body.Rounds,
+		Mode:      body.Mode,
+		Ruleset:   body.Ruleset,
+		Countdown: body.Countdown,
+		CreatedOn: api.entropy.GetNow(),
+		CreatedBy: player.ID,
+	})
+	if errors.Is(err, svc.ErrInvalidRounds) {
+		return ErrHttpInvalidRounds
+	} else if err != nil {
+		return fmt.Errorf("insert tournament: %w", err)
+	}
+
+	slog.InfoContext(ctx, "created tournament", "tournamentID", tournamentID, "tournamentKey", tournamentKey)
+
+	writeJSON(w, http.StatusCreated, CreateTournamentResp{TournamentKey: tournamentKey.String()})
 	return nil
 }
 
+type TournamentKeyBody struct {
+	TournamentKey string `json:"tournamentKey"`
+}
+
 func (api *API) HandleJoinTournament(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	player, err := api.authenticator.GetSessionPlayer(ctx, r)
+	if err != nil {
+		return fmt.Errorf("get session player: %w", err)
+	}
+
+	// read body after headers are authorized
+	body, err := transformJSON(r, transformTournamentKey)
+	if err != nil {
+		return err
+	}
+
+	tournament, err := api.services.JoinTournamentTx(ctx, svc.JoinTournamentInst{
+		TournamentKey: body.TournamentKey,
+		JoiningUserID: player.ID,
+		InsertionTime: api.entropy.GetNow(),
+	})
+	switch {
+	case errors.Is(err, svc.ErrTournamentNotFound):
+		return ErrHttpNotFoundTournament
+	case errors.Is(err, svc.ErrTooManyParticipants):
+		return ErrHttpTooManyParticipants
+	case errors.Is(err, svc.ErrTournamentNotLobby):
+		return ErrHttpTournamentNotLobby
+	case err != nil:
+		return fmt.Errorf("join tournament by tournament id %s: %w", body.TournamentKey, err)
+	}
+
+	slog.InfoContext(ctx, "participant joined tournament", "joiningID", player.ID, "tournamentKey", body.TournamentKey)
+
+	go func() {
+		detatchedCtx := context.WithoutCancel(ctx)
+
+		err := api.services.BroadcastTournamentParticipant(ctx, tournament.TournamentKey, player.ID, tournament.Mode)
+		if err != nil {
+			slog.ErrorContext(detatchedCtx, "failed to broadcast tournament participant", "err", err)
+		}
+	}()
+
+	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
 }
 
 func (api *API) HandleBeginCountdownTournament(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	player, err := api.authenticator.GetSessionPlayer(ctx, r)
+	if err != nil {
+		return fmt.Errorf("get session player: %w", err)
+	}
+
+	// read body after headers are authorized
+	body, err := transformJSON(r, transformTournamentKey)
+	if err != nil {
+		return err
+	}
+
+	result, err := api.services.BeginTournamentCountdownTx(ctx, body.TournamentKey, player.ID)
+	switch {
+	case errors.Is(err, svc.ErrInvalidCountdownTournamentStatus):
+		return ErrHttpInvalidCountdownState
+	case errors.Is(err, svc.ErrTournamentCountdownPermissions):
+		return ErrHttpCountdownPermissions
+	case err != nil:
+		return fmt.Errorf("begin tournament countdown by tournament id %s: %w", body.TournamentKey, err)
+	}
+
+	slog.InfoContext(ctx, "successfully started countdown for tournament", "tournamentKey", body.TournamentKey)
+
+	go func() {
+		detatchedCtx := context.WithoutCancel(ctx)
+
+		err := api.services.BroadcastStartTournamentCountdown(ctx, result.TournamentKey, result.CountdownMs)
+		if err != nil {
+			slog.ErrorContext(detatchedCtx, "failed to broadcast tournament participant", "err", err)
+		}
+	}()
+
+	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
+}
+
+type GetTournamentResp struct {
+	svc.FullTournamentDTO
 }
 
 func (api *API) HandleGetTournament(w http.ResponseWriter, r *http.Request) error {
+	tournamentKey, err := uuid.Parse(r.URL.Query().Get("tournamentKey"))
+	if err != nil {
+		return OneRespError("tournamentKey", ErrHttpInvalidID)
+	}
+
+	ctx := r.Context()
+	tournament, err := api.services.GetFullTournamentByKey(ctx, tournamentKey)
+	if err != nil {
+		return fmt.Errorf("get tournament by key: %w", err)
+	}
+
+	slog.Info("retrieved full tournament", "tournament", tournament)
+
+	writeJSON(w, http.StatusOK, GetTournamentResp{FullTournamentDTO: tournament})
 	return nil
 }
 
+type GetTournamentsResp struct {
+	Tournaments []svc.TournamentDTO `json:"tournaments"`
+}
+
 func (api *API) HandleGetTournaments(w http.ResponseWriter, r *http.Request) error {
+	query, err := transformTournamentsQuery(r.URL.Query())
+	if err != nil {
+		return err
+	}
+
+	ctx := r.Context()
+	tournaments, err := api.services.GetTournaments(ctx, int64(query.UserID), int64(query.AfterID), perPage)
+	if err != nil {
+		return fmt.Errorf("get tournaments: %w", err)
+	}
+
+	slog.Info("retrieved tournaments", "tournaments", tournaments)
+
+	writeJSON(w, http.StatusOK, GetTournamentsResp{Tournaments: tournaments})
+	return nil
+}
+
+func (api *API) HandleLeaveTournament(w http.ResponseWriter, r *http.Request) error {
+	tournamentKey, err := uuid.Parse(r.URL.Query().Get("tournamentKey"))
+	if err != nil {
+		return OneRespError("tournamentKey", ErrHttpInvalidID)
+	}
+
+	ctx := r.Context()
+	player, err := api.authenticator.GetSessionPlayer(ctx, r)
+	if err != nil {
+		return fmt.Errorf("get session player: %w", err)
+	}
+
+	didLeave, err := api.services.LeaveTournament(ctx, tournamentKey, player.ID); 
+	if err != nil {
+		return fmt.Errorf("leave tournament: %w", err)
+	}
+
+	slog.Info("attempte to leave tournament", "didLeave", didLeave, "tournamentKey", tournamentKey, "player", player)
+
+	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
 }

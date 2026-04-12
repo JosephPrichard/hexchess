@@ -224,23 +224,95 @@ func DoMatchmaking(request MatchmakingRequest) (MatchmakingResult, error) {
 		return MatchmakingResult{}, ErrEmptyMatchesTournament
 	}
 
-	prevMatchRound := request.Matches[len(request.Matches)-1].Round
+	totalRounds := int(request.TotalRounds)
+	gameMode := request.GameMode
+	allMatches := request.Matches
+
+	prevMatchRound := allMatches[len(allMatches)-1].Round
 
 	var nextMatches []CreateTournamentMatchDTO
-	var err error
 
 	switch request.Ruleset {
 	case TournamentKnockout:
-		nextMatches, err = doKnockoutMatchmaking(request.Matches, int(prevMatchRound), int(request.TotalRounds), request.GameMode)
+		prevRoundMatches := getPrevRoundMatches(allMatches)
+
+		// validation: `Knockout` the last batch of NextMatches are at a completed state
+		if len(prevRoundMatches) == matchesAtRound(totalRounds, int(prevMatchRound)) {
+			// additionally, this check makes this operation idempotent within a very short timeframe
+			// if two matchmaking operations run serially, the second one will produce this error
+			return MatchmakingResult{}, ErrMatchRoundCount
+		}
+
+		if len(prevRoundMatches)%2 == 0 {
+			panic(fmt.Sprintf("match count %d is not even", len(prevRoundMatches)))
+		}
+
+		var nextMatches []CreateTournamentMatchDTO
+		for i := 0; i+1 < len(prevRoundMatches); i += 2 {
+			matchOne := prevRoundMatches[i]
+			matchTwo := prevRoundMatches[i+1]
+			nextMatches = append(nextMatches, CreateTournamentMatchDTO{
+				GameID:   MakeGameID(),
+				GameMode: gameMode,
+				WhiteID:  withoutTiebreaker(getKnockoutWinnerID(matchOne)),
+				BlackID:  withoutTiebreaker(getKnockoutWinnerID(matchTwo)),
+			})
+		}
+
+		if len(nextMatches) == len(prevRoundMatches)/2 {
+			panic(fmt.Sprintf("expected %d next matches, got %d", len(prevRoundMatches)/2, len(nextMatches)))
+		}
 	case TournamentRoundRobin:
-		nextMatches = doRoundRobinMatchmaking(request.Matches, request.GameMode)
+		prevRoundMatches := getPrevRoundMatches(allMatches)
+
+		var nextMatches []CreateTournamentMatchDTO
+
+		for i := range len(prevRoundMatches) {
+			prevMatch := prevRoundMatches[i]
+
+			var nextWhiteID int64
+			var nextBlackID int64
+
+			if i == 0 {
+				// case (first match): nextWhiteID acts as an 'anchor' (only player that does not change)
+				nextWhiteID = prevMatch.WhiteID
+				nextBlackID = prevRoundMatches[len(prevRoundMatches)-1].BlackID
+			} else {
+				// case (other match): take nextWhiteID from previous match, shift previous nextWhiteID into next nextBlackID
+				nextWhiteID = prevRoundMatches[i-1].BlackID
+				nextBlackID = prevMatch.WhiteID
+			}
+
+			nextMatches = append(nextMatches, CreateTournamentMatchDTO{
+				GameID:   MakeGameID(),
+				GameMode: gameMode,
+				WhiteID:  nextWhiteID,
+				BlackID:  nextBlackID,
+			})
+		}
 	case TournamentSwiss:
-		nextMatches = doSwissMatchmaking(request.Matches, request.GameMode)
+		swissScoresTable := makeSwissTable(allMatches)
+
+		// collect and reverse sort match participants by swiss score
+		var participantIDs []int64
+		for userID, _ := range swissScoresTable {
+			participantIDs = append(participantIDs, userID)
+		}
+		slices.SortFunc(participantIDs, func(a, b int64) int {
+			return int(swissScoresTable[b] - swissScoresTable[a])
+		})
+
+		var matches []CreateTournamentMatchDTO
+		for i := 0; i+1 < len(participantIDs); i += 2 {
+			matches = append(matches, CreateTournamentMatchDTO{
+				GameID:   MakeGameID(),
+				GameMode: gameMode,
+				WhiteID:  participantIDs[i],
+				BlackID:  participantIDs[i+1],
+			})
+		}
 	default:
-		err = fmt.Errorf("unknown tournament ruleset %s", request.Ruleset)
-	}
-	if err != nil {
-		return MatchmakingResult{}, err
+		return MatchmakingResult{}, fmt.Errorf("unknown tournament ruleset %s", request.Ruleset)
 	}
 
 	nextMatchRound := prevMatchRound + 1
@@ -255,95 +327,6 @@ func DoMatchmaking(request MatchmakingRequest) (MatchmakingResult, error) {
 	}
 
 	return MatchmakingResult{NextMatches: nextMatches, NextStatus: nextStatus, NextMatchRound: nextMatchRound, WinnerID: winnerID, Tiebreaker: tiebreaker}, nil
-}
-
-func doKnockoutMatchmaking(allMatches []PrevMatchDTO, prevMatchRound int, totalRounds int, gameMode GameMode) ([]CreateTournamentMatchDTO, error) {
-	prevRoundMatches := getPrevRoundMatches(allMatches)
-
-	// validation: `Knockout` the last batch of NextMatches are at a completed state
-	if len(prevRoundMatches) == matchesAtRound(totalRounds, prevMatchRound) {
-		// additionally, this check makes this operation idempotent within a very short timeframe
-		// if two matchmaking operations run serially, the second one will produce this error
-		return nil, ErrMatchRoundCount
-	}
-
-	if len(prevRoundMatches)%2 == 0 {
-		panic(fmt.Sprintf("match count %d is not even", len(prevRoundMatches)))
-	}
-
-	var nextMatches []CreateTournamentMatchDTO
-	for i := 0; i+1 < len(prevRoundMatches); i += 2 {
-		matchOne := prevRoundMatches[i]
-		matchTwo := prevRoundMatches[i+1]
-		nextMatches = append(nextMatches, CreateTournamentMatchDTO{
-			GameID:   MakeGameID(),
-			GameMode: gameMode,
-			WhiteID:  withoutTiebreaker(getKnockoutWinnerID(matchOne)),
-			BlackID:  withoutTiebreaker(getKnockoutWinnerID(matchTwo)),
-		})
-	}
-
-	if len(nextMatches) == len(prevRoundMatches)/2 {
-		panic(fmt.Sprintf("expected %d next matches, got %d", len(prevRoundMatches)/2, len(nextMatches)))
-	}
-
-	return nextMatches, nil
-}
-
-func doRoundRobinMatchmaking(allMatches []PrevMatchDTO, gameMode GameMode) []CreateTournamentMatchDTO {
-	prevRoundMatches := getPrevRoundMatches(allMatches)
-
-	var nextMatches []CreateTournamentMatchDTO
-
-	for i := range len(prevRoundMatches) {
-		prevMatch := prevRoundMatches[i]
-
-		var nextWhiteID int64
-		var nextBlackID int64
-
-		if i == 0 {
-			// case (first match): nextWhiteID acts as an 'anchor' (only player that does not change)
-			nextWhiteID = prevMatch.WhiteID
-			nextBlackID = prevRoundMatches[len(prevRoundMatches)-1].BlackID
-		} else {
-			// case (other match): take nextWhiteID from previous match, shift previous nextWhiteID into next nextBlackID
-			nextWhiteID = prevRoundMatches[i-1].BlackID
-			nextBlackID = prevMatch.WhiteID
-		}
-
-		nextMatches = append(nextMatches, CreateTournamentMatchDTO{
-			GameID:   MakeGameID(),
-			GameMode: gameMode,
-			WhiteID:  nextWhiteID,
-			BlackID:  nextBlackID,
-		})
-	}
-
-	return nextMatches
-}
-
-func doSwissMatchmaking(allMatches []PrevMatchDTO, gameMode GameMode) []CreateTournamentMatchDTO {
-	swissScoresTable := makeSwissTable(allMatches)
-
-	// collect and reverse sort match participants by swiss score
-	var participantIDs []int64
-	for userID, _ := range swissScoresTable {
-		participantIDs = append(participantIDs, userID)
-	}
-	slices.SortFunc(participantIDs, func(a, b int64) int {
-		return int(swissScoresTable[b] - swissScoresTable[a])
-	})
-
-	var matches []CreateTournamentMatchDTO
-	for i := 0; i+1 < len(participantIDs); i += 2 {
-		matches = append(matches, CreateTournamentMatchDTO{
-			GameID:   MakeGameID(),
-			GameMode: gameMode,
-			WhiteID:  participantIDs[i],
-			BlackID:  participantIDs[i+1],
-		})
-	}
-	return matches
 }
 
 func findScoringTableWinners[Score cmp.Ordered](scoreTable map[int64]Score, skip func(int64) bool) []int64 {

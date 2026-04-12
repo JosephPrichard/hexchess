@@ -68,7 +68,7 @@ func (svc *HexchessServices) UpdateSessionEx(ctx context.Context, sessionID stri
 func (svc *HexchessServices) DeleteSession(ctx context.Context, sessionID string) error {
 	sessionKey := makeSessionKey(sessionID)
 	if err := svc.redis.Cache.Del(ctx, sessionKey).Err(); err != nil {
-		return fmt.Errorf("delete session=%s: %w", sessionID, err)
+		return fmt.Errorf("delete session %s: %w", sessionID, err)
 	}
 	slog.InfoContext(ctx, "deleted session", "sessionID", sessionID)
 	return nil

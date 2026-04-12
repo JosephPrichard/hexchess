@@ -15,11 +15,11 @@ const (
 )
 
 var tournamentStatusEntries = []enum.Entry[TournamentStatus]{
-	{TournamentLobby, "LOBBY"},
-	{TournamentScheduled, "SCHEDULED"},
-	{TournamentInProgress, "IN_PROGRESS"},
-	{TournamentFinished, "FINISHED"},
-	{TournamentCancelled, "CANCELLED"},
+	{Enum: TournamentLobby, String: "LOBBY"},
+	{Enum: TournamentScheduled, String: "SCHEDULED"},
+	{Enum: TournamentInProgress, String: "IN_PROGRESS"},
+	{Enum: TournamentFinished, String: "FINISHED"},
+	{Enum: TournamentCancelled, String: "CANCELLED"},
 }
 
 var TournamentStatusEnums = enum.BuildReverseMap(tournamentStatusEntries)

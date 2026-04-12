@@ -259,12 +259,6 @@ message GameOutput {
 
 // tournament ws api
 
-message ParticipantOutput {
-  LbdUser participant = 1;
-}
-
-message BeginCountdownOutput {}
-
 message MatchmakingOutput {
   repeated TournamentMatch matches = 1;
 }
@@ -277,8 +271,8 @@ message TournamentOutput {
   string tournament_key = 1;
   oneof value {
     ErrorOutput error = 2;
-    ParticipantOutput participant = 3;
-    BeginCountdownOutput countdown = 4;
+    LbdUser participant = 3;
+    int32 countdown = 4;
     MatchmakingOutput matchmaking = 5;
   }
 }

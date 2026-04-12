@@ -6,11 +6,12 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/v5"
 	"hexchess-svc/util/enum"
 	"log/slog"
 	"math"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
@@ -76,7 +77,7 @@ func (svc *HexchessServices) InsertUser(ctx context.Context, inst UserInst) (Use
 		return UserDTO{}, fmt.Errorf("generate hash: %w", err)
 	}
 
-	row, err := svc.querier.InsertUser(ctx, sqlc.InsertUserParams{
+	userRow, err := svc.querier.InsertUser(ctx, sqlc.InsertUserParams{
 		Username: inst.Username,
 		Country:  inst.Country,
 		Password: hash.HashedPassword,
@@ -91,7 +92,7 @@ func (svc *HexchessServices) InsertUser(ctx context.Context, inst UserInst) (Use
 		return UserDTO{}, fmt.Errorf("insert user to db: %w", err)
 	}
 
-	user := UserDTO{ID: row.ID, Username: row.Username, Country: row.Country, Bio: row.Bio, JoinedOn: row.JoinedOn.Time}
+	user := UserDTO{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
 	slog.InfoContext(ctx, "created a new user", "user", user)
 	return user, nil
 }
@@ -126,17 +127,23 @@ func (svc *HexchessServices) BatchInsertUsers(ctx context.Context, insts []UserI
 	}
 
 	var users []UserDTO
-	var queryErrs []error
+	var insertErrs []error
 
 	svc.querier.BatchInsertUser(ctx, batches).QueryRow(func(i int, row sqlc.BatchInsertUserRow, err error) {
 		if err == nil {
-			users = append(users, UserDTO{ID: row.ID, Username: row.Username, Country: row.Country, Bio: row.Bio, JoinedOn: row.JoinedOn.Time})
+			users = append(users, UserDTO{
+				ID:       row.ID,
+				Username: row.Username,
+				Country:  row.Country,
+				Bio:      row.Bio,
+				JoinedOn: row.JoinedOn.Time,
+			})
 		} else {
-			queryErrs = append(queryErrs, err)
+			insertErrs = append(insertErrs, err)
 		}
 	})
 
-	err := errors.Join(queryErrs...)
+	err := errors.Join(insertErrs...)
 
 	logutil.DynLog(ctx, "batch inserted user", err, "insts", insts, "users", users)
 	return users, err
@@ -236,7 +243,7 @@ func (svc *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, googl
 	}
 
 	if !isCreated {
-		row, err := svc.querier.InsertUser(ctx, sqlc.InsertUserParams{
+		userRow, err := svc.querier.InsertUser(ctx, sqlc.InsertUserParams{
 			Username:        googleInst.Username,
 			Country:         googleInst.Country,
 			JoinedOn:        pgtype.Timestamptz{Time: googleInst.JoinedOn, Valid: true},
@@ -246,9 +253,9 @@ func (svc *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, googl
 			return verifiedUser, fmt.Errorf("insert google user=%s: %w", googleAccountID, err)
 		}
 		verifiedUser = VerifiedUserDTO{
-			ID:       row.ID,
-			Username: row.Username,
-			Country:  row.Country,
+			ID:       userRow.ID,
+			Username: userRow.Username,
+			Country:  userRow.Country,
 		}
 		slog.InfoContext(ctx, "inserted a google user account", "inst", googleInst, "googleAccountID", googleAccountID)
 	} else {
@@ -278,7 +285,7 @@ func (svc *HexchessServices) UpdateUser(ctx context.Context, id int64, updt Updt
 		return UserDTO{}, nil
 	}
 
-	row, err := svc.querier.UpdateUser(ctx, sqlc.UpdateUserParams{
+	userRow, err := svc.querier.UpdateUser(ctx, sqlc.UpdateUserParams{
 		ID:       id,
 		Username: pgtype.Text{Valid: updt.Username != "", String: updt.Username},
 		Bio:      pgtype.Text{Valid: updt.Bio != "", String: updt.Bio},
@@ -288,7 +295,7 @@ func (svc *HexchessServices) UpdateUser(ctx context.Context, id int64, updt Updt
 		return UserDTO{}, fmt.Errorf("update user %d: %w", id, err)
 	}
 
-	user := UserDTO{ID: row.ID, Username: row.Username, Country: row.Country, Bio: row.Bio, JoinedOn: row.JoinedOn.Time}
+	user := UserDTO{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
 	slog.InfoContext(ctx, "updated user", "user", user)
 	return user, err
 }
@@ -308,14 +315,14 @@ func (svc *HexchessServices) UpdateUserPassword(ctx context.Context, id int64, n
 }
 
 func (svc *HexchessServices) GetUserByID(ctx context.Context, id int64) (UserDTO, error) {
-	row, err := svc.querier.SelectUserByID(ctx, id)
+	userRow, err := svc.querier.SelectUserByID(ctx, id)
 	if err != nil {
 		if IsErrNoRows(err) {
 			return UserDTO{}, ErrUserNotFound
 		}
 		return UserDTO{}, fmt.Errorf("select user %d: %w", id, err)
 	}
-	user := UserDTO{ID: row.ID, Username: row.Username, Country: row.Country, Bio: row.Bio, JoinedOn: row.JoinedOn.Time}
+	user := UserDTO{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
 	slog.InfoContext(ctx, "selected user", "id", id, "user", user)
 	return user, nil
 }
@@ -386,6 +393,59 @@ func (svc *HexchessServices) GetUserStats(ctx context.Context, id int64) (UserSt
 
 	slog.InfoContext(ctx, "selected user elos", "stats", stats)
 	return stats, nil
+}
+
+type FullUserDTO struct {
+	User       UserDTO         `json:"user"`
+	Stats      UserStatsDTO    `json:"stats"`
+	ReplayList []FullReplayDTO `json:"replayList"`
+}
+
+func (svc *HexchessServices) GetFullUser(ctx context.Context, userID int64, perPage int32, withReplays bool) (FullUserDTO, error) {
+	var user UserDTO
+	var stats UserStatsDTO
+	var replayList []FullReplayDTO
+	var lbRanks map[string]LbRank
+
+	eg, egCtx := errgroup.WithContext(ctx)
+
+	eg.Go(func() (err error) {
+		user, err = svc.GetUserByID(egCtx, userID)
+		return
+	})
+	eg.Go(func() (err error) {
+		stats, err = svc.GetUserStats(egCtx, userID)
+		return
+	})
+	eg.Go(func() (err error) {
+		lbRanks, err = svc.GetUserLeaderboardRanks(egCtx, userID, GameModeEnums)
+		return
+	})
+	if withReplays {
+		eg.Go(func() (err error) {
+			replayList, err = svc.GetUserReplays(egCtx, userID, -1, perPage)
+			return
+		})
+	}
+
+	if err := eg.Wait(); err != nil {
+		return FullUserDTO{}, err
+	}
+
+	for i := range stats.ModeStats {
+		modeStats := &stats.ModeStats[i]
+		lbRank, ok := lbRanks[modeStats.Mode.String()]
+		if !ok {
+			slog.WarnContext(ctx, "missing leaderboard rank for full user", "mode", modeStats.Mode)
+			continue
+		}
+		modeStats.Rank = lbRank.Rank
+	}
+
+	if replayList == nil {
+		replayList = []FullReplayDTO{}
+	}
+	return FullUserDTO{User: user, Stats: stats, ReplayList: replayList}, nil
 }
 
 type HashResult struct {

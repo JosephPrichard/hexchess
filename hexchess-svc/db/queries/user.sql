@@ -77,6 +77,23 @@ FROM users u
         ON u.id = e.user_id AND e.mode = sqlc.arg('mode')
 WHERE id = ANY(sqlc.arg('ids')::bigint[]);
 
+-- name: SelectUserWithEloByID :one
+SELECT
+    u.id,
+    u.username,
+    u.country,
+    u.bio,
+    u.joined_on,
+    e.elo,
+    e.highest_elo,
+    e.wins,
+    e.losses,
+    e.draws
+FROM users u
+    LEFT JOIN user_mode_elos e
+        ON u.id = e.user_id AND e.mode = sqlc.arg('mode')
+WHERE id = sqlc.arg('id');
+
 -- name: SelectExistsUsersByIDs :many
 SELECT id FROM users WHERE id = ANY (sqlc.arg('ids')::bigint[]);
 

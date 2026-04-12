@@ -18,12 +18,12 @@ const (
 )
 
 var gameModeEntries = []enum.Entry[GameMode]{
-	{ModeCorrespondence1, "CORRESPONDENCE_1"},
-	{ModeCorrespondence7, "CORRESPONDENCE_7"},
-	{ModeCorrespondence14, "CORRESPONDENCE_14"},
-	{ModeTimed1Plus0, "TIMED_1+0"},
-	{ModeTimed3Plus2, "TIMED_3+2"},
-	{ModeTimed15Plus10, "TIMED_15+10"},
+	{Enum: ModeCorrespondence1, String: "CORRESPONDENCE_1"},
+	{Enum: ModeCorrespondence7, String: "CORRESPONDENCE_7"},
+	{Enum: ModeCorrespondence14, String: "CORRESPONDENCE_14"},
+	{Enum: ModeTimed1Plus0, String: "TIMED_1+0"},
+	{Enum: ModeTimed3Plus2, String: "TIMED_3+2"},
+	{Enum: ModeTimed15Plus10, String: "TIMED_15+10"},
 }
 
 var GameModeEnums = enum.BuildReverseMap(gameModeEntries)

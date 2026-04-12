@@ -11,9 +11,9 @@ const (
 )
 
 var replayResultEntries = []enum.Entry[ReplayResult]{
-	{WhiteWin, "WHITE_WINS"},
-	{BlackWin, "BLACK_WINS"},
-	{Draw, "DRAW"},
+	{Enum: WhiteWin, String: "WHITE_WINS"},
+	{Enum: BlackWin, String: "BLACK_WINS"},
+	{Enum: Draw, String: "DRAW"},
 }
 
 var ReplayResultEnums = enum.BuildReverseMap(replayResultEntries)

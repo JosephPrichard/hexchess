@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"hexchess-svc/util/enum"
 	"time"
+
+	"github.com/google/uuid"
 
 	"google.golang.org/protobuf/proto"
 
@@ -337,6 +338,71 @@ func SerializeReplayOutput(gameID string, replay FullReplayDTO) *pb.GameOutput {
 	}
 }
 
+// TournamentOutput
+
+func SerializeParticipantOutput(tournamentKey uuid.UUID, lbdUser LbdUserDTO) *pb.TournamentOutput {
+	return &pb.TournamentOutput{
+		TournamentKey: tournamentKey.String(),
+		Value: &pb.TournamentOutput_Participant{
+			Participant: SerializeLbdUser(lbdUser),
+		},
+	}
+}
+
+func SerializeStartTournamentCountdown(tournamentKey uuid.UUID, countdownMs int32) *pb.TournamentOutput {
+	return &pb.TournamentOutput{
+		TournamentKey: tournamentKey.String(),
+		Value: &pb.TournamentOutput_Countdown{
+			Countdown: countdownMs,
+		},
+	}
+}
+
+func DeserializeParticipantOutput(pbParticipant *pb.TournamentOutput_Participant) (LbdUserDTO, error) {
+	if pbParticipant == nil || pbParticipant.Participant == nil {
+		return LbdUserDTO{}, nil
+	}
+	return DeserializeLbdUser(pbParticipant.Participant)
+}
+
+func DeserializeBeginCountdown(pbCountdown *pb.TournamentOutput_Countdown) BeginTourneyCountdown {
+	if pbCountdown == nil {
+		return BeginTourneyCountdown{}
+	}
+	return BeginTourneyCountdown{CountdownMs: pbCountdown.Countdown}
+}
+
+func DeserializeMatchmakingOutput(pbMatchmaking *pb.TournamentOutput_Matchmaking) ([]MatchDTO, error) {
+	if pbMatchmaking == nil || pbMatchmaking.Matchmaking == nil {
+		return nil, nil
+	}
+	return DeserializeTournamentMatches(pbMatchmaking.Matchmaking.Matches)
+}
+
+func MarshalTournamentOutputJson(pbOutput *pb.TournamentOutput) ([]byte, error) {
+	if pbOutput == nil {
+		return []byte{}, nil
+	}
+
+	var jsonObject any
+	var err error
+
+	switch pbOutputValue := pbOutput.Value.(type) {
+	case *pb.TournamentOutput_Participant:
+		jsonObject, err = DeserializeParticipantOutput(pbOutputValue)
+	case *pb.TournamentOutput_Countdown:
+		jsonObject = DeserializeBeginCountdown(pbOutputValue)
+	case *pb.TournamentOutput_Matchmaking:
+		jsonObject, err = DeserializeMatchmakingOutput(pbOutputValue)
+	case *pb.TournamentOutput_Error:
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(jsonObject)
+}
+
 // LbdUser
 
 func SerializeLbdUser(user LbdUserDTO) *pb.LbdUser {
@@ -382,34 +448,48 @@ func DeserializeLbdUser(user *pb.LbdUser) (LbdUserDTO, error) {
 
 // TournamentMatch
 
-func SerializeTournamentMatch(match MatchDTO) *pb.TournamentMatch {
-	return &pb.TournamentMatch{
-		TournamentKey: match.TournamentKey.String(),
-		GameId:        match.GameID,
-		WhiteId:       match.WhiteID,
-		BlackId:       match.BlackID,
-		Round:         int64(match.Round),
-		CreatedOn:     match.CreatedOn.Format(time.RFC3339),
+func SerializeTournamentMatches(matches []MatchDTO) []*pb.TournamentMatch {
+	var pbMatches []*pb.TournamentMatch
+
+	for _, match := range matches {
+		pbMatches = append(pbMatches, &pb.TournamentMatch{
+			TournamentKey: match.TournamentKey.String(),
+			GameId:        match.GameID,
+			WhiteId:       match.WhiteID,
+			BlackId:       match.BlackID,
+			Round:         int64(match.Round),
+			CreatedOn:     match.CreatedOn.Format(time.RFC3339),
+		})
 	}
+
+	return pbMatches
 }
 
-func DeserializeTournamentMatch(match *pb.TournamentMatch) (MatchDTO, error) {
-	tournamentKey, err := uuid.Parse(match.TournamentKey)
-	if err != nil {
-		return MatchDTO{}, fmt.Errorf("invalid TournamentKey: %w", err)
+func DeserializeTournamentMatches(pbMatches []*pb.TournamentMatch) ([]MatchDTO, error) {
+	var matches []MatchDTO
+
+	var serdeErrs []error
+
+	for i, pbMatch := range pbMatches {
+		tournamentKey, err := uuid.Parse(pbMatch.TournamentKey)
+		if err != nil {
+			serdeErrs = append(serdeErrs, fmt.Errorf("match %d: invalid tournament key: %w", i, err))
+			continue
+		}
+		createdOn, err := time.Parse(time.RFC3339, pbMatch.CreatedOn)
+		if err != nil {
+			serdeErrs = append(serdeErrs, fmt.Errorf("match %d: parse created on: %w", i, err))
+			continue
+		}
+		matches = append(matches, MatchDTO{
+			TournamentKey: tournamentKey,
+			GameID:        pbMatch.GameId,
+			WhiteID:       pbMatch.WhiteId,
+			BlackID:       pbMatch.BlackId,
+			Round:         int32(pbMatch.Round),
+			CreatedOn:     createdOn,
+		})
 	}
 
-	createdOn, err := time.Parse(time.RFC3339, match.CreatedOn)
-	if err != nil {
-		return MatchDTO{}, err
-	}
-
-	return MatchDTO{
-		TournamentKey: tournamentKey,
-		GameID:        match.GameId,
-		WhiteID:       match.WhiteId,
-		BlackID:       match.BlackId,
-		Round:         int32(match.Round),
-		CreatedOn:     createdOn,
-	}, nil
+	return matches, errors.Join(serdeErrs...)
 }

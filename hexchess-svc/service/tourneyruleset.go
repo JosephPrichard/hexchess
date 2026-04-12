@@ -13,9 +13,9 @@ const (
 )
 
 var tournamentRulesetEntries = []enum.Entry[TournamentRuleset]{
-	{TournamentKnockout, "KNOCKOUT"},
-	{TournamentRoundRobin, "ROUND_ROBIN"},
-	{TournamentSwiss, "SWISS"},
+	{Enum: TournamentKnockout, String: "KNOCKOUT"},
+	{Enum: TournamentRoundRobin, String: "ROUND_ROBIN"},
+	{Enum: TournamentSwiss, String: "SWISS"},
 }
 
 var TournamentRulesetEnums = enum.BuildReverseMap(tournamentRulesetEntries)

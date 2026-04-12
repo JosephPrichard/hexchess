@@ -11,9 +11,9 @@ const (
 )
 
 var colorEntries = []enum.Entry[GameColor]{
-	{Random, "RANDOM"},
-	{White, "WHITE"},
-	{Black, "BLACK"},
+	{Enum: Random, String: "RANDOM"},
+	{Enum: White, String: "WHITE"},
+	{Enum: Black, String: "BLACK"},
 }
 
 var GameColorEnums = enum.BuildReverseMap(colorEntries)

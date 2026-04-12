@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"hexchess-svc/service"
+	svc "hexchess-svc/service"
 )
 
 func SSE(h func(w SSEWriter, r *http.Request) error) http.HandlerFunc {
@@ -77,6 +77,7 @@ const (
 	UserChallengeEvent = "userEvents"
 	GamesCountEvent    = "gameCountEvents"
 	ActiveCountEvent   = "activeCountEvents"
+	TournamentEvent    = "tournamentEvent"
 	// SSEChanBufCap start dropping messages after an SSE connection is lagging behind by this many messages
 	SSEChanBufCap = 10
 )
@@ -109,11 +110,11 @@ func (api *API) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 RecvLoop:
 	for {
 		select {
-		case e, ok := <-countsChan: // RecvLoop contuines until we unsubscribe
+		case event, ok := <-countsChan: // RecvLoop contuines until we unsubscribe
 			if !ok {
 				break RecvLoop
 			}
-			w.writeUcEvent(e)
+			w.writeUcEvent(event)
 		case <-keepAliveTicker.C:
 			w.writeEvent(MetaEvent, "KeepAlive")
 		}
@@ -189,23 +190,23 @@ RecvLoop:
 func (api *API) HandleUserEvents(w SSEWriter, r *http.Request) error {
 	ctx := w.ctx
 
-	player, _, err := api.authenticator.GetSessionPlayer(ctx, r)
-	if err != nil {
-		if errors.Is(err, svc.ErrSessionNotFound) {
-			return ErrHttpSessionExpired
-		}
+	player, _, err := api.authenticator.GetSessionPlayerAndID(ctx, r)
+	if errors.Is(err, svc.ErrSessionNotFound) {
+		return ErrHttpSessionExpired
+	} else if err != nil {
 		return err
 	}
-	strID := strconv.Itoa(int(player.ID))
 
-	w.writeEvent(MetaEvent, strconv.FormatInt(player.ID, 10))
+	strUserID := strconv.Itoa(int(player.ID))
+
+	w.writeEvent(MetaEvent, strUserID)
 
 	usersChan := make(chan []byte, SSEChanBufCap)
-	api.broadcasters.UsersCaster.Subscribe(strID, usersChan)
+	api.broadcasters.UsersCaster.Subscribe(strUserID, usersChan)
 
 	go func() {
 		<-ctx.Done() // stop from the client, so stop the RecvLoop by unsubscribing
-		api.broadcasters.UsersCaster.Unsubscribe(strID, usersChan)
+		api.broadcasters.UsersCaster.Unsubscribe(strUserID, usersChan)
 		slog.InfoContext(ctx, "finishing handle user events sse")
 	}()
 
@@ -213,11 +214,42 @@ func (api *API) HandleUserEvents(w SSEWriter, r *http.Request) error {
 RecvLoop:
 	for {
 		select {
-		case m, ok := <-usersChan: // RecvLoop contuines until we unsubscribe
+		case message, ok := <-usersChan: // RecvLoop contuines until we unsubscribe
 			if !ok {
 				break RecvLoop
 			}
-			w.writeEvent(UserChallengeEvent, string(m))
+			w.writeEvent(UserChallengeEvent, string(message))
+		case <-keepAliveTicker.C:
+			w.writeEvent(MetaEvent, "KeepAlive")
+		}
+	}
+
+	return nil
+}
+
+func (api *API) HandleTournamentEvents(w SSEWriter, r *http.Request) error {
+	ctx := w.ctx
+
+	tournamentKey := r.URL.Query().Get("tournamentKey")
+
+	tournamentChan := make(chan []byte, SSEChanBufCap)
+	api.broadcasters.TournamentCaster.Subscribe(tournamentKey, tournamentChan)
+
+	go func() {
+		<-ctx.Done() // stop from the client, so stop the RecvLoop by unsubscribing
+		api.broadcasters.TournamentCaster.Unsubscribe(tournamentKey, tournamentChan)
+		slog.InfoContext(ctx, "finishing handle tournament events sse")
+	}()
+
+	keepAliveTicker := time.NewTicker(time.Second * 15)
+RecvLoop:
+	for {
+		select {
+		case message, ok := <-tournamentChan: // RecvLoop contuines until we unsubscribe
+			if !ok {
+				break RecvLoop
+			}
+			w.writeEvent(TournamentEvent, string(message))
 		case <-keepAliveTicker.C:
 			w.writeEvent(MetaEvent, "KeepAlive")
 		}

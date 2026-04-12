@@ -135,22 +135,22 @@ type DeleteResult struct {
 }
 
 func (svc *HexchessServices) DeleteChallenge(ctx context.Context, key ChallengeKey) (DeleteResult, error) {
-	row, err := svc.querier.DeleteChallenge(ctx, sqlc.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	challengeRow, err := svc.querier.DeleteChallenge(ctx, sqlc.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	if IsErrNoRows(err) {
 		return DeleteResult{}, ErrChallengeNotFound
 	} else if err != nil {
 		return DeleteResult{}, fmt.Errorf("delete challenge %d: %w", key, err)
 	}
 
-	gameColor, colorErr := enum.Parse(row.StartColor, GameColorEnums)
-	gameMode, modeErr := enum.Parse(row.Mode, GameModeEnums)
+	gameColor, colorErr := enum.Parse(challengeRow.StartColor, GameColorEnums)
+	gameMode, modeErr := enum.Parse(challengeRow.Mode, GameModeEnums)
 	if err := errors.Join(colorErr, modeErr); err != nil {
 		return DeleteResult{}, err
 	}
 
 	delResult := DeleteResult{
-		ChallengerID: row.ChallengerID,
-		ChallengeeID: row.ChallengeeID,
+		ChallengerID: challengeRow.ChallengerID,
+		ChallengeeID: challengeRow.ChallengeeID,
 		Mode:         gameMode,
 		FirstColor:   gameColor,
 	}

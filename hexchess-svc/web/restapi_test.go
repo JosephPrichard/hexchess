@@ -4,10 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go.uber.org/mock/gomock"
-	"google.golang.org/api/idtoken"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/testing/protocmp"
 	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/egress"
@@ -20,8 +16,13 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/mock/gomock"
+	"google.golang.org/api/idtoken"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
+
 	"hexchess-svc/itest"
-	"hexchess-svc/service"
+	svc "hexchess-svc/service"
 	"hexchess-svc/util/logutil"
 	"hexchess-svc/util/testutil"
 
@@ -680,12 +681,14 @@ func TestGetPlayer(t *testing.T) {
 			id:          "1",
 			withReplays: true,
 			wantSuccess: GetPlayersResp{
-				User:  svc.TestUserDTOs[0],
-				Stats: svc.TestUserStats[0],
-				ReplayList: []svc.FullReplayDTO{
-					svc.TestReplayDTOs[2],
-					svc.TestReplayDTOs[1],
-					svc.TestReplayDTOs[0],
+				FullUserDTO: svc.FullUserDTO{
+					User:  svc.TestUserDTOs[0],
+					Stats: svc.TestUserStats[0],
+					ReplayList: []svc.FullReplayDTO{
+						svc.TestReplayDTOs[2],
+						svc.TestReplayDTOs[1],
+						svc.TestReplayDTOs[0],
+					},
 				},
 			},
 			wantStatus: http.StatusOK,
@@ -695,9 +698,11 @@ func TestGetPlayer(t *testing.T) {
 			id:          "1",
 			withReplays: false,
 			wantSuccess: GetPlayersResp{
-				User:       svc.TestUserDTOs[0],
-				Stats:      svc.TestUserStats[0],
-				ReplayList: []svc.FullReplayDTO{},
+				FullUserDTO: svc.FullUserDTO{
+					User:       svc.TestUserDTOs[0],
+					Stats:      svc.TestUserStats[0],
+					ReplayList: []svc.FullReplayDTO{},
+				},
 			},
 			wantStatus: http.StatusOK,
 		},

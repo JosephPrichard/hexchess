@@ -137,7 +137,7 @@ func (svc *HexchessServices) GetUserReplays(ctx context.Context, userID int64, a
 		afterID = int64(math.MaxInt64)
 	}
 
-	rows, err := svc.querier.SelectUserReplays(ctx, sqlc.SelectUserReplaysParams{
+	replayRows, err := svc.querier.SelectUserReplays(ctx, sqlc.SelectUserReplaysParams{
 		UserID:  pgtype.Int8{Int64: userID, Valid: true},
 		AfterID: afterID,
 		PerPage: perPage,
@@ -146,8 +146,8 @@ func (svc *HexchessServices) GetUserReplays(ctx context.Context, userID int64, a
 		return nil, fmt.Errorf("select replays by user id %d: %w", userID, err)
 	}
 
-	replays := make([]FullReplayDTO, 0, len(rows))
-	for _, row := range rows {
+	replays := make([]FullReplayDTO, 0, len(replayRows))
+	for _, row := range replayRows {
 		replay, err := mapFullReplayByIDRow(sqlc.SelectReplayByIDRow(row))
 		if err != nil {
 			return nil, err

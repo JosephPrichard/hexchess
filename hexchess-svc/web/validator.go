@@ -1,7 +1,7 @@
 package web
 
 import (
-	svc "hexchess-svc/service"
+	"hexchess-svc/service"
 	"net/url"
 )
 
@@ -31,8 +31,7 @@ func validateRegisterBody(body RegisterBody) error {
 }
 
 func isUsernameValid(username string) bool {
-	l := len(username)
-	return l >= minUsernameLength && l <= maxUsernameLength
+	return len(username) >= minUsernameLength && len(username) <= maxUsernameLength
 }
 
 func isBioValid(bio string) bool {
@@ -50,7 +49,7 @@ func validateUpdatePasswordBody(body UpdatePasswordBody) error {
 	return respErr.AsError()
 }
 
-func (api *API) validateUpdateUserBody(body UpdateUserBody) error {
+func validateUpdateUserBody(static StaticData, body UpdateUserBody) error {
 	var respErr ResponseError
 	if body.NewUsername != "" {
 		if !isUsernameValid(body.NewUsername) {
@@ -63,15 +62,16 @@ func (api *API) validateUpdateUserBody(body UpdateUserBody) error {
 		}
 	}
 	if body.NewCountry != "" {
-		if _, ok := api.staticData.validCountries[body.NewCountry]; !ok {
+		if !static.validCountries[body.NewCountry] {
 			respErr.Put("newCountry", ErrHttpInvalidCountry)
 		}
 	}
 	return respErr.AsError()
 }
 
-func (api *API) getLeaderboardQuery(q url.Values) (LeaderboardArgs, error) {
+func getLeaderboardQuery(q url.Values) (LeaderboardArgs, error) {
 	var respErr ResponseError
+
 	page, err := intQueryDefault(q, "page", 1)
 	if err != nil {
 		respErr.Put("page", ErrHttpInvalidPage)
@@ -80,6 +80,7 @@ func (api *API) getLeaderboardQuery(q url.Values) (LeaderboardArgs, error) {
 	if !ok {
 		respErr.Put("mode", ErrHttpInvalidMode)
 	}
+
 	args := LeaderboardArgs{Page: page, Mode: mode}
 	return args, respErr.AsError()
 }

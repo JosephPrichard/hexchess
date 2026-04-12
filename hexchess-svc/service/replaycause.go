@@ -11,9 +11,9 @@ const (
 )
 
 var replayCauseEntries = []enum.Entry[ReplayCause]{
-	{Checkmate, "CHECKMATE"},
-	{Forfeit, "FORFEIT"},
-	{Stalemate, "STALEMATE"},
+	{Enum: Checkmate, String: "CHECKMATE"},
+	{Enum: Forfeit, String: "FORFEIT"},
+	{Enum: Stalemate, String: "STALEMATE"},
 }
 
 var ReplayCauseEnums = enum.BuildReverseMap(replayCauseEntries)

@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"errors"
+	svc "hexchess-svc/service"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -10,6 +11,14 @@ import (
 )
 
 func HttpStatusFromErr(err error) (int, string) {
+	// map service errors to http errors (some service error mapping is common to every endpoint rather than case by case)
+	switch {
+	case errors.Is(err, svc.ErrSessionNotFound):
+		err = ErrHttpSessionExpired
+	default:
+	}
+
+	// map http error codes to status codes
 	switch err {
 	// 400 — Bad Request
 	case ErrHttpInvalidPassword,
@@ -36,8 +45,7 @@ func HttpStatusFromErr(err error) (int, string) {
 		return http.StatusBadRequest, err.Error()
 
 	// 401 — Unauthorized
-	case ErrHttpRequiredLogin,
-		ErrHttpInvalidLogin,
+	case ErrHttpInvalidLogin,
 		ErrHttpSessionExpired,
 		ErrHttpTooManyLoginAttempts:
 		return http.StatusUnauthorized, err.Error()
@@ -59,10 +67,11 @@ func HttpStatusFromErr(err error) (int, string) {
 }
 
 func HttpStatusFromErrs(err error) ServiceView {
-	var respErr map[string]error
-	var merr *ResponseError
-	if ok := errors.As(err, &merr); ok {
-		respErr = merr.Errors
+	var errMap map[string]error
+	var respErr *ResponseError
+
+	if ok := errors.As(err, &respErr); ok {
+		errMap = respErr.Errors
 	} else {
 		status, errStr := HttpStatusFromErr(err)
 		return ServiceView{Status: status, Errors: errStr}
@@ -71,7 +80,7 @@ func HttpStatusFromErrs(err error) ServiceView {
 	errStatus := 0
 	errStrs := make(map[string]string)
 
-	for key, err := range respErr {
+	for key, err := range errMap {
 		status, errStr := HttpStatusFromErr(err)
 		// yields the most 'severe' status
 		if status > errStatus {
@@ -81,6 +90,7 @@ func HttpStatusFromErrs(err error) ServiceView {
 	}
 
 	if errStatus == 0 {
+		slog.Warn("empty error map reached http status error mapper")
 		errStatus = http.StatusInternalServerError
 	}
 	return ServiceView{Status: errStatus, Errors: errStrs}

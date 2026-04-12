@@ -11,6 +11,7 @@ import (
 	"time"
 
 	redigo "github.com/gomodule/redigo/redis"
+	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -73,23 +74,31 @@ func (b *LocalBroadcasters) ListenGameMessages(rdb db.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.GamesChannel}, func(v redigo.Message) {
 		var outputID pb.GameOutputID
 		if err := proto.Unmarshal(v.Data, &outputID); err != nil {
-			slog.Error("unmarshal game message", "err", err, "channel", v.Channel)
+			slog.Error("unmarshal game message", "err", err)
 			return
 		}
-		slog.Info("received message on games channel", "key", outputID.GameId, "channel", v.Channel)
+
+		slog.Info("received message on games channel", "key", outputID.GameId)
 		go b.GamesCaster.Broadcast(outputID.GameId, v.Data)
 	})
 }
 
 func (b *LocalBroadcasters) ListenTournamentMessages(rdb db.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.TournamentsChannel}, func(v redigo.Message) {
-		var outputID pb.TournamentOutputID
-		if err := proto.Unmarshal(v.Data, &outputID); err != nil {
-			slog.Error("unmarshal tournament message", "err", err, "channel", v.Channel)
+		var output pb.TournamentOutput
+		if err := proto.Unmarshal(v.Data, &output); err != nil {
+			slog.Error("unmarshal tournament message", "err", err)
 			return
 		}
-		slog.Info("received message on tournaments channel", "key", outputID.TournamentKey, "channel", v.Channel)
-		go b.TournamentCaster.Broadcast(outputID.TournamentKey, v.Data)
+
+		bytes, err := MarshalTournamentOutputJson(&output)
+		if err != nil {
+			slog.Error("failed to transition tournament output event to json", "err", err)
+			return
+		}
+
+		slog.Info("received message on tournaments channel", "key", output.TournamentKey)
+		go b.TournamentCaster.Broadcast(output.TournamentKey, bytes)
 	})
 }
 
@@ -97,17 +106,18 @@ func (b *LocalBroadcasters) ListenUsersMessages(rdb db.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.UsersChannel}, func(v redigo.Message) {
 		var userMessage pb.UserMessage
 		if err := proto.Unmarshal(v.Data, &userMessage); err != nil {
-			slog.Error("unmarshal user message", "err", err, "channel", v.Channel)
+			slog.Error("unmarshal user message", "err", err)
 			return
 		}
-		slog.Info("received message on channel", "user", &userMessage, "channel", v.Channel)
+		slog.Info("received message on channel", "user", &userMessage)
 
 		bytes, err := MarshalUserMessageJson(&userMessage)
 		if err != nil {
-			slog.Error("marshal user message", "err", err, "channel", v.Channel)
+			slog.Error("marshal user message", "err", err)
 			return
 		}
-		b.UsersCaster.Broadcast(strconv.Itoa(int(userMessage.UserId)), bytes)
+
+		go b.UsersCaster.Broadcast(strconv.Itoa(int(userMessage.UserId)), bytes)
 	})
 }
 
@@ -175,21 +185,47 @@ func (svc *HexchessServices) BroadcastGamesEvent(ctx context.Context, message pr
 	return svc.BroadcastMessage(ctx, svc.redis.GamesChannel, bytes)
 }
 
-func (svc *HexchessServices) BroadcastTournament(ctx context.Context, c ChallengeDTO) error {
-	//userMessage := SerializeChallengeMessage(c)
-	//bytes, err := proto.Marshal(userMessage)
-	//if err != nil {
-	//	return fmt.Errorf("marshal user challenge message: %w", err)
-	//}
-	//return svc.BroadcastMessage(ctx, svc.redis.UsersChannel, bytes)
-	return nil
+func (svc *HexchessServices) BroadcastTournament(ctx context.Context, tournament *pb.TournamentOutput) error {
+	bytes, err := proto.Marshal(tournament)
+	if err != nil {
+		return fmt.Errorf("marshal tournament message: %w", err)
+	}
+	return svc.BroadcastMessage(ctx, svc.redis.TournamentsChannel, bytes)
 }
 
 func (svc *HexchessServices) BroadcastChallenge(ctx context.Context, challenge ChallengeDTO) error {
 	userMessage := SerializeChallengeMessage(challenge)
+
 	bytes, err := proto.Marshal(userMessage)
 	if err != nil {
 		return fmt.Errorf("marshal user challenge message: %w", err)
 	}
+
 	return svc.BroadcastMessage(ctx, svc.redis.UsersChannel, bytes)
+}
+
+func (svc *HexchessServices) BroadcastTournamentParticipant(ctx context.Context, tournamentKey uuid.UUID, userID int64, mode GameMode) error {
+	lbdUser, err := svc.GetLeaderboardUser(ctx, userID, mode)
+	if err != nil {
+		return fmt.Errorf("get leaderboard user by user id %d: %w", userID, err)
+	}
+
+	tournament := SerializeParticipantOutput(tournamentKey, lbdUser)
+	if err := svc.BroadcastTournament(ctx, tournament); err != nil {
+		return fmt.Errorf("broadcast tournament participant: %w", err)
+	}
+
+	slog.InfoContext(ctx, "broadcasted selected tournament participant", "lbdUser", lbdUser)
+	return nil
+}
+
+func (svc *HexchessServices) BroadcastStartTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, countdownMs int32) error {
+	tournament := SerializeStartTournamentCountdown(tournamentKey, countdownMs)
+
+	if err := svc.BroadcastTournament(ctx, tournament); err != nil {
+		return fmt.Errorf("broadcast tournament participant: %w", err)
+	}
+
+	slog.InfoContext(ctx, "broadcasted start of tournament countdown", "countdownMs", countdownMs)
+	return nil
 }

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"hexchess-svc/service"
+	svc "hexchess-svc/service"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
@@ -45,17 +45,19 @@ type Authenticator struct {
 	services *svc.HexchessServices
 }
 
-func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request) (svc.PlayerState, string, error) {
+func (auth *Authenticator) GetSessionPlayerAndID(ctx context.Context, r *http.Request) (p svc.PlayerState, t string, err error) {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
-		return svc.PlayerState{}, "", svc.ErrSessionNotFound
+		return p, t, svc.ErrSessionNotFound
 	}
-	sessionID := cookie.Value
-	player, err := auth.services.GetSession(ctx, sessionID)
-	if err != nil {
-		return svc.PlayerState{}, "", err
-	}
-	return player, sessionID, nil
+	sessionToken := cookie.Value
+	player, err := auth.services.GetSession(ctx, sessionToken)
+	return player, sessionToken, err
+}
+
+func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request) (svc.PlayerState, error) {
+	player, _, err := auth.GetSessionPlayerAndID(ctx, r)
+	return player, err
 }
 
 func (auth *Authenticator) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player svc.PlayerState) (time.Duration, error) {

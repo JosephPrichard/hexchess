@@ -13,6 +13,7 @@ import (
 	"hexchess-svc/util/logutil"
 
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/errgroup"
 )
 
 type UpdtLbChangeSet struct {
@@ -70,17 +71,20 @@ func mapLbRank(rank int64) int64 {
 
 func (svc *HexchessServices) GetUserLeaderboardRanks(ctx context.Context, userID int64, modes map[string]GameMode) (map[string]LbRank, error) {
 	ranks := make(map[string]LbRank)
-	setRank := func(mode string, rankScore redis.RankScore) {
-		ranks[mode] = LbRank{Rank: mapLbRank(rankScore.Rank), Score: rankScore.Score} // rdb ranks start from 0, hexchess ranks start from 1.
-	}
 
-	strID := strconv.Itoa(int(userID))
-
-	// fetch and read ranks for each mode in a single pipeline
 	type getExec struct {
 		mode string
 		cmd  *redis.RankWithScoreCmd
 	}
+	type addExec struct {
+		mode   GameMode
+		addCmd *redis.IntCmd
+		getCmd *redis.RankWithScoreCmd
+	}
+
+	strUserID := strconv.Itoa(int(userID))
+
+	// fetch and read ranks for each mode in a single pipeline
 	pipeline := svc.redis.Cache.Pipeline()
 	getExecs := make([]getExec, 0, len(modes))
 
@@ -88,55 +92,55 @@ func (svc *HexchessServices) GetUserLeaderboardRanks(ctx context.Context, userID
 		modeLbZSet := svc.leaderboardZSet(mode.String())
 		getExecs = append(getExecs, getExec{
 			mode: mode.String(),
-			cmd:  svc.redis.Cache.ZRevRankWithScore(ctx, modeLbZSet, strID),
+			cmd:  pipeline.ZRevRankWithScore(ctx, modeLbZSet, strUserID),
 		})
 	}
+
 	if _, err := pipeline.Exec(ctx); err != nil {
-		return nil, fmt.Errorf("exec pipeline get leaderboard ranks: %w", err)
+		return nil, err
 	}
+
 	for _, exec := range getExecs {
 		rankScore, err := exec.cmd.Result()
 		if errors.Is(err, redis.Nil) {
+			// if we don't have the rank here, we initialize and fetch it later
 			continue
 		}
 		if err != nil {
-			return nil, fmt.Errorf("get leaderboard rank for mode %v: %w", exec.mode, err)
+			return nil, fmt.Errorf("get leaderboard rank for %s: %w", exec.mode, err)
 		}
-		setRank(exec.mode, rankScore)
+		ranks[exec.mode] = LbRank{Rank: mapLbRank(rankScore.Rank), Score: rankScore.Score}
 	}
 
 	// lazily initialize then fetch ranks for modes which were not included in the calls above
-	type addExec struct {
-		mode   GameMode
-		addCmd *redis.IntCmd
-		getCmd *redis.RankWithScoreCmd
-	}
 	pipeline = svc.redis.Cache.Pipeline()
 	var addExecs []addExec
 
 	for _, mode := range modes {
-		if _, ok := ranks[mode.String()]; ok {
+		if _, isRankRetrieved := ranks[mode.String()]; isRankRetrieved {
 			continue
 		}
 		modeLbZSet := svc.leaderboardZSet(mode.String())
 		addExecs = append(addExecs, addExec{
 			mode:   mode,
-			addCmd: pipeline.ZAddNX(ctx, modeLbZSet, redis.Z{Member: strID, Score: StartElo}),
-			getCmd: pipeline.ZRevRankWithScore(ctx, modeLbZSet, strID),
+			addCmd: pipeline.ZAddNX(ctx, modeLbZSet, redis.Z{Member: strUserID, Score: StartElo}),
+			getCmd: pipeline.ZRevRankWithScore(ctx, modeLbZSet, strUserID),
 		})
 	}
+
 	if _, err := pipeline.Exec(ctx); err != nil {
-		return nil, fmt.Errorf("exec pipeline add leaderboard ranks: %w", err)
+		return nil, err
 	}
+
 	for _, exec := range addExecs {
 		if _, err := exec.addCmd.Result(); err != nil {
-			return nil, fmt.Errorf("add leaderboard rank for mode %v: %w", exec.mode, err)
+			return nil, fmt.Errorf("add leaderboard rank for %s: %w", exec.mode, err)
 		}
 		rankScore, err := exec.getCmd.Result()
 		if err != nil {
-			return nil, fmt.Errorf("get after add leaderboard rank for mode %v: %w", exec.mode, err)
+			return nil, fmt.Errorf("get leaderboard rank for %s: %w", exec.mode, err)
 		}
-		setRank(exec.mode.String(), rankScore)
+		ranks[exec.mode.String()] = LbRank{Rank: mapLbRank(rankScore.Rank), Score: rankScore.Score}
 	}
 
 	slog.InfoContext(ctx, "retrieved leaderboard ranks", "id", userID, "ranks", ranks)
@@ -150,8 +154,8 @@ func (svc *HexchessServices) getUsersLeaderboardRank(ctx context.Context, userID
 	}
 
 	pipeline := svc.redis.Cache.Pipeline()
-	var getExecs []getExec
 
+	var getExecs []getExec
 	for _, userID := range userIDs {
 		modeLbZSet := svc.leaderboardZSet(mode.String())
 		getExecs = append(getExecs, getExec{
@@ -177,33 +181,36 @@ func (svc *HexchessServices) getUsersLeaderboardRank(ctx context.Context, userID
 	return leaderboardRanks, nil
 }
 
-func (svc *HexchessServices) getLeaderboard(ctx context.Context, mode GameMode, startRank, count int64) (Leaderboard, error) {
+func (svc *HexchessServices) getLeaderboard(ctx context.Context, mode GameMode, startRank, lbdElemCount int64) (Leaderboard, error) {
 	modeLbZSet := svc.leaderboardZSet(mode.String())
 
-	end := startRank - 1 + count
-	ids, err := svc.redis.Cache.ZRevRange(ctx, modeLbZSet, startRank, end).Result()
+	end := startRank - 1 + lbdElemCount
+	strUserIDs, err := svc.redis.Cache.ZRevRange(ctx, modeLbZSet, startRank, end).Result()
 	if err != nil {
 		return Leaderboard{}, fmt.Errorf("retrieve reverse leaderboard by range: %w", err)
 	}
 
-	elemCount, err := svc.redis.Cache.ZCount(ctx, modeLbZSet, "-inf", "+inf").Result()
+	totalLbdElemCount, err := svc.redis.Cache.ZCount(ctx, modeLbZSet, "-inf", "+inf").Result()
 	if err != nil {
 		return Leaderboard{}, fmt.Errorf("count leaderboard: %w", err)
 	}
 
-	users := make([]RankedUser, 0, len(ids))
-	for i, strID := range ids {
-		id, err := strconv.ParseInt(strID, 10, 64)
+	users := make([]RankedUser, 0, len(strUserIDs))
+	for i, strUserID := range strUserIDs {
+		userID, err := strconv.Atoi(strUserID)
 		if err != nil {
-			return Leaderboard{}, fmt.Errorf("parse ranked Key: %w", err)
+			return Leaderboard{}, fmt.Errorf("parse user id: %w", err)
 		}
-		users = append(users, RankedUser{ID: id, Rank: startRank + int64(i) + 1})
+		users = append(users, RankedUser{ID: int64(userID), Rank: startRank + int64(i) + 1})
 	}
 
-	pageCount := int((elemCount / count) + int64(math.Min(float64(elemCount%count), 1)))
+	pageCount := 
+		int((totalLbdElemCount / lbdElemCount) + 
+		int64(math.Min(float64(totalLbdElemCount%lbdElemCount), 1)))
+
 	leaderboard := Leaderboard{RankedUsers: users, PageCount: pageCount}
 
-	slog.InfoContext(ctx, "retrieved leaderboard", "modeLbZSet", modeLbZSet, "startRank", startRank, "count", count, "leaderboard", leaderboard)
+	slog.InfoContext(ctx, "retrieved leaderboard", "modeLbZSet", modeLbZSet, "startRank", startRank, "count", lbdElemCount, "leaderboard", leaderboard)
 	return leaderboard, nil
 }
 
@@ -265,7 +272,7 @@ func (e ExpLdbError) Error() string {
 	return fmt.Sprintf("expected leaderboard of length %d users, got %d", e.ExpCount, e.ActualCount)
 }
 
-func mapLbdUser(row sqlc.SelectUserWithEloByIDsRow) LbdUserDTO {
+func mapLbdUser(row sqlc.SelectUserWithEloByIDRow) LbdUserDTO {
 	return LbdUserDTO{
 		UserDTO:    UserDTO{ID: row.ID, Username: row.Username, Country: row.Country, JoinedOn: row.JoinedOn.Time},
 		Elo:        defaultElo(row.Elo),
@@ -274,6 +281,42 @@ func mapLbdUser(row sqlc.SelectUserWithEloByIDsRow) LbdUserDTO {
 		Losses:     row.Losses.Int32,
 		Winrate:    calcUserWinrate(row.Wins.Int32, row.Losses.Int32, row.Draws.Int32),
 	}
+}
+
+func (svc *HexchessServices) GetLeaderboardUser(ctx context.Context, userID int64, mode GameMode) (LbdUserDTO, error) {
+	strUserID := strconv.Itoa(int(userID))
+
+	var userRow sqlc.SelectUserWithEloByIDRow
+	var rankScore redis.RankScore
+
+	eg, egCtx := errgroup.WithContext(ctx)
+
+	eg.Go(func() (err error) {
+		userRow, err = svc.querier.SelectUserWithEloByID(egCtx, sqlc.SelectUserWithEloByIDParams{
+			ID: userID,
+			Mode: sqlc.ModeEnum(mode.String()),
+		})
+		if err != nil {
+			return fmt.Errorf("select user with elos by id %d: %w", userID, err)
+		}
+		return nil
+	})
+	eg.Go(func() (err error) {
+		rankScore, err = svc.redis.Cache.ZRankWithScore(egCtx, svc.leaderboardZSet(mode.String()), strUserID).Result()
+		if err != nil { 
+			return fmt.Errorf("get user rank by id: %s: %w", strUserID, err)
+		}
+		return nil
+	})
+
+	if err := eg.Wait(); err != nil {
+		return LbdUserDTO{}, err
+	}
+
+	user := mapLbdUser(userRow)
+	user.Rank = rankScore.Rank
+
+	return user, nil
 }
 
 func (svc *HexchessServices) GetLeaderboardUsers(ctx context.Context, mode GameMode, rnkUsers []RankedUser) ([]LbdUserDTO, []int64, error) {
@@ -301,7 +344,7 @@ func (svc *HexchessServices) GetLeaderboardUsers(ctx context.Context, mode GameM
 			}
 		}
 		if foundRow != nil {
-			user := mapLbdUser(*foundRow)
+			user := mapLbdUser(sqlc.SelectUserWithEloByIDRow(*foundRow))
 			user.Rank = rnkUser.Rank
 			leaderboardUsers = append(leaderboardUsers, user)
 		} else {
