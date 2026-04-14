@@ -1,10 +1,5 @@
 package web
 
-import (
-	"hexchess-svc/service"
-	"net/url"
-)
-
 const (
 	minPasswordLength = 11
 	minUsernameLength = 5
@@ -67,20 +62,4 @@ func validateUpdateUserBody(static StaticData, body UpdateUserBody) error {
 		}
 	}
 	return respErr.AsError()
-}
-
-func getLeaderboardQuery(q url.Values) (LeaderboardArgs, error) {
-	var respErr ResponseError
-
-	page, err := intQueryDefault(q, "page", 1)
-	if err != nil {
-		respErr.Put("page", ErrHttpInvalidPage)
-	}
-	mode, ok := svc.GameModeEnums[q.Get("mode")]
-	if !ok {
-		respErr.Put("mode", ErrHttpInvalidMode)
-	}
-
-	args := LeaderboardArgs{Page: page, Mode: mode}
-	return args, respErr.AsError()
 }

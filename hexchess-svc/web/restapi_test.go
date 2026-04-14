@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/egress"
@@ -220,13 +221,22 @@ func TestHandleUpdateUser(t *testing.T) {
 	tests := []struct {
 		name        string
 		body        UpdateUserBody
+		sessionID   string
 		wantSuccess SessionView
 		wantFail    ServiceView
 		wantStatus  int
 	}{
 		{
-			name: "InvalidUsernameAndBiographyLength",
-			body: UpdateUserBody{NewCountry: "us", NewUsername: "s", NewBio: strings.Repeat("a", 5001)},
+			name:       "UnauthorizedUser",
+			body:       UpdateUserBody{NewUsername: "username"},
+			sessionID:  "invalid",
+			wantFail:   ServiceView{Status: http.StatusUnauthorized, Errors: ErrHttpSessionExpired.Error()},
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:      "InvalidUsernameAndBiographyLength",
+			body:      UpdateUserBody{NewCountry: "us", NewUsername: "s", NewBio: strings.Repeat("a", 5001)},
+			sessionID: TestSessionID1,
 			wantFail: ServiceView{Status: http.StatusBadRequest,
 				Errors: map[string]any{"newBio": ErrHttpInvalidBio.Error(), "newUsername": ErrHttpInvalidUsername.Error()}},
 			wantStatus: http.StatusBadRequest,
@@ -234,18 +244,21 @@ func TestHandleUpdateUser(t *testing.T) {
 		{
 			name:       "InvalidCountryUnknown",
 			body:       UpdateUserBody{NewCountry: "wrong", NewUsername: "new-username", NewBio: "testing biography"},
+			sessionID:  TestSessionID1,
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"newCountry": ErrHttpInvalidCountry.Error()}},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:        "UpdatingBioOnly",
 			body:        UpdateUserBody{NewBio: "testing biography"},
+			sessionID:   TestSessionID1,
 			wantSuccess: SessionView{Username: "user1", Country: "us"},
 			wantStatus:  http.StatusOK,
 		},
 		{
 			name:        "UpdatingUsernameBioAndCountry",
 			body:        UpdateUserBody{NewUsername: "new-username", NewBio: "testing biography", NewCountry: "un"},
+			sessionID:   TestSessionID1,
 			wantSuccess: SessionView{Username: "new-username", Country: "un"},
 			wantStatus:  http.StatusOK,
 		},
@@ -259,7 +272,7 @@ func TestHandleUpdateUser(t *testing.T) {
 			createTestSessions(t, services)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/users", asJSONReader(tt.body))
-			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
+			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
 			w := httptest.NewRecorder()
 
 			hander := MakeServeMux(Setup{Services: services})
@@ -341,41 +354,55 @@ func TestHandleUpdateChallenge(t *testing.T) {
 	tests := []struct {
 		name       string
 		body       UpdateChallengeBody
+		sessionID  string
 		wantFail   ServiceView
 		wantStatus int
 	}{
 		{
+			name:       "UnauthorizedUser",
+			body:       UpdateChallengeBody{Action: "DELETE"},
+			wantFail:   ServiceView{Status: http.StatusUnauthorized, Errors: ErrHttpSessionExpired.Error()},
+			sessionID:  "invalid",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
 			name:       "InvalidChallengeAction",
 			body:       UpdateChallengeBody{Action: "invalid"},
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"action": ErrHttpInvalidAction.Error()}},
+			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "InvalidChallenge",
 			body:       UpdateChallengeBody{ChallengerID: 999, ChallengeeID: 1, Action: "ACCEPT"},
-			wantFail:   ServiceView{Status: 404, Errors: ErrHttpNotFoundChallenge.Error()},
-			wantStatus: 404,
+			wantFail:   ServiceView{Status: http.StatusNotFound, Errors: ErrHttpNotFoundChallenge.Error()},
+			sessionID:  TestSessionID1,
+			wantStatus: http.StatusNotFound,
 		},
 		{
 			name:       "InvalidDeleteChallengeCannotDeleteNotOwn",
 			body:       UpdateChallengeBody{ChallengerID: 5, ChallengeeID: 1, Action: "DELETE"},
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpUpdateChallenge.Error()},
+			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "ValidDeleteChallenge",
 			body:       UpdateChallengeBody{ChallengerID: 1, ChallengeeID: 2, Action: "DELETE"},
+			sessionID:  TestSessionID1,
 			wantStatus: http.StatusOK,
 		},
 		{
 			name:       "InvalidAcceptChallengeCannotAcceptOwn",
 			body:       UpdateChallengeBody{ChallengerID: 1, ChallengeeID: 2, Action: "ACCEPT"},
 			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpUpdateChallenge.Error()},
+			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "ValidAcceptChallenge",
 			body:       UpdateChallengeBody{ChallengerID: 5, ChallengeeID: 1, Action: "ACCEPT"},
+			sessionID:  TestSessionID1,
 			wantStatus: http.StatusOK,
 		},
 	}
@@ -388,7 +415,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 			createTestSessions(t, services)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/challenges/update", asJSONReader(tt.body))
-			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
+			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
 			w := httptest.NewRecorder()
 
 			hander := MakeServeMux(Setup{Services: services})
@@ -461,36 +488,49 @@ func TestHandleCreateChallenge(t *testing.T) {
 	tests := []struct {
 		name       string
 		body       CreateChallengeBody
+		sessionID  string
 		wantStatus int
 		wantResp   ServiceView
 	}{
 		{
+			name:       "UnauthorizedUser",
+			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
+			sessionID:  "invalid",
+			wantStatus: http.StatusUnauthorized,
+			wantResp:   ServiceView{Status: http.StatusUnauthorized, Errors: ErrHttpSessionExpired.Error()},
+		},
+		{
 			name:       "ChallengingSelf",
 			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
+			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpSelfChallenge.Error()},
 		},
 		{
 			name:       "ChallengingInvalidUser",
 			body:       CreateChallengeBody{ChallengeeID: 999, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
+			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpInvalidParticipants.Error()},
 		},
 		{
 			name:       "CreatingDuplicateChallenge",
 			body:       CreateChallengeBody{ChallengeeID: 2, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
+			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpDuplicateChallenge.Error()},
 		},
 		{
 			name:       "CreatedChallenge",
 			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
+			sessionID:  TestSessionID1,
 			wantStatus: http.StatusOK,
 			wantResp:   ServiceView{Status: http.StatusOK, Message: "SUCCESS"},
 		},
 		{
 			name:       "InvalidModeAndColor",
 			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "invalid", Mode: "invalid"},
+			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"startColor": ErrHttpInvalidColor.Error(), "mode": ErrHttpInvalidMode.Error()}},
 		},
@@ -506,7 +546,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 			createTestSessions(t, services)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", asJSONReader(tt.body))
-			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
+			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
 			w := httptest.NewRecorder()
 
 			hander := MakeServeMux(Setup{Services: services})
@@ -682,8 +722,8 @@ func TestGetPlayer(t *testing.T) {
 			withReplays: true,
 			wantSuccess: GetPlayersResp{
 				FullUserDTO: svc.FullUserDTO{
-					User:  svc.TestUserDTOs[0],
-					Stats: svc.TestUserStats[0],
+					User:       svc.TestUserDTOs[0],
+					Stats:      svc.TestUserStats[0],
 					ReplayList: []svc.FullReplayDTO{svc.TestReplayDTOs[2], svc.TestReplayDTOs[1], svc.TestReplayDTOs[0]},
 				},
 			},
@@ -743,12 +783,20 @@ func TestGetChallenges(t *testing.T) {
 	tests := []struct {
 		name         string
 		participants string
+		sessionID    string
 		wantSuccess  GetChallengesResp
 		wantStatus   int
 	}{
 		{
+			name:         "UnauthorizedUser",
+			participants: "sent",
+			sessionID:    "invalid",
+			wantStatus:   http.StatusUnauthorized,
+		},
+		{
 			name:         "GotSentChallenges",
 			participants: "sent",
+			sessionID:    TestSessionID1,
 			wantSuccess: GetChallengesResp{
 				ChallengeList: []svc.ChallengeDTO{svc.TestChallengeDTOs[0]},
 			},
@@ -757,6 +805,7 @@ func TestGetChallenges(t *testing.T) {
 		{
 			name:         "GotReceivedChallenges",
 			participants: "received",
+			sessionID:    TestSessionID1,
 			wantSuccess: GetChallengesResp{
 				ChallengeList: []svc.ChallengeDTO{svc.TestChallengeDTOs[1]},
 			},
@@ -774,14 +823,16 @@ func TestGetChallenges(t *testing.T) {
 			createTestSessions(t, services)
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/challenges?participants=%s", tt.participants), nil)
-			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
+			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
 			w := httptest.NewRecorder()
 
 			hander := MakeServeMux(Setup{Services: services})
 			hander.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
-			testutil.AssertRespBody(t, tt.wantSuccess, w)
+			if http.StatusOK == tt.wantStatus {
+				testutil.AssertRespBody(t, tt.wantSuccess, w)
+			}
 		})
 	}
 }
@@ -899,41 +950,69 @@ func TestHandleGetReplay(t *testing.T) {
 func TestHandleGetChessMetas(t *testing.T) {
 	t.Parallel()
 
-	services, _ := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.ROPostgres, itest.Redis)
-	defer services.Close()
+	allChessMetas := []ChessMeta{
+		{ID: "game3", FirstColor: svc.Random.String(), Mode: svc.ModeCorrespondence1.String()},
+		{ID: "game2", FirstColor: svc.Random.String(), Mode: svc.ModeCorrespondence1.String()},
+		{
+			ID:          TestGameID1,
+			BlackPlayer: svc.MakePlayer(2, "user2", "us"),
+			FirstColor:  svc.Random.String(),
+			Mode:        svc.ModeCorrespondence1.String(),
+		},
+	}
 
-	createTestSessions(t, services)
-	createTestChessStates(t, services)
-
-	r := httptest.NewRequest(http.MethodGet, "/api/game/rooms", nil)
-	r.Header.Set("Cookie", FmtCookie(TestSessionID2))
-
-	w := httptest.NewRecorder()
-	h := MakeServeMux(Setup{Services: services})
-	h.ServeHTTP(w, r)
-
-	wantResp := ChessMetasResp{
-		ChessList: []ChessMeta{
-			{ID: "game3", FirstColor: svc.Random.String(), Mode: svc.ModeCorrespondence1.String()},
-			{ID: "game2", FirstColor: svc.Random.String(), Mode: svc.ModeCorrespondence1.String()},
-			{
-				ID:          TestGameID1,
-				BlackPlayer: svc.MakePlayer(2, "user2", "us"),
-				FirstColor:  svc.Random.String(),
-				Mode:        svc.ModeCorrespondence1.String(),
+	tests := []struct {
+		name       string
+		sessionID  string
+		wantStatus int
+		wantResp   ChessMetasResp
+	}{
+		{
+			name:       "ChessMetasWithSelfList",
+			sessionID:  TestSessionID2,
+			wantStatus: http.StatusOK,
+			wantResp: ChessMetasResp{
+				ChessList: allChessMetas,
+				SelfChessList: []ChessMeta{
+					{
+						ID:          TestGameID1,
+						BlackPlayer: svc.MakePlayer(2, "user2", "us"),
+						FirstColor:  svc.Random.String(),
+						Mode:        svc.ModeCorrespondence1.String(),
+					},
+				},
 			},
 		},
-		SelfChessList: []ChessMeta{
-			{
-				ID:          TestGameID1,
-				BlackPlayer: svc.MakePlayer(2, "user2", "us"),
-				FirstColor:  svc.Random.String(),
-				Mode:        svc.ModeCorrespondence1.String(),
+		{
+			name:       "ChessMetasWithoutSelfList",
+			sessionID:  "invalid",
+			wantStatus: http.StatusOK,
+			wantResp: ChessMetasResp{
+				ChessList:     allChessMetas,
+				SelfChessList: []ChessMeta{},
 			},
 		},
 	}
-	assert.Equal(t, http.StatusOK, w.Code)
-	testutil.AssertRespBody(t, wantResp, w)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			services, _ := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.ROPostgres, itest.Redis)
+			defer services.Close()
+
+			createTestSessions(t, services)
+			createTestChessStates(t, services)
+
+			r := httptest.NewRequest(http.MethodGet, "/api/game/rooms", nil)
+			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
+
+			w := httptest.NewRecorder()
+			h := MakeServeMux(Setup{Services: services})
+			h.ServeHTTP(w, r)
+
+			assert.Equal(t, tt.wantStatus, w.Code)
+			testutil.AssertRespBody(t, tt.wantResp, w)
+		})
+	}
 }
 
 func TestHandleGetMoveReplay(t *testing.T) {
@@ -979,4 +1058,124 @@ func TestHandleGetMoveReplay(t *testing.T) {
 	}
 	assert.Equal(t, http.StatusOK, w.Code)
 	testutil.Equal(t, wantMoveReplay, &pbMoveHist, protocmp.Transform())
+}
+
+func TestGetTournament(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		tournamentKey string
+		wantResp      GetTournamentResp
+		wantStatus    int
+		wantFail      ServiceView
+	}{
+		{
+			name:          "GotTournament",
+			tournamentKey: svc.Tournament0Key.String(),
+			wantStatus:    http.StatusOK,
+			wantResp: GetTournamentResp{
+				TournamentDTO: svc.TournamentDTOs[0],
+				Participants:  []svc.ParticipantDTO{},
+				Matches:       []svc.MatchDTO{},
+			},
+		},
+		{
+			name:          "TournamentNotFound",
+			tournamentKey: uuid.NewString(),
+			wantStatus:    http.StatusNotFound,
+			wantFail: ServiceView{
+				Status: http.StatusNotFound,
+				Errors: ErrHttpNotFoundTournament.Error(),
+			},
+		},
+		{
+			name:          "InvalidTournamentKey",
+			tournamentKey: "invalid",
+			wantStatus:    http.StatusBadRequest,
+			wantFail: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]any{"tournamentKey": ErrHttpInvalidID.Error()},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			services, _ := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.ROPostgres, itest.Redis)
+			defer services.Close()
+
+			q := url.Values{}
+			q.Set("tournamentKey", tt.tournamentKey)
+			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/tournament?%s", q.Encode()), nil)
+
+			w := httptest.NewRecorder()
+			h := MakeServeMux(Setup{Services: services})
+			h.ServeHTTP(w, r)
+
+			assert.Equal(t, tt.wantStatus, w.Code)
+			if w.Code == http.StatusOK {
+				testutil.AssertRespBody(t, tt.wantResp, w)
+			} else {
+				testutil.AssertRespBody(t, tt.wantFail, w)
+			}
+		})
+	}
+}
+
+func TestGetTournaments(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		userID     string
+		afterID    string
+		wantResp   GetTournamentsResp
+		wantStatus int
+		wantFail   ServiceView
+	}{
+		{
+			name:       "RetrievedTournaments",
+			userID:     "-1",
+			afterID:    "-1",
+			wantStatus: http.StatusOK,
+			wantResp: GetTournamentsResp{
+				Tournaments: []svc.TournamentDTO{
+					svc.TournamentDTOs[2],
+					svc.TournamentDTOs[1],
+					svc.TournamentDTOs[0],
+				},
+			},
+		},
+		{
+			name:       "RetrievedTournamentsForParticipant",
+			userID:     "4",
+			afterID:    "-1",
+			wantStatus: http.StatusOK,
+			wantResp: GetTournamentsResp{
+				Tournaments: []svc.TournamentDTO{
+					svc.TournamentDTOs[1],
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			services, _ := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.ROPostgres)
+			defer services.Close()
+
+			q := url.Values{}
+			q.Set("userId", tt.userID)
+			q.Set("afterId", tt.afterID)
+			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/tournaments?%s", q.Encode()), nil)
+
+			w := httptest.NewRecorder()
+			h := MakeServeMux(Setup{Services: services})
+			h.ServeHTTP(w, r)
+
+			assert.Equal(t, tt.wantStatus, w.Code)
+			testutil.AssertRespBody(t, tt.wantResp, w)
+		})
+	}
 }

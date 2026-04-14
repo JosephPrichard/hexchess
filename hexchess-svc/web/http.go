@@ -41,7 +41,9 @@ func HttpStatusFromErr(err error) (int, string) {
 		ErrHttpInvalidTimeframe,
 		ErrHttpInvalidAction,
 		ErrHttpSearchLimit,
-		ErrHttpInvalidFen:
+		ErrHttpInvalidFen,
+		ErrHttpInvalidRounds,
+		ErrHttpCountdownPermissions:
 		return http.StatusBadRequest, err.Error()
 
 	// 401 — Unauthorized
@@ -53,8 +55,15 @@ func HttpStatusFromErr(err error) (int, string) {
 	// 404 — Not Found
 	case ErrHttpNotFoundUser,
 		ErrHttpNotFoundReplay,
-		ErrHttpNotFoundChallenge:
+		ErrHttpNotFoundChallenge,
+		ErrHttpNotFoundTournament:
 		return http.StatusNotFound, err.Error()
+
+	// 412 - Precondition
+	case ErrHttpTooManyParticipants,
+		ErrHttpTournamentNotLobby,
+		ErrHttpInvalidCountdownState:
+		return http.StatusPreconditionFailed, err.Error()
 
 	// 500 — Internal API Error
 	case ErrHttpFatal:

@@ -35,7 +35,7 @@ SET status = sqlc.arg('status'),
     updated_on = sqlc.arg('updated_on'),
     rounds = COALESCE(sqlc.narg('rounds'), rounds),
     winner_id = COALESCE(sqlc.narg('winner_id'), winner_id),
-    countdown_started_on = COALESCE(sqlc.narg('countdown_started_on'), countdown)
+    countdown_started_on = COALESCE(sqlc.narg('countdown_started_on'), countdown_started_on)
 WHERE tournament_key = sqlc.arg('tournament_key');
 
 -- name: DeleteTournamentParticipant :many
@@ -48,11 +48,17 @@ WHERE
     t.status = 'LOBBY'::tournament_status_enum
 RETURNING user_id;
 
+-- name: SelectTournament :one
+SELECT * FROM tournaments WHERE tournament_key = sqlc.arg('tournament_key')::uuid;
+
 -- name: SelectTournamentByID :one
 SELECT id, tournament_key, name, rounds, ruleset, status, winner_id, countdown, countdown_started_on, created_on, updated_on, created_by, mode
 FROM tournaments WHERE tournament_key = sqlc.arg('tournament_key')::uuid;
 
--- name: SelectParticipantsByTournamentID :many
+-- name: SelectParticipants :many
+SELECT * FROM tournament_participants WHERE tournament_key = sqlc.arg('tournament_key')::uuid;
+
+-- name: SelectParticipantsWithUserByTournamentID :many
 SELECT
     tp.tournament_key,
     tp.joined_on as tournament_joined_on,
@@ -79,6 +85,7 @@ ORDER BY tp.joined_on DESC;
 
 -- name: SelectReplayMatchesByTournamentID :many
 SELECT
+    tm.ordering,
     tm.game_id,
     tm.tournament_key,
     tm.round,

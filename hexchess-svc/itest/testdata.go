@@ -226,48 +226,96 @@ var ChallengeInsts = []struct {
 	{ChallengerID: 5, ChallengeeID: 1, Mode: "CORRESPONDENCE_1", StartColor: "RANDOM", MadeOn: TimeNow.Add(-1 * time.Hour * 24 * 365)},
 }
 
+var (
+	Tournament0LobbyKey       = TournamentInsts[0].TournamentKey
+	Tournament1LobbyFilledKey = TournamentInsts[1].TournamentKey
+	Tournament2KnockoutKey    = TournamentInsts[2].TournamentKey
+	Tournament3RoundRobinKey  = TournamentInsts[3].TournamentKey
+	Tournament4SwissKey       = TournamentInsts[4].TournamentKey
+	Tournament5FinishedKey    = TournamentInsts[5].TournamentKey
+)
+
 var TournamentInsts = []struct {
 	TournamentKey uuid.UUID
 	Name          string
 	Rounds        int32
-	ScheduledOn   *time.Time
 	Countdown     time.Duration
-	UpdatedOn     time.Time
+	CreatedOn     time.Time
 	CreatedBy     int64
 	Status        string
+	Ruleset       string
 	Mode          string
 }{
+	// LOBBY empty
+	{
+		TournamentKey: uuid.New(),
+		Name:          "Test Tournament 0",
+		Rounds:        2,
+		Countdown:     5 * time.Minute,
+		CreatedOn:     TimeNow,
+		CreatedBy:     1,
+		Status:        "LOBBY",
+		Ruleset:       "KNOCKOUT",
+		Mode:          "CORRESPONDENCE_1",
+	},
+	// LOBBY all participants filled
 	{
 		TournamentKey: uuid.New(),
 		Name:          "Test Tournament 1",
-		Rounds:        2,
-		ScheduledOn:   nil,
+		Rounds:        1,
 		Countdown:     5 * time.Minute,
-		UpdatedOn:     TimeNow,
+		CreatedOn:     TimeNow,
 		CreatedBy:     1,
 		Status:        "LOBBY",
-		Mode:          "CORRESPONDENCE_1",
+		Ruleset:       "KNOCKOUT",
+		Mode:          "CORRESPONDENCE_7",
 	},
+	// IN_PROGRESS KNOCKOUT populated
 	{
 		TournamentKey: uuid.New(),
 		Name:          "Test Tournament 2",
 		Rounds:        2,
-		ScheduledOn:   nil,
 		Countdown:     5 * time.Minute,
-		UpdatedOn:     TimeNow,
+		CreatedOn:     TimeNow,
 		CreatedBy:     1,
 		Status:        "IN_PROGRESS",
+		Ruleset:       "KNOCKOUT",
 		Mode:          "CORRESPONDENCE_1",
 	},
+	// IN_PROGRESS ROUND_ROBIN populated
 	{
 		TournamentKey: uuid.New(),
 		Name:          "Test Tournament 3",
-		Rounds:        1,
-		ScheduledOn:   nil,
+		Rounds:        2,
 		Countdown:     5 * time.Minute,
-		UpdatedOn:     TimeNow,
+		CreatedOn:     TimeNow,
+		CreatedBy:     1,
+		Status:        "IN_PROGRESS",
+		Ruleset:       "ROUND_ROBIN",
+		Mode:          "CORRESPONDENCE_1",
+	},
+	// IN_PROGRESS SWISS populated
+	{
+		TournamentKey: uuid.New(),
+		Name:          "Test Tournament 4",
+		Rounds:        2,
+		Countdown:     5 * time.Minute,
+		CreatedOn:     TimeNow,
+		CreatedBy:     1,
+		Status:        "IN_PROGRESS",
+		Ruleset:       "SWISS",
+		Mode:          "CORRESPONDENCE_1",
+	},
+	// FINISHED all rounds populated
+	{
+		TournamentKey: uuid.New(),
+		Name:          "Test Tournament 5",
+		Rounds:        1,
+		Countdown:     5 * time.Minute,
+		CreatedOn:     TimeNow,
 		CreatedBy:     1,
 		Status:        "FINISHED",
+		Ruleset:       "SWISS",
 		Mode:          "CORRESPONDENCE_1",
 	},
 }
@@ -278,35 +326,46 @@ var TournamentParticipantInsts = []struct {
 	UserID        int64
 	JoinedOn      time.Time
 }{
-	// IN_PROGRESS tournament (max participants)
+	// LOBBY tournament (max participants)
 	{
-		TournamentKey: TournamentInsts[1].TournamentKey,
+		TournamentKey: Tournament1LobbyFilledKey,
 		UserID:        1,
 		JoinedOn:      TimeNow.Add(time.Minute * 1),
 	},
 	{
-		TournamentKey: TournamentInsts[1].TournamentKey,
+		TournamentKey: Tournament1LobbyFilledKey,
+		UserID:        2,
+		JoinedOn:      TimeNow.Add(time.Minute * 2),
+	},
+	// IN_PROGRESS tournament (max participants)
+	{
+		TournamentKey: Tournament2KnockoutKey,
+		UserID:        1,
+		JoinedOn:      TimeNow.Add(time.Minute * 1),
+	},
+	{
+		TournamentKey: Tournament2KnockoutKey,
 		UserID:        2,
 		JoinedOn:      TimeNow.Add(time.Minute * 2),
 	},
 	{
-		TournamentKey: TournamentInsts[1].TournamentKey,
+		TournamentKey: Tournament2KnockoutKey,
 		UserID:        3,
 		JoinedOn:      TimeNow.Add(time.Minute * 3),
 	},
 	{
-		TournamentKey: TournamentInsts[1].TournamentKey,
+		TournamentKey: Tournament2KnockoutKey,
 		UserID:        4,
 		JoinedOn:      TimeNow.Add(time.Minute * 4),
 	},
 	// FINISHED tournament participants (max participants)
 	{
-		TournamentKey: TournamentInsts[2].TournamentKey,
+		TournamentKey: Tournament5FinishedKey,
 		UserID:        1,
 		JoinedOn:      TimeNow.Add(time.Minute * 5),
 	},
 	{
-		TournamentKey: TournamentInsts[2].TournamentKey,
+		TournamentKey: Tournament5FinishedKey,
 		UserID:        2,
 		JoinedOn:      TimeNow.Add(time.Minute * 6),
 	},
@@ -314,30 +373,38 @@ var TournamentParticipantInsts = []struct {
 
 // TournamentMatchInsts JoinedOn must be deterministically ordered.
 var TournamentMatchInsts = []struct {
-	GameID        *string
+	GameID        string
 	TournamentKey uuid.UUID
 	Round         int32
 	CreatedOn     time.Time
+	WhiteID       int64
+	BlackID       int64
 }{
 	// IN_PROGRESS tournmanet matches (some matches)
 	{
-		GameID:        ptr(uuid.NewString()), // (no replay, unfinished)
-		TournamentKey: TournamentInsts[1].TournamentKey,
+		GameID:        uuid.NewString(), // (no replay, unfinished)
+		TournamentKey: Tournament2KnockoutKey,
 		Round:         1,
 		CreatedOn:     TimeNow.Add(time.Minute * 1),
+		WhiteID:       1,
+		BlackID:       2,
 	},
 	{
-		GameID:        ptr(uuid.NewString()), // (no replay, unfinished)
-		TournamentKey: TournamentInsts[1].TournamentKey,
+		GameID:        uuid.NewString(), // (no replay, unfinished)
+		TournamentKey: Tournament2KnockoutKey,
 		Round:         1,
 		CreatedOn:     TimeNow.Add(time.Minute * 2),
+		WhiteID:       3,
+		BlackID:       4,
 	},
 	// FINISHED tournament matches (all matches)
 	{
-		GameID:        ptr(FirstReplayGameID), // (replay, finished)
-		TournamentKey: TournamentInsts[2].TournamentKey,
+		GameID:        FirstReplayGameID, // (replay, finished)
+		TournamentKey: Tournament5FinishedKey,
 		Round:         1,
 		CreatedOn:     TimeNow.Add(time.Minute * 3),
+		WhiteID:       1,
+		BlackID:       2,
 	},
 }
 
@@ -418,40 +485,43 @@ func insertTestData(pool *pgxpool.Pool) error {
 			inst.MadeOn,
 		)
 	}
-	//for _, inst := range TournamentInsts {
-	//	batchQueue(`
-	//		INSERT INTO tournaments (tournament_key, name, rounds, countdown, created_on, updated_on, created_by, status, mode)
-	//		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
-	//		inst.TournamentKey,
-	//		inst.Name,
-	//		inst.Rounds,
-	//		inst.ScheduledOn,
-	//		inst.Countdown.Milliseconds(),
-	//		inst.UpdatedOn,
-	//		inst.CreatedBy,
-	//		inst.Status,
-	//		inst.Mode,
-	//	)
-	//}
-	//for _, inst := range TournamentParticipantInsts {
-	//	batchQueue(`
-	//		INSERT INTO tournament_participants (tournament_key, user_id, joined_on)
-	//		VALUES ($1, $2, $3);`,
-	//		inst.TournamentKey,
-	//		inst.UserID,
-	//		inst.JoinedOn,
-	//	)
-	//}
-	//for _, inst := range TournamentMatchInsts {
-	//	batchQueue(`
-	//		INSERT INTO tournament_matches (game_id, tournament_key, round, created_on)
-	//		VALUES ($1, $2, $3, $4);`,
-	//		inst.GameID,
-	//		inst.TournamentKey,
-	//		inst.Round,
-	//		inst.CreatedOn,
-	//	)
-	//}
+	for _, inst := range TournamentInsts {
+		batchQueue(`
+			INSERT INTO tournaments (tournament_key, name, rounds, countdown, created_on, updated_on, created_by, status, ruleset, mode)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);`,
+			inst.TournamentKey,
+			inst.Name,
+			inst.Rounds,
+			inst.Countdown.Milliseconds(),
+			inst.CreatedOn,
+			inst.CreatedOn,
+			inst.CreatedBy,
+			inst.Status,
+			inst.Ruleset,
+			inst.Mode,
+		)
+	}
+	for _, inst := range TournamentParticipantInsts {
+		batchQueue(`
+			INSERT INTO tournament_participants (tournament_key, user_id, joined_on)
+			VALUES ($1, $2, $3);`,
+			inst.TournamentKey,
+			inst.UserID,
+			inst.JoinedOn,
+		)
+	}
+	for _, inst := range TournamentMatchInsts {
+		batchQueue(`
+			INSERT INTO tournament_matches (game_id, tournament_key, round, created_on, white_id, black_id)
+			VALUES ($1, $2, $3, $4, $5, $6);`,
+			inst.GameID,
+			inst.TournamentKey,
+			inst.Round,
+			inst.CreatedOn,
+			inst.WhiteID,
+			inst.BlackID,
+		)
+	}
 
 	batchResults := pool.SendBatch(ctx, batch)
 	defer batchResults.Close()

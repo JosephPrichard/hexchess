@@ -267,13 +267,18 @@ message TournamentOutputID {
   string tournament_key = 1;
 }
 
+message BeginCountdownOutput {}
+
+message StartTourneyOutput {}
+
 message TournamentOutput {
   string tournament_key = 1;
   oneof value {
     ErrorOutput error = 2;
     LbdUser participant = 3;
-    int32 countdown = 4;
+    BeginCountdownOutput countdown = 4;
     MatchmakingOutput matchmaking = 5;
+    StartTourneyOutput start = 6;
   }
 }
 

@@ -254,8 +254,8 @@ CREATE TABLE public.tournament_matches (
     round integer NOT NULL,
     game_id text NOT NULL,
     created_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    white_id bigint DEFAULT 0 NOT NULL,
-    black_id bigint DEFAULT 0 NOT NULL
+    white_id bigint NOT NULL,
+    black_id bigint NOT NULL
 );
 
 

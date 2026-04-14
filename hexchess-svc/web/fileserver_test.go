@@ -12,12 +12,16 @@ import (
 	"hexchess-svc/egress"
 	"hexchess-svc/itest"
 	"hexchess-svc/service"
+	"hexchess-svc/util/testutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 )
+
+var s3InputCmpOpts = testutil.CmpIgnoreExcept(s3.PutObjectInput{}, "Bucket", "Key", "ContentType")
 
 func TestHandleUploadProfilePic(t *testing.T) {
 	t.Parallel()
@@ -36,18 +40,21 @@ func TestHandleUploadProfilePic(t *testing.T) {
 
 	createTestSessions(t, services)
 
-	body := bytes.NewBuffer([]byte("testfiledata"))
+	strBody := "testfiledata"
+	body := bytes.NewBuffer([]byte(strBody))
 
 	// assert that keys and metadata arrive on the system correctly
 	mockS3Client.EXPECT().
 		PutObject(gomock.Any(), gomock.Cond(func(input *s3.PutObjectInput) bool {
-			return input.Bucket != nil &&
-				*input.Bucket == egress.S3ProfileBucket &&
-				input.Key != nil &&
-				*input.Key == "users/profile-pics/2/id1" &&
-				input.Body != nil &&
-				input.ContentType != nil &&
-				*input.ContentType == "application/octet-stream"
+			wantInput := &s3.PutObjectInput{
+				Bucket:       aws.String(egress.S3ProfileBucket),
+				Key:          aws.String("users/profile-pics/2/id1"),
+				ContentType:  aws.String("application/octet-stream"),
+				CacheControl: aws.String("public, max-age=31536000"),
+			}
+			recvBodyBytes, _ := io.ReadAll(input.Body)
+
+			return testutil.Equal(t, wantInput, input, s3InputCmpOpts) && assert.Equal(t, strBody, string(recvBodyBytes))
 		})).
 		Return(&s3.PutObjectOutput{}, nil)
 

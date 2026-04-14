@@ -14,7 +14,7 @@ var ErrSessionNotFound = errors.New("session not found")
 
 func (svc *HexchessServices) GetSession(ctx context.Context, sessionID string) (PlayerState, error) {
 	sessionKey := makeSessionKey(sessionID)
-	data, err := svc.redis.Cache.Get(ctx, sessionKey).Bytes()
+	bytes, err := svc.redis.Cache.Get(ctx, sessionKey).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return PlayerState{}, ErrSessionNotFound
@@ -22,7 +22,7 @@ func (svc *HexchessServices) GetSession(ctx context.Context, sessionID string) (
 		return PlayerState{}, fmt.Errorf("get session %s: %w", sessionID, err)
 	}
 
-	player, err := UnmarshalPlayer(data)
+	player, err := UnmarshalPlayer(bytes)
 	if err != nil {
 		return PlayerState{}, fmt.Errorf("unmarshal session: %w", err)
 	}

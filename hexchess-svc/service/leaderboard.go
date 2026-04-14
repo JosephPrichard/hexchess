@@ -205,9 +205,9 @@ func (svc *HexchessServices) getLeaderboard(ctx context.Context, mode GameMode, 
 		users = append(users, RankedUser{ID: int64(userID), Rank: startRank + int64(i) + 1})
 	}
 
-	pageCount := 
-		int((totalLbdElemCount / lbdElemCount) + 
-		int64(math.Min(float64(totalLbdElemCount%lbdElemCount), 1)))
+	pageCount :=
+		int((totalLbdElemCount / lbdElemCount) +
+			int64(math.Min(float64(totalLbdElemCount%lbdElemCount), 1)))
 
 	leaderboard := Leaderboard{RankedUsers: users, PageCount: pageCount}
 
@@ -294,14 +294,14 @@ func (svc *HexchessServices) GetLeaderboardUser(ctx context.Context, userID int6
 
 	eg.Go(func() (err error) {
 		userRow, err = svc.querier.SelectUserWithEloByID(egCtx, sqlc.SelectUserWithEloByIDParams{
-			ID: userID,
+			ID:   userID,
 			Mode: sqlc.ModeEnum(mode.String()),
 		})
-		return errutil.Guardf("select user with elos by id %d", err, userID)
+		return errutil.Guardf(err, "select user with elos by id %d", userID)
 	})
 	eg.Go(func() (err error) {
 		rankScore, err = svc.redis.Cache.ZRankWithScore(egCtx, svc.leaderboardZSet(mode.String()), strUserID).Result()
-		return errutil.Guardf("get user rank by id: %d", err, userID)
+		return errutil.Guardf(err, "get user rank by id: %d", userID)
 	})
 
 	if err := eg.Wait(); err != nil {

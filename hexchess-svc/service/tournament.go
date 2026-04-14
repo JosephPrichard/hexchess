@@ -35,11 +35,7 @@ type TournamentDTO struct {
 	Mode               GameMode          `json:"mode"`
 }
 
-type ParticipantDTO struct {
-	TournamentKey uuid.UUID `json:"tournamentKey"`
-	JoinedOn      time.Time `json:"joinedOn"`
-	LbdUserDTO              // fetches the leaderboard data for the mode the tournament is in.
-}
+type ParticipantDTO = LbdUserDTO
 
 type TournamentReplay struct {
 	ReplayDTO
@@ -47,7 +43,7 @@ type TournamentReplay struct {
 }
 
 type MatchDTO struct {
-	ID            int64             `json:"id"`
+	Ordering      int64             `json:"ordering"`
 	GameID        string            `json:"gameID"`
 	TournamentKey uuid.UUID         `json:"tournamentKey"`
 	Round         int32             `json:"round"`
@@ -63,23 +59,19 @@ type FullTournamentDTO struct {
 	TournamentDTO
 }
 
-func mapTourneyParticipantFromRow(participant sqlc.SelectParticipantsByTournamentIDRow) ParticipantDTO {
-	return ParticipantDTO{
-		TournamentKey: participant.TournamentKey.Bytes,
-		JoinedOn:      participant.TournamentJoinedOn.Time,
-		LbdUserDTO: mapLbdUser(sqlc.SelectUserWithEloByIDRow{
-			ID:         participant.UserID,
-			Username:   participant.Username,
-			Country:    participant.Country,
-			Bio:        participant.Bio,
-			JoinedOn:   participant.UserJoinedOn,
-			Elo:        participant.Elo,
-			HighestElo: participant.HighestElo,
-			Wins:       participant.Wins,
-			Losses:     participant.Losses,
-			Draws:      participant.Draws,
-		}),
-	}
+func mapTourneyParticipantFromRow(participant sqlc.SelectParticipantsWithUserByTournamentIDRow) ParticipantDTO {
+	return mapLbdUser(sqlc.SelectUserWithEloByIDRow{
+		ID:         participant.UserID,
+		Username:   participant.Username,
+		Country:    participant.Country,
+		Bio:        participant.Bio,
+		JoinedOn:   participant.UserJoinedOn,
+		Elo:        participant.Elo,
+		HighestElo: participant.HighestElo,
+		Wins:       participant.Wins,
+		Losses:     participant.Losses,
+		Draws:      participant.Draws,
+	})
 }
 
 func mapTourneyMatchFromRow(match sqlc.SelectReplayMatchesByTournamentIDRow) MatchDTO {
@@ -109,6 +101,7 @@ func mapTourneyMatchFromRow(match sqlc.SelectReplayMatchesByTournamentIDRow) Mat
 	}
 
 	return MatchDTO{
+		Ordering:      match.Ordering,
 		GameID:        match.GameID, // null gameID will be an empty string.
 		TournamentKey: match.TournamentKey.Bytes,
 		Round:         match.Round,
@@ -120,8 +113,19 @@ func mapTourneyMatchFromRow(match sqlc.SelectReplayMatchesByTournamentIDRow) Mat
 }
 
 func mapTournamentByIdRow(tournament sqlc.SelectTournamentByIDRow) TournamentDTO {
-	tournamentStatus := enum.Expect(tournament.Status, TournamentStatusEnums)
-	gameMode := enum.Expect(tournament.Mode, GameModeEnums)
+	ruleset := enum.Expect(tournament.Ruleset, TournamentRulesetEnums)
+	status := enum.Expect(tournament.Status, TournamentStatusEnums)
+	mode := enum.Expect(tournament.Mode, GameModeEnums)
+
+	var maxPlayerCount int
+	switch ruleset {
+	case TournamentKnockout:
+		maxPlayerCount = participantsAtRound(int(tournament.Rounds), 1)
+	case TournamentRoundRobin:
+		maxPlayerCount = -1
+	case TournamentSwiss:
+		maxPlayerCount = -1
+	}
 
 	return TournamentDTO{
 		ID:                 tournament.ID,
@@ -129,14 +133,15 @@ func mapTournamentByIdRow(tournament sqlc.SelectTournamentByIDRow) TournamentDTO
 		Name:               tournament.Name,
 		Rounds:             tournament.Rounds,
 		WinnerID:           tournament.WinnerID.Int64,
-		MaxPlayerCount:     participantsAtRound(int(tournament.Rounds), 1),
+		MaxPlayerCount:     maxPlayerCount,
 		CountdownStartedOn: tournament.CountdownStartedOn.Time,
 		CountdownStarted:   tournament.CountdownStartedOn.Valid,
 		Countdown:          (time.Duration(tournament.Countdown) * time.Millisecond).String(),
 		CreatedOn:          tournament.CreatedOn.Time,
 		CreatedBy:          tournament.CreatedBy,
-		Status:             tournamentStatus,
-		Mode:               gameMode,
+		Status:             status,
+		Ruleset:            ruleset,
+		Mode:               mode,
 	}
 }
 
@@ -145,23 +150,25 @@ var ErrTournamentNotFound = fmt.Errorf("tournament does not exist")
 func (svc *HexchessServices) GetFullTournamentByKey(ctx context.Context, tournamentKey uuid.UUID) (t FullTournamentDTO, err error) {
 	var tournamentRow sqlc.SelectTournamentByIDRow
 	var matchRows []sqlc.SelectReplayMatchesByTournamentIDRow
-	var participantRows []sqlc.SelectParticipantsByTournamentIDRow
-
-	eg, egCtx := errgroup.WithContext(ctx)
+	var participantRows []sqlc.SelectParticipantsWithUserByTournamentIDRow
 
 	pgKey := pgtype.UUID{Bytes: tournamentKey, Valid: true}
 
+	eg, egCtx := errgroup.WithContext(ctx)
+
 	eg.Go(func() (err error) {
 		tournamentRow, err = svc.querier.SelectTournamentByID(egCtx, pgKey)
-		return errutil.Guardf("select tournament by key [%v]", err, tournamentKey)
+		return errutil.Guardf(err, "select tournament by key [%v]", tournamentKey)
 	})
+
 	eg.Go(func() (err error) {
-		participantRows, err = svc.querier.SelectParticipantsByTournamentID(egCtx, pgKey)
-		return errutil.Guardf("select participants by tournament key [%v]", err, tournamentKey)
+		participantRows, err = svc.querier.SelectParticipantsWithUserByTournamentID(egCtx, pgKey)
+		return errutil.Guardf(err, "select participants by tournament key [%v]", tournamentKey)
 	})
+
 	eg.Go(func() (err error) {
 		matchRows, err = svc.querier.SelectReplayMatchesByTournamentID(egCtx, pgKey)
-		return errutil.Guardf("select replay matches by tournament key [%v]", err, tournamentKey)
+		return errutil.Guardf(err, "select replay matches by tournament key [%v]", tournamentKey)
 	})
 
 	if err := eg.Wait(); err != nil {
@@ -199,7 +206,7 @@ func (svc *HexchessServices) GetFullTournamentByKey(ctx context.Context, tournam
 type mapFullTournamentArgs struct {
 	tournamentRow   sqlc.SelectTournamentByIDRow
 	matchRows       []sqlc.SelectReplayMatchesByTournamentIDRow
-	participantRows []sqlc.SelectParticipantsByTournamentIDRow
+	participantRows []sqlc.SelectParticipantsWithUserByTournamentIDRow
 }
 
 func mapFullTournament(args mapFullTournamentArgs) FullTournamentDTO {
@@ -331,7 +338,6 @@ var (
 
 type BeginTourneyCountdown struct {
 	TournamentKey uuid.UUID
-	CountdownMs   int32
 }
 
 func (svc *HexchessServices) BeginTournamentCountdownTx(ctx context.Context, tournamentKey uuid.UUID, userID int64) (BeginTourneyCountdown, error) {
@@ -362,7 +368,6 @@ func beginTournamentCountdown(ctx context.Context, querier sqlc.Querier, tournam
 	if err != nil {
 		return b, fmt.Errorf("select tournament by key %v: %w", tournamentKey, err)
 	}
-	tournamentCountdownMs := int32(tournamentRow.Countdown)
 
 	tournamentStatus := enum.Expect(tournamentRow.Status, TournamentStatusEnums)
 
@@ -391,7 +396,7 @@ func beginTournamentCountdown(ctx context.Context, querier sqlc.Querier, tournam
 
 	slog.InfoContext(ctx, "begin tournament countdown", "tournamentRow", tournamentRow)
 
-	return BeginTourneyCountdown{TournamentKey: tournamentKey, CountdownMs: tournamentCountdownMs}, nil
+	return BeginTourneyCountdown{TournamentKey: tournamentKey}, nil
 }
 
 func (svc *HexchessServices) LeaveTournament(ctx context.Context, tournamentKey uuid.UUID, userID int64) (bool, error) {

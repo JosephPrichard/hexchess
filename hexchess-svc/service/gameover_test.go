@@ -395,7 +395,7 @@ func TestInsertGameResult(t *testing.T) {
 			},
 		},
 		{
-			name: "inserting already persisted game result",
+			name: "inserting already persisted game wantResult",
 			resultInput: GameResult{
 				GameID:       itest.FirstReplayGameID,
 				WhiteID:      testUser0.ID,

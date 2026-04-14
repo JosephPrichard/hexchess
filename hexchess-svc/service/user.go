@@ -409,20 +409,20 @@ func (svc *HexchessServices) GetFullUser(ctx context.Context, userID int64, perP
 
 	eg.Go(func() (err error) {
 		user, err = svc.GetUserByID(egCtx, userID)
-		return errutil.Guardf("get user %d", err, userID)
+		return errutil.Guardf(err, "get user %d", userID)
 	})
 	eg.Go(func() (err error) {
 		stats, err = svc.GetUserStats(egCtx, userID)
-		return errutil.Guardf("get user %d stats", err, userID)
+		return errutil.Guardf(err, "get user %d stats", userID)
 	})
 	eg.Go(func() (err error) {
 		lbRanks, err = svc.GetUserLeaderboardRanks(egCtx, userID, GameModeEnums)
-		return errutil.Guardf("get user %d leaderboard ranks", err, userID)
+		return errutil.Guardf(err, "get user %d leaderboard ranks", userID)
 	})
 	if withReplays {
 		eg.Go(func() (err error) {
 			replayList, err = svc.GetUserReplays(egCtx, userID, -1, perPage)
-			return errutil.Guardf("get user %d replays", err, userID)
+			return errutil.Guardf(err, "get user %d replays", userID)
 		})
 	}
 

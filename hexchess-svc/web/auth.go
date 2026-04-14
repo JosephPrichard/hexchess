@@ -17,6 +17,8 @@ import (
 const CookieKey = "session"
 const TempSessionMaxAge = time.Minute
 const SessionMaxAge = time.Hour * 24 * 30
+const SessionIDCharset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+const SessionIDLength = 64
 
 type SessionView struct {
 	ID       int64         `json:"id"`
@@ -28,16 +30,13 @@ type SessionView struct {
 var testSessionViewCmpOpts = cmpopts.IgnoreFields(SessionView{}, "ID", "TTLSecs")
 
 func MakeSessionID() string {
-	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-	const length = 100
-
-	bytes := make([]byte, length)
-	for i := 0; i < length; i++ {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(characters))))
+	bytes := make([]byte, SessionIDLength)
+	for i := range SessionIDLength {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(SessionIDCharset))))
 		if err != nil {
 			panic(fmt.Sprintf("error generating session id: %v", err))
 		}
-		bytes[i] = characters[n.Int64()]
+		bytes[i] = SessionIDCharset[n.Int64()]
 	}
 	return string(bytes)
 }
@@ -53,7 +52,7 @@ func (auth *Authenticator) GetSessionPlayerAndID(ctx context.Context, r *http.Re
 	}
 	sessionToken := cookie.Value
 	player, err := auth.services.GetSession(ctx, sessionToken)
-	return player, sessionToken, errutil.Guardf("get session player", err)
+	return player, sessionToken, errutil.Guardf(err, "get session player")
 }
 
 func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request) (svc.PlayerState, error) {
@@ -62,11 +61,11 @@ func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request
 }
 
 func (auth *Authenticator) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player svc.PlayerState) (time.Duration, error) {
-	sessionID := MakeSessionID()
-	if err := auth.services.SetSessions(ctx, svc.SessionInst{SessionID: sessionID, Player: player, Expiry: SessionMaxAge}); err != nil {
+	sessionToken := MakeSessionID()
+	if err := auth.services.SetSessions(ctx, svc.SessionInst{SessionID: sessionToken, Player: player, Expiry: SessionMaxAge}); err != nil {
 		return 0, fmt.Errorf("set session player [%d]: %w", player.ID, err)
 	}
-	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
+	w.Header().Set("Set-Cookie", FmtCookie(sessionToken))
 	return SessionMaxAge, nil
 }
 

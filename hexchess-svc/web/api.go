@@ -123,6 +123,8 @@ func MakeServeMux(setup Setup) *chi.Mux {
 	r.Get("/api/game/rooms/chats", Rest(server.HandleGetGameChats))
 	r.Get("/api/game/rooms/exists", Rest(server.HandleGameExistence))
 	r.Get("/api/users/profile-pics", Rest(server.HandleGetProfilePic))
+	r.Get("/api/tournament", Rest(server.HandleGetTournament))
+	r.Get("/api/tournaments", Rest(server.HandleGetTournaments))
 
 	r.Get("/api/events/count", SSE(server.HandleCountEvents))
 	r.Get("/api/events/user", SSE(server.HandleUserEvents))

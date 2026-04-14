@@ -22,8 +22,8 @@ type test struct {
 	wantStr string
 }
 
-func testAssertRestBody[V any](t *testing.T, test test) {
-	str := assertRespBody(test.body, test.w, test.opts)
+func testAssertRestBody(t *testing.T, test test) {
+	str, _ := assertRespBody(test.body, test.w, test.opts)
 	t.Logf("assert rest body:\n%s", str)
 	assert.Equal(t, test.wantStr, str)
 }

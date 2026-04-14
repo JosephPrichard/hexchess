@@ -23,6 +23,14 @@ type queuePollHandler struct {
 	fn           func(ctx context.Context, bytes []byte) error
 }
 
+type NonRetryableOutboxError struct {
+	Err error
+}
+
+func (err NonRetryableOutboxError) Error() string {
+	return fmt.Sprintf("non-retryable outbox error: %v", err.Err)
+}
+
 func makeOutboxQueueTable(services *HexchessServices) map[sqlc.OutboxQueueTypeEnum]queuePollHandler {
 	handlerList := []queuePollHandler{
 		{
@@ -87,9 +95,12 @@ func pollOutboxQueueEvents(ctx context.Context, querier sqlc.Querier, handler qu
 			errProcessedEvents = append(errProcessedEvents, event)
 		}
 	}
+
+	level := slog.LevelInfo
 	if len(errProcessedEvents) > 0 {
-		slog.ErrorContext(ctx, "failed to handle outbox queue event", "events", errProcessedEvents)
+		level = slog.LevelError
 	}
+	slog.Log(ctx, level, "handling outbox queue events", "errProcessedEvents", errProcessedEvents, "processedEvents", processedEventIDs)
 
 	if err := querier.UpdateOutboxQueueProcessedByID(ctx, sqlc.UpdateOutboxQueueProcessedByIDParams{
 		Ids:           processedEventIDs,
@@ -139,8 +150,10 @@ type CreateTournamentMatchesEvent struct {
 }
 
 func pushCreateTournamentMatchesEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, matches []CreateTournamentMatchDTO) error {
-	event := CreateTournamentMatchesEvent{TournamentKey: tournamentKey, Matches: matches}
-	bytes, err := proto.Marshal(SerializeCreateTournamentMatchesEvent(event))
+	bytes, err := proto.Marshal(SerializeCreateTournamentMatchesEvent(CreateTournamentMatchesEvent{
+		TournamentKey: tournamentKey,
+		Matches:       matches,
+	}))
 	if err != nil {
 		return fmt.Errorf("marshal create tournament matches event: %w", err)
 	}
@@ -178,15 +191,12 @@ func (svc *HexchessServices) handleCreateTournamentMatchesEvent(ctx context.Cont
 
 	userIDs := make([]int64, 0, len(event.Matches)*2)
 	for _, match := range event.Matches {
-		userIDs = append(userIDs, match.WhiteID)
-		userIDs = append(userIDs, match.BlackID)
+		userIDs = append(userIDs, match.WhiteID, match.BlackID)
 	}
-
 	playerDataRows, err := svc.querier.SelectUserPlayerDataByIDs(ctx, userIDs)
 	if err != nil {
 		return fmt.Errorf("select user player data by ids: %w", err)
 	}
-
 	playerDataMap := make(map[int64]sqlc.SelectUserPlayerDataByIDsRow)
 	for _, row := range playerDataRows {
 		playerDataMap[row.ID] = row
@@ -217,7 +227,7 @@ func (svc *HexchessServices) handleCreateTournamentMatchesEvent(ctx context.Cont
 
 	if _, err := pipe.Exec(ctx); err != nil {
 		// starting tournament games is atomic, job queue will retry until all creates are created in one shot
-		return fmt.Errorf("set tournament games +%v: %w", event.Matches, err)
+		return fmt.Errorf("set tournament games [%+v]: %w", event.Matches, err)
 	}
 
 	return nil
@@ -229,24 +239,32 @@ func (svc *HexchessServices) handleScheduledTournamentEvent(ctx context.Context,
 		return fmt.Errorf("unmarshal create scheduled tournament event: %w", err)
 	}
 
-	tournamenKey, err := uuid.Parse(pbEvent.TournamentKey)
+	tournamentKey, err := uuid.Parse(pbEvent.TournamentKey)
 	if err != nil {
 		return fmt.Errorf("parse tournament key: %w", err)
 	}
 
-	// attempt to start the tournament, broadcast the result (successful or otherwise)
-	err = svc.StartTournamentTx(ctx, tournamenKey)
+	// attempt to start the tournament, broadcast the wantResult (successful or otherwise)
+	err = svc.StartTournamentTx(ctx, tournamentKey)
 
 	var matchStateError MatchInvariantError
 	switch {
 	case errors.As(err, &matchStateError):
-		// known error: state issue. signal failure to subscribers.
+		// known error: state issue, signal failure to subscribers
+		err := svc.BroadcastTournament(ctx, SerializeTournamentError(tournamentKey, matchStateError))
+		if err != nil {
+			return fmt.Errorf("broadcast tournament error: %w", err)
+		}
+		return NonRetryableOutboxError{matchStateError}
 	case err != nil:
-		// unknown error? log and propagate (triggers retry)
-		return fmt.Errorf("start tournament %s: %w", tournamenKey, err)
+		// unknown error: propagate (triggers retry)
+		return fmt.Errorf("start tournament %s: %w", tournamentKey, err)
 	default:
 		// successful: signal success to subscribers
+		err := svc.BroadcastTournament(ctx, SerializeStartTournament(tournamentKey))
+		if err != nil {
+			return fmt.Errorf("broadcast start tournament event: %w", err)
+		}
+		return nil
 	}
-
-	return nil
 }

@@ -89,7 +89,7 @@ type GameResult struct {
 	WhiteID      int64        `json:"whiteId"`
 	BlackID      int64        `json:"blackId"`
 	ReplayCause  ReplayCause  `json:"cause"`
-	ReplayResult ReplayResult `json:"result"`
+	ReplayResult ReplayResult `json:"wantResult"`
 	ReplayMode   GameMode     `json:"mode"`
 	InsertedTime time.Time    `json:"insertedTime"`
 }
@@ -176,12 +176,12 @@ func insertGameResult(ctx context.Context, querier sqlc.Querier, result GameResu
 	}
 	replayID, err := querier.InsertReplay(ctx, replayInst)
 	if err != nil {
-		return GameResultChangeSet{}, fmt.Errorf("insert replay for result %+v: %w", result, err)
+		return GameResultChangeSet{}, fmt.Errorf("insert replay for wantResult %+v: %w", result, err)
 	}
 
 	changeSet.ReplayID = replayID
 
-	slog.InfoContext(ctx, "inserted game result", "changeSet", changeSet)
+	slog.InfoContext(ctx, "inserted game wantResult", "changeSet", changeSet)
 	return changeSet, nil
 }
 

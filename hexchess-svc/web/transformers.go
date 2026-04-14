@@ -67,11 +67,11 @@ type CreateChallengeTBody struct {
 func transformCreateChallenge(body CreateChallengeBody) (CreateChallengeTBody, error) {
 	var respErr ResponseError
 
-	color, ok := enum.ParseOk(body.StartColor, svc.GameColorEnums)
+	color, ok := enum.Parse(body.StartColor, svc.GameColorEnums)
 	if !ok {
 		respErr.Put("startColor", ErrHttpInvalidColor)
 	}
-	mode, ok := enum.ParseOk(body.Mode, svc.GameModeEnums)
+	mode, ok := enum.Parse(body.Mode, svc.GameModeEnums)
 	if !ok {
 		respErr.Put("mode", ErrHttpInvalidMode)
 	}
@@ -99,11 +99,11 @@ func transformCreateGame(body CreateGameBody) (CreateGameTBody, error) {
 		}
 	}
 
-	color, ok := enum.ParseOk(body.FirstColor, svc.GameColorEnums)
+	color, ok := enum.Parse(body.FirstColor, svc.GameColorEnums)
 	if !ok {
 		respErr.Put("firstColor", ErrHttpInvalidColor)
 	}
-	mode, ok := enum.ParseOk(body.Mode, svc.GameModeEnums)
+	mode, ok := enum.Parse(body.Mode, svc.GameModeEnums)
 	if !ok {
 		respErr.Put("mode", ErrHttpInvalidMode)
 	}
@@ -123,11 +123,11 @@ type CreateTournamentTBody struct {
 func transformCreateTournament(body CreateTournamentBody) (CreateTournamentTBody, error) {
 	var respErr ResponseError
 
-	mode, ok := enum.ParseOk(body.Mode, svc.GameModeEnums)
+	mode, ok := enum.Parse(body.Mode, svc.GameModeEnums)
 	if !ok {
 		respErr.Put("mode", ErrHttpInvalidMode)
 	}
-	ruleset, ok := enum.ParseOk(body.Ruleset, svc.TournamentRulesetEnums)
+	ruleset, ok := enum.Parse(body.Ruleset, svc.TournamentRulesetEnums)
 	if !ok {
 		respErr.Put("ruleset", ErrHttpInvalidRuleset)
 	}
@@ -277,8 +277,8 @@ func transformReplaysQuery(values url.Values) (GetReplaysQuery, error) {
 }
 
 type GetTournamentQuery struct {
-	UserID  int
-	AfterID int
+	UserID        int
+	AfterID       int
 	ByParticipant bool
 }
 
@@ -287,7 +287,7 @@ func transformTournamentsQuery(values url.Values) (q GetTournamentQuery, err err
 
 	userIDStr := values.Get("userId")
 	userID := svc.NoParticipantSignifier
-	
+
 	if userIDStr != "" {
 		userID, err = strconv.Atoi(userIDStr)
 		if err != nil {
@@ -300,5 +300,21 @@ func transformTournamentsQuery(values url.Values) (q GetTournamentQuery, err err
 	}
 
 	query := GetTournamentQuery{UserID: userID, AfterID: afterID}
+	return query, respErr.AsError()
+}
+
+func transformLeaderboardQuery(q url.Values) (LeaderboardQuery, error) {
+	var respErr ResponseError
+
+	page, err := intQueryDefault(q, "page", 1)
+	if err != nil {
+		respErr.Put("page", ErrHttpInvalidPage)
+	}
+	mode, ok := enum.Parse(q.Get("mode"), svc.GameModeEnums)
+	if !ok {
+		respErr.Put("mode", ErrHttpInvalidMode)
+	}
+
+	query := LeaderboardQuery{Page: page, Mode: mode}
 	return query, respErr.AsError()
 }

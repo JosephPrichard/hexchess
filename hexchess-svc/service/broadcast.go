@@ -219,13 +219,13 @@ func (svc *HexchessServices) BroadcastTournamentParticipant(ctx context.Context,
 	return nil
 }
 
-func (svc *HexchessServices) BroadcastStartTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, countdownMs int32) error {
-	tournament := SerializeStartTournamentCountdown(tournamentKey, countdownMs)
+func (svc *HexchessServices) BroadcastStartTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID) error {
+	tournament := SerializeBeginTournamentCountdown(tournamentKey)
 
 	if err := svc.BroadcastTournament(ctx, tournament); err != nil {
 		return fmt.Errorf("broadcast tournament participant: %w", err)
 	}
 
-	slog.InfoContext(ctx, "broadcasted start of tournament countdown", "countdownMs", countdownMs)
+	slog.InfoContext(ctx, "broadcasted start of tournament countdown", "tournamentKey", tournamentKey)
 	return nil
 }

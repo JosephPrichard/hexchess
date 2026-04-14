@@ -18,7 +18,7 @@ type ReplayDTO struct {
 	WhiteID     int64        `json:"whiteId"`
 	BlackID     int64        `json:"blackId"`
 	Mode        GameMode     `json:"mode"`
-	Result      ReplayResult `json:"result"`
+	Result      ReplayResult `json:"wantResult"`
 	Cause       ReplayCause  `json:"cause"`
 	WinEloDiff  float64      `json:"winEloDiff"`
 	LoseEloDiff float64      `json:"loseEloDiff"`

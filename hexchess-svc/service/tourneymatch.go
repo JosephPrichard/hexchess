@@ -184,7 +184,7 @@ func getKnockoutWinnerID(match PrevMatchDTO) (int64, TieBreakerKind) {
 			return match.BlackID, TiebreakerByElo
 		}
 	default:
-		panic(fmt.Sprintf("unknown match result %s", match.Result))
+		panic(fmt.Sprintf("unknown match wantResult %s", match.Result))
 	}
 }
 

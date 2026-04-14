@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/sync/errgroup"
 	"hexchess-svc/pb"
 	svc "hexchess-svc/service"
+	"hexchess-svc/util/errutil"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -247,7 +249,7 @@ func (api *API) HandleCreateTempSession(w http.ResponseWriter, r *http.Request) 
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		alreadyHasSession = false
 	} else if err != nil {
-		return fmt.Errorf("get session sessionPlayer: %w", err)
+		return err
 	}
 
 	var tempSessionID string
@@ -259,7 +261,7 @@ func (api *API) HandleCreateTempSession(w http.ResponseWriter, r *http.Request) 
 			{SessionID: tempSessionID, Player: sessionPlayer, Expiry: TempSessionMaxAge},
 		}
 	} else {
-		sessionPlayer = svc.MakeGuest()
+		sessionPlayer = svc.MakeGuestPlayer()
 		tempSessionID = MakeSessionID()
 		guestSessionID := MakeSessionID()
 
@@ -352,7 +354,7 @@ func (api *API) HandleGetSelf(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-type LeaderboardArgs struct {
+type LeaderboardQuery struct {
 	Page int
 	Mode svc.GameMode
 }
@@ -363,7 +365,7 @@ type LeaderboardResp struct {
 }
 
 func (api *API) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) error {
-	query, err := getLeaderboardQuery(r.URL.Query())
+	query, err := transformLeaderboardQuery(r.URL.Query())
 	if err != nil {
 		return err
 	}
@@ -560,6 +562,7 @@ func (api *API) HandleGetChallenges(w http.ResponseWriter, r *http.Request) erro
 	}
 
 	var challengeList []svc.ChallengeDTO
+
 	switch participants {
 	case SentParticipantsTarget:
 		listByChallenger, err := api.services.GetChallengesByParticipant(ctx, svc.ChallengeKey{ChallengerID: player.ID, ChallengeeID: -1})
@@ -671,18 +674,24 @@ func (api *API) HandleGetChessMetas(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	allChessMetas, err := api.services.GetAllChessMetas(ctx, query.Page, query.Count)
-	if err != nil {
-		return fmt.Errorf("get chess metas page %d: %w", query.Page, err)
+	var allChessMetas []svc.ChessMeta
+	var selfChessMetas []svc.ChessMeta
+
+	eg, egCtx := errgroup.WithContext(ctx)
+
+	eg.Go(func() (err error) {
+		allChessMetas, err = api.services.GetAllChessMetas(egCtx, query.Page, query.Count)
+		return errutil.Guardf(err, "get all chess metas page %d", query.Page)
+	})
+	if hasSession {
+		eg.Go(func() (err error) {
+			selfChessMetas, err = api.services.GetUserChessMetas(egCtx, player.ID)
+			return errutil.Guardf(err, "get user %d chess metas", player.ID)
+		})
 	}
 
-	var selfChessMetas []svc.ChessMeta
-	if hasSession {
-		chessMetas, err := api.services.GetUserChessMetas(ctx, player.ID)
-		if err != nil {
-			return fmt.Errorf("get user %d chess metas: %w", player.ID, err)
-		}
-		selfChessMetas = chessMetas
+	if err := eg.Wait(); err != nil {
+		return err
 	}
 
 	writeJSON(w, http.StatusOK, ChessMetasResp{
@@ -922,12 +931,12 @@ func (api *API) HandleBeginCountdownTournament(w http.ResponseWriter, r *http.Re
 		return fmt.Errorf("begin tournament countdown by tournament id %s: %w", body.TournamentKey, err)
 	}
 
-	slog.InfoContext(ctx, "successfully started countdown for tournament", "tournamentKey", body.TournamentKey)
+	slog.InfoContext(ctx, "successfully started countdown for tournament", "countdownResult", result)
 
 	go func() {
 		detatchedCtx := context.WithoutCancel(ctx)
 
-		err := api.services.BroadcastStartTournamentCountdown(ctx, result.TournamentKey, result.CountdownMs)
+		err := api.services.BroadcastStartTournamentCountdown(ctx, result.TournamentKey)
 		if err != nil {
 			slog.ErrorContext(detatchedCtx, "failed to broadcast tournament participant", "err", err)
 		}
@@ -937,9 +946,7 @@ func (api *API) HandleBeginCountdownTournament(w http.ResponseWriter, r *http.Re
 	return nil
 }
 
-type GetTournamentResp struct {
-	svc.FullTournamentDTO
-}
+type GetTournamentResp svc.FullTournamentDTO
 
 func (api *API) HandleGetTournament(w http.ResponseWriter, r *http.Request) error {
 	tournamentKey, err := uuid.Parse(r.URL.Query().Get("tournamentKey"))
@@ -949,13 +956,15 @@ func (api *API) HandleGetTournament(w http.ResponseWriter, r *http.Request) erro
 
 	ctx := r.Context()
 	tournament, err := api.services.GetFullTournamentByKey(ctx, tournamentKey)
-	if err != nil {
+	if errors.Is(err, svc.ErrTournamentNotFound) {
+		return ErrHttpNotFoundTournament
+	} else if err != nil {
 		return fmt.Errorf("get tournament by key: %w", err)
 	}
 
 	slog.Info("retrieved full tournament", "tournament", tournament)
 
-	writeJSON(w, http.StatusOK, GetTournamentResp{FullTournamentDTO: tournament})
+	writeJSON(w, http.StatusOK, GetTournamentResp(tournament))
 	return nil
 }
 
@@ -993,7 +1002,7 @@ func (api *API) HandleLeaveTournament(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	didLeave, err := api.services.LeaveTournament(ctx, tournamentKey, player.ID); 
+	didLeave, err := api.services.LeaveTournament(ctx, tournamentKey, player.ID)
 	if err != nil {
 		return fmt.Errorf("leave tournament: %w", err)
 	}

@@ -18,7 +18,7 @@ CREATE TABLE tournaments (
     countdown_started_on TIMESTAMP WITH TIME ZONE,
     created_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_by BIGINT NOT NULL REFERENCES users(id),
-    updated_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE tournament_participants (
@@ -33,7 +33,9 @@ CREATE TABLE tournament_matches (
     tournament_key UUID NOT NULL REFERENCES tournaments(tournament_key),
     round INT NOT NULL,
     game_id TEXT NOT NULL UNIQUE,
-    created_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    white_id BIGINT NOT NULL REFERENCES users(id),
+    black_id BIGINT NOT NULL REFERENCES users(id)
 );
 
 CREATE INDEX idx_tournament_participants_userid

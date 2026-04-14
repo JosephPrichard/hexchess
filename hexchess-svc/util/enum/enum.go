@@ -54,7 +54,7 @@ func Unmarshal[T ~int](data []byte, m map[string]T, out *T) error {
 	return nil
 }
 
-func Parse[T ~int, S StringLike](s S, m map[string]T) (T, error) {
+func ParseWithErr[T ~int, S StringLike](s S, m map[string]T) (T, error) {
 	v, ok := m[string(s)]
 	if !ok {
 		return 0, ParseError[T]{Expected: m, Actual: string(s)}
@@ -62,13 +62,13 @@ func Parse[T ~int, S StringLike](s S, m map[string]T) (T, error) {
 	return v, nil
 }
 
-func ParseOk[T ~int, S StringLike](s S, m map[string]T) (T, bool) {
+func Parse[T ~int, S StringLike](s S, m map[string]T) (T, bool) {
 	v, ok := m[string(s)]
 	return v, ok
 }
 
 func Expect[T ~int, S StringLike](s S, m map[string]T) T {
-	v, err := Parse(s, m)
+	v, err := ParseWithErr(s, m)
 	if err != nil {
 		slog.Error("failed to parse enum", "enum", fmt.Sprintf("%T", v), "err", err)
 		panic(err.Error())
