@@ -1,5 +1,7 @@
 package svc
 
+import "errors"
+
 type TournamentOutputKey string
 
 const (
@@ -9,6 +11,8 @@ const (
 	MatchmakingKey TournamentOutputKey = "matchmaking"
 	ErrorKey       TournamentOutputKey = "error"
 )
+
+var ErrStartTournamentTaskQueue = errors.New("failed to handle start scheduled tournament event on task queue")
 
 type TournamentOutput struct {
 	Key   TournamentOutputKey      `json:"key"`

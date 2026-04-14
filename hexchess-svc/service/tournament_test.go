@@ -6,8 +6,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
+	"hexchess-svc/pb"
 	"hexchess-svc/util/logutil"
 	"hexchess-svc/util/testutil"
 	"testing"
@@ -111,11 +113,9 @@ func TestGetFullTournament(t *testing.T) {
 	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.ROPostgres, itest.Redis)
 	defer services.Close()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-
 	// seed leaderboard for users fetched in `RetrieveFullTournament` test.
 	for _, change := range TournamentLbdChangeSets {
-		require.NoError(t, services.SetLeaderboard(ctx, change))
+		require.NoError(t, services.SetLeaderboard(context.WithValue(t.Context(), logutil.Trace, t.Name()), change))
 	}
 
 	tests := []struct {
@@ -160,6 +160,8 @@ func TestGetFullTournament(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+
 			tournament, err := services.GetFullTournamentByKey(ctx, tt.tournamentKey)
 
 			require.Equal(t, tt.wantErr, err)
@@ -173,8 +175,6 @@ func TestGetTournaments(t *testing.T) {
 
 	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.ROPostgres)
 	defer services.Close()
-
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	tests := []struct {
 		name            string
@@ -222,6 +222,8 @@ func TestGetTournaments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+
 			tournaments, err := services.GetTournaments(ctx, tt.participantID, tt.afterID, tt.perPage)
 
 			require.Equal(t, tt.wantErr, err)
@@ -235,6 +237,11 @@ func TestBeginTournamentCountdown(t *testing.T) {
 
 	updateTime := itest.TimeNow.Add(time.Minute * 5)
 
+	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
+	defer services.Close()
+
+	services.entropy = &StableEntropySource{Time: updateTime}
+
 	tests := []struct {
 		name                      string
 		tournamentKey             uuid.UUID
@@ -242,6 +249,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 		wantBeginTourneyCountdown BeginTourneyCountdown
 		wantErr                   error
 		wantTournamentById        sqlc.Tournament
+		wantOutboxQueueEvents     []sqlc.OutboxQueue
 	}{
 		{
 			name:          "StatusPreconditionFailed_InProgress",
@@ -281,16 +289,27 @@ func TestBeginTournamentCountdown(t *testing.T) {
 				CreatedBy:          1,
 				UpdatedOn:          pgtype.Timestamptz{Time: updateTime.Local(), Valid: true},
 			},
+			wantOutboxQueueEvents: []sqlc.OutboxQueue{
+				{
+					ID:   1,
+					Type: sqlc.OutboxQueueTypeEnumTOURNAMENTSCHEDULEDEVENT,
+					Data: func() []byte {
+						bytes, err := proto.Marshal(&pb.ScheduledTourmmentEvent{
+							TournamentKey: itest.Tournament0LobbyKey.String(),
+						})
+						require.NoError(t, err)
+						return bytes
+					}(),
+					CreatedOn:   pgtype.Timestamptz{Time: updateTime.Local(), Valid: true},
+					ProcessedOn: pgtype.Timestamptz{Valid: false},
+					ScheduledOn: pgtype.Timestamptz{Time: updateTime.Add(5 * time.Minute), Valid: true},
+				},
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
-			defer services.Close()
-
-			services.entropy = &StableEntropySource{Time: updateTime}
-
 			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 			result, err := services.BeginTournamentCountdownTx(ctx, tt.tournamentKey, tt.userID)
@@ -303,6 +322,11 @@ func TestBeginTournamentCountdown(t *testing.T) {
 				require.NoError(t, err)
 
 				testutil.Equal(t, tt.wantTournamentById, tournament)
+
+				outboxEvents, err := services.querier.SelectALLOutboxQueue(ctx)
+				require.NoError(t, err)
+
+				testutil.Equal(t, tt.wantOutboxQueueEvents, outboxEvents)
 			}
 		})
 	}
@@ -312,6 +336,11 @@ func TestJoinTournament(t *testing.T) {
 	t.Parallel()
 
 	updateTime := itest.TimeNow.Add(time.Minute * 5)
+
+	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
+	defer services.Close()
+
+	services.entropy = &StableEntropySource{Time: updateTime}
 
 	tests := []struct {
 		name             string
@@ -358,11 +387,6 @@ func TestJoinTournament(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
-			defer services.Close()
-
-			services.entropy = &StableEntropySource{Time: updateTime}
-
 			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 			result, err := services.JoinTournamentTx(ctx, tt.inst)

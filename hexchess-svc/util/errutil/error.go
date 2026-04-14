@@ -1,6 +1,9 @@
 package errutil
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 func Guardf(err error, format string, a ...any) error {
 	if err == nil {
@@ -8,4 +11,9 @@ func Guardf(err error, format string, a ...any) error {
 	}
 	a = append(a, err)
 	return fmt.Errorf(format+": %w", a...)
+}
+
+func IsType[T error](err error) bool {
+	var t T
+	return errors.As(err, &t)
 }

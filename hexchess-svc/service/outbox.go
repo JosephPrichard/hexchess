@@ -11,6 +11,7 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/pb"
+	"hexchess-svc/util/errutil"
 	"log/slog"
 	"sync"
 	"time"
@@ -57,7 +58,7 @@ func makeOutboxQueueTable(services *HexchessServices) map[sqlc.OutboxQueueTypeEn
 
 func pollOutboxQueueEvents(ctx context.Context, querier sqlc.Querier, handler queuePollHandler, getProcessedOn func() time.Time) error {
 	// locks events for the duration of the function
-	eventRows, err := querier.SelectOutboxQueue(ctx, sqlc.SelectOutboxQueueParams{
+	eventRows, err := querier.SelectOutboxQueueByPolling(ctx, sqlc.SelectOutboxQueueByPollingParams{
 		Type:  handler.kind,
 		Limit: handler.pollCount,
 	})
@@ -85,13 +86,16 @@ func pollOutboxQueueEvents(ctx context.Context, querier sqlc.Querier, handler qu
 
 	wg.Done()
 
-	processedEventIDs := make([]int64, 0, len(processedEvents))
+	eventIDsToAck := make([]int64, 0, len(processedEvents))
 	var errProcessedEvents []eventResult
 
 	for _, event := range processedEvents {
-		if event.err == nil {
-			processedEventIDs = append(processedEventIDs, event.eventID)
-		} else {
+		// acknowledge the event if there is no error or the error is not retryable
+		if event.err == nil || errutil.IsType[NonRetryableOutboxError](event.err) {
+			eventIDsToAck = append(eventIDsToAck, event.eventID)
+		}
+		// always collect all errors to be logged
+		if event.err != nil {
 			errProcessedEvents = append(errProcessedEvents, event)
 		}
 	}
@@ -100,10 +104,10 @@ func pollOutboxQueueEvents(ctx context.Context, querier sqlc.Querier, handler qu
 	if len(errProcessedEvents) > 0 {
 		level = slog.LevelError
 	}
-	slog.Log(ctx, level, "handling outbox queue events", "errProcessedEvents", errProcessedEvents, "processedEvents", processedEventIDs)
+	slog.Log(ctx, level, "handling outbox queue events", "errProcessedEvents", errProcessedEvents, "eventsIDsToAck", eventIDsToAck)
 
 	if err := querier.UpdateOutboxQueueProcessedByID(ctx, sqlc.UpdateOutboxQueueProcessedByIDParams{
-		Ids:           processedEventIDs,
+		Ids:           eventIDsToAck,
 		ProcessedTime: pgtype.Timestamptz{Time: getProcessedOn(), Valid: true},
 	}); err != nil {
 		return fmt.Errorf("failed to acknolwedge outbox queue messages %+v: %w", processedEvents, err)
@@ -149,7 +153,7 @@ type CreateTournamentMatchesEvent struct {
 	Matches       []CreateTournamentMatchDTO
 }
 
-func pushCreateTournamentMatchesEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, matches []CreateTournamentMatchDTO) error {
+func pushCreateTournamentMatchesEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, matches []CreateTournamentMatchDTO, createdOn time.Time) error {
 	bytes, err := proto.Marshal(SerializeCreateTournamentMatchesEvent(CreateTournamentMatchesEvent{
 		TournamentKey: tournamentKey,
 		Matches:       matches,
@@ -157,29 +161,39 @@ func pushCreateTournamentMatchesEvent(ctx context.Context, querier sqlc.Querier,
 	if err != nil {
 		return fmt.Errorf("marshal create tournament matches event: %w", err)
 	}
+
 	if err := querier.InsertOutboxQueue(ctx, sqlc.InsertOutboxQueueParams{
-		Type: sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
-		Data: bytes,
+		Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
+		Data:      bytes,
+		CreatedOn: pgtype.Timestamptz{Time: createdOn, Valid: true},
 	}); err != nil {
 		return fmt.Errorf("insert create tournament matches event into task queue: %w", err)
 	}
+
+	slog.InfoContext(ctx, "pushed create tournament matches event", "tournamentKey", tournamentKey, "matches", matches)
+
 	return nil
 }
 
-func pushScheduledTournamentEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, scheduledOn time.Time) error {
+func pushScheduledTournamentEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, scheduledOn time.Time, createdOn time.Time) error {
 	bytes, err := proto.Marshal(&pb.ScheduledTourmmentEvent{
 		TournamentKey: tournamentKey.String(),
 	})
 	if err != nil {
 		return fmt.Errorf("marshal scheduled tournament event: %w", err)
 	}
+
 	if err := querier.InsertOutboxQueue(ctx, sqlc.InsertOutboxQueueParams{
 		Type:        sqlc.OutboxQueueTypeEnumTOURNAMENTSCHEDULEDEVENT,
 		Data:        bytes,
+		CreatedOn:   pgtype.Timestamptz{Time: createdOn, Valid: true},
 		ScheduledOn: pgtype.Timestamptz{Time: scheduledOn, Valid: true},
 	}); err != nil {
 		return fmt.Errorf("insert scheduled tournament event into task queue: %w", err)
 	}
+
+	slog.InfoContext(ctx, "pushed scheduled tournament event", "tournamentKey", tournamentKey, "scheduledOn", scheduledOn)
+
 	return nil
 }
 
@@ -250,11 +264,14 @@ func (svc *HexchessServices) handleScheduledTournamentEvent(ctx context.Context,
 	var matchStateError MatchInvariantError
 	switch {
 	case errors.As(err, &matchStateError):
-		// known error: state issue, signal failure to subscribers
-		err := svc.BroadcastTournament(ctx, SerializeTournamentError(tournamentKey, matchStateError))
+		// known error: state issue: log, signal failure to subscribers
+		slog.ErrorContext(ctx, "failed to start tournament due to match state invariant error", "tournamentKey", tournamentKey, "err", err)
+
+		err := svc.BroadcastTournament(ctx, SerializeTournamentError(tournamentKey, ErrStartTournamentTaskQueue))
 		if err != nil {
 			return fmt.Errorf("broadcast tournament error: %w", err)
 		}
+
 		return NonRetryableOutboxError{matchStateError}
 	case err != nil:
 		// unknown error: propagate (triggers retry)

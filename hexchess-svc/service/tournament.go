@@ -360,9 +360,8 @@ func (svc *HexchessServices) BeginTournamentCountdownTx(ctx context.Context, tou
 	return result, err
 }
 
-func beginTournamentCountdown(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, userID int64, getUpdateTime func() time.Time) (b BeginTourneyCountdown, err error) {
+func beginTournamentCountdown(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, userID int64, getUpdtTime func() time.Time) (b BeginTourneyCountdown, err error) {
 	pgKey := pgtype.UUID{Bytes: tournamentKey, Valid: true}
-	updateTime := getUpdateTime()
 
 	tournamentRow, err := querier.SelectTournamentByID(ctx, pgKey)
 	if err != nil {
@@ -379,18 +378,21 @@ func beginTournamentCountdown(ctx context.Context, querier sqlc.Querier, tournam
 	}
 
 	nextTournamentStatus := TournamentScheduled
+	updtTournamentTime := getUpdtTime()
+
 	if err := querier.UpdateTournamentStatus(ctx, sqlc.UpdateTournamentStatusParams{
 		TournamentKey:      pgKey,
-		CountdownStartedOn: pgtype.Timestamptz{Time: updateTime, Valid: true},
+		CountdownStartedOn: pgtype.Timestamptz{Time: updtTournamentTime, Valid: true},
 		Status:             sqlc.TournamentStatusEnum(nextTournamentStatus.String()),
-		UpdatedOn:          pgtype.Timestamptz{Time: updateTime, Valid: true},
+		UpdatedOn:          pgtype.Timestamptz{Time: updtTournamentTime, Valid: true},
 	}); err != nil {
 		return b, fmt.Errorf("update tournament %s status to %s: %w", tournamentKey, nextTournamentStatus, err)
 	}
 
-	scheduledOn := updateTime.Add(time.Duration(tournamentRow.Countdown) * time.Millisecond)
+	insertEventTime := getUpdtTime()
+	scheduledOn := insertEventTime.Add(time.Duration(tournamentRow.Countdown) * time.Millisecond)
 
-	if err := pushScheduledTournamentEvent(ctx, querier, tournamentKey, scheduledOn); err != nil {
+	if err := pushScheduledTournamentEvent(ctx, querier, tournamentKey, scheduledOn, insertEventTime); err != nil {
 		return b, fmt.Errorf("push scheduled tournament [%s] event: %w", tournamentKey, err)
 	}
 
@@ -723,5 +725,5 @@ func insertTournamentMatches(ctx context.Context, querier sqlc.Querier, inst put
 
 	// create games tournament event message is enqueued atomically
 	// this is primarily to ensure if the games are not persisted into redis, the operation can be retried until success
-	return pushCreateTournamentMatchesEvent(ctx, querier, inst.tournamentKey, inst.matches)
+	return pushCreateTournamentMatchesEvent(ctx, querier, inst.tournamentKey, inst.matches, inst.getInsertionTime())
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
+	"hexchess-svc/util/errutil"
 	"log/slog"
 	"net/http"
 
@@ -88,23 +89,18 @@ func (api *API) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 	slog.InfoContext(ctx, "gameplay websocket reader closed", "gameID", gameID)
 }
 
-func isType[T error](err error) bool {
-	var t T
-	return errors.As(err, &t)
-}
-
 func writeGameMsgErr(ctx context.Context, conn *websocket.Conn, gameID string, err error) {
 	wsErr := ErrWsFatal
 	switch {
-	case isType[svc.ErrFinishedGame](err):
+	case errutil.IsType[svc.ErrFinishedGame](err):
 		wsErr = ErrWsFinishedGame
 	case errors.Is(err, svc.ErrForfeitPlayer):
 		wsErr = ErrWsForfeitPlayer
-	case isType[svc.ErrStartedGame](err):
+	case errutil.IsType[svc.ErrStartedGame](err):
 		wsErr = ErrWsStartedGame
-	case isType[svc.ErrTurn](err):
+	case errutil.IsType[svc.ErrTurn](err):
 		wsErr = ErrWsTurn
-	case isType[svc.ErrInvalidMove](err):
+	case errutil.IsType[svc.ErrInvalidMove](err):
 		wsErr = ErrWsInvalidMove
 	case errors.Is(err, svc.ErrNoChessState):
 		// if the state cannot be found, it has expired while an inactive connection has been open
