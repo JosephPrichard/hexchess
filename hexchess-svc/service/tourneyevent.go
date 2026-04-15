@@ -23,7 +23,7 @@ type isTournamentOutput_Value interface {
 	isTournamentOutput_Value()
 }
 
-type TournamentOutput_Participant LbdUserDTO
+type TournamentOutput_Participant LbdUser
 
 func (p TournamentOutput_Participant) isTournamentOutput_Value() {}
 
@@ -36,7 +36,7 @@ type TournamentOutput_Start struct{}
 func (s TournamentOutput_Start) isTournamentOutput_Value() {}
 
 type TournamentOutput_Matchmaking struct {
-	Matches []MatchDTO `json:"matches"`
+	Matches []Match `json:"matches"`
 }
 
 func (m TournamentOutput_Matchmaking) isTournamentOutput_Value() {}

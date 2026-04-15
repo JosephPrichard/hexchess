@@ -65,6 +65,9 @@ func pollOutboxQueueEvents(ctx context.Context, querier sqlc.Querier, handler qu
 	if err != nil {
 		return fmt.Errorf("failed to select %d messages for event kind %s from outbox queue: %w", handler.pollCount, handler.kind, err)
 	}
+	if len(eventRows) == 0 {
+		return nil
+	}
 
 	type eventResult struct {
 		eventID int64
@@ -84,7 +87,7 @@ func pollOutboxQueueEvents(ctx context.Context, querier sqlc.Querier, handler qu
 		}()
 	}
 
-	wg.Done()
+	wg.Wait()
 
 	eventIDsToAck := make([]int64, 0, len(processedEvents))
 	var errProcessedEvents []eventResult
@@ -150,10 +153,10 @@ func PollOutboxQueueLoop(ctx context.Context, svc *HexchessServices, handler que
 
 type CreateTournamentMatchesEvent struct {
 	TournamentKey uuid.UUID
-	Matches       []CreateTournamentMatchDTO
+	Matches       []TournamentMatchCreation
 }
 
-func pushCreateTournamentMatchesEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, matches []CreateTournamentMatchDTO, createdOn time.Time) error {
+func pushCreateTournamentMatchesEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, matches []TournamentMatchCreation, createdOn time.Time) error {
 	bytes, err := proto.Marshal(SerializeCreateTournamentMatchesEvent(CreateTournamentMatchesEvent{
 		TournamentKey: tournamentKey,
 		Matches:       matches,
@@ -224,7 +227,7 @@ func (svc *HexchessServices) handleCreateTournamentMatchesEvent(ctx context.Cont
 		blackPlayerData, okBlack := playerDataMap[match.BlackID]
 
 		if !okWhite || !okBlack {
-			// invariant: white and black should be valid IDs if they have been pushed to the queue
+			// invariant: white and black should be valid IDQueue if they have been pushed to the queue
 			return fmt.Errorf("missing player data for match: %+v", match)
 		}
 
@@ -258,7 +261,7 @@ func (svc *HexchessServices) handleScheduledTournamentEvent(ctx context.Context,
 		return fmt.Errorf("parse tournament key: %w", err)
 	}
 
-	// attempt to start the tournament, broadcast the wantResult (successful or otherwise)
+	// attempt to start the tournament, broadcast the result (successful or otherwise)
 	err = svc.StartTournamentTx(ctx, tournamentKey)
 
 	var matchStateError MatchInvariantError

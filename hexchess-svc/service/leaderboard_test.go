@@ -105,16 +105,16 @@ func TestGetLeaderboardUsers(t *testing.T) {
 		name            string
 		mode            GameMode
 		rankedUsers     []RankedUser
-		wantLeaderboard []LbdUserDTO
+		wantLeaderboard []LbdUser
 		wantMissingIDs  []int64
 	}{
 		{
 			name:        "GettingLeaderboardWithInvalidID",
 			mode:        ModeTimed1Plus0,
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 999999}},
-			wantLeaderboard: []LbdUserDTO{
+			wantLeaderboard: []LbdUser{
 				{
-					UserDTO:    UserDTO{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
+					User:       User{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
 					Elo:        1050,
 					HighestElo: 1050,
 					Wins:       6,
@@ -129,9 +129,9 @@ func TestGetLeaderboardUsers(t *testing.T) {
 			name:        "GettingValidLeaderboardUsers",
 			mode:        ModeCorrespondence7,
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 3}},
-			wantLeaderboard: []LbdUserDTO{
+			wantLeaderboard: []LbdUser{
 				{
-					UserDTO:    UserDTO{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
+					User:       User{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
 					Elo:        1000,
 					HighestElo: 1000,
 					Wins:       2,
@@ -140,7 +140,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 					Rank:       1,
 				},
 				{
-					UserDTO:    UserDTO{ID: 3, Username: "user3", Country: "us", JoinedOn: itest.TimeNow},
+					User:       User{ID: 3, Username: "user3", Country: "us", JoinedOn: itest.TimeNow},
 					Elo:        900,
 					HighestElo: 900,
 					Rank:       2,
@@ -177,9 +177,9 @@ func TestGetFuzzySearchLeaderboard(t *testing.T) {
 	users, err := services.GetFuzzySearchLeaderboard(ctx, "john", 1, 20)
 	require.NoError(t, err)
 
-	wantUsers := []LbdUserDTO{
+	wantUsers := []LbdUser{
 		{
-			UserDTO:    UserDTO{ID: 8, Username: "john", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+			User:       User{ID: 8, Username: "john", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
 			Elo:        1500,
 			HighestElo: 2000,
 			Wins:       12,
@@ -188,7 +188,7 @@ func TestGetFuzzySearchLeaderboard(t *testing.T) {
 			Rank:       1,
 		},
 		{
-			UserDTO:    UserDTO{ID: 9, Username: "johnny", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+			User:       User{ID: 9, Username: "johnny", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
 			Elo:        1500,
 			HighestElo: 1500,
 			Wins:       5,

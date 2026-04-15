@@ -145,7 +145,7 @@ func every(duration time.Duration, work func()) chan bool {
 func (api *API) HandleActiveConn(w SSEWriter, _ *http.Request) error {
 	ctx := w.ctx
 
-	sseID := api.entropy.MakeID()
+	sseID := api.entropy.MakeUUID()
 
 	count, err := api.services.AddActiveUser(ctx, sseID)
 	if err != nil {

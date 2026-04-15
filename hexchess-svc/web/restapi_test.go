@@ -71,7 +71,7 @@ func TestHandleRegister(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setup := svc.ServiceMocks{Entropy: &svc.StableEntropySource{Time: insertTime}}
+			setup := svc.ServiceMocks{Entropy: &svc.StableEntropySource{CurrTime: insertTime}}
 
 			services, _ := svc.SetupServicesTest(t, setup, itest.RWPostgres, itest.Redis)
 			defer services.Close()
@@ -190,7 +190,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 			defer ctrl.Finish()
 
 			mocks := svc.ServiceMocks{
-				Entropy: &svc.StableEntropySource{Time: itest.TimeNow},
+				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
 				Remote:  egress.RemoteAPIs{GoogleAPI: tt.setupMocks(ctrl)},
 			}
 
@@ -460,7 +460,7 @@ func TestHandleCreateGame(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setup := svc.ServiceMocks{Entropy: &svc.StableEntropySource{Time: itest.TimeNow}}
+			setup := svc.ServiceMocks{Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow}}
 
 			services, _ := svc.SetupServicesTest(t, setup, itest.RWPostgres, itest.Redis)
 			defer services.Close()
@@ -538,7 +538,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mocks := svc.ServiceMocks{Entropy: &svc.StableEntropySource{Time: itest.TimeNow}}
+			mocks := svc.ServiceMocks{Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow}}
 
 			services, _ := svc.SetupServicesTest(t, mocks, itest.RWPostgres, itest.Redis)
 			defer services.Close()
@@ -583,9 +583,9 @@ func TestHandleSearchPlayers(t *testing.T) {
 			username:   "john",
 			wantStatus: http.StatusOK,
 			wantSuccess: SearchPlayersResp{
-				UserList: []svc.LbdUserDTO{
+				UserList: []svc.LbdUser{
 					{
-						UserDTO:    svc.UserDTO{ID: 8, Username: "john", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+						User:       svc.User{ID: 8, Username: "john", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
 						Elo:        1500,
 						HighestElo: 2000,
 						Wins:       12,
@@ -594,7 +594,7 @@ func TestHandleSearchPlayers(t *testing.T) {
 						Rank:       1,
 					},
 					{
-						UserDTO:    svc.UserDTO{ID: 9, Username: "johnny", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+						User:       svc.User{ID: 9, Username: "johnny", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
 						Elo:        1500,
 						HighestElo: 1500,
 						Wins:       5,
@@ -658,9 +658,9 @@ func TestGetLeaderboard(t *testing.T) {
 			wantStatus: http.StatusOK,
 			wantSuccess: LeaderboardResp{
 				TotalPages: 1,
-				UserList: []svc.LbdUserDTO{
+				UserList: []svc.LbdUser{
 					{
-						UserDTO: svc.UserDTO{
+						User: svc.User{
 							ID:       1,
 							Username: "user1",
 							Country:  "us",
@@ -721,10 +721,10 @@ func TestGetPlayer(t *testing.T) {
 			id:          "1",
 			withReplays: true,
 			wantSuccess: GetPlayersResp{
-				FullUserDTO: svc.FullUserDTO{
-					User:       svc.TestUserDTOs[0],
+				FullUser: svc.FullUser{
+					User:       svc.TestUser[0],
 					Stats:      svc.TestUserStats[0],
-					ReplayList: []svc.FullReplayDTO{svc.TestReplayDTOs[2], svc.TestReplayDTOs[1], svc.TestReplayDTOs[0]},
+					ReplayList: []svc.FullReplay{svc.TestReplay[2], svc.TestReplay[1], svc.TestReplay[0]},
 				},
 			},
 			wantStatus: http.StatusOK,
@@ -734,10 +734,10 @@ func TestGetPlayer(t *testing.T) {
 			id:          "1",
 			withReplays: false,
 			wantSuccess: GetPlayersResp{
-				FullUserDTO: svc.FullUserDTO{
-					User:       svc.TestUserDTOs[0],
+				FullUser: svc.FullUser{
+					User:       svc.TestUser[0],
 					Stats:      svc.TestUserStats[0],
-					ReplayList: []svc.FullReplayDTO{},
+					ReplayList: []svc.FullReplay{},
 				},
 			},
 			wantStatus: http.StatusOK,
@@ -798,7 +798,7 @@ func TestGetChallenges(t *testing.T) {
 			participants: "sent",
 			sessionID:    TestSessionID1,
 			wantSuccess: GetChallengesResp{
-				ChallengeList: []svc.ChallengeDTO{svc.TestChallengeDTOs[0]},
+				ChallengeList: []svc.Challenge{svc.TestChallenge[0]},
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -807,7 +807,7 @@ func TestGetChallenges(t *testing.T) {
 			participants: "received",
 			sessionID:    TestSessionID1,
 			wantSuccess: GetChallengesResp{
-				ChallengeList: []svc.ChallengeDTO{svc.TestChallengeDTOs[1]},
+				ChallengeList: []svc.Challenge{svc.TestChallenge[1]},
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -815,7 +815,7 @@ func TestGetChallenges(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mocks := svc.ServiceMocks{Entropy: &svc.StableEntropySource{Time: itest.TimeNow}}
+			mocks := svc.ServiceMocks{Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow}}
 
 			services, _ := svc.SetupServicesTest(t, mocks, itest.ROPostgres, itest.Redis)
 			defer services.Close()
@@ -853,17 +853,17 @@ func TestHandleGetUserReplays(t *testing.T) {
 			userID:      "999",
 			afterID:     "0",
 			wantStatus:  http.StatusOK,
-			wantSuccess: GetUserReplaysResp{ReplayList: []svc.FullReplayDTO{}},
+			wantSuccess: GetUserReplaysResp{ReplayList: []svc.FullReplay{}},
 		},
 		{
 			name:       "GotUserReplays",
 			afterID:    "-1",
 			userID:     "1",
 			wantStatus: http.StatusOK,
-			wantSuccess: GetUserReplaysResp{ReplayList: []svc.FullReplayDTO{
-				svc.TestReplayDTOs[2],
-				svc.TestReplayDTOs[1],
-				svc.TestReplayDTOs[0],
+			wantSuccess: GetUserReplaysResp{ReplayList: []svc.FullReplay{
+				svc.TestReplay[2],
+				svc.TestReplay[1],
+				svc.TestReplay[0],
 			}},
 		},
 		{
@@ -910,7 +910,7 @@ func TestHandleGetReplay(t *testing.T) {
 			name:        "GotReplay",
 			userID:      "1",
 			wantStatus:  http.StatusOK,
-			wantSuccess: GetReplayResp{Replay: svc.TestReplayDTOs[0]},
+			wantSuccess: GetReplayResp{Replay: svc.TestReplay[0]},
 		},
 		{
 			name:       "InvalidUserID",
@@ -1072,12 +1072,12 @@ func TestGetTournament(t *testing.T) {
 	}{
 		{
 			name:          "GotTournament",
-			tournamentKey: svc.Tournament0Key.String(),
+			tournamentKey: itest.Tournament0LobbyKey.String(),
 			wantStatus:    http.StatusOK,
 			wantResp: GetTournamentResp{
-				TournamentDTO: svc.TournamentDTOs[0],
-				Participants:  []svc.ParticipantDTO{},
-				Matches:       []svc.MatchDTO{},
+				Tournament:   svc.Tournaments[0],
+				Participants: []svc.Participant{},
+				Matches:      []svc.Match{},
 			},
 		},
 		{
@@ -1140,10 +1140,13 @@ func TestGetTournaments(t *testing.T) {
 			afterID:    "-1",
 			wantStatus: http.StatusOK,
 			wantResp: GetTournamentsResp{
-				Tournaments: []svc.TournamentDTO{
-					svc.TournamentDTOs[2],
-					svc.TournamentDTOs[1],
-					svc.TournamentDTOs[0],
+				Tournaments: []svc.Tournament{
+					svc.Tournaments[5],
+					svc.Tournaments[4],
+					svc.Tournaments[3],
+					svc.Tournaments[2],
+					svc.Tournaments[1],
+					svc.Tournaments[0],
 				},
 			},
 		},
@@ -1153,8 +1156,8 @@ func TestGetTournaments(t *testing.T) {
 			afterID:    "-1",
 			wantStatus: http.StatusOK,
 			wantResp: GetTournamentsResp{
-				Tournaments: []svc.TournamentDTO{
-					svc.TournamentDTOs[1],
+				Tournaments: []svc.Tournament{
+					svc.Tournaments[2],
 				},
 			},
 		},

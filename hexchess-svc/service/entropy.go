@@ -1,37 +1,56 @@
 package svc
 
 import (
+	"fmt"
 	"github.com/google/uuid"
 	"time"
 )
 
 // EntropySource is a generator for generating things my program determines as "non-deterministic" and therefore must be mocked in tests
 type EntropySource interface {
-	MakeID() string
+	MakeUUID() string
+	MakeGameID() string
 	GetNow() time.Time
 }
 
 // RealEntropySource non-deterministic Entropy source that generates real data
 type RealEntropySource struct{}
 
-func (_ *RealEntropySource) MakeID() string {
+func (_ *RealEntropySource) MakeUUID() string {
 	return uuid.NewString()
+}
+
+func (_ *RealEntropySource) MakeGameID() string {
+	return MakeGameID()
 }
 
 func (_ *RealEntropySource) GetNow() time.Time {
 	return time.Now()
 }
 
+type DeterministicGenerator struct {
+	idx int
+}
+
+func (q *DeterministicGenerator) Poll() string {
+	q.idx++
+	return fmt.Sprintf("mock-%d", q.idx)
+}
+
 // StableEntropySource is an Entropy source that returns predefined mock values
 type StableEntropySource struct {
-	ID   string
-	Time time.Time
+	Generator DeterministicGenerator
+	CurrTime  time.Time
 }
 
-func (g *StableEntropySource) MakeID() string {
-	return g.ID
+func (e *StableEntropySource) MakeUUID() string {
+	return e.Generator.Poll()
 }
 
-func (g *StableEntropySource) GetNow() time.Time {
-	return g.Time
+func (e *StableEntropySource) MakeGameID() string {
+	return e.Generator.Poll()
+}
+
+func (e *StableEntropySource) GetNow() time.Time {
+	return e.CurrTime
 }

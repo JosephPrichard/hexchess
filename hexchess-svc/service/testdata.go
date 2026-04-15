@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-var TestUserDTOs = []UserDTO{
+var TestUser = []User{
 	{
 		ID:       1,
 		Username: "user1",
@@ -22,14 +22,14 @@ var TestUserDTOs = []UserDTO{
 	},
 }
 
-var TestUserStats = []UserStatsDTO{
+var TestUserStats = []UserStats{
 	{
 		TotalWins:    17,
 		TotalLosses:  14,
 		AvgElo:       1025,
 		HighestElo:   1050,
 		TotalWinrate: 53,
-		ModeStats: []ModeStatsDTO{
+		ModeStats: []ModeStats{
 			{Mode: ModeCorrespondence7, Rank: 1, Wins: 2, Losses: 2, Winrate: 50, Elo: 1000, HighestElo: 1000},
 			{Mode: ModeTimed3Plus2, Rank: 1, Wins: 5, Losses: 4, Winrate: 55, Elo: 1020, HighestElo: 1020},
 			{Mode: ModeTimed15Plus10, Rank: 1, Wins: 4, Losses: 3, Winrate: 57, Elo: 1030, HighestElo: 1030},
@@ -38,9 +38,9 @@ var TestUserStats = []UserStatsDTO{
 	},
 }
 
-var TestReplayDTOs = []FullReplayDTO{
+var TestReplay = []FullReplay{
 	{
-		ReplayDTO: ReplayDTO{
+		Replay: Replay{
 			ID:          1,
 			WhiteID:     1,
 			BlackID:     2,
@@ -51,7 +51,7 @@ var TestReplayDTOs = []FullReplayDTO{
 			LoseEloDiff: -30,
 			PlayedOn:    itest.TimeNow.Local(),
 		},
-		ReplayUsersDTO: ReplayUsersDTO{
+		ReplayUsers: ReplayUsers{
 			WhiteName:    "user1",
 			BlackName:    "user2",
 			WhiteCountry: "us",
@@ -59,13 +59,13 @@ var TestReplayDTOs = []FullReplayDTO{
 			WhiteElo:     1000,
 			BlackElo:     1000,
 		},
-		ReplayViewDTO: ReplayViewDTO{
+		RepayView: RepayView{
 			WhiteEloDiff: 30,
 			BlackEloDiff: -30,
 		},
 	},
 	{
-		ReplayDTO: ReplayDTO{
+		Replay: Replay{
 			ID:          3,
 			WhiteID:     3,
 			BlackID:     1,
@@ -76,7 +76,7 @@ var TestReplayDTOs = []FullReplayDTO{
 			LoseEloDiff: 0,
 			PlayedOn:    itest.TimeNow.Local(),
 		},
-		ReplayUsersDTO: ReplayUsersDTO{
+		ReplayUsers: ReplayUsers{
 			WhiteName:    "user3",
 			BlackName:    "user1",
 			WhiteCountry: "us",
@@ -84,13 +84,13 @@ var TestReplayDTOs = []FullReplayDTO{
 			WhiteElo:     900,
 			BlackElo:     1000,
 		},
-		ReplayViewDTO: ReplayViewDTO{
+		RepayView: RepayView{
 			WhiteEloDiff: 0,
 			BlackEloDiff: 0,
 		},
 	},
 	{
-		ReplayDTO: ReplayDTO{
+		Replay: Replay{
 			ID:          4,
 			WhiteID:     1,
 			BlackID:     0,
@@ -101,7 +101,7 @@ var TestReplayDTOs = []FullReplayDTO{
 			LoseEloDiff: 0,
 			PlayedOn:    itest.TimeNow.Local(),
 		},
-		ReplayUsersDTO: ReplayUsersDTO{
+		ReplayUsers: ReplayUsers{
 			WhiteName:    "user1",
 			BlackName:    "",
 			WhiteCountry: "us",
@@ -109,14 +109,14 @@ var TestReplayDTOs = []FullReplayDTO{
 			WhiteElo:     1000,
 			BlackElo:     1000,
 		},
-		ReplayViewDTO: ReplayViewDTO{
+		RepayView: RepayView{
 			WhiteEloDiff: 0,
 			BlackEloDiff: 0,
 		},
 	},
 }
 
-var TestChallengeDTOs = []ChallengeDTO{
+var TestChallenge = []Challenge{
 	{
 		ChallengerID:      1,
 		ChallengerName:    "user1",
@@ -175,14 +175,14 @@ var TestChallengeDTOs = []ChallengeDTO{
 	},
 }
 
-var TournamentDTOs = []TournamentDTO{
+var Tournaments = []Tournament{
 	{
 		ID:             1,
 		TournamentKey:  itest.Tournament0LobbyKey,
 		Name:           "Test Tournament 0",
 		Rounds:         2,
 		MaxPlayerCount: 4,
-		Countdown:      "5m0s",
+		Countdown:      "5m1s",
 		CreatedOn:      itest.TimeNow,
 		CreatedBy:      1,
 		Status:         TournamentLobby,
@@ -195,52 +195,93 @@ var TournamentDTOs = []TournamentDTO{
 		Name:           "Test Tournament 1",
 		Rounds:         1,
 		MaxPlayerCount: 2,
-		Countdown:      "5m0s",
+		Countdown:      "5m2s",
 		CreatedOn:      itest.TimeNow,
 		CreatedBy:      1,
 		Mode:           ModeCorrespondence7,
 	},
 	{
 		ID:             3,
-		TournamentKey:  itest.Tournament2KnockoutKey,
+		TournamentKey:  itest.Tournament2ScheduledKnockoutKey,
 		Name:           "Test Tournament 2",
 		Rounds:         2,
 		MaxPlayerCount: 4,
-		Countdown:      "5m0s",
+		Countdown:      "5m3s",
 		CreatedOn:      itest.TimeNow,
 		CreatedBy:      1,
-		Status:         TournamentInProgress,
 		Ruleset:        TournamentKnockout,
+		Status:         TournamentScheduled,
 		Mode:           ModeCorrespondence1,
 	},
 	{
 		ID:             4,
-		TournamentKey:  itest.Tournament3RoundRobinKey,
+		TournamentKey:  itest.Tournament3ScheduledRoundRobinKey,
 		Name:           "Test Tournament 3",
-		Rounds:         2,
+		Rounds:         0,
 		MaxPlayerCount: -1,
-		Countdown:      "5m0s",
+		Countdown:      "10m0s",
+		CreatedOn:      itest.TimeNow,
+		CreatedBy:      1,
+		Ruleset:        TournamentRoundRobin,
+		Status:         TournamentScheduled,
+		Mode:           ModeCorrespondence1,
+	},
+	{
+		ID:             5,
+		TournamentKey:  itest.Tournament4ScheduledSwissKey,
+		Name:           "Test Tournament 4",
+		Rounds:         0,
+		MaxPlayerCount: -1,
+		Countdown:      "11m0s",
+		CreatedOn:      itest.TimeNow,
+		CreatedBy:      1,
+		Ruleset:        TournamentSwiss,
+		Status:         TournamentScheduled,
+		Mode:           ModeCorrespondence1,
+	},
+	{
+		ID:             6,
+		TournamentKey:  itest.Tournament5InProgressKnockoutKey,
+		Name:           "Test Tournament 5",
+		Rounds:         2,
+		MaxPlayerCount: 4,
+		Countdown:      "12m0s",
+		CreatedOn:      itest.TimeNow,
+		CreatedBy:      1,
+		Ruleset:        TournamentKnockout,
+		Status:         TournamentInProgress,
+		Mode:           ModeCorrespondence1,
+	},
+	{
+		ID:             7,
+		TournamentKey:  itest.Tournament6InProgressRoundRobinKey,
+		Name:           "Test Tournament 6",
+		Rounds:         0,
+		MaxPlayerCount: -1,
+		Countdown:      "1h1m1s",
 		CreatedOn:      itest.TimeNow,
 		CreatedBy:      1,
 		Ruleset:        TournamentRoundRobin,
 		Status:         TournamentInProgress,
+		Mode:           ModeCorrespondence1,
 	},
 	{
-		ID:             5,
-		TournamentKey:  itest.Tournament4SwissKey,
-		Name:           "Test Tournament 4",
-		Rounds:         2,
+		ID:             8,
+		TournamentKey:  itest.Tournament7InProgressSwissKey,
+		Name:           "Test Tournament 7",
+		Rounds:         0,
 		MaxPlayerCount: -1,
-		Countdown:      "5m0s",
+		Countdown:      "1h2m2.002s",
 		CreatedOn:      itest.TimeNow,
 		CreatedBy:      1,
 		Ruleset:        TournamentSwiss,
 		Status:         TournamentInProgress,
+		Mode:           ModeCorrespondence1,
 	},
 	{
-		ID:             6,
-		TournamentKey:  itest.Tournament5FinishedKey,
-		Name:           "Test Tournament 5",
+		ID:             9,
+		TournamentKey:  itest.Tournament8FinishedKey,
+		Name:           "Test Tournament 8",
 		Rounds:         1,
 		MaxPlayerCount: -1,
 		Countdown:      "5m0s",
@@ -252,12 +293,12 @@ var TournamentDTOs = []TournamentDTO{
 	},
 }
 
-var MatchTournament2DTOs = []MatchDTO{
+var MatchTournament5 = []Match{
 	{
 		Ordering:      2,
 		GameID:        itest.TournamentMatchInsts[1].GameID,
 		CreatedOn:     itest.TimeNow.Add(time.Minute * 2),
-		TournamentKey: itest.Tournament2KnockoutKey,
+		TournamentKey: itest.Tournament5InProgressKnockoutKey,
 		Round:         1,
 		WhiteID:       3,
 		BlackID:       4,
@@ -266,24 +307,24 @@ var MatchTournament2DTOs = []MatchDTO{
 		Ordering:      1,
 		GameID:        itest.TournamentMatchInsts[0].GameID,
 		CreatedOn:     itest.TimeNow.Add(time.Minute * 1),
-		TournamentKey: itest.Tournament2KnockoutKey,
+		TournamentKey: itest.Tournament5InProgressKnockoutKey,
 		Round:         1,
 		WhiteID:       1,
 		BlackID:       2,
 	},
 }
 
-var MatchTournament5DTOs = []MatchDTO{
+var MatchTournament8 = []Match{
 	{
 		Ordering:      3,
 		GameID:        itest.TournamentMatchInsts[2].GameID,
 		CreatedOn:     itest.TimeNow.Add(time.Minute * 3),
-		TournamentKey: itest.Tournament5FinishedKey,
+		TournamentKey: itest.Tournament8FinishedKey,
 		Round:         1,
 		WhiteID:       1,
 		BlackID:       2,
 		Replay: &TournamentReplay{
-			ReplayDTO: ReplayDTO{
+			Replay: Replay{
 				ID:          1,
 				WhiteID:     1,
 				BlackID:     2,
@@ -294,7 +335,58 @@ var MatchTournament5DTOs = []MatchDTO{
 				LoseEloDiff: -30,
 				PlayedOn:    itest.TimeNow.Local(),
 			},
-			ReplayViewDTO: ReplayViewDTO{WhiteEloDiff: 30, BlackEloDiff: -30},
+			RepayView: RepayView{WhiteEloDiff: 30, BlackEloDiff: -30},
 		},
+	},
+}
+
+var TournamentLbdChangeSets = []UpdtLbChangeSet{
+	{ModeCorrespondence1, 4, 1400},
+	{ModeCorrespondence1, 3, 1300},
+	{ModeCorrespondence1, 2, 1200},
+	{ModeCorrespondence1, 1, 1100},
+}
+
+// Tournament5RankedParticipants Ordered by `JoinedOn`, ranked with values in `TournamentLbdChangeSets`
+var Tournament5RankedParticipants = []Participant{
+	{
+		User:       User{ID: 4, Username: "user4", Country: "us", JoinedOn: itest.TimeNow},
+		Elo:        2000,
+		HighestElo: 2000,
+		Rank:       1,
+	},
+	{
+		User:       User{ID: 3, Username: "user3", Country: "us", JoinedOn: itest.TimeNow},
+		Elo:        900,
+		HighestElo: 900,
+		Rank:       2,
+	},
+	{
+		User:       User{ID: 2, Username: "user2", Country: "us", JoinedOn: itest.TimeNow},
+		Elo:        1000,
+		HighestElo: 1000,
+		Rank:       3,
+	},
+	{
+		User:       User{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
+		Elo:        1000,
+		HighestElo: 1000,
+		Rank:       4,
+	},
+}
+
+// Tournament8RankedParticipants Ordered by `JoinedOn`, ranked with values in `TournamentLbdChangeSets`
+var Tournament8RankedParticipants = []Participant{
+	{
+		User:       User{ID: 2, Username: "user2", Country: "us", JoinedOn: itest.TimeNow},
+		Elo:        1000,
+		HighestElo: 1000,
+		Rank:       3,
+	},
+	{
+		User:       User{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
+		Elo:        1000,
+		HighestElo: 1000,
+		Rank:       4,
 	},
 }

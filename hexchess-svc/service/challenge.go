@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type ChallengeDTO struct {
+type Challenge struct {
 	ChallengerID      int64     `json:"challengerId"`
 	ChallengerName    string    `json:"challengerName"`
 	ChallengerCountry string    `json:"challengerCountry"`
@@ -51,9 +51,9 @@ func (svc *HexchessServices) InsertChallenge(ctx context.Context, inst Challenge
 	return err
 }
 
-func (svc *HexchessServices) InsertChallengeRet(ctx context.Context, inst ChallengeInst) (ChallengeDTO, error) {
+func (svc *HexchessServices) InsertChallengeRet(ctx context.Context, inst ChallengeInst) (Challenge, error) {
 	if inst.ChallengerID == inst.ChallengeeID {
-		return ChallengeDTO{}, ErrSelfChallenge
+		return Challenge{}, ErrSelfChallenge
 	}
 	if inst.MadeOn.IsZero() {
 		inst.MadeOn = time.Now()
@@ -68,9 +68,9 @@ func (svc *HexchessServices) InsertChallengeRet(ctx context.Context, inst Challe
 	})
 	if dbErr != nil {
 		if svcErr := mapChallengeInsertErr(dbErr); svcErr != nil {
-			return ChallengeDTO{}, svcErr
+			return Challenge{}, svcErr
 		}
-		return ChallengeDTO{}, fmt.Errorf("insert challenge %+v: %w", inst, dbErr)
+		return Challenge{}, fmt.Errorf("insert challenge %+v: %w", inst, dbErr)
 	}
 
 	challenge := mapChallengeRow(sqlc.SelectChallengesByParticipantRow(row))
@@ -89,7 +89,7 @@ type ChallengeKey struct {
 }
 
 // GetChallengesByParticipant will select challenges by the participant after the 'since' time
-func (svc *HexchessServices) GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]ChallengeDTO, error) {
+func (svc *HexchessServices) GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]Challenge, error) {
 	since := svc.entropy.GetNow().Add(-ExpireChallengeMaxAge)
 
 	var pgChallengerID pgtype.Int8
@@ -112,7 +112,7 @@ func (svc *HexchessServices) GetChallengesByParticipant(ctx context.Context, key
 		return nil, fmt.Errorf("get challenges by participant %v: %w", key, err)
 	}
 
-	challenges := make([]ChallengeDTO, 0, len(rows))
+	challenges := make([]Challenge, 0, len(rows))
 	for _, row := range rows {
 		challenges = append(challenges, mapChallengeRow(row))
 	}
@@ -159,11 +159,11 @@ func (svc *HexchessServices) DeleteExpiredChallenges(ctx context.Context, userID
 	return nil
 }
 
-func mapChallengeRow(row sqlc.SelectChallengesByParticipantRow) ChallengeDTO {
+func mapChallengeRow(row sqlc.SelectChallengesByParticipantRow) Challenge {
 	gameColor := enum.Expect(row.StartColor, GameColorEnums)
 	gameMode := enum.Expect(row.Mode, GameModeEnums)
 
-	return ChallengeDTO{
+	return Challenge{
 		ChallengerID:      row.ChallengerID,
 		ChallengerName:    row.ChallengerName,
 		ChallengerCountry: row.ChallengerCountry,

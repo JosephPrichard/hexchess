@@ -1,6 +1,7 @@
 package web
 
 import (
+	stlcmp "cmp"
 	"context"
 	"fmt"
 	"net/http"
@@ -188,7 +189,7 @@ func TestHandleGameplayWs(t *testing.T) {
 			wantMsgs := tt.wantMsgs
 			wantBrdcasts := tt.wantBrdcasts
 
-			mocks := svc.ServiceMocks{Entropy: &svc.StableEntropySource{Time: itest.TimeNow}}
+			mocks := svc.ServiceMocks{Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow}}
 			services, testinfra := svc.SetupServicesTest(t, mocks, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
@@ -236,10 +237,10 @@ func TestHandleGameplayWs(t *testing.T) {
 			}
 
 			slices.SortFunc(msgs, func(a *pb.GameOutput, b *pb.GameOutput) int {
-				return getMessageSortOrd(b) - getMessageSortOrd(a)
+				return stlcmp.Compare(getMessageSortOrd(b), getMessageSortOrd(a))
 			})
 			slices.SortFunc(brdcasts, func(a any, b any) int {
-				return getBroadcastSortOrd(b) - getBroadcastSortOrd(a)
+				return stlcmp.Compare(getBroadcastSortOrd(b), getBroadcastSortOrd(a))
 			})
 			testutil.Equal(t, wantMsgs, msgs, cmpOpts...)
 			testutil.Equal(t, wantBrdcasts, brdcasts, cmpOpts...)

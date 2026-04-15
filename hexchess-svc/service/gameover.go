@@ -1,6 +1,7 @@
 package svc
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -89,7 +90,7 @@ type GameResult struct {
 	WhiteID      int64        `json:"whiteId"`
 	BlackID      int64        `json:"blackId"`
 	ReplayCause  ReplayCause  `json:"cause"`
-	ReplayResult ReplayResult `json:"wantResult"`
+	ReplayResult ReplayResult `json:"result"`
 	ReplayMode   GameMode     `json:"mode"`
 	InsertedTime time.Time    `json:"insertedTime"`
 }
@@ -141,6 +142,9 @@ func insertGameResult(ctx context.Context, querier sqlc.Querier, result GameResu
 	}
 	// gameID has not been processed, continue executing the transaction
 
+	// selects are sorted by userID to prevent deadlocks
+	slices.SortFunc(userIDs, func(left, right int64) int { return cmp.Compare(left, right) })
+
 	userElos, err := querier.SelectUserModeElosByIDs(ctx, sqlc.SelectUserModeElosByIDsParams{ID: userIDs, Mode: mode})
 	if err != nil {
 		return GameResultChangeSet{}, fmt.Errorf("select users %+v elo: %w", userIDs, err)
@@ -149,7 +153,7 @@ func insertGameResult(ctx context.Context, querier sqlc.Querier, result GameResu
 	changeSet, updts := makeInsertGameResultChangeSet(result, userElos)
 
 	// updates are sorted by userID to prevent deadlocks
-	slices.SortFunc(updts, func(left, right sqlc.UpsertUserEloParams) int { return int(left.UserID - right.UserID) })
+	slices.SortFunc(updts, func(left, right sqlc.UpsertUserEloParams) int { return cmp.Compare(left.UserID, right.UserID) })
 
 	var batchUpsertErrs []error
 	querier.UpsertUserElo(ctx, updts).Exec(func(i int, err error) {
@@ -176,12 +180,12 @@ func insertGameResult(ctx context.Context, querier sqlc.Querier, result GameResu
 	}
 	replayID, err := querier.InsertReplay(ctx, replayInst)
 	if err != nil {
-		return GameResultChangeSet{}, fmt.Errorf("insert replay for wantResult %+v: %w", result, err)
+		return GameResultChangeSet{}, fmt.Errorf("insert replay for result %+v: %w", result, err)
 	}
 
 	changeSet.ReplayID = replayID
 
-	slog.InfoContext(ctx, "inserted game wantResult", "changeSet", changeSet)
+	slog.InfoContext(ctx, "inserted game result", "changeSet", changeSet)
 	return changeSet, nil
 }
 

@@ -2,6 +2,7 @@ package svc
 
 import (
 	"context"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
@@ -19,7 +20,7 @@ import (
 func TestCreateTournament(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{Entropy: &StableEntropySource{Time: itest.TimeNow}}, itest.RWPostgres)
+	services, _ := SetupServicesTest(t, ServiceMocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}, itest.RWPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
@@ -28,7 +29,7 @@ func TestCreateTournament(t *testing.T) {
 
 	tournamentID, err := services.CreateTournamentTx(ctx, TournamentInst{
 		Key:       key,
-		Name:      "Tournament 1",
+		Name:      "Tournaments 1",
 		Rounds:    2,
 		Mode:      ModeCorrespondence1,
 		Countdown: time.Hour,
@@ -42,7 +43,7 @@ func TestCreateTournament(t *testing.T) {
 
 	wantTournament := sqlc.SelectTournamentByIDRow{
 		ID:            tournamentID,
-		Name:          "Tournament 1",
+		Name:          "Tournaments 1",
 		TournamentKey: pgtype.UUID{Bytes: key, Valid: true},
 		Rounds:        2,
 		Status:        sqlc.TournamentStatusEnum(TournamentLobby.String()),
@@ -54,57 +55,6 @@ func TestCreateTournament(t *testing.T) {
 		Mode:          sqlc.ModeEnum(ModeCorrespondence1.String()),
 	}
 	testutil.Equal(t, wantTournament, tournament)
-}
-
-var TournamentLbdChangeSets = []UpdtLbChangeSet{
-	{ModeCorrespondence1, 4, 1400},
-	{ModeCorrespondence1, 3, 1300},
-	{ModeCorrespondence1, 2, 1200},
-	{ModeCorrespondence1, 1, 1100},
-}
-
-// Tournament2RankedParticipants Ordered by `JoinedOn`, ranked with values in `TournamentLbdChangeSets`
-var Tournament2RankedParticipants = []ParticipantDTO{
-	{
-		UserDTO:    UserDTO{ID: 4, Username: "user4", Country: "us", JoinedOn: itest.TimeNow},
-		Elo:        2000,
-		HighestElo: 2000,
-		Rank:       1,
-	},
-	{
-		UserDTO:    UserDTO{ID: 3, Username: "user3", Country: "us", JoinedOn: itest.TimeNow},
-		Elo:        900,
-		HighestElo: 900,
-		Rank:       2,
-	},
-	{
-		UserDTO:    UserDTO{ID: 2, Username: "user2", Country: "us", JoinedOn: itest.TimeNow},
-		Elo:        1000,
-		HighestElo: 1000,
-		Rank:       3,
-	},
-	{
-		UserDTO:    UserDTO{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
-		Elo:        1000,
-		HighestElo: 1000,
-		Rank:       4,
-	},
-}
-
-// Tournament3RankedParticipants Ordered by `JoinedOn`, ranked with values in `TournamentLbdChangeSets`
-var Tournament3RankedParticipants = []ParticipantDTO{
-	{
-		UserDTO:    UserDTO{ID: 2, Username: "user2", Country: "us", JoinedOn: itest.TimeNow},
-		Elo:        1000,
-		HighestElo: 1000,
-		Rank:       3,
-	},
-	{
-		UserDTO:    UserDTO{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
-		Elo:        1000,
-		HighestElo: 1000,
-		Rank:       4,
-	},
 }
 
 func TestGetFullTournament(t *testing.T) {
@@ -121,34 +71,34 @@ func TestGetFullTournament(t *testing.T) {
 	tests := []struct {
 		name           string
 		tournamentKey  uuid.UUID
-		wantTournament FullTournamentDTO
+		wantTournament FullTournament
 		wantErr        error
 	}{
 		{
 			name:          "EmptyLobbyTournament",
 			tournamentKey: itest.Tournament0LobbyKey,
-			wantTournament: FullTournamentDTO{
-				TournamentDTO: TournamentDTOs[0],
-				Participants:  []ParticipantDTO{},
-				Matches:       []MatchDTO{},
+			wantTournament: FullTournament{
+				Tournament:   Tournaments[0],
+				Participants: []Participant{},
+				Matches:      []Match{},
 			},
 		},
 		{
 			name:          "RetrieveFullTournament",
-			tournamentKey: itest.Tournament2KnockoutKey,
-			wantTournament: FullTournamentDTO{
-				TournamentDTO: TournamentDTOs[2],
-				Participants:  Tournament2RankedParticipants,
-				Matches:       MatchTournament2DTOs, // stable ordering using the `ordering` column
+			tournamentKey: itest.Tournament5InProgressKnockoutKey,
+			wantTournament: FullTournament{
+				Tournament:   Tournaments[5],
+				Participants: Tournament5RankedParticipants,
+				Matches:      MatchTournament5, // stable ordering using the `ordering` column
 			},
 		},
 		{
 			name:          "RetrieveFullTournamentWithReplay",
-			tournamentKey: itest.Tournament5FinishedKey,
-			wantTournament: FullTournamentDTO{
-				TournamentDTO: TournamentDTOs[5],
-				Participants:  Tournament3RankedParticipants,
-				Matches:       MatchTournament5DTOs, // stable ordering using the `ordering` column
+			tournamentKey: itest.Tournament8FinishedKey,
+			wantTournament: FullTournament{
+				Tournament:   Tournaments[8],
+				Participants: Tournament8RankedParticipants,
+				Matches:      MatchTournament8, // stable ordering using the `ordering` column
 			},
 		},
 		{
@@ -181,7 +131,7 @@ func TestGetTournaments(t *testing.T) {
 		participantID   int64
 		afterID         int64
 		perPage         int32
-		wantTournaments []TournamentDTO
+		wantTournaments []Tournament
 		wantErr         error
 	}{
 		{
@@ -189,14 +139,17 @@ func TestGetTournaments(t *testing.T) {
 			participantID: -1,
 			afterID:       -1,
 			perPage:       100,
-			wantTournaments: []TournamentDTO{
-				// contains all tournament dtos in reverse order
-				TournamentDTOs[5],
-				TournamentDTOs[4],
-				TournamentDTOs[3],
-				TournamentDTOs[2],
-				TournamentDTOs[1],
-				TournamentDTOs[0],
+			wantTournaments: []Tournament{
+				// contains all tournament  in reverse order
+				Tournaments[8],
+				Tournaments[7],
+				Tournaments[6],
+				Tournaments[5],
+				Tournaments[4],
+				Tournaments[3],
+				Tournaments[2],
+				Tournaments[1],
+				Tournaments[0],
 			},
 		},
 		{
@@ -204,8 +157,8 @@ func TestGetTournaments(t *testing.T) {
 			participantID: -1,
 			afterID:       2,
 			perPage:       1,
-			wantTournaments: []TournamentDTO{
-				TournamentDTOs[0],
+			wantTournaments: []Tournament{
+				Tournaments[0],
 			},
 		},
 		{
@@ -213,9 +166,10 @@ func TestGetTournaments(t *testing.T) {
 			participantID: 4,
 			afterID:       -1,
 			perPage:       100,
-			wantTournaments: []TournamentDTO{
-				// contains all tournament dtos with user 4 as a participant
-				TournamentDTOs[2],
+			wantTournaments: []Tournament{
+				// contains all tournament with user 4 as a participant
+				Tournaments[5],
+				Tournaments[2],
 			},
 		},
 	}
@@ -232,6 +186,8 @@ func TestGetTournaments(t *testing.T) {
 	}
 }
 
+var cmpOptsOutboxEvent = cmpopts.IgnoreFields(sqlc.OutboxQueue{}, "ID")
+
 func TestBeginTournamentCountdown(t *testing.T) {
 	t.Parallel()
 
@@ -240,7 +196,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
 	defer services.Close()
 
-	services.entropy = &StableEntropySource{Time: updateTime}
+	services.entropy = &StableEntropySource{CurrTime: updateTime}
 
 	tests := []struct {
 		name                      string
@@ -248,18 +204,24 @@ func TestBeginTournamentCountdown(t *testing.T) {
 		userID                    int64
 		wantBeginTourneyCountdown BeginTourneyCountdown
 		wantErr                   error
-		wantTournamentById        sqlc.Tournament
+		wantTournamenStatus       sqlc.TournamentStatusEnum
 		wantOutboxQueueEvents     []sqlc.OutboxQueue
 	}{
 		{
+			name:          "StatusPreconditionFailed_Scheduled",
+			tournamentKey: itest.Tournament2ScheduledKnockoutKey,
+			userID:        1,
+			wantErr:       ErrInvalidCountdownTournamentStatus,
+		},
+		{
 			name:          "StatusPreconditionFailed_InProgress",
-			tournamentKey: itest.Tournament2KnockoutKey,
+			tournamentKey: itest.Tournament5InProgressKnockoutKey,
 			userID:        1,
 			wantErr:       ErrInvalidCountdownTournamentStatus,
 		},
 		{
 			name:          "StatusPreconditionFailed_Finished",
-			tournamentKey: itest.Tournament5FinishedKey,
+			tournamentKey: itest.Tournament8FinishedKey,
 			userID:        1,
 			wantErr:       ErrInvalidCountdownTournamentStatus,
 		},
@@ -274,24 +236,9 @@ func TestBeginTournamentCountdown(t *testing.T) {
 			tournamentKey:             itest.Tournament0LobbyKey,
 			userID:                    1,
 			wantBeginTourneyCountdown: BeginTourneyCountdown{TournamentKey: itest.Tournament0LobbyKey},
-			wantTournamentById: sqlc.Tournament{
-				ID:                 1,
-				TournamentKey:      pgtype.UUID{Bytes: itest.Tournament0LobbyKey, Valid: true},
-				Name:               "Test Tournament 0",
-				Rounds:             2,
-				Ruleset:            sqlc.TournamentRulesetEnum(TournamentKnockout.String()),
-				Status:             sqlc.TournamentStatusEnum(TournamentScheduled.String()),
-				Mode:               sqlc.ModeEnum(ModeCorrespondence1.String()),
-				WinnerID:           pgtype.Int8{Valid: false},
-				Countdown:          (time.Minute * 5).Milliseconds(),
-				CountdownStartedOn: pgtype.Timestamptz{Time: updateTime.Local(), Valid: true},
-				CreatedOn:          pgtype.Timestamptz{Time: itest.TimeNow.Local(), Valid: true},
-				CreatedBy:          1,
-				UpdatedOn:          pgtype.Timestamptz{Time: updateTime.Local(), Valid: true},
-			},
+			wantTournamenStatus:       sqlc.TournamentStatusEnumSCHEDULED,
 			wantOutboxQueueEvents: []sqlc.OutboxQueue{
 				{
-					ID:   1,
 					Type: sqlc.OutboxQueueTypeEnumTOURNAMENTSCHEDULEDEVENT,
 					Data: func() []byte {
 						bytes, err := proto.Marshal(&pb.ScheduledTourmmentEvent{
@@ -302,7 +249,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 					}(),
 					CreatedOn:   pgtype.Timestamptz{Time: updateTime.Local(), Valid: true},
 					ProcessedOn: pgtype.Timestamptz{Valid: false},
-					ScheduledOn: pgtype.Timestamptz{Time: updateTime.Add(5 * time.Minute), Valid: true},
+					ScheduledOn: pgtype.Timestamptz{Time: updateTime.Add(time.Minute*5 + time.Second), Valid: true},
 				},
 			},
 		},
@@ -318,15 +265,15 @@ func TestBeginTournamentCountdown(t *testing.T) {
 			assert.Equal(t, tt.wantErr, err)
 
 			if tt.wantErr == nil {
-				tournament, err := services.querier.SelectTournament(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
+				status, err := services.querier.SelectTournamentStatus(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
 				require.NoError(t, err)
 
-				testutil.Equal(t, tt.wantTournamentById, tournament)
+				testutil.Equal(t, tt.wantTournamenStatus, status)
 
 				outboxEvents, err := services.querier.SelectALLOutboxQueue(ctx)
 				require.NoError(t, err)
 
-				testutil.Equal(t, tt.wantOutboxQueueEvents, outboxEvents)
+				testutil.Equal(t, tt.wantOutboxQueueEvents, outboxEvents, cmpOptsOutboxEvent)
 			}
 		})
 	}
@@ -340,7 +287,7 @@ func TestJoinTournament(t *testing.T) {
 	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
 	defer services.Close()
 
-	services.entropy = &StableEntropySource{Time: updateTime}
+	services.entropy = &StableEntropySource{CurrTime: updateTime}
 
 	tests := []struct {
 		name             string
@@ -352,7 +299,7 @@ func TestJoinTournament(t *testing.T) {
 		{
 			name: "StatusPreconditionFailed",
 			inst: JoinTournamentInst{
-				TournamentKey: itest.Tournament3RoundRobinKey,
+				TournamentKey: itest.Tournament3ScheduledRoundRobinKey,
 				JoiningUserID: 1,
 				InsertionTime: updateTime,
 			},
@@ -404,8 +351,234 @@ func TestJoinTournament(t *testing.T) {
 	}
 }
 
-func TestStartTournament(t *testing.T) {
+var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(sqlc.TournamentMatch{}, "Ordering")
 
+func TestStartTournament(t *testing.T) {
+	t.Parallel()
+
+	updateTime := itest.TimeNow.Add(time.Minute * 5)
+
+	setupServices := func() (*HexchessServices, func()) {
+		services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
+
+		services.entropy = &StableEntropySource{CurrTime: updateTime}
+		return services, services.Close
+	}
+
+	tests := []struct {
+		name                  string
+		tournamentKey         uuid.UUID
+		wantErr               error
+		wantStatus            sqlc.TournamentStatusEnum
+		wantMatches           []sqlc.TournamentMatch
+		wantOutboxQueueEvents []sqlc.OutboxQueue
+	}{
+		{
+			name:          "StatusPreconditionFailed_Lobby",
+			tournamentKey: itest.Tournament1LobbyFilledKey,
+			wantErr:       MatchInvariantError{TournamentKey: itest.Tournament1LobbyFilledKey, Err: ErrInvalidStartTournamentStatus},
+		},
+		{
+			name:          "StatusPreconditionFailed_InProgress",
+			tournamentKey: itest.Tournament5InProgressKnockoutKey,
+			wantErr:       MatchInvariantError{TournamentKey: itest.Tournament5InProgressKnockoutKey, Err: ErrInvalidStartTournamentStatus},
+		},
+		{
+			name:          "StatusPreconditionFailed_Finished",
+			tournamentKey: itest.Tournament8FinishedKey,
+			wantErr:       MatchInvariantError{TournamentKey: itest.Tournament8FinishedKey, Err: ErrInvalidStartTournamentStatus},
+		},
+		{
+			name:          "StartingKnockoutTournament",
+			tournamentKey: itest.Tournament2ScheduledKnockoutKey,
+			wantStatus:    sqlc.TournamentStatusEnumINPROGRESS,
+			wantMatches: []sqlc.TournamentMatch{
+				// tournament has 2 rounds with join order of [1,2,3,4], so starting the tournament creates 2 rounds wso the matches go 1-2, 3-4
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament2ScheduledKnockoutKey, Valid: true},
+					GameID:        "mock-1",
+					Round:         1,
+					CreatedOn:     pgtype.Timestamptz{Time: updateTime.Local(), Valid: true},
+					WhiteID:       3,
+					BlackID:       4,
+				},
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament2ScheduledKnockoutKey, Valid: true},
+					GameID:        "mock-2",
+					Round:         1,
+					CreatedOn:     pgtype.Timestamptz{Time: updateTime.Local(), Valid: true},
+					WhiteID:       5,
+					BlackID:       6,
+				},
+			},
+			wantOutboxQueueEvents: []sqlc.OutboxQueue{
+				{
+					Type: sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
+					Data: func() []byte {
+						bytes, err := proto.Marshal(&pb.CreateTournamentMatchesEvent{
+							TournamentKey: itest.Tournament2ScheduledKnockoutKey.String(),
+							Matches: []*pb.CreateTournamentMatch{
+								{
+									GameId:   "mock-1",
+									WhiteId:  3,
+									BlackId:  4,
+									GameMode: ModeCorrespondence1.String(),
+								},
+								{
+									GameId:   "mock-2",
+									WhiteId:  5,
+									BlackId:  6,
+									GameMode: ModeCorrespondence1.String(),
+								},
+							},
+						})
+						require.NoError(t, err)
+						return bytes
+					}(),
+					CreatedOn:   pgtype.Timestamptz{Time: updateTime.Local(), Valid: true},
+					ProcessedOn: pgtype.Timestamptz{Valid: false},
+					ScheduledOn: pgtype.Timestamptz{Valid: false},
+				},
+			},
+		},
+		{
+			name:          "StartingRoundRobinTournament",
+			tournamentKey: itest.Tournament3ScheduledRoundRobinKey,
+			wantStatus:    sqlc.TournamentStatusEnumINPROGRESS,
+			wantMatches: []sqlc.TournamentMatch{
+				// tournament has 4 participants with join order of [1,2,3,4], so the matches go 1-2, 3-4
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament3ScheduledRoundRobinKey, Valid: true},
+					GameID:        "mock-1",
+					Round:         1,
+					CreatedOn:     pgtype.Timestamptz{Time: updateTime.Local(), Valid: true},
+					WhiteID:       1,
+					BlackID:       2,
+				},
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament3ScheduledRoundRobinKey, Valid: true},
+					GameID:        "mock-2",
+					Round:         1,
+					CreatedOn:     pgtype.Timestamptz{Time: updateTime.Local(), Valid: true},
+					WhiteID:       5,
+					BlackID:       6,
+				},
+			},
+			wantOutboxQueueEvents: []sqlc.OutboxQueue{
+				{
+					Type: sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
+					Data: func() []byte {
+						bytes, err := proto.Marshal(&pb.CreateTournamentMatchesEvent{
+							TournamentKey: itest.Tournament3ScheduledRoundRobinKey.String(),
+							Matches: []*pb.CreateTournamentMatch{
+								{
+									GameId:   "mock-1",
+									WhiteId:  1,
+									BlackId:  2,
+									GameMode: ModeCorrespondence1.String(),
+								},
+								{
+									GameId:   "mock-2",
+									WhiteId:  5,
+									BlackId:  6,
+									GameMode: ModeCorrespondence1.String(),
+								},
+							},
+						})
+						require.NoError(t, err)
+						return bytes
+					}(),
+					CreatedOn:   pgtype.Timestamptz{Time: updateTime.Local(), Valid: true},
+					ProcessedOn: pgtype.Timestamptz{Valid: false},
+					ScheduledOn: pgtype.Timestamptz{Valid: false},
+				},
+			},
+		},
+		{
+			name:          "StartingSwissTournament",
+			tournamentKey: itest.Tournament4ScheduledSwissKey,
+			wantStatus:    sqlc.TournamentStatusEnumINPROGRESS,
+			wantMatches: []sqlc.TournamentMatch{
+				// tournament has 4 participants with elo ordering of [6,5,2,1] for Correspondence1, so the matches go 6-2, 5-1
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament4ScheduledSwissKey, Valid: true},
+					GameID:        "mock-1",
+					Round:         1,
+					CreatedOn:     pgtype.Timestamptz{Time: updateTime.Local(), Valid: true},
+					WhiteID:       6,
+					BlackID:       2,
+				},
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament4ScheduledSwissKey, Valid: true},
+					GameID:        "mock-2",
+					Round:         1,
+					CreatedOn:     pgtype.Timestamptz{Time: updateTime.Local(), Valid: true},
+					WhiteID:       5,
+					BlackID:       1,
+				},
+			},
+			wantOutboxQueueEvents: []sqlc.OutboxQueue{
+				{
+					Type: sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
+					Data: func() []byte {
+						bytes, err := proto.Marshal(&pb.CreateTournamentMatchesEvent{
+							TournamentKey: itest.Tournament4ScheduledSwissKey.String(),
+							Matches: []*pb.CreateTournamentMatch{
+								{
+									GameId:   "mock-1",
+									WhiteId:  6,
+									BlackId:  2,
+									GameMode: ModeCorrespondence1.String(),
+								},
+								{
+									GameId:   "mock-2",
+									WhiteId:  5,
+									BlackId:  1,
+									GameMode: ModeCorrespondence1.String(),
+								},
+							},
+						})
+						require.NoError(t, err)
+						return bytes
+					}(),
+					CreatedOn:   pgtype.Timestamptz{Time: updateTime.Local(), Valid: true},
+					ProcessedOn: pgtype.Timestamptz{Valid: false},
+					ScheduledOn: pgtype.Timestamptz{Valid: false},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// service is constructed once per test since tests share the outbox queue and we need an assertion per outbox queue.
+			services, closer := setupServices()
+			defer closer()
+
+			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+
+			err := services.StartTournamentTx(ctx, tt.tournamentKey)
+
+			assert.Equal(t, tt.wantErr, err)
+
+			if tt.wantErr == nil {
+				matches, err := services.querier.SelectMatches(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
+				require.NoError(t, err)
+
+				testutil.Equal(t, tt.wantMatches, matches, sqlcTournamentMatchCmpOpts)
+
+				status, err := services.querier.SelectTournamentStatus(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
+				require.NoError(t, err)
+
+				testutil.Equal(t, tt.wantStatus, status)
+
+				outboxEvents, err := services.querier.SelectALLOutboxQueue(ctx)
+				require.NoError(t, err)
+
+				testutil.Equal(t, tt.wantOutboxQueueEvents, outboxEvents, cmpOptsOutboxEvent)
+			}
+		})
+	}
 }
 
 func TestAdvanceTournament(t *testing.T) {

@@ -253,8 +253,8 @@ func (svc *HexchessServices) SyncLeaderboard(ctx context.Context) error {
 	return nil
 }
 
-type LbdUserDTO struct {
-	UserDTO
+type LbdUser struct {
+	User
 	Elo        float64 `json:"elo"`
 	HighestElo float64 `json:"highestElo"`
 	Wins       int32   `json:"wins"`
@@ -273,9 +273,9 @@ func (e ExpLdbError) Error() string {
 	return fmt.Sprintf("expected leaderboard of length %d users, got %d", e.ExpCount, e.ActualCount)
 }
 
-func mapLbdUser(row sqlc.SelectUserWithEloByIDRow) LbdUserDTO {
-	return LbdUserDTO{
-		UserDTO:    UserDTO{ID: row.ID, Username: row.Username, Country: row.Country, JoinedOn: row.JoinedOn.Time},
+func mapLbdUser(row sqlc.SelectUserWithEloByIDRow) LbdUser {
+	return LbdUser{
+		User:       User{ID: row.ID, Username: row.Username, Country: row.Country, JoinedOn: row.JoinedOn.Time},
 		Elo:        defaultElo(row.Elo),
 		HighestElo: defaultElo(row.HighestElo),
 		Wins:       row.Wins.Int32,
@@ -284,7 +284,7 @@ func mapLbdUser(row sqlc.SelectUserWithEloByIDRow) LbdUserDTO {
 	}
 }
 
-func (svc *HexchessServices) GetLeaderboardUser(ctx context.Context, userID int64, mode GameMode) (LbdUserDTO, error) {
+func (svc *HexchessServices) GetLeaderboardUser(ctx context.Context, userID int64, mode GameMode) (LbdUser, error) {
 	strUserID := strconv.Itoa(int(userID))
 
 	var userRow sqlc.SelectUserWithEloByIDRow
@@ -305,7 +305,7 @@ func (svc *HexchessServices) GetLeaderboardUser(ctx context.Context, userID int6
 	})
 
 	if err := eg.Wait(); err != nil {
-		return LbdUserDTO{}, err
+		return LbdUser{}, err
 	}
 
 	user := mapLbdUser(userRow)
@@ -314,7 +314,7 @@ func (svc *HexchessServices) GetLeaderboardUser(ctx context.Context, userID int6
 	return user, nil
 }
 
-func (svc *HexchessServices) GetLeaderboardUsers(ctx context.Context, mode GameMode, rnkUsers []RankedUser) ([]LbdUserDTO, []int64, error) {
+func (svc *HexchessServices) GetLeaderboardUsers(ctx context.Context, mode GameMode, rnkUsers []RankedUser) ([]LbdUser, []int64, error) {
 	ids := make([]int64, 0, len(rnkUsers))
 	for _, user := range rnkUsers {
 		ids = append(ids, user.ID)
@@ -327,7 +327,7 @@ func (svc *HexchessServices) GetLeaderboardUsers(ctx context.Context, mode GameM
 		return nil, nil, fmt.Errorf("select many users %+v: %w", ids, err)
 	}
 
-	leaderboardUsers := make([]LbdUserDTO, 0, len(rnkUsers))
+	leaderboardUsers := make([]LbdUser, 0, len(rnkUsers))
 	var missingIDs []int64
 
 	for _, rnkUser := range rnkUsers {
@@ -362,7 +362,7 @@ const MaxSearchOffset = 1000
 
 var ErrSearchLimit = errors.New("search limit exceeded")
 
-func (svc *HexchessServices) GetFuzzySearchLeaderboard(ctx context.Context, name string, page, perPage int32) ([]LbdUserDTO, error) {
+func (svc *HexchessServices) GetFuzzySearchLeaderboard(ctx context.Context, name string, page, perPage int32) ([]LbdUser, error) {
 	page = max(page, 1)
 	offset := (page - 1) * perPage
 	if offset > MaxSearchOffset {
@@ -413,14 +413,14 @@ func (svc *HexchessServices) GetFuzzySearchLeaderboard(ctx context.Context, name
 		eloAggrMap[row.UserID] = aggr
 	}
 
-	leaderboardUsers := make([]LbdUserDTO, 0, len(userRows))
+	leaderboardUsers := make([]LbdUser, 0, len(userRows))
 	for i, userRow := range userRows {
 		searchRank := (page-1)*perPage + int32(i) + 1
 
 		aggr := eloAggrMap[userRow.ID]
 
-		leaderboardUsers = append(leaderboardUsers, LbdUserDTO{
-			UserDTO: UserDTO{
+		leaderboardUsers = append(leaderboardUsers, LbdUser{
+			User: User{
 				ID:       userRow.ID,
 				Username: userRow.Username,
 				Country:  userRow.Country,

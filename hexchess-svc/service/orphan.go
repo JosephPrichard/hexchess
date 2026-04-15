@@ -66,7 +66,7 @@ func (svc *HexchessServices) removeOrphanedObjects(ctx context.Context, opts Rem
 		}
 		page++
 
-		// parse and extract object IDs and keys from api call.
+		// parse and extract object IDQueue and keys from api call.
 		type KeyPair struct {
 			key      string
 			objectID int64
@@ -93,14 +93,14 @@ func (svc *HexchessServices) removeOrphanedObjects(ctx context.Context, opts Rem
 		// find orphaned keys, and store them in a map.
 		validIDs, err := opts.selectIDs(ctx, ids)
 		if err != nil {
-			return fmt.Errorf("select valid object IDs: %w", err)
+			return fmt.Errorf("select valid object IDQueue: %w", err)
 		}
 		existingObjectIDs := make(map[int64]bool, len(validIDs))
 		for _, objectID := range validIDs {
 			existingObjectIDs[objectID] = true
 		}
 
-		slog.InfoContext(ctx, "selected valid object IDs", "objectIDs", validIDs, "bucket", opts.Bucket)
+		slog.InfoContext(ctx, "selected valid object IDQueue", "objectIDs", validIDs, "bucket", opts.Bucket)
 
 		var orphanedKeyStrs []string
 		var orphanedKeys []s3Types.ObjectIdentifier

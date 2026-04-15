@@ -117,7 +117,7 @@ func TestGetChallengesByParticipant(t *testing.T) {
 	t.Parallel()
 
 	// gets only expired challenges
-	mocks := ServiceMocks{Entropy: &StableEntropySource{Time: itest.TimeNow}}
+	mocks := ServiceMocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}
 
 	services, _ := SetupServicesTest(t, mocks, itest.ROPostgres)
 	defer services.Close()
@@ -127,7 +127,7 @@ func TestGetChallengesByParticipant(t *testing.T) {
 	challenges, err := services.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
-	assert.Equal(t, []ChallengeDTO{TestChallengeDTOs[2], TestChallengeDTOs[3]}, challenges)
+	assert.Equal(t, []Challenge{TestChallenge[2], TestChallenge[3]}, challenges)
 }
 
 func TestDeleteExpiredChallenges(t *testing.T) {
@@ -139,21 +139,21 @@ func TestDeleteExpiredChallenges(t *testing.T) {
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	// gets only expired challenges
-	services.entropy = &StableEntropySource{Time: itest.TimeNow}
+	services.entropy = &StableEntropySource{CurrTime: itest.TimeNow}
 	require.NoError(t, services.DeleteExpiredChallenges(ctx, 5))
 
 	// gets ALL challenges to check that we deleted expired challenges
-	services.entropy = &StableEntropySource{Time: time.Unix(0, 0)}
+	services.entropy = &StableEntropySource{CurrTime: time.Unix(0, 0)}
 	challengesDel, err := services.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
-	assert.Equal(t, []ChallengeDTO{TestChallengeDTOs[2], TestChallengeDTOs[3]}, challengesDel)
+	assert.Equal(t, []Challenge{TestChallenge[2], TestChallenge[3]}, challengesDel)
 }
 
 func TestDeleteChallenge(t *testing.T) {
 	t.Parallel()
 
-	mocks := ServiceMocks{Entropy: &StableEntropySource{Time: itest.TimeNow}}
+	mocks := ServiceMocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}
 
 	services, _ := SetupServicesTest(t, mocks, itest.RWPostgres)
 	defer services.Close()

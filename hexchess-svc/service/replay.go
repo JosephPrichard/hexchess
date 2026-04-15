@@ -13,19 +13,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type ReplayDTO struct {
+type Replay struct {
 	ID          int64        `json:"id"`
 	WhiteID     int64        `json:"whiteId"`
 	BlackID     int64        `json:"blackId"`
 	Mode        GameMode     `json:"mode"`
-	Result      ReplayResult `json:"wantResult"`
+	Result      ReplayResult `json:"result"`
 	Cause       ReplayCause  `json:"cause"`
 	WinEloDiff  float64      `json:"winEloDiff"`
 	LoseEloDiff float64      `json:"loseEloDiff"`
 	PlayedOn    time.Time    `json:"playedOn"`
 }
 
-type ReplayUsersDTO struct {
+type ReplayUsers struct {
 	WhiteName    string  `json:"whiteName"`
 	BlackName    string  `json:"blackName"`
 	WhiteCountry string  `json:"whiteCountry"`
@@ -34,18 +34,18 @@ type ReplayUsersDTO struct {
 	BlackElo     float64 `json:"blackElo"`
 }
 
-type ReplayViewDTO struct {
+type RepayView struct {
 	WhiteEloDiff float64 `json:"whiteEloDiff"`
 	BlackEloDiff float64 `json:"blackEloDiff"`
 }
 
-type FullReplayDTO struct {
-	ReplayDTO
-	ReplayUsersDTO
-	ReplayViewDTO
+type FullReplay struct {
+	Replay
+	ReplayUsers
+	RepayView
 }
 
-func MakeReplayViewDTO(input ReplayDTO) (output ReplayViewDTO) {
+func MakeReplayView(input Replay) (output RepayView) {
 	switch input.Result {
 	case WhiteWin:
 		output.WhiteEloDiff, output.BlackEloDiff = input.WinEloDiff, input.LoseEloDiff
@@ -58,32 +58,32 @@ func MakeReplayViewDTO(input ReplayDTO) (output ReplayViewDTO) {
 
 var ErrNoReplay = errors.New("replay not found")
 
-func (svc *HexchessServices) GetReplayByGameID(ctx context.Context, gameID string) (FullReplayDTO, error) {
+func (svc *HexchessServices) GetReplayByGameID(ctx context.Context, gameID string) (FullReplay, error) {
 	row, err := svc.querier.SelectReplayByGameID(ctx, gameID)
 	return mapGetReplayResult(ctx, gameID, sqlc.SelectReplayByIDRow(row), err)
 }
 
-func (svc *HexchessServices) GetReplay(ctx context.Context, replayID int64) (FullReplayDTO, error) {
+func (svc *HexchessServices) GetReplay(ctx context.Context, replayID int64) (FullReplay, error) {
 	row, err := svc.querier.SelectReplayByID(ctx, replayID)
 	return mapGetReplayResult(ctx, replayID, row, err)
 }
 
-func mapGetReplayResult[ID any](ctx context.Context, id ID, row sqlc.SelectReplayByIDRow, err error) (FullReplayDTO, error) {
+func mapGetReplayResult[ID any](ctx context.Context, id ID, row sqlc.SelectReplayByIDRow, err error) (FullReplay, error) {
 	if IsErrNoRows(err) {
-		return FullReplayDTO{}, ErrNoReplay
+		return FullReplay{}, ErrNoReplay
 	} else if err != nil {
-		return FullReplayDTO{}, fmt.Errorf("select replay [%v] by id: %w", id, err)
+		return FullReplay{}, fmt.Errorf("select replay [%v] by id: %w", id, err)
 	}
 	replay := mapFullReplayByIDRow(row)
 	slog.InfoContext(ctx, "selected replay by id", "replay", replay, "id", id)
 	return replay, nil
 }
 
-func mapFullReplayByIDRow(row sqlc.SelectReplayByIDRow) FullReplayDTO {
+func mapFullReplayByIDRow(row sqlc.SelectReplayByIDRow) FullReplay {
 	replay := mapReplayByIDRow(row)
-	return FullReplayDTO{
-		ReplayDTO: replay,
-		ReplayUsersDTO: ReplayUsersDTO{
+	return FullReplay{
+		Replay: replay,
+		ReplayUsers: ReplayUsers{
 			WhiteName:    row.WhiteName.String,
 			BlackName:    row.BlackName.String,
 			WhiteCountry: row.WhiteCountry.String,
@@ -91,16 +91,16 @@ func mapFullReplayByIDRow(row sqlc.SelectReplayByIDRow) FullReplayDTO {
 			WhiteElo:     defaultElo(row.WhiteElo),
 			BlackElo:     defaultElo(row.BlackElo),
 		},
-		ReplayViewDTO: MakeReplayViewDTO(replay),
+		RepayView: MakeReplayView(replay),
 	}
 }
 
-func mapReplayByIDRow(row sqlc.SelectReplayByIDRow) ReplayDTO {
+func mapReplayByIDRow(row sqlc.SelectReplayByIDRow) Replay {
 	replayResult := enum.Expect(row.Result, ReplayResultEnums)
 	replayCause := enum.Expect(row.Cause, ReplayCauseEnums)
 	gameMode := enum.Expect(row.Mode, GameModeEnums)
 
-	return ReplayDTO{
+	return Replay{
 		ID:          row.ID,
 		WhiteID:     row.WhiteID.Int64,
 		BlackID:     row.BlackID.Int64,
@@ -122,7 +122,7 @@ func (svc *HexchessServices) GetMovesHistory(ctx context.Context, replayID int) 
 	return row.Data, nil
 }
 
-func (svc *HexchessServices) GetUserReplays(ctx context.Context, userID int64, afterID int64, perPage int32) ([]FullReplayDTO, error) {
+func (svc *HexchessServices) GetUserReplays(ctx context.Context, userID int64, afterID int64, perPage int32) ([]FullReplay, error) {
 	if afterID < 0 {
 		afterID = int64(math.MaxInt64)
 	}
@@ -136,7 +136,7 @@ func (svc *HexchessServices) GetUserReplays(ctx context.Context, userID int64, a
 		return nil, fmt.Errorf("select replays by user id [%d]: %w", userID, err)
 	}
 
-	replays := make([]FullReplayDTO, 0, len(replayRows))
+	replays := make([]FullReplay, 0, len(replayRows))
 	for _, row := range replayRows {
 		replays = append(replays, mapFullReplayByIDRow(sqlc.SelectReplayByIDRow(row)))
 	}

@@ -25,7 +25,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type UserDTO struct {
+type User struct {
 	ID       int64     `json:"id"`
 	Username string    `json:"username"`
 	Country  string    `json:"country"`
@@ -68,14 +68,14 @@ type UserInst struct {
 	JoinedOn time.Time
 }
 
-func (svc *HexchessServices) InsertUser(ctx context.Context, inst UserInst) (UserDTO, error) {
+func (svc *HexchessServices) InsertUser(ctx context.Context, inst UserInst) (User, error) {
 	if inst.JoinedOn.IsZero() {
 		inst.JoinedOn = time.Now()
 	}
 
 	hash, err := hashPassword(inst.Password)
 	if err != nil {
-		return UserDTO{}, fmt.Errorf("generate hash: %w", err)
+		return User{}, fmt.Errorf("generate hash: %w", err)
 	}
 
 	userRow, err := svc.querier.InsertUser(ctx, sqlc.InsertUserParams{
@@ -88,17 +88,17 @@ func (svc *HexchessServices) InsertUser(ctx context.Context, inst UserInst) (Use
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return UserDTO{}, ErrTakenUsername
+			return User{}, ErrTakenUsername
 		}
-		return UserDTO{}, fmt.Errorf("insert user to db: %w", err)
+		return User{}, fmt.Errorf("insert user to db: %w", err)
 	}
 
-	user := UserDTO{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
+	user := User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
 	slog.InfoContext(ctx, "created a new user", "user", user)
 	return user, nil
 }
 
-func (svc *HexchessServices) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]UserDTO, error) {
+func (svc *HexchessServices) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]User, error) {
 	batches := make([]sqlc.BatchInsertUserParams, len(insts))
 
 	var hashEg errgroup.Group // no context propagation because jobs are non-cancellable
@@ -127,12 +127,12 @@ func (svc *HexchessServices) BatchInsertUsers(ctx context.Context, insts []UserI
 		return nil, err
 	}
 
-	var users []UserDTO
+	var users []User
 	var insertErrs []error
 
 	svc.querier.BatchInsertUser(ctx, batches).QueryRow(func(i int, row sqlc.BatchInsertUserRow, err error) {
 		if err == nil {
-			users = append(users, UserDTO{
+			users = append(users, User{
 				ID:       row.ID,
 				Username: row.Username,
 				Country:  row.Country,
@@ -150,14 +150,14 @@ func (svc *HexchessServices) BatchInsertUsers(ctx context.Context, insts []UserI
 	return users, err
 }
 
-type VerifiedUserDTO struct {
+type VerifiedUser struct {
 	ID       int64  `json:"id"`
 	Username string `json:"username"`
 	Country  string `json:"country"`
 }
 
-func (svc *HexchessServices) VerifyUserTx(ctx context.Context, username string, inputPassword string) (VerifiedUserDTO, error) {
-	var user VerifiedUserDTO
+func (svc *HexchessServices) VerifyUserTx(ctx context.Context, username string, inputPassword string) (VerifiedUser, error) {
+	var user VerifiedUser
 
 	err := svc.db.ExecTx(ctx, db.Tx{
 		// Serializable is required to prevent the following race conditions
@@ -185,7 +185,7 @@ const LockoutDuration = time.Minute * 1
 
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
-func verifyUser(ctx context.Context, querier sqlc.Querier, username string, inputPassword string) (u VerifiedUserDTO, err error) {
+func verifyUser(ctx context.Context, querier sqlc.Querier, username string, inputPassword string) (u VerifiedUser, err error) {
 	loginRow, err := querier.SelectLoginByName(ctx, username)
 	if IsErrNoRows(err) {
 		return u, ErrUserNotFound
@@ -215,7 +215,7 @@ func verifyUser(ctx context.Context, querier sqlc.Querier, username string, inpu
 		return u, fmt.Errorf("reset user [%d] login attempts: %w", loginRow.ID, err)
 	}
 
-	user := VerifiedUserDTO{
+	user := VerifiedUser{
 		ID:       loginRow.ID,
 		Username: loginRow.Username,
 		Country:  loginRow.Country,
@@ -230,8 +230,8 @@ type GoogleUserInst struct {
 	JoinedOn time.Time
 }
 
-func (svc *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, googleAccountID string, googleInst GoogleUserInst) (VerifiedUserDTO, error) {
-	var verifiedUser VerifiedUserDTO
+func (svc *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, googleAccountID string, googleInst GoogleUserInst) (VerifiedUser, error) {
+	var verifiedUser VerifiedUser
 	var isCreated bool
 
 	login, err := svc.querier.SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
@@ -253,14 +253,14 @@ func (svc *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, googl
 		if err != nil {
 			return verifiedUser, fmt.Errorf("insert google user [%s]: %w", googleAccountID, err)
 		}
-		verifiedUser = VerifiedUserDTO{
+		verifiedUser = VerifiedUser{
 			ID:       userRow.ID,
 			Username: userRow.Username,
 			Country:  userRow.Country,
 		}
 		slog.InfoContext(ctx, "inserted a google user account", "inst", googleInst, "googleAccountID", googleAccountID)
 	} else {
-		verifiedUser = VerifiedUserDTO{
+		verifiedUser = VerifiedUser{
 			ID:       login.ID,
 			Username: login.Username,
 			Country:  login.Country,
@@ -281,9 +281,9 @@ type UpdtUserParams struct {
 	Country  string
 }
 
-func (svc *HexchessServices) UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (UserDTO, error) {
+func (svc *HexchessServices) UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (User, error) {
 	if updt.Username == "" && updt.Bio == "" && updt.Country == "" {
-		return UserDTO{}, nil
+		return User{}, nil
 	}
 
 	userRow, err := svc.querier.UpdateUser(ctx, sqlc.UpdateUserParams{
@@ -293,10 +293,10 @@ func (svc *HexchessServices) UpdateUser(ctx context.Context, id int64, updt Updt
 		Country:  pgtype.Text{Valid: updt.Country != "", String: updt.Country},
 	})
 	if err != nil {
-		return UserDTO{}, fmt.Errorf("update user %d: %w", id, err)
+		return User{}, fmt.Errorf("update user %d: %w", id, err)
 	}
 
-	user := UserDTO{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
+	user := User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
 	slog.InfoContext(ctx, "updated user", "user", user)
 	return user, err
 }
@@ -315,20 +315,20 @@ func (svc *HexchessServices) UpdateUserPassword(ctx context.Context, id int64, n
 	return err
 }
 
-func (svc *HexchessServices) GetUserByID(ctx context.Context, id int64) (UserDTO, error) {
+func (svc *HexchessServices) GetUserByID(ctx context.Context, id int64) (User, error) {
 	userRow, err := svc.querier.SelectUserByID(ctx, id)
 	if err != nil {
 		if IsErrNoRows(err) {
-			return UserDTO{}, ErrUserNotFound
+			return User{}, ErrUserNotFound
 		}
-		return UserDTO{}, fmt.Errorf("select user [%d]: %w", id, err)
+		return User{}, fmt.Errorf("select user [%d]: %w", id, err)
 	}
-	user := UserDTO{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
+	user := User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
 	slog.InfoContext(ctx, "selected user", "id", id, "user", user)
 	return user, nil
 }
 
-type ModeStatsDTO struct {
+type ModeStats struct {
 	Mode       GameMode `json:"mode"`
 	Rank       int64    `json:"rank"`
 	Wins       int32    `json:"wins"`
@@ -339,36 +339,36 @@ type ModeStatsDTO struct {
 	HighestElo float64  `json:"highestElo"`
 }
 
-type UserStatsDTO struct {
-	TotalWins    int32          `json:"totalWins"`
-	TotalLosses  int32          `json:"totalLosses"`
-	TotalDraws   int32          `json:"totalDraws"`
-	AvgElo       float64        `json:"avgElo"`     // average elo of all other modes
-	HighestElo   float64        `json:"highestElo"` // the absolute highest elo
-	TotalWinrate int64          `json:"totalWinrate"`
-	ModeStats    []ModeStatsDTO `json:"modeStats"`
+type UserStats struct {
+	TotalWins    int32       `json:"totalWins"`
+	TotalLosses  int32       `json:"totalLosses"`
+	TotalDraws   int32       `json:"totalDraws"`
+	AvgElo       float64     `json:"avgElo"`     // average elo of all other modes
+	HighestElo   float64     `json:"highestElo"` // the absolute highest elo
+	TotalWinrate int64       `json:"totalWinrate"`
+	ModeStats    []ModeStats `json:"modeStats"`
 }
 
 func avg[T constraints.Integer | constraints.Float](currAvg T, currCount int, nextValue T) T {
 	return (currAvg*T(currCount) + nextValue) / T(currCount+1)
 }
 
-func (svc *HexchessServices) GetUserStats(ctx context.Context, id int64) (UserStatsDTO, error) {
+func (svc *HexchessServices) GetUserStats(ctx context.Context, id int64) (UserStats, error) {
 	modeEloRows, err := svc.querier.SelectUserElosByID(ctx, id)
 	if err != nil {
-		return UserStatsDTO{}, fmt.Errorf("select user [%d] elos by id: %w", id, err)
+		return UserStats{}, fmt.Errorf("select user [%d] elos by id: %w", id, err)
 	}
 
-	var stats UserStatsDTO
+	var stats UserStats
 	if len(modeEloRows) == 0 {
-		stats = UserStatsDTO{HighestElo: StartElo, AvgElo: StartElo}
+		stats = UserStats{HighestElo: StartElo, AvgElo: StartElo}
 	} else {
-		stats = UserStatsDTO{HighestElo: math.SmallestNonzeroFloat64}
+		stats = UserStats{HighestElo: math.SmallestNonzeroFloat64}
 	}
 
 	for _, row := range modeEloRows {
 		mode := enum.Expect(row.Mode, GameModeEnums)
-		modeStats := ModeStatsDTO{
+		modeStats := ModeStats{
 			Mode:       mode,
 			Wins:       row.Wins,
 			Losses:     row.Losses,
@@ -393,16 +393,16 @@ func (svc *HexchessServices) GetUserStats(ctx context.Context, id int64) (UserSt
 	return stats, nil
 }
 
-type FullUserDTO struct {
-	User       UserDTO         `json:"user"`
-	Stats      UserStatsDTO    `json:"stats"`
-	ReplayList []FullReplayDTO `json:"replayList"`
+type FullUser struct {
+	User       User         `json:"user"`
+	Stats      UserStats    `json:"stats"`
+	ReplayList []FullReplay `json:"replayList"`
 }
 
-func (svc *HexchessServices) GetFullUser(ctx context.Context, userID int64, perPage int32, withReplays bool) (FullUserDTO, error) {
-	var user UserDTO
-	var stats UserStatsDTO
-	var replayList []FullReplayDTO
+func (svc *HexchessServices) GetFullUser(ctx context.Context, userID int64, perPage int32, withReplays bool) (FullUser, error) {
+	var user User
+	var stats UserStats
+	var replayList []FullReplay
 	var lbRanks map[string]LbRank
 
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -427,7 +427,7 @@ func (svc *HexchessServices) GetFullUser(ctx context.Context, userID int64, perP
 	}
 
 	if err := eg.Wait(); err != nil {
-		return FullUserDTO{}, err
+		return FullUser{}, err
 	}
 
 	for i := range stats.ModeStats {
@@ -441,9 +441,9 @@ func (svc *HexchessServices) GetFullUser(ctx context.Context, userID int64, perP
 	}
 
 	if replayList == nil {
-		replayList = []FullReplayDTO{}
+		replayList = []FullReplay{}
 	}
-	return FullUserDTO{User: user, Stats: stats, ReplayList: replayList}, nil
+	return FullUser{User: user, Stats: stats, ReplayList: replayList}, nil
 }
 
 type HashResult struct {

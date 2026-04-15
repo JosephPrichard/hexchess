@@ -18,7 +18,7 @@ func TestActiveUser(t *testing.T) {
 	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.Redis)
 	defer services.Close()
 
-	services.entropy = &StableEntropySource{Time: time.UnixMilli(int64(ActiveUserMaxage * 5))}
+	services.entropy = &StableEntropySource{CurrTime: time.UnixMilli(int64(ActiveUserMaxage * 5))}
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
@@ -31,12 +31,12 @@ func TestActiveUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// adds and does not expire
-	services.entropy = &StableEntropySource{Time: time.UnixMilli(int64(ActiveUserMaxage * 2))}
+	services.entropy = &StableEntropySource{CurrTime: time.UnixMilli(int64(ActiveUserMaxage * 2))}
 	countAfterRemoveAndAdd, err := services.AddActiveUser(ctx, "3")
 	require.NoError(t, err)
 
 	// gets and expires the active user we just added, without expiring any others
-	services.entropy = &StableEntropySource{Time: time.UnixMilli(int64(ActiveUserMaxage * 3))}
+	services.entropy = &StableEntropySource{CurrTime: time.UnixMilli(int64(ActiveUserMaxage * 3))}
 	countAfterExpiry, err := services.GetActiveCount(ctx)
 	require.NoError(t, err)
 

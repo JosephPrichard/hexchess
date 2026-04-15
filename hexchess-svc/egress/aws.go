@@ -3,6 +3,7 @@ package egress
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -12,8 +13,9 @@ import (
 
 const S3ProfileBucket = "hexchess-profiles"
 
-//go:generate mockgen -source=aws.go -destination=./aws_mock.go -package=egress
+var Buckets = []string{S3ProfileBucket}
 
+//go:generate mockgen -source=aws.go -destination=./aws_mock.go -package=egress
 type S3Client interface {
 	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
 	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
@@ -30,7 +32,6 @@ type AWSConfig struct {
 	AWSDefaultRegion string
 	AWSEndpoint      string
 	IsLocalstack     bool
-	S3ProfileBucket  string
 }
 
 func MakeAwsClients(ctx context.Context, cfg AWSConfig) (AWS, error) {
@@ -38,7 +39,7 @@ func MakeAwsClients(ctx context.Context, cfg AWSConfig) (AWS, error) {
 		config.WithRegion(cfg.AWSDefaultRegion),
 	}
 	if cfg.IsLocalstack {
-		awsOpts = append(awsOpts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("test", "test", "")))
+		awsOpts = append(awsOpts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("minioadmin", "minioadmin", "")))
 	}
 
 	awsCfg, err := config.LoadDefaultConfig(ctx, awsOpts...)
@@ -53,11 +54,9 @@ func MakeAwsClients(ctx context.Context, cfg AWSConfig) (AWS, error) {
 	awsClient := AWS{S3Endpoint: cfg.AWSEndpoint, S3Client: s3Client}
 
 	// creates all buckets by default.
-	for _, bucket := range []string{
-		cfg.S3ProfileBucket,
-	} {
+	for _, bucket := range Buckets {
 		if _, err := s3Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {
-			return awsClient, fmt.Errorf("create s3 bucket: %v: %s", bucket, err)
+			slog.WarnContext(ctx, "failed to create bucket", "bucket", bucket, "err", err)
 		}
 	}
 

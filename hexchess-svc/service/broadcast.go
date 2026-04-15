@@ -70,6 +70,12 @@ func MakeLocalBroadcasters() *LocalBroadcasters {
 	}
 }
 
+func (b *LocalBroadcasters) Listen(rdb db.Redis) {
+	<-b.ListenGameMessages(rdb)
+	<-b.ListenUsersMessages(rdb)
+	<-b.ListenUnicastEvents(rdb)
+}
+
 func (b *LocalBroadcasters) ListenGameMessages(rdb db.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.GamesChannel}, func(v redigo.Message) {
 		var outputID pb.GameOutputID
@@ -193,7 +199,7 @@ func (svc *HexchessServices) BroadcastTournament(ctx context.Context, tournament
 	return svc.BroadcastMessage(ctx, svc.redis.TournamentsChannel, bytes)
 }
 
-func (svc *HexchessServices) BroadcastChallenge(ctx context.Context, challenge ChallengeDTO) error {
+func (svc *HexchessServices) BroadcastChallenge(ctx context.Context, challenge Challenge) error {
 	userMessage := SerializeChallengeMessage(challenge)
 
 	bytes, err := proto.Marshal(userMessage)

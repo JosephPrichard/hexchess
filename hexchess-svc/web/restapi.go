@@ -93,7 +93,7 @@ func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (api *API) handleLoginSession(ctx context.Context, w http.ResponseWriter, user svc.VerifiedUserDTO) error {
+func (api *API) handleLoginSession(ctx context.Context, w http.ResponseWriter, user svc.VerifiedUser) error {
 	t, err := api.authenticator.SetSessionPlayer(ctx, w, svc.MakePlayer(user.ID, user.Username, user.Country))
 	if err != nil {
 		return err
@@ -360,8 +360,8 @@ type LeaderboardQuery struct {
 }
 
 type LeaderboardResp struct {
-	TotalPages int              `json:"totalPages"`
-	UserList   []svc.LbdUserDTO `json:"userList,omitempty"`
+	TotalPages int           `json:"totalPages"`
+	UserList   []svc.LbdUser `json:"userList,omitempty"`
 }
 
 func (api *API) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) error {
@@ -386,7 +386,7 @@ func (api *API) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) err
 }
 
 type GetPlayersResp struct {
-	svc.FullUserDTO
+	svc.FullUser
 }
 
 func (api *API) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
@@ -404,7 +404,7 @@ func (api *API) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("get full user %d: %w", query.UserID, err)
 	}
 
-	playersResp := GetPlayersResp{FullUserDTO: fullUser}
+	playersResp := GetPlayersResp{FullUser: fullUser}
 
 	slog.InfoContext(ctx, "retrieved user with replays", "fullUser", playersResp)
 
@@ -413,7 +413,7 @@ func (api *API) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
 }
 
 type SearchPlayersResp struct {
-	UserList []svc.LbdUserDTO `json:"userList,omitempty"`
+	UserList []svc.LbdUser `json:"userList,omitempty"`
 }
 
 func (api *API) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) error {
@@ -429,7 +429,7 @@ func (api *API) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) erro
 
 	slog.InfoContext(ctx, "searching players", "page", page, "name", name)
 
-	var userList []svc.LbdUserDTO
+	var userList []svc.LbdUser
 	if hasUser {
 		users, err := api.services.GetFuzzySearchLeaderboard(ctx, name, int32(page), perPage)
 		if errors.Is(err, svc.ErrSearchLimit) {
@@ -544,7 +544,7 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 }
 
 type GetChallengesResp struct {
-	ChallengeList []svc.ChallengeDTO `json:"challengeList"`
+	ChallengeList []svc.Challenge `json:"challengeList"`
 }
 
 const (
@@ -561,7 +561,7 @@ func (api *API) HandleGetChallenges(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	var challengeList []svc.ChallengeDTO
+	var challengeList []svc.Challenge
 
 	switch participants {
 	case SentParticipantsTarget:
@@ -721,7 +721,7 @@ func (api *API) HandleGetGameChats(w http.ResponseWriter, r *http.Request) error
 }
 
 type GetReplayResp struct {
-	Replay svc.FullReplayDTO `json:"replay"`
+	Replay svc.FullReplay `json:"replay"`
 }
 
 func (api *API) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
@@ -732,7 +732,7 @@ func (api *API) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 
 	ctx := r.Context()
 
-	var replay svc.FullReplayDTO
+	var replay svc.FullReplay
 
 	if query.HasGameID {
 		replay, err = api.services.GetReplayByGameID(ctx, query.GameID)
@@ -750,7 +750,7 @@ func (api *API) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 }
 
 type GetUserReplaysResp struct {
-	ReplayList []svc.FullReplayDTO `json:"replayList"`
+	ReplayList []svc.FullReplay `json:"replayList"`
 }
 
 func (api *API) HandleGetUserReplays(w http.ResponseWriter, r *http.Request) error {
@@ -946,7 +946,7 @@ func (api *API) HandleBeginCountdownTournament(w http.ResponseWriter, r *http.Re
 	return nil
 }
 
-type GetTournamentResp svc.FullTournamentDTO
+type GetTournamentResp svc.FullTournament
 
 func (api *API) HandleGetTournament(w http.ResponseWriter, r *http.Request) error {
 	tournamentKey, err := uuid.Parse(r.URL.Query().Get("tournamentKey"))
@@ -969,7 +969,7 @@ func (api *API) HandleGetTournament(w http.ResponseWriter, r *http.Request) erro
 }
 
 type GetTournamentsResp struct {
-	Tournaments []svc.TournamentDTO `json:"tournaments"`
+	Tournaments []svc.Tournament `json:"tournaments"`
 }
 
 func (api *API) HandleGetTournaments(w http.ResponseWriter, r *http.Request) error {

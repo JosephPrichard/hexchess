@@ -27,15 +27,15 @@
 	];
 
 	export interface PlayerProps {
-		fullPlayer: FullPlayerModel;
+		fullUser: FullPlayerModel;
 	}
 
 	const { data: props }: { data: PlayerProps } = $props();
-	const { user, stats: userStats } = $derived(props.fullPlayer);
+	const { user, stats: userStats } = $derived(props.fullUser);
 
 	const { addNotification, addErrorNotification } = getNotificationsContext();
 
-	let nestedReplayList = $state([props.fullPlayer.replayList]);
+	let nestedReplayList = $state([props.fullUser.replayList]);
 	let showCreateModal = $state(false);
 	let hasMoreReplays = $state(true);
 	let isDifferentUser = $state(false);

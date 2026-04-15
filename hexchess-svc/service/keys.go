@@ -30,5 +30,5 @@ func makeProfilePicPrefix(userID string) string {
 }
 
 func (svc *HexchessServices) makeProfileNewPicKey(userID int64) string {
-	return fmt.Sprintf("%s/%d/%s", ProfilePicPrefix, userID, svc.entropy.MakeID())
+	return fmt.Sprintf("%s/%d/%s", ProfilePicPrefix, userID, svc.entropy.MakeUUID())
 }

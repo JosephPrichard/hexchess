@@ -183,7 +183,7 @@ func MarshalUserMessageJson(pbUserMessage *pb.UserMessage) ([]byte, error) {
 			return nil, err
 		}
 
-		return json.Marshal(ChallengeDTO{
+		return json.Marshal(Challenge{
 			ChallengerID:      challenge.ChallengerId,
 			ChallengerName:    challenge.ChallengerName,
 			ChallengerCountry: challenge.ChallengerCountry,
@@ -201,7 +201,7 @@ func MarshalUserMessageJson(pbUserMessage *pb.UserMessage) ([]byte, error) {
 	}
 }
 
-func SerializeChallengeMessage(challenge ChallengeDTO) *pb.UserMessage {
+func SerializeChallengeMessage(challenge Challenge) *pb.UserMessage {
 	challengeMessage := &pb.UserMessage_Challenge{
 		Challenge: &pb.Challenge{
 			ChallengerId:      challenge.ChallengerID,
@@ -295,14 +295,14 @@ func UnmarshalCreateTournamentMatchesEvent(bytes []byte) (e CreateTournamentMatc
 	if err != nil {
 		serdeErrs = append(serdeErrs, err)
 	}
-	var matches []CreateTournamentMatchDTO
+	var matches []TournamentMatchCreation
 	for _, pbMatch := range pbEvent.Matches {
 		mode, err := enum.ParseWithErr(pbMatch.GameMode, GameModeEnums)
 		if err != nil {
 			serdeErrs = append(serdeErrs, err)
 			continue
 		}
-		matches = append(matches, CreateTournamentMatchDTO{
+		matches = append(matches, TournamentMatchCreation{
 			GameID:   pbMatch.GameId,
 			WhiteID:  pbMatch.WhiteId,
 			BlackID:  pbMatch.BlackId,
@@ -314,7 +314,7 @@ func UnmarshalCreateTournamentMatchesEvent(bytes []byte) (e CreateTournamentMatc
 
 // Replay
 
-func SerializeReplayOutput(gameID string, replay FullReplayDTO) *pb.GameOutput {
+func SerializeReplayOutput(gameID string, replay FullReplay) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Replay{Replay: &pb.Replay{
@@ -350,7 +350,7 @@ func SerializeTournamentError(tournamentKey uuid.UUID, err error) *pb.Tournament
 	}
 }
 
-func SerializeParticipantOutput(tournamentKey uuid.UUID, lbdUser LbdUserDTO) *pb.TournamentOutput {
+func SerializeParticipantOutput(tournamentKey uuid.UUID, lbdUser LbdUser) *pb.TournamentOutput {
 	return &pb.TournamentOutput{
 		TournamentKey: tournamentKey.String(),
 		Value: &pb.TournamentOutput_Participant{
@@ -377,14 +377,14 @@ func SerializeStartTournament(tournamentKey uuid.UUID) *pb.TournamentOutput {
 	}
 }
 
-func DeserializeParticipantOutput(pbParticipant *pb.TournamentOutput_Participant) (LbdUserDTO, error) {
+func DeserializeParticipantOutput(pbParticipant *pb.TournamentOutput_Participant) (LbdUser, error) {
 	if pbParticipant == nil || pbParticipant.Participant == nil {
-		return LbdUserDTO{}, nil
+		return LbdUser{}, nil
 	}
 	return DeserializeLbdUser(pbParticipant.Participant)
 }
 
-func DeserializeMatchmakingOutput(pbMatchmaking *pb.TournamentOutput_Matchmaking) ([]MatchDTO, error) {
+func DeserializeMatchmakingOutput(pbMatchmaking *pb.TournamentOutput_Matchmaking) ([]Match, error) {
 	if pbMatchmaking == nil || pbMatchmaking.Matchmaking == nil {
 		return nil, nil
 	}
@@ -430,7 +430,7 @@ func MarshalTournamentOutputJson(pbOutput *pb.TournamentOutput) ([]byte, error) 
 
 // LbdUser
 
-func SerializeLbdUser(user LbdUserDTO) *pb.LbdUser {
+func SerializeLbdUser(user LbdUser) *pb.LbdUser {
 	return &pb.LbdUser{
 		Id:         user.ID,
 		Username:   user.Username,
@@ -447,14 +447,14 @@ func SerializeLbdUser(user LbdUserDTO) *pb.LbdUser {
 	}
 }
 
-func DeserializeLbdUser(user *pb.LbdUser) (LbdUserDTO, error) {
+func DeserializeLbdUser(user *pb.LbdUser) (LbdUser, error) {
 	joinedOn, err := time.Parse(time.RFC3339, user.JoinedOn)
 	if err != nil {
-		return LbdUserDTO{}, err
+		return LbdUser{}, err
 	}
 
-	return LbdUserDTO{
-		UserDTO: UserDTO{
+	return LbdUser{
+		User: User{
 			ID:       user.Id,
 			Username: user.Username,
 			Country:  user.Country,
@@ -473,7 +473,7 @@ func DeserializeLbdUser(user *pb.LbdUser) (LbdUserDTO, error) {
 
 // TournamentMatch
 
-func SerializeTournamentMatches(matches []MatchDTO) []*pb.TournamentMatch {
+func SerializeTournamentMatches(matches []Match) []*pb.TournamentMatch {
 	var pbMatches []*pb.TournamentMatch
 
 	for _, match := range matches {
@@ -490,8 +490,8 @@ func SerializeTournamentMatches(matches []MatchDTO) []*pb.TournamentMatch {
 	return pbMatches
 }
 
-func DeserializeTournamentMatches(pbMatches []*pb.TournamentMatch) ([]MatchDTO, error) {
-	var matches []MatchDTO
+func DeserializeTournamentMatches(pbMatches []*pb.TournamentMatch) ([]Match, error) {
+	var matches []Match
 
 	var serdeErrs []error
 
@@ -506,7 +506,7 @@ func DeserializeTournamentMatches(pbMatches []*pb.TournamentMatch) ([]MatchDTO, 
 			serdeErrs = append(serdeErrs, fmt.Errorf("match %d: parse created on: %w", i, err))
 			continue
 		}
-		matches = append(matches, MatchDTO{
+		matches = append(matches, Match{
 			TournamentKey: tournamentKey,
 			GameID:        pbMatch.GameId,
 			WhiteID:       pbMatch.WhiteId,

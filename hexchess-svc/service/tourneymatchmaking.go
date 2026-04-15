@@ -17,14 +17,14 @@ func participantsAtRound(maxDepth, depth int) int { return 1 << (maxDepth - dept
 // Root (depth N) has 1 node; each level down doubles the count.
 func matchesAtRound(maxDepth, depth int) int { return 1 << (maxDepth - depth) }
 
-type CreateTournamentMatchDTO struct {
+type TournamentMatchCreation struct {
 	GameID   string
 	GameMode GameMode
 	WhiteID  int64
 	BlackID  int64
 }
 
-type FirstMatchParticipantDTO struct {
+type FirstMatchParticipant struct {
 	UserID int64
 	Elo    pgtype.Float8
 }
@@ -32,12 +32,13 @@ type FirstMatchParticipantDTO struct {
 type FirstMatchmakingRequest struct {
 	Ruleset      TournamentRuleset
 	Mode         GameMode
-	Participants []FirstMatchParticipantDTO
+	Participants []FirstMatchParticipant
 	TotalRounds  int32
+	MakeGameID   func() string
 }
 
 type FirstMatchmakingResult struct {
-	Matches     []CreateTournamentMatchDTO
+	Matches     []TournamentMatchCreation
 	TotalRounds int32 // RoundRobin and Swiss calculate total rounds during matchmaking rather than using already existing rounds to validate
 }
 
@@ -68,16 +69,16 @@ var (
 	ErrMatchRoundCount          = errors.New("tournament has an invalid completed match count in round")
 )
 
-func makeMatchesLinearly(participants []FirstMatchParticipantDTO, gameMode GameMode) []CreateTournamentMatchDTO {
+func makeMatchesLinearly(participants []FirstMatchParticipant, gameMode GameMode, makeGameID func() string) []TournamentMatchCreation {
 	// invariant: participant count is always even (`elementsAtFirstDepth` always returns even)
-	if len(participants)%2 == 0 {
+	if len(participants)%2 != 0 {
 		// assert rather than return an error because this property is statically encoded into the `ElementsAtFirstDepth` algorithm
 		panic(fmt.Sprintf("participant count %+v is not even", participants))
 	}
-	var matches []CreateTournamentMatchDTO
+	var matches []TournamentMatchCreation
 	for i := 0; i+1 < len(participants); i += 2 {
-		matches = append(matches, CreateTournamentMatchDTO{
-			GameID:   MakeGameID(),
+		matches = append(matches, TournamentMatchCreation{
+			GameID:   makeGameID(),
 			GameMode: gameMode,
 			WhiteID:  participants[i].UserID,
 			BlackID:  participants[i+1].UserID,
@@ -86,13 +87,13 @@ func makeMatchesLinearly(participants []FirstMatchParticipantDTO, gameMode GameM
 	return matches
 }
 
-func makeMatchesCrissCross(participants []FirstMatchParticipantDTO, gameMode GameMode) []CreateTournamentMatchDTO {
-	var matches []CreateTournamentMatchDTO
+func makeMatchesCrissCross(participants []FirstMatchParticipant, gameMode GameMode, makeGameID func() string) []TournamentMatchCreation {
+	var matches []TournamentMatchCreation
 	low := 0
 	high := len(participants) - 1
 	for low < high {
-		matches = append(matches, CreateTournamentMatchDTO{
-			GameID:   MakeGameID(),
+		matches = append(matches, TournamentMatchCreation{
+			GameID:   makeGameID(),
 			GameMode: gameMode,
 			WhiteID:  participants[low].UserID,
 			BlackID:  participants[high].UserID,
@@ -111,7 +112,7 @@ func makeMatchesCrissCross(participants []FirstMatchParticipantDTO, gameMode Gam
 func MakeFirstMatches(request FirstMatchmakingRequest) (result FirstMatchmakingResult, err error) {
 	participantCount := len(request.Participants)
 
-	var matches []CreateTournamentMatchDTO
+	var matches []TournamentMatchCreation
 	totalRounds := request.TotalRounds
 
 	switch request.Ruleset {
@@ -120,9 +121,9 @@ func MakeFirstMatches(request FirstMatchmakingRequest) (result FirstMatchmakingR
 		if participantCount != participantsAtRound(int(request.TotalRounds), 1) {
 			return result, wrapStartTournamentError(TournamentKnockout, ErrInvalidParticipantCount)
 		}
-		matches = makeMatchesLinearly(request.Participants, request.Mode)
+		matches = makeMatchesLinearly(request.Participants, request.Mode, request.MakeGameID)
 		// invariant: we should have as many matches expected at the first round
-		if len(matches) == matchesAtRound(int(request.TotalRounds), 1) {
+		if len(matches) != matchesAtRound(int(request.TotalRounds), 1) {
 			return result, ErrMatchRoundCount
 		}
 	case TournamentRoundRobin:
@@ -130,7 +131,7 @@ func MakeFirstMatches(request FirstMatchmakingRequest) (result FirstMatchmakingR
 		if participantCount%2 != 0 {
 			return result, wrapStartTournamentError(TournamentRoundRobin, ErrInvalidParticipantParity)
 		}
-		matches = makeMatchesLinearly(request.Participants, request.Mode)
+		matches = makeMatchesLinearly(request.Participants, request.Mode, request.MakeGameID)
 
 		totalRounds = calcRoundRobinTournamentRounds(participantCount)
 	case TournamentSwiss:
@@ -140,10 +141,13 @@ func MakeFirstMatches(request FirstMatchmakingRequest) (result FirstMatchmakingR
 		}
 
 		// a swiss tournament matches the worst players with the best players
-		slices.SortFunc(request.Participants, func(a, b FirstMatchParticipantDTO) int {
-			return int(defaultElo(a.Elo) - defaultElo(b.Elo))
+		slices.SortFunc(request.Participants, func(a, b FirstMatchParticipant) int {
+			if n := cmp.Compare(defaultElo(b.Elo), defaultElo(a.Elo)); n != 0 {
+				return n
+			}
+			return cmp.Compare(a.UserID, b.UserID) // deterministic sort order
 		})
-		matches = makeMatchesCrissCross(request.Participants, request.Mode)
+		matches = makeMatchesCrissCross(request.Participants, request.Mode, request.MakeGameID)
 
 		totalRounds = calcSwissTournamentRounds(participantCount)
 	default:
@@ -161,7 +165,7 @@ const (
 	TiebreakerBySonnebornBerger
 )
 
-type PrevMatchDTO struct {
+type PrevMatch struct {
 	Round    int32
 	WhiteID  int64
 	BlackID  int64
@@ -170,7 +174,7 @@ type PrevMatchDTO struct {
 	Result   ReplayResult
 }
 
-func getKnockoutWinnerID(match PrevMatchDTO) (int64, TieBreakerKind) {
+func getKnockoutWinnerID(match PrevMatch) (int64, TieBreakerKind) {
 	switch match.Result {
 	case WhiteWin:
 		return match.WhiteID, TiebreakerNone
@@ -184,7 +188,7 @@ func getKnockoutWinnerID(match PrevMatchDTO) (int64, TieBreakerKind) {
 			return match.BlackID, TiebreakerByElo
 		}
 	default:
-		panic(fmt.Sprintf("unknown match wantResult %s", match.Result))
+		panic(fmt.Sprintf("unknown match result %s", match.Result))
 	}
 }
 
@@ -194,22 +198,23 @@ func withoutTiebreaker(u int64, _ TieBreakerKind) int64 {
 
 type MatchmakingRequest struct {
 	Ruleset     TournamentRuleset
-	Matches     []PrevMatchDTO
+	Matches     []PrevMatch
 	GameMode    GameMode
 	TotalRounds int32
+	MakeGameID  func() string
 }
 
 type MatchmakingResult struct {
-	NextMatches    []CreateTournamentMatchDTO
+	NextMatches    []TournamentMatchCreation
 	NextStatus     TournamentStatus
 	NextMatchRound int32
 	WinnerID       int64
 	Tiebreaker     TieBreakerKind
 }
 
-func getPrevRoundMatches(matches []PrevMatchDTO) []PrevMatchDTO {
+func getPrevRoundMatches(matches []PrevMatch) []PrevMatch {
 	prevMatchRound := matches[len(matches)-1].Round
-	var prevRoundMatches []PrevMatchDTO
+	var prevRoundMatches []PrevMatch
 	for _, match := range matches {
 		if match.Round == prevMatchRound {
 			prevRoundMatches = append(prevRoundMatches, match)
@@ -230,7 +235,7 @@ func DoMatchmaking(request MatchmakingRequest) (MatchmakingResult, error) {
 
 	prevMatchRound := allMatches[len(allMatches)-1].Round
 
-	var nextMatches []CreateTournamentMatchDTO
+	var nextMatches []TournamentMatchCreation
 
 	switch request.Ruleset {
 	case TournamentKnockout:
@@ -243,16 +248,16 @@ func DoMatchmaking(request MatchmakingRequest) (MatchmakingResult, error) {
 			return MatchmakingResult{}, ErrMatchRoundCount
 		}
 
-		if len(prevRoundMatches)%2 == 0 {
+		if len(prevRoundMatches)%2 != 0 {
 			panic(fmt.Sprintf("match count %d is not even", len(prevRoundMatches)))
 		}
 
-		var nextMatches []CreateTournamentMatchDTO
+		var nextMatches []TournamentMatchCreation
 		for i := 0; i+1 < len(prevRoundMatches); i += 2 {
 			matchOne := prevRoundMatches[i]
 			matchTwo := prevRoundMatches[i+1]
-			nextMatches = append(nextMatches, CreateTournamentMatchDTO{
-				GameID:   MakeGameID(),
+			nextMatches = append(nextMatches, TournamentMatchCreation{
+				GameID:   request.MakeGameID(),
 				GameMode: gameMode,
 				WhiteID:  withoutTiebreaker(getKnockoutWinnerID(matchOne)),
 				BlackID:  withoutTiebreaker(getKnockoutWinnerID(matchTwo)),
@@ -265,7 +270,7 @@ func DoMatchmaking(request MatchmakingRequest) (MatchmakingResult, error) {
 	case TournamentRoundRobin:
 		prevRoundMatches := getPrevRoundMatches(allMatches)
 
-		var nextMatches []CreateTournamentMatchDTO
+		var nextMatches []TournamentMatchCreation
 
 		for i := range len(prevRoundMatches) {
 			prevMatch := prevRoundMatches[i]
@@ -283,8 +288,8 @@ func DoMatchmaking(request MatchmakingRequest) (MatchmakingResult, error) {
 				nextBlackID = prevMatch.WhiteID
 			}
 
-			nextMatches = append(nextMatches, CreateTournamentMatchDTO{
-				GameID:   MakeGameID(),
+			nextMatches = append(nextMatches, TournamentMatchCreation{
+				GameID:   request.MakeGameID(),
 				GameMode: gameMode,
 				WhiteID:  nextWhiteID,
 				BlackID:  nextBlackID,
@@ -299,13 +304,13 @@ func DoMatchmaking(request MatchmakingRequest) (MatchmakingResult, error) {
 			participantIDs = append(participantIDs, userID)
 		}
 		slices.SortFunc(participantIDs, func(a, b int64) int {
-			return int(swissScoresTable[b] - swissScoresTable[a])
+			return cmp.Compare(swissScoresTable[b], swissScoresTable[a])
 		})
 
-		var matches []CreateTournamentMatchDTO
+		var matches []TournamentMatchCreation
 		for i := 0; i+1 < len(participantIDs); i += 2 {
-			matches = append(matches, CreateTournamentMatchDTO{
-				GameID:   MakeGameID(),
+			matches = append(matches, TournamentMatchCreation{
+				GameID:   request.MakeGameID(),
 				GameMode: gameMode,
 				WhiteID:  participantIDs[i],
 				BlackID:  participantIDs[i+1],
@@ -354,7 +359,7 @@ func findScoringTableWinners[Score cmp.Ordered](scoreTable map[int64]Score, skip
 	return winnerIDs
 }
 
-func findTournamentWinner(ruleset TournamentRuleset, allMatches []PrevMatchDTO) (int64, TieBreakerKind) {
+func findTournamentWinner(ruleset TournamentRuleset, allMatches []PrevMatch) (int64, TieBreakerKind) {
 	switch ruleset {
 	case TournamentKnockout:
 		// winner of the tournament is the player left standing
@@ -394,7 +399,7 @@ func findTournamentWinner(ruleset TournamentRuleset, allMatches []PrevMatchDTO) 
 	}
 }
 
-func makeWinCountTable(allMatches []PrevMatchDTO) map[int64]int32 {
+func makeWinCountTable(allMatches []PrevMatch) map[int64]int32 {
 	winCountTable := make(map[int64]int32)
 	for _, match := range allMatches {
 		switch match.Result {
@@ -408,7 +413,7 @@ func makeWinCountTable(allMatches []PrevMatchDTO) map[int64]int32 {
 	return winCountTable
 }
 
-func makeSonnebornTable(allMatches []PrevMatchDTO) map[int64]float64 {
+func makeSonnebornTable(allMatches []PrevMatch) map[int64]float64 {
 	sonnebornTable := make(map[int64]float64)
 	for _, match := range allMatches {
 		switch match.Result {
@@ -424,7 +429,7 @@ func makeSonnebornTable(allMatches []PrevMatchDTO) map[int64]float64 {
 	return sonnebornTable
 }
 
-func makeSwissTable(allMatches []PrevMatchDTO) map[int64]float64 {
+func makeSwissTable(allMatches []PrevMatch) map[int64]float64 {
 	swissScores := make(map[int64]float64)
 	for _, match := range allMatches {
 		switch match.Result {

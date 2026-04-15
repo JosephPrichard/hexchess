@@ -114,7 +114,9 @@ func TestHandleActiveConn(t *testing.T) {
 
 	ctx := t.Context()
 
-	mocks := svc.ServiceMocks{Entropy: &svc.StableEntropySource{ID: "id1"}}
+	mocks := svc.ServiceMocks{
+		Entropy: &svc.StableEntropySource{},
+	}
 
 	services, testinfra := svc.SetupServicesTest(t, mocks, itest.Redis)
 	defer services.Close()
@@ -174,14 +176,14 @@ func TestHandleUserEvents(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	brdcastedChallenge := svc.ChallengeDTO{ChallengeeID: 1, Mode: svc.ModeCorrespondence1, StartColor: svc.White}
+	brdcastedChallenge := svc.Challenge{ChallengeeID: 1, Mode: svc.ModeCorrespondence1, StartColor: svc.White}
 
 	errChan := make(chan error)
 	go func() {
 		ctx := context.WithValue(ctx, logutil.Trace, "broadcast-user-events")
 		errChan <- errors.Join(
 			services.BroadcastChallenge(ctx, brdcastedChallenge),
-			services.BroadcastChallenge(ctx, svc.ChallengeDTO{ChallengeeID: 2}),
+			services.BroadcastChallenge(ctx, svc.Challenge{ChallengeeID: 2}),
 			services.BroadcastChallenge(ctx, brdcastedChallenge))
 	}()
 

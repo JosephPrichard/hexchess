@@ -14,7 +14,6 @@ import (
 	"hexchess-svc/chess"
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
-	"hexchess-svc/egress"
 	"hexchess-svc/service"
 	"hexchess-svc/util/logutil"
 
@@ -62,9 +61,6 @@ func main() {
 
 	dbURL := os.Getenv("DB_URL")
 	rdbCacheURL := os.Getenv("REDIS_CACHE_URL")
-	isLocalstack := os.Getenv("IS_LOCALSTACK") == "true"
-	awsDefaultRegion := os.Getenv("AWS_DEFAULT_REGION")
-	awsEndpoint := os.Getenv("AWS_ENDPOINT")
 
 	ctx := context.WithValue(context.Background(), logutil.Trace, "seed-databases-script")
 
@@ -79,20 +75,10 @@ func main() {
 	slog.InfoContext(ctx, "connecting to redis db", "addrs", addrs)
 	rdb := db.MakeRdb(addrs, nil)
 
-	aws, err := egress.MakeAwsClients(context.Background(), egress.AWSConfig{
-		AWSDefaultRegion: awsDefaultRegion,
-		AWSEndpoint:      awsEndpoint,
-		IsLocalstack:     isLocalstack,
-	})
-	if err != nil {
-		logutil.FatalErr("make aws clients", err)
-	}
-
 	services := svc.MakeHexchessServices(svc.Setup{
 		DB:      pdb,
 		Querier: pdb.Querier(),
 		Redis:   rdb,
-		AWS:     aws,
 	})
 	defer services.Close()
 

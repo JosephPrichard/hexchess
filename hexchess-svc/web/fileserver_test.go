@@ -31,7 +31,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 
 	mockS3Client := egress.NewMockS3Client(ctrl)
 	mocks := svc.ServiceMocks{
-		Entropy:  &svc.StableEntropySource{ID: "id1"},
+		Entropy:  &svc.StableEntropySource{},
 		S3Client: mockS3Client,
 	}
 
@@ -48,7 +48,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 		PutObject(gomock.Any(), gomock.Cond(func(input *s3.PutObjectInput) bool {
 			wantInput := &s3.PutObjectInput{
 				Bucket:       aws.String(egress.S3ProfileBucket),
-				Key:          aws.String("users/profile-pics/2/id1"),
+				Key:          aws.String("users/profile-pics/2/mock-1"),
 				ContentType:  aws.String("application/octet-stream"),
 				CacheControl: aws.String("public, max-age=31536000"),
 			}
@@ -136,7 +136,7 @@ func TestHandleGetProfilePic(t *testing.T) {
 			defer ctrl.Finish()
 
 			mocks := svc.ServiceMocks{
-				Entropy:  &svc.StableEntropySource{ID: "id1"},
+				Entropy:  &svc.StableEntropySource{},
 				S3Client: tt.setupMocks(ctrl),
 			}
 

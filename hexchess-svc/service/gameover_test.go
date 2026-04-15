@@ -123,8 +123,8 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	testUser0 := TestUserDTOs[0]
-	testUser1 := TestUserDTOs[1]
+	testUser0 := TestUser[0]
+	testUser1 := TestUser[1]
 	newGameID := uuid.NewString()
 	newGameIDGuest := uuid.NewString()
 
@@ -275,8 +275,8 @@ func TestInsertGameResult(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	testUser0 := TestUserDTOs[0]
-	testUser1 := TestUserDTOs[1]
+	testUser0 := TestUser[0]
+	testUser1 := TestUser[1]
 
 	now := time.Now()
 
@@ -395,7 +395,7 @@ func TestInsertGameResult(t *testing.T) {
 			},
 		},
 		{
-			name: "inserting already persisted game wantResult",
+			name: "inserting already persisted game result",
 			resultInput: GameResult{
 				GameID:       itest.FirstReplayGameID,
 				WhiteID:      testUser0.ID,

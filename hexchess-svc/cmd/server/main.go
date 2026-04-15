@@ -86,10 +86,7 @@ func main() {
 	defer services.Close()
 
 	broadcasters := svc.MakeLocalBroadcasters()
-
-	<-broadcasters.ListenGameMessages(rdb)
-	<-broadcasters.ListenUsersMessages(rdb)
-	<-broadcasters.ListenUnicastEvents(rdb)
+	broadcasters.Listen(rdb)
 
 	svc.StartStreamReaders(context.Background(), services)
 	svc.StartOutboxQueueConsumers(context.Background(), services)
@@ -107,6 +104,7 @@ func main() {
 	mux := web.MakeServeMux(web.Setup{
 		Services:       services,
 		AllowedOrigins: allowedOrigins,
+		Broadcasers:    broadcasters,
 	})
 	web.WithHealthCheck(mux, web.HealthCheckConfig{
 		PostgresDSN:     dbURL,

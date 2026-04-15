@@ -48,15 +48,18 @@ WHERE
     t.status = 'LOBBY'::tournament_status_enum
 RETURNING user_id;
 
--- name: SelectTournament :one
-SELECT * FROM tournaments WHERE tournament_key = sqlc.arg('tournament_key')::uuid;
+-- name: SelectTournamentStatus :one
+SELECT status FROM tournaments WHERE tournament_key = sqlc.arg('tournament_key')::uuid;
+
+-- name: SelectParticipants :many
+SELECT * FROM tournament_participants WHERE tournament_key = sqlc.arg('tournament_key')::uuid;
+
+-- name: SelectMatches :many
+SELECT * FROM tournament_matches WHERE tournament_key = sqlc.arg('tournament_key')::uuid;
 
 -- name: SelectTournamentByID :one
 SELECT id, tournament_key, name, rounds, ruleset, status, winner_id, countdown, countdown_started_on, created_on, updated_on, created_by, mode
 FROM tournaments WHERE tournament_key = sqlc.arg('tournament_key')::uuid;
-
--- name: SelectParticipants :many
-SELECT * FROM tournament_participants WHERE tournament_key = sqlc.arg('tournament_key')::uuid;
 
 -- name: SelectParticipantsWithUserByTournamentID :many
 SELECT
@@ -140,8 +143,9 @@ FROM tournament_participants tp
     INNER JOIN tournaments t
         ON t.tournament_key = tp.tournament_key
     LEFT JOIN user_mode_elos e -- must be a left join because mode elos are lazily initialized when user plays the first game.
-       ON t.user_id = e.user_id AND e.mode = t.mode
-WHERE tp.tournament_key = sqlc.arg('tournament_key');
+       ON tp.user_id = e.user_id AND e.mode = t.mode
+WHERE tp.tournament_key = sqlc.arg('tournament_key')
+ORDER BY tp.joined_on;
 
 -- name: SelectMatchesByTournamentID :many
 SELECT

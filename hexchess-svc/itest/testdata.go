@@ -45,18 +45,23 @@ var UserModeElos = []struct {
 	Wins   int32
 	Losses int32
 }{
-	{UserID: 1, Mode: "CORRESPONDENCE_7", Elo: 1000, Wins: 2, Losses: 2},
-	{UserID: 1, Mode: "TIMED_3+2", Elo: 1020, Wins: 5, Losses: 4},
-	{UserID: 1, Mode: "TIMED_15+10", Elo: 1030, Wins: 4, Losses: 3},
-	{UserID: 1, Mode: "TIMED_1+0", Elo: 1050, Wins: 6, Losses: 5},
-	{UserID: 2, Mode: "TIMED_1+0", Elo: 1000},
-	{UserID: 3, Mode: "CORRESPONDENCE_7", Elo: 900},
 	{UserID: 3, Mode: "CORRESPONDENCE_1", Elo: 900},
 	{UserID: 4, Mode: "CORRESPONDENCE_1", Elo: 2000},
 	{UserID: 5, Mode: "CORRESPONDENCE_1", Elo: 1500},
+	{UserID: 6, Mode: "CORRESPONDENCE_1", Elo: 1600},
 	{UserID: 8, Mode: "CORRESPONDENCE_1", Elo: 1000, Wins: 2, Losses: 2},
-	{UserID: 8, Mode: "CORRESPONDENCE_7", Elo: 2000, Wins: 10, Losses: 2},
 	{UserID: 9, Mode: "CORRESPONDENCE_1", Elo: 1500, Wins: 5, Losses: 2},
+
+	{UserID: 1, Mode: "CORRESPONDENCE_7", Elo: 1000, Wins: 2, Losses: 2},
+	{UserID: 3, Mode: "CORRESPONDENCE_7", Elo: 900},
+	{UserID: 8, Mode: "CORRESPONDENCE_7", Elo: 2000, Wins: 10, Losses: 2},
+
+	{UserID: 1, Mode: "TIMED_3+2", Elo: 1020, Wins: 5, Losses: 4},
+
+	{UserID: 1, Mode: "TIMED_15+10", Elo: 1030, Wins: 4, Losses: 3},
+
+	{UserID: 1, Mode: "TIMED_1+0", Elo: 1050, Wins: 6, Losses: 5},
+	{UserID: 2, Mode: "TIMED_1+0", Elo: 1000},
 }
 
 var FirstReplayGameID = ReplayInsts[0].GameID
@@ -227,12 +232,15 @@ var ChallengeInsts = []struct {
 }
 
 var (
-	Tournament0LobbyKey       = TournamentInsts[0].TournamentKey
-	Tournament1LobbyFilledKey = TournamentInsts[1].TournamentKey
-	Tournament2KnockoutKey    = TournamentInsts[2].TournamentKey
-	Tournament3RoundRobinKey  = TournamentInsts[3].TournamentKey
-	Tournament4SwissKey       = TournamentInsts[4].TournamentKey
-	Tournament5FinishedKey    = TournamentInsts[5].TournamentKey
+	Tournament0LobbyKey                = TournamentInsts[0].TournamentKey
+	Tournament1LobbyFilledKey          = TournamentInsts[1].TournamentKey
+	Tournament2ScheduledKnockoutKey    = TournamentInsts[2].TournamentKey
+	Tournament3ScheduledRoundRobinKey  = TournamentInsts[3].TournamentKey
+	Tournament4ScheduledSwissKey       = TournamentInsts[4].TournamentKey
+	Tournament5InProgressKnockoutKey   = TournamentInsts[5].TournamentKey
+	Tournament6InProgressRoundRobinKey = TournamentInsts[6].TournamentKey
+	Tournament7InProgressSwissKey      = TournamentInsts[7].TournamentKey
+	Tournament8FinishedKey             = TournamentInsts[8].TournamentKey
 )
 
 var TournamentInsts = []struct {
@@ -251,7 +259,7 @@ var TournamentInsts = []struct {
 		TournamentKey: uuid.New(),
 		Name:          "Test Tournament 0",
 		Rounds:        2,
-		Countdown:     5 * time.Minute,
+		Countdown:     (5 * time.Minute) + (1 * time.Second),
 		CreatedOn:     TimeNow,
 		CreatedBy:     1,
 		Status:        "LOBBY",
@@ -263,19 +271,53 @@ var TournamentInsts = []struct {
 		TournamentKey: uuid.New(),
 		Name:          "Test Tournament 1",
 		Rounds:        1,
-		Countdown:     5 * time.Minute,
+		Countdown:     (5 * time.Minute) + (2 * time.Second),
 		CreatedOn:     TimeNow,
 		CreatedBy:     1,
 		Status:        "LOBBY",
 		Ruleset:       "KNOCKOUT",
 		Mode:          "CORRESPONDENCE_7",
 	},
-	// IN_PROGRESS KNOCKOUT populated
+	// SCHEDULED KNOCKOUT populated
 	{
 		TournamentKey: uuid.New(),
 		Name:          "Test Tournament 2",
 		Rounds:        2,
-		Countdown:     5 * time.Minute,
+		Countdown:     (5 * time.Minute) + (3 * time.Second),
+		CreatedOn:     TimeNow,
+		CreatedBy:     1,
+		Status:        "SCHEDULED",
+		Ruleset:       "KNOCKOUT",
+		Mode:          "CORRESPONDENCE_1",
+	},
+	// SCHEDULED ROUND_ROBIN populated
+	{
+		TournamentKey: uuid.New(),
+		Name:          "Test Tournament 3",
+		Countdown:     10 * time.Minute,
+		CreatedOn:     TimeNow,
+		CreatedBy:     1,
+		Status:        "SCHEDULED",
+		Ruleset:       "ROUND_ROBIN",
+		Mode:          "CORRESPONDENCE_1",
+	},
+	// SCHEDULED SWISS populated
+	{
+		TournamentKey: uuid.New(),
+		Name:          "Test Tournament 4",
+		Countdown:     11 * time.Minute,
+		CreatedOn:     TimeNow,
+		CreatedBy:     1,
+		Status:        "SCHEDULED",
+		Ruleset:       "SWISS",
+		Mode:          "CORRESPONDENCE_1",
+	},
+	// IN_PROGRESS KNOCKOUT populated
+	{
+		TournamentKey: uuid.New(),
+		Name:          "Test Tournament 5",
+		Rounds:        2,
+		Countdown:     12 * time.Minute,
 		CreatedOn:     TimeNow,
 		CreatedBy:     1,
 		Status:        "IN_PROGRESS",
@@ -285,9 +327,8 @@ var TournamentInsts = []struct {
 	// IN_PROGRESS ROUND_ROBIN populated
 	{
 		TournamentKey: uuid.New(),
-		Name:          "Test Tournament 3",
-		Rounds:        2,
-		Countdown:     5 * time.Minute,
+		Name:          "Test Tournament 6",
+		Countdown:     (1 * time.Hour) + (1 * time.Minute) + (1 * time.Second),
 		CreatedOn:     TimeNow,
 		CreatedBy:     1,
 		Status:        "IN_PROGRESS",
@@ -297,9 +338,8 @@ var TournamentInsts = []struct {
 	// IN_PROGRESS SWISS populated
 	{
 		TournamentKey: uuid.New(),
-		Name:          "Test Tournament 4",
-		Rounds:        2,
-		Countdown:     5 * time.Minute,
+		Name:          "Test Tournament 7",
+		Countdown:     (1 * time.Hour) + (2 * time.Minute) + (2 * time.Second) + (2 * time.Millisecond),
 		CreatedOn:     TimeNow,
 		CreatedBy:     1,
 		Status:        "IN_PROGRESS",
@@ -309,7 +349,7 @@ var TournamentInsts = []struct {
 	// FINISHED all rounds populated
 	{
 		TournamentKey: uuid.New(),
-		Name:          "Test Tournament 5",
+		Name:          "Test Tournament 8",
 		Rounds:        1,
 		Countdown:     5 * time.Minute,
 		CreatedOn:     TimeNow,
@@ -337,35 +377,98 @@ var TournamentParticipantInsts = []struct {
 		UserID:        2,
 		JoinedOn:      TimeNow.Add(time.Minute * 2),
 	},
-	// IN_PROGRESS tournament (max participants)
+	// SCHEDULED KNOCKOUT tournament
 	{
-		TournamentKey: Tournament2KnockoutKey,
+		TournamentKey: Tournament2ScheduledKnockoutKey,
+		UserID:        3,
+		JoinedOn:      TimeNow.Add(time.Minute * 1),
+	},
+	{
+		TournamentKey: Tournament2ScheduledKnockoutKey,
+		UserID:        4,
+		JoinedOn:      TimeNow.Add(time.Minute * 2),
+	},
+	{
+		TournamentKey: Tournament2ScheduledKnockoutKey,
+		UserID:        5,
+		JoinedOn:      TimeNow.Add(time.Minute * 3),
+	},
+	{
+		TournamentKey: Tournament2ScheduledKnockoutKey,
+		UserID:        6,
+		JoinedOn:      TimeNow.Add(time.Minute * 4),
+	},
+	// SCHEDULED ROUND_ROBIN tournament
+	{
+		TournamentKey: Tournament3ScheduledRoundRobinKey,
 		UserID:        1,
 		JoinedOn:      TimeNow.Add(time.Minute * 1),
 	},
 	{
-		TournamentKey: Tournament2KnockoutKey,
+		TournamentKey: Tournament3ScheduledRoundRobinKey,
 		UserID:        2,
 		JoinedOn:      TimeNow.Add(time.Minute * 2),
 	},
 	{
-		TournamentKey: Tournament2KnockoutKey,
+		TournamentKey: Tournament3ScheduledRoundRobinKey,
+		UserID:        5,
+		JoinedOn:      TimeNow.Add(time.Minute * 3),
+	},
+	{
+		TournamentKey: Tournament3ScheduledRoundRobinKey,
+		UserID:        6,
+		JoinedOn:      TimeNow.Add(time.Minute * 4),
+	},
+	// SCHEDULED SWISS tournament
+	{
+		TournamentKey: Tournament4ScheduledSwissKey,
+		UserID:        1,
+		JoinedOn:      TimeNow.Add(time.Minute * 1),
+	},
+	{
+		TournamentKey: Tournament4ScheduledSwissKey,
+		UserID:        2,
+		JoinedOn:      TimeNow.Add(time.Minute * 2),
+	},
+	{
+		TournamentKey: Tournament4ScheduledSwissKey,
+		UserID:        5,
+		JoinedOn:      TimeNow.Add(time.Minute * 3),
+	},
+	{
+		TournamentKey: Tournament4ScheduledSwissKey,
+		UserID:        6,
+		JoinedOn:      TimeNow.Add(time.Minute * 4),
+	},
+	// IN_PROGRESS tournament
+	{
+		TournamentKey: Tournament5InProgressKnockoutKey,
+		UserID:        1,
+		JoinedOn:      TimeNow.Add(time.Minute * 1),
+	},
+	{
+		TournamentKey: Tournament5InProgressKnockoutKey,
+		UserID:        2,
+		JoinedOn:      TimeNow.Add(time.Minute * 2),
+	},
+	{
+		TournamentKey: Tournament5InProgressKnockoutKey,
 		UserID:        3,
 		JoinedOn:      TimeNow.Add(time.Minute * 3),
 	},
 	{
-		TournamentKey: Tournament2KnockoutKey,
+		TournamentKey: Tournament5InProgressKnockoutKey,
 		UserID:        4,
 		JoinedOn:      TimeNow.Add(time.Minute * 4),
 	},
 	// FINISHED tournament participants (max participants)
 	{
-		TournamentKey: Tournament5FinishedKey,
+		TournamentKey: Tournament8FinishedKey,
 		UserID:        1,
 		JoinedOn:      TimeNow.Add(time.Minute * 5),
 	},
 	{
-		TournamentKey: Tournament5FinishedKey,
+		TournamentKey: Tournament8FinishedKey,
 		UserID:        2,
 		JoinedOn:      TimeNow.Add(time.Minute * 6),
 	},
@@ -383,7 +486,7 @@ var TournamentMatchInsts = []struct {
 	// IN_PROGRESS tournmanet matches (some matches)
 	{
 		GameID:        uuid.NewString(), // (no replay, unfinished)
-		TournamentKey: Tournament2KnockoutKey,
+		TournamentKey: Tournament5InProgressKnockoutKey,
 		Round:         1,
 		CreatedOn:     TimeNow.Add(time.Minute * 1),
 		WhiteID:       1,
@@ -391,7 +494,7 @@ var TournamentMatchInsts = []struct {
 	},
 	{
 		GameID:        uuid.NewString(), // (no replay, unfinished)
-		TournamentKey: Tournament2KnockoutKey,
+		TournamentKey: Tournament5InProgressKnockoutKey,
 		Round:         1,
 		CreatedOn:     TimeNow.Add(time.Minute * 2),
 		WhiteID:       3,
@@ -400,7 +503,7 @@ var TournamentMatchInsts = []struct {
 	// FINISHED tournament matches (all matches)
 	{
 		GameID:        FirstReplayGameID, // (replay, finished)
-		TournamentKey: Tournament5FinishedKey,
+		TournamentKey: Tournament8FinishedKey,
 		Round:         1,
 		CreatedOn:     TimeNow.Add(time.Minute * 3),
 		WhiteID:       1,

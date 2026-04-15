@@ -6,7 +6,7 @@ GOPATH := $(shell go env GOPATH)
 # Directories
 SVC_DIR         := hexchess-svc
 UI_DIR          := hexchess-ui
-PB_DIR          := hexchess-pb
+PB_DIR          := hexchess-contracts
 SVC_WASM_DIR    := $(SVC_DIR)/wasm
 
 # Artefact dirs

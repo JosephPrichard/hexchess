@@ -158,11 +158,6 @@
 								</button>
 							{/if}
 						</div>
-						<div class="center-relative">
-							<div class="vertical-align">
-
-							</div>
-						</div>
 					</div>
 					{#if index !== challengeList.length - 1}
 						<div class="challenge-border"></div>
