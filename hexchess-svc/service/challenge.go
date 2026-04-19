@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hexchess-svc/domain"
 	"hexchess-svc/util/enum"
 	"log/slog"
 	"time"
@@ -13,21 +14,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
-
-type Challenge struct {
-	ChallengerID      int64     `json:"challengerId"`
-	ChallengerName    string    `json:"challengerName"`
-	ChallengerCountry string    `json:"challengerCountry"`
-	ChallengerElo     float64   `json:"challengerElo"`
-	ChallengeeID      int64     `json:"challengeeId"`
-	ChallengeeName    string    `json:"challengeeName"`
-	ChallengeeCountry string    `json:"challengeeCountry"`
-	ChallengeeElo     float64   `json:"challengeeElo"`
-	Mode              GameMode  `json:"mode"`
-	StartColor        GameColor `json:"startColor"` // from challenger's perspective
-	MadeOn            time.Time `json:"madeOn"`
-	ExpiresOn         time.Time `json:"expiresOn"`
-}
 
 var (
 	ErrDuplicateChallenge     = errors.New("duplicate challenge")
@@ -39,11 +25,11 @@ var (
 const ExpireChallengeMaxAge = time.Hour * 24 * 7
 
 type ChallengeInst struct {
-	ChallengerID int64     `json:"challengerId"`
-	ChallengeeID int64     `json:"challengeeId"`
-	Mode         GameMode  `json:"mode"`
-	StartColor   GameColor `json:"startColor"`
-	MadeOn       time.Time `json:"madeOn"`
+	ChallengerID int64            `json:"challengerId"`
+	ChallengeeID int64            `json:"challengeeId"`
+	Mode         domain.GameMode  `json:"mode"`
+	StartColor   domain.GameColor `json:"startColor"`
+	MadeOn       time.Time        `json:"madeOn"`
 }
 
 func (svc *HexchessServices) InsertChallenge(ctx context.Context, inst ChallengeInst) error {
@@ -51,9 +37,9 @@ func (svc *HexchessServices) InsertChallenge(ctx context.Context, inst Challenge
 	return err
 }
 
-func (svc *HexchessServices) InsertChallengeRet(ctx context.Context, inst ChallengeInst) (Challenge, error) {
+func (svc *HexchessServices) InsertChallengeRet(ctx context.Context, inst ChallengeInst) (domain.Challenge, error) {
 	if inst.ChallengerID == inst.ChallengeeID {
-		return Challenge{}, ErrSelfChallenge
+		return domain.Challenge{}, ErrSelfChallenge
 	}
 	if inst.MadeOn.IsZero() {
 		inst.MadeOn = time.Now()
@@ -68,9 +54,9 @@ func (svc *HexchessServices) InsertChallengeRet(ctx context.Context, inst Challe
 	})
 	if dbErr != nil {
 		if svcErr := mapChallengeInsertErr(dbErr); svcErr != nil {
-			return Challenge{}, svcErr
+			return domain.Challenge{}, svcErr
 		}
-		return Challenge{}, fmt.Errorf("insert challenge %+v: %w", inst, dbErr)
+		return domain.Challenge{}, fmt.Errorf("insert challenge %+v: %w", inst, dbErr)
 	}
 
 	challenge := mapChallengeRow(sqlc.SelectChallengesByParticipantRow(row))
@@ -89,8 +75,8 @@ type ChallengeKey struct {
 }
 
 // GetChallengesByParticipant will select challenges by the participant after the 'since' time
-func (svc *HexchessServices) GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]Challenge, error) {
-	since := svc.entropy.GetNow().Add(-ExpireChallengeMaxAge)
+func (svc *HexchessServices) GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]domain.Challenge, error) {
+	since := svc.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
 	var pgChallengerID pgtype.Int8
 	if key.ChallengerID != -1 {
@@ -112,7 +98,7 @@ func (svc *HexchessServices) GetChallengesByParticipant(ctx context.Context, key
 		return nil, fmt.Errorf("get challenges by participant %v: %w", key, err)
 	}
 
-	challenges := make([]Challenge, 0, len(rows))
+	challenges := make([]domain.Challenge, 0, len(rows))
 	for _, row := range rows {
 		challenges = append(challenges, mapChallengeRow(row))
 	}
@@ -124,8 +110,8 @@ func (svc *HexchessServices) GetChallengesByParticipant(ctx context.Context, key
 type DeleteResult struct {
 	ChallengerID int64
 	ChallengeeID int64
-	Mode         GameMode
-	FirstColor   GameColor
+	Mode         domain.GameMode
+	FirstColor   domain.GameColor
 }
 
 func (svc *HexchessServices) DeleteChallenge(ctx context.Context, key ChallengeKey) (DeleteResult, error) {
@@ -136,8 +122,8 @@ func (svc *HexchessServices) DeleteChallenge(ctx context.Context, key ChallengeK
 		return DeleteResult{}, fmt.Errorf("delete challenge %d: %w", key, err)
 	}
 
-	gameColor := enum.Expect(challengeRow.StartColor, GameColorEnums)
-	gameMode := enum.Expect(challengeRow.Mode, GameModeEnums)
+	gameColor := enum.Expect(challengeRow.StartColor, domain.GameColorEnums)
+	gameMode := enum.Expect(challengeRow.Mode, domain.GameModeEnums)
 
 	delResult := DeleteResult{
 		ChallengerID: challengeRow.ChallengerID,
@@ -150,28 +136,29 @@ func (svc *HexchessServices) DeleteChallenge(ctx context.Context, key ChallengeK
 }
 
 func (svc *HexchessServices) DeleteExpiredChallenges(ctx context.Context, userID int64) error {
-	t := svc.entropy.GetNow().Add(-ExpireChallengeMaxAge)
+	beforeTime := svc.entropy.GetTime().Add(-ExpireChallengeMaxAge)
+
 	err := svc.querier.DeleteExpiredChallenges(ctx, sqlc.DeleteExpiredChallengesParams{
 		UserID: userID,
-		Before: pgtype.Timestamptz{Valid: true, Time: t},
+		Before: pgtype.Timestamptz{Valid: true, Time: beforeTime},
 	})
-	logutil.DynLog(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", t)
+	logutil.DynLog(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", beforeTime)
 	return nil
 }
 
-func mapChallengeRow(row sqlc.SelectChallengesByParticipantRow) Challenge {
-	gameColor := enum.Expect(row.StartColor, GameColorEnums)
-	gameMode := enum.Expect(row.Mode, GameModeEnums)
+func mapChallengeRow(row sqlc.SelectChallengesByParticipantRow) domain.Challenge {
+	gameColor := enum.Expect(row.StartColor, domain.GameColorEnums)
+	gameMode := enum.Expect(row.Mode, domain.GameModeEnums)
 
-	return Challenge{
+	return domain.Challenge{
 		ChallengerID:      row.ChallengerID,
 		ChallengerName:    row.ChallengerName,
 		ChallengerCountry: row.ChallengerCountry,
-		ChallengerElo:     defaultElo(row.ChallengerElo),
+		ChallengerElo:     domain.DefaultUserElo(row.ChallengerElo),
 		ChallengeeID:      row.ChallengeeID,
 		ChallengeeName:    row.ChallengeeName,
 		ChallengeeCountry: row.ChallengeeCountry,
-		ChallengeeElo:     defaultElo(row.ChallengeeElo),
+		ChallengeeElo:     domain.DefaultUserElo(row.ChallengeeElo),
 		Mode:              gameMode,
 		StartColor:        gameColor,
 		MadeOn:            row.MadeOn.Time,

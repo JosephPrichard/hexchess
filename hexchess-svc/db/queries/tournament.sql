@@ -26,13 +26,14 @@ VALUES (
         sqlc.arg('white_id'),
         sqlc.arg('black_id'),
         sqlc.arg('round'),
-        sqlc.arg('created_on'))
+        COALESCE(sqlc.narg('created_on'), CURRENT_TIMESTAMP)
+)
 ON CONFLICT ON CONSTRAINT tournament_matches_pkey DO NOTHING;
 
 -- name: UpdateTournamentStatus :exec
 UPDATE tournaments
 SET status = sqlc.arg('status'),
-    updated_on = sqlc.arg('updated_on'),
+    updated_on = COALESCE(sqlc.narg('updated_on'), CURRENT_TIMESTAMP),
     rounds = COALESCE(sqlc.narg('rounds'), rounds),
     winner_id = COALESCE(sqlc.narg('winner_id'), winner_id),
     countdown_started_on = COALESCE(sqlc.narg('countdown_started_on'), countdown_started_on)

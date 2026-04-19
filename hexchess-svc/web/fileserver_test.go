@@ -12,6 +12,7 @@ import (
 	"hexchess-svc/egress"
 	"hexchess-svc/itest"
 	"hexchess-svc/service"
+
 	"hexchess-svc/util/testutil"
 	"io"
 	"net/http"
@@ -30,7 +31,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockS3Client := egress.NewMockS3Client(ctrl)
-	mocks := svc.ServiceMocks{
+	mocks := svc.Mocks{
 		Entropy:  &svc.StableEntropySource{},
 		S3Client: mockS3Client,
 	}
@@ -135,7 +136,7 @@ func TestHandleGetProfilePic(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			mocks := svc.ServiceMocks{
+			mocks := svc.Mocks{
 				Entropy:  &svc.StableEntropySource{},
 				S3Client: tt.setupMocks(ctrl),
 			}

@@ -9,6 +9,7 @@ import (
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/domain"
 	"log/slog"
 	"slices"
 	"time"
@@ -19,14 +20,14 @@ import (
 var FinishGameConsumerGroup = "finish_game:consumer"
 
 type FinishGameEvent struct {
-	GameID       string           `json:"id"`
-	Board        chess.Board      `json:"board"`
-	Moves        []chess.HistMove `json:"moves"`
-	WhitePlayer  PlayerState      `json:"whitePlayer"`
-	BlackPlayer  PlayerState      `json:"blackPlayer"`
-	ReplayMode   GameMode         `json:"mode"`
-	ReplayResult ReplayResult     `json:"replayresult"`
-	ReplayCause  ReplayCause      `json:"replaycause"`
+	GameID       string              `json:"id"`
+	Board        chess.Board         `json:"board"`
+	Moves        []chess.HistMove    `json:"moves"`
+	WhitePlayer  domain.PlayerState  `json:"whitePlayer"`
+	BlackPlayer  domain.PlayerState  `json:"blackPlayer"`
+	ReplayMode   domain.GameMode     `json:"mode"`
+	ReplayResult domain.ReplayResult `json:"replayresult"`
+	ReplayCause  domain.ReplayCause  `json:"replaycause"`
 }
 
 func (svc *HexchessServices) insertFinishedGameEvent(ctx context.Context, event FinishGameEvent) error {
@@ -51,7 +52,7 @@ func (svc *HexchessServices) insertFinishedGameEvent(ctx context.Context, event 
 		ReplayCause:  event.ReplayCause,
 		ReplayResult: event.ReplayResult,
 		ReplayMode:   event.ReplayMode,
-		InsertedTime: svc.entropy.GetNow(),
+		InsertedTime: time.Now(),
 	})
 	if err != nil {
 		return fmt.Errorf("insert finish game tx: %w", err)
@@ -86,13 +87,13 @@ func (svc *HexchessServices) insertFinishedGameEvent(ctx context.Context, event 
 }
 
 type GameResult struct {
-	GameID       string       `json:"gameId"`
-	WhiteID      int64        `json:"whiteId"`
-	BlackID      int64        `json:"blackId"`
-	ReplayCause  ReplayCause  `json:"cause"`
-	ReplayResult ReplayResult `json:"result"`
-	ReplayMode   GameMode     `json:"mode"`
-	InsertedTime time.Time    `json:"insertedTime"`
+	GameID       string              `json:"gameId"`
+	WhiteID      int64               `json:"whiteId"`
+	BlackID      int64               `json:"blackId"`
+	ReplayCause  domain.ReplayCause  `json:"cause"`
+	ReplayResult domain.ReplayResult `json:"result"`
+	ReplayMode   domain.GameMode     `json:"mode"`
+	InsertedTime time.Time           `json:"insertedTime"`
 }
 
 type GameResultChangeSet struct {
@@ -124,7 +125,7 @@ func (svc *HexchessServices) InsertGameResultTx(ctx context.Context, params Game
 			changeSet, err = insertGameResult(ctx, query, params)
 			return err
 		},
-		RetryCount: 3,
+		RetryCount: 5,
 	})
 
 	return changeSet, err
@@ -167,8 +168,8 @@ func insertGameResult(ctx context.Context, querier sqlc.Querier, result GameResu
 
 	replayInst := sqlc.InsertReplayParams{
 		GameID:   result.GameID,
-		WhiteID:  pgtype.Int8{Int64: result.WhiteID, Valid: IsNonGuestID(result.WhiteID)},
-		BlackID:  pgtype.Int8{Int64: result.BlackID, Valid: IsNonGuestID(result.BlackID)},
+		WhiteID:  pgtype.Int8{Int64: result.WhiteID, Valid: domain.IsNonGuestID(result.WhiteID)},
+		BlackID:  pgtype.Int8{Int64: result.BlackID, Valid: domain.IsNonGuestID(result.BlackID)},
 		Result:   sqlc.ResultEnum(result.ReplayResult.String()),
 		Cause:    sqlc.CauseEnum(result.ReplayCause.String()),
 		Mode:     sqlc.ModeEnum(result.ReplayMode.String()),
@@ -193,13 +194,13 @@ func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.Select
 	changeSet := GameResultChangeSet{}
 	var updts []sqlc.UpsertUserEloParams
 
-	if IsGuestID(result.WhiteID) || IsGuestID(result.BlackID) {
+	if domain.IsGuestID(result.WhiteID) || domain.IsGuestID(result.BlackID) {
 		return changeSet, updts
 	}
 
 	mode := sqlc.ModeEnum(result.ReplayMode.String())
 
-	whiteElo, blackElo := StartElo, StartElo
+	whiteElo, blackElo := domain.StartElo, domain.StartElo
 	for _, row := range userModeElos {
 		switch row.UserID {
 		case result.WhiteID:
@@ -209,21 +210,21 @@ func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.Select
 		}
 	}
 
-	if result.ReplayResult == Draw {
+	if result.ReplayResult == domain.Draw {
 		// changeSet is unmodified in draw so this becomes a noop changeSet
 		changeSet.WhiteEloNext, changeSet.BlackEloNext = whiteElo, blackElo
 
 		updts = []sqlc.UpsertUserEloParams{
-			{UserID: result.WhiteID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.WhiteEloNext}, Draws: 1, DefaultElo: StartElo},
-			{UserID: result.BlackID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.BlackEloNext}, Draws: 1, DefaultElo: StartElo},
+			{UserID: result.WhiteID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.WhiteEloNext}, Draws: 1, DefaultElo: domain.StartElo},
+			{UserID: result.BlackID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.BlackEloNext}, Draws: 1, DefaultElo: domain.StartElo},
 		}
 	} else {
 		var winElo, loseElo float64
 
 		switch result.ReplayResult {
-		case WhiteWin:
+		case domain.WhiteWin:
 			changeSet.WinID, changeSet.LoseID, winElo, loseElo = result.WhiteID, result.BlackID, whiteElo, blackElo
-		case BlackWin:
+		case domain.BlackWin:
 			changeSet.WinID, changeSet.LoseID, winElo, loseElo = result.BlackID, result.WhiteID, blackElo, whiteElo
 		default:
 		}
@@ -232,9 +233,9 @@ func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.Select
 		loseEloNext := loseElo + (-30 * ProbabilityWins(winElo, loseElo))
 
 		switch result.ReplayResult {
-		case WhiteWin:
+		case domain.WhiteWin:
 			changeSet.WhiteEloNext, changeSet.BlackEloNext = winEloNext, loseEloNext
-		case BlackWin:
+		case domain.BlackWin:
 			changeSet.WhiteEloNext, changeSet.BlackEloNext = loseEloNext, winEloNext
 		default:
 		}
@@ -243,8 +244,8 @@ func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.Select
 		changeSet.LoseEloDiff = loseEloNext - loseElo
 
 		updts = []sqlc.UpsertUserEloParams{
-			{UserID: changeSet.WinID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: winEloNext}, Wins: 1, DefaultElo: StartElo},
-			{UserID: changeSet.LoseID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: loseEloNext}, Losses: 1, DefaultElo: StartElo},
+			{UserID: changeSet.WinID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: winEloNext}, Wins: 1, DefaultElo: domain.StartElo},
+			{UserID: changeSet.LoseID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: loseEloNext}, Losses: 1, DefaultElo: domain.StartElo},
 		}
 	}
 

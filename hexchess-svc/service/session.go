@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hexchess-svc/domain"
 	"log/slog"
 	"time"
 
@@ -12,19 +13,19 @@ import (
 
 var ErrSessionNotFound = errors.New("session not found")
 
-func (svc *HexchessServices) GetSession(ctx context.Context, sessionID string) (PlayerState, error) {
+func (svc *HexchessServices) GetSession(ctx context.Context, sessionID string) (domain.PlayerState, error) {
 	sessionKey := makeSessionKey(sessionID)
 	bytes, err := svc.redis.Cache.Get(ctx, sessionKey).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
-			return PlayerState{}, ErrSessionNotFound
+			return domain.PlayerState{}, ErrSessionNotFound
 		}
-		return PlayerState{}, fmt.Errorf("get session %s: %w", sessionID, err)
+		return domain.PlayerState{}, fmt.Errorf("get session %s: %w", sessionID, err)
 	}
 
 	player, err := UnmarshalPlayer(bytes)
 	if err != nil {
-		return PlayerState{}, fmt.Errorf("unmarshal session: %w", err)
+		return domain.PlayerState{}, fmt.Errorf("unmarshal session: %w", err)
 	}
 	slog.InfoContext(ctx, "selected session", "sessionID", sessionID, "player", player)
 	return player, nil
@@ -32,7 +33,7 @@ func (svc *HexchessServices) GetSession(ctx context.Context, sessionID string) (
 
 type SessionInst struct {
 	SessionID string
-	Player    PlayerState
+	Player    domain.PlayerState
 	Expiry    time.Duration
 }
 

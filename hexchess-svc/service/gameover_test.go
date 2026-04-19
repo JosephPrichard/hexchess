@@ -4,8 +4,10 @@ import (
 	"context"
 	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/domain"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
+
 	"hexchess-svc/util/logutil"
 	"hexchess-svc/util/testutil"
 	"math"
@@ -46,7 +48,7 @@ func (h *fakeGameEventHandler) handleFinishGameEvent(_ context.Context, event Fi
 func TestGameFinishStreamer_FakeGameEventHandler(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.Redis)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
 	defer services.Close()
 
 	ctx, cancel := context.WithCancel(context.WithValue(t.Context(), logutil.Trace, t.Name()))
@@ -59,29 +61,29 @@ func TestGameFinishStreamer_FakeGameEventHandler(t *testing.T) {
 			Moves: []chess.HistMove{
 				{PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}}},
 			},
-			WhitePlayer:  PlayerState{ID: 1, Name: "white1", Present: true},
-			BlackPlayer:  PlayerState{ID: 2, Name: "black1", Present: true},
-			ReplayMode:   ModeCorrespondence1,
-			ReplayCause:  Checkmate,
-			ReplayResult: WhiteWin,
+			WhitePlayer:  domain.PlayerState{ID: 1, Name: "white1", Present: true},
+			BlackPlayer:  domain.PlayerState{ID: 2, Name: "black1", Present: true},
+			ReplayMode:   domain.ModeCorrespondence1,
+			ReplayCause:  domain.Checkmate,
+			ReplayResult: domain.WhiteWin,
 		},
 		{
 			GameID:       uuid.NewString(),
 			Board:        chess.MakeEmptyBoard(true),
-			WhitePlayer:  PlayerState{ID: 3, Name: "white2", Present: true},
-			BlackPlayer:  PlayerState{ID: 4, Name: "black2", Present: true},
-			ReplayMode:   ModeTimed1Plus0,
-			ReplayCause:  Forfeit,
-			ReplayResult: BlackWin,
+			WhitePlayer:  domain.PlayerState{ID: 3, Name: "white2", Present: true},
+			BlackPlayer:  domain.PlayerState{ID: 4, Name: "black2", Present: true},
+			ReplayMode:   domain.ModeTimed1Plus0,
+			ReplayCause:  domain.Forfeit,
+			ReplayResult: domain.BlackWin,
 		},
 		{
 			GameID:       uuid.NewString(),
 			Board:        chess.MakeEmptyBoard(true),
-			WhitePlayer:  PlayerState{ID: 5, Name: "white3", Present: true},
-			BlackPlayer:  PlayerState{ID: 6, Name: "black3", Present: true},
-			ReplayMode:   ModeTimed3Plus2,
-			ReplayCause:  Stalemate,
-			ReplayResult: Draw,
+			WhitePlayer:  domain.PlayerState{ID: 5, Name: "white3", Present: true},
+			BlackPlayer:  domain.PlayerState{ID: 6, Name: "black3", Present: true},
+			ReplayMode:   domain.ModeTimed3Plus2,
+			ReplayCause:  domain.Stalemate,
+			ReplayResult: domain.Draw,
 		},
 	}
 	invalidInputEvents := []map[string]any{
@@ -123,8 +125,8 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	testUser0 := TestUser[0]
-	testUser1 := TestUser[1]
+	testUser0 := itest.TestUser[0]
+	testUser1 := itest.TestUser[1]
 	newGameID := uuid.NewString()
 	newGameIDGuest := uuid.NewString()
 
@@ -140,11 +142,11 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				GameID:       newGameID,
 				Board:        chess.MakeEmptyBoard(true),
 				Moves:        []chess.HistMove{},
-				WhitePlayer:  PlayerState{ID: testUser0.ID, Present: true}, // winner
-				BlackPlayer:  PlayerState{ID: testUser1.ID, Present: true}, // loser
-				ReplayMode:   ModeCorrespondence1,
-				ReplayCause:  Checkmate,
-				ReplayResult: WhiteWin,
+				WhitePlayer:  domain.PlayerState{ID: testUser0.ID, Present: true}, // winner
+				BlackPlayer:  domain.PlayerState{ID: testUser1.ID, Present: true}, // loser
+				ReplayMode:   domain.ModeCorrespondence1,
+				ReplayCause:  domain.Checkmate,
+				ReplayResult: domain.WhiteWin,
 			},
 			wantLeaderboard: []string{
 				strconv.Itoa(int(testUser0.ID)),
@@ -159,9 +161,9 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 					BlackName:    "user2",
 					WhiteCountry: "us",
 					BlackCountry: "us",
-					Mode:         ModeCorrespondence1.String(),
-					Cause:        Checkmate.String(),
-					Result:       WhiteWin.String(),
+					Mode:         domain.ModeCorrespondence1.String(),
+					Cause:        domain.Checkmate.String(),
+					Result:       domain.WhiteWin.String(),
 					WinEloDiff:   15,
 					LoseEloDiff:  -15,
 					WhiteElo:     1015,
@@ -178,12 +180,12 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				Board:  chess.MakeEmptyBoard(true),
 				Moves:  []chess.HistMove{},
 				// used only for validation
-				WhitePlayer: PlayerState{ID: testUser0.ID, Present: true},
-				BlackPlayer: PlayerState{ID: testUser1.ID, Present: true},
+				WhitePlayer: domain.PlayerState{ID: testUser0.ID, Present: true},
+				BlackPlayer: domain.PlayerState{ID: testUser1.ID, Present: true},
 				// enum fields are ignored on a noop insertion.
-				ReplayMode:   ModeCorrespondence1,
-				ReplayCause:  Forfeit,
-				ReplayResult: BlackWin,
+				ReplayMode:   domain.ModeCorrespondence1,
+				ReplayCause:  domain.Forfeit,
+				ReplayResult: domain.BlackWin,
 			},
 			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
 			wantBroadcastOutput: &pb.GameOutput{
@@ -195,9 +197,9 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 					BlackName:    "user2",
 					WhiteCountry: "us",
 					BlackCountry: "us",
-					Mode:         ModeCorrespondence7.String(),
-					Cause:        Checkmate.String(),
-					Result:       WhiteWin.String(),
+					Mode:         domain.ModeCorrespondence7.String(),
+					Cause:        domain.Checkmate.String(),
+					Result:       domain.WhiteWin.String(),
 					WinEloDiff:   30,
 					LoseEloDiff:  -30,
 					WhiteElo:     1000,
@@ -213,11 +215,11 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				GameID:       newGameIDGuest,
 				Board:        chess.MakeEmptyBoard(true),
 				Moves:        []chess.HistMove{},
-				WhitePlayer:  PlayerState{ID: testUser0.ID, Present: true}, // non-guest winner
-				BlackPlayer:  PlayerState{ID: -10, Present: true},          // guest loser
-				ReplayMode:   ModeCorrespondence1,
-				ReplayCause:  Forfeit,
-				ReplayResult: BlackWin,
+				WhitePlayer:  domain.PlayerState{ID: testUser0.ID, Present: true}, // non-guest winner
+				BlackPlayer:  domain.PlayerState{ID: -10, Present: true},          // guest loser
+				ReplayMode:   domain.ModeCorrespondence1,
+				ReplayCause:  domain.Forfeit,
+				ReplayResult: domain.BlackWin,
 			},
 			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
 			wantBroadcastOutput: &pb.GameOutput{
@@ -229,9 +231,9 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 					BlackName:    "",
 					WhiteCountry: "us",
 					BlackCountry: "",
-					Mode:         ModeCorrespondence1.String(),
-					Cause:        Forfeit.String(),
-					Result:       BlackWin.String(),
+					Mode:         domain.ModeCorrespondence1.String(),
+					Cause:        domain.Forfeit.String(),
+					Result:       domain.BlackWin.String(),
 					WinEloDiff:   0,
 					LoseEloDiff:  0,
 					WhiteElo:     1000,
@@ -243,7 +245,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres, itest.Redis)
+			services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			stream := MakeFinishGameStreamer(ctx, services)
@@ -275,8 +277,8 @@ func TestInsertGameResult(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	testUser0 := TestUser[0]
-	testUser1 := TestUser[1]
+	testUser0 := itest.TestUser[0]
+	testUser1 := itest.TestUser[1]
 
 	now := time.Now()
 
@@ -293,9 +295,9 @@ func TestInsertGameResult(t *testing.T) {
 				GameID:       "game1",
 				WhiteID:      testUser0.ID,
 				BlackID:      testUser1.ID,
-				ReplayCause:  Stalemate,
-				ReplayResult: Draw,
-				ReplayMode:   ModeTimed1Plus0,
+				ReplayCause:  domain.Stalemate,
+				ReplayResult: domain.Draw,
+				ReplayMode:   domain.ModeTimed1Plus0,
 				InsertedTime: now,
 			},
 			wantUserElos: []sqlc.SelectUserModeElosByIDsRow{
@@ -326,9 +328,9 @@ func TestInsertGameResult(t *testing.T) {
 				GameID:       "game2",
 				WhiteID:      testUser0.ID,
 				BlackID:      testUser1.ID,
-				ReplayCause:  Checkmate,
-				ReplayResult: WhiteWin,
-				ReplayMode:   ModeCorrespondence1,
+				ReplayCause:  domain.Checkmate,
+				ReplayResult: domain.WhiteWin,
+				ReplayMode:   domain.ModeCorrespondence1,
 				InsertedTime: now,
 			},
 			wantUserElos: []sqlc.SelectUserModeElosByIDsRow{
@@ -363,9 +365,9 @@ func TestInsertGameResult(t *testing.T) {
 				GameID:       "game3",
 				WhiteID:      testUser0.ID,
 				BlackID:      testUser1.ID,
-				ReplayCause:  Forfeit,
-				ReplayResult: BlackWin,
-				ReplayMode:   ModeCorrespondence7,
+				ReplayCause:  domain.Forfeit,
+				ReplayResult: domain.BlackWin,
+				ReplayMode:   domain.ModeCorrespondence7,
 				InsertedTime: now,
 			},
 			wantUserElos: []sqlc.SelectUserModeElosByIDsRow{
@@ -400,9 +402,9 @@ func TestInsertGameResult(t *testing.T) {
 				GameID:       itest.FirstReplayGameID,
 				WhiteID:      testUser0.ID,
 				BlackID:      testUser1.ID,
-				ReplayCause:  Forfeit,
-				ReplayResult: BlackWin,
-				ReplayMode:   ModeCorrespondence7,
+				ReplayCause:  domain.Forfeit,
+				ReplayResult: domain.BlackWin,
+				ReplayMode:   domain.ModeCorrespondence7,
 				InsertedTime: now,
 			},
 			wantUserElos: []sqlc.SelectUserModeElosByIDsRow{
@@ -429,9 +431,9 @@ func TestInsertGameResult(t *testing.T) {
 				GameID:       "game4",
 				WhiteID:      -10,
 				BlackID:      -20,
-				ReplayCause:  Forfeit,
-				ReplayResult: BlackWin,
-				ReplayMode:   ModeCorrespondence7,
+				ReplayCause:  domain.Forfeit,
+				ReplayResult: domain.BlackWin,
+				ReplayMode:   domain.ModeCorrespondence7,
 				InsertedTime: now,
 			},
 			wantUserElos: []sqlc.SelectUserModeElosByIDsRow(nil), // not inserted.
@@ -452,7 +454,7 @@ func TestInsertGameResult(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
+			services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres)
 			defer services.Close()
 
 			changeSet, err := services.InsertGameResultTx(ctx, test.resultInput)

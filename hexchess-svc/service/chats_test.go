@@ -2,8 +2,10 @@ package svc
 
 import (
 	"context"
+	"hexchess-svc/domain"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
+
 	"hexchess-svc/util/logutil"
 	"hexchess-svc/util/testutil"
 	"testing"
@@ -17,7 +19,7 @@ import (
 func TestEchoStateChats(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.Redis)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
 	defer services.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
@@ -26,7 +28,7 @@ func TestEchoStateChats(t *testing.T) {
 
 	chatsIn := []Chat{
 		{
-			Player:  PlayerState{ID: 1, Name: "name", Country: "us", Present: true},
+			Player:  domain.PlayerState{ID: 1, Name: "name", Country: "us", Present: true},
 			Message: "test1",
 			SentAt:  time.Date(2022, 1, 1, 0, 1, 0, 0, time.UTC),
 		},

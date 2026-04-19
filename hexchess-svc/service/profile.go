@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hexchess-svc/domain"
 	"hexchess-svc/egress"
 	"io"
 	"log/slog"
@@ -87,7 +88,7 @@ func (svc *HexchessServices) DeleteOldProfilePics(ctx context.Context, playerID 
 	return nil
 }
 
-func (svc *HexchessServices) UploadProfilePic(ctx context.Context, uploader PlayerState, file io.Reader, contentType string) (string, error) {
+func (svc *HexchessServices) UploadProfilePic(ctx context.Context, uploader domain.PlayerState, file io.Reader, contentType string) (string, error) {
 	// uploading profile picture based off a computed Key
 	key := svc.makeProfileNewPicKey(uploader.ID)
 

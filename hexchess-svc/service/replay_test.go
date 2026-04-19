@@ -2,6 +2,8 @@ package svc
 
 import (
 	"context"
+	"hexchess-svc/domain"
+
 	"testing"
 	"time"
 
@@ -15,7 +17,7 @@ import (
 func TestGetReplay(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres)
 	defer services.Close()
 
 	t.Run("GetReplay", func(t *testing.T) {
@@ -24,7 +26,7 @@ func TestGetReplay(t *testing.T) {
 		actualReplay1, err := services.GetReplay(ctx, itest.FirstReplayID)
 		require.NoError(t, err)
 
-		assert.Equal(t, TestReplay[0], actualReplay1)
+		assert.Equal(t, itest.TestReplay[0], actualReplay1)
 	})
 
 	t.Run("GetReplayWithGuest", func(t *testing.T) {
@@ -33,14 +35,14 @@ func TestGetReplay(t *testing.T) {
 		actualReplay1, err := services.GetReplay(ctx, itest.GuestReplayID)
 		require.NoError(t, err)
 
-		assert.Equal(t, TestReplay[2], actualReplay1)
+		assert.Equal(t, itest.TestReplay[2], actualReplay1)
 	})
 }
 
 func TestGetUserReplays(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
@@ -50,11 +52,11 @@ func TestGetUserReplays(t *testing.T) {
 	actualReplayList2, err := services.GetUserReplays(ctx, 1, 3, 5)
 	require.NoError(t, err)
 
-	replay1 := TestReplay[0]
-	replay3 := TestReplay[1]
-	replay4 := TestReplay[2]
-	expectedReplayList1 := []FullReplay{replay4, replay3, replay1}
-	expectedReplayList2 := []FullReplay{replay1}
+	replay1 := itest.TestReplay[0]
+	replay3 := itest.TestReplay[1]
+	replay4 := itest.TestReplay[2]
+	expectedReplayList1 := []domain.FullReplay{replay4, replay3, replay1}
+	expectedReplayList2 := []domain.FullReplay{replay1}
 
 	assert.Equal(t, expectedReplayList1, actualReplayList1)
 	assert.Equal(t, expectedReplayList2, actualReplayList2)
@@ -76,11 +78,11 @@ func TestRetrieveEloHistories(t *testing.T) {
 			params:             EloHistoriesParams{UserID: 6, TimeUntil: timeUntil},
 			wantBucketDuration: LongBucketDuration,
 			wantEloBuckets: EloHistoryBuckets{
-				ModeCorrespondence7.String(): []EloHistoryBucket{
+				domain.ModeCorrespondence7.String(): []EloHistoryBucket{
 					{Timestamp: "1899-12-31T18:00:00-06:00", Elo: 1030},
 					{Timestamp: "2019-12-29T18:00:00-06:00", Elo: 1090},
 				},
-				ModeCorrespondence1.String(): []EloHistoryBucket{
+				domain.ModeCorrespondence1.String(): []EloHistoryBucket{
 					{Timestamp: "2019-12-29T18:00:00-06:00", Elo: 1030},
 				},
 			},
@@ -90,11 +92,11 @@ func TestRetrieveEloHistories(t *testing.T) {
 			params:             EloHistoriesParams{UserID: 6, Months: 3, TimeUntil: timeUntil},
 			wantBucketDuration: ShortBucketDuration,
 			wantEloBuckets: EloHistoryBuckets{
-				ModeCorrespondence7.String(): []EloHistoryBucket{
+				domain.ModeCorrespondence7.String(): []EloHistoryBucket{
 					{Timestamp: "2019-12-31T18:00:00-06:00", Elo: 1075},
 					{Timestamp: "2020-01-02T18:00:00-06:00", Elo: 1120},
 				},
-				ModeCorrespondence1.String(): []EloHistoryBucket{
+				domain.ModeCorrespondence1.String(): []EloHistoryBucket{
 					{Timestamp: "2020-01-04T18:00:00-06:00", Elo: 1030},
 				},
 			},
@@ -102,7 +104,7 @@ func TestRetrieveEloHistories(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 
-			services, _ := SetupServicesTest(t, ServiceMocks{}, itest.ROPostgres)
+			services, _ := SetupServicesTest(t, Mocks{}, itest.ROPostgres)
 			defer services.Close()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)

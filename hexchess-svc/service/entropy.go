@@ -9,8 +9,7 @@ import (
 // EntropySource is a generator for generating things my program determines as "non-deterministic" and therefore must be mocked in tests
 type EntropySource interface {
 	MakeUUID() string
-	MakeGameID() string
-	GetNow() time.Time
+	GetTime() time.Time
 }
 
 // RealEntropySource non-deterministic Entropy source that generates real data
@@ -20,11 +19,7 @@ func (_ *RealEntropySource) MakeUUID() string {
 	return uuid.NewString()
 }
 
-func (_ *RealEntropySource) MakeGameID() string {
-	return MakeGameID()
-}
-
-func (_ *RealEntropySource) GetNow() time.Time {
+func (_ *RealEntropySource) GetTime() time.Time {
 	return time.Now()
 }
 
@@ -47,10 +42,6 @@ func (e *StableEntropySource) MakeUUID() string {
 	return e.Generator.Poll()
 }
 
-func (e *StableEntropySource) MakeGameID() string {
-	return e.Generator.Poll()
-}
-
-func (e *StableEntropySource) GetNow() time.Time {
+func (e *StableEntropySource) GetTime() time.Time {
 	return e.CurrTime
 }

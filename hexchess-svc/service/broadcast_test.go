@@ -4,6 +4,7 @@ import (
 	"context"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
+
 	"hexchess-svc/util/logutil"
 	"testing"
 	"time"
@@ -16,7 +17,7 @@ import (
 func TestBroadcastGameMessage(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.Redis)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
 	defer services.Close()
 
 	broadcasters := LocalBroadcasters{GamesCaster: MakeMultiCasterMap("testing-map", time.Hour*1)}

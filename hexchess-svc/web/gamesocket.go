@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
+	"hexchess-svc/domain"
 	"hexchess-svc/util/errutil"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -21,7 +23,7 @@ import (
 type GameSocketContext struct {
 	Context context.Context
 	GameID  string
-	Player  svc.PlayerState
+	Player  domain.PlayerState
 	ErrChan chan error
 }
 
@@ -141,7 +143,7 @@ func writeGameInitErr(ctx context.Context, conn *websocket.Conn, gameID string, 
 	writeMessage(ctx, conn, bytes)
 }
 
-func (api *API) handleGameInit(ctx context.Context, gameID string, sessionID string, conn *websocket.Conn) (player svc.PlayerState, err error) {
+func (api *API) handleGameInit(ctx context.Context, gameID string, sessionID string, conn *websocket.Conn) (player domain.PlayerState, err error) {
 	// apply state updates for the init phase
 	player, err = api.services.GetSession(ctx, sessionID)
 	if err != nil {
@@ -220,7 +222,8 @@ func (api *API) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) err
 	return api.services.BroadcastGamesEvent(ctx.Context, SerializeGameOutputMove(
 		ctx.GameID,
 		chess.SerializeHistMove(moveResult.Move),
-		chess.SerializeGame(&moveResult.State.Game), api.entropy.GetNow(),
+		chess.SerializeGame(&moveResult.State.Game),
+		time.Now(),
 	))
 }
 
@@ -229,7 +232,7 @@ func (api *API) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput) err
 		ID:      uuid.NewString(),
 		Player:  ctx.Player,
 		Message: pbInput.Message,
-		SentAt:  api.entropy.GetNow(),
+		SentAt:  time.Now(),
 	}
 	outputChat := SerializeGameOutputChat(ctx.GameID, chatMsg)
 

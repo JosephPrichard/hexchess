@@ -2,6 +2,8 @@ package svc
 
 import (
 	"context"
+	"hexchess-svc/domain"
+
 	"testing"
 	"time"
 
@@ -15,10 +17,10 @@ import (
 func TestSessions(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.Redis)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
 	defer services.Close()
 
-	playerIn := MakePlayer(1, "testing-session", "country")
+	playerIn := domain.MakePlayer(1, "testing-session", "country")
 	sessionID1 := "session1"
 	sessionID2 := "session2"
 	sessionID3 := "session3"

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hexchess-svc/db"
+	"hexchess-svc/domain"
 	"hexchess-svc/pb"
 	"log/slog"
 	"strconv"
@@ -199,7 +200,7 @@ func (svc *HexchessServices) BroadcastTournament(ctx context.Context, tournament
 	return svc.BroadcastMessage(ctx, svc.redis.TournamentsChannel, bytes)
 }
 
-func (svc *HexchessServices) BroadcastChallenge(ctx context.Context, challenge Challenge) error {
+func (svc *HexchessServices) BroadcastChallenge(ctx context.Context, challenge domain.Challenge) error {
 	userMessage := SerializeChallengeMessage(challenge)
 
 	bytes, err := proto.Marshal(userMessage)
@@ -210,7 +211,7 @@ func (svc *HexchessServices) BroadcastChallenge(ctx context.Context, challenge C
 	return svc.BroadcastMessage(ctx, svc.redis.UsersChannel, bytes)
 }
 
-func (svc *HexchessServices) BroadcastTournamentParticipant(ctx context.Context, tournamentKey uuid.UUID, userID int64, mode GameMode) error {
+func (svc *HexchessServices) BroadcastTournamentParticipant(ctx context.Context, tournamentKey uuid.UUID, userID int64, mode domain.GameMode) error {
 	lbdUser, err := svc.GetLeaderboardUser(ctx, userID, mode)
 	if err != nil {
 		return fmt.Errorf("get leaderboard user by user id %d: %w", userID, err)

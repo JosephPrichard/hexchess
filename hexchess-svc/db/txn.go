@@ -7,7 +7,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"hexchess-svc/db/sqlc"
 	"log/slog"
+	"math"
+	"math/rand"
 	"slices"
+	"time"
 )
 
 type QueryFn func(ctx context.Context, querier sqlc.Querier) error
@@ -61,16 +64,23 @@ func (pdb *PostgresDB) ExecTx(ctx context.Context, args Tx) error {
 	}
 
 	var err error
-	for range args.RetryCount {
+	for i := range args.RetryCount {
 		err = execTx(ctx, args)
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && (pgErr.Code == ErrPgSerializationFailure || pgErr.Code == ErrPgDeadlock) {
+			time.Sleep(exponentialBackoff(i, 2, 50*time.Millisecond))
 			continue
 		}
 		break
 	}
 	return err
+}
+
+func exponentialBackoff(retry int, multiplier float64, base time.Duration) time.Duration {
+	backoff := float64(base) * math.Pow(multiplier, float64(retry))
+	jitter := rand.Float64() * float64(base)
+	return time.Duration(backoff + jitter)
 }
 
 func (pdb *FakeDB) ExecTx(ctx context.Context, args Tx) (err error) {

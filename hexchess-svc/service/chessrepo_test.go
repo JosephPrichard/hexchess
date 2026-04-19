@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/redis/go-redis/v9"
+	"hexchess-svc/domain"
 	"testing"
 	"time"
 
@@ -20,13 +21,13 @@ import (
 func TestEchoChessState(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.Redis)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
 	defer services.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 	id2 := "testing-id2-" + uuid.NewString()
 
-	s1 := MakeChessState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random})
+	s1 := MakeChessState(StateSetup{ID: id1, Mode: domain.ModeCorrespondence1, FirstColor: domain.Random})
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	require.NoError(t, services.SetChessState(ctx, id1, s1))
@@ -44,13 +45,13 @@ func TestEchoChessState(t *testing.T) {
 func TestUpdateChessState(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.Redis)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
 	defer services.Close()
 
 	testID := "testing-id1-" + uuid.NewString()
 	arbitraryKey := uuid.NewString()
 
-	inState := MakeChessState(StateSetup{ID: testID, Mode: ModeCorrespondence1, FirstColor: Random})
+	inState := MakeChessState(StateSetup{ID: testID, Mode: domain.ModeCorrespondence1, FirstColor: domain.Random})
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
@@ -80,12 +81,12 @@ func TestUpdateChessState(t *testing.T) {
 func TestUpdateChessState_Errors(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.Redis)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
 	defer services.Close()
 
 	testID := "testing-id1-" + uuid.NewString()
 
-	inState := MakeChessState(StateSetup{ID: testID, Mode: ModeCorrespondence1, FirstColor: Random})
+	inState := MakeChessState(StateSetup{ID: testID, Mode: domain.ModeCorrespondence1, FirstColor: domain.White})
 	require.NoError(t, services.SetChessState(context.Background(), testID, inState))
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
@@ -119,16 +120,22 @@ func TestUpdateChessState_Errors(t *testing.T) {
 func TestGetChessMetas(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.Redis)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
 	defer services.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 	id2 := "testing-id2-" + uuid.NewString()
 	id3 := "testing-id3-" + uuid.NewString()
 
-	s1 := MakeChessState(StateSetup{ID: id1, Mode: ModeCorrespondence1, FirstColor: Random, White: PlayerState{ID: 1, Present: true}, Black: PlayerState{ID: 2, Present: true}})
-	s2 := MakeChessState(StateSetup{ID: id2, Mode: ModeCorrespondence1, FirstColor: Random, Black: PlayerState{ID: 1, Present: true}})
-	s3 := MakeChessState(StateSetup{ID: id3, Mode: ModeCorrespondence1, FirstColor: Random, Black: PlayerState{ID: 1, Present: true}})
+	s1 := MakeChessState(StateSetup{
+		ID:         id1,
+		Mode:       domain.ModeCorrespondence1,
+		FirstColor: domain.Random,
+		White:      domain.PlayerState{ID: 1, Present: true},
+		Black:      domain.PlayerState{ID: 2, Present: true},
+	})
+	s2 := MakeChessState(StateSetup{ID: id2, Mode: domain.ModeCorrespondence1, FirstColor: domain.Random, Black: domain.PlayerState{ID: 1, Present: true}})
+	s3 := MakeChessState(StateSetup{ID: id3, Mode: domain.ModeCorrespondence1, FirstColor: domain.Random, Black: domain.PlayerState{ID: 1, Present: true}})
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	now := time.Now()
@@ -149,9 +156,14 @@ func TestGetChessMetas(t *testing.T) {
 	metaList5, err := services.GetUserChessMetasPaged(ctx, 1, 2, 2)
 	require.NoError(t, err)
 
-	m1 := ChessMeta{ID: id1, WhitePlayer: PlayerState{ID: 1, Present: true}, BlackPlayer: PlayerState{ID: 2, Present: true}, FirstColor: Random, Mode: ModeCorrespondence1}
-	m2 := ChessMeta{ID: id2, BlackPlayer: PlayerState{ID: 1, Present: true}, FirstColor: Random, Mode: ModeCorrespondence1}
-	m3 := ChessMeta{ID: id3, BlackPlayer: PlayerState{ID: 1, Present: true}, FirstColor: Random, Mode: ModeCorrespondence1}
+	m1 := ChessMeta{
+		ID:          id1,
+		WhitePlayer: domain.PlayerState{ID: 1, Present: true},
+		BlackPlayer: domain.PlayerState{ID: 2, Present: true},
+		FirstColor:  domain.Random, Mode: domain.ModeCorrespondence1,
+	}
+	m2 := ChessMeta{ID: id2, BlackPlayer: domain.PlayerState{ID: 1, Present: true}, FirstColor: domain.Random, Mode: domain.ModeCorrespondence1}
+	m3 := ChessMeta{ID: id3, BlackPlayer: domain.PlayerState{ID: 1, Present: true}, FirstColor: domain.Random, Mode: domain.ModeCorrespondence1}
 
 	assert.Equal(t, []ChessMeta{m3, m2, m1}, metaList1)
 	assert.Equal(t, []ChessMeta{m1}, metaList2)

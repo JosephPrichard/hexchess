@@ -2,6 +2,8 @@ package svc
 
 import (
 	"context"
+	"hexchess-svc/domain"
+
 	"hexchess-svc/util/testutil"
 	"testing"
 	"time"
@@ -16,7 +18,7 @@ import (
 func TestLeaderboard(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.Redis)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
 	defer services.Close()
 
 	id1 := int64(1)
@@ -28,13 +30,13 @@ func TestLeaderboard(t *testing.T) {
 
 	// testing `incrLeaderboard`, which is used to seed data for testing retreival operations
 	for _, change := range []UpdtLbChangeSet{
-		{ModeCorrespondence7, id4, 835},
-		{ModeCorrespondence7, id1, 1500},
-		{ModeCorrespondence7, id2, 1000},
-		{ModeCorrespondence7, id3, 950},
-		{ModeTimed1Plus0, id2, 1400},
-		{ModeTimed1Plus0, id4, 1010},
-		{ModeTimed1Plus0, id1, 900},
+		{domain.ModeCorrespondence7, id4, 835},
+		{domain.ModeCorrespondence7, id1, 1500},
+		{domain.ModeCorrespondence7, id2, 1000},
+		{domain.ModeCorrespondence7, id3, 950},
+		{domain.ModeTimed1Plus0, id2, 1400},
+		{domain.ModeTimed1Plus0, id4, 1010},
+		{domain.ModeTimed1Plus0, id1, 900},
 	} {
 		require.NoError(t, services.incrLeaderboard(ctx, change))
 	}
@@ -43,18 +45,21 @@ func TestLeaderboard(t *testing.T) {
 	leaderboards := make([]Leaderboard, 0)
 
 	for _, id := range []int64{id1, id2, id3, id4} {
-		rank, err := services.GetUserLeaderboardRanks(ctx, id, map[string]GameMode{"CORRESPONDENCE_7": ModeCorrespondence7, "TIMED_1+0": ModeTimed1Plus0})
+		rank, err := services.GetUserLeaderboardRanks(ctx, id, map[string]domain.GameMode{
+			"CORRESPONDENCE_7": domain.ModeCorrespondence7,
+			"TIMED_1+0":        domain.ModeTimed1Plus0,
+		})
 		require.NoError(t, err)
 		ranks = append(ranks, rank)
 	}
 	for _, args := range []struct {
-		mode   GameMode
+		mode   domain.GameMode
 		offset int64
 		limit  int64
 	}{
-		{ModeCorrespondence7, 0, 4},
-		{ModeCorrespondence7, 1, 2},
-		{ModeTimed1Plus0, 0, 4},
+		{domain.ModeCorrespondence7, 0, 4},
+		{domain.ModeCorrespondence7, 1, 2},
+		{domain.ModeTimed1Plus0, 0, 4},
 	} {
 		leaderboard, err := services.getLeaderboard(ctx, args.mode, args.offset, args.limit)
 		require.NoError(t, err)
@@ -63,20 +68,20 @@ func TestLeaderboard(t *testing.T) {
 
 	wantRanks := []map[string]LbRank{
 		{
-			ModeCorrespondence7.String(): {Rank: 1, Score: 1500},
-			ModeTimed1Plus0.String():     {Rank: 3, Score: 900}, // id1 has a value of "3" since id3 has not been lazily initialized yet
+			domain.ModeCorrespondence7.String(): {Rank: 1, Score: 1500},
+			domain.ModeTimed1Plus0.String():     {Rank: 3, Score: 900}, // id1 has a value of "3" since id3 has not been lazily initialized yet
 		},
 		{
-			ModeCorrespondence7.String(): {Rank: 2, Score: 1000},
-			ModeTimed1Plus0.String():     {Rank: 1, Score: 1400},
+			domain.ModeCorrespondence7.String(): {Rank: 2, Score: 1000},
+			domain.ModeTimed1Plus0.String():     {Rank: 1, Score: 1400},
 		},
 		{
-			ModeCorrespondence7.String(): {Rank: 3, Score: 950},
-			ModeTimed1Plus0.String():     {Rank: 3, Score: 1000},
+			domain.ModeCorrespondence7.String(): {Rank: 3, Score: 950},
+			domain.ModeTimed1Plus0.String():     {Rank: 3, Score: 1000},
 		},
 		{
-			ModeCorrespondence7.String(): {Rank: 4, Score: 835},
-			ModeTimed1Plus0.String():     {Rank: 2, Score: 1010},
+			domain.ModeCorrespondence7.String(): {Rank: 4, Score: 835},
+			domain.ModeTimed1Plus0.String():     {Rank: 2, Score: 1010},
 		},
 	}
 	assert.Equal(t, wantRanks, ranks)
@@ -103,18 +108,18 @@ func TestGetLeaderboardUsers(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		mode            GameMode
+		mode            domain.GameMode
 		rankedUsers     []RankedUser
-		wantLeaderboard []LbdUser
+		wantLeaderboard []domain.LbdUser
 		wantMissingIDs  []int64
 	}{
 		{
 			name:        "GettingLeaderboardWithInvalidID",
-			mode:        ModeTimed1Plus0,
+			mode:        domain.ModeTimed1Plus0,
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 999999}},
-			wantLeaderboard: []LbdUser{
+			wantLeaderboard: []domain.LbdUser{
 				{
-					User:       User{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
+					User:       domain.User{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
 					Elo:        1050,
 					HighestElo: 1050,
 					Wins:       6,
@@ -127,11 +132,11 @@ func TestGetLeaderboardUsers(t *testing.T) {
 		},
 		{
 			name:        "GettingValidLeaderboardUsers",
-			mode:        ModeCorrespondence7,
+			mode:        domain.ModeCorrespondence7,
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 3}},
-			wantLeaderboard: []LbdUser{
+			wantLeaderboard: []domain.LbdUser{
 				{
-					User:       User{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
+					User:       domain.User{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
 					Elo:        1000,
 					HighestElo: 1000,
 					Wins:       2,
@@ -140,7 +145,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 					Rank:       1,
 				},
 				{
-					User:       User{ID: 3, Username: "user3", Country: "us", JoinedOn: itest.TimeNow},
+					User:       domain.User{ID: 3, Username: "user3", Country: "us", JoinedOn: itest.TimeNow},
 					Elo:        900,
 					HighestElo: 900,
 					Rank:       2,
@@ -152,7 +157,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			services, _ := SetupServicesTest(t, ServiceMocks{}, itest.ROPostgres)
+			services, _ := SetupServicesTest(t, Mocks{}, itest.ROPostgres)
 			defer services.Close()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, tt.name)
@@ -169,7 +174,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 func TestGetFuzzySearchLeaderboard(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.ROPostgres)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.ROPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
@@ -177,9 +182,9 @@ func TestGetFuzzySearchLeaderboard(t *testing.T) {
 	users, err := services.GetFuzzySearchLeaderboard(ctx, "john", 1, 20)
 	require.NoError(t, err)
 
-	wantUsers := []LbdUser{
+	wantUsers := []domain.LbdUser{
 		{
-			User:       User{ID: 8, Username: "john", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+			User:       domain.User{ID: 8, Username: "john", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
 			Elo:        1500,
 			HighestElo: 2000,
 			Wins:       12,
@@ -188,7 +193,7 @@ func TestGetFuzzySearchLeaderboard(t *testing.T) {
 			Rank:       1,
 		},
 		{
-			User:       User{ID: 9, Username: "johnny", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+			User:       domain.User{ID: 9, Username: "johnny", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
 			Elo:        1500,
 			HighestElo: 1500,
 			Wins:       5,

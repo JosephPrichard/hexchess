@@ -4,6 +4,7 @@ import (
 	stlcmp "cmp"
 	"context"
 	"fmt"
+
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -189,8 +190,7 @@ func TestHandleGameplayWs(t *testing.T) {
 			wantMsgs := tt.wantMsgs
 			wantBrdcasts := tt.wantBrdcasts
 
-			mocks := svc.ServiceMocks{Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow}}
-			services, testinfra := svc.SetupServicesTest(t, mocks, itest.RWPostgres, itest.Redis)
+			services, testinfra := svc.SetupServicesTest(t, svc.Mocks{}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			broadcasters := svc.MakeLocalBroadcasters()
@@ -198,7 +198,7 @@ func TestHandleGameplayWs(t *testing.T) {
 			createTestSessions(t, services)
 			createTestChessStates(t, services)
 
-			testServer := httptest.NewServer(MakeServeMux(Setup{Services: services, EntropySource: mocks.Entropy, Broadcasers: broadcasters}))
+			testServer := httptest.NewServer(MakeServeMux(Setup{Services: services, Broadcasers: broadcasters}))
 			defer testServer.Close()
 
 			// (start, subscribe, and read broadcasts)
@@ -233,6 +233,8 @@ func TestHandleGameplayWs(t *testing.T) {
 				protocmp.IgnoreFields(&pb.InitOutput{}, "state"),
 				protocmp.IgnoreFields(&pb.MoveOutput{}, "game"),
 				protocmp.IgnoreFields(&pb.UndoOutput{}, "game"),
+				protocmp.IgnoreFields(&pb.ChatMessage{}, "sent_at"),
+				protocmp.IgnoreFields(&pb.MoveOutput{}, "updated_at"),
 				protocmp.IgnoreFields(&pb.HistMove{}, "white_timer_ms", "black_timer_ms"),
 			}
 

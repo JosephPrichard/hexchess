@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/domain"
 	"hexchess-svc/egress"
 	"hexchess-svc/pb"
 	"io"
@@ -71,7 +72,9 @@ func TestHandleRegister(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setup := svc.ServiceMocks{Entropy: &svc.StableEntropySource{CurrTime: insertTime}}
+			setup := svc.Mocks{
+				Entropy: &svc.StableEntropySource{CurrTime: insertTime},
+			}
 
 			services, _ := svc.SetupServicesTest(t, setup, itest.RWPostgres, itest.Redis)
 			defer services.Close()
@@ -120,7 +123,7 @@ func TestHandleLogin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.RWPostgres, itest.Redis)
+			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/login", asJSONReader(tt.body))
@@ -189,7 +192,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			mocks := svc.ServiceMocks{
+			mocks := svc.Mocks{
 				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
 				Remote:  egress.RemoteAPIs{GoogleAPI: tt.setupMocks(ctrl)},
 			}
@@ -266,7 +269,7 @@ func TestHandleUpdateUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.RWPostgres, itest.Redis)
+			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			createTestSessions(t, services)
@@ -326,7 +329,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.RWPostgres, itest.Redis)
+			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			createTestSessions(t, services)
@@ -409,7 +412,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.RWPostgres, itest.Redis)
+			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			createTestSessions(t, services)
@@ -440,7 +443,7 @@ func TestHandleCreateGame(t *testing.T) {
 	}{
 		{
 			name:       "CreatedGame",
-			body:       CreateGameBody{FirstColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
+			body:       CreateGameBody{FirstColor: "WHITE", Mode: domain.ModeCorrespondence1.String()},
 			wantStatus: http.StatusOK,
 		},
 		{
@@ -460,7 +463,9 @@ func TestHandleCreateGame(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setup := svc.ServiceMocks{Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow}}
+			setup := svc.Mocks{
+				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
+			}
 
 			services, _ := svc.SetupServicesTest(t, setup, itest.RWPostgres, itest.Redis)
 			defer services.Close()
@@ -494,35 +499,35 @@ func TestHandleCreateChallenge(t *testing.T) {
 	}{
 		{
 			name:       "UnauthorizedUser",
-			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
+			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: domain.ModeCorrespondence1.String()},
 			sessionID:  "invalid",
 			wantStatus: http.StatusUnauthorized,
 			wantResp:   ServiceView{Status: http.StatusUnauthorized, Errors: ErrHttpSessionExpired.Error()},
 		},
 		{
 			name:       "ChallengingSelf",
-			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
+			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: domain.ModeCorrespondence1.String()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpSelfChallenge.Error()},
 		},
 		{
 			name:       "ChallengingInvalidUser",
-			body:       CreateChallengeBody{ChallengeeID: 999, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
+			body:       CreateChallengeBody{ChallengeeID: 999, StartColor: "WHITE", Mode: domain.ModeCorrespondence1.String()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpInvalidParticipants.Error()},
 		},
 		{
 			name:       "CreatingDuplicateChallenge",
-			body:       CreateChallengeBody{ChallengeeID: 2, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
+			body:       CreateChallengeBody{ChallengeeID: 2, StartColor: "WHITE", Mode: domain.ModeCorrespondence1.String()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpDuplicateChallenge.Error()},
 		},
 		{
 			name:       "CreatedChallenge",
-			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "WHITE", Mode: svc.ModeCorrespondence1.String()},
+			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "WHITE", Mode: domain.ModeCorrespondence1.String()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusOK,
 			wantResp:   ServiceView{Status: http.StatusOK, Message: "SUCCESS"},
@@ -538,7 +543,9 @@ func TestHandleCreateChallenge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mocks := svc.ServiceMocks{Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow}}
+			mocks := svc.Mocks{
+				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
+			}
 
 			services, _ := svc.SetupServicesTest(t, mocks, itest.RWPostgres, itest.Redis)
 			defer services.Close()
@@ -583,9 +590,9 @@ func TestHandleSearchPlayers(t *testing.T) {
 			username:   "john",
 			wantStatus: http.StatusOK,
 			wantSuccess: SearchPlayersResp{
-				UserList: []svc.LbdUser{
+				UserList: []domain.LbdUser{
 					{
-						User:       svc.User{ID: 8, Username: "john", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+						User:       domain.User{ID: 8, Username: "john", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
 						Elo:        1500,
 						HighestElo: 2000,
 						Wins:       12,
@@ -594,7 +601,7 @@ func TestHandleSearchPlayers(t *testing.T) {
 						Rank:       1,
 					},
 					{
-						User:       svc.User{ID: 9, Username: "johnny", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+						User:       domain.User{ID: 9, Username: "johnny", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
 						Elo:        1500,
 						HighestElo: 1500,
 						Wins:       5,
@@ -609,7 +616,7 @@ func TestHandleSearchPlayers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.ROPostgres)
+			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres)
 			defer services.Close()
 
 			q := url.Values{}
@@ -654,13 +661,13 @@ func TestGetLeaderboard(t *testing.T) {
 		},
 		{
 			name:       "ValidLeaderboard",
-			mode:       svc.ModeTimed1Plus0.String(),
+			mode:       domain.ModeTimed1Plus0.String(),
 			wantStatus: http.StatusOK,
 			wantSuccess: LeaderboardResp{
 				TotalPages: 1,
-				UserList: []svc.LbdUser{
+				UserList: []domain.LbdUser{
 					{
-						User: svc.User{
+						User: domain.User{
 							ID:       1,
 							Username: "user1",
 							Country:  "us",
@@ -680,11 +687,11 @@ func TestGetLeaderboard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.ROPostgres, itest.Redis)
+			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres, itest.Redis)
 			defer services.Close()
 
 			ctx := context.WithValue(context.Background(), logutil.Trace, "setup-get-leaderboard")
-			require.NoError(t, services.SetLeaderboard(ctx, svc.UpdtLbChangeSet{Mode: svc.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
+			require.NoError(t, services.SetLeaderboard(ctx, svc.UpdtLbChangeSet{Mode: domain.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
 
 			q := url.Values{}
 			q.Set("mode", tt.mode)
@@ -722,9 +729,9 @@ func TestGetPlayer(t *testing.T) {
 			withReplays: true,
 			wantSuccess: GetPlayersResp{
 				FullUser: svc.FullUser{
-					User:       svc.TestUser[0],
-					Stats:      svc.TestUserStats[0],
-					ReplayList: []svc.FullReplay{svc.TestReplay[2], svc.TestReplay[1], svc.TestReplay[0]},
+					User:       itest.TestUser[0],
+					Stats:      itest.TestUserStats[0],
+					ReplayList: []domain.FullReplay{itest.TestReplay[2], itest.TestReplay[1], itest.TestReplay[0]},
 				},
 			},
 			wantStatus: http.StatusOK,
@@ -735,9 +742,9 @@ func TestGetPlayer(t *testing.T) {
 			withReplays: false,
 			wantSuccess: GetPlayersResp{
 				FullUser: svc.FullUser{
-					User:       svc.TestUser[0],
-					Stats:      svc.TestUserStats[0],
-					ReplayList: []svc.FullReplay{},
+					User:       itest.TestUser[0],
+					Stats:      itest.TestUserStats[0],
+					ReplayList: []domain.FullReplay{},
 				},
 			},
 			wantStatus: http.StatusOK,
@@ -758,7 +765,7 @@ func TestGetPlayer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.ROPostgres, itest.Redis)
+			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres, itest.Redis)
 			defer services.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players?id=%s&withReplays=%v", tt.id, tt.withReplays), nil)
@@ -798,7 +805,7 @@ func TestGetChallenges(t *testing.T) {
 			participants: "sent",
 			sessionID:    TestSessionID1,
 			wantSuccess: GetChallengesResp{
-				ChallengeList: []svc.Challenge{svc.TestChallenge[0]},
+				ChallengeList: []domain.Challenge{itest.TestChallenge[0]},
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -807,7 +814,7 @@ func TestGetChallenges(t *testing.T) {
 			participants: "received",
 			sessionID:    TestSessionID1,
 			wantSuccess: GetChallengesResp{
-				ChallengeList: []svc.Challenge{svc.TestChallenge[1]},
+				ChallengeList: []domain.Challenge{itest.TestChallenge[1]},
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -815,7 +822,9 @@ func TestGetChallenges(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mocks := svc.ServiceMocks{Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow}}
+			mocks := svc.Mocks{
+				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
+			}
 
 			services, _ := svc.SetupServicesTest(t, mocks, itest.ROPostgres, itest.Redis)
 			defer services.Close()
@@ -853,17 +862,17 @@ func TestHandleGetUserReplays(t *testing.T) {
 			userID:      "999",
 			afterID:     "0",
 			wantStatus:  http.StatusOK,
-			wantSuccess: GetUserReplaysResp{ReplayList: []svc.FullReplay{}},
+			wantSuccess: GetUserReplaysResp{ReplayList: []domain.FullReplay{}},
 		},
 		{
 			name:       "GotUserReplays",
 			afterID:    "-1",
 			userID:     "1",
 			wantStatus: http.StatusOK,
-			wantSuccess: GetUserReplaysResp{ReplayList: []svc.FullReplay{
-				svc.TestReplay[2],
-				svc.TestReplay[1],
-				svc.TestReplay[0],
+			wantSuccess: GetUserReplaysResp{ReplayList: []domain.FullReplay{
+				itest.TestReplay[2],
+				itest.TestReplay[1],
+				itest.TestReplay[0],
 			}},
 		},
 		{
@@ -877,7 +886,7 @@ func TestHandleGetUserReplays(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.ROPostgres)
+			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres)
 			defer services.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replays?afterId=%s&userId=%s", tt.afterID, tt.userID), nil)
@@ -910,7 +919,7 @@ func TestHandleGetReplay(t *testing.T) {
 			name:        "GotReplay",
 			userID:      "1",
 			wantStatus:  http.StatusOK,
-			wantSuccess: GetReplayResp{Replay: svc.TestReplay[0]},
+			wantSuccess: GetReplayResp{Replay: itest.TestReplay[0]},
 		},
 		{
 			name:       "InvalidUserID",
@@ -928,7 +937,7 @@ func TestHandleGetReplay(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.ROPostgres)
+			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres)
 			defer services.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay?id=%s", tt.userID), nil)
@@ -951,13 +960,13 @@ func TestHandleGetChessMetas(t *testing.T) {
 	t.Parallel()
 
 	allChessMetas := []ChessMeta{
-		{ID: "game3", FirstColor: svc.Random.String(), Mode: svc.ModeCorrespondence1.String()},
-		{ID: "game2", FirstColor: svc.Random.String(), Mode: svc.ModeCorrespondence1.String()},
+		{ID: "game3", FirstColor: domain.Random.String(), Mode: domain.ModeCorrespondence1.String()},
+		{ID: "game2", FirstColor: domain.Random.String(), Mode: domain.ModeCorrespondence1.String()},
 		{
 			ID:          TestGameID1,
-			BlackPlayer: svc.MakePlayer(2, "user2", "us"),
-			FirstColor:  svc.Random.String(),
-			Mode:        svc.ModeCorrespondence1.String(),
+			BlackPlayer: domain.MakePlayer(2, "user2", "us"),
+			FirstColor:  domain.Random.String(),
+			Mode:        domain.ModeCorrespondence1.String(),
 		},
 	}
 
@@ -976,9 +985,9 @@ func TestHandleGetChessMetas(t *testing.T) {
 				SelfChessList: []ChessMeta{
 					{
 						ID:          TestGameID1,
-						BlackPlayer: svc.MakePlayer(2, "user2", "us"),
-						FirstColor:  svc.Random.String(),
-						Mode:        svc.ModeCorrespondence1.String(),
+						BlackPlayer: domain.MakePlayer(2, "user2", "us"),
+						FirstColor:  domain.Random.String(),
+						Mode:        domain.ModeCorrespondence1.String(),
 					},
 				},
 			},
@@ -996,7 +1005,7 @@ func TestHandleGetChessMetas(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.ROPostgres, itest.Redis)
+			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres, itest.Redis)
 			defer services.Close()
 
 			createTestSessions(t, services)
@@ -1018,7 +1027,7 @@ func TestHandleGetChessMetas(t *testing.T) {
 func TestHandleGetMoveReplay(t *testing.T) {
 	t.Parallel()
 
-	services, testinfra := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.RWPostgres)
+	services, testinfra := svc.SetupServicesTest(t, svc.Mocks{}, itest.RWPostgres)
 	defer services.Close()
 
 	wantInitialGame := chess.MakeEmptyGame(false)
@@ -1063,6 +1072,17 @@ func TestHandleGetMoveReplay(t *testing.T) {
 func TestGetTournament(t *testing.T) {
 	t.Parallel()
 
+	setupServices := func() *svc.HexchessServices {
+		services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres, itest.Redis)
+
+		// seed leaderboard for users fetched in `RetrieveFullTournament` test.
+		for _, change := range itest.TournamentLbdChangeSets {
+			require.NoError(t, services.SetLeaderboard(context.WithValue(t.Context(), logutil.Trace, t.Name()), change))
+		}
+
+		return services
+	}
+
 	tests := []struct {
 		name          string
 		tournamentKey string
@@ -1075,9 +1095,29 @@ func TestGetTournament(t *testing.T) {
 			tournamentKey: itest.Tournament0LobbyKey.String(),
 			wantStatus:    http.StatusOK,
 			wantResp: GetTournamentResp{
-				Tournament:   svc.Tournaments[0],
-				Participants: []svc.Participant{},
-				Matches:      []svc.Match{},
+				Tournament:   itest.Tournaments[0],
+				Participants: []domain.Participant{},
+				Matches:      []domain.Match{},
+			},
+		},
+		{
+			name:          "RetrieveFullTournament",
+			tournamentKey: itest.Tournament5InProgressKnockoutKey.String(),
+			wantStatus:    http.StatusOK,
+			wantResp: GetTournamentResp{
+				Tournament:   itest.Tournaments[5],
+				Participants: itest.Tournament5RankedParticipants,
+				Matches:      itest.MatchTournament5, // stable ordering using the `ordering` column
+			},
+		},
+		{
+			name:          "RetrieveFullTournamentWithReplay",
+			tournamentKey: itest.Tournament8FinishedKey.String(),
+			wantStatus:    http.StatusOK,
+			wantResp: GetTournamentResp{
+				Tournament:   itest.Tournaments[8],
+				Participants: itest.Tournament8RankedParticipants,
+				Matches:      itest.MatchTournament8, // stable ordering using the `ordering` column
 			},
 		},
 		{
@@ -1102,7 +1142,7 @@ func TestGetTournament(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.ROPostgres, itest.Redis)
+			services := setupServices()
 			defer services.Close()
 
 			q := url.Values{}
@@ -1140,13 +1180,16 @@ func TestGetTournaments(t *testing.T) {
 			afterID:    "-1",
 			wantStatus: http.StatusOK,
 			wantResp: GetTournamentsResp{
-				Tournaments: []svc.Tournament{
-					svc.Tournaments[5],
-					svc.Tournaments[4],
-					svc.Tournaments[3],
-					svc.Tournaments[2],
-					svc.Tournaments[1],
-					svc.Tournaments[0],
+				Tournaments: []domain.Tournament{
+					itest.Tournaments[8],
+					itest.Tournaments[7],
+					itest.Tournaments[6],
+					itest.Tournaments[5],
+					itest.Tournaments[4],
+					itest.Tournaments[3],
+					itest.Tournaments[2],
+					itest.Tournaments[1],
+					itest.Tournaments[0],
 				},
 			},
 		},
@@ -1156,8 +1199,9 @@ func TestGetTournaments(t *testing.T) {
 			afterID:    "-1",
 			wantStatus: http.StatusOK,
 			wantResp: GetTournamentsResp{
-				Tournaments: []svc.Tournament{
-					svc.Tournaments[2],
+				Tournaments: []domain.Tournament{
+					itest.Tournaments[5],
+					itest.Tournaments[2],
 				},
 			},
 		},
@@ -1165,7 +1209,7 @@ func TestGetTournaments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.ROPostgres)
+			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres)
 			defer services.Close()
 
 			q := url.Values{}

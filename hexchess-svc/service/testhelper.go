@@ -21,13 +21,13 @@ type TestInfrastructure struct {
 	AWS   egress.AWS
 }
 
-type ServiceMocks struct {
+type Mocks struct {
 	Entropy  EntropySource
 	Remote   egress.RemoteAPIs
 	S3Client egress.S3Client
 }
 
-func SetupServicesTest(t logutil.TestLogger, mocks ServiceMocks, flags ...itest.TestFlag) (*HexchessServices, TestInfrastructure) {
+func SetupServicesTest(t logutil.TestLogger, mocks Mocks, flags ...itest.TestFlag) (*HexchessServices, TestInfrastructure) {
 	setup := &Setup{}
 
 	eg, egCtx := errgroup.WithContext(t.Context())
@@ -55,14 +55,12 @@ func SetupServicesTest(t logutil.TestLogger, mocks ServiceMocks, flags ...itest.
 	setup.AWS = egress.AWS{S3Endpoint: "http://localhost:4566", S3Client: mocks.S3Client}
 
 	services := MakeHexchessServices(Setup{
-		DB:     setup.DB,
-		Redis:  setup.Redis,
-		AWS:    setup.AWS,
-		Remote: mocks.Remote,
+		DB:      setup.DB,
+		Redis:   setup.Redis,
+		AWS:     setup.AWS,
+		Remote:  mocks.Remote,
+		Entropy: mocks.Entropy,
 	})
-	if mocks.Entropy != nil {
-		services.entropy = mocks.Entropy
-	}
 
 	testInfra := TestInfrastructure{
 		DB:    setup.DB,

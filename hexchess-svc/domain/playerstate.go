@@ -1,7 +1,7 @@
-package svc
+package domain
 
 import (
-	"math/rand/v2" // concurrency safe
+	"math/rand/v2"
 	"strings"
 )
 

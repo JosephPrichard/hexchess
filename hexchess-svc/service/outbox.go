@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/domain"
 	"hexchess-svc/pb"
 	"hexchess-svc/util/errutil"
 	"log/slog"
@@ -137,7 +138,7 @@ func PollOutboxQueueLoop(ctx context.Context, svc *HexchessServices, handler que
 				// if handlers fail to acknowledge an event, it is not marked as processed and the lock is released at the end of the transaction, to allow retries
 				Isolation: pgx.ReadCommitted,
 				QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
-					return pollOutboxQueueEvents(ctx, querier, handler, svc.entropy.GetNow)
+					return pollOutboxQueueEvents(ctx, querier, handler, time.Now)
 				},
 				RetryCount: 1,
 			})
@@ -156,7 +157,7 @@ type CreateTournamentMatchesEvent struct {
 	Matches       []TournamentMatchCreation
 }
 
-func pushCreateTournamentMatchesEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, matches []TournamentMatchCreation, createdOn time.Time) error {
+func sendCreateTournamentMatchesEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, matches []TournamentMatchCreation) error {
 	bytes, err := proto.Marshal(SerializeCreateTournamentMatchesEvent(CreateTournamentMatchesEvent{
 		TournamentKey: tournamentKey,
 		Matches:       matches,
@@ -168,7 +169,7 @@ func pushCreateTournamentMatchesEvent(ctx context.Context, querier sqlc.Querier,
 	if err := querier.InsertOutboxQueue(ctx, sqlc.InsertOutboxQueueParams{
 		Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
 		Data:      bytes,
-		CreatedOn: pgtype.Timestamptz{Time: createdOn, Valid: true},
+		CreatedOn: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}); err != nil {
 		return fmt.Errorf("insert create tournament matches event into task queue: %w", err)
 	}
@@ -178,7 +179,7 @@ func pushCreateTournamentMatchesEvent(ctx context.Context, querier sqlc.Querier,
 	return nil
 }
 
-func pushScheduledTournamentEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, scheduledOn time.Time, createdOn time.Time) error {
+func sendScheduledTournamentEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, scheduledOn time.Time) error {
 	bytes, err := proto.Marshal(&pb.ScheduledTourmmentEvent{
 		TournamentKey: tournamentKey.String(),
 	})
@@ -189,7 +190,7 @@ func pushScheduledTournamentEvent(ctx context.Context, querier sqlc.Querier, tou
 	if err := querier.InsertOutboxQueue(ctx, sqlc.InsertOutboxQueueParams{
 		Type:        sqlc.OutboxQueueTypeEnumTOURNAMENTSCHEDULEDEVENT,
 		Data:        bytes,
-		CreatedOn:   pgtype.Timestamptz{Time: createdOn, Valid: true},
+		CreatedOn:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		ScheduledOn: pgtype.Timestamptz{Time: scheduledOn, Valid: true},
 	}); err != nil {
 		return fmt.Errorf("insert scheduled tournament event into task queue: %w", err)
@@ -219,8 +220,6 @@ func (svc *HexchessServices) handleCreateTournamentMatchesEvent(ctx context.Cont
 		playerDataMap[row.ID] = row
 	}
 
-	updtTime := svc.entropy.GetNow()
-
 	pipe := svc.redis.GameStore.TxPipeline()
 	for _, match := range event.Matches {
 		whitePlayerData, okWhite := playerDataMap[match.WhiteID]
@@ -234,12 +233,12 @@ func (svc *HexchessServices) handleCreateTournamentMatchesEvent(ctx context.Cont
 		state := MakeChessState(StateSetup{
 			ID:         match.GameID,
 			Mode:       match.GameMode,
-			FirstColor: White,
-			White:      MakePlayer(match.WhiteID, whitePlayerData.Username, whitePlayerData.Country),
-			Black:      MakePlayer(match.BlackID, blackPlayerData.Username, blackPlayerData.Country),
+			FirstColor: domain.White,
+			White:      domain.MakePlayer(match.WhiteID, whitePlayerData.Username, whitePlayerData.Country),
+			Black:      domain.MakePlayer(match.BlackID, blackPlayerData.Username, blackPlayerData.Country),
 		})
 
-		svc.setChessState(ctx, pipe, match.GameID, state, updtTime)
+		svc.setChessState(ctx, pipe, match.GameID, state, time.Now())
 	}
 
 	if _, err := pipe.Exec(ctx); err != nil {
@@ -251,18 +250,17 @@ func (svc *HexchessServices) handleCreateTournamentMatchesEvent(ctx context.Cont
 }
 
 func (svc *HexchessServices) handleScheduledTournamentEvent(ctx context.Context, bytes []byte) error {
-	var pbEvent pb.CreateTournamentMatchesEvent
+	var pbEvent pb.ScheduledTourmmentEvent
 	if err := proto.Unmarshal(bytes, &pbEvent); err != nil {
 		return fmt.Errorf("unmarshal create scheduled tournament event: %w", err)
 	}
-
 	tournamentKey, err := uuid.Parse(pbEvent.TournamentKey)
 	if err != nil {
 		return fmt.Errorf("parse tournament key: %w", err)
 	}
 
 	// attempt to start the tournament, broadcast the result (successful or otherwise)
-	err = svc.StartTournamentTx(ctx, tournamentKey)
+	err = svc.AdvanceTournamentTx(ctx, tournamentKey)
 
 	var matchStateError MatchInvariantError
 	switch {

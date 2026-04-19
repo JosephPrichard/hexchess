@@ -104,7 +104,6 @@ type ChessCommitFn func(redis.Pipeliner, *ChessState) error
 
 func (svc *HexchessServices) UpdateChessStateTxn(ctx context.Context, gameID string, update ChessUpdateFn, commit ChessCommitFn) (*ChessState, error) {
 	gameKey := svc.gameKey(gameID)
-	updtTime := svc.entropy.GetNow()
 
 	for range MaxUpdateChessStateRetries {
 		var ret *ChessState
@@ -121,7 +120,7 @@ func (svc *HexchessServices) UpdateChessStateTxn(ctx context.Context, gameID str
 			}
 
 			_, err = txn.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-				err := svc.setChessState(ctx, pipe, gameID, state, updtTime)
+				err := svc.setChessState(ctx, pipe, gameID, state, time.Now())
 				if err != nil {
 					return err
 				}

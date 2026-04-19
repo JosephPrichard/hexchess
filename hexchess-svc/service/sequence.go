@@ -3,6 +3,7 @@ package svc
 import (
 	"errors"
 	"fmt"
+	"hexchess-svc/domain"
 	"log/slog"
 	"math"
 	"math/rand"
@@ -11,7 +12,7 @@ import (
 	"hexchess-svc/chess"
 )
 
-func RandomMoveHistSeq(mode GameMode, game chess.Game, low int, hi int) ([]chess.HistMove, error) {
+func RandomMoveHistSeq(mode domain.GameMode, game chess.Game, low int, hi int) ([]chess.HistMove, error) {
 	randRange := func(min, max float64) float64 {
 		return min + rand.Float64()*(max-min)
 	}

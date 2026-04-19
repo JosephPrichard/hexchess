@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"go.uber.org/mock/gomock"
+
 	"testing"
 	"time"
 
@@ -23,7 +24,7 @@ func TestDeleteOldProfilePics(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockS3Client := egress.NewMockS3Client(ctrl)
-	mocks := ServiceMocks{S3Client: mockS3Client}
+	mocks := Mocks{S3Client: mockS3Client}
 
 	services, _ := SetupServicesTest(t, mocks)
 	defer services.Close()

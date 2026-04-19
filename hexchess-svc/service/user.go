@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"hexchess-svc/domain"
 	"hexchess-svc/util/enum"
 	"hexchess-svc/util/errutil"
 	"log/slog"
@@ -25,34 +26,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type User struct {
-	ID       int64     `json:"id"`
-	Username string    `json:"username"`
-	Country  string    `json:"country"`
-	Bio      string    `json:"bio"`
-	JoinedOn time.Time `json:"joinedOn"`
-}
-
-const StartElo float64 = 1000
-const DefaultCountry = "un"
-
-func defaultElo(elo pgtype.Float8) float64 {
-	if elo.Valid {
-		return elo.Float64
-	} else {
-		return StartElo
-	}
-}
-
-func calcUserWinrate(wins int32, losses int32, draws int32) int64 {
-	wr := float64(0)
-	total := wins + losses + draws
-	if total > 0 {
-		wr = float64(wins) / float64(total) * 100.0
-	}
-	return int64(wr)
-}
-
 type RankedUser struct {
 	ID   int64
 	Rank int64
@@ -68,14 +41,14 @@ type UserInst struct {
 	JoinedOn time.Time
 }
 
-func (svc *HexchessServices) InsertUser(ctx context.Context, inst UserInst) (User, error) {
+func (svc *HexchessServices) InsertUser(ctx context.Context, inst UserInst) (domain.User, error) {
 	if inst.JoinedOn.IsZero() {
 		inst.JoinedOn = time.Now()
 	}
 
 	hash, err := hashPassword(inst.Password)
 	if err != nil {
-		return User{}, fmt.Errorf("generate hash: %w", err)
+		return domain.User{}, fmt.Errorf("generate hash: %w", err)
 	}
 
 	userRow, err := svc.querier.InsertUser(ctx, sqlc.InsertUserParams{
@@ -88,17 +61,17 @@ func (svc *HexchessServices) InsertUser(ctx context.Context, inst UserInst) (Use
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return User{}, ErrTakenUsername
+			return domain.User{}, ErrTakenUsername
 		}
-		return User{}, fmt.Errorf("insert user to db: %w", err)
+		return domain.User{}, fmt.Errorf("insert user to db: %w", err)
 	}
 
-	user := User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
+	user := domain.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
 	slog.InfoContext(ctx, "created a new user", "user", user)
 	return user, nil
 }
 
-func (svc *HexchessServices) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]User, error) {
+func (svc *HexchessServices) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]domain.User, error) {
 	batches := make([]sqlc.BatchInsertUserParams, len(insts))
 
 	var hashEg errgroup.Group // no context propagation because jobs are non-cancellable
@@ -127,12 +100,12 @@ func (svc *HexchessServices) BatchInsertUsers(ctx context.Context, insts []UserI
 		return nil, err
 	}
 
-	var users []User
+	var users []domain.User
 	var insertErrs []error
 
 	svc.querier.BatchInsertUser(ctx, batches).QueryRow(func(i int, row sqlc.BatchInsertUserRow, err error) {
 		if err == nil {
-			users = append(users, User{
+			users = append(users, domain.User{
 				ID:       row.ID,
 				Username: row.Username,
 				Country:  row.Country,
@@ -281,9 +254,9 @@ type UpdtUserParams struct {
 	Country  string
 }
 
-func (svc *HexchessServices) UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (User, error) {
+func (svc *HexchessServices) UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (domain.User, error) {
 	if updt.Username == "" && updt.Bio == "" && updt.Country == "" {
-		return User{}, nil
+		return domain.User{}, nil
 	}
 
 	userRow, err := svc.querier.UpdateUser(ctx, sqlc.UpdateUserParams{
@@ -293,10 +266,10 @@ func (svc *HexchessServices) UpdateUser(ctx context.Context, id int64, updt Updt
 		Country:  pgtype.Text{Valid: updt.Country != "", String: updt.Country},
 	})
 	if err != nil {
-		return User{}, fmt.Errorf("update user %d: %w", id, err)
+		return domain.User{}, fmt.Errorf("update user %d: %w", id, err)
 	}
 
-	user := User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
+	user := domain.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
 	slog.InfoContext(ctx, "updated user", "user", user)
 	return user, err
 }
@@ -315,65 +288,44 @@ func (svc *HexchessServices) UpdateUserPassword(ctx context.Context, id int64, n
 	return err
 }
 
-func (svc *HexchessServices) GetUserByID(ctx context.Context, id int64) (User, error) {
+func (svc *HexchessServices) GetUserByID(ctx context.Context, id int64) (domain.User, error) {
 	userRow, err := svc.querier.SelectUserByID(ctx, id)
 	if err != nil {
 		if IsErrNoRows(err) {
-			return User{}, ErrUserNotFound
+			return domain.User{}, ErrUserNotFound
 		}
-		return User{}, fmt.Errorf("select user [%d]: %w", id, err)
+		return domain.User{}, fmt.Errorf("select user [%d]: %w", id, err)
 	}
-	user := User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
+	user := domain.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
 	slog.InfoContext(ctx, "selected user", "id", id, "user", user)
 	return user, nil
-}
-
-type ModeStats struct {
-	Mode       GameMode `json:"mode"`
-	Rank       int64    `json:"rank"`
-	Wins       int32    `json:"wins"`
-	Losses     int32    `json:"losses"`
-	Draws      int32    `json:"draws"`
-	Winrate    int64    `json:"winrate"`
-	Elo        float64  `json:"elo"`
-	HighestElo float64  `json:"highestElo"`
-}
-
-type UserStats struct {
-	TotalWins    int32       `json:"totalWins"`
-	TotalLosses  int32       `json:"totalLosses"`
-	TotalDraws   int32       `json:"totalDraws"`
-	AvgElo       float64     `json:"avgElo"`     // average elo of all other modes
-	HighestElo   float64     `json:"highestElo"` // the absolute highest elo
-	TotalWinrate int64       `json:"totalWinrate"`
-	ModeStats    []ModeStats `json:"modeStats"`
 }
 
 func avg[T constraints.Integer | constraints.Float](currAvg T, currCount int, nextValue T) T {
 	return (currAvg*T(currCount) + nextValue) / T(currCount+1)
 }
 
-func (svc *HexchessServices) GetUserStats(ctx context.Context, id int64) (UserStats, error) {
+func (svc *HexchessServices) GetUserStats(ctx context.Context, id int64) (domain.UserStats, error) {
 	modeEloRows, err := svc.querier.SelectUserElosByID(ctx, id)
 	if err != nil {
-		return UserStats{}, fmt.Errorf("select user [%d] elos by id: %w", id, err)
+		return domain.UserStats{}, fmt.Errorf("select user [%d] elos by id: %w", id, err)
 	}
 
-	var stats UserStats
+	var stats domain.UserStats
 	if len(modeEloRows) == 0 {
-		stats = UserStats{HighestElo: StartElo, AvgElo: StartElo}
+		stats = domain.UserStats{HighestElo: domain.StartElo, AvgElo: domain.StartElo}
 	} else {
-		stats = UserStats{HighestElo: math.SmallestNonzeroFloat64}
+		stats = domain.UserStats{HighestElo: math.SmallestNonzeroFloat64}
 	}
 
 	for _, row := range modeEloRows {
-		mode := enum.Expect(row.Mode, GameModeEnums)
-		modeStats := ModeStats{
+		mode := enum.Expect(row.Mode, domain.GameModeEnums)
+		modeStats := domain.ModeStats{
 			Mode:       mode,
 			Wins:       row.Wins,
 			Losses:     row.Losses,
 			Draws:      row.Draws,
-			Winrate:    calcUserWinrate(row.Wins, row.Losses, row.Draws),
+			Winrate:    domain.CalcUserWinrate(row.Wins, row.Losses, row.Draws),
 			Elo:        row.Elo,
 			HighestElo: row.HighestElo,
 		}
@@ -394,15 +346,15 @@ func (svc *HexchessServices) GetUserStats(ctx context.Context, id int64) (UserSt
 }
 
 type FullUser struct {
-	User       User         `json:"user"`
-	Stats      UserStats    `json:"stats"`
-	ReplayList []FullReplay `json:"replayList"`
+	User       domain.User         `json:"user"`
+	Stats      domain.UserStats    `json:"stats"`
+	ReplayList []domain.FullReplay `json:"replayList"`
 }
 
 func (svc *HexchessServices) GetFullUser(ctx context.Context, userID int64, perPage int32, withReplays bool) (FullUser, error) {
-	var user User
-	var stats UserStats
-	var replayList []FullReplay
+	var user domain.User
+	var stats domain.UserStats
+	var replayList []domain.FullReplay
 	var lbRanks map[string]LbRank
 
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -416,7 +368,7 @@ func (svc *HexchessServices) GetFullUser(ctx context.Context, userID int64, perP
 		return errutil.Guardf(err, "get user %d stats", userID)
 	})
 	eg.Go(func() (err error) {
-		lbRanks, err = svc.GetUserLeaderboardRanks(egCtx, userID, GameModeEnums)
+		lbRanks, err = svc.GetUserLeaderboardRanks(egCtx, userID, domain.GameModeEnums)
 		return errutil.Guardf(err, "get user %d leaderboard ranks", userID)
 	})
 	if withReplays {
@@ -441,7 +393,7 @@ func (svc *HexchessServices) GetFullUser(ctx context.Context, userID int64, perP
 	}
 
 	if replayList == nil {
-		replayList = []FullReplay{}
+		replayList = []domain.FullReplay{}
 	}
 	return FullUser{User: user, Stats: stats, ReplayList: replayList}, nil
 }

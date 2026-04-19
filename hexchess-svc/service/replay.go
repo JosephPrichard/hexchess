@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/domain"
 	"hexchess-svc/util/enum"
 	"log/slog"
 	"math"
@@ -13,94 +14,51 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type Replay struct {
-	ID          int64        `json:"id"`
-	WhiteID     int64        `json:"whiteId"`
-	BlackID     int64        `json:"blackId"`
-	Mode        GameMode     `json:"mode"`
-	Result      ReplayResult `json:"result"`
-	Cause       ReplayCause  `json:"cause"`
-	WinEloDiff  float64      `json:"winEloDiff"`
-	LoseEloDiff float64      `json:"loseEloDiff"`
-	PlayedOn    time.Time    `json:"playedOn"`
-}
-
-type ReplayUsers struct {
-	WhiteName    string  `json:"whiteName"`
-	BlackName    string  `json:"blackName"`
-	WhiteCountry string  `json:"whiteCountry"`
-	BlackCountry string  `json:"blackCountry"`
-	WhiteElo     float64 `json:"whiteElo"`
-	BlackElo     float64 `json:"blackElo"`
-}
-
-type RepayView struct {
-	WhiteEloDiff float64 `json:"whiteEloDiff"`
-	BlackEloDiff float64 `json:"blackEloDiff"`
-}
-
-type FullReplay struct {
-	Replay
-	ReplayUsers
-	RepayView
-}
-
-func MakeReplayView(input Replay) (output RepayView) {
-	switch input.Result {
-	case WhiteWin:
-		output.WhiteEloDiff, output.BlackEloDiff = input.WinEloDiff, input.LoseEloDiff
-	case BlackWin:
-		output.WhiteEloDiff, output.BlackEloDiff = input.LoseEloDiff, input.WinEloDiff
-	default:
-	}
-	return
-}
-
 var ErrNoReplay = errors.New("replay not found")
 
-func (svc *HexchessServices) GetReplayByGameID(ctx context.Context, gameID string) (FullReplay, error) {
+func (svc *HexchessServices) GetReplayByGameID(ctx context.Context, gameID string) (domain.FullReplay, error) {
 	row, err := svc.querier.SelectReplayByGameID(ctx, gameID)
 	return mapGetReplayResult(ctx, gameID, sqlc.SelectReplayByIDRow(row), err)
 }
 
-func (svc *HexchessServices) GetReplay(ctx context.Context, replayID int64) (FullReplay, error) {
+func (svc *HexchessServices) GetReplay(ctx context.Context, replayID int64) (domain.FullReplay, error) {
 	row, err := svc.querier.SelectReplayByID(ctx, replayID)
 	return mapGetReplayResult(ctx, replayID, row, err)
 }
 
-func mapGetReplayResult[ID any](ctx context.Context, id ID, row sqlc.SelectReplayByIDRow, err error) (FullReplay, error) {
+func mapGetReplayResult[ID any](ctx context.Context, id ID, row sqlc.SelectReplayByIDRow, err error) (domain.FullReplay, error) {
 	if IsErrNoRows(err) {
-		return FullReplay{}, ErrNoReplay
+		return domain.FullReplay{}, ErrNoReplay
 	} else if err != nil {
-		return FullReplay{}, fmt.Errorf("select replay [%v] by id: %w", id, err)
+		return domain.FullReplay{}, fmt.Errorf("select replay [%v] by id: %w", id, err)
 	}
 	replay := mapFullReplayByIDRow(row)
 	slog.InfoContext(ctx, "selected replay by id", "replay", replay, "id", id)
 	return replay, nil
 }
 
-func mapFullReplayByIDRow(row sqlc.SelectReplayByIDRow) FullReplay {
+func mapFullReplayByIDRow(row sqlc.SelectReplayByIDRow) domain.FullReplay {
 	replay := mapReplayByIDRow(row)
-	return FullReplay{
+	return domain.FullReplay{
 		Replay: replay,
-		ReplayUsers: ReplayUsers{
+		ReplayUsers: domain.ReplayUsers{
 			WhiteName:    row.WhiteName.String,
 			BlackName:    row.BlackName.String,
 			WhiteCountry: row.WhiteCountry.String,
 			BlackCountry: row.BlackCountry.String,
-			WhiteElo:     defaultElo(row.WhiteElo),
-			BlackElo:     defaultElo(row.BlackElo),
+			WhiteElo:     domain.DefaultUserElo(row.WhiteElo),
+			BlackElo:     domain.DefaultUserElo(row.BlackElo),
 		},
-		RepayView: MakeReplayView(replay),
+		RepayView: domain.MakeReplayView(replay),
 	}
 }
 
-func mapReplayByIDRow(row sqlc.SelectReplayByIDRow) Replay {
-	replayResult := enum.Expect(row.Result, ReplayResultEnums)
-	replayCause := enum.Expect(row.Cause, ReplayCauseEnums)
-	gameMode := enum.Expect(row.Mode, GameModeEnums)
+func mapReplayByIDRow(row sqlc.SelectReplayByIDRow) domain.Replay {
+	replayResult := enum.Expect(row.Result, domain.ReplayResultEnums)
+	replayCause := enum.Expect(row.Cause, domain.ReplayCauseEnums)
+	gameMode := enum.Expect(row.Mode, domain.GameModeEnums)
 
-	return Replay{
+	return domain.Replay{
 		ID:          row.ID,
 		WhiteID:     row.WhiteID.Int64,
 		BlackID:     row.BlackID.Int64,
@@ -122,7 +80,7 @@ func (svc *HexchessServices) GetMovesHistory(ctx context.Context, replayID int) 
 	return row.Data, nil
 }
 
-func (svc *HexchessServices) GetUserReplays(ctx context.Context, userID int64, afterID int64, perPage int32) ([]FullReplay, error) {
+func (svc *HexchessServices) GetUserReplays(ctx context.Context, userID int64, afterID int64, perPage int32) ([]domain.FullReplay, error) {
 	if afterID < 0 {
 		afterID = int64(math.MaxInt64)
 	}
@@ -136,7 +94,7 @@ func (svc *HexchessServices) GetUserReplays(ctx context.Context, userID int64, a
 		return nil, fmt.Errorf("select replays by user id [%d]: %w", userID, err)
 	}
 
-	replays := make([]FullReplay, 0, len(replayRows))
+	replays := make([]domain.FullReplay, 0, len(replayRows))
 	for _, row := range replayRows {
 		replays = append(replays, mapFullReplayByIDRow(sqlc.SelectReplayByIDRow(row)))
 	}
@@ -198,9 +156,9 @@ type Bucket struct {
 	elements  []EloHistoryBucket // all accumulated buckets.
 }
 
-type BucketMap map[GameMode]*Bucket
+type BucketMap map[domain.GameMode]*Bucket
 
-func (buckets BucketMap) get(mode GameMode) *Bucket {
+func (buckets BucketMap) get(mode domain.GameMode) *Bucket {
 	bucket, ok := buckets[mode]
 	if !ok {
 		bucket = &Bucket{}
@@ -241,7 +199,7 @@ func aggregateEloHistoryBuckets(eloRows []sqlc.SelectReplayElosRow, params EloHi
 
 	// fill buckets row by row, a Bucket is filled once the startTime is 'duration' ago relative to the current row
 	for _, row := range eloRows {
-		mode, ok := GameModeEnums[string(row.Mode)]
+		mode, ok := domain.GameModeEnums[string(row.Mode)]
 		if !ok {
 			continue
 		}
@@ -275,7 +233,7 @@ func aggregateEloHistoryBuckets(eloRows []sqlc.SelectReplayElosRow, params EloHi
 		}
 	}
 	// append any buckets that may not have been fully filled, but contain averaged data.
-	for _, mode := range GameModeEnums {
+	for _, mode := range domain.GameModeEnums {
 		appendBucket(buckets.get(mode), duration)
 	}
 

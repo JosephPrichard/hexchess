@@ -12,7 +12,7 @@ import (
 const ActiveUserMaxage = 5 * time.Minute // the caller should manually remove, but this is a stopgap in case the server is stopped before that is the case
 
 func (svc *HexchessServices) GetActiveCount(ctx context.Context) (int64, error) {
-	expireBefore := svc.entropy.GetNow().Add(-ActiveUserMaxage).UnixMilli()
+	expireBefore := svc.entropy.GetTime().Add(-ActiveUserMaxage).UnixMilli()
 
 	removed, err := svc.redis.Cache.ZRemRangeByScore(ctx, svc.redis.ActiveUsersZSet, "-inf", fmt.Sprintf("%d", expireBefore)).Result()
 	if err != nil {
@@ -30,9 +30,9 @@ func (svc *HexchessServices) GetActiveCount(ctx context.Context) (int64, error) 
 }
 
 func (svc *HexchessServices) RetainActiveUser(ctx context.Context, id string) error {
-	now := svc.entropy.GetNow()
+	updtTime := float64(svc.entropy.GetTime().UnixMilli())
 
-	_, err := svc.redis.Cache.ZAddXX(ctx, svc.redis.ActiveUsersZSet, redis.Z{Score: float64(now.UnixMilli()), Member: id}).Result()
+	_, err := svc.redis.Cache.ZAddXX(ctx, svc.redis.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
 	if err != nil {
 		return fmt.Errorf("retain active user %s: %w", id, err)
 	}
@@ -41,9 +41,9 @@ func (svc *HexchessServices) RetainActiveUser(ctx context.Context, id string) er
 }
 
 func (svc *HexchessServices) AddActiveUser(ctx context.Context, id string) (int64, error) {
-	now := svc.entropy.GetNow()
+	updtTime := float64(svc.entropy.GetTime().UnixMilli())
 
-	_, err := svc.redis.Cache.ZAddNX(ctx, svc.redis.ActiveUsersZSet, redis.Z{Score: float64(now.UnixMilli()), Member: id}).Result()
+	_, err := svc.redis.Cache.ZAddNX(ctx, svc.redis.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
 	if err != nil {
 		return 0, fmt.Errorf("add active user %v: %w", id, err)
 	}

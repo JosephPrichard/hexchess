@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/sync/errgroup"
+	"hexchess-svc/domain"
 	"hexchess-svc/pb"
 	svc "hexchess-svc/service"
 	"hexchess-svc/util/errutil"
@@ -69,8 +70,8 @@ func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) error {
 	user, err := api.services.InsertUser(ctx, svc.UserInst{
 		Username: body.Username,
 		Password: body.Password,
-		Country:  svc.DefaultCountry,
-		JoinedOn: api.entropy.GetNow(),
+		Country:  domain.DefaultCountry,
+		JoinedOn: time.Now(),
 	})
 	if errors.Is(err, svc.ErrTakenUsername) {
 		return ErrHttpDuplicateUsername
@@ -78,7 +79,7 @@ func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("insert user: %w", err)
 	}
 
-	ttl, err := api.authenticator.SetSessionPlayer(ctx, w, svc.MakePlayer(user.ID, user.Username, user.Country))
+	ttl, err := api.authenticator.SetSessionPlayer(ctx, w, domain.MakePlayer(user.ID, user.Username, user.Country))
 	if err != nil {
 		return err
 	}
@@ -94,7 +95,7 @@ func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (api *API) handleLoginSession(ctx context.Context, w http.ResponseWriter, user svc.VerifiedUser) error {
-	t, err := api.authenticator.SetSessionPlayer(ctx, w, svc.MakePlayer(user.ID, user.Username, user.Country))
+	t, err := api.authenticator.SetSessionPlayer(ctx, w, domain.MakePlayer(user.ID, user.Username, user.Country))
 	if err != nil {
 		return err
 	}
@@ -154,7 +155,7 @@ func (api *API) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) error 
 
 	user, err := api.services.SelectOrInsertGoogleUser(ctx, payload.AccountID, svc.GoogleUserInst{
 		Username: payload.Username,
-		Country:  svc.DefaultCountry,
+		Country:  domain.DefaultCountry,
 	})
 	if err != nil {
 		return fmt.Errorf("upsert verified google user: %w", err)
@@ -261,7 +262,7 @@ func (api *API) HandleCreateTempSession(w http.ResponseWriter, r *http.Request) 
 			{SessionID: tempSessionID, Player: sessionPlayer, Expiry: TempSessionMaxAge},
 		}
 	} else {
-		sessionPlayer = svc.MakeGuestPlayer()
+		sessionPlayer = domain.MakeGuestPlayer()
 		tempSessionID = MakeSessionID()
 		guestSessionID := MakeSessionID()
 
@@ -356,12 +357,12 @@ func (api *API) HandleGetSelf(w http.ResponseWriter, r *http.Request) error {
 
 type LeaderboardQuery struct {
 	Page int
-	Mode svc.GameMode
+	Mode domain.GameMode
 }
 
 type LeaderboardResp struct {
-	TotalPages int           `json:"totalPages"`
-	UserList   []svc.LbdUser `json:"userList,omitempty"`
+	TotalPages int              `json:"totalPages"`
+	UserList   []domain.LbdUser `json:"userList,omitempty"`
 }
 
 func (api *API) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) error {
@@ -413,7 +414,7 @@ func (api *API) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
 }
 
 type SearchPlayersResp struct {
-	UserList []svc.LbdUser `json:"userList,omitempty"`
+	UserList []domain.LbdUser `json:"userList,omitempty"`
 }
 
 func (api *API) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) error {
@@ -429,7 +430,7 @@ func (api *API) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) erro
 
 	slog.InfoContext(ctx, "searching players", "page", page, "name", name)
 
-	var userList []svc.LbdUser
+	var userList []domain.LbdUser
 	if hasUser {
 		users, err := api.services.GetFuzzySearchLeaderboard(ctx, name, int32(page), perPage)
 		if errors.Is(err, svc.ErrSearchLimit) {
@@ -515,7 +516,7 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 		ChallengeeID: body.ChallengeeID,
 		Mode:         body.Mode,
 		StartColor:   body.StartColor,
-		MadeOn:       api.entropy.GetNow(),
+		MadeOn:       time.Now(),
 	})
 	switch {
 	case errors.Is(err, svc.ErrDuplicateChallenge):
@@ -544,7 +545,7 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 }
 
 type GetChallengesResp struct {
-	ChallengeList []svc.Challenge `json:"challengeList"`
+	ChallengeList []domain.Challenge `json:"challengeList"`
 }
 
 const (
@@ -561,7 +562,7 @@ func (api *API) HandleGetChallenges(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	var challengeList []svc.Challenge
+	var challengeList []domain.Challenge
 
 	switch participants {
 	case SentParticipantsTarget:
@@ -630,12 +631,12 @@ func (api *API) HandleGameExistence(w http.ResponseWriter, r *http.Request) erro
 }
 
 type ChessMeta struct {
-	ID          string          `json:"id"`
-	WhitePlayer svc.PlayerState `json:"whitePlayer"`
-	BlackPlayer svc.PlayerState `json:"blackPlayer"`
-	FirstColor  string          `json:"firstColor"`
-	Mode        string          `json:"mode"`
-	Touch       time.Time       `json:"touch"`
+	ID          string             `json:"id"`
+	WhitePlayer domain.PlayerState `json:"whitePlayer"`
+	BlackPlayer domain.PlayerState `json:"blackPlayer"`
+	FirstColor  string             `json:"firstColor"`
+	Mode        string             `json:"mode"`
+	Touch       time.Time          `json:"touch"`
 }
 
 func mapChessMetas(svcMetas []svc.ChessMeta) []ChessMeta {
@@ -721,7 +722,7 @@ func (api *API) HandleGetGameChats(w http.ResponseWriter, r *http.Request) error
 }
 
 type GetReplayResp struct {
-	Replay svc.FullReplay `json:"replay"`
+	Replay domain.FullReplay `json:"replay"`
 }
 
 func (api *API) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
@@ -732,7 +733,7 @@ func (api *API) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 
 	ctx := r.Context()
 
-	var replay svc.FullReplay
+	var replay domain.FullReplay
 
 	if query.HasGameID {
 		replay, err = api.services.GetReplayByGameID(ctx, query.GameID)
@@ -750,7 +751,7 @@ func (api *API) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 }
 
 type GetUserReplaysResp struct {
-	ReplayList []svc.FullReplay `json:"replayList"`
+	ReplayList []domain.FullReplay `json:"replayList"`
 }
 
 func (api *API) HandleGetUserReplays(w http.ResponseWriter, r *http.Request) error {
@@ -782,7 +783,11 @@ func (api *API) HandleGetEloHistories(w http.ResponseWriter, r *http.Request) er
 	}
 
 	ctx := r.Context()
-	params := svc.EloHistoriesParams{UserID: int64(query.UserID), Months: query.Months, TimeUntil: api.entropy.GetNow()}
+	params := svc.EloHistoriesParams{
+		UserID:    int64(query.UserID),
+		Months:    query.Months,
+		TimeUntil: time.Now(),
+	}
 	eloBuckets, _, err := api.services.RetrieveEloHistoryBuckets(ctx, params)
 	if err != nil {
 		return fmt.Errorf("retrieve elo histories buckets with params %v: %w", params, err)
@@ -845,7 +850,7 @@ func (api *API) HandleCreateTournament(w http.ResponseWriter, r *http.Request) e
 		Mode:      body.Mode,
 		Ruleset:   body.Ruleset,
 		Countdown: body.Countdown,
-		CreatedOn: api.entropy.GetNow(),
+		CreatedOn: time.Now(),
 		CreatedBy: player.ID,
 	})
 	if errors.Is(err, svc.ErrInvalidRounds) {
@@ -880,7 +885,7 @@ func (api *API) HandleJoinTournament(w http.ResponseWriter, r *http.Request) err
 	tournament, err := api.services.JoinTournamentTx(ctx, svc.JoinTournamentInst{
 		TournamentKey: body.TournamentKey,
 		JoiningUserID: player.ID,
-		InsertionTime: api.entropy.GetNow(),
+		InsertionTime: time.Now(),
 	})
 	switch {
 	case errors.Is(err, svc.ErrTournamentNotFound):
@@ -946,7 +951,7 @@ func (api *API) HandleBeginCountdownTournament(w http.ResponseWriter, r *http.Re
 	return nil
 }
 
-type GetTournamentResp svc.FullTournament
+type GetTournamentResp domain.FullTournament
 
 func (api *API) HandleGetTournament(w http.ResponseWriter, r *http.Request) error {
 	tournamentKey, err := uuid.Parse(r.URL.Query().Get("tournamentKey"))
@@ -969,7 +974,7 @@ func (api *API) HandleGetTournament(w http.ResponseWriter, r *http.Request) erro
 }
 
 type GetTournamentsResp struct {
-	Tournaments []svc.Tournament `json:"tournaments"`
+	Tournaments []domain.Tournament `json:"tournaments"`
 }
 
 func (api *API) HandleGetTournaments(w http.ResponseWriter, r *http.Request) error {

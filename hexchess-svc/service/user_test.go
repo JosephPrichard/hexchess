@@ -2,6 +2,8 @@ package svc
 
 import (
 	"context"
+	"hexchess-svc/domain"
+
 	"testing"
 
 	"hexchess-svc/itest"
@@ -13,13 +15,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var testUserCmptOpts = cmpopts.IgnoreFields(User{}, "ID")
+var testUserCmptOpts = cmpopts.IgnoreFields(domain.User{}, "ID")
 var testVerifiedUserCmptOpts = cmpopts.IgnoreFields(VerifiedUser{}, "ID")
 
 func TestInsertThenVerify(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
@@ -50,7 +52,7 @@ func TestInsertThenVerify(t *testing.T) {
 	assert.Equal(t, ErrTooManyLoginAttempts, errTooMany)
 
 	assert.Equal(t, users1.ID, verifyUser1.ID)
-	wantDBU1 := User{
+	wantDBU1 := domain.User{
 		Username: "user1-testing",
 		Country:  "us",
 		JoinedOn: itest.TimeNow.Local(),
@@ -61,7 +63,7 @@ func TestInsertThenVerify(t *testing.T) {
 func TestBatchInsertThenGet(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
@@ -72,12 +74,12 @@ func TestBatchInsertThenGet(t *testing.T) {
 	}
 	users, batchErr := services.BatchInsertUsers(ctx, insts)
 
-	wantUsers := []User{
+	wantUsers := []domain.User{
 		{Username: insts[0].Username, Country: "us"},
 		{Username: insts[1].Username, Country: "eu"},
 	}
 
-	testutil.Equal(t, wantUsers, users, cmpopts.IgnoreFields(User{}, "ID", "JoinedOn"))
+	testutil.Equal(t, wantUsers, users, cmpopts.IgnoreFields(domain.User{}, "ID", "JoinedOn"))
 	require.NoError(t, batchErr)
 }
 
@@ -113,7 +115,7 @@ func TestUpdateUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
+			services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres)
 			defer services.Close()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
@@ -134,7 +136,7 @@ func TestUpdateUser(t *testing.T) {
 func TestSelectOrInsertGoogleUser(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
@@ -156,7 +158,7 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 	testutil.Equal(t, verifiedUser, user1, testVerifiedUserCmptOpts)
 	testutil.Equal(t, verifiedUser, user2, testVerifiedUserCmptOpts)
 
-	wantDbUser1 := User{
+	wantDbUser1 := domain.User{
 		Username: "username",
 		Country:  "us",
 		JoinedOn: itest.TimeNow.Local(),
@@ -167,17 +169,17 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 func TestUpdatePasswordThenVerify(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	err := services.UpdateUserPassword(ctx, TestUser[0].ID, "password-new")
+	err := services.UpdateUserPassword(ctx, itest.TestUser[0].ID, "password-new")
 	require.NoError(t, err)
 
-	u1, err := services.GetUserByID(ctx, TestUser[0].ID)
+	u1, err := services.GetUserByID(ctx, itest.TestUser[0].ID)
 	require.NoError(t, err)
-	v1, err := verifyUser(ctx, services.db.Querier(), TestUser[0].Username, "password-new")
+	v1, err := verifyUser(ctx, services.db.Querier(), itest.TestUser[0].Username, "password-new")
 	require.NoError(t, err)
 
 	assert.Equal(t, u1.ID, v1.ID)
@@ -186,7 +188,7 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 func TestGetUserElos(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
@@ -194,5 +196,5 @@ func TestGetUserElos(t *testing.T) {
 	stats, err := services.GetUserStats(ctx, 1)
 	require.NoError(t, err)
 
-	testutil.Equal(t, TestUserStats[0], stats, cmpopts.IgnoreFields(ModeStats{}, "Rank"))
+	testutil.Equal(t, itest.TestUserStats[0], stats, cmpopts.IgnoreFields(domain.ModeStats{}, "Rank"))
 }

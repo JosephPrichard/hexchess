@@ -8,6 +8,7 @@ import (
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"go.uber.org/mock/gomock"
 	"hexchess-svc/egress"
+
 	"testing"
 	"time"
 
@@ -24,7 +25,7 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockS3Client := egress.NewMockS3Client(ctrl)
-	mocks := ServiceMocks{S3Client: mockS3Client}
+	mocks := Mocks{S3Client: mockS3Client}
 
 	services, _ := SetupServicesTest(t, mocks, itest.ROPostgres)
 	defer services.Close()

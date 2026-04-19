@@ -1,4 +1,4 @@
-package svc
+package domain
 
 import "hexchess-svc/util/enum"
 

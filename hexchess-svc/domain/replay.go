@@ -1,0 +1,46 @@
+package domain
+
+import "time"
+
+type Replay struct {
+	ID          int64        `json:"id"`
+	WhiteID     int64        `json:"whiteId"`
+	BlackID     int64        `json:"blackId"`
+	Mode        GameMode     `json:"mode"`
+	Result      ReplayResult `json:"result"`
+	Cause       ReplayCause  `json:"cause"`
+	WinEloDiff  float64      `json:"winEloDiff"`
+	LoseEloDiff float64      `json:"loseEloDiff"`
+	PlayedOn    time.Time    `json:"playedOn"`
+}
+
+type ReplayUsers struct {
+	WhiteName    string  `json:"whiteName"`
+	BlackName    string  `json:"blackName"`
+	WhiteCountry string  `json:"whiteCountry"`
+	BlackCountry string  `json:"blackCountry"`
+	WhiteElo     float64 `json:"whiteElo"`
+	BlackElo     float64 `json:"blackElo"`
+}
+
+type RepayView struct {
+	WhiteEloDiff float64 `json:"whiteEloDiff"`
+	BlackEloDiff float64 `json:"blackEloDiff"`
+}
+
+type FullReplay struct {
+	Replay
+	ReplayUsers
+	RepayView
+}
+
+func MakeReplayView(input Replay) (output RepayView) {
+	switch input.Result {
+	case WhiteWin:
+		output.WhiteEloDiff, output.BlackEloDiff = input.WinEloDiff, input.LoseEloDiff
+	case BlackWin:
+		output.WhiteEloDiff, output.BlackEloDiff = input.LoseEloDiff, input.WinEloDiff
+	default:
+	}
+	return
+}

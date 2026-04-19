@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hexchess-svc/domain"
+
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -74,7 +76,7 @@ func scanEvents(ctx context.Context, resp *http.Response, wantEvents int) []stri
 func TestHandleCountEvents(t *testing.T) {
 	t.Parallel()
 
-	services, testinfra := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.Redis)
+	services, testinfra := svc.SetupServicesTest(t, svc.Mocks{}, itest.Redis)
 	defer services.Close()
 
 	broadcasters := svc.MakeLocalBroadcasters()
@@ -114,7 +116,7 @@ func TestHandleActiveConn(t *testing.T) {
 
 	ctx := t.Context()
 
-	mocks := svc.ServiceMocks{
+	mocks := svc.Mocks{
 		Entropy: &svc.StableEntropySource{},
 	}
 
@@ -158,7 +160,7 @@ func TestHandleUserEvents(t *testing.T) {
 
 	ctx := t.Context()
 
-	services, testinfra := svc.SetupServicesTest(t, svc.ServiceMocks{}, itest.Redis)
+	services, testinfra := svc.SetupServicesTest(t, svc.Mocks{}, itest.Redis)
 	defer services.Close()
 
 	broadcasters := svc.MakeLocalBroadcasters()
@@ -176,14 +178,14 @@ func TestHandleUserEvents(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	brdcastedChallenge := svc.Challenge{ChallengeeID: 1, Mode: svc.ModeCorrespondence1, StartColor: svc.White}
+	brdcastedChallenge := domain.Challenge{ChallengeeID: 1, Mode: domain.ModeCorrespondence1, StartColor: domain.White}
 
 	errChan := make(chan error)
 	go func() {
 		ctx := context.WithValue(ctx, logutil.Trace, "broadcast-user-events")
 		errChan <- errors.Join(
 			services.BroadcastChallenge(ctx, brdcastedChallenge),
-			services.BroadcastChallenge(ctx, svc.Challenge{ChallengeeID: 2}),
+			services.BroadcastChallenge(ctx, domain.Challenge{ChallengeeID: 2}),
 			services.BroadcastChallenge(ctx, brdcastedChallenge))
 	}()
 

@@ -3,6 +3,7 @@ package svc
 import (
 	"context"
 	"fmt"
+	"hexchess-svc/domain"
 	"hexchess-svc/pb"
 	"log/slog"
 	"time"
@@ -33,10 +34,10 @@ func (svc *HexchessServices) GetStateChats(ctx context.Context, gameID string, c
 }
 
 type Chat struct {
-	ID      string      `json:"id"`
-	Player  PlayerState `json:"player"`
-	Message string      `json:"message"`
-	SentAt  time.Time   `json:"sentAt"`
+	ID      string             `json:"id"`
+	Player  domain.PlayerState `json:"player"`
+	Message string             `json:"message"`
+	SentAt  time.Time          `json:"sentAt"`
 }
 
 func (svc *HexchessServices) InsertStateChat(ctx context.Context, gameID string, chat Chat) error {

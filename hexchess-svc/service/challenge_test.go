@@ -3,6 +3,8 @@ package svc
 import (
 	"context"
 	"errors"
+	"hexchess-svc/domain"
+
 	"testing"
 	"time"
 
@@ -55,7 +57,7 @@ func TestInsertChallenge(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
+			services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres)
 			defer services.Close()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, tt.name)
@@ -63,8 +65,8 @@ func TestInsertChallenge(t *testing.T) {
 			err := services.InsertChallenge(ctx, ChallengeInst{
 				ChallengerID: tt.challengerID,
 				ChallengeeID: tt.challengeeID,
-				Mode:         ModeCorrespondence7,
-				StartColor:   Random,
+				Mode:         domain.ModeCorrespondence7,
+				StartColor:   domain.Random,
 			})
 
 			assert.Equal(t, tt.wantErr, err)
@@ -117,7 +119,7 @@ func TestGetChallengesByParticipant(t *testing.T) {
 	t.Parallel()
 
 	// gets only expired challenges
-	mocks := ServiceMocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}
+	mocks := Mocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}
 
 	services, _ := SetupServicesTest(t, mocks, itest.ROPostgres)
 	defer services.Close()
@@ -127,13 +129,13 @@ func TestGetChallengesByParticipant(t *testing.T) {
 	challenges, err := services.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
-	assert.Equal(t, []Challenge{TestChallenge[2], TestChallenge[3]}, challenges)
+	assert.Equal(t, []domain.Challenge{itest.TestChallenge[2], itest.TestChallenge[3]}, challenges)
 }
 
 func TestDeleteExpiredChallenges(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.RWPostgres)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
@@ -147,13 +149,13 @@ func TestDeleteExpiredChallenges(t *testing.T) {
 	challengesDel, err := services.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
-	assert.Equal(t, []Challenge{TestChallenge[2], TestChallenge[3]}, challengesDel)
+	assert.Equal(t, []domain.Challenge{itest.TestChallenge[2], itest.TestChallenge[3]}, challengesDel)
 }
 
 func TestDeleteChallenge(t *testing.T) {
 	t.Parallel()
 
-	mocks := ServiceMocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}
+	mocks := Mocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}
 
 	services, _ := SetupServicesTest(t, mocks, itest.RWPostgres)
 	defer services.Close()
@@ -174,5 +176,5 @@ func TestDeleteChallenge(t *testing.T) {
 	challenge := sqlc.Challenge{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, StartColor: "RANDOM", MadeOn: pgtype.Timestamptz{Valid: true, Time: itest.TimeNow.Local()}, Mode: "TIMED_3+2"}
 	assert.Equal(t, challenge, challengeBefore)
 	assert.Error(t, pgx.ErrNoRows, errAfterDelete)
-	assert.Equal(t, DeleteResult{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, Mode: ModeTimed3Plus2, FirstColor: Random}, dr)
+	assert.Equal(t, DeleteResult{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, Mode: domain.ModeTimed3Plus2, FirstColor: domain.Random}, dr)
 }

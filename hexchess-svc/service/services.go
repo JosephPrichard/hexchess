@@ -28,11 +28,15 @@ type Setup struct {
 	Redis   db.Redis
 	AWS     egress.AWS
 	Remote  egress.RemoteAPIs
+	Entropy EntropySource
 }
 
 func MakeHexchessServices(setup Setup) *HexchessServices {
 	if setup.DB != nil {
 		setup.Querier = setup.DB.Querier()
+	}
+	if setup.Entropy == nil {
+		setup.Entropy = &RealEntropySource{}
 	}
 	return &HexchessServices{
 		db:      setup.DB,
@@ -40,6 +44,6 @@ func MakeHexchessServices(setup Setup) *HexchessServices {
 		redis:   setup.Redis,
 		aws:     setup.AWS,
 		remote:  setup.Remote,
-		entropy: &RealEntropySource{},
+		entropy: setup.Entropy,
 	}
 }

@@ -2,6 +2,7 @@ package svc
 
 import (
 	"context"
+
 	"testing"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 func TestActiveUser(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.Redis)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
 	defer services.Close()
 
 	services.entropy = &StableEntropySource{CurrTime: time.UnixMilli(int64(ActiveUserMaxage * 5))}

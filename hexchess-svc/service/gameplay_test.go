@@ -3,7 +3,9 @@ package svc
 import (
 	"context"
 	"hexchess-svc/chess"
+	"hexchess-svc/domain"
 	"hexchess-svc/itest"
+
 	"hexchess-svc/util/logutil"
 	"hexchess-svc/util/testutil"
 	"testing"
@@ -31,20 +33,20 @@ func seedGames(t *testing.T, services *HexchessServices, games ...*ChessState) {
 func TestJoinGame(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.Redis)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
 	defer services.Close()
 
 	whiteGame := MakeChessState(StateSetup{
 		ID:         "test-join-white-" + uuid.NewString(),
-		Mode:       ModeCorrespondence1,
-		FirstColor: White,
+		Mode:       domain.ModeCorrespondence1,
+		FirstColor: domain.White,
 	})
 	fullGame := MakeChessState(StateSetup{
 		ID:         "test-join-full-" + uuid.NewString(),
-		Mode:       ModeCorrespondence1,
-		FirstColor: Random,
-		White:      PlayerState{ID: 1, Name: "white", Present: true},
-		Black:      PlayerState{ID: 2, Name: "black", Present: true},
+		Mode:       domain.ModeCorrespondence1,
+		FirstColor: domain.Random,
+		White:      domain.PlayerState{ID: 1, Name: "white", Present: true},
+		Black:      domain.PlayerState{ID: 2, Name: "black", Present: true},
 	})
 	missingGameID := "test-join-missing-" + uuid.NewString()
 
@@ -53,28 +55,28 @@ func TestJoinGame(t *testing.T) {
 	tests := []struct {
 		name       string
 		gameID     string
-		joinPlayer PlayerState
+		joinPlayer domain.PlayerState
 		wantGame   *ChessState
 		wantErr    error
 	}{
 		{
 			name:       "JoinWhite",
 			gameID:     whiteGame.ID,
-			joinPlayer: MakePlayer(1, "name", "us"),
+			joinPlayer: domain.MakePlayer(1, "name", "us"),
 			wantGame: mutateGame(whiteGame, func(s *ChessState) {
-				s.WhitePlayer = MakePlayer(1, "name", "us")
+				s.WhitePlayer = domain.MakePlayer(1, "name", "us")
 			}),
 		},
 		{
 			name:       "BothPlayersExist",
 			gameID:     fullGame.ID,
-			joinPlayer: PlayerState{ID: 3, Name: "testing", Present: true},
+			joinPlayer: domain.PlayerState{ID: 3, Name: "testing", Present: true},
 			wantGame:   fullGame,
 		},
 		{
 			name:       "GameNotFound",
 			gameID:     missingGameID,
-			joinPlayer: MakePlayer(4, "ghost", "us"),
+			joinPlayer: domain.MakePlayer(4, "ghost", "us"),
 			wantErr:    ErrNoChessState,
 		},
 	}
@@ -95,22 +97,22 @@ func TestJoinGame(t *testing.T) {
 func TestAttemptUndo(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.Redis)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
 	defer services.Close()
 
 	noMovesGame := MakeChessState(StateSetup{
 		ID:         "test-undo-no-moves-" + uuid.NewString(),
-		Mode:       ModeCorrespondence1,
-		FirstColor: Random,
-		White:      PlayerState{ID: 1, Name: "white", Present: true},
-		Black:      PlayerState{ID: 2, Name: "black", Present: true},
+		Mode:       domain.ModeCorrespondence1,
+		FirstColor: domain.Random,
+		White:      domain.PlayerState{ID: 1, Name: "white", Present: true},
+		Black:      domain.PlayerState{ID: 2, Name: "black", Present: true},
 	})
 	withMovesGame := MakeChessState(StateSetup{
 		ID:         "test-undo-with-moves-" + uuid.NewString(),
-		Mode:       ModeCorrespondence1,
-		FirstColor: Random,
-		White:      PlayerState{ID: 1, Name: "white", Present: true},
-		Black:      PlayerState{ID: 2, Name: "black", Present: true},
+		Mode:       domain.ModeCorrespondence1,
+		FirstColor: domain.Random,
+		White:      domain.PlayerState{ID: 1, Name: "white", Present: true},
+		Black:      domain.PlayerState{ID: 2, Name: "black", Present: true},
 	})
 	withMovesGame.Game.Moves = []chess.HistMove{{PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}}}}
 	missingGameID := "test-undo-missing-" + uuid.NewString()
@@ -119,7 +121,7 @@ func TestAttemptUndo(t *testing.T) {
 
 	type subTest struct {
 		kind     UndoKind
-		player   PlayerState
+		player   domain.PlayerState
 		wantGame *ChessState
 		wantErr  error
 	}
@@ -144,14 +146,14 @@ func TestAttemptUndo(t *testing.T) {
 			tests: []subTest{
 				{
 					kind:   UndoCreate,
-					player: PlayerState{ID: 2, Name: "black", Present: true},
+					player: domain.PlayerState{ID: 2, Name: "black", Present: true},
 					wantGame: mutateGame(withMovesGame, func(s *ChessState) {
 						s.UndoState = UndoState{UndoID: 2}
 					}),
 				},
 				{
 					kind:   UndoAccept,
-					player: PlayerState{ID: 1, Name: "white", Present: true},
+					player: domain.PlayerState{ID: 1, Name: "white", Present: true},
 					wantGame: mutateGame(withMovesGame, func(s *ChessState) {
 						s.UndoState = UndoState{}
 					}),
@@ -164,14 +166,14 @@ func TestAttemptUndo(t *testing.T) {
 			tests: []subTest{
 				{
 					kind:   UndoCreate,
-					player: PlayerState{ID: 2, Name: "black", Present: true},
+					player: domain.PlayerState{ID: 2, Name: "black", Present: true},
 					wantGame: mutateGame(noMovesGame, func(s *ChessState) {
 						s.UndoState = UndoState{UndoID: 2}
 					}),
 				},
 				{
 					kind:   UndoReject,
-					player: PlayerState{ID: 2, Name: "black", Present: true},
+					player: domain.PlayerState{ID: 2, Name: "black", Present: true},
 					wantGame: mutateGame(noMovesGame, func(s *ChessState) {
 						s.UndoState = UndoState{}
 					}),
@@ -184,14 +186,14 @@ func TestAttemptUndo(t *testing.T) {
 			tests: []subTest{
 				{
 					kind:   UndoCreate,
-					player: PlayerState{ID: 2, Name: "black", Present: true},
+					player: domain.PlayerState{ID: 2, Name: "black", Present: true},
 					wantGame: mutateGame(noMovesGame, func(s *ChessState) {
 						s.UndoState = UndoState{UndoID: 2}
 					}),
 				},
 				{
 					kind:   UndoReject,
-					player: PlayerState{ID: 1, Name: "white", Present: true},
+					player: domain.PlayerState{ID: 1, Name: "white", Present: true},
 					wantGame: mutateGame(noMovesGame, func(s *ChessState) {
 						s.UndoState = UndoState{}
 					}),
@@ -204,12 +206,12 @@ func TestAttemptUndo(t *testing.T) {
 			tests: []subTest{
 				{
 					kind:    UndoReject,
-					player:  PlayerState{ID: 1, Name: "white", Present: true},
+					player:  domain.PlayerState{ID: 1, Name: "white", Present: true},
 					wantErr: ErrNoUndo,
 				},
 				{
 					kind:    UndoAccept,
-					player:  PlayerState{ID: 1, Name: "white", Present: true},
+					player:  domain.PlayerState{ID: 1, Name: "white", Present: true},
 					wantErr: ErrNoUndo,
 				},
 			},
@@ -220,19 +222,19 @@ func TestAttemptUndo(t *testing.T) {
 			tests: []subTest{
 				{
 					kind:   UndoCreate,
-					player: PlayerState{ID: 2, Name: "black", Present: true},
+					player: domain.PlayerState{ID: 2, Name: "black", Present: true},
 					wantGame: mutateGame(noMovesGame, func(s *ChessState) {
 						s.UndoState = UndoState{UndoID: 2}
 					}),
 				},
 				{
 					kind:    UndoAccept,
-					player:  PlayerState{ID: 2, Name: "black", Present: true},
+					player:  domain.PlayerState{ID: 2, Name: "black", Present: true},
 					wantErr: ErrUndoNoop,
 				},
 				{
 					kind:    UndoAccept,
-					player:  PlayerState{ID: 1, Name: "white", Present: true},
+					player:  domain.PlayerState{ID: 1, Name: "white", Present: true},
 					wantErr: ErrNoMoveUndo,
 				},
 			},
@@ -262,31 +264,31 @@ func TestMakeMove(t *testing.T) {
 
 	stateWhiteTurn := MakeChessState(StateSetup{
 		ID:         "test-makemove-white-turn-" + uuid.NewString(),
-		Mode:       ModeCorrespondence1,
-		FirstColor: Random,
-		White:      PlayerState{ID: 1, Present: true},
-		Black:      PlayerState{ID: 2, Present: true},
+		Mode:       domain.ModeCorrespondence1,
+		FirstColor: domain.Random,
+		White:      domain.PlayerState{ID: 1, Present: true},
+		Black:      domain.PlayerState{ID: 2, Present: true},
 	})
 	stateEnded := MakeChessState(StateSetup{
 		ID:         "test-makemove-ended-" + uuid.NewString(),
-		Mode:       ModeCorrespondence1,
-		FirstColor: Random,
-		White:      PlayerState{ID: 1, Present: true},
-		Black:      PlayerState{ID: 2, Present: true},
+		Mode:       domain.ModeCorrespondence1,
+		FirstColor: domain.Random,
+		White:      domain.PlayerState{ID: 1, Present: true},
+		Black:      domain.PlayerState{ID: 2, Present: true},
 		EndState:   Finished,
 	})
 	stateNotStarted := MakeChessState(StateSetup{
 		ID:         "test-makemove-not-started-" + uuid.NewString(),
-		Mode:       ModeCorrespondence1,
-		FirstColor: Random,
-		White:      PlayerState{ID: 1, Present: true},
+		Mode:       domain.ModeCorrespondence1,
+		FirstColor: domain.Random,
+		White:      domain.PlayerState{ID: 1, Present: true},
 	})
 	stateIntoCheckmate := MakeChessState(StateSetup{
 		ID:         "test-makemove-checkmate-" + uuid.NewString(),
-		Mode:       ModeCorrespondence1,
-		FirstColor: Random,
-		White:      PlayerState{ID: 3, Present: true},
-		Black:      PlayerState{ID: 4, Present: true},
+		Mode:       domain.ModeCorrespondence1,
+		FirstColor: domain.Random,
+		White:      domain.PlayerState{ID: 3, Present: true},
+		Black:      domain.PlayerState{ID: 4, Present: true},
 		Game: ptr(chess.MakeEmptyGame(false,
 			chess.Place{Not: "f1", Piece: chess.WhiteKing},
 			chess.Place{Not: "a2", Piece: chess.BlackQueen},
@@ -315,7 +317,7 @@ func TestMakeMove(t *testing.T) {
 		s.EndState = Finished
 	})
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.Redis)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
 	defer services.Close()
 
 	seedGames(t, services, stateWhiteTurn, stateEnded, stateNotStarted, stateIntoCheckmate)
@@ -324,7 +326,7 @@ func TestMakeMove(t *testing.T) {
 		name     string
 		move     chess.Move
 		stateID  string
-		player   PlayerState
+		player   domain.PlayerState
 		wantErr  error
 		wantGame *ChessState
 	}{
@@ -403,21 +405,21 @@ func TestMakeMove(t *testing.T) {
 func TestForfeit(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.Redis)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
 	defer services.Close()
 
 	abortGame := MakeChessState(StateSetup{
 		ID:         "test-forfeit-abort-" + uuid.NewString(),
-		Mode:       ModeCorrespondence1,
-		FirstColor: Random,
-		White:      PlayerState{ID: 1, Present: true},
+		Mode:       domain.ModeCorrespondence1,
+		FirstColor: domain.Random,
+		White:      domain.PlayerState{ID: 1, Present: true},
 	})
 	forfeitGame := MakeChessState(StateSetup{
 		ID:         "test-forfeit-full-" + uuid.NewString(),
-		Mode:       ModeCorrespondence1,
-		FirstColor: Random,
-		White:      PlayerState{ID: 1, Present: true},
-		Black:      PlayerState{ID: 2, Present: true},
+		Mode:       domain.ModeCorrespondence1,
+		FirstColor: domain.Random,
+		White:      domain.PlayerState{ID: 1, Present: true},
+		Black:      domain.PlayerState{ID: 2, Present: true},
 	})
 	forfeitGame.Game.Moves = []chess.HistMove{{
 		PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}},
@@ -461,29 +463,29 @@ func TestForfeit(t *testing.T) {
 func TestForfeit_Errors(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, ServiceMocks{}, itest.Redis)
+	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
 	defer services.Close()
 
 	endedGame := MakeChessState(StateSetup{
 		ID:         "test-forfeit-err-ended-" + uuid.NewString(),
-		Mode:       ModeCorrespondence1,
-		FirstColor: Random,
-		White:      PlayerState{ID: 1, Present: true},
-		Black:      PlayerState{ID: 2, Present: true},
+		Mode:       domain.ModeCorrespondence1,
+		FirstColor: domain.Random,
+		White:      domain.PlayerState{ID: 1, Present: true},
+		Black:      domain.PlayerState{ID: 2, Present: true},
 		EndState:   Finished,
 	})
 	cannotAbortGame := MakeChessState(StateSetup{
 		ID:         "test-forfeit-err-cannot-abort-" + uuid.NewString(),
-		Mode:       ModeCorrespondence1,
-		FirstColor: Random,
-		White:      PlayerState{ID: 2, Present: true},
+		Mode:       domain.ModeCorrespondence1,
+		FirstColor: domain.Random,
+		White:      domain.PlayerState{ID: 2, Present: true},
 	})
 	notPlayerGame := MakeChessState(StateSetup{
 		ID:         "test-forfeit-err-not-player-" + uuid.NewString(),
-		Mode:       ModeCorrespondence1,
-		FirstColor: Random,
-		White:      PlayerState{ID: 3, Present: true},
-		Black:      PlayerState{ID: 4, Present: true},
+		Mode:       domain.ModeCorrespondence1,
+		FirstColor: domain.Random,
+		White:      domain.PlayerState{ID: 3, Present: true},
+		Black:      domain.PlayerState{ID: 4, Present: true},
 	})
 	missingGameID := "test-forfeit-err-missing-" + uuid.NewString()
 
@@ -492,7 +494,7 @@ func TestForfeit_Errors(t *testing.T) {
 	tests := []struct {
 		name    string
 		gameID  string
-		player  PlayerState
+		player  domain.PlayerState
 		wantErr error
 	}{
 		{
@@ -521,7 +523,7 @@ func TestForfeit_Errors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-			_, forfeitErr := services.EndGame(ctx, tt.gameID, PlayerState{ID: 1, Present: true})
+			_, forfeitErr := services.EndGame(ctx, tt.gameID, domain.PlayerState{ID: 1, Present: true})
 
 			assert.Equal(t, tt.wantErr, forfeitErr)
 		})
