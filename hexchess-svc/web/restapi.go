@@ -511,7 +511,7 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	ret, err := api.services.InsertChallengeRet(ctx, svc.ChallengeInst{
+	ret, err := api.services.InsertChallenge(ctx, svc.ChallengeInst{
 		ChallengerID: player.ID,
 		ChallengeeID: body.ChallengeeID,
 		Mode:         body.Mode,
@@ -960,7 +960,7 @@ func (api *API) HandleGetTournament(w http.ResponseWriter, r *http.Request) erro
 	}
 
 	ctx := r.Context()
-	tournament, err := api.services.GetFullTournamentByKey(ctx, tournamentKey)
+	tournament, err := api.services.GetTournament(ctx, tournamentKey)
 	if errors.Is(err, svc.ErrTournamentNotFound) {
 		return ErrHttpNotFoundTournament
 	} else if err != nil {

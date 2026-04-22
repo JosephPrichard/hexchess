@@ -95,6 +95,24 @@ func (svc *HexchessServices) setChessState(ctx context.Context, setter RedisChes
 	return nil
 }
 
+func (svc *HexchessServices) SetManyChessStates(ctx context.Context, chessStates []ChessState) error {
+	var createdGameID []string
+	pipe := svc.redis.GameStore.TxPipeline()
+
+	for _, state := range chessStates {
+		createdGameID = append(createdGameID, state.ID)
+		svc.setChessState(ctx, pipe, state.ID, &state, time.Now())
+	}
+
+	if _, err := pipe.Exec(ctx); err != nil {
+		return err
+	}
+
+	slog.InfoContext(ctx, "created many chess states", "gameIDs", createdGameID)
+
+	return nil
+}
+
 const MaxUpdateChessStateRetries = 5
 
 var ErrMaxChessStateRetries = errors.New("update chess state txn: reached max retries")
@@ -102,7 +120,7 @@ var ErrMaxChessStateRetries = errors.New("update chess state txn: reached max re
 type ChessUpdateFn func(*ChessState) error
 type ChessCommitFn func(redis.Pipeliner, *ChessState) error
 
-func (svc *HexchessServices) UpdateChessStateTxn(ctx context.Context, gameID string, update ChessUpdateFn, commit ChessCommitFn) (*ChessState, error) {
+func (svc *HexchessServices) updateChessStateTxn(ctx context.Context, gameID string, update ChessUpdateFn, commit ChessCommitFn) (*ChessState, error) {
 	gameKey := svc.gameKey(gameID)
 
 	for range MaxUpdateChessStateRetries {

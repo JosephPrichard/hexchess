@@ -1,0 +1,209 @@
+package events
+
+import (
+	"context"
+	"errors"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/proto"
+	"hexchess-svc/domain"
+	"hexchess-svc/itest"
+	"hexchess-svc/pb"
+	svc "hexchess-svc/service"
+	"hexchess-svc/util/logutil"
+	"hexchess-svc/util/testutil"
+	"testing"
+)
+
+func TestHandleCreateTournamentMatchesEvent(t *testing.T) {
+	gameIDOne := "abc-game-one" + uuid.NewString()
+	gameIDTwo := "xyz-game-two" + uuid.NewString()
+
+	wantChessOne := svc.ChessState{
+		ChessMeta: svc.ChessMeta{
+			ID:          gameIDOne,
+			FirstColor:  domain.White,
+			WhitePlayer: domain.PlayerState{ID: 1, Name: "user1", Country: "us", Present: true},
+			BlackPlayer: domain.PlayerState{ID: 2, Name: "user2", Country: "us", Present: true},
+			Mode:        domain.ModeCorrespondence1,
+		},
+	}
+	wantChessTwo := svc.ChessState{
+		ChessMeta: svc.ChessMeta{
+			ID:          gameIDTwo,
+			FirstColor:  domain.White,
+			WhitePlayer: domain.PlayerState{ID: 3, Name: "user3", Country: "us", Present: true},
+			BlackPlayer: domain.PlayerState{ID: 4, Name: "user4", Country: "us", Present: true},
+			Mode:        domain.ModeCorrespondence7,
+		},
+	}
+
+	makeCmpChessStates := func(want []svc.ChessState) func(chessState []svc.ChessState) bool {
+		return func(chessStates []svc.ChessState) bool {
+			return testutil.Equal(t,
+				want,
+				chessStates,
+				cmpopts.IgnoreFields(svc.ChessState{}, "InitialBoard", "Game"),
+				svc.ChessMetaCmpOpt,
+			)
+		}
+	}
+
+	tests := []struct {
+		name       string
+		input      *pb.CreateTournamentMatchesEvent
+		setupMocks func(*gomock.Controller) svc.HexchessAPI
+		wantErr    bool
+	}{
+		{
+			name: "CreatesTournamentMatches",
+			input: &pb.CreateTournamentMatchesEvent{
+				TournamentKey: uuid.NewString(),
+				Matches: []*pb.CreateTournamentMatch{
+					{
+						GameId:   gameIDOne,
+						WhiteId:  1,
+						BlackId:  2,
+						GameMode: domain.ModeCorrespondence1.String(),
+					},
+					{
+						GameId:   gameIDTwo,
+						WhiteId:  3,
+						BlackId:  4,
+						GameMode: domain.ModeCorrespondence7.String(),
+					},
+				},
+			},
+			setupMocks: func(ctrl *gomock.Controller) svc.HexchessAPI {
+				creator := svc.NewMockHexchessAPI(ctrl)
+
+				cmpChessStates := makeCmpChessStates([]svc.ChessState{wantChessOne, wantChessTwo})
+				creator.EXPECT().
+					SetManyChessStates(gomock.Any(), gomock.Cond(cmpChessStates)).
+					Return(nil)
+
+				return creator
+			},
+		},
+		{
+			name: "InvalidUserFailsToCreateTournamentMatches",
+			input: &pb.CreateTournamentMatchesEvent{
+				TournamentKey: uuid.NewString(),
+				Matches: []*pb.CreateTournamentMatch{
+					{
+						GameId:   gameIDOne,
+						WhiteId:  1,
+						BlackId:  9000, // invalid user id
+						GameMode: domain.ModeCorrespondence1.String(),
+					},
+				},
+			},
+			setupMocks: func(ctrl *gomock.Controller) svc.HexchessAPI {
+				return svc.NewMockHexchessAPI(ctrl)
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testinfra := itest.SetupTestInfra(t, itest.ROPostgres)
+			defer testinfra.Close()
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+
+			bytes, err := proto.Marshal(tt.input)
+			require.NoError(t, err)
+
+			h := EventHandler{Services: tt.setupMocks(ctrl), Querier: testinfra.DB.Querier()}
+
+			err = h.HandleCreateTournamentMatchesEvent(ctx, bytes)
+
+			if tt.wantErr != (err != nil) {
+				t.Fatalf("expected error: %v, got: %v", tt.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestHandleHandleAdvanceTournamentEvent(t *testing.T) {
+	tournamentOneKey := uuid.New()
+	tournamentTwoKey := uuid.New()
+
+	tests := []struct {
+		name          string
+		event         *pb.ScheduledTourmmentEvent
+		setupMocks    func(*gomock.Controller) svc.HexchessAPI
+		wantBroadcast *pb.TournamentOutput
+		wantErr       error
+	}{
+		{
+			name:  "AdvanceTournament",
+			event: &pb.ScheduledTourmmentEvent{TournamentKey: tournamentOneKey.String()},
+			setupMocks: func(ctrl *gomock.Controller) svc.HexchessAPI {
+				mockAdvancer := svc.NewMockHexchessAPI(ctrl)
+
+				mockAdvancer.EXPECT().
+					AdvanceTournamentTx(gomock.Any(), gomock.Eq(tournamentOneKey)).
+					Return(nil)
+
+				mockAdvancer.EXPECT().
+					BroadcastTournament(gomock.Any(), gomock.Eq(&pb.TournamentOutput{
+						TournamentKey: tournamentOneKey.String(),
+						Value:         &pb.TournamentOutput_Start{Start: &pb.StartTourneyOutput{}},
+					})).
+					Return(nil)
+
+				return mockAdvancer
+			},
+		},
+		{
+			name:  "AdvanceTournamentNonRetryableError",
+			event: &pb.ScheduledTourmmentEvent{TournamentKey: tournamentTwoKey.String()},
+			setupMocks: func(ctrl *gomock.Controller) svc.HexchessAPI {
+
+				mockAdvancer := svc.NewMockHexchessAPI(ctrl)
+				mockAdvancer.EXPECT().
+					AdvanceTournamentTx(gomock.Any(), gomock.Eq(tournamentTwoKey)).
+					Return(svc.MatchInvariantError{Err: errors.New("test error")})
+
+				mockAdvancer.EXPECT().
+					BroadcastTournament(gomock.Any(), gomock.Eq(&pb.TournamentOutput{
+						TournamentKey: tournamentTwoKey.String(),
+						Value: &pb.TournamentOutput_Error{
+							Error: &pb.ErrorOutput{Message: svc.ErrAdvanceTournamentCode.Error()},
+						},
+					})).
+					Return(nil)
+
+				return mockAdvancer
+			},
+			wantErr: NonRetryableOutboxError{
+				Err: svc.MatchInvariantError{Err: errors.New("test error")},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+
+			bytes, err := proto.Marshal(tt.event)
+			require.NoError(t, err)
+
+			h := EventHandler{Services: tt.setupMocks(ctrl)}
+
+			err = h.HandleCreateTournamentMatchesEvent(ctx, bytes)
+
+			require.Equal(t, tt.wantErr, err)
+		})
+	}
+}

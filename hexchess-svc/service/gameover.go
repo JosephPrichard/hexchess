@@ -17,8 +17,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-var FinishGameConsumerGroup = "finish_game:consumer"
-
 type FinishGameEvent struct {
 	GameID       string              `json:"id"`
 	Board        chess.Board         `json:"board"`
@@ -30,7 +28,7 @@ type FinishGameEvent struct {
 	ReplayCause  domain.ReplayCause  `json:"replaycause"`
 }
 
-func (svc *HexchessServices) insertFinishedGameEvent(ctx context.Context, event FinishGameEvent) error {
+func (svc *HexchessServices) InsertFinishedGameEvent(ctx context.Context, event FinishGameEvent) error {
 	var changeSet GameResultChangeSet
 
 	if !event.WhitePlayer.Present || !event.BlackPlayer.Present {
@@ -58,10 +56,7 @@ func (svc *HexchessServices) insertFinishedGameEvent(ctx context.Context, event 
 		return fmt.Errorf("insert finish game tx: %w", err)
 	}
 	// note: this happens outside the transaction so we do need to hold a lock for an expended period of time.
-	if err = svc.querier.UpsertReplayMoveHistories(ctx, sqlc.UpsertReplayMoveHistoriesParams{
-		ReplayID: changeSet.ReplayID,
-		Data:     moveHistBlob,
-	}); err != nil {
+	if err = svc.UpsertReplayMoveHistories(ctx, changeSet.ReplayID, moveHistBlob); err != nil {
 		return fmt.Errorf("insert replay move histories: %w", err)
 	}
 
@@ -114,7 +109,7 @@ func (changeSet GameResultChangeSet) IsNoop() bool {
 func (svc *HexchessServices) InsertGameResultTx(ctx context.Context, params GameResult) (GameResultChangeSet, error) {
 	var changeSet GameResultChangeSet
 
-	err := svc.db.ExecTx(ctx, db.Tx{
+	err := svc.db.ExecTx(ctx, db.TxArgs{
 		// RepeatableRead is required to prevent the following race conditions
 		// Case 1 (Lost Update):
 		// T1 selects the user elos E1 and uses calculate and insert user elos E2

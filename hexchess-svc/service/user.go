@@ -132,7 +132,7 @@ type VerifiedUser struct {
 func (svc *HexchessServices) VerifyUserTx(ctx context.Context, username string, inputPassword string) (VerifiedUser, error) {
 	var user VerifiedUser
 
-	err := svc.db.ExecTx(ctx, db.Tx{
+	err := svc.db.ExecTx(ctx, db.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Non-Repeatable Read):
 		// T1 is allowed to login due to valid login attempts L1 and but increases login attempt count from L1 to L2

@@ -88,8 +88,7 @@ CREATE TYPE public.mode_enum AS ENUM (
 
 CREATE TYPE public.outbox_queue_type_enum AS ENUM (
     'TOURNAMENT_ADVANCE_EVENT',
-    'TOURNAMENT_CREATE_MATCHES_EVENT',
-    'TOURNAMENT_SCHEDULED_EVENT'
+    'TOURNAMENT_CREATE_MATCHES_EVENT'
 );
 
 
@@ -422,14 +421,6 @@ ALTER TABLE ONLY public.replays
 
 ALTER TABLE ONLY public.replays
     ADD CONSTRAINT replays_temp_text_key UNIQUE (game_id);
-
-
---
--- Name: tournament_matches tournament_matches_game_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.tournament_matches
-    ADD CONSTRAINT tournament_matches_game_id_key UNIQUE (game_id);
 
 
 --

@@ -32,7 +32,7 @@ CREATE TABLE tournament_matches (
     ordering BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     tournament_key UUID NOT NULL REFERENCES tournaments(tournament_key),
     round INT NOT NULL,
-    game_id TEXT NOT NULL UNIQUE,
+    game_id TEXT NOT NULL,
     created_on TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     white_id BIGINT NOT NULL REFERENCES users(id),
     black_id BIGINT NOT NULL REFERENCES users(id)

@@ -184,8 +184,8 @@ func (svc *HexchessServices) BroadcastGameCount(ctx context.Context, count int64
 	return svc.BroadcastCountEvent(ctx, svc.redis.GamesCountChannel, count)
 }
 
-func (svc *HexchessServices) BroadcastGamesEvent(ctx context.Context, message proto.Message) error {
-	bytes, err := proto.Marshal(message)
+func (svc *HexchessServices) BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput) error {
+	bytes, err := proto.Marshal(output)
 	if err != nil {
 		return fmt.Errorf("marshal game event message: %w", err)
 	}

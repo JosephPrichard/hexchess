@@ -8,6 +8,7 @@ import (
 )
 
 //go:generate mockgen -source=google.go -destination=./google_mock.go -package=egress
+
 type IDTokenValidator interface {
 	Validate(ctx context.Context, idToken string, audience string) (*idtoken.Payload, error)
 }

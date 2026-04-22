@@ -15,7 +15,7 @@ const (
 	ErrorKey       TournamentOutputKey = "error"
 )
 
-var ErrStartTournamentTaskQueue = errors.New("failed to handle start scheduled tournament event on task queue")
+var ErrAdvanceTournamentCode = errors.New("ERR_ADVANCE_TOURNAMENT")
 
 type TournamentOutput struct {
 	Key   TournamentOutputKey      `json:"key"`

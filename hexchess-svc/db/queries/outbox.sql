@@ -1,6 +1,6 @@
 -- name: InsertOutboxQueue :exec
 INSERT INTO outbox_queue (type, data, created_on, scheduled_on)
-VALUES (sqlc.arg('type'), sqlc.arg('data'), sqlc.narg('created_on'), sqlc.narg('scheduled_on'));
+VALUES (sqlc.arg('type'), sqlc.arg('data'), COALESCE(sqlc.narg('created_on')::timestamptz, CURRENT_TIMESTAMP), sqlc.narg('scheduled_on'));
 
 -- name: SelectOutboxQueueByPolling :many
 SELECT id, type, data

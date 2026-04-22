@@ -32,12 +32,7 @@ type ChallengeInst struct {
 	MadeOn       time.Time        `json:"madeOn"`
 }
 
-func (svc *HexchessServices) InsertChallenge(ctx context.Context, inst ChallengeInst) error {
-	_, err := svc.InsertChallengeRet(ctx, inst)
-	return err
-}
-
-func (svc *HexchessServices) InsertChallengeRet(ctx context.Context, inst ChallengeInst) (domain.Challenge, error) {
+func (svc *HexchessServices) InsertChallenge(ctx context.Context, inst ChallengeInst) (domain.Challenge, error) {
 	if inst.ChallengerID == inst.ChallengeeID {
 		return domain.Challenge{}, ErrSelfChallenge
 	}

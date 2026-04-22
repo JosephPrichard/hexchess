@@ -59,7 +59,7 @@ func main() {
 		}
 		log.Printf("finished syncing leaderboard job: %v", time.Since(start))
 	case "clear-s3-orphans":
-		services.ClearBucketOrphans(ctx, svc.PageLength)
+		services.ClearOrphanFiles(ctx, svc.PageLength)
 		log.Printf("finished clear bucket orphans job: %v", time.Since(start))
 	default:
 		log.Fatalf("unknown job: %s", *jobName)

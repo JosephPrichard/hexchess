@@ -63,7 +63,7 @@ type StateSetup struct {
 	UndoState    UndoState
 }
 
-func MakeChessState(s StateSetup) *ChessState {
+func MakeChessStateVal(s StateSetup) ChessState {
 	board := chess.MakeStartBoard()
 	if s.InitialBoard != nil {
 		board = *s.InitialBoard
@@ -72,7 +72,7 @@ func MakeChessState(s StateSetup) *ChessState {
 	if s.Game != nil {
 		game = *s.Game
 	}
-	return &ChessState{
+	return ChessState{
 		InitialBoard: board,
 		Game:         game,
 		UndoState:    s.UndoState,
@@ -86,6 +86,12 @@ func MakeChessState(s StateSetup) *ChessState {
 		},
 		EndState: s.EndState,
 	}
+}
+
+func MakeChessState(s StateSetup) *ChessState {
+	chessState := &ChessState{}
+	*chessState = MakeChessStateVal(s)
+	return chessState
 }
 
 var ErrNoMoveUndo = errors.New("no move to undo")

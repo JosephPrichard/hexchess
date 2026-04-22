@@ -10,7 +10,6 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/util/logutil"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -56,10 +55,6 @@ func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (rdb db.Redis, er
 		},
 		db.MakeTestRedisNames(),
 	), nil
-}
-
-func unique(s string) string {
-	return s + "-" + uuid.NewString()
 }
 
 const PostgresContTag = "postgres:17"

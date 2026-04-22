@@ -2,15 +2,15 @@ package db
 
 import (
 	"context"
-	"fmt"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"hexchess-svc/db/sqlc"
+	"log/slog"
 )
 
 type DB interface {
 	Querier() sqlc.Querier
-	ExecTx(context.Context, Tx) error
+	ExecTx(context.Context, TxArgs) error
 	Close()
 }
 
@@ -36,8 +36,13 @@ func (pdb *FakeDB) Querier() sqlc.Querier {
 }
 
 func (pdb *FakeDB) Close() {
+	defer func() {
+		if p := recover(); p != nil {
+			slog.Error("fatal error while closing fake db", "err", p)
+		}
+	}()
 	if err := pdb.testingTxn.Rollback(context.Background()); err != nil {
-		panic(fmt.Sprintf("failed to rollback testing txn: %v", err))
+		slog.Error("failed to rollback testing txn", "err", err)
 	}
 }
 

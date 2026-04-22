@@ -1,11 +1,9 @@
 # dump_schema.ps1
 
-if (-not $env:PASSWORD) {
-    Write-Error "PASSWORD env variable is required"
+if (-not $env:PGPASSWORD) {
+    Write-Error "PGPASSWORD env variable is required"
     exit 1
 }
-
-$env:PGPASSWORD = $env:PASSWORD
 
 & "C:\Program Files\PostgreSQL\17\bin\pg_dump.exe" `
     -s `

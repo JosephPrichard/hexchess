@@ -50,7 +50,7 @@ WHERE
 RETURNING user_id;
 
 -- name: SelectTournamentStatus :one
-SELECT status FROM tournaments WHERE tournament_key = sqlc.arg('tournament_key')::uuid;
+SELECT status, winner_id FROM tournaments WHERE tournament_key = sqlc.arg('tournament_key')::uuid;
 
 -- name: SelectParticipants :many
 SELECT * FROM tournament_participants WHERE tournament_key = sqlc.arg('tournament_key')::uuid;
@@ -159,7 +159,7 @@ SELECT
 FROM tournament_matches tm
     INNER JOIN tournaments t
         ON t.tournament_key = tm.tournament_key
-    INNER JOIN replays r
+    LEFT JOIN replays r
         ON r.game_id = tm.game_id
     LEFT JOIN user_mode_elos e1
         ON tm.white_id = e1.user_id AND e1.mode = t.mode

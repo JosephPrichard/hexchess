@@ -62,7 +62,7 @@ func TestInsertChallenge(t *testing.T) {
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, tt.name)
 
-			err := services.InsertChallenge(ctx, ChallengeInst{
+			_, err := services.InsertChallenge(ctx, ChallengeInst{
 				ChallengerID: tt.challengerID,
 				ChallengeeID: tt.challengeeID,
 				Mode:         domain.ModeCorrespondence7,

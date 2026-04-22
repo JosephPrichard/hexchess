@@ -14,6 +14,4 @@ CREATE INDEX idx_tournament_winner_id ON tournaments (winner_id);
 DROP INDEX IF EXISTS idx_tournament_winner_id;
 ALTER TABLE tournaments DROP COLUMN IF EXISTS ruleset;
 ALTER TABLE tournaments DROP COLUMN IF EXISTS winner_id;
-ALTER TABLE tournament_matches DROP COLUMN IF EXISTS white_id;
-ALTER TABLE tournament_matches DROP COLUMN IF EXISTS black_id;
 DROP TYPE IF EXISTS tournament_ruleset_enum;

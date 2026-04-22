@@ -13,112 +13,17 @@ import (
 	"math"
 	"strconv"
 
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 )
-
-type fakeGameEventHandler struct {
-	lock           sync.Mutex
-	cancel         func()
-	outputEvents   []FinishGameEvent
-	wantEventCount int
-}
-
-func (h *fakeGameEventHandler) handleFinishGameEvent(_ context.Context, event FinishGameEvent) error {
-	h.lock.Lock()
-	h.outputEvents = append(h.outputEvents, event)
-	h.lock.Unlock()
-
-	if len(h.outputEvents) == h.wantEventCount {
-		go h.cancel()
-	}
-	return nil
-}
-
-func TestGameFinishStreamer_FakeGameEventHandler(t *testing.T) {
-	t.Parallel()
-
-	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
-	defer services.Close()
-
-	ctx, cancel := context.WithCancel(context.WithValue(t.Context(), logutil.Trace, t.Name()))
-	defer cancel()
-
-	validInputEvents := []FinishGameEvent{
-		{
-			GameID: uuid.NewString(),
-			Board:  chess.MakeEmptyBoard(true),
-			Moves: []chess.HistMove{
-				{PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}}},
-			},
-			WhitePlayer:  domain.PlayerState{ID: 1, Name: "white1", Present: true},
-			BlackPlayer:  domain.PlayerState{ID: 2, Name: "black1", Present: true},
-			ReplayMode:   domain.ModeCorrespondence1,
-			ReplayCause:  domain.Checkmate,
-			ReplayResult: domain.WhiteWin,
-		},
-		{
-			GameID:       uuid.NewString(),
-			Board:        chess.MakeEmptyBoard(true),
-			WhitePlayer:  domain.PlayerState{ID: 3, Name: "white2", Present: true},
-			BlackPlayer:  domain.PlayerState{ID: 4, Name: "black2", Present: true},
-			ReplayMode:   domain.ModeTimed1Plus0,
-			ReplayCause:  domain.Forfeit,
-			ReplayResult: domain.BlackWin,
-		},
-		{
-			GameID:       uuid.NewString(),
-			Board:        chess.MakeEmptyBoard(true),
-			WhitePlayer:  domain.PlayerState{ID: 5, Name: "white3", Present: true},
-			BlackPlayer:  domain.PlayerState{ID: 6, Name: "black3", Present: true},
-			ReplayMode:   domain.ModeTimed3Plus2,
-			ReplayCause:  domain.Stalemate,
-			ReplayResult: domain.Draw,
-		},
-	}
-	invalidInputEvents := []map[string]any{
-		{
-			"data": "invalid",
-		},
-		{
-			"unknown": "field",
-		},
-	}
-
-	eventHandler := fakeGameEventHandler{
-		cancel:         cancel,
-		wantEventCount: len(validInputEvents),
-	}
-
-	stream := MakeFinishGameStreamer(ctx, services)
-	stream.HandleEvent = eventHandler.handleFinishGameEvent
-	stream.StreamKey = services.redis.FinishGameStreamKey
-
-	for _, event := range invalidInputEvents {
-		xArgs := &redis.XAddArgs{
-			Stream: services.redis.FinishGameStreamKey,
-			Values: event,
-		}
-		err := services.redis.GameStore.XAdd(ctx, xArgs).Err()
-		require.NoError(t, err)
-	}
-	for _, event := range validInputEvents {
-		services.pushFinishGameEvent(ctx, services.redis.GameStore, event)
-	}
-	stream.EventLoop()
-
-	assert.ElementsMatch(t, validInputEvents, eventHandler.outputEvents)
-}
 
 func TestInsertFinishedGameEvent(t *testing.T) {
 	t.Parallel()
@@ -248,16 +153,15 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
-			stream := MakeFinishGameStreamer(ctx, services)
-			stream.StreamKey = services.redis.FinishGameStreamKey
-
 			broadcasters := LocalBroadcasters{GamesCaster: MakeMultiCasterMap("testing-map", time.Hour*1)}
 			<-broadcasters.ListenGameMessages(services.redis)
 
+			// expect the game event to come on the following gameID (derived from input) channel. test times out and fails if it does not.
 			subChan := make(chan []byte, 1)
-			broadcasters.GamesCaster.Subscribe(test.event.GameID, subChan) // expect the game event to come on the following gameID (derived from input) channel. test times out and fails if it does not.
+			broadcasters.GamesCaster.Subscribe(test.event.GameID, subChan)
 
-			require.NoError(t, services.insertFinishedGameEvent(ctx, test.event))
+			err := services.InsertFinishedGameEvent(ctx, test.event)
+			require.NoError(t, err)
 
 			modeLbZSet := services.leaderboardZSet(test.event.ReplayMode.String())
 			leaderboard, err := services.redis.Cache.ZRevRange(ctx, modeLbZSet, 0, 2).Result()

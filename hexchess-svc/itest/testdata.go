@@ -291,6 +291,19 @@ var Tournaments = []domain.Tournament{
 		Ruleset:        domain.TournamentSwiss,
 		Mode:           domain.ModeCorrespondence1,
 	},
+	{
+		ID:             10,
+		TournamentKey:  Tournament9InProgressUncompletedKey,
+		Name:           "Test Tournament 9",
+		Rounds:         1,
+		MaxPlayerCount: -1,
+		Countdown:      "1m0s",
+		CreatedOn:      TimeNow,
+		CreatedBy:      1,
+		Status:         domain.TournamentInProgress,
+		Ruleset:        domain.TournamentSwiss,
+		Mode:           domain.ModeCorrespondence1,
+	},
 }
 
 var MatchTournament5 = []domain.Match{

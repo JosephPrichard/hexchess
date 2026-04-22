@@ -11,11 +11,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
+//go:generate mockgen -source=aws.go -destination=./aws_mock.go -package=egress
+
 const S3ProfileBucket = "hexchess-profiles"
 
 var Buckets = []string{S3ProfileBucket}
 
-//go:generate mockgen -source=aws.go -destination=./aws_mock.go -package=egress
 type S3Client interface {
 	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
 	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)

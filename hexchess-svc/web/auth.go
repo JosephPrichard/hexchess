@@ -43,7 +43,7 @@ func MakeSessionID() string {
 }
 
 type Authenticator struct {
-	services *svc.HexchessServices
+	services svc.HexchessAPI
 }
 
 func (auth *Authenticator) GetSessionPlayerAndID(ctx context.Context, r *http.Request) (p domain.PlayerState, t string, err error) {

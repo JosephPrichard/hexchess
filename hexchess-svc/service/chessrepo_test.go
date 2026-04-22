@@ -64,7 +64,7 @@ func TestUpdateChessState(t *testing.T) {
 	commit := func(pipe redis.Pipeliner, state *ChessState) error {
 		return pipe.Set(ctx, arbitraryKey, "test", 0).Err()
 	}
-	outState, err := services.UpdateChessStateTxn(ctx, testID, update, commit)
+	outState, err := services.updateChessStateTxn(ctx, testID, update, commit)
 	require.NoError(t, err)
 
 	wantState := inState.DeepCopy()
@@ -92,7 +92,7 @@ func TestUpdateChessState_Errors(t *testing.T) {
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	t.Run("failing with unknown game id", func(t *testing.T) {
-		_, err := services.UpdateChessStateTxn(ctx, uuid.NewString(), func(state *ChessState) error { return nil }, nil)
+		_, err := services.updateChessStateTxn(ctx, uuid.NewString(), func(state *ChessState) error { return nil }, nil)
 
 		assert.Equal(t, ErrNoChessState, err)
 	})
@@ -100,7 +100,7 @@ func TestUpdateChessState_Errors(t *testing.T) {
 	t.Run("failing in error closure", func(t *testing.T) {
 		mockedErr := errors.New("failed in update closure")
 
-		_, err := services.UpdateChessStateTxn(ctx, testID, func(state *ChessState) error {
+		_, err := services.updateChessStateTxn(ctx, testID, func(state *ChessState) error {
 			return mockedErr
 		}, nil)
 
@@ -108,7 +108,7 @@ func TestUpdateChessState_Errors(t *testing.T) {
 	})
 
 	t.Run("failing with interrupted update", func(t *testing.T) {
-		_, err := services.UpdateChessStateTxn(ctx, testID, func(state *ChessState) error {
+		_, err := services.updateChessStateTxn(ctx, testID, func(state *ChessState) error {
 			require.NoError(t, services.SetChessState(ctx, testID, inState)) // the state value we set is arbitrary
 			return nil
 		}, nil)

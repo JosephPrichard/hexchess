@@ -14,7 +14,7 @@ import (
 
 const PageLength = 1000
 
-func (svc *HexchessServices) ClearBucketOrphans(ctx context.Context, pageLength int32) {
+func (svc *HexchessServices) ClearOrphanFiles(ctx context.Context, pageLength int32) {
 	var wg sync.WaitGroup
 
 	for _, config := range []RemoveOrphansOpts{
@@ -26,13 +26,11 @@ func (svc *HexchessServices) ClearBucketOrphans(ctx context.Context, pageLength 
 			selectIDs:  svc.querier.SelectExistsUsersByIDs,
 		},
 	} {
-		wg.Add(1)
-		go func() {
+		wg.Go(func() {
 			if err := svc.removeOrphanedObjects(ctx, config); err != nil {
 				slog.ErrorContext(ctx, "failed to remove orphaned objects", "config", config, "err", err)
 			}
-			wg.Done()
-		}()
+		})
 	}
 
 	wg.Wait()

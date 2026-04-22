@@ -137,7 +137,7 @@ func (svc *HexchessServices) JoinGame(ctx context.Context, gameID string, player
 		}
 		return nil
 	}
-	state, err := svc.UpdateChessStateTxn(ctx, gameID, update, nil)
+	state, err := svc.updateChessStateTxn(ctx, gameID, update, nil)
 	if state != nil {
 		slog.InfoContext(ctx, "player joined game", "playerID", player.ID, "chessMeta", state.ChessMeta)
 	}
@@ -199,7 +199,7 @@ func (svc *HexchessServices) MakeGameMove(ctx context.Context, gameID string, pl
 		}
 		return nil
 	}
-	state, err := svc.UpdateChessStateTxn(ctx, gameID, update, commit)
+	state, err := svc.updateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {
 		return MoveResult{}, err
 	}
@@ -253,7 +253,7 @@ func (svc *HexchessServices) AttemptGameUndo(ctx context.Context, gameID string,
 		}
 		return nil
 	}
-	state, err := svc.UpdateChessStateTxn(ctx, gameID, update, nil)
+	state, err := svc.updateChessStateTxn(ctx, gameID, update, nil)
 	if state != nil {
 		slog.InfoContext(ctx, "attempt game undo", "playerID", player.ID, "chessMeta", state.ChessMeta)
 	}
@@ -301,7 +301,7 @@ func (svc *HexchessServices) EndGame(ctx context.Context, gameID string, player 
 		}
 		return nil
 	}
-	state, err := svc.UpdateChessStateTxn(ctx, gameID, update, commit)
+	state, err := svc.updateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {
 		return NotEnded, err
 	}

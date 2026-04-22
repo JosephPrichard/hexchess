@@ -2,21 +2,12 @@ package svc
 
 import (
 	"cmp"
-	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/domain"
 	"math"
 	"slices"
 )
-
-// participantsAtRound returns the number of elements at a given depth.
-// Each node holds 2 elements. At depth d, there are 2^(N-d) nodes.
-func participantsAtRound(maxDepth, depth int) int { return 1 << (maxDepth - depth + 1) }
-
-// NodesAtDepth returns the number of nodes at a given depth.
-// Root (depth N) has 1 node; each level down doubles the count.
-func matchesAtRound(maxDepth, depth int) int { return 1 << (maxDepth - depth) }
 
 type TournamentMatchCreation struct {
 	GameID   string
@@ -37,126 +28,13 @@ type FirstMatchmakingRequest struct {
 	TotalRounds  int32
 }
 
-type MatchmakingResult struct {
+type MatchmakingResponse struct {
 	NextMatches    []TournamentMatchCreation
 	TotalRounds    int32 // RoundRobin and Swiss calculate total rounds during matchmaking rather than using already existing rounds to validate
 	NextStatus     domain.TournamentStatus
 	NextMatchRound int32
 	WinnerID       int64
 	Tiebreaker     TieBreakerKind
-}
-
-func calcRoundRobinTournamentRounds(participantCount int) int32 {
-	return int32((participantCount * (participantCount - 1)) / 2)
-}
-
-func calcSwissTournamentRounds(participantCount int) int32 {
-	return int32(math.Log2(float64(participantCount)))
-}
-
-type StartTournamentError struct {
-	Ruleset domain.TournamentRuleset
-	Err     error
-}
-
-func (e StartTournamentError) Error() string {
-	return fmt.Sprintf("tournament ruleset %s with violation: %v", e.Ruleset, e.Err)
-}
-
-var (
-	ErrInvalidParticipantCount  = fmt.Errorf("tournament does not have enough participant to create match")
-	ErrInvalidParticipantParity = fmt.Errorf("participant count must be even")
-	ErrMatchRoundCount          = errors.New("tournament has an invalid completed match count in round")
-)
-
-func makeMatchesLinearly(participants []FirstMatchParticipant, gameMode domain.GameMode) []TournamentMatchCreation {
-	// invariant: participant count is always even (`elementsAtFirstDepth` always returns even)
-	if len(participants)%2 != 0 {
-		// assert rather than return an error because this property is statically encoded into the `ElementsAtFirstDepth` algorithm
-		panic(fmt.Sprintf("participant count %+v is not even", participants))
-	}
-	var matches []TournamentMatchCreation
-	for i := 0; i+1 < len(participants); i += 2 {
-		matches = append(matches, TournamentMatchCreation{
-			GameID:   MakeGameID(),
-			GameMode: gameMode,
-			WhiteID:  participants[i].UserID,
-			BlackID:  participants[i+1].UserID,
-		})
-	}
-	return matches
-}
-
-func makeMatchesCrissCross(participants []FirstMatchParticipant, gameMode domain.GameMode) []TournamentMatchCreation {
-	var matches []TournamentMatchCreation
-	low := 0
-	high := len(participants) - 1
-	for low < high {
-		matches = append(matches, TournamentMatchCreation{
-			GameID:   MakeGameID(),
-			GameMode: gameMode,
-			WhiteID:  participants[low].UserID,
-			BlackID:  participants[high].UserID,
-		})
-		low++
-		high--
-	}
-	// invariant: always converges on a different player (so each player gets a match)
-	if low == high {
-		// assert rather than return an error because this property is statically encoded into the this algorithm
-		panic(fmt.Sprintf("participant count %+v is not even", participants))
-	}
-	return matches
-}
-
-func MakeFirstMatches(request FirstMatchmakingRequest) (result MatchmakingResult, err error) {
-	participantCount := len(request.Participants)
-
-	var matches []TournamentMatchCreation
-	totalRounds := request.TotalRounds
-
-	switch request.Ruleset {
-	case domain.TournamentKnockout:
-		// validation: matches are devided by two each time and stop at 1, we need to start at the expected power of 2
-		if participantCount != participantsAtRound(int(request.TotalRounds), 1) {
-			return result, StartTournamentError{Ruleset: domain.TournamentKnockout, Err: ErrInvalidParticipantCount}
-		}
-		// validation: as long as we can match each player with another player, we can start the tournament
-	case domain.TournamentRoundRobin, domain.TournamentSwiss:
-		if participantCount != participantsAtRound(int(request.TotalRounds), 1) {
-			return result, StartTournamentError{Ruleset: domain.TournamentKnockout, Err: ErrInvalidParticipantCount}
-		}
-	}
-
-	switch request.Ruleset {
-	case domain.TournamentKnockout:
-		matches = makeMatchesLinearly(request.Participants, request.Mode)
-
-		// invariant: we should have as many matches expected at the first round
-		if len(matches) != matchesAtRound(int(request.TotalRounds), 1) {
-			return result, ErrMatchRoundCount
-		}
-	case domain.TournamentRoundRobin:
-		matches = makeMatchesLinearly(request.Participants, request.Mode)
-
-		totalRounds = calcRoundRobinTournamentRounds(participantCount)
-	case domain.TournamentSwiss:
-		// a swiss tournament matches the worst players with the best players
-		slices.SortFunc(request.Participants, func(a, b FirstMatchParticipant) int {
-			if n := cmp.Compare(domain.DefaultUserElo(b.Elo), domain.DefaultUserElo(a.Elo)); n != 0 {
-				return n
-			}
-			return cmp.Compare(a.UserID, b.UserID)
-		})
-
-		matches = makeMatchesCrissCross(request.Participants, request.Mode)
-
-		totalRounds = calcSwissTournamentRounds(participantCount)
-	default:
-		return result, fmt.Errorf("unknown tournament ruleset %s", request.Ruleset)
-	}
-
-	return MatchmakingResult{NextMatches: matches, NextStatus: domain.TournamentInProgress, NextMatchRound: 1, TotalRounds: totalRounds}, nil
 }
 
 type TieBreakerKind int
@@ -167,7 +45,7 @@ const (
 	TiebreakerBySonnebornBerger
 )
 
-type PrevMatch struct {
+type CompletedPrevMatch struct {
 	Round    int32
 	WhiteID  int64
 	BlackID  int64
@@ -176,7 +54,7 @@ type PrevMatch struct {
 	Result   domain.ReplayResult
 }
 
-func getKnockoutWinnerID(match PrevMatch) (int64, TieBreakerKind) {
+func getKnockoutWinnerID(match CompletedPrevMatch) (int64, TieBreakerKind) {
 	switch match.Result {
 	case domain.WhiteWin:
 		return match.WhiteID, TiebreakerNone
@@ -198,16 +76,150 @@ func withoutTiebreaker(u int64, _ TieBreakerKind) int64 {
 	return u
 }
 
+func calcRoundRobinTournamentRounds(participantCount int) int32 {
+	return int32((participantCount * (participantCount - 1)) / 2)
+}
+
+func calcSwissTournamentRounds(participantCount int) int32 {
+	return int32(math.Log2(float64(participantCount)))
+}
+
+// knockoutParticipantsAtRound returns the number of elements at a given depth.
+// Each node holds 2 elements. At depth d, there are 2^(N-d) nodes.
+func knockoutParticipantsAtRound(maxDepth, depth int) int { return 1 << (maxDepth - depth + 1) }
+
+// knockoutMatchesAtRound returns the number of nodes at a given depth.
+// Root (depth N) has 1 node; each level down doubles the count.
+func knockoutMatchesAtRound(maxDepth, depth int) int { return 1 << (maxDepth - depth) }
+
+type MatchCountErrKind int
+
+const (
+	ParticipantCountErrKind = iota
+	ParticipantParityErrKind
+	MatchParityErrKind
+)
+
+type MatchCountError struct {
+	Kind      MatchCountErrKind
+	WantCount int
+	GotCount  int
+}
+
+func (e MatchCountError) Error() string {
+	switch e.Kind {
+	case ParticipantCountErrKind:
+		return fmt.Sprintf("tournament requires %v participants, got: %d", e.WantCount, e.GotCount)
+	case ParticipantParityErrKind:
+		return fmt.Sprintf("tournament requires an even number of participants, got: %d", e.GotCount)
+	case MatchParityErrKind:
+		return fmt.Sprintf("tournament requires an even number of matches, got: %d", e.GotCount)
+	default:
+		return fmt.Sprintf("unknown match participant count error kind %d", e.Kind)
+	}
+}
+
+func makeMatchesLinearly(participants []FirstMatchParticipant, gameMode domain.GameMode) []TournamentMatchCreation {
+	// invariant: participant count is always even (`elementsAtFirstDepth` always returns even)
+	if len(participants)%2 != 0 {
+		// assert rather than return an error because this property is statically encoded into the `ElementsAtFirstDepth` algorithm
+		panic(fmt.Sprintf("participant count %+v is not even", participants))
+	}
+	var matches []TournamentMatchCreation
+	for i := 0; i+1 < len(participants); i += 2 {
+		matches = append(matches, TournamentMatchCreation{
+			GameID:   MakeGameID(),
+			GameMode: gameMode,
+			WhiteID:  participants[i].UserID,
+			BlackID:  participants[i+1].UserID,
+		})
+	}
+	return matches
+}
+
+func makeMatchesCrissCrossElos(participants []FirstMatchParticipant, gameMode domain.GameMode) []TournamentMatchCreation {
+	// sort participants by elo.
+	slices.SortFunc(participants, func(a, b FirstMatchParticipant) int {
+		if n := cmp.Compare(domain.DefaultUserElo(b.Elo), domain.DefaultUserElo(a.Elo)); n != 0 {
+			return n
+		}
+		return cmp.Compare(a.UserID, b.UserID)
+	})
+
+	var matches []TournamentMatchCreation
+	low := 0
+	high := len(participants) - 1
+	for low < high {
+		matches = append(matches, TournamentMatchCreation{
+			GameID:   MakeGameID(),
+			GameMode: gameMode,
+			WhiteID:  participants[low].UserID,
+			BlackID:  participants[high].UserID,
+		})
+		low++
+		high--
+	}
+
+	// invariant: always converges on a different player (so each player gets a match)
+	if low == high {
+		// assert rather than return an error because this property is statically encoded into the this algorithm
+		panic(fmt.Sprintf("participant count %+v is not even", participants))
+	}
+	return matches
+}
+
+func MakeFirstMatches(request FirstMatchmakingRequest) (MatchmakingResponse, error) {
+	participantCount := len(request.Participants)
+
+	var matches []TournamentMatchCreation
+	totalRounds := request.TotalRounds
+
+	switch request.Ruleset {
+	case domain.TournamentKnockout:
+		// invariant: matches are devided by two each time and stop at 1, we need to start at the expected power of 2
+		wantRoundCount := knockoutParticipantsAtRound(int(totalRounds), 1)
+		if participantCount != wantRoundCount {
+			return MatchmakingResponse{}, MatchCountError{Kind: ParticipantCountErrKind, WantCount: wantRoundCount, GotCount: participantCount}
+		}
+	case domain.TournamentRoundRobin, domain.TournamentSwiss:
+		// invariant: as long as we can match each player with another player, we can start the tournament
+		if participantCount%2 != 0 {
+			return MatchmakingResponse{}, MatchCountError{Kind: ParticipantParityErrKind, GotCount: participantCount}
+		}
+	}
+
+	switch request.Ruleset {
+	case domain.TournamentKnockout:
+		matches = makeMatchesLinearly(request.Participants, request.Mode)
+
+		wantRoundCount := knockoutMatchesAtRound(int(totalRounds), 1)
+		if len(matches) != wantRoundCount {
+			panic(fmt.Sprintf("expected %d matches, got %d", wantRoundCount, len(matches)))
+		}
+	case domain.TournamentRoundRobin:
+		matches = makeMatchesLinearly(request.Participants, request.Mode)
+		totalRounds = calcRoundRobinTournamentRounds(participantCount)
+	case domain.TournamentSwiss:
+		// a swiss tournament matches the worst players with the best players
+		matches = makeMatchesCrissCrossElos(request.Participants, request.Mode)
+		totalRounds = calcSwissTournamentRounds(participantCount)
+	default:
+		return MatchmakingResponse{}, fmt.Errorf("unknown tournament ruleset %s", request.Ruleset)
+	}
+
+	return MatchmakingResponse{NextMatches: matches, NextStatus: domain.TournamentInProgress, NextMatchRound: 1, TotalRounds: totalRounds}, nil
+}
+
 type MatchmakingRequest struct {
 	Ruleset     domain.TournamentRuleset
-	Matches     []PrevMatch
+	Matches     []CompletedPrevMatch
 	GameMode    domain.GameMode
 	TotalRounds int32
 }
 
-func getPrevRoundMatches(matches []PrevMatch) []PrevMatch {
+func getPrevRoundMatches(matches []CompletedPrevMatch) []CompletedPrevMatch {
 	prevMatchRound := matches[len(matches)-1].Round
-	var prevRoundMatches []PrevMatch
+	var prevRoundMatches []CompletedPrevMatch
 	for _, match := range matches {
 		if match.Round == prevMatchRound {
 			prevRoundMatches = append(prevRoundMatches, match)
@@ -216,115 +228,134 @@ func getPrevRoundMatches(matches []PrevMatch) []PrevMatch {
 	return prevRoundMatches
 }
 
-func DoMatchmaking(request MatchmakingRequest) (MatchmakingResult, error) {
-	// invariant: a tournament must have matches to do matchmaking
+const WinnerIDNone = int64(0)
+
+func DoMatchmaking(request MatchmakingRequest) (MatchmakingResponse, error) {
+	// validation: a tournament must have matches to do matchmaking
 	if len(request.Matches) == 0 {
-		return MatchmakingResult{}, ErrEmptyMatchesTournament
+		return MatchmakingResponse{}, ErrEmptyMatchesTournament
 	}
 
-	totalRounds := int(request.TotalRounds)
 	gameMode := request.GameMode
 	allMatches := request.Matches
-
-	prevMatchRound := allMatches[len(allMatches)-1].Round
 
 	var nextMatches []TournamentMatchCreation
 
 	switch request.Ruleset {
 	case domain.TournamentKnockout:
-		prevRoundMatches := getPrevRoundMatches(allMatches)
-
-		// validation: `Knockout` the last batch of NextMatches are at a completed state
-		if len(prevRoundMatches) == matchesAtRound(totalRounds, int(prevMatchRound)) {
-			// additionally, this check makes this operation idempotent within a very short timeframe
-			// if two matchmaking operations run serially, the second one will produce this error
-			return MatchmakingResult{}, ErrMatchRoundCount
+		if len(allMatches)%2 != 0 {
+			return MatchmakingResponse{}, MatchCountError{Kind: MatchParityErrKind, GotCount: len(allMatches)}
 		}
-
-		if len(prevRoundMatches)%2 != 0 {
-			panic(fmt.Sprintf("match count %d is not even", len(prevRoundMatches)))
-		}
-
-		var nextMatches []TournamentMatchCreation
-		for i := 0; i+1 < len(prevRoundMatches); i += 2 {
-			matchOne := prevRoundMatches[i]
-			matchTwo := prevRoundMatches[i+1]
-			nextMatches = append(nextMatches, TournamentMatchCreation{
-				GameID:   MakeGameID(),
-				GameMode: gameMode,
-				WhiteID:  withoutTiebreaker(getKnockoutWinnerID(matchOne)),
-				BlackID:  withoutTiebreaker(getKnockoutWinnerID(matchTwo)),
-			})
-		}
-
-		if len(nextMatches) == len(prevRoundMatches)/2 {
-			panic(fmt.Sprintf("expected %d next matches, got %d", len(prevRoundMatches)/2, len(nextMatches)))
-		}
+		nextMatches = DoKnockoutMatchmaking(allMatches, gameMode)
 	case domain.TournamentRoundRobin:
-		prevRoundMatches := getPrevRoundMatches(allMatches)
-
-		var nextMatches []TournamentMatchCreation
-
-		for i := range len(prevRoundMatches) {
-			prevMatch := prevRoundMatches[i]
-
-			var nextWhiteID int64
-			var nextBlackID int64
-
-			if i == 0 {
-				// case (first match): nextWhiteID acts as an 'anchor' (only player that does not change)
-				nextWhiteID = prevMatch.WhiteID
-				nextBlackID = prevRoundMatches[len(prevRoundMatches)-1].BlackID
-			} else {
-				// case (other match): take nextWhiteID from previous match, shift previous nextWhiteID into next nextBlackID
-				nextWhiteID = prevRoundMatches[i-1].BlackID
-				nextBlackID = prevMatch.WhiteID
-			}
-
-			nextMatches = append(nextMatches, TournamentMatchCreation{
-				GameID:   MakeGameID(),
-				GameMode: gameMode,
-				WhiteID:  nextWhiteID,
-				BlackID:  nextBlackID,
-			})
-		}
+		nextMatches = DoRoundRobinMatchmaking(allMatches, gameMode)
 	case domain.TournamentSwiss:
-		swissScoresTable := makeSwissTable(allMatches)
-
-		// collect and reverse sort match participants by swiss score
-		var participantIDs []int64
-		for userID, _ := range swissScoresTable {
-			participantIDs = append(participantIDs, userID)
-		}
-		slices.SortFunc(participantIDs, func(a, b int64) int {
-			return cmp.Compare(swissScoresTable[b], swissScoresTable[a])
-		})
-
-		var matches []TournamentMatchCreation
-		for i := 0; i+1 < len(participantIDs); i += 2 {
-			matches = append(matches, TournamentMatchCreation{
-				GameID:   MakeGameID(),
-				GameMode: gameMode,
-				WhiteID:  participantIDs[i],
-				BlackID:  participantIDs[i+1],
-			})
-		}
+		nextMatches = DoSwissMatchmaking(allMatches, gameMode)
 	default:
-		return MatchmakingResult{}, fmt.Errorf("unknown tournament ruleset %s", request.Ruleset)
+		return MatchmakingResponse{}, fmt.Errorf("unknown tournament ruleset %s", request.Ruleset)
 	}
 
+	prevMatchRound := allMatches[len(allMatches)-1].Round
 	nextMatchRound := prevMatchRound + 1
 
 	nextStatus := domain.TournamentInProgress
-	winnerID := int64(0) // defaults to no winner
+	winnerID := WinnerIDNone // defaults to no winner
 	tiebreaker := TiebreakerNone
 
-	if nextMatchRound == request.TotalRounds {
+	if nextMatchRound > request.TotalRounds {
 		nextStatus = domain.TournamentFinished
 		winnerID, tiebreaker = findTournamentWinner(request.Ruleset, request.Matches)
 	}
 
-	return MatchmakingResult{NextMatches: nextMatches, NextStatus: nextStatus, NextMatchRound: nextMatchRound, WinnerID: winnerID, Tiebreaker: tiebreaker}, nil
+	return MatchmakingResponse{
+		NextMatches:    nextMatches,
+		NextStatus:     nextStatus,
+		NextMatchRound: nextMatchRound,
+		TotalRounds:    request.TotalRounds,
+		WinnerID:       winnerID,
+		Tiebreaker:     tiebreaker,
+	}, nil
+}
+
+func DoKnockoutMatchmaking(allMatches []CompletedPrevMatch, gameMode domain.GameMode) []TournamentMatchCreation {
+	var nextMatches []TournamentMatchCreation
+
+	prevRoundMatches := getPrevRoundMatches(allMatches)
+
+	for i := 0; i+1 < len(prevRoundMatches); i += 2 {
+		matchOne := prevRoundMatches[i]
+		matchTwo := prevRoundMatches[i+1]
+		nextMatches = append(nextMatches, TournamentMatchCreation{
+			GameID:   MakeGameID(),
+			GameMode: gameMode,
+			WhiteID:  withoutTiebreaker(getKnockoutWinnerID(matchOne)),
+			BlackID:  withoutTiebreaker(getKnockoutWinnerID(matchTwo)),
+		})
+	}
+
+	if len(nextMatches) != len(prevRoundMatches)/2 {
+		panic(fmt.Sprintf("expected %d next matches, got %d", len(prevRoundMatches)/2, len(nextMatches)))
+	}
+
+	return nextMatches
+}
+
+func DoRoundRobinMatchmaking(allMatches []CompletedPrevMatch, gameMode domain.GameMode) []TournamentMatchCreation {
+	var nextMatches []TournamentMatchCreation
+
+	prevRoundMatches := getPrevRoundMatches(allMatches)
+
+	for i := range len(prevRoundMatches) {
+		prevMatch := prevRoundMatches[i]
+
+		var nextWhiteID int64
+		var nextBlackID int64
+
+		if i == 0 {
+			// case (first match): nextWhiteID acts as an 'anchor' (only player that does not change)
+			nextWhiteID = prevMatch.WhiteID
+			nextBlackID = prevRoundMatches[len(prevRoundMatches)-1].BlackID
+		} else {
+			// case (other match): take nextWhiteID from previous match, shift previous nextWhiteID into next nextBlackID
+			nextWhiteID = prevRoundMatches[i-1].BlackID
+			nextBlackID = prevMatch.WhiteID
+		}
+
+		nextMatches = append(nextMatches, TournamentMatchCreation{
+			GameID:   MakeGameID(),
+			GameMode: gameMode,
+			WhiteID:  nextWhiteID,
+			BlackID:  nextBlackID,
+		})
+	}
+
+	return nextMatches
+}
+
+func DoSwissMatchmaking(allMatches []CompletedPrevMatch, gameMode domain.GameMode) []TournamentMatchCreation {
+	var nextMatches []TournamentMatchCreation
+
+	swissScoresTable := makeSwissTable(allMatches)
+
+	// collect and reverse sort match participants by swiss score
+	var participantIDs []int64
+	for userID, _ := range swissScoresTable {
+		participantIDs = append(participantIDs, userID)
+	}
+	slices.SortFunc(participantIDs, func(a, b int64) int {
+		return cmp.Compare(swissScoresTable[b], swissScoresTable[a])
+	})
+
+	for i := 0; i+1 < len(participantIDs); i += 2 {
+		nextMatches = append(nextMatches, TournamentMatchCreation{
+			GameID:   MakeGameID(),
+			GameMode: gameMode,
+			WhiteID:  participantIDs[i],
+			BlackID:  participantIDs[i+1],
+		})
+	}
+
+	return nextMatches
 }
 
 func findScoringTableWinners[Score cmp.Ordered](scoreTable map[int64]Score, skip func(int64) bool) []int64 {
@@ -352,7 +383,7 @@ func findScoringTableWinners[Score cmp.Ordered](scoreTable map[int64]Score, skip
 	return winnerIDs
 }
 
-func findTournamentWinner(ruleset domain.TournamentRuleset, allMatches []PrevMatch) (int64, TieBreakerKind) {
+func findTournamentWinner(ruleset domain.TournamentRuleset, allMatches []CompletedPrevMatch) (int64, TieBreakerKind) {
 	switch ruleset {
 	case domain.TournamentKnockout:
 		// winner of the tournament is the player left standing
@@ -392,7 +423,7 @@ func findTournamentWinner(ruleset domain.TournamentRuleset, allMatches []PrevMat
 	}
 }
 
-func makeWinCountTable(allMatches []PrevMatch) map[int64]int32 {
+func makeWinCountTable(allMatches []CompletedPrevMatch) map[int64]int32 {
 	winCountTable := make(map[int64]int32)
 	for _, match := range allMatches {
 		switch match.Result {
@@ -406,7 +437,7 @@ func makeWinCountTable(allMatches []PrevMatch) map[int64]int32 {
 	return winCountTable
 }
 
-func makeSonnebornTable(allMatches []PrevMatch) map[int64]float64 {
+func makeSonnebornTable(allMatches []CompletedPrevMatch) map[int64]float64 {
 	sonnebornTable := make(map[int64]float64)
 	for _, match := range allMatches {
 		switch match.Result {
@@ -422,8 +453,14 @@ func makeSonnebornTable(allMatches []PrevMatch) map[int64]float64 {
 	return sonnebornTable
 }
 
-func makeSwissTable(allMatches []PrevMatch) map[int64]float64 {
+func makeSwissTable(allMatches []CompletedPrevMatch) map[int64]float64 {
 	swissScores := make(map[int64]float64)
+
+	for _, match := range allMatches {
+		swissScores[match.WhiteID] = 0.0
+		swissScores[match.BlackID] = 0.0
+	}
+
 	for _, match := range allMatches {
 		switch match.Result {
 		case domain.WhiteWin:

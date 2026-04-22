@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hexchess-svc/domain"
 	"log"
 	"log/slog"
 	"math/rand"
@@ -112,13 +113,13 @@ func main() {
 	log.Printf("finished seeding databases: %v", time.Since(start))
 }
 
-func insertChallenges(ctx context.Context, s *svc.HexchessServices, insts []ChallengeInst) error {
+func insertChallenges(ctx context.Context, services svc.HexchessAPI, insts []ChallengeInst) error {
 	for _, chInst := range insts {
-		if err := s.InsertChallenge(ctx, svc.ChallengeInst{
+		if _, err := services.InsertChallenge(ctx, svc.ChallengeInst{
 			ChallengerID: chInst.ChallengerID,
 			ChallengeeID: chInst.ChallengeeID,
-			Mode:         svc.ExpectGameMode(chInst.Mode),
-			StartColor:   svc.ExpectColor(chInst.StartColor),
+			Mode:         domain.ExpectGameMode(chInst.Mode),
+			StartColor:   domain.ExpectColor(chInst.StartColor),
 			MadeOn:       chInst.MadeOn,
 		}); err != nil {
 			return err
@@ -127,7 +128,7 @@ func insertChallenges(ctx context.Context, s *svc.HexchessServices, insts []Chal
 	return nil
 }
 
-func insertRandomizedGameResults(ctx context.Context, services *svc.HexchessServices, gameResults []GameResult) error {
+func insertRandomizedGameResults(ctx context.Context, services svc.HexchessAPI, gameResults []GameResult) error {
 	timeAt := time.Now().Add(-1 * time.Hour * 24 * 100)
 
 	a := gameResults
@@ -139,7 +140,7 @@ func insertRandomizedGameResults(ctx context.Context, services *svc.HexchessServ
 
 	for gameIdx, params := range gameResults {
 		eg.Go(func() error {
-			mode := svc.ExpectGameMode(params.ReplayMode)
+			mode := domain.ExpectGameMode(params.ReplayMode)
 
 			moveSeq, err := svc.RandomMoveHistSeq(mode, chess.MakeStartGame(), 10, 30)
 			if err != nil {
@@ -154,8 +155,8 @@ func insertRandomizedGameResults(ctx context.Context, services *svc.HexchessServ
 				GameID:       svc.MakeGameID(),
 				WhiteID:      params.WhiteID,
 				BlackID:      params.BlackID,
-				ReplayCause:  svc.ExpectReplayCause(params.ReplayCause),
-				ReplayResult: svc.ExpectReplayResult(params.ReplayResult),
+				ReplayCause:  domain.ExpectReplayCause(params.ReplayCause),
+				ReplayResult: domain.ExpectReplayResult(params.ReplayResult),
 				ReplayMode:   mode,
 				InsertedTime: timeAt.Add(time.Duration(gameIdx) * time.Hour * 24),
 			})

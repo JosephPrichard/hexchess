@@ -15,15 +15,15 @@ import (
 
 type QueryFn func(ctx context.Context, querier sqlc.Querier) error
 
-type Tx struct {
+type TxArgs struct {
 	QueryFn      QueryFn
 	ErrAllowlist []error
 	Isolation    pgx.TxIsoLevel
 	RetryCount   int
 }
 
-func (pdb *PostgresDB) ExecTx(ctx context.Context, args Tx) error {
-	execTx := func(ctx context.Context, args Tx) error {
+func (pdb *PostgresDB) ExecTx(ctx context.Context, args TxArgs) error {
+	execTx := func(ctx context.Context, args TxArgs) error {
 		if args.Isolation == "" {
 			args.Isolation = pgx.ReadCommitted
 		}
@@ -83,7 +83,7 @@ func exponentialBackoff(retry int, multiplier float64, base time.Duration) time.
 	return time.Duration(backoff + jitter)
 }
 
-func (pdb *FakeDB) ExecTx(ctx context.Context, args Tx) (err error) {
+func (pdb *FakeDB) ExecTx(ctx context.Context, args TxArgs) (err error) {
 	// a fake postgres instance is already running in a txn, noop the txn
 	return args.QueryFn(ctx, sqlc.New(pdb.testingTxn))
 }

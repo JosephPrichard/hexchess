@@ -79,5 +79,5 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 		}).
 		Return(&s3.DeleteObjectsOutput{}, nil)
 
-	services.ClearBucketOrphans(ctx, 1)
+	services.ClearOrphanFiles(ctx, 1)
 }

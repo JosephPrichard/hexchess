@@ -1181,6 +1181,7 @@ func TestGetTournaments(t *testing.T) {
 			wantStatus: http.StatusOK,
 			wantResp: GetTournamentsResp{
 				Tournaments: []domain.Tournament{
+					itest.Tournaments[9],
 					itest.Tournaments[8],
 					itest.Tournaments[7],
 					itest.Tournaments[6],
