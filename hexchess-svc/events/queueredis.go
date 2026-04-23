@@ -3,17 +3,21 @@ package events
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 	"hexchess-svc/db"
 	svc "hexchess-svc/service"
+	"hexchess-svc/util/errutil"
 	"log/slog"
 	"sync"
+
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 func StartRedisQueueConsumers(ctx context.Context, services svc.HexchessAPI, redis db.Redis) {
+	h := EventHandler{Services: services}
+
 	handlerList := []RedisQueueHandler{
-		&RedisConsumer[svc.FinishGameEvent]{
+		&RedisConsumer[svc.FinishedGame]{
 			Context: ctx,
 			Client:  redis.GameStore,
 
@@ -21,8 +25,7 @@ func StartRedisQueueConsumers(ctx context.Context, services svc.HexchessAPI, red
 			StreamKey:     redis.FinishGameStreamKey,
 			ConsumerGroup: FinishGameConsumerGroup,
 
-			HandleEvent:    services.InsertFinishedGameEvent,
-			UnmarshalEvent: svc.UnmarshalFinishGameEvent,
+			HandleEvent:    h.HandleFinishedGameEvent,
 		},
 	}
 
@@ -45,8 +48,7 @@ type RedisConsumer[Event any] struct {
 	StreamKey     string
 	ConsumerGroup string
 
-	HandleEvent    func(ctx context.Context, event Event) error
-	UnmarshalEvent func([]byte) (Event, error)
+	HandleEvent    func(ctx context.Context, eventData string) error
 
 	waitGroup sync.WaitGroup
 }
@@ -104,22 +106,24 @@ const (
 func (stream *RedisConsumer[Event]) handleXReadMessage(msg redis.XMessage) {
 	ack := func() ackSignal {
 		// send the ack if data is invalid OR message succeeds, retry otherwise
-		data, ok := msg.Values["data"].(string)
+		anyData := msg.Values["data"]
+		data, ok := anyData.(string)
 		if !ok {
-			slog.Error("failed to read message, does not contain 'data' field")
+			slog.Error("failed to read message, 'data' field is incorrect type", "type", fmt.Sprintf("%T", anyData))
 			return sendAck
 		}
 
-		event, err := stream.UnmarshalEvent([]byte(data))
+		err := stream.HandleEvent(stream.Context, data)
+
 		if err != nil {
-			slog.Error("failed to unmarshal event", "err", err, "type", fmt.Sprintf("%T", event))
-			return sendAck
+			slog.Error("failed to handle event", "err", err)
+			if errutil.IsType[NonRetryableQueueError](err) { 
+				return sendAck
+			} else {
+				return dontSendAck
+			}
 		}
 
-		if err := stream.HandleEvent(stream.Context, event); err != nil {
-			slog.Error("failed to handle event", "err", err)
-			return dontSendAck
-		}
 		return sendAck
 	}()
 

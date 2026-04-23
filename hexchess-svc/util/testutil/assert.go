@@ -24,7 +24,7 @@ func Equal[T any](t *testing.T, expected, actual T, opts ...cmp.Option) bool {
 
 func AssertRespBody[V any](t *testing.T, wantBody V, w *httptest.ResponseRecorder, opts ...cmp.Option) {
 	t.Helper()
-	diff, bodyString := assertRespBody[V](wantBody, w, opts...)
+	diff, bodyString := assertRespBody(wantBody, w, opts...)
 	t.Logf("response body:\n%s", bodyString)
 	if diff != "" {
 		t.Error(diff)

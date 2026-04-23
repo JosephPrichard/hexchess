@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	svc "hexchess-svc/service"
@@ -13,15 +11,10 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
-
-type NonRetryableOutboxError struct {
-	Err error
-}
-
-func (err NonRetryableOutboxError) Error() string {
-	return fmt.Sprintf("non-retryable outbox error: %v", err.Err)
-}
 
 type DBQueueHandler struct {
 	kind         sqlc.OutboxQueueTypeEnum
@@ -31,7 +24,7 @@ type DBQueueHandler struct {
 }
 
 func StartDBQueueConsumers(ctx context.Context, services svc.HexchessAPI, pdb db.DB) {
-	eventHandler := EventHandler{Services: services, Querier: pdb.Querier()}
+	eventHandler := EventHandler{Services: services}
 
 	handlerList := []DBQueueHandler{
 		{
@@ -126,7 +119,7 @@ func pollOutboxQueueEvents(ctx context.Context, querier sqlc.Querier, handler DB
 
 	for _, event := range processedEvents {
 		// acknowledge the event if there is no error or the error is not retryable
-		if event.err == nil || errutil.IsType[NonRetryableOutboxError](event.err) {
+		if event.err == nil || errutil.IsType[NonRetryableQueueError](event.err) {
 			eventIDsToAck = append(eventIDsToAck, event.eventID)
 		}
 		// always collect all errors to be logged

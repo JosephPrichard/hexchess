@@ -3,18 +3,18 @@ package events
 import (
 	"context"
 	"errors"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
-	"google.golang.org/protobuf/proto"
 	"hexchess-svc/domain"
-	"hexchess-svc/itest"
 	"hexchess-svc/pb"
 	svc "hexchess-svc/service"
 	"hexchess-svc/util/logutil"
 	"hexchess-svc/util/testutil"
 	"testing"
+
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestHandleCreateTournamentMatchesEvent(t *testing.T) {
@@ -77,14 +77,23 @@ func TestHandleCreateTournamentMatchesEvent(t *testing.T) {
 				},
 			},
 			setupMocks: func(ctrl *gomock.Controller) svc.HexchessAPI {
-				creator := svc.NewMockHexchessAPI(ctrl)
+				hexchessAPI := svc.NewMockHexchessAPI(ctrl)
 
 				cmpChessStates := makeCmpChessStates([]svc.ChessState{wantChessOne, wantChessTwo})
-				creator.EXPECT().
+
+				hexchessAPI.EXPECT().
+					SelectUsersByIDs(gomock.Any(), gomock.Eq([]int64{1, 2, 3, 4})).
+					Return([]domain.User{
+						{ID: 1, Username: "user1", Country: "us"},
+						{ID: 2, Username: "user2", Country: "us"},
+						{ID: 3, Username: "user3", Country: "us"},
+						{ID: 4, Username: "user4", Country: "us"},
+					}, nil)
+				hexchessAPI.EXPECT().
 					SetManyChessStates(gomock.Any(), gomock.Cond(cmpChessStates)).
 					Return(nil)
 
-				return creator
+				return hexchessAPI
 			},
 		},
 		{
@@ -101,7 +110,15 @@ func TestHandleCreateTournamentMatchesEvent(t *testing.T) {
 				},
 			},
 			setupMocks: func(ctrl *gomock.Controller) svc.HexchessAPI {
-				return svc.NewMockHexchessAPI(ctrl)
+				hexchessAPI := svc.NewMockHexchessAPI(ctrl)
+
+				hexchessAPI.EXPECT().
+					SelectUsersByIDs(gomock.Any(), gomock.Eq([]int64{1, 9000})).
+					Return([]domain.User{
+						{ID: 1, Username: "user1", Country: "us"},
+					}, nil)
+
+				return hexchessAPI
 			},
 			wantErr: true,
 		},
@@ -109,9 +126,6 @@ func TestHandleCreateTournamentMatchesEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testinfra := itest.SetupTestInfra(t, itest.ROPostgres)
-			defer testinfra.Close()
-
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -120,7 +134,7 @@ func TestHandleCreateTournamentMatchesEvent(t *testing.T) {
 			bytes, err := proto.Marshal(tt.input)
 			require.NoError(t, err)
 
-			h := EventHandler{Services: tt.setupMocks(ctrl), Querier: testinfra.DB.Querier()}
+			h := EventHandler{Services: tt.setupMocks(ctrl)}
 
 			err = h.HandleCreateTournamentMatchesEvent(ctx, bytes)
 
@@ -183,7 +197,7 @@ func TestHandleHandleAdvanceTournamentEvent(t *testing.T) {
 
 				return mockAdvancer
 			},
-			wantErr: NonRetryableOutboxError{
+			wantErr: NonRetryableQueueError{
 				Err: svc.MatchInvariantError{Err: errors.New("test error")},
 			},
 		},

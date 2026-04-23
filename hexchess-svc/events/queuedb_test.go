@@ -3,10 +3,6 @@ package events
 import (
 	"context"
 	"errors"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
 	svc "hexchess-svc/service"
@@ -14,6 +10,11 @@ import (
 	"hexchess-svc/util/testutil"
 	"testing"
 	"time"
+
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPollOutboxQueueEvents(t *testing.T) {
@@ -100,7 +101,7 @@ func TestPollOutboxQueueEvents(t *testing.T) {
 			makeProcessFn: func(capturedEvents *[]string) func(ctx context.Context, bytes []byte) error {
 				return func(ctx context.Context, bytes []byte) error {
 					*capturedEvents = append(*capturedEvents, string(bytes))
-					return NonRetryableOutboxError{Err: errors.New("test error")}
+					return NonRetryableQueueError{Err: errors.New("test error")}
 				}
 			},
 			wantEvents: []sqlc.OutboxQueue{

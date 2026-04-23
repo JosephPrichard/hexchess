@@ -225,25 +225,25 @@ func SerializeChallengeMessage(challenge domain.Challenge) *pb.UserMessage {
 
 // FinishGameEvent
 
-func UnmarshalFinishGameEvent(bytes []byte) (FinishGameEvent, error) {
+func UnmarshalFinishedGame(bytes []byte) (FinishedGame, error) {
 	var pbGameEvent pb.FinishGameEvent
 	if err := proto.Unmarshal(bytes, &pbGameEvent); err != nil {
-		return FinishGameEvent{}, err
+		return FinishedGame{}, err
 	}
 
 	mode, modeErr := enum.ParseWithErr(pbGameEvent.GameMode, domain.GameModeEnums)
 	replayResult, resultErr := enum.ParseWithErr(pbGameEvent.ReplayResult, domain.ReplayResultEnums)
 	replayCause, causeErr := enum.ParseWithErr(pbGameEvent.ReplayCause, domain.ReplayCauseEnums)
 	if err := errors.Join(modeErr, resultErr, causeErr); err != nil {
-		return FinishGameEvent{}, err
+		return FinishedGame{}, err
 	}
 
 	board, err := chess.DeserializeBoard(pbGameEvent.Board)
 	if err != nil {
-		return FinishGameEvent{}, fmt.Errorf("deserialize board %v: %w", pbGameEvent.Board, err)
+		return FinishedGame{}, fmt.Errorf("deserialize board %v: %w", pbGameEvent.Board, err)
 	}
 
-	return FinishGameEvent{
+	return FinishedGame{
 		GameID:       pbGameEvent.GameId,
 		Board:        board,
 		Moves:        chess.DeserializeHistMoveList(pbGameEvent.Moves),
@@ -255,7 +255,7 @@ func UnmarshalFinishGameEvent(bytes []byte) (FinishGameEvent, error) {
 	}, nil
 }
 
-func MarshalFinishGameEvent(event FinishGameEvent) ([]byte, error) {
+func MarshalFinishedGame(event FinishedGame) ([]byte, error) {
 	return proto.Marshal(&pb.FinishGameEvent{
 		GameId:       event.GameID,
 		Board:        chess.SerializeBoard(&event.Board),

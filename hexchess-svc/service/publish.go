@@ -3,14 +3,15 @@ package svc
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/redis/go-redis/v9"
-	"google.golang.org/protobuf/proto"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/pb"
 	"log/slog"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/redis/go-redis/v9"
+	"google.golang.org/protobuf/proto"
 )
 
 type CreateTournamentMatchesEvent struct {
@@ -66,10 +67,10 @@ type RedisXAdder interface {
 	XAdd(ctx context.Context, args *redis.XAddArgs) *redis.StringCmd
 }
 
-func (svc *HexchessServices) pushFinishGameEvent(ctx context.Context, xadder RedisXAdder, event FinishGameEvent) error {
+func (svc *HexchessServices) pushFinishGameEvent(ctx context.Context, xadder RedisXAdder, finishedGame FinishedGame) error {
 	streamKey := svc.redis.FinishGameStreamKey
 
-	bytes, err := MarshalFinishGameEvent(event)
+	bytes, err := MarshalFinishedGame(finishedGame)
 	if err != nil {
 		return fmt.Errorf("marshal finish game event: %w", err)
 	}
@@ -83,6 +84,6 @@ func (svc *HexchessServices) pushFinishGameEvent(ctx context.Context, xadder Red
 		return fmt.Errorf("xadd finished game event: %w", err)
 	}
 
-	slog.InfoContext(ctx, "pushed finished game event", "id", msgID, "gameID", event.GameID)
+	slog.InfoContext(ctx, "pushed finished game event", "id", msgID, "gameID", finishedGame.GameID)
 	return nil
 }

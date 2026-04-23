@@ -398,6 +398,21 @@ func (svc *HexchessServices) GetFullUser(ctx context.Context, userID int64, perP
 	return FullUser{User: user, Stats: stats, ReplayList: replayList}, nil
 }
 
+func (svc *HexchessServices) SelectUsersByIDs(ctx context.Context, ids []int64) ([]domain.User, error) {
+	userRows, err := svc.querier.SelectUserPlayerDataByIDs(ctx, ids)
+
+	var users []domain.User
+	for _, row := range userRows {
+		users = append(users, domain.User{
+			ID:       row.ID,
+			Username: row.Username,
+			Country:  row.Country,
+		})
+	}
+
+	return users, err
+}
+
 type HashResult struct {
 	Salt           string
 	HashedPassword string

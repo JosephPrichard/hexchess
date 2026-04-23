@@ -4,18 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
-	"google.golang.org/protobuf/proto"
-	"hexchess-svc/db/sqlc"
 	"hexchess-svc/domain"
 	"hexchess-svc/pb"
 	svc "hexchess-svc/service"
 	"log/slog"
+
+	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 )
 
 type EventHandler struct {
 	Services svc.HexchessAPI
-	Querier  sqlc.Querier
 }
 
 func (h EventHandler) HandleCreateTournamentMatchesEvent(ctx context.Context, bytes []byte) error {
@@ -30,20 +29,20 @@ func (h EventHandler) HandleCreateTournamentMatchesEvent(ctx context.Context, by
 	for _, match := range event.Matches {
 		userIDs = append(userIDs, match.WhiteID, match.BlackID)
 	}
-	playerDataRows, err := h.Querier.SelectUserPlayerDataByIDs(ctx, userIDs)
+	users, err := h.Services.SelectUsersByIDs(ctx, userIDs)
 	if err != nil {
 		return fmt.Errorf("select user player data by ids: %w", err)
 	}
-	playerDataMap := make(map[int64]sqlc.SelectUserPlayerDataByIDsRow)
-	for _, row := range playerDataRows {
-		playerDataMap[row.ID] = row
+	userDataMap := make(map[int64]domain.User)
+	for _, user := range users {
+		userDataMap[user.ID] = user
 	}
 
 	var chessStates []svc.ChessState
 
 	for _, match := range event.Matches {
-		whitePlayerData, okWhite := playerDataMap[match.WhiteID]
-		blackPlayerData, okBlack := playerDataMap[match.BlackID]
+		whitePlayerData, okWhite := userDataMap[match.WhiteID]
+		blackPlayerData, okBlack := userDataMap[match.BlackID]
 
 		if !okWhite || !okBlack {
 			// invariant: white and black should be valid ids if they have been pushed to the queue
@@ -68,6 +67,7 @@ func (h EventHandler) HandleCreateTournamentMatchesEvent(ctx context.Context, by
 	return nil
 }
 
+// operation is idempotent, if two tournament advances run successively, the second will noop
 func (h EventHandler) HandleAdvanceTournamentEvent(ctx context.Context, bytes []byte) error {
 	var pbEvent pb.ScheduledTourmmentEvent
 	if err := proto.Unmarshal(bytes, &pbEvent); err != nil {
@@ -89,7 +89,7 @@ func (h EventHandler) HandleAdvanceTournamentEvent(ctx context.Context, bytes []
 		if err := h.Services.BroadcastTournament(ctx, svc.SerializeTournamentError(tournamentKey, svc.ErrAdvanceTournamentCode)); err != nil {
 			return fmt.Errorf("broadcast tournament error: %w", err)
 		}
-		return NonRetryableOutboxError{Err: matchStateError}
+		return NonRetryableQueueError{Err: matchStateError}
 	case err != nil:
 		return fmt.Errorf("start tournament %s: %w", tournamentKey, err)
 	default:
@@ -98,4 +98,13 @@ func (h EventHandler) HandleAdvanceTournamentEvent(ctx context.Context, bytes []
 		}
 		return nil
 	}
+}
+
+func (h EventHandler) HandleFinishedGameEvent(ctx context.Context, eventData string) error {
+	event, err := svc.UnmarshalFinishedGame([]byte(eventData))
+	if err != nil {
+		return NonRetryableQueueError{Err: err}
+	}
+
+	return h.Services.InsertFinishedGame(ctx, event)
 }

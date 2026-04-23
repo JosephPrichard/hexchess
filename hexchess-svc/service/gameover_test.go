@@ -37,13 +37,13 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 
 	for _, test := range []struct {
 		name                string
-		event               FinishGameEvent
+		event               FinishedGame
 		wantLeaderboard     []string
 		wantBroadcastOutput *pb.GameOutput
 	}{
 		{
-			name: "insert finished game",
-			event: FinishGameEvent{
+			name: "InsertFinishedGame",
+			event: FinishedGame{
 				GameID:       newGameID,
 				Board:        chess.MakeEmptyBoard(true),
 				Moves:        []chess.HistMove{},
@@ -80,7 +80,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 		},
 		{
 			name: "inserting already inserted finished game",
-			event: FinishGameEvent{
+			event: FinishedGame{
 				GameID: itest.FirstReplayGameID,
 				Board:  chess.MakeEmptyBoard(true),
 				Moves:  []chess.HistMove{},
@@ -116,7 +116,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 		},
 		{
 			name: "inserting a game with a guest",
-			event: FinishGameEvent{
+			event: FinishedGame{
 				GameID:       newGameIDGuest,
 				Board:        chess.MakeEmptyBoard(true),
 				Moves:        []chess.HistMove{},
@@ -160,7 +160,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			subChan := make(chan []byte, 1)
 			broadcasters.GamesCaster.Subscribe(test.event.GameID, subChan)
 
-			err := services.InsertFinishedGameEvent(ctx, test.event)
+			err := services.InsertFinishedGame(ctx, test.event)
 			require.NoError(t, err)
 
 			modeLbZSet := services.leaderboardZSet(test.event.ReplayMode.String())

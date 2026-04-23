@@ -2,7 +2,6 @@ package svc
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
@@ -11,6 +10,8 @@ import (
 	"hexchess-svc/pb"
 	"io"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 //go:generate mockgen -source=services.go -destination=./services_mock.go -package=svc
@@ -31,6 +32,7 @@ type HexchessAPI interface {
 	GetUserStats(ctx context.Context, id int64) (domain.UserStats, error)
 	GetFullUser(ctx context.Context, userID int64, perPage int32, withReplays bool) (FullUser, error)
 	UpdateUserPassword(ctx context.Context, id int64, newPassword string) error
+	SelectUsersByIDs(ctx context.Context, ids []int64) ([]domain.User, error)
 
 	SetLeaderboard(ctx context.Context, changes ...UpdtLbChangeSet) error
 	GetUserLeaderboardRanks(ctx context.Context, userID int64, modes map[string]domain.GameMode) (map[string]LbRank, error)
@@ -95,7 +97,7 @@ type HexchessAPI interface {
 	AttemptGameUndo(ctx context.Context, gameID string, player domain.PlayerState, kind UndoKind) (*ChessState, error)
 	EndGame(ctx context.Context, gameID string, player domain.PlayerState) (EndKind, error)
 	IsGameAccessible(ctx context.Context, id string) bool
-	InsertFinishedGameEvent(ctx context.Context, event FinishGameEvent) error
+	InsertFinishedGame(ctx context.Context, finishedGame FinishedGame) error
 	InsertGameResultTx(ctx context.Context, params GameResult) (GameResultChangeSet, error)
 	UpsertReplayMoveHistories(ctx context.Context, replayID int64, data []byte) error
 }
@@ -108,6 +110,8 @@ type HexchessServices struct {
 	remote  egress.RemoteAPIs
 	entropy EntropySource
 }
+
+var _ = (HexchessAPI)(&HexchessServices{})
 
 func (svc *HexchessServices) Close() {
 	if svc.db != nil {

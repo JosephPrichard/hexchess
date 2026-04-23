@@ -186,7 +186,7 @@ func (svc *HexchessServices) MakeGameMove(ctx context.Context, gameID string, pl
 			if state.Game.Board.IsWhiteTurn {
 				result = domain.BlackWin
 			}
-			if err := svc.pushFinishGameEvent(ctx, pipe, FinishGameEvent{
+			if err := svc.pushFinishGameEvent(ctx, pipe, FinishedGame{
 				GameID:       gameID,
 				WhitePlayer:  state.WhitePlayer,
 				BlackPlayer:  state.BlackPlayer,
@@ -288,7 +288,7 @@ func (svc *HexchessServices) EndGame(ctx context.Context, gameID string, player 
 				result = domain.WhiteWin
 			}
 
-			if err := svc.pushFinishGameEvent(ctx, pipe, FinishGameEvent{
+			if err := svc.pushFinishGameEvent(ctx, pipe, FinishedGame{
 				GameID:       gameID,
 				WhitePlayer:  state.WhitePlayer,
 				BlackPlayer:  state.BlackPlayer,

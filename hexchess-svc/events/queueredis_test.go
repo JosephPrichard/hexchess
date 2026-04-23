@@ -24,21 +24,20 @@ type testEventHandler struct {
 	wantEventCount int
 }
 
-func (h *testEventHandler) handleEvent(_ context.Context, event testEvent) error {
+func (h *testEventHandler) handleEvent(_ context.Context, eventData string) error {
+	var e testEvent
+	if err := json.Unmarshal([]byte(eventData), &e); err != nil {
+		return err
+	}
+
 	h.lock.Lock()
-	h.outputEvents = append(h.outputEvents, event)
+	h.outputEvents = append(h.outputEvents, e)
 	h.lock.Unlock()
 
 	if len(h.outputEvents) == h.wantEventCount {
 		go h.cancel()
 	}
 	return nil
-}
-
-func (h *testEventHandler) unmarshalEvent(bytes []byte) (testEvent, error) {
-	var e testEvent
-	err := json.Unmarshal(bytes, &e)
-	return e, err
 }
 
 func TestGameFinishStreamer(t *testing.T) {
@@ -92,7 +91,7 @@ func TestGameFinishStreamer(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	handler := testEventHandler{
+	h := testEventHandler{
 		cancel:         cancel,
 		wantEventCount: len(validInputEvents),
 	}
@@ -105,10 +104,9 @@ func TestGameFinishStreamer(t *testing.T) {
 		StreamKey:     "stream-key",
 		ConsumerGroup: "consumer-group",
 
-		HandleEvent:    handler.handleEvent,
-		UnmarshalEvent: handler.unmarshalEvent,
+		HandleEvent:    h.handleEvent,
 	}
 	consumer.EventLoop()
 
-	assert.ElementsMatch(t, validInputEvents, handler.outputEvents)
+	assert.ElementsMatch(t, validInputEvents, h.outputEvents)
 }

@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/v5"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
@@ -14,10 +13,12 @@ import (
 	"slices"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type FinishGameEvent struct {
+type FinishedGame struct {
 	GameID       string              `json:"id"`
 	Board        chess.Board         `json:"board"`
 	Moves        []chess.HistMove    `json:"moves"`
@@ -28,56 +29,73 @@ type FinishGameEvent struct {
 	ReplayCause  domain.ReplayCause  `json:"replaycause"`
 }
 
-func (svc *HexchessServices) InsertFinishedGameEvent(ctx context.Context, event FinishGameEvent) error {
+func (svc *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGame FinishedGame) error {
 	var changeSet GameResultChangeSet
 
-	if !event.WhitePlayer.Present || !event.BlackPlayer.Present {
-		slog.Warn("both players must be present on a finished game", "gameID", event.GameID)
+	if !finishedGame.WhitePlayer.Present || !finishedGame.BlackPlayer.Present {
+		slog.Warn("both players must be present on a finished game", "gameID", finishedGame.GameID)
 		return nil
 	}
-	whiteID := event.WhitePlayer.ID
-	blackID := event.BlackPlayer.ID
+	whiteID := finishedGame.WhitePlayer.ID
+	blackID := finishedGame.BlackPlayer.ID
 
-	moveHistBlob, err := chess.MarshalMoveHistory(event.Board, event.Moves)
+	moveHistBlob, err := chess.MarshalMoveHistory(finishedGame.Board, finishedGame.Moves)
 	if err != nil {
 		return fmt.Errorf("marshal move history to s3: %w", err)
 	}
 
 	changeSet, err = svc.InsertGameResultTx(ctx, GameResult{
-		GameID:       event.GameID,
+		GameID:       finishedGame.GameID,
 		WhiteID:      whiteID,
 		BlackID:      blackID,
-		ReplayCause:  event.ReplayCause,
-		ReplayResult: event.ReplayResult,
-		ReplayMode:   event.ReplayMode,
+		ReplayCause:  finishedGame.ReplayCause,
+		ReplayResult: finishedGame.ReplayResult,
+		ReplayMode:   finishedGame.ReplayMode,
 		InsertedTime: time.Now(),
 	})
 	if err != nil {
 		return fmt.Errorf("insert finish game tx: %w", err)
 	}
 	// note: this happens outside the transaction so we do need to hold a lock for an expended period of time.
-	if err = svc.UpsertReplayMoveHistories(ctx, changeSet.ReplayID, moveHistBlob); err != nil {
+	if err := svc.UpsertReplayMoveHistories(ctx, changeSet.ReplayID, moveHistBlob); err != nil {
 		return fmt.Errorf("insert replay move histories: %w", err)
 	}
 
-	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", changeSet, "room", event.GameID)
-
-	if err := svc.incrLeaderboard(ctx,
-		UpdtLbChangeSet{Mode: event.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
-		UpdtLbChangeSet{Mode: event.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
-	); err != nil {
-		return fmt.Errorf("incr leaderboard %+v: %w", changeSet, err)
-	}
-
+	// note: replay is selected in a seperate query outside transaction to avoid holding locks. this involves performing more diskIO.
 	replay, err := svc.GetReplay(ctx, changeSet.ReplayID)
 	if err != nil {
 		return fmt.Errorf("get replay by ID %d: %w", changeSet.ReplayID, err)
 	}
-	if err := svc.BroadcastGamesEvent(ctx, SerializeReplayOutput(event.GameID, replay)); err != nil {
+	if err := svc.BroadcastGamesEvent(ctx, SerializeReplayOutput(finishedGame.GameID, replay)); err != nil {
 		return fmt.Errorf("broadcast replay entity output: %w", err)
 	}
 
-	slog.InfoContext(ctx, "completed inserting finished game event", "key", event.GameID)
+	slog.InfoContext(ctx, "publishing schedule tournament event", "gameID", finishedGame.GameID)
+
+	// note: publishing a tournament event is necessary to trigger advancing the game state *IF* the tournament round is finished
+	// this operation is idempotent and safe, if the tournament is not ready to be advanced the operation noops 
+	tournamentKey, err := svc.querier.SelectTournamentByGameID(ctx, finishedGame.GameID)
+	if !errors.Is(pgx.ErrNoRows, err) {
+		if err != nil {
+			return fmt.Errorf("select tournament by game id %s: %w", finishedGame.GameID, err)
+		}
+		// if two advance tournament events run concucurrently, one will advance the tournament and the other will noop
+		if err := sendScheduledTournamentEvent(ctx, svc.querier, tournamentKey.Bytes, time.Now()); err != nil {
+			return fmt.Errorf("send scheduled tournament event from ")
+		}
+	}
+
+	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", changeSet, "room", finishedGame.GameID)
+
+	// note: used to keep the cache in sync, this can run outside of a transaction because we have a batch job to recover that data to the cache.
+	if err := svc.incrLeaderboard(ctx,
+		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
+		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
+	); err != nil {
+		return fmt.Errorf("incr leaderboard %+v: %w", changeSet, err)
+	}
+
+	slog.InfoContext(ctx, "completed inserting finished game event", "key", finishedGame.GameID)
 	return nil
 }
 

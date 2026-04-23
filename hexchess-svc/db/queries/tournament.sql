@@ -167,3 +167,8 @@ FROM tournament_matches tm
         ON tm.black_id = e2.user_id AND e2.mode = t.mode
 WHERE tm.tournament_key = sqlc.arg('tournament_key')
 ORDER BY tm.round, tm.ordering;
+
+-- name: SelectTournamentByGameID :one
+SELECT tournament_key
+FROM tournament_matches
+WHERE game_id = sqlc.arg('gameID');
