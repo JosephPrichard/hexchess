@@ -15,10 +15,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	"hexchess-svc/chess"
+	"hexchess-svc/hexchess"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
-	"hexchess-svc/service"
+	svc "hexchess-svc/service"
 	"hexchess-svc/util/testutil"
 
 	"github.com/google/go-cmp/cmp"
@@ -51,7 +51,7 @@ func TestHandleGameplayWs(t *testing.T) {
 		GameId: gameID,
 		Value: &pb.GameOutput_Move{Move: &pb.MoveOutput{
 			UpdatedAt: itest.TimeNow.Format(time.RFC3339),
-			Move:      &pb.HistMove{Piece: int32(chess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, Notation: "Pb2"},
+			Move:      &pb.HistMove{Piece: int32(hexchess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, Notation: "Pb2"},
 		}},
 	}
 	wantChat := &pb.GameOutput{
@@ -107,7 +107,7 @@ func TestHandleGameplayWs(t *testing.T) {
 		{
 			name: "MoveValid",
 			inputMsg: &pb.GameInput{
-				Value: &pb.GameInput_Move{Move: &pb.MoveInput{Move: chess.PbMoveStr("b1", "b2")}},
+				Value: &pb.GameInput_Move{Move: &pb.MoveInput{Move: hexchess.PbMoveStr("b1", "b2")}},
 			},
 			wantMsgs: []*pb.GameOutput{
 				wantValidMove,

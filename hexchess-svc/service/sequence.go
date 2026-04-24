@@ -3,16 +3,16 @@ package svc
 import (
 	"errors"
 	"fmt"
-	"hexchess-svc/domain"
+	"hexchess-svc/model"
 	"log/slog"
 	"math"
 	"math/rand"
 	"time"
 
-	"hexchess-svc/chess"
+	"hexchess-svc/hexchess"
 )
 
-func RandomMoveHistSeq(mode domain.GameMode, game chess.Game, low int, hi int) ([]chess.HistMove, error) {
+func RandomMoveHistSeq(mode model.GameMode, game hexchess.Game, low int, hi int) ([]hexchess.HistMove, error) {
 	randRange := func(min, max float64) float64 {
 		return min + rand.Float64()*(max-min)
 	}
@@ -20,7 +20,7 @@ func RandomMoveHistSeq(mode domain.GameMode, game chess.Game, low int, hi int) (
 	for range rand.Intn(low) + (low + hi) {
 		game.InitPieceMoves()
 
-		var pmsArr []chess.PieceMoves
+		var pmsArr []hexchess.PieceMoves
 		for _, pm := range game.GetCurrMoves() {
 			if len(pm.Moves) > 0 {
 				pmsArr = append(pmsArr, pm)
@@ -34,7 +34,7 @@ func RandomMoveHistSeq(mode domain.GameMode, game chess.Game, low int, hi int) (
 		if len(pms.Moves) == 0 {
 			return nil, fmt.Errorf("expected at least one move, got none for game: %v", game)
 		}
-		pm := chess.PieceMove{
+		pm := hexchess.PieceMove{
 			Piece: game.Board.Get(pms.From.File, pms.From.Rank),
 			From:  pms.From,
 			To:    pms.Moves[rand.Intn(len(pms.Moves))],
@@ -52,7 +52,7 @@ func RandomMoveHistSeq(mode domain.GameMode, game chess.Game, low int, hi int) (
 			return nil, fmt.Errorf("expected move to not be to piece of same color %v", pm)
 		}
 
-		hm := game.MakeMove(chess.Move{From: pm.From, To: pm.To, Promotion: chess.QueenPromotion})
+		hm := game.MakeMove(hexchess.Move{From: pm.From, To: pm.To, Promotion: hexchess.QueenPromotion})
 		game.Moves = append(game.Moves, hm)
 	}
 

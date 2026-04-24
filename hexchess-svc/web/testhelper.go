@@ -3,11 +3,11 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"hexchess-svc/domain"
 	"strings"
 	"testing"
 
-	"hexchess-svc/service"
+	"hexchess-svc/model"
+	svc "hexchess-svc/service"
 	"hexchess-svc/util/logutil"
 )
 
@@ -26,21 +26,21 @@ func asJSONReader(v any) *strings.Reader {
 var TestStates = []*svc.ChessState{
 	svc.MakeChessState(svc.StateSetup{
 		ID:         TestGameID1,
-		Mode:       domain.ModeCorrespondence1,
-		FirstColor: domain.Random,
-		Black:      domain.MakePlayer(2, "user2", "us"),
+		Mode:       model.ModeCorrespondence1,
+		FirstColor: model.Random,
+		Black:      model.MakePlayer(2, "user2", "us"),
 		UndoState:  svc.UndoState{UndoID: 2},
 	}),
-	svc.MakeChessState(svc.StateSetup{ID: "game2", Mode: domain.ModeCorrespondence1, FirstColor: domain.Random}),
-	svc.MakeChessState(svc.StateSetup{ID: "game3", Mode: domain.ModeCorrespondence1, FirstColor: domain.Random}),
+	svc.MakeChessState(svc.StateSetup{ID: "game2", Mode: model.ModeCorrespondence1, FirstColor: model.Random}),
+	svc.MakeChessState(svc.StateSetup{ID: "game3", Mode: model.ModeCorrespondence1, FirstColor: model.Random}),
 }
 
 func createTestSessions(t *testing.T, services *svc.HexchessServices) {
 	t.Helper()
 	ctx := context.WithValue(context.Background(), logutil.Trace, "create-testing-session-1")
 	if err := services.SetSessions(ctx,
-		svc.SessionInst{SessionID: TestSessionID1, Player: domain.MakePlayer(1, "user1", "us"), Expiry: SessionMaxAge},
-		svc.SessionInst{SessionID: TestSessionID2, Player: domain.MakePlayer(2, "user2", "us"), Expiry: SessionMaxAge},
+		svc.SessionInst{SessionID: TestSessionID1, Player: model.MakePlayer(1, "user1", "us"), Expiry: SessionMaxAge},
+		svc.SessionInst{SessionID: TestSessionID2, Player: model.MakePlayer(2, "user2", "us"), Expiry: SessionMaxAge},
 	); err != nil {
 		t.Fatalf("create testing session: %v", err)
 	}

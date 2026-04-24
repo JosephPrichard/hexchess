@@ -2,7 +2,7 @@ package svc
 
 import (
 	"context"
-	"hexchess-svc/domain"
+	"hexchess-svc/model"
 
 	"testing"
 	"time"
@@ -55,8 +55,8 @@ func TestGetUserReplays(t *testing.T) {
 	replay1 := itest.TestReplay[0]
 	replay3 := itest.TestReplay[1]
 	replay4 := itest.TestReplay[2]
-	expectedReplayList1 := []domain.FullReplay{replay4, replay3, replay1}
-	expectedReplayList2 := []domain.FullReplay{replay1}
+	expectedReplayList1 := []model.FullReplay{replay4, replay3, replay1}
+	expectedReplayList2 := []model.FullReplay{replay1}
 
 	assert.Equal(t, expectedReplayList1, actualReplayList1)
 	assert.Equal(t, expectedReplayList2, actualReplayList2)
@@ -78,11 +78,11 @@ func TestRetrieveEloHistories(t *testing.T) {
 			params:             EloHistoriesParams{UserID: 6, TimeUntil: timeUntil},
 			wantBucketDuration: LongBucketDuration,
 			wantEloBuckets: EloHistoryBuckets{
-				domain.ModeCorrespondence7.String(): []EloHistoryBucket{
+				model.ModeCorrespondence7.String(): []EloHistoryBucket{
 					{Timestamp: "1899-12-31T18:00:00-06:00", Elo: 1030},
 					{Timestamp: "2019-12-29T18:00:00-06:00", Elo: 1090},
 				},
-				domain.ModeCorrespondence1.String(): []EloHistoryBucket{
+				model.ModeCorrespondence1.String(): []EloHistoryBucket{
 					{Timestamp: "2019-12-29T18:00:00-06:00", Elo: 1030},
 				},
 			},
@@ -92,11 +92,11 @@ func TestRetrieveEloHistories(t *testing.T) {
 			params:             EloHistoriesParams{UserID: 6, Months: 3, TimeUntil: timeUntil},
 			wantBucketDuration: ShortBucketDuration,
 			wantEloBuckets: EloHistoryBuckets{
-				domain.ModeCorrespondence7.String(): []EloHistoryBucket{
+				model.ModeCorrespondence7.String(): []EloHistoryBucket{
 					{Timestamp: "2019-12-31T18:00:00-06:00", Elo: 1075},
 					{Timestamp: "2020-01-02T18:00:00-06:00", Elo: 1120},
 				},
-				domain.ModeCorrespondence1.String(): []EloHistoryBucket{
+				model.ModeCorrespondence1.String(): []EloHistoryBucket{
 					{Timestamp: "2020-01-04T18:00:00-06:00", Elo: 1030},
 				},
 			},

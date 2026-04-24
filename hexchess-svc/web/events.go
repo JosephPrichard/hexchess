@@ -46,6 +46,9 @@ func (sse SSEWriter) writeEvent(e string, d string) {
 	if _, err := fmt.Fprintf(sse.w, "event: %s\ndata: %s\n\n", e, d); err != nil {
 		slog.ErrorContext(sse.ctx, "write to sse", "err", err)
 	}
+
+	slog.Info("writing to server sent event", "event", e, "data", d)
+
 	sse.f.Flush()
 }
 
@@ -73,6 +76,7 @@ func (sse SSEWriter) writeCountEvent(kind svc.UcEventKind, count int64) {
 }
 
 const (
+	KeepAliveTimeout = time.Second * 15
 	MetaEvent          = "meta"
 	UserChallengeEvent = "userEvents"
 	GamesCountEvent    = "gameCountEvents"
@@ -106,7 +110,7 @@ func (api *API) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 		slog.InfoContext(ctx, "finished handle user events sse")
 	}()
 
-	keepAliveTicker := time.NewTicker(time.Second * 15)
+	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
 RecvLoop:
 	for {
 		select {
@@ -163,7 +167,7 @@ func (api *API) HandleActiveConn(w SSEWriter, _ *http.Request) error {
 		}
 	})
 
-	keepAliveTicker := time.NewTicker(time.Second * 15)
+	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
 RecvLoop:
 	for {
 		select {
@@ -210,7 +214,7 @@ func (api *API) HandleUserEvents(w SSEWriter, r *http.Request) error {
 		slog.InfoContext(ctx, "finishing handle user events sse")
 	}()
 
-	keepAliveTicker := time.NewTicker(time.Second * 15)
+	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
 RecvLoop:
 	for {
 		select {
@@ -235,13 +239,15 @@ func (api *API) HandleTournamentEvents(w SSEWriter, r *http.Request) error {
 	tournamentChan := make(chan []byte, SSEChanBufCap)
 	api.broadcasters.TournamentCaster.Subscribe(tournamentKey, tournamentChan)
 
+	w.writeEvent(MetaEvent, tournamentKey)
+
 	go func() {
 		<-ctx.Done() // stop from the client, so stop the RecvLoop by unsubscribing
 		api.broadcasters.TournamentCaster.Unsubscribe(tournamentKey, tournamentChan)
 		slog.InfoContext(ctx, "finishing handle tournament events sse")
 	}()
 
-	keepAliveTicker := time.NewTicker(time.Second * 15)
+	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
 RecvLoop:
 	for {
 		select {

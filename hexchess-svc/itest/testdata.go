@@ -1,11 +1,11 @@
 package itest
 
 import (
-	"hexchess-svc/domain"
+	"hexchess-svc/model"
 	"time"
 )
 
-var TestUser = []domain.User{
+var TestUser = []model.User{
 	{
 		ID:       1,
 		Username: "user1",
@@ -22,36 +22,36 @@ var TestUser = []domain.User{
 	},
 }
 
-var TestUserStats = []domain.UserStats{
+var TestUserStats = []model.UserStats{
 	{
 		TotalWins:    17,
 		TotalLosses:  14,
 		AvgElo:       1025,
 		HighestElo:   1050,
 		TotalWinrate: 53,
-		ModeStats: []domain.ModeStats{
-			{Mode: domain.ModeCorrespondence7, Rank: 1, Wins: 2, Losses: 2, Winrate: 50, Elo: 1000, HighestElo: 1000},
-			{Mode: domain.ModeTimed3Plus2, Rank: 1, Wins: 5, Losses: 4, Winrate: 55, Elo: 1020, HighestElo: 1020},
-			{Mode: domain.ModeTimed15Plus10, Rank: 1, Wins: 4, Losses: 3, Winrate: 57, Elo: 1030, HighestElo: 1030},
-			{Mode: domain.ModeTimed1Plus0, Rank: 1, Wins: 6, Losses: 5, Winrate: 54, Elo: 1050, HighestElo: 1050},
+		ModeStats: []model.ModeStats{
+			{Mode: model.ModeCorrespondence7, Rank: 1, Wins: 2, Losses: 2, Winrate: 50, Elo: 1000, HighestElo: 1000},
+			{Mode: model.ModeTimed3Plus2, Rank: 1, Wins: 5, Losses: 4, Winrate: 55, Elo: 1020, HighestElo: 1020},
+			{Mode: model.ModeTimed15Plus10, Rank: 1, Wins: 4, Losses: 3, Winrate: 57, Elo: 1030, HighestElo: 1030},
+			{Mode: model.ModeTimed1Plus0, Rank: 1, Wins: 6, Losses: 5, Winrate: 54, Elo: 1050, HighestElo: 1050},
 		},
 	},
 }
 
-var TestReplay = []domain.FullReplay{
+var TestReplay = []model.FullReplay{
 	{
-		Replay: domain.Replay{
+		Replay: model.Replay{
 			ID:          1,
 			WhiteID:     1,
 			BlackID:     2,
-			Mode:        domain.ModeCorrespondence7,
-			Result:      domain.WhiteWin,
-			Cause:       domain.Checkmate,
+			Mode:        model.ModeCorrespondence7,
+			Result:      model.WhiteWin,
+			Cause:       model.Checkmate,
 			WinEloDiff:  30,
 			LoseEloDiff: -30,
 			PlayedOn:    TimeNow.Local(),
 		},
-		ReplayUsers: domain.ReplayUsers{
+		ReplayUsers: model.ReplayUsers{
 			WhiteName:    "user1",
 			BlackName:    "user2",
 			WhiteCountry: "us",
@@ -59,24 +59,24 @@ var TestReplay = []domain.FullReplay{
 			WhiteElo:     1000,
 			BlackElo:     1000,
 		},
-		RepayView: domain.RepayView{
+		RepayView: model.RepayView{
 			WhiteEloDiff: 30,
 			BlackEloDiff: -30,
 		},
 	},
 	{
-		Replay: domain.Replay{
+		Replay: model.Replay{
 			ID:          3,
 			WhiteID:     3,
 			BlackID:     1,
-			Mode:        domain.ModeCorrespondence7,
-			Result:      domain.Draw,
-			Cause:       domain.Checkmate,
+			Mode:        model.ModeCorrespondence7,
+			Result:      model.Draw,
+			Cause:       model.Checkmate,
 			WinEloDiff:  0,
 			LoseEloDiff: 0,
 			PlayedOn:    TimeNow.Local(),
 		},
-		ReplayUsers: domain.ReplayUsers{
+		ReplayUsers: model.ReplayUsers{
 			WhiteName:    "user3",
 			BlackName:    "user1",
 			WhiteCountry: "us",
@@ -84,24 +84,24 @@ var TestReplay = []domain.FullReplay{
 			WhiteElo:     900,
 			BlackElo:     1000,
 		},
-		RepayView: domain.RepayView{
+		RepayView: model.RepayView{
 			WhiteEloDiff: 0,
 			BlackEloDiff: 0,
 		},
 	},
 	{
-		Replay: domain.Replay{
+		Replay: model.Replay{
 			ID:          4,
 			WhiteID:     1,
 			BlackID:     0,
-			Mode:        domain.ModeCorrespondence7,
-			Result:      domain.WhiteWin,
-			Cause:       domain.Checkmate,
+			Mode:        model.ModeCorrespondence7,
+			Result:      model.WhiteWin,
+			Cause:       model.Checkmate,
 			WinEloDiff:  0,
 			LoseEloDiff: 0,
 			PlayedOn:    TimeNow.Local(),
 		},
-		ReplayUsers: domain.ReplayUsers{
+		ReplayUsers: model.ReplayUsers{
 			WhiteName:    "user1",
 			BlackName:    "",
 			WhiteCountry: "us",
@@ -109,14 +109,14 @@ var TestReplay = []domain.FullReplay{
 			WhiteElo:     1000,
 			BlackElo:     1000,
 		},
-		RepayView: domain.RepayView{
+		RepayView: model.RepayView{
 			WhiteEloDiff: 0,
 			BlackEloDiff: 0,
 		},
 	},
 }
 
-var TestChallenge = []domain.Challenge{
+var TestChallenge = []model.Challenge{
 	{
 		ChallengerID:      1,
 		ChallengerName:    "user1",
@@ -126,8 +126,8 @@ var TestChallenge = []domain.Challenge{
 		ChallengeeName:    "user2",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
-		Mode:              domain.ModeTimed3Plus2,
-		StartColor:        domain.Random,
+		Mode:              model.ModeTimed3Plus2,
+		StartColor:        model.Random,
 		MadeOn:            TimeNow.Local(),
 		ExpiresOn:         TimeNow.Local().Add(time.Hour * 24 * 7),
 	},
@@ -140,8 +140,8 @@ var TestChallenge = []domain.Challenge{
 		ChallengeeName:    "user1",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
-		Mode:              domain.ModeCorrespondence1,
-		StartColor:        domain.Random,
+		Mode:              model.ModeCorrespondence1,
+		StartColor:        model.Random,
 		MadeOn:            TimeNow.Local(),
 		ExpiresOn:         TimeNow.Local().Add(time.Hour * 24 * 7),
 	},
@@ -154,8 +154,8 @@ var TestChallenge = []domain.Challenge{
 		ChallengeeName:    "user2",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
-		Mode:              domain.ModeCorrespondence1,
-		StartColor:        domain.Random,
+		Mode:              model.ModeCorrespondence1,
+		StartColor:        model.Random,
 		MadeOn:            TimeNow.Local(),
 		ExpiresOn:         TimeNow.Local().Add(time.Hour * 24 * 7),
 	},
@@ -168,14 +168,14 @@ var TestChallenge = []domain.Challenge{
 		ChallengeeName:    "user4",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     2000,
-		Mode:              domain.ModeCorrespondence1,
-		StartColor:        domain.Random,
+		Mode:              model.ModeCorrespondence1,
+		StartColor:        model.Random,
 		MadeOn:            TimeNow.Local(),
 		ExpiresOn:         TimeNow.Local().Add(time.Hour * 24 * 7),
 	},
 }
 
-var Tournaments = []domain.Tournament{
+var Tournaments = []model.Tournament{
 	{
 		ID:             1,
 		TournamentKey:  Tournament0LobbyKey,
@@ -185,9 +185,9 @@ var Tournaments = []domain.Tournament{
 		Countdown:      "5m1s",
 		CreatedOn:      TimeNow,
 		CreatedBy:      1,
-		Status:         domain.TournamentLobby,
-		Ruleset:        domain.TournamentKnockout,
-		Mode:           domain.ModeCorrespondence1,
+		Status:         model.TournamentLobby,
+		Ruleset:        model.TournamentKnockout,
+		Mode:           model.ModeCorrespondence1,
 	},
 	{
 		ID:             2,
@@ -198,7 +198,7 @@ var Tournaments = []domain.Tournament{
 		Countdown:      "5m2s",
 		CreatedOn:      TimeNow,
 		CreatedBy:      1,
-		Mode:           domain.ModeCorrespondence7,
+		Mode:           model.ModeCorrespondence7,
 	},
 	{
 		ID:             3,
@@ -209,9 +209,9 @@ var Tournaments = []domain.Tournament{
 		Countdown:      "5m3s",
 		CreatedOn:      TimeNow,
 		CreatedBy:      1,
-		Ruleset:        domain.TournamentKnockout,
-		Status:         domain.TournamentScheduled,
-		Mode:           domain.ModeCorrespondence1,
+		Ruleset:        model.TournamentKnockout,
+		Status:         model.TournamentScheduled,
+		Mode:           model.ModeCorrespondence1,
 	},
 	{
 		ID:             4,
@@ -222,9 +222,9 @@ var Tournaments = []domain.Tournament{
 		Countdown:      "10m0s",
 		CreatedOn:      TimeNow,
 		CreatedBy:      1,
-		Ruleset:        domain.TournamentRoundRobin,
-		Status:         domain.TournamentScheduled,
-		Mode:           domain.ModeCorrespondence1,
+		Ruleset:        model.TournamentRoundRobin,
+		Status:         model.TournamentScheduled,
+		Mode:           model.ModeCorrespondence1,
 	},
 	{
 		ID:             5,
@@ -235,9 +235,9 @@ var Tournaments = []domain.Tournament{
 		Countdown:      "11m0s",
 		CreatedOn:      TimeNow,
 		CreatedBy:      1,
-		Ruleset:        domain.TournamentSwiss,
-		Status:         domain.TournamentScheduled,
-		Mode:           domain.ModeCorrespondence1,
+		Ruleset:        model.TournamentSwiss,
+		Status:         model.TournamentScheduled,
+		Mode:           model.ModeCorrespondence1,
 	},
 	{
 		ID:             6,
@@ -248,9 +248,9 @@ var Tournaments = []domain.Tournament{
 		Countdown:      "12m0s",
 		CreatedOn:      TimeNow,
 		CreatedBy:      1,
-		Ruleset:        domain.TournamentKnockout,
-		Status:         domain.TournamentInProgress,
-		Mode:           domain.ModeCorrespondence1,
+		Ruleset:        model.TournamentKnockout,
+		Status:         model.TournamentInProgress,
+		Mode:           model.ModeCorrespondence1,
 	},
 	{
 		ID:             7,
@@ -261,9 +261,9 @@ var Tournaments = []domain.Tournament{
 		Countdown:      "1h1m1s",
 		CreatedOn:      TimeNow,
 		CreatedBy:      1,
-		Ruleset:        domain.TournamentRoundRobin,
-		Status:         domain.TournamentInProgress,
-		Mode:           domain.ModeCorrespondence1,
+		Ruleset:        model.TournamentRoundRobin,
+		Status:         model.TournamentInProgress,
+		Mode:           model.ModeCorrespondence1,
 	},
 	{
 		ID:             8,
@@ -274,9 +274,9 @@ var Tournaments = []domain.Tournament{
 		Countdown:      "1h2m2.002s",
 		CreatedOn:      TimeNow,
 		CreatedBy:      1,
-		Ruleset:        domain.TournamentSwiss,
-		Status:         domain.TournamentInProgress,
-		Mode:           domain.ModeCorrespondence1,
+		Ruleset:        model.TournamentSwiss,
+		Status:         model.TournamentInProgress,
+		Mode:           model.ModeCorrespondence1,
 	},
 	{
 		ID:             9,
@@ -287,9 +287,9 @@ var Tournaments = []domain.Tournament{
 		Countdown:      "5m0s",
 		CreatedOn:      TimeNow,
 		CreatedBy:      1,
-		Status:         domain.TournamentFinished,
-		Ruleset:        domain.TournamentSwiss,
-		Mode:           domain.ModeCorrespondence1,
+		Status:         model.TournamentFinished,
+		Ruleset:        model.TournamentSwiss,
+		Mode:           model.ModeCorrespondence1,
 	},
 	{
 		ID:             10,
@@ -300,13 +300,13 @@ var Tournaments = []domain.Tournament{
 		Countdown:      "1m0s",
 		CreatedOn:      TimeNow,
 		CreatedBy:      1,
-		Status:         domain.TournamentInProgress,
-		Ruleset:        domain.TournamentSwiss,
-		Mode:           domain.ModeCorrespondence1,
+		Status:         model.TournamentInProgress,
+		Ruleset:        model.TournamentSwiss,
+		Mode:           model.ModeCorrespondence1,
 	},
 }
 
-var MatchTournament5 = []domain.Match{
+var MatchTournament5 = []model.Match{
 	{
 		Ordering:      2,
 		GameID:        TournamentMatchInsts[1].GameID,
@@ -327,7 +327,7 @@ var MatchTournament5 = []domain.Match{
 	},
 }
 
-var MatchTournament8 = []domain.Match{
+var MatchTournament8 = []model.Match{
 	{
 		Ordering:      3,
 		GameID:        TournamentMatchInsts[2].GameID,
@@ -336,56 +336,56 @@ var MatchTournament8 = []domain.Match{
 		Round:         1,
 		WhiteID:       1,
 		BlackID:       2,
-		Replay: &domain.TournamentReplay{
-			Replay: domain.Replay{
+		Replay: &model.TournamentReplay{
+			Replay: model.Replay{
 				ID:          1,
 				WhiteID:     1,
 				BlackID:     2,
-				Mode:        domain.ModeCorrespondence7,
-				Result:      domain.WhiteWin,
-				Cause:       domain.Checkmate,
+				Mode:        model.ModeCorrespondence7,
+				Result:      model.WhiteWin,
+				Cause:       model.Checkmate,
 				WinEloDiff:  30,
 				LoseEloDiff: -30,
 				PlayedOn:    TimeNow.Local(),
 			},
-			RepayView: domain.RepayView{WhiteEloDiff: 30, BlackEloDiff: -30},
+			RepayView: model.RepayView{WhiteEloDiff: 30, BlackEloDiff: -30},
 		},
 	},
 }
 
 var TournamentLbdChangeSets = []struct {
-	Mode    domain.GameMode
+	Mode    model.GameMode
 	ID      int64
 	EloDiff float64
 }{
-	{domain.ModeCorrespondence1, 4, 1400},
-	{domain.ModeCorrespondence1, 3, 1300},
-	{domain.ModeCorrespondence1, 2, 1200},
-	{domain.ModeCorrespondence1, 1, 1100},
+	{model.ModeCorrespondence1, 4, 1400},
+	{model.ModeCorrespondence1, 3, 1300},
+	{model.ModeCorrespondence1, 2, 1200},
+	{model.ModeCorrespondence1, 1, 1100},
 }
 
 // Tournament5RankedParticipants Ordered by `JoinedOn`, ranked with values in `TournamentLbdChangeSets`
-var Tournament5RankedParticipants = []domain.Participant{
+var Tournament5RankedParticipants = []model.Participant{
 	{
-		User:       domain.User{ID: 4, Username: "user4", Country: "us", JoinedOn: TimeNow},
+		User:       model.User{ID: 4, Username: "user4", Country: "us", JoinedOn: TimeNow},
 		Elo:        2000,
 		HighestElo: 2000,
 		Rank:       1,
 	},
 	{
-		User:       domain.User{ID: 3, Username: "user3", Country: "us", JoinedOn: TimeNow},
+		User:       model.User{ID: 3, Username: "user3", Country: "us", JoinedOn: TimeNow},
 		Elo:        900,
 		HighestElo: 900,
 		Rank:       2,
 	},
 	{
-		User:       domain.User{ID: 2, Username: "user2", Country: "us", JoinedOn: TimeNow},
+		User:       model.User{ID: 2, Username: "user2", Country: "us", JoinedOn: TimeNow},
 		Elo:        1000,
 		HighestElo: 1000,
 		Rank:       3,
 	},
 	{
-		User:       domain.User{ID: 1, Username: "user1", Country: "us", JoinedOn: TimeNow},
+		User:       model.User{ID: 1, Username: "user1", Country: "us", JoinedOn: TimeNow},
 		Elo:        1000,
 		HighestElo: 1000,
 		Rank:       4,
@@ -393,15 +393,15 @@ var Tournament5RankedParticipants = []domain.Participant{
 }
 
 // Tournament8RankedParticipants Ordered by `JoinedOn`, ranked with values in `TournamentLbdChangeSets`
-var Tournament8RankedParticipants = []domain.Participant{
+var Tournament8RankedParticipants = []model.Participant{
 	{
-		User:       domain.User{ID: 2, Username: "user2", Country: "us", JoinedOn: TimeNow},
+		User:       model.User{ID: 2, Username: "user2", Country: "us", JoinedOn: TimeNow},
 		Elo:        1000,
 		HighestElo: 1000,
 		Rank:       3,
 	},
 	{
-		User:       domain.User{ID: 1, Username: "user1", Country: "us", JoinedOn: TimeNow},
+		User:       model.User{ID: 1, Username: "user1", Country: "us", JoinedOn: TimeNow},
 		Elo:        1000,
 		HighestElo: 1000,
 		Rank:       4,

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hexchess-svc/domain"
+	"hexchess-svc/model"
 	"hexchess-svc/util/enum"
 	"time"
 
@@ -12,38 +12,38 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"hexchess-svc/chess"
+	"hexchess-svc/hexchess"
 	"hexchess-svc/pb"
 )
 
 // domain.PlayerState
 
-func UnmarshalPlayer(bytes []byte) (domain.PlayerState, error) {
+func UnmarshalPlayer(bytes []byte) (model.PlayerState, error) {
 	var pbPlayer pb.PlayerState
 	if err := proto.Unmarshal(bytes, &pbPlayer); err != nil {
-		return domain.PlayerState{}, err
+		return model.PlayerState{}, err
 	}
-	return domain.PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Present: true}, nil
+	return model.PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Present: true}, nil
 }
 
-func MarshalPlayer(player domain.PlayerState) ([]byte, error) {
+func MarshalPlayer(player model.PlayerState) ([]byte, error) {
 	pbPlayer := pb.PlayerState{
-		Id: player.ID, Name: player.Name, Country: player.Country, IsGuest: domain.IsGuestID(player.ID),
+		Id: player.ID, Name: player.Name, Country: player.Country, IsGuest: model.IsGuestID(player.ID),
 	}
 	return proto.Marshal(&pbPlayer)
 }
 
-func DeserializePlayer(pbPlayer *pb.PlayerState) domain.PlayerState {
-	var player domain.PlayerState
+func DeserializePlayer(pbPlayer *pb.PlayerState) model.PlayerState {
+	var player model.PlayerState
 	if pbPlayer != nil {
-		player = domain.PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Present: true}
+		player = model.PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Present: true}
 	}
 	return player
 }
 
-func SerializePlayer(player domain.PlayerState) *pb.PlayerState {
+func SerializePlayer(player model.PlayerState) *pb.PlayerState {
 	if player.Present {
-		return &pb.PlayerState{Id: player.ID, Name: player.Name, Country: player.Country, IsGuest: domain.IsGuestID(player.ID)}
+		return &pb.PlayerState{Id: player.ID, Name: player.Name, Country: player.Country, IsGuest: model.IsGuestID(player.ID)}
 	}
 	return nil
 }
@@ -84,17 +84,17 @@ func UnmarshalChessState(bytes []byte) (*ChessState, error) {
 		return nil, err
 	}
 
-	game, err := chess.DeserializeGame(pbChess.Game)
+	game, err := hexchess.DeserializeGame(pbChess.Game)
 	if err != nil {
 		return nil, fmt.Errorf("deserialize game: %w", err)
 	}
-	initialBoard, err := chess.DeserializeBoard(pbChess.InitialBoard)
+	initialBoard, err := hexchess.DeserializeBoard(pbChess.InitialBoard)
 	if err != nil {
 		return nil, fmt.Errorf("deserialize initial board %v: %w", pbChess.Game.Board, err)
 	}
 
-	mode, modeErr := enum.ParseWithErr(pbChess.Mode, domain.GameModeEnums)
-	firstColor, colorErr := enum.ParseWithErr(pbChess.FirstColor, domain.GameColorEnums)
+	mode, modeErr := enum.ParseWithErr(pbChess.Mode, model.GameModeEnums)
+	firstColor, colorErr := enum.ParseWithErr(pbChess.FirstColor, model.GameColorEnums)
 
 	if err := errors.Join(modeErr, colorErr); err != nil {
 		return nil, err
@@ -122,13 +122,13 @@ func SerializeChessState(state *ChessState) *pb.ChessState {
 	}
 	return &pb.ChessState{
 		Id:           state.ID,
-		Game:         chess.SerializeGame(&state.Game),
+		Game:         hexchess.SerializeGame(&state.Game),
 		WhitePlayer:  SerializePlayer(state.WhitePlayer),
 		BlackPlayer:  SerializePlayer(state.BlackPlayer),
 		FirstColor:   state.FirstColor.String(),
 		Mode:         state.Mode.String(),
 		Touch:        state.Touch.UnixMilli(),
-		InitialBoard: chess.SerializeBoard(&state.InitialBoard),
+		InitialBoard: hexchess.SerializeBoard(&state.InitialBoard),
 		UndoId:       state.UndoID,
 		EndState:     SerializeEndKind(state.EndState),
 	}
@@ -142,8 +142,8 @@ func UnmarshalChessMeta(bytes []byte) (ChessMeta, error) {
 		return ChessMeta{}, err
 	}
 
-	mode, modeErr := enum.ParseWithErr(pbChess.Mode, domain.GameModeEnums)
-	firstColor, colorErr := enum.ParseWithErr(pbChess.FirstColor, domain.GameColorEnums)
+	mode, modeErr := enum.ParseWithErr(pbChess.Mode, model.GameModeEnums)
+	firstColor, colorErr := enum.ParseWithErr(pbChess.FirstColor, model.GameColorEnums)
 	if err := errors.Join(modeErr, colorErr); err != nil {
 		return ChessMeta{}, err
 	}
@@ -180,13 +180,13 @@ func MarshalUserMessageJson(pbUserMessage *pb.UserMessage) ([]byte, error) {
 			return nil, err
 		}
 
-		mode, modeErr := enum.ParseWithErr(challenge.Mode, domain.GameModeEnums)
-		startColor, colorErr := enum.ParseWithErr(challenge.StartColor, domain.GameColorEnums)
+		mode, modeErr := enum.ParseWithErr(challenge.Mode, model.GameModeEnums)
+		startColor, colorErr := enum.ParseWithErr(challenge.StartColor, model.GameColorEnums)
 		if err := errors.Join(modeErr, colorErr); err != nil {
 			return nil, err
 		}
 
-		return json.Marshal(domain.Challenge{
+		return json.Marshal(model.Challenge{
 			ChallengerID:      challenge.ChallengerId,
 			ChallengerName:    challenge.ChallengerName,
 			ChallengerCountry: challenge.ChallengerCountry,
@@ -204,7 +204,7 @@ func MarshalUserMessageJson(pbUserMessage *pb.UserMessage) ([]byte, error) {
 	}
 }
 
-func SerializeChallengeMessage(challenge domain.Challenge) *pb.UserMessage {
+func SerializeChallengeMessage(challenge model.Challenge) *pb.UserMessage {
 	challengeMessage := &pb.UserMessage_Challenge{
 		Challenge: &pb.Challenge{
 			ChallengerId:      challenge.ChallengerID,
@@ -231,14 +231,14 @@ func UnmarshalFinishedGame(bytes []byte) (FinishedGame, error) {
 		return FinishedGame{}, err
 	}
 
-	mode, modeErr := enum.ParseWithErr(pbGameEvent.GameMode, domain.GameModeEnums)
-	replayResult, resultErr := enum.ParseWithErr(pbGameEvent.ReplayResult, domain.ReplayResultEnums)
-	replayCause, causeErr := enum.ParseWithErr(pbGameEvent.ReplayCause, domain.ReplayCauseEnums)
+	mode, modeErr := enum.ParseWithErr(pbGameEvent.GameMode, model.GameModeEnums)
+	replayResult, resultErr := enum.ParseWithErr(pbGameEvent.ReplayResult, model.ReplayResultEnums)
+	replayCause, causeErr := enum.ParseWithErr(pbGameEvent.ReplayCause, model.ReplayCauseEnums)
 	if err := errors.Join(modeErr, resultErr, causeErr); err != nil {
 		return FinishedGame{}, err
 	}
 
-	board, err := chess.DeserializeBoard(pbGameEvent.Board)
+	board, err := hexchess.DeserializeBoard(pbGameEvent.Board)
 	if err != nil {
 		return FinishedGame{}, fmt.Errorf("deserialize board %v: %w", pbGameEvent.Board, err)
 	}
@@ -246,7 +246,7 @@ func UnmarshalFinishedGame(bytes []byte) (FinishedGame, error) {
 	return FinishedGame{
 		GameID:       pbGameEvent.GameId,
 		Board:        board,
-		Moves:        chess.DeserializeHistMoveList(pbGameEvent.Moves),
+		Moves:        hexchess.DeserializeHistMoveList(pbGameEvent.Moves),
 		WhitePlayer:  DeserializePlayer(pbGameEvent.WhitePlayer),
 		BlackPlayer:  DeserializePlayer(pbGameEvent.BlackPlayer),
 		ReplayMode:   mode,
@@ -258,8 +258,8 @@ func UnmarshalFinishedGame(bytes []byte) (FinishedGame, error) {
 func MarshalFinishedGame(event FinishedGame) ([]byte, error) {
 	return proto.Marshal(&pb.FinishGameEvent{
 		GameId:       event.GameID,
-		Board:        chess.SerializeBoard(&event.Board),
-		Moves:        chess.SerializeMoveList(event.Moves),
+		Board:        hexchess.SerializeBoard(&event.Board),
+		Moves:        hexchess.SerializeMoveList(event.Moves),
 		WhitePlayer:  SerializePlayer(event.WhitePlayer),
 		BlackPlayer:  SerializePlayer(event.BlackPlayer),
 		GameMode:     event.ReplayMode.String(),
@@ -300,7 +300,7 @@ func UnmarshalCreateTournamentMatchesEvent(bytes []byte) (e CreateTournamentMatc
 	}
 	var matches []TournamentMatchCreation
 	for _, pbMatch := range pbEvent.Matches {
-		mode, err := enum.ParseWithErr(pbMatch.GameMode, domain.GameModeEnums)
+		mode, err := enum.ParseWithErr(pbMatch.GameMode, model.GameModeEnums)
 		if err != nil {
 			serdeErrs = append(serdeErrs, err)
 			continue
@@ -317,7 +317,7 @@ func UnmarshalCreateTournamentMatchesEvent(bytes []byte) (e CreateTournamentMatc
 
 // Replay
 
-func SerializeReplayOutput(gameID string, replay domain.FullReplay) *pb.GameOutput {
+func SerializeReplayOutput(gameID string, replay model.FullReplay) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Replay{Replay: &pb.Replay{
@@ -353,7 +353,7 @@ func SerializeTournamentError(tournamentKey uuid.UUID, err error) *pb.Tournament
 	}
 }
 
-func SerializeParticipantOutput(tournamentKey uuid.UUID, lbdUser domain.LbdUser) *pb.TournamentOutput {
+func SerializeParticipantOutput(tournamentKey uuid.UUID, lbdUser model.LbdUser) *pb.TournamentOutput {
 	return &pb.TournamentOutput{
 		TournamentKey: tournamentKey.String(),
 		Value: &pb.TournamentOutput_Participant{
@@ -380,14 +380,14 @@ func SerializeStartTournament(tournamentKey uuid.UUID) *pb.TournamentOutput {
 	}
 }
 
-func DeserializeParticipantOutput(pbParticipant *pb.TournamentOutput_Participant) (domain.LbdUser, error) {
+func DeserializeParticipantOutput(pbParticipant *pb.TournamentOutput_Participant) (model.LbdUser, error) {
 	if pbParticipant == nil || pbParticipant.Participant == nil {
-		return domain.LbdUser{}, nil
+		return model.LbdUser{}, nil
 	}
 	return DeserializeLbdUser(pbParticipant.Participant)
 }
 
-func DeserializeMatchmakingOutput(pbMatchmaking *pb.TournamentOutput_Matchmaking) ([]domain.Match, error) {
+func DeserializeMatchmakingOutput(pbMatchmaking *pb.TournamentOutput_Matchmaking) ([]model.Match, error) {
 	if pbMatchmaking == nil || pbMatchmaking.Matchmaking == nil {
 		return nil, nil
 	}
@@ -395,37 +395,35 @@ func DeserializeMatchmakingOutput(pbMatchmaking *pb.TournamentOutput_Matchmaking
 }
 
 func MarshalTournamentOutputJson(pbOutput *pb.TournamentOutput) ([]byte, error) {
-	if pbOutput == nil || pbOutput.Value == nil {
-		return []byte{}, nil
-	}
-
 	var key TournamentOutputKey
 	var value isTournamentOutput_Value
 
-	switch pbOutputValue := pbOutput.Value.(type) {
-	case *pb.TournamentOutput_Participant:
-		lbdUser, err := DeserializeParticipantOutput(pbOutputValue)
-		if err != nil {
-			return nil, err
+	if pbOutput != nil && pbOutput.Value != nil {
+		switch pbOutputValue := pbOutput.Value.(type) {
+		case *pb.TournamentOutput_Participant:
+			lbdUser, err := DeserializeParticipantOutput(pbOutputValue)
+			if err != nil {
+				return nil, fmt.Errorf("deserialize participant output: %w", err)
+			}
+			key = ParticipantKey
+			value = TournamentOutput_Participant(lbdUser)
+		case *pb.TournamentOutput_Countdown:
+			key = CountdownKey
+			value = TournamentOutput_Countdown{}
+		case *pb.TournamentOutput_Start:
+			key = StartKey
+			value = TournamentOutput_Start{}
+		case *pb.TournamentOutput_Matchmaking:
+			matches, err := DeserializeMatchmakingOutput(pbOutputValue)
+			if err != nil {
+				return nil, fmt.Errorf("deserialize matchmaking output: %w", err)
+			}
+			key = MatchmakingKey
+			value = TournamentOutput_Matchmaking{Matches: matches}
+		case *pb.TournamentOutput_Error:
+			key = ErrorKey
+			value = TournamentOutput_Error(pbOutputValue.Error.Message)
 		}
-		key = ParticipantKey
-		value = TournamentOutput_Participant(lbdUser)
-	case *pb.TournamentOutput_Countdown:
-		key = CountdownKey
-		value = TournamentOutput_Countdown{}
-	case *pb.TournamentOutput_Start:
-		key = StartKey
-		value = TournamentOutput_Start{}
-	case *pb.TournamentOutput_Matchmaking:
-		matches, err := DeserializeMatchmakingOutput(pbOutputValue)
-		if err != nil {
-			return nil, err
-		}
-		key = MatchmakingKey
-		value = TournamentOutput_Matchmaking{Matches: matches}
-	case *pb.TournamentOutput_Error:
-		key = ErrorKey
-		value = TournamentOutput_Error(pbOutputValue.Error.Message)
 	}
 
 	return json.Marshal(TournamentOutput{Key: key, Value: value})
@@ -433,7 +431,7 @@ func MarshalTournamentOutputJson(pbOutput *pb.TournamentOutput) ([]byte, error) 
 
 // LbdUser
 
-func SerializeLbdUser(user domain.LbdUser) *pb.LbdUser {
+func SerializeLbdUser(user model.LbdUser) *pb.LbdUser {
 	return &pb.LbdUser{
 		Id:         user.ID,
 		Username:   user.Username,
@@ -450,14 +448,14 @@ func SerializeLbdUser(user domain.LbdUser) *pb.LbdUser {
 	}
 }
 
-func DeserializeLbdUser(user *pb.LbdUser) (domain.LbdUser, error) {
+func DeserializeLbdUser(user *pb.LbdUser) (model.LbdUser, error) {
 	joinedOn, err := time.Parse(time.RFC3339, user.JoinedOn)
 	if err != nil {
-		return domain.LbdUser{}, err
+		return model.LbdUser{}, err
 	}
 
-	return domain.LbdUser{
-		User: domain.User{
+	return model.LbdUser{
+		User: model.User{
 			ID:       user.Id,
 			Username: user.Username,
 			Country:  user.Country,
@@ -476,7 +474,7 @@ func DeserializeLbdUser(user *pb.LbdUser) (domain.LbdUser, error) {
 
 // TournamentMatch
 
-func SerializeTournamentMatches(matches []domain.Match) []*pb.TournamentMatch {
+func SerializeTournamentMatches(matches []model.Match) []*pb.TournamentMatch {
 	var pbMatches []*pb.TournamentMatch
 
 	for _, match := range matches {
@@ -493,8 +491,8 @@ func SerializeTournamentMatches(matches []domain.Match) []*pb.TournamentMatch {
 	return pbMatches
 }
 
-func DeserializeTournamentMatches(pbMatches []*pb.TournamentMatch) ([]domain.Match, error) {
-	var matches []domain.Match
+func DeserializeTournamentMatches(pbMatches []*pb.TournamentMatch) ([]model.Match, error) {
+	var matches []model.Match
 
 	var serdeErrs []error
 
@@ -509,7 +507,7 @@ func DeserializeTournamentMatches(pbMatches []*pb.TournamentMatch) ([]domain.Mat
 			serdeErrs = append(serdeErrs, fmt.Errorf("match %d: parse created on: %w", i, err))
 			continue
 		}
-		matches = append(matches, domain.Match{
+		matches = append(matches, model.Match{
 			TournamentKey: tournamentKey,
 			GameID:        pbMatch.GameId,
 			WhiteID:       pbMatch.WhiteId,

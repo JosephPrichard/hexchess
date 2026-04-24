@@ -1,10 +1,10 @@
-package events
+package queue
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-svc/domain"
+	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	svc "hexchess-svc/service"
 	"log/slog"
@@ -33,7 +33,7 @@ func (h EventHandler) HandleCreateTournamentMatchesEvent(ctx context.Context, by
 	if err != nil {
 		return fmt.Errorf("select user player data by ids: %w", err)
 	}
-	userDataMap := make(map[int64]domain.User)
+	userDataMap := make(map[int64]model.User)
 	for _, user := range users {
 		userDataMap[user.ID] = user
 	}
@@ -52,9 +52,9 @@ func (h EventHandler) HandleCreateTournamentMatchesEvent(ctx context.Context, by
 		chessStates = append(chessStates, svc.MakeChessStateVal(svc.StateSetup{
 			ID:         match.GameID,
 			Mode:       match.GameMode,
-			FirstColor: domain.White,
-			White:      domain.MakePlayer(match.WhiteID, whitePlayerData.Username, whitePlayerData.Country),
-			Black:      domain.MakePlayer(match.BlackID, blackPlayerData.Username, blackPlayerData.Country),
+			FirstColor: model.White,
+			White:      model.MakePlayer(match.WhiteID, whitePlayerData.Username, whitePlayerData.Country),
+			Black:      model.MakePlayer(match.BlackID, blackPlayerData.Username, blackPlayerData.Country),
 		}))
 	}
 

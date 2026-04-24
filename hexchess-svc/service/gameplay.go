@@ -5,12 +5,13 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/redis/go-redis/v9"
-	"hexchess-svc/chess"
-	"hexchess-svc/domain"
+	"hexchess-svc/hexchess"
+	"hexchess-svc/model"
 	"hexchess-svc/util/logutil"
 	"log/slog"
 	"math/big"
+
+	"github.com/redis/go-redis/v9"
 )
 
 var ErrForfeitPlayer = errors.New("must be a player to forfeit or abort")
@@ -65,7 +66,7 @@ func MakeGameID() string {
 	return string(bytesID)
 }
 
-func (svc *HexchessServices) CreateGame(ctx context.Context, color domain.GameColor, mode domain.GameMode, initialBoard *chess.Board) (string, error) {
+func (svc *HexchessServices) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *hexchess.Board) (string, error) {
 	strID := MakeGameID()
 
 	state := MakeChessState(StateSetup{ID: strID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
@@ -99,7 +100,7 @@ func (svc *HexchessServices) broadcastGameCounts(strID string) error {
 	return nil
 }
 
-func (svc *HexchessServices) JoinGame(ctx context.Context, gameID string, player domain.PlayerState) (*ChessState, error) {
+func (svc *HexchessServices) JoinGame(ctx context.Context, gameID string, player model.PlayerState) (*ChessState, error) {
 	update := func(state *ChessState) error {
 		if !player.Present {
 			slog.WarnContext(ctx, "player did not join the game", "playerID", player.ID)
@@ -112,7 +113,7 @@ func (svc *HexchessServices) JoinGame(ctx context.Context, gameID string, player
 			if err != nil {
 				return fmt.Errorf("generate randint used to select first color: %w", err)
 			}
-			pickWhite := state.FirstColor == domain.Random && n.Int64()%2 == 0 || state.FirstColor == domain.White
+			pickWhite := state.FirstColor == model.Random && n.Int64()%2 == 0 || state.FirstColor == model.White
 			if pickWhite {
 				state.WhitePlayer = player
 			} else {
@@ -146,10 +147,10 @@ func (svc *HexchessServices) JoinGame(ctx context.Context, gameID string, player
 
 type MoveResult struct {
 	State *ChessState
-	Move  chess.HistMove
+	Move  hexchess.HistMove
 }
 
-func (svc *HexchessServices) MakeGameMove(ctx context.Context, gameID string, player domain.PlayerState, move chess.Move) (MoveResult, error) {
+func (svc *HexchessServices) MakeGameMove(ctx context.Context, gameID string, player model.PlayerState, move hexchess.Move) (MoveResult, error) {
 	update := func(state *ChessState) error {
 		// pre move validations on chess state
 		if !state.HasBothPlayers() {
@@ -182,9 +183,9 @@ func (svc *HexchessServices) MakeGameMove(ctx context.Context, gameID string, pl
 		if state.EndState.isEnded() {
 			slog.InfoContext(ctx, "game has reached checkmate", "player", player.ID, "move", move, "chessMeta", state.ChessMeta)
 
-			result := domain.WhiteWin
+			result := model.WhiteWin
 			if state.Game.Board.IsWhiteTurn {
-				result = domain.BlackWin
+				result = model.BlackWin
 			}
 			if err := svc.pushFinishGameEvent(ctx, pipe, FinishedGame{
 				GameID:       gameID,
@@ -192,7 +193,7 @@ func (svc *HexchessServices) MakeGameMove(ctx context.Context, gameID string, pl
 				BlackPlayer:  state.BlackPlayer,
 				ReplayMode:   state.Mode,
 				ReplayResult: result,
-				ReplayCause:  domain.Checkmate,
+				ReplayCause:  model.Checkmate,
 			}); err != nil {
 				return fmt.Errorf("push finished game event: %w", err)
 			}
@@ -225,7 +226,7 @@ const (
 	UndoReject
 )
 
-func (svc *HexchessServices) AttemptGameUndo(ctx context.Context, gameID string, player domain.PlayerState, kind UndoKind) (*ChessState, error) {
+func (svc *HexchessServices) AttemptGameUndo(ctx context.Context, gameID string, player model.PlayerState, kind UndoKind) (*ChessState, error) {
 	update := func(state *ChessState) error {
 		switch kind {
 		case UndoCreate:
@@ -260,7 +261,7 @@ func (svc *HexchessServices) AttemptGameUndo(ctx context.Context, gameID string,
 	return state, err
 }
 
-func (svc *HexchessServices) EndGame(ctx context.Context, gameID string, player domain.PlayerState) (EndKind, error) {
+func (svc *HexchessServices) EndGame(ctx context.Context, gameID string, player model.PlayerState) (EndKind, error) {
 	update := func(state *ChessState) error {
 		if state.EndState.isEnded() {
 			return ErrFinishedGame{GameID: gameID}
@@ -283,9 +284,9 @@ func (svc *HexchessServices) EndGame(ctx context.Context, gameID string, player 
 	}
 	commit := func(pipe redis.Pipeliner, state *ChessState) error {
 		if state.EndState == Finished {
-			result := domain.BlackWin
+			result := model.BlackWin
 			if state.BlackPlayer.ID == player.ID {
-				result = domain.WhiteWin
+				result = model.WhiteWin
 			}
 
 			if err := svc.pushFinishGameEvent(ctx, pipe, FinishedGame{
@@ -294,7 +295,7 @@ func (svc *HexchessServices) EndGame(ctx context.Context, gameID string, player 
 				BlackPlayer:  state.BlackPlayer,
 				ReplayMode:   state.Mode,
 				ReplayResult: result,
-				ReplayCause:  domain.Forfeit,
+				ReplayCause:  model.Forfeit,
 			}); err != nil {
 				return fmt.Errorf("push finished game event: %w", err)
 			}

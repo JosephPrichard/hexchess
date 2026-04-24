@@ -2,14 +2,15 @@ package svc
 
 import (
 	"context"
+	"hexchess-svc/db/sqlc"
+	"hexchess-svc/itest"
+	"hexchess-svc/model"
+
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"hexchess-svc/db/sqlc"
-	"hexchess-svc/domain"
-	"hexchess-svc/itest"
 
 	"hexchess-svc/util/logutil"
 	"hexchess-svc/util/testutil"
@@ -31,7 +32,7 @@ func TestCreateTournament(t *testing.T) {
 		Key:       key,
 		Name:      "Tournaments 1",
 		Rounds:    2,
-		Mode:      domain.ModeCorrespondence1,
+		Mode:      model.ModeCorrespondence1,
 		Countdown: time.Hour,
 		CreatedOn: itest.TimeNow,
 		CreatedBy: 1,
@@ -46,13 +47,13 @@ func TestCreateTournament(t *testing.T) {
 		Name:          "Tournaments 1",
 		TournamentKey: pgtype.UUID{Bytes: key, Valid: true},
 		Rounds:        2,
-		Status:        sqlc.TournamentStatusEnum(domain.TournamentLobby.String()),
-		Ruleset:       sqlc.TournamentRulesetEnum(domain.TournamentKnockout.String()),
+		Status:        sqlc.TournamentStatusEnum(model.TournamentLobby.String()),
+		Ruleset:       sqlc.TournamentRulesetEnum(model.TournamentKnockout.String()),
 		Countdown:     time.Hour.Milliseconds(),
 		CreatedOn:     pgtype.Timestamptz{Time: itest.TimeNow.Local(), Valid: true},
 		UpdatedOn:     pgtype.Timestamptz{Time: itest.TimeNow.Local(), Valid: true},
 		CreatedBy:     1,
-		Mode:          sqlc.ModeEnum(domain.ModeCorrespondence1.String()),
+		Mode:          sqlc.ModeEnum(model.ModeCorrespondence1.String()),
 	}
 	testutil.Equal(t, wantTournament, tournament)
 }
@@ -170,7 +171,7 @@ func TestJoinTournament(t *testing.T) {
 				JoiningUserID: 1,
 				InsertionTime: time.Now(),
 			},
-			wantResult: JoinTournamentResult{TournamentKey: itest.Tournament0LobbyKey, Mode: domain.ModeCorrespondence1},
+			wantResult: JoinTournamentResult{TournamentKey: itest.Tournament0LobbyKey, Mode: model.ModeCorrespondence1},
 			wantParticipants: []sqlc.TournamentParticipant{
 				{
 					TournamentKey: pgtype.UUID{Bytes: itest.Tournament0LobbyKey, Valid: true},
@@ -218,8 +219,8 @@ func TestAdvanceTournament(t *testing.T) {
 			wantErr: MatchInvariantError{
 				TournamentKey: itest.Tournament1LobbyFilledKey,
 				Err: TournamentStatusAssertionError{
-					Expected: []domain.TournamentStatus{domain.TournamentScheduled, domain.TournamentInProgress},
-					Got:      domain.TournamentLobby,
+					Expected: []model.TournamentStatus{model.TournamentScheduled, model.TournamentInProgress},
+					Got:      model.TournamentLobby,
 				},
 			},
 		},
@@ -229,8 +230,8 @@ func TestAdvanceTournament(t *testing.T) {
 			wantErr: MatchInvariantError{
 				TournamentKey: itest.Tournament8FinishedKey,
 				Err: TournamentStatusAssertionError{
-					Expected: []domain.TournamentStatus{domain.TournamentScheduled, domain.TournamentInProgress},
-					Got:      domain.TournamentFinished,
+					Expected: []model.TournamentStatus{model.TournamentScheduled, model.TournamentInProgress},
+					Got:      model.TournamentFinished,
 				},
 			},
 		},

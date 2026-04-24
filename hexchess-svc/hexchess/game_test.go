@@ -1,4 +1,4 @@
-package chess
+package hexchess
 
 import (
 	"testing"

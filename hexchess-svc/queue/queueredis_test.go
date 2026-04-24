@@ -1,15 +1,16 @@
-package events
+package queue
 
 import (
 	"context"
 	"encoding/json"
-	"github.com/redis/go-redis/v9"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"hexchess-svc/itest"
 	"hexchess-svc/util/logutil"
 	"sync"
 	"testing"
+
+	"github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type testEvent struct {
@@ -104,7 +105,7 @@ func TestGameFinishStreamer(t *testing.T) {
 		StreamKey:     "stream-key",
 		ConsumerGroup: "consumer-group",
 
-		HandleEvent:    h.handleEvent,
+		HandleEvent: h.handleEvent,
 	}
 	consumer.EventLoop()
 

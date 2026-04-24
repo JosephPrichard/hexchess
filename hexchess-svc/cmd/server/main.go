@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"hexchess-svc/events"
 	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
@@ -12,7 +11,8 @@ import (
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
 	"hexchess-svc/egress"
-	"hexchess-svc/service"
+	"hexchess-svc/queue"
+	svc "hexchess-svc/service"
 	"hexchess-svc/util/logutil"
 	"hexchess-svc/web"
 
@@ -89,8 +89,8 @@ func main() {
 	broadcasters := svc.MakeLocalBroadcasters()
 	broadcasters.Listen(rdb)
 
-	events.StartRedisQueueConsumers(context.Background(), services, rdb)
-	events.StartDBQueueConsumers(context.Background(), services, pdb)
+	queue.StartRedisQueueConsumers(context.Background(), services, rdb)
+	queue.StartDBQueueConsumers(context.Background(), services, pdb)
 
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 

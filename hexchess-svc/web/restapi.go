@@ -5,8 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"golang.org/x/sync/errgroup"
-	"hexchess-svc/domain"
+	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	svc "hexchess-svc/service"
 	"hexchess-svc/util/errutil"
@@ -14,6 +13,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
@@ -70,7 +71,7 @@ func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) error {
 	user, err := api.services.InsertUser(ctx, svc.UserInst{
 		Username: body.Username,
 		Password: body.Password,
-		Country:  domain.DefaultCountry,
+		Country:  model.DefaultCountry,
 		JoinedOn: time.Now(),
 	})
 	if errors.Is(err, svc.ErrTakenUsername) {
@@ -79,7 +80,7 @@ func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("insert user: %w", err)
 	}
 
-	ttl, err := api.authenticator.SetSessionPlayer(ctx, w, domain.MakePlayer(user.ID, user.Username, user.Country))
+	ttl, err := api.authenticator.SetSessionPlayer(ctx, w, model.MakePlayer(user.ID, user.Username, user.Country))
 	if err != nil {
 		return err
 	}
@@ -95,7 +96,7 @@ func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (api *API) handleLoginSession(ctx context.Context, w http.ResponseWriter, user svc.VerifiedUser) error {
-	t, err := api.authenticator.SetSessionPlayer(ctx, w, domain.MakePlayer(user.ID, user.Username, user.Country))
+	t, err := api.authenticator.SetSessionPlayer(ctx, w, model.MakePlayer(user.ID, user.Username, user.Country))
 	if err != nil {
 		return err
 	}
@@ -155,7 +156,7 @@ func (api *API) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) error 
 
 	user, err := api.services.SelectOrInsertGoogleUser(ctx, payload.AccountID, svc.GoogleUserInst{
 		Username: payload.Username,
-		Country:  domain.DefaultCountry,
+		Country:  model.DefaultCountry,
 	})
 	if err != nil {
 		return fmt.Errorf("upsert verified google user: %w", err)
@@ -262,7 +263,7 @@ func (api *API) HandleCreateTempSession(w http.ResponseWriter, r *http.Request) 
 			{SessionID: tempSessionID, Player: sessionPlayer, Expiry: TempSessionMaxAge},
 		}
 	} else {
-		sessionPlayer = domain.MakeGuestPlayer()
+		sessionPlayer = model.MakeGuestPlayer()
 		tempSessionID = MakeSessionID()
 		guestSessionID := MakeSessionID()
 
@@ -357,12 +358,12 @@ func (api *API) HandleGetSelf(w http.ResponseWriter, r *http.Request) error {
 
 type LeaderboardQuery struct {
 	Page int
-	Mode domain.GameMode
+	Mode model.GameMode
 }
 
 type LeaderboardResp struct {
-	TotalPages int              `json:"totalPages"`
-	UserList   []domain.LbdUser `json:"userList,omitempty"`
+	TotalPages int             `json:"totalPages"`
+	UserList   []model.LbdUser `json:"userList,omitempty"`
 }
 
 func (api *API) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) error {
@@ -414,7 +415,7 @@ func (api *API) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
 }
 
 type SearchPlayersResp struct {
-	UserList []domain.LbdUser `json:"userList,omitempty"`
+	UserList []model.LbdUser `json:"userList,omitempty"`
 }
 
 func (api *API) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) error {
@@ -430,7 +431,7 @@ func (api *API) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) erro
 
 	slog.InfoContext(ctx, "searching players", "page", page, "name", name)
 
-	var userList []domain.LbdUser
+	var userList []model.LbdUser
 	if hasUser {
 		users, err := api.services.GetFuzzySearchLeaderboard(ctx, name, int32(page), perPage)
 		if errors.Is(err, svc.ErrSearchLimit) {
@@ -545,7 +546,7 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 }
 
 type GetChallengesResp struct {
-	ChallengeList []domain.Challenge `json:"challengeList"`
+	ChallengeList []model.Challenge `json:"challengeList"`
 }
 
 const (
@@ -562,7 +563,7 @@ func (api *API) HandleGetChallenges(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	var challengeList []domain.Challenge
+	var challengeList []model.Challenge
 
 	switch participants {
 	case SentParticipantsTarget:
@@ -631,12 +632,12 @@ func (api *API) HandleGameExistence(w http.ResponseWriter, r *http.Request) erro
 }
 
 type ChessMeta struct {
-	ID          string             `json:"id"`
-	WhitePlayer domain.PlayerState `json:"whitePlayer"`
-	BlackPlayer domain.PlayerState `json:"blackPlayer"`
-	FirstColor  string             `json:"firstColor"`
-	Mode        string             `json:"mode"`
-	Touch       time.Time          `json:"touch"`
+	ID          string            `json:"id"`
+	WhitePlayer model.PlayerState `json:"whitePlayer"`
+	BlackPlayer model.PlayerState `json:"blackPlayer"`
+	FirstColor  string            `json:"firstColor"`
+	Mode        string            `json:"mode"`
+	Touch       time.Time         `json:"touch"`
 }
 
 func mapChessMetas(svcMetas []svc.ChessMeta) []ChessMeta {
@@ -722,7 +723,7 @@ func (api *API) HandleGetGameChats(w http.ResponseWriter, r *http.Request) error
 }
 
 type GetReplayResp struct {
-	Replay domain.FullReplay `json:"replay"`
+	Replay model.FullReplay `json:"replay"`
 }
 
 func (api *API) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
@@ -733,7 +734,7 @@ func (api *API) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 
 	ctx := r.Context()
 
-	var replay domain.FullReplay
+	var replay model.FullReplay
 
 	if query.HasGameID {
 		replay, err = api.services.GetReplayByGameID(ctx, query.GameID)
@@ -751,7 +752,7 @@ func (api *API) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 }
 
 type GetUserReplaysResp struct {
-	ReplayList []domain.FullReplay `json:"replayList"`
+	ReplayList []model.FullReplay `json:"replayList"`
 }
 
 func (api *API) HandleGetUserReplays(w http.ResponseWriter, r *http.Request) error {
@@ -903,7 +904,11 @@ func (api *API) HandleJoinTournament(w http.ResponseWriter, r *http.Request) err
 	go func() {
 		detatchedCtx := context.WithoutCancel(ctx)
 
-		err := api.services.BroadcastTournamentParticipant(ctx, tournament.TournamentKey, player.ID, tournament.Mode)
+		lbdUser, err := api.services.GetLeaderboardUser(detatchedCtx, player.ID, tournament.Mode)
+		if err != nil {
+			slog.ErrorContext(detatchedCtx, "failed to get leaderboard user", "err", err)
+		}
+		err = api.services.BroadcastTournament(ctx, svc.SerializeParticipantOutput(tournament.TournamentKey, lbdUser))
 		if err != nil {
 			slog.ErrorContext(detatchedCtx, "failed to broadcast tournament participant", "err", err)
 		}
@@ -941,7 +946,7 @@ func (api *API) HandleBeginCountdownTournament(w http.ResponseWriter, r *http.Re
 	go func() {
 		detatchedCtx := context.WithoutCancel(ctx)
 
-		err := api.services.BroadcastStartTournamentCountdown(ctx, result.TournamentKey)
+		err := api.services.BroadcastTournament(ctx, svc.SerializeBeginTournamentCountdown(result.TournamentKey))
 		if err != nil {
 			slog.ErrorContext(detatchedCtx, "failed to broadcast tournament participant", "err", err)
 		}
@@ -951,7 +956,7 @@ func (api *API) HandleBeginCountdownTournament(w http.ResponseWriter, r *http.Re
 	return nil
 }
 
-type GetTournamentResp domain.FullTournament
+type GetTournamentResp model.FullTournament
 
 func (api *API) HandleGetTournament(w http.ResponseWriter, r *http.Request) error {
 	tournamentKey, err := uuid.Parse(r.URL.Query().Get("tournamentKey"))
@@ -974,7 +979,7 @@ func (api *API) HandleGetTournament(w http.ResponseWriter, r *http.Request) erro
 }
 
 type GetTournamentsResp struct {
-	Tournaments []domain.Tournament `json:"tournaments"`
+	Tournaments []model.Tournament `json:"tournaments"`
 }
 
 func (api *API) HandleGetTournaments(w http.ResponseWriter, r *http.Request) error {

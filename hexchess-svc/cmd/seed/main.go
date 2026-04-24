@@ -4,7 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"hexchess-svc/domain"
+	"hexchess-svc/hexchess"
+	"hexchess-svc/model"
 	"log"
 	"log/slog"
 	"math/rand"
@@ -12,10 +13,9 @@ import (
 	"time"
 
 	"hexchess-svc/assets"
-	"hexchess-svc/chess"
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
-	"hexchess-svc/service"
+	svc "hexchess-svc/service"
 	"hexchess-svc/util/logutil"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -118,8 +118,8 @@ func insertChallenges(ctx context.Context, services svc.HexchessAPI, insts []Cha
 		if _, err := services.InsertChallenge(ctx, svc.ChallengeInst{
 			ChallengerID: chInst.ChallengerID,
 			ChallengeeID: chInst.ChallengeeID,
-			Mode:         domain.ExpectGameMode(chInst.Mode),
-			StartColor:   domain.ExpectColor(chInst.StartColor),
+			Mode:         model.ExpectGameMode(chInst.Mode),
+			StartColor:   model.ExpectColor(chInst.StartColor),
 			MadeOn:       chInst.MadeOn,
 		}); err != nil {
 			return err
@@ -140,13 +140,13 @@ func insertRandomizedGameResults(ctx context.Context, services svc.HexchessAPI, 
 
 	for gameIdx, params := range gameResults {
 		eg.Go(func() error {
-			mode := domain.ExpectGameMode(params.ReplayMode)
+			mode := model.ExpectGameMode(params.ReplayMode)
 
-			moveSeq, err := svc.RandomMoveHistSeq(mode, chess.MakeStartGame(), 10, 30)
+			moveSeq, err := svc.RandomMoveHistSeq(mode, hexchess.MakeStartGame(), 10, 30)
 			if err != nil {
 				return fmt.Errorf("generate random move seq: %w", err)
 			}
-			moveHistBlob, err := chess.MarshalMoveHistory(chess.InitialBoard(), moveSeq)
+			moveHistBlob, err := hexchess.MarshalMoveHistory(hexchess.InitialBoard(), moveSeq)
 			if err != nil {
 				return fmt.Errorf("marshal move history to s3: %w", err)
 			}
@@ -155,8 +155,8 @@ func insertRandomizedGameResults(ctx context.Context, services svc.HexchessAPI, 
 				GameID:       svc.MakeGameID(),
 				WhiteID:      params.WhiteID,
 				BlackID:      params.BlackID,
-				ReplayCause:  domain.ExpectReplayCause(params.ReplayCause),
-				ReplayResult: domain.ExpectReplayResult(params.ReplayResult),
+				ReplayCause:  model.ExpectReplayCause(params.ReplayCause),
+				ReplayResult: model.ExpectReplayResult(params.ReplayResult),
 				ReplayMode:   mode,
 				InsertedTime: timeAt.Add(time.Duration(gameIdx) * time.Hour * 24),
 			})

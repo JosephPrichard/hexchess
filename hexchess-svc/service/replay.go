@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/domain"
+	"hexchess-svc/model"
 	"hexchess-svc/util/enum"
 	"log/slog"
 	"math"
@@ -16,49 +16,49 @@ import (
 
 var ErrNoReplay = errors.New("replay not found")
 
-func (svc *HexchessServices) GetReplayByGameID(ctx context.Context, gameID string) (domain.FullReplay, error) {
+func (svc *HexchessServices) GetReplayByGameID(ctx context.Context, gameID string) (model.FullReplay, error) {
 	row, err := svc.querier.SelectReplayByGameID(ctx, gameID)
 	return mapGetReplayResult(ctx, gameID, sqlc.SelectReplayByIDRow(row), err)
 }
 
-func (svc *HexchessServices) GetReplay(ctx context.Context, replayID int64) (domain.FullReplay, error) {
+func (svc *HexchessServices) GetReplay(ctx context.Context, replayID int64) (model.FullReplay, error) {
 	row, err := svc.querier.SelectReplayByID(ctx, replayID)
 	return mapGetReplayResult(ctx, replayID, row, err)
 }
 
-func mapGetReplayResult[ID any](ctx context.Context, id ID, row sqlc.SelectReplayByIDRow, err error) (domain.FullReplay, error) {
+func mapGetReplayResult[ID any](ctx context.Context, id ID, row sqlc.SelectReplayByIDRow, err error) (model.FullReplay, error) {
 	if IsErrNoRows(err) {
-		return domain.FullReplay{}, ErrNoReplay
+		return model.FullReplay{}, ErrNoReplay
 	} else if err != nil {
-		return domain.FullReplay{}, fmt.Errorf("select replay [%v] by id: %w", id, err)
+		return model.FullReplay{}, fmt.Errorf("select replay [%v] by id: %w", id, err)
 	}
 	replay := mapFullReplayByIDRow(row)
 	slog.InfoContext(ctx, "selected replay by id", "replay", replay, "id", id)
 	return replay, nil
 }
 
-func mapFullReplayByIDRow(row sqlc.SelectReplayByIDRow) domain.FullReplay {
+func mapFullReplayByIDRow(row sqlc.SelectReplayByIDRow) model.FullReplay {
 	replay := mapReplayByIDRow(row)
-	return domain.FullReplay{
+	return model.FullReplay{
 		Replay: replay,
-		ReplayUsers: domain.ReplayUsers{
+		ReplayUsers: model.ReplayUsers{
 			WhiteName:    row.WhiteName.String,
 			BlackName:    row.BlackName.String,
 			WhiteCountry: row.WhiteCountry.String,
 			BlackCountry: row.BlackCountry.String,
-			WhiteElo:     domain.DefaultUserElo(row.WhiteElo),
-			BlackElo:     domain.DefaultUserElo(row.BlackElo),
+			WhiteElo:     model.DefaultUserElo(row.WhiteElo),
+			BlackElo:     model.DefaultUserElo(row.BlackElo),
 		},
-		RepayView: domain.MakeReplayView(replay),
+		RepayView: model.MakeReplayView(replay),
 	}
 }
 
-func mapReplayByIDRow(row sqlc.SelectReplayByIDRow) domain.Replay {
-	replayResult := enum.Expect(row.Result, domain.ReplayResultEnums)
-	replayCause := enum.Expect(row.Cause, domain.ReplayCauseEnums)
-	gameMode := enum.Expect(row.Mode, domain.GameModeEnums)
+func mapReplayByIDRow(row sqlc.SelectReplayByIDRow) model.Replay {
+	replayResult := enum.Expect(row.Result, model.ReplayResultEnums)
+	replayCause := enum.Expect(row.Cause, model.ReplayCauseEnums)
+	gameMode := enum.Expect(row.Mode, model.GameModeEnums)
 
-	return domain.Replay{
+	return model.Replay{
 		ID:          row.ID,
 		WhiteID:     row.WhiteID.Int64,
 		BlackID:     row.BlackID.Int64,
@@ -80,7 +80,7 @@ func (svc *HexchessServices) GetMovesHistory(ctx context.Context, replayID int) 
 	return row.Data, nil
 }
 
-func (svc *HexchessServices) GetUserReplays(ctx context.Context, userID int64, afterID int64, perPage int32) ([]domain.FullReplay, error) {
+func (svc *HexchessServices) GetUserReplays(ctx context.Context, userID int64, afterID int64, perPage int32) ([]model.FullReplay, error) {
 	if afterID < 0 {
 		afterID = int64(math.MaxInt64)
 	}
@@ -94,7 +94,7 @@ func (svc *HexchessServices) GetUserReplays(ctx context.Context, userID int64, a
 		return nil, fmt.Errorf("select replays by user id [%d]: %w", userID, err)
 	}
 
-	replays := make([]domain.FullReplay, 0, len(replayRows))
+	replays := make([]model.FullReplay, 0, len(replayRows))
 	for _, row := range replayRows {
 		replays = append(replays, mapFullReplayByIDRow(sqlc.SelectReplayByIDRow(row)))
 	}
@@ -156,9 +156,9 @@ type Bucket struct {
 	elements  []EloHistoryBucket // all accumulated buckets.
 }
 
-type BucketMap map[domain.GameMode]*Bucket
+type BucketMap map[model.GameMode]*Bucket
 
-func (buckets BucketMap) get(mode domain.GameMode) *Bucket {
+func (buckets BucketMap) get(mode model.GameMode) *Bucket {
 	bucket, ok := buckets[mode]
 	if !ok {
 		bucket = &Bucket{}
@@ -199,7 +199,7 @@ func aggregateEloHistoryBuckets(eloRows []sqlc.SelectReplayElosRow, params EloHi
 
 	// fill buckets row by row, a Bucket is filled once the startTime is 'duration' ago relative to the current row
 	for _, row := range eloRows {
-		mode, ok := domain.GameModeEnums[string(row.Mode)]
+		mode, ok := model.GameModeEnums[string(row.Mode)]
 		if !ok {
 			continue
 		}
@@ -233,7 +233,7 @@ func aggregateEloHistoryBuckets(eloRows []sqlc.SelectReplayElosRow, params EloHi
 		}
 	}
 	// append any buckets that may not have been fully filled, but contain averaged data.
-	for _, mode := range domain.GameModeEnums {
+	for _, mode := range model.GameModeEnums {
 		appendBucket(buckets.get(mode), duration)
 	}
 

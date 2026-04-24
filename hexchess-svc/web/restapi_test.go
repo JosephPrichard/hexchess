@@ -4,11 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
-	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/domain"
 	"hexchess-svc/egress"
+	"hexchess-svc/hexchess"
+	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"io"
 	"net/http"
@@ -17,6 +16,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 
 	"go.uber.org/mock/gomock"
 	"google.golang.org/api/idtoken"
@@ -443,7 +444,7 @@ func TestHandleCreateGame(t *testing.T) {
 	}{
 		{
 			name:       "CreatedGame",
-			body:       CreateGameBody{FirstColor: "WHITE", Mode: domain.ModeCorrespondence1.String()},
+			body:       CreateGameBody{FirstColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
 			wantStatus: http.StatusOK,
 		},
 		{
@@ -499,35 +500,35 @@ func TestHandleCreateChallenge(t *testing.T) {
 	}{
 		{
 			name:       "UnauthorizedUser",
-			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: domain.ModeCorrespondence1.String()},
+			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
 			sessionID:  "invalid",
 			wantStatus: http.StatusUnauthorized,
 			wantResp:   ServiceView{Status: http.StatusUnauthorized, Errors: ErrHttpSessionExpired.Error()},
 		},
 		{
 			name:       "ChallengingSelf",
-			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: domain.ModeCorrespondence1.String()},
+			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpSelfChallenge.Error()},
 		},
 		{
 			name:       "ChallengingInvalidUser",
-			body:       CreateChallengeBody{ChallengeeID: 999, StartColor: "WHITE", Mode: domain.ModeCorrespondence1.String()},
+			body:       CreateChallengeBody{ChallengeeID: 999, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpInvalidParticipants.Error()},
 		},
 		{
 			name:       "CreatingDuplicateChallenge",
-			body:       CreateChallengeBody{ChallengeeID: 2, StartColor: "WHITE", Mode: domain.ModeCorrespondence1.String()},
+			body:       CreateChallengeBody{ChallengeeID: 2, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpDuplicateChallenge.Error()},
 		},
 		{
 			name:       "CreatedChallenge",
-			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "WHITE", Mode: domain.ModeCorrespondence1.String()},
+			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusOK,
 			wantResp:   ServiceView{Status: http.StatusOK, Message: "SUCCESS"},
@@ -590,9 +591,9 @@ func TestHandleSearchPlayers(t *testing.T) {
 			username:   "john",
 			wantStatus: http.StatusOK,
 			wantSuccess: SearchPlayersResp{
-				UserList: []domain.LbdUser{
+				UserList: []model.LbdUser{
 					{
-						User:       domain.User{ID: 8, Username: "john", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+						User:       model.User{ID: 8, Username: "john", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
 						Elo:        1500,
 						HighestElo: 2000,
 						Wins:       12,
@@ -601,7 +602,7 @@ func TestHandleSearchPlayers(t *testing.T) {
 						Rank:       1,
 					},
 					{
-						User:       domain.User{ID: 9, Username: "johnny", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+						User:       model.User{ID: 9, Username: "johnny", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
 						Elo:        1500,
 						HighestElo: 1500,
 						Wins:       5,
@@ -661,13 +662,13 @@ func TestGetLeaderboard(t *testing.T) {
 		},
 		{
 			name:       "ValidLeaderboard",
-			mode:       domain.ModeTimed1Plus0.String(),
+			mode:       model.ModeTimed1Plus0.String(),
 			wantStatus: http.StatusOK,
 			wantSuccess: LeaderboardResp{
 				TotalPages: 1,
-				UserList: []domain.LbdUser{
+				UserList: []model.LbdUser{
 					{
-						User: domain.User{
+						User: model.User{
 							ID:       1,
 							Username: "user1",
 							Country:  "us",
@@ -691,7 +692,7 @@ func TestGetLeaderboard(t *testing.T) {
 			defer services.Close()
 
 			ctx := context.WithValue(context.Background(), logutil.Trace, "setup-get-leaderboard")
-			require.NoError(t, services.SetLeaderboard(ctx, svc.UpdtLbChangeSet{Mode: domain.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
+			require.NoError(t, services.SetLeaderboard(ctx, svc.UpdtLbChangeSet{Mode: model.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
 
 			q := url.Values{}
 			q.Set("mode", tt.mode)
@@ -731,7 +732,7 @@ func TestGetPlayer(t *testing.T) {
 				FullUser: svc.FullUser{
 					User:       itest.TestUser[0],
 					Stats:      itest.TestUserStats[0],
-					ReplayList: []domain.FullReplay{itest.TestReplay[2], itest.TestReplay[1], itest.TestReplay[0]},
+					ReplayList: []model.FullReplay{itest.TestReplay[2], itest.TestReplay[1], itest.TestReplay[0]},
 				},
 			},
 			wantStatus: http.StatusOK,
@@ -744,7 +745,7 @@ func TestGetPlayer(t *testing.T) {
 				FullUser: svc.FullUser{
 					User:       itest.TestUser[0],
 					Stats:      itest.TestUserStats[0],
-					ReplayList: []domain.FullReplay{},
+					ReplayList: []model.FullReplay{},
 				},
 			},
 			wantStatus: http.StatusOK,
@@ -805,7 +806,7 @@ func TestGetChallenges(t *testing.T) {
 			participants: "sent",
 			sessionID:    TestSessionID1,
 			wantSuccess: GetChallengesResp{
-				ChallengeList: []domain.Challenge{itest.TestChallenge[0]},
+				ChallengeList: []model.Challenge{itest.TestChallenge[0]},
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -814,7 +815,7 @@ func TestGetChallenges(t *testing.T) {
 			participants: "received",
 			sessionID:    TestSessionID1,
 			wantSuccess: GetChallengesResp{
-				ChallengeList: []domain.Challenge{itest.TestChallenge[1]},
+				ChallengeList: []model.Challenge{itest.TestChallenge[1]},
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -862,14 +863,14 @@ func TestHandleGetUserReplays(t *testing.T) {
 			userID:      "999",
 			afterID:     "0",
 			wantStatus:  http.StatusOK,
-			wantSuccess: GetUserReplaysResp{ReplayList: []domain.FullReplay{}},
+			wantSuccess: GetUserReplaysResp{ReplayList: []model.FullReplay{}},
 		},
 		{
 			name:       "GotUserReplays",
 			afterID:    "-1",
 			userID:     "1",
 			wantStatus: http.StatusOK,
-			wantSuccess: GetUserReplaysResp{ReplayList: []domain.FullReplay{
+			wantSuccess: GetUserReplaysResp{ReplayList: []model.FullReplay{
 				itest.TestReplay[2],
 				itest.TestReplay[1],
 				itest.TestReplay[0],
@@ -960,13 +961,13 @@ func TestHandleGetChessMetas(t *testing.T) {
 	t.Parallel()
 
 	allChessMetas := []ChessMeta{
-		{ID: "game3", FirstColor: domain.Random.String(), Mode: domain.ModeCorrespondence1.String()},
-		{ID: "game2", FirstColor: domain.Random.String(), Mode: domain.ModeCorrespondence1.String()},
+		{ID: "game3", FirstColor: model.Random.String(), Mode: model.ModeCorrespondence1.String()},
+		{ID: "game2", FirstColor: model.Random.String(), Mode: model.ModeCorrespondence1.String()},
 		{
 			ID:          TestGameID1,
-			BlackPlayer: domain.MakePlayer(2, "user2", "us"),
-			FirstColor:  domain.Random.String(),
-			Mode:        domain.ModeCorrespondence1.String(),
+			BlackPlayer: model.MakePlayer(2, "user2", "us"),
+			FirstColor:  model.Random.String(),
+			Mode:        model.ModeCorrespondence1.String(),
 		},
 	}
 
@@ -985,9 +986,9 @@ func TestHandleGetChessMetas(t *testing.T) {
 				SelfChessList: []ChessMeta{
 					{
 						ID:          TestGameID1,
-						BlackPlayer: domain.MakePlayer(2, "user2", "us"),
-						FirstColor:  domain.Random.String(),
-						Mode:        domain.ModeCorrespondence1.String(),
+						BlackPlayer: model.MakePlayer(2, "user2", "us"),
+						FirstColor:  model.Random.String(),
+						Mode:        model.ModeCorrespondence1.String(),
 					},
 				},
 			},
@@ -1030,8 +1031,8 @@ func TestHandleGetMoveReplay(t *testing.T) {
 	services, testinfra := svc.SetupServicesTest(t, svc.Mocks{}, itest.RWPostgres)
 	defer services.Close()
 
-	wantInitialGame := chess.MakeEmptyGame(false)
-	pbInitialGame := chess.SerializeGame(&wantInitialGame)
+	wantInitialGame := hexchess.MakeEmptyGame(false)
+	pbInitialGame := hexchess.SerializeGame(&wantInitialGame)
 
 	// serialize a history that contains every field so we can check that the binary data is being stored correctly. this history doesn't actually respect game rules.
 	bytes, err := proto.Marshal(&pb.MoveHistory{
@@ -1096,8 +1097,8 @@ func TestGetTournament(t *testing.T) {
 			wantStatus:    http.StatusOK,
 			wantResp: GetTournamentResp{
 				Tournament:   itest.Tournaments[0],
-				Participants: []domain.Participant{},
-				Matches:      []domain.Match{},
+				Participants: []model.Participant{},
+				Matches:      []model.Match{},
 			},
 		},
 		{
@@ -1180,7 +1181,7 @@ func TestGetTournaments(t *testing.T) {
 			afterID:    "-1",
 			wantStatus: http.StatusOK,
 			wantResp: GetTournamentsResp{
-				Tournaments: []domain.Tournament{
+				Tournaments: []model.Tournament{
 					itest.Tournaments[9],
 					itest.Tournaments[8],
 					itest.Tournaments[7],
@@ -1200,7 +1201,7 @@ func TestGetTournaments(t *testing.T) {
 			afterID:    "-1",
 			wantStatus: http.StatusOK,
 			wantResp: GetTournamentsResp{
-				Tournaments: []domain.Tournament{
+				Tournaments: []model.Tournament{
 					itest.Tournaments[5],
 					itest.Tournaments[2],
 				},

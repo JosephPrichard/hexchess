@@ -2,10 +2,10 @@ package svc
 
 import (
 	"context"
-	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/domain"
+	"hexchess-svc/hexchess"
 	"hexchess-svc/itest"
+	"hexchess-svc/model"
 	"hexchess-svc/pb"
 
 	"hexchess-svc/util/logutil"
@@ -45,13 +45,13 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			name: "InsertFinishedGame",
 			event: FinishedGame{
 				GameID:       newGameID,
-				Board:        chess.MakeEmptyBoard(true),
-				Moves:        []chess.HistMove{},
-				WhitePlayer:  domain.PlayerState{ID: testUser0.ID, Present: true}, // winner
-				BlackPlayer:  domain.PlayerState{ID: testUser1.ID, Present: true}, // loser
-				ReplayMode:   domain.ModeCorrespondence1,
-				ReplayCause:  domain.Checkmate,
-				ReplayResult: domain.WhiteWin,
+				Board:        hexchess.MakeEmptyBoard(true),
+				Moves:        []hexchess.HistMove{},
+				WhitePlayer:  model.PlayerState{ID: testUser0.ID, Present: true}, // winner
+				BlackPlayer:  model.PlayerState{ID: testUser1.ID, Present: true}, // loser
+				ReplayMode:   model.ModeCorrespondence1,
+				ReplayCause:  model.Checkmate,
+				ReplayResult: model.WhiteWin,
 			},
 			wantLeaderboard: []string{
 				strconv.Itoa(int(testUser0.ID)),
@@ -66,9 +66,9 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 					BlackName:    "user2",
 					WhiteCountry: "us",
 					BlackCountry: "us",
-					Mode:         domain.ModeCorrespondence1.String(),
-					Cause:        domain.Checkmate.String(),
-					Result:       domain.WhiteWin.String(),
+					Mode:         model.ModeCorrespondence1.String(),
+					Cause:        model.Checkmate.String(),
+					Result:       model.WhiteWin.String(),
 					WinEloDiff:   15,
 					LoseEloDiff:  -15,
 					WhiteElo:     1015,
@@ -82,15 +82,15 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			name: "inserting already inserted finished game",
 			event: FinishedGame{
 				GameID: itest.FirstReplayGameID,
-				Board:  chess.MakeEmptyBoard(true),
-				Moves:  []chess.HistMove{},
+				Board:  hexchess.MakeEmptyBoard(true),
+				Moves:  []hexchess.HistMove{},
 				// used only for validation
-				WhitePlayer: domain.PlayerState{ID: testUser0.ID, Present: true},
-				BlackPlayer: domain.PlayerState{ID: testUser1.ID, Present: true},
+				WhitePlayer: model.PlayerState{ID: testUser0.ID, Present: true},
+				BlackPlayer: model.PlayerState{ID: testUser1.ID, Present: true},
 				// enum fields are ignored on a noop insertion.
-				ReplayMode:   domain.ModeCorrespondence1,
-				ReplayCause:  domain.Forfeit,
-				ReplayResult: domain.BlackWin,
+				ReplayMode:   model.ModeCorrespondence1,
+				ReplayCause:  model.Forfeit,
+				ReplayResult: model.BlackWin,
 			},
 			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
 			wantBroadcastOutput: &pb.GameOutput{
@@ -102,9 +102,9 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 					BlackName:    "user2",
 					WhiteCountry: "us",
 					BlackCountry: "us",
-					Mode:         domain.ModeCorrespondence7.String(),
-					Cause:        domain.Checkmate.String(),
-					Result:       domain.WhiteWin.String(),
+					Mode:         model.ModeCorrespondence7.String(),
+					Cause:        model.Checkmate.String(),
+					Result:       model.WhiteWin.String(),
 					WinEloDiff:   30,
 					LoseEloDiff:  -30,
 					WhiteElo:     1000,
@@ -118,13 +118,13 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			name: "inserting a game with a guest",
 			event: FinishedGame{
 				GameID:       newGameIDGuest,
-				Board:        chess.MakeEmptyBoard(true),
-				Moves:        []chess.HistMove{},
-				WhitePlayer:  domain.PlayerState{ID: testUser0.ID, Present: true}, // non-guest winner
-				BlackPlayer:  domain.PlayerState{ID: -10, Present: true},          // guest loser
-				ReplayMode:   domain.ModeCorrespondence1,
-				ReplayCause:  domain.Forfeit,
-				ReplayResult: domain.BlackWin,
+				Board:        hexchess.MakeEmptyBoard(true),
+				Moves:        []hexchess.HistMove{},
+				WhitePlayer:  model.PlayerState{ID: testUser0.ID, Present: true}, // non-guest winner
+				BlackPlayer:  model.PlayerState{ID: -10, Present: true},          // guest loser
+				ReplayMode:   model.ModeCorrespondence1,
+				ReplayCause:  model.Forfeit,
+				ReplayResult: model.BlackWin,
 			},
 			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
 			wantBroadcastOutput: &pb.GameOutput{
@@ -136,9 +136,9 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 					BlackName:    "",
 					WhiteCountry: "us",
 					BlackCountry: "",
-					Mode:         domain.ModeCorrespondence1.String(),
-					Cause:        domain.Forfeit.String(),
-					Result:       domain.BlackWin.String(),
+					Mode:         model.ModeCorrespondence1.String(),
+					Cause:        model.Forfeit.String(),
+					Result:       model.BlackWin.String(),
 					WinEloDiff:   0,
 					LoseEloDiff:  0,
 					WhiteElo:     1000,
@@ -199,9 +199,9 @@ func TestInsertGameResult(t *testing.T) {
 				GameID:       "game1",
 				WhiteID:      testUser0.ID,
 				BlackID:      testUser1.ID,
-				ReplayCause:  domain.Stalemate,
-				ReplayResult: domain.Draw,
-				ReplayMode:   domain.ModeTimed1Plus0,
+				ReplayCause:  model.Stalemate,
+				ReplayResult: model.Draw,
+				ReplayMode:   model.ModeTimed1Plus0,
 				InsertedTime: now,
 			},
 			wantUserElos: []sqlc.SelectUserModeElosByIDsRow{
@@ -232,9 +232,9 @@ func TestInsertGameResult(t *testing.T) {
 				GameID:       "game2",
 				WhiteID:      testUser0.ID,
 				BlackID:      testUser1.ID,
-				ReplayCause:  domain.Checkmate,
-				ReplayResult: domain.WhiteWin,
-				ReplayMode:   domain.ModeCorrespondence1,
+				ReplayCause:  model.Checkmate,
+				ReplayResult: model.WhiteWin,
+				ReplayMode:   model.ModeCorrespondence1,
 				InsertedTime: now,
 			},
 			wantUserElos: []sqlc.SelectUserModeElosByIDsRow{
@@ -269,9 +269,9 @@ func TestInsertGameResult(t *testing.T) {
 				GameID:       "game3",
 				WhiteID:      testUser0.ID,
 				BlackID:      testUser1.ID,
-				ReplayCause:  domain.Forfeit,
-				ReplayResult: domain.BlackWin,
-				ReplayMode:   domain.ModeCorrespondence7,
+				ReplayCause:  model.Forfeit,
+				ReplayResult: model.BlackWin,
+				ReplayMode:   model.ModeCorrespondence7,
 				InsertedTime: now,
 			},
 			wantUserElos: []sqlc.SelectUserModeElosByIDsRow{
@@ -306,9 +306,9 @@ func TestInsertGameResult(t *testing.T) {
 				GameID:       itest.FirstReplayGameID,
 				WhiteID:      testUser0.ID,
 				BlackID:      testUser1.ID,
-				ReplayCause:  domain.Forfeit,
-				ReplayResult: domain.BlackWin,
-				ReplayMode:   domain.ModeCorrespondence7,
+				ReplayCause:  model.Forfeit,
+				ReplayResult: model.BlackWin,
+				ReplayMode:   model.ModeCorrespondence7,
 				InsertedTime: now,
 			},
 			wantUserElos: []sqlc.SelectUserModeElosByIDsRow{
@@ -335,9 +335,9 @@ func TestInsertGameResult(t *testing.T) {
 				GameID:       "game4",
 				WhiteID:      -10,
 				BlackID:      -20,
-				ReplayCause:  domain.Forfeit,
-				ReplayResult: domain.BlackWin,
-				ReplayMode:   domain.ModeCorrespondence7,
+				ReplayCause:  model.Forfeit,
+				ReplayResult: model.BlackWin,
+				ReplayMode:   model.ModeCorrespondence7,
 				InsertedTime: now,
 			},
 			wantUserElos: []sqlc.SelectUserModeElosByIDsRow(nil), // not inserted.

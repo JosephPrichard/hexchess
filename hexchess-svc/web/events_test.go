@@ -6,16 +6,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hexchess-svc/domain"
+	"hexchess-svc/model"
+	"hexchess-svc/pb"
+	"hexchess-svc/service"
+	// "time"
 
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"hexchess-svc/itest"
-	"hexchess-svc/service"
 	"hexchess-svc/util/logutil"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -99,7 +102,9 @@ func TestHandleCountEvents(t *testing.T) {
 			services.BroadcastGameCount(ctx, 1))
 	}()
 
-	assert.Equal(t, resp.Header.Get("Content-Type"), "text/event-stream")
+	require.NoError(t, <-errChan)
+
+	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
 
 	wantEvents := []string{
 		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, `{"count":0}`),
@@ -108,7 +113,6 @@ func TestHandleCountEvents(t *testing.T) {
 		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"count":1}`),
 	}
 	assert.Equal(t, wantEvents, scanEvents(t.Context(), resp, len(wantEvents)))
-	assert.NoError(t, <-errChan)
 }
 
 func TestHandleActiveConn(t *testing.T) {
@@ -116,11 +120,10 @@ func TestHandleActiveConn(t *testing.T) {
 
 	ctx := t.Context()
 
-	mocks := svc.Mocks{
-		Entropy: &svc.StableEntropySource{},
-	}
+	mocks := svc.Mocks{Entropy: &svc.StableEntropySource{}}
 
 	services, testinfra := svc.SetupServicesTest(t, mocks, itest.Redis)
+	defer services.Close()
 	defer services.Close()
 
 	broadcasters := svc.MakeLocalBroadcasters()
@@ -166,10 +169,10 @@ func TestHandleUserEvents(t *testing.T) {
 	broadcasters := svc.MakeLocalBroadcasters()
 	<-broadcasters.ListenUsersMessages(testinfra.Redis)
 
-	createTestSessions(t, services)
-
 	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services, Broadcasers: broadcasters}))
 	defer testServer.Close()
+
+	createTestSessions(t, services)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, testServer.URL+"/api/events/user", nil)
 	require.NoError(t, err)
@@ -178,20 +181,22 @@ func TestHandleUserEvents(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	brdcastedChallenge := domain.Challenge{ChallengeeID: 1, Mode: domain.ModeCorrespondence1, StartColor: domain.White}
+	broadcastedChallenge := model.Challenge{ChallengeeID: 1, Mode: model.ModeCorrespondence1, StartColor: model.White}
 
 	errChan := make(chan error)
 	go func() {
 		ctx := context.WithValue(ctx, logutil.Trace, "broadcast-user-events")
 		errChan <- errors.Join(
-			services.BroadcastChallenge(ctx, brdcastedChallenge),
-			services.BroadcastChallenge(ctx, domain.Challenge{ChallengeeID: 2}),
-			services.BroadcastChallenge(ctx, brdcastedChallenge))
+			services.BroadcastChallenge(ctx, broadcastedChallenge),
+			services.BroadcastChallenge(ctx, model.Challenge{ChallengeeID: 2}),
+			services.BroadcastChallenge(ctx, broadcastedChallenge))
 	}()
 
-	assert.Equal(t, resp.Header.Get("Content-Type"), "text/event-stream")
+	require.NoError(t, <-errChan)
 
-	challengeJson, err := json.Marshal(brdcastedChallenge)
+	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+
+	challengeJson, err := json.Marshal(broadcastedChallenge)
 	require.NoError(t, err)
 
 	wantEvents := []string{
@@ -200,5 +205,73 @@ func TestHandleUserEvents(t *testing.T) {
 		fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, challengeJson),
 	}
 	assert.Equal(t, wantEvents, scanEvents(t.Context(), resp, len(wantEvents)))
-	assert.NoError(t, <-errChan)
+}
+
+func TestHandleTournamentEvents(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	services, testinfra := svc.SetupServicesTest(t, svc.Mocks{}, itest.Redis)
+	defer services.Close()
+
+	broadcasters := svc.MakeLocalBroadcasters()
+	<-broadcasters.ListenTournamentMessages(testinfra.Redis)
+
+	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services, Broadcasers: broadcasters}))
+	defer testServer.Close()
+
+	tournamentKey := uuid.NewString();
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, testServer.URL+"/api/events/tournament?tournamentKey="+tournamentKey, nil)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+
+	broadcastTournaments := []*pb.TournamentOutput{
+		{TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Start{}},
+		// {TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Matchmaking{}},
+		// {TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Countdown{}},
+		// {TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Participant{
+		// 	Participant: &pb.LbdUser{
+		// 		Id: 1,
+		// 		Username: "John Doe",
+		// 		JoinedOn: time.Now().Format(time.RFC3339),
+		// 	},
+		// }},
+		// {TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Error{}},
+	}
+
+	errChan := make(chan error)
+	go func() {
+		ctx := context.WithValue(ctx, logutil.Trace, "broadcast-tournaments")
+
+		broadcastTournaments = append(broadcastTournaments,
+			&pb.TournamentOutput{TournamentKey: uuid.NewString()},
+		)
+
+		var errs []error
+		for _, bt := range broadcastTournaments {
+			errs = append(errs, services.BroadcastTournament(ctx, bt))
+		}
+
+		errChan <- errors.Join(errs...)
+	}()
+
+	require.NoError(t, <-errChan)
+
+	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+
+	wantEvents := []string{
+		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, tournamentKey),
+	}
+
+	for _, bt := range broadcastTournaments {
+		tournamentJson, err := svc.MarshalTournamentOutputJson(bt)
+		require.NoError(t, err)
+		wantEvents = append(wantEvents, fmt.Sprintf("event: %s\ndata: %s\n", TournamentEvent, tournamentJson))
+	}
+
+	assert.Equal(t, wantEvents, scanEvents(t.Context(), resp, len(wantEvents)))
 }

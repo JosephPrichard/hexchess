@@ -1,9 +1,9 @@
-package events
+package queue
 
 import (
 	"context"
 	"errors"
-	"hexchess-svc/domain"
+	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	svc "hexchess-svc/service"
 	"hexchess-svc/util/logutil"
@@ -24,19 +24,19 @@ func TestHandleCreateTournamentMatchesEvent(t *testing.T) {
 	wantChessOne := svc.ChessState{
 		ChessMeta: svc.ChessMeta{
 			ID:          gameIDOne,
-			FirstColor:  domain.White,
-			WhitePlayer: domain.PlayerState{ID: 1, Name: "user1", Country: "us", Present: true},
-			BlackPlayer: domain.PlayerState{ID: 2, Name: "user2", Country: "us", Present: true},
-			Mode:        domain.ModeCorrespondence1,
+			FirstColor:  model.White,
+			WhitePlayer: model.PlayerState{ID: 1, Name: "user1", Country: "us", Present: true},
+			BlackPlayer: model.PlayerState{ID: 2, Name: "user2", Country: "us", Present: true},
+			Mode:        model.ModeCorrespondence1,
 		},
 	}
 	wantChessTwo := svc.ChessState{
 		ChessMeta: svc.ChessMeta{
 			ID:          gameIDTwo,
-			FirstColor:  domain.White,
-			WhitePlayer: domain.PlayerState{ID: 3, Name: "user3", Country: "us", Present: true},
-			BlackPlayer: domain.PlayerState{ID: 4, Name: "user4", Country: "us", Present: true},
-			Mode:        domain.ModeCorrespondence7,
+			FirstColor:  model.White,
+			WhitePlayer: model.PlayerState{ID: 3, Name: "user3", Country: "us", Present: true},
+			BlackPlayer: model.PlayerState{ID: 4, Name: "user4", Country: "us", Present: true},
+			Mode:        model.ModeCorrespondence7,
 		},
 	}
 
@@ -66,13 +66,13 @@ func TestHandleCreateTournamentMatchesEvent(t *testing.T) {
 						GameId:   gameIDOne,
 						WhiteId:  1,
 						BlackId:  2,
-						GameMode: domain.ModeCorrespondence1.String(),
+						GameMode: model.ModeCorrespondence1.String(),
 					},
 					{
 						GameId:   gameIDTwo,
 						WhiteId:  3,
 						BlackId:  4,
-						GameMode: domain.ModeCorrespondence7.String(),
+						GameMode: model.ModeCorrespondence7.String(),
 					},
 				},
 			},
@@ -83,7 +83,7 @@ func TestHandleCreateTournamentMatchesEvent(t *testing.T) {
 
 				hexchessAPI.EXPECT().
 					SelectUsersByIDs(gomock.Any(), gomock.Eq([]int64{1, 2, 3, 4})).
-					Return([]domain.User{
+					Return([]model.User{
 						{ID: 1, Username: "user1", Country: "us"},
 						{ID: 2, Username: "user2", Country: "us"},
 						{ID: 3, Username: "user3", Country: "us"},
@@ -105,7 +105,7 @@ func TestHandleCreateTournamentMatchesEvent(t *testing.T) {
 						GameId:   gameIDOne,
 						WhiteId:  1,
 						BlackId:  9000, // invalid user id
-						GameMode: domain.ModeCorrespondence1.String(),
+						GameMode: model.ModeCorrespondence1.String(),
 					},
 				},
 			},
@@ -114,7 +114,7 @@ func TestHandleCreateTournamentMatchesEvent(t *testing.T) {
 
 				hexchessAPI.EXPECT().
 					SelectUsersByIDs(gomock.Any(), gomock.Eq([]int64{1, 9000})).
-					Return([]domain.User{
+					Return([]model.User{
 						{ID: 1, Username: "user1", Country: "us"},
 					}, nil)
 

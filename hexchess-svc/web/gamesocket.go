@@ -4,18 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
-	"hexchess-svc/domain"
+	"hexchess-svc/hexchess"
+	"hexchess-svc/model"
 	"hexchess-svc/util/errutil"
 	"log/slog"
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
+
 	"google.golang.org/protobuf/proto"
 
-	"hexchess-svc/chess"
 	"hexchess-svc/pb"
-	"hexchess-svc/service"
+	svc "hexchess-svc/service"
 
 	"github.com/gorilla/websocket"
 )
@@ -23,7 +24,7 @@ import (
 type GameSocketContext struct {
 	Context context.Context
 	GameID  string
-	Player  domain.PlayerState
+	Player  model.PlayerState
 	ErrChan chan error
 }
 
@@ -143,7 +144,7 @@ func writeGameInitErr(ctx context.Context, conn *websocket.Conn, gameID string, 
 	writeMessage(ctx, conn, bytes)
 }
 
-func (api *API) handleGameInit(ctx context.Context, gameID string, sessionID string, conn *websocket.Conn) (player domain.PlayerState, err error) {
+func (api *API) handleGameInit(ctx context.Context, gameID string, sessionID string, conn *websocket.Conn) (player model.PlayerState, err error) {
 	// apply state updates for the init phase
 	player, err = api.services.GetSession(ctx, sessionID)
 	if err != nil {
@@ -214,15 +215,15 @@ func (api *API) handleGameForfeit(ctx GameSocketContext) error {
 }
 
 func (api *API) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) error {
-	moveResult, err := api.services.MakeGameMove(ctx.Context, ctx.GameID, ctx.Player, chess.DeserializeMove(pbInput.Move))
+	moveResult, err := api.services.MakeGameMove(ctx.Context, ctx.GameID, ctx.Player, hexchess.DeserializeMove(pbInput.Move))
 	if err != nil {
 		return fmt.Errorf("make move on game %s: %w", ctx.GameID, err)
 	}
 
 	return api.services.BroadcastGamesEvent(ctx.Context, SerializeGameOutputMove(
 		ctx.GameID,
-		chess.SerializeHistMove(moveResult.Move),
-		chess.SerializeGame(&moveResult.State.Game),
+		hexchess.SerializeHistMove(moveResult.Move),
+		hexchess.SerializeGame(&moveResult.State.Game),
 		time.Now(),
 	))
 }

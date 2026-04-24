@@ -3,12 +3,13 @@ package svc
 import (
 	"context"
 	"errors"
-	"github.com/redis/go-redis/v9"
-	"hexchess-svc/domain"
+	"hexchess-svc/model"
 	"testing"
 	"time"
 
-	"hexchess-svc/chess"
+	"github.com/redis/go-redis/v9"
+
+	"hexchess-svc/hexchess"
 	"hexchess-svc/itest"
 	"hexchess-svc/util/logutil"
 	"hexchess-svc/util/testutil"
@@ -27,7 +28,7 @@ func TestEchoChessState(t *testing.T) {
 	id1 := "testing-id1-" + uuid.NewString()
 	id2 := "testing-id2-" + uuid.NewString()
 
-	s1 := MakeChessState(StateSetup{ID: id1, Mode: domain.ModeCorrespondence1, FirstColor: domain.Random})
+	s1 := MakeChessState(StateSetup{ID: id1, Mode: model.ModeCorrespondence1, FirstColor: model.Random})
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	require.NoError(t, services.SetChessState(ctx, id1, s1))
@@ -51,7 +52,7 @@ func TestUpdateChessState(t *testing.T) {
 	testID := "testing-id1-" + uuid.NewString()
 	arbitraryKey := uuid.NewString()
 
-	inState := MakeChessState(StateSetup{ID: testID, Mode: domain.ModeCorrespondence1, FirstColor: domain.Random})
+	inState := MakeChessState(StateSetup{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.Random})
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
@@ -86,7 +87,7 @@ func TestUpdateChessState_Errors(t *testing.T) {
 
 	testID := "testing-id1-" + uuid.NewString()
 
-	inState := MakeChessState(StateSetup{ID: testID, Mode: domain.ModeCorrespondence1, FirstColor: domain.White})
+	inState := MakeChessState(StateSetup{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.White})
 	require.NoError(t, services.SetChessState(context.Background(), testID, inState))
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
@@ -129,13 +130,13 @@ func TestGetChessMetas(t *testing.T) {
 
 	s1 := MakeChessState(StateSetup{
 		ID:         id1,
-		Mode:       domain.ModeCorrespondence1,
-		FirstColor: domain.Random,
-		White:      domain.PlayerState{ID: 1, Present: true},
-		Black:      domain.PlayerState{ID: 2, Present: true},
+		Mode:       model.ModeCorrespondence1,
+		FirstColor: model.Random,
+		White:      model.PlayerState{ID: 1, Present: true},
+		Black:      model.PlayerState{ID: 2, Present: true},
 	})
-	s2 := MakeChessState(StateSetup{ID: id2, Mode: domain.ModeCorrespondence1, FirstColor: domain.Random, Black: domain.PlayerState{ID: 1, Present: true}})
-	s3 := MakeChessState(StateSetup{ID: id3, Mode: domain.ModeCorrespondence1, FirstColor: domain.Random, Black: domain.PlayerState{ID: 1, Present: true}})
+	s2 := MakeChessState(StateSetup{ID: id2, Mode: model.ModeCorrespondence1, FirstColor: model.Random, Black: model.PlayerState{ID: 1, Present: true}})
+	s3 := MakeChessState(StateSetup{ID: id3, Mode: model.ModeCorrespondence1, FirstColor: model.Random, Black: model.PlayerState{ID: 1, Present: true}})
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 	now := time.Now()
@@ -158,12 +159,12 @@ func TestGetChessMetas(t *testing.T) {
 
 	m1 := ChessMeta{
 		ID:          id1,
-		WhitePlayer: domain.PlayerState{ID: 1, Present: true},
-		BlackPlayer: domain.PlayerState{ID: 2, Present: true},
-		FirstColor:  domain.Random, Mode: domain.ModeCorrespondence1,
+		WhitePlayer: model.PlayerState{ID: 1, Present: true},
+		BlackPlayer: model.PlayerState{ID: 2, Present: true},
+		FirstColor:  model.Random, Mode: model.ModeCorrespondence1,
 	}
-	m2 := ChessMeta{ID: id2, BlackPlayer: domain.PlayerState{ID: 1, Present: true}, FirstColor: domain.Random, Mode: domain.ModeCorrespondence1}
-	m3 := ChessMeta{ID: id3, BlackPlayer: domain.PlayerState{ID: 1, Present: true}, FirstColor: domain.Random, Mode: domain.ModeCorrespondence1}
+	m2 := ChessMeta{ID: id2, BlackPlayer: model.PlayerState{ID: 1, Present: true}, FirstColor: model.Random, Mode: model.ModeCorrespondence1}
+	m3 := ChessMeta{ID: id3, BlackPlayer: model.PlayerState{ID: 1, Present: true}, FirstColor: model.Random, Mode: model.ModeCorrespondence1}
 
 	assert.Equal(t, []ChessMeta{m3, m2, m1}, metaList1)
 	assert.Equal(t, []ChessMeta{m1}, metaList2)
@@ -180,8 +181,8 @@ func TestUndo(t *testing.T) {
 
 		s := MakeChessState(StateSetup{
 			ID:           "test",
-			Game:         ptr(chess.MakeStartGame()),
-			InitialBoard: ptr(chess.InitialBoard()),
+			Game:         ptr(hexchess.MakeStartGame()),
+			InitialBoard: ptr(hexchess.InitialBoard()),
 		})
 
 		err := s.Undo()
@@ -192,13 +193,13 @@ func TestUndo(t *testing.T) {
 	t.Run("successfully undoing game with one move", func(t *testing.T) {
 		t.Parallel()
 
-		game := chess.MakeStartGame()
-		game.Moves = append(game.Moves, game.MakeMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")}))
+		game := hexchess.MakeStartGame()
+		game.Moves = append(game.Moves, game.MakeMove(hexchess.Move{From: hexchess.HexStr("b1"), To: hexchess.HexStr("b2")}))
 
 		s := MakeChessState(StateSetup{
 			ID:           "test",
 			Game:         ptr(game),
-			InitialBoard: ptr(chess.InitialBoard()),
+			InitialBoard: ptr(hexchess.InitialBoard()),
 		})
 
 		err := s.Undo()

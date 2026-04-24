@@ -1,4 +1,4 @@
-package events
+package queue
 
 import (
 	"context"
@@ -25,7 +25,7 @@ func StartRedisQueueConsumers(ctx context.Context, services svc.HexchessAPI, red
 			StreamKey:     redis.FinishGameStreamKey,
 			ConsumerGroup: FinishGameConsumerGroup,
 
-			HandleEvent:    h.HandleFinishedGameEvent,
+			HandleEvent: h.HandleFinishedGameEvent,
 		},
 	}
 
@@ -48,7 +48,7 @@ type RedisConsumer[Event any] struct {
 	StreamKey     string
 	ConsumerGroup string
 
-	HandleEvent    func(ctx context.Context, eventData string) error
+	HandleEvent func(ctx context.Context, eventData string) error
 
 	waitGroup sync.WaitGroup
 }
@@ -117,7 +117,7 @@ func (stream *RedisConsumer[Event]) handleXReadMessage(msg redis.XMessage) {
 
 		if err != nil {
 			slog.Error("failed to handle event", "err", err)
-			if errutil.IsType[NonRetryableQueueError](err) { 
+			if errutil.IsType[NonRetryableQueueError](err) {
 				return sendAck
 			} else {
 				return dontSendAck

@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"hexchess-svc/domain"
+	"hexchess-svc/model"
 	"math/big"
 	"net/http"
 	"time"
@@ -46,7 +46,7 @@ type Authenticator struct {
 	services svc.HexchessAPI
 }
 
-func (auth *Authenticator) GetSessionPlayerAndID(ctx context.Context, r *http.Request) (p domain.PlayerState, t string, err error) {
+func (auth *Authenticator) GetSessionPlayerAndID(ctx context.Context, r *http.Request) (p model.PlayerState, t string, err error) {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
 		return p, t, svc.ErrSessionNotFound
@@ -56,12 +56,12 @@ func (auth *Authenticator) GetSessionPlayerAndID(ctx context.Context, r *http.Re
 	return player, sessionToken, errutil.Guardf(err, "get session player")
 }
 
-func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request) (domain.PlayerState, error) {
+func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request) (model.PlayerState, error) {
 	player, _, err := auth.GetSessionPlayerAndID(ctx, r)
 	return player, err
 }
 
-func (auth *Authenticator) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player domain.PlayerState) (time.Duration, error) {
+func (auth *Authenticator) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player model.PlayerState) (time.Duration, error) {
 	sessionToken := MakeSessionID()
 	if err := auth.services.SetSessions(ctx, svc.SessionInst{SessionID: sessionToken, Player: player, Expiry: SessionMaxAge}); err != nil {
 		return 0, fmt.Errorf("set session player [%d]: %w", player.ID, err)

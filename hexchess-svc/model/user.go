@@ -1,8 +1,9 @@
-package domain
+package model
 
 import (
-	"github.com/jackc/pgx/v5/pgtype"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type User struct {

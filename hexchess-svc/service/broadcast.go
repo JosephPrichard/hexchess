@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"hexchess-svc/db"
-	"hexchess-svc/domain"
+	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"log/slog"
 	"strconv"
 	"time"
 
 	redigo "github.com/gomodule/redigo/redis"
-	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -104,7 +103,7 @@ func (b *LocalBroadcasters) ListenTournamentMessages(rdb db.Redis) chan struct{}
 			return
 		}
 
-		slog.Info("received message on tournaments channel", "key", output.TournamentKey)
+		slog.Info("received message on tournaments channel", "key", output.TournamentKey, "output", &output)
 		go b.TournamentCaster.Broadcast(output.TournamentKey, bytes)
 	})
 }
@@ -153,14 +152,14 @@ func (b *LocalBroadcasters) ListenUnicastEvents(rdb db.Redis) chan struct{} {
 	})
 }
 
-func (svc *HexchessServices) BroadcastMessage(ctx context.Context, channel string, b []byte) error {
+func (svc *HexchessServices) BroadcastMessage(ctx context.Context, channel string, bytes []byte) error {
 	conn := svc.redis.PubSub.Get()
 	defer conn.Close()
 
-	if _, err := conn.Do("PUBLISH", channel, b); err != nil {
+	if _, err := conn.Do("PUBLISH", channel, bytes); err != nil {
 		return fmt.Errorf("publish message to channel %s, %w", channel, err)
 	}
-	slog.InfoContext(ctx, "broadcasted message to channel", "channel", channel, "bytesCount", len(b))
+	slog.InfoContext(ctx, "broadcasted message to channel", "channel", channel, "bytesCount", len(bytes))
 	return nil
 }
 
@@ -200,7 +199,7 @@ func (svc *HexchessServices) BroadcastTournament(ctx context.Context, tournament
 	return svc.BroadcastMessage(ctx, svc.redis.TournamentsChannel, bytes)
 }
 
-func (svc *HexchessServices) BroadcastChallenge(ctx context.Context, challenge domain.Challenge) error {
+func (svc *HexchessServices) BroadcastChallenge(ctx context.Context, challenge model.Challenge) error {
 	userMessage := SerializeChallengeMessage(challenge)
 
 	bytes, err := proto.Marshal(userMessage)
@@ -209,30 +208,4 @@ func (svc *HexchessServices) BroadcastChallenge(ctx context.Context, challenge d
 	}
 
 	return svc.BroadcastMessage(ctx, svc.redis.UsersChannel, bytes)
-}
-
-func (svc *HexchessServices) BroadcastTournamentParticipant(ctx context.Context, tournamentKey uuid.UUID, userID int64, mode domain.GameMode) error {
-	lbdUser, err := svc.GetLeaderboardUser(ctx, userID, mode)
-	if err != nil {
-		return fmt.Errorf("get leaderboard user by user id %d: %w", userID, err)
-	}
-
-	tournament := SerializeParticipantOutput(tournamentKey, lbdUser)
-	if err := svc.BroadcastTournament(ctx, tournament); err != nil {
-		return fmt.Errorf("broadcast tournament participant: %w", err)
-	}
-
-	slog.InfoContext(ctx, "broadcasted selected tournament participant", "lbdUser", lbdUser)
-	return nil
-}
-
-func (svc *HexchessServices) BroadcastStartTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID) error {
-	tournament := SerializeBeginTournamentCountdown(tournamentKey)
-
-	if err := svc.BroadcastTournament(ctx, tournament); err != nil {
-		return fmt.Errorf("broadcast tournament participant: %w", err)
-	}
-
-	slog.InfoContext(ctx, "broadcasted start of tournament countdown", "tournamentKey", tournamentKey)
-	return nil
 }

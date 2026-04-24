@@ -1,10 +1,11 @@
-package chess
+package hexchess
 
 import (
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/proto"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 
 	"hexchess-svc/pb"
 )

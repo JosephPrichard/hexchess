@@ -3,7 +3,7 @@ package svc
 import (
 	"context"
 	"errors"
-	"hexchess-svc/domain"
+	"hexchess-svc/model"
 
 	"testing"
 	"time"
@@ -65,8 +65,8 @@ func TestInsertChallenge(t *testing.T) {
 			_, err := services.InsertChallenge(ctx, ChallengeInst{
 				ChallengerID: tt.challengerID,
 				ChallengeeID: tt.challengeeID,
-				Mode:         domain.ModeCorrespondence7,
-				StartColor:   domain.Random,
+				Mode:         model.ModeCorrespondence7,
+				StartColor:   model.Random,
 			})
 
 			assert.Equal(t, tt.wantErr, err)
@@ -129,7 +129,7 @@ func TestGetChallengesByParticipant(t *testing.T) {
 	challenges, err := services.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
-	assert.Equal(t, []domain.Challenge{itest.TestChallenge[2], itest.TestChallenge[3]}, challenges)
+	assert.Equal(t, []model.Challenge{itest.TestChallenge[2], itest.TestChallenge[3]}, challenges)
 }
 
 func TestDeleteExpiredChallenges(t *testing.T) {
@@ -149,7 +149,7 @@ func TestDeleteExpiredChallenges(t *testing.T) {
 	challengesDel, err := services.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
-	assert.Equal(t, []domain.Challenge{itest.TestChallenge[2], itest.TestChallenge[3]}, challengesDel)
+	assert.Equal(t, []model.Challenge{itest.TestChallenge[2], itest.TestChallenge[3]}, challengesDel)
 }
 
 func TestDeleteChallenge(t *testing.T) {
@@ -176,5 +176,5 @@ func TestDeleteChallenge(t *testing.T) {
 	challenge := sqlc.Challenge{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, StartColor: "RANDOM", MadeOn: pgtype.Timestamptz{Valid: true, Time: itest.TimeNow.Local()}, Mode: "TIMED_3+2"}
 	assert.Equal(t, challenge, challengeBefore)
 	assert.Error(t, pgx.ErrNoRows, errAfterDelete)
-	assert.Equal(t, DeleteResult{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, Mode: domain.ModeTimed3Plus2, FirstColor: domain.Random}, dr)
+	assert.Equal(t, DeleteResult{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, Mode: model.ModeTimed3Plus2, FirstColor: model.Random}, dr)
 }

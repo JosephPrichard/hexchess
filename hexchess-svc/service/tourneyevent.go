@@ -2,7 +2,7 @@ package svc
 
 import (
 	"errors"
-	"hexchess-svc/domain"
+	"hexchess-svc/model"
 )
 
 type TournamentOutputKey string
@@ -26,7 +26,7 @@ type isTournamentOutput_Value interface {
 	isTournamentOutput_Value()
 }
 
-type TournamentOutput_Participant domain.LbdUser
+type TournamentOutput_Participant model.LbdUser
 
 func (p TournamentOutput_Participant) isTournamentOutput_Value() {}
 
@@ -39,7 +39,7 @@ type TournamentOutput_Start struct{}
 func (s TournamentOutput_Start) isTournamentOutput_Value() {}
 
 type TournamentOutput_Matchmaking struct {
-	Matches []domain.Match `json:"matches"`
+	Matches []model.Match `json:"matches"`
 }
 
 func (m TournamentOutput_Matchmaking) isTournamentOutput_Value() {}

@@ -2,10 +2,11 @@ package svc
 
 import (
 	"errors"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"hexchess-svc/chess"
-	"hexchess-svc/domain"
+	"hexchess-svc/hexchess"
+	"hexchess-svc/model"
 	"time"
+
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 type UndoState struct {
@@ -28,47 +29,47 @@ type ChessState struct {
 	ChessMeta
 	UndoState
 	EndState     EndKind
-	InitialBoard chess.Board
-	Game         chess.Game
+	InitialBoard hexchess.Board
+	Game         hexchess.Game
 }
 
 func (state *ChessState) HasBothPlayers() bool {
 	return state.WhitePlayer.Present && state.BlackPlayer.Present
 }
 
-func (state *ChessState) IsEitherPlayer(player domain.PlayerState) bool {
+func (state *ChessState) IsEitherPlayer(player model.PlayerState) bool {
 	return state.WhitePlayer.IsSame(player) || state.BlackPlayer.IsSame(player)
 }
 
 type ChessMeta struct {
-	ID          string             `json:"id"`
-	WhitePlayer domain.PlayerState `json:"whitePlayer"`
-	BlackPlayer domain.PlayerState `json:"blackPlayer"`
-	FirstColor  domain.GameColor   `json:"firstColor"`
-	Mode        domain.GameMode    `json:"mode"`
-	Touch       time.Time          `json:"touch"`
+	ID          string            `json:"id"`
+	WhitePlayer model.PlayerState `json:"whitePlayer"`
+	BlackPlayer model.PlayerState `json:"blackPlayer"`
+	FirstColor  model.GameColor   `json:"firstColor"`
+	Mode        model.GameMode    `json:"mode"`
+	Touch       time.Time         `json:"touch"`
 }
 
 var ChessMetaCmpOpt = cmpopts.IgnoreFields(ChessMeta{}, "Touch")
 
 type StateSetup struct {
 	ID           string
-	Mode         domain.GameMode
-	FirstColor   domain.GameColor
-	White        domain.PlayerState
-	Black        domain.PlayerState
-	InitialBoard *chess.Board
-	Game         *chess.Game
+	Mode         model.GameMode
+	FirstColor   model.GameColor
+	White        model.PlayerState
+	Black        model.PlayerState
+	InitialBoard *hexchess.Board
+	Game         *hexchess.Game
 	EndState     EndKind
 	UndoState    UndoState
 }
 
 func MakeChessStateVal(s StateSetup) ChessState {
-	board := chess.MakeStartBoard()
+	board := hexchess.MakeStartBoard()
 	if s.InitialBoard != nil {
 		board = *s.InitialBoard
 	}
-	game := chess.Game{Board: board}
+	game := hexchess.Game{Board: board}
 	if s.Game != nil {
 		game = *s.Game
 	}
@@ -101,14 +102,14 @@ func (state *ChessState) Undo() error {
 		return ErrNoMoveUndo
 	}
 	index := len(state.Game.Moves) - 2 // last element minus one.
-	game, err := chess.JumpMoveIndex(state.InitialBoard, state.Game.Moves, index)
+	game, err := hexchess.JumpMoveIndex(state.InitialBoard, state.Game.Moves, index)
 	if game != nil {
 		state.Game = game.DeepCopy()
 	}
 	return err
 }
 
-func (state *ChessState) CurrPlayer() domain.PlayerState {
+func (state *ChessState) CurrPlayer() model.PlayerState {
 	if state.Game.Board.IsWhiteTurn {
 		return state.WhitePlayer
 	}

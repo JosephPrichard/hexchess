@@ -2,8 +2,8 @@ package svc
 
 import (
 	"context"
-	"hexchess-svc/domain"
 	"hexchess-svc/itest"
+	"hexchess-svc/model"
 	"hexchess-svc/pb"
 
 	"hexchess-svc/util/logutil"
@@ -28,7 +28,7 @@ func TestEchoStateChats(t *testing.T) {
 
 	chatsIn := []Chat{
 		{
-			Player:  domain.PlayerState{ID: 1, Name: "name", Country: "us", Present: true},
+			Player:  model.PlayerState{ID: 1, Name: "name", Country: "us", Present: true},
 			Message: "test1",
 			SentAt:  time.Date(2022, 1, 1, 0, 1, 0, 0, time.UTC),
 		},

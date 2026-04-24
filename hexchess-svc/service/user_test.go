@@ -2,7 +2,7 @@ package svc
 
 import (
 	"context"
-	"hexchess-svc/domain"
+	"hexchess-svc/model"
 
 	"testing"
 
@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var testUserCmptOpts = cmpopts.IgnoreFields(domain.User{}, "ID")
+var testUserCmptOpts = cmpopts.IgnoreFields(model.User{}, "ID")
 var testVerifiedUserCmptOpts = cmpopts.IgnoreFields(VerifiedUser{}, "ID")
 
 func TestInsertThenVerify(t *testing.T) {
@@ -52,7 +52,7 @@ func TestInsertThenVerify(t *testing.T) {
 	assert.Equal(t, ErrTooManyLoginAttempts, errTooMany)
 
 	assert.Equal(t, users1.ID, verifyUser1.ID)
-	wantDBU1 := domain.User{
+	wantDBU1 := model.User{
 		Username: "user1-testing",
 		Country:  "us",
 		JoinedOn: itest.TimeNow.Local(),
@@ -74,12 +74,12 @@ func TestBatchInsertThenGet(t *testing.T) {
 	}
 	users, batchErr := services.BatchInsertUsers(ctx, insts)
 
-	wantUsers := []domain.User{
+	wantUsers := []model.User{
 		{Username: insts[0].Username, Country: "us"},
 		{Username: insts[1].Username, Country: "eu"},
 	}
 
-	testutil.Equal(t, wantUsers, users, cmpopts.IgnoreFields(domain.User{}, "ID", "JoinedOn"))
+	testutil.Equal(t, wantUsers, users, cmpopts.IgnoreFields(model.User{}, "ID", "JoinedOn"))
 	require.NoError(t, batchErr)
 }
 
@@ -158,7 +158,7 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 	testutil.Equal(t, verifiedUser, user1, testVerifiedUserCmptOpts)
 	testutil.Equal(t, verifiedUser, user2, testVerifiedUserCmptOpts)
 
-	wantDbUser1 := domain.User{
+	wantDbUser1 := model.User{
 		Username: "username",
 		Country:  "us",
 		JoinedOn: itest.TimeNow.Local(),
@@ -196,5 +196,5 @@ func TestGetUserElos(t *testing.T) {
 	stats, err := services.GetUserStats(ctx, 1)
 	require.NoError(t, err)
 
-	testutil.Equal(t, itest.TestUserStats[0], stats, cmpopts.IgnoreFields(domain.ModeStats{}, "Rank"))
+	testutil.Equal(t, itest.TestUserStats[0], stats, cmpopts.IgnoreFields(model.ModeStats{}, "Rank"))
 }

@@ -1,8 +1,8 @@
 package web
 
 import (
-	"hexchess-svc/chess"
-	"hexchess-svc/domain"
+	"hexchess-svc/hexchess"
+	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 	"hexchess-svc/util/enum"
 	"net/url"
@@ -61,18 +61,18 @@ func transformUpdateChallenge(body UpdateChallengeBody) (UpdateChallengeTBody, e
 
 type CreateChallengeTBody struct {
 	ChallengeeID int64
-	StartColor   domain.GameColor
-	Mode         domain.GameMode
+	StartColor   model.GameColor
+	Mode         model.GameMode
 }
 
 func transformCreateChallenge(body CreateChallengeBody) (CreateChallengeTBody, error) {
 	var respErr ResponseError
 
-	color, ok := enum.Parse(body.StartColor, domain.GameColorEnums)
+	color, ok := enum.Parse(body.StartColor, model.GameColorEnums)
 	if !ok {
 		respErr.Put("startColor", ErrHttpInvalidColor)
 	}
-	mode, ok := enum.Parse(body.Mode, domain.GameModeEnums)
+	mode, ok := enum.Parse(body.Mode, model.GameModeEnums)
 	if !ok {
 		respErr.Put("mode", ErrHttpInvalidMode)
 	}
@@ -82,17 +82,17 @@ func transformCreateChallenge(body CreateChallengeBody) (CreateChallengeTBody, e
 }
 
 type CreateGameTBody struct {
-	FirstColor   domain.GameColor
-	Mode         domain.GameMode
-	InitialBoard chess.Board
+	FirstColor   model.GameColor
+	Mode         model.GameMode
+	InitialBoard hexchess.Board
 }
 
 func transformCreateGame(body CreateGameBody) (CreateGameTBody, error) {
-	initialBoard := chess.InitialBoard()
+	initialBoard := hexchess.InitialBoard()
 	var respErr ResponseError
 
 	if body.InitialFEN != "" {
-		board, err := chess.ParseFen(body.InitialFEN)
+		board, err := hexchess.ParseFen(body.InitialFEN)
 		if err != nil {
 			respErr.Put("initialFen", ErrHttpInvalidFen)
 		} else {
@@ -100,11 +100,11 @@ func transformCreateGame(body CreateGameBody) (CreateGameTBody, error) {
 		}
 	}
 
-	color, ok := enum.Parse(body.FirstColor, domain.GameColorEnums)
+	color, ok := enum.Parse(body.FirstColor, model.GameColorEnums)
 	if !ok {
 		respErr.Put("firstColor", ErrHttpInvalidColor)
 	}
-	mode, ok := enum.Parse(body.Mode, domain.GameModeEnums)
+	mode, ok := enum.Parse(body.Mode, model.GameModeEnums)
 	if !ok {
 		respErr.Put("mode", ErrHttpInvalidMode)
 	}
@@ -115,8 +115,8 @@ func transformCreateGame(body CreateGameBody) (CreateGameTBody, error) {
 
 type CreateTournamentTBody struct {
 	Name      string
-	Mode      domain.GameMode
-	Ruleset   domain.TournamentRuleset
+	Mode      model.GameMode
+	Ruleset   model.TournamentRuleset
 	Rounds    int32
 	Countdown time.Duration
 }
@@ -124,11 +124,11 @@ type CreateTournamentTBody struct {
 func transformCreateTournament(body CreateTournamentBody) (CreateTournamentTBody, error) {
 	var respErr ResponseError
 
-	mode, ok := enum.Parse(body.Mode, domain.GameModeEnums)
+	mode, ok := enum.Parse(body.Mode, model.GameModeEnums)
 	if !ok {
 		respErr.Put("mode", ErrHttpInvalidMode)
 	}
-	ruleset, ok := enum.Parse(body.Ruleset, domain.TournamentRulesetEnums)
+	ruleset, ok := enum.Parse(body.Ruleset, model.TournamentRulesetEnums)
 	if !ok {
 		respErr.Put("ruleset", ErrHttpInvalidRuleset)
 	}
@@ -311,7 +311,7 @@ func transformLeaderboardQuery(q url.Values) (LeaderboardQuery, error) {
 	if err != nil {
 		respErr.Put("page", ErrHttpInvalidPage)
 	}
-	mode, ok := enum.Parse(q.Get("mode"), domain.GameModeEnums)
+	mode, ok := enum.Parse(q.Get("mode"), model.GameModeEnums)
 	if !ok {
 		respErr.Put("mode", ErrHttpInvalidMode)
 	}

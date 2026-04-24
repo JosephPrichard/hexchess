@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/domain"
+	"hexchess-svc/model"
 	"hexchess-svc/util/enum"
 	"hexchess-svc/util/errutil"
 	"log/slog"
@@ -21,7 +21,7 @@ import (
 
 var ErrTournamentNotFound = fmt.Errorf("tournament does not exist")
 
-func (svc *HexchessServices) GetTournament(ctx context.Context, tournamentKey uuid.UUID) (t domain.FullTournament, err error) {
+func (svc *HexchessServices) GetTournament(ctx context.Context, tournamentKey uuid.UUID) (t model.FullTournament, err error) {
 	var tournamentRow sqlc.SelectTournamentByIDRow
 	var matchRows []sqlc.SelectReplayMatchesByTournamentIDRow
 	var participantRows []sqlc.SelectParticipantsWithUserByTournamentIDRow
@@ -81,22 +81,22 @@ type mapFullTournamentArgs struct {
 	participantRows []sqlc.SelectParticipantsWithUserByTournamentIDRow
 }
 
-func mapTournamentByIdRow(tournament sqlc.SelectTournamentByIDRow) domain.Tournament {
-	ruleset := enum.Expect(tournament.Ruleset, domain.TournamentRulesetEnums)
-	status := enum.Expect(tournament.Status, domain.TournamentStatusEnums)
-	mode := enum.Expect(tournament.Mode, domain.GameModeEnums)
+func mapTournamentByIdRow(tournament sqlc.SelectTournamentByIDRow) model.Tournament {
+	ruleset := enum.Expect(tournament.Ruleset, model.TournamentRulesetEnums)
+	status := enum.Expect(tournament.Status, model.TournamentStatusEnums)
+	mode := enum.Expect(tournament.Mode, model.GameModeEnums)
 
 	var maxPlayerCount int
 	switch ruleset {
-	case domain.TournamentKnockout:
+	case model.TournamentKnockout:
 		maxPlayerCount = knockoutParticipantsAtRound(int(tournament.Rounds), 1)
-	case domain.TournamentRoundRobin:
+	case model.TournamentRoundRobin:
 		maxPlayerCount = -1
-	case domain.TournamentSwiss:
+	case model.TournamentSwiss:
 		maxPlayerCount = -1
 	}
 
-	return domain.Tournament{
+	return model.Tournament{
 		ID:                 tournament.ID,
 		TournamentKey:      tournament.TournamentKey.Bytes,
 		Name:               tournament.Name,
@@ -114,7 +114,7 @@ func mapTournamentByIdRow(tournament sqlc.SelectTournamentByIDRow) domain.Tourna
 	}
 }
 
-func mapTourneyParticipantFromRow(participant sqlc.SelectParticipantsWithUserByTournamentIDRow) domain.Participant {
+func mapTourneyParticipantFromRow(participant sqlc.SelectParticipantsWithUserByTournamentIDRow) model.Participant {
 	return mapLbdUser(sqlc.SelectUserWithEloByIDRow{
 		ID:         participant.UserID,
 		Username:   participant.Username,
@@ -129,16 +129,16 @@ func mapTourneyParticipantFromRow(participant sqlc.SelectParticipantsWithUserByT
 	})
 }
 
-func mapTourneyMatchFromRow(match sqlc.SelectReplayMatchesByTournamentIDRow) domain.Match {
-	var tournamentReplay *domain.TournamentReplay
+func mapTourneyMatchFromRow(match sqlc.SelectReplayMatchesByTournamentIDRow) model.Match {
+	var tournamentReplay *model.TournamentReplay
 
 	// invariant: if replayID is non null, all other replay columns will also be non null.
 	if match.ReplayID.Valid {
-		replayResult := enum.Expect(match.Result.ResultEnum, domain.ReplayResultEnums)
-		replayCause := enum.Expect(match.Cause.CauseEnum, domain.ReplayCauseEnums)
-		replayMode := enum.Expect(match.Mode.ModeEnum, domain.GameModeEnums)
+		replayResult := enum.Expect(match.Result.ResultEnum, model.ReplayResultEnums)
+		replayCause := enum.Expect(match.Cause.CauseEnum, model.ReplayCauseEnums)
+		replayMode := enum.Expect(match.Mode.ModeEnum, model.GameModeEnums)
 
-		replay := domain.Replay{
+		replay := model.Replay{
 			ID:          match.ReplayID.Int64,
 			WhiteID:     match.WhiteID,
 			BlackID:     match.BlackID,
@@ -149,13 +149,13 @@ func mapTourneyMatchFromRow(match sqlc.SelectReplayMatchesByTournamentIDRow) dom
 			LoseEloDiff: match.LoseEloDiff.Float64,
 			PlayedOn:    match.PlayedOn.Time,
 		}
-		tournamentReplay = &domain.TournamentReplay{
+		tournamentReplay = &model.TournamentReplay{
 			Replay:    replay,
-			RepayView: domain.MakeReplayView(replay),
+			RepayView: model.MakeReplayView(replay),
 		}
 	}
 
-	return domain.Match{
+	return model.Match{
 		Ordering:      match.Ordering,
 		GameID:        match.GameID, // null gameID will be an empty string.
 		TournamentKey: match.TournamentKey.Bytes,
@@ -167,30 +167,30 @@ func mapTourneyMatchFromRow(match sqlc.SelectReplayMatchesByTournamentIDRow) dom
 	}
 }
 
-func mapFullTournament(args mapFullTournamentArgs) domain.FullTournament {
+func mapFullTournament(args mapFullTournamentArgs) model.FullTournament {
 	tournament := mapTournamentByIdRow(args.tournamentRow)
 
-	participants := make([]domain.Participant, 0, len(args.participantRows))
+	participants := make([]model.Participant, 0, len(args.participantRows))
 	for _, row := range args.participantRows {
 		participants = append(participants, mapTourneyParticipantFromRow(row))
 	}
 
-	matches := make([]domain.Match, 0, len(args.matchRows))
+	matches := make([]model.Match, 0, len(args.matchRows))
 	for _, row := range args.matchRows {
 		matches = append(matches, mapTourneyMatchFromRow(row))
 	}
 
-	return domain.FullTournament{Tournament: tournament, Participants: participants, Matches: matches}
+	return model.FullTournament{Tournament: tournament, Participants: participants, Matches: matches}
 }
 
 const NoParticipantSignifier = -1
 
-func (svc *HexchessServices) GetTournaments(ctx context.Context, participantID int64, afterID int64, perPage int32) ([]domain.Tournament, error) {
+func (svc *HexchessServices) GetTournaments(ctx context.Context, participantID int64, afterID int64, perPage int32) ([]model.Tournament, error) {
 	if afterID < 0 {
 		afterID = int64(math.MaxInt64)
 	}
 
-	var tournaments []domain.Tournament
+	var tournaments []model.Tournament
 
 	if participantID == NoParticipantSignifier {
 		tournamentRows, err := svc.querier.SelectTournaments(ctx, sqlc.SelectTournamentsParams{
@@ -221,16 +221,16 @@ type tournamentRowType interface {
 	sqlc.SelectTournamentsRow | sqlc.SelectTournamentsByParticipantRow
 }
 
-func mapTournamentByParticipantRow(t sqlc.SelectTournamentsByParticipantRow) domain.Tournament {
+func mapTournamentByParticipantRow(t sqlc.SelectTournamentsByParticipantRow) model.Tournament {
 	return mapTournamentByIdRow(sqlc.SelectTournamentByIDRow(t))
 }
 
-func mapSelectTournamentRow(t sqlc.SelectTournamentsRow) domain.Tournament {
+func mapSelectTournamentRow(t sqlc.SelectTournamentsRow) model.Tournament {
 	return mapTournamentByIdRow(sqlc.SelectTournamentByIDRow(t))
 }
 
-func mapTournamentRows[Row tournamentRowType](tournamentRows []Row, fn func(tournament Row) domain.Tournament) []domain.Tournament {
-	var tournaments []domain.Tournament
+func mapTournamentRows[Row tournamentRowType](tournamentRows []Row, fn func(tournament Row) model.Tournament) []model.Tournament {
+	var tournaments []model.Tournament
 	for _, row := range tournamentRows {
 		tournaments = append(tournaments, fn(row))
 	}
@@ -238,24 +238,24 @@ func mapTournamentRows[Row tournamentRowType](tournamentRows []Row, fn func(tour
 }
 
 type TournamentInst struct {
-	Key       uuid.UUID                `json:"key"`
-	Name      string                   `json:"name"`
-	Rounds    int32                    `json:"TotalRounds"`
-	Mode      domain.GameMode          `json:"mode"`
-	Ruleset   domain.TournamentRuleset `json:"ruleset"`
-	Countdown time.Duration            `json:"countdown"`
-	CreatedOn time.Time                `json:"createdOn"`
-	CreatedBy int64                    `json:"createdBy"`
+	Key       uuid.UUID               `json:"key"`
+	Name      string                  `json:"name"`
+	Rounds    int32                   `json:"TotalRounds"`
+	Mode      model.GameMode          `json:"mode"`
+	Ruleset   model.TournamentRuleset `json:"ruleset"`
+	Countdown time.Duration           `json:"countdown"`
+	CreatedOn time.Time               `json:"createdOn"`
+	CreatedBy int64                   `json:"createdBy"`
 }
 
 const MaxKnockoutTournamentRounds = 5
 
 var ErrInvalidRounds = fmt.Errorf("invalid depth, must be less than %d and larger than 0", MaxKnockoutTournamentRounds)
 
-var InsertionStatus = domain.TournamentLobby.String()
+var InsertionStatus = model.TournamentLobby.String()
 
 func (svc *HexchessServices) CreateTournamentTx(ctx context.Context, inst TournamentInst) (int64, error) {
-	if inst.Ruleset == domain.TournamentKnockout && (inst.Rounds < 1 || inst.Rounds > MaxKnockoutTournamentRounds) {
+	if inst.Ruleset == model.TournamentKnockout && (inst.Rounds < 1 || inst.Rounds > MaxKnockoutTournamentRounds) {
 		return 0, ErrInvalidRounds
 	}
 
@@ -265,7 +265,7 @@ func (svc *HexchessServices) CreateTournamentTx(ctx context.Context, inst Tourna
 	}
 
 	var rounds int32 // other modes do not calculate the rounds field until tournament starts
-	if inst.Ruleset == domain.TournamentKnockout {
+	if inst.Ruleset == model.TournamentKnockout {
 		rounds = inst.Rounds
 	}
 
@@ -327,7 +327,7 @@ type JoinTournamentInst struct {
 
 type JoinTournamentResult struct {
 	TournamentKey uuid.UUID
-	Mode          domain.GameMode
+	Mode          model.GameMode
 }
 
 func (svc *HexchessServices) JoinTournamentTx(ctx context.Context, inst JoinTournamentInst) (JoinTournamentResult, error) {
@@ -358,15 +358,15 @@ func joinTournament(ctx context.Context, querier sqlc.Querier, inst JoinTourname
 		return r, fmt.Errorf("select tournament [%s]: %w", inst.TournamentKey, err)
 	}
 
-	gameMode := enum.Expect(tournamentRow.Mode, domain.GameModeEnums)
-	status := enum.Expect(tournamentRow.Status, domain.TournamentStatusEnums)
-	ruleset := enum.Expect(tournamentRow.Ruleset, domain.TournamentRulesetEnums)
+	gameMode := enum.Expect(tournamentRow.Mode, model.GameModeEnums)
+	status := enum.Expect(tournamentRow.Status, model.TournamentStatusEnums)
+	ruleset := enum.Expect(tournamentRow.Ruleset, model.TournamentRulesetEnums)
 
-	if status != domain.TournamentLobby {
+	if status != model.TournamentLobby {
 		return r, ErrTournamentNotLobby
 	}
 
-	if ruleset == domain.TournamentKnockout {
+	if ruleset == model.TournamentKnockout {
 		// knockout rulesets use the `TotalRounds` field to decide the maximum number of players
 		maxKnckoutPlayerCount := int32(knockoutParticipantsAtRound(int(tournamentRow.Rounds), 1))
 		isCapacityReached := tournamentRow.ParticipantCount >= maxKnckoutPlayerCount
@@ -429,16 +429,16 @@ func beginTournamentCountdown(ctx context.Context, querier sqlc.Querier, tournam
 		return b, fmt.Errorf("select tournament by key %v: %w", tournamentKey, err)
 	}
 
-	tournamentStatus := enum.Expect(tournamentRow.Status, domain.TournamentStatusEnums)
+	tournamentStatus := enum.Expect(tournamentRow.Status, model.TournamentStatusEnums)
 
-	if tournamentStatus != domain.TournamentLobby {
+	if tournamentStatus != model.TournamentLobby {
 		return b, ErrInvalidCountdownTournamentStatus
 	}
 	if userID != tournamentRow.CreatedBy {
 		return b, ErrTournamentCountdownPermissions
 	}
 
-	nextTournamentStatus := domain.TournamentScheduled
+	nextTournamentStatus := model.TournamentScheduled
 	updtTournamentTime := time.Now()
 
 	if err := querier.UpdateTournamentStatus(ctx, sqlc.UpdateTournamentStatusParams{
@@ -462,8 +462,8 @@ func beginTournamentCountdown(ctx context.Context, querier sqlc.Querier, tournam
 }
 
 type TournamentStatusAssertionError struct {
-	Expected []domain.TournamentStatus
-	Got      domain.TournamentStatus
+	Expected []model.TournamentStatus
+	Got      model.TournamentStatus
 }
 
 func (e TournamentStatusAssertionError) Error() string {
@@ -493,7 +493,7 @@ func (svc *HexchessServices) AdvanceTournamentTx(ctx context.Context, tournament
 
 var ErrEmptyMatchesTournament = errors.New("tournament has no matches")
 
-var ExpectedAdvanceTournamentStatus = []domain.TournamentStatus{domain.TournamentScheduled, domain.TournamentInProgress}
+var ExpectedAdvanceTournamentStatus = []model.TournamentStatus{model.TournamentScheduled, model.TournamentInProgress}
 
 func advanceTournament(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID) error {
 	tournamentRow, err := querier.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
@@ -501,16 +501,16 @@ func advanceTournament(ctx context.Context, querier sqlc.Querier, tournamentKey 
 		return fmt.Errorf("select tournament by key %v: %w", tournamentKey, err)
 	}
 
-	status := enum.Expect(tournamentRow.Status, domain.TournamentStatusEnums)
+	status := enum.Expect(tournamentRow.Status, model.TournamentStatusEnums)
 
 	var response MatchmakingResponse
 
 	switch status {
-	case domain.TournamentScheduled:
+	case model.TournamentScheduled:
 		if response, err = matchmakeScheduledTournament(ctx, querier, tournamentRow); err != nil {
 			return err
 		}
-	case domain.TournamentInProgress:
+	case model.TournamentInProgress:
 		if response, err = matchmakeInProgressTournament(ctx, querier, tournamentRow); err != nil {
 			return err
 		}
@@ -530,8 +530,8 @@ func advanceTournament(ctx context.Context, querier sqlc.Querier, tournamentKey 
 }
 
 func matchmakeScheduledTournament(ctx context.Context, querier sqlc.Querier, tournamentRow sqlc.SelectTournamentByIDRow) (MatchmakingResponse, error) {
-	mode := enum.Expect(tournamentRow.Mode, domain.GameModeEnums)
-	ruleset := enum.Expect(tournamentRow.Ruleset, domain.TournamentRulesetEnums)
+	mode := enum.Expect(tournamentRow.Mode, model.GameModeEnums)
+	ruleset := enum.Expect(tournamentRow.Ruleset, model.TournamentRulesetEnums)
 
 	participantRows, err := querier.SelectParticipantsForMatchmakingByTournamentID(ctx, tournamentRow.TournamentKey)
 	if err != nil {
@@ -559,8 +559,8 @@ func matchmakeScheduledTournament(ctx context.Context, querier sqlc.Querier, tou
 var ErrMatchRoundCount = errors.New("tournament has an invalid completed match count in round")
 
 func matchmakeInProgressTournament(ctx context.Context, querier sqlc.Querier, tournamentRow sqlc.SelectTournamentByIDRow) (MatchmakingResponse, error) {
-	mode := enum.Expect(tournamentRow.Mode, domain.GameModeEnums)
-	ruleset := enum.Expect(tournamentRow.Ruleset, domain.TournamentRulesetEnums)
+	mode := enum.Expect(tournamentRow.Mode, model.GameModeEnums)
+	ruleset := enum.Expect(tournamentRow.Ruleset, model.TournamentRulesetEnums)
 
 	matchRows, err := querier.SelectMatchesByTournamentID(ctx, tournamentRow.TournamentKey)
 	if err != nil {
@@ -574,13 +574,13 @@ func matchmakeInProgressTournament(ctx context.Context, querier sqlc.Querier, to
 			// if a match row has no result, it is not completed yet and therefore we cannot perform matchmaking
 			return MatchmakingResponse{}, MatchInvariantError{TournamentKey: tournamentRow.TournamentKey.Bytes, Err: ErrMatchRoundCount}
 		}
-		result := enum.Expect(row.Result.ResultEnum, domain.ReplayResultEnums)
+		result := enum.Expect(row.Result.ResultEnum, model.ReplayResultEnums)
 		completedMatches = append(completedMatches, CompletedPrevMatch{
 			Round:    row.Round,
 			WhiteID:  row.WhiteID,
 			BlackID:  row.BlackID,
-			WhiteElo: domain.DefaultUserElo(row.WhiteElo),
-			BlackElo: domain.DefaultUserElo(row.BlackElo),
+			WhiteElo: model.DefaultUserElo(row.WhiteElo),
+			BlackElo: model.DefaultUserElo(row.BlackElo),
 			Result:   result,
 		})
 	}
