@@ -170,23 +170,23 @@ func SerializeChat(chat Chat) *pb.ChatMessage {
 
 // UserMessage
 
-func MarshalUserMessageJson(pbUserMessage *pb.UserMessage) ([]byte, error) {
+func MarshalUserMessage(pbUserMessage *pb.UserMessage) (model.Challenge, error) {
 	switch message := (pbUserMessage.Value).(type) {
 	case *pb.UserMessage_Challenge:
 		challenge := message.Challenge
 
 		madeOn, err := time.Parse(time.RFC3339, challenge.MadeOn)
 		if err != nil {
-			return nil, err
+			return model.Challenge{}, err
 		}
 
 		mode, modeErr := enum.ParseWithErr(challenge.Mode, model.GameModeEnums)
 		startColor, colorErr := enum.ParseWithErr(challenge.StartColor, model.GameColorEnums)
 		if err := errors.Join(modeErr, colorErr); err != nil {
-			return nil, err
+			return model.Challenge{}, err
 		}
 
-		return json.Marshal(model.Challenge{
+		return model.Challenge{
 			ChallengerID:      challenge.ChallengerId,
 			ChallengerName:    challenge.ChallengerName,
 			ChallengerCountry: challenge.ChallengerCountry,
@@ -198,10 +198,18 @@ func MarshalUserMessageJson(pbUserMessage *pb.UserMessage) ([]byte, error) {
 			StartColor:        startColor,
 			Mode:              mode,
 			MadeOn:            madeOn,
-		})
+		}, nil
 	default:
-		return nil, fmt.Errorf("unknown message type: %T", pbUserMessage)
+		return model.Challenge{}, fmt.Errorf("unknown message type: %T", pbUserMessage)
 	}
+}
+
+func MarshalUserMessageJson(pbUserMessage *pb.UserMessage) ([]byte, error) {
+	challenge, err := MarshalUserMessage(pbUserMessage)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(challenge)
 }
 
 func SerializeChallengeMessage(challenge model.Challenge) *pb.UserMessage {
@@ -394,39 +402,51 @@ func DeserializeMatchmakingOutput(pbMatchmaking *pb.TournamentOutput_Matchmaking
 	return DeserializeTournamentMatches(pbMatchmaking.Matchmaking.Matches)
 }
 
-func MarshalTournamentOutputJson(pbOutput *pb.TournamentOutput) ([]byte, error) {
-	var key TournamentOutputKey
-	var value isTournamentOutput_Value
+func DeserializeErrorOutput(pbError *pb.TournamentOutput_Error) string {
+	if pbError == nil || pbError.Error == nil {
+		return ""
+	}
+	return pbError.Error.Message
+}
 
+func MarshalTournamentOutput(pbOutput *pb.TournamentOutput) (output TournamentOutput, err error) {
 	if pbOutput != nil && pbOutput.Value != nil {
-		switch pbOutputValue := pbOutput.Value.(type) {
-		case *pb.TournamentOutput_Participant:
-			lbdUser, err := DeserializeParticipantOutput(pbOutputValue)
-			if err != nil {
-				return nil, fmt.Errorf("deserialize participant output: %w", err)
-			}
-			key = ParticipantKey
-			value = TournamentOutput_Participant(lbdUser)
-		case *pb.TournamentOutput_Countdown:
-			key = CountdownKey
-			value = TournamentOutput_Countdown{}
-		case *pb.TournamentOutput_Start:
-			key = StartKey
-			value = TournamentOutput_Start{}
-		case *pb.TournamentOutput_Matchmaking:
-			matches, err := DeserializeMatchmakingOutput(pbOutputValue)
-			if err != nil {
-				return nil, fmt.Errorf("deserialize matchmaking output: %w", err)
-			}
-			key = MatchmakingKey
-			value = TournamentOutput_Matchmaking{Matches: matches}
-		case *pb.TournamentOutput_Error:
-			key = ErrorKey
-			value = TournamentOutput_Error(pbOutputValue.Error.Message)
-		}
+		return output, nil
 	}
 
-	return json.Marshal(TournamentOutput{Key: key, Value: value})
+	switch pbOutputValue := pbOutput.Value.(type) {
+	case *pb.TournamentOutput_Participant:
+		lbdUser, err := DeserializeParticipantOutput(pbOutputValue)
+		if err != nil {
+			return output, fmt.Errorf("deserialize participant output: %w", err)
+		}
+		return TournamentOutput{Key: ParticipantKey, Value: TournamentOutput_Participant(lbdUser)}, nil
+	case *pb.TournamentOutput_Countdown:
+		return TournamentOutput{Key: CountdownKey, Value: TournamentOutput_Countdown{}}, nil
+	case *pb.TournamentOutput_Start:
+		return TournamentOutput{Key: StartKey, Value: TournamentOutput_Start{}}, nil
+	case *pb.TournamentOutput_Matchmaking:
+		matches, err := DeserializeMatchmakingOutput(pbOutputValue)
+		if err != nil {
+			return output, fmt.Errorf("deserialize matchmaking output: %w", err)
+		}
+		return TournamentOutput{Key: MatchmakingKey, Value: TournamentOutput_Matchmaking{Matches: matches}}, nil
+	case *pb.TournamentOutput_Error:
+		return TournamentOutput{
+			Key:   ErrorKey,
+			Value: TournamentOutput_Error(DeserializeErrorOutput(pbOutputValue)),
+		}, nil
+	default:
+		return output, fmt.Errorf("unknown tournament output type: %T", pbOutputValue)
+	}
+}
+
+func MarshalTournamentOutputJson(pbOutput *pb.TournamentOutput) ([]byte, error) {
+	output, err := MarshalTournamentOutput(pbOutput)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(output)
 }
 
 // LbdUser

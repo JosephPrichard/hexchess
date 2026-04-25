@@ -47,7 +47,7 @@ func (sse SSEWriter) writeEvent(e string, d string) {
 		slog.ErrorContext(sse.ctx, "write to sse", "err", err)
 	}
 
-	slog.Info("writing to server sent event", "event", e, "data", d)
+	slog.Info("writing server sent event", "event", e, "data", d)
 
 	sse.f.Flush()
 }
@@ -76,7 +76,7 @@ func (sse SSEWriter) writeCountEvent(kind svc.UcEventKind, count int64) {
 }
 
 const (
-	KeepAliveTimeout = time.Second * 15
+	KeepAliveTimeout   = time.Second * 15
 	MetaEvent          = "meta"
 	UserChallengeEvent = "userEvents"
 	GamesCountEvent    = "gameCountEvents"
@@ -105,26 +105,23 @@ func (api *API) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 	api.broadcasters.CountsCaster.Subscribe(countsChan)
 
 	go func() {
-		<-ctx.Done() // stop from the client, so stop the RecvLoop by unsubscribing
+		<-ctx.Done()
 		api.broadcasters.CountsCaster.Unsubscribe(countsChan)
 		slog.InfoContext(ctx, "finished handle user events sse")
 	}()
 
 	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
-RecvLoop:
 	for {
 		select {
-		case event, ok := <-countsChan: // RecvLoop contuines until we unsubscribe
+		case event, ok := <-countsChan:
 			if !ok {
-				break RecvLoop
+				return nil
 			}
 			w.writeUcEvent(event)
 		case <-keepAliveTicker.C:
 			w.writeEvent(MetaEvent, "KeepAlive")
 		}
 	}
-
-	return nil
 }
 
 func every(duration time.Duration, work func()) chan bool {
@@ -215,20 +212,17 @@ func (api *API) HandleUserEvents(w SSEWriter, r *http.Request) error {
 	}()
 
 	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
-RecvLoop:
 	for {
 		select {
 		case message, ok := <-usersChan: // RecvLoop contuines until we unsubscribe
 			if !ok {
-				break RecvLoop
+				return nil
 			}
 			w.writeEvent(UserChallengeEvent, string(message))
 		case <-keepAliveTicker.C:
 			w.writeEvent(MetaEvent, "KeepAlive")
 		}
 	}
-
-	return nil
 }
 
 func (api *API) HandleTournamentEvents(w SSEWriter, r *http.Request) error {
@@ -248,18 +242,15 @@ func (api *API) HandleTournamentEvents(w SSEWriter, r *http.Request) error {
 	}()
 
 	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
-RecvLoop:
 	for {
 		select {
 		case message, ok := <-tournamentChan: // RecvLoop contuines until we unsubscribe
 			if !ok {
-				break RecvLoop
+				return nil
 			}
 			w.writeEvent(TournamentEvent, string(message))
 		case <-keepAliveTicker.C:
 			w.writeEvent(MetaEvent, "KeepAlive")
 		}
 	}
-
-	return nil
 }

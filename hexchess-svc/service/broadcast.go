@@ -83,8 +83,8 @@ func (b *LocalBroadcasters) ListenGameMessages(rdb db.Redis) chan struct{} {
 			slog.Error("unmarshal game message", "err", err)
 			return
 		}
-
 		slog.Info("received message on games channel", "key", outputID.GameId)
+
 		go b.GamesCaster.Broadcast(outputID.GameId, v.Data)
 	})
 }
@@ -96,6 +96,7 @@ func (b *LocalBroadcasters) ListenTournamentMessages(rdb db.Redis) chan struct{}
 			slog.Error("unmarshal tournament message", "err", err)
 			return
 		}
+		slog.Info("received message on tournaments channel", "key", output.TournamentKey, "output", &output)
 
 		bytes, err := MarshalTournamentOutputJson(&output)
 		if err != nil {
@@ -103,7 +104,6 @@ func (b *LocalBroadcasters) ListenTournamentMessages(rdb db.Redis) chan struct{}
 			return
 		}
 
-		slog.Info("received message on tournaments channel", "key", output.TournamentKey, "output", &output)
 		go b.TournamentCaster.Broadcast(output.TournamentKey, bytes)
 	})
 }
@@ -115,7 +115,7 @@ func (b *LocalBroadcasters) ListenUsersMessages(rdb db.Redis) chan struct{} {
 			slog.Error("unmarshal user message", "err", err)
 			return
 		}
-		slog.Info("received message on channel", "user", &userMessage)
+		slog.Info("received message on users channel", "user", &userMessage)
 
 		bytes, err := MarshalUserMessageJson(&userMessage)
 		if err != nil {
@@ -159,7 +159,7 @@ func (svc *HexchessServices) BroadcastMessage(ctx context.Context, channel strin
 	if _, err := conn.Do("PUBLISH", channel, bytes); err != nil {
 		return fmt.Errorf("publish message to channel %s, %w", channel, err)
 	}
-	slog.InfoContext(ctx, "broadcasted message to channel", "channel", channel, "bytesCount", len(bytes))
+	slog.InfoContext(ctx, "broadcasted message to channel", "channel", channel)
 	return nil
 }
 
@@ -168,6 +168,8 @@ type CountEvent struct {
 }
 
 func (svc *HexchessServices) BroadcastCountEvent(ctx context.Context, channel string, count int64) error {
+	slog.InfoContext(ctx, "broadcasting count event", "channel", channel, "count", count)
+
 	bytes, err := json.Marshal(CountEvent{Count: count})
 	if err != nil {
 		return fmt.Errorf("marshal count event message: %w", err)
@@ -184,6 +186,8 @@ func (svc *HexchessServices) BroadcastGameCount(ctx context.Context, count int64
 }
 
 func (svc *HexchessServices) BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput) error {
+	slog.InfoContext(ctx, "broadcasting game event", "gameOutput", output)
+
 	bytes, err := proto.Marshal(output)
 	if err != nil {
 		return fmt.Errorf("marshal game event message: %w", err)
@@ -192,6 +196,8 @@ func (svc *HexchessServices) BroadcastGamesEvent(ctx context.Context, output *pb
 }
 
 func (svc *HexchessServices) BroadcastTournament(ctx context.Context, tournament *pb.TournamentOutput) error {
+	slog.InfoContext(ctx, "broadcasting tournament", "tournamentOutput", tournament)
+
 	bytes, err := proto.Marshal(tournament)
 	if err != nil {
 		return fmt.Errorf("marshal tournament message: %w", err)
@@ -200,12 +206,11 @@ func (svc *HexchessServices) BroadcastTournament(ctx context.Context, tournament
 }
 
 func (svc *HexchessServices) BroadcastChallenge(ctx context.Context, challenge model.Challenge) error {
-	userMessage := SerializeChallengeMessage(challenge)
+	slog.InfoContext(ctx, "broadcasting challenge", "challenge", challenge)
 
-	bytes, err := proto.Marshal(userMessage)
+	bytes, err := proto.Marshal(SerializeChallengeMessage(challenge))
 	if err != nil {
 		return fmt.Errorf("marshal user challenge message: %w", err)
 	}
-
 	return svc.BroadcastMessage(ctx, svc.redis.UsersChannel, bytes)
 }

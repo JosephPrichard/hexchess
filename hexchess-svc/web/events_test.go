@@ -4,23 +4,22 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"hexchess-svc/service"
+	"time"
+
 	// "time"
 
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"hexchess-svc/itest"
-	"hexchess-svc/util/logutil"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"hexchess-svc/itest"
 )
 
 func scanEvents(ctx context.Context, resp *http.Response, wantEvents int) []string {
@@ -56,6 +55,7 @@ func scanEvents(ctx context.Context, resp *http.Response, wantEvents int) []stri
 				return events
 			}
 		}
+		//fmt.Printf("recv line: %s\n", line)
 
 		if line == "" {
 			continue
@@ -79,6 +79,8 @@ func scanEvents(ctx context.Context, resp *http.Response, wantEvents int) []stri
 func TestHandleCountEvents(t *testing.T) {
 	t.Parallel()
 
+	ctx := t.Context()
+
 	services, testinfra := svc.SetupServicesTest(t, svc.Mocks{}, itest.Redis)
 	defer services.Close()
 
@@ -88,21 +90,14 @@ func TestHandleCountEvents(t *testing.T) {
 	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services, Broadcasers: broadcasters}))
 	defer testServer.Close()
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, testServer.URL+"/api/events/count", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, testServer.URL+"/api/events/count", nil)
 	require.NoError(t, err)
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	errChan := make(chan error)
-	go func() {
-		ctx := context.WithValue(context.Background(), logutil.Trace, "broadcast-counts")
-		errChan <- errors.Join(
-			services.BroadcastActiveCount(ctx, 2),
-			services.BroadcastGameCount(ctx, 1))
-	}()
-
-	require.NoError(t, <-errChan)
+	require.NoError(t, services.BroadcastActiveCount(ctx, 2))
+	require.NoError(t, services.BroadcastGameCount(ctx, 1))
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
 
@@ -112,7 +107,9 @@ func TestHandleCountEvents(t *testing.T) {
 		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, `{"count":2}`),
 		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"count":1}`),
 	}
-	assert.Equal(t, wantEvents, scanEvents(t.Context(), resp, len(wantEvents)))
+
+	gotEvents := scanEvents(ctx, resp, len(wantEvents))
+	assert.Equal(t, wantEvents, gotEvents)
 }
 
 func TestHandleActiveConn(t *testing.T) {
@@ -124,15 +121,14 @@ func TestHandleActiveConn(t *testing.T) {
 
 	services, testinfra := svc.SetupServicesTest(t, mocks, itest.Redis)
 	defer services.Close()
-	defer services.Close()
 
 	broadcasters := svc.MakeLocalBroadcasters()
 	<-broadcasters.ListenUnicastEvents(testinfra.Redis)
 
 	wantBroadcasts := []svc.UcEvent{{Kind: svc.UcActiveEk, Data: `{"count":1}`}, {Kind: svc.UcActiveEk, Data: `{"count":0}`}}
 
-	sub := make(chan svc.UcEvent, len(wantBroadcasts))
-	broadcasters.CountsCaster.Subscribe(sub)
+	broadcastSubscriber := make(chan svc.UcEvent, len(wantBroadcasts))
+	broadcasters.CountsCaster.Subscribe(broadcastSubscriber)
 
 	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services, Broadcasers: broadcasters}))
 	defer testServer.Close()
@@ -143,19 +139,19 @@ func TestHandleActiveConn(t *testing.T) {
 
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
-		defer resp.Body.Close() // this must execute before we assert "wantBroadcasts" since one msg is sent when the SSE drops
+		defer resp.Body.Close() // this must execute before we assert "wantBroadcasts" since one message is sent when the SSE drops
 	}()
 
-	var broadcasts []svc.UcEvent
-	for range len(wantBroadcasts) {
+	var actualBroadcasts []svc.UcEvent
+	for range wantBroadcasts {
 		select {
+		case e := <-broadcastSubscriber:
+			actualBroadcasts = append(actualBroadcasts, e)
 		case <-ctx.Done():
 			t.Errorf("test timed out: %v", ctx.Err())
-		case e := <-sub:
-			broadcasts = append(broadcasts, e)
 		}
 	}
-	assert.Equal(t, wantBroadcasts, broadcasts)
+	assert.Equal(t, wantBroadcasts, actualBroadcasts)
 }
 
 func TestHandleUserEvents(t *testing.T) {
@@ -181,30 +177,35 @@ func TestHandleUserEvents(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	broadcastedChallenge := model.Challenge{ChallengeeID: 1, Mode: model.ModeCorrespondence1, StartColor: model.White}
+	inputChallenges := []model.Challenge{
+		{ChallengeeID: 1, Mode: model.ModeCorrespondence1, StartColor: model.White},
+		{ChallengeeID: 1, Mode: model.ModeCorrespondence7, StartColor: model.Black},
+	}
 
-	errChan := make(chan error)
-	go func() {
-		ctx := context.WithValue(ctx, logutil.Trace, "broadcast-user-events")
-		errChan <- errors.Join(
-			services.BroadcastChallenge(ctx, broadcastedChallenge),
-			services.BroadcastChallenge(ctx, model.Challenge{ChallengeeID: 2}),
-			services.BroadcastChallenge(ctx, broadcastedChallenge))
-	}()
+	// broadcast all input tournaments plus one with a random tournament key (we won't receive it)
+	broadcastedChallenges := []model.Challenge{
+		{ChallengeeID: 2},
+	}
+	broadcastedChallenges = append(broadcastedChallenges, inputChallenges...)
 
-	require.NoError(t, <-errChan)
+	for _, bch := range broadcastedChallenges {
+		require.NoError(t, services.BroadcastChallenge(ctx, bch))
+	}
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
 
-	challengeJson, err := json.Marshal(broadcastedChallenge)
-	require.NoError(t, err)
-
 	wantEvents := []string{
 		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, "1"),
-		fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, challengeJson),
-		fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, challengeJson),
 	}
-	assert.Equal(t, wantEvents, scanEvents(t.Context(), resp, len(wantEvents)))
+
+	for _, challenge := range inputChallenges {
+		challengeJson, err := json.Marshal(challenge)
+		require.NoError(t, err)
+		wantEvents = append(wantEvents, fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, challengeJson))
+	}
+
+	gotEvents := scanEvents(ctx, resp, len(wantEvents))
+	assert.Equal(t, wantEvents, gotEvents)
 }
 
 func TestHandleTournamentEvents(t *testing.T) {
@@ -221,7 +222,7 @@ func TestHandleTournamentEvents(t *testing.T) {
 	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services, Broadcasers: broadcasters}))
 	defer testServer.Close()
 
-	tournamentKey := uuid.NewString();
+	tournamentKey := uuid.NewString()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, testServer.URL+"/api/events/tournament?tournamentKey="+tournamentKey, nil)
 	require.NoError(t, err)
@@ -229,49 +230,59 @@ func TestHandleTournamentEvents(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	broadcastTournaments := []*pb.TournamentOutput{
+	// one message for each union category, with full permutations of nil/non-nil fields
+	inputTournaments := []*pb.TournamentOutput{
 		{TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Start{}},
-		// {TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Matchmaking{}},
-		// {TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Countdown{}},
-		// {TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Participant{
-		// 	Participant: &pb.LbdUser{
-		// 		Id: 1,
-		// 		Username: "John Doe",
-		// 		JoinedOn: time.Now().Format(time.RFC3339),
-		// 	},
-		// }},
-		// {TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Error{}},
+		{TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Matchmaking{}},
+		{TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Matchmaking{
+			Matchmaking: &pb.MatchmakingOutput{Matches: []*pb.TournamentMatch{
+				{
+					Id:            1,
+					TournamentKey: tournamentKey,
+					Round:         1,
+					GameId:        "game-id-1",
+					WhiteId:       1,
+					BlackId:       2,
+					CreatedOn:     time.Now().Format(time.RFC3339),
+				},
+			}},
+		}},
+		{TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Countdown{}},
+		{TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Participant{}},
+		{TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Participant{
+			Participant: &pb.LbdUser{
+				Id:       1,
+				Username: "John Doe",
+				Country:  "us",
+				JoinedOn: time.Now().Format(time.RFC3339),
+			},
+		}},
+		{TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Error{Error: &pb.ErrorOutput{Message: "Error"}}},
+		{TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Error{}},
 	}
 
-	errChan := make(chan error)
-	go func() {
-		ctx := context.WithValue(ctx, logutil.Trace, "broadcast-tournaments")
+	// broadcast all input tournaments plus one with a random tournament key (we won't receive it)
+	broadcastedTournaments := []*pb.TournamentOutput{
+		{TournamentKey: uuid.NewString()},
+	}
+	broadcastedTournaments = append(broadcastedTournaments, inputTournaments...)
 
-		broadcastTournaments = append(broadcastTournaments,
-			&pb.TournamentOutput{TournamentKey: uuid.NewString()},
-		)
-
-		var errs []error
-		for _, bt := range broadcastTournaments {
-			errs = append(errs, services.BroadcastTournament(ctx, bt))
-		}
-
-		errChan <- errors.Join(errs...)
-	}()
-
-	require.NoError(t, <-errChan)
+	for _, bt := range broadcastedTournaments {
+		require.NoError(t, services.BroadcastTournament(ctx, bt))
+	}
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
 
 	wantEvents := []string{
 		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, tournamentKey),
 	}
-
-	for _, bt := range broadcastTournaments {
+	// expect one event for each tournament input, plus the meta event
+	for _, bt := range inputTournaments {
 		tournamentJson, err := svc.MarshalTournamentOutputJson(bt)
 		require.NoError(t, err)
 		wantEvents = append(wantEvents, fmt.Sprintf("event: %s\ndata: %s\n", TournamentEvent, tournamentJson))
 	}
 
-	assert.Equal(t, wantEvents, scanEvents(t.Context(), resp, len(wantEvents)))
+	gotEvents := scanEvents(ctx, resp, len(wantEvents))
+	assert.Equal(t, wantEvents, gotEvents)
 }
