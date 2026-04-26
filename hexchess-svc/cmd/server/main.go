@@ -88,6 +88,7 @@ func main() {
 
 	broadcasters := svc.MakeLocalBroadcasters()
 	broadcasters.Listen(rdb)
+	defer broadcasters.Shutdown()
 
 	queue.StartRedisQueueConsumers(context.Background(), services, rdb)
 	queue.StartDBQueueConsumers(context.Background(), services, pdb)

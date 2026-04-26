@@ -153,7 +153,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
-			broadcasters := LocalBroadcasters{GamesCaster: MakeMultiCasterMap("testing-map", time.Hour*1)}
+			broadcasters := LocalBroadcasters{GamesCaster: MakeMulticasterActor("testing-map")}
 			<-broadcasters.ListenGameMessages(services.redis)
 
 			// expect the game event to come on the following gameID (derived from input) channel. test times out and fails if it does not.

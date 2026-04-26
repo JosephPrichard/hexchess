@@ -5,22 +5,20 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
 
-	"hexchess-svc/util/logutil"
-	"testing"
-	"time"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"hexchess-svc/util/logutil"
+	"testing"
 )
 
-func TestBroadcastGameMessage(t *testing.T) {
+func TestBroadcastMessage(t *testing.T) {
 	t.Parallel()
 
 	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
 	defer services.Close()
 
-	broadcasters := LocalBroadcasters{GamesCaster: MakeMultiCasterMap("testing-map", time.Hour*1)}
+	broadcasters := LocalBroadcasters{GamesCaster: MakeMulticasterActor("testing-multicaster")}
 	<-broadcasters.ListenGameMessages(services.redis)
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())

@@ -12,7 +12,7 @@ type EntropySource interface {
 	GetTime() time.Time
 }
 
-// RealEntropySource non-deterministic Entropy source that generates real data
+// RealEntropySource non-deterministic Entropy source that generates real payload
 type RealEntropySource struct{}
 
 func (_ *RealEntropySource) MakeUUID() string {

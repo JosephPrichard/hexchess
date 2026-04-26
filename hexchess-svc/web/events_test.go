@@ -125,7 +125,7 @@ func TestHandleActiveConn(t *testing.T) {
 	broadcasters := svc.MakeLocalBroadcasters()
 	<-broadcasters.ListenUnicastEvents(testinfra.Redis)
 
-	wantBroadcasts := []svc.UcEvent{{Kind: svc.UcActiveEk, Data: `{"count":1}`}, {Kind: svc.UcActiveEk, Data: `{"count":0}`}}
+	wantBroadcasts := []svc.UcEvent{{Kind: svc.UcActiveEvent, Data: `{"count":1}`}, {Kind: svc.UcActiveEvent, Data: `{"count":0}`}}
 
 	broadcastSubscriber := make(chan svc.UcEvent, len(wantBroadcasts))
 	broadcasters.CountsCaster.Subscribe(broadcastSubscriber)

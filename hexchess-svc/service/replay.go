@@ -122,7 +122,7 @@ type EloHistoryBucket struct {
 }
 
 // RetrieveEloHistoryBuckets Returns the elo replay histories for a given user organized into buckets and categorized into a map keyed by replay "mode"
-// map will contain the keys "ALL" (contains data for all modes) plus all modes (ReplayModes)
+// map will contain the keys "ALL" (contains payload for all modes) plus all modes (ReplayModes)
 func (svc *HexchessServices) RetrieveEloHistoryBuckets(ctx context.Context, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
 	if params.TimeUntil.IsZero() {
 		params.TimeUntil = time.Now()
@@ -167,7 +167,7 @@ func (buckets BucketMap) get(mode model.GameMode) *Bucket {
 	return bucket
 }
 
-// a bucket contains the averaged data over a certain timeframe.
+// a bucket contains the averaged payload over a certain timeframe.
 func appendBucket(bucket *Bucket, duration time.Duration) {
 	if bucket.eloCount <= 0 || bucket.startTime.IsZero() {
 		return
@@ -232,7 +232,7 @@ func aggregateEloHistoryBuckets(eloRows []sqlc.SelectReplayElosRow, params EloHi
 			bucket.eloCount++
 		}
 	}
-	// append any buckets that may not have been fully filled, but contain averaged data.
+	// append any buckets that may not have been fully filled, but contain averaged payload.
 	for _, mode := range model.GameModeEnums {
 		appendBucket(buckets.get(mode), duration)
 	}

@@ -28,7 +28,7 @@ func TestLeaderboard(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	// testing `incrLeaderboard`, which is used to seed data for testing retreival operations
+	// testing `incrLeaderboard`, which is used to seed payload for testing retreival operations
 	for _, change := range []UpdtLbChangeSet{
 		{model.ModeCorrespondence7, id4, 835},
 		{model.ModeCorrespondence7, id1, 1500},

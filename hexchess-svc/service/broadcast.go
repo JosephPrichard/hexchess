@@ -55,25 +55,31 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 }
 
 type LocalBroadcasters struct {
-	CountsCaster     *UniCaster
-	GamesCaster      *MultiCasterMap
-	UsersCaster      *MultiCasterMap
-	TournamentCaster *MultiCasterMap
+	CountsCaster     *GlobalCasterActor
+	GamesCaster      *MulticasterActor
+	UsersCaster      *MulticasterActor
+	TournamentCaster *MulticasterActor
 }
 
 func MakeLocalBroadcasters() *LocalBroadcasters {
 	return &LocalBroadcasters{
-		CountsCaster:     MakeUniCaster("counts-caster"),
-		GamesCaster:      MakeMultiCasterMap("games-caster", -1),
-		UsersCaster:      MakeMultiCasterMap("users-caster", -1),
-		TournamentCaster: MakeMultiCasterMap("users-caster", -1),
+		CountsCaster:     MakeGlobalCasterActor("counts-caster"),
+		GamesCaster:      MakeMulticasterActor("games-caster"),
+		UsersCaster:      MakeMulticasterActor("users-caster"),
+		TournamentCaster: MakeMulticasterActor("users-caster"),
 	}
 }
 
 func (b *LocalBroadcasters) Listen(rdb db.Redis) {
+	slog.Info("starting local broadcasters")
 	<-b.ListenGameMessages(rdb)
 	<-b.ListenUsersMessages(rdb)
 	<-b.ListenUnicastEvents(rdb)
+}
+
+func (b *LocalBroadcasters) Shutdown() {
+	slog.Info("shutting down local broadcasters")
+	b.CountsCaster.Shutdown()
 }
 
 func (b *LocalBroadcasters) ListenGameMessages(rdb db.Redis) chan struct{} {
@@ -129,8 +135,8 @@ func (b *LocalBroadcasters) ListenUsersMessages(rdb db.Redis) chan struct{} {
 
 func (b *LocalBroadcasters) ListenUnicastEvents(rdb db.Redis) chan struct{} {
 	var eventMap = map[string]UcEventKind{
-		rdb.ActiveCountChannel: UcActiveEk,
-		rdb.GamesCountChannel:  UcGamesEk,
+		rdb.ActiveCountChannel: UcActiveEvent,
+		rdb.GamesCountChannel:  UcGamesEvent,
 	}
 
 	var channels []string
@@ -140,7 +146,7 @@ func (b *LocalBroadcasters) ListenUnicastEvents(rdb db.Redis) chan struct{} {
 
 	return listenRedisChannels(rdb.PubsubAddr, channels, func(v redigo.Message) {
 		strData := string(v.Data)
-		// unicast broadcasting is only being used to game counts (small data), so it is safe to log
+		// unicast broadcasting is only being used to game counts (small payload), so it is safe to log
 		slog.Info("received event on channel", "event", strData, "channel", v.Channel)
 
 		eKind, ok := eventMap[v.Channel]

@@ -77,7 +77,7 @@ func (svc *HexchessServices) pushFinishGameEvent(ctx context.Context, xadder Red
 
 	xArgs := &redis.XAddArgs{
 		Stream: streamKey,
-		Values: map[string]any{"data": string(bytes)},
+		Values: map[string]any{"payload": string(bytes)},
 	}
 	msgID, err := xadder.XAdd(ctx, xArgs).Result()
 	if err != nil {

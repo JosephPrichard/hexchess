@@ -55,9 +55,9 @@ func (sse SSEWriter) writeEvent(e string, d string) {
 func (sse SSEWriter) writeUcEvent(event svc.UcEvent) {
 	var e string
 	switch event.Kind {
-	case svc.UcActiveEk:
+	case svc.UcActiveEvent:
 		e = ActiveCountEvent
-	case svc.UcGamesEk:
+	case svc.UcGamesEvent:
 		e = GamesCountEvent
 	}
 	if e == "" {
@@ -98,8 +98,8 @@ func (api *API) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 		return err
 	}
 
-	w.writeCountEvent(svc.UcActiveEk, activeCount)
-	w.writeCountEvent(svc.UcGamesEk, gamesCount)
+	w.writeCountEvent(svc.UcActiveEvent, activeCount)
+	w.writeCountEvent(svc.UcGamesEvent, gamesCount)
 
 	countsChan := make(chan svc.UcEvent, SSEChanBufCap)
 	api.broadcasters.CountsCaster.Subscribe(countsChan)

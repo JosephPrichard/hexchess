@@ -19,7 +19,7 @@ func TestChessSerializer(t *testing.T) {
 
 	input2 := MakeChessState(StateSetup{ID: uuid.NewString(), Mode: model.ModeCorrespondence1, FirstColor: model.Random})
 	input2.Game.InitPieceMoves()
-	input2.Game.ClearTables() // since we're asserting the output back to the input, we must clear data that isn't serialized
+	input2.Game.ClearTables() // since we're asserting the output back to the input, we must clear payload that isn't serialized
 
 	tests := []struct {
 		name  string

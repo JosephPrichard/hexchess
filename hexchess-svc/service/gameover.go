@@ -87,7 +87,7 @@ func (svc *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGam
 
 	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", changeSet, "room", finishedGame.GameID)
 
-	// note: used to keep the cache in sync, this can run outside of a transaction because we have a batch job to recover that data to the cache.
+	// note: used to keep the cache in sync, this can run outside of a transaction because we have a batch job to recover that payload to the cache.
 	if err := svc.incrLeaderboard(ctx,
 		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
 		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
