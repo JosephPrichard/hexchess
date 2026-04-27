@@ -217,7 +217,7 @@ var Tournaments = []model.Tournament{
 		ID:             4,
 		TournamentKey:  Tournament3ScheduledRoundRobinKey,
 		Name:           "Test Tournament 3",
-		Rounds:         0,
+		Rounds:         4,
 		MaxPlayerCount: -1,
 		Countdown:      "10m0s",
 		CreatedOn:      TimeNow,
@@ -230,7 +230,7 @@ var Tournaments = []model.Tournament{
 		ID:             5,
 		TournamentKey:  Tournament4ScheduledSwissKey,
 		Name:           "Test Tournament 4",
-		Rounds:         0,
+		Rounds:         3,
 		MaxPlayerCount: -1,
 		Countdown:      "11m0s",
 		CreatedOn:      TimeNow,
@@ -256,7 +256,7 @@ var Tournaments = []model.Tournament{
 		ID:             7,
 		TournamentKey:  Tournament6InProgressRoundRobinKey,
 		Name:           "Test Tournament 6",
-		Rounds:         0,
+		Rounds:         4,
 		MaxPlayerCount: -1,
 		Countdown:      "1h1m1s",
 		CreatedOn:      TimeNow,
@@ -269,7 +269,7 @@ var Tournaments = []model.Tournament{
 		ID:             8,
 		TournamentKey:  Tournament7InProgressSwissKey,
 		Name:           "Test Tournament 7",
-		Rounds:         0,
+		Rounds:         3,
 		MaxPlayerCount: -1,
 		Countdown:      "1h2m2.002s",
 		CreatedOn:      TimeNow,
@@ -306,47 +306,34 @@ var Tournaments = []model.Tournament{
 	},
 }
 
-var MatchTournament5 = []model.Match{
+var MatchesTournament9 = []model.Match{
 	{
 		Ordering:      2,
-		GameID:        TournamentMatchInsts[1].GameID,
-		CreatedOn:     TimeNow.Add(time.Minute * 2),
-		TournamentKey: Tournament5InProgressKnockoutKey,
+		GameID:        GameIDNotFinished,
+		CreatedOn:     TimeNow.Add(time.Minute * 1),
+		TournamentKey: Tournament9InProgressUncompletedKey,
 		Round:         1,
-		WhiteID:       3,
-		BlackID:       4,
+		WhiteID:       10,
+		BlackID:       11,
 	},
 	{
 		Ordering:      1,
 		GameID:        TournamentMatchInsts[0].GameID,
 		CreatedOn:     TimeNow.Add(time.Minute * 1),
-		TournamentKey: Tournament5InProgressKnockoutKey,
+		TournamentKey: Tournament9InProgressUncompletedKey,
 		Round:         1,
-		WhiteID:       1,
-		BlackID:       2,
-	},
-}
-
-var MatchTournament8 = []model.Match{
-	{
-		Ordering:      3,
-		GameID:        TournamentMatchInsts[2].GameID,
-		CreatedOn:     TimeNow.Add(time.Minute * 3),
-		TournamentKey: Tournament8FinishedKey,
-		Round:         1,
-		WhiteID:       1,
-		BlackID:       2,
+		WhiteID:       10,
+		BlackID:       11,
 		Replay: &model.TournamentReplay{
 			Replay: model.Replay{
-				ID:          1,
-				WhiteID:     1,
-				BlackID:     2,
+				WhiteID:     10,
+				BlackID:     11,
 				Mode:        model.ModeCorrespondence7,
 				Result:      model.WhiteWin,
 				Cause:       model.Checkmate,
 				WinEloDiff:  30,
 				LoseEloDiff: -30,
-				PlayedOn:    TimeNow.Local(),
+				PlayedOn:    time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
 			},
 			RepayView: model.RepayView{WhiteEloDiff: 30, BlackEloDiff: -30},
 		},
@@ -364,8 +351,8 @@ var TournamentLbdChangeSets = []struct {
 	{model.ModeCorrespondence1, 1, 1100},
 }
 
-// Tournament5RankedParticipants Ordered by `JoinedOn`, ranked with values in `TournamentLbdChangeSets`
-var Tournament5RankedParticipants = []model.Participant{
+// Tournament9RankedParticipants Ordered by `JoinedOn`, ranked with values in `TournamentLbdChangeSets`
+var Tournament9RankedParticipants = []model.Participant{
 	{
 		User:       model.User{ID: 4, Username: "user4", Country: "us", JoinedOn: TimeNow},
 		Elo:        2000,

@@ -50,7 +50,7 @@ func StartDBQueueConsumers(ctx context.Context, services svc.HexchessAPI, pdb db
 
 	for kind, handler := range handlerTable {
 		go queue.PollOutboxQueueLoop(ctx, handler)
-		slog.InfoContext(ctx, "started outbox queue consumer for handler", "kind", kind)
+		slog.InfoContext(ctx, "started postgres queue consumer for handler", "kind", kind)
 	}
 }
 
@@ -64,7 +64,7 @@ func (q *DBQueue) PollOutboxQueueLoop(ctx context.Context, handler DBQueueHandle
 	for range ticker.C {
 		err := q.PollOutboxQueueEventsTx(ctx, handler)
 		if err != nil {
-			slog.ErrorContext(ctx, "failed to poll outbox queue", "err", err)
+			slog.ErrorContext(ctx, "failed to poll postgres queue", "err", err)
 		}
 		if errors.Is(err, context.Canceled) {
 			break
@@ -91,7 +91,7 @@ func pollOutboxQueueEvents(ctx context.Context, querier sqlc.Querier, handler DB
 		Limit: handler.pollCount,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to select %d messages for event kind %s from outbox queue: %w", handler.pollCount, handler.kind, err)
+		return fmt.Errorf("failed to select %d messages for event kind %s from postgres queue: %w", handler.pollCount, handler.kind, err)
 	}
 	if len(eventRows) == 0 {
 		return nil
@@ -132,13 +132,13 @@ func pollOutboxQueueEvents(ctx context.Context, querier sqlc.Querier, handler DB
 	if len(errProcessedEvents) > 0 {
 		level = slog.LevelError
 	}
-	slog.Log(ctx, level, "handling outbox queue events", "errProcessedEvents", errProcessedEvents, "eventsIDsToAck", eventIDsToAck)
+	slog.Log(ctx, level, "handling postgres queue events", "errProcessedEvents", errProcessedEvents, "eventsIDsToAck", eventIDsToAck)
 
 	if err := querier.UpdateOutboxQueueProcessedByID(ctx, sqlc.UpdateOutboxQueueProcessedByIDParams{
 		Ids:           eventIDsToAck,
 		ProcessedTime: pgtype.Timestamptz{Time: getProcessedOn(), Valid: true},
 	}); err != nil {
-		return fmt.Errorf("failed to acknolwedge outbox queue messages %+v: %w", processedEvents, err)
+		return fmt.Errorf("failed to acknolwedge postgres queue messages %+v: %w", processedEvents, err)
 	}
 
 	return nil

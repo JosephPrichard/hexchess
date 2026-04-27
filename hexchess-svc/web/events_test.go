@@ -10,8 +10,6 @@ import (
 	"hexchess-svc/service"
 	"time"
 
-	// "time"
-
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -85,6 +83,7 @@ func TestHandleCountEvents(t *testing.T) {
 	defer services.Close()
 
 	broadcasters := svc.MakeLocalBroadcasters()
+	defer broadcasters.Shutdown()
 	<-broadcasters.ListenUnicastEvents(testinfra.Redis)
 
 	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services, Broadcasers: broadcasters}))
@@ -123,6 +122,7 @@ func TestHandleActiveConn(t *testing.T) {
 	defer services.Close()
 
 	broadcasters := svc.MakeLocalBroadcasters()
+	defer broadcasters.Shutdown()
 	<-broadcasters.ListenUnicastEvents(testinfra.Redis)
 
 	wantBroadcasts := []svc.UcEvent{{Kind: svc.UcActiveEvent, Data: `{"count":1}`}, {Kind: svc.UcActiveEvent, Data: `{"count":0}`}}
@@ -163,6 +163,7 @@ func TestHandleUserEvents(t *testing.T) {
 	defer services.Close()
 
 	broadcasters := svc.MakeLocalBroadcasters()
+	defer broadcasters.Shutdown()
 	<-broadcasters.ListenUsersMessages(testinfra.Redis)
 
 	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services, Broadcasers: broadcasters}))
@@ -217,6 +218,7 @@ func TestHandleTournamentEvents(t *testing.T) {
 	defer services.Close()
 
 	broadcasters := svc.MakeLocalBroadcasters()
+	defer broadcasters.Shutdown()
 	<-broadcasters.ListenTournamentMessages(testinfra.Redis)
 
 	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services, Broadcasers: broadcasters}))

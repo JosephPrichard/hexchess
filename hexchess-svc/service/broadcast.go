@@ -158,7 +158,7 @@ func (b *LocalBroadcasters) ListenUnicastEvents(rdb db.Redis) chan struct{} {
 	})
 }
 
-func (svc *HexchessServices) BroadcastMessage(ctx context.Context, channel string, bytes []byte) error {
+func (svc *HexchessServices) broadcastMessage(ctx context.Context, channel string, bytes []byte) error {
 	conn := svc.redis.PubSub.Get()
 	defer conn.Close()
 
@@ -173,22 +173,22 @@ type CountEvent struct {
 	Count int64 `json:"count"`
 }
 
-func (svc *HexchessServices) BroadcastCountEvent(ctx context.Context, channel string, count int64) error {
+func (svc *HexchessServices) broadcastCountEvent(ctx context.Context, channel string, count int64) error {
 	slog.InfoContext(ctx, "broadcasting count event", "channel", channel, "count", count)
 
 	bytes, err := json.Marshal(CountEvent{Count: count})
 	if err != nil {
 		return fmt.Errorf("marshal count event message: %w", err)
 	}
-	return svc.BroadcastMessage(ctx, channel, bytes)
+	return svc.broadcastMessage(ctx, channel, bytes)
 }
 
 func (svc *HexchessServices) BroadcastActiveCount(ctx context.Context, count int64) error {
-	return svc.BroadcastCountEvent(ctx, svc.redis.ActiveCountChannel, count)
+	return svc.broadcastCountEvent(ctx, svc.redis.ActiveCountChannel, count)
 }
 
 func (svc *HexchessServices) BroadcastGameCount(ctx context.Context, count int64) error {
-	return svc.BroadcastCountEvent(ctx, svc.redis.GamesCountChannel, count)
+	return svc.broadcastCountEvent(ctx, svc.redis.GamesCountChannel, count)
 }
 
 func (svc *HexchessServices) BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput) error {
@@ -198,7 +198,7 @@ func (svc *HexchessServices) BroadcastGamesEvent(ctx context.Context, output *pb
 	if err != nil {
 		return fmt.Errorf("marshal game event message: %w", err)
 	}
-	return svc.BroadcastMessage(ctx, svc.redis.GamesChannel, bytes)
+	return svc.broadcastMessage(ctx, svc.redis.GamesChannel, bytes)
 }
 
 func (svc *HexchessServices) BroadcastTournament(ctx context.Context, tournament *pb.TournamentOutput) error {
@@ -208,7 +208,7 @@ func (svc *HexchessServices) BroadcastTournament(ctx context.Context, tournament
 	if err != nil {
 		return fmt.Errorf("marshal tournament message: %w", err)
 	}
-	return svc.BroadcastMessage(ctx, svc.redis.TournamentsChannel, bytes)
+	return svc.broadcastMessage(ctx, svc.redis.TournamentsChannel, bytes)
 }
 
 func (svc *HexchessServices) BroadcastChallenge(ctx context.Context, challenge model.Challenge) error {
@@ -218,5 +218,5 @@ func (svc *HexchessServices) BroadcastChallenge(ctx context.Context, challenge m
 	if err != nil {
 		return fmt.Errorf("marshal user challenge message: %w", err)
 	}
-	return svc.BroadcastMessage(ctx, svc.redis.UsersChannel, bytes)
+	return svc.broadcastMessage(ctx, svc.redis.UsersChannel, bytes)
 }

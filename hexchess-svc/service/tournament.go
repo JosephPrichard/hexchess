@@ -81,20 +81,20 @@ type mapFullTournamentArgs struct {
 	participantRows []sqlc.SelectParticipantsWithUserByTournamentIDRow
 }
 
+func maxPlayerCountTournament(ruleset model.TournamentRuleset, rounds int32) int {
+	if ruleset == model.TournamentKnockout {
+		return knockoutParticipantsAtRound(int(rounds), 1)
+	}
+	return -1
+}
+
 func mapTournamentByIdRow(tournament sqlc.SelectTournamentByIDRow) model.Tournament {
 	ruleset := enum.Expect(tournament.Ruleset, model.TournamentRulesetEnums)
 	status := enum.Expect(tournament.Status, model.TournamentStatusEnums)
 	mode := enum.Expect(tournament.Mode, model.GameModeEnums)
 
-	var maxPlayerCount int
-	switch ruleset {
-	case model.TournamentKnockout:
-		maxPlayerCount = knockoutParticipantsAtRound(int(tournament.Rounds), 1)
-	case model.TournamentRoundRobin:
-		maxPlayerCount = -1
-	case model.TournamentSwiss:
-		maxPlayerCount = -1
-	}
+	maxPlayerCount := maxPlayerCountTournament(ruleset, tournament.Rounds)
+	countdown := time.Duration(tournament.Countdown) * time.Millisecond
 
 	return model.Tournament{
 		ID:                 tournament.ID,
@@ -105,7 +105,7 @@ func mapTournamentByIdRow(tournament sqlc.SelectTournamentByIDRow) model.Tournam
 		MaxPlayerCount:     maxPlayerCount,
 		CountdownStartedOn: tournament.CountdownStartedOn.Time,
 		CountdownStarted:   tournament.CountdownStartedOn.Valid,
-		Countdown:          (time.Duration(tournament.Countdown) * time.Millisecond).String(),
+		Countdown:          countdown.String(),
 		CreatedOn:          tournament.CreatedOn.Time,
 		CreatedBy:          tournament.CreatedBy,
 		Status:             status,

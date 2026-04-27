@@ -12,7 +12,6 @@ const (
 	subAction actorActionKind = iota
 	unsubAction
 	broadcastAction
-	stopAction
 )
 
 type MulticasterActor struct {
@@ -87,16 +86,6 @@ func (actor *MulticasterActor) Start() {
 		}
 	}
 
-	handleStop := func() {
-		slog.Info("stopping multicaster actor", "actorID", actor.ID)
-
-		for _, shard := range actorsMap {
-			for _, sub := range shard {
-				close(sub)
-			}
-		}
-	}
-
 	for action := range actor.actionChan {
 		switch action.kind {
 		case subAction:
@@ -105,9 +94,14 @@ func (actor *MulticasterActor) Start() {
 			handleUnsubscription(action)
 		case broadcastAction:
 			handleBroadcast(action)
-		case stopAction:
-			handleStop()
-			return
+		}
+	}
+
+	slog.Info("stopping multicaster actor", "actorID", actor.ID)
+
+	for _, shard := range actorsMap {
+		for _, sub := range shard {
+			close(sub)
 		}
 	}
 }
@@ -128,6 +122,10 @@ func (actor *MulticasterActor) Broadcast(actorID string, msg []byte) {
 	actor.send(multicasterAction{kind: broadcastAction, actorID: actorID, payload: msg})
 }
 
+func (actor *MulticasterActor) Shutdown() {
+	close(actor.actionChan)
+}
+
 type UcEventKind int
 
 const (
@@ -146,7 +144,7 @@ type GlobalCasterActor struct {
 }
 
 type globalcasterAction struct {
-	action  actorActionKind
+	kind    actorActionKind
 	sub     chan UcEvent
 	payload UcEvent
 }
@@ -190,26 +188,21 @@ func (actor GlobalCasterActor) Run() {
 		slog.Info("broadcasted to globalcaster subscribers", "actorID", actor.id, "count", count)
 	}
 
-	handleStop := func() {
-		slog.Info("stopping globalcaster", "actorID", actor.id)
-
-		for sub := range subscriberMap {
-			close(sub)
-		}
-	}
-
 	for action := range actor.actionChan {
-		switch action.action {
+		switch action.kind {
 		case subAction:
 			handleSubscription(action)
 		case unsubAction:
 			handleUnsubscription(action)
 		case broadcastAction:
 			handleBroadcast(action)
-		case stopAction:
-			handleStop()
-			return
 		}
+	}
+
+	slog.Info("stopping globalcaster", "actorID", actor.id)
+
+	for sub := range subscriberMap {
+		close(sub)
 	}
 }
 
@@ -224,15 +217,15 @@ func (actor GlobalCasterActor) send(action globalcasterAction) {
 }
 
 func (actor GlobalCasterActor) Subscribe(sub chan UcEvent) {
-	actor.send(globalcasterAction{action: subAction, sub: sub})
+	actor.send(globalcasterAction{kind: subAction, sub: sub})
 }
 
 func (actor GlobalCasterActor) Unsubscribe(sub chan UcEvent) {
-	actor.send(globalcasterAction{action: unsubAction, sub: sub})
+	actor.send(globalcasterAction{kind: unsubAction, sub: sub})
 }
 
 func (actor GlobalCasterActor) Broadcast(msg UcEvent) {
-	actor.send(globalcasterAction{action: broadcastAction, payload: msg})
+	actor.send(globalcasterAction{kind: broadcastAction, payload: msg})
 }
 
 func (actor GlobalCasterActor) Shutdown() {

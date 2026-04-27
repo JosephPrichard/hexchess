@@ -31,6 +31,7 @@ func StartRedisQueueConsumers(ctx context.Context, services svc.HexchessAPI, red
 
 	for _, handler := range handlerList {
 		go handler.EventLoop()
+		slog.InfoContext(ctx, "started redis stream consumer for handler", "handler", fmt.Sprintf("%+v", handler))
 	}
 }
 
@@ -62,7 +63,7 @@ func (stream *RedisConsumer[Event]) EventLoop() error {
 		return fmt.Errorf("create games stream consumer group: %w", err)
 	}
 
-	slog.Info("created finish game event streamer", "consumerName", consumerName)
+	slog.Info("starting consumer stream loop", "consumerName", consumerName)
 
 	for {
 		xArgs := &redis.XReadGroupArgs{

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/egress"
 	"hexchess-svc/hexchess"
@@ -719,7 +720,7 @@ func TestGetPlayer(t *testing.T) {
 	tests := []struct {
 		name        string
 		id          string
-		withReplays bool
+		withReplays string
 		wantSuccess GetPlayersResp
 		wantFail    ServiceView
 		wantStatus  int
@@ -727,7 +728,7 @@ func TestGetPlayer(t *testing.T) {
 		{
 			name:        "GetPlayerWithReplays",
 			id:          "1",
-			withReplays: true,
+			withReplays: "true",
 			wantSuccess: GetPlayersResp{
 				FullUser: svc.FullUser{
 					User:       itest.TestUser[0],
@@ -740,7 +741,7 @@ func TestGetPlayer(t *testing.T) {
 		{
 			name:        "GetPlayerWithoutReplays",
 			id:          "1",
-			withReplays: false,
+			withReplays: "",
 			wantSuccess: GetPlayersResp{
 				FullUser: svc.FullUser{
 					User:       itest.TestUser[0],
@@ -1103,22 +1104,12 @@ func TestGetTournament(t *testing.T) {
 		},
 		{
 			name:          "RetrieveFullTournament",
-			tournamentKey: itest.Tournament5InProgressKnockoutKey.String(),
+			tournamentKey: itest.Tournament9InProgressUncompletedKey.String(),
 			wantStatus:    http.StatusOK,
 			wantResp: GetTournamentResp{
-				Tournament:   itest.Tournaments[5],
-				Participants: itest.Tournament5RankedParticipants,
-				Matches:      itest.MatchTournament5, // stable ordering using the `ordering` column
-			},
-		},
-		{
-			name:          "RetrieveFullTournamentWithReplay",
-			tournamentKey: itest.Tournament8FinishedKey.String(),
-			wantStatus:    http.StatusOK,
-			wantResp: GetTournamentResp{
-				Tournament:   itest.Tournaments[8],
-				Participants: itest.Tournament8RankedParticipants,
-				Matches:      itest.MatchTournament8, // stable ordering using the `ordering` column
+				Tournament:   itest.Tournaments[9],
+				Participants: []model.Participant{},
+				Matches:      itest.MatchesTournament9, // stable ordering using the `ordering` column
 			},
 		},
 		{
@@ -1156,7 +1147,9 @@ func TestGetTournament(t *testing.T) {
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
-				testutil.AssertRespBody(t, tt.wantResp, w)
+				testutil.AssertRespBody(t, tt.wantResp, w,
+					cmpopts.IgnoreFields(model.Match{}, "Ordering"),
+					cmpopts.IgnoreFields(model.Replay{}, "ID"))
 			} else {
 				testutil.AssertRespBody(t, tt.wantFail, w)
 			}

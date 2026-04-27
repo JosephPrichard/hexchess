@@ -66,7 +66,7 @@
         width: 100%;
         z-index: 15;
         position: relative;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+        /*box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);*/
     }
 
     .dropdown-selected {
@@ -106,7 +106,7 @@
         border: 1px solid rgb(100,100,100);
         border-radius: 6px;
         padding: 4px 0;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        /*box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);*/
         z-index: 5;
     }
 

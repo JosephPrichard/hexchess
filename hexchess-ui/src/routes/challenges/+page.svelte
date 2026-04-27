@@ -1,12 +1,11 @@
 <script lang="ts">
-	import { makeMessage } from '$lib/utils/error';
-	import { formatJoinedOn } from '$lib/utils/format';
 	import { getNotificationsContext } from '$lib/utils/context';
-	import type { Action, ChallengeModel, UserModel } from '$lib/api/models';
+	import {type Action, type ChallengeModel, GameModeNameMap } from '$lib/api/models';
 	import services from '$lib/api/services';
-	import { formatRelativeTime, getWinrateClass } from '$lib/utils/format';
+	import { formatRelativeTime } from '$lib/utils/format';
 	import Banner from '$lib/Banner.svelte';
 	import ProfilePic from '$lib/components/user/ProfilePic.svelte';
+	import SwordIcon from "$lib/components/icons/SwordIcon.svelte";
 
 	export interface ChallengeProps {
 		participants: string;
@@ -90,31 +89,34 @@
 			<div class="challenge-panel">
 				{#each challengeList as { challenge, isLoading }, index (index)}
 					<div id="{challenge.challengeeId}+{challenge.challengerId}" class="challenge-box">
-						<div>
-							<div class="pvp-wrapper">
-								<div class="player-points-wrapper">
-									<span class="pfp-wrapper"><ProfilePic userId={challenge.challengerId} size={45}/></span>
-									<a href="/players/{challenge.challengerId}" class="text-ul bold-link">
-										{challenge.challengerName}
-									</a>
-									{#if !isSender}
-										<img class="flag" src="/flags/{challenge.challengerCountry}.png" alt="" />
-										<b>({Math.round(challenge.challengerElo)})</b>
-									{/if}
-								</div>
-								<div class="vs-wrapper">
-									V.S.
-								</div>
-								<div class="player-points-wrapper">
-									<span class="pfp-wrapper"><ProfilePic userId={challenge.challengeeId} size={45}/></span>
-									<a href="/players/{challenge.challengeeId}" class="text-ul bold-link">
-										{challenge.challengeeName}
-									</a>
-									{#if isSender}
-										<img class="flag" src="/flags/{challenge.challengeeCountry}.png" alt="" />
-										<b>({Math.round(challenge.challengeeElo)})</b>
-									{/if}
-								</div>
+						<div class="pvp-wrapper">
+							<div class="player-points-wrapper">
+								<span class="pfp-wrapper"><ProfilePic userId={challenge.challengerId} size={45}/></span>
+								<a href="/players/{challenge.challengerId}" class="text-ul bold-link">
+									{challenge.challengerName}
+								</a>
+								{#if !isSender}
+									<img class="flag" src="/flags/{challenge.challengerCountry}.png" alt="" />
+									<b>({Math.round(challenge.challengerElo)})</b>
+								{/if}
+							</div>
+							<div class="vs-wrapper">
+								<SwordIcon/>
+							</div>
+							<div class="player-points-wrapper">
+								<span class="pfp-wrapper"><ProfilePic userId={challenge.challengeeId} size={45}/></span>
+								<a href="/players/{challenge.challengeeId}" class="text-ul bold-link">
+									{challenge.challengeeName}
+								</a>
+								{#if isSender}
+									<img class="flag" src="/flags/{challenge.challengeeCountry}.png" alt="" />
+									<b>({Math.round(challenge.challengeeElo)})</b>
+								{/if}
+							</div>
+						</div>
+						<div class="buttons-wrapper">
+							<div>
+								<b>{GameModeNameMap[challenge.mode]}</b>
 							</div>
 							<div class="times-wrapper">
 								<div style="margin-bottom: 6px">
@@ -126,8 +128,8 @@
 							</div>
 							{#if isSender}
 								<button
-									class="button-small button-small-red button-challenge"
-									onclick={() => onUpdateChallenge(challenge, index, 'delete')}
+										class="button-small button-small-red button-challenge"
+										onclick={() => onUpdateChallenge(challenge, index, 'delete')}
 								>
 									{#if isLoading.delete}
 										<div class="loader"></div>
@@ -137,8 +139,8 @@
 								</button>
 							{:else}
 								<button
-									class="button-small button-small-green button-challenge"
-									onclick={() => onUpdateChallenge(challenge, index, 'accept')}
+										class="button-small button-small-green button-challenge"
+										onclick={() => onUpdateChallenge(challenge, index, 'accept')}
 								>
 									{#if isLoading.accept}
 										<div class="loader"></div>
@@ -147,8 +149,8 @@
 									{/if}
 								</button>
 								<button
-									class="button-small button-small-red button-challenge"
-									onclick={() => onUpdateChallenge(challenge, index, 'reject')}
+										class="button-small button-small-red button-challenge"
+										onclick={() => onUpdateChallenge(challenge, index, 'reject')}
 								>
 									{#if isLoading.reject}
 										<div class="loader"></div>
@@ -159,9 +161,6 @@
 							{/if}
 						</div>
 					</div>
-					{#if index !== challengeList.length - 1}
-						<div class="challenge-border"></div>
-					{/if}
 				{/each}
 			</div>
 		{:else}
@@ -177,13 +176,14 @@
 </div>
 
 <style>
-	.challenge-border {
-		height: 1px;
-		border-bottom: 1px solid rgb(62,62,62);
-	}
-
 	.pvp-wrapper {
         margin-bottom: 6px;
+		flex: 0.5;
+	}
+
+	.buttons-wrapper {
+		margin-left: 25px;
+		flex: 0.5;
 	}
 
 	.vs-wrapper {
@@ -210,15 +210,14 @@
 	}
 
     .challenge-panel {
-        padding: 15px 30px;
         border-radius: 5px;
         background-color: rgb(42, 42, 42);
         box-shadow: rgba(0, 0, 0, 0.16) 0 1px 2px;
     }
 
     .challenge-box {
-        width: 100%;
-        padding: 15px 0;
+        width: calc(100% - 60px);
+        padding: 15px 30px;
         border-radius: 3px;
         background-color: rgb(42, 42, 42);
         display: flex;
@@ -226,9 +225,13 @@
         z-index: 2;
     }
 
+	.challenge-box:hover {
+		background-color: rgba(43, 71, 94, 0.5);
+	}
+
 	.times-wrapper {
-		margin-top: 30px;
-		margin-bottom: 30px;
+		margin-top: 10px;
+		margin-bottom: 10px;
 	}
 
 	.button-challenge {

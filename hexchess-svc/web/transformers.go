@@ -227,7 +227,7 @@ func transformEloHistoriesQuery(values url.Values) (EloHistoriesQuery, error) {
 
 	userID, err := strconv.Atoi(values.Get("userId"))
 	if err != nil {
-		respErr.Put("userID", ErrHttpInvalidID)
+		respErr.Put("userId", ErrHttpInvalidID)
 	}
 
 	months, ok := timeframeMap[queryDefault(values, "timeframe", "all")]
@@ -239,9 +239,22 @@ func transformEloHistoriesQuery(values url.Values) (EloHistoriesQuery, error) {
 	return query, respErr.AsError()
 }
 
+func parseReplayQuery(replayQuery string) svc.ReplayQueryKind {
+	switch replayQuery {
+	case "wonReplays":
+		return svc.WonReplays
+	case "lostReplays":
+		return svc.LostReplays
+	case "noReplays":
+		return svc.NoReplays
+	default:
+		return svc.AllReplays
+	}
+}
+
 type GetPlayerQuery struct {
-	UserID      int
-	WithReplays bool
+	UserID         int
+	GetReplaysKind svc.ReplayQueryKind
 }
 
 func transformPlayerQuery(values url.Values) (GetPlayerQuery, error) {
@@ -250,15 +263,18 @@ func transformPlayerQuery(values url.Values) (GetPlayerQuery, error) {
 		return GetPlayerQuery{}, OneRespError("id", ErrHttpInvalidID)
 	}
 
-	withReplaysStr := values.Get("withReplays")
-	withReplays := strings.ToLower(withReplaysStr) == "true"
+	getReplaysKind := svc.NoReplays
+	if values.Get("withReplays") != "" {
+		getReplaysKind = svc.AllReplays
+	}
 
-	return GetPlayerQuery{UserID: userID, WithReplays: withReplays}, nil
+	return GetPlayerQuery{UserID: userID, GetReplaysKind: getReplaysKind}, nil
 }
 
 type GetReplaysQuery struct {
-	UserID  int
-	AfterID int
+	UserID         int
+	AfterID        int
+	GetReplaysKind svc.ReplayQueryKind
 }
 
 func transformReplaysQuery(values url.Values) (GetReplaysQuery, error) {
@@ -268,12 +284,19 @@ func transformReplaysQuery(values url.Values) (GetReplaysQuery, error) {
 	if err != nil {
 		respErr.Put("userId", ErrHttpInvalidID)
 	}
-	afterID, err := strconv.Atoi(values.Get("afterId"))
-	if err != nil {
-		respErr.Put("afterId", ErrHttpInvalidID)
+
+	afterIDStr := values.Get("afterId")
+	afterID := -1
+	if afterIDStr != "" {
+		afterID, err = strconv.Atoi(afterIDStr)
+		if err != nil {
+			respErr.Put("afterId", ErrHttpInvalidID)
+		}
 	}
 
-	query := GetReplaysQuery{UserID: userID, AfterID: afterID}
+	getReplaysKind := parseReplayQuery(values.Get("replays"))
+
+	query := GetReplaysQuery{UserID: userID, AfterID: afterID, GetReplaysKind: getReplaysKind}
 	return query, respErr.AsError()
 }
 

@@ -26,8 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestHandleGameplayWs is a high-level black box testing that checks the broadcast and websocket output for every input case
-// Database assertions run after message assertions and can assume that inbound websocket messages are valid
 func TestHandleGameplayWs(t *testing.T) {
 	t.Parallel()
 
@@ -194,6 +192,8 @@ func TestHandleGameplayWs(t *testing.T) {
 			defer services.Close()
 
 			broadcasters := svc.MakeLocalBroadcasters()
+			defer broadcasters.Shutdown()
+			<-broadcasters.ListenGameMessages(testinfra.Redis)
 
 			createTestSessions(t, services)
 			createTestChessStates(t, services)
@@ -201,8 +201,6 @@ func TestHandleGameplayWs(t *testing.T) {
 			testServer := httptest.NewServer(MakeServeMux(Setup{Services: services, Broadcasers: broadcasters}))
 			defer testServer.Close()
 
-			// (start, subscribe, and read broadcasts)
-			<-broadcasters.ListenGameMessages(testinfra.Redis)
 			subChan := make(chan []byte, len(wantBrdcasts))
 			broadcasters.GamesCaster.Subscribe(gameID, subChan)
 
@@ -211,17 +209,17 @@ func TestHandleGameplayWs(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close()
 
-			bytes, err := proto.Marshal(tt.inputMsg)
+			inputBytes, err := proto.Marshal(tt.inputMsg)
 			require.NoError(t, err)
-			require.NoError(t, conn.WriteMessage(websocket.BinaryMessage, bytes))
+			require.NoError(t, conn.WriteMessage(websocket.BinaryMessage, inputBytes))
 
 			msgs := make([]*pb.GameOutput, len(wantMsgs))
 			for i := range wantMsgs {
-				_, bytes, err := conn.ReadMessage()
+				_, outputBytes, err := conn.ReadMessage()
 				require.NoError(t, err)
 
 				output := &pb.GameOutput{}
-				require.NoError(t, proto.Unmarshal(bytes, output))
+				require.NoError(t, proto.Unmarshal(outputBytes, output))
 
 				msgs[i] = output
 			}

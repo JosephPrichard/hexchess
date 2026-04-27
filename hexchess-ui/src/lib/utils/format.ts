@@ -93,17 +93,17 @@ export function formatPlayedOn(ts: Date | string | number): string {
 	if (diffDays > 0) {
 		return timestamp.toLocaleString();
 	} else if (diffHours > 1) {
-		return `${diffHours} hours ago`;
+		return `${diffHours} hours`;
 	} else if (diffHours === 1) {
-		return "1 hour ago";
+		return "1 hour";
 	} else if (diffMinutes === 1) {
-		return "1 minute ago";
+		return "1 minute";
 	} else {
-		return `${diffMinutes} minutes ago`;
+		return `${diffMinutes} minutes`;
 	}
 }
 
-export function formatRelativeTime(ts: string, now: Date = new Date()): string {
+export function formatRelativeTime(ts: string, now: Date = new Date()) {
 	const target = new Date(ts)
 	const diffMs = target.getTime() - now.getTime()
 
@@ -124,7 +124,7 @@ export function formatRelativeTime(ts: string, now: Date = new Date()): string {
 		return rtf.format(hours, "hour")
 	}
 
-	return rtf.format(days, "day")
+	return rtf.format(days, "day");
 }
 
 export function normalizeToDay(input: Date | string | number): string {

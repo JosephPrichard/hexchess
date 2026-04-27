@@ -47,9 +47,9 @@ func TestGetUserReplays(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	actualReplayList1, err := services.GetUserReplays(ctx, 1, -1, 5)
+	actualReplayList1, err := services.GetUserReplays(ctx, 1, -1, -1, 5)
 	require.NoError(t, err)
-	actualReplayList2, err := services.GetUserReplays(ctx, 1, 3, 5)
+	actualReplayList2, err := services.GetUserReplays(ctx, 1, -1, 3, 5)
 	require.NoError(t, err)
 
 	replay1 := itest.TestReplay[0]

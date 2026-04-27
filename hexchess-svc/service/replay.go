@@ -80,13 +80,36 @@ func (svc *HexchessServices) GetMovesHistory(ctx context.Context, replayID int) 
 	return row.Data, nil
 }
 
-func (svc *HexchessServices) GetUserReplays(ctx context.Context, userID int64, afterID int64, perPage int32) ([]model.FullReplay, error) {
+type ReplayQueryKind int
+
+const (
+	AllReplays ReplayQueryKind = iota
+	WonReplays
+	LostReplays
+	NoReplays
+)
+
+func (svc *HexchessServices) GetUserReplays(ctx context.Context, userID int64, replayQuery ReplayQueryKind, afterID int64, perPage int32) ([]model.FullReplay, error) {
+	if replayQuery == NoReplays {
+		return []model.FullReplay{}, nil
+	}
+
 	if afterID < 0 {
 		afterID = int64(math.MaxInt64)
 	}
 
+	var result string
+	switch replayQuery {
+	case WonReplays:
+		result = "wins"
+	case LostReplays:
+		result = "losses"
+	default:
+	}
+
 	replayRows, err := svc.querier.SelectUserReplays(ctx, sqlc.SelectUserReplaysParams{
 		UserID:  pgtype.Int8{Int64: userID, Valid: true},
+		Result:  result,
 		AfterID: afterID,
 		PerPage: perPage,
 	})
@@ -99,7 +122,7 @@ func (svc *HexchessServices) GetUserReplays(ctx context.Context, userID int64, a
 		replays = append(replays, mapFullReplayByIDRow(sqlc.SelectReplayByIDRow(row)))
 	}
 
-	slog.InfoContext(ctx, "selected replays", "replays", replays, "userID", userID, "afterID", afterID, "perPage", perPage)
+	slog.InfoContext(ctx, "selected replays", "replays", replays, "userID", userID, "result", result, "afterID", afterID, "perPage", perPage)
 	return replays, nil
 }
 

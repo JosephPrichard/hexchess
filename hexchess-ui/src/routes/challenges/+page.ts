@@ -5,7 +5,7 @@ import { makeMessage } from '$lib/utils/error';
 import services from '$lib/api/services';
 
 export const load: PageLoad = async ({ url, fetch }): Promise<ChallengeProps> => {
-	const participants = url.searchParams.get('participants') || 'sent';
+	const participants = url.searchParams.get('participants') || 'received';
 
 	const [data, err] = await services.getChallenges(participants, fetch);
 	if (err) {

@@ -80,7 +80,7 @@ func MakeStaticData() StaticData {
 	return StaticData{validCountries: validCountries, countryList: countryList}
 }
 
-func MakeServeMux(setup Setup) *chi.Mux {
+func MakeServeMux(setup Setup, opts ...func(*chi.Mux)) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Recoverer)
@@ -141,6 +141,10 @@ func MakeServeMux(setup Setup) *chi.Mux {
 		writeJSON(w, http.StatusNotFound, ServiceView{Status: http.StatusNotFound, Message: "ROUTE_NOT_FOUND"})
 	})
 
+	for _, opt := range opts {
+		opt(r)
+	}
+
 	var strs []string
 	_ = chi.Walk(r, func(method string, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
 		strs = append(strs, fmt.Sprintf("%s %s", method, route))
@@ -192,4 +196,8 @@ func WithHealthCheck(mux *chi.Mux, config HealthCheckConfig) {
 		logutil.FatalErr("failed to create health checker", err)
 	}
 	mux.Get("/healthcheck", h.HandlerFunc)
+}
+
+func WithHealthCheckOpts(config HealthCheckConfig) func(*chi.Mux) {
+	return func(m *chi.Mux) { WithHealthCheck(m, config) }
 }

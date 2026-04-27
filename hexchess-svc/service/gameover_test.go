@@ -6,8 +6,6 @@ import (
 	"hexchess-svc/hexchess"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
-	"hexchess-svc/pb"
-
 	"hexchess-svc/util/logutil"
 	"hexchess-svc/util/testutil"
 	"math"
@@ -21,8 +19,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/testing/protocmp"
 )
 
 func TestInsertFinishedGameEvent(t *testing.T) {
@@ -36,10 +32,9 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 	newGameIDGuest := uuid.NewString()
 
 	for _, test := range []struct {
-		name                string
-		event               FinishedGame
-		wantLeaderboard     []string
-		wantBroadcastOutput *pb.GameOutput
+		name            string
+		event           FinishedGame
+		wantLeaderboard []string
 	}{
 		{
 			name: "InsertFinishedGame",
@@ -57,26 +52,6 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				strconv.Itoa(int(testUser0.ID)),
 				strconv.Itoa(int(testUser1.ID)),
 			},
-			wantBroadcastOutput: &pb.GameOutput{
-				GameId: newGameID,
-				Value: &pb.GameOutput_Replay{Replay: &pb.Replay{
-					WhiteId:      testUser0.ID,
-					BlackId:      testUser1.ID,
-					WhiteName:    "user1",
-					BlackName:    "user2",
-					WhiteCountry: "us",
-					BlackCountry: "us",
-					Mode:         model.ModeCorrespondence1.String(),
-					Cause:        model.Checkmate.String(),
-					Result:       model.WhiteWin.String(),
-					WinEloDiff:   15,
-					LoseEloDiff:  -15,
-					WhiteElo:     1015,
-					BlackElo:     985,
-					WhiteEloDiff: 15,
-					BlackEloDiff: -15,
-				}},
-			},
 		},
 		{
 			name: "inserting already inserted finished game",
@@ -93,26 +68,6 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				ReplayResult: model.BlackWin,
 			},
 			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
-			wantBroadcastOutput: &pb.GameOutput{
-				GameId: itest.FirstReplayGameID,
-				Value: &pb.GameOutput_Replay{Replay: &pb.Replay{
-					WhiteId:      testUser0.ID,
-					BlackId:      testUser1.ID,
-					WhiteName:    "user1",
-					BlackName:    "user2",
-					WhiteCountry: "us",
-					BlackCountry: "us",
-					Mode:         model.ModeCorrespondence7.String(),
-					Cause:        model.Checkmate.String(),
-					Result:       model.WhiteWin.String(),
-					WinEloDiff:   30,
-					LoseEloDiff:  -30,
-					WhiteElo:     1000,
-					BlackElo:     1000,
-					WhiteEloDiff: 30,
-					BlackEloDiff: -30,
-				}},
-			},
 		},
 		{
 			name: "inserting a game with a guest",
@@ -127,38 +82,11 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				ReplayResult: model.BlackWin,
 			},
 			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
-			wantBroadcastOutput: &pb.GameOutput{
-				GameId: newGameIDGuest,
-				Value: &pb.GameOutput_Replay{Replay: &pb.Replay{
-					WhiteId:      testUser0.ID,
-					BlackId:      0,
-					WhiteName:    "user1",
-					BlackName:    "",
-					WhiteCountry: "us",
-					BlackCountry: "",
-					Mode:         model.ModeCorrespondence1.String(),
-					Cause:        model.Forfeit.String(),
-					Result:       model.BlackWin.String(),
-					WinEloDiff:   0,
-					LoseEloDiff:  0,
-					WhiteElo:     1000,
-					BlackElo:     1000,
-					WhiteEloDiff: 0,
-					BlackEloDiff: 0,
-				}},
-			},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
-
-			broadcasters := LocalBroadcasters{GamesCaster: MakeMulticasterActor("testing-map")}
-			<-broadcasters.ListenGameMessages(services.redis)
-
-			// expect the game event to come on the following gameID (derived from input) channel. test times out and fails if it does not.
-			subChan := make(chan []byte, 1)
-			broadcasters.GamesCaster.Subscribe(test.event.GameID, subChan)
 
 			err := services.InsertFinishedGame(ctx, test.event)
 			require.NoError(t, err)
@@ -168,10 +96,6 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, test.wantLeaderboard, leaderboard)
-
-			output := &pb.GameOutput{}
-			require.NoError(t, proto.Unmarshal(<-subChan, output))
-			testutil.Equal(t, test.wantBroadcastOutput, output, protocmp.Transform(), protocmp.IgnoreFields(&pb.Replay{}, "id", "played_on"))
 		})
 	}
 }

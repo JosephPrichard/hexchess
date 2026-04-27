@@ -103,17 +103,17 @@ func main() {
 		}()
 	}
 
-	mux := web.MakeServeMux(web.Setup{
-		Services:       services,
-		AllowedOrigins: allowedOrigins,
-		Broadcasers:    broadcasters,
-	})
-	web.WithHealthCheck(mux, web.HealthCheckConfig{
+	withHealthcheck := web.WithHealthCheckOpts(web.HealthCheckConfig{
 		PostgresDSN:     dbURL,
 		RedisPrimaryDSN: rdbCacheURL,
 		RedisPubSubDSN:  rdbPubSubURL,
 	})
-	if err := http.ListenAndServe(":"+serverPort, mux); err != nil {
+	serverSetup := web.Setup{
+		Services:       services,
+		AllowedOrigins: allowedOrigins,
+		Broadcasers:    broadcasters,
+	}
+	if err := http.ListenAndServe(":"+serverPort, web.MakeServeMux(serverSetup, withHealthcheck)); err != nil {
 		logutil.FatalErr("failed while serving", err)
 	}
 }

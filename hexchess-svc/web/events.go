@@ -163,6 +163,9 @@ func (api *API) HandleActiveConn(w SSEWriter, _ *http.Request) error {
 			slog.ErrorContext(ctx, "failed to retain active user", "sseID", sseID, "err", err)
 		}
 	})
+	defer func() {
+		stopTimer <- true
+	}()
 
 	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
 RecvLoop:
@@ -175,14 +178,13 @@ RecvLoop:
 		}
 	}
 
-	afterCtx := context.WithoutCancel(ctx)
-	stopTimer <- true
+	detatchedCtx := context.WithoutCancel(ctx)
 
-	if count, err = api.services.RemoveActiveUser(afterCtx, sseID); err != nil {
-		slog.ErrorContext(afterCtx, "failed to remove active user", "sseID", sseID, "err", err)
+	if count, err = api.services.RemoveActiveUser(detatchedCtx, sseID); err != nil {
+		slog.ErrorContext(detatchedCtx, "failed to remove active user", "sseID", sseID, "err", err)
 	}
-	if err := api.services.BroadcastActiveCount(afterCtx, count); err != nil {
-		slog.ErrorContext(afterCtx, "broadcast active user count after removing", "err", err)
+	if err := api.services.BroadcastActiveCount(detatchedCtx, count); err != nil {
+		slog.ErrorContext(detatchedCtx, "broadcast active user count after removing", "err", err)
 	}
 
 	return nil

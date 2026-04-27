@@ -220,6 +220,7 @@ var ReplayInsts = []struct {
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1000,
 		ReplayBlackElo: 1030,
+		PlayedOn:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
 	},
 	{
 		GameID:         GameIDFinishedTournamentMatch2,
@@ -232,6 +233,7 @@ var ReplayInsts = []struct {
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1000,
 		ReplayBlackElo: 1030,
+		PlayedOn:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
 	},
 }
 
@@ -524,6 +526,8 @@ var TournamentParticipantInsts = []struct {
 	},
 }
 
+var GameIDNotFinished = uuid.NewString() // does not exist in replays table
+
 // TournamentMatchInsts JoinedOn must be deterministically ordered.
 var TournamentMatchInsts = []struct {
 	GameID        string
@@ -603,7 +607,7 @@ var TournamentMatchInsts = []struct {
 		BlackID:       11,
 	},
 	{
-		GameID:        uuid.NewString(), // does not exist in replays table, unfinished
+		GameID:        GameIDNotFinished, // does not exist in replays table, unfinished
 		TournamentKey: Tournament9InProgressUncompletedKey,
 		Round:         1,
 		CreatedOn:     TimeNow.Add(time.Minute * 1),

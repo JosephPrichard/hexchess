@@ -399,7 +399,7 @@ func (api *API) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
 
 	ctx := r.Context()
 
-	fullUser, err := api.services.GetFullUser(ctx, int64(query.UserID), perPage, query.WithReplays)
+	fullUser, err := api.services.GetFullUser(ctx, int64(query.UserID), perPage, query.GetReplaysKind)
 	if errors.Is(err, svc.ErrUserNotFound) {
 		return ErrHttpNotFoundUser
 	} else if err != nil {
@@ -762,7 +762,7 @@ func (api *API) HandleGetUserReplays(w http.ResponseWriter, r *http.Request) err
 	}
 
 	ctx := r.Context()
-	replays, err := api.services.GetUserReplays(ctx, int64(query.UserID), int64(query.AfterID), perPage)
+	replays, err := api.services.GetUserReplays(ctx, int64(query.UserID), query.GetReplaysKind, int64(query.AfterID), perPage)
 	if err != nil {
 		return fmt.Errorf("get user %d replays: %w", query.UserID, err)
 	}

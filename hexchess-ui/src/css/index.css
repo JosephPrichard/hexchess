@@ -42,6 +42,10 @@ a:hover {
 
 .bold-link {
 	font-weight: bold;
+	/*color: dodgerblue;*/
+}
+
+.bold-link:hover {
 	color: dodgerblue;
 }
 
@@ -86,11 +90,22 @@ table {
 	border-radius: 3px;
 	border-style: hidden;
 	box-shadow: 0 0 0 1px rgb(52, 52, 52);
+
+	font-size: 15px;
+}
+
+
+th:first-child, td:first-child {
+	padding-left: 16px;
+}
+
+th:last-child, td:last-child {
+	padding-right: 16px;
 }
 
 th,
 td {
-	padding: 8px 24px;
+	padding: 8px 8px;
 	text-align: left;
 	font-weight: 500;
 }
@@ -163,10 +178,11 @@ tr {
 
 .flag {
 	position: relative;
-	top: 3px;
+	top: 2px;
 	border-radius: 2px;
 	width: auto;
-	margin-left: 3px;
+	margin-left: 5px;
+	margin-right: 5px;
 	height: 13px;
 }
 

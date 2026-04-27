@@ -228,11 +228,13 @@ export async function postProfilePic(file: File) {
 	}
 }
 
-function getReplays(userId: number, afterId?: number, fetch?: FetchFn) {
+export type ReplaysQuery = "allReplays" | "wonReplays" | "lostReplays";
+
+function getReplays(userId: number, replaysQuery: ReplaysQuery, afterId?: number, fetch?: FetchFn) {
 	interface Response {
 		replayList: ReplayModel[];
 	}
-	const params = new URLSearchParams({ userId: userId.toString() });
+	const params = new URLSearchParams({ userId: userId.toString(), replays: replaysQuery });
 	if (afterId)
 		params.set('afterId', afterId.toString());
 	return requestJSON<Response>(`${baseURL()}/replays?${params}`, { method: 'GET' }, fetch);
@@ -263,7 +265,7 @@ function getProfile(fetch?: FetchFn) {
 }
 
 function getUser(id: string, withReplays: boolean, fetch?: FetchFn) {
-	const params = new URLSearchParams({ id, withReplays: withReplays.toString() });
+	const params = new URLSearchParams({ id, withReplays: String(withReplays) });
 	return requestJSON<FullPlayerModel>(`${baseURL()}/players?${params}`, { method: 'GET' }, fetch);
 }
 

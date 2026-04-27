@@ -30,7 +30,7 @@ type HexchessAPI interface {
 	UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (model.User, error)
 	GetUserByID(ctx context.Context, id int64) (model.User, error)
 	GetUserStats(ctx context.Context, id int64) (model.UserStats, error)
-	GetFullUser(ctx context.Context, userID int64, perPage int32, withReplays bool) (FullUser, error)
+	GetFullUser(ctx context.Context, userID int64, perPage int32, replayQuery ReplayQueryKind) (FullUser, error)
 	UpdateUserPassword(ctx context.Context, id int64, newPassword string) error
 	SelectUsersByIDs(ctx context.Context, ids []int64) ([]model.User, error)
 
@@ -44,7 +44,7 @@ type HexchessAPI interface {
 
 	GetReplayByGameID(ctx context.Context, gameID string) (model.FullReplay, error)
 	GetReplay(ctx context.Context, replayID int64) (model.FullReplay, error)
-	GetUserReplays(ctx context.Context, userID int64, afterID int64, perPage int32) ([]model.FullReplay, error)
+	GetUserReplays(ctx context.Context, userID int64, replayQuery ReplayQueryKind, afterID int64, perPage int32) ([]model.FullReplay, error)
 	GetMovesHistory(ctx context.Context, replayID int) ([]byte, error)
 	RetrieveEloHistoryBuckets(ctx context.Context, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error)
 
@@ -60,7 +60,7 @@ type HexchessAPI interface {
 
 	ClearOrphanFiles(ctx context.Context, pageLength int32)
 
-	GetTournament(ctx context.Context, tournamentKey uuid.UUID) (t model.FullTournament, err error)
+	GetTournament(ctx context.Context, tournamentKey uuid.UUID) (model.FullTournament, error)
 	GetTournaments(ctx context.Context, participantID int64, afterID int64, perPage int32) ([]model.Tournament, error)
 	CreateTournamentTx(ctx context.Context, inst TournamentInst) (int64, error)
 	JoinTournamentTx(ctx context.Context, inst JoinTournamentInst) (JoinTournamentResult, error)
@@ -77,12 +77,6 @@ type HexchessAPI interface {
 	GetStateChats(ctx context.Context, gameID string, count int64) ([]*pb.ChatMessage, error)
 	InsertStateChat(ctx context.Context, gameID string, chat Chat) error
 
-	BroadcastCountEvent(ctx context.Context, channel string, count int64) error
-	BroadcastActiveCount(ctx context.Context, count int64) error
-	BroadcastGameCount(ctx context.Context, count int64) error
-	BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput) error
-	BroadcastTournament(ctx context.Context, tournament *pb.TournamentOutput) error
-	BroadcastChallenge(ctx context.Context, challenge model.Challenge) error
 	GetActiveCount(ctx context.Context) (int64, error)
 	RetainActiveUser(ctx context.Context, id string) error
 	AddActiveUser(ctx context.Context, id string) (int64, error)
@@ -97,6 +91,12 @@ type HexchessAPI interface {
 	InsertFinishedGame(ctx context.Context, finishedGame FinishedGame) error
 	InsertGameResultTx(ctx context.Context, params GameResult) (GameResultChangeSet, error)
 	UpsertReplayMoveHistories(ctx context.Context, replayID int64, data []byte) error
+
+	BroadcastActiveCount(ctx context.Context, count int64) error
+	BroadcastGameCount(ctx context.Context, count int64) error
+	BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput) error
+	BroadcastTournament(ctx context.Context, tournament *pb.TournamentOutput) error
+	BroadcastChallenge(ctx context.Context, challenge model.Challenge) error
 }
 
 type HexchessServices struct {

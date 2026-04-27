@@ -92,7 +92,7 @@ SELECT id, mode, played_on, white_id, black_id, white_elo, black_elo -- gets the
 FROM replays
 WHERE 
     (white_id = sqlc.arg('id') OR black_id = sqlc.arg('id'))
-  AND
+    AND
     (played_on > sqlc.narg('played_after') OR sqlc.narg('played_after') IS NULL)
 ORDER BY played_on;
 
@@ -125,9 +125,22 @@ FROM replays r
         ON e2.user_id = r.black_id AND e2.mode = r.mode
 WHERE
     r.id < sqlc.arg('afterID')
-  AND (
-      r.white_id = sqlc.arg('userID') OR r.black_id = sqlc.arg('userID')
-  )
+    AND (
+        CASE
+            WHEN sqlc.arg('result')::text = 'wins'
+                THEN
+                    (r.white_id = sqlc.arg('userID') AND r.result = 'WHITE_WINS'
+                     OR
+                     r.black_id = sqlc.arg('userID') AND r.result = 'BLACK_WINS')
+            WHEN sqlc.arg('result')::text = 'losses'
+                THEN
+                    (r.white_id = sqlc.arg('userID') AND r.result = 'BLACK_WINS'
+                        OR
+                     r.black_id = sqlc.arg('userID') AND r.result = 'WHITE_WINS')
+            ELSE
+                r.white_id = sqlc.arg('userID') OR r.black_id = sqlc.arg('userID')
+        END
+    )
 ORDER BY r.id DESC
 LIMIT sqlc.arg('perPage');
 
