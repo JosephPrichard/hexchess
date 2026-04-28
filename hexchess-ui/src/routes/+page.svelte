@@ -1,6 +1,5 @@
 <script lang="ts">
 	import CreateGame from '$lib/components/modals/CreateGame.svelte';
-	import { makeMessage } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import { goto } from '$app/navigation';
 	import { type ChessModel, type ColorSelect, type SessionModel, type GameMode, GameModeNameMap } from '$lib/api/models';

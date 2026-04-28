@@ -47,19 +47,19 @@ func TestGetUserReplays(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	actualReplayList1, err := services.GetUserReplays(ctx, 1, -1, -1, 5)
+	actualReplayList1, err := services.GetUserReplays(ctx, ReplayQuery{UserID: 1, AfterID: -1}, 5)
 	require.NoError(t, err)
-	actualReplayList2, err := services.GetUserReplays(ctx, 1, -1, 3, 5)
+	actualReplayList2, err := services.GetUserReplays(ctx, ReplayQuery{UserID: 1, AfterID: 3}, 5)
 	require.NoError(t, err)
 
 	replay1 := itest.TestReplay[0]
 	replay3 := itest.TestReplay[1]
 	replay4 := itest.TestReplay[2]
-	expectedReplayList1 := []model.FullReplay{replay4, replay3, replay1}
-	expectedReplayList2 := []model.FullReplay{replay1}
+	wantReplayList1 := []model.FullReplay{replay4, replay3, replay1}
+	wantReplayList2 := []model.FullReplay{replay1}
 
-	assert.Equal(t, expectedReplayList1, actualReplayList1)
-	assert.Equal(t, expectedReplayList2, actualReplayList2)
+	assert.Equal(t, wantReplayList1, actualReplayList1)
+	assert.Equal(t, wantReplayList2, actualReplayList2)
 }
 
 func TestRetrieveEloHistories(t *testing.T) {

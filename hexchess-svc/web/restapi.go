@@ -392,18 +392,18 @@ type GetPlayersResp struct {
 }
 
 func (api *API) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
-	query, err := transformPlayerQuery(r.URL.Query())
+	userID, err := strconv.Atoi(r.URL.Query().Get("id"))
 	if err != nil {
-		return err
+		return OneRespError("id", ErrHttpInvalidID)
 	}
 
 	ctx := r.Context()
 
-	fullUser, err := api.services.GetFullUser(ctx, int64(query.UserID), perPage, query.GetReplaysKind)
+	fullUser, err := api.services.GetFullUser(ctx, int64(userID), perPage)
 	if errors.Is(err, svc.ErrUserNotFound) {
 		return ErrHttpNotFoundUser
 	} else if err != nil {
-		return fmt.Errorf("get full user %d: %w", query.UserID, err)
+		return fmt.Errorf("get full user %d: %w", userID, err)
 	}
 
 	playersResp := GetPlayersResp{FullUser: fullUser}
@@ -755,14 +755,14 @@ type GetUserReplaysResp struct {
 	ReplayList []model.FullReplay `json:"replayList"`
 }
 
-func (api *API) HandleGetUserReplays(w http.ResponseWriter, r *http.Request) error {
+func (api *API) HandleGetReplays(w http.ResponseWriter, r *http.Request) error {
 	query, err := transformReplaysQuery(r.URL.Query())
 	if err != nil {
 		return err
 	}
 
 	ctx := r.Context()
-	replays, err := api.services.GetUserReplays(ctx, int64(query.UserID), query.GetReplaysKind, int64(query.AfterID), perPage)
+	replays, err := api.services.GetUserReplays(ctx, query, perPage)
 	if err != nil {
 		return fmt.Errorf("get user %d replays: %w", query.UserID, err)
 	}
@@ -1020,5 +1020,21 @@ func (api *API) HandleLeaveTournament(w http.ResponseWriter, r *http.Request) er
 	slog.Info("attempte to leave tournament", "didLeave", didLeave, "tournamentKey", tournamentKey, "player", player)
 
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
+	return nil
+}
+
+type GetUserActivityResp struct {
+	IsUserActive bool `json:"isUserActive"`
+}
+
+func (api *API) HandleUserActivityCheck(w http.ResponseWriter, r *http.Request) error {
+	userID := r.URL.Query().Get("userId")
+
+	ctx := r.Context()
+
+	isActive := api.services.IsActiveUser(ctx, userID)
+
+	writeJSON(w, http.StatusOK, GetUserActivityResp{IsUserActive: isActive})
+	//w.Header().Set("Cache-Control", "public, max-age=30")
 	return nil
 }

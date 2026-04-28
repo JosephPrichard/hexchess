@@ -3,6 +3,8 @@
 	import type { SessionModel } from './api/models';
 	import { onMount } from 'svelte';
 	import ProfilePic from '$lib/components/user/ProfilePic.svelte';
+	import ChallengeIcon from "$lib/components/icons/ChallengeIcon.svelte";
+	import SettingsIcon from "$lib/components/icons/SettingsIcon.svelte";
 
 	const id = $props.id();
 
@@ -31,20 +33,31 @@
 	<a class="banner-elem color-hover" href="/leaderboard"> Leaderboard </a>
 	<a class="banner-elem color-hover" href="/players/search"> Search </a>
 	{#if client}
-		<a class="banner-elem color-hover" href="/challenges" id="challenge-link"> Challenges </a>
-		<a class="banner-elem color-hover" href="/profile" id="settings-link"> Profile </a>
-		<a aria-label="user-link-{id}" class="banner-elem color-hover" href={`/players/${client.id}`}>
-			{client.username}
-			<span style="margin-left: 10px"></span>
-			<ProfilePic userId={client.id} size={45} unique/>
-		</a>
-
+		<div class="client-panels">
+			<a class="banner-elem color-hover" href="/challenges" id="challenge-link">
+				<ChallengeIcon/>
+			</a>
+			<a class="banner-elem color-hover" href="/profile" id="settings-link">
+				<SettingsIcon/>
+			</a>
+			<a aria-label="user-link-{id}" class="banner-elem color-hover" href={`/players/${client.id}`}>
+				{client.username}
+				<span style="margin-left: 10px"></span>
+				<ProfilePic userId={client.id} size={45} unique/>
+			</a>
+		</div>
 	{:else}
 		<a aria-label="login-link-{id}" class="banner-elem color-hover" href="/login"> Login </a>
 	{/if}
 </div>
 
 <style>
+	.client-panels {
+		display: flex;
+ 		align-items: center;
+		margin-left: auto;
+	}
+
     .banner {
         height: 75px;
         margin-bottom: 20px;
@@ -67,7 +80,6 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        margin: 5px 5px;
         padding: 15px 10px;
         cursor: pointer;
         border-radius: 6px;

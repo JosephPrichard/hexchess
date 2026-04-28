@@ -142,13 +142,19 @@ func every(duration time.Duration, work func()) chan bool {
 	return stop
 }
 
-// HandleActiveConn a long-lived TCP connection used to maintain an active connection, it only ever receives "meta" messages
-func (api *API) HandleActiveConn(w SSEWriter, _ *http.Request) error {
+// HandleActiveConn a long-lived TCP connection used to maintain an active user, it only ever receives "meta" messages
+func (api *API) HandleActiveConn(w SSEWriter, r *http.Request) error {
 	ctx := w.ctx
 
-	sseID := api.entropy.MakeUUID()
+	player, _, err := api.authenticator.GetSessionPlayerAndID(ctx, r)
+	if errors.Is(err, svc.ErrSessionNotFound) {
+		return ErrHttpSessionExpired
+	} else if err != nil {
+		return err
+	}
+	strUserID := strconv.Itoa(int(player.ID))
 
-	count, err := api.services.AddActiveUser(ctx, sseID)
+	count, err := api.services.AddActiveUser(ctx, strUserID)
 	if err != nil {
 		return err
 	}
@@ -156,11 +162,11 @@ func (api *API) HandleActiveConn(w SSEWriter, _ *http.Request) error {
 		return fmt.Errorf("broadcast active user count after adding %d: %w", count, err)
 	}
 
-	w.writeEvent(MetaEvent, sseID)
+	w.writeEvent(MetaEvent, strUserID)
 
 	stopTimer := every(svc.ActiveUserMaxage-time.Second, func() {
-		if err := api.services.RetainActiveUser(ctx, sseID); err != nil {
-			slog.ErrorContext(ctx, "failed to retain active user", "sseID", sseID, "err", err)
+		if err := api.services.RetainActiveUser(ctx, strUserID); err != nil {
+			slog.ErrorContext(ctx, "failed to retain active user", "userID", strUserID, "err", err)
 		}
 	})
 	defer func() {
@@ -180,8 +186,8 @@ RecvLoop:
 
 	detatchedCtx := context.WithoutCancel(ctx)
 
-	if count, err = api.services.RemoveActiveUser(detatchedCtx, sseID); err != nil {
-		slog.ErrorContext(detatchedCtx, "failed to remove active user", "sseID", sseID, "err", err)
+	if count, err = api.services.RemoveActiveUser(detatchedCtx, strUserID); err != nil {
+		slog.ErrorContext(detatchedCtx, "failed to remove active user", "sseID", strUserID, "err", err)
 	}
 	if err := api.services.BroadcastActiveCount(detatchedCtx, count); err != nil {
 		slog.ErrorContext(detatchedCtx, "broadcast active user count after removing", "err", err)
@@ -199,7 +205,6 @@ func (api *API) HandleUserEvents(w SSEWriter, r *http.Request) error {
 	} else if err != nil {
 		return err
 	}
-
 	strUserID := strconv.Itoa(int(player.ID))
 
 	w.writeEvent(MetaEvent, strUserID)

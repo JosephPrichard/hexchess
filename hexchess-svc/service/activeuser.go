@@ -2,6 +2,7 @@ package svc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -10,6 +11,11 @@ import (
 )
 
 const ActiveUserMaxage = 5 * time.Minute // the caller should manually remove, but this is a stopgap in case the server is stopped before that is the case
+
+func (svc *HexchessServices) IsActiveUser(ctx context.Context, id string) bool {
+	_, err := svc.redis.Cache.ZScore(ctx, svc.redis.ActiveUsersZSet, id).Result()
+	return !errors.Is(err, redis.Nil)
+}
 
 func (svc *HexchessServices) GetActiveCount(ctx context.Context) (int64, error) {
 	expireBefore := svc.entropy.GetTime().Add(-ActiveUserMaxage).UnixMilli()

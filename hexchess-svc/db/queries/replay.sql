@@ -91,12 +91,11 @@ WHERE r.game_id = sqlc.arg('game_id');
 SELECT id, mode, played_on, white_id, black_id, white_elo, black_elo -- gets the white/black elo at the time of insertion
 FROM replays
 WHERE 
-    (white_id = sqlc.arg('id') OR black_id = sqlc.arg('id'))
-    AND
+    (white_id = sqlc.arg('id') OR black_id = sqlc.arg('id')) AND
     (played_on > sqlc.narg('played_after') OR sqlc.narg('played_after') IS NULL)
 ORDER BY played_on;
 
--- name: SelectUserReplays :many
+-- name: SelectReplays :many
 SELECT
     r.id,
     r.white_id,
@@ -124,24 +123,53 @@ FROM replays r
     LEFT JOIN user_mode_elos e2
         ON e2.user_id = r.black_id AND e2.mode = r.mode
 WHERE
-    r.id < sqlc.arg('afterID')
-    AND (
-        CASE
-            WHEN sqlc.arg('result')::text = 'wins'
-                THEN
-                    (r.white_id = sqlc.arg('userID') AND r.result = 'WHITE_WINS'
-                     OR
-                     r.black_id = sqlc.arg('userID') AND r.result = 'BLACK_WINS')
-            WHEN sqlc.arg('result')::text = 'losses'
-                THEN
-                    (r.white_id = sqlc.arg('userID') AND r.result = 'BLACK_WINS'
-                        OR
-                     r.black_id = sqlc.arg('userID') AND r.result = 'WHITE_WINS')
-            ELSE
-                r.white_id = sqlc.arg('userID') OR r.black_id = sqlc.arg('userID')
-        END
+    r.id < sqlc.arg('afterID') AND
+    (r.mode = sqlc.narg('mode') OR sqlc.narg('mode') IS NULL) AND
+    (r.result = sqlc.narg('result') OR sqlc.narg('result') IS NULL) AND
+    (r.cause = sqlc.narg('cause') OR sqlc.narg('cause') IS NULL) AND
+    (r.white_id = sqlc.narg('whiteID') OR sqlc.narg('whiteID') IS NULL) AND
+    (r.black_id = sqlc.narg('blackID') OR sqlc.narg('blackID') IS NULL) AND
+    (
+        r.white_id = sqlc.narg('userID') OR
+        r.black_id = sqlc.narg('userID') OR
+        sqlc.narg('userID') IS NULL
     )
-ORDER BY r.id DESC
+    AND
+    (
+        (r.white_id = sqlc.arg('winnerID') AND
+         r.result = 'WHITE_WINS') OR
+        (r.black_id = sqlc.arg('winnerID') AND
+         r.result = 'BLACK_WINS') OR
+         sqlc.narg('winnerID') IS NULL
+    )
+    AND
+    (
+        (r.white_id = sqlc.arg('loserID') AND
+         r.result = 'BLACK_WINS') OR
+        (r.black_id = sqlc.arg('loserID') AND
+         r.result = 'WHITE_WINS') OR
+        sqlc.narg('loserID') IS NULL
+    )
+--     AND
+--     (CASE
+--         WHEN sqlc.narg('dateFrom')
+--         THEN (
+--             r.played_on BETWEEN
+--                 sqlc.narg('dateFrom')::TIMESTAMPTZ AND
+--                 sqlc.narg('dateTo')::TIMESTAMPTZ
+--         )
+--         WHEN sqlc.narg('dateFrom') IS NOT NULL
+--         THEN (
+--             r.played_on > sqlc.narg('dateFrom')
+--         )
+--         WHEN sqlc.narg('dateTo') IS NOT NULL
+--         THEN (
+--             r.played_on < sqlc.narg('dateTo')
+--         )
+--         ELSE TRUE
+--      END)
+ORDER BY
+    r.id DESC
 LIMIT sqlc.arg('perPage');
 
 -- name: SelectReplaysExistsByIDs :many

@@ -6,7 +6,7 @@
 	import { getClientSession } from '$lib/utils/storage';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import type { ColorSelect, FullPlayerModel, GameMode } from '$lib/api/models';
-	import services, {type ReplaysQuery} from '$lib/api/services';
+	import services from '$lib/api/services';
 	import 'chartjs-adapter-date-fns';
 	import '$lib/utils/chart';
 	import Dropdown from '$lib/components/util/Dropdown.svelte';
@@ -16,6 +16,9 @@
 	import {makeEloHistoriesChart} from "./chart";
 	import ReplaySnippet from "$lib/components/user/ReplaySnippet.svelte";
 	import UserStats from "$lib/components/user/UserStats.svelte";
+	import {getReplay, nonDefaultQueries, type ReplayQueryKind, replayQueryOptions} from "./service";
+	import { goto } from '$app/navigation';
+	import SettingsIcon from "$lib/components/icons/SettingsIcon.svelte";
 
 	const timeframes: { label: string, value: string }[] = [
 		{ label: "All Time", value: "all" },
@@ -24,13 +27,6 @@
 		{ label: "3 Months", value: "3m" },
 		{ label: "1 Month", value: "1m" },
 	];
-
-	const gameTabs: { label: string, value: ReplaysQuery, onClick?: () => void }[] = [
-		{ label: "All Games", value: "allReplays" },
-		{ label: "Won Games", value: "lostReplays" },
-		{ label: "Lost Games", value: "wonReplays" },
-	];
-	const nonDefaultQueries = gameTabs.filter(e => e.value !== "allReplays").map((tab) => tab.value);
 
 	export interface PlayerProps {
 		fullUser: FullPlayerModel;
@@ -41,14 +37,18 @@
 
 	const { addNotification, addErrorNotification } = getNotificationsContext();
 
-	let replayLists: Record<ReplaysQuery, ReplayModel[][]> = $state({
-		"allReplays": [props.fullUser.replayList],
-		"wonReplays": [],
-		"lostReplays": [],
+	interface ReplayListRow {
+		nestedReplayList: ReplayModel[][];
+		hasMoreReplays: boolean;
+	}
+
+	let replayLists: Record<ReplayQueryKind, ReplayListRow> = $state({
+		"allReplays": { nestedReplayList: [props.fullUser.replayList], hasMoreReplays: true },
+		"wonReplays": { nestedReplayList: [], hasMoreReplays: true },
+		"lostReplays": { nestedReplayList: [], hasMoreReplays: true },
 	});
-	let activeReplaysQuery: ReplaysQuery = $state("allReplays");
+	let replayQueryKind: ReplayQueryKind = $state("allReplays");
 	let showCreateModal = $state(false);
-	let hasMoreReplays = $state(true);
 	let isDifferentUser = $state(false);
 	let timeframeIndex = $state(0);
 
@@ -57,18 +57,18 @@
 	let chartElement: HTMLCanvasElement;
 
 	async function tryLoadReplays() {
-		const nestedReplayList = replayLists[activeReplaysQuery];
+		const replayListRow = replayLists[replayQueryKind];
 		if (!nestedReplayList) {
-			console.error(`No replay list found for active replays query: ${activeReplaysQuery}.`);
+			console.error(`No replay list found for active replays query: ${replayQueryKind}.`);
 			return;
 		}
 
-		const lastId = nestedReplayList.at(-1)?.at(-1)?.id;
+		const lastId = replayListRow.nestedReplayList.at(-1)?.at(-1)?.id;
 		const isAtPageBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 100;
-		const shouldLoadReplays = hasMoreReplays && isAtPageBottom && lastId !== undefined;
+		const shouldLoadReplays = replayListRow.hasMoreReplays && isAtPageBottom && lastId !== undefined;
 
 		if (shouldLoadReplays) {
-			const [data, err] = await services.getReplays(user.id, activeReplaysQuery, lastId);
+			const [data, err] = await getReplay(replayQueryKind, lastId, user?.id);
 			if (err) {
 				addErrorNotification(err);
 				return;
@@ -76,9 +76,9 @@
 			const replayList = data?.replayList ?? [];
 
 			if (replayList.length > 0) {
-				nestedReplayList.push(replayList);
+				replayListRow.nestedReplayList.push(replayList);
 			} else {
-				hasMoreReplays = false;
+				replayListRow.hasMoreReplays = false;
 			}
 		}
 	}
@@ -107,19 +107,20 @@
 		};
 	});
 
-	async function loadForAllReplayQueries(userId: number) {
-		for (const replayQuery of nonDefaultQueries) {
-			const [data, err] = await services.getReplays(userId, replayQuery, undefined);
-			if (err) {
-				addErrorNotification(err);
-				return;
-			}
-			replayLists[replayQuery] = data?.replayList ? [data?.replayList] : [];
+	function loadForAllReplayQueries(userId: number) {
+		for (const replayQueryKind of nonDefaultQueries) {
+			getReplay(replayQueryKind, undefined, userId).then(([data, err]) => {
+				if (err) {
+					addErrorNotification(err);
+					return;
+				}
+				replayLists[replayQueryKind].nestedReplayList = data?.replayList ? [data?.replayList] : [];
+			});
 		}
 	}
 
 	$effect(() => {
-		loadForAllReplayQueries(user.id)
+		loadForAllReplayQueries(user.id);
 	})
 
 	onMount(() => {
@@ -144,7 +145,7 @@
 		showCreateModal = false;
 	}
 
-	const nestedReplayList = $derived(replayLists[activeReplaysQuery] || []);
+	const nestedReplayList = $derived(replayLists[replayQueryKind].nestedReplayList || []);
 </script>
 
 <svelte:head>
@@ -245,10 +246,10 @@
 		</div>
 
 		<div class="game-histories-tab-group">
-			{#each gameTabs as tab, i (i)}
+			{#each replayQueryOptions as tab, i (i)}
 				<button class="game-histories-tab"
-						class:active-game-histories-tab={activeReplaysQuery === tab.value}
-						onclick={() => activeReplaysQuery = tab.value}
+						class:active-game-histories-tab={replayQueryKind === tab.value}
+						onclick={() => replayQueryKind = tab.value}
 				>
 					{tab.label}
 				</button>
@@ -271,6 +272,21 @@
 </div>
 
 <style>
+	.button-profile {
+		display: flex;
+		align-items: center;
+		padding-left: 20px;
+		padding-right: 25px;
+		min-width: fit-content;
+		gap: 5px;
+	}
+
+	.preferences-wrapper {
+		font-size: 18px;
+		margin-top: 10px;
+		margin-bottom: 50px;
+	}
+
 	.no-replays-wrapper {
 		margin-top: 25px;
 		display: flex;
@@ -299,6 +315,8 @@
 		background-color: rgb(50, 50, 50);
 		border: 1px solid rgb(58, 58, 58);
 		border-left: none;
+
+		transition: background-color 0.2s ease-in-out;
 	}
 
 	.game-histories-tab:hover {

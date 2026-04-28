@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { getNotificationsContext } from '$lib/utils/context';
-	import {type Action, type ChallengeModel, GameModeNameMap } from '$lib/api/models';
+	import {type Action, type ChallengeModel, GameModeNameMap, type SessionModel} from '$lib/api/models';
 	import services from '$lib/api/services';
 	import { formatRelativeTime } from '$lib/utils/format';
 	import Banner from '$lib/Banner.svelte';
 	import ProfilePic from '$lib/components/user/ProfilePic.svelte';
-	import SwordIcon from "$lib/components/icons/SwordIcon.svelte";
+	import ChallengeIcon from "$lib/components/icons/ChallengeIcon.svelte";
+	import {onMount} from "svelte";
+	import {getClientSession} from "$lib/utils/storage";
 
 	export interface ChallengeProps {
 		participants: string;
@@ -25,6 +27,7 @@
 	}
 
 	let challengeList: ChallengeState[] = $state([]);
+	let client: SessionModel | null = $state(null);
 
 	$effect(() => {
 		challengeList = props.challengeList.map((e) => ({
@@ -73,6 +76,30 @@
 			challengeList[index].isLoading[action] = false;
 		}
 	}
+	export type ActiveState = "active" | "inactive" | "loading";
+
+	let activeState: Record<string, ActiveState> = $state({});
+
+	$effect(() => {
+		const client = getClientSession();
+
+		const userIds = challengeList.map(e => e.challenge.challengerId)
+				.concat(challengeList.map(e => e.challenge.challengeeId));
+
+		for (const userId of userIds) {
+			if (userId == client?.id) continue;
+			if (!activeState[userId]) {
+				activeState[userId] = "loading";
+				services.getIsUserActive(userId).then(([data, err]) => {
+					if (data) {
+						activeState[userId] = data.isUserActive ? "active" : "inactive";
+					} else {
+						console.error(`Error fetching active state for user ${userId}`, err)
+					}
+				});
+			}
+		}
+	});
 </script>
 
 <svelte:head>
@@ -88,10 +115,14 @@
 		{#if challengeList.length > 0}
 			<div class="challenge-panel">
 				{#each challengeList as { challenge, isLoading }, index (index)}
+					{@const challengerActiveState = activeState[challenge.challengerId]}
+					{@const challengeeActiveState = activeState[challenge.challengeeId]}
 					<div id="{challenge.challengeeId}+{challenge.challengerId}" class="challenge-box">
 						<div class="pvp-wrapper">
 							<div class="player-points-wrapper">
-								<span class="pfp-wrapper"><ProfilePic userId={challenge.challengerId} size={45}/></span>
+								<span class="pfp-wrapper">
+									<ProfilePic userId={challenge.challengerId} size={45}/>
+								</span>
 								<a href="/players/{challenge.challengerId}" class="text-ul bold-link">
 									{challenge.challengerName}
 								</a>
@@ -99,12 +130,16 @@
 									<img class="flag" src="/flags/{challenge.challengerCountry}.png" alt="" />
 									<b>({Math.round(challenge.challengerElo)})</b>
 								{/if}
+								<div class:inactive-indicator={challengerActiveState === "inactive"}
+									 class:active-indicator={challengerActiveState === "active"}></div>
 							</div>
 							<div class="vs-wrapper">
-								<SwordIcon/>
+								<ChallengeIcon/>
 							</div>
 							<div class="player-points-wrapper">
-								<span class="pfp-wrapper"><ProfilePic userId={challenge.challengeeId} size={45}/></span>
+								<span class="pfp-wrapper">
+									<ProfilePic userId={challenge.challengeeId} size={45}/>
+								</span>
 								<a href="/players/{challenge.challengeeId}" class="text-ul bold-link">
 									{challenge.challengeeName}
 								</a>
@@ -112,6 +147,8 @@
 									<img class="flag" src="/flags/{challenge.challengeeCountry}.png" alt="" />
 									<b>({Math.round(challenge.challengeeElo)})</b>
 								{/if}
+								<div class:inactive-indicator={challengeeActiveState === "inactive"}
+									 class:active-indicator={challengeeActiveState === "active"}></div>
 							</div>
 						</div>
 						<div class="buttons-wrapper">
@@ -128,8 +165,8 @@
 							</div>
 							{#if isSender}
 								<button
-										class="button-small button-small-red button-challenge"
-										onclick={() => onUpdateChallenge(challenge, index, 'delete')}
+									class="button-small button-small-red button-challenge"
+									onclick={() => onUpdateChallenge(challenge, index, 'delete')}
 								>
 									{#if isLoading.delete}
 										<div class="loader"></div>
@@ -139,8 +176,8 @@
 								</button>
 							{:else}
 								<button
-										class="button-small button-small-green button-challenge"
-										onclick={() => onUpdateChallenge(challenge, index, 'accept')}
+									class="button-small button-small-green button-challenge"
+									onclick={() => onUpdateChallenge(challenge, index, 'accept')}
 								>
 									{#if isLoading.accept}
 										<div class="loader"></div>
@@ -149,8 +186,8 @@
 									{/if}
 								</button>
 								<button
-										class="button-small button-small-red button-challenge"
-										onclick={() => onUpdateChallenge(challenge, index, 'reject')}
+									class="button-small button-small-red button-challenge"
+									onclick={() => onUpdateChallenge(challenge, index, 'reject')}
 								>
 									{#if isLoading.reject}
 										<div class="loader"></div>
@@ -176,6 +213,30 @@
 </div>
 
 <style>
+	.active-indicator {
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		background: #629924;
+		margin-left: 5px;
+	}
+
+	.inactive-indicator {
+		width: 10px; height: 10px;
+		border-radius: 50%;
+		border: 2.5px solid #888;
+		position: relative;
+		overflow: hidden;
+		margin-left: 5px;
+	}
+	.inactive-indicator::before {
+		content: '';
+		position: absolute;
+		top: 0; right: 0; bottom: 0;
+		width: 50%;
+		background: #888;
+	}
+
 	.pvp-wrapper {
         margin-bottom: 6px;
 		flex: 0.5;

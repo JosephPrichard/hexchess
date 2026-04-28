@@ -60,7 +60,10 @@
 	}
 
 	function connectActiveConn() {
-		activeSse = new EventSource(`${baseURL()}/events/active`);
+		activeSse = new EventSource(`${baseURL()}/events/active`, {
+			mode: 'cors',
+			withCredentials: true
+		});
 	}
 
 	async function refreshSession(retries?: number) {

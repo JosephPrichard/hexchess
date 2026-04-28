@@ -239,64 +239,34 @@ func transformEloHistoriesQuery(values url.Values) (EloHistoriesQuery, error) {
 	return query, respErr.AsError()
 }
 
-func parseReplayQuery(replayQuery string) svc.ReplayQueryKind {
-	switch replayQuery {
-	case "wonReplays":
-		return svc.WonReplays
-	case "lostReplays":
-		return svc.LostReplays
-	case "noReplays":
-		return svc.NoReplays
-	default:
-		return svc.AllReplays
-	}
-}
-
-type GetPlayerQuery struct {
-	UserID         int
-	GetReplaysKind svc.ReplayQueryKind
-}
-
-func transformPlayerQuery(values url.Values) (GetPlayerQuery, error) {
-	userID, err := strconv.Atoi(values.Get("id"))
-	if err != nil {
-		return GetPlayerQuery{}, OneRespError("id", ErrHttpInvalidID)
-	}
-
-	getReplaysKind := svc.NoReplays
-	if values.Get("withReplays") != "" {
-		getReplaysKind = svc.AllReplays
-	}
-
-	return GetPlayerQuery{UserID: userID, GetReplaysKind: getReplaysKind}, nil
-}
-
-type GetReplaysQuery struct {
-	UserID         int
-	AfterID        int
-	GetReplaysKind svc.ReplayQueryKind
-}
+type GetReplaysQuery = svc.ReplayQuery
 
 func transformReplaysQuery(values url.Values) (GetReplaysQuery, error) {
 	var respErr ResponseError
 
-	userID, err := strconv.Atoi(values.Get("userId"))
+	userID, err := intQueryDefault(values, "userId", -1)
 	if err != nil {
 		respErr.Put("userId", ErrHttpInvalidID)
 	}
-
-	afterIDStr := values.Get("afterId")
-	afterID := -1
-	if afterIDStr != "" {
-		afterID, err = strconv.Atoi(afterIDStr)
-		if err != nil {
-			respErr.Put("afterId", ErrHttpInvalidID)
-		}
+	winnerID, err := intQueryDefault(values, "winnerId", -1)
+	if err != nil {
+		respErr.Put("userId", ErrHttpInvalidID)
+	}
+	loserID, err := intQueryDefault(values, "loserId", -1)
+	if err != nil {
+		respErr.Put("userId", ErrHttpInvalidID)
+	}
+	afterID, err := intQueryDefault(values, "afterId", -1)
+	if err != nil {
+		respErr.Put("afterId", ErrHttpInvalidID)
 	}
 
-	getReplaysKind := parseReplayQuery(values.Get("replays"))
-
-	query := GetReplaysQuery{UserID: userID, AfterID: afterID, GetReplaysKind: getReplaysKind}
+	query := GetReplaysQuery{
+		UserID:   int64(userID),
+		WinnerID: int64(winnerID),
+		LoserID:  int64(loserID),
+		AfterID:  int64(afterID),
+	}
 	return query, respErr.AsError()
 }
 

@@ -2,7 +2,7 @@
 	import { clearClientSession, updateClientSession as updateClientUser } from '$lib/utils/storage';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import type { UserModel } from '$lib/api/models';
-	import services, { baseURL } from '$lib/api/services';
+	import services from '$lib/api/services';
 	import Banner from '$lib/Banner.svelte';
 	import ProfilePic from '$lib/components/user/ProfilePic.svelte';
 	import { goto } from '$app/navigation';

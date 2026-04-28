@@ -30,7 +30,7 @@ type HexchessAPI interface {
 	UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (model.User, error)
 	GetUserByID(ctx context.Context, id int64) (model.User, error)
 	GetUserStats(ctx context.Context, id int64) (model.UserStats, error)
-	GetFullUser(ctx context.Context, userID int64, perPage int32, replayQuery ReplayQueryKind) (FullUser, error)
+	GetFullUser(ctx context.Context, userID int64, perPage int32) (FullUser, error)
 	UpdateUserPassword(ctx context.Context, id int64, newPassword string) error
 	SelectUsersByIDs(ctx context.Context, ids []int64) ([]model.User, error)
 
@@ -44,7 +44,7 @@ type HexchessAPI interface {
 
 	GetReplayByGameID(ctx context.Context, gameID string) (model.FullReplay, error)
 	GetReplay(ctx context.Context, replayID int64) (model.FullReplay, error)
-	GetUserReplays(ctx context.Context, userID int64, replayQuery ReplayQueryKind, afterID int64, perPage int32) ([]model.FullReplay, error)
+	GetUserReplays(ctx context.Context, replayQuery ReplayQuery, perPage int32) ([]model.FullReplay, error)
 	GetMovesHistory(ctx context.Context, replayID int) ([]byte, error)
 	RetrieveEloHistoryBuckets(ctx context.Context, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error)
 
@@ -77,6 +77,7 @@ type HexchessAPI interface {
 	GetStateChats(ctx context.Context, gameID string, count int64) ([]*pb.ChatMessage, error)
 	InsertStateChat(ctx context.Context, gameID string, chat Chat) error
 
+	IsActiveUser(ctx context.Context, id string) bool
 	GetActiveCount(ctx context.Context) (int64, error)
 	RetainActiveUser(ctx context.Context, id string) error
 	AddActiveUser(ctx context.Context, id string) (int64, error)

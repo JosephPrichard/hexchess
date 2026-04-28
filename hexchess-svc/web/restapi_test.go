@@ -720,15 +720,13 @@ func TestGetPlayer(t *testing.T) {
 	tests := []struct {
 		name        string
 		id          string
-		withReplays string
 		wantSuccess GetPlayersResp
 		wantFail    ServiceView
 		wantStatus  int
 	}{
 		{
-			name:        "GetPlayerWithReplays",
-			id:          "1",
-			withReplays: "true",
+			name: "GetPlayerWithReplays",
+			id:   "1",
 			wantSuccess: GetPlayersResp{
 				FullUser: svc.FullUser{
 					User:       itest.TestUser[0],
@@ -739,9 +737,8 @@ func TestGetPlayer(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
-			name:        "GetPlayerWithoutReplays",
-			id:          "1",
-			withReplays: "",
+			name: "GetPlayerWithoutReplays",
+			id:   "1",
 			wantSuccess: GetPlayersResp{
 				FullUser: svc.FullUser{
 					User:       itest.TestUser[0],
@@ -770,7 +767,7 @@ func TestGetPlayer(t *testing.T) {
 			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres, itest.Redis)
 			defer services.Close()
 
-			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players?id=%s&withReplays=%v", tt.id, tt.withReplays), nil)
+			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players?id=%s", tt.id), nil)
 			w := httptest.NewRecorder()
 
 			hander := MakeServeMux(Setup{Services: services})

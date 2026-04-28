@@ -228,15 +228,30 @@ export async function postProfilePic(file: File) {
 	}
 }
 
-export type ReplaysQuery = "allReplays" | "wonReplays" | "lostReplays";
+export interface ReplaysQuery {
+	afterId?: number;
+	userId?: number;
+	winnerId?: number;
+	loserId?: number;
+}
 
-function getReplays(userId: number, replaysQuery: ReplaysQuery, afterId?: number, fetch?: FetchFn) {
+function getReplays(replaysQuery: ReplaysQuery, fetch?: FetchFn) {
 	interface Response {
 		replayList: ReplayModel[];
 	}
-	const params = new URLSearchParams({ userId: userId.toString(), replays: replaysQuery });
+
+	const { afterId, userId, winnerId, loserId } = replaysQuery;
+
+	const params = new URLSearchParams();
+	if (userId)
+		params.set('userId', userId.toString());
+	if (winnerId)
+		params.set('winnerId', winnerId.toString());
+	if (loserId)
+		params.set('loserId', loserId.toString());
 	if (afterId)
 		params.set('afterId', afterId.toString());
+
 	return requestJSON<Response>(`${baseURL()}/replays?${params}`, { method: 'GET' }, fetch);
 }
 
@@ -319,7 +334,7 @@ async function getReplayMoveHistory(id: string, fetch?: FetchFn): Promise<Result
 
 function getGameRooms(count: number, page?: number, fetch?: FetchFn) {
 	interface Response {
-		chats: ChessModel[];
+		chessList: ChessModel[];
 		selfChessList: ChessModel[];
 	}
 	const params = new URLSearchParams({ count: String(count) });
@@ -336,6 +351,14 @@ async function getGameChats(gameId: string): Promise<Result<ChatMessages>> {
 	} else {
 		return [undefined, err];
 	}
+}
+
+async function getIsUserActive(userId: string | number) {
+	interface Response {
+		isUserActive: boolean;
+	}
+	const params = new URLSearchParams({ userId: String(userId) });
+	return requestJSON<Response>(`${baseURL()}/players/activity?${params}`, { method: 'GET' }, fetch);
 }
 
 const getCountries = cached(async (fetch?: FetchFn) => {
@@ -378,4 +401,5 @@ export default {
 	getGameChats,
 	getCountries,
 	getEloHistories,
+	getIsUserActive
 };

@@ -351,7 +351,7 @@ type FullUser struct {
 	ReplayList []model.FullReplay `json:"replayList"`
 }
 
-func (svc *HexchessServices) GetFullUser(ctx context.Context, userID int64, perPage int32, replayQuery ReplayQueryKind) (FullUser, error) {
+func (svc *HexchessServices) GetFullUser(ctx context.Context, userID int64, perPage int32) (FullUser, error) {
 	var user model.User
 	var stats model.UserStats
 	var replayList []model.FullReplay
@@ -372,7 +372,7 @@ func (svc *HexchessServices) GetFullUser(ctx context.Context, userID int64, perP
 		return errutil.Guardf(err, "get user %d leaderboard ranks", userID)
 	})
 	eg.Go(func() (err error) {
-		replayList, err = svc.GetUserReplays(egCtx, userID, replayQuery, -1, perPage)
+		replayList, err = svc.GetUserReplays(egCtx, ReplayQuery{UserID: userID, AfterID: -1}, perPage)
 		return errutil.Guardf(err, "get user %d replays", userID)
 	})
 
