@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 func HttpStatusFromErr(err error) (int, string) {
@@ -139,14 +140,14 @@ type ServiceView struct {
 func writeJSON[V any](w http.ResponseWriter, status int, data V) {
 	v, err := json.Marshal(data)
 	if err != nil {
-		slog.Error("failed to marshal json response", "err", err)
+		slog.Error("failed to marshal json response", "Err", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if _, err := w.Write(v); err != nil {
-		slog.Error("failed to write json response", "err", err)
+		slog.Error("failed to write json response", "Err", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 	}
 }
@@ -155,7 +156,7 @@ func writeBytes(w http.ResponseWriter, status int, b []byte) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.WriteHeader(status)
 	if _, err := w.Write(b); err != nil {
-		slog.Error("internal server error", "err", err)
+		slog.Error("internal server error", "Err", err)
 	}
 }
 
@@ -173,4 +174,12 @@ func queryDefault(values url.Values, key, def string) string {
 		return def
 	}
 	return v
+}
+
+func jsCalenderDateDefault(values url.Values, key string) (time.Time, error) {
+	v := values.Get(key)
+	if v == "" {
+		return time.Time{}, nil
+	}
+	return time.Parse(time.DateOnly, v)
 }

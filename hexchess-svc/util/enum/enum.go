@@ -6,6 +6,15 @@ import (
 	"log/slog"
 )
 
+type Optional[T any] struct {
+	Value     T
+	IsPresent bool
+}
+
+func OptionalOf[T any](v T) Optional[T] {
+	return Optional[T]{Value: v, IsPresent: true}
+}
+
 type StringLike interface {
 	~string
 }
@@ -65,6 +74,17 @@ func ParseWithErr[T ~int, S StringLike](s S, m map[string]T) (T, error) {
 func Parse[T ~int, S StringLike](s S, m map[string]T) (T, bool) {
 	v, ok := m[string(s)]
 	return v, ok
+}
+
+func ParseOptional[T ~int, S StringLike](s S, m map[string]T) (Optional[T], bool) {
+	if s == "" {
+		return Optional[T]{}, true
+	}
+	v, ok := m[string(s)]
+	if !ok {
+		return Optional[T]{}, false
+	}
+	return OptionalOf(v), ok
 }
 
 func Expect[T ~int, S StringLike](s S, m map[string]T) T {

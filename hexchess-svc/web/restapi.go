@@ -33,7 +33,7 @@ func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc
 			if resp.Status == http.StatusInternalServerError {
 				level = slog.LevelError
 			}
-			slog.Log(ctx, level, "failed to handle REST call", "err", err, "method", r.Method, "url", r.URL)
+			slog.Log(ctx, level, "failed to handle REST call", "Err", err, "method", r.Method, "url", r.URL)
 		}
 	}
 }
@@ -50,7 +50,7 @@ func Json(v any) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		if _, err = w.Write(b); err != nil {
-			slog.ErrorContext(r.Context(), "write json", "err", err)
+			slog.ErrorContext(r.Context(), "write json", "Err", err)
 		}
 	}
 }
@@ -363,7 +363,7 @@ type LeaderboardQuery struct {
 
 type LeaderboardResp struct {
 	TotalPages int             `json:"totalPages"`
-	UserList   []model.LbdUser `json:"userList,omitempty"`
+	UserList   []model.LbdUser `json:"userList"`
 }
 
 func (api *API) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) error {
@@ -415,7 +415,7 @@ func (api *API) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
 }
 
 type SearchPlayersResp struct {
-	UserList []model.LbdUser `json:"userList,omitempty"`
+	UserList []model.LbdUser `json:"userList"`
 }
 
 func (api *API) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) error {
@@ -534,10 +534,10 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 		detatchedCtx := context.WithoutCancel(ctx)
 
 		if err := api.services.BroadcastChallenge(detatchedCtx, ret); err != nil {
-			slog.ErrorContext(detatchedCtx, "failed to broadcast challenge", "challenge", ret, "err", err)
+			slog.ErrorContext(detatchedCtx, "failed to broadcast challenge", "challenge", ret, "Err", err)
 		}
 		if err := api.services.DeleteExpiredChallenges(detatchedCtx, player.ID); err != nil {
-			slog.ErrorContext(detatchedCtx, "failed to delete expired challenges", "challenge", ret, "err", err)
+			slog.ErrorContext(detatchedCtx, "failed to delete expired challenges", "challenge", ret, "Err", err)
 		}
 	}()
 
@@ -582,6 +582,26 @@ func (api *API) HandleGetChallenges(w http.ResponseWriter, r *http.Request) erro
 
 	slog.InfoContext(ctx, "retrieved challenges", "challengeList", challengeList)
 	writeJSON(w, http.StatusOK, GetChallengesResp{ChallengeList: challengeList})
+	return nil
+}
+
+type CountChallengesResp struct {
+	Count int64 `json:"count"`
+}
+
+func (api *API) HandleCountUserChallenges(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	player, err := api.authenticator.GetSessionPlayer(ctx, r)
+	if err != nil {
+		return err
+	}
+
+	count, err := api.services.CountUserChallenges(ctx, player.ID)
+	if err != nil {
+		return fmt.Errorf("count user challenges: %w", err)
+	}
+
+	writeJSON(w, http.StatusOK, CountChallengesResp{Count: count})
 	return nil
 }
 
@@ -756,12 +776,12 @@ type GetUserReplaysResp struct {
 }
 
 func (api *API) HandleGetReplays(w http.ResponseWriter, r *http.Request) error {
-	query, err := transformReplaysQuery(r.URL.Query())
+	ctx := r.Context()
+	query, err := transformReplaysQuery(ctx, r.URL.Query())
 	if err != nil {
 		return err
 	}
 
-	ctx := r.Context()
 	replays, err := api.services.GetUserReplays(ctx, query, perPage)
 	if err != nil {
 		return fmt.Errorf("get user %d replays: %w", query.UserID, err)
@@ -906,11 +926,11 @@ func (api *API) HandleJoinTournament(w http.ResponseWriter, r *http.Request) err
 
 		lbdUser, err := api.services.GetLeaderboardUser(detatchedCtx, player.ID, tournament.Mode)
 		if err != nil {
-			slog.ErrorContext(detatchedCtx, "failed to get leaderboard user", "err", err)
+			slog.ErrorContext(detatchedCtx, "failed to get leaderboard user", "Err", err)
 		}
 		err = api.services.BroadcastTournament(ctx, svc.SerializeParticipantOutput(tournament.TournamentKey, lbdUser))
 		if err != nil {
-			slog.ErrorContext(detatchedCtx, "failed to broadcast tournament participant", "err", err)
+			slog.ErrorContext(detatchedCtx, "failed to broadcast tournament participant", "Err", err)
 		}
 	}()
 
@@ -948,7 +968,7 @@ func (api *API) HandleBeginCountdownTournament(w http.ResponseWriter, r *http.Re
 
 		err := api.services.BroadcastTournament(ctx, svc.SerializeBeginTournamentCountdown(result.TournamentKey))
 		if err != nil {
-			slog.ErrorContext(detatchedCtx, "failed to broadcast tournament participant", "err", err)
+			slog.ErrorContext(detatchedCtx, "failed to broadcast tournament participant", "Err", err)
 		}
 	}()
 
@@ -993,7 +1013,6 @@ func (api *API) HandleGetTournaments(w http.ResponseWriter, r *http.Request) err
 	if err != nil {
 		return fmt.Errorf("get tournaments: %w", err)
 	}
-
 	slog.Info("retrieved tournaments", "tournaments", tournaments)
 
 	writeJSON(w, http.StatusOK, GetTournamentsResp{Tournaments: tournaments})
@@ -1011,13 +1030,11 @@ func (api *API) HandleLeaveTournament(w http.ResponseWriter, r *http.Request) er
 	if err != nil {
 		return err
 	}
-
 	didLeave, err := api.services.LeaveTournament(ctx, tournamentKey, player.ID)
 	if err != nil {
 		return fmt.Errorf("leave tournament: %w", err)
 	}
-
-	slog.Info("attempte to leave tournament", "didLeave", didLeave, "tournamentKey", tournamentKey, "player", player)
+	slog.Info("attempted to leave tournament", "didLeave", didLeave, "tournamentKey", tournamentKey, "player", player)
 
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
@@ -1030,9 +1047,7 @@ type GetUserActivityResp struct {
 func (api *API) HandleUserActivityCheck(w http.ResponseWriter, r *http.Request) error {
 	userID := r.URL.Query().Get("userId")
 
-	ctx := r.Context()
-
-	isActive := api.services.IsActiveUser(ctx, userID)
+	isActive := api.services.IsActiveUser(r.Context(), userID)
 
 	writeJSON(w, http.StatusOK, GetUserActivityResp{IsUserActive: isActive})
 	//w.Header().Set("Cache-Control", "public, max-age=30")

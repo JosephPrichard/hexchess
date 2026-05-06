@@ -1,13 +1,13 @@
-//go:build wasm
+//go:build browser
 
-package wasm
+package browser
 
 import (
 	"google.golang.org/protobuf/proto"
 	"strings"
 	"syscall/js"
 
-	"hexchess-svc/chess"
+	"hexchess-svc/hexchess"
 	"hexchess-svc/pb"
 )
 
@@ -50,22 +50,22 @@ func (w *ChessWasm) JsErrStr(err string) js.Value {
 	return js.Undefined()
 }
 
-func (w *ChessWasm) deserializeBoard(value js.Value) (chess.Board, error) {
+func (w *ChessWasm) deserializeBoard(value js.Value) (hexchess.Board, error) {
 	input := make([]byte, value.Length())
 	js.CopyBytesToGo(input, value)
 
 	var pbBoard pb.ChessBoard
 	if err := proto.Unmarshal(input, &pbBoard); err != nil {
-		return chess.Board{}, err
+		return hexchess.Board{}, err
 	}
-	board, err := chess.DeserializeBoard(&pbBoard)
+	board, err := hexchess.DeserializeBoard(&pbBoard)
 	if err != nil {
-		return chess.Board{}, err
+		return hexchess.Board{}, err
 	}
 	return board, nil
 }
 
-func (w *ChessWasm) deserializeGame(value js.Value) (*chess.Game, error) {
+func (w *ChessWasm) deserializeGame(value js.Value) (*hexchess.Game, error) {
 	gameBytes := make([]byte, value.Length())
 	js.CopyBytesToGo(gameBytes, value)
 
@@ -73,26 +73,26 @@ func (w *ChessWasm) deserializeGame(value js.Value) (*chess.Game, error) {
 	if err := proto.Unmarshal(gameBytes, &pbGameIn); err != nil {
 		return nil, err
 	}
-	game, err := chess.DeserializeGame(&pbGameIn)
+	game, err := hexchess.DeserializeGame(&pbGameIn)
 	if err != nil {
 		return nil, err
 	}
 	return &game, nil
 }
 
-func (w *ChessWasm) deserializeMove(value js.Value) (chess.Move, error) {
+func (w *ChessWasm) deserializeMove(value js.Value) (hexchess.Move, error) {
 	moveBytes := make([]byte, value.Length())
 	js.CopyBytesToGo(moveBytes, value)
 
 	var pbMoveIn pb.Move
 	if err := proto.Unmarshal(moveBytes, &pbMoveIn); err != nil {
-		return chess.Move{}, err
+		return hexchess.Move{}, err
 	}
-	pm := chess.DeserializeMove(&pbMoveIn)
+	pm := hexchess.DeserializeMove(&pbMoveIn)
 	return pm, nil
 }
 
-func (w *ChessWasm) deserializeHistMoveList(value js.Value) ([]chess.HistMove, error) {
+func (w *ChessWasm) deserializeHistMoveList(value js.Value) ([]hexchess.HistMove, error) {
 	moveBytes := make([]byte, value.Length())
 	js.CopyBytesToGo(moveBytes, value)
 
@@ -101,11 +101,11 @@ func (w *ChessWasm) deserializeHistMoveList(value js.Value) ([]chess.HistMove, e
 		return nil, err
 	}
 
-	return chess.DeserializeHistMoveList(pbMoveList.Moves)
+	return hexchess.DeserializeHistMoveList(pbMoveList.Moves), nil
 }
 
-func (w *ChessWasm) serializeGame(game *chess.Game) any {
-	output, err := proto.Marshal(chess.SerializeGame(game))
+func (w *ChessWasm) serializeGame(game *hexchess.Game) any {
+	output, err := proto.Marshal(hexchess.SerializeGame(game))
 	if err != nil {
 		return w.JsErr(err)
 	}
@@ -122,9 +122,9 @@ func (w *ChessWasm) GetGame(_ js.Value, args []js.Value) any {
 
 	boardUInt8Arr := args[0]
 
-	var board chess.Board
+	var board hexchess.Board
 	if boardUInt8Arr.IsUndefined() {
-		board = chess.InitialBoard()
+		board = hexchess.InitialBoard()
 	} else {
 		b, err := w.deserializeBoard(boardUInt8Arr)
 		if err != nil {
@@ -133,7 +133,7 @@ func (w *ChessWasm) GetGame(_ js.Value, args []js.Value) any {
 		board = b
 	}
 
-	game := chess.Game{Board: board}
+	game := hexchess.Game{Board: board}
 	game.InitPieceMoves()
 
 	return w.serializeGame(&game)
@@ -174,12 +174,12 @@ func (w *ChessWasm) FenToGame(_ js.Value, args []js.Value) any {
 
 	fenString := args[0]
 
-	board, err := chess.ParseFen(fenString.String())
+	board, err := hexchess.ParseFen(fenString.String())
 	if err != nil {
 		return js.ValueOf([]any{nil, err.Error()})
 	}
 
-	game := chess.Game{Board: board}
+	game := hexchess.Game{Board: board}
 	game.InitPieceMoves()
 
 	return js.ValueOf([]any{w.serializeGame(&game), ""})
@@ -222,7 +222,7 @@ func (w *ChessWasm) GameAtMoveIndex(_ js.Value, args []js.Value) any {
 	}
 	moveIdx := moveIndex.Int()
 
-	game, err := chess.JumpMoveIndex(initialBoard, moves, moveIdx)
+	game, err := hexchess.JumpMoveIndex(initialBoard, moves, moveIdx)
 	if err != nil {
 		return w.JsErr(err)
 	}

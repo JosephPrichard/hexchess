@@ -1,6 +1,6 @@
 import type { Hex } from '$lib/api/models';
 import type { ChessGame, PieceMoves } from '$lib/pb/messages';
-import { deserializeHexList, findPotentialMoves } from '$lib/service/chess';
+import {chessService} from "$lib/service/chess";
 
 export interface SelectionState {
 	potentialMoves: PieceMoves | undefined;
@@ -16,7 +16,7 @@ export function makeSelectionState() {
 	});
 
 	function select(game: ChessGame | undefined, hex: Hex) {
-		state.potentialMoves = findPotentialMoves(game, hex);
+		state.potentialMoves = chessService.findPotentialMoves(game, hex);
 		state.hex = hex;
 	}
 
@@ -27,7 +27,7 @@ export function makeSelectionState() {
 
 	function getPotentialMoves() {
 		const pm = state.potentialMoves;
-		return deserializeHexList(pm?.moves);
+		return chessService.deserializeHexList(pm?.moves);
 	}
 
 	return { state, getPotentialMoves, select, deSelect };

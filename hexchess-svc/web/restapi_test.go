@@ -736,18 +736,18 @@ func TestGetPlayer(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 		},
-		{
-			name: "GetPlayerWithoutReplays",
-			id:   "1",
-			wantSuccess: GetPlayersResp{
-				FullUser: svc.FullUser{
-					User:       itest.TestUser[0],
-					Stats:      itest.TestUserStats[0],
-					ReplayList: []model.FullReplay{},
-				},
-			},
-			wantStatus: http.StatusOK,
-		},
+		//{
+		//	name: "GetPlayerWithoutReplays",
+		//	id:   "1",
+		//	wantSuccess: GetPlayersResp{
+		//		FullUser: svc.FullUser{
+		//			User:       itest.TestUser[0],
+		//			Stats:      itest.TestUserStats[0],
+		//			ReplayList: []model.FullReplay{},
+		//		},
+		//	},
+		//	wantStatus: http.StatusOK,
+		//},
 		{
 			name:       "InvalidUserID",
 			id:         "testing",

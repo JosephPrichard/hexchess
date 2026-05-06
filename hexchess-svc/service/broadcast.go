@@ -23,7 +23,7 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 		for _, ch := range chans {
 			psc.Subscribe(ch)
 		}
-		slog.Info("starting channel subscriber", "channels", chans)
+		slog.Info("starting rediis pubsub channel subscriber", "channels", chans)
 
 		// signals to the caller whenever the background routine is *actually* listening on the channels
 		connCh <- struct{}{}
@@ -74,6 +74,7 @@ func (b *LocalBroadcasters) Listen(rdb db.Redis) {
 	slog.Info("starting local broadcasters")
 	<-b.ListenGameMessages(rdb)
 	<-b.ListenUsersMessages(rdb)
+	<-b.ListenTournamentMessages(rdb)
 	<-b.ListenUnicastEvents(rdb)
 }
 

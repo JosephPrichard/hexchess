@@ -11,20 +11,16 @@ export const nonDefaultQueries = replayQueryOptions
     .filter(e => e.value !== "allReplays")
     .map((tab) => tab.value);
 
-export async function getReplay(
-    replayQueryKind: ReplayQueryKind,
-    lastId: number | undefined,
-    userId: number | undefined
-) {
+export async function getReplay(replayQueryKind: ReplayQueryKind, lastId: number | undefined, userId: number | undefined) {
     const replaysQuery: ReplaysQuery = {
         afterId: lastId,
     };
-    const replayQueryKindMap = {
-        "allReplays": () => replaysQuery.userId = userId,
-        "wonReplays": () => replaysQuery.winnerId = userId,
-        "lostReplays": () => replaysQuery.loserId = userId,
-    };
-    replayQueryKindMap[replayQueryKind]();
-
+    if (replayQueryKind === "allReplays") {
+        replaysQuery.userId = userId;
+    } else if (replayQueryKind === "wonReplays") {
+        replaysQuery.winnerId = userId;
+    } else if (replayQueryKind === "lostReplays") {
+        replaysQuery.loserId = userId;
+    }
     return await services.getReplays(replaysQuery);
 }

@@ -186,7 +186,7 @@ func mapFullTournament(args mapFullTournamentArgs) model.FullTournament {
 const NoParticipantSignifier = -1
 
 func (svc *HexchessServices) GetTournaments(ctx context.Context, participantID int64, afterID int64, perPage int32) ([]model.Tournament, error) {
-	if afterID < 0 {
+	if afterID <= 0 {
 		afterID = int64(math.MaxInt64)
 	}
 
@@ -339,55 +339,51 @@ func (svc *HexchessServices) JoinTournamentTx(ctx context.Context, inst JoinTour
 		// T1 reads status S1 and participant count P1, then inserts participants to create new participant count P2
 		// Between reading P1 and P2, another query inserts a participant to create P3
 		// P2 will be appended onto P3 rather than P1, even though the validation was run against P1
-		Isolation: pgx.Serializable,
-		QueryFn: func(ctx context.Context, querier sqlc.Querier) (err error) {
-			result, err = joinTournament(ctx, querier, inst)
-			return err
-		},
+		Isolation:  pgx.Serializable,
 		RetryCount: 5,
+		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
+			tournamentRow, err := querier.SelectTournamentWithParticipantCountByID(ctx, pgtype.UUID{Bytes: inst.TournamentKey, Valid: true})
+			if IsErrNoRows(err) {
+				return ErrTournamentNotFound
+			} else if err != nil {
+				return fmt.Errorf("select tournament [%s]: %w", inst.TournamentKey, err)
+			}
+
+			gameMode := enum.Expect(tournamentRow.Mode, model.GameModeEnums)
+			status := enum.Expect(tournamentRow.Status, model.TournamentStatusEnums)
+			ruleset := enum.Expect(tournamentRow.Ruleset, model.TournamentRulesetEnums)
+
+			if status != model.TournamentLobby {
+				return ErrTournamentNotLobby
+			}
+
+			if ruleset == model.TournamentKnockout {
+				// knockout rulesets use the `TotalRounds` field to decide the maximum number of players
+				maxKnckoutPlayerCount := int32(knockoutParticipantsAtRound(int(tournamentRow.Rounds), 1))
+				isCapacityReached := tournamentRow.ParticipantCount >= maxKnckoutPlayerCount
+				if isCapacityReached {
+					return ErrTooManyParticipants
+				}
+			}
+
+			if dbErr := querier.InsertTournamentParticipant(ctx, sqlc.InsertTournamentParticipantParams{
+				TournamentKey: pgtype.UUID{Bytes: inst.TournamentKey, Valid: true},
+				UserID:        inst.JoiningUserID,
+				JoinedOn:      pgtype.Timestamptz{Time: inst.InsertionTime, Valid: true},
+			}); dbErr != nil {
+				if svcErr := mapParticipantInsertErr(dbErr); svcErr != nil {
+					return svcErr
+				}
+				return fmt.Errorf("insert tournament participant [%+v]: %w", inst, dbErr)
+			}
+
+			slog.InfoContext(ctx, "joined tournament", "tournamentKey", inst.TournamentKey, "tournamentRow", tournamentRow, "joiningUserID", inst.JoiningUserID)
+			result = JoinTournamentResult{TournamentKey: inst.TournamentKey, Mode: gameMode}
+			return nil
+		},
 	})
 
 	return result, err
-}
-
-func joinTournament(ctx context.Context, querier sqlc.Querier, inst JoinTournamentInst) (r JoinTournamentResult, err error) {
-	tournamentRow, err := querier.SelectTournamentWithParticipantCountByID(ctx, pgtype.UUID{Bytes: inst.TournamentKey, Valid: true})
-	if IsErrNoRows(err) {
-		return r, ErrTournamentNotFound
-	} else if err != nil {
-		return r, fmt.Errorf("select tournament [%s]: %w", inst.TournamentKey, err)
-	}
-
-	gameMode := enum.Expect(tournamentRow.Mode, model.GameModeEnums)
-	status := enum.Expect(tournamentRow.Status, model.TournamentStatusEnums)
-	ruleset := enum.Expect(tournamentRow.Ruleset, model.TournamentRulesetEnums)
-
-	if status != model.TournamentLobby {
-		return r, ErrTournamentNotLobby
-	}
-
-	if ruleset == model.TournamentKnockout {
-		// knockout rulesets use the `TotalRounds` field to decide the maximum number of players
-		maxKnckoutPlayerCount := int32(knockoutParticipantsAtRound(int(tournamentRow.Rounds), 1))
-		isCapacityReached := tournamentRow.ParticipantCount >= maxKnckoutPlayerCount
-		if isCapacityReached {
-			return r, ErrTooManyParticipants
-		}
-	}
-
-	if dbErr := querier.InsertTournamentParticipant(ctx, sqlc.InsertTournamentParticipantParams{
-		TournamentKey: pgtype.UUID{Bytes: inst.TournamentKey, Valid: true},
-		UserID:        inst.JoiningUserID,
-		JoinedOn:      pgtype.Timestamptz{Time: inst.InsertionTime, Valid: true},
-	}); dbErr != nil {
-		if svcErr := mapParticipantInsertErr(dbErr); svcErr != nil {
-			return r, svcErr
-		}
-		return r, fmt.Errorf("insert tournament participant [%+v]: %w", inst, dbErr)
-	}
-
-	slog.InfoContext(ctx, "joined tournament", "tournamentKey", inst.TournamentKey, "tournamentRow", tournamentRow, "joiningUserID", inst.JoiningUserID)
-	return JoinTournamentResult{TournamentKey: inst.TournamentKey, Mode: gameMode}, nil
 }
 
 func mapParticipantInsertErr(err error) error {
@@ -404,7 +400,7 @@ type BeginTourneyCountdown struct {
 }
 
 func (svc *HexchessServices) BeginTournamentCountdownTx(ctx context.Context, tournamentKey uuid.UUID, userID int64) (BeginTourneyCountdown, error) {
-	var result BeginTourneyCountdown
+	var tourneyCountdown BeginTourneyCountdown
 
 	err := svc.db.ExecTx(ctx, db.TxArgs{
 		// Serializable is required to prevent the following race conditions
@@ -413,52 +409,48 @@ func (svc *HexchessServices) BeginTournamentCountdownTx(ctx context.Context, tou
 		// Between reading S1 and creating E1, another client does the same
 		// We will end up with two scheduled events E1 even though the system has an invariant that only one scheduled event may exist
 		Isolation: pgx.Serializable,
-		QueryFn: func(ctx context.Context, querier sqlc.Querier) (err error) {
-			result, err = beginTournamentCountdown(ctx, querier, tournamentKey, userID)
-			return err
+		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
+			tournamentRow, err := querier.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+			if err != nil {
+				return fmt.Errorf("select tournament by key %v: %w", tournamentKey, err)
+			}
+
+			tournamentStatus := enum.Expect(tournamentRow.Status, model.TournamentStatusEnums)
+
+			if tournamentStatus != model.TournamentLobby {
+				return ErrInvalidCountdownTournamentStatus
+			}
+			if userID != tournamentRow.CreatedBy {
+				return ErrTournamentCountdownPermissions
+			}
+
+			nextTournamentStatus := model.TournamentScheduled
+			updtTournamentTime := time.Now()
+
+			if err := querier.UpdateTournamentStatus(ctx, sqlc.UpdateTournamentStatusParams{
+				TournamentKey:      pgtype.UUID{Bytes: tournamentKey, Valid: true},
+				CountdownStartedOn: pgtype.Timestamptz{Time: updtTournamentTime, Valid: true},
+				Status:             sqlc.TournamentStatusEnum(nextTournamentStatus.String()),
+				UpdatedOn:          pgtype.Timestamptz{Time: updtTournamentTime, Valid: true},
+			}); err != nil {
+				return fmt.Errorf("update tournament %s status to %s: %w", tournamentKey, nextTournamentStatus, err)
+			}
+
+			scheduledOn := time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Millisecond)
+
+			if err := sendScheduledTournamentEvent(ctx, querier, tournamentKey, scheduledOn); err != nil {
+				return fmt.Errorf("push scheduled tournament [%s] event: %w", tournamentKey, err)
+			}
+
+			slog.InfoContext(ctx, "begin tournament countdown", "tournamentRow", tournamentRow)
+
+			tourneyCountdown = BeginTourneyCountdown{TournamentKey: tournamentKey}
+			return nil
 		},
 		RetryCount: 5,
 	})
 
-	return result, err
-}
-
-func beginTournamentCountdown(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, userID int64) (b BeginTourneyCountdown, err error) {
-	tournamentRow, err := querier.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-	if err != nil {
-		return b, fmt.Errorf("select tournament by key %v: %w", tournamentKey, err)
-	}
-
-	tournamentStatus := enum.Expect(tournamentRow.Status, model.TournamentStatusEnums)
-
-	if tournamentStatus != model.TournamentLobby {
-		return b, ErrInvalidCountdownTournamentStatus
-	}
-	if userID != tournamentRow.CreatedBy {
-		return b, ErrTournamentCountdownPermissions
-	}
-
-	nextTournamentStatus := model.TournamentScheduled
-	updtTournamentTime := time.Now()
-
-	if err := querier.UpdateTournamentStatus(ctx, sqlc.UpdateTournamentStatusParams{
-		TournamentKey:      pgtype.UUID{Bytes: tournamentKey, Valid: true},
-		CountdownStartedOn: pgtype.Timestamptz{Time: updtTournamentTime, Valid: true},
-		Status:             sqlc.TournamentStatusEnum(nextTournamentStatus.String()),
-		UpdatedOn:          pgtype.Timestamptz{Time: updtTournamentTime, Valid: true},
-	}); err != nil {
-		return b, fmt.Errorf("update tournament %s status to %s: %w", tournamentKey, nextTournamentStatus, err)
-	}
-
-	scheduledOn := time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Millisecond)
-
-	if err := sendScheduledTournamentEvent(ctx, querier, tournamentKey, scheduledOn); err != nil {
-		return b, fmt.Errorf("push scheduled tournament [%s] event: %w", tournamentKey, err)
-	}
-
-	slog.InfoContext(ctx, "begin tournament countdown", "tournamentRow", tournamentRow)
-
-	return BeginTourneyCountdown{TournamentKey: tournamentKey}, nil
+	return tourneyCountdown, err
 }
 
 type TournamentStatusAssertionError struct {
@@ -469,6 +461,10 @@ type TournamentStatusAssertionError struct {
 func (e TournamentStatusAssertionError) Error() string {
 	return fmt.Sprintf("tournament state is invalid: expected %v, got %v", e.Expected, e.Got)
 }
+
+var ErrEmptyMatchesTournament = errors.New("tournament has no matches")
+
+var ExpectedAdvanceTournamentStatus = []model.TournamentStatus{model.TournamentScheduled, model.TournamentInProgress}
 
 func (svc *HexchessServices) AdvanceTournamentTx(ctx context.Context, tournamentKey uuid.UUID) error {
 	return svc.db.ExecTx(ctx, db.TxArgs{
@@ -483,50 +479,41 @@ func (svc *HexchessServices) AdvanceTournamentTx(ctx context.Context, tournament
 		// NextStatus will be overwritten with the new IN_PROGRESS status (S2), S3 is lost
 		// This is because only certain status transitions are legal, progression is linear / forward moving
 		Isolation: pgx.Serializable,
-		QueryFn: func(ctx context.Context, querier sqlc.Querier) (err error) {
-			err = advanceTournament(ctx, querier, tournamentKey)
-			return
+		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
+			tournamentRow, err := querier.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+			if err != nil {
+				return fmt.Errorf("select tournament by key %v: %w", tournamentKey, err)
+			}
+
+			status := enum.Expect(tournamentRow.Status, model.TournamentStatusEnums)
+
+			var response MatchmakingResponse
+
+			switch status {
+			case model.TournamentScheduled:
+				if response, err = matchmakeScheduledTournament(ctx, querier, tournamentRow); err != nil {
+					return err
+				}
+			case model.TournamentInProgress:
+				if response, err = matchmakeInProgressTournament(ctx, querier, tournamentRow); err != nil {
+					return err
+				}
+			default:
+				return MatchInvariantError{
+					TournamentKey: tournamentKey,
+					Err:           TournamentStatusAssertionError{Got: status, Expected: ExpectedAdvanceTournamentStatus},
+				}
+			}
+
+			if err := insertTournamentMatches(ctx, querier, tournamentKey, response); err != nil {
+				return err
+			}
+
+			slog.InfoContext(ctx, "advanced tournament", "tournamentKey", tournamentKey, "matchmakingResult", response)
+			return nil
 		},
 		RetryCount: 5,
 	})
-}
-
-var ErrEmptyMatchesTournament = errors.New("tournament has no matches")
-
-var ExpectedAdvanceTournamentStatus = []model.TournamentStatus{model.TournamentScheduled, model.TournamentInProgress}
-
-func advanceTournament(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID) error {
-	tournamentRow, err := querier.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-	if err != nil {
-		return fmt.Errorf("select tournament by key %v: %w", tournamentKey, err)
-	}
-
-	status := enum.Expect(tournamentRow.Status, model.TournamentStatusEnums)
-
-	var response MatchmakingResponse
-
-	switch status {
-	case model.TournamentScheduled:
-		if response, err = matchmakeScheduledTournament(ctx, querier, tournamentRow); err != nil {
-			return err
-		}
-	case model.TournamentInProgress:
-		if response, err = matchmakeInProgressTournament(ctx, querier, tournamentRow); err != nil {
-			return err
-		}
-	default:
-		return MatchInvariantError{
-			TournamentKey: tournamentKey,
-			Err:           TournamentStatusAssertionError{Got: status, Expected: ExpectedAdvanceTournamentStatus},
-		}
-	}
-
-	if err := insertTournamentMatches(ctx, querier, tournamentKey, response); err != nil {
-		return err
-	}
-
-	slog.InfoContext(ctx, "advanced tournament", "tournamentKey", tournamentKey, "matchmakingResult", response)
-	return nil
 }
 
 func matchmakeScheduledTournament(ctx context.Context, querier sqlc.Querier, tournamentRow sqlc.SelectTournamentByIDRow) (MatchmakingResponse, error) {

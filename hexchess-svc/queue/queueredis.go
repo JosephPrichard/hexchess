@@ -45,6 +45,7 @@ type RedisConsumer[Event any] struct {
 	Context context.Context
 	Client  *redis.Client
 
+	ConsumerName  string
 	Concurrency   int64
 	StreamKey     string
 	ConsumerGroup string
@@ -55,7 +56,7 @@ type RedisConsumer[Event any] struct {
 }
 
 func (stream *RedisConsumer[Event]) EventLoop() error {
-	consumerName := uuid.NewString()
+	consumerID := uuid.NewString()
 	streamKey := stream.StreamKey
 
 	err := stream.Client.XGroupCreateMkStream(stream.Context, streamKey, stream.ConsumerGroup, "0").Err()
@@ -63,12 +64,12 @@ func (stream *RedisConsumer[Event]) EventLoop() error {
 		return fmt.Errorf("create games stream consumer group: %w", err)
 	}
 
-	slog.Info("starting consumer stream loop", "consumerName", consumerName)
-
 	for {
+		slog.Info("begin redis stream consumer read operation", "consumerID", consumerID, "streamKey", streamKey)
+
 		xArgs := &redis.XReadGroupArgs{
 			Group:    stream.ConsumerGroup,
-			Consumer: consumerName,
+			Consumer: consumerID,
 			Streams:  []string{streamKey, ">"}, // ">" means only undelivered messages
 			Count:    stream.Concurrency,
 		}

@@ -4,8 +4,8 @@
 	import services from '$lib/api/services';
 	import { formatRelativeTime } from '$lib/utils/format';
 	import Banner from '$lib/Banner.svelte';
-	import ProfilePic from '$lib/components/user/ProfilePic.svelte';
-	import ChallengeIcon from "$lib/components/icons/ChallengeIcon.svelte";
+	import ProfilePic from '$lib/components/ProfilePic.svelte';
+	import ChallengeIcon from "$lib/icons/ChallengeIcon.svelte";
 	import {onMount} from "svelte";
 	import {getClientSession} from "$lib/utils/storage";
 

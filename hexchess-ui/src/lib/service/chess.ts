@@ -62,16 +62,11 @@ export const piecepoints: Record<number, number> = {
 	[pieces.whiteQueen]: 9,
 };
 
-export const defaultBoard: ChessBoard = {
-	isWhiteTurn: true,
-	file: ranksPerFile.map(ranks => ({ pieces: Array(ranks).fill(0) }))
-};
-
-export function isInBounds(hex: Hex) {
+const isInBounds = (hex: Hex) => {
 	return hex.file >= 0 && hex.file < ranksPerFile.length && hex.rank >= 0 && hex.rank < ranksPerFile[hex.file];
 }
 
-export function isPromotion(game: ChessGame | undefined, from: Hex, to: Hex) {
+const isPromotion = (game: ChessGame | undefined, from: Hex, to: Hex) => {
 	const piece = game?.board?.file[from.file].pieces[from.rank];
 	const isPawn = piece === pieces.whitePawn || piece === pieces.blackPawn;
 	if (!isPawn) return false;
@@ -80,25 +75,25 @@ export function isPromotion(game: ChessGame | undefined, from: Hex, to: Hex) {
 	return isWhiteTurn ? to.rank === ranksPerFile[to.file] - 1 : to.rank === 0;
 }
 
-export const isPieceWhite = (piece: number) => piece % 2 === 1;
+const isPieceWhite = (piece: number) => piece % 2 === 1;
 
-export const makePieceWhite = (piece: number) => piece - ((piece + 1) % 2);
+const makePieceWhite = (piece: number) => piece - ((piece + 1) % 2);
 
-export const deserializeHex = (h: bigint) => ({
+const deserializeHex = (h: bigint) => ({
 	file: Number(h & 0xFFFFFFFFn),
 	rank: Number((h >> 32n) & 0xFFFFFFFFn),
 });
 
-export const deserializeHexList = (hexagonList?: bigint[]) => hexagonList?.map(deserializeHex) ?? [];
+const deserializeHexList = (hexagonList?: bigint[]) => hexagonList?.map(deserializeHex) ?? [];
 
-export const getPiecePoints = (piece: number) => piecepoints[makePieceWhite(piece)] ?? [];
+const getPiecePoints = (piece: number) => piecepoints[makePieceWhite(piece)] ?? [];
 
-export const hexEq = (hex1?: { file?: number; rank?: number }, hex2?: { file?: number; rank?: number }) =>
+const hexEq = (hex1?: { file?: number; rank?: number }, hex2?: { file?: number; rank?: number }) =>
 	hex1?.file === hex2?.file && hex1?.rank === hex2?.rank;
 
-export const makeMoveKey = (file: number, rank: number) => file + "," + rank;
+const makeMoveKey = (file: number, rank: number) => file + "," + rank;
 
-export function isValidMove(game: ChessGame | undefined, {from, to}: {from: Hex, to: Hex}, asWhite: boolean) {
+const isValidMove = (game: ChessGame | undefined, {from, to}: {from: Hex, to: Hex}, asWhite: boolean) => {
 	const pms = (asWhite ? game?.whiteMoves : game?.blackMoves) ?? [];
 	let moveIdx = pms.findIndex((pm) => hexEq({file: pm.fromFile, rank: pm.fromRank}, from));
 	if (moveIdx < 0) {
@@ -109,7 +104,7 @@ export function isValidMove(game: ChessGame | undefined, {from, to}: {from: Hex,
 	return moveIdx !== -1;
 }
 
-export function moveBoardPiece(game: ChessGame | undefined, from: Hex, to: Hex) {
+const moveBoardPiece = (game: ChessGame | undefined, from: Hex, to: Hex) => {
 	const board = game?.board;
 
 	const isSameMove = from.file === to.file && from.rank === to.rank;
@@ -122,7 +117,7 @@ export function moveBoardPiece(game: ChessGame | undefined, from: Hex, to: Hex) 
 	return { ...(game || defaultGame), board: board || defaultBoard };
 }
 
-export function clearBoard(game: ChessGame | undefined) {
+const clearBoard = (game: ChessGame | undefined) => {
 	const board = game?.board;
 	if (!board) return game;
 
@@ -132,7 +127,7 @@ export function clearBoard(game: ChessGame | undefined) {
 	return makeGame(board);
 }
 
-export function removeBoardPiece(game: ChessGame | undefined, hex: Hex) {
+const removeBoardPiece = (game: ChessGame | undefined, hex: Hex) => {
 	const board = game?.board;
 	if (!board || !isInBounds(hex)) return game;
 
@@ -140,7 +135,7 @@ export function removeBoardPiece(game: ChessGame | undefined, hex: Hex) {
 	return { ...(game || defaultGame), board: board || defaultBoard };
 }
 
-export function placeBoardPiece(game: ChessGame | undefined, hex: Hex, piece: number) {
+const placeBoardPiece = (game: ChessGame | undefined, hex: Hex, piece: number) => {
 	const board = game?.board;
 	if (!board || !isInBounds(hex)) return game;
 
@@ -148,7 +143,7 @@ export function placeBoardPiece(game: ChessGame | undefined, hex: Hex, piece: nu
 	return { ...(game || defaultGame), board: board || defaultBoard };
 }
 
-export function setBoardTurn(game: ChessGame | undefined, turn: boolean) {
+const setBoardTurn = (game: ChessGame | undefined, turn: boolean) => {
 	const board = game?.board;
 	if (!board) return board;
 
@@ -156,7 +151,7 @@ export function setBoardTurn(game: ChessGame | undefined, turn: boolean) {
 	return makeGame(board);
 }
 
-export function findPotentialMoves(game: ChessGame | undefined, hex: Hex): PieceMoves | undefined {
+const findPotentialMoves = (game: ChessGame | undefined, hex: Hex): PieceMoves | undefined => {
 	if (!game) return;
 	let potentialMoves: PieceMoves | undefined;
 
@@ -171,9 +166,7 @@ export function findPotentialMoves(game: ChessGame | undefined, hex: Hex): Piece
 	return potentialMoves;
 }
 
-export const defaultGame = makeGame(defaultBoard);
-
-export function makeGame(board: ChessBoard | undefined): ChessGame {
+const makeGame = (board: ChessBoard | undefined): ChessGame => {
 	return {
 		whiteMoves: [],
 		blackMoves: [],
@@ -184,7 +177,7 @@ export function makeGame(board: ChessBoard | undefined): ChessGame {
 	}
 }
 
-export function iterBoard(board: ChessBoard, cb: (file: number, rank: number, piece: number) => void) {
+function iterBoard(board: ChessBoard, cb: (file: number, rank: number, piece: number) => void) {
 	let file = 0;
 	for (const bFile of board.file) {
 		let rank = 0;
@@ -194,4 +187,85 @@ export function iterBoard(board: ChessBoard, cb: (file: number, rank: number, pi
 		}
 		file++;
 	}
+}
+
+export const chessService = {
+	isInBounds,
+	isPromotion,
+	isPieceWhite,
+	makePieceWhite,
+	deserializeHex,
+	deserializeHexList,
+	getPiecePoints,
+	hexEq,
+	makeMoveKey,
+	isValidMove,
+	moveBoardPiece,
+	clearBoard,
+	removeBoardPiece,
+	placeBoardPiece,
+	setBoardTurn,
+	findPotentialMoves,
+	makeGame,
+	iterBoard,
+};
+
+export const defaultBoard: ChessBoard = {
+	isWhiteTurn: true,
+	file: ranksPerFile.map(ranks => ({ pieces: Array(ranks).fill(0) }))
+};
+
+export const defaultGame = makeGame(defaultBoard);
+
+export type PlacedPiece = {piece: number, file: number, rank: number};
+
+type KeyedHex = {key: number, file: number, rank: number};
+
+let GlobalPieceKey = 0;
+
+export function findKeyedPieces(boardState: ChessBoard, prevPieces?: [number, PlacedPiece][]) {
+	const nextPieces: Map<number, PlacedPiece> = new Map();
+
+	if (prevPieces !== undefined) {
+		const table: Map<number, KeyedHex[]> = new Map();
+
+		for (const [key, value] of prevPieces) {
+			const hexagons = table.get(value.piece);
+			const record = {key, file: value.file, rank: value.rank};
+			if (hexagons === undefined) {
+				table.set(value.piece, [record])
+			} else {
+				hexagons.push(record);
+			}
+		}
+
+		iterBoard(boardState, (file, rank, piece) => {
+			if (piece === pieces.empty) return;
+			const hexagons = table.get(piece);
+			if (!hexagons) {
+				nextPieces.set(GlobalPieceKey++, {file, rank, piece});
+				return;
+			}
+			const recordIdx = hexagons.findIndex(r => r.file === file && r.rank === rank);
+			if (recordIdx !== -1) {
+				nextPieces.set(hexagons[recordIdx].key, {file, rank, piece});
+				hexagons.splice(recordIdx, 1);
+				return;
+			}
+			const record = hexagons.pop()
+			if (record) {
+				nextPieces.set(record.key, {file, rank, piece});
+				return;
+			}
+			nextPieces.set(GlobalPieceKey++, {file, rank, piece});
+		});
+	} else {
+		iterBoard(boardState, (file, rank, piece) => {
+			if (piece !== pieces.empty) {
+				nextPieces.set(GlobalPieceKey++, {file, rank, piece});
+			}
+		});
+	}
+
+	return Array.from(nextPieces.entries());
 }

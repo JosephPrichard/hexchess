@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { type ColorSelect, type GameMode, GameModeNameMap } from '$lib/api/models';
-	import Dropdown from '$lib/components/util/Dropdown.svelte';
+	import {type ColorSelect, type GameMode, GameModeNameMap, GameModeOptions} from '$lib/api/models';
+	import Dropdown from '$lib/components/Dropdown.svelte';
 
 	interface Props {
 		title: string;
@@ -29,7 +29,7 @@
 		color = newColor;
 	}
 
-	const options = Object.entries(GameModeNameMap).map(([key, value]) => ({label: value, value: key as GameMode}));
+	const modeOptions = GameModeOptions;
 </script>
 
 <div class="modal-overlay" id="modal-overlay" style:display={show ? '' : 'none'}></div>
@@ -43,11 +43,7 @@
 			<div class="modal-panel">
 				<div class="text-xsm" style="margin-bottom: 5px"> Game Mode </div>
 				<div class="mode-input">
-					<Dropdown
-						options={options}
-						selected="TIMED_1+0"
-						onChange={value => mode = value}
-					/>
+					<Dropdown options={modeOptions} selected={mode} onChange={value => mode = value} />
 				</div>
 			</div>
 			<div class="modal-panel">

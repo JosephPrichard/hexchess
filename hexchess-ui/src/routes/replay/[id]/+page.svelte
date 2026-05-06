@@ -1,23 +1,23 @@
 <script lang="ts">
-	import Board from '$lib/components/chess/Board.svelte';
-	import RightIcon from '$lib/components/icons/RightIcon.svelte';
-	import LeftIcon from '$lib/components/icons/LeftIcon.svelte';
-	import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
+	import Board from '$lib/components/Board.svelte';
+	import RightIcon from '$lib/icons/RightIcon.svelte';
+	import LeftIcon from '$lib/icons/LeftIcon.svelte';
+	import FlipIcon from '$lib/icons/FlipIcon.svelte';
 	import { makeMessage } from '$lib/utils/error';
-	import MoveList from '$lib/components/chess/MoveList.svelte';
-	import ReplayPanel from '$lib/components/user/ReplayPanel.svelte';
+	import MoveList from '$lib/components/MoveList.svelte';
+	import ReplayPanel from '$lib/components/ReplayPanel.svelte';
 	import { type ChessGame, type HistMove } from '$lib/pb/messages';
 	import { type Hex, type ReplayModel } from '$lib/api/models';
 	import services from '$lib/api/services';
 	import { makeMoveState } from '$lib/state/move.svelte';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import Banner from '$lib/Banner.svelte';
-	import PlayIcon from '$lib/components/icons/PlayIcon.svelte';
-	import StopIcon from '$lib/components/icons/PauseIcon.svelte';
-	import Timer from '$lib/components/chess/Timer.svelte';
+	import PlayIcon from '$lib/icons/PlayIcon.svelte';
+	import StopIcon from '$lib/icons/PauseIcon.svelte';
+	import Timer from '$lib/components/Timer.svelte';
 	import { type CancelCountdown, gameAtStepIndex, getStepTimers, startCountdown, type TimerType } from './service';
-	import TakenList from '$lib/components/chess/TakenList.svelte';
-	import { moveElementHeight } from '$lib/components/chess/render';
+	import TakenList from '$lib/components/TakenList.svelte';
+	import { moveElementHeight } from '$lib/components/chessRenderer';
 
 	export interface ReplayProps {
 		replay: ReplayModel;

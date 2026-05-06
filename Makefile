@@ -7,7 +7,7 @@ GOPATH := $(shell go env GOPATH)
 SVC_DIR         := hexchess-svc
 UI_DIR          := hexchess-ui
 PB_DIR          := hexchess-contracts
-SVC_WASM_DIR    := $(SVC_DIR)/wasm
+SVC_WASM_DIR    := $(SVC_DIR)/browser
 
 # Artefact dirs
 SERVER_ENTRY    := cmd/server/main.go
@@ -17,7 +17,7 @@ SVC_PB_OUT      := $(SVC_DIR)/pb
 UI_PB_OUT       := src/lib/pb
 
 # WASM paths
-WASM_SRC_DIR    := $(SVC_DIR)/cmd/wasm
+WASM_SRC_DIR    := $(SVC_DIR)/cmd/browser
 WASM_OUTPUT     := chess.wasm
 UI_WASM_DIR     := $(UI_DIR)/static/wasm
 
@@ -43,7 +43,7 @@ proto-frontend:
 		../$(PB_DIR)/messages.proto
 
 install-wasm:
-	cd $(WASM_SRC_DIR) && GOOS=js GOARCH=wasm go build -o $(WASM_OUTPUT) -tags=wasm
+	cd $(WASM_SRC_DIR) && GOOS=js GOARCH=wasm go build -o $(WASM_OUTPUT) -tags=browser
 	cp "$(GOROOT)/lib/wasm/wasm_exec.js" $(UI_WASM_DIR)
 	mkdir -p $(UI_WASM_DIR)
 	cp $(WASM_SRC_DIR)/$(WASM_OUTPUT) $(UI_WASM_DIR)/$(WASM_OUTPUT)

@@ -1,5 +1,5 @@
 import { GameInput } from '$lib/pb/messages';
-import type { MoveAction } from '$lib/components/chess/types';
+import type { MoveAction } from '$lib/components/types';
 import type { Chat } from '$lib/api/models';
 
 export function formatChats(chats: Chat[]): Chat[] {

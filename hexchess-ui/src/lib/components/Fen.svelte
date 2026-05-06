@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { getLeft } from '$lib/components/chess/render';
-	import ClipboardIcon from '$lib/components/icons/ClipboardIcon.svelte';
+	import ClipboardIcon from '$lib/icons/ClipboardIcon.svelte';
 	import { getNotificationsContext } from '$lib/utils/context';
+	import {ChessRenderer, defaultRenderArgs} from "$lib/components/chessRenderer";
 
 	interface FENProps {
 		fen: string;
@@ -21,16 +21,19 @@
 		const el = e.target as HTMLInputElement;
 		onChange?.(el.value);
 	}
+
+	const render = new ChessRenderer(defaultRenderArgs);
 </script>
 
-<div style:width={getLeft(11.5) + "px"}>
+<div style:width={render.getLeft(11.5) + "px"}>
 	<div class="fen-wrapper">
 		<label for="fen" class="fen-label">FEN</label>
 		<input
 			id="text"
 			type="text"
 			class="fen-input"
-			value={fen} onkeydown={(e) => e.preventDefault()}
+			value={fen}
+			onkeydown={(e) => e.preventDefault()}
 			onchange={onChangeInput}
 			autocomplete="off"
 			autocapitalize="off"

@@ -1,6 +1,6 @@
-import { ChessBoard, ChessGame, HistMove, HistMoves, Move, PieceMove } from '$lib/pb/messages';
+import { ChessBoard, ChessGame, HistMove, HistMoves, Move } from '$lib/pb/messages';
 import type { Hex } from '$lib/api/models';
-import { defaultBoard, defaultGame } from '$lib/service/chess';
+import {defaultGame, defaultBoard} from '$lib/service/chess';
 import { browser } from '$app/environment';
 
 declare const Go: any; // imported in the initWasm fn

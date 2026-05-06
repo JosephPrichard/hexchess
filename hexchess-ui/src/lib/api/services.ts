@@ -230,9 +230,20 @@ export async function postProfilePic(file: File) {
 
 export interface ReplaysQuery {
 	afterId?: number;
+
 	userId?: number;
 	winnerId?: number;
 	loserId?: number;
+
+	fromDate?: string;
+	toDate?: string;
+	mode?: string;
+	result?: string;
+	cause?: string;
+	winnername?: string;
+	losername?: string;
+	whitename?: string;
+	blackname?: string;
 }
 
 function getReplays(replaysQuery: ReplaysQuery, fetch?: FetchFn) {
@@ -240,17 +251,12 @@ function getReplays(replaysQuery: ReplaysQuery, fetch?: FetchFn) {
 		replayList: ReplayModel[];
 	}
 
-	const { afterId, userId, winnerId, loserId } = replaysQuery;
-
 	const params = new URLSearchParams();
-	if (userId)
-		params.set('userId', userId.toString());
-	if (winnerId)
-		params.set('winnerId', winnerId.toString());
-	if (loserId)
-		params.set('loserId', loserId.toString());
-	if (afterId)
-		params.set('afterId', afterId.toString());
+	for (const [key, value] of Object.entries(replaysQuery)) {
+		if (value !== undefined) {
+			params.set(key, String(value));
+		}
+	}
 
 	return requestJSON<Response>(`${baseURL()}/replays?${params}`, { method: 'GET' }, fetch);
 }
@@ -261,6 +267,13 @@ function getChallenges(participants: string, fetch?: FetchFn) {
 	}
 	const params = new URLSearchParams({ participants });
 	return requestJSON<Response>(`${baseURL()}/challenges?${params}`, { method: 'GET' }, fetch);
+}
+
+function getChallengesCount(fetch?: FetchFn) {
+	interface Response {
+		count: number;
+	}
+	return requestJSON<Response>(`${baseURL()}/challenges/count`, { method: 'GET' }, fetch);
 }
 
 function getLeaderboard(page: number, mode: string, fetch?: FetchFn) {
@@ -292,14 +305,14 @@ function getGameExistence(id: string, fetch?: FetchFn) {
 	return requestJSON<Response>(`${baseURL()}/game/rooms/exists?${params}`, { method: 'GET' }, fetch);
 }
 
-function getSearchPlayers(username: string, page?: number, fetch?: FetchFn) {
+function getSearchPlayers(username: string, page?: number, fetch?: FetchFn, signal?: AbortSignal) {
 	const params = new URLSearchParams({ username });
 	if (page)
 		params.set('page', String(page));
 	interface Response {
-		userList: LbdUserModel[];
+		userList?: LbdUserModel[];
 	}
-	return requestJSON<Response>(`${baseURL()}/players/search?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${baseURL()}/players/search?${params}`, { method: 'GET', signal }, fetch);
 }
 
 function getReplay(id: string, idKind = "BY_REPLAY_ID", fetch?: FetchFn) {
@@ -390,6 +403,7 @@ export default {
 	postProfilePic,
 	getReplays,
 	getChallenges,
+	getChallengesCount,
 	getLeaderboard,
 	getProfile,
 	getUser,

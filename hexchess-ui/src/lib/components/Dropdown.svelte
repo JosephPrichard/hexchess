@@ -1,5 +1,6 @@
 <script lang="ts" generics="Value extends string = string">
 	import { onMount } from 'svelte';
+	import {generateRenderID} from "$lib/utils/id";
 
 	interface Option<Value> {
 		label: string;
@@ -15,12 +16,12 @@
 	let { options, selected, onChange }: Props = $props();
 
 	let open = $state(false);
+	let dropdownID = $state("");
 
 	function pick(option: Option<Value>) {
 		selected = option.value;
 		open = false;
-		if (onChange)
-			onChange(option.value);
+		if (onChange) onChange(option.value);
 	}
 
 	function toggle() {
@@ -28,8 +29,9 @@
 	}
 
 	onMount(() => {
+		dropdownID = generateRenderID();
 		function outsideClick(e: MouseEvent) {
-			if (!(e.target as HTMLElement).closest("#dropdown")) {
+			if (!(e.target as HTMLElement).closest(`#${dropdownID}`)) {
 				open = false;
 			}
 		}
@@ -44,9 +46,9 @@
 	});
 </script>
 
-<div class="dropdown-container" id="dropdown">
-	<button class="dropdown-selected" onclick={toggle}>
-		{options[options.findIndex((o) => o.value === selected)].label}
+<div class="dropdown-container" id={dropdownID}>
+	<button type="button" class="dropdown-selected" onclick={toggle}>
+		<span class="dropdown-selected-text">{options[options.findIndex((o) => o.value === selected)].label}</span>
 		<span class="dropdown-arrow">{open ? "▲" : "▼"}</span>
 	</button>
 
@@ -62,12 +64,9 @@
 </div>
 
 <style>
-    .dropdown-container {
-        width: 100%;
-        z-index: 15;
-        position: relative;
-        /*box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);*/
-    }
+	.dropdown-selected-text {
+		height: 1.2rem;
+	}
 
     .dropdown-selected {
         all: unset;
@@ -93,40 +92,5 @@
     .dropdown-arrow {
         font-size: 0.65rem;
         opacity: 0.6;
-    }
-
-    .dropdown-menu {
-        all: unset;
-        width: 100%;
-        position: absolute;
-        top: calc(100% + 4px);
-        left: 0;
-        right: 0;
-        background: rgb(64,64,64);
-        border: 1px solid rgb(100,100,100);
-        border-radius: 6px;
-        padding: 4px 0;
-        /*box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);*/
-        z-index: 5;
-    }
-
-    .dropdown-item {
-        all: unset;
-        width: 100%;
-        box-sizing: border-box;
-        display: block;
-        padding: 0.5rem 0.8rem;
-        cursor: pointer;
-        color: rgb(200,200,200);
-        border-radius: 4px;
-    }
-
-    .dropdown-item:hover {
-        background: rgb(104,104,104);
-    }
-
-    .dropdown-item.active {
-        background: rgb(84,84,84);
-        font-weight: 600;
     }
 </style>

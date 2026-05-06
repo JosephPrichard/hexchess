@@ -40,6 +40,8 @@
 	}
 
 	function addErrorNotification(message: string | ServiceModel | undefined) {
+		if (Object.values(notifications).length >= 5) return;
+		
 		addNotification({
 			isSuccess: false,
 			message: makeMessage(message),
@@ -101,11 +103,10 @@
 </svelte:head>
 <div class="bottom-right-anchor notifications-box">
 	{#each Object.values(notifications) as {data: notification, index}}
-		<div
-			in:fade={{ duration: 300, delay: 0 }} out:fade={{ duration: 300, delay: 0 }}
-			class="notification"
-			class:notification-green={notification?.isSuccess}
-			class:notification-red={!notification?.isSuccess}
+		<div in:fade={{ duration: 300, delay: 0 }} out:fade={{ duration: 300, delay: 0 }}
+			 class="notification"
+			 class:notification-green={notification?.isSuccess}
+			 class:notification-red={!notification?.isSuccess}
 		>
 			<div class="notification-body">
 				<div class="notification-text">

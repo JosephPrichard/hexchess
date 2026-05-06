@@ -40,7 +40,7 @@ func (api *API) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		slog.WarnContext(ctx, "failed to upgrade ws connection", "err", err)
+		slog.WarnContext(ctx, "failed to upgrade ws connection", "Err", err)
 		return
 	}
 	defer conn.Close()
@@ -83,7 +83,7 @@ func (api *API) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 	for {
 		_, input, err := conn.ReadMessage()
 		if err != nil {
-			slog.WarnContext(ctx, "failed to read ws message", "err", err)
+			slog.WarnContext(ctx, "failed to read ws message", "Err", err)
 			break
 		}
 		go api.handleGameMessage(gameSocketCtx, input)
@@ -114,12 +114,12 @@ func writeGameMsgErr(ctx context.Context, conn *websocket.Conn, gameID string, e
 		wsErr = ErrWsUndoAction
 	}
 
-	slog.WarnContext(ctx, "failed to handle ws message", "err", err, "wsErr", wsErr)
+	slog.WarnContext(ctx, "failed to handle ws message", "Err", err, "wsErr", wsErr)
 
 	bytes, err := proto.Marshal(SerializeGameOutputError(gameID, wsErr))
 	if err != nil {
 		// log with a noop response
-		slog.ErrorContext(ctx, "failed to marshal err output", "err", err)
+		slog.ErrorContext(ctx, "failed to marshal Err output", "Err", err)
 		bytes = nil
 	}
 	writeMessage(ctx, conn, bytes)
@@ -133,12 +133,12 @@ func writeGameInitErr(ctx context.Context, conn *websocket.Conn, gameID string, 
 	default:
 		wsErr = ErrWsFatal
 	}
-	slog.WarnContext(ctx, "failed to initialize gameplay websocket", "err", err, "wsErr", wsErr)
+	slog.WarnContext(ctx, "failed to initialize gameplay websocket", "Err", err, "wsErr", wsErr)
 
 	bytes, err := proto.Marshal(SerializeGameOutputError(gameID, wsErr))
 	if err != nil {
 		// log with a noop response
-		slog.ErrorContext(ctx, "failed to marshal init err output", "err", err)
+		slog.ErrorContext(ctx, "failed to marshal init Err output", "Err", err)
 		bytes = nil
 	}
 	writeMessage(ctx, conn, bytes)

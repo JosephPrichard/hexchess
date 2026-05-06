@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { hexHeight, hexWidth } from '$lib/components/chess/render';
-	import { isPieceWhite, piecenames, pieces, promotions } from '$lib/service/chess';
+	import {chessService, piecenames, pieces, promotions} from '$lib/service/chess';
 	import { type SelectEvent, selectEvents } from '$lib/globals';
-	import { type BadPromotionType, type Promotion } from '$lib/components/chess/types';
+	import { type BadPromotionType, type Promotion } from '$lib/components/types';
+	import {type ChessRenderData, ChessRenderer, defaultRenderArgs} from "$lib/components/chessRenderer";
 
 	export interface PieceProps {
+		renderer?: ChessRenderData;
 		piece: number;
 		isSelected?: boolean;
 		isAnnotatable?: boolean;
@@ -24,7 +25,8 @@
 		onCompletePromotion?: (promotedPiece: Promotion | BadPromotionType) => void;
 	}
 
-	let { 
+	let {
+		renderer: renderArgs,
 		piece,
 		isSelected,
 		isAnnotatable,
@@ -42,6 +44,8 @@
 		onDropPiece,
 		onCompletePromotion
 	}: PieceProps = $props();
+
+	const render: ChessRenderer = new ChessRenderer(renderArgs ? renderArgs : defaultRenderArgs);
 
 	let element: HTMLDivElement | undefined;
 
@@ -76,8 +80,8 @@
 		onSelectPiece?.();
 
 		const rect = element.getBoundingClientRect();
-		xOff += (e.clientX - (rect.x + hexWidth / 3));
-		yOff += (e.clientY - (rect.y + hexHeight / 2));
+		xOff += (e.clientX - (rect.x + render.hexWidth / 3));
+		yOff += (e.clientY - (rect.y + render.hexHeight / 2));
 		lastX = e.clientX;
 		lastY = e.clientY;
 		dragging = true;
@@ -99,7 +103,7 @@
 	function onMouseUpDrag(e: MouseEvent) {
 		if (!isDraggable) return;
 		if (dragging) {
-			if (Math.abs(xOff - initialLeft) > hexWidth / 2 || Math.abs(yOff - initialTop) > hexHeight / 2) {
+			if (Math.abs(xOff - initialLeft) > render.hexWidth / 2 || Math.abs(yOff - initialTop) > render.hexHeight / 2) {
 				onDeSelectPiece?.();
 			}
 			dragging = false;
@@ -130,22 +134,22 @@
 
 	const whitePromotions = [[pieces.whiteQueen, promotions.queen], [pieces.whiteRook, promotions.rook], [pieces.whiteBishop, promotions.bishop], [pieces.whiteKnight, promotions.knight]];
 	const blackPromotions = [[pieces.blackQueen, promotions.queen], [pieces.blackRook, promotions.rook], [pieces.blackBishop, promotions.bishop], [pieces.blackKnight, promotions.knight]];
-	const promotePieces = $derived.by(() => isPieceWhite(piece) ? whitePromotions : blackPromotions);
+	const promotePieces = $derived.by(() => chessService.isPieceWhite(piece) ? whitePromotions : blackPromotions);
 
 	const fmtPieceURL = (piece: number) => `/pieces/${piecenames[piece]}.png`;
 	const pieceImageURL = $derived.by(() => fmtPieceURL(piece));
 
 	const hexStyle = (left: number, top: number) => `
-		left: ${hexWidth / 8 + left}px;
+		left: ${render.hexWidth / 8 + left}px;
 		top: ${top}px;
-		width: ${hexWidth * 0.9}px;
-		height: ${hexHeight * 0.9}px;`
+		width: ${render.hexWidth * 0.9}px;
+		height: ${render.hexHeight * 0.9}px;`
 
 	const rectHexStyle = $derived.by(() => `
-		left: ${hexWidth / 8 + initialLeft}px;
-		top: ${hexWidth / 24 + initialTop}px;
-		width: ${hexWidth * 0.75}px;
-		height: ${hexWidth * 0.75}px;`);
+		left: ${render.hexWidth / 8 + initialLeft}px;
+		top: ${render.hexWidth / 24 + initialTop}px;
+		width: ${render.hexWidth * 0.75}px;
+		height: ${render.hexWidth * 0.75}px;`);
 </script>
 
 <div class="annotation" class:annotation-show={isAnnotated} role="cell" tabindex="0" style={rectHexStyle} oncontextmenu={e => e.preventDefault()}></div>
@@ -181,9 +185,9 @@
 	{#if isPromoting}
 		<div
 			class="promotion-wrapper"
-			class:promotion-white={isPieceWhite(piece)}
-			class:promotion-black={!isPieceWhite(piece)}
-			style:left="{hexWidth / 8 + xOff}px"
+			class:promotion-white={chessService.isPieceWhite(piece)}
+			class:promotion-black={!chessService.isPieceWhite(piece)}
+			style:left="{render.hexWidth / 8 + xOff}px"
 			style:top="{yOff}px"
 		>
 			{#each promotePieces as [piece, promotion]}
@@ -193,8 +197,8 @@
 					class="piece-img-inner promotion-item"
 					src={fmtPieceURL(piece)}
 					alt=""
-					class:promotion-item-white={isPieceWhite(piece)}
-					class:promotion-item-black={!isPieceWhite(piece)}
+					class:promotion-item-white={chessService.isPieceWhite(piece)}
+					class:promotion-item-black={!chessService.isPieceWhite(piece)}
 					draggable={false}
 				/>
 			{/each}
@@ -204,12 +208,12 @@
 
 <style>
 	.promotion-white {
-        border: 3px solid rgb(60, 60, 60);
+		border: 3px solid rgb(60, 60, 60);
 		background-color: rgb(42, 42, 42);
 	}
 
 	.promotion-black {
-        border: 3px solid rgb(120, 120, 120);
+		border: 3px solid rgb(120, 120, 120);
 		background-color: rgb(100, 100, 100);
 	}
 
@@ -219,9 +223,9 @@
 	}
 
 	.promotion-item {
-        display: block;
+		display: block;
 		border-radius: 3px;
-        padding: 0 !important;
+		padding: 0 !important;
 		margin: 0 !important;
 	}
 
@@ -229,40 +233,40 @@
 		background-color: rgb(60,60,60);
 	}
 
-    .promotion-item-black:hover {
-        background-color: rgb(120,120,120);
-    }
+	.promotion-item-black:hover {
+		background-color: rgb(120,120,120);
+	}
 
-    .annotation {
-        z-index: 4;
-        position: absolute;
-        border-radius: 50%;
-        border: 4px solid red;
-        background: transparent;
-        box-sizing: border-box;
-        opacity: 0;
-        transition: opacity 0.15s ease-in-out;
-    }
+	.annotation {
+		z-index: 4;
+		position: absolute;
+		border-radius: 50%;
+		border: 4px solid red;
+		background: transparent;
+		box-sizing: border-box;
+		opacity: 0;
+		transition: opacity 0.15s ease-in-out;
+	}
 
 	.annotation-show {
 		opacity: 1;
 	}
 
-    .piece-img {
+	.piece-img {
 		z-index: 2;
-        position: absolute;
-        user-select: none;
-        -moz-user-select: none;
-        -webkit-user-select: none;
-    }
+		position: absolute;
+		user-select: none;
+		-moz-user-select: none;
+		-webkit-user-select: none;
+	}
 
-    .piece-img-inner {
+	.piece-img-inner {
 		position: relative;
-        cursor: pointer;
-        max-width: 100%;
-        max-height: 100%;
-        user-select: none;
-        -moz-user-select: none;
-        -webkit-user-select: none;
-    }
+		cursor: pointer;
+		max-width: 100%;
+		max-height: 100%;
+		user-select: none;
+		-moz-user-select: none;
+		-webkit-user-select: none;
+	}
 </style>

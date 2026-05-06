@@ -67,6 +67,9 @@ WHERE
     AND made_on >= sqlc.arg('since')
 ORDER BY made_on DESC;
 
+-- name: CountReceivedChallenges :one
+SELECT COUNT(*) FROM challenges WHERE challengee_id = sqlc.arg('userID');
+
 -- name: DeleteExpiredChallenges :exec
 DELETE FROM challenges
 WHERE

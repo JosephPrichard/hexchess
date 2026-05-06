@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { PlayerModel } from '$lib/api/models';
 	import type { PlayerState } from '$lib/pb/messages';
-	import ProfilePic from '$lib/components/user/ProfilePic.svelte';
+	import ProfilePic from '$lib/components/ProfilePic.svelte';
 
 	export interface PlayerPanelProps {
 		player: PlayerModel | PlayerState | undefined,

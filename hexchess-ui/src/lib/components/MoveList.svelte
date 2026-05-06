@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { moveElementHeight } from '$lib/components/chess/render';
+	import { moveElementHeight } from '$lib/components/chessRenderer';
 
 	export interface MoveListProps {
 		containerElement?: HTMLElement;

@@ -116,6 +116,7 @@ func MakeServeMux(setup Setup, opts ...func(*chi.Mux)) *chi.Mux {
 	r.Get("/api/players/activity", Rest(server.HandleUserActivityCheck))
 	r.Get("/api/leaderboard", Rest(server.HandleGetLeaderboard))
 	r.Get("/api/challenges", Rest(server.HandleGetChallenges))
+	r.Get("/api/challenges/count", Rest(server.HandleCountUserChallenges))
 	r.Get("/api/replays", Rest(server.HandleGetReplays))
 	r.Get("/api/replay", Rest(server.HandleGetReplay))
 	r.Get("/api/replay/elo-histories", Rest(server.HandleGetEloHistories))

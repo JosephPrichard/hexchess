@@ -76,70 +76,68 @@ func (q *DBQueue) PollOutboxQueueEventsTx(ctx context.Context, handler DBQueueHa
 	return q.pdb.ExecTx(ctx, db.TxArgs{
 		// ReadCommitted is used as a basic 'Default` isolation level, the primary purpose of the transaction is atomicity
 		// if handlers fail to acknowledge an event, it is not marked as processed and the lock is released at the end of the transaction, to allow retries
-		Isolation: pgx.ReadCommitted,
-		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
-			return pollOutboxQueueEvents(ctx, querier, handler, q.entropy.GetTime)
-		},
+		Isolation:  pgx.ReadCommitted,
 		RetryCount: 1,
+		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
+			//slog.InfoContext(ctx, "polling postgres queue for events", "kind", handler.kind)
+
+			// locks events for the duration of the function
+			eventRows, err := querier.SelectOutboxQueueByPolling(ctx, sqlc.SelectOutboxQueueByPollingParams{
+				Type:  handler.kind,
+				Limit: handler.pollCount,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to select %d messages for event kind %s from postgres queue: %w", handler.pollCount, handler.kind, err)
+			}
+			if len(eventRows) == 0 {
+				return nil
+			}
+
+			type eventResult struct {
+				eventID int64
+				err     error
+			}
+
+			var wg sync.WaitGroup
+			processedEvents := make([]eventResult, len(eventRows))
+
+			for i, event := range eventRows {
+				wg.Go(func() {
+					err := handler.fn(ctx, event.Data)
+					processedEvents[i] = eventResult{eventID: event.ID, err: err}
+				})
+			}
+
+			wg.Wait()
+
+			eventIDsToAck := make([]int64, 0, len(processedEvents))
+			var errProcessedEvents []eventResult
+
+			for _, event := range processedEvents {
+				// acknowledge the event if there is no error or the error is not retryable
+				if event.err == nil || errutil.IsType[NonRetryableQueueError](event.err) {
+					eventIDsToAck = append(eventIDsToAck, event.eventID)
+				}
+				// always collect all errors to be logged
+				if event.err != nil {
+					errProcessedEvents = append(errProcessedEvents, event)
+				}
+			}
+
+			level := slog.LevelInfo
+			if len(errProcessedEvents) > 0 {
+				level = slog.LevelError
+			}
+			slog.Log(ctx, level, "handling postgres queue events", "errProcessedEvents", errProcessedEvents, "eventsIDsToAck", eventIDsToAck)
+
+			if err := querier.UpdateOutboxQueueProcessedByID(ctx, sqlc.UpdateOutboxQueueProcessedByIDParams{
+				Ids:           eventIDsToAck,
+				ProcessedTime: pgtype.Timestamptz{Time: q.entropy.GetTime(), Valid: true},
+			}); err != nil {
+				return fmt.Errorf("failed to acknolwedge postgres queue messages %+v: %w", processedEvents, err)
+			}
+
+			return nil
+		},
 	})
-}
-
-func pollOutboxQueueEvents(ctx context.Context, querier sqlc.Querier, handler DBQueueHandler, getProcessedOn func() time.Time) error {
-	// locks events for the duration of the function
-	eventRows, err := querier.SelectOutboxQueueByPolling(ctx, sqlc.SelectOutboxQueueByPollingParams{
-		Type:  handler.kind,
-		Limit: handler.pollCount,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to select %d messages for event kind %s from postgres queue: %w", handler.pollCount, handler.kind, err)
-	}
-	if len(eventRows) == 0 {
-		return nil
-	}
-
-	type eventResult struct {
-		eventID int64
-		err     error
-	}
-
-	var wg sync.WaitGroup
-	processedEvents := make([]eventResult, len(eventRows))
-
-	for i, event := range eventRows {
-		wg.Go(func() {
-			err := handler.fn(ctx, event.Data)
-			processedEvents[i] = eventResult{eventID: event.ID, err: err}
-		})
-	}
-
-	wg.Wait()
-
-	eventIDsToAck := make([]int64, 0, len(processedEvents))
-	var errProcessedEvents []eventResult
-
-	for _, event := range processedEvents {
-		// acknowledge the event if there is no error or the error is not retryable
-		if event.err == nil || errutil.IsType[NonRetryableQueueError](event.err) {
-			eventIDsToAck = append(eventIDsToAck, event.eventID)
-		}
-		// always collect all errors to be logged
-		if event.err != nil {
-			errProcessedEvents = append(errProcessedEvents, event)
-		}
-	}
-
-	level := slog.LevelInfo
-	if len(errProcessedEvents) > 0 {
-		level = slog.LevelError
-	}
-	slog.Log(ctx, level, "handling postgres queue events", "errProcessedEvents", errProcessedEvents, "eventsIDsToAck", eventIDsToAck)
-
-	if err := querier.UpdateOutboxQueueProcessedByID(ctx, sqlc.UpdateOutboxQueueProcessedByIDParams{
-		Ids:           eventIDsToAck,
-		ProcessedTime: pgtype.Timestamptz{Time: getProcessedOn(), Valid: true},
-	}); err != nil {
-		return fmt.Errorf("failed to acknolwedge postgres queue messages %+v: %w", processedEvents, err)
-	}
-
-	return nil
 }

@@ -52,6 +52,7 @@ type HexchessAPI interface {
 	GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]model.Challenge, error)
 	DeleteChallenge(ctx context.Context, key ChallengeKey) (DeleteResult, error)
 	DeleteExpiredChallenges(ctx context.Context, userID int64) error
+	CountUserChallenges(ctx context.Context, userID int64) (int64, error)
 
 	MakeProfileURL(key string) string
 	GetProfilePicKey(ctx context.Context, userID string) (string, error)

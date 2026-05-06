@@ -1,7 +1,7 @@
 <script lang="ts">
-	import CreateGame from '$lib/components/modals/CreateGame.svelte';
+	import CreateGame from '$lib/components/CreateGame.svelte';
 	import { onMount } from 'svelte';
-	import ChallengeIcon from '$lib/components/icons/ChallengeIcon.svelte';
+	import ChallengeIcon from '$lib/icons/ChallengeIcon.svelte';
 	import {type EloBuckets, type ReplayModel} from '$lib/api/models.js';
 	import { getClientSession } from '$lib/utils/storage';
 	import { getNotificationsContext } from '$lib/utils/context';
@@ -9,16 +9,15 @@
 	import services from '$lib/api/services';
 	import 'chartjs-adapter-date-fns';
 	import '$lib/utils/chart';
-	import Dropdown from '$lib/components/util/Dropdown.svelte';
+	import Dropdown from '$lib/components/Dropdown.svelte';
 	import { formatJoinedOn, getWinrateClass } from '$lib/utils/format';
 	import Banner from '$lib/Banner.svelte';
-	import ProfilePic from '$lib/components/user/ProfilePic.svelte';
+	import ProfilePic from '$lib/components/ProfilePic.svelte';
 	import {makeEloHistoriesChart} from "./chart";
-	import ReplaySnippet from "$lib/components/user/ReplaySnippet.svelte";
-	import UserStats from "$lib/components/user/UserStats.svelte";
+	import ReplayPreview from "$lib/components/ReplayPreview.svelte";
+	import UserStats from "$lib/components/UserStats.svelte";
 	import {getReplay, nonDefaultQueries, type ReplayQueryKind, replayQueryOptions} from "./service";
-	import { goto } from '$app/navigation';
-	import SettingsIcon from "$lib/components/icons/SettingsIcon.svelte";
+	import {MediaQuery} from "svelte/reactivity";
 
 	const timeframes: { label: string, value: string }[] = [
 		{ label: "All Time", value: "all" },
@@ -38,14 +37,14 @@
 	const { addNotification, addErrorNotification } = getNotificationsContext();
 
 	interface ReplayListRow {
-		nestedReplayList: ReplayModel[][];
+		replayList: ReplayModel[];
 		hasMoreReplays: boolean;
 	}
 
 	let replayLists: Record<ReplayQueryKind, ReplayListRow> = $state({
-		"allReplays": { nestedReplayList: [props.fullUser.replayList], hasMoreReplays: true },
-		"wonReplays": { nestedReplayList: [], hasMoreReplays: true },
-		"lostReplays": { nestedReplayList: [], hasMoreReplays: true },
+		"allReplays": { replayList: props.fullUser.replayList, hasMoreReplays: true },
+		"wonReplays": { replayList: [], hasMoreReplays: true },
+		"lostReplays": { replayList: [], hasMoreReplays: true },
 	});
 	let replayQueryKind: ReplayQueryKind = $state("allReplays");
 	let showCreateModal = $state(false);
@@ -54,31 +53,31 @@
 
 	let totalGames = $derived(userStats.totalWins + userStats.totalLosses + userStats.totalDraws);
 
-	let chartElement: HTMLCanvasElement;
+	let chartElement: HTMLCanvasElement | undefined = $state(undefined);
 
 	async function tryLoadReplays() {
 		const replayListRow = replayLists[replayQueryKind];
-		if (!nestedReplayList) {
+		if (!replayList) {
 			console.error(`No replay list found for active replays query: ${replayQueryKind}.`);
 			return;
 		}
 
-		const lastId = replayListRow.nestedReplayList.at(-1)?.at(-1)?.id;
+		const lastId = replayListRow.replayList.at(-1)?.id;
 		const isAtPageBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 100;
 		const shouldLoadReplays = replayListRow.hasMoreReplays && isAtPageBottom && lastId !== undefined;
 
 		if (shouldLoadReplays) {
 			const [data, err] = await getReplay(replayQueryKind, lastId, user?.id);
-			if (err) {
-				addErrorNotification(err);
-				return;
-			}
-			const replayList = data?.replayList ?? [];
+			if (data) {
+				const replayList = data?.replayList ?? [];
 
-			if (replayList.length > 0) {
-				replayListRow.nestedReplayList.push(replayList);
+				if (replayList.length > 0) {
+					replayListRow.replayList = [...replayListRow.replayList, ...replayList];
+				} else {
+					replayListRow.hasMoreReplays = false;
+				}
 			} else {
-				replayListRow.hasMoreReplays = false;
+				addErrorNotification(err);
 			}
 		}
 	}
@@ -93,6 +92,7 @@
 	}
 
 	$effect(() => {
+		if (!chartElement) return;
 		const ctx = chartElement.getContext("2d");
 		if (!ctx) return;
 		let chart: any;
@@ -110,11 +110,11 @@
 	function loadForAllReplayQueries(userId: number) {
 		for (const replayQueryKind of nonDefaultQueries) {
 			getReplay(replayQueryKind, undefined, userId).then(([data, err]) => {
-				if (err) {
+				if (data) {
+					replayLists[replayQueryKind].replayList = data?.replayList ?? [];
+				} else {
 					addErrorNotification(err);
-					return;
 				}
-				replayLists[replayQueryKind].nestedReplayList = data?.replayList ? [data?.replayList] : [];
 			});
 		}
 	}
@@ -145,7 +145,9 @@
 		showCreateModal = false;
 	}
 
-	const nestedReplayList = $derived(replayLists[replayQueryKind].nestedReplayList || []);
+	const replayList = $derived(replayLists[replayQueryKind].replayList ?? []);
+
+	const isLarge = new MediaQuery('min-width: 768px');
 </script>
 
 <svelte:head>
@@ -155,7 +157,7 @@
 <Banner />
 <CreateGame title="Create a Challenge?" bind:show={showCreateModal} onSubmit={onSubmitCreateChallenge} />
 <div class="center-horizontal-container">
-	<div class="panel" style="padding: 0">
+	<div class="panel user-panel" style="padding: 0; margin-left: 20px; margin-right: 20px;">
 		<div style="padding: 20px">
 			<ProfilePic userId={user.id} size={125}/>
 			<div class="text-lg capped-size">{user.username}</div>
@@ -170,7 +172,7 @@
 			</div>
 
 			{#if user.bio}
-				<div class="panel-container bio">
+				<div class="panel-container">
 					<div class="panel-elem">
 						<div class="panel-title" style="margin-bottom: 5px">Biography</div>
 						<div class="panel-text" style="font-size: 16px">{user.bio}</div>
@@ -223,44 +225,43 @@
 				</div>
 			</div>
 
-			<div style="margin-bottom: 35px;">
+			<div class="user-stats-panel">
 				<h3>
 					Stats by Mode
 				</h3>
 				<UserStats userStats={userStats}/>
 			</div>
 
-			<h3>
-				Stats Over Time
-			</h3>
-			<div class="dropdown-wrapper">
-				<Dropdown
-						options={timeframes}
-						selected={timeframes[timeframeIndex].value}
-						onChange={value => timeframeIndex = timeframes.findIndex((t) => t.value === value)}
-				/>
-			</div>
-			<div class="canvas-wrapper">
-				<canvas bind:this={chartElement} width="650px" height="250px"></canvas>
-			</div>
+			{#if isLarge.current}
+				<h3>
+					Stats Over Time
+				</h3>
+				<div class="dropdown-wrapper">
+					<Dropdown
+							options={timeframes}
+							selected={timeframes[timeframeIndex].value}
+							onChange={value => timeframeIndex = timeframes.findIndex((t) => t.value === value)}
+					/>
+				</div>
+				<div class="canvas-wrapper">
+					<canvas bind:this={chartElement}></canvas>
+				</div>
+			{/if}
 		</div>
 
 		<div class="game-histories-tab-group">
 			{#each replayQueryOptions as tab, i (i)}
 				<button class="game-histories-tab"
 						class:active-game-histories-tab={replayQueryKind === tab.value}
-						onclick={() => replayQueryKind = tab.value}
-				>
+						onclick={() => replayQueryKind = tab.value}>
 					{tab.label}
 				</button>
 			{/each}
 		</div>
 		<div class="game-histories">
-			{#if (nestedReplayList[0] ?? []).length > 0}
-				{#each nestedReplayList as replayList, i (i)}
-					{#each replayList as replay, i (i)}
-						<ReplaySnippet replay={replay} index={i}/>
-					{/each}
+			{#if (replayList ?? []).length > 0}
+				{#each replayList as replay, i (i)}
+					<ReplayPreview replay={replay} index={i} rounding=""/>
 				{/each}
 			{:else}
 				<div class="no-replays-wrapper">
@@ -272,19 +273,18 @@
 </div>
 
 <style>
-	.button-profile {
-		display: flex;
-		align-items: center;
-		padding-left: 20px;
-		padding-right: 25px;
-		min-width: fit-content;
-		gap: 5px;
+	.user-panel {
+		max-width: 700px;
 	}
 
-	.preferences-wrapper {
-		font-size: 18px;
-		margin-top: 10px;
-		margin-bottom: 50px;
+	@media (max-width: 768px) {
+		.user-panel {
+			max-width: 90%;
+		}
+	}
+
+	.user-stats-panel {
+		margin-bottom: 35px;
 	}
 
 	.no-replays-wrapper {
@@ -307,7 +307,7 @@
 		cursor: pointer;
 
 		margin: 0;
-		padding: 15px 35px;
+		padding: 10px 20px;
 		width: fit-content;
 
 		border-top-left-radius: 5px;
@@ -349,7 +349,6 @@
 	}
 
     .panel-container {
-		min-width: 450px;
 		margin-bottom: 35px;
         display: flex;
         flex-wrap: wrap;
@@ -369,8 +368,4 @@
     .panel-text {
         font-size: 20px;
     }
-
-	.bio {
-		max-width: 750px;
-	}
 </style>

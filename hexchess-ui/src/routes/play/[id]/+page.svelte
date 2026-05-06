@@ -2,26 +2,26 @@
 	import services, { appBaseURL, baseURL } from '$lib/api/services';
 	import { codes } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';
-	import MoveList from '$lib/components/chess/MoveList.svelte';
-	import Board from '$lib/components/chess/Board.svelte';
-	import ClipboardIcon from '$lib/components/icons/ClipboardIcon.svelte';
-	import FlagIcon from '$lib/components/icons/FlagIcon.svelte';
-	import UndoIcon from '$lib/components/icons/UndoIcon.svelte';
-	import TakenTakenList from '$lib/components/chess/TakenList.svelte';
-	import PlayerPanel from '$lib/components/user/PlayerPanel.svelte';
+	import MoveList from '$lib/components/MoveList.svelte';
+	import Board from '$lib/components/Board.svelte';
+	import ClipboardIcon from '$lib/icons/ClipboardIcon.svelte';
+	import FlagIcon from '$lib/icons/FlagIcon.svelte';
+	import UndoIcon from '$lib/icons/UndoIcon.svelte';
+	import TakenTakenList from '$lib/components/TakenList.svelte';
+	import PlayerPanel from '$lib/components/PlayerPanel.svelte';
 	import { type ChatMessage, type ChessGame, EndKind, type ErrorOutput, type ForfeitOutput, GameOutput, type InitOutput, type MoveOutput, type PlayersOutput, type PlayerState, type Replay, type UndoOutput } from '$lib/pb/messages';
 	import { type Chat, type Hex, mapChatMessage, mapReplay, type ReplayModel } from '$lib/api/models';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import { onMount } from 'svelte';
 	import Banner from '$lib/Banner.svelte';
 	import Error from '$lib/Error.svelte';
-	import ChatIcon from '$lib/components/icons/ChatIcon.svelte';
-	import FinishPanel from '$lib/components/user/FinishPanel.svelte';
+	import ChatIcon from '$lib/icons/ChatIcon.svelte';
+	import FinishPanel from '$lib/components/FinishPanel.svelte';
 	import { type PromotionMove } from '../../sandbox/state.svelte.js';
-	import { isValidMove } from '$lib/service/chess';
 	import { type ConnectionState, sendChatInput, sendForfeitInput, sendMoveInput, sendPingInput, sendUndoInput, formatChats } from './service';
-	import { type BadPromotionType, type MoveAction, NoPromotion, type Promotion } from '$lib/components/chess/types';
-	import Timer from '$lib/components/chess/Timer.svelte';
+	import { type BadPromotionType, type MoveAction, NoPromotion, type Promotion } from '$lib/components/types';
+	import Timer from '$lib/components/Timer.svelte';
+	import {chessService} from "$lib/service/chess";
 
 	const forfeitModalIds = ["forfeit-modal", "forfeit-button"];
 	const maxTimeout = 2500;
@@ -113,7 +113,7 @@
 	const onDeSelectPiece = () => selection.deSelect();
 
 	function onPieceMove(from: Hex, to: Hex) {
-		if (!isValidMove(game, {from, to}, isSelfWhite)) return;
+		if (!chessService.isValidMove(game, {from, to}, isSelfWhite)) return;
 
 		const move = {from, to, promotion: NoPromotion};
 		if (isCurrPlayer) {

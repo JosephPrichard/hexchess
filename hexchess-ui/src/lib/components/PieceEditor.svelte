@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { findHex, hexHeight, hexWidth } from '$lib/components/chess/render';
 	import Piece from './Piece.svelte';
 	import type { Hex } from '$lib/api/models';
 	import { type SelectEvent, selectEvents } from '$lib/globals';
 	import { blackPieces, whitePieces } from '$lib/service/chess';
-	import CursorIcon from '$lib/components/icons/CursorIcon.svelte';
-	import LargeTrashIcon from '$lib/components/icons/LargeTrashIcon.svelte';
+	import CursorIcon from '$lib/icons/CursorIcon.svelte';
+	import LargeTrashIcon from '$lib/icons/LargeTrashIcon.svelte';
+	import {ChessRenderer, defaultRenderArgs} from "$lib/components/chessRenderer";
 
 	export interface PieceEditorProps {
 		selectedPiece?: number;
@@ -15,6 +15,8 @@
 		onDropPiece?: (to: Hex) => void;
 		isTrashSelector?: boolean;
 	}
+
+	const render = new ChessRenderer(defaultRenderArgs);
 
 	let { selectedPiece = $bindable(), boardElement = $bindable(), hovering = $bindable(),
 		isWhitePerspective, onDropPiece, isTrashSelector = $bindable() }: PieceEditorProps = $props();
@@ -29,14 +31,14 @@
 	}
 
 	function onDragEditorPiece(piece: number, x: number, y: number) {
-		const hex = findHex(boardElement, isWhitePerspective, x, y);
+		const hex = render.findHex(boardElement, isWhitePerspective, x, y);
 		if (!hex) return;
 		hovering = {piece, hex};
 	}
 
 	function onDropEditorPiece(x: number, y: number) {
 		hovering = undefined;
-		const hex = findHex(boardElement, isWhitePerspective, x, y);
+		const hex = render.findHex(boardElement, isWhitePerspective, x, y);
 		if (hex) {
 			onDropPiece?.(hex);
 		}
@@ -57,8 +59,8 @@
 						role="cell"
 						tabindex="0"
 						class="piece-tile"
-						style:width="{hexWidth}px"
-						style:height="{hexHeight}px"
+						style:width="{render.hexWidth}px"
+						style:height="{render.hexHeight}px"
 						class:selected-tile={selectedPiece === piece}
 						onmousedown={(e) => onSelectPiece(selectEvents[e.button], piece)}
 						class:disabled-piece-panel={isTrashSelector}
@@ -85,8 +87,8 @@
 					role="cell"
 					tabindex="0"
 					class="select-tile"
-					style:width="{hexWidth}px"
-					style:height="{hexHeight}px"
+					style:width="{render.hexWidth}px"
+					style:height="{render.hexHeight}px"
 					class:red-select-tile={isTrashSelector && !isCursor}
 					class:green-select-tile={!isTrashSelector && isCursor}
 					onmousedown={() => onSelectTrash(isCursor)}

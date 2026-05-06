@@ -29,7 +29,7 @@ func SSE(h func(w SSEWriter, r *http.Request) error) http.HandlerFunc {
 		ctx := r.Context()
 		if err := h(SSEWriter{ctx, w, f}, r); err != nil {
 			status, m := HttpStatusFromErr(err)
-			slog.ErrorContext(ctx, "sse request failed", "err", err, "method", r.Method, "url", r.URL)
+			slog.ErrorContext(ctx, "sse request failed", "Err", err, "method", r.Method, "url", r.URL)
 			http.Error(w, fmt.Sprintf("%s:%s", MetaEvent, m), status)
 		}
 		slog.InfoContext(ctx, "finished sse request", "method", r.Method, "url", r.URL)
@@ -44,7 +44,7 @@ type SSEWriter struct {
 
 func (sse SSEWriter) writeEvent(e string, d string) {
 	if _, err := fmt.Fprintf(sse.w, "event: %s\ndata: %s\n\n", e, d); err != nil {
-		slog.ErrorContext(sse.ctx, "write to sse", "err", err)
+		slog.ErrorContext(sse.ctx, "write to sse", "Err", err)
 	}
 
 	slog.Info("writing server sent event", "event", e, "data", d)
@@ -70,7 +70,7 @@ func (sse SSEWriter) writeUcEvent(event svc.UcEvent) {
 func (sse SSEWriter) writeCountEvent(kind svc.UcEventKind, count int64) {
 	b, err := json.Marshal(svc.CountEvent{Count: count})
 	if err != nil {
-		slog.ErrorContext(sse.ctx, "marshal count event", "err", err)
+		slog.ErrorContext(sse.ctx, "marshal count event", "Err", err)
 	}
 	sse.writeUcEvent(svc.UcEvent{Kind: kind, Data: string(b)})
 }
@@ -166,7 +166,7 @@ func (api *API) HandleActiveConn(w SSEWriter, r *http.Request) error {
 
 	stopTimer := every(svc.ActiveUserMaxage-time.Second, func() {
 		if err := api.services.RetainActiveUser(ctx, strUserID); err != nil {
-			slog.ErrorContext(ctx, "failed to retain active user", "userID", strUserID, "err", err)
+			slog.ErrorContext(ctx, "failed to retain active user", "userID", strUserID, "Err", err)
 		}
 	})
 	defer func() {
@@ -187,10 +187,10 @@ RecvLoop:
 	detatchedCtx := context.WithoutCancel(ctx)
 
 	if count, err = api.services.RemoveActiveUser(detatchedCtx, strUserID); err != nil {
-		slog.ErrorContext(detatchedCtx, "failed to remove active user", "sseID", strUserID, "err", err)
+		slog.ErrorContext(detatchedCtx, "failed to remove active user", "sseID", strUserID, "Err", err)
 	}
 	if err := api.services.BroadcastActiveCount(detatchedCtx, count); err != nil {
-		slog.ErrorContext(detatchedCtx, "broadcast active user count after removing", "err", err)
+		slog.ErrorContext(detatchedCtx, "broadcast active user count after removing", "Err", err)
 	}
 
 	return nil

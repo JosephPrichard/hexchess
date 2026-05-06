@@ -124,11 +124,14 @@ FROM replays r
         ON e2.user_id = r.black_id AND e2.mode = r.mode
 WHERE
     r.id < sqlc.arg('afterID') AND
+
     (r.mode = sqlc.narg('mode') OR sqlc.narg('mode') IS NULL) AND
     (r.result = sqlc.narg('result') OR sqlc.narg('result') IS NULL) AND
     (r.cause = sqlc.narg('cause') OR sqlc.narg('cause') IS NULL) AND
+
     (r.white_id = sqlc.narg('whiteID') OR sqlc.narg('whiteID') IS NULL) AND
     (r.black_id = sqlc.narg('blackID') OR sqlc.narg('blackID') IS NULL) AND
+
     (
         r.white_id = sqlc.narg('userID') OR
         r.black_id = sqlc.narg('userID') OR
@@ -136,38 +139,19 @@ WHERE
     )
     AND
     (
-        (r.white_id = sqlc.arg('winnerID') AND
-         r.result = 'WHITE_WINS') OR
-        (r.black_id = sqlc.arg('winnerID') AND
-         r.result = 'BLACK_WINS') OR
+        (r.white_id = sqlc.arg('winnerID') AND r.result = 'WHITE_WINS') OR
+        (r.black_id = sqlc.arg('winnerID') AND r.result = 'BLACK_WINS') OR
          sqlc.narg('winnerID') IS NULL
     )
     AND
     (
-        (r.white_id = sqlc.arg('loserID') AND
-         r.result = 'BLACK_WINS') OR
-        (r.black_id = sqlc.arg('loserID') AND
-         r.result = 'WHITE_WINS') OR
+        (r.white_id = sqlc.arg('loserID') AND r.result = 'BLACK_WINS') OR
+        (r.black_id = sqlc.arg('loserID') AND r.result = 'WHITE_WINS') OR
         sqlc.narg('loserID') IS NULL
     )
---     AND
---     (CASE
---         WHEN sqlc.narg('dateFrom')
---         THEN (
---             r.played_on BETWEEN
---                 sqlc.narg('dateFrom')::TIMESTAMPTZ AND
---                 sqlc.narg('dateTo')::TIMESTAMPTZ
---         )
---         WHEN sqlc.narg('dateFrom') IS NOT NULL
---         THEN (
---             r.played_on > sqlc.narg('dateFrom')
---         )
---         WHEN sqlc.narg('dateTo') IS NOT NULL
---         THEN (
---             r.played_on < sqlc.narg('dateTo')
---         )
---         ELSE TRUE
---      END)
+    AND
+    (sqlc.narg('dateFrom')::TIMESTAMPTZ IS NULL OR r.played_on >= sqlc.narg('dateFrom')::TIMESTAMPTZ) AND
+    (sqlc.narg('dateTo')::TIMESTAMPTZ IS NULL OR r.played_on <= sqlc.narg('dateTo')::TIMESTAMPTZ)
 ORDER BY
     r.id DESC
 LIMIT sqlc.arg('perPage');

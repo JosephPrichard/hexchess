@@ -40,6 +40,11 @@ a:hover {
 	padding: 20px;
 }
 
+.title-md {
+	font-size: 22px;
+	padding: 20px;
+}
+
 .bold-link {
 	font-weight: bold;
 	/*color: dodgerblue;*/
@@ -68,6 +73,7 @@ a:hover {
 	flex-direction: column;
 	justify-content: center;
 	align-items: center;
+	overflow: visible;
 }
 
 .center-vertical-container {
@@ -79,6 +85,16 @@ a:hover {
 
 .table-container {
 	width: 100%;
+}
+
+@media (max-width: 550px) {
+	td, tr, th {
+		font-size: 12px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		max-width: 0;
+	}
 }
 
 table {
@@ -197,10 +213,6 @@ tr {
 	width: auto;
 	margin-top: 10px;
 	margin-bottom: 10px;
-}
-
-.wrapper {
-	min-width: 50%;
 }
 
 .form-wrapper {
@@ -742,4 +754,40 @@ select:disabled {
 .player-points-wrapper {
 	display: flex;
 	align-items: center;
+}
+
+.dropdown-container {
+	width: 100%;
+	position: relative;
+}
+
+.dropdown-menu {
+	all: unset;
+	width: 100%;
+	position: absolute;
+	top: calc(100% + 4px);
+	left: 0;
+	right: 0;
+	background: rgb(64,64,64);
+	border: 1px solid rgb(100,100,100);
+	border-radius: 6px;
+	/*padding: 4px 0;*/
+	/*box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);*/
+	z-index: 5;
+}
+
+.dropdown-item {
+	all: unset;
+	width: 100%;
+	box-sizing: border-box;
+	display: block;
+	padding: 0.5rem 0.8rem;
+	cursor: pointer;
+	color: rgb(200,200,200);
+	border-radius: 4px;
+	height: 2rem;
+}
+
+.dropdown-item:hover {
+	background: rgb(104,104,104);
 }

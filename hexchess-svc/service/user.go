@@ -33,6 +33,7 @@ type RankedUser struct {
 
 var ErrUserNotFound = errors.New("user not found")
 var ErrTakenUsername = errors.New("username already taken")
+var ErrUsernameNotFound = errors.New("username not found")
 
 type UserInst struct {
 	Username string `json:"username"`
@@ -129,6 +130,11 @@ type VerifiedUser struct {
 	Country  string `json:"country"`
 }
 
+const LoginAttemptsDivisor = 10
+const LockoutDuration = time.Minute * 1
+
+var ErrTooManyLoginAttempts = errors.New("too many login attempts")
+
 func (svc *HexchessServices) VerifyUserTx(ctx context.Context, username string, inputPassword string) (VerifiedUser, error) {
 	var user VerifiedUser
 
@@ -141,60 +147,50 @@ func (svc *HexchessServices) VerifyUserTx(ctx context.Context, username string, 
 		// T1 and T2 attempt to login at the same time, with LoginAttempts-1 (L1) one less than an invalid threshold
 		// T1 and T2 are both permitted to attempt to login since L1 is valid, even though only one login attempt is allowed
 		// L2 will be L1+2 after update, even though it should not have permitted both attempts
-		Isolation: pgx.Serializable,
-		QueryFn: func(ctx context.Context, query sqlc.Querier) (err error) {
-			user, err = verifyUser(ctx, query, username, inputPassword)
-			return err
-		},
+		Isolation:    pgx.Serializable,
 		ErrAllowlist: []error{ErrTooManyLoginAttempts, ErrUserNotFound},
 		RetryCount:   3,
+		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
+			loginRow, err := querier.SelectLoginByName(ctx, username)
+			if IsErrNoRows(err) {
+				return ErrUserNotFound
+			} else if err != nil {
+				return fmt.Errorf("select user [%s] by login: %w", username, err)
+			}
+
+			isExceedAttempts := loginRow.LoginAttempts > 0 && loginRow.LoginAttempts%LoginAttemptsDivisor == 0
+			nextLoginTime := loginRow.LastLoginAttempt.Time.Add(LockoutDuration)
+			isLocked := isExceedAttempts && time.Now().Before(nextLoginTime)
+			if isLocked {
+				return ErrTooManyLoginAttempts
+			}
+
+			saltedPassword := inputPassword + loginRow.Salt
+			loginErr := bcrypt.CompareHashAndPassword([]byte(loginRow.Password), []byte(saltedPassword))
+
+			if loginErr != nil {
+				if err := querier.IncrLoginAttempts(ctx, loginRow.ID); err != nil {
+					return fmt.Errorf("increment user [%d] login attempts: %w", loginRow.ID, err)
+				}
+				slog.ErrorContext(ctx, "failed to login, credentials are invalid", "username", username, "err", loginErr)
+				return ErrUserNotFound
+			}
+
+			if err := querier.ResetLoginAttempts(ctx, loginRow.ID); err != nil {
+				return fmt.Errorf("reset user [%d] login attempts: %w", loginRow.ID, err)
+			}
+
+			user = VerifiedUser{
+				ID:       loginRow.ID,
+				Username: loginRow.Username,
+				Country:  loginRow.Country,
+			}
+			slog.InfoContext(ctx, "user login is valid", "user", user)
+			return nil
+		},
 	})
 
 	return user, err
-}
-
-const LoginAttemptsDivisor = 10
-const LockoutDuration = time.Minute * 1
-
-var ErrTooManyLoginAttempts = errors.New("too many login attempts")
-
-func verifyUser(ctx context.Context, querier sqlc.Querier, username string, inputPassword string) (u VerifiedUser, err error) {
-	loginRow, err := querier.SelectLoginByName(ctx, username)
-	if IsErrNoRows(err) {
-		return u, ErrUserNotFound
-	} else if err != nil {
-		return u, fmt.Errorf("select user [%s] by login: %w", username, err)
-	}
-
-	isExceedAttempts := loginRow.LoginAttempts > 0 && loginRow.LoginAttempts%LoginAttemptsDivisor == 0
-	nextLoginTime := loginRow.LastLoginAttempt.Time.Add(LockoutDuration)
-	isLocked := isExceedAttempts && time.Now().Before(nextLoginTime)
-	if isLocked {
-		return u, ErrTooManyLoginAttempts
-	}
-
-	saltedPassword := inputPassword + loginRow.Salt
-	loginErr := bcrypt.CompareHashAndPassword([]byte(loginRow.Password), []byte(saltedPassword))
-
-	if loginErr != nil {
-		if err := querier.IncrLoginAttempts(ctx, loginRow.ID); err != nil {
-			return u, fmt.Errorf("increment user [%d] login attempts: %w", loginRow.ID, err)
-		}
-		slog.ErrorContext(ctx, "failed to login, credentials are invalid", "username", username, "err", loginErr)
-		return u, ErrUserNotFound
-	}
-
-	if err := querier.ResetLoginAttempts(ctx, loginRow.ID); err != nil {
-		return u, fmt.Errorf("reset user [%d] login attempts: %w", loginRow.ID, err)
-	}
-
-	user := VerifiedUser{
-		ID:       loginRow.ID,
-		Username: loginRow.Username,
-		Country:  loginRow.Country,
-	}
-	slog.InfoContext(ctx, "user login is valid", "user", user)
-	return user, nil
 }
 
 type GoogleUserInst struct {
@@ -397,7 +393,7 @@ func (svc *HexchessServices) GetFullUser(ctx context.Context, userID int64, perP
 }
 
 func (svc *HexchessServices) SelectUsersByIDs(ctx context.Context, ids []int64) ([]model.User, error) {
-	userRows, err := svc.querier.SelectUserPlayerDataByIDs(ctx, ids)
+	userRows, err := svc.querier.SelectUsersByIDs(ctx, ids)
 
 	var users []model.User
 	for _, row := range userRows {

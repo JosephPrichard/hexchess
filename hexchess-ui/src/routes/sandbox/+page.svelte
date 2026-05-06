@@ -1,22 +1,22 @@
 <script lang="ts">
-	import Board from '$lib/components/chess/Board.svelte';
-	import FlipIcon from '$lib/components/icons/FlipIcon.svelte';
-	import { isPromotion } from '$lib/service/chess';
+	import Board from '$lib/components/Board.svelte';
+	import FlipIcon from '$lib/icons/FlipIcon.svelte';
 	import type { Hex } from '$lib/api/models';
-	import SmallTrashIcon from '$lib/components/icons/SmallTrashIcon.svelte';
-	import RedoIcon from '$lib/components/icons/RedoIcon.svelte';
-	import PieceEditor from '$lib/components/chess/PieceEditor.svelte';
-	import EditIcon from '$lib/components/icons/EditIcon.svelte';
-	import KingIcon from '$lib/components/icons/KingIcon.svelte';
-	import MoveList from '$lib/components/chess/MoveList.svelte';
+	import SmallTrashIcon from '$lib/icons/SmallTrashIcon.svelte';
+	import RedoIcon from '$lib/icons/RedoIcon.svelte';
+	import PieceEditor from '$lib/components/PieceEditor.svelte';
+	import EditIcon from '$lib/icons/EditIcon.svelte';
+	import KingIcon from '$lib/icons/KingIcon.svelte';
+	import MoveList from '$lib/components/MoveList.svelte';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
-	import Dropdown from '$lib/components/util/Dropdown.svelte';
+	import Dropdown from '$lib/components/Dropdown.svelte';
 	import { makeSandboxState } from './state.svelte.js';
 	import Banner from '$lib/Banner.svelte';
-	import { CancelPromotion, type BadPromotionType, type Promotion } from '$lib/components/chess/types';
+	import { CancelPromotion, type BadPromotionType, type Promotion } from '$lib/components/types';
 	import { wasm } from '$lib/api/wasm';
 	import type { ChessBoard } from '$lib/pb/messages';
-	import TakenList from '$lib/components/chess/TakenList.svelte';
+	import TakenList from '$lib/components/TakenList.svelte';
+	import {chessService} from "$lib/service/chess";
 
 	export interface SandboxProps {
 		fen: string;
@@ -76,7 +76,7 @@
 			sandbox.movePiece(from, to);
 			onDeSelectPiece();
 		} else if (mode === "play") {
-			if (isPromotion(game, from, to)) {
+			if (chessService.isPromotion(game, from, to)) {
 				sandbox.setPromotion({ from, to });
 				onDeSelectPiece();
 			} else {
@@ -208,11 +208,13 @@
 					</div>
 				</div>
 			{:else}
-				<Dropdown
-					options={[{label: "White's Turn", value: "WHITE"}, {label: "Black's Turn", value: "BLACK"}]}
-					selected={game?.board?.isWhiteTurn ? "WHITE" : "BLACK"}
-					onChange={handleSetBoardTurn}
-				/>
+				<div style="z-index: 15">
+					<Dropdown
+							options={[{label: "White's Turn", value: "WHITE"}, {label: "Black's Turn", value: "BLACK"}]}
+							selected={game?.board?.isWhiteTurn ? "WHITE" : "BLACK"}
+							onChange={handleSetBoardTurn}
+					/>
+				</div>
 				<div class="piece-panels-container">
 					<PieceEditor
 						bind:boardElement={boardElement}

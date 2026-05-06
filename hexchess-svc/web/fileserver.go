@@ -44,16 +44,16 @@ func (api *API) HandleGetProfilePic(w http.ResponseWriter, r *http.Request) erro
 	//ctx := r.Context()
 	//userID := r.URL.Query().Get("userId")
 	//
-	//key, err := api.services.GetProfilePicKey(ctx, userID)
-	//if err != nil {
+	//key, Err := api.services.GetProfilePicKey(ctx, userID)
+	//if Err != nil {
 	//	level := slog.LevelError
-	//	if errors.Is(err, svc.ErrNoProfilePic) {
+	//	if errors.Is(Err, svc.ErrNoProfilePic) {
 	//		level = slog.LevelWarn
 	//	}
-	//	slog.Log(ctx, level, "failed to get profile pic key for user", "userID", userID, "error", err)
+	//	slog.Log(ctx, level, "failed to get profile pic key for user", "userID", userID, "error", Err)
 	//
-	//	_, err := w.Write(assets.DefaultProfilePic)
-	//	return err
+	//	_, Err := w.Write(assets.DefaultProfilePic)
+	//	return Err
 	//}
 	//
 	//s3URL := api.services.MakeProfileURL(key)

@@ -125,5 +125,8 @@ export function makeMessage(error?: ServiceModel | string): string {
 			codes.push(error.errors[key])
 		}
 	}
-	return codes.map(code => mapErr(code)).join('\n');
+	return codes
+		.filter((value: string, index: number, array: string[]) => array.indexOf(value) === index) // distinct codes
+		.map(code => mapErr(code))
+		.join('\n');
 }

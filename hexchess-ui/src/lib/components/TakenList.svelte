@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getPiecePoints, makePieceWhite, piecenames, pieces } from '$lib/service/chess';
+	import { chessService, piecenames } from '$lib/service/chess';
 
 	interface TakenListProps {
 		myPieces?: number[];
@@ -9,7 +9,7 @@
 
 	let { myPieces, theirPieces, showZero }: TakenListProps = $props();
 
-	const totalPoints = (pieces?: number[]) => pieces?.reduce((acc, piece) => acc + getPiecePoints(piece), 0) ?? 0;
+	const totalPoints = (pieces?: number[]) => pieces?.reduce((acc, piece) => acc + chessService.getPiecePoints(piece), 0) ?? 0;
 
 	function aggregatePieces(pieceList?: number[]) {
 		pieceList = pieceList?.sort((a, b) => a - b) ?? [];
@@ -43,7 +43,7 @@
 		<div class="pieces-wrapper">
 			{#each pieces as piece}
 				<div class="piece-icon-wrapper">
-					<img class="piece-icon" src="/pieces/{piecenames[makePieceWhite(piece)]}.png" draggable={false} alt="" />
+					<img class="piece-icon" src="/pieces/{piecenames[chessService.makePieceWhite(piece)]}.png" draggable={false} alt="" />
 				</div>
 			{/each}
 		</div>

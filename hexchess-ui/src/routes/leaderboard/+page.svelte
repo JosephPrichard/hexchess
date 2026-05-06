@@ -1,9 +1,9 @@
 <script lang="ts">
 	import Pagination from '$lib/Pagination.svelte';
-	import StatsList from '$lib/components/user/StatsList.svelte';
+	import StatsList from '$lib/components/StatsList.svelte';
 	import { GameModeNameMap, type LbdUserModel } from '$lib/api/models';
 	import Banner from '$lib/Banner.svelte';
-	import Dropdown from '$lib/components/util/Dropdown.svelte';
+	import Dropdown from '$lib/components/Dropdown.svelte';
 	import { goto } from '$app/navigation';
 
 	export interface LeaderboardProps {
@@ -39,6 +39,16 @@
 <Pagination targetPage={props.page} totalPages={props.pageCount} />
 
 <style>
+	.wrapper {
+		width: 90%;
+	}
+
+	@media (min-width: 768px) {
+		.wrapper {
+			width: 700px;
+		}
+	}
+
 	.dropdown-wrapper {
 		margin-bottom: 20px;
 		width: 200px;

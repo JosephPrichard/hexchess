@@ -141,6 +141,10 @@ func (svc *HexchessServices) DeleteExpiredChallenges(ctx context.Context, userID
 	return nil
 }
 
+func (svc *HexchessServices) CountUserChallenges(ctx context.Context, userID int64) (int64, error) {
+	return svc.querier.CountReceivedChallenges(ctx, userID)
+}
+
 func mapChallengeRow(row sqlc.SelectChallengesByParticipantRow) model.Challenge {
 	gameColor := enum.Expect(row.StartColor, model.GameColorEnums)
 	gameMode := enum.Expect(row.Mode, model.GameModeEnums)

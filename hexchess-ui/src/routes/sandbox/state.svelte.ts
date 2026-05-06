@@ -1,7 +1,7 @@
 import type { Hex } from '$lib/api/models';
 import type { ChessGame } from '$lib/pb/messages';
-import { clearBoard, defaultGame, moveBoardPiece, placeBoardPiece, removeBoardPiece, setBoardTurn } from '$lib/service/chess';
 import { type MakeMoveArgs, wasm } from '$lib/api/wasm';
+import {chessService, defaultGame} from "$lib/service/chess";
 
 export interface PromotionMove {
     from: Hex;
@@ -32,15 +32,20 @@ export function makeSandboxState() {
         setGame(game);
     }
 
-    const movePiece = (from: Hex, to: Hex) => mutateGame((g) => moveBoardPiece(g, from, to));
+    const movePiece = (from: Hex, to: Hex) =>
+        mutateGame((g) => chessService.moveBoardPiece(g, from, to));
 
-    const clear = () => mutateGame((g) => clearBoard(g));
+    const clear = () =>
+        mutateGame((g) => chessService.clearBoard(g));
 
-    const removePiece = (hex: Hex) => mutateGame((g) => removeBoardPiece(g, hex));
+    const removePiece = (hex: Hex) =>
+        mutateGame((g) => chessService.removeBoardPiece(g, hex));
 
-    const placePiece = (hex: Hex, piece: number) => mutateGame((g) => placeBoardPiece(g, hex, piece));
+    const placePiece = (hex: Hex, piece: number) =>
+        mutateGame((g) => chessService.placeBoardPiece(g, hex, piece));
 
-    const setTurn = (turn: boolean) => mutateGame((g) => setBoardTurn(g, turn));
+    const setTurn = (turn: boolean) =>
+        mutateGame((g) => chessService.setBoardTurn(g, turn));
 
     function revertPromotion() {
         if (state.promotion !== undefined) {

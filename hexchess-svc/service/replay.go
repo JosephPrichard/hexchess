@@ -81,37 +81,106 @@ func (svc *HexchessServices) GetMovesHistory(ctx context.Context, replayID int) 
 }
 
 type ReplayQuery struct {
-	UserID   int64
-	WhiteID  int64
-	BlackID  int64
-	LoserID  int64
-	WinnerID int64
-	Result   model.ReplayResult
-	Mode     model.GameMode
-	Cause    model.ReplayCause
-	FromDate time.Time
-	ToDate   time.Time
-	AfterID  int64
+	UserID     int64
+	WhiteID    int64
+	WhiteName  string
+	BlackID    int64
+	BlackName  string
+	LoserID    int64
+	LoserName  string
+	WinnerID   int64
+	WinnerName string
+	Result     enum.Optional[model.ReplayResult]
+	Mode       enum.Optional[model.GameMode]
+	Cause      enum.Optional[model.ReplayCause]
+	FromDate   time.Time
+	ToDate     time.Time
+	AfterID    int64
 }
 
-func (svc *HexchessServices) GetUserReplays(ctx context.Context, replayQuery ReplayQuery, perPage int32) ([]model.FullReplay, error) {
-	if replayQuery.AfterID < 0 {
-		replayQuery.AfterID = int64(math.MaxInt64)
+func (svc *HexchessServices) getReplayQueryUsernames(ctx context.Context, replayQuery *ReplayQuery) error {
+	var usernames []string
+
+	appendUsername := func(username string) {
+		if username != "" {
+			usernames = append(usernames, username)
+		}
 	}
 
-	hasUserID := replayQuery.UserID > 0
-	hasWinnerID := replayQuery.WinnerID > 0
-	hasLoserID := replayQuery.LoserID > 0
+	appendUsername(replayQuery.WhiteName)
+	appendUsername(replayQuery.BlackName)
+	appendUsername(replayQuery.WinnerName)
+	appendUsername(replayQuery.LoserName)
 
-	replayRows, err := svc.querier.SelectReplays(ctx, sqlc.SelectReplaysParams{
-		UserID:   pgtype.Int8{Int64: replayQuery.UserID, Valid: hasUserID},
-		WinnerID: pgtype.Int8{Int64: replayQuery.WinnerID, Valid: hasWinnerID},
-		LoserID:  pgtype.Int8{Int64: replayQuery.LoserID, Valid: hasLoserID},
-		AfterID:  replayQuery.AfterID,
-		PerPage:  perPage,
-	})
+	if len(usernames) == 0 {
+		return nil
+	}
+
+	slog.InfoContext(ctx, "selecting user ids by usernames for replay query", "usernames", usernames, "replayQuery", replayQuery)
+
+	userRows, err := svc.querier.SelectUserIDsByNames(ctx, usernames)
 	if err != nil {
-		return nil, fmt.Errorf("select replays by query %+v: %w", replayQuery, err)
+		return fmt.Errorf("select user ids by names %v: %w", usernames, err)
+	}
+
+	if len(userRows) != len(usernames) {
+		return ErrUsernameNotFound
+	}
+
+	userIDs := make(map[string]int64)
+	for _, row := range userRows {
+		userIDs[row.Username] = row.ID
+	}
+
+	coalesceUsername := func(oldID *int64, username string) {
+		newID := userIDs[username]
+		if *oldID <= 0 {
+			*oldID = newID
+		}
+	}
+
+	coalesceUsername(&replayQuery.WhiteID, replayQuery.WhiteName)
+	coalesceUsername(&replayQuery.BlackID, replayQuery.BlackName)
+	coalesceUsername(&replayQuery.WinnerID, replayQuery.WinnerName)
+	coalesceUsername(&replayQuery.LoserID, replayQuery.LoserName)
+
+	return nil
+}
+
+func (svc *HexchessServices) GetUserReplays(ctx context.Context, query ReplayQuery, perPage int32) ([]model.FullReplay, error) {
+	if err := svc.getReplayQueryUsernames(ctx, &query); err != nil {
+		if err == ErrUsernameNotFound {
+			// if an ID could not be loaded for a user that is provided as part of the search query, no replays will ever meet this search criterea.
+			return []model.FullReplay{}, nil
+		}
+		return nil, err
+	}
+
+	if query.AfterID <= 0 {
+		query.AfterID = int64(math.MaxInt64)
+	}
+
+	modeStr := query.Mode.Value.String()
+	resultStr := query.Result.Value.String()
+	causeStr := query.Cause.Value.String()
+
+	params := sqlc.SelectReplaysParams{
+		UserID:   pgtype.Int8{Int64: query.UserID, Valid: query.UserID > 0},
+		WinnerID: pgtype.Int8{Int64: query.WinnerID, Valid: query.WinnerID > 0},
+		LoserID:  pgtype.Int8{Int64: query.LoserID, Valid: query.LoserID > 0},
+		WhiteID:  pgtype.Int8{Int64: query.WhiteID, Valid: query.WhiteID > 0},
+		BlackID:  pgtype.Int8{Int64: query.BlackID, Valid: query.BlackID > 0},
+		Mode:     sqlc.NullModeEnum{ModeEnum: sqlc.ModeEnum(modeStr), Valid: query.Mode.IsPresent},
+		Result:   sqlc.NullResultEnum{ResultEnum: sqlc.ResultEnum(resultStr), Valid: query.Result.IsPresent},
+		Cause:    sqlc.NullCauseEnum{CauseEnum: sqlc.CauseEnum(causeStr), Valid: query.Cause.IsPresent},
+		DateFrom: pgtype.Timestamptz{Time: query.FromDate, Valid: !query.FromDate.IsZero()},
+		DateTo:   pgtype.Timestamptz{Time: query.ToDate, Valid: !query.ToDate.IsZero()},
+		AfterID:  query.AfterID,
+		PerPage:  perPage,
+	}
+	replayRows, err := svc.querier.SelectReplays(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("select replays by query %+v: %w", query, err)
 	}
 
 	replays := make([]model.FullReplay, 0, len(replayRows))
@@ -119,7 +188,7 @@ func (svc *HexchessServices) GetUserReplays(ctx context.Context, replayQuery Rep
 		replays = append(replays, mapFullReplayByIDRow(sqlc.SelectReplayByIDRow(row)))
 	}
 
-	slog.InfoContext(ctx, "selected replays", "replayQuery", replayQuery, "perPage", perPage, "replays", replays)
+	slog.InfoContext(ctx, "selected replays", "query", query, "perPage", perPage, "replays", replays)
 	return replays, nil
 }
 

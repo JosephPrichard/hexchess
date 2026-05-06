@@ -2,13 +2,19 @@
 	import { getClientSession } from '$lib/utils/storage';
 	import type { SessionModel } from './api/models';
 	import { onMount } from 'svelte';
-	import ProfilePic from '$lib/components/user/ProfilePic.svelte';
-	import ChallengeIcon from "$lib/components/icons/ChallengeIcon.svelte";
-	import SettingsIcon from "$lib/components/icons/SettingsIcon.svelte";
+	import ProfilePic from '$lib/components/ProfilePic.svelte';
+	import ChallengeIcon from "$lib/icons/ChallengeIcon.svelte";
+	import SettingsIcon from "$lib/icons/SettingsIcon.svelte";
+	import MagnifyingGlass from "$lib/icons/MagnifyingGlass.svelte";
+	import {goto} from "$app/navigation";
+	import services from "$lib/api/services";
+	import {MediaQuery} from "svelte/reactivity";
 
 	const id = $props.id();
 
 	let client: SessionModel | null = $state(null);
+	let searchText = $state('');
+	let challengesCount = $state(0);
 
 	function initClientSession() {
 		client = getClientSession();
@@ -21,6 +27,22 @@
 			window.removeEventListener('storage', initClientSession);
 		};
 	});
+
+	onMount(async () => {
+		const [data, err] = await services.getChallengesCount();
+		if (data) {
+			challengesCount = data.count;
+		} else {
+			console.error('Failed to get challenges count', err);
+		}
+	})
+
+	async function handleSearchSubmit(e: Event) {
+		e.preventDefault();
+		await goto(`/players/search?username=${encodeURIComponent(searchText)}`);
+	}
+
+	const isLarge = new MediaQuery('min-width: 1068px');
 </script>
 
 <link href="https://fonts.googleapis.com/css2?family=Gidole&display=swap" rel="stylesheet" />
@@ -29,13 +51,47 @@
 		<img alt="" class="logo-symbol" src="/pieces/white-queen.png" />
 		<span class="logo-font"> Hexchess </span>
 	</a>
-	<a class="banner-elem color-hover" href="/"> Play </a>
-	<a class="banner-elem color-hover" href="/leaderboard"> Leaderboard </a>
-	<a class="banner-elem color-hover" href="/players/search"> Search </a>
+	<a class="banner-elem color-hover" href="/">
+		Play
+	</a>
+	<a class="banner-elem color-hover" href="/leaderboard">
+		Leaderboard
+	</a>
+	<a class="banner-elem color-hover" href="/replays">
+		Replays
+	</a>
+	<a class="banner-elem color-hover" href="/tournaments">
+		Tournaments
+	</a>
+	<div class="banner-elem color-hover">
+		{#if isLarge.current}
+			<form onsubmit={handleSearchSubmit}>
+				<input
+						id="text"
+						type="text"
+						class="search-input"
+						bind:value={searchText}
+						autocomplete="off"
+						autocapitalize="off"
+						spellcheck="false"
+				/>
+			</form>
+			<div class="search-icon">
+				<MagnifyingGlass/>
+			</div>
+		{:else}
+			Search
+		{/if}
+	</div>
 	{#if client}
 		<div class="client-panels">
-			<a class="banner-elem color-hover" href="/challenges" id="challenge-link">
+			<a class="banner-elem color-hover challenge-icon-wrapper" href="/challenges" id="challenge-link">
 				<ChallengeIcon/>
+				{#if challengesCount > 0}
+					<div class="challenges-count">
+						{challengesCount}
+					</div>
+				{/if}
 			</a>
 			<a class="banner-elem color-hover" href="/profile" id="settings-link">
 				<SettingsIcon/>
@@ -52,6 +108,35 @@
 </div>
 
 <style>
+	.challenge-icon-wrapper {
+		position: relative !important;
+	}
+
+	.challenges-count {
+		position: absolute;
+		text-align: center;
+		font-size: 12px;
+		top: 5px;
+		right: 1px;
+		background-color: rgb(183, 55, 78, 0.85);
+		color: white;
+		border-radius: 50%;
+		width: 16px;
+		height: 16px;
+	}
+
+	.search-input {
+		height: 30px;
+		display: flex;
+		align-items: center;
+		padding: 0 30px 0 10px;
+	}
+
+	.search-icon {
+		right: 15px;
+		position: relative;
+	}
+
 	.client-panels {
 		display: flex;
  		align-items: center;
@@ -63,16 +148,26 @@
         margin-bottom: 20px;
         display: flex;
         align-items: center;
-        padding-left: 15%;
-        padding-right: 15%;
+        padding-left: 10px;
+        padding-right: 10px;
         user-select: none;
         font-weight: 500;
 
-        width: 70%;
+        width: calc(100% - 20px);
 
         background: rgb(43, 43, 43);
         box-shadow: 0 1px rgb(22, 22, 22);
     }
+
+	@media (max-width: 868px) {
+		.banner {
+			height: fit-content;
+			display: flex;
+			flex-direction: column;
+			padding-top: 10px;
+			padding-bottom: 10px;
+		}
+	}
 
     .banner-elem {
         font-size: 17px;
@@ -80,12 +175,19 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        padding: 15px 10px;
+        padding: 0 10px;
         cursor: pointer;
         border-radius: 6px;
         user-select: none;
         text-decoration: none;
     }
+
+	@media (max-width: 868px) {
+		.banner-elem {
+			margin-top: 5px;
+			margin-bottom: 5px;
+		}
+	}
 
     .logo-font {
         position: relative;

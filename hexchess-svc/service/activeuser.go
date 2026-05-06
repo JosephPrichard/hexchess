@@ -2,7 +2,6 @@ package svc
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -14,7 +13,7 @@ const ActiveUserMaxage = 5 * time.Minute // the caller should manually remove, b
 
 func (svc *HexchessServices) IsActiveUser(ctx context.Context, id string) bool {
 	_, err := svc.redis.Cache.ZScore(ctx, svc.redis.ActiveUsersZSet, id).Result()
-	return !errors.Is(err, redis.Nil)
+	return err == nil
 }
 
 func (svc *HexchessServices) GetActiveCount(ctx context.Context) (int64, error) {

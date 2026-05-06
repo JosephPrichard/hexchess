@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { appBaseURL, baseURL } from '$lib/api/services.js';
+	import { baseURL } from '$lib/api/services.js';
 
 	export interface ProfilePicProps {
 		userId: number;

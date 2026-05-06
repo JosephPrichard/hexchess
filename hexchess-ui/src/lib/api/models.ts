@@ -1,5 +1,10 @@
 import type { ChatMessage, PlayerState, Replay } from '$lib/pb/messages';
 
+function nameMapIntoOptions<T extends string>(nameMap: Record<T, string>) {
+	return Object.entries(nameMap)
+		.map(([key, value]) => ({label: value as string, value: key as T}))
+}
+
 export type Action = 'delete' | 'reject' | 'accept';
 
 export type ColorSelect = 'RANDOM' | 'WHITE' | 'BLACK';
@@ -12,7 +17,7 @@ export type GameMode =
 	| "CORRESPONDENCE_7"
 	| "CORRESPONDENCE_14";
 
-export const GameModeNameMap: Record<string, string> = {
+export const TypedGameModeNameMap: Record<GameMode, string> = {
 	"TIMED_1+0": "Bullet",
 	"TIMED_3+2": "Blitz",
 	"TIMED_15+10": "Rapid",
@@ -21,13 +26,47 @@ export const GameModeNameMap: Record<string, string> = {
 	"CORRESPONDENCE_14": "Correspondence 14d",
 };
 
+export const GameModeNameMap = TypedGameModeNameMap as Record<string, string>;
+
+export const GameModeOptions = nameMapIntoOptions(TypedGameModeNameMap);
+
+export type ReplayCause =
+	| "CHECKMATE"
+	| "STALEMATE"
+	| "FORFEIT";
+
+export const TypedReplayCauseNameMap: Record<ReplayCause, string> = {
+	"CHECKMATE": "Checkmate",
+	"STALEMATE": "Stalemate",
+	"FORFEIT": "Forfeit",
+};
+
+export const ReplayCauseNameMap = TypedReplayCauseNameMap as Record<string, string>;
+
+export const ReplayCauseOptions = nameMapIntoOptions(TypedReplayCauseNameMap);
+
+export type ReplayResult =
+	| "WHITE_WINS"
+	| "BLACK_WINS"
+	| "DRAW";
+
+export const TypedReplayResultNameMap: Record<ReplayResult, string> = {
+	"WHITE_WINS": "White Wins",
+	"BLACK_WINS": "Black Wins",
+	"DRAW": "Draw",
+};
+
+export const ReplayResultNameMap = TypedReplayCauseNameMap as Record<string, string>;
+
+export const ReplayResultOptions = nameMapIntoOptions(TypedReplayResultNameMap);
+
 const msPerMin = 60_000;
 
-export const GameModeTimers = new Map<string, number>([
-	["TIMED_1+0", msPerMin],
-	["TIMED_3+2", 3 * msPerMin],
-	["TIMED_15+10", 15 * msPerMin],
-]);
+export const GameModeTimers: Record<string, number> = {
+	"TIMED_1+0": msPerMin,
+	"TIMED_3+2": 3 * msPerMin,
+	"TIMED_15+10": 15 * msPerMin,
+};
 
 export interface SessionModel {
 	id: number;

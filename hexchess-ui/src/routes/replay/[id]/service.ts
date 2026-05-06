@@ -52,7 +52,7 @@ export async function gameAtStepIndex(initialGame: ChessGame | undefined, steps:
 export function getStepTimers(stepIndex: number | undefined, steps: HistMove[], mode: string): TimerType | undefined {
 	if (steps.length == 0) return;
 
-	const startTimer = GameModeTimers.get(mode);
+	const startTimer = GameModeTimers[mode];
 	if (!startTimer) return;
 
 	if (stepIndex !== undefined) {
