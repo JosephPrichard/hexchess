@@ -225,7 +225,9 @@ CREATE TABLE public.replays (
     lose_elo_diff double precision NOT NULL,
     white_elo double precision NOT NULL,
     black_elo double precision NOT NULL,
-    game_id text DEFAULT gen_random_uuid() NOT NULL
+    game_id text DEFAULT gen_random_uuid() NOT NULL,
+    turn_count integer NOT NULL,
+    rating double precision NOT NULL
 );
 
 

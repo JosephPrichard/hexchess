@@ -29,7 +29,9 @@ func SSE(h func(w SSEWriter, r *http.Request) error) http.HandlerFunc {
 		ctx := r.Context()
 		if err := h(SSEWriter{ctx, w, f}, r); err != nil {
 			status, m := HttpStatusFromErr(err)
-			slog.ErrorContext(ctx, "sse request failed", "Err", err, "method", r.Method, "url", r.URL)
+
+			slog.Log(ctx, LevelFromStatus(status), "sse request failed", "Err", err, "method", r.Method, "url", r.URL)
+
 			http.Error(w, fmt.Sprintf("%s:%s", MetaEvent, m), status)
 		}
 		slog.InfoContext(ctx, "finished sse request", "method", r.Method, "url", r.URL)

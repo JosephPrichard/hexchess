@@ -2,7 +2,11 @@ package logutil
 
 import (
 	"context"
-	"io"
+	"errors"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
+	"go.opentelemetry.io/otel/log/global"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"log/slog"
 	"os"
 )
@@ -50,14 +54,88 @@ func (h *TraceHandler) Handle(ctx context.Context, r slog.Record) error {
 	return h.Handler.Handle(ctx, r)
 }
 
-var LogWriter io.Writer = os.Stderr
+type FanoutHandler struct {
+	handlers []slog.Handler
+}
 
-func InitLoggers(f *os.File) {
-	if f != nil {
-		LogWriter = io.MultiWriter(os.Stderr, f)
+func (f *FanoutHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	for _, h := range f.handlers {
+		if h.Enabled(ctx, level) {
+			return true
+		}
 	}
-	handler := slog.NewTextHandler(LogWriter, &slog.HandlerOptions{
+	return false
+}
+
+func (f *FanoutHandler) Handle(ctx context.Context, r slog.Record) error {
+	var errs []error
+	for _, h := range f.handlers {
+		if h.Enabled(ctx, r.Level) {
+			if err := h.Handle(ctx, r); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (f *FanoutHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	handlers := make([]slog.Handler, len(f.handlers))
+	for i, h := range f.handlers {
+		handlers[i] = h.WithAttrs(attrs)
+	}
+	return &FanoutHandler{handlers}
+}
+
+func (f *FanoutHandler) WithGroup(name string) slog.Handler {
+	handlers := make([]slog.Handler, len(f.handlers))
+	for i, h := range f.handlers {
+		handlers[i] = h.WithGroup(name)
+	}
+	return &FanoutHandler{handlers}
+}
+
+type LogConfig struct {
+	OtlpEndpoint string
+}
+
+func InitLoggers(config LogConfig) func(ctx context.Context) {
+	stderrHandler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})
-	slog.SetDefault(slog.New(&TraceHandler{handler}))
+
+	handlers := []slog.Handler{stderrHandler}
+	var shutdown func(ctx context.Context)
+
+	if config.OtlpEndpoint != "" {
+		slog.Info("starting OTel rpc slog bridge logger", "config", config)
+
+		exporter, err := otlploggrpc.New(context.Background(),
+			otlploggrpc.WithEndpoint(config.OtlpEndpoint),
+			otlploggrpc.WithInsecure(),
+		)
+		if err != nil {
+			slog.Error("failed to create OTLP exporter, OTel logging disabled", "error", err)
+		}
+		provider := sdklog.NewLoggerProvider(
+			sdklog.WithProcessor(sdklog.NewBatchProcessor(exporter)),
+		)
+		global.SetLoggerProvider(provider)
+
+		otelHandler := otelslog.NewLogger("hexchess", otelslog.WithLoggerProvider(provider)).Handler()
+
+		handlers = append(handlers, otelHandler)
+
+		shutdown = func(ctx context.Context) {
+			if err := provider.Shutdown(ctx); err != nil {
+				slog.Error("OTel provider shutdown error", "error", err)
+			}
+		}
+	}
+
+	slog.SetDefault(slog.New(
+		&TraceHandler{&FanoutHandler{handlers: handlers}},
+	))
+
+	return shutdown
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import {GameModeNameMap, type UserStatsEntity} from "$lib/api/models";
+    import {UntypedGameModeNameMap, type UserStatsEntity} from "$lib/api/models";
     import {MediaQuery} from "svelte/reactivity";
 
     const { userStats }: { userStats: UserStatsEntity } = $props();
@@ -41,7 +41,7 @@
                     return 'yellow-color';
                 }
             }()}
-            {@const gameModeName = GameModeNameMap[stats.mode] || "Unknown"}
+            {@const gameModeName = UntypedGameModeNameMap[stats.mode] || "Unknown"}
             {@const total = stats.wins+stats.losses+stats.draws}
             {@const elo = Math.round(stats.elo)}
             {@const highestElo = Math.round(stats.highestElo)}

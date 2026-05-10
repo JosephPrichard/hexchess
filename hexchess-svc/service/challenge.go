@@ -73,20 +73,9 @@ type ChallengeKey struct {
 func (svc *HexchessServices) GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]model.Challenge, error) {
 	since := svc.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
-	var pgChallengerID pgtype.Int8
-	if key.ChallengerID != -1 {
-		pgChallengerID.Valid = true
-		pgChallengerID.Int64 = key.ChallengerID
-	}
-	var pgChallengeeID pgtype.Int8
-	if key.ChallengeeID != -1 {
-		pgChallengeeID.Valid = true
-		pgChallengeeID.Int64 = key.ChallengeeID
-	}
-
 	rows, err := svc.querier.SelectChallengesByParticipant(ctx, sqlc.SelectChallengesByParticipantParams{
-		ChallengerID: pgChallengerID,
-		ChallengeeID: pgChallengeeID,
+		ChallengerID: optInt8(key.ChallengerID),
+		ChallengeeID: optInt8(key.ChallengeeID),
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
 	})
 	if err != nil {

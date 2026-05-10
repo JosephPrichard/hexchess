@@ -1,5 +1,5 @@
 import { codes } from '$lib/utils/error';
-import type { Action, ChallengeModel, Chat, ChessModel, EloBuckets, FullPlayerModel, LbdUserModel, ReplayModel, ServiceModel, SessionModel, UserModel } from './models';
+import type {Action, ChallengeModel, Chat, ChessModel, EloBuckets, FullPlayerModel, LbdUserModel, ReplayModel, ReplayQuerySortKey, ServiceModel, SessionModel, UserModel} from './models';
 import { v4 as uuidv4 } from 'uuid';
 import { env } from '$env/dynamic/public';
 import { ChatMessages, MoveHistory } from '$lib/pb/messages';
@@ -229,8 +229,6 @@ export async function postProfilePic(file: File) {
 }
 
 export interface ReplaysQuery {
-	afterId?: number;
-
 	userId?: number;
 	winnerId?: number;
 	loserId?: number;
@@ -244,6 +242,12 @@ export interface ReplaysQuery {
 	losername?: string;
 	whitename?: string;
 	blackname?: string;
+
+	afterId?: number;
+	afterTurnCount?: number;
+	afterRating?: number;
+
+	sort?: ReplayQuerySortKey;
 }
 
 function getReplays(replaysQuery: ReplaysQuery, fetch?: FetchFn) {

@@ -1,66 +1,66 @@
 -- name: InsertTournament :one
 INSERT INTO tournaments (tournament_key, name, rounds, ruleset, status, countdown, countdown_started_on, created_on, created_by, updated_on, mode)
 VALUES (
-    sqlc.arg('tournament_key')::uuid,
+    sqlc.arg('tournamentKey')::uuid,
     sqlc.arg('name'),
     sqlc.arg('rounds'),
     sqlc.arg('ruleset'),
     sqlc.arg('status'),
     sqlc.arg('countdown'),
-    sqlc.arg('countdown_started_on'),
-    sqlc.arg('created_on'),
-    sqlc.arg('created_by'),
-    sqlc.arg('updated_on'),
+    sqlc.arg('countdownStartedOn'),
+    sqlc.arg('createdOn'),
+    sqlc.arg('createdBy'),
+    sqlc.arg('updatedOn'),
     sqlc.arg('mode'))
 RETURNING id;
 
 -- name: InsertTournamentParticipant :exec
 INSERT INTO tournament_participants (tournament_key, user_id, joined_on)
-VALUES (sqlc.arg('tournament_key')::uuid, sqlc.arg('user_id'), sqlc.arg('joined_on'));
+VALUES (sqlc.arg('tournamentKey')::uuid, sqlc.arg('userID'), sqlc.arg('joinedOn'));
 
 -- name: BatchInsertTournamentMatch :batchexec
 INSERT INTO tournament_matches (tournament_key, game_id, white_id, black_id, round, created_on)
 VALUES (
-        sqlc.arg('tournament_key')::uuid,
-        sqlc.arg('game_id'),
-        sqlc.arg('white_id'),
-        sqlc.arg('black_id'),
+        sqlc.arg('tournamentKey')::uuid,
+        sqlc.arg('gameID'),
+        sqlc.arg('whiteID'),
+        sqlc.arg('blackID'),
         sqlc.arg('round'),
-        COALESCE(sqlc.narg('created_on'), CURRENT_TIMESTAMP)
+        COALESCE(sqlc.narg('createdOn'), CURRENT_TIMESTAMP)
 )
 ON CONFLICT ON CONSTRAINT tournament_matches_pkey DO NOTHING;
 
 -- name: UpdateTournamentStatus :exec
 UPDATE tournaments
 SET status = sqlc.arg('status'),
-    updated_on = COALESCE(sqlc.narg('updated_on'), CURRENT_TIMESTAMP),
+    updated_on = COALESCE(sqlc.narg('updatedOn'), CURRENT_TIMESTAMP),
     rounds = COALESCE(sqlc.narg('rounds'), rounds),
-    winner_id = COALESCE(sqlc.narg('winner_id'), winner_id),
-    countdown_started_on = COALESCE(sqlc.narg('countdown_started_on'), countdown_started_on)
-WHERE tournament_key = sqlc.arg('tournament_key');
+    winner_id = COALESCE(sqlc.narg('winnerID'), winner_id),
+    countdown_started_on = COALESCE(sqlc.narg('countdownStartedOn'), countdown_started_on)
+WHERE tournament_key = sqlc.arg('tournamentKey');
 
 -- name: DeleteTournamentParticipant :many
 DELETE FROM tournament_participants tp
 USING tournaments t
 WHERE
-    tp.tournament_key = sqlc.arg('tournament_key') AND
-    tp.user_id = sqlc.arg('user_id') AND
+    tp.tournament_key = sqlc.arg('tournamentKey') AND
+    tp.user_id = sqlc.arg('userID') AND
     t.tournament_key = tp.tournament_key AND
     t.status = 'LOBBY'::tournament_status_enum
 RETURNING user_id;
 
 -- name: SelectTournamentStatus :one
-SELECT status, winner_id FROM tournaments WHERE tournament_key = sqlc.arg('tournament_key')::uuid;
+SELECT status, winner_id FROM tournaments WHERE tournament_key = sqlc.arg('tournamentKey')::uuid;
 
 -- name: SelectParticipants :many
-SELECT * FROM tournament_participants WHERE tournament_key = sqlc.arg('tournament_key')::uuid;
+SELECT * FROM tournament_participants WHERE tournament_key = sqlc.arg('tournamentKey')::uuid;
 
 -- name: SelectMatches :many
-SELECT * FROM tournament_matches WHERE tournament_key = sqlc.arg('tournament_key')::uuid;
+SELECT * FROM tournament_matches WHERE tournament_key = sqlc.arg('tournamentKey')::uuid;
 
 -- name: SelectTournamentByID :one
 SELECT id, tournament_key, name, rounds, ruleset, status, winner_id, countdown, countdown_started_on, created_on, updated_on, created_by, mode
-FROM tournaments WHERE tournament_key = sqlc.arg('tournament_key')::uuid;
+FROM tournaments WHERE tournament_key = sqlc.arg('tournamentKey')::uuid;
 
 -- name: SelectParticipantsWithUserByTournamentID :many
 SELECT
@@ -84,7 +84,7 @@ FROM tournament_participants tp
         ON u.id = tp.user_id
     LEFT JOIN user_mode_elos e -- must be a left join because mode elos are lazily initialized when user plays the first game.
         ON u.id = e.user_id AND e.mode = t.mode
-WHERE tp.tournament_key = sqlc.arg('tournament_key')::uuid
+WHERE tp.tournament_key = sqlc.arg('tournamentKey')::uuid
 ORDER BY tp.joined_on DESC;
 
 -- name: SelectReplayMatchesByTournamentID :many
@@ -107,7 +107,7 @@ FROM tournament_matches tm
      -- must be left join, if the game is not finished it does not have a replay yet
     LEFT JOIN replays r
         ON r.game_id = tm.game_id
-WHERE tm.tournament_key = sqlc.arg('tournament_key')::uuid
+WHERE tm.tournament_key = sqlc.arg('tournamentKey')::uuid
 ORDER BY tm.ordering DESC;
 
 -- name: SelectTournaments :many
@@ -145,7 +145,7 @@ FROM tournament_participants tp
         ON t.tournament_key = tp.tournament_key
     LEFT JOIN user_mode_elos e -- must be a left join because mode elos are lazily initialized when user plays the first game.
        ON tp.user_id = e.user_id AND e.mode = t.mode
-WHERE tp.tournament_key = sqlc.arg('tournament_key')
+WHERE tp.tournament_key = sqlc.arg('tournamentKey')
 ORDER BY tp.joined_on;
 
 -- name: SelectMatchesByTournamentID :many
@@ -165,7 +165,7 @@ FROM tournament_matches tm
         ON tm.white_id = e1.user_id AND e1.mode = t.mode
     LEFT JOIN user_mode_elos e2
         ON tm.black_id = e2.user_id AND e2.mode = t.mode
-WHERE tm.tournament_key = sqlc.arg('tournament_key')
+WHERE tm.tournament_key = sqlc.arg('tournamentKey')
 ORDER BY tm.round, tm.ordering;
 
 -- name: SelectTournamentByGameID :one

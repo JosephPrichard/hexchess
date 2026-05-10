@@ -17,7 +17,7 @@ export type GameMode =
 	| "CORRESPONDENCE_7"
 	| "CORRESPONDENCE_14";
 
-export const TypedGameModeNameMap: Record<GameMode, string> = {
+export const GameModeNameMap: Record<GameMode, string> = {
 	"TIMED_1+0": "Bullet",
 	"TIMED_3+2": "Blitz",
 	"TIMED_15+10": "Rapid",
@@ -26,39 +26,48 @@ export const TypedGameModeNameMap: Record<GameMode, string> = {
 	"CORRESPONDENCE_14": "Correspondence 14d",
 };
 
-export const GameModeNameMap = TypedGameModeNameMap as Record<string, string>;
+export const UntypedGameModeNameMap = GameModeNameMap as Record<string, string>;
 
-export const GameModeOptions = nameMapIntoOptions(TypedGameModeNameMap);
+export const GameModeOptions = nameMapIntoOptions(GameModeNameMap);
 
 export type ReplayCause =
 	| "CHECKMATE"
 	| "STALEMATE"
 	| "FORFEIT";
 
-export const TypedReplayCauseNameMap: Record<ReplayCause, string> = {
+export const ReplayCauseNameMap: Record<ReplayCause, string> = {
 	"CHECKMATE": "Checkmate",
 	"STALEMATE": "Stalemate",
 	"FORFEIT": "Forfeit",
 };
 
-export const ReplayCauseNameMap = TypedReplayCauseNameMap as Record<string, string>;
-
-export const ReplayCauseOptions = nameMapIntoOptions(TypedReplayCauseNameMap);
+export const ReplayCauseOptions = nameMapIntoOptions(ReplayCauseNameMap);
 
 export type ReplayResult =
 	| "WHITE_WINS"
 	| "BLACK_WINS"
 	| "DRAW";
 
-export const TypedReplayResultNameMap: Record<ReplayResult, string> = {
+export const ReplayResultNameMap: Record<ReplayResult, string> = {
 	"WHITE_WINS": "White Wins",
 	"BLACK_WINS": "Black Wins",
 	"DRAW": "Draw",
 };
 
-export const ReplayResultNameMap = TypedReplayCauseNameMap as Record<string, string>;
+export const ReplayResultOptions = nameMapIntoOptions(ReplayResultNameMap);
 
-export const ReplayResultOptions = nameMapIntoOptions(TypedReplayResultNameMap);
+export type ReplayQuerySortKey =
+	| "id"
+	| "turnCount"
+	| "rating";
+
+export const ReplayQuerySortKeyNameMap: Record<ReplayQuerySortKey, string> = {
+	"id": "Played On",
+	"turnCount": "Turn Count",
+	"rating": "Rating",
+};
+
+export const ReplayQuerySortKeyOptions = nameMapIntoOptions(ReplayQuerySortKeyNameMap);
 
 const msPerMin = 60_000;
 
@@ -149,6 +158,8 @@ export interface ReplayModel {
 	blackEloDiff: number;
 	winEloDiff: number;
 	loseEloDiff: number;
+	rating?: number;
+	turnCount?: number;
 }
 
 export function mapReplay(replay: Replay): ReplayModel {
@@ -169,7 +180,7 @@ export function mapReplay(replay: Replay): ReplayModel {
 		whiteEloDiff: replay.whiteEloDiff,
 		blackEloDiff: replay.blackEloDiff,
 		winEloDiff: replay.winEloDiff,
-		loseEloDiff: replay.loseEloDiff,
+		loseEloDiff: replay.loseEloDiff
 	};
 }
 

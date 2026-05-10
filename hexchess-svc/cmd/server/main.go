@@ -2,12 +2,6 @@ package main
 
 import (
 	"context"
-	"log/slog"
-	"net/http"
-	_ "net/http/pprof"
-	"os"
-	"strings"
-
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
 	"hexchess-svc/egress"
@@ -15,25 +9,22 @@ import (
 	svc "hexchess-svc/service"
 	"hexchess-svc/util/logutil"
 	"hexchess-svc/web"
+	"log/slog"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+	"runtime"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
-	f, err := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		logutil.FatalErr("open log file", err)
-	}
-	defer f.Close()
+	ctx := context.Background()
 
-	logutil.InitLoggers(f)
+	runtime.SetBlockProfileRate(1)
+	runtime.SetMutexProfileFraction(1)
+
 	cmd.InitEnv()
-
-	envMap := make(map[string]string)
-	for _, e := range os.Environ() {
-		pair := strings.Split(e, "=")
-		envMap[pair[0]] = pair[1]
-	}
 
 	serverPort := os.Getenv("SERVER_PORT")
 	dbURL := os.Getenv("DB_URL")
@@ -44,17 +35,20 @@ func main() {
 	awsDefaultRegion := os.Getenv("AWS_DEFAULT_REGION")
 	awsEndpoint := os.Getenv("AWS_ENDPOINT")
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
-	pprofPort := os.Getenv("PPROF_PORT")
+	oltpEndpoint := os.Getenv("OLTP_ENDPOINT")
 	// googleAPIKey := os.Getenv("GOOGLE_APIKEY")
 	// cookieDomain := os.Getenv("COOKIE_DOMAIN")
 
+	shutdown := logutil.InitLoggers(logutil.LogConfig{OtlpEndpoint: oltpEndpoint})
+	defer shutdown(ctx)
+
 	slog.Info("connecting to postgres db", "dbURL", dbURL)
-	pool, err := pgxpool.New(context.Background(), dbURL)
+	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
 		logutil.FatalErr("create pool", err)
 	}
 	defer pool.Close()
-	_, err = pool.Exec(context.Background(), "SELECT 1;")
+	_, err = pool.Exec(ctx, "SELECT 1;")
 	if err != nil {
 		logutil.FatalErr("execute startup query", err)
 	}
@@ -69,7 +63,7 @@ func main() {
 	slog.Info("connecting to redis db", "addrs", addrs)
 	rdb := db.MakeRdb(addrs, nil)
 
-	aws, err := egress.MakeAwsClients(context.Background(), egress.AWSConfig{
+	aws, err := egress.MakeAwsClients(ctx, egress.AWSConfig{
 		AWSDefaultRegion: awsDefaultRegion,
 		AWSEndpoint:      awsEndpoint,
 		IsLocalstack:     isLocalstack,
@@ -90,18 +84,16 @@ func main() {
 	broadcasters.Listen(rdb)
 	defer broadcasters.Shutdown()
 
-	queue.StartRedisQueueConsumers(context.Background(), services, rdb)
-	queue.StartDBQueueConsumers(context.Background(), services, pdb)
+	queue.StartRedisQueueConsumers(ctx, services, rdb)
+	queue.StartDBQueueConsumers(ctx, services, pdb)
 
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 
-	if pprofPort != "" {
-		go func() {
-			if err := http.ListenAndServe(":"+pprofPort, nil); err != nil {
-				slog.Error("failed while serving pprof", "err", err)
-			}
-		}()
-	}
+	go func() {
+		if err := http.ListenAndServe(":6060", nil); err != nil {
+			slog.Error("failed while serving pprof", "err", err)
+		}
+	}()
 
 	withHealthcheck := web.WithHealthCheckOpts(web.HealthCheckConfig{
 		PostgresDSN:     dbURL,

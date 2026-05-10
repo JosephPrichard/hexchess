@@ -1,5 +1,5 @@
 <script lang="ts">
-	import {type ColorSelect, type GameMode, GameModeNameMap, GameModeOptions} from '$lib/api/models';
+	import {type ColorSelect, type GameMode, UntypedGameModeNameMap, GameModeOptions} from '$lib/api/models';
 	import Dropdown from '$lib/components/Dropdown.svelte';
 
 	interface Props {

@@ -72,7 +72,7 @@
 				const replayList = data?.replayList ?? [];
 
 				if (replayList.length > 0) {
-					replayListRow.replayList = [...replayListRow.replayList, ...replayList];
+					replayListRow.replayList.push(...replayList);
 				} else {
 					replayListRow.hasMoreReplays = false;
 				}
@@ -261,7 +261,7 @@
 		<div class="game-histories">
 			{#if (replayList ?? []).length > 0}
 				{#each replayList as replay, i (i)}
-					<ReplayPreview replay={replay} index={i} rounding=""/>
+					<ReplayPreview replay={replay} index={i}/>
 				{/each}
 			{:else}
 				<div class="no-replays-wrapper">

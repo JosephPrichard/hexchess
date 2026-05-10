@@ -11,7 +11,7 @@ VALUES (
         sqlc.arg('country'),
         sqlc.arg('password'),
         sqlc.arg('salt'),
-        sqlc.arg('google_account_id'),
+        sqlc.arg('googleAccountID'),
         COALESCE(sqlc.narg('joined_on')::TIMESTAMPTZ, CURRENT_TIMESTAMP))
 RETURNING
     id,
@@ -32,7 +32,7 @@ VALUES (
         sqlc.arg('country'),
         sqlc.arg('password'),
         sqlc.arg('salt'),
-        sqlc.arg('joined_on'))
+        sqlc.arg('joinedOn'))
 RETURNING
     id,
     username,

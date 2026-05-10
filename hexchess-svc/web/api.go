@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -152,7 +153,7 @@ func MakeServeMux(setup Setup, opts ...func(*chi.Mux)) *chi.Mux {
 		strs = append(strs, fmt.Sprintf("%s %s", method, route))
 		return nil
 	})
-	fmt.Fprintf(logutil.LogWriter, "%s\n", strings.Join(strs, "\n"))
+	fmt.Fprintf(os.Stdout, "%s\n", strings.Join(strs, "\n"))
 
 	return r
 }

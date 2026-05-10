@@ -2,7 +2,7 @@
 	import CreateGame from '$lib/components/CreateGame.svelte';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import { goto } from '$app/navigation';
-	import { type ChessModel, type ColorSelect, type SessionModel, type GameMode, GameModeNameMap } from '$lib/api/models';
+	import { type ChessModel, type ColorSelect, type SessionModel, type GameMode, UntypedGameModeNameMap } from '$lib/api/models';
 	import services, { baseURL } from '$lib/api/services';
 	import { onMount } from 'svelte';
 	import { getClientSession } from '$lib/utils/storage';
@@ -131,7 +131,7 @@
 							{/if}
 						</td>
 						<td>
-							{GameModeNameMap[chess.mode] || "Unknown"}
+							{UntypedGameModeNameMap[chess.mode] || "Unknown"}
 						</td>
 					</tr>
 				{/each}

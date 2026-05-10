@@ -75,7 +75,7 @@ func (svc *HexchessServices) CreateGame(ctx context.Context, color model.GameCol
 	slog.InfoContext(ctx, "created chess game", "chessMeta", state.ChessMeta)
 
 	if err := svc.SetChessState(ctx, strID, state); err != nil {
-		return "", fmt.Errorf("set chess state by id %s: %w", strID, err)
+		return "", fmt.Errorf("set chess state by existingID %s: %w", strID, err)
 	}
 
 	go func() {

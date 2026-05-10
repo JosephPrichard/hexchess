@@ -1,15 +1,27 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	svc "hexchess-svc/service"
+	"hexchess-svc/util/enum"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
 )
+
+func LevelFromStatus(status int) slog.Level {
+	level := slog.LevelInfo
+	if status == http.StatusInternalServerError {
+		level = slog.LevelError
+	} else if status < 200 || status >= 300 {
+		level = slog.LevelWarn
+	}
+	return level
+}
 
 func HttpStatusFromErr(err error) (int, string) {
 	// map service errors to http errors (some service error mapping is common to every endpoint rather than case by case)
@@ -160,7 +172,7 @@ func writeBytes(w http.ResponseWriter, status int, b []byte) {
 	}
 }
 
-func intQueryDefault(values url.Values, key string, def int) (int, error) {
+func parseDefaultInt(values url.Values, key string, def int) (int, error) {
 	v := values.Get(key)
 	if v == "" {
 		return def, nil
@@ -168,7 +180,20 @@ func intQueryDefault(values url.Values, key string, def int) (int, error) {
 	return strconv.Atoi(v)
 }
 
-func queryDefault(values url.Values, key, def string) string {
+func parseOptionalFloat(values url.Values, key string, respError *ResponseError) enum.Optional[float64] {
+	v := values.Get(key)
+	if v == "" {
+		return enum.Optional[float64]{}
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		respError.Put(key, ErrHttpInvalidFloat)
+		return enum.Optional[float64]{}
+	}
+	return enum.OptionalOf(f)
+}
+
+func parseDefaultString(values url.Values, key, def string) string {
 	v := values.Get(key)
 	if v == "" {
 		return def
@@ -176,10 +201,35 @@ func queryDefault(values url.Values, key, def string) string {
 	return v
 }
 
-func jsCalenderDateDefault(values url.Values, key string) (time.Time, error) {
+func parseOptionalString(values url.Values, key string) enum.Optional[string] {
 	v := values.Get(key)
 	if v == "" {
-		return time.Time{}, nil
+		return enum.Optional[string]{}
 	}
-	return time.Parse(time.DateOnly, v)
+	return enum.OptionalOf(v)
+}
+
+func parseOptionalDatetime(ctx context.Context, values url.Values, key string, respError *ResponseError) enum.Optional[time.Time] {
+	v := values.Get(key)
+	if v == "" {
+		return enum.Optional[time.Time]{}
+	}
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		slog.WarnContext(ctx, "invalid date while transforming replays query", "err", err, "key", key)
+		respError.Put(key, ErrHttpInvalidDateTime)
+	}
+	return enum.OptionalOf(t)
+}
+
+func parseOptionalInt(values url.Values, key string, respError *ResponseError, err error) enum.Optional[int64] {
+	v := values.Get(key)
+	if v == "" {
+		return enum.Optional[int64]{}
+	}
+	i, err := strconv.Atoi(v)
+	if err != nil {
+		respError.Put(key, err)
+	}
+	return enum.OptionalOf(int64(i))
 }

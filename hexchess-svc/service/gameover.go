@@ -19,7 +19,7 @@ import (
 )
 
 type FinishedGame struct {
-	GameID       string              `json:"id"`
+	GameID       string              `json:"existingID"`
 	Board        hexchess.Board      `json:"board"`
 	Moves        []hexchess.HistMove `json:"moves"`
 	WhitePlayer  model.PlayerState   `json:"whitePlayer"`
@@ -33,7 +33,7 @@ func (svc *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGam
 	var changeSet GameResultChangeSet
 
 	if !finishedGame.WhitePlayer.Present || !finishedGame.BlackPlayer.Present {
-		slog.Warn("both players must be present on a finished game", "gameID", finishedGame.GameID)
+		slog.Warn("both players must be existingID on a finished game", "gameID", finishedGame.GameID)
 		return nil
 	}
 	whiteID := finishedGame.WhitePlayer.ID
@@ -77,7 +77,7 @@ func (svc *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGam
 	tournamentKey, err := svc.querier.SelectTournamentByGameID(ctx, finishedGame.GameID)
 	if !errors.Is(pgx.ErrNoRows, err) {
 		if err != nil {
-			return fmt.Errorf("select tournament by game id %s: %w", finishedGame.GameID, err)
+			return fmt.Errorf("select tournament by game existingID %s: %w", finishedGame.GameID, err)
 		}
 		// if two advance tournament events run concucurrently, one will advance the tournament and the other will noop
 		if err := sendScheduledTournamentEvent(ctx, svc.querier, tournamentKey.Bytes, time.Now()); err != nil {
@@ -107,6 +107,7 @@ type GameResult struct {
 	ReplayResult model.ReplayResult `json:"result"`
 	ReplayMode   model.GameMode     `json:"mode"`
 	InsertedTime time.Time          `json:"insertedTime"`
+	TurnCount    int                `json:"turnCount"`
 }
 
 type GameResultChangeSet struct {
@@ -173,17 +174,19 @@ func (svc *HexchessServices) InsertGameResultTx(ctx context.Context, result Game
 			}
 
 			replayInst := sqlc.InsertReplayParams{
-				GameID:   result.GameID,
-				WhiteID:  pgtype.Int8{Int64: result.WhiteID, Valid: model.IsNonGuestID(result.WhiteID)},
-				BlackID:  pgtype.Int8{Int64: result.BlackID, Valid: model.IsNonGuestID(result.BlackID)},
-				Result:   sqlc.ResultEnum(result.ReplayResult.String()),
-				Cause:    sqlc.CauseEnum(result.ReplayCause.String()),
-				Mode:     sqlc.ModeEnum(result.ReplayMode.String()),
-				WinElo:   changeSet.WinEloDiff,
-				LoseElo:  changeSet.LoseEloDiff,
-				WhiteElo: changeSet.WhiteEloNext,
-				BlackElo: changeSet.BlackEloNext,
-				PlayedOn: pgtype.Timestamptz{Valid: true, Time: result.InsertedTime},
+				GameID:    result.GameID,
+				WhiteID:   pgtype.Int8{Int64: result.WhiteID, Valid: model.IsNonGuestID(result.WhiteID)},
+				BlackID:   pgtype.Int8{Int64: result.BlackID, Valid: model.IsNonGuestID(result.BlackID)},
+				Result:    sqlc.ResultEnum(result.ReplayResult.String()),
+				Cause:     sqlc.CauseEnum(result.ReplayCause.String()),
+				Mode:      sqlc.ModeEnum(result.ReplayMode.String()),
+				WinElo:    changeSet.WinEloDiff,
+				LoseElo:   changeSet.LoseEloDiff,
+				WhiteElo:  changeSet.WhiteEloNext,
+				BlackElo:  changeSet.BlackEloNext,
+				PlayedOn:  pgtype.Timestamptz{Valid: true, Time: result.InsertedTime},
+				TurnCount: int32(result.TurnCount),
+				Rating:    (changeSet.WhiteEloNext + changeSet.BlackEloNext) / 2, // average of elo of both players is used for searchable "Rating"
 			}
 			replayID, err := querier.InsertReplay(ctx, replayInst)
 			if err != nil {
@@ -192,7 +195,7 @@ func (svc *HexchessServices) InsertGameResultTx(ctx context.Context, result Game
 
 			changeSet.ReplayID = replayID
 
-			slog.InfoContext(ctx, "inserted game result", "changeSet", changeSet)
+			slog.InfoContext(ctx, "inserted game result", "changeSet", changeSet, "replayInst", replayInst)
 			return nil
 		},
 	})

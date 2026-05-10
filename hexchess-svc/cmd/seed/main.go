@@ -57,7 +57,9 @@ func main() {
 	gameResults := readTestdataFile[GameResult]("test/game_results.json")
 	userInsts := readTestdataFile[svc.UserInst]("test/user_insts.json")
 
-	logutil.InitLoggers(nil)
+	shutdown := logutil.InitLoggers(logutil.LogConfig{})
+	defer shutdown(context.Background())
+
 	cmd.InitEnv()
 
 	dbURL := os.Getenv("DB_URL")
@@ -159,6 +161,7 @@ func insertRandomizedGameResults(ctx context.Context, services svc.HexchessAPI, 
 				ReplayResult: model.ExpectReplayResult(params.ReplayResult),
 				ReplayMode:   mode,
 				InsertedTime: timeAt.Add(time.Duration(gameIdx) * time.Hour * 24),
+				TurnCount:    len(moveSeq),
 			})
 			if err != nil {
 				return fmt.Errorf("insert game result: %w", err)

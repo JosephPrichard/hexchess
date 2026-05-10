@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { getNotificationsContext } from '$lib/utils/context';
-	import {type Action, type ChallengeModel, GameModeNameMap, type SessionModel} from '$lib/api/models';
+	import {type Action, type ChallengeModel, UntypedGameModeNameMap, type SessionModel} from '$lib/api/models';
 	import services from '$lib/api/services';
 	import { formatRelativeTime } from '$lib/utils/format';
 	import Banner from '$lib/Banner.svelte';
@@ -153,7 +153,7 @@
 						</div>
 						<div class="buttons-wrapper">
 							<div>
-								<b>{GameModeNameMap[challenge.mode]}</b>
+								<b>{UntypedGameModeNameMap[challenge.mode]}</b>
 							</div>
 							<div class="times-wrapper">
 								<div style="margin-bottom: 6px">

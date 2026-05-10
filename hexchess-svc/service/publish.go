@@ -84,6 +84,6 @@ func (svc *HexchessServices) pushFinishGameEvent(ctx context.Context, xadder Red
 		return fmt.Errorf("xadd finished game event: %w", err)
 	}
 
-	slog.InfoContext(ctx, "pushed finished game event", "id", msgID, "gameID", finishedGame.GameID)
+	slog.InfoContext(ctx, "pushed finished game event", "existingID", msgID, "gameID", finishedGame.GameID)
 	return nil
 }

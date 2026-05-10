@@ -42,7 +42,7 @@ func (state *ChessState) IsEitherPlayer(player model.PlayerState) bool {
 }
 
 type ChessMeta struct {
-	ID          string            `json:"id"`
+	ID          string            `json:"existingID"`
 	WhitePlayer model.PlayerState `json:"whitePlayer"`
 	BlackPlayer model.PlayerState `json:"blackPlayer"`
 	FirstColor  model.GameColor   `json:"firstColor"`

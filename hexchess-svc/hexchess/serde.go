@@ -233,11 +233,32 @@ func MarshalMoveHistory(initialBoard Board, moveSeq []HistMove) ([]byte, error) 
 
 	var pbMoveSteps []*pb.HistMove
 	for _, m := range moveSeq {
-		game.MakeMove(Move{From: m.From, To: m.To, Promotion: QueenPromotion})
-		game.InitPieceMoves()
+		//game.MakeMove(Move{From: m.From, To: m.To, Promotion: m.Promotion})
+		//game.InitPieceMoves()
 
 		pbMoveSteps = append(pbMoveSteps, SerializeHistMove(m))
 	}
 
 	return proto.Marshal(&pb.MoveHistory{InitialGame: pbInitialGame, Steps: pbMoveSteps})
+}
+
+func ExtractMoveHistoryLastBoard(data []byte) ([]byte, error) {
+	var pbMoveHistory pb.MoveHistory
+	if err := proto.Unmarshal(data, &pbMoveHistory); err != nil {
+		return nil, err
+	}
+
+	game, err := DeserializeGame(pbMoveHistory.InitialGame)
+	if err != nil {
+		return nil, fmt.Errorf("deserialize initial game: %w", err)
+	}
+	steps := DeserializeHistMoveList(pbMoveHistory.Steps)
+
+	for _, step := range steps {
+		game.MakeMove(Move{From: step.From, To: step.To, Promotion: step.Promotion})
+		game.InitPieceMoves()
+	}
+
+	pbBoard := SerializeBoard(&game.Board)
+	return proto.Marshal(pbBoard)
 }

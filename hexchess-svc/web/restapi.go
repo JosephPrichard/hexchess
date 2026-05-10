@@ -29,11 +29,7 @@ func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc
 			resp := HttpStatusFromErrs(err)
 			writeJSON(w, resp.Status, resp)
 
-			level := slog.LevelInfo
-			if resp.Status == http.StatusInternalServerError {
-				level = slog.LevelError
-			}
-			slog.Log(ctx, level, "failed to handle REST call", "Err", err, "method", r.Method, "url", r.URL)
+			slog.Log(ctx, LevelFromStatus(resp.Status), "failed to handle REST call", "Err", err, "method", r.Method, "url", r.URL)
 		}
 	}
 }
@@ -422,7 +418,7 @@ func (api *API) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) erro
 	ctx := r.Context()
 	q := r.URL.Query()
 
-	page, err := intQueryDefault(q, "page", 1)
+	page, err := parseDefaultInt(q, "page", 1)
 	if err != nil {
 		return OneRespError("page", ErrHttpInvalidPage)
 	}
@@ -771,7 +767,7 @@ func (api *API) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-type GetUserReplaysResp struct {
+type GetReplaysResp struct {
 	ReplayList []model.FullReplay `json:"replayList"`
 }
 
@@ -782,12 +778,12 @@ func (api *API) HandleGetReplays(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	replays, err := api.services.GetUserReplays(ctx, query, perPage)
+	replays, err := api.services.SearchReplaysByQuery(ctx, query, perPage)
 	if err != nil {
-		return fmt.Errorf("get user %d replays: %w", query.UserID, err)
+		return fmt.Errorf("get user %+v replays: %w", query.UserID, err)
 	}
 
-	writeJSON(w, http.StatusOK, GetUserReplaysResp{ReplayList: replays})
+	writeJSON(w, http.StatusOK, GetReplaysResp{ReplayList: replays})
 	return nil
 }
 
@@ -834,7 +830,7 @@ func (api *API) HandleGetMoveReplay(w http.ResponseWriter, r *http.Request) erro
 
 	writeBytes(w, http.StatusOK, bytes)
 	// aggressive cache control because this resource does not change, but the algorithm we are using to transform it might if requirements change.
-	//w.Header().Set("Cache-Control", "public, max-age=3600")
+	//w.Header().Set("Cache-Control", "public, max-age=86400")
 	return nil
 }
 

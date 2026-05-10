@@ -115,9 +115,23 @@ type PieceMove struct {
 	To    Hex   `json:"to"`
 }
 
+type BoardMatrix [][]int
+
 type Board struct {
 	IsWhiteTurn bool
 	Pieces      [Files][MaxRanks]Piece // over allocated to keep the array packed within the struct
+}
+
+func (b *Board) ToMatrix() BoardMatrix {
+	matrix := make([][]int, 0, Files)
+	for i, row := range b.Pieces {
+		matrixRow := make([]int, 0, RanksPerFile[i])
+		for _, piece := range row {
+			matrixRow = append(matrixRow, int(piece))
+		}
+		matrix = append(matrix, matrixRow)
+	}
+	return matrix
 }
 
 func ParseHexagon(notation string) (Hex, error) {

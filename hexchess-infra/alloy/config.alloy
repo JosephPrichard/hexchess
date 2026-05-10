@@ -1,0 +1,94 @@
+// ---------- OTLP receiver ----------
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces  = [otelcol.exporter.otlp.tempo.input]
+    metrics = [otelcol.exporter.prometheus.default.input]
+    logs    = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+// ---------- Forward traces to Tempo ----------
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+    tls {
+      insecure = true
+    }
+  }
+}
+
+// ---------- Prometheus metrics export ----------
+otelcol.exporter.prometheus "default" {
+  forward_to = [prometheus.remote_write.local.receiver]
+}
+
+prometheus.remote_write "local" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
+  }
+}
+
+// ---------- Pyroscope write ----------
+pyroscope.write "default" {
+  endpoint {
+    url = "http://pyroscope:4040"
+  }
+}
+
+// ---------- Go pprof scrape ----------
+// Point __address__ at your Go service's pprof port (default: 6060).
+// Add more targets to this list to scrape multiple services.
+pyroscope.scrape "go_pprof" {
+  targets = [
+    {
+      "__address__"  = "host.docker.internal:6060",
+      "service_name" = "hexchess-svc",
+      "env"          = "production",
+    },
+  ]
+
+  forward_to = [pyroscope.write.default.receiver]
+
+  // How often to collect profiles (default 15s)
+  scrape_interval = "15s"
+
+  // pprof paths Alloy will hit on each target
+  profiling_config {
+    profile.process_cpu {
+      enabled = true
+      path    = "/debug/pprof/profile"
+      delta   = true
+    }
+
+    profile.memory {
+      enabled = true
+      path    = "/debug/pprof/heap"
+      delta   = false
+    }
+
+    profile.goroutine {
+      enabled = true
+      path    = "/debug/pprof/goroutine"
+      delta   = false
+    }
+
+    profile.block {
+      enabled = true
+      path    = "/debug/pprof/block"
+      delta   = false
+    }
+
+    profile.mutex {
+      enabled = true
+      path    = "/debug/pprof/mutex"
+      delta   = false
+    }
+  }
+}

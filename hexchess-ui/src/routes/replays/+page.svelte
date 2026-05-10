@@ -5,9 +5,9 @@
         GameModeOptions,
         type ReplayCause,
         ReplayCauseOptions,
-        type ReplayModel,
+        type ReplayModel, type ReplayQuerySortKey, ReplayQuerySortKeyOptions,
         type ReplayResult,
-        ReplayResultOptions, TypedGameModeNameMap, TypedReplayCauseNameMap, TypedReplayResultNameMap
+        ReplayResultOptions, GameModeNameMap, ReplayCauseNameMap, ReplayQuerySortKeyNameMap, ReplayResultNameMap
     } from "$lib/api/models";
     import ReplayPreview from "$lib/components/ReplayPreview.svelte";
     import services, {type ReplaysQuery} from "$lib/api/services";
@@ -20,6 +20,9 @@
 
     const parseEnum = <T extends string>(value: string | undefined, nameMap: Record<T, string>): Optional<T> =>
         value !== "" && nameMap[value as T] !== undefined ? value as T : ""
+
+    const expectEnum = <T extends string>(value: string | undefined, nameMap: Record<T, string>, fallback: T): T =>
+        value !== "" && nameMap[value as T] !== undefined ? value as T : fallback
 
     const defaultOption = <T extends string>() =>
         ({ value: "" as T, label: "" });
@@ -39,50 +42,59 @@
 
     const q = props.query;
 
-    let nestedReplayList: ReplayModel[][] = $state([props.replays]);
+    let replayList: ReplayModel[] = $state(props.replays);
     let hasMoreReplays = $state(true);
 
     let fromDate: string = $state(q?.fromDate ?? "");
     let toDate: string = $state(q?.toDate ?? "");
-    let mode: Optional<GameMode> = $state(parseEnum(q?.mode, TypedGameModeNameMap));
-    let cause: Optional<ReplayCause> = $state(parseEnum(q?.cause, TypedReplayCauseNameMap));
-    let result: Optional<ReplayResult> = $state(parseEnum(q?.result, TypedReplayResultNameMap));
-    let winnerName: string = $state(q?.winnername ?? "");
-    let loserName: string = $state(q?.losername ?? "");
-    let whiteName: string = $state(q?.whitename ?? "");
-    let blackName: string = $state(q?.blackname ?? "");
+    let mode: Optional<GameMode> = $state(parseEnum(q?.mode, GameModeNameMap));
+    let cause: Optional<ReplayCause> = $state(parseEnum(q?.cause, ReplayCauseNameMap));
+    let result: Optional<ReplayResult> = $state(parseEnum(q?.result, ReplayResultNameMap));
+    let winnername: string = $state(q?.winnername ?? "");
+    let losername: string = $state(q?.losername ?? "");
+    let whitename: string = $state(q?.whitename ?? "");
+    let blackname: string = $state(q?.blackname ?? "");
+
+    let sort: ReplayQuerySortKey = $state(expectEnum(q?.sort, ReplayQuerySortKeyNameMap, "id"))
 
     $effect(() => {
         // keeps the local "draft" up to date whenever we receive a new version of the replays search result from the server
-        nestedReplayList = [props.replays];
+        replayList = props.replays;
     });
 
     async function onSearch() {
         const params = new URLSearchParams();
-        const paramsObj: ReplaysQuery = { fromDate, toDate, mode, cause, result,
-            winnername: winnerName, losername: loserName, whitename: whiteName, blackname: blackName };
+        const paramsObj: ReplaysQuery = {
+            fromDate, toDate, mode, cause, result, winnername, losername, whitename, blackname, sort
+        };
         for (let [key, value] of Object.entries(paramsObj)) {
             if (value !== "") {
                 params.set(key, value);
             }
         }
+        hasMoreReplays = true
         await goto(`/replays?${params}`);
     }
 
     async function tryLoadReplays() {
-        const lastId = nestedReplayList.at(-1)?.at(-1)?.id;
+        const lastReplay = replayList.at(-1);
+
+        const lastId = lastReplay?.id;
+        const lastRating = lastReplay?.rating;
+        const lastTurnCount = lastReplay?.turnCount;
+
         const isAtPageBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 100;
         const shouldLoadReplays = hasMoreReplays && isAtPageBottom && lastId !== undefined;
 
         if (shouldLoadReplays) {
-            const replayQuery = {...props.query, afterId: lastId}
+            const replayQuery: ReplaysQuery = {...props.query, afterId: lastId, afterRating: lastRating, afterTurnCount: lastTurnCount};
 
             const [data, err] = await services.getReplays(replayQuery, fetch);
             if (data) {
                 const nextReplayList = data?.replayList ?? [];
 
                 if (nextReplayList.length > 0) {
-                    nestedReplayList.push(nextReplayList);
+                    replayList.push(...nextReplayList);
                 } else {
                     hasMoreReplays = false;
                 }
@@ -108,55 +120,72 @@
                 <div class="sw-child">
                     <div class="sw-input">
                         <label for="from-date" class="sw-title">From</label>
-                        <input name="from-date" type="date" class="search-input" bind:value={fromDate} />
+                        <div class="search-input">
+                            <input name="from-date" type="date" bind:value={fromDate} />
+                        </div>
                     </div>
 
                     <div class="sw-input">
                         <label for="to-date" class="sw-title">To</label>
-                        <input name="to-date" type="date" class="search-input" bind:value={toDate} />
+                        <div class="search-input">
+                            <input name="to-date" type="date" bind:value={toDate} />
+                        </div>
                     </div>
 
-                    <div class="sw-input">
-                        <label for="mode" class="sw-title">Mode</label>
-                        <Dropdown options={modeOptions} selected={mode} onChange={value => mode = value}/>
-                    </div>
-
-                    <div class="sw-input">
-                        <label for="cause" class="sw-title">Cause</label>
-                        <Dropdown options={causeOptions} selected={cause} onChange={value => cause = value}/>
-                    </div>
-
-                    <div class="sw-input">
-                        <label for="result" class="sw-title">Result</label>
-                        <Dropdown options={resultOptions} selected={result} onChange={value => result = value}/>
-                    </div>
-                </div>
-                <div class="sw-child">
                     <div class="sw-input">
                         <label for="winnerName" class="sw-title">Winner</label>
                         <div class="search-input-large">
-                            <UserAutocompleteInput inputName="winnerName" bind:username={winnerName}/>
+                            <UserAutocompleteInput inputName="winnerName" bind:username={winnername}/>
                         </div>
                     </div>
 
                     <div class="sw-input">
                         <label for="loserName" class="sw-title">Loser</label>
                         <div class="search-input-large">
-                            <UserAutocompleteInput inputName="loserName" bind:username={loserName}/>
+                            <UserAutocompleteInput inputName="loserName" bind:username={losername}/>
                         </div>
                     </div>
 
                     <div class="sw-input">
                         <label for="whiteName" class="sw-title">White</label>
                         <div class="search-input-large">
-                            <UserAutocompleteInput inputName="whiteName" bind:username={whiteName}/>
+                            <UserAutocompleteInput inputName="whiteName" bind:username={whitename}/>
                         </div>
                     </div>
 
                     <div class="sw-input">
                         <label for="blackName" class="sw-title">Black</label>
                         <div class="search-input-large">
-                            <UserAutocompleteInput inputName="blackName" bind:username={blackName}/>
+                            <UserAutocompleteInput inputName="blackName" bind:username={blackname}/>
+                        </div>
+                    </div>
+                </div>
+                <div class="sw-child">
+                    <div class="sw-input">
+                        <div class="sw-title">Mode</div>
+                        <div class="search-dropdown">
+                            <Dropdown options={modeOptions} selected={mode} onChange={value => mode = value}/>
+                        </div>
+                    </div>
+
+                    <div class="sw-input">
+                        <div class="sw-title">Cause</div>
+                        <div class="search-dropdown">
+                            <Dropdown options={causeOptions} selected={cause} onChange={value => cause = value}/>
+                        </div>
+                    </div>
+
+                    <div class="sw-input">
+                        <div class="sw-title">Result</div>
+                        <div class="search-dropdown">
+                            <Dropdown options={resultOptions} selected={result} onChange={value => result = value}/>
+                        </div>
+                    </div>
+
+                    <div class="sw-input">
+                        <div class="sw-title">Sort</div>
+                        <div class="search-dropdown">
+                            <Dropdown options={ReplayQuerySortKeyOptions} selected={sort} onChange={value => sort = value}/>
                         </div>
                     </div>
                 </div>
@@ -167,25 +196,23 @@
                 </button>
             </div>
         </div>
-        {#if (nestedReplayList?.length ?? 0) === 0 || nestedReplayList[0].length === 0}
+        {#if (replayList?.length ?? 0) === 0}
             <div class="color-wrapper no-replays-wrapper">
                 No replays match the search criterea.
             </div>
         {:else}
             <div class="replay-snippets-wrapper">
-                {#each nestedReplayList as replayList}
-                    {#each replayList as replay, index (index)}
-                        {@const rounding = function() {
-                            if (index === 0) {
-                                return "rounded-top";
-                            } else if (index === replayList.length - 1) {
-                                return "rounded-bottom";
-                            } else {
-                                return "";
-                            }
-                        }()}
-                        <ReplayPreview index={index} replay={replay} rounding={rounding} />
-                    {/each}
+                {#each replayList as replay, index (index)}
+                    {@const rounding = function() {
+                        if (index === 0) {
+                            return "rounded-top";
+                        } else if (index === replayList.length - 1) {
+                            return "rounded-bottom";
+                        } else {
+                            return undefined;
+                        }
+                    }()}
+                    <ReplayPreview index={index} replay={replay} rounding={rounding} />
                 {/each}
             </div>
         {/if}
@@ -248,17 +275,17 @@
     }
 
     .search-input {
-        height: 25px;
         font-size: 14px;
         flex: 0.8;
-        width: 150px;
-        padding-left: 15px;
-        padding-right: 15px;
+    }
+
+    .search-dropdown {
+        flex: 0.8;
+        min-width: 200px;
     }
 
     .search-input-large {
         flex: 0.8;
-        min-width: 250px;
     }
 
     @media (max-width: 768px) {

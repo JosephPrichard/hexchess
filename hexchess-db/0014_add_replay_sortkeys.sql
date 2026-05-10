@@ -1,0 +1,12 @@
+-- +goose up
+
+ALTER TABLE replays ADD COLUMN turn_count INT NOT NULL DEFAULT 0;
+ALTER TABLE replays ADD COLUMN rating DOUBLE PRECISION NOT NULL DEFAULT 0;
+
+ALTER TABLE replays ALTER COLUMN turn_count DROP DEFAULT;
+ALTER TABLE replays ALTER COLUMN rating DROP DEFAULT;
+
+-- +goose down
+
+ALTER TABLE replays DROP COLUMN turn_count;
+ALTER TABLE replays DROP COLUMN rating;

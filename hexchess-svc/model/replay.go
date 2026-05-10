@@ -1,6 +1,8 @@
 package model
 
-import "time"
+import (
+	"time"
+)
 
 type Replay struct {
 	ID          int64        `json:"id"`
@@ -12,6 +14,8 @@ type Replay struct {
 	WinEloDiff  float64      `json:"winEloDiff"`
 	LoseEloDiff float64      `json:"loseEloDiff"`
 	PlayedOn    time.Time    `json:"playedOn"`
+	Rating      float64      `json:"rating"`
+	TurnCount   int          `json:"turnCount"`
 }
 
 type ReplayUsers struct {
@@ -26,6 +30,10 @@ type ReplayUsers struct {
 type RepayView struct {
 	WhiteEloDiff float64 `json:"whiteEloDiff"`
 	BlackEloDiff float64 `json:"blackEloDiff"`
+}
+
+type ReplayPreview struct {
+	PreviewBoard []byte `json:"previewBoard"`
 }
 
 type FullReplay struct {

@@ -44,7 +44,7 @@ type HexchessAPI interface {
 
 	GetReplayByGameID(ctx context.Context, gameID string) (model.FullReplay, error)
 	GetReplay(ctx context.Context, replayID int64) (model.FullReplay, error)
-	GetUserReplays(ctx context.Context, replayQuery ReplayQuery, perPage int32) ([]model.FullReplay, error)
+	SearchReplaysByQuery(ctx context.Context, replayQuery ReplayQuery, perPage int32) ([]model.FullReplay, error)
 	GetMovesHistory(ctx context.Context, replayID int) ([]byte, error)
 	RetrieveEloHistoryBuckets(ctx context.Context, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error)
 

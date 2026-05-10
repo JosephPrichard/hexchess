@@ -1,15 +1,13 @@
 <script lang="ts">
     import {formatEloDiff, formatRelativeTime, getReplayColors, formatReplayResult} from "$lib/utils/format.js";
-    import {GameModeNameMap, type ReplayModel} from "$lib/api/models.js";
+    import {UntypedGameModeNameMap, type ReplayModel} from "$lib/api/models.js";
     import {goto} from "$app/navigation";
     import {piecenames, pieces} from "$lib/service/chess";
     import ChallengeIcon from "$lib/icons/ChallengeIcon.svelte";
-    import Board from "$lib/components/Board.svelte";
-    import {defaultRenderArgs} from "$lib/components/chessRenderer";
 
     type Rounding = "rounded-top" | "rounded-bottom" | undefined;
 
-    const { replay, rounding, index }: { replay: ReplayModel, rounding: Rounding, index: number } = $props();
+    const { replay, rounding, index }: { replay: ReplayModel, rounding?: Rounding, index: number } = $props();
 
     const [whiteClass, blackClass] = $derived(getReplayColors(replay.result));
     const reroute = () => goto(`/replay/${replay.id}`);
@@ -18,26 +16,16 @@
 <div role="button"
      tabindex="0"
      class="replay-snippet-root row-hover"
-     class:replay-snippet-root-alt={index % 2 === 0}
      onclick={reroute}
      onkeydown={reroute}
      aria-label="View replay"
+     class:replay-snippet-root-alt={index % 2 === 0}
      class:rounded-top={rounding === "rounded-top"}
      class:rounded-bottom={rounding === "rounded-bottom"}
 >
-    <div class="replay-snippet-preview">
-        <Board
-            isWhitePerspective
-            showTileIndicators={false}
-            renderer={{
-                ...defaultRenderArgs,
-                hexHeight: 24,
-            }}
-        />
-    </div>
     <div class="replay-snippet-wrapper">
         <div class="replay-snippet-mode">
-            <b>{GameModeNameMap[replay.mode]}</b>
+            <b>{UntypedGameModeNameMap[replay.mode]}</b>
         </div>
         <div class="replay-snippet-playedon">
             {formatRelativeTime(replay.playedOn)}

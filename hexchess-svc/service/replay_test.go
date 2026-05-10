@@ -39,27 +39,51 @@ func TestGetReplay(t *testing.T) {
 	})
 }
 
-func TestGetUserReplays(t *testing.T) {
+func TestSearchReplaysByQuery(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres)
-	defer services.Close()
+	tests := []struct {
+		name        string
+		replayQuery ReplayQuery
+		perPage     int32
+		wantReplays []model.FullReplay
+	}{
+		{
+			name:        "QueryBy_Users",
+			replayQuery: ReplayQuery{UserID: 1, AfterID: -1},
+			perPage:     5,
+			wantReplays: []model.FullReplay{itest.TestReplay[2], itest.TestReplay[1], itest.TestReplay[0]},
+		},
+		{
+			name:        "QueryBy_Users_Cursor",
+			replayQuery: ReplayQuery{UserID: 1, AfterID: 3},
+			perPage:     5,
+			wantReplays: []model.FullReplay{itest.TestReplay[0]},
+		},
+		{
+			name: "QueryBy_Mode_Result_Cause",
+		},
+		{
+			name: "QueryBy_White_Winner",
+		},
+		{
+			name: "QueryBy_Black_Loser",
+		},
+	}
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			services, _ := SetupServicesTest(t, Mocks{}, itest.ROPostgres)
+			defer services.Close()
 
-	actualReplayList1, err := services.GetUserReplays(ctx, ReplayQuery{UserID: 1, AfterID: -1}, 5)
-	require.NoError(t, err)
-	actualReplayList2, err := services.GetUserReplays(ctx, ReplayQuery{UserID: 1, AfterID: 3}, 5)
-	require.NoError(t, err)
+			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	replay1 := itest.TestReplay[0]
-	replay3 := itest.TestReplay[1]
-	replay4 := itest.TestReplay[2]
-	wantReplayList1 := []model.FullReplay{replay4, replay3, replay1}
-	wantReplayList2 := []model.FullReplay{replay1}
+			replayList, err := services.SearchReplaysByQuery(ctx, tt.replayQuery, tt.perPage)
+			require.NoError(t, err)
 
-	assert.Equal(t, wantReplayList1, actualReplayList1)
-	assert.Equal(t, wantReplayList2, actualReplayList2)
+			assert.Equal(t, tt.wantReplays, replayList)
+		})
+	}
 }
 
 func TestRetrieveEloHistories(t *testing.T) {

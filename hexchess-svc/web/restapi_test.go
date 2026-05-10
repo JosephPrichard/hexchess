@@ -852,7 +852,7 @@ func TestHandleGetUserReplays(t *testing.T) {
 		name        string
 		afterID     string
 		userID      string
-		wantSuccess GetUserReplaysResp
+		wantSuccess GetReplaysResp
 		wantFail    ServiceView
 		wantStatus  int
 	}{
@@ -861,14 +861,14 @@ func TestHandleGetUserReplays(t *testing.T) {
 			userID:      "999",
 			afterID:     "0",
 			wantStatus:  http.StatusOK,
-			wantSuccess: GetUserReplaysResp{ReplayList: []model.FullReplay{}},
+			wantSuccess: GetReplaysResp{ReplayList: []model.FullReplay{}},
 		},
 		{
 			name:       "GotUserReplays",
 			afterID:    "-1",
 			userID:     "1",
 			wantStatus: http.StatusOK,
-			wantSuccess: GetUserReplaysResp{ReplayList: []model.FullReplay{
+			wantSuccess: GetReplaysResp{ReplayList: []model.FullReplay{
 				itest.TestReplay[2],
 				itest.TestReplay[1],
 				itest.TestReplay[0],

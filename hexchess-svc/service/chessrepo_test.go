@@ -92,7 +92,7 @@ func TestUpdateChessState_Errors(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	t.Run("failing with unknown game id", func(t *testing.T) {
+	t.Run("failing with unknown game existingID", func(t *testing.T) {
 		_, err := services.updateChessStateTxn(ctx, uuid.NewString(), func(state *ChessState) error { return nil }, nil)
 
 		assert.Equal(t, ErrNoChessState, err)

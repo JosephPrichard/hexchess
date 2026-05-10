@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Pagination from '$lib/Pagination.svelte';
 	import StatsList from '$lib/components/StatsList.svelte';
-	import { GameModeNameMap, type LbdUserModel } from '$lib/api/models';
+	import { UntypedGameModeNameMap, type LbdUserModel } from '$lib/api/models';
 	import Banner from '$lib/Banner.svelte';
 	import Dropdown from '$lib/components/Dropdown.svelte';
 	import { goto } from '$app/navigation';
@@ -14,7 +14,7 @@
 
 	const { data: props }: { data: LeaderboardProps } = $props();
 
-	const options = Object.entries(GameModeNameMap).map(([key, value]) => ({label: value, value: key}));
+	const options = Object.entries(UntypedGameModeNameMap).map(([key, value]) => ({label: value, value: key}));
 </script>
 
 <svelte:head>

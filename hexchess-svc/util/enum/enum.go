@@ -76,6 +76,14 @@ func Parse[T ~int, S StringLike](s S, m map[string]T) (T, bool) {
 	return v, ok
 }
 
+func ParseDefault[T ~int, S StringLike](s S, m map[string]T, def T) (T, bool) {
+	if s == "" {
+		return def, true
+	}
+	v, ok := m[string(s)]
+	return v, ok
+}
+
 func ParseOptional[T ~int, S StringLike](s S, m map[string]T) (Optional[T], bool) {
 	if s == "" {
 		return Optional[T]{}, true

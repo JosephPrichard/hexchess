@@ -27,7 +27,9 @@ func main() {
 	}
 	defer f.Close()
 
-	logutil.InitLoggers(f)
+	shutdown := logutil.InitLoggers(logutil.LogConfig{})
+	defer shutdown(context.Background())
+
 	cmd.InitEnv()
 
 	dbURL := os.Getenv("DB_URL")

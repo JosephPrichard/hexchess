@@ -141,9 +141,9 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	testAccountID := "testing-account-id"
+	testAccountID := "testing-account-existingID"
 
-	inst := GoogleUserInst{Username: "username", Country: "us", JoinedOn: itest.TimeNow}
+	inst := GoogleUserInst{Username: "incomingUsername", Country: "us", JoinedOn: itest.TimeNow}
 
 	user1, err := services.SelectOrInsertGoogleUser(ctx, testAccountID, inst)
 	require.NoError(t, err)
@@ -154,12 +154,12 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 	dbUser1, err := services.GetUserByID(ctx, user1.ID)
 	require.NoError(t, err)
 
-	verifiedUser := VerifiedUser{Username: "username", Country: "us"}
+	verifiedUser := VerifiedUser{Username: "incomingUsername", Country: "us"}
 	testutil.Equal(t, verifiedUser, user1, testVerifiedUserCmptOpts)
 	testutil.Equal(t, verifiedUser, user2, testVerifiedUserCmptOpts)
 
 	wantDbUser1 := model.User{
-		Username: "username",
+		Username: "incomingUsername",
 		Country:  "us",
 		JoinedOn: itest.TimeNow.Local(),
 	}

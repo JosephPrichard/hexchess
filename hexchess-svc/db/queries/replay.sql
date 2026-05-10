@@ -1,5 +1,18 @@
 -- name: InsertReplay :one
-INSERT INTO replays (game_id, white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode)
+INSERT INTO replays (
+        game_id,
+        white_id,
+        black_id,
+        result,
+        cause,
+        win_elo_diff,
+        lose_elo_diff,
+        white_elo,
+        black_elo,
+        played_on,
+        mode,
+        turn_count,
+        rating)
 VALUES (
         sqlc.arg('gameID'),
         sqlc.arg('whiteID'),
@@ -11,7 +24,9 @@ VALUES (
         sqlc.arg('whiteElo'),
         sqlc.arg('blackElo'),
         COALESCE(sqlc.narg('playedOn'), CURRENT_TIMESTAMP)::TIMESTAMPTZ,
-        sqlc.arg('mode'))
+        sqlc.arg('mode'),
+        sqlc.arg('turnCount'),
+        sqlc.arg('rating'))
 RETURNING id;
 
 -- name: UpsertReplayMoveHistories :exec
@@ -21,7 +36,10 @@ ON CONFLICT ON CONSTRAINT replay_move_histories_pkey
 DO UPDATE
     SET data = sqlc.arg('data');
 
--- name: SelectReplayMoveHistories :one
+-- name: SelectReplayMoveHistoriesByIDs :many
+SELECT * FROM replay_move_histories WHERE replay_id = ANY (sqlc.arg('replayIDs')::bigint[]);
+
+-- name: SelectReplayMoveHistoryByID :one
 SELECT * FROM replay_move_histories WHERE replay_id = sqlc.arg('replayID') ORDER BY replay_id DESC LIMIT 1;
 
 -- name: SelectReplayRowByID :one
@@ -40,6 +58,8 @@ SELECT
     r.win_elo_diff,
     r.lose_elo_diff,
     r.mode,
+    r.rating,
+    r.turn_count,
     u1.username AS white_name,
     u1.country AS white_country,
     e1.elo AS white_elo,
@@ -69,6 +89,8 @@ SELECT
     r.win_elo_diff,
     r.lose_elo_diff,
     r.mode,
+    r.rating,
+    r.turn_count,
     u1.username AS white_name,
     u1.country AS white_country,
     e1.elo AS white_elo,
@@ -92,10 +114,10 @@ SELECT id, mode, played_on, white_id, black_id, white_elo, black_elo -- gets the
 FROM replays
 WHERE 
     (white_id = sqlc.arg('id') OR black_id = sqlc.arg('id')) AND
-    (played_on > sqlc.narg('played_after') OR sqlc.narg('played_after') IS NULL)
+    (played_on > sqlc.narg('playedAfter') OR sqlc.narg('playedAfter') IS NULL)
 ORDER BY played_on;
 
--- name: SelectReplays :many
+-- name: SelectReplaysByQuery :many
 SELECT
     r.id,
     r.white_id,
@@ -106,6 +128,8 @@ SELECT
     r.win_elo_diff,
     r.lose_elo_diff,
     r.mode,
+    r.rating,
+    r.turn_count,
     u1.username AS white_name,
     u1.country AS white_country,
     e1.elo AS white_elo,
@@ -123,8 +147,6 @@ FROM replays r
     LEFT JOIN user_mode_elos e2
         ON e2.user_id = r.black_id AND e2.mode = r.mode
 WHERE
-    r.id < sqlc.arg('afterID') AND
-
     (r.mode = sqlc.narg('mode') OR sqlc.narg('mode') IS NULL) AND
     (r.result = sqlc.narg('result') OR sqlc.narg('result') IS NULL) AND
     (r.cause = sqlc.narg('cause') OR sqlc.narg('cause') IS NULL) AND
@@ -151,8 +173,20 @@ WHERE
     )
     AND
     (sqlc.narg('dateFrom')::TIMESTAMPTZ IS NULL OR r.played_on >= sqlc.narg('dateFrom')::TIMESTAMPTZ) AND
-    (sqlc.narg('dateTo')::TIMESTAMPTZ IS NULL OR r.played_on <= sqlc.narg('dateTo')::TIMESTAMPTZ)
+    (sqlc.narg('dateTo')::TIMESTAMPTZ IS NULL OR r.played_on <= sqlc.narg('dateTo')::TIMESTAMPTZ) AND
+
+    CASE
+         WHEN sqlc.arg('sortKey')::TEXT = 'turnCount' THEN r.turn_count <= sqlc.arg('afterTurnCount') AND r.id < sqlc.arg('afterID')
+         WHEN sqlc.arg('sortKey')::TEXT = 'rating' THEN r.rating <= sqlc.arg('afterRating') AND r.id < sqlc.arg('afterID')
+         ELSE r.id < sqlc.arg('afterID')
+    END
 ORDER BY
+    CASE
+        WHEN sqlc.arg('sortKey')::TEXT = 'turnCount' THEN r.turn_count
+    END DESC,
+    CASE
+        WHEN sqlc.arg('sortKey')::TEXT = 'rating' THEN r.rating
+    END DESC,
     r.id DESC
 LIMIT sqlc.arg('perPage');
 

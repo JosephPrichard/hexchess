@@ -198,7 +198,7 @@ func (svc *HexchessServices) GetTournaments(ctx context.Context, participantID i
 			PerPage: perPage,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("select tournaments after id %d: %w", afterID, err)
+			return nil, fmt.Errorf("select tournaments after existingID %d: %w", afterID, err)
 		}
 		tournaments = mapTournamentRows(tournamentRows, mapSelectTournamentRow)
 	} else {
@@ -208,7 +208,7 @@ func (svc *HexchessServices) GetTournaments(ctx context.Context, participantID i
 			PerPage: perPage,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("select tournaments by participant [%d] after id %d: %w", participantID, afterID, err)
+			return nil, fmt.Errorf("select tournaments by participant [%d] after existingID %d: %w", participantID, afterID, err)
 		}
 		tournaments = mapTournamentRows(tournamentRows, mapTournamentByParticipantRow)
 	}

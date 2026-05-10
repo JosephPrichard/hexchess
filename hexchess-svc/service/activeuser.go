@@ -41,7 +41,7 @@ func (svc *HexchessServices) RetainActiveUser(ctx context.Context, id string) er
 	if err != nil {
 		return fmt.Errorf("retain active user %s: %w", id, err)
 	}
-	slog.InfoContext(ctx, "retained active user", "id", id)
+	slog.InfoContext(ctx, "retained active user", "existingID", id)
 	return nil
 }
 
@@ -52,7 +52,7 @@ func (svc *HexchessServices) AddActiveUser(ctx context.Context, id string) (int6
 	if err != nil {
 		return 0, fmt.Errorf("add active user %v: %w", id, err)
 	}
-	slog.InfoContext(ctx, "added active user", "id", id)
+	slog.InfoContext(ctx, "added active user", "existingID", id)
 
 	return svc.GetActiveCount(ctx)
 }
@@ -63,9 +63,9 @@ func (svc *HexchessServices) RemoveActiveUser(ctx context.Context, id string) (i
 		return 0, fmt.Errorf("remove active user %v: %w", id, err)
 	}
 	if res > 0 {
-		slog.InfoContext(ctx, "removed active user", "id", id)
+		slog.InfoContext(ctx, "removed active user", "existingID", id)
 	} else {
-		slog.WarnContext(ctx, "did not remove active user", "id", id)
+		slog.WarnContext(ctx, "did not remove active user", "existingID", id)
 	}
 
 	return svc.GetActiveCount(ctx)

@@ -5,7 +5,9 @@ import (
 	"errors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/db"
+	"time"
 )
 
 func ptr[T any](v T) *T {
@@ -29,4 +31,12 @@ func mapInsertErr(err error, uniqueViolationErr error, foreignKeyViolationErr er
 	default:
 		return nil
 	}
+}
+
+func optInt8(v int64) pgtype.Int8 {
+	return pgtype.Int8{Int64: v, Valid: v > 0}
+}
+
+func optTime(t time.Time) pgtype.Timestamptz {
+	return pgtype.Timestamptz{Time: t, Valid: !t.IsZero()}
 }

@@ -34,7 +34,7 @@ func (svc *HexchessServices) GetStateChats(ctx context.Context, gameID string, c
 }
 
 type Chat struct {
-	ID      string            `json:"id"`
+	ID      string            `json:"existingID"`
 	Player  model.PlayerState `json:"player"`
 	Message string            `json:"message"`
 	SentAt  time.Time         `json:"sentAt"`

@@ -6,7 +6,6 @@ import (
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 	"hexchess-svc/util/enum"
-	"log/slog"
 	"net/url"
 	"strconv"
 	"strings"
@@ -174,11 +173,11 @@ func transformChessMetasQuery(values url.Values) (ChessMetasQuery, error) {
 	const pageKey = "page"
 	const countKey = "count"
 
-	page, err := intQueryDefault(values, pageKey, 1)
+	page, err := parseDefaultInt(values, pageKey, 1)
 	if err != nil {
 		respErr.Put(pageKey, ErrHttpInvalidPage)
 	}
-	count, err := intQueryDefault(values, countKey, perPage)
+	count, err := parseDefaultInt(values, countKey, perPage)
 	if err != nil {
 		respErr.Put(countKey, ErrHttpInvalidCount)
 	}
@@ -253,7 +252,7 @@ func transformEloHistoriesQuery(values url.Values) (EloHistoriesQuery, error) {
 		respErr.Put(userIDKey, ErrHttpInvalidID)
 	}
 
-	months, ok := timeframeMap[queryDefault(values, timeframeKey, "all")]
+	months, ok := timeframeMap[parseDefaultString(values, timeframeKey, "all")]
 	if !ok {
 		respErr.Put(timeframeKey, ErrHttpInvalidTimeframe)
 	}
@@ -267,7 +266,6 @@ type GetReplaysQuery = svc.ReplayQuery
 func transformReplaysQuery(ctx context.Context, values url.Values) (GetReplaysQuery, error) {
 	var respErr ResponseError
 
-	const afterIDKey = "afterId"
 	const userIDKey = "userId"
 	const winnerIDKey = "winnerId"
 	const loserIDKey = "loserId"
@@ -283,10 +281,23 @@ func transformReplaysQuery(ctx context.Context, values url.Values) (GetReplaysQu
 	const loserNameKey = "losername"
 	const winnerNameKey = "winnername"
 
-	whiteName := queryDefault(values, whiteNameKey, "")
-	blackName := queryDefault(values, blackNameKey, "")
-	loserName := queryDefault(values, loserNameKey, "")
-	winnerName := queryDefault(values, winnerNameKey, "")
+	const afterIDKey = "afterId"
+	const afterRatingKey = "afterRating"
+	const afterTurnCountKey = "afterTurnCount"
+
+	const sortKey = "sort"
+
+	// parsing search conditions
+	whiteName := parseOptionalString(values, whiteNameKey)
+	blackName := parseOptionalString(values, blackNameKey)
+	loserName := parseOptionalString(values, loserNameKey)
+	winnerName := parseOptionalString(values, winnerNameKey)
+
+	userID := parseOptionalInt(values, userIDKey, &respErr, ErrHttpInvalidID)
+	winnerID := parseOptionalInt(values, winnerIDKey, &respErr, ErrHttpInvalidID)
+	loserID := parseOptionalInt(values, loserIDKey, &respErr, ErrHttpInvalidID)
+	whiteID := parseOptionalInt(values, whiteIDKey, &respErr, ErrHttpInvalidID)
+	blackID := parseOptionalInt(values, blackIDKey, &respErr, ErrHttpInvalidID)
 
 	mode, ok := enum.ParseOptional(values.Get(modeKey), model.GameModeEnums)
 	if !ok {
@@ -301,51 +312,40 @@ func transformReplaysQuery(ctx context.Context, values url.Values) (GetReplaysQu
 		respErr.Put(causeKey, ErrHttpInvalidMode)
 	}
 
-	logInvalidDate := func(err error, key string) {
-		slog.WarnContext(ctx, "invalid date while transforming replays query", "err", err, "key", key)
-	}
+	fromDate := parseOptionalDatetime(ctx, values, toDateKey, &respErr)
+	toDate := parseOptionalDatetime(ctx, values, fromDateKey, &respErr)
 
-	fromDate, err := jsCalenderDateDefault(values, fromDateKey)
-	if err != nil {
-		respErr.Put(fromDateKey, ErrHttpInvalidDateTime)
-		logInvalidDate(err, fromDateKey)
-	}
-	toDate, err := jsCalenderDateDefault(values, toDateKey)
-	if err != nil {
-		respErr.Put(toDateKey, ErrHttpInvalidDateTime)
-		logInvalidDate(err, toDateKey)
+	// parsing sort cursors
+	afterID := parseOptionalInt(values, afterIDKey, &respErr, ErrHttpInvalidID)
+	afterTurnCount := parseOptionalInt(values, afterTurnCountKey, &respErr, ErrHttpInvalidID)
+	afterRating := parseOptionalFloat(values, afterRatingKey, &respErr)
+
+	// parsing sort enum
+	sort, ok := enum.ParseDefault(values.Get(sortKey), svc.ReplayQuerySortEnums, svc.ReplaySortID)
+	if !ok {
+		respErr.Put(sortKey, ErrHttpInvalidReplaySort)
 	}
 
 	query := GetReplaysQuery{
-		WhiteName:  whiteName,
-		BlackName:  blackName,
-		LoserName:  loserName,
-		WinnerName: winnerName,
-		Mode:       mode,
-		Result:     result,
-		Cause:      cause,
-		FromDate:   fromDate,
-		ToDate:     toDate,
+		WhiteName:      whiteName,
+		BlackName:      blackName,
+		LoserName:      loserName,
+		WinnerName:     winnerName,
+		UserID:         userID,
+		WinnerID:       winnerID,
+		LoserID:        loserID,
+		WhiteID:        whiteID,
+		BlackID:        blackID,
+		Mode:           mode,
+		Result:         result,
+		Cause:          cause,
+		FromDate:       fromDate,
+		ToDate:         toDate,
+		AfterID:        afterID,
+		AfterTurnCount: afterTurnCount,
+		AfterRating:    afterRating,
+		Sort:           sort,
 	}
-
-	for _, input := range []struct {
-		key string
-		fn  func(v int)
-	}{
-		{key: afterIDKey, fn: func(v int) { query.AfterID = int64(v) }},
-		{key: userIDKey, fn: func(v int) { query.UserID = int64(v) }},
-		{key: winnerIDKey, fn: func(v int) { query.WinnerID = int64(v) }},
-		{key: loserIDKey, fn: func(v int) { query.LoserID = int64(v) }},
-		{key: whiteIDKey, fn: func(v int) { query.WhiteID = int64(v) }},
-		{key: blackIDKey, fn: func(v int) { query.BlackID = int64(v) }},
-	} {
-		v, err := intQueryDefault(values, input.key, 0)
-		if err != nil {
-			respErr.Put(input.key, ErrHttpInvalidID)
-		}
-		input.fn(v)
-	}
-
 	return query, respErr.AsError()
 }
 
@@ -361,7 +361,7 @@ func transformTournamentsQuery(values url.Values) (q GetTournamentQuery, err err
 	const userIDKey = "userId"
 	const afterIDKey = "afterId"
 
-	userID, err := intQueryDefault(values, userIDKey, svc.NoParticipantSignifier)
+	userID, err := parseDefaultInt(values, userIDKey, svc.NoParticipantSignifier)
 	if err != nil {
 		respErr.Put(userIDKey, ErrHttpInvalidID)
 	}
@@ -380,7 +380,7 @@ func transformLeaderboardQuery(q url.Values) (LeaderboardQuery, error) {
 	const pageKey = "page"
 	const modeKey = "mode"
 
-	page, err := intQueryDefault(q, pageKey, 1)
+	page, err := parseDefaultInt(q, pageKey, 1)
 	if err != nil {
 		respErr.Put(pageKey, ErrHttpInvalidPage)
 	}

@@ -32,11 +32,11 @@ type RankedUser struct {
 }
 
 var ErrUserNotFound = errors.New("user not found")
-var ErrTakenUsername = errors.New("username already taken")
-var ErrUsernameNotFound = errors.New("username not found")
+var ErrTakenUsername = errors.New("incomingUsername already taken")
+var ErrUsernameNotFound = errors.New("incomingUsername not found")
 
 type UserInst struct {
-	Username string `json:"username"`
+	Username string `json:"incomingUsername"`
 	Password string `json:"password"`
 	Country  string `json:"country"`
 	JoinedOn time.Time
@@ -125,8 +125,8 @@ func (svc *HexchessServices) BatchInsertUsers(ctx context.Context, insts []UserI
 }
 
 type VerifiedUser struct {
-	ID       int64  `json:"id"`
-	Username string `json:"username"`
+	ID       int64  `json:"existingID"`
+	Username string `json:"incomingUsername"`
 	Country  string `json:"country"`
 }
 
@@ -172,7 +172,7 @@ func (svc *HexchessServices) VerifyUserTx(ctx context.Context, username string, 
 				if err := querier.IncrLoginAttempts(ctx, loginRow.ID); err != nil {
 					return fmt.Errorf("increment user [%d] login attempts: %w", loginRow.ID, err)
 				}
-				slog.ErrorContext(ctx, "failed to login, credentials are invalid", "username", username, "err", loginErr)
+				slog.ErrorContext(ctx, "failed to login, credentials are invalid", "incomingUsername", username, "err", loginErr)
 				return ErrUserNotFound
 			}
 
@@ -207,7 +207,7 @@ func (svc *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, googl
 	if IsErrNoRows(err) {
 		isCreated = false
 	} else if err != nil {
-		return verifiedUser, fmt.Errorf("select user [%s] by google account id: %w", googleAccountID, err)
+		return verifiedUser, fmt.Errorf("select user [%s] by google account existingID: %w", googleAccountID, err)
 	} else {
 		isCreated = true
 	}
@@ -280,7 +280,7 @@ func (svc *HexchessServices) UpdateUserPassword(ctx context.Context, id int64, n
 		Password: hash.HashedPassword,
 		Salt:     hash.Salt,
 	})
-	logutil.DynLog(ctx, "updated password", err, "id", id)
+	logutil.DynLog(ctx, "updated password", err, "existingID", id)
 	return err
 }
 
@@ -293,7 +293,7 @@ func (svc *HexchessServices) GetUserByID(ctx context.Context, id int64) (model.U
 		return model.User{}, fmt.Errorf("select user [%d]: %w", id, err)
 	}
 	user := model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
-	slog.InfoContext(ctx, "selected user", "id", id, "user", user)
+	slog.InfoContext(ctx, "selected user", "existingID", id, "user", user)
 	return user, nil
 }
 
@@ -304,7 +304,7 @@ func avg[T constraints.Integer | constraints.Float](currAvg T, currCount int, ne
 func (svc *HexchessServices) GetUserStats(ctx context.Context, id int64) (model.UserStats, error) {
 	modeEloRows, err := svc.querier.SelectUserElosByID(ctx, id)
 	if err != nil {
-		return model.UserStats{}, fmt.Errorf("select user [%d] elos by id: %w", id, err)
+		return model.UserStats{}, fmt.Errorf("select user [%d] elos by existingID: %w", id, err)
 	}
 
 	var stats model.UserStats
@@ -368,7 +368,7 @@ func (svc *HexchessServices) GetFullUser(ctx context.Context, userID int64, perP
 		return errutil.Guardf(err, "get user %d leaderboard ranks", userID)
 	})
 	eg.Go(func() (err error) {
-		replayList, err = svc.GetUserReplays(egCtx, ReplayQuery{UserID: userID, AfterID: -1}, perPage)
+		replayList, err = svc.SearchReplaysByQuery(egCtx, ReplayQuery{UserID: enum.OptionalOf(userID), AfterID: enum.Optional[int64]{}}, perPage)
 		return errutil.Guardf(err, "get user %d replays", userID)
 	})
 

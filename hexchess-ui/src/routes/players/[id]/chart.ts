@@ -1,4 +1,4 @@
-import {type EloBuckets, GameModeNameMap} from "$lib/api/models";
+import {type EloBuckets, UntypedGameModeNameMap} from "$lib/api/models";
 import {generateColors} from "$lib/utils/colors";
 import {Chart} from "chart.js";
 import {formatTimestamp, normalizeToDay} from "$lib/utils/format";
@@ -20,7 +20,7 @@ export function makeEloHistoriesChart(ctx: CanvasRenderingContext2D, buckets: Re
         type: "line",
         data: {
             datasets: entries.map(([mode, eloHistories], i) => ({
-                label: GameModeNameMap[mode] || "Unknown",
+                label: UntypedGameModeNameMap[mode] || "Unknown",
                 data: eloHistories.map((h) => ({ x: normalizeToDay(h.timestamp), y: h.elo})),
                 borderWidth: 2,
                 tension: 0.25,
