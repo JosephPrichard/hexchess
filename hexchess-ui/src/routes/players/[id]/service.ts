@@ -4,23 +4,23 @@ export type ReplayQueryKind = "allReplays" | "wonReplays" | "lostReplays";
 
 export const replayQueryOptions: { label: string, value: ReplayQueryKind }[] = [
     { label: "All Games", value: "allReplays" },
-    { label: "Won Games", value: "lostReplays" },
-    { label: "Lost Games", value: "wonReplays" },
+    { label: "Won Games", value: "wonReplays" },
+    { label: "Lost Games", value: "lostReplays" },
 ];
 export const nonDefaultQueries = replayQueryOptions
     .filter(e => e.value !== "allReplays")
     .map((tab) => tab.value);
 
-export async function getReplay(replayQueryKind: ReplayQueryKind, lastId: number | undefined, userId: number | undefined) {
+export async function loadReplays(replayQueryKind: ReplayQueryKind, userId: number, lastId: number | undefined) {
     const replaysQuery: ReplaysQuery = {
-        afterId: lastId,
+        afterId: lastId ? String(lastId) : undefined,
     };
     if (replayQueryKind === "allReplays") {
-        replaysQuery.userId = userId;
+        replaysQuery.userId = String(userId);
     } else if (replayQueryKind === "wonReplays") {
-        replaysQuery.winnerId = userId;
+        replaysQuery.winnerId = String(userId);
     } else if (replayQueryKind === "lostReplays") {
-        replaysQuery.loserId = userId;
+        replaysQuery.loserId = String(userId);
     }
     return await services.getReplays(replaysQuery);
 }

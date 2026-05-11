@@ -34,8 +34,6 @@ func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc
 	}
 }
 
-const perPage = 25
-
 func Json(v any) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		b, err := json.Marshal(v)
@@ -369,7 +367,7 @@ func (api *API) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) err
 	}
 
 	ctx := r.Context()
-	leaderboard, err := api.services.GetLeaderboardPage(ctx, query.Mode, int64(query.Page), perPage)
+	leaderboard, err := api.services.GetLeaderboardPage(ctx, query.Mode, int64(query.Page), defaultPaginationCount)
 	if err != nil {
 		return fmt.Errorf("get leaderboard page %d: %w", query.Page, err)
 	}
@@ -390,12 +388,12 @@ type GetPlayersResp struct {
 func (api *API) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
 	userID, err := strconv.Atoi(r.URL.Query().Get("id"))
 	if err != nil {
-		return OneRespError("id", ErrHttpInvalidID)
+		return oneRespError("id", err)
 	}
 
 	ctx := r.Context()
 
-	fullUser, err := api.services.GetFullUser(ctx, int64(userID), perPage)
+	fullUser, err := api.services.GetFullUser(ctx, int64(userID), defaultPaginationCount)
 	if errors.Is(err, svc.ErrUserNotFound) {
 		return ErrHttpNotFoundUser
 	} else if err != nil {
@@ -416,23 +414,17 @@ type SearchPlayersResp struct {
 
 func (api *API) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-	q := r.URL.Query()
+	queryCtx := QueryParseCtx{Values: r.URL.Query(), RespErr: &ResponseError{}}
 
-	page, err := parseDefaultInt(q, "page", 1)
-	if err != nil {
-		return OneRespError("page", ErrHttpInvalidPage)
-	}
-	name := q.Get("username")
-	hasUser := name != ""
+	page := parseDefaultInt(queryCtx, "page", 1)
+	name := queryCtx.Values.Get("username")
 
 	slog.InfoContext(ctx, "searching players", "page", page, "name", name)
 
 	var userList []model.LbdUser
-	if hasUser {
-		users, err := api.services.GetFuzzySearchLeaderboard(ctx, name, int32(page), perPage)
-		if errors.Is(err, svc.ErrSearchLimit) {
-			return ErrHttpSearchLimit
-		} else if err != nil {
+	if name != "" {
+		users, err := api.services.GetFuzzySearchLeaderboard(ctx, name, int32(page), defaultPaginationCount)
+		if err != nil {
 			return fmt.Errorf("search users by name=%s: %w", name, err)
 		}
 		userList = users
@@ -773,14 +765,14 @@ type GetReplaysResp struct {
 
 func (api *API) HandleGetReplays(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-	query, err := transformReplaysQuery(ctx, r.URL.Query())
+	query, err := transformReplaysQuery(r.URL.Query())
 	if err != nil {
 		return err
 	}
 
-	replays, err := api.services.SearchReplaysByQuery(ctx, query, perPage)
+	replays, err := api.services.SearchReplaysByQuery(ctx, query)
 	if err != nil {
-		return fmt.Errorf("get user %+v replays: %w", query.UserID, err)
+		return fmt.Errorf("get replays by query %+v: %w", query, err)
 	}
 
 	writeJSON(w, http.StatusOK, GetReplaysResp{ReplayList: replays})
@@ -820,7 +812,7 @@ func (api *API) HandleGetMoveReplay(w http.ResponseWriter, r *http.Request) erro
 
 	replayID, err := strconv.Atoi(r.URL.Query().Get("replayId"))
 	if err != nil {
-		return OneRespError("id", ErrHttpInvalidID)
+		return oneRespError("replayId", err)
 	}
 
 	bytes, err := api.services.GetMovesHistory(ctx, replayID)
@@ -894,13 +886,17 @@ func (api *API) HandleJoinTournament(w http.ResponseWriter, r *http.Request) err
 	}
 
 	// read body after headers are authorized
-	body, err := transformJSON(r, transformTournamentKey)
-	if err != nil {
+	var body TournamentKeyBody
+	if err := parseJSON(r, &body, nil); err != nil {
 		return err
+	}
+	tkey, err := uuid.Parse(body.TournamentKey)
+	if err != nil {
+		return oneRespError("tournamentKey", BadRequestError{err})
 	}
 
 	tournament, err := api.services.JoinTournamentTx(ctx, svc.JoinTournamentInst{
-		TournamentKey: body.TournamentKey,
+		TournamentKey: tkey,
 		JoiningUserID: player.ID,
 		InsertionTime: time.Now(),
 	})
@@ -942,12 +938,16 @@ func (api *API) HandleBeginCountdownTournament(w http.ResponseWriter, r *http.Re
 	}
 
 	// read body after headers are authorized
-	body, err := transformJSON(r, transformTournamentKey)
-	if err != nil {
+	var body TournamentKeyBody
+	if err := parseJSON(r, &body, nil); err != nil {
 		return err
 	}
+	tkey, err := uuid.Parse(body.TournamentKey)
+	if err != nil {
+		return oneRespError("tournamentKey", BadRequestError{err})
+	}
 
-	result, err := api.services.BeginTournamentCountdownTx(ctx, body.TournamentKey, player.ID)
+	result, err := api.services.BeginTournamentCountdownTx(ctx, tkey, player.ID)
 	switch {
 	case errors.Is(err, svc.ErrInvalidCountdownTournamentStatus):
 		return ErrHttpInvalidCountdownState
@@ -977,7 +977,7 @@ type GetTournamentResp model.FullTournament
 func (api *API) HandleGetTournament(w http.ResponseWriter, r *http.Request) error {
 	tournamentKey, err := uuid.Parse(r.URL.Query().Get("tournamentKey"))
 	if err != nil {
-		return OneRespError("tournamentKey", ErrHttpInvalidID)
+		return oneRespError("tournamentKey", err)
 	}
 
 	ctx := r.Context()
@@ -1005,7 +1005,7 @@ func (api *API) HandleGetTournaments(w http.ResponseWriter, r *http.Request) err
 	}
 
 	ctx := r.Context()
-	tournaments, err := api.services.GetTournaments(ctx, int64(query.UserID), int64(query.AfterID), perPage)
+	tournaments, err := api.services.GetTournaments(ctx, int64(query.UserID), int64(query.AfterID), defaultPaginationCount)
 	if err != nil {
 		return fmt.Errorf("get tournaments: %w", err)
 	}
@@ -1018,7 +1018,7 @@ func (api *API) HandleGetTournaments(w http.ResponseWriter, r *http.Request) err
 func (api *API) HandleLeaveTournament(w http.ResponseWriter, r *http.Request) error {
 	tournamentKey, err := uuid.Parse(r.URL.Query().Get("tournamentKey"))
 	if err != nil {
-		return OneRespError("tournamentKey", ErrHttpInvalidID)
+		return oneRespError("tournamentKey", err)
 	}
 
 	ctx := r.Context()

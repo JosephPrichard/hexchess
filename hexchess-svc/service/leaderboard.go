@@ -362,7 +362,7 @@ func (svc *HexchessServices) GetFuzzySearchLeaderboard(ctx context.Context, name
 	offset := (page - 1) * perPage
 	if offset > MaxSearchOffset {
 		slog.WarnContext(ctx, "failed to search offset exceeds maximum", "offset", offset, "maxOffset", MaxSearchOffset)
-		return nil, ErrSearchLimit
+		return []model.LbdUser{}, nil
 	}
 
 	userRows, err := svc.querier.SelectUsersBySimilarity(ctx, sqlc.SelectUsersBySimilarityParams{

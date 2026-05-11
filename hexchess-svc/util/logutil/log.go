@@ -105,7 +105,7 @@ func InitLoggers(config LogConfig) func(ctx context.Context) {
 	})
 
 	handlers := []slog.Handler{stderrHandler}
-	var shutdown func(ctx context.Context)
+	shutdown := func(ctx context.Context) {}
 
 	if config.OtlpEndpoint != "" {
 		slog.Info("starting OTel rpc slog bridge logger", "config", config)

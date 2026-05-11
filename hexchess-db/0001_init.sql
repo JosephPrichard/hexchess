@@ -1,22 +1,10 @@
 -- +goose up
 
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET transaction_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
-
 COMMENT ON SCHEMA public IS '';
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
 
 COMMENT ON EXTENSION pg_trgm IS 'text similarity measurement and index searching based on trigrams';
-
 
 SET default_tablespace = '';
 
@@ -135,3 +123,5 @@ ALTER TABLE ONLY public.replays
 ALTER TABLE ONLY public.replays
     ADD CONSTRAINT replays_white_id_fkey FOREIGN KEY (white_id) REFERENCES public.users(id);
 
+-- +goose down
+DROP SCHEMA public CASCADE;

@@ -49,8 +49,8 @@ export type ReplayResult =
 	| "DRAW";
 
 export const ReplayResultNameMap: Record<ReplayResult, string> = {
-	"WHITE_WINS": "White Wins",
-	"BLACK_WINS": "Black Wins",
+	"WHITE_WINS": "White Victory",
+	"BLACK_WINS": "Black Victory",
 	"DRAW": "Draw",
 };
 
@@ -85,7 +85,7 @@ export interface SessionModel {
 	ttlSecs: number | null;
 }
 
-export interface UserModel {
+export type UserModel = {
 	id: number;
 	username: string;
 	country: string;

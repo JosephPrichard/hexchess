@@ -3,7 +3,7 @@
     import {generateRenderID} from "$lib/utils/id";
     import services from "$lib/api/services";
     import {getNotificationsContext} from "$lib/utils/context";
-    import type {LbdUserModel} from "$lib/api/models";
+    import type {UserModel} from "$lib/api/models";
     import ProfilePic from "$lib/components/ProfilePic.svelte";
 
     export interface Props {
@@ -15,7 +15,7 @@
 
     let { username = $bindable(), inputName }: Props = $props();
 
-    let suggestedUsers: LbdUserModel[] = $state([]);
+    let suggestedUsers: UserModel[] = $state([]);
     let dropdownID = $state("");
 
     interface Timeout {
@@ -25,9 +25,9 @@
 
     let timeout: Timeout | undefined = $state();
 
-    function pick(option: string) {
+    function pick(option: UserModel) {
         suggestedUsers = [];
-        username = option;
+        username = option.username ?? "";
     }
 
     onMount(() => {
@@ -75,7 +75,7 @@
     {#if suggestedUsers.length > 0}
         <div class="dropdown-menu">
             {#each suggestedUsers as user}
-                {@const handle = () => pick(user.username)}
+                {@const handle = () => pick(user)}
                 <div role="button" tabindex="0" class="dropdown-item dropdown-user" onclick={handle} onkeydown={handle}>
                     <ProfilePic userId={user.id} size={30}/>
                     <div>

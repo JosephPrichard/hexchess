@@ -23,7 +23,7 @@ import (
 )
 
 func readTestdataFile[V any](filename string) []V {
-	b, err := assets.Mocks.ReadFile(filename)
+	b, err := assets.TestData.ReadFile(filename)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func main() {
 	defer services.Close()
 
 	_, err = pool.Exec(ctx, `
-		TRUNCATE TABLE users, replays, challenges
+		TRUNCATE TABLE users, replays, challenges, outbox_queue, tournaments, tournament_matches, tournament_participants, user_mode_elos, replay_move_histories
     	RESTART IDENTITY
 		CASCADE;`)
 	if err != nil {

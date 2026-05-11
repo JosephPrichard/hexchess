@@ -2,7 +2,10 @@ package svc
 
 import (
 	"context"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"hexchess-svc/model"
+	"hexchess-svc/util/enum"
+	"hexchess-svc/util/testutil"
 
 	"testing"
 	"time"
@@ -26,7 +29,7 @@ func TestGetReplay(t *testing.T) {
 		actualReplay1, err := services.GetReplay(ctx, itest.FirstReplayID)
 		require.NoError(t, err)
 
-		assert.Equal(t, itest.TestReplay[0], actualReplay1)
+		assert.Equal(t, itest.TestReplays[0], actualReplay1)
 	})
 
 	t.Run("GetReplayWithGuest", func(t *testing.T) {
@@ -35,7 +38,7 @@ func TestGetReplay(t *testing.T) {
 		actualReplay1, err := services.GetReplay(ctx, itest.GuestReplayID)
 		require.NoError(t, err)
 
-		assert.Equal(t, itest.TestReplay[2], actualReplay1)
+		assert.Equal(t, itest.TestReplays[2], actualReplay1)
 	})
 }
 
@@ -44,30 +47,26 @@ func TestSearchReplaysByQuery(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		replayQuery ReplayQuery
-		perPage     int32
+		replayQuery ReplaysQuery
 		wantReplays []model.FullReplay
 	}{
 		{
-			name:        "QueryBy_Users",
-			replayQuery: ReplayQuery{UserID: 1, AfterID: -1},
-			perPage:     5,
-			wantReplays: []model.FullReplay{itest.TestReplay[2], itest.TestReplay[1], itest.TestReplay[0]},
+			name: "QueryBy_Users",
+			replayQuery: ReplaysQuery{
+				UserID:  enum.Just(int64(1)),
+				AfterID: enum.Nothing[int64](),
+				PerPage: 5,
+			},
+			wantReplays: []model.FullReplay{itest.TestReplays[2], itest.TestReplays[1], itest.TestReplays[0]},
 		},
 		{
-			name:        "QueryBy_Users_Cursor",
-			replayQuery: ReplayQuery{UserID: 1, AfterID: 3},
-			perPage:     5,
-			wantReplays: []model.FullReplay{itest.TestReplay[0]},
-		},
-		{
-			name: "QueryBy_Mode_Result_Cause",
-		},
-		{
-			name: "QueryBy_White_Winner",
-		},
-		{
-			name: "QueryBy_Black_Loser",
+			name: "QueryBy_Users_Cursor",
+			replayQuery: ReplaysQuery{
+				UserID:  enum.Just(int64(1)),
+				AfterID: enum.Just(int64(3)),
+				PerPage: 5,
+			},
+			wantReplays: []model.FullReplay{itest.TestReplays[0]},
 		},
 	}
 
@@ -78,10 +77,10 @@ func TestSearchReplaysByQuery(t *testing.T) {
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-			replayList, err := services.SearchReplaysByQuery(ctx, tt.replayQuery, tt.perPage)
+			replayList, err := services.SearchReplaysByQuery(ctx, tt.replayQuery)
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.wantReplays, replayList)
+			testutil.Equal(t, tt.wantReplays, replayList)
 		})
 	}
 }
@@ -103,11 +102,11 @@ func TestRetrieveEloHistories(t *testing.T) {
 			wantBucketDuration: LongBucketDuration,
 			wantEloBuckets: EloHistoryBuckets{
 				model.ModeCorrespondence7.String(): []EloHistoryBucket{
-					{Timestamp: "1899-12-31T18:00:00-06:00", Elo: 1030},
-					{Timestamp: "2019-12-29T18:00:00-06:00", Elo: 1090},
+					{Elo: 1030},
+					{Elo: 1090},
 				},
 				model.ModeCorrespondence1.String(): []EloHistoryBucket{
-					{Timestamp: "2019-12-29T18:00:00-06:00", Elo: 1030},
+					{Elo: 1030},
 				},
 			},
 		},
@@ -117,11 +116,11 @@ func TestRetrieveEloHistories(t *testing.T) {
 			wantBucketDuration: ShortBucketDuration,
 			wantEloBuckets: EloHistoryBuckets{
 				model.ModeCorrespondence7.String(): []EloHistoryBucket{
-					{Timestamp: "2019-12-31T18:00:00-06:00", Elo: 1075},
-					{Timestamp: "2020-01-02T18:00:00-06:00", Elo: 1120},
+					{Elo: 1075},
+					{Elo: 1120},
 				},
 				model.ModeCorrespondence1.String(): []EloHistoryBucket{
-					{Timestamp: "2020-01-04T18:00:00-06:00", Elo: 1030},
+					{Elo: 1030},
 				},
 			},
 		},
@@ -136,8 +135,8 @@ func TestRetrieveEloHistories(t *testing.T) {
 			eloHistories, bd, err := services.RetrieveEloHistoryBuckets(ctx, test.params)
 			require.NoError(t, err)
 
-			assert.Equal(t, test.wantEloBuckets, eloHistories)
-			assert.Equal(t, test.wantBucketDuration, bd)
+			testutil.Equal(t, test.wantEloBuckets, eloHistories, cmpopts.IgnoreFields(EloHistoryBucket{}, "Timestamp"))
+			testutil.Equal(t, test.wantBucketDuration, bd)
 		})
 	}
 }

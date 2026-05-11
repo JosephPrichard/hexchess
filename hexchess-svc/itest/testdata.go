@@ -38,7 +38,7 @@ var TestUserStats = []model.UserStats{
 	},
 }
 
-var TestReplay = []model.FullReplay{
+var TestReplays = []model.FullReplay{
 	{
 		Replay: model.Replay{
 			ID:          1,
@@ -50,6 +50,8 @@ var TestReplay = []model.FullReplay{
 			WinEloDiff:  30,
 			LoseEloDiff: -30,
 			PlayedOn:    TimeNow.Local(),
+			Rating:      1000,
+			TurnCount:   34,
 		},
 		ReplayUsers: model.ReplayUsers{
 			WhiteName:    "user1",
@@ -75,6 +77,8 @@ var TestReplay = []model.FullReplay{
 			WinEloDiff:  0,
 			LoseEloDiff: 0,
 			PlayedOn:    TimeNow.Local(),
+			Rating:      1060,
+			TurnCount:   38,
 		},
 		ReplayUsers: model.ReplayUsers{
 			WhiteName:    "user3",
@@ -100,6 +104,8 @@ var TestReplay = []model.FullReplay{
 			WinEloDiff:  0,
 			LoseEloDiff: 0,
 			PlayedOn:    TimeNow.Local(),
+			Rating:      1090,
+			TurnCount:   40,
 		},
 		ReplayUsers: model.ReplayUsers{
 			WhiteName:    "user1",

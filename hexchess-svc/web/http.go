@@ -1,17 +1,15 @@
 package web
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	svc "hexchess-svc/service"
-	"hexchess-svc/util/enum"
+	"hexchess-svc/util/errutil"
 	"log/slog"
 	"net/http"
-	"net/url"
-	"strconv"
-	"time"
 )
+
+const defaultPaginationCount = 25
 
 func LevelFromStatus(status int) slog.Level {
 	level := slog.LevelInfo
@@ -31,6 +29,11 @@ func HttpStatusFromErr(err error) (int, string) {
 	default:
 	}
 
+	// map errors that are marked as safe to spit error message back to user
+	if errutil.IsType[BadRequestError](err) {
+		return http.StatusBadRequest, err.Error()
+	}
+
 	// map http error codes to status codes
 	switch err {
 	// 400 — Bad Request
@@ -45,18 +48,9 @@ func HttpStatusFromErr(err error) (int, string) {
 		ErrHttpSelfChallenge,
 		ErrHttpDuplicateChallenge,
 		ErrHttpUpdateChallenge,
-		ErrHttpInvalidMode,
-		ErrHttpInvalidColor,
-		ErrHttpInvalidCount,
-		ErrHttpInvalidPage,
-		ErrHttpInvalidID,
 		ErrHttpInvalidJSON,
-		ErrHttpInvalidTimeframe,
-		ErrHttpInvalidAction,
-		ErrHttpSearchLimit,
-		ErrHttpInvalidFen,
-		ErrHttpInvalidRounds,
-		ErrHttpCountdownPermissions:
+		ErrHttpCountdownPermissions,
+		ErrHttpInvalidRounds:
 		return http.StatusBadRequest, err.Error()
 
 	// 401 — Unauthorized
@@ -170,66 +164,4 @@ func writeBytes(w http.ResponseWriter, status int, b []byte) {
 	if _, err := w.Write(b); err != nil {
 		slog.Error("internal server error", "Err", err)
 	}
-}
-
-func parseDefaultInt(values url.Values, key string, def int) (int, error) {
-	v := values.Get(key)
-	if v == "" {
-		return def, nil
-	}
-	return strconv.Atoi(v)
-}
-
-func parseOptionalFloat(values url.Values, key string, respError *ResponseError) enum.Optional[float64] {
-	v := values.Get(key)
-	if v == "" {
-		return enum.Optional[float64]{}
-	}
-	f, err := strconv.ParseFloat(v, 64)
-	if err != nil {
-		respError.Put(key, ErrHttpInvalidFloat)
-		return enum.Optional[float64]{}
-	}
-	return enum.OptionalOf(f)
-}
-
-func parseDefaultString(values url.Values, key, def string) string {
-	v := values.Get(key)
-	if v == "" {
-		return def
-	}
-	return v
-}
-
-func parseOptionalString(values url.Values, key string) enum.Optional[string] {
-	v := values.Get(key)
-	if v == "" {
-		return enum.Optional[string]{}
-	}
-	return enum.OptionalOf(v)
-}
-
-func parseOptionalDatetime(ctx context.Context, values url.Values, key string, respError *ResponseError) enum.Optional[time.Time] {
-	v := values.Get(key)
-	if v == "" {
-		return enum.Optional[time.Time]{}
-	}
-	t, err := time.Parse(time.RFC3339, v)
-	if err != nil {
-		slog.WarnContext(ctx, "invalid date while transforming replays query", "err", err, "key", key)
-		respError.Put(key, ErrHttpInvalidDateTime)
-	}
-	return enum.OptionalOf(t)
-}
-
-func parseOptionalInt(values url.Values, key string, respError *ResponseError, err error) enum.Optional[int64] {
-	v := values.Get(key)
-	if v == "" {
-		return enum.Optional[int64]{}
-	}
-	i, err := strconv.Atoi(v)
-	if err != nil {
-		respError.Put(key, err)
-	}
-	return enum.OptionalOf(int64(i))
 }

@@ -60,29 +60,6 @@ func TestInsertThenVerify(t *testing.T) {
 	testutil.Equal(t, wantDBU1, dbUser1, testUserCmptOpts)
 }
 
-func TestBatchInsertThenGet(t *testing.T) {
-	t.Parallel()
-
-	services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres)
-	defer services.Close()
-
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-
-	insts := []UserInst{
-		{Username: "user1-testing", Password: "password1", Country: "us"},
-		{Username: "user2-testing", Password: "password2", Country: "eu"},
-	}
-	users, batchErr := services.BatchInsertUsers(ctx, insts)
-
-	wantUsers := []model.User{
-		{Username: insts[0].Username, Country: "us"},
-		{Username: insts[1].Username, Country: "eu"},
-	}
-
-	testutil.Equal(t, wantUsers, users, cmpopts.IgnoreFields(model.User{}, "ID", "JoinedOn"))
-	require.NoError(t, batchErr)
-}
-
 func TestUpdateUser(t *testing.T) {
 	t.Parallel()
 
@@ -143,7 +120,7 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 
 	testAccountID := "testing-account-existingID"
 
-	inst := GoogleUserInst{Username: "incomingUsername", Country: "us", JoinedOn: itest.TimeNow}
+	inst := GoogleUserInst{Username: "username", Country: "us", JoinedOn: itest.TimeNow}
 
 	user1, err := services.SelectOrInsertGoogleUser(ctx, testAccountID, inst)
 	require.NoError(t, err)
@@ -154,12 +131,12 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 	dbUser1, err := services.GetUserByID(ctx, user1.ID)
 	require.NoError(t, err)
 
-	verifiedUser := VerifiedUser{Username: "incomingUsername", Country: "us"}
+	verifiedUser := VerifiedUser{Username: "username", Country: "us"}
 	testutil.Equal(t, verifiedUser, user1, testVerifiedUserCmptOpts)
 	testutil.Equal(t, verifiedUser, user2, testVerifiedUserCmptOpts)
 
 	wantDbUser1 := model.User{
-		Username: "incomingUsername",
+		Username: "username",
 		Country:  "us",
 		JoinedOn: itest.TimeNow.Local(),
 	}

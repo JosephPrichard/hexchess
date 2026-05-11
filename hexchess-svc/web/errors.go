@@ -26,26 +26,21 @@ var (
 	ErrHttpUpdateChallenge       = errors.New("ERROR_UPDATE_CHALLENGE")
 	ErrHttpNotFoundReplay        = errors.New("ERROR_NOT_FOUND_REPLAY")
 	ErrHttpNotFoundUser          = errors.New("ERROR_NOT_FOUND_USER")
-	ErrHttpInvalidMode           = errors.New("ERROR_INVALID_MODE")
-	ErrHttpInvalidReplaySort     = errors.New("ERROR_INVALID_REPLAY_SORT")
-	ErrHttpInvalidRuleset        = errors.New("ERROR_INVALID_RULESET")
-	ErrHttpInvalidColor          = errors.New("ERROR_INVALID_COLOR")
-	ErrHttpSearchLimit           = errors.New("ERROR_SEARCH_LIMIT")
-	ErrHttpInvalidFen            = errors.New("ERROR_INVALID_FEN")
-	ErrHttpInvalidCount          = errors.New("ERROR_INVALID_COUNT")
-	ErrHttpInvalidPage           = errors.New("ERROR_INVALID_PAGE")
-	ErrHttpInvalidDateTime       = errors.New("ERROR_INVALID_DATETIME")
-	ErrHttpInvalidID             = errors.New("ERROR_INVALID_ID")
-	ErrHttpInvalidFloat          = errors.New("ERROR_INVALID_FLOAT")
-	ErrHttpInvalidTimeframe      = errors.New("ERROR_INVALID_TIMEFRAME")
-	ErrHttpInvalidAction         = errors.New("ERROR_INVALID_ACTION")
-	ErrHttpInvalidRounds         = errors.New("ERROR_INVALID_ROUNDS")
 	ErrHttpNotFoundTournament    = errors.New("ERROR_NOT_FOUND_TOURNAMENT")
 	ErrHttpTournamentNotLobby    = errors.New("ERROR_NOT_LOBBY")
 	ErrHttpTooManyParticipants   = errors.New("ERROR_TOO_MANY_PARTICIPANTS")
 	ErrHttpInvalidCountdownState = errors.New("ERROR_INVALID_COUNTDOWN_STATE")
 	ErrHttpCountdownPermissions  = errors.New("ERROR_COUNTDOWN_PERMISSIONS")
+	ErrHttpInvalidRounds         = errors.New("ERROR_INVALID_ROUNDS")
 )
+
+type BadRequestError struct {
+	Err error
+}
+
+func (e BadRequestError) Error() string {
+	return e.Err.Error()
+}
 
 // WebSocket response codes
 var (
@@ -73,8 +68,8 @@ func (re *ResponseError) Put(key string, newErr error) {
 	re.Errors[key] = newErr
 }
 
-func OneRespError(key string, newErr error) error {
-	return &ResponseError{Errors: map[string]error{key: newErr}}
+func oneRespError(key string, newErr error) error {
+	return &ResponseError{Errors: map[string]error{key: BadRequestError{newErr}}}
 }
 
 func (re *ResponseError) HasErrors() bool {

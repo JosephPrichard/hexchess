@@ -5,7 +5,7 @@ import (
 )
 
 //go:embed all:test
-var Mocks embed.FS
+var TestData embed.FS
 
 //go:embed countries.json
 var CountryListJson []byte

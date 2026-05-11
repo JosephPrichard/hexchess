@@ -32,11 +32,10 @@ type RankedUser struct {
 }
 
 var ErrUserNotFound = errors.New("user not found")
-var ErrTakenUsername = errors.New("incomingUsername already taken")
-var ErrUsernameNotFound = errors.New("incomingUsername not found")
+var ErrTakenUsername = errors.New("username already taken")
 
 type UserInst struct {
-	Username string `json:"incomingUsername"`
+	Username string `json:"username"`
 	Password string `json:"password"`
 	Country  string `json:"country"`
 	JoinedOn time.Time
@@ -101,32 +100,37 @@ func (svc *HexchessServices) BatchInsertUsers(ctx context.Context, insts []UserI
 		return nil, err
 	}
 
-	var users []model.User
+	var rows []sqlc.BatchInsertUserRow
 	var insertErrs []error
 
 	svc.querier.BatchInsertUser(ctx, batches).QueryRow(func(i int, row sqlc.BatchInsertUserRow, err error) {
 		if err == nil {
-			users = append(users, model.User{
-				ID:       row.ID,
-				Username: row.Username,
-				Country:  row.Country,
-				Bio:      row.Bio,
-				JoinedOn: row.JoinedOn.Time,
-			})
+			rows = append(rows, row)
 		} else {
-			insertErrs = append(insertErrs, err)
+			insertErrs = append(insertErrs, fmt.Errorf("batch insert user index %d: %w", i, err))
 		}
 	})
 
 	err := errors.Join(insertErrs...)
+
+	var users []model.User
+	for _, row := range rows {
+		users = append(users, model.User{
+			ID:       row.ID,
+			Username: row.Username,
+			Country:  row.Country,
+			Bio:      row.Bio,
+			JoinedOn: row.JoinedOn.Time,
+		})
+	}
 
 	logutil.DynLog(ctx, "batch inserted user", err, "insts", insts, "users", users)
 	return users, err
 }
 
 type VerifiedUser struct {
-	ID       int64  `json:"existingID"`
-	Username string `json:"incomingUsername"`
+	ID       int64  `json:"id"`
+	Username string `json:"username"`
 	Country  string `json:"country"`
 }
 
@@ -152,7 +156,7 @@ func (svc *HexchessServices) VerifyUserTx(ctx context.Context, username string, 
 		RetryCount:   3,
 		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
 			loginRow, err := querier.SelectLoginByName(ctx, username)
-			if IsErrNoRows(err) {
+			if db.IsErrNoRows(err) {
 				return ErrUserNotFound
 			} else if err != nil {
 				return fmt.Errorf("select user [%s] by login: %w", username, err)
@@ -172,7 +176,7 @@ func (svc *HexchessServices) VerifyUserTx(ctx context.Context, username string, 
 				if err := querier.IncrLoginAttempts(ctx, loginRow.ID); err != nil {
 					return fmt.Errorf("increment user [%d] login attempts: %w", loginRow.ID, err)
 				}
-				slog.ErrorContext(ctx, "failed to login, credentials are invalid", "incomingUsername", username, "err", loginErr)
+				slog.ErrorContext(ctx, "failed to login, credentials are invalid", "username", username, "err", loginErr)
 				return ErrUserNotFound
 			}
 
@@ -204,7 +208,7 @@ func (svc *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, googl
 	var isCreated bool
 
 	login, err := svc.querier.SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
-	if IsErrNoRows(err) {
+	if db.IsErrNoRows(err) {
 		isCreated = false
 	} else if err != nil {
 		return verifiedUser, fmt.Errorf("select user [%s] by google account existingID: %w", googleAccountID, err)
@@ -257,9 +261,9 @@ func (svc *HexchessServices) UpdateUser(ctx context.Context, id int64, updt Updt
 
 	userRow, err := svc.querier.UpdateUser(ctx, sqlc.UpdateUserParams{
 		ID:       id,
-		Username: pgtype.Text{Valid: updt.Username != "", String: updt.Username},
-		Bio:      pgtype.Text{Valid: updt.Bio != "", String: updt.Bio},
-		Country:  pgtype.Text{Valid: updt.Country != "", String: updt.Country},
+		Username: db.OptString(updt.Username),
+		Bio:      db.OptString(updt.Bio),
+		Country:  db.OptString(updt.Country),
 	})
 	if err != nil {
 		return model.User{}, fmt.Errorf("update user %d: %w", id, err)
@@ -287,7 +291,7 @@ func (svc *HexchessServices) UpdateUserPassword(ctx context.Context, id int64, n
 func (svc *HexchessServices) GetUserByID(ctx context.Context, id int64) (model.User, error) {
 	userRow, err := svc.querier.SelectUserByID(ctx, id)
 	if err != nil {
-		if IsErrNoRows(err) {
+		if db.IsErrNoRows(err) {
 			return model.User{}, ErrUserNotFound
 		}
 		return model.User{}, fmt.Errorf("select user [%d]: %w", id, err)
@@ -359,16 +363,22 @@ func (svc *HexchessServices) GetFullUser(ctx context.Context, userID int64, perP
 		user, err = svc.GetUserByID(egCtx, userID)
 		return errutil.Guardf(err, "get user %d", userID)
 	})
+
 	eg.Go(func() (err error) {
 		stats, err = svc.GetUserStats(egCtx, userID)
 		return errutil.Guardf(err, "get user %d stats", userID)
 	})
+
 	eg.Go(func() (err error) {
 		lbRanks, err = svc.GetUserLeaderboardRanks(egCtx, userID, model.GameModeEnums)
 		return errutil.Guardf(err, "get user %d leaderboard ranks", userID)
 	})
+
 	eg.Go(func() (err error) {
-		replayList, err = svc.SearchReplaysByQuery(egCtx, ReplayQuery{UserID: enum.OptionalOf(userID), AfterID: enum.Optional[int64]{}}, perPage)
+		replayList, err = svc.SearchReplaysByQuery(egCtx, ReplaysQuery{
+			UserID:  enum.Just(userID),
+			PerPage: perPage,
+		})
 		return errutil.Guardf(err, "get user %d replays", userID)
 	})
 
@@ -427,4 +437,46 @@ func hashPassword(password string) (HashResult, error) {
 	}
 
 	return HashResult{Salt: salt, HashedPassword: string(hashed)}, nil
+}
+
+type UserIDByNameRequest struct {
+	Username enum.Optional[string]
+	SupplyID func(int64)
+}
+
+func (svc *HexchessServices) getUserIDsByUsernames(ctx context.Context, requests []UserIDByNameRequest) error {
+	var usernames []string
+	for _, request := range requests {
+		if !request.Username.IsPresent {
+			continue
+		}
+		usernames = append(usernames, request.Username.Value)
+	}
+	if len(usernames) == 0 {
+		return nil
+	}
+
+	slog.InfoContext(ctx, "selecting user ids by usernames for requests", "requests", requests)
+
+	userRows, err := svc.querier.SelectUserIDsByNames(ctx, usernames)
+	if err != nil {
+		return fmt.Errorf("select user ids by names %v: %w", usernames, err)
+	}
+
+	userIDs := make(map[string]int64)
+	for _, row := range userRows {
+		userIDs[row.Username] = row.ID
+	}
+
+	for _, request := range requests {
+		if !request.Username.IsPresent {
+			continue
+		}
+		userID, exists := userIDs[request.Username.Value]
+		if !exists {
+			return ErrUserNotFound
+		}
+		request.SupplyID(userID)
+	}
+	return nil
 }

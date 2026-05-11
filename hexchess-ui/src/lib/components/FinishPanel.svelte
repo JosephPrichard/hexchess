@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatCause, formatEloDiff, formatResult, getReplayColors } from '$lib/utils/format.js';
+	import { formatReplayCause, formatEloDiff, formatReplayResult, getReplayColors } from '$lib/utils/format.js';
 	import type { PlayerState } from '$lib/pb/messages';
 	import { isGuestUser, type ReplayModel } from '$lib/api/models';
 
@@ -36,8 +36,8 @@
 		const winEloDiff = replay.winEloDiff;
 		const loseEloDiff = replay.loseEloDiff;
 
-		const result = formatResult(replay.result);
-		const cause = formatCause(replay.cause);
+		const result = formatReplayResult(replay.result);
+		const cause = formatReplayCause(replay.cause);
 		const [winClass, loseClass] = getReplayColors(replay.result);
 		const [winner, loser] = getWinnerLoser(replay.result);
 

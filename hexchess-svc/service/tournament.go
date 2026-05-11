@@ -44,7 +44,7 @@ func (svc *HexchessServices) GetTournament(ctx context.Context, tournamentKey uu
 	})
 
 	if err := eg.Wait(); err != nil {
-		if IsErrNoRows(err) {
+		if db.IsErrNoRows(err) {
 			return t, ErrTournamentNotFound
 		}
 		return t, err
@@ -343,7 +343,7 @@ func (svc *HexchessServices) JoinTournamentTx(ctx context.Context, inst JoinTour
 		RetryCount: 5,
 		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
 			tournamentRow, err := querier.SelectTournamentWithParticipantCountByID(ctx, pgtype.UUID{Bytes: inst.TournamentKey, Valid: true})
-			if IsErrNoRows(err) {
+			if db.IsErrNoRows(err) {
 				return ErrTournamentNotFound
 			} else if err != nil {
 				return fmt.Errorf("select tournament [%s]: %w", inst.TournamentKey, err)

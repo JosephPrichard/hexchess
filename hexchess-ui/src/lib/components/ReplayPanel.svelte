@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { UntypedGameModeNameMap, type ReplayModel } from '$lib/api/models';
-	import { formatCause, formatEloDiff, formatResult, getReplayColors } from '$lib/utils/format';
+	import { formatReplayCause, formatEloDiff, formatReplayResult, getReplayColors } from '$lib/utils/format';
 
 	const { replay }: { replay: ReplayModel } = $props();
 
-	const [result, cause, mode] = $derived.by(() => [formatResult(replay.result), formatCause(replay.cause), UntypedGameModeNameMap[replay.mode]]);
+	const [result, cause, mode] = $derived.by(() => [formatReplayResult(replay.result), formatReplayCause(replay.cause), UntypedGameModeNameMap[replay.mode]]);
 	const [whiteClass, blackClass] = $derived.by(() => getReplayColors(replay.result));
 </script>
 

@@ -1,43 +1,12 @@
+import {ReplayCauseNameMap, ReplayResultNameMap} from "$lib/api/models";
+
 export function formatReplayResult(result: string) {
-	switch (result) {
-	case 'WHITE_WINS':
-		return 'White Victory';
-	case 'BLACK_WINS':
-		return 'Black Victory';
-	case 'DRAW':
-		return 'Draw';
-	default:
-		console.error('Unknown replay result', result);
-		return '';
-	}
+	return (ReplayResultNameMap as Record<string, string>)[result] ?? "-";
 }
 
-export function formatResult(result: string) {
-	switch (result) {
-		case 'WHITE_WINS':
-			return "White Won";
-		case 'BLACK_WINS':
-			return "Black Won";
-		case 'DRAW':
-			return "Draw";
-		default:
-			return "-";
-	}
+export function formatReplayCause(cause: string) {
+	return (ReplayCauseNameMap as Record<string, string>)[cause] ?? "-";
 }
-
-export function formatCause(cause: string) {
-	switch (cause) {
-		case 'CHECKMATE':
-			return "checkmate";
-		case 'FORFEIT':
-			return "forfeit";
-		case 'STALEMATE':
-			return "stalemate";
-		default:
-			return "-";
-	}
-}
-
 
 export function getReplayColors(result: string) {
 	switch (result) {

@@ -1,77 +1,57 @@
 <script lang="ts">
     import Banner from "$lib/Banner.svelte";
     import {
-        type GameMode,
-        GameModeOptions,
-        type ReplayCause,
-        ReplayCauseOptions,
-        type ReplayModel, type ReplayQuerySortKey, ReplayQuerySortKeyOptions,
-        type ReplayResult,
-        ReplayResultOptions, GameModeNameMap, ReplayCauseNameMap, ReplayQuerySortKeyNameMap, ReplayResultNameMap
+        type GameMode, type ReplayCause, type ReplayModel, type ReplayQuerySortKey, type ReplayResult,
+        GameModeOptions, ReplayCauseOptions, ReplayQuerySortKeyOptions, ReplayResultOptions, ReplayQuerySortKeyNameMap,
     } from "$lib/api/models";
     import ReplayPreview from "$lib/components/ReplayPreview.svelte";
-    import services, {type ReplaysQuery} from "$lib/api/services";
+    import services from "$lib/api/services";
     import Dropdown from "$lib/components/Dropdown.svelte";
     import {goto} from "$app/navigation";
     import {getNotificationsContext} from "$lib/utils/context";
     import UserAutocompleteInput from "$lib/components/UserAutocompleteInput.svelte";
+    import {defaultOption, expectEnum, mapReplaysPropsToQuery, mapReplaysPropsToURLParams, type OptEnum, parseEnum, type ReplaysSearchProps} from "./service";
 
-    type Optional<T> = T | "";
-
-    const parseEnum = <T extends string>(value: string | undefined, nameMap: Record<T, string>): Optional<T> =>
-        value !== "" && nameMap[value as T] !== undefined ? value as T : ""
-
-    const expectEnum = <T extends string>(value: string | undefined, nameMap: Record<T, string>, fallback: T): T =>
-        value !== "" && nameMap[value as T] !== undefined ? value as T : fallback
-
-    const defaultOption = <T extends string>() =>
-        ({ value: "" as T, label: "" });
-
-    const modeOptions = [defaultOption<Optional<GameMode>>(), ...GameModeOptions];
-    const causeOptions = [defaultOption<Optional<ReplayCause>>(), ...ReplayCauseOptions];
-    const resultOptions = [defaultOption<Optional<ReplayResult>>(), ...ReplayResultOptions];
+    const modeOptions = [defaultOption<OptEnum<GameMode>>(), ...GameModeOptions];
+    const causeOptions = [defaultOption<OptEnum<ReplayCause>>(), ...ReplayCauseOptions];
+    const resultOptions = [defaultOption<OptEnum<ReplayResult>>(), ...ReplayResultOptions];
 
     export interface ReplaysProps {
         replays: ReplayModel[];
-        query?: ReplaysQuery;
+        search?: ReplaysSearchProps;
     }
 
     const { addErrorNotification } = getNotificationsContext();
 
     const { data: props }: { data: ReplaysProps } = $props();
 
-    const q = props.query;
-
     let replayList: ReplayModel[] = $state(props.replays);
     let hasMoreReplays = $state(true);
 
-    let fromDate: string = $state(q?.fromDate ?? "");
-    let toDate: string = $state(q?.toDate ?? "");
-    let mode: Optional<GameMode> = $state(parseEnum(q?.mode, GameModeNameMap));
-    let cause: Optional<ReplayCause> = $state(parseEnum(q?.cause, ReplayCauseNameMap));
-    let result: Optional<ReplayResult> = $state(parseEnum(q?.result, ReplayResultNameMap));
-    let winnername: string = $state(q?.winnername ?? "");
-    let losername: string = $state(q?.losername ?? "");
-    let whitename: string = $state(q?.whitename ?? "");
-    let blackname: string = $state(q?.blackname ?? "");
+    let search = props.search ?? null;
 
-    let sort: ReplayQuerySortKey = $state(expectEnum(q?.sort, ReplayQuerySortKeyNameMap, "id"))
+    let winnername: string = $state(search?.winnername ?? "");
+    let losername: string = $state(search?.losername ?? "");
+    let whitename: string = $state(search?.whitename ?? "");
+    let blackname: string = $state(search?.blackname ?? "");
+
+    let fromDate: string = $state(search?.fromDate ?? "");
+    let toDate: string = $state(search?.toDate ?? "");
+    let mode: OptEnum<GameMode> = $state(search?.mode ?? "");
+    let cause: OptEnum<ReplayCause> = $state(search?.cause ?? "");
+    let result: OptEnum<ReplayResult> = $state(search?.result ?? "");
+
+    let sort: ReplayQuerySortKey = $state(expectEnum(search?.sort, ReplayQuerySortKeyNameMap, "id"))
 
     $effect(() => {
         // keeps the local "draft" up to date whenever we receive a new version of the replays search result from the server
         replayList = props.replays;
     });
 
-    async function onSearch() {
-        const params = new URLSearchParams();
-        const paramsObj: ReplaysQuery = {
-            fromDate, toDate, mode, cause, result, winnername, losername, whitename, blackname, sort
-        };
-        for (let [key, value] of Object.entries(paramsObj)) {
-            if (value !== "") {
-                params.set(key, value);
-            }
-        }
+    async function onRerouteSearch() {
+        const params = mapReplaysPropsToURLParams({
+            winnername, losername, whitename, blackname, fromDate, toDate, mode, cause, result, sort
+        });
         hasMoreReplays = true
         await goto(`/replays?${params}`);
     }
@@ -87,8 +67,7 @@
         const shouldLoadReplays = hasMoreReplays && isAtPageBottom && lastId !== undefined;
 
         if (shouldLoadReplays) {
-            const replayQuery: ReplaysQuery = {...props.query, afterId: lastId, afterRating: lastRating, afterTurnCount: lastTurnCount};
-
+            const replayQuery = mapReplaysPropsToQuery(props.search, {afterId: lastId, afterTurnCount: lastTurnCount, afterRating: lastRating});
             const [data, err] = await services.getReplays(replayQuery, fetch);
             if (data) {
                 const nextReplayList = data?.replayList ?? [];
@@ -191,7 +170,7 @@
                 </div>
             </form>
             <div class="search-button-wrapper">
-                <button type="submit" class="button-small button-small-green" onclick={onSearch}>
+                <button type="submit" class="button-small button-small-green" onclick={onRerouteSearch}>
                     Search
                 </button>
             </div>

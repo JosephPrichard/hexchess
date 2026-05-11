@@ -16,7 +16,7 @@
 	import {makeEloHistoriesChart} from "./chart";
 	import ReplayPreview from "$lib/components/ReplayPreview.svelte";
 	import UserStats from "$lib/components/UserStats.svelte";
-	import {getReplay, nonDefaultQueries, type ReplayQueryKind, replayQueryOptions} from "./service";
+	import {loadReplays, nonDefaultQueries, type ReplayQueryKind, replayQueryOptions} from "./service";
 	import {MediaQuery} from "svelte/reactivity";
 
 	const timeframes: { label: string, value: string }[] = [
@@ -67,7 +67,7 @@
 		const shouldLoadReplays = replayListRow.hasMoreReplays && isAtPageBottom && lastId !== undefined;
 
 		if (shouldLoadReplays) {
-			const [data, err] = await getReplay(replayQueryKind, lastId, user?.id);
+			const [data, err] = await loadReplays(replayQueryKind, user.id, lastId);
 			if (data) {
 				const replayList = data?.replayList ?? [];
 
@@ -107,11 +107,11 @@
 		};
 	});
 
-	function loadForAllReplayQueries(userId: number) {
-		for (const replayQueryKind of nonDefaultQueries) {
-			getReplay(replayQueryKind, undefined, userId).then(([data, err]) => {
+	function loadAllReplays(userId: number) {
+		for (const queryKind of nonDefaultQueries) {
+			loadReplays(queryKind, userId, undefined).then(([data, err]) => {
 				if (data) {
-					replayLists[replayQueryKind].replayList = data?.replayList ?? [];
+					replayLists[queryKind].replayList = data?.replayList ?? [];
 				} else {
 					addErrorNotification(err);
 				}
@@ -120,7 +120,7 @@
 	}
 
 	$effect(() => {
-		loadForAllReplayQueries(user.id);
+		loadAllReplays(user.id);
 	})
 
 	onMount(() => {

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 )
 
 type Optional[T any] struct {
@@ -11,8 +13,19 @@ type Optional[T any] struct {
 	IsPresent bool
 }
 
-func OptionalOf[T any](v T) Optional[T] {
+func (o Optional[T]) OrElse(def T) T {
+	if o.IsPresent {
+		return o.Value
+	}
+	return def
+}
+
+func Just[T any](v T) Optional[T] {
 	return Optional[T]{Value: v, IsPresent: true}
+}
+
+func Nothing[T any]() Optional[T] {
+	return Optional[T]{}
 }
 
 type StringLike interface {
@@ -63,7 +76,7 @@ func Unmarshal[T ~int](data []byte, m map[string]T, out *T) error {
 	return nil
 }
 
-func ParseWithErr[T ~int, S StringLike](s S, m map[string]T) (T, error) {
+func Parse[T ~int, S StringLike](s S, m map[string]T) (T, error) {
 	v, ok := m[string(s)]
 	if !ok {
 		return 0, ParseError[T]{Expected: m, Actual: string(s)}
@@ -71,32 +84,26 @@ func ParseWithErr[T ~int, S StringLike](s S, m map[string]T) (T, error) {
 	return v, nil
 }
 
-func Parse[T ~int, S StringLike](s S, m map[string]T) (T, bool) {
-	v, ok := m[string(s)]
-	return v, ok
-}
-
-func ParseDefault[T ~int, S StringLike](s S, m map[string]T, def T) (T, bool) {
+func ParseDefault[T ~int, S StringLike](s S, m map[string]T, def T) (T, error) {
 	if s == "" {
-		return def, true
+		return def, nil
 	}
-	v, ok := m[string(s)]
-	return v, ok
+	return Parse(s, m)
 }
 
-func ParseOptional[T ~int, S StringLike](s S, m map[string]T) (Optional[T], bool) {
+func ParseOptional[T ~int, S StringLike](s S, m map[string]T) (Optional[T], error) {
 	if s == "" {
-		return Optional[T]{}, true
+		return Optional[T]{}, nil
 	}
 	v, ok := m[string(s)]
 	if !ok {
-		return Optional[T]{}, false
+		return Optional[T]{}, ParseError[T]{Expected: m, Actual: string(s)}
 	}
-	return OptionalOf(v), ok
+	return Just(v), nil
 }
 
 func Expect[T ~int, S StringLike](s S, m map[string]T) T {
-	v, err := ParseWithErr(s, m)
+	v, err := Parse(s, m)
 	if err != nil {
 		slog.Error("failed to parse enum", "enum", fmt.Sprintf("%T", v), "err", err)
 		panic(err.Error())
@@ -110,5 +117,5 @@ type ParseError[T any] struct {
 }
 
 func (err ParseError[T]) Error() string {
-	return fmt.Sprintf("expected one of %v, got %v", err.Expected, err.Actual)
+	return fmt.Sprintf("expected one of %v, got '%v'", slices.Collect(maps.Keys(err.Expected)), err.Actual)
 }

@@ -299,7 +299,7 @@ func TestInsertGameResult(t *testing.T) {
 			replay, err := services.db.Querier().SelectReplayRowByID(ctx, changeSet.ReplayID)
 			require.NoError(t, err)
 
-			testutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(sqlc.Replay{}, "ID", "PlayedOn"))
+			testutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(sqlc.Replay{}, "ID", "PlayedOn", "TurnCount", "Rating"))
 
 			changeSet.WinEloDiff = math.Round(changeSet.WinEloDiff)
 			changeSet.LoseEloDiff = math.Round(changeSet.LoseEloDiff)

@@ -116,10 +116,10 @@ func TestHandleActiveConn(t *testing.T) {
 
 	ctx := t.Context()
 
-	mocks := svc.Mocks{Entropy: &svc.StableEntropySource{}}
-
-	services, testinfra := svc.SetupServicesTest(t, mocks, itest.Redis)
+	services, testinfra := svc.SetupServicesTest(t, svc.Mocks{Entropy: &svc.StableEntropySource{}}, itest.Redis)
 	defer services.Close()
+
+	createTestSessions(t, services)
 
 	broadcasters := svc.MakeLocalBroadcasters()
 	defer broadcasters.Shutdown()
@@ -135,6 +135,7 @@ func TestHandleActiveConn(t *testing.T) {
 
 	go func() {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, testServer.URL+"/api/events/active", nil)
+		req.Header.Set("Cookie", FmtCookie(TestSessionID1))
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)

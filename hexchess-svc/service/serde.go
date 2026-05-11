@@ -93,8 +93,8 @@ func UnmarshalChessState(bytes []byte) (*ChessState, error) {
 		return nil, fmt.Errorf("deserialize initial board %v: %w", pbChess.Game.Board, err)
 	}
 
-	mode, modeErr := enum.ParseWithErr(pbChess.Mode, model.GameModeEnums)
-	firstColor, colorErr := enum.ParseWithErr(pbChess.FirstColor, model.GameColorEnums)
+	mode, modeErr := enum.Parse(pbChess.Mode, model.GameModeEnums)
+	firstColor, colorErr := enum.Parse(pbChess.FirstColor, model.GameColorEnums)
 
 	if err := errors.Join(modeErr, colorErr); err != nil {
 		return nil, err
@@ -142,8 +142,8 @@ func UnmarshalChessMeta(bytes []byte) (ChessMeta, error) {
 		return ChessMeta{}, err
 	}
 
-	mode, modeErr := enum.ParseWithErr(pbChess.Mode, model.GameModeEnums)
-	firstColor, colorErr := enum.ParseWithErr(pbChess.FirstColor, model.GameColorEnums)
+	mode, modeErr := enum.Parse(pbChess.Mode, model.GameModeEnums)
+	firstColor, colorErr := enum.Parse(pbChess.FirstColor, model.GameColorEnums)
 	if err := errors.Join(modeErr, colorErr); err != nil {
 		return ChessMeta{}, err
 	}
@@ -180,8 +180,8 @@ func MarshalUserMessage(pbUserMessage *pb.UserMessage) (model.Challenge, error) 
 			return model.Challenge{}, err
 		}
 
-		mode, modeErr := enum.ParseWithErr(challenge.Mode, model.GameModeEnums)
-		startColor, colorErr := enum.ParseWithErr(challenge.StartColor, model.GameColorEnums)
+		mode, modeErr := enum.Parse(challenge.Mode, model.GameModeEnums)
+		startColor, colorErr := enum.Parse(challenge.StartColor, model.GameColorEnums)
 		if err := errors.Join(modeErr, colorErr); err != nil {
 			return model.Challenge{}, err
 		}
@@ -239,9 +239,9 @@ func UnmarshalFinishedGame(bytes []byte) (FinishedGame, error) {
 		return FinishedGame{}, err
 	}
 
-	mode, modeErr := enum.ParseWithErr(pbGameEvent.GameMode, model.GameModeEnums)
-	replayResult, resultErr := enum.ParseWithErr(pbGameEvent.ReplayResult, model.ReplayResultEnums)
-	replayCause, causeErr := enum.ParseWithErr(pbGameEvent.ReplayCause, model.ReplayCauseEnums)
+	mode, modeErr := enum.Parse(pbGameEvent.GameMode, model.GameModeEnums)
+	replayResult, resultErr := enum.Parse(pbGameEvent.ReplayResult, model.ReplayResultEnums)
+	replayCause, causeErr := enum.Parse(pbGameEvent.ReplayCause, model.ReplayCauseEnums)
 	if err := errors.Join(modeErr, resultErr, causeErr); err != nil {
 		return FinishedGame{}, err
 	}
@@ -308,7 +308,7 @@ func UnmarshalCreateTournamentMatchesEvent(bytes []byte) (e CreateTournamentMatc
 	}
 	var matches []TournamentMatchCreation
 	for _, pbMatch := range pbEvent.Matches {
-		mode, err := enum.ParseWithErr(pbMatch.GameMode, model.GameModeEnums)
+		mode, err := enum.Parse(pbMatch.GameMode, model.GameModeEnums)
 		if err != nil {
 			serdeErrs = append(serdeErrs, err)
 			continue

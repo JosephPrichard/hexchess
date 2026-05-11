@@ -371,13 +371,6 @@ func TestHandleUpdateChallenge(t *testing.T) {
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			name:       "InvalidChallengeAction",
-			body:       UpdateChallengeBody{Action: "invalid"},
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"action": ErrHttpInvalidAction.Error()}},
-			sessionID:  TestSessionID1,
-			wantStatus: http.StatusBadRequest,
-		},
-		{
 			name:       "InvalidChallenge",
 			body:       UpdateChallengeBody{ChallengerID: 999, ChallengeeID: 1, Action: "ACCEPT"},
 			wantFail:   ServiceView{Status: http.StatusNotFound, Errors: ErrHttpNotFoundChallenge.Error()},
@@ -447,19 +440,6 @@ func TestHandleCreateGame(t *testing.T) {
 			name:       "CreatedGame",
 			body:       CreateGameBody{FirstColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
 			wantStatus: http.StatusOK,
-		},
-		{
-			name:       "InvalidModeColorAndInitialFen",
-			body:       CreateGameBody{InitialFEN: "invalid", FirstColor: "invalid", Mode: "invalid"},
-			wantStatus: http.StatusBadRequest,
-			wantFail: ServiceView{
-				Status: http.StatusBadRequest,
-				Errors: map[string]any{
-					"firstColor": ErrHttpInvalidColor.Error(),
-					"mode":       ErrHttpInvalidMode.Error(),
-					"initialFen": ErrHttpInvalidFen.Error(),
-				},
-			},
 		},
 	}
 
@@ -534,13 +514,6 @@ func TestHandleCreateChallenge(t *testing.T) {
 			wantStatus: http.StatusOK,
 			wantResp:   ServiceView{Status: http.StatusOK, Message: "SUCCESS"},
 		},
-		{
-			name:       "InvalidModeAndColor",
-			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "invalid", Mode: "invalid"},
-			sessionID:  TestSessionID1,
-			wantStatus: http.StatusBadRequest,
-			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"startColor": ErrHttpInvalidColor.Error(), "mode": ErrHttpInvalidMode.Error()}},
-		},
 	}
 
 	for _, tt := range tests {
@@ -578,15 +551,6 @@ func TestHandleSearchPlayers(t *testing.T) {
 		wantSuccess SearchPlayersResp
 		wantFail    ServiceView
 	}{
-		{
-			name:       "InvalidPage",
-			page:       "invalid",
-			wantStatus: http.StatusBadRequest,
-			wantFail: ServiceView{
-				Status: http.StatusBadRequest,
-				Errors: map[string]any{"page": ErrHttpInvalidPage.Error()},
-			},
-		},
 		{
 			name:       "SearchPlayers",
 			username:   "john",
@@ -651,16 +615,6 @@ func TestGetLeaderboard(t *testing.T) {
 		wantSuccess LeaderboardResp
 		wantFail    ServiceView
 	}{
-		{
-			name:       "InvalidPageAndMode",
-			mode:       "invalid",
-			page:       "invalid",
-			wantStatus: http.StatusBadRequest,
-			wantFail: ServiceView{
-				Status: http.StatusBadRequest,
-				Errors: map[string]any{"mode": ErrHttpInvalidMode.Error(), "page": ErrHttpInvalidPage.Error()},
-			},
-		},
 		{
 			name:       "ValidLeaderboard",
 			mode:       model.ModeTimed1Plus0.String(),
@@ -731,28 +685,10 @@ func TestGetPlayer(t *testing.T) {
 				FullUser: svc.FullUser{
 					User:       itest.TestUser[0],
 					Stats:      itest.TestUserStats[0],
-					ReplayList: []model.FullReplay{itest.TestReplay[2], itest.TestReplay[1], itest.TestReplay[0]},
+					ReplayList: []model.FullReplay{itest.TestReplays[2], itest.TestReplays[1], itest.TestReplays[0]},
 				},
 			},
 			wantStatus: http.StatusOK,
-		},
-		//{
-		//	name: "GetPlayerWithoutReplays",
-		//	id:   "1",
-		//	wantSuccess: GetPlayersResp{
-		//		FullUser: svc.FullUser{
-		//			User:       itest.TestUser[0],
-		//			Stats:      itest.TestUserStats[0],
-		//			ReplayList: []model.FullReplay{},
-		//		},
-		//	},
-		//	wantStatus: http.StatusOK,
-		//},
-		{
-			name:       "InvalidUserID",
-			id:         "testing",
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"id": ErrHttpInvalidID.Error()}},
-			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "GotNoUser",
@@ -845,41 +781,40 @@ func TestGetChallenges(t *testing.T) {
 	}
 }
 
-func TestHandleGetUserReplays(t *testing.T) {
+func TestHandleGetSearchReplays(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name        string
-		afterID     string
-		userID      string
+		params      string
 		wantSuccess GetReplaysResp
 		wantFail    ServiceView
 		wantStatus  int
 	}{
 		{
 			name:        "GotNoReplaysForNonexistentUser",
-			userID:      "999",
-			afterID:     "0",
+			params:      "afterId=0&userId=999",
 			wantStatus:  http.StatusOK,
 			wantSuccess: GetReplaysResp{ReplayList: []model.FullReplay{}},
 		},
 		{
-			name:       "GotUserReplays",
-			afterID:    "-1",
-			userID:     "1",
+			name:       "GotUserReplays_ByUserID",
+			params:     "userId=1",
 			wantStatus: http.StatusOK,
 			wantSuccess: GetReplaysResp{ReplayList: []model.FullReplay{
-				itest.TestReplay[2],
-				itest.TestReplay[1],
-				itest.TestReplay[0],
+				itest.TestReplays[2],
+				itest.TestReplays[1],
+				itest.TestReplays[0],
 			}},
 		},
 		{
-			name:       "InvalidUserIDAndAfterID",
-			afterID:    "abc",
-			userID:     "xyz",
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"afterId": ErrHttpInvalidID.Error(), "userId": ErrHttpInvalidID.Error()}},
-			wantStatus: http.StatusBadRequest,
+			name:       "GotUserReplays_ByUserID_Mode_Result_Cause",
+			params:     "userId=1&mode=CORRESPONDENCE_7&result=WHITE_WINS&cause=CHECKMATE",
+			wantStatus: http.StatusOK,
+			wantSuccess: GetReplaysResp{ReplayList: []model.FullReplay{
+				itest.TestReplays[2],
+				itest.TestReplays[0],
+			}},
 		},
 	}
 
@@ -888,7 +823,7 @@ func TestHandleGetUserReplays(t *testing.T) {
 			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres)
 			defer services.Close()
 
-			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replays?afterId=%s&userId=%s", tt.afterID, tt.userID), nil)
+			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replays?%s", tt.params), nil)
 			w := httptest.NewRecorder()
 
 			hander := MakeServeMux(Setup{Services: services})
@@ -918,13 +853,7 @@ func TestHandleGetReplay(t *testing.T) {
 			name:        "GotReplay",
 			userID:      "1",
 			wantStatus:  http.StatusOK,
-			wantSuccess: GetReplayResp{Replay: itest.TestReplay[0]},
-		},
-		{
-			name:       "InvalidUserID",
-			userID:     "xyz",
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"id": ErrHttpInvalidID.Error()}},
-			wantStatus: http.StatusBadRequest,
+			wantSuccess: GetReplayResp{Replay: itest.TestReplays[0]},
 		},
 		{
 			name:       "GotNoReplay",
@@ -1116,15 +1045,6 @@ func TestGetTournament(t *testing.T) {
 			wantFail: ServiceView{
 				Status: http.StatusNotFound,
 				Errors: ErrHttpNotFoundTournament.Error(),
-			},
-		},
-		{
-			name:          "InvalidTournamentKey",
-			tournamentKey: "invalid",
-			wantStatus:    http.StatusBadRequest,
-			wantFail: ServiceView{
-				Status: http.StatusBadRequest,
-				Errors: map[string]any{"tournamentKey": ErrHttpInvalidID.Error()},
 			},
 		},
 	}

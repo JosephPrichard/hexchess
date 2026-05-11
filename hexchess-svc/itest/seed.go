@@ -88,8 +88,10 @@ var ReplayInsts = []struct {
 	ReplayBlackElo float64
 	ReplayWhiteElo float64
 	PlayedOn       time.Time
+	TurnCount      int32
+	Rating         float64
 }{
-	// replay service tests
+	// replay service tests (primarily the replay advanced search functionality)
 	{
 		GameID:         uuid.NewString(), // replay key 1.
 		WhiteID:        ptr(1),
@@ -102,6 +104,8 @@ var ReplayInsts = []struct {
 		ReplayWhiteElo: 1000,
 		ReplayBlackElo: 1000,
 		PlayedOn:       TimeNow,
+		TurnCount:      34,
+		Rating:         1000,
 	},
 	{
 		GameID:         uuid.NewString(),
@@ -115,6 +119,8 @@ var ReplayInsts = []struct {
 		ReplayWhiteElo: 1030,
 		ReplayBlackElo: 900,
 		PlayedOn:       TimeNow,
+		TurnCount:      36,
+		Rating:         1030,
 	},
 	{
 		GameID:         uuid.NewString(),
@@ -128,6 +134,8 @@ var ReplayInsts = []struct {
 		ReplayWhiteElo: 900,
 		ReplayBlackElo: 1000,
 		PlayedOn:       TimeNow,
+		TurnCount:      38,
+		Rating:         1060,
 	},
 	{
 		GameID:         uuid.NewString(),
@@ -141,6 +149,8 @@ var ReplayInsts = []struct {
 		ReplayWhiteElo: 1000,
 		ReplayBlackElo: 1000,
 		PlayedOn:       TimeNow,
+		TurnCount:      40,
+		Rating:         1090,
 	},
 	// elo history tests
 	{
@@ -155,6 +165,8 @@ var ReplayInsts = []struct {
 		ReplayWhiteElo: 1030,
 		ReplayBlackElo: 970,
 		PlayedOn:       time.Date(1900, 1, 1, 1, 0, 0, 0, time.UTC),
+		TurnCount:      25,
+		Rating:         900,
 	},
 	{
 		GameID:         uuid.NewString(),
@@ -661,8 +673,8 @@ func insertTestData(pool *pgxpool.Pool) error {
 	}
 	for _, inst := range ReplayInsts {
 		batchQueue(`
-			INSERT INTO replays (game_id, white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode) 
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);`,
+			INSERT INTO replays (game_id, white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode, turn_count, rating) 
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);`,
 			inst.GameID,
 			inst.WhiteID,
 			inst.BlackID,
@@ -674,6 +686,8 @@ func insertTestData(pool *pgxpool.Pool) error {
 			inst.ReplayBlackElo,
 			inst.PlayedOn,
 			inst.Mode,
+			inst.TurnCount,
+			inst.Rating,
 		)
 	}
 	for _, inst := range ReplayMoveHistoryInsts {

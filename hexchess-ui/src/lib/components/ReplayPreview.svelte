@@ -1,5 +1,5 @@
 <script lang="ts">
-    import {formatEloDiff, formatRelativeTime, getReplayColors, formatReplayResult} from "$lib/utils/format.js";
+    import {formatEloDiff, formatRelativeTime, getReplayColors, formatReplayResult, formatReplayCause} from "$lib/utils/format.js";
     import {UntypedGameModeNameMap, type ReplayModel} from "$lib/api/models.js";
     import {goto} from "$app/navigation";
     import {piecenames, pieces} from "$lib/service/chess";
@@ -28,7 +28,7 @@
             <b>{UntypedGameModeNameMap[replay.mode]}</b>
         </div>
         <div class="replay-snippet-playedon">
-            {formatRelativeTime(replay.playedOn)}
+            {formatRelativeTime(replay.playedOn)} • {replay.turnCount ?? 0} turns • {Math.round(replay.rating ?? 0)} rating
         </div>
         <div class="replay-snippet-bottom">
             <div class="replay-snippet-players">
@@ -61,7 +61,7 @@
                 </div>
             </div>
             <div class="replay-snippet-result">
-                {formatReplayResult(replay.result)}
+                {formatReplayCause(replay.cause)} • {formatReplayResult(replay.result)}
             </div>
         </div>
     </div>
@@ -82,10 +82,6 @@
 
     .replay-snippet-root:hover {
         background-color: rgba(43, 71, 94, 0.5);
-    }
-
-    .replay-snippet-preview {
-
     }
 
     .replay-snippet-wrapper {
@@ -120,6 +116,8 @@
         display: grid;
         grid-template-columns: 1fr auto 1fr;
         align-items: center;
+
+        margin-bottom: 15px;
     }
 
     .replay-snippet-players-left {
@@ -135,7 +133,8 @@
         width: 100%;
         text-align: center;
         font-size: 16px;
-        margin-top: 25px;
+        margin-top: 10px;
+        margin-bottom: 10px;
     }
 
     .piece-icon {

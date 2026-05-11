@@ -9,12 +9,24 @@ volumes:
     driver: local
   localstack-data:
     driver: local
-  grafana_data:
-  pyroscope_data:
-  tempo_data:
-  loki_data:
+  postgres_data:
+    driver: local
 
 services:
+  # Postgres - primary SOR for website metadata (login, users system, challenges, replays)
+  postgres:
+    image: postgres:16-alpine
+    container_name: hexchess-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: hurricane123
+      POSTGRES_DB: hexachess2
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   # Redis - primary SOR for game state
   redis-game-store:
     image: redis/redis-stack-server
@@ -39,86 +51,3 @@ services:
     container_name: hexchess-redis-pubsub
     ports:
       - "6381:6379"
-
-  # Grafana - visualization & dashboards
-  grafana:
-    image: grafana/grafana:latest
-    container_name: hexchess-grafana
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_FEATURE_TOGGLES_ENABLE=flameGraph
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./hexchess-infra/grafana/provisioning:/etc/grafana/provisioning
-    depends_on:
-      - pyroscope
-      - tempo
-    networks:
-      - observability
-
-  # Grafana Pyroscope - continuous profiling backend
-  pyroscope:
-    image: grafana/pyroscope:latest
-    container_name: hexchess-pyroscope
-    ports:
-      - "4040:4040"
-    command:
-      - "server"
-    volumes:
-      - pyroscope_data:/data
-    networks:
-      - observability
-
-  # Grafana Tempo - traces backend (receives OTLP)
-  tempo:
-    image: grafana/tempo:2.10.0
-    container_name: hexchess-tempo
-    ports:
-      - "3200:3200"   # Tempo HTTP API
-      - "4317:4317"   # OTLP gRPC
-      - "4318:4318"   # OTLP HTTP
-    command:
-      - "-config.file=/etc/tempo/tempo.yaml"
-    volumes:
-      - ./hexchess-infra/tempo/tempo.yaml:/etc/tempo/tempo.yaml
-      - tempo_data:/var/tempo
-    networks:
-      - observability
-
-  # Grafana Loki - log storage backend
-  loki:
-    image: grafana/loki:latest
-    container_name: hexchess-loki
-    ports:
-      - "3100:3100"
-    command: -config.file=/etc/loki/loki.yaml
-    volumes:
-      - ./hexchess-infra/loki/loki.yaml:/etc/loki/loki.yaml
-      - loki_data:/loki
-    networks:
-      - observability
-
-  # Grafana Alloy - collector / pipeline (Prometheus, OTLP, profiles)
-  alloy:
-    image: grafana/alloy:latest
-    container_name: hexchess-alloy
-    ports:
-      - "12345:12345"  # Alloy UI
-      - "4319:4317"    # OTLP gRPC (host-side alias to avoid conflict with Tempo)
-      - "4320:4318"    # OTLP HTTP  (host-side alias)
-    volumes:
-      - ./hexchess-infra/alloy/config.alloy:/etc/alloy/config.alloy
-    command:
-      - "run"
-      - "/etc/alloy/config.alloy"
-      - "--server.http.listen-addr=0.0.0.0:12345"
-    depends_on:
-      - tempo
-      - pyroscope
-    networks:
-      - observability

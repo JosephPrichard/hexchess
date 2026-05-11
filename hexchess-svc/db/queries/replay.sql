@@ -155,8 +155,7 @@ WHERE
     (r.black_id = sqlc.narg('blackID') OR sqlc.narg('blackID') IS NULL) AND
 
     (
-        r.white_id = sqlc.narg('userID') OR
-        r.black_id = sqlc.narg('userID') OR
+        r.white_id = sqlc.narg('userID') OR r.black_id = sqlc.narg('userID') OR
         sqlc.narg('userID') IS NULL
     )
     AND
@@ -172,20 +171,34 @@ WHERE
         sqlc.narg('loserID') IS NULL
     )
     AND
-    (sqlc.narg('dateFrom')::TIMESTAMPTZ IS NULL OR r.played_on >= sqlc.narg('dateFrom')::TIMESTAMPTZ) AND
-    (sqlc.narg('dateTo')::TIMESTAMPTZ IS NULL OR r.played_on <= sqlc.narg('dateTo')::TIMESTAMPTZ) AND
+
+    (
+        sqlc.narg('dateFrom')::TIMESTAMPTZ IS NULL OR
+        r.played_on >= sqlc.narg('dateFrom')::TIMESTAMPTZ
+    )
+    AND
+    (
+        sqlc.narg('dateTo')::TIMESTAMPTZ IS NULL OR
+        r.played_on <= sqlc.narg('dateTo')::TIMESTAMPTZ
+    )
+    AND
 
     CASE
-         WHEN sqlc.arg('sortKey')::TEXT = 'turnCount' THEN r.turn_count <= sqlc.arg('afterTurnCount') AND r.id < sqlc.arg('afterID')
-         WHEN sqlc.arg('sortKey')::TEXT = 'rating' THEN r.rating <= sqlc.arg('afterRating') AND r.id < sqlc.arg('afterID')
-         ELSE r.id < sqlc.arg('afterID')
+         WHEN sqlc.arg('sortKey')::TEXT = 'turnCount'
+             THEN r.turn_count < sqlc.arg('afterTurnCount') OR (r.turn_count = sqlc.arg('afterTurnCount') AND r.id < sqlc.arg('afterID'))
+         WHEN sqlc.arg('sortKey')::TEXT = 'rating'
+             THEN r.rating < sqlc.arg('afterRating') OR (r.rating = sqlc.arg('afterRating') AND r.id < sqlc.arg('afterID'))
+         ELSE
+             r.id < sqlc.arg('afterID')
     END
 ORDER BY
     CASE
-        WHEN sqlc.arg('sortKey')::TEXT = 'turnCount' THEN r.turn_count
+        WHEN sqlc.arg('sortKey')::TEXT = 'turnCount'
+            THEN r.turn_count
     END DESC,
     CASE
-        WHEN sqlc.arg('sortKey')::TEXT = 'rating' THEN r.rating
+        WHEN sqlc.arg('sortKey')::TEXT = 'rating'
+            THEN r.rating
     END DESC,
     r.id DESC
 LIMIT sqlc.arg('perPage');

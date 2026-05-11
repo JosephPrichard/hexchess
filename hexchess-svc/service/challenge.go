@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hexchess-svc/db"
 	"hexchess-svc/model"
 	"hexchess-svc/util/enum"
 	"log/slog"
@@ -74,8 +75,8 @@ func (svc *HexchessServices) GetChallengesByParticipant(ctx context.Context, key
 	since := svc.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
 	rows, err := svc.querier.SelectChallengesByParticipant(ctx, sqlc.SelectChallengesByParticipantParams{
-		ChallengerID: optInt8(key.ChallengerID),
-		ChallengeeID: optInt8(key.ChallengeeID),
+		ChallengerID: db.OptInt8(key.ChallengerID),
+		ChallengeeID: db.OptInt8(key.ChallengeeID),
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
 	})
 	if err != nil {
@@ -100,7 +101,7 @@ type DeleteResult struct {
 
 func (svc *HexchessServices) DeleteChallenge(ctx context.Context, key ChallengeKey) (DeleteResult, error) {
 	challengeRow, err := svc.querier.DeleteChallenge(ctx, sqlc.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
-	if IsErrNoRows(err) {
+	if db.IsErrNoRows(err) {
 		return DeleteResult{}, ErrChallengeNotFound
 	} else if err != nil {
 		return DeleteResult{}, fmt.Errorf("delete challenge %d: %w", key, err)

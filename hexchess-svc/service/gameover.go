@@ -144,7 +144,7 @@ func (svc *HexchessServices) InsertGameResultTx(ctx context.Context, result Game
 			if err == nil {
 				changeSet = GameResultChangeSet{ReplayID: existingReplayID, AlreadyExists: true}
 				return nil
-			} else if !IsErrNoRows(err) {
+			} else if !db.IsErrNoRows(err) {
 				return fmt.Errorf("select has replay with gameID: %w", err)
 			}
 			// gameID has not been processed, continue executing the transaction

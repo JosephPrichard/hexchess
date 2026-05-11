@@ -67,14 +67,24 @@ func (pdb *PostgresDB) ExecTx(ctx context.Context, args TxArgs) error {
 	for i := range args.RetryCount {
 		err = execTx(ctx, args)
 
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && (pgErr.Code == ErrPgSerializationFailure || pgErr.Code == ErrPgDeadlock) {
+		if isSerializationFailure(err) {
+			slog.WarnContext(ctx, "retrying transaction", "err", err, "retry", i)
+
 			time.Sleep(exponentialBackoff(i, 2, 50*time.Millisecond))
 			continue
 		}
 		break
 	}
+	if isSerializationFailure(err) {
+		slog.ErrorContext(ctx, "exhausted transaction retries", "err", err, "retryCount", args.RetryCount)
+	}
+
 	return err
+}
+
+func isSerializationFailure(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && (pgErr.Code == ErrPgSerializationFailure || pgErr.Code == ErrPgDeadlock)
 }
 
 func exponentialBackoff(retry int, multiplier float64, base time.Duration) time.Duration {
