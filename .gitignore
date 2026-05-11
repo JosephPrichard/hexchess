@@ -20,13 +20,13 @@ target/
 
 .idea
 
-hexchess-svc/app.log
-hexchess-svc/.env
-hexchess-svc/pb/*
-hexchess-svc/db/sqlc
+backend/app.log
+backend/.env
+backend/pb/*
+backend/db/sqlc
 
-hexchess-ui/src/lib/pb/messages.ts
-hexchess-ui/build
+frontend/src/lib/pb/messages.ts
+frontend/build
 
 *_mock.go
 
