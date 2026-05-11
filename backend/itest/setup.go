@@ -3,7 +3,7 @@ package itest
 import (
 	"golang.org/x/sync/errgroup"
 	"hexchess-svc/db"
-	"hexchess-svc/util/logutil"
+	"hexchess-svc/internal/logutil"
 	"slices"
 )
 

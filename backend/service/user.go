@@ -6,9 +6,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"hexchess-svc/internal/enum"
+	"hexchess-svc/internal/errutil"
 	"hexchess-svc/model"
-	"hexchess-svc/util/enum"
-	"hexchess-svc/util/errutil"
 	"log/slog"
 	"math"
 	"time"
@@ -17,7 +17,7 @@ import (
 
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/util/logutil"
+	"hexchess-svc/internal/logutil"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"

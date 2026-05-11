@@ -4,15 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hexchess-svc/internal/enum"
 	"hexchess-svc/model"
-	"hexchess-svc/util/enum"
 	"time"
 
 	"github.com/google/uuid"
 
 	"google.golang.org/protobuf/proto"
 
-	"hexchess-svc/hexchess"
 	"hexchess-svc/pb"
 )
 
@@ -84,11 +83,11 @@ func UnmarshalChessState(bytes []byte) (*ChessState, error) {
 		return nil, err
 	}
 
-	game, err := hexchess.DeserializeGame(pbChess.Game)
+	game, err := chess.DeserializeGame(pbChess.Game)
 	if err != nil {
 		return nil, fmt.Errorf("deserialize game: %w", err)
 	}
-	initialBoard, err := hexchess.DeserializeBoard(pbChess.InitialBoard)
+	initialBoard, err := chess.DeserializeBoard(pbChess.InitialBoard)
 	if err != nil {
 		return nil, fmt.Errorf("deserialize initial board %v: %w", pbChess.Game.Board, err)
 	}
@@ -122,13 +121,13 @@ func SerializeChessState(state *ChessState) *pb.ChessState {
 	}
 	return &pb.ChessState{
 		Id:           state.ID,
-		Game:         hexchess.SerializeGame(&state.Game),
+		Game:         chess.SerializeGame(&state.Game),
 		WhitePlayer:  SerializePlayer(state.WhitePlayer),
 		BlackPlayer:  SerializePlayer(state.BlackPlayer),
 		FirstColor:   state.FirstColor.String(),
 		Mode:         state.Mode.String(),
 		Touch:        state.Touch.UnixMilli(),
-		InitialBoard: hexchess.SerializeBoard(&state.InitialBoard),
+		InitialBoard: chess.SerializeBoard(&state.InitialBoard),
 		UndoId:       state.UndoID,
 		EndState:     SerializeEndKind(state.EndState),
 	}
@@ -246,7 +245,7 @@ func UnmarshalFinishedGame(bytes []byte) (FinishedGame, error) {
 		return FinishedGame{}, err
 	}
 
-	board, err := hexchess.DeserializeBoard(pbGameEvent.Board)
+	board, err := chess.DeserializeBoard(pbGameEvent.Board)
 	if err != nil {
 		return FinishedGame{}, fmt.Errorf("deserialize board %v: %w", pbGameEvent.Board, err)
 	}
@@ -254,7 +253,7 @@ func UnmarshalFinishedGame(bytes []byte) (FinishedGame, error) {
 	return FinishedGame{
 		GameID:       pbGameEvent.GameId,
 		Board:        board,
-		Moves:        hexchess.DeserializeHistMoveList(pbGameEvent.Moves),
+		Moves:        chess.DeserializeHistMoveList(pbGameEvent.Moves),
 		WhitePlayer:  DeserializePlayer(pbGameEvent.WhitePlayer),
 		BlackPlayer:  DeserializePlayer(pbGameEvent.BlackPlayer),
 		ReplayMode:   mode,
@@ -266,8 +265,8 @@ func UnmarshalFinishedGame(bytes []byte) (FinishedGame, error) {
 func MarshalFinishedGame(event FinishedGame) ([]byte, error) {
 	return proto.Marshal(&pb.FinishGameEvent{
 		GameId:       event.GameID,
-		Board:        hexchess.SerializeBoard(&event.Board),
-		Moves:        hexchess.SerializeMoveList(event.Moves),
+		Board:        chess.SerializeBoard(&event.Board),
+		Moves:        chess.SerializeMoveList(event.Moves),
 		WhitePlayer:  SerializePlayer(event.WhitePlayer),
 		BlackPlayer:  SerializePlayer(event.BlackPlayer),
 		GameMode:     event.ReplayMode.String(),

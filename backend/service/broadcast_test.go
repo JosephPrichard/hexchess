@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
-	"hexchess-svc/util/logutil"
+	"hexchess-svc/internal/logutil"
 	"testing"
 )
 

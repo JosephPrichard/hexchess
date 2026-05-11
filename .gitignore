@@ -25,7 +25,7 @@ backend/.env
 backend/pb/*
 backend/db/sqlc
 
-frontend/src/lib/pb/messages.ts
+frontend/src/lib/pb/*
 frontend/build
 
 *_mock.go

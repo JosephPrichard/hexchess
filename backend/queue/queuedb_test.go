@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/internal/logutil"
+	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
 	svc "hexchess-svc/service"
-	"hexchess-svc/util/logutil"
-	"hexchess-svc/util/testutil"
 	"testing"
 	"time"
 

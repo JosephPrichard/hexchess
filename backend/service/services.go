@@ -5,7 +5,7 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/egress"
-	"hexchess-svc/hexchess"
+
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"io"
@@ -84,9 +84,9 @@ type HexchessAPI interface {
 	AddActiveUser(ctx context.Context, id string) (int64, error)
 	RemoveActiveUser(ctx context.Context, id string) (int64, error)
 
-	CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *hexchess.Board) (string, error)
+	CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (string, error)
 	JoinGame(ctx context.Context, gameID string, player model.PlayerState) (*ChessState, error)
-	MakeGameMove(ctx context.Context, gameID string, player model.PlayerState, move hexchess.Move) (MoveResult, error)
+	MakeGameMove(ctx context.Context, gameID string, player model.PlayerState, move chess.Move) (MoveResult, error)
 	AttemptGameUndo(ctx context.Context, gameID string, player model.PlayerState, kind UndoKind) (*ChessState, error)
 	EndGame(ctx context.Context, gameID string, player model.PlayerState) (EndKind, error)
 	IsGameAccessible(ctx context.Context, id string) bool

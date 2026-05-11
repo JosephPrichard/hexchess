@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"hexchess-svc/util/logutil"
+	"hexchess-svc/internal/logutil"
 )
 
 func InitEnv() {

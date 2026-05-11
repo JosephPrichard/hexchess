@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"hexchess-svc/egress"
-	"hexchess-svc/util/logutil"
+	"hexchess-svc/internal/logutil"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-svc/hexchess"
+
+	"hexchess-svc/internal/errutil"
 	"hexchess-svc/model"
-	"hexchess-svc/util/errutil"
 	"log/slog"
 	"net/http"
 	"time"
@@ -215,15 +215,15 @@ func (api *API) handleGameForfeit(ctx GameSocketContext) error {
 }
 
 func (api *API) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) error {
-	moveResult, err := api.services.MakeGameMove(ctx.Context, ctx.GameID, ctx.Player, hexchess.DeserializeMove(pbInput.Move))
+	moveResult, err := api.services.MakeGameMove(ctx.Context, ctx.GameID, ctx.Player, chess.DeserializeMove(pbInput.Move))
 	if err != nil {
 		return fmt.Errorf("make move on game %s: %w", ctx.GameID, err)
 	}
 
 	return api.services.BroadcastGamesEvent(ctx.Context, SerializeGameOutputMove(
 		ctx.GameID,
-		hexchess.SerializeHistMove(moveResult.Move),
-		hexchess.SerializeGame(&moveResult.State.Game),
+		chess.SerializeHistMove(moveResult.Move),
+		chess.SerializeGame(&moveResult.State.Game),
 		time.Now(),
 	))
 }

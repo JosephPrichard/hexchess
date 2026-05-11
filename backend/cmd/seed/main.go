@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"hexchess-svc/hexchess"
+
 	"hexchess-svc/model"
 	"log"
 	"log/slog"
@@ -15,8 +15,8 @@ import (
 	"hexchess-svc/assets"
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
+	"hexchess-svc/internal/logutil"
 	svc "hexchess-svc/service"
-	"hexchess-svc/util/logutil"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
@@ -144,11 +144,11 @@ func insertRandomizedGameResults(ctx context.Context, services svc.HexchessAPI, 
 		eg.Go(func() error {
 			mode := model.ExpectGameMode(params.ReplayMode)
 
-			moveSeq, err := svc.RandomMoveHistSeq(mode, hexchess.MakeStartGame(), 10, 30)
+			moveSeq, err := svc.RandomMoveHistSeq(mode, chess.MakeStartGame(), 10, 30)
 			if err != nil {
 				return fmt.Errorf("generate random move seq: %w", err)
 			}
-			moveHistBlob, err := hexchess.MarshalMoveHistory(hexchess.InitialBoard(), moveSeq)
+			moveHistBlob, err := chess.MarshalMoveHistory(chess.InitialBoard(), moveSeq)
 			if err != nil {
 				return fmt.Errorf("marshal move history to s3: %w", err)
 			}

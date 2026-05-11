@@ -1,6 +1,6 @@
 package model
 
-import "hexchess-svc/util/enum"
+import "hexchess-svc/internal/enum"
 
 type GameColor int
 

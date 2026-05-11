@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"hexchess-svc/hexchess"
 	"hexchess-svc/pb"
 	svc "hexchess-svc/service"
 )
@@ -92,7 +91,7 @@ func SerializeGameOutputChat(gameID string, chat svc.Chat) *pb.GameOutput {
 func SerializeGameOutputUndo(gameID string, undoKind string, undoID int64, state *svc.ChessState) *pb.GameOutput {
 	var game *pb.ChessGame
 	if state != nil {
-		game = hexchess.SerializeGame(&state.Game)
+		game = chess.SerializeGame(&state.Game)
 	}
 	return &pb.GameOutput{
 		GameId: gameID,

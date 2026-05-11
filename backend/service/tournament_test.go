@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"hexchess-svc/util/logutil"
-	"hexchess-svc/util/testutil"
+	"hexchess-svc/internal/logutil"
+	"hexchess-svc/internal/testutil"
 	"testing"
 	"time"
 )

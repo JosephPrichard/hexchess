@@ -2,12 +2,12 @@ package svc
 
 import (
 	"context"
-	"hexchess-svc/hexchess"
+
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 
-	"hexchess-svc/util/logutil"
-	"hexchess-svc/util/testutil"
+	"hexchess-svc/internal/logutil"
+	"hexchess-svc/internal/testutil"
 	"testing"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -114,7 +114,7 @@ func TestAttemptUndo(t *testing.T) {
 		White:      model.PlayerState{ID: 1, Name: "white", Present: true},
 		Black:      model.PlayerState{ID: 2, Name: "black", Present: true},
 	})
-	withMovesGame.Game.Moves = []hexchess.HistMove{{PieceMove: hexchess.PieceMove{Piece: 1, To: hexchess.Hex{Rank: 1}}}}
+	withMovesGame.Game.Moves = []chess.HistMove{{PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}}}}
 	missingGameID := "test-undo-missing-" + uuid.NewString()
 
 	seedGames(t, services, noMovesGame, withMovesGame)
@@ -289,30 +289,30 @@ func TestMakeMove(t *testing.T) {
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 3, Present: true},
 		Black:      model.PlayerState{ID: 4, Present: true},
-		Game: ptr(hexchess.MakeEmptyGame(false,
-			hexchess.Place{Not: "f1", Piece: hexchess.WhiteKing},
-			hexchess.Place{Not: "a2", Piece: hexchess.BlackQueen},
-			hexchess.Place{Not: "h1", Piece: hexchess.BlackRook},
-			hexchess.Place{Not: "f3", Piece: hexchess.BlackRook},
-			hexchess.Place{Not: "f9", Piece: hexchess.BlackKing},
+		Game: ptr(chess.MakeEmptyGame(false,
+			chess.Place{Not: "f1", Piece: chess.WhiteKing},
+			chess.Place{Not: "a2", Piece: chess.BlackQueen},
+			chess.Place{Not: "h1", Piece: chess.BlackRook},
+			chess.Place{Not: "f3", Piece: chess.BlackRook},
+			chess.Place{Not: "f9", Piece: chess.BlackKing},
 		)),
 	})
 	missingGameID := "test-makemove-missing-" + uuid.NewString()
 
 	stateWhiteMoved := mutateGame(stateWhiteTurn, func(s *ChessState) {
-		s.Game.MakeMove(hexchess.MoveStr("b1", "b2"))
+		s.Game.MakeMove(chess.MoveStr("b1", "b2"))
 		s.Game.InitPieceMoves()
 		s.Game.ClearTables()
-		s.Game.Moves = []hexchess.HistMove{
-			{PieceMove: hexchess.PieceMove{Piece: hexchess.WhitePawn, From: hexchess.HexStr("b1"), To: hexchess.HexStr("b2")}, Notation: "Pb2"},
+		s.Game.Moves = []chess.HistMove{
+			{PieceMove: chess.PieceMove{Piece: chess.WhitePawn, From: chess.HexStr("b1"), To: chess.HexStr("b2")}, Notation: "Pb2"},
 		}
 	})
 	stateCheckmated := mutateGame(stateIntoCheckmate, func(s *ChessState) {
-		s.Game.MakeMove(hexchess.MoveStr("a2", "a1"))
+		s.Game.MakeMove(chess.MoveStr("a2", "a1"))
 		s.Game.InitPieceMoves()
 		s.Game.ClearTables()
-		s.Game.Moves = []hexchess.HistMove{
-			{PieceMove: hexchess.PieceMove{Piece: hexchess.BlackQueen, From: hexchess.HexStr("a2"), To: hexchess.HexStr("a1")}, Notation: "qa1"},
+		s.Game.Moves = []chess.HistMove{
+			{PieceMove: chess.PieceMove{Piece: chess.BlackQueen, From: chess.HexStr("a2"), To: chess.HexStr("a1")}, Notation: "qa1"},
 		}
 		s.EndState = Finished
 	})
@@ -324,7 +324,7 @@ func TestMakeMove(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		move     hexchess.Move
+		move     chess.Move
 		stateID  string
 		player   model.PlayerState
 		wantErr  error
@@ -337,7 +337,7 @@ func TestMakeMove(t *testing.T) {
 		},
 		{
 			name:     "InvalidTurn",
-			move:     hexchess.Move{To: hexchess.Hex{File: 1}},
+			move:     chess.Move{To: chess.Hex{File: 1}},
 			stateID:  stateWhiteTurn.ID,
 			player:   stateWhiteTurn.BlackPlayer,
 			wantErr:  ErrTurn{GameID: stateWhiteTurn.ID, PlayerID: 2, CurrID: 1},
@@ -345,7 +345,7 @@ func TestMakeMove(t *testing.T) {
 		},
 		{
 			name:     "InvalidEndedMove",
-			move:     hexchess.Move{To: hexchess.Hex{File: 1}},
+			move:     chess.Move{To: chess.Hex{File: 1}},
 			stateID:  stateEnded.ID,
 			player:   stateEnded.WhitePlayer,
 			wantErr:  ErrFinishedGame{GameID: stateEnded.ID},
@@ -353,7 +353,7 @@ func TestMakeMove(t *testing.T) {
 		},
 		{
 			name:     "InvalidNotStartedMove",
-			move:     hexchess.Move{To: hexchess.Hex{File: 1}},
+			move:     chess.Move{To: chess.Hex{File: 1}},
 			stateID:  stateNotStarted.ID,
 			player:   stateNotStarted.WhitePlayer,
 			wantErr:  ErrStartedGame{GameID: stateNotStarted.ID},
@@ -361,26 +361,26 @@ func TestMakeMove(t *testing.T) {
 		},
 		{
 			name:    "InvalidMove",
-			move:    hexchess.Move{To: hexchess.Hex{File: 1}},
+			move:    chess.Move{To: chess.Hex{File: 1}},
 			stateID: stateWhiteTurn.ID,
 			player:  stateWhiteTurn.WhitePlayer,
 			wantErr: ErrInvalidMove{
 				GameID:    stateWhiteTurn.ID,
 				PlayerID:  1,
-				Violation: hexchess.MoveError{Kind: hexchess.MoveErrIllegalTarget, Move: hexchess.Move{To: hexchess.Hex{File: 1}}},
+				Violation: chess.MoveError{Kind: chess.MoveErrIllegalTarget, Move: chess.Move{To: chess.Hex{File: 1}}},
 			},
 			wantGame: stateWhiteTurn,
 		},
 		{
 			name:     "ValidMoveAsWhite",
-			move:     hexchess.MoveStr("b1", "b2"),
+			move:     chess.MoveStr("b1", "b2"),
 			stateID:  stateWhiteTurn.ID,
 			player:   stateWhiteTurn.WhitePlayer,
 			wantGame: stateWhiteMoved,
 		},
 		{
 			name:     "ValidMoveAsBlackIntoCheckmate",
-			move:     hexchess.MoveStr("a2", "a1"),
+			move:     chess.MoveStr("a2", "a1"),
 			stateID:  stateIntoCheckmate.ID,
 			player:   stateIntoCheckmate.BlackPlayer,
 			wantGame: stateCheckmated,
@@ -421,8 +421,8 @@ func TestForfeit(t *testing.T) {
 		White:      model.PlayerState{ID: 1, Present: true},
 		Black:      model.PlayerState{ID: 2, Present: true},
 	})
-	forfeitGame.Game.Moves = []hexchess.HistMove{{
-		PieceMove: hexchess.PieceMove{Piece: 1, To: hexchess.Hex{Rank: 1}},
+	forfeitGame.Game.Moves = []chess.HistMove{{
+		PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}},
 	}}
 
 	seedGames(t, services, abortGame, forfeitGame)

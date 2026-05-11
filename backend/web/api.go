@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"hexchess-svc/assets"
-	"hexchess-svc/hexchess"
+
+	"hexchess-svc/internal/logutil"
 	svc "hexchess-svc/service"
-	"hexchess-svc/util/logutil"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -134,7 +134,7 @@ func MakeServeMux(setup Setup, opts ...func(*chi.Mux)) *chi.Mux {
 	r.Get("/api/events/active", SSE(server.HandleActiveConn))
 	r.Get("/api/events/tournament", SSE(server.HandleTournamentEvents))
 
-	r.Get("/api/initial-board", Json(hexchess.InitialBoard()))
+	r.Get("/api/initial-board", Json(chess.InitialBoard()))
 	r.Get("/api/countries", Json(server.staticData.countryList))
 
 	r.Get("/api/ws/game", server.HandleGameWs)

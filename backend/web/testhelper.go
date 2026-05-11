@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"hexchess-svc/internal/logutil"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
-	"hexchess-svc/util/logutil"
 )
 
 var TestSessionID1 = "testing-session-id-1"

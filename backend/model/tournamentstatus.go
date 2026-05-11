@@ -1,7 +1,7 @@
 package model
 
 import (
-	"hexchess-svc/util/enum"
+	"hexchess-svc/internal/enum"
 )
 
 type TournamentStatus int

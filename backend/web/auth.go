@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
+	"hexchess-svc/internal/errutil"
 	svc "hexchess-svc/service"
-	"hexchess-svc/util/errutil"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 )

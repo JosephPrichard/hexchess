@@ -5,9 +5,9 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"hexchess-svc/hexchess"
+
+	"hexchess-svc/internal/logutil"
 	"hexchess-svc/model"
-	"hexchess-svc/util/logutil"
 	"log/slog"
 	"math/big"
 
@@ -66,7 +66,7 @@ func MakeGameID() string {
 	return string(bytesID)
 }
 
-func (svc *HexchessServices) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *hexchess.Board) (string, error) {
+func (svc *HexchessServices) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (string, error) {
 	strID := MakeGameID()
 
 	state := MakeChessState(StateSetup{ID: strID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
@@ -147,10 +147,10 @@ func (svc *HexchessServices) JoinGame(ctx context.Context, gameID string, player
 
 type MoveResult struct {
 	State *ChessState
-	Move  hexchess.HistMove
+	Move  chess.HistMove
 }
 
-func (svc *HexchessServices) MakeGameMove(ctx context.Context, gameID string, player model.PlayerState, move hexchess.Move) (MoveResult, error) {
+func (svc *HexchessServices) MakeGameMove(ctx context.Context, gameID string, player model.PlayerState, move chess.Move) (MoveResult, error) {
 	update := func(state *ChessState) error {
 		// pre move validations on chess state
 		if !state.HasBothPlayers() {

@@ -11,8 +11,8 @@ import (
 	"strconv"
 
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/util/errutil"
-	"hexchess-svc/util/logutil"
+	"hexchess-svc/internal/errutil"
+	"hexchess-svc/internal/logutil"
 
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/errgroup"

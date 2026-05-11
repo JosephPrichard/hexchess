@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"hexchess-svc/internal/logutil"
 	"hexchess-svc/itest"
-	"hexchess-svc/util/logutil"
 
 	"github.com/google/uuid"
 )

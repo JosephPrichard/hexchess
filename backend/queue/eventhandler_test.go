@@ -3,11 +3,11 @@ package queue
 import (
 	"context"
 	"errors"
+	"hexchess-svc/internal/logutil"
+	"hexchess-svc/internal/testutil"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	svc "hexchess-svc/service"
-	"hexchess-svc/util/logutil"
-	"hexchess-svc/util/testutil"
 	"testing"
 
 	"github.com/google/go-cmp/cmp/cmpopts"

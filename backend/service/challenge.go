@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/db"
+	"hexchess-svc/internal/enum"
 	"hexchess-svc/model"
-	"hexchess-svc/util/enum"
 	"log/slog"
 	"time"
 
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/util/logutil"
+	"hexchess-svc/internal/logutil"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )

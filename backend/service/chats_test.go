@@ -6,8 +6,8 @@ import (
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 
-	"hexchess-svc/util/logutil"
-	"hexchess-svc/util/testutil"
+	"hexchess-svc/internal/logutil"
+	"hexchess-svc/internal/testutil"
 	"testing"
 	"time"
 

@@ -4,7 +4,7 @@ package browser
 
 import (
 	"google.golang.org/protobuf/proto"
-	"hexchess-svc/hexchess"
+
 	"syscall/js"
 	"testing"
 
@@ -37,25 +37,25 @@ func isUint8Array(v js.Value) bool {
 }
 
 func makeInitialBoardJs(t *testing.T) js.Value {
-	board := hexchess.InitialBoard()
-	bytes, err := proto.Marshal(hexchess.SerializeBoard(&board))
+	board := chess.InitialBoard()
+	bytes, err := proto.Marshal(chess.SerializeBoard(&board))
 	requireNoError(t, err)
 	return uint8ArrayFromBytes(bytes)
 }
 
-func jsValueToGame(t *testing.T, result js.Value) hexchess.Game {
+func jsValueToGame(t *testing.T, result js.Value) chess.Game {
 	gameOut := make([]byte, result.Length())
 	js.CopyBytesToGo(gameOut, result)
 
 	var pbGame pb.ChessGame
 	requireNoError(t, proto.Unmarshal(gameOut, &pbGame))
 
-	game, err := hexchess.DeserializeGame(&pbGame)
+	game, err := chess.DeserializeGame(&pbGame)
 	requireNoError(t, err)
 	return game
 }
 
-func assertGame(t *testing.T, wantGame *hexchess.Game, result js.Value) {
+func assertGame(t *testing.T, wantGame *chess.Game, result js.Value) {
 	t.Helper()
 	if wantGame != nil {
 		if !isUint8Array(result) {
@@ -63,7 +63,7 @@ func assertGame(t *testing.T, wantGame *hexchess.Game, result js.Value) {
 		}
 
 		game := jsValueToGame(t, result)
-		diff := cmp.Diff(&game, wantGame, cmpopts.IgnoreFields(hexchess.HistMove{}, "WhiteTimer", "BlackTimer"))
+		diff := cmp.Diff(&game, wantGame, cmpopts.IgnoreFields(chess.HistMove{}, "WhiteTimer", "BlackTimer"))
 		if diff != "" {
 			t.Fatalf("expected games to be equal:\n%s", diff)
 		}
@@ -89,7 +89,7 @@ func TestGetGame(t *testing.T) {
 		}
 		game := jsValueToGame(t, result)
 
-		wantBoard := hexchess.InitialBoard()
+		wantBoard := chess.InitialBoard()
 		diff := cmp.Diff(game.Board, wantBoard)
 		if diff != "" {
 			t.Fatalf("expected boards to be equal:\n%s", diff)
@@ -108,7 +108,7 @@ func TestGetGame(t *testing.T) {
 		}
 		game := jsValueToGame(t, result)
 
-		wantGame := hexchess.Game{Board: hexchess.InitialBoard()}
+		wantGame := chess.Game{Board: chess.InitialBoard()}
 		wantGame.InitPieceMoves() // GetGame will just call this.
 		wantGame.ClearTables()    // not serialized.
 
@@ -128,7 +128,7 @@ func TestMakeMove(t *testing.T) {
 		t.Parallel()
 
 		gameBytes, err := proto.Marshal(
-			hexchess.SerializeGame(&hexchess.Game{Board: hexchess.InitialBoard()}),
+			chess.SerializeGame(&chess.Game{Board: chess.InitialBoard()}),
 		)
 		requireNoError(t, err)
 
@@ -142,11 +142,11 @@ func TestMakeMove(t *testing.T) {
 
 		result := wasm.MakeMove(js.Undefined(), inputs).(js.Value)
 
-		wantGame := &hexchess.Game{Board: hexchess.InitialBoard()}
+		wantGame := &chess.Game{Board: chess.InitialBoard()}
 		wantGame.InitPieceMoves() // used when calculating histories
-		wantGame.MakeHistMove(hexchess.Move{
-			From: hexchess.HexStr("b1"),
-			To:   hexchess.HexStr("b2"),
+		wantGame.MakeHistMove(chess.Move{
+			From: chess.HexStr("b1"),
+			To:   chess.HexStr("b2"),
 		})
 		wantGame.InitPieceMoves() // wasm MakeMove regenerates moves
 		wantGame.ClearTables()    // not serialized
@@ -158,7 +158,7 @@ func TestMakeMove(t *testing.T) {
 		t.Parallel()
 
 		gameBytes, err := proto.Marshal(
-			hexchess.SerializeGame(&hexchess.Game{Board: hexchess.InitialBoard()}),
+			chess.SerializeGame(&chess.Game{Board: chess.InitialBoard()}),
 		)
 		requireNoError(t, err)
 
@@ -188,14 +188,14 @@ func TestFenToGame(t *testing.T) {
 	for _, test := range []struct {
 		name     string
 		fen      string
-		wantGame *hexchess.Game
+		wantGame *chess.Game
 		wantErr  string
 	}{
 		{
 			name: "initial position",
 			fen:  "6/P5p/RP4pr/N1P3p1n/Q2P2p2q/BBB1P1p1bbb/K2P2p2k/N1P3p1n/RP4pr/P5p/6 w",
-			wantGame: func() *hexchess.Game {
-				g := &hexchess.Game{Board: hexchess.InitialBoard()}
+			wantGame: func() *chess.Game {
+				g := &chess.Game{Board: chess.InitialBoard()}
 				g.InitPieceMoves()
 				g.ClearTables()
 				return g
@@ -261,19 +261,19 @@ func TestGameAtMoveIndex(t *testing.T) {
 	t.Run("jump to index 0", func(t *testing.T) {
 		t.Parallel()
 
-		game := &hexchess.Game{Board: hexchess.InitialBoard()}
-		game.MakeHistMove(hexchess.Move{From: hexchess.HexStr("b1"), To: hexchess.HexStr("b2")})
-		game.MakeHistMove(hexchess.Move{From: hexchess.HexStr("b7"), To: hexchess.HexStr("b6")})
+		game := &chess.Game{Board: chess.InitialBoard()}
+		game.MakeHistMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")})
+		game.MakeHistMove(chess.Move{From: chess.HexStr("b7"), To: chess.HexStr("b6")})
 
-		movesBytes, err := proto.Marshal(&pb.HistMoves{Moves: hexchess.SerializeMoveList(game.Moves)})
+		movesBytes, err := proto.Marshal(&pb.HistMoves{Moves: chess.SerializeMoveList(game.Moves)})
 		requireNoError(t, err)
 
 		inputs := []js.Value{makeInitialBoardJs(t), uint8ArrayFromBytes(movesBytes), js.ValueOf(0)}
 
 		result := wasm.GameAtMoveIndex(js.Undefined(), inputs).(js.Value)
 
-		wantGame := &hexchess.Game{Board: hexchess.InitialBoard()}
-		wantGame.MakeHistMove(hexchess.Move{From: hexchess.HexStr("b1"), To: hexchess.HexStr("b2")})
+		wantGame := &chess.Game{Board: chess.InitialBoard()}
+		wantGame.MakeHistMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")})
 		wantGame.InitPieceMoves()
 		wantGame.ClearTables()
 

@@ -7,7 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/egress"
-	"hexchess-svc/hexchess"
+
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"io"
@@ -25,10 +25,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	"hexchess-svc/internal/logutil"
+	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
 	svc "hexchess-svc/service"
-	"hexchess-svc/util/logutil"
-	"hexchess-svc/util/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -958,8 +958,8 @@ func TestHandleGetMoveReplay(t *testing.T) {
 	services, testinfra := svc.SetupServicesTest(t, svc.Mocks{}, itest.RWPostgres)
 	defer services.Close()
 
-	wantInitialGame := hexchess.MakeEmptyGame(false)
-	pbInitialGame := hexchess.SerializeGame(&wantInitialGame)
+	wantInitialGame := chess.MakeEmptyGame(false)
+	pbInitialGame := chess.SerializeGame(&wantInitialGame)
 
 	// serialize a history that contains every field so we can check that the binary data is being stored correctly. this history doesn't actually respect game rules.
 	bytes, err := proto.Marshal(&pb.MoveHistory{

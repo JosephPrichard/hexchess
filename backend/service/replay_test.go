@@ -3,15 +3,15 @@ package svc
 import (
 	"context"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"hexchess-svc/internal/enum"
+	"hexchess-svc/internal/testutil"
 	"hexchess-svc/model"
-	"hexchess-svc/util/enum"
-	"hexchess-svc/util/testutil"
 
 	"testing"
 	"time"
 
+	"hexchess-svc/internal/logutil"
 	"hexchess-svc/itest"
-	"hexchess-svc/util/logutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

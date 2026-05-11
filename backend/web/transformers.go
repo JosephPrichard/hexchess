@@ -2,10 +2,10 @@ package web
 
 import (
 	"fmt"
-	"hexchess-svc/hexchess"
+
+	"hexchess-svc/internal/enum"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
-	"hexchess-svc/util/enum"
 	"maps"
 	"net/url"
 	"slices"
@@ -81,15 +81,15 @@ func transformCreateChallenge(body CreateChallengeBody) (CreateChallengeTBody, e
 type CreateGameTBody struct {
 	FirstColor   model.GameColor
 	Mode         model.GameMode
-	InitialBoard hexchess.Board
+	InitialBoard chess.Board
 }
 
 func transformCreateGame(body CreateGameBody) (CreateGameTBody, error) {
 	var respErr ResponseError
 
-	initialBoard := hexchess.InitialBoard()
+	initialBoard := chess.InitialBoard()
 	if body.InitialFEN != "" {
-		parsedBoard, err := hexchess.ParseFen(body.InitialFEN)
+		parsedBoard, err := chess.ParseFen(body.InitialFEN)
 		if err == nil {
 			initialBoard = parsedBoard
 		} else {

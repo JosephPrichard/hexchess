@@ -3,8 +3,8 @@ package queue
 import (
 	"context"
 	"encoding/json"
+	"hexchess-svc/internal/logutil"
 	"hexchess-svc/itest"
-	"hexchess-svc/util/logutil"
 	"sync"
 	"testing"
 

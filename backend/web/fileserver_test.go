@@ -13,7 +13,7 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/service"
 
-	"hexchess-svc/util/testutil"
+	"hexchess-svc/internal/testutil"
 	"io"
 	"net/http"
 	"net/http/httptest"

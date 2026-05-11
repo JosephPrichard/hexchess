@@ -3,16 +3,16 @@ package svc
 import (
 	"context"
 	"errors"
+	"hexchess-svc/chess"
 	"hexchess-svc/model"
 	"testing"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 
-	"hexchess-svc/hexchess"
+	"hexchess-svc/internal/logutil"
+	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
-	"hexchess-svc/util/logutil"
-	"hexchess-svc/util/testutil"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -181,8 +181,8 @@ func TestUndo(t *testing.T) {
 
 		s := MakeChessState(StateSetup{
 			ID:           "test",
-			Game:         ptr(hexchess.MakeStartGame()),
-			InitialBoard: ptr(hexchess.InitialBoard()),
+			Game:         ptr(chess.MakeStartGame()),
+			InitialBoard: ptr(chess.InitialBoard()),
 		})
 
 		err := s.Undo()
@@ -193,13 +193,13 @@ func TestUndo(t *testing.T) {
 	t.Run("successfully undoing game with one move", func(t *testing.T) {
 		t.Parallel()
 
-		game := hexchess.MakeStartGame()
-		game.Moves = append(game.Moves, game.MakeMove(hexchess.Move{From: hexchess.HexStr("b1"), To: hexchess.HexStr("b2")}))
+		game := chess.MakeStartGame()
+		game.Moves = append(game.Moves, game.MakeMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")}))
 
 		s := MakeChessState(StateSetup{
 			ID:           "test",
 			Game:         ptr(game),
-			InitialBoard: ptr(hexchess.InitialBoard()),
+			InitialBoard: ptr(chess.InitialBoard()),
 		})
 
 		err := s.Undo()

@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"time"
 
-	"hexchess-svc/util/logutil"
+	"hexchess-svc/internal/logutil"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"

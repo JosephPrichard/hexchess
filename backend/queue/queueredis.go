@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"hexchess-svc/db"
+	"hexchess-svc/internal/errutil"
 	svc "hexchess-svc/service"
-	"hexchess-svc/util/errutil"
 	"log/slog"
 	"sync"
 

@@ -4,7 +4,7 @@ import (
 	redigo "github.com/gomodule/redigo/redis"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-	"hexchess-svc/util/logutil"
+	"hexchess-svc/internal/logutil"
 	"reflect"
 	"time"
 )

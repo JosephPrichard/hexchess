@@ -5,9 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/hexchess"
 	"hexchess-svc/model"
 	"log/slog"
 	"slices"
@@ -19,14 +19,14 @@ import (
 )
 
 type FinishedGame struct {
-	GameID       string              `json:"existingID"`
-	Board        hexchess.Board      `json:"board"`
-	Moves        []hexchess.HistMove `json:"moves"`
-	WhitePlayer  model.PlayerState   `json:"whitePlayer"`
-	BlackPlayer  model.PlayerState   `json:"blackPlayer"`
-	ReplayMode   model.GameMode      `json:"mode"`
-	ReplayResult model.ReplayResult  `json:"replayresult"`
-	ReplayCause  model.ReplayCause   `json:"replaycause"`
+	GameID       string             `json:"existingID"`
+	Board        chess.Board        `json:"board"`
+	Moves        []chess.HistMove   `json:"moves"`
+	WhitePlayer  model.PlayerState  `json:"whitePlayer"`
+	BlackPlayer  model.PlayerState  `json:"blackPlayer"`
+	ReplayMode   model.GameMode     `json:"mode"`
+	ReplayResult model.ReplayResult `json:"replayresult"`
+	ReplayCause  model.ReplayCause  `json:"replaycause"`
 }
 
 func (svc *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGame FinishedGame) error {
@@ -39,7 +39,7 @@ func (svc *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGam
 	whiteID := finishedGame.WhitePlayer.ID
 	blackID := finishedGame.BlackPlayer.ID
 
-	moveHistBlob, err := hexchess.MarshalMoveHistory(finishedGame.Board, finishedGame.Moves)
+	moveHistBlob, err := chess.MarshalMoveHistory(finishedGame.Board, finishedGame.Moves)
 	if err != nil {
 		return fmt.Errorf("marshal move history to s3: %w", err)
 	}

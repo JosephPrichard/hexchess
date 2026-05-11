@@ -3,8 +3,8 @@ package web
 import (
 	"encoding/json"
 	"errors"
+	"hexchess-svc/internal/errutil"
 	svc "hexchess-svc/service"
-	"hexchess-svc/util/errutil"
 	"log/slog"
 	"net/http"
 )

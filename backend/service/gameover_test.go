@@ -3,11 +3,11 @@ package svc
 import (
 	"context"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/hexchess"
+
+	"hexchess-svc/internal/logutil"
+	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
-	"hexchess-svc/util/logutil"
-	"hexchess-svc/util/testutil"
 	"math"
 	"strconv"
 
@@ -40,8 +40,8 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			name: "InsertFinishedGame",
 			event: FinishedGame{
 				GameID:       newGameID,
-				Board:        hexchess.MakeEmptyBoard(true),
-				Moves:        []hexchess.HistMove{},
+				Board:        chess.MakeEmptyBoard(true),
+				Moves:        []chess.HistMove{},
 				WhitePlayer:  model.PlayerState{ID: testUser0.ID, Present: true}, // winner
 				BlackPlayer:  model.PlayerState{ID: testUser1.ID, Present: true}, // loser
 				ReplayMode:   model.ModeCorrespondence1,
@@ -57,8 +57,8 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			name: "inserting already inserted finished game",
 			event: FinishedGame{
 				GameID: itest.FirstReplayGameID,
-				Board:  hexchess.MakeEmptyBoard(true),
-				Moves:  []hexchess.HistMove{},
+				Board:  chess.MakeEmptyBoard(true),
+				Moves:  []chess.HistMove{},
 				// used only for validation
 				WhitePlayer: model.PlayerState{ID: testUser0.ID, Present: true},
 				BlackPlayer: model.PlayerState{ID: testUser1.ID, Present: true},
@@ -73,8 +73,8 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			name: "inserting a game with a guest",
 			event: FinishedGame{
 				GameID:       newGameIDGuest,
-				Board:        hexchess.MakeEmptyBoard(true),
-				Moves:        []hexchess.HistMove{},
+				Board:        chess.MakeEmptyBoard(true),
+				Moves:        []chess.HistMove{},
 				WhitePlayer:  model.PlayerState{ID: testUser0.ID, Present: true}, // non-guest winner
 				BlackPlayer:  model.PlayerState{ID: -10, Present: true},          // guest loser
 				ReplayMode:   model.ModeCorrespondence1,

@@ -2,7 +2,7 @@ package web
 
 import (
 	"fmt"
-	"hexchess-svc/util/enum"
+	"hexchess-svc/internal/enum"
 	"net/url"
 	"strconv"
 	"time"

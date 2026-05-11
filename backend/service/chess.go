@@ -2,7 +2,7 @@ package svc
 
 import (
 	"errors"
-	"hexchess-svc/hexchess"
+	"hexchess-svc/chess"
 	"hexchess-svc/model"
 	"time"
 
@@ -29,8 +29,8 @@ type ChessState struct {
 	ChessMeta
 	UndoState
 	EndState     EndKind
-	InitialBoard hexchess.Board
-	Game         hexchess.Game
+	InitialBoard chess.Board
+	Game         chess.Game
 }
 
 func (state *ChessState) HasBothPlayers() bool {
@@ -58,18 +58,18 @@ type StateSetup struct {
 	FirstColor   model.GameColor
 	White        model.PlayerState
 	Black        model.PlayerState
-	InitialBoard *hexchess.Board
-	Game         *hexchess.Game
+	InitialBoard *chess.Board
+	Game         *chess.Game
 	EndState     EndKind
 	UndoState    UndoState
 }
 
 func MakeChessStateVal(s StateSetup) ChessState {
-	board := hexchess.MakeStartBoard()
+	board := chess.MakeStartBoard()
 	if s.InitialBoard != nil {
 		board = *s.InitialBoard
 	}
-	game := hexchess.Game{Board: board}
+	game := chess.Game{Board: board}
 	if s.Game != nil {
 		game = *s.Game
 	}
@@ -102,7 +102,7 @@ func (state *ChessState) Undo() error {
 		return ErrNoMoveUndo
 	}
 	index := len(state.Game.Moves) - 2 // last element minus one.
-	game, err := hexchess.JumpMoveIndex(state.InitialBoard, state.Game.Moves, index)
+	game, err := chess.JumpMoveIndex(state.InitialBoard, state.Game.Moves, index)
 	if game != nil {
 		state.Game = game.DeepCopy()
 	}

@@ -6,8 +6,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/internal/enum"
 	"hexchess-svc/model"
-	"hexchess-svc/util/enum"
 	"time"
 )
 
