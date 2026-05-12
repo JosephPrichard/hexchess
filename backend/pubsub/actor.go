@@ -17,7 +17,10 @@ const (
 type MulticasterActor struct {
 	ID         string
 	actionChan chan multicasterAction
+	actorsMap  map[string]actorShard
 }
+
+type actorShard = []chan []byte
 
 type multicasterAction struct {
 	kind    actorActionKind
@@ -27,83 +30,83 @@ type multicasterAction struct {
 }
 
 func MakeMulticasterActor(ID string) *MulticasterActor {
-	multicasterMap := &MulticasterActor{ID: ID, actionChan: make(chan multicasterAction)}
+	multicasterMap := &MulticasterActor{ID: ID, actionChan: make(chan multicasterAction), actorsMap: make(map[string]actorShard)}
 	go multicasterMap.Start()
 	return multicasterMap
 }
 
-func (actor *MulticasterActor) Start() {
-	type actorShard = []chan []byte
-	actorsMap := make(map[string]actorShard)
+func (actor *MulticasterActor) handleSubscription(action multicasterAction) {
+	actorID := action.actorID
+	sub := action.sub
 
-	handleSubscription := func(action multicasterAction) {
-		actorID := action.actorID
-		sub := action.sub
+	slog.Info("subscribing to multicaster actor", "actorID", actor.ID, "shardActorID", actorID, "sub", fmt.Sprintf("%v", sub))
 
-		slog.Info("subscribing to multicaster actor", "actorID", actor.ID, "shardActorID", actorID, "sub", fmt.Sprintf("%v", sub))
-
-		shard := actorsMap[actorID]
-		if !slices.Contains(shard, sub) {
-			shard = append(shard, sub)
-		}
-		actorsMap[actorID] = shard
+	shard := actor.actorsMap[actorID]
+	if !slices.Contains(shard, sub) {
+		shard = append(shard, sub)
 	}
+	actor.actorsMap[actorID] = shard
+}
 
-	handleUnsubscription := func(action multicasterAction) {
-		actorID := action.actorID
-		sub := action.sub
+func (actor *MulticasterActor) handleUnsubscription(action multicasterAction) {
+	actorID := action.actorID
+	sub := action.sub
 
-		slog.Info("unsubscribed from multicaster actor", "actorID", actorID, "shardActorID", actorID, "sub", fmt.Sprintf("%v", sub))
+	slog.Info("unsubscribed from multicaster actor", "actorID", actorID, "shardActorID", actorID, "sub", fmt.Sprintf("%v", sub))
 
-		shard := actorsMap[actorID]
-		if shard != nil {
-			if slices.Contains(shard, sub) {
-				close(sub)
+	shard := actor.actorsMap[actorID]
+	if shard != nil {
+		if slices.Contains(shard, sub) {
+			close(sub)
+		}
+		shard = slices.DeleteFunc(shard, func(subElem chan []byte) bool { return subElem == sub })
+	}
+	actor.actorsMap[actorID] = shard
+}
+
+func (actor *MulticasterActor) handleBroadcast(action multicasterAction) {
+	actorID := action.actorID
+	msg := action.payload
+
+	shard := actor.actorsMap[actorID]
+	if shard != nil {
+		var subStrs []string
+
+		for _, sub := range shard {
+			select {
+			case sub <- msg:
+			default:
+				// drop a message if the consumer is slow
 			}
-			shard = slices.DeleteFunc(shard, func(subElem chan []byte) bool { return subElem == sub })
+			subStrs = append(subStrs, fmt.Sprintf("%v", sub))
 		}
-		actorsMap[actorID] = shard
+
+		slog.Info("broadcasted to shardcaster actor subscribers", "actorID", actorID, "subscribers", subStrs, "msg", string(msg))
 	}
+}
 
-	handleBroadcast := func(action multicasterAction) {
-		actorID := action.actorID
-		msg := action.payload
-
-		shard := actorsMap[actorID]
-		if shard != nil {
-			var subStrs []string
-
-			for _, sub := range shard {
-				select {
-				case sub <- msg:
-				default:
-					// drop a message if the consumer is slow
-				}
-				subStrs = append(subStrs, fmt.Sprintf("%v", sub))
-			}
-
-			slog.Info("broadcasted to shardcaster actor subscribers", "actorID", actorID, "subscribers", subStrs, "msg", string(msg))
-		}
-	}
-
-	for action := range actor.actionChan {
-		switch action.kind {
-		case subAction:
-			handleSubscription(action)
-		case unsubAction:
-			handleUnsubscription(action)
-		case broadcastAction:
-			handleBroadcast(action)
-		}
-	}
-
-	slog.Info("stopping multicaster actor", "actorID", actor.ID)
-
-	for _, shard := range actorsMap {
+func (actor *MulticasterActor) stop() {
+	for _, shard := range actor.actorsMap {
 		for _, sub := range shard {
 			close(sub)
 		}
 	}
+}
+
+func (actor *MulticasterActor) Start() {
+	for action := range actor.actionChan {
+		switch action.kind {
+		case subAction:
+			actor.handleSubscription(action)
+		case unsubAction:
+			actor.handleUnsubscription(action)
+		case broadcastAction:
+			actor.handleBroadcast(action)
+		}
+	}
+
+	slog.Info("stopping multicaster actor", "actorID", actor.ID)
+	actor.stop()
 }
 
 func (actor *MulticasterActor) send(action multicasterAction) {
@@ -139,8 +142,9 @@ type GlobalCastEvent struct {
 }
 
 type GlobalCasterActor struct {
-	id         string
-	actionChan chan globalcasterAction
+	id            string
+	actionChan    chan globalcasterAction
+	subscriberMap map[chan GlobalCastEvent]struct{}
 }
 
 type globalcasterAction struct {
@@ -149,67 +153,69 @@ type globalcasterAction struct {
 	payload GlobalCastEvent
 }
 
-func (actor GlobalCasterActor) Run() {
-	subscriberMap := make(map[chan GlobalCastEvent]struct{})
+func MakeGlobalCasterActor(id string) *GlobalCasterActor {
+	actor := &GlobalCasterActor{id: id, actionChan: make(chan globalcasterAction), subscriberMap: make(map[chan GlobalCastEvent]struct{})}
+	go actor.Start()
+	return actor
+}
 
-	handleSubscription := func(action globalcasterAction) {
-		sub := action.sub
+func (actor *GlobalCasterActor) handleSubscription(action globalcasterAction) {
+	sub := action.sub
 
-		slog.Info("subscribing to globalcaster", "actorID", actor.id, "sub", fmt.Sprintf("%v", sub))
+	slog.Info("subscribing to globalcaster", "actorID", actor.id, "sub", fmt.Sprintf("%v", sub))
 
-		subscriberMap[sub] = struct{}{}
+	actor.subscriberMap[sub] = struct{}{}
+}
+
+func (actor *GlobalCasterActor) handleUnsubscription(action globalcasterAction) {
+	sub := action.sub
+
+	slog.Info("unsubscribing from globalcaster", "actorID", actor.id, "sub", fmt.Sprintf("%v", sub))
+
+	if _, ok := actor.subscriberMap[sub]; ok {
+		delete(actor.subscriberMap, sub)
+		close(sub)
 	}
+}
 
-	handleUnsubscription := func(action globalcasterAction) {
-		sub := action.sub
+func (actor *GlobalCasterActor) handleBroadcast(action globalcasterAction) {
+	msg := action.payload
 
-		slog.Info("unsubscribing from globalcaster", "actorID", actor.id, "sub", fmt.Sprintf("%v", sub))
+	count := 0
 
-		if _, ok := subscriberMap[sub]; ok {
-			delete(subscriberMap, sub)
-			close(sub)
+	for sub := range actor.subscriberMap {
+		count++
+		select {
+		case sub <- msg:
+		default:
+			// drop a message if the consumer is slow
 		}
 	}
 
-	handleBroadcast := func(action globalcasterAction) {
-		msg := action.payload
+	slog.Info("broadcasted to globalcaster subscribers", "actorID", actor.id, "count", count)
+}
 
-		count := 0
-
-		for sub := range subscriberMap {
-			count++
-			select {
-			case sub <- msg:
-			default:
-				// drop a message if the consumer is slow
-			}
-		}
-
-		slog.Info("broadcasted to globalcaster subscribers", "actorID", actor.id, "count", count)
+func (actor *GlobalCasterActor) stop() {
+	for sub := range actor.subscriberMap {
+		close(sub)
 	}
+}
 
+func (actor GlobalCasterActor) Start() {
 	for action := range actor.actionChan {
 		switch action.kind {
 		case subAction:
-			handleSubscription(action)
+			actor.handleSubscription(action)
 		case unsubAction:
-			handleUnsubscription(action)
+			actor.handleUnsubscription(action)
 		case broadcastAction:
-			handleBroadcast(action)
+			actor.handleBroadcast(action)
 		}
 	}
 
 	slog.Info("stopping globalcaster", "actorID", actor.id)
 
-	for sub := range subscriberMap {
-		close(sub)
-	}
-}
-
-func MakeGlobalCasterActor(id string) *GlobalCasterActor {
-	actor := &GlobalCasterActor{id: id, actionChan: make(chan globalcasterAction)}
-	go actor.Run()
-	return actor
+	actor.stop()
 }
 
 func (actor GlobalCasterActor) send(action globalcasterAction) {

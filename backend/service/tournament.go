@@ -199,7 +199,7 @@ func (svc *HexchessServices) GetTournaments(ctx context.Context, participantID e
 			PerPage: perPage,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("select tournaments by participant %v after existingID %d: %w", participantID, afterID, err)
+			return nil, fmt.Errorf("select tournaments by participant %v after id %v: %w", participantID, afterID, err)
 		}
 		tournaments = mapTournamentRows(tournamentRows, func(t sqlc.SelectTournamentsByParticipantRow) model.Tournament {
 			return mapTournamentByIdRow(sqlc.SelectTournamentByIDRow(t))
@@ -210,7 +210,7 @@ func (svc *HexchessServices) GetTournaments(ctx context.Context, participantID e
 			PerPage: perPage,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("select tournaments after existingID %d: %w", afterID, err)
+			return nil, fmt.Errorf("select tournaments after id %v: %w", afterID, err)
 		}
 		tournaments = mapTournamentRows(tournamentRows, func(t sqlc.SelectTournamentsRow) model.Tournament {
 			return mapTournamentByIdRow(sqlc.SelectTournamentByIDRow(t))
@@ -515,7 +515,7 @@ func (svc *HexchessServices) AdvanceTournament(ctx context.Context, tournamentKe
 			}
 
 			if err := insertTournamentMatches(ctx, querier, tournamentKey, response); err != nil {
-				return err
+				return fmt.Errorf("insert tournament %s matches: %w", tournamentKey, err)
 			}
 
 			slog.InfoContext(ctx, "advanced tournament", "tournamentKey", tournamentKey, "matchmakingResult", response)
@@ -964,7 +964,10 @@ func DoSwissMatchmaking(allMatches []CompletedPrevMatch, gameMode model.GameMode
 		participantIDs = append(participantIDs, userID)
 	}
 	slices.SortFunc(participantIDs, func(a, b int64) int {
-		return cmp.Compare(swissScoresTable[b], swissScoresTable[a])
+		if c := cmp.Compare(swissScoresTable[b], swissScoresTable[a]); c != 0 {
+			return c
+		}
+		return cmp.Compare(a, b)
 	})
 
 	for i := 0; i+1 < len(participantIDs); i += 2 {
