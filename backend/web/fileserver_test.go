@@ -31,12 +31,8 @@ func TestHandleUploadProfilePic(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockS3Client := egress.NewMockS3Client(ctrl)
-	mocks := svc.Mocks{
-		Entropy:  &svc.StableEntropySource{},
-		S3Client: mockS3Client,
-	}
 
-	services, _ := svc.SetupServicesTest(t, mocks, itest.Redis)
+	h, services := setupTestHandler(t, serviceMocks{S3Client: mockS3Client, Entropy: &svc.StableEntropySource{}}, itest.Redis)
 	defer services.Close()
 
 	createTestSessions(t, services)
@@ -72,8 +68,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 	r.Header.Set("Cookie", FmtCookie(TestSessionID2))
 	w := httptest.NewRecorder()
 
-	hander := MakeServeMux(Setup{Services: services})
-	hander.ServeHTTP(w, r)
+	h.ServeHTTP(w, r)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 }
@@ -89,14 +84,14 @@ func TestHandleGetProfilePic(t *testing.T) {
 		userID      string
 		wantStatus  int
 		wantWithKey string
-		setupMocks  func(*gomock.Controller) egress.S3Client
+		setupMocks  func(*gomock.Controller) egress.S3ClientAPI
 	}{
 		{
 			name:        "user has profile pic in storage",
 			userID:      "1",
 			wantStatus:  http.StatusTemporaryRedirect,
 			wantWithKey: profileKey1, // expect to receive profileKey in the redirect response, since it is the latest uploaded picture
-			setupMocks: func(ctrl *gomock.Controller) egress.S3Client {
+			setupMocks: func(ctrl *gomock.Controller) egress.S3ClientAPI {
 				mockS3Client := egress.NewMockS3Client(ctrl)
 				mockS3Client.EXPECT().
 					ListObjectsV2(gomock.Any(), &s3.ListObjectsV2Input{
@@ -117,7 +112,7 @@ func TestHandleGetProfilePic(t *testing.T) {
 			name:       "user has default profile pic",
 			userID:     "2",
 			wantStatus: http.StatusOK,
-			setupMocks: func(ctrl *gomock.Controller) egress.S3Client {
+			setupMocks: func(ctrl *gomock.Controller) egress.S3ClientAPI {
 				mockS3Client := egress.NewMockS3Client(ctrl)
 				mockS3Client.EXPECT().
 					ListObjectsV2(gomock.Any(), &s3.ListObjectsV2Input{
@@ -136,19 +131,17 @@ func TestHandleGetProfilePic(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			mocks := svc.Mocks{
+			mocks := serviceMocks{
 				Entropy:  &svc.StableEntropySource{},
 				S3Client: tt.setupMocks(ctrl),
 			}
-
-			services, _ := svc.SetupServicesTest(t, mocks, itest.Redis)
+			h, services := setupTestHandler(t, mocks, itest.Redis)
 			defer services.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/users/profile-pics?userId=%s", tt.userID), nil)
 			w := httptest.NewRecorder()
 
-			hander := MakeServeMux(Setup{Services: services})
-			hander.ServeHTTP(w, r)
+			h.ServeHTTP(w, r)
 
 			resp := w.Body.String()
 			assert.Equal(t, tt.wantStatus, w.Code)
