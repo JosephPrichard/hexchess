@@ -68,7 +68,7 @@ func (re *ResponseError) Put(key string, newErr error) {
 	re.Errors[key] = newErr
 }
 
-func oneRespError(key string, newErr error) error {
+func ofRespError(key string, newErr error) error {
 	return &ResponseError{Errors: map[string]error{key: BadRequestError{newErr}}}
 }
 
@@ -80,7 +80,7 @@ func (re *ResponseError) Error() string {
 	return fmt.Sprintf("%+v", re.Errors)
 }
 
-func (re *ResponseError) AsError() error {
+func (re *ResponseError) Inner() error {
 	if re.HasErrors() {
 		return re
 	}

@@ -23,7 +23,7 @@ func (svc *HexchessServices) GetSession(ctx context.Context, sessionID string) (
 		return model.PlayerState{}, fmt.Errorf("get session %s: %w", sessionID, err)
 	}
 
-	player, err := UnmarshalPlayer(bytes)
+	player, err := model.UnmarshalPlayer(bytes)
 	if err != nil {
 		return model.PlayerState{}, fmt.Errorf("unmarshal session: %w", err)
 	}
@@ -43,7 +43,7 @@ func (svc *HexchessServices) SetSessions(ctx context.Context, insts ...SessionIn
 	pipe := svc.redis.Cache.TxPipeline()
 
 	for _, inst := range insts {
-		data, err := MarshalPlayer(inst.Player)
+		data, err := model.MarshalPlayer(inst.Player)
 		if err != nil {
 			return err
 		}

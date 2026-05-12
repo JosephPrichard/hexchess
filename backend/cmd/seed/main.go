@@ -153,7 +153,7 @@ func insertRandomizedGameResults(ctx context.Context, services svc.HexchessAPI, 
 				return fmt.Errorf("marshal move history to s3: %w", err)
 			}
 
-			changeSet, err := services.InsertGameResultTx(egCtx, svc.GameResult{
+			changeSet, err := services.InsertGameResult(egCtx, svc.GameResult{
 				GameID:       svc.MakeGameID(),
 				WhiteID:      params.WhiteID,
 				BlackID:      params.BlackID,

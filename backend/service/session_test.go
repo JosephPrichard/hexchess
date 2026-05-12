@@ -17,7 +17,7 @@ import (
 func TestSessions(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
+	services, _ := setupServicesTest(t, serviceMocks{}, itest.Redis)
 	defer services.Close()
 
 	playerIn := model.MakePlayer(1, "testing-session", "country")

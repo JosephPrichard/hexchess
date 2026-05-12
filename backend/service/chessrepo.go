@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hexchess-svc/model"
 	"log/slog"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 )
 
 func (svc *HexchessServices) IsGameAccessible(ctx context.Context, id string) bool {
-	gameKey := svc.gameKey(id)
+	gameKey := fmtGameKey(svc.redis, id)
 
 	exists, err := svc.redis.GameStore.Exists(ctx, gameKey).Result()
 
@@ -22,7 +23,7 @@ func (svc *HexchessServices) IsGameAccessible(ctx context.Context, id string) bo
 
 var ErrNoChessState = errors.New("no chess state")
 
-func (svc *HexchessServices) GetChessState(ctx context.Context, id string) (*ChessState, error) {
+func (svc *HexchessServices) GetChessState(ctx context.Context, id string) (*model.ChessState, error) {
 	return svc.getChessState(ctx, svc.redis.GameStore, id)
 }
 
@@ -30,8 +31,8 @@ type RedisChessGetter interface {
 	Get(ctx context.Context, key string) *redis.StringCmd
 }
 
-func (svc *HexchessServices) getChessState(ctx context.Context, getter RedisChessGetter, id string) (*ChessState, error) {
-	gameKey := svc.gameKey(id)
+func (svc *HexchessServices) getChessState(ctx context.Context, getter RedisChessGetter, id string) (*model.ChessState, error) {
+	gameKey := fmtGameKey(svc.redis, id)
 
 	bytes, err := getter.Get(ctx, gameKey).Bytes()
 	if errors.Is(err, redis.Nil) {
@@ -40,7 +41,7 @@ func (svc *HexchessServices) getChessState(ctx context.Context, getter RedisChes
 		return nil, fmt.Errorf("get chess state in redis: %w", err)
 	}
 
-	state, err := UnmarshalChessState(bytes)
+	state, err := model.UnmarshalChessState(bytes)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal chess state: %w", err)
 	}
@@ -49,12 +50,12 @@ func (svc *HexchessServices) getChessState(ctx context.Context, getter RedisChes
 	return state, nil
 }
 
-func (svc *HexchessServices) SetChessState(ctx context.Context, id string, state *ChessState) error {
+func (svc *HexchessServices) SetChessState(ctx context.Context, id string, state *model.ChessState) error {
 	touch := time.Now()
 	return svc.setChessStateAt(ctx, id, state, touch)
 }
 
-func (svc *HexchessServices) setChessStateAt(ctx context.Context, id string, state *ChessState, touch time.Time) error {
+func (svc *HexchessServices) setChessStateAt(ctx context.Context, id string, state *model.ChessState, touch time.Time) error {
 	return svc.setChessState(ctx, svc.redis.GameStore, id, state, touch)
 }
 
@@ -64,38 +65,38 @@ type RedisChessSetter interface {
 	ZRem(ctx context.Context, key string, members ...interface{}) *redis.IntCmd
 }
 
-func (svc *HexchessServices) setChessState(ctx context.Context, setter RedisChessSetter, id string, state *ChessState, updtTime time.Time) error {
+func (svc *HexchessServices) setChessState(ctx context.Context, setter RedisChessSetter, id string, state *model.ChessState, updtTime time.Time) error {
 	state.Touch = updtTime
 	touchSecs := float64(state.Touch.Unix())
-	gameKey := svc.gameKey(id)
+	gameKey := fmtGameKey(svc.redis, id)
 
-	bytes, err := proto.Marshal(SerializeChessState(state))
+	bytes, err := proto.Marshal(model.SerializeChessState(state))
 	if err != nil {
 		return fmt.Errorf("marshal chess state: %w", err)
 	}
 	setter.Set(ctx, gameKey, bytes, 0)
 
-	if state.EndState != Aborted {
+	if state.EndState != model.Aborted {
 		// keeps the game at the front of top of the sorted sets on update (only stores for non guests)
 		setter.ZAdd(ctx, svc.redis.GamesZSet, redis.Z{Score: touchSecs, Member: gameKey})
 		if state.WhitePlayer.NonGuest() {
-			setter.ZAdd(ctx, svc.userGameZSet(state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: gameKey})
+			setter.ZAdd(ctx, fmtUserGameZSet(svc.redis, state.WhitePlayer.ID), redis.Z{Score: touchSecs, Member: gameKey})
 		}
 		if state.BlackPlayer.NonGuest() {
-			setter.ZAdd(ctx, svc.userGameZSet(state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: gameKey})
+			setter.ZAdd(ctx, fmtUserGameZSet(svc.redis, state.BlackPlayer.ID), redis.Z{Score: touchSecs, Member: gameKey})
 		}
 	} else {
 		// aborted games should be removed from sorted sets, although the game itself is technically accessible
 		setter.ZRem(ctx, svc.redis.GamesZSet, gameKey)
-		setter.ZRem(ctx, svc.userGameZSet(state.WhitePlayer.ID), gameKey)
-		setter.ZRem(ctx, svc.userGameZSet(state.BlackPlayer.ID), gameKey)
+		setter.ZRem(ctx, fmtUserGameZSet(svc.redis, state.WhitePlayer.ID), gameKey)
+		setter.ZRem(ctx, fmtUserGameZSet(svc.redis, state.BlackPlayer.ID), gameKey)
 	}
 
 	slog.InfoContext(ctx, "set chess state", "key", gameKey, "updtTime", updtTime)
 	return nil
 }
 
-func (svc *HexchessServices) SetManyChessStates(ctx context.Context, chessStates []ChessState) error {
+func (svc *HexchessServices) SetManyChessStates(ctx context.Context, chessStates []model.ChessState) error {
 	var createdGameID []string
 	pipe := svc.redis.GameStore.TxPipeline()
 
@@ -117,14 +118,14 @@ const MaxUpdateChessStateRetries = 5
 
 var ErrMaxChessStateRetries = errors.New("update chess state txn: reached max retries")
 
-type ChessUpdateFn func(*ChessState) error
-type ChessCommitFn func(redis.Pipeliner, *ChessState) error
+type ChessUpdateFn func(*model.ChessState) error
+type ChessCommitFn func(redis.Pipeliner, *model.ChessState) error
 
-func (svc *HexchessServices) updateChessStateTxn(ctx context.Context, gameID string, update ChessUpdateFn, commit ChessCommitFn) (*ChessState, error) {
-	gameKey := svc.gameKey(gameID)
+func (svc *HexchessServices) updateChessStateTxn(ctx context.Context, gameID string, update ChessUpdateFn, commit ChessCommitFn) (*model.ChessState, error) {
+	gameKey := fmtGameKey(svc.redis, gameID)
 
 	for range MaxUpdateChessStateRetries {
-		var ret *ChessState
+		var ret *model.ChessState
 
 		// standard redis Watch+Tx optimisic locking pattern to prevent the 'LostUpdate' race condition
 		err := svc.redis.GameStore.Watch(ctx, func(txn *redis.Tx) error {
@@ -163,19 +164,19 @@ func (svc *HexchessServices) updateChessStateTxn(ctx context.Context, gameID str
 	return nil, ErrMaxChessStateRetries
 }
 
-func (svc *HexchessServices) GetUserChessMetas(ctx context.Context, userID int64) ([]ChessMeta, error) {
+func (svc *HexchessServices) GetUserChessMetas(ctx context.Context, userID int64) ([]model.ChessMeta, error) {
 	return svc.GetUserChessMetasPaged(ctx, userID, 1, -1)
 }
 
-func (svc *HexchessServices) GetUserChessMetasPaged(ctx context.Context, userID int64, page, count int) ([]ChessMeta, error) {
-	return svc.getChessMetas(ctx, svc.userGameZSet(userID), page, count)
+func (svc *HexchessServices) GetUserChessMetasPaged(ctx context.Context, userID int64, page, count int) ([]model.ChessMeta, error) {
+	return svc.getChessMetas(ctx, fmtUserGameZSet(svc.redis, userID), page, count)
 }
 
-func (svc *HexchessServices) GetAllChessMetas(ctx context.Context, page, count int) ([]ChessMeta, error) {
+func (svc *HexchessServices) GetAllChessMetas(ctx context.Context, page, count int) ([]model.ChessMeta, error) {
 	return svc.getChessMetas(ctx, svc.redis.GamesZSet, page, count)
 }
 
-func (svc *HexchessServices) getChessMetas(ctx context.Context, zSetName string, page, count int) ([]ChessMeta, error) {
+func (svc *HexchessServices) getChessMetas(ctx context.Context, zSetName string, page, count int) ([]model.ChessMeta, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -201,7 +202,7 @@ func (svc *HexchessServices) getChessMetas(ctx context.Context, zSetName string,
 		return nil, fmt.Errorf("get many chess states: %w", err)
 	}
 
-	chessViews := make([]ChessMeta, 0, len(mGetList))
+	chessViews := make([]model.ChessMeta, 0, len(mGetList))
 	var marshalErrs []error
 
 	for i, mGetElement := range mGetList {
@@ -210,7 +211,7 @@ func (svc *HexchessServices) getChessMetas(ctx context.Context, zSetName string,
 			marshalErrs = append(marshalErrs, fmt.Errorf("chess meta %d mget output is not a string, is %T", i, mGetElement))
 			continue
 		}
-		view, err := UnmarshalChessMeta([]byte(mGetString))
+		view, err := model.UnmarshalChessMeta([]byte(mGetString))
 		if err != nil {
 			marshalErrs = append(marshalErrs, fmt.Errorf("unmarshal chess meta %d: %w", i, err))
 			continue

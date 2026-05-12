@@ -16,7 +16,7 @@ import (
 func TestActiveUser(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
+	services, _ := setupServicesTest(t, serviceMocks{}, itest.Redis)
 	defer services.Close()
 
 	services.entropy = &StableEntropySource{CurrTime: time.UnixMilli(int64(ActiveUserMaxage * 5))}

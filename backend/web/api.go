@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hexchess-svc/chess"
+	"hexchess-svc/pubsub"
 	"log/slog"
 	"net/http"
 	"os"
@@ -47,9 +49,11 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 }
 
 type Setup struct {
-	Services       svc.HexchessAPI
-	Broadcasers    *svc.LocalBroadcasters
-	EntropySource  svc.EntropySource
+	Services      svc.HexchessAPI
+	Broadcaster   pubsub.BroadcasterAPI
+	Broadcasters  *pubsub.LocalBroadcasters
+	EntropySource svc.EntropyAPI
+
 	AllowedOrigins string
 }
 
@@ -60,8 +64,9 @@ type StaticData struct {
 
 type API struct {
 	services      svc.HexchessAPI
-	broadcasters  *svc.LocalBroadcasters
-	entropy       svc.EntropySource
+	broadcaster   pubsub.BroadcasterAPI
+	broadcasters  *pubsub.LocalBroadcasters
+	entropy       svc.EntropyAPI
 	authenticator Authenticator
 	staticData    StaticData
 }
@@ -92,7 +97,8 @@ func MakeServeMux(setup Setup, opts ...func(*chi.Mux)) *chi.Mux {
 	}
 	server := API{
 		services:      setup.Services,
-		broadcasters:  setup.Broadcasers,
+		broadcaster:   setup.Broadcaster,
+		broadcasters:  setup.Broadcasters,
 		entropy:       setup.EntropySource,
 		authenticator: Authenticator{services: setup.Services},
 		staticData:    MakeStaticData(),

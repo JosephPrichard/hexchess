@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"hexchess-svc/chess"
 
 	"hexchess-svc/internal/logutil"
 	"hexchess-svc/model"
@@ -69,7 +70,7 @@ func MakeGameID() string {
 func (svc *HexchessServices) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (string, error) {
 	strID := MakeGameID()
 
-	state := MakeChessState(StateSetup{ID: strID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
+	state := model.MakeChessState(model.StateSetup{ID: strID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
 	state.Game.InitPieceMoves()
 
 	slog.InfoContext(ctx, "created chess game", "chessMeta", state.ChessMeta)
@@ -93,15 +94,15 @@ func (svc *HexchessServices) broadcastGameCounts(strID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to count chess game after creating game: %w", err)
 	}
-	if err := svc.BroadcastGameCount(ctx, count); err != nil {
+	if err := svc.broadcaster.BroadcastGameCount(ctx, count); err != nil {
 		return fmt.Errorf("failed to broadcast chess game count after creating game: %w", err)
 	}
 	slog.InfoContext(ctx, "counted games after creating game", "count", count)
 	return nil
 }
 
-func (svc *HexchessServices) JoinGame(ctx context.Context, gameID string, player model.PlayerState) (*ChessState, error) {
-	update := func(state *ChessState) error {
+func (svc *HexchessServices) JoinGame(ctx context.Context, gameID string, player model.PlayerState) (*model.ChessState, error) {
+	update := func(state *model.ChessState) error {
 		if !player.Present {
 			slog.WarnContext(ctx, "player did not join the game", "playerID", player.ID)
 			return nil
@@ -146,17 +147,17 @@ func (svc *HexchessServices) JoinGame(ctx context.Context, gameID string, player
 }
 
 type MoveResult struct {
-	State *ChessState
+	State *model.ChessState
 	Move  chess.HistMove
 }
 
 func (svc *HexchessServices) MakeGameMove(ctx context.Context, gameID string, player model.PlayerState, move chess.Move) (MoveResult, error) {
-	update := func(state *ChessState) error {
+	update := func(state *model.ChessState) error {
 		// pre move validations on chess state
 		if !state.HasBothPlayers() {
 			return ErrStartedGame{GameID: gameID}
 		}
-		if state.EndState.isEnded() {
+		if state.EndState.IsEnded() {
 			return ErrFinishedGame{GameID: gameID}
 		}
 		currPlayer := state.CurrPlayer()
@@ -172,22 +173,22 @@ func (svc *HexchessServices) MakeGameMove(ctx context.Context, gameID string, pl
 
 		// post move state mutations and processing
 		if state.Game.Checkmate() {
-			state.EndState = Finished
+			state.EndState = model.Finished
 		}
-		state.UndoState = UndoState{}
+		state.UndoState = model.UndoState{}
 		state.Game.ClearTables()
 
 		return nil
 	}
-	commit := func(pipe redis.Pipeliner, state *ChessState) error {
-		if state.EndState.isEnded() {
+	commit := func(pipe redis.Pipeliner, state *model.ChessState) error {
+		if state.EndState.IsEnded() {
 			slog.InfoContext(ctx, "game has reached checkmate", "player", player.ID, "move", move, "chessMeta", state.ChessMeta)
 
 			result := model.WhiteWin
 			if state.Game.Board.IsWhiteTurn {
 				result = model.BlackWin
 			}
-			if err := svc.pushFinishGameEvent(ctx, pipe, FinishedGame{
+			if err := svc.sendFinishGameEvent(ctx, pipe, model.FinishedGame{
 				GameID:       gameID,
 				WhitePlayer:  state.WhitePlayer,
 				BlackPlayer:  state.BlackPlayer,
@@ -226,8 +227,8 @@ const (
 	UndoReject
 )
 
-func (svc *HexchessServices) AttemptGameUndo(ctx context.Context, gameID string, player model.PlayerState, kind UndoKind) (*ChessState, error) {
-	update := func(state *ChessState) error {
+func (svc *HexchessServices) AttemptGameUndo(ctx context.Context, gameID string, player model.PlayerState, kind UndoKind) (*model.ChessState, error) {
+	update := func(state *model.ChessState) error {
 		switch kind {
 		case UndoCreate:
 			if player.IsSame(state.CurrPlayer()) {
@@ -242,7 +243,7 @@ func (svc *HexchessServices) AttemptGameUndo(ctx context.Context, gameID string,
 				if err := state.Undo(); err != nil {
 					return err
 				}
-				state.UndoState = UndoState{}
+				state.UndoState = model.UndoState{}
 			} else {
 				return ErrUndoNoop
 			}
@@ -250,7 +251,7 @@ func (svc *HexchessServices) AttemptGameUndo(ctx context.Context, gameID string,
 			if state.UndoID == 0 {
 				return ErrNoUndo
 			}
-			state.UndoState = UndoState{}
+			state.UndoState = model.UndoState{}
 		}
 		return nil
 	}
@@ -261,35 +262,35 @@ func (svc *HexchessServices) AttemptGameUndo(ctx context.Context, gameID string,
 	return state, err
 }
 
-func (svc *HexchessServices) EndGame(ctx context.Context, gameID string, player model.PlayerState) (EndKind, error) {
-	update := func(state *ChessState) error {
-		if state.EndState.isEnded() {
+func (svc *HexchessServices) EndGame(ctx context.Context, gameID string, player model.PlayerState) (model.EndKind, error) {
+	update := func(state *model.ChessState) error {
+		if state.EndState.IsEnded() {
 			return ErrFinishedGame{GameID: gameID}
 		}
 		if !state.IsEitherPlayer(player) {
 			return ErrForfeitPlayer
 		}
-		if state.EndState.isEnded() {
+		if state.EndState.IsEnded() {
 			return ErrFinishedGame{GameID: gameID}
 		}
 
 		isForfeit := state.WhitePlayer.Present && state.BlackPlayer.Present
 
 		if isForfeit {
-			state.EndState = Finished
+			state.EndState = model.Finished
 		} else {
-			state.EndState = Aborted
+			state.EndState = model.Aborted
 		}
 		return nil
 	}
-	commit := func(pipe redis.Pipeliner, state *ChessState) error {
-		if state.EndState == Finished {
+	commit := func(pipe redis.Pipeliner, state *model.ChessState) error {
+		if state.EndState == model.Finished {
 			result := model.BlackWin
 			if state.BlackPlayer.ID == player.ID {
 				result = model.WhiteWin
 			}
 
-			if err := svc.pushFinishGameEvent(ctx, pipe, FinishedGame{
+			if err := svc.sendFinishGameEvent(ctx, pipe, model.FinishedGame{
 				GameID:       gameID,
 				WhitePlayer:  state.WhitePlayer,
 				BlackPlayer:  state.BlackPlayer,
@@ -304,7 +305,7 @@ func (svc *HexchessServices) EndGame(ctx context.Context, gameID string, player 
 	}
 	state, err := svc.updateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {
-		return NotEnded, err
+		return model.NotEnded, err
 	}
 
 	slog.InfoContext(ctx, "player forfeited game", "playerID", player.ID, "gameId", gameID)

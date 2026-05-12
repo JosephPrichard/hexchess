@@ -1,4 +1,4 @@
-package svc
+package pubsub
 
 import (
 	"github.com/stretchr/testify/assert"
@@ -74,16 +74,16 @@ func TestGlobalCasterActor(t *testing.T) {
 	actor := MakeGlobalCasterActor("testing-globalcaster")
 	defer actor.Shutdown()
 
-	e1 := UcEvent{Kind: 0, Data: "test1"}
-	e2 := UcEvent{Kind: 1, Data: "test2"}
-	wantSub1Events := []UcEvent{e1, e2}
-	wantSub2Events := []UcEvent{e2}
+	e1 := GlobalCastEvent{Kind: 0, Data: "test1"}
+	e2 := GlobalCastEvent{Kind: 1, Data: "test2"}
+	wantSub1Events := []GlobalCastEvent{e1, e2}
+	wantSub2Events := []GlobalCastEvent{e2}
 
-	sub1 := make(chan UcEvent, len(wantSub1Events))
-	sub2 := make(chan UcEvent, len(wantSub2Events))
+	sub1 := make(chan GlobalCastEvent, len(wantSub1Events))
+	sub2 := make(chan GlobalCastEvent, len(wantSub2Events))
 
-	mChan1 := make(chan []UcEvent)
-	mChan2 := make(chan []UcEvent)
+	mChan1 := make(chan []GlobalCastEvent)
+	mChan2 := make(chan []GlobalCastEvent)
 
 	go testSubscriber(sub1, mChan1)
 	go testSubscriber(sub2, mChan2)

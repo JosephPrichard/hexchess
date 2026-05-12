@@ -139,7 +139,7 @@ const LockoutDuration = time.Minute * 1
 
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
-func (svc *HexchessServices) VerifyUserTx(ctx context.Context, username string, inputPassword string) (VerifiedUser, error) {
+func (svc *HexchessServices) VerifyUser(ctx context.Context, username string, inputPassword string) (VerifiedUser, error) {
 	var user VerifiedUser
 
 	err := svc.db.ExecTx(ctx, db.TxArgs{

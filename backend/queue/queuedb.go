@@ -56,7 +56,7 @@ func StartDBQueueConsumers(ctx context.Context, services svc.HexchessAPI, pdb db
 
 type DBQueue struct {
 	pdb     db.DB
-	entropy svc.EntropySource
+	entropy svc.EntropyAPI
 }
 
 func (q *DBQueue) PollOutboxQueueLoop(ctx context.Context, handler DBQueueHandler) {

@@ -126,7 +126,7 @@ func parseJSON[Body any](r *http.Request, body *Body, validate func(Body) error)
 	return nil
 }
 
-func transformJSON[Body any, Output any](r *http.Request, transform func(Body) (Output, error)) (Output, error) {
+func transformJSON[Body any, Output any](r *http.Request, parse func(Body) (Output, error)) (Output, error) {
 	var body Body
 	err := json.NewDecoder(r.Body).Decode(&body)
 	defer r.Body.Close()
@@ -134,7 +134,7 @@ func transformJSON[Body any, Output any](r *http.Request, transform func(Body) (
 		var o Output
 		return o, ErrHttpInvalidJSON
 	}
-	return transform(body)
+	return parse(body)
 }
 
 type ServiceView struct {

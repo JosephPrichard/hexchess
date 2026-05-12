@@ -1,9 +1,8 @@
-package svc
+package model
 
 import (
 	"errors"
 	"hexchess-svc/chess"
-	"hexchess-svc/model"
 	"time"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -21,7 +20,7 @@ const (
 	Finished
 )
 
-func (kind EndKind) isEnded() bool {
+func (kind EndKind) IsEnded() bool {
 	return kind != NotEnded
 }
 
@@ -37,27 +36,27 @@ func (state *ChessState) HasBothPlayers() bool {
 	return state.WhitePlayer.Present && state.BlackPlayer.Present
 }
 
-func (state *ChessState) IsEitherPlayer(player model.PlayerState) bool {
+func (state *ChessState) IsEitherPlayer(player PlayerState) bool {
 	return state.WhitePlayer.IsSame(player) || state.BlackPlayer.IsSame(player)
 }
 
 type ChessMeta struct {
-	ID          string            `json:"existingID"`
-	WhitePlayer model.PlayerState `json:"whitePlayer"`
-	BlackPlayer model.PlayerState `json:"blackPlayer"`
-	FirstColor  model.GameColor   `json:"firstColor"`
-	Mode        model.GameMode    `json:"mode"`
-	Touch       time.Time         `json:"touch"`
+	ID          string      `json:"existingID"`
+	WhitePlayer PlayerState `json:"whitePlayer"`
+	BlackPlayer PlayerState `json:"blackPlayer"`
+	FirstColor  GameColor   `json:"firstColor"`
+	Mode        GameMode    `json:"mode"`
+	Touch       time.Time   `json:"touch"`
 }
 
 var ChessMetaCmpOpt = cmpopts.IgnoreFields(ChessMeta{}, "Touch")
 
 type StateSetup struct {
 	ID           string
-	Mode         model.GameMode
-	FirstColor   model.GameColor
-	White        model.PlayerState
-	Black        model.PlayerState
+	Mode         GameMode
+	FirstColor   GameColor
+	White        PlayerState
+	Black        PlayerState
 	InitialBoard *chess.Board
 	Game         *chess.Game
 	EndState     EndKind
@@ -109,7 +108,7 @@ func (state *ChessState) Undo() error {
 	return err
 }
 
-func (state *ChessState) CurrPlayer() model.PlayerState {
+func (state *ChessState) CurrPlayer() PlayerState {
 	if state.Game.Board.IsWhiteTurn {
 		return state.WhitePlayer
 	}

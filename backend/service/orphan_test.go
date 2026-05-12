@@ -25,9 +25,9 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockS3Client := egress.NewMockS3Client(ctrl)
-	mocks := Mocks{S3Client: mockS3Client}
+	mocks := serviceMocks{S3Client: mockS3Client}
 
-	services, _ := SetupServicesTest(t, mocks, itest.ROPostgres)
+	services, _ := setupServicesTest(t, mocks, itest.ROPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())

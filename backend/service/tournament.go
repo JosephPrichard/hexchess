@@ -1,6 +1,7 @@
 package svc
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"hexchess-svc/model"
 	"log/slog"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,17 +32,17 @@ func (svc *HexchessServices) GetTournament(ctx context.Context, tournamentKey uu
 
 	eg.Go(func() (err error) {
 		tournamentRow, err = svc.querier.SelectTournamentByID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return errutil.Guardf(err, "select tournament by key [%v]", tournamentKey)
+		return errutil.Guardf(err, "select tournament by key %v", tournamentKey)
 	})
 
 	eg.Go(func() (err error) {
 		participantRows, err = svc.querier.SelectParticipantsWithUserByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return errutil.Guardf(err, "select participants by tournament key [%v]", tournamentKey)
+		return errutil.Guardf(err, "select participants by tournament key %v", tournamentKey)
 	})
 
 	eg.Go(func() (err error) {
 		matchRows, err = svc.querier.SelectReplayMatchesByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return errutil.Guardf(err, "select replay matches by tournament key [%v]", tournamentKey)
+		return errutil.Guardf(err, "select replay matches by tournament key %v", tournamentKey)
 	})
 
 	if err := eg.Wait(); err != nil {
@@ -183,53 +185,48 @@ func mapFullTournament(args mapFullTournamentArgs) model.FullTournament {
 	return model.FullTournament{Tournament: tournament, Participants: participants, Matches: matches}
 }
 
-const NoParticipantSignifier = -1
-
-func (svc *HexchessServices) GetTournaments(ctx context.Context, participantID int64, afterID int64, perPage int32) ([]model.Tournament, error) {
-	if afterID <= 0 {
-		afterID = int64(math.MaxInt64)
+func (svc *HexchessServices) GetTournaments(ctx context.Context, participantID enum.Optional[int64], afterID enum.Optional[int64], perPage int32) ([]model.Tournament, error) {
+	if !afterID.IsPresent {
+		afterID.Value = int64(math.MaxInt64)
 	}
 
 	var tournaments []model.Tournament
 
-	if participantID == NoParticipantSignifier {
+	if participantID.IsPresent {
+		tournamentRows, err := svc.querier.SelectTournamentsByParticipant(ctx, sqlc.SelectTournamentsByParticipantParams{
+			UserID:  participantID.Value,
+			AfterID: afterID.Value,
+			PerPage: perPage,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("select tournaments by participant %v after existingID %d: %w", participantID, afterID, err)
+		}
+		tournaments = mapTournamentRows(tournamentRows, func(t sqlc.SelectTournamentsByParticipantRow) model.Tournament {
+			return mapTournamentByIdRow(sqlc.SelectTournamentByIDRow(t))
+		})
+	} else {
 		tournamentRows, err := svc.querier.SelectTournaments(ctx, sqlc.SelectTournamentsParams{
-			AfterID: afterID,
+			AfterID: afterID.Value,
 			PerPage: perPage,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("select tournaments after existingID %d: %w", afterID, err)
 		}
-		tournaments = mapTournamentRows(tournamentRows, mapSelectTournamentRow)
-	} else {
-		tournamentRows, err := svc.querier.SelectTournamentsByParticipant(ctx, sqlc.SelectTournamentsByParticipantParams{
-			UserID:  participantID,
-			AfterID: afterID,
-			PerPage: perPage,
+		tournaments = mapTournamentRows(tournamentRows, func(t sqlc.SelectTournamentsRow) model.Tournament {
+			return mapTournamentByIdRow(sqlc.SelectTournamentByIDRow(t))
 		})
-		if err != nil {
-			return nil, fmt.Errorf("select tournaments by participant [%d] after existingID %d: %w", participantID, afterID, err)
-		}
-		tournaments = mapTournamentRows(tournamentRows, mapTournamentByParticipantRow)
 	}
 
 	slog.InfoContext(ctx, "selected tournaments", "tournaments", tournaments)
 	return tournaments, nil
 }
 
-type tournamentRowType interface {
+func mapTournamentRows[Row interface {
 	sqlc.SelectTournamentsRow | sqlc.SelectTournamentsByParticipantRow
-}
-
-func mapTournamentByParticipantRow(t sqlc.SelectTournamentsByParticipantRow) model.Tournament {
-	return mapTournamentByIdRow(sqlc.SelectTournamentByIDRow(t))
-}
-
-func mapSelectTournamentRow(t sqlc.SelectTournamentsRow) model.Tournament {
-	return mapTournamentByIdRow(sqlc.SelectTournamentByIDRow(t))
-}
-
-func mapTournamentRows[Row tournamentRowType](tournamentRows []Row, fn func(tournament Row) model.Tournament) []model.Tournament {
+}](
+	tournamentRows []Row,
+	fn func(tournament Row) model.Tournament,
+) []model.Tournament {
 	var tournaments []model.Tournament
 	for _, row := range tournamentRows {
 		tournaments = append(tournaments, fn(row))
@@ -254,7 +251,7 @@ var ErrInvalidRounds = fmt.Errorf("invalid depth, must be less than %d and large
 
 var InsertionStatus = model.TournamentLobby.String()
 
-func (svc *HexchessServices) CreateTournamentTx(ctx context.Context, inst TournamentInst) (int64, error) {
+func (svc *HexchessServices) CreateTournament(ctx context.Context, inst TournamentInst) (int64, error) {
 	if inst.Ruleset == model.TournamentKnockout && (inst.Rounds < 1 || inst.Rounds > MaxKnockoutTournamentRounds) {
 		return 0, ErrInvalidRounds
 	}
@@ -330,7 +327,7 @@ type JoinTournamentResult struct {
 	Mode          model.GameMode
 }
 
-func (svc *HexchessServices) JoinTournamentTx(ctx context.Context, inst JoinTournamentInst) (JoinTournamentResult, error) {
+func (svc *HexchessServices) JoinTournament(ctx context.Context, inst JoinTournamentInst) (JoinTournamentResult, error) {
 	var result JoinTournamentResult
 
 	err := svc.db.ExecTx(ctx, db.TxArgs{
@@ -346,7 +343,7 @@ func (svc *HexchessServices) JoinTournamentTx(ctx context.Context, inst JoinTour
 			if db.IsErrNoRows(err) {
 				return ErrTournamentNotFound
 			} else if err != nil {
-				return fmt.Errorf("select tournament [%s]: %w", inst.TournamentKey, err)
+				return fmt.Errorf("select tournament %s: %w", inst.TournamentKey, err)
 			}
 
 			gameMode := enum.Expect(tournamentRow.Mode, model.GameModeEnums)
@@ -374,7 +371,7 @@ func (svc *HexchessServices) JoinTournamentTx(ctx context.Context, inst JoinTour
 				if svcErr := mapParticipantInsertErr(dbErr); svcErr != nil {
 					return svcErr
 				}
-				return fmt.Errorf("insert tournament participant [%+v]: %w", inst, dbErr)
+				return fmt.Errorf("insert tournament participant %+v: %w", inst, dbErr)
 			}
 
 			slog.InfoContext(ctx, "joined tournament", "tournamentKey", inst.TournamentKey, "tournamentRow", tournamentRow, "joiningUserID", inst.JoiningUserID)
@@ -387,7 +384,19 @@ func (svc *HexchessServices) JoinTournamentTx(ctx context.Context, inst JoinTour
 }
 
 func mapParticipantInsertErr(err error) error {
-	return mapInsertErr(err, ErrTournamentAlreadyJoined, ErrInvalidTournamentParticipant)
+	return db.MapInsertErr(err, ErrTournamentAlreadyJoined, ErrInvalidTournamentParticipant)
+}
+
+func (svc *HexchessServices) JoinTournamentAndSelectUser(ctx context.Context, inst JoinTournamentInst) (model.LbdUser, error) {
+	result, err := svc.JoinTournament(ctx, inst)
+	if err != nil {
+		return model.LbdUser{}, fmt.Errorf("join tournament: %w", err)
+	}
+	lbdUser, err := svc.GetLeaderboardUser(ctx, inst.JoiningUserID, result.Mode)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to get leaderboard user", "Err", err)
+	}
+	return lbdUser, nil
 }
 
 var (
@@ -399,7 +408,7 @@ type BeginTourneyCountdown struct {
 	TournamentKey uuid.UUID
 }
 
-func (svc *HexchessServices) BeginTournamentCountdownTx(ctx context.Context, tournamentKey uuid.UUID, userID int64) (BeginTourneyCountdown, error) {
+func (svc *HexchessServices) BeginTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, userID int64) (BeginTourneyCountdown, error) {
 	var tourneyCountdown BeginTourneyCountdown
 
 	err := svc.db.ExecTx(ctx, db.TxArgs{
@@ -439,7 +448,7 @@ func (svc *HexchessServices) BeginTournamentCountdownTx(ctx context.Context, tou
 			scheduledOn := time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Millisecond)
 
 			if err := sendScheduledTournamentEvent(ctx, querier, tournamentKey, scheduledOn); err != nil {
-				return fmt.Errorf("push scheduled tournament [%s] event: %w", tournamentKey, err)
+				return fmt.Errorf("push scheduled tournament %s event: %w", tournamentKey, err)
 			}
 
 			slog.InfoContext(ctx, "begin tournament countdown", "tournamentRow", tournamentRow)
@@ -466,7 +475,7 @@ var ErrEmptyMatchesTournament = errors.New("tournament has no matches")
 
 var ExpectedAdvanceTournamentStatus = []model.TournamentStatus{model.TournamentScheduled, model.TournamentInProgress}
 
-func (svc *HexchessServices) AdvanceTournamentTx(ctx context.Context, tournamentKey uuid.UUID) error {
+func (svc *HexchessServices) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID) error {
 	return svc.db.ExecTx(ctx, db.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
@@ -522,7 +531,7 @@ func matchmakeScheduledTournament(ctx context.Context, querier sqlc.Querier, tou
 
 	participantRows, err := querier.SelectParticipantsForMatchmakingByTournamentID(ctx, tournamentRow.TournamentKey)
 	if err != nil {
-		return MatchmakingResponse{}, fmt.Errorf("select participant ids by tournament key [%s]: %w", tournamentRow.TournamentKey, err)
+		return MatchmakingResponse{}, fmt.Errorf("select participant ids by tournament key %s: %w", tournamentRow.TournamentKey, err)
 	}
 
 	var participants []FirstMatchParticipant
@@ -594,7 +603,7 @@ func insertTournamentMatches(ctx context.Context, querier sqlc.Querier, tourname
 		Rounds:        pgtype.Int4{Int32: response.TotalRounds, Valid: true},
 		WinnerID:      pgtype.Int8{Int64: response.WinnerID, Valid: shouldUpdateWinnerID},
 	}); err != nil {
-		return fmt.Errorf("update tournament [%s] status to %+v: %w", tournamentKey, response, err)
+		return fmt.Errorf("update tournament %s status to %+v: %w", tournamentKey, response, err)
 	}
 
 	if len(response.NextMatches) > 0 {
@@ -621,9 +630,468 @@ func insertTournamentMatches(ctx context.Context, querier sqlc.Querier, tourname
 		}
 
 		if err := sendCreateTourneytMatchesEvent(ctx, querier, tournamentKey, response.NextMatches); err != nil {
-			return fmt.Errorf("send create tournament [%s] matches event: %w", tournamentKey, err)
+			return fmt.Errorf("send create tournament %s matches event: %w", tournamentKey, err)
 		}
 	}
 
 	return nil
+}
+
+type FirstMatchParticipant struct {
+	UserID int64
+	Elo    pgtype.Float8
+}
+
+type FirstMatchmakingRequest struct {
+	Ruleset      model.TournamentRuleset
+	Mode         model.GameMode
+	Participants []FirstMatchParticipant
+	TotalRounds  int32
+}
+
+type MatchmakingResponse struct {
+	NextMatches    []model.TournamentMatchCreation
+	TotalRounds    int32 // RoundRobin and Swiss calculate total rounds during matchmaking rather than using already existing rounds to validate
+	NextStatus     model.TournamentStatus
+	NextMatchRound int32
+	WinnerID       int64
+	Tiebreaker     TieBreakerKind
+}
+
+type TieBreakerKind int
+
+const (
+	TiebreakerNone TieBreakerKind = iota
+	TiebreakerByElo
+	TiebreakerBySonnebornBerger
+)
+
+type CompletedPrevMatch struct {
+	Round    int32
+	WhiteID  int64
+	BlackID  int64
+	WhiteElo float64
+	BlackElo float64
+	Result   model.ReplayResult
+}
+
+func getKnockoutWinnerID(match CompletedPrevMatch) (int64, TieBreakerKind) {
+	switch match.Result {
+	case model.WhiteWin:
+		return match.WhiteID, TiebreakerNone
+	case model.BlackWin:
+		return match.BlackID, TiebreakerNone
+	// tiebreaker for draw uses the player with the highest elo, with white as a last case scenario
+	case model.Draw:
+		if match.WhiteElo >= match.BlackElo {
+			return match.WhiteID, TiebreakerByElo
+		} else {
+			return match.BlackID, TiebreakerByElo
+		}
+	default:
+		panic(fmt.Sprintf("unknown match result %s", match.Result))
+	}
+}
+
+func withoutTiebreaker(u int64, _ TieBreakerKind) int64 {
+	return u
+}
+
+func calcRoundRobinTournamentRounds(participantCount int) int32 {
+	return int32((participantCount * (participantCount - 1)) / 2)
+}
+
+func calcSwissTournamentRounds(participantCount int) int32 {
+	return int32(math.Log2(float64(participantCount)))
+}
+
+// knockoutParticipantsAtRound returns the number of elements at a given depth.
+// Each node holds 2 elements. At depth d, there are 2^(N-d) nodes.
+func knockoutParticipantsAtRound(maxDepth, depth int) int { return 1 << (maxDepth - depth + 1) }
+
+// knockoutMatchesAtRound returns the number of nodes at a given depth.
+// Root (depth N) has 1 node; each level down doubles the count.
+func knockoutMatchesAtRound(maxDepth, depth int) int { return 1 << (maxDepth - depth) }
+
+type MatchCountErrKind int
+
+const (
+	ParticipantCountErrKind = iota
+	ParticipantParityErrKind
+	MatchParityErrKind
+)
+
+type MatchCountError struct {
+	Kind      MatchCountErrKind
+	WantCount int
+	GotCount  int
+}
+
+func (e MatchCountError) Error() string {
+	switch e.Kind {
+	case ParticipantCountErrKind:
+		return fmt.Sprintf("tournament requires %v participants, got: %d", e.WantCount, e.GotCount)
+	case ParticipantParityErrKind:
+		return fmt.Sprintf("tournament requires an even number of participants, got: %d", e.GotCount)
+	case MatchParityErrKind:
+		return fmt.Sprintf("tournament requires an even number of matches, got: %d", e.GotCount)
+	default:
+		return fmt.Sprintf("unknown match participant count error kind %d", e.Kind)
+	}
+}
+
+func makeMatchesLinearly(participants []FirstMatchParticipant, gameMode model.GameMode) []model.TournamentMatchCreation {
+	// invariant: participant count is always even (`elementsAtFirstDepth` always returns even)
+	if len(participants)%2 != 0 {
+		// assert rather than return an error because this property is statically encoded into the `ElementsAtFirstDepth` algorithm
+		panic(fmt.Sprintf("participant count %+v is not even", participants))
+	}
+	var matches []model.TournamentMatchCreation
+	for i := 0; i+1 < len(participants); i += 2 {
+		matches = append(matches, model.TournamentMatchCreation{
+			GameID:   MakeGameID(),
+			GameMode: gameMode,
+			WhiteID:  participants[i].UserID,
+			BlackID:  participants[i+1].UserID,
+		})
+	}
+	return matches
+}
+
+func makeMatchesCrissCrossElos(participants []FirstMatchParticipant, gameMode model.GameMode) []model.TournamentMatchCreation {
+	// sort participants by elo.
+	slices.SortFunc(participants, func(a, b FirstMatchParticipant) int {
+		if n := cmp.Compare(model.DefaultUserElo(b.Elo), model.DefaultUserElo(a.Elo)); n != 0 {
+			return n
+		}
+		return cmp.Compare(a.UserID, b.UserID)
+	})
+
+	var matches []model.TournamentMatchCreation
+	low := 0
+	high := len(participants) - 1
+	for low < high {
+		matches = append(matches, model.TournamentMatchCreation{
+			GameID:   MakeGameID(),
+			GameMode: gameMode,
+			WhiteID:  participants[low].UserID,
+			BlackID:  participants[high].UserID,
+		})
+		low++
+		high--
+	}
+
+	// invariant: always converges on a different player (so each player gets a match)
+	if low == high {
+		// assert rather than return an error because this property is statically encoded into the this algorithm
+		panic(fmt.Sprintf("participant count %+v is not even", participants))
+	}
+	return matches
+}
+
+func MakeFirstMatches(request FirstMatchmakingRequest) (MatchmakingResponse, error) {
+	participantCount := len(request.Participants)
+
+	var matches []model.TournamentMatchCreation
+	totalRounds := request.TotalRounds
+
+	switch request.Ruleset {
+	case model.TournamentKnockout:
+		// invariant: matches are devided by two each time and stop at 1, we need to start at the expected power of 2
+		wantRoundCount := knockoutParticipantsAtRound(int(totalRounds), 1)
+		if participantCount != wantRoundCount {
+			return MatchmakingResponse{}, MatchCountError{Kind: ParticipantCountErrKind, WantCount: wantRoundCount, GotCount: participantCount}
+		}
+	case model.TournamentRoundRobin, model.TournamentSwiss:
+		// invariant: as long as we can match each player with another player, we can start the tournament
+		if participantCount%2 != 0 {
+			return MatchmakingResponse{}, MatchCountError{Kind: ParticipantParityErrKind, GotCount: participantCount}
+		}
+	}
+
+	switch request.Ruleset {
+	case model.TournamentKnockout:
+		matches = makeMatchesLinearly(request.Participants, request.Mode)
+
+		wantRoundCount := knockoutMatchesAtRound(int(totalRounds), 1)
+		if len(matches) != wantRoundCount {
+			panic(fmt.Sprintf("expected %d matches, got %d", wantRoundCount, len(matches)))
+		}
+	case model.TournamentRoundRobin:
+		matches = makeMatchesLinearly(request.Participants, request.Mode)
+		totalRounds = calcRoundRobinTournamentRounds(participantCount)
+	case model.TournamentSwiss:
+		// a swiss tournament matches the worst players with the best players
+		matches = makeMatchesCrissCrossElos(request.Participants, request.Mode)
+		totalRounds = calcSwissTournamentRounds(participantCount)
+	default:
+		return MatchmakingResponse{}, fmt.Errorf("unknown tournament ruleset %s", request.Ruleset)
+	}
+
+	return MatchmakingResponse{NextMatches: matches, NextStatus: model.TournamentInProgress, NextMatchRound: 1, TotalRounds: totalRounds}, nil
+}
+
+type MatchmakingRequest struct {
+	Ruleset     model.TournamentRuleset
+	Matches     []CompletedPrevMatch
+	GameMode    model.GameMode
+	TotalRounds int32
+}
+
+func getPrevRoundMatches(matches []CompletedPrevMatch) []CompletedPrevMatch {
+	prevMatchRound := matches[len(matches)-1].Round
+	var prevRoundMatches []CompletedPrevMatch
+	for _, match := range matches {
+		if match.Round == prevMatchRound {
+			prevRoundMatches = append(prevRoundMatches, match)
+		}
+	}
+	return prevRoundMatches
+}
+
+const WinnerIDNone = int64(0)
+
+func DoMatchmaking(request MatchmakingRequest) (MatchmakingResponse, error) {
+	// validation: a tournament must have matches to do matchmaking
+	if len(request.Matches) == 0 {
+		return MatchmakingResponse{}, ErrEmptyMatchesTournament
+	}
+
+	gameMode := request.GameMode
+	allMatches := request.Matches
+
+	var nextMatches []model.TournamentMatchCreation
+
+	switch request.Ruleset {
+	case model.TournamentKnockout:
+		if len(allMatches)%2 != 0 {
+			return MatchmakingResponse{}, MatchCountError{Kind: MatchParityErrKind, GotCount: len(allMatches)}
+		}
+		nextMatches = DoKnockoutMatchmaking(allMatches, gameMode)
+	case model.TournamentRoundRobin:
+		nextMatches = DoRoundRobinMatchmaking(allMatches, gameMode)
+	case model.TournamentSwiss:
+		nextMatches = DoSwissMatchmaking(allMatches, gameMode)
+	default:
+		return MatchmakingResponse{}, fmt.Errorf("unknown tournament ruleset %s", request.Ruleset)
+	}
+
+	prevMatchRound := allMatches[len(allMatches)-1].Round
+	nextMatchRound := prevMatchRound + 1
+
+	nextStatus := model.TournamentInProgress
+	winnerID := WinnerIDNone // defaults to no winner
+	tiebreaker := TiebreakerNone
+
+	if nextMatchRound > request.TotalRounds {
+		nextStatus = model.TournamentFinished
+		winnerID, tiebreaker = findTournamentWinner(request.Ruleset, request.Matches)
+	}
+
+	return MatchmakingResponse{
+		NextMatches:    nextMatches,
+		NextStatus:     nextStatus,
+		NextMatchRound: nextMatchRound,
+		TotalRounds:    request.TotalRounds,
+		WinnerID:       winnerID,
+		Tiebreaker:     tiebreaker,
+	}, nil
+}
+
+func DoKnockoutMatchmaking(allMatches []CompletedPrevMatch, gameMode model.GameMode) []model.TournamentMatchCreation {
+	var nextMatches []model.TournamentMatchCreation
+
+	prevRoundMatches := getPrevRoundMatches(allMatches)
+
+	for i := 0; i+1 < len(prevRoundMatches); i += 2 {
+		matchOne := prevRoundMatches[i]
+		matchTwo := prevRoundMatches[i+1]
+		nextMatches = append(nextMatches, model.TournamentMatchCreation{
+			GameID:   MakeGameID(),
+			GameMode: gameMode,
+			WhiteID:  withoutTiebreaker(getKnockoutWinnerID(matchOne)),
+			BlackID:  withoutTiebreaker(getKnockoutWinnerID(matchTwo)),
+		})
+	}
+
+	if len(nextMatches) != len(prevRoundMatches)/2 {
+		panic(fmt.Sprintf("expected %d next matches, got %d", len(prevRoundMatches)/2, len(nextMatches)))
+	}
+
+	return nextMatches
+}
+
+func DoRoundRobinMatchmaking(allMatches []CompletedPrevMatch, gameMode model.GameMode) []model.TournamentMatchCreation {
+	var nextMatches []model.TournamentMatchCreation
+
+	prevRoundMatches := getPrevRoundMatches(allMatches)
+
+	for i := range len(prevRoundMatches) {
+		prevMatch := prevRoundMatches[i]
+
+		var nextWhiteID int64
+		var nextBlackID int64
+
+		if i == 0 {
+			// case (first match): nextWhiteID acts as an 'anchor' (only player that does not change)
+			nextWhiteID = prevMatch.WhiteID
+			nextBlackID = prevRoundMatches[len(prevRoundMatches)-1].BlackID
+		} else {
+			// case (other match): take nextWhiteID from previous match, shift previous nextWhiteID into next nextBlackID
+			nextWhiteID = prevRoundMatches[i-1].BlackID
+			nextBlackID = prevMatch.WhiteID
+		}
+
+		nextMatches = append(nextMatches, model.TournamentMatchCreation{
+			GameID:   MakeGameID(),
+			GameMode: gameMode,
+			WhiteID:  nextWhiteID,
+			BlackID:  nextBlackID,
+		})
+	}
+
+	return nextMatches
+}
+
+func DoSwissMatchmaking(allMatches []CompletedPrevMatch, gameMode model.GameMode) []model.TournamentMatchCreation {
+	var nextMatches []model.TournamentMatchCreation
+
+	swissScoresTable := makeSwissTable(allMatches)
+
+	// collect and reverse sort match participants by swiss score
+	var participantIDs []int64
+	for userID, _ := range swissScoresTable {
+		participantIDs = append(participantIDs, userID)
+	}
+	slices.SortFunc(participantIDs, func(a, b int64) int {
+		return cmp.Compare(swissScoresTable[b], swissScoresTable[a])
+	})
+
+	for i := 0; i+1 < len(participantIDs); i += 2 {
+		nextMatches = append(nextMatches, model.TournamentMatchCreation{
+			GameID:   MakeGameID(),
+			GameMode: gameMode,
+			WhiteID:  participantIDs[i],
+			BlackID:  participantIDs[i+1],
+		})
+	}
+
+	return nextMatches
+}
+
+func findScoringTableWinners[Score cmp.Ordered](scoreTable map[int64]Score, skip func(int64) bool) []int64 {
+	var highestScore Score
+	var winnerIDs []int64
+
+	for userID, score := range scoreTable {
+		if skip(userID) {
+			continue
+		}
+		if score == highestScore {
+			winnerIDs = append(winnerIDs, userID)
+		} else if score > highestScore {
+			winnerIDs = winnerIDs[:0]
+			winnerIDs = append(winnerIDs, userID)
+			highestScore = score
+		}
+	}
+
+	if len(winnerIDs) == 0 {
+		// the only way this can pass is if the table is empty because the match list that produced the table was empty
+		// a tournament with no matches is impossible since it should have never passed the IN_PROGRESS status
+		panic("expected scoring table to produce at least one winner, got none")
+	}
+	return winnerIDs
+}
+
+func findTournamentWinner(ruleset model.TournamentRuleset, allMatches []CompletedPrevMatch) (int64, TieBreakerKind) {
+	switch ruleset {
+	case model.TournamentKnockout:
+		// winner of the tournament is the player left standing
+		return getKnockoutWinnerID(allMatches[len(allMatches)-1])
+	case model.TournamentRoundRobin:
+		winCountTable := makeWinCountTable(allMatches)
+
+		// standard: player with the most total wins will win the tournament
+		totalWinCheckWinnerIDs := findScoringTableWinners(winCountTable, func(int64) bool { return false })
+		if len(totalWinCheckWinnerIDs) == 1 {
+			return totalWinCheckWinnerIDs[0], TiebreakerNone
+		}
+
+		sonnebornTable := makeSonnebornTable(allMatches)
+
+		// tiebreaker: use the Sonneborn-Berger score for each tied winner, largest wins
+		sonnebornWinnerIDs := findScoringTableWinners(sonnebornTable, func(userID int64) bool { return !slices.Contains(totalWinCheckWinnerIDs, userID) })
+
+		return sonnebornWinnerIDs[0], TiebreakerBySonnebornBerger
+	case model.TournamentSwiss:
+		swissScoreTables := makeSwissTable(allMatches)
+
+		// standard: player with the highest swiss score will win the tournament
+		swissScoresWinnerIDs := findScoringTableWinners(swissScoreTables, func(int64) bool { return false })
+		if len(swissScoresWinnerIDs) == 1 {
+			return swissScoresWinnerIDs[0], TiebreakerNone
+		}
+
+		sonnebornTable := makeSonnebornTable(allMatches)
+
+		// tiebreaker: use the Sonneborn-Berger score for each tied winner, largest wins
+		sonnebornWinnerIDs := findScoringTableWinners(sonnebornTable, func(userID int64) bool { return !slices.Contains(swissScoresWinnerIDs, userID) })
+
+		return sonnebornWinnerIDs[0], TiebreakerBySonnebornBerger
+	default:
+		panic(fmt.Sprintf("unknown tournament ruleset %s", ruleset))
+	}
+}
+
+func makeWinCountTable(allMatches []CompletedPrevMatch) map[int64]int32 {
+	winCountTable := make(map[int64]int32)
+	for _, match := range allMatches {
+		switch match.Result {
+		case model.WhiteWin:
+			winCountTable[match.WhiteID] = winCountTable[match.WhiteID] + 1
+		case model.BlackWin:
+			winCountTable[match.BlackID] = winCountTable[match.BlackID] + 1
+		default:
+		}
+	}
+	return winCountTable
+}
+
+func makeSonnebornTable(allMatches []CompletedPrevMatch) map[int64]float64 {
+	sonnebornTable := make(map[int64]float64)
+	for _, match := range allMatches {
+		switch match.Result {
+		case model.WhiteWin:
+			sonnebornTable[match.WhiteID] = sonnebornTable[match.WhiteID] + match.BlackElo
+		case model.BlackWin:
+			sonnebornTable[match.BlackID] = sonnebornTable[match.BlackID] + match.WhiteElo
+		case model.Draw:
+			sonnebornTable[match.WhiteID] = sonnebornTable[match.WhiteID] + match.BlackElo/2
+			sonnebornTable[match.BlackID] = sonnebornTable[match.BlackID] + match.WhiteElo/2
+		}
+	}
+	return sonnebornTable
+}
+
+func makeSwissTable(allMatches []CompletedPrevMatch) map[int64]float64 {
+	swissScores := make(map[int64]float64)
+
+	for _, match := range allMatches {
+		swissScores[match.WhiteID] = 0.0
+		swissScores[match.BlackID] = 0.0
+	}
+
+	for _, match := range allMatches {
+		switch match.Result {
+		case model.WhiteWin:
+			swissScores[match.WhiteID] = swissScores[match.WhiteID] + 1
+		case model.BlackWin:
+			swissScores[match.BlackID] = swissScores[match.BlackID] + 1
+		case model.Draw:
+			swissScores[match.WhiteID] = swissScores[match.WhiteID] + 0.5
+			swissScores[match.BlackID] = swissScores[match.BlackID] + 0.5
+		}
+	}
+	return swissScores
 }

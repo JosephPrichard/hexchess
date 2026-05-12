@@ -3,6 +3,7 @@ package svc
 import (
 	"errors"
 	"fmt"
+	"hexchess-svc/chess"
 	"hexchess-svc/model"
 	"log/slog"
 	"math"

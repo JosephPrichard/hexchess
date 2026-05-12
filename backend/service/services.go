@@ -2,9 +2,12 @@ package svc
 
 import (
 	"context"
+	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/egress"
+	"hexchess-svc/internal/enum"
+	"hexchess-svc/pubsub"
 
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
@@ -24,7 +27,7 @@ type HexchessAPI interface {
 
 	InsertUser(ctx context.Context, inst UserInst) (model.User, error)
 	BatchInsertUsers(ctx context.Context, insts []UserInst) ([]model.User, error)
-	VerifyUserTx(ctx context.Context, username string, inputPassword string) (VerifiedUser, error)
+	VerifyUser(ctx context.Context, username string, inputPassword string) (VerifiedUser, error)
 	SelectOrInsertGoogleUser(ctx context.Context, googleAccountID string, googleInst GoogleUserInst) (VerifiedUser, error)
 	ValidateGoogleIDToken(ctx context.Context, token string) (egress.GoogleIDTokenPayload, error)
 	UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (model.User, error)
@@ -62,21 +65,22 @@ type HexchessAPI interface {
 	ClearOrphanFiles(ctx context.Context, pageLength int32)
 
 	GetTournament(ctx context.Context, tournamentKey uuid.UUID) (model.FullTournament, error)
-	GetTournaments(ctx context.Context, participantID int64, afterID int64, perPage int32) ([]model.Tournament, error)
-	CreateTournamentTx(ctx context.Context, inst TournamentInst) (int64, error)
-	JoinTournamentTx(ctx context.Context, inst JoinTournamentInst) (JoinTournamentResult, error)
-	BeginTournamentCountdownTx(ctx context.Context, tournamentKey uuid.UUID, userID int64) (BeginTourneyCountdown, error)
+	GetTournaments(ctx context.Context, participantID enum.Optional[int64], afterID enum.Optional[int64], perPage int32) ([]model.Tournament, error)
+	CreateTournament(ctx context.Context, inst TournamentInst) (int64, error)
+	JoinTournament(ctx context.Context, inst JoinTournamentInst) (JoinTournamentResult, error)
+	JoinTournamentAndSelectUser(ctx context.Context, inst JoinTournamentInst) (model.LbdUser, error)
+	BeginTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, userID int64) (BeginTourneyCountdown, error)
 	LeaveTournament(ctx context.Context, tournamentKey uuid.UUID, userID int64) (bool, error)
-	AdvanceTournamentTx(ctx context.Context, tournamentKey uuid.UUID) error
+	AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID) error
 
-	GetUserChessMetas(ctx context.Context, userID int64) ([]ChessMeta, error)
-	GetUserChessMetasPaged(ctx context.Context, userID int64, page, count int) ([]ChessMeta, error)
-	GetAllChessMetas(ctx context.Context, page, count int) ([]ChessMeta, error)
+	GetUserChessMetas(ctx context.Context, userID int64) ([]model.ChessMeta, error)
+	GetUserChessMetasPaged(ctx context.Context, userID int64, page, count int) ([]model.ChessMeta, error)
+	GetAllChessMetas(ctx context.Context, page, count int) ([]model.ChessMeta, error)
 	GetChessStateCount(ctx context.Context) (int64, error)
-	SetManyChessStates(ctx context.Context, chessStates []ChessState) error
+	SetManyChessStates(ctx context.Context, chessStates []model.ChessState) error
 
 	GetStateChats(ctx context.Context, gameID string, count int64) ([]*pb.ChatMessage, error)
-	InsertStateChat(ctx context.Context, gameID string, chat Chat) error
+	InsertStateChat(ctx context.Context, gameID string, chat model.Chat) error
 
 	IsActiveUser(ctx context.Context, id string) bool
 	GetActiveCount(ctx context.Context) (int64, error)
@@ -85,29 +89,24 @@ type HexchessAPI interface {
 	RemoveActiveUser(ctx context.Context, id string) (int64, error)
 
 	CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (string, error)
-	JoinGame(ctx context.Context, gameID string, player model.PlayerState) (*ChessState, error)
+	JoinGame(ctx context.Context, gameID string, player model.PlayerState) (*model.ChessState, error)
 	MakeGameMove(ctx context.Context, gameID string, player model.PlayerState, move chess.Move) (MoveResult, error)
-	AttemptGameUndo(ctx context.Context, gameID string, player model.PlayerState, kind UndoKind) (*ChessState, error)
-	EndGame(ctx context.Context, gameID string, player model.PlayerState) (EndKind, error)
+	AttemptGameUndo(ctx context.Context, gameID string, player model.PlayerState, kind UndoKind) (*model.ChessState, error)
+	EndGame(ctx context.Context, gameID string, player model.PlayerState) (model.EndKind, error)
 	IsGameAccessible(ctx context.Context, id string) bool
-	InsertFinishedGame(ctx context.Context, finishedGame FinishedGame) error
-	InsertGameResultTx(ctx context.Context, params GameResult) (GameResultChangeSet, error)
+	InsertFinishedGame(ctx context.Context, finishedGame model.FinishedGame) error
+	InsertGameResult(ctx context.Context, params GameResult) (GameResultChangeSet, error)
 	UpsertReplayMoveHistories(ctx context.Context, replayID int64, data []byte) error
-
-	BroadcastActiveCount(ctx context.Context, count int64) error
-	BroadcastGameCount(ctx context.Context, count int64) error
-	BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput) error
-	BroadcastTournament(ctx context.Context, tournament *pb.TournamentOutput) error
-	BroadcastChallenge(ctx context.Context, challenge model.Challenge) error
 }
 
 type HexchessServices struct {
-	db      db.DB
-	querier sqlc.Querier
-	redis   db.Redis
-	aws     egress.AWS
-	remote  egress.RemoteAPIs
-	entropy EntropySource
+	db          db.DB
+	querier     sqlc.Querier
+	redis       db.Redis
+	aws         egress.AWS
+	remote      egress.RemoteAPIs
+	broadcaster pubsub.BroadcasterAPI
+	entropy     EntropyAPI
 }
 
 var _ = (HexchessAPI)(&HexchessServices{})
@@ -120,12 +119,13 @@ func (svc *HexchessServices) Close() {
 }
 
 type Setup struct {
-	DB      db.DB
-	Querier sqlc.Querier
-	Redis   db.Redis
-	AWS     egress.AWS
-	Remote  egress.RemoteAPIs
-	Entropy EntropySource
+	DB          db.DB
+	Querier     sqlc.Querier
+	Redis       db.Redis
+	AWS         egress.AWS
+	Remote      egress.RemoteAPIs
+	Entropy     EntropyAPI
+	Broadcaster pubsub.BroadcasterAPI
 }
 
 func MakeHexchessServices(setup Setup) *HexchessServices {
@@ -136,11 +136,12 @@ func MakeHexchessServices(setup Setup) *HexchessServices {
 		setup.Entropy = &RealEntropySource{}
 	}
 	return &HexchessServices{
-		db:      setup.DB,
-		querier: setup.Querier,
-		redis:   setup.Redis,
-		aws:     setup.AWS,
-		remote:  setup.Remote,
-		entropy: setup.Entropy,
+		db:          setup.DB,
+		querier:     setup.Querier,
+		redis:       setup.Redis,
+		aws:         setup.AWS,
+		remote:      setup.Remote,
+		entropy:     setup.Entropy,
+		broadcaster: setup.Broadcaster,
 	}
 }

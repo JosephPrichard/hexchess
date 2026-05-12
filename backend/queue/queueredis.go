@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hexchess-svc/db"
 	"hexchess-svc/internal/errutil"
+	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 	"log/slog"
 	"sync"
@@ -17,7 +18,7 @@ func StartRedisQueueConsumers(ctx context.Context, services svc.HexchessAPI, red
 	h := EventHandler{Services: services}
 
 	handlerList := []RedisQueueHandler{
-		&RedisConsumer[svc.FinishedGame]{
+		&RedisConsumer[model.FinishedGame]{
 			Context: ctx,
 			Client:  redis.GameStore,
 

@@ -1,4 +1,4 @@
-package svc
+package pubsub
 
 import (
 	"fmt"
@@ -126,15 +126,15 @@ func (actor *MulticasterActor) Shutdown() {
 	close(actor.actionChan)
 }
 
-type UcEventKind int
+type GlobalEventKind int
 
 const (
-	UcActiveEvent UcEventKind = iota
-	UcGamesEvent
+	GlobalActiveEvent GlobalEventKind = iota
+	GlobalGamesEvent
 )
 
-type UcEvent struct {
-	Kind UcEventKind
+type GlobalCastEvent struct {
+	Kind GlobalEventKind
 	Data string
 }
 
@@ -145,12 +145,12 @@ type GlobalCasterActor struct {
 
 type globalcasterAction struct {
 	kind    actorActionKind
-	sub     chan UcEvent
-	payload UcEvent
+	sub     chan GlobalCastEvent
+	payload GlobalCastEvent
 }
 
 func (actor GlobalCasterActor) Run() {
-	subscriberMap := make(map[chan UcEvent]struct{})
+	subscriberMap := make(map[chan GlobalCastEvent]struct{})
 
 	handleSubscription := func(action globalcasterAction) {
 		sub := action.sub
@@ -216,15 +216,15 @@ func (actor GlobalCasterActor) send(action globalcasterAction) {
 	actor.actionChan <- action
 }
 
-func (actor GlobalCasterActor) Subscribe(sub chan UcEvent) {
+func (actor GlobalCasterActor) Subscribe(sub chan GlobalCastEvent) {
 	actor.send(globalcasterAction{kind: subAction, sub: sub})
 }
 
-func (actor GlobalCasterActor) Unsubscribe(sub chan UcEvent) {
+func (actor GlobalCasterActor) Unsubscribe(sub chan GlobalCastEvent) {
 	actor.send(globalcasterAction{kind: unsubAction, sub: sub})
 }
 
-func (actor GlobalCasterActor) Broadcast(msg UcEvent) {
+func (actor GlobalCasterActor) Broadcast(msg GlobalCastEvent) {
 	actor.send(globalcasterAction{kind: broadcastAction, payload: msg})
 }
 

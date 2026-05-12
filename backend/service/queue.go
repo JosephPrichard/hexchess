@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"log/slog"
 	"time"
@@ -14,13 +15,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type CreateTournamentMatchesEvent struct {
-	TournamentKey uuid.UUID
-	Matches       []TournamentMatchCreation
-}
-
-func sendCreateTourneytMatchesEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, matches []TournamentMatchCreation) error {
-	bytes, err := proto.Marshal(SerializeCreateTournamentMatchesEvent(CreateTournamentMatchesEvent{
+func sendCreateTourneytMatchesEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, matches []model.TournamentMatchCreation) error {
+	bytes, err := proto.Marshal(model.SerializeCreateTournamentMatchesEvent(model.CreateTournamentMatchesEvent{
 		TournamentKey: tournamentKey,
 		Matches:       matches,
 	}))
@@ -67,10 +63,10 @@ type RedisXAdder interface {
 	XAdd(ctx context.Context, args *redis.XAddArgs) *redis.StringCmd
 }
 
-func (svc *HexchessServices) pushFinishGameEvent(ctx context.Context, xadder RedisXAdder, finishedGame FinishedGame) error {
+func (svc *HexchessServices) sendFinishGameEvent(ctx context.Context, xadder RedisXAdder, finishedGame model.FinishedGame) error {
 	streamKey := svc.redis.FinishGameStreamKey
 
-	bytes, err := MarshalFinishedGame(finishedGame)
+	bytes, err := model.MarshalFinishedGame(finishedGame)
 	if err != nil {
 		return fmt.Errorf("marshal finish game event: %w", err)
 	}

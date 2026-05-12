@@ -62,7 +62,7 @@ func (svc *HexchessServices) InsertChallenge(ctx context.Context, inst Challenge
 }
 
 func mapChallengeInsertErr(err error) error {
-	return mapInsertErr(err, ErrDuplicateChallenge, ErrInvalidChallengeMember)
+	return db.MapInsertErr(err, ErrDuplicateChallenge, ErrInvalidChallengeMember)
 }
 
 type ChallengeKey struct {
@@ -121,6 +121,7 @@ func (svc *HexchessServices) DeleteChallenge(ctx context.Context, key ChallengeK
 }
 
 func (svc *HexchessServices) DeleteExpiredChallenges(ctx context.Context, userID int64) error {
+	// TODO: add this into a cronjob to clear out expired challenges every couple days
 	beforeTime := svc.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
 	err := svc.querier.DeleteExpiredChallenges(ctx, sqlc.DeleteExpiredChallengesParams{

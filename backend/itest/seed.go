@@ -6,6 +6,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
+	"hexchess-svc/chess"
+	"hexchess-svc/pb"
 	"time"
 
 	"hexchess-svc/internal/logutil"
@@ -251,16 +254,6 @@ var ReplayInsts = []struct {
 
 var GameIDFinishedTournamentMatch1 = uuid.NewString()
 var GameIDFinishedTournamentMatch2 = uuid.NewString()
-
-var ReplayMoveHistoryInsts = []struct {
-	ReplayInst   int64
-	MoveHistBlob []byte
-}{
-	{
-		ReplayInst:   FirstReplayID,
-		MoveHistBlob: []byte{},
-	},
-}
 
 var ChallengeInsts = []struct {
 	ChallengerID int64
@@ -628,6 +621,30 @@ var TournamentMatchInsts = []struct {
 	},
 }
 
+var TestPbMoveHistory = func() *pb.MoveHistory {
+	wantInitialGame := chess.MakeEmptyGame(false)
+	pbInitialGame := chess.SerializeGame(&wantInitialGame)
+
+	wantMoveReplay := &pb.MoveHistory{
+		InitialGame: pbInitialGame,
+		Steps: []*pb.HistMove{
+			{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4, Notation: "pc5"},
+		},
+	}
+
+	return wantMoveReplay
+}()
+
+var ReplayMoveHistories = []struct {
+	replayID      int64
+	pbMoveHistory *pb.MoveHistory
+}{
+	{
+		replayID:      FirstReplayID,
+		pbMoveHistory: TestPbMoveHistory,
+	},
+}
+
 func insertTestData(pool *pgxpool.Pool) error {
 	ctx := context.WithValue(context.Background(), logutil.Trace, "insert-testing-data")
 
@@ -690,14 +707,6 @@ func insertTestData(pool *pgxpool.Pool) error {
 			inst.Rating,
 		)
 	}
-	for _, inst := range ReplayMoveHistoryInsts {
-		batchQueue(`
-			INSERT INTO replay_move_histories (replay_id, data) 
-			VALUES ($1, $2);`,
-			inst.ReplayInst,
-			inst.MoveHistBlob,
-		)
-	}
 	for _, inst := range ChallengeInsts {
 		batchQueue("INSERT INTO challenges (challenger_id, challengee_id, mode, start_color, made_on) VALUES ($1, $2, $3, $4, $5);",
 			inst.ChallengerID,
@@ -742,6 +751,18 @@ func insertTestData(pool *pgxpool.Pool) error {
 			inst.CreatedOn,
 			inst.WhiteID,
 			inst.BlackID,
+		)
+	}
+	for _, inst := range ReplayMoveHistories {
+		bytes, err := proto.Marshal(inst.pbMoveHistory)
+		if err != nil {
+			return fmt.Errorf("failed to marshal move history: %v", err)
+		}
+		batchQueue(`
+			INSERT INTO replay_move_histories (replay_id, data) 
+			VALUES ($1, $2);`,
+			inst.replayID,
+			bytes,
 		)
 	}
 

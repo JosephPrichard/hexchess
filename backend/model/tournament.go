@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -45,4 +46,59 @@ type FullTournament struct {
 	Participants []Participant `json:"participants"`
 	Matches      []Match       `json:"matches"`
 	Tournament
+}
+
+type TournamentOutputKey string
+
+const (
+	ParticipantKey TournamentOutputKey = "participant"
+	CountdownKey   TournamentOutputKey = "countdown"
+	StartKey       TournamentOutputKey = "start"
+	MatchmakingKey TournamentOutputKey = "matchmaking"
+	ErrorKey       TournamentOutputKey = "error"
+)
+
+var ErrAdvanceTournamentCode = errors.New("ERR_ADVANCE_TOURNAMENT")
+
+type TournamentOutput struct {
+	Key   TournamentOutputKey      `json:"key"`
+	Value isTournamentOutput_Value `json:"value"`
+}
+
+type isTournamentOutput_Value interface {
+	isTournamentOutput_Value()
+}
+
+type TournamentOutput_Participant LbdUser
+
+func (p TournamentOutput_Participant) isTournamentOutput_Value() {}
+
+type TournamentOutput_Countdown struct{}
+
+func (c TournamentOutput_Countdown) isTournamentOutput_Value() {}
+
+type TournamentOutput_Start struct{}
+
+func (s TournamentOutput_Start) isTournamentOutput_Value() {}
+
+type TournamentOutput_Matchmaking struct {
+	Matches []Match `json:"matches"`
+}
+
+func (m TournamentOutput_Matchmaking) isTournamentOutput_Value() {}
+
+type TournamentOutput_Error string
+
+func (e TournamentOutput_Error) isTournamentOutput_Value() {}
+
+type TournamentMatchCreation struct {
+	GameID   string
+	GameMode GameMode
+	WhiteID  int64
+	BlackID  int64
+}
+
+type CreateTournamentMatchesEvent struct {
+	TournamentKey uuid.UUID
+	Matches       []TournamentMatchCreation
 }

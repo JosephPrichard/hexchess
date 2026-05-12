@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"hexchess-svc/db/sqlc"
 	"hexchess-svc/egress"
 
 	"hexchess-svc/model"
@@ -36,8 +35,6 @@ import (
 
 func TestHandleRegister(t *testing.T) {
 	t.Parallel()
-
-	insertTime := itest.TimeNow
 
 	tests := []struct {
 		name        string
@@ -74,18 +71,13 @@ func TestHandleRegister(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setup := svc.Mocks{
-				Entropy: &svc.StableEntropySource{CurrTime: insertTime},
-			}
-
-			services, _ := svc.SetupServicesTest(t, setup, itest.RWPostgres, itest.Redis)
+			h, services := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/register", asJSONReader(tt.body))
 			w := httptest.NewRecorder()
 
-			hander := MakeServeMux(Setup{Services: services})
-			hander.ServeHTTP(w, r)
+			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if tt.wantStatus == http.StatusOK {
@@ -125,14 +117,13 @@ func TestHandleLogin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.RWPostgres, itest.Redis)
+			h, services := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/login", asJSONReader(tt.body))
 			w := httptest.NewRecorder()
 
-			hander := MakeServeMux(Setup{Services: services})
-			hander.ServeHTTP(w, r)
+			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if tt.wantStatus == http.StatusOK {
@@ -194,20 +185,19 @@ func TestHandleGoogleLogin(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			mocks := svc.Mocks{
+			mocks := serviceMocks{
 				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
 				Remote:  egress.RemoteAPIs{GoogleAPI: tt.setupMocks(ctrl)},
 			}
 
-			services, _ := svc.SetupServicesTest(t, mocks, itest.RWPostgres, itest.Redis)
+			h, services := setupTestHandler(t, mocks, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			for range tt.runCount {
 				r := httptest.NewRequest(http.MethodPost, "/api/login/google", asJSONReader(tt.body))
 				w := httptest.NewRecorder()
 
-				hander := MakeServeMux(Setup{Services: services})
-				hander.ServeHTTP(w, r)
+				h.ServeHTTP(w, r)
 
 				assert.Equal(t, tt.wantStatus, w.Code)
 				if tt.wantStatus == http.StatusOK {
@@ -271,7 +261,7 @@ func TestHandleUpdateUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.RWPostgres, itest.Redis)
+			h, services := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			createTestSessions(t, services)
@@ -280,8 +270,7 @@ func TestHandleUpdateUser(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
 			w := httptest.NewRecorder()
 
-			hander := MakeServeMux(Setup{Services: services})
-			hander.ServeHTTP(w, r)
+			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if tt.wantStatus == http.StatusOK {
@@ -331,7 +320,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.RWPostgres, itest.Redis)
+			h, services := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			createTestSessions(t, services)
@@ -340,8 +329,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			handler := MakeServeMux(Setup{Services: services})
-			handler.ServeHTTP(w, r)
+			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if tt.wantStatus == http.StatusOK {
@@ -407,7 +395,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.RWPostgres, itest.Redis)
+			h, services := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			createTestSessions(t, services)
@@ -416,8 +404,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
 			w := httptest.NewRecorder()
 
-			hander := MakeServeMux(Setup{Services: services})
-			hander.ServeHTTP(w, r)
+			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if tt.wantStatus != http.StatusOK {
@@ -445,11 +432,11 @@ func TestHandleCreateGame(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setup := svc.Mocks{
+			setup := serviceMocks{
 				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
 			}
 
-			services, _ := svc.SetupServicesTest(t, setup, itest.RWPostgres, itest.Redis)
+			h, services := setupTestHandler(t, setup, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			createTestSessions(t, services)
@@ -458,8 +445,7 @@ func TestHandleCreateGame(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
-			hander := MakeServeMux(Setup{Services: services})
-			hander.ServeHTTP(w, r)
+			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if tt.wantStatus != http.StatusOK {
@@ -518,11 +504,11 @@ func TestHandleCreateChallenge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mocks := svc.Mocks{
+			mocks := serviceMocks{
 				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
 			}
 
-			services, _ := svc.SetupServicesTest(t, mocks, itest.RWPostgres, itest.Redis)
+			h, services := setupTestHandler(t, mocks, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			createTestSessions(t, services)
@@ -531,8 +517,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
 			w := httptest.NewRecorder()
 
-			hander := MakeServeMux(Setup{Services: services})
-			hander.ServeHTTP(w, r)
+			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			testutil.AssertRespBody(t, tt.wantResp, w)
@@ -582,7 +567,7 @@ func TestHandleSearchPlayers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres)
+			h, services := setupTestHandler(t, serviceMocks{}, itest.ROPostgres)
 			defer services.Close()
 
 			q := url.Values{}
@@ -591,8 +576,7 @@ func TestHandleSearchPlayers(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players/search?%s", q.Encode()), nil)
 			w := httptest.NewRecorder()
 
-			hander := MakeServeMux(Setup{Services: services})
-			hander.ServeHTTP(w, r)
+			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
@@ -643,7 +627,7 @@ func TestGetLeaderboard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres, itest.Redis)
+			h, services := setupTestHandler(t, serviceMocks{}, itest.ROPostgres, itest.Redis)
 			defer services.Close()
 
 			ctx := context.WithValue(context.Background(), logutil.Trace, "setup-get-leaderboard")
@@ -655,8 +639,7 @@ func TestGetLeaderboard(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/leaderboard?%s", q.Encode()), nil)
 			w := httptest.NewRecorder()
 
-			hander := MakeServeMux(Setup{Services: services})
-			hander.ServeHTTP(w, r)
+			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
@@ -700,14 +683,13 @@ func TestGetPlayer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres, itest.Redis)
+			h, services := setupTestHandler(t, serviceMocks{}, itest.ROPostgres, itest.Redis)
 			defer services.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players?id=%s", tt.id), nil)
 			w := httptest.NewRecorder()
 
-			hander := MakeServeMux(Setup{Services: services})
-			hander.ServeHTTP(w, r)
+			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if tt.wantStatus == http.StatusOK {
@@ -757,11 +739,11 @@ func TestGetChallenges(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mocks := svc.Mocks{
+			mocks := serviceMocks{
 				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
 			}
 
-			services, _ := svc.SetupServicesTest(t, mocks, itest.ROPostgres, itest.Redis)
+			h, services := setupTestHandler(t, mocks, itest.ROPostgres, itest.Redis)
 			defer services.Close()
 
 			createTestSessions(t, services)
@@ -770,8 +752,7 @@ func TestGetChallenges(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
 			w := httptest.NewRecorder()
 
-			hander := MakeServeMux(Setup{Services: services})
-			hander.ServeHTTP(w, r)
+			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if http.StatusOK == tt.wantStatus {
@@ -820,14 +801,13 @@ func TestHandleGetSearchReplays(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres)
+			h, services := setupTestHandler(t, serviceMocks{}, itest.ROPostgres)
 			defer services.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replays?%s", tt.params), nil)
 			w := httptest.NewRecorder()
 
-			hander := MakeServeMux(Setup{Services: services})
-			hander.ServeHTTP(w, r)
+			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
@@ -865,14 +845,13 @@ func TestHandleGetReplay(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres)
+			h, services := setupTestHandler(t, serviceMocks{}, itest.ROPostgres)
 			defer services.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay?id=%s", tt.userID), nil)
 			w := httptest.NewRecorder()
 
-			hander := MakeServeMux(Setup{Services: services})
-			hander.ServeHTTP(w, r)
+			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
@@ -933,7 +912,7 @@ func TestHandleGetChessMetas(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres, itest.Redis)
+			h, services := setupTestHandler(t, serviceMocks{}, itest.ROPostgres, itest.Redis)
 			defer services.Close()
 
 			createTestSessions(t, services)
@@ -943,7 +922,6 @@ func TestHandleGetChessMetas(t *testing.T) {
 			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
 
 			w := httptest.NewRecorder()
-			h := MakeServeMux(Setup{Services: services})
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
@@ -955,31 +933,13 @@ func TestHandleGetChessMetas(t *testing.T) {
 func TestHandleGetMoveReplay(t *testing.T) {
 	t.Parallel()
 
-	services, testinfra := svc.SetupServicesTest(t, svc.Mocks{}, itest.RWPostgres)
+	h, services := setupTestHandler(t, serviceMocks{}, itest.RWPostgres)
 	defer services.Close()
-
-	wantInitialGame := chess.MakeEmptyGame(false)
-	pbInitialGame := chess.SerializeGame(&wantInitialGame)
-
-	// serialize a history that contains every field so we can check that the binary data is being stored correctly. this history doesn't actually respect game rules.
-	bytes, err := proto.Marshal(&pb.MoveHistory{
-		InitialGame: pbInitialGame,
-		Steps: []*pb.HistMove{
-			{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4, Notation: "pc5"},
-		},
-	})
-	require.NoError(t, err)
-
-	require.NoError(t, testinfra.DB.Querier().UpsertReplayMoveHistories(t.Context(), sqlc.UpsertReplayMoveHistoriesParams{
-		ReplayID: 1,
-		Data:     bytes,
-	}))
 
 	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay/move-list?replayId=%d", 1), nil)
 	w := httptest.NewRecorder()
 
-	hander := MakeServeMux(Setup{Services: services})
-	hander.ServeHTTP(w, r)
+	h.ServeHTTP(w, r)
 
 	body, err := io.ReadAll(w.Body)
 	require.NoError(t, err)
@@ -987,29 +947,14 @@ func TestHandleGetMoveReplay(t *testing.T) {
 	var pbMoveHist pb.MoveHistory
 	require.NoError(t, proto.Unmarshal(body, &pbMoveHist))
 
-	wantMoveReplay := &pb.MoveHistory{
-		InitialGame: pbInitialGame,
-		Steps: []*pb.HistMove{
-			{Piece: 1, FromFile: 1, FromRank: 2, ToFile: 3, ToRank: 4, Notation: "pc5"},
-		},
-	}
+	wantMoveReplay := itest.TestPbMoveHistory
+
 	assert.Equal(t, http.StatusOK, w.Code)
 	testutil.Equal(t, wantMoveReplay, &pbMoveHist, protocmp.Transform())
 }
 
 func TestGetTournament(t *testing.T) {
 	t.Parallel()
-
-	setupServices := func() *svc.HexchessServices {
-		services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres, itest.Redis)
-
-		// seed leaderboard for users fetched in `RetrieveFullTournament` test.
-		for _, change := range itest.TournamentLbdChangeSets {
-			require.NoError(t, services.SetLeaderboard(context.WithValue(t.Context(), logutil.Trace, t.Name()), change))
-		}
-
-		return services
-	}
 
 	tests := []struct {
 		name          string
@@ -1051,15 +996,18 @@ func TestGetTournament(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services := setupServices()
+			h, services := setupTestHandler(t, serviceMocks{}, itest.ROPostgres, itest.Redis)
 			defer services.Close()
+
+			for _, change := range itest.TournamentLbdChangeSets {
+				require.NoError(t, services.SetLeaderboard(context.WithValue(t.Context(), logutil.Trace, t.Name()), change))
+			}
 
 			q := url.Values{}
 			q.Set("tournamentKey", tt.tournamentKey)
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/tournament?%s", q.Encode()), nil)
 
 			w := httptest.NewRecorder()
-			h := MakeServeMux(Setup{Services: services})
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
@@ -1087,8 +1035,8 @@ func TestGetTournaments(t *testing.T) {
 	}{
 		{
 			name:       "RetrievedTournaments",
-			userID:     "-1",
-			afterID:    "-1",
+			userID:     "",
+			afterID:    "",
 			wantStatus: http.StatusOK,
 			wantResp: GetTournamentsResp{
 				Tournaments: []model.Tournament{
@@ -1108,7 +1056,7 @@ func TestGetTournaments(t *testing.T) {
 		{
 			name:       "RetrievedTournamentsForParticipant",
 			userID:     "4",
-			afterID:    "-1",
+			afterID:    "",
 			wantStatus: http.StatusOK,
 			wantResp: GetTournamentsResp{
 				Tournaments: []model.Tournament{
@@ -1121,7 +1069,7 @@ func TestGetTournaments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := svc.SetupServicesTest(t, svc.Mocks{}, itest.ROPostgres)
+			h, services := setupTestHandler(t, serviceMocks{}, itest.ROPostgres)
 			defer services.Close()
 
 			q := url.Values{}
@@ -1130,7 +1078,6 @@ func TestGetTournaments(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/tournaments?%s", q.Encode()), nil)
 
 			w := httptest.NewRecorder()
-			h := MakeServeMux(Setup{Services: services})
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)

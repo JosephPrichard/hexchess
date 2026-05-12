@@ -17,7 +17,7 @@ const S3ProfileBucket = "hexchess-profiles"
 
 var Buckets = []string{S3ProfileBucket}
 
-type S3Client interface {
+type S3ClientAPI interface {
 	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
 	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
 	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
@@ -26,7 +26,7 @@ type S3Client interface {
 
 type AWS struct {
 	S3Endpoint string
-	S3Client   S3Client
+	S3Client   S3ClientAPI
 }
 
 type AWSConfig struct {

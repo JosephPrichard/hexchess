@@ -2,6 +2,8 @@ package web
 
 import (
 	"fmt"
+	"hexchess-svc/chess"
+	"hexchess-svc/model"
 	"time"
 
 	"hexchess-svc/pb"
@@ -53,12 +55,12 @@ func SerializeGameOutputPlayers(gameID string, white, black *pb.PlayerState) *pb
 	}
 }
 
-func SerializeGameOutputForfeit(gameID string, endState svc.EndKind) *pb.GameOutput {
+func SerializeGameOutputForfeit(gameID string, endState model.EndKind) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Forfeit{
 			Forfeit: &pb.ForfeitOutput{
-				EndState: svc.SerializeEndKind(endState),
+				EndState: model.SerializeEndKind(endState),
 			},
 		},
 	}
@@ -77,18 +79,18 @@ func SerializeGameOutputMove(gameID string, move *pb.HistMove, game *pb.ChessGam
 	}
 }
 
-func SerializeGameOutputChat(gameID string, chat svc.Chat) *pb.GameOutput {
+func SerializeGameOutputChat(gameID string, chat model.Chat) *pb.GameOutput {
 	return &pb.GameOutput{
 		GameId: gameID,
 		Value: &pb.GameOutput_Chat{Chat: &pb.ChatMessage{
-			Player:  svc.SerializePlayer(chat.Player),
+			Player:  model.SerializePlayer(chat.Player),
 			Message: chat.Message,
 			SentAt:  chat.SentAt.Format(time.RFC3339),
 		}},
 	}
 }
 
-func SerializeGameOutputUndo(gameID string, undoKind string, undoID int64, state *svc.ChessState) *pb.GameOutput {
+func SerializeGameOutputUndo(gameID string, undoKind string, undoID int64, state *model.ChessState) *pb.GameOutput {
 	var game *pb.ChessGame
 	if state != nil {
 		game = chess.SerializeGame(&state.Game)

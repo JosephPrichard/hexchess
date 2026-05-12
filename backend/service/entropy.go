@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// EntropySource is a generator for generating things my program determines as "non-deterministic" and therefore must be mocked in tests
-type EntropySource interface {
+// EntropyAPI is a generator for generating things my program determines as "non-deterministic" and therefore must be mocked in tests
+type EntropyAPI interface {
 	MakeUUID() string
 	GetTime() time.Time
 }

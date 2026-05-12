@@ -7,6 +7,7 @@ import (
 	"hexchess-svc/internal/testutil"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
+	"hexchess-svc/pubsub"
 	svc "hexchess-svc/service"
 	"testing"
 
@@ -21,8 +22,8 @@ func TestHandleCreateTournamentMatchesEvent(t *testing.T) {
 	gameIDOne := "abc-game-one" + uuid.NewString()
 	gameIDTwo := "xyz-game-two" + uuid.NewString()
 
-	wantChessOne := svc.ChessState{
-		ChessMeta: svc.ChessMeta{
+	wantChessOne := model.ChessState{
+		ChessMeta: model.ChessMeta{
 			ID:          gameIDOne,
 			FirstColor:  model.White,
 			WhitePlayer: model.PlayerState{ID: 1, Name: "user1", Country: "us", Present: true},
@@ -30,8 +31,8 @@ func TestHandleCreateTournamentMatchesEvent(t *testing.T) {
 			Mode:        model.ModeCorrespondence1,
 		},
 	}
-	wantChessTwo := svc.ChessState{
-		ChessMeta: svc.ChessMeta{
+	wantChessTwo := model.ChessState{
+		ChessMeta: model.ChessMeta{
 			ID:          gameIDTwo,
 			FirstColor:  model.White,
 			WhitePlayer: model.PlayerState{ID: 3, Name: "user3", Country: "us", Present: true},
@@ -40,13 +41,13 @@ func TestHandleCreateTournamentMatchesEvent(t *testing.T) {
 		},
 	}
 
-	makeCmpChessStates := func(want []svc.ChessState) func(chessState []svc.ChessState) bool {
-		return func(chessStates []svc.ChessState) bool {
+	makeCmpChessStates := func(want []model.ChessState) func(chessState []model.ChessState) bool {
+		return func(chessStates []model.ChessState) bool {
 			return testutil.Equal(t,
 				want,
 				chessStates,
-				cmpopts.IgnoreFields(svc.ChessState{}, "InitialBoard", "Game"),
-				svc.ChessMetaCmpOpt,
+				cmpopts.IgnoreFields(model.ChessState{}, "InitialBoard", "Game"),
+				model.ChessMetaCmpOpt,
 			)
 		}
 	}
@@ -79,7 +80,7 @@ func TestHandleCreateTournamentMatchesEvent(t *testing.T) {
 			setupMocks: func(ctrl *gomock.Controller) svc.HexchessAPI {
 				hexchessAPI := svc.NewMockHexchessAPI(ctrl)
 
-				cmpChessStates := makeCmpChessStates([]svc.ChessState{wantChessOne, wantChessTwo})
+				cmpChessStates := makeCmpChessStates([]model.ChessState{wantChessOne, wantChessTwo})
 
 				hexchessAPI.EXPECT().
 					SelectUsersByIDs(gomock.Any(), gomock.Eq([]int64{1, 2, 3, 4})).
@@ -152,50 +153,50 @@ func TestHandleHandleAdvanceTournamentEvent(t *testing.T) {
 	tests := []struct {
 		name          string
 		event         *pb.ScheduledTourmmentEvent
-		setupMocks    func(*gomock.Controller) svc.HexchessAPI
+		setupMocks    func(*gomock.Controller) (svc.HexchessAPI, pubsub.BroadcasterAPI)
 		wantBroadcast *pb.TournamentOutput
 		wantErr       error
 	}{
 		{
 			name:  "AdvanceTournament",
 			event: &pb.ScheduledTourmmentEvent{TournamentKey: tournamentOneKey.String()},
-			setupMocks: func(ctrl *gomock.Controller) svc.HexchessAPI {
-				mockAdvancer := svc.NewMockHexchessAPI(ctrl)
-
-				mockAdvancer.EXPECT().
-					AdvanceTournamentTx(gomock.Any(), gomock.Eq(tournamentOneKey)).
+			setupMocks: func(ctrl *gomock.Controller) (svc.HexchessAPI, pubsub.BroadcasterAPI) {
+				mockHexchessAPI := svc.NewMockHexchessAPI(ctrl)
+				mockHexchessAPI.EXPECT().
+					AdvanceTournament(gomock.Any(), gomock.Eq(tournamentOneKey)).
 					Return(nil)
 
-				mockAdvancer.EXPECT().
+				mockBroadcasterAPI := pubsub.NewMockBroadcasterAPI(ctrl)
+				mockBroadcasterAPI.EXPECT().
 					BroadcastTournament(gomock.Any(), gomock.Eq(&pb.TournamentOutput{
 						TournamentKey: tournamentOneKey.String(),
 						Value:         &pb.TournamentOutput_Start{Start: &pb.StartTourneyOutput{}},
 					})).
 					Return(nil)
 
-				return mockAdvancer
+				return mockHexchessAPI, mockBroadcasterAPI
 			},
 		},
 		{
 			name:  "AdvanceTournamentNonRetryableError",
 			event: &pb.ScheduledTourmmentEvent{TournamentKey: tournamentTwoKey.String()},
-			setupMocks: func(ctrl *gomock.Controller) svc.HexchessAPI {
-
-				mockAdvancer := svc.NewMockHexchessAPI(ctrl)
-				mockAdvancer.EXPECT().
-					AdvanceTournamentTx(gomock.Any(), gomock.Eq(tournamentTwoKey)).
+			setupMocks: func(ctrl *gomock.Controller) (svc.HexchessAPI, pubsub.BroadcasterAPI) {
+				mockHexchessAPI := svc.NewMockHexchessAPI(ctrl)
+				mockHexchessAPI.EXPECT().
+					AdvanceTournament(gomock.Any(), gomock.Eq(tournamentTwoKey)).
 					Return(svc.MatchInvariantError{Err: errors.New("test error")})
 
-				mockAdvancer.EXPECT().
+				mockBroadcasterAPI := pubsub.NewMockBroadcasterAPI(ctrl)
+				mockBroadcasterAPI.EXPECT().
 					BroadcastTournament(gomock.Any(), gomock.Eq(&pb.TournamentOutput{
 						TournamentKey: tournamentTwoKey.String(),
 						Value: &pb.TournamentOutput_Error{
-							Error: &pb.ErrorOutput{Message: svc.ErrAdvanceTournamentCode.Error()},
+							Error: &pb.ErrorOutput{Message: model.ErrAdvanceTournamentCode.Error()},
 						},
 					})).
 					Return(nil)
 
-				return mockAdvancer
+				return mockHexchessAPI, mockBroadcasterAPI
 			},
 			wantErr: NonRetryableQueueError{
 				Err: svc.MatchInvariantError{Err: errors.New("test error")},
@@ -213,9 +214,10 @@ func TestHandleHandleAdvanceTournamentEvent(t *testing.T) {
 			bytes, err := proto.Marshal(tt.event)
 			require.NoError(t, err)
 
-			h := EventHandler{Services: tt.setupMocks(ctrl)}
+			services, broadcaster := tt.setupMocks(ctrl)
+			h := EventHandler{Services: services, Broadcaster: broadcaster}
 
-			err = h.HandleCreateTournamentMatchesEvent(ctx, bytes)
+			err = h.HandleAdvanceTournamentEvent(ctx, bytes)
 
 			require.Equal(t, tt.wantErr, err)
 		})

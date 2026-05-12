@@ -2,7 +2,10 @@ package svc
 
 import (
 	"context"
+	"go.uber.org/mock/gomock"
+	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/pubsub"
 
 	"hexchess-svc/internal/logutil"
 	"hexchess-svc/internal/testutil"
@@ -31,14 +34,23 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 	newGameID := uuid.NewString()
 	newGameIDGuest := uuid.NewString()
 
-	for _, test := range []struct {
+	setupMocks := func(ctrl *gomock.Controller) pubsub.BroadcasterAPI {
+		mockBroadcasterAPI := pubsub.NewMockBroadcasterAPI(ctrl)
+
+		mockBroadcasterAPI.EXPECT().
+			BroadcastGamesEvent(gomock.Any(), gomock.Any())
+
+		return mockBroadcasterAPI
+	}
+
+	tests := []struct {
 		name            string
-		event           FinishedGame
+		event           model.FinishedGame
 		wantLeaderboard []string
 	}{
 		{
 			name: "InsertFinishedGame",
-			event: FinishedGame{
+			event: model.FinishedGame{
 				GameID:       newGameID,
 				Board:        chess.MakeEmptyBoard(true),
 				Moves:        []chess.HistMove{},
@@ -55,7 +67,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 		},
 		{
 			name: "inserting already inserted finished game",
-			event: FinishedGame{
+			event: model.FinishedGame{
 				GameID: itest.FirstReplayGameID,
 				Board:  chess.MakeEmptyBoard(true),
 				Moves:  []chess.HistMove{},
@@ -71,7 +83,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 		},
 		{
 			name: "inserting a game with a guest",
-			event: FinishedGame{
+			event: model.FinishedGame{
 				GameID:       newGameIDGuest,
 				Board:        chess.MakeEmptyBoard(true),
 				Moves:        []chess.HistMove{},
@@ -83,19 +95,24 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			},
 			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres, itest.Redis)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			services, testinfra := setupServicesTest(t, serviceMocks{Broadcaster: setupMocks(ctrl)}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
-			err := services.InsertFinishedGame(ctx, test.event)
+			err := services.InsertFinishedGame(ctx, tt.event)
 			require.NoError(t, err)
 
-			modeLbZSet := services.leaderboardZSet(test.event.ReplayMode.String())
+			modeLbZSet := fmtLeaderboardZSet(testinfra.Redis, tt.event.ReplayMode.String())
 			leaderboard, err := services.redis.Cache.ZRevRange(ctx, modeLbZSet, 0, 2).Result()
 			require.NoError(t, err)
 
-			assert.Equal(t, test.wantLeaderboard, leaderboard)
+			assert.Equal(t, tt.wantLeaderboard, leaderboard)
 		})
 	}
 }
@@ -110,7 +127,7 @@ func TestInsertGameResult(t *testing.T) {
 
 	now := time.Now()
 
-	for _, test := range []struct {
+	tests := []struct {
 		name         string
 		resultInput  GameResult
 		wantUserElos []sqlc.SelectUserModeElosByIDsRow
@@ -280,30 +297,32 @@ func TestInsertGameResult(t *testing.T) {
 			},
 			wantChange: GameResultChangeSet{},
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
 			defer services.Close()
 
-			changeSet, err := services.InsertGameResultTx(ctx, test.resultInput)
+			changeSet, err := services.InsertGameResult(ctx, tt.resultInput)
 			require.NoError(t, err)
 
 			userElos, err := services.db.Querier().SelectUserModeElosByIDs(ctx, sqlc.SelectUserModeElosByIDsParams{
-				ID:   []int64{test.resultInput.WhiteID, test.resultInput.BlackID},
-				Mode: sqlc.ModeEnum(test.resultInput.ReplayMode.String()),
+				ID:   []int64{tt.resultInput.WhiteID, tt.resultInput.BlackID},
+				Mode: sqlc.ModeEnum(tt.resultInput.ReplayMode.String()),
 			})
 			require.NoError(t, err)
 
-			assert.Equal(t, test.wantUserElos, userElos)
+			assert.Equal(t, tt.wantUserElos, userElos)
 
 			replay, err := services.db.Querier().SelectReplayRowByID(ctx, changeSet.ReplayID)
 			require.NoError(t, err)
 
-			testutil.Equal(t, test.wantReplay, replay, cmpopts.IgnoreFields(sqlc.Replay{}, "ID", "PlayedOn", "TurnCount", "Rating"))
+			testutil.Equal(t, tt.wantReplay, replay, cmpopts.IgnoreFields(sqlc.Replay{}, "ID", "PlayedOn", "TurnCount", "Rating"))
 
 			changeSet.WinEloDiff = math.Round(changeSet.WinEloDiff)
 			changeSet.LoseEloDiff = math.Round(changeSet.LoseEloDiff)
-			testutil.Equal(t, test.wantChange, changeSet, cmpopts.IgnoreFields(GameResultChangeSet{}, "ReplayID"))
+			testutil.Equal(t, tt.wantChange, changeSet, cmpopts.IgnoreFields(GameResultChangeSet{}, "ReplayID"))
 		})
 	}
 }

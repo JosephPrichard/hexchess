@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hexchess-svc/pubsub"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -54,12 +55,12 @@ func (sse SSEWriter) writeEvent(e string, d string) {
 	sse.f.Flush()
 }
 
-func (sse SSEWriter) writeUcEvent(event svc.UcEvent) {
+func (sse SSEWriter) writeGlobalEvent(event pubsub.GlobalCastEvent) {
 	var e string
 	switch event.Kind {
-	case svc.UcActiveEvent:
+	case pubsub.GlobalActiveEvent:
 		e = ActiveCountEvent
-	case svc.UcGamesEvent:
+	case pubsub.GlobalGamesEvent:
 		e = GamesCountEvent
 	}
 	if e == "" {
@@ -69,12 +70,12 @@ func (sse SSEWriter) writeUcEvent(event svc.UcEvent) {
 	sse.writeEvent(e, event.Data)
 }
 
-func (sse SSEWriter) writeCountEvent(kind svc.UcEventKind, count int64) {
-	b, err := json.Marshal(svc.CountEvent{Count: count})
+func (sse SSEWriter) writeCountEvent(kind pubsub.GlobalEventKind, count int64) {
+	b, err := json.Marshal(pubsub.CountEvent{Count: count})
 	if err != nil {
 		slog.ErrorContext(sse.ctx, "marshal count event", "Err", err)
 	}
-	sse.writeUcEvent(svc.UcEvent{Kind: kind, Data: string(b)})
+	sse.writeGlobalEvent(pubsub.GlobalCastEvent{Kind: kind, Data: string(b)})
 }
 
 const (
@@ -100,10 +101,10 @@ func (api *API) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 		return err
 	}
 
-	w.writeCountEvent(svc.UcActiveEvent, activeCount)
-	w.writeCountEvent(svc.UcGamesEvent, gamesCount)
+	w.writeCountEvent(pubsub.GlobalActiveEvent, activeCount)
+	w.writeCountEvent(pubsub.GlobalGamesEvent, gamesCount)
 
-	countsChan := make(chan svc.UcEvent, SSEChanBufCap)
+	countsChan := make(chan pubsub.GlobalCastEvent, SSEChanBufCap)
 	api.broadcasters.CountsCaster.Subscribe(countsChan)
 
 	go func() {
@@ -119,7 +120,7 @@ func (api *API) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 			if !ok {
 				return nil
 			}
-			w.writeUcEvent(event)
+			w.writeGlobalEvent(event)
 		case <-keepAliveTicker.C:
 			w.writeEvent(MetaEvent, "KeepAlive")
 		}
@@ -160,7 +161,7 @@ func (api *API) HandleActiveConn(w SSEWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	if err := api.services.BroadcastActiveCount(ctx, count); err != nil {
+	if err := api.broadcaster.BroadcastActiveCount(ctx, count); err != nil {
 		return fmt.Errorf("broadcast active user count after adding %d: %w", count, err)
 	}
 
@@ -191,7 +192,7 @@ RecvLoop:
 	if count, err = api.services.RemoveActiveUser(detatchedCtx, strUserID); err != nil {
 		slog.ErrorContext(detatchedCtx, "failed to remove active user", "sseID", strUserID, "Err", err)
 	}
-	if err := api.services.BroadcastActiveCount(detatchedCtx, count); err != nil {
+	if err := api.broadcaster.BroadcastActiveCount(detatchedCtx, count); err != nil {
 		slog.ErrorContext(detatchedCtx, "broadcast active user count after removing", "Err", err)
 	}
 

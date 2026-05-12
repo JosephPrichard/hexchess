@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/internal/enum"
@@ -49,4 +50,19 @@ func MapOptResult(o enum.Optional[model.ReplayResult]) sqlc.NullResultEnum {
 
 func MapOptCause(o enum.Optional[model.ReplayCause]) sqlc.NullCauseEnum {
 	return sqlc.NullCauseEnum{CauseEnum: sqlc.CauseEnum(o.Value.String()), Valid: o.IsPresent}
+}
+
+func MapInsertErr(err error, uniqueViolationErr error, foreignKeyViolationErr error) error {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return nil
+	}
+	switch pgErr.Code {
+	case ErrPgUniqueViolation:
+		return uniqueViolationErr
+	case ErrPgForeignKeyViolation, ErrPgCheckViolation:
+		return foreignKeyViolationErr
+	default:
+		return nil
+	}
 }

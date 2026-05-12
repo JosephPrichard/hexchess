@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hexchess-svc/chess"
 
 	"hexchess-svc/internal/errutil"
 	"hexchess-svc/model"
@@ -110,7 +111,7 @@ func writeGameMsgErr(ctx context.Context, conn *websocket.Conn, gameID string, e
 		wsErr = ErrWsExpiration
 	case errors.Is(err, svc.ErrUndoCurrPlayer):
 		wsErr = ErrWsUndoCurrPlayer
-	case errors.Is(err, svc.ErrNoMoveUndo), errors.Is(err, svc.ErrUndoNoop), errors.Is(err, svc.ErrNoUndo):
+	case errors.Is(err, model.ErrNoMoveUndo), errors.Is(err, svc.ErrUndoNoop), errors.Is(err, svc.ErrNoUndo):
 		wsErr = ErrWsUndoAction
 	}
 
@@ -158,18 +159,18 @@ func (api *API) handleGameInit(ctx context.Context, gameID string, sessionID str
 	// produce messages for init phase
 	initBytes, err := proto.Marshal(SerializeGameOutputInit(
 		gameID,
-		svc.SerializeChessState(s),
-		svc.SerializePlayer(player),
+		model.SerializeChessState(s),
+		model.SerializePlayer(player),
 	))
 	if err != nil {
 		return player, fmt.Errorf("marshal init output: %w", err)
 	}
 	writeMessage(ctx, conn, initBytes)
 
-	if err := api.services.BroadcastGamesEvent(ctx, SerializeGameOutputPlayers(
+	if err := api.broadcaster.BroadcastGamesEvent(ctx, SerializeGameOutputPlayers(
 		gameID,
-		svc.SerializePlayer(s.WhitePlayer),
-		svc.SerializePlayer(s.BlackPlayer),
+		model.SerializePlayer(s.WhitePlayer),
+		model.SerializePlayer(s.BlackPlayer),
 	)); err != nil {
 		return player, err
 	}
@@ -211,7 +212,7 @@ func (api *API) handleGameForfeit(ctx GameSocketContext) error {
 	if err != nil {
 		return fmt.Errorf("forfeit game %s: %w", ctx.GameID, err)
 	}
-	return api.services.BroadcastGamesEvent(ctx.Context, SerializeGameOutputForfeit(ctx.GameID, endState))
+	return api.broadcaster.BroadcastGamesEvent(ctx.Context, SerializeGameOutputForfeit(ctx.GameID, endState))
 }
 
 func (api *API) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) error {
@@ -220,7 +221,7 @@ func (api *API) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) err
 		return fmt.Errorf("make move on game %s: %w", ctx.GameID, err)
 	}
 
-	return api.services.BroadcastGamesEvent(ctx.Context, SerializeGameOutputMove(
+	return api.broadcaster.BroadcastGamesEvent(ctx.Context, SerializeGameOutputMove(
 		ctx.GameID,
 		chess.SerializeHistMove(moveResult.Move),
 		chess.SerializeGame(&moveResult.State.Game),
@@ -229,7 +230,7 @@ func (api *API) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) err
 }
 
 func (api *API) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput) error {
-	chatMsg := svc.Chat{
+	chatMsg := model.Chat{
 		ID:      uuid.NewString(),
 		Player:  ctx.Player,
 		Message: pbInput.Message,
@@ -241,7 +242,7 @@ func (api *API) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput) err
 		return fmt.Errorf("insert chat on game %s: %w", ctx.GameID, err)
 	}
 
-	return api.services.BroadcastGamesEvent(ctx.Context, outputChat)
+	return api.broadcaster.BroadcastGamesEvent(ctx.Context, outputChat)
 }
 
 func (api *API) handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput) error {
@@ -255,7 +256,7 @@ func (api *API) handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput) err
 		return fmt.Errorf("%+v attempting undo on game %s: %w", ctx.Player, ctx.GameID, err)
 	}
 
-	return api.services.BroadcastGamesEvent(ctx.Context, SerializeGameOutputUndo(
+	return api.broadcaster.BroadcastGamesEvent(ctx.Context, SerializeGameOutputUndo(
 		ctx.GameID,
 		pbInput.Kind,
 		ctx.Player.ID,

@@ -1,32 +1,32 @@
-package svc
+package pubsub
 
 import (
 	"context"
-	"hexchess-svc/itest"
-	"hexchess-svc/pb"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/internal/logutil"
+	"hexchess-svc/itest"
+	"hexchess-svc/pb"
 	"testing"
 )
 
 func TestBroadcastMessage(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
-	defer services.Close()
+	rdb, _ := itest.SetupRedisTest(t.Context(), t)
+	defer rdb.Close()
+	broadcaster := MakeBroadcaster(rdb)
 
-	broadcasters := LocalBroadcasters{GamesCaster: MakeMulticasterActor("testing-multicaster")}
-	<-broadcasters.ListenGameMessages(services.redis)
+	localBroadcasters := LocalBroadcasters{GamesCaster: MakeMulticasterActor("testing-multicaster")}
+	<-localBroadcasters.ListenGameMessages(rdb)
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	wantMsgCount := 2
 
 	subChan := make(chan []byte, wantMsgCount)
-	broadcasters.GamesCaster.Subscribe("1", subChan)
+	localBroadcasters.GamesCaster.Subscribe("1", subChan)
 
 	for _, input := range []struct {
 		id  string
@@ -36,7 +36,7 @@ func TestBroadcastMessage(t *testing.T) {
 		{id: "2", msg: "test3"},
 		{id: "1", msg: "test2"},
 	} {
-		err := services.BroadcastGamesEvent(ctx, &pb.GameOutput{
+		err := broadcaster.BroadcastGamesEvent(ctx, &pb.GameOutput{
 			GameId: input.id,
 			Value:  &pb.GameOutput_Chat{Chat: &pb.ChatMessage{Message: input.msg}},
 		})

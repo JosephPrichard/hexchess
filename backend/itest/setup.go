@@ -41,7 +41,7 @@ func SetupTestInfra(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 		})
 	}
 	if err := eg.Wait(); err != nil {
-		t.Fatalf("failed to mocks test state: %v", err)
+		t.Fatalf("failed to setup test state: %v", err)
 	}
 
 	return infra

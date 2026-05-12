@@ -1,49 +1,30 @@
 package svc
 
 import (
-	"context"
 	"hexchess-svc/egress"
-	"testing"
-
 	"hexchess-svc/internal/logutil"
-	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
-
-	"github.com/google/go-cmp/cmp"
+	"hexchess-svc/pubsub"
 )
 
-type Mocks struct {
-	Entropy  EntropySource
-	Remote   egress.RemoteAPIs
-	S3Client egress.S3Client
+type serviceMocks struct {
+	Entropy     EntropyAPI
+	Remote      egress.RemoteAPIs
+	S3Client    egress.S3ClientAPI
+	Broadcaster pubsub.BroadcasterAPI
 }
 
-func SetupServicesTest(t logutil.TestLogger, mocks Mocks, flags ...itest.TestFlag) (*HexchessServices, itest.TestInfra) {
+func setupServicesTest(t logutil.TestLogger, mocks serviceMocks, flags ...itest.TestFlag) (*HexchessServices, itest.TestInfra) {
 	infra := itest.SetupTestInfra(t, flags...)
 
-	aws := egress.AWS{S3Endpoint: "http://localhost:4566", S3Client: mocks.S3Client}
-
 	services := MakeHexchessServices(Setup{
-		DB:      infra.DB,
-		Redis:   infra.Redis,
-		AWS:     aws,
-		Remote:  mocks.Remote,
-		Entropy: mocks.Entropy,
+		DB:          infra.DB,
+		Redis:       infra.Redis,
+		AWS:         egress.AWS{S3Client: mocks.S3Client},
+		Remote:      mocks.Remote,
+		Entropy:     mocks.Entropy,
+		Broadcaster: mocks.Broadcaster,
 	})
 
 	return services, infra
-}
-
-func AssertRedisChessState(t *testing.T, services *HexchessServices, wantState *ChessState, options ...cmp.Option) {
-	t.Helper()
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
-
-	if wantState == nil {
-		return
-	}
-	actualState, err := services.GetChessState(ctx, wantState.ID)
-	if err != nil {
-		t.Fatalf("failed to retrieve in redis chess state assert: %v", err)
-	}
-	testutil.Equal(t, wantState, actualState, options...)
 }

@@ -21,14 +21,14 @@ import (
 func TestCreateTournament(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, Mocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}, itest.RWPostgres)
+	services, _ := setupServicesTest(t, serviceMocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}, itest.RWPostgres)
 	defer services.Close()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
 	key := uuid.New()
 
-	tournamentID, err := services.CreateTournamentTx(ctx, TournamentInst{
+	tournamentID, err := services.CreateTournament(ctx, TournamentInst{
 		Key:       key,
 		Name:      "Tournaments 1",
 		Rounds:    2,
@@ -61,7 +61,7 @@ func TestCreateTournament(t *testing.T) {
 func TestBeginTournamentCountdown(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres)
+	services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
 	defer services.Close()
 
 	tests := []struct {
@@ -111,7 +111,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-			result, err := services.BeginTournamentCountdownTx(ctx, tt.tournamentKey, tt.userID)
+			result, err := services.BeginTournamentCountdown(ctx, tt.tournamentKey, tt.userID)
 
 			assert.Equal(t, tt.wantBeginTourneyCountdown, result)
 			assert.Equal(t, tt.wantErr, err)
@@ -136,7 +136,7 @@ var sqlcTournamentParticipantCmpOpts = cmpopts.IgnoreFields(sqlc.TournamentParti
 func TestJoinTournament(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres)
+	services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
 	defer services.Close()
 
 	tests := []struct {
@@ -185,7 +185,7 @@ func TestJoinTournament(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-			result, err := services.JoinTournamentTx(ctx, tt.inst)
+			result, err := services.JoinTournament(ctx, tt.inst)
 
 			assert.Equal(t, tt.wantResult, result)
 			assert.Equal(t, tt.wantErr, err)
@@ -412,12 +412,12 @@ func TestAdvanceTournament(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// service is constructed once per test since tests share the outbox queue and we need an assertion per outbox queue.
-			services, _ := SetupServicesTest(t, Mocks{}, itest.RWPostgres)
+			services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
 			defer services.Close()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-			err := services.AdvanceTournamentTx(ctx, tt.tournamentKey)
+			err := services.AdvanceTournament(ctx, tt.tournamentKey)
 
 			assert.Equal(t, tt.wantErr, err)
 

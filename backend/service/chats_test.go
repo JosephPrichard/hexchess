@@ -19,14 +19,14 @@ import (
 func TestEchoStateChats(t *testing.T) {
 	t.Parallel()
 
-	services, _ := SetupServicesTest(t, Mocks{}, itest.Redis)
+	services, _ := setupServicesTest(t, serviceMocks{}, itest.Redis)
 	defer services.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 
 	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
 
-	chatsIn := []Chat{
+	chatsIn := []model.Chat{
 		{
 			Player:  model.PlayerState{ID: 1, Name: "name", Country: "us", Present: true},
 			Message: "test1",

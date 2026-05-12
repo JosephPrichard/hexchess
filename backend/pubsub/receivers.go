@@ -1,18 +1,14 @@
-package svc
+package pubsub
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
+	redigo "github.com/gomodule/redigo/redis"
+	"google.golang.org/protobuf/proto"
 	"hexchess-svc/db"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"log/slog"
 	"strconv"
 	"time"
-
-	redigo "github.com/gomodule/redigo/redis"
-	"google.golang.org/protobuf/proto"
 )
 
 func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Message)) chan struct{} {
@@ -23,7 +19,7 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 		for _, ch := range chans {
 			psc.Subscribe(ch)
 		}
-		slog.Info("starting rediis pubsub channel subscriber", "channels", chans)
+		slog.Info("starting redis pubsub channel subscriber", "channels", chans)
 
 		// signals to the caller whenever the background routine is *actually* listening on the channels
 		connCh <- struct{}{}
@@ -75,7 +71,7 @@ func (b *LocalBroadcasters) Listen(rdb db.Redis) {
 	<-b.ListenGameMessages(rdb)
 	<-b.ListenUsersMessages(rdb)
 	<-b.ListenTournamentMessages(rdb)
-	<-b.ListenUnicastEvents(rdb)
+	<-b.ListenGlobalEvents(rdb)
 }
 
 func (b *LocalBroadcasters) Shutdown() {
@@ -105,7 +101,7 @@ func (b *LocalBroadcasters) ListenTournamentMessages(rdb db.Redis) chan struct{}
 		}
 		slog.Info("received message on tournaments channel", "key", output.TournamentKey, "output", &output)
 
-		bytes, err := MarshalTournamentOutputJson(&output)
+		bytes, err := model.MarshalTournamentOutputJson(&output)
 		if err != nil {
 			slog.Error("failed to transition tournament output event to json", "err", err)
 			return
@@ -124,7 +120,7 @@ func (b *LocalBroadcasters) ListenUsersMessages(rdb db.Redis) chan struct{} {
 		}
 		slog.Info("received message on users channel", "user", &userMessage)
 
-		bytes, err := MarshalUserMessageJson(&userMessage)
+		bytes, err := model.MarshalUserMessageJson(&userMessage)
 		if err != nil {
 			slog.Error("marshal user message", "err", err)
 			return
@@ -134,10 +130,10 @@ func (b *LocalBroadcasters) ListenUsersMessages(rdb db.Redis) chan struct{} {
 	})
 }
 
-func (b *LocalBroadcasters) ListenUnicastEvents(rdb db.Redis) chan struct{} {
-	var eventMap = map[string]UcEventKind{
-		rdb.ActiveCountChannel: UcActiveEvent,
-		rdb.GamesCountChannel:  UcGamesEvent,
+func (b *LocalBroadcasters) ListenGlobalEvents(rdb db.Redis) chan struct{} {
+	var eventMap = map[string]GlobalEventKind{
+		rdb.ActiveCountChannel: GlobalActiveEvent,
+		rdb.GamesCountChannel:  GlobalGamesEvent,
 	}
 
 	var channels []string
@@ -155,69 +151,6 @@ func (b *LocalBroadcasters) ListenUnicastEvents(rdb db.Redis) chan struct{} {
 			slog.Error("received event on unmapped channel", "channel", v.Channel, "eventMap", eventMap)
 			return
 		}
-		b.CountsCaster.Broadcast(UcEvent{Kind: eKind, Data: strData})
+		b.CountsCaster.Broadcast(GlobalCastEvent{Kind: eKind, Data: strData})
 	})
-}
-
-func (svc *HexchessServices) broadcastMessage(ctx context.Context, channel string, bytes []byte) error {
-	conn := svc.redis.PubSub.Get()
-	defer conn.Close()
-
-	if _, err := conn.Do("PUBLISH", channel, bytes); err != nil {
-		return fmt.Errorf("publish message to channel %s, %w", channel, err)
-	}
-	slog.InfoContext(ctx, "broadcasted message to channel", "channel", channel)
-	return nil
-}
-
-type CountEvent struct {
-	Count int64 `json:"count"`
-}
-
-func (svc *HexchessServices) broadcastCountEvent(ctx context.Context, channel string, count int64) error {
-	slog.InfoContext(ctx, "broadcasting count event", "channel", channel, "count", count)
-
-	bytes, err := json.Marshal(CountEvent{Count: count})
-	if err != nil {
-		return fmt.Errorf("marshal count event message: %w", err)
-	}
-	return svc.broadcastMessage(ctx, channel, bytes)
-}
-
-func (svc *HexchessServices) BroadcastActiveCount(ctx context.Context, count int64) error {
-	return svc.broadcastCountEvent(ctx, svc.redis.ActiveCountChannel, count)
-}
-
-func (svc *HexchessServices) BroadcastGameCount(ctx context.Context, count int64) error {
-	return svc.broadcastCountEvent(ctx, svc.redis.GamesCountChannel, count)
-}
-
-func (svc *HexchessServices) BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput) error {
-	slog.InfoContext(ctx, "broadcasting game event", "gameOutput", output)
-
-	bytes, err := proto.Marshal(output)
-	if err != nil {
-		return fmt.Errorf("marshal game event message: %w", err)
-	}
-	return svc.broadcastMessage(ctx, svc.redis.GamesChannel, bytes)
-}
-
-func (svc *HexchessServices) BroadcastTournament(ctx context.Context, tournament *pb.TournamentOutput) error {
-	slog.InfoContext(ctx, "broadcasting tournament", "tournamentOutput", tournament)
-
-	bytes, err := proto.Marshal(tournament)
-	if err != nil {
-		return fmt.Errorf("marshal tournament message: %w", err)
-	}
-	return svc.broadcastMessage(ctx, svc.redis.TournamentsChannel, bytes)
-}
-
-func (svc *HexchessServices) BroadcastChallenge(ctx context.Context, challenge model.Challenge) error {
-	slog.InfoContext(ctx, "broadcasting challenge", "challenge", challenge)
-
-	bytes, err := proto.Marshal(SerializeChallengeMessage(challenge))
-	if err != nil {
-		return fmt.Errorf("marshal user challenge message: %w", err)
-	}
-	return svc.broadcastMessage(ctx, svc.redis.UsersChannel, bytes)
 }

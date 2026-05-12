@@ -6,6 +6,7 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/egress"
 	"hexchess-svc/internal/logutil"
+	"hexchess-svc/pubsub"
 	"hexchess-svc/queue"
 	svc "hexchess-svc/service"
 	"hexchess-svc/web"
@@ -73,14 +74,15 @@ func main() {
 	}
 
 	services := svc.MakeHexchessServices(svc.Setup{
-		DB:     pdb,
-		Redis:  rdb,
-		AWS:    aws,
-		Remote: egress.MakeRemoteAPIs(),
+		DB:          pdb,
+		Redis:       rdb,
+		AWS:         aws,
+		Remote:      egress.MakeRemoteAPIs(),
+		Broadcaster: pubsub.MakeBroadcaster(rdb),
 	})
 	defer services.Close()
 
-	broadcasters := svc.MakeLocalBroadcasters()
+	broadcasters := pubsub.MakeLocalBroadcasters()
 	broadcasters.Listen(rdb)
 	defer broadcasters.Shutdown()
 
@@ -103,7 +105,7 @@ func main() {
 	serverSetup := web.Setup{
 		Services:       services,
 		AllowedOrigins: allowedOrigins,
-		Broadcasers:    broadcasters,
+		Broadcasters:   broadcasters,
 	}
 	if err := http.ListenAndServe(":"+serverPort, web.MakeServeMux(serverSetup, withHealthcheck)); err != nil {
 		logutil.FatalErr("failed while serving", err)

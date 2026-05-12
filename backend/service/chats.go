@@ -3,18 +3,16 @@ package svc
 import (
 	"context"
 	"fmt"
+	"google.golang.org/protobuf/proto"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"log/slog"
-	"time"
-
-	"google.golang.org/protobuf/proto"
 
 	"github.com/redis/go-redis/v9"
 )
 
 func (svc *HexchessServices) GetStateChats(ctx context.Context, gameID string, count int64) ([]*pb.ChatMessage, error) {
-	chatsZSet := svc.gameChatsZSet(svc.gameKey(gameID))
+	chatsZSet := fmtGameChatsZSet(svc.redis, fmtGameKey(svc.redis, gameID))
 	strList, err := svc.redis.Cache.ZRevRange(ctx, chatsZSet, 0, count).Result()
 	if err != nil {
 		return nil, fmt.Errorf("get the first %d chats: %w", count, err)
@@ -33,19 +31,12 @@ func (svc *HexchessServices) GetStateChats(ctx context.Context, gameID string, c
 	return pbChats, nil
 }
 
-type Chat struct {
-	ID      string            `json:"existingID"`
-	Player  model.PlayerState `json:"player"`
-	Message string            `json:"message"`
-	SentAt  time.Time         `json:"sentAt"`
-}
-
-func (svc *HexchessServices) InsertStateChat(ctx context.Context, gameID string, chat Chat) error {
-	bytes, err := proto.Marshal(SerializeChat(chat))
+func (svc *HexchessServices) InsertStateChat(ctx context.Context, gameID string, chat model.Chat) error {
+	bytes, err := proto.Marshal(model.SerializeChat(chat))
 	if err != nil {
 		return fmt.Errorf("marshal chat: %w", err)
 	}
-	chatsZSet := svc.gameChatsZSet(svc.gameKey(gameID))
+	chatsZSet := fmtGameChatsZSet(svc.redis, fmtGameKey(svc.redis, gameID))
 	if err := svc.redis.Cache.ZAdd(ctx, chatsZSet, redis.Z{Score: float64(chat.SentAt.UnixMilli()), Member: bytes}).Err(); err != nil {
 		return fmt.Errorf("add chat %v to zset: %w", chat, err)
 	}

@@ -90,7 +90,7 @@ func (svc *HexchessServices) DeleteOldProfilePics(ctx context.Context, playerID 
 
 func (svc *HexchessServices) UploadProfilePic(ctx context.Context, uploader model.PlayerState, file io.Reader, contentType string) (string, error) {
 	// uploading profile picture based off a computed Key
-	key := svc.makeProfileNewPicKey(uploader.ID)
+	key := makeProfileNewPicKey(uploader.ID, svc.entropy.MakeUUID())
 
 	slog.InfoContext(ctx, "uploading profile pic to s3", "key", key, "player", uploader)
 	start := time.Now()

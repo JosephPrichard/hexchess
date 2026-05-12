@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
+	"hexchess-svc/pubsub"
 	svc "hexchess-svc/service"
 	"log/slog"
 
@@ -14,11 +15,12 @@ import (
 )
 
 type EventHandler struct {
-	Services svc.HexchessAPI
+	Services    svc.HexchessAPI
+	Broadcaster pubsub.BroadcasterAPI
 }
 
 func (h EventHandler) HandleCreateTournamentMatchesEvent(ctx context.Context, bytes []byte) error {
-	event, err := svc.UnmarshalCreateTournamentMatchesEvent(bytes)
+	event, err := model.UnmarshalCreateTournamentMatchesEvent(bytes)
 	if err != nil {
 		return fmt.Errorf("unmarshal create tournament matches event: %w", err)
 	}
@@ -38,7 +40,7 @@ func (h EventHandler) HandleCreateTournamentMatchesEvent(ctx context.Context, by
 		userDataMap[user.ID] = user
 	}
 
-	var chessStates []svc.ChessState
+	var chessStates []model.ChessState
 
 	for _, match := range event.Matches {
 		whitePlayerData, okWhite := userDataMap[match.WhiteID]
@@ -49,7 +51,7 @@ func (h EventHandler) HandleCreateTournamentMatchesEvent(ctx context.Context, by
 			return fmt.Errorf("missing player data for match: %+v", match)
 		}
 
-		chessStates = append(chessStates, svc.MakeChessStateVal(svc.StateSetup{
+		chessStates = append(chessStates, model.MakeChessStateVal(model.StateSetup{
 			ID:         match.GameID,
 			Mode:       match.GameMode,
 			FirstColor: model.White,
@@ -67,7 +69,7 @@ func (h EventHandler) HandleCreateTournamentMatchesEvent(ctx context.Context, by
 	return nil
 }
 
-// operation is idempotent, if two tournament advances run successively, the second will noop
+// HandleAdvanceTournamentEvent operation is idempotent, if two tournament advances run successively, the second will noop
 func (h EventHandler) HandleAdvanceTournamentEvent(ctx context.Context, bytes []byte) error {
 	var pbEvent pb.ScheduledTourmmentEvent
 	if err := proto.Unmarshal(bytes, &pbEvent); err != nil {
@@ -79,21 +81,21 @@ func (h EventHandler) HandleAdvanceTournamentEvent(ctx context.Context, bytes []
 	}
 
 	// attempt to advance the tournament, broadcast the result (successful or otherwise)
-	err = h.Services.AdvanceTournamentTx(ctx, tournamentKey)
+	err = h.Services.AdvanceTournament(ctx, tournamentKey)
 
 	var matchStateError svc.MatchInvariantError
 	switch {
 	case errors.As(err, &matchStateError):
 		slog.WarnContext(ctx, "failed to start tournament due to match state invariant error", "tournamentKey", tournamentKey, "err", err)
 
-		if err := h.Services.BroadcastTournament(ctx, svc.SerializeTournamentError(tournamentKey, svc.ErrAdvanceTournamentCode)); err != nil {
+		if err := h.Broadcaster.BroadcastTournament(ctx, model.SerializeTournamentError(tournamentKey, model.ErrAdvanceTournamentCode)); err != nil {
 			return fmt.Errorf("broadcast tournament error: %w", err)
 		}
 		return NonRetryableQueueError{Err: matchStateError}
 	case err != nil:
 		return fmt.Errorf("start tournament %s: %w", tournamentKey, err)
 	default:
-		if err := h.Services.BroadcastTournament(ctx, svc.SerializeStartTournament(tournamentKey)); err != nil {
+		if err := h.Broadcaster.BroadcastTournament(ctx, model.SerializeStartTournament(tournamentKey)); err != nil {
 			return fmt.Errorf("broadcast start tournament event: %w", err)
 		}
 		return nil
@@ -101,7 +103,7 @@ func (h EventHandler) HandleAdvanceTournamentEvent(ctx context.Context, bytes []
 }
 
 func (h EventHandler) HandleFinishedGameEvent(ctx context.Context, eventData string) error {
-	event, err := svc.UnmarshalFinishedGame([]byte(eventData))
+	event, err := model.UnmarshalFinishedGame([]byte(eventData))
 	if err != nil {
 		return NonRetryableQueueError{Err: err}
 	}

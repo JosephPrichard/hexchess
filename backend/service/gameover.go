@@ -18,22 +18,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type FinishedGame struct {
-	GameID       string             `json:"existingID"`
-	Board        chess.Board        `json:"board"`
-	Moves        []chess.HistMove   `json:"moves"`
-	WhitePlayer  model.PlayerState  `json:"whitePlayer"`
-	BlackPlayer  model.PlayerState  `json:"blackPlayer"`
-	ReplayMode   model.GameMode     `json:"mode"`
-	ReplayResult model.ReplayResult `json:"replayresult"`
-	ReplayCause  model.ReplayCause  `json:"replaycause"`
-}
-
-func (svc *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGame FinishedGame) error {
+func (svc *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGame model.FinishedGame) error {
 	var changeSet GameResultChangeSet
 
 	if !finishedGame.WhitePlayer.Present || !finishedGame.BlackPlayer.Present {
-		slog.Warn("both players must be existingID on a finished game", "gameID", finishedGame.GameID)
+		slog.WarnContext(ctx, "both players must be existingID on a finished game", "gameID", finishedGame.GameID)
 		return nil
 	}
 	whiteID := finishedGame.WhitePlayer.ID
@@ -44,7 +33,7 @@ func (svc *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGam
 		return fmt.Errorf("marshal move history to s3: %w", err)
 	}
 
-	changeSet, err = svc.InsertGameResultTx(ctx, GameResult{
+	changeSet, err = svc.InsertGameResult(ctx, GameResult{
 		GameID:       finishedGame.GameID,
 		WhiteID:      whiteID,
 		BlackID:      blackID,
@@ -66,7 +55,7 @@ func (svc *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGam
 	if err != nil {
 		return fmt.Errorf("get replay by ID %d: %w", changeSet.ReplayID, err)
 	}
-	if err := svc.BroadcastGamesEvent(ctx, SerializeReplayOutput(finishedGame.GameID, replay)); err != nil {
+	if err := svc.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(finishedGame.GameID, replay)); err != nil {
 		return fmt.Errorf("broadcast replay entity output: %w", err)
 	}
 
@@ -125,7 +114,7 @@ func (changeSet GameResultChangeSet) IsNoop() bool {
 	return changeSet.LoseEloDiff == 0 && changeSet.WinEloDiff == 0
 }
 
-func (svc *HexchessServices) InsertGameResultTx(ctx context.Context, result GameResult) (GameResultChangeSet, error) {
+func (svc *HexchessServices) InsertGameResult(ctx context.Context, result GameResult) (GameResultChangeSet, error) {
 	var changeSet GameResultChangeSet
 
 	err := svc.db.ExecTx(ctx, db.TxArgs{
