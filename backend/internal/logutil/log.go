@@ -25,7 +25,7 @@ func DynLog(ctx context.Context, msg string, err error, args ...any) {
 	if err != nil {
 		ea := make([]any, len(args)+2)
 		copy(ea, args)
-		ea[len(args)] = "err"
+		ea[len(args)] = "error"
 		ea[len(args)+1] = err
 		slog.ErrorContext(ctx, msg, ea...)
 	} else {
@@ -39,7 +39,7 @@ func Fatal(msg string, args ...any) {
 }
 
 func FatalErr(msg string, err error) {
-	slog.Error("failed to "+msg, "err", err)
+	slog.Error("failed to "+msg, "error", err)
 	os.Exit(1)
 }
 

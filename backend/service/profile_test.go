@@ -1,7 +1,6 @@
 package svc
 
 import (
-	"context"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"go.uber.org/mock/gomock"
 
@@ -9,7 +8,6 @@ import (
 	"time"
 
 	"hexchess-svc/egress"
-	"hexchess-svc/internal/logutil"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -29,7 +27,7 @@ func TestDeleteOldProfilePics(t *testing.T) {
 	services, _ := setupServicesTest(t, mocks)
 	defer services.Close()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	mockS3Client.EXPECT().
 		ListObjectsV2(gomock.Any(), &s3.ListObjectsV2Input{

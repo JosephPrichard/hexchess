@@ -21,7 +21,7 @@ func TestBroadcastMessage(t *testing.T) {
 	localBroadcasters := LocalBroadcasters{GamesCaster: MakeMulticasterActor("testing-multicaster")}
 	<-localBroadcasters.ListenGameMessages(rdb)
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	wantMsgCount := 2
 

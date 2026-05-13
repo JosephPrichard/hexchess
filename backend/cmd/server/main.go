@@ -93,7 +93,7 @@ func main() {
 
 	go func() {
 		if err := http.ListenAndServe(":6060", nil); err != nil {
-			slog.Error("failed while serving pprof", "err", err)
+			slog.Error("failed while serving pprof", "error", err)
 		}
 	}()
 

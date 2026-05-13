@@ -80,7 +80,7 @@ func TestGameFinishStreamer(t *testing.T) {
 	testinfra := itest.SetupTestInfra(t, itest.Redis)
 	defer testinfra.Close()
 
-	ctx, cancel := context.WithCancel(context.WithValue(t.Context(), logutil.Trace, t.Name()))
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	for _, event := range inputEvents {

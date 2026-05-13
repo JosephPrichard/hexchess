@@ -81,7 +81,7 @@ func (svc *HexchessServices) CreateGame(ctx context.Context, color model.GameCol
 
 	go func() {
 		if err := svc.broadcastGameCounts(strID); err != nil {
-			slog.ErrorContext(ctx, "failed to broadcast game count after creating game", "err", err)
+			slog.ErrorContext(ctx, "failed to broadcast game count after creating game", "error", err)
 		}
 	}()
 	return strID, nil

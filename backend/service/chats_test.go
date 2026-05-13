@@ -1,13 +1,9 @@
 package svc
 
 import (
-	"context"
+	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
-	"hexchess-svc/pb"
-
-	"hexchess-svc/internal/logutil"
-	"hexchess-svc/internal/testutil"
 	"testing"
 	"time"
 
@@ -24,7 +20,7 @@ func TestEchoStateChats(t *testing.T) {
 
 	id1 := "testing-id1-" + uuid.NewString()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	chatsIn := []model.Chat{
 		{
@@ -43,30 +39,25 @@ func TestEchoStateChats(t *testing.T) {
 	}
 
 	for _, chat := range chatsIn {
-		require.NoError(t, services.InsertStateChat(ctx, id1, chat))
+		require.NoError(t, services.InsertChat(ctx, id1, chat))
 	}
 
-	chatsOut, err := services.GetStateChats(ctx, id1, 3)
+	chatsOut, err := services.GetChats(ctx, id1, 3)
 	require.NoError(t, err)
 
-	wantChats := []*pb.ChatMessage{
+	wantChats := []model.Chat{
 		{
 			Message: "test3",
-			SentAt:  "2022-01-01T00:03:00Z",
+			SentAt:  time.Date(2022, 1, 1, 0, 3, 0, 0, time.UTC),
 		},
 		{
 			Message: "test2",
-			SentAt:  "2022-01-01T00:02:00Z",
+			SentAt:  time.Date(2022, 1, 1, 0, 2, 0, 0, time.UTC),
 		},
 		{
-			Player: &pb.PlayerState{
-				Id:      1,
-				Name:    "name",
-				Country: "us",
-				IsGuest: false,
-			},
+			Player:  model.PlayerState{ID: 1, Name: "name", Country: "us", Present: true},
 			Message: "test1",
-			SentAt:  "2022-01-01T00:01:00Z",
+			SentAt:  time.Date(2022, 1, 1, 0, 1, 0, 0, time.UTC),
 		},
 	}
 	testutil.Equal(t, wantChats, chatsOut, protocmp.Transform())

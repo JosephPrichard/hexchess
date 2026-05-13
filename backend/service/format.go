@@ -13,7 +13,7 @@ func fmtUserGameZSet(redis db.Redis, id int64) string {
 	return fmt.Sprintf("%s/user/%d", redis.GamesZSet, id)
 }
 
-func fmtGameKey(redis db.Redis, gameID string) string {
+func fmtGameKey(gameID string) string {
 	return fmt.Sprintf("game/%s", gameID)
 }
 

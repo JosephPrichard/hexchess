@@ -164,6 +164,33 @@ func SerializeChat(chat Chat) *pb.ChatMessage {
 	}
 }
 
+func MarshalChats(chats []Chat) ([]byte, error) {
+	pbChats := make([]*pb.ChatMessage, 0, len(chats))
+	for _, chat := range chats {
+		pbChats = append(pbChats, SerializeChat(chat))
+	}
+	return proto.Marshal(&pb.ChatMessages{
+		Chats: pbChats,
+	})
+}
+
+func UnmarshalChat(bytes []byte) (Chat, error) {
+	pbChat := &pb.ChatMessage{}
+	if err := proto.Unmarshal(bytes, pbChat); err != nil {
+		return Chat{}, err
+	}
+	madeOn, err := time.Parse(time.RFC3339, pbChat.SentAt)
+	if err != nil {
+		return Chat{}, err
+	}
+	return Chat{
+		ID:      pbChat.Id,
+		Player:  DeserializePlayer(pbChat.Player),
+		Message: pbChat.Message,
+		SentAt:  madeOn,
+	}, nil
+}
+
 // UserMessage
 
 func MarshalUserMessage(pbUserMessage *pb.UserMessage) (Challenge, error) {

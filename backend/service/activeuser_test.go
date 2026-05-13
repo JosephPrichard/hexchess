@@ -1,12 +1,12 @@
 package svc
 
 import (
-	"context"
+	"go.uber.org/mock/gomock"
+	"hexchess-svc/pubsub"
 
 	"testing"
 	"time"
 
-	"hexchess-svc/internal/logutil"
 	"hexchess-svc/itest"
 
 	"github.com/stretchr/testify/assert"
@@ -16,12 +16,25 @@ import (
 func TestActiveUser(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.Redis)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	broadcaster := pubsub.NewMockBroadcasterAPI(ctrl)
+	broadcaster.EXPECT().
+		BroadcastActiveCount(gomock.Any(), gomock.Eq(int64(1)))
+	broadcaster.EXPECT().
+		BroadcastActiveCount(gomock.Any(), gomock.Eq(int64(2)))
+	broadcaster.EXPECT().
+		BroadcastActiveCount(gomock.Any(), gomock.Eq(int64(1)))
+	broadcaster.EXPECT().
+		BroadcastActiveCount(gomock.Any(), gomock.Eq(int64(2)))
+
+	services, _ := setupServicesTest(t, serviceMocks{Broadcaster: broadcaster}, itest.Redis)
 	defer services.Close()
 
 	services.entropy = &StableEntropySource{CurrTime: time.UnixMilli(int64(ActiveUserMaxage * 5))}
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	_, err := services.AddActiveUser(ctx, "1")
 	require.NoError(t, err)

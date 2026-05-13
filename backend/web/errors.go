@@ -68,7 +68,7 @@ func (re *ResponseError) Put(key string, newErr error) {
 	re.Errors[key] = newErr
 }
 
-func ofRespError(key string, newErr error) error {
+func respError(key string, newErr error) error {
 	return &ResponseError{Errors: map[string]error{key: BadRequestError{newErr}}}
 }
 

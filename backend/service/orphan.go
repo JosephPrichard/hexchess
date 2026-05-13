@@ -28,7 +28,7 @@ func (svc *HexchessServices) ClearOrphanFiles(ctx context.Context, pageLength in
 	} {
 		wg.Go(func() {
 			if err := svc.removeOrphanedObjects(ctx, config); err != nil {
-				slog.ErrorContext(ctx, "failed to remove orphaned objects", "config", config, "err", err)
+				slog.ErrorContext(ctx, "failed to remove orphaned objects", "config", config, "error", err)
 			}
 		})
 	}
@@ -78,7 +78,7 @@ func (svc *HexchessServices) removeOrphanedObjects(ctx context.Context, opts Rem
 			key := *obj.Key
 			objectID, err := opts.parseID(key)
 			if err != nil {
-				slog.ErrorContext(ctx, "failed to parse object Key", "key", key, "err", err)
+				slog.ErrorContext(ctx, "failed to parse object Key", "key", key, "error", err)
 				continue
 			}
 			ids = append(ids, objectID)
@@ -120,7 +120,7 @@ func (svc *HexchessServices) removeOrphanedObjects(ctx context.Context, opts Rem
 			Bucket: aws.String(opts.Bucket),
 			Delete: &s3Types.Delete{Objects: orphanedKeys},
 		}); err != nil {
-			slog.ErrorContext(ctx, "failed to delete orphaned keys", "keys", orphanedKeys, "err", err)
+			slog.ErrorContext(ctx, "failed to delete orphaned keys", "keys", orphanedKeys, "error", err)
 		}
 	}
 	return nil

@@ -1,13 +1,13 @@
 package svc
 
 import (
-	"context"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/testing/protocmp"
 	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/pb"
 	"hexchess-svc/pubsub"
 
-	"hexchess-svc/internal/logutil"
 	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
@@ -27,7 +27,7 @@ import (
 func TestInsertFinishedGameEvent(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	testUser0 := itest.TestUser[0]
 	testUser1 := itest.TestUser[1]
@@ -36,16 +36,15 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 
 	setupMocks := func(ctrl *gomock.Controller) pubsub.BroadcasterAPI {
 		mockBroadcasterAPI := pubsub.NewMockBroadcasterAPI(ctrl)
-
 		mockBroadcasterAPI.EXPECT().
 			BroadcastGamesEvent(gomock.Any(), gomock.Any())
-
 		return mockBroadcasterAPI
 	}
 
 	tests := []struct {
 		name            string
 		event           model.FinishedGame
+		setupMocks      func(ctrl *gomock.Controller) pubsub.BroadcasterAPI
 		wantLeaderboard []string
 	}{
 		{
@@ -59,6 +58,39 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				ReplayMode:   model.ModeCorrespondence1,
 				ReplayCause:  model.Checkmate,
 				ReplayResult: model.WhiteWin,
+			},
+			setupMocks: func(ctrl *gomock.Controller) pubsub.BroadcasterAPI {
+				mockBroadcasterAPI := pubsub.NewMockBroadcasterAPI(ctrl)
+
+				wantOutput := &pb.GameOutput{
+					GameId: newGameID,
+					Value: &pb.GameOutput_Replay{Replay: &pb.Replay{
+						BlackCountry: "us",
+						BlackElo:     985,
+						BlackEloDiff: -15,
+						BlackId:      2,
+						BlackName:    "user2",
+						Cause:        model.Checkmate.String(),
+						Id:           12,
+						LoseEloDiff:  -15,
+						Mode:         model.ModeCorrespondence1.String(),
+						Result:       model.WhiteWin.String(),
+						WhiteCountry: "us",
+						WhiteElo:     1015,
+						WhiteEloDiff: 15,
+						WhiteId:      1,
+						WhiteName:    "user1",
+						WinEloDiff:   15,
+					}},
+				}
+				mockBroadcasterAPI.EXPECT().
+					BroadcastGamesEvent(gomock.Any(), gomock.Cond(func(output *pb.GameOutput) bool {
+						return testutil.Equal(t, wantOutput, output,
+							protocmp.Transform(),
+							protocmp.IgnoreFields(&pb.Replay{}, "played_on"))
+					}))
+
+				return mockBroadcasterAPI
 			},
 			wantLeaderboard: []string{
 				strconv.Itoa(int(testUser0.ID)),
@@ -79,6 +111,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				ReplayCause:  model.Forfeit,
 				ReplayResult: model.BlackWin,
 			},
+			setupMocks:      setupMocks,
 			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
 		},
 		{
@@ -93,6 +126,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				ReplayCause:  model.Forfeit,
 				ReplayResult: model.BlackWin,
 			},
+			setupMocks:      setupMocks,
 			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
 		},
 	}
@@ -102,7 +136,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			services, testinfra := setupServicesTest(t, serviceMocks{Broadcaster: setupMocks(ctrl)}, itest.RWPostgres, itest.Redis)
+			services, testinfra := setupServicesTest(t, serviceMocks{Broadcaster: tt.setupMocks(ctrl)}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			err := services.InsertFinishedGame(ctx, tt.event)
@@ -120,7 +154,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 func TestInsertGameResult(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	testUser0 := itest.TestUser[0]
 	testUser1 := itest.TestUser[1]

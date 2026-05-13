@@ -121,7 +121,7 @@ func TestPollOutboxQueueEvents(t *testing.T) {
 			testinfra := itest.SetupTestInfra(t, itest.RWPostgres)
 			defer testinfra.Close()
 
-			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+			ctx := t.Context()
 
 			for _, params := range tt.inputEvents {
 				err := testinfra.DB.Querier().InsertOutboxQueue(ctx, params)

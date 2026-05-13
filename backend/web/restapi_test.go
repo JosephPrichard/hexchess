@@ -1000,7 +1000,7 @@ func TestGetTournament(t *testing.T) {
 			defer services.Close()
 
 			for _, change := range itest.TournamentLbdChangeSets {
-				require.NoError(t, services.SetLeaderboard(context.WithValue(t.Context(), logutil.Trace, t.Name()), change))
+				require.NoError(t, services.SetLeaderboard(t.Context(), change))
 			}
 
 			q := url.Values{}

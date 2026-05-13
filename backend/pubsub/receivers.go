@@ -30,7 +30,7 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 			case redigo.Subscription:
 				slog.Info("received subscription on channel", "value", v, "channel", v.Channel)
 			case error:
-				slog.Error("receive from channel", "err", v, "channel", chans)
+				slog.Error("receive from channel", "error", v, "channel", chans)
 				return
 			}
 		}
@@ -40,7 +40,7 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 		for {
 			conn, err := redigo.Dial("tcp", addr)
 			if err != nil {
-				slog.Error("failed to get conn for pubsub", "err", err)
+				slog.Error("failed to get conn for pubsub", "error", err)
 			} else {
 				recvLoop(conn)
 			}
@@ -83,7 +83,7 @@ func (b *LocalBroadcasters) ListenGameMessages(rdb db.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.GamesChannel}, func(v redigo.Message) {
 		var outputID pb.GameOutputID
 		if err := proto.Unmarshal(v.Data, &outputID); err != nil {
-			slog.Error("unmarshal game message", "err", err)
+			slog.Error("unmarshal game message", "error", err)
 			return
 		}
 		slog.Info("received message on games channel", "key", outputID.GameId)
@@ -96,14 +96,14 @@ func (b *LocalBroadcasters) ListenTournamentMessages(rdb db.Redis) chan struct{}
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.TournamentsChannel}, func(v redigo.Message) {
 		var output pb.TournamentOutput
 		if err := proto.Unmarshal(v.Data, &output); err != nil {
-			slog.Error("unmarshal tournament message", "err", err)
+			slog.Error("unmarshal tournament message", "error", err)
 			return
 		}
 		slog.Info("received message on tournaments channel", "key", output.TournamentKey, "output", &output)
 
 		bytes, err := model.MarshalTournamentOutputJson(&output)
 		if err != nil {
-			slog.Error("failed to transition tournament output event to json", "err", err)
+			slog.Error("failed to transition tournament output event to json", "error", err)
 			return
 		}
 
@@ -115,14 +115,14 @@ func (b *LocalBroadcasters) ListenUsersMessages(rdb db.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.UsersChannel}, func(v redigo.Message) {
 		var userMessage pb.UserMessage
 		if err := proto.Unmarshal(v.Data, &userMessage); err != nil {
-			slog.Error("unmarshal user message", "err", err)
+			slog.Error("unmarshal user message", "error", err)
 			return
 		}
 		slog.Info("received message on users channel", "user", &userMessage)
 
 		bytes, err := model.MarshalUserMessageJson(&userMessage)
 		if err != nil {
-			slog.Error("marshal user message", "err", err)
+			slog.Error("marshal user message", "error", err)
 			return
 		}
 

@@ -124,7 +124,7 @@ func TestGetChallengesByParticipant(t *testing.T) {
 	services, _ := setupServicesTest(t, mocks, itest.ROPostgres)
 	defer services.Close()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	challenges, err := services.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
@@ -138,7 +138,7 @@ func TestDeleteExpiredChallenges(t *testing.T) {
 	services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
 	defer services.Close()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	// gets only expired challenges
 	services.entropy = &StableEntropySource{CurrTime: itest.TimeNow}
@@ -160,7 +160,7 @@ func TestDeleteChallenge(t *testing.T) {
 	services, _ := setupServicesTest(t, mocks, itest.RWPostgres)
 	defer services.Close()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	key := ChallengeKey{ChallengerID: 1, ChallengeeID: 2}
 

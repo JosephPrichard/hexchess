@@ -228,7 +228,7 @@ func (svc *HexchessServices) GetLeaderboardPage(ctx context.Context, mode model.
 	offset := (page - 1) * perPage
 
 	leaderboard, err := svc.getLeaderboard(ctx, mode, offset, perPage)
-	logutil.DynLog(ctx, "retrieved leaderboard page", err, "page", page, "perPage", perPage, "leaderboard", leaderboard, "err", err)
+	logutil.DynLog(ctx, "retrieved leaderboard page", err, "page", page, "perPage", perPage, "leaderboard", leaderboard, "error", err)
 	return leaderboard, err
 }
 

@@ -83,7 +83,7 @@ func (stream *RedisConsumer[Event]) EventLoop() error {
 			slog.Info("context cancelled, exiting finish event loop")
 			return nil
 		default:
-			slog.Error("failed to read from finish redis stream", "err", err)
+			slog.Error("failed to read from finish redis stream", "error", err)
 			continue
 		}
 
@@ -119,7 +119,7 @@ func (stream *RedisConsumer[Event]) handleXReadMessage(msg redis.XMessage) {
 		err := stream.HandleEvent(stream.Context, data)
 
 		if err != nil {
-			slog.Error("failed to handle event", "err", err)
+			slog.Error("failed to handle event", "error", err)
 			if errutil.IsType[NonRetryableQueueError](err) {
 				return sendAck
 			} else {
@@ -134,7 +134,7 @@ func (stream *RedisConsumer[Event]) handleXReadMessage(msg redis.XMessage) {
 		return
 	}
 	if err := stream.Client.XAck(stream.Context, stream.StreamKey, stream.ConsumerGroup, msg.ID).Err(); err != nil {
-		slog.Error("failed to acknowledge event", "id", msg.ID, "err", err)
+		slog.Error("failed to acknowledge event", "id", msg.ID, "error", err)
 	} else {
 		slog.Info("acknowledged finished event", "id", msg.ID)
 	}

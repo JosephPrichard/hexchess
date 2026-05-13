@@ -10,7 +10,6 @@ import (
 	"hexchess-svc/pubsub"
 
 	"hexchess-svc/model"
-	"hexchess-svc/pb"
 	"io"
 	"time"
 
@@ -67,11 +66,11 @@ type HexchessAPI interface {
 	GetTournament(ctx context.Context, tournamentKey uuid.UUID) (model.FullTournament, error)
 	GetTournaments(ctx context.Context, participantID enum.Optional[int64], afterID enum.Optional[int64], perPage int32) ([]model.Tournament, error)
 	CreateTournament(ctx context.Context, inst TournamentInst) (int64, error)
-	JoinTournament(ctx context.Context, inst JoinTournamentInst) (JoinTournamentResult, error)
-	JoinTournamentAndSelectUser(ctx context.Context, inst JoinTournamentInst) (model.LbdUser, error)
+	JoinTournament(ctx context.Context, inst JoinTournamentInst) (JoinTournamentEvent, error)
 	BeginTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, userID int64) (BeginTourneyCountdown, error)
 	LeaveTournament(ctx context.Context, tournamentKey uuid.UUID, userID int64) (bool, error)
 	AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID) error
+	BroadcastTournamentParticipant(ctx context.Context, playerID int64, tournamentJoin JoinTournamentEvent) error
 
 	GetUserChessMetas(ctx context.Context, userID int64) ([]model.ChessMeta, error)
 	GetUserChessMetasPaged(ctx context.Context, userID int64, page, count int) ([]model.ChessMeta, error)
@@ -79,8 +78,8 @@ type HexchessAPI interface {
 	GetChessStateCount(ctx context.Context) (int64, error)
 	SetManyChessStates(ctx context.Context, chessStates []model.ChessState) error
 
-	GetStateChats(ctx context.Context, gameID string, count int64) ([]*pb.ChatMessage, error)
-	InsertStateChat(ctx context.Context, gameID string, chat model.Chat) error
+	GetChats(ctx context.Context, gameID string, count int64) ([]model.Chat, error)
+	InsertChat(ctx context.Context, gameID string, chat model.Chat) error
 
 	IsActiveUser(ctx context.Context, id string) bool
 	GetActiveCount(ctx context.Context) (int64, error)

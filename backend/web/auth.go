@@ -3,7 +3,9 @@ package web
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
+	"hexchess-svc/internal/enum"
 	"hexchess-svc/model"
 	"math/big"
 	"net/http"
@@ -46,19 +48,36 @@ type Authenticator struct {
 	services svc.HexchessAPI
 }
 
-func (auth *Authenticator) GetSessionPlayerAndID(ctx context.Context, r *http.Request) (p model.PlayerState, t string, err error) {
+type Session struct {
+	Player model.PlayerState
+	Token  string
+}
+
+func (auth *Authenticator) GetSession(ctx context.Context, r *http.Request) (Session, error) {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
-		return p, t, svc.ErrSessionNotFound
+		return Session{}, svc.ErrSessionNotFound
 	}
 	sessionToken := cookie.Value
 	player, err := auth.services.GetSession(ctx, sessionToken)
-	return player, sessionToken, errutil.Guardf(err, "get session player")
+
+	return Session{Player: player, Token: sessionToken}, errutil.Guardf(err, "get session player")
 }
 
-func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request) (model.PlayerState, error) {
-	player, _, err := auth.GetSessionPlayerAndID(ctx, r)
-	return player, err
+func (auth *Authenticator) GetSessionOptPlayer(ctx context.Context, r *http.Request) (enum.Optional[model.PlayerState], error) {
+	session, err := auth.GetSession(ctx, r)
+	if errors.Is(err, svc.ErrSessionNotFound) {
+		return enum.Nothing[model.PlayerState](), nil
+	}
+	return enum.Just(session.Player), err
+}
+
+func (auth *Authenticator) ExpectSessionPlayer(ctx context.Context, r *http.Request) (model.PlayerState, error) {
+	session, err := auth.GetSession(ctx, r)
+	if err != nil {
+		return model.PlayerState{}, err
+	}
+	return session.Player, err
 }
 
 func (auth *Authenticator) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player model.PlayerState) (time.Duration, error) {

@@ -238,7 +238,7 @@ func (api *API) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput) err
 	}
 	outputChat := SerializeGameOutputChat(ctx.GameID, chatMsg)
 
-	if err := api.services.InsertStateChat(ctx.Context, ctx.GameID, chatMsg); err != nil {
+	if err := api.services.InsertChat(ctx.Context, ctx.GameID, chatMsg); err != nil {
 		return fmt.Errorf("insert chat on game %s: %w", ctx.GameID, err)
 	}
 

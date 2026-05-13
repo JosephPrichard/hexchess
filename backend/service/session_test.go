@@ -1,13 +1,11 @@
 package svc
 
 import (
-	"context"
 	"hexchess-svc/model"
 
 	"testing"
 	"time"
 
-	"hexchess-svc/internal/logutil"
 	"hexchess-svc/itest"
 
 	"github.com/stretchr/testify/assert"
@@ -25,7 +23,7 @@ func TestSessions(t *testing.T) {
 	sessionID2 := "session2"
 	sessionID3 := "session3"
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	require.NoError(t, services.SetSessions(ctx, SessionInst{sessionID1, playerIn, 100 * time.Second}))
 	require.NoError(t, services.SetSessions(ctx, SessionInst{sessionID2, playerIn, 100 * time.Second}))

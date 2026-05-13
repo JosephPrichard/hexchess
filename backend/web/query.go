@@ -50,14 +50,6 @@ func parseOptFloat(ctx QueryParseCtx, key string) enum.Optional[float64] {
 	return enum.Just(f)
 }
 
-func parseDefaultString(values url.Values, key, def string) string {
-	v := values.Get(key)
-	if v == "" {
-		return def
-	}
-	return v
-}
-
 func parseOptString(ctx QueryParseCtx, key string) enum.Optional[string] {
 	v := ctx.Values.Get(key)
 	if v == "" {

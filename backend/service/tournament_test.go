@@ -1,7 +1,6 @@
 package svc
 
 import (
-	"context"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
@@ -12,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"hexchess-svc/internal/logutil"
 	"hexchess-svc/internal/testutil"
 	"testing"
 	"time"
@@ -24,7 +22,7 @@ func TestCreateTournament(t *testing.T) {
 	services, _ := setupServicesTest(t, serviceMocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}, itest.RWPostgres)
 	defer services.Close()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	key := uuid.New()
 
@@ -109,7 +107,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+			ctx := t.Context()
 
 			result, err := services.BeginTournamentCountdown(ctx, tt.tournamentKey, tt.userID)
 
@@ -142,7 +140,7 @@ func TestJoinTournament(t *testing.T) {
 	tests := []struct {
 		name             string
 		inst             JoinTournamentInst
-		wantResult       JoinTournamentResult
+		wantResult       JoinTournamentEvent
 		wantErr          error
 		wantParticipants []sqlc.TournamentParticipant
 	}{
@@ -171,7 +169,7 @@ func TestJoinTournament(t *testing.T) {
 				JoiningUserID: 1,
 				InsertionTime: time.Now(),
 			},
-			wantResult: JoinTournamentResult{TournamentKey: itest.Tournament0LobbyKey, Mode: model.ModeCorrespondence1},
+			wantResult: JoinTournamentEvent{TournamentKey: itest.Tournament0LobbyKey, Mode: model.ModeCorrespondence1},
 			wantParticipants: []sqlc.TournamentParticipant{
 				{
 					TournamentKey: pgtype.UUID{Bytes: itest.Tournament0LobbyKey, Valid: true},
@@ -183,7 +181,7 @@ func TestJoinTournament(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+			ctx := t.Context()
 
 			result, err := services.JoinTournament(ctx, tt.inst)
 
@@ -415,7 +413,7 @@ func TestAdvanceTournament(t *testing.T) {
 			services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
 			defer services.Close()
 
-			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+			ctx := t.Context()
 
 			err := services.AdvanceTournament(ctx, tt.tournamentKey)
 

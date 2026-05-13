@@ -116,12 +116,12 @@ func (svc *HexchessServices) DeleteChallenge(ctx context.Context, key ChallengeK
 		Mode:         gameMode,
 		FirstColor:   gameColor,
 	}
-	slog.InfoContext(ctx, "deleted challenge", "challengeKey", key, "dr", delResult, "err", err)
+	slog.InfoContext(ctx, "deleted challenge", "challengeKey", key, "dr", delResult, "error", err)
 	return delResult, err
 }
 
 func (svc *HexchessServices) DeleteExpiredChallenges(ctx context.Context, userID int64) error {
-	// TODO: add this into a cronjob to clear out expired challenges every couple days
+	// TODO: call this from a cronjob to clear out expired challenges every couple days
 	beforeTime := svc.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
 	err := svc.querier.DeleteExpiredChallenges(ctx, sqlc.DeleteExpiredChallengesParams{

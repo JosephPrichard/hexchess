@@ -159,7 +159,7 @@ func (svc *HexchessServices) VerifyUser(ctx context.Context, username string, in
 			if db.IsErrNoRows(err) {
 				return ErrUserNotFound
 			} else if err != nil {
-				return fmt.Errorf("select user [%s] by login: %w", username, err)
+				return fmt.Errorf("select user %s by login: %w", username, err)
 			}
 
 			isExceedAttempts := loginRow.LoginAttempts > 0 && loginRow.LoginAttempts%LoginAttemptsDivisor == 0
@@ -174,14 +174,14 @@ func (svc *HexchessServices) VerifyUser(ctx context.Context, username string, in
 
 			if loginErr != nil {
 				if err := querier.IncrLoginAttempts(ctx, loginRow.ID); err != nil {
-					return fmt.Errorf("increment user [%d] login attempts: %w", loginRow.ID, err)
+					return fmt.Errorf("increment user %d login attempts: %w", loginRow.ID, err)
 				}
-				slog.ErrorContext(ctx, "failed to login, credentials are invalid", "username", username, "err", loginErr)
+				slog.ErrorContext(ctx, "failed to login, credentials are invalid", "username", username, "error", loginErr)
 				return ErrUserNotFound
 			}
 
 			if err := querier.ResetLoginAttempts(ctx, loginRow.ID); err != nil {
-				return fmt.Errorf("reset user [%d] login attempts: %w", loginRow.ID, err)
+				return fmt.Errorf("reset user %d login attempts: %w", loginRow.ID, err)
 			}
 
 			user = VerifiedUser{
@@ -211,7 +211,7 @@ func (svc *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, googl
 	if db.IsErrNoRows(err) {
 		isCreated = false
 	} else if err != nil {
-		return verifiedUser, fmt.Errorf("select user [%s] by google account existingID: %w", googleAccountID, err)
+		return verifiedUser, fmt.Errorf("select user %s by google account id: %w", googleAccountID, err)
 	} else {
 		isCreated = true
 	}
@@ -224,7 +224,7 @@ func (svc *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, googl
 			GoogleAccountID: pgtype.Text{String: googleAccountID, Valid: true},
 		})
 		if err != nil {
-			return verifiedUser, fmt.Errorf("insert google user [%s]: %w", googleAccountID, err)
+			return verifiedUser, fmt.Errorf("insert google user %s: %w", googleAccountID, err)
 		}
 		verifiedUser = VerifiedUser{
 			ID:       userRow.ID,
@@ -277,7 +277,7 @@ func (svc *HexchessServices) UpdateUser(ctx context.Context, id int64, updt Updt
 func (svc *HexchessServices) UpdateUserPassword(ctx context.Context, id int64, newPassword string) error {
 	hash, err := hashPassword(newPassword)
 	if err != nil {
-		return fmt.Errorf("hash password for user [%d]: %w", id, err)
+		return fmt.Errorf("hash password for user %d: %w", id, err)
 	}
 	err = svc.querier.UpdatePassword(ctx, sqlc.UpdatePasswordParams{
 		ID:       id,
@@ -290,11 +290,10 @@ func (svc *HexchessServices) UpdateUserPassword(ctx context.Context, id int64, n
 
 func (svc *HexchessServices) GetUserByID(ctx context.Context, id int64) (model.User, error) {
 	userRow, err := svc.querier.SelectUserByID(ctx, id)
-	if err != nil {
-		if db.IsErrNoRows(err) {
-			return model.User{}, ErrUserNotFound
-		}
-		return model.User{}, fmt.Errorf("select user [%d]: %w", id, err)
+	if db.IsErrNoRows(err) {
+		return model.User{}, ErrUserNotFound
+	} else if err != nil {
+		return model.User{}, fmt.Errorf("select user %d: %w", id, err)
 	}
 	user := model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
 	slog.InfoContext(ctx, "selected user", "existingID", id, "user", user)
@@ -308,7 +307,7 @@ func avg[T constraints.Integer | constraints.Float](currAvg T, currCount int, ne
 func (svc *HexchessServices) GetUserStats(ctx context.Context, id int64) (model.UserStats, error) {
 	modeEloRows, err := svc.querier.SelectUserElosByID(ctx, id)
 	if err != nil {
-		return model.UserStats{}, fmt.Errorf("select user [%d] elos by existingID: %w", id, err)
+		return model.UserStats{}, fmt.Errorf("select user %d elos by existingID: %w", id, err)
 	}
 
 	var stats model.UserStats

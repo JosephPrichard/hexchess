@@ -38,11 +38,11 @@ func (pdb *FakeDB) Querier() sqlc.Querier {
 func (pdb *FakeDB) Close() {
 	defer func() {
 		if p := recover(); p != nil {
-			slog.Error("fatal error while closing fake db", "err", p)
+			slog.Error("fatal error while closing fake db", "error", p)
 		}
 	}()
 	if err := pdb.testingTxn.Rollback(context.Background()); err != nil {
-		slog.Error("failed to rollback testing txn", "err", err)
+		slog.Error("failed to rollback testing txn", "error", err)
 	}
 }
 

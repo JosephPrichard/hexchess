@@ -84,7 +84,7 @@ func TestJoinGame(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+			ctx := t.Context()
 
 			updatedState, err := services.JoinGame(ctx, tt.gameID, tt.joinPlayer)
 
@@ -429,7 +429,7 @@ func TestForfeit(t *testing.T) {
 	seedGames(t, services, abortGame, forfeitGame)
 
 	t.Run("Abort", func(t *testing.T) {
-		ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+		ctx := t.Context()
 
 		endState, err := services.EndGame(ctx, abortGame.ID, abortGame.WhitePlayer)
 		require.NoError(t, err)
@@ -440,7 +440,7 @@ func TestForfeit(t *testing.T) {
 		})
 		assertRedisChess(t, services, wantGame, model.ChessMetaCmpOpt)
 
-		gameKey := fmtGameKey(testinfra.Redis, abortGame.ID)
+		gameKey := fmtGameKey(abortGame.ID)
 		zRankErr := services.redis.Cache.ZRank(ctx, services.redis.GamesZSet, gameKey).Err()
 		assert.Equal(t, redis.Nil, zRankErr)
 		zRankErr = services.redis.Cache.ZRank(ctx, fmtUserGameZSet(testinfra.Redis, abortGame.WhitePlayer.ID), gameKey).Err()
@@ -448,7 +448,7 @@ func TestForfeit(t *testing.T) {
 	})
 
 	t.Run("Forfeit", func(t *testing.T) {
-		ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+		ctx := t.Context()
 
 		endState, err := services.EndGame(ctx, forfeitGame.ID, forfeitGame.BlackPlayer)
 		require.NoError(t, err)
@@ -522,7 +522,7 @@ func TestForfeit_Errors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+			ctx := t.Context()
 
 			_, forfeitErr := services.EndGame(ctx, tt.gameID, model.PlayerState{ID: 1, Present: true})
 

@@ -59,29 +59,31 @@ func (svc *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGam
 		return fmt.Errorf("broadcast replay entity output: %w", err)
 	}
 
-	slog.InfoContext(ctx, "publishing schedule tournament event", "gameID", finishedGame.GameID)
-
-	// note: publishing a tournament event is necessary to trigger advancing the game state *IF* the tournament round is finished
-	// this operation is idempotent and safe, if the tournament is not ready to be advanced the operation noops
-	tournamentKey, err := svc.querier.SelectTournamentByGameID(ctx, finishedGame.GameID)
-	if !errors.Is(pgx.ErrNoRows, err) {
-		if err != nil {
-			return fmt.Errorf("select tournament by game existingID %s: %w", finishedGame.GameID, err)
-		}
-		// if two advance tournament events run concucurrently, one will advance the tournament and the other will noop
-		if err := sendScheduledTournamentEvent(ctx, svc.querier, tournamentKey.Bytes, time.Now()); err != nil {
-			return fmt.Errorf("send scheduled tournament event from ")
-		}
-	}
-
-	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", changeSet, "room", finishedGame.GameID)
-
 	// note: used to keep the cache in sync, this can run outside of a transaction because we have a batch job to recover that payload to the cache.
 	if err := svc.incrLeaderboard(ctx,
 		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
 		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
 	); err != nil {
 		return fmt.Errorf("incr leaderboard %+v: %w", changeSet, err)
+	}
+
+	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", changeSet, "room", finishedGame.GameID)
+
+	// note: publishing a tournament event is necessary to trigger advancing the game state *IF* the tournament round is finished
+	// this operation is idempotent and safe, if the tournament is not ready to be advanced the operation noops
+	tournamentKey, err := svc.querier.SelectTournamentByGameID(ctx, finishedGame.GameID)
+
+	if db.IsErrNoRows(err) {
+		slog.InfoContext(ctx, "skipping send schedule tournament event", "gameID", finishedGame.GameID)
+	} else if err == nil {
+		slog.InfoContext(ctx, "sending schedule tournament event", "gameID", finishedGame.GameID)
+
+		// if two advance tournament events run concucurrently, one will advance the tournament and the other will noop
+		if err := sendScheduledTournamentEvent(ctx, svc.querier, tournamentKey.Bytes, time.Now()); err != nil {
+			return fmt.Errorf("send scheduled tournament event from ")
+		}
+	} else {
+		return fmt.Errorf("select tournament by game existingID %s: %w", finishedGame.GameID, err)
 	}
 
 	slog.InfoContext(ctx, "completed inserting finished game event", "key", finishedGame.GameID)

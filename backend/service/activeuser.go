@@ -17,9 +17,10 @@ func (svc *HexchessServices) IsActiveUser(ctx context.Context, id string) bool {
 }
 
 func (svc *HexchessServices) GetActiveCount(ctx context.Context) (int64, error) {
-	expireBefore := svc.entropy.GetTime().Add(-ActiveUserMaxage).UnixMilli()
+	expireBefore := svc.entropy.GetTime().Add(-ActiveUserMaxage)
+	expireBeforeStr := fmt.Sprintf("%d", expireBefore.UnixMilli())
 
-	removed, err := svc.redis.Cache.ZRemRangeByScore(ctx, svc.redis.ActiveUsersZSet, "-inf", fmt.Sprintf("%d", expireBefore)).Result()
+	removed, err := svc.redis.Cache.ZRemRangeByScore(ctx, svc.redis.ActiveUsersZSet, "-inf", expireBeforeStr).Result()
 	if err != nil {
 		return 0, fmt.Errorf("get expired active users by range: %w", err)
 	}
@@ -41,7 +42,7 @@ func (svc *HexchessServices) RetainActiveUser(ctx context.Context, id string) er
 	if err != nil {
 		return fmt.Errorf("retain active user %s: %w", id, err)
 	}
-	slog.InfoContext(ctx, "retained active user", "existingID", id)
+	slog.InfoContext(ctx, "retained active user", "id", id)
 	return nil
 }
 
@@ -52,9 +53,17 @@ func (svc *HexchessServices) AddActiveUser(ctx context.Context, id string) (int6
 	if err != nil {
 		return 0, fmt.Errorf("add active user %v: %w", id, err)
 	}
-	slog.InfoContext(ctx, "added active user", "existingID", id)
+	slog.InfoContext(ctx, "added active user", "id", id)
 
-	return svc.GetActiveCount(ctx)
+	count, err := svc.GetActiveCount(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("get active user count after adding user=%s: %w", id, err)
+	}
+
+	if err := svc.broadcaster.BroadcastActiveCount(ctx, count); err != nil {
+		return 0, fmt.Errorf("broadcast active user count after adding %d: %w", count, err)
+	}
+	return count, nil
 }
 
 func (svc *HexchessServices) RemoveActiveUser(ctx context.Context, id string) (int64, error) {
@@ -63,10 +72,18 @@ func (svc *HexchessServices) RemoveActiveUser(ctx context.Context, id string) (i
 		return 0, fmt.Errorf("remove active user %v: %w", id, err)
 	}
 	if res > 0 {
-		slog.InfoContext(ctx, "removed active user", "existingID", id)
+		slog.InfoContext(ctx, "removed active user", "id", id)
 	} else {
-		slog.WarnContext(ctx, "did not remove active user", "existingID", id)
+		slog.WarnContext(ctx, "did not remove active user", "id", id)
 	}
 
-	return svc.GetActiveCount(ctx)
+	count, err := svc.GetActiveCount(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("get active user count after removing user=%s: %w", id, err)
+	}
+
+	if err := svc.broadcaster.BroadcastActiveCount(ctx, count); err != nil {
+		return 0, fmt.Errorf("broadcast active user count after removing %d: %w", count, err)
+	}
+	return count, nil
 }

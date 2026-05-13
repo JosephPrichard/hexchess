@@ -86,7 +86,7 @@ func (h EventHandler) HandleAdvanceTournamentEvent(ctx context.Context, bytes []
 	var matchStateError svc.MatchInvariantError
 	switch {
 	case errors.As(err, &matchStateError):
-		slog.WarnContext(ctx, "failed to start tournament due to match state invariant error", "tournamentKey", tournamentKey, "err", err)
+		slog.WarnContext(ctx, "failed to start tournament due to match state invariant error", "tournamentKey", tournamentKey, "error", err)
 
 		if err := h.Broadcaster.BroadcastTournament(ctx, model.SerializeTournamentError(tournamentKey, model.ErrAdvanceTournamentCode)); err != nil {
 			return fmt.Errorf("broadcast tournament error: %w", err)

@@ -24,7 +24,7 @@ func TestGetReplay(t *testing.T) {
 	defer services.Close()
 
 	t.Run("GetReplay", func(t *testing.T) {
-		ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+		ctx := t.Context()
 
 		actualReplay1, err := services.GetReplay(ctx, itest.FirstReplayID)
 		require.NoError(t, err)
@@ -33,7 +33,7 @@ func TestGetReplay(t *testing.T) {
 	})
 
 	t.Run("GetReplayWithGuest", func(t *testing.T) {
-		ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+		ctx := t.Context()
 
 		actualReplay1, err := services.GetReplay(ctx, itest.GuestReplayID)
 		require.NoError(t, err)
@@ -75,7 +75,7 @@ func TestSearchReplaysByQuery(t *testing.T) {
 			services, _ := setupServicesTest(t, serviceMocks{}, itest.ROPostgres)
 			defer services.Close()
 
-			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+			ctx := t.Context()
 
 			replayList, err := services.SearchReplaysByQuery(ctx, tt.replayQuery)
 			require.NoError(t, err)

@@ -2,14 +2,13 @@ package web
 
 import (
 	"fmt"
+	"github.com/google/uuid"
 	"hexchess-svc/chess"
 
 	"hexchess-svc/internal/enum"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
-	"maps"
 	"net/url"
-	"slices"
 	"strings"
 	"time"
 )
@@ -99,7 +98,7 @@ func parseUpdateChallengeBody(body UpdateChallengeBody) (UpdateChallengeTBody, e
 	case "DELETE":
 		action = Delete
 	default:
-		return UpdateChallengeTBody{}, ofRespError("action", fmt.Errorf("invalid value: %s", body.Action))
+		return UpdateChallengeTBody{}, respError("action", fmt.Errorf("invalid value: %s", body.Action))
 	}
 
 	var targetID int64
@@ -242,15 +241,45 @@ func parseReplayQueryBody(values url.Values) (GetReplayQuery, error) {
 	return GetReplayQuery{ReplayID: replayID, GameID: gameID, HasGameID: hasGameID}, ctx.RespErr.Inner()
 }
 
-var timeframeMap = map[string]uint{
-	"1m":  1,
-	"3m":  3,
-	"6m":  6,
-	"1y":  12,
-	"all": 0,
+type TimeframeKind int
+
+const (
+	Timeframe1m TimeframeKind = iota
+	Timeframe3m
+	Timeframe6m
+	Timeframe1y
+	TimeframeAll
+)
+
+func (t TimeframeKind) Months() uint {
+	switch t {
+	case Timeframe1m:
+		return 1
+	case Timeframe3m:
+		return 3
+	case Timeframe6m:
+		return 6
+	case Timeframe1y:
+		return 12
+	case TimeframeAll:
+		return 0
+	}
+	return 0
 }
 
-var InvalidTimeframeError = fmt.Errorf("invalid timeframe: expected one of %v", slices.Collect(maps.Keys(timeframeMap)))
+var timeframeEntries = []enum.Entry[TimeframeKind]{
+	{Enum: Timeframe1m, String: "1m"},
+	{Enum: Timeframe3m, String: "3m"},
+	{Enum: Timeframe6m, String: "6m"},
+	{Enum: Timeframe1y, String: "1y"},
+	{Enum: TimeframeAll, String: "all"},
+}
+
+var TimeframeEnums = enum.BuildReverseMap(timeframeEntries)
+
+func (t TimeframeKind) String() string {
+	return enum.String(t, timeframeEntries)
+}
 
 type EloHistoriesQuery struct {
 	UserID int
@@ -261,13 +290,9 @@ func parseEloHistoriesQuery(values url.Values) (EloHistoriesQuery, error) {
 	ctx := MakeQueryParseCtx(values)
 
 	userID := parseInt(ctx, "userId")
+	timeframeKind := parseDefEnum[TimeframeKind](ctx, "timeframe", TimeframeEnums, TimeframeAll)
 
-	months, ok := timeframeMap[parseDefaultString(values, "timeframe", "all")]
-	if !ok {
-		ctx.RespErr.Put("timeframe", BadRequestError{InvalidTimeframeError})
-	}
-
-	return EloHistoriesQuery{UserID: userID, Months: months}, ctx.RespErr.Inner()
+	return EloHistoriesQuery{UserID: userID, Months: timeframeKind.Months()}, ctx.RespErr.Inner()
 }
 
 type GetReplaysQuery = svc.ReplaysQuery
@@ -353,4 +378,12 @@ func parseLeaderboardQuery(values url.Values) (LeaderboardQuery, error) {
 	mode := parseEnum(ctx, "mode", model.GameModeEnums)
 
 	return LeaderboardQuery{Page: page, Mode: mode}, ctx.RespErr.Inner()
+}
+
+func parseTournamentKeyBody(body TournamentKeyBody) (uuid.UUID, error) {
+	tournamentKey, err := uuid.Parse(body.TournamentKey)
+	if err != nil {
+		return uuid.UUID{}, respError("tournamentKey", BadRequestError{err})
+	}
+	return tournamentKey, nil
 }

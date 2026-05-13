@@ -12,7 +12,7 @@ import (
 func InitEnv() {
 	file, err := os.Open(".env")
 	if err != nil {
-		slog.Warn("did not load env file", "err", err)
+		slog.Warn("did not load env file", "error", err)
 	}
 	defer file.Close()
 
@@ -25,7 +25,7 @@ func InitEnv() {
 		}
 		key, value := line[:index], line[index+1:]
 		if err := os.Setenv(key, value); err != nil {
-			slog.Warn("error setting env var", "err", err)
+			slog.Warn("error setting env var", "error", err)
 		}
 	}
 }

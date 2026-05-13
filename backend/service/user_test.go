@@ -1,12 +1,10 @@
 package svc
 
 import (
-	"context"
 	"hexchess-svc/model"
 
 	"testing"
 
-	"hexchess-svc/internal/logutil"
 	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
 
@@ -24,7 +22,7 @@ func TestInsertThenVerify(t *testing.T) {
 	services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
 	defer services.Close()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	user1 := "user1-testing"
 
@@ -95,7 +93,7 @@ func TestUpdateUser(t *testing.T) {
 			services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
 			defer services.Close()
 
-			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+			ctx := t.Context()
 
 			_, err := services.UpdateUser(ctx, tt.userID, tt.udpt)
 			require.NoError(t, err)
@@ -116,7 +114,7 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 	services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
 	defer services.Close()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	testAccountID := "testing-account-existingID"
 
@@ -149,7 +147,7 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 	services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
 	defer services.Close()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	err := services.UpdateUserPassword(ctx, itest.TestUser[0].ID, "password-new")
 	require.NoError(t, err)
@@ -168,7 +166,7 @@ func TestGetUserElos(t *testing.T) {
 	services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
 	defer services.Close()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	stats, err := services.GetUserStats(ctx, 1)
 	require.NoError(t, err)

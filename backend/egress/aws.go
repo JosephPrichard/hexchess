@@ -57,7 +57,7 @@ func MakeAwsClients(ctx context.Context, cfg AWSConfig) (AWS, error) {
 	// creates all buckets by default.
 	for _, bucket := range Buckets {
 		if _, err := s3Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {
-			slog.WarnContext(ctx, "failed to create bucket", "bucket", bucket, "err", err)
+			slog.WarnContext(ctx, "failed to create bucket", "bucket", bucket, "error", err)
 		}
 	}
 

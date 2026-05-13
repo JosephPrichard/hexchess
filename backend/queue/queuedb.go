@@ -64,7 +64,7 @@ func (q *DBQueue) PollOutboxQueueLoop(ctx context.Context, handler DBQueueHandle
 	for range ticker.C {
 		err := q.PollOutboxQueueEventsTx(ctx, handler)
 		if err != nil {
-			slog.ErrorContext(ctx, "failed to poll postgres queue", "err", err)
+			slog.ErrorContext(ctx, "failed to poll postgres queue", "error", err)
 		}
 		if errors.Is(err, context.Canceled) {
 			break

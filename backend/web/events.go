@@ -2,9 +2,8 @@ package web
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
+	"hexchess-svc/internal/timeutil"
 	"hexchess-svc/pubsub"
 	"log/slog"
 	"net/http"
@@ -14,7 +13,7 @@ import (
 	svc "hexchess-svc/service"
 )
 
-func SSE(h func(w SSEWriter, r *http.Request) error) http.HandlerFunc {
+func SSE(h func(w *SSEClient, r *http.Request) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slog.InfoContext(r.Context(), "received sse request", "method", r.Method, "url", r.URL)
 
@@ -28,54 +27,15 @@ func SSE(h func(w SSEWriter, r *http.Request) error) http.HandlerFunc {
 			return
 		}
 		ctx := r.Context()
-		if err := h(SSEWriter{ctx, w, f}, r); err != nil {
+		if err := h(&SSEClient{ctx, w, f}, r); err != nil {
 			status, m := HttpStatusFromErr(err)
 
-			slog.Log(ctx, LevelFromStatus(status), "sse request failed", "Err", err, "method", r.Method, "url", r.URL)
+			slog.Log(ctx, LevelFromStatus(status), "sse request failed", "error", err, "method", r.Method, "url", r.URL)
 
 			http.Error(w, fmt.Sprintf("%s:%s", MetaEvent, m), status)
 		}
 		slog.InfoContext(ctx, "finished sse request", "method", r.Method, "url", r.URL)
 	}
-}
-
-type SSEWriter struct {
-	ctx context.Context
-	w   http.ResponseWriter
-	f   http.Flusher
-}
-
-func (sse SSEWriter) writeEvent(e string, d string) {
-	if _, err := fmt.Fprintf(sse.w, "event: %s\ndata: %s\n\n", e, d); err != nil {
-		slog.ErrorContext(sse.ctx, "write to sse", "Err", err)
-	}
-
-	slog.Info("writing server sent event", "event", e, "data", d)
-
-	sse.f.Flush()
-}
-
-func (sse SSEWriter) writeGlobalEvent(event pubsub.GlobalCastEvent) {
-	var e string
-	switch event.Kind {
-	case pubsub.GlobalActiveEvent:
-		e = ActiveCountEvent
-	case pubsub.GlobalGamesEvent:
-		e = GamesCountEvent
-	}
-	if e == "" {
-		slog.ErrorContext(sse.ctx, "unknown count event key", "event", e)
-		return
-	}
-	sse.writeEvent(e, event.Data)
-}
-
-func (sse SSEWriter) writeCountEvent(kind pubsub.GlobalEventKind, count int64) {
-	b, err := json.Marshal(pubsub.CountEvent{Count: count})
-	if err != nil {
-		slog.ErrorContext(sse.ctx, "marshal count event", "Err", err)
-	}
-	sse.writeGlobalEvent(pubsub.GlobalCastEvent{Kind: kind, Data: string(b)})
 }
 
 const (
@@ -89,20 +49,20 @@ const (
 	SSEChanBufCap = 10
 )
 
-func (api *API) HandleCountEvents(w SSEWriter, _ *http.Request) error {
-	ctx := w.ctx
+func (api *API) HandleCountEvents(client *SSEClient, _ *http.Request) error {
+	ctx := client.ctx
 
 	activeCount, err := api.services.GetActiveCount(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("get active count: %w", err)
 	}
 	gamesCount, err := api.services.GetChessStateCount(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("get chess state count: %w", err)
 	}
 
-	w.writeCountEvent(pubsub.GlobalActiveEvent, activeCount)
-	w.writeCountEvent(pubsub.GlobalGamesEvent, gamesCount)
+	writeCountEvent(client, pubsub.GlobalActiveEvent, activeCount)
+	writeCountEvent(client, pubsub.GlobalGamesEvent, gamesCount)
 
 	countsChan := make(chan pubsub.GlobalCastEvent, SSEChanBufCap)
 	api.broadcasters.CountsCaster.Subscribe(countsChan)
@@ -110,7 +70,7 @@ func (api *API) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 	go func() {
 		<-ctx.Done()
 		api.broadcasters.CountsCaster.Unsubscribe(countsChan)
-		slog.InfoContext(ctx, "finished handle user events sse")
+		slog.InfoContext(ctx, "finished handle user events stream")
 	}()
 
 	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
@@ -120,147 +80,114 @@ func (api *API) HandleCountEvents(w SSEWriter, _ *http.Request) error {
 			if !ok {
 				return nil
 			}
-			w.writeGlobalEvent(event)
+			writeGlobalEvent(client, event)
 		case <-keepAliveTicker.C:
-			w.writeEvent(MetaEvent, "KeepAlive")
+			client.event(MetaEvent, "KeepAlive")
 		}
 	}
 }
 
-func every(duration time.Duration, work func()) chan bool {
-	ticker := time.NewTicker(duration)
-	stop := make(chan bool, 1)
+const RetainActiveUserPeriod = svc.ActiveUserMaxage - time.Second
 
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				work()
-			case <-stop:
-				return
-			}
-		}
-	}()
+// HandleActiveConn is a long-lived TCP connection used to maintain an active user, it only ever receives "meta" messages
+func (api *API) HandleActiveConn(client *SSEClient, r *http.Request) error {
+	ctx := client.ctx
 
-	return stop
-}
-
-// HandleActiveConn a long-lived TCP connection used to maintain an active user, it only ever receives "meta" messages
-func (api *API) HandleActiveConn(w SSEWriter, r *http.Request) error {
-	ctx := w.ctx
-
-	player, _, err := api.authenticator.GetSessionPlayerAndID(ctx, r)
-	if errors.Is(err, svc.ErrSessionNotFound) {
-		return ErrHttpSessionExpired
-	} else if err != nil {
-		return err
-	}
-	strUserID := strconv.Itoa(int(player.ID))
-
-	count, err := api.services.AddActiveUser(ctx, strUserID)
+	player, err := api.authenticator.ExpectSessionPlayer(ctx, r)
 	if err != nil {
 		return err
 	}
-	if err := api.broadcaster.BroadcastActiveCount(ctx, count); err != nil {
-		return fmt.Errorf("broadcast active user count after adding %d: %w", count, err)
+	strUserID := strconv.Itoa(int(player.ID))
+
+	if _, err := api.services.AddActiveUser(ctx, strUserID); err != nil {
+		return fmt.Errorf("add active user: %w", err)
 	}
 
-	w.writeEvent(MetaEvent, strUserID)
+	client.event(MetaEvent, strUserID)
 
-	stopTimer := every(svc.ActiveUserMaxage-time.Second, func() {
+	stop := timeutil.Every(RetainActiveUserPeriod, func() {
 		if err := api.services.RetainActiveUser(ctx, strUserID); err != nil {
-			slog.ErrorContext(ctx, "failed to retain active user", "userID", strUserID, "Err", err)
+			slog.ErrorContext(ctx, "failed to retain active user", "userID", strUserID, "error", err)
 		}
 	})
-	defer func() {
-		stopTimer <- true
-	}()
+	defer stop()
 
 	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
-RecvLoop:
 	for {
 		select {
 		case <-ctx.Done():
-			break RecvLoop
+			return nil
 		case <-keepAliveTicker.C:
-			w.writeEvent(MetaEvent, "KeepAlive")
+			client.event(MetaEvent, "KeepAlive")
 		}
 	}
-
-	detatchedCtx := context.WithoutCancel(ctx)
-
-	if count, err = api.services.RemoveActiveUser(detatchedCtx, strUserID); err != nil {
-		slog.ErrorContext(detatchedCtx, "failed to remove active user", "sseID", strUserID, "Err", err)
-	}
-	if err := api.broadcaster.BroadcastActiveCount(detatchedCtx, count); err != nil {
-		slog.ErrorContext(detatchedCtx, "broadcast active user count after removing", "Err", err)
-	}
-
-	return nil
 }
 
-func (api *API) HandleUserEvents(w SSEWriter, r *http.Request) error {
-	ctx := w.ctx
+func (api *API) HandleUserEvents(client *SSEClient, r *http.Request) error {
+	ctx := client.ctx
 
-	player, _, err := api.authenticator.GetSessionPlayerAndID(ctx, r)
-	if errors.Is(err, svc.ErrSessionNotFound) {
-		return ErrHttpSessionExpired
-	} else if err != nil {
+	player, err := api.authenticator.ExpectSessionPlayer(ctx, r)
+	if err != nil {
 		return err
 	}
 	strUserID := strconv.Itoa(int(player.ID))
 
-	w.writeEvent(MetaEvent, strUserID)
+	client.event(MetaEvent, strUserID)
 
 	usersChan := make(chan []byte, SSEChanBufCap)
 	api.broadcasters.UsersCaster.Subscribe(strUserID, usersChan)
 
 	go func() {
-		<-ctx.Done() // stop from the client, so stop the RecvLoop by unsubscribing
+		<-ctx.Done()
 		api.broadcasters.UsersCaster.Unsubscribe(strUserID, usersChan)
-		slog.InfoContext(ctx, "finishing handle user events sse")
+		slog.InfoContext(ctx, "finishing handle user events stream")
+
+		detatchedCtx := context.WithoutCancel(ctx)
+		if _, err = api.services.RemoveActiveUser(detatchedCtx, strUserID); err != nil {
+			slog.ErrorContext(detatchedCtx, "failed to remove active user", "sseID", strUserID, "error", err)
+		}
 	}()
 
 	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
 	for {
 		select {
-		case message, ok := <-usersChan: // RecvLoop contuines until we unsubscribe
+		case message, ok := <-usersChan:
 			if !ok {
 				return nil
 			}
-			w.writeEvent(UserChallengeEvent, string(message))
+			client.event(UserChallengeEvent, string(message))
 		case <-keepAliveTicker.C:
-			w.writeEvent(MetaEvent, "KeepAlive")
+			client.event(MetaEvent, "KeepAlive")
 		}
 	}
 }
 
-func (api *API) HandleTournamentEvents(w SSEWriter, r *http.Request) error {
-	ctx := w.ctx
+func (api *API) HandleTournamentEvents(client *SSEClient, r *http.Request) error {
+	ctx := client.ctx
 
 	tournamentKey := r.URL.Query().Get("tournamentKey")
 
 	tournamentChan := make(chan []byte, SSEChanBufCap)
 	api.broadcasters.TournamentCaster.Subscribe(tournamentKey, tournamentChan)
 
-	w.writeEvent(MetaEvent, tournamentKey)
+	client.event(MetaEvent, tournamentKey)
 
 	go func() {
-		<-ctx.Done() // stop from the client, so stop the RecvLoop by unsubscribing
+		<-ctx.Done()
 		api.broadcasters.TournamentCaster.Unsubscribe(tournamentKey, tournamentChan)
-		slog.InfoContext(ctx, "finishing handle tournament events sse")
+		slog.InfoContext(ctx, "finishing handle tournament events stream")
 	}()
 
 	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
 	for {
 		select {
-		case message, ok := <-tournamentChan: // RecvLoop contuines until we unsubscribe
+		case message, ok := <-tournamentChan:
 			if !ok {
 				return nil
 			}
-			w.writeEvent(TournamentEvent, string(message))
+			client.event(TournamentEvent, string(message))
 		case <-keepAliveTicker.C:
-			w.writeEvent(MetaEvent, "KeepAlive")
+			client.event(MetaEvent, "KeepAlive")
 		}
 	}
 }

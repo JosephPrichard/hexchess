@@ -130,7 +130,7 @@ func TestHandleCreateTournamentMatchesEvent(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+			ctx := t.Context()
 
 			bytes, err := proto.Marshal(tt.input)
 			require.NoError(t, err)
@@ -209,7 +209,7 @@ func TestHandleHandleAdvanceTournamentEvent(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+			ctx := t.Context()
 
 			bytes, err := proto.Marshal(tt.event)
 			require.NoError(t, err)

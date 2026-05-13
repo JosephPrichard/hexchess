@@ -37,19 +37,19 @@ func (pdb *PostgresDB) ExecTx(ctx context.Context, args TxArgs) error {
 		defer func() {
 			if p := recover(); p != nil {
 				if err := tx.Rollback(ctx); err != nil {
-					slog.ErrorContext(ctx, "failed to rollback tx", "err", err)
+					slog.ErrorContext(ctx, "failed to rollback tx", "error", err)
 				}
 				panic(p)
 			}
 			isErrAllowListed := slices.Contains(args.ErrAllowlist, err)
 			if err != nil && !isErrAllowListed {
 				if dbErr := tx.Rollback(ctx); dbErr != nil {
-					slog.ErrorContext(ctx, "failed to rollback tx", "err", dbErr)
+					slog.ErrorContext(ctx, "failed to rollback tx", "error", dbErr)
 					err = dbErr
 				}
 			} else {
 				if dbErr := tx.Commit(ctx); dbErr != nil {
-					slog.ErrorContext(ctx, "failed to commit tx", "err", dbErr)
+					slog.ErrorContext(ctx, "failed to commit tx", "error", dbErr)
 					err = dbErr
 				}
 			}
@@ -68,7 +68,7 @@ func (pdb *PostgresDB) ExecTx(ctx context.Context, args TxArgs) error {
 		err = execTx(ctx, args)
 
 		if isSerializationFailure(err) {
-			slog.WarnContext(ctx, "retrying transaction", "err", err, "retry", i)
+			slog.WarnContext(ctx, "retrying transaction", "error", err, "retry", i)
 
 			time.Sleep(exponentialBackoff(i, 2, 50*time.Millisecond))
 			continue
@@ -76,7 +76,7 @@ func (pdb *PostgresDB) ExecTx(ctx context.Context, args TxArgs) error {
 		break
 	}
 	if isSerializationFailure(err) {
-		slog.ErrorContext(ctx, "exhausted transaction retries", "err", err, "retryCount", args.RetryCount)
+		slog.ErrorContext(ctx, "exhausted transaction retries", "error", err, "retryCount", args.RetryCount)
 	}
 
 	return err

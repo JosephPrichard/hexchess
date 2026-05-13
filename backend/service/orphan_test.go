@@ -1,7 +1,6 @@
 package svc
 
 import (
-	"context"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -12,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"hexchess-svc/internal/logutil"
 	"hexchess-svc/itest"
 
 	"github.com/google/uuid"
@@ -30,7 +28,7 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 	services, _ := setupServicesTest(t, mocks, itest.ROPostgres)
 	defer services.Close()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	profileKeyUserID1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())
 	profileKeyInvalidUserID := fmt.Sprintf("users/profile-pics/8000/%s", uuid.NewString())

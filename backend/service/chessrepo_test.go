@@ -11,7 +11,6 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"hexchess-svc/internal/logutil"
 	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
 
@@ -22,7 +21,7 @@ import (
 
 func assertRedisChess(t *testing.T, services *HexchessServices, wantState *model.ChessState, options ...cmp.Option) {
 	t.Helper()
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	if wantState == nil {
 		return
@@ -43,7 +42,7 @@ func TestEchoChessState(t *testing.T) {
 	id2 := "testing-id2-" + uuid.NewString()
 
 	s1 := model.MakeChessState(model.StateSetup{ID: id1, Mode: model.ModeCorrespondence1, FirstColor: model.Random})
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	require.NoError(t, services.SetChessState(ctx, id1, s1))
 
@@ -68,7 +67,7 @@ func TestUpdateChessState(t *testing.T) {
 
 	inState := model.MakeChessState(model.StateSetup{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.Random})
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	require.NoError(t, services.SetChessState(ctx, testID, inState))
 
@@ -104,7 +103,7 @@ func TestUpdateChessState_Errors(t *testing.T) {
 	inState := model.MakeChessState(model.StateSetup{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.White})
 	require.NoError(t, services.SetChessState(context.Background(), testID, inState))
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	t.Run("failing with unknown game existingID", func(t *testing.T) {
 		_, err := services.updateChessStateTxn(ctx, uuid.NewString(), func(state *model.ChessState) error { return nil }, nil)
@@ -152,7 +151,7 @@ func TestGetChessMetas(t *testing.T) {
 	s2 := model.MakeChessState(model.StateSetup{ID: id2, Mode: model.ModeCorrespondence1, FirstColor: model.Random, Black: model.PlayerState{ID: 1, Present: true}})
 	s3 := model.MakeChessState(model.StateSetup{ID: id3, Mode: model.ModeCorrespondence1, FirstColor: model.Random, Black: model.PlayerState{ID: 1, Present: true}})
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 	now := time.Now()
 
 	// these times must be after now.Add(-GameExpireFinished)

@@ -26,7 +26,7 @@ func TestLeaderboard(t *testing.T) {
 	id3 := int64(3)
 	id4 := int64(4)
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	// testing `incrLeaderboard`, which is used to seed payload for testing retreival operations
 	for _, change := range []UpdtLbChangeSet{
@@ -177,7 +177,7 @@ func TestGetFuzzySearchLeaderboard(t *testing.T) {
 	services, _ := setupServicesTest(t, serviceMocks{}, itest.ROPostgres)
 	defer services.Close()
 
-	ctx := context.WithValue(t.Context(), logutil.Trace, t.Name())
+	ctx := t.Context()
 
 	users, err := services.GetFuzzySearchLeaderboard(ctx, "john", 1, 20)
 	require.NoError(t, err)

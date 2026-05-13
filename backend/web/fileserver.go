@@ -1,9 +1,10 @@
 package web
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"hexchess-svc/assets"
+	svc "hexchess-svc/service"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,7 +15,7 @@ const MaxProfilePicSize = 5 << 20
 
 func (api *API) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-	player, _, err := api.authenticator.GetSessionPlayerAndID(ctx, r)
+	player, err := api.authenticator.ExpectSessionPlayer(ctx, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}
@@ -26,44 +27,38 @@ func (api *API) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) e
 
 	key, err := api.services.UploadProfilePic(ctx, player, bodyFile, contentType)
 	if err != nil {
-		return err
+		return fmt.Errorf("upload profile pic: %w", err)
+	}
+	if err := api.services.DeleteOldProfilePics(ctx, int(player.ID)); err != nil {
+		slog.ErrorContext(ctx, "failed to remove old profile pics", "error", err)
 	}
 
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: key})
-
-	// removes old profile pictures on upload of a new profile pic, since retrieval function will always get the most recent file.
-	deleteCtx := context.WithoutCancel(ctx)
-	if err := api.services.DeleteOldProfilePics(deleteCtx, int(player.ID)); err != nil {
-		slog.ErrorContext(deleteCtx, "failed to remove old profile pics", "error", err)
-	}
-
 	return nil
 }
 
 func (api *API) HandleGetProfilePic(w http.ResponseWriter, r *http.Request) error {
-	//ctx := r.Context()
-	//userID := r.URL.Query().Get("userId")
-	//
-	//key, Err := api.services.GetProfilePicKey(ctx, userID)
-	//if Err != nil {
-	//	level := slog.LevelError
-	//	if errors.Is(Err, svc.ErrNoProfilePic) {
-	//		level = slog.LevelWarn
-	//	}
-	//	slog.Log(ctx, level, "failed to get profile pic key for user", "userID", userID, "error", Err)
-	//
-	//	_, Err := w.Write(assets.DefaultProfilePic)
-	//	return Err
-	//}
-	//
-	//s3URL := api.services.MakeProfileURL(key)
-	//slog.InfoContext(ctx, "resolved user key to S3 profile pic URL", "url", s3URL, "userID", userID)
-	//
-	//// cache control is for what URL is being redirected to, this only changes if the user uploads a new profile pic
-	////w.Header().Set("Cache-Control", "public, max-age=3600")
-	//http.Redirect(w, r, s3URL, http.StatusTemporaryRedirect)
-	//return nil
+	ctx := r.Context()
+	userID := r.URL.Query().Get("userId")
 
-	_, err := w.Write(assets.DefaultProfilePic)
-	return err
+	key, err := api.services.GetProfilePicKey(ctx, userID)
+
+	if err != nil {
+		level := slog.LevelError
+		if errors.Is(err, svc.ErrNoProfilePic) {
+			level = slog.LevelWarn
+		}
+		slog.Log(ctx, level, "failed to get profile pic key for user", "userID", userID, "error", err)
+
+		_, Err := w.Write(assets.DefaultProfilePic)
+		return Err
+	}
+
+	s3URL := api.services.MakeProfileURL(key)
+	slog.InfoContext(ctx, "resolved user key to S3 profile pic URL", "url", s3URL, "userID", userID)
+
+	// cache control is for what URL is being redirected to, this only changes if the user uploads a new profile pic
+	//w.Header().Set("Cache-Control", "public, max-age=3600")
+	http.Redirect(w, r, s3URL, http.StatusTemporaryRedirect)
+	return nil
 }

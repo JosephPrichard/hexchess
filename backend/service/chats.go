@@ -5,38 +5,38 @@ import (
 	"fmt"
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/model"
-	"hexchess-svc/pb"
 	"log/slog"
 
 	"github.com/redis/go-redis/v9"
 )
 
-func (svc *HexchessServices) GetStateChats(ctx context.Context, gameID string, count int64) ([]*pb.ChatMessage, error) {
-	chatsZSet := fmtGameChatsZSet(svc.redis, fmtGameKey(svc.redis, gameID))
+func (svc *HexchessServices) GetChats(ctx context.Context, gameID string, count int64) ([]model.Chat, error) {
+	chatsZSet := fmtGameChatsZSet(svc.redis, fmtGameKey(gameID))
+
 	strList, err := svc.redis.Cache.ZRevRange(ctx, chatsZSet, 0, count).Result()
 	if err != nil {
 		return nil, fmt.Errorf("get the first %d chats: %w", count, err)
 	}
 
-	pbChats := make([]*pb.ChatMessage, 0, len(strList))
+	chats := make([]model.Chat, 0, len(strList))
 	for i, str := range strList {
-		pbChat := &pb.ChatMessage{}
-		if err := proto.Unmarshal([]byte(str), pbChat); err != nil {
-			return nil, fmt.Errorf("unmarshal chat #%d for game=%s: %w", i, gameID, err)
+		chat, err := model.UnmarshalChat([]byte(str))
+		if err != nil {
+			return nil, fmt.Errorf("unmarshal chat #%d for game %s: %w", i, gameID, err)
 		}
-		pbChats = append(pbChats, pbChat)
+		chats = append(chats, chat)
 	}
 
-	slog.InfoContext(ctx, "retrieved chess state chats", "chats", pbChats, "zSetName", chatsZSet)
-	return pbChats, nil
+	slog.InfoContext(ctx, "retrieved chess state chats", "chats", chats, "zSetName", chatsZSet)
+	return chats, nil
 }
 
-func (svc *HexchessServices) InsertStateChat(ctx context.Context, gameID string, chat model.Chat) error {
+func (svc *HexchessServices) InsertChat(ctx context.Context, gameID string, chat model.Chat) error {
 	bytes, err := proto.Marshal(model.SerializeChat(chat))
 	if err != nil {
 		return fmt.Errorf("marshal chat: %w", err)
 	}
-	chatsZSet := fmtGameChatsZSet(svc.redis, fmtGameKey(svc.redis, gameID))
+	chatsZSet := fmtGameChatsZSet(svc.redis, fmtGameKey(gameID))
 	if err := svc.redis.Cache.ZAdd(ctx, chatsZSet, redis.Z{Score: float64(chat.SentAt.UnixMilli()), Member: bytes}).Err(); err != nil {
 		return fmt.Errorf("add chat %v to zset: %w", chat, err)
 	}

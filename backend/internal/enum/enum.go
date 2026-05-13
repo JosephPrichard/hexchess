@@ -105,7 +105,7 @@ func ParseOptional[T ~int, S StringLike](s S, m map[string]T) (Optional[T], erro
 func Expect[T ~int, S StringLike](s S, m map[string]T) T {
 	v, err := Parse(s, m)
 	if err != nil {
-		slog.Error("failed to parse enum", "enum", fmt.Sprintf("%T", v), "err", err)
+		slog.Error("failed to parse enum", "enum", fmt.Sprintf("%T", v), "error", err)
 		panic(err.Error())
 	}
 	return v

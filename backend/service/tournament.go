@@ -322,13 +322,13 @@ type JoinTournamentInst struct {
 	InsertionTime time.Time
 }
 
-type JoinTournamentResult struct {
+type JoinTournamentEvent struct {
 	TournamentKey uuid.UUID
 	Mode          model.GameMode
 }
 
-func (svc *HexchessServices) JoinTournament(ctx context.Context, inst JoinTournamentInst) (JoinTournamentResult, error) {
-	var result JoinTournamentResult
+func (svc *HexchessServices) JoinTournament(ctx context.Context, inst JoinTournamentInst) (JoinTournamentEvent, error) {
+	var result JoinTournamentEvent
 
 	err := svc.db.ExecTx(ctx, db.TxArgs{
 		// Serializable is required to prevent the following race conditions
@@ -375,7 +375,7 @@ func (svc *HexchessServices) JoinTournament(ctx context.Context, inst JoinTourna
 			}
 
 			slog.InfoContext(ctx, "joined tournament", "tournamentKey", inst.TournamentKey, "tournamentRow", tournamentRow, "joiningUserID", inst.JoiningUserID)
-			result = JoinTournamentResult{TournamentKey: inst.TournamentKey, Mode: gameMode}
+			result = JoinTournamentEvent{TournamentKey: inst.TournamentKey, Mode: gameMode}
 			return nil
 		},
 	})
@@ -385,18 +385,6 @@ func (svc *HexchessServices) JoinTournament(ctx context.Context, inst JoinTourna
 
 func mapParticipantInsertErr(err error) error {
 	return db.MapInsertErr(err, ErrTournamentAlreadyJoined, ErrInvalidTournamentParticipant)
-}
-
-func (svc *HexchessServices) JoinTournamentAndSelectUser(ctx context.Context, inst JoinTournamentInst) (model.LbdUser, error) {
-	result, err := svc.JoinTournament(ctx, inst)
-	if err != nil {
-		return model.LbdUser{}, fmt.Errorf("join tournament: %w", err)
-	}
-	lbdUser, err := svc.GetLeaderboardUser(ctx, inst.JoiningUserID, result.Mode)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to get leaderboard user", "Err", err)
-	}
-	return lbdUser, nil
 }
 
 var (
@@ -635,6 +623,17 @@ func insertTournamentMatches(ctx context.Context, querier sqlc.Querier, tourname
 	}
 
 	return nil
+}
+
+func (svc *HexchessServices) BroadcastTournamentParticipant(ctx context.Context, playerID int64, tournamentJoin JoinTournamentEvent) error {
+	lbdUser, err := svc.GetLeaderboardUser(ctx, playerID, tournamentJoin.Mode)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to get leaderboard user", "Err", err)
+	}
+	if err := svc.broadcaster.BroadcastTournament(ctx, model.SerializeParticipantOutput(tournamentJoin.TournamentKey, lbdUser)); err != nil {
+		return fmt.Errorf("broadcast tournament %+v participant: %w", tournamentJoin, err)
+	}
+	return err
 }
 
 type FirstMatchParticipant struct {

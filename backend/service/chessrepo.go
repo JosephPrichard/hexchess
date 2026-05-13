@@ -14,7 +14,7 @@ import (
 )
 
 func (svc *HexchessServices) IsGameAccessible(ctx context.Context, id string) bool {
-	gameKey := fmtGameKey(svc.redis, id)
+	gameKey := fmtGameKey(id)
 
 	exists, err := svc.redis.GameStore.Exists(ctx, gameKey).Result()
 
@@ -32,7 +32,7 @@ type RedisChessGetter interface {
 }
 
 func (svc *HexchessServices) getChessState(ctx context.Context, getter RedisChessGetter, id string) (*model.ChessState, error) {
-	gameKey := fmtGameKey(svc.redis, id)
+	gameKey := fmtGameKey(id)
 
 	bytes, err := getter.Get(ctx, gameKey).Bytes()
 	if errors.Is(err, redis.Nil) {
@@ -68,7 +68,7 @@ type RedisChessSetter interface {
 func (svc *HexchessServices) setChessState(ctx context.Context, setter RedisChessSetter, id string, state *model.ChessState, updtTime time.Time) error {
 	state.Touch = updtTime
 	touchSecs := float64(state.Touch.Unix())
-	gameKey := fmtGameKey(svc.redis, id)
+	gameKey := fmtGameKey(id)
 
 	bytes, err := proto.Marshal(model.SerializeChessState(state))
 	if err != nil {
@@ -122,7 +122,7 @@ type ChessUpdateFn func(*model.ChessState) error
 type ChessCommitFn func(redis.Pipeliner, *model.ChessState) error
 
 func (svc *HexchessServices) updateChessStateTxn(ctx context.Context, gameID string, update ChessUpdateFn, commit ChessCommitFn) (*model.ChessState, error) {
-	gameKey := fmtGameKey(svc.redis, gameID)
+	gameKey := fmtGameKey(gameID)
 
 	for range MaxUpdateChessStateRetries {
 		var ret *model.ChessState
