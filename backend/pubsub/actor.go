@@ -14,32 +14,30 @@ const (
 	broadcastAction
 )
 
-type MulticasterActor struct {
+type BroadcastActor struct {
 	ID         string
-	actionChan chan multicasterAction
-	actorsMap  map[string]actorShard
+	actionChan chan broadcasterAction
+	actorsMap  map[string][]chan []byte
 }
 
-type actorShard = []chan []byte
-
-type multicasterAction struct {
+type broadcasterAction struct {
 	kind    actorActionKind
 	actorID string
 	sub     chan []byte
 	payload []byte
 }
 
-func MakeMulticasterActor(ID string) *MulticasterActor {
-	multicasterMap := &MulticasterActor{ID: ID, actionChan: make(chan multicasterAction), actorsMap: make(map[string]actorShard)}
-	go multicasterMap.Start()
-	return multicasterMap
+func MakeBroadcastActor(ID string) *BroadcastActor {
+	actor := &BroadcastActor{ID: ID, actionChan: make(chan broadcasterAction), actorsMap: make(map[string][]chan []byte)}
+	go actor.Start()
+	return actor
 }
 
-func (actor *MulticasterActor) handleSubscription(action multicasterAction) {
+func (actor *BroadcastActor) handleSubscription(action broadcasterAction) {
 	actorID := action.actorID
 	sub := action.sub
 
-	slog.Info("subscribing to multicaster actor", "actorID", actor.ID, "shardActorID", actorID, "sub", fmt.Sprintf("%v", sub))
+	slog.Info("subscribing to broadcaster actor", "actorID", actor.ID, "shardActorID", actorID, "sub", fmt.Sprintf("%v", sub))
 
 	shard := actor.actorsMap[actorID]
 	if !slices.Contains(shard, sub) {
@@ -48,23 +46,21 @@ func (actor *MulticasterActor) handleSubscription(action multicasterAction) {
 	actor.actorsMap[actorID] = shard
 }
 
-func (actor *MulticasterActor) handleUnsubscription(action multicasterAction) {
+func (actor *BroadcastActor) handleUnsubscription(action broadcasterAction) {
 	actorID := action.actorID
 	sub := action.sub
 
-	slog.Info("unsubscribed from multicaster actor", "actorID", actorID, "shardActorID", actorID, "sub", fmt.Sprintf("%v", sub))
+	slog.Info("unsubscribed from broadcaster actor", "actorID", actorID, "shardActorID", actorID, "sub", fmt.Sprintf("%v", sub))
 
 	shard := actor.actorsMap[actorID]
-	if shard != nil {
-		if slices.Contains(shard, sub) {
-			close(sub)
-		}
-		shard = slices.DeleteFunc(shard, func(subElem chan []byte) bool { return subElem == sub })
+	if slices.Contains(shard, sub) {
+		close(sub)
 	}
+	shard = slices.DeleteFunc(shard, func(subElem chan []byte) bool { return subElem == sub })
 	actor.actorsMap[actorID] = shard
 }
 
-func (actor *MulticasterActor) handleBroadcast(action multicasterAction) {
+func (actor *BroadcastActor) handleBroadcast(action broadcasterAction) {
 	actorID := action.actorID
 	msg := action.payload
 
@@ -81,11 +77,11 @@ func (actor *MulticasterActor) handleBroadcast(action multicasterAction) {
 			subStrs = append(subStrs, fmt.Sprintf("%v", sub))
 		}
 
-		slog.Info("broadcasted to shardcaster actor subscribers", "actorID", actorID, "subscribers", subStrs, "msg", string(msg))
+		slog.Info("broadcasted message to broadcaster actor subscribers", "actorID", actorID, "subscribers", subStrs)
 	}
 }
 
-func (actor *MulticasterActor) stop() {
+func (actor *BroadcastActor) stop() {
 	for _, shard := range actor.actorsMap {
 		for _, sub := range shard {
 			close(sub)
@@ -93,7 +89,7 @@ func (actor *MulticasterActor) stop() {
 	}
 }
 
-func (actor *MulticasterActor) Start() {
+func (actor *BroadcastActor) Start() {
 	for action := range actor.actionChan {
 		switch action.kind {
 		case subAction:
@@ -105,27 +101,27 @@ func (actor *MulticasterActor) Start() {
 		}
 	}
 
-	slog.Info("stopping multicaster actor", "actorID", actor.ID)
+	slog.Info("stopping broadcaster actor", "actorID", actor.ID)
 	actor.stop()
 }
 
-func (actor *MulticasterActor) send(action multicasterAction) {
+func (actor *BroadcastActor) send(action broadcasterAction) {
 	actor.actionChan <- action
 }
 
-func (actor *MulticasterActor) Subscribe(actorID string, sub chan []byte) {
-	actor.send(multicasterAction{kind: subAction, actorID: actorID, sub: sub})
+func (actor *BroadcastActor) Subscribe(actorID string, sub chan []byte) {
+	actor.send(broadcasterAction{kind: subAction, actorID: actorID, sub: sub})
 }
 
-func (actor *MulticasterActor) Unsubscribe(actorID string, sub chan []byte) {
-	actor.send(multicasterAction{kind: unsubAction, actorID: actorID, sub: sub})
+func (actor *BroadcastActor) Unsubscribe(actorID string, sub chan []byte) {
+	actor.send(broadcasterAction{kind: unsubAction, actorID: actorID, sub: sub})
 }
 
-func (actor *MulticasterActor) Broadcast(actorID string, msg []byte) {
-	actor.send(multicasterAction{kind: broadcastAction, actorID: actorID, payload: msg})
+func (actor *BroadcastActor) Broadcast(actorID string, msg []byte) {
+	actor.send(broadcasterAction{kind: broadcastAction, actorID: actorID, payload: msg})
 }
 
-func (actor *MulticasterActor) Shutdown() {
+func (actor *BroadcastActor) Shutdown() {
 	close(actor.actionChan)
 }
 
@@ -192,7 +188,7 @@ func (actor *GlobalCasterActor) handleBroadcast(action globalcasterAction) {
 		}
 	}
 
-	slog.Info("broadcasted to globalcaster subscribers", "actorID", actor.id, "count", count)
+	slog.Info("broadcasted message to globalcaster subscribers", "actorID", actor.id, "count", count)
 }
 
 func (actor *GlobalCasterActor) stop() {

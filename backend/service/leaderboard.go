@@ -25,7 +25,7 @@ type UpdtLbChangeSet struct {
 }
 
 func (svc *HexchessServices) SetLeaderboard(ctx context.Context, changes ...UpdtLbChangeSet) error {
-	pipe := svc.redis.Cache.TxPipeline()
+	pipe := svc.redis.Cache.Pipeline()
 	for _, change := range changes {
 		if model.IsGuestID(change.ID) {
 			continue
@@ -41,7 +41,7 @@ func (svc *HexchessServices) SetLeaderboard(ctx context.Context, changes ...Updt
 }
 
 func (svc *HexchessServices) incrLeaderboard(ctx context.Context, changes ...UpdtLbChangeSet) error {
-	pipe := svc.redis.Cache.TxPipeline()
+	pipe := svc.redis.Cache.Pipeline()
 	for _, change := range changes {
 		if model.IsGuestID(change.ID) || change.EloDiff == 0 {
 			// noop zero value changes.

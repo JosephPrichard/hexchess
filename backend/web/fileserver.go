@@ -15,7 +15,7 @@ const MaxProfilePicSize = 5 << 20
 
 func (api *API) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-	player, err := api.authenticator.ExpectSessionPlayer(ctx, r)
+	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
 		return fmt.Errorf("get session player: %w", err)
 	}

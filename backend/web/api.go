@@ -165,41 +165,52 @@ func MakeServeMux(setup Setup, opts ...func(*chi.Mux)) *chi.Mux {
 }
 
 type HealthCheckConfig struct {
-	PostgresDSN     string
-	RedisPrimaryDSN string
-	RedisPubSubDSN  string
+	PostgresDSN       string
+	RedisGameStoreDSN string
+	RedisCacheDSN     string
+	RedisPubSubDSN    string
 }
 
 func WithHealthCheck(mux *chi.Mux, config HealthCheckConfig) {
+	healthchecks := []health.Config{
+		{
+			Name:    "Postgres",
+			Timeout: time.Second * 1,
+
+			Check: pgHealth.New(pgHealth.Config{
+				DSN: config.PostgresDSN,
+			}),
+		},
+		{
+
+			Name:    "RedisGameStore",
+			Timeout: time.Second * 1,
+			Check: redisHealth.New(redisHealth.Config{
+				DSN: config.RedisGameStoreDSN,
+			}),
+		},
+		{
+
+			Name:    "RedisCache",
+			Timeout: time.Second * 1,
+			Check: redisHealth.New(redisHealth.Config{
+				DSN: config.RedisCacheDSN,
+			}),
+		},
+		{
+			Name:      "RedisPubsub",
+			Timeout:   time.Second * 1,
+			SkipOnErr: true,
+			Check: redisHealth.New(redisHealth.Config{
+				DSN: config.RedisPubSubDSN,
+			}),
+		},
+	}
 	h, err := health.New(
 		health.WithComponent(
 			health.Component{Name: "hexchess-svc", Version: "v1.0"},
 		),
-		health.WithChecks(
-			health.Config{
-				Name:    "Postgres",
-				Timeout: time.Second * 1,
-
-				Check: pgHealth.New(pgHealth.Config{
-					DSN: config.PostgresDSN,
-				}),
-			},
-			health.Config{
-				Name:    "RedisPrimary",
-				Timeout: time.Second * 1,
-				Check: redisHealth.New(redisHealth.Config{
-					DSN: config.RedisPrimaryDSN,
-				}),
-			},
-			health.Config{
-				Name:      "RedisPubsub",
-				Timeout:   time.Second * 1,
-				SkipOnErr: true,
-				Check: redisHealth.New(redisHealth.Config{
-					DSN: config.RedisPubSubDSN,
-				}),
-			},
-		),
+		health.WithChecks(healthchecks...),
 	)
 	if err != nil {
 		logutil.FatalErr("failed to create health checker", err)

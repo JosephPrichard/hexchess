@@ -1,9 +1,17 @@
 package web
 
 import (
+	"errors"
 	"fmt"
+	"github.com/go-playground/locales/en"
+	ut "github.com/go-playground/universal-translator"
+	"github.com/go-playground/validator/v10"
+	enTranslations "github.com/go-playground/validator/v10/translations/en"
 	"github.com/google/uuid"
+	"hexchess-svc/assets"
 	"hexchess-svc/chess"
+	"strconv"
+	"sync"
 
 	"hexchess-svc/internal/enum"
 	"hexchess-svc/model"
@@ -13,64 +21,64 @@ import (
 	"time"
 )
 
-const (
-	minPasswordLength = 11
-	minUsernameLength = 5
-	maxUsernameLength = 35
-	maxBioLength      = 500
+var (
+	validate   *validator.Validate
+	translator ut.Translator
+	once       sync.Once
 )
 
-func isPasswordValid(password string) bool {
-	return len(password) >= minPasswordLength
+func makeEnumValidator(allowed []string) validator.Func {
+	set := make(map[string]struct{}, len(allowed))
+	for _, v := range allowed {
+		set[v] = struct{}{}
+	}
+	return func(fl validator.FieldLevel) bool {
+		_, ok := set[fl.Field().String()]
+		return ok
+	}
 }
 
-func validateRegisterBody(body RegisterBody) error {
-	var respErr ResponseError
-	if !isPasswordValid(body.Password) {
-		respErr.Put("password", ErrHttpInvalidPassword)
-	}
-	if body.Password != body.ConfirmPassword {
-		respErr.Put("confirmPassword", ErrHttpConfirmPassword)
-	}
-	if !isUsernameValid(body.Username) {
-		respErr.Put("username", ErrHttpInvalidUsername)
-	}
-	return respErr.Inner()
+func GetValidator() *validator.Validate {
+	once.Do(func() {
+		validate = validator.New()
+		validate.RegisterValidation("countries", makeEnumValidator(assets.GetCountryList()))
+	})
+
+	locale := en.New()
+	uni := ut.New(locale, locale)
+	t, _ := uni.GetTranslator("en")
+
+	translator = t
+
+	enTranslations.RegisterDefaultTranslations(validate, translator)
+
+	return validate
 }
 
-func isUsernameValid(username string) bool {
-	return len(username) >= minUsernameLength && len(username) <= maxUsernameLength
-}
+func doValidation[Data any](data *Data) error {
+	if err := GetValidator().Struct(data); err != nil {
+		var respErr BadRequestError
 
-func validateUpdatePasswordBody(body UpdatePasswordBody) error {
-	var respErr ResponseError
-	if !isPasswordValid(body.NewPassword) {
-		respErr.Put("newPassword", ErrHttpInvalidPassword)
-	}
-	if body.NewPassword != body.ConfirmNewPassword {
-		respErr.Put("confirmNewPassword", ErrHttpConfirmPassword)
-	}
-	return respErr.Inner()
-}
-
-func validateUpdateUserBody(static StaticData, body UpdateUserBody) error {
-	var respErr ResponseError
-	if body.NewUsername != "" {
-		if !isUsernameValid(body.NewUsername) {
-			respErr.Put("newUsername", ErrHttpInvalidUsername)
+		errs, ok := err.(validator.ValidationErrors)
+		if ok {
+			for _, e := range errs {
+				respErr.Put(e.Namespace(), errors.New(e.Translate(translator)))
+			}
+			return respErr.Inner()
+		} else {
+			return err
 		}
 	}
-	if body.NewBio != "" {
-		if len(body.NewBio) > maxBioLength {
-			respErr.Put("newBio", ErrHttpInvalidBio)
-		}
-	}
-	if body.NewCountry != "" {
-		if !static.validCountries[body.NewCountry] {
-			respErr.Put("newCountry", ErrHttpInvalidCountry)
-		}
-	}
-	return respErr.Inner()
+	return nil
+}
+
+var ValidationFieldErrorMap = map[string]error{
+	"RegisterBody.Password":          ErrHttpInvalidPassword,
+	"RegisterBody.Username":          ErrHttpInvalidUsername,
+	"UpdateUserBody.NewBio":          ErrHttpInvalidBio,
+	"UpdateUserBody.NewCountry":      ErrHttpInvalidCountry,
+	"UpdateUserBody.NewUsername":     ErrHttpInvalidUsername,
+	"UpdatePasswordBody.NewPassword": ErrHttpInvalidPassword,
 }
 
 type Action int
@@ -98,7 +106,7 @@ func parseUpdateChallengeBody(body UpdateChallengeBody) (UpdateChallengeTBody, e
 	case "DELETE":
 		action = Delete
 	default:
-		return UpdateChallengeTBody{}, respError("action", fmt.Errorf("invalid value: %s", body.Action))
+		return UpdateChallengeTBody{}, respError("UpdateChallengeBody.Action", fmt.Errorf("invalid value: %s", body.Action))
 	}
 
 	var targetID int64
@@ -124,15 +132,15 @@ type CreateChallengeTBody struct {
 }
 
 func parseCreateChallengeBody(body CreateChallengeBody) (CreateChallengeTBody, error) {
-	var respErr ResponseError
+	var respErr BadRequestError
 
 	color, err := enum.Parse(body.StartColor, model.GameColorEnums)
 	if err != nil {
-		respErr.Put("startColor", BadRequestError{err})
+		respErr.Put("CreateChallengeBody.StartColor", err)
 	}
 	mode, err := enum.Parse(body.Mode, model.GameModeEnums)
 	if err != nil {
-		respErr.Put("mode", BadRequestError{err})
+		respErr.Put("CreateChallengeBody.Mode", err)
 	}
 
 	return CreateChallengeTBody{ChallengeeID: body.ChallengeeID, StartColor: color, Mode: mode}, respErr.Inner()
@@ -145,7 +153,7 @@ type CreateGameTBody struct {
 }
 
 func parseCreateGameBody(body CreateGameBody) (CreateGameTBody, error) {
-	var respErr ResponseError
+	var respErr BadRequestError
 
 	initialBoard := chess.InitialBoard()
 	if body.InitialFEN != "" {
@@ -153,17 +161,17 @@ func parseCreateGameBody(body CreateGameBody) (CreateGameTBody, error) {
 		if err == nil {
 			initialBoard = parsedBoard
 		} else {
-			respErr.Put("initialFen", BadRequestError{err})
+			respErr.Put("CreateGameBody.InitialFen", err)
 		}
 	}
 
 	color, err := enum.Parse(body.FirstColor, model.GameColorEnums)
 	if err != nil {
-		respErr.Put("firstColor", BadRequestError{err})
+		respErr.Put("CreateGameBody.FirstColor", err)
 	}
 	mode, err := enum.Parse(body.Mode, model.GameModeEnums)
 	if err != nil {
-		respErr.Put("mode", BadRequestError{err})
+		respErr.Put("CreateGameBody.Mode", err)
 	}
 
 	return CreateGameTBody{FirstColor: color, Mode: mode, InitialBoard: initialBoard}, respErr.Inner()
@@ -178,15 +186,15 @@ type CreateTournamentTBody struct {
 }
 
 func parseCreateTournamentBody(body CreateTournamentBody) (CreateTournamentTBody, error) {
-	var respErr ResponseError
+	var respErr BadRequestError
 
 	mode, err := enum.Parse(body.Mode, model.GameModeEnums)
 	if err != nil {
-		respErr.Put("mode", BadRequestError{err})
+		respErr.Put("CreateTournamentBody.Mode", err)
 	}
 	ruleset, err := enum.Parse(body.Ruleset, model.TournamentRulesetEnums)
 	if err != nil {
-		respErr.Put("ruleset", BadRequestError{err})
+		respErr.Put("CreateTournamentBody.Ruleset", err)
 	}
 
 	return CreateTournamentTBody{Name: body.Name, Mode: mode, Ruleset: ruleset, Rounds: body.Rounds, Countdown: body.Countdown}, respErr.Inner()
@@ -198,12 +206,12 @@ type ChessMetasQuery struct {
 }
 
 func parseChessMetasQuery(values url.Values) (ChessMetasQuery, error) {
-	ctx := MakeQueryParseCtx(values)
+	q := makeQueryParseCtx(values)
 
-	page := parseDefaultInt(ctx, "page", 1)
-	count := parseDefaultInt(ctx, "count", defaultPaginationCount)
+	page := parseDefaultInt(q, "page", 1)
+	count := parseDefaultInt(q, "count", defaultPaginationCount)
 
-	return ChessMetasQuery{Page: page, Count: count}, ctx.RespErr.Inner()
+	return ChessMetasQuery{Page: page, Count: count}, q.RespErr.Inner()
 }
 
 const (
@@ -218,7 +226,7 @@ type GetReplayQuery struct {
 }
 
 func parseReplayQueryBody(values url.Values) (GetReplayQuery, error) {
-	ctx := MakeQueryParseCtx(values)
+	q := makeQueryParseCtx(values)
 
 	kindStr := values.Get("idKind")
 	if kindStr == "" {
@@ -231,14 +239,14 @@ func parseReplayQueryBody(values url.Values) (GetReplayQuery, error) {
 
 	switch kindStr {
 	case ByReplayID:
-		replayID = int64(parseInt(ctx, "id"))
+		replayID = int64(parseInt(q, "id"))
 		hasGameID = false
 	case ByGameID:
 		gameID = values.Get("id")
 		hasGameID = true
 	}
 
-	return GetReplayQuery{ReplayID: replayID, GameID: gameID, HasGameID: hasGameID}, ctx.RespErr.Inner()
+	return GetReplayQuery{ReplayID: replayID, GameID: gameID, HasGameID: hasGameID}, q.RespErr.Inner()
 }
 
 type TimeframeKind int
@@ -287,44 +295,44 @@ type EloHistoriesQuery struct {
 }
 
 func parseEloHistoriesQuery(values url.Values) (EloHistoriesQuery, error) {
-	ctx := MakeQueryParseCtx(values)
+	q := makeQueryParseCtx(values)
 
-	userID := parseInt(ctx, "userId")
-	timeframeKind := parseDefEnum[TimeframeKind](ctx, "timeframe", TimeframeEnums, TimeframeAll)
+	userID := parseInt(q, "userId")
+	timeframeKind := parseDefEnum[TimeframeKind](q, "timeframe", TimeframeEnums, TimeframeAll)
 
-	return EloHistoriesQuery{UserID: userID, Months: timeframeKind.Months()}, ctx.RespErr.Inner()
+	return EloHistoriesQuery{UserID: userID, Months: timeframeKind.Months()}, q.RespErr.Inner()
 }
 
 type GetReplaysQuery = svc.ReplaysQuery
 
 func parseReplaysQuery(values url.Values) (GetReplaysQuery, error) {
-	ctx := MakeQueryParseCtx(values)
+	q := makeQueryParseCtx(values)
 
-	whiteName := parseOptString(ctx, "whitename")
-	blackName := parseOptString(ctx, "blackname")
-	loserName := parseOptString(ctx, "losername")
-	winnerName := parseOptString(ctx, "winnername")
+	whiteName := parseOptString(q, "whitename")
+	blackName := parseOptString(q, "blackname")
+	loserName := parseOptString(q, "losername")
+	winnerName := parseOptString(q, "winnername")
 
-	userID := parseOptInt[int64](ctx, "userId")
-	winnerID := parseOptInt[int64](ctx, "winnerId")
-	loserID := parseOptInt[int64](ctx, "loserId")
-	whiteID := parseOptInt[int64](ctx, "whiteId")
-	blackID := parseOptInt[int64](ctx, "blackId")
+	userID := parseOptInt[int64](q, "userId")
+	winnerID := parseOptInt[int64](q, "winnerId")
+	loserID := parseOptInt[int64](q, "loserId")
+	whiteID := parseOptInt[int64](q, "whiteId")
+	blackID := parseOptInt[int64](q, "blackId")
 
-	mode := parseOptEnum(ctx, "mode", model.GameModeEnums)
-	result := parseOptEnum(ctx, "result", model.ReplayResultEnums)
-	cause := parseOptEnum(ctx, "cause", model.ReplayCauseEnums)
+	mode := parseOptEnum(q, "mode", model.GameModeEnums)
+	result := parseOptEnum(q, "result", model.ReplayResultEnums)
+	cause := parseOptEnum(q, "cause", model.ReplayCauseEnums)
 
-	fromDate := parseOptDatetime(ctx, "fromDate")
-	toDate := parseOptDatetime(ctx, "toDate")
+	fromDate := parseOptDatetime(q, "fromDate")
+	toDate := parseOptDatetime(q, "toDate")
 
-	afterID := parseOptInt[int64](ctx, "afterId")
-	afterTurnCount := parseOptInt[int32](ctx, "afterTurnCount")
-	afterRating := parseOptFloat(ctx, "afterRating")
+	afterID := parseOptInt[int64](q, "afterId")
+	afterTurnCount := parseOptInt[int32](q, "afterTurnCount")
+	afterRating := parseOptFloat(q, "afterRating")
 
-	sort := parseDefEnum(ctx, "sort", svc.ReplayQuerySortEnums, svc.ReplaySortID)
+	sort := parseDefEnum(q, "sort", svc.ReplayQuerySortEnums, svc.ReplaySortID)
 
-	perPage := parseDefaultInt[int32](ctx, "perPage", defaultPaginationCount)
+	perPage := parseDefaultInt[int32](q, "perPage", defaultPaginationCount)
 	if perPage > defaultPaginationCount {
 		perPage = defaultPaginationCount
 	}
@@ -353,7 +361,7 @@ func parseReplaysQuery(values url.Values) (GetReplaysQuery, error) {
 
 		Sort:    sort,
 		PerPage: perPage,
-	}, ctx.RespErr.Inner()
+	}, q.RespErr.Inner()
 }
 
 type GetTournamentQuery struct {
@@ -363,7 +371,7 @@ type GetTournamentQuery struct {
 }
 
 func parseTournamentsQuery(values url.Values) (GetTournamentQuery, error) {
-	ctx := MakeQueryParseCtx(values)
+	ctx := makeQueryParseCtx(values)
 
 	userID := parseOptInt[int64](ctx, "userId")
 	afterID := parseOptInt[int64](ctx, "afterId")
@@ -372,7 +380,7 @@ func parseTournamentsQuery(values url.Values) (GetTournamentQuery, error) {
 }
 
 func parseLeaderboardQuery(values url.Values) (LeaderboardQuery, error) {
-	ctx := MakeQueryParseCtx(values)
+	ctx := makeQueryParseCtx(values)
 
 	page := parseDefaultInt(ctx, "page", 1)
 	mode := parseEnum(ctx, "mode", model.GameModeEnums)
@@ -383,7 +391,105 @@ func parseLeaderboardQuery(values url.Values) (LeaderboardQuery, error) {
 func parseTournamentKeyBody(body TournamentKeyBody) (uuid.UUID, error) {
 	tournamentKey, err := uuid.Parse(body.TournamentKey)
 	if err != nil {
-		return uuid.UUID{}, respError("tournamentKey", BadRequestError{err})
+		return uuid.UUID{}, respError("TournamentKeyBody.TournamentKey", err)
 	}
 	return tournamentKey, nil
+}
+
+type queryParseCtx struct {
+	Values  url.Values
+	RespErr *BadRequestError
+}
+
+func makeQueryParseCtx(values url.Values) queryParseCtx {
+	return queryParseCtx{Values: values, RespErr: &BadRequestError{}}
+}
+
+func parseInt(q queryParseCtx, key string) int {
+	str := q.Values.Get(key)
+	v, err := strconv.Atoi(str)
+	if err != nil {
+		q.RespErr.Put(key, err)
+	}
+	return v
+}
+
+func parseDefaultInt[T interface{ int | int32 | int64 }](q queryParseCtx, key string, def T) T {
+	str := q.Values.Get(key)
+	if str == "" {
+		return def
+	}
+	v, err := strconv.Atoi(str)
+	if err != nil {
+		q.RespErr.Put(key, err)
+	}
+	return T(v)
+}
+
+func parseOptFloat(q queryParseCtx, key string) enum.Optional[float64] {
+	v := q.Values.Get(key)
+	if v == "" {
+		return enum.Optional[float64]{}
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		q.RespErr.Put(key, err)
+	}
+	return enum.Just(f)
+}
+
+func parseOptString(q queryParseCtx, key string) enum.Optional[string] {
+	v := q.Values.Get(key)
+	if v == "" {
+		return enum.Optional[string]{}
+	}
+	return enum.Just(v)
+}
+
+func parseOptDatetime(q queryParseCtx, key string) enum.Optional[time.Time] {
+	v := q.Values.Get(key)
+	if v == "" {
+		return enum.Optional[time.Time]{}
+	}
+	t, err := time.Parse(time.DateOnly, v)
+	if err != nil {
+		q.RespErr.Put(key, err)
+	}
+	return enum.Just(t)
+}
+
+func parseOptInt[T interface{ int | int32 | int64 }](q queryParseCtx, key string) enum.Optional[T] {
+	v := q.Values.Get(key)
+	if v == "" {
+		return enum.Optional[T]{}
+	}
+	i, err := strconv.Atoi(v)
+	if err != nil {
+		q.RespErr.Put(key, err)
+	}
+	return enum.Just(T(i))
+}
+
+func parseOptEnum[T ~int](q queryParseCtx, key string, enums map[string]T) enum.Optional[T] {
+	v, err := enum.ParseOptional(q.Values.Get(key), enums)
+	if err != nil {
+		q.RespErr.Put(key, err)
+	}
+	return v
+}
+
+func parseEnum[T ~int](q queryParseCtx, key string, enums map[string]T) T {
+	v, err := enum.Parse(q.Values.Get(key), enums)
+	if err != nil {
+		q.RespErr.Put(key, err)
+	}
+	return v
+}
+
+func parseDefEnum[T ~int](q queryParseCtx, key string, enums map[string]T, def T) T {
+	v, err := enum.ParseDefault(q.Values.Get(key), enums, def)
+	if err != nil {
+		q.RespErr.Put(key, err)
+	}
+	return v
 }

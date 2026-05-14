@@ -102,31 +102,37 @@ function mapErr(code: string): string {
 	return messages[code] || 'An unexpected error has occurred'
 }
 
-export function errorToArray(error?: ServiceModel): string[] {
-	let messages: string[] = [];
-	if (typeof error?.errors === "string") {
-		messages = [error.errors];
-	} else if (typeof error?.errors === "object") {
-		messages = Object.values(error.errors);
+export function errorToArray(resp?: ServiceModel): string[] {
+	let messages: string[];
+
+	if (resp?.error !== undefined) {
+		messages = [resp.error];
+	} else if (resp?.errors) {
+		messages = Object.values(resp?.errors);
+	} else {
+		messages = [codes.errorUnknown];
 	}
+
 	return messages.map(message => mapErr(message));
 }
 
-export function makeMessage(error?: ServiceModel | string): string {
-	console.error(error);
+export function makeMessage(resp?: ServiceModel | string): string {
+	console.error(resp);
 
-	const codes: string[] = [];
-	if (typeof error === "string") {
-		codes.push(error)
-	} else if (typeof error?.errors === "string") {
-		codes.push(error.errors)
-	} else if (typeof error?.errors === "object") {
-		for (const key in error.errors) {
-			codes.push(error.errors[key])
-		}
+	let messages: string[];
+
+	if (typeof resp === "string") {
+		messages = [resp];
+	} else if (resp?.error !== undefined) {
+		messages = [resp.error];
+	} else if (resp?.errors) {
+		messages = Object.keys(resp.errors)
+	} else {
+		messages = [codes.errorUnknown];
 	}
-	return codes
-		.filter((value: string, index: number, array: string[]) => array.indexOf(value) === index) // distinct codes
+
+	return messages
+		.filter((value: string, index: number, array: string[]) => array.indexOf(value) === index) // distinct messages
 		.map(code => mapErr(code))
 		.join('\n');
 }

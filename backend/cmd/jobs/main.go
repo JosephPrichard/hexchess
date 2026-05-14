@@ -33,7 +33,7 @@ func main() {
 	cmd.InitEnv()
 
 	dbURL := os.Getenv("DB_URL")
-	rdbCacheURL := os.Getenv("REDIS_CACHE_URL")
+	rdbCacheURL := os.Getenv("REDIS_CACHE_NODES")
 
 	ctx := context.WithValue(context.Background(), logutil.Trace, "jobs-runner")
 
@@ -46,7 +46,7 @@ func main() {
 
 	addrs := db.RedisAddrs{CacheAddr: rdbCacheURL}
 	slog.InfoContext(ctx, "connecting to redis db", "addrs", addrs)
-	rdb := db.MakeRdb(addrs, nil)
+	rdb := db.MakeRedis(addrs, nil)
 
 	services := svc.MakeHexchessServices(svc.Setup{
 		DB:    pdb,

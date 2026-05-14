@@ -47,7 +47,7 @@ func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (rdb db.Redis, er
 	port, _ := redisCont.MappedPort(ctx, RedisContPort)
 	addr := fmt.Sprintf("%s:%s", host, port.Port())
 
-	return db.MakeRdb(
+	return db.MakeRedis(
 		db.RedisAddrs{
 			GameStoreAddr: addr,
 			CacheAddr:     addr,

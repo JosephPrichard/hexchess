@@ -241,5 +241,6 @@ export function mapChatMessage(chat: ChatMessage): Chat {
 export interface ServiceModel {
 	status: number;
 	message?: string;
-	errors: string | Record<string, string>
+	error: string;
+	errors: Record<string, string>
 }

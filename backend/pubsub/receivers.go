@@ -52,17 +52,17 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 
 type LocalBroadcasters struct {
 	CountsCaster     *GlobalCasterActor
-	GamesCaster      *MulticasterActor
-	UsersCaster      *MulticasterActor
-	TournamentCaster *MulticasterActor
+	GamesCaster      *BroadcastActor
+	UsersCaster      *BroadcastActor
+	TournamentCaster *BroadcastActor
 }
 
 func MakeLocalBroadcasters() *LocalBroadcasters {
 	return &LocalBroadcasters{
 		CountsCaster:     MakeGlobalCasterActor("counts-caster"),
-		GamesCaster:      MakeMulticasterActor("games-caster"),
-		UsersCaster:      MakeMulticasterActor("users-caster"),
-		TournamentCaster: MakeMulticasterActor("users-caster"),
+		GamesCaster:      MakeBroadcastActor("games-caster"),
+		UsersCaster:      MakeBroadcastActor("users-caster"),
+		TournamentCaster: MakeBroadcastActor("users-caster"),
 	}
 }
 

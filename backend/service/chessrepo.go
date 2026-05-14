@@ -98,7 +98,7 @@ func (svc *HexchessServices) setChessState(ctx context.Context, setter RedisChes
 
 func (svc *HexchessServices) SetManyChessStates(ctx context.Context, chessStates []model.ChessState) error {
 	var createdGameID []string
-	pipe := svc.redis.GameStore.TxPipeline()
+	pipe := svc.redis.GameStore.Pipeline()
 
 	for _, state := range chessStates {
 		createdGameID = append(createdGameID, state.ID)

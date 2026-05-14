@@ -5,6 +5,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"hexchess-svc/internal/logutil"
+	"log/slog"
 	"reflect"
 	"time"
 )
@@ -73,19 +74,24 @@ type Redis struct {
 	RedisNames
 }
 
-func MakeRdb(addrs RedisAddrs, names *RedisNames) Redis {
+func makeRedigoPool(addr string, name string) *redigo.Pool {
+	return &redigo.Pool{
+		MaxIdle:     1,
+		IdleTimeout: 240 * time.Second,
+		Dial: func() (redigo.Conn, error) {
+			slog.Info("dialing redis pubsub server", "name", name, "addr", addr)
+			return redigo.Dial("tcp", addr)
+		},
+	}
+}
+
+func MakeRedis(addrs RedisAddrs, names *RedisNames) Redis {
 	if names == nil {
 		names = &DefaultRedisNames
 	}
 	var ps *redigo.Pool
 	if addrs.PubsubAddr != "" {
-		ps = &redigo.Pool{
-			MaxIdle:     1,
-			IdleTimeout: 240 * time.Second,
-			Dial: func() (redigo.Conn, error) {
-				return redigo.Dial("tcp", addrs.PubsubAddr)
-			},
-		}
+		ps = makeRedigoPool(addrs.PubsubAddr, "pubsub")
 	}
 	return Redis{
 		GameStore: redis.NewClient(&redis.Options{
@@ -101,6 +107,9 @@ func MakeRdb(addrs RedisAddrs, names *RedisNames) Redis {
 }
 
 func (rdb *Redis) Close() {
+	if rdb.GameStore != nil {
+		rdb.GameStore.Close()
+	}
 	if rdb.Cache != nil {
 		rdb.Cache.Close()
 	}

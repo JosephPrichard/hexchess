@@ -29,9 +29,9 @@ func main() {
 
 	serverPort := os.Getenv("SERVER_PORT")
 	dbURL := os.Getenv("DB_URL")
-	rdbGameStoreURL := os.Getenv("REDIS_GAMESTORE_URL")
-	rdbCacheURL := os.Getenv("REDIS_CACHE_URL")
-	rdbPubSubURL := os.Getenv("REDIS_PUBSUB_URL")
+	rdbGameStoreNode := os.Getenv("REDIS_GAMESTORE_NODE")
+	rdbCacheNodes := os.Getenv("REDIS_CACHE_NODES")
+	rdbPubSubNode := os.Getenv("REDIS_PUBSUB_NODE")
 	isLocalstack := os.Getenv("IS_LOCALSTACK") == "true"
 	awsDefaultRegion := os.Getenv("AWS_DEFAULT_REGION")
 	awsEndpoint := os.Getenv("AWS_ENDPOINT")
@@ -57,12 +57,12 @@ func main() {
 	pdb := db.MakeDB(pool)
 
 	addrs := db.RedisAddrs{
-		CacheAddr:     rdbCacheURL,
-		GameStoreAddr: rdbGameStoreURL,
-		PubsubAddr:    rdbPubSubURL,
+		CacheAddr:     rdbCacheNodes,
+		GameStoreAddr: rdbGameStoreNode,
+		PubsubAddr:    rdbPubSubNode,
 	}
 	slog.Info("connecting to redis db", "addrs", addrs)
-	rdb := db.MakeRdb(addrs, nil)
+	rdb := db.MakeRedis(addrs, nil)
 
 	aws, err := egress.MakeAwsClients(ctx, egress.AWSConfig{
 		AWSDefaultRegion: awsDefaultRegion,
@@ -98,9 +98,10 @@ func main() {
 	}()
 
 	withHealthcheck := web.WithHealthCheckOpts(web.HealthCheckConfig{
-		PostgresDSN:     dbURL,
-		RedisPrimaryDSN: rdbCacheURL,
-		RedisPubSubDSN:  rdbPubSubURL,
+		PostgresDSN:       dbURL,
+		RedisGameStoreDSN: rdbGameStoreNode,
+		RedisCacheDSN:     rdbCacheNodes,
+		RedisPubSubDSN:    rdbPubSubNode,
 	})
 	serverSetup := web.Setup{
 		Services:       services,

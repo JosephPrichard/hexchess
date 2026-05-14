@@ -3,12 +3,15 @@ package web
 import (
 	"errors"
 	"fmt"
+	svc "hexchess-svc/service"
+	"net/http"
 )
 
 // HTTP error codes
 var (
 	ErrHttpFatal                 = errors.New("ERROR_FATAL")
 	ErrHttpInvalidJSON           = errors.New("ERROR_INVALID_JSON")
+	ErrHttpInvalidInput          = errors.New("ERROR_INVALID_INPUT")
 	ErrHttpInvalidPassword       = errors.New("ERROR_PASSWORD_LENGTH")
 	ErrHttpConfirmPassword       = errors.New("ERROR_CONFIRM_PASSWORD")
 	ErrHttpInvalidUsername       = errors.New("ERROR_USERNAME_LENGTH")
@@ -34,14 +37,6 @@ var (
 	ErrHttpInvalidRounds         = errors.New("ERROR_INVALID_ROUNDS")
 )
 
-type BadRequestError struct {
-	Err error
-}
-
-func (e BadRequestError) Error() string {
-	return e.Err.Error()
-}
-
 // WebSocket response codes
 var (
 	ErrWsFatal          = errors.New("ERROR_FATAL")
@@ -57,30 +52,131 @@ var (
 	ErrWsUndoAction     = errors.New("ERR_UNDO_ACTION")
 )
 
-type ResponseError struct {
+func mapBadRequestError(err error) (ServiceView, bool) {
+	var respErr *BadRequestError
+	ok := errors.As(err, &respErr)
+	if !ok {
+		return ServiceView{}, false
+	}
+	strMap := make(map[string]MultiErrorElem)
+
+	for k, v := range respErr.Errors {
+		var targetErr error
+		fieldErr := ValidationFieldErrorMap[k]
+		if fieldErr != nil {
+			targetErr = fieldErr
+		} else {
+			targetErr = ErrHttpInvalidInput
+		}
+		strMap[k] = MultiErrorElem{Message: v.Error(), Error: targetErr.Error()}
+	}
+
+	return ServiceView{Status: http.StatusBadRequest, Errors: strMap}, true
+}
+
+func ServiceViewFromErr(err error) ServiceView {
+	var msg string
+
+	if resp, ok := mapBadRequestError(err); ok {
+		return resp
+	}
+
+	switch {
+	case errors.Is(err, svc.ErrSessionNotFound):
+		err, msg = ErrHttpSessionExpired, err.Error()
+	case errors.Is(err, svc.ErrUserNotFound):
+		err, msg = ErrHttpInvalidLogin, err.Error()
+	case errors.Is(err, svc.ErrTooManyLoginAttempts):
+		err, msg = ErrHttpTooManyLoginAttempts, err.Error()
+	case errors.Is(err, svc.ErrDuplicateChallenge):
+		err, msg = ErrHttpDuplicateChallenge, err.Error()
+	case errors.Is(err, svc.ErrInvalidChallengeMember):
+		err, msg = ErrHttpInvalidParticipants, err.Error()
+	case errors.Is(err, svc.ErrSelfChallenge):
+		err, msg = ErrHttpSelfChallenge, err.Error()
+	case errors.Is(err, svc.ErrTournamentNotFound):
+		err, msg = ErrHttpNotFoundTournament, err.Error()
+	case errors.Is(err, svc.ErrTooManyParticipants):
+		err, msg = ErrHttpTooManyParticipants, err.Error()
+	case errors.Is(err, svc.ErrTournamentNotLobby):
+		err, msg = ErrHttpTournamentNotLobby, err.Error()
+	case errors.Is(err, svc.ErrInvalidCountdownTournamentStatus):
+		err, msg = ErrHttpInvalidCountdownState, err.Error()
+	case errors.Is(err, svc.ErrTournamentCountdownPermissions):
+		err, msg = ErrHttpCountdownPermissions, err.Error()
+	case errors.Is(err, svc.ErrChallengeNotFound):
+		err, msg = ErrHttpNotFoundChallenge, err.Error()
+	case errors.Is(err, svc.ErrTournamentNotFound):
+		err, msg = ErrHttpNotFoundTournament, err.Error()
+	}
+
+	// map http error codes to status codes
+	switch err {
+	// 400 — Bad Request
+	case ErrHttpInvalidPassword,
+		ErrHttpConfirmPassword,
+		ErrHttpInvalidUsername,
+		ErrHttpInvalidBio,
+		ErrHttpUnsafeUsername,
+		ErrHttpInvalidParticipants,
+		ErrHttpInvalidCountry,
+		ErrHttpDuplicateUsername,
+		ErrHttpSelfChallenge,
+		ErrHttpDuplicateChallenge,
+		ErrHttpUpdateChallenge,
+		ErrHttpInvalidJSON,
+		ErrHttpCountdownPermissions,
+		ErrHttpInvalidRounds:
+		return ServiceView{Status: http.StatusBadRequest, Message: msg, Error: err.Error()}
+	// 401 — Unauthorized
+	case ErrHttpInvalidLogin,
+		ErrHttpSessionExpired,
+		ErrHttpTooManyLoginAttempts:
+		return ServiceView{Status: http.StatusUnauthorized, Message: msg, Error: err.Error()}
+	// 404 — Not Found
+	case ErrHttpNotFoundUser,
+		ErrHttpNotFoundReplay,
+		ErrHttpNotFoundChallenge,
+		ErrHttpNotFoundTournament:
+		return ServiceView{Status: http.StatusNotFound, Message: msg, Error: err.Error()}
+	// 412 - Precondition
+	case ErrHttpTooManyParticipants,
+		ErrHttpTournamentNotLobby,
+		ErrHttpInvalidCountdownState:
+		return ServiceView{Status: http.StatusPreconditionFailed, Message: msg, Error: err.Error()}
+	// 500 — Internal API Error
+	case ErrHttpFatal:
+		return ServiceView{Status: http.StatusInternalServerError, Message: msg, Error: err.Error()}
+	// fallback
+	default:
+		return ServiceView{Status: http.StatusInternalServerError, Error: ErrHttpFatal.Error()}
+	}
+}
+
+type BadRequestError struct {
 	Errors map[string]error
 }
 
-func (re *ResponseError) Put(key string, newErr error) {
+func (re *BadRequestError) Put(key string, newErr error) {
 	if re.Errors == nil {
 		re.Errors = make(map[string]error)
 	}
 	re.Errors[key] = newErr
 }
 
-func respError(key string, newErr error) error {
-	return &ResponseError{Errors: map[string]error{key: BadRequestError{newErr}}}
+func respError(key string, err error) error {
+	return &BadRequestError{Errors: map[string]error{key: err}}
 }
 
-func (re *ResponseError) HasErrors() bool {
+func (re *BadRequestError) HasErrors() bool {
 	return len(re.Errors) > 0
 }
 
-func (re *ResponseError) Error() string {
+func (re *BadRequestError) Error() string {
 	return fmt.Sprintf("%+v", re.Errors)
 }
 
-func (re *ResponseError) Inner() error {
+func (re *BadRequestError) Inner() error {
 	if re.HasErrors() {
 		return re
 	}

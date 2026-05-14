@@ -5,10 +5,6 @@ import (
 	"hexchess-svc/db"
 )
 
-func fmtLeaderboardZSet(redis db.Redis, mode string) string {
-	return fmt.Sprintf("%s/mode:%s", redis.LeaderboardZSet, mode)
-}
-
 func fmtUserGameZSet(redis db.Redis, id int64) string {
 	return fmt.Sprintf("%s/user/%d", redis.GamesZSet, id)
 }
@@ -17,12 +13,16 @@ func fmtGameKey(gameID string) string {
 	return fmt.Sprintf("game/%s", gameID)
 }
 
+func fmtLeaderboardZSet(redis db.Redis, mode string) string {
+	return fmt.Sprintf("{%s}%s/mode:%s", mode, redis.LeaderboardZSet, mode)
+}
+
 func fmtGameChatsZSet(redis db.Redis, gameKey string) string {
-	return fmt.Sprintf("%s/%s", redis.GameChatsZSet, gameKey)
+	return fmt.Sprintf("{%s}%s/%s", gameKey, redis.GameChatsZSet, gameKey)
 }
 
 func makeSessionKey(sessionID string) string {
-	return fmt.Sprintf("session/%s", sessionID)
+	return fmt.Sprintf("{%s}session/%s", sessionID, sessionID)
 }
 
 func makeProfilePicPrefix(userID string) string {

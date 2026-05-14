@@ -40,7 +40,7 @@ type SessionInst struct {
 func (svc *HexchessServices) SetSessions(ctx context.Context, insts ...SessionInst) error {
 	slog.InfoContext(ctx, "setting sessions", "insts", insts)
 
-	pipe := svc.redis.Cache.TxPipeline()
+	pipe := svc.redis.Cache.Pipeline()
 
 	for _, inst := range insts {
 		data, err := model.MarshalPlayer(inst.Player)

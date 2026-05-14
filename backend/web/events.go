@@ -28,11 +28,11 @@ func SSE(h func(w *SSEClient, r *http.Request) error) http.HandlerFunc {
 		}
 		ctx := r.Context()
 		if err := h(&SSEClient{ctx, w, f}, r); err != nil {
-			status, m := HttpStatusFromErr(err)
+			resp := ServiceViewFromErr(err)
 
-			slog.Log(ctx, LevelFromStatus(status), "sse request failed", "error", err, "method", r.Method, "url", r.URL)
+			slog.Log(ctx, LevelFromStatus(resp.Status), "sse request failed", "error", err, "method", r.Method, "url", r.URL)
 
-			http.Error(w, fmt.Sprintf("%s:%s", MetaEvent, m), status)
+			http.Error(w, fmt.Sprintf("%s:%s", MetaEvent, resp.Message), resp.Status)
 		}
 		slog.InfoContext(ctx, "finished sse request", "method", r.Method, "url", r.URL)
 	}
@@ -93,7 +93,7 @@ const RetainActiveUserPeriod = svc.ActiveUserMaxage - time.Second
 func (api *API) HandleActiveConn(client *SSEClient, r *http.Request) error {
 	ctx := client.ctx
 
-	player, err := api.authenticator.ExpectSessionPlayer(ctx, r)
+	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func (api *API) HandleActiveConn(client *SSEClient, r *http.Request) error {
 func (api *API) HandleUserEvents(client *SSEClient, r *http.Request) error {
 	ctx := client.ctx
 
-	player, err := api.authenticator.ExpectSessionPlayer(ctx, r)
+	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
 		return err
 	}

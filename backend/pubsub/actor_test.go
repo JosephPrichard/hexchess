@@ -22,7 +22,7 @@ func collectMessages(messages [][]byte) []string {
 }
 
 func TestMulticasterActor(t *testing.T) {
-	actor := MakeMulticasterActor("testing-multicasters")
+	actor := MakeBroadcastActor("testing-multicasters")
 	defer actor.Shutdown()
 
 	wantSub1Msgs := []string{"test1", "test2", "test3"}

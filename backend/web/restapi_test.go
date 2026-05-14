@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"hexchess-svc/egress"
 
@@ -33,6 +34,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var serviceViewCmpOpts = []cmp.Option{
+	cmpopts.IgnoreFields(ServiceView{}, "Message"),
+	cmpopts.IgnoreFields(MultiErrorElem{}, "Message"),
+}
+
 func TestHandleRegister(t *testing.T) {
 	t.Parallel()
 
@@ -52,19 +58,25 @@ func TestHandleRegister(t *testing.T) {
 		{
 			name:       "InvalidPasswordConfirmDoesNotMatch",
 			body:       RegisterBody{Username: "testing-name1", Password: "testing-password1", ConfirmPassword: "wrong"},
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"confirmPassword": ErrHttpConfirmPassword.Error()}},
+			wantFail:   ServiceView{Status: http.StatusBadRequest, Error: ErrHttpConfirmPassword.Error()},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "InvalidUsernameAndPasswordTooShort",
-			body:       RegisterBody{Username: "s", Password: "short", ConfirmPassword: "short"},
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"username": ErrHttpInvalidUsername.Error(), "password": ErrHttpInvalidPassword.Error()}},
+			name: "InvalidUsernameAndPasswordTooShort",
+			body: RegisterBody{Username: "s", Password: "short", ConfirmPassword: "short"},
+			wantFail: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]MultiErrorElem{
+					"RegisterBody.Username": {Error: ErrHttpInvalidUsername.Error()},
+					"RegisterBody.Password": {Error: ErrHttpInvalidPassword.Error()},
+				},
+			},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "InvalidUsernameDuplicate",
 			body:       RegisterBody{Username: itest.UsersInsts[0].Username, Password: "testing-password2", ConfirmPassword: "testing-password2"},
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpDuplicateUsername.Error()},
+			wantFail:   ServiceView{Status: http.StatusBadRequest, Error: ErrHttpDuplicateUsername.Error()},
 			wantStatus: http.StatusBadRequest,
 		},
 	}
@@ -83,7 +95,7 @@ func TestHandleRegister(t *testing.T) {
 			if tt.wantStatus == http.StatusOK {
 				testutil.AssertRespBody(t, tt.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				testutil.AssertRespBody(t, tt.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w, serviceViewCmpOpts...)
 			}
 		})
 	}
@@ -104,7 +116,7 @@ func TestHandleLogin(t *testing.T) {
 		{
 			name:       "InvalidLogin",
 			body:       LoginBody{Username: "testing-name", Password: "testing-password"},
-			wantFail:   ServiceView{Status: http.StatusUnauthorized, Errors: ErrHttpInvalidLogin.Error()},
+			wantFail:   ServiceView{Status: http.StatusUnauthorized, Error: ErrHttpInvalidLogin.Error()},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
@@ -129,7 +141,7 @@ func TestHandleLogin(t *testing.T) {
 			if tt.wantStatus == http.StatusOK {
 				testutil.AssertRespBody(t, tt.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				testutil.AssertRespBody(t, tt.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w, serviceViewCmpOpts...)
 			}
 		})
 	}
@@ -160,7 +172,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 				return egress.MakeGoogleAPIWithValidator(apiKey, m)
 			},
 			body:       GoogleLoginBody{Token: "invalidToken123"},
-			wantFail:   ServiceView{Status: http.StatusInternalServerError, Errors: ErrHttpFatal.Error()},
+			wantFail:   ServiceView{Status: http.StatusInternalServerError, Error: ErrHttpFatal.Error()},
 			wantStatus: http.StatusInternalServerError,
 		},
 		{
@@ -203,7 +215,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 				if tt.wantStatus == http.StatusOK {
 					testutil.AssertRespBody(t, tt.wantSuccess, w, testSessionViewCmpOpts)
 				} else {
-					testutil.AssertRespBody(t, tt.wantFail, w)
+					testutil.AssertRespBody(t, tt.wantFail, w, serviceViewCmpOpts...)
 				}
 			}
 		})
@@ -225,22 +237,32 @@ func TestHandleUpdateUser(t *testing.T) {
 			name:       "UnauthorizedUser",
 			body:       UpdateUserBody{NewUsername: "username"},
 			sessionID:  "invalid",
-			wantFail:   ServiceView{Status: http.StatusUnauthorized, Errors: ErrHttpSessionExpired.Error()},
+			wantFail:   ServiceView{Status: http.StatusUnauthorized, Error: ErrHttpSessionExpired.Error()},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
 			name:      "InvalidUsernameAndBiographyLength",
 			body:      UpdateUserBody{NewCountry: "us", NewUsername: "s", NewBio: strings.Repeat("a", 5001)},
 			sessionID: TestSessionID1,
-			wantFail: ServiceView{Status: http.StatusBadRequest,
-				Errors: map[string]any{"newBio": ErrHttpInvalidBio.Error(), "newUsername": ErrHttpInvalidUsername.Error()}},
+			wantFail: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]MultiErrorElem{
+					"UpdateUserBody.NewBio":      {Error: ErrHttpInvalidBio.Error()},
+					"UpdateUserBody.NewUsername": {Error: ErrHttpInvalidUsername.Error()},
+				},
+			},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "InvalidCountryUnknown",
-			body:       UpdateUserBody{NewCountry: "wrong", NewUsername: "new-username", NewBio: "testing biography"},
-			sessionID:  TestSessionID1,
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"newCountry": ErrHttpInvalidCountry.Error()}},
+			name:      "InvalidCountryUnknown",
+			body:      UpdateUserBody{NewCountry: "wrong", NewUsername: "new-username", NewBio: "testing biography"},
+			sessionID: TestSessionID1,
+			wantFail: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]MultiErrorElem{
+					"UpdateUserBody.NewCountry": {Error: ErrHttpInvalidCountry.Error()},
+				},
+			},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
@@ -276,7 +298,7 @@ func TestHandleUpdateUser(t *testing.T) {
 			if tt.wantStatus == http.StatusOK {
 				testutil.AssertRespBody(t, tt.wantSuccess, w, testSessionViewCmpOpts)
 			} else {
-				testutil.AssertRespBody(t, tt.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w, serviceViewCmpOpts...)
 			}
 		})
 	}
@@ -295,19 +317,24 @@ func TestHandleUpdatePassword(t *testing.T) {
 		{
 			name:       "InvalidLogin",
 			body:       UpdatePasswordBody{Password: "password2", NewPassword: "testing-password", ConfirmNewPassword: "testing-password"},
-			wantFail:   ServiceView{Status: http.StatusUnauthorized, Errors: ErrHttpInvalidLogin.Error()},
+			wantFail:   ServiceView{Status: http.StatusUnauthorized, Error: ErrHttpInvalidLogin.Error()},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			name:       "InvalidPasswordLength",
-			body:       UpdatePasswordBody{Password: "password1", NewPassword: "short", ConfirmNewPassword: "short"},
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"newPassword": ErrHttpInvalidPassword.Error()}},
+			name: "InvalidPasswordLength",
+			body: UpdatePasswordBody{Password: "password1", NewPassword: "short", ConfirmNewPassword: "short"},
+			wantFail: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]MultiErrorElem{
+					"UpdatePasswordBody.NewPassword": {Error: ErrHttpInvalidPassword.Error()},
+				},
+			},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "InvalidPasswordConfirmDoesNotMatch",
 			body:       UpdatePasswordBody{Password: "password1", NewPassword: "testing-password1", ConfirmNewPassword: "testing-password"},
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: map[string]any{"confirmNewPassword": ErrHttpConfirmPassword.Error()}},
+			wantFail:   ServiceView{Status: http.StatusBadRequest, Error: ErrHttpConfirmPassword.Error()},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
@@ -335,7 +362,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 			if tt.wantStatus == http.StatusOK {
 				testutil.AssertRespBody(t, tt.wantSuccess, w)
 			} else {
-				testutil.AssertRespBody(t, tt.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w, serviceViewCmpOpts...)
 			}
 		})
 	}
@@ -354,21 +381,31 @@ func TestHandleUpdateChallenge(t *testing.T) {
 		{
 			name:       "UnauthorizedUser",
 			body:       UpdateChallengeBody{Action: "DELETE"},
-			wantFail:   ServiceView{Status: http.StatusUnauthorized, Errors: ErrHttpSessionExpired.Error()},
+			wantFail:   ServiceView{Status: http.StatusUnauthorized, Error: ErrHttpSessionExpired.Error()},
 			sessionID:  "invalid",
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
+			name: "InvalidChallengeAction",
+			body: UpdateChallengeBody{Action: "invalid"},
+			wantFail: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]MultiErrorElem{"UpdateChallengeBody.Action": {Error: ErrHttpInvalidInput.Error()}},
+			},
+			sessionID:  TestSessionID1,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
 			name:       "InvalidChallenge",
 			body:       UpdateChallengeBody{ChallengerID: 999, ChallengeeID: 1, Action: "ACCEPT"},
-			wantFail:   ServiceView{Status: http.StatusNotFound, Errors: ErrHttpNotFoundChallenge.Error()},
+			wantFail:   ServiceView{Status: http.StatusNotFound, Error: ErrHttpNotFoundChallenge.Error()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusNotFound,
 		},
 		{
 			name:       "InvalidDeleteChallengeCannotDeleteNotOwn",
 			body:       UpdateChallengeBody{ChallengerID: 5, ChallengeeID: 1, Action: "DELETE"},
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpUpdateChallenge.Error()},
+			wantFail:   ServiceView{Status: http.StatusBadRequest, Error: ErrHttpUpdateChallenge.Error()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 		},
@@ -381,7 +418,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 		{
 			name:       "InvalidAcceptChallengeCannotAcceptOwn",
 			body:       UpdateChallengeBody{ChallengerID: 1, ChallengeeID: 2, Action: "ACCEPT"},
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpUpdateChallenge.Error()},
+			wantFail:   ServiceView{Status: http.StatusBadRequest, Error: ErrHttpUpdateChallenge.Error()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 		},
@@ -408,7 +445,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if tt.wantStatus != http.StatusOK {
-				testutil.AssertRespBody(t, tt.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w, serviceViewCmpOpts...)
 			}
 		})
 	}
@@ -427,6 +464,19 @@ func TestHandleCreateGame(t *testing.T) {
 			name:       "CreatedGame",
 			body:       CreateGameBody{FirstColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
 			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "InvalidModeColorAndInitialFen",
+			body:       CreateGameBody{InitialFEN: "invalid", FirstColor: "invalid", Mode: "invalid"},
+			wantStatus: http.StatusBadRequest,
+			wantFail: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]MultiErrorElem{
+					"CreateGameBody.FirstColor": {Error: ErrHttpInvalidInput.Error()},
+					"CreateGameBody.Mode":       {Error: ErrHttpInvalidInput.Error()},
+					"CreateGameBody.InitialFen": {Error: ErrHttpInvalidInput.Error()},
+				},
+			},
 		},
 	}
 
@@ -449,7 +499,7 @@ func TestHandleCreateGame(t *testing.T) {
 
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if tt.wantStatus != http.StatusOK {
-				testutil.AssertRespBody(t, tt.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w, serviceViewCmpOpts...)
 			}
 		})
 	}
@@ -470,28 +520,28 @@ func TestHandleCreateChallenge(t *testing.T) {
 			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
 			sessionID:  "invalid",
 			wantStatus: http.StatusUnauthorized,
-			wantResp:   ServiceView{Status: http.StatusUnauthorized, Errors: ErrHttpSessionExpired.Error()},
+			wantResp:   ServiceView{Status: http.StatusUnauthorized, Error: ErrHttpSessionExpired.Error()},
 		},
 		{
 			name:       "ChallengingSelf",
 			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
-			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpSelfChallenge.Error()},
+			wantResp:   ServiceView{Status: http.StatusBadRequest, Error: ErrHttpSelfChallenge.Error()},
 		},
 		{
 			name:       "ChallengingInvalidUser",
 			body:       CreateChallengeBody{ChallengeeID: 999, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
-			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpInvalidParticipants.Error()},
+			wantResp:   ServiceView{Status: http.StatusBadRequest, Error: ErrHttpInvalidParticipants.Error()},
 		},
 		{
 			name:       "CreatingDuplicateChallenge",
 			body:       CreateChallengeBody{ChallengeeID: 2, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
-			wantResp:   ServiceView{Status: http.StatusBadRequest, Errors: ErrHttpDuplicateChallenge.Error()},
+			wantResp:   ServiceView{Status: http.StatusBadRequest, Error: ErrHttpDuplicateChallenge.Error()},
 		},
 		{
 			name:       "CreatedChallenge",
@@ -499,6 +549,19 @@ func TestHandleCreateChallenge(t *testing.T) {
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusOK,
 			wantResp:   ServiceView{Status: http.StatusOK, Message: "SUCCESS"},
+		},
+		{
+			name:       "InvalidModeAndColor",
+			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "invalid", Mode: "invalid"},
+			sessionID:  TestSessionID1,
+			wantStatus: http.StatusBadRequest,
+			wantResp: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]MultiErrorElem{
+					"CreateChallengeBody.Mode":       {Error: ErrHttpInvalidInput.Error()},
+					"CreateChallengeBody.StartColor": {Error: ErrHttpInvalidInput.Error()},
+				},
+			},
 		},
 	}
 
@@ -520,7 +583,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
-			testutil.AssertRespBody(t, tt.wantResp, w)
+			testutil.AssertRespBody(t, tt.wantResp, w, serviceViewCmpOpts...)
 		})
 	}
 }
@@ -543,7 +606,9 @@ func TestHandleSearchPlayers(t *testing.T) {
 			wantSuccess: SearchPlayersResp{
 				UserList: []model.LbdUser{
 					{
-						User:       model.User{ID: 8, Username: "john", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+						User: model.User{
+							ID: 8, Username: "john", Country: "us", Bio: "",
+							JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
 						Elo:        1500,
 						HighestElo: 2000,
 						Wins:       12,
@@ -552,7 +617,9 @@ func TestHandleSearchPlayers(t *testing.T) {
 						Rank:       1,
 					},
 					{
-						User:       model.User{ID: 9, Username: "johnny", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+						User: model.User{
+							ID: 9, Username: "johnny", Country: "us", Bio: "",
+							JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
 						Elo:        1500,
 						HighestElo: 1500,
 						Wins:       5,
@@ -582,7 +649,7 @@ func TestHandleSearchPlayers(t *testing.T) {
 			if w.Code == http.StatusOK {
 				testutil.AssertRespBody(t, tt.wantSuccess, w)
 			} else {
-				testutil.AssertRespBody(t, tt.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w, serviceViewCmpOpts...)
 			}
 		})
 	}
@@ -599,6 +666,19 @@ func TestGetLeaderboard(t *testing.T) {
 		wantSuccess LeaderboardResp
 		wantFail    ServiceView
 	}{
+		{
+			name:       "InvalidPageAndMode",
+			mode:       "invalid",
+			page:       "invalid",
+			wantStatus: http.StatusBadRequest,
+			wantFail: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]MultiErrorElem{
+					"mode": {Error: ErrHttpInvalidInput.Error()},
+					"page": {Error: ErrHttpInvalidInput.Error()},
+				},
+			},
+		},
 		{
 			name:       "ValidLeaderboard",
 			mode:       model.ModeTimed1Plus0.String(),
@@ -645,7 +725,7 @@ func TestGetLeaderboard(t *testing.T) {
 			if w.Code == http.StatusOK {
 				testutil.AssertRespBody(t, tt.wantSuccess, w)
 			} else {
-				testutil.AssertRespBody(t, tt.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w, serviceViewCmpOpts...)
 			}
 		})
 	}
@@ -676,8 +756,19 @@ func TestGetPlayer(t *testing.T) {
 		{
 			name:       "GotNoUser",
 			id:         "998877",
-			wantFail:   ServiceView{Status: http.StatusNotFound, Errors: ErrHttpNotFoundUser.Error()},
+			wantFail:   ServiceView{Status: http.StatusNotFound, Error: ErrHttpNotFoundUser.Error()},
 			wantStatus: http.StatusNotFound,
+		},
+		{
+			name: "InvalidUserID",
+			id:   "testing",
+			wantFail: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]MultiErrorElem{
+					"id": {Error: ErrHttpInvalidInput.Error()},
+				},
+			},
+			wantStatus: http.StatusBadRequest,
 		},
 	}
 
@@ -695,7 +786,7 @@ func TestGetPlayer(t *testing.T) {
 			if tt.wantStatus == http.StatusOK {
 				testutil.AssertRespBody(t, tt.wantSuccess, w)
 			} else {
-				testutil.AssertRespBody(t, tt.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w, serviceViewCmpOpts...)
 			}
 		})
 	}
@@ -762,27 +853,40 @@ func TestGetChallenges(t *testing.T) {
 	}
 }
 
-func TestHandleGetSearchReplays(t *testing.T) {
+func TestHandleSearchReplays(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name        string
 		params      string
-		wantSuccess GetReplaysResp
+		wantSuccess SearchReplaysResp
 		wantFail    ServiceView
 		wantStatus  int
 	}{
 		{
+			name:       "Invalid_ModeResultCause",
+			params:     "mode=INVALID&result=INVALID&cause=INVALID",
+			wantStatus: http.StatusBadRequest,
+			wantFail: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]MultiErrorElem{
+					"cause":  {Error: ErrHttpInvalidInput.Error()},
+					"mode":   {Error: ErrHttpInvalidInput.Error()},
+					"result": {Error: ErrHttpInvalidInput.Error()},
+				},
+			},
+		},
+		{
 			name:        "GotNoReplaysForNonexistentUser",
 			params:      "afterId=0&userId=999",
 			wantStatus:  http.StatusOK,
-			wantSuccess: GetReplaysResp{ReplayList: []model.FullReplay{}},
+			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{}},
 		},
 		{
 			name:       "GotUserReplays_ByUserID",
 			params:     "userId=1",
 			wantStatus: http.StatusOK,
-			wantSuccess: GetReplaysResp{ReplayList: []model.FullReplay{
+			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
 				itest.TestReplays[2],
 				itest.TestReplays[1],
 				itest.TestReplays[0],
@@ -792,10 +896,22 @@ func TestHandleGetSearchReplays(t *testing.T) {
 			name:       "GotUserReplays_ByUserID_Mode_Result_Cause",
 			params:     "userId=1&mode=CORRESPONDENCE_7&result=WHITE_WINS&cause=CHECKMATE",
 			wantStatus: http.StatusOK,
-			wantSuccess: GetReplaysResp{ReplayList: []model.FullReplay{
+			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
 				itest.TestReplays[2],
 				itest.TestReplays[0],
 			}},
+		},
+		{
+			name:   "InvalidUserIDAndAfterID",
+			params: "userId=abc&afterId=xyz",
+			wantFail: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]MultiErrorElem{
+					"afterId": {Error: ErrHttpInvalidInput.Error()},
+					"userId":  {Error: ErrHttpInvalidInput.Error()},
+				},
+			},
+			wantStatus: http.StatusBadRequest,
 		},
 	}
 
@@ -813,7 +929,7 @@ func TestHandleGetSearchReplays(t *testing.T) {
 			if w.Code == http.StatusOK {
 				testutil.AssertRespBody(t, tt.wantSuccess, w)
 			} else {
-				testutil.AssertRespBody(t, tt.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w, serviceViewCmpOpts...)
 			}
 		})
 	}
@@ -838,7 +954,7 @@ func TestHandleGetReplay(t *testing.T) {
 		{
 			name:       "GotNoReplay",
 			userID:     "998877",
-			wantFail:   ServiceView{Status: http.StatusNotFound, Errors: ErrHttpNotFoundReplay.Error()},
+			wantFail:   ServiceView{Status: http.StatusNotFound, Error: ErrHttpNotFoundReplay.Error()},
 			wantStatus: http.StatusNotFound,
 		},
 	}
@@ -857,7 +973,7 @@ func TestHandleGetReplay(t *testing.T) {
 			if w.Code == http.StatusOK {
 				testutil.AssertRespBody(t, tt.wantSuccess, w)
 			} else {
-				testutil.AssertRespBody(t, tt.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w, serviceViewCmpOpts...)
 			}
 		})
 	}
@@ -989,7 +1105,18 @@ func TestGetTournament(t *testing.T) {
 			wantStatus:    http.StatusNotFound,
 			wantFail: ServiceView{
 				Status: http.StatusNotFound,
-				Errors: ErrHttpNotFoundTournament.Error(),
+				Error:  ErrHttpNotFoundTournament.Error(),
+			},
+		},
+		{
+			name:          "InvalidTournamentKey",
+			tournamentKey: "invalid",
+			wantStatus:    http.StatusBadRequest,
+			wantFail: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]MultiErrorElem{
+					"tournamentKey": {Error: ErrHttpInvalidInput.Error()},
+				},
 			},
 		},
 	}
@@ -1016,7 +1143,7 @@ func TestGetTournament(t *testing.T) {
 					cmpopts.IgnoreFields(model.Match{}, "Ordering"),
 					cmpopts.IgnoreFields(model.Replay{}, "ID"))
 			} else {
-				testutil.AssertRespBody(t, tt.wantFail, w)
+				testutil.AssertRespBody(t, tt.wantFail, w, serviceViewCmpOpts...)
 			}
 		})
 	}

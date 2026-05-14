@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hexchess-svc/chess"
 
 	"hexchess-svc/model"
 	"log"
@@ -76,7 +77,7 @@ func main() {
 
 	addrs := db.RedisAddrs{CacheAddr: rdbCacheURL}
 	slog.InfoContext(ctx, "connecting to redis db", "addrs", addrs)
-	rdb := db.MakeRdb(addrs, nil)
+	rdb := db.MakeRedis(addrs, nil)
 
 	services := svc.MakeHexchessServices(svc.Setup{
 		DB:      pdb,

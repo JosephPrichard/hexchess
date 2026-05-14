@@ -72,7 +72,7 @@ func (auth *Authenticator) GetSessionOptPlayer(ctx context.Context, r *http.Requ
 	return enum.Just(session.Player), err
 }
 
-func (auth *Authenticator) ExpectSessionPlayer(ctx context.Context, r *http.Request) (model.PlayerState, error) {
+func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request) (model.PlayerState, error) {
 	session, err := auth.GetSession(ctx, r)
 	if err != nil {
 		return model.PlayerState{}, err
