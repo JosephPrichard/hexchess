@@ -1,19 +1,16 @@
-package web
+package api
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hexchess-svc/internal/errutil"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
-
-	"golang.org/x/sync/errgroup"
 
 	"github.com/google/uuid"
 )
@@ -241,30 +238,7 @@ func (api *API) HandleCreateTempSession(w http.ResponseWriter, r *http.Request) 
 		return err
 	}
 
-	var tempSessionID string
-	var sessions []svc.SessionInst
-
-	if session.IsPresent {
-		player := session.Value
-
-		tempSessionID = MakeSessionID()
-
-		sessions = []svc.SessionInst{
-			{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge},
-		}
-	} else {
-		player := model.MakeGuestPlayer()
-
-		tempSessionID = MakeSessionID()
-		guestSessionID := MakeSessionID()
-
-		sessions = []svc.SessionInst{
-			{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge},
-			{SessionID: guestSessionID, Player: player, Expiry: SessionMaxAge},
-		}
-
-		w.Header().Set("Set-Cookie", FmtCookie(guestSessionID))
-	}
+	sessions, tempSessionID := issueTempSession(session, w)
 
 	slog.InfoContext(ctx, "created sessions", "sessions", sessions)
 
@@ -369,9 +343,9 @@ func (api *API) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) err
 	if err != nil {
 		return fmt.Errorf("get leaderboard page %d: %w", query.Page, err)
 	}
-	users, _, err := api.services.GetLeaderboardUsers(ctx, query.Mode, leaderboard.RankedUsers)
+	users, _, err := api.services.GetFullLeaderboardUsers(ctx, query.Mode, leaderboard.RankedUsers)
 	if err != nil {
-		return err
+		return fmt.Errorf("get full leaderboard users for %+v: %w", leaderboard.RankedUsers, err)
 	}
 	slog.InfoContext(ctx, "retrieved leaderboard", "users", users)
 
@@ -421,16 +395,12 @@ func (api *API) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) erro
 
 	slog.InfoContext(ctx, "searching players", "page", page, "name", name)
 
-	var userList []model.LbdUser
-	if name != "" {
-		users, err := api.services.GetFuzzySearchLeaderboard(ctx, name, int32(page), defaultPaginationCount)
-		if err != nil {
-			return fmt.Errorf("search users by name=%s: %w", name, err)
-		}
-		userList = users
+	users, err := api.services.GetFuzzySearchLeaderboard(ctx, name, int32(page), defaultPaginationCount)
+	if err != nil {
+		return fmt.Errorf("search users by name=%s: %w", name, err)
 	}
 
-	writeJSON(w, http.StatusOK, SearchPlayersResp{UserList: userList})
+	writeJSON(w, http.StatusOK, SearchPlayersResp{UserList: users})
 	return nil
 }
 
@@ -629,21 +599,6 @@ type ChessMeta struct {
 	Touch       time.Time         `json:"touch"`
 }
 
-func mapChessMetas(svcMetas []model.ChessMeta) []ChessMeta {
-	metas := make([]ChessMeta, 0)
-	for _, svcMeta := range svcMetas {
-		metas = append(metas, ChessMeta{
-			ID:          svcMeta.ID,
-			WhitePlayer: svcMeta.WhitePlayer,
-			BlackPlayer: svcMeta.BlackPlayer,
-			FirstColor:  svcMeta.FirstColor.String(),
-			Mode:        svcMeta.Mode.String(),
-			Touch:       svcMeta.Touch,
-		})
-	}
-	return metas
-}
-
 type ChessMetasResp struct {
 	ChessList     []ChessMeta `json:"chessList"`
 	SelfChessList []ChessMeta `json:"selfChessList"`
@@ -656,36 +611,18 @@ func (api *API) HandleGetChessMetas(w http.ResponseWriter, r *http.Request) erro
 	if err != nil {
 		return err
 	}
-
 	session, err := api.authenticator.GetSessionOptPlayer(ctx, r)
 	if err != nil {
 		return err
 	}
 
-	var allChessMetas []model.ChessMeta
-	var selfChessMetas []model.ChessMeta
-
-	eg, egCtx := errgroup.WithContext(ctx)
-
-	eg.Go(func() (err error) {
-		allChessMetas, err = api.services.GetAllChessMetas(egCtx, query.Page, query.Count)
-		return errutil.Guardf(err, "get all chess metas page %d", query.Page)
-	})
-	if session.IsPresent {
-		player := session.Value
-
-		eg.Go(func() (err error) {
-			selfChessMetas, err = api.services.GetUserChessMetas(egCtx, player.ID)
-			return errutil.Guardf(err, "get user %d chess metas", player.ID)
-		})
+	resp, err := api.services.GetChessMetas(ctx, session, query.Page, query.Count)
+	if err != nil {
+		return fmt.Errorf("get chess metas: %w", err)
 	}
 
-	if err := eg.Wait(); err != nil {
-		return err
-	}
-
-	chessList := mapChessMetas(allChessMetas)
-	selfChessList := mapChessMetas(selfChessMetas)
+	chessList := mapChessMetas(resp.AllChessMetas)
+	selfChessList := mapChessMetas(resp.SelfChessMetas)
 
 	writeJSON(w, http.StatusOK, ChessMetasResp{ChessList: chessList, SelfChessList: selfChessList})
 	return nil

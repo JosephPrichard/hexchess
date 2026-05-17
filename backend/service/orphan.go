@@ -14,7 +14,7 @@ import (
 
 const PageLength = 1000
 
-func (svc *HexchessServices) ClearOrphanFiles(ctx context.Context, pageLength int32) {
+func (services *HexchessServices) ClearOrphanFiles(ctx context.Context, pageLength int32) {
 	var wg sync.WaitGroup
 
 	for _, config := range []RemoveOrphansOpts{
@@ -23,11 +23,11 @@ func (svc *HexchessServices) ClearOrphanFiles(ctx context.Context, pageLength in
 			Prefix:     ProfilePicPrefix,
 			PageLength: pageLength,
 			parseID:    ParseProfilePicKey,
-			selectIDs:  svc.querier.SelectExistsUsersByIDs,
+			selectIDs:  services.querier.SelectExistsUsersByIDs,
 		},
 	} {
 		wg.Go(func() {
-			if err := svc.removeOrphanedObjects(ctx, config); err != nil {
+			if err := services.removeOrphanedObjects(ctx, config); err != nil {
 				slog.ErrorContext(ctx, "failed to remove orphaned objects", "config", config, "error", err)
 			}
 		})
@@ -46,10 +46,10 @@ type RemoveOrphansOpts struct {
 
 // removeOrphanedObjects is a generic algorithm to delete any orphaned keys by paginating all keys in a bucket
 // it assumes that we can parse the existingID from any given key, and that we can lookup if that key is valid or not from a database.
-func (svc *HexchessServices) removeOrphanedObjects(ctx context.Context, opts RemoveOrphansOpts) error {
+func (services *HexchessServices) removeOrphanedObjects(ctx context.Context, opts RemoveOrphansOpts) error {
 	page := 0
 
-	paginator := s3.NewListObjectsV2Paginator(svc.aws.S3Client, &s3.ListObjectsV2Input{
+	paginator := s3.NewListObjectsV2Paginator(services.aws.S3Client, &s3.ListObjectsV2Input{
 		Bucket:  aws.String(opts.Bucket),
 		Prefix:  aws.String(opts.Prefix),
 		MaxKeys: aws.Int32(opts.PageLength),
@@ -116,7 +116,7 @@ func (svc *HexchessServices) removeOrphanedObjects(ctx context.Context, opts Rem
 		// we could make this a background goroutine, but since latency does not matter (this is background job), we keep it sync for simplicity
 		slog.InfoContext(ctx, "deleting orphaned keys", "keys", orphanedKeyStrs, "bucket", opts.Bucket)
 
-		if _, err := svc.aws.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+		if _, err := services.aws.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
 			Bucket: aws.String(opts.Bucket),
 			Delete: &s3Types.Delete{Objects: orphanedKeys},
 		}); err != nil {

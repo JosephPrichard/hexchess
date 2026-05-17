@@ -1,4 +1,4 @@
-package web
+package api
 
 import (
 	"context"
@@ -25,9 +25,9 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	"hexchess-svc/internal/logutil"
-	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
+	"hexchess-svc/lib/logutil"
+	"hexchess-svc/lib/testutil"
 	svc "hexchess-svc/service"
 
 	"github.com/stretchr/testify/assert"
@@ -36,7 +36,7 @@ import (
 
 var serviceViewCmpOpts = []cmp.Option{
 	cmpopts.IgnoreFields(ServiceView{}, "Message"),
-	cmpopts.IgnoreFields(MultiErrorElem{}, "Message"),
+	cmpopts.IgnoreFields(OneError{}, "Message"),
 }
 
 func TestHandleRegister(t *testing.T) {
@@ -66,7 +66,7 @@ func TestHandleRegister(t *testing.T) {
 			body: RegisterBody{Username: "s", Password: "short", ConfirmPassword: "short"},
 			wantFail: ServiceView{
 				Status: http.StatusBadRequest,
-				Errors: map[string]MultiErrorElem{
+				Errors: map[string]OneError{
 					"RegisterBody.Username": {Error: ErrHttpInvalidUsername.Error()},
 					"RegisterBody.Password": {Error: ErrHttpInvalidPassword.Error()},
 				},
@@ -246,7 +246,7 @@ func TestHandleUpdateUser(t *testing.T) {
 			sessionID: TestSessionID1,
 			wantFail: ServiceView{
 				Status: http.StatusBadRequest,
-				Errors: map[string]MultiErrorElem{
+				Errors: map[string]OneError{
 					"UpdateUserBody.NewBio":      {Error: ErrHttpInvalidBio.Error()},
 					"UpdateUserBody.NewUsername": {Error: ErrHttpInvalidUsername.Error()},
 				},
@@ -259,7 +259,7 @@ func TestHandleUpdateUser(t *testing.T) {
 			sessionID: TestSessionID1,
 			wantFail: ServiceView{
 				Status: http.StatusBadRequest,
-				Errors: map[string]MultiErrorElem{
+				Errors: map[string]OneError{
 					"UpdateUserBody.NewCountry": {Error: ErrHttpInvalidCountry.Error()},
 				},
 			},
@@ -325,7 +325,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 			body: UpdatePasswordBody{Password: "password1", NewPassword: "short", ConfirmNewPassword: "short"},
 			wantFail: ServiceView{
 				Status: http.StatusBadRequest,
-				Errors: map[string]MultiErrorElem{
+				Errors: map[string]OneError{
 					"UpdatePasswordBody.NewPassword": {Error: ErrHttpInvalidPassword.Error()},
 				},
 			},
@@ -390,7 +390,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 			body: UpdateChallengeBody{Action: "invalid"},
 			wantFail: ServiceView{
 				Status: http.StatusBadRequest,
-				Errors: map[string]MultiErrorElem{"UpdateChallengeBody.Action": {Error: ErrHttpInvalidInput.Error()}},
+				Errors: map[string]OneError{"UpdateChallengeBody.Action": {Error: ErrHttpInvalidInput.Error()}},
 			},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
@@ -471,7 +471,7 @@ func TestHandleCreateGame(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 			wantFail: ServiceView{
 				Status: http.StatusBadRequest,
-				Errors: map[string]MultiErrorElem{
+				Errors: map[string]OneError{
 					"CreateGameBody.FirstColor": {Error: ErrHttpInvalidInput.Error()},
 					"CreateGameBody.Mode":       {Error: ErrHttpInvalidInput.Error()},
 					"CreateGameBody.InitialFen": {Error: ErrHttpInvalidInput.Error()},
@@ -557,7 +557,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 			wantResp: ServiceView{
 				Status: http.StatusBadRequest,
-				Errors: map[string]MultiErrorElem{
+				Errors: map[string]OneError{
 					"CreateChallengeBody.Mode":       {Error: ErrHttpInvalidInput.Error()},
 					"CreateChallengeBody.StartColor": {Error: ErrHttpInvalidInput.Error()},
 				},
@@ -673,7 +673,7 @@ func TestGetLeaderboard(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 			wantFail: ServiceView{
 				Status: http.StatusBadRequest,
-				Errors: map[string]MultiErrorElem{
+				Errors: map[string]OneError{
 					"mode": {Error: ErrHttpInvalidInput.Error()},
 					"page": {Error: ErrHttpInvalidInput.Error()},
 				},
@@ -746,9 +746,14 @@ func TestGetPlayer(t *testing.T) {
 			id:   "1",
 			wantSuccess: GetPlayersResp{
 				FullUser: svc.FullUser{
-					User:       itest.TestUser[0],
-					Stats:      itest.TestUserStats[0],
-					ReplayList: []model.FullReplay{itest.TestReplays[2], itest.TestReplays[1], itest.TestReplays[0]},
+					User:  itest.TestUser[0],
+					Stats: itest.TestUserStats[0],
+					ReplayList: []model.FullReplay{
+						itest.TestReplays[4],
+						itest.TestReplays[3],
+						itest.TestReplays[2],
+						itest.TestReplays[0],
+					},
 				},
 			},
 			wantStatus: http.StatusOK,
@@ -764,7 +769,7 @@ func TestGetPlayer(t *testing.T) {
 			id:   "testing",
 			wantFail: ServiceView{
 				Status: http.StatusBadRequest,
-				Errors: map[string]MultiErrorElem{
+				Errors: map[string]OneError{
 					"id": {Error: ErrHttpInvalidInput.Error()},
 				},
 			},
@@ -864,32 +869,79 @@ func TestHandleSearchReplays(t *testing.T) {
 		wantStatus  int
 	}{
 		{
-			name:       "Invalid_ModeResultCause",
-			params:     "mode=INVALID&result=INVALID&cause=INVALID",
-			wantStatus: http.StatusBadRequest,
-			wantFail: ServiceView{
-				Status: http.StatusBadRequest,
-				Errors: map[string]MultiErrorElem{
-					"cause":  {Error: ErrHttpInvalidInput.Error()},
-					"mode":   {Error: ErrHttpInvalidInput.Error()},
-					"result": {Error: ErrHttpInvalidInput.Error()},
-				},
-			},
-		},
-		{
-			name:        "GotNoReplaysForNonexistentUser",
-			params:      "afterId=0&userId=999",
-			wantStatus:  http.StatusOK,
-			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{}},
-		},
-		{
 			name:       "GotUserReplays_ByUserID",
 			params:     "userId=1",
 			wantStatus: http.StatusOK,
 			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+				itest.TestReplays[4],
+				itest.TestReplays[3],
 				itest.TestReplays[2],
-				itest.TestReplays[1],
 				itest.TestReplays[0],
+			}},
+		},
+		{
+			name:       "GotUserReplays_ByUserID_SortedRating",
+			params:     "userId=1&sort=rating",
+			wantStatus: http.StatusOK,
+			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+				itest.TestReplays[4],
+				itest.TestReplays[3],
+				itest.TestReplays[0],
+				itest.TestReplays[2],
+			}},
+		},
+		{
+			name:       "GotUserReplays_ByUserID_SortedTurnCount",
+			params:     "userId=1&sort=turnCount",
+			wantStatus: http.StatusOK,
+			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+				itest.TestReplays[0],
+				itest.TestReplays[3],
+				itest.TestReplays[2],
+				itest.TestReplays[4],
+			}},
+		},
+		{
+			name:       "GotUserReplays_ByWinnerID_LoserID",
+			params:     "winnerId=1&loserId=2",
+			wantStatus: http.StatusOK,
+			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+				itest.TestReplays[0],
+			}},
+		},
+		{
+			name:       "GotUserReplays_ByWhiteID",
+			params:     "whiteId=1",
+			wantStatus: http.StatusOK,
+			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+				itest.TestReplays[4],
+				itest.TestReplays[3],
+				itest.TestReplays[0],
+			}},
+		},
+		{
+			name:       "GotUserReplays_ByWhiteID_BlackID",
+			params:     "whiteId=3&blackId=1",
+			wantStatus: http.StatusOK,
+			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+				itest.TestReplays[2],
+			}},
+		},
+		{
+			name:       "GotUserReplays_ByWhiteID_WinnerID",
+			params:     "whiteId=1&winnerId=1",
+			wantStatus: http.StatusOK,
+			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+				itest.TestReplays[3],
+				itest.TestReplays[0],
+			}},
+		},
+		{
+			name:       "GotUserReplays_ByWhiteID_LoserID",
+			params:     "whiteId=1&loserId=1",
+			wantStatus: http.StatusOK,
+			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+				itest.TestReplays[4],
 			}},
 		},
 		{
@@ -897,21 +949,99 @@ func TestHandleSearchReplays(t *testing.T) {
 			params:     "userId=1&mode=CORRESPONDENCE_7&result=WHITE_WINS&cause=CHECKMATE",
 			wantStatus: http.StatusOK,
 			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+				itest.TestReplays[3],
+				itest.TestReplays[0],
+			}},
+		},
+		{
+			name: "GotUserReplays_ToDate",
+			params: fmt.Sprintf(
+				"userId=1&toDate=%s",
+				(itest.TimeNow.Add(time.Hour * 24 * 2)).Format(time.DateOnly)),
+			wantStatus: http.StatusOK,
+			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
 				itest.TestReplays[2],
 				itest.TestReplays[0],
 			}},
 		},
 		{
-			name:   "InvalidUserIDAndAfterID",
-			params: "userId=abc&afterId=xyz",
+			name: "GotUserReplays_FromDate",
+			params: fmt.Sprintf(
+				"userId=1&fromDate=%s",
+				(itest.TimeNow.Add(time.Hour * 24 * 2)).Format(time.DateOnly)),
+			wantStatus: http.StatusOK,
+			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+				itest.TestReplays[4],
+				itest.TestReplays[3],
+				itest.TestReplays[2],
+			}},
+		},
+		{
+			name: "GotUserReplays_ByTimeframe",
+			params: fmt.Sprintf(
+				"userId=1&fromDate=%s&toDate=%s",
+				(itest.TimeNow.Add(time.Hour * 24 * 1)).Format(time.DateOnly),
+				(itest.TimeNow.Add(time.Hour * 24 * 3)).Format(time.DateOnly)),
+			wantStatus: http.StatusOK,
+			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+				itest.TestReplays[3],
+				itest.TestReplays[2],
+			}},
+		},
+		// tests for non existent users
+		{
+			name:        "GotNoReplaysForNonexistentUser",
+			params:      "userId=999",
+			wantStatus:  http.StatusOK,
+			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{}},
+		},
+		{
+			name:        "GotNoReplaysForNonexistentUser",
+			params:      "whiteId=999",
+			wantStatus:  http.StatusOK,
+			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{}},
+		},
+		// input field validations
+		{
+			name:   "Invalid_UserIDs",
+			params: "userId=INVALID&afterId=INVALID&whiteId=INVALID&blackId=INVALID&loserId=INVALID&winnerId=INVALID",
 			wantFail: ServiceView{
 				Status: http.StatusBadRequest,
-				Errors: map[string]MultiErrorElem{
-					"afterId": {Error: ErrHttpInvalidInput.Error()},
-					"userId":  {Error: ErrHttpInvalidInput.Error()},
+				Errors: map[string]OneError{
+					"afterId":  {Error: ErrHttpInvalidInput.Error()},
+					"userId":   {Error: ErrHttpInvalidInput.Error()},
+					"whiteId":  {Error: ErrHttpInvalidInput.Error()},
+					"blackId":  {Error: ErrHttpInvalidInput.Error()},
+					"loserId":  {Error: ErrHttpInvalidInput.Error()},
+					"winnerId": {Error: ErrHttpInvalidInput.Error()},
 				},
 			},
 			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "Invalid_ModeResultCause",
+			params:     "mode=INVALID&result=INVALID&cause=INVALID",
+			wantStatus: http.StatusBadRequest,
+			wantFail: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]OneError{
+					"cause":  {Error: ErrHttpInvalidInput.Error()},
+					"mode":   {Error: ErrHttpInvalidInput.Error()},
+					"result": {Error: ErrHttpInvalidInput.Error()},
+				},
+			},
+		},
+		{
+			name:       "Invalid_Datetime",
+			params:     "fromDate=INVALID&toDate=INVALID",
+			wantStatus: http.StatusBadRequest,
+			wantFail: ServiceView{
+				Status: http.StatusBadRequest,
+				Errors: map[string]OneError{
+					"fromDate": {Error: ErrHttpInvalidInput.Error()},
+					"toDate":   {Error: ErrHttpInvalidInput.Error()},
+				},
+			},
 		},
 	}
 
@@ -1114,7 +1244,7 @@ func TestGetTournament(t *testing.T) {
 			wantStatus:    http.StatusBadRequest,
 			wantFail: ServiceView{
 				Status: http.StatusBadRequest,
-				Errors: map[string]MultiErrorElem{
+				Errors: map[string]OneError{
 					"tournamentKey": {Error: ErrHttpInvalidInput.Error()},
 				},
 			},

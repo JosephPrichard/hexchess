@@ -11,8 +11,7 @@ INSERT INTO replays (
         black_elo,
         played_on,
         mode,
-        turn_count,
-        rating)
+        turn_count)
 VALUES (
         sqlc.arg('gameID'),
         sqlc.arg('whiteID'),
@@ -25,8 +24,7 @@ VALUES (
         sqlc.arg('blackElo'),
         COALESCE(sqlc.narg('playedOn'), CURRENT_TIMESTAMP)::TIMESTAMPTZ,
         sqlc.arg('mode'),
-        sqlc.arg('turnCount'),
-        sqlc.arg('rating'))
+        sqlc.arg('turnCount'))
 RETURNING id;
 
 -- name: UpsertReplayMoveHistories :exec
@@ -173,13 +171,13 @@ WHERE
     AND
 
     (
-        sqlc.narg('dateFrom')::TIMESTAMPTZ IS NULL OR
-        r.played_on >= sqlc.narg('dateFrom')::TIMESTAMPTZ
+        sqlc.narg('fromDateDays')::INT IS NULL OR
+        r.played_on_as_days >= sqlc.narg('fromDateDays')::INT
     )
     AND
     (
-        sqlc.narg('dateTo')::TIMESTAMPTZ IS NULL OR
-        r.played_on <= sqlc.narg('dateTo')::TIMESTAMPTZ
+        sqlc.narg('toDateDays')::INT IS NULL OR
+        r.played_on_as_days <= sqlc.narg('toDateDays')::INT
     )
     AND
 

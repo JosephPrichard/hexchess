@@ -13,9 +13,9 @@ import (
 
 var ErrSessionNotFound = errors.New("session not found")
 
-func (svc *HexchessServices) GetSession(ctx context.Context, sessionID string) (model.PlayerState, error) {
+func (services *HexchessServices) GetSession(ctx context.Context, sessionID string) (model.PlayerState, error) {
 	sessionKey := makeSessionKey(sessionID)
-	bytes, err := svc.redis.Cache.Get(ctx, sessionKey).Bytes()
+	bytes, err := services.redis.Cache.Get(ctx, sessionKey).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return model.PlayerState{}, ErrSessionNotFound
@@ -37,10 +37,10 @@ type SessionInst struct {
 	Expiry    time.Duration
 }
 
-func (svc *HexchessServices) SetSessions(ctx context.Context, insts ...SessionInst) error {
+func (services *HexchessServices) SetSessions(ctx context.Context, insts ...SessionInst) error {
 	slog.InfoContext(ctx, "setting sessions", "insts", insts)
 
-	pipe := svc.redis.Cache.Pipeline()
+	pipe := services.redis.Cache.Pipeline()
 
 	for _, inst := range insts {
 		data, err := model.MarshalPlayer(inst.Player)
@@ -57,18 +57,18 @@ func (svc *HexchessServices) SetSessions(ctx context.Context, insts ...SessionIn
 	return nil
 }
 
-func (svc *HexchessServices) UpdateSessionEx(ctx context.Context, sessionID string, expiry time.Duration) error {
+func (services *HexchessServices) UpdateSessionEx(ctx context.Context, sessionID string, expiry time.Duration) error {
 	sessionKey := makeSessionKey(sessionID)
-	if err := svc.redis.Cache.Expire(ctx, sessionKey, expiry).Err(); err != nil {
+	if err := services.redis.Cache.Expire(ctx, sessionKey, expiry).Err(); err != nil {
 		return fmt.Errorf("update session expiry: %w", err)
 	}
 	slog.InfoContext(ctx, "updated session expiry", "sessionID", sessionID)
 	return nil
 }
 
-func (svc *HexchessServices) DeleteSession(ctx context.Context, sessionID string) error {
+func (services *HexchessServices) DeleteSession(ctx context.Context, sessionID string) error {
 	sessionKey := makeSessionKey(sessionID)
-	if err := svc.redis.Cache.Del(ctx, sessionKey).Err(); err != nil {
+	if err := services.redis.Cache.Del(ctx, sessionKey).Err(); err != nil {
 		return fmt.Errorf("delete session %s: %w", sessionID, err)
 	}
 	slog.InfoContext(ctx, "deleted session", "sessionID", sessionID)

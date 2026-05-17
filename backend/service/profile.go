@@ -60,11 +60,11 @@ func filterLeastRecentKeys(objects []s3Types.Object) []s3Types.ObjectIdentifier 
 
 const ProfilePicPrefix = "users/profile-pics"
 
-func (svc *HexchessServices) DeleteOldProfilePics(ctx context.Context, playerID int) error {
+func (services *HexchessServices) DeleteOldProfilePics(ctx context.Context, playerID int) error {
 	prefix := makeProfilePicPrefix(strconv.Itoa(playerID))
 
 	// remove all but the newest keys. there should never be more 1000 keys, but if there are, this will never delete the newest Key
-	listOutput, err := svc.aws.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+	listOutput, err := services.aws.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 		Bucket: aws.String(egress.S3ProfileBucket),
 		Prefix: aws.String(prefix),
 	})
@@ -79,7 +79,7 @@ func (svc *HexchessServices) DeleteOldProfilePics(ctx context.Context, playerID 
 	keys := filterLeastRecentKeys(listOutput.Contents)
 	slog.InfoContext(ctx, "deleting profile pics", "keys", keys)
 
-	if _, err := svc.aws.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+	if _, err := services.aws.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
 		Bucket: aws.String(egress.S3ProfileBucket),
 		Delete: &s3Types.Delete{Objects: keys},
 	}); err != nil {
@@ -88,14 +88,14 @@ func (svc *HexchessServices) DeleteOldProfilePics(ctx context.Context, playerID 
 	return nil
 }
 
-func (svc *HexchessServices) UploadProfilePic(ctx context.Context, uploader model.PlayerState, file io.Reader, contentType string) (string, error) {
+func (services *HexchessServices) UploadProfilePic(ctx context.Context, uploader model.PlayerState, file io.Reader, contentType string) (string, error) {
 	// uploading profile picture based off a computed Key
-	key := makeProfileNewPicKey(uploader.ID, svc.entropy.MakeUUID())
+	key := makeProfileNewPicKey(uploader.ID, services.entropy.MakeUUID())
 
 	slog.InfoContext(ctx, "uploading profile pic to s3", "key", key, "player", uploader)
 	start := time.Now()
 
-	putOutput, err := svc.aws.S3Client.PutObject(ctx, &s3.PutObjectInput{
+	putOutput, err := services.aws.S3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(egress.S3ProfileBucket),
 		Key:         aws.String(key),
 		Body:        file,
@@ -113,11 +113,11 @@ func (svc *HexchessServices) UploadProfilePic(ctx context.Context, uploader mode
 
 var ErrNoProfilePic = errors.New("no profile pic found for user")
 
-func (svc *HexchessServices) GetProfilePicKey(ctx context.Context, userID string) (string, error) {
+func (services *HexchessServices) GetProfilePicKey(ctx context.Context, userID string) (string, error) {
 	// retrieves all profile pictures for any user and retrieves the most recent one. this runs on the assumption that we may not be deleting old profile pics.
 	prefix := makeProfilePicPrefix(userID)
 
-	listOutput, err := svc.aws.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+	listOutput, err := services.aws.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 		Bucket: aws.String(egress.S3ProfileBucket),
 		Prefix: aws.String(prefix),
 	})
@@ -133,6 +133,6 @@ func (svc *HexchessServices) GetProfilePicKey(ctx context.Context, userID string
 	return mostRecentKey, nil
 }
 
-func (svc *HexchessServices) MakeProfileURL(key string) string {
-	return svc.aws.MakeS3Url(egress.S3ProfileBucket, key)
+func (services *HexchessServices) MakeProfileURL(key string) string {
+	return services.aws.MakeS3Url(egress.S3ProfileBucket, key)
 }

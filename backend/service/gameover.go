@@ -18,7 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func (svc *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGame model.FinishedGame) error {
+func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGame model.FinishedGame) error {
 	var changeSet GameResultChangeSet
 
 	if !finishedGame.WhitePlayer.Present || !finishedGame.BlackPlayer.Present {
@@ -33,7 +33,7 @@ func (svc *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGam
 		return fmt.Errorf("marshal move history to s3: %w", err)
 	}
 
-	changeSet, err = svc.InsertGameResult(ctx, GameResult{
+	changeSet, err = services.InsertGameResult(ctx, GameResult{
 		GameID:       finishedGame.GameID,
 		WhiteID:      whiteID,
 		BlackID:      blackID,
@@ -46,21 +46,21 @@ func (svc *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGam
 		return fmt.Errorf("insert finish game tx: %w", err)
 	}
 	// note: this happens outside the transaction so we do need to hold a lock for an expended period of time.
-	if err := svc.UpsertReplayMoveHistories(ctx, changeSet.ReplayID, moveHistBlob); err != nil {
+	if err := services.UpsertReplayMoveHistories(ctx, changeSet.ReplayID, moveHistBlob); err != nil {
 		return fmt.Errorf("insert replay move histories: %w", err)
 	}
 
 	// note: replay is selected in a seperate query outside transaction to avoid holding locks. this involves performing more diskIO.
-	replay, err := svc.GetReplay(ctx, changeSet.ReplayID)
+	replay, err := services.GetReplay(ctx, changeSet.ReplayID)
 	if err != nil {
 		return fmt.Errorf("get replay by ID %d: %w", changeSet.ReplayID, err)
 	}
-	if err := svc.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(finishedGame.GameID, replay)); err != nil {
+	if err := services.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(finishedGame.GameID, replay)); err != nil {
 		return fmt.Errorf("broadcast replay entity output: %w", err)
 	}
 
 	// note: used to keep the cache in sync, this can run outside of a transaction because we have a batch job to recover that payload to the cache.
-	if err := svc.incrLeaderboard(ctx,
+	if err := services.incrLeaderboard(ctx,
 		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
 		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
 	); err != nil {
@@ -71,7 +71,7 @@ func (svc *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGam
 
 	// note: publishing a tournament event is necessary to trigger advancing the game state *IF* the tournament round is finished
 	// this operation is idempotent and safe, if the tournament is not ready to be advanced the operation noops
-	tournamentKey, err := svc.querier.SelectTournamentByGameID(ctx, finishedGame.GameID)
+	tournamentKey, err := services.querier.SelectTournamentByGameID(ctx, finishedGame.GameID)
 
 	if db.IsErrNoRows(err) {
 		slog.InfoContext(ctx, "skipping send schedule tournament event", "gameID", finishedGame.GameID)
@@ -79,7 +79,7 @@ func (svc *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGam
 		slog.InfoContext(ctx, "sending schedule tournament event", "gameID", finishedGame.GameID)
 
 		// if two advance tournament events run concucurrently, one will advance the tournament and the other will noop
-		if err := sendScheduledTournamentEvent(ctx, svc.querier, tournamentKey.Bytes, time.Now()); err != nil {
+		if err := sendScheduledTournamentEvent(ctx, services.querier, tournamentKey.Bytes, time.Now()); err != nil {
 			return fmt.Errorf("send scheduled tournament event from ")
 		}
 	} else {
@@ -116,10 +116,10 @@ func (changeSet GameResultChangeSet) IsNoop() bool {
 	return changeSet.LoseEloDiff == 0 && changeSet.WinEloDiff == 0
 }
 
-func (svc *HexchessServices) InsertGameResult(ctx context.Context, result GameResult) (GameResultChangeSet, error) {
+func (services *HexchessServices) InsertGameResult(ctx context.Context, result GameResult) (GameResultChangeSet, error) {
 	var changeSet GameResultChangeSet
 
-	err := svc.db.ExecTx(ctx, db.TxArgs{
+	err := services.transactor.ExecTx(ctx, db.TxArgs{
 		// RepeatableRead is required to prevent the following race conditions
 		// Case 1 (Lost Update):
 		// T1 selects the user elos E1 and uses calculate and insert user elos E2
@@ -177,7 +177,6 @@ func (svc *HexchessServices) InsertGameResult(ctx context.Context, result GameRe
 				BlackElo:  changeSet.BlackEloNext,
 				PlayedOn:  pgtype.Timestamptz{Valid: true, Time: result.InsertedTime},
 				TurnCount: int32(result.TurnCount),
-				Rating:    (changeSet.WhiteEloNext + changeSet.BlackEloNext) / 2, // average of elo of both players is used for searchable "Rating"
 			}
 			replayID, err := querier.InsertReplay(ctx, replayInst)
 			if err != nil {
@@ -256,8 +255,8 @@ func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.Select
 	return changeSet, updts
 }
 
-func (svc *HexchessServices) UpsertReplayMoveHistories(ctx context.Context, replayID int64, data []byte) error {
-	if err := svc.querier.UpsertReplayMoveHistories(ctx, sqlc.UpsertReplayMoveHistoriesParams{
+func (services *HexchessServices) UpsertReplayMoveHistories(ctx context.Context, replayID int64, data []byte) error {
+	if err := services.querier.UpsertReplayMoveHistories(ctx, sqlc.UpsertReplayMoveHistoriesParams{
 		ReplayID: replayID,
 		Data:     data,
 	}); err != nil {

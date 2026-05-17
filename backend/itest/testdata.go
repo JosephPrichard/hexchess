@@ -51,7 +51,7 @@ var TestReplays = []model.FullReplay{
 			LoseEloDiff: -30,
 			PlayedOn:    TimeNow.Local(),
 			Rating:      1000,
-			TurnCount:   34,
+			TurnCount:   42,
 		},
 		ReplayUsers: model.ReplayUsers{
 			WhiteName:    "user1",
@@ -61,9 +61,36 @@ var TestReplays = []model.FullReplay{
 			WhiteElo:     1000,
 			BlackElo:     1000,
 		},
-		RepayView: model.RepayView{
+		ReplayColorElos: model.ReplayColorElos{
 			WhiteEloDiff: 30,
 			BlackEloDiff: -30,
+		},
+	},
+	{
+		Replay: model.Replay{
+			ID:          2,
+			WhiteID:     2,
+			BlackID:     3,
+			Mode:        model.ModeCorrespondence7,
+			Result:      model.BlackWin,
+			Cause:       model.Checkmate,
+			WinEloDiff:  30,
+			LoseEloDiff: -30,
+			PlayedOn:    (TimeNow.Add(time.Hour * 24)).Local(),
+			Rating:      950,
+			TurnCount:   36,
+		},
+		ReplayUsers: model.ReplayUsers{
+			WhiteName:    "user2",
+			BlackName:    "user3",
+			WhiteCountry: "us",
+			BlackCountry: "us",
+			WhiteElo:     1000,
+			BlackElo:     900,
+		},
+		ReplayColorElos: model.ReplayColorElos{
+			WhiteEloDiff: -30,
+			BlackEloDiff: 30,
 		},
 	},
 	{
@@ -76,8 +103,8 @@ var TestReplays = []model.FullReplay{
 			Cause:       model.Checkmate,
 			WinEloDiff:  0,
 			LoseEloDiff: 0,
-			PlayedOn:    TimeNow.Local(),
-			Rating:      1060,
+			PlayedOn:    (TimeNow.Add(time.Hour * 24 * 2)).Local(),
+			Rating:      950,
 			TurnCount:   38,
 		},
 		ReplayUsers: model.ReplayUsers{
@@ -88,7 +115,7 @@ var TestReplays = []model.FullReplay{
 			WhiteElo:     900,
 			BlackElo:     1000,
 		},
-		RepayView: model.RepayView{
+		ReplayColorElos: model.ReplayColorElos{
 			WhiteEloDiff: 0,
 			BlackEloDiff: 0,
 		},
@@ -103,8 +130,8 @@ var TestReplays = []model.FullReplay{
 			Cause:       model.Checkmate,
 			WinEloDiff:  0,
 			LoseEloDiff: 0,
-			PlayedOn:    TimeNow.Local(),
-			Rating:      1090,
+			PlayedOn:    (TimeNow.Add(time.Hour * 24 * 3)).Local(),
+			Rating:      1000,
 			TurnCount:   40,
 		},
 		ReplayUsers: model.ReplayUsers{
@@ -115,9 +142,36 @@ var TestReplays = []model.FullReplay{
 			WhiteElo:     1000,
 			BlackElo:     1000,
 		},
-		RepayView: model.RepayView{
+		ReplayColorElos: model.ReplayColorElos{
 			WhiteEloDiff: 0,
 			BlackEloDiff: 0,
+		},
+	},
+	{
+		Replay: model.Replay{
+			ID:          5,
+			WhiteID:     1,
+			BlackID:     2,
+			Mode:        model.ModeCorrespondence7,
+			Result:      model.BlackWin,
+			Cause:       model.Checkmate,
+			WinEloDiff:  30,
+			LoseEloDiff: -30,
+			PlayedOn:    (TimeNow.Add(time.Hour * 24 * 4)).Local(),
+			Rating:      1000,
+			TurnCount:   34,
+		},
+		ReplayUsers: model.ReplayUsers{
+			WhiteName:    "user1",
+			BlackName:    "user2",
+			WhiteCountry: "us",
+			BlackCountry: "us",
+			WhiteElo:     1000,
+			BlackElo:     1000,
+		},
+		ReplayColorElos: model.ReplayColorElos{
+			WhiteEloDiff: -30,
+			BlackEloDiff: 30,
 		},
 	},
 }
@@ -341,7 +395,7 @@ var MatchesTournament9 = []model.Match{
 				LoseEloDiff: -30,
 				PlayedOn:    time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
 			},
-			RepayView: model.RepayView{WhiteEloDiff: 30, BlackEloDiff: -30},
+			ReplayColorElos: model.ReplayColorElos{WhiteEloDiff: 30, BlackEloDiff: -30},
 		},
 	},
 }

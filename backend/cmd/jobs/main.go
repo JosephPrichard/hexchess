@@ -10,7 +10,7 @@ import (
 
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
-	"hexchess-svc/internal/logutil"
+	"hexchess-svc/lib/logutil"
 	"hexchess-svc/service"
 
 	"github.com/jackc/pgx/v5/pgxpool"

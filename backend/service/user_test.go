@@ -5,8 +5,8 @@ import (
 
 	"testing"
 
-	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
+	"hexchess-svc/lib/testutil"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"

@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/internal/enum"
+	"hexchess-svc/lib/enum"
 	"hexchess-svc/model"
 	"time"
 )
@@ -34,6 +34,10 @@ func OptBool(v bool) pgtype.Bool {
 
 func MapOptInt8(o enum.Optional[int64]) pgtype.Int8 {
 	return pgtype.Int8{Int64: o.Value, Valid: o.IsPresent}
+}
+
+func MapOptInt4(o enum.Optional[int32]) pgtype.Int4 {
+	return pgtype.Int4{Int32: o.Value, Valid: o.IsPresent}
 }
 
 func MapOptTime(o enum.Optional[time.Time]) pgtype.Timestamptz {

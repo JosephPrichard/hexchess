@@ -11,23 +11,23 @@ import (
 
 const ActiveUserMaxage = 5 * time.Minute // the caller should manually remove, but this is a stopgap in case the server is stopped before that is the case
 
-func (svc *HexchessServices) IsActiveUser(ctx context.Context, id string) bool {
-	_, err := svc.redis.Cache.ZScore(ctx, svc.redis.ActiveUsersZSet, id).Result()
+func (services *HexchessServices) IsActiveUser(ctx context.Context, id string) bool {
+	_, err := services.redis.Cache.ZScore(ctx, services.redis.ActiveUsersZSet, id).Result()
 	return err == nil
 }
 
-func (svc *HexchessServices) GetActiveCount(ctx context.Context) (int64, error) {
-	expireBefore := svc.entropy.GetTime().Add(-ActiveUserMaxage)
+func (services *HexchessServices) GetActiveCount(ctx context.Context) (int64, error) {
+	expireBefore := services.entropy.GetTime().Add(-ActiveUserMaxage)
 	expireBeforeStr := fmt.Sprintf("%d", expireBefore.UnixMilli())
 
-	removed, err := svc.redis.Cache.ZRemRangeByScore(ctx, svc.redis.ActiveUsersZSet, "-inf", expireBeforeStr).Result()
+	removed, err := services.redis.Cache.ZRemRangeByScore(ctx, services.redis.ActiveUsersZSet, "-inf", expireBeforeStr).Result()
 	if err != nil {
 		return 0, fmt.Errorf("get expired active users by range: %w", err)
 	}
 	if removed > 0 {
 		slog.InfoContext(ctx, "expired users with keys", "count", removed, "expireBefore", expireBefore)
 	}
-	count, err := svc.redis.Cache.ZCard(ctx, svc.redis.ActiveUsersZSet).Result()
+	count, err := services.redis.Cache.ZCard(ctx, services.redis.ActiveUsersZSet).Result()
 	if err != nil {
 		return 0, fmt.Errorf("count active users: %w", err)
 	}
@@ -35,10 +35,10 @@ func (svc *HexchessServices) GetActiveCount(ctx context.Context) (int64, error) 
 	return count, nil
 }
 
-func (svc *HexchessServices) RetainActiveUser(ctx context.Context, id string) error {
-	updtTime := float64(svc.entropy.GetTime().UnixMilli())
+func (services *HexchessServices) RetainActiveUser(ctx context.Context, id string) error {
+	updtTime := float64(services.entropy.GetTime().UnixMilli())
 
-	_, err := svc.redis.Cache.ZAddXX(ctx, svc.redis.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
+	_, err := services.redis.Cache.ZAddXX(ctx, services.redis.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
 	if err != nil {
 		return fmt.Errorf("retain active user %s: %w", id, err)
 	}
@@ -46,28 +46,28 @@ func (svc *HexchessServices) RetainActiveUser(ctx context.Context, id string) er
 	return nil
 }
 
-func (svc *HexchessServices) AddActiveUser(ctx context.Context, id string) (int64, error) {
-	updtTime := float64(svc.entropy.GetTime().UnixMilli())
+func (services *HexchessServices) AddActiveUser(ctx context.Context, id string) (int64, error) {
+	updtTime := float64(services.entropy.GetTime().UnixMilli())
 
-	_, err := svc.redis.Cache.ZAddNX(ctx, svc.redis.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
+	_, err := services.redis.Cache.ZAddNX(ctx, services.redis.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
 	if err != nil {
 		return 0, fmt.Errorf("add active user %v: %w", id, err)
 	}
 	slog.InfoContext(ctx, "added active user", "id", id)
 
-	count, err := svc.GetActiveCount(ctx)
+	count, err := services.GetActiveCount(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("get active user count after adding user=%s: %w", id, err)
 	}
 
-	if err := svc.broadcaster.BroadcastActiveCount(ctx, count); err != nil {
+	if err := services.broadcaster.BroadcastActiveCount(ctx, count); err != nil {
 		return 0, fmt.Errorf("broadcast active user count after adding %d: %w", count, err)
 	}
 	return count, nil
 }
 
-func (svc *HexchessServices) RemoveActiveUser(ctx context.Context, id string) (int64, error) {
-	res, err := svc.redis.Cache.ZRem(ctx, svc.redis.ActiveUsersZSet, id).Result()
+func (services *HexchessServices) RemoveActiveUser(ctx context.Context, id string) (int64, error) {
+	res, err := services.redis.Cache.ZRem(ctx, services.redis.ActiveUsersZSet, id).Result()
 	if err != nil {
 		return 0, fmt.Errorf("remove active user %v: %w", id, err)
 	}
@@ -77,12 +77,12 @@ func (svc *HexchessServices) RemoveActiveUser(ctx context.Context, id string) (i
 		slog.WarnContext(ctx, "did not remove active user", "id", id)
 	}
 
-	count, err := svc.GetActiveCount(ctx)
+	count, err := services.GetActiveCount(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("get active user count after removing user=%s: %w", id, err)
 	}
 
-	if err := svc.broadcaster.BroadcastActiveCount(ctx, count); err != nil {
+	if err := services.broadcaster.BroadcastActiveCount(ctx, count); err != nil {
 		return 0, fmt.Errorf("broadcast active user count after removing %d: %w", count, err)
 	}
 	return count, nil

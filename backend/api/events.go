@@ -1,9 +1,9 @@
-package web
+package api
 
 import (
 	"context"
 	"fmt"
-	"hexchess-svc/internal/timeutil"
+	"hexchess-svc/lib/timeutil"
 	"hexchess-svc/pubsub"
 	"log/slog"
 	"net/http"

@@ -1,17 +1,17 @@
-package web
+package api
 
 import (
 	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"hexchess-svc/internal/enum"
+	"hexchess-svc/lib/enum"
 	"hexchess-svc/model"
 	"math/big"
 	"net/http"
 	"time"
 
-	"hexchess-svc/internal/errutil"
+	"hexchess-svc/lib/errutil"
 	svc "hexchess-svc/service"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -42,6 +42,35 @@ func MakeSessionID() string {
 		bytes[i] = SessionIDCharset[n.Int64()]
 	}
 	return string(bytes)
+}
+
+func issueTempSession(session enum.Optional[model.PlayerState], w http.ResponseWriter) ([]svc.SessionInst, string) {
+	var sessions []svc.SessionInst
+	var tempSessionID string
+
+	if session.IsPresent {
+		player := session.Value
+
+		tempSessionID = MakeSessionID()
+
+		sessions = []svc.SessionInst{
+			{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge},
+		}
+	} else {
+		player := model.MakeGuestPlayer()
+
+		tempSessionID = MakeSessionID()
+		guestSessionID := MakeSessionID()
+
+		sessions = []svc.SessionInst{
+			{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge},
+			{SessionID: guestSessionID, Player: player, Expiry: SessionMaxAge},
+		}
+
+		w.Header().Set("Set-Cookie", FmtCookie(guestSessionID))
+	}
+
+	return sessions, tempSessionID
 }
 
 type Authenticator struct {

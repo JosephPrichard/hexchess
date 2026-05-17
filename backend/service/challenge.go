@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/db"
-	"hexchess-svc/internal/enum"
+	"hexchess-svc/lib/enum"
 	"hexchess-svc/model"
 	"log/slog"
 	"time"
 
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/internal/logutil"
+	"hexchess-svc/lib/logutil"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -33,7 +33,7 @@ type ChallengeInst struct {
 	MadeOn       time.Time       `json:"madeOn"`
 }
 
-func (svc *HexchessServices) InsertChallenge(ctx context.Context, inst ChallengeInst) (model.Challenge, error) {
+func (services *HexchessServices) InsertChallenge(ctx context.Context, inst ChallengeInst) (model.Challenge, error) {
 	if inst.ChallengerID == inst.ChallengeeID {
 		return model.Challenge{}, ErrSelfChallenge
 	}
@@ -41,7 +41,7 @@ func (svc *HexchessServices) InsertChallenge(ctx context.Context, inst Challenge
 		inst.MadeOn = time.Now()
 	}
 
-	row, dbErr := svc.querier.InsertChallenge(ctx, sqlc.InsertChallengeParams{
+	row, dbErr := services.querier.InsertChallenge(ctx, sqlc.InsertChallengeParams{
 		ChallengerID: inst.ChallengerID,
 		ChallengeeID: inst.ChallengeeID,
 		Mode:         sqlc.ModeEnum(inst.Mode.String()),
@@ -71,10 +71,10 @@ type ChallengeKey struct {
 }
 
 // GetChallengesByParticipant will select challenges by the participant after the 'since' time
-func (svc *HexchessServices) GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]model.Challenge, error) {
-	since := svc.entropy.GetTime().Add(-ExpireChallengeMaxAge)
+func (services *HexchessServices) GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]model.Challenge, error) {
+	since := services.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
-	rows, err := svc.querier.SelectChallengesByParticipant(ctx, sqlc.SelectChallengesByParticipantParams{
+	rows, err := services.querier.SelectChallengesByParticipant(ctx, sqlc.SelectChallengesByParticipantParams{
 		ChallengerID: db.OptInt8(key.ChallengerID),
 		ChallengeeID: db.OptInt8(key.ChallengeeID),
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
@@ -99,8 +99,8 @@ type DeleteResult struct {
 	FirstColor   model.GameColor
 }
 
-func (svc *HexchessServices) DeleteChallenge(ctx context.Context, key ChallengeKey) (DeleteResult, error) {
-	challengeRow, err := svc.querier.DeleteChallenge(ctx, sqlc.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+func (services *HexchessServices) DeleteChallenge(ctx context.Context, key ChallengeKey) (DeleteResult, error) {
+	challengeRow, err := services.querier.DeleteChallenge(ctx, sqlc.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	if db.IsErrNoRows(err) {
 		return DeleteResult{}, ErrChallengeNotFound
 	} else if err != nil {
@@ -120,11 +120,11 @@ func (svc *HexchessServices) DeleteChallenge(ctx context.Context, key ChallengeK
 	return delResult, err
 }
 
-func (svc *HexchessServices) DeleteExpiredChallenges(ctx context.Context, userID int64) error {
+func (services *HexchessServices) DeleteExpiredChallenges(ctx context.Context, userID int64) error {
 	// TODO: call this from a cronjob to clear out expired challenges every couple days
-	beforeTime := svc.entropy.GetTime().Add(-ExpireChallengeMaxAge)
+	beforeTime := services.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
-	err := svc.querier.DeleteExpiredChallenges(ctx, sqlc.DeleteExpiredChallengesParams{
+	err := services.querier.DeleteExpiredChallenges(ctx, sqlc.DeleteExpiredChallengesParams{
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: beforeTime},
 	})
@@ -132,8 +132,8 @@ func (svc *HexchessServices) DeleteExpiredChallenges(ctx context.Context, userID
 	return nil
 }
 
-func (svc *HexchessServices) CountUserChallenges(ctx context.Context, userID int64) (int64, error) {
-	return svc.querier.CountReceivedChallenges(ctx, userID)
+func (services *HexchessServices) CountUserChallenges(ctx context.Context, userID int64) (int64, error) {
+	return services.querier.CountReceivedChallenges(ctx, userID)
 }
 
 func mapChallengeRow(row sqlc.SelectChallengesByParticipantRow) model.Challenge {

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"hexchess-svc/chess"
 
-	"hexchess-svc/internal/logutil"
+	"hexchess-svc/lib/logutil"
 	"hexchess-svc/model"
 	"log/slog"
 	"math/big"
@@ -67,7 +67,7 @@ func MakeGameID() string {
 	return string(bytesID)
 }
 
-func (svc *HexchessServices) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (string, error) {
+func (services *HexchessServices) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (string, error) {
 	strID := MakeGameID()
 
 	state := model.MakeChessState(model.StateSetup{ID: strID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
@@ -75,33 +75,33 @@ func (svc *HexchessServices) CreateGame(ctx context.Context, color model.GameCol
 
 	slog.InfoContext(ctx, "created chess game", "chessMeta", state.ChessMeta)
 
-	if err := svc.SetChessState(ctx, strID, state); err != nil {
+	if err := services.SetChessState(ctx, strID, state); err != nil {
 		return "", fmt.Errorf("set chess state by existingID %s: %w", strID, err)
 	}
 
 	go func() {
-		if err := svc.broadcastGameCounts(strID); err != nil {
+		if err := services.broadcastGameCounts(strID); err != nil {
 			slog.ErrorContext(ctx, "failed to broadcast game count after creating game", "error", err)
 		}
 	}()
 	return strID, nil
 }
 
-func (svc *HexchessServices) broadcastGameCounts(strID string) error {
+func (services *HexchessServices) broadcastGameCounts(strID string) error {
 	ctx := context.WithValue(context.Background(), logutil.Trace, "broadcastGameCounts:"+strID)
 
-	count, err := svc.GetChessStateCount(ctx)
+	count, err := services.GetChessStateCount(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to count chess game after creating game: %w", err)
 	}
-	if err := svc.broadcaster.BroadcastGameCount(ctx, count); err != nil {
+	if err := services.broadcaster.BroadcastGameCount(ctx, count); err != nil {
 		return fmt.Errorf("failed to broadcast chess game count after creating game: %w", err)
 	}
 	slog.InfoContext(ctx, "counted games after creating game", "count", count)
 	return nil
 }
 
-func (svc *HexchessServices) JoinGame(ctx context.Context, gameID string, player model.PlayerState) (*model.ChessState, error) {
+func (services *HexchessServices) JoinGame(ctx context.Context, gameID string, player model.PlayerState) (*model.ChessState, error) {
 	update := func(state *model.ChessState) error {
 		if !player.Present {
 			slog.WarnContext(ctx, "player did not join the game", "playerID", player.ID)
@@ -139,7 +139,7 @@ func (svc *HexchessServices) JoinGame(ctx context.Context, gameID string, player
 		}
 		return nil
 	}
-	state, err := svc.updateChessStateTxn(ctx, gameID, update, nil)
+	state, err := services.updateChessStateTxn(ctx, gameID, update, nil)
 	if state != nil {
 		slog.InfoContext(ctx, "player joined game", "playerID", player.ID, "chessMeta", state.ChessMeta)
 	}
@@ -151,7 +151,7 @@ type MoveResult struct {
 	Move  chess.HistMove
 }
 
-func (svc *HexchessServices) MakeGameMove(ctx context.Context, gameID string, player model.PlayerState, move chess.Move) (MoveResult, error) {
+func (services *HexchessServices) MakeGameMove(ctx context.Context, gameID string, player model.PlayerState, move chess.Move) (MoveResult, error) {
 	update := func(state *model.ChessState) error {
 		// pre move validations on chess state
 		if !state.HasBothPlayers() {
@@ -188,7 +188,7 @@ func (svc *HexchessServices) MakeGameMove(ctx context.Context, gameID string, pl
 			if state.Game.Board.IsWhiteTurn {
 				result = model.BlackWin
 			}
-			if err := svc.sendFinishGameEvent(ctx, pipe, model.FinishedGame{
+			if err := services.sendFinishGameEvent(ctx, pipe, model.FinishedGame{
 				GameID:       gameID,
 				WhitePlayer:  state.WhitePlayer,
 				BlackPlayer:  state.BlackPlayer,
@@ -201,7 +201,7 @@ func (svc *HexchessServices) MakeGameMove(ctx context.Context, gameID string, pl
 		}
 		return nil
 	}
-	state, err := svc.updateChessStateTxn(ctx, gameID, update, commit)
+	state, err := services.updateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {
 		return MoveResult{}, err
 	}
@@ -227,7 +227,7 @@ const (
 	UndoReject
 )
 
-func (svc *HexchessServices) AttemptGameUndo(ctx context.Context, gameID string, player model.PlayerState, kind UndoKind) (*model.ChessState, error) {
+func (services *HexchessServices) AttemptGameUndo(ctx context.Context, gameID string, player model.PlayerState, kind UndoKind) (*model.ChessState, error) {
 	update := func(state *model.ChessState) error {
 		switch kind {
 		case UndoCreate:
@@ -255,14 +255,14 @@ func (svc *HexchessServices) AttemptGameUndo(ctx context.Context, gameID string,
 		}
 		return nil
 	}
-	state, err := svc.updateChessStateTxn(ctx, gameID, update, nil)
+	state, err := services.updateChessStateTxn(ctx, gameID, update, nil)
 	if state != nil {
 		slog.InfoContext(ctx, "attempt game undo", "playerID", player.ID, "chessMeta", state.ChessMeta)
 	}
 	return state, err
 }
 
-func (svc *HexchessServices) EndGame(ctx context.Context, gameID string, player model.PlayerState) (model.EndKind, error) {
+func (services *HexchessServices) EndGame(ctx context.Context, gameID string, player model.PlayerState) (model.EndKind, error) {
 	update := func(state *model.ChessState) error {
 		if state.EndState.IsEnded() {
 			return ErrFinishedGame{GameID: gameID}
@@ -290,7 +290,7 @@ func (svc *HexchessServices) EndGame(ctx context.Context, gameID string, player 
 				result = model.WhiteWin
 			}
 
-			if err := svc.sendFinishGameEvent(ctx, pipe, model.FinishedGame{
+			if err := services.sendFinishGameEvent(ctx, pipe, model.FinishedGame{
 				GameID:       gameID,
 				WhitePlayer:  state.WhitePlayer,
 				BlackPlayer:  state.BlackPlayer,
@@ -303,7 +303,7 @@ func (svc *HexchessServices) EndGame(ctx context.Context, gameID string, player 
 		}
 		return nil
 	}
-	state, err := svc.updateChessStateTxn(ctx, gameID, update, commit)
+	state, err := services.updateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {
 		return model.NotEnded, err
 	}

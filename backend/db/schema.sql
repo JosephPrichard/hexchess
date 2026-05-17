@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 17.0
+-- Dumped from database version 16.10
 -- Dumped by pg_dump version 17.0
 
 SET statement_timeout = 0;
@@ -16,13 +16,6 @@ SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
-
---
--- Name: public; Type: SCHEMA; Schema: -; Owner: -
---
-
--- *not* creating schema, since initdb creates it
-
 
 --
 -- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: -
@@ -225,9 +218,10 @@ CREATE TABLE public.replays (
     lose_elo_diff double precision NOT NULL,
     white_elo double precision NOT NULL,
     black_elo double precision NOT NULL,
-    game_id text DEFAULT gen_random_uuid() NOT NULL,
-    turn_count integer NOT NULL,
-    rating double precision NOT NULL
+    game_id text NOT NULL,
+    turn_count integer DEFAULT 0 NOT NULL,
+    rating double precision GENERATED ALWAYS AS (((white_elo + black_elo) / (2)::double precision)) STORED,
+    played_on_as_days integer GENERATED ALWAYS AS (((EXTRACT(epoch FROM ((played_on AT TIME ZONE 'UTC'::text) - '1970-01-01 00:00:00'::timestamp without time zone)) / (86400)::numeric))::integer) STORED
 );
 
 
@@ -418,14 +412,6 @@ ALTER TABLE ONLY public.replays
 
 
 --
--- Name: replays replays_temp_text_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.replays
-    ADD CONSTRAINT replays_temp_text_key UNIQUE (game_id);
-
-
---
 -- Name: tournament_matches tournament_matches_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -482,24 +468,24 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: idx_black_id; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_blackid_sort_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_black_id ON public.replays USING btree (black_id, id);
-
-
---
--- Name: idx_both_ids; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_both_ids ON public.replays USING btree (white_id, black_id, id);
+CREATE INDEX idx_blackid_sort_id ON public.replays USING btree (black_id, id);
 
 
 --
--- Name: idx_both_ids_played_on; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_blackid_sort_rating; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_both_ids_played_on ON public.replays USING btree (white_id, black_id, played_on);
+CREATE INDEX idx_blackid_sort_rating ON public.replays USING btree (black_id, rating);
+
+
+--
+-- Name: idx_blackid_sort_turncount; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_blackid_sort_turncount ON public.replays USING btree (black_id, turn_count);
 
 
 --
@@ -528,6 +514,34 @@ CREATE UNIQUE INDEX idx_google_account_id ON public.users USING btree (google_ac
 --
 
 CREATE INDEX idx_outbox_queue ON public.outbox_queue USING btree (processed_on, type, scheduled_on);
+
+
+--
+-- Name: idx_playedon; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_playedon ON public.replays USING btree (played_on_as_days);
+
+
+--
+-- Name: idx_replay_game_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_replay_game_id ON public.replays USING btree (game_id);
+
+
+--
+-- Name: idx_sort_rating; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_sort_rating ON public.replays USING btree (rating);
+
+
+--
+-- Name: idx_sort_turncount; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_sort_turncount ON public.replays USING btree (turn_count);
 
 
 --
@@ -587,10 +601,24 @@ CREATE INDEX idx_username ON public.users USING btree (username);
 
 
 --
--- Name: idx_white_id; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_whiteid_sort_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_white_id ON public.replays USING btree (white_id, id);
+CREATE INDEX idx_whiteid_sort_id ON public.replays USING btree (white_id, id);
+
+
+--
+-- Name: idx_whiteid_sort_rating; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_whiteid_sort_rating ON public.replays USING btree (white_id, rating);
+
+
+--
+-- Name: idx_whiteid_sort_turncount; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_whiteid_sort_turncount ON public.replays USING btree (white_id, turn_count);
 
 
 --

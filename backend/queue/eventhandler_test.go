@@ -3,8 +3,8 @@ package queue
 import (
 	"context"
 	"errors"
-	"hexchess-svc/internal/logutil"
-	"hexchess-svc/internal/testutil"
+	"hexchess-svc/lib/logutil"
+	"hexchess-svc/lib/testutil"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"hexchess-svc/pubsub"

@@ -1,4 +1,4 @@
-package web
+package api
 
 import (
 	"encoding/json"
@@ -44,24 +44,25 @@ func parseJSON[Body any](r *http.Request, body *Body) error {
 }
 
 func transformJSON[Body any, Output any](r *http.Request, parse func(Body) (Output, error)) (Output, error) {
-	var body Body
-	err := json.NewDecoder(r.Body).Decode(&body)
 	defer r.Body.Close()
-	if err != nil {
+
+	var body Body
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		var o Output
 		return o, ErrHttpInvalidJSON
 	}
+
 	return parse(body)
 }
 
 type ServiceView struct {
-	Status  int                       `json:"status"`
-	Message string                    `json:"message"`
-	Error   string                    `json:"error,omitempty"`
-	Errors  map[string]MultiErrorElem `json:"errors,omitempty"`
+	Status  int                 `json:"status"`
+	Message string              `json:"message"`
+	Error   string              `json:"error,omitempty"`
+	Errors  map[string]OneError `json:"errors,omitempty"`
 }
 
-type MultiErrorElem struct {
+type OneError struct {
 	Message string `json:"message"`
 	Error   string `json:"error"`
 }

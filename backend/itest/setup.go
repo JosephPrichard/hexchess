@@ -3,12 +3,12 @@ package itest
 import (
 	"golang.org/x/sync/errgroup"
 	"hexchess-svc/db"
-	"hexchess-svc/internal/logutil"
+	"hexchess-svc/lib/logutil"
 	"slices"
 )
 
 type TestInfra struct {
-	DB    db.DB
+	db.DB
 	Redis db.Redis
 }
 

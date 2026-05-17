@@ -1,6 +1,6 @@
 package model
 
-import "hexchess-svc/internal/enum"
+import "hexchess-svc/lib/enum"
 
 type ReplayCause int
 

@@ -6,7 +6,7 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/egress"
-	"hexchess-svc/internal/enum"
+	"hexchess-svc/lib/enum"
 	"hexchess-svc/pubsub"
 
 	"hexchess-svc/model"
@@ -40,7 +40,7 @@ type HexchessAPI interface {
 	GetUserLeaderboardRanks(ctx context.Context, userID int64, modes map[string]model.GameMode) (map[string]LbRank, error)
 	SyncLeaderboard(ctx context.Context) error
 	GetLeaderboardUser(ctx context.Context, userID int64, mode model.GameMode) (model.LbdUser, error)
-	GetLeaderboardUsers(ctx context.Context, mode model.GameMode, rnkUsers []RankedUser) ([]model.LbdUser, []int64, error)
+	GetFullLeaderboardUsers(ctx context.Context, mode model.GameMode, rnkUsers []RankedUser) ([]model.LbdUser, []int64, error)
 	GetFuzzySearchLeaderboard(ctx context.Context, name string, page, perPage int32) ([]model.LbdUser, error)
 	GetLeaderboardPage(ctx context.Context, mode model.GameMode, page, perPage int64) (Leaderboard, error)
 
@@ -72,9 +72,7 @@ type HexchessAPI interface {
 	AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID) error
 	BroadcastTournamentParticipant(ctx context.Context, playerID int64, tournamentJoin JoinTournamentEvent) error
 
-	GetUserChessMetas(ctx context.Context, userID int64) ([]model.ChessMeta, error)
-	GetUserChessMetasPaged(ctx context.Context, userID int64, page, count int) ([]model.ChessMeta, error)
-	GetAllChessMetas(ctx context.Context, page, count int) ([]model.ChessMeta, error)
+	GetChessMetas(ctx context.Context, player enum.Optional[model.PlayerState], page int, count int) (ChessMetasResp, error)
 	GetChessStateCount(ctx context.Context) (int64, error)
 	SetManyChessStates(ctx context.Context, chessStates []model.ChessState) error
 
@@ -99,7 +97,7 @@ type HexchessAPI interface {
 }
 
 type HexchessServices struct {
-	db          db.DB
+	transactor  db.Transactor
 	querier     sqlc.Querier
 	redis       db.Redis
 	aws         egress.AWS
@@ -110,11 +108,11 @@ type HexchessServices struct {
 
 var _ = (HexchessAPI)(&HexchessServices{})
 
-func (svc *HexchessServices) Close() {
-	if svc.db != nil {
-		svc.db.Close()
+func (services *HexchessServices) Close() {
+	if services.transactor != nil {
+		services.transactor.Close()
 	}
-	svc.redis.Close()
+	services.redis.Close()
 }
 
 type Setup struct {
@@ -135,7 +133,7 @@ func MakeHexchessServices(setup Setup) *HexchessServices {
 		setup.Entropy = &RealEntropySource{}
 	}
 	return &HexchessServices{
-		db:          setup.DB,
+		transactor:  setup.DB,
 		querier:     setup.Querier,
 		redis:       setup.Redis,
 		aws:         setup.AWS,

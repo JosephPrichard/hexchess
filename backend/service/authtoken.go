@@ -5,6 +5,6 @@ import (
 	"hexchess-svc/egress"
 )
 
-func (svc *HexchessServices) ValidateGoogleIDToken(ctx context.Context, token string) (egress.GoogleIDTokenPayload, error) {
-	return svc.remote.ValidateGoogleIDToken(ctx, token)
+func (services *HexchessServices) ValidateGoogleIDToken(ctx context.Context, token string) (egress.GoogleIDTokenPayload, error) {
+	return services.remote.ValidateGoogleIDToken(ctx, token)
 }

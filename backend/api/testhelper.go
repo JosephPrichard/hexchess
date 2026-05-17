@@ -1,4 +1,4 @@
-package web
+package api
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"hexchess-svc/internal/logutil"
+	"hexchess-svc/lib/logutil"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 )
@@ -35,7 +35,7 @@ func setupTestHandler(t logutil.TestLogger, mocks serviceMocks, flags ...itest.T
 		Entropy:     mocks.Entropy,
 		Broadcaster: broadcaster,
 	})
-	h := MakeServeMux(Setup{Services: services, Broadcaster: broadcaster})
+	h := MakeServeMux(ServerSetup{Services: services, Broadcaster: broadcaster})
 
 	return h, services
 }
@@ -62,7 +62,7 @@ func setupWebsocketTest(t *testing.T) websocketTestContext {
 	createTestSessions(t, services)
 	createTestChessStates(t, services)
 
-	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services, Broadcasters: localBroadcasters, Broadcaster: broadcaster}))
+	testServer := httptest.NewServer(MakeServeMux(ServerSetup{Services: services, Broadcasters: localBroadcasters, Broadcaster: broadcaster}))
 
 	return websocketTestContext{services: services, localBroadcasters: localBroadcasters, testServer: testServer}
 }
@@ -109,7 +109,7 @@ func setupSSETest(t *testing.T) sseTestContext {
 	<-localBroadcasters.ListenUsersMessages(testinfra.Redis)
 	<-localBroadcasters.ListenTournamentMessages(testinfra.Redis)
 
-	testServer := httptest.NewServer(MakeServeMux(Setup{Services: services, Broadcaster: broadcaster, Broadcasters: localBroadcasters}))
+	testServer := httptest.NewServer(MakeServeMux(ServerSetup{Services: services, Broadcaster: broadcaster, Broadcasters: localBroadcasters}))
 
 	return sseTestContext{services: services, broadcasters: broadcaster, localBroadcasters: localBroadcasters, testServer: testServer}
 }

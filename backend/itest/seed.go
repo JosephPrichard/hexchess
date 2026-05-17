@@ -11,7 +11,7 @@ import (
 	"hexchess-svc/pb"
 	"time"
 
-	"hexchess-svc/internal/logutil"
+	"hexchess-svc/lib/logutil"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -92,11 +92,10 @@ var ReplayInsts = []struct {
 	ReplayWhiteElo float64
 	PlayedOn       time.Time
 	TurnCount      int32
-	Rating         float64
 }{
 	// replay service tests (primarily the replay advanced search functionality)
 	{
-		GameID:         uuid.NewString(), // replay key 1.
+		GameID:         uuid.NewString(),
 		WhiteID:        ptr(1),
 		BlackID:        ptr(2),
 		Result:         "WHITE_WINS",
@@ -107,8 +106,7 @@ var ReplayInsts = []struct {
 		ReplayWhiteElo: 1000,
 		ReplayBlackElo: 1000,
 		PlayedOn:       TimeNow,
-		TurnCount:      34,
-		Rating:         1000,
+		TurnCount:      42,
 	},
 	{
 		GameID:         uuid.NewString(),
@@ -121,9 +119,8 @@ var ReplayInsts = []struct {
 		LoseEloDiff:    -30,
 		ReplayWhiteElo: 1030,
 		ReplayBlackElo: 900,
-		PlayedOn:       TimeNow,
+		PlayedOn:       TimeNow.Add(time.Hour * 24),
 		TurnCount:      36,
-		Rating:         1030,
 	},
 	{
 		GameID:         uuid.NewString(),
@@ -136,9 +133,8 @@ var ReplayInsts = []struct {
 		LoseEloDiff:    0,
 		ReplayWhiteElo: 900,
 		ReplayBlackElo: 1000,
-		PlayedOn:       TimeNow,
+		PlayedOn:       TimeNow.Add(time.Hour * 24 * 2),
 		TurnCount:      38,
-		Rating:         1060,
 	},
 	{
 		GameID:         uuid.NewString(),
@@ -151,9 +147,22 @@ var ReplayInsts = []struct {
 		LoseEloDiff:    0,
 		ReplayWhiteElo: 1000,
 		ReplayBlackElo: 1000,
-		PlayedOn:       TimeNow,
+		PlayedOn:       TimeNow.Add(time.Hour * 24 * 3),
 		TurnCount:      40,
-		Rating:         1090,
+	},
+	{
+		GameID:         uuid.NewString(),
+		WhiteID:        ptr(1),
+		BlackID:        ptr(2),
+		Result:         "BLACK_WINS",
+		Cause:          "CHECKMATE",
+		Mode:           "CORRESPONDENCE_7",
+		WinEloDiff:     30,
+		LoseEloDiff:    -30,
+		ReplayWhiteElo: 1000,
+		ReplayBlackElo: 1000,
+		PlayedOn:       TimeNow.Add(time.Hour * 24 * 4),
+		TurnCount:      34,
 	},
 	// elo history tests
 	{
@@ -169,7 +178,6 @@ var ReplayInsts = []struct {
 		ReplayBlackElo: 970,
 		PlayedOn:       time.Date(1900, 1, 1, 1, 0, 0, 0, time.UTC),
 		TurnCount:      25,
-		Rating:         900,
 	},
 	{
 		GameID:         uuid.NewString(),
@@ -690,8 +698,8 @@ func insertTestData(pool *pgxpool.Pool) error {
 	}
 	for _, inst := range ReplayInsts {
 		batchQueue(`
-			INSERT INTO replays (game_id, white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode, turn_count, rating) 
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);`,
+			INSERT INTO replays (game_id, white_id, black_id, result, cause, win_elo_diff, lose_elo_diff, white_elo, black_elo, played_on, mode, turn_count) 
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`,
 			inst.GameID,
 			inst.WhiteID,
 			inst.BlackID,
@@ -704,7 +712,6 @@ func insertTestData(pool *pgxpool.Pool) error {
 			inst.PlayedOn,
 			inst.Mode,
 			inst.TurnCount,
-			inst.Rating,
 		)
 	}
 	for _, inst := range ChallengeInsts {

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/internal/errutil"
+	"hexchess-svc/lib/errutil"
 	svc "hexchess-svc/service"
 	"log/slog"
 	"sync"

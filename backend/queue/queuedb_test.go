@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/internal/logutil"
-	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
+	"hexchess-svc/lib/logutil"
+	"hexchess-svc/lib/testutil"
 	svc "hexchess-svc/service"
 	"testing"
 	"time"
@@ -124,7 +124,7 @@ func TestPollOutboxQueueEvents(t *testing.T) {
 			ctx := t.Context()
 
 			for _, params := range tt.inputEvents {
-				err := testinfra.DB.Querier().InsertOutboxQueue(ctx, params)
+				err := testinfra.Querier().InsertOutboxQueue(ctx, params)
 				require.NoError(t, err)
 			}
 
@@ -144,7 +144,7 @@ func TestPollOutboxQueueEvents(t *testing.T) {
 
 			assert.Equal(t, tt.wantCapturedEvents, capturedEvents)
 
-			outboxEvents, err := testinfra.DB.Querier().SelectALLOutboxQueue(ctx)
+			outboxEvents, err := testinfra.Querier().SelectALLOutboxQueue(ctx)
 			require.NoError(t, err)
 
 			testutil.Equal(t, tt.wantEvents, outboxEvents, cmpopts.IgnoreFields(sqlc.OutboxQueue{}, "ID", "CreatedOn"))

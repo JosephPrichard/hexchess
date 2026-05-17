@@ -28,7 +28,7 @@ type Participant = LbdUser
 
 type TournamentReplay struct {
 	Replay
-	RepayView
+	ReplayColorElos
 }
 
 type Match struct {

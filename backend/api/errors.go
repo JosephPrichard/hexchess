@@ -1,4 +1,4 @@
-package web
+package api
 
 import (
 	"errors"
@@ -58,7 +58,7 @@ func mapBadRequestError(err error) (ServiceView, bool) {
 	if !ok {
 		return ServiceView{}, false
 	}
-	strMap := make(map[string]MultiErrorElem)
+	strMap := make(map[string]OneError)
 
 	for k, v := range respErr.Errors {
 		var targetErr error
@@ -68,7 +68,7 @@ func mapBadRequestError(err error) (ServiceView, bool) {
 		} else {
 			targetErr = ErrHttpInvalidInput
 		}
-		strMap[k] = MultiErrorElem{Message: v.Error(), Error: targetErr.Error()}
+		strMap[k] = OneError{Message: v.Error(), Error: targetErr.Error()}
 	}
 
 	return ServiceView{Status: http.StatusBadRequest, Errors: strMap}, true

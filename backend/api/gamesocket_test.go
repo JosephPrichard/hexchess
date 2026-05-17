@@ -1,4 +1,4 @@
-package web
+package api
 
 import (
 	stlcmp "cmp"
@@ -17,8 +17,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
-	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
+	"hexchess-svc/lib/testutil"
 	"hexchess-svc/pb"
 )
 

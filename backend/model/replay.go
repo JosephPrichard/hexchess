@@ -27,7 +27,7 @@ type ReplayUsers struct {
 	BlackElo     float64 `json:"blackElo"`
 }
 
-type RepayView struct {
+type ReplayColorElos struct {
 	WhiteEloDiff float64 `json:"whiteEloDiff"`
 	BlackEloDiff float64 `json:"blackEloDiff"`
 }
@@ -39,10 +39,10 @@ type ReplayPreview struct {
 type FullReplay struct {
 	Replay
 	ReplayUsers
-	RepayView
+	ReplayColorElos
 }
 
-func MakeReplayView(input Replay) (output RepayView) {
+func MakeReplayView(input Replay) (output ReplayColorElos) {
 	switch input.Result {
 	case WhiteWin:
 		output.WhiteEloDiff, output.BlackEloDiff = input.WinEloDiff, input.LoseEloDiff

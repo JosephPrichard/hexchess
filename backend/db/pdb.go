@@ -9,7 +9,11 @@ import (
 )
 
 type DB interface {
+	Transactor
 	Querier() sqlc.Querier
+}
+
+type Transactor interface {
 	ExecTx(context.Context, TxArgs) error
 	Close()
 }

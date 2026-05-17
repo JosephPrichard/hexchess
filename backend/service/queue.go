@@ -63,8 +63,8 @@ type RedisXAdder interface {
 	XAdd(ctx context.Context, args *redis.XAddArgs) *redis.StringCmd
 }
 
-func (svc *HexchessServices) sendFinishGameEvent(ctx context.Context, xadder RedisXAdder, finishedGame model.FinishedGame) error {
-	streamKey := svc.redis.FinishGameStreamKey
+func (services *HexchessServices) sendFinishGameEvent(ctx context.Context, xadder RedisXAdder, finishedGame model.FinishedGame) error {
+	streamKey := services.redis.FinishGameStreamKey
 
 	bytes, err := model.MarshalFinishedGame(finishedGame)
 	if err != nil {

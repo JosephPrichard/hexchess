@@ -11,8 +11,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"hexchess-svc/internal/testutil"
 	"hexchess-svc/itest"
+	"hexchess-svc/lib/testutil"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -159,15 +159,15 @@ func TestGetChessMetas(t *testing.T) {
 	require.NoError(t, services.setChessStateAt(ctx, id2, s2, now.Add(-50*time.Second)))
 	require.NoError(t, services.setChessStateAt(ctx, id3, s3, now.Add(-10*time.Second)))
 
-	metaList1, err := services.GetUserChessMetas(ctx, 1)
+	metaList1, err := services.getUserChessMetas(ctx, 1)
 	require.NoError(t, err)
-	metaList2, err := services.GetUserChessMetas(ctx, 2)
+	metaList2, err := services.getUserChessMetas(ctx, 2)
 	require.NoError(t, err)
-	metaList3, err := services.GetUserChessMetas(ctx, 3)
+	metaList3, err := services.getUserChessMetas(ctx, 3)
 	require.NoError(t, err)
-	metaList4, err := services.GetUserChessMetasPaged(ctx, 1, 1, 2)
+	metaList4, err := services.getUserChessMetasPaged(ctx, 1, 1, 2)
 	require.NoError(t, err)
-	metaList5, err := services.GetUserChessMetasPaged(ctx, 1, 2, 2)
+	metaList5, err := services.getUserChessMetasPaged(ctx, 1, 2, 2)
 	require.NoError(t, err)
 
 	m1 := model.ChessMeta{

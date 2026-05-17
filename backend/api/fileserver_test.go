@@ -1,4 +1,4 @@
-package web
+package api
 
 import (
 	"bytes"
@@ -13,7 +13,7 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/service"
 
-	"hexchess-svc/internal/testutil"
+	"hexchess-svc/lib/testutil"
 	"io"
 	"net/http"
 	"net/http/httptest"

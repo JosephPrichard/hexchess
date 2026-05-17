@@ -1,4 +1,4 @@
-package web
+package api
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"hexchess-svc/chess"
 
-	"hexchess-svc/internal/errutil"
+	"hexchess-svc/lib/errutil"
 	"hexchess-svc/model"
 	"log/slog"
 	"net/http"

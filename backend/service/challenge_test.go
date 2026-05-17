@@ -10,8 +10,8 @@ import (
 
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/internal/logutil"
 	"hexchess-svc/itest"
+	"hexchess-svc/lib/logutil"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -97,7 +97,7 @@ func TestMapChallengeInsertErr(t *testing.T) {
 		},
 		{
 			name:  "UnrecognisedErrorIsReturnedAsIs",
-			input: errors.New("some unexpected db error"),
+			input: errors.New("some unexpected transactor error"),
 			want:  nil,
 		},
 		{
@@ -157,20 +157,20 @@ func TestDeleteChallenge(t *testing.T) {
 
 	mocks := serviceMocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}
 
-	services, _ := setupServicesTest(t, mocks, itest.RWPostgres)
+	services, testinfra := setupServicesTest(t, mocks, itest.RWPostgres)
 	defer services.Close()
 
 	ctx := t.Context()
 
 	key := ChallengeKey{ChallengerID: 1, ChallengeeID: 2}
 
-	challengeBefore, err := services.db.Querier().SelectChallenge(ctx, sqlc.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	challengeBefore, err := testinfra.Querier().SelectChallenge(ctx, sqlc.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
 	dr, err := services.DeleteChallenge(ctx, key)
 	require.NoError(t, err)
 
-	_, errAfterDelete := services.db.Querier().SelectChallenge(ctx, sqlc.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	_, errAfterDelete := testinfra.Querier().SelectChallenge(ctx, sqlc.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
 	challenge := sqlc.Challenge{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, StartColor: "RANDOM", MadeOn: pgtype.Timestamptz{Valid: true, Time: itest.TimeNow.Local()}, Mode: "TIMED_3+2"}

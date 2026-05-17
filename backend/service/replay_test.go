@@ -3,15 +3,15 @@ package svc
 import (
 	"context"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"hexchess-svc/internal/enum"
-	"hexchess-svc/internal/testutil"
+	"hexchess-svc/lib/enum"
+	"hexchess-svc/lib/testutil"
 	"hexchess-svc/model"
 
 	"testing"
 	"time"
 
-	"hexchess-svc/internal/logutil"
 	"hexchess-svc/itest"
+	"hexchess-svc/lib/logutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +38,7 @@ func TestGetReplay(t *testing.T) {
 		actualReplay1, err := services.GetReplay(ctx, itest.GuestReplayID)
 		require.NoError(t, err)
 
-		assert.Equal(t, itest.TestReplays[2], actualReplay1)
+		assert.Equal(t, itest.TestReplays[3], actualReplay1)
 	})
 }
 
@@ -57,7 +57,12 @@ func TestSearchReplaysByQuery(t *testing.T) {
 				AfterID: enum.Nothing[int64](),
 				PerPage: 5,
 			},
-			wantReplays: []model.FullReplay{itest.TestReplays[2], itest.TestReplays[1], itest.TestReplays[0]},
+			wantReplays: []model.FullReplay{
+				itest.TestReplays[4],
+				itest.TestReplays[3],
+				itest.TestReplays[2],
+				itest.TestReplays[0],
+			},
 		},
 		{
 			name: "QueryBy_Users_Cursor",

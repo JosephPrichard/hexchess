@@ -1,4 +1,4 @@
-package web
+package api
 
 import (
 	"errors"
@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"sync"
 
-	"hexchess-svc/internal/enum"
+	"hexchess-svc/lib/enum"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 	"net/url"
@@ -333,6 +333,7 @@ func parseReplaysQuery(values url.Values) (GetReplaysQuery, error) {
 	sort := parseDefEnum(q, "sort", svc.ReplayQuerySortEnums, svc.ReplaySortID)
 
 	perPage := parseDefaultInt[int32](q, "perPage", defaultPaginationCount)
+
 	if perPage > defaultPaginationCount {
 		perPage = defaultPaginationCount
 	}

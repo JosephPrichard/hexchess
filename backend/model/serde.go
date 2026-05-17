@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
-	"hexchess-svc/internal/enum"
+	"hexchess-svc/lib/enum"
 	"hexchess-svc/pb"
 	"time"
 )

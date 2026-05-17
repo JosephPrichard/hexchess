@@ -2,14 +2,14 @@ package main
 
 import (
 	"context"
+	"hexchess-svc/api"
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
 	"hexchess-svc/egress"
-	"hexchess-svc/internal/logutil"
+	"hexchess-svc/lib/logutil"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue"
 	svc "hexchess-svc/service"
-	"hexchess-svc/web"
 	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
@@ -97,18 +97,14 @@ func main() {
 		}
 	}()
 
-	withHealthcheck := web.WithHealthCheckOpts(web.HealthCheckConfig{
+	withHealthcheck := api.WithHealthCheckOpts(api.HealthCheckConfig{
 		PostgresDSN:       dbURL,
 		RedisGameStoreDSN: rdbGameStoreNode,
 		RedisCacheDSN:     rdbCacheNodes,
 		RedisPubSubDSN:    rdbPubSubNode,
 	})
-	serverSetup := web.Setup{
-		Services:       services,
-		AllowedOrigins: allowedOrigins,
-		Broadcasters:   broadcasters,
-	}
-	if err := http.ListenAndServe(":"+serverPort, web.MakeServeMux(serverSetup, withHealthcheck)); err != nil {
+	serverSetup := api.ServerSetup{Services: services, AllowedOrigins: allowedOrigins, Broadcasters: broadcasters}
+	if err := http.ListenAndServe(":"+serverPort, api.MakeServeMux(serverSetup, withHealthcheck)); err != nil {
 		logutil.FatalErr("failed while serving", err)
 	}
 }

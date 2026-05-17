@@ -2,8 +2,8 @@ package svc
 
 import (
 	"hexchess-svc/egress"
-	"hexchess-svc/internal/logutil"
 	"hexchess-svc/itest"
+	"hexchess-svc/lib/logutil"
 	"hexchess-svc/pubsub"
 )
 

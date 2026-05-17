@@ -4,12 +4,12 @@ import (
 	"context"
 	"hexchess-svc/model"
 
-	"hexchess-svc/internal/testutil"
+	"hexchess-svc/lib/testutil"
 	"testing"
 	"time"
 
-	"hexchess-svc/internal/logutil"
 	"hexchess-svc/itest"
+	"hexchess-svc/lib/logutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -103,7 +103,7 @@ func TestLeaderboard(t *testing.T) {
 	assert.Equal(t, wantLeaderboards, leaderboards)
 }
 
-func TestGetLeaderboardUsers(t *testing.T) {
+func TestGetFullLeaderboardUsers(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -162,7 +162,7 @@ func TestGetLeaderboardUsers(t *testing.T) {
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, tt.name)
 
-			leaderboard, missingIDs, err := services.GetLeaderboardUsers(ctx, tt.mode, tt.rankedUsers)
+			leaderboard, missingIDs, err := services.GetFullLeaderboardUsers(ctx, tt.mode, tt.rankedUsers)
 
 			assert.Equal(t, tt.wantMissingIDs, missingIDs)
 			require.NoError(t, err)

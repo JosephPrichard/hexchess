@@ -1,4 +1,4 @@
-package web
+package api
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 
 	"hexchess-svc/assets"
 
-	"hexchess-svc/internal/logutil"
+	"hexchess-svc/lib/logutil"
 	svc "hexchess-svc/service"
 
 	"github.com/go-chi/chi/v5"
@@ -48,7 +48,7 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 	}
 }
 
-type Setup struct {
+type ServerSetup struct {
 	Services      svc.HexchessAPI
 	Broadcaster   pubsub.BroadcasterAPI
 	Broadcasters  *pubsub.LocalBroadcasters
@@ -86,7 +86,7 @@ func MakeStaticData() StaticData {
 	return StaticData{validCountries: validCountries, countryList: countryList}
 }
 
-func MakeServeMux(setup Setup, opts ...func(*chi.Mux)) *chi.Mux {
+func MakeServeMux(setup ServerSetup, opts ...func(*chi.Mux)) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Recoverer)
