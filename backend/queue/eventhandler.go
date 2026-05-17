@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hexchess-svc/lib/errutil"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"hexchess-svc/pubsub"
@@ -108,5 +109,7 @@ func (h EventHandler) HandleFinishedGameEvent(ctx context.Context, eventData str
 		return NonRetryableQueueError{Err: err}
 	}
 
-	return h.Services.InsertFinishedGame(ctx, event)
+	err = h.Services.InsertFinishedGame(ctx, event)
+
+	return errutil.Guardf(err, "insert finished game vent")
 }

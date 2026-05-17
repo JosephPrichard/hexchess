@@ -9,6 +9,7 @@ import (
 	"hexchess-svc/lib/enum"
 	"hexchess-svc/lib/errutil"
 	"hexchess-svc/model"
+	"hexchess-svc/queue"
 	"log/slog"
 	"math"
 	"time"
@@ -433,8 +434,8 @@ func (services *HexchessServices) BeginTournamentCountdown(ctx context.Context, 
 
 			scheduledOn := time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Millisecond)
 
-			if err := sendScheduledTournamentEvent(ctx, querier, tournamentKey, scheduledOn); err != nil {
-				return fmt.Errorf("push scheduled tournament %s event: %w", tournamentKey, err)
+			if err := queue.PublishScheduledTournamentEvent(ctx, querier, tournamentKey, scheduledOn); err != nil {
+				return fmt.Errorf("publish scheduled tournament %s event: %w", tournamentKey, err)
 			}
 
 			slog.InfoContext(ctx, "begin tournament countdown", "tournamentRow", tournamentRow)
@@ -487,11 +488,11 @@ func (services *HexchessServices) AdvanceTournament(ctx context.Context, tournam
 			switch status {
 			case model.TournamentScheduled:
 				if response, err = matchmakeScheduledTournament(ctx, querier, tournamentRow); err != nil {
-					return err
+					return fmt.Errorf("matchmake scheduled tournament %s: %w", tournamentKey, err)
 				}
 			case model.TournamentInProgress:
 				if response, err = matchmakeInProgressTournament(ctx, querier, tournamentRow); err != nil {
-					return err
+					return fmt.Errorf("matchmake in progress tournament %s: %w", tournamentKey, err)
 				}
 			default:
 				return MatchInvariantError{
@@ -615,8 +616,8 @@ func insertTournamentMatches(ctx context.Context, querier sqlc.Querier, tourname
 			return err
 		}
 
-		if err := sendCreateTourneytMatchesEvent(ctx, querier, tournamentKey, response.NextMatches); err != nil {
-			return fmt.Errorf("send create tournament %s matches event: %w", tournamentKey, err)
+		if err := queue.PublishCreateTournamentMatchesEvent(ctx, querier, tournamentKey, response.NextMatches); err != nil {
+			return fmt.Errorf("publish create tournament %s matches event: %w", tournamentKey, err)
 		}
 	}
 
