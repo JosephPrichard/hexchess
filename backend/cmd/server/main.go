@@ -8,7 +8,7 @@ import (
 	"hexchess-svc/egress"
 	"hexchess-svc/lib/logutil"
 	"hexchess-svc/pubsub"
-	"hexchess-svc/queue"
+	"hexchess-svc/queue/consumers"
 	svc "hexchess-svc/service"
 	"log/slog"
 	"net/http"
@@ -86,8 +86,8 @@ func main() {
 	broadcasters.Listen(rdb)
 	defer broadcasters.Shutdown()
 
-	queue.StartRedisQueueConsumers(ctx, services, rdb)
-	queue.StartDBQueueConsumers(ctx, services, pdb)
+	consumers.StartRedisQueueConsumers(ctx, services, rdb)
+	consumers.StartDBQueueConsumers(ctx, services, pdb)
 
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 

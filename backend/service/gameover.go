@@ -9,7 +9,7 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/model"
-	"hexchess-svc/queue"
+	"hexchess-svc/queue/producers"
 	"log/slog"
 	"slices"
 	"time"
@@ -80,7 +80,7 @@ func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finish
 		slog.InfoContext(ctx, "publishing schedule tournament event", "gameID", finishedGame.GameID)
 
 		// if two scheduled tournament events run concucurrently, one will advance the tournament and the other will noop
-		if err := queue.PublishScheduledTournamentEvent(ctx, services.querier, tournamentKey.Bytes, time.Now()); err != nil {
+		if err := producers.PublishScheduledTournamentEvent(ctx, services.querier, tournamentKey.Bytes, time.Now()); err != nil {
 			return fmt.Errorf("publish scheduled tournament event: %w", err)
 		}
 	} else {

@@ -1,9 +1,7 @@
-package queue
+package consumers
 
 import (
-	"context"
 	"errors"
-	"hexchess-svc/lib/logutil"
 	"hexchess-svc/lib/testutil"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"

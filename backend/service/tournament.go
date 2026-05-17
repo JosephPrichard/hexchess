@@ -9,7 +9,7 @@ import (
 	"hexchess-svc/lib/enum"
 	"hexchess-svc/lib/errutil"
 	"hexchess-svc/model"
-	"hexchess-svc/queue"
+	"hexchess-svc/queue/producers"
 	"log/slog"
 	"math"
 	"time"
@@ -434,7 +434,7 @@ func (services *HexchessServices) BeginTournamentCountdown(ctx context.Context, 
 
 			scheduledOn := time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Millisecond)
 
-			if err := queue.PublishScheduledTournamentEvent(ctx, querier, tournamentKey, scheduledOn); err != nil {
+			if err := producers.PublishScheduledTournamentEvent(ctx, querier, tournamentKey, scheduledOn); err != nil {
 				return fmt.Errorf("publish scheduled tournament %s event: %w", tournamentKey, err)
 			}
 
@@ -616,7 +616,7 @@ func insertTournamentMatches(ctx context.Context, querier sqlc.Querier, tourname
 			return err
 		}
 
-		if err := queue.PublishCreateTournamentMatchesEvent(ctx, querier, tournamentKey, response.NextMatches); err != nil {
+		if err := producers.PublishCreateTournamentMatchesEvent(ctx, querier, tournamentKey, response.NextMatches); err != nil {
 			return fmt.Errorf("publish create tournament %s matches event: %w", tournamentKey, err)
 		}
 	}

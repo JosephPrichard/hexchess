@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/chess"
-	"hexchess-svc/queue"
+	"hexchess-svc/queue/producers"
 
 	"hexchess-svc/lib/logutil"
 	"hexchess-svc/model"
@@ -189,7 +189,7 @@ func (services *HexchessServices) MakeGameMove(ctx context.Context, gameID strin
 			if state.Game.Board.IsWhiteTurn {
 				result = model.BlackWin
 			}
-			if err := queue.PublishFinishGameEvent(ctx, pipe, services.redis.FinishGameStreamKey, model.FinishedGame{
+			if err := producers.PublishFinishGameEvent(ctx, pipe, services.redis.FinishGameStreamKey, model.FinishedGame{
 				GameID:       gameID,
 				WhitePlayer:  state.WhitePlayer,
 				BlackPlayer:  state.BlackPlayer,
@@ -291,7 +291,7 @@ func (services *HexchessServices) EndGame(ctx context.Context, gameID string, pl
 				result = model.WhiteWin
 			}
 
-			if err := queue.PublishFinishGameEvent(ctx, pipe, services.redis.FinishGameStreamKey, model.FinishedGame{
+			if err := producers.PublishFinishGameEvent(ctx, pipe, services.redis.FinishGameStreamKey, model.FinishedGame{
 				GameID:       gameID,
 				WhitePlayer:  state.WhitePlayer,
 				BlackPlayer:  state.BlackPlayer,
