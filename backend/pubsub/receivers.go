@@ -68,10 +68,19 @@ func MakeLocalBroadcasters() *LocalBroadcasters {
 
 func (b *LocalBroadcasters) Listen(rdb db.Redis) {
 	slog.Info("starting local broadcasters")
-	<-b.ListenGameMessages(rdb)
-	<-b.ListenUsersMessages(rdb)
-	<-b.ListenTournamentMessages(rdb)
-	<-b.ListenGlobalEvents(rdb)
+
+	var chans []chan struct{}
+	for _, listener := range []func(db db.Redis) chan struct{}{
+		b.ListenGameMessages,
+		b.ListenUsersMessages,
+		b.ListenTournamentMessages,
+		b.ListenGlobalEvents,
+	} {
+		chans = append(chans, listener(rdb))
+	}
+	for _, ch := range chans {
+		<-ch
+	}
 }
 
 func (b *LocalBroadcasters) Shutdown() {

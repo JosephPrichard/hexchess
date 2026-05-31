@@ -98,8 +98,10 @@ export const messages: Record<string, string> = {
 	[codes.errorExpiredGame]: 'The game has expired due to inactivity.',
 };
 
+const UnknownError = 'An unexpected error has occurred'
+
 function mapErr(code: string): string {
-	return messages[code] || 'An unexpected error has occurred'
+	return messages[code] || UnknownError
 }
 
 export function errorToArray(resp?: ServiceModel): string[] {
@@ -131,8 +133,13 @@ export function makeMessage(resp?: ServiceModel | string): string {
 		messages = [codes.errorUnknown];
 	}
 
-	return messages
+	let message = messages
 		.filter((value: string, index: number, array: string[]) => array.indexOf(value) === index) // distinct messages
 		.map(code => mapErr(code))
 		.join('\n');
+
+	if (message.includes(UnknownError)) {
+		message = UnknownError
+	}
+	return message;
 }

@@ -9,6 +9,7 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/model"
+	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
 	"log/slog"
 	"slices"
@@ -84,7 +85,7 @@ func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finish
 		return fmt.Errorf("select tournament by game id %s: %w", finishedGame.GameID, err)
 	}
 
-	services.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(finishedGame.GameID, replay))
+	services.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(finishedGame.GameID, replay), pubsub.AsyncBroadcast())
 
 	slog.InfoContext(ctx, "completed inserting finished game event", "key", finishedGame.GameID)
 	return nil

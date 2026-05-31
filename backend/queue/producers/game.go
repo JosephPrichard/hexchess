@@ -26,17 +26,15 @@ func (p *RedisPublisher) PublishFinishGameEvent(ctx context.Context, xadder Redi
 	if err != nil {
 		return fmt.Errorf("marshal finish game event: %w", err)
 	}
-
 	xArgs := &redis.XAddArgs{
 		Stream: p.redis.FinishGameStreamKey,
-		Values: map[string]any{"payload": string(bytes)},
+		Values: map[string]any{"data": string(bytes)},
 	}
 	msgID, err := xadder.XAdd(ctx, xArgs).Result()
 	if err != nil {
 		return fmt.Errorf("xadd finished game event %+v: %w", finishedGame, err)
 	}
-
-	slog.InfoContext(ctx, "published finished game event", "msgID", msgID, "gameID", finishedGame.GameID)
+	slog.InfoContext(ctx, "published finished game event", "msgID", msgID, "gameID", finishedGame.GameID, "streamKey", p.redis.FinishGameStreamKey)
 	return nil
 }
 
@@ -45,16 +43,14 @@ func (p *RedisPublisher) PublishUpdtGameEvent(ctx context.Context, xadder RedisX
 	if err != nil {
 		return fmt.Errorf("marshal update game event: %w", err)
 	}
-
 	xArgs := &redis.XAddArgs{
 		Stream: p.redis.UpdtGameMetaStreamKey,
-		Values: map[string]any{"payload": string(bytes)},
+		Values: map[string]any{"data": string(bytes)},
 	}
 	msgID, err := xadder.XAdd(ctx, xArgs).Result()
 	if err != nil {
 		return fmt.Errorf("xadd update game event %+v: %w", gameUpdt, err)
 	}
-
-	slog.InfoContext(ctx, "published update game event", "msgID", msgID, "gameUpdt", gameUpdt)
+	slog.InfoContext(ctx, "published update game event", "msgID", msgID, "gameUpdt", gameUpdt, "streamKey", p.redis.UpdtGameMetaStreamKey)
 	return nil
 }

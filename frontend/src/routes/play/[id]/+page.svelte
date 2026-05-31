@@ -283,7 +283,7 @@
 		if (data) {
 			finishState = data.replay;
 		} else {
-			if (err?.errors === codes.errorNotFoundReplay) return
+			if (err?.error === codes.errorNotFoundReplay) return
 			addErrorNotification(err);
 		}
 	}

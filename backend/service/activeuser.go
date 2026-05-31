@@ -3,6 +3,7 @@ package svc
 import (
 	"context"
 	"fmt"
+	"hexchess-svc/pubsub"
 	"log/slog"
 	"time"
 
@@ -60,7 +61,7 @@ func (services *HexchessServices) AddActiveUser(ctx context.Context, id string) 
 		return 0, fmt.Errorf("get active user count after adding user=%s: %w", id, err)
 	}
 
-	services.broadcaster.BroadcastActiveCount(ctx, count)
+	services.broadcaster.BroadcastActiveCount(ctx, count, pubsub.AsyncBroadcast())
 	return count, nil
 }
 
@@ -80,6 +81,6 @@ func (services *HexchessServices) RemoveActiveUser(ctx context.Context, id strin
 		return 0, fmt.Errorf("get active user count after removing user=%s: %w", id, err)
 	}
 
-	services.broadcaster.BroadcastActiveCount(ctx, count)
+	services.broadcaster.BroadcastActiveCount(ctx, count, pubsub.AsyncBroadcast())
 	return count, nil
 }

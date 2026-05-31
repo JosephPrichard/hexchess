@@ -14,40 +14,46 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func StartRedisQueueConsumers(ctx context.Context, services svc.HexchessAPI, redis db.Redis) {
-	h := EventHandler{services: services}
+type RedisHandlerFunc func(ctx context.Context, eventData string) error
 
+type RedisQueueHandler interface {
+	EventLoop() error
+}
+
+type SetupRedisQueue struct {
+	Ctx      context.Context
+	Services svc.HexchessAPI
+	Redis    db.Redis
+}
+
+func StartRedisQueueConsumers(setup SetupRedisQueue) {
 	handlerList := []RedisQueueHandler{
 		&RedisConsumer[model.FinishedGame]{
-			Context: ctx,
-			Client:  redis.GameStore,
+			Context: setup.Ctx,
+			Client:  setup.Redis.GameStore,
 
 			Concurrency:   8,
-			StreamKey:     redis.FinishGameStreamKey,
-			ConsumerGroup: redis.FinishGameConsumerGroup,
+			StreamKey:     setup.Redis.FinishGameStreamKey,
+			ConsumerGroup: setup.Redis.FinishGameConsumerGroup,
 
-			HandleEvent: h.HandleFinishedGameEvent,
+			HandleEvent: HandleFinishedGameEvent(setup.Services),
 		},
 		&RedisConsumer[model.GameMetadataUpdt]{
-			Context: ctx,
-			Client:  redis.GameStore,
+			Context: setup.Ctx,
+			Client:  setup.Redis.GameStore,
 
 			Concurrency:   8,
-			StreamKey:     redis.UpdtGameMetaStreamKey,
-			ConsumerGroup: redis.UpdtGameMetaConsumerGroup,
+			StreamKey:     setup.Redis.UpdtGameMetaStreamKey,
+			ConsumerGroup: setup.Redis.UpdtGameMetaConsumerGroup,
 
-			HandleEvent: h.HandleUpdateGameMetadataEvent,
+			HandleEvent: HandleUpdateGameMetadataEvent(setup.Services),
 		},
 	}
 
 	for _, handler := range handlerList {
-		go handler.EventLoop()
-		slog.InfoContext(ctx, "started redis stream consumer for handler", "handler", fmt.Sprintf("%+v", handler))
+		handler.EventLoop()
+		slog.InfoContext(setup.Ctx, "started redis stream consumer for handler", "handler", fmt.Sprintf("%+v", handler))
 	}
-}
-
-type RedisQueueHandler interface {
-	EventLoop() error
 }
 
 type RedisConsumer[Event any] struct {
@@ -59,7 +65,8 @@ type RedisConsumer[Event any] struct {
 	StreamKey     string
 	ConsumerGroup string
 
-	HandleEvent func(ctx context.Context, eventData string) error
+	HandleEvent   RedisHandlerFunc
+	SignalConsume func()
 
 	waitGroup sync.WaitGroup
 }
@@ -120,14 +127,13 @@ func (stream *RedisConsumer[Event]) handleXReadMessage(msg redis.XMessage) {
 		anyData := msg.Values["data"]
 		data, ok := anyData.(string)
 		if !ok {
-			slog.Error("failed to read message, 'data' field is incorrect type", "type", fmt.Sprintf("%T", anyData))
+			slog.Error("failed to xread message, 'data' field is incorrect type", "type", fmt.Sprintf("%T", anyData))
 			return sendAck
 		}
 
 		err := stream.HandleEvent(stream.Context, data)
-
 		if err != nil {
-			slog.Error("failed to handle event", "error", err)
+			slog.Error("failed to handle redis consumer event", "error", err)
 			if errutil.IsType[NonRetryableQueueError](err) {
 				return sendAck
 			} else {
@@ -142,8 +148,8 @@ func (stream *RedisConsumer[Event]) handleXReadMessage(msg redis.XMessage) {
 		return
 	}
 	if err := stream.Client.XAck(stream.Context, stream.StreamKey, stream.ConsumerGroup, msg.ID).Err(); err != nil {
-		slog.Error("failed to acknowledge event", "id", msg.ID, "error", err)
+		slog.Error("failed to send xack", "id", msg.ID, "error", err)
 	} else {
-		slog.Info("acknowledged finished event", "id", msg.ID)
+		slog.Info("sent xack", "id", msg.ID)
 	}
 }

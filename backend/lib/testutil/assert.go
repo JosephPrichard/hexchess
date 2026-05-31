@@ -3,6 +3,7 @@ package testutil
 import (
 	"encoding/json"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"go.uber.org/mock/gomock"
 	"io"
 	"net/http/httptest"
 	"reflect"
@@ -11,6 +12,11 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 )
+
+type Controller struct {
+	T      *testing.T
+	Gomock *gomock.Controller
+}
 
 func Equal[T any](t *testing.T, expected, actual T, opts ...cmp.Option) bool {
 	t.Helper()

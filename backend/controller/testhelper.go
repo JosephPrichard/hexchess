@@ -1,4 +1,4 @@
-package api
+package controller
 
 import (
 	"encoding/json"
@@ -57,17 +57,17 @@ func setupWebsocketTest(t *testing.T) websocketTestContext {
 		Redis:       testinfra.Redis,
 		Broadcaster: pubsub.MakeBroadcaster(testinfra.Redis),
 	})
-
-	broadcaster := pubsub.MakeBroadcaster(testinfra.Redis)
-
 	localBroadcasters := pubsub.MakeLocalBroadcasters()
 	<-localBroadcasters.ListenGameMessages(testinfra.Redis)
 
 	createTestSessions(t, testinfra.Redis)
 	createTestChessStates(t, testinfra.Redis)
 
-	testServer := httptest.NewServer(MakeServeMux(ServerSetup{Services: services, Broadcasters: localBroadcasters, Broadcaster: broadcaster}))
-
+	testServer := httptest.NewServer(MakeServeMux(ServerSetup{
+		Services:     services,
+		Broadcasters: localBroadcasters,
+		Broadcaster:  pubsub.MakeBroadcaster(testinfra.Redis),
+	}))
 	return websocketTestContext{services: services, localBroadcasters: localBroadcasters, testServer: testServer}
 }
 
@@ -84,7 +84,7 @@ func (s *websocketTestContext) Shutdown() {
 type sseTestContext struct {
 	services          *svc.HexchessServices
 	localBroadcasters *pubsub.LocalBroadcasters
-	broadcasters      pubsub.BroadcasterAPI
+	broadcaster       pubsub.BroadcasterAPI
 	testServer        *httptest.Server
 }
 
@@ -95,15 +95,14 @@ func (s *sseTestContext) Shutdown() {
 }
 
 func setupSSETest(t *testing.T) sseTestContext {
-	testinfra := itest.SetupTestInfra(t, itest.Redis)
+	testinfra := itest.SetupTestInfra(t, itest.ROPostgres, itest.Redis)
 	services := svc.MakeHexchessServices(svc.Setup{
 		DB:          testinfra.DB,
+		Querier:     testinfra.Querier,
 		Redis:       testinfra.Redis,
 		Entropy:     &svc.StableEntropySource{},
 		Broadcaster: pubsub.MakeBroadcaster(testinfra.Redis),
 	})
-
-	broadcaster := pubsub.MakeBroadcaster(testinfra.Redis)
 
 	createTestSessions(t, testinfra.Redis)
 
@@ -113,9 +112,17 @@ func setupSSETest(t *testing.T) sseTestContext {
 	<-localBroadcasters.ListenUsersMessages(testinfra.Redis)
 	<-localBroadcasters.ListenTournamentMessages(testinfra.Redis)
 
-	testServer := httptest.NewServer(MakeServeMux(ServerSetup{Services: services, Broadcaster: broadcaster, Broadcasters: localBroadcasters}))
-
-	return sseTestContext{services: services, broadcasters: broadcaster, localBroadcasters: localBroadcasters, testServer: testServer}
+	testServer := httptest.NewServer(MakeServeMux(ServerSetup{
+		Services:     services,
+		Broadcaster:  pubsub.MakeBroadcaster(testinfra.Redis),
+		Broadcasters: localBroadcasters,
+	}))
+	return sseTestContext{
+		services:          services,
+		broadcaster:       pubsub.MakeBroadcaster(testinfra.Redis),
+		localBroadcasters: localBroadcasters,
+		testServer:        testServer,
+	}
 }
 
 var TestSessionID1 = "testing-session-id-1"
@@ -184,10 +191,7 @@ func createLeaderboard(t *testing.T, rdb db.Redis, changes ...updtLbChangeSet) e
 	ctx := t.Context()
 	pipe := rdb.Cache.Pipeline()
 	for _, change := range changes {
-		if model.IsGuestID(change.ID) {
-			continue
-		}
-		modeLbZSet := fmt.Sprintf("{%s}%s/mode:%s", change.Mode.String(), rdb.LeaderboardZSet, change.Mode.String())
+		modeLbZSet := fmt.Sprintf("%s/mode:%s", rdb.LeaderboardZSet, change.Mode.String())
 		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: change.EloDiff, Member: change.ID})
 	}
 	if _, err := pipe.Exec(ctx); err != nil {

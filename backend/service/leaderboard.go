@@ -30,13 +30,15 @@ func (services *HexchessServices) SetLeaderboard(ctx context.Context, changes ..
 		if model.IsGuestID(change.ID) {
 			continue
 		}
+
 		modeLbZSet := fmtLeaderboardZSet(services.redis, change.Mode.String())
 		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: change.EloDiff, Member: change.ID})
+
+		slog.InfoContext(ctx, "set leaderboard users", "modeLbZSet", modeLbZSet, "changes", changes)
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("set leaderboard users: %w", err)
 	}
-	slog.InfoContext(ctx, "set leaderboard users", "changes", changes)
 	return nil
 }
 

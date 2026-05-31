@@ -1,4 +1,4 @@
-package api
+package controller
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/model"
+	"hexchess-svc/pubsub"
 	svc "hexchess-svc/service"
 	"log/slog"
 	"net/http"
@@ -475,7 +476,7 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 		return fmt.Errorf("insert challenge: %w", err)
 	}
 
-	api.broadcaster.BroadcastChallenge(ctx, ret)
+	api.broadcaster.BroadcastChallenge(ctx, ret, pubsub.AsyncBroadcast())
 
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil

@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"hexchess-svc/api"
 	"hexchess-svc/cmd"
+	"hexchess-svc/controller"
 	"hexchess-svc/db"
 	"hexchess-svc/egress"
 	"hexchess-svc/lib/logutil"
@@ -86,8 +86,16 @@ func main() {
 	broadcasters.Listen(rdb)
 	defer broadcasters.Shutdown()
 
-	consumers.StartRedisQueueConsumers(ctx, services, rdb)
-	consumers.StartDBQueueConsumers(ctx, services, pdb)
+	consumers.StartRedisQueueConsumers(consumers.SetupRedisQueue{
+		Ctx:      ctx,
+		Services: services,
+		Redis:    rdb,
+	})
+	consumers.StartPgQueueConsumers(consumers.SetupPgQueue{
+		Ctx:      ctx,
+		Services: services,
+		Postgres: pdb,
+	})
 
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
 
@@ -97,14 +105,20 @@ func main() {
 		}
 	}()
 
-	withHealthcheck := api.WithHealthCheckOpts(api.HealthCheckConfig{
+	withHealthcheck := controller.WithHealthCheckOpts(controller.HealthCheckConfig{
 		PostgresDSN:       dbURL,
 		RedisGameStoreDSN: rdbGameStoreNode,
 		RedisCacheDSN:     rdbCacheNodes,
 		RedisPubSubDSN:    rdbPubSubNode,
 	})
-	serverSetup := api.ServerSetup{Services: services, AllowedOrigins: allowedOrigins, Broadcasters: broadcasters}
-	if err := http.ListenAndServe(":"+serverPort, api.MakeServeMux(serverSetup, withHealthcheck)); err != nil {
+	serverSetup := controller.ServerSetup{
+		Services:       services,
+		Broadcaster:    pubsub.MakeBroadcaster(rdb),
+		Broadcasters:   broadcasters,
+		AllowedOrigins: allowedOrigins,
+	}
+	mux := controller.MakeServeMux(serverSetup, withHealthcheck)
+	if err := http.ListenAndServe(":"+serverPort, mux); err != nil {
 		logutil.FatalErr("failed while serving", err)
 	}
 }

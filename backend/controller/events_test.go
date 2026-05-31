@@ -1,4 +1,4 @@
-package api
+package controller
 
 import (
 	"bufio"
@@ -85,16 +85,16 @@ func TestHandleCountEvents(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	sseTest.broadcasters.BroadcastActiveCount(ctx, 2)
-	sseTest.broadcasters.BroadcastGameCount(ctx, 1)
+	sseTest.broadcaster.BroadcastActiveCount(ctx, 2, pubsub.SyncBroadcast())
+	sseTest.broadcaster.BroadcastGameCount(ctx, 4, pubsub.SyncBroadcast())
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
 
 	wantEvents := []string{
 		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, `{"count":0}`),
-		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"count":0}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"count":3}`),
 		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, `{"count":2}`),
-		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"count":1}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"count":4}`),
 	}
 
 	gotEvents := scanEvents(ctx, resp, len(wantEvents))
@@ -108,12 +108,9 @@ func TestHandleActiveConn(t *testing.T) {
 	sseTest := setupSSETest(t)
 	defer sseTest.Shutdown()
 
-	wantBroadcasts := []pubsub.GlobalCastEvent{
-		{Kind: pubsub.GlobalActiveEvent, Data: `{"count":1}`},
-		{Kind: pubsub.GlobalActiveEvent, Data: `{"count":0}`},
-	}
+	wantBroadcast := pubsub.GlobalCastEvent{Kind: pubsub.GlobalActiveEvent, Data: `{"count":1}`}
 
-	broadcastSubscriber := make(chan pubsub.GlobalCastEvent, len(wantBroadcasts))
+	broadcastSubscriber := make(chan pubsub.GlobalCastEvent, 1)
 	sseTest.localBroadcasters.CountsCaster.Subscribe(broadcastSubscriber)
 
 	go func() {
@@ -126,16 +123,14 @@ func TestHandleActiveConn(t *testing.T) {
 		defer resp.Body.Close() // this must execute before we assert "wantBroadcasts" since one message is sent when the SSE drops
 	}()
 
-	var actualBroadcasts []pubsub.GlobalCastEvent
-	for range wantBroadcasts {
-		select {
-		case e := <-broadcastSubscriber:
-			actualBroadcasts = append(actualBroadcasts, e)
-		case <-ctx.Done():
-			t.Errorf("test timed out: %v", ctx.Err())
-		}
+	var actualBroadcast pubsub.GlobalCastEvent
+	select {
+	case e := <-broadcastSubscriber:
+		actualBroadcast = e
+	case <-ctx.Done():
+		t.Errorf("test timed out: %v", ctx.Err())
 	}
-	assert.Equal(t, wantBroadcasts, actualBroadcasts)
+	assert.Equal(t, wantBroadcast, actualBroadcast)
 }
 
 func TestHandleUserEvents(t *testing.T) {
@@ -164,7 +159,7 @@ func TestHandleUserEvents(t *testing.T) {
 	broadcastedChallenges = append(broadcastedChallenges, inputChallenges...)
 
 	for _, bch := range broadcastedChallenges {
-		sseTest.broadcasters.BroadcastChallenge(ctx, bch)
+		sseTest.broadcaster.BroadcastChallenge(ctx, bch)
 	}
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
@@ -236,7 +231,7 @@ func TestHandleTournamentEvents(t *testing.T) {
 	broadcastedTournaments = append(broadcastedTournaments, inputTournaments...)
 
 	for _, bt := range broadcastedTournaments {
-		sseTest.broadcasters.BroadcastTournament(ctx, bt)
+		sseTest.broadcaster.BroadcastTournament(ctx, bt)
 	}
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))

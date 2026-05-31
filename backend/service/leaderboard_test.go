@@ -156,7 +156,6 @@ func TestGetFullLeaderboardUsers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			services, _ := setupServicesTest(t, serviceMocks{}, itest.ROPostgres)
 			defer services.Close()
 

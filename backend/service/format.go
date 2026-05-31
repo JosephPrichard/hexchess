@@ -14,7 +14,8 @@ func fmtGameKey(gameID string) string {
 }
 
 func fmtLeaderboardZSet(redis db.Redis, mode string) string {
-	return fmt.Sprintf("{%s}%s/mode:%s", mode, redis.LeaderboardZSet, mode)
+	return fmt.Sprintf("%s/mode:%s", redis.LeaderboardZSet, mode)
+	//return fmt.Sprintf("{%s}%s/mode:%s", mode, redis.LeaderboardZSet, mode)
 }
 
 func fmtGameChatsZSet(redis db.Redis, gameKey string) string {

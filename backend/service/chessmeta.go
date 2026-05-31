@@ -10,6 +10,7 @@ import (
 	"hexchess-svc/lib/enum"
 	"hexchess-svc/lib/errutil"
 	"hexchess-svc/model"
+	"hexchess-svc/pubsub"
 	"log/slog"
 	"math"
 	"time"
@@ -80,7 +81,7 @@ func (services *HexchessServices) broadcastGameMetadataCount(ctx context.Context
 	}
 	slog.InfoContext(ctx, "selected chess metadatas count to broadcast", "count", count)
 
-	services.broadcaster.BroadcastGameCount(ctx, count)
+	services.broadcaster.BroadcastGameCount(ctx, count, pubsub.SyncBroadcast())
 }
 
 func (services *HexchessServices) getGameMetadata(ctx context.Context, userID enum.Optional[int64], afterOrdering enum.Optional[int64], count enum.Optional[int32]) ([]model.ChessMeta, error) {

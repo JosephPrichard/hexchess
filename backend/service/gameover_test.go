@@ -34,17 +34,17 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 	newGameID := uuid.NewString()
 	newGameIDGuest := uuid.NewString()
 
-	setupMocks := func(_ *testing.T, ctrl *gomock.Controller) pubsub.BroadcasterAPI {
-		mockBroadcasterAPI := pubsub.NewMockBroadcasterAPI(ctrl)
+	setupPermissiveMocks := func(ctrl testutil.Controller) pubsub.BroadcasterAPI {
+		mockBroadcasterAPI := pubsub.NewMockBroadcasterAPI(ctrl.Gomock)
 		mockBroadcasterAPI.EXPECT().
-			BroadcastGamesEvent(gomock.Any(), gomock.Any())
+			BroadcastGamesEvent(gomock.Any(), gomock.Any(), gomock.Any())
 		return mockBroadcasterAPI
 	}
 
 	tests := []struct {
 		name            string
 		event           model.FinishedGame
-		setupMocks      func(t *testing.T, ctrl *gomock.Controller) pubsub.BroadcasterAPI
+		setupMocks      func(ctrl testutil.Controller) pubsub.BroadcasterAPI
 		wantLeaderboard []string
 	}{
 		{
@@ -59,8 +59,8 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				ReplayCause:  model.Checkmate,
 				ReplayResult: model.WhiteWin,
 			},
-			setupMocks: func(t *testing.T, ctrl *gomock.Controller) pubsub.BroadcasterAPI {
-				mockBroadcasterAPI := pubsub.NewMockBroadcasterAPI(ctrl)
+			setupMocks: func(ctrl testutil.Controller) pubsub.BroadcasterAPI {
+				mockBroadcasterAPI := pubsub.NewMockBroadcasterAPI(ctrl.Gomock)
 
 				wantOutput := &pb.GameOutput{
 					GameId: newGameID,
@@ -82,12 +82,13 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 						WinEloDiff:   15,
 					}},
 				}
+				assertGameOutput := gomock.Cond(func(output *pb.GameOutput) bool {
+					return testutil.Equal(ctrl.T, wantOutput, output,
+						protocmp.Transform(), protocmp.IgnoreFields(&pb.Replay{}, "played_on", "id"))
+				})
+
 				mockBroadcasterAPI.EXPECT().
-					BroadcastGamesEvent(gomock.Any(), gomock.Cond(func(output *pb.GameOutput) bool {
-						return testutil.Equal(t, wantOutput, output,
-							protocmp.Transform(),
-							protocmp.IgnoreFields(&pb.Replay{}, "played_on", "id"))
-					}))
+					BroadcastGamesEvent(gomock.Any(), assertGameOutput, gomock.Any())
 
 				return mockBroadcasterAPI
 			},
@@ -110,7 +111,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				ReplayCause:  model.Forfeit,
 				ReplayResult: model.BlackWin,
 			},
-			setupMocks:      setupMocks,
+			setupMocks:      setupPermissiveMocks,
 			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
 		},
 		{
@@ -125,7 +126,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				ReplayCause:  model.Forfeit,
 				ReplayResult: model.BlackWin,
 			},
-			setupMocks:      setupMocks,
+			setupMocks:      setupPermissiveMocks,
 			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
 		},
 	}
@@ -134,8 +135,9 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
+			hCtrl := testutil.Controller{T: t, Gomock: ctrl}
 
-			services, testinfra := setupServicesTest(t, serviceMocks{Broadcaster: tt.setupMocks(t, ctrl)}, itest.RWPostgres, itest.Redis)
+			services, testinfra := setupServicesTest(t, serviceMocks{Broadcaster: tt.setupMocks(hCtrl)}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			err := services.InsertFinishedGame(ctx, tt.event)

@@ -44,8 +44,8 @@ var DefaultRedisNames = RedisNames{
 	ActiveCountChannel:        "active_count_channel",
 	FinishGameStreamKey:       "finish_game_events",
 	FinishGameConsumerGroup:   "finish_game_consumer_group",
-	UpdtGameMetaStreamKey:     "start_game_events",
-	UpdtGameMetaConsumerGroup: "start_game_consumer_group",
+	UpdtGameMetaStreamKey:     "updt_game_meta_events",
+	UpdtGameMetaConsumerGroup: "updt_game_meta_consumer_group",
 }
 
 func MakeTestRedisNames() *RedisNames {
