@@ -201,17 +201,17 @@ func parseCreateTournamentBody(body CreateTournamentBody) (CreateTournamentTBody
 }
 
 type ChessMetasQuery struct {
-	Page  int
-	Count int
+	AfterOrdering enum.Optional[int64]
+	Count         int32
 }
 
 func parseChessMetasQuery(values url.Values) (ChessMetasQuery, error) {
 	q := makeQueryParseCtx(values)
 
-	page := parseDefaultInt(q, "page", 1)
+	afterOrdering := parseOptInt[int64](q, "afterOrdering")
 	count := parseDefaultInt(q, "count", defaultPaginationCount)
 
-	return ChessMetasQuery{Page: page, Count: count}, q.RespErr.Inner()
+	return ChessMetasQuery{AfterOrdering: afterOrdering, Count: int32(count)}, q.RespErr.Inner()
 }
 
 const (

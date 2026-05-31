@@ -8,6 +8,7 @@ import (
 	"hexchess-svc/egress"
 	"hexchess-svc/lib/enum"
 	"hexchess-svc/pubsub"
+	"hexchess-svc/queue/producers"
 
 	"hexchess-svc/model"
 	"io"
@@ -34,7 +35,6 @@ type HexchessAPI interface {
 	GetUserStats(ctx context.Context, id int64) (model.UserStats, error)
 	GetFullUser(ctx context.Context, userID int64, perPage int32) (FullUser, error)
 	UpdateUserPassword(ctx context.Context, id int64, newPassword string) error
-	SelectUsersByIDs(ctx context.Context, ids []int64) ([]model.User, error)
 
 	SetLeaderboard(ctx context.Context, changes ...UpdtLbChangeSet) error
 	GetUserLeaderboardRanks(ctx context.Context, userID int64, modes map[string]model.GameMode) (map[string]LbRank, error)
@@ -69,12 +69,13 @@ type HexchessAPI interface {
 	JoinTournament(ctx context.Context, inst JoinTournamentInst) (JoinTournamentEvent, error)
 	BeginTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, userID int64) (BeginTourneyCountdown, error)
 	LeaveTournament(ctx context.Context, tournamentKey uuid.UUID, userID int64) (bool, error)
-	AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID) error
-	BroadcastTournamentParticipant(ctx context.Context, playerID int64, tournamentJoin JoinTournamentEvent) error
+	AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]string, error)
 
-	GetChessMetas(ctx context.Context, player enum.Optional[model.PlayerState], page int, count int) (ChessMetasResp, error)
-	GetChessStateCount(ctx context.Context) (int64, error)
-	SetManyChessStates(ctx context.Context, chessStates []model.ChessState) error
+	BroadcastTournamentParticipant(ctx context.Context, playerID int64, tournamentJoin JoinTournamentEvent)
+
+	UpdateGameMetadata(ctx context.Context, updt model.GameMetadataUpdt) error
+	GetGameMetadata(ctx context.Context, player enum.Optional[model.PlayerState], afterOrdering enum.Optional[int64], count int32) (ChessMetasResp, error)
+	GetGameMetadataCount(ctx context.Context) (int64, error)
 
 	GetChats(ctx context.Context, gameID string, count int64) ([]model.Chat, error)
 	InsertChat(ctx context.Context, gameID string, chat model.Chat) error
@@ -97,16 +98,17 @@ type HexchessAPI interface {
 }
 
 type HexchessServices struct {
-	transactor  db.Transactor
-	querier     sqlc.Querier
-	redis       db.Redis
-	aws         egress.AWS
-	remote      egress.RemoteAPIs
-	broadcaster pubsub.BroadcasterAPI
-	entropy     EntropyAPI
+	transactor     db.Transactor
+	querier        sqlc.Querier
+	redis          db.Redis
+	aws            egress.AWS
+	remote         egress.RemoteAPIs
+	broadcaster    pubsub.BroadcasterAPI
+	redisPublisher producers.RedisPublisher
+	entropy        EntropyAPI
 }
 
-var _ = (HexchessAPI)(&HexchessServices{})
+//var _ = (HexchessAPI)(&HexchessServices{})
 
 func (services *HexchessServices) Close() {
 	if services.transactor != nil {
@@ -133,12 +135,13 @@ func MakeHexchessServices(setup Setup) *HexchessServices {
 		setup.Entropy = &RealEntropySource{}
 	}
 	return &HexchessServices{
-		transactor:  setup.DB,
-		querier:     setup.Querier,
-		redis:       setup.Redis,
-		aws:         setup.AWS,
-		remote:      setup.Remote,
-		entropy:     setup.Entropy,
-		broadcaster: setup.Broadcaster,
+		transactor:     setup.DB,
+		querier:        setup.Querier,
+		redis:          setup.Redis,
+		aws:            setup.AWS,
+		remote:         setup.Remote,
+		entropy:        setup.Entropy,
+		redisPublisher: producers.MakePublisher(setup.Redis),
+		broadcaster:    setup.Broadcaster,
 	}
 }

@@ -32,10 +32,10 @@ func mapGetReplayResult[ID any](ctx context.Context, id ID, row sqlc.SelectRepla
 	if db.IsErrNoRows(err) {
 		return model.FullReplay{}, ErrNoReplay
 	} else if err != nil {
-		return model.FullReplay{}, fmt.Errorf("select replay [%v] by existingID: %w", id, err)
+		return model.FullReplay{}, fmt.Errorf("select replay [%v] by userID: %w", id, err)
 	}
 	replay := mapFullReplayByIDRow(row)
-	slog.InfoContext(ctx, "selected replay by existingID", "replay", replay, "existingID", id)
+	slog.InfoContext(ctx, "selected replay by userID", "replay", replay, "userID", id)
 	return replay, nil
 }
 

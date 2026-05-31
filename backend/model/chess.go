@@ -3,9 +3,6 @@ package model
 import (
 	"errors"
 	"hexchess-svc/chess"
-	"time"
-
-	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 type UndoState struct {
@@ -25,8 +22,12 @@ func (kind EndKind) IsEnded() bool {
 }
 
 type ChessState struct {
-	ChessMeta
 	UndoState
+	ID           string      `json:"id"`
+	WhitePlayer  PlayerState `json:"whitePlayer"`
+	BlackPlayer  PlayerState `json:"blackPlayer"`
+	FirstColor   GameColor   `json:"firstColor"`
+	Mode         GameMode    `json:"mode"`
 	EndState     EndKind
 	InitialBoard chess.Board
 	Game         chess.Game
@@ -41,15 +42,12 @@ func (state *ChessState) IsEitherPlayer(player PlayerState) bool {
 }
 
 type ChessMeta struct {
-	ID          string      `json:"existingID"`
-	WhitePlayer PlayerState `json:"whitePlayer"`
-	BlackPlayer PlayerState `json:"blackPlayer"`
-	FirstColor  GameColor   `json:"firstColor"`
-	Mode        GameMode    `json:"mode"`
-	Touch       time.Time   `json:"touch"`
+	GameID      string   `json:"gameid"`
+	WhitePlayer User     `json:"whitePlayer"`
+	BlackPlayer User     `json:"blackPlayer"`
+	Mode        GameMode `json:"mode"`
+	Ordering    int64    `json:"ordering"`
 }
-
-var ChessMetaCmpOpt = cmpopts.IgnoreFields(ChessMeta{}, "Touch")
 
 type StateSetup struct {
 	ID           string
@@ -76,15 +74,12 @@ func MakeChessStateVal(s StateSetup) ChessState {
 		InitialBoard: board,
 		Game:         game,
 		UndoState:    s.UndoState,
-		ChessMeta: ChessMeta{
-			ID:          s.ID,
-			FirstColor:  s.FirstColor,
-			Mode:        s.Mode,
-			Touch:       time.UnixMilli(0),
-			WhitePlayer: s.White,
-			BlackPlayer: s.Black,
-		},
-		EndState: s.EndState,
+		ID:           s.ID,
+		FirstColor:   s.FirstColor,
+		Mode:         s.Mode,
+		WhitePlayer:  s.White,
+		BlackPlayer:  s.Black,
+		EndState:     s.EndState,
 	}
 }
 
@@ -120,13 +115,10 @@ func (state *ChessState) DeepCopy() ChessState {
 		Game:         state.Game.DeepCopy(),
 		UndoState:    state.UndoState,
 		InitialBoard: state.InitialBoard,
-		ChessMeta: ChessMeta{
-			ID:         state.ID,
-			FirstColor: state.FirstColor,
-			Mode:       state.Mode,
-			Touch:      state.Touch,
-		},
-		EndState: state.EndState,
+		ID:           state.ID,
+		FirstColor:   state.FirstColor,
+		Mode:         state.Mode,
+		EndState:     state.EndState,
 	}
 	s2.WhitePlayer = state.WhitePlayer
 	s2.BlackPlayer = state.BlackPlayer

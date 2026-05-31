@@ -15,7 +15,7 @@ import (
 )
 
 func StartRedisQueueConsumers(ctx context.Context, services svc.HexchessAPI, redis db.Redis) {
-	h := EventHandler{Services: services}
+	h := EventHandler{services: services}
 
 	handlerList := []RedisQueueHandler{
 		&RedisConsumer[model.FinishedGame]{
@@ -24,9 +24,19 @@ func StartRedisQueueConsumers(ctx context.Context, services svc.HexchessAPI, red
 
 			Concurrency:   8,
 			StreamKey:     redis.FinishGameStreamKey,
-			ConsumerGroup: FinishGameConsumerGroup,
+			ConsumerGroup: redis.FinishGameConsumerGroup,
 
 			HandleEvent: h.HandleFinishedGameEvent,
+		},
+		&RedisConsumer[model.GameMetadataUpdt]{
+			Context: ctx,
+			Client:  redis.GameStore,
+
+			Concurrency:   8,
+			StreamKey:     redis.UpdtGameMetaStreamKey,
+			ConsumerGroup: redis.UpdtGameMetaConsumerGroup,
+
+			HandleEvent: h.HandleUpdateGameMetadataEvent,
 		},
 	}
 
@@ -35,8 +45,6 @@ func StartRedisQueueConsumers(ctx context.Context, services svc.HexchessAPI, red
 		slog.InfoContext(ctx, "started redis stream consumer for handler", "handler", fmt.Sprintf("%+v", handler))
 	}
 }
-
-const FinishGameConsumerGroup = "finish_game:consumer"
 
 type RedisQueueHandler interface {
 	EventLoop() error
@@ -62,7 +70,7 @@ func (stream *RedisConsumer[Event]) EventLoop() error {
 
 	err := stream.Client.XGroupCreateMkStream(stream.Context, streamKey, stream.ConsumerGroup, "0").Err()
 	if err != nil && !redis.HasErrorPrefix(err, "BUSYGROUP") {
-		return fmt.Errorf("create games stream consumer group: %w", err)
+		return fmt.Errorf("create stream consumer group: %w", err)
 	}
 
 	for {

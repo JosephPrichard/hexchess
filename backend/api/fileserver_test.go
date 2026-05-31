@@ -30,12 +30,12 @@ func TestHandleUploadProfilePic(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockS3Client := egress.NewMockS3Client(ctrl)
+	mockS3Client := egress.NewMockS3ClientAPI(ctrl)
 
-	h, services := setupTestHandler(t, serviceMocks{S3Client: mockS3Client, Entropy: &svc.StableEntropySource{}}, itest.Redis)
-	defer services.Close()
+	h, testinfra := setupTestHandler(t, serviceMocks{S3Client: mockS3Client, Entropy: &svc.StableEntropySource{}}, itest.Redis)
+	defer testinfra.Close()
 
-	createTestSessions(t, services)
+	createTestSessions(t, testinfra.Redis)
 
 	strBody := "testfiledata"
 	body := bytes.NewBuffer([]byte(strBody))
@@ -92,7 +92,7 @@ func TestHandleGetProfilePic(t *testing.T) {
 			wantStatus:  http.StatusTemporaryRedirect,
 			wantWithKey: profileKey1, // expect to receive profileKey in the redirect response, since it is the latest uploaded picture
 			setupMocks: func(ctrl *gomock.Controller) egress.S3ClientAPI {
-				mockS3Client := egress.NewMockS3Client(ctrl)
+				mockS3Client := egress.NewMockS3ClientAPI(ctrl)
 				mockS3Client.EXPECT().
 					ListObjectsV2(gomock.Any(), &s3.ListObjectsV2Input{
 						Bucket: aws.String(egress.S3ProfileBucket),
@@ -113,7 +113,7 @@ func TestHandleGetProfilePic(t *testing.T) {
 			userID:     "2",
 			wantStatus: http.StatusOK,
 			setupMocks: func(ctrl *gomock.Controller) egress.S3ClientAPI {
-				mockS3Client := egress.NewMockS3Client(ctrl)
+				mockS3Client := egress.NewMockS3ClientAPI(ctrl)
 				mockS3Client.EXPECT().
 					ListObjectsV2(gomock.Any(), &s3.ListObjectsV2Input{
 						Bucket: aws.String(egress.S3ProfileBucket),

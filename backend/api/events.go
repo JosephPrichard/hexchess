@@ -56,7 +56,7 @@ func (api *API) HandleCountEvents(client *SSEClient, _ *http.Request) error {
 	if err != nil {
 		return fmt.Errorf("get active count: %w", err)
 	}
-	gamesCount, err := api.services.GetChessStateCount(ctx)
+	gamesCount, err := api.services.GetGameMetadataCount(ctx)
 	if err != nil {
 		return fmt.Errorf("get chess state count: %w", err)
 	}

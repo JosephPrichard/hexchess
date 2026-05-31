@@ -116,7 +116,7 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 
 	ctx := t.Context()
 
-	testAccountID := "testing-account-existingID"
+	testAccountID := "testing-account-id"
 
 	inst := GoogleUserInst{Username: "username", Country: "us", JoinedOn: itest.TimeNow}
 

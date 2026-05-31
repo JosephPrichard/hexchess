@@ -60,9 +60,7 @@ func (services *HexchessServices) AddActiveUser(ctx context.Context, id string) 
 		return 0, fmt.Errorf("get active user count after adding user=%s: %w", id, err)
 	}
 
-	if err := services.broadcaster.BroadcastActiveCount(ctx, count); err != nil {
-		return 0, fmt.Errorf("broadcast active user count after adding %d: %w", count, err)
-	}
+	services.broadcaster.BroadcastActiveCount(ctx, count)
 	return count, nil
 }
 
@@ -82,8 +80,6 @@ func (services *HexchessServices) RemoveActiveUser(ctx context.Context, id strin
 		return 0, fmt.Errorf("get active user count after removing user=%s: %w", id, err)
 	}
 
-	if err := services.broadcaster.BroadcastActiveCount(ctx, count); err != nil {
-		return 0, fmt.Errorf("broadcast active user count after removing %d: %w", count, err)
-	}
+	services.broadcaster.BroadcastActiveCount(ctx, count)
 	return count, nil
 }

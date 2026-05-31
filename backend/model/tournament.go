@@ -31,7 +31,7 @@ type TournamentReplay struct {
 	ReplayColorElos
 }
 
-type Match struct {
+type FullMatch struct {
 	Ordering      int64             `json:"ordering"`
 	GameID        string            `json:"gameID"`
 	TournamentKey uuid.UUID         `json:"tournamentKey"`
@@ -42,10 +42,22 @@ type Match struct {
 	Replay        *TournamentReplay `json:"replay"`
 }
 
+type MatchCreation struct {
+	GameID   string
+	GameMode GameMode
+	WhiteID  int64
+	BlackID  int64
+}
+
 type FullTournament struct {
 	Participants []Participant `json:"participants"`
-	Matches      []Match       `json:"matches"`
+	Matches      []FullMatch   `json:"matches"`
 	Tournament
+}
+
+type AdvanceTournamentEvent struct {
+	EventID       uuid.UUID `json:"eventId"`
+	TournamentKey uuid.UUID `json:"tournamentKey"`
 }
 
 type TournamentOutputKey string
@@ -82,7 +94,7 @@ type TournamentOutput_Start struct{}
 func (s TournamentOutput_Start) isTournamentOutput_Value() {}
 
 type TournamentOutput_Matchmaking struct {
-	Matches []Match `json:"matches"`
+	Matches []FullMatch `json:"matches"`
 }
 
 func (m TournamentOutput_Matchmaking) isTournamentOutput_Value() {}
@@ -90,15 +102,3 @@ func (m TournamentOutput_Matchmaking) isTournamentOutput_Value() {}
 type TournamentOutput_Error string
 
 func (e TournamentOutput_Error) isTournamentOutput_Value() {}
-
-type TournamentMatchCreation struct {
-	GameID   string
-	GameMode GameMode
-	WhiteID  int64
-	BlackID  int64
-}
-
-type CreateTournamentMatchesEvent struct {
-	TournamentKey uuid.UUID
-	Matches       []TournamentMatchCreation
-}

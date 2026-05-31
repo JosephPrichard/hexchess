@@ -475,12 +475,7 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 		return fmt.Errorf("insert challenge: %w", err)
 	}
 
-	go func() {
-		detatchedCtx := context.WithoutCancel(ctx)
-		if err := api.broadcaster.BroadcastChallenge(detatchedCtx, ret); err != nil {
-			slog.ErrorContext(detatchedCtx, "failed to broadcast challenge", "challenge", ret, "error", err)
-		}
-	}()
+	api.broadcaster.BroadcastChallenge(ctx, ret)
 
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
@@ -591,12 +586,11 @@ func (api *API) HandleGameExistence(w http.ResponseWriter, r *http.Request) erro
 }
 
 type ChessMeta struct {
-	ID          string            `json:"id"`
-	WhitePlayer model.PlayerState `json:"whitePlayer"`
-	BlackPlayer model.PlayerState `json:"blackPlayer"`
-	FirstColor  string            `json:"firstColor"`
-	Mode        string            `json:"mode"`
-	Touch       time.Time         `json:"touch"`
+	GameID      string     `json:"gameid"`
+	WhitePlayer model.User `json:"whitePlayer"`
+	BlackPlayer model.User `json:"blackPlayer"`
+	Mode        string     `json:"mode"`
+	Ordering    int64      `json:"ordering"`
 }
 
 type ChessMetasResp struct {
@@ -604,7 +598,7 @@ type ChessMetasResp struct {
 	SelfChessList []ChessMeta `json:"selfChessList"`
 }
 
-func (api *API) HandleGetChessMetas(w http.ResponseWriter, r *http.Request) error {
+func (api *API) HandleGetGameMetadata(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	query, err := parseChessMetasQuery(r.URL.Query())
@@ -616,15 +610,12 @@ func (api *API) HandleGetChessMetas(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	resp, err := api.services.GetChessMetas(ctx, session, query.Page, query.Count)
+	resp, err := api.services.GetGameMetadata(ctx, session, query.AfterOrdering, query.Count)
 	if err != nil {
 		return fmt.Errorf("get chess metas: %w", err)
 	}
 
-	chessList := mapChessMetas(resp.AllChessMetas)
-	selfChessList := mapChessMetas(resp.SelfChessMetas)
-
-	writeJSON(w, http.StatusOK, ChessMetasResp{ChessList: chessList, SelfChessList: selfChessList})
+	writeJSON(w, http.StatusOK, ChessMetasResp{ChessList: mapChessMetas(resp.AllChessMetas), SelfChessList: mapChessMetas(resp.SelfChessMetas)})
 	return nil
 }
 
@@ -819,13 +810,7 @@ func (api *API) HandleJoinTournament(w http.ResponseWriter, r *http.Request) err
 
 	slog.InfoContext(ctx, "participant joined tournament", "joiningID", player.ID, "tournamentKey", tournamentKey)
 
-	go func() {
-		detatchedCtx := context.WithoutCancel(ctx)
-		err = api.services.BroadcastTournamentParticipant(detatchedCtx, player.ID, tournamentEvent)
-		if err != nil {
-			slog.ErrorContext(detatchedCtx, "failed to broadcast tournament participant", "error", err)
-		}
-	}()
+	go api.services.BroadcastTournamentParticipant(context.WithoutCancel(ctx), player.ID, tournamentEvent)
 
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
@@ -850,13 +835,7 @@ func (api *API) HandleBeginCountdownTournament(w http.ResponseWriter, r *http.Re
 
 	slog.InfoContext(ctx, "successfully started countdown for tournament", "countdownResult", result)
 
-	go func() {
-		detatchedCtx := context.WithoutCancel(ctx)
-		err := api.broadcaster.BroadcastTournament(detatchedCtx, model.SerializeBeginTournamentCountdown(result.TournamentKey))
-		if err != nil {
-			slog.ErrorContext(detatchedCtx, "failed to broadcast tournament participant", "error", err)
-		}
-	}()
+	api.broadcaster.BroadcastTournament(ctx, model.SerializeBeginTournamentCountdown(result.TournamentKey))
 
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil

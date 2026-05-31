@@ -24,15 +24,9 @@ type DBQueueHandler struct {
 }
 
 func StartDBQueueConsumers(ctx context.Context, services svc.HexchessAPI, pdb db.DB) {
-	eventHandler := EventHandler{Services: services}
+	eventHandler := EventHandler{services: services}
 
 	handlerList := []DBQueueHandler{
-		{
-			kind:         sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
-			pollInterval: 5 * time.Second,
-			pollCount:    64,
-			fn:           eventHandler.HandleCreateTournamentMatchesEvent,
-		},
 		{
 			kind:         sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
 			pollInterval: 1 * time.Second,

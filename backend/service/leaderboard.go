@@ -145,7 +145,7 @@ func (services *HexchessServices) GetUserLeaderboardRanks(ctx context.Context, u
 		ranks[exec.mode.String()] = LbRank{Rank: mapLbRank(rankScore.Rank), Score: rankScore.Score}
 	}
 
-	slog.InfoContext(ctx, "retrieved leaderboard ranks", "existingID", userID, "ranks", ranks)
+	slog.InfoContext(ctx, "retrieved leaderboard ranks", "userID", userID, "ranks", ranks)
 	return ranks, nil
 }
 
@@ -206,7 +206,7 @@ func (services *HexchessServices) getLeaderboard(ctx context.Context, mode model
 	for i, strUserID := range strUserIDs {
 		userID, err := strconv.Atoi(strUserID)
 		if err != nil {
-			return Leaderboard{}, fmt.Errorf("parse user existingID: %w", err)
+			return Leaderboard{}, fmt.Errorf("parse user id: %w", err)
 		}
 		users = append(users, RankedUser{ID: int64(userID), Rank: startRank + int64(i) + 1})
 	}
@@ -292,11 +292,11 @@ func (services *HexchessServices) GetLeaderboardUser(ctx context.Context, userID
 			ID:   userID,
 			Mode: sqlc.ModeEnum(mode.String()),
 		})
-		return errutil.Guardf(err, "select user with elos by existingID %d", userID)
+		return errutil.Guardf(err, "select user with elos by userID %d", userID)
 	})
 	eg.Go(func() (err error) {
 		rankScore, err = services.redis.Cache.ZRankWithScore(egCtx, fmtLeaderboardZSet(services.redis, mode.String()), strUserID).Result()
-		return errutil.Guardf(err, "get user rank by existingID: %d", userID)
+		return errutil.Guardf(err, "get user rank by userID: %d", userID)
 	})
 
 	if err := eg.Wait(); err != nil {

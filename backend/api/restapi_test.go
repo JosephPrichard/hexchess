@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"github.com/google/go-cmp/cmp"
@@ -26,7 +25,6 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"hexchess-svc/itest"
-	"hexchess-svc/lib/logutil"
 	"hexchess-svc/lib/testutil"
 	svc "hexchess-svc/service"
 
@@ -83,8 +81,8 @@ func TestHandleRegister(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, services := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
-			defer services.Close()
+			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
+			defer testinfra.Close()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/register", asJSONReader(tt.body))
 			w := httptest.NewRecorder()
@@ -129,8 +127,8 @@ func TestHandleLogin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, services := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
-			defer services.Close()
+			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
+			defer testinfra.Close()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/login", asJSONReader(tt.body))
 			w := httptest.NewRecorder()
@@ -202,8 +200,8 @@ func TestHandleGoogleLogin(t *testing.T) {
 				Remote:  egress.RemoteAPIs{GoogleAPI: tt.setupMocks(ctrl)},
 			}
 
-			h, services := setupTestHandler(t, mocks, itest.RWPostgres, itest.Redis)
-			defer services.Close()
+			h, testinfra := setupTestHandler(t, mocks, itest.RWPostgres, itest.Redis)
+			defer testinfra.Close()
 
 			for range tt.runCount {
 				r := httptest.NewRequest(http.MethodPost, "/api/login/google", asJSONReader(tt.body))
@@ -283,10 +281,10 @@ func TestHandleUpdateUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, services := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
-			defer services.Close()
+			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
+			defer testinfra.Close()
 
-			createTestSessions(t, services)
+			createTestSessions(t, testinfra.Redis)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/users", asJSONReader(tt.body))
 			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
@@ -347,10 +345,10 @@ func TestHandleUpdatePassword(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, services := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
-			defer services.Close()
+			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
+			defer testinfra.Close()
 
-			createTestSessions(t, services)
+			createTestSessions(t, testinfra.Redis)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/users/password", asJSONReader(tt.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
@@ -432,10 +430,10 @@ func TestHandleUpdateChallenge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, services := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
-			defer services.Close()
+			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
+			defer testinfra.Close()
 
-			createTestSessions(t, services)
+			createTestSessions(t, testinfra.Redis)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/challenges/update", asJSONReader(tt.body))
 			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
@@ -486,10 +484,10 @@ func TestHandleCreateGame(t *testing.T) {
 				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
 			}
 
-			h, services := setupTestHandler(t, setup, itest.RWPostgres, itest.Redis)
-			defer services.Close()
+			h, testinfra := setupTestHandler(t, setup, itest.RWPostgres, itest.Redis)
+			defer testinfra.Close()
 
-			createTestSessions(t, services)
+			createTestSessions(t, testinfra.Redis)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/games/create", asJSONReader(tt.body))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
@@ -571,10 +569,10 @@ func TestHandleCreateChallenge(t *testing.T) {
 				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
 			}
 
-			h, services := setupTestHandler(t, mocks, itest.RWPostgres, itest.Redis)
-			defer services.Close()
+			h, testinfra := setupTestHandler(t, mocks, itest.RWPostgres, itest.Redis)
+			defer testinfra.Close()
 
-			createTestSessions(t, services)
+			createTestSessions(t, testinfra.Redis)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", asJSONReader(tt.body))
 			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
@@ -634,8 +632,8 @@ func TestHandleSearchPlayers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, services := setupTestHandler(t, serviceMocks{}, itest.ROPostgres)
-			defer services.Close()
+			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.ROPostgres)
+			defer testinfra.Close()
 
 			q := url.Values{}
 			q.Set("username", tt.username)
@@ -707,11 +705,10 @@ func TestGetLeaderboard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, services := setupTestHandler(t, serviceMocks{}, itest.ROPostgres, itest.Redis)
-			defer services.Close()
+			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.ROPostgres, itest.Redis)
+			defer testinfra.Close()
 
-			ctx := context.WithValue(context.Background(), logutil.Trace, "setup-get-leaderboard")
-			require.NoError(t, services.SetLeaderboard(ctx, svc.UpdtLbChangeSet{Mode: model.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
+			require.NoError(t, createLeaderboard(t, testinfra.Redis, updtLbChangeSet{Mode: model.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
 
 			q := url.Values{}
 			q.Set("mode", tt.mode)
@@ -779,8 +776,8 @@ func TestGetPlayer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, services := setupTestHandler(t, serviceMocks{}, itest.ROPostgres, itest.Redis)
-			defer services.Close()
+			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.ROPostgres, itest.Redis)
+			defer testinfra.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players?id=%s", tt.id), nil)
 			w := httptest.NewRecorder()
@@ -839,10 +836,10 @@ func TestGetChallenges(t *testing.T) {
 				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
 			}
 
-			h, services := setupTestHandler(t, mocks, itest.ROPostgres, itest.Redis)
-			defer services.Close()
+			h, testinfra := setupTestHandler(t, mocks, itest.ROPostgres, itest.Redis)
+			defer testinfra.Close()
 
-			createTestSessions(t, services)
+			createTestSessions(t, testinfra.Redis)
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/challenges?participants=%s", tt.participants), nil)
 			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
@@ -1047,8 +1044,8 @@ func TestHandleSearchReplays(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, services := setupTestHandler(t, serviceMocks{}, itest.ROPostgres)
-			defer services.Close()
+			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.ROPostgres)
+			defer testinfra.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replays?%s", tt.params), nil)
 			w := httptest.NewRecorder()
@@ -1091,8 +1088,8 @@ func TestHandleGetReplay(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, services := setupTestHandler(t, serviceMocks{}, itest.ROPostgres)
-			defer services.Close()
+			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.ROPostgres)
+			defer testinfra.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay?id=%s", tt.userID), nil)
 			w := httptest.NewRecorder()
@@ -1109,16 +1106,16 @@ func TestHandleGetReplay(t *testing.T) {
 	}
 }
 
-func TestHandleGetChessMetas(t *testing.T) {
+func TestHandleGetGameMetadata(t *testing.T) {
 	t.Parallel()
 
 	allChessMetas := []ChessMeta{
-		{ID: "game3", FirstColor: model.Random.String(), Mode: model.ModeCorrespondence1.String()},
-		{ID: "game2", FirstColor: model.Random.String(), Mode: model.ModeCorrespondence1.String()},
+		{Ordering: 3, GameID: "game3", Mode: model.ModeCorrespondence1.String()},
+		{Ordering: 2, GameID: "game2", Mode: model.ModeCorrespondence1.String()},
 		{
-			ID:          TestGameID1,
-			BlackPlayer: model.MakePlayer(2, "user2", "us"),
-			FirstColor:  model.Random.String(),
+			Ordering:    1,
+			GameID:      TestGameID1,
+			BlackPlayer: model.User{ID: 2, Username: "user2", Country: "us"},
 			Mode:        model.ModeCorrespondence1.String(),
 		},
 	}
@@ -1137,9 +1134,9 @@ func TestHandleGetChessMetas(t *testing.T) {
 				ChessList: allChessMetas,
 				SelfChessList: []ChessMeta{
 					{
-						ID:          TestGameID1,
-						BlackPlayer: model.MakePlayer(2, "user2", "us"),
-						FirstColor:  model.Random.String(),
+						Ordering:    1,
+						GameID:      TestGameID1,
+						BlackPlayer: model.User{ID: 2, Username: "user2", Country: "us"},
 						Mode:        model.ModeCorrespondence1.String(),
 					},
 				},
@@ -1158,11 +1155,10 @@ func TestHandleGetChessMetas(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, services := setupTestHandler(t, serviceMocks{}, itest.ROPostgres, itest.Redis)
-			defer services.Close()
+			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.ROPostgres, itest.Redis)
+			defer testinfra.Close()
 
-			createTestSessions(t, services)
-			createTestChessStates(t, services)
+			createTestSessions(t, testinfra.Redis)
 
 			r := httptest.NewRequest(http.MethodGet, "/api/game/rooms", nil)
 			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
@@ -1179,8 +1175,8 @@ func TestHandleGetChessMetas(t *testing.T) {
 func TestHandleGetMoveReplay(t *testing.T) {
 	t.Parallel()
 
-	h, services := setupTestHandler(t, serviceMocks{}, itest.RWPostgres)
-	defer services.Close()
+	h, testinfra := setupTestHandler(t, serviceMocks{}, itest.RWPostgres)
+	defer testinfra.Close()
 
 	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay/move-list?replayId=%d", 1), nil)
 	w := httptest.NewRecorder()
@@ -1216,7 +1212,7 @@ func TestGetTournament(t *testing.T) {
 			wantResp: GetTournamentResp{
 				Tournament:   itest.Tournaments[0],
 				Participants: []model.Participant{},
-				Matches:      []model.Match{},
+				Matches:      []model.FullMatch{},
 			},
 		},
 		{
@@ -1253,11 +1249,11 @@ func TestGetTournament(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, services := setupTestHandler(t, serviceMocks{}, itest.ROPostgres, itest.Redis)
-			defer services.Close()
+			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.ROPostgres, itest.Redis)
+			defer testinfra.Close()
 
 			for _, change := range itest.TournamentLbdChangeSets {
-				require.NoError(t, services.SetLeaderboard(t.Context(), change))
+				require.NoError(t, createLeaderboard(t, testinfra.Redis, change))
 			}
 
 			q := url.Values{}
@@ -1270,7 +1266,7 @@ func TestGetTournament(t *testing.T) {
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
 				testutil.AssertRespBody(t, tt.wantResp, w,
-					cmpopts.IgnoreFields(model.Match{}, "Ordering"),
+					cmpopts.IgnoreFields(model.FullMatch{}, "Ordering"),
 					cmpopts.IgnoreFields(model.Replay{}, "ID"))
 			} else {
 				testutil.AssertRespBody(t, tt.wantFail, w, serviceViewCmpOpts...)
@@ -1326,8 +1322,8 @@ func TestGetTournaments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, services := setupTestHandler(t, serviceMocks{}, itest.ROPostgres)
-			defer services.Close()
+			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.ROPostgres)
+			defer testinfra.Close()
 
 			q := url.Values{}
 			q.Set("userId", tt.userID)

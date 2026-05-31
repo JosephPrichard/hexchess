@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"hexchess-svc/itest"
-	"hexchess-svc/lib/logutil"
 	"sync"
 	"testing"
 

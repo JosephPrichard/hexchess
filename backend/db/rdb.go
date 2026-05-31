@@ -17,30 +17,35 @@ type RedisAddrs struct {
 }
 
 type RedisNames struct {
-	LeaderboardZSet         string `json:"leaderboardZSet"`
-	GamesZSet               string `json:"gamesZSet"`
-	ActiveUsersZSet         string `json:"activeUsersZSet"`
-	GameChatsZSet           string `json:"gameChatsZSet"`
-	GamesChannel            string `json:"gamesChannel"`
-	TournamentsChannel      string `json:"tournamentsChannel"`
-	UsersChannel            string `json:"usersChannel"`
-	GamesCountChannel       string `json:"gamesCountChannel"`
-	ActiveCountChannel      string `json:"activeCountChannel"`
-	FinishGameStreamKey     string `json:"finishGameStreamKey"`
-	FinishGameConsumerGroup string `json:"finishGameConsumerGroup"`
+	LeaderboardZSet           string `json:"leaderboardZSet"`
+	GamesZSet                 string `json:"gamesZSet"`
+	ActiveUsersZSet           string `json:"activeUsersZSet"`
+	GameChatsZSet             string `json:"gameChatsZSet"`
+	GamesChannel              string `json:"gamesChannel"`
+	TournamentsChannel        string `json:"tournamentsChannel"`
+	UsersChannel              string `json:"usersChannel"`
+	GamesCountChannel         string `json:"gamesCountChannel"`
+	ActiveCountChannel        string `json:"activeCountChannel"`
+	FinishGameStreamKey       string `json:"finishGameStreamKey"`
+	FinishGameConsumerGroup   string `json:"finishGameConsumerGroup"`
+	UpdtGameMetaStreamKey     string `json:"updtGameMetaStreamKey"`
+	UpdtGameMetaConsumerGroup string `json:"updtGameMetaConsumerGroup"`
 }
 
 var DefaultRedisNames = RedisNames{
-	LeaderboardZSet:     "leaderboard",
-	GamesZSet:           "games",
-	ActiveUsersZSet:     "active_users",
-	GameChatsZSet:       "chats",
-	GamesChannel:        "games_channel",
-	UsersChannel:        "users_channel",
-	TournamentsChannel:  "tournaments_channel",
-	GamesCountChannel:   "games_count_channel",
-	ActiveCountChannel:  "active_count_channel",
-	FinishGameStreamKey: "finish_game_events",
+	LeaderboardZSet:           "leaderboard",
+	GamesZSet:                 "games",
+	ActiveUsersZSet:           "active_users",
+	GameChatsZSet:             "chats",
+	GamesChannel:              "games_channel",
+	UsersChannel:              "users_channel",
+	TournamentsChannel:        "tournaments_channel",
+	GamesCountChannel:         "games_count_channel",
+	ActiveCountChannel:        "active_count_channel",
+	FinishGameStreamKey:       "finish_game_events",
+	FinishGameConsumerGroup:   "finish_game_consumer_group",
+	UpdtGameMetaStreamKey:     "start_game_events",
+	UpdtGameMetaConsumerGroup: "start_game_consumer_group",
 }
 
 func MakeTestRedisNames() *RedisNames {

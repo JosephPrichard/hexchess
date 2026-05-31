@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/chess"
-	"hexchess-svc/queue/producers"
+	"hexchess-svc/lib/enum"
+	"time"
 
-	"hexchess-svc/lib/logutil"
 	"hexchess-svc/model"
 	"log/slog"
 	"math/big"
@@ -68,37 +68,37 @@ func MakeGameID() string {
 	return string(bytesID)
 }
 
-func (services *HexchessServices) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (string, error) {
-	strID := MakeGameID()
-
-	state := model.MakeChessState(model.StateSetup{ID: strID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
-	state.Game.InitPieceMoves()
-
-	slog.InfoContext(ctx, "created chess game", "chessMeta", state.ChessMeta)
-
-	if err := services.SetChessState(ctx, strID, state); err != nil {
-		return "", fmt.Errorf("set chess state by existingID %s: %w", strID, err)
+func mapMetadataUpdt(state *model.ChessState) model.GameMetadataUpdt {
+	return model.GameMetadataUpdt{
+		GameID:      state.ID,
+		WhitePlayer: enum.Optional[int64]{Value: state.WhitePlayer.ID, IsPresent: state.WhitePlayer.Present},
+		BlackPlayer: enum.Optional[int64]{Value: state.BlackPlayer.ID, IsPresent: state.BlackPlayer.Present},
+		Mode:        state.Mode,
 	}
-
-	go func() {
-		if err := services.broadcastGameCounts(strID); err != nil {
-			slog.ErrorContext(ctx, "failed to broadcast game count after creating game", "error", err)
-		}
-	}()
-	return strID, nil
 }
 
-func (services *HexchessServices) broadcastGameCounts(strID string) error {
-	ctx := context.WithValue(context.Background(), logutil.Trace, "broadcastGameCounts:"+strID)
+func (services *HexchessServices) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (string, error) {
+	gameID := MakeGameID()
+	err := services.createGame(ctx, model.StateSetup{ID: gameID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
+	return gameID, err
+}
 
-	count, err := services.GetChessStateCount(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to count chess game after creating game: %w", err)
+func (services *HexchessServices) createGame(ctx context.Context, setup model.StateSetup) error {
+	gameID := setup.ID
+
+	state := model.MakeChessState(setup)
+	state.Game.InitPieceMoves()
+
+	slog.InfoContext(ctx, "created chess game", "chesState", state)
+
+	if _, err := services.redis.GameStore.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		if err := services.setChessState(ctx, pipe, gameID, state, time.Now()); err != nil {
+			return fmt.Errorf("set chess state %s: %w", gameID, err)
+		}
+		return services.redisPublisher.PublishUpdtGameEvent(ctx, pipe, mapMetadataUpdt(state))
+	}); err != nil {
+		return err
 	}
-	if err := services.broadcaster.BroadcastGameCount(ctx, count); err != nil {
-		return fmt.Errorf("failed to broadcast chess game count after creating game: %w", err)
-	}
-	slog.InfoContext(ctx, "counted games after creating game", "count", count)
 	return nil
 }
 
@@ -135,14 +135,17 @@ func (services *HexchessServices) JoinGame(ctx context.Context, gameID string, p
 			}
 		}
 		if playerExists {
-			slog.WarnContext(ctx, "player has already joined game", "playerID", player.ID, "chessMeta", state.ChessMeta)
+			slog.WarnContext(ctx, "player has already joined game", "playerID", player.ID, "chesState", state)
 			return nil
 		}
 		return nil
 	}
-	state, err := services.updateChessStateTxn(ctx, gameID, update, nil)
+	commit := func(pipe redis.Pipeliner, state *model.ChessState) error {
+		return services.redisPublisher.PublishUpdtGameEvent(ctx, pipe, mapMetadataUpdt(state))
+	}
+	state, err := services.updateChessStateTxn(ctx, gameID, update, commit)
 	if state != nil {
-		slog.InfoContext(ctx, "player joined game", "playerID", player.ID, "chessMeta", state.ChessMeta)
+		slog.InfoContext(ctx, "player joined game", "playerID", player.ID, "chesState", state)
 	}
 	return state, err
 }
@@ -183,13 +186,13 @@ func (services *HexchessServices) MakeGameMove(ctx context.Context, gameID strin
 	}
 	commit := func(pipe redis.Pipeliner, state *model.ChessState) error {
 		if state.EndState.IsEnded() {
-			slog.InfoContext(ctx, "game has reached checkmate", "player", player.ID, "move", move, "chessMeta", state.ChessMeta)
+			slog.InfoContext(ctx, "game has reached checkmate", "player", player.ID, "move", move, "chesState", state)
 
 			result := model.WhiteWin
 			if state.Game.Board.IsWhiteTurn {
 				result = model.BlackWin
 			}
-			if err := producers.PublishFinishGameEvent(ctx, pipe, services.redis.FinishGameStreamKey, model.FinishedGame{
+			if err := services.redisPublisher.PublishFinishGameEvent(ctx, pipe, model.FinishedGame{
 				GameID:       gameID,
 				WhitePlayer:  state.WhitePlayer,
 				BlackPlayer:  state.BlackPlayer,
@@ -210,7 +213,7 @@ func (services *HexchessServices) MakeGameMove(ctx context.Context, gameID strin
 	histMove := state.Game.LastMove() // invariant: if this function does not error before this line, it will have at least one move.
 
 	moveResult := MoveResult{State: state, Move: histMove}
-	slog.InfoContext(ctx, "made move on game", "player", player.ID, "moveResult", moveResult, "move", move, "chessMeta", state.ChessMeta)
+	slog.InfoContext(ctx, "made move on game", "player", player.ID, "moveResult", moveResult, "move", move, "chesState", state)
 	return moveResult, nil
 }
 
@@ -258,7 +261,7 @@ func (services *HexchessServices) AttemptGameUndo(ctx context.Context, gameID st
 	}
 	state, err := services.updateChessStateTxn(ctx, gameID, update, nil)
 	if state != nil {
-		slog.InfoContext(ctx, "attempt game undo", "playerID", player.ID, "chessMeta", state.ChessMeta)
+		slog.InfoContext(ctx, "attempt game undo", "playerID", player.ID, "chesState", state)
 	}
 	return state, err
 }
@@ -291,7 +294,7 @@ func (services *HexchessServices) EndGame(ctx context.Context, gameID string, pl
 				result = model.WhiteWin
 			}
 
-			if err := producers.PublishFinishGameEvent(ctx, pipe, services.redis.FinishGameStreamKey, model.FinishedGame{
+			if err := services.redisPublisher.PublishFinishGameEvent(ctx, pipe, model.FinishedGame{
 				GameID:       gameID,
 				WhitePlayer:  state.WhitePlayer,
 				BlackPlayer:  state.BlackPlayer,

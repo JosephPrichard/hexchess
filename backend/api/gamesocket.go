@@ -151,7 +151,7 @@ func (api *API) handleGameInit(ctx context.Context, gameID string, sessionID str
 	if err != nil {
 		return player, fmt.Errorf("get session in game init phase: %w", err)
 	}
-	s, err := api.services.JoinGame(ctx, gameID, player)
+	chessState, err := api.services.JoinGame(ctx, gameID, player)
 	if err != nil {
 		return player, fmt.Errorf("join game in init game phase: %w", err)
 	}
@@ -159,7 +159,7 @@ func (api *API) handleGameInit(ctx context.Context, gameID string, sessionID str
 	// produce messages for init phase
 	initBytes, err := proto.Marshal(SerializeGameOutputInit(
 		gameID,
-		model.SerializeChessState(s),
+		model.SerializeChessState(chessState),
 		model.SerializePlayer(player),
 	))
 	if err != nil {
@@ -167,13 +167,11 @@ func (api *API) handleGameInit(ctx context.Context, gameID string, sessionID str
 	}
 	writeMessage(ctx, conn, initBytes)
 
-	if err := api.broadcaster.BroadcastGamesEvent(ctx, SerializeGameOutputPlayers(
+	api.broadcaster.BroadcastGamesEvent(ctx, SerializeGameOutputPlayers(
 		gameID,
-		model.SerializePlayer(s.WhitePlayer),
-		model.SerializePlayer(s.BlackPlayer),
-	)); err != nil {
-		return player, err
-	}
+		model.SerializePlayer(chessState.WhitePlayer),
+		model.SerializePlayer(chessState.BlackPlayer),
+	))
 
 	return player, nil
 }
@@ -212,7 +210,8 @@ func (api *API) handleGameForfeit(ctx GameSocketContext) error {
 	if err != nil {
 		return fmt.Errorf("forfeit game %s: %w", ctx.GameID, err)
 	}
-	return api.broadcaster.BroadcastGamesEvent(ctx.Context, SerializeGameOutputForfeit(ctx.GameID, endState))
+	api.broadcaster.BroadcastGamesEvent(ctx.Context, SerializeGameOutputForfeit(ctx.GameID, endState))
+	return nil
 }
 
 func (api *API) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) error {
@@ -221,12 +220,13 @@ func (api *API) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) err
 		return fmt.Errorf("make move on game %s: %w", ctx.GameID, err)
 	}
 
-	return api.broadcaster.BroadcastGamesEvent(ctx.Context, SerializeGameOutputMove(
+	api.broadcaster.BroadcastGamesEvent(ctx.Context, SerializeGameOutputMove(
 		ctx.GameID,
 		chess.SerializeHistMove(moveResult.Move),
 		chess.SerializeGame(&moveResult.State.Game),
 		time.Now(),
 	))
+	return nil
 }
 
 func (api *API) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput) error {
@@ -242,7 +242,8 @@ func (api *API) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput) err
 		return fmt.Errorf("insert chat on game %s: %w", ctx.GameID, err)
 	}
 
-	return api.broadcaster.BroadcastGamesEvent(ctx.Context, outputChat)
+	api.broadcaster.BroadcastGamesEvent(ctx.Context, outputChat)
+	return nil
 }
 
 func (api *API) handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput) error {
@@ -256,10 +257,11 @@ func (api *API) handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput) err
 		return fmt.Errorf("%+v attempting undo on game %s: %w", ctx.Player, ctx.GameID, err)
 	}
 
-	return api.broadcaster.BroadcastGamesEvent(ctx.Context, SerializeGameOutputUndo(
+	api.broadcaster.BroadcastGamesEvent(ctx.Context, SerializeGameOutputUndo(
 		ctx.GameID,
 		pbInput.Kind,
 		ctx.Player.ID,
 		state,
 	))
+	return nil
 }

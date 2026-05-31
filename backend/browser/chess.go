@@ -7,6 +7,7 @@ import (
 	"strings"
 	"syscall/js"
 
+	"hexchess-svc/chess"
 	"hexchess-svc/pb"
 )
 

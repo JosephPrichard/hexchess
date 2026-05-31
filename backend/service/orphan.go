@@ -45,7 +45,7 @@ type RemoveOrphansOpts struct {
 }
 
 // removeOrphanedObjects is a generic algorithm to delete any orphaned keys by paginating all keys in a bucket
-// it assumes that we can parse the existingID from any given key, and that we can lookup if that key is valid or not from a database.
+// it assumes that we can parse the id from any given key, and that we can lookup if that key is valid or not from a database.
 func (services *HexchessServices) removeOrphanedObjects(ctx context.Context, opts RemoveOrphansOpts) error {
 	page := 0
 

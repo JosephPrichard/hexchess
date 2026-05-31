@@ -284,7 +284,7 @@ func (services *HexchessServices) UpdateUserPassword(ctx context.Context, id int
 		Password: hash.HashedPassword,
 		Salt:     hash.Salt,
 	})
-	logutil.DynLog(ctx, "updated password", err, "existingID", id)
+	logutil.DynLog(ctx, "updated password", err, "userID", id)
 	return err
 }
 
@@ -296,7 +296,7 @@ func (services *HexchessServices) GetUserByID(ctx context.Context, id int64) (mo
 		return model.User{}, fmt.Errorf("select user %d: %w", id, err)
 	}
 	user := model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
-	slog.InfoContext(ctx, "selected user", "existingID", id, "user", user)
+	slog.InfoContext(ctx, "selected user", "userID", id, "user", user)
 	return user, nil
 }
 
@@ -307,7 +307,7 @@ func avg[T constraints.Integer | constraints.Float](currAvg T, currCount int, ne
 func (services *HexchessServices) GetUserStats(ctx context.Context, id int64) (model.UserStats, error) {
 	modeEloRows, err := services.querier.SelectUserElosByID(ctx, id)
 	if err != nil {
-		return model.UserStats{}, fmt.Errorf("select user %d elos by existingID: %w", id, err)
+		return model.UserStats{}, fmt.Errorf("select user %d elos by id: %w", id, err)
 	}
 
 	var stats model.UserStats
@@ -401,7 +401,7 @@ func (services *HexchessServices) GetFullUser(ctx context.Context, userID int64,
 	return FullUser{User: user, Stats: stats, ReplayList: replayList}, nil
 }
 
-func (services *HexchessServices) SelectUsersByIDs(ctx context.Context, ids []int64) ([]model.User, error) {
+func (services *HexchessServices) selectUsersByIDs(ctx context.Context, ids []int64) ([]model.User, error) {
 	userRows, err := services.querier.SelectUsersByIDs(ctx, ids)
 
 	var users []model.User

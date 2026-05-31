@@ -1,8 +1,11 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/redis/go-redis/v9"
+	"google.golang.org/protobuf/proto"
+	"hexchess-svc/db"
 	"hexchess-svc/egress"
 	"hexchess-svc/itest"
 	"hexchess-svc/pubsub"
@@ -10,6 +13,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"hexchess-svc/lib/logutil"
 	"hexchess-svc/model"
@@ -22,7 +26,7 @@ type serviceMocks struct {
 	S3Client egress.S3ClientAPI
 }
 
-func setupTestHandler(t logutil.TestLogger, mocks serviceMocks, flags ...itest.TestFlag) (http.Handler, *svc.HexchessServices) {
+func setupTestHandler(t logutil.TestLogger, mocks serviceMocks, flags ...itest.TestFlag) (http.Handler, itest.TestInfra) {
 	infra := itest.SetupTestInfra(t, flags...)
 
 	broadcaster := pubsub.MakeBroadcaster(infra.Redis)
@@ -37,7 +41,7 @@ func setupTestHandler(t logutil.TestLogger, mocks serviceMocks, flags ...itest.T
 	})
 	h := MakeServeMux(ServerSetup{Services: services, Broadcaster: broadcaster})
 
-	return h, services
+	return h, infra
 }
 
 type websocketTestContext struct {
@@ -59,8 +63,8 @@ func setupWebsocketTest(t *testing.T) websocketTestContext {
 	localBroadcasters := pubsub.MakeLocalBroadcasters()
 	<-localBroadcasters.ListenGameMessages(testinfra.Redis)
 
-	createTestSessions(t, services)
-	createTestChessStates(t, services)
+	createTestSessions(t, testinfra.Redis)
+	createTestChessStates(t, testinfra.Redis)
 
 	testServer := httptest.NewServer(MakeServeMux(ServerSetup{Services: services, Broadcasters: localBroadcasters, Broadcaster: broadcaster}))
 
@@ -101,7 +105,7 @@ func setupSSETest(t *testing.T) sseTestContext {
 
 	broadcaster := pubsub.MakeBroadcaster(testinfra.Redis)
 
-	createTestSessions(t, services)
+	createTestSessions(t, testinfra.Redis)
 
 	localBroadcasters := pubsub.MakeLocalBroadcasters()
 
@@ -118,18 +122,30 @@ var TestSessionID1 = "testing-session-id-1"
 var TestSessionID2 = "testing-session-id-2"
 var TestGameID1 = "game1"
 
-func createTestSessions(t *testing.T, services *svc.HexchessServices) {
+func createTestSessions(t *testing.T, redis db.Redis) {
 	t.Helper()
-	ctx := context.WithValue(context.Background(), logutil.Trace, "create-testing-session-1")
-	if err := services.SetSessions(ctx,
-		svc.SessionInst{SessionID: TestSessionID1, Player: model.MakePlayer(1, "user1", "us"), Expiry: SessionMaxAge},
-		svc.SessionInst{SessionID: TestSessionID2, Player: model.MakePlayer(2, "user2", "us"), Expiry: SessionMaxAge},
-	); err != nil {
-		t.Fatalf("create testing session: %v", err)
+	ctx := t.Context()
+
+	for _, session := range []struct {
+		ID     string
+		Player model.PlayerState
+		Expiry time.Duration
+	}{
+		{ID: TestSessionID1, Player: model.MakePlayer(1, "user1", "us"), Expiry: SessionMaxAge},
+		{ID: TestSessionID2, Player: model.MakePlayer(2, "user2", "us"), Expiry: SessionMaxAge},
+	} {
+		data, err := model.MarshalPlayer(session.Player)
+		if err != nil {
+			t.Fatalf("marshal session: %v", err)
+		}
+		sessionKey := fmt.Sprintf("{%s}session/%s", session.ID, session.ID)
+		if err := redis.Cache.SetEx(ctx, sessionKey, data, session.Expiry).Err(); err != nil {
+			t.Fatalf("set session: %v", err)
+		}
 	}
 }
 
-func createTestChessStates(t *testing.T, services *svc.HexchessServices) {
+func createTestChessStates(t *testing.T, redis db.Redis) {
 	t.Helper()
 
 	var testStates = []*model.ChessState{
@@ -144,12 +160,40 @@ func createTestChessStates(t *testing.T, services *svc.HexchessServices) {
 		model.MakeChessState(model.StateSetup{ID: "game3", Mode: model.ModeCorrespondence1, FirstColor: model.Random}),
 	}
 
-	ctx := context.WithValue(context.Background(), logutil.Trace, "testing-update-password")
+	ctx := t.Context()
 	for _, state := range testStates {
-		if err := services.SetChessState(ctx, state.ID, state); err != nil {
-			t.Fatalf("create testing ss: %v", err)
+		gameKey := fmt.Sprintf("game/%s", state.ID)
+
+		bytes, err := proto.Marshal(model.SerializeChessState(state))
+		if err != nil {
+			t.Fatalf("marshal chess state: %v", err)
+		}
+		if err := redis.GameStore.Set(ctx, gameKey, bytes, 0).Err(); err != nil {
+			t.Fatalf("set chess state: %v", err)
 		}
 	}
+}
+
+type updtLbChangeSet struct {
+	Mode    model.GameMode
+	ID      int64
+	EloDiff float64
+}
+
+func createLeaderboard(t *testing.T, rdb db.Redis, changes ...updtLbChangeSet) error {
+	ctx := t.Context()
+	pipe := rdb.Cache.Pipeline()
+	for _, change := range changes {
+		if model.IsGuestID(change.ID) {
+			continue
+		}
+		modeLbZSet := fmt.Sprintf("{%s}%s/mode:%s", change.Mode.String(), rdb.LeaderboardZSet, change.Mode.String())
+		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: change.EloDiff, Member: change.ID})
+	}
+	if _, err := pipe.Exec(ctx); err != nil {
+		return fmt.Errorf("set leaderboard users: %w", err)
+	}
+	return nil
 }
 
 func asJSONReader(v any) *strings.Reader {

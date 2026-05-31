@@ -1,9 +1,13 @@
 package svc
 
 import (
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
+	"hexchess-svc/lib/errutil"
 	"hexchess-svc/model"
+	"hexchess-svc/pb"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -200,12 +204,13 @@ func TestJoinTournament(t *testing.T) {
 
 var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(sqlc.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
 
-func TestAdvanceTournament(t *testing.T) {
+func TestAdvanceTournament_StoresMatches(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name          string
 		tournamentKey uuid.UUID
+		eventID       uuid.UUID
 		wantErr       error
 		wantStatus    sqlc.SelectTournamentStatusRow
 		wantMatches   []sqlc.TournamentMatch
@@ -409,29 +414,91 @@ func TestAdvanceTournament(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// service is constructed once per test since tests share the outbox queue and we need an assertion per outbox queue.
-			services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
+			services, testinfra := setupServicesTest(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			ctx := t.Context()
 
-			err := services.AdvanceTournament(ctx, tt.tournamentKey)
+			eventID := tt.eventID
+			if eventID == uuid.Nil {
+				eventID = uuid.New()
+			}
+			_, err := services.advanceTournament(ctx, tt.tournamentKey, eventID)
 
-			assert.Equal(t, tt.wantErr, err)
+			assert.Equal(t, tt.wantErr, errutil.LeafError(err))
 
 			if tt.wantErr == nil {
-				matches, err := services.querier.SelectMatches(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
+				matches, err := testinfra.Querier.SelectMatches(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
 				require.NoError(t, err)
 				testutil.Equal(t, tt.wantMatches, matches, sqlcTournamentMatchCmpOpts)
 
-				status, err := services.querier.SelectTournamentStatus(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
+				status, err := testinfra.Querier.SelectTournamentStatus(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
 				require.NoError(t, err)
 				testutil.Equal(t, tt.wantStatus, status)
-
-				outboxEvents, err := services.querier.SelectALLOutboxQueue(ctx)
-				require.NoError(t, err)
-				assert.Len(t, outboxEvents, 1)
 			}
 		})
 	}
+}
+
+func TestAdvanceTournament_ThenGetChessStates(t *testing.T) {
+	services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
+	defer services.Close()
+
+	ctx := t.Context()
+
+	// since the eventID is stored in the idempotency keys table, we expect it to short circuit
+	gameIDs, err := services.AdvanceTournament(ctx, uuid.New(), itest.TestEventID_TournamentCreation)
+	require.NoError(t, err)
+
+	wantGameIDs := []string{itest.TestEventID_TournamentCreation_GameID}
+	assert.Equal(t, wantGameIDs, gameIDs)
+
+	wantGames := map[string]*model.ChessState{
+		itest.TestEventID_TournamentCreation_GameID: {
+			ID:          itest.TestEventID_TournamentCreation_GameID,
+			FirstColor:  model.White,
+			WhitePlayer: model.PlayerState{ID: 1, Name: "user1", Country: "us", Present: true},
+			BlackPlayer: model.PlayerState{ID: 2, Name: "user2", Country: "us", Present: true},
+		},
+	}
+
+	for _, id := range gameIDs {
+		chessState, err := services.GetChessState(ctx, id)
+		require.NoError(t, err)
+
+		testutil.Equal(t, wantGames[id], chessState, cmpopts.IgnoreFields(model.ChessState{}, "Game", "InitialBoard"))
+	}
+}
+
+func TestAdvanceTournament_InsertsEvent(t *testing.T) {
+	services, testinfra := setupServicesTest(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
+	defer services.Close()
+
+	ctx := t.Context()
+
+	tournamentKey := itest.Tournament2ScheduledKnockoutKey
+	eventID := uuid.New()
+
+	_, err := services.advanceTournament(ctx, tournamentKey, eventID)
+	require.NoError(t, err)
+
+	eventData, err := testinfra.Querier.SelectByEventID(ctx, pgtype.UUID{Bytes: eventID, Valid: true})
+	require.NoError(t, err)
+
+	var pbMatchCreations pb.MatchCreations
+	require.NoError(t, proto.Unmarshal(eventData, &pbMatchCreations))
+
+	wantTournaments := []*pb.MatchCreation{
+		{
+			Mode:    "CORRESPONDENCE_1",
+			WhiteId: 3,
+			BlackId: 4,
+		},
+		{
+			Mode:    "CORRESPONDENCE_1",
+			WhiteId: 5,
+			BlackId: 6,
+		},
+	}
+	testutil.Equal(t, wantTournaments, pbMatchCreations.Creations, protocmp.Transform(), protocmp.IgnoreFields(&pb.MatchCreation{}, "game_id"))
 }

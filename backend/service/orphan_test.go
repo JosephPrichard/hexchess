@@ -22,7 +22,7 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockS3Client := egress.NewMockS3Client(ctrl)
+	mockS3Client := egress.NewMockS3ClientAPI(ctrl)
 	mocks := serviceMocks{S3Client: mockS3Client}
 
 	services, _ := setupServicesTest(t, mocks, itest.ROPostgres)

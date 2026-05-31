@@ -22,7 +22,7 @@ type FirstMatchmakingRequest struct {
 }
 
 type MatchmakingResponse struct {
-	NextMatches    []model.TournamentMatchCreation
+	NextMatches    []model.MatchCreation
 	TotalRounds    int32 // RoundRobin and Swiss calculate total rounds during matchmaking rather than using already existing rounds to validate
 	NextStatus     model.TournamentStatus
 	NextMatchRound int32
@@ -112,15 +112,15 @@ func (e MatchCountError) Error() string {
 	}
 }
 
-func makeMatchesLinearly(participants []FirstMatchParticipant, gameMode model.GameMode) []model.TournamentMatchCreation {
+func makeMatchesLinearly(participants []FirstMatchParticipant, gameMode model.GameMode) []model.MatchCreation {
 	// invariant: participant count is always even (`elementsAtFirstDepth` always returns even)
 	if len(participants)%2 != 0 {
 		// assert rather than return an error because this property is statically encoded into the `ElementsAtFirstDepth` algorithm
 		panic(fmt.Sprintf("participant count %+v is not even", participants))
 	}
-	var matches []model.TournamentMatchCreation
+	var matches []model.MatchCreation
 	for i := 0; i+1 < len(participants); i += 2 {
-		matches = append(matches, model.TournamentMatchCreation{
+		matches = append(matches, model.MatchCreation{
 			GameID:   MakeGameID(),
 			GameMode: gameMode,
 			WhiteID:  participants[i].UserID,
@@ -130,7 +130,7 @@ func makeMatchesLinearly(participants []FirstMatchParticipant, gameMode model.Ga
 	return matches
 }
 
-func makeMatchesCrissCrossElos(participants []FirstMatchParticipant, gameMode model.GameMode) []model.TournamentMatchCreation {
+func makeMatchesCrissCrossElos(participants []FirstMatchParticipant, gameMode model.GameMode) []model.MatchCreation {
 	// sort participants by elo.
 	slices.SortFunc(participants, func(a, b FirstMatchParticipant) int {
 		if n := cmp.Compare(model.DefaultUserElo(b.Elo), model.DefaultUserElo(a.Elo)); n != 0 {
@@ -139,11 +139,11 @@ func makeMatchesCrissCrossElos(participants []FirstMatchParticipant, gameMode mo
 		return cmp.Compare(a.UserID, b.UserID)
 	})
 
-	var matches []model.TournamentMatchCreation
+	var matches []model.MatchCreation
 	low := 0
 	high := len(participants) - 1
 	for low < high {
-		matches = append(matches, model.TournamentMatchCreation{
+		matches = append(matches, model.MatchCreation{
 			GameID:   MakeGameID(),
 			GameMode: gameMode,
 			WhiteID:  participants[low].UserID,
@@ -164,7 +164,7 @@ func makeMatchesCrissCrossElos(participants []FirstMatchParticipant, gameMode mo
 func MakeFirstMatches(request FirstMatchmakingRequest) (MatchmakingResponse, error) {
 	participantCount := len(request.Participants)
 
-	var matches []model.TournamentMatchCreation
+	var matches []model.MatchCreation
 	totalRounds := request.TotalRounds
 
 	switch request.Ruleset {
@@ -184,7 +184,6 @@ func MakeFirstMatches(request FirstMatchmakingRequest) (MatchmakingResponse, err
 	switch request.Ruleset {
 	case model.TournamentKnockout:
 		matches = makeMatchesLinearly(request.Participants, request.Mode)
-
 		wantRoundCount := knockoutMatchesAtRound(int(totalRounds), 1)
 		if len(matches) != wantRoundCount {
 			panic(fmt.Sprintf("expected %d matches, got %d", wantRoundCount, len(matches)))
@@ -232,7 +231,7 @@ func DoMatchmaking(request MatchmakingRequest) (MatchmakingResponse, error) {
 	gameMode := request.GameMode
 	allMatches := request.Matches
 
-	var nextMatches []model.TournamentMatchCreation
+	var nextMatches []model.MatchCreation
 
 	switch request.Ruleset {
 	case model.TournamentKnockout:
@@ -270,15 +269,15 @@ func DoMatchmaking(request MatchmakingRequest) (MatchmakingResponse, error) {
 	}, nil
 }
 
-func DoKnockoutMatchmaking(allMatches []CompletedPrevMatch, gameMode model.GameMode) []model.TournamentMatchCreation {
-	var nextMatches []model.TournamentMatchCreation
+func DoKnockoutMatchmaking(allMatches []CompletedPrevMatch, gameMode model.GameMode) []model.MatchCreation {
+	var nextMatches []model.MatchCreation
 
 	prevRoundMatches := getPrevRoundMatches(allMatches)
 
 	for i := 0; i+1 < len(prevRoundMatches); i += 2 {
 		matchOne := prevRoundMatches[i]
 		matchTwo := prevRoundMatches[i+1]
-		nextMatches = append(nextMatches, model.TournamentMatchCreation{
+		nextMatches = append(nextMatches, model.MatchCreation{
 			GameID:   MakeGameID(),
 			GameMode: gameMode,
 			WhiteID:  withoutTiebreaker(getKnockoutWinnerID(matchOne)),
@@ -293,8 +292,8 @@ func DoKnockoutMatchmaking(allMatches []CompletedPrevMatch, gameMode model.GameM
 	return nextMatches
 }
 
-func DoRoundRobinMatchmaking(allMatches []CompletedPrevMatch, gameMode model.GameMode) []model.TournamentMatchCreation {
-	var nextMatches []model.TournamentMatchCreation
+func DoRoundRobinMatchmaking(allMatches []CompletedPrevMatch, gameMode model.GameMode) []model.MatchCreation {
+	var nextMatches []model.MatchCreation
 
 	prevRoundMatches := getPrevRoundMatches(allMatches)
 
@@ -314,7 +313,7 @@ func DoRoundRobinMatchmaking(allMatches []CompletedPrevMatch, gameMode model.Gam
 			nextBlackID = prevMatch.WhiteID
 		}
 
-		nextMatches = append(nextMatches, model.TournamentMatchCreation{
+		nextMatches = append(nextMatches, model.MatchCreation{
 			GameID:   MakeGameID(),
 			GameMode: gameMode,
 			WhiteID:  nextWhiteID,
@@ -325,8 +324,8 @@ func DoRoundRobinMatchmaking(allMatches []CompletedPrevMatch, gameMode model.Gam
 	return nextMatches
 }
 
-func DoSwissMatchmaking(allMatches []CompletedPrevMatch, gameMode model.GameMode) []model.TournamentMatchCreation {
-	var nextMatches []model.TournamentMatchCreation
+func DoSwissMatchmaking(allMatches []CompletedPrevMatch, gameMode model.GameMode) []model.MatchCreation {
+	var nextMatches []model.MatchCreation
 
 	swissScoresTable := makeSwissTable(allMatches)
 
@@ -343,7 +342,7 @@ func DoSwissMatchmaking(allMatches []CompletedPrevMatch, gameMode model.GameMode
 	})
 
 	for i := 0; i+1 < len(participantIDs); i += 2 {
-		nextMatches = append(nextMatches, model.TournamentMatchCreation{
+		nextMatches = append(nextMatches, model.MatchCreation{
 			GameID:   MakeGameID(),
 			GameMode: gameMode,
 			WhiteID:  participantIDs[i],

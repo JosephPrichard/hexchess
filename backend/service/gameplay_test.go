@@ -89,8 +89,8 @@ func TestJoinGame(t *testing.T) {
 			updatedState, err := services.JoinGame(ctx, tt.gameID, tt.joinPlayer)
 
 			assert.Equal(t, tt.wantErr, err)
-			testutil.Equal(t, tt.wantGame, updatedState, model.ChessMetaCmpOpt)
-			assertRedisChess(t, services, tt.wantGame, model.ChessMetaCmpOpt)
+			testutil.Equal(t, tt.wantGame, updatedState)
+			assertRedisChess(t, services, tt.wantGame)
 		})
 	}
 }
@@ -252,7 +252,7 @@ func TestAttemptUndo(t *testing.T) {
 
 				assert.Equal(t, subTest.wantErr, err)
 
-				cmptOpts := cmpopts.IgnoreFields(model.ChessState{}, "Game", "Touch")
+				cmptOpts := cmpopts.IgnoreFields(model.ChessState{}, "Game")
 				testutil.Equal(t, subTest.wantGame, updatedState, cmptOpts)
 				assertRedisChess(t, services, updatedState, cmptOpts)
 			}
@@ -395,9 +395,9 @@ func TestMakeMove(t *testing.T) {
 			moveResult, err := services.MakeGameMove(ctx, tt.stateID, tt.player, tt.move)
 
 			assert.Equal(t, tt.wantErr, err)
-			assertRedisChess(t, services, tt.wantGame, model.ChessMetaCmpOpt)
+			assertRedisChess(t, services, tt.wantGame)
 			if tt.wantErr == nil {
-				testutil.Equal(t, tt.wantGame, moveResult.State, model.ChessMetaCmpOpt)
+				testutil.Equal(t, tt.wantGame, moveResult.State)
 			}
 		})
 	}
@@ -438,7 +438,7 @@ func TestForfeit(t *testing.T) {
 		wantGame := mutateGame(abortGame, func(s *model.ChessState) {
 			s.EndState = model.Aborted
 		})
-		assertRedisChess(t, services, wantGame, model.ChessMetaCmpOpt)
+		assertRedisChess(t, services, wantGame)
 
 		gameKey := fmtGameKey(abortGame.ID)
 		zRankErr := services.redis.Cache.ZRank(ctx, services.redis.GamesZSet, gameKey).Err()
@@ -457,7 +457,7 @@ func TestForfeit(t *testing.T) {
 		wantGame := mutateGame(forfeitGame, func(s *model.ChessState) {
 			s.EndState = model.Finished
 		})
-		assertRedisChess(t, services, wantGame, model.ChessMetaCmpOpt)
+		assertRedisChess(t, services, wantGame)
 	})
 }
 

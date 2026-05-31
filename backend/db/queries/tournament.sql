@@ -168,6 +168,16 @@ FROM tournament_matches tm
 WHERE tm.tournament_key = sqlc.arg('tournamentKey')
 ORDER BY tm.round, tm.ordering;
 
+-- name: SelectRecentMatchesByTournamentID :many
+SELECT
+    tm.game_id,
+    tm.white_id,
+    tm.black_id
+--     tm.mode
+FROM tournament_matches tm
+WHERE tm.tournament_key = sqlc.arg('tournamentKey')
+ORDER BY tm.ordering;
+
 -- name: SelectTournamentByGameID :one
 SELECT tournament_key
 FROM tournament_matches

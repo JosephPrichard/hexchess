@@ -366,7 +366,7 @@ var Tournaments = []model.Tournament{
 	},
 }
 
-var MatchesTournament9 = []model.Match{
+var MatchesTournament9 = []model.FullMatch{
 	{
 		Ordering:      2,
 		GameID:        GameIDNotFinished,

@@ -34,7 +34,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 	newGameID := uuid.NewString()
 	newGameIDGuest := uuid.NewString()
 
-	setupMocks := func(ctrl *gomock.Controller) pubsub.BroadcasterAPI {
+	setupMocks := func(_ *testing.T, ctrl *gomock.Controller) pubsub.BroadcasterAPI {
 		mockBroadcasterAPI := pubsub.NewMockBroadcasterAPI(ctrl)
 		mockBroadcasterAPI.EXPECT().
 			BroadcastGamesEvent(gomock.Any(), gomock.Any())
@@ -44,7 +44,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 	tests := []struct {
 		name            string
 		event           model.FinishedGame
-		setupMocks      func(ctrl *gomock.Controller) pubsub.BroadcasterAPI
+		setupMocks      func(t *testing.T, ctrl *gomock.Controller) pubsub.BroadcasterAPI
 		wantLeaderboard []string
 	}{
 		{
@@ -59,7 +59,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				ReplayCause:  model.Checkmate,
 				ReplayResult: model.WhiteWin,
 			},
-			setupMocks: func(ctrl *gomock.Controller) pubsub.BroadcasterAPI {
+			setupMocks: func(t *testing.T, ctrl *gomock.Controller) pubsub.BroadcasterAPI {
 				mockBroadcasterAPI := pubsub.NewMockBroadcasterAPI(ctrl)
 
 				wantOutput := &pb.GameOutput{
@@ -71,7 +71,6 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 						BlackId:      2,
 						BlackName:    "user2",
 						Cause:        model.Checkmate.String(),
-						Id:           12,
 						LoseEloDiff:  -15,
 						Mode:         model.ModeCorrespondence1.String(),
 						Result:       model.WhiteWin.String(),
@@ -87,7 +86,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 					BroadcastGamesEvent(gomock.Any(), gomock.Cond(func(output *pb.GameOutput) bool {
 						return testutil.Equal(t, wantOutput, output,
 							protocmp.Transform(),
-							protocmp.IgnoreFields(&pb.Replay{}, "played_on"))
+							protocmp.IgnoreFields(&pb.Replay{}, "played_on", "id"))
 					}))
 
 				return mockBroadcasterAPI
@@ -136,7 +135,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			services, testinfra := setupServicesTest(t, serviceMocks{Broadcaster: tt.setupMocks(ctrl)}, itest.RWPostgres, itest.Redis)
+			services, testinfra := setupServicesTest(t, serviceMocks{Broadcaster: tt.setupMocks(t, ctrl)}, itest.RWPostgres, itest.Redis)
 			defer services.Close()
 
 			err := services.InsertFinishedGame(ctx, tt.event)
@@ -341,7 +340,7 @@ func TestInsertGameResult(t *testing.T) {
 			changeSet, err := services.InsertGameResult(ctx, tt.resultInput)
 			require.NoError(t, err)
 
-			userElos, err := testinfra.Querier().SelectUserModeElosByIDs(ctx, sqlc.SelectUserModeElosByIDsParams{
+			userElos, err := testinfra.Querier.SelectUserModeElosByIDs(ctx, sqlc.SelectUserModeElosByIDsParams{
 				ID:   []int64{tt.resultInput.WhiteID, tt.resultInput.BlackID},
 				Mode: sqlc.ModeEnum(tt.resultInput.ReplayMode.String()),
 			})
@@ -349,10 +348,10 @@ func TestInsertGameResult(t *testing.T) {
 
 			assert.Equal(t, tt.wantUserElos, userElos)
 
-			replay, err := testinfra.Querier().SelectReplayRowByID(ctx, changeSet.ReplayID)
+			replay, err := testinfra.Querier.SelectReplayRowByID(ctx, changeSet.ReplayID)
 			require.NoError(t, err)
 
-			testutil.Equal(t, tt.wantReplay, replay, cmpopts.IgnoreFields(sqlc.Replay{}, "ID", "PlayedOn", "TurnCount", "Rating"))
+			testutil.Equal(t, tt.wantReplay, replay, cmpopts.IgnoreFields(sqlc.Replay{}, "ID", "PlayedOn", "PlayedOnAsDays", "TurnCount", "Rating"))
 
 			changeSet.WinEloDiff = math.Round(changeSet.WinEloDiff)
 			changeSet.LoseEloDiff = math.Round(changeSet.LoseEloDiff)

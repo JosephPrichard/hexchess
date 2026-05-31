@@ -139,6 +139,52 @@ CREATE TABLE public.challenges (
 
 
 --
+-- Name: events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.events (
+    id uuid NOT NULL,
+    data bytea NOT NULL,
+    consumed_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: games_metadata; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.games_metadata (
+    ordering bigint NOT NULL,
+    game_id text NOT NULL,
+    mode public.mode_enum NOT NULL,
+    white_id bigint,
+    black_id bigint,
+    updated_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: games_metadata_count; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.games_metadata_count AS
+ SELECT count(*) AS total
+   FROM public.games_metadata;
+
+
+--
+-- Name: games_metadata_ordering_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.games_metadata_ordering_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
 -- Name: goose_db_version; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -377,6 +423,30 @@ CREATE TABLE public.users_metadata (
 
 ALTER TABLE ONLY public.challenges
     ADD CONSTRAINT challenges_pkey PRIMARY KEY (challenger_id, challengee_id);
+
+
+--
+-- Name: events events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.events
+    ADD CONSTRAINT events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: games_metadata games_metadata_ordering_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games_metadata
+    ADD CONSTRAINT games_metadata_ordering_key UNIQUE (ordering);
+
+
+--
+-- Name: games_metadata games_metadata_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.games_metadata
+    ADD CONSTRAINT games_metadata_pkey PRIMARY KEY (game_id);
 
 
 --

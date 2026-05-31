@@ -653,6 +653,59 @@ var ReplayMoveHistories = []struct {
 	},
 }
 
+var TestEventID_TournamentCreation = uuid.New()
+var TestEventID_TournamentCreation_GameID = uuid.NewString()
+
+var Events = []struct {
+	ID   string
+	Data []byte
+}{
+	{
+		ID: TestEventID_TournamentCreation.String(),
+		Data: func() []byte {
+			data, err := proto.Marshal(&pb.MatchCreations{
+				Creations: []*pb.MatchCreation{
+					{
+						GameId:  TestEventID_TournamentCreation_GameID,
+						WhiteId: 1,
+						BlackId: 2,
+						Mode:    "CORRESPONDENCE_1",
+					},
+				},
+			})
+			if err != nil {
+				panic(err)
+			}
+			return data
+		}(),
+	},
+}
+
+var GameMetas = []struct {
+	Ordering int
+	ID       string
+	Mode     string
+	WhiteID  int64
+	BlackID  int64
+}{
+	{
+		Ordering: 1,
+		ID:       "game1",
+		Mode:     "CORRESPONDENCE_1",
+		BlackID:  2,
+	},
+	{
+		Ordering: 2,
+		ID:       "game2",
+		Mode:     "CORRESPONDENCE_1",
+	},
+	{
+		Ordering: 3,
+		ID:       "game3",
+		Mode:     "CORRESPONDENCE_1",
+	},
+}
+
 func insertTestData(pool *pgxpool.Pool) error {
 	ctx := context.WithValue(context.Background(), logutil.Trace, "insert-testing-data")
 
@@ -770,6 +823,25 @@ func insertTestData(pool *pgxpool.Pool) error {
 			VALUES ($1, $2);`,
 			inst.replayID,
 			bytes,
+		)
+	}
+	for _, inst := range Events {
+		batchQueue(`
+			INSERT INTO events (id, data) 
+			VALUES ($1, $2);`,
+			inst.ID,
+			inst.Data,
+		)
+	}
+	for _, inst := range GameMetas {
+		batchQueue(`
+			INSERT INTO games_metadata (ordering, game_id, mode,  white_id, black_id) 
+			VALUES ($1, $2, $3, $4, $5);`,
+			inst.Ordering,
+			inst.ID,
+			inst.Mode,
+			inst.WhiteID,
+			inst.BlackID,
 		)
 	}
 

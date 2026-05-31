@@ -23,7 +23,7 @@ func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finish
 	var changeSet GameResultChangeSet
 
 	if !finishedGame.WhitePlayer.Present || !finishedGame.BlackPlayer.Present {
-		slog.WarnContext(ctx, "both players must be existingID on a finished game", "gameID", finishedGame.GameID)
+		slog.WarnContext(ctx, "both players must be id on a finished game", "gameID", finishedGame.GameID)
 		return nil
 	}
 	whiteID := finishedGame.WhitePlayer.ID
@@ -56,9 +56,6 @@ func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finish
 	if err != nil {
 		return fmt.Errorf("get replay by ID %d: %w", changeSet.ReplayID, err)
 	}
-	if err := services.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(finishedGame.GameID, replay)); err != nil {
-		return fmt.Errorf("broadcast replay entity output: %w", err)
-	}
 
 	// note: used to keep the cache in sync, this can run outside of a transaction because we have a batch job to recover that payload to the cache.
 	if err := services.incrLeaderboard(ctx,
@@ -80,12 +77,14 @@ func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finish
 		slog.InfoContext(ctx, "publishing schedule tournament event", "gameID", finishedGame.GameID)
 
 		// if two scheduled tournament events run concucurrently, one will advance the tournament and the other will noop
-		if err := producers.PublishScheduledTournamentEvent(ctx, services.querier, tournamentKey.Bytes, time.Now()); err != nil {
+		if err := producers.PublishAdvanceTournamentEvent(ctx, services.querier, tournamentKey.Bytes, time.Now()); err != nil {
 			return fmt.Errorf("publish scheduled tournament event: %w", err)
 		}
 	} else {
-		return fmt.Errorf("select tournament by game existingID %s: %w", finishedGame.GameID, err)
+		return fmt.Errorf("select tournament by game id %s: %w", finishedGame.GameID, err)
 	}
+
+	services.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(finishedGame.GameID, replay))
 
 	slog.InfoContext(ctx, "completed inserting finished game event", "key", finishedGame.GameID)
 	return nil

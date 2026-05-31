@@ -4,12 +4,9 @@ import (
 	"context"
 	"errors"
 	"github.com/google/go-cmp/cmp"
-	"hexchess-svc/chess"
+	"github.com/redis/go-redis/v9"
 	"hexchess-svc/model"
 	"testing"
-	"time"
-
-	"github.com/redis/go-redis/v9"
 
 	"hexchess-svc/itest"
 	"hexchess-svc/lib/testutil"
@@ -53,7 +50,7 @@ func TestEchoChessState(t *testing.T) {
 
 	assert.Equal(t, ErrNoChessState, errBadID)
 	assert.NotNil(t, outState1)
-	testutil.Equal(t, s1, outState1, model.ChessMetaCmpOpt)
+	testutil.Equal(t, s1, outState1)
 }
 
 func TestUpdateChessState(t *testing.T) {
@@ -84,8 +81,8 @@ func TestUpdateChessState(t *testing.T) {
 	wantState := inState.DeepCopy()
 	wantState.EndState = model.Aborted
 
-	testutil.Equal(t, &wantState, outState, model.ChessMetaCmpOpt)
-	assertRedisChess(t, services, &wantState, model.ChessMetaCmpOpt)
+	testutil.Equal(t, &wantState, outState)
+	assertRedisChess(t, services, &wantState)
 
 	arbitraryVal, err := services.redis.Cache.Get(ctx, arbitraryKey).Result()
 	require.NoError(t, err)
@@ -105,7 +102,7 @@ func TestUpdateChessState_Errors(t *testing.T) {
 
 	ctx := t.Context()
 
-	t.Run("failing with unknown game existingID", func(t *testing.T) {
+	t.Run("failing with unknown gameID", func(t *testing.T) {
 		_, err := services.updateChessStateTxn(ctx, uuid.NewString(), func(state *model.ChessState) error { return nil }, nil)
 
 		assert.Equal(t, ErrNoChessState, err)
@@ -128,96 +125,5 @@ func TestUpdateChessState_Errors(t *testing.T) {
 		}, nil)
 
 		assert.Equal(t, ErrMaxChessStateRetries, err)
-	})
-}
-
-func TestGetChessMetas(t *testing.T) {
-	t.Parallel()
-
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.Redis)
-	defer services.Close()
-
-	id1 := "testing-id1-" + uuid.NewString()
-	id2 := "testing-id2-" + uuid.NewString()
-	id3 := "testing-id3-" + uuid.NewString()
-
-	s1 := model.MakeChessState(model.StateSetup{
-		ID:         id1,
-		Mode:       model.ModeCorrespondence1,
-		FirstColor: model.Random,
-		White:      model.PlayerState{ID: 1, Present: true},
-		Black:      model.PlayerState{ID: 2, Present: true},
-	})
-	s2 := model.MakeChessState(model.StateSetup{ID: id2, Mode: model.ModeCorrespondence1, FirstColor: model.Random, Black: model.PlayerState{ID: 1, Present: true}})
-	s3 := model.MakeChessState(model.StateSetup{ID: id3, Mode: model.ModeCorrespondence1, FirstColor: model.Random, Black: model.PlayerState{ID: 1, Present: true}})
-
-	ctx := t.Context()
-	now := time.Now()
-
-	// these times must be after now.Add(-GameExpireFinished)
-	require.NoError(t, services.setChessStateAt(ctx, id1, s1, now.Add(-100*time.Second)))
-	require.NoError(t, services.setChessStateAt(ctx, id2, s2, now.Add(-50*time.Second)))
-	require.NoError(t, services.setChessStateAt(ctx, id3, s3, now.Add(-10*time.Second)))
-
-	metaList1, err := services.getUserChessMetas(ctx, 1)
-	require.NoError(t, err)
-	metaList2, err := services.getUserChessMetas(ctx, 2)
-	require.NoError(t, err)
-	metaList3, err := services.getUserChessMetas(ctx, 3)
-	require.NoError(t, err)
-	metaList4, err := services.getUserChessMetasPaged(ctx, 1, 1, 2)
-	require.NoError(t, err)
-	metaList5, err := services.getUserChessMetasPaged(ctx, 1, 2, 2)
-	require.NoError(t, err)
-
-	m1 := model.ChessMeta{
-		ID:          id1,
-		WhitePlayer: model.PlayerState{ID: 1, Present: true},
-		BlackPlayer: model.PlayerState{ID: 2, Present: true},
-		FirstColor:  model.Random, Mode: model.ModeCorrespondence1,
-	}
-	m2 := model.ChessMeta{ID: id2, BlackPlayer: model.PlayerState{ID: 1, Present: true}, FirstColor: model.Random, Mode: model.ModeCorrespondence1}
-	m3 := model.ChessMeta{ID: id3, BlackPlayer: model.PlayerState{ID: 1, Present: true}, FirstColor: model.Random, Mode: model.ModeCorrespondence1}
-
-	assert.Equal(t, []model.ChessMeta{m3, m2, m1}, metaList1)
-	assert.Equal(t, []model.ChessMeta{m1}, metaList2)
-	assert.Empty(t, metaList3)
-	assert.Equal(t, []model.ChessMeta{m3, m2}, metaList4)
-	assert.Equal(t, []model.ChessMeta{m1}, metaList5)
-}
-
-func TestUndo(t *testing.T) {
-	t.Parallel()
-
-	t.Run("no moves to undo", func(t *testing.T) {
-		t.Parallel()
-
-		s := model.MakeChessState(model.StateSetup{
-			ID:           "test",
-			Game:         ptr(chess.MakeStartGame()),
-			InitialBoard: ptr(chess.InitialBoard()),
-		})
-
-		err := s.Undo()
-
-		assert.Equal(t, model.ErrNoMoveUndo, err)
-	})
-
-	t.Run("successfully undoing game with one move", func(t *testing.T) {
-		t.Parallel()
-
-		game := chess.MakeStartGame()
-		game.Moves = append(game.Moves, game.MakeMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")}))
-
-		s := model.MakeChessState(model.StateSetup{
-			ID:           "test",
-			Game:         ptr(game),
-			InitialBoard: ptr(chess.InitialBoard()),
-		})
-
-		err := s.Undo()
-
-		require.NoError(t, err)
-		assert.Len(t, s.Game.Moves, 0)
 	})
 }
