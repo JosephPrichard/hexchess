@@ -26,16 +26,16 @@ func TestPollOutboxQueueEvents(t *testing.T) {
 		wantCapturedEvents []string
 	}{
 		{
-			name: "TestCreateMatchesEvent",
-			kind: sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
+			name: "TestHandlesEvent",
+			kind: sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
 			inputEvents: []sqlc.InsertOutboxQueueParams{
 				{
-					Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
+					Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:      []byte("test1"),
 					CreatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 				},
 				{
-					Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
+					Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:      []byte("test2"),
 					CreatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 				},
@@ -48,13 +48,13 @@ func TestPollOutboxQueueEvents(t *testing.T) {
 			},
 			wantEvents: []sqlc.OutboxQueue{
 				{
-					Type:        sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
+					Type:        sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:        []byte("test1"),
 					CreatedOn:   pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 					ProcessedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 				},
 				{
-					Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
+					Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:      []byte("test2"),
 					CreatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 					// since pollCount was 1, expect to only process the first event
@@ -64,10 +64,10 @@ func TestPollOutboxQueueEvents(t *testing.T) {
 		},
 		{
 			name: "TestDoesNotProcessRetryableErrorEvents",
-			kind: sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
+			kind: sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
 			inputEvents: []sqlc.InsertOutboxQueueParams{
 				{
-					Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
+					Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:      []byte("test1"),
 					CreatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 				},
@@ -79,7 +79,7 @@ func TestPollOutboxQueueEvents(t *testing.T) {
 			},
 			wantEvents: []sqlc.OutboxQueue{
 				{
-					Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTCREATEMATCHESEVENT,
+					Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:      []byte("test1"),
 					CreatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 					// expect evens to be not acknowledged
@@ -127,13 +127,11 @@ func TestPollOutboxQueueEvents(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			entropy := &svc.StableEntropySource{CurrTime: itest.TimeNow}
-
-			queue := DBQueue{pdb: testinfra.DB, entropy: entropy}
+			queue := DBQueue{pdb: testinfra.DB, entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow}}
 
 			capturedEvents := make([]string, 0)
 
-			err := queue.PollOutboxQueueEventsTx(ctx, DBQueueHandler{
+			err := queue.PollOutboxQueueEvents(ctx, PostgresQueueHandler{
 				kind:         tt.kind,
 				pollInterval: time.Microsecond,
 				pollCount:    1,
