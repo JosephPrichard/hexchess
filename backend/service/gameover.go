@@ -85,7 +85,7 @@ func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finish
 		return fmt.Errorf("select tournament by game id %s: %w", finishedGame.GameID, err)
 	}
 
-	services.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(finishedGame.GameID, replay), pubsub.AsyncBroadcast())
+	services.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(finishedGame.GameID, replay), pubsub.Async())
 
 	slog.InfoContext(ctx, "completed inserting finished game event", "key", finishedGame.GameID)
 	return nil

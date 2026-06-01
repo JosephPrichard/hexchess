@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/lib/errutil"
+	"hexchess-svc/lib/logutil"
 	svc "hexchess-svc/service"
 	"log/slog"
 	"sync"
@@ -16,78 +18,57 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type PgHandlerFunc func(ctx context.Context, bytes []byte) error
+type PostgresConsumer struct {
+	ctx     context.Context
+	pdb     db.DB
+	entropy svc.EntropyAPI
 
-type PostgresQueueHandler struct {
 	kind         sqlc.OutboxQueueTypeEnum
 	pollInterval time.Duration
 	pollCount    int32
-	fn           PgHandlerFunc
+	maxEvents    uint64
+	fn           ConsumeFunc
 }
 
-type SetupPgQueue struct {
-	Ctx      context.Context
-	Services svc.HexchessAPI
-	Postgres db.DB
-}
-
-func StartPgQueueConsumers(setup SetupPgQueue) {
-	handlerList := []PostgresQueueHandler{
-		{
-			kind:         sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
-			pollInterval: 1 * time.Second,
-			pollCount:    32,
-			fn:           HandleAdvanceTournamentEvent(setup.Services),
-		},
-	}
-
-	handlerTable := make(map[sqlc.OutboxQueueTypeEnum]PostgresQueueHandler)
-	for _, handler := range handlerList {
-		handlerTable[handler.kind] = handler
-	}
-
-	queue := DBQueue{pdb: setup.Postgres, entropy: &svc.RealEntropySource{}}
-
-	for kind, handler := range handlerTable {
-		go queue.PollOutboxQueueLoop(setup.Ctx, handler)
-		slog.InfoContext(setup.Ctx, "started postgres queue consumer for handler", "kind", kind)
-	}
-}
-
-type DBQueue struct {
-	pdb     db.DB
-	entropy svc.EntropyAPI
-}
-
-func (q *DBQueue) PollOutboxQueueLoop(ctx context.Context, handler PostgresQueueHandler) {
-	ticker := time.NewTicker(handler.pollInterval)
+func (q *PostgresConsumer) Consume() error {
+	ticker := time.NewTicker(q.pollInterval)
+	i := uint64(0)
 	for range ticker.C {
-		err := q.PollOutboxQueueEvents(ctx, handler)
+		if i >= q.maxEvents && q.maxEvents != 0 {
+			break
+		}
+		i++
+
+		err := q.PollOutboxQueueEvents()
 		if err != nil {
-			slog.ErrorContext(ctx, "failed to poll postgres queue", "error", err)
+			slog.ErrorContext(q.ctx, "failed to poll postgres queue", "error", err)
 		}
 		if errors.Is(err, context.Canceled) {
 			break
 		}
 	}
+
+	slog.InfoContext(q.ctx, "finished postgres queue consumer")
+	return nil
 }
 
-func (q *DBQueue) PollOutboxQueueEvents(ctx context.Context, handler PostgresQueueHandler) error {
-	return q.pdb.ExecTx(ctx, db.TxArgs{
+func (q *PostgresConsumer) PollOutboxQueueEvents() error {
+	return q.pdb.ExecTx(q.ctx, db.TxArgs{
 		// ReadCommitted is used as a basic 'Default` isolation level, the primary purpose of the transaction is atomicity
 		// if handlers fail to acknowledge an event, it is not marked as processed and the lock is released at the end of the transaction, to allow retries
 		Isolation:  pgx.ReadCommitted,
 		RetryCount: 1,
 		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
-			//slog.InfoContext(ctx, "polling postgres queue for events", "kind", handler.kind)
+			ctx = context.WithValue(ctx, logutil.Trace, uuid.NewString())
+			slog.InfoContext(ctx, "polling postgres queue for events", "kind", q.kind)
 
 			// locks events for the duration of the function
 			eventRows, err := querier.SelectOutboxQueueByPolling(ctx, sqlc.SelectOutboxQueueByPollingParams{
-				Type:  handler.kind,
-				Limit: handler.pollCount,
+				Type:  q.kind,
+				Limit: q.pollCount,
 			})
 			if err != nil {
-				return fmt.Errorf("failed to select %d messages for event kind %s from postgres queue: %w", handler.pollCount, handler.kind, err)
+				return fmt.Errorf("failed to select %d messages for event kind %s from postgres queue: %w", q.pollCount, q.kind, err)
 			}
 			if len(eventRows) == 0 {
 				return nil
@@ -103,7 +84,7 @@ func (q *DBQueue) PollOutboxQueueEvents(ctx context.Context, handler PostgresQue
 
 			for i, event := range eventRows {
 				wg.Go(func() {
-					err := handler.fn(ctx, event.Data)
+					err := q.fn(ctx, event.Data)
 					processedEvents[i] = eventResult{eventID: event.ID, err: err}
 				})
 			}

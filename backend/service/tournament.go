@@ -706,5 +706,5 @@ func (services *HexchessServices) BroadcastTournamentParticipant(ctx context.Con
 			"playerID", playerID, "tournamentJoin", tournamentJoin, "err", err)
 		return
 	}
-	services.broadcaster.BroadcastTournament(ctx, model.SerializeParticipantOutput(tournamentJoin.TournamentKey, lbdUser), pubsub.SyncBroadcast())
+	services.broadcaster.BroadcastTournament(ctx, model.SerializeParticipantOutput(tournamentJoin.TournamentKey, lbdUser), pubsub.Sync())
 }

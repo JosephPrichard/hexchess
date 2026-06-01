@@ -117,7 +117,7 @@ func (services *HexchessServices) Close() {
 	services.redis.Close()
 }
 
-type Setup struct {
+type SetupService struct {
 	DB          db.DB
 	Querier     sqlc.Querier
 	Redis       db.Redis
@@ -127,7 +127,7 @@ type Setup struct {
 	Broadcaster pubsub.BroadcasterAPI
 }
 
-func MakeHexchessServices(setup Setup) *HexchessServices {
+func MakeHexchessServices(setup SetupService) *HexchessServices {
 	if setup.DB != nil {
 		setup.Querier = setup.DB.Querier()
 	}

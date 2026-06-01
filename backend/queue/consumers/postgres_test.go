@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPollOutboxQueueEvents(t *testing.T) {
+func TestPostgresConsumer(t *testing.T) {
 	tests := []struct {
 		name               string
 		kind               sqlc.OutboxQueueTypeEnum
@@ -127,16 +127,22 @@ func TestPollOutboxQueueEvents(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			queue := DBQueue{pdb: testinfra.DB, entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow}}
-
 			capturedEvents := make([]string, 0)
 
-			err := queue.PollOutboxQueueEvents(ctx, PostgresQueueHandler{
+			queue := PostgresConsumer{
+				ctx: ctx,
+
+				pdb:     testinfra.DB,
+				entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
+
 				kind:         tt.kind,
 				pollInterval: time.Microsecond,
 				pollCount:    1,
+				maxEvents:    1,
 				fn:           tt.makeProcessFn(&capturedEvents),
-			})
+			}
+
+			err := queue.Consume()
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantCapturedEvents, capturedEvents)

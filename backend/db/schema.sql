@@ -150,11 +150,23 @@ CREATE TABLE public.events (
 
 
 --
+-- Name: games_metadata_ordering_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.games_metadata_ordering_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
 -- Name: games_metadata; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.games_metadata (
-    ordering bigint NOT NULL,
+    ordering bigint DEFAULT nextval('public.games_metadata_ordering_seq'::regclass) NOT NULL,
     game_id text NOT NULL,
     mode public.mode_enum NOT NULL,
     white_id bigint,
@@ -170,18 +182,6 @@ CREATE TABLE public.games_metadata (
 CREATE VIEW public.games_metadata_count AS
  SELECT count(*) AS total
    FROM public.games_metadata;
-
-
---
--- Name: games_metadata_ordering_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.games_metadata_ordering_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
 
 
 --

@@ -13,24 +13,23 @@ import (
 	"hexchess-svc/pubsub"
 	"log/slog"
 	"math"
-	"time"
 )
 
 func (services *HexchessServices) UpdateGameMetadata(ctx context.Context, updt model.GameMetadataUpdt) error {
-	isNewRow, err := services.querier.UpdateGameMeta(ctx, sqlc.UpdateGameMetaParams{
+	updtResult, err := services.querier.UpdateGameMeta(ctx, sqlc.UpdateGameMetaParams{
 		GameID:    updt.GameID,
 		WhiteID:   db.MapOptInt8(updt.WhitePlayer),
 		BlackID:   db.MapOptInt8(updt.BlackPlayer),
 		Mode:      sqlc.ModeEnum(updt.Mode.String()),
-		UpdatedOn: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		UpdatedOn: pgtype.Timestamptz{Time: services.entropy.GetTime(), Valid: true},
 	})
 	if err != nil {
 		return fmt.Errorf("update game metadata %+v: %w", updt, err)
 	}
-	slog.InfoContext(ctx, "updated game metadata", "update", updt)
+	slog.InfoContext(ctx, "updated game metadata", "update", updt, "updtResult", updtResult)
 
-	if isNewRow {
-		go services.broadcastGameMetadataCount(context.WithoutCancel(ctx))
+	if updtResult.IsNewRow {
+		services.broadcaster.BroadcastGameCount(context.WithoutCancel(ctx), updtResult.Count, pubsub.Async())
 	}
 	return nil
 }
@@ -71,17 +70,6 @@ func (services *HexchessServices) GetGameMetadataCount(ctx context.Context) (int
 	}
 	slog.InfoContext(ctx, "selected chess metadatas count", "count", count)
 	return count, nil
-}
-
-func (services *HexchessServices) broadcastGameMetadataCount(ctx context.Context) {
-	count, err := services.GetGameMetadataCount(ctx)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to count chess metadatas to broadcast", "err", err)
-		return
-	}
-	slog.InfoContext(ctx, "selected chess metadatas count to broadcast", "count", count)
-
-	services.broadcaster.BroadcastGameCount(ctx, count, pubsub.SyncBroadcast())
 }
 
 func (services *HexchessServices) getGameMetadata(ctx context.Context, userID enum.Optional[int64], afterOrdering enum.Optional[int64], count enum.Optional[int32]) ([]model.ChessMeta, error) {

@@ -73,7 +73,7 @@ func main() {
 		logutil.FatalErr("load aws config", err)
 	}
 
-	services := svc.MakeHexchessServices(svc.Setup{
+	services := svc.MakeHexchessServices(svc.SetupService{
 		DB:          pdb,
 		Redis:       rdb,
 		AWS:         aws,
@@ -86,15 +86,11 @@ func main() {
 	broadcasters.Listen(rdb)
 	defer broadcasters.Shutdown()
 
-	consumers.StartRedisQueueConsumers(consumers.SetupRedisQueue{
-		Ctx:      ctx,
-		Services: services,
-		Redis:    rdb,
-	})
-	consumers.StartPgQueueConsumers(consumers.SetupPgQueue{
+	consumers.StartConsumers(consumers.SetupConsumers{
 		Ctx:      ctx,
 		Services: services,
 		Postgres: pdb,
+		Redis:    rdb,
 	})
 
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)

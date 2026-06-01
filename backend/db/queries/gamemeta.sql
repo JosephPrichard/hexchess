@@ -9,7 +9,7 @@ DO UPDATE SET
     black_id = sqlc.narg('blackID'),
     updated_on = sqlc.arg('updatedOn'),
     ordering = nextval('games_metadata_ordering_seq')
-RETURNING (xmax = 0) AS is_new_row;
+RETURNING (xmax = 0) AS is_new_row, (SELECT total FROM games_metadata_count) AS count;
 
 -- name: SelectGameMetasCount :one
 SELECT total FROM games_metadata_count;
@@ -35,3 +35,6 @@ WHERE
     gm.ordering < sqlc.arg('afterOrdering')
 ORDER BY ordering DESC
 LIMIT sqlc.narg('perPage')::INT;
+
+-- name: SelectGameMeta :one
+SELECT * FROM games_metadata WHERE game_id = sqlc.arg('gameID');

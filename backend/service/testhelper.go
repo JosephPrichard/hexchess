@@ -17,7 +17,7 @@ type serviceMocks struct {
 func setupServicesTest(t logutil.TestLogger, mocks serviceMocks, flags ...itest.TestFlag) (*HexchessServices, itest.TestInfra) {
 	infra := itest.SetupTestInfra(t, flags...)
 
-	services := MakeHexchessServices(Setup{
+	services := MakeHexchessServices(SetupService{
 		DB:          infra.DB,
 		Redis:       infra.Redis,
 		AWS:         egress.AWS{S3Client: mocks.S3Client},

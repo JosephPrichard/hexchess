@@ -689,20 +689,17 @@ var GameMetas = []struct {
 	BlackID  int64
 }{
 	{
-		Ordering: 1,
-		ID:       "game1",
-		Mode:     "CORRESPONDENCE_1",
-		BlackID:  2,
+		ID:      "game1",
+		Mode:    "CORRESPONDENCE_1",
+		BlackID: 2,
 	},
 	{
-		Ordering: 2,
-		ID:       "game2",
-		Mode:     "CORRESPONDENCE_1",
+		ID:   "game2",
+		Mode: "CORRESPONDENCE_1",
 	},
 	{
-		Ordering: 3,
-		ID:       "game3",
-		Mode:     "CORRESPONDENCE_1",
+		ID:   "game3",
+		Mode: "CORRESPONDENCE_1",
 	},
 }
 
@@ -835,9 +832,8 @@ func insertTestData(pool *pgxpool.Pool) error {
 	}
 	for _, inst := range GameMetas {
 		batchQueue(`
-			INSERT INTO games_metadata (ordering, game_id, mode,  white_id, black_id) 
-			VALUES ($1, $2, $3, $4, $5);`,
-			inst.Ordering,
+			INSERT INTO games_metadata (game_id, mode,  white_id, black_id) 
+			VALUES ($1, $2, $3, $4);`,
 			inst.ID,
 			inst.Mode,
 			inst.WhiteID,

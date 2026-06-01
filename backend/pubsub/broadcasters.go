@@ -17,13 +17,13 @@ type BroadcastOptions struct {
 
 type BroadcastOption func(*BroadcastOptions)
 
-func AsyncBroadcast() BroadcastOption {
+func Async() BroadcastOption {
 	return func(opts *BroadcastOptions) {
 		opts.isAsync = true
 	}
 }
 
-func SyncBroadcast() BroadcastOption {
+func Sync() BroadcastOption {
 	return func(opts *BroadcastOptions) {
 		opts.isAsync = false
 	}
@@ -37,6 +37,23 @@ type BroadcasterAPI interface {
 	BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput, opts ...BroadcastOption)
 	BroadcastTournament(ctx context.Context, tournament *pb.TournamentOutput, opts ...BroadcastOption)
 	BroadcastChallenge(ctx context.Context, challenge model.Challenge, opts ...BroadcastOption)
+}
+
+type NoopBroadcaster struct{}
+
+func (NoopBroadcaster) BroadcastActiveCount(ctx context.Context, count int64, opts ...BroadcastOption) {
+}
+
+func (NoopBroadcaster) BroadcastGameCount(ctx context.Context, count int64, opts ...BroadcastOption) {
+}
+
+func (NoopBroadcaster) BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput, opts ...BroadcastOption) {
+}
+
+func (NoopBroadcaster) BroadcastTournament(ctx context.Context, tournament *pb.TournamentOutput, opts ...BroadcastOption) {
+}
+
+func (NoopBroadcaster) BroadcastChallenge(ctx context.Context, challenge model.Challenge, opts ...BroadcastOption) {
 }
 
 type Broadcaster struct {

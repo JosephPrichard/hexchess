@@ -476,7 +476,7 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 		return fmt.Errorf("insert challenge: %w", err)
 	}
 
-	api.broadcaster.BroadcastChallenge(ctx, ret, pubsub.AsyncBroadcast())
+	api.broadcaster.BroadcastChallenge(ctx, ret, pubsub.Async())
 
 	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil

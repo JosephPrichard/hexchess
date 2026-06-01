@@ -48,7 +48,7 @@ func main() {
 	slog.InfoContext(ctx, "connecting to redis db", "addrs", addrs)
 	rdb := db.MakeRedis(addrs, nil)
 
-	services := svc.MakeHexchessServices(svc.Setup{
+	services := svc.MakeHexchessServices(svc.SetupService{
 		DB:    pdb,
 		Redis: rdb,
 	})

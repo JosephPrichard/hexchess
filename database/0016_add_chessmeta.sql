@@ -1,6 +1,8 @@
 -- +goose up
+CREATE SEQUENCE games_metadata_ordering_seq START 1;
+
 CREATE TABLE games_metadata (
-    ordering BIGINT UNIQUE NOT NULL,
+    ordering BIGINT UNIQUE NOT NULL DEFAULT nextval('games_metadata_ordering_seq'),
     game_id TEXT PRIMARY KEY,
     mode mode_enum NOT NULL,
     white_id BIGINT,
@@ -11,8 +13,6 @@ CREATE TABLE games_metadata (
 CREATE VIEW games_metadata_count AS
 SELECT COUNT(*) AS total
 FROM games_metadata;
-
-CREATE SEQUENCE games_metadata_ordering_seq START 1;
 
 -- +goose down
 DROP SEQUENCE IF EXISTS games_metadata_ordering_seq;

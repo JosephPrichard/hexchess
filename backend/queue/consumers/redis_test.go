@@ -24,9 +24,9 @@ type testEventHandler struct {
 	wantEventCount int
 }
 
-func (h *testEventHandler) handleEvent(_ context.Context, eventData string) error {
+func (h *testEventHandler) handleEvent(_ context.Context, bytes []byte) error {
 	var e testEvent
-	if err := json.Unmarshal([]byte(eventData), &e); err != nil {
+	if err := json.Unmarshal(bytes, &e); err != nil {
 		return err
 	}
 
@@ -40,7 +40,7 @@ func (h *testEventHandler) handleEvent(_ context.Context, eventData string) erro
 	return nil
 }
 
-func TestGameFinishStreamer(t *testing.T) {
+func TestRedisConsumer(t *testing.T) {
 	t.Parallel()
 
 	inputEvents := []map[string]any{
@@ -96,17 +96,17 @@ func TestGameFinishStreamer(t *testing.T) {
 		wantEventCount: len(validInputEvents),
 	}
 
-	consumer := RedisConsumer[testEvent]{
-		Context: ctx,
-		Client:  testinfra.Redis.Cache,
+	consumer := RedisConsumer{
+		ctx:   ctx,
+		redis: testinfra.Redis.Cache,
 
-		Concurrency:   8,
-		StreamKey:     "stream-key",
-		ConsumerGroup: "consumer-group",
+		concurrency:   8,
+		streamKey:     "stream-key",
+		consumerGroup: "consumer-group",
 
-		HandleEvent: h.handleEvent,
+		fn: h.handleEvent,
 	}
-	consumer.EventLoop()
+	consumer.Consume()
 
 	assert.ElementsMatch(t, validInputEvents, h.outputEvents)
 }
