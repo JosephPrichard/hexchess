@@ -44,7 +44,7 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 		pdb:     testinfra.DB,
 		entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
 
-		kind:         sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
+		kind:         sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 		pollInterval: time.Microsecond,
 		pollCount:    1,
 		maxEvents:    1,

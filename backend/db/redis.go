@@ -72,8 +72,8 @@ func MakeTestRedisNames() *RedisNames {
 }
 
 type Redis struct {
-	GameStore *redis.Client
-	Cache     *redis.Client
+	GameStore redis.UniversalClient
+	Cache     redis.UniversalClient
 	PubSub    *redigo.Pool
 	RedisAddrs
 	RedisNames

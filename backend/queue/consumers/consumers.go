@@ -25,7 +25,7 @@ func StartConsumers(setup SetupConsumers) {
 			pdb:     setup.Postgres,
 			entropy: &svc.RealEntropySource{},
 
-			kind:         sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
+			kind:         sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 			pollInterval: 1 * time.Second,
 			pollCount:    32,
 			fn:           HandleAdvanceTournamentEvent(setup.Services),

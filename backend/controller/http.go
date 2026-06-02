@@ -57,7 +57,7 @@ func transformJSON[Body any, Output any](r *http.Request, parse func(Body) (Outp
 
 type ServiceView struct {
 	Status  int                 `json:"status"`
-	Message string              `json:"message"`
+	Message string              `json:"message,omitempty"`
 	Error   string              `json:"error,omitempty"`
 	Errors  map[string]OneError `json:"errors,omitempty"`
 }

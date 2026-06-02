@@ -21,13 +21,13 @@ func TestActiveUser(t *testing.T) {
 
 	broadcaster := pubsub.NewMockBroadcasterAPI(ctrl)
 	broadcaster.EXPECT().
-		BroadcastActiveCount(gomock.Any(), gomock.Eq(int64(1)))
+		BroadcastActiveCount(gomock.Any(), gomock.Eq(int64(1)), gomock.Any())
 	broadcaster.EXPECT().
-		BroadcastActiveCount(gomock.Any(), gomock.Eq(int64(2)))
+		BroadcastActiveCount(gomock.Any(), gomock.Eq(int64(2)), gomock.Any())
 	broadcaster.EXPECT().
-		BroadcastActiveCount(gomock.Any(), gomock.Eq(int64(1)))
+		BroadcastActiveCount(gomock.Any(), gomock.Eq(int64(1)), gomock.Any())
 	broadcaster.EXPECT().
-		BroadcastActiveCount(gomock.Any(), gomock.Eq(int64(2)))
+		BroadcastActiveCount(gomock.Any(), gomock.Eq(int64(2)), gomock.Any())
 
 	services, _ := setupServicesTest(t, serviceMocks{Broadcaster: broadcaster}, itest.Redis)
 	defer services.Close()

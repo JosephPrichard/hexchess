@@ -21,7 +21,7 @@ const RedisContPort = "6379/tcp"
 var muRedis sync.Mutex
 var redisCont testcontainers.Container
 
-func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (rdb db.Redis, err error) {
+func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (db.Redis, error) {
 	muRedis.Lock()
 	defer muRedis.Unlock()
 
@@ -37,7 +37,7 @@ func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (rdb db.Redis, er
 			},
 		})
 		if err != nil {
-			return rdb, fmt.Errorf("failed to start redis container: %w", err)
+			return db.Redis{}, fmt.Errorf("failed to start redis container: %w", err)
 		}
 		redisCont = cont
 		t.Logf("finished starting redis container in %v", time.Since(start))
@@ -47,14 +47,15 @@ func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (rdb db.Redis, er
 	port, _ := redisCont.MappedPort(ctx, RedisContPort)
 	addr := fmt.Sprintf("%s:%s", host, port.Port())
 
-	return db.MakeRedis(
+	rdb := db.MakeRedis(
 		db.RedisAddrs{
 			GameStoreAddr: addr,
 			CacheAddr:     addr,
 			PubsubAddr:    addr,
 		},
 		db.MakeTestRedisNames(),
-	), nil
+	)
+	return rdb, nil
 }
 
 const PostgresContTag = "postgres:17"
@@ -67,7 +68,7 @@ const DbPass = "postgres"
 var muPostgres sync.Mutex
 var postgresCont testcontainers.Container
 
-func SetupPostgresTest(ctx context.Context, t logutil.TestLogger, testingTx bool) (pdb db.DB, err error) {
+func SetupPostgresTest(ctx context.Context, t logutil.TestLogger, testingTx bool) (db.DB, error) {
 	muPostgres.Lock()
 	defer muPostgres.Unlock()
 
@@ -116,6 +117,7 @@ func SetupPostgresTest(ctx context.Context, t logutil.TestLogger, testingTx bool
 		}
 	}
 
+	var pdb db.DB
 	if testingTx {
 		testTx, err := pool.BeginTx(ctx, pgx.TxOptions{
 			IsoLevel: pgx.Serializable,

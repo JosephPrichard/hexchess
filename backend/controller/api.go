@@ -167,7 +167,7 @@ func MakeServeMux(setup ServerSetup, opts ...func(*chi.Mux)) *chi.Mux {
 type HealthCheckConfig struct {
 	PostgresDSN       string
 	RedisGameStoreDSN string
-	RedisCacheDSN     string
+	RedisCacheDSNs    []string
 	RedisPubSubDSN    string
 }
 
@@ -176,7 +176,6 @@ func WithHealthCheck(mux *chi.Mux, config HealthCheckConfig) {
 		{
 			Name:    "Postgres",
 			Timeout: time.Second * 1,
-
 			Check: pgHealth.New(pgHealth.Config{
 				DSN: config.PostgresDSN,
 			}),
@@ -190,14 +189,6 @@ func WithHealthCheck(mux *chi.Mux, config HealthCheckConfig) {
 			}),
 		},
 		{
-
-			Name:    "RedisCache",
-			Timeout: time.Second * 1,
-			Check: redisHealth.New(redisHealth.Config{
-				DSN: config.RedisCacheDSN,
-			}),
-		},
-		{
 			Name:      "RedisPubsub",
 			Timeout:   time.Second * 1,
 			SkipOnErr: true,
@@ -206,10 +197,17 @@ func WithHealthCheck(mux *chi.Mux, config HealthCheckConfig) {
 			}),
 		},
 	}
+
+	for i, dsn := range config.RedisCacheDSNs {
+		healthchecks = append(healthchecks, health.Config{
+			Name:    fmt.Sprintf("RedisCache-Node-%d", i),
+			Timeout: time.Second * 1,
+			Check:   redisHealth.New(redisHealth.Config{DSN: dsn}),
+		})
+	}
+
 	h, err := health.New(
-		health.WithComponent(
-			health.Component{Name: "hexchess-svc", Version: "v1.0"},
-		),
+		health.WithComponent(health.Component{Name: "hexchess-svc", Version: "v1.0"}),
 		health.WithChecks(healthchecks...),
 	)
 	if err != nil {

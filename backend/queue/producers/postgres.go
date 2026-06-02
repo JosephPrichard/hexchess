@@ -21,8 +21,8 @@ func PublishAdvanceTournamentEvent(ctx context.Context, querier sqlc.Querier, to
 		return fmt.Errorf("marshal advance tournament event: %w", err)
 	}
 
-	if err := querier.InsertOutboxQueue(ctx, sqlc.InsertOutboxQueueParams{
-		Type:        sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
+	if err := querier.InsertQueue(ctx, sqlc.InsertQueueParams{
+		Type:        sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 		Data:        bytes,
 		CreatedOn:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		ScheduledOn: pgtype.Timestamptz{Time: scheduledOn, Valid: !scheduledOn.IsZero()},

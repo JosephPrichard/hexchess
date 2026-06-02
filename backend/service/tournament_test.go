@@ -124,7 +124,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 
 				testutil.Equal(t, tt.wantTournamenStatus, status)
 
-				outboxEvents, err := services.querier.SelectALLOutboxQueue(ctx)
+				outboxEvents, err := services.querier.SelectALLQueue(ctx)
 				require.NoError(t, err)
 
 				assert.Len(t, outboxEvents, 1)

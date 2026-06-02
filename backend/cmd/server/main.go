@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"hexchess-svc/cmd"
 	"hexchess-svc/controller"
 	"hexchess-svc/db"
@@ -15,8 +16,6 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"runtime"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -104,7 +103,7 @@ func main() {
 	withHealthcheck := controller.WithHealthCheckOpts(controller.HealthCheckConfig{
 		PostgresDSN:       dbURL,
 		RedisGameStoreDSN: rdbGameStoreNode,
-		RedisCacheDSN:     rdbCacheNodes,
+		RedisCacheDSNs:    []string{rdbCacheNodes},
 		RedisPubSubDSN:    rdbPubSubNode,
 	})
 	serverSetup := controller.ServerSetup{
@@ -114,6 +113,7 @@ func main() {
 		AllowedOrigins: allowedOrigins,
 	}
 	mux := controller.MakeServeMux(serverSetup, withHealthcheck)
+
 	if err := http.ListenAndServe(":"+serverPort, mux); err != nil {
 		logutil.FatalErr("failed while serving", err)
 	}

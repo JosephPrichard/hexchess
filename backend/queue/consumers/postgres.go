@@ -23,56 +23,58 @@ type PostgresConsumer struct {
 	pdb     db.DB
 	entropy svc.EntropyAPI
 
-	kind         sqlc.OutboxQueueTypeEnum
+	kind         sqlc.QueueTypeEnum
 	pollInterval time.Duration
 	pollCount    int32
 	maxEvents    uint64
 	fn           ConsumeFunc
 }
 
-func (q *PostgresConsumer) Consume() error {
-	ticker := time.NewTicker(q.pollInterval)
+func (c *PostgresConsumer) Consume() error {
+	ticker := time.NewTicker(c.pollInterval)
 	i := uint64(0)
 	for range ticker.C {
-		if i >= q.maxEvents && q.maxEvents != 0 {
+		if i >= c.maxEvents && c.maxEvents != 0 {
 			break
 		}
 		i++
 
-		err := q.PollOutboxQueueEvents()
+		err := c.poll()
 		if err != nil {
-			slog.ErrorContext(q.ctx, "failed to poll postgres queue", "error", err)
+			slog.ErrorContext(c.ctx, "failed to poll postgres queue", "error", err)
 		}
 		if errors.Is(err, context.Canceled) {
 			break
 		}
 	}
 
-	slog.InfoContext(q.ctx, "finished postgres queue consumer")
+	slog.InfoContext(c.ctx, "finished postgres queue consumer")
 	return nil
 }
 
-func (q *PostgresConsumer) PollOutboxQueueEvents() error {
-	return q.pdb.ExecTx(q.ctx, db.TxArgs{
+func (c *PostgresConsumer) poll() error {
+	return c.pdb.ExecTx(c.ctx, db.TxArgs{
 		// ReadCommitted is used as a basic 'Default` isolation level, the primary purpose of the transaction is atomicity
 		// if handlers fail to acknowledge an event, it is not marked as processed and the lock is released at the end of the transaction, to allow retries
 		Isolation:  pgx.ReadCommitted,
 		RetryCount: 1,
 		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
 			ctx = context.WithValue(ctx, logutil.Trace, uuid.NewString())
-			slog.InfoContext(ctx, "polling postgres queue for events", "kind", q.kind)
+			//slog.InfoContext(ctx, "polling postgres queue for events", "kind", c.kind)
 
 			// locks events for the duration of the function
-			eventRows, err := querier.SelectOutboxQueueByPolling(ctx, sqlc.SelectOutboxQueueByPollingParams{
-				Type:  q.kind,
-				Limit: q.pollCount,
+			eventRows, err := querier.SelectQueueByPolling(ctx, sqlc.SelectQueueByPollingParams{
+				Type:  c.kind,
+				Limit: c.pollCount,
 			})
 			if err != nil {
-				return fmt.Errorf("failed to select %d messages for event kind %s from postgres queue: %w", q.pollCount, q.kind, err)
+				return fmt.Errorf("failed to select %d messages for event kind %s from postgres queue: %w", c.pollCount, c.kind, err)
 			}
 			if len(eventRows) == 0 {
 				return nil
 			}
+
+			slog.InfoContext(ctx, "handling postgres queue events", "events", eventRows)
 
 			type eventResult struct {
 				eventID int64
@@ -84,7 +86,7 @@ func (q *PostgresConsumer) PollOutboxQueueEvents() error {
 
 			for i, event := range eventRows {
 				wg.Go(func() {
-					err := q.fn(ctx, event.Data)
+					err := c.fn(ctx, event.Data)
 					processedEvents[i] = eventResult{eventID: event.ID, err: err}
 				})
 			}
@@ -109,15 +111,14 @@ func (q *PostgresConsumer) PollOutboxQueueEvents() error {
 			if len(errProcessedEvents) > 0 {
 				level = slog.LevelError
 			}
-			slog.Log(ctx, level, "handling postgres queue events", "errProcessedEvents", errProcessedEvents, "eventsIDsToAck", eventIDsToAck)
+			slog.Log(ctx, level, "handled postgres queue events", "errProcessedEvents", errProcessedEvents, "eventsIDsToAck", eventIDsToAck)
 
-			if err := querier.UpdateOutboxQueueProcessedByID(ctx, sqlc.UpdateOutboxQueueProcessedByIDParams{
+			if err := querier.UpdateQueueProcessedByID(ctx, sqlc.UpdateQueueProcessedByIDParams{
 				Ids:           eventIDsToAck,
-				ProcessedTime: pgtype.Timestamptz{Time: q.entropy.GetTime(), Valid: true},
+				ProcessedTime: pgtype.Timestamptz{Time: c.entropy.GetTime(), Valid: true},
 			}); err != nil {
 				return fmt.Errorf("failed to acknolwedge postgres queue messages %+v: %w", processedEvents, err)
 			}
-
 			return nil
 		},
 	})

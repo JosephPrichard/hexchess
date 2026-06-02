@@ -15,6 +15,6 @@ SELECT COUNT(*) AS total
 FROM games_metadata;
 
 -- +goose down
-DROP SEQUENCE IF EXISTS games_metadata_ordering_seq;
 DROP VIEW IF EXISTS games_metadata_count;
 DROP TABLE IF EXISTS games_metadata;
+DROP SEQUENCE IF EXISTS games_metadata_ordering_seq;

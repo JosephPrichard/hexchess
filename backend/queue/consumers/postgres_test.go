@@ -19,23 +19,23 @@ import (
 func TestPostgresConsumer(t *testing.T) {
 	tests := []struct {
 		name               string
-		kind               sqlc.OutboxQueueTypeEnum
-		inputEvents        []sqlc.InsertOutboxQueueParams
+		kind               sqlc.QueueTypeEnum
+		inputEvents        []sqlc.InsertQueueParams
 		makeProcessFn      func(capturedEvents *[]string) func(ctx context.Context, bytes []byte) error
-		wantEvents         []sqlc.OutboxQueue
+		wantEvents         []sqlc.EventQueue
 		wantCapturedEvents []string
 	}{
 		{
 			name: "TestHandlesEvent",
-			kind: sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
-			inputEvents: []sqlc.InsertOutboxQueueParams{
+			kind: sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
+			inputEvents: []sqlc.InsertQueueParams{
 				{
-					Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
+					Type:      sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:      []byte("test1"),
 					CreatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 				},
 				{
-					Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
+					Type:      sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:      []byte("test2"),
 					CreatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 				},
@@ -46,15 +46,15 @@ func TestPostgresConsumer(t *testing.T) {
 					return nil
 				}
 			},
-			wantEvents: []sqlc.OutboxQueue{
+			wantEvents: []sqlc.EventQueue{
 				{
-					Type:        sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
+					Type:        sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:        []byte("test1"),
 					CreatedOn:   pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 					ProcessedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 				},
 				{
-					Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
+					Type:      sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:      []byte("test2"),
 					CreatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 					// since pollCount was 1, expect to only process the first event
@@ -64,10 +64,10 @@ func TestPostgresConsumer(t *testing.T) {
 		},
 		{
 			name: "TestDoesNotProcessRetryableErrorEvents",
-			kind: sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
-			inputEvents: []sqlc.InsertOutboxQueueParams{
+			kind: sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
+			inputEvents: []sqlc.InsertQueueParams{
 				{
-					Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
+					Type:      sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:      []byte("test1"),
 					CreatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 				},
@@ -77,9 +77,9 @@ func TestPostgresConsumer(t *testing.T) {
 					return errors.New("test error")
 				}
 			},
-			wantEvents: []sqlc.OutboxQueue{
+			wantEvents: []sqlc.EventQueue{
 				{
-					Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
+					Type:      sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:      []byte("test1"),
 					CreatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 					// expect evens to be not acknowledged
@@ -89,10 +89,10 @@ func TestPostgresConsumer(t *testing.T) {
 		},
 		{
 			name: "TestProcessesRetryableErrorEvents",
-			kind: sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
-			inputEvents: []sqlc.InsertOutboxQueueParams{
+			kind: sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
+			inputEvents: []sqlc.InsertQueueParams{
 				{
-					Type:      sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
+					Type:      sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:      []byte("test1"),
 					CreatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 				},
@@ -103,9 +103,9 @@ func TestPostgresConsumer(t *testing.T) {
 					return NonRetryableQueueError{Err: errors.New("test error")}
 				}
 			},
-			wantEvents: []sqlc.OutboxQueue{
+			wantEvents: []sqlc.EventQueue{
 				{
-					Type:        sqlc.OutboxQueueTypeEnumTOURNAMENTADVANCEEVENT,
+					Type:        sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:        []byte("test1"),
 					CreatedOn:   pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
 					ProcessedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
@@ -123,7 +123,7 @@ func TestPostgresConsumer(t *testing.T) {
 			ctx := t.Context()
 
 			for _, params := range tt.inputEvents {
-				err := testinfra.Querier.InsertOutboxQueue(ctx, params)
+				err := testinfra.Querier.InsertQueue(ctx, params)
 				require.NoError(t, err)
 			}
 
@@ -147,10 +147,10 @@ func TestPostgresConsumer(t *testing.T) {
 
 			assert.Equal(t, tt.wantCapturedEvents, capturedEvents)
 
-			outboxEvents, err := testinfra.Querier.SelectALLOutboxQueue(ctx)
+			outboxEvents, err := testinfra.Querier.SelectALLQueue(ctx)
 			require.NoError(t, err)
 
-			testutil.Equal(t, tt.wantEvents, outboxEvents, cmpopts.IgnoreFields(sqlc.OutboxQueue{}, "ID", "CreatedOn"))
+			testutil.Equal(t, tt.wantEvents, outboxEvents, cmpopts.IgnoreFields(sqlc.EventQueue{}, "ID", "CreatedOn"))
 		})
 	}
 }

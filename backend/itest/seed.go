@@ -824,7 +824,7 @@ func insertTestData(pool *pgxpool.Pool) error {
 	}
 	for _, inst := range Events {
 		batchQueue(`
-			INSERT INTO events (id, data) 
+			INSERT INTO event_keys (id, data) 
 			VALUES ($1, $2);`,
 			inst.ID,
 			inst.Data,

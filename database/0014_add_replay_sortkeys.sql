@@ -13,18 +13,18 @@ ALTER TABLE replays
             )::INT
         ) STORED;
 
-CREATE INDEX idx_sort_rating ON replays(rating);
-CREATE INDEX idx_sort_turncount ON replays(turn_count);
+CREATE INDEX IF NOT EXISTS idx_sort_rating ON replays(rating);
+CREATE INDEX IF NOT EXISTS idx_sort_turncount ON replays(turn_count);
 
-CREATE INDEX idx_blackid_sort_id ON replays(black_id, id);
-CREATE INDEX idx_blackid_sort_rating ON replays(black_id, rating);
-CREATE INDEX idx_blackid_sort_turncount ON replays(black_id, turn_count);
+CREATE INDEX IF NOT EXISTS idx_blackid_sort_id ON replays(black_id, id);
+CREATE INDEX IF NOT EXISTS idx_blackid_sort_rating ON replays(black_id, rating);
+CREATE INDEX IF NOT EXISTS idx_blackid_sort_turncount ON replays(black_id, turn_count);
 
-CREATE INDEX idx_whiteid_sort_id ON replays(white_id, id);
-CREATE INDEX idx_whiteid_sort_rating ON replays(white_id, rating);
-CREATE INDEX idx_whiteid_sort_turncount ON replays(white_id, turn_count);
+CREATE INDEX IF NOT EXISTS idx_whiteid_sort_id ON replays(white_id, id);
+CREATE INDEX IF NOT EXISTS idx_whiteid_sort_rating ON replays(white_id, rating);
+CREATE INDEX IF NOT EXISTS idx_whiteid_sort_turncount ON replays(white_id, turn_count);
 
-CREATE INDEX idx_playedon ON replays(played_on_as_days);
+CREATE INDEX IF NOT EXISTS idx_playedon ON replays(played_on_as_days);
 
 -- +goose down
 ALTER TABLE replays DROP COLUMN turn_count;
