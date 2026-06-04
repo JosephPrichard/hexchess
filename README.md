@@ -21,25 +21,21 @@ Alternatively, run a CI pipeline suitable build that also runs all tests.
 
 ## Database Migrations
 
-`cd hexchess-db`
-
-Force Version the Schema (on setup)
-
-`$env:DB_URL="<url>"; $env:MIGRATION_TYPE="<version_number>"; & go run main.go`
+`cd database`
 
 Run a Migration (up)
 
-`$env:DB_URL="<url>"; $env:MIGRATION_TYPE="UP"; & go run main.go`
+`$env:GOOSE_DBSTRING="<url>"; goose up`
 
 Run a Migration (down)
 
-`$env:DB_URL="<url>"; $env:MIGRATION_TYPE="DOWN"; & go run main.go`
+`$env:GOOSE_DBSTRING="<url>"; goose down`
 
 ## Execution (Local)
 
 ### Env Variables
 
-Create an environment variable file in `hexchess-svc`
+Create an environment variable file in `backend`
 ```
 SERVER_PORT=8081
 PPROF_PORT=6060
@@ -56,13 +52,13 @@ AWS_ENDPOINT=http://localhost:4566
 
 ### Run Server
 
-`$ cd hexchess-svc`
+`$ cd backend`
 
 `$ go run cmd/server/main.go`
 
 ### Run UI
 
-`$ cd hexchess-ui`
+`$ cd frontend`
 
 `$ npm run dev`
 
@@ -91,7 +87,7 @@ This configuration connects to infra running outside the docker container.
 
 ## Environment Variables
 
-`SERVER_PORT` is the port where `hexchess-svc` runs at, this is must be the same as what the ALB is configured to direct traffic to.
+`SERVER_PORT` is the port where `backend` runs at, this is must be the same as what the ALB is configured to direct traffic to.
 
 `DB_URL` postgres connection url that the server will connect to
 
