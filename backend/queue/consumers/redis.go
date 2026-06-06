@@ -30,7 +30,7 @@ type RedisConsumer struct {
 func (c *RedisConsumer) Consume() error {
 	consumerID := uuid.NewString()
 	streamKey := c.streamKey
-	streams := []string{streamKey, ">"}
+	streams := []string{streamKey, ">"} // ">" means only undelivered messages
 
 	err := c.redis.XGroupCreateMkStream(c.ctx, streamKey, c.consumerGroup, "0").Err()
 	if err != nil && !redis.HasErrorPrefix(err, "BUSYGROUP") {
@@ -47,19 +47,16 @@ func (c *RedisConsumer) Consume() error {
 		xArgs := &redis.XReadGroupArgs{
 			Group:    c.consumerGroup,
 			Consumer: consumerID,
-			Streams:  streams, // ">" means only undelivered messages
+			Streams:  streams,
 			Count:    c.concurrency,
 		}
 		entries, err := c.redis.XReadGroup(c.ctx, xArgs).Result()
-		switch err {
-		case context.Canceled:
+		if err == context.Canceled {
 			slog.Info("context cancelled, exiting finish event loop")
 			return nil
-		default:
+		} else if err != nil {
 			slog.Error("failed to read from finish redis stream", "error", err)
 			continue
-		case nil:
-			// handle the event
 		}
 
 		for _, entry := range entries {
@@ -84,7 +81,6 @@ func (c *RedisConsumer) handleXReadMessage(msg redis.XMessage) {
 		slog.ErrorContext(ctx, "failed to xread message, data field is incorrect type", "type", fmt.Sprintf("%T", anyData))
 		return
 	}
-
 	err := c.fn(ctx, []byte(data))
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to handle redis consumer event", "error", err)
@@ -92,7 +88,6 @@ func (c *RedisConsumer) handleXReadMessage(msg redis.XMessage) {
 	if errutil.IsType[NonRetryableQueueError](err) {
 		return
 	}
-
 	if err := c.redis.XAck(c.ctx, c.streamKey, c.consumerGroup, msg.ID).Err(); err != nil {
 		slog.ErrorContext(ctx, "failed to send xack", "id", msg.ID, "error", err)
 	} else {

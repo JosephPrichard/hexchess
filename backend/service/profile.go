@@ -69,7 +69,7 @@ func (services *HexchessServices) DeleteOldProfilePics(ctx context.Context, play
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return fmt.Errorf("list profile pics by prefix=%s: from s3 Bucket: %s: %w", prefix, egress.S3ProfileBucket, err)
+		return fmt.Errorf("list profile pics by prefix=%s: from s3 bucket: %s: %w", prefix, egress.S3ProfileBucket, err)
 	}
 	slog.InfoContext(ctx, "listed profile pics for deletion", "listOutput", listOutput.Contents)
 
@@ -122,7 +122,7 @@ func (services *HexchessServices) GetProfilePicKey(ctx context.Context, userID s
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return "", fmt.Errorf("list profile pics by prefix=%s: from s3 Bucket: %s: %w", prefix, egress.S3ProfileBucket, err)
+		return "", fmt.Errorf("list profile pics by prefix=%s: from s3 bucket: %s: %w", prefix, egress.S3ProfileBucket, err)
 	}
 
 	mostRecentKey := findMostRecentKey(listOutput.Contents)

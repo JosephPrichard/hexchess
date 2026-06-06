@@ -41,7 +41,7 @@ services:
     image: redis/redis-stack-server
     container_name: hexchess-redis-cache
     ports:
-      - "6380:6379"
+      - "6479:6379"
     volumes:
       - redis_data:/data
 
@@ -50,4 +50,4 @@ services:
     image: redis/redis-stack-server
     container_name: hexchess-redis-pubsub
     ports:
-      - "6381:6379"
+      - "6579:6379"

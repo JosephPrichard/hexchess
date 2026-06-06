@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hexchess-svc/lib/redisutil"
 	"hexchess-svc/model"
 	"log/slog"
 	"math"
@@ -100,8 +101,8 @@ func (services *HexchessServices) GetUserLeaderboardRanks(ctx context.Context, u
 		})
 	}
 
-	if _, err := pipeline.Exec(ctx); err != nil && !errors.Is(redis.Nil, err) {
-		return nil, fmt.Errorf("exec get ranks pipeline: %w", err)
+	if err := redisutil.PipelineExec(ctx, pipeline); err != nil {
+		return nil, err
 	}
 
 	for _, exec := range getExecs {
@@ -132,8 +133,8 @@ func (services *HexchessServices) GetUserLeaderboardRanks(ctx context.Context, u
 		})
 	}
 
-	if _, err := pipeline.Exec(ctx); err != nil && !errors.Is(redis.Nil, err) {
-		return nil, fmt.Errorf("exec add then get ranks pipeline: %w", err)
+	if err := redisutil.PipelineExec(ctx, pipeline); err != nil {
+		return nil, err
 	}
 
 	for _, exec := range addExecs {
@@ -168,9 +169,8 @@ func (services *HexchessServices) getUsersLeaderboardRank(ctx context.Context, u
 		})
 	}
 
-	if _, err := pipeline.Exec(ctx); err != nil && !errors.Is(redis.Nil, err) {
-		// includes redis.Nil guard to avoid failing the entire call if we cannot fetch a user's rank (just return 0)
-		return nil, fmt.Errorf("exec pipeline get leaderboard ranks: %w", err)
+	if err := redisutil.PipelineExec(ctx, pipeline); err != nil {
+		return nil, err
 	}
 
 	leaderboardRanks := make(map[int64]int64)

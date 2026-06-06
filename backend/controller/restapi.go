@@ -439,7 +439,7 @@ func (api *API) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) er
 	if body.Action == Accept {
 		gameID, err = api.services.CreateGame(ctx, deleteResult.FirstColor, deleteResult.Mode, nil)
 		if err != nil {
-			return fmt.Errorf("create game: %w", err)
+			return fmt.Errorf("create game %+v: %w", deleteResult, err)
 		}
 	}
 
@@ -671,7 +671,7 @@ type SearchReplaysResp struct {
 	ReplayList []model.FullReplay `json:"replayList"`
 }
 
-func (api *API) HandleGetReplays(w http.ResponseWriter, r *http.Request) error {
+func (api *API) HandleSearchReplays(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	query, err := parseReplaysQuery(r.URL.Query())
