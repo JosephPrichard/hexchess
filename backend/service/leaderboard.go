@@ -12,8 +12,8 @@ import (
 	"strconv"
 
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/lib/errutil"
 	"hexchess-svc/lib/logutil"
+	"hexchess-svc/lib/serrors"
 
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/errgroup"
@@ -38,7 +38,7 @@ func (services *HexchessServices) SetLeaderboard(ctx context.Context, changes ..
 		slog.InfoContext(ctx, "set leaderboard users", "modeLbZSet", modeLbZSet, "changes", changes)
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("set leaderboard users: %w", err)
+		return serrors.New("set leaderboard users", err)
 	}
 	return nil
 }
@@ -54,7 +54,7 @@ func (services *HexchessServices) incrLeaderboard(ctx context.Context, changes .
 		pipe.ZIncrBy(ctx, modeLbZSet, change.EloDiff, strconv.Itoa(int(change.ID)))
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("incr leaderboard user: %w", err)
+		return serrors.New("incr leaderboard user", err)
 	}
 	slog.InfoContext(ctx, "incremented leaderboard user", "changes", changes)
 	return nil
@@ -112,7 +112,7 @@ func (services *HexchessServices) GetUserLeaderboardRanks(ctx context.Context, u
 			continue
 		}
 		if err != nil {
-			return nil, fmt.Errorf("get leaderboard rank: %w", err)
+			return nil, serrors.New("get leaderboard rank", err)
 		}
 		ranks[exec.mode] = LbRank{Rank: mapLbRank(rankScore.Rank), Score: rankScore.Score}
 	}
@@ -139,11 +139,11 @@ func (services *HexchessServices) GetUserLeaderboardRanks(ctx context.Context, u
 
 	for _, exec := range addExecs {
 		if _, err := exec.addCmd.Result(); err != nil {
-			return nil, fmt.Errorf("add leaderboard rank: %w", err)
+			return nil, serrors.New("add leaderboard rank", err)
 		}
 		rankScore, err := exec.getCmd.Result()
 		if err != nil {
-			return nil, fmt.Errorf("get leaderboard rank: %w", err)
+			return nil, serrors.New("get leaderboard rank", err)
 		}
 		ranks[exec.mode.String()] = LbRank{Rank: mapLbRank(rankScore.Rank), Score: rankScore.Score}
 	}
@@ -181,7 +181,7 @@ func (services *HexchessServices) getUsersLeaderboardRank(ctx context.Context, u
 			continue
 		}
 		if err != nil {
-			return nil, fmt.Errorf("get leaderboard rank for user %v: %w", exec.userID, err)
+			return nil, serrors.Format("get leaderboard rank for user", err, "userID", exec.userID)
 		}
 		leaderboardRanks[exec.userID] = mapLbRank(rank)
 	}
@@ -196,19 +196,19 @@ func (services *HexchessServices) getLeaderboard(ctx context.Context, mode model
 	end := startRank - 1 + lbdElemCount
 	strUserIDs, err := services.redis.Cache.ZRevRange(ctx, modeLbZSet, startRank, end).Result()
 	if err != nil {
-		return Leaderboard{}, fmt.Errorf("retrieve reverse leaderboard by range: %w", err)
+		return Leaderboard{}, serrors.New("retrieve reverse leaderboard by range", err)
 	}
 
 	totalLbdElemCount, err := services.redis.Cache.ZCount(ctx, modeLbZSet, "-inf", "+inf").Result()
 	if err != nil {
-		return Leaderboard{}, fmt.Errorf("count leaderboard: %w", err)
+		return Leaderboard{}, serrors.New("count leaderboard", err)
 	}
 
 	users := make([]RankedUser, 0, len(strUserIDs))
 	for i, strUserID := range strUserIDs {
 		userID, err := strconv.Atoi(strUserID)
 		if err != nil {
-			return Leaderboard{}, fmt.Errorf("parse user id: %w", err)
+			return Leaderboard{}, serrors.Format("parse user id", err, "strUserID", strUserID)
 		}
 		users = append(users, RankedUser{ID: int64(userID), Rank: startRank + int64(i) + 1})
 	}
@@ -240,7 +240,7 @@ func (services *HexchessServices) SyncLeaderboard(ctx context.Context) error {
 		for {
 			rows, err := services.querier.SelectEloList(ctx, sqlc.SelectEloListParams{ID: afterID, Mode: sqlc.ModeEnum(mode.String()), Limit: 20})
 			if err != nil {
-				return fmt.Errorf("select elo list afterID %d: %w", afterID, err)
+				return serrors.Format("select elo list", err, "afterID", afterID)
 			}
 			var changes []UpdtLbChangeSet
 			for i, row := range rows {
@@ -254,7 +254,7 @@ func (services *HexchessServices) SyncLeaderboard(ctx context.Context) error {
 				break
 			}
 			if err := services.SetLeaderboard(ctx, changes...); err != nil {
-				return fmt.Errorf("set leaderboard: %w", err)
+				return serrors.New("set leaderboard", err)
 			}
 		}
 	}
@@ -294,11 +294,11 @@ func (services *HexchessServices) GetLeaderboardUser(ctx context.Context, userID
 			ID:   userID,
 			Mode: sqlc.ModeEnum(mode.String()),
 		})
-		return errutil.Guardf(err, "select user with elos by userID %d", userID)
+		return serrors.Format("select user with elos by userID", err, "userID", userID)
 	})
 	eg.Go(func() (err error) {
 		rankScore, err = services.redis.Cache.ZRankWithScore(egCtx, fmtLeaderboardZSet(services.redis, mode.String()), strUserID).Result()
-		return errutil.Guardf(err, "get user rank by userID: %d", userID)
+		return serrors.Format("get user rank by userID", err, "userID", userID)
 	})
 
 	if err := eg.Wait(); err != nil {
@@ -321,7 +321,7 @@ func (services *HexchessServices) GetFullLeaderboardUsers(ctx context.Context, m
 		Mode: sqlc.ModeEnum(mode.String()),
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("select many users %+v: %w", ids, err)
+		return nil, nil, serrors.Format("select many users", err, "userIDs", ids)
 	}
 
 	leaderboardUsers := make([]model.LbdUser, 0, len(rnkUsers))
@@ -377,7 +377,7 @@ func (services *HexchessServices) GetFuzzySearchLeaderboard(ctx context.Context,
 		Offset:   offset,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("select users by similarity: %w", err)
+		return nil, serrors.New("select users by similarity", err)
 	}
 
 	var userIDs []int64
@@ -386,7 +386,7 @@ func (services *HexchessServices) GetFuzzySearchLeaderboard(ctx context.Context,
 	}
 	eloRows, err := services.querier.SelectUserElosByIDs(ctx, userIDs)
 	if err != nil {
-		return nil, fmt.Errorf("select elos by user ids %v: %w", userIDs, err)
+		return nil, serrors.Format("select elos by user ids", err, "userIDs", userIDs)
 	}
 
 	eloAggrMap := make(map[int64]struct {

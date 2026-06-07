@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/egress"
+	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
 	"io"
 	"log/slog"
@@ -24,7 +25,7 @@ func ParseProfilePicKey(key string) (int64, error) {
 	}
 	userID, err := strconv.ParseInt(tokens[2], 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("profile Key userID is not a valid integer: %s: %w", key, err)
+		return 0, serrors.Format("profile Key userID is not a valid integer", err, "key", key)
 	}
 	return userID, nil
 }
@@ -69,7 +70,7 @@ func (services *HexchessServices) DeleteOldProfilePics(ctx context.Context, play
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return fmt.Errorf("list profile pics by prefix=%s: from s3 bucket: %s: %w", prefix, egress.S3ProfileBucket, err)
+		return serrors.Format("list profile pics by prefix", err, "prefix", prefix, "bucket", egress.S3ProfileBucket)
 	}
 	slog.InfoContext(ctx, "listed profile pics for deletion", "listOutput", listOutput.Contents)
 
@@ -83,7 +84,7 @@ func (services *HexchessServices) DeleteOldProfilePics(ctx context.Context, play
 		Bucket: aws.String(egress.S3ProfileBucket),
 		Delete: &s3Types.Delete{Objects: keys},
 	}); err != nil {
-		return fmt.Errorf("delete profile pics by keys %v: from s3 Bucket: %s: %w", keys, egress.S3ProfileBucket, err)
+		return serrors.Format("delete profile pics by keys", err, "keys", keys, "bucket", egress.S3ProfileBucket)
 	}
 	return nil
 }
@@ -104,7 +105,7 @@ func (services *HexchessServices) UploadProfilePic(ctx context.Context, uploader
 		CacheControl: aws.String("public, max-age=31536000"),
 	})
 	if err != nil {
-		return "", fmt.Errorf("put profile pic %s: to s3 bucket: %s: %w", key, egress.S3ProfileBucket, err)
+		return "", serrors.Format("put profile pic", err, "key", key, "bucket", egress.S3ProfileBucket)
 	}
 
 	slog.InfoContext(ctx, "finished uploading profile pic to s3", "key", key, "took", time.Since(start), "player", uploader, "output", putOutput)
@@ -122,7 +123,7 @@ func (services *HexchessServices) GetProfilePicKey(ctx context.Context, userID s
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return "", fmt.Errorf("list profile pics by prefix=%s: from s3 bucket: %s: %w", prefix, egress.S3ProfileBucket, err)
+		return "", serrors.Format("list profile pics by prefix", err, "prefix", prefix, "bucket", egress.S3ProfileBucket)
 	}
 
 	mostRecentKey := findMostRecentKey(listOutput.Contents)

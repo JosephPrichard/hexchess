@@ -2,13 +2,12 @@ package svc
 
 import (
 	"context"
-	"fmt"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/sync/errgroup"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/lib/enum"
-	"hexchess-svc/lib/errutil"
+	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
 	"log/slog"
@@ -24,7 +23,7 @@ func (services *HexchessServices) UpdateGameMetadata(ctx context.Context, updt m
 		UpdatedOn: pgtype.Timestamptz{Time: services.entropy.GetTime(), Valid: true},
 	})
 	if err != nil {
-		return fmt.Errorf("update game metadata %+v: %w", updt, err)
+		return serrors.Format("update game metadata", err, "updt", updt)
 	}
 	slog.InfoContext(ctx, "updated game metadata", "update", updt, "updtResult", updtResult)
 
@@ -47,13 +46,13 @@ func (services *HexchessServices) GetGameMetadata(ctx context.Context, player en
 
 	eg.Go(func() (err error) {
 		allChessMetas, err = services.getGameMetadata(egCtx, enum.Nothing[int64](), afterOrdering, enum.Just[int32](count))
-		return errutil.Guardf(err, "get all game metadata after ordering %+v", afterOrdering)
+		return serrors.Format("get all game metadata after ordering", err, "afterOrdering", afterOrdering)
 	})
 	if player.IsPresent {
 		userID := player.Value.ID
 		eg.Go(func() (err error) {
 			userChessMetas, err = services.getGameMetadata(ctx, enum.Just[int64](userID), enum.Nothing[int64](), enum.Nothing[int32]())
-			return errutil.Guardf(err, "get user %d game metadata", player.Value.ID)
+			return serrors.Format("get user game metadata", err, "userID", player.Value.ID)
 		})
 	}
 	if err := eg.Wait(); err != nil {
@@ -66,7 +65,7 @@ func (services *HexchessServices) GetGameMetadata(ctx context.Context, player en
 func (services *HexchessServices) GetGameMetadataCount(ctx context.Context) (int64, error) {
 	count, err := services.querier.SelectGameMetasCount(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("count chess metadatas: %w", err)
+		return 0, serrors.New("count chess metadatas", err)
 	}
 	slog.InfoContext(ctx, "selected chess metadatas count", "count", count)
 	return count, nil
@@ -79,7 +78,7 @@ func (services *HexchessServices) getGameMetadata(ctx context.Context, userID en
 		PerPage:       db.MapOptInt4(count),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("select game metas by %+v: %w", userID, err)
+		return nil, serrors.Format("select game metas", err, "userID", userID)
 	}
 
 	var chessMetas []model.ChessMeta

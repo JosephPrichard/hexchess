@@ -7,7 +7,8 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/lib/enum"
-	"hexchess-svc/lib/errutil"
+	"hexchess-svc/lib/serrors"
+
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
@@ -32,17 +33,17 @@ func (services *HexchessServices) GetTournament(ctx context.Context, tournamentK
 
 	eg.Go(func() (err error) {
 		tournamentRow, err = services.querier.SelectTournamentByID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return errutil.Guardf(err, "select tournament by key %v", tournamentKey)
+		return serrors.Format("select tournament by key", err, "tournamentKey", tournamentKey)
 	})
 
 	eg.Go(func() (err error) {
 		participantRows, err = services.querier.SelectParticipantsWithUserByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return errutil.Guardf(err, "select participants by tournament key %v", tournamentKey)
+		return serrors.Format("select participants by tournament key", err, "tournamentKey", tournamentKey)
 	})
 
 	eg.Go(func() (err error) {
 		matchRows, err = services.querier.SelectReplayMatchesByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return errutil.Guardf(err, "select replay matches by tournament key %v", tournamentKey)
+		return serrors.Format("select replay matches by tournament key", err, "tournamentKey", tournamentKey)
 	})
 
 	if err := eg.Wait(); err != nil {
@@ -486,7 +487,7 @@ func (services *HexchessServices) advanceTournament(ctx context.Context, tournam
 				return fmt.Errorf("select by event id %v: %w", eventID, err)
 			} else {
 				matchesToCreate, err = model.UnmarshalMatchCreation(eventData)
-				return errutil.Guardf(err, "unmarshal match creations %+v", matchesToCreate)
+				return serrors.Format("unmarshal match creations", err, "matchesToCreate", matchesToCreate)
 			}
 
 			tournamentRow, err := querier.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
@@ -692,7 +693,7 @@ func (services *HexchessServices) createTournamentMatches(ctx context.Context, m
 				White:      model.MakePlayer(match.WhiteID, whitePlayerData.Username, whitePlayerData.Country),
 				Black:      model.MakePlayer(match.BlackID, blackPlayerData.Username, blackPlayerData.Country),
 			})
-			return errutil.Guardf(err, "create game %d with id %s", i, match.GameID)
+			return serrors.Format("create game", err, "index", i, "gameID", match.GameID)
 		})
 	}
 

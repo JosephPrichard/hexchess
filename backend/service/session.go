@@ -3,7 +3,7 @@ package svc
 import (
 	"context"
 	"errors"
-	"fmt"
+	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
 	"log/slog"
 	"time"
@@ -20,12 +20,12 @@ func (services *HexchessServices) GetSession(ctx context.Context, sessionID stri
 		if errors.Is(err, redis.Nil) {
 			return model.PlayerState{}, ErrSessionNotFound
 		}
-		return model.PlayerState{}, fmt.Errorf("get session %s: %w", sessionID, err)
+		return model.PlayerState{}, serrors.Format("get session", err, "sessionID", sessionID)
 	}
 
 	player, err := model.UnmarshalPlayer(bytes)
 	if err != nil {
-		return model.PlayerState{}, fmt.Errorf("unmarshal session: %w", err)
+		return model.PlayerState{}, serrors.New("unmarshal session", err)
 	}
 	slog.InfoContext(ctx, "selected session", "sessionID", sessionID, "player", player)
 	return player, nil
@@ -52,7 +52,7 @@ func (services *HexchessServices) SetSessions(ctx context.Context, insts ...Sess
 	}
 
 	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("set many sessions: %w", err)
+		return serrors.New("set many sessions", err)
 	}
 	return nil
 }
@@ -60,7 +60,7 @@ func (services *HexchessServices) SetSessions(ctx context.Context, insts ...Sess
 func (services *HexchessServices) UpdateSessionEx(ctx context.Context, sessionID string, expiry time.Duration) error {
 	sessionKey := makeSessionKey(sessionID)
 	if err := services.redis.Cache.Expire(ctx, sessionKey, expiry).Err(); err != nil {
-		return fmt.Errorf("update session expiry: %w", err)
+		return serrors.New("update session expiry", err)
 	}
 	slog.InfoContext(ctx, "updated session expiry", "sessionID", sessionID)
 	return nil
@@ -69,7 +69,7 @@ func (services *HexchessServices) UpdateSessionEx(ctx context.Context, sessionID
 func (services *HexchessServices) DeleteSession(ctx context.Context, sessionID string) error {
 	sessionKey := makeSessionKey(sessionID)
 	if err := services.redis.Cache.Del(ctx, sessionKey).Err(); err != nil {
-		return fmt.Errorf("delete session %s: %w", sessionID, err)
+		return serrors.Format("delete session", err, "sessionID", sessionID)
 	}
 	slog.InfoContext(ctx, "deleted session", "sessionID", sessionID)
 	return nil

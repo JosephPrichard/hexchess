@@ -708,7 +708,7 @@ func TestGetLeaderboard(t *testing.T) {
 			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.ROPostgres, itest.Redis)
 			defer testinfra.Close()
 
-			require.NoError(t, createLeaderboard(t, testinfra.Redis, updtLbChangeSet{Mode: model.ModeTimed1Plus0, ID: 1, EloDiff: 1000}))
+			createLeaderboard(t, testinfra.Redis, updtLbChangeSet{Mode: model.ModeTimed1Plus0, ID: 1, EloDiff: 1000})
 
 			q := url.Values{}
 			q.Set("mode", tt.mode)
@@ -1253,7 +1253,7 @@ func TestGetTournament(t *testing.T) {
 			defer testinfra.Close()
 
 			for _, change := range itest.TournamentLbdChangeSets {
-				require.NoError(t, createLeaderboard(t, testinfra.Redis, change))
+				createLeaderboard(t, testinfra.Redis, change)
 			}
 
 			q := url.Values{}

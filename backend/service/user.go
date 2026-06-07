@@ -5,9 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"hexchess-svc/lib/enum"
-	"hexchess-svc/lib/errutil"
+	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
 	"log/slog"
 	"math"
@@ -48,7 +47,7 @@ func (services *HexchessServices) InsertUser(ctx context.Context, inst UserInst)
 
 	hash, err := hashPassword(inst.Password)
 	if err != nil {
-		return model.User{}, fmt.Errorf("generate hash: %w", err)
+		return model.User{}, serrors.New("generate hash", err)
 	}
 
 	userRow, err := services.querier.InsertUser(ctx, sqlc.InsertUserParams{
@@ -63,7 +62,7 @@ func (services *HexchessServices) InsertUser(ctx context.Context, inst UserInst)
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return model.User{}, ErrTakenUsername
 		}
-		return model.User{}, fmt.Errorf("insert user to transactor: %w", err)
+		return model.User{}, serrors.New("insert user to transactor", err)
 	}
 
 	user := model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
@@ -83,7 +82,7 @@ func (services *HexchessServices) BatchInsertUsers(ctx context.Context, insts []
 		hashEg.Go(func() error {
 			hash, err := hashPassword(inst.Password)
 			if err != nil {
-				return fmt.Errorf("hash password for inst index %d: %w", i, err)
+				return serrors.Format("hash password for inst index", err, "index", i)
 			}
 			batch := sqlc.BatchInsertUserParams{
 				Username: inst.Username,
@@ -107,7 +106,7 @@ func (services *HexchessServices) BatchInsertUsers(ctx context.Context, insts []
 		if err == nil {
 			rows = append(rows, row)
 		} else {
-			insertErrs = append(insertErrs, fmt.Errorf("batch insert user index %d: %w", i, err))
+			insertErrs = append(insertErrs, serrors.Format("batch insert user index", err, "index", i))
 		}
 	})
 
@@ -159,7 +158,7 @@ func (services *HexchessServices) VerifyUser(ctx context.Context, username strin
 			if db.IsErrNoRows(err) {
 				return ErrUserNotFound
 			} else if err != nil {
-				return fmt.Errorf("select user %s by login: %w", username, err)
+				return serrors.Format("select user by login", err, "username", username)
 			}
 
 			isExceedAttempts := loginRow.LoginAttempts > 0 && loginRow.LoginAttempts%LoginAttemptsDivisor == 0
@@ -174,14 +173,14 @@ func (services *HexchessServices) VerifyUser(ctx context.Context, username strin
 
 			if loginErr != nil {
 				if err := querier.IncrLoginAttempts(ctx, loginRow.ID); err != nil {
-					return fmt.Errorf("increment user %d login attempts: %w", loginRow.ID, err)
+					return serrors.Format("increment user login attempts", err, "userID", loginRow.ID)
 				}
 				slog.ErrorContext(ctx, "failed to login, credentials are invalid", "username", username, "error", loginErr)
 				return ErrUserNotFound
 			}
 
 			if err := querier.ResetLoginAttempts(ctx, loginRow.ID); err != nil {
-				return fmt.Errorf("reset user %d login attempts: %w", loginRow.ID, err)
+				return serrors.Format("reset user login attempts", err, "userID", loginRow.ID)
 			}
 
 			user = VerifiedUser{
@@ -211,7 +210,7 @@ func (services *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, 
 	if db.IsErrNoRows(err) {
 		isCreated = false
 	} else if err != nil {
-		return verifiedUser, fmt.Errorf("select user %s by google account id: %w", googleAccountID, err)
+		return verifiedUser, serrors.Format("select user by google account id", err, "googleAccountID", googleAccountID)
 	} else {
 		isCreated = true
 	}
@@ -224,7 +223,7 @@ func (services *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, 
 			GoogleAccountID: pgtype.Text{String: googleAccountID, Valid: true},
 		})
 		if err != nil {
-			return verifiedUser, fmt.Errorf("insert google user %s: %w", googleAccountID, err)
+			return verifiedUser, serrors.Format("insert google user", err, "googleAccountID", googleAccountID)
 		}
 		verifiedUser = VerifiedUser{
 			ID:       userRow.ID,
@@ -266,7 +265,7 @@ func (services *HexchessServices) UpdateUser(ctx context.Context, id int64, updt
 		Country:  db.OptString(updt.Country),
 	})
 	if err != nil {
-		return model.User{}, fmt.Errorf("update user %d: %w", id, err)
+		return model.User{}, serrors.Format("update user", err, "userID", id)
 	}
 
 	user := model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
@@ -277,7 +276,7 @@ func (services *HexchessServices) UpdateUser(ctx context.Context, id int64, updt
 func (services *HexchessServices) UpdateUserPassword(ctx context.Context, id int64, newPassword string) error {
 	hash, err := hashPassword(newPassword)
 	if err != nil {
-		return fmt.Errorf("hash password for user %d: %w", id, err)
+		return serrors.Format("hash password for user", err, "userID", id)
 	}
 	err = services.querier.UpdatePassword(ctx, sqlc.UpdatePasswordParams{
 		ID:       id,
@@ -293,7 +292,7 @@ func (services *HexchessServices) GetUserByID(ctx context.Context, id int64) (mo
 	if db.IsErrNoRows(err) {
 		return model.User{}, ErrUserNotFound
 	} else if err != nil {
-		return model.User{}, fmt.Errorf("select user %d: %w", id, err)
+		return model.User{}, serrors.Format("select user", err, "userID", id)
 	}
 	user := model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
 	slog.InfoContext(ctx, "selected user", "userID", id, "user", user)
@@ -307,7 +306,7 @@ func avg[T constraints.Integer | constraints.Float](currAvg T, currCount int, ne
 func (services *HexchessServices) GetUserStats(ctx context.Context, id int64) (model.UserStats, error) {
 	modeEloRows, err := services.querier.SelectUserElosByID(ctx, id)
 	if err != nil {
-		return model.UserStats{}, fmt.Errorf("select user %d elos by id: %w", id, err)
+		return model.UserStats{}, serrors.Format("select user elos by id", err, "userID", id)
 	}
 
 	var stats model.UserStats
@@ -360,17 +359,17 @@ func (services *HexchessServices) GetFullUser(ctx context.Context, userID int64,
 
 	eg.Go(func() (err error) {
 		user, err = services.GetUserByID(egCtx, userID)
-		return errutil.Guardf(err, "get user %d", userID)
+		return serrors.Format("get user", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
 		stats, err = services.GetUserStats(egCtx, userID)
-		return errutil.Guardf(err, "get user %d stats", userID)
+		return serrors.Format("get user stats", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
 		lbRanks, err = services.GetUserLeaderboardRanks(egCtx, userID, model.GameModeEnums)
-		return errutil.Guardf(err, "get user %d leaderboard ranks", userID)
+		return serrors.Format("get user leaderboard ranks", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
@@ -378,7 +377,7 @@ func (services *HexchessServices) GetFullUser(ctx context.Context, userID int64,
 			UserID:  enum.Just(userID),
 			PerPage: perPage,
 		})
-		return errutil.Guardf(err, "get user %d replays", userID)
+		return serrors.Format("get user replays", err, "userID", userID)
 	})
 
 	if err := eg.Wait(); err != nil {
@@ -424,7 +423,7 @@ type HashResult struct {
 func hashPassword(password string) (HashResult, error) {
 	saltBytes := make([]byte, 16)
 	if _, err := rand.Read(saltBytes); err != nil {
-		return HashResult{}, fmt.Errorf("generate salt: %w", err)
+		return HashResult{}, serrors.New("generate salt", err)
 	}
 	salt := base64.StdEncoding.EncodeToString(saltBytes)
 
@@ -432,7 +431,7 @@ func hashPassword(password string) (HashResult, error) {
 
 	hashed, err := bcrypt.GenerateFromPassword(saltedPassword, 12)
 	if err != nil {
-		return HashResult{}, fmt.Errorf("hash password: %w", err)
+		return HashResult{}, serrors.New("hash password", err)
 	}
 
 	return HashResult{Salt: salt, HashedPassword: string(hashed)}, nil
@@ -459,7 +458,7 @@ func (services *HexchessServices) getUserIDsByUsernames(ctx context.Context, req
 
 	userRows, err := services.querier.SelectUserIDsByNames(ctx, usernames)
 	if err != nil {
-		return fmt.Errorf("select user ids by names %v: %w", usernames, err)
+		return serrors.Format("select user ids by names", err, "usernames", usernames)
 	}
 
 	userIDs := make(map[string]int64)

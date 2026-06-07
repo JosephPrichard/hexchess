@@ -2,8 +2,8 @@ package controller
 
 import (
 	"errors"
-	"fmt"
 	"hexchess-svc/assets"
+	"hexchess-svc/lib/serrors"
 	svc "hexchess-svc/service"
 	"io"
 	"log/slog"
@@ -17,7 +17,7 @@ func (api *API) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) e
 	ctx := r.Context()
 	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
-		return fmt.Errorf("get session player: %w", err)
+		return serrors.New("get session player", err)
 	}
 
 	contentType := r.Header.Get("Content-Type")
@@ -27,7 +27,7 @@ func (api *API) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) e
 
 	key, err := api.services.UploadProfilePic(ctx, player, bodyFile, contentType)
 	if err != nil {
-		return fmt.Errorf("upload profile pic: %w", err)
+		return serrors.New("upload profile pic", err)
 	}
 	if err := api.services.DeleteOldProfilePics(ctx, int(player.ID)); err != nil {
 		slog.ErrorContext(ctx, "failed to remove old profile pics", "error", err)

@@ -6,12 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/lib/enum"
+	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
 	"math/big"
 	"net/http"
 	"time"
 
-	"hexchess-svc/lib/errutil"
 	svc "hexchess-svc/service"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -90,7 +90,7 @@ func (auth *Authenticator) GetSession(ctx context.Context, r *http.Request) (Ses
 	sessionToken := cookie.Value
 	player, err := auth.services.GetSession(ctx, sessionToken)
 
-	return Session{Player: player, Token: sessionToken}, errutil.Guardf(err, "get session player")
+	return Session{Player: player, Token: sessionToken}, serrors.Format("get session player", err)
 }
 
 func (auth *Authenticator) GetSessionOptPlayer(ctx context.Context, r *http.Request) (enum.Optional[model.PlayerState], error) {
@@ -112,7 +112,7 @@ func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request
 func (auth *Authenticator) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player model.PlayerState) (time.Duration, error) {
 	sessionToken := MakeSessionID()
 	if err := auth.services.SetSessions(ctx, svc.SessionInst{SessionID: sessionToken, Player: player, Expiry: SessionMaxAge}); err != nil {
-		return 0, fmt.Errorf("set session player [%d]: %w", player.ID, err)
+		return 0, serrors.Format("set session player", err, "playerID", player.ID)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionToken))
 	return SessionMaxAge, nil

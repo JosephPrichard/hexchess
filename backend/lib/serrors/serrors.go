@@ -1,43 +1,56 @@
 package serrors
 
 import (
+	"errors"
 	"fmt"
-	"strings"
 )
 
-type SError struct {
-	internal error
-	Values   map[string]any
+type ServiceError struct {
+	Err    error
+	Values map[string]any
 }
 
-func (e SError) Error() string {
-	return e.internal.Error()
+func (e *ServiceError) Unwrap() error {
+	return e.Err
 }
 
-func New(message string, err error) SError {
+func (e *ServiceError) Error() string {
+	return e.Err.Error()
+}
+
+func New(message string, err error) error {
 	return Format(message, err, nil)
 }
 
-func Format(message string, err error, values map[string]any) SError {
+func Format(message string, err error, values ...any) error {
+	if err == nil {
+		return nil
+	}
+
 	if len(values) == 0 {
-		return SError{internal: err}
+		return &ServiceError{Err: err}
 	}
 
-	var sb strings.Builder
-	sb.WriteString(message)
-	sb.WriteString(": ")
-	sb.WriteString("%w")
-
-	i := 0
-	for k, v := range values {
-		sb.WriteString(k)
-		sb.WriteString(fmt.Sprintf("=%+v", v))
-		if i < len(values)-1 {
-			sb.WriteString(", ")
+	valuesMap := make(map[string]any)
+	for i := 0; i+1 < len(values); i += 2 {
+		valueStr, ok := values[i].(string)
+		if !ok {
+			valueStr = "!BADKEY"
 		}
-		i++
+		valuesMap[valueStr] = values[i+1]
 	}
 
-	werr := fmt.Errorf(sb.String(), err)
-	return SError{internal: werr, Values: values}
+	err = fmt.Errorf("%s: %w", message, err)
+
+	return &ServiceError{Err: err, Values: valuesMap}
+}
+
+func Flatten(err error, values *[]any) {
+	var serr *ServiceError
+	if errors.As(err, &serr) {
+		for k, v := range serr.Values {
+			*values = append(*values, k, v)
+		}
+		Flatten(serr.Err, values)
+	}
 }

@@ -3,10 +3,11 @@ package controller
 import (
 	"context"
 	"errors"
-	"fmt"
 	"hexchess-svc/chess"
+	"hexchess-svc/lib/logutil"
 
 	"hexchess-svc/lib/errutil"
+	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
 	"log/slog"
 	"net/http"
@@ -115,7 +116,7 @@ func writeGameMsgErr(ctx context.Context, conn *websocket.Conn, gameID string, e
 		wsErr = ErrWsUndoAction
 	}
 
-	slog.WarnContext(ctx, "failed to handle ws message", "Err", err, "wsErr", wsErr)
+	logutil.RootLog(ctx, slog.LevelError, "failed to handle ws message", err, "wsErr", wsErr)
 
 	bytes, err := proto.Marshal(SerializeGameOutputError(gameID, wsErr))
 	if err != nil {
@@ -134,7 +135,8 @@ func writeGameInitErr(ctx context.Context, conn *websocket.Conn, gameID string, 
 	default:
 		wsErr = ErrWsFatal
 	}
-	slog.WarnContext(ctx, "failed to initialize gameplay websocket", "Err", err, "wsErr", wsErr)
+
+	logutil.RootLog(ctx, slog.LevelError, "failed to initialize gameplay websocket", err, "wsErr", wsErr)
 
 	bytes, err := proto.Marshal(SerializeGameOutputError(gameID, wsErr))
 	if err != nil {
@@ -149,11 +151,11 @@ func (api *API) handleGameInit(ctx context.Context, gameID string, sessionID str
 	// apply state updates for the init phase
 	player, err = api.services.GetSession(ctx, sessionID)
 	if err != nil {
-		return player, fmt.Errorf("get session in game init phase: %w", err)
+		return player, serrors.New("get session in game init phase", err)
 	}
 	chessState, err := api.services.JoinGame(ctx, gameID, player)
 	if err != nil {
-		return player, fmt.Errorf("join game in init game phase: %w", err)
+		return player, serrors.New("join game in init game phase", err)
 	}
 
 	// produce messages for init phase
@@ -163,7 +165,7 @@ func (api *API) handleGameInit(ctx context.Context, gameID string, sessionID str
 		model.SerializePlayer(player),
 	))
 	if err != nil {
-		return player, fmt.Errorf("marshal init output: %w", err)
+		return player, serrors.New("marshal init output", err)
 	}
 	writeMessage(ctx, conn, initBytes)
 
@@ -208,7 +210,7 @@ func (api *API) handleGameMessage(ctx GameSocketContext, input message) {
 func (api *API) handleGameForfeit(ctx GameSocketContext) error {
 	endState, err := api.services.EndGame(ctx.Context, ctx.GameID, ctx.Player)
 	if err != nil {
-		return fmt.Errorf("forfeit game %s: %w", ctx.GameID, err)
+		return serrors.Format("forfeit game", err, "gameID", ctx.GameID)
 	}
 	api.broadcaster.BroadcastGamesEvent(ctx.Context, SerializeGameOutputForfeit(ctx.GameID, endState))
 	return nil
@@ -217,7 +219,7 @@ func (api *API) handleGameForfeit(ctx GameSocketContext) error {
 func (api *API) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) error {
 	moveResult, err := api.services.MakeGameMove(ctx.Context, ctx.GameID, ctx.Player, chess.DeserializeMove(pbInput.Move))
 	if err != nil {
-		return fmt.Errorf("make move on game %s: %w", ctx.GameID, err)
+		return serrors.Format("make move on game", err, "gameID", ctx.GameID)
 	}
 
 	api.broadcaster.BroadcastGamesEvent(ctx.Context, SerializeGameOutputMove(
@@ -239,7 +241,7 @@ func (api *API) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput) err
 	outputChat := SerializeGameOutputChat(ctx.GameID, chatMsg)
 
 	if err := api.services.InsertChat(ctx.Context, ctx.GameID, chatMsg); err != nil {
-		return fmt.Errorf("insert chat on game %s: %w", ctx.GameID, err)
+		return serrors.Format("insert chat on game", err, "gameID", ctx.GameID)
 	}
 
 	api.broadcaster.BroadcastGamesEvent(ctx.Context, outputChat)
@@ -254,7 +256,7 @@ func (api *API) handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput) err
 
 	state, err := api.services.AttemptGameUndo(ctx.Context, ctx.GameID, ctx.Player, undoKind)
 	if err != nil {
-		return fmt.Errorf("%+v attempting undo on game %s: %w", ctx.Player, ctx.GameID, err)
+		return serrors.Format("attempting undo on game", err, "player", ctx.Player, "gameID", ctx.GameID)
 	}
 
 	api.broadcaster.BroadcastGamesEvent(ctx.Context, SerializeGameOutputUndo(

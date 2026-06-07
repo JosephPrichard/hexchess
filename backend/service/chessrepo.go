@@ -3,7 +3,7 @@ package svc
 import (
 	"context"
 	"errors"
-	"fmt"
+	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
 	"log/slog"
 	"time"
@@ -38,12 +38,12 @@ func (services *HexchessServices) getChessState(ctx context.Context, getter Redi
 	if errors.Is(err, redis.Nil) {
 		return nil, ErrNoChessState
 	} else if err != nil {
-		return nil, fmt.Errorf("get chess state in redis: %w", err)
+		return nil, serrors.New("get chess state in redis", err)
 	}
 
 	state, err := model.UnmarshalChessState(bytes)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal chess state: %w", err)
+		return nil, serrors.New("unmarshal chess state", err)
 	}
 
 	slog.InfoContext(ctx, "retrieved chess state", "key", gameKey)
@@ -70,7 +70,7 @@ func (services *HexchessServices) setChessState(ctx context.Context, setter Redi
 
 	bytes, err := proto.Marshal(model.SerializeChessState(state))
 	if err != nil {
-		return fmt.Errorf("marshal chess state: %w", err)
+		return serrors.New("marshal chess state", err)
 	}
 	setter.Set(ctx, gameKey, bytes, 0)
 
@@ -89,7 +89,7 @@ func (services *HexchessServices) setChessStates(ctx context.Context, chessState
 
 		bytes, err := proto.Marshal(model.SerializeChessState(state))
 		if err != nil {
-			return fmt.Errorf("marshal chess state: %w", err)
+			return serrors.New("marshal chess state", err)
 		}
 		pipe.SetNX(ctx, gameKey, bytes, 0)
 

@@ -3,10 +3,10 @@ package svc
 import (
 	"context"
 	"errors"
-	"fmt"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/lib/enum"
+	"hexchess-svc/lib/serrors"
 	"hexchess-svc/lib/timeutil"
 	"hexchess-svc/model"
 	"log/slog"
@@ -32,7 +32,7 @@ func mapGetReplayResult[ID any](ctx context.Context, id ID, row sqlc.SelectRepla
 	if db.IsErrNoRows(err) {
 		return model.FullReplay{}, ErrNoReplay
 	} else if err != nil {
-		return model.FullReplay{}, fmt.Errorf("select replay [%v] by userID: %w", id, err)
+		return model.FullReplay{}, serrors.Format("select replay by id", err, "id", id)
 	}
 	replay := mapFullReplayByIDRow(row)
 	slog.InfoContext(ctx, "selected replay by userID", "replay", replay, "userID", id)
@@ -78,7 +78,7 @@ func mapReplayByIDRow(row sqlc.SelectReplayByIDRow) model.Replay {
 func (services *HexchessServices) GetMovesHistory(ctx context.Context, replayID int) ([]byte, error) {
 	row, err := services.querier.SelectReplayMoveHistoryByID(ctx, int64(replayID))
 	if err != nil {
-		return nil, fmt.Errorf("select replay move histories for replay [%d]: %w", replayID, err)
+		return nil, serrors.Format("select replay move histories", err, "replayID", replayID)
 	}
 	slog.InfoContext(ctx, "selected replay move histories", "replayID", replayID)
 	return row.Data, nil
@@ -185,7 +185,7 @@ func (services *HexchessServices) SearchReplaysByQuery(ctx context.Context, quer
 	}
 	replayRows, err := services.querier.SelectReplaysByQuery(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("select replays by query %+v: %w", query, err)
+		return nil, serrors.Format("select replays by query", err, "replaysQuery", query)
 	}
 
 	replays := make([]model.FullReplay, 0, len(replayRows))
@@ -193,7 +193,7 @@ func (services *HexchessServices) SearchReplaysByQuery(ctx context.Context, quer
 		replays = append(replays, mapFullReplayByIDRow(sqlc.SelectReplayByIDRow(row)))
 	}
 
-	slog.InfoContext(ctx, "selected replays", "query", query, "replays", replays)
+	slog.InfoContext(ctx, "selected replays", "replaysQuery", query, "replays", replays)
 	return replays, nil
 }
 
@@ -231,7 +231,7 @@ func (services *HexchessServices) RetrieveEloHistoryBuckets(ctx context.Context,
 		PlayedAfter: playedAfter,
 	})
 	if err != nil {
-		return nil, 0, fmt.Errorf("select replay elos for user %d after %v: %w", params.UserID, playedAfter, err)
+		return nil, 0, serrors.Format("select replay elos for user", err, "userID", params.UserID, "playedAfter", playedAfter)
 	}
 	slog.InfoContext(ctx, "selected elo replay histories", "userID", params.UserID, "playedAfter", playedAfter, "eloRows", eloRows)
 

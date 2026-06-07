@@ -3,9 +3,9 @@ package svc
 import (
 	"context"
 	"errors"
-	"fmt"
 	"hexchess-svc/db"
 	"hexchess-svc/lib/enum"
+	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
 	"log/slog"
 	"time"
@@ -52,7 +52,7 @@ func (services *HexchessServices) InsertChallenge(ctx context.Context, inst Chal
 		if svcErr := mapChallengeInsertErr(dbErr); svcErr != nil {
 			return model.Challenge{}, svcErr
 		}
-		return model.Challenge{}, fmt.Errorf("insert challenge %+v: %w", inst, dbErr)
+		return model.Challenge{}, serrors.Format("insert challenge", dbErr, "inst", inst)
 	}
 
 	challenge := mapChallengeRow(sqlc.SelectChallengesByParticipantRow(row))
@@ -80,7 +80,7 @@ func (services *HexchessServices) GetChallengesByParticipant(ctx context.Context
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("get challenges by participant %v: %w", key, err)
+		return nil, serrors.Format("get challenges by participant", err, "key", key)
 	}
 
 	challenges := make([]model.Challenge, 0, len(rows))
@@ -104,7 +104,7 @@ func (services *HexchessServices) DeleteChallenge(ctx context.Context, key Chall
 	if db.IsErrNoRows(err) {
 		return DeleteResult{}, ErrChallengeNotFound
 	} else if err != nil {
-		return DeleteResult{}, fmt.Errorf("delete challenge %d: %w", key, err)
+		return DeleteResult{}, serrors.Format("delete challenge", err, "key", key)
 	}
 
 	gameColor := enum.Expect(challengeRow.StartColor, model.GameColorEnums)

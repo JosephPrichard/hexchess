@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hexchess-svc/lib/logutil"
+	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
 	svc "hexchess-svc/service"
@@ -25,7 +27,7 @@ func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc
 			resp := ServiceViewFromErr(err)
 			writeJSON(w, resp.Status, resp)
 
-			slog.Log(ctx, LevelFromStatus(resp.Status), "failed to handle REST call", "error", err, "method", r.Method, "url", r.URL)
+			logutil.RootLog(ctx, LevelFromStatus(resp.Status), "failed to handle REST call", err, "method", r.Method, "url", r.URL)
 		}
 	}
 }
@@ -71,7 +73,7 @@ func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) error {
 	if errors.Is(err, svc.ErrTakenUsername) {
 		return ErrHttpDuplicateUsername
 	} else if err != nil {
-		return fmt.Errorf("insert user: %w", err)
+		return serrors.New("insert user", err)
 	}
 
 	ttl, err := api.authenticator.SetSessionPlayer(ctx, w, model.MakePlayer(user.ID, user.Username, user.Country))
@@ -120,7 +122,7 @@ func (api *API) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 
 	user, err := api.services.VerifyUser(ctx, body.Username, body.Password)
 	if err != nil {
-		return fmt.Errorf("verify user: %w", err)
+		return serrors.New("verify user", err)
 	}
 
 	return api.handleLoginSession(ctx, w, user)
@@ -140,7 +142,7 @@ func (api *API) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) error 
 
 	payload, err := api.services.ValidateGoogleIDToken(ctx, body.Token)
 	if err != nil {
-		return fmt.Errorf("validate google login id token: %w", err)
+		return serrors.New("validate google login id token", err)
 	}
 	slog.InfoContext(ctx, "validated google account id token", "googleAccountID", payload.AccountID)
 
@@ -149,7 +151,7 @@ func (api *API) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) error 
 		Country:  model.DefaultCountry,
 	})
 	if err != nil {
-		return fmt.Errorf("upsert verified google user: %w", err)
+		return serrors.New("upsert verified google user", err)
 	}
 	return api.handleLoginSession(ctx, w, user)
 }
@@ -179,11 +181,11 @@ func (api *API) HandleUpdatePassword(w http.ResponseWriter, r *http.Request) err
 	if errors.Is(err, svc.ErrUserNotFound) {
 		return ErrHttpInvalidLogin
 	} else if err != nil {
-		return fmt.Errorf("verify user: %w", err)
+		return serrors.New("verify user", err)
 	}
 
 	if err := api.services.UpdateUserPassword(ctx, user.ID, body.NewPassword); err != nil {
-		return fmt.Errorf("update user password: %w", err)
+		return serrors.New("update user password", err)
 	}
 	slog.InfoContext(ctx, "user has updated password", "user", user)
 
@@ -215,7 +217,7 @@ func (api *API) HandleUpdateUser(w http.ResponseWriter, r *http.Request) error {
 		Country:  body.NewCountry,
 	})
 	if err != nil {
-		return fmt.Errorf("update user: %w", err)
+		return serrors.New("update user", err)
 	}
 	slog.InfoContext(ctx, "user has updated username", "user", player)
 
@@ -244,7 +246,7 @@ func (api *API) HandleCreateTempSession(w http.ResponseWriter, r *http.Request) 
 	slog.InfoContext(ctx, "created sessions", "sessions", sessions)
 
 	if err := api.services.SetSessions(ctx, sessions...); err != nil {
-		return fmt.Errorf("set sessions: %w", err)
+		return serrors.New("set sessions", err)
 	}
 
 	writeJSON(w, http.StatusOK, TempSessionResp{SessionID: tempSessionID})
@@ -267,7 +269,7 @@ func (api *API) HandleRefreshSession(w http.ResponseWriter, r *http.Request) err
 	}
 
 	if err := api.services.UpdateSessionEx(ctx, session.Token, SessionMaxAge); err != nil {
-		return fmt.Errorf("update session with expiry: %d %w", SessionMaxAge, err)
+		return serrors.Format("update session with expiry", err, "expiry", SessionMaxAge)
 	}
 
 	w.Header().Set("Set-Cookie", FmtCookie(session.Token))
@@ -287,12 +289,12 @@ func (api *API) HandleRefreshSession(w http.ResponseWriter, r *http.Request) err
 func (api *API) HandleLogout(w http.ResponseWriter, r *http.Request) error {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
-		return fmt.Errorf("get cookie %s: %w", CookieKey, err)
+		return serrors.Format("get cookie", err, "cookieKey", CookieKey)
 	}
 	sessionID := cookie.Value
 
 	if err := api.services.DeleteSession(r.Context(), sessionID); err != nil {
-		return fmt.Errorf("logging ext session %s: %w", sessionID, err)
+		return serrors.Format("logging ext session", err, "sessionID", sessionID)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
 
@@ -314,7 +316,7 @@ func (api *API) HandleGetSelf(w http.ResponseWriter, r *http.Request) error {
 
 	user, err := api.services.GetUserByID(ctx, player.ID)
 	if err != nil {
-		return fmt.Errorf("get user by id %+v: %w", player, err)
+		return serrors.Format("get user by id", err, "player", player)
 	}
 	slog.InfoContext(ctx, "retrieved user", "user", user)
 
@@ -342,11 +344,11 @@ func (api *API) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) err
 
 	leaderboard, err := api.services.GetLeaderboardPage(ctx, query.Mode, int64(query.Page), defaultPaginationCount)
 	if err != nil {
-		return fmt.Errorf("get leaderboard page %d: %w", query.Page, err)
+		return serrors.Format("get leaderboard page", err, "page", query.Page)
 	}
 	users, _, err := api.services.GetFullLeaderboardUsers(ctx, query.Mode, leaderboard.RankedUsers)
 	if err != nil {
-		return fmt.Errorf("get full leaderboard users for %+v: %w", leaderboard.RankedUsers, err)
+		return serrors.Format("get full leaderboard users", err, "rankedUsers", leaderboard.RankedUsers)
 	}
 	slog.InfoContext(ctx, "retrieved leaderboard", "users", users)
 
@@ -371,7 +373,7 @@ func (api *API) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
 	if errors.Is(err, svc.ErrUserNotFound) {
 		return ErrHttpNotFoundUser
 	} else if err != nil {
-		return fmt.Errorf("get full user %d: %w", userID, err)
+		return serrors.Format("get full user", err, "userID", userID)
 	}
 
 	playersResp := GetPlayersResp{FullUser: fullUser}
@@ -398,7 +400,7 @@ func (api *API) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) erro
 
 	users, err := api.services.GetFuzzySearchLeaderboard(ctx, name, int32(page), defaultPaginationCount)
 	if err != nil {
-		return fmt.Errorf("search users by name=%s: %w", name, err)
+		return serrors.Format("search users by name", err, "name", name)
 	}
 
 	writeJSON(w, http.StatusOK, SearchPlayersResp{UserList: users})
@@ -432,14 +434,14 @@ func (api *API) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) er
 
 	deleteResult, err := api.services.DeleteChallenge(ctx, svc.ChallengeKey{ChallengerID: body.ChallengerID, ChallengeeID: body.ChallengeeID})
 	if err != nil {
-		return fmt.Errorf("delete challenge: %w", err)
+		return serrors.New("delete challenge", err)
 	}
 
 	var gameID string
 	if body.Action == Accept {
 		gameID, err = api.services.CreateGame(ctx, deleteResult.FirstColor, deleteResult.Mode, nil)
 		if err != nil {
-			return fmt.Errorf("create game %+v: %w", deleteResult, err)
+			return serrors.Format("create game", err, "deleteResult", deleteResult)
 		}
 	}
 
@@ -473,7 +475,7 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 		MadeOn:       time.Now(),
 	})
 	if err != nil {
-		return fmt.Errorf("insert challenge: %w", err)
+		return serrors.New("insert challenge", err)
 	}
 
 	api.broadcaster.BroadcastChallenge(ctx, ret, pubsub.Async())
@@ -510,7 +512,7 @@ func (api *API) HandleGetChallenges(w http.ResponseWriter, r *http.Request) erro
 		challengeList, err = api.services.GetChallengesByParticipant(ctx, svc.ChallengeKey{ChallengerID: -1, ChallengeeID: player.ID})
 	}
 	if err != nil {
-		return fmt.Errorf("get challenges: %w", err)
+		return serrors.New("get challenges", err)
 	}
 
 	slog.InfoContext(ctx, "retrieved challenges", "challengeList", challengeList)
@@ -531,7 +533,7 @@ func (api *API) HandleCountUserChallenges(w http.ResponseWriter, r *http.Request
 	}
 	count, err := api.services.CountUserChallenges(ctx, player.ID)
 	if err != nil {
-		return fmt.Errorf("count user challenges: %w", err)
+		return serrors.New("count user challenges", err)
 	}
 
 	writeJSON(w, http.StatusOK, CountChallengesResp{Count: count})
@@ -558,7 +560,7 @@ func (api *API) HandleCreateGame(w http.ResponseWriter, r *http.Request) error {
 
 	gameID, err := api.services.CreateGame(ctx, body.FirstColor, body.Mode, &body.InitialBoard)
 	if err != nil {
-		return fmt.Errorf("create game: %w", err)
+		return serrors.New("create game", err)
 	}
 	slog.InfoContext(ctx, "created game", "gameID", gameID, "body", body)
 
@@ -613,7 +615,7 @@ func (api *API) HandleGetGameMetadata(w http.ResponseWriter, r *http.Request) er
 
 	resp, err := api.services.GetGameMetadata(ctx, session, query.AfterOrdering, query.Count)
 	if err != nil {
-		return fmt.Errorf("get chess metas: %w", err)
+		return serrors.New("get chess metas", err)
 	}
 
 	writeJSON(w, http.StatusOK, ChessMetasResp{ChessList: mapChessMetas(resp.AllChessMetas), SelfChessList: mapChessMetas(resp.SelfChessMetas)})
@@ -626,12 +628,12 @@ func (api *API) HandleGetGameChats(w http.ResponseWriter, r *http.Request) error
 
 	chats, err := api.services.GetChats(ctx, gameID, 100)
 	if err != nil {
-		return fmt.Errorf("get state chats: %w", err)
+		return serrors.New("get state chats", err)
 	}
 
 	bytes, err := model.MarshalChats(chats)
 	if err != nil {
-		return fmt.Errorf("failed to marshal chats: %w", err)
+		return serrors.New("failed to marshal chats", err)
 	}
 
 	writeBytes(w, http.StatusOK, bytes)
@@ -660,7 +662,7 @@ func (api *API) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 	if errors.Is(err, svc.ErrNoReplay) {
 		return ErrHttpNotFoundReplay
 	} else if err != nil {
-		return fmt.Errorf("get replay by query %+v: %w", query, err)
+		return serrors.Format("get replay by query", err, "query", query)
 	}
 
 	writeJSON(w, http.StatusOK, GetReplayResp{Replay: replay})
@@ -681,7 +683,7 @@ func (api *API) HandleSearchReplays(w http.ResponseWriter, r *http.Request) erro
 
 	replays, err := api.services.SearchReplaysByQuery(ctx, query)
 	if err != nil {
-		return fmt.Errorf("get replays by query %+v: %w", query, err)
+		return serrors.Format("get replays by query", err, "query", query)
 	}
 
 	writeJSON(w, http.StatusOK, SearchReplaysResp{ReplayList: replays})
@@ -709,7 +711,7 @@ func (api *API) HandleGetEloHistories(w http.ResponseWriter, r *http.Request) er
 	}
 	eloBuckets, _, err := api.services.RetrieveEloHistoryBuckets(ctx, params)
 	if err != nil {
-		return fmt.Errorf("retrieve elo histories buckets with params %v: %w", params, err)
+		return serrors.Format("retrieve elo histories buckets with params", err, "params", params)
 	}
 	writeJSON(w, http.StatusOK, EloHistoriesResp{Buckets: eloBuckets})
 
@@ -775,7 +777,7 @@ func (api *API) HandleCreateTournament(w http.ResponseWriter, r *http.Request) e
 	if errors.Is(err, svc.ErrInvalidRounds) {
 		return ErrHttpInvalidRounds
 	} else if err != nil {
-		return fmt.Errorf("insert tournament: %w", err)
+		return serrors.New("insert tournament", err)
 	}
 
 	slog.InfoContext(ctx, "created tournament", "tournamentID", tournamentID, "tournamentKey", tournamentKey)
@@ -806,7 +808,7 @@ func (api *API) HandleJoinTournament(w http.ResponseWriter, r *http.Request) err
 		InsertionTime: time.Now(),
 	})
 	if err != nil {
-		return fmt.Errorf("join tournament by tournament id %s: %w", tournamentKey, err)
+		return serrors.Format("join tournament by tournament id", err, "tournamentKey", tournamentKey)
 	}
 
 	slog.InfoContext(ctx, "participant joined tournament", "joiningID", player.ID, "tournamentKey", tournamentKey)
@@ -831,7 +833,7 @@ func (api *API) HandleBeginCountdownTournament(w http.ResponseWriter, r *http.Re
 
 	result, err := api.services.BeginTournamentCountdown(ctx, tournamentKey, player.ID)
 	if err != nil {
-		return fmt.Errorf("begin tournament countdown by tournament id %s: %w", tournamentKey, err)
+		return serrors.Format("begin tournament countdown by tournament id", err, "tournamentKey", tournamentKey)
 	}
 
 	slog.InfoContext(ctx, "successfully started countdown for tournament", "countdownResult", result)
@@ -856,7 +858,7 @@ func (api *API) HandleGetTournament(w http.ResponseWriter, r *http.Request) erro
 	if errors.Is(err, svc.ErrTournamentNotFound) {
 		return ErrHttpNotFoundTournament
 	} else if err != nil {
-		return fmt.Errorf("get tournament by key: %w", err)
+		return serrors.New("get tournament by key", err)
 	}
 
 	slog.Info("retrieved full tournament", "tournament", tournament)
@@ -879,7 +881,7 @@ func (api *API) HandleGetTournaments(w http.ResponseWriter, r *http.Request) err
 
 	tournaments, err := api.services.GetTournaments(ctx, query.UserID, query.AfterID, defaultPaginationCount)
 	if err != nil {
-		return fmt.Errorf("get tournaments: %w", err)
+		return serrors.New("get tournaments", err)
 	}
 	slog.Info("retrieved tournaments", "tournaments", tournaments)
 
@@ -901,7 +903,7 @@ func (api *API) HandleLeaveTournament(w http.ResponseWriter, r *http.Request) er
 	}
 	didLeave, err := api.services.LeaveTournament(ctx, tournamentKey, player.ID)
 	if err != nil {
-		return fmt.Errorf("leave tournament: %w", err)
+		return serrors.New("leave tournament", err)
 	}
 	slog.Info("attempted to leave tournament", "didLeave", didLeave, "tournamentKey", tournamentKey, "player", player)
 

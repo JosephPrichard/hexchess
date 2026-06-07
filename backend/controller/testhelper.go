@@ -187,7 +187,7 @@ type updtLbChangeSet struct {
 	EloDiff float64
 }
 
-func createLeaderboard(t *testing.T, rdb db.Redis, changes ...updtLbChangeSet) error {
+func createLeaderboard(t *testing.T, rdb db.Redis, changes ...updtLbChangeSet) {
 	ctx := t.Context()
 	pipe := rdb.Cache.Pipeline()
 	for _, change := range changes {
@@ -195,9 +195,8 @@ func createLeaderboard(t *testing.T, rdb db.Redis, changes ...updtLbChangeSet) e
 		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: change.EloDiff, Member: change.ID})
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("set leaderboard users: %w", err)
+		t.Fatalf("failed to create leaderboard: %v", err)
 	}
-	return nil
 }
 
 func asJSONReader(v any) *strings.Reader {

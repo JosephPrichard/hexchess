@@ -7,6 +7,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/log/global"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
+	"hexchess-svc/lib/serrors"
 	"log/slog"
 	"os"
 )
@@ -31,6 +32,12 @@ func DynLog(ctx context.Context, msg string, err error, args ...any) {
 	} else {
 		slog.InfoContext(ctx, msg, args...)
 	}
+}
+
+func RootLog(ctx context.Context, level slog.Level, msg string, err error, args ...any) {
+	args = append(args, "error", err)
+	serrors.Flatten(err, &args)
+	slog.Log(ctx, level, msg, args...)
 }
 
 func Fatal(msg string, args ...any) {

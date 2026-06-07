@@ -3,6 +3,8 @@ package controller
 import (
 	"context"
 	"fmt"
+	"hexchess-svc/lib/logutil"
+	"hexchess-svc/lib/serrors"
 	"hexchess-svc/lib/timeutil"
 	"hexchess-svc/pubsub"
 	"log/slog"
@@ -30,7 +32,7 @@ func SSE(h func(w *SSEClient, r *http.Request) error) http.HandlerFunc {
 		if err := h(&SSEClient{ctx, w, f}, r); err != nil {
 			resp := ServiceViewFromErr(err)
 
-			slog.Log(ctx, LevelFromStatus(resp.Status), "sse request failed", "error", err, "method", r.Method, "url", r.URL)
+			logutil.RootLog(ctx, LevelFromStatus(resp.Status), "sse request failed", err, "method", r.Method, "url", r.URL)
 
 			http.Error(w, fmt.Sprintf("%s:%s", MetaEvent, resp.Message), resp.Status)
 		}
@@ -54,11 +56,11 @@ func (api *API) HandleCountEvents(client *SSEClient, _ *http.Request) error {
 
 	activeCount, err := api.services.GetActiveCount(ctx)
 	if err != nil {
-		return fmt.Errorf("get active count: %w", err)
+		return serrors.New("get active count", err)
 	}
 	gamesCount, err := api.services.GetGameMetadataCount(ctx)
 	if err != nil {
-		return fmt.Errorf("get chess state count: %w", err)
+		return serrors.New("get chess state count", err)
 	}
 
 	writeCountEvent(client, pubsub.GlobalActiveEvent, activeCount)
@@ -100,7 +102,7 @@ func (api *API) HandleActiveConn(client *SSEClient, r *http.Request) error {
 	strUserID := strconv.Itoa(int(player.ID))
 
 	if _, err := api.services.AddActiveUser(ctx, strUserID); err != nil {
-		return fmt.Errorf("add active user: %w", err)
+		return serrors.New("add active user", err)
 	}
 
 	client.event(MetaEvent, strUserID)
