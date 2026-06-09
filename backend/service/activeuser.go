@@ -42,7 +42,7 @@ func (services *HexchessServices) RetainActiveUser(ctx context.Context, id strin
 
 	_, err := services.redis.Cache.ZAddXX(ctx, services.redis.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
 	if err != nil {
-		return serrors.Format("retain active user", err, "id", id)
+		return serrors.New("retain active user", err, "id", id)
 	}
 	slog.InfoContext(ctx, "retained active user", "id", id)
 	return nil
@@ -53,13 +53,13 @@ func (services *HexchessServices) AddActiveUser(ctx context.Context, id string) 
 
 	_, err := services.redis.Cache.ZAddNX(ctx, services.redis.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
 	if err != nil {
-		return 0, serrors.Format("add active user", err, "id", id)
+		return 0, serrors.New("add active user", err, "id", id)
 	}
 	slog.InfoContext(ctx, "added active user", "id", id)
 
 	count, err := services.GetActiveCount(ctx)
 	if err != nil {
-		return 0, serrors.Format("get active user count after adding user", err, "id", id)
+		return 0, serrors.New("get active user count after adding user", err, "id", id)
 	}
 
 	services.broadcaster.BroadcastActiveCount(ctx, count, pubsub.Async())
@@ -69,7 +69,7 @@ func (services *HexchessServices) AddActiveUser(ctx context.Context, id string) 
 func (services *HexchessServices) RemoveActiveUser(ctx context.Context, id string) (int64, error) {
 	res, err := services.redis.Cache.ZRem(ctx, services.redis.ActiveUsersZSet, id).Result()
 	if err != nil {
-		return 0, serrors.Format("remove active user", err, "id", id)
+		return 0, serrors.New("remove active user", err, "id", id)
 	}
 	if res > 0 {
 		slog.InfoContext(ctx, "removed active user", "id", id)
@@ -79,7 +79,7 @@ func (services *HexchessServices) RemoveActiveUser(ctx context.Context, id strin
 
 	count, err := services.GetActiveCount(ctx)
 	if err != nil {
-		return 0, serrors.Format("get active user count after removing user", err, "id", id)
+		return 0, serrors.New("get active user count after removing user", err, "id", id)
 	}
 
 	services.broadcaster.BroadcastActiveCount(ctx, count, pubsub.Async())

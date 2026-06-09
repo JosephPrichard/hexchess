@@ -1,8 +1,9 @@
-import { codes } from '$lib/utils/error';
-import type {Action, ChallengeModel, Chat, ChessModel, EloBuckets, FullPlayerModel, LbdUserModel, ReplayModel, ReplayQuerySortKey, ServiceModel, SessionModel, UserModel} from './models';
-import { v4 as uuidv4 } from 'uuid';
-import { env } from '$env/dynamic/public';
-import { ChatMessages, MoveHistory } from '$lib/pb/messages';
+import {codes} from '$lib/utils/error';
+import type {Action, ChallengeModel, ChessModel, EloBuckets, FullPlayerModel, LbdUserModel, ReplayModel, ServiceModel, SessionModel, UserModel} from './models';
+import {v4 as uuidv4} from 'uuid';
+import {env} from '$env/dynamic/public';
+import {ChatMessages, MoveHistory} from '$lib/pb/messages';
+import {createSHA256, sha256} from "hash-wasm";
 
 export function appBaseURL() {
 	return env.PUBLIC_APP_BASE_URL || 'http://localhost:5173';
@@ -15,6 +16,8 @@ export function baseURL() {
 export type Result<T> = [T | undefined, ServiceModel | undefined];
 export type FetchFn = typeof window.fetch;
 export type RequestFn<T> = (fetch?: FetchFn) => Promise<Result<T>>;
+
+const unknownError = () => ({ status: 500, message: "", error: codes.errorUnknown, errors: {} });
 
 export async function requestJSON<Response extends object | {}>(input: RequestInfo | URL, init?: RequestInit, request?: FetchFn): Promise<Result<Response>> {
 	if (!request) {
@@ -43,7 +46,7 @@ export async function requestJSON<Response extends object | {}>(input: RequestIn
 		if (!(error instanceof TypeError)) {
 			console.error(error);
 		}
-		return [undefined, { status: 500, message: "", errors: codes.errorUnknown }];
+		return [undefined, unknownError()];
 	}
 }
 
@@ -74,11 +77,11 @@ export async function requestBlob(input: RequestInfo | URL, init?: RequestInit, 
 		if (!(error instanceof TypeError)) {
 			console.error(error);
 		}
-		return [undefined, { status: 500, errors: codes.errorUnknown }];
+		return [undefined, unknownError()];
 	}
 }
 
-export function cached<Response>(get: RequestFn<Response>): RequestFn<Response> {
+export function memcached<Response>(get: RequestFn<Response>): RequestFn<Response> {
 	let cache: Response | undefined = undefined;
 	return async (fetch?: FetchFn) => {
 		if (cache !== undefined) {
@@ -95,7 +98,7 @@ export function cached<Response>(get: RequestFn<Response>): RequestFn<Response> 
 			return [cache, undefined];
 		} catch (error) {
 			console.error(error);
-			return [undefined, { status: 500, errors: codes.errorUnknown }];
+			return [undefined, unknownError()];
 		}
 	};
 }
@@ -202,29 +205,45 @@ function postRefreshSession() {
 	});
 }
 
-export async function postProfilePic(file: File) {
+
+export async function postProfilePic(file: File): Promise<Result<{}>> {
 	try {
-		const input = `${baseURL()}/users/profile-pics`;
+		const profilePicUrl = `${baseURL()}/users/profile-pics`;
 
 		const trace = uuidv4();
-		console.log(`sending request to ${input} with trace ${trace}`);
-		const response = await fetch(input, {
+		console.log(`sending request to ${profilePicUrl} with trace ${trace}`);
+
+		const hasher = await createSHA256();
+		const reader = file.stream().getReader();
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			hasher.update(value);
+		}
+		const contentHash = btoa(String.fromCharCode(...hasher.digest('binary')));
+
+		const profileResp = await fetch(profilePicUrl, {
 			method: "POST",
-			body: file, // set the file as binary body data
 			credentials: 'include',
+			body: file,
+			headers: {
+				"Content-Digest": contentHash,
+				"Content-Type": file.type,
+				"X-trace": trace,
+			},
 		});
 
-		const data: ServiceModel = await response.json();
-		if (!response.ok) {
+		if (!profileResp.ok) {
+			const data: ServiceModel = await profileResp.json();
 			return [undefined, data];
 		} else {
-			return [data, undefined];
+			return [{}, undefined];
 		}
 	} catch (error) {
 		if (!(error instanceof TypeError)) {
 			console.error(error);
 		}
-		return [undefined, { status: 500,errors: codes.errorUnknown }];
+		return [undefined, unknownError()];
 	}
 }
 
@@ -380,7 +399,7 @@ async function getIsUserActive(userId: string | number) {
 	return requestJSON<Response>(`${baseURL()}/players/activity?${params}`, { method: 'GET' }, fetch);
 }
 
-const getCountries = cached(async (fetch?: FetchFn) => {
+const getCountries = memcached(async (fetch?: FetchFn) => {
 	return requestJSON<string[]>(`${baseURL()}/countries`, { method: 'GET' }, fetch);
 });
 

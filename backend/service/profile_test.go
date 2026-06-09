@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDeleteOldProfilePics(t *testing.T) {
+func TestDeleteExpiredProfilePics(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -54,7 +54,7 @@ func TestDeleteOldProfilePics(t *testing.T) {
 		}).
 		Return(&s3.DeleteObjectsOutput{}, nil)
 
-	require.NoError(t, services.DeleteOldProfilePics(ctx, 1))
+	require.NoError(t, services.deleteExpiredProfilePics(ctx, 1))
 }
 
 func TestFindMostRecentKey(t *testing.T) {

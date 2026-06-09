@@ -5,35 +5,28 @@ import (
 	"hexchess-svc/assets"
 	"hexchess-svc/lib/serrors"
 	svc "hexchess-svc/service"
-	"io"
 	"log/slog"
 	"net/http"
 )
 
-// MaxProfilePicSize 5 MiB
-const MaxProfilePicSize = 5 << 20
-
 func (api *API) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
+
 	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
 		return serrors.New("get session player", err)
 	}
 
+	contentChecksum := r.Header.Get("Content-Digest")
 	contentType := r.Header.Get("Content-Type")
 
-	bodyFile := io.LimitReader(r.Body, MaxProfilePicSize)
-	defer r.Body.Close()
-
-	key, err := api.services.UploadProfilePic(ctx, player, bodyFile, contentType)
+	uploadResp, err := api.services.UploadProfilePic(ctx, player, r.Body, contentType, contentChecksum)
 	if err != nil {
 		return serrors.New("upload profile pic", err)
 	}
-	if err := api.services.DeleteOldProfilePics(ctx, int(player.ID)); err != nil {
-		slog.ErrorContext(ctx, "failed to remove old profile pics", "error", err)
-	}
+	slog.InfoContext(ctx, "uploaded profile pic", "uploadResp", uploadResp)
 
-	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: key})
+	writeJSON(w, http.StatusOK, uploadResp)
 	return nil
 }
 

@@ -3,12 +3,11 @@ package egress
 import (
 	"context"
 	"fmt"
-	"log/slog"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"log/slog"
 )
 
 //go:generate mockgen -source=aws.go -destination=./aws_mock.go -package=egress
@@ -24,6 +23,11 @@ type S3ClientAPI interface {
 	DeleteObjects(ctx context.Context, params *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error)
 }
 
+type CompositeS3API struct {
+	*s3.Client
+	*s3.PresignClient
+}
+
 type AWS struct {
 	S3Endpoint string
 	S3Client   S3ClientAPI
@@ -32,14 +36,14 @@ type AWS struct {
 type AWSConfig struct {
 	AWSDefaultRegion string
 	AWSEndpoint      string
-	IsLocalstack     bool
+	IsLocal          bool
 }
 
 func MakeAwsClients(ctx context.Context, cfg AWSConfig) (AWS, error) {
 	awsOpts := []func(*config.LoadOptions) error{
 		config.WithRegion(cfg.AWSDefaultRegion),
 	}
-	if cfg.IsLocalstack {
+	if cfg.IsLocal {
 		awsOpts = append(awsOpts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("minioadmin", "minioadmin", "")))
 	}
 
@@ -52,14 +56,18 @@ func MakeAwsClients(ctx context.Context, cfg AWSConfig) (AWS, error) {
 		o.BaseEndpoint = aws.String(cfg.AWSEndpoint)
 		o.UsePathStyle = true
 	})
-	awsClient := AWS{S3Endpoint: cfg.AWSEndpoint, S3Client: s3Client}
+
+	presignClient := s3.NewPresignClient(s3Client)
+	awsClient := AWS{S3Endpoint: cfg.AWSEndpoint, S3Client: CompositeS3API{s3Client, presignClient}}
 
 	// creates all buckets by default.
-	for _, bucket := range Buckets {
-		if _, err := s3Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {
-			slog.WarnContext(ctx, "failed to create bucket", "bucket", bucket, "error", err)
+	go func() {
+		for _, bucket := range Buckets {
+			if _, err := s3Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {
+				slog.WarnContext(ctx, "failed to create bucket", "bucket", bucket, "error", err)
+			}
 		}
-	}
+	}()
 
 	return awsClient, nil
 }

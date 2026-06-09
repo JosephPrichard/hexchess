@@ -20,7 +20,7 @@ func (services *HexchessServices) GetSession(ctx context.Context, sessionID stri
 		if errors.Is(err, redis.Nil) {
 			return model.PlayerState{}, ErrSessionNotFound
 		}
-		return model.PlayerState{}, serrors.Format("get session", err, "sessionID", sessionID)
+		return model.PlayerState{}, serrors.New("get session", err, "sessionID", sessionID)
 	}
 
 	player, err := model.UnmarshalPlayer(bytes)
@@ -69,7 +69,7 @@ func (services *HexchessServices) UpdateSessionEx(ctx context.Context, sessionID
 func (services *HexchessServices) DeleteSession(ctx context.Context, sessionID string) error {
 	sessionKey := makeSessionKey(sessionID)
 	if err := services.redis.Cache.Del(ctx, sessionKey).Err(); err != nil {
-		return serrors.Format("delete session", err, "sessionID", sessionID)
+		return serrors.New("delete session", err, "sessionID", sessionID)
 	}
 	slog.InfoContext(ctx, "deleted session", "sessionID", sessionID)
 	return nil

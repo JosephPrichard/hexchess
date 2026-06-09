@@ -30,20 +30,15 @@
 		e.preventDefault();
 		isLoading = true;
 
-		const [[userData, userErr], profileResp] = await Promise.all([
+		const [[userData, userErr], [_, profileErr]] = await Promise.all([
 			services.postUpdateUser(username, bio, country),
-			profilePic ? services.postProfilePic(profilePic) : Promise.resolve(undefined)
+			profilePic ? services.postProfilePic(profilePic) : Promise.resolve([undefined, undefined])
 		]);
 		if (userData) {
 			updateClientUser(userData);
-		} else {
-			addErrorNotification(userErr);
 		}
-		if (profileResp) {
-			const [_, profileErr] = profileResp;
-			if (profileErr) {
-				addErrorNotification(profileErr);
-			}
+		if (userErr || profileErr) {
+			addErrorNotification(userErr ?? profileErr);
 		}
 
 		isLoading = false;

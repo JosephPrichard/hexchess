@@ -38,6 +38,7 @@ export const codes = {
 	errorTooManyParticipants: 'ERROR_TOO_MANY_PARTICIPANTS',
 	errorInvalidCountdownState: 'ERROR_INVALID_COUNTDOWN_STATE',
 	errorCountdownPermissions: 'ERROR_COUNTDOWN_PERMISSIONS',
+	errorProfilePicTooBig: 'ERROR_PROFILE_PIC_TOO_BIG',
 
 	// WS codes
 	errorFatal: 'ERROR_FATAL',
@@ -84,6 +85,7 @@ export const messages: Record<string, string> = {
 	[codes.errorInvalidJSON]: 'The request body contains invalid JSON.',
 	[codes.errorInvalidTimeframe]: 'The provided timeframe is invalid.',
 	[codes.errorInvalidAction]: 'The provided action is invalid.',
+	[codes.errorProfilePicTooBig]: 'The profile picture is too big. Maximum size is 5MiB.',
 
 	// WS messages
 	[codes.errorFatal]: 'A fatal error occurred. Please reconnect or try again later.',

@@ -18,6 +18,10 @@ RETURNING id;
 INSERT INTO tournament_participants (tournament_key, user_id, joined_on)
 VALUES (sqlc.arg('tournamentKey')::uuid, sqlc.arg('userID'), sqlc.arg('joinedOn'));
 
+-- name: BatchInsertTournamentParticipant :batchexec
+INSERT INTO tournament_participants (tournament_key, user_id, joined_on)
+VALUES (sqlc.arg('tournamentKey')::uuid, sqlc.arg('userID'), sqlc.arg('joinedOn')::timestamptz);
+
 -- name: BatchInsertTournamentMatch :batchexec
 INSERT INTO tournament_matches (tournament_key, game_id, white_id, black_id, round, created_on)
 VALUES (
@@ -26,7 +30,7 @@ VALUES (
         sqlc.arg('whiteID'),
         sqlc.arg('blackID'),
         sqlc.arg('round'),
-        COALESCE(sqlc.narg('createdOn'), CURRENT_TIMESTAMP)
+        COALESCE(sqlc.narg('createdOn')::timestamptz, CURRENT_TIMESTAMP)
 )
 ON CONFLICT ON CONSTRAINT tournament_matches_pkey DO NOTHING;
 

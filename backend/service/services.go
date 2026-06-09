@@ -9,9 +9,9 @@ import (
 	"hexchess-svc/lib/enum"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
+	"io"
 
 	"hexchess-svc/model"
-	"io"
 	"time"
 
 	"github.com/google/uuid"
@@ -51,6 +51,7 @@ type HexchessAPI interface {
 	RetrieveEloHistoryBuckets(ctx context.Context, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error)
 
 	InsertChallenge(ctx context.Context, inst ChallengeInst) (model.Challenge, error)
+	BatchInsertChallenges(ctx context.Context, insts []ChallengeInst) error
 	GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]model.Challenge, error)
 	DeleteChallenge(ctx context.Context, key ChallengeKey) (DeleteResult, error)
 	DeleteExpiredChallenges(ctx context.Context, userID int64) error
@@ -58,8 +59,7 @@ type HexchessAPI interface {
 
 	MakeProfileURL(key string) string
 	GetProfilePicKey(ctx context.Context, userID string) (string, error)
-	UploadProfilePic(ctx context.Context, uploader model.PlayerState, file io.Reader, contentType string) (string, error)
-	DeleteOldProfilePics(ctx context.Context, playerID int) error
+	UploadProfilePic(ctx context.Context, uploader model.PlayerState, file io.ReadCloser, contentType string, contentChecksum string) (UploadProfileResult, error)
 
 	ClearOrphanFiles(ctx context.Context, pageLength int32)
 
@@ -119,7 +119,6 @@ func (services *HexchessServices) Close() {
 
 type SetupService struct {
 	DB          db.DB
-	Querier     sqlc.Querier
 	Redis       db.Redis
 	AWS         egress.AWS
 	Remote      egress.RemoteAPIs
@@ -128,15 +127,16 @@ type SetupService struct {
 }
 
 func MakeHexchessServices(setup SetupService) *HexchessServices {
+	var querier sqlc.Querier
 	if setup.DB != nil {
-		setup.Querier = setup.DB.Querier()
+		querier = setup.DB.Querier()
 	}
 	if setup.Entropy == nil {
 		setup.Entropy = &RealEntropySource{}
 	}
 	return &HexchessServices{
 		transactor:     setup.DB,
-		querier:        setup.Querier,
+		querier:        querier,
 		redis:          setup.Redis,
 		aws:            setup.AWS,
 		remote:         setup.Remote,

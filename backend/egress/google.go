@@ -2,8 +2,8 @@ package egress
 
 import (
 	"context"
-	"fmt"
 	"google.golang.org/api/idtoken"
+	"hexchess-svc/lib/serrors"
 	"net/http"
 )
 
@@ -43,12 +43,12 @@ const UsernameClaim string = "email"
 func (google *GoogleAPI) ValidateGoogleIDToken(ctx context.Context, token string) (GoogleIDTokenPayload, error) {
 	payload, err := google.Validator.Validate(ctx, token, google.APIKey)
 	if err != nil {
-		return GoogleIDTokenPayload{}, fmt.Errorf("validate google id token %s: %w", token, err)
+		return GoogleIDTokenPayload{}, serrors.New("validate google id token", err, "token", token)
 	}
 	googleAccountID := payload.Subject
 	username, ok := payload.Claims[UsernameClaim].(string)
 	if !ok {
-		return GoogleIDTokenPayload{}, fmt.Errorf("expected claim=%s to be provided in payload: %v", UsernameClaim, payload)
+		return GoogleIDTokenPayload{}, serrors.New("validate google id token", err, "token", token, "payload", payload, "claim", UsernameClaim)
 	}
 	return GoogleIDTokenPayload{AccountID: googleAccountID, Username: username}, nil
 }

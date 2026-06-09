@@ -15,14 +15,14 @@ func (services *HexchessServices) GetChats(ctx context.Context, gameID string, c
 
 	strList, err := services.redis.Cache.ZRevRange(ctx, chatsZSet, 0, count).Result()
 	if err != nil {
-		return nil, serrors.Format("get the first chats", err, "count", count)
+		return nil, serrors.New("get the first chats", err, "count", count)
 	}
 
 	chats := make([]model.Chat, 0, len(strList))
 	for i, str := range strList {
 		chat, err := model.UnmarshalChat([]byte(str))
 		if err != nil {
-			return nil, serrors.Format("unmarshal chat", err, "index", i, "gameID", gameID)
+			return nil, serrors.New("unmarshal chat", err, "index", i, "gameID", gameID)
 		}
 		chats = append(chats, chat)
 	}
@@ -38,7 +38,7 @@ func (services *HexchessServices) InsertChat(ctx context.Context, gameID string,
 	}
 	chatsZSet := fmtGameChatsZSet(services.redis, fmtGameKey(gameID))
 	if err := services.redis.Cache.ZAdd(ctx, chatsZSet, redis.Z{Score: float64(chat.SentAt.UnixMilli()), Member: bytes}).Err(); err != nil {
-		return serrors.Format("add chat to zset", err, "chat", chat)
+		return serrors.New("add chat to zset", err, "chat", chat)
 	}
 	slog.InfoContext(ctx, "inserted state chat", "chat", chat, "zSetName", chatsZSet)
 	return nil

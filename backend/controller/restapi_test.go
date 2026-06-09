@@ -33,7 +33,7 @@ import (
 )
 
 var serviceViewCmpOpts = []cmp.Option{
-	cmpopts.IgnoreFields(ServiceView{}, "Message"),
+	cmpopts.IgnoreFields(ServiceResp{}, "Message"),
 	cmpopts.IgnoreFields(OneError{}, "Message"),
 }
 
@@ -44,7 +44,7 @@ func TestHandleRegister(t *testing.T) {
 		name        string
 		body        RegisterBody
 		wantSuccess SessionView
-		wantFail    ServiceView
+		wantFail    ServiceResp
 		wantStatus  int
 	}{
 		{
@@ -56,13 +56,13 @@ func TestHandleRegister(t *testing.T) {
 		{
 			name:       "InvalidPasswordConfirmDoesNotMatch",
 			body:       RegisterBody{Username: "testing-name1", Password: "testing-password1", ConfirmPassword: "wrong"},
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Error: ErrHttpConfirmPassword.Error()},
+			wantFail:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpConfirmPassword.Error()},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name: "InvalidUsernameAndPasswordTooShort",
 			body: RegisterBody{Username: "s", Password: "short", ConfirmPassword: "short"},
-			wantFail: ServiceView{
+			wantFail: ServiceResp{
 				Status: http.StatusBadRequest,
 				Errors: map[string]OneError{
 					"RegisterBody.Username": {Error: ErrHttpInvalidUsername.Error()},
@@ -74,7 +74,7 @@ func TestHandleRegister(t *testing.T) {
 		{
 			name:       "InvalidUsernameDuplicate",
 			body:       RegisterBody{Username: itest.UsersInsts[0].Username, Password: "testing-password2", ConfirmPassword: "testing-password2"},
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Error: ErrHttpDuplicateUsername.Error()},
+			wantFail:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpDuplicateUsername.Error()},
 			wantStatus: http.StatusBadRequest,
 		},
 	}
@@ -108,13 +108,13 @@ func TestHandleLogin(t *testing.T) {
 		name        string
 		body        LoginBody
 		wantSuccess SessionView
-		wantFail    ServiceView
+		wantFail    ServiceResp
 		wantStatus  int
 	}{
 		{
 			name:       "InvalidLogin",
 			body:       LoginBody{Username: "testing-name", Password: "testing-password"},
-			wantFail:   ServiceView{Status: http.StatusUnauthorized, Error: ErrHttpInvalidLogin.Error()},
+			wantFail:   ServiceResp{Status: http.StatusUnauthorized, Error: ErrHttpInvalidLogin.Error()},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
@@ -156,7 +156,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 		setupMocks  func(*gomock.Controller) egress.GoogleAPI
 		body        GoogleLoginBody
 		wantSuccess SessionView
-		wantFail    ServiceView
+		wantFail    ServiceResp
 		wantStatus  int
 	}{
 		{
@@ -170,7 +170,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 				return egress.MakeGoogleAPIWithValidator(apiKey, m)
 			},
 			body:       GoogleLoginBody{Token: "invalidToken123"},
-			wantFail:   ServiceView{Status: http.StatusInternalServerError, Error: ErrHttpFatal.Error()},
+			wantFail:   ServiceResp{Status: http.StatusInternalServerError, Error: ErrHttpFatal.Error()},
 			wantStatus: http.StatusInternalServerError,
 		},
 		{
@@ -228,21 +228,21 @@ func TestHandleUpdateUser(t *testing.T) {
 		body        UpdateUserBody
 		sessionID   string
 		wantSuccess SessionView
-		wantFail    ServiceView
+		wantFail    ServiceResp
 		wantStatus  int
 	}{
 		{
 			name:       "UnauthorizedUser",
 			body:       UpdateUserBody{NewUsername: "username"},
 			sessionID:  "invalid",
-			wantFail:   ServiceView{Status: http.StatusUnauthorized, Error: ErrHttpSessionExpired.Error()},
+			wantFail:   ServiceResp{Status: http.StatusUnauthorized, Error: ErrHttpSessionExpired.Error()},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
 			name:      "InvalidUsernameAndBiographyLength",
 			body:      UpdateUserBody{NewCountry: "us", NewUsername: "s", NewBio: strings.Repeat("a", 5001)},
 			sessionID: TestSessionID1,
-			wantFail: ServiceView{
+			wantFail: ServiceResp{
 				Status: http.StatusBadRequest,
 				Errors: map[string]OneError{
 					"UpdateUserBody.NewBio":      {Error: ErrHttpInvalidBio.Error()},
@@ -255,7 +255,7 @@ func TestHandleUpdateUser(t *testing.T) {
 			name:      "InvalidCountryUnknown",
 			body:      UpdateUserBody{NewCountry: "wrong", NewUsername: "new-username", NewBio: "testing biography"},
 			sessionID: TestSessionID1,
-			wantFail: ServiceView{
+			wantFail: ServiceResp{
 				Status: http.StatusBadRequest,
 				Errors: map[string]OneError{
 					"UpdateUserBody.NewCountry": {Error: ErrHttpInvalidCountry.Error()},
@@ -308,20 +308,20 @@ func TestHandleUpdatePassword(t *testing.T) {
 	tests := []struct {
 		name        string
 		body        UpdatePasswordBody
-		wantSuccess ServiceView
-		wantFail    ServiceView
+		wantSuccess ServiceResp
+		wantFail    ServiceResp
 		wantStatus  int
 	}{
 		{
 			name:       "InvalidLogin",
 			body:       UpdatePasswordBody{Password: "password2", NewPassword: "testing-password", ConfirmNewPassword: "testing-password"},
-			wantFail:   ServiceView{Status: http.StatusUnauthorized, Error: ErrHttpInvalidLogin.Error()},
+			wantFail:   ServiceResp{Status: http.StatusUnauthorized, Error: ErrHttpInvalidLogin.Error()},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
 			name: "InvalidPasswordLength",
 			body: UpdatePasswordBody{Password: "password1", NewPassword: "short", ConfirmNewPassword: "short"},
-			wantFail: ServiceView{
+			wantFail: ServiceResp{
 				Status: http.StatusBadRequest,
 				Errors: map[string]OneError{
 					"UpdatePasswordBody.NewPassword": {Error: ErrHttpInvalidPassword.Error()},
@@ -332,13 +332,13 @@ func TestHandleUpdatePassword(t *testing.T) {
 		{
 			name:       "InvalidPasswordConfirmDoesNotMatch",
 			body:       UpdatePasswordBody{Password: "password1", NewPassword: "testing-password1", ConfirmNewPassword: "testing-password"},
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Error: ErrHttpConfirmPassword.Error()},
+			wantFail:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpConfirmPassword.Error()},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:        "ValidPasswordUpdate",
 			body:        UpdatePasswordBody{Password: "password1", NewPassword: "testing-password", ConfirmNewPassword: "testing-password"},
-			wantSuccess: ServiceView{Status: http.StatusOK, Message: "SUCCESS"},
+			wantSuccess: ServiceResp{Status: http.StatusOK, Message: "SUCCESS"},
 			wantStatus:  http.StatusOK,
 		},
 	}
@@ -373,20 +373,20 @@ func TestHandleUpdateChallenge(t *testing.T) {
 		name       string
 		body       UpdateChallengeBody
 		sessionID  string
-		wantFail   ServiceView
+		wantFail   ServiceResp
 		wantStatus int
 	}{
 		{
 			name:       "UnauthorizedUser",
 			body:       UpdateChallengeBody{Action: "DELETE"},
-			wantFail:   ServiceView{Status: http.StatusUnauthorized, Error: ErrHttpSessionExpired.Error()},
+			wantFail:   ServiceResp{Status: http.StatusUnauthorized, Error: ErrHttpSessionExpired.Error()},
 			sessionID:  "invalid",
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
 			name: "InvalidChallengeAction",
 			body: UpdateChallengeBody{Action: "invalid"},
-			wantFail: ServiceView{
+			wantFail: ServiceResp{
 				Status: http.StatusBadRequest,
 				Errors: map[string]OneError{"UpdateChallengeBody.Action": {Error: ErrHttpInvalidInput.Error()}},
 			},
@@ -396,14 +396,14 @@ func TestHandleUpdateChallenge(t *testing.T) {
 		{
 			name:       "InvalidChallenge",
 			body:       UpdateChallengeBody{ChallengerID: 999, ChallengeeID: 1, Action: "ACCEPT"},
-			wantFail:   ServiceView{Status: http.StatusNotFound, Error: ErrHttpNotFoundChallenge.Error()},
+			wantFail:   ServiceResp{Status: http.StatusNotFound, Error: ErrHttpNotFoundChallenge.Error()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusNotFound,
 		},
 		{
 			name:       "InvalidDeleteChallengeCannotDeleteNotOwn",
 			body:       UpdateChallengeBody{ChallengerID: 5, ChallengeeID: 1, Action: "DELETE"},
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Error: ErrHttpUpdateChallenge.Error()},
+			wantFail:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpUpdateChallenge.Error()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 		},
@@ -416,7 +416,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 		{
 			name:       "InvalidAcceptChallengeCannotAcceptOwn",
 			body:       UpdateChallengeBody{ChallengerID: 1, ChallengeeID: 2, Action: "ACCEPT"},
-			wantFail:   ServiceView{Status: http.StatusBadRequest, Error: ErrHttpUpdateChallenge.Error()},
+			wantFail:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpUpdateChallenge.Error()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 		},
@@ -456,7 +456,7 @@ func TestHandleCreateGame(t *testing.T) {
 		name       string
 		body       CreateGameBody
 		wantStatus int
-		wantFail   ServiceView
+		wantFail   ServiceResp
 	}{
 		{
 			name:       "CreatedGame",
@@ -467,7 +467,7 @@ func TestHandleCreateGame(t *testing.T) {
 			name:       "InvalidModeColorAndInitialFen",
 			body:       CreateGameBody{InitialFEN: "invalid", FirstColor: "invalid", Mode: "invalid"},
 			wantStatus: http.StatusBadRequest,
-			wantFail: ServiceView{
+			wantFail: ServiceResp{
 				Status: http.StatusBadRequest,
 				Errors: map[string]OneError{
 					"CreateGameBody.FirstColor": {Error: ErrHttpInvalidInput.Error()},
@@ -511,49 +511,49 @@ func TestHandleCreateChallenge(t *testing.T) {
 		body       CreateChallengeBody
 		sessionID  string
 		wantStatus int
-		wantResp   ServiceView
+		wantResp   ServiceResp
 	}{
 		{
 			name:       "UnauthorizedUser",
 			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
 			sessionID:  "invalid",
 			wantStatus: http.StatusUnauthorized,
-			wantResp:   ServiceView{Status: http.StatusUnauthorized, Error: ErrHttpSessionExpired.Error()},
+			wantResp:   ServiceResp{Status: http.StatusUnauthorized, Error: ErrHttpSessionExpired.Error()},
 		},
 		{
 			name:       "ChallengingSelf",
 			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
-			wantResp:   ServiceView{Status: http.StatusBadRequest, Error: ErrHttpSelfChallenge.Error()},
+			wantResp:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpSelfChallenge.Error()},
 		},
 		{
 			name:       "ChallengingInvalidUser",
 			body:       CreateChallengeBody{ChallengeeID: 999, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
-			wantResp:   ServiceView{Status: http.StatusBadRequest, Error: ErrHttpInvalidParticipants.Error()},
+			wantResp:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpInvalidParticipants.Error()},
 		},
 		{
 			name:       "CreatingDuplicateChallenge",
 			body:       CreateChallengeBody{ChallengeeID: 2, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
-			wantResp:   ServiceView{Status: http.StatusBadRequest, Error: ErrHttpDuplicateChallenge.Error()},
+			wantResp:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpDuplicateChallenge.Error()},
 		},
 		{
 			name:       "CreatedChallenge",
 			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusOK,
-			wantResp:   ServiceView{Status: http.StatusOK, Message: "SUCCESS"},
+			wantResp:   ServiceResp{Status: http.StatusOK, Message: "SUCCESS"},
 		},
 		{
 			name:       "InvalidModeAndColor",
 			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "invalid", Mode: "invalid"},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
-			wantResp: ServiceView{
+			wantResp: ServiceResp{
 				Status: http.StatusBadRequest,
 				Errors: map[string]OneError{
 					"CreateChallengeBody.Mode":       {Error: ErrHttpInvalidInput.Error()},
@@ -595,7 +595,7 @@ func TestHandleSearchPlayers(t *testing.T) {
 		page        string
 		wantStatus  int
 		wantSuccess SearchPlayersResp
-		wantFail    ServiceView
+		wantFail    ServiceResp
 	}{
 		{
 			name:       "SearchPlayers",
@@ -662,14 +662,14 @@ func TestGetLeaderboard(t *testing.T) {
 		page        string
 		wantStatus  int
 		wantSuccess LeaderboardResp
-		wantFail    ServiceView
+		wantFail    ServiceResp
 	}{
 		{
 			name:       "InvalidPageAndMode",
 			mode:       "invalid",
 			page:       "invalid",
 			wantStatus: http.StatusBadRequest,
-			wantFail: ServiceView{
+			wantFail: ServiceResp{
 				Status: http.StatusBadRequest,
 				Errors: map[string]OneError{
 					"mode": {Error: ErrHttpInvalidInput.Error()},
@@ -735,7 +735,7 @@ func TestGetPlayer(t *testing.T) {
 		name        string
 		id          string
 		wantSuccess GetPlayersResp
-		wantFail    ServiceView
+		wantFail    ServiceResp
 		wantStatus  int
 	}{
 		{
@@ -758,13 +758,13 @@ func TestGetPlayer(t *testing.T) {
 		{
 			name:       "GotNoUser",
 			id:         "998877",
-			wantFail:   ServiceView{Status: http.StatusNotFound, Error: ErrHttpNotFoundUser.Error()},
+			wantFail:   ServiceResp{Status: http.StatusNotFound, Error: ErrHttpNotFoundUser.Error()},
 			wantStatus: http.StatusNotFound,
 		},
 		{
 			name: "InvalidUserID",
 			id:   "testing",
-			wantFail: ServiceView{
+			wantFail: ServiceResp{
 				Status: http.StatusBadRequest,
 				Errors: map[string]OneError{
 					"id": {Error: ErrHttpInvalidInput.Error()},
@@ -862,7 +862,7 @@ func TestHandleSearchReplays(t *testing.T) {
 		name        string
 		params      string
 		wantSuccess SearchReplaysResp
-		wantFail    ServiceView
+		wantFail    ServiceResp
 		wantStatus  int
 	}{
 		{
@@ -1002,7 +1002,7 @@ func TestHandleSearchReplays(t *testing.T) {
 		{
 			name:   "Invalid_UserIDs",
 			params: "userId=INVALID&afterId=INVALID&whiteId=INVALID&blackId=INVALID&loserId=INVALID&winnerId=INVALID",
-			wantFail: ServiceView{
+			wantFail: ServiceResp{
 				Status: http.StatusBadRequest,
 				Errors: map[string]OneError{
 					"afterId":  {Error: ErrHttpInvalidInput.Error()},
@@ -1019,7 +1019,7 @@ func TestHandleSearchReplays(t *testing.T) {
 			name:       "Invalid_ModeResultCause",
 			params:     "mode=INVALID&result=INVALID&cause=INVALID",
 			wantStatus: http.StatusBadRequest,
-			wantFail: ServiceView{
+			wantFail: ServiceResp{
 				Status: http.StatusBadRequest,
 				Errors: map[string]OneError{
 					"cause":  {Error: ErrHttpInvalidInput.Error()},
@@ -1032,7 +1032,7 @@ func TestHandleSearchReplays(t *testing.T) {
 			name:       "Invalid_Datetime",
 			params:     "fromDate=INVALID&toDate=INVALID",
 			wantStatus: http.StatusBadRequest,
-			wantFail: ServiceView{
+			wantFail: ServiceResp{
 				Status: http.StatusBadRequest,
 				Errors: map[string]OneError{
 					"fromDate": {Error: ErrHttpInvalidInput.Error()},
@@ -1069,7 +1069,7 @@ func TestHandleGetReplay(t *testing.T) {
 		name        string
 		userID      string
 		wantSuccess GetReplayResp
-		wantFail    ServiceView
+		wantFail    ServiceResp
 		wantStatus  int
 	}{
 		{
@@ -1081,7 +1081,7 @@ func TestHandleGetReplay(t *testing.T) {
 		{
 			name:       "GotNoReplay",
 			userID:     "998877",
-			wantFail:   ServiceView{Status: http.StatusNotFound, Error: ErrHttpNotFoundReplay.Error()},
+			wantFail:   ServiceResp{Status: http.StatusNotFound, Error: ErrHttpNotFoundReplay.Error()},
 			wantStatus: http.StatusNotFound,
 		},
 	}
@@ -1203,7 +1203,7 @@ func TestGetTournament(t *testing.T) {
 		tournamentKey string
 		wantResp      GetTournamentResp
 		wantStatus    int
-		wantFail      ServiceView
+		wantFail      ServiceResp
 	}{
 		{
 			name:          "GotTournament",
@@ -1229,7 +1229,7 @@ func TestGetTournament(t *testing.T) {
 			name:          "TournamentNotFound",
 			tournamentKey: uuid.NewString(),
 			wantStatus:    http.StatusNotFound,
-			wantFail: ServiceView{
+			wantFail: ServiceResp{
 				Status: http.StatusNotFound,
 				Error:  ErrHttpNotFoundTournament.Error(),
 			},
@@ -1238,7 +1238,7 @@ func TestGetTournament(t *testing.T) {
 			name:          "InvalidTournamentKey",
 			tournamentKey: "invalid",
 			wantStatus:    http.StatusBadRequest,
-			wantFail: ServiceView{
+			wantFail: ServiceResp{
 				Status: http.StatusBadRequest,
 				Errors: map[string]OneError{
 					"tournamentKey": {Error: ErrHttpInvalidInput.Error()},
@@ -1284,7 +1284,7 @@ func TestGetTournaments(t *testing.T) {
 		afterID    string
 		wantResp   GetTournamentsResp
 		wantStatus int
-		wantFail   ServiceView
+		wantFail   ServiceResp
 	}{
 		{
 			name:       "RetrievedTournaments",

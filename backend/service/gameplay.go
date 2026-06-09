@@ -94,7 +94,7 @@ func (services *HexchessServices) createGame(ctx context.Context, setup model.St
 
 	if _, err := services.redis.GameStore.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 		if err := services.setChessState(ctx, pipe, gameID, state, time.Now()); err != nil {
-			return serrors.Format("set chess state", err, "gameID", gameID)
+			return serrors.New("set chess state", err, "gameID", gameID)
 		}
 		return services.redisPublisher.PublishUpdtGameEvent(ctx, pipe, mapMetadataUpdt(state))
 	}); err != nil {

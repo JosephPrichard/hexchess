@@ -22,7 +22,7 @@ type TraceType string
 
 var Trace TraceType = "trace"
 
-func DynLog(ctx context.Context, msg string, err error, args ...any) {
+func Log(ctx context.Context, msg string, err error, args ...any) {
 	if err != nil {
 		ea := make([]any, len(args)+2)
 		copy(ea, args)

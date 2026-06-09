@@ -52,13 +52,41 @@ func (services *HexchessServices) InsertChallenge(ctx context.Context, inst Chal
 		if svcErr := mapChallengeInsertErr(dbErr); svcErr != nil {
 			return model.Challenge{}, svcErr
 		}
-		return model.Challenge{}, serrors.Format("insert challenge", dbErr, "inst", inst)
+		return model.Challenge{}, serrors.New("insert challenge", dbErr, "inst", inst)
 	}
 
 	challenge := mapChallengeRow(sqlc.SelectChallengesByParticipantRow(row))
 
 	slog.InfoContext(ctx, "created a new challenge", "challenge", inst, "challenge", challenge)
 	return challenge, nil
+}
+
+func (services *HexchessServices) BatchInsertChallenges(ctx context.Context, insts []ChallengeInst) error {
+	batches := make([]sqlc.BatchInsertChallengeParams, 0, len(insts))
+
+	for _, inst := range insts {
+		if inst.MadeOn.IsZero() {
+			inst.MadeOn = time.Now()
+		}
+		batches = append(batches, sqlc.BatchInsertChallengeParams{
+			ChallengerID: inst.ChallengerID,
+			ChallengeeID: inst.ChallengeeID,
+			Mode:         sqlc.ModeEnum(inst.Mode.String()),
+			StartColor:   sqlc.ColorEnum(inst.StartColor.String()),
+			MadeOn:       pgtype.Timestamptz{Valid: true, Time: inst.MadeOn},
+		})
+	}
+	var insertErrs []error
+
+	services.querier.BatchInsertChallenge(ctx, batches).Exec(func(i int, err error) {
+		if err != nil {
+			insertErrs = append(insertErrs, serrors.New("batch insert challenge", err, "index", i))
+		}
+	})
+	err := errors.Join(insertErrs...)
+
+	logutil.Log(ctx, "batch inserted challenges", err, "insts", insts)
+	return err
 }
 
 func mapChallengeInsertErr(err error) error {
@@ -80,7 +108,7 @@ func (services *HexchessServices) GetChallengesByParticipant(ctx context.Context
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
 	})
 	if err != nil {
-		return nil, serrors.Format("get challenges by participant", err, "key", key)
+		return nil, serrors.New("get challenges by participant", err, "key", key)
 	}
 
 	challenges := make([]model.Challenge, 0, len(rows))
@@ -104,7 +132,7 @@ func (services *HexchessServices) DeleteChallenge(ctx context.Context, key Chall
 	if db.IsErrNoRows(err) {
 		return DeleteResult{}, ErrChallengeNotFound
 	} else if err != nil {
-		return DeleteResult{}, serrors.Format("delete challenge", err, "key", key)
+		return DeleteResult{}, serrors.New("delete challenge", err, "key", key)
 	}
 
 	gameColor := enum.Expect(challengeRow.StartColor, model.GameColorEnums)
@@ -128,7 +156,7 @@ func (services *HexchessServices) DeleteExpiredChallenges(ctx context.Context, u
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: beforeTime},
 	})
-	logutil.DynLog(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", beforeTime)
+	logutil.Log(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", beforeTime)
 	return nil
 }
 

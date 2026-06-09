@@ -82,7 +82,7 @@ func (services *HexchessServices) BatchInsertUsers(ctx context.Context, insts []
 		hashEg.Go(func() error {
 			hash, err := hashPassword(inst.Password)
 			if err != nil {
-				return serrors.Format("hash password for inst index", err, "index", i)
+				return serrors.New("hash password for inst index", err, "index", i)
 			}
 			batch := sqlc.BatchInsertUserParams{
 				Username: inst.Username,
@@ -101,15 +101,13 @@ func (services *HexchessServices) BatchInsertUsers(ctx context.Context, insts []
 
 	var rows []sqlc.BatchInsertUserRow
 	var insertErrs []error
-
 	services.querier.BatchInsertUser(ctx, batches).QueryRow(func(i int, row sqlc.BatchInsertUserRow, err error) {
 		if err == nil {
 			rows = append(rows, row)
 		} else {
-			insertErrs = append(insertErrs, serrors.Format("batch insert user index", err, "index", i))
+			insertErrs = append(insertErrs, serrors.New("batch insert user", err, "index", i))
 		}
 	})
-
 	err := errors.Join(insertErrs...)
 
 	var users []model.User
@@ -123,7 +121,7 @@ func (services *HexchessServices) BatchInsertUsers(ctx context.Context, insts []
 		})
 	}
 
-	logutil.DynLog(ctx, "batch inserted user", err, "insts", insts, "users", users)
+	logutil.Log(ctx, "batch inserted user", err, "insts", insts, "users", users)
 	return users, err
 }
 
@@ -158,7 +156,7 @@ func (services *HexchessServices) VerifyUser(ctx context.Context, username strin
 			if db.IsErrNoRows(err) {
 				return ErrUserNotFound
 			} else if err != nil {
-				return serrors.Format("select user by login", err, "username", username)
+				return serrors.New("select user by login", err, "username", username)
 			}
 
 			isExceedAttempts := loginRow.LoginAttempts > 0 && loginRow.LoginAttempts%LoginAttemptsDivisor == 0
@@ -173,14 +171,14 @@ func (services *HexchessServices) VerifyUser(ctx context.Context, username strin
 
 			if loginErr != nil {
 				if err := querier.IncrLoginAttempts(ctx, loginRow.ID); err != nil {
-					return serrors.Format("increment user login attempts", err, "userID", loginRow.ID)
+					return serrors.New("increment user login attempts", err, "userID", loginRow.ID)
 				}
 				slog.ErrorContext(ctx, "failed to login, credentials are invalid", "username", username, "error", loginErr)
 				return ErrUserNotFound
 			}
 
 			if err := querier.ResetLoginAttempts(ctx, loginRow.ID); err != nil {
-				return serrors.Format("reset user login attempts", err, "userID", loginRow.ID)
+				return serrors.New("reset user login attempts", err, "userID", loginRow.ID)
 			}
 
 			user = VerifiedUser{
@@ -210,7 +208,7 @@ func (services *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, 
 	if db.IsErrNoRows(err) {
 		isCreated = false
 	} else if err != nil {
-		return verifiedUser, serrors.Format("select user by google account id", err, "googleAccountID", googleAccountID)
+		return verifiedUser, serrors.New("select user by google account id", err, "googleAccountID", googleAccountID)
 	} else {
 		isCreated = true
 	}
@@ -223,7 +221,7 @@ func (services *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, 
 			GoogleAccountID: pgtype.Text{String: googleAccountID, Valid: true},
 		})
 		if err != nil {
-			return verifiedUser, serrors.Format("insert google user", err, "googleAccountID", googleAccountID)
+			return verifiedUser, serrors.New("insert google user", err, "googleAccountID", googleAccountID)
 		}
 		verifiedUser = VerifiedUser{
 			ID:       userRow.ID,
@@ -265,7 +263,7 @@ func (services *HexchessServices) UpdateUser(ctx context.Context, id int64, updt
 		Country:  db.OptString(updt.Country),
 	})
 	if err != nil {
-		return model.User{}, serrors.Format("update user", err, "userID", id)
+		return model.User{}, serrors.New("update user", err, "userID", id)
 	}
 
 	user := model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
@@ -276,14 +274,14 @@ func (services *HexchessServices) UpdateUser(ctx context.Context, id int64, updt
 func (services *HexchessServices) UpdateUserPassword(ctx context.Context, id int64, newPassword string) error {
 	hash, err := hashPassword(newPassword)
 	if err != nil {
-		return serrors.Format("hash password for user", err, "userID", id)
+		return serrors.New("hash password for user", err, "userID", id)
 	}
 	err = services.querier.UpdatePassword(ctx, sqlc.UpdatePasswordParams{
 		ID:       id,
 		Password: hash.HashedPassword,
 		Salt:     hash.Salt,
 	})
-	logutil.DynLog(ctx, "updated password", err, "userID", id)
+	logutil.Log(ctx, "updated password", err, "userID", id)
 	return err
 }
 
@@ -292,7 +290,7 @@ func (services *HexchessServices) GetUserByID(ctx context.Context, id int64) (mo
 	if db.IsErrNoRows(err) {
 		return model.User{}, ErrUserNotFound
 	} else if err != nil {
-		return model.User{}, serrors.Format("select user", err, "userID", id)
+		return model.User{}, serrors.New("select user", err, "userID", id)
 	}
 	user := model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
 	slog.InfoContext(ctx, "selected user", "userID", id, "user", user)
@@ -306,7 +304,7 @@ func avg[T constraints.Integer | constraints.Float](currAvg T, currCount int, ne
 func (services *HexchessServices) GetUserStats(ctx context.Context, id int64) (model.UserStats, error) {
 	modeEloRows, err := services.querier.SelectUserElosByID(ctx, id)
 	if err != nil {
-		return model.UserStats{}, serrors.Format("select user elos by id", err, "userID", id)
+		return model.UserStats{}, serrors.New("select user elos by id", err, "userID", id)
 	}
 
 	var stats model.UserStats
@@ -359,17 +357,17 @@ func (services *HexchessServices) GetFullUser(ctx context.Context, userID int64,
 
 	eg.Go(func() (err error) {
 		user, err = services.GetUserByID(egCtx, userID)
-		return serrors.Format("get user", err, "userID", userID)
+		return serrors.New("get user", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
 		stats, err = services.GetUserStats(egCtx, userID)
-		return serrors.Format("get user stats", err, "userID", userID)
+		return serrors.New("get user stats", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
 		lbRanks, err = services.GetUserLeaderboardRanks(egCtx, userID, model.GameModeEnums)
-		return serrors.Format("get user leaderboard ranks", err, "userID", userID)
+		return serrors.New("get user leaderboard ranks", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
@@ -377,7 +375,7 @@ func (services *HexchessServices) GetFullUser(ctx context.Context, userID int64,
 			UserID:  enum.Just(userID),
 			PerPage: perPage,
 		})
-		return serrors.Format("get user replays", err, "userID", userID)
+		return serrors.New("get user replays", err, "userID", userID)
 	})
 
 	if err := eg.Wait(); err != nil {
@@ -458,7 +456,7 @@ func (services *HexchessServices) getUserIDsByUsernames(ctx context.Context, req
 
 	userRows, err := services.querier.SelectUserIDsByNames(ctx, usernames)
 	if err != nil {
-		return serrors.Format("select user ids by names", err, "usernames", usernames)
+		return serrors.New("select user ids by names", err, "usernames", usernames)
 	}
 
 	userIDs := make(map[string]int64)

@@ -31,7 +31,7 @@ func main() {
 	rdbGameStoreNode := os.Getenv("REDIS_GAMESTORE_NODE")
 	rdbCacheNodes := os.Getenv("REDIS_CACHE_NODES")
 	rdbPubSubNode := os.Getenv("REDIS_PUBSUB_NODE")
-	isLocalstack := os.Getenv("IS_LOCALSTACK") == "true"
+	isLocalS3 := os.Getenv("IS_LOCAL_S3") == "true"
 	awsDefaultRegion := os.Getenv("AWS_DEFAULT_REGION")
 	awsEndpoint := os.Getenv("AWS_ENDPOINT")
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
@@ -48,8 +48,7 @@ func main() {
 		logutil.FatalErr("create pool", err)
 	}
 	defer pool.Close()
-	_, err = pool.Exec(ctx, "SELECT 1;")
-	if err != nil {
+	if _, err = pool.Exec(ctx, "SELECT 1;"); err != nil {
 		logutil.FatalErr("execute startup query", err)
 	}
 
@@ -66,7 +65,7 @@ func main() {
 	aws, err := egress.MakeAwsClients(ctx, egress.AWSConfig{
 		AWSDefaultRegion: awsDefaultRegion,
 		AWSEndpoint:      awsEndpoint,
-		IsLocalstack:     isLocalstack,
+		IsLocal:          isLocalS3,
 	})
 	if err != nil {
 		logutil.FatalErr("load aws config", err)

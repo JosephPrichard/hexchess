@@ -25,6 +25,11 @@ FROM inserted_challenges c
      ON e1.user_id = c.challengee_id AND e1.mode = c.mode
     LEFT JOIN user_mode_elos e2
      ON e2.user_id = c.challenger_id AND e2.mode = c.mode;
+
+-- name: BatchInsertChallenge :batchexec
+INSERT INTO challenges (challenger_id, challengee_id, mode, start_color, made_on)
+VALUES (sqlc.arg('challengerID'), sqlc.arg('challengeeID'), sqlc.arg('mode'), sqlc.arg('startColor'), sqlc.arg('madeOn'));
+
 -- name: DeleteChallenge :one
 DELETE FROM challenges
 WHERE challenger_id = sqlc.arg('challengerID') AND challengee_id = sqlc.arg('challengeeID')

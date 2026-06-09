@@ -2,8 +2,8 @@ package svc
 
 import (
 	"context"
-	"fmt"
 	"hexchess-svc/egress"
+	"hexchess-svc/lib/serrors"
 	"log/slog"
 	"sync"
 
@@ -60,11 +60,11 @@ func (services *HexchessServices) removeOrphanedObjects(ctx context.Context, opt
 		// list keys for this page.
 		listObjects, err := paginator.NextPage(ctx)
 		if err != nil {
-			return fmt.Errorf("list objects: %w", err)
+			return serrors.New("list objects", err, "page", page, "bucket", opts.Bucket, "prefix", opts.Prefix)
 		}
 		page++
 
-		// parse and extract object IDQueue and keys from api call.
+		// parse and extract object ids and keys from api call.
 		type KeyPair struct {
 			key      string
 			objectID int64
@@ -91,14 +91,14 @@ func (services *HexchessServices) removeOrphanedObjects(ctx context.Context, opt
 		// find orphaned keys, and store them in a map.
 		validIDs, err := opts.selectIDs(ctx, ids)
 		if err != nil {
-			return fmt.Errorf("select valid object IDQueue: %w", err)
+			return serrors.New("select object IDs", err, "ids", ids)
 		}
 		existingObjectIDs := make(map[int64]bool, len(validIDs))
 		for _, objectID := range validIDs {
 			existingObjectIDs[objectID] = true
 		}
 
-		slog.InfoContext(ctx, "selected valid object IDQueue", "objectIDs", validIDs, "bucket", opts.Bucket)
+		slog.InfoContext(ctx, "selected valid object ids", "objectIDs", validIDs, "bucket", opts.Bucket)
 
 		var orphanedKeyStrs []string
 		var orphanedKeys []s3Types.ObjectIdentifier

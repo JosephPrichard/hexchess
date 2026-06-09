@@ -55,7 +55,7 @@ func transformJSON[Body any, Output any](r *http.Request, parse func(Body) (Outp
 	return parse(body)
 }
 
-type ServiceView struct {
+type ServiceResp struct {
 	Status  int                 `json:"status"`
 	Message string              `json:"message,omitempty"`
 	Error   string              `json:"error,omitempty"`
@@ -80,6 +80,10 @@ func writeJSON[V any](w http.ResponseWriter, status int, data V) {
 		slog.Error("failed to write json response", "Err", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 	}
+}
+
+func writeServiceResp(w http.ResponseWriter, view ServiceResp) {
+	writeJSON(w, view.Status, view)
 }
 
 func writeBytes(w http.ResponseWriter, status int, b []byte) {

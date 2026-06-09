@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"hexchess-svc/egress"
+	"hexchess-svc/lib/ioutil"
 	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
 	"io"
@@ -25,7 +27,7 @@ func ParseProfilePicKey(key string) (int64, error) {
 	}
 	userID, err := strconv.ParseInt(tokens[2], 10, 64)
 	if err != nil {
-		return 0, serrors.Format("profile Key userID is not a valid integer", err, "key", key)
+		return 0, serrors.New("profile Key userID is not a valid integer", err, "key", key)
 	}
 	return userID, nil
 }
@@ -61,7 +63,7 @@ func filterLeastRecentKeys(objects []s3Types.Object) []s3Types.ObjectIdentifier 
 
 const ProfilePicPrefix = "users/profile-pics"
 
-func (services *HexchessServices) DeleteOldProfilePics(ctx context.Context, playerID int) error {
+func (services *HexchessServices) deleteExpiredProfilePics(ctx context.Context, playerID int) error {
 	prefix := makeProfilePicPrefix(strconv.Itoa(playerID))
 
 	// remove all but the newest keys. there should never be more 1000 keys, but if there are, this will never delete the newest Key
@@ -70,7 +72,7 @@ func (services *HexchessServices) DeleteOldProfilePics(ctx context.Context, play
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return serrors.Format("list profile pics by prefix", err, "prefix", prefix, "bucket", egress.S3ProfileBucket)
+		return serrors.New("list profile pics by prefix", err, "prefix", prefix, "bucket", egress.S3ProfileBucket)
 	}
 	slog.InfoContext(ctx, "listed profile pics for deletion", "listOutput", listOutput.Contents)
 
@@ -84,32 +86,83 @@ func (services *HexchessServices) DeleteOldProfilePics(ctx context.Context, play
 		Bucket: aws.String(egress.S3ProfileBucket),
 		Delete: &s3Types.Delete{Objects: keys},
 	}); err != nil {
-		return serrors.Format("delete profile pics by keys", err, "keys", keys, "bucket", egress.S3ProfileBucket)
+		return serrors.New("delete profile pics by keys", err, "keys", keys, "bucket", egress.S3ProfileBucket)
 	}
 	return nil
 }
 
-func (services *HexchessServices) UploadProfilePic(ctx context.Context, uploader model.PlayerState, file io.Reader, contentType string) (string, error) {
-	// uploading profile picture based off a computed Key
+type UploadProfileResult struct {
+	Key string `json:"key"`
+}
+
+// MaxProfilePicSize 5 MiB
+const MaxProfilePicSize = 5 << 20
+
+var (
+	InvalidChecksum     = errors.New("invalid or missing sha256 checksum")
+	ErrProfilePicTooBig = fmt.Errorf("profile picture exceeds max size of %d bytes", MaxProfilePicSize)
+)
+
+func (services *HexchessServices) UploadProfilePic(
+	ctx context.Context,
+	uploader model.PlayerState,
+	file io.ReadCloser,
+	contentType string,
+	contentChecksum string,
+) (UploadProfileResult, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	defer file.Close()
+	body := ioutil.NewLimitReader(cancel, file, MaxProfilePicSize)
+
 	key := makeProfileNewPicKey(uploader.ID, services.entropy.MakeUUID())
 
-	slog.InfoContext(ctx, "uploading profile pic to s3", "key", key, "player", uploader)
+	slog.InfoContext(ctx, "uploading profile pic to s3",
+		"key", key, "uploader", uploader, "contentType", contentType, "contentChecksum", contentChecksum)
 	start := time.Now()
 
-	putOutput, err := services.aws.S3Client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:      aws.String(egress.S3ProfileBucket),
-		Key:         aws.String(key),
-		Body:        file,
-		ContentType: aws.String(contentType),
-		// with max cache control. profile pics are immutable, since we issue a new unique Key on upload.
-		CacheControl: aws.String("public, max-age=31536000"),
-	})
-	if err != nil {
-		return "", serrors.Format("put profile pic", err, "key", key, "bucket", egress.S3ProfileBucket)
+	var checksumAlgorithm s3Types.ChecksumAlgorithm
+	var chechsumSHA256 *string
+	var optFns []func(*s3.Options)
+
+	if contentChecksum != "" {
+		// if a checksum is provided, it will be automatically computed. (requires body to be seekeable OR an HTTPs request)
+		optFns = append(optFns, s3.WithAPIOptions(
+			// this middleware prevents the checksum from being computed, it is being passed from client in this case
+			v4.SwapComputePayloadSHA256ForUnsignedPayloadMiddleware,
+		))
+		checksumAlgorithm = s3Types.ChecksumAlgorithmSha256
+		chechsumSHA256 = aws.String(contentChecksum)
 	}
 
-	slog.InfoContext(ctx, "finished uploading profile pic to s3", "key", key, "took", time.Since(start), "player", uploader, "output", putOutput)
-	return key, nil
+	output, err := services.aws.S3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:            aws.String(egress.S3ProfileBucket),
+		Key:               aws.String(key),
+		ContentType:       aws.String(contentType),
+		Body:              body,
+		ChecksumSHA256:    chechsumSHA256,
+		ChecksumAlgorithm: checksumAlgorithm,
+		// with max cache control. profile pics are immutable, since we issue a new unique key on upload.
+		CacheControl: aws.String("public, max-age=31536000"),
+	}, optFns...)
+	if body.HasExceededLimit() && errors.Is(err, context.Canceled) {
+		return UploadProfileResult{}, ErrProfilePicTooBig
+	}
+	if err != nil {
+		return UploadProfileResult{}, serrors.New("put profile pic", err, "key", key, "bucket", egress.S3ProfileBucket)
+	}
+
+	slog.InfoContext(ctx, "finished uploading profile pic to s3", "key", key, "took", time.Since(start), "output", output)
+
+	detatchedCtx := context.WithoutCancel(ctx)
+	go func() {
+		if err := services.deleteExpiredProfilePics(detatchedCtx, int(uploader.ID)); err != nil {
+			slog.ErrorContext(ctx, "failed to remove expired profile pics", "uploader", uploader, "error", err)
+		}
+	}()
+
+	return UploadProfileResult{Key: key}, nil
 }
 
 var ErrNoProfilePic = errors.New("no profile pic found for user")
@@ -123,7 +176,7 @@ func (services *HexchessServices) GetProfilePicKey(ctx context.Context, userID s
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return "", serrors.Format("list profile pics by prefix", err, "prefix", prefix, "bucket", egress.S3ProfileBucket)
+		return "", serrors.New("list profile pics by prefix", err, "prefix", prefix, "bucket", egress.S3ProfileBucket)
 	}
 
 	mostRecentKey := findMostRecentKey(listOutput.Contents)

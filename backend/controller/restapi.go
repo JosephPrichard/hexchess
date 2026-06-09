@@ -189,12 +189,12 @@ func (api *API) HandleUpdatePassword(w http.ResponseWriter, r *http.Request) err
 	}
 	slog.InfoContext(ctx, "user has updated password", "user", user)
 
-	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
+	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
 }
 
 type UpdateUserBody struct {
-	NewUsername string `json:"newUsername" validate:"omitempty,min=11,max=100"`
+	NewUsername string `json:"newUsername" validate:"omitempty,min=5,max=100"`
 	NewCountry  string `json:"newCountry" validate:"omitempty,countries"`
 	NewBio      string `json:"newBio" validate:"omitempty,max=500"`
 }
@@ -269,7 +269,7 @@ func (api *API) HandleRefreshSession(w http.ResponseWriter, r *http.Request) err
 	}
 
 	if err := api.services.UpdateSessionEx(ctx, session.Token, SessionMaxAge); err != nil {
-		return serrors.Format("update session with expiry", err, "expiry", SessionMaxAge)
+		return serrors.New("update session with expiry", err, "expiry", SessionMaxAge)
 	}
 
 	w.Header().Set("Set-Cookie", FmtCookie(session.Token))
@@ -289,16 +289,16 @@ func (api *API) HandleRefreshSession(w http.ResponseWriter, r *http.Request) err
 func (api *API) HandleLogout(w http.ResponseWriter, r *http.Request) error {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
-		return serrors.Format("get cookie", err, "cookieKey", CookieKey)
+		return serrors.New("get cookie", err, "cookieKey", CookieKey)
 	}
 	sessionID := cookie.Value
 
 	if err := api.services.DeleteSession(r.Context(), sessionID); err != nil {
-		return serrors.Format("logging ext session", err, "sessionID", sessionID)
+		return serrors.New("logging ext session", err, "sessionID", sessionID)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
 
-	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
+	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
 }
 
@@ -316,7 +316,7 @@ func (api *API) HandleGetSelf(w http.ResponseWriter, r *http.Request) error {
 
 	user, err := api.services.GetUserByID(ctx, player.ID)
 	if err != nil {
-		return serrors.Format("get user by id", err, "player", player)
+		return serrors.New("get user by id", err, "player", player)
 	}
 	slog.InfoContext(ctx, "retrieved user", "user", user)
 
@@ -344,11 +344,11 @@ func (api *API) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) err
 
 	leaderboard, err := api.services.GetLeaderboardPage(ctx, query.Mode, int64(query.Page), defaultPaginationCount)
 	if err != nil {
-		return serrors.Format("get leaderboard page", err, "page", query.Page)
+		return serrors.New("get leaderboard page", err, "page", query.Page)
 	}
 	users, _, err := api.services.GetFullLeaderboardUsers(ctx, query.Mode, leaderboard.RankedUsers)
 	if err != nil {
-		return serrors.Format("get full leaderboard users", err, "rankedUsers", leaderboard.RankedUsers)
+		return serrors.New("get full leaderboard users", err, "rankedUsers", leaderboard.RankedUsers)
 	}
 	slog.InfoContext(ctx, "retrieved leaderboard", "users", users)
 
@@ -373,7 +373,7 @@ func (api *API) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
 	if errors.Is(err, svc.ErrUserNotFound) {
 		return ErrHttpNotFoundUser
 	} else if err != nil {
-		return serrors.Format("get full user", err, "userID", userID)
+		return serrors.New("get full user", err, "userID", userID)
 	}
 
 	playersResp := GetPlayersResp{FullUser: fullUser}
@@ -400,7 +400,7 @@ func (api *API) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) erro
 
 	users, err := api.services.GetFuzzySearchLeaderboard(ctx, name, int32(page), defaultPaginationCount)
 	if err != nil {
-		return serrors.Format("search users by name", err, "name", name)
+		return serrors.New("search users by name", err, "name", name)
 	}
 
 	writeJSON(w, http.StatusOK, SearchPlayersResp{UserList: users})
@@ -441,7 +441,7 @@ func (api *API) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) er
 	if body.Action == Accept {
 		gameID, err = api.services.CreateGame(ctx, deleteResult.FirstColor, deleteResult.Mode, nil)
 		if err != nil {
-			return serrors.Format("create game", err, "deleteResult", deleteResult)
+			return serrors.New("create game", err, "deleteResult", deleteResult)
 		}
 	}
 
@@ -480,7 +480,7 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 
 	api.broadcaster.BroadcastChallenge(ctx, ret, pubsub.Async())
 
-	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
+	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
 }
 
@@ -584,7 +584,7 @@ func (api *API) HandleGameExistence(w http.ResponseWriter, r *http.Request) erro
 	if !exists {
 		respMsg = GameNotExists
 	}
-	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: respMsg})
+	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: respMsg})
 	return nil
 }
 
@@ -662,7 +662,7 @@ func (api *API) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 	if errors.Is(err, svc.ErrNoReplay) {
 		return ErrHttpNotFoundReplay
 	} else if err != nil {
-		return serrors.Format("get replay by query", err, "query", query)
+		return serrors.New("get replay by query", err, "replaysQuery", query)
 	}
 
 	writeJSON(w, http.StatusOK, GetReplayResp{Replay: replay})
@@ -683,7 +683,7 @@ func (api *API) HandleSearchReplays(w http.ResponseWriter, r *http.Request) erro
 
 	replays, err := api.services.SearchReplaysByQuery(ctx, query)
 	if err != nil {
-		return serrors.Format("get replays by query", err, "query", query)
+		return serrors.New("get replays by query", err, "query", query)
 	}
 
 	writeJSON(w, http.StatusOK, SearchReplaysResp{ReplayList: replays})
@@ -711,7 +711,7 @@ func (api *API) HandleGetEloHistories(w http.ResponseWriter, r *http.Request) er
 	}
 	eloBuckets, _, err := api.services.RetrieveEloHistoryBuckets(ctx, params)
 	if err != nil {
-		return serrors.Format("retrieve elo histories buckets with params", err, "params", params)
+		return serrors.New("retrieve elo histories buckets with params", err, "params", params)
 	}
 	writeJSON(w, http.StatusOK, EloHistoriesResp{Buckets: eloBuckets})
 
@@ -808,14 +808,14 @@ func (api *API) HandleJoinTournament(w http.ResponseWriter, r *http.Request) err
 		InsertionTime: time.Now(),
 	})
 	if err != nil {
-		return serrors.Format("join tournament by tournament id", err, "tournamentKey", tournamentKey)
+		return serrors.New("join tournament by tournament id", err, "tournamentKey", tournamentKey)
 	}
 
 	slog.InfoContext(ctx, "participant joined tournament", "joiningID", player.ID, "tournamentKey", tournamentKey)
 
 	go api.services.BroadcastTournamentParticipant(context.WithoutCancel(ctx), player.ID, tournamentEvent)
 
-	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
+	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
 }
 
@@ -833,14 +833,14 @@ func (api *API) HandleBeginCountdownTournament(w http.ResponseWriter, r *http.Re
 
 	result, err := api.services.BeginTournamentCountdown(ctx, tournamentKey, player.ID)
 	if err != nil {
-		return serrors.Format("begin tournament countdown by tournament id", err, "tournamentKey", tournamentKey)
+		return serrors.New("begin tournament countdown by tournament id", err, "tournamentKey", tournamentKey)
 	}
 
 	slog.InfoContext(ctx, "successfully started countdown for tournament", "countdownResult", result)
 
 	api.broadcaster.BroadcastTournament(ctx, model.SerializeBeginTournamentCountdown(result.TournamentKey))
 
-	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
+	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
 }
 
@@ -907,7 +907,7 @@ func (api *API) HandleLeaveTournament(w http.ResponseWriter, r *http.Request) er
 	}
 	slog.Info("attempted to leave tournament", "didLeave", didLeave, "tournamentKey", tournamentKey, "player", player)
 
-	writeJSON(w, http.StatusOK, ServiceView{Status: http.StatusOK, Message: "SUCCESS"})
+	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
 }
 

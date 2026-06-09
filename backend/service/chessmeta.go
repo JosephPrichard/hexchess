@@ -23,7 +23,7 @@ func (services *HexchessServices) UpdateGameMetadata(ctx context.Context, updt m
 		UpdatedOn: pgtype.Timestamptz{Time: services.entropy.GetTime(), Valid: true},
 	})
 	if err != nil {
-		return serrors.Format("update game metadata", err, "updt", updt)
+		return serrors.New("update game metadata", err, "updt", updt)
 	}
 	slog.InfoContext(ctx, "updated game metadata", "update", updt, "updtResult", updtResult)
 
@@ -46,13 +46,13 @@ func (services *HexchessServices) GetGameMetadata(ctx context.Context, player en
 
 	eg.Go(func() (err error) {
 		allChessMetas, err = services.getGameMetadata(egCtx, enum.Nothing[int64](), afterOrdering, enum.Just[int32](count))
-		return serrors.Format("get all game metadata after ordering", err, "afterOrdering", afterOrdering)
+		return serrors.New("get all game metadata after ordering", err, "afterOrdering", afterOrdering)
 	})
 	if player.IsPresent {
 		userID := player.Value.ID
 		eg.Go(func() (err error) {
 			userChessMetas, err = services.getGameMetadata(ctx, enum.Just[int64](userID), enum.Nothing[int64](), enum.Nothing[int32]())
-			return serrors.Format("get user game metadata", err, "userID", player.Value.ID)
+			return serrors.New("get user game metadata", err, "userID", player.Value.ID)
 		})
 	}
 	if err := eg.Wait(); err != nil {
@@ -78,7 +78,7 @@ func (services *HexchessServices) getGameMetadata(ctx context.Context, userID en
 		PerPage:       db.MapOptInt4(count),
 	})
 	if err != nil {
-		return nil, serrors.Format("select game metas", err, "userID", userID)
+		return nil, serrors.New("select game metas", err, "userID", userID)
 	}
 
 	var chessMetas []model.ChessMeta

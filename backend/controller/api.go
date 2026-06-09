@@ -36,7 +36,7 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 
 			w.Header().Set("Access-Control-Allow-Origin", allowedOrigins)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-trace")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-trace, Content-Digest")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 			if r.Method == "OPTIONS" {
@@ -147,7 +147,7 @@ func MakeServeMux(setup ServerSetup, opts ...func(*chi.Mux)) *chi.Mux {
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		slog.ErrorContext(r.Context(), "route not found", "method", r.Method, "url", r.URL)
-		writeJSON(w, http.StatusNotFound, ServiceView{Status: http.StatusNotFound, Message: "ROUTE_NOT_FOUND"})
+		writeJSON(w, http.StatusNotFound, ServiceResp{Status: http.StatusNotFound, Message: "ROUTE_NOT_FOUND"})
 	})
 
 	for _, opt := range opts {

@@ -33,17 +33,17 @@ func (services *HexchessServices) GetTournament(ctx context.Context, tournamentK
 
 	eg.Go(func() (err error) {
 		tournamentRow, err = services.querier.SelectTournamentByID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return serrors.Format("select tournament by key", err, "tournamentKey", tournamentKey)
+		return serrors.New("select tournament by key", err, "tournamentKey", tournamentKey)
 	})
 
 	eg.Go(func() (err error) {
 		participantRows, err = services.querier.SelectParticipantsWithUserByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return serrors.Format("select participants by tournament key", err, "tournamentKey", tournamentKey)
+		return serrors.New("select participants by tournament key", err, "tournamentKey", tournamentKey)
 	})
 
 	eg.Go(func() (err error) {
 		matchRows, err = services.querier.SelectReplayMatchesByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return serrors.Format("select replay matches by tournament key", err, "tournamentKey", tournamentKey)
+		return serrors.New("select replay matches by tournament key", err, "tournamentKey", tournamentKey)
 	})
 
 	if err := eg.Wait(); err != nil {
@@ -68,7 +68,7 @@ func (services *HexchessServices) GetTournament(ctx context.Context, tournamentK
 
 	userLdbRanksMap, err := services.getUsersLeaderboardRank(ctx, participantIDs, tournament.Mode)
 	if err != nil {
-		return t, fmt.Errorf("get participants %+v leaderboard rank: %w", participantIDs, err)
+		return t, serrors.New("get participants leaderboard rank", err, "participantIDs", participantIDs)
 	}
 	for i := range tournament.Participants {
 		tournament.Participants[i].Rank = userLdbRanksMap[tournament.Participants[i].ID]
@@ -86,7 +86,7 @@ type mapFullTournamentArgs struct {
 
 func maxPlayerCountTournament(ruleset model.TournamentRuleset, rounds int32) int {
 	if ruleset == model.TournamentKnockout {
-		return knockoutParticipantsAtRound(int(rounds), 1)
+		return KnockoutParticipantsAtRound(int(rounds), 1)
 	}
 	return -1
 }
@@ -200,7 +200,7 @@ func (services *HexchessServices) GetTournaments(ctx context.Context, participan
 			PerPage: perPage,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("select tournaments by participant %v after id %v: %w", participantID, afterID, err)
+			return nil, serrors.New("select tournaments by participant after id", err, "participantID", participantID, "afterID", afterID)
 		}
 		tournaments = mapTournamentRows(tournamentRows, func(t sqlc.SelectTournamentsByParticipantRow) model.Tournament {
 			return mapTournamentByIdRow(sqlc.SelectTournamentByIDRow(t))
@@ -357,7 +357,7 @@ func (services *HexchessServices) JoinTournament(ctx context.Context, inst JoinT
 
 			if ruleset == model.TournamentKnockout {
 				// knockout rulesets use the `TotalRounds` field to decide the maximum number of players
-				maxKnckoutPlayerCount := int32(knockoutParticipantsAtRound(int(tournamentRow.Rounds), 1))
+				maxKnckoutPlayerCount := int32(KnockoutParticipantsAtRound(int(tournamentRow.Rounds), 1))
 				isCapacityReached := tournamentRow.ParticipantCount >= maxKnckoutPlayerCount
 				if isCapacityReached {
 					return ErrTooManyParticipants
@@ -434,7 +434,7 @@ func (services *HexchessServices) BeginTournamentCountdown(ctx context.Context, 
 				return fmt.Errorf("update tournament %s status to %s: %w", tournamentKey, nextTournamentStatus, err)
 			}
 
-			scheduledOn := time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Millisecond)
+			scheduledOn := time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Second)
 
 			if err := producers.PublishAdvanceTournamentEvent(ctx, querier, tournamentKey, scheduledOn); err != nil {
 				return fmt.Errorf("publish scheduled tournament %s event: %w", tournamentKey, err)
@@ -487,7 +487,7 @@ func (services *HexchessServices) advanceTournament(ctx context.Context, tournam
 				return fmt.Errorf("select by event id %v: %w", eventID, err)
 			} else {
 				matchesToCreate, err = model.UnmarshalMatchCreation(eventData)
-				return serrors.Format("unmarshal match creations", err, "matchesToCreate", matchesToCreate)
+				return serrors.New("unmarshal match creations", err, "matchesToCreate", matchesToCreate)
 			}
 
 			tournamentRow, err := querier.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
@@ -693,7 +693,7 @@ func (services *HexchessServices) createTournamentMatches(ctx context.Context, m
 				White:      model.MakePlayer(match.WhiteID, whitePlayerData.Username, whitePlayerData.Country),
 				Black:      model.MakePlayer(match.BlackID, blackPlayerData.Username, blackPlayerData.Country),
 			})
-			return serrors.Format("create game", err, "index", i, "gameID", match.GameID)
+			return serrors.New("create game", err, "index", i, "gameID", match.GameID)
 		})
 	}
 

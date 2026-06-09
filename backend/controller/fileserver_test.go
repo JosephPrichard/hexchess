@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -11,9 +12,8 @@ import (
 	"go.uber.org/mock/gomock"
 	"hexchess-svc/egress"
 	"hexchess-svc/itest"
-	"hexchess-svc/service"
-
 	"hexchess-svc/lib/testutil"
+	"hexchess-svc/service"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -22,55 +22,113 @@ import (
 	"time"
 )
 
-var s3InputCmpOpts = testutil.CmpIgnoreExcept(s3.PutObjectInput{}, "Bucket", "Key", "ContentType")
+var s3InputCmpOpts = testutil.CmpIgnoreExcept(s3.PutObjectInput{}, "Bucket", "Key", "ContentType", "CacheControl", "ChecksumSHA256")
+
+type drainingS3Uploader struct {
+	*egress.CompositeS3API
+}
+
+func (u *drainingS3Uploader) PutObject(ctx context.Context, params *s3.PutObjectInput, _ ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
+	doneDraining := make(chan error, 1)
+
+	go func() {
+		_, err := io.ReadAll(params.Body)
+		doneDraining <- err
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case err := <-doneDraining:
+		return &s3.PutObjectOutput{}, err
+	}
+}
 
 func TestHandleUploadProfilePic(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	staticBodyData := "testfiledata"
 
-	mockS3Client := egress.NewMockS3ClientAPI(ctrl)
+	tests := []struct {
+		name        string
+		body        []byte
+		contentType string
+		checksum    string
+		wantStatus  int
+		setupMocks  func(*testing.T, *gomock.Controller) egress.S3ClientAPI
+	}{
+		{
+			name:        "UploadSuccessful",
+			body:        []byte(staticBodyData),
+			contentType: "application/octet-stream",
+			checksum:    "checksum",
+			wantStatus:  http.StatusOK,
+			setupMocks: func(t *testing.T, ctrl *gomock.Controller) egress.S3ClientAPI {
+				mockS3Client := egress.NewMockS3ClientAPI(ctrl)
 
-	h, testinfra := setupTestHandler(t, serviceMocks{S3Client: mockS3Client, Entropy: &svc.StableEntropySource{}}, itest.Redis)
-	defer testinfra.Close()
+				// assert that keys and metadata arrive on the system correctly
+				wantPutInput := &s3.PutObjectInput{
+					Bucket:         aws.String(egress.S3ProfileBucket),
+					Key:            aws.String("users/profile-pics/2/mock-1"),
+					ContentType:    aws.String("application/octet-stream"),
+					CacheControl:   aws.String("public, max-age=31536000"),
+					ChecksumSHA256: aws.String("checksum"),
+				}
+				mockS3Client.EXPECT().
+					PutObject(
+						gomock.Any(),
+						gomock.Cond(func(input *s3.PutObjectInput) bool {
+							recvBodyBytes, _ := io.ReadAll(input.Body)
+							return testutil.Equal(t, wantPutInput, input, s3InputCmpOpts) &&
+								testutil.Equal(t, staticBodyData, string(recvBodyBytes))
+						}),
+						gomock.Any()).
+					Return(&s3.PutObjectOutput{}, nil)
 
-	createTestSessions(t, testinfra.Redis)
+				// empty keylist, expect to not delete anything
+				mockS3Client.EXPECT().
+					ListObjectsV2(gomock.Any(), &s3.ListObjectsV2Input{
+						Bucket: aws.String(egress.S3ProfileBucket),
+						Prefix: aws.String("users/profile-pics/2"),
+					}).
+					Return(&s3.ListObjectsV2Output{}, nil)
 
-	strBody := "testfiledata"
-	body := bytes.NewBuffer([]byte(strBody))
+				return mockS3Client
+			},
+		},
+		{
+			name:       "UploadExceedsLimit",
+			body:       bytes.Repeat([]byte{'a'}, (5<<20)+1),
+			wantStatus: http.StatusBadRequest,
+			setupMocks: func(t *testing.T, ctrl *gomock.Controller) egress.S3ClientAPI {
+				return &drainingS3Uploader{}
+			},
+		},
+	}
 
-	// assert that keys and metadata arrive on the system correctly
-	mockS3Client.EXPECT().
-		PutObject(gomock.Any(), gomock.Cond(func(input *s3.PutObjectInput) bool {
-			wantInput := &s3.PutObjectInput{
-				Bucket:       aws.String(egress.S3ProfileBucket),
-				Key:          aws.String("users/profile-pics/2/mock-1"),
-				ContentType:  aws.String("application/octet-stream"),
-				CacheControl: aws.String("public, max-age=31536000"),
-			}
-			recvBodyBytes, _ := io.ReadAll(input.Body)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-			return testutil.Equal(t, wantInput, input, s3InputCmpOpts) && assert.Equal(t, strBody, string(recvBodyBytes))
-		})).
-		Return(&s3.PutObjectOutput{}, nil)
+			mockS3Client := tt.setupMocks(t, ctrl)
 
-	// empty keylist, do not delete anything
-	mockS3Client.EXPECT().
-		ListObjectsV2(gomock.Any(), &s3.ListObjectsV2Input{
-			Bucket: aws.String(egress.S3ProfileBucket),
-			Prefix: aws.String("users/profile-pics/2"),
-		}).
-		Return(&s3.ListObjectsV2Output{}, nil)
+			h, testinfra := setupTestHandler(t, serviceMocks{S3Client: mockS3Client, Entropy: &svc.StableEntropySource{}}, itest.Redis)
+			defer testinfra.Close()
 
-	r := httptest.NewRequest(http.MethodPost, "/api/users/profile-pics", body)
-	r.Header.Set("Content-Type", "application/octet-stream")
-	r.Header.Set("Cookie", FmtCookie(TestSessionID2))
-	w := httptest.NewRecorder()
+			createTestSessions(t, testinfra.Redis)
 
-	h.ServeHTTP(w, r)
+			r := httptest.NewRequest(http.MethodPost, "/api/users/profile-pics", bytes.NewBuffer(tt.body))
+			r.Header.Set("Content-Type", tt.contentType)
+			r.Header.Set("Cookie", FmtCookie(TestSessionID2))
+			r.Header.Set("Content-Digest", tt.checksum)
+			w := httptest.NewRecorder()
 
-	assert.Equal(t, http.StatusOK, w.Code)
+			h.ServeHTTP(w, r)
+
+			assert.Equal(t, tt.wantStatus, w.Code)
+		})
+	}
 }
 
 func TestHandleGetProfilePic(t *testing.T) {

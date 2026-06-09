@@ -55,7 +55,7 @@ func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finish
 	// note: replay is selected in a seperate query outside transaction to avoid holding locks. this involves performing more diskIO.
 	replay, err := services.GetReplay(ctx, changeSet.ReplayID)
 	if err != nil {
-		return serrors.Format("get replay by id", err, "replayID", changeSet.ReplayID)
+		return serrors.New("get replay by id", err, "replayID", changeSet.ReplayID)
 	}
 
 	// note: used to keep the cache in sync, this can run outside of a transaction because we have a batch job to recover that payload to the cache.
@@ -63,7 +63,7 @@ func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finish
 		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
 		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
 	); err != nil {
-		return serrors.Format("incr leaderboard", err, "changeSet", changeSet)
+		return serrors.New("incr leaderboard", err, "changeSet", changeSet)
 	}
 
 	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", changeSet, "room", finishedGame.GameID)
@@ -82,7 +82,7 @@ func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finish
 			return serrors.New("publish scheduled tournament event", err)
 		}
 	} else {
-		return serrors.Format("select tournament by game id", err, "gameID", finishedGame.GameID)
+		return serrors.New("select tournament by game id", err, "gameID", finishedGame.GameID)
 	}
 
 	services.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(finishedGame.GameID, replay), pubsub.Async())
@@ -146,7 +146,7 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 
 			userElos, err := querier.SelectUserModeElosByIDs(ctx, sqlc.SelectUserModeElosByIDsParams{ID: userIDs, Mode: mode})
 			if err != nil {
-				return serrors.Format("select users elo", err, "userIDs", userIDs)
+				return serrors.New("select users elo", err, "userIDs", userIDs)
 			}
 
 			var updts []sqlc.UpsertUserEloParams
@@ -158,7 +158,7 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 			var batchUpsertErrs []error
 			querier.UpsertUserElo(ctx, updts).Exec(func(i int, err error) {
 				if err != nil {
-					batchUpsertErrs = append(batchUpsertErrs, serrors.Format("batch upserting elo", err, "batch", i, "updt", updts[i]))
+					batchUpsertErrs = append(batchUpsertErrs, serrors.New("batch upserting elo", err, "batch", i, "updt", updts[i]))
 				}
 			})
 			if err := errors.Join(batchUpsertErrs...); err != nil {
@@ -181,7 +181,7 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 			}
 			replayID, err := querier.InsertReplay(ctx, replayInst)
 			if err != nil {
-				return serrors.Format("insert replay for result", err, "result", result)
+				return serrors.New("insert replay for result", err, "result", result)
 			}
 
 			changeSet.ReplayID = replayID

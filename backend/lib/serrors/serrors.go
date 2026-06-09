@@ -18,11 +18,7 @@ func (e *ServiceError) Error() string {
 	return e.Err.Error()
 }
 
-func New(message string, err error) error {
-	return Format(message, err, nil)
-}
-
-func Format(message string, err error, values ...any) error {
+func New(message string, err error, values ...any) error {
 	if err == nil {
 		return nil
 	}

@@ -77,13 +77,13 @@ func calcSwissTournamentRounds(participantCount int) int32 {
 	return int32(math.Log2(float64(participantCount)))
 }
 
-// knockoutParticipantsAtRound returns the number of elements at a given depth.
+// KnockoutParticipantsAtRound returns the number of elements at a given depth.
 // Each node holds 2 elements. At depth d, there are 2^(N-d) nodes.
-func knockoutParticipantsAtRound(maxDepth, depth int) int { return 1 << (maxDepth - depth + 1) }
+func KnockoutParticipantsAtRound(maxDepth, depth int) int { return 1 << (maxDepth - depth + 1) }
 
-// knockoutMatchesAtRound returns the number of nodes at a given depth.
+// KnockoutMatchesAtRound returns the number of nodes at a given depth.
 // Root (depth N) has 1 node; each level down doubles the count.
-func knockoutMatchesAtRound(maxDepth, depth int) int { return 1 << (maxDepth - depth) }
+func KnockoutMatchesAtRound(maxDepth, depth int) int { return 1 << (maxDepth - depth) }
 
 type MatchCountErrKind int
 
@@ -170,7 +170,7 @@ func MakeFirstMatches(request FirstMatchmakingRequest) (MatchmakingResponse, err
 	switch request.Ruleset {
 	case model.TournamentKnockout:
 		// invariant: matches are devided by two each time and stop at 1, we need to start at the expected power of 2
-		wantRoundCount := knockoutParticipantsAtRound(int(totalRounds), 1)
+		wantRoundCount := KnockoutParticipantsAtRound(int(totalRounds), 1)
 		if participantCount != wantRoundCount {
 			return MatchmakingResponse{}, MatchCountError{Kind: ParticipantCountErrKind, WantCount: wantRoundCount, GotCount: participantCount}
 		}
@@ -184,7 +184,7 @@ func MakeFirstMatches(request FirstMatchmakingRequest) (MatchmakingResponse, err
 	switch request.Ruleset {
 	case model.TournamentKnockout:
 		matches = makeMatchesLinearly(request.Participants, request.Mode)
-		wantRoundCount := knockoutMatchesAtRound(int(totalRounds), 1)
+		wantRoundCount := KnockoutMatchesAtRound(int(totalRounds), 1)
 		if len(matches) != wantRoundCount {
 			panic(fmt.Sprintf("expected %d matches, got %d", wantRoundCount, len(matches)))
 		}

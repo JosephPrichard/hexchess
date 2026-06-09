@@ -35,6 +35,8 @@ var (
 	ErrHttpInvalidCountdownState = errors.New("ERROR_INVALID_COUNTDOWN_STATE")
 	ErrHttpCountdownPermissions  = errors.New("ERROR_COUNTDOWN_PERMISSIONS")
 	ErrHttpInvalidRounds         = errors.New("ERROR_INVALID_ROUNDS")
+	ErrHttpInvalidChecksum       = errors.New("ERROR_INVALID_CHECKSUM")
+	ErrHttpErrProfilePicTooBig   = errors.New("ERROR_PROFILE_PIC_TOO_BIG")
 )
 
 // WebSocket response codes
@@ -52,11 +54,11 @@ var (
 	ErrWsUndoAction     = errors.New("ERR_UNDO_ACTION")
 )
 
-func mapBadRequestError(err error) (ServiceView, bool) {
+func mapBadRequestError(err error) (ServiceResp, bool) {
 	var respErr *BadRequestError
 	ok := errors.As(err, &respErr)
 	if !ok {
-		return ServiceView{}, false
+		return ServiceResp{}, false
 	}
 	strMap := make(map[string]OneError)
 
@@ -71,10 +73,10 @@ func mapBadRequestError(err error) (ServiceView, bool) {
 		strMap[k] = OneError{Message: v.Error(), Error: targetErr.Error()}
 	}
 
-	return ServiceView{Status: http.StatusBadRequest, Errors: strMap}, true
+	return ServiceResp{Status: http.StatusBadRequest, Errors: strMap}, true
 }
 
-func ServiceViewFromErr(err error) ServiceView {
+func ServiceViewFromErr(err error) ServiceResp {
 	var msg string
 
 	if resp, ok := mapBadRequestError(err); ok {
@@ -108,6 +110,10 @@ func ServiceViewFromErr(err error) ServiceView {
 		err, msg = ErrHttpNotFoundChallenge, err.Error()
 	case errors.Is(err, svc.ErrTournamentNotFound):
 		err, msg = ErrHttpNotFoundTournament, err.Error()
+	case errors.Is(err, svc.InvalidChecksum):
+		err, msg = ErrHttpInvalidChecksum, err.Error()
+	case errors.Is(err, svc.ErrProfilePicTooBig):
+		err, msg = ErrHttpErrProfilePicTooBig, err.Error()
 	}
 
 	// map http error codes to status codes
@@ -126,30 +132,32 @@ func ServiceViewFromErr(err error) ServiceView {
 		ErrHttpUpdateChallenge,
 		ErrHttpInvalidJSON,
 		ErrHttpCountdownPermissions,
-		ErrHttpInvalidRounds:
-		return ServiceView{Status: http.StatusBadRequest, Message: msg, Error: err.Error()}
+		ErrHttpInvalidRounds,
+		ErrHttpInvalidChecksum,
+		ErrHttpErrProfilePicTooBig:
+		return ServiceResp{Status: http.StatusBadRequest, Message: msg, Error: err.Error()}
 	// 401 — Unauthorized
 	case ErrHttpInvalidLogin,
 		ErrHttpSessionExpired,
 		ErrHttpTooManyLoginAttempts:
-		return ServiceView{Status: http.StatusUnauthorized, Message: msg, Error: err.Error()}
+		return ServiceResp{Status: http.StatusUnauthorized, Message: msg, Error: err.Error()}
 	// 404 — Not Found
 	case ErrHttpNotFoundUser,
 		ErrHttpNotFoundReplay,
 		ErrHttpNotFoundChallenge,
 		ErrHttpNotFoundTournament:
-		return ServiceView{Status: http.StatusNotFound, Message: msg, Error: err.Error()}
+		return ServiceResp{Status: http.StatusNotFound, Message: msg, Error: err.Error()}
 	// 412 - Precondition
 	case ErrHttpTooManyParticipants,
 		ErrHttpTournamentNotLobby,
 		ErrHttpInvalidCountdownState:
-		return ServiceView{Status: http.StatusPreconditionFailed, Message: msg, Error: err.Error()}
+		return ServiceResp{Status: http.StatusPreconditionFailed, Message: msg, Error: err.Error()}
 	// 500 — Internal API Error
 	case ErrHttpFatal:
-		return ServiceView{Status: http.StatusInternalServerError, Message: msg, Error: err.Error()}
+		return ServiceResp{Status: http.StatusInternalServerError, Message: msg, Error: err.Error()}
 	// fallback
 	default:
-		return ServiceView{Status: http.StatusInternalServerError, Error: ErrHttpFatal.Error()}
+		return ServiceResp{Status: http.StatusInternalServerError, Error: ErrHttpFatal.Error()}
 	}
 }
 
