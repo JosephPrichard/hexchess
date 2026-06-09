@@ -8,6 +8,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
 	"hexchess-svc/lib/enum"
+	"hexchess-svc/lib/serrors"
 	"hexchess-svc/pb"
 	"time"
 )
@@ -82,11 +83,11 @@ func UnmarshalChessState(bytes []byte) (*ChessState, error) {
 
 	game, err := chess.DeserializeGame(pbChess.Game)
 	if err != nil {
-		return nil, fmt.Errorf("deserialize game: %w", err)
+		return nil, serrors.New("deserialize game", err)
 	}
 	initialBoard, err := chess.DeserializeBoard(pbChess.InitialBoard)
 	if err != nil {
-		return nil, fmt.Errorf("deserialize initial board %v: %w", pbChess.Game.Board, err)
+		return nil, serrors.New("deserialize initial board", err, "board", pbChess.Game.Board)
 	}
 
 	mode, modeErr := enum.Parse(pbChess.Mode, GameModeEnums)
@@ -243,7 +244,7 @@ func UnmarshalFinishedGame(bytes []byte) (FinishedGame, error) {
 
 	board, err := chess.DeserializeBoard(pbGameEvent.Board)
 	if err != nil {
-		return FinishedGame{}, fmt.Errorf("deserialize board %v: %w", pbGameEvent.Board, err)
+		return FinishedGame{}, serrors.New("deserialize board", err, "board", pbGameEvent.Board)
 	}
 
 	return FinishedGame{
@@ -350,15 +351,15 @@ func MarshalMatchCreations(matches []MatchCreation) ([]byte, error) {
 func UnmarshalAdvanceTournamentEvent(bytes []byte) (AdvanceTournamentEvent, error) {
 	var pbEvent pb.AdvanceTournamentEvent
 	if err := proto.Unmarshal(bytes, &pbEvent); err != nil {
-		return AdvanceTournamentEvent{}, fmt.Errorf("unmarshal create scheduled tournament event: %w", err)
+		return AdvanceTournamentEvent{}, serrors.New("unmarshal create scheduled tournament event", err)
 	}
 	tournamentKey, err := uuid.Parse(pbEvent.TournamentKey)
 	if err != nil {
-		return AdvanceTournamentEvent{}, fmt.Errorf("parse tournament key: %w", err)
+		return AdvanceTournamentEvent{}, serrors.New("parse tournament key", err, "tournamentKey", pbEvent.TournamentKey)
 	}
 	eventID, err := uuid.Parse(pbEvent.EventId)
 	if err != nil {
-		return AdvanceTournamentEvent{}, fmt.Errorf("parse event id: %w", err)
+		return AdvanceTournamentEvent{}, serrors.New("parse event id", err, "eventID", pbEvent.EventId)
 	}
 	return AdvanceTournamentEvent{TournamentKey: tournamentKey, EventID: eventID}, nil
 }
@@ -458,7 +459,7 @@ func MarshalTournamentOutput(pbOutput *pb.TournamentOutput) (output TournamentOu
 	case *pb.TournamentOutput_Participant:
 		lbdUser, err := DeserializeParticipantOutput(pbOutputValue)
 		if err != nil {
-			return output, fmt.Errorf("deserialize participant output: %w", err)
+			return output, serrors.New("deserialize participant output", err)
 		}
 		return TournamentOutput{Key: ParticipantKey, Value: TournamentOutput_Participant(lbdUser)}, nil
 	case *pb.TournamentOutput_Countdown:
@@ -468,7 +469,7 @@ func MarshalTournamentOutput(pbOutput *pb.TournamentOutput) (output TournamentOu
 	case *pb.TournamentOutput_Matchmaking:
 		matches, err := DeserializeMatchmakingOutput(pbOutputValue)
 		if err != nil {
-			return output, fmt.Errorf("deserialize matchmaking output: %w", err)
+			return output, serrors.New("deserialize matchmaking output", err)
 		}
 		return TournamentOutput{Key: MatchmakingKey, Value: TournamentOutput_Matchmaking{Matches: matches}}, nil
 	case *pb.TournamentOutput_Error:
@@ -542,12 +543,12 @@ func DeserializeTournamentMatches(pbMatches []*pb.TournamentMatch) ([]FullMatch,
 	for i, pbMatch := range pbMatches {
 		tournamentKey, err := uuid.Parse(pbMatch.TournamentKey)
 		if err != nil {
-			serdeErrs = append(serdeErrs, fmt.Errorf("match %d: invalid tournament key: %w", i, err))
+			serdeErrs = append(serdeErrs, serrors.New("invalid tournament key", err, "i", i, "tournamentKey", pbMatch.TournamentKey))
 			continue
 		}
 		createdOn, err := time.Parse(time.RFC3339, pbMatch.CreatedOn)
 		if err != nil {
-			serdeErrs = append(serdeErrs, fmt.Errorf("match %d: parse created on: %w", i, err))
+			serdeErrs = append(serdeErrs, serrors.New("parse created on", err, "i", i, "createdOn", pbMatch.CreatedOn))
 			continue
 		}
 		matches = append(matches, FullMatch{

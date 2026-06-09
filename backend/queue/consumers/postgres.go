@@ -3,12 +3,12 @@ package consumers
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/google/uuid"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/lib/errutil"
 	"hexchess-svc/lib/logutil"
+	"hexchess-svc/lib/serrors"
 	svc "hexchess-svc/service"
 	"log/slog"
 	"sync"
@@ -55,7 +55,7 @@ func (c *PostgresConsumer) Consume() error {
 func (c *PostgresConsumer) poll() error {
 	return c.pdb.ExecTx(c.ctx, db.TxArgs{
 		// ReadCommitted is used as a basic 'Default` isolation level, the primary purpose of the transaction is atomicity
-		// if handlers fail to acknowledge an event, it is not marked as processed and the lock is released at the end of the transaction, to allow retries
+		// if handlers fail to acknowledge an event, it is not marked as processed and the lock is released at the end of the transaction, to allow retries *per event*
 		Isolation:  pgx.ReadCommitted,
 		RetryCount: 1,
 		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
@@ -68,7 +68,7 @@ func (c *PostgresConsumer) poll() error {
 				Limit: c.pollCount,
 			})
 			if err != nil {
-				return fmt.Errorf("failed to select %d messages for event kind %s from postgres queue: %w", c.pollCount, c.kind, err)
+				return serrors.New("select postgres queue messages", err, "kind", c.kind, "limit", c.pollCount)
 			}
 			if len(eventRows) == 0 {
 				return nil
@@ -113,11 +113,13 @@ func (c *PostgresConsumer) poll() error {
 			}
 			slog.Log(ctx, level, "handled postgres queue events", "errProcessedEvents", errProcessedEvents, "eventsIDsToAck", eventIDsToAck)
 
-			if err := querier.UpdateQueueProcessedByID(ctx, sqlc.UpdateQueueProcessedByIDParams{
-				Ids:           eventIDsToAck,
-				ProcessedTime: pgtype.Timestamptz{Time: c.entropy.GetTime(), Valid: true},
-			}); err != nil {
-				return fmt.Errorf("failed to acknolwedge postgres queue messages %+v: %w", processedEvents, err)
+			if len(eventIDsToAck) > 0 {
+				if err := querier.UpdateQueueProcessedByID(ctx, sqlc.UpdateQueueProcessedByIDParams{
+					Ids:           eventIDsToAck,
+					ProcessedTime: pgtype.Timestamptz{Time: c.entropy.GetTime(), Valid: true},
+				}); err != nil {
+					return serrors.New("acknowledge postgres queue messages", err, "events", processedEvents)
+				}
 			}
 			return nil
 		},
