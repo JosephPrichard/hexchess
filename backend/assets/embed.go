@@ -1,12 +1,9 @@
 package assets
 
 import (
-	"embed"
+	_ "embed"
 	"encoding/json"
 )
-
-//go:embed all:test
-var TestData embed.FS
 
 //go:embed countries.json
 var CountryListJson []byte

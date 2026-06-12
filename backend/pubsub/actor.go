@@ -125,15 +125,15 @@ func (actor *BroadcastActor) Shutdown() {
 	close(actor.actionChan)
 }
 
-type GlobalEventKind int
+type CountEventKind int
 
 const (
-	GlobalActiveEvent GlobalEventKind = iota
+	GlobalActiveEvent CountEventKind = iota
 	GlobalGamesEvent
 )
 
 type GlobalCastEvent struct {
-	Kind GlobalEventKind
+	Kind CountEventKind
 	Data string
 }
 

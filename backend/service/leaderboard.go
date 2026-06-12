@@ -25,21 +25,32 @@ type UpdtLbChangeSet struct {
 	EloDiff float64
 }
 
-func (services *HexchessServices) SetLeaderboard(ctx context.Context, changes ...UpdtLbChangeSet) error {
+type SetLbChangeSet struct {
+	ID      int64
+	EloDiff float64
+}
+
+func (services *HexchessServices) SetLeaderboard(ctx context.Context, mode model.GameMode, changes ...SetLbChangeSet) error {
 	pipe := services.redis.Cache.Pipeline()
+
+	modeLbZSet := fmtLeaderboardZSet(services.redis, mode.String())
+
+	var outgoingChanges []SetLbChangeSet
 	for _, change := range changes {
 		if model.IsGuestID(change.ID) {
 			continue
 		}
 
-		modeLbZSet := fmtLeaderboardZSet(services.redis, change.Mode.String())
 		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: change.EloDiff, Member: change.ID})
 
-		slog.InfoContext(ctx, "set leaderboard users", "modeLbZSet", modeLbZSet, "changes", changes)
+		outgoingChanges = append(outgoingChanges, change)
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
 		return serrors.New("set leaderboard users", err)
 	}
+
+	slog.InfoContext(ctx, "set leaderboard users", "modeLbZSet", modeLbZSet, "changes", outgoingChanges)
+
 	return nil
 }
 
@@ -242,18 +253,18 @@ func (services *HexchessServices) SyncLeaderboard(ctx context.Context) error {
 			if err != nil {
 				return serrors.New("select elo list", err, "afterID", afterID)
 			}
-			var changes []UpdtLbChangeSet
+			var changes []SetLbChangeSet
 			for i, row := range rows {
 				if i == len(rows)-1 {
 					afterID = row.UserID
 				}
-				changes = append(changes, UpdtLbChangeSet{Mode: mode, ID: row.UserID, EloDiff: row.Elo})
+				changes = append(changes, SetLbChangeSet{ID: row.UserID, EloDiff: row.Elo})
 			}
-			slog.InfoContext(ctx, "created update leaderboard changeset", "changes", changes, "nextAfterID", afterID)
+			slog.InfoContext(ctx, "syncing leaderboard changes", "changes", changes, "nextAfterID", afterID)
 			if len(changes) == 0 {
 				break
 			}
-			if err := services.SetLeaderboard(ctx, changes...); err != nil {
+			if err := services.SetLeaderboard(ctx, mode, changes...); err != nil {
 				return serrors.New("set leaderboard", err)
 			}
 		}

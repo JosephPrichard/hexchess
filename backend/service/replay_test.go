@@ -20,8 +20,8 @@ import (
 func TestGetReplay(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.RWPostgres)
+	defer testinfra.Close()
 
 	t.Run("GetReplay", func(t *testing.T) {
 		ctx := t.Context()
@@ -77,8 +77,8 @@ func TestSearchReplaysByQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := setupServicesTest(t, serviceMocks{}, itest.ROPostgres)
-			defer services.Close()
+			services, testinfra := setupServicesTest(t, nil, itest.ROPostgres)
+			defer testinfra.Close()
 
 			ctx := t.Context()
 
@@ -132,8 +132,8 @@ func TestRetrieveEloHistories(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 
-			services, _ := setupServicesTest(t, serviceMocks{}, itest.ROPostgres)
-			defer services.Close()
+			services, testinfra := setupServicesTest(t, nil, itest.ROPostgres)
+			defer testinfra.Close()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
 

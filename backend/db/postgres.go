@@ -28,7 +28,9 @@ func (pdb *PostgresDB) Querier() sqlc.Querier {
 }
 
 func (pdb *PostgresDB) Close() {
-	pdb.pool.Close()
+	if pdb.pool != nil {
+		pdb.pool.Close()
+	}
 }
 
 type FakeDB struct {
@@ -40,6 +42,9 @@ func (pdb *FakeDB) Querier() sqlc.Querier {
 }
 
 func (pdb *FakeDB) Close() {
+	if pdb.testingTxn == nil {
+		return
+	}
 	defer func() {
 		if p := recover(); p != nil {
 			slog.Error("fatal error while closing fake db", "error", p)

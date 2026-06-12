@@ -3,7 +3,6 @@ package itest
 import (
 	"context"
 	"fmt"
-	"github.com/jackc/pgx/v5"
 	"sync"
 	"time"
 
@@ -21,7 +20,7 @@ const RedisContPort = "6379/tcp"
 var muRedis sync.Mutex
 var redisCont testcontainers.Container
 
-func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (db.Redis, error) {
+func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (string, error) {
 	muRedis.Lock()
 	defer muRedis.Unlock()
 
@@ -37,7 +36,7 @@ func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (db.Redis, error)
 			},
 		})
 		if err != nil {
-			return db.Redis{}, fmt.Errorf("failed to start redis container: %w", err)
+			return "", fmt.Errorf("failed to start redis container: %w", err)
 		}
 		redisCont = cont
 		t.Logf("finished starting redis container in %v", time.Since(start))
@@ -47,15 +46,7 @@ func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (db.Redis, error)
 	port, _ := redisCont.MappedPort(ctx, RedisContPort)
 	addr := fmt.Sprintf("%s:%s", host, port.Port())
 
-	rdb := db.MakeRedis(
-		db.RedisAddrs{
-			GameStoreAddr: addr,
-			CacheAddr:     addr,
-			PubsubAddr:    addr,
-		},
-		db.MakeTestRedisNames(),
-	)
-	return rdb, nil
+	return addr, nil
 }
 
 const PostgresContTag = "postgres:17"
@@ -68,7 +59,7 @@ const DbPass = "postgres"
 var muPostgres sync.Mutex
 var postgresCont testcontainers.Container
 
-func SetupPostgresTest(ctx context.Context, t logutil.TestLogger, testingTx bool) (db.DB, error) {
+func SetupPostgresTest(ctx context.Context, t logutil.TestLogger) (*pgxpool.Pool, error) {
 	muPostgres.Lock()
 	defer muPostgres.Unlock()
 
@@ -117,18 +108,39 @@ func SetupPostgresTest(ctx context.Context, t logutil.TestLogger, testingTx bool
 		}
 	}
 
-	var pdb db.DB
-	if testingTx {
-		testTx, err := pool.BeginTx(ctx, pgx.TxOptions{
-			IsoLevel: pgx.Serializable,
+	return pool, nil
+}
+
+const LocalstackContTag = "localstack/localstack:3.0"
+const LocalstackContPort = "4566/tcp"
+
+var muLocalstack sync.Mutex
+var localstackCont testcontainers.Container
+
+func SetupLocalstackTest(ctx context.Context, t logutil.TestLogger) (string, error) {
+	muLocalstack.Lock()
+	defer muLocalstack.Unlock()
+
+	if localstackCont == nil {
+		start := time.Now()
+		cont, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+			Started: true,
+			ContainerRequest: testcontainers.ContainerRequest{
+				Image:        LocalstackContTag,
+				ExposedPorts: []string{LocalstackContPort},
+				WaitingFor:   wait.ForListeningPort(LocalstackContPort),
+			},
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to open testing txn: %w", err)
+			return "", fmt.Errorf("failed to start localstack container: %w", err)
 		}
-		pdb = db.MakeFakeDB(testTx)
-	} else {
-		pdb = db.MakeDB(pool)
+		localstackCont = cont
+		t.Logf("finished starting localstack container in %v", time.Since(start))
 	}
 
-	return pdb, nil
+	host, _ := localstackCont.Host(ctx)
+	port, _ := localstackCont.MappedPort(ctx, LocalstackContPort)
+	addr := fmt.Sprintf("http://%s:%s", host, port.Port())
+
+	return addr, nil
 }

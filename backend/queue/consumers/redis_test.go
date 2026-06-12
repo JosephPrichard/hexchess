@@ -76,7 +76,7 @@ func TestRedisConsumer(t *testing.T) {
 		})
 	}
 
-	testinfra := itest.SetupTestInfra(t, itest.Redis)
+	testinfra := itest.SetupIntegrationTest(t, itest.Redis)
 	defer testinfra.Close()
 
 	ctx, cancel := context.WithCancel(t.Context())

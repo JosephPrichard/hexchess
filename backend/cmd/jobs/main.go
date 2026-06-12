@@ -52,7 +52,7 @@ func main() {
 		DB:    pdb,
 		Redis: rdb,
 	})
-	defer services.Close()
+	defer testinfra.Close()
 
 	switch *jobName {
 	case "sync-leaderboard":

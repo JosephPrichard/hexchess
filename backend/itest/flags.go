@@ -6,4 +6,5 @@ const (
 	RWPostgres TestFlag = iota
 	ROPostgres
 	Redis
+	AWS
 )

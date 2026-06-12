@@ -49,8 +49,8 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 }
 
 type ServerSetup struct {
-	Services      svc.HexchessAPI
-	Broadcaster   pubsub.BroadcasterAPI
+	Services      *svc.HexchessServices
+	Broadcaster   *pubsub.Broadcaster
 	Broadcasters  *pubsub.LocalBroadcasters
 	EntropySource svc.EntropyAPI
 
@@ -63,8 +63,8 @@ type StaticData struct {
 }
 
 type API struct {
-	services      svc.HexchessAPI
-	broadcaster   pubsub.BroadcasterAPI
+	services      *svc.HexchessServices
+	broadcaster   *pubsub.Broadcaster
 	broadcasters  *pubsub.LocalBroadcasters
 	entropy       svc.EntropyAPI
 	authenticator Authenticator

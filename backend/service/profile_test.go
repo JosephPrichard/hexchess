@@ -1,67 +1,66 @@
 package svc
 
 import (
+	"bytes"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"go.uber.org/mock/gomock"
-
+	"github.com/stretchr/testify/require"
+	"hexchess-svc/egress"
+	"hexchess-svc/itest"
 	"testing"
 	"time"
-
-	"hexchess-svc/egress"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDeleteExpiredProfilePics(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockS3Client := egress.NewMockS3ClientAPI(ctrl)
-	mocks := serviceMocks{S3Client: mockS3Client}
-
-	services, _ := setupServicesTest(t, mocks)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.AWS)
+	defer testinfra.Close()
 
 	ctx := t.Context()
 
-	mockS3Client.EXPECT().
-		ListObjectsV2(gomock.Any(), &s3.ListObjectsV2Input{
-			Bucket: aws.String(egress.S3ProfileBucket),
-			Prefix: aws.String("users/profile-pics/1"),
-		}).
-		Return(&s3.ListObjectsV2Output{
-			Contents: []s3Types.Object{
-				{Key: aws.String("users/profile-pics/1-1"), LastModified: aws.Time(time.Unix(1, 0))},
-				{Key: aws.String("users/profile-pics/1-2"), LastModified: aws.Time(time.Unix(2, 0))},
-				{Key: aws.String("users/profile-pics/1-3"), LastModified: aws.Time(time.Unix(3, 0))},
-			},
-		}, nil)
+	profileKey1 := "users/profile-pics/1/1"
+	profileKey2 := "users/profile-pics/1/2"
+	lastProfileKey := "users/profile-pics/1/3"
 
-	mockS3Client.EXPECT().
-		DeleteObjects(gomock.Any(), &s3.DeleteObjectsInput{
-			Bucket: aws.String(egress.S3ProfileBucket),
-			Delete: &s3Types.Delete{
-				Objects: []s3Types.ObjectIdentifier{
-					{Key: aws.String("users/profile-pics/1-1")},
-					{Key: aws.String("users/profile-pics/1-2")},
-				},
-			},
-		}).
-		Return(&s3.DeleteObjectsOutput{}, nil)
+	egress.SetupS3Test(t, testinfra.AWS, []*s3.PutObjectInput{
+		{
+			Bucket: aws.String(testinfra.AWS.S3ProfileBucket),
+			Key:    aws.String(profileKey1),
+			Body:   bytes.NewReader([]byte("test1")),
+		},
+		{
+			Bucket: aws.String(testinfra.AWS.S3ProfileBucket),
+			Key:    aws.String(profileKey2),
+			Body:   bytes.NewReader([]byte("test2")),
+		},
+		{
+			Bucket: aws.String(testinfra.AWS.S3ProfileBucket),
+			Key:    aws.String(lastProfileKey),
+			Body:   bytes.NewReader([]byte("test3")),
+		},
+	})
 
 	require.NoError(t, services.deleteExpiredProfilePics(ctx, 1))
+
+	objects, err := testinfra.AWS.S3Client.ListObjectsV2(t.Context(), &s3.ListObjectsV2Input{
+		Bucket: aws.String(testinfra.AWS.S3ProfileBucket),
+	})
+	if err != nil {
+		t.Fatalf("failed to list profile pics: %v", err)
+	}
+
+	assert.Equal(t, 1, len(objects.Contents))
 }
 
 func TestFindMostRecentKey(t *testing.T) {
 	t.Parallel()
 
 	// tests most recent Key logic since it cannot be tested in the s3 calls it is tested in
-	// this is because the 'LastModifiedTime' value is nondeterministic with regards to inserts that happen in +- 1 second
+	// this is because the 'LastModifiedTime' value is nondeterministic with regards to inserts that happen in ~5 seconds
 	tests := []struct {
 		objects []s3Types.Object
 		wantKey string

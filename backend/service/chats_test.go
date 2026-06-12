@@ -15,8 +15,8 @@ import (
 func TestEchoStateChats(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.Redis)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.Redis)
+	defer testinfra.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 

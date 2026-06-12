@@ -39,7 +39,7 @@ func writeGlobalEvent(client *SSEClient, event pubsub.GlobalCastEvent) {
 	client.event(e, event.Data)
 }
 
-func writeCountEvent(client *SSEClient, kind pubsub.GlobalEventKind, count int64) {
+func writeCountEvent(client *SSEClient, kind pubsub.CountEventKind, count int64) {
 	b, err := json.Marshal(pubsub.CountEvent{Count: count})
 	if err != nil {
 		slog.ErrorContext(client.ctx, "marshal count event", "Err", err)

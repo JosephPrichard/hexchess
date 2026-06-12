@@ -2,17 +2,15 @@ package controller
 
 import (
 	"bytes"
-	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 	"hexchess-svc/egress"
 	"hexchess-svc/itest"
-	"hexchess-svc/lib/testutil"
 	"hexchess-svc/service"
 	"io"
 	"net/http"
@@ -22,32 +20,22 @@ import (
 	"time"
 )
 
-var s3InputCmpOpts = testutil.CmpIgnoreExcept(s3.PutObjectInput{}, "Bucket", "Key", "ContentType", "CacheControl", "ChecksumSHA256")
-
-type drainingS3Uploader struct {
-	*egress.CompositeS3API
-}
-
-func (u *drainingS3Uploader) PutObject(ctx context.Context, params *s3.PutObjectInput, _ ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
-	doneDraining := make(chan error, 1)
-
-	go func() {
-		_, err := io.ReadAll(params.Body)
-		doneDraining <- err
-	}()
-
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case err := <-doneDraining:
-		return &s3.PutObjectOutput{}, err
-	}
-}
-
 func TestHandleUploadProfilePic(t *testing.T) {
 	t.Parallel()
 
-	staticBodyData := "testfiledata"
+	bodyJustRight := "testfiledata"
+	bodyTooLarge := bytes.Repeat([]byte{'a'}, (5<<20)+1)
+
+	computeChecksum := func(data []byte) string {
+		start := time.Now()
+
+		sha := sha256.New()
+		sha.Write(data)
+		bodyChecksum := base64.StdEncoding.EncodeToString(sha.Sum(nil))
+
+		t.Logf("computed checksum in %v\n", time.Since(start))
+		return bodyChecksum
+	}
 
 	tests := []struct {
 		name        string
@@ -55,66 +43,43 @@ func TestHandleUploadProfilePic(t *testing.T) {
 		contentType string
 		checksum    string
 		wantStatus  int
-		setupMocks  func(*testing.T, *gomock.Controller) egress.S3ClientAPI
+		assertS3    func(*testing.T, egress.AWSClient)
 	}{
 		{
 			name:        "UploadSuccessful",
-			body:        []byte(staticBodyData),
+			body:        []byte(bodyJustRight),
 			contentType: "application/octet-stream",
-			checksum:    "checksum",
+			checksum:    computeChecksum([]byte(bodyJustRight)),
 			wantStatus:  http.StatusOK,
-			setupMocks: func(t *testing.T, ctrl *gomock.Controller) egress.S3ClientAPI {
-				mockS3Client := egress.NewMockS3ClientAPI(ctrl)
-
-				// assert that keys and metadata arrive on the system correctly
-				wantPutInput := &s3.PutObjectInput{
-					Bucket:         aws.String(egress.S3ProfileBucket),
-					Key:            aws.String("users/profile-pics/2/mock-1"),
-					ContentType:    aws.String("application/octet-stream"),
-					CacheControl:   aws.String("public, max-age=31536000"),
-					ChecksumSHA256: aws.String("checksum"),
+			assertS3: func(t *testing.T, client egress.AWSClient) {
+				output, err := client.S3Client.GetObject(t.Context(), &s3.GetObjectInput{
+					Bucket: aws.String(client.S3ProfileBucket),
+					Key:    aws.String("users/profile-pics/2/00000000-0000-0000-0000-000000000000"),
+				})
+				if err != nil {
+					t.Fatalf("failed to get from s3: %v", err)
 				}
-				mockS3Client.EXPECT().
-					PutObject(
-						gomock.Any(),
-						gomock.Cond(func(input *s3.PutObjectInput) bool {
-							recvBodyBytes, _ := io.ReadAll(input.Body)
-							return testutil.Equal(t, wantPutInput, input, s3InputCmpOpts) &&
-								testutil.Equal(t, staticBodyData, string(recvBodyBytes))
-						}),
-						gomock.Any()).
-					Return(&s3.PutObjectOutput{}, nil)
-
-				// empty keylist, expect to not delete anything
-				mockS3Client.EXPECT().
-					ListObjectsV2(gomock.Any(), &s3.ListObjectsV2Input{
-						Bucket: aws.String(egress.S3ProfileBucket),
-						Prefix: aws.String("users/profile-pics/2"),
-					}).
-					Return(&s3.ListObjectsV2Output{}, nil)
-
-				return mockS3Client
+				body, err := io.ReadAll(output.Body)
+				if err != nil {
+					t.Fatalf("failed to drain body from s3: %v", err)
+				}
+				assert.Equal(t, bodyJustRight, string(body))
 			},
 		},
 		{
 			name:       "UploadExceedsLimit",
-			body:       bytes.Repeat([]byte{'a'}, (5<<20)+1),
+			body:       bodyTooLarge,
+			checksum:   computeChecksum(bodyTooLarge),
 			wantStatus: http.StatusBadRequest,
-			setupMocks: func(t *testing.T, ctrl *gomock.Controller) egress.S3ClientAPI {
-				return &drainingS3Uploader{}
-			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockS3Client := tt.setupMocks(t, ctrl)
-
-			h, testinfra := setupTestHandler(t, serviceMocks{S3Client: mockS3Client, Entropy: &svc.StableEntropySource{}}, itest.Redis)
+			h, testinfra := setupTestHandler(t, &serviceMocks{Entropy: &svc.StableEntropySource{}}, itest.Redis, itest.AWS)
 			defer testinfra.Close()
+
+			egress.SetupS3Test(t, testinfra.AWS, nil)
 
 			createTestSessions(t, testinfra.Redis)
 
@@ -127,6 +92,10 @@ func TestHandleUploadProfilePic(t *testing.T) {
 			h.ServeHTTP(w, r)
 
 			assert.Equal(t, tt.wantStatus, w.Code)
+
+			if tt.assertS3 != nil {
+				tt.assertS3(t, testinfra.AWS)
+			}
 		})
 	}
 }
@@ -135,66 +104,44 @@ func TestHandleGetProfilePic(t *testing.T) {
 	t.Parallel()
 
 	profileKey1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())
-	profileKey2 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())
 
 	tests := []struct {
-		name        string
-		userID      string
-		wantStatus  int
-		wantWithKey string
-		setupMocks  func(*gomock.Controller) egress.S3ClientAPI
+		name          string
+		userID        string
+		wantStatus    int
+		wantWithKey   string
+		setupTestData func(*testing.T, itest.TestInfra)
 	}{
 		{
-			name:        "user has profile pic in storage",
+			name:        "HasStoredProfilePic",
 			userID:      "1",
 			wantStatus:  http.StatusTemporaryRedirect,
-			wantWithKey: profileKey1, // expect to receive profileKey in the redirect response, since it is the latest uploaded picture
-			setupMocks: func(ctrl *gomock.Controller) egress.S3ClientAPI {
-				mockS3Client := egress.NewMockS3ClientAPI(ctrl)
-				mockS3Client.EXPECT().
-					ListObjectsV2(gomock.Any(), &s3.ListObjectsV2Input{
-						Bucket: aws.String(egress.S3ProfileBucket),
-						Prefix: aws.String("users/profile-pics/1"),
-					}).
-					Return(&s3.ListObjectsV2Output{
-						// user has multiple profiles, with 'profileKey1' being the latest
-						Contents: []s3Types.Object{
-							{Key: aws.String(profileKey2), LastModified: aws.Time(time.Unix(1, 0))},
-							{Key: aws.String(profileKey1), LastModified: aws.Time(time.Unix(2, 0))},
-						},
-					}, nil)
-				return mockS3Client
+			wantWithKey: profileKey1,
+			setupTestData: func(t *testing.T, testinfra itest.TestInfra) {
+				egress.SetupS3Test(t, testinfra.AWS, []*s3.PutObjectInput{
+					{
+						Bucket: aws.String(testinfra.AWS.S3ProfileBucket),
+						Key:    aws.String(profileKey1),
+						Body:   bytes.NewReader([]byte("test1")),
+					},
+				})
 			},
 		},
 		{
-			name:       "user has default profile pic",
+			name:       "HasDefaultPic",
 			userID:     "2",
 			wantStatus: http.StatusOK,
-			setupMocks: func(ctrl *gomock.Controller) egress.S3ClientAPI {
-				mockS3Client := egress.NewMockS3ClientAPI(ctrl)
-				mockS3Client.EXPECT().
-					ListObjectsV2(gomock.Any(), &s3.ListObjectsV2Input{
-						Bucket: aws.String(egress.S3ProfileBucket),
-						Prefix: aws.String("users/profile-pics/2"),
-					}).
-					// no profile pics, send the default picture (200ok with a static image)
-					Return(&s3.ListObjectsV2Output{}, nil)
-				return mockS3Client
-			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
+			h, testinfra := setupTestHandler(t, nil, itest.Redis, itest.AWS)
+			defer testinfra.Close()
 
-			mocks := serviceMocks{
-				Entropy:  &svc.StableEntropySource{},
-				S3Client: tt.setupMocks(ctrl),
+			if tt.setupTestData != nil {
+				tt.setupTestData(t, testinfra)
 			}
-			h, services := setupTestHandler(t, mocks, itest.Redis)
-			defer services.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/users/profile-pics?userId=%s", tt.userID), nil)
 			w := httptest.NewRecorder()

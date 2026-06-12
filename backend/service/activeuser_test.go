@@ -1,9 +1,6 @@
 package svc
 
 import (
-	"go.uber.org/mock/gomock"
-	"hexchess-svc/pubsub"
-
 	"testing"
 	"time"
 
@@ -16,21 +13,10 @@ import (
 func TestActiveUser(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	services, testinfra := setupServicesTest(t, nil, itest.Redis)
+	defer testinfra.Close()
 
-	broadcaster := pubsub.NewMockBroadcasterAPI(ctrl)
-	broadcaster.EXPECT().
-		BroadcastActiveCount(gomock.Any(), gomock.Eq(int64(1)), gomock.Any())
-	broadcaster.EXPECT().
-		BroadcastActiveCount(gomock.Any(), gomock.Eq(int64(2)), gomock.Any())
-	broadcaster.EXPECT().
-		BroadcastActiveCount(gomock.Any(), gomock.Eq(int64(1)), gomock.Any())
-	broadcaster.EXPECT().
-		BroadcastActiveCount(gomock.Any(), gomock.Eq(int64(2)), gomock.Any())
-
-	services, _ := setupServicesTest(t, serviceMocks{Broadcaster: broadcaster}, itest.Redis)
-	defer services.Close()
+	//assertBroadcasts := pubsub.ExpectBroadcastActiveUsers(t, testinfra.Redis, []int64{1, 2, 1, 2})
 
 	services.entropy = &StableEntropySource{CurrTime: time.UnixMilli(int64(ActiveUserMaxage * 5))}
 
@@ -58,4 +44,6 @@ func TestActiveUser(t *testing.T) {
 	assert.Equal(t, int64(1), countAfterRemoval)
 	assert.Equal(t, int64(2), countAfterRemoveAndAdd)
 	assert.Equal(t, int64(1), countAfterExpiry)
+
+	//assertBroadcasts()
 }

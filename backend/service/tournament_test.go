@@ -23,8 +23,8 @@ import (
 func TestCreateTournament(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}, itest.RWPostgres)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, &serviceMocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}, itest.RWPostgres)
+	defer testinfra.Close()
 
 	ctx := t.Context()
 
@@ -63,8 +63,8 @@ func TestCreateTournament(t *testing.T) {
 func TestBeginTournamentCountdown(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.RWPostgres)
+	defer testinfra.Close()
 
 	tests := []struct {
 		name                      string
@@ -138,8 +138,8 @@ var sqlcTournamentParticipantCmpOpts = cmpopts.IgnoreFields(sqlc.TournamentParti
 func TestJoinTournament(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.RWPostgres)
+	defer testinfra.Close()
 
 	tests := []struct {
 		name             string
@@ -414,8 +414,8 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, testinfra := setupServicesTest(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
-			defer services.Close()
+			services, testinfra := setupServicesTest(t, nil, itest.RWPostgres, itest.Redis)
+			defer testinfra.Close()
 
 			ctx := t.Context()
 
@@ -441,8 +441,8 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 }
 
 func TestAdvanceTournament_ThenGetChessStates(t *testing.T) {
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.RWPostgres, itest.Redis)
+	defer testinfra.Close()
 
 	ctx := t.Context()
 
@@ -471,8 +471,8 @@ func TestAdvanceTournament_ThenGetChessStates(t *testing.T) {
 }
 
 func TestAdvanceTournament_InsertsEvent(t *testing.T) {
-	services, testinfra := setupServicesTest(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.RWPostgres, itest.Redis)
+	defer testinfra.Close()
 
 	ctx := t.Context()
 

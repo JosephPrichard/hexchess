@@ -29,33 +29,6 @@ func Sync() BroadcastOption {
 	}
 }
 
-//go:generate mockgen -source=broadcasters.go -destination=./broadcasters_mock.go -package=pubsub
-
-type BroadcasterAPI interface {
-	BroadcastActiveCount(ctx context.Context, count int64, opts ...BroadcastOption)
-	BroadcastGameCount(ctx context.Context, count int64, opts ...BroadcastOption)
-	BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput, opts ...BroadcastOption)
-	BroadcastTournament(ctx context.Context, tournament *pb.TournamentOutput, opts ...BroadcastOption)
-	BroadcastChallenge(ctx context.Context, challenge model.Challenge, opts ...BroadcastOption)
-}
-
-type NoopBroadcaster struct{}
-
-func (NoopBroadcaster) BroadcastActiveCount(ctx context.Context, count int64, opts ...BroadcastOption) {
-}
-
-func (NoopBroadcaster) BroadcastGameCount(ctx context.Context, count int64, opts ...BroadcastOption) {
-}
-
-func (NoopBroadcaster) BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput, opts ...BroadcastOption) {
-}
-
-func (NoopBroadcaster) BroadcastTournament(ctx context.Context, tournament *pb.TournamentOutput, opts ...BroadcastOption) {
-}
-
-func (NoopBroadcaster) BroadcastChallenge(ctx context.Context, challenge model.Challenge, opts ...BroadcastOption) {
-}
-
 type Broadcaster struct {
 	redis *redis.Pool
 	names db.RedisNames

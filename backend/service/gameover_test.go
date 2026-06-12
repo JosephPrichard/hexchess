@@ -1,24 +1,20 @@
 package svc
 
 import (
-	"go.uber.org/mock/gomock"
-	"google.golang.org/protobuf/testing/protocmp"
+	"github.com/google/uuid"
 	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/pb"
-	"hexchess-svc/pubsub"
-
 	"hexchess-svc/itest"
 	"hexchess-svc/lib/testutil"
 	"hexchess-svc/model"
+	"hexchess-svc/pb"
+	"hexchess-svc/pubsub"
 	"math"
 	"strconv"
-
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,17 +30,10 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 	newGameID := uuid.NewString()
 	newGameIDGuest := uuid.NewString()
 
-	setupPermissiveMocks := func(ctrl testutil.Controller) pubsub.BroadcasterAPI {
-		mockBroadcasterAPI := pubsub.NewMockBroadcasterAPI(ctrl.Gomock)
-		mockBroadcasterAPI.EXPECT().
-			BroadcastGamesEvent(gomock.Any(), gomock.Any(), gomock.Any())
-		return mockBroadcasterAPI
-	}
-
 	tests := []struct {
 		name            string
 		event           model.FinishedGame
-		setupMocks      func(ctrl testutil.Controller) pubsub.BroadcasterAPI
+		wantGameOutputs []*pb.GameOutput
 		wantLeaderboard []string
 	}{
 		{
@@ -59,10 +48,8 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				ReplayCause:  model.Checkmate,
 				ReplayResult: model.WhiteWin,
 			},
-			setupMocks: func(ctrl testutil.Controller) pubsub.BroadcasterAPI {
-				mockBroadcasterAPI := pubsub.NewMockBroadcasterAPI(ctrl.Gomock)
-
-				wantOutput := &pb.GameOutput{
+			wantGameOutputs: []*pb.GameOutput{
+				{
 					GameId: newGameID,
 					Value: &pb.GameOutput_Replay{Replay: &pb.Replay{
 						BlackCountry: "us",
@@ -81,16 +68,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 						WhiteName:    "user1",
 						WinEloDiff:   15,
 					}},
-				}
-				assertGameOutput := gomock.Cond(func(output *pb.GameOutput) bool {
-					return testutil.Equal(ctrl.T, wantOutput, output,
-						protocmp.Transform(), protocmp.IgnoreFields(&pb.Replay{}, "played_on", "id"))
-				})
-
-				mockBroadcasterAPI.EXPECT().
-					BroadcastGamesEvent(gomock.Any(), assertGameOutput, gomock.Any())
-
-				return mockBroadcasterAPI
+				},
 			},
 			wantLeaderboard: []string{
 				strconv.Itoa(int(testUser0.ID)),
@@ -111,7 +89,6 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				ReplayCause:  model.Forfeit,
 				ReplayResult: model.BlackWin,
 			},
-			setupMocks:      setupPermissiveMocks,
 			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
 		},
 		{
@@ -126,19 +103,16 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				ReplayCause:  model.Forfeit,
 				ReplayResult: model.BlackWin,
 			},
-			setupMocks:      setupPermissiveMocks,
 			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			hCtrl := testutil.Controller{T: t, Gomock: ctrl}
+			services, testinfra := setupServicesTest(t, nil, itest.RWPostgres, itest.Redis)
+			defer testinfra.Close()
 
-			services, testinfra := setupServicesTest(t, serviceMocks{Broadcaster: tt.setupMocks(hCtrl)}, itest.RWPostgres, itest.Redis)
-			defer services.Close()
+			assertBroadcasts := pubsub.ExpectBroadcastGames(t, testinfra.Redis, tt.event.GameID, tt.wantGameOutputs)
 
 			err := services.InsertFinishedGame(ctx, tt.event)
 			require.NoError(t, err)
@@ -148,6 +122,8 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantLeaderboard, leaderboard)
+
+			assertBroadcasts()
 		})
 	}
 }
@@ -336,8 +312,8 @@ func TestInsertGameResult(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, testinfra := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
-			defer services.Close()
+			services, testinfra := setupServicesTest(t, nil, itest.RWPostgres)
+			defer testinfra.Close()
 
 			changeSet, err := services.InsertGameResult(ctx, tt.resultInput)
 			require.NoError(t, err)

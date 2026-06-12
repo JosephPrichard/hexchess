@@ -40,7 +40,7 @@ const trunateSql = `
 	CASCADE;`
 
 var usersCount = flag.Int("usersCount", 50, "number of users to seed")
-var challengesCount = flag.Int("challengesCount", 100, "number of challenges to seed")
+var challengesCount = flag.Int("challengesCount", 50, "number of challenges to seed")
 var gameResultCount = flag.Int("gameResultCount", 100, "number of game results to seed")
 var tournamentsCount = flag.Int("tournamentsCount", 25, "number of tournaments to seed")
 
@@ -77,7 +77,7 @@ func main() {
 	}
 
 	services := svc.MakeHexchessServices(svc.SetupService{DB: pdb, Redis: rdb})
-	defer services.Close()
+	defer testinfra.Close()
 
 	userInsts := generateUserInsts()
 
@@ -88,7 +88,10 @@ func main() {
 
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
-		return services.BatchInsertChallenges(egCtx, generateChallengeInsts())
+		if err := services.BatchInsertChallenges(egCtx, generateChallengeInsts()); err != nil {
+			slog.ErrorContext(egCtx, "failed to seed challenges", "err", err)
+		}
+		return nil
 	})
 	eg.Go(func() error {
 		return seedGameResults(egCtx, services, generateGameResults())
@@ -205,7 +208,7 @@ func generateGameResults() []GameResultInsts {
 	return insts
 }
 
-func seedGameResults(ctx context.Context, services svc.HexchessAPI, insts []GameResultInsts) error {
+func seedGameResults(ctx context.Context, services svc.HexchessServices, insts []GameResultInsts) error {
 	timeAt := time.Now().Add(-1 * time.Hour * 24 * 100)
 
 	a := insts
@@ -262,27 +265,16 @@ type TournamentInsts struct {
 	matches      []sqlc.BatchInsertTournamentMatchParams
 }
 
-func generateTournamentStatus() model.TournamentStatus {
-	switch rand.Intn(3) {
-	case 0:
-		return model.TournamentLobby
-	case 1:
-		return model.TournamentInProgress
-	default:
-		return model.TournamentFinished
-	}
-}
-
 func generateTournaments() []TournamentInsts {
 	var insts []TournamentInsts
 	for range *tournamentsCount {
 		tkey := pgtype.UUID{Bytes: uuid.New(), Valid: true}
 		createdBy := generateUserID(nil)
-		status := generateTournamentStatus()
+		status := model.TournamentInProgress
 		rounds := rand.Intn(4) + 1
 
 		var participants []sqlc.BatchInsertTournamentParticipantParams
-		usedParticipants := make(map[int64]struct{})
+		var usedParticipants = map[int64]struct{}{}
 
 		for i := range svc.KnockoutParticipantsAtRound(rounds, 1) {
 			var participantID int64
@@ -301,17 +293,16 @@ func generateTournaments() []TournamentInsts {
 		}
 
 		var matches []sqlc.BatchInsertTournamentMatchParams
-		for round := range rand.Intn(rounds) + 1 {
-			for range svc.KnockoutMatchesAtRound(rounds, round) {
-				whiteID, blackID := generateUserIDPairs()
-				matches = append(matches, sqlc.BatchInsertTournamentMatchParams{
-					TournamentKey: tkey,
-					WhiteID:       whiteID,
-					BlackID:       blackID,
-					Round:         int32(round),
-					CreatedOn:     pgtype.Timestamptz{Time: time.Now(), Valid: true},
-				})
-			}
+		for i := 0; i+1 < len(participants); i += 2 {
+			whiteID, blackID := participants[i].UserID, participants[i+1].UserID
+			matches = append(matches, sqlc.BatchInsertTournamentMatchParams{
+				TournamentKey: tkey,
+				GameID:        svc.MakeGameID(), // there are no games the game store matching this at this point in time
+				WhiteID:       whiteID,
+				BlackID:       blackID,
+				Round:         int32(1),
+				CreatedOn:     pgtype.Timestamptz{Time: time.Now(), Valid: true},
+			})
 		}
 
 		insts = append(insts, TournamentInsts{

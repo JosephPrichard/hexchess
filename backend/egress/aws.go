@@ -10,46 +10,37 @@ import (
 	"log/slog"
 )
 
-//go:generate mockgen -source=aws.go -destination=./aws_mock.go -package=egress
-
-const S3ProfileBucket = "hexchess-profiles"
-
-var Buckets = []string{S3ProfileBucket}
-
-type S3ClientAPI interface {
-	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
-	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
-	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
-	DeleteObjects(ctx context.Context, params *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error)
+var DefaultAWSNames = AWSNames{
+	S3ProfileBucket: "hexchess-profiles",
 }
 
-type CompositeS3API struct {
-	*s3.Client
-	*s3.PresignClient
-}
-
-type AWS struct {
+type AWSClient struct {
+	AWSNames
 	S3Endpoint string
-	S3Client   S3ClientAPI
+	S3Client   *s3.Client
+}
+
+type AWSNames struct {
+	S3ProfileBucket string
 }
 
 type AWSConfig struct {
-	AWSDefaultRegion string
-	AWSEndpoint      string
-	IsLocal          bool
+	AWSDefaultRegion  string
+	AWSEndpoint       string
+	IsTestCredentials bool
 }
 
-func MakeAwsClients(ctx context.Context, cfg AWSConfig) (AWS, error) {
+func MakeAWSClients(ctx context.Context, cfg AWSConfig, names *AWSNames) (AWSClient, error) {
 	awsOpts := []func(*config.LoadOptions) error{
 		config.WithRegion(cfg.AWSDefaultRegion),
 	}
-	if cfg.IsLocal {
-		awsOpts = append(awsOpts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("minioadmin", "minioadmin", "")))
+	if cfg.IsTestCredentials {
+		awsOpts = append(awsOpts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("testing", "testing", "")))
 	}
 
 	awsCfg, err := config.LoadDefaultConfig(ctx, awsOpts...)
 	if err != nil {
-		return AWS{}, fmt.Errorf("load aws config %+v: %w", cfg, err)
+		return AWSClient{}, fmt.Errorf("load aws config %+v: %w", cfg, err)
 	}
 
 	s3Client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
@@ -57,12 +48,19 @@ func MakeAwsClients(ctx context.Context, cfg AWSConfig) (AWS, error) {
 		o.UsePathStyle = true
 	})
 
-	presignClient := s3.NewPresignClient(s3Client)
-	awsClient := AWS{S3Endpoint: cfg.AWSEndpoint, S3Client: CompositeS3API{s3Client, presignClient}}
+	if names == nil {
+		names = &DefaultAWSNames
+	}
+	awsClient := AWSClient{
+		S3Endpoint: cfg.AWSEndpoint,
+		S3Client:   s3Client,
+		AWSNames:   *names,
+	}
 
-	// creates all buckets by default.
 	go func() {
-		for _, bucket := range Buckets {
+		for _, bucket := range []string{
+			awsClient.S3ProfileBucket,
+		} {
 			if _, err := s3Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {
 				slog.WarnContext(ctx, "failed to create bucket", "bucket", bucket, "error", err)
 			}
@@ -72,6 +70,6 @@ func MakeAwsClients(ctx context.Context, cfg AWSConfig) (AWS, error) {
 	return awsClient, nil
 }
 
-func (aws *AWS) MakeS3Url(bucket string, key string) string {
+func (aws *AWSClient) MakeS3Url(bucket string, key string) string {
 	return fmt.Sprintf("%s/%s/%s", aws.S3Endpoint, bucket, key)
 }

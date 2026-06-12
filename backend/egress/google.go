@@ -9,46 +9,42 @@ import (
 
 //go:generate mockgen -source=google.go -destination=./google_mock.go -package=egress
 
-type IDTokenValidator interface {
+type GoogleTokenValidator interface {
 	Validate(ctx context.Context, idToken string, audience string) (*idtoken.Payload, error)
 }
 
 type GoogleAPI struct {
-	APIKey    string
-	Validator IDTokenValidator
+	apiKey    string
+	validator GoogleTokenValidator
 }
 
-func MakeGoogleAPI(apiKey string, client *http.Client) GoogleAPI {
+func MakeGoogleAPI(apiKey string, client *http.Client) (GoogleAPI, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
 	validator, err := idtoken.NewValidator(context.Background(), idtoken.WithHTTPClient(client))
 	if err != nil {
-		panic(err)
+		return GoogleAPI{}, err
 	}
-	return GoogleAPI{Validator: validator, APIKey: apiKey}
+	return GoogleAPI{validator: validator, apiKey: apiKey}, nil
 }
 
-func MakeGoogleAPIWithValidator(apiKey string, validator IDTokenValidator) GoogleAPI {
-	return GoogleAPI{APIKey: apiKey, Validator: validator}
-}
-
-type GoogleIDTokenPayload struct {
+type GoogleIDTokenResp struct {
 	AccountID string
 	Username  string
 }
 
 const UsernameClaim string = "email"
 
-func (google *GoogleAPI) ValidateGoogleIDToken(ctx context.Context, token string) (GoogleIDTokenPayload, error) {
-	payload, err := google.Validator.Validate(ctx, token, google.APIKey)
+func (google *GoogleAPI) ValidateGoogleIDToken(ctx context.Context, token string) (GoogleIDTokenResp, error) {
+	payload, err := google.validator.Validate(ctx, token, google.apiKey)
 	if err != nil {
-		return GoogleIDTokenPayload{}, serrors.New("validate google id token", err, "token", token)
+		return GoogleIDTokenResp{}, serrors.New("validate google id token", err, "token", token)
 	}
 	googleAccountID := payload.Subject
 	username, ok := payload.Claims[UsernameClaim].(string)
 	if !ok {
-		return GoogleIDTokenPayload{}, serrors.New("validate google id token", err, "token", token, "payload", payload, "claim", UsernameClaim)
+		return GoogleIDTokenResp{}, serrors.New("validate google id token", err, "token", token, "payload", payload, "claim", UsernameClaim)
 	}
-	return GoogleIDTokenPayload{AccountID: googleAccountID, Username: username}, nil
+	return GoogleIDTokenResp{AccountID: googleAccountID, Username: username}, nil
 }

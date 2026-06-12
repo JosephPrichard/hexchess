@@ -57,8 +57,8 @@ func TestInsertChallenge(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
-			defer services.Close()
+			services, testinfra := setupServicesTest(t, nil, itest.RWPostgres)
+			defer testinfra.Close()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, tt.name)
 
@@ -119,10 +119,10 @@ func TestGetChallengesByParticipant(t *testing.T) {
 	t.Parallel()
 
 	// gets only expired challenges
-	mocks := serviceMocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}
+	mocks := &serviceMocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}
 
-	services, _ := setupServicesTest(t, mocks, itest.ROPostgres)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, mocks, itest.ROPostgres)
+	defer testinfra.Close()
 
 	ctx := t.Context()
 
@@ -135,8 +135,8 @@ func TestGetChallengesByParticipant(t *testing.T) {
 func TestDeleteExpiredChallenges(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.RWPostgres)
+	defer testinfra.Close()
 
 	ctx := t.Context()
 
@@ -155,10 +155,10 @@ func TestDeleteExpiredChallenges(t *testing.T) {
 func TestDeleteChallenge(t *testing.T) {
 	t.Parallel()
 
-	mocks := serviceMocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}
+	mocks := &serviceMocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}
 
 	services, testinfra := setupServicesTest(t, mocks, itest.RWPostgres)
-	defer services.Close()
+	defer testinfra.Close()
 
 	ctx := t.Context()
 

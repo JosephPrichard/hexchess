@@ -632,7 +632,7 @@ func insertTournamentMatches(ctx context.Context, querier sqlc.Querier, tourname
 		var batchErrs []error
 		querier.BatchInsertTournamentMatch(ctx, matchInsts).Exec(func(i int, err error) {
 			if err != nil {
-				batchErrs = append(batchErrs, serrors.New("insert tournament match", err, "i", i, "matchInst", matchInsts[i]))
+				batchErrs = append(batchErrs, fmt.Errorf("batch insert tournament match %+v: %w", matchInsts[i], err))
 			}
 		})
 		if err := errors.Join(batchErrs...); err != nil {

@@ -74,7 +74,7 @@ func issueTempSession(session enum.Optional[model.PlayerState], w http.ResponseW
 }
 
 type Authenticator struct {
-	services svc.HexchessAPI
+	services *svc.HexchessServices
 }
 
 type Session struct {

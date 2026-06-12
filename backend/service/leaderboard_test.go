@@ -18,8 +18,8 @@ import (
 func TestLeaderboard(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.Redis)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.Redis)
+	defer testinfra.Close()
 
 	id1 := int64(1)
 	id2 := int64(2)
@@ -156,8 +156,8 @@ func TestGetFullLeaderboardUsers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, _ := setupServicesTest(t, serviceMocks{}, itest.ROPostgres)
-			defer services.Close()
+			services, testinfra := setupServicesTest(t, nil, itest.ROPostgres)
+			defer testinfra.Close()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, tt.name)
 
@@ -173,8 +173,8 @@ func TestGetFullLeaderboardUsers(t *testing.T) {
 func TestGetFuzzySearchLeaderboard(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.ROPostgres)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.ROPostgres)
+	defer testinfra.Close()
 
 	ctx := t.Context()
 

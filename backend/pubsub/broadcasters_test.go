@@ -4,6 +4,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"hexchess-svc/db"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
 	"testing"
@@ -12,7 +13,15 @@ import (
 func TestBroadcastMessage(t *testing.T) {
 	t.Parallel()
 
-	rdb, _ := itest.SetupRedisTest(t.Context(), t)
+	redisAddr, _ := itest.SetupRedisTest(t.Context(), t)
+	rdb := db.MakeRedis(
+		db.RedisAddrs{
+			GameStoreAddr: redisAddr,
+			CacheAddr:     redisAddr,
+			PubsubAddr:    redisAddr,
+		},
+		db.MakeTestRedisNames(),
+	)
 	defer rdb.Close()
 	broadcaster := MakeBroadcaster(rdb)
 
@@ -34,11 +43,10 @@ func TestBroadcastMessage(t *testing.T) {
 		{id: "2", msg: "test3"},
 		{id: "1", msg: "test2"},
 	} {
-		err := broadcaster.BroadcastGamesEvent(ctx, &pb.GameOutput{
+		broadcaster.BroadcastGamesEvent(ctx, &pb.GameOutput{
 			GameId: input.id,
 			Value:  &pb.GameOutput_Chat{Chat: &pb.ChatMessage{Message: input.msg}},
-		})
-		require.NoError(t, err)
+		}, Sync())
 	}
 
 	var messages []string

@@ -74,7 +74,7 @@ func (b *LocalBroadcasters) Listen(rdb db.Redis) {
 		b.ListenGameMessages,
 		b.ListenUsersMessages,
 		b.ListenTournamentMessages,
-		b.ListenGlobalEvents,
+		b.ListenCountEvents,
 	} {
 		chans = append(chans, listener(rdb))
 	}
@@ -139,8 +139,8 @@ func (b *LocalBroadcasters) ListenUsersMessages(rdb db.Redis) chan struct{} {
 	})
 }
 
-func (b *LocalBroadcasters) ListenGlobalEvents(rdb db.Redis) chan struct{} {
-	var eventMap = map[string]GlobalEventKind{
+func (b *LocalBroadcasters) ListenCountEvents(rdb db.Redis) chan struct{} {
+	var eventMap = map[string]CountEventKind{
 		rdb.ActiveCountChannel: GlobalActiveEvent,
 		rdb.GamesCountChannel:  GlobalGamesEvent,
 	}

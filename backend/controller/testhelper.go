@@ -21,20 +21,23 @@ import (
 )
 
 type serviceMocks struct {
-	Entropy  svc.EntropyAPI
-	Remote   egress.RemoteAPIs
-	S3Client egress.S3ClientAPI
+	Entropy svc.EntropyAPI
+	Remote  egress.RemoteAPIs
 }
 
-func setupTestHandler(t logutil.TestLogger, mocks serviceMocks, flags ...itest.TestFlag) (http.Handler, itest.TestInfra) {
-	infra := itest.SetupTestInfra(t, flags...)
+func setupTestHandler(t logutil.TestLogger, mocks *serviceMocks, flags ...itest.TestFlag) (http.Handler, itest.TestInfra) {
+	if mocks == nil {
+		mocks = &serviceMocks{}
+	}
+
+	infra := itest.SetupIntegrationTest(t, flags...)
 
 	broadcaster := pubsub.MakeBroadcaster(infra.Redis)
 
 	services := svc.MakeHexchessServices(svc.SetupService{
 		DB:          infra.DB,
 		Redis:       infra.Redis,
-		AWS:         egress.AWS{S3Client: mocks.S3Client},
+		AWS:         infra.AWS,
 		Remote:      mocks.Remote,
 		Entropy:     mocks.Entropy,
 		Broadcaster: broadcaster,
@@ -45,13 +48,14 @@ func setupTestHandler(t logutil.TestLogger, mocks serviceMocks, flags ...itest.T
 }
 
 type websocketTestContext struct {
+	testinfra         itest.TestInfra
 	services          *svc.HexchessServices
 	localBroadcasters *pubsub.LocalBroadcasters
 	testServer        *httptest.Server
 }
 
 func setupWebsocketTest(t *testing.T) websocketTestContext {
-	testinfra := itest.SetupTestInfra(t, itest.RWPostgres, itest.Redis)
+	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
 	services := svc.MakeHexchessServices(svc.SetupService{
 		DB:          testinfra.DB,
 		Redis:       testinfra.Redis,
@@ -68,7 +72,7 @@ func setupWebsocketTest(t *testing.T) websocketTestContext {
 		Broadcasters: localBroadcasters,
 		Broadcaster:  pubsub.MakeBroadcaster(testinfra.Redis),
 	}))
-	return websocketTestContext{services: services, localBroadcasters: localBroadcasters, testServer: testServer}
+	return websocketTestContext{testinfra: testinfra, services: services, localBroadcasters: localBroadcasters, testServer: testServer}
 }
 
 func (s *websocketTestContext) getWsURL() string {
@@ -76,29 +80,29 @@ func (s *websocketTestContext) getWsURL() string {
 }
 
 func (s *websocketTestContext) Shutdown() {
-	s.services.Close()
+	s.testinfra.Close()
 	s.localBroadcasters.Shutdown()
 	s.testServer.Close()
 }
 
 type sseTestContext struct {
+	testinfra         itest.TestInfra
 	services          *svc.HexchessServices
 	localBroadcasters *pubsub.LocalBroadcasters
-	broadcaster       pubsub.BroadcasterAPI
+	broadcaster       *pubsub.Broadcaster
 	testServer        *httptest.Server
 }
 
 func (s *sseTestContext) Shutdown() {
-	s.services.Close()
+	s.testinfra.Close()
 	s.localBroadcasters.Shutdown()
 	s.testServer.Close()
 }
 
 func setupSSETest(t *testing.T) sseTestContext {
-	testinfra := itest.SetupTestInfra(t, itest.ROPostgres, itest.Redis)
+	testinfra := itest.SetupIntegrationTest(t, itest.ROPostgres, itest.Redis)
 	services := svc.MakeHexchessServices(svc.SetupService{
 		DB:          testinfra.DB,
-		Querier:     testinfra.Querier,
 		Redis:       testinfra.Redis,
 		Entropy:     &svc.StableEntropySource{},
 		Broadcaster: pubsub.MakeBroadcaster(testinfra.Redis),
@@ -108,7 +112,7 @@ func setupSSETest(t *testing.T) sseTestContext {
 
 	localBroadcasters := pubsub.MakeLocalBroadcasters()
 
-	<-localBroadcasters.ListenGlobalEvents(testinfra.Redis)
+	<-localBroadcasters.ListenCountEvents(testinfra.Redis)
 	<-localBroadcasters.ListenUsersMessages(testinfra.Redis)
 	<-localBroadcasters.ListenTournamentMessages(testinfra.Redis)
 
@@ -118,6 +122,7 @@ func setupSSETest(t *testing.T) sseTestContext {
 		Broadcasters: localBroadcasters,
 	}))
 	return sseTestContext{
+		testinfra:         testinfra,
 		services:          services,
 		broadcaster:       pubsub.MakeBroadcaster(testinfra.Redis),
 		localBroadcasters: localBroadcasters,

@@ -32,8 +32,8 @@ func assertRedisChess(t *testing.T, services *HexchessServices, wantState *model
 func TestEchoChessState(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.Redis)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.Redis)
+	defer testinfra.Close()
 
 	id1 := "testing-id1-" + uuid.NewString()
 	id2 := "testing-id2-" + uuid.NewString()
@@ -56,8 +56,8 @@ func TestEchoChessState(t *testing.T) {
 func TestUpdateChessState(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.Redis)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.Redis)
+	defer testinfra.Close()
 
 	testID := "testing-id1-" + uuid.NewString()
 	arbitraryKey := uuid.NewString()
@@ -92,8 +92,8 @@ func TestUpdateChessState(t *testing.T) {
 func TestUpdateChessState_Errors(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.Redis)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.Redis)
+	defer testinfra.Close()
 
 	testID := "testing-id1-" + uuid.NewString()
 

@@ -117,7 +117,7 @@ func TestPostgresConsumer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testinfra := itest.SetupTestInfra(t, itest.RWPostgres)
+			testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres)
 			defer testinfra.Close()
 
 			ctx := t.Context()

@@ -53,6 +53,7 @@ func main() {
 	}
 
 	pdb := db.MakeDB(pool)
+	defer pool.Close()
 
 	addrs := db.RedisAddrs{
 		CacheAddr:     rdbCacheNodes,
@@ -61,24 +62,26 @@ func main() {
 	}
 	slog.Info("connecting to redis db", "addrs", addrs)
 	rdb := db.MakeRedis(addrs, nil)
+	defer rdb.Close()
 
-	aws, err := egress.MakeAwsClients(ctx, egress.AWSConfig{
-		AWSDefaultRegion: awsDefaultRegion,
-		AWSEndpoint:      awsEndpoint,
-		IsLocal:          isLocalS3,
-	})
+	aws, err := egress.MakeAWSClients(ctx, egress.AWSConfig{
+		AWSDefaultRegion:  awsDefaultRegion,
+		AWSEndpoint:       awsEndpoint,
+		IsTestCredentials: isLocalS3,
+	}, nil)
 	if err != nil {
-		logutil.FatalErr("load aws config", err)
+		logutil.FatalErr("make aws clients", err)
 	}
+
+	remoteAPIs := egress.MakeRemoteAPIs(nil)
 
 	services := svc.MakeHexchessServices(svc.SetupService{
 		DB:          pdb,
 		Redis:       rdb,
 		AWS:         aws,
-		Remote:      egress.MakeRemoteAPIs(),
+		Remote:      remoteAPIs,
 		Broadcaster: pubsub.MakeBroadcaster(rdb),
 	})
-	defer services.Close()
 
 	broadcasters := pubsub.MakeLocalBroadcasters()
 	broadcasters.Listen(rdb)

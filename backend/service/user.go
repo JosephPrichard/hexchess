@@ -99,6 +99,8 @@ func (services *HexchessServices) BatchInsertUsers(ctx context.Context, insts []
 		return nil, err
 	}
 
+	slog.InfoContext(ctx, "batch inserting users", "insts", insts)
+
 	var rows []sqlc.BatchInsertUserRow
 	var insertErrs []error
 	services.querier.BatchInsertUser(ctx, batches).QueryRow(func(i int, row sqlc.BatchInsertUserRow, err error) {
@@ -121,7 +123,7 @@ func (services *HexchessServices) BatchInsertUsers(ctx context.Context, insts []
 		})
 	}
 
-	logutil.Log(ctx, "batch inserted user", err, "insts", insts, "users", users)
+	logutil.Log(ctx, "batch inserted users", err, "users", users)
 	return users, err
 }
 

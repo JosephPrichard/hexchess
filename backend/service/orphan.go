@@ -2,7 +2,6 @@ package svc
 
 import (
 	"context"
-	"hexchess-svc/egress"
 	"hexchess-svc/lib/serrors"
 	"log/slog"
 	"sync"
@@ -19,7 +18,7 @@ func (services *HexchessServices) ClearOrphanFiles(ctx context.Context, pageLeng
 
 	for _, config := range []RemoveOrphansOpts{
 		{
-			Bucket:     egress.S3ProfileBucket,
+			Bucket:     services.aws.S3ProfileBucket,
 			Prefix:     ProfilePicPrefix,
 			PageLength: pageLength,
 			parseID:    ParseProfilePicKey,

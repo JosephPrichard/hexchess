@@ -3,6 +3,7 @@ package svc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"hexchess-svc/db"
 	"hexchess-svc/lib/enum"
 	"hexchess-svc/lib/serrors"
@@ -76,16 +77,19 @@ func (services *HexchessServices) BatchInsertChallenges(ctx context.Context, ins
 			MadeOn:       pgtype.Timestamptz{Valid: true, Time: inst.MadeOn},
 		})
 	}
+
+	slog.InfoContext(ctx, "batch inserting challenges", "insts", insts)
+
 	var insertErrs []error
 
 	services.querier.BatchInsertChallenge(ctx, batches).Exec(func(i int, err error) {
 		if err != nil {
-			insertErrs = append(insertErrs, serrors.New("batch insert challenge", err, "index", i))
+			insertErrs = append(insertErrs, fmt.Errorf("batch insert challenge with inst %+v: %w", insts[i], err))
 		}
 	})
 	err := errors.Join(insertErrs...)
 
-	logutil.Log(ctx, "batch inserted challenges", err, "insts", insts)
+	logutil.Log(ctx, "batch inserted challenges", err)
 	return err
 }
 

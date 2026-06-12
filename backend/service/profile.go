@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
-	"hexchess-svc/egress"
+	"hexchess-svc/lib/awsutils"
 	"hexchess-svc/lib/ioutil"
 	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
@@ -68,25 +68,31 @@ func (services *HexchessServices) deleteExpiredProfilePics(ctx context.Context, 
 
 	// remove all but the newest keys. there should never be more 1000 keys, but if there are, this will never delete the newest Key
 	listOutput, err := services.aws.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket: aws.String(egress.S3ProfileBucket),
+		Bucket: aws.String(services.aws.S3ProfileBucket),
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return serrors.New("list profile pics by prefix", err, "prefix", prefix, "bucket", egress.S3ProfileBucket)
+		return serrors.New("list profile pics by prefix", err, "prefix", prefix, "bucket", services.aws.S3ProfileBucket)
 	}
-	slog.InfoContext(ctx, "listed profile pics for deletion", "listOutput", listOutput.Contents)
+
+	slog.InfoContext(ctx, "listed profile pics for deletion", "prefix", prefix,
+		"bucket", services.aws.S3ProfileBucket, "keys", awsutils.KeysOfObjects(listOutput.Contents), "listOutput", listOutput)
 
 	if len(listOutput.Contents) == 0 {
 		return nil
 	}
-	keys := filterLeastRecentKeys(listOutput.Contents)
+	objectIdentifiers := filterLeastRecentKeys(listOutput.Contents)
+	keys := awsutils.KeysOfObjectIds(objectIdentifiers)
+
 	slog.InfoContext(ctx, "deleting profile pics", "keys", keys)
 
-	if _, err := services.aws.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
-		Bucket: aws.String(egress.S3ProfileBucket),
-		Delete: &s3Types.Delete{Objects: keys},
-	}); err != nil {
-		return serrors.New("delete profile pics by keys", err, "keys", keys, "bucket", egress.S3ProfileBucket)
+	if len(objectIdentifiers) > 0 {
+		if _, err := services.aws.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+			Bucket: aws.String(services.aws.S3ProfileBucket),
+			Delete: &s3Types.Delete{Objects: objectIdentifiers},
+		}); err != nil {
+			return serrors.New("delete profile pics by keys", err, "keys", keys, "bucket", services.aws.S3ProfileBucket)
+		}
 	}
 	return nil
 }
@@ -116,12 +122,9 @@ func (services *HexchessServices) UploadProfilePic(
 	defer file.Close()
 	body := ioutil.NewLimitReader(cancel, file, MaxProfilePicSize)
 
-	key := makeProfileNewPicKey(uploader.ID, services.entropy.MakeUUID())
+	key := makeProfileNewPicKey(uploader.ID, services.entropy.MakeUUID().String())
 
-	slog.InfoContext(ctx, "uploading profile pic to s3",
-		"key", key, "uploader", uploader, "contentType", contentType, "contentChecksum", contentChecksum)
-	start := time.Now()
-
+	var output *s3.PutObjectOutput
 	var checksumAlgorithm s3Types.ChecksumAlgorithm
 	var chechsumSHA256 *string
 	var optFns []func(*s3.Options)
@@ -136,8 +139,16 @@ func (services *HexchessServices) UploadProfilePic(
 		chechsumSHA256 = aws.String(contentChecksum)
 	}
 
+	slog.InfoContext(ctx, "uploading profile pic to s3",
+		"key", key, "uploader", uploader, "contentType", contentType, "contentChecksum", contentChecksum)
+
+	start := time.Now()
+	defer func() {
+		slog.InfoContext(ctx, "finished uploading profile pic to s3", "key", key, "took", time.Since(start), "output", output)
+	}()
+
 	output, err := services.aws.S3Client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:            aws.String(egress.S3ProfileBucket),
+		Bucket:            aws.String(services.aws.S3ProfileBucket),
 		Key:               aws.String(key),
 		ContentType:       aws.String(contentType),
 		Body:              body,
@@ -150,10 +161,8 @@ func (services *HexchessServices) UploadProfilePic(
 		return UploadProfileResult{}, ErrProfilePicTooBig
 	}
 	if err != nil {
-		return UploadProfileResult{}, serrors.New("put profile pic", err, "key", key, "bucket", egress.S3ProfileBucket)
+		return UploadProfileResult{}, serrors.New("put profile pic", err, "key", key, "bucket", services.aws.S3ProfileBucket)
 	}
-
-	slog.InfoContext(ctx, "finished uploading profile pic to s3", "key", key, "took", time.Since(start), "output", output)
 
 	detatchedCtx := context.WithoutCancel(ctx)
 	go func() {
@@ -172,11 +181,11 @@ func (services *HexchessServices) GetProfilePicKey(ctx context.Context, userID s
 	prefix := makeProfilePicPrefix(userID)
 
 	listOutput, err := services.aws.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket: aws.String(egress.S3ProfileBucket),
+		Bucket: aws.String(services.aws.S3ProfileBucket),
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return "", serrors.New("list profile pics by prefix", err, "prefix", prefix, "bucket", egress.S3ProfileBucket)
+		return "", serrors.New("list profile pics by prefix", err, "prefix", prefix, "bucket", services.aws.S3ProfileBucket)
 	}
 
 	mostRecentKey := findMostRecentKey(listOutput.Contents)
@@ -188,5 +197,5 @@ func (services *HexchessServices) GetProfilePicKey(ctx context.Context, userID s
 }
 
 func (services *HexchessServices) MakeProfileURL(key string) string {
-	return services.aws.MakeS3Url(egress.S3ProfileBucket, key)
+	return services.aws.MakeS3Url(services.aws.S3ProfileBucket, key)
 }

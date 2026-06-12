@@ -1,81 +1,51 @@
 package svc
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"go.uber.org/mock/gomock"
-	"hexchess-svc/egress"
-
-	"testing"
-	"time"
-
-	"hexchess-svc/itest"
-
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"hexchess-svc/egress"
+	"hexchess-svc/itest"
+	"hexchess-svc/lib/awsutils"
+	"testing"
 )
 
 func TestRemoveOrphanedBucketObjects(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockS3Client := egress.NewMockS3ClientAPI(ctrl)
-	mocks := serviceMocks{S3Client: mockS3Client}
-
-	services, _ := setupServicesTest(t, mocks, itest.ROPostgres)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.ROPostgres, itest.AWS)
+	defer testinfra.Close()
 
 	ctx := t.Context()
 
-	profileKeyUserID1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())
-	profileKeyInvalidUserID := fmt.Sprintf("users/profile-pics/8000/%s", uuid.NewString())
+	profileKeyUserID1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())          // user exists in db
+	profileKeyInvalidUserID := fmt.Sprintf("users/profile-pics/8000/%s", uuid.NewString()) // user does not exist in db
 
-	// suppose s3 produces the following key in the first page - we should NOT delete them since user with ID 1 exists in the DB
-	mockS3Client.EXPECT().
-		ListObjectsV2(
-			gomock.Any(),
-			&s3.ListObjectsV2Input{
-				Bucket:  aws.String(egress.S3ProfileBucket),
-				MaxKeys: aws.Int32(1),
-				Prefix:  aws.String("users/profile-pics"),
-			},
-			gomock.Any()).
-		Return(&s3.ListObjectsV2Output{
-			Contents: []s3Types.Object{
-				{Key: aws.String(profileKeyUserID1), LastModified: aws.Time(time.Unix(1, 0))},
-			},
-			// indicates to the s3 sdk that there is another page after this one.
-			NextContinuationToken: aws.String("token"),
-			IsTruncated:           aws.Bool(true),
-		}, nil)
-
-	// suppose s3 produces the following key in the second page - we delete it since it does not exist in the DB
-	mockS3Client.EXPECT().
-		ListObjectsV2(
-			gomock.Any(),
-			&s3.ListObjectsV2Input{
-				Bucket:            aws.String(egress.S3ProfileBucket),
-				MaxKeys:           aws.Int32(1),
-				Prefix:            aws.String("users/profile-pics"),
-				ContinuationToken: aws.String("token"), // token propagates
-			},
-			gomock.Any()).
-		Return(&s3.ListObjectsV2Output{
-			Contents: []s3Types.Object{
-				{Key: aws.String(profileKeyInvalidUserID), LastModified: aws.Time(time.Unix(2, 0))},
-			},
-		}, nil)
-	mockS3Client.EXPECT().
-		DeleteObjects(gomock.Any(), &s3.DeleteObjectsInput{
-			Bucket: aws.String(egress.S3ProfileBucket),
-			Delete: &s3Types.Delete{Objects: []s3Types.ObjectIdentifier{
-				{Key: aws.String(profileKeyInvalidUserID)},
-			}},
-		}).
-		Return(&s3.DeleteObjectsOutput{}, nil)
+	egress.SetupS3Test(t, testinfra.AWS, []*s3.PutObjectInput{
+		{
+			Bucket: aws.String(testinfra.AWS.S3ProfileBucket),
+			Key:    aws.String(profileKeyUserID1),
+			Body:   bytes.NewReader([]byte("test1")),
+		},
+		{
+			Bucket: aws.String(testinfra.AWS.S3ProfileBucket),
+			Key:    aws.String(profileKeyInvalidUserID),
+			Body:   bytes.NewReader([]byte("test2")),
+		},
+	})
 
 	services.ClearOrphanFiles(ctx, 1)
+
+	objects, err := testinfra.AWS.S3Client.ListObjectsV2(t.Context(), &s3.ListObjectsV2Input{
+		Bucket: aws.String(testinfra.AWS.S3ProfileBucket),
+	})
+	if err != nil {
+		t.Fatalf("failed to list profile pics: %v", err)
+	}
+
+	assert.Equal(t, 1, len(objects.Contents))
+	assert.Equal(t, []string{profileKeyUserID1}, awsutils.KeysOfObjects(objects.Contents))
 }

@@ -2,11 +2,9 @@ package db
 
 import (
 	redigo "github.com/gomodule/redigo/redis"
-	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-	"hexchess-svc/lib/logutil"
+	"hexchess-svc/lib/testutil"
 	"log/slog"
-	"reflect"
 	"time"
 )
 
@@ -49,26 +47,7 @@ var DefaultRedisNames = RedisNames{
 }
 
 func MakeTestRedisNames() *RedisNames {
-	redisNames := DefaultRedisNames
-	redisNamesPtr := &redisNames
-
-	reflectRedisNames := reflect.ValueOf(redisNamesPtr)
-	if reflectRedisNames.Kind() == reflect.Ptr {
-		reflectRedisNames = reflectRedisNames.Elem()
-	}
-	if reflectRedisNames.Kind() != reflect.Struct {
-		logutil.Fatal("reflectRedisNames is not a struct")
-	}
-
-	for i := range reflectRedisNames.NumField() {
-		field := reflectRedisNames.Field(i)
-
-		if field.Kind() == reflect.String && field.CanSet() {
-			newValue := field.String() + "_" + uuid.New().String()
-			field.SetString(newValue)
-		}
-	}
-	return redisNamesPtr
+	return testutil.MakeTestNames(DefaultRedisNames)
 }
 
 type Redis struct {

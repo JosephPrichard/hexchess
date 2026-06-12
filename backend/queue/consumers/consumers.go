@@ -13,7 +13,7 @@ import (
 
 type SetupConsumers struct {
 	Ctx      context.Context
-	Services svc.HexchessAPI
+	Services *svc.HexchessServices
 	Postgres db.DB
 	Redis    db.Redis
 }
@@ -66,7 +66,7 @@ type Consumer interface {
 
 type ConsumeFunc func(ctx context.Context, bytes []byte) error
 
-func HandleFinishedGameEvent(services svc.HexchessAPI) ConsumeFunc {
+func HandleFinishedGameEvent(services *svc.HexchessServices) ConsumeFunc {
 	return func(ctx context.Context, bytes []byte) error {
 		event, err := model.UnmarshalFinishedGame(bytes)
 		if err != nil {
@@ -77,7 +77,7 @@ func HandleFinishedGameEvent(services svc.HexchessAPI) ConsumeFunc {
 	}
 }
 
-func HandleUpdtGameEvent(services svc.HexchessAPI) ConsumeFunc {
+func HandleUpdtGameEvent(services *svc.HexchessServices) ConsumeFunc {
 	return func(ctx context.Context, bytes []byte) error {
 		event, err := model.UnmarshalGameMetadataUpdt(bytes)
 		if err != nil {
@@ -88,7 +88,7 @@ func HandleUpdtGameEvent(services svc.HexchessAPI) ConsumeFunc {
 	}
 }
 
-func HandleAdvanceTournamentEvent(services svc.HexchessAPI) ConsumeFunc {
+func HandleAdvanceTournamentEvent(services *svc.HexchessServices) ConsumeFunc {
 	return func(ctx context.Context, bytes []byte) error {
 		event, err := model.UnmarshalAdvanceTournamentEvent(bytes)
 		if err != nil {

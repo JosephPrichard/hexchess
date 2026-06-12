@@ -81,7 +81,7 @@ func TestHandleRegister(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil, itest.RWPostgres, itest.Redis)
 			defer testinfra.Close()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/register", asJSONReader(tt.body))
@@ -127,7 +127,7 @@ func TestHandleLogin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil, itest.RWPostgres, itest.Redis)
 			defer testinfra.Close()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/login", asJSONReader(tt.body))
@@ -153,7 +153,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 	tests := []struct {
 		name        string
 		runCount    int
-		setupMocks  func(*gomock.Controller) egress.GoogleAPI
+		setupMocks  func(*gomock.Controller) egress.RemoteAPIs
 		body        GoogleLoginBody
 		wantSuccess SessionView
 		wantFail    ServiceResp
@@ -162,12 +162,13 @@ func TestHandleGoogleLogin(t *testing.T) {
 		{
 			name:     "InvalidLoginTokenMocked",
 			runCount: 1,
-			setupMocks: func(ctrl *gomock.Controller) egress.GoogleAPI {
-				m := egress.NewMockIDTokenValidator(ctrl)
-				m.EXPECT().
+			setupMocks: func(ctrl *gomock.Controller) egress.RemoteAPIs {
+				validator := egress.NewMockIDTokenValidator(ctrl)
+				validator.EXPECT().
 					Validate(gomock.Any(), "invalidToken123", apiKey).
 					Return(&idtoken.Payload{}, errors.New("invalid token"))
-				return egress.MakeGoogleAPIWithValidator(apiKey, m)
+				return egress.MakeOptRemoteAPIs(
+					egress.WithGoogleIDTokenValidator(validator, apiKey))
 			},
 			body:       GoogleLoginBody{Token: "invalidToken123"},
 			wantFail:   ServiceResp{Status: http.StatusInternalServerError, Error: ErrHttpFatal.Error()},
@@ -176,13 +177,14 @@ func TestHandleGoogleLogin(t *testing.T) {
 		{
 			name:     "LoginWithGoogleTokenSuccessful",
 			runCount: 2, // the user is created the first time, the second time we log in with the already inserted account key
-			setupMocks: func(ctrl *gomock.Controller) egress.GoogleAPI {
-				m := egress.NewMockIDTokenValidator(ctrl)
-				m.EXPECT().
+			setupMocks: func(ctrl *gomock.Controller) egress.RemoteAPIs {
+				validator := egress.NewMockIDTokenValidator(ctrl)
+				validator.EXPECT().
 					Validate(gomock.Any(), "testToken123", apiKey).
 					Return(&idtoken.Payload{Subject: "account1", Claims: map[string]any{"email": "email@domain.com"}}, nil).
 					Times(2)
-				return egress.MakeGoogleAPIWithValidator(apiKey, m)
+				return egress.MakeOptRemoteAPIs(
+					egress.WithGoogleIDTokenValidator(validator, apiKey))
 			},
 			body:        GoogleLoginBody{Token: "testToken123"},
 			wantSuccess: SessionView{Username: "email@domain.com", Country: "un"},
@@ -195,9 +197,9 @@ func TestHandleGoogleLogin(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			mocks := serviceMocks{
+			mocks := &serviceMocks{
 				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
-				Remote:  egress.RemoteAPIs{GoogleAPI: tt.setupMocks(ctrl)},
+				Remote:  tt.setupMocks(ctrl),
 			}
 
 			h, testinfra := setupTestHandler(t, mocks, itest.RWPostgres, itest.Redis)
@@ -281,7 +283,7 @@ func TestHandleUpdateUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil, itest.RWPostgres, itest.Redis)
 			defer testinfra.Close()
 
 			createTestSessions(t, testinfra.Redis)
@@ -345,7 +347,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil, itest.RWPostgres, itest.Redis)
 			defer testinfra.Close()
 
 			createTestSessions(t, testinfra.Redis)
@@ -430,7 +432,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.RWPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil, itest.RWPostgres, itest.Redis)
 			defer testinfra.Close()
 
 			createTestSessions(t, testinfra.Redis)
@@ -480,7 +482,7 @@ func TestHandleCreateGame(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setup := serviceMocks{
+			setup := &serviceMocks{
 				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
 			}
 
@@ -565,10 +567,9 @@ func TestHandleCreateChallenge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mocks := serviceMocks{
+			mocks := &serviceMocks{
 				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
 			}
-
 			h, testinfra := setupTestHandler(t, mocks, itest.RWPostgres, itest.Redis)
 			defer testinfra.Close()
 
@@ -632,7 +633,7 @@ func TestHandleSearchPlayers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.ROPostgres)
+			h, testinfra := setupTestHandler(t, nil, itest.ROPostgres)
 			defer testinfra.Close()
 
 			q := url.Values{}
@@ -705,7 +706,7 @@ func TestGetLeaderboard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.ROPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil, itest.ROPostgres, itest.Redis)
 			defer testinfra.Close()
 
 			createLeaderboard(t, testinfra.Redis, updtLbChangeSet{Mode: model.ModeTimed1Plus0, ID: 1, EloDiff: 1000})
@@ -776,7 +777,7 @@ func TestGetPlayer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.ROPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil, itest.ROPostgres, itest.Redis)
 			defer testinfra.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players?id=%s", tt.id), nil)
@@ -832,10 +833,9 @@ func TestGetChallenges(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mocks := serviceMocks{
+			mocks := &serviceMocks{
 				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
 			}
-
 			h, testinfra := setupTestHandler(t, mocks, itest.ROPostgres, itest.Redis)
 			defer testinfra.Close()
 
@@ -1044,7 +1044,7 @@ func TestHandleSearchReplays(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.ROPostgres)
+			h, testinfra := setupTestHandler(t, nil, itest.ROPostgres)
 			defer testinfra.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replays?%s", tt.params), nil)
@@ -1088,7 +1088,7 @@ func TestHandleGetReplay(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.ROPostgres)
+			h, testinfra := setupTestHandler(t, nil, itest.ROPostgres)
 			defer testinfra.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay?id=%s", tt.userID), nil)
@@ -1155,7 +1155,7 @@ func TestHandleGetGameMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.ROPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil, itest.ROPostgres, itest.Redis)
 			defer testinfra.Close()
 
 			createTestSessions(t, testinfra.Redis)
@@ -1175,7 +1175,7 @@ func TestHandleGetGameMetadata(t *testing.T) {
 func TestHandleGetMoveReplay(t *testing.T) {
 	t.Parallel()
 
-	h, testinfra := setupTestHandler(t, serviceMocks{}, itest.RWPostgres)
+	h, testinfra := setupTestHandler(t, nil, itest.RWPostgres)
 	defer testinfra.Close()
 
 	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay/move-list?replayId=%d", 1), nil)
@@ -1249,7 +1249,7 @@ func TestGetTournament(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.ROPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil, itest.ROPostgres, itest.Redis)
 			defer testinfra.Close()
 
 			for _, change := range itest.TournamentLbdChangeSets {
@@ -1322,7 +1322,7 @@ func TestGetTournaments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, serviceMocks{}, itest.ROPostgres)
+			h, testinfra := setupTestHandler(t, nil, itest.ROPostgres)
 			defer testinfra.Close()
 
 			q := url.Values{}

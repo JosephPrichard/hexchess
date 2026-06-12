@@ -34,8 +34,8 @@ func seedGames(t *testing.T, services *HexchessServices, games ...*model.ChessSt
 func TestJoinGame(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.Redis)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.Redis)
+	defer testinfra.Close()
 
 	whiteGame := model.MakeChessState(model.StateSetup{
 		ID:         "test-join-white-" + uuid.NewString(),
@@ -98,8 +98,8 @@ func TestJoinGame(t *testing.T) {
 func TestAttemptUndo(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.Redis)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.Redis)
+	defer testinfra.Close()
 
 	noMovesGame := model.MakeChessState(model.StateSetup{
 		ID:         "test-undo-no-moves-" + uuid.NewString(),
@@ -318,8 +318,8 @@ func TestMakeMove(t *testing.T) {
 		s.EndState = model.Finished
 	})
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.Redis)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.Redis)
+	defer testinfra.Close()
 
 	seedGames(t, services, stateWhiteTurn, stateEnded, stateNotStarted, stateIntoCheckmate)
 
@@ -406,8 +406,8 @@ func TestMakeMove(t *testing.T) {
 func TestForfeit(t *testing.T) {
 	t.Parallel()
 
-	services, testinfra := setupServicesTest(t, serviceMocks{}, itest.Redis)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.Redis)
+	defer testinfra.Close()
 
 	abortGame := model.MakeChessState(model.StateSetup{
 		ID:         "test-forfeit-abort-" + uuid.NewString(),
@@ -464,8 +464,8 @@ func TestForfeit(t *testing.T) {
 func TestForfeit_Errors(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.Redis)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.Redis)
+	defer testinfra.Close()
 
 	endedGame := model.MakeChessState(model.StateSetup{
 		ID:         "test-forfeit-err-ended-" + uuid.NewString(),

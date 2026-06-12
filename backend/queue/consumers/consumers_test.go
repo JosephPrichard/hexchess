@@ -24,7 +24,7 @@ var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(sqlc.TournamentMatch{}, "O
 func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	ctx := t.Context()
 
-	testinfra := itest.SetupTestInfra(t, itest.RWPostgres, itest.Redis)
+	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
 	defer testinfra.Close()
 
 	services := svc.MakeHexchessServices(svc.SetupService{
@@ -78,7 +78,7 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 func TestHandleFinishedGameEvent(t *testing.T) {
 	ctx := t.Context()
 
-	testinfra := itest.SetupTestInfra(t, itest.RWPostgres, itest.Redis)
+	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
 	defer testinfra.Close()
 
 	services := svc.MakeHexchessServices(svc.SetupService{
@@ -138,7 +138,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 func TestHandleUpdtGameEvent(t *testing.T) {
 	ctx := t.Context()
 
-	testinfra := itest.SetupTestInfra(t, itest.RWPostgres, itest.Redis)
+	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
 	defer testinfra.Close()
 
 	services := svc.MakeHexchessServices(svc.SetupService{

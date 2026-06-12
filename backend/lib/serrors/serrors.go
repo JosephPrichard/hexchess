@@ -27,18 +27,19 @@ func New(message string, err error, values ...any) error {
 		return &ServiceError{Err: err}
 	}
 
-	valuesMap := make(map[string]any)
+	v := map[string]any{"error": err}
+
 	for i := 0; i+1 < len(values); i += 2 {
 		valueStr, ok := values[i].(string)
 		if !ok {
 			valueStr = "!BADKEY"
 		}
-		valuesMap[valueStr] = values[i+1]
+		v[valueStr] = values[i+1]
 	}
 
 	err = fmt.Errorf("%s: %w", message, err)
 
-	return &ServiceError{Err: err, Values: valuesMap}
+	return &ServiceError{Err: err, Values: v}
 }
 
 func Flatten(err error, values *[]any) {

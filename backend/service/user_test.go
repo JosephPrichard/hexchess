@@ -19,8 +19,8 @@ var testVerifiedUserCmptOpts = cmpopts.IgnoreFields(VerifiedUser{}, "ID")
 func TestInsertThenVerify(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.RWPostgres)
+	defer testinfra.Close()
 
 	ctx := t.Context()
 
@@ -90,8 +90,8 @@ func TestUpdateUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
-			defer services.Close()
+			services, testinfra := setupServicesTest(t, nil, itest.RWPostgres)
+			defer testinfra.Close()
 
 			ctx := t.Context()
 
@@ -111,8 +111,8 @@ func TestUpdateUser(t *testing.T) {
 func TestSelectOrInsertGoogleUser(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.RWPostgres)
+	defer testinfra.Close()
 
 	ctx := t.Context()
 
@@ -144,8 +144,8 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 func TestUpdatePasswordThenVerify(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.RWPostgres)
+	defer testinfra.Close()
 
 	ctx := t.Context()
 
@@ -163,8 +163,8 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 func TestGetUserElos(t *testing.T) {
 	t.Parallel()
 
-	services, _ := setupServicesTest(t, serviceMocks{}, itest.RWPostgres)
-	defer services.Close()
+	services, testinfra := setupServicesTest(t, nil, itest.RWPostgres)
+	defer testinfra.Close()
 
 	ctx := t.Context()
 
