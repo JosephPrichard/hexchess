@@ -22,41 +22,46 @@ type TxArgs struct {
 	RetryCount   int
 }
 
+func (pdb *FakeDB) ExecTx(ctx context.Context, args TxArgs) (err error) {
+	// a fake postgres instance is already running in a txn, noop the txn
+	return args.QueryFn(ctx, sqlc.New(pdb.testingTxn))
+}
+
 func (pdb *PostgresDB) ExecTx(ctx context.Context, args TxArgs) error {
-	execTx := func(ctx context.Context, args TxArgs) error {
+	execTx := func(ctx context.Context, args TxArgs) (retErr error) {
 		if args.Isolation == "" {
 			args.Isolation = pgx.ReadCommitted
 		}
-		tx, err := pdb.pool.BeginTx(ctx, pgx.TxOptions{
+		tx, retErr := pdb.pool.BeginTx(ctx, pgx.TxOptions{
 			IsoLevel: args.Isolation,
 		})
-		if err != nil {
-			return err
+		if retErr != nil {
+			return
 		}
 
 		defer func() {
 			if p := recover(); p != nil {
 				if err := tx.Rollback(ctx); err != nil {
-					slog.ErrorContext(ctx, "failed to rollback tx", "error", err)
+					slog.ErrorContext(ctx, "failed to rollback txn", "error", err)
 				}
 				panic(p)
 			}
-			isErrAllowListed := slices.Contains(args.ErrAllowlist, err)
-			if err != nil && !isErrAllowListed {
+			isErrAllowListed := slices.Contains(args.ErrAllowlist, retErr)
+			if retErr != nil && !isErrAllowListed {
 				if dbErr := tx.Rollback(ctx); dbErr != nil {
-					slog.ErrorContext(ctx, "failed to rollback tx", "error", dbErr)
-					err = dbErr
+					slog.ErrorContext(ctx, "failed to rollback txn", "error", dbErr)
+					retErr = dbErr
 				}
 			} else {
 				if dbErr := tx.Commit(ctx); dbErr != nil {
-					slog.ErrorContext(ctx, "failed to commit tx", "error", dbErr)
-					err = dbErr
+					slog.ErrorContext(ctx, "failed to commit txn", "error", dbErr)
+					retErr = dbErr
 				}
 			}
 		}()
 
-		err = args.QueryFn(ctx, pdb.q.WithTx(tx))
-		return err
+		retErr = args.QueryFn(ctx, pdb.q.WithTx(tx))
+		return
 	}
 
 	if args.RetryCount == 0 {
@@ -91,9 +96,4 @@ func exponentialBackoff(retry int, multiplier float64, base time.Duration) time.
 	backoff := float64(base) * math.Pow(multiplier, float64(retry))
 	jitter := rand.Float64() * float64(base)
 	return time.Duration(backoff + jitter)
-}
-
-func (pdb *FakeDB) ExecTx(ctx context.Context, args TxArgs) (err error) {
-	// a fake postgres instance is already running in a txn, noop the txn
-	return args.QueryFn(ctx, sqlc.New(pdb.testingTxn))
 }

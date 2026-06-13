@@ -11,11 +11,11 @@ import (
 type DB interface {
 	Transactor
 	Querier() sqlc.Querier
+	Close()
 }
 
 type Transactor interface {
 	ExecTx(context.Context, TxArgs) error
-	Close()
 }
 
 type PostgresDB struct {

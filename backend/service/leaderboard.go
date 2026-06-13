@@ -241,7 +241,7 @@ func (services *HexchessServices) GetLeaderboardPage(ctx context.Context, mode m
 	offset := (page - 1) * perPage
 
 	leaderboard, err := services.getLeaderboard(ctx, mode, offset, perPage)
-	logutil.Log(ctx, "retrieved leaderboard page", err, "page", page, "perPage", perPage, "leaderboard", leaderboard, "error", err)
+	logutil.Log(ctx, "retrieved leaderboard page", err, "page", page, "perPage", perPage, "leaderboard", leaderboard)
 	return leaderboard, err
 }
 

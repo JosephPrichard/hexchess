@@ -3,6 +3,7 @@ package serrors
 import (
 	"errors"
 	"fmt"
+	"slices"
 )
 
 type ServiceError struct {
@@ -23,11 +24,13 @@ func New(message string, err error, values ...any) error {
 		return nil
 	}
 
+	err = fmt.Errorf("%s: %w", message, err)
+
 	if len(values) == 0 {
 		return &ServiceError{Err: err}
 	}
 
-	v := map[string]any{"error": err}
+	v := map[string]any{}
 
 	for i := 0; i+1 < len(values); i += 2 {
 		valueStr, ok := values[i].(string)
@@ -37,17 +40,22 @@ func New(message string, err error, values ...any) error {
 		v[valueStr] = values[i+1]
 	}
 
-	err = fmt.Errorf("%s: %w", message, err)
-
 	return &ServiceError{Err: err, Values: v}
 }
 
-func Flatten(err error, values *[]any) {
+func WalkValues(err error, values *[]any) {
 	var serr *ServiceError
-	if errors.As(err, &serr) {
-		for k, v := range serr.Values {
-			*values = append(*values, k, v)
+	for {
+		if errors.As(err, &serr) {
+			for k, v := range serr.Values {
+				if slices.Contains(*values, any(k)) {
+					continue
+				}
+				*values = append(*values, k, v)
+			}
+			err = serr.Err
+		} else {
+			break
 		}
-		Flatten(serr.Err, values)
 	}
 }

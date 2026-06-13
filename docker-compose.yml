@@ -5,17 +5,15 @@ networks:
     driver: bridge
 
 volumes:
-  redis_data_gamestore:
+  redis_data:
     driver: local
-  redis_data_cache:
-      driver: local
-  s3_data:
+  localstack-data:
     driver: local
   postgres_data:
     driver: local
 
 services:
-  # Postgres - primary SOR for website metadata (login, users system, challenges, replays)
+  # Postgres - primary SOR for website metadata
   postgres:
     image: postgres:16-alpine
     container_name: hexchess-postgres
@@ -29,23 +27,14 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  # Redis - primary SOR for game state
-  redis-game-store:
+  # Redis - primary SOR for game state & cache
+  redis:
     image: redis/redis-stack-server
-    container_name: hexchess-redis-game-store
+    container_name: hexchess-redis
     ports:
       - "6379:6379"
     volumes:
-      - redis_data_gamestore:/data
-
-  # Redis - caching server sitting infront of Postgres SOR
-  redis-cache:
-    image: redis/redis-stack-server
-    container_name: hexchess-redis-cache
-    ports:
-      - "6479:6379"
-    volumes:
-      - redis_data_cache:/data
+      - redis_data:/data
 
   # Redis - message delivery and broadcasting
   redis-pubsub:
@@ -53,20 +42,3 @@ services:
     container_name: hexchess-redis-pubsub
     ports:
       - "6579:6379"
-
-  # S3 - file and block storage
-  localstack:
-    image: localstack/localstack
-    container_name: hexchess-localstack
-    environment:
-      - DEBUG=1
-      - LS_LOG=trace
-      - SERVICES=s3
-      - EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:5173 # local frontend origin
-      - EXTRA_CORS_ALLOWED_HEADERS=*
-      - EXTRA_CORS_EXPOSE_HEADERS=*
-    ports:
-      - "9000:4566"
-    volumes:
-      - s3_data:/var/lib/localstack
-      - /var/run/docker.sock:/var/run/docker.sock

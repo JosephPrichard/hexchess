@@ -6,6 +6,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"hexchess-svc/cmd"
@@ -16,54 +17,55 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var jobName = flag.String("job", "jobs", "dump mode to execute")
+const (
+	SyncLeaderboardJobName = "sync-leaderboard"
+	ClearS3OrphansJobName  = "clear-s3-orphans"
+)
+
+var jobName = flag.String("job", "", "job to execute")
 
 func main() {
+	ctx := context.WithValue(context.Background(), logutil.Trace, "jobs-runner")
+
 	start := time.Now()
 
-	f, err := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		logutil.FatalErr("open log file", err)
-	}
-	defer f.Close()
-
 	shutdown := logutil.InitLoggers(logutil.LogConfig{})
-	defer shutdown(context.Background())
+	defer shutdown(ctx)
 
 	cmd.InitEnv()
 
 	dbURL := os.Getenv("DB_URL")
-	rdbCacheURL := os.Getenv("REDIS_CACHE_NODES")
+	rdbSorNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
 
-	ctx := context.WithValue(context.Background(), logutil.Trace, "jobs-runner")
+	services := makeServices(ctx, dbURL, rdbSorNodes)
+
+	switch *jobName {
+	case SyncLeaderboardJobName:
+		if err := services.SyncLeaderboard(ctx); err != nil {
+			logutil.FatalErr("failed to execute sync leaderboard job", err)
+		}
+		slog.InfoContext(ctx, "finished syncing leaderboard job", "timeTaken", time.Since(start))
+	case ClearS3OrphansJobName:
+		services.ClearOrphanFiles(ctx, svc.PageLength)
+		slog.InfoContext(ctx, "finished clear s3 orphans job", "timeTaken", time.Since(start))
+	default:
+		log.Fatalf("unknown job: %s", *jobName)
+	}
+}
+
+func makeServices(ctx context.Context, dbURL string, rdbSorNodes []string) *svc.HexchessServices {
+	var setup svc.SetupService
 
 	slog.InfoContext(ctx, "connecting to postgres db", "dbURL", dbURL)
 	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
 		logutil.FatalErr("create pool", err)
 	}
-	pdb := db.MakeDB(pool)
+	setup.DB = db.MakeDB(pool)
 
-	addrs := db.RedisAddrs{CacheAddr: rdbCacheURL}
+	addrs := db.RedisAddrs{SorAddr: rdbSorNodes}
 	slog.InfoContext(ctx, "connecting to redis db", "addrs", addrs)
-	rdb := db.MakeRedis(addrs, nil)
+	setup.Redis = db.MakeRedis(addrs, nil)
 
-	services := svc.MakeHexchessServices(svc.SetupService{
-		DB:    pdb,
-		Redis: rdb,
-	})
-	defer testinfra.Close()
-
-	switch *jobName {
-	case "sync-leaderboard":
-		if err := services.SyncLeaderboard(ctx); err != nil {
-			logutil.FatalErr("failed to execute sync leaderboard job", err)
-		}
-		log.Printf("finished syncing leaderboard job: %v", time.Since(start))
-	case "clear-s3-orphans":
-		services.ClearOrphanFiles(ctx, svc.PageLength)
-		log.Printf("finished clear bucket orphans job: %v", time.Since(start))
-	default:
-		log.Fatalf("unknown job: %s", *jobName)
-	}
+	return svc.MakeHexchessServices(setup)
 }

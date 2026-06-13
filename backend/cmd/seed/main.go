@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -39,23 +40,25 @@ const trunateSql = `
 	RESTART IDENTITY
 	CASCADE;`
 
-var usersCount = flag.Int("usersCount", 50, "number of users to seed")
-var challengesCount = flag.Int("challengesCount", 50, "number of challenges to seed")
-var gameResultCount = flag.Int("gameResultCount", 100, "number of game results to seed")
-var tournamentsCount = flag.Int("tournamentsCount", 25, "number of tournaments to seed")
+var (
+	usersCount       = flag.Int("usersCount", 50, "number of users to seed")
+	challengesCount  = flag.Int("challengesCount", 50, "number of challenges to seed")
+	gameResultCount  = flag.Int("gameResultCount", 100, "number of game results to seed")
+	tournamentsCount = flag.Int("tournamentsCount", 25, "number of tournaments to seed")
+)
 
 func main() {
+	ctx := context.WithValue(context.Background(), logutil.Trace, "seed-databases-script")
+
 	start := time.Now()
 
 	shutdown := logutil.InitLoggers(logutil.LogConfig{})
-	defer shutdown(context.Background())
+	defer shutdown(ctx)
 
 	cmd.InitEnv()
 
 	dbURL := os.Getenv("DB_URL")
-	rdbCacheURL := os.Getenv("REDIS_CACHE_NODES")
-
-	ctx := context.WithValue(context.Background(), logutil.Trace, "seed-databases-script")
+	rdbSorNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
 
 	slog.InfoContext(ctx, "connecting to postgres db", "dbURL", dbURL)
 	pool, err := pgxpool.New(ctx, dbURL)
@@ -63,10 +66,12 @@ func main() {
 		logutil.FatalErr("create pool", err)
 	}
 	pdb := db.MakeDB(pool)
+	defer pdb.Close()
 
-	addrs := db.RedisAddrs{CacheAddr: rdbCacheURL}
+	addrs := db.RedisAddrs{SorAddr: rdbSorNodes}
 	slog.InfoContext(ctx, "connecting to redis db", "addrs", addrs)
 	rdb := db.MakeRedis(addrs, nil)
+	defer rdb.Close()
 
 	_, err = pool.Exec(ctx, trunateSql)
 	if err != nil {
@@ -77,7 +82,6 @@ func main() {
 	}
 
 	services := svc.MakeHexchessServices(svc.SetupService{DB: pdb, Redis: rdb})
-	defer testinfra.Close()
 
 	userInsts := generateUserInsts()
 
@@ -208,7 +212,7 @@ func generateGameResults() []GameResultInsts {
 	return insts
 }
 
-func seedGameResults(ctx context.Context, services svc.HexchessServices, insts []GameResultInsts) error {
+func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts []GameResultInsts) error {
 	timeAt := time.Now().Add(-1 * time.Hour * 24 * 100)
 
 	a := insts

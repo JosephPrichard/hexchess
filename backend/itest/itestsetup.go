@@ -78,9 +78,8 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 	if redis {
 		rdb = db.MakeRedis(
 			db.RedisAddrs{
-				GameStoreAddr: redisAddr,
-				CacheAddr:     redisAddr,
-				PubsubAddr:    redisAddr,
+				SorAddr:    []string{redisAddr},
+				PubsubAddr: redisAddr,
 			},
 			db.MakeTestRedisNames())
 	}

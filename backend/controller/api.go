@@ -166,7 +166,7 @@ func MakeServeMux(setup ServerSetup, opts ...func(*chi.Mux)) *chi.Mux {
 
 type HealthCheckConfig struct {
 	PostgresDSN       string
-	RedisGameStoreDSN string
+	RedisGameStoreDSN []string
 	RedisCacheDSNs    []string
 	RedisPubSubDSN    string
 }
@@ -175,22 +175,14 @@ func WithHealthCheck(mux *chi.Mux, config HealthCheckConfig) {
 	healthchecks := []health.Config{
 		{
 			Name:    "Postgres",
-			Timeout: time.Second * 1,
+			Timeout: time.Second * 2,
 			Check: pgHealth.New(pgHealth.Config{
 				DSN: config.PostgresDSN,
 			}),
 		},
 		{
-
-			Name:    "RedisGameStore",
-			Timeout: time.Second * 1,
-			Check: redisHealth.New(redisHealth.Config{
-				DSN: config.RedisGameStoreDSN,
-			}),
-		},
-		{
 			Name:      "RedisPubsub",
-			Timeout:   time.Second * 1,
+			Timeout:   time.Second * 2,
 			SkipOnErr: true,
 			Check: redisHealth.New(redisHealth.Config{
 				DSN: config.RedisPubSubDSN,
@@ -198,10 +190,18 @@ func WithHealthCheck(mux *chi.Mux, config HealthCheckConfig) {
 		},
 	}
 
+	for i, dsn := range config.RedisGameStoreDSN {
+		healthchecks = append(healthchecks, health.Config{
+			Name:    fmt.Sprintf("RedisGameStore-Node-%d", i),
+			Timeout: time.Second * 2,
+			Check:   redisHealth.New(redisHealth.Config{DSN: dsn}),
+		})
+	}
+
 	for i, dsn := range config.RedisCacheDSNs {
 		healthchecks = append(healthchecks, health.Config{
 			Name:    fmt.Sprintf("RedisCache-Node-%d", i),
-			Timeout: time.Second * 1,
+			Timeout: time.Second * 2,
 			Check:   redisHealth.New(redisHealth.Config{DSN: dsn}),
 		})
 	}

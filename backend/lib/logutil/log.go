@@ -36,7 +36,7 @@ func Log(ctx context.Context, msg string, err error, args ...any) {
 
 func RootLog(ctx context.Context, level slog.Level, msg string, err error, args ...any) {
 	args = append(args, "error", err)
-	serrors.Flatten(err, &args)
+	serrors.WalkValues(err, &args)
 	slog.Log(ctx, level, msg, args...)
 }
 

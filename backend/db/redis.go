@@ -9,9 +9,8 @@ import (
 )
 
 type RedisAddrs struct {
-	GameStoreAddr string `json:"gameStoreAddr"`
-	CacheAddr     string `json:"cacheAddr"`
-	PubsubAddr    string `json:"pubsubAddr"`
+	SorAddr    []string `json:"sorAddr"`
+	PubsubAddr string   `json:"pubsubAddr"`
 }
 
 type RedisNames struct {
@@ -73,18 +72,25 @@ func MakeRedis(addrs RedisAddrs, names *RedisNames) Redis {
 	if names == nil {
 		names = &DefaultRedisNames
 	}
-	var ps *redigo.Pool
+	var psPool *redigo.Pool
 	if addrs.PubsubAddr != "" {
-		ps = makeRedigoPool(addrs.PubsubAddr, "pubsub")
+		psPool = makeRedigoPool(addrs.PubsubAddr, "pubsub")
 	}
+	redisClient := redis.NewUniversalClient(&redis.UniversalOptions{
+		Addrs:          addrs.SorAddr,
+		DialTimeout:    5 * time.Second,
+		ReadTimeout:    3 * time.Second,
+		WriteTimeout:   3 * time.Second,
+		MaxRedirects:   8,
+		RouteRandomly:  false,
+		RouteByLatency: false,
+	})
+
 	return Redis{
-		GameStore: redis.NewClient(&redis.Options{
-			Addr: addrs.GameStoreAddr,
-		}),
-		Cache: redis.NewClient(&redis.Options{
-			Addr: addrs.CacheAddr,
-		}),
-		PubSub:     ps,
+		// as of now, game store and cache are pointed to the same cluster.
+		GameStore:  redisClient,
+		Cache:      redisClient,
+		PubSub:     psPool,
 		RedisAddrs: addrs,
 		RedisNames: *names,
 	}

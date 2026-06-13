@@ -24,6 +24,7 @@ func InitEnv() {
 			logutil.Fatal("invalid line in .env file", "line", line)
 		}
 		key, value := line[:index], line[index+1:]
+		// these environment variables last until the end of this process
 		if err := os.Setenv(key, value); err != nil {
 			slog.Warn("error setting env var", "error", err)
 		}

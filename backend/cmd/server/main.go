@@ -16,6 +16,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"runtime"
+	"strings"
 )
 
 func main() {
@@ -28,8 +29,7 @@ func main() {
 
 	serverPort := os.Getenv("SERVER_PORT")
 	dbURL := os.Getenv("DB_URL")
-	rdbGameStoreNode := os.Getenv("REDIS_GAMESTORE_NODE")
-	rdbCacheNodes := os.Getenv("REDIS_CACHE_NODES")
+	rdbSorNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
 	rdbPubSubNode := os.Getenv("REDIS_PUBSUB_NODE")
 	isLocalS3 := os.Getenv("IS_LOCAL_S3") == "true"
 	awsDefaultRegion := os.Getenv("AWS_DEFAULT_REGION")
@@ -51,14 +51,12 @@ func main() {
 	if _, err = pool.Exec(ctx, "SELECT 1;"); err != nil {
 		logutil.FatalErr("execute startup query", err)
 	}
-
 	pdb := db.MakeDB(pool)
-	defer pool.Close()
+	defer pdb.Close()
 
 	addrs := db.RedisAddrs{
-		CacheAddr:     rdbCacheNodes,
-		GameStoreAddr: rdbGameStoreNode,
-		PubsubAddr:    rdbPubSubNode,
+		SorAddr:    rdbSorNodes,
+		PubsubAddr: rdbPubSubNode,
 	}
 	slog.Info("connecting to redis db", "addrs", addrs)
 	rdb := db.MakeRedis(addrs, nil)
@@ -104,8 +102,8 @@ func main() {
 
 	withHealthcheck := controller.WithHealthCheckOpts(controller.HealthCheckConfig{
 		PostgresDSN:       dbURL,
-		RedisGameStoreDSN: rdbGameStoreNode,
-		RedisCacheDSNs:    []string{rdbCacheNodes},
+		RedisGameStoreDSN: rdbSorNodes,
+		RedisCacheDSNs:    rdbSorNodes,
 		RedisPubSubDSN:    rdbPubSubNode,
 	})
 	serverSetup := controller.ServerSetup{
