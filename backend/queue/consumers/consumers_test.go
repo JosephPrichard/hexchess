@@ -1,22 +1,22 @@
 package consumers
 
 import (
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
 	"hexchess-svc/lib/enum"
 	"hexchess-svc/lib/testutil"
 	"hexchess-svc/model"
-	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
 	svc "hexchess-svc/service"
 	"testing"
 	"time"
+
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(sqlc.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
@@ -28,9 +28,8 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	defer testinfra.Close()
 
 	services := svc.MakeHexchessServices(svc.SetupService{
-		DB:      testinfra.DB,
-		Querier: testinfra.Querier,
-		Redis:   testinfra.Redis,
+		DB:    testinfra.DB,
+		Redis: testinfra.Redis,
 	})
 
 	tournamentKey := itest.Tournament2ScheduledKnockoutKey
@@ -82,10 +81,8 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	defer testinfra.Close()
 
 	services := svc.MakeHexchessServices(svc.SetupService{
-		DB:          testinfra.DB,
-		Querier:     testinfra.Querier,
-		Redis:       testinfra.Redis,
-		Broadcaster: pubsub.NoopBroadcaster{},
+		DB:    testinfra.DB,
+		Redis: testinfra.Redis,
 	})
 
 	whiteUser0 := itest.TestUser[0]
@@ -142,11 +139,9 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	defer testinfra.Close()
 
 	services := svc.MakeHexchessServices(svc.SetupService{
-		DB:          testinfra.DB,
-		Querier:     testinfra.Querier,
-		Redis:       testinfra.Redis,
-		Broadcaster: pubsub.NoopBroadcaster{},
-		Entropy:     &svc.StableEntropySource{CurrTime: itest.TimeNow},
+		DB:      testinfra.DB,
+		Redis:   testinfra.Redis,
+		Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
 	})
 
 	whiteUser0 := itest.TestUser[0]

@@ -16,9 +16,8 @@ func TestBroadcastMessage(t *testing.T) {
 	redisAddr, _ := itest.SetupRedisTest(t.Context(), t)
 	rdb := db.MakeRedis(
 		db.RedisAddrs{
-			GameStoreAddr: redisAddr,
-			SorAddr:       redisAddr,
-			PubsubAddr:    redisAddr,
+			SorAddr:    []string{redisAddr},
+			PubsubAddr: redisAddr,
 		},
 		db.MakeTestRedisNames(),
 	)

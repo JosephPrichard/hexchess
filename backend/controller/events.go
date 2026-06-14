@@ -56,11 +56,11 @@ func (api *API) HandleCountEvents(client *SSEClient, _ *http.Request) error {
 
 	activeCount, err := api.services.GetActiveCount(ctx)
 	if err != nil {
-		return serrors.New("get active count", err)
+		return serrors.Wrap("get active count", err)
 	}
 	gamesCount, err := api.services.GetGameMetadataCount(ctx)
 	if err != nil {
-		return serrors.New("get chess state count", err)
+		return serrors.Wrap("get chess state count", err)
 	}
 
 	writeCountEvent(client, pubsub.GlobalActiveEvent, activeCount)
@@ -102,7 +102,7 @@ func (api *API) HandleActiveConn(client *SSEClient, r *http.Request) error {
 	strUserID := strconv.Itoa(int(player.ID))
 
 	if _, err := api.services.AddActiveUser(ctx, strUserID); err != nil {
-		return serrors.New("add active user", err)
+		return serrors.Wrap("add active user", err)
 	}
 
 	client.event(MetaEvent, strUserID)

@@ -59,7 +59,7 @@ func (services *HexchessServices) removeOrphanedObjects(ctx context.Context, opt
 		// list keys for this page.
 		listObjects, err := paginator.NextPage(ctx)
 		if err != nil {
-			return serrors.New("list objects", err, "page", page, "bucket", opts.Bucket, "prefix", opts.Prefix)
+			return serrors.Wrap("list objects", err, "page", page, "bucket", opts.Bucket, "prefix", opts.Prefix)
 		}
 		page++
 
@@ -90,7 +90,7 @@ func (services *HexchessServices) removeOrphanedObjects(ctx context.Context, opt
 		// find orphaned keys, and store them in a map.
 		validIDs, err := opts.selectIDs(ctx, ids)
 		if err != nil {
-			return serrors.New("select object IDs", err, "ids", ids)
+			return serrors.Wrap("select object IDs", err, "ids", ids)
 		}
 		existingObjectIDs := make(map[int64]bool, len(validIDs))
 		for _, objectID := range validIDs {

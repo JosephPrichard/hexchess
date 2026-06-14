@@ -163,7 +163,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 			name:     "InvalidLoginTokenMocked",
 			runCount: 1,
 			setupMocks: func(ctrl *gomock.Controller) egress.RemoteAPIs {
-				validator := egress.NewMockIDTokenValidator(ctrl)
+				validator := egress.NewMockGoogleTokenValidator(ctrl)
 				validator.EXPECT().
 					Validate(gomock.Any(), "invalidToken123", apiKey).
 					Return(&idtoken.Payload{}, errors.New("invalid token"))
@@ -178,7 +178,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 			name:     "LoginWithGoogleTokenSuccessful",
 			runCount: 2, // the user is created the first time, the second time we log in with the already inserted account key
 			setupMocks: func(ctrl *gomock.Controller) egress.RemoteAPIs {
-				validator := egress.NewMockIDTokenValidator(ctrl)
+				validator := egress.NewMockGoogleTokenValidator(ctrl)
 				validator.EXPECT().
 					Validate(gomock.Any(), "testToken123", apiKey).
 					Return(&idtoken.Payload{Subject: "account1", Claims: map[string]any{"email": "email@domain.com"}}, nil).

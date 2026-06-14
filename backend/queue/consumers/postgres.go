@@ -68,7 +68,7 @@ func (c *PostgresConsumer) poll() error {
 				Limit: c.pollCount,
 			})
 			if err != nil {
-				return serrors.New("select postgres queue messages", err, "kind", c.kind, "limit", c.pollCount)
+				return serrors.Wrap("select postgres queue messages", err, "kind", c.kind, "limit", c.pollCount)
 			}
 			if len(eventRows) == 0 {
 				return nil
@@ -118,7 +118,7 @@ func (c *PostgresConsumer) poll() error {
 					Ids:           eventIDsToAck,
 					ProcessedTime: pgtype.Timestamptz{Time: c.entropy.GetTime(), Valid: true},
 				}); err != nil {
-					return serrors.New("acknowledge postgres queue messages", err, "events", processedEvents)
+					return serrors.Wrap("acknowledge postgres queue messages", err, "events", processedEvents)
 				}
 			}
 			return nil

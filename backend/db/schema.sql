@@ -2,8 +2,8 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.10
--- Dumped by pg_dump version 17.0
+-- Dumped from database version 18.4 (Ubuntu 18.4-0ubuntu0.26.04.1)
+-- Dumped by pg_dump version 18.4 (Ubuntu 18.4-0ubuntu0.26.04.1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -72,16 +72,6 @@ CREATE TYPE public.mode_enum AS ENUM (
     'CORRESPONDENCE_7',
     'CORRESPONDENCE_14',
     'TIMED_5+0'
-);
-
-
---
--- Name: outbox_queue_type_enum; Type: TYPE; Schema: public; Owner: -
---
-
-CREATE TYPE public.outbox_queue_type_enum AS ENUM (
-    'TOURNAMENT_ADVANCE_EVENT',
-    'TOURNAMENT_CREATE_MATCHES_EVENT'
 );
 
 
@@ -548,6 +538,13 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: idx_black_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_black_id ON public.replays USING btree (black_id, id);
+
+
+--
 -- Name: idx_blackid_sort_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -566,6 +563,20 @@ CREATE INDEX idx_blackid_sort_rating ON public.replays USING btree (black_id, ra
 --
 
 CREATE INDEX idx_blackid_sort_turncount ON public.replays USING btree (black_id, turn_count);
+
+
+--
+-- Name: idx_both_ids; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_both_ids ON public.replays USING btree (white_id, black_id, id);
+
+
+--
+-- Name: idx_both_ids_played_on; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_both_ids_played_on ON public.replays USING btree (white_id, black_id, played_on);
 
 
 --
@@ -678,6 +689,13 @@ CREATE INDEX idx_user_mode_elos_userid ON public.user_mode_elos USING btree (use
 --
 
 CREATE INDEX idx_username ON public.users USING btree (username);
+
+
+--
+-- Name: idx_white_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_white_id ON public.replays USING btree (white_id, id);
 
 
 --

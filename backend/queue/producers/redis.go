@@ -24,7 +24,7 @@ func MakePublisher(redis db.Redis) RedisPublisher {
 func (p *RedisPublisher) PublishFinishGameEvent(ctx context.Context, xadder RedisXAdder, finishedGame model.FinishedGame) error {
 	bytes, err := model.MarshalFinishedGame(finishedGame)
 	if err != nil {
-		return serrors.New("marshal finish game event", err)
+		return serrors.Wrap("marshal finish game event", err)
 	}
 	xArgs := &redis.XAddArgs{
 		Stream: p.redis.FinishGameStreamKey,
@@ -32,7 +32,7 @@ func (p *RedisPublisher) PublishFinishGameEvent(ctx context.Context, xadder Redi
 	}
 	msgID, err := xadder.XAdd(ctx, xArgs).Result()
 	if err != nil {
-		return serrors.New("marshal finished game event", err, "finishedGame", finishedGame)
+		return serrors.Wrap("marshal finished game event", err, "finishedGame", finishedGame)
 	}
 	slog.InfoContext(ctx, "published finished game event", "msgID", msgID, "gameID", finishedGame.GameID, "streamKey", p.redis.FinishGameStreamKey)
 	return nil
@@ -41,7 +41,7 @@ func (p *RedisPublisher) PublishFinishGameEvent(ctx context.Context, xadder Redi
 func (p *RedisPublisher) PublishUpdtGameEvent(ctx context.Context, xadder RedisXAdder, gameUpdt model.GameMetadataUpdt) error {
 	bytes, err := model.MarshalGameMetadataUpdt(gameUpdt)
 	if err != nil {
-		return serrors.New("marshal update game event", err)
+		return serrors.Wrap("marshal update game event", err)
 	}
 	xArgs := &redis.XAddArgs{
 		Stream: p.redis.UpdtGameMetaStreamKey,
@@ -49,7 +49,7 @@ func (p *RedisPublisher) PublishUpdtGameEvent(ctx context.Context, xadder RedisX
 	}
 	msgID, err := xadder.XAdd(ctx, xArgs).Result()
 	if err != nil {
-		return serrors.New("xadd update game event", err, "gameUpdt", gameUpdt)
+		return serrors.Wrap("xadd update game event", err, "gameUpdt", gameUpdt)
 	}
 	slog.InfoContext(ctx, "published update game event", "msgID", msgID, "gameUpdt", gameUpdt, "streamKey", p.redis.UpdtGameMetaStreamKey)
 	return nil

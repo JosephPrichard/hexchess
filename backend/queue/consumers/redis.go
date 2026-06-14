@@ -35,7 +35,7 @@ func (c *RedisConsumer) Consume() error {
 
 	err := c.redis.XGroupCreateMkStream(c.ctx, streamKey, c.consumerGroup, "0").Err()
 	if err != nil && !redis.HasErrorPrefix(err, "BUSYGROUP") {
-		return serrors.New("create stream consumer group", err, "streamKey", streamKey, "consumerGroup", c.consumerGroup)
+		return serrors.Wrap("create stream consumer group", err, "streamKey", streamKey, "consumerGroup", c.consumerGroup)
 	}
 
 	for i := uint64(0); ; i++ {

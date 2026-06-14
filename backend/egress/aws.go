@@ -3,11 +3,12 @@ package egress
 import (
 	"context"
 	"fmt"
+	"log/slog"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"log/slog"
 )
 
 var DefaultAWSNames = AWSNames{
@@ -57,13 +58,22 @@ func MakeAWSClients(ctx context.Context, cfg AWSConfig, names *AWSNames) (AWSCli
 		AWSNames:   *names,
 	}
 
+	slog.Info("created aws client", "awsClient", awsClient, "awsCfg", awsCfg)
+
 	go func() {
-		for _, bucket := range []string{
+		buckets := []string{
 			awsClient.S3ProfileBucket,
-		} {
+		}
+		var errors []error
+		for _, bucket := range buckets {
 			if _, err := s3Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {
-				slog.WarnContext(ctx, "failed to create bucket", "bucket", bucket, "error", err)
+				errors = append(errors, err)
 			}
+		}
+		if len(errors) > 0 {
+			slog.Error("failed to create buckets", "buckets", buckets, "errors", errors)
+		} else {
+			slog.Info("created buckets", "buckets", buckets)
 		}
 	}()
 

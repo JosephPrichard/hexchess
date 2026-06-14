@@ -64,6 +64,7 @@ test: test-server test-wasm
 
 # Prerequisites
 install:
+    sudo apt install -y protobuf-compiler
 	go install github.com/agnivade/wasmbrowsertest@v0.11.0
 	go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
