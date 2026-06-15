@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"hexchess-svc/cmd"
 	"hexchess-svc/controller"
 	"hexchess-svc/db"
@@ -17,6 +16,8 @@ import (
 	"os"
 	"runtime"
 	"strings"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {

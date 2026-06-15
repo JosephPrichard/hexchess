@@ -3,13 +3,14 @@ package logutil
 import (
 	"context"
 	"errors"
+	"hexchess-svc/lib/serrors"
+	"log/slog"
+	"os"
+
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/log/global"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
-	"hexchess-svc/lib/serrors"
-	"log/slog"
-	"os"
 )
 
 type TestLogger interface {
@@ -107,7 +108,7 @@ type LogConfig struct {
 }
 
 func InitLoggers(config LogConfig) func(ctx context.Context) {
-	stderrHandler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+	stderrHandler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})
 

@@ -2,6 +2,7 @@
 -- PostgreSQL database dump
 --
 
+
 -- Dumped from database version 18.4 (Ubuntu 18.4-0ubuntu0.26.04.1)
 -- Dumped by pg_dump version 18.4 (Ubuntu 18.4-0ubuntu0.26.04.1)
 
@@ -826,4 +827,5 @@ ALTER TABLE ONLY public.user_mode_elos
 --
 -- PostgreSQL database dump complete
 --
+
 

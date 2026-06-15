@@ -1,11 +1,13 @@
 package db
 
 import (
-	redigo "github.com/gomodule/redigo/redis"
-	"github.com/redis/go-redis/v9"
+	"fmt"
 	"hexchess-svc/lib/testutil"
 	"log/slog"
 	"time"
+
+	redigo "github.com/gomodule/redigo/redis"
+	"github.com/redis/go-redis/v9"
 )
 
 type RedisAddrs struct {
@@ -85,6 +87,8 @@ func MakeRedis(addrs RedisAddrs, names *RedisNames) Redis {
 		RouteRandomly:  false,
 		RouteByLatency: false,
 	})
+
+	slog.Info("created redis client", "addrs", addrs, "names", names, "redisClientKind", fmt.Sprintf("%T", redisClient))
 
 	return Redis{
 		// as of now, game store and cache are pointed to the same cluster.

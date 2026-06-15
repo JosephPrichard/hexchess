@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"hexchess-svc/chess"
 	"hexchess-svc/model"
-	"log/slog"
 	"math"
 	"math/rand"
 	"time"
@@ -72,7 +71,5 @@ func RandomMoveHistSeq(mode model.GameMode, game chess.Game, low int, hi int) ([
 			moveSeq[moveIdx].BlackTimer = blackTimer
 		}
 	}
-
-	slog.Info("random move sequence", "len", len(moveSeq))
 	return moveSeq, nil
 }

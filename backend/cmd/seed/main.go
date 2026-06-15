@@ -5,11 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/brianvoe/gofakeit"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/sync/errgroup"
 	"hexchess-svc/chess"
 	"hexchess-svc/cmd"
 	"hexchess-svc/db"
@@ -17,15 +12,20 @@ import (
 	"hexchess-svc/lib/logutil"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
-	"log"
 	"log/slog"
 	"math/rand"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/brianvoe/gofakeit"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/sync/errgroup"
 )
 
-const trunateSql = `
+const truncateSql = `
 	TRUNCATE TABLE 
 		users, 
 		replays, 
@@ -73,7 +73,7 @@ func main() {
 	rdb := db.MakeRedis(addrs, nil)
 	defer rdb.Close()
 
-	_, err = pool.Exec(ctx, trunateSql)
+	_, err = pool.Exec(ctx, truncateSql)
 	if err != nil {
 		logutil.FatalErr("drop schema", err)
 	}
@@ -113,7 +113,7 @@ func main() {
 		logutil.FatalErr("jobs leaderboard", err)
 	}
 
-	log.Printf("finished seeding databases: %v", time.Since(start))
+	slog.Info("finished seeding databases", "time", time.Since(start))
 }
 
 func generateUserInsts() []svc.UserInst {
@@ -129,13 +129,13 @@ func generateUserInsts() []svc.UserInst {
 	return insts
 }
 
-func generateUserID(uselistedIDs map[int64]struct{}) int64 {
+func generateUserID(useListedIDs map[int64]struct{}) int64 {
 	for range 10 {
 		userID := rand.Int63n(int64(*usersCount)) + 1
-		if uselistedIDs == nil {
+		if useListedIDs == nil {
 			return userID
 		}
-		if _, used := uselistedIDs[userID]; !used {
+		if _, used := useListedIDs[userID]; !used {
 			return userID
 		}
 	}
