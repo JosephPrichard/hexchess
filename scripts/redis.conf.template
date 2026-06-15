@@ -1,0 +1,17 @@
+port ${PORT}
+cluster-enabled yes
+
+# Working directory - relative paths below resolve against this
+dir /etc/redis/configs/${PORT}
+
+# Cluster state file - lives directly in /etc/redis/configs/${PORT}
+cluster-config-file /etc/redis/configs/${PORT}/nodes.conf
+cluster-node-timeout 5000
+
+# AOF persistence
+appendonly yes
+appendfilename "appendonly.aof"
+
+# Redis 7+: AOF files (base, incr, manifest) go into a subdirectory
+# under `dir`, so this resolves to /etc/redis/configs/${PORT}/appendonlydir
+appenddirname "appendonlydir"

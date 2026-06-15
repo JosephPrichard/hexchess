@@ -1,0 +1,22 @@
+version: "1"
+
+volumes:
+  localstack_data:
+    driver: local
+
+services:
+  localstack:
+    image: localstack/localstack:3.8
+    container_name: hexchess-localstack
+    environment:
+      - DEBUG=1
+      - LS_LOG=trace
+      - SERVICES=s3
+      - EXTRA_CORS_ALLOWED_ORIGINS=http://localhost:5173 # local frontend origin
+      - EXTRA_CORS_ALLOWED_HEADERS=*
+      - EXTRA_CORS_EXPOSE_HEADERS=*
+    ports:
+      - "4566:4566"
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
