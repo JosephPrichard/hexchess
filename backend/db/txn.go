@@ -3,14 +3,15 @@ package db
 import (
 	"context"
 	"errors"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"hexchess-svc/db/sqlc"
 	"log/slog"
 	"math"
 	"math/rand"
 	"slices"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type QueryFn func(ctx context.Context, querier sqlc.Querier) error

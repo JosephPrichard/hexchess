@@ -14,26 +14,26 @@ const (
 	broadcastAction
 )
 
-type BroadcastActor struct {
+type BroadcastActor[ActorID comparable] struct {
 	ID         string
-	actionChan chan broadcasterAction
-	actorsMap  map[string][]chan []byte
+	actionChan chan broadcasterAction[ActorID]
+	actorsMap  map[ActorID][]chan []byte
 }
 
-type broadcasterAction struct {
+type broadcasterAction[ActorID comparable] struct {
 	kind    actorActionKind
-	actorID string
+	actorID ActorID
 	sub     chan []byte
 	payload []byte
 }
 
-func MakeBroadcastActor(ID string) *BroadcastActor {
-	actor := &BroadcastActor{ID: ID, actionChan: make(chan broadcasterAction), actorsMap: make(map[string][]chan []byte)}
+func MakeBroadcastActor[ActorID comparable](ID string) *BroadcastActor[ActorID] {
+	actor := &BroadcastActor[ActorID]{ID: ID, actionChan: make(chan broadcasterAction[ActorID]), actorsMap: make(map[ActorID][]chan []byte)}
 	go actor.Start()
 	return actor
 }
 
-func (actor *BroadcastActor) handleSubscription(action broadcasterAction) {
+func (actor *BroadcastActor[ActorID]) handleSubscription(action broadcasterAction[ActorID]) {
 	actorID := action.actorID
 	sub := action.sub
 
@@ -46,7 +46,7 @@ func (actor *BroadcastActor) handleSubscription(action broadcasterAction) {
 	actor.actorsMap[actorID] = shard
 }
 
-func (actor *BroadcastActor) handleUnsubscription(action broadcasterAction) {
+func (actor *BroadcastActor[ActorID]) handleUnsubscription(action broadcasterAction[ActorID]) {
 	actorID := action.actorID
 	sub := action.sub
 
@@ -60,7 +60,7 @@ func (actor *BroadcastActor) handleUnsubscription(action broadcasterAction) {
 	actor.actorsMap[actorID] = shard
 }
 
-func (actor *BroadcastActor) handleBroadcast(action broadcasterAction) {
+func (actor *BroadcastActor[ActorID]) handleBroadcast(action broadcasterAction[ActorID]) {
 	actorID := action.actorID
 	msg := action.payload
 
@@ -81,7 +81,7 @@ func (actor *BroadcastActor) handleBroadcast(action broadcasterAction) {
 	}
 }
 
-func (actor *BroadcastActor) stop() {
+func (actor *BroadcastActor[ActorID]) stop() {
 	for _, shard := range actor.actorsMap {
 		for _, sub := range shard {
 			close(sub)
@@ -89,7 +89,7 @@ func (actor *BroadcastActor) stop() {
 	}
 }
 
-func (actor *BroadcastActor) Start() {
+func (actor *BroadcastActor[ActorID]) Start() {
 	for action := range actor.actionChan {
 		switch action.kind {
 		case subAction:
@@ -105,23 +105,23 @@ func (actor *BroadcastActor) Start() {
 	actor.stop()
 }
 
-func (actor *BroadcastActor) send(action broadcasterAction) {
+func (actor *BroadcastActor[ActorID]) send(action broadcasterAction[ActorID]) {
 	actor.actionChan <- action
 }
 
-func (actor *BroadcastActor) Subscribe(actorID string, sub chan []byte) {
-	actor.send(broadcasterAction{kind: subAction, actorID: actorID, sub: sub})
+func (actor *BroadcastActor[ActorID]) Subscribe(actorID ActorID, sub chan []byte) {
+	actor.send(broadcasterAction[ActorID]{kind: subAction, actorID: actorID, sub: sub})
 }
 
-func (actor *BroadcastActor) Unsubscribe(actorID string, sub chan []byte) {
-	actor.send(broadcasterAction{kind: unsubAction, actorID: actorID, sub: sub})
+func (actor *BroadcastActor[ActorID]) Unsubscribe(actorID ActorID, sub chan []byte) {
+	actor.send(broadcasterAction[ActorID]{kind: unsubAction, actorID: actorID, sub: sub})
 }
 
-func (actor *BroadcastActor) Broadcast(actorID string, msg []byte) {
-	actor.send(broadcasterAction{kind: broadcastAction, actorID: actorID, payload: msg})
+func (actor *BroadcastActor[ActorID]) Broadcast(actorID ActorID, msg []byte) {
+	actor.send(broadcasterAction[ActorID]{kind: broadcastAction, actorID: actorID, payload: msg})
 }
 
-func (actor *BroadcastActor) Shutdown() {
+func (actor *BroadcastActor[ActorID]) Shutdown() {
 	close(actor.actionChan)
 }
 

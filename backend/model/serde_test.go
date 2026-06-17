@@ -6,17 +6,16 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestChessSerializer(t *testing.T) {
 	t.Parallel()
 
-	input1 := MakeChessState(StateSetup{ID: uuid.NewString(), Mode: ModeCorrespondence1, FirstColor: Random})
+	input1 := MakeChessState(StateSetup{ID: MakeGameID(), Mode: ModeCorrespondence1, FirstColor: Random})
 	input1.EndState = Finished
 
-	input2 := MakeChessState(StateSetup{ID: uuid.NewString(), Mode: ModeCorrespondence1, FirstColor: Random})
+	input2 := MakeChessState(StateSetup{ID: MakeGameID(), Mode: ModeCorrespondence1, FirstColor: Random})
 	input2.Game.InitPieceMoves()
 	input2.Game.ClearTables() // since we're asserting the output back to the input, we must clear payload that isn't serialized
 
@@ -45,7 +44,7 @@ func TestChessSerializer(t *testing.T) {
 }
 
 func BenchmarkProtoChessSerializer(b *testing.B) {
-	input := MakeChessState(StateSetup{ID: uuid.NewString(), Mode: ModeCorrespondence1, FirstColor: Random})
+	input := MakeChessState(StateSetup{ID: MakeGameID(), Mode: ModeCorrespondence1, FirstColor: Random})
 	input.Game.InitPieceMoves()
 	b.ResetTimer()
 	for range b.N {
@@ -60,7 +59,7 @@ func BenchmarkProtoChessSerializer(b *testing.B) {
 }
 
 func BenchmarkJsonChessSerializer(b *testing.B) {
-	input := MakeChessState(StateSetup{ID: uuid.NewString(), Mode: ModeCorrespondence1, FirstColor: Random})
+	input := MakeChessState(StateSetup{ID: MakeGameID(), Mode: ModeCorrespondence1, FirstColor: Random})
 	input.Game.InitPieceMoves()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

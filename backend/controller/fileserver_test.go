@@ -5,10 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"hexchess-svc/egress"
 	"hexchess-svc/itest"
 	"hexchess-svc/service"
@@ -18,6 +14,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestHandleUploadProfilePic(t *testing.T) {

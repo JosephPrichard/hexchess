@@ -3,7 +3,6 @@ package consumers
 import (
 	"context"
 	"errors"
-	"github.com/google/uuid"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/lib/errutil"
@@ -14,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -23,14 +24,19 @@ type PostgresConsumer struct {
 	pdb     db.DB
 	entropy svc.EntropyAPI
 
-	kind         sqlc.QueueTypeEnum
+	eventKind    sqlc.QueueTypeEnum
 	pollInterval time.Duration
 	pollCount    int32
 	maxEvents    uint64
-	fn           ConsumeFunc
+
+	fn ConsumeFunc
 }
 
 func (c *PostgresConsumer) Consume() error {
+	if c.entropy == nil {
+		c.entropy = &svc.RealEntropySource{}
+	}
+
 	ticker := time.NewTicker(c.pollInterval)
 	i := uint64(0)
 	for range ticker.C {
@@ -54,7 +60,7 @@ func (c *PostgresConsumer) Consume() error {
 
 func (c *PostgresConsumer) poll() error {
 	return c.pdb.ExecTx(c.ctx, db.TxArgs{
-		// ReadCommitted is used as a basic 'Default` isolation level, the primary purpose of the transaction is atomicity
+		// ReadCommitted is used as a basic `Default` isolation level, the primary purpose of the transaction is atomicity
 		// if handlers fail to acknowledge an event, it is not marked as processed and the lock is released at the end of the transaction, to allow retries *per event*
 		Isolation:  pgx.ReadCommitted,
 		RetryCount: 1,
@@ -64,11 +70,11 @@ func (c *PostgresConsumer) poll() error {
 
 			// locks events for the duration of the function
 			eventRows, err := querier.SelectQueueByPolling(ctx, sqlc.SelectQueueByPollingParams{
-				Type:  c.kind,
+				Type:  c.eventKind,
 				Limit: c.pollCount,
 			})
 			if err != nil {
-				return serrors.Wrap("select postgres queue messages", err, "kind", c.kind, "limit", c.pollCount)
+				return serrors.Wrap("select postgres queue messages", err, "kind", c.eventKind, "limit", c.pollCount)
 			}
 			if len(eventRows) == 0 {
 				return nil

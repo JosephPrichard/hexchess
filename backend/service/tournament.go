@@ -160,7 +160,7 @@ func mapTourneyMatchFromRow(match sqlc.SelectReplayMatchesByTournamentIDRow) mod
 
 	return model.FullMatch{
 		Ordering:      match.Ordering,
-		GameID:        match.GameID, // null gameID will be an empty string.
+		GameID:        model.GameID(match.GameID), // null gameID will be an empty string.
 		TournamentKey: match.TournamentKey.Bytes,
 		Round:         match.Round,
 		CreatedOn:     match.CreatedOn.Time,
@@ -623,7 +623,7 @@ func insertTournamentMatches(ctx context.Context, querier sqlc.Querier, tourname
 			matchInsts = append(matchInsts, sqlc.BatchInsertTournamentMatchParams{
 				TournamentKey: tournamentKey,
 				Round:         response.NextMatchRound,
-				GameID:        match.GameID,
+				GameID:        match.GameID.String(),
 				WhiteID:       match.WhiteID,
 				BlackID:       match.BlackID,
 			})
@@ -643,7 +643,7 @@ func insertTournamentMatches(ctx context.Context, querier sqlc.Querier, tourname
 	return nil
 }
 
-func (services *HexchessServices) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]string, error) {
+func (services *HexchessServices) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.GameID, error) {
 	matches, err := services.advanceTournament(ctx, tournamentKey, eventID)
 	if err != nil {
 		return nil, serrors.Wrap("advance tournament", err, "tournamentKey", tournamentKey)
@@ -653,7 +653,7 @@ func (services *HexchessServices) AdvanceTournament(ctx context.Context, tournam
 	}
 	slog.InfoContext(ctx, "finished advancing tournament with created matches", "tournamentMatches", matches)
 
-	var matchGameIDs []string
+	var matchGameIDs []model.GameID
 	for _, match := range matches {
 		matchGameIDs = append(matchGameIDs, match.GameID)
 	}

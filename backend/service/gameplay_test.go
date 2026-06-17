@@ -12,8 +12,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,8 +22,7 @@ func mutateGame(state *model.ChessState, fn func(s *model.ChessState)) *model.Ch
 	return &s
 }
 
-func seedGames(t *testing.T, services *HexchessServices, games ...*model.ChessState) {
-	t.Helper()
+func setChessStates(t *testing.T, services *HexchessServices, games ...*model.ChessState) {
 	for _, g := range games {
 		require.NoError(t, services.SetChessState(t.Context(), g.ID, g))
 	}
@@ -38,24 +35,24 @@ func TestJoinGame(t *testing.T) {
 	defer testinfra.Close()
 
 	whiteGame := model.MakeChessState(model.StateSetup{
-		ID:         "test-join-white-" + uuid.NewString(),
+		ID:         model.MakeGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.White,
 	})
 	fullGame := model.MakeChessState(model.StateSetup{
-		ID:         "test-join-full-" + uuid.NewString(),
+		ID:         model.MakeGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 1, Name: "white", Present: true},
 		Black:      model.PlayerState{ID: 2, Name: "black", Present: true},
 	})
-	missingGameID := "test-join-missing-" + uuid.NewString()
+	missingGameID := model.MakeGameID()
 
-	seedGames(t, services, whiteGame, fullGame)
+	setChessStates(t, services, whiteGame, fullGame)
 
 	tests := []struct {
 		name       string
-		gameID     string
+		gameID     model.GameID
 		joinPlayer model.PlayerState
 		wantGame   *model.ChessState
 		wantErr    error
@@ -102,23 +99,23 @@ func TestAttemptUndo(t *testing.T) {
 	defer testinfra.Close()
 
 	noMovesGame := model.MakeChessState(model.StateSetup{
-		ID:         "test-undo-no-moves-" + uuid.NewString(),
+		ID:         model.MakeGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 1, Name: "white", Present: true},
 		Black:      model.PlayerState{ID: 2, Name: "black", Present: true},
 	})
 	withMovesGame := model.MakeChessState(model.StateSetup{
-		ID:         "test-undo-with-moves-" + uuid.NewString(),
+		ID:         model.MakeGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 1, Name: "white", Present: true},
 		Black:      model.PlayerState{ID: 2, Name: "black", Present: true},
 	})
 	withMovesGame.Game.Moves = []chess.HistMove{{PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}}}}
-	missingGameID := "test-undo-missing-" + uuid.NewString()
+	missingGameID := model.MakeGameID()
 
-	seedGames(t, services, noMovesGame, withMovesGame)
+	setChessStates(t, services, noMovesGame, withMovesGame)
 
 	type subTest struct {
 		kind     UndoKind
@@ -129,7 +126,7 @@ func TestAttemptUndo(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		gameID string
+		gameID model.GameID
 		tests  []subTest
 	}{
 		{
@@ -264,14 +261,14 @@ func TestMakeMove(t *testing.T) {
 	t.Parallel()
 
 	stateWhiteTurn := model.MakeChessState(model.StateSetup{
-		ID:         "test-makemove-white-turn-" + uuid.NewString(),
+		ID:         model.MakeGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 1, Present: true},
 		Black:      model.PlayerState{ID: 2, Present: true},
 	})
 	stateEnded := model.MakeChessState(model.StateSetup{
-		ID:         "test-makemove-ended-" + uuid.NewString(),
+		ID:         model.MakeGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 1, Present: true},
@@ -279,13 +276,13 @@ func TestMakeMove(t *testing.T) {
 		EndState:   model.Finished,
 	})
 	stateNotStarted := model.MakeChessState(model.StateSetup{
-		ID:         "test-makemove-not-started-" + uuid.NewString(),
+		ID:         model.MakeGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 1, Present: true},
 	})
 	stateIntoCheckmate := model.MakeChessState(model.StateSetup{
-		ID:         "test-makemove-checkmate-" + uuid.NewString(),
+		ID:         model.MakeGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 3, Present: true},
@@ -298,7 +295,7 @@ func TestMakeMove(t *testing.T) {
 			chess.Place{Not: "f9", Piece: chess.BlackKing},
 		)),
 	})
-	missingGameID := "test-makemove-missing-" + uuid.NewString()
+	missingGameID := model.MakeGameID()
 
 	stateWhiteMoved := mutateGame(stateWhiteTurn, func(s *model.ChessState) {
 		s.Game.MakeMove(chess.MoveStr("b1", "b2"))
@@ -321,12 +318,12 @@ func TestMakeMove(t *testing.T) {
 	services, testinfra := setupServicesTest(t, nil, itest.Redis)
 	defer testinfra.Close()
 
-	seedGames(t, services, stateWhiteTurn, stateEnded, stateNotStarted, stateIntoCheckmate)
+	setChessStates(t, services, stateWhiteTurn, stateEnded, stateNotStarted, stateIntoCheckmate)
 
 	tests := []struct {
 		name     string
 		move     chess.Move
-		stateID  string
+		stateID  model.GameID
 		player   model.PlayerState
 		wantErr  error
 		wantGame *model.ChessState
@@ -410,13 +407,13 @@ func TestForfeit(t *testing.T) {
 	defer testinfra.Close()
 
 	abortGame := model.MakeChessState(model.StateSetup{
-		ID:         "test-forfeit-abort-" + uuid.NewString(),
+		ID:         model.MakeGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 1, Present: true},
 	})
 	forfeitGame := model.MakeChessState(model.StateSetup{
-		ID:         "test-forfeit-full-" + uuid.NewString(),
+		ID:         model.MakeGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 1, Present: true},
@@ -426,7 +423,7 @@ func TestForfeit(t *testing.T) {
 		PieceMove: chess.PieceMove{Piece: 1, To: chess.Hex{Rank: 1}},
 	}}
 
-	seedGames(t, services, abortGame, forfeitGame)
+	setChessStates(t, services, abortGame, forfeitGame)
 
 	t.Run("Abort", func(t *testing.T) {
 		ctx := t.Context()
@@ -439,12 +436,6 @@ func TestForfeit(t *testing.T) {
 			s.EndState = model.Aborted
 		})
 		assertRedisChess(t, services, wantGame)
-
-		gameKey := fmtGameKey(abortGame.ID)
-		zRankErr := services.redis.Cache.ZRank(ctx, services.redis.GamesZSet, gameKey).Err()
-		assert.Equal(t, redis.Nil, zRankErr)
-		zRankErr = services.redis.Cache.ZRank(ctx, fmtUserGameZSet(testinfra.Redis, abortGame.WhitePlayer.ID), gameKey).Err()
-		assert.Equal(t, redis.Nil, zRankErr)
 	})
 
 	t.Run("Forfeit", func(t *testing.T) {
@@ -468,7 +459,7 @@ func TestForfeit_Errors(t *testing.T) {
 	defer testinfra.Close()
 
 	endedGame := model.MakeChessState(model.StateSetup{
-		ID:         "test-forfeit-err-ended-" + uuid.NewString(),
+		ID:         model.MakeGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 1, Present: true},
@@ -476,25 +467,25 @@ func TestForfeit_Errors(t *testing.T) {
 		EndState:   model.Finished,
 	})
 	cannotAbortGame := model.MakeChessState(model.StateSetup{
-		ID:         "test-forfeit-err-cannot-abort-" + uuid.NewString(),
+		ID:         model.MakeGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 2, Present: true},
 	})
 	notPlayerGame := model.MakeChessState(model.StateSetup{
-		ID:         "test-forfeit-err-not-player-" + uuid.NewString(),
+		ID:         model.MakeGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 3, Present: true},
 		Black:      model.PlayerState{ID: 4, Present: true},
 	})
-	missingGameID := "test-forfeit-err-missing-" + uuid.NewString()
+	missingGameID := model.MakeGameID()
 
-	seedGames(t, services, endedGame, cannotAbortGame, notPlayerGame)
+	setChessStates(t, services, endedGame, cannotAbortGame, notPlayerGame)
 
 	tests := []struct {
 		name    string
-		gameID  string
+		gameID  model.GameID
 		player  model.PlayerState
 		wantErr error
 	}{

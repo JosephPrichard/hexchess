@@ -2,9 +2,10 @@ package egress
 
 import (
 	"context"
-	"google.golang.org/api/idtoken"
 	"hexchess-svc/lib/serrors"
 	"net/http"
+
+	"google.golang.org/api/idtoken"
 )
 
 //go:generate mockgen -source=google.go -destination=./google_mock.go -package=egress

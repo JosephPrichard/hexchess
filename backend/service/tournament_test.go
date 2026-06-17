@@ -1,13 +1,14 @@
 package svc
 
 import (
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/testing/protocmp"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
 	"hexchess-svc/lib/errutil"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
+
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -450,10 +451,10 @@ func TestAdvanceTournament_ThenGetChessStates(t *testing.T) {
 	gameIDs, err := services.AdvanceTournament(ctx, uuid.New(), itest.TestEventID_TournamentCreation)
 	require.NoError(t, err)
 
-	wantGameIDs := []string{itest.TestEventID_TournamentCreation_GameID}
+	wantGameIDs := []model.GameID{itest.TestEventID_TournamentCreation_GameID}
 	assert.Equal(t, wantGameIDs, gameIDs)
 
-	wantGames := map[string]*model.ChessState{
+	wantGames := map[model.GameID]*model.ChessState{
 		itest.TestEventID_TournamentCreation_GameID: {
 			ID:          itest.TestEventID_TournamentCreation_GameID,
 			FirstColor:  model.White,

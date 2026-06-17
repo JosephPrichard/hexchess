@@ -7,13 +7,13 @@ import (
 	"hexchess-svc/lib/enum"
 	"hexchess-svc/lib/testutil"
 	"hexchess-svc/model"
+	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
 	svc "hexchess-svc/service"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,8 +28,9 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	defer testinfra.Close()
 
 	services := svc.MakeHexchessServices(svc.SetupService{
-		DB:    testinfra.DB,
-		Redis: testinfra.Redis,
+		DB:          testinfra.DB,
+		Redis:       testinfra.Redis,
+		Broadcaster: pubsub.MakeBroadcaster(testinfra.Redis),
 	})
 
 	tournamentKey := itest.Tournament2ScheduledKnockoutKey
@@ -37,17 +38,18 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	err := producers.PublishAdvanceTournamentEvent(ctx, testinfra.Querier, tournamentKey, time.Time{})
 	require.NoError(t, err)
 
+	eventGateway := EventGateway{services: services}
 	queue := PostgresConsumer{
 		ctx: ctx,
 
 		pdb:     testinfra.DB,
 		entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
 
-		kind:         sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
+		eventKind:    sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 		pollInterval: time.Microsecond,
 		pollCount:    1,
 		maxEvents:    1,
-		fn:           HandleAdvanceTournamentEvent(services),
+		fn:           eventGateway.HandleAdvanceTournamentEvent,
 	}
 
 	err = queue.Consume()
@@ -81,13 +83,15 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	defer testinfra.Close()
 
 	services := svc.MakeHexchessServices(svc.SetupService{
-		DB:    testinfra.DB,
-		Redis: testinfra.Redis,
+		DB:          testinfra.DB,
+		Redis:       testinfra.Redis,
+		Broadcaster: pubsub.MakeBroadcaster(testinfra.Redis),
 	})
 
 	whiteUser0 := itest.TestUser[0]
 	blackUser1 := itest.TestUser[1]
-	newGameID := uuid.NewString()
+	newGameID := model.MakeGameID()
+	partitionID := newGameID.Partition()
 
 	finishedGame := model.FinishedGame{
 		GameID:       newGameID,
@@ -104,6 +108,8 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	err := publisher.PublishFinishGameEvent(ctx, testinfra.Redis.GameStore, finishedGame)
 	require.NoError(t, err)
 
+	eventGateway := EventGateway{services: services}
+
 	queue := RedisConsumer{
 		ctx:   ctx,
 		redis: testinfra.Redis.GameStore,
@@ -112,12 +118,12 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		maxEvents:     1,
 		streamKey:     testinfra.Redis.FinishGameStreamKey,
 		consumerGroup: testinfra.Redis.FinishGameConsumerGroup,
+		partitionKeys: []string{string(partitionID)},
 
-		fn: HandleFinishedGameEvent(services),
+		fn: eventGateway.HandleFinishedGameEvent,
 	}
 
-	err = queue.Consume()
-	require.NoError(t, err)
+	queue.Consume()
 
 	userElos, err := testinfra.Querier.SelectUserModeElosByIDs(ctx, sqlc.SelectUserModeElosByIDsParams{
 		ID:   []int64{whiteUser0.ID, blackUser1.ID},
@@ -139,14 +145,16 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	defer testinfra.Close()
 
 	services := svc.MakeHexchessServices(svc.SetupService{
-		DB:      testinfra.DB,
-		Redis:   testinfra.Redis,
-		Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
+		DB:          testinfra.DB,
+		Redis:       testinfra.Redis,
+		Broadcaster: pubsub.MakeBroadcaster(testinfra.Redis),
+		Entropy:     &svc.StableEntropySource{CurrTime: itest.TimeNow},
 	})
 
 	whiteUser0 := itest.TestUser[0]
 	blackUser1 := itest.TestUser[1]
-	gameID := uuid.NewString()
+	gameID := model.MakeGameID()
+	partitionID := gameID.Partition()
 
 	updtGame := model.GameMetadataUpdt{
 		GameID:      gameID,
@@ -160,6 +168,8 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	err := publisher.PublishUpdtGameEvent(ctx, testinfra.Redis.GameStore, updtGame)
 	require.NoError(t, err)
 
+	eventGateway := EventGateway{services: services}
+
 	queue := RedisConsumer{
 		ctx:   ctx,
 		redis: testinfra.Redis.GameStore,
@@ -168,19 +178,18 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 		maxEvents:     1,
 		streamKey:     testinfra.Redis.UpdtGameMetaStreamKey,
 		consumerGroup: testinfra.Redis.UpdtGameMetaConsumerGroup,
+		partitionKeys: []string{string(partitionID)},
 
-		fn: HandleUpdtGameEvent(services),
+		fn: eventGateway.HandleUpdtGameEvent,
 	}
+	queue.Consume()
 
-	err = queue.Consume()
-	require.NoError(t, err)
-
-	gameRow, err := testinfra.Querier.SelectGameMeta(ctx, gameID)
+	gameRow, err := testinfra.Querier.SelectGameMeta(ctx, gameID.String())
 	require.NoError(t, err)
 
 	wantGameRow := sqlc.GamesMetadatum{
 		Ordering:  4,
-		GameID:    gameID,
+		GameID:    gameID.String(),
 		Mode:      "CORRESPONDENCE_1",
 		WhiteID:   pgtype.Int8{Int64: whiteUser0.ID, Valid: true},
 		BlackID:   pgtype.Int8{Int64: blackUser1.ID, Valid: true},

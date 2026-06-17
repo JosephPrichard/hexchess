@@ -2,15 +2,17 @@ package pubsub
 
 import (
 	"encoding/json"
+	"hexchess-svc/db"
+	"hexchess-svc/lib/testutil"
+	"hexchess-svc/model"
+	"hexchess-svc/pb"
+	"testing"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
-	"hexchess-svc/db"
-	"hexchess-svc/lib/testutil"
-	"hexchess-svc/pb"
-	"testing"
 )
 
 var cmpOptsGameOutputs cmp.Options = []cmp.Option{
@@ -18,7 +20,7 @@ var cmpOptsGameOutputs cmp.Options = []cmp.Option{
 	protocmp.IgnoreFields(&pb.Replay{}, "id", "played_on"),
 }
 
-func ExpectBroadcastGames(t *testing.T, rdb db.Redis, gameID string, wantOutputs []*pb.GameOutput) func() {
+func ExpectBroadcastGames(t *testing.T, rdb db.Redis, gameID model.GameID, wantOutputs []*pb.GameOutput) func() {
 	if wantOutputs == nil {
 		return func() {}
 	}

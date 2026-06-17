@@ -25,7 +25,7 @@ import (
 
 type GameSocketContext struct {
 	Context context.Context
-	GameID  string
+	GameID  model.GameID
 	Player  model.PlayerState
 	ErrChan chan error
 }
@@ -37,8 +37,10 @@ func (api *API) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	query := r.URL.Query()
-	gameID := query.Get("gameId")
+	gameIDStr := query.Get("gameId")
 	sessionID := query.Get("sessionId")
+
+	gameID := model.GameID(gameIDStr)
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -94,7 +96,7 @@ func (api *API) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 	slog.InfoContext(ctx, "gameplay websocket reader closed", "gameID", gameID)
 }
 
-func writeGameMsgErr(ctx context.Context, conn *websocket.Conn, gameID string, err error) {
+func writeGameMsgErr(ctx context.Context, conn *websocket.Conn, gameID model.GameID, err error) {
 	wsErr := ErrWsFatal
 	switch {
 	case errutil.IsType[svc.ErrFinishedGame](err):
@@ -127,7 +129,7 @@ func writeGameMsgErr(ctx context.Context, conn *websocket.Conn, gameID string, e
 	writeMessage(ctx, conn, bytes)
 }
 
-func writeGameInitErr(ctx context.Context, conn *websocket.Conn, gameID string, err error) {
+func writeGameInitErr(ctx context.Context, conn *websocket.Conn, gameID model.GameID, err error) {
 	var wsErr error
 	switch {
 	case errors.Is(err, svc.ErrNoChessState):
@@ -147,7 +149,7 @@ func writeGameInitErr(ctx context.Context, conn *websocket.Conn, gameID string, 
 	writeMessage(ctx, conn, bytes)
 }
 
-func (api *API) handleGameInit(ctx context.Context, gameID string, sessionID string, conn *websocket.Conn) (player model.PlayerState, err error) {
+func (api *API) handleGameInit(ctx context.Context, gameID model.GameID, sessionID string, conn *websocket.Conn) (player model.PlayerState, err error) {
 	// apply state updates for the init phase
 	player, err = api.services.GetSession(ctx, sessionID)
 	if err != nil {

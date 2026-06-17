@@ -3,9 +3,10 @@ package controller
 import (
 	"errors"
 	"fmt"
+	"hexchess-svc/egress"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"hexchess-svc/egress"
 
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
@@ -1110,11 +1111,11 @@ func TestHandleGetGameMetadata(t *testing.T) {
 	t.Parallel()
 
 	allChessMetas := []ChessMeta{
-		{Ordering: 3, GameID: "game3", Mode: model.ModeCorrespondence1.String()},
-		{Ordering: 2, GameID: "game2", Mode: model.ModeCorrespondence1.String()},
+		{Ordering: 3, GameID: itest.GameID3, Mode: model.ModeCorrespondence1.String()},
+		{Ordering: 2, GameID: itest.GameID2, Mode: model.ModeCorrespondence1.String()},
 		{
 			Ordering:    1,
-			GameID:      TestGameID1,
+			GameID:      itest.GameID1,
 			BlackPlayer: model.User{ID: 2, Username: "user2", Country: "us"},
 			Mode:        model.ModeCorrespondence1.String(),
 		},
@@ -1135,7 +1136,7 @@ func TestHandleGetGameMetadata(t *testing.T) {
 				SelfChessList: []ChessMeta{
 					{
 						Ordering:    1,
-						GameID:      TestGameID1,
+						GameID:      itest.GameID1,
 						BlackPlayer: model.User{ID: 2, Username: "user2", Country: "us"},
 						Mode:        model.ModeCorrespondence1.String(),
 					},

@@ -2,8 +2,6 @@ package svc
 
 import (
 	"context"
-	"github.com/jackc/pgx/v5/pgtype"
-	"golang.org/x/sync/errgroup"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/lib/enum"
@@ -12,11 +10,14 @@ import (
 	"hexchess-svc/pubsub"
 	"log/slog"
 	"math"
+
+	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/sync/errgroup"
 )
 
 func (services *HexchessServices) UpdateGameMetadata(ctx context.Context, updt model.GameMetadataUpdt) error {
 	updtResult, err := services.querier.UpdateGameMeta(ctx, sqlc.UpdateGameMetaParams{
-		GameID:    updt.GameID,
+		GameID:    updt.GameID.String(),
 		WhiteID:   db.MapOptInt8(updt.WhitePlayer),
 		BlackID:   db.MapOptInt8(updt.BlackPlayer),
 		Mode:      sqlc.ModeEnum(updt.Mode.String()),
@@ -95,7 +96,7 @@ func (services *HexchessServices) getGameMetadata(ctx context.Context, userID en
 		}
 
 		chessMetas = append(chessMetas, model.ChessMeta{
-			GameID:      row.GameID,
+			GameID:      model.GameID(row.GameID),
 			Mode:        mode,
 			WhitePlayer: whitePlayer,
 			BlackPlayer: blackPlayer,

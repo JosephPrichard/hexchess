@@ -1,8 +1,9 @@
 package pubsub
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func testSubscriber[Event any](sub chan Event, mChan chan []Event) {
@@ -22,7 +23,7 @@ func collectMessages(messages [][]byte) []string {
 }
 
 func TestMulticasterActor(t *testing.T) {
-	actor := MakeBroadcastActor("testing-multicasters")
+	actor := MakeBroadcastActor[string]("testing-multicasters")
 	defer actor.Shutdown()
 
 	wantSub1Msgs := []string{"test1", "test2", "test3"}

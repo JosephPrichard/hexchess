@@ -2,10 +2,11 @@ package svc
 
 import (
 	"context"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"hexchess-svc/lib/enum"
 	"hexchess-svc/lib/testutil"
 	"hexchess-svc/model"
+
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"testing"
 	"time"

@@ -14,7 +14,10 @@ import (
 var ErrSessionNotFound = errors.New("session not found")
 
 func (services *HexchessServices) GetSession(ctx context.Context, sessionID string) (model.PlayerState, error) {
-	sessionKey := makeSessionKey(sessionID)
+	sessionKey := fmtSessionKey(sessionID)
+
+	slog.InfoContext(ctx, "getting session", "sessionID", sessionID, "sessionKey", sessionKey)
+
 	bytes, err := services.redis.Cache.Get(ctx, sessionKey).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
@@ -27,7 +30,7 @@ func (services *HexchessServices) GetSession(ctx context.Context, sessionID stri
 	if err != nil {
 		return model.PlayerState{}, serrors.Wrap("unmarshal session", err)
 	}
-	slog.InfoContext(ctx, "selected session", "sessionID", sessionID, "player", player)
+	slog.InfoContext(ctx, "retrieved session", "sessionID", sessionID, "sessionKey", sessionKey, "player", player)
 	return player, nil
 }
 
@@ -47,7 +50,7 @@ func (services *HexchessServices) SetSessions(ctx context.Context, insts ...Sess
 		if err != nil {
 			return err
 		}
-		sessionKey := makeSessionKey(inst.SessionID)
+		sessionKey := fmtSessionKey(inst.SessionID)
 		pipe.SetEx(ctx, sessionKey, data, inst.Expiry)
 	}
 
@@ -58,7 +61,7 @@ func (services *HexchessServices) SetSessions(ctx context.Context, insts ...Sess
 }
 
 func (services *HexchessServices) UpdateSessionEx(ctx context.Context, sessionID string, expiry time.Duration) error {
-	sessionKey := makeSessionKey(sessionID)
+	sessionKey := fmtSessionKey(sessionID)
 	if err := services.redis.Cache.Expire(ctx, sessionKey, expiry).Err(); err != nil {
 		return serrors.Wrap("update session expiry", err)
 	}
@@ -67,7 +70,7 @@ func (services *HexchessServices) UpdateSessionEx(ctx context.Context, sessionID
 }
 
 func (services *HexchessServices) DeleteSession(ctx context.Context, sessionID string) error {
-	sessionKey := makeSessionKey(sessionID)
+	sessionKey := fmtSessionKey(sessionID)
 	if err := services.redis.Cache.Del(ctx, sessionKey).Err(); err != nil {
 		return serrors.Wrap("delete session", err, "sessionID", sessionID)
 	}

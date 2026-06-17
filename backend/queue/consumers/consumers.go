@@ -19,36 +19,38 @@ type SetupConsumers struct {
 }
 
 func StartConsumers(setup SetupConsumers) {
+	eventGateway := EventGateway{services: setup.Services}
 	consumers := []Consumer{
 		&PostgresConsumer{
-			ctx:     setup.Ctx,
-			pdb:     setup.Postgres,
-			entropy: &svc.RealEntropySource{},
+			ctx: setup.Ctx,
+			pdb: setup.Postgres,
 
-			kind:         sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
+			eventKind:    sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 			pollInterval: 1 * time.Second,
 			pollCount:    32,
-			fn:           HandleAdvanceTournamentEvent(setup.Services),
+			fn:           eventGateway.HandleAdvanceTournamentEvent,
 		},
 		&RedisConsumer{
 			ctx:   setup.Ctx,
 			redis: setup.Redis.GameStore,
 
-			concurrency:   8,
 			streamKey:     setup.Redis.FinishGameStreamKey,
 			consumerGroup: setup.Redis.FinishGameConsumerGroup,
+			concurrency:   8,
+			partitionKeys: model.GameIDPartitions(),
 
-			fn: HandleFinishedGameEvent(setup.Services),
+			fn: eventGateway.HandleFinishedGameEvent,
 		},
 		&RedisConsumer{
 			ctx:   setup.Ctx,
 			redis: setup.Redis.GameStore,
 
-			concurrency:   8,
 			streamKey:     setup.Redis.UpdtGameMetaStreamKey,
 			consumerGroup: setup.Redis.UpdtGameMetaConsumerGroup,
+			concurrency:   8,
+			partitionKeys: model.GameIDPartitions(),
 
-			fn: HandleUpdtGameEvent(setup.Services),
+			fn: eventGateway.HandleUpdtGameEvent,
 		},
 	}
 
@@ -66,40 +68,38 @@ type Consumer interface {
 
 type ConsumeFunc func(ctx context.Context, bytes []byte) error
 
-func HandleFinishedGameEvent(services *svc.HexchessServices) ConsumeFunc {
-	return func(ctx context.Context, bytes []byte) error {
-		event, err := model.UnmarshalFinishedGame(bytes)
-		if err != nil {
-			return NonRetryableQueueError{Err: err}
-		}
-		slog.InfoContext(ctx, "handling finished game event", "event", event)
-		return services.InsertFinishedGame(ctx, event)
-	}
+type EventGateway struct {
+	services *svc.HexchessServices
 }
 
-func HandleUpdtGameEvent(services *svc.HexchessServices) ConsumeFunc {
-	return func(ctx context.Context, bytes []byte) error {
-		event, err := model.UnmarshalGameMetadataUpdt(bytes)
-		if err != nil {
-			return NonRetryableQueueError{Err: err}
-		}
-		slog.InfoContext(ctx, "handling update game metadata event", "event", event)
-		return services.UpdateGameMetadata(ctx, event)
+func (gateway EventGateway) HandleFinishedGameEvent(ctx context.Context, bytes []byte) error {
+	event, err := model.UnmarshalFinishedGame(bytes)
+	if err != nil {
+		return NonRetryableQueueError{Err: err}
 	}
+	slog.InfoContext(ctx, "handling finished game event", "event", event)
+	return gateway.services.InsertFinishedGame(ctx, event)
 }
 
-func HandleAdvanceTournamentEvent(services *svc.HexchessServices) ConsumeFunc {
-	return func(ctx context.Context, bytes []byte) error {
-		event, err := model.UnmarshalAdvanceTournamentEvent(bytes)
-		if err != nil {
-			return NonRetryableQueueError{Err: err}
-		}
-		slog.InfoContext(ctx, "begin tournament advance event", "event", event)
-
-		_, err = services.AdvanceTournament(ctx, event.TournamentKey, event.EventID)
-		if errutil.IsType[svc.MatchInvariantError](err) {
-			return NonRetryableQueueError{Err: err}
-		}
-		return err
+func (gateway EventGateway) HandleUpdtGameEvent(ctx context.Context, bytes []byte) error {
+	event, err := model.UnmarshalGameMetadataUpdt(bytes)
+	if err != nil {
+		return NonRetryableQueueError{Err: err}
 	}
+	slog.InfoContext(ctx, "handling update game metadata event", "event", event)
+	return gateway.services.UpdateGameMetadata(ctx, event)
+}
+
+func (gateway EventGateway) HandleAdvanceTournamentEvent(ctx context.Context, bytes []byte) error {
+	event, err := model.UnmarshalAdvanceTournamentEvent(bytes)
+	if err != nil {
+		return NonRetryableQueueError{Err: err}
+	}
+	slog.InfoContext(ctx, "begin tournament advance event", "event", event)
+
+	_, err = gateway.services.AdvanceTournament(ctx, event.TournamentKey, event.EventID)
+	if errutil.IsType[svc.MatchInvariantError](err) {
+		return NonRetryableQueueError{Err: err}
+	}
+	return err
 }

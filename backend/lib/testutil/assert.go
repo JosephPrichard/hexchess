@@ -2,13 +2,14 @@ package testutil
 
 import (
 	"encoding/json"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"go.uber.org/mock/gomock"
 	"io"
 	"net/http/httptest"
 	"reflect"
 	"slices"
 	"testing"
+
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"go.uber.org/mock/gomock"
 
 	"github.com/google/go-cmp/cmp"
 )

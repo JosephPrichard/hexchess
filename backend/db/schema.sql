@@ -6,37 +6,50 @@
 -- Dumped from database version 18.4 (Ubuntu 18.4-0ubuntu0.26.04.1)
 -- Dumped by pg_dump version 18.4 (Ubuntu 18.4-0ubuntu0.26.04.1)
 
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET transaction_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
+SET
+statement_timeout = 0;
+SET
+lock_timeout = 0;
+SET
+idle_in_transaction_session_timeout = 0;
+SET
+transaction_timeout = 0;
+SET
+client_encoding = 'UTF8';
+SET
+standard_conforming_strings = on;
 SELECT pg_catalog.set_config('search_path', 'public', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
+SET
+check_function_bodies = false;
+SET
+xmloption = content;
+SET
+client_min_messages = warning;
+SET
+row_security = off;
 
 --
 -- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: -
 --
 
-COMMENT ON SCHEMA public IS '';
+COMMENT
+ON SCHEMA public IS '';
 
 
 --
 -- Name: pg_trgm; Type: EXTENSION; Schema: -; Owner: -
 --
 
-CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
+CREATE
+EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
 
 
 --
 -- Name: EXTENSION pg_trgm; Type: COMMENT; Schema: -; Owner: -
 --
 
-COMMENT ON EXTENSION pg_trgm IS 'text similarity measurement and index searching based on trigrams';
+COMMENT
+ON EXTENSION pg_trgm IS 'text similarity measurement and index searching based on trigrams';
 
 
 --
@@ -122,19 +135,22 @@ CREATE TYPE public.tournament_status_enum AS ENUM (
 );
 
 
-SET default_tablespace = '';
+SET
+default_tablespace = '';
 
-SET default_table_access_method = heap;
+SET
+default_table_access_method = heap;
 
 --
 -- Name: challenges; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.challenges (
-    challenger_id bigint NOT NULL,
-    challengee_id bigint NOT NULL,
+CREATE TABLE public.challenges
+(
+    challenger_id bigint                                             NOT NULL,
+    challengee_id bigint                                             NOT NULL,
     start_color public.color_enum NOT NULL,
-    made_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    made_on       timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     mode public.mode_enum NOT NULL
 );
 
@@ -143,9 +159,10 @@ CREATE TABLE public.challenges (
 -- Name: event_keys; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.event_keys (
-    id uuid NOT NULL,
-    data bytea NOT NULL,
+CREATE TABLE public.event_keys
+(
+    id          uuid  NOT NULL,
+    data        bytea NOT NULL,
     consumed_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
@@ -154,11 +171,12 @@ CREATE TABLE public.event_keys (
 -- Name: event_queue; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.event_queue (
-    id bigint NOT NULL,
+CREATE TABLE public.event_queue
+(
+    id           bigint                                             NOT NULL,
     type public.queue_type_enum NOT NULL,
-    data bytea NOT NULL,
-    created_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    data         bytea                                              NOT NULL,
+    created_on   timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     processed_on timestamp with time zone,
     scheduled_on timestamp with time zone
 );
@@ -186,21 +204,21 @@ CREATE SEQUENCE public.games_metadata_ordering_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+    NO MAXVALUE CACHE 1;
 
 
 --
 -- Name: games_metadata; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.games_metadata (
-    ordering bigint DEFAULT nextval('public.games_metadata_ordering_seq'::regclass) NOT NULL,
-    game_id text NOT NULL,
+CREATE TABLE public.games_metadata
+(
+    ordering   bigint                   DEFAULT nextval('public.games_metadata_ordering_seq'::regclass) NOT NULL,
+    game_id    text                                                                                     NOT NULL,
     mode public.mode_enum NOT NULL,
-    white_id bigint,
-    black_id bigint,
-    updated_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    white_id   bigint,
+    black_id   bigint,
+    updated_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP                                       NOT NULL
 );
 
 
@@ -209,19 +227,20 @@ CREATE TABLE public.games_metadata (
 --
 
 CREATE VIEW public.games_metadata_count AS
- SELECT count(*) AS total
-   FROM public.games_metadata;
+SELECT count(*) AS total
+FROM public.games_metadata;
 
 
 --
 -- Name: goose_db_version; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.goose_db_version (
-    id integer NOT NULL,
-    version_id bigint NOT NULL,
+CREATE TABLE public.goose_db_version
+(
+    id         integer NOT NULL,
+    version_id bigint  NOT NULL,
     is_applied boolean NOT NULL,
-    tstamp timestamp without time zone DEFAULT now() NOT NULL
+    tstamp     timestamp without time zone DEFAULT now() NOT NULL
 );
 
 
@@ -243,9 +262,10 @@ ALTER TABLE public.goose_db_version ALTER COLUMN id ADD GENERATED BY DEFAULT AS 
 -- Name: replay_move_histories; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.replay_move_histories (
+CREATE TABLE public.replay_move_histories
+(
     replay_id bigint NOT NULL,
-    data bytea NOT NULL
+    data      bytea  NOT NULL
 );
 
 
@@ -253,21 +273,23 @@ CREATE TABLE public.replay_move_histories (
 -- Name: replays; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.replays (
-    id bigint NOT NULL,
-    white_id bigint,
-    black_id bigint,
+CREATE TABLE public.replays
+(
+    id            bigint                                             NOT NULL,
+    white_id      bigint,
+    black_id      bigint,
     mode public.mode_enum NOT NULL,
     result public.result_enum NOT NULL,
     cause public.cause_enum NOT NULL,
-    played_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    win_elo_diff double precision NOT NULL,
-    lose_elo_diff double precision NOT NULL,
-    white_elo double precision NOT NULL,
-    black_elo double precision NOT NULL,
-    game_id text NOT NULL,
-    turn_count integer DEFAULT 0 NOT NULL,
-    rating double precision GENERATED ALWAYS AS (((white_elo + black_elo) / (2)::double precision)) STORED,
+    played_on     timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    win_elo_diff  double precision                                   NOT NULL,
+    lose_elo_diff double precision                                   NOT NULL,
+    white_elo     double precision                                   NOT NULL,
+    black_elo     double precision                                   NOT NULL,
+    game_id       text                                               NOT NULL,
+    turn_count    integer                  DEFAULT 0                 NOT NULL,
+    rating        double precision GENERATED ALWAYS AS (((white_elo + black_elo) / (2)::double precision
+) ) STORED,
     played_on_as_days integer GENERATED ALWAYS AS (((EXTRACT(epoch FROM ((played_on AT TIME ZONE 'UTC'::text) - '1970-01-01 00:00:00'::timestamp without time zone)) / (86400)::numeric))::integer) STORED
 );
 
@@ -290,14 +312,15 @@ ALTER TABLE public.replays ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 -- Name: tournament_matches; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.tournament_matches (
-    ordering bigint NOT NULL,
-    tournament_key uuid NOT NULL,
-    round integer NOT NULL,
-    game_id text NOT NULL,
-    created_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    white_id bigint NOT NULL,
-    black_id bigint NOT NULL
+CREATE TABLE public.tournament_matches
+(
+    ordering       bigint                                             NOT NULL,
+    tournament_key uuid                                               NOT NULL,
+    round          integer                                            NOT NULL,
+    game_id        text                                               NOT NULL,
+    created_on     timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    white_id       bigint                                             NOT NULL,
+    black_id       bigint                                             NOT NULL
 );
 
 
@@ -319,10 +342,11 @@ ALTER TABLE public.tournament_matches ALTER COLUMN ordering ADD GENERATED ALWAYS
 -- Name: tournament_participants; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.tournament_participants (
-    tournament_key uuid NOT NULL,
-    user_id bigint NOT NULL,
-    joined_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+CREATE TABLE public.tournament_participants
+(
+    tournament_key uuid                                               NOT NULL,
+    user_id        bigint                                             NOT NULL,
+    joined_on      timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 
@@ -330,20 +354,21 @@ CREATE TABLE public.tournament_participants (
 -- Name: tournaments; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.tournaments (
-    id bigint NOT NULL,
-    tournament_key uuid NOT NULL,
-    name text NOT NULL,
-    rounds integer NOT NULL,
+CREATE TABLE public.tournaments
+(
+    id                   bigint                                             NOT NULL,
+    tournament_key       uuid                                               NOT NULL,
+    name                 text                                               NOT NULL,
+    rounds               integer                                            NOT NULL,
     status public.tournament_status_enum NOT NULL,
     mode public.mode_enum NOT NULL,
-    countdown bigint NOT NULL,
+    countdown            bigint                                             NOT NULL,
     countdown_started_on timestamp with time zone,
-    created_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    created_by bigint NOT NULL,
-    updated_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_on           timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by           bigint                                             NOT NULL,
+    updated_on           timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     ruleset public.tournament_ruleset_enum DEFAULT 'KNOCKOUT'::public.tournament_ruleset_enum NOT NULL,
-    winner_id bigint
+    winner_id            bigint
 );
 
 
@@ -365,14 +390,15 @@ ALTER TABLE public.tournaments ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY 
 -- Name: user_mode_elos; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.user_mode_elos (
-    user_id bigint NOT NULL,
+CREATE TABLE public.user_mode_elos
+(
+    user_id     bigint            NOT NULL,
     mode public.mode_enum NOT NULL,
-    elo double precision NOT NULL,
-    highest_elo double precision NOT NULL,
-    wins integer DEFAULT 0 NOT NULL,
-    losses integer DEFAULT 0 NOT NULL,
-    draws integer DEFAULT 0 NOT NULL
+    elo         double precision  NOT NULL,
+    highest_elo double precision  NOT NULL,
+    wins        integer DEFAULT 0 NOT NULL,
+    losses      integer DEFAULT 0 NOT NULL,
+    draws       integer DEFAULT 0 NOT NULL
 );
 
 
@@ -380,17 +406,18 @@ CREATE TABLE public.user_mode_elos (
 -- Name: users; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.users (
-    id bigint NOT NULL,
-    username character varying NOT NULL,
-    country character varying NOT NULL,
-    bio character varying DEFAULT ''::character varying NOT NULL,
-    joined_on timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    password character varying NOT NULL,
-    salt character varying NOT NULL,
-    login_attempts integer DEFAULT 0 NOT NULL,
+CREATE TABLE public.users
+(
+    id                 bigint                                             NOT NULL,
+    username           character varying                                  NOT NULL,
+    country            character varying                                  NOT NULL,
+    bio                character varying        DEFAULT ''::character varying NOT NULL,
+    joined_on          timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    password           character varying                                  NOT NULL,
+    salt               character varying                                  NOT NULL,
+    login_attempts     integer                  DEFAULT 0                 NOT NULL,
     last_login_attempt timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    google_account_id character varying
+    google_account_id  character varying
 );
 
 
@@ -412,8 +439,9 @@ ALTER TABLE public.users ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 -- Name: users_metadata; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.users_metadata (
-    id bigint NOT NULL,
+CREATE TABLE public.users_metadata
+(
+    id    bigint NOT NULL,
     count integer
 );
 
@@ -675,7 +703,7 @@ CREATE INDEX idx_trgm_username ON public.users USING gist (username public.gist_
 -- Name: idx_unique_username; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_unique_username ON public.users USING btree (upper((username)::text));
+CREATE UNIQUE INDEX idx_unique_username ON public.users USING btree (upper ((username)::text));
 
 
 --
@@ -741,7 +769,9 @@ ALTER TABLE ONLY public.challenges
 --
 
 ALTER TABLE ONLY public.replay_move_histories
-    ADD CONSTRAINT fk_replay_id FOREIGN KEY (replay_id) REFERENCES public.replays(id) ON DELETE CASCADE;
+    ADD CONSTRAINT fk_replay_id FOREIGN KEY (replay_id) REFERENCES public.replays(id) ON
+DELETE
+CASCADE;
 
 
 --
@@ -821,7 +851,9 @@ ALTER TABLE ONLY public.tournaments
 --
 
 ALTER TABLE ONLY public.user_mode_elos
-    ADD CONSTRAINT user_mode_elos_userid_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+    ADD CONSTRAINT user_mode_elos_userid_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON
+DELETE
+CASCADE;
 
 
 --

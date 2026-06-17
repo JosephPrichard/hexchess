@@ -3,8 +3,6 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/redis/go-redis/v9"
-	"google.golang.org/protobuf/proto"
 	"hexchess-svc/db"
 	"hexchess-svc/egress"
 	"hexchess-svc/itest"
@@ -14,6 +12,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/redis/go-redis/v9"
+	"google.golang.org/protobuf/proto"
 
 	"hexchess-svc/lib/logutil"
 	"hexchess-svc/model"
@@ -132,7 +133,7 @@ func setupSSETest(t *testing.T) sseTestContext {
 
 var TestSessionID1 = "testing-session-id-1"
 var TestSessionID2 = "testing-session-id-2"
-var TestGameID1 = "game1"
+var TestGameID1 = model.MakeGameID()
 
 func createTestSessions(t *testing.T, redis db.Redis) {
 	t.Helper()
@@ -150,7 +151,7 @@ func createTestSessions(t *testing.T, redis db.Redis) {
 		if err != nil {
 			t.Fatalf("marshal session: %v", err)
 		}
-		sessionKey := fmt.Sprintf("{%s}session/%s", session.ID, session.ID)
+		sessionKey := fmt.Sprintf("session:{%s}", session.ID)
 		if err := redis.Cache.SetEx(ctx, sessionKey, data, session.Expiry).Err(); err != nil {
 			t.Fatalf("set session: %v", err)
 		}
@@ -174,7 +175,7 @@ func createTestChessStates(t *testing.T, redis db.Redis) {
 
 	ctx := t.Context()
 	for _, state := range testStates {
-		gameKey := fmt.Sprintf("game/%s", state.ID)
+		gameKey := fmt.Sprintf("game:%s{%c}", state.ID, state.ID.Partition())
 
 		bytes, err := proto.Marshal(model.SerializeChessState(state))
 		if err != nil {
@@ -196,7 +197,7 @@ func createLeaderboard(t *testing.T, rdb db.Redis, changes ...updtLbChangeSet) {
 	ctx := t.Context()
 	pipe := rdb.Cache.Pipeline()
 	for _, change := range changes {
-		modeLbZSet := fmt.Sprintf("%s/mode:%s", rdb.LeaderboardZSet, change.Mode.String())
+		modeLbZSet := fmt.Sprintf("%s/mode:{%s}", rdb.LeaderboardZSet, change.Mode.String())
 		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: change.EloDiff, Member: change.ID})
 	}
 	if _, err := pipe.Exec(ctx); err != nil {

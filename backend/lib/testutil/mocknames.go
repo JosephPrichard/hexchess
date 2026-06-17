@@ -1,9 +1,10 @@
 package testutil
 
 import (
-	"github.com/google/uuid"
 	"hexchess-svc/lib/logutil"
 	"reflect"
+
+	"github.com/google/uuid"
 )
 
 func MakeTestNames[T any](d T) *T {

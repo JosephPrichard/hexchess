@@ -14,40 +14,41 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/gorilla/websocket"
-	"github.com/stretchr/testify/require"
 	"hexchess-svc/itest"
 	"hexchess-svc/lib/testutil"
 	"hexchess-svc/pb"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/require"
 )
 
 var (
 	gameID = TestGameID1
 
 	wantInit = &pb.GameOutput{
-		GameId: gameID,
+		GameId: gameID.String(),
 		Value: &pb.GameOutput_Init{Init: &pb.InitOutput{
 			State: &pb.ChessState{},
 			Self:  &pb.PlayerState{Id: 1, Name: "user1", Country: "us"},
 		}},
 	}
 	wantPlayers = &pb.GameOutput{
-		GameId: gameID,
+		GameId: gameID.String(),
 		Value: &pb.GameOutput_Players{Players: &pb.PlayersOutput{
 			WhitePlayer: &pb.PlayerState{Id: 1, Name: "user1", Country: "us"},
 			BlackPlayer: &pb.PlayerState{Id: 2, Name: "user2", Country: "us"},
 		}},
 	}
 	wantValidMove = &pb.GameOutput{
-		GameId: gameID,
+		GameId: gameID.String(),
 		Value: &pb.GameOutput_Move{Move: &pb.MoveOutput{
 			UpdatedAt: itest.TimeNow.Format(time.RFC3339),
 			Move:      &pb.HistMove{Piece: int32(chess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, Notation: "Pb2"},
 		}},
 	}
 	wantChat = &pb.GameOutput{
-		GameId: gameID,
+		GameId: gameID.String(),
 		Value: &pb.GameOutput_Chat{Chat: &pb.ChatMessage{
 			Message: "Hello World",
 			Player:  &pb.PlayerState{Id: 1, Name: "user1", Country: "us"},
@@ -55,7 +56,7 @@ var (
 		}},
 	}
 	wantForfeit = &pb.GameOutput{
-		GameId: gameID,
+		GameId: gameID.String(),
 		Value: &pb.GameOutput_Forfeit{
 			Forfeit: &pb.ForfeitOutput{
 				EndState: pb.EndKind_FINISHED,
@@ -63,7 +64,7 @@ var (
 		},
 	}
 	wantUndo = &pb.GameOutput{
-		GameId: gameID,
+		GameId: gameID.String(),
 		Value: &pb.GameOutput_Undo{
 			Undo: &pb.UndoOutput{Kind: "REJECT", UndoId: 1},
 		},
@@ -86,7 +87,7 @@ var (
 				wantPlayers,
 				wantInit,
 				{
-					GameId: gameID,
+					GameId: gameID.String(),
 					Value: &pb.GameOutput_Error{
 						Error: &pb.ErrorOutput{Message: ErrWsInvalidMove.Error()},
 					},
@@ -135,7 +136,7 @@ var (
 				wantPlayers,
 				wantInit,
 				{
-					GameId: gameID,
+					GameId: gameID.String(),
 					Value: &pb.GameOutput_Error{
 						Error: &pb.ErrorOutput{Message: ErrWsUndoAction.Error()},
 					},

@@ -240,7 +240,7 @@ func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts 
 			}
 
 			changeSet, err := services.InsertGameResult(egCtx, svc.GameResult{
-				GameID:       svc.MakeGameID(),
+				GameID:       model.MakeGameID(),
 				WhiteID:      inst.WhiteID,
 				BlackID:      inst.BlackID,
 				ReplayCause:  inst.ReplayCause,
@@ -301,7 +301,7 @@ func generateTournaments() []TournamentInsts {
 			whiteID, blackID := participants[i].UserID, participants[i+1].UserID
 			matches = append(matches, sqlc.BatchInsertTournamentMatchParams{
 				TournamentKey: tkey,
-				GameID:        svc.MakeGameID(), // there are no games the game store matching this at this point in time
+				GameID:        model.MakeGameID(), // there are no games the game store matching this at this point in time
 				WhiteID:       whiteID,
 				BlackID:       blackID,
 				Round:         int32(1),

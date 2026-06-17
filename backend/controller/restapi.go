@@ -414,7 +414,7 @@ type UpdateChallengeBody struct {
 }
 
 type UpdateChallengeResp struct {
-	GameID string `json:"challengeID"`
+	GameID model.GameID `json:"challengeID"`
 }
 
 func (api *API) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) error {
@@ -437,7 +437,7 @@ func (api *API) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) er
 		return serrors.Wrap("delete challenge", err)
 	}
 
-	var gameID string
+	var gameID model.GameID
 	if body.Action == Accept {
 		gameID, err = api.services.CreateGame(ctx, deleteResult.FirstColor, deleteResult.Mode, nil)
 		if err != nil {
@@ -547,7 +547,7 @@ type CreateGameBody struct {
 }
 
 type CreateGameResp struct {
-	GameID string `json:"gameId"`
+	GameID model.GameID `json:"gameId"`
 }
 
 func (api *API) HandleCreateGame(w http.ResponseWriter, r *http.Request) error {
@@ -576,7 +576,8 @@ const (
 func (api *API) HandleGameExistence(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	gameID := r.URL.Query().Get("gameId")
+	gameIDStr := r.URL.Query().Get("gameId")
+	gameID := model.GameID(gameIDStr)
 
 	exists := api.services.IsGameAccessible(ctx, gameID)
 
@@ -589,11 +590,11 @@ func (api *API) HandleGameExistence(w http.ResponseWriter, r *http.Request) erro
 }
 
 type ChessMeta struct {
-	GameID      string     `json:"gameid"`
-	WhitePlayer model.User `json:"whitePlayer"`
-	BlackPlayer model.User `json:"blackPlayer"`
-	Mode        string     `json:"mode"`
-	Ordering    int64      `json:"ordering"`
+	GameID      model.GameID `json:"gameId"`
+	WhitePlayer model.User   `json:"whitePlayer"`
+	BlackPlayer model.User   `json:"blackPlayer"`
+	Mode        string       `json:"mode"`
+	Ordering    int64        `json:"ordering"`
 }
 
 type ChessMetasResp struct {
@@ -624,7 +625,8 @@ func (api *API) HandleGetGameMetadata(w http.ResponseWriter, r *http.Request) er
 
 func (api *API) HandleGetGameChats(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-	gameID := r.URL.Query().Get("gameId")
+	gameIDStr := r.URL.Query().Get("gameId")
+	gameID := model.GameID(gameIDStr)
 
 	chats, err := api.services.GetChats(ctx, gameID, 100)
 	if err != nil {

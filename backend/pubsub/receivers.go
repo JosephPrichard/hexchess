@@ -1,14 +1,15 @@
 package pubsub
 
 import (
-	redigo "github.com/gomodule/redigo/redis"
-	"google.golang.org/protobuf/proto"
 	"hexchess-svc/db"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"log/slog"
 	"strconv"
 	"time"
+
+	redigo "github.com/gomodule/redigo/redis"
+	"google.golang.org/protobuf/proto"
 )
 
 func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Message)) chan struct{} {
@@ -52,17 +53,17 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 
 type LocalBroadcasters struct {
 	CountsCaster     *GlobalCasterActor
-	GamesCaster      *BroadcastActor
-	UsersCaster      *BroadcastActor
-	TournamentCaster *BroadcastActor
+	GamesCaster      *BroadcastActor[model.GameID]
+	UsersCaster      *BroadcastActor[string]
+	TournamentCaster *BroadcastActor[string]
 }
 
 func MakeLocalBroadcasters() *LocalBroadcasters {
 	return &LocalBroadcasters{
 		CountsCaster:     MakeGlobalCasterActor("counts-caster"),
-		GamesCaster:      MakeBroadcastActor("games-caster"),
-		UsersCaster:      MakeBroadcastActor("users-caster"),
-		TournamentCaster: MakeBroadcastActor("users-caster"),
+		GamesCaster:      MakeBroadcastActor[model.GameID]("games-caster"),
+		UsersCaster:      MakeBroadcastActor[string]("users-caster"),
+		TournamentCaster: MakeBroadcastActor[string]("users-caster"),
 	}
 }
 
@@ -97,7 +98,9 @@ func (b *LocalBroadcasters) ListenGameMessages(rdb db.Redis) chan struct{} {
 		}
 		slog.Info("received message on games channel", "key", outputID.GameId)
 
-		go b.GamesCaster.Broadcast(outputID.GameId, v.Data)
+		gameID := model.GameID(outputID.GameId)
+
+		go b.GamesCaster.Broadcast(gameID, v.Data)
 	})
 }
 

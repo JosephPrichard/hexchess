@@ -3,15 +3,16 @@ package controller
 import (
 	"errors"
 	"fmt"
+	"hexchess-svc/assets"
+	"hexchess-svc/chess"
+	"strconv"
+	"sync"
+
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	enTranslations "github.com/go-playground/validator/v10/translations/en"
 	"github.com/google/uuid"
-	"hexchess-svc/assets"
-	"hexchess-svc/chess"
-	"strconv"
-	"sync"
 
 	"hexchess-svc/lib/enum"
 	"hexchess-svc/model"

@@ -3,13 +3,14 @@ package producers
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
-	"google.golang.org/protobuf/proto"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/pb"
 	"log/slog"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"google.golang.org/protobuf/proto"
 )
 
 func PublishAdvanceTournamentEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, scheduledOn time.Time) error {

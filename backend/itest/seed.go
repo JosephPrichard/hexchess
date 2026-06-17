@@ -5,11 +5,13 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"github.com/google/uuid"
-	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
+	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"time"
+
+	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 
 	"hexchess-svc/lib/logutil"
 
@@ -539,7 +541,7 @@ var TournamentParticipantInsts = []struct {
 	},
 }
 
-var GameIDNotFinished = uuid.NewString() // does not exist in replays table
+var GameIDNotFinished = model.MakeGameID() // does not exist in the replay table
 
 // TournamentMatchInsts JoinedOn must be deterministically ordered.
 var TournamentMatchInsts = []struct {
@@ -620,7 +622,7 @@ var TournamentMatchInsts = []struct {
 		BlackID:       11,
 	},
 	{
-		GameID:        GameIDNotFinished, // does not exist in replays table, unfinished
+		GameID:        GameIDNotFinished.String(), // does not exist in replays table, unfinished
 		TournamentKey: Tournament9InProgressUncompletedKey,
 		Round:         1,
 		CreatedOn:     TimeNow.Add(time.Minute * 1),
@@ -654,7 +656,7 @@ var ReplayMoveHistories = []struct {
 }
 
 var TestEventID_TournamentCreation = uuid.New()
-var TestEventID_TournamentCreation_GameID = uuid.NewString()
+var TestEventID_TournamentCreation_GameID = model.MakeGameID()
 
 var Events = []struct {
 	ID   string
@@ -666,7 +668,7 @@ var Events = []struct {
 			data, err := proto.Marshal(&pb.MatchCreations{
 				Creations: []*pb.MatchCreation{
 					{
-						GameId:  TestEventID_TournamentCreation_GameID,
+						GameId:  TestEventID_TournamentCreation_GameID.String(),
 						WhiteId: 1,
 						BlackId: 2,
 						Mode:    "CORRESPONDENCE_1",
@@ -681,6 +683,12 @@ var Events = []struct {
 	},
 }
 
+var (
+	GameID1 = model.MakeGameID()
+	GameID2 = model.MakeGameID()
+	GameID3 = model.MakeGameID()
+)
+
 var GameMetas = []struct {
 	Ordering int
 	ID       string
@@ -689,16 +697,16 @@ var GameMetas = []struct {
 	BlackID  int64
 }{
 	{
-		ID:      "game1",
+		ID:      GameID1.String(),
 		Mode:    "CORRESPONDENCE_1",
 		BlackID: 2,
 	},
 	{
-		ID:   "game2",
+		ID:   GameID2.String(),
 		Mode: "CORRESPONDENCE_1",
 	},
 	{
-		ID:   "game3",
+		ID:   GameID3.String(),
 		Mode: "CORRESPONDENCE_1",
 	},
 }

@@ -2,10 +2,11 @@ package consumers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hexchess-svc/lib/errutil"
 	"hexchess-svc/lib/logutil"
-	"hexchess-svc/lib/serrors"
+	"hexchess-svc/queue"
 	"log/slog"
 	"sync"
 
@@ -17,10 +18,10 @@ type RedisConsumer struct {
 	ctx   context.Context
 	redis redis.UniversalClient
 
-	consumerName  string
-	concurrency   int64
 	streamKey     string
 	consumerGroup string
+	concurrency   int64
+	partitionKeys []string
 	maxEvents     uint64
 
 	fn ConsumeFunc
@@ -30,12 +31,25 @@ type RedisConsumer struct {
 
 func (c *RedisConsumer) Consume() error {
 	consumerID := uuid.NewString()
-	streamKey := c.streamKey
-	streams := []string{streamKey, ">"} // ">" means only undelivered messages
 
-	err := c.redis.XGroupCreateMkStream(c.ctx, streamKey, c.consumerGroup, "0").Err()
-	if err != nil && !redis.HasErrorPrefix(err, "BUSYGROUP") {
-		return serrors.Wrap("create stream consumer group", err, "streamKey", streamKey, "consumerGroup", c.consumerGroup)
+	var streams []string
+	if len(c.partitionKeys) > 0 {
+		for _, partition := range c.partitionKeys {
+			streams = append(streams, queue.FmtStreamKey(c.streamKey, partition))
+		}
+	} else {
+		streams = append(streams, c.streamKey)
+	}
+
+	for _, stream := range streams {
+		if err := c.redis.XGroupCreateMkStream(c.ctx, stream, c.consumerGroup, "0").Err(); err != nil {
+			slog.WarnContext(c.ctx, "create stream consumer group", "error", err, "stream", stream, "consumerGroup", c.consumerGroup)
+		}
+	}
+
+	for range len(streams) {
+		// > means get unconsumed messages only. we need to get unconsumed messages from all partitions in this consumer
+		streams = append(streams, ">")
 	}
 
 	for i := uint64(0); ; i++ {
@@ -43,7 +57,7 @@ func (c *RedisConsumer) Consume() error {
 			return nil
 		}
 
-		slog.Info("redis stream consumer read operation", "consumerID", consumerID, "streamKey", streamKey)
+		slog.Info("redis stream consumer read operation", "consumerID", consumerID, "streams", streams)
 
 		xArgs := &redis.XReadGroupArgs{
 			Group:    c.consumerGroup,
@@ -52,7 +66,7 @@ func (c *RedisConsumer) Consume() error {
 			Count:    c.concurrency,
 		}
 		entries, err := c.redis.XReadGroup(c.ctx, xArgs).Result()
-		if err == context.Canceled {
+		if errors.Is(err, context.Canceled) {
 			slog.Info("context cancelled, exiting finish event loop")
 			return nil
 		} else if err != nil {
@@ -63,6 +77,7 @@ func (c *RedisConsumer) Consume() error {
 		for _, entry := range entries {
 			for _, msg := range entry.Messages {
 				c.waitGroup.Go(func() {
+					slog.Info("redis stream consumer read message", "consumerID", consumerID, "stream", entry.Stream, "id", msg.ID)
 					c.handleXReadMessage(msg)
 				})
 			}
@@ -75,7 +90,7 @@ func (c *RedisConsumer) Consume() error {
 func (c *RedisConsumer) handleXReadMessage(msg redis.XMessage) {
 	ctx := context.WithValue(c.ctx, logutil.Trace, uuid.NewString())
 
-	// send the acknowledge if data is invalid OR message succeeds, retry otherwise
+	// send the acknowledgement if data is invalid OR message succeeds, retry otherwise
 	anyData := msg.Values["data"]
 	data, ok := anyData.(string)
 	if !ok {

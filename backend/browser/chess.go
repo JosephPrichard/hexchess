@@ -3,9 +3,10 @@
 package browser
 
 import (
-	"google.golang.org/protobuf/proto"
 	"strings"
 	"syscall/js"
+
+	"google.golang.org/protobuf/proto"
 
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"

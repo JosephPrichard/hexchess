@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"hexchess-svc/lib/awsutils"
 	"hexchess-svc/lib/ioutil"
 	"hexchess-svc/lib/serrors"
@@ -14,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -61,10 +62,20 @@ func filterLeastRecentKeys(objects []s3Types.Object) []s3Types.ObjectIdentifier 
 	return keys
 }
 
+// s3 URL prefixes
+
+func fmtProfilePicPrefix(userID string) string {
+	return fmt.Sprintf("%s/%s", ProfilePicPrefix, userID)
+}
+
+func fmtProfilePicKey(userID int64, id string) string {
+	return fmt.Sprintf("%s/%d/%s", ProfilePicPrefix, userID, id)
+}
+
 const ProfilePicPrefix = "users/profile-pics"
 
 func (services *HexchessServices) deleteExpiredProfilePics(ctx context.Context, playerID int) error {
-	prefix := makeProfilePicPrefix(strconv.Itoa(playerID))
+	prefix := fmtProfilePicPrefix(strconv.Itoa(playerID))
 
 	// remove all but the newest keys. there should never be more 1000 keys, but if there are, this will never delete the newest Key
 	listOutput, err := services.aws.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
@@ -122,11 +133,11 @@ func (services *HexchessServices) UploadProfilePic(
 	defer file.Close()
 	body := ioutil.NewLimitReader(cancel, file, MaxProfilePicSize)
 
-	key := makeProfileNewPicKey(uploader.ID, services.entropy.MakeUUID().String())
+	key := fmtProfilePicKey(uploader.ID, services.entropy.MakeUUID().String())
 
 	var output *s3.PutObjectOutput
 	var checksumAlgorithm s3Types.ChecksumAlgorithm
-	var chechsumSHA256 *string
+	var checksumSHA256 *string
 	var optFns []func(*s3.Options)
 
 	if contentChecksum != "" {
@@ -136,7 +147,7 @@ func (services *HexchessServices) UploadProfilePic(
 			v4.SwapComputePayloadSHA256ForUnsignedPayloadMiddleware,
 		))
 		checksumAlgorithm = s3Types.ChecksumAlgorithmSha256
-		chechsumSHA256 = aws.String(contentChecksum)
+		checksumSHA256 = aws.String(contentChecksum)
 	}
 
 	slog.InfoContext(ctx, "uploading profile pic to s3",
@@ -152,7 +163,7 @@ func (services *HexchessServices) UploadProfilePic(
 		Key:               aws.String(key),
 		ContentType:       aws.String(contentType),
 		Body:              body,
-		ChecksumSHA256:    chechsumSHA256,
+		ChecksumSHA256:    checksumSHA256,
 		ChecksumAlgorithm: checksumAlgorithm,
 		// with max cache control. profile pics are immutable, since we issue a new unique key on upload.
 		CacheControl: aws.String("public, max-age=31536000"),
@@ -178,7 +189,7 @@ var ErrNoProfilePic = errors.New("no profile pic found for user")
 
 func (services *HexchessServices) GetProfilePicKey(ctx context.Context, userID string) (string, error) {
 	// retrieves all profile pictures for any user and retrieves the most recent one. this runs on the assumption that we may not be deleting old profile pics.
-	prefix := makeProfilePicPrefix(userID)
+	prefix := fmtProfilePicPrefix(userID)
 
 	listOutput, err := services.aws.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 		Bucket: aws.String(services.aws.S3ProfileBucket),

@@ -1,7 +1,6 @@
 package svc
 
 import (
-	"github.com/google/uuid"
 	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
@@ -27,8 +26,8 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 
 	testUser0 := itest.TestUser[0]
 	testUser1 := itest.TestUser[1]
-	newGameID := uuid.NewString()
-	newGameIDGuest := uuid.NewString()
+	newGameID := model.MakeGameID()
+	newGameIDGuest := model.MakeGameID()
 
 	tests := []struct {
 		name            string
@@ -50,7 +49,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			},
 			wantGameOutputs: []*pb.GameOutput{
 				{
-					GameId: newGameID,
+					GameId: newGameID.String(),
 					Value: &pb.GameOutput_Replay{Replay: &pb.Replay{
 						BlackCountry: "us",
 						BlackElo:     985,
@@ -78,7 +77,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 		{
 			name: "inserting already inserted finished game",
 			event: model.FinishedGame{
-				GameID: itest.FirstReplayGameID,
+				GameID: model.model.GameID(itest.FirstReplayGameID),
 				Board:  chess.MakeEmptyBoard(true),
 				Moves:  []chess.HistMove{},
 				// used only for validation
@@ -255,7 +254,7 @@ func TestInsertGameResult(t *testing.T) {
 		{
 			name: "inserting already persisted game result",
 			resultInput: GameResult{
-				GameID:       itest.FirstReplayGameID,
+				GameID:       model.GameID(itest.FirstReplayGameID),
 				WhiteID:      testUser0.ID,
 				BlackID:      testUser1.ID,
 				ReplayCause:  model.Forfeit,

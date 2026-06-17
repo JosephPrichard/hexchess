@@ -1,13 +1,15 @@
 package pubsub
 
 import (
+	"hexchess-svc/db"
+	"hexchess-svc/itest"
+	"hexchess-svc/model"
+	"hexchess-svc/pb"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
-	"hexchess-svc/db"
-	"hexchess-svc/itest"
-	"hexchess-svc/pb"
-	"testing"
 )
 
 func TestBroadcastMessage(t *testing.T) {
@@ -24,7 +26,7 @@ func TestBroadcastMessage(t *testing.T) {
 	defer rdb.Close()
 	broadcaster := MakeBroadcaster(rdb)
 
-	localBroadcasters := LocalBroadcasters{GamesCaster: MakeBroadcastActor("testing-multicaster")}
+	localBroadcasters := LocalBroadcasters{GamesCaster: MakeBroadcastActor[model.GameID]("testing-multicaster")}
 	<-localBroadcasters.ListenGameMessages(rdb)
 
 	ctx := t.Context()

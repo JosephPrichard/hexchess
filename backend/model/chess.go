@@ -23,7 +23,7 @@ func (kind EndKind) IsEnded() bool {
 
 type ChessState struct {
 	UndoState
-	ID           string      `json:"id"`
+	ID           GameID      `json:"id"`
 	WhitePlayer  PlayerState `json:"whitePlayer"`
 	BlackPlayer  PlayerState `json:"blackPlayer"`
 	FirstColor   GameColor   `json:"firstColor"`
@@ -42,7 +42,7 @@ func (state *ChessState) IsEitherPlayer(player PlayerState) bool {
 }
 
 type ChessMeta struct {
-	GameID      string   `json:"gameid"`
+	GameID      GameID   `json:"gameId"`
 	WhitePlayer User     `json:"whitePlayer"`
 	BlackPlayer User     `json:"blackPlayer"`
 	Mode        GameMode `json:"mode"`
@@ -50,7 +50,7 @@ type ChessMeta struct {
 }
 
 type StateSetup struct {
-	ID           string
+	ID           GameID
 	Mode         GameMode
 	FirstColor   GameColor
 	White        PlayerState

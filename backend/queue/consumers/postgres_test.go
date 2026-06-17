@@ -135,11 +135,12 @@ func TestPostgresConsumer(t *testing.T) {
 				pdb:     testinfra.DB,
 				entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
 
-				kind:         tt.kind,
+				eventKind:    tt.kind,
 				pollInterval: time.Microsecond,
 				pollCount:    1,
 				maxEvents:    1,
-				fn:           tt.makeProcessFn(&capturedEvents),
+
+				fn: tt.makeProcessFn(&capturedEvents),
 			}
 
 			err := queue.Consume()

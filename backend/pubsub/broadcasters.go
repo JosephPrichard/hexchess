@@ -3,12 +3,13 @@ package pubsub
 import (
 	"context"
 	"encoding/json"
-	"github.com/gomodule/redigo/redis"
-	"google.golang.org/protobuf/proto"
 	"hexchess-svc/db"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"log/slog"
+
+	"github.com/gomodule/redigo/redis"
+	"google.golang.org/protobuf/proto"
 )
 
 type BroadcastOptions struct {

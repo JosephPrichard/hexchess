@@ -1,4 +1,5 @@
 //go:build browser
+
 package main
 
 import "hexchess-svc/browser"

@@ -47,18 +47,18 @@ func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finish
 	if err != nil {
 		return serrors.Wrap("insert finish game tx", err)
 	}
-	// note: this happens outside the transaction so we do need to hold a lock for an expended period of time.
+	// note: this happens outside the transaction, so we do need to hold a lock for an expended period of time.
 	if err := services.UpsertReplayMoveHistories(ctx, changeSet.ReplayID, moveHistBlob); err != nil {
 		return serrors.Wrap("insert replay move histories", err)
 	}
 
-	// note: replay is selected in a seperate query outside transaction to avoid holding locks. this involves performing more diskIO.
+	// note: replay is selected in a separate query outside transaction to avoid holding locks. this involves performing more diskIO.
 	replay, err := services.GetReplay(ctx, changeSet.ReplayID)
 	if err != nil {
 		return serrors.Wrap("get replay by id", err, "replayID", changeSet.ReplayID)
 	}
 
-	// note: used to keep the cache in sync, this can run outside of a transaction because we have a batch job to recover that payload to the cache.
+	// note: used to keep the cache in sync, this can run outside a transaction because we have a batch job to recover that payload to the cache.
 	if err := services.incrLeaderboard(ctx,
 		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
 		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
@@ -69,15 +69,15 @@ func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finish
 	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", changeSet, "room", finishedGame.GameID)
 
 	// note: publishing a tournament event is necessary to trigger advancing the game state *IF* the tournament round is finished
-	// this operation is idempotent and safe, if the tournament is not ready to be advanced the operation noops
-	tournamentKey, err := services.querier.SelectTournamentByGameID(ctx, finishedGame.GameID)
+	// this operation is idempotent and safe, if the tournament is not ready to be advanced, the operation noops
+	tournamentKey, err := services.querier.SelectTournamentByGameID(ctx, finishedGame.GameID.String())
 
 	if db.IsErrNoRows(err) {
 		slog.InfoContext(ctx, "skipping send schedule tournament event", "gameID", finishedGame.GameID)
 	} else if err == nil {
 		slog.InfoContext(ctx, "publishing schedule tournament event", "gameID", finishedGame.GameID)
 
-		// if two scheduled tournament events run concucurrently, one will advance the tournament and the other will noop
+		// if two scheduled tournament events run concurrently, one will advance the tournament and the other will noop
 		if err := producers.PublishAdvanceTournamentEvent(ctx, services.querier, tournamentKey.Bytes, time.Now()); err != nil {
 			return serrors.Wrap("publish scheduled tournament event", err)
 		}
@@ -85,14 +85,14 @@ func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finish
 		return serrors.Wrap("select tournament by game id", err, "gameID", finishedGame.GameID)
 	}
 
-	services.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(finishedGame.GameID, replay), pubsub.Async())
+	services.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(finishedGame.GameID.String(), replay), pubsub.Async())
 
 	slog.InfoContext(ctx, "completed inserting finished game event", "key", finishedGame.GameID)
 	return nil
 }
 
 type GameResult struct {
-	GameID       string             `json:"gameId"`
+	GameID       model.GameID       `json:"gameId"`
 	WhiteID      int64              `json:"whiteId"`
 	BlackID      int64              `json:"blackId"`
 	ReplayCause  model.ReplayCause  `json:"cause"`
@@ -123,7 +123,7 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 	err := services.transactor.ExecTx(ctx, db.TxArgs{
 		// RepeatableRead is required to prevent the following race conditions
 		// Case 1 (Lost Update):
-		// T1 selects the user elos E1 and uses calculate and insert user elos E2
+		// T1 selects the user elos E1 and calculating and insert user elos E2
 		// Between reading E1 and writing E2, another query sets user elos to E3
 		// User elos (E3) will be overwritten to E2, the update that progressed E1 to E3 will be lost
 		Isolation:  pgx.RepeatableRead,
@@ -132,7 +132,7 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 			mode := sqlc.ModeEnum(result.ReplayMode.String())
 			userIDs := []int64{result.WhiteID, result.BlackID}
 
-			existingReplayID, err := querier.SelectReplayIDByGameID(ctx, result.GameID)
+			existingReplayID, err := querier.SelectReplayIDByGameID(ctx, result.GameID.String())
 			if err == nil {
 				changeSet = GameResultChangeSet{ReplayID: existingReplayID, AlreadyExists: true}
 				return nil
@@ -166,7 +166,7 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 			}
 
 			replayInst := sqlc.InsertReplayParams{
-				GameID:    result.GameID,
+				GameID:    result.GameID.String(),
 				WhiteID:   pgtype.Int8{Int64: result.WhiteID, Valid: model.IsNonGuestID(result.WhiteID)},
 				BlackID:   pgtype.Int8{Int64: result.BlackID, Valid: model.IsNonGuestID(result.BlackID)},
 				Result:    sqlc.ResultEnum(result.ReplayResult.String()),

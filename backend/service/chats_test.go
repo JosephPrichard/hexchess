@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 )
@@ -18,7 +17,7 @@ func TestEchoStateChats(t *testing.T) {
 	services, testinfra := setupServicesTest(t, nil, itest.Redis)
 	defer testinfra.Close()
 
-	id1 := "testing-id1-" + uuid.NewString()
+	id1 := model.MakeGameID()
 
 	ctx := t.Context()
 

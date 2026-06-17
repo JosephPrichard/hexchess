@@ -13,7 +13,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func (services *HexchessServices) IsGameAccessible(ctx context.Context, id string) bool {
+func (services *HexchessServices) IsGameAccessible(ctx context.Context, id model.GameID) bool {
 	gameKey := fmtGameKey(id)
 
 	exists, err := services.redis.GameStore.Exists(ctx, gameKey).Result()
@@ -23,7 +23,7 @@ func (services *HexchessServices) IsGameAccessible(ctx context.Context, id strin
 
 var ErrNoChessState = errors.New("no chess state")
 
-func (services *HexchessServices) GetChessState(ctx context.Context, id string) (*model.ChessState, error) {
+func (services *HexchessServices) GetChessState(ctx context.Context, id model.GameID) (*model.ChessState, error) {
 	return services.getChessState(ctx, services.redis.GameStore, id)
 }
 
@@ -31,7 +31,7 @@ type RedisChessGetter interface {
 	Get(ctx context.Context, key string) *redis.StringCmd
 }
 
-func (services *HexchessServices) getChessState(ctx context.Context, getter RedisChessGetter, id string) (*model.ChessState, error) {
+func (services *HexchessServices) getChessState(ctx context.Context, getter RedisChessGetter, id model.GameID) (*model.ChessState, error) {
 	gameKey := fmtGameKey(id)
 
 	bytes, err := getter.Get(ctx, gameKey).Bytes()
@@ -50,12 +50,12 @@ func (services *HexchessServices) getChessState(ctx context.Context, getter Redi
 	return state, nil
 }
 
-func (services *HexchessServices) SetChessState(ctx context.Context, id string, state *model.ChessState) error {
+func (services *HexchessServices) SetChessState(ctx context.Context, id model.GameID, state *model.ChessState) error {
 	touch := time.Now()
 	return services.setChessStateAt(ctx, id, state, touch)
 }
 
-func (services *HexchessServices) setChessStateAt(ctx context.Context, id string, state *model.ChessState, touch time.Time) error {
+func (services *HexchessServices) setChessStateAt(ctx context.Context, id model.GameID, state *model.ChessState, touch time.Time) error {
 	return services.setChessState(ctx, services.redis.GameStore, id, state, touch)
 }
 
@@ -65,7 +65,7 @@ type RedisChessSetter interface {
 	ZRem(ctx context.Context, key string, members ...interface{}) *redis.IntCmd
 }
 
-func (services *HexchessServices) setChessState(ctx context.Context, setter RedisChessSetter, id string, state *model.ChessState, updtTime time.Time) error {
+func (services *HexchessServices) setChessState(ctx context.Context, setter RedisChessSetter, id model.GameID, state *model.ChessState, updtTime time.Time) error {
 	gameKey := fmtGameKey(id)
 
 	bytes, err := proto.Marshal(model.SerializeChessState(state))
@@ -85,15 +85,14 @@ func (services *HexchessServices) setChessStates(ctx context.Context, chessState
 	for i := range chessStates {
 		state := &chessStates[i]
 
-		gameKey := fmtGameKey(state.ID)
-
 		bytes, err := proto.Marshal(model.SerializeChessState(state))
 		if err != nil {
 			return serrors.Wrap("marshal chess state", err)
 		}
+		gameKey := fmtGameKey(state.ID)
 		pipe.SetNX(ctx, gameKey, bytes, 0)
 
-		createdGameID = append(createdGameID, state.ID)
+		createdGameID = append(createdGameID, state.ID.String())
 	}
 
 	if _, err := pipe.Exec(ctx); err != nil {
@@ -111,13 +110,13 @@ var ErrMaxChessStateRetries = errors.New("update chess state txn: reached max re
 type ChessUpdateFn func(*model.ChessState) error
 type ChessCommitFn func(redis.Pipeliner, *model.ChessState) error
 
-func (services *HexchessServices) updateChessStateTxn(ctx context.Context, gameID string, update ChessUpdateFn, commit ChessCommitFn) (*model.ChessState, error) {
+func (services *HexchessServices) updateChessStateTxn(ctx context.Context, gameID model.GameID, update ChessUpdateFn, commit ChessCommitFn) (*model.ChessState, error) {
 	gameKey := fmtGameKey(gameID)
 
 	for range MaxUpdateChessStateRetries {
 		var ret *model.ChessState
 
-		// standard redis Watch+Tx optimisic locking pattern to prevent the 'LostUpdate' race condition
+		// standard redis Watch+Tx optimistic locking pattern to prevent the 'LostUpdate' race condition
 		err := services.redis.GameStore.Watch(ctx, func(txn *redis.Tx) error {
 			state, err := services.getChessState(ctx, txn, gameID)
 			if err != nil {

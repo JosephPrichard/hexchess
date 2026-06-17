@@ -3,10 +3,11 @@ package svc
 import (
 	"cmp"
 	"fmt"
-	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/model"
 	"math"
 	"slices"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type FirstMatchParticipant struct {
@@ -121,7 +122,7 @@ func makeMatchesLinearly(participants []FirstMatchParticipant, gameMode model.Ga
 	var matches []model.MatchCreation
 	for i := 0; i+1 < len(participants); i += 2 {
 		matches = append(matches, model.MatchCreation{
-			GameID:   MakeGameID(),
+			GameID:   model.MakeGameID(),
 			GameMode: gameMode,
 			WhiteID:  participants[i].UserID,
 			BlackID:  participants[i+1].UserID,
@@ -144,7 +145,7 @@ func makeMatchesCrissCrossElos(participants []FirstMatchParticipant, gameMode mo
 	high := len(participants) - 1
 	for low < high {
 		matches = append(matches, model.MatchCreation{
-			GameID:   MakeGameID(),
+			GameID:   model.MakeGameID(),
 			GameMode: gameMode,
 			WhiteID:  participants[low].UserID,
 			BlackID:  participants[high].UserID,
@@ -278,7 +279,7 @@ func DoKnockoutMatchmaking(allMatches []CompletedPrevMatch, gameMode model.GameM
 		matchOne := prevRoundMatches[i]
 		matchTwo := prevRoundMatches[i+1]
 		nextMatches = append(nextMatches, model.MatchCreation{
-			GameID:   MakeGameID(),
+			GameID:   model.MakeGameID(),
 			GameMode: gameMode,
 			WhiteID:  withoutTiebreaker(getKnockoutWinnerID(matchOne)),
 			BlackID:  withoutTiebreaker(getKnockoutWinnerID(matchTwo)),
@@ -314,7 +315,7 @@ func DoRoundRobinMatchmaking(allMatches []CompletedPrevMatch, gameMode model.Gam
 		}
 
 		nextMatches = append(nextMatches, model.MatchCreation{
-			GameID:   MakeGameID(),
+			GameID:   model.MakeGameID(),
 			GameMode: gameMode,
 			WhiteID:  nextWhiteID,
 			BlackID:  nextBlackID,
@@ -343,7 +344,7 @@ func DoSwissMatchmaking(allMatches []CompletedPrevMatch, gameMode model.GameMode
 
 	for i := 0; i+1 < len(participantIDs); i += 2 {
 		nextMatches = append(nextMatches, model.MatchCreation{
-			GameID:   MakeGameID(),
+			GameID:   model.MakeGameID(),
 			GameMode: gameMode,
 			WhiteID:  participantIDs[i],
 			BlackID:  participantIDs[i+1],

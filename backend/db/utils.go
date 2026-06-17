@@ -3,13 +3,14 @@ package db
 import (
 	"database/sql"
 	"errors"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/lib/enum"
 	"hexchess-svc/model"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func IsErrNoRows(err error) bool {

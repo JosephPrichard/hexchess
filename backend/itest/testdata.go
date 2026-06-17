@@ -378,7 +378,7 @@ var MatchesTournament9 = []model.FullMatch{
 	},
 	{
 		Ordering:      1,
-		GameID:        TournamentMatchInsts[0].GameID,
+		GameID:        model.GameID(TournamentMatchInsts[0].GameID),
 		CreatedOn:     TimeNow.Add(time.Minute * 1),
 		TournamentKey: Tournament9InProgressUncompletedKey,
 		Round:         1,

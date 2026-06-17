@@ -3,10 +3,11 @@ package svc
 import (
 	"context"
 	"errors"
-	"github.com/google/go-cmp/cmp"
-	"github.com/redis/go-redis/v9"
 	"hexchess-svc/model"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/redis/go-redis/v9"
 
 	"hexchess-svc/itest"
 	"hexchess-svc/lib/testutil"
@@ -35,8 +36,8 @@ func TestEchoChessState(t *testing.T) {
 	services, testinfra := setupServicesTest(t, nil, itest.Redis)
 	defer testinfra.Close()
 
-	id1 := "testing-id1-" + uuid.NewString()
-	id2 := "testing-id2-" + uuid.NewString()
+	id1 := model.MakeGameID()
+	id2 := model.MakeGameID()
 
 	s1 := model.MakeChessState(model.StateSetup{ID: id1, Mode: model.ModeCorrespondence1, FirstColor: model.Random})
 	ctx := t.Context()
@@ -59,7 +60,7 @@ func TestUpdateChessState(t *testing.T) {
 	services, testinfra := setupServicesTest(t, nil, itest.Redis)
 	defer testinfra.Close()
 
-	testID := "testing-id1-" + uuid.NewString()
+	testID := model.MakeGameID()
 	arbitraryKey := uuid.NewString()
 
 	inState := model.MakeChessState(model.StateSetup{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.Random})
@@ -95,7 +96,7 @@ func TestUpdateChessState_Errors(t *testing.T) {
 	services, testinfra := setupServicesTest(t, nil, itest.Redis)
 	defer testinfra.Close()
 
-	testID := "testing-id1-" + uuid.NewString()
+	testID := model.MakeGameID()
 
 	inState := model.MakeChessState(model.StateSetup{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.White})
 	require.NoError(t, services.SetChessState(context.Background(), testID, inState))
@@ -103,7 +104,7 @@ func TestUpdateChessState_Errors(t *testing.T) {
 	ctx := t.Context()
 
 	t.Run("failing with unknown gameID", func(t *testing.T) {
-		_, err := services.updateChessStateTxn(ctx, uuid.NewString(), func(state *model.ChessState) error { return nil }, nil)
+		_, err := services.updateChessStateTxn(ctx, model.MakeGameID(), func(state *model.ChessState) error { return nil }, nil)
 
 		assert.Equal(t, ErrNoChessState, err)
 	})

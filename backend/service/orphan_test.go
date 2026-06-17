@@ -3,14 +3,15 @@ package svc
 import (
 	"bytes"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"hexchess-svc/egress"
 	"hexchess-svc/itest"
 	"hexchess-svc/lib/awsutils"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRemoveOrphanedBucketObjects(t *testing.T) {

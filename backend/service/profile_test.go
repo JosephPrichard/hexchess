@@ -2,12 +2,13 @@ package svc
 
 import (
 	"bytes"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/stretchr/testify/require"
 	"hexchess-svc/egress"
 	"hexchess-svc/itest"
 	"testing"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/stretchr/testify/require"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"

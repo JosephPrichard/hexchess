@@ -2,8 +2,9 @@ package svc
 
 import (
 	"encoding/binary"
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // EntropyAPI is a generator for generating things my program determines as "non-deterministic" and therefore must be mocked in tests

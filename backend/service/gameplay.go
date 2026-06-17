@@ -20,7 +20,7 @@ import (
 var ErrForfeitPlayer = errors.New("must be a player to forfeit or abort")
 
 type ErrStartedGame struct {
-	GameID string
+	GameID model.GameID
 }
 
 func (e ErrStartedGame) Error() string {
@@ -28,7 +28,7 @@ func (e ErrStartedGame) Error() string {
 }
 
 type ErrFinishedGame struct {
-	GameID string
+	GameID model.GameID
 }
 
 func (e ErrFinishedGame) Error() string {
@@ -36,7 +36,7 @@ func (e ErrFinishedGame) Error() string {
 }
 
 type ErrTurn struct {
-	GameID   string
+	GameID   model.GameID
 	PlayerID int64
 	CurrID   int64
 }
@@ -46,27 +46,13 @@ func (e ErrTurn) Error() string {
 }
 
 type ErrInvalidMove struct {
-	GameID    string
+	GameID    model.GameID
 	PlayerID  int64
 	Violation error
 }
 
 func (e ErrInvalidMove) Error() string {
 	return fmt.Sprintf("invalid move (violation=%v, player=%d, game=%s)", e.Violation, e.PlayerID, e.GameID)
-}
-
-func MakeGameID() string {
-	const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-
-	bytesID := make([]byte, 8)
-	for i := range bytesID {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(characters))))
-		if err != nil {
-			panic("failed to generate random number: " + err.Error())
-		}
-		bytesID[i] = characters[n.Int64()]
-	}
-	return string(bytesID)
 }
 
 func mapMetadataUpdt(state *model.ChessState) model.GameMetadataUpdt {
@@ -78,8 +64,8 @@ func mapMetadataUpdt(state *model.ChessState) model.GameMetadataUpdt {
 	}
 }
 
-func (services *HexchessServices) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (string, error) {
-	gameID := MakeGameID()
+func (services *HexchessServices) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (model.GameID, error) {
+	gameID := model.MakeGameID()
 	err := services.createGame(ctx, model.StateSetup{ID: gameID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
 	return gameID, err
 }
@@ -103,7 +89,7 @@ func (services *HexchessServices) createGame(ctx context.Context, setup model.St
 	return nil
 }
 
-func (services *HexchessServices) JoinGame(ctx context.Context, gameID string, player model.PlayerState) (*model.ChessState, error) {
+func (services *HexchessServices) JoinGame(ctx context.Context, gameID model.GameID, player model.PlayerState) (*model.ChessState, error) {
 	update := func(state *model.ChessState) error {
 		if !player.Present {
 			slog.WarnContext(ctx, "player did not join the game", "playerID", player.ID)
@@ -156,7 +142,7 @@ type MoveResult struct {
 	Move  chess.HistMove
 }
 
-func (services *HexchessServices) MakeGameMove(ctx context.Context, gameID string, player model.PlayerState, move chess.Move) (MoveResult, error) {
+func (services *HexchessServices) MakeGameMove(ctx context.Context, gameID model.GameID, player model.PlayerState, move chess.Move) (MoveResult, error) {
 	update := func(state *model.ChessState) error {
 		// pre move validations on chess state
 		if !state.HasBothPlayers() {
@@ -232,7 +218,7 @@ const (
 	UndoReject
 )
 
-func (services *HexchessServices) AttemptGameUndo(ctx context.Context, gameID string, player model.PlayerState, kind UndoKind) (*model.ChessState, error) {
+func (services *HexchessServices) AttemptGameUndo(ctx context.Context, gameID model.GameID, player model.PlayerState, kind UndoKind) (*model.ChessState, error) {
 	update := func(state *model.ChessState) error {
 		switch kind {
 		case UndoCreate:
@@ -267,7 +253,7 @@ func (services *HexchessServices) AttemptGameUndo(ctx context.Context, gameID st
 	return state, err
 }
 
-func (services *HexchessServices) EndGame(ctx context.Context, gameID string, player model.PlayerState) (model.EndKind, error) {
+func (services *HexchessServices) EndGame(ctx context.Context, gameID model.GameID, player model.PlayerState) (model.EndKind, error) {
 	update := func(state *model.ChessState) error {
 		if state.EndState.IsEnded() {
 			return ErrFinishedGame{GameID: gameID}

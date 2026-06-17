@@ -2,12 +2,13 @@ package controller
 
 import (
 	"encoding/json"
+	"log/slog"
+	"net/http"
+
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	enTranslations "github.com/go-playground/validator/v10/translations/en"
-	"log/slog"
-	"net/http"
 )
 
 const defaultPaginationCount = 25

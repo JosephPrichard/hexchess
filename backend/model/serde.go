@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
-	"google.golang.org/protobuf/proto"
 	"hexchess-svc/chess"
 	"hexchess-svc/lib/enum"
 	"hexchess-svc/lib/serrors"
 	"hexchess-svc/pb"
 	"time"
+
+	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 )
 
 // domain.PlayerState
@@ -101,7 +102,7 @@ func UnmarshalChessState(bytes []byte) (*ChessState, error) {
 		InitialBoard: initialBoard,
 		UndoState:    UndoState{UndoID: pbChess.UndoId},
 		EndState:     DeserializeEndKind(pbChess.EndState),
-		ID:           pbChess.Id,
+		ID:           GameID(pbChess.Id),
 		WhitePlayer:  DeserializePlayer(pbChess.WhitePlayer),
 		BlackPlayer:  DeserializePlayer(pbChess.BlackPlayer),
 		FirstColor:   firstColor,
@@ -114,7 +115,7 @@ func SerializeChessState(state *ChessState) *pb.ChessState {
 		return nil
 	}
 	return &pb.ChessState{
-		Id:           state.ID,
+		Id:           state.ID.String(),
 		Game:         chess.SerializeGame(&state.Game),
 		WhitePlayer:  SerializePlayer(state.WhitePlayer),
 		BlackPlayer:  SerializePlayer(state.BlackPlayer),
@@ -248,7 +249,7 @@ func UnmarshalFinishedGame(bytes []byte) (FinishedGame, error) {
 	}
 
 	return FinishedGame{
-		GameID:       pbGameEvent.GameId,
+		GameID:       GameID(pbGameEvent.GameId),
 		Board:        board,
 		Moves:        chess.DeserializeHistMoveList(pbGameEvent.Moves),
 		WhitePlayer:  DeserializePlayer(pbGameEvent.WhitePlayer),
@@ -261,7 +262,7 @@ func UnmarshalFinishedGame(bytes []byte) (FinishedGame, error) {
 
 func MarshalFinishedGame(event FinishedGame) ([]byte, error) {
 	return proto.Marshal(&pb.FinishGameEvent{
-		GameId:       event.GameID,
+		GameId:       event.GameID.String(),
 		Board:        chess.SerializeBoard(&event.Board),
 		Moves:        chess.SerializeMoveList(event.Moves),
 		WhitePlayer:  SerializePlayer(event.WhitePlayer),
@@ -287,7 +288,7 @@ func UnmarshalGameMetadataUpdt(bytes []byte) (GameMetadataUpdt, error) {
 	}
 
 	return GameMetadataUpdt{
-		GameID:      pbGameEvent.GameId,
+		GameID:      GameID(pbGameEvent.GameId),
 		WhitePlayer: enum.Optional[int64]{Value: pbGameEvent.WhitePlayer, IsPresent: pbGameEvent.WhitePlayer >= 0},
 		BlackPlayer: enum.Optional[int64]{Value: pbGameEvent.BlackPlayer, IsPresent: pbGameEvent.BlackPlayer >= 0},
 		FirstColor:  firstColor,
@@ -297,7 +298,7 @@ func UnmarshalGameMetadataUpdt(bytes []byte) (GameMetadataUpdt, error) {
 
 func MarshalGameMetadataUpdt(event GameMetadataUpdt) ([]byte, error) {
 	return proto.Marshal(&pb.UpdtMetadataEvent{
-		GameId:      event.GameID,
+		GameId:      event.GameID.String(),
 		WhitePlayer: event.WhitePlayer.OrElse(-1),
 		BlackPlayer: event.BlackPlayer.OrElse(-1),
 		FirstColor:  event.FirstColor.String(),
@@ -321,7 +322,7 @@ func UnmarshalMatchCreation(bytes []byte) ([]MatchCreation, error) {
 			return nil, err
 		}
 		matches = append(matches, MatchCreation{
-			GameID:   pbMatch.GameId,
+			GameID:   GameID(pbMatch.GameId),
 			GameMode: mode,
 			WhiteID:  pbMatch.WhiteId,
 			BlackID:  pbMatch.BlackId,
@@ -335,7 +336,7 @@ func MarshalMatchCreations(matches []MatchCreation) ([]byte, error) {
 	var pbMatches []*pb.MatchCreation
 	for _, m := range matches {
 		pbMatches = append(pbMatches, &pb.MatchCreation{
-			GameId:  m.GameID,
+			GameId:  m.GameID.String(),
 			Mode:    m.GameMode.String(),
 			WhiteId: m.WhiteID,
 			BlackId: m.BlackID,
@@ -553,7 +554,7 @@ func DeserializeTournamentMatches(pbMatches []*pb.TournamentMatch) ([]FullMatch,
 		}
 		matches = append(matches, FullMatch{
 			TournamentKey: tournamentKey,
-			GameID:        pbMatch.GameId,
+			GameID:        GameID(pbMatch.GameId),
 			WhiteID:       pbMatch.WhiteId,
 			BlackID:       pbMatch.BlackId,
 			Round:         int32(pbMatch.Round),

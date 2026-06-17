@@ -2,11 +2,13 @@ package producers
 
 import (
 	"context"
-	"github.com/redis/go-redis/v9"
 	"hexchess-svc/db"
 	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
+	"hexchess-svc/queue"
 	"log/slog"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type RedisXAdder interface {
@@ -27,14 +29,14 @@ func (p *RedisPublisher) PublishFinishGameEvent(ctx context.Context, xadder Redi
 		return serrors.Wrap("marshal finish game event", err)
 	}
 	xArgs := &redis.XAddArgs{
-		Stream: p.redis.FinishGameStreamKey,
+		Stream: queue.FmtGameStreamKey(p.redis.FinishGameStreamKey, finishedGame.GameID),
 		Values: map[string]any{"data": string(bytes)},
 	}
 	msgID, err := xadder.XAdd(ctx, xArgs).Result()
 	if err != nil {
 		return serrors.Wrap("marshal finished game event", err, "finishedGame", finishedGame)
 	}
-	slog.InfoContext(ctx, "published finished game event", "msgID", msgID, "gameID", finishedGame.GameID, "streamKey", p.redis.FinishGameStreamKey)
+	slog.InfoContext(ctx, "published finished game event", "msgID", msgID, "gameID", finishedGame.GameID, "streamKey", xArgs.Stream)
 	return nil
 }
 
@@ -44,13 +46,13 @@ func (p *RedisPublisher) PublishUpdtGameEvent(ctx context.Context, xadder RedisX
 		return serrors.Wrap("marshal update game event", err)
 	}
 	xArgs := &redis.XAddArgs{
-		Stream: p.redis.UpdtGameMetaStreamKey,
+		Stream: queue.FmtGameStreamKey(p.redis.UpdtGameMetaStreamKey, gameUpdt.GameID),
 		Values: map[string]any{"data": string(bytes)},
 	}
 	msgID, err := xadder.XAdd(ctx, xArgs).Result()
 	if err != nil {
 		return serrors.Wrap("xadd update game event", err, "gameUpdt", gameUpdt)
 	}
-	slog.InfoContext(ctx, "published update game event", "msgID", msgID, "gameUpdt", gameUpdt, "streamKey", p.redis.UpdtGameMetaStreamKey)
+	slog.InfoContext(ctx, "published update game event", "msgID", msgID, "gameUpdt", gameUpdt, "streamKey", xArgs.Stream)
 	return nil
 }
