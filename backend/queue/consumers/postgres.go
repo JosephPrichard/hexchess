@@ -32,7 +32,7 @@ type PostgresConsumer struct {
 	fn ConsumeFunc
 }
 
-func (c *PostgresConsumer) Consume() error {
+func (c *PostgresConsumer) Consume() {
 	if c.entropy == nil {
 		c.entropy = &svc.RealEntropySource{}
 	}
@@ -55,7 +55,6 @@ func (c *PostgresConsumer) Consume() error {
 	}
 
 	slog.InfoContext(c.ctx, "finished postgres queue consumer")
-	return nil
 }
 
 func (c *PostgresConsumer) poll() error {

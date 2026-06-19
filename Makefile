@@ -44,11 +44,10 @@ proto-frontend:
 
 install-wasm:
 	cd $(WASM_SRC_DIR) && GOOS=js GOARCH=wasm go build -o $(WASM_OUTPUT) -tags=browser
-	cp "$(GOROOT)/lib/wasm/wasm_exec.js" $(UI_WASM_DIR)
 	mkdir -p $(UI_WASM_DIR)
+	cp "$(GOROOT)/lib/wasm/wasm_exec.js" "$(UI_WASM_DIR)/wasm_exec.js"
 	cp $(WASM_SRC_DIR)/$(WASM_OUTPUT) $(UI_WASM_DIR)/$(WASM_OUTPUT)
 
-# Both build
 protos: proto-backend proto-frontend
 
 sources: generate-go protos install-wasm
@@ -64,7 +63,6 @@ test: test-server test-wasm
 
 # Prerequisites
 install:
-    sudo apt install -y protobuf-compiler
 	go install github.com/agnivade/wasmbrowsertest@v0.11.0
 	go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11

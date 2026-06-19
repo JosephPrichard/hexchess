@@ -150,51 +150,53 @@ FROM replays r
          LEFT JOIN user_mode_elos e2
                    ON e2.user_id = r.black_id AND e2.mode = r.mode
 WHERE (r.mode = sqlc.narg('mode') OR sqlc.narg('mode') IS NULL)
-  AND (r.result = sqlc.narg('result') OR sqlc.narg('result') IS NULL)
-  AND (r.cause = sqlc.narg('cause') OR sqlc.narg('cause') IS NULL)
-  AND (r.white_id = sqlc.narg('whiteID') OR sqlc.narg('whiteID') IS NULL)
-  AND (r.black_id = sqlc.narg('blackID') OR sqlc.narg('blackID') IS NULL)
-  AND (
-    r.white_id = sqlc.narg('userID') OR r.black_id = sqlc.narg('userID') OR
-    sqlc.narg('userID') IS NULL
+    AND (r.result = sqlc.narg('result') OR sqlc.narg('result') IS NULL)
+    AND (r.cause = sqlc.narg('cause') OR sqlc.narg('cause') IS NULL)
+    AND (r.white_id = sqlc.narg('whiteID') OR sqlc.narg('whiteID') IS NULL)
+    AND (r.black_id = sqlc.narg('blackID') OR sqlc.narg('blackID') IS NULL)
+    AND (
+        r.white_id = sqlc.narg('userID') OR r.black_id = sqlc.narg('userID') OR
+        sqlc.narg('userID') IS NULL
     )
-  AND (
-    (r.white_id = sqlc.arg('winnerID') AND r.result = 'WHITE_WINS') OR
-    (r.black_id = sqlc.arg('winnerID') AND r.result = 'BLACK_WINS') OR
-    sqlc.narg('winnerID') IS NULL
+    AND (
+        (r.white_id = sqlc.arg('winnerID') AND r.result = 'WHITE_WINS') OR
+        (r.black_id = sqlc.arg('winnerID') AND r.result = 'BLACK_WINS') OR
+        sqlc.narg('winnerID') IS NULL
     )
-  AND (
-    (r.white_id = sqlc.arg('loserID') AND r.result = 'BLACK_WINS') OR
-    (r.black_id = sqlc.arg('loserID') AND r.result = 'WHITE_WINS') OR
-    sqlc.narg('loserID') IS NULL
+    AND (
+        (r.white_id = sqlc.arg('loserID') AND r.result = 'BLACK_WINS') OR
+        (r.black_id = sqlc.arg('loserID') AND r.result = 'WHITE_WINS') OR
+        sqlc.narg('loserID') IS NULL
     )
-  AND (
-    sqlc.narg('fromDateDays')::INT IS NULL OR
-        r.played_on_as_days >= sqlc.narg('fromDateDays')::INT
+    AND (
+        sqlc.narg('fromDateDays')::INT IS NULL OR
+            r.played_on_as_days >= sqlc.narg('fromDateDays')::INT
     )
-  AND (
-    sqlc.narg('toDateDays')::INT IS NULL OR
-        r.played_on_as_days <= sqlc.narg('toDateDays')::INT
+    AND (
+        sqlc.narg('toDateDays')::INT IS NULL OR
+            r.played_on_as_days <= sqlc.narg('toDateDays')::INT
     )
-  AND CASE
-          WHEN sqlc.arg('sortKey')::TEXT = 'turnCount'
-             THEN r.turn_count < sqlc.arg('afterTurnCount') OR
-                  (r.turn_count = sqlc.arg('afterTurnCount') AND r.id < sqlc.arg('afterID'))
-          WHEN sqlc.arg('sortKey')::TEXT = 'rating'
-             THEN r.rating < sqlc.arg('afterRating') OR
-                  (r.rating = sqlc.arg('afterRating') AND r.id < sqlc.arg('afterID'))
-          ELSE
-              r.id < sqlc.arg('afterID')
+    AND
+    CASE
+        WHEN sqlc.arg('sortKey')::TEXT = 'turnCount'
+        THEN r.turn_count < sqlc.arg('afterTurnCount') OR
+              (r.turn_count = sqlc.arg('afterTurnCount') AND r.id < sqlc.arg('afterID'))
+        WHEN sqlc.arg('sortKey')::TEXT = 'rating'
+        THEN r.rating < sqlc.arg('afterRating') OR
+              (r.rating = sqlc.arg('afterRating') AND r.id < sqlc.arg('afterID'))
+        ELSE
+          r.id < sqlc.arg('afterID')
     END
-ORDER BY CASE
-             WHEN sqlc.arg('sortKey')::TEXT = 'turnCount'
-            THEN r.turn_count
-             END DESC,
-         CASE
-             WHEN sqlc.arg('sortKey')::TEXT = 'rating'
-            THEN r.rating
-             END DESC,
-         r.id DESC LIMIT sqlc.arg('perPage');
+ORDER BY
+    CASE
+        WHEN sqlc.arg('sortKey')::TEXT = 'turnCount'
+        THEN r.turn_count
+    END DESC,
+    CASE
+        WHEN sqlc.arg('sortKey')::TEXT = 'rating'
+        THEN r.rating
+    END DESC,
+    r.id DESC LIMIT sqlc.arg('perPage');
 
 -- name: SelectReplaysExistsByIDs :many
 SELECT id

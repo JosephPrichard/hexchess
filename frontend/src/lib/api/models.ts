@@ -214,7 +214,7 @@ export interface Hex {
 }
 
 export interface ChessModel {
-	id: string;
+	gameId: string;
 	whitePlayer: PlayerModel;
 	blackPlayer: PlayerModel;
 	firstColor: string;

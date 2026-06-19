@@ -102,14 +102,18 @@
 			<table class="table-container chess-table">
 				<thead>
 				<tr>
-					<th style="width: 37%">White</th>
-					<th style="width: 37%">Black</th>
-					<th style="width: 26%">Time</th>
+					<th style="width: 25%">Code</th>
+					<th style="width: 25%">White</th>
+					<th style="width: 25%">Black</th>
+					<th style="width: 25%">Time</th>
 				</tr>
 				</thead>
 				<tbody>
-				{#each chessList as chess (chess.id)}
-					<tr class="row-hover chess-table-row" style="height: {chessRowHeight}px" onclick={() => goto(`/play/${chess.id}`)}>
+				{#each chessList as chess (chess.gameId)}
+					<tr class="row-hover chess-table-row" style="height: {chessRowHeight}px" onclick={() => goto(`/play/${chess.gameId}`)}>
+						<td>
+							{chess.gameId}
+						</td>
 						<td>
 							{#if chess.whitePlayer && chess.whitePlayer.present}
 								{chess.whitePlayer.name}
@@ -137,6 +141,7 @@
 				{/each}
 				{#if bottomPadding > 0}
 					<tr style="height: {bottomPadding}px">
+						<td></td>
 						<td></td>
 						<td></td>
 						<td></td>

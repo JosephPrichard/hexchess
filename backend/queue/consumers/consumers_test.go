@@ -1,6 +1,7 @@
 package consumers
 
 import (
+	"context"
 	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
@@ -52,8 +53,7 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 		fn:           eventGateway.HandleAdvanceTournamentEvent,
 	}
 
-	err = queue.Consume()
-	require.NoError(t, err)
+	queue.Consume()
 
 	wantMatches := []sqlc.TournamentMatch{
 		// tournament has 2 rounds with join order of [1,2,3,4], so starting the tournament creates 2 rounds wso the matches go 1-2, 3-4
@@ -78,6 +78,9 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 
 func TestHandleFinishedGameEvent(t *testing.T) {
 	ctx := t.Context()
+
+	consumerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
 	defer testinfra.Close()
@@ -111,11 +114,13 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	eventGateway := EventGateway{services: services}
 
 	queue := RedisConsumer{
-		ctx:   ctx,
-		redis: testinfra.Redis.GameStore,
+		ctx:    consumerCtx,
+		cancel: cancel,
+		redis:  testinfra.Redis.GameStore,
 
 		concurrency:   1,
 		maxEvents:     1,
+		blockDuration: time.Millisecond,
 		streamKey:     testinfra.Redis.FinishGameStreamKey,
 		consumerGroup: testinfra.Redis.FinishGameConsumerGroup,
 		partitionKeys: []string{string(partitionID)},
@@ -123,7 +128,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		fn: eventGateway.HandleFinishedGameEvent,
 	}
 
-	queue.Consume()
+	queue.ConsumePartition(string(partitionID))
 
 	userElos, err := testinfra.Querier.SelectUserModeElosByIDs(ctx, sqlc.SelectUserModeElosByIDsParams{
 		ID:   []int64{whiteUser0.ID, blackUser1.ID},
@@ -140,6 +145,9 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 
 func TestHandleUpdtGameEvent(t *testing.T) {
 	ctx := t.Context()
+
+	consumerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
 	defer testinfra.Close()
@@ -171,18 +179,20 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	eventGateway := EventGateway{services: services}
 
 	queue := RedisConsumer{
-		ctx:   ctx,
-		redis: testinfra.Redis.GameStore,
+		ctx:    consumerCtx,
+		cancel: cancel,
+		redis:  testinfra.Redis.GameStore,
 
 		concurrency:   1,
 		maxEvents:     1,
+		blockDuration: time.Millisecond,
 		streamKey:     testinfra.Redis.UpdtGameMetaStreamKey,
 		consumerGroup: testinfra.Redis.UpdtGameMetaConsumerGroup,
 		partitionKeys: []string{string(partitionID)},
 
 		fn: eventGateway.HandleUpdtGameEvent,
 	}
-	queue.Consume()
+	queue.ConsumePartition(string(partitionID))
 
 	gameRow, err := testinfra.Querier.SelectGameMeta(ctx, gameID.String())
 	require.NoError(t, err)

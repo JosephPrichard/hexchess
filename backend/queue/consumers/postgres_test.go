@@ -143,8 +143,7 @@ func TestPostgresConsumer(t *testing.T) {
 				fn: tt.makeProcessFn(&capturedEvents),
 			}
 
-			err := queue.Consume()
-			require.NoError(t, err)
+			queue.Consume()
 
 			assert.Equal(t, tt.wantCapturedEvents, capturedEvents)
 

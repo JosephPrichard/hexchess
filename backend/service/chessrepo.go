@@ -144,7 +144,7 @@ func (services *HexchessServices) updateChessStateTxn(ctx context.Context, gameI
 			return err
 		}, gameKey)
 
-		if err == redis.TxFailedErr {
+		if errors.Is(err, redis.TxFailedErr) {
 			continue
 		}
 		return ret, err

@@ -106,7 +106,7 @@ WHERE id = sqlc.arg('id') RETURNING
 SELECT id,
        username,
        country,
-       (username < - > sqlc.arg('username')) ::BIGINT AS rank
+       (username <-> sqlc.arg('username')) ::BIGINT AS rank
 FROM users
 WHERE username % sqlc.arg('username')::TEXT
 ORDER BY rank DESC
@@ -163,9 +163,8 @@ VALUES (
     sqlc.arg('userID'), sqlc.arg('mode'), COALESCE (sqlc.narg('elo')::FLOAT8, sqlc.arg('defaultElo')::FLOAT8), GREATEST(sqlc.narg('elo'), sqlc.arg('defaultElo')), sqlc.arg('wins'), sqlc.arg('losses'), sqlc.arg('draws'))
 ON CONFLICT ON CONSTRAINT user_mode_elos_pkey
     DO
-UPDATE
-    SET
-        elo = COALESCE (sqlc.narg('elo'), u.elo),
+UPDATE SET
+    elo = COALESCE (sqlc.narg('elo'), u.elo),
     highest_elo = GREATEST(u.highest_elo, sqlc.narg('elo')),
     wins = u.wins + sqlc.arg('wins'),
     losses = u.losses + sqlc.arg('losses'),

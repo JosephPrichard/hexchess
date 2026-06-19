@@ -63,7 +63,7 @@ func StartConsumers(setup SetupConsumers) {
 }
 
 type Consumer interface {
-	Consume() error
+	Consume()
 }
 
 type ConsumeFunc func(ctx context.Context, bytes []byte) error

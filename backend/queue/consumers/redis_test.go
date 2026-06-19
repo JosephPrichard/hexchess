@@ -7,6 +7,7 @@ import (
 	"hexchess-svc/itest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -60,8 +61,9 @@ func TestRedisConsumer(t *testing.T) {
 		wantEvents    []testEvent
 	}{
 		{
-			name:        "ConsumesEvents",
-			inputStream: consumingStream,
+			name:          "ConsumesEvents",
+			inputStream:   fmt.Sprintf("%s:{0}", consumingStream),
+			partitionKeys: []string{"0", "1"},
 			inputEvents: []map[string]any{
 				{
 					"data": "invalid",
@@ -90,31 +92,6 @@ func TestRedisConsumer(t *testing.T) {
 				{
 					Key:   "KeyTwo",
 					Value: "ValueTwo",
-				},
-			},
-		},
-		{
-			name:          "ConsumesEvents_WithPartitions",
-			inputStream:   fmt.Sprintf("%s:{0}", consumingStream),
-			partitionKeys: []string{"0", "1"},
-			inputEvents: []map[string]any{
-				{
-					"data": "invalid",
-				},
-				{
-					"unknown": "field",
-				},
-				{
-					"data": marshal(testEvent{
-						Key:   "KeyThree",
-						Value: "ValueThree",
-					}),
-				},
-			},
-			wantEvents: []testEvent{
-				{
-					Key:   "KeyThree",
-					Value: "ValueThree",
 				},
 			},
 		},
@@ -148,6 +125,7 @@ func TestRedisConsumer(t *testing.T) {
 				consumerGroup: "consumer-group",
 				concurrency:   8,
 				partitionKeys: tt.partitionKeys,
+				blockDuration: time.Millisecond,
 
 				fn: h.handleEvent,
 			}

@@ -31,11 +31,11 @@ func (id GameID) Partition() rune {
 	if len(id) == 0 {
 		return 0
 	}
-	return rune(id[len(id)-1] - 'A')
+	return rune(id[len(id)-1])
 }
 
 func GameIDPartitions() []string {
-	partitions := make([]string, 0, 26)
+	partitions := make([]string, 0, len(GameIDSymbols))
 	for _, s := range GameIDSymbols {
 		partitions = append(partitions, string(s))
 	}

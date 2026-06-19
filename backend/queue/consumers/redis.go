@@ -9,52 +9,61 @@ import (
 	"hexchess-svc/queue"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
 type RedisConsumer struct {
-	ctx   context.Context
-	redis redis.UniversalClient
+	ctx    context.Context
+	cancel context.CancelFunc
+	redis  redis.UniversalClient
 
 	streamKey     string
 	consumerGroup string
 	concurrency   int64
 	partitionKeys []string
 	maxEvents     uint64
+	blockDuration time.Duration
 
 	fn ConsumeFunc
 
 	waitGroup sync.WaitGroup
 }
 
-func (c *RedisConsumer) Consume() error {
+func (c *RedisConsumer) Consume() {
+	if c.ctx == nil {
+		c.ctx = context.Background()
+	}
+	if c.cancel == nil {
+		c.cancel = func() {}
+	}
+
+	var wg sync.WaitGroup
+	for _, partitionKey := range c.partitionKeys {
+		wg.Go(func() {
+			c.ConsumePartition(partitionKey)
+		})
+	}
+	wg.Wait()
+	slog.Info("redis stream consumer exiting", "consumer", c)
+}
+
+func (c *RedisConsumer) ConsumePartition(partitionKey string) {
 	consumerID := uuid.NewString()
 
-	var streams []string
-	if len(c.partitionKeys) > 0 {
-		for _, partition := range c.partitionKeys {
-			streams = append(streams, queue.FmtStreamKey(c.streamKey, partition))
-		}
-	} else {
-		streams = append(streams, c.streamKey)
-	}
+	stream := queue.FmtStreamKey(c.streamKey, partitionKey)
+	streams := []string{stream, ">"}
 
-	for _, stream := range streams {
-		if err := c.redis.XGroupCreateMkStream(c.ctx, stream, c.consumerGroup, "0").Err(); err != nil {
-			slog.WarnContext(c.ctx, "create stream consumer group", "error", err, "stream", stream, "consumerGroup", c.consumerGroup)
-		}
-	}
-
-	for range len(streams) {
-		// > means get unconsumed messages only. we need to get unconsumed messages from all partitions in this consumer
-		streams = append(streams, ">")
+	err := c.redis.XGroupCreateMkStream(c.ctx, stream, c.consumerGroup, "0").Err()
+	if err != nil && !redis.HasErrorPrefix(err, "BUSYGROUP") {
+		slog.Error("create stream consumer group", "error", err, "consumerID", consumerID, "stream", stream, "consumerGroup", c.consumerGroup)
 	}
 
 	for i := uint64(0); ; i++ {
 		if i >= c.maxEvents && c.maxEvents != 0 {
-			return nil
+			c.cancel()
 		}
 
 		slog.Info("redis stream consumer read operation", "consumerID", consumerID, "streams", streams)
@@ -64,13 +73,14 @@ func (c *RedisConsumer) Consume() error {
 			Consumer: consumerID,
 			Streams:  streams,
 			Count:    c.concurrency,
+			Block:    c.blockDuration,
 		}
 		entries, err := c.redis.XReadGroup(c.ctx, xArgs).Result()
 		if errors.Is(err, context.Canceled) {
-			slog.Info("context cancelled, exiting finish event loop")
-			return nil
+			slog.Info("context cancelled, exiting consume partition loop", "consumerID", consumerID, "streams", streams)
+			return
 		} else if err != nil {
-			slog.Error("failed to read from finish redis stream", "error", err)
+			slog.Error("failed to read from redis stream", "error", err, "consumerID", consumerID, "streams", streams)
 			continue
 		}
 
