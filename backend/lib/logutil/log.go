@@ -107,13 +107,13 @@ type LogConfig struct {
 	OtlpEndpoint string
 }
 
-func InitLoggers(config LogConfig) func(ctx context.Context) {
+func InitLoggers(config LogConfig) func() {
 	stderrHandler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})
 
 	handlers := []slog.Handler{stderrHandler}
-	shutdown := func(ctx context.Context) {}
+	shutdown := func() {}
 
 	if config.OtlpEndpoint != "" {
 		slog.Info("starting OTel rpc slog bridge logger", "config", config)
@@ -134,8 +134,8 @@ func InitLoggers(config LogConfig) func(ctx context.Context) {
 
 		handlers = append(handlers, otelHandler)
 
-		shutdown = func(ctx context.Context) {
-			if err := provider.Shutdown(ctx); err != nil {
+		shutdown = func() {
+			if err := provider.Shutdown(context.Background()); err != nil {
 				slog.Error("OTel provider shutdown error", "error", err)
 			}
 		}

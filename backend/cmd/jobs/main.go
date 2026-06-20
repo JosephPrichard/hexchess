@@ -13,8 +13,6 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/lib/logutil"
 	"hexchess-svc/service"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -30,14 +28,20 @@ func main() {
 	start := time.Now()
 
 	shutdown := logutil.InitLoggers(logutil.LogConfig{})
-	defer shutdown(ctx)
+	defer shutdown()
 
 	cmd.InitEnv()
 
 	dbURL := os.Getenv("DB_URL")
 	rdbSorNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
 
-	services := makeServices(ctx, dbURL, rdbSorNodes)
+	pdb := db.MakeDB(db.MakePgPool(ctx, dbURL))
+	defer pdb.Close()
+
+	rdb := db.MakeRedis(db.RedisAddrs{SorAddr: rdbSorNodes}, nil)
+	defer rdb.Close()
+
+	services := svc.MakeHexchessServices(svc.SetupService{DB: pdb, Redis: rdb})
 
 	switch *jobName {
 	case SyncLeaderboardJobName:
@@ -51,21 +55,4 @@ func main() {
 	default:
 		log.Fatalf("unknown job: %s", *jobName)
 	}
-}
-
-func makeServices(ctx context.Context, dbURL string, rdbSorNodes []string) *svc.HexchessServices {
-	var setup svc.SetupService
-
-	slog.InfoContext(ctx, "connecting to postgres db", "dbURL", dbURL)
-	pool, err := pgxpool.New(ctx, dbURL)
-	if err != nil {
-		logutil.FatalErr("create pool", err)
-	}
-	setup.DB = db.MakeDB(pool)
-
-	addrs := db.RedisAddrs{SorAddr: rdbSorNodes}
-	slog.InfoContext(ctx, "connecting to redis db", "addrs", addrs)
-	setup.Redis = db.MakeRedis(addrs, nil)
-
-	return svc.MakeHexchessServices(setup)
 }

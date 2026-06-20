@@ -77,7 +77,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 		{
 			name: "inserting already inserted finished game",
 			event: model.FinishedGame{
-				GameID: model.model.GameID(itest.FirstReplayGameID),
+				GameID: model.GameID(itest.FirstReplayGameID),
 				Board:  chess.MakeEmptyBoard(true),
 				Moves:  []chess.HistMove{},
 				// used only for validation

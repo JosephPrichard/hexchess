@@ -16,8 +16,6 @@ import (
 	"os"
 	"runtime"
 	"strings"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -32,7 +30,7 @@ func main() {
 	dbURL := os.Getenv("DB_URL")
 	rdbSorNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
 	rdbPubSubNode := os.Getenv("REDIS_PUBSUB_NODE")
-	isLocalS3 := os.Getenv("IS_LOCAL_S3") == "true"
+	isLocalAWS := os.Getenv("IS_LOCAL_AWS") == "true"
 	awsDefaultRegion := os.Getenv("AWS_DEFAULT_REGION")
 	awsEndpoint := os.Getenv("AWS_ENDPOINT")
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
@@ -41,32 +39,21 @@ func main() {
 	// cookieDomain := os.Getenv("COOKIE_DOMAIN")
 
 	shutdown := logutil.InitLoggers(logutil.LogConfig{OtlpEndpoint: oltpEndpoint})
-	defer shutdown(ctx)
+	defer shutdown()
 
-	slog.Info("connecting to postgres db", "dbURL", dbURL)
-	pool, err := pgxpool.New(ctx, dbURL)
-	if err != nil {
-		logutil.FatalErr("create pool", err)
-	}
-	defer pool.Close()
-	if _, err = pool.Exec(ctx, "SELECT 1;"); err != nil {
-		logutil.FatalErr("execute startup query", err)
-	}
-	pdb := db.MakeDB(pool)
+	pdb := db.MakeDB(db.MakePgPool(ctx, dbURL))
 	defer pdb.Close()
 
-	addrs := db.RedisAddrs{
+	rdb := db.MakeRedis(db.RedisAddrs{
 		SorAddr:    rdbSorNodes,
 		PubsubAddr: rdbPubSubNode,
-	}
-	slog.Info("connecting to redis db", "addrs", addrs)
-	rdb := db.MakeRedis(addrs, nil)
+	}, nil)
 	defer rdb.Close()
 
 	aws, err := egress.MakeAWSClients(ctx, egress.AWSConfig{
 		AWSDefaultRegion:  awsDefaultRegion,
 		AWSEndpoint:       awsEndpoint,
-		IsTestCredentials: isLocalS3,
+		IsTestCredentials: isLocalAWS,
 	}, nil)
 	if err != nil {
 		logutil.FatalErr("make aws clients", err)

@@ -71,6 +71,8 @@ func makeRedigoPool(addr string, name string) *redigo.Pool {
 }
 
 func MakeRedis(addrs RedisAddrs, names *RedisNames) Redis {
+	slog.Info("creating redis client", "addrs", addrs)
+
 	if names == nil {
 		names = &DefaultRedisNames
 	}

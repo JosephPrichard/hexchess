@@ -28,7 +28,7 @@ func (pdb *FakeDB) ExecTx(ctx context.Context, args TxArgs) (err error) {
 	return args.QueryFn(ctx, sqlc.New(pdb.testingTxn))
 }
 
-func (pdb *PostgresDB) ExecTx(ctx context.Context, args TxArgs) error {
+func (pdb *ImplDB) ExecTx(ctx context.Context, args TxArgs) error {
 	execTx := func(ctx context.Context, args TxArgs) (retErr error) {
 		if args.Isolation == "" {
 			args.Isolation = pgx.ReadCommitted

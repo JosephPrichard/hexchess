@@ -21,7 +21,6 @@ import (
 	"github.com/brianvoe/gofakeit"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -53,28 +52,21 @@ func main() {
 	start := time.Now()
 
 	shutdown := logutil.InitLoggers(logutil.LogConfig{})
-	defer shutdown(ctx)
+	defer shutdown()
 
 	cmd.InitEnv()
 
 	dbURL := os.Getenv("DB_URL")
 	rdbSorNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
 
-	slog.InfoContext(ctx, "connecting to postgres db", "dbURL", dbURL)
-	pool, err := pgxpool.New(ctx, dbURL)
-	if err != nil {
-		logutil.FatalErr("create pool", err)
-	}
+	pool := db.MakePgPool(ctx, dbURL)
 	pdb := db.MakeDB(pool)
 	defer pdb.Close()
 
-	addrs := db.RedisAddrs{SorAddr: rdbSorNodes}
-	slog.InfoContext(ctx, "connecting to redis db", "addrs", addrs)
-	rdb := db.MakeRedis(addrs, nil)
+	rdb := db.MakeRedis(db.RedisAddrs{SorAddr: rdbSorNodes}, nil)
 	defer rdb.Close()
 
-	_, err = pool.Exec(ctx, truncateSql)
-	if err != nil {
+	if _, err := pool.Exec(ctx, truncateSql); err != nil {
 		logutil.FatalErr("drop schema", err)
 	}
 	if err := rdb.Cache.FlushAll(ctx).Err(); err != nil {
@@ -301,7 +293,7 @@ func generateTournaments() []TournamentInsts {
 			whiteID, blackID := participants[i].UserID, participants[i+1].UserID
 			matches = append(matches, sqlc.BatchInsertTournamentMatchParams{
 				TournamentKey: tkey,
-				GameID:        model.MakeGameID(), // there are no games the game store matching this at this point in time
+				GameID:        model.MakeGameID().String(), // there are no games in the game store matching this at this point in time
 				WhiteID:       whiteID,
 				BlackID:       blackID,
 				Round:         int32(1),

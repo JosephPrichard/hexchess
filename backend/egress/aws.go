@@ -71,7 +71,7 @@ func MakeAWSClients(ctx context.Context, cfg AWSConfig, names *AWSNames) (AWSCli
 			}
 		}
 		if len(errors) > 0 {
-			slog.Error("failed to create buckets", "buckets", buckets, "errors", errors)
+			slog.Warn("failed to create buckets", "buckets", buckets, "errors", errors)
 		} else {
 			slog.Info("created buckets", "buckets", buckets)
 		}
