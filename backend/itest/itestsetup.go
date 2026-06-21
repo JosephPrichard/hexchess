@@ -30,7 +30,7 @@ func (i TestInfra) Close() {
 func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 	ctx := t.Context()
 
-	var pool *pgxpool.Pool
+	var pgPool *pgxpool.Pool
 	var redisAddr string
 	var localstackAddr string
 
@@ -43,7 +43,7 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 
 	if roPostgres || rwPostgres {
 		eg.Go(func() (err error) {
-			pool, err = SetupPostgresTest(egCtx, t)
+			pgPool, err = SetupPostgresTest(egCtx, t)
 			return
 		})
 	}
@@ -63,24 +63,22 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 		t.Fatalf("failed to setup test state: %v", err)
 	}
 
-	var pdb db.Database
+	var testinfra TestInfra
+
 	if rwPostgres {
-		testTx, err := pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+		testTx, err := pgPool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 		if err != nil {
 			t.Fatalf("failed to begin test txn: %v", err)
 		}
-		pdb = db.NewFakeDB(testTx)
+		testinfra.DB = db.NewFakeDB(testTx)
+		testinfra.Querier = testinfra.DB.Querier()
 	} else if roPostgres {
-		pdb = db.NewDB(pool)
-	}
-	var querier sqlc.Querier
-	if pdb != nil {
-		querier = pdb.Querier()
+		testinfra.DB = db.NewDB(pgPool)
+		testinfra.Querier = testinfra.DB.Querier()
 	}
 
-	var rdb db.Redis
 	if redis {
-		rdb, _ = db.NewRedis(ctx, db.RedisCfg{
+		testinfra.Redis, _ = db.NewRedis(ctx, db.RedisCfg{
 			Names: testutil.NewTestNames(db.DefaultRedisNames),
 			Addrs: db.RedisAddrs{
 				SorAddr:    []string{redisAddr},
@@ -90,9 +88,8 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 		})
 	}
 
-	var aws cloud.AWSClient
 	if localstack {
-		aws = cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
+		testinfra.AWS = cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
 			Names:          testutil.NewTestNames(cloud.DefaultAWSNames),
 			Profile:        "local",
 			AWSRegion:      "us-east-1",
@@ -102,5 +99,5 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 		})
 	}
 
-	return TestInfra{Querier: querier, DB: pdb, Redis: rdb, AWS: aws}
+	return testinfra
 }

@@ -2,6 +2,7 @@ package itest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -14,11 +15,23 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-const RedisContTag = "redis:7.4.0"
-const RedisContPort = "6379/tcp"
+const (
+	RedisContTag  = "redis:7.4.0"
+	RedisContPort = "6379/tcp"
+)
 
 var muRedis sync.Mutex
 var redisCont testcontainers.Container
+
+var RedisContainerRequest = testcontainers.GenericContainerRequest{
+	Started: true,
+	ContainerRequest: testcontainers.ContainerRequest{
+		Image:        RedisContTag,
+		ExposedPorts: []string{RedisContPort},
+		Env:          map[string]string{},
+		WaitingFor:   wait.ForListeningPort(RedisContPort),
+	},
+}
 
 func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (string, error) {
 	muRedis.Lock()
@@ -26,15 +39,7 @@ func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (string, error) {
 
 	if redisCont == nil {
 		start := time.Now()
-		cont, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-			Started: true,
-			ContainerRequest: testcontainers.ContainerRequest{
-				Image:        RedisContTag,
-				ExposedPorts: []string{RedisContPort},
-				Env:          map[string]string{},
-				WaitingFor:   wait.ForListeningPort(RedisContPort),
-			},
-		})
+		cont, err := testcontainers.GenericContainer(ctx, RedisContainerRequest)
 		if err != nil {
 			return "", fmt.Errorf("failed to start redis container: %w", err)
 		}
@@ -49,15 +54,31 @@ func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (string, error) {
 	return addr, nil
 }
 
-const PostgresContTag = "postgres:17"
-const PgContPort = "5432/tcp"
+const (
+	PostgresContTag = "postgres:17"
+	PgContPort      = "5432/tcp"
 
-const DbUser = "postgres"
-const DbName = "postgres"
-const DbPass = "postgres"
+	DbUser = "postgres"
+	DbName = "postgres"
+	DbPass = "postgres"
+)
 
 var muPostgres sync.Mutex
 var postgresCont testcontainers.Container
+
+var PostgresContainerRequest = testcontainers.GenericContainerRequest{
+	Started: true,
+	ContainerRequest: testcontainers.ContainerRequest{
+		Image:        PostgresContTag,
+		ExposedPorts: []string{PgContPort},
+		Env: map[string]string{
+			"POSTGRES_USER":     DbUser,
+			"POSTGRES_PASSWORD": DbPass,
+			"POSTGRES_DB":       DbName,
+		},
+		WaitingFor: wait.ForListeningPort(PgContPort),
+	},
+}
 
 func SetupPostgresTest(ctx context.Context, t logutil.TestLogger) (*pgxpool.Pool, error) {
 	muPostgres.Lock()
@@ -67,19 +88,7 @@ func SetupPostgresTest(ctx context.Context, t logutil.TestLogger) (*pgxpool.Pool
 
 	if postgresCont == nil {
 		start := time.Now()
-		cont, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-			Started: true,
-			ContainerRequest: testcontainers.ContainerRequest{
-				Image:        PostgresContTag,
-				ExposedPorts: []string{PgContPort},
-				Env: map[string]string{
-					"POSTGRES_USER":     DbUser,
-					"POSTGRES_PASSWORD": DbPass,
-					"POSTGRES_DB":       DbName,
-				},
-				WaitingFor: wait.ForListeningPort(PgContPort),
-			},
-		})
+		cont, err := testcontainers.GenericContainer(ctx, PostgresContainerRequest)
 		if err != nil {
 			return nil, fmt.Errorf("failed to start postgres container: %w", err)
 		}
@@ -92,30 +101,39 @@ func SetupPostgresTest(ctx context.Context, t logutil.TestLogger) (*pgxpool.Pool
 	port, _ := postgresCont.MappedPort(ctx, PgContPort)
 	connString := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", DbUser, DbPass, host, port.Port(), DbName)
 
-	pool, err := pgxpool.New(ctx, connString)
+	pgPool, err := pgxpool.New(ctx, connString)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create pgx conn: %w", err)
+		return nil, fmt.Errorf("failed to create pg pool: %w", err)
 	}
 	if createdContainer {
-		if _, err := pool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"); err != nil {
-			return nil, fmt.Errorf("failed to reset schema: %w", err)
-		}
-		if _, err := pool.Exec(ctx, db.CreateSchema); err != nil {
-			return nil, fmt.Errorf("failed to create schema: %w", err)
-		}
-		if err := insertTestData(pool); err != nil {
-			return nil, fmt.Errorf("failed to insert test data: %w", err)
+		_, dropErr := pgPool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
+		_, createErr := pgPool.Exec(ctx, db.CreateSchema)
+		insertErr := insertTestData(pgPool)
+
+		if err := errors.Join(dropErr, createErr, insertErr); err != nil {
+			return nil, err
 		}
 	}
 
-	return pool, nil
+	return pgPool, nil
 }
 
-const LocalstackContTag = "localstack/localstack:3.0"
-const LocalstackContPort = "4566/tcp"
+const (
+	LocalstackContTag  = "localstack/localstack:3.0"
+	LocalstackContPort = "4566/tcp"
+)
 
 var muLocalstack sync.Mutex
 var localstackCont testcontainers.Container
+
+var LocalstackContainerRequest = testcontainers.GenericContainerRequest{
+	Started: true,
+	ContainerRequest: testcontainers.ContainerRequest{
+		Image:        LocalstackContTag,
+		ExposedPorts: []string{LocalstackContPort},
+		WaitingFor:   wait.ForListeningPort(LocalstackContPort),
+	},
+}
 
 func SetupLocalstackTest(ctx context.Context, t logutil.TestLogger) (string, error) {
 	muLocalstack.Lock()
@@ -123,14 +141,7 @@ func SetupLocalstackTest(ctx context.Context, t logutil.TestLogger) (string, err
 
 	if localstackCont == nil {
 		start := time.Now()
-		cont, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-			Started: true,
-			ContainerRequest: testcontainers.ContainerRequest{
-				Image:        LocalstackContTag,
-				ExposedPorts: []string{LocalstackContPort},
-				WaitingFor:   wait.ForListeningPort(LocalstackContPort),
-			},
-		})
+		cont, err := testcontainers.GenericContainer(ctx, LocalstackContainerRequest)
 		if err != nil {
 			return "", fmt.Errorf("failed to start localstack container: %w", err)
 		}

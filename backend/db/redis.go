@@ -14,8 +14,10 @@ import (
 type RedisAddrs struct {
 	SorAddr           []string `json:"sorAddr"`
 	SorClusterName    string   `json:"sorClusterName"`
+	SorUserName       string   `json:"userName"`
 	PubsubAddr        string   `json:"pubsubAddr"`
 	PubsubClusterName string   `json:"pubsubClusterName"`
+	PubsubUserName    string   `json:"pubsubUserName"`
 }
 
 type RedisNames struct {
@@ -71,12 +73,11 @@ func (rdb *Redis) Close() {
 }
 
 type RedisCfg struct {
-	Addrs         RedisAddrs `json:"addrs"`
-	ActiveProfile string     `json:"activeProfile"`
-	ServiceName   string     `json:"serviceName"`
-	UserName      string     `json:"userName"`
-	Region        string     `json:"region"`
-	Names         *RedisNames
+	Addrs          RedisAddrs `json:"addrs"`
+	ActiveProfile  string     `json:"activeProfile"`
+	AWSServiceName string     `json:"AWSServiceName"`
+	AWSRegion      string     `json:"awsRegion"`
+	Names          *RedisNames
 }
 
 func NewRedis(ctx context.Context, redisCfg RedisCfg) (Redis, func()) {
@@ -98,7 +99,7 @@ func NewRedis(ctx context.Context, redisCfg RedisCfg) (Redis, func()) {
 		RouteByLatency: false,
 	}
 	if redisCfg.ActiveProfile != "local" {
-		connectorSOR = NewRedisConnector(ctx, redisCfg.Region, redisCfg.UserName, redisCfg.Addrs.SorClusterName)
+		connectorSOR = NewRedisConnector(ctx, redisCfg.AWSRegion, redisCfg.Addrs.SorUserName, redisCfg.Addrs.SorClusterName)
 		redisClientOpts.CredentialsProvider = connectorSOR.CredentialsProvider
 	}
 	redisClient := redis.NewUniversalClient(redisClientOpts)
@@ -115,7 +116,7 @@ func NewRedis(ctx context.Context, redisCfg RedisCfg) (Redis, func()) {
 			},
 		}
 		if redisCfg.ActiveProfile != "local" {
-			connectorPubsub = NewRedisConnector(ctx, redisCfg.Region, redisCfg.UserName, redisCfg.Addrs.SorClusterName)
+			connectorPubsub = NewRedisConnector(ctx, redisCfg.AWSRegion, redisCfg.Addrs.PubsubUserName, redisCfg.Addrs.PubsubClusterName)
 			pubsubPool.Dial = func() (redigo.Conn, error) {
 				username, password := connectorPubsub.CredentialsProvider()
 				return redigo.Dial("tcp", redisCfg.Addrs.PubsubAddr, redigo.DialUsername(username), redigo.DialPassword(password))
@@ -123,6 +124,9 @@ func NewRedis(ctx context.Context, redisCfg RedisCfg) (Redis, func()) {
 		}
 	}
 
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		logutil.Fatal("ping redis sor node", err)
+	}
 	if pubsubPool != nil {
 		conn, err := pubsubPool.GetContext(ctx)
 		if err != nil {
@@ -132,9 +136,6 @@ func NewRedis(ctx context.Context, redisCfg RedisCfg) (Redis, func()) {
 		if _, err := conn.Do("PING"); err != nil {
 			logutil.Fatal("ping redis pubsub node", err)
 		}
-	}
-	if err := redisClient.Ping(ctx).Err(); err != nil {
-		logutil.Fatal("ping redis sor node", err)
 	}
 
 	slog.Info("created redis client", "cfg", redisCfg, "names", redisCfg.Names, "redisClientKind", fmt.Sprintf("%T", redisClient))
