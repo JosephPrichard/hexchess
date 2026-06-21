@@ -16,7 +16,7 @@ import (
 func (services *HexchessServices) IsGameAccessible(ctx context.Context, id model.GameID) bool {
 	gameKey := fmtGameKey(id)
 
-	exists, err := services.redis.GameStore.Exists(ctx, gameKey).Result()
+	exists, err := services.redis.Primary.Exists(ctx, gameKey).Result()
 
 	return err == nil && exists == 1
 }
@@ -24,7 +24,7 @@ func (services *HexchessServices) IsGameAccessible(ctx context.Context, id model
 var ErrNoChessState = errors.New("no chess state")
 
 func (services *HexchessServices) GetChessState(ctx context.Context, id model.GameID) (*model.ChessState, error) {
-	return services.getChessState(ctx, services.redis.GameStore, id)
+	return services.getChessState(ctx, services.redis.Primary, id)
 }
 
 type RedisChessGetter interface {
@@ -56,7 +56,7 @@ func (services *HexchessServices) SetChessState(ctx context.Context, id model.Ga
 }
 
 func (services *HexchessServices) setChessStateAt(ctx context.Context, id model.GameID, state *model.ChessState, touch time.Time) error {
-	return services.setChessState(ctx, services.redis.GameStore, id, state, touch)
+	return services.setChessState(ctx, services.redis.Primary, id, state, touch)
 }
 
 type RedisChessSetter interface {
@@ -80,7 +80,7 @@ func (services *HexchessServices) setChessState(ctx context.Context, setter Redi
 
 func (services *HexchessServices) setChessStates(ctx context.Context, chessStates []model.ChessState) error {
 	var createdGameID []string
-	pipe := services.redis.GameStore.Pipeline()
+	pipe := services.redis.Primary.Pipeline()
 
 	for i := range chessStates {
 		state := &chessStates[i]
@@ -117,7 +117,7 @@ func (services *HexchessServices) updateChessStateTxn(ctx context.Context, gameI
 		var ret *model.ChessState
 
 		// standard redis Watch+Tx optimistic locking pattern to prevent the 'LostUpdate' race condition
-		err := services.redis.GameStore.Watch(ctx, func(txn *redis.Tx) error {
+		err := services.redis.Primary.Watch(ctx, func(txn *redis.Tx) error {
 			state, err := services.getChessState(ctx, txn, gameID)
 			if err != nil {
 				return err

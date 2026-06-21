@@ -175,9 +175,9 @@ func (services *HexchessServices) UploadProfilePic(
 		return UploadProfileResult{}, serrors.Wrap("put profile pic", err, "key", key, "bucket", services.aws.S3ProfileBucket)
 	}
 
-	detatchedCtx := context.WithoutCancel(ctx)
+	detachedCtx := context.WithoutCancel(ctx)
 	go func() {
-		if err := services.deleteExpiredProfilePics(detatchedCtx, int(uploader.ID)); err != nil {
+		if err := services.deleteExpiredProfilePics(detachedCtx, int(uploader.ID)); err != nil {
 			slog.ErrorContext(ctx, "failed to remove expired profile pics", "uploader", uploader, "error", err)
 		}
 	}()

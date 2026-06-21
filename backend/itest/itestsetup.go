@@ -4,6 +4,7 @@ import (
 	"hexchess-svc/cloud"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/lib/config"
 	"hexchess-svc/lib/logutil"
 	"hexchess-svc/lib/testutil"
 	"slices"
@@ -36,64 +37,64 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 
 	eg, egCtx := errgroup.WithContext(ctx)
 
-	roPostgres := slices.Contains(flags, ROPostgres)
-	rwPostgres := slices.Contains(flags, RWPostgres)
-	redis := slices.Contains(flags, Redis)
-	localstack := slices.Contains(flags, AWS)
+	isRoPostgresFlag := slices.Contains(flags, ROPostgres)
+	isRwPostgresFlag := slices.Contains(flags, RWPostgres)
+	isRedisFlag := slices.Contains(flags, Redis)
+	isLocalstackFlag := slices.Contains(flags, AWS)
 
-	if roPostgres || rwPostgres {
+	if isRoPostgresFlag || isRwPostgresFlag {
 		eg.Go(func() (err error) {
 			pgPool, err = SetupPostgresTest(egCtx, t)
 			return
 		})
 	}
-	if redis {
+	if isRedisFlag {
 		eg.Go(func() (err error) {
 			redisAddr, err = SetupRedisTest(egCtx, t)
 			return
 		})
 	}
-	if localstack {
+	if isLocalstackFlag {
 		eg.Go(func() (err error) {
 			localstackAddr, err = SetupLocalstackTest(egCtx, t)
 			return
 		})
 	}
 	if err := eg.Wait(); err != nil {
-		t.Fatalf("failed to setup test state: %v", err)
+		t.Fatalf("failed to setup test infra: %v", err)
 	}
 
 	var testinfra TestInfra
 
-	if rwPostgres {
+	if isRwPostgresFlag {
 		testTx, err := pgPool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 		if err != nil {
 			t.Fatalf("failed to begin test txn: %v", err)
 		}
 		testinfra.DB = db.NewFakeDB(testTx)
 		testinfra.Querier = testinfra.DB.Querier()
-	} else if roPostgres {
+	} else if isRoPostgresFlag {
 		testinfra.DB = db.NewDB(pgPool)
 		testinfra.Querier = testinfra.DB.Querier()
 	}
 
-	if redis {
-		testinfra.Redis, _ = db.NewRedis(ctx, db.RedisCfg{
+	if isRedisFlag {
+		testinfra.Redis = db.NewRedis(ctx, db.RedisCfg{
 			Names: testutil.NewTestNames(db.DefaultRedisNames),
-			Addrs: db.RedisAddrs{
+			DSNs: db.RedisDSNs{
 				SorAddr:    []string{redisAddr},
 				PubsubAddr: redisAddr,
 			},
-			ActiveProfile: "local",
+			ActiveProfile: config.Local,
 		})
 	}
 
-	if localstack {
+	if isLocalstackFlag {
 		testinfra.AWS = cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
-			Names:          testutil.NewTestNames(cloud.DefaultAWSNames),
-			Profile:        "local",
-			AWSRegion:      "us-east-1",
 			AWSEndpoint:    localstackAddr,
+			AWSRegion:      "us-east-1",
+			Names:          testutil.NewTestNames(cloud.DefaultAWSNames),
+			ActiveProfile:  config.Local,
 			StaticUsername: "testing",
 			StaticPassword: "testing",
 		})

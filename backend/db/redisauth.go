@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/config"
+	redigo "github.com/gomodule/redigo/redis"
 )
 
 const (
@@ -21,42 +22,41 @@ const (
 	// https://docs.aws.amazon.com/memorydb/latest/devguide/auth-iam.html#auth-iam-limits
 	tokenValiditySeconds = 900
 
-	connectAction = "connect"
+	connectAction       = "connect"
+	awsCacheServiceName = "memorydb"
 
-	// If the request has no payload you should use the hex encoded SHA-256 of an empty string as the payloadHash value.
+	// if the request has no payload, you should use the hex-encoded SHA-256 of an empty string as the payloadHash value.
 	hexEncodedSHA256EmptyString = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 	redisTokenRefreshPeriod = 10 * time.Minute
 )
 
-type RedisConnector struct {
-	serviceName string
-	username    string
-	region      string
-	req         *http.Request
-	credentials aws.Credentials
-	signer      *v4.Signer
-	token       atomic.Value
-	ticker      *time.Ticker
+type RedisTokenRefresher struct {
+	redisUsername string
+	awsRegion     string
+
+	tokenRequest   *http.Request
+	awsCredentials aws.Credentials
+	signer         *v4.Signer
+
+	ticker *time.Ticker
+
+	token atomic.Pointer[string]
 }
 
-func NewRedisConnector(ctx context.Context, region, username, clusterName string) *RedisConnector {
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+func NewRedisTokenRefresher(ctx context.Context, region, redisUsername, clusterName string) *RedisTokenRefresher {
+	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
 		logutil.Fatal("load aws config", err)
 	}
-
-	credentials, err := cfg.Credentials.Retrieve(ctx)
+	credentials, err := awsCfg.Credentials.Retrieve(ctx)
 	if err != nil {
 		logutil.Fatal("retrieve aws credentials", err)
-	}
-	if credentials.AccessKeyID == "" || credentials.SecretAccessKey == "" {
-		logutil.Fatal("aws credentials are empty", nil)
 	}
 
 	queryParams := url.Values{
 		"Action":        {connectAction},
-		"User":          {username},
+		"User":          {redisUsername},
 		"X-Amz-Expires": {strconv.FormatInt(int64(tokenValiditySeconds), 10)},
 	}
 	authURL := url.URL{
@@ -65,49 +65,69 @@ func NewRedisConnector(ctx context.Context, region, username, clusterName string
 		Path:     "/",
 		RawQuery: queryParams.Encode(),
 	}
-	req, err := http.NewRequest(http.MethodGet, authURL.String(), nil)
+	request, err := http.NewRequest(http.MethodGet, authURL.String(), nil)
 	if err != nil {
-		logutil.Fatal("create presigned http request struct", err)
+		logutil.Fatal("create presigned http request", err)
 	}
 
-	connector := &RedisConnector{
-		serviceName: clusterName,
-		region:      region,
-		req:         req,
-		credentials: credentials,
-		signer:      v4.NewSigner(),
-		ticker:      time.NewTicker(redisTokenRefreshPeriod),
+	refresher := &RedisTokenRefresher{
+		redisUsername: redisUsername,
+		awsRegion:     region,
+
+		tokenRequest:   request,
+		awsCredentials: credentials,
+		signer:         v4.NewSigner(),
+
+		ticker: time.NewTicker(redisTokenRefreshPeriod),
 	}
-	go connector.refreshLoop()
-	return connector
+	refresher.acquireToken()
+	go refresher.refreshToken()
+	return refresher
 }
 
-func (c *RedisConnector) Stop() {
-	c.ticker.Stop()
+func (refresh *RedisTokenRefresher) acquireToken() {
+	signedURL, _, err := refresh.signer.PresignHTTP(
+		context.Background(),
+		refresh.awsCredentials,
+		refresh.tokenRequest,
+		hexEncodedSHA256EmptyString,
+		awsCacheServiceName,
+		refresh.awsRegion,
+		time.Now().UTC(),
+	)
+	if err != nil {
+		slog.Error("failed to generate presigned url for redis auth", "error", err, "username", refresh.redisUsername)
+		return
+	}
+	signedURL = strings.Replace(signedURL, "http://", "", 1)
+	refresh.token.Store(&signedURL)
 }
 
-func (c *RedisConnector) refreshLoop() {
-	for range c.ticker.C {
-		signedURL, _, err := c.signer.PresignHTTP(
-			context.Background(),
-			c.credentials,
-			c.req,
-			hexEncodedSHA256EmptyString,
-			c.serviceName,
-			c.region,
-			time.Now().UTC(),
-		)
-		if err != nil {
-			slog.Error("failed to generate presigned url for redis connection", "error", err)
-			continue
+func (refresh *RedisTokenRefresher) refreshToken() {
+	for range refresh.ticker.C {
+		refresh.acquireToken()
+	}
+}
+
+func (refresh *RedisTokenRefresher) CredentialsProviderFunc() (username string, password string) {
+	token := refresh.token.Load()
+	if token != nil {
+		password = *token
+	} else {
+		slog.Warn("redis credentials provider: token not available", "username", refresh.redisUsername)
+	}
+	return refresh.redisUsername, password
+}
+
+func (refresh *RedisTokenRefresher) DialFunc(addr string) func() (redigo.Conn, error) {
+	return func() (redigo.Conn, error) {
+		token := refresh.token.Load()
+		var password string
+		if token != nil {
+			password = *token
+		} else {
+			slog.Warn("redis dial: token not available", "username", refresh.redisUsername)
 		}
-		signedURL = strings.Replace(signedURL, "http://", "", 1)
-		c.token.Store(authToken{value: signedURL, issuedAt: time.Now()})
+		return redigo.Dial("tcp", addr, redigo.DialUsername(refresh.redisUsername), redigo.DialPassword(password))
 	}
-}
-
-func (c *RedisConnector) CredentialsProvider() (username string, password string) {
-	token := c.token.Load().(authToken)
-	slog.Info("redis credentials provider", "serviceName", c.serviceName, "tokenIssuedAt", token.issuedAt, "tokenLifetime", time.Since(token.issuedAt))
-	return c.username, token.value
 }

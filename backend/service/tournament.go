@@ -331,7 +331,7 @@ type JoinTournamentEvent struct {
 func (services *HexchessServices) JoinTournament(ctx context.Context, inst JoinTournamentInst) (JoinTournamentEvent, error) {
 	var result JoinTournamentEvent
 
-	err := services.transactor.ExecTx(ctx, db.TxArgs{
+	err := services.database.ExecTx(ctx, db.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 reads status S1 and participant count P1, then inserts participants to create new participant count P2
@@ -400,7 +400,7 @@ type BeginTourneyCountdown struct {
 func (services *HexchessServices) BeginTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, userID int64) (BeginTourneyCountdown, error) {
 	var tourneyCountdown BeginTourneyCountdown
 
-	err := services.transactor.ExecTx(ctx, db.TxArgs{
+	err := services.database.ExecTx(ctx, db.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 reads status S1 and uses it to decide to begin the countdown, creating a scheduled event E1 and setting the status to S3
@@ -467,7 +467,7 @@ var ExpectedAdvanceTournamentStatus = []model.TournamentStatus{model.TournamentS
 func (services *HexchessServices) advanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.MatchCreation, error) {
 	var matchesToCreate []model.MatchCreation
 
-	err := services.transactor.ExecTx(ctx, db.TxArgs{
+	err := services.database.ExecTx(ctx, db.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 selects participationIDs P1 and creates and inserts NextMatches M1

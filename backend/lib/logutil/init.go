@@ -2,6 +2,7 @@ package logutil
 
 import (
 	"context"
+	"hexchess-svc/lib/config"
 	"log/slog"
 	"os"
 
@@ -13,7 +14,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 )
 
-func InitLoggers(name string, oltpEndpoint string, profile string) func() {
+func InitLoggers(name string, oltpEndpoint string, activeProfile config.Profile) func() {
 	stderrHandler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})
@@ -23,7 +24,7 @@ func InitLoggers(name string, oltpEndpoint string, profile string) func() {
 
 	if oltpEndpoint != "" {
 		otelResource, err := resource.New(context.Background(),
-			resource.WithAttributes(semconv.ServiceName(name), semconv.DeploymentEnvironment(profile)),
+			resource.WithAttributes(semconv.ServiceName(name), semconv.DeploymentEnvironment(activeProfile.String())),
 			resource.WithHost(),
 			resource.WithProcess(),
 		)

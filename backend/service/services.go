@@ -9,7 +9,7 @@ import (
 )
 
 type HexchessServices struct {
-	transactor     db.Transactor
+	database       db.Database
 	querier        sqlc.Querier
 	redis          db.Redis
 	aws            cloud.AWSClient
@@ -37,7 +37,7 @@ func NewHexchessServices(setup SetupService) *HexchessServices {
 		setup.Entropy = &RealEntropySource{}
 	}
 	return &HexchessServices{
-		transactor:     setup.DB,
+		database:       setup.DB,
 		querier:        querier,
 		redis:          setup.Redis,
 		aws:            setup.AWS,

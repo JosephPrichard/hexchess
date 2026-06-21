@@ -14,48 +14,47 @@ import (
 
 const pgTokenRefreshPeriod = 10 * time.Minute
 
-type authToken struct {
-	value    string
-	issuedAt time.Time
-}
-
-type PGConnector struct {
+type PostgresTokenRefresher struct {
 	stsClient *sts.Client
-	token     atomic.Value
+	token     atomic.Pointer[string]
 	ticker    *time.Ticker
 }
 
-func NewPgConnector(ctx context.Context, region string) *PGConnector {
+func NewPgTokenRefresher(ctx context.Context, region string) *PostgresTokenRefresher {
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
 		logutil.Fatal("load aws config", err)
 	}
-	connector := &PGConnector{
+	refresher := &PostgresTokenRefresher{
 		stsClient: sts.NewFromConfig(awsCfg),
 		ticker:    time.NewTicker(pgTokenRefreshPeriod),
 	}
-	go connector.refreshLoop()
-	return connector
+	refresher.acquireToken()
+	go refresher.refreshToken()
+	return refresher
 }
 
-func (c *PGConnector) Stop() {
-	c.ticker.Stop()
+func (refresh *PostgresTokenRefresher) acquireToken() {
+	result, err := refresh.stsClient.GetSessionToken(context.Background(), &sts.GetSessionTokenInput{})
+	if err != nil {
+		slog.Error("failed to generate postgres auth token", "error", err)
+		return
+	}
+	refresh.token.Store(result.Credentials.SecretAccessKey)
 }
 
-func (c *PGConnector) refreshLoop() {
-	for range c.ticker.C {
-		result, err := c.stsClient.GetSessionToken(context.Background(), &sts.GetSessionTokenInput{})
-		if err != nil {
-			slog.Error("failed to generate aws token", "error", err)
-			continue
-		}
-		c.token.Store(authToken{value: *result.Credentials.SecretAccessKey, issuedAt: time.Now()})
+func (refresh *PostgresTokenRefresher) refreshToken() {
+	for range refresh.ticker.C {
+		refresh.acquireToken()
 	}
 }
 
-func (c *PGConnector) BeforeConnect(ctx context.Context, cfg *pgx.ConnConfig) error {
-	token := c.token.Load().(authToken)
-	cfg.Password = token.value
-	slog.InfoContext(ctx, "before postgres connection", "tokenIssuedAt", token.issuedAt, "tokenLifetime", time.Since(token.issuedAt))
+func (refresh *PostgresTokenRefresher) BeforeConnectFunc(ctx context.Context, cfg *pgx.ConnConfig) error {
+	token := refresh.token.Load()
+	if token != nil {
+		cfg.Password = *token
+	} else {
+		slog.WarnContext(ctx, "before connect: token not available")
+	}
 	return nil
 }

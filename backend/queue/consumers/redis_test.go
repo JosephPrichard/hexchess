@@ -112,14 +112,14 @@ func TestRedisConsumer(t *testing.T) {
 					Stream: tt.inputStream,
 					Values: event,
 				}
-				err := testinfra.Redis.Cache.XAdd(ctx, xArgs).Err()
+				err := testinfra.Redis.Primary.XAdd(ctx, xArgs).Err()
 				require.NoError(t, err)
 			}
 
 			h := testEventHandler{cancel: cancel, wantEventCount: len(tt.wantEvents)}
 			consumer := RedisConsumer{
 				ctx:   ctx,
-				redis: testinfra.Redis.Cache,
+				redis: testinfra.Redis.Primary,
 
 				StreamKey:     consumingStream,
 				ConsumerGroup: "consumer-group",

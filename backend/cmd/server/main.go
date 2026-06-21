@@ -5,6 +5,7 @@ import (
 	"hexchess-svc/cloud"
 	"hexchess-svc/controller"
 	"hexchess-svc/db"
+	"hexchess-svc/lib/config"
 	"hexchess-svc/lib/dotenv"
 	"hexchess-svc/lib/logutil"
 	"hexchess-svc/pubsub"
@@ -31,8 +32,12 @@ func main() {
 	serverPort := os.Getenv("SERVER_PORT")
 	dbURL := os.Getenv("DB_URL")
 	rdbSorNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
+	rdbSorUsername := os.Getenv("REDIS_SOR_USERNAME")
+	rdbSorClusterName := os.Getenv("REDIS_SOR_CLUSTER_NAME")
 	rdbPubSubNode := os.Getenv("REDIS_PUBSUB_NODE")
-	profile := os.Getenv("PROFILE")
+	rdbPubSubUsername := os.Getenv("REDIS_PUBSUB_USERNAME")
+	rdbPubSubClusterName := os.Getenv("REDIS_PUBSUB_CLUSTER_NAME")
+	profile := config.ParseProfile(os.Getenv("PROFILE"))
 	awsRegion := os.Getenv("AWS_REGION")
 	awsEndpoint := os.Getenv("AWS_ENDPOINT")
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
@@ -45,22 +50,29 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, profile)
 	defer shutdown()
 
-	pool, closer := db.NewPgPool(ctx, db.PgConnectCfg{
+	pool := db.NewPgPool(ctx, db.PgConnectCfg{
 		Dsn:           dbURL,
 		ActiveProfile: profile,
 		Region:        awsRegion,
 	})
-	defer closer()
 	pdb := db.NewDB(pool)
+	defer pdb.Close()
 
-	rdb, closer := db.NewRedis(ctx, db.RedisCfg{
-		Addrs:         db.RedisAddrs{SorAddr: rdbSorNodes, PubsubAddr: rdbPubSubNode},
+	rdb := db.NewRedis(ctx, db.RedisCfg{
+		DSNs: db.RedisDSNs{
+			SorAddr:           rdbSorNodes,
+			SorUsername:       rdbSorUsername,
+			SorClusterName:    rdbSorClusterName,
+			PubsubAddr:        rdbPubSubNode,
+			PubsubUsername:    rdbPubSubUsername,
+			PubsubClusterName: rdbPubSubClusterName,
+		},
 		ActiveProfile: profile,
 	})
-	defer closer()
+	defer rdb.Close()
 
 	aws := cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
-		Profile:        profile,
+		ActiveProfile:  profile,
 		AWSRegion:      awsRegion,
 		AWSEndpoint:    awsEndpoint,
 		StaticUsername: staticAWSUsername,

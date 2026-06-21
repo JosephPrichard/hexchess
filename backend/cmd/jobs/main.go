@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"hexchess-svc/lib/config"
 	"hexchess-svc/lib/dotenv"
 	"log"
 	"log/slog"
@@ -12,7 +13,7 @@ import (
 
 	"hexchess-svc/db"
 	"hexchess-svc/lib/logutil"
-	"hexchess-svc/service"
+	svc "hexchess-svc/service"
 )
 
 const (
@@ -30,9 +31,11 @@ func main() {
 	dotenv.Load()
 
 	dbURL := os.Getenv("DB_URL")
-	profile := os.Getenv("PROFILE")
+	profile := config.ParseProfile(os.Getenv("PROFILE"))
 	awsRegion := os.Getenv("AWS_REGION")
 	rdbSorNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
+	rdbSorUsername := os.Getenv("REDIS_SOR_USERNAME")
+	rdbSorClusterName := os.Getenv("REDIS_SOR_CLUSTER_NAME")
 	oltpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 
 	start := time.Now()
@@ -40,19 +43,19 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, profile)
 	defer shutdown()
 
-	pool, closer := db.NewPgPool(ctx, db.PgConnectCfg{
+	pool := db.NewPgPool(ctx, db.PgConnectCfg{
 		Dsn:           dbURL,
 		ActiveProfile: profile,
 		Region:        awsRegion,
 	})
-	defer closer()
 	pdb := db.NewDB(pool)
+	defer pdb.Close()
 
-	rdb, closer := db.NewRedis(ctx, db.RedisCfg{
-		Addrs:         db.RedisAddrs{SorAddr: rdbSorNodes},
+	rdb := db.NewRedis(ctx, db.RedisCfg{
+		DSNs:          db.RedisDSNs{SorAddr: rdbSorNodes, SorUsername: rdbSorUsername, SorClusterName: rdbSorClusterName},
 		ActiveProfile: profile,
 	})
-	defer closer()
+	defer rdb.Close()
 
 	services := svc.NewHexchessServices(svc.SetupService{DB: pdb, Redis: rdb})
 

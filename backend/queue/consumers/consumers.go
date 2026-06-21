@@ -32,7 +32,7 @@ func StartConsumers(setup SetupConsumers) {
 		},
 		&RedisConsumer{
 			ctx:   setup.Ctx,
-			redis: setup.Redis.GameStore,
+			redis: setup.Redis.Primary,
 
 			StreamKey:     setup.Redis.FinishGameStreamKey,
 			ConsumerGroup: setup.Redis.FinishGameConsumerGroup,
@@ -43,7 +43,7 @@ func StartConsumers(setup SetupConsumers) {
 		},
 		&RedisConsumer{
 			ctx:   setup.Ctx,
-			redis: setup.Redis.GameStore,
+			redis: setup.Redis.Primary,
 
 			StreamKey:     setup.Redis.UpdtGameMetaStreamKey,
 			ConsumerGroup: setup.Redis.UpdtGameMetaConsumerGroup,

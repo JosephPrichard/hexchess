@@ -31,7 +31,7 @@ type SetLbChangeSet struct {
 }
 
 func (services *HexchessServices) SetLeaderboard(ctx context.Context, mode model.GameMode, changes ...SetLbChangeSet) error {
-	pipe := services.redis.Cache.Pipeline()
+	pipe := services.redis.Primary.Pipeline()
 
 	modeLbZSet := fmtLeaderboardZSet(services.redis, mode.String())
 
@@ -55,7 +55,7 @@ func (services *HexchessServices) SetLeaderboard(ctx context.Context, mode model
 }
 
 func (services *HexchessServices) incrLeaderboard(ctx context.Context, changes ...UpdtLbChangeSet) error {
-	pipe := services.redis.Cache.Pipeline()
+	pipe := services.redis.Primary.Pipeline()
 	for _, change := range changes {
 		if model.IsGuestID(change.ID) || change.EloDiff == 0 {
 			// noop zero value changes.
@@ -101,7 +101,7 @@ func (services *HexchessServices) GetUserLeaderboardRanks(ctx context.Context, u
 	strUserID := strconv.Itoa(int(userID))
 
 	// fetch and read ranks for each mode in a single pipeline
-	pipeline := services.redis.Cache.Pipeline()
+	pipeline := services.redis.Primary.Pipeline()
 	getExecs := make([]getExec, 0, len(modes))
 
 	for _, mode := range modes {
@@ -129,7 +129,7 @@ func (services *HexchessServices) GetUserLeaderboardRanks(ctx context.Context, u
 	}
 
 	// lazily initialize then fetch ranks for modes which were not included in the calls above
-	pipeline = services.redis.Cache.Pipeline()
+	pipeline = services.redis.Primary.Pipeline()
 	var addExecs []addExec
 
 	for _, mode := range modes {
@@ -169,7 +169,7 @@ func (services *HexchessServices) getUsersLeaderboardRank(ctx context.Context, u
 		cmd    *redis.IntCmd
 	}
 
-	pipeline := services.redis.Cache.Pipeline()
+	pipeline := services.redis.Primary.Pipeline()
 
 	var getExecs []getExec
 	for _, userID := range userIDs {
@@ -205,12 +205,12 @@ func (services *HexchessServices) getLeaderboard(ctx context.Context, mode model
 	modeLbZSet := fmtLeaderboardZSet(services.redis, mode.String())
 
 	end := startRank - 1 + lbdElemCount
-	strUserIDs, err := services.redis.Cache.ZRevRange(ctx, modeLbZSet, startRank, end).Result()
+	strUserIDs, err := services.redis.Primary.ZRevRange(ctx, modeLbZSet, startRank, end).Result()
 	if err != nil {
 		return Leaderboard{}, serrors.Wrap("retrieve reverse leaderboard by range", err)
 	}
 
-	totalLbdElemCount, err := services.redis.Cache.ZCount(ctx, modeLbZSet, "-inf", "+inf").Result()
+	totalLbdElemCount, err := services.redis.Primary.ZCount(ctx, modeLbZSet, "-inf", "+inf").Result()
 	if err != nil {
 		return Leaderboard{}, serrors.Wrap("count leaderboard", err)
 	}
@@ -308,7 +308,7 @@ func (services *HexchessServices) GetLeaderboardUser(ctx context.Context, userID
 		return serrors.Wrap("select user with elos by userID", err, "userID", userID)
 	})
 	eg.Go(func() (err error) {
-		rankScore, err = services.redis.Cache.ZRankWithScore(egCtx, fmtLeaderboardZSet(services.redis, mode.String()), strUserID).Result()
+		rankScore, err = services.redis.Primary.ZRankWithScore(egCtx, fmtLeaderboardZSet(services.redis, mode.String()), strUserID).Result()
 		return serrors.Wrap("get user rank by userID", err, "userID", userID)
 	})
 

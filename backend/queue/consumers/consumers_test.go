@@ -108,7 +108,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	}
 
 	publisher := producers.NewPublisher(testinfra.Redis)
-	err := publisher.PublishFinishGameEvent(ctx, testinfra.Redis.GameStore, finishedGame)
+	err := publisher.PublishFinishGameEvent(ctx, testinfra.Redis.Primary, finishedGame)
 	require.NoError(t, err)
 
 	eventGateway := EventGateway{services: services}
@@ -116,7 +116,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	queue := RedisConsumer{
 		ctx:    consumerCtx,
 		cancel: cancel,
-		redis:  testinfra.Redis.GameStore,
+		redis:  testinfra.Redis.Primary,
 
 		Concurrency:   1,
 		MaxEvents:     1,
@@ -173,7 +173,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	}
 
 	publisher := producers.NewPublisher(testinfra.Redis)
-	err := publisher.PublishUpdtGameEvent(ctx, testinfra.Redis.GameStore, updtGame)
+	err := publisher.PublishUpdtGameEvent(ctx, testinfra.Redis.Primary, updtGame)
 	require.NoError(t, err)
 
 	eventGateway := EventGateway{services: services}
@@ -181,7 +181,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	queue := RedisConsumer{
 		ctx:    consumerCtx,
 		cancel: cancel,
-		redis:  testinfra.Redis.GameStore,
+		redis:  testinfra.Redis.Primary,
 
 		Concurrency:   1,
 		MaxEvents:     1,

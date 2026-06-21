@@ -144,9 +144,9 @@ func (api *API) HandleUserEvents(client *SSEClient, r *http.Request) error {
 		api.broadcasters.UsersCaster.Unsubscribe(strUserID, usersChan)
 		slog.InfoContext(ctx, "finishing handle user events stream")
 
-		detatchedCtx := context.WithoutCancel(ctx)
-		if _, err = api.services.RemoveActiveUser(detatchedCtx, strUserID); err != nil {
-			slog.ErrorContext(detatchedCtx, "failed to remove active user", "sseID", strUserID, "error", err)
+		detachedCtx := context.WithoutCancel(ctx)
+		if _, err = api.services.RemoveActiveUser(detachedCtx, strUserID); err != nil {
+			slog.ErrorContext(detachedCtx, "failed to remove active user", "sseID", strUserID, "error", err)
 		}
 	}()
 

@@ -3,11 +3,12 @@ package cloud
 import (
 	"context"
 	"fmt"
+	"hexchess-svc/lib/config"
 	"hexchess-svc/lib/logutil"
 	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
@@ -27,22 +28,22 @@ type AWSNames struct {
 }
 
 type AWSClientConfig struct {
-	Names          *AWSNames
-	Profile        string
-	AWSRegion      string
-	AWSEndpoint    string
-	StaticUsername string
-	StaticPassword string
+	Names          *AWSNames      `json:"names"`
+	ActiveProfile  config.Profile `json:"activeProfile"`
+	AWSRegion      string         `json:"awsRegion"`
+	AWSEndpoint    string         `json:"awsEndpoint"`
+	StaticUsername string         `json:"staticUsername"`
+	StaticPassword string         `json:"staticPassword"`
 }
 
 func NewAWSClients(ctx context.Context, clientCfg AWSClientConfig) AWSClient {
-	awsOpts := []func(*config.LoadOptions) error{
-		config.WithRegion(clientCfg.AWSRegion),
+	awsOpts := []func(*awsConfig.LoadOptions) error{
+		awsConfig.WithRegion(clientCfg.AWSRegion),
 	}
-	if clientCfg.Profile == "local" {
-		awsOpts = append(awsOpts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(clientCfg.StaticUsername, clientCfg.StaticPassword, "")))
+	if clientCfg.ActiveProfile == config.Local {
+		awsOpts = append(awsOpts, awsConfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(clientCfg.StaticUsername, clientCfg.StaticPassword, "")))
 	}
-	awsCfg, err := config.LoadDefaultConfig(ctx, awsOpts...)
+	awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsOpts...)
 	if err != nil {
 		logutil.Fatal("load aws config", err)
 	}
@@ -61,7 +62,7 @@ func NewAWSClients(ctx context.Context, clientCfg AWSClientConfig) AWSClient {
 		AWSNames:   *clientCfg.Names,
 	}
 
-	slog.Info("created aws client", "awsClient", awsClient, "awsCfg", fmt.Sprintf("%+v", awsCfg))
+	slog.Info("created aws client", "config", clientCfg)
 	return awsClient
 }
 

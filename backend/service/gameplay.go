@@ -78,7 +78,7 @@ func (services *HexchessServices) createGame(ctx context.Context, setup model.St
 
 	slog.InfoContext(ctx, "created chess game", "chesState", state)
 
-	if _, err := services.redis.GameStore.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+	if _, err := services.redis.Primary.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 		if err := services.setChessState(ctx, pipe, gameID, state, time.Now()); err != nil {
 			return serrors.Wrap("set chess state", err, "gameID", gameID)
 		}

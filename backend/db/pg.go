@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/lib/config"
 	"hexchess-svc/lib/logutil"
 	"log/slog"
 
@@ -11,13 +12,9 @@ import (
 )
 
 type Database interface {
-	Transactor
+	ExecTx(context.Context, TxArgs) error
 	Querier() sqlc.Querier
 	Close()
-}
-
-type Transactor interface {
-	ExecTx(context.Context, TxArgs) error
 }
 
 type ImplDB struct {
@@ -66,23 +63,22 @@ func NewFakeDB(txn pgx.Tx) Database {
 }
 
 type PgConnectCfg struct {
-	Dsn           string `json:"dsn"`
-	ActiveProfile string `json:"activeProfile"`
-	Region        string `json:"region"`
+	Dsn           string         `json:"dsn"`
+	ActiveProfile config.Profile `json:"activeProfile"`
+	Region        string         `json:"region"`
 }
 
-func NewPgPool(ctx context.Context, cfg PgConnectCfg) (*pgxpool.Pool, func()) {
-	slog.Info("creating to postgres db client", "cfg", cfg)
+func NewPgPool(ctx context.Context, cfg PgConnectCfg) *pgxpool.Pool {
+	slog.Info("creating to postgres db client", "config", cfg)
 
 	poolCfg, err := pgxpool.ParseConfig(cfg.Dsn)
 	if err != nil {
 		logutil.Fatal("parse postgres config", err)
 	}
 
-	var connector *PGConnector
-	if cfg.ActiveProfile != "local" {
-		connector = NewPgConnector(ctx, cfg.Region)
-		poolCfg.BeforeConnect = connector.BeforeConnect
+	if cfg.ActiveProfile != config.Local {
+		tokenRefresher := NewPgTokenRefresher(ctx, cfg.Region)
+		poolCfg.BeforeConnect = tokenRefresher.BeforeConnectFunc
 	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
@@ -93,13 +89,6 @@ func NewPgPool(ctx context.Context, cfg PgConnectCfg) (*pgxpool.Pool, func()) {
 		logutil.Fatal("execute postgres startup query", err)
 	}
 
-	slog.InfoContext(ctx, "created postgres db client", "cfg", cfg)
-
-	closer := func() {
-		pool.Close()
-		if connector != nil {
-			connector.Stop()
-		}
-	}
-	return pool, closer
+	slog.InfoContext(ctx, "created postgres db client", "config", cfg)
+	return pool
 }

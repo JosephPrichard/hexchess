@@ -120,7 +120,7 @@ func (changeSet GameResultChangeSet) IsNoop() bool {
 func (services *HexchessServices) InsertGameResult(ctx context.Context, result GameResult) (GameResultChangeSet, error) {
 	var changeSet GameResultChangeSet
 
-	err := services.transactor.ExecTx(ctx, db.TxArgs{
+	err := services.database.ExecTx(ctx, db.TxArgs{
 		// RepeatableRead is required to prevent the following race conditions
 		// Case 1 (Lost Update):
 		// T1 selects the user elos E1 and calculating and insert user elos E2

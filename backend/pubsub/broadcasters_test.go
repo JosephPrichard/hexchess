@@ -3,6 +3,7 @@ package pubsub
 import (
 	"hexchess-svc/db"
 	"hexchess-svc/itest"
+	"hexchess-svc/lib/config"
 	"hexchess-svc/lib/testutil"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
@@ -18,13 +19,13 @@ func TestBroadcastMessage(t *testing.T) {
 	ctx := t.Context()
 
 	redisAddr, _ := itest.SetupRedisTest(ctx, t)
-	rdb, _ := db.NewRedis(ctx, db.RedisCfg{
+	rdb := db.NewRedis(ctx, db.RedisCfg{
 		Names: testutil.NewTestNames(db.DefaultRedisNames),
-		Addrs: db.RedisAddrs{
+		DSNs: db.RedisDSNs{
 			SorAddr:    []string{redisAddr},
 			PubsubAddr: redisAddr,
 		},
-		ActiveProfile: "local",
+		ActiveProfile: config.Local,
 	})
 	defer rdb.Close()
 	broadcaster := NewBroadcaster(rdb)
