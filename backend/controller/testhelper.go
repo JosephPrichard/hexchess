@@ -3,8 +3,8 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"hexchess-svc/cloud"
 	"hexchess-svc/db"
-	"hexchess-svc/egress"
 	"hexchess-svc/itest"
 	"hexchess-svc/pubsub"
 	"net/http"
@@ -23,7 +23,7 @@ import (
 
 type serviceMocks struct {
 	Entropy svc.EntropyAPI
-	Remote  egress.RemoteAPIs
+	Remote  cloud.RemoteAPIs
 }
 
 func setupTestHandler(t logutil.TestLogger, mocks *serviceMocks, flags ...itest.TestFlag) (http.Handler, itest.TestInfra) {

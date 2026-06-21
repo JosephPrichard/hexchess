@@ -1,15 +1,14 @@
-package cmd
+package dotenv
 
 import (
 	"bufio"
+	"hexchess-svc/lib/logutil"
 	"log/slog"
 	"os"
 	"strings"
-
-	"hexchess-svc/lib/logutil"
 )
 
-func InitEnv() {
+func Load() {
 	file, err := os.Open(".env")
 	if err != nil {
 		slog.Warn("did not load env file", "error", err)
@@ -21,7 +20,7 @@ func InitEnv() {
 		line := scanner.Text()
 		index := strings.Index(line, "=")
 		if index < 0 {
-			logutil.Fatal("invalid line in .env file", "line", line)
+			logutil.Fatal("invalid line in .env file", nil, "line", line)
 		}
 		key, value := line[:index], line[index+1:]
 		// these environment variables last until the end of this process

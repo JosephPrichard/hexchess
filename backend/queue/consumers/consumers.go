@@ -14,7 +14,7 @@ import (
 type SetupConsumers struct {
 	Ctx      context.Context
 	Services *svc.HexchessServices
-	Postgres db.DB
+	Postgres db.Database
 	Redis    db.Redis
 }
 
@@ -25,19 +25,19 @@ func StartConsumers(setup SetupConsumers) {
 			ctx: setup.Ctx,
 			pdb: setup.Postgres,
 
-			eventKind:    sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
-			pollInterval: 1 * time.Second,
-			pollCount:    32,
+			EventKind:    sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
+			PollInterval: 1 * time.Second,
+			PollCount:    32,
 			fn:           eventGateway.HandleAdvanceTournamentEvent,
 		},
 		&RedisConsumer{
 			ctx:   setup.Ctx,
 			redis: setup.Redis.GameStore,
 
-			streamKey:     setup.Redis.FinishGameStreamKey,
-			consumerGroup: setup.Redis.FinishGameConsumerGroup,
-			concurrency:   8,
-			partitionKeys: model.GameIDPartitions(),
+			StreamKey:     setup.Redis.FinishGameStreamKey,
+			ConsumerGroup: setup.Redis.FinishGameConsumerGroup,
+			Concurrency:   8,
+			PartitionKeys: model.GameIDPartitions(),
 
 			fn: eventGateway.HandleFinishedGameEvent,
 		},
@@ -45,10 +45,10 @@ func StartConsumers(setup SetupConsumers) {
 			ctx:   setup.Ctx,
 			redis: setup.Redis.GameStore,
 
-			streamKey:     setup.Redis.UpdtGameMetaStreamKey,
-			consumerGroup: setup.Redis.UpdtGameMetaConsumerGroup,
-			concurrency:   8,
-			partitionKeys: model.GameIDPartitions(),
+			StreamKey:     setup.Redis.UpdtGameMetaStreamKey,
+			ConsumerGroup: setup.Redis.UpdtGameMetaConsumerGroup,
+			Concurrency:   8,
+			PartitionKeys: model.GameIDPartitions(),
 
 			fn: eventGateway.HandleUpdtGameEvent,
 		},

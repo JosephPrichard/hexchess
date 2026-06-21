@@ -1,7 +1,7 @@
 package svc
 
 import (
-	"hexchess-svc/egress"
+	"hexchess-svc/cloud"
 	"hexchess-svc/itest"
 	"hexchess-svc/lib/logutil"
 	"hexchess-svc/pubsub"
@@ -9,8 +9,8 @@ import (
 
 type serviceMocks struct {
 	Entropy     EntropyAPI
-	Remote      egress.RemoteAPIs
-	S3Client    egress.AWSClient
+	Remote      cloud.RemoteAPIs
+	S3Client    cloud.AWSClient
 	Broadcaster *pubsub.Broadcaster
 }
 

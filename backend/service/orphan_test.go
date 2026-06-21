@@ -3,7 +3,7 @@ package svc
 import (
 	"bytes"
 	"fmt"
-	"hexchess-svc/egress"
+	"hexchess-svc/cloud"
 	"hexchess-svc/itest"
 	"hexchess-svc/lib/awsutils"
 	"testing"
@@ -25,7 +25,7 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 	profileKeyUserID1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())          // user exists in db
 	profileKeyInvalidUserID := fmt.Sprintf("users/profile-pics/8000/%s", uuid.NewString()) // user does not exist in db
 
-	egress.SetupS3Test(t, testinfra.AWS, []*s3.PutObjectInput{
+	cloud.SetupS3Test(t, testinfra.AWS, []*s3.PutObjectInput{
 		{
 			Bucket: aws.String(testinfra.AWS.S3ProfileBucket),
 			Key:    aws.String(profileKeyUserID1),

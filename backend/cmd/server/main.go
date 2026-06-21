@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"hexchess-svc/cmd"
+	"hexchess-svc/cloud"
 	"hexchess-svc/controller"
 	"hexchess-svc/db"
-	"hexchess-svc/egress"
+	"hexchess-svc/lib/dotenv"
 	"hexchess-svc/lib/logutil"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/consumers"
@@ -18,60 +18,64 @@ import (
 	"strings"
 )
 
+const ServiceName = "hexchess-backend"
+
 func main() {
 	ctx := context.Background()
 
 	runtime.SetBlockProfileRate(1)
 	runtime.SetMutexProfileFraction(1)
 
-	cmd.InitEnv()
+	dotenv.Load()
 
 	serverPort := os.Getenv("SERVER_PORT")
 	dbURL := os.Getenv("DB_URL")
 	rdbSorNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
 	rdbPubSubNode := os.Getenv("REDIS_PUBSUB_NODE")
-	isLocalAWS := os.Getenv("IS_LOCAL_AWS") == "true"
-	awsDefaultRegion := os.Getenv("AWS_DEFAULT_REGION")
+	profile := os.Getenv("PROFILE")
+	awsRegion := os.Getenv("AWS_REGION")
 	awsEndpoint := os.Getenv("AWS_ENDPOINT")
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
-	oltpEndpoint := os.Getenv("OLTP_ENDPOINT")
+	oltpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	// googleAPIKey := os.Getenv("GOOGLE_APIKEY")
 	// cookieDomain := os.Getenv("COOKIE_DOMAIN")
 
-	shutdown := logutil.InitLoggers(logutil.LogConfig{OtlpEndpoint: oltpEndpoint})
+	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, profile)
 	defer shutdown()
 
-	pdb := db.MakeDB(db.MakePgPool(ctx, dbURL))
-	defer pdb.Close()
+	pool, closer := db.MakePgPool(ctx, db.PgConnectCfg{
+		Dsn:     dbURL,
+		Profile: profile,
+		Region:  awsRegion,
+	})
+	defer closer()
+	pdb := db.MakeDB(pool)
 
-	rdb := db.MakeRedis(db.RedisAddrs{
-		SorAddr:    rdbSorNodes,
-		PubsubAddr: rdbPubSubNode,
-	}, nil)
-	defer rdb.Close()
+	rdb, closer := db.MakeRedis(ctx, db.RedisCfg{
+		Addrs:   db.RedisAddrs{SorAddr: rdbSorNodes, PubsubAddr: rdbPubSubNode},
+		Profile: profile,
+	})
+	defer closer()
 
-	aws, err := egress.MakeAWSClients(ctx, egress.AWSConfig{
-		AWSDefaultRegion:  awsDefaultRegion,
-		AWSEndpoint:       awsEndpoint,
-		IsTestCredentials: isLocalAWS,
-	}, nil)
-	if err != nil {
-		logutil.FatalErr("make aws clients", err)
-	}
-
-	remoteAPIs := egress.MakeRemoteAPIs(nil)
+	aws := cloud.MakeAWSClients(ctx, cloud.AWSClientConfig{
+		Profile:     profile,
+		AWSRegion:   awsRegion,
+		AWSEndpoint: awsEndpoint,
+	})
+	remoteAPIs := cloud.MakeRemoteAPIs(nil)
+	broadcaster := pubsub.MakeBroadcaster(rdb)
 
 	services := svc.MakeHexchessServices(svc.SetupService{
 		DB:          pdb,
 		Redis:       rdb,
 		AWS:         aws,
 		Remote:      remoteAPIs,
-		Broadcaster: pubsub.MakeBroadcaster(rdb),
+		Broadcaster: broadcaster,
 	})
 
 	broadcasters := pubsub.MakeLocalBroadcasters()
-	broadcasters.Listen(rdb)
 	defer broadcasters.Shutdown()
+	broadcasters.Listen(rdb)
 
 	consumers.StartConsumers(consumers.SetupConsumers{
 		Ctx:      ctx,
@@ -96,13 +100,13 @@ func main() {
 	})
 	serverSetup := controller.ServerSetup{
 		Services:       services,
-		Broadcaster:    pubsub.MakeBroadcaster(rdb),
+		Broadcaster:    broadcaster,
 		Broadcasters:   broadcasters,
 		AllowedOrigins: allowedOrigins,
 	}
 	mux := controller.MakeServeMux(serverSetup, withHealthcheck)
 
 	if err := http.ListenAndServe(":"+serverPort, mux); err != nil {
-		logutil.FatalErr("failed while serving", err)
+		logutil.Fatal("failed while serving", err)
 	}
 }

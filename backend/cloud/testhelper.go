@@ -1,7 +1,6 @@
-package egress
+package cloud
 
 import (
-	"hexchess-svc/lib/testutil"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -21,8 +20,4 @@ func SetupS3Test(t *testing.T, client AWSClient, objects []*s3.PutObjectInput) {
 			t.Fatalf("failed to upload profile pic: %v", err)
 		}
 	}
-}
-
-func MakeTestAWS() *AWSNames {
-	return testutil.MakeTestNames(DefaultAWSNames)
 }

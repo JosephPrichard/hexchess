@@ -3,6 +3,7 @@ package pubsub
 import (
 	"hexchess-svc/db"
 	"hexchess-svc/itest"
+	"hexchess-svc/lib/testutil"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"testing"
@@ -14,22 +15,22 @@ import (
 
 func TestBroadcastMessage(t *testing.T) {
 	t.Parallel()
+	ctx := t.Context()
 
-	redisAddr, _ := itest.SetupRedisTest(t.Context(), t)
-	rdb := db.MakeRedis(
-		db.RedisAddrs{
+	redisAddr, _ := itest.SetupRedisTest(ctx, t)
+	rdb, _ := db.MakeRedis(ctx, db.RedisCfg{
+		Names: testutil.MakeTestNames(db.DefaultRedisNames),
+		Addrs: db.RedisAddrs{
 			SorAddr:    []string{redisAddr},
 			PubsubAddr: redisAddr,
 		},
-		db.MakeTestRedisNames(),
-	)
+		Profile: "local",
+	})
 	defer rdb.Close()
 	broadcaster := MakeBroadcaster(rdb)
 
 	localBroadcasters := LocalBroadcasters{GamesCaster: MakeBroadcastActor[model.GameID]("testing-multicaster")}
 	<-localBroadcasters.ListenGameMessages(rdb)
-
-	ctx := t.Context()
 
 	wantMsgCount := 2
 

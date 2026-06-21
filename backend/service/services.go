@@ -1,9 +1,9 @@
 package svc
 
 import (
+	"hexchess-svc/cloud"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/egress"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
 )
@@ -12,18 +12,18 @@ type HexchessServices struct {
 	transactor     db.Transactor
 	querier        sqlc.Querier
 	redis          db.Redis
-	aws            egress.AWSClient
-	remote         egress.RemoteAPIs
+	aws            cloud.AWSClient
+	remote         cloud.RemoteAPIs
 	broadcaster    *pubsub.Broadcaster
 	redisPublisher producers.RedisPublisher
 	entropy        EntropyAPI
 }
 
 type SetupService struct {
-	DB          db.DB
+	DB          db.Database
 	Redis       db.Redis
-	AWS         egress.AWSClient
-	Remote      egress.RemoteAPIs
+	AWS         cloud.AWSClient
+	Remote      cloud.RemoteAPIs
 	Entropy     EntropyAPI
 	Broadcaster *pubsub.Broadcaster
 }

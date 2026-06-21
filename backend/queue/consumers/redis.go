@@ -20,12 +20,12 @@ type RedisConsumer struct {
 	cancel context.CancelFunc
 	redis  redis.UniversalClient
 
-	streamKey     string
-	consumerGroup string
-	concurrency   int64
-	partitionKeys []string
-	maxEvents     uint64
-	blockDuration time.Duration
+	StreamKey     string        `json:"streamKey"`
+	ConsumerGroup string        `json:"consumerGroup"`
+	Concurrency   int64         `json:"concurrency"`
+	PartitionKeys []string      `json:"partitionKeys"`
+	MaxEvents     uint64        `json:"maxEvents"`
+	BlockDuration time.Duration `json:"blockDuration"`
 
 	fn ConsumeFunc
 
@@ -41,7 +41,7 @@ func (c *RedisConsumer) Consume() {
 	}
 
 	var wg sync.WaitGroup
-	for _, partitionKey := range c.partitionKeys {
+	for _, partitionKey := range c.PartitionKeys {
 		wg.Go(func() {
 			c.ConsumePartition(partitionKey)
 		})
@@ -53,27 +53,27 @@ func (c *RedisConsumer) Consume() {
 func (c *RedisConsumer) ConsumePartition(partitionKey string) {
 	consumerID := uuid.NewString()
 
-	stream := queue.FmtStreamKey(c.streamKey, partitionKey)
+	stream := queue.FmtStreamKey(c.StreamKey, partitionKey)
 	streams := []string{stream, ">"}
 
-	err := c.redis.XGroupCreateMkStream(c.ctx, stream, c.consumerGroup, "0").Err()
+	err := c.redis.XGroupCreateMkStream(c.ctx, stream, c.ConsumerGroup, "0").Err()
 	if err != nil && !redis.HasErrorPrefix(err, "BUSYGROUP") {
-		slog.Error("create stream consumer group", "error", err, "consumerID", consumerID, "stream", stream, "consumerGroup", c.consumerGroup)
+		slog.Error("create stream consumer group", "error", err, "consumerID", consumerID, "stream", stream, "consumerGroup", c.ConsumerGroup)
 	}
 
 	for i := uint64(0); ; i++ {
-		if i >= c.maxEvents && c.maxEvents != 0 {
+		if i >= c.MaxEvents && c.MaxEvents != 0 {
 			c.cancel()
 		}
 
 		slog.Info("redis stream consumer read operation", "consumerID", consumerID, "streams", streams)
 
 		xArgs := &redis.XReadGroupArgs{
-			Group:    c.consumerGroup,
+			Group:    c.ConsumerGroup,
 			Consumer: consumerID,
 			Streams:  streams,
-			Count:    c.concurrency,
-			Block:    c.blockDuration,
+			Count:    c.Concurrency,
+			Block:    c.BlockDuration,
 		}
 		entries, err := c.redis.XReadGroup(c.ctx, xArgs).Result()
 		if errors.Is(err, context.Canceled) {
@@ -114,7 +114,7 @@ func (c *RedisConsumer) handleXReadMessage(msg redis.XMessage) {
 	if errutil.IsType[NonRetryableQueueError](err) {
 		return
 	}
-	if err := c.redis.XAck(c.ctx, c.streamKey, c.consumerGroup, msg.ID).Err(); err != nil {
+	if err := c.redis.XAck(c.ctx, c.StreamKey, c.ConsumerGroup, msg.ID).Err(); err != nil {
 		slog.ErrorContext(ctx, "failed to send xack", "id", msg.ID, "error", err)
 	} else {
 		slog.InfoContext(ctx, "sent xack", "id", msg.ID)

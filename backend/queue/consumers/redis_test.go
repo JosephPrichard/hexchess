@@ -121,11 +121,11 @@ func TestRedisConsumer(t *testing.T) {
 				ctx:   ctx,
 				redis: testinfra.Redis.Cache,
 
-				streamKey:     consumingStream,
-				consumerGroup: "consumer-group",
-				concurrency:   8,
-				partitionKeys: tt.partitionKeys,
-				blockDuration: time.Millisecond,
+				StreamKey:     consumingStream,
+				ConsumerGroup: "consumer-group",
+				Concurrency:   8,
+				PartitionKeys: tt.partitionKeys,
+				BlockDuration: time.Millisecond,
 
 				fn: h.handleEvent,
 			}

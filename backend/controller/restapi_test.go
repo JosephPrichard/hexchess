@@ -3,7 +3,7 @@ package controller
 import (
 	"errors"
 	"fmt"
-	"hexchess-svc/egress"
+	"hexchess-svc/cloud"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -154,7 +154,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 	tests := []struct {
 		name        string
 		runCount    int
-		setupMocks  func(*gomock.Controller) egress.RemoteAPIs
+		setupMocks  func(*gomock.Controller) cloud.RemoteAPIs
 		body        GoogleLoginBody
 		wantSuccess SessionView
 		wantFail    ServiceResp
@@ -163,13 +163,13 @@ func TestHandleGoogleLogin(t *testing.T) {
 		{
 			name:     "InvalidLoginTokenMocked",
 			runCount: 1,
-			setupMocks: func(ctrl *gomock.Controller) egress.RemoteAPIs {
-				validator := egress.NewMockGoogleTokenValidator(ctrl)
+			setupMocks: func(ctrl *gomock.Controller) cloud.RemoteAPIs {
+				validator := cloud.NewMockGoogleTokenValidator(ctrl)
 				validator.EXPECT().
 					Validate(gomock.Any(), "invalidToken123", apiKey).
 					Return(&idtoken.Payload{}, errors.New("invalid token"))
-				return egress.MakeOptRemoteAPIs(
-					egress.WithGoogleIDTokenValidator(validator, apiKey))
+				return cloud.MakeOptRemoteAPIs(
+					cloud.WithGoogleIDTokenValidator(validator, apiKey))
 			},
 			body:       GoogleLoginBody{Token: "invalidToken123"},
 			wantFail:   ServiceResp{Status: http.StatusInternalServerError, Error: ErrHttpFatal.Error()},
@@ -178,14 +178,14 @@ func TestHandleGoogleLogin(t *testing.T) {
 		{
 			name:     "LoginWithGoogleTokenSuccessful",
 			runCount: 2, // the user is created the first time, the second time we log in with the already inserted account key
-			setupMocks: func(ctrl *gomock.Controller) egress.RemoteAPIs {
-				validator := egress.NewMockGoogleTokenValidator(ctrl)
+			setupMocks: func(ctrl *gomock.Controller) cloud.RemoteAPIs {
+				validator := cloud.NewMockGoogleTokenValidator(ctrl)
 				validator.EXPECT().
 					Validate(gomock.Any(), "testToken123", apiKey).
 					Return(&idtoken.Payload{Subject: "account1", Claims: map[string]any{"email": "email@domain.com"}}, nil).
 					Times(2)
-				return egress.MakeOptRemoteAPIs(
-					egress.WithGoogleIDTokenValidator(validator, apiKey))
+				return cloud.MakeOptRemoteAPIs(
+					cloud.WithGoogleIDTokenValidator(validator, apiKey))
 			},
 			body:        GoogleLoginBody{Token: "testToken123"},
 			wantSuccess: SessionView{Username: "email@domain.com", Country: "un"},

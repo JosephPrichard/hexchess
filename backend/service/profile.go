@@ -208,5 +208,5 @@ func (services *HexchessServices) GetProfilePicKey(ctx context.Context, userID s
 }
 
 func (services *HexchessServices) MakeProfileURL(key string) string {
-	return services.aws.MakeS3Url(services.aws.S3ProfileBucket, key)
+	return fmt.Sprintf("%s/%s/%s", services.aws.S3Endpoint, services.aws.S3ProfileBucket, key)
 }

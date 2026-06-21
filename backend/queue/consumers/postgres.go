@@ -21,13 +21,13 @@ import (
 
 type PostgresConsumer struct {
 	ctx     context.Context
-	pdb     db.DB
+	pdb     db.Database
 	entropy svc.EntropyAPI
 
-	eventKind    sqlc.QueueTypeEnum
-	pollInterval time.Duration
-	pollCount    int32
-	maxEvents    uint64
+	EventKind    sqlc.QueueTypeEnum `json:"eventKind"`
+	PollInterval time.Duration      `json:"pollInterval"`
+	PollCount    int32              `json:"pollCount"`
+	MaxEvents    uint64             `json:"maxEvents"`
 
 	fn ConsumeFunc
 }
@@ -37,10 +37,10 @@ func (c *PostgresConsumer) Consume() {
 		c.entropy = &svc.RealEntropySource{}
 	}
 
-	ticker := time.NewTicker(c.pollInterval)
+	ticker := time.NewTicker(c.PollInterval)
 	i := uint64(0)
 	for range ticker.C {
-		if i >= c.maxEvents && c.maxEvents != 0 {
+		if i >= c.MaxEvents && c.MaxEvents != 0 {
 			break
 		}
 		i++
@@ -69,11 +69,11 @@ func (c *PostgresConsumer) poll() error {
 
 			// locks events for the duration of the function
 			eventRows, err := querier.SelectQueueByPolling(ctx, sqlc.SelectQueueByPollingParams{
-				Type:  c.eventKind,
-				Limit: c.pollCount,
+				Type:  c.EventKind,
+				Limit: c.PollCount,
 			})
 			if err != nil {
-				return serrors.Wrap("select postgres queue messages", err, "kind", c.eventKind, "limit", c.pollCount)
+				return serrors.Wrap("select postgres queue messages", err, "kind", c.EventKind, "limit", c.PollCount)
 			}
 			if len(eventRows) == 0 {
 				return nil

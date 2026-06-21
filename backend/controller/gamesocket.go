@@ -118,7 +118,7 @@ func writeGameMsgErr(ctx context.Context, conn *websocket.Conn, gameID model.Gam
 		wsErr = ErrWsUndoAction
 	}
 
-	logutil.RootLog(ctx, slog.LevelError, "failed to handle ws message", err, "wsErr", wsErr)
+	logutil.SError(ctx, slog.LevelError, "failed to handle ws message", err, "wsErr", wsErr)
 
 	bytes, err := proto.Marshal(SerializeGameOutputError(gameID, wsErr))
 	if err != nil {
@@ -138,7 +138,7 @@ func writeGameInitErr(ctx context.Context, conn *websocket.Conn, gameID model.Ga
 		wsErr = ErrWsFatal
 	}
 
-	logutil.RootLog(ctx, slog.LevelError, "failed to initialize gameplay websocket", err, "wsErr", wsErr)
+	logutil.SError(ctx, slog.LevelError, "failed to initialize gameplay websocket", err, "wsErr", wsErr)
 
 	bytes, err := proto.Marshal(SerializeGameOutputError(gameID, wsErr))
 	if err != nil {

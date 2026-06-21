@@ -2,7 +2,7 @@ package svc
 
 import (
 	"bytes"
-	"hexchess-svc/egress"
+	"hexchess-svc/cloud"
 	"hexchess-svc/itest"
 	"testing"
 	"time"
@@ -27,7 +27,7 @@ func TestDeleteExpiredProfilePics(t *testing.T) {
 	profileKey2 := "users/profile-pics/1/2"
 	lastProfileKey := "users/profile-pics/1/3"
 
-	egress.SetupS3Test(t, testinfra.AWS, []*s3.PutObjectInput{
+	cloud.SetupS3Test(t, testinfra.AWS, []*s3.PutObjectInput{
 		{
 			Bucket: aws.String(testinfra.AWS.S3ProfileBucket),
 			Key:    aws.String(profileKey1),

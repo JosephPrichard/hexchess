@@ -16,7 +16,7 @@ func MakeTestNames[T any](d T) *T {
 		reflectNames = reflectNames.Elem()
 	}
 	if reflectNames.Kind() != reflect.Struct {
-		logutil.Fatal("reflectNames is not a struct")
+		logutil.Fatal("reflectNames is not a struct", nil)
 	}
 
 	for i := range reflectNames.NumField() {

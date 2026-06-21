@@ -29,9 +29,9 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 			case redigo.Message:
 				onMessage(v)
 			case redigo.Subscription:
-				slog.Info("received subscription on channel", "value", v, "channel", v.Channel)
+				slog.Info("received subscription on channel", "kind", v.Kind, "channel", v.Channel)
 			case error:
-				slog.Error("receive from channel", "error", v, "channel", chans)
+				slog.Error("receive from channel", "error", v.Error(), "channel", chans)
 				return
 			}
 		}
@@ -87,6 +87,9 @@ func (b *LocalBroadcasters) Listen(rdb db.Redis) {
 func (b *LocalBroadcasters) Shutdown() {
 	slog.Info("shutting down local broadcasters")
 	b.CountsCaster.Shutdown()
+	b.GamesCaster.Shutdown()
+	b.UsersCaster.Shutdown()
+	b.TournamentCaster.Shutdown()
 }
 
 func (b *LocalBroadcasters) ListenGameMessages(rdb db.Redis) chan struct{} {

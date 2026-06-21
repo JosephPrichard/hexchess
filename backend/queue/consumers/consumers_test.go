@@ -46,10 +46,10 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 		pdb:     testinfra.DB,
 		entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
 
-		eventKind:    sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
-		pollInterval: time.Microsecond,
-		pollCount:    1,
-		maxEvents:    1,
+		EventKind:    sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
+		PollInterval: time.Microsecond,
+		PollCount:    1,
+		MaxEvents:    1,
 		fn:           eventGateway.HandleAdvanceTournamentEvent,
 	}
 
@@ -118,12 +118,12 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		cancel: cancel,
 		redis:  testinfra.Redis.GameStore,
 
-		concurrency:   1,
-		maxEvents:     1,
-		blockDuration: time.Millisecond,
-		streamKey:     testinfra.Redis.FinishGameStreamKey,
-		consumerGroup: testinfra.Redis.FinishGameConsumerGroup,
-		partitionKeys: []string{string(partitionID)},
+		Concurrency:   1,
+		MaxEvents:     1,
+		BlockDuration: time.Millisecond,
+		StreamKey:     testinfra.Redis.FinishGameStreamKey,
+		ConsumerGroup: testinfra.Redis.FinishGameConsumerGroup,
+		PartitionKeys: []string{string(partitionID)},
 
 		fn: eventGateway.HandleFinishedGameEvent,
 	}
@@ -183,12 +183,12 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 		cancel: cancel,
 		redis:  testinfra.Redis.GameStore,
 
-		concurrency:   1,
-		maxEvents:     1,
-		blockDuration: time.Millisecond,
-		streamKey:     testinfra.Redis.UpdtGameMetaStreamKey,
-		consumerGroup: testinfra.Redis.UpdtGameMetaConsumerGroup,
-		partitionKeys: []string{string(partitionID)},
+		Concurrency:   1,
+		MaxEvents:     1,
+		BlockDuration: time.Millisecond,
+		StreamKey:     testinfra.Redis.UpdtGameMetaStreamKey,
+		ConsumerGroup: testinfra.Redis.UpdtGameMetaConsumerGroup,
+		PartitionKeys: []string{string(partitionID)},
 
 		fn: eventGateway.HandleUpdtGameEvent,
 	}

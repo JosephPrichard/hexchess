@@ -6,9 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"hexchess-svc/chess"
-	"hexchess-svc/cmd"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/lib/dotenv"
 	"hexchess-svc/lib/logutil"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
@@ -46,31 +46,43 @@ var (
 	tournamentsCount = flag.Int("tournamentsCount", 25, "number of tournaments to seed")
 )
 
+const ServiceName = "hexchess-seed"
+
 func main() {
 	ctx := context.WithValue(context.Background(), logutil.Trace, "seed-databases-script")
 
-	start := time.Now()
-
-	shutdown := logutil.InitLoggers(logutil.LogConfig{})
-	defer shutdown()
-
-	cmd.InitEnv()
+	dotenv.Load()
 
 	dbURL := os.Getenv("DB_URL")
+	profile := os.Getenv("PROFILE")
+	awsRegion := os.Getenv("AWS_REGION")
 	rdbSorNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
+	oltpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 
-	pool := db.MakePgPool(ctx, dbURL)
+	start := time.Now()
+
+	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, profile)
+	defer shutdown()
+
+	pool, closer := db.MakePgPool(ctx, db.PgConnectCfg{
+		Dsn:     dbURL,
+		Profile: profile,
+		Region:  awsRegion,
+	})
+	defer closer()
 	pdb := db.MakeDB(pool)
-	defer pdb.Close()
 
-	rdb := db.MakeRedis(db.RedisAddrs{SorAddr: rdbSorNodes}, nil)
-	defer rdb.Close()
+	rdb, closer := db.MakeRedis(ctx, db.RedisCfg{
+		Addrs:   db.RedisAddrs{SorAddr: rdbSorNodes},
+		Profile: profile,
+	})
+	defer closer()
 
 	if _, err := pool.Exec(ctx, truncateSql); err != nil {
-		logutil.FatalErr("drop schema", err)
+		logutil.Fatal("drop schema", err)
 	}
 	if err := rdb.Cache.FlushAll(ctx).Err(); err != nil {
-		logutil.FatalErr("flush rdb", err)
+		logutil.Fatal("flush rdb", err)
 	}
 
 	services := svc.MakeHexchessServices(svc.SetupService{DB: pdb, Redis: rdb})
@@ -79,7 +91,7 @@ func main() {
 
 	// root node in the foreign key hierarchy tree
 	if _, err := services.BatchInsertUsers(ctx, userInsts); err != nil {
-		logutil.FatalErr("insert users", err)
+		logutil.Fatal("insert users", err)
 	}
 
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -97,12 +109,12 @@ func main() {
 	})
 
 	if err := eg.Wait(); err != nil {
-		logutil.FatalErr("failed to seed user dependent rows", err)
+		logutil.Fatal("failed to seed user dependent rows", err)
 	}
 
 	// syncs the stat updates written in the game results into the leaderboard.
 	if err := services.SyncLeaderboard(ctx); err != nil {
-		logutil.FatalErr("jobs leaderboard", err)
+		logutil.Fatal("jobs leaderboard", err)
 	}
 
 	slog.Info("finished seeding databases", "time", time.Since(start))
@@ -131,7 +143,7 @@ func generateUserID(useListedIDs map[int64]struct{}) int64 {
 			return userID
 		}
 	}
-	logutil.Fatal("failed to generate user id (all are uselisted)")
+	logutil.Fatal("generate user id (all are uselisted)", nil)
 	return 0
 }
 

@@ -3,12 +3,6 @@ A website to play hexagonal chess online.
 
 Created using Go, Svelte, Postgres, and Redis.
 
-## Run Infrastructure
-
-Starts the redis infrastructure used for caching and message delivery.
-
-`$ docker compose up`
-
 ### Build
 
 Builds generated sources required for development, testing, and deployment.
@@ -33,18 +27,63 @@ Run a Migration (down)
 
 ## Execution (Local)
 
+### Run Infrastructure
+
+Assumes you have `postgres`, `redis-cli`, `redis-server`, `minio`, `grafana`, `alloy`, `pyroscope`, and `loki` installed.
+The script will manage `redis`, `minio`, and `alloy`. Assumes that `pyroscope`, and `loki` are listening and standard ports. 
+
+The network graph is as so:
+```
+app --(tcp/5432)-> postgres
+app --(tcp/6579)-> redis-pubsub
+app --(tcp/6479-6484)-> redis-sor-1,redis-sor-2,redis-sor-3,redis-sor-4,redis-sor-5,redis-sor-6
+app --(tcp/3100)-> loki
+app --(tcp/9100)-> minio
+grafana --(tcp/3100)-> loki
+alloy --(tcp/6060)-> app
+alloy --(tcp/4040)-> pyroscope
+```
+
+`$ cd scripts`
+
+`$ sudo ./start_infra.sh`
+
 ### Env Variables
 
 Create an environment variable file in `backend`
 ```
 SERVER_PORT=8081
-DB_URL=postgres://postgres:<password>@<db-host>:<db-port>/<db-name>
-REDIS_SOR_NODES=localhost:6379
+DB_URL=postgresql://postgres:<password>@localhost:5432/hexchess
+REDIS_SOR_NODES=localhost:6479,localhost:6480,localhost:6481,localhost:6482,localhost:6483,localhost:6484
 REDIS_PUBSUB_NODE=localhost:6579
-IS_LOCAL_S3=true
-AWS_DEFAULT_REGION=us-east-2
+PROFILE=local
+AWS_DEFAULT_REGION=us-east-1
+AWS_ENDPOINT=http://localhost:9100
 ALLOWED_ORIGINS=http://localhost:5173
+OTEL_EXPORTER_OTLP_ENDPOINT=localhost:3100
 ```
+
+`SERVER_PORT` The port where `backend` runs at, this is must be the same as what the ALB is configured to direct traffic to.
+
+`DB_URL` Postgres connection url that the server will connect to.
+
+`REDIS_SOR_NODES` Node URIs for redis instance server will use for caching and system of record
+
+`REDIS_PUBSUB_NODE` URI for redis instance used for message delivery
+
+`ALLOWED_ORIGINS` Allowed origins used for CORs, this should be the URI the UI is running at.
+
+`OTEL_EXPORTER_OTLP_ENDPOINT` Allows the app to forward logs to an oltp compatible server. Setup to your loki endpoint or leave blank to turn off oltp logging.
+
+`PROFILE` Decides the profile (e.g local, test, prod) that will be used to initialize the app. When local is flipped on, AWS authentication is turned off.
+
+`AWS_DEFAULT_REGION` The region the AWS infrastructure resources are in. Ideally us-east-1 because multi region configs are not supported yet.
+
+`AWS_ENDPOINT` The AWS endpoint to point the S3 Client to, this can be set to minio for testing but should be left empty for prod (points to real AWS endpoint by default).
+
+`AWS_SECRET_ID` Standard AWS credentials environment variable.
+
+`AWS_SECRET_KEY` Standard AWS credentials environment variable.
 
 ### Run Server
 
@@ -57,48 +96,3 @@ ALLOWED_ORIGINS=http://localhost:5173
 `$ cd frontend`
 
 `$ npm run dev`
-
-## Build & Execution (Prod)
-
-Create an environment variable file in `root`
-```
-SERVER_PORT=8080
-PPROF_PORT=6060
-DB_URL=postgres://postgres:<db-password>@host.docker.internal:<db-port>/<db-name>
-REDIS_PRIMARY_URL=host.docker.internal:6379
-REDIS_PUBSUB_URL=host.docker.internal:6380
-ALLOWED_ORIGINS=<hostname>
-COOKIE_DOMAIN=localhost
-AWS_SECRET_ID=<aws-credentials>
-AWS_SECRET_KEY=<aws-credentials>
-AWS_DEFAULT_REGION=us-east-1
-AWS_ENDPOINT=
-```
-
-This configuration connects to infra running outside the docker container.
-
-`$ docker build . -t hexchess-app:<version>`
-
-`$ docker run -p 8080:8080 -p 6060:6060 --name hexchess-app --env-file .env -d hexchess-app:<version>`
-
-## Environment Variables
-
-`SERVER_PORT` is the port where `backend` runs at, this is must be the same as what the ALB is configured to direct traffic to.
-
-`DB_URL` postgres connection url that the server will connect to
-
-`REDIS_SOR_NODES` node urls for redis instance server will use for caching and system of record
-
-`REDIS_PUBSUB_NODE` url for redis instance used for message delivery
-
-`ALLOWED_ORIGINS` allowed origins used for CORs, this should be the url the UI is running at
-
-`AWS_SECRET_ID` Standard AWS credentials environment variable.
-
-`AWS_SECRET_KEY` Standard AWS credentials environment variable.
-
-`IS_LOCAL` Decides if we should turn on local mocks for downstream services such as AWS
-
-`AWS_DEFAULT_REGION` The region the AWS infrastructure resources (only S3 as of right now) are in.
-
-`AWS_ENDPOINT` The AWS endpoint to point the S3 Client to, this can be set to localstack for testing but should be left empty for prod (points to real AWS endpoint by default).

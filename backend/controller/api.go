@@ -74,7 +74,7 @@ type API struct {
 func MakeStaticData() StaticData {
 	var countryList []string
 	if err := json.Unmarshal(assets.CountryListJson, &countryList); err != nil {
-		logutil.FatalErr("unmarshal country list", err)
+		logutil.Fatal("unmarshal country list", err)
 	}
 	if countryList == nil {
 		countryList = []string{}
@@ -146,7 +146,7 @@ func MakeServeMux(setup ServerSetup, opts ...func(*chi.Mux)) *chi.Mux {
 	r.Get("/api/ws/game", server.HandleGameWs)
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		slog.ErrorContext(r.Context(), "route not found", "method", r.Method, "url", r.URL)
+		slog.ErrorContext(r.Context(), "route not found", "method", r.Method, "url", r.URL.String())
 		writeJSON(w, http.StatusNotFound, ServiceResp{Status: http.StatusNotFound, Message: "ROUTE_NOT_FOUND"})
 	})
 
@@ -211,7 +211,7 @@ func WithHealthCheck(mux *chi.Mux, config HealthCheckConfig) {
 		health.WithChecks(healthchecks...),
 	)
 	if err != nil {
-		logutil.FatalErr("failed to create health checker", err)
+		logutil.Fatal("failed to create health checker", err)
 	}
 	mux.Get("/healthcheck", h.HandlerFunc)
 }

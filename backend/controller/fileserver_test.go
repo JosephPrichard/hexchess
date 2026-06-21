@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"hexchess-svc/egress"
+	"hexchess-svc/cloud"
 	"hexchess-svc/itest"
 	"hexchess-svc/service"
 	"io"
@@ -44,7 +44,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 		contentType string
 		checksum    string
 		wantStatus  int
-		assertS3    func(*testing.T, egress.AWSClient)
+		assertS3    func(*testing.T, cloud.AWSClient)
 	}{
 		{
 			name:        "UploadSuccessful",
@@ -52,7 +52,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 			contentType: "application/octet-stream",
 			checksum:    computeChecksum([]byte(bodyJustRight)),
 			wantStatus:  http.StatusOK,
-			assertS3: func(t *testing.T, client egress.AWSClient) {
+			assertS3: func(t *testing.T, client cloud.AWSClient) {
 				output, err := client.S3Client.GetObject(t.Context(), &s3.GetObjectInput{
 					Bucket: aws.String(client.S3ProfileBucket),
 					Key:    aws.String("users/profile-pics/2/00000000-0000-0000-0000-000000000000"),
@@ -80,7 +80,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 			h, testinfra := setupTestHandler(t, &serviceMocks{Entropy: &svc.StableEntropySource{}}, itest.Redis, itest.AWS)
 			defer testinfra.Close()
 
-			egress.SetupS3Test(t, testinfra.AWS, nil)
+			cloud.SetupS3Test(t, testinfra.AWS, nil)
 
 			createTestSessions(t, testinfra.Redis)
 
@@ -119,7 +119,7 @@ func TestHandleGetProfilePic(t *testing.T) {
 			wantStatus:  http.StatusTemporaryRedirect,
 			wantWithKey: profileKey1,
 			setupTestData: func(t *testing.T, testinfra itest.TestInfra) {
-				egress.SetupS3Test(t, testinfra.AWS, []*s3.PutObjectInput{
+				cloud.SetupS3Test(t, testinfra.AWS, []*s3.PutObjectInput{
 					{
 						Bucket: aws.String(testinfra.AWS.S3ProfileBucket),
 						Key:    aws.String(profileKey1),

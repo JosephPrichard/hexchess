@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type DB interface {
+type Database interface {
 	Transactor
 	Querier() sqlc.Querier
 	Close()
@@ -57,35 +57,49 @@ func (pdb *FakeDB) Close() {
 	}
 }
 
-func MakeDB(pool *pgxpool.Pool) DB {
+func MakeDB(pool *pgxpool.Pool) Database {
 	return &ImplDB{q: sqlc.New(pool), pool: pool}
 }
 
-func MakeFakeDB(txn pgx.Tx) DB {
+func MakeFakeDB(txn pgx.Tx) Database {
 	return &FakeDB{testingTxn: txn}
 }
 
-func MakePgPool(ctx context.Context, dsn string) *pgxpool.Pool {
-	slog.Info("creating to postgres db client", "dbURL", dsn)
+type PgConnectCfg struct {
+	Dsn     string `json:"dsn"`
+	Profile string `json:"profile"`
+	Region  string `json:"region"`
+}
 
-	config, err := pgxpool.ParseConfig(dsn)
+func MakePgPool(ctx context.Context, cfg PgConnectCfg) (*pgxpool.Pool, func()) {
+	slog.Info("creating to postgres db client", "cfg", cfg)
+
+	poolCfg, err := pgxpool.ParseConfig(cfg.Dsn)
 	if err != nil {
-		logutil.FatalErr("parse postgres config", err)
-	}
-	config.BeforeConnect = func(ctx context.Context, cfg *pgx.ConnConfig) error {
-		slog.InfoContext(ctx, "before connecting to postgres")
-		return nil
+		logutil.Fatal("parse postgres config", err)
 	}
 
-	pool, err := pgxpool.NewWithConfig(ctx, config)
+	var connector *PGConnector
+	if cfg.Profile != "local" {
+		connector = StartPgConnector(ctx, cfg.Region)
+		poolCfg.BeforeConnect = connector.BeforeConnect
+	}
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
-		logutil.FatalErr("create postgres pool", err)
+		logutil.Fatal("create postgres pool", err)
 	}
 	if _, err = pool.Exec(ctx, "SELECT 1;"); err != nil {
-		logutil.FatalErr("execute postgres startup query", err)
+		logutil.Fatal("execute postgres startup query", err)
 	}
 
-	slog.InfoContext(ctx, "created postgres db client", "dbURL", dsn, "config", config)
+	slog.InfoContext(ctx, "created postgres db client", "cfg", cfg)
 
-	return pool
+	closer := func() {
+		pool.Close()
+		if connector != nil {
+			connector.Stop()
+		}
+	}
+	return pool, closer
 }
