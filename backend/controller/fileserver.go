@@ -46,7 +46,7 @@ func (api *API) HandleGetProfilePic(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
-	s3URL := api.services.MakeProfileURL(key)
+	s3URL := api.services.NewProfileURL(key)
 	slog.InfoContext(ctx, "resolved user key to S3 profile pic URL", "url", s3URL, "userID", userID)
 
 	// cache control is for what URL is being redirected to, this only changes if the user uploads a new profile pic

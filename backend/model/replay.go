@@ -42,7 +42,7 @@ type FullReplay struct {
 	ReplayColorElos
 }
 
-func MakeReplayView(input Replay) (output ReplayColorElos) {
+func NewReplayView(input Replay) (output ReplayColorElos) {
 	switch input.Result {
 	case WhiteWin:
 		output.WhiteEloDiff, output.BlackEloDiff = input.WinEloDiff, input.LoseEloDiff

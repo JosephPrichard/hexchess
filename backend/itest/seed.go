@@ -541,7 +541,7 @@ var TournamentParticipantInsts = []struct {
 	},
 }
 
-var GameIDNotFinished = model.MakeGameID() // does not exist in the replay table
+var GameIDNotFinished = model.NewGameID() // does not exist in the replay table
 
 // TournamentMatchInsts JoinedOn must be deterministically ordered.
 var TournamentMatchInsts = []struct {
@@ -632,7 +632,7 @@ var TournamentMatchInsts = []struct {
 }
 
 var TestPbMoveHistory = func() *pb.MoveHistory {
-	wantInitialGame := chess.MakeEmptyGame(false)
+	wantInitialGame := chess.NewEmptyGame(false)
 	pbInitialGame := chess.SerializeGame(&wantInitialGame)
 
 	wantMoveReplay := &pb.MoveHistory{
@@ -656,7 +656,7 @@ var ReplayMoveHistories = []struct {
 }
 
 var TestEventID_TournamentCreation = uuid.New()
-var TestEventID_TournamentCreation_GameID = model.MakeGameID()
+var TestEventID_TournamentCreation_GameID = model.NewGameID()
 
 var Events = []struct {
 	ID   string
@@ -684,9 +684,9 @@ var Events = []struct {
 }
 
 var (
-	GameID1 = model.MakeGameID()
-	GameID2 = model.MakeGameID()
-	GameID3 = model.MakeGameID()
+	GameID1 = model.NewGameID()
+	GameID2 = model.NewGameID()
+	GameID3 = model.NewGameID()
 )
 
 var GameMetas = []struct {

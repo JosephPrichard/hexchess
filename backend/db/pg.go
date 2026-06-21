@@ -57,11 +57,11 @@ func (pdb *FakeDB) Close() {
 	}
 }
 
-func MakeDB(pool *pgxpool.Pool) Database {
+func NewDB(pool *pgxpool.Pool) Database {
 	return &ImplDB{q: sqlc.New(pool), pool: pool}
 }
 
-func MakeFakeDB(txn pgx.Tx) Database {
+func NewFakeDB(txn pgx.Tx) Database {
 	return &FakeDB{testingTxn: txn}
 }
 
@@ -71,7 +71,7 @@ type PgConnectCfg struct {
 	Region  string `json:"region"`
 }
 
-func MakePgPool(ctx context.Context, cfg PgConnectCfg) (*pgxpool.Pool, func()) {
+func NewPgPool(ctx context.Context, cfg PgConnectCfg) (*pgxpool.Pool, func()) {
 	slog.Info("creating to postgres db client", "cfg", cfg)
 
 	poolCfg, err := pgxpool.ParseConfig(cfg.Dsn)
@@ -81,7 +81,7 @@ func MakePgPool(ctx context.Context, cfg PgConnectCfg) (*pgxpool.Pool, func()) {
 
 	var connector *PGConnector
 	if cfg.Profile != "local" {
-		connector = StartPgConnector(ctx, cfg.Region)
+		connector = NewPgConnector(ctx, cfg.Region)
 		poolCfg.BeforeConnect = connector.BeforeConnect
 	}
 

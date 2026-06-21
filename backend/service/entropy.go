@@ -9,14 +9,14 @@ import (
 
 // EntropyAPI is a generator for generating things my program determines as "non-deterministic" and therefore must be mocked in tests
 type EntropyAPI interface {
-	MakeUUID() uuid.UUID
+	NewUUID() uuid.UUID
 	GetTime() time.Time
 }
 
 // RealEntropySource non-deterministic Entropy source that generates real payload
 type RealEntropySource struct{}
 
-func (_ *RealEntropySource) MakeUUID() uuid.UUID {
+func (_ *RealEntropySource) NewUUID() uuid.UUID {
 	return uuid.New()
 }
 
@@ -30,7 +30,7 @@ type StableEntropySource struct {
 	CurrTime time.Time
 }
 
-func (e *StableEntropySource) MakeUUID() uuid.UUID {
+func (e *StableEntropySource) NewUUID() uuid.UUID {
 	var uid uuid.UUID
 	binary.LittleEndian.PutUint64(uid[:], e.idx)
 	e.idx++

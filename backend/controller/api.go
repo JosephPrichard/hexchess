@@ -71,7 +71,7 @@ type API struct {
 	staticData    StaticData
 }
 
-func MakeStaticData() StaticData {
+func NewStaticData() StaticData {
 	var countryList []string
 	if err := json.Unmarshal(assets.CountryListJson, &countryList); err != nil {
 		logutil.Fatal("unmarshal country list", err)
@@ -86,7 +86,7 @@ func MakeStaticData() StaticData {
 	return StaticData{validCountries: validCountries, countryList: countryList}
 }
 
-func MakeServeMux(setup ServerSetup, opts ...func(*chi.Mux)) *chi.Mux {
+func NewServeMux(setup ServerSetup, opts ...func(*chi.Mux)) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Recoverer)
@@ -101,7 +101,7 @@ func MakeServeMux(setup ServerSetup, opts ...func(*chi.Mux)) *chi.Mux {
 		broadcasters:  setup.Broadcasters,
 		entropy:       setup.EntropySource,
 		authenticator: Authenticator{services: setup.Services},
-		staticData:    MakeStaticData(),
+		staticData:    NewStaticData(),
 	}
 
 	r.Post("/api/register", Rest(server.HandleRegister))

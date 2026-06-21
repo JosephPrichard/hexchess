@@ -28,10 +28,10 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
 	defer testinfra.Close()
 
-	services := svc.MakeHexchessServices(svc.SetupService{
+	services := svc.NewHexchessServices(svc.SetupService{
 		DB:          testinfra.DB,
 		Redis:       testinfra.Redis,
-		Broadcaster: pubsub.MakeBroadcaster(testinfra.Redis),
+		Broadcaster: pubsub.NewBroadcaster(testinfra.Redis),
 	})
 
 	tournamentKey := itest.Tournament2ScheduledKnockoutKey
@@ -85,20 +85,20 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
 	defer testinfra.Close()
 
-	services := svc.MakeHexchessServices(svc.SetupService{
+	services := svc.NewHexchessServices(svc.SetupService{
 		DB:          testinfra.DB,
 		Redis:       testinfra.Redis,
-		Broadcaster: pubsub.MakeBroadcaster(testinfra.Redis),
+		Broadcaster: pubsub.NewBroadcaster(testinfra.Redis),
 	})
 
 	whiteUser0 := itest.TestUser[0]
 	blackUser1 := itest.TestUser[1]
-	newGameID := model.MakeGameID()
+	newGameID := model.NewGameID()
 	partitionID := newGameID.Partition()
 
 	finishedGame := model.FinishedGame{
 		GameID:       newGameID,
-		Board:        chess.MakeEmptyBoard(true),
+		Board:        chess.NewEmptyBoard(true),
 		Moves:        []chess.HistMove{},
 		WhitePlayer:  model.PlayerState{ID: whiteUser0.ID, Present: true}, // winner
 		BlackPlayer:  model.PlayerState{ID: blackUser1.ID, Present: true}, // loser
@@ -107,7 +107,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		ReplayResult: model.WhiteWin,
 	}
 
-	publisher := producers.MakePublisher(testinfra.Redis)
+	publisher := producers.NewPublisher(testinfra.Redis)
 	err := publisher.PublishFinishGameEvent(ctx, testinfra.Redis.GameStore, finishedGame)
 	require.NoError(t, err)
 
@@ -152,16 +152,16 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
 	defer testinfra.Close()
 
-	services := svc.MakeHexchessServices(svc.SetupService{
+	services := svc.NewHexchessServices(svc.SetupService{
 		DB:          testinfra.DB,
 		Redis:       testinfra.Redis,
-		Broadcaster: pubsub.MakeBroadcaster(testinfra.Redis),
+		Broadcaster: pubsub.NewBroadcaster(testinfra.Redis),
 		Entropy:     &svc.StableEntropySource{CurrTime: itest.TimeNow},
 	})
 
 	whiteUser0 := itest.TestUser[0]
 	blackUser1 := itest.TestUser[1]
-	gameID := model.MakeGameID()
+	gameID := model.NewGameID()
 	partitionID := gameID.Partition()
 
 	updtGame := model.GameMetadataUpdt{
@@ -172,7 +172,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 		FirstColor:  model.Random,
 	}
 
-	publisher := producers.MakePublisher(testinfra.Redis)
+	publisher := producers.NewPublisher(testinfra.Redis)
 	err := publisher.PublishUpdtGameEvent(ctx, testinfra.Redis.GameStore, updtGame)
 	require.NoError(t, err)
 

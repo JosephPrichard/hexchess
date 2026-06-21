@@ -76,7 +76,7 @@ func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) error {
 		return serrors.Wrap("insert user", err)
 	}
 
-	ttl, err := api.authenticator.SetSessionPlayer(ctx, w, model.MakePlayer(user.ID, user.Username, user.Country))
+	ttl, err := api.authenticator.SetSessionPlayer(ctx, w, model.NewPlayer(user.ID, user.Username, user.Country))
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func (api *API) HandleRegister(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (api *API) handleLoginSession(ctx context.Context, w http.ResponseWriter, user svc.VerifiedUser) error {
-	t, err := api.authenticator.SetSessionPlayer(ctx, w, model.MakePlayer(user.ID, user.Username, user.Country))
+	t, err := api.authenticator.SetSessionPlayer(ctx, w, model.NewPlayer(user.ID, user.Username, user.Country))
 	if err != nil {
 		return err
 	}

@@ -40,21 +40,21 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, profile)
 	defer shutdown()
 
-	pool, closer := db.MakePgPool(ctx, db.PgConnectCfg{
+	pool, closer := db.NewPgPool(ctx, db.PgConnectCfg{
 		Dsn:     dbURL,
 		Profile: profile,
 		Region:  awsRegion,
 	})
 	defer closer()
-	pdb := db.MakeDB(pool)
+	pdb := db.NewDB(pool)
 
-	rdb, closer := db.MakeRedis(ctx, db.RedisCfg{
+	rdb, closer := db.NewRedis(ctx, db.RedisCfg{
 		Addrs:   db.RedisAddrs{SorAddr: rdbSorNodes},
 		Profile: profile,
 	})
 	defer closer()
 
-	services := svc.MakeHexchessServices(svc.SetupService{DB: pdb, Redis: rdb})
+	services := svc.NewHexchessServices(svc.SetupService{DB: pdb, Redis: rdb})
 
 	switch *jobName {
 	case SyncLeaderboardJobName:

@@ -219,7 +219,7 @@ func (api *API) handleGameForfeit(ctx GameSocketContext) error {
 }
 
 func (api *API) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput) error {
-	moveResult, err := api.services.MakeGameMove(ctx.Context, ctx.GameID, ctx.Player, chess.DeserializeMove(pbInput.Move))
+	moveResult, err := api.services.NewGameMove(ctx.Context, ctx.GameID, ctx.Player, chess.DeserializeMove(pbInput.Move))
 	if err != nil {
 		return serrors.Wrap("make move on game", err, "gameID", ctx.GameID)
 	}

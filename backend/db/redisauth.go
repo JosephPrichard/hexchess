@@ -40,7 +40,7 @@ type RedisConnector struct {
 	ticker      *time.Ticker
 }
 
-func StartRedisConnector(ctx context.Context, redisCfg RedisCfg) *RedisConnector {
+func NewRedisConnector(ctx context.Context, redisCfg RedisCfg) *RedisConnector {
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(redisCfg.Region))
 	if err != nil {
 		logutil.Fatal("load aws config", err)

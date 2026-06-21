@@ -61,8 +61,8 @@ type StateSetup struct {
 	UndoState    UndoState
 }
 
-func MakeChessStateVal(s StateSetup) ChessState {
-	board := chess.MakeStartBoard()
+func NewChessStateVal(s StateSetup) ChessState {
+	board := chess.NewStartBoard()
 	if s.InitialBoard != nil {
 		board = *s.InitialBoard
 	}
@@ -83,9 +83,9 @@ func MakeChessStateVal(s StateSetup) ChessState {
 	}
 }
 
-func MakeChessState(s StateSetup) *ChessState {
+func NewChessState(s StateSetup) *ChessState {
 	chessState := &ChessState{}
-	*chessState = MakeChessStateVal(s)
+	*chessState = NewChessStateVal(s)
 	return chessState
 }
 

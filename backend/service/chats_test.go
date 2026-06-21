@@ -17,7 +17,7 @@ func TestEchoStateChats(t *testing.T) {
 	services, testinfra := setupServicesTest(t, nil, itest.Redis)
 	defer testinfra.Close()
 
-	id1 := model.MakeGameID()
+	id1 := model.NewGameID()
 
 	ctx := t.Context()
 

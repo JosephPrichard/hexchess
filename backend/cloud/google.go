@@ -19,7 +19,7 @@ type GoogleAPI struct {
 	validator GoogleTokenValidator
 }
 
-func MakeGoogleAPI(apiKey string, client *http.Client) (GoogleAPI, error) {
+func NewGoogleAPI(apiKey string, client *http.Client) (GoogleAPI, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}

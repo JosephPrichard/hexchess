@@ -25,7 +25,7 @@ type PGConnector struct {
 	ticker    *time.Ticker
 }
 
-func StartPgConnector(ctx context.Context, region string) *PGConnector {
+func NewPgConnector(ctx context.Context, region string) *PGConnector {
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
 		logutil.Fatal("load aws config", err)

@@ -26,8 +26,8 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 
 	testUser0 := itest.TestUser[0]
 	testUser1 := itest.TestUser[1]
-	newGameID := model.MakeGameID()
-	newGameIDGuest := model.MakeGameID()
+	newGameID := model.NewGameID()
+	newGameIDGuest := model.NewGameID()
 
 	tests := []struct {
 		name            string
@@ -39,7 +39,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			name: "InsertFinishedGame",
 			event: model.FinishedGame{
 				GameID:       newGameID,
-				Board:        chess.MakeEmptyBoard(true),
+				Board:        chess.NewEmptyBoard(true),
 				Moves:        []chess.HistMove{},
 				WhitePlayer:  model.PlayerState{ID: testUser0.ID, Present: true}, // winner
 				BlackPlayer:  model.PlayerState{ID: testUser1.ID, Present: true}, // loser
@@ -78,7 +78,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			name: "inserting already inserted finished game",
 			event: model.FinishedGame{
 				GameID: model.GameID(itest.FirstReplayGameID),
-				Board:  chess.MakeEmptyBoard(true),
+				Board:  chess.NewEmptyBoard(true),
 				Moves:  []chess.HistMove{},
 				// used only for validation
 				WhitePlayer: model.PlayerState{ID: testUser0.ID, Present: true},
@@ -94,7 +94,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			name: "inserting a game with a guest",
 			event: model.FinishedGame{
 				GameID:       newGameIDGuest,
-				Board:        chess.MakeEmptyBoard(true),
+				Board:        chess.NewEmptyBoard(true),
 				Moves:        []chess.HistMove{},
 				WhitePlayer:  model.PlayerState{ID: testUser0.ID, Present: true}, // non-guest winner
 				BlackPlayer:  model.PlayerState{ID: -10, Present: true},          // guest loser

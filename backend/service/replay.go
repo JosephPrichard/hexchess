@@ -51,7 +51,7 @@ func mapFullReplayByIDRow(row sqlc.SelectReplayByIDRow) model.FullReplay {
 			WhiteElo:     model.DefaultUserElo(row.WhiteElo),
 			BlackElo:     model.DefaultUserElo(row.BlackElo),
 		},
-		ReplayColorElos: model.MakeReplayView(replay),
+		ReplayColorElos: model.NewReplayView(replay),
 	}
 }
 

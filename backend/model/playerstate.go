@@ -36,7 +36,7 @@ const GuestNumLen = 8
 
 // Use the constructor functions to create games so the boolean flags will be properly initialized - as opposed to remembering to flag them
 
-func MakeGuestPlayer() PlayerState {
+func NewGuestPlayer() PlayerState {
 	const characters = "0123456789"
 
 	var name strings.Builder
@@ -50,6 +50,6 @@ func MakeGuestPlayer() PlayerState {
 	return PlayerState{ID: -rand.Int64(), Name: name.String(), Present: true}
 }
 
-func MakePlayer(id int64, name string, country string) PlayerState {
+func NewPlayer(id int64, name string, country string) PlayerState {
 	return PlayerState{ID: id, Name: name, Country: country, Present: true}
 }

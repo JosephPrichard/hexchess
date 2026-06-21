@@ -43,29 +43,29 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, profile)
 	defer shutdown()
 
-	pool, closer := db.MakePgPool(ctx, db.PgConnectCfg{
+	pool, closer := db.NewPgPool(ctx, db.PgConnectCfg{
 		Dsn:     dbURL,
 		Profile: profile,
 		Region:  awsRegion,
 	})
 	defer closer()
-	pdb := db.MakeDB(pool)
+	pdb := db.NewDB(pool)
 
-	rdb, closer := db.MakeRedis(ctx, db.RedisCfg{
+	rdb, closer := db.NewRedis(ctx, db.RedisCfg{
 		Addrs:   db.RedisAddrs{SorAddr: rdbSorNodes, PubsubAddr: rdbPubSubNode},
 		Profile: profile,
 	})
 	defer closer()
 
-	aws := cloud.MakeAWSClients(ctx, cloud.AWSClientConfig{
+	aws := cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
 		Profile:     profile,
 		AWSRegion:   awsRegion,
 		AWSEndpoint: awsEndpoint,
 	})
-	remoteAPIs := cloud.MakeRemoteAPIs(nil)
-	broadcaster := pubsub.MakeBroadcaster(rdb)
+	remoteAPIs := cloud.NewRemoteAPIs(nil)
+	broadcaster := pubsub.NewBroadcaster(rdb)
 
-	services := svc.MakeHexchessServices(svc.SetupService{
+	services := svc.NewHexchessServices(svc.SetupService{
 		DB:          pdb,
 		Redis:       rdb,
 		AWS:         aws,
@@ -73,7 +73,7 @@ func main() {
 		Broadcaster: broadcaster,
 	})
 
-	broadcasters := pubsub.MakeLocalBroadcasters()
+	broadcasters := pubsub.NewLocalBroadcasters()
 	defer broadcasters.Shutdown()
 	broadcasters.Listen(rdb)
 
@@ -104,7 +104,7 @@ func main() {
 		Broadcasters:   broadcasters,
 		AllowedOrigins: allowedOrigins,
 	}
-	mux := controller.MakeServeMux(serverSetup, withHealthcheck)
+	mux := controller.NewServeMux(serverSetup, withHealthcheck)
 
 	if err := http.ListenAndServe(":"+serverPort, mux); err != nil {
 		logutil.Fatal("failed while serving", err)

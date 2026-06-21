@@ -65,7 +65,7 @@ func mapMetadataUpdt(state *model.ChessState) model.GameMetadataUpdt {
 }
 
 func (services *HexchessServices) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (model.GameID, error) {
-	gameID := model.MakeGameID()
+	gameID := model.NewGameID()
 	err := services.createGame(ctx, model.StateSetup{ID: gameID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
 	return gameID, err
 }
@@ -73,7 +73,7 @@ func (services *HexchessServices) CreateGame(ctx context.Context, color model.Ga
 func (services *HexchessServices) createGame(ctx context.Context, setup model.StateSetup) error {
 	gameID := setup.ID
 
-	state := model.MakeChessState(setup)
+	state := model.NewChessState(setup)
 	state.Game.InitPieceMoves()
 
 	slog.InfoContext(ctx, "created chess game", "chesState", state)
@@ -145,7 +145,7 @@ type MoveResult struct {
 	Move  chess.HistMove
 }
 
-func (services *HexchessServices) MakeGameMove(ctx context.Context, gameID model.GameID, player model.PlayerState, move chess.Move) (MoveResult, error) {
+func (services *HexchessServices) NewGameMove(ctx context.Context, gameID model.GameID, player model.PlayerState, move chess.Move) (MoveResult, error) {
 	update := func(state *model.ChessState) error {
 		slog.InfoContext(ctx, "updating game state by making move", "player", player.ID, "gameId", gameID, "move", move)
 
@@ -163,7 +163,7 @@ func (services *HexchessServices) MakeGameMove(ctx context.Context, gameID model
 
 		// perform move validations then move
 		state.Game.EnsurePieceMoves()
-		if _, err := state.Game.MakeValidMove(move); err != nil {
+		if _, err := state.Game.NewValidMove(move); err != nil {
 			return ErrInvalidMove{GameID: gameID, PlayerID: player.ID, Violation: err}
 		}
 

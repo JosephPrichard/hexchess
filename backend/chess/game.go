@@ -21,12 +21,12 @@ type Game struct {
 	PinTable         [Files][MaxRanks][]Hex
 }
 
-func MakeStartGame(initial ...Place) Game {
-	return Game{Board: MakeStartBoard(initial...)}
+func NewStartGame(initial ...Place) Game {
+	return Game{Board: NewStartBoard(initial...)}
 }
 
-func MakeEmptyGame(isWhiteTurn bool, initial ...Place) Game {
-	return Game{Board: MakeEmptyBoard(isWhiteTurn, initial...)}
+func NewEmptyGame(isWhiteTurn bool, initial ...Place) Game {
+	return Game{Board: NewEmptyBoard(isWhiteTurn, initial...)}
 }
 
 func (g *Game) LastMove() HistMove {
@@ -99,9 +99,9 @@ func (g *Game) GetOppositeMoves() []PieceMoves {
 	return g.GetTurnMoves(!g.Board.IsWhiteTurn)
 }
 
-func (g *Game) MakeMoved(mv Move) Game {
+func (g *Game) NewMoved(mv Move) Game {
 	game := g.DeepCopy()
-	game.MakeMove(mv)
+	game.NewMove(mv)
 	return game
 }
 
@@ -117,7 +117,7 @@ func (g *Game) IsPromotion(mv Move) bool {
 	}
 }
 
-func (g *Game) MakeMove(move Move) HistMove {
+func (g *Game) NewMove(move Move) HistMove {
 	// preconditions: to and from are valid locations on the board, promotion is a valid promotion
 	from := move.From
 	to := move.To
@@ -137,7 +137,7 @@ func (g *Game) MakeMove(move Move) HistMove {
 		g.Board.Set(to.File, to.Rank, pieceFrom)
 	}
 
-	annotMove := g.MakeAnnotatedMove(PieceMove{Piece: pieceFrom, From: from, To: to})
+	annotMove := g.NewAnnotatedMove(PieceMove{Piece: pieceFrom, From: from, To: to})
 	if isPromotion {
 		annotMove.Promotion = promotion
 	}
@@ -183,21 +183,21 @@ func (g *Game) ValidateMove(move Move) error {
 	return nil
 }
 
-func (g *Game) MakeValidMove(move Move) (HistMove, error) {
+func (g *Game) NewValidMove(move Move) (HistMove, error) {
 	if err := g.ValidateMove(move); err != nil {
 		return HistMove{}, err
 	}
-	hm := g.MakeMove(move)
+	hm := g.NewMove(move)
 	g.Moves = append(g.Moves, hm)
 	g.InitPieceMoves()
 	return hm, nil
 }
 
-func (g *Game) MakeHistMove(move Move) {
-	g.Moves = append(g.Moves, g.MakeMove(move))
+func (g *Game) NewHistMove(move Move) {
+	g.Moves = append(g.Moves, g.NewMove(move))
 }
 
-func (g *Game) MakeAnnotatedMove(pm PieceMove) AnnotatedMove {
+func (g *Game) NewAnnotatedMove(pm PieceMove) AnnotatedMove {
 	hm := AnnotatedMove{PieceMove: pm}
 
 	movingPiece := hm.Piece
@@ -565,10 +565,10 @@ func (g *Game) StringColor(isWhite bool) string {
 }
 
 func ApplyMoveSeq(moves ...Move) []HistMove {
-	game := MakeStartGame()
+	game := NewStartGame()
 
 	for _, m := range moves {
-		game.Moves = append(game.Moves, game.MakeMove(m))
+		game.Moves = append(game.Moves, game.NewMove(m))
 	}
 
 	return game.Moves
@@ -592,7 +592,7 @@ func JumpMoveIndex(initial Board, moves []HistMove, index int) (*Game, error) {
 	undoGame := &Game{Board: initial}
 	movesExceptLast := moves[:count]
 	for _, move := range movesExceptLast {
-		_ = undoGame.MakeMove(Move{From: move.From, To: move.To, Promotion: move.Promotion})
+		_ = undoGame.NewMove(Move{From: move.From, To: move.To, Promotion: move.Promotion})
 		// redoing the move has recomputed the hist move. this should be the same as the original move
 		//if !redoMove.Equals(move) {
 		//	return nil, fmt.Errorf("expected redoMove == move, got %#v != %#v", redoMove, move)

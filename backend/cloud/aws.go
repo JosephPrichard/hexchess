@@ -33,7 +33,7 @@ type AWSClientConfig struct {
 	AWSEndpoint string
 }
 
-func MakeAWSClients(ctx context.Context, clientCfg AWSClientConfig) AWSClient {
+func NewAWSClients(ctx context.Context, clientCfg AWSClientConfig) AWSClient {
 	awsOpts := []func(*config.LoadOptions) error{
 		config.WithRegion(clientCfg.AWSRegion),
 	}
@@ -63,6 +63,6 @@ func MakeAWSClients(ctx context.Context, clientCfg AWSClientConfig) AWSClient {
 	return awsClient
 }
 
-func (aws *AWSClient) MakeS3Url(bucket string, key string) string {
+func (aws *AWSClient) NewS3Url(bucket string, key string) string {
 	return fmt.Sprintf("%s/%s/%s", aws.S3Endpoint, bucket, key)
 }

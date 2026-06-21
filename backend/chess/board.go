@@ -345,13 +345,13 @@ func (p Piece) IsKing() bool {
 	return p == WhiteKing || p == BlackKing
 }
 
-var GlobalInitialBoard = MakeInitialBoard()
+var GlobalInitialBoard = NewInitialBoard()
 
 func InitialBoard() Board {
 	return GlobalInitialBoard
 }
 
-func MakeInitialBoard() Board {
+func NewInitialBoard() Board {
 	board := Board{IsWhiteTurn: true}
 
 	placements := []struct {
@@ -406,7 +406,7 @@ func MakeInitialBoard() Board {
 	return board
 }
 
-func MakeStartBoard(initial ...Place) Board {
+func NewStartBoard(initial ...Place) Board {
 	board := InitialBoard()
 	for _, pm := range initial {
 		board.SetPieceNot(pm.Not, pm.Piece)
@@ -414,7 +414,7 @@ func MakeStartBoard(initial ...Place) Board {
 	return board
 }
 
-func MakeEmptyBoard(isWhiteTurn bool, initial ...Place) Board {
+func NewEmptyBoard(isWhiteTurn bool, initial ...Place) Board {
 	board := Board{IsWhiteTurn: isWhiteTurn}
 	for _, pm := range initial {
 		board.SetPieceNot(pm.Not, pm.Piece)

@@ -28,7 +28,7 @@ func TestGame_GetSetPieces(t *testing.T) {
 }
 
 func TestGame_DetermineIsCheckmate(t *testing.T) {
-	game1 := MakeEmptyGame(true)
+	game1 := NewEmptyGame(true)
 	game1.SetPieces(
 		Place{"f6", WhiteKing},
 		Place{"f4", BlackQueen},
@@ -37,7 +37,7 @@ func TestGame_DetermineIsCheckmate(t *testing.T) {
 		Place{"j4", BlackBishop},
 		Place{"f9", BlackKing})
 
-	game2 := MakeEmptyGame(true)
+	game2 := NewEmptyGame(true)
 	game2.SetPieces(
 		Place{"f1", WhiteKing},
 		Place{"a1", BlackQueen},
@@ -80,77 +80,77 @@ func TestGame_findMoves(t *testing.T) {
 	}{
 		{
 			name:      "center rook",
-			game:      MakeStartGame(Place{"f6", BlackRook}),
+			game:      NewStartGame(Place{"f6", BlackRook}),
 			hex:       Hex{File: 5, Rank: 5},
 			fn:        (*Game).findRookMoves,
 			wantMoves: []string{"f5", "e5", "d4", "c3", "b2", "a1", "g5", "h4", "i3", "j2", "k1", "e6", "d6", "c6", "b6", "a6", "g6", "h6", "i6", "j6", "k6"},
 		},
 		{
 			name:      "rook left",
-			game:      MakeStartGame(Place{"c8", BlackRook}),
+			game:      NewStartGame(Place{"c8", BlackRook}),
 			hex:       Hex{File: 2, Rank: 7},
 			fn:        (*Game).findRookMoves,
 			wantMoves: []string{"d8", "e8", "f8"},
 		},
 		{
 			name:      "rook right",
-			game:      MakeStartGame(Place{"h4", BlackRook}),
+			game:      NewStartGame(Place{"h4", BlackRook}),
 			hex:       Hex{File: 7, Rank: 3},
 			fn:        (*Game).findRookMoves,
 			wantMoves: []string{"h5", "h6", "h3", "g4", "i3", "j2", "k1", "g5", "f6", "e6", "d6", "c6", "b6", "a6", "i4", "j4", "k4"},
 		},
 		{
 			name:      "bishop center",
-			game:      MakeStartGame(Place{"f6", BlackBishop}),
+			game:      NewStartGame(Place{"f6", BlackBishop}),
 			hex:       Hex{File: 5, Rank: 5},
 			fn:        (*Game).findBishopMoves,
 			wantMoves: []string{"h5", "j4", "d5", "b4", "g4", "e4"},
 		},
 		{
 			name:      "bishop left",
-			game:      MakeStartGame(Place{"c8", BlackBishop}),
+			game:      NewStartGame(Place{"c8", BlackBishop}),
 			hex:       Hex{File: 2, Rank: 7},
 			fn:        (*Game).findBishopMoves,
 			wantMoves: []string{"e9", "g9", "b6", "a4"},
 		},
 		{
 			name:      "bishop right",
-			game:      MakeStartGame(Place{"h4", BlackBishop}),
+			game:      NewStartGame(Place{"h4", BlackBishop}),
 			hex:       Hex{File: 7, Rank: 3},
 			fn:        (*Game).findBishopMoves,
 			wantMoves: []string{"j3", "f5", "i5", "j6", "g6", "f8", "e9", "i2", "g3", "f2"},
 		},
 		{
 			name:      "knight center",
-			game:      MakeEmptyGame(true, Place{"f6", WhiteKnight}),
+			game:      NewEmptyGame(true, Place{"f6", WhiteKnight}),
 			hex:       Hex{File: 5, Rank: 5},
 			fn:        (*Game).findKnightMoves,
 			wantMoves: []string{"h7", "g8", "h3", "g3", "d7", "e8", "d3", "e3", "c5", "c4", "i5", "i4"},
 		},
 		{
 			name:      "knight left",
-			game:      MakeEmptyGame(true, Place{"d3", WhiteKnight}),
+			game:      NewEmptyGame(true, Place{"d3", WhiteKnight}),
 			hex:       Hex{File: 3, Rank: 2},
 			fn:        (*Game).findKnightMoves,
 			wantMoves: []string{"f6", "e6", "f2", "e1", "b4", "c5", "a2", "a1", "g4", "g3"},
 		},
 		{
 			name:      "knight right",
-			game:      MakeEmptyGame(true, Place{"h7", WhiteKnight}),
+			game:      NewEmptyGame(true, Place{"h7", WhiteKnight}),
 			hex:       Hex{File: 7, Rank: 6},
 			fn:        (*Game).findKnightMoves,
 			wantMoves: []string{"j4", "i4", "f10", "g10", "f6", "g5", "e8", "e7", "k6", "k5"},
 		},
 		{
 			name:      "pawn first move",
-			game:      MakeStartGame(Place{"g4", WhitePawn}),
+			game:      NewStartGame(Place{"g4", WhitePawn}),
 			hex:       Hex{File: 6, Rank: 3},
 			fn:        (*Game).findPawnMovesWhite,
 			wantMoves: []string{"g5", "g6"},
 		},
 		{
 			name: "pawn take move",
-			game: MakeStartGame(
+			game: NewStartGame(
 				Place{"c4", BlackKnight},
 				Place{"e5", WhiteKnight},
 				Place{"d5", BlackPawn},
@@ -171,7 +171,7 @@ func TestGame_findMoves(t *testing.T) {
 
 func TestGame_ValidateMove(t *testing.T) {
 
-	game := MakeStartGame(
+	game := NewStartGame(
 		Place{"a1", WhiteKnight},
 		Place{"a5", WhitePawn},
 		Place{"c4", BlackKnight},
@@ -235,24 +235,24 @@ func TestGame_ValidateMove(t *testing.T) {
 	}
 }
 
-func TestGame_MakeMove(t *testing.T) {
-	game := MakeStartGame(
+func TestGame_NewMove(t *testing.T) {
+	game := NewStartGame(
 		Place{"c4", BlackKnight},
 		Place{"e5", WhiteKnight},
 		Place{"d5", WhitePawn},
 		Place{"k5", WhitePawn})
-	game1 := game.MakeMoved(Move{From: Hex{File: 3, Rank: 4}, To: Hex{File: 3, Rank: 3}})
+	game1 := game.NewMoved(Move{From: Hex{File: 3, Rank: 4}, To: Hex{File: 3, Rank: 3}})
 
 	assert.Equal(t, Empty, game1.Board.Get(3, 4))
 	assert.Equal(t, WhitePawn, game1.Board.Get(3, 3))
-	game2 := game.MakeMoved(Move{From: Hex{File: 10, Rank: 4}, To: Hex{File: 10, Rank: 5}, Promotion: QueenPromotion})
+	game2 := game.NewMoved(Move{From: Hex{File: 10, Rank: 4}, To: Hex{File: 10, Rank: 5}, Promotion: QueenPromotion})
 
 	assert.Equal(t, Empty, game2.Board.Get(10, 4))
 	assert.Equal(t, WhiteQueen, game2.Board.Get(10, 5))
 }
 
 func TestGame_GetMoveNotation(t *testing.T) {
-	game := MakeEmptyGame(true,
+	game := NewEmptyGame(true,
 		Place{"f5", WhitePawn},
 		Place{"a1", WhiteKing},
 		Place{"k6", BlackKing},
@@ -344,7 +344,7 @@ func TestGame_GetMoveNotation(t *testing.T) {
 			t.Logf("expecting move: %v", test.not)
 
 			test.game.InitPieceMoves()
-			annotMove := test.game.MakeAnnotatedMove(test.pm)
+			annotMove := test.game.NewAnnotatedMove(test.pm)
 			annotMove.Promotion = test.promotion
 			str := annotMove.String()
 			assert.Equal(t, test.not, str)
@@ -356,7 +356,7 @@ func TestJumpMoveIndex(t *testing.T) {
 	t.Run("no move to jump to", func(t *testing.T) {
 		var moves []HistMove
 
-		game, err := JumpMoveIndex(MakeStartBoard(), moves, 1)
+		game, err := JumpMoveIndex(NewStartBoard(), moves, 1)
 
 		require.Equal(t, JumpIndexError{Count: 2, Len: 0}, err)
 		require.Nil(t, game)
@@ -367,7 +367,7 @@ func TestJumpMoveIndex(t *testing.T) {
 			Move{From: HexStr("b1"), To: HexStr("b2")},
 			Move{From: HexStr("b7"), To: HexStr("b6")})
 
-		game, err := JumpMoveIndex(MakeStartBoard(), moves, 0)
+		game, err := JumpMoveIndex(NewStartBoard(), moves, 0)
 
 		require.NoError(t, err)
 		require.NotNil(t, game)
@@ -379,7 +379,7 @@ func TestJumpMoveIndex(t *testing.T) {
 			Move{From: HexStr("b1"), To: HexStr("b2")},
 			Move{From: HexStr("b7"), To: HexStr("b6")})
 
-		game, err := JumpMoveIndex(MakeStartBoard(), moves, 1)
+		game, err := JumpMoveIndex(NewStartBoard(), moves, 1)
 
 		require.NoError(t, err)
 		require.NotNil(t, game)
@@ -392,7 +392,7 @@ func TestJumpMoveIndex(t *testing.T) {
 			Move{From: HexStr("b7"), To: HexStr("b6")},
 			Move{From: HexStr("c2"), To: HexStr("c3")})
 
-		game, err := JumpMoveIndex(MakeStartBoard(), moves, 1)
+		game, err := JumpMoveIndex(NewStartBoard(), moves, 1)
 
 		require.NoError(t, err)
 		require.NotNil(t, game)
@@ -427,7 +427,7 @@ func findBadGames(game Game, depth int, node *PieceMoveNode, b *BadGame) {
 				*b = BadGame{Game: game, Node: node, Moves: pms.Moves}
 				panic("bad game")
 			}
-			game2 := game.MakeMoved(Move{From: pms.From, To: to, Promotion: QueenPromotion})
+			game2 := game.NewMoved(Move{From: pms.From, To: to, Promotion: QueenPromotion})
 			nextNode := &PieceMoveNode{
 				Game: game,
 				Move: PieceMove{
@@ -455,5 +455,5 @@ func findBadGames(game Game, depth int, node *PieceMoveNode, b *BadGame) {
 //			t.FailNow()
 //		}
 //	}()
-//	findBadGames(MakeStartGame(), 5, nil, &b)
+//	findBadGames(NewStartGame(), 5, nil, &b)
 //}

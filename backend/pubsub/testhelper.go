@@ -25,7 +25,7 @@ func ExpectBroadcastGames(t *testing.T, rdb db.Redis, gameID model.GameID, wantO
 		return func() {}
 	}
 
-	localBroadcasters := MakeLocalBroadcasters()
+	localBroadcasters := NewLocalBroadcasters()
 	localBroadcasters.Listen(rdb)
 
 	subChan := make(chan []byte, len(wantOutputs))
@@ -48,7 +48,7 @@ func ExpectBroadcastActiveUsers(t *testing.T, rdb db.Redis, wantOutputs []int64)
 		return func() {}
 	}
 
-	localBroadcasters := MakeLocalBroadcasters()
+	localBroadcasters := NewLocalBroadcasters()
 	localBroadcasters.Listen(rdb)
 
 	subChan := make(chan GlobalCastEvent, len(wantOutputs))

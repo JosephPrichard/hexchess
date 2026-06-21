@@ -11,7 +11,7 @@ type GameID string
 
 const GameIDSymbols = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
-func MakeGameID() GameID {
+func NewGameID() GameID {
 	gameID := make([]byte, 8)
 	for i := range gameID {
 		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(GameIDSymbols))))

@@ -50,7 +50,7 @@ func RandomMoveHistSeq(mode model.GameMode, game chess.Game, low int, hi int) ([
 			return nil, fmt.Errorf("expected move to not be to piece of same color %v", pm)
 		}
 
-		hm := game.MakeMove(chess.Move{From: pm.From, To: pm.To, Promotion: chess.QueenPromotion})
+		hm := game.NewMove(chess.Move{From: pm.From, To: pm.To, Promotion: chess.QueenPromotion})
 		game.Moves = append(game.Moves, hm)
 	}
 

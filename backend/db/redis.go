@@ -88,7 +88,7 @@ type RedisCfg struct {
 	Names       *RedisNames
 }
 
-func MakeRedis(ctx context.Context, redisCfg RedisCfg) (Redis, func()) {
+func NewRedis(ctx context.Context, redisCfg RedisCfg) (Redis, func()) {
 	slog.Info("creating redis client", "cfg", redisCfg, "names", redisCfg.Names)
 
 	if redisCfg.Names == nil {
@@ -110,7 +110,7 @@ func MakeRedis(ctx context.Context, redisCfg RedisCfg) (Redis, func()) {
 	}
 	var connector *RedisConnector
 	if redisCfg.Profile != "local" {
-		connector = StartRedisConnector(ctx, redisCfg)
+		connector = NewRedisConnector(ctx, redisCfg)
 		redisClientOpts.CredentialsProvider = connector.CredentialsProvider
 	}
 	redisClient := redis.NewUniversalClient(redisClientOpts)

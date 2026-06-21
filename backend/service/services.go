@@ -28,7 +28,7 @@ type SetupService struct {
 	Broadcaster *pubsub.Broadcaster
 }
 
-func MakeHexchessServices(setup SetupService) *HexchessServices {
+func NewHexchessServices(setup SetupService) *HexchessServices {
 	var querier sqlc.Querier
 	if setup.DB != nil {
 		querier = setup.DB.Querier()
@@ -43,7 +43,7 @@ func MakeHexchessServices(setup SetupService) *HexchessServices {
 		aws:            setup.AWS,
 		remote:         setup.Remote,
 		entropy:        setup.Entropy,
-		redisPublisher: producers.MakePublisher(setup.Redis),
+		redisPublisher: producers.NewPublisher(setup.Redis),
 		broadcaster:    setup.Broadcaster,
 	}
 }

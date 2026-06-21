@@ -154,7 +154,7 @@ func mapTourneyMatchFromRow(match sqlc.SelectReplayMatchesByTournamentIDRow) mod
 		}
 		tournamentReplay = &model.TournamentReplay{
 			Replay:          replay,
-			ReplayColorElos: model.MakeReplayView(replay),
+			ReplayColorElos: model.NewReplayView(replay),
 		}
 	}
 
@@ -541,7 +541,7 @@ func matchmakeScheduledTournament(ctx context.Context, querier sqlc.Querier, tou
 		participants = append(participants, FirstMatchParticipant{UserID: row.UserID, Elo: row.Elo})
 	}
 
-	response, err := MakeFirstMatches(FirstMatchmakingRequest{
+	response, err := NewFirstMatches(FirstMatchmakingRequest{
 		Ruleset:      ruleset,
 		Mode:         mode,
 		Participants: participants,
@@ -690,8 +690,8 @@ func (services *HexchessServices) createTournamentMatches(ctx context.Context, m
 				ID:         match.GameID,
 				Mode:       match.GameMode,
 				FirstColor: model.White,
-				White:      model.MakePlayer(match.WhiteID, whitePlayerData.Username, whitePlayerData.Country),
-				Black:      model.MakePlayer(match.BlackID, blackPlayerData.Username, blackPlayerData.Country),
+				White:      model.NewPlayer(match.WhiteID, whitePlayerData.Username, whitePlayerData.Country),
+				Black:      model.NewPlayer(match.BlackID, blackPlayerData.Username, blackPlayerData.Country),
 			})
 			return serrors.Wrap("create game", err, "index", i, "gameID", match.GameID)
 		})

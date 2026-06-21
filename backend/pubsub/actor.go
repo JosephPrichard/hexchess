@@ -27,7 +27,7 @@ type broadcasterAction[ActorID comparable] struct {
 	payload []byte
 }
 
-func MakeBroadcastActor[ActorID comparable](ID string) *BroadcastActor[ActorID] {
+func NewBroadcastActor[ActorID comparable](ID string) *BroadcastActor[ActorID] {
 	actor := &BroadcastActor[ActorID]{ID: ID, actionChan: make(chan broadcasterAction[ActorID]), actorsMap: make(map[ActorID][]chan []byte)}
 	go actor.Start()
 	return actor
@@ -149,7 +149,7 @@ type globalcasterAction struct {
 	payload GlobalCastEvent
 }
 
-func MakeGlobalCasterActor(id string) *GlobalCasterActor {
+func NewGlobalCasterActor(id string) *GlobalCasterActor {
 	actor := &GlobalCasterActor{id: id, actionChan: make(chan globalcasterAction), subscriberMap: make(map[chan GlobalCastEvent]struct{})}
 	go actor.Start()
 	return actor

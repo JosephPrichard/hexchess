@@ -58,12 +58,12 @@ type LocalBroadcasters struct {
 	TournamentCaster *BroadcastActor[string]
 }
 
-func MakeLocalBroadcasters() *LocalBroadcasters {
+func NewLocalBroadcasters() *LocalBroadcasters {
 	return &LocalBroadcasters{
-		CountsCaster:     MakeGlobalCasterActor("counts-caster"),
-		GamesCaster:      MakeBroadcastActor[model.GameID]("games-caster"),
-		UsersCaster:      MakeBroadcastActor[string]("users-caster"),
-		TournamentCaster: MakeBroadcastActor[string]("users-caster"),
+		CountsCaster:     NewGlobalCasterActor("counts-caster"),
+		GamesCaster:      NewBroadcastActor[model.GameID]("games-caster"),
+		UsersCaster:      NewBroadcastActor[string]("users-caster"),
+		TournamentCaster: NewBroadcastActor[string]("users-caster"),
 	}
 }
 

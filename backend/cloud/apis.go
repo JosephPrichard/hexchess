@@ -6,8 +6,8 @@ type RemoteAPIs struct {
 	GoogleAPI
 }
 
-func MakeRemoteAPIs(client *http.Client) RemoteAPIs {
-	googleAPI, err := MakeGoogleAPI("", client)
+func NewRemoteAPIs(client *http.Client) RemoteAPIs {
+	googleAPI, err := NewGoogleAPI("", client)
 	if err != nil {
 		panic(err)
 	}
@@ -28,7 +28,7 @@ func WithGoogleIDTokenValidator(validator GoogleTokenValidator, apiKey string) R
 	}
 }
 
-func MakeOptRemoteAPIs(opts ...RemoteAPIOpt) RemoteAPIs {
+func NewOptRemoteAPIs(opts ...RemoteAPIOpt) RemoteAPIs {
 	var apis RemoteAPIs
 	for _, opt := range opts {
 		opt(&apis)

@@ -18,8 +18,8 @@ func TestBroadcastMessage(t *testing.T) {
 	ctx := t.Context()
 
 	redisAddr, _ := itest.SetupRedisTest(ctx, t)
-	rdb, _ := db.MakeRedis(ctx, db.RedisCfg{
-		Names: testutil.MakeTestNames(db.DefaultRedisNames),
+	rdb, _ := db.NewRedis(ctx, db.RedisCfg{
+		Names: testutil.NewTestNames(db.DefaultRedisNames),
 		Addrs: db.RedisAddrs{
 			SorAddr:    []string{redisAddr},
 			PubsubAddr: redisAddr,
@@ -27,9 +27,9 @@ func TestBroadcastMessage(t *testing.T) {
 		Profile: "local",
 	})
 	defer rdb.Close()
-	broadcaster := MakeBroadcaster(rdb)
+	broadcaster := NewBroadcaster(rdb)
 
-	localBroadcasters := LocalBroadcasters{GamesCaster: MakeBroadcastActor[model.GameID]("testing-multicaster")}
+	localBroadcasters := LocalBroadcasters{GamesCaster: NewBroadcastActor[model.GameID]("testing-multicaster")}
 	<-localBroadcasters.ListenGameMessages(rdb)
 
 	wantMsgCount := 2

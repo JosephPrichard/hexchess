@@ -36,10 +36,10 @@ func TestEchoChessState(t *testing.T) {
 	services, testinfra := setupServicesTest(t, nil, itest.Redis)
 	defer testinfra.Close()
 
-	id1 := model.MakeGameID()
-	id2 := model.MakeGameID()
+	id1 := model.NewGameID()
+	id2 := model.NewGameID()
 
-	s1 := model.MakeChessState(model.StateSetup{ID: id1, Mode: model.ModeCorrespondence1, FirstColor: model.Random})
+	s1 := model.NewChessState(model.StateSetup{ID: id1, Mode: model.ModeCorrespondence1, FirstColor: model.Random})
 	ctx := t.Context()
 
 	require.NoError(t, services.SetChessState(ctx, id1, s1))
@@ -60,10 +60,10 @@ func TestUpdateChessState(t *testing.T) {
 	services, testinfra := setupServicesTest(t, nil, itest.Redis)
 	defer testinfra.Close()
 
-	testID := model.MakeGameID()
+	testID := model.NewGameID()
 	arbitraryKey := uuid.NewString()
 
-	inState := model.MakeChessState(model.StateSetup{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.Random})
+	inState := model.NewChessState(model.StateSetup{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.Random})
 
 	ctx := t.Context()
 
@@ -96,15 +96,15 @@ func TestUpdateChessState_Errors(t *testing.T) {
 	services, testinfra := setupServicesTest(t, nil, itest.Redis)
 	defer testinfra.Close()
 
-	testID := model.MakeGameID()
+	testID := model.NewGameID()
 
-	inState := model.MakeChessState(model.StateSetup{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.White})
+	inState := model.NewChessState(model.StateSetup{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.White})
 	require.NoError(t, services.SetChessState(context.Background(), testID, inState))
 
 	ctx := t.Context()
 
 	t.Run("failing with unknown gameID", func(t *testing.T) {
-		_, err := services.updateChessStateTxn(ctx, model.MakeGameID(), func(state *model.ChessState) error { return nil }, nil)
+		_, err := services.updateChessStateTxn(ctx, model.NewGameID(), func(state *model.ChessState) error { return nil }, nil)
 
 		assert.Equal(t, ErrNoChessState, err)
 	})

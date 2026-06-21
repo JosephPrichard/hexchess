@@ -69,9 +69,9 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 		if err != nil {
 			t.Fatalf("failed to begin test txn: %v", err)
 		}
-		pdb = db.MakeFakeDB(testTx)
+		pdb = db.NewFakeDB(testTx)
 	} else if roPostgres {
-		pdb = db.MakeDB(pool)
+		pdb = db.NewDB(pool)
 	}
 	var querier sqlc.Querier
 	if pdb != nil {
@@ -80,8 +80,8 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 
 	var rdb db.Redis
 	if redis {
-		rdb, _ = db.MakeRedis(ctx, db.RedisCfg{
-			Names: testutil.MakeTestNames(db.DefaultRedisNames),
+		rdb, _ = db.NewRedis(ctx, db.RedisCfg{
+			Names: testutil.NewTestNames(db.DefaultRedisNames),
 			Addrs: db.RedisAddrs{
 				SorAddr:    []string{redisAddr},
 				PubsubAddr: redisAddr,
@@ -92,8 +92,8 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 
 	var aws cloud.AWSClient
 	if localstack {
-		aws = cloud.MakeAWSClients(ctx, cloud.AWSClientConfig{
-			Names:       testutil.MakeTestNames(cloud.DefaultAWSNames),
+		aws = cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
+			Names:       testutil.NewTestNames(cloud.DefaultAWSNames),
 			Profile:     "local",
 			AWSRegion:   "us-east-1",
 			AWSEndpoint: localstackAddr,

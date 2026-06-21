@@ -18,7 +18,7 @@ func TestSessions(t *testing.T) {
 	services, testinfra := setupServicesTest(t, nil, itest.Redis)
 	defer testinfra.Close()
 
-	playerIn := model.MakePlayer(1, "testing-session", "country")
+	playerIn := model.NewPlayer(1, "testing-session", "country")
 	sessionID1 := "session1"
 	sessionID2 := "session2"
 	sessionID3 := "session3"

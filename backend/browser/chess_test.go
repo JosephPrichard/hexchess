@@ -119,7 +119,7 @@ func TestGetGame(t *testing.T) {
 	})
 }
 
-func TestMakeMove(t *testing.T) {
+func TestNewMove(t *testing.T) {
 	t.Parallel()
 
 	wasm := makeTestWasm()
@@ -140,15 +140,15 @@ func TestMakeMove(t *testing.T) {
 
 		inputs := []js.Value{uint8ArrayFromBytes(gameBytes), uint8ArrayFromBytes(moveBytes)}
 
-		result := wasm.MakeMove(js.Undefined(), inputs).(js.Value)
+		result := wasm.NewMove(js.Undefined(), inputs).(js.Value)
 
 		wantGame := &chess.Game{Board: chess.InitialBoard()}
 		wantGame.InitPieceMoves() // used when calculating histories
-		wantGame.MakeHistMove(chess.Move{
+		wantGame.NewHistMove(chess.Move{
 			From: chess.HexStr("b1"),
 			To:   chess.HexStr("b2"),
 		})
-		wantGame.InitPieceMoves() // wasm MakeMove regenerates moves
+		wantGame.InitPieceMoves() // wasm NewMove regenerates moves
 		wantGame.ClearTables()    // not serialized
 
 		assertGame(t, wantGame, result)
@@ -167,7 +167,7 @@ func TestMakeMove(t *testing.T) {
 
 		inputs := []js.Value{uint8ArrayFromBytes(gameBytes), uint8ArrayFromBytes(moveBytes)}
 
-		result := wasm.MakeMove(js.Undefined(), inputs).(js.Value)
+		result := wasm.NewMove(js.Undefined(), inputs).(js.Value)
 
 		assertGame(t, nil, result)
 	})
@@ -175,7 +175,7 @@ func TestMakeMove(t *testing.T) {
 	t.Run("invalid arguments", func(t *testing.T) {
 		t.Parallel()
 
-		result := wasm.MakeMove(js.Undefined(), nil).(js.Value)
+		result := wasm.NewMove(js.Undefined(), nil).(js.Value)
 		assertGame(t, nil, result)
 	})
 }
@@ -262,8 +262,8 @@ func TestGameAtMoveIndex(t *testing.T) {
 		t.Parallel()
 
 		game := &chess.Game{Board: chess.InitialBoard()}
-		game.MakeHistMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")})
-		game.MakeHistMove(chess.Move{From: chess.HexStr("b7"), To: chess.HexStr("b6")})
+		game.NewHistMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")})
+		game.NewHistMove(chess.Move{From: chess.HexStr("b7"), To: chess.HexStr("b6")})
 
 		movesBytes, err := proto.Marshal(&pb.HistMoves{Moves: chess.SerializeMoveList(game.Moves)})
 		requireNoError(t, err)
@@ -273,7 +273,7 @@ func TestGameAtMoveIndex(t *testing.T) {
 		result := wasm.GameAtMoveIndex(js.Undefined(), inputs).(js.Value)
 
 		wantGame := &chess.Game{Board: chess.InitialBoard()}
-		wantGame.MakeHistMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")})
+		wantGame.NewHistMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")})
 		wantGame.InitPieceMoves()
 		wantGame.ClearTables()
 

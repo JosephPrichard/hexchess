@@ -168,7 +168,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 				validator.EXPECT().
 					Validate(gomock.Any(), "invalidToken123", apiKey).
 					Return(&idtoken.Payload{}, errors.New("invalid token"))
-				return cloud.MakeOptRemoteAPIs(
+				return cloud.NewOptRemoteAPIs(
 					cloud.WithGoogleIDTokenValidator(validator, apiKey))
 			},
 			body:       GoogleLoginBody{Token: "invalidToken123"},
@@ -184,7 +184,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 					Validate(gomock.Any(), "testToken123", apiKey).
 					Return(&idtoken.Payload{Subject: "account1", Claims: map[string]any{"email": "email@domain.com"}}, nil).
 					Times(2)
-				return cloud.MakeOptRemoteAPIs(
+				return cloud.NewOptRemoteAPIs(
 					cloud.WithGoogleIDTokenValidator(validator, apiKey))
 			},
 			body:        GoogleLoginBody{Token: "testToken123"},

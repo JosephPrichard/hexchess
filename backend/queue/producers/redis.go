@@ -19,7 +19,7 @@ type RedisPublisher struct {
 	redis db.RedisNames
 }
 
-func MakePublisher(redis db.Redis) RedisPublisher {
+func NewPublisher(redis db.Redis) RedisPublisher {
 	return RedisPublisher{redis: redis.RedisNames}
 }
 

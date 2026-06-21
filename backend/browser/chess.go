@@ -140,7 +140,7 @@ func (w *ChessWasm) GetGame(_ js.Value, args []js.Value) any {
 	return w.serializeGame(&game)
 }
 
-func (w *ChessWasm) MakeMove(_ js.Value, args []js.Value) any {
+func (w *ChessWasm) NewMove(_ js.Value, args []js.Value) any {
 	if len(args) < 2 {
 		return w.JsErrStr("fn expects at least 2 args")
 	}
@@ -160,7 +160,7 @@ func (w *ChessWasm) MakeMove(_ js.Value, args []js.Value) any {
 		if err != nil {
 			return w.JsErr(err)
 		}
-		if _, err := game.MakeValidMove(move); err != nil {
+		if _, err := game.NewValidMove(move); err != nil {
 			return w.JsDebugErr(err)
 		}
 	}
@@ -236,7 +236,7 @@ func RegisterChessModule(version string) {
 	global := js.Global()
 	wasm := &ChessWasm{Global: global, Version: version}
 	global.Set("getGame", js.FuncOf(wasm.GetGame))
-	global.Set("makeMove", js.FuncOf(wasm.MakeMove))
+	global.Set("makeMove", js.FuncOf(wasm.NewMove))
 	global.Set("fenToGame", js.FuncOf(wasm.FenToGame))
 	global.Set("boardToFen", js.FuncOf(wasm.BoardToFen))
 	global.Set("gameAtMoveIndex", js.FuncOf(wasm.GameAtMoveIndex))

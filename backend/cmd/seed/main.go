@@ -64,15 +64,15 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, profile)
 	defer shutdown()
 
-	pool, closer := db.MakePgPool(ctx, db.PgConnectCfg{
+	pool, closer := db.NewPgPool(ctx, db.PgConnectCfg{
 		Dsn:     dbURL,
 		Profile: profile,
 		Region:  awsRegion,
 	})
 	defer closer()
-	pdb := db.MakeDB(pool)
+	pdb := db.NewDB(pool)
 
-	rdb, closer := db.MakeRedis(ctx, db.RedisCfg{
+	rdb, closer := db.NewRedis(ctx, db.RedisCfg{
 		Addrs:   db.RedisAddrs{SorAddr: rdbSorNodes},
 		Profile: profile,
 	})
@@ -85,7 +85,7 @@ func main() {
 		logutil.Fatal("flush rdb", err)
 	}
 
-	services := svc.MakeHexchessServices(svc.SetupService{DB: pdb, Redis: rdb})
+	services := svc.NewHexchessServices(svc.SetupService{DB: pdb, Redis: rdb})
 
 	userInsts := generateUserInsts()
 
@@ -234,7 +234,7 @@ func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts 
 
 			mode := inst.ReplayMode
 
-			moveSeq, err := svc.RandomMoveHistSeq(mode, chess.MakeStartGame(), 10, 30)
+			moveSeq, err := svc.RandomMoveHistSeq(mode, chess.NewStartGame(), 10, 30)
 			if err != nil {
 				return fmt.Errorf("generate random move seq: %w", err)
 			}
@@ -244,7 +244,7 @@ func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts 
 			}
 
 			changeSet, err := services.InsertGameResult(egCtx, svc.GameResult{
-				GameID:       model.MakeGameID(),
+				GameID:       model.NewGameID(),
 				WhiteID:      inst.WhiteID,
 				BlackID:      inst.BlackID,
 				ReplayCause:  inst.ReplayCause,
@@ -305,7 +305,7 @@ func generateTournaments() []TournamentInsts {
 			whiteID, blackID := participants[i].UserID, participants[i+1].UserID
 			matches = append(matches, sqlc.BatchInsertTournamentMatchParams{
 				TournamentKey: tkey,
-				GameID:        model.MakeGameID().String(), // there are no games in the game store matching this at this point in time
+				GameID:        model.NewGameID().String(), // there are no games in the game store matching this at this point in time
 				WhiteID:       whiteID,
 				BlackID:       blackID,
 				Round:         int32(1),

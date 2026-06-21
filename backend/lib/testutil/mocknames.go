@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func MakeTestNames[T any](d T) *T {
+func NewTestNames[T any](d T) *T {
 	names := d
 	namesPtr := &names
 

@@ -32,7 +32,7 @@ func TestParse_Fen(t *testing.T) {
 		{
 			name: "valid FEN with many empty files",
 			fen:  "6/K6/8/9/10/11/10/8k/8/7/6 w",
-			wantBoard: MakeEmptyBoard(true,
+			wantBoard: NewEmptyBoard(true,
 				Place{"b1", WhiteKing},
 				Place{"h9", BlackKing},
 			),

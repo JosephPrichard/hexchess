@@ -35,7 +35,7 @@ type Broadcaster struct {
 	names db.RedisNames
 }
 
-func MakeBroadcaster(redis db.Redis) *Broadcaster {
+func NewBroadcaster(redis db.Redis) *Broadcaster {
 	return &Broadcaster{redis: redis.PubSub, names: redis.RedisNames}
 }
 

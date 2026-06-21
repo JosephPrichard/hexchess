@@ -33,9 +33,9 @@ func setupTestHandler(t logutil.TestLogger, mocks *serviceMocks, flags ...itest.
 
 	infra := itest.SetupIntegrationTest(t, flags...)
 
-	broadcaster := pubsub.MakeBroadcaster(infra.Redis)
+	broadcaster := pubsub.NewBroadcaster(infra.Redis)
 
-	services := svc.MakeHexchessServices(svc.SetupService{
+	services := svc.NewHexchessServices(svc.SetupService{
 		DB:          infra.DB,
 		Redis:       infra.Redis,
 		AWS:         infra.AWS,
@@ -43,7 +43,7 @@ func setupTestHandler(t logutil.TestLogger, mocks *serviceMocks, flags ...itest.
 		Entropy:     mocks.Entropy,
 		Broadcaster: broadcaster,
 	})
-	h := MakeServeMux(ServerSetup{Services: services, Broadcaster: broadcaster})
+	h := NewServeMux(ServerSetup{Services: services, Broadcaster: broadcaster})
 
 	return h, infra
 }
@@ -57,21 +57,21 @@ type websocketTestContext struct {
 
 func setupWebsocketTest(t *testing.T) websocketTestContext {
 	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
-	services := svc.MakeHexchessServices(svc.SetupService{
+	services := svc.NewHexchessServices(svc.SetupService{
 		DB:          testinfra.DB,
 		Redis:       testinfra.Redis,
-		Broadcaster: pubsub.MakeBroadcaster(testinfra.Redis),
+		Broadcaster: pubsub.NewBroadcaster(testinfra.Redis),
 	})
-	localBroadcasters := pubsub.MakeLocalBroadcasters()
+	localBroadcasters := pubsub.NewLocalBroadcasters()
 	<-localBroadcasters.ListenGameMessages(testinfra.Redis)
 
 	createTestSessions(t, testinfra.Redis)
 	createTestChessStates(t, testinfra.Redis)
 
-	testServer := httptest.NewServer(MakeServeMux(ServerSetup{
+	testServer := httptest.NewServer(NewServeMux(ServerSetup{
 		Services:     services,
 		Broadcasters: localBroadcasters,
-		Broadcaster:  pubsub.MakeBroadcaster(testinfra.Redis),
+		Broadcaster:  pubsub.NewBroadcaster(testinfra.Redis),
 	}))
 	return websocketTestContext{testinfra: testinfra, services: services, localBroadcasters: localBroadcasters, testServer: testServer}
 }
@@ -102,30 +102,30 @@ func (s *sseTestContext) Shutdown() {
 
 func setupSSETest(t *testing.T) sseTestContext {
 	testinfra := itest.SetupIntegrationTest(t, itest.ROPostgres, itest.Redis)
-	services := svc.MakeHexchessServices(svc.SetupService{
+	services := svc.NewHexchessServices(svc.SetupService{
 		DB:          testinfra.DB,
 		Redis:       testinfra.Redis,
 		Entropy:     &svc.StableEntropySource{},
-		Broadcaster: pubsub.MakeBroadcaster(testinfra.Redis),
+		Broadcaster: pubsub.NewBroadcaster(testinfra.Redis),
 	})
 
 	createTestSessions(t, testinfra.Redis)
 
-	localBroadcasters := pubsub.MakeLocalBroadcasters()
+	localBroadcasters := pubsub.NewLocalBroadcasters()
 
 	<-localBroadcasters.ListenCountEvents(testinfra.Redis)
 	<-localBroadcasters.ListenUsersMessages(testinfra.Redis)
 	<-localBroadcasters.ListenTournamentMessages(testinfra.Redis)
 
-	testServer := httptest.NewServer(MakeServeMux(ServerSetup{
+	testServer := httptest.NewServer(NewServeMux(ServerSetup{
 		Services:     services,
-		Broadcaster:  pubsub.MakeBroadcaster(testinfra.Redis),
+		Broadcaster:  pubsub.NewBroadcaster(testinfra.Redis),
 		Broadcasters: localBroadcasters,
 	}))
 	return sseTestContext{
 		testinfra:         testinfra,
 		services:          services,
-		broadcaster:       pubsub.MakeBroadcaster(testinfra.Redis),
+		broadcaster:       pubsub.NewBroadcaster(testinfra.Redis),
 		localBroadcasters: localBroadcasters,
 		testServer:        testServer,
 	}
@@ -133,7 +133,7 @@ func setupSSETest(t *testing.T) sseTestContext {
 
 var TestSessionID1 = "testing-session-id-1"
 var TestSessionID2 = "testing-session-id-2"
-var TestGameID1 = model.MakeGameID()
+var TestGameID1 = model.NewGameID()
 
 func createTestSessions(t *testing.T, redis db.Redis) {
 	t.Helper()
@@ -144,8 +144,8 @@ func createTestSessions(t *testing.T, redis db.Redis) {
 		Player model.PlayerState
 		Expiry time.Duration
 	}{
-		{ID: TestSessionID1, Player: model.MakePlayer(1, "user1", "us"), Expiry: SessionMaxAge},
-		{ID: TestSessionID2, Player: model.MakePlayer(2, "user2", "us"), Expiry: SessionMaxAge},
+		{ID: TestSessionID1, Player: model.NewPlayer(1, "user1", "us"), Expiry: SessionMaxAge},
+		{ID: TestSessionID2, Player: model.NewPlayer(2, "user2", "us"), Expiry: SessionMaxAge},
 	} {
 		data, err := model.MarshalPlayer(session.Player)
 		if err != nil {
@@ -162,15 +162,15 @@ func createTestChessStates(t *testing.T, redis db.Redis) {
 	t.Helper()
 
 	var testStates = []*model.ChessState{
-		model.MakeChessState(model.StateSetup{
+		model.NewChessState(model.StateSetup{
 			ID:         TestGameID1,
 			Mode:       model.ModeCorrespondence1,
 			FirstColor: model.Random,
-			Black:      model.MakePlayer(2, "user2", "us"),
+			Black:      model.NewPlayer(2, "user2", "us"),
 			UndoState:  model.UndoState{UndoID: 2},
 		}),
-		model.MakeChessState(model.StateSetup{ID: "game2", Mode: model.ModeCorrespondence1, FirstColor: model.Random}),
-		model.MakeChessState(model.StateSetup{ID: "game3", Mode: model.ModeCorrespondence1, FirstColor: model.Random}),
+		model.NewChessState(model.StateSetup{ID: "game2", Mode: model.ModeCorrespondence1, FirstColor: model.Random}),
+		model.NewChessState(model.StateSetup{ID: "game3", Mode: model.ModeCorrespondence1, FirstColor: model.Random}),
 	}
 
 	ctx := t.Context()

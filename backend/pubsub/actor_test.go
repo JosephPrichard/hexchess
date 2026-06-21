@@ -23,7 +23,7 @@ func collectMessages(messages [][]byte) []string {
 }
 
 func TestMulticasterActor(t *testing.T) {
-	actor := MakeBroadcastActor[string]("testing-multicasters")
+	actor := NewBroadcastActor[string]("testing-multicasters")
 	defer actor.Shutdown()
 
 	wantSub1Msgs := []string{"test1", "test2", "test3"}
@@ -72,7 +72,7 @@ func TestMulticasterActor(t *testing.T) {
 }
 
 func TestGlobalCasterActor(t *testing.T) {
-	actor := MakeGlobalCasterActor("testing-globalcaster")
+	actor := NewGlobalCasterActor("testing-globalcaster")
 	defer actor.Shutdown()
 
 	e1 := GlobalCastEvent{Kind: 0, Data: "test1"}

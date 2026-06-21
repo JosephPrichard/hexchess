@@ -133,7 +133,7 @@ func (services *HexchessServices) UploadProfilePic(
 	defer file.Close()
 	body := ioutil.NewLimitReader(cancel, file, MaxProfilePicSize)
 
-	key := fmtProfilePicKey(uploader.ID, services.entropy.MakeUUID().String())
+	key := fmtProfilePicKey(uploader.ID, services.entropy.NewUUID().String())
 
 	var output *s3.PutObjectOutput
 	var checksumAlgorithm s3Types.ChecksumAlgorithm
@@ -207,6 +207,6 @@ func (services *HexchessServices) GetProfilePicKey(ctx context.Context, userID s
 	return mostRecentKey, nil
 }
 
-func (services *HexchessServices) MakeProfileURL(key string) string {
+func (services *HexchessServices) NewProfileURL(key string) string {
 	return fmt.Sprintf("%s/%s/%s", services.aws.S3Endpoint, services.aws.S3ProfileBucket, key)
 }

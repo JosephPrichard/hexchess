@@ -32,7 +32,7 @@ type SessionView struct {
 
 var testSessionViewCmpOpts = cmpopts.IgnoreFields(SessionView{}, "ID", "TTLSecs")
 
-func MakeSessionID() string {
+func NewSessionID() string {
 	bytes := make([]byte, SessionIDLength)
 	for i := range SessionIDLength {
 		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(SessionIDCharset))))
@@ -51,16 +51,16 @@ func issueTempSession(session enum.Optional[model.PlayerState], w http.ResponseW
 	if session.IsPresent {
 		player := session.Value
 
-		tempSessionID = MakeSessionID()
+		tempSessionID = NewSessionID()
 
 		sessions = []svc.SessionInst{
 			{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge},
 		}
 	} else {
-		player := model.MakeGuestPlayer()
+		player := model.NewGuestPlayer()
 
-		tempSessionID = MakeSessionID()
-		guestSessionID := MakeSessionID()
+		tempSessionID = NewSessionID()
+		guestSessionID := NewSessionID()
 
 		sessions = []svc.SessionInst{
 			{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge},
@@ -110,7 +110,7 @@ func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request
 }
 
 func (auth *Authenticator) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player model.PlayerState) (time.Duration, error) {
-	sessionToken := MakeSessionID()
+	sessionToken := NewSessionID()
 	if err := auth.services.SetSessions(ctx, svc.SessionInst{SessionID: sessionToken, Player: player, Expiry: SessionMaxAge}); err != nil {
 		return 0, serrors.Wrap("set session player", err, "playerID", player.ID)
 	}
