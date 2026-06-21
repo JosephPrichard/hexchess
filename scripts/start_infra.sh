@@ -24,8 +24,8 @@ alloy run "$CONFIG_FILE" --storage.path="$HOME/.alloy-data" > "$LOG_FILE" 2>&1 &
 echo "started alloy"
 
 # starts minio as a mock backend for s3, credentials here match the test credentials in the backend
-export MINIO_ROOT_USER=testing
-export MINIO_ROOT_PASSWORD=testing
+export MINIO_ROOT_USER=test-username
+export MINIO_ROOT_PASSWORD=test-password
 
 minio server /mnt/data --console-address ":9101" --address ":${MINIO_PORT}" &
 echo "started minio"

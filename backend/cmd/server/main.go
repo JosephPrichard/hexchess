@@ -37,6 +37,8 @@ func main() {
 	awsEndpoint := os.Getenv("AWS_ENDPOINT")
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 	oltpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	staticAWSUsername := os.Getenv("AWS_STATIC_USERNAME")
+	staticAWSPassword := os.Getenv("AWS_STATIC_PASSWORD")
 	// googleAPIKey := os.Getenv("GOOGLE_APIKEY")
 	// cookieDomain := os.Getenv("COOKIE_DOMAIN")
 
@@ -44,23 +46,25 @@ func main() {
 	defer shutdown()
 
 	pool, closer := db.NewPgPool(ctx, db.PgConnectCfg{
-		Dsn:     dbURL,
-		Profile: profile,
-		Region:  awsRegion,
+		Dsn:           dbURL,
+		ActiveProfile: profile,
+		Region:        awsRegion,
 	})
 	defer closer()
 	pdb := db.NewDB(pool)
 
 	rdb, closer := db.NewRedis(ctx, db.RedisCfg{
-		Addrs:   db.RedisAddrs{SorAddr: rdbSorNodes, PubsubAddr: rdbPubSubNode},
-		Profile: profile,
+		Addrs:         db.RedisAddrs{SorAddr: rdbSorNodes, PubsubAddr: rdbPubSubNode},
+		ActiveProfile: profile,
 	})
 	defer closer()
 
 	aws := cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
-		Profile:     profile,
-		AWSRegion:   awsRegion,
-		AWSEndpoint: awsEndpoint,
+		Profile:        profile,
+		AWSRegion:      awsRegion,
+		AWSEndpoint:    awsEndpoint,
+		StaticUsername: staticAWSUsername,
+		StaticPassword: staticAWSPassword,
 	})
 	remoteAPIs := cloud.NewRemoteAPIs(nil)
 	broadcaster := pubsub.NewBroadcaster(rdb)

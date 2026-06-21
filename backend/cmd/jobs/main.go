@@ -41,16 +41,16 @@ func main() {
 	defer shutdown()
 
 	pool, closer := db.NewPgPool(ctx, db.PgConnectCfg{
-		Dsn:     dbURL,
-		Profile: profile,
-		Region:  awsRegion,
+		Dsn:           dbURL,
+		ActiveProfile: profile,
+		Region:        awsRegion,
 	})
 	defer closer()
 	pdb := db.NewDB(pool)
 
 	rdb, closer := db.NewRedis(ctx, db.RedisCfg{
-		Addrs:   db.RedisAddrs{SorAddr: rdbSorNodes},
-		Profile: profile,
+		Addrs:         db.RedisAddrs{SorAddr: rdbSorNodes},
+		ActiveProfile: profile,
 	})
 	defer closer()
 

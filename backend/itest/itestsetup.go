@@ -86,17 +86,19 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 				SorAddr:    []string{redisAddr},
 				PubsubAddr: redisAddr,
 			},
-			Profile: "local",
+			ActiveProfile: "local",
 		})
 	}
 
 	var aws cloud.AWSClient
 	if localstack {
 		aws = cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
-			Names:       testutil.NewTestNames(cloud.DefaultAWSNames),
-			Profile:     "local",
-			AWSRegion:   "us-east-1",
-			AWSEndpoint: localstackAddr,
+			Names:          testutil.NewTestNames(cloud.DefaultAWSNames),
+			Profile:        "local",
+			AWSRegion:      "us-east-1",
+			AWSEndpoint:    localstackAddr,
+			StaticUsername: "testing",
+			StaticPassword: "testing",
 		})
 	}
 

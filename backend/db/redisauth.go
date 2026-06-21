@@ -40,8 +40,8 @@ type RedisConnector struct {
 	ticker      *time.Ticker
 }
 
-func NewRedisConnector(ctx context.Context, redisCfg RedisCfg) *RedisConnector {
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(redisCfg.Region))
+func NewRedisConnector(ctx context.Context, region, username, clusterName string) *RedisConnector {
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
 		logutil.Fatal("load aws config", err)
 	}
@@ -56,11 +56,11 @@ func NewRedisConnector(ctx context.Context, redisCfg RedisCfg) *RedisConnector {
 
 	queryParams := url.Values{
 		"Action":        {connectAction},
-		"User":          {redisCfg.UserName},
+		"User":          {username},
 		"X-Amz-Expires": {strconv.FormatInt(int64(tokenValiditySeconds), 10)},
 	}
 	authURL := url.URL{
-		Host:     redisCfg.ClusterName,
+		Host:     clusterName,
 		Scheme:   "http",
 		Path:     "/",
 		RawQuery: queryParams.Encode(),
@@ -71,8 +71,8 @@ func NewRedisConnector(ctx context.Context, redisCfg RedisCfg) *RedisConnector {
 	}
 
 	connector := &RedisConnector{
-		serviceName: redisCfg.ClusterName,
-		region:      redisCfg.Region,
+		serviceName: clusterName,
+		region:      region,
 		req:         req,
 		credentials: credentials,
 		signer:      v4.NewSigner(),
@@ -108,6 +108,6 @@ func (c *RedisConnector) refreshLoop() {
 
 func (c *RedisConnector) CredentialsProvider() (username string, password string) {
 	token := c.token.Load().(authToken)
-	slog.Info("redis credentials provider", "tokenIssuedAt", token.issuedAt, "tokenLifetime", time.Since(token.issuedAt))
+	slog.Info("redis credentials provider", "serviceName", c.serviceName, "tokenIssuedAt", token.issuedAt, "tokenLifetime", time.Since(token.issuedAt))
 	return c.username, token.value
 }

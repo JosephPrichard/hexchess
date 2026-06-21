@@ -66,9 +66,9 @@ func NewFakeDB(txn pgx.Tx) Database {
 }
 
 type PgConnectCfg struct {
-	Dsn     string `json:"dsn"`
-	Profile string `json:"profile"`
-	Region  string `json:"region"`
+	Dsn           string `json:"dsn"`
+	ActiveProfile string `json:"activeProfile"`
+	Region        string `json:"region"`
 }
 
 func NewPgPool(ctx context.Context, cfg PgConnectCfg) (*pgxpool.Pool, func()) {
@@ -80,7 +80,7 @@ func NewPgPool(ctx context.Context, cfg PgConnectCfg) (*pgxpool.Pool, func()) {
 	}
 
 	var connector *PGConnector
-	if cfg.Profile != "local" {
+	if cfg.ActiveProfile != "local" {
 		connector = NewPgConnector(ctx, cfg.Region)
 		poolCfg.BeforeConnect = connector.BeforeConnect
 	}

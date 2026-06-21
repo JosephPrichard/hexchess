@@ -27,10 +27,12 @@ type AWSNames struct {
 }
 
 type AWSClientConfig struct {
-	Names       *AWSNames
-	Profile     string
-	AWSRegion   string
-	AWSEndpoint string
+	Names          *AWSNames
+	Profile        string
+	AWSRegion      string
+	AWSEndpoint    string
+	StaticUsername string
+	StaticPassword string
 }
 
 func NewAWSClients(ctx context.Context, clientCfg AWSClientConfig) AWSClient {
@@ -38,7 +40,7 @@ func NewAWSClients(ctx context.Context, clientCfg AWSClientConfig) AWSClient {
 		config.WithRegion(clientCfg.AWSRegion),
 	}
 	if clientCfg.Profile == "local" {
-		awsOpts = append(awsOpts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("testing", "testing", "")))
+		awsOpts = append(awsOpts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(clientCfg.StaticUsername, clientCfg.StaticPassword, "")))
 	}
 	awsCfg, err := config.LoadDefaultConfig(ctx, awsOpts...)
 	if err != nil {

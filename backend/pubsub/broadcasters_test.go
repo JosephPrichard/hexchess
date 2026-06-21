@@ -24,7 +24,7 @@ func TestBroadcastMessage(t *testing.T) {
 			SorAddr:    []string{redisAddr},
 			PubsubAddr: redisAddr,
 		},
-		Profile: "local",
+		ActiveProfile: "local",
 	})
 	defer rdb.Close()
 	broadcaster := NewBroadcaster(rdb)

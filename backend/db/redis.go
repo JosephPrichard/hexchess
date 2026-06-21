@@ -12,8 +12,10 @@ import (
 )
 
 type RedisAddrs struct {
-	SorAddr    []string `json:"sorAddr"`
-	PubsubAddr string   `json:"pubsubAddr"`
+	SorAddr           []string `json:"sorAddr"`
+	SorClusterName    string   `json:"sorClusterName"`
+	PubsubAddr        string   `json:"pubsubAddr"`
+	PubsubClusterName string   `json:"pubsubClusterName"`
 }
 
 type RedisNames struct {
@@ -68,24 +70,13 @@ func (rdb *Redis) Close() {
 	}
 }
 
-func makeRedigoPool(addr string) *redigo.Pool {
-	return &redigo.Pool{
-		MaxIdle:     1,
-		IdleTimeout: 240 * time.Second,
-		Dial: func() (redigo.Conn, error) {
-			return redigo.Dial("tcp", addr)
-		},
-	}
-}
-
 type RedisCfg struct {
-	Addrs       RedisAddrs `json:"addrs"`
-	Profile     string     `json:"profile"`
-	ServiceName string     `json:"serviceName"`
-	ClusterName string     `json:"clusterName"`
-	UserName    string     `json:"userName"`
-	Region      string     `json:"region"`
-	Names       *RedisNames
+	Addrs         RedisAddrs `json:"addrs"`
+	ActiveProfile string     `json:"activeProfile"`
+	ServiceName   string     `json:"serviceName"`
+	UserName      string     `json:"userName"`
+	Region        string     `json:"region"`
+	Names         *RedisNames
 }
 
 func NewRedis(ctx context.Context, redisCfg RedisCfg) (Redis, func()) {
@@ -94,10 +85,8 @@ func NewRedis(ctx context.Context, redisCfg RedisCfg) (Redis, func()) {
 	if redisCfg.Names == nil {
 		redisCfg.Names = &DefaultRedisNames
 	}
-	var psPool *redigo.Pool
-	if redisCfg.Addrs.PubsubAddr != "" {
-		psPool = makeRedigoPool(redisCfg.Addrs.PubsubAddr)
-	}
+
+	var connectorSOR *RedisConnector
 
 	redisClientOpts := &redis.UniversalOptions{
 		Addrs:          redisCfg.Addrs.SorAddr,
@@ -108,15 +97,34 @@ func NewRedis(ctx context.Context, redisCfg RedisCfg) (Redis, func()) {
 		RouteRandomly:  false,
 		RouteByLatency: false,
 	}
-	var connector *RedisConnector
-	if redisCfg.Profile != "local" {
-		connector = NewRedisConnector(ctx, redisCfg)
-		redisClientOpts.CredentialsProvider = connector.CredentialsProvider
+	if redisCfg.ActiveProfile != "local" {
+		connectorSOR = NewRedisConnector(ctx, redisCfg.Region, redisCfg.UserName, redisCfg.Addrs.SorClusterName)
+		redisClientOpts.CredentialsProvider = connectorSOR.CredentialsProvider
 	}
 	redisClient := redis.NewUniversalClient(redisClientOpts)
 
-	if psPool != nil {
-		conn, err := psPool.GetContext(ctx)
+	var pubsubPool *redigo.Pool
+	var connectorPubsub *RedisConnector
+
+	if redisCfg.Addrs.PubsubAddr != "" {
+		pubsubPool = &redigo.Pool{
+			MaxIdle:     1,
+			IdleTimeout: 240 * time.Second,
+			Dial: func() (redigo.Conn, error) {
+				return redigo.Dial("tcp", redisCfg.Addrs.PubsubAddr)
+			},
+		}
+		if redisCfg.ActiveProfile != "local" {
+			connectorPubsub = NewRedisConnector(ctx, redisCfg.Region, redisCfg.UserName, redisCfg.Addrs.SorClusterName)
+			pubsubPool.Dial = func() (redigo.Conn, error) {
+				username, password := connectorPubsub.CredentialsProvider()
+				return redigo.Dial("tcp", redisCfg.Addrs.PubsubAddr, redigo.DialUsername(username), redigo.DialPassword(password))
+			}
+		}
+	}
+
+	if pubsubPool != nil {
+		conn, err := pubsubPool.GetContext(ctx)
 		if err != nil {
 			logutil.Fatal("get redis conn", err)
 		}
@@ -134,14 +142,17 @@ func NewRedis(ctx context.Context, redisCfg RedisCfg) (Redis, func()) {
 	rdb := Redis{
 		GameStore:  redisClient,
 		Cache:      redisClient,
-		PubSub:     psPool,
+		PubSub:     pubsubPool,
 		RedisAddrs: redisCfg.Addrs,
 		RedisNames: *redisCfg.Names,
 	}
 	closer := func() {
 		rdb.Close()
-		if connector != nil {
-			connector.Stop()
+		if connectorSOR != nil {
+			connectorSOR.Stop()
+		}
+		if connectorPubsub != nil {
+			connectorPubsub.Stop()
 		}
 	}
 	return rdb, closer
