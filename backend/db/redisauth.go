@@ -59,29 +59,24 @@ func NewRedisTokenRefresher(ctx context.Context, region, redisUsername, clusterN
 		"User":          {redisUsername},
 		"X-Amz-Expires": {strconv.FormatInt(int64(tokenValiditySeconds), 10)},
 	}
-	authURL := url.URL{
-		Host:     clusterName,
-		Scheme:   "http",
-		Path:     "/",
-		RawQuery: queryParams.Encode(),
-	}
+	authURL := url.URL{Host: clusterName, Scheme: "http", Path: "/", RawQuery: queryParams.Encode()}
 	request, err := http.NewRequest(http.MethodGet, authURL.String(), nil)
 	if err != nil {
 		logutil.Fatal("create presigned http request", err)
 	}
 
 	refresher := &RedisTokenRefresher{
-		redisUsername: redisUsername,
-		awsRegion:     region,
-
+		redisUsername:  redisUsername,
+		awsRegion:      region,
 		tokenRequest:   request,
 		awsCredentials: credentials,
 		signer:         v4.NewSigner(),
-
-		ticker: time.NewTicker(redisTokenRefreshPeriod),
+		ticker:         time.NewTicker(redisTokenRefreshPeriod),
 	}
+
 	refresher.acquireToken()
 	go refresher.refreshToken()
+
 	return refresher
 }
 
@@ -96,7 +91,7 @@ func (refresh *RedisTokenRefresher) acquireToken() {
 		time.Now().UTC(),
 	)
 	if err != nil {
-		slog.Error("failed to generate presigned url for redis auth", "error", err, "username", refresh.redisUsername)
+		slog.Error("failed to generate presigned url for redis auth", "error", err, "redisUsername", refresh.redisUsername)
 		return
 	}
 	signedURL = strings.Replace(signedURL, "http://", "", 1)
@@ -104,29 +99,32 @@ func (refresh *RedisTokenRefresher) acquireToken() {
 }
 
 func (refresh *RedisTokenRefresher) refreshToken() {
+	// note: refresh token is a process lifetime singleton
 	for range refresh.ticker.C {
 		refresh.acquireToken()
 	}
 }
 
-func (refresh *RedisTokenRefresher) CredentialsProviderFunc() (username string, password string) {
-	token := refresh.token.Load()
-	if token != nil {
-		password = *token
-	} else {
-		slog.Warn("redis credentials provider: token not available", "username", refresh.redisUsername)
+func NewCredentialsProvider(refresh *RedisTokenRefresher) func() (username string, password string) {
+	return func() (username string, password string) {
+		token := refresh.token.Load()
+		if token != nil {
+			password = *token
+		} else {
+			slog.Warn("redis credentials provider: token not available", "redisUsername", refresh.redisUsername)
+		}
+		return refresh.redisUsername, password
 	}
-	return refresh.redisUsername, password
 }
 
-func (refresh *RedisTokenRefresher) DialFunc(addr string) func() (redigo.Conn, error) {
+func NewSecureDialer(refresh *RedisTokenRefresher, addr string) func() (redigo.Conn, error) {
 	return func() (redigo.Conn, error) {
 		token := refresh.token.Load()
 		var password string
 		if token != nil {
 			password = *token
 		} else {
-			slog.Warn("redis dial: token not available", "username", refresh.redisUsername)
+			slog.Warn("redis dial: token not available", "redisUsername", refresh.redisUsername)
 		}
 		return redigo.Dial("tcp", addr, redigo.DialUsername(refresh.redisUsername), redigo.DialPassword(password))
 	}

@@ -29,7 +29,7 @@ type PostgresConsumer struct {
 	PollCount    int32              `json:"pollCount"`
 	MaxEvents    uint64             `json:"maxEvents"`
 
-	fn ConsumeFunc
+	consumeFunc ConsumeFunc
 }
 
 func (c *PostgresConsumer) Consume() {
@@ -64,8 +64,10 @@ func (c *PostgresConsumer) poll() error {
 		Isolation:  pgx.ReadCommitted,
 		RetryCount: 1,
 		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
+			start := time.Now()
 			ctx = context.WithValue(ctx, logutil.Trace, uuid.NewString())
-			//slog.InfoContext(ctx, "polling postgres queue for events", "kind", c.kind)
+
+			slog.InfoContext(ctx, "polling postgres queue for events", "eventKind", c.EventKind)
 
 			// locks events for the duration of the function
 			eventRows, err := querier.SelectQueueByPolling(ctx, sqlc.SelectQueueByPollingParams{
@@ -73,7 +75,7 @@ func (c *PostgresConsumer) poll() error {
 				Limit: c.PollCount,
 			})
 			if err != nil {
-				return serrors.Wrap("select postgres queue messages", err, "kind", c.EventKind, "limit", c.PollCount)
+				return serrors.Wrap("select postgres queue messages", err, "eventKind", c.EventKind, "limit", c.PollCount)
 			}
 			if len(eventRows) == 0 {
 				return nil
@@ -91,7 +93,7 @@ func (c *PostgresConsumer) poll() error {
 
 			for i, event := range eventRows {
 				wg.Go(func() {
-					err := c.fn(ctx, event.Data)
+					err := c.consumeFunc(ctx, event.Data)
 					processedEvents[i] = eventResult{eventID: event.ID, err: err}
 				})
 			}
@@ -112,12 +114,6 @@ func (c *PostgresConsumer) poll() error {
 				}
 			}
 
-			level := slog.LevelInfo
-			if len(errProcessedEvents) > 0 {
-				level = slog.LevelError
-			}
-			slog.Log(ctx, level, "handled postgres queue events", "errProcessedEvents", errProcessedEvents, "eventsIDsToAck", eventIDsToAck)
-
 			if len(eventIDsToAck) > 0 {
 				if err := querier.UpdateQueueProcessedByID(ctx, sqlc.UpdateQueueProcessedByIDParams{
 					Ids:           eventIDsToAck,
@@ -126,6 +122,9 @@ func (c *PostgresConsumer) poll() error {
 					return serrors.Wrap("acknowledge postgres queue messages", err, "events", processedEvents)
 				}
 			}
+
+			slog.InfoContext(ctx, "handled postgres queue events", "eventKind", c.EventKind,
+				"errProcessedEvents", errProcessedEvents, "eventsIDsToAck", eventIDsToAck, "timeTaken", time.Since(start))
 			return nil
 		},
 	})

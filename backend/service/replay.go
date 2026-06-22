@@ -156,7 +156,7 @@ func (services *HexchessServices) SearchReplaysByQuery(ctx context.Context, quer
 	afterTurnCount := query.AfterTurnCount.OrElse(math.MaxInt32)
 	afterRating := query.AfterRating.OrElse(math.MaxFloat64)
 
-	// uses the unix epoch in days for range queries on date. this truncates away timstamp precision regarding hours, seconds, etc.
+	// uses the unix epoch in days for range queries on date. this truncates away timestamp precision regarding hours, seconds, etc.
 	fromDateDays := enum.Optional[int32]{Value: timeutil.DaysEpoch(query.FromDate.Value), IsPresent: query.FromDate.IsPresent}
 	toDateDays := enum.Optional[int32]{Value: timeutil.DaysEpoch(query.ToDate.Value), IsPresent: query.ToDate.IsPresent}
 

@@ -127,7 +127,7 @@ func TestRedisConsumer(t *testing.T) {
 				PartitionKeys: tt.partitionKeys,
 				BlockDuration: time.Millisecond,
 
-				fn: h.handleEvent,
+				consumeFunc: h.handleEvent,
 			}
 			consumer.Consume()
 

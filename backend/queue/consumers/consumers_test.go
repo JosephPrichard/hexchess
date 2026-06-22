@@ -50,7 +50,7 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 		PollInterval: time.Microsecond,
 		PollCount:    1,
 		MaxEvents:    1,
-		fn:           eventGateway.HandleAdvanceTournamentEvent,
+		consumeFunc:  eventGateway.HandleAdvanceTournamentEvent,
 	}
 
 	queue.Consume()
@@ -125,7 +125,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		ConsumerGroup: testinfra.Redis.FinishGameConsumerGroup,
 		PartitionKeys: []string{string(partitionID)},
 
-		fn: eventGateway.HandleFinishedGameEvent,
+		consumeFunc: eventGateway.HandleFinishedGameEvent,
 	}
 
 	queue.ConsumePartition(string(partitionID))
@@ -190,7 +190,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 		ConsumerGroup: testinfra.Redis.UpdtGameMetaConsumerGroup,
 		PartitionKeys: []string{string(partitionID)},
 
-		fn: eventGateway.HandleUpdtGameEvent,
+		consumeFunc: eventGateway.HandleUpdtGameEvent,
 	}
 	queue.ConsumePartition(string(partitionID))
 

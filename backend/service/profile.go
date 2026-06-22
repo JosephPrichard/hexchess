@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-svc/lib/awsutils"
+	"hexchess-svc/lib/awsutil"
 	"hexchess-svc/lib/ioutil"
+	"hexchess-svc/lib/perf"
 	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
 	"io"
@@ -87,13 +88,13 @@ func (services *HexchessServices) deleteExpiredProfilePics(ctx context.Context, 
 	}
 
 	slog.InfoContext(ctx, "listed profile pics for deletion", "prefix", prefix,
-		"bucket", services.aws.S3ProfileBucket, "keys", awsutils.KeysOfObjects(listOutput.Contents), "listOutput", listOutput)
+		"bucket", services.aws.S3ProfileBucket, "keys", awsutil.KeysOfObjects(listOutput.Contents), "listOutput", listOutput)
 
 	if len(listOutput.Contents) == 0 {
 		return nil
 	}
 	objectIdentifiers := filterLeastRecentKeys(listOutput.Contents)
-	keys := awsutils.KeysOfObjectIds(objectIdentifiers)
+	keys := awsutil.KeysOfObjectIds(objectIdentifiers)
 
 	slog.InfoContext(ctx, "deleting profile pics", "keys", keys)
 
@@ -127,6 +128,8 @@ func (services *HexchessServices) UploadProfilePic(
 	contentType string,
 	contentChecksum string,
 ) (UploadProfileResult, error) {
+	defer perf.WithContext(ctx).Log()
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -135,7 +138,6 @@ func (services *HexchessServices) UploadProfilePic(
 
 	key := fmtProfilePicKey(uploader.ID, services.entropy.NewUUID().String())
 
-	var output *s3.PutObjectOutput
 	var checksumAlgorithm s3Types.ChecksumAlgorithm
 	var checksumSHA256 *string
 	var optFns []func(*s3.Options)
@@ -150,13 +152,8 @@ func (services *HexchessServices) UploadProfilePic(
 		checksumSHA256 = aws.String(contentChecksum)
 	}
 
-	slog.InfoContext(ctx, "uploading profile pic to s3",
+	slog.InfoContext(ctx, "uploading profile pic",
 		"key", key, "uploader", uploader, "contentType", contentType, "contentChecksum", contentChecksum)
-
-	start := time.Now()
-	defer func() {
-		slog.InfoContext(ctx, "finished uploading profile pic to s3", "key", key, "took", time.Since(start), "output", output)
-	}()
 
 	output, err := services.aws.S3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:            aws.String(services.aws.S3ProfileBucket),
@@ -182,6 +179,7 @@ func (services *HexchessServices) UploadProfilePic(
 		}
 	}()
 
+	slog.InfoContext(ctx, "finished uploading profile pic", "output", output)
 	return UploadProfileResult{Key: key}, nil
 }
 

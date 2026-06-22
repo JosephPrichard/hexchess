@@ -11,8 +11,10 @@ import (
 	"hexchess-svc/lib/config"
 	"hexchess-svc/lib/dotenv"
 	"hexchess-svc/lib/logutil"
+	"hexchess-svc/lib/perf"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
+	"log"
 	"log/slog"
 	"math/rand"
 	"os"
@@ -41,21 +43,28 @@ const truncateSql = `
 	CASCADE;`
 
 var (
-	usersCount       = flag.Int("usersCount", 50, "number of users to seed")
-	challengesCount  = flag.Int("challengesCount", 50, "number of challenges to seed")
-	gameResultCount  = flag.Int("gameResultCount", 100, "number of game results to seed")
-	tournamentsCount = flag.Int("tournamentsCount", 25, "number of tournaments to seed")
+	usersCount       = flag.Int("usersCount", 1000, "number of users to seed")
+	challengesCount  = flag.Int("challengesCount", 100, "number of challenges to seed")
+	gameResultCount  = flag.Int("gameResultCount", 5000, "number of game results to seed")
+	tournamentsCount = flag.Int("tournamentsCount", 1000, "number of tournaments to seed")
 )
 
 const ServiceName = "hexchess-seed"
 
 func main() {
+	// validation: check that it is reasonable to generate this number of challenges
+	maxChallengePermutations := *usersCount * (*usersCount - 1)
+	maxChallengesCount := maxChallengePermutations / 10
+	if *challengesCount > maxChallengesCount {
+		log.Fatalf("challenges count is too large, must be at most %d", maxChallengesCount)
+	}
+
 	ctx := context.WithValue(context.Background(), logutil.Trace, "seed-databases-script")
 
 	dotenv.Load()
 
 	dbURL := os.Getenv("DB_URL")
-	profile := config.ParseProfile(os.Getenv("PROFILE"))
+	profile := config.ParseProfile(os.Getenv("ACTIVE_PROFILE"))
 	awsRegion := os.Getenv("AWS_REGION")
 	rdbSorNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
 	rdbSorUsername := os.Getenv("REDIS_SOR_USERNAME")
@@ -67,15 +76,15 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, profile)
 	defer shutdown()
 
-	pool := db.NewPgPool(ctx, db.PgConnectCfg{
+	pool := db.NewPgPool(ctx, db.PgPoolConfig{
 		Dsn:           dbURL,
 		ActiveProfile: profile,
 		Region:        awsRegion,
 	})
-	pdb := db.NewDB(pool)
+	pdb := db.NewPostgresDB(pool)
 	defer pdb.Close()
 
-	rdb := db.NewRedis(ctx, db.RedisCfg{
+	rdb := db.NewRedis(ctx, db.RedisConfig{
 		DSNs:          db.RedisDSNs{SorAddr: rdbSorNodes, SorUsername: rdbSorUsername, SorClusterName: rdbSorClusterName},
 		ActiveProfile: profile,
 	})
@@ -88,26 +97,31 @@ func main() {
 		logutil.Fatal("flush rdb", err)
 	}
 
+	var usersDuration time.Duration
+	var challengesDuration time.Duration
+	var resultsDuration time.Duration
+	var tournamentsDuration time.Duration
+
 	services := svc.NewHexchessServices(svc.SetupService{DB: pdb, Redis: rdb})
 
-	userInsts := generateUserInsts()
-
 	// root node in the foreign key hierarchy tree
-	if _, err := services.BatchInsertUsers(ctx, userInsts); err != nil {
+	usersStart := time.Now()
+	if _, err := services.BatchInsertUsers(ctx, generateUserInsts()); err != nil {
 		logutil.Fatal("insert users", err)
 	}
+	usersDuration = time.Since(usersStart)
 
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
-		if err := services.BatchInsertChallenges(egCtx, generateChallengeInsts()); err != nil {
-			slog.ErrorContext(egCtx, "failed to seed challenges", "err", err)
-		}
-		return nil
+		defer perf.New().Duration(&challengesDuration)
+		return services.BatchInsertChallenges(egCtx, generateChallengeInsts())
 	})
 	eg.Go(func() error {
+		defer perf.New().Duration(&resultsDuration)
 		return seedGameResults(egCtx, services, generateGameResults())
 	})
 	eg.Go(func() error {
+		defer perf.New().Duration(&tournamentsDuration)
 		return seedTournaments(egCtx, pdb.Querier(), generateTournaments())
 	})
 
@@ -120,7 +134,12 @@ func main() {
 		logutil.Fatal("jobs leaderboard", err)
 	}
 
-	slog.Info("finished seeding databases", "time", time.Since(start))
+	slog.Info("finished seeding databases",
+		"timeTaken", time.Since(start).String(),
+		"usersDuration", usersDuration.String(),
+		"challengesDuration", challengesDuration.String(),
+		"resultsDuration", resultsDuration.String(),
+		"tournamentsDuration", tournamentsDuration.String())
 }
 
 func generateUserInsts() []svc.UserInst {
@@ -171,9 +190,26 @@ func generateMode() model.GameMode {
 }
 
 func generateChallengeInsts() []svc.ChallengeInst {
+	hashChallengeKey := func(challengerID, challengeeID int64) string {
+		return fmt.Sprintf("%d,%d", challengerID, challengeeID)
+	}
+
 	var insts []svc.ChallengeInst
 	for range *challengesCount {
-		challengerID, challengeeID := generateUserIDPairs()
+		// generate two challenges that are unique, this is done by retrying if a duplicate is found.
+		// note: we assume the number of users is large enough to avoid duplicates
+
+		var challengeSet = map[string]struct{}{}
+		var challengerID, challengeeID int64
+		for {
+			challengerID, challengeeID = generateUserIDPairs()
+			key := hashChallengeKey(challengerID, challengeeID)
+			if _, keyExists := challengeSet[key]; !keyExists {
+				challengeSet[key] = struct{}{}
+				break
+			}
+		}
+
 		insts = append(insts, svc.ChallengeInst{
 			ChallengerID: challengerID,
 			ChallengeeID: challengeeID,
@@ -237,7 +273,7 @@ func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts 
 
 			mode := inst.ReplayMode
 
-			moveSeq, err := svc.RandomMoveHistSeq(mode, chess.NewStartGame(), 10, 30)
+			moveSeq, err := svc.RandomMoveHistSeq(mode, 10, 30, -1)
 			if err != nil {
 				return fmt.Errorf("generate random move seq: %w", err)
 			}
@@ -259,7 +295,7 @@ func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts 
 			if err != nil {
 				return fmt.Errorf("insert game result: %w", err)
 			}
-			// note: don't forget to insert the move history - it exists outside of the game result tx
+			// note: remember to insert the move history - it exists outside the game result tx
 			if err = services.UpsertReplayMoveHistories(ctx, changeSet.ReplayID, moveHistBlob); err != nil {
 				return fmt.Errorf("insert replay move histories: %w", err)
 			}
@@ -346,23 +382,24 @@ func seedTournaments(ctx context.Context, querier sqlc.Querier, paramsList []Tou
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
+			// participants and matches must be inserted after the tournament to maintain foreign key integrity
 			if _, err := querier.InsertTournament(egCtx, params.tournament); err != nil {
 				return err
 			}
 
-			var participantErrs []error
+			var errs []error
+
 			querier.BatchInsertTournamentParticipant(egCtx, params.participants).Exec(func(i int, err error) {
-				participantErrs = append(participantErrs, err)
+				errs = append(errs, err)
 			})
-			if err := errors.Join(participantErrs...); err != nil {
+			if err := errors.Join(errs...); err != nil {
 				return err
 			}
 
-			var matchErrs []error
 			querier.BatchInsertTournamentMatch(egCtx, params.matches).Exec(func(i int, err error) {
-				matchErrs = append(matchErrs, err)
+				errs = append(errs, err)
 			})
-			return errors.Join(matchErrs...)
+			return errors.Join(errs...)
 		})
 	}
 	return nil

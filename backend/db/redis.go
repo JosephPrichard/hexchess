@@ -69,7 +69,7 @@ func (rdb *Redis) Close() {
 	}
 }
 
-type RedisCfg struct {
+type RedisConfig struct {
 	DSNs           RedisDSNs      `json:"dsns"`
 	ActiveProfile  config.Profile `json:"activeProfile"`
 	AWSServiceName string         `json:"AWSServiceName"`
@@ -77,7 +77,7 @@ type RedisCfg struct {
 	Names          *RedisNames
 }
 
-func NewRedis(ctx context.Context, redisCfg RedisCfg) Redis {
+func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 	slog.Info("creating redis client", "config", redisCfg)
 
 	if redisCfg.Names == nil {
@@ -94,8 +94,8 @@ func NewRedis(ctx context.Context, redisCfg RedisCfg) Redis {
 		RouteByLatency: false,
 	}
 	if redisCfg.ActiveProfile != config.Local {
-		refresherSOR := NewRedisTokenRefresher(ctx, redisCfg.AWSRegion, redisCfg.DSNs.SorUsername, redisCfg.DSNs.SorClusterName)
-		redisClientOpts.CredentialsProvider = refresherSOR.CredentialsProviderFunc
+		tokenRefresher := NewRedisTokenRefresher(ctx, redisCfg.AWSRegion, redisCfg.DSNs.SorUsername, redisCfg.DSNs.SorClusterName)
+		redisClientOpts.CredentialsProvider = NewCredentialsProvider(tokenRefresher)
 	}
 	redisClient := redis.NewUniversalClient(redisClientOpts)
 
@@ -104,13 +104,14 @@ func NewRedis(ctx context.Context, redisCfg RedisCfg) Redis {
 		pubsubPool = &redigo.Pool{
 			MaxIdle:     1,
 			IdleTimeout: 240 * time.Second,
-			Dial: func() (redigo.Conn, error) {
-				return redigo.Dial("tcp", redisCfg.DSNs.PubsubAddr)
-			},
 		}
 		if redisCfg.ActiveProfile != config.Local {
-			refresherPubsub := NewRedisTokenRefresher(ctx, redisCfg.AWSRegion, redisCfg.DSNs.PubsubUsername, redisCfg.DSNs.PubsubClusterName)
-			pubsubPool.Dial = refresherPubsub.DialFunc(redisCfg.DSNs.PubsubAddr)
+			tokenRefresher := NewRedisTokenRefresher(ctx, redisCfg.AWSRegion, redisCfg.DSNs.PubsubUsername, redisCfg.DSNs.PubsubClusterName)
+			pubsubPool.Dial = NewSecureDialer(tokenRefresher, redisCfg.DSNs.PubsubAddr)
+		} else {
+			pubsubPool.Dial = func() (redigo.Conn, error) {
+				return redigo.Dial("tcp", redisCfg.DSNs.PubsubAddr)
+			}
 		}
 	}
 

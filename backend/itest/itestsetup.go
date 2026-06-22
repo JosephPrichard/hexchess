@@ -74,12 +74,12 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 		testinfra.DB = db.NewFakeDB(testTx)
 		testinfra.Querier = testinfra.DB.Querier()
 	} else if isRoPostgresFlag {
-		testinfra.DB = db.NewDB(pgPool)
+		testinfra.DB = db.NewPostgresDB(pgPool)
 		testinfra.Querier = testinfra.DB.Querier()
 	}
 
 	if isRedisFlag {
-		testinfra.Redis = db.NewRedis(ctx, db.RedisCfg{
+		testinfra.Redis = db.NewRedis(ctx, db.RedisConfig{
 			Names: testutil.NewTestNames(db.DefaultRedisNames),
 			DSNs: db.RedisDSNs{
 				SorAddr:    []string{redisAddr},
@@ -91,12 +91,12 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 
 	if isLocalstackFlag {
 		testinfra.AWS = cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
-			AWSEndpoint:    localstackAddr,
-			AWSRegion:      "us-east-1",
-			Names:          testutil.NewTestNames(cloud.DefaultAWSNames),
-			ActiveProfile:  config.Local,
-			StaticUsername: "testing",
-			StaticPassword: "testing",
+			AWSEndpoint:   localstackAddr,
+			AWSRegion:     "us-east-1",
+			Names:         testutil.NewTestNames(cloud.DefaultAWSNames),
+			ActiveProfile: config.Local,
+			AWSUsername:   "testing",
+			AWSPassword:   "testing",
 		})
 	}
 

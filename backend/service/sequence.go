@@ -10,12 +10,10 @@ import (
 	"time"
 )
 
-func RandomMoveHistSeq(mode model.GameMode, game chess.Game, low int, hi int) ([]chess.HistMove, error) {
-	randRange := func(min, max float64) float64 {
-		return min + rand.Float64()*(max-min)
-	}
+func randomMoveHistSeq(low, high int) (*chess.Game, error) {
+	game := chess.NewStartGame()
 
-	for range rand.Intn(low) + (low + hi) {
+	for range rand.Intn(low) + (low + high) {
 		game.InitPieceMoves()
 
 		var pmsArr []chess.PieceMoves
@@ -52,6 +50,29 @@ func RandomMoveHistSeq(mode model.GameMode, game chess.Game, low int, hi int) ([
 
 		hm := game.NewMove(chess.Move{From: pm.From, To: pm.To, Promotion: chess.QueenPromotion})
 		game.Moves = append(game.Moves, hm)
+	}
+
+	return &game, nil
+}
+
+func RandomMoveHistSeq(mode model.GameMode, low, high, maxRetries int) ([]chess.HistMove, error) {
+	isInfiniteRetries := maxRetries < 0
+
+	randRange := func(min, max float64) float64 {
+		return min + rand.Float64()*(max-min)
+	}
+
+	game := &chess.Game{}
+	var err error
+
+	for retry := 0; retry < maxRetries || isInfiniteRetries; retry++ {
+		game, err = randomMoveHistSeq(low, high)
+		if err == nil {
+			break
+		}
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	moveSeq := game.Moves

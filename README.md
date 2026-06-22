@@ -39,6 +39,7 @@ app --(tcp/6579)-> redis-pubsub
 app --(tcp/6479-6484)-> redis-sor-1,redis-sor-2,redis-sor-3,redis-sor-4,redis-sor-5,redis-sor-6
 app --(tcp/3100)-> loki
 app --(tcp/9100)-> minio
+grafana --(tcp/3100)-> pyroscope
 grafana --(tcp/3100)-> loki
 alloy --(tcp/6060)-> app
 alloy --(tcp/4040)-> pyroscope
@@ -56,9 +57,11 @@ SERVER_PORT=8081
 DB_URL=postgresql://postgres:<password>@localhost:5432/hexchess
 REDIS_SOR_NODES=localhost:6479,localhost:6480,localhost:6481,localhost:6482,localhost:6483,localhost:6484
 REDIS_PUBSUB_NODE=localhost:6579
-PROFILE=local
-AWS_DEFAULT_REGION=us-east-1
+ACTIVE_PROFILE=local
+AWS_REGION=us-east-1
 AWS_ENDPOINT=http://localhost:9100
+AWS_USERNAME=test-username
+AWS_PASSWORD=test-password
 ALLOWED_ORIGINS=http://localhost:5173
 OTEL_EXPORTER_OTLP_ENDPOINT=localhost:3100
 ```

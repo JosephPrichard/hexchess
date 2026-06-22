@@ -45,3 +45,15 @@ echo "started redis cluster nodes"
 
 redis-cli --cluster create 127.0.0.1:6479 127.0.0.1:6480 127.0.0.1:6481 127.0.0.1:6482 127.0.0.1:6483 127.0.0.1:6484 --cluster-replicas 1
 echo "started redis cluster"
+
+# starts standard pyroscope server (assumed to be on port 4040, referenced in alloy config)
+sudo systemctl start pyroscope
+echo "started pyroscope"
+
+# starts standard loki (referenced in app env vars)
+sudo systemctl start loki
+echo "started loki"
+
+# starts standard grafana UI (setup pyroscope and loki configs from UI)
+sudo systemctl start grafana-server
+echo "started grafana"

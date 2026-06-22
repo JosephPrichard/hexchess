@@ -140,7 +140,7 @@ func TestPostgresConsumer(t *testing.T) {
 				PollCount:    1,
 				MaxEvents:    1,
 
-				fn: tt.makeProcessFn(&capturedEvents),
+				consumeFunc: tt.makeProcessFn(&capturedEvents),
 			}
 
 			queue.Consume()

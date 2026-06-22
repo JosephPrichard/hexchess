@@ -1,4 +1,4 @@
-package awsutils
+package awsutil
 
 import s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 

@@ -28,12 +28,12 @@ type AWSNames struct {
 }
 
 type AWSClientConfig struct {
-	Names          *AWSNames      `json:"names"`
-	ActiveProfile  config.Profile `json:"activeProfile"`
-	AWSRegion      string         `json:"awsRegion"`
-	AWSEndpoint    string         `json:"awsEndpoint"`
-	StaticUsername string         `json:"staticUsername"`
-	StaticPassword string         `json:"staticPassword"`
+	Names         *AWSNames      `json:"names"`
+	ActiveProfile config.Profile `json:"activeProfile"`
+	AWSRegion     string         `json:"awsRegion"`
+	AWSEndpoint   string         `json:"awsEndpoint"`
+	AWSUsername   string         `json:"awsUsername"`
+	AWSPassword   string         `json:"awsPassword"`
 }
 
 func NewAWSClients(ctx context.Context, clientCfg AWSClientConfig) AWSClient {
@@ -41,7 +41,7 @@ func NewAWSClients(ctx context.Context, clientCfg AWSClientConfig) AWSClient {
 		awsConfig.WithRegion(clientCfg.AWSRegion),
 	}
 	if clientCfg.ActiveProfile == config.Local {
-		awsOpts = append(awsOpts, awsConfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(clientCfg.StaticUsername, clientCfg.StaticPassword, "")))
+		awsOpts = append(awsOpts, awsConfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(clientCfg.AWSUsername, clientCfg.AWSPassword, "")))
 	}
 	awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsOpts...)
 	if err != nil {

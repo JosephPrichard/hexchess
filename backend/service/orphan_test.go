@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"hexchess-svc/cloud"
 	"hexchess-svc/itest"
-	"hexchess-svc/lib/awsutils"
+	"hexchess-svc/lib/awsutil"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -48,5 +48,5 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 	}
 
 	assert.Equal(t, 1, len(objects.Contents))
-	assert.Equal(t, []string{profileKeyUserID1}, awsutils.KeysOfObjects(objects.Contents))
+	assert.Equal(t, []string{profileKeyUserID1}, awsutil.KeysOfObjects(objects.Contents))
 }

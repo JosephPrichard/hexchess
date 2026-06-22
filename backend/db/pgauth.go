@@ -44,17 +44,20 @@ func (refresh *PostgresTokenRefresher) acquireToken() {
 }
 
 func (refresh *PostgresTokenRefresher) refreshToken() {
+	// note: refresh token is a process lifetime singleton
 	for range refresh.ticker.C {
 		refresh.acquireToken()
 	}
 }
 
-func (refresh *PostgresTokenRefresher) BeforeConnectFunc(ctx context.Context, cfg *pgx.ConnConfig) error {
-	token := refresh.token.Load()
-	if token != nil {
-		cfg.Password = *token
-	} else {
-		slog.WarnContext(ctx, "before connect: token not available")
+func NewBeforeConnect(refresh *PostgresTokenRefresher) func(ctx context.Context, cfg *pgx.ConnConfig) error {
+	return func(ctx context.Context, cfg *pgx.ConnConfig) error {
+		token := refresh.token.Load()
+		if token != nil {
+			cfg.Password = *token
+		} else {
+			slog.WarnContext(ctx, "before connect: token not available")
+		}
+		return nil
 	}
-	return nil
 }

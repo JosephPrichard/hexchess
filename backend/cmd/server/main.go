@@ -37,28 +37,28 @@ func main() {
 	rdbPubSubNode := os.Getenv("REDIS_PUBSUB_NODE")
 	rdbPubSubUsername := os.Getenv("REDIS_PUBSUB_USERNAME")
 	rdbPubSubClusterName := os.Getenv("REDIS_PUBSUB_CLUSTER_NAME")
-	profile := config.ParseProfile(os.Getenv("PROFILE"))
+	profile := config.ParseProfile(os.Getenv("ACTIVE_PROFILE"))
 	awsRegion := os.Getenv("AWS_REGION")
 	awsEndpoint := os.Getenv("AWS_ENDPOINT")
+	awsUsername := os.Getenv("AWS_USERNAME")
+	awsPassword := os.Getenv("AWS__PASSWORD")
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 	oltpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-	staticAWSUsername := os.Getenv("AWS_STATIC_USERNAME")
-	staticAWSPassword := os.Getenv("AWS_STATIC_PASSWORD")
 	// googleAPIKey := os.Getenv("GOOGLE_APIKEY")
 	// cookieDomain := os.Getenv("COOKIE_DOMAIN")
 
 	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, profile)
 	defer shutdown()
 
-	pool := db.NewPgPool(ctx, db.PgConnectCfg{
+	pool := db.NewPgPool(ctx, db.PgPoolConfig{
 		Dsn:           dbURL,
 		ActiveProfile: profile,
 		Region:        awsRegion,
 	})
-	pdb := db.NewDB(pool)
+	pdb := db.NewPostgresDB(pool)
 	defer pdb.Close()
 
-	rdb := db.NewRedis(ctx, db.RedisCfg{
+	rdb := db.NewRedis(ctx, db.RedisConfig{
 		DSNs: db.RedisDSNs{
 			SorAddr:           rdbSorNodes,
 			SorUsername:       rdbSorUsername,
@@ -72,11 +72,11 @@ func main() {
 	defer rdb.Close()
 
 	aws := cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
-		ActiveProfile:  profile,
-		AWSRegion:      awsRegion,
-		AWSEndpoint:    awsEndpoint,
-		StaticUsername: staticAWSUsername,
-		StaticPassword: staticAWSPassword,
+		ActiveProfile: profile,
+		AWSRegion:     awsRegion,
+		AWSEndpoint:   awsEndpoint,
+		AWSUsername:   awsUsername,
+		AWSPassword:   awsPassword,
 	})
 	remoteAPIs := cloud.NewRemoteAPIs(nil)
 	broadcaster := pubsub.NewBroadcaster(rdb)

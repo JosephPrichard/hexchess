@@ -54,7 +54,7 @@ func (pdb *FakeDB) Close() {
 	}
 }
 
-func NewDB(pool *pgxpool.Pool) Database {
+func NewPostgresDB(pool *pgxpool.Pool) Database {
 	return &ImplDB{q: sqlc.New(pool), pool: pool}
 }
 
@@ -62,13 +62,13 @@ func NewFakeDB(txn pgx.Tx) Database {
 	return &FakeDB{testingTxn: txn}
 }
 
-type PgConnectCfg struct {
+type PgPoolConfig struct {
 	Dsn           string         `json:"dsn"`
 	ActiveProfile config.Profile `json:"activeProfile"`
 	Region        string         `json:"region"`
 }
 
-func NewPgPool(ctx context.Context, cfg PgConnectCfg) *pgxpool.Pool {
+func NewPgPool(ctx context.Context, cfg PgPoolConfig) *pgxpool.Pool {
 	slog.Info("creating to postgres db client", "config", cfg)
 
 	poolCfg, err := pgxpool.ParseConfig(cfg.Dsn)
@@ -77,8 +77,7 @@ func NewPgPool(ctx context.Context, cfg PgConnectCfg) *pgxpool.Pool {
 	}
 
 	if cfg.ActiveProfile != config.Local {
-		tokenRefresher := NewPgTokenRefresher(ctx, cfg.Region)
-		poolCfg.BeforeConnect = tokenRefresher.BeforeConnectFunc
+		poolCfg.BeforeConnect = NewBeforeConnect(NewPgTokenRefresher(ctx, cfg.Region))
 	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)

@@ -28,7 +28,7 @@ func StartConsumers(setup SetupConsumers) {
 			EventKind:    sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 			PollInterval: 1 * time.Second,
 			PollCount:    32,
-			fn:           eventGateway.HandleAdvanceTournamentEvent,
+			consumeFunc:  eventGateway.HandleAdvanceTournamentEvent,
 		},
 		&RedisConsumer{
 			ctx:   setup.Ctx,
@@ -39,7 +39,7 @@ func StartConsumers(setup SetupConsumers) {
 			Concurrency:   8,
 			PartitionKeys: model.GameIDPartitions(),
 
-			fn: eventGateway.HandleFinishedGameEvent,
+			consumeFunc: eventGateway.HandleFinishedGameEvent,
 		},
 		&RedisConsumer{
 			ctx:   setup.Ctx,
@@ -50,7 +50,7 @@ func StartConsumers(setup SetupConsumers) {
 			Concurrency:   8,
 			PartitionKeys: model.GameIDPartitions(),
 
-			fn: eventGateway.HandleUpdtGameEvent,
+			consumeFunc: eventGateway.HandleUpdtGameEvent,
 		},
 	}
 

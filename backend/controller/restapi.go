@@ -21,7 +21,8 @@ import (
 func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		slog.InfoContext(ctx, "received REST call", "method", r.Method, "url", r.URL, "headers", r.Header)
+		start := time.Now()
+		slog.InfoContext(ctx, "received REST call", "method", r.Method, "path", r.URL.Path, "headers", r.Header)
 
 		if err := h(w, r); err != nil {
 			resp := ServiceViewFromErr(err)
@@ -29,6 +30,7 @@ func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc
 
 			logutil.SError(ctx, LevelFromStatus(resp.Status), "failed to handle REST call", err, "method", r.Method, "url", r.URL)
 		}
+		slog.InfoContext(ctx, "completed REST call", "path", r.URL.Path, "timeTaken", time.Since(start).String())
 	}
 }
 

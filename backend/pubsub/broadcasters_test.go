@@ -19,7 +19,7 @@ func TestBroadcastMessage(t *testing.T) {
 	ctx := t.Context()
 
 	redisAddr, _ := itest.SetupRedisTest(ctx, t)
-	rdb := db.NewRedis(ctx, db.RedisCfg{
+	rdb := db.NewRedis(ctx, db.RedisConfig{
 		Names: testutil.NewTestNames(db.DefaultRedisNames),
 		DSNs: db.RedisDSNs{
 			SorAddr:    []string{redisAddr},

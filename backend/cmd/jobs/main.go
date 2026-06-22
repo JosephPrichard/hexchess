@@ -5,7 +5,6 @@ import (
 	"flag"
 	"hexchess-svc/lib/config"
 	"hexchess-svc/lib/dotenv"
-	"log"
 	"log/slog"
 	"os"
 	"strings"
@@ -23,7 +22,7 @@ const (
 	ServiceName = "hexchess-job-runner"
 )
 
-var jobName = flag.String("job", "", "job to execute")
+var jobName = flag.String("job", SyncLeaderboardJobName, "job to execute")
 
 func main() {
 	ctx := context.WithValue(context.Background(), logutil.Trace, "jobs-runner")
@@ -31,7 +30,7 @@ func main() {
 	dotenv.Load()
 
 	dbURL := os.Getenv("DB_URL")
-	profile := config.ParseProfile(os.Getenv("PROFILE"))
+	profile := config.ParseProfile(os.Getenv("ACTIVE_PROFILE"))
 	awsRegion := os.Getenv("AWS_REGION")
 	rdbSorNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
 	rdbSorUsername := os.Getenv("REDIS_SOR_USERNAME")
@@ -43,15 +42,15 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, profile)
 	defer shutdown()
 
-	pool := db.NewPgPool(ctx, db.PgConnectCfg{
+	pool := db.NewPgPool(ctx, db.PgPoolConfig{
 		Dsn:           dbURL,
 		ActiveProfile: profile,
 		Region:        awsRegion,
 	})
-	pdb := db.NewDB(pool)
+	pdb := db.NewPostgresDB(pool)
 	defer pdb.Close()
 
-	rdb := db.NewRedis(ctx, db.RedisCfg{
+	rdb := db.NewRedis(ctx, db.RedisConfig{
 		DSNs:          db.RedisDSNs{SorAddr: rdbSorNodes, SorUsername: rdbSorUsername, SorClusterName: rdbSorClusterName},
 		ActiveProfile: profile,
 	})
@@ -64,11 +63,11 @@ func main() {
 		if err := services.SyncLeaderboard(ctx); err != nil {
 			logutil.Fatal("failed to execute sync leaderboard job", err)
 		}
-		slog.InfoContext(ctx, "finished syncing leaderboard job", "timeTaken", time.Since(start))
+		slog.InfoContext(ctx, "finished syncing leaderboard job", "timeTaken", time.Since(start).String())
 	case ClearS3OrphansJobName:
 		services.ClearOrphanFiles(ctx, svc.PageLength)
-		slog.InfoContext(ctx, "finished clear s3 orphans job", "timeTaken", time.Since(start))
+		slog.InfoContext(ctx, "finished clear s3 orphans job", "timeTaken", time.Since(start).String())
 	default:
-		log.Fatalf("unknown job: %s", *jobName)
+		logutil.Fatal("unknown job", nil, "job", *jobName)
 	}
 }
