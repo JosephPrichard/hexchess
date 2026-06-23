@@ -59,15 +59,13 @@ func main() {
 	defer pdb.Close()
 
 	rdb := db.NewRedis(ctx, db.RedisConfig{
-		DSNs: db.RedisDSNs{
-			SorAddr:           rdbSorNodes,
-			SorUsername:       rdbSorUsername,
-			SorClusterName:    rdbSorClusterName,
-			PubsubAddr:        rdbPubSubNode,
-			PubsubUsername:    rdbPubSubUsername,
-			PubsubClusterName: rdbPubSubClusterName,
-		},
-		ActiveProfile: profile,
+		SorAddr:           rdbSorNodes,
+		SorUsername:       rdbSorUsername,
+		SorClusterName:    rdbSorClusterName,
+		PubsubAddr:        rdbPubSubNode,
+		PubsubUsername:    rdbPubSubUsername,
+		PubsubClusterName: rdbPubSubClusterName,
+		ActiveProfile:     profile,
 	})
 	defer rdb.Close()
 

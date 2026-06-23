@@ -28,7 +28,7 @@ func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc
 			resp := ServiceViewFromErr(err)
 			writeJSON(w, resp.Status, resp)
 
-			logutil.SError(ctx, LevelFromStatus(resp.Status), "failed to handle REST call", err, "method", r.Method, "url", r.URL)
+			logutil.SError(ctx, LevelFromStatus(resp.Status), "failed to handle REST call", err, "path", r.URL.Path, "status", resp.Status)
 		}
 		slog.InfoContext(ctx, "completed REST call", "path", r.URL.Path, "timeTaken", time.Since(start).String())
 	}

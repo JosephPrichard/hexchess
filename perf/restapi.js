@@ -1,6 +1,9 @@
-import http from "6/http";
+import http from "k6/http";
+import { URLSearchParams } from "https://jslib.k6.io/url/1.0.0/index.js";
 
-const hostname = __ENV.HOSTNAME || "http://localhost:8080";
+// Environment variables and shell arguments
+
+const hostname = __ENV.HOSTNAME || "http://localhost:8081";
 const baseUri = `${hostname}/api`;
 
 const constantArrivalRate = {
@@ -11,6 +14,8 @@ const constantArrivalRate = {
     preAllocatedVUs: 10,
     maxVUs: 100,
 };
+
+// VU and perf test configuration
 
 export const options = {
     scenarios: {
@@ -58,8 +63,37 @@ export const options = {
     },
 };
 
-function randint(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+// Utility functions for test impls
+
+function uuidFromBigInt(bigint) {
+  // convert to 128-bit hex string (32 hex chars, zero-padded)
+  const hex = bigint.toString(16).padStart(32, '0');
+
+  // insert dashes in the 8-4-4-4-12 UUID format
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32),
+  ].join('-');
+}
+
+// Utilities for generating test inputs
+
+const minUser = 1;
+const maxUser = 1000;
+
+// seed script will generate a sequence of continously increasing uuids, starting from 0, so we can safely randrange a tournament key
+const minTournamentKey = 1;
+const maxTournamentKey = 250;
+
+function randrange(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min; // inclusive range (min, max)
+}
+
+function randUserID() {
+    return String(randrange(minUser, maxUser));
 }
 
 const leaderboardModes = [
@@ -71,9 +105,26 @@ const leaderboardModes = [
     "TIMED_15+10"
 ];
 
+const replayCauses = [
+    "CHECKMATE",
+    "STALEMATE",
+    "FORFEIT"
+];
+
+const replayResults = [
+    "WHITE_WINS",
+    "BLACK_WINS",
+    "DRAW",
+];
+
+function randEnum(enumArray) {
+    return enumArray[randrange(0, enumArray.length - 1)]
+}
+
+// Test implementations
+
 export function getLeaderboard() {
-    const mode = leaderboardModes[randint(0, leaderboardModes.length - 1)];
-    const params = new URLSearchParams({ mode });
+    const params = new URLSearchParams({ mode: randEnum(leaderboardModes) });
     http.get(baseUri + "/leaderboard?" + params.toString());
 }
 
@@ -82,6 +133,7 @@ export function getTournaments() {
 }
 
 export function getTournament() {
+    const params = new URLSearchParams({ tournamentKey: randrange(minTournamentKey, maxTournamentKey) });
     http.get(baseUri + "/tournament");
 }
 
@@ -94,38 +146,35 @@ export function searchReplays() {
 }
 
 export function searchReplays_byWinnerID_LoserID() {
-    const params = new URLSearchParams({ winnerID: "1", loserID: "2" });
+    const params = new URLSearchParams({ winnerId: randUserID(), loserId: randUserID() });
     http.get(baseUri + "/replays?" + params.toString());
 }
 
 export function searchReplays_byWhiteID_BlackID() {
-    const params = new URLSearchParams({ winnerID: "1", loserID: "2" });
+    const params = new URLSearchParams({ whiteId: randUserID(), blackId: randUserID() });
     http.get(baseUri + "/replays?" + params.toString());
 }
 
 export function searchReplays_byTimeframe() {
-    const params = new URLSearchParams({ winnerID: "1", loserID: "2" });
+   const params = new URLSearchParams({ winnerId: randUserID(), loserId: randUserID() });
     http.get(baseUri + "/replays?" + params.toString());
 }
 
 export function searchReplays_byModeResultCause() {
-    const params = new URLSearchParams({ mode: "CORRESPONDENCE_7", cause: "WHITE_WINS", result: "CHECKMATE" });
+    const params = new URLSearchParams({ 
+        mode: randEnum(leaderboardModes), 
+        cause: randEnum(replayCauses), 
+        result: randEnum(replayResults),
+    });
     http.get(baseUri + "/replays?" + params.toString());
 }
 
-// these are guaranteed to be contained within the test data.
-const searchableUsernames = [
-    "John",
-    "Tom",
-    "Joe",
-];
-
 export function searchUsers() {
-    const username = leaderboardModes[randint(0, searchableUsernames.length - 1)];
-    const params = new URLSearchParams({ username });
+    const params = new URLSearchParams({ username: "John" });
     http.get(baseUri + "/players/search?" + params.toString());
 }
 
 export function getEloHistories() {
-    http.get(baseUri + "/replay/elo-histories");
+    const params = new URLSearchParams({ userId: randUserID() });
+    http.get(baseUri + "/replay/elo-histories?" + params.toString());
 }

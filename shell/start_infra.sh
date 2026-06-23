@@ -10,7 +10,7 @@ PORTS=("${REDIS_PORTS[@]}" "${REDIS_PUBSUB_PORT}" "${MINIO_PORT}" "${ALLOY_PORT}
 echo "stopping existing infrastructure on ports: ${PORTS[*]}"
 
 for PORT in "${PORTS[@]}"; do
-    sudo fuser -k ${PORT}/tcp
+    fuser -k ${PORT}/tcp
 done
 
 # a script for starting infrastructure needed for testing and development. this includes redis, minio, and alloy.
@@ -47,13 +47,13 @@ redis-cli --cluster create 127.0.0.1:6479 127.0.0.1:6480 127.0.0.1:6481 127.0.0.
 echo "started redis cluster"
 
 # starts standard pyroscope server (assumed to be on port 4040, referenced in alloy config)
-sudo systemctl start pyroscope
+systemctl start pyroscope
 echo "started pyroscope"
 
 # starts standard loki (referenced in app env vars)
-sudo systemctl start loki
+systemctl start loki
 echo "started loki"
 
 # starts standard grafana UI (setup pyroscope and loki configs from UI)
-sudo systemctl start grafana-server
+systemctl start grafana-server
 echo "started grafana"

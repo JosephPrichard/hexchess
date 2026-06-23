@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"flag"
 	"fmt"
@@ -49,7 +50,10 @@ var (
 	tournamentsCount = flag.Int("tournamentsCount", 1000, "number of tournaments to seed")
 )
 
-const ServiceName = "hexchess-seed"
+const (
+	ServiceName = "hexchess-seed"
+	Concurrency = 64
+)
 
 func main() {
 	// validation: check that it is reasonable to generate this number of challenges
@@ -85,8 +89,10 @@ func main() {
 	defer pdb.Close()
 
 	rdb := db.NewRedis(ctx, db.RedisConfig{
-		DSNs:          db.RedisDSNs{SorAddr: rdbSorNodes, SorUsername: rdbSorUsername, SorClusterName: rdbSorClusterName},
-		ActiveProfile: profile,
+		SorAddr:        rdbSorNodes,
+		SorUsername:    rdbSorUsername,
+		SorClusterName: rdbSorClusterName,
+		ActiveProfile:  profile,
 	})
 	defer rdb.Close()
 
@@ -138,7 +144,7 @@ func main() {
 		"timeTaken", time.Since(start).String(),
 		"usersDuration", usersDuration.String(),
 		"challengesDuration", challengesDuration.String(),
-		"resultsDuration", resultsDuration.String(),
+		"gameResultsDuration", resultsDuration.String(),
 		"tournamentsDuration", tournamentsDuration.String())
 }
 
@@ -264,7 +270,7 @@ func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts 
 	})
 
 	eg, egCtx := errgroup.WithContext(ctx)
-	sem := make(chan struct{}, 64)
+	sem := make(chan struct{}, Concurrency)
 
 	for gameIdx, inst := range insts {
 		eg.Go(func() error {
@@ -313,9 +319,15 @@ type TournamentInsts struct {
 }
 
 func generateTournaments() []TournamentInsts {
+	var tkeyUInt64 uint64
+
 	var insts []TournamentInsts
 	for range *tournamentsCount {
-		tkey := pgtype.UUID{Bytes: uuid.New(), Valid: true}
+		var tkey uuid.UUID
+		binary.LittleEndian.PutUint64(tkey[:], tkeyUInt64)
+		tkeyUInt64++
+		pgtkey := pgtype.UUID{Bytes: tkey, Valid: true}
+
 		createdBy := generateUserID(nil)
 		status := model.TournamentInProgress
 		rounds := rand.Intn(4) + 1
@@ -332,7 +344,7 @@ func generateTournaments() []TournamentInsts {
 			}
 			joinedOn := time.Now().Add(-time.Minute*60 + time.Minute*time.Duration(i))
 			participants = append(participants, sqlc.BatchInsertTournamentParticipantParams{
-				TournamentKey: tkey,
+				TournamentKey: pgtkey,
 				UserID:        participantID,
 				JoinedOn:      pgtype.Timestamptz{Time: joinedOn, Valid: true},
 			})
@@ -343,7 +355,7 @@ func generateTournaments() []TournamentInsts {
 		for i := 0; i+1 < len(participants); i += 2 {
 			whiteID, blackID := participants[i].UserID, participants[i+1].UserID
 			matches = append(matches, sqlc.BatchInsertTournamentMatchParams{
-				TournamentKey: tkey,
+				TournamentKey: pgtkey,
 				GameID:        model.NewGameID().String(), // there are no games in the game store matching this at this point in time
 				WhiteID:       whiteID,
 				BlackID:       blackID,
@@ -354,7 +366,7 @@ func generateTournaments() []TournamentInsts {
 
 		insts = append(insts, TournamentInsts{
 			tournament: sqlc.InsertTournamentParams{
-				TournamentKey: tkey,
+				TournamentKey: pgtkey,
 				Name:          fmt.Sprintf("%s's tournament", gofakeit.FirstName()),
 				Rounds:        1,
 				Status:        sqlc.TournamentStatusEnum(status.String()),
@@ -375,7 +387,7 @@ func generateTournaments() []TournamentInsts {
 func seedTournaments(ctx context.Context, querier sqlc.Querier, paramsList []TournamentInsts) error {
 	eg, egCtx := errgroup.WithContext(ctx)
 
-	sem := make(chan struct{}, 64)
+	sem := make(chan struct{}, Concurrency)
 
 	for _, params := range paramsList {
 		eg.Go(func() error {

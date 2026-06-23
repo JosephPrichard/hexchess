@@ -12,15 +12,6 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type RedisDSNs struct {
-	SorAddr           []string `json:"sorAddr"`
-	SorClusterName    string   `json:"sorClusterName"`
-	SorUsername       string   `json:"userName"`
-	PubsubAddr        string   `json:"pubsubAddr"`
-	PubsubClusterName string   `json:"pubsubClusterName"`
-	PubsubUsername    string   `json:"pubsubUsername"`
-}
-
 type RedisNames struct {
 	LeaderboardZSet           string `json:"leaderboardZSet"`
 	GamesZSet                 string `json:"gamesZSet"`
@@ -54,9 +45,9 @@ var DefaultRedisNames = RedisNames{
 }
 
 type Redis struct {
-	Primary redis.UniversalClient
-	PubSub  *redigo.Pool
-	RedisDSNs
+	Primary    redis.UniversalClient
+	PubSub     *redigo.Pool
+	PubsubAddr string `json:"pubsubAddr"`
 	RedisNames
 }
 
@@ -70,11 +61,16 @@ func (rdb *Redis) Close() {
 }
 
 type RedisConfig struct {
-	DSNs           RedisDSNs      `json:"dsns"`
-	ActiveProfile  config.Profile `json:"activeProfile"`
-	AWSServiceName string         `json:"AWSServiceName"`
-	AWSRegion      string         `json:"awsRegion"`
-	Names          *RedisNames
+	SorAddr           []string       `json:"sorAddr"`
+	SorClusterName    string         `json:"sorClusterName"`
+	SorUsername       string         `json:"userName"`
+	PubsubAddr        string         `json:"pubsubAddr"`
+	PubsubClusterName string         `json:"pubsubClusterName"`
+	PubsubUsername    string         `json:"pubsubUsername"`
+	ActiveProfile     config.Profile `json:"activeProfile"`
+	AWSServiceName    string         `json:"AWSServiceName"`
+	AWSRegion         string         `json:"awsRegion"`
+	Names             *RedisNames    `json:"names"`
 }
 
 func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
@@ -85,7 +81,7 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 	}
 
 	redisClientOpts := &redis.UniversalOptions{
-		Addrs:          redisCfg.DSNs.SorAddr,
+		Addrs:          redisCfg.SorAddr,
 		DialTimeout:    5 * time.Second,
 		ReadTimeout:    3 * time.Second,
 		WriteTimeout:   3 * time.Second,
@@ -94,23 +90,23 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 		RouteByLatency: false,
 	}
 	if redisCfg.ActiveProfile != config.Local {
-		tokenRefresher := NewRedisTokenRefresher(ctx, redisCfg.AWSRegion, redisCfg.DSNs.SorUsername, redisCfg.DSNs.SorClusterName)
+		tokenRefresher := NewRedisTokenRefresher(ctx, redisCfg.AWSRegion, redisCfg.SorUsername, redisCfg.SorClusterName)
 		redisClientOpts.CredentialsProvider = NewCredentialsProvider(tokenRefresher)
 	}
 	redisClient := redis.NewUniversalClient(redisClientOpts)
 
 	var pubsubPool *redigo.Pool
-	if redisCfg.DSNs.PubsubAddr != "" {
+	if redisCfg.PubsubAddr != "" {
 		pubsubPool = &redigo.Pool{
 			MaxIdle:     1,
 			IdleTimeout: 240 * time.Second,
 		}
 		if redisCfg.ActiveProfile != config.Local {
-			tokenRefresher := NewRedisTokenRefresher(ctx, redisCfg.AWSRegion, redisCfg.DSNs.PubsubUsername, redisCfg.DSNs.PubsubClusterName)
-			pubsubPool.Dial = NewSecureDialer(tokenRefresher, redisCfg.DSNs.PubsubAddr)
+			tokenRefresher := NewRedisTokenRefresher(ctx, redisCfg.AWSRegion, redisCfg.PubsubUsername, redisCfg.PubsubClusterName)
+			pubsubPool.Dial = NewSecureDialer(tokenRefresher, redisCfg.PubsubAddr)
 		} else {
 			pubsubPool.Dial = func() (redigo.Conn, error) {
-				return redigo.Dial("tcp", redisCfg.DSNs.PubsubAddr)
+				return redigo.Dial("tcp", redisCfg.PubsubAddr)
 			}
 		}
 	}
@@ -119,12 +115,12 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 		logutil.Fatal("execute redis startup cmd", err)
 	}
 
-	slog.Info("created redis client", "config", redisCfg, "redisClientKind", fmt.Sprintf("%T", redisClient))
+	slog.Info("created redis client", "redisClientKind", fmt.Sprintf("%T", redisClient))
 
 	return Redis{
 		Primary:    redisClient,
 		PubSub:     pubsubPool,
-		RedisDSNs:  redisCfg.DSNs,
 		RedisNames: *redisCfg.Names,
+		PubsubAddr: redisCfg.PubsubAddr,
 	}
 }

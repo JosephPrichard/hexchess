@@ -20,11 +20,9 @@ func TestBroadcastMessage(t *testing.T) {
 
 	redisAddr, _ := itest.SetupRedisTest(ctx, t)
 	rdb := db.NewRedis(ctx, db.RedisConfig{
-		Names: testutil.NewTestNames(db.DefaultRedisNames),
-		DSNs: db.RedisDSNs{
-			SorAddr:    []string{redisAddr},
-			PubsubAddr: redisAddr,
-		},
+		Names:         testutil.NewTestNames(db.DefaultRedisNames),
+		SorAddr:       []string{redisAddr},
+		PubsubAddr:    redisAddr,
 		ActiveProfile: config.Local,
 	})
 	defer rdb.Close()

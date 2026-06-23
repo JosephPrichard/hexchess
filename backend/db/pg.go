@@ -69,7 +69,7 @@ type PgPoolConfig struct {
 }
 
 func NewPgPool(ctx context.Context, cfg PgPoolConfig) *pgxpool.Pool {
-	slog.Info("creating to postgres db client", "config", cfg)
+	slog.Info("creating postgres db client", "config", cfg)
 
 	poolCfg, err := pgxpool.ParseConfig(cfg.Dsn)
 	if err != nil {
@@ -87,7 +87,5 @@ func NewPgPool(ctx context.Context, cfg PgPoolConfig) *pgxpool.Pool {
 	if _, err = pool.Exec(ctx, "SELECT 1;"); err != nil {
 		logutil.Fatal("execute postgres startup query", err)
 	}
-
-	slog.InfoContext(ctx, "created postgres db client", "config", cfg)
 	return pool
 }
