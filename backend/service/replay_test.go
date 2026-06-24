@@ -2,7 +2,7 @@ package svc
 
 import (
 	"context"
-	"hexchess-svc/lib/enum"
+	"hexchess-svc/lib/optional"
 	"hexchess-svc/lib/testutil"
 	"hexchess-svc/model"
 
@@ -54,8 +54,8 @@ func TestSearchReplaysByQuery(t *testing.T) {
 		{
 			name: "QueryBy_Users",
 			replayQuery: ReplaysQuery{
-				UserID:  enum.Just(int64(1)),
-				AfterID: enum.Nothing[int64](),
+				UserID:  optional.Just(int64(1)),
+				AfterID: optional.Nothing[int64](),
 				PerPage: 5,
 			},
 			wantReplays: []model.FullReplay{
@@ -68,8 +68,8 @@ func TestSearchReplaysByQuery(t *testing.T) {
 		{
 			name: "QueryBy_Users_Cursor",
 			replayQuery: ReplaysQuery{
-				UserID:  enum.Just(int64(1)),
-				AfterID: enum.Just(int64(3)),
+				UserID:  optional.Just(int64(1)),
+				AfterID: optional.Just(int64(3)),
 				PerPage: 5,
 			},
 			wantReplays: []model.FullReplay{itest.TestReplays[0]},

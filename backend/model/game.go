@@ -3,7 +3,7 @@ package model
 import (
 	"crypto/rand"
 	"hexchess-svc/chess"
-	"hexchess-svc/lib/enum"
+	"hexchess-svc/lib/optional"
 	"math/big"
 )
 
@@ -54,9 +54,9 @@ type FinishedGame struct {
 }
 
 type GameMetadataUpdt struct {
-	GameID      GameID               `json:"id"`
-	WhitePlayer enum.Optional[int64] `json:"whitePlayer"`
-	BlackPlayer enum.Optional[int64] `json:"blackPlayer"`
-	Mode        GameMode             `json:"mode"`
-	FirstColor  GameColor            `json:"firstColor"`
+	GameID      GameID                `json:"id"`
+	WhitePlayer optional.Maybe[int64] `json:"whitePlayer"`
+	BlackPlayer optional.Maybe[int64] `json:"blackPlayer"`
+	Mode        GameMode              `json:"mode"`
+	FirstColor  GameColor             `json:"firstColor"`
 }

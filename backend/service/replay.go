@@ -6,6 +6,7 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/lib/enum"
+	"hexchess-svc/lib/optional"
 	"hexchess-svc/lib/serrors"
 	"hexchess-svc/lib/timeutil"
 	"hexchess-svc/model"
@@ -85,26 +86,26 @@ func (services *HexchessServices) GetMovesHistory(ctx context.Context, replayID 
 }
 
 type ReplaysQuery struct {
-	WhiteName  enum.Optional[string]
-	BlackName  enum.Optional[string]
-	WinnerName enum.Optional[string]
-	LoserName  enum.Optional[string]
+	WhiteName  optional.Maybe[string]
+	BlackName  optional.Maybe[string]
+	WinnerName optional.Maybe[string]
+	LoserName  optional.Maybe[string]
 
-	UserID   enum.Optional[int64]
-	WhiteID  enum.Optional[int64]
-	BlackID  enum.Optional[int64]
-	LoserID  enum.Optional[int64]
-	WinnerID enum.Optional[int64]
+	UserID   optional.Maybe[int64]
+	WhiteID  optional.Maybe[int64]
+	BlackID  optional.Maybe[int64]
+	LoserID  optional.Maybe[int64]
+	WinnerID optional.Maybe[int64]
 
-	Result   enum.Optional[model.ReplayResult]
-	Mode     enum.Optional[model.GameMode]
-	Cause    enum.Optional[model.ReplayCause]
-	FromDate enum.Optional[time.Time]
-	ToDate   enum.Optional[time.Time]
+	Result   optional.Maybe[model.ReplayResult]
+	Mode     optional.Maybe[model.GameMode]
+	Cause    optional.Maybe[model.ReplayCause]
+	FromDate optional.Maybe[time.Time]
+	ToDate   optional.Maybe[time.Time]
 
-	AfterID        enum.Optional[int64]
-	AfterRating    enum.Optional[float64]
-	AfterTurnCount enum.Optional[int32]
+	AfterID        optional.Maybe[int64]
+	AfterRating    optional.Maybe[float64]
+	AfterTurnCount optional.Maybe[int32]
 
 	Sort ReplayQuerySortKey
 
@@ -129,10 +130,10 @@ var ReplayQuerySortEnums = enum.BuildReverseMap(replayQuerySortKeyEntries)
 
 func (r ReplayQuerySortKey) String() string { return enum.String(r, replayQuerySortKeyEntries) }
 
-func supplyUserID(id *enum.Optional[int64]) func(int64) {
+func supplyUserID(id *optional.Maybe[int64]) func(int64) {
 	return func(userID int64) {
 		if !id.IsPresent {
-			*id = enum.Just(userID)
+			*id = optional.Just(userID)
 		}
 	}
 }
@@ -157,8 +158,8 @@ func (services *HexchessServices) SearchReplaysByQuery(ctx context.Context, quer
 	afterRating := query.AfterRating.OrElse(math.MaxFloat64)
 
 	// uses the unix epoch in days for range queries on date. this truncates away timestamp precision regarding hours, seconds, etc.
-	fromDateDays := enum.Optional[int32]{Value: timeutil.DaysEpoch(query.FromDate.Value), IsPresent: query.FromDate.IsPresent}
-	toDateDays := enum.Optional[int32]{Value: timeutil.DaysEpoch(query.ToDate.Value), IsPresent: query.ToDate.IsPresent}
+	fromDateDays := optional.Map(query.FromDate, timeutil.ToDayEpoch)
+	toDateDays := optional.Map(query.ToDate, timeutil.ToDayEpoch)
 
 	params := sqlc.SelectReplaysByQueryParams{
 		PerPage: query.PerPage,

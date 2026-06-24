@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hexchess-svc/chess"
 	"hexchess-svc/lib/enum"
+	"hexchess-svc/lib/optional"
 	"hexchess-svc/lib/serrors"
 	"hexchess-svc/pb"
 	"time"
@@ -289,8 +290,8 @@ func UnmarshalGameMetadataUpdt(bytes []byte) (GameMetadataUpdt, error) {
 
 	return GameMetadataUpdt{
 		GameID:      GameID(pbGameEvent.GameId),
-		WhitePlayer: enum.Optional[int64]{Value: pbGameEvent.WhitePlayer, IsPresent: pbGameEvent.WhitePlayer >= 0},
-		BlackPlayer: enum.Optional[int64]{Value: pbGameEvent.BlackPlayer, IsPresent: pbGameEvent.BlackPlayer >= 0},
+		WhitePlayer: optional.Maybe[int64]{Value: pbGameEvent.WhitePlayer, IsPresent: pbGameEvent.WhitePlayer >= 0},
+		BlackPlayer: optional.Maybe[int64]{Value: pbGameEvent.BlackPlayer, IsPresent: pbGameEvent.BlackPlayer >= 0},
 		FirstColor:  firstColor,
 		Mode:        mode,
 	}, nil

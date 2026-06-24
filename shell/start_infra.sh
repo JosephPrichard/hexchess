@@ -57,3 +57,7 @@ echo "started loki"
 # starts standard grafana UI (setup pyroscope and loki configs from UI)
 systemctl start grafana-server
 echo "started grafana"
+
+# starts standard postgres (configure the connection to this server in env vars of the app)
+systemctl start postgresql
+echo "started postgres"

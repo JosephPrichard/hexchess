@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/lib/enum"
+	"hexchess-svc/lib/optional"
 	"hexchess-svc/model"
 	"time"
 
@@ -33,27 +33,27 @@ func OptBool(v bool) pgtype.Bool {
 	return pgtype.Bool{Bool: v}
 }
 
-func MapOptInt8(o enum.Optional[int64]) pgtype.Int8 {
+func MapOptInt8(o optional.Maybe[int64]) pgtype.Int8 {
 	return pgtype.Int8{Int64: o.Value, Valid: o.IsPresent}
 }
 
-func MapOptInt4(o enum.Optional[int32]) pgtype.Int4 {
+func MapOptInt4(o optional.Maybe[int32]) pgtype.Int4 {
 	return pgtype.Int4{Int32: o.Value, Valid: o.IsPresent}
 }
 
-func MapOptTime(o enum.Optional[time.Time]) pgtype.Timestamptz {
+func MapOptTime(o optional.Maybe[time.Time]) pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: o.Value, Valid: o.IsPresent}
 }
 
-func MapOptMode(o enum.Optional[model.GameMode]) sqlc.NullModeEnum {
+func MapOptMode(o optional.Maybe[model.GameMode]) sqlc.NullModeEnum {
 	return sqlc.NullModeEnum{ModeEnum: sqlc.ModeEnum(o.Value.String()), Valid: o.IsPresent}
 }
 
-func MapOptResult(o enum.Optional[model.ReplayResult]) sqlc.NullResultEnum {
+func MapOptResult(o optional.Maybe[model.ReplayResult]) sqlc.NullResultEnum {
 	return sqlc.NullResultEnum{ResultEnum: sqlc.ResultEnum(o.Value.String()), Valid: o.IsPresent}
 }
 
-func MapOptCause(o enum.Optional[model.ReplayCause]) sqlc.NullCauseEnum {
+func MapOptCause(o optional.Maybe[model.ReplayCause]) sqlc.NullCauseEnum {
 	return sqlc.NullCauseEnum{CauseEnum: sqlc.CauseEnum(o.Value.String()), Valid: o.IsPresent}
 }
 

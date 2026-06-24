@@ -3,30 +3,11 @@ package enum
 import (
 	"encoding/json"
 	"fmt"
+	"hexchess-svc/lib/optional"
 	"log/slog"
 	"maps"
 	"slices"
 )
-
-type Optional[T any] struct {
-	Value     T
-	IsPresent bool
-}
-
-func (o Optional[T]) OrElse(def T) T {
-	if o.IsPresent {
-		return o.Value
-	}
-	return def
-}
-
-func Just[T any](v T) Optional[T] {
-	return Optional[T]{Value: v, IsPresent: true}
-}
-
-func Nothing[T any]() Optional[T] {
-	return Optional[T]{}
-}
 
 type StringLike interface {
 	~string
@@ -91,15 +72,15 @@ func ParseDefault[T ~int, S StringLike](s S, m map[string]T, def T) (T, error) {
 	return Parse(s, m)
 }
 
-func ParseOptional[T ~int, S StringLike](s S, m map[string]T) (Optional[T], error) {
+func ParseOptional[T ~int, S StringLike](s S, m map[string]T) (optional.Maybe[T], error) {
 	if s == "" {
-		return Optional[T]{}, nil
+		return optional.Maybe[T]{}, nil
 	}
 	v, ok := m[string(s)]
 	if !ok {
-		return Optional[T]{}, ParseError[T]{Expected: m, Actual: string(s)}
+		return optional.Maybe[T]{}, ParseError[T]{Expected: m, Actual: string(s)}
 	}
-	return Just(v), nil
+	return optional.Just(v), nil
 }
 
 func Expect[T ~int, S StringLike](s S, m map[string]T) T {

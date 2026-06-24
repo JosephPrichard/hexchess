@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"hexchess-svc/lib/enum"
+	"hexchess-svc/lib/optional"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 	"net/url"
@@ -43,16 +44,15 @@ func GetValidator() *validator.Validate {
 	once.Do(func() {
 		validate = validator.New()
 		validate.RegisterValidation("countries", makeEnumValidator(assets.GetCountryList()))
+
+		locale := en.New()
+		uni := ut.New(locale, locale)
+		t, _ := uni.GetTranslator("en")
+
+		translator = t
+
+		enTranslations.RegisterDefaultTranslations(validate, translator)
 	})
-
-	locale := en.New()
-	uni := ut.New(locale, locale)
-	t, _ := uni.GetTranslator("en")
-
-	translator = t
-
-	enTranslations.RegisterDefaultTranslations(validate, translator)
-
 	return validate
 }
 
@@ -137,11 +137,11 @@ func parseCreateChallengeBody(body CreateChallengeBody) (CreateChallengeTBody, e
 
 	color, err := enum.Parse(body.StartColor, model.GameColorEnums)
 	if err != nil {
-		respErr.Put("CreateChallengeBody.StartColor", err)
+		respErr.Put("body.StartColor", err)
 	}
 	mode, err := enum.Parse(body.Mode, model.GameModeEnums)
 	if err != nil {
-		respErr.Put("CreateChallengeBody.Mode", err)
+		respErr.Put("body.Mode", err)
 	}
 
 	return CreateChallengeTBody{ChallengeeID: body.ChallengeeID, StartColor: color, Mode: mode}, respErr.Inner()
@@ -159,20 +159,20 @@ func parseCreateGameBody(body CreateGameBody) (CreateGameTBody, error) {
 	initialBoard := chess.InitialBoard()
 	if body.InitialFEN != "" {
 		parsedBoard, err := chess.ParseFen(body.InitialFEN)
-		if err == nil {
-			initialBoard = parsedBoard
+		if err != nil {
+			respErr.Put("body.InitialFen", err)
 		} else {
-			respErr.Put("CreateGameBody.InitialFen", err)
+			initialBoard = parsedBoard
 		}
 	}
 
 	color, err := enum.Parse(body.FirstColor, model.GameColorEnums)
 	if err != nil {
-		respErr.Put("CreateGameBody.FirstColor", err)
+		respErr.Put("body.FirstColor", err)
 	}
 	mode, err := enum.Parse(body.Mode, model.GameModeEnums)
 	if err != nil {
-		respErr.Put("CreateGameBody.Mode", err)
+		respErr.Put("body.Mode", err)
 	}
 
 	return CreateGameTBody{FirstColor: color, Mode: mode, InitialBoard: initialBoard}, respErr.Inner()
@@ -191,18 +191,18 @@ func parseCreateTournamentBody(body CreateTournamentBody) (CreateTournamentTBody
 
 	mode, err := enum.Parse(body.Mode, model.GameModeEnums)
 	if err != nil {
-		respErr.Put("CreateTournamentBody.Mode", err)
+		respErr.Put("body.Mode", err)
 	}
 	ruleset, err := enum.Parse(body.Ruleset, model.TournamentRulesetEnums)
 	if err != nil {
-		respErr.Put("CreateTournamentBody.Ruleset", err)
+		respErr.Put("body.Ruleset", err)
 	}
 
 	return CreateTournamentTBody{Name: body.Name, Mode: mode, Ruleset: ruleset, Rounds: body.Rounds, Countdown: body.Countdown}, respErr.Inner()
 }
 
 type ChessMetasQuery struct {
-	AfterOrdering enum.Optional[int64]
+	AfterOrdering optional.Maybe[int64]
 	Count         int32
 }
 
@@ -299,7 +299,7 @@ func parseEloHistoriesQuery(values url.Values) (EloHistoriesQuery, error) {
 	q := makeQueryParseCtx(values)
 
 	userID := parseInt(q, "userId")
-	timeframeKind := parseDefEnum[TimeframeKind](q, "timeframe", TimeframeEnums, TimeframeAll)
+	timeframeKind := parseDefEnum(q, "timeframe", TimeframeEnums, TimeframeAll)
 
 	return EloHistoriesQuery{UserID: userID, Months: timeframeKind.Months()}, q.RespErr.Inner()
 }
@@ -367,8 +367,8 @@ func parseReplaysQuery(values url.Values) (GetReplaysQuery, error) {
 }
 
 type GetTournamentQuery struct {
-	UserID        enum.Optional[int64]
-	AfterID       enum.Optional[int64]
+	UserID        optional.Maybe[int64]
+	AfterID       optional.Maybe[int64]
 	ByParticipant bool
 }
 
@@ -428,51 +428,51 @@ func parseDefaultInt[T interface{ int | int32 | int64 }](q queryParseCtx, key st
 	return T(v)
 }
 
-func parseOptFloat(q queryParseCtx, key string) enum.Optional[float64] {
+func parseOptFloat(q queryParseCtx, key string) optional.Maybe[float64] {
 	v := q.Values.Get(key)
 	if v == "" {
-		return enum.Optional[float64]{}
+		return optional.Maybe[float64]{}
 	}
 	f, err := strconv.ParseFloat(v, 64)
 	if err != nil {
 		q.RespErr.Put(key, err)
 	}
-	return enum.Just(f)
+	return optional.Just(f)
 }
 
-func parseOptString(q queryParseCtx, key string) enum.Optional[string] {
+func parseOptString(q queryParseCtx, key string) optional.Maybe[string] {
 	v := q.Values.Get(key)
 	if v == "" {
-		return enum.Optional[string]{}
+		return optional.Maybe[string]{}
 	}
-	return enum.Just(v)
+	return optional.Just(v)
 }
 
-func parseOptDatetime(q queryParseCtx, key string) enum.Optional[time.Time] {
+func parseOptDatetime(q queryParseCtx, key string) optional.Maybe[time.Time] {
 	v := q.Values.Get(key)
 	if v == "" {
-		return enum.Optional[time.Time]{}
+		return optional.Maybe[time.Time]{}
 	}
 	t, err := time.Parse(time.DateOnly, v)
 	if err != nil {
 		q.RespErr.Put(key, err)
 	}
-	return enum.Just(t)
+	return optional.Just(t)
 }
 
-func parseOptInt[T interface{ int | int32 | int64 }](q queryParseCtx, key string) enum.Optional[T] {
+func parseOptInt[T interface{ int | int32 | int64 }](q queryParseCtx, key string) optional.Maybe[T] {
 	v := q.Values.Get(key)
 	if v == "" {
-		return enum.Optional[T]{}
+		return optional.Maybe[T]{}
 	}
 	i, err := strconv.Atoi(v)
 	if err != nil {
 		q.RespErr.Put(key, err)
 	}
-	return enum.Just(T(i))
+	return optional.Just(T(i))
 }
 
-func parseOptEnum[T ~int](q queryParseCtx, key string, enums map[string]T) enum.Optional[T] {
+func parseOptEnum[T ~int](q queryParseCtx, key string, enums map[string]T) optional.Maybe[T] {
 	v, err := enum.ParseOptional(q.Values.Get(key), enums)
 	if err != nil {
 		q.RespErr.Put(key, err)

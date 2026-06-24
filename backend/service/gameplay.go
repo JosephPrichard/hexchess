@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/chess"
-	"hexchess-svc/lib/enum"
+	"hexchess-svc/lib/optional"
 	"hexchess-svc/lib/serrors"
 	"time"
 
@@ -58,8 +58,8 @@ func (e ErrInvalidMove) Error() string {
 func mapMetadataUpdt(state *model.ChessState) model.GameMetadataUpdt {
 	return model.GameMetadataUpdt{
 		GameID:      state.ID,
-		WhitePlayer: enum.Optional[int64]{Value: state.WhitePlayer.ID, IsPresent: state.WhitePlayer.Present},
-		BlackPlayer: enum.Optional[int64]{Value: state.BlackPlayer.ID, IsPresent: state.BlackPlayer.Present},
+		WhitePlayer: optional.Maybe[int64]{Value: state.WhitePlayer.ID, IsPresent: state.WhitePlayer.Present},
+		BlackPlayer: optional.Maybe[int64]{Value: state.BlackPlayer.ID, IsPresent: state.BlackPlayer.Present},
 		Mode:        state.Mode,
 	}
 }
@@ -78,15 +78,13 @@ func (services *HexchessServices) createGame(ctx context.Context, setup model.St
 
 	slog.InfoContext(ctx, "created chess game", "chesState", state)
 
-	if _, err := services.redis.Primary.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+	_, err := services.redis.Primary.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 		if err := services.setChessState(ctx, pipe, gameID, state, time.Now()); err != nil {
 			return serrors.Wrap("set chess state", err, "gameID", gameID)
 		}
 		return services.redisPublisher.PublishUpdtGameEvent(ctx, pipe, mapMetadataUpdt(state))
-	}); err != nil {
-		return err
-	}
-	return nil
+	})
+	return err
 }
 
 func (services *HexchessServices) JoinGame(ctx context.Context, gameID model.GameID, player model.PlayerState) (*model.ChessState, error) {

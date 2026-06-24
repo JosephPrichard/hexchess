@@ -121,7 +121,6 @@ func (api *API) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 	if err := parseJSON(r, &body); err != nil {
 		return err
 	}
-
 	user, err := api.services.VerifyUser(ctx, body.Username, body.Password)
 	if err != nil {
 		return serrors.Wrap("verify user", err)
@@ -434,7 +433,7 @@ func (api *API) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) er
 		return ErrHttpUpdateChallenge
 	}
 
-	deleteResult, err := api.services.DeleteChallenge(ctx, svc.ChallengeKey{ChallengerID: body.ChallengerID, ChallengeeID: body.ChallengeeID})
+	deleteResult, err := api.services.DeleteChallenge(ctx, body.ChallengerID, body.ChallengeeID)
 	if err != nil {
 		return serrors.Wrap("delete challenge", err)
 	}
@@ -469,7 +468,7 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	ret, err := api.services.InsertChallenge(ctx, svc.ChallengeInst{
+	challenge, err := api.services.InsertChallenge(ctx, svc.ChallengeInst{
 		ChallengerID: player.ID,
 		ChallengeeID: body.ChallengeeID,
 		Mode:         body.Mode,
@@ -480,7 +479,7 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 		return serrors.Wrap("insert challenge", err)
 	}
 
-	api.broadcaster.BroadcastChallenge(ctx, ret, pubsub.Async())
+	api.broadcaster.BroadcastChallenge(ctx, challenge, pubsub.Async())
 
 	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil

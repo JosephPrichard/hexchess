@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"hexchess-svc/lib/enum"
+	"hexchess-svc/lib/optional"
 	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
 	"log/slog"
@@ -374,7 +375,7 @@ func (services *HexchessServices) GetFullUser(ctx context.Context, userID int64,
 
 	eg.Go(func() (err error) {
 		replayList, err = services.SearchReplaysByQuery(egCtx, ReplaysQuery{
-			UserID:  enum.Just(userID),
+			UserID:  optional.Just(userID),
 			PerPage: perPage,
 		})
 		return serrors.Wrap("get user replays", err, "userID", userID)
@@ -438,7 +439,7 @@ func hashPassword(password string) (HashResult, error) {
 }
 
 type UserIDByNameRequest struct {
-	Username enum.Optional[string]
+	Username optional.Maybe[string]
 	SupplyID func(int64)
 }
 

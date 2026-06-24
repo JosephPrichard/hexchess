@@ -44,10 +44,11 @@ const truncateSql = `
 	CASCADE;`
 
 var (
-	usersCount       = flag.Int("usersCount", 1000, "number of users to seed")
-	challengesCount  = flag.Int("challengesCount", 100, "number of challenges to seed")
-	gameResultCount  = flag.Int("gameResultCount", 5000, "number of game results to seed")
-	tournamentsCount = flag.Int("tournamentsCount", 1000, "number of tournaments to seed")
+	usersCount             = flag.Int("usersCount", 1000, "number of users to seed")
+	challengesCount        = flag.Int("challengesCount", 100, "number of challenges to seed")
+	gameResultCount        = flag.Int("gameResultCount", 5000, "number of game results to seed")
+	tournamentsCount       = flag.Int("tournamentsCount", 1000, "number of tournaments to seed")
+	deterministicUsernames = flag.Bool("deterministicUsernames", true, "whether usernames follow the pattern 'User0', 'User1', etc. or are random")
 )
 
 const (
@@ -150,9 +151,16 @@ func main() {
 
 func generateUserInsts() []svc.UserInst {
 	var insts []svc.UserInst
-	for range *usersCount {
+	for i := range *usersCount {
+		var username string
+		if *deterministicUsernames {
+			username = fmt.Sprintf("User%d", i)
+		} else {
+			username = gofakeit.Username()
+		}
+
 		insts = append(insts, svc.UserInst{
-			Username: gofakeit.Username(),
+			Username: username,
 			Password: "password1",
 			Country:  "us",
 			JoinedOn: time.Now(),

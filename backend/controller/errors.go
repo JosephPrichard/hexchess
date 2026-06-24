@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	svc "hexchess-svc/service"
@@ -83,37 +84,13 @@ func ServiceViewFromErr(err error) ServiceResp {
 		return resp
 	}
 
-	switch {
-	case errors.Is(err, svc.ErrSessionNotFound):
-		err, msg = ErrHttpSessionExpired, err.Error()
-	case errors.Is(err, svc.ErrUserNotFound):
-		err, msg = ErrHttpInvalidLogin, err.Error()
-	case errors.Is(err, svc.ErrTooManyLoginAttempts):
-		err, msg = ErrHttpTooManyLoginAttempts, err.Error()
-	case errors.Is(err, svc.ErrDuplicateChallenge):
-		err, msg = ErrHttpDuplicateChallenge, err.Error()
-	case errors.Is(err, svc.ErrInvalidChallengeMember):
-		err, msg = ErrHttpInvalidParticipants, err.Error()
-	case errors.Is(err, svc.ErrSelfChallenge):
-		err, msg = ErrHttpSelfChallenge, err.Error()
-	case errors.Is(err, svc.ErrTournamentNotFound):
-		err, msg = ErrHttpNotFoundTournament, err.Error()
-	case errors.Is(err, svc.ErrTooManyParticipants):
-		err, msg = ErrHttpTooManyParticipants, err.Error()
-	case errors.Is(err, svc.ErrTournamentNotLobby):
-		err, msg = ErrHttpTournamentNotLobby, err.Error()
-	case errors.Is(err, svc.ErrInvalidCountdownTournamentStatus):
-		err, msg = ErrHttpInvalidCountdownState, err.Error()
-	case errors.Is(err, svc.ErrTournamentCountdownPermissions):
-		err, msg = ErrHttpCountdownPermissions, err.Error()
-	case errors.Is(err, svc.ErrChallengeNotFound):
-		err, msg = ErrHttpNotFoundChallenge, err.Error()
-	case errors.Is(err, svc.ErrTournamentNotFound):
-		err, msg = ErrHttpNotFoundTournament, err.Error()
-	case errors.Is(err, svc.InvalidChecksum):
-		err, msg = ErrHttpInvalidChecksum, err.Error()
-	case errors.Is(err, svc.ErrProfilePicTooBig):
-		err, msg = ErrHttpErrProfilePicTooBig, err.Error()
+	// map business logic errors to http errors
+	err, msg = mapServiceErrors(err)
+
+	// map specific stdlib errors with messages safe for http responses to http errors
+	switch checkErr := err.(type) {
+	case *json.UnmarshalTypeError:
+		err, msg = ErrHttpInvalidJSON, checkErr.Error()
 	}
 
 	// map http error codes to status codes
@@ -159,6 +136,42 @@ func ServiceViewFromErr(err error) ServiceResp {
 	default:
 		return ServiceResp{Status: http.StatusInternalServerError, Error: ErrHttpFatal.Error()}
 	}
+}
+
+func mapServiceErrors(err error) (error, string) {
+	switch {
+	case errors.Is(err, svc.ErrSessionNotFound):
+		return ErrHttpSessionExpired, err.Error()
+	case errors.Is(err, svc.ErrUserNotFound):
+		return ErrHttpInvalidLogin, err.Error()
+	case errors.Is(err, svc.ErrTooManyLoginAttempts):
+		return ErrHttpTooManyLoginAttempts, err.Error()
+	case errors.Is(err, svc.ErrDuplicateChallenge):
+		return ErrHttpDuplicateChallenge, err.Error()
+	case errors.Is(err, svc.ErrInvalidChallengeMember):
+		return ErrHttpInvalidParticipants, err.Error()
+	case errors.Is(err, svc.ErrSelfChallenge):
+		return ErrHttpSelfChallenge, err.Error()
+	case errors.Is(err, svc.ErrTournamentNotFound):
+		return ErrHttpNotFoundTournament, err.Error()
+	case errors.Is(err, svc.ErrTooManyParticipants):
+		return ErrHttpTooManyParticipants, err.Error()
+	case errors.Is(err, svc.ErrTournamentNotLobby):
+		return ErrHttpTournamentNotLobby, err.Error()
+	case errors.Is(err, svc.ErrInvalidCountdownTournamentStatus):
+		return ErrHttpInvalidCountdownState, err.Error()
+	case errors.Is(err, svc.ErrTournamentCountdownPermissions):
+		return ErrHttpCountdownPermissions, err.Error()
+	case errors.Is(err, svc.ErrChallengeNotFound):
+		return ErrHttpNotFoundChallenge, err.Error()
+	case errors.Is(err, svc.ErrTournamentNotFound):
+		return ErrHttpNotFoundTournament, err.Error()
+	case errors.Is(err, svc.InvalidChecksum):
+		return ErrHttpInvalidChecksum, err.Error()
+	case errors.Is(err, svc.ErrProfilePicTooBig):
+		return ErrHttpErrProfilePicTooBig, err.Error()
+	}
+	return err, ""
 }
 
 type BadRequestError struct {

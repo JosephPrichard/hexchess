@@ -1,24 +1,38 @@
 import http from "k6/http";
+import { Trend } from "k6/metrics";
+import faker from "k6/x/faker";
 import { URLSearchParams } from "https://jslib.k6.io/url/1.0.0/index.js";
 
-// Environment variables and shell arguments
+// Constant VU definitions, test configs and input parsing
 
 const hostname = __ENV.HOSTNAME || "http://localhost:8081";
-const baseUri = `${hostname}/api`;
+export const baseUri = `${hostname}/api`;
 
-const constantArrivalRate = {
+// providing a higher user count gives a better distribution on what data is created and which rows are updated
+// higher is better, but takes much longer to run the test
+const usersCount = parseInt(__ENV.USERS_COUNT) || 10;
+
+export const constantArrivalRate = {
     executor: "constant-arrival-rate",
-    rate: 20,
+    rate: 1,
     timeUnit: "1s",
-    duration: "1m",
-    preAllocatedVUs: 10,
-    maxVUs: 100,
+    duration: "5s",
+    preAllocatedVUs: 1,
+    maxVUs: 2,
 };
 
-// VU and perf test configuration
+// export const constantArrivalRate = {
+//     executor: "constant-arrival-rate",
+//     rate: 20,
+//     timeUnit: "1s",
+//     duration: "1m",
+//     preAllocatedVUs: 10,
+//     maxVUs: 100,
+// };
 
 export const options = {
     scenarios: {
+        // GET testdefs
         // leaderboard
         get_leaderboard: {
             ...constantArrivalRate,
@@ -31,37 +45,206 @@ export const options = {
         },
         search_replays_winner_loser_id: {
             ...constantArrivalRate,
-            exec: "searchReplays_byWinnerID_LoserID",
+            exec: "searchReplays_WinnerID_LoserID",
         },
         search_replays_black_white_id: {
             ...constantArrivalRate,
-            exec: "searchReplays_byWhiteID_BlackID",
+            exec: "searchReplays_WhiteID_BlackID",
         },
         search_replays_timeframe: {
             ...constantArrivalRate,
-            exec: "searchReplays_byTimeframe",
+            exec: "searchReplays_Timeframe",
         },
         search_replays_mode_result_cause: {
             ...constantArrivalRate,
-            exec: "searchReplays_byModeResultCause",
+            exec: "searchReplays_ModeResultCause",
         },
         // users
         search_users: {
             ...constantArrivalRate,
             exec: "searchUsers",
         },
+        // challenges
+        get_challenges: {
+            ...constantArrivalRate,
+            exec: "getChallenges",
+        },
         // game metadata
         get_game_metadatas: {
             ...constantArrivalRate,
             exec: "getGameMetadatas",
         },
-        // replays
+        // replay elo histories
         get_elo_histories: {
             ...constantArrivalRate,
             exec: "getEloHistories",
         },
+        // POST testdefs
+        // users
+        update_user: {
+            ...constantArrivalRate,
+            exec: "postUpdateUser"
+        },
+        // challenges
+        create_challenge: {
+            ...constantArrivalRate,
+            exec: "postCreateChallenge",
+        },
+        // update_challenge: {
+        //     ...constantArrivalRate,
+        //     exec: "postUpdateChallenge",
+        // },
+        // games
+        create_game: {
+            ...constantArrivalRate,
+            exec: "postCreateGame",
+        }
     },
 };
+
+// Test preconditions, setup, and teardown
+
+export function setup() {
+    // k6 does not support async/await so we use a single batch to send all the requests at once.
+    const requests = [];
+    for (let i = 0; i < usersCount; i++) {
+        // precondition: seeded data is assumed to have usernames conforming to this pattern, each with the provided password
+        requests.push(["POST", baseUri + "/login", JSON.stringify({ username: `User${i}`, password: "password1" })]);
+    }
+    
+    const responses = http.batch(requests);
+
+    // these session cookies can be used anytime we need an authenticated request.
+    // a big assumption is: these stay valid until the end of the test
+    const sessionCookies = responses.map(resp => {
+        // console.log(`Login response headers=${JSON.stringify(resp.headers)}, status=${resp.status}, body=${resp.body}`);
+        return resp.headers["Set-Cookie"];
+    });
+
+    console.log("Generated session cookies in test setup", sessionCookies);
+
+    return { sessionCookies };
+}
+
+// Additional measurements
+
+export const trendCreateChallenge400 = new Trend("create_challenge_400_duration");
+
+// GET test implementations
+
+export function getLeaderboard() {
+    const params = new URLSearchParams({ mode: randArray(gameModes) });
+    http.get(baseUri + "/leaderboard?" + params.toString());
+}
+
+export function getTournaments() {
+    http.get(baseUri + "/tournaments");
+}
+
+export function getTournament() {
+    const params = new URLSearchParams({ tournamentKey: randTournamentKey() });
+    http.get(baseUri + "/tournament?" + params.toString());
+}
+
+export function getGameMetadatas() {
+    http.get(baseUri + "/game/rooms");
+}
+
+export function getChallenges(data) {
+    const searchParams = new URLSearchParams({
+        participants: randrange(0, 1) === 0 ? "sent" : "received"
+    });
+    const headerParams = makeSessionHeaders(data.sessionCookies);
+    http.get(baseUri + "/challenges?" + searchParams.toString(), headerParams);
+}
+
+export function searchReplays() {
+    http.get(baseUri + "/replays");
+}
+
+export function searchReplays_WinnerID_LoserID() {
+    const params = new URLSearchParams({ 
+        winnerId: randUserID(), 
+        loserId: randUserID() 
+    });
+    http.get(baseUri + "/replays?" + params.toString());
+}
+
+export function searchReplays_WhiteID_BlackID() {
+    const params = new URLSearchParams({
+        whiteId: randUserID(), 
+        blackId: randUserID() 
+    });
+    http.get(baseUri + "/replays?" + params.toString());
+}
+
+export function searchReplays_Timeframe() {
+    const params = new URLSearchParams({});
+    http.get(baseUri + "/replays?" + params.toString());
+}
+
+export function searchReplays_ModeResultCause() {
+    const params = new URLSearchParams({ 
+        mode: randArray(gameModes), 
+        cause: randArray(replayCauses), 
+        result: randArray(replayResults),
+    });
+    http.get(baseUri + "/replays?" + params.toString());
+}
+
+export function searchUsers() {
+    const params = new URLSearchParams({ username: "John" });
+    http.get(baseUri + "/players/search?" + params.toString());
+}
+
+export function getEloHistories() {
+    const params = new URLSearchParams({ userId: randUserID() });
+    http.get(baseUri + "/replay/elo-histories?" + params.toString());
+}
+
+// POST test implementations
+
+export function postCreateGame() {
+    const body = JSON.stringify({
+        mode: randArray(gameModes),
+        firstColor: randArray(colors),
+    });
+    http.post(baseUri + "/games/create", body);
+}
+
+export function postCreateChallenge(data) {
+    const body = JSON.stringify({
+        challengeeId: randUserIDInt(),
+        mode: randArray(gameModes),
+        startColor: randArray(colors),
+    });
+    const params = makeSessionHeaders(data.sessionCookies);
+
+    // reasonable chance of returning an error if this duplicate or self challenge
+    const resp = http.post(baseUri + "/challenges/create", body, params);
+    if (resp.status === 400) {
+        trendCreateChallenge400.add(resp.timings.duration);
+    }
+}
+
+export function postUpdateChallenge(data) {
+    const body = JSON.stringify({});
+    const params = makeSessionHeaders(data.sessionCookies);
+
+    const resp = http.post(baseUri + "/challenges/update", body, params);
+}
+
+export function postUpdateUser(data) {
+    const body = JSON.stringify({ 
+        // we're avoiding updating the username as to keep the username preconditions stable for the next perf test execution.
+        // bio is the bulk of the data that is updated, and is sufficient to test this endpoint.
+        newCountry: "us",
+        newBio: faker.word.loremIpsumParagraph(1, 3, 8, "\n"),
+    });
+    const params = makeSessionHeaders(data.sessionCookies);
+
+    http.post(baseUri + "/users", body, params);
+}
 
 // Utility functions for test impls
 
@@ -81,6 +264,13 @@ function uuidFromBigInt(bigint) {
 
 // Utilities for generating test inputs
 
+function makeSessionHeaders(sessionCookies) {
+    const cookie = randArray(sessionCookies);
+    return { 
+        headers: { "Cookie": cookie }
+    };
+}
+
 const minUser = 1;
 const maxUser = 1000;
 
@@ -93,10 +283,18 @@ function randrange(min, max) {
 }
 
 function randUserID() {
-    return String(randrange(minUser, maxUser));
+    return String(randUserIDInt());
 }
 
-const leaderboardModes = [
+function randUserIDInt() {
+    return randrange(minUser, maxUser);
+}
+
+function randTournamentKey() {
+    return randrange(minTournamentKey, maxTournamentKey);
+}
+
+const gameModes = [
     "CORRESPONDENCE_1",
     "CORRESPONDENCE_7",
     "CORRESPONDENCE_14",
@@ -117,64 +315,12 @@ const replayResults = [
     "DRAW",
 ];
 
-function randEnum(enumArray) {
-    return enumArray[randrange(0, enumArray.length - 1)]
-}
+const colors = [
+    "WHITE",
+    "BLACK",
+    "RANDOM"
+];
 
-// Test implementations
-
-export function getLeaderboard() {
-    const params = new URLSearchParams({ mode: randEnum(leaderboardModes) });
-    http.get(baseUri + "/leaderboard?" + params.toString());
-}
-
-export function getTournaments() {
-    http.get(baseUri + "/tournaments");
-}
-
-export function getTournament() {
-    const params = new URLSearchParams({ tournamentKey: randrange(minTournamentKey, maxTournamentKey) });
-    http.get(baseUri + "/tournament");
-}
-
-export function getGameMetadatas() {
-    http.get(baseUri + "/game/rooms");
-}
-
-export function searchReplays() {
-    http.get(baseUri + "/replays");
-}
-
-export function searchReplays_byWinnerID_LoserID() {
-    const params = new URLSearchParams({ winnerId: randUserID(), loserId: randUserID() });
-    http.get(baseUri + "/replays?" + params.toString());
-}
-
-export function searchReplays_byWhiteID_BlackID() {
-    const params = new URLSearchParams({ whiteId: randUserID(), blackId: randUserID() });
-    http.get(baseUri + "/replays?" + params.toString());
-}
-
-export function searchReplays_byTimeframe() {
-   const params = new URLSearchParams({ winnerId: randUserID(), loserId: randUserID() });
-    http.get(baseUri + "/replays?" + params.toString());
-}
-
-export function searchReplays_byModeResultCause() {
-    const params = new URLSearchParams({ 
-        mode: randEnum(leaderboardModes), 
-        cause: randEnum(replayCauses), 
-        result: randEnum(replayResults),
-    });
-    http.get(baseUri + "/replays?" + params.toString());
-}
-
-export function searchUsers() {
-    const params = new URLSearchParams({ username: "John" });
-    http.get(baseUri + "/players/search?" + params.toString());
-}
-
-export function getEloHistories() {
-    const params = new URLSearchParams({ userId: randUserID() });
-    http.get(baseUri + "/replay/elo-histories?" + params.toString());
+function randArray(array) {
+    return array[randrange(0, array.length - 1)];
 }

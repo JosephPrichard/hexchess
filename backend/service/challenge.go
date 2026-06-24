@@ -131,12 +131,14 @@ type DeleteResult struct {
 	FirstColor   model.GameColor
 }
 
-func (services *HexchessServices) DeleteChallenge(ctx context.Context, key ChallengeKey) (DeleteResult, error) {
-	challengeRow, err := services.querier.DeleteChallenge(ctx, sqlc.DeleteChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+func (services *HexchessServices) DeleteChallenge(ctx context.Context, challengerID int64, challengeeID int64) (DeleteResult, error) {
+	params := sqlc.DeleteChallengeParams{ChallengerID: challengerID, ChallengeeID: challengeeID}
+
+	challengeRow, err := services.querier.DeleteChallenge(ctx, params)
 	if db.IsErrNoRows(err) {
 		return DeleteResult{}, ErrChallengeNotFound
 	} else if err != nil {
-		return DeleteResult{}, serrors.Wrap("delete challenge", err, "key", key)
+		return DeleteResult{}, serrors.Wrap("delete challenge", err, "params", params)
 	}
 
 	gameColor := enum.Expect(challengeRow.StartColor, model.GameColorEnums)
@@ -148,7 +150,7 @@ func (services *HexchessServices) DeleteChallenge(ctx context.Context, key Chall
 		Mode:         gameMode,
 		FirstColor:   gameColor,
 	}
-	slog.InfoContext(ctx, "deleted challenge", "challengeKey", key, "dr", delResult, "error", err)
+	slog.InfoContext(ctx, "deleted challenge", "params", params, "deleteResult", delResult, "error", err)
 	return delResult, err
 }
 

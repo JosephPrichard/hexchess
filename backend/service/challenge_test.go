@@ -167,7 +167,7 @@ func TestDeleteChallenge(t *testing.T) {
 	challengeBefore, err := testinfra.Querier.SelectChallenge(ctx, sqlc.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
-	dr, err := services.DeleteChallenge(ctx, key)
+	dr, err := services.DeleteChallenge(ctx, key.ChallengerID, key.ChallengeeID)
 	require.NoError(t, err)
 
 	_, errAfterDelete := testinfra.Querier.SelectChallenge(ctx, sqlc.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})

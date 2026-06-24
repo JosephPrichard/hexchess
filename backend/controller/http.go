@@ -50,8 +50,20 @@ func transformJSON[Body any, Output any](r *http.Request, parse func(Body) (Outp
 	var body Body
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		var o Output
-		return o, ErrHttpInvalidJSON
+		return o, err
 	}
+
+	//bytes, err := io.ReadAll(r.Body)
+	//if err != nil {
+	//	var o Output
+	//	return o, ErrHttpInvalidJSON
+	//}
+	//var body Body
+	//if err := json.Unmarshal(bytes, &body); err != nil {
+	//	slog.Error("invalid json", "err", err, "body", string(bytes))
+	//	var o Output
+	//	return o, err
+	//}
 
 	return parse(body)
 }

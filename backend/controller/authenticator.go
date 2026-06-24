@@ -5,7 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"hexchess-svc/lib/enum"
+	"hexchess-svc/lib/optional"
 	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
 	"math/big"
@@ -44,7 +44,7 @@ func NewSessionID() string {
 	return string(bytes)
 }
 
-func issueTempSession(session enum.Optional[model.PlayerState], w http.ResponseWriter) ([]svc.SessionInst, string) {
+func issueTempSession(session optional.Maybe[model.PlayerState], w http.ResponseWriter) ([]svc.SessionInst, string) {
 	var sessions []svc.SessionInst
 	var tempSessionID string
 
@@ -89,16 +89,15 @@ func (auth *Authenticator) GetSession(ctx context.Context, r *http.Request) (Ses
 	}
 	sessionToken := cookie.Value
 	player, err := auth.services.GetSession(ctx, sessionToken)
-
 	return Session{Player: player, Token: sessionToken}, serrors.Wrap("get session player", err)
 }
 
-func (auth *Authenticator) GetSessionOptPlayer(ctx context.Context, r *http.Request) (enum.Optional[model.PlayerState], error) {
+func (auth *Authenticator) GetSessionOptPlayer(ctx context.Context, r *http.Request) (optional.Maybe[model.PlayerState], error) {
 	session, err := auth.GetSession(ctx, r)
 	if errors.Is(err, svc.ErrSessionNotFound) {
-		return enum.Nothing[model.PlayerState](), nil
+		return optional.Nothing[model.PlayerState](), nil
 	}
-	return enum.Just(session.Player), err
+	return optional.Just(session.Player), err
 }
 
 func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request) (model.PlayerState, error) {
@@ -111,7 +110,11 @@ func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request
 
 func (auth *Authenticator) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player model.PlayerState) (time.Duration, error) {
 	sessionToken := NewSessionID()
-	if err := auth.services.SetSessions(ctx, svc.SessionInst{SessionID: sessionToken, Player: player, Expiry: SessionMaxAge}); err != nil {
+	if err := auth.services.SetSessions(ctx, svc.SessionInst{
+		SessionID: sessionToken,
+		Player:    player,
+		Expiry:    SessionMaxAge,
+	}); err != nil {
 		return 0, serrors.Wrap("set session player", err, "playerID", player.ID)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionToken))

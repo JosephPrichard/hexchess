@@ -7,6 +7,7 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/lib/enum"
+	"hexchess-svc/lib/optional"
 	"hexchess-svc/lib/serrors"
 
 	"hexchess-svc/model"
@@ -186,7 +187,7 @@ func mapFullTournament(args mapFullTournamentArgs) model.FullTournament {
 	return model.FullTournament{Tournament: tournament, Participants: participants, Matches: matches}
 }
 
-func (services *HexchessServices) GetTournaments(ctx context.Context, participantID enum.Optional[int64], afterID enum.Optional[int64], perPage int32) ([]model.Tournament, error) {
+func (services *HexchessServices) GetTournaments(ctx context.Context, participantID optional.Maybe[int64], afterID optional.Maybe[int64], perPage int32) ([]model.Tournament, error) {
 	if !afterID.IsPresent {
 		afterID.Value = int64(math.MaxInt64)
 	}
