@@ -22,15 +22,18 @@ func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		start := time.Now()
-		slog.InfoContext(ctx, "received REST call", "method", r.Method, "path", r.URL.Path, "headers", r.Header)
+		slog.InfoContext(ctx, "received REST call",
+			"method", r.Method, "path", r.URL.Path, "url", r.URL.String(), "headers", r.Header)
 
 		if err := h(w, r); err != nil {
 			resp := ServiceViewFromErr(err)
 			writeJSON(w, resp.Status, resp)
 
-			logutil.SError(ctx, LevelFromStatus(resp.Status), "failed to handle REST call", err, "path", r.URL.Path, "status", resp.Status)
+			logutil.SError(ctx, LevelFromStatus(resp.Status), "failed to handle REST call", err,
+				"path", r.URL.Path, "status", resp.Status, "timeTaken", time.Since(start).String())
+		} else {
+			slog.InfoContext(ctx, "completed REST call", "path", r.URL.Path, "timeTaken", time.Since(start).String())
 		}
-		slog.InfoContext(ctx, "completed REST call", "path", r.URL.Path, "timeTaken", time.Since(start).String())
 	}
 }
 
@@ -243,8 +246,7 @@ func (api *API) HandleCreateTempSession(w http.ResponseWriter, r *http.Request) 
 	}
 
 	sessions, tempSessionID := issueTempSession(session, w)
-
-	slog.InfoContext(ctx, "created sessions", "sessions", sessions)
+	slog.InfoContext(ctx, "created sessions", "sessions", sessions, "tempSessionID", tempSessionID)
 
 	if err := api.services.SetSessions(ctx, sessions...); err != nil {
 		return serrors.Wrap("set sessions", err)
@@ -614,7 +616,6 @@ func (api *API) HandleGetGameMetadata(w http.ResponseWriter, r *http.Request) er
 	if err != nil {
 		return err
 	}
-
 	resp, err := api.services.GetGameMetadata(ctx, session, query.AfterOrdering, query.Count)
 	if err != nil {
 		return serrors.Wrap("get chess metas", err)
@@ -683,7 +684,6 @@ func (api *API) HandleSearchReplays(w http.ResponseWriter, r *http.Request) erro
 	if err != nil {
 		return err
 	}
-
 	replays, err := api.services.SearchReplaysByQuery(ctx, query)
 	if err != nil {
 		return serrors.Wrap("get replays by query", err, "query", query)

@@ -28,8 +28,6 @@ type RedisConsumer struct {
 	BlockDuration time.Duration `json:"blockDuration"`
 
 	consumeFunc ConsumeFunc
-
-	waitGroup sync.WaitGroup
 }
 
 func (c *RedisConsumer) Consume() {
@@ -61,6 +59,8 @@ func (c *RedisConsumer) ConsumePartition(partitionKey string) {
 		slog.Error("create stream consumer group", "error", err, "consumerID", consumerID, "stream", stream, "consumerGroup", c.ConsumerGroup)
 	}
 
+	var waitGroup sync.WaitGroup
+
 	for i := uint64(0); ; i++ {
 		if i >= c.MaxEvents && c.MaxEvents != 0 {
 			c.cancel()
@@ -89,14 +89,14 @@ func (c *RedisConsumer) ConsumePartition(partitionKey string) {
 
 		for _, entry := range entries {
 			for _, msg := range entry.Messages {
-				c.waitGroup.Go(func() {
+				waitGroup.Go(func() {
 					slog.InfoContext(ctx, "redis stream consumer read message", "consumerID", consumerID, "stream", entry.Stream, "msgID", msg.ID)
 					c.handleXReadMessage(ctx, msg)
 				})
 			}
 		}
 
-		c.waitGroup.Wait()
+		waitGroup.Wait()
 
 		slog.InfoContext(ctx, "finished redis stream consume operation",
 			"consumerID", consumerID, "stream", stream, "timeTaken", time.Since(start).String())

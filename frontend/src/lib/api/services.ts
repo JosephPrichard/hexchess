@@ -228,6 +228,7 @@ export async function postProfilePic(file: File): Promise<Result<{}>> {
 			body: file,
 			headers: {
 				"Content-Digest": contentHash,
+				"Content-Length": String(file.size),
 				"Content-Type": file.type,
 				"X-trace": trace,
 			},

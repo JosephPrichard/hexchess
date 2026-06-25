@@ -49,6 +49,11 @@ var (
 	gameResultCount        = flag.Int("gameResultCount", 5000, "number of game results to seed")
 	tournamentsCount       = flag.Int("tournamentsCount", 1000, "number of tournaments to seed")
 	deterministicUsernames = flag.Bool("deterministicUsernames", true, "whether usernames follow the pattern 'User0', 'User1', etc. or are random")
+	initialTimeGamesRaw    = flag.String("initialTimeGames", "2025-01-01", "the oldest date at which generated game results start from")
+	gameDurationOffsetRaw  = flag.String("gameDurationOffset", "24h", "the offset between the time each consecutive game is played on (e.g. 1h, 5m)")
+
+	initialTimeGames   = time.Time{}
+	gameDurationOffset = time.Duration(0)
 )
 
 const (
@@ -57,6 +62,19 @@ const (
 )
 
 func main() {
+	// parse: input data parameters to generate seeded data backend
+	t, err := time.Parse(time.DateOnly, *initialTimeGamesRaw)
+	if err != nil {
+		logutil.Fatal("failed to parse date", err, "initialTimeGameResults", *initialTimeGamesRaw)
+	}
+	initialTimeGames = t
+
+	d, err := time.ParseDuration(*gameDurationOffsetRaw)
+	if err != nil {
+		logutil.Fatal("failed to parse duration", err, "gameDurationOffset", *gameDurationOffsetRaw)
+	}
+	gameDurationOffset = d
+
 	// validation: check that it is reasonable to generate this number of challenges
 	maxChallengePermutations := *usersCount * (*usersCount - 1)
 	maxChallengesCount := maxChallengePermutations / 10
@@ -270,8 +288,6 @@ func generateGameResults() []GameResultInsts {
 }
 
 func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts []GameResultInsts) error {
-	timeAt := time.Now().Add(-1 * time.Hour * 24 * 100)
-
 	a := insts
 	rand.Shuffle(len(a), func(i, j int) {
 		a[i], a[j] = a[j], a[i]
@@ -303,7 +319,7 @@ func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts 
 				ReplayCause:  inst.ReplayCause,
 				ReplayResult: inst.ReplayResult,
 				ReplayMode:   mode,
-				InsertedTime: timeAt.Add(time.Duration(gameIdx) * time.Hour * 24),
+				InsertedTime: initialTimeGames.Add(time.Duration(gameIdx) * gameDurationOffset),
 				TurnCount:    len(moveSeq),
 			})
 			if err != nil {

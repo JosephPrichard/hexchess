@@ -126,6 +126,7 @@ func (services *HexchessServices) UploadProfilePic(
 	uploader model.PlayerState,
 	file io.ReadCloser,
 	contentType string,
+	contentLength int64,
 	contentChecksum string,
 ) (UploadProfileResult, error) {
 	defer perf.WithContext(ctx).Log()
@@ -159,6 +160,7 @@ func (services *HexchessServices) UploadProfilePic(
 		Bucket:            aws.String(services.aws.S3ProfileBucket),
 		Key:               aws.String(key),
 		ContentType:       aws.String(contentType),
+		ContentLength:     aws.Int64(contentLength),
 		Body:              body,
 		ChecksumSHA256:    checksumSHA256,
 		ChecksumAlgorithm: checksumAlgorithm,
@@ -185,7 +187,7 @@ func (services *HexchessServices) UploadProfilePic(
 
 var ErrNoProfilePic = errors.New("no profile pic found for user")
 
-func (services *HexchessServices) GetProfilePicKey(ctx context.Context, userID string) (string, error) {
+func (services *HexchessServices) GetProfilePicURL(ctx context.Context, userID string) (string, error) {
 	// retrieves all profile pictures for any user and retrieves the most recent one. this runs on the assumption that we may not be deleting old profile pics.
 	prefix := fmtProfilePicPrefix(userID)
 
@@ -201,8 +203,19 @@ func (services *HexchessServices) GetProfilePicKey(ctx context.Context, userID s
 	if mostRecentKey == "" {
 		return "", ErrNoProfilePic
 	}
-	slog.InfoContext(ctx, "constructed profile pic", "key", mostRecentKey)
-	return mostRecentKey, nil
+	slog.InfoContext(ctx, "get profile pic by most recent key", "key", mostRecentKey, "userID", userID)
+
+	presignOutput, err := services.aws.PresignClient.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(services.aws.S3ProfileBucket),
+		Key:    aws.String(mostRecentKey),
+	})
+	if err != nil {
+		return "", serrors.Wrap("presign profile pic url by key", err, "key", mostRecentKey, "bucket", services.aws.S3ProfileBucket)
+	}
+
+	s3URL := presignOutput.URL
+	slog.InfoContext(ctx, "got profile pic presigned url by most recent key", "url", s3URL, "userID", userID)
+	return s3URL, nil
 }
 
 func (services *HexchessServices) NewProfileURL(key string) string {

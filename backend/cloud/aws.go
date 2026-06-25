@@ -19,8 +19,9 @@ var DefaultAWSNames = AWSNames{
 
 type AWSClient struct {
 	AWSNames
-	S3Endpoint string
-	S3Client   *s3.Client
+	S3Endpoint    string
+	S3Client      *s3.Client
+	PresignClient *s3.PresignClient
 }
 
 type AWSNames struct {
@@ -52,14 +53,16 @@ func NewAWSClients(ctx context.Context, clientCfg AWSClientConfig) AWSClient {
 		o.BaseEndpoint = aws.String(clientCfg.AWSEndpoint)
 		o.UsePathStyle = true
 	})
+	presignClient := s3.NewPresignClient(s3Client)
 
 	if clientCfg.Names == nil {
 		clientCfg.Names = &DefaultAWSNames
 	}
 	awsClient := AWSClient{
-		S3Endpoint: clientCfg.AWSEndpoint,
-		S3Client:   s3Client,
-		AWSNames:   *clientCfg.Names,
+		S3Endpoint:    clientCfg.AWSEndpoint,
+		S3Client:      s3Client,
+		PresignClient: presignClient,
+		AWSNames:      *clientCfg.Names,
 	}
 
 	slog.Info("created aws client", "config", clientCfg)

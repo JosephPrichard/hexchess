@@ -1,12 +1,11 @@
 package controller
 
 import (
-	"errors"
 	"hexchess-svc/assets"
 	"hexchess-svc/lib/serrors"
-	svc "hexchess-svc/service"
 	"log/slog"
 	"net/http"
+	"strconv"
 )
 
 func (api *API) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) error {
@@ -18,9 +17,15 @@ func (api *API) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) e
 	}
 
 	contentChecksum := r.Header.Get("Content-Digest")
+	contentLength := r.Header.Get("Content-Length")
 	contentType := r.Header.Get("Content-Type")
 
-	uploadResp, err := api.services.UploadProfilePic(ctx, player, r.Body, contentType, contentChecksum)
+	contentLengthInt64, err := strconv.ParseInt(contentLength, 10, 64)
+	if err != nil {
+		return respError("contentLength", err)
+	}
+
+	uploadResp, err := api.services.UploadProfilePic(ctx, player, r.Body, contentType, contentLengthInt64, contentChecksum)
 	if err != nil {
 		return serrors.Wrap("upload profile pic", err)
 	}
@@ -34,22 +39,14 @@ func (api *API) HandleGetProfilePic(w http.ResponseWriter, r *http.Request) erro
 	ctx := r.Context()
 	userID := r.URL.Query().Get("userId")
 
-	key, err := api.services.GetProfilePicKey(ctx, userID)
+	s3URL, err := api.services.GetProfilePicURL(ctx, userID)
 	if err != nil {
-		level := slog.LevelError
-		if errors.Is(err, svc.ErrNoProfilePic) {
-			level = slog.LevelWarn
-		}
-		slog.Log(ctx, level, "failed to get profile pic key for user", "userID", userID, "error", err)
+		slog.WarnContext(ctx, "failed to get profile pic key for user", "userID", userID, "error", err)
 
 		_, err := w.Write(assets.DefaultProfilePic)
 		return err
 	}
-
-	s3URL := api.services.NewProfileURL(key)
-	slog.InfoContext(ctx, "resolved user key to S3 profile pic URL", "url", s3URL, "userID", userID)
-
-	// cache control is for what URL is being redirected to, this only changes if the user uploads a new profile pic
+	// cache control is for what URL is being redirected to; this only changes if the user uploads a new profile pic
 	//w.Header().Set("Cache-Control", "public, max-age=3600")
 	http.Redirect(w, r, s3URL, http.StatusTemporaryRedirect)
 	return nil

@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -86,6 +87,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 
 			r := httptest.NewRequest(http.MethodPost, "/api/users/profile-pics", bytes.NewBuffer(tt.body))
 			r.Header.Set("Content-Type", tt.contentType)
+			r.Header.Set("Content-Length", strconv.Itoa(len(tt.body)))
 			r.Header.Set("Cookie", FmtCookie(TestSessionID2))
 			r.Header.Set("Content-Digest", tt.checksum)
 			w := httptest.NewRecorder()

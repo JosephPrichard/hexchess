@@ -41,7 +41,7 @@ func main() {
 	awsRegion := os.Getenv("AWS_REGION")
 	awsEndpoint := os.Getenv("AWS_ENDPOINT")
 	awsUsername := os.Getenv("AWS_USERNAME")
-	awsPassword := os.Getenv("AWS__PASSWORD")
+	awsPassword := os.Getenv("AWS_PASSWORD")
 	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 	oltpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	// googleAPIKey := os.Getenv("GOOGLE_APIKEY")

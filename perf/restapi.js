@@ -11,6 +11,7 @@ export const baseUri = `${hostname}/api`;
 // providing a higher user count gives a better distribution on what data is created and which rows are updated
 // higher is better, but takes much longer to run the test
 const usersCount = parseInt(__ENV.USERS_COUNT) || 10;
+const gamesCount = parseInt(__ENV.GAMES_COUNT) || 100;
 
 export const constantArrivalRate = {
     executor: "constant-arrival-rate",
@@ -59,20 +60,65 @@ export const options = {
             ...constantArrivalRate,
             exec: "searchReplays_ModeResultCause",
         },
-        // users
-        search_users: {
+        get_replay_replay_id: {
             ...constantArrivalRate,
-            exec: "searchUsers",
+            exec: "getReplay_ReplayID",
+        },
+        get_replay_movelist: {
+            ...constantArrivalRate,
+            exec: "getReplayMoveList",
+        },
+        // players / users
+        search_players: {
+            ...constantArrivalRate,
+            exec: "searchPlayers",
+        },
+        get_player: {
+            ...constantArrivalRate, 
+            exec: "getPlayer",
+        },
+        get_self_player: {
+             ...constantArrivalRate, 
+            exec: "getSelfPlayer",
+        },
+        get_player_activity: {
+            ...constantArrivalRate,
+            exec: "getPlayerActivity",
+        },
+        get_profile_pic: {
+            ...constantArrivalRate,
+            exec: "getProfilePic",
+        },
+        // game /rooms
+        get_game_rooms: {
+            ...constantArrivalRate,
+            exec: "getGameRooms",
+        },
+        get_game_chats: {
+            ...constantArrivalRate,
+            exec: "getGameChats",
+        },
+        get_game_room_exists: {
+            ...constantArrivalRate,
+            exec: "getGameRoomExists",
+        },
+        // tournaments
+        get_tournament: {
+            ...constantArrivalRate,
+            exec: "getTournament",
+        },
+        get_tournaments: {
+            ...constantArrivalRate,
+            exec: "getTournaments",
         },
         // challenges
         get_challenges: {
             ...constantArrivalRate,
             exec: "getChallenges",
         },
-        // game metadata
-        get_game_metadatas: {
+        get_challenges_count: {
             ...constantArrivalRate,
-            exec: "getGameMetadatas",
+            exec: "getChallengesCount",
         },
         // replay elo histories
         get_elo_histories: {
@@ -80,11 +126,24 @@ export const options = {
             exec: "getEloHistories",
         },
         // POST testdefs
+        // session
+        create_temp_session: {
+            ...constantArrivalRate,
+            exec: "postCreateTempSession",
+        },
+        refresh_session: {
+            ...constantArrivalRate,
+            exec: "postRefreshSession"
+        },
         // users
         update_user: {
             ...constantArrivalRate,
-            exec: "postUpdateUser"
+            exec: "postUpdateUser",
         },
+        // upload_profile_pic: {
+        //     ...constantArrivalRate,
+        //     exec: "postUploadProfilePic",
+        // },
         // challenges
         create_challenge: {
             ...constantArrivalRate,
@@ -106,24 +165,39 @@ export const options = {
 
 export function setup() {
     // k6 does not support async/await so we use a single batch to send all the requests at once.
-    const requests = [];
+    const sessionRequests = [];
+    const gameRequests = [];
+
+    // we need to seed sessions for authenticated requests 
     for (let i = 0; i < usersCount; i++) {
         // precondition: seeded data is assumed to have usernames conforming to this pattern, each with the provided password
-        requests.push(["POST", baseUri + "/login", JSON.stringify({ username: `User${i}`, password: "password1" })]);
+        const body = JSON.stringify({ username: `User${i}`, password: "password1" });
+        sessionRequests.push(["POST", baseUri + "/login", body]);
+    }
+
+    // create some games beforehand (seperate from the ones created as part of resting the /game/create endpoint) for game data reads
+    for (let i = 0; i < gamesCount; i++) {
+        const body = JSON.stringify({ mode: pickElement(gameModes), firstColor: pickElement(colors) });
+        gameRequests.push(["POST", baseUri + "/games/create", body]);
     }
     
-    const responses = http.batch(requests);
+    const sessionRepsonses = http.batch(sessionRequests);
+    const gameResponses = http.batch(gameRequests);
 
     // these session cookies can be used anytime we need an authenticated request.
     // a big assumption is: these stay valid until the end of the test
-    const sessionCookies = responses.map(resp => {
+    const sessionCookies = sessionRepsonses.map(resp => {
         // console.log(`Login response headers=${JSON.stringify(resp.headers)}, status=${resp.status}, body=${resp.body}`);
         return resp.headers["Set-Cookie"];
     });
 
-    console.log("Generated session cookies in test setup", sessionCookies);
 
-    return { sessionCookies };
+    const gameIds = gameResponses.map(resp => {
+        // console.log(`Create game response status=${resp.status}, body=${resp.body}`);
+        return JSON.parse(resp.body).gameId;
+    });
+
+    return { sessionCookies, gameIds };
 }
 
 // Additional measurements
@@ -132,13 +206,18 @@ export const trendCreateChallenge400 = new Trend("create_challenge_400_duration"
 
 // GET test implementations
 
+// leaderboard
+
 export function getLeaderboard() {
-    const params = new URLSearchParams({ mode: randArray(gameModes) });
+    const params = new URLSearchParams({ mode: pickElement(gameModes) });
     http.get(baseUri + "/leaderboard?" + params.toString());
 }
 
+// tournament
+
 export function getTournaments() {
-    http.get(baseUri + "/tournaments");
+    const params = new URLSearchParams({ userId: randUserID() });
+    http.get(baseUri + "/tournaments?" + params.toString());
 }
 
 export function getTournament() {
@@ -146,9 +225,7 @@ export function getTournament() {
     http.get(baseUri + "/tournament?" + params.toString());
 }
 
-export function getGameMetadatas() {
-    http.get(baseUri + "/game/rooms");
-}
+// challenges
 
 export function getChallenges(data) {
     const searchParams = new URLSearchParams({
@@ -156,6 +233,25 @@ export function getChallenges(data) {
     });
     const headerParams = makeSessionHeaders(data.sessionCookies);
     http.get(baseUri + "/challenges?" + searchParams.toString(), headerParams);
+}
+
+export function getChallengesCount(data) {
+    const headerParams = makeSessionHeaders(data.sessionCookies);
+    http.get(baseUri + "/challenges/count", headerParams);
+}
+
+// replays
+
+export function getReplay_ReplayID() {
+    const searchParams = new URLSearchParams({
+        id: randReplayID()
+    });
+    http.get(baseUri + "/replay?" + searchParams.toString());
+}
+
+export function getReplayMoveList(data) {
+    const params = new URLSearchParams({ replayId: randReplayID() });
+    http.get(baseUri + "/replay/move-list?" + params.toString());
 }
 
 export function searchReplays() {
@@ -179,20 +275,47 @@ export function searchReplays_WhiteID_BlackID() {
 }
 
 export function searchReplays_Timeframe() {
-    const params = new URLSearchParams({});
+    // TODO: find a way to have the seeded data have stable timeframes
+    const params = new URLSearchParams({
+        fromDate: randDate(2025),
+        toDate: randDate(2026),
+    });
     http.get(baseUri + "/replays?" + params.toString());
 }
 
 export function searchReplays_ModeResultCause() {
     const params = new URLSearchParams({ 
-        mode: randArray(gameModes), 
-        cause: randArray(replayCauses), 
-        result: randArray(replayResults),
+        mode: pickElement(gameModes), 
+        cause: pickElement(replayCauses), 
+        result: pickElement(replayResults),
     });
     http.get(baseUri + "/replays?" + params.toString());
 }
 
-export function searchUsers() {
+// players / users
+
+export function getPlayer() {
+    const params = new URLSearchParams({ id: randUserID() });
+    http.get(baseUri + "/players?" + params.toString());
+}
+
+export function getSelfPlayer() {
+    const headerParams = makeSessionHeaders(data.sessionCookies);
+    http.get(baseUri + "/players/self", headerParams);
+}
+
+// TODO: have some of the players be active so this returns something other than false.
+export function getPlayerActivity() {
+    const params = new URLSearchParams({ userId: randUserID() });
+    http.get(baseUri + "/players/activity?" + params.toString());
+}
+
+export function getProfilePic() {
+    const params = new URLSearchParams({ userId: randUserID() });
+    http.get(baseUri + "/users/profile-pics?" + params.toString());
+}
+
+export function searchPlayers() {
     const params = new URLSearchParams({ username: "John" });
     http.get(baseUri + "/players/search?" + params.toString());
 }
@@ -202,21 +325,54 @@ export function getEloHistories() {
     http.get(baseUri + "/replay/elo-histories?" + params.toString());
 }
 
+// game / rooms
+
+export function getGameRooms() {
+    const params = makeSessionHeaders(data.sessionCookies);
+    http.get(baseUri + "/game/rooms", params);
+}
+
+export function getGameChats(data) {
+    const params = new URLSearchParams({ gameId: pickElement(data.gameIds) });
+    http.get(baseUri + "/game/rooms/chats?" + params.toString());
+}
+
+export function getGameRoomExists(data) {
+    const params = new URLSearchParams({ gameId: pickElement(data.gameIds) });
+    http.get(baseUri + "/game/rooms/exists?" + params.toString());
+}
+
 // POST test implementations
+
+// session
+
+export function postCreateTempSession() {
+    const params = makeSessionHeaders(data.sessionCookies);
+    http.post(baseUri + "/session/temp", null, params);
+}
+
+export function postRefreshSession() {
+    const params = makeSessionHeaders(data.sessionCookies);
+    http.post(baseUri + "/session/refresh", null, params);
+}
+
+// game
 
 export function postCreateGame() {
     const body = JSON.stringify({
-        mode: randArray(gameModes),
-        firstColor: randArray(colors),
+        mode: pickElement(gameModes),
+        firstColor: pickElement(colors),
     });
     http.post(baseUri + "/games/create", body);
 }
 
+// challenges
+
 export function postCreateChallenge(data) {
     const body = JSON.stringify({
         challengeeId: randUserIDInt(),
-        mode: randArray(gameModes),
-        startColor: randArray(colors),
+        mode: pickElement(gameModes),
+        startColor: pickElement(colors),
     });
     const params = makeSessionHeaders(data.sessionCookies);
 
@@ -232,6 +388,17 @@ export function postUpdateChallenge(data) {
     const params = makeSessionHeaders(data.sessionCookies);
 
     const resp = http.post(baseUri + "/challenges/update", body, params);
+}
+
+// user / player
+
+const inputFile = open("./input-image.png", "b");
+
+export function postUploadProfilePic(data) {
+    const params = makeSessionHeaders(data.sessionCookies);
+    params.headers["Content-Type"] = "image/png";
+
+    http.post(baseUri + "/users/profile-pics", inputFile, params);
 }
 
 export function postUpdateUser(data) {
@@ -250,7 +417,7 @@ export function postUpdateUser(data) {
 
 function uuidFromBigInt(bigint) {
   // convert to 128-bit hex string (32 hex chars, zero-padded)
-  const hex = bigint.toString(16).padStart(32, '0');
+  const hex = bigint.toString(16).padEnd(32, '0');
 
   // insert dashes in the 8-4-4-4-12 UUID format
   return [
@@ -265,18 +432,21 @@ function uuidFromBigInt(bigint) {
 // Utilities for generating test inputs
 
 function makeSessionHeaders(sessionCookies) {
-    const cookie = randArray(sessionCookies);
+    const cookie = pickElement(sessionCookies);
     return { 
         headers: { "Cookie": cookie }
     };
 }
 
-const minUser = 1;
-const maxUser = 1000;
+const minUserID = 1;
+const maxUserID = 1000;
 
 // seed script will generate a sequence of continously increasing uuids, starting from 0, so we can safely randrange a tournament key
 const minTournamentKey = 1;
 const maxTournamentKey = 250;
+
+const minReplayID = 1;
+const maxReplayID = 5000;
 
 function randrange(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min; // inclusive range (min, max)
@@ -287,11 +457,22 @@ function randUserID() {
 }
 
 function randUserIDInt() {
-    return randrange(minUser, maxUser);
+    return randrange(minUserID, maxUserID);
 }
 
 function randTournamentKey() {
-    return randrange(minTournamentKey, maxTournamentKey);
+    const tkeyint = randrange(minTournamentKey, maxTournamentKey);
+    return uuidFromBigInt(tkeyint);
+}
+
+function randReplayID() {
+    return randrange(minReplayID, maxReplayID);
+}
+
+function randDate(year) {
+    const days = String(randrange(1, 28)).padStart(2, '0');
+    const month = String(randrange(1, 12)).padStart(2, '0');
+    return `${String(year)}-${month}-${days}`;
 }
 
 const gameModes = [
@@ -321,6 +502,6 @@ const colors = [
     "RANDOM"
 ];
 
-function randArray(array) {
+function pickElement(array) {
     return array[randrange(0, array.length - 1)];
 }
