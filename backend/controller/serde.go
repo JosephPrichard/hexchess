@@ -25,9 +25,10 @@ func DeserializeUndoInput(pbInput *pb.UndoInput) (svc.UndoKind, error) {
 	return undoKind, nil
 }
 
-func SerializeGameOutputError(gameID model.GameID, err error) *pb.GameOutput {
+func SerializeGameOutputError(gameID model.GameID, messageID string, err error) *pb.GameOutput {
 	return &pb.GameOutput{
-		GameId: gameID.String(),
+		GameId:    gameID.String(),
+		MessageId: messageID,
 		Value: &pb.GameOutput_Error{
 			Error: &pb.ErrorOutput{Message: err.Error()},
 		},
@@ -55,9 +56,10 @@ func SerializeGameOutputPlayers(gameID model.GameID, white, black *pb.PlayerStat
 	}
 }
 
-func SerializeGameOutputForfeit(gameID model.GameID, endState model.EndKind) *pb.GameOutput {
+func SerializeGameOutputForfeit(gameID model.GameID, messageID string, endState model.EndKind) *pb.GameOutput {
 	return &pb.GameOutput{
-		GameId: gameID.String(),
+		GameId:    gameID.String(),
+		MessageId: messageID,
 		Value: &pb.GameOutput_Forfeit{
 			Forfeit: &pb.ForfeitOutput{
 				EndState: model.SerializeEndKind(endState),
@@ -66,9 +68,10 @@ func SerializeGameOutputForfeit(gameID model.GameID, endState model.EndKind) *pb
 	}
 }
 
-func SerializeGameOutputMove(gameID model.GameID, move *pb.HistMove, game *pb.ChessGame, updatedAt time.Time) *pb.GameOutput {
+func SerializeGameOutputMove(gameID model.GameID, messageID string, move *pb.HistMove, game *pb.ChessGame, updatedAt time.Time) *pb.GameOutput {
 	return &pb.GameOutput{
-		GameId: gameID.String(),
+		GameId:    gameID.String(),
+		MessageId: messageID,
 		Value: &pb.GameOutput_Move{
 			Move: &pb.MoveOutput{
 				Move:      move,
@@ -79,9 +82,10 @@ func SerializeGameOutputMove(gameID model.GameID, move *pb.HistMove, game *pb.Ch
 	}
 }
 
-func SerializeGameOutputChat(gameID model.GameID, chat model.Chat) *pb.GameOutput {
+func SerializeGameOutputChat(gameID model.GameID, messageID string, chat model.Chat) *pb.GameOutput {
 	return &pb.GameOutput{
-		GameId: gameID.String(),
+		GameId:    gameID.String(),
+		MessageId: messageID,
 		Value: &pb.GameOutput_Chat{Chat: &pb.ChatMessage{
 			Player:  model.SerializePlayer(chat.Player),
 			Message: chat.Message,
@@ -90,13 +94,14 @@ func SerializeGameOutputChat(gameID model.GameID, chat model.Chat) *pb.GameOutpu
 	}
 }
 
-func SerializeGameOutputUndo(gameID model.GameID, undoKind string, undoID int64, state *model.ChessState) *pb.GameOutput {
+func SerializeGameOutputUndo(gameID model.GameID, messageID string, undoKind string, undoID int64, state *model.ChessState) *pb.GameOutput {
 	var game *pb.ChessGame
 	if state != nil {
 		game = chess.SerializeGame(&state.Game)
 	}
 	return &pb.GameOutput{
-		GameId: gameID.String(),
+		GameId:    gameID.String(),
+		MessageId: messageID,
 		Value: &pb.GameOutput_Undo{
 			Undo: &pb.UndoOutput{
 				Kind: undoKind, UndoId: undoID, Game: game,

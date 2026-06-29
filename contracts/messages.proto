@@ -198,12 +198,13 @@ message UndoInput {
 message PingInput {}
 
 message GameInput {
+  string messageId = 1;
   oneof value {
-    ForfeitInput forfeit = 1;
-    MoveInput move = 2;
-    ChatInput chat = 3;
-    UndoInput undo = 4;
-    PingInput ping = 5;
+    ForfeitInput forfeit = 2;
+    MoveInput move = 3;
+    ChatInput chat = 4;
+    UndoInput undo = 5;
+    PingInput ping = 6;
   }
 }
 

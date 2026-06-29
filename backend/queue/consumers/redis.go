@@ -56,7 +56,7 @@ func (c *RedisConsumer) ConsumePartition(partitionKey string) {
 
 	err := c.redis.XGroupCreateMkStream(c.ctx, stream, c.ConsumerGroup, "0").Err()
 	if err != nil && !redis.HasErrorPrefix(err, "BUSYGROUP") {
-		slog.Error("create stream consumer group", "error", err, "consumerID", consumerID, "stream", stream, "consumerGroup", c.ConsumerGroup)
+		slog.Error("create stream consumer group", "error", err, "stream", stream, "consumerGroup", c.ConsumerGroup)
 	}
 
 	var waitGroup sync.WaitGroup
@@ -69,8 +69,6 @@ func (c *RedisConsumer) ConsumePartition(partitionKey string) {
 		start := time.Now()
 		ctx := context.WithValue(c.ctx, logutil.Trace, uuid.NewString())
 
-		slog.InfoContext(ctx, "redis stream consumer xread operation", "consumerID", consumerID, "stream", stream)
-
 		xArgs := &redis.XReadGroupArgs{
 			Group:    c.ConsumerGroup,
 			Consumer: consumerID,
@@ -80,17 +78,18 @@ func (c *RedisConsumer) ConsumePartition(partitionKey string) {
 		}
 		entries, err := c.redis.XReadGroup(ctx, xArgs).Result()
 		if errors.Is(err, context.Canceled) {
-			slog.InfoContext(ctx, "context cancelled, exiting consume partition loop", "consumerID", consumerID, "stream", stream)
+			slog.InfoContext(ctx, "context cancelled, exiting consume partition loop", "stream", stream)
 			return
 		} else if err != nil {
-			slog.ErrorContext(ctx, "failed to read from redis stream", "error", err, "consumerID", consumerID, "stream", stream)
+			slog.ErrorContext(ctx, "failed to read from redis stream", "error", err, "stream", stream)
 			continue
 		}
+
+		slog.InfoContext(ctx, "begin redis stream consume operation", "stream", stream)
 
 		for _, entry := range entries {
 			for _, msg := range entry.Messages {
 				waitGroup.Go(func() {
-					slog.InfoContext(ctx, "redis stream consumer read message", "consumerID", consumerID, "stream", entry.Stream, "msgID", msg.ID)
 					c.handleXReadMessage(ctx, msg)
 				})
 			}
@@ -98,8 +97,7 @@ func (c *RedisConsumer) ConsumePartition(partitionKey string) {
 
 		waitGroup.Wait()
 
-		slog.InfoContext(ctx, "finished redis stream consume operation",
-			"consumerID", consumerID, "stream", stream, "timeTaken", time.Since(start).String())
+		slog.InfoContext(ctx, "end redis stream consume operation", "stream", stream, "timeTaken", time.Since(start).String())
 	}
 }
 
@@ -119,8 +117,6 @@ func (c *RedisConsumer) handleXReadMessage(ctx context.Context, msg redis.XMessa
 		return
 	}
 	if err := c.redis.XAck(c.ctx, c.StreamKey, c.ConsumerGroup, msg.ID).Err(); err != nil {
-		slog.ErrorContext(ctx, "failed to send xack for stream message", "error", err, "id", msg.ID)
-	} else {
-		slog.InfoContext(ctx, "sent xack for stream message", "id", msg.ID)
+		slog.ErrorContext(ctx, "failed to send xack for stream message", "error", err)
 	}
 }

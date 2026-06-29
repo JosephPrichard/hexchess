@@ -107,7 +107,7 @@ func parseUpdateChallengeBody(body UpdateChallengeBody) (UpdateChallengeTBody, e
 	case "DELETE":
 		action = Delete
 	default:
-		return UpdateChallengeTBody{}, respError("UpdateChallengeBody.Action", fmt.Errorf("invalid value: %s", body.Action))
+		return UpdateChallengeTBody{}, respError("body.Action", fmt.Errorf("invalid value: %s", body.Action))
 	}
 
 	var targetID int64

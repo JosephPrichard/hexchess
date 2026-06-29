@@ -113,7 +113,7 @@ type ChessCommitFn func(redis.Pipeliner, *model.ChessState) error
 func (services *HexchessServices) updateChessStateTxn(ctx context.Context, gameID model.GameID, update ChessUpdateFn, commit ChessCommitFn) (*model.ChessState, error) {
 	gameKey := fmtGameKey(gameID)
 
-	for range MaxUpdateChessStateRetries {
+	for i := range MaxUpdateChessStateRetries {
 		var ret *model.ChessState
 
 		// standard redis Watch+Tx optimistic locking pattern to prevent the 'LostUpdate' race condition
@@ -145,10 +145,12 @@ func (services *HexchessServices) updateChessStateTxn(ctx context.Context, gameI
 		}, gameKey)
 
 		if errors.Is(err, redis.TxFailedErr) {
+			slog.WarnContext(ctx, "retrying redis transaction", "error", err, "retry", i)
 			continue
 		}
 		return ret, err
 	}
 
+	slog.ErrorContext(ctx, "exhausted redis transaction retries", "retryCount", MaxUpdateChessStateRetries)
 	return nil, ErrMaxChessStateRetries
 }

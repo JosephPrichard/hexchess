@@ -565,7 +565,7 @@ func (api *API) HandleCreateGame(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return serrors.Wrap("create game", err)
 	}
-	slog.InfoContext(ctx, "created game", "gameID", gameID, "body", body)
+	slog.InfoContext(ctx, "created game", "gameID", gameID)
 
 	writeJSON(w, http.StatusOK, CreateGameResp{GameID: gameID})
 	return nil

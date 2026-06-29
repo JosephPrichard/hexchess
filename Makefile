@@ -6,14 +6,17 @@ GOPATH := $(shell go env GOPATH)
 # Directories
 BACKEND_DIR     := backend
 UI_DIR          := frontend
+PERF_DIR        := perf
 CONTRACTS_DIR   := contracts
 BACK_WASM_DIR   := $(BACKEND_DIR)/browser
+PERF_K6_DIR     := $(PERF_DIR)/k6
 
 # Artefact dirs
 SERVER_ENTRY    := cmd/server/main.go
 
 # Proto output dirs
 SVC_PB_OUT      := $(BACKEND_DIR)/pb
+PERF_PB_OUT     := $(PERF_K6_DIR)/pb
 UI_PB_OUT       := src/lib/pb
 
 # WASM paths
@@ -21,21 +24,33 @@ WASM_SRC_DIR    := $(BACKEND_DIR)/cmd/browser
 WASM_OUTPUT     := chess.wasm
 UI_WASM_DIR     := $(UI_DIR)/static/wasm
 
-all: sources
+# Build All
+all: backend frontend perf
+
+protos: proto-backend proto-frontend
+
+# Reusable
+define protoc_go
+	mkdir -p $(1)
+	protoc \
+		--go_opt=paths=source_relative \
+		--go_out=$(1) \
+		--proto_path $(CONTRACTS_DIR) \
+		$(CONTRACTS_DIR)/messages.proto
+endef
 
 # Backend Build
+backend: generate-go proto-backend
+
 generate-go:
 	cd $(BACKEND_DIR) && go generate ./...
 
 proto-backend:
-	mkdir -p $(SVC_PB_OUT)
-	protoc \
-		--go_opt=paths=source_relative \
-		--go_out=$(SVC_PB_OUT) \
-		--proto_path $(CONTRACTS_DIR) \
-		$(CONTRACTS_DIR)/messages.proto
+	$(call protoc_go,$(SVC_PB_OUT))
 
 # Frontend Build
+frontend: proto-frontend install-wasm
+
 proto-frontend:
 	cd $(UI_DIR) && mkdir -p $(UI_PB_OUT) && npx protoc \
 		--ts_out $(UI_PB_OUT) \
@@ -48,25 +63,39 @@ install-wasm:
 	cp "$(GOROOT)/lib/wasm/wasm_exec.js" "$(UI_WASM_DIR)/wasm_exec.js"
 	cp $(WASM_SRC_DIR)/$(WASM_OUTPUT) $(UI_WASM_DIR)/$(WASM_OUTPUT)
 
-protos: proto-backend proto-frontend
+# Perf Build
+perf: proto-perf k6-build
 
-sources: generate-go protos install-wasm
+proto-perf:
+	$(call protoc_go,$(PERF_PB_OUT))
+
+k6-build:
+	cd $(PERF_K6_DIR) && go build -o ./k6 .
+	cd $(PERF_K6_DIR) && ./k6 version
 
 # Testing
-test-server:
+server-test:
 	cd $(BACKEND_DIR) && go test $$(go list ./... | grep -v '^.*/cmd|/wasm/') -timeout=60s
 
-test-wasm:
+wasm-test:
 	cd $(BACK_WASM_DIR) && GOOS=js GOARCH=wasm go test -timeout=60s -exec $(GOPATH)/bin/wasmbrowsertest
 
-test: test-server test-wasm
+perf-test:
+	./$(PERF_K6_DIR)/k6 version
+# 	./$(PERF_K6_DIR)/k6 run ./$(PERF_DIR)/restapi.js
+	./$(PERF_K6_DIR)/k6 run ./$(PERF_DIR)/gamesocket.js
+
+test: server-test wasm-test perf-test
 
 # Prerequisites
 install:
+	// cli tools
+	go install github.com/pressly/goose/v3/cmd/goose@v3.27.0
+	// run tests
 	go install github.com/agnivade/wasmbrowsertest@v0.11.0
+	// build app
 	go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
-	go install github.com/pressly/goose/v3/cmd/goose@v3.27.0
 	go install go.uber.org/mock/mockgen@v0.6.0
 
 clean:

@@ -222,6 +222,8 @@ export async function postProfilePic(file: File): Promise<Result<{}>> {
 		}
 		const contentHash = btoa(String.fromCharCode(...hasher.digest('binary')));
 
+		console.log("computed content hash for upload:", contentHash);
+
 		const profileResp = await fetch(profilePicUrl, {
 			method: "POST",
 			credentials: 'include',

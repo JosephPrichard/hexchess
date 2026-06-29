@@ -4,15 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hexchess-svc/assets"
 	"hexchess-svc/chess"
 	"hexchess-svc/pubsub"
 	"log/slog"
 	"net/http"
-	"os"
-	"strings"
 	"time"
-
-	"hexchess-svc/assets"
 
 	"hexchess-svc/lib/logutil"
 	svc "hexchess-svc/service"
@@ -154,12 +151,12 @@ func NewServeMux(setup ServerSetup, opts ...func(*chi.Mux)) *chi.Mux {
 		opt(r)
 	}
 
-	var strs []string
+	var handlers []string
 	_ = chi.Walk(r, func(method string, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
-		strs = append(strs, fmt.Sprintf("%s %s", method, route))
+		handlers = append(handlers, fmt.Sprintf("%s %s", method, route))
 		return nil
 	})
-	fmt.Fprintf(os.Stdout, "%s\n", strings.Join(strs, "\n"))
+	slog.Info("initialized serve mux", "handlers", handlers)
 
 	return r
 }
@@ -171,51 +168,49 @@ type HealthCheckConfig struct {
 	RedisPubSubDSN    string
 }
 
-func WithHealthCheck(mux *chi.Mux, config HealthCheckConfig) {
-	healthchecks := []health.Config{
-		{
-			Name:    "Postgres",
-			Timeout: time.Second * 2,
-			Check: pgHealth.New(pgHealth.Config{
-				DSN: config.PostgresDSN,
-			}),
-		},
-		{
-			Name:      "RedisPubsub",
-			Timeout:   time.Second * 2,
-			SkipOnErr: true,
-			Check: redisHealth.New(redisHealth.Config{
-				DSN: config.RedisPubSubDSN,
-			}),
-		},
-	}
-
-	for i, dsn := range config.RedisGameStoreDSN {
-		healthchecks = append(healthchecks, health.Config{
-			Name:    fmt.Sprintf("RedisGameStore-Node-%d", i),
-			Timeout: time.Second * 2,
-			Check:   redisHealth.New(redisHealth.Config{DSN: dsn}),
-		})
-	}
-
-	for i, dsn := range config.RedisCacheDSNs {
-		healthchecks = append(healthchecks, health.Config{
-			Name:    fmt.Sprintf("RedisCache-Node-%d", i),
-			Timeout: time.Second * 2,
-			Check:   redisHealth.New(redisHealth.Config{DSN: dsn}),
-		})
-	}
-
-	h, err := health.New(
-		health.WithComponent(health.Component{Name: "hexchess-svc", Version: "v1.0"}),
-		health.WithChecks(healthchecks...),
-	)
-	if err != nil {
-		logutil.Fatal("failed to create health checker", err)
-	}
-	mux.Get("/healthcheck", h.HandlerFunc)
-}
-
 func WithHealthCheckOpts(config HealthCheckConfig) func(*chi.Mux) {
-	return func(m *chi.Mux) { WithHealthCheck(m, config) }
+	return func(mux *chi.Mux) {
+		healthChecks := []health.Config{
+			{
+				Name:    "Postgres",
+				Timeout: time.Second * 2,
+				Check: pgHealth.New(pgHealth.Config{
+					DSN: config.PostgresDSN,
+				}),
+			},
+			{
+				Name:      "RedisPubsub",
+				Timeout:   time.Second * 2,
+				SkipOnErr: true,
+				Check: redisHealth.New(redisHealth.Config{
+					DSN: config.RedisPubSubDSN,
+				}),
+			},
+		}
+
+		for i, dsn := range config.RedisGameStoreDSN {
+			healthChecks = append(healthChecks, health.Config{
+				Name:    fmt.Sprintf("RedisGameStore-Node-%d", i),
+				Timeout: time.Second * 2,
+				Check:   redisHealth.New(redisHealth.Config{DSN: dsn}),
+			})
+		}
+
+		for i, dsn := range config.RedisCacheDSNs {
+			healthChecks = append(healthChecks, health.Config{
+				Name:    fmt.Sprintf("RedisCache-Node-%d", i),
+				Timeout: time.Second * 2,
+				Check:   redisHealth.New(redisHealth.Config{DSN: dsn}),
+			})
+		}
+
+		h, err := health.New(
+			health.WithComponent(health.Component{Name: "hexchess-svc", Version: "v1.0"}),
+			health.WithChecks(healthChecks...),
+		)
+		if err != nil {
+			logutil.Fatal("failed to create health checker", err)
+		}
+		mux.Get("/healthcheck", h.HandlerFunc)
+	}
 }

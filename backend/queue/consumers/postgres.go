@@ -38,6 +38,8 @@ func (c *PostgresConsumer) Consume() {
 	}
 
 	ticker := time.NewTicker(c.PollInterval)
+	defer ticker.Stop()
+
 	i := uint64(0)
 	for range ticker.C {
 		if i >= c.MaxEvents && c.MaxEvents != 0 {
@@ -67,7 +69,7 @@ func (c *PostgresConsumer) poll() error {
 			start := time.Now()
 			ctx = context.WithValue(ctx, logutil.Trace, uuid.NewString())
 
-			slog.InfoContext(ctx, "polling postgres queue for events", "eventKind", c.EventKind)
+			//slog.InfoContext(ctx, "polling postgres queue for events", "eventKind", c.EventKind)
 
 			// locks events for the duration of the function
 			eventRows, err := querier.SelectQueueByPolling(ctx, sqlc.SelectQueueByPollingParams{

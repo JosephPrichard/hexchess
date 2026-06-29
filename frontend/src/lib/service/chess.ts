@@ -79,9 +79,9 @@ const isPieceWhite = (piece: number) => piece % 2 === 1;
 
 const makePieceWhite = (piece: number) => piece - ((piece + 1) % 2);
 
-const deserializeHex = (h: bigint) => ({
-	file: Number(h & 0xFFFFFFFFn),
-	rank: Number((h >> 32n) & 0xFFFFFFFFn),
+const deserializeHex = (hexint: bigint) => ({
+	file: Number(hexint & 0xFFFFFFFFn),
+	rank: Number((hexint >> 32n) & 0xFFFFFFFFn),
 });
 
 const deserializeHexList = (hexagonList?: bigint[]) => hexagonList?.map(deserializeHex) ?? [];

@@ -76,8 +76,6 @@ func (services *HexchessServices) createGame(ctx context.Context, setup model.St
 	state := model.NewChessState(setup)
 	state.Game.InitPieceMoves()
 
-	slog.InfoContext(ctx, "created chess game", "chesState", state)
-
 	_, err := services.redis.Primary.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 		if err := services.setChessState(ctx, pipe, gameID, state, time.Now()); err != nil {
 			return serrors.Wrap("set chess state", err, "gameID", gameID)
@@ -89,7 +87,7 @@ func (services *HexchessServices) createGame(ctx context.Context, setup model.St
 
 func (services *HexchessServices) JoinGame(ctx context.Context, gameID model.GameID, player model.PlayerState) (*model.ChessState, error) {
 	update := func(state *model.ChessState) error {
-		slog.InfoContext(ctx, "updating game state by joining", "player", player.ID, "gameId", gameID)
+		slog.InfoContext(ctx, "updating game state by joining", "player", player.ID, "gameID", gameID)
 
 		if !player.Present {
 			slog.WarnContext(ctx, "player did not join the game", "playerID", player.ID)
@@ -128,12 +126,12 @@ func (services *HexchessServices) JoinGame(ctx context.Context, gameID model.Gam
 		return nil
 	}
 	commit := func(pipe redis.Pipeliner, state *model.ChessState) error {
-		slog.InfoContext(ctx, "committing game state when joining", "player", player.ID, "gameId", gameID)
+		slog.InfoContext(ctx, "committing game state when joining", "player", player.ID, "gameID", gameID)
 		return services.redisPublisher.PublishUpdtGameEvent(ctx, pipe, mapMetadataUpdt(state))
 	}
 	state, err := services.updateChessStateTxn(ctx, gameID, update, commit)
 	if state != nil {
-		slog.InfoContext(ctx, "player joined game", "playerID", player.ID, "chesState", state)
+		slog.InfoContext(ctx, "player joined game", "playerID", player.ID, "gameID", state.ID)
 	}
 	return state, err
 }
@@ -145,7 +143,7 @@ type MoveResult struct {
 
 func (services *HexchessServices) NewGameMove(ctx context.Context, gameID model.GameID, player model.PlayerState, move chess.Move) (MoveResult, error) {
 	update := func(state *model.ChessState) error {
-		slog.InfoContext(ctx, "updating game state by making move", "player", player.ID, "gameId", gameID, "move", move)
+		slog.InfoContext(ctx, "updating game state by making move", "player", player.ID, "gameID", gameID, "move", move)
 
 		// pre-move validations on chess state
 		if !state.HasBothPlayers() {
@@ -175,7 +173,7 @@ func (services *HexchessServices) NewGameMove(ctx context.Context, gameID model.
 		return nil
 	}
 	commit := func(pipe redis.Pipeliner, state *model.ChessState) error {
-		slog.InfoContext(ctx, "committing game state when making move", "player", player.ID, "gameId", gameID, "move", move)
+		slog.InfoContext(ctx, "committing game state when making move", "player", player.ID, "gameID", gameID, "move", move)
 
 		if state.EndState.IsEnded() {
 			result := model.WhiteWin
@@ -203,7 +201,7 @@ func (services *HexchessServices) NewGameMove(ctx context.Context, gameID model.
 	histMove := state.Game.LastMove() // invariant: if this function does not error before this line, it will have at least one move.
 
 	moveResult := MoveResult{State: state, Move: histMove}
-	slog.InfoContext(ctx, "made move on game", "player", player.ID, "gameId", gameID, "moveResult", moveResult, "move", move, "chesState", state)
+	slog.InfoContext(ctx, "made move on game", "player", player.ID, "gameID", gameID, "moveResult", moveResult, "move", move)
 	return moveResult, nil
 }
 
@@ -261,7 +259,7 @@ func (services *HexchessServices) AttemptGameUndo(ctx context.Context, gameID mo
 
 func (services *HexchessServices) EndGame(ctx context.Context, gameID model.GameID, player model.PlayerState) (model.EndKind, error) {
 	update := func(state *model.ChessState) error {
-		slog.InfoContext(ctx, "updating end game", "gameId", gameID)
+		slog.InfoContext(ctx, "updating end game", "gameID", gameID)
 
 		if state.EndState.IsEnded() {
 			return ErrFinishedGame{GameID: gameID}
@@ -283,7 +281,7 @@ func (services *HexchessServices) EndGame(ctx context.Context, gameID model.Game
 		return nil
 	}
 	commit := func(pipe redis.Pipeliner, state *model.ChessState) error {
-		slog.InfoContext(ctx, "commiting end game", "gameId", gameID)
+		slog.InfoContext(ctx, "commiting end game", "gameID", gameID)
 
 		if state.EndState == model.Finished || state.EndState == model.Aborted {
 			result := model.BlackWin
@@ -309,6 +307,6 @@ func (services *HexchessServices) EndGame(ctx context.Context, gameID model.Game
 		return model.NotEnded, err
 	}
 
-	slog.InfoContext(ctx, "player ended game", "playerID", player.ID, "gameId", gameID, "state", state)
+	slog.InfoContext(ctx, "player ended game", "playerID", player.ID, "gameID", gameID, "state", state)
 	return state.EndState, nil
 }
