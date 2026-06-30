@@ -25,10 +25,19 @@ import (
 )
 
 type GameSocketContext struct {
-	Context context.Context
+	context.Context
 	GameID  model.GameID
 	Player  model.PlayerState
 	ErrChan chan websocketError
+}
+
+func (ctx GameSocketContext) WithMessageID(messageID string) GameSocketContext {
+	return GameSocketContext{
+		Context: context.WithValue(ctx, logutil.MessageID, messageID),
+		GameID:  ctx.GameID,
+		Player:  ctx.Player,
+		ErrChan: ctx.ErrChan,
+	}
 }
 
 type websocketError struct {
@@ -70,13 +79,13 @@ func (api *API) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		defer conn.Close() // close originating from client
-		gameSocketCtx := GameSocketContext{Context: ctx, GameID: gameID, Player: player, ErrChan: errChan}
 		for {
 			_, input, err := conn.ReadMessage()
 			if err != nil {
 				slog.WarnContext(ctx, "websocket read error", "gameID", gameID, "error", err)
 				break
 			}
+			gameSocketCtx := GameSocketContext{Context: ctx, GameID: gameID, Player: player, ErrChan: errChan}
 			go api.handleGameMessage(gameSocketCtx, input)
 		}
 	}()
@@ -126,7 +135,7 @@ func writeGameError(ctx context.Context, conn *websocket.Conn, gameID model.Game
 		wsErr = ErrWsFatal
 	}
 
-	logutil.SError(ctx, slog.LevelError, "failed to handle ws message", err, "wsErr", wsErr)
+	logutil.SError(ctx, slog.LevelError, "failed to handle ws message", err, "wsErr", wsErr, "messageID", messageID)
 
 	bytes, err := proto.Marshal(SerializeGameOutputError(gameID, messageID, wsErr))
 	if err != nil {
@@ -183,7 +192,8 @@ func (api *API) handleGameMessage(ctx GameSocketContext, input message) {
 		return
 	}
 
-	slog.InfoContext(ctx.Context, "received game input", "pbInputType", fmt.Sprintf("%T", &pbInput), "pbInput", &pbInput)
+	ctx = ctx.WithMessageID(pbInput.MessageId)
+	slog.InfoContext(ctx, "received game input", "pbInputType", fmt.Sprintf("%T", &pbInput), "pbInput", &pbInput)
 
 	var err error
 	switch p := pbInput.GetValue().(type) {
@@ -206,21 +216,21 @@ func (api *API) handleGameMessage(ctx GameSocketContext, input message) {
 }
 
 func (api *API) handleGameForfeit(ctx GameSocketContext, messageID string) error {
-	endState, err := api.services.EndGame(ctx.Context, ctx.GameID, ctx.Player)
+	endState, err := api.services.EndGame(ctx, ctx.GameID, ctx.Player)
 	if err != nil {
 		return serrors.Wrap("forfeit game", err, "gameID", ctx.GameID)
 	}
-	api.broadcaster.BroadcastGamesEvent(ctx.Context, SerializeGameOutputForfeit(ctx.GameID, messageID, endState))
+	api.broadcaster.BroadcastGamesEvent(ctx, SerializeGameOutputForfeit(ctx.GameID, messageID, endState))
 	return nil
 }
 
 func (api *API) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput, messageID string) error {
-	moveResult, err := api.services.NewGameMove(ctx.Context, ctx.GameID, ctx.Player, chess.DeserializeMove(pbInput.Move))
+	moveResult, err := api.services.NewGameMove(ctx, ctx.GameID, ctx.Player, chess.DeserializeMove(pbInput.Move))
 	if err != nil {
 		return serrors.Wrap("make move on game", err, "gameID", ctx.GameID)
 	}
 
-	api.broadcaster.BroadcastGamesEvent(ctx.Context, SerializeGameOutputMove(
+	api.broadcaster.BroadcastGamesEvent(ctx, SerializeGameOutputMove(
 		ctx.GameID,
 		messageID,
 		chess.SerializeHistMove(moveResult.Move),
@@ -239,11 +249,11 @@ func (api *API) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput, mes
 	}
 	outputChat := SerializeGameOutputChat(ctx.GameID, messageID, chatMsg)
 
-	if err := api.services.InsertChat(ctx.Context, ctx.GameID, chatMsg); err != nil {
+	if err := api.services.InsertChat(ctx, ctx.GameID, chatMsg); err != nil {
 		return serrors.Wrap("insert chat on game", err, "gameID", ctx.GameID)
 	}
 
-	api.broadcaster.BroadcastGamesEvent(ctx.Context, outputChat)
+	api.broadcaster.BroadcastGamesEvent(ctx, outputChat)
 	return nil
 }
 
@@ -253,12 +263,12 @@ func (api *API) handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput, mes
 		return err
 	}
 
-	state, err := api.services.AttemptGameUndo(ctx.Context, ctx.GameID, ctx.Player, undoKind)
+	state, err := api.services.AttemptGameUndo(ctx, ctx.GameID, ctx.Player, undoKind)
 	if err != nil {
 		return serrors.Wrap("attempting undo on game", err, "player", ctx.Player, "gameID", ctx.GameID)
 	}
 
-	api.broadcaster.BroadcastGamesEvent(ctx.Context, SerializeGameOutputUndo(
+	api.broadcaster.BroadcastGamesEvent(ctx, SerializeGameOutputUndo(
 		ctx.GameID,
 		messageID,
 		pbInput.Kind,

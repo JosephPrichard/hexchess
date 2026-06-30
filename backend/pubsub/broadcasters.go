@@ -86,7 +86,7 @@ func (svc *Broadcaster) BroadcastGameCount(ctx context.Context, count int64, opt
 }
 
 func (svc *Broadcaster) BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput, opts ...BroadcastOption) {
-	slog.InfoContext(ctx, "broadcasting game event", "gameOutput", output)
+	slog.InfoContext(ctx, "broadcasting game event", "gameId", output.GameId)
 
 	bytes, err := proto.Marshal(output)
 	if err != nil {

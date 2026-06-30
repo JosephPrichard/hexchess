@@ -13,9 +13,17 @@ type TestLogger interface {
 	Fatalf(format string, args ...any)
 }
 
-type TraceType string
+type (
+	TraceType     string
+	MessageIDType string
+	SessionIDType string
+)
 
-var Trace TraceType = "trace"
+var (
+	Trace     = "trace"
+	MessageID = "messageID"
+	SessionID = "sessionID"
+)
 
 func Log(ctx context.Context, msg string, err error, args ...any) {
 	if err != nil {

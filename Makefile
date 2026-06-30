@@ -39,6 +39,13 @@ define protoc_go
 		$(CONTRACTS_DIR)/messages.proto
 endef
 
+define protoc_ts
+	cd $(1) && mkdir -p $(2) && npx protoc \
+		--ts_out $(2) \
+		--proto_path ../$(CONTRACTS_DIR) \
+		../$(CONTRACTS_DIR)/messages.proto
+endef
+
 # Backend Build
 backend: generate-go proto-backend
 
@@ -52,10 +59,7 @@ proto-backend:
 frontend: proto-frontend install-wasm
 
 proto-frontend:
-	cd $(UI_DIR) && mkdir -p $(UI_PB_OUT) && npx protoc \
-		--ts_out $(UI_PB_OUT) \
-		--proto_path ../$(CONTRACTS_DIR) \
-		../$(CONTRACTS_DIR)/messages.proto
+	$(call protoc_ts,$(UI_DIR),$(UI_PB_OUT))
 
 install-wasm:
 	cd $(WASM_SRC_DIR) && GOOS=js GOARCH=wasm go build -o $(WASM_OUTPUT) -tags=browser
@@ -82,8 +86,8 @@ wasm-test:
 
 perf-test:
 	./$(PERF_K6_DIR)/k6 version
-# 	./$(PERF_K6_DIR)/k6 run ./$(PERF_DIR)/restapi.js
-	./$(PERF_K6_DIR)/k6 run ./$(PERF_DIR)/gamesocket.js
+# 	./$(PERF_K6_DIR)/k6 run ./$(PERF_DIR)/http/restapi.js
+	./$(PERF_K6_DIR)/k6 run ./$(PERF_DIR)/http/gamesocket.js
 
 test: server-test wasm-test perf-test
 

@@ -10,9 +10,13 @@ type LogRecordHandler struct {
 	slog.Handler
 }
 
+var PropagatedLogKeys = []string{Trace, SessionID, MessageID}
+
 func (h *LogRecordHandler) Handle(ctx context.Context, r slog.Record) error {
-	if v := ctx.Value(Trace); v != nil {
-		r.Add("trace", v)
+	for _, key := range PropagatedLogKeys {
+		if v := ctx.Value(key); v != nil {
+			r.Add(key, v)
+		}
 	}
 	return h.Handler.Handle(ctx, r)
 }

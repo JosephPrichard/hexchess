@@ -88,7 +88,7 @@ func (services *HexchessServices) deleteExpiredProfilePics(ctx context.Context, 
 	}
 
 	slog.InfoContext(ctx, "listed profile pics for deletion", "prefix", prefix,
-		"bucket", services.aws.S3ProfileBucket, "keys", awsutil.KeysOfObjects(listOutput.Contents), "listOutput", listOutput)
+		"bucket", services.aws.S3ProfileBucket, "keys", awsutil.KeysOfObjects(listOutput.Contents))
 
 	if len(listOutput.Contents) == 0 {
 		return nil

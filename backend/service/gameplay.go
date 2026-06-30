@@ -201,7 +201,7 @@ func (services *HexchessServices) NewGameMove(ctx context.Context, gameID model.
 	histMove := state.Game.LastMove() // invariant: if this function does not error before this line, it will have at least one move.
 
 	moveResult := MoveResult{State: state, Move: histMove}
-	slog.InfoContext(ctx, "made move on game", "player", player.ID, "gameID", gameID, "moveResult", moveResult, "move", move)
+	slog.InfoContext(ctx, "made move on game", "player", player.ID, "gameID", gameID, "moveOutput", histMove, "moveInput", move)
 	return moveResult, nil
 }
 
