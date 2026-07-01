@@ -27,9 +27,9 @@ frontend/build
 */node_modules
 .env
 
+perf/http/node_modules
 perf/k6/k6
 wasm_exec.js
 chess.wasm
 
 graph.dot
-

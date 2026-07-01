@@ -77,7 +77,7 @@ func (gateway EventGateway) HandleFinishedGameEvent(ctx context.Context, bytes [
 	if err != nil {
 		return NonRetryableQueueError{Err: err}
 	}
-	slog.InfoContext(ctx, "handling finished game event", "event", event)
+	slog.InfoContext(ctx, "handling finished game event", "gameID", event.GameID)
 	return gateway.services.InsertFinishedGame(ctx, event)
 }
 
@@ -86,7 +86,7 @@ func (gateway EventGateway) HandleUpdtGameEvent(ctx context.Context, bytes []byt
 	if err != nil {
 		return NonRetryableQueueError{Err: err}
 	}
-	slog.InfoContext(ctx, "handling update game metadata event", "event", event)
+	slog.InfoContext(ctx, "handling update game metadata event", "gameID", event.GameID)
 	return gateway.services.UpdateGameMetadata(ctx, event)
 }
 

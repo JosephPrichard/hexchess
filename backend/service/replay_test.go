@@ -138,11 +138,11 @@ func TestRetrieveEloHistories(t *testing.T) {
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
 
-			eloHistories, bd, err := services.RetrieveEloHistoryBuckets(ctx, test.params)
+			resp, err := services.RetrieveEloHistoryBuckets(ctx, test.params)
 			require.NoError(t, err)
 
-			testutil.Equal(t, test.wantEloBuckets, eloHistories, cmpopts.IgnoreFields(EloHistoryBucket{}, "Timestamp"))
-			testutil.Equal(t, test.wantBucketDuration, bd)
+			testutil.Equal(t, test.wantEloBuckets, resp.EloHistories, cmpopts.IgnoreFields(EloHistoryBucket{}, "Timestamp"))
+			testutil.Equal(t, test.wantBucketDuration, resp.BucketDuration)
 		})
 	}
 }

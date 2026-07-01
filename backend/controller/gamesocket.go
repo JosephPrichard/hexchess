@@ -147,7 +147,6 @@ func writeGameError(ctx context.Context, conn *websocket.Conn, gameID model.Game
 }
 
 func (api *API) handleGameInit(ctx context.Context, gameID model.GameID, sessionID string, conn *websocket.Conn) (player model.PlayerState, err error) {
-	// apply state updates for the init phase
 	player, err = api.services.GetSession(ctx, sessionID)
 	if err != nil {
 		return player, serrors.Wrap("get session in game init phase", err)
@@ -157,7 +156,6 @@ func (api *API) handleGameInit(ctx context.Context, gameID model.GameID, session
 		return player, serrors.Wrap("join game in init game phase", err)
 	}
 
-	// produce messages for init phase
 	initBytes, err := proto.Marshal(SerializeGameOutputInit(
 		gameID,
 		model.SerializeChessState(chessState),

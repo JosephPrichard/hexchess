@@ -1,0 +1,11 @@
+{
+  "name": "httpperf",
+  "version": "1.0.0",
+  "description": "Http perf testing module for grafana k6 scripts",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/k6": "^2.0.0"
+  }
+}

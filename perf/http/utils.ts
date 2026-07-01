@@ -1,3 +1,5 @@
+import { Session } from "./setup.ts";
+
 export const gameModes = [
     "CORRESPONDENCE_1",
     "CORRESPONDENCE_7",
@@ -25,19 +27,19 @@ export const colors = [
     "RANDOM"
 ];
 
-export function pickElement(array) {
-    if (array.length == 0) {
+export function pickElement<T>(array?: T[]) {
+    if (!array || array.length == 0) {
         throw new Error("cannot pick an element on an empty array");
     }
     return array[randrange(0, array.length - 1)];
 }
 
-export function makeSessionParams(sessions) {
+export function makeSessionParams(sessions: Session[]) {
     const [params, _] = pickSession(sessions);
     return params;
 }
 
-export function pickSession(sessions) {
+export function pickSession(sessions: Session[]): [any, number | undefined] {
     const session = pickElement(sessions);
     const cookie = session.cookie;
     const params = { 
@@ -46,7 +48,7 @@ export function pickSession(sessions) {
     return [params, session.userId];
 }
 
-export function randrange(min, max) {
+export function randrange(min: number, max: number) {
     return Math.floor(Math.random() * (max - min + 1)) + min; // inclusive range (min, max)
 }
 
@@ -60,14 +62,14 @@ export function randUserIDInt() {
 
 export function randTournamentKey() {
     const tkeyint = randrange(minTournamentKey, maxTournamentKey);
-    return uuidFromBigInt(tkeyint);
+    return uuidFromBigInt(BigInt(tkeyint));
 }
 
 export function randReplayID() {
     return randrange(minReplayID, maxReplayID);
 }
 
-export function randDate(year) {
+export function randDate(year: number) {
     const days = String(randrange(1, 28)).padStart(2, '0');
     const month = String(randrange(1, 12)).padStart(2, '0');
     return `${String(year)}-${month}-${days}`;
@@ -83,9 +85,9 @@ const maxTournamentKey = 250;
 const minReplayID = 1;
 const maxReplayID = 5000;
 
-function uuidFromBigInt(bigint) {
+function uuidFromBigInt(b: bigint) {
   // convert to 128-bit hex string (32 hex chars, zero-padded)
-  const hex = bigint.toString(16).padEnd(32, '0');
+  const hex = b.toString(16).padEnd(32, '0');
 
   // insert dashes in the 8-4-4-4-12 UUID format
   return [

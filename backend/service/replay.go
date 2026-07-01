@@ -216,9 +216,14 @@ type EloHistoryBucket struct {
 	Elo       float64 `json:"elo"`
 }
 
+type RetrieveEloHistoryResp struct {
+	EloHistories   EloHistoryBuckets
+	BucketDuration time.Duration
+}
+
 // RetrieveEloHistoryBuckets Returns the elo replay histories for a given user organized into buckets and categorized into a map keyed by replay "mode"
 // map will contain the keys "ALL" (contains payload for all modes) plus all modes (ReplayModes)
-func (services *HexchessServices) RetrieveEloHistoryBuckets(ctx context.Context, params EloHistoriesParams) (EloHistoryBuckets, time.Duration, error) {
+func (services *HexchessServices) RetrieveEloHistoryBuckets(ctx context.Context, params EloHistoriesParams) (RetrieveEloHistoryResp, error) {
 	if params.TimeUntil.IsZero() {
 		params.TimeUntil = time.Now()
 	}
@@ -232,14 +237,14 @@ func (services *HexchessServices) RetrieveEloHistoryBuckets(ctx context.Context,
 		PlayedAfter: playedAfter,
 	})
 	if err != nil {
-		return nil, 0, serrors.Wrap("select replay elos for user", err, "userID", params.UserID, "playedAfter", playedAfter)
+		return RetrieveEloHistoryResp{}, serrors.Wrap("select replay elos for user", err, "userID", params.UserID, "playedAfter", playedAfter)
 	}
 	slog.InfoContext(ctx, "selected elo replay histories", "userID", params.UserID, "playedAfter", playedAfter, "eloRows", eloRows)
 
 	buckets, durations := aggregateEloHistoryBuckets(eloRows, params)
 
 	slog.InfoContext(ctx, "retrieved elo histories", "userID", params.UserID, "eloHistoryBuckets", buckets)
-	return buckets, durations, nil
+	return RetrieveEloHistoryResp{EloHistories: buckets, BucketDuration: durations}, nil
 }
 
 const year = 365 * 24 * time.Hour
@@ -247,7 +252,7 @@ const year = 365 * 24 * time.Hour
 type Bucket struct {
 	eloTotal  float64 // accumulating average.
 	eloCount  int
-	startTime time.Time          // begin time range of the Bucket we are accumulating.
+	startTime time.Time          // begin the time range of the Bucket we are accumulating.
 	elements  []EloHistoryBucket // all accumulated buckets.
 }
 

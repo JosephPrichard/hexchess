@@ -712,11 +712,11 @@ func (api *API) HandleGetEloHistories(w http.ResponseWriter, r *http.Request) er
 		Months:    query.Months,
 		TimeUntil: time.Now(),
 	}
-	eloBuckets, _, err := api.services.RetrieveEloHistoryBuckets(ctx, params)
+	eloBucketsResp, err := api.services.RetrieveEloHistoryBuckets(ctx, params)
 	if err != nil {
 		return serrors.Wrap("retrieve elo histories buckets with params", err, "params", params)
 	}
-	writeJSON(w, http.StatusOK, EloHistoriesResp{Buckets: eloBuckets})
+	writeJSON(w, http.StatusOK, EloHistoriesResp{Buckets: eloBucketsResp.EloHistories})
 
 	//w.Header().Set("Cache-Control", GetEloHistoriesCacheControl)
 	return nil
