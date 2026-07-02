@@ -584,10 +584,13 @@ func (api *API) HandleGameExistence(w http.ResponseWriter, r *http.Request) erro
 
 	exists := api.services.IsGameAccessible(ctx, gameID)
 
-	respMsg := GameExists
-	if !exists {
+	var respMsg string
+	if exists {
+		respMsg = GameExists
+	} else {
 		respMsg = GameNotExists
 	}
+	
 	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: respMsg})
 	return nil
 }

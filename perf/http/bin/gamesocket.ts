@@ -1,9 +1,9 @@
 import http from "k6/http";
-import { Trend, Counter } from "k6/metrics";
 import { EventName, WebSocket, MessageEvent, ErrorEvent, BinaryType } from "k6/websockets";
-import { Session, setupSessions } from "./setup.ts"
-import { gameModes, colors, pickElement, makeSessionParams } from "./utils.ts"
-import { MetricMap } from "./metrics.ts";
+import { Session, setupSessions } from "../lib/setup.ts"
+import { gameModes, colors, pickElement, makeSessionParams } from "../lib/utils.ts"
+import { MetricMap } from "../lib/metrics.ts";
+import { CustomTrend } from "../lib/trends.ts";
 
 // ignore typechecking for CDN imports and K6 extensions
 // @ts-ignore
@@ -11,7 +11,7 @@ import { URLSearchParams } from "https://jslib.k6.io/url/1.0.0/index.js";
 // @ts-ignore
 import { uuidv4 } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js';
 // @ts-ignore
-import { handleGameInputEvent, createChatGameInput } from "k6/x/hexchess/websocket";
+import { handleGameInputEvent } from "k6/x/hexchess/websocket";
 
 const restProtocol = __ENV.PROTOCOL ?? "http";
 const wsProtocol = __ENV.PROTOCOL ?? "ws";
@@ -29,18 +29,18 @@ if (playersCount < 2) {
     throw new Error("players per game count should be at least 2");
 }
 
-// export const options = {
-//     executor: "shared-iterations",
-//     vus: 1,
-//     iterations: 1,
-//     maxDuration: "5s",
-// };
-
 export const options = {
-    executor: "constant-vus",
+    executor: "shared-iterations",
     vus: 1,
-    duration: "1m",
+    iterations: 1,
+    maxDuration: "5s",
 };
+
+// export const options = {
+//     executor: "constant-vus",
+//     vus: 1,
+//     duration: "1m",
+// };
 
 type SetupData = {
     sessions: Session[];
@@ -52,21 +52,6 @@ export function setup(): SetupData {
 }
 
 const trendKey = (i: string, o: string) => `${i}->${o}`;
-
-class CustomTrend {
-    trend: Trend;
-    count: Counter;
-
-    constructor(name: string) {
-        this.trend = new Trend(name, true);
-        this.count = new Counter(`${name}_count`);
-    }
-
-    add(value: number | boolean, tags?: {[name: string]: string}) {
-        this.trend.add(value, tags);
-        this.count.add(1, tags);
-    }
-}
 
 export const trendMoveIntoMove = new CustomTrend("move_messages");
 export const trendJoinIntoInit = new CustomTrend("init_messages");
@@ -154,8 +139,14 @@ const connectGame = (metrics: MetricMap, gameId: string, sessionId: string) => n
             prevType,
             isTerminal,
             // produced for next send call
-            nextInputBytes
+            nextInputBytes,
+            // produced by an invalid recvBytes
+            error
         } = handleGameInputEvent({ recvBytes, inputMessageId });
+        if (error) {
+            console.error(`gameId=${gameId} error: ${error}`);
+            return;
+        }
 
         if (nextInputBytes) {
             socket.send(nextInputBytes);

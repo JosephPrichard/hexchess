@@ -1,6 +1,6 @@
 import http, { expectedStatuses } from "k6/http";
 import { Trend } from "k6/metrics";
-import { setupSessions, setupGames, Session } from "./setup.ts";
+import { setupSessions, setupGames, Session } from "../lib/setup.ts";
 import { 
     makeSessionParams, 
     randrange, 
@@ -15,7 +15,7 @@ import {
     colors, 
     pickElement,
     pickSession
-} from "./utils.ts";
+} from "../lib/utils.ts";
 
 // ignore typechecking for CDN imports and K6 extensions
 // @ts-ignore
@@ -23,160 +23,165 @@ import faker from "k6/x/faker";
 // @ts-ignore
 import { URLSearchParams } from "https://jslib.k6.io/url/1.0.0/index.js";
 
-// Constant VU definitions, test configs and input parsing
+// VU definitions, test configs and input parsing
 
 const protocol = __ENV.PROTOCOL ?? "http";
 const hostname = __ENV.HOSTNAME ?? "localhost:8081";
 export const baseUrl = `${protocol}://${hostname}/api`;
 
-// providing a higher user count gives a better distribution on what data is created and which rows are updated
-// higher is better, but takes much longer to run the test
+// providing a higher user/games count gives a better distribution on what data is created and which rows are updated
 const usersCount = parseInt(__ENV.USERS_COUNT) || 10;
 const gamesCount = parseInt(__ENV.GAMES_COUNT) || 100;
 
-export const constantArrivalRate = {
-    executor: "constant-arrival-rate",
-    rate: 1,
-    timeUnit: "1s",
-    duration: "5s",
-    preAllocatedVUs: 1,
-    maxVUs: 2,
-};
+const profile = __ENV.PROFILE || "smoke";
 
-// export const constantArrivalRate = {
-//     executor: "constant-arrival-rate",
-//     rate: 20,
-//     timeUnit: "1s",
-//     duration: "1m",
-//     preAllocatedVUs: 10,
-//     maxVUs: 100,
-// };
+function getArrivalRate() {
+    if (profile === "smoke") {
+        return {
+            executor: "constant-arrival-rate",
+            rate: 1,
+            timeUnit: "1s",
+            duration: "5s",
+            preAllocatedVUs: 1,
+            maxVUs: 2,
+        };
+    } else if (profile === "capacity") {
+        return {
+            executor: "constant-arrival-rate",
+            rate: 20,
+            timeUnit: "1s",
+            duration: "1m",
+            preAllocatedVUs: 10,
+            maxVUs: 100,
+        };
+    }
+}
 
 export const options = {
     scenarios: {
         // GET testdefs
         // leaderboard
         get_leaderboard: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "getLeaderboard",
         },
         // replays
         search_replays: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "searchReplays",
         },
         search_replays_winner_loser_id: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "searchReplaysWinnerIDLoserID",
         },
         search_replays_black_white_id: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "searchReplaysWhiteIDBlackID",
         },
         search_replays_timeframe: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "searchReplaysTimeframe",
         },
         search_replays_mode_result_cause: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "searchReplaysModeResultCause",
         },
         get_replay_replay_id: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "getReplay_ReplayID",
         },
         get_replay_movelist: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "getReplayMoveList",
         },
         // players / users
         search_players: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "searchPlayers",
         },
         get_player: {
-            ...constantArrivalRate, 
+            ...getArrivalRate(), 
             exec: "getPlayer",
         },
         get_self_player: {
-             ...constantArrivalRate, 
+             ...getArrivalRate(), 
             exec: "getSelfPlayer",
         },
         get_player_activity: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "getPlayerActivity",
         },
         get_profile_pic: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "getProfilePic",
         },
         // game /rooms
         get_game_rooms: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "getGameRooms",
         },
         get_game_chats: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "getGameChats",
         },
         get_game_room_exists: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "getGameRoomExists",
         },
         // tournaments
         get_tournament: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "getTournament",
         },
         get_tournaments: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "getTournaments",
         },
         // challenges
         get_challenges: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "getChallenges",
         },
         get_challenges_count: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "getChallengesCount",
         },
         // replay elo histories
         get_elo_histories: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "getEloHistories",
         },
         // POST testdefs
         // session
         create_temp_session: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "postCreateTempSession",
         },
         refresh_session: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "postRefreshSession"
         },
         // users
         update_user: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "postUpdateUser",
         },
         upload_profile_pic: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "postUploadProfilePic",
         },
         // challenges
         create_challenge: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "postCreateChallenge",
         },
         update_challenge: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "postUpdateChallenge",
         },
         // games
         create_game: {
-            ...constantArrivalRate,
+            ...getArrivalRate(),
             exec: "postCreateGame",
         }
     },
@@ -466,7 +471,7 @@ export function postUpdateChallenge(data: SetupData) {
 
 // user / player
 
-const inputFile = open("./sample-image.png", "b");
+const inputFile = open("../inputs/sample-image.png", "b");
 const inputFileChecksum = "q3ayd2OBXomVIgArjuf4rkuvzYDh2Ju2rxEWq1zCuCM="; // hardcoded, you must change this if you change the input file
 
 export function postUploadProfilePic(data: SetupData) {

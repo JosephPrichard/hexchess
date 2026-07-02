@@ -266,12 +266,6 @@ func (api *API) handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput, mes
 		return serrors.Wrap("attempting undo on game", err, "player", ctx.Player, "gameID", ctx.GameID)
 	}
 
-	api.broadcaster.BroadcastGamesEvent(ctx, SerializeGameOutputUndo(
-		ctx.GameID,
-		messageID,
-		pbInput.Kind,
-		ctx.Player.ID,
-		state,
-	))
+	api.broadcaster.BroadcastGamesEvent(ctx, SerializeGameOutputUndo(ctx.GameID, messageID, pbInput.Kind, ctx.Player.ID, state))
 	return nil
 }

@@ -20,12 +20,12 @@ export class MetricMap {
         this.metricMap.set(messageId, {inputTime: new Date(), inputType: inputType, outputs: []});
     }
 
-    appendMetric(messageId: string, outputType: string) {
+    appendMetric(messageId: string, outputType?: string) {
         const metric = this.metricMap.get(messageId);
         if (!metric) {
             throw new Error(`unknown metric for message id ${messageId}`);
         }
-        metric.outputs.push({outputTime: new Date(), outputType});
+        metric.outputs.push({outputTime: new Date(), outputType: outputType || ""});
     }
     
     iterateMetrics(f: (metric: Metric, outputMetric: OutputMetric) => void) {
