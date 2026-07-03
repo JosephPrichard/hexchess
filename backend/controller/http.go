@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/bytedance/sonic"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
@@ -44,11 +45,11 @@ func parseJSON[Body any](r *http.Request, body *Body) error {
 	return doValidation(body)
 }
 
-func transformJSON[Body any, Output any](r *http.Request, parse func(Body) (Output, error)) (Output, error) {
+func mapJSON[Body any, Output any](r *http.Request, parse func(Body) (Output, error)) (Output, error) {
 	defer r.Body.Close()
 
 	var body Body
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := sonic.ConfigDefault.NewDecoder(r.Body).Decode(&body); err != nil {
 		var o Output
 		return o, err
 	}

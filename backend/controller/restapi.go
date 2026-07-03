@@ -126,7 +126,7 @@ func (api *API) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 	}
 	user, err := api.services.VerifyUser(ctx, body.Username, body.Password)
 	if err != nil {
-		return serrors.Wrap("verify user", err)
+		return serrors.Wrap("verify user", err, "username", body.Username)
 	}
 
 	return api.handleLoginSession(ctx, w, user)
@@ -312,8 +312,7 @@ func (api *API) HandleGetSelf(w http.ResponseWriter, r *http.Request) error {
 	if errors.Is(err, svc.ErrSessionNotFound) {
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
-	}
-	if err != nil {
+	} else if err != nil {
 		return err
 	}
 
@@ -427,7 +426,7 @@ func (api *API) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) er
 	if err != nil {
 		return err
 	}
-	body, err := transformJSON(r, parseUpdateChallengeBody)
+	body, err := mapJSON(r, parseUpdateChallengeBody)
 	if err != nil {
 		return err
 	}
@@ -465,7 +464,7 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 	if err != nil {
 		return err
 	}
-	body, err := transformJSON(r, parseCreateChallengeBody)
+	body, err := mapJSON(r, parseCreateChallengeBody)
 	if err != nil {
 		return err
 	}
@@ -556,7 +555,7 @@ type CreateGameResp struct {
 func (api *API) HandleCreateGame(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	body, err := transformJSON(r, parseCreateGameBody)
+	body, err := mapJSON(r, parseCreateGameBody)
 	if err != nil {
 		return err
 	}
@@ -584,14 +583,13 @@ func (api *API) HandleGameExistence(w http.ResponseWriter, r *http.Request) erro
 
 	exists := api.services.IsGameAccessible(ctx, gameID)
 
-	var respMsg string
+	resp := ServiceResp{Status: http.StatusOK}
 	if exists {
-		respMsg = GameExists
+		resp.Message = GameExists
 	} else {
-		respMsg = GameNotExists
+		resp.Message = GameNotExists
 	}
-	
-	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: respMsg})
+	writeServiceResp(w, resp)
 	return nil
 }
 
@@ -660,7 +658,6 @@ func (api *API) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	var replay model.FullReplay
-
 	if query.HasGameID {
 		replay, err = api.services.GetReplayByGameID(ctx, query.GameID)
 	} else {
@@ -764,7 +761,7 @@ func (api *API) HandleCreateTournament(w http.ResponseWriter, r *http.Request) e
 	if err != nil {
 		return err
 	}
-	body, err := transformJSON(r, parseCreateTournamentBody)
+	body, err := mapJSON(r, parseCreateTournamentBody)
 	if err != nil {
 		return err
 	}
@@ -803,7 +800,7 @@ func (api *API) HandleJoinTournament(w http.ResponseWriter, r *http.Request) err
 	if err != nil {
 		return err
 	}
-	tournamentKey, err := transformJSON(r, parseTournamentKeyBody)
+	tournamentKey, err := mapJSON(r, parseTournamentKeyBody)
 	if err != nil {
 		return err
 	}
@@ -832,7 +829,7 @@ func (api *API) HandleBeginCountdownTournament(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		return err
 	}
-	tournamentKey, err := transformJSON(r, parseTournamentKeyBody)
+	tournamentKey, err := mapJSON(r, parseTournamentKeyBody)
 	if err != nil {
 		return err
 	}

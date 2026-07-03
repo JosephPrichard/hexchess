@@ -2,7 +2,6 @@ package controller
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"fmt"
 	"hexchess-svc/model"
