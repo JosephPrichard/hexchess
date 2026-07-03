@@ -120,7 +120,7 @@ func (services *HexchessServices) JoinGame(ctx context.Context, gameID model.Gam
 			}
 		}
 		if playerExists {
-			slog.WarnContext(ctx, "player has already joined game", "playerID", player.ID, "chesState", state)
+			slog.WarnContext(ctx, "player has already joined game", "playerID", player.ID, "gameID", gameID)
 			return nil
 		}
 		return nil

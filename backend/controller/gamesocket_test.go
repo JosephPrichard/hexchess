@@ -7,6 +7,7 @@ import (
 	"hexchess-svc/chess"
 
 	"net/http"
+	"net/url"
 	"slices"
 	"testing"
 	"time"
@@ -163,8 +164,12 @@ func TestHandleGameplayWs(t *testing.T) {
 			subChan := make(chan []byte, len(wantBrdcasts))
 			websocketTest.localBroadcasters.GamesCaster.Subscribe(gameID, subChan)
 
+			params := url.Values{}
+			params.Set("gameId", gameID.String())
+			params.Set("sessionId", TestSessionID1)
+
 			conn, _, err := websocket.DefaultDialer.DialContext(ctx,
-				fmt.Sprintf("%s/api/ws/game?gameId=%s&sessionId=%s", websocketTest.getWsURL(), gameID, TestSessionID1),
+				fmt.Sprintf("%s/api/ws/game?%s", websocketTest.getWsURL(), params.Encode()),
 				http.Header{})
 			require.NoError(t, err)
 			defer conn.Close()
@@ -193,15 +198,15 @@ var gameOutputAssertionCmpOpts = []cmp.Option{
 }
 
 func readGameOutputMsgs(t *testing.T, conn *websocket.Conn, wantMsgs int) []*pb.GameOutput {
-	msgs := make([]*pb.GameOutput, wantMsgs)
-	for i := range wantMsgs {
+	msgs := make([]*pb.GameOutput, 0, wantMsgs)
+	for range wantMsgs {
 		_, outputBytes, err := conn.ReadMessage()
 		require.NoError(t, err)
 
 		output := &pb.GameOutput{}
 		require.NoError(t, proto.Unmarshal(outputBytes, output))
 
-		msgs[i] = output
+		msgs = append(msgs, output)
 	}
 
 	slices.SortFunc(msgs, func(a *pb.GameOutput, b *pb.GameOutput) int {

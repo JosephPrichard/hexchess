@@ -28,6 +28,7 @@ frontend/build
 .env
 
 perf/http/node_modules
+perf/http/package-lock.json
 perf/k6/k6
 wasm_exec.js
 chess.wasm

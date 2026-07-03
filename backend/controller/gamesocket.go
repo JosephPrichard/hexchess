@@ -66,6 +66,7 @@ func (api *API) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close() // close originating from server
 
 	subscriber := make(chan message, GameplayChanBufCap)
+
 	api.broadcasters.GamesCaster.Subscribe(gameID, subscriber)
 	defer api.broadcasters.GamesCaster.Unsubscribe(gameID, subscriber)
 
@@ -135,7 +136,11 @@ func writeGameError(ctx context.Context, conn *websocket.Conn, gameID model.Game
 		wsErr = ErrWsFatal
 	}
 
-	logutil.SError(ctx, slog.LevelError, "failed to handle ws message", err, "wsErr", wsErr, "messageID", messageID)
+	level := slog.LevelWarn
+	if wsErr == ErrWsFatal {
+		level = slog.LevelError
+	}
+	logutil.SError(ctx, level, "failed to handle ws message", err, "wsErr", wsErr, "messageID", messageID)
 
 	bytes, err := proto.Marshal(SerializeGameOutputError(gameID, messageID, wsErr))
 	if err != nil {
@@ -261,11 +266,11 @@ func (api *API) handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput, mes
 		return err
 	}
 
-	state, err := api.services.AttemptGameUndo(ctx, ctx.GameID, ctx.Player, undoKind)
+	chessState, err := api.services.AttemptGameUndo(ctx, ctx.GameID, ctx.Player, undoKind)
 	if err != nil {
 		return serrors.Wrap("attempting undo on game", err, "player", ctx.Player, "gameID", ctx.GameID)
 	}
 
-	api.broadcaster.BroadcastGamesEvent(ctx, SerializeGameOutputUndo(ctx.GameID, messageID, pbInput.Kind, ctx.Player.ID, state))
+	api.broadcaster.BroadcastGamesEvent(ctx, SerializeGameOutputUndo(ctx.GameID, messageID, pbInput.Kind, ctx.Player.ID, chessState))
 	return nil
 }

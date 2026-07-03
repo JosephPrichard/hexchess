@@ -18,7 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func scanEvents(ctx context.Context, resp *http.Response, wantEvents int) []string {
+func scanEvents(t *testing.T, resp *http.Response, wantEvents int) []string {
+	ctx := t.Context()
+
 	defer resp.Body.Close()
 
 	var events []string
@@ -69,6 +71,9 @@ func scanEvents(ctx context.Context, resp *http.Response, wantEvents int) []stri
 		}
 	}
 
+	if err := scan.Err(); err != nil {
+		t.Logf("scanner error: %v", err)
+	}
 	return events
 }
 
@@ -97,7 +102,7 @@ func TestHandleCountEvents(t *testing.T) {
 		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"count":4}`),
 	}
 
-	gotEvents := scanEvents(ctx, resp, len(wantEvents))
+	gotEvents := scanEvents(t, resp, len(wantEvents))
 	assert.Equal(t, wantEvents, gotEvents)
 }
 
@@ -174,7 +179,7 @@ func TestHandleUserEvents(t *testing.T) {
 		wantEvents = append(wantEvents, fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, challengeJson))
 	}
 
-	gotEvents := scanEvents(ctx, resp, len(wantEvents))
+	gotEvents := scanEvents(t, resp, len(wantEvents))
 	assert.Equal(t, wantEvents, gotEvents)
 }
 
@@ -246,6 +251,6 @@ func TestHandleTournamentEvents(t *testing.T) {
 		wantEvents = append(wantEvents, fmt.Sprintf("event: %s\ndata: %s\n", TournamentEvent, tournamentJson))
 	}
 
-	gotEvents := scanEvents(ctx, resp, len(wantEvents))
+	gotEvents := scanEvents(t, resp, len(wantEvents))
 	assert.Equal(t, wantEvents, gotEvents)
 }

@@ -86,8 +86,8 @@ wasm-test:
 
 perf-test:
 	./$(PERF_K6_DIR)/k6 version
-	./$(PERF_K6_DIR)/k6 run ./$(PERF_DIR)/http/bin/restapi.ts
-	./$(PERF_K6_DIR)/k6 run ./$(PERF_DIR)/http/bin/gamesocket.ts
+# 	./$(PERF_K6_DIR)/k6 run ./$(PERF_DIR)/http/scripts/restapi.ts
+	./$(PERF_K6_DIR)/k6 run ./$(PERF_DIR)/http/scripts/gamesockets.ts
 
 test: server-test wasm-test perf-test
 
