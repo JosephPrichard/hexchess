@@ -2,8 +2,8 @@ package model
 
 import (
 	"crypto/rand"
+	"hexchess-lib/optional"
 	"hexchess-svc/chess"
-	"hexchess-svc/lib/optional"
 	"math/big"
 )
 

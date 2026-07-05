@@ -2,11 +2,11 @@ package consumers
 
 import (
 	"context"
+	"hexchess-lib/optional"
+	"hexchess-lib/testutil"
 	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
-	"hexchess-svc/lib/optional"
-	"hexchess-svc/lib/testutil"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"

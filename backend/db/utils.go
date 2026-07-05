@@ -3,8 +3,8 @@ package db
 import (
 	"database/sql"
 	"errors"
+	"hexchess-lib/optional"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/lib/optional"
 	"hexchess-svc/model"
 	"time"
 

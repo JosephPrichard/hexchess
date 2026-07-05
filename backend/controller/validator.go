@@ -13,8 +13,8 @@ import (
 	enTranslations "github.com/go-playground/validator/v10/translations/en"
 	"github.com/google/uuid"
 
-	"hexchess-svc/lib/enum"
-	"hexchess-svc/lib/optional"
+	"hexchess-lib/enum"
+	"hexchess-lib/optional"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 	"net/url"

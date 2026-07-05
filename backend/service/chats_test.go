@@ -1,8 +1,8 @@
 package svc
 
 import (
+	"hexchess-lib/testutil"
 	"hexchess-svc/itest"
-	"hexchess-svc/lib/testutil"
 	"hexchess-svc/model"
 	"testing"
 	"time"

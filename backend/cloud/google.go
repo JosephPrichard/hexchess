@@ -2,7 +2,7 @@ package cloud
 
 import (
 	"context"
-	"hexchess-svc/lib/serrors"
+	"hexchess-lib/serrors"
 	"net/http"
 
 	"google.golang.org/api/idtoken"

@@ -2,7 +2,8 @@ package db
 
 import (
 	"context"
-	"hexchess-svc/lib/logutil"
+	"hexchess-lib/logutil"
+	"hexchess-lib/timeutil"
 	"log/slog"
 	"sync/atomic"
 	"time"
@@ -17,7 +18,7 @@ const pgTokenRefreshPeriod = 10 * time.Minute
 type PostgresTokenRefresher struct {
 	stsClient *sts.Client
 	token     atomic.Pointer[string]
-	ticker    *time.Ticker
+	cancel    func()
 }
 
 func NewPgTokenRefresher(ctx context.Context, region string) *PostgresTokenRefresher {
@@ -27,10 +28,9 @@ func NewPgTokenRefresher(ctx context.Context, region string) *PostgresTokenRefre
 	}
 	refresher := &PostgresTokenRefresher{
 		stsClient: sts.NewFromConfig(awsCfg),
-		ticker:    time.NewTicker(pgTokenRefreshPeriod),
 	}
 	refresher.acquireToken()
-	go refresher.refreshToken()
+	refresher.cancel = timeutil.ScheduleFunc(pgTokenRefreshPeriod, refresher.acquireToken)
 	return refresher
 }
 
@@ -43,10 +43,9 @@ func (refresh *PostgresTokenRefresher) acquireToken() {
 	refresh.token.Store(result.Credentials.SecretAccessKey)
 }
 
-func (refresh *PostgresTokenRefresher) refreshToken() {
-	// note: refresh token is a process lifetime singleton
-	for range refresh.ticker.C {
-		refresh.acquireToken()
+func (refresh *PostgresTokenRefresher) Shutdown() {
+	if refresh.cancel != nil {
+		refresh.cancel()
 	}
 }
 

@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"time"
 
-	"hexchess-svc/lib/logutil"
+	"hexchess-lib/logutil"
 	svc "hexchess-svc/service"
 
 	"github.com/go-chi/chi/v5"

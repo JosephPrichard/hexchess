@@ -1,7 +1,7 @@
 package model
 
 import (
-	"hexchess-svc/lib/enum"
+	"hexchess-lib/enum"
 	"slices"
 	"time"
 )

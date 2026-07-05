@@ -1,8 +1,8 @@
 package controller
 
 import (
+	"hexchess-lib/serrors"
 	"hexchess-svc/assets"
-	"hexchess-svc/lib/serrors"
 	"log/slog"
 	"net/http"
 	"strconv"

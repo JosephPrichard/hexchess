@@ -2,8 +2,8 @@ package pubsub
 
 import (
 	"encoding/json"
+	"hexchess-lib/testutil"
 	"hexchess-svc/db"
-	"hexchess-svc/lib/testutil"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"testing"

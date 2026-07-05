@@ -1,9 +1,9 @@
 package svc
 
 import (
+	"hexchess-lib/logutil"
 	"hexchess-svc/cloud"
 	"hexchess-svc/itest"
-	"hexchess-svc/lib/logutil"
 	"hexchess-svc/pubsub"
 )
 

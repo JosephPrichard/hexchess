@@ -1,9 +1,9 @@
 package svc
 
 import (
+	"hexchess-lib/errutil"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
-	"hexchess-svc/lib/errutil"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 
@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"hexchess-svc/lib/testutil"
+	"hexchess-lib/testutil"
 	"testing"
 	"time"
 )

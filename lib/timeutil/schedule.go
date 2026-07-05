@@ -2,8 +2,10 @@ package timeutil
 
 import "time"
 
-func Every(duration time.Duration, work func()) func() {
+func ScheduleFunc(duration time.Duration, work func()) func() {
 	ticker := time.NewTicker(duration)
+	defer ticker.Stop()
+
 	stop := make(chan bool, 1)
 
 	go func() {

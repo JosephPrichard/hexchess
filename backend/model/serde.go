@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hexchess-lib/enum"
+	"hexchess-lib/optional"
+	"hexchess-lib/serrors"
 	"hexchess-svc/chess"
-	"hexchess-svc/lib/enum"
-	"hexchess-svc/lib/optional"
-	"hexchess-svc/lib/serrors"
 	"hexchess-svc/pb"
 	"time"
 

@@ -2,11 +2,11 @@ package svc
 
 import (
 	"context"
+	"hexchess-lib/enum"
+	"hexchess-lib/optional"
+	"hexchess-lib/serrors"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/lib/enum"
-	"hexchess-svc/lib/optional"
-	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
 	"log/slog"

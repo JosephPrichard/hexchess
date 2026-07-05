@@ -25,8 +25,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	"hexchess-lib/testutil"
 	"hexchess-svc/itest"
-	"hexchess-svc/lib/testutil"
 	svc "hexchess-svc/service"
 
 	"github.com/stretchr/testify/assert"

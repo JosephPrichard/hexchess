@@ -2,8 +2,8 @@ package producers
 
 import (
 	"context"
+	"hexchess-lib/serrors"
 	"hexchess-svc/db"
-	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
 	"hexchess-svc/queue"
 	"log/slog"

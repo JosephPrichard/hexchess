@@ -2,7 +2,7 @@ package svc
 
 import (
 	"context"
-	"hexchess-svc/lib/serrors"
+	"hexchess-lib/serrors"
 	"hexchess-svc/model"
 	"log/slog"
 

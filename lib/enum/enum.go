@@ -3,7 +3,7 @@ package enum
 import (
 	"encoding/json"
 	"fmt"
-	"hexchess-svc/lib/optional"
+	"hexchess-lib/optional"
 	"log/slog"
 	"maps"
 	"slices"

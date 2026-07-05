@@ -1,10 +1,10 @@
 package pubsub
 
 import (
+	"hexchess-lib/config"
+	"hexchess-lib/testutil"
 	"hexchess-svc/db"
 	"hexchess-svc/itest"
-	"hexchess-svc/lib/config"
-	"hexchess-svc/lib/testutil"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"testing"

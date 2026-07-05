@@ -5,9 +5,9 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"hexchess-lib/optional"
+	"hexchess-lib/serrors"
 	"hexchess-svc/chess"
-	"hexchess-svc/lib/optional"
-	"hexchess-svc/lib/serrors"
 	"time"
 
 	"hexchess-svc/model"

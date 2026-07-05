@@ -5,9 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	"hexchess-svc/lib/enum"
-	"hexchess-svc/lib/optional"
-	"hexchess-svc/lib/serrors"
+	"hexchess-lib/enum"
+	"hexchess-lib/optional"
+	"hexchess-lib/serrors"
 	"hexchess-svc/model"
 	"log/slog"
 	"math"
@@ -15,9 +15,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"hexchess-lib/logutil"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/lib/logutil"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"

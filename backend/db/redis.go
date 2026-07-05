@@ -3,8 +3,8 @@ package db
 import (
 	"context"
 	"fmt"
-	"hexchess-svc/lib/config"
-	"hexchess-svc/lib/logutil"
+	"hexchess-lib/config"
+	"hexchess-lib/logutil"
 	"log/slog"
 	"time"
 
@@ -49,6 +49,8 @@ type Redis struct {
 	PubSub     *redigo.Pool
 	PubsubAddr string `json:"pubsubAddr"`
 	RedisNames
+	primaryRefresher  *RedisTokenRefresher
+	pubsubRefresher   *RedisTokenRefresher
 }
 
 func (rdb *Redis) Close() {
@@ -57,6 +59,12 @@ func (rdb *Redis) Close() {
 	}
 	if rdb.PubSub != nil {
 		rdb.PubSub.Close()
+	}
+	if rdb.primaryRefresher != nil {
+		rdb.primaryRefresher.Shutdown()
+	}
+	if rdb.pubsubRefresher != nil {
+		rdb.pubsubRefresher.Shutdown()
 	}
 }
 
@@ -79,6 +87,9 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 	if redisCfg.Names == nil {
 		redisCfg.Names = &DefaultRedisNames
 	}
+	
+	var primaryRefresher *RedisTokenRefresher
+	var pubsubRefresher *RedisTokenRefresher
 
 	redisClientOpts := &redis.UniversalOptions{
 		Addrs:          redisCfg.SorAddr,
@@ -90,8 +101,8 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 		RouteByLatency: false,
 	}
 	if redisCfg.ActiveProfile != config.Local {
-		tokenRefresher := NewRedisTokenRefresher(ctx, redisCfg.AWSRegion, redisCfg.SorUsername, redisCfg.SorClusterName)
-		redisClientOpts.CredentialsProvider = NewCredentialsProvider(tokenRefresher)
+		primaryRefresher = NewRedisTokenRefresher(ctx, redisCfg.AWSRegion, redisCfg.SorUsername, redisCfg.SorClusterName)
+		redisClientOpts.CredentialsProvider = NewCredentialsProvider(primaryRefresher)
 	}
 	redisClient := redis.NewUniversalClient(redisClientOpts)
 
@@ -102,8 +113,8 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 			IdleTimeout: 240 * time.Second,
 		}
 		if redisCfg.ActiveProfile != config.Local {
-			tokenRefresher := NewRedisTokenRefresher(ctx, redisCfg.AWSRegion, redisCfg.PubsubUsername, redisCfg.PubsubClusterName)
-			pubsubPool.Dial = NewSecureDialer(tokenRefresher, redisCfg.PubsubAddr)
+			pubsubRefresher = NewRedisTokenRefresher(ctx, redisCfg.AWSRegion, redisCfg.PubsubUsername, redisCfg.PubsubClusterName)
+			pubsubPool.Dial = NewSecureDialer(pubsubRefresher, redisCfg.PubsubAddr)
 		} else {
 			pubsubPool.Dial = func() (redigo.Conn, error) {
 				return redigo.Dial("tcp", redisCfg.PubsubAddr)
@@ -122,5 +133,7 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 		PubSub:     pubsubPool,
 		RedisNames: *redisCfg.Names,
 		PubsubAddr: redisCfg.PubsubAddr,
+		primaryRefresher: primaryRefresher,
+		pubsubRefresher: pubsubRefresher,
 	}
 }

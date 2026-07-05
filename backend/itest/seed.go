@@ -13,7 +13,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 
-	"hexchess-svc/lib/logutil"
+	"hexchess-lib/logutil"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"

@@ -2,7 +2,7 @@ package logutil
 
 import (
 	"context"
-	"hexchess-svc/lib/serrors"
+	"hexchess-lib/serrors"
 	"log/slog"
 	"os"
 )

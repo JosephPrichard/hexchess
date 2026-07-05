@@ -1,7 +1,7 @@
 package testutil
 
 import (
-	"hexchess-svc/lib/logutil"
+	"hexchess-lib/logutil"
 	"reflect"
 
 	"github.com/google/uuid"

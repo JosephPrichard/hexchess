@@ -3,9 +3,9 @@ package controller
 import (
 	"context"
 	"fmt"
-	"hexchess-svc/lib/logutil"
-	"hexchess-svc/lib/serrors"
-	"hexchess-svc/lib/timeutil"
+	"hexchess-lib/logutil"
+	"hexchess-lib/serrors"
+	"hexchess-lib/timeutil"
 	"hexchess-svc/pubsub"
 	"log/slog"
 	"net/http"
@@ -107,7 +107,7 @@ func (api *API) HandleActiveConn(client *SSEClient, r *http.Request) error {
 
 	client.event(MetaEvent, strUserID)
 
-	stop := timeutil.Every(RetainActiveUserPeriod, func() {
+	stop := timeutil.ScheduleFunc(RetainActiveUserPeriod, func() {
 		if err := api.services.RetainActiveUser(ctx, strUserID); err != nil {
 			slog.ErrorContext(ctx, "failed to retain active user", "userID", strUserID, "error", err)
 		}

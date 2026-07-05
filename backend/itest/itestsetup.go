@@ -1,12 +1,12 @@
 package itest
 
 import (
+	"hexchess-lib/config"
+	"hexchess-lib/logutil"
+	"hexchess-lib/testutil"
 	"hexchess-svc/cloud"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/lib/config"
-	"hexchess-svc/lib/logutil"
-	"hexchess-svc/lib/testutil"
 	"slices"
 
 	"github.com/jackc/pgx/v5"
@@ -74,7 +74,7 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 		testinfra.DB = db.NewFakeDB(testTx)
 		testinfra.Querier = testinfra.DB.Querier()
 	} else if isRoPostgresFlag {
-		testinfra.DB = db.NewPostgresDB(pgPool)
+		testinfra.DB = db.NewPostgresDBFromPool(pgPool)
 		testinfra.Querier = testinfra.DB.Querier()
 	}
 

@@ -2,9 +2,9 @@ package db
 
 import (
 	"context"
+	"hexchess-lib/config"
+	"hexchess-lib/logutil"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/lib/config"
-	"hexchess-svc/lib/logutil"
 	"log/slog"
 
 	"github.com/jackc/pgx/v5"
@@ -20,6 +20,7 @@ type Database interface {
 type ImplDB struct {
 	q    *sqlc.Queries
 	pool *pgxpool.Pool
+	refresher *PostgresTokenRefresher
 }
 
 func (pdb *ImplDB) Querier() sqlc.Querier {
@@ -29,6 +30,9 @@ func (pdb *ImplDB) Querier() sqlc.Querier {
 func (pdb *ImplDB) Close() {
 	if pdb.pool != nil {
 		pdb.pool.Close()
+	}
+	if pdb.refresher != nil {
+		pdb.refresher.Shutdown()
 	}
 }
 
@@ -54,38 +58,46 @@ func (pdb *FakeDB) Close() {
 	}
 }
 
-func NewPostgresDB(pool *pgxpool.Pool) Database {
-	return &ImplDB{q: sqlc.New(pool), pool: pool}
-}
-
-func NewFakeDB(txn pgx.Tx) Database {
-	return &FakeDB{testingTxn: txn}
-}
-
 type PgPoolConfig struct {
 	Dsn           string         `json:"dsn"`
 	ActiveProfile config.Profile `json:"activeProfile"`
 	Region        string         `json:"region"`
+	InitQuery     string         `json:"initQuery"`
 }
 
-func NewPgPool(ctx context.Context, cfg PgPoolConfig) *pgxpool.Pool {
+func NewPostgresDB(ctx context.Context, cfg PgPoolConfig) Database {
 	slog.Info("creating postgres db client", "config", cfg)
+
+	var refresher *PostgresTokenRefresher
 
 	poolCfg, err := pgxpool.ParseConfig(cfg.Dsn)
 	if err != nil {
 		logutil.Fatal("parse postgres config", err)
 	}
-
+	
 	if cfg.ActiveProfile != config.Local {
-		poolCfg.BeforeConnect = NewBeforeConnect(NewPgTokenRefresher(ctx, cfg.Region))
+		refresher := NewPgTokenRefresher(ctx, cfg.Region)
+		poolCfg.BeforeConnect = NewBeforeConnect(refresher)
 	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		logutil.Fatal("create postgres pool", err)
 	}
-	if _, err = pool.Exec(ctx, "SELECT 1;"); err != nil {
+	if cfg.InitQuery == "" {
+		cfg.InitQuery = "SELECT 1";
+	}
+	if _, err = pool.Exec(ctx, cfg.InitQuery); err != nil {
 		logutil.Fatal("execute postgres startup query", err)
 	}
-	return pool
+
+	return &ImplDB{q: sqlc.New(pool), pool: pool, refresher: refresher}
+}
+
+func NewPostgresDBFromPool(pool *pgxpool.Pool) Database {
+	return &ImplDB{q: sqlc.New(pool), pool: pool}
+}
+
+func NewFakeDB(txn pgx.Tx) Database {
+	return &FakeDB{testingTxn: txn}
 }

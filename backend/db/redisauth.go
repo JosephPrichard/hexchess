@@ -2,7 +2,8 @@ package db
 
 import (
 	"context"
-	"hexchess-svc/lib/logutil"
+	"hexchess-lib/logutil"
+	"hexchess-lib/timeutil"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -32,16 +33,15 @@ const (
 )
 
 type RedisTokenRefresher struct {
-	redisUsername string
-	awsRegion     string
-
+	redisUsername  string
+	awsRegion      string
 	tokenRequest   *http.Request
 	awsCredentials aws.Credentials
 	signer         *v4.Signer
 
-	ticker *time.Ticker
-
 	token atomic.Pointer[string]
+
+	cancel func()
 }
 
 func NewRedisTokenRefresher(ctx context.Context, region, redisUsername, clusterName string) *RedisTokenRefresher {
@@ -71,11 +71,10 @@ func NewRedisTokenRefresher(ctx context.Context, region, redisUsername, clusterN
 		tokenRequest:   request,
 		awsCredentials: credentials,
 		signer:         v4.NewSigner(),
-		ticker:         time.NewTicker(redisTokenRefreshPeriod),
 	}
 
 	refresher.acquireToken()
-	go refresher.refreshToken()
+	refresher.cancel = timeutil.ScheduleFunc(redisTokenRefreshPeriod, refresher.acquireToken)
 
 	return refresher
 }
@@ -98,10 +97,9 @@ func (refresh *RedisTokenRefresher) acquireToken() {
 	refresh.token.Store(&signedURL)
 }
 
-func (refresh *RedisTokenRefresher) refreshToken() {
-	// note: refresh token is a process lifetime singleton
-	for range refresh.ticker.C {
-		refresh.acquireToken()
+func (refresh *RedisTokenRefresher) Shutdown() {
+	if refresh.cancel != nil {
+		refresh.cancel()
 	}
 }
 

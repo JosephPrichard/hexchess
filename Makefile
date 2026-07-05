@@ -56,7 +56,10 @@ proto-backend:
 	$(call protoc_go,$(SVC_PB_OUT))
 
 # Frontend Build
-frontend: proto-frontend install-wasm
+frontend: install-modules proto-frontend install-wasm
+
+install-modules:
+	cd $(UI_DIR) && npm install
 
 proto-frontend:
 	$(call protoc_ts,$(UI_DIR),$(UI_PB_OUT))

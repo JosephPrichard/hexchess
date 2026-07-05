@@ -4,12 +4,12 @@ import (
 	"context"
 	"hexchess-svc/model"
 
-	"hexchess-svc/lib/testutil"
+	"hexchess-lib/testutil"
 	"testing"
 	"time"
 
+	"hexchess-lib/logutil"
 	"hexchess-svc/itest"
-	"hexchess-svc/lib/logutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

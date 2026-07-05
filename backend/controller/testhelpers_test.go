@@ -16,7 +16,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
 
-	"hexchess-svc/lib/logutil"
+	"hexchess-lib/logutil"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 )

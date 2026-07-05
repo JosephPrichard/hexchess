@@ -3,8 +3,8 @@ package cloud
 import (
 	"context"
 	"fmt"
-	"hexchess-svc/lib/config"
-	"hexchess-svc/lib/logutil"
+	"hexchess-lib/config"
+	"hexchess-lib/logutil"
 	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"

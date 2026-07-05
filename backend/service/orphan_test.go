@@ -3,9 +3,9 @@ package svc
 import (
 	"bytes"
 	"fmt"
+	"hexchess-lib/awsutil"
 	"hexchess-svc/cloud"
 	"hexchess-svc/itest"
-	"hexchess-svc/lib/awsutil"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"

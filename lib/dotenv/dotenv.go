@@ -2,7 +2,7 @@ package dotenv
 
 import (
 	"bufio"
-	"hexchess-svc/lib/logutil"
+	"hexchess-lib/logutil"
 	"log/slog"
 	"os"
 	"strings"

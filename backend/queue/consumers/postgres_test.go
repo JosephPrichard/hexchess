@@ -3,9 +3,9 @@ package consumers
 import (
 	"context"
 	"errors"
+	"hexchess-lib/testutil"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
-	"hexchess-svc/lib/testutil"
 	svc "hexchess-svc/service"
 	"testing"
 	"time"

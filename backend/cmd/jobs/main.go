@@ -3,15 +3,15 @@ package main
 import (
 	"context"
 	"flag"
-	"hexchess-svc/lib/config"
-	"hexchess-svc/lib/dotenv"
+	"hexchess-lib/config"
+	"hexchess-lib/dotenv"
 	"log/slog"
 	"os"
 	"strings"
 	"time"
 
+	"hexchess-lib/logutil"
 	"hexchess-svc/db"
-	"hexchess-svc/lib/logutil"
 	svc "hexchess-svc/service"
 )
 
@@ -42,19 +42,19 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, profile)
 	defer shutdown()
 
-	pool := db.NewPgPool(ctx, db.PgPoolConfig{
+
+	pdb := db.NewPostgresDB(ctx, db.PgPoolConfig{
 		Dsn:           dbURL,
 		ActiveProfile: profile,
 		Region:        awsRegion,
 	})
-	pdb := db.NewPostgresDB(pool)
 	defer pdb.Close()
 
 	rdb := db.NewRedis(ctx, db.RedisConfig{
-		SorAddr: rdbSorNodes,
-		SorUsername: rdbSorUsername,
+		SorAddr:        rdbSorNodes,
+		SorUsername:    rdbSorUsername,
 		SorClusterName: rdbSorClusterName,
-		ActiveProfile: profile,
+		ActiveProfile:  profile,
 	})
 	defer rdb.Close()
 

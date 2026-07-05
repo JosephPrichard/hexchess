@@ -3,7 +3,7 @@ package svc
 import (
 	"context"
 	"errors"
-	"hexchess-svc/lib/serrors"
+	"hexchess-lib/serrors"
 	"hexchess-svc/model"
 	"log/slog"
 	"time"

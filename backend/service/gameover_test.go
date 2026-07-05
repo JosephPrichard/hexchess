@@ -1,10 +1,10 @@
 package svc
 
 import (
+	"hexchess-lib/testutil"
 	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
-	"hexchess-svc/lib/testutil"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"hexchess-svc/pubsub"

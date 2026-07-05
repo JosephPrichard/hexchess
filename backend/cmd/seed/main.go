@@ -6,13 +6,13 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"hexchess-lib/config"
+	"hexchess-lib/dotenv"
+	"hexchess-lib/logutil"
+	"hexchess-lib/perf"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/lib/config"
-	"hexchess-svc/lib/dotenv"
-	"hexchess-svc/lib/logutil"
-	"hexchess-svc/lib/perf"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 	"log"
@@ -99,12 +99,12 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, profile)
 	defer shutdown()
 
-	pool := db.NewPgPool(ctx, db.PgPoolConfig{
+	pdb := db.NewPostgresDB(ctx, db.PgPoolConfig{
 		Dsn:           dbURL,
 		ActiveProfile: profile,
 		Region:        awsRegion,
+		InitQuery:     truncateSql,
 	})
-	pdb := db.NewPostgresDB(pool)
 	defer pdb.Close()
 
 	rdb := db.NewRedis(ctx, db.RedisConfig{
@@ -115,9 +115,6 @@ func main() {
 	})
 	defer rdb.Close()
 
-	if _, err := pool.Exec(ctx, truncateSql); err != nil {
-		logutil.Fatal("drop schema", err)
-	}
 	if err := rdb.Primary.FlushAll(ctx).Err(); err != nil {
 		logutil.Fatal("flush rdb", err)
 	}

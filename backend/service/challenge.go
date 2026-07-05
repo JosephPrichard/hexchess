@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hexchess-lib/enum"
+	"hexchess-lib/serrors"
 	"hexchess-svc/db"
-	"hexchess-svc/lib/enum"
-	"hexchess-svc/lib/serrors"
 	"hexchess-svc/model"
 	"log/slog"
 	"time"
 
+	"hexchess-lib/logutil"
 	"hexchess-svc/db/sqlc"
-	"hexchess-svc/lib/logutil"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
