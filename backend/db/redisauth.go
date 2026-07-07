@@ -24,7 +24,7 @@ const (
 	tokenValiditySeconds = 900
 
 	connectAction       = "connect"
-	awsCacheServiceName = "memorydb"
+	awsCacheServiceName = "memorydb" // needs to match whatever the database on AWS is.
 
 	// if the request has no payload, you should use the hex-encoded SHA-256 of an empty string as the payloadHash value.
 	hexEncodedSHA256EmptyString = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -74,7 +74,7 @@ func NewRedisTokenRefresher(ctx context.Context, region, redisUsername, clusterN
 	}
 
 	refresher.acquireToken()
-	refresher.cancel = timeutil.ScheduleFunc(redisTokenRefreshPeriod, refresher.acquireToken)
+	refresher.cancel = timeutil.Schedule(redisTokenRefreshPeriod, refresher.acquireToken)
 
 	return refresher
 }

@@ -30,7 +30,7 @@ func NewPgTokenRefresher(ctx context.Context, region string) *PostgresTokenRefre
 		stsClient: sts.NewFromConfig(awsCfg),
 	}
 	refresher.acquireToken()
-	refresher.cancel = timeutil.ScheduleFunc(pgTokenRefreshPeriod, refresher.acquireToken)
+	refresher.cancel = timeutil.Schedule(pgTokenRefreshPeriod, refresher.acquireToken)
 	return refresher
 }
 

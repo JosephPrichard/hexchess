@@ -2,7 +2,7 @@ package timeutil
 
 import "time"
 
-func ScheduleFunc(duration time.Duration, work func()) func() {
+func Schedule(duration time.Duration, work func()) func() {
 	ticker := time.NewTicker(duration)
 	defer ticker.Stop()
 

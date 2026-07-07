@@ -42,7 +42,6 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, profile)
 	defer shutdown()
 
-
 	pdb := db.NewPostgresDB(ctx, db.PgPoolConfig{
 		Dsn:           dbURL,
 		ActiveProfile: profile,
@@ -51,7 +50,7 @@ func main() {
 	defer pdb.Close()
 
 	rdb := db.NewRedis(ctx, db.RedisConfig{
-		SorAddr:        rdbSorNodes,
+		PrimaryAddr:    rdbSorNodes,
 		SorUsername:    rdbSorUsername,
 		SorClusterName: rdbSorClusterName,
 		ActiveProfile:  profile,

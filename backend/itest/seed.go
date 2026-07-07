@@ -717,7 +717,7 @@ func insertTestData(pool *pgxpool.Pool) error {
 	batch := &pgx.Batch{}
 	instCount := 0
 
-	batchQueue := func(sql string, args ...interface{}) {
+	batchQueue := func(sql string, args ...any) {
 		batch.Queue(sql, args...)
 		instCount++
 	}

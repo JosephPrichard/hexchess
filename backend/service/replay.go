@@ -158,8 +158,8 @@ func (services *HexchessServices) SearchReplaysByQuery(ctx context.Context, quer
 	afterRating := query.AfterRating.OrElse(math.MaxFloat64)
 
 	// uses the unix epoch in days for range queries on date. this truncates away timestamp precision regarding hours, seconds, etc.
-	fromDateDays := optional.Map(query.FromDate, timeutil.ToDayEpoch)
-	toDateDays := optional.Map(query.ToDate, timeutil.ToDayEpoch)
+	fromDateDays := optional.Maybe[int32]{Value: timeutil.ToDayEpoch(query.FromDate.Value), IsPresent: query.FromDate.IsPresent}
+	toDateDays := optional.Maybe[int32]{Value: timeutil.ToDayEpoch(query.ToDate.Value), IsPresent: query.ToDate.IsPresent}
 
 	params := sqlc.SelectReplaysByQueryParams{
 		PerPage: query.PerPage,

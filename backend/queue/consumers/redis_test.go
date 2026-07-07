@@ -118,16 +118,16 @@ func TestRedisConsumer(t *testing.T) {
 
 			h := testEventHandler{cancel: cancel, wantEventCount: len(tt.wantEvents)}
 			consumer := RedisConsumer{
-				ctx:   ctx,
-				redis: testinfra.Redis.Primary,
-
-				StreamKey:     consumingStream,
-				ConsumerGroup: "consumer-group",
-				Concurrency:   8,
-				PartitionKeys: tt.partitionKeys,
-				BlockDuration: time.Millisecond,
-
+				ctx:         ctx,
+				redis:       testinfra.Redis.Primary,
 				consumeFunc: h.handleEvent,
+				RedisConfig: RedisConfig{
+					StreamKey:     consumingStream,
+					ConsumerGroup: "consumer-group",
+					PollCount:     8,
+					PartitionKeys: tt.partitionKeys,
+					BlockDuration: time.Millisecond,
+				},
 			}
 			consumer.Consume()
 

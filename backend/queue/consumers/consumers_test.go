@@ -41,16 +41,16 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 
 	eventGateway := EventGateway{services: services}
 	queue := PostgresConsumer{
-		ctx: ctx,
-
-		pdb:     testinfra.DB,
-		entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
-
-		EventKind:    sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
-		PollInterval: time.Microsecond,
-		PollCount:    1,
-		MaxEvents:    1,
-		consumeFunc:  eventGateway.HandleAdvanceTournamentEvent,
+		ctx:         ctx,
+		pdb:         testinfra.DB,
+		entropy:     &svc.StableEntropySource{CurrTime: itest.TimeNow},
+		consumeFunc: eventGateway.HandleAdvanceTournamentEvent,
+		PostgresConfig: PostgresConfig{
+			EventKind:    sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
+			PollInterval: time.Microsecond,
+			PollCount:    1,
+			MaxEvents:    1,
+		},
 	}
 
 	queue.Consume()
@@ -114,18 +114,19 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	eventGateway := EventGateway{services: services}
 
 	queue := RedisConsumer{
-		ctx:    consumerCtx,
-		cancel: cancel,
-		redis:  testinfra.Redis.Primary,
-
-		Concurrency:   1,
-		MaxEvents:     1,
-		BlockDuration: time.Millisecond,
-		StreamKey:     testinfra.Redis.FinishGameStreamKey,
-		ConsumerGroup: testinfra.Redis.FinishGameConsumerGroup,
-		PartitionKeys: []string{string(partitionID)},
-
+		ctx:         consumerCtx,
+		cancel:      cancel,
+		redis:       testinfra.Redis.Primary,
 		consumeFunc: eventGateway.HandleFinishedGameEvent,
+
+		RedisConfig: RedisConfig{
+			PollCount:     1,
+			MaxEvents:     1,
+			BlockDuration: time.Millisecond,
+			StreamKey:     testinfra.Redis.FinishGameStreamKey,
+			ConsumerGroup: testinfra.Redis.FinishGameConsumerGroup,
+			PartitionKeys: []string{string(partitionID)},
+		},
 	}
 
 	queue.ConsumePartition(string(partitionID))
@@ -179,18 +180,19 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	eventGateway := EventGateway{services: services}
 
 	queue := RedisConsumer{
-		ctx:    consumerCtx,
-		cancel: cancel,
-		redis:  testinfra.Redis.Primary,
-
-		Concurrency:   1,
-		MaxEvents:     1,
-		BlockDuration: time.Millisecond,
-		StreamKey:     testinfra.Redis.UpdtGameMetaStreamKey,
-		ConsumerGroup: testinfra.Redis.UpdtGameMetaConsumerGroup,
-		PartitionKeys: []string{string(partitionID)},
-
+		ctx:         consumerCtx,
+		cancel:      cancel,
+		redis:       testinfra.Redis.Primary,
 		consumeFunc: eventGateway.HandleUpdtGameEvent,
+
+		RedisConfig: RedisConfig{
+			PollCount:     1,
+			MaxEvents:     1,
+			BlockDuration: time.Millisecond,
+			StreamKey:     testinfra.Redis.UpdtGameMetaStreamKey,
+			ConsumerGroup: testinfra.Redis.UpdtGameMetaConsumerGroup,
+			PartitionKeys: []string{string(partitionID)},
+		},
 	}
 	queue.ConsumePartition(string(partitionID))
 

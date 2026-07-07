@@ -1,7 +1,6 @@
 -- +goose up
 CREATE TYPE queue_type_enum AS ENUM (
-    'TOURNAMENT_ADVANCE_EVENT',
-    'TOURNAMENT_CREATE_MATCHES_EVENT'
+    'TOURNAMENT_ADVANCE_EVENT'
 );
 
 CREATE TABLE event_queue (

@@ -18,8 +18,8 @@ type Database interface {
 }
 
 type ImplDB struct {
-	q    *sqlc.Queries
-	pool *pgxpool.Pool
+	q         *sqlc.Queries
+	pool      *pgxpool.Pool
 	refresher *PostgresTokenRefresher
 }
 
@@ -59,10 +59,14 @@ func (pdb *FakeDB) Close() {
 }
 
 type PgPoolConfig struct {
-	Dsn           string         `json:"dsn"`
+	// (required) parseable configuration in either KV pair or postgres URL format. see pgxpool documentation.
+	Dsn string `json:"dsn"`
+	// (required) profile for application is used to turn AWS authentication on (test/prod) and off (local)
 	ActiveProfile config.Profile `json:"activeProfile"`
-	Region        string         `json:"region"`
-	InitQuery     string         `json:"initQuery"`
+	// (optional) AWS region database is in, if AWS authentication is on
+	Region string `json:"region"`
+	// (optional) query to send to test connectivity, defaults to "SELECT 1"
+	InitQuery string `json:"initQuery"`
 }
 
 func NewPostgresDB(ctx context.Context, cfg PgPoolConfig) Database {
@@ -74,7 +78,7 @@ func NewPostgresDB(ctx context.Context, cfg PgPoolConfig) Database {
 	if err != nil {
 		logutil.Fatal("parse postgres config", err)
 	}
-	
+
 	if cfg.ActiveProfile != config.Local {
 		refresher := NewPgTokenRefresher(ctx, cfg.Region)
 		poolCfg.BeforeConnect = NewBeforeConnect(refresher)
@@ -85,7 +89,7 @@ func NewPostgresDB(ctx context.Context, cfg PgPoolConfig) Database {
 		logutil.Fatal("create postgres pool", err)
 	}
 	if cfg.InitQuery == "" {
-		cfg.InitQuery = "SELECT 1";
+		cfg.InitQuery = "SELECT 1"
 	}
 	if _, err = pool.Exec(ctx, cfg.InitQuery); err != nil {
 		logutil.Fatal("execute postgres startup query", err)

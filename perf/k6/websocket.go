@@ -115,11 +115,9 @@ func runGameSocket(metrics *Metrics, req RunGameSocketReq) error {
 
 	ctx := context.Background()
 	cancel := func() {}
-
 	if req.TimeoutSecs > 0 {
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(req.TimeoutSecs)*time.Second)
+		ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(req.TimeoutSecs))
 	}
-
 	defer cancel()
 
 	params := url.Values{}

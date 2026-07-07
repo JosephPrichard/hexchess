@@ -19,38 +19,49 @@ type SetupConsumers struct {
 }
 
 func StartConsumers(setup SetupConsumers) {
+	if setup.Ctx == nil {
+		setup.Ctx = context.Background()
+	}
+
 	eventGateway := EventGateway{services: setup.Services}
+
 	consumers := []Consumer{
 		&PostgresConsumer{
-			ctx: setup.Ctx,
-			pdb: setup.Postgres,
+			ctx:         setup.Ctx,
+			pdb:         setup.Postgres,
+			consumeFunc: eventGateway.HandleAdvanceTournamentEvent,
 
-			EventKind:    sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
-			PollInterval: 1 * time.Second,
-			PollCount:    32,
-			consumeFunc:  eventGateway.HandleAdvanceTournamentEvent,
+			PostgresConfig: PostgresConfig{
+				EventKind:    sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
+				PollInterval: 1 * time.Second,
+				PollCount:    32,
+			},
 		},
 		&RedisConsumer{
-			ctx:   setup.Ctx,
-			redis: setup.Redis.Primary,
-
-			StreamKey:     setup.Redis.FinishGameStreamKey,
-			ConsumerGroup: setup.Redis.FinishGameConsumerGroup,
-			Concurrency:   8,
-			PartitionKeys: model.GameIDPartitions(),
-
+			ctx:         setup.Ctx,
+			redis:       setup.Redis.Primary,
+			inserter:    setup.Postgres.Querier(),
 			consumeFunc: eventGateway.HandleFinishedGameEvent,
+
+			RedisConfig: RedisConfig{
+				StreamKey:     setup.Redis.FinishGameStreamKey,
+				ConsumerGroup: setup.Redis.FinishGameConsumerGroup,
+				PollCount:     8,
+				PartitionKeys: model.GameIDPartitions(),
+			},
 		},
 		&RedisConsumer{
-			ctx:   setup.Ctx,
-			redis: setup.Redis.Primary,
-
-			StreamKey:     setup.Redis.UpdtGameMetaStreamKey,
-			ConsumerGroup: setup.Redis.UpdtGameMetaConsumerGroup,
-			Concurrency:   8,
-			PartitionKeys: model.GameIDPartitions(),
-
+			ctx:         setup.Ctx,
+			redis:       setup.Redis.Primary,
+			inserter:    setup.Postgres.Querier(),
 			consumeFunc: eventGateway.HandleUpdtGameEvent,
+
+			RedisConfig: RedisConfig{
+				StreamKey:     setup.Redis.UpdtGameMetaStreamKey,
+				ConsumerGroup: setup.Redis.UpdtGameMetaConsumerGroup,
+				PollCount:     8,
+				PartitionKeys: model.GameIDPartitions(),
+			},
 		},
 	}
 

@@ -130,17 +130,16 @@ func TestPostgresConsumer(t *testing.T) {
 			capturedEvents := make([]string, 0)
 
 			queue := PostgresConsumer{
-				ctx: ctx,
-
-				pdb:     testinfra.DB,
-				entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
-
-				EventKind:    tt.kind,
-				PollInterval: time.Microsecond,
-				PollCount:    1,
-				MaxEvents:    1,
-
+				ctx:         ctx,
+				pdb:         testinfra.DB,
+				entropy:     &svc.StableEntropySource{CurrTime: itest.TimeNow},
 				consumeFunc: tt.makeProcessFn(&capturedEvents),
+				PostgresConfig: PostgresConfig{
+					EventKind:    tt.kind,
+					PollInterval: time.Microsecond,
+					PollCount:    1,
+					MaxEvents:    1,
+				},
 			}
 
 			queue.Consume()

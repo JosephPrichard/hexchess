@@ -19,48 +19,58 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type PostgresConfig struct {
+	// (required) event name for this specific consumer to handle
+	EventKind sqlc.QueueTypeEnum `json:"eventKind"`
+	// (required) time in between successive poll attempts. polling more frequently is worse for performance but improves responsiveness
+	PollInterval time.Duration `json:"pollInterval"`
+	// (required) max number of messages received per poll attempt. each event is handled on a seperate goroutine
+	PollCount int32 `json:"pollCount"`
+	// (optional) change the behavior of the consumer for tests
+	MaxEvents uint64 `json:"maxEvents"`
+}
+
 type PostgresConsumer struct {
-	ctx     context.Context
-	pdb     db.Database
+	PostgresConfig
+	// allows receiving cancellation signals
+	ctx context.Context
+	// connects to queue table in database to poll for events. requires transaction management.
+	pdb db.Database
+	// tracks metrics when sending ACKs to the database
 	entropy svc.EntropyAPI
-
-	EventKind    sqlc.QueueTypeEnum `json:"eventKind"`
-	PollInterval time.Duration      `json:"pollInterval"`
-	PollCount    int32              `json:"pollCount"`
-	MaxEvents    uint64             `json:"maxEvents"`
-
+	// an implementation for consuming a single event
 	consumeFunc ConsumeFunc
 }
 
-func (c *PostgresConsumer) Consume() {
-	if c.entropy == nil {
-		c.entropy = &svc.RealEntropySource{}
+func (consumer *PostgresConsumer) Consume() {
+	if consumer.entropy == nil {
+		consumer.entropy = &svc.RealEntropySource{}
 	}
 
-	ticker := time.NewTicker(c.PollInterval)
+	ticker := time.NewTicker(consumer.PollInterval)
 	defer ticker.Stop()
 
 	i := uint64(0)
 	for range ticker.C {
-		if i >= c.MaxEvents && c.MaxEvents != 0 {
+		if i >= consumer.MaxEvents && consumer.MaxEvents != 0 {
 			break
 		}
 		i++
 
-		err := c.poll()
+		err := consumer.poll()
 		if err != nil {
-			slog.ErrorContext(c.ctx, "failed to poll postgres queue", "error", err)
+			slog.ErrorContext(consumer.ctx, "failed to poll postgres queue", "error", err)
 		}
 		if errors.Is(err, context.Canceled) {
 			break
 		}
 	}
 
-	slog.InfoContext(c.ctx, "finished postgres queue consumer")
+	slog.InfoContext(consumer.ctx, "finished postgres queue consumer")
 }
 
-func (c *PostgresConsumer) poll() error {
-	return c.pdb.ExecTx(c.ctx, db.TxArgs{
+func (consumer *PostgresConsumer) poll() error {
+	return consumer.pdb.ExecTx(consumer.ctx, db.TxArgs{
 		// ReadCommitted is used as a basic `Default` isolation level, the primary purpose of the transaction is atomicity
 		// if handlers fail to acknowledge an event, it is not marked as processed and the lock is released at the end of the transaction, to allow retries *per event*
 		Isolation:  pgx.ReadCommitted,
@@ -69,15 +79,13 @@ func (c *PostgresConsumer) poll() error {
 			start := time.Now()
 			ctx = context.WithValue(ctx, logutil.Trace, uuid.NewString())
 
-			//slog.InfoContext(ctx, "polling postgres queue for events", "eventKind", c.EventKind)
-
 			// locks events for the duration of the function
 			eventRows, err := querier.SelectQueueByPolling(ctx, sqlc.SelectQueueByPollingParams{
-				Type:  c.EventKind,
-				Limit: c.PollCount,
+				Type:  consumer.EventKind,
+				Limit: consumer.PollCount,
 			})
 			if err != nil {
-				return serrors.Wrap("select postgres queue messages", err, "eventKind", c.EventKind, "limit", c.PollCount)
+				return serrors.Wrap("select postgres queue messages", err, "eventKind", consumer.EventKind, "limit", consumer.PollCount)
 			}
 			if len(eventRows) == 0 {
 				return nil
@@ -95,7 +103,7 @@ func (c *PostgresConsumer) poll() error {
 
 			for i, event := range eventRows {
 				wg.Go(func() {
-					err := c.consumeFunc(ctx, event.Data)
+					err := consumer.consumeFunc(ctx, event.Data)
 					processedEvents[i] = eventResult{eventID: event.ID, err: err}
 				})
 			}
@@ -119,13 +127,13 @@ func (c *PostgresConsumer) poll() error {
 			if len(eventIDsToAck) > 0 {
 				if err := querier.UpdateQueueProcessedByID(ctx, sqlc.UpdateQueueProcessedByIDParams{
 					Ids:           eventIDsToAck,
-					ProcessedTime: pgtype.Timestamptz{Time: c.entropy.GetTime(), Valid: true},
+					ProcessedTime: pgtype.Timestamptz{Time: consumer.entropy.GetTime(), Valid: true},
 				}); err != nil {
 					return serrors.Wrap("acknowledge postgres queue messages", err, "events", processedEvents)
 				}
 			}
 
-			slog.InfoContext(ctx, "handled postgres queue events", "eventKind", c.EventKind,
+			slog.InfoContext(ctx, "handled postgres queue events", "eventKind", consumer.EventKind,
 				"errProcessedEvents", errProcessedEvents, "eventsIDsToAck", eventIDsToAck, "timeTaken", time.Since(start))
 			return nil
 		},

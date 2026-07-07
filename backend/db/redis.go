@@ -49,8 +49,8 @@ type Redis struct {
 	PubSub     *redigo.Pool
 	PubsubAddr string `json:"pubsubAddr"`
 	RedisNames
-	primaryRefresher  *RedisTokenRefresher
-	pubsubRefresher   *RedisTokenRefresher
+	primaryRefresher *RedisTokenRefresher
+	pubsubRefresher  *RedisTokenRefresher
 }
 
 func (rdb *Redis) Close() {
@@ -69,16 +69,23 @@ func (rdb *Redis) Close() {
 }
 
 type RedisConfig struct {
-	SorAddr           []string       `json:"sorAddr"`
-	SorClusterName    string         `json:"sorClusterName"`
-	SorUsername       string         `json:"userName"`
-	PubsubAddr        string         `json:"pubsubAddr"`
-	PubsubClusterName string         `json:"pubsubClusterName"`
-	PubsubUsername    string         `json:"pubsubUsername"`
-	ActiveProfile     config.Profile `json:"activeProfile"`
-	AWSServiceName    string         `json:"AWSServiceName"`
-	AWSRegion         string         `json:"awsRegion"`
-	Names             *RedisNames    `json:"names"`
+	// (required) URL(s) to connect to Primary cluter and Pubsub cluster. Primary must contain each node in the cluster. Pubsub is one node in the cluster.
+	PrimaryAddr []string `json:"primaryAddr"`
+	PubsubAddr  string   `json:"pubsubAddr"`
+
+	// (optional) cluster and username are required to retrieve AWS authentication tokens
+	SorClusterName    string `json:"sorClusterName"`
+	SorUsername       string `json:"userName"`
+	PubsubClusterName string `json:"pubsubClusterName"`
+	PubsubUsername    string `json:"pubsubUsername"`
+
+	// (required) profile for application is used to turn AWS authentication on (test/prod) and off (local)
+	ActiveProfile config.Profile `json:"activeProfile"`
+	// (optional) AWS region database is in, if AWS authentication is on
+	AWSRegion string `json:"awsRegion"`
+
+	// (optional) name data for key prefixes, zsets, etc. keep off in prod, swap out in integration tests
+	Names *RedisNames `json:"names"`
 }
 
 func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
@@ -87,12 +94,12 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 	if redisCfg.Names == nil {
 		redisCfg.Names = &DefaultRedisNames
 	}
-	
+
 	var primaryRefresher *RedisTokenRefresher
 	var pubsubRefresher *RedisTokenRefresher
 
 	redisClientOpts := &redis.UniversalOptions{
-		Addrs:          redisCfg.SorAddr,
+		Addrs:          redisCfg.PrimaryAddr,
 		DialTimeout:    5 * time.Second,
 		ReadTimeout:    3 * time.Second,
 		WriteTimeout:   3 * time.Second,
@@ -129,11 +136,11 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 	slog.Info("created redis client", "redisClientKind", fmt.Sprintf("%T", redisClient))
 
 	return Redis{
-		Primary:    redisClient,
-		PubSub:     pubsubPool,
-		RedisNames: *redisCfg.Names,
-		PubsubAddr: redisCfg.PubsubAddr,
+		Primary:          redisClient,
+		PubSub:           pubsubPool,
+		RedisNames:       *redisCfg.Names,
+		PubsubAddr:       redisCfg.PubsubAddr,
 		primaryRefresher: primaryRefresher,
-		pubsubRefresher: pubsubRefresher,
+		pubsubRefresher:  pubsubRefresher,
 	}
 }

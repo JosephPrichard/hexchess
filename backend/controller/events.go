@@ -107,7 +107,7 @@ func (api *API) HandleActiveConn(client *SSEClient, r *http.Request) error {
 
 	client.event(MetaEvent, strUserID)
 
-	stop := timeutil.ScheduleFunc(RetainActiveUserPeriod, func() {
+	stop := timeutil.Schedule(RetainActiveUserPeriod, func() {
 		if err := api.services.RetainActiveUser(ctx, strUserID); err != nil {
 			slog.ErrorContext(ctx, "failed to retain active user", "userID", strUserID, "error", err)
 		}

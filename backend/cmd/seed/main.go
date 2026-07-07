@@ -108,7 +108,7 @@ func main() {
 	defer pdb.Close()
 
 	rdb := db.NewRedis(ctx, db.RedisConfig{
-		SorAddr:        rdbSorNodes,
+		PrimaryAddr:    rdbSorNodes,
 		SorUsername:    rdbSorUsername,
 		SorClusterName: rdbSorClusterName,
 		ActiveProfile:  profile,
