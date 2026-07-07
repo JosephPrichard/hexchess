@@ -2,6 +2,7 @@ package consumers
 
 import (
 	"context"
+	"hexchess-lib/async"
 	"hexchess-lib/optional"
 	"hexchess-lib/testutil"
 	"hexchess-svc/chess"
@@ -31,7 +32,7 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	services := svc.NewHexchessServices(svc.SetupService{
 		DB:          testinfra.DB,
 		Redis:       testinfra.Redis,
-		Broadcaster: pubsub.NewBroadcaster(testinfra.Redis),
+		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
 	})
 
 	tournamentKey := itest.Tournament2ScheduledKnockoutKey
@@ -87,7 +88,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	services := svc.NewHexchessServices(svc.SetupService{
 		DB:          testinfra.DB,
 		Redis:       testinfra.Redis,
-		Broadcaster: pubsub.NewBroadcaster(testinfra.Redis),
+		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
 	})
 
 	whiteUser0 := itest.TestUser[0]
@@ -117,6 +118,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		cancel:      cancel,
 		redis:       testinfra.Redis.Primary,
 		consumeFunc: eventGateway.HandleFinishedGameEvent,
+		dispatcher:  async.SyncDispatcher{},
 
 		RedisConfig: RedisConfig{
 			PollCount:     1,
@@ -155,7 +157,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	services := svc.NewHexchessServices(svc.SetupService{
 		DB:          testinfra.DB,
 		Redis:       testinfra.Redis,
-		Broadcaster: pubsub.NewBroadcaster(testinfra.Redis),
+		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
 		Entropy:     &svc.StableEntropySource{CurrTime: itest.TimeNow},
 	})
 
@@ -183,6 +185,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 		cancel:      cancel,
 		redis:       testinfra.Redis.Primary,
 		consumeFunc: eventGateway.HandleUpdtGameEvent,
+		dispatcher:  async.SyncDispatcher{},
 
 		RedisConfig: RedisConfig{
 			PollCount:     1,

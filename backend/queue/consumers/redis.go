@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hexchess-lib/async"
 	"hexchess-lib/errutil"
 	"hexchess-lib/logutil"
 	"hexchess-svc/db/sqlc"
@@ -37,13 +38,18 @@ type RedisConsumer struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	// connects to redis to poll event streams and a database to insert into metadata tables
-	redis    redis.UniversalClient
-	inserter RedisEventResultInserter
+	redis      redis.UniversalClient
+	inserter   RedisEventResultInserter
+	dispatcher async.Dispatcher
 	// an implementation for consuming a single event
 	consumeFunc ConsumeFunc
 }
 
 func (consumer *RedisConsumer) Consume() {
+	if consumer.dispatcher == nil {
+		consumer.dispatcher = async.AsyncDispatcher{}
+	}
+
 	var wg sync.WaitGroup
 	for _, partitionKey := range consumer.PartitionKeys {
 		wg.Go(func() {
@@ -67,7 +73,7 @@ func (consumer *RedisConsumer) ConsumePartition(partitionKey string) {
 	}
 
 	var waitGroup sync.WaitGroup
-	metrics := &RedisMetricCollector{inserter: consumer.inserter}
+	metrics := &RedisMetricCollector{inserter: consumer.inserter, dispatcher: consumer.dispatcher}
 
 	for i := uint64(0); ; i++ {
 		if i >= consumer.MaxEvents && consumer.cancel != nil {
@@ -150,6 +156,8 @@ func (consumer *RedisConsumer) handleXReadMessage(ctx context.Context, metrics *
 	})
 }
 
+const InsertRedisEventMetricMaxRetries = 3
+
 type RedisEventResultInserter interface {
 	InsertRedisEventMetas(ctx context.Context, arg []sqlc.InsertRedisEventMetasParams) *sqlc.InsertRedisEventMetasBatchResults
 }
@@ -165,7 +173,8 @@ type RedisMetricCollector struct {
 	lock    sync.Mutex
 	metrics []RedisEventMetric
 
-	inserter RedisEventResultInserter
+	inserter   RedisEventResultInserter
+	dispatcher async.Dispatcher
 }
 
 func (c *RedisMetricCollector) Collect(metric RedisEventMetric) {
@@ -179,10 +188,7 @@ func (c *RedisMetricCollector) Persist() {
 		return
 	}
 
-	ctx := context.Background()
-
 	rows := make([]sqlc.InsertRedisEventMetasParams, 0, len(c.metrics))
-
 	for _, metric := range c.metrics {
 		rows = append(rows, sqlc.InsertRedisEventMetasParams{
 			GroupId:     pgtype.UUID{Bytes: metric.GroupID, Valid: true},
@@ -191,17 +197,33 @@ func (c *RedisMetricCollector) Persist() {
 			ProcessedOn: pgtype.Timestamptz{Time: metric.ConsumedOn, Valid: true},
 		})
 	}
+
 	c.metrics = c.metrics[:0]
 
-	// note: fire and forget, we'd prefer to store these metrics but its not worth retrying if storage fails
-	go func() {
-		if c.inserter != nil {
+	c.dispatcher.Go(func() { c.insertRedisMetrics(rows) })
+}
+
+func (c *RedisMetricCollector) insertRedisMetrics(metrics []sqlc.InsertRedisEventMetasParams) {
+	defer func() {
+		if err := recover(); err != nil {
+			slog.Error("failed to insert redis event metric", "error", err)
+		}
+	}()
+
+	var batchErr error
+	maxRetries := InsertRedisEventMetricMaxRetries
+
+	for i := range maxRetries {
+		// metric insertions fail individually, it is safe to retry the entire batch if any fails because each insert is idempotent
+		c.inserter.InsertRedisEventMetas(context.Background(), metrics).Exec(func(index int, err error) {
+			batchErr = errors.Join(batchErr, err)
+		})
+		if batchErr == nil {
 			return
 		}
-		c.inserter.InsertRedisEventMetas(ctx, rows).Exec(func(index int, err error) {
-			if err != nil {
-				slog.Error("failed to ship redis event metadata", "error", err)
-			}
-		})
-	}()
+		slog.Warn("failed to insert redis event metric", "error", batchErr, "attempt", i)
+		batchErr = nil
+	}
+
+	slog.Error("exhausted retries while inserting redis event metric", "error", batchErr, "maxRetries", maxRetries)
 }

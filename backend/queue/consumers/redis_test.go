@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hexchess-lib/async"
 	"hexchess-svc/itest"
 	"sync"
 	"testing"
@@ -99,13 +100,13 @@ func TestRedisConsumer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			inputEvents := append([]map[string]any{}, tt.inputEvents...)
-
 			testinfra := itest.SetupIntegrationTest(t, itest.Redis)
 			defer testinfra.Close()
 
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
+
+			inputEvents := append([]map[string]any{}, tt.inputEvents...)
 
 			for _, event := range inputEvents {
 				xArgs := &redis.XAddArgs{
@@ -121,6 +122,7 @@ func TestRedisConsumer(t *testing.T) {
 				ctx:         ctx,
 				redis:       testinfra.Redis.Primary,
 				consumeFunc: h.handleEvent,
+				dispatcher:  async.SyncDispatcher{},
 				RedisConfig: RedisConfig{
 					StreamKey:     consumingStream,
 					ConsumerGroup: "consumer-group",

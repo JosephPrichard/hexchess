@@ -34,7 +34,7 @@ func NewHexchessServices(setup SetupService) *HexchessServices {
 		querier = setup.DB.Querier()
 	}
 	if setup.Entropy == nil {
-		setup.Entropy = &RealEntropySource{}
+		setup.Entropy = RealEntropySource{}
 	}
 	return &HexchessServices{
 		database:       setup.DB,

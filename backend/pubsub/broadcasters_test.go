@@ -26,7 +26,7 @@ func TestBroadcastMessage(t *testing.T) {
 		ActiveProfile: config.Local,
 	})
 	defer rdb.Close()
-	broadcaster := NewBroadcaster(rdb)
+	broadcaster := NewSyncBroadcaster(rdb)
 
 	localBroadcasters := LocalBroadcasters{GamesCaster: NewBroadcastActor[model.GameID]("testing-multicaster")}
 	<-localBroadcasters.ListenGameMessages(rdb)
@@ -47,7 +47,7 @@ func TestBroadcastMessage(t *testing.T) {
 		broadcaster.BroadcastGamesEvent(ctx, &pb.GameOutput{
 			GameId: input.id,
 			Value:  &pb.GameOutput_Chat{Chat: &pb.ChatMessage{Message: input.msg}},
-		}, Sync())
+		})
 	}
 
 	var messages []string

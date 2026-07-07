@@ -33,7 +33,7 @@ type PostgresConsumer struct {
 	PostgresConfig
 	// allows receiving cancellation signals
 	ctx context.Context
-	// connects to queue table in database to poll for events. requires transaction management.
+	// connects to queue table in database to poll events. requires transaction management.
 	pdb db.Database
 	// an implementation for consuming a single event
 	consumeFunc ConsumeFunc

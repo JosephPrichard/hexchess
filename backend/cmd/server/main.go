@@ -76,7 +76,7 @@ func main() {
 		AWSPassword:   awsPassword,
 	})
 	remoteAPIs := cloud.NewRemoteAPIs(nil)
-	broadcaster := pubsub.NewBroadcaster(rdb)
+	broadcaster := pubsub.NewAsyncBroadcaster(rdb)
 
 	services := svc.NewHexchessServices(svc.SetupService{
 		DB:          pdb,

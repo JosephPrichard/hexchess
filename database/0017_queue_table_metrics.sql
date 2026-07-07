@@ -6,7 +6,7 @@ CREATE INDEX idx_event_queue_group_id
     ON event_queue (group_id);
 
 CREATE TABLE redis_queue_metadata (
-    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    event_id UUID PRIMARY KEY,
     group_id UUID,
     stream_name TEXT NOT NULL,
     consumed_on TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -14,13 +14,13 @@ CREATE TABLE redis_queue_metadata (
 );
 
 CREATE INDEX idx_redis_queue_metadata_group_id
-    ON event_queue (group_id);
+    ON redis_queue_metadata (group_id);
 
 -- +goose down
-ALTER TABLE event_queue DROP COLUMN group_id IF EXISTS;
-ALTER TABLE event_queue DROP COLUMN consumed_on IF TIMESTAMPTZ;
+ALTER TABLE event_queue DROP COLUMN IF EXISTS group_id;
+ALTER TABLE event_queue DROP COLUMN IF EXISTS consumed_on;
 
-DROP TABLE redis_queue_metadata IF EXISTS;
+DROP INDEX IF EXISTS idx_event_queue_group_id;
+DROP INDEX IF EXISTS idx_redis_queue_metadata_group_id;
 
-DROP INDEX idx_event_queue_group_id IF EXISTS;
-DROP INDEX idx_redis_queue_metadata_group_id IF EXISTS;
+DROP TABLE IF EXISTS redis_queue_metadata;

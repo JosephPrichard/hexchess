@@ -81,7 +81,7 @@ k6-build:
 	cd $(PERF_K6_DIR) && ./k6 version
 
 # Testing
-server-test:
+backend-test:
 	cd $(BACKEND_DIR) && go test $$(go list ./... | grep -v '^.*/cmd|/wasm/') -timeout=60s
 
 wasm-test:
@@ -92,20 +92,22 @@ perf-test:
 # 	./$(PERF_K6_DIR)/k6 run ./$(PERF_DIR)/http/scripts/restapi.ts
 	./$(PERF_K6_DIR)/k6 run ./$(PERF_DIR)/http/scripts/gamesockets.ts
 
-test: server-test wasm-test perf-test
+test: backend-test wasm-test perf-test
 
 # Prerequisites
-install:
-	// cli tools
-	go install github.com/pressly/goose/v3/cmd/goose@v3.27.0
-	// run tests
-	go install github.com/agnivade/wasmbrowsertest@v0.11.0
-	// build app
+install-backend:
 	go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
 	go install go.uber.org/mock/mockgen@v0.6.0
 
+	go install github.com/agnivade/wasmbrowsertest@v0.11.0
+
+install-database:
+	go install github.com/pressly/goose/v3/cmd/goose@v3.27.0
+
 clean:
+	rm -f $(BACKEND_DIR)/db/sqlc
+	rm -f $(BACKEND_DIR)/pb
 	rm -f $(WASM_SRC_DIR)/$(WASM_OUTPUT)
 	rm -f $(UI_WASM_DIR)/$(WASM_OUTPUT)
 

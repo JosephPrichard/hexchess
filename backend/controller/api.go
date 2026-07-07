@@ -90,7 +90,7 @@ func NewServeMux(setup ServerSetup, opts ...func(*chi.Mux)) *chi.Mux {
 	r.Use(RouteMiddleware(setup.AllowedOrigins))
 
 	if setup.EntropySource == nil {
-		setup.EntropySource = &svc.RealEntropySource{}
+		setup.EntropySource = svc.RealEntropySource{}
 	}
 	server := API{
 		services:      setup.Services,

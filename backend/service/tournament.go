@@ -11,7 +11,6 @@ import (
 	"hexchess-svc/db/sqlc"
 
 	"hexchess-svc/model"
-	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
 	"log/slog"
 	"math"
@@ -708,5 +707,5 @@ func (services *HexchessServices) BroadcastTournamentParticipant(ctx context.Con
 			"playerID", playerID, "tournamentJoin", tournamentJoin, "err", err)
 		return
 	}
-	services.broadcaster.BroadcastTournament(ctx, model.SerializeParticipantOutput(tournamentJoin.TournamentKey, lbdUser), pubsub.Sync())
+	services.broadcaster.BroadcastTournament(ctx, model.SerializeParticipantOutput(tournamentJoin.TournamentKey, lbdUser))
 }

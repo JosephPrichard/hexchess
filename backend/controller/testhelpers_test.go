@@ -33,7 +33,7 @@ func setupTestHandler(t logutil.TestLogger, mocks *serviceMocks, flags ...itest.
 
 	infra := itest.SetupIntegrationTest(t, flags...)
 
-	broadcaster := pubsub.NewBroadcaster(infra.Redis)
+	broadcaster := pubsub.NewSyncBroadcaster(infra.Redis)
 
 	services := svc.NewHexchessServices(svc.SetupService{
 		DB:          infra.DB,
@@ -60,7 +60,7 @@ func setupWebsocketTest(t *testing.T) websocketTestContext {
 	services := svc.NewHexchessServices(svc.SetupService{
 		DB:          testinfra.DB,
 		Redis:       testinfra.Redis,
-		Broadcaster: pubsub.NewBroadcaster(testinfra.Redis),
+		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
 	})
 	localBroadcasters := pubsub.NewLocalBroadcasters()
 	<-localBroadcasters.ListenGameMessages(testinfra.Redis)
@@ -71,7 +71,7 @@ func setupWebsocketTest(t *testing.T) websocketTestContext {
 	testServer := httptest.NewServer(NewServeMux(ServerSetup{
 		Services:     services,
 		Broadcasters: localBroadcasters,
-		Broadcaster:  pubsub.NewBroadcaster(testinfra.Redis),
+		Broadcaster:  pubsub.NewSyncBroadcaster(testinfra.Redis),
 	}))
 	return websocketTestContext{testinfra: testinfra, services: services, localBroadcasters: localBroadcasters, testServer: testServer}
 }
@@ -106,7 +106,7 @@ func setupSSETest(t *testing.T) sseTestContext {
 		DB:          testinfra.DB,
 		Redis:       testinfra.Redis,
 		Entropy:     &svc.StableEntropySource{},
-		Broadcaster: pubsub.NewBroadcaster(testinfra.Redis),
+		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
 	})
 
 	createTestSessions(t, testinfra.Redis)
@@ -119,13 +119,13 @@ func setupSSETest(t *testing.T) sseTestContext {
 
 	testServer := httptest.NewServer(NewServeMux(ServerSetup{
 		Services:     services,
-		Broadcaster:  pubsub.NewBroadcaster(testinfra.Redis),
+		Broadcaster:  pubsub.NewSyncBroadcaster(testinfra.Redis),
 		Broadcasters: localBroadcasters,
 	}))
 	return sseTestContext{
 		testinfra:         testinfra,
 		services:          services,
-		broadcaster:       pubsub.NewBroadcaster(testinfra.Redis),
+		broadcaster:       pubsub.NewSyncBroadcaster(testinfra.Redis),
 		localBroadcasters: localBroadcasters,
 		testServer:        testServer,
 	}

@@ -148,8 +148,8 @@ func TestPostgresConsumer(t *testing.T) {
 			require.NoError(t, err)
 
 			// ignores comparisons of timestamps by direct value, instead we check by nullability
-			testutil.Equal(t, tt.wantEvents, outboxEvents, 
-				cmpopts.IgnoreFields(sqlc.EventQueue{}, "ID"), 
+			testutil.Equal(t, tt.wantEvents, outboxEvents,
+				cmpopts.IgnoreFields(sqlc.EventQueue{}, "ID"),
 				cmpopts.IgnoreFields(pgtype.Timestamptz{}, "Time"))
 		})
 	}

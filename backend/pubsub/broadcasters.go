@@ -3,6 +3,7 @@ package pubsub
 import (
 	"context"
 	"encoding/json"
+	"hexchess-lib/async"
 	"hexchess-svc/db"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
@@ -12,41 +13,31 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type BroadcastOptions struct {
-	isAsync bool
-}
-
-type BroadcastOption func(*BroadcastOptions)
-
-func Async() BroadcastOption {
-	return func(opts *BroadcastOptions) {
-		opts.isAsync = true
-	}
-}
-
-func Sync() BroadcastOption {
-	return func(opts *BroadcastOptions) {
-		opts.isAsync = false
-	}
-}
-
 type Broadcaster struct {
-	redis *redis.Pool
-	names db.RedisNames
+	redis      *redis.Pool
+	names      db.RedisNames
+	dispatcher async.Dispatcher
 }
 
-func NewBroadcaster(redis db.Redis) *Broadcaster {
-	return &Broadcaster{redis: redis.PubSub, names: redis.RedisNames}
-}
-
-func (svc *Broadcaster) broadcastMessage(ctx context.Context, channel string, bytes []byte, opts ...BroadcastOption) {
-	var broadcastOpts BroadcastOptions
-	for _, opt := range opts {
-		opt(&broadcastOpts)
+func NewSyncBroadcaster(redis db.Redis) *Broadcaster {
+	return &Broadcaster{
+		redis:      redis.PubSub,
+		names:      redis.RedisNames,
+		dispatcher: async.SyncDispatcher{},
 	}
+}
 
-	exec := func() {
-		conn := svc.redis.Get()
+func NewAsyncBroadcaster(redis db.Redis) *Broadcaster {
+	return &Broadcaster{
+		redis:      redis.PubSub,
+		names:      redis.RedisNames,
+		dispatcher: async.AsyncDispatcher{},
+	}
+}
+
+func (b *Broadcaster) broadcastMessage(ctx context.Context, channel string, bytes []byte) {
+	b.dispatcher.Go(func() {
+		conn := b.redis.Get()
 		defer conn.Close()
 
 		if _, err := conn.Do("PUBLISH", channel, bytes); err != nil {
@@ -54,19 +45,14 @@ func (svc *Broadcaster) broadcastMessage(ctx context.Context, channel string, by
 		} else {
 			slog.InfoContext(ctx, "broadcasted message to channel", "channel", channel)
 		}
-	}
-	if broadcastOpts.isAsync {
-		go exec()
-	} else {
-		exec()
-	}
+	})
 }
 
 type CountEvent struct {
 	Count int64 `json:"count"`
 }
 
-func (svc *Broadcaster) broadcastCountEvent(ctx context.Context, channel string, count int64, opts ...BroadcastOption) {
+func (b *Broadcaster) broadcastCountEvent(ctx context.Context, channel string, count int64) {
 	slog.InfoContext(ctx, "broadcasting count event", "channel", channel, "count", count)
 
 	bytes, err := json.Marshal(CountEvent{Count: count})
@@ -74,18 +60,18 @@ func (svc *Broadcaster) broadcastCountEvent(ctx context.Context, channel string,
 		slog.ErrorContext(ctx, "failed to marshal count event", "error", err)
 		return
 	}
-	svc.broadcastMessage(context.WithoutCancel(ctx), channel, bytes, opts...)
+	b.broadcastMessage(context.WithoutCancel(ctx), channel, bytes)
 }
 
-func (svc *Broadcaster) BroadcastActiveCount(ctx context.Context, count int64, opts ...BroadcastOption) {
-	svc.broadcastCountEvent(ctx, svc.names.ActiveCountChannel, count, opts...)
+func (b *Broadcaster) BroadcastActiveCount(ctx context.Context, count int64) {
+	b.broadcastCountEvent(ctx, b.names.ActiveCountChannel, count)
 }
 
-func (svc *Broadcaster) BroadcastGameCount(ctx context.Context, count int64, opts ...BroadcastOption) {
-	svc.broadcastCountEvent(ctx, svc.names.GamesCountChannel, count, opts...)
+func (b *Broadcaster) BroadcastGameCount(ctx context.Context, count int64) {
+	b.broadcastCountEvent(ctx, b.names.GamesCountChannel, count)
 }
 
-func (svc *Broadcaster) BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput, opts ...BroadcastOption) {
+func (b *Broadcaster) BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput) {
 	slog.InfoContext(ctx, "broadcasting game event", "gameId", output.GameId)
 
 	bytes, err := proto.Marshal(output)
@@ -93,10 +79,10 @@ func (svc *Broadcaster) BroadcastGamesEvent(ctx context.Context, output *pb.Game
 		slog.ErrorContext(ctx, "failed to marshal game message", "error", err)
 		return
 	}
-	svc.broadcastMessage(context.WithoutCancel(ctx), svc.names.GamesChannel, bytes, opts...)
+	b.broadcastMessage(context.WithoutCancel(ctx), b.names.GamesChannel, bytes)
 }
 
-func (svc *Broadcaster) BroadcastTournament(ctx context.Context, tournament *pb.TournamentOutput, opts ...BroadcastOption) {
+func (b *Broadcaster) BroadcastTournament(ctx context.Context, tournament *pb.TournamentOutput) {
 	slog.InfoContext(ctx, "broadcasting tournament", "tournamentOutput", tournament)
 
 	bytes, err := proto.Marshal(tournament)
@@ -104,10 +90,10 @@ func (svc *Broadcaster) BroadcastTournament(ctx context.Context, tournament *pb.
 		slog.ErrorContext(ctx, "failed to marshal tournament message", "error", err)
 		return
 	}
-	svc.broadcastMessage(context.WithoutCancel(ctx), svc.names.TournamentsChannel, bytes, opts...)
+	b.broadcastMessage(context.WithoutCancel(ctx), b.names.TournamentsChannel, bytes)
 }
 
-func (svc *Broadcaster) BroadcastChallenge(ctx context.Context, challenge model.Challenge, opts ...BroadcastOption) {
+func (b *Broadcaster) BroadcastChallenge(ctx context.Context, challenge model.Challenge) {
 	slog.InfoContext(ctx, "broadcasting challenge", "challenge", challenge)
 
 	bytes, err := proto.Marshal(model.SerializeChallengeMessage(challenge))
@@ -115,5 +101,5 @@ func (svc *Broadcaster) BroadcastChallenge(ctx context.Context, challenge model.
 		slog.ErrorContext(ctx, "failed to marshal user challenge message", "error", err)
 		return
 	}
-	svc.broadcastMessage(context.WithoutCancel(ctx), svc.names.UsersChannel, bytes, opts...)
+	b.broadcastMessage(context.WithoutCancel(ctx), b.names.UsersChannel, bytes)
 }

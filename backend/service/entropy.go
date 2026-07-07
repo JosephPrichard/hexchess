@@ -16,11 +16,11 @@ type EntropyAPI interface {
 // RealEntropySource non-deterministic Entropy source that generates real payload
 type RealEntropySource struct{}
 
-func (_ *RealEntropySource) NewUUID() uuid.UUID {
+func (_ RealEntropySource) NewUUID() uuid.UUID {
 	return uuid.New()
 }
 
-func (_ *RealEntropySource) GetTime() time.Time {
+func (_ RealEntropySource) GetTime() time.Time {
 	return time.Now()
 }
 

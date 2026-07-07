@@ -8,7 +8,6 @@ import (
 	"hexchess-lib/logutil"
 	"hexchess-lib/serrors"
 	"hexchess-svc/model"
-	"hexchess-svc/pubsub"
 	svc "hexchess-svc/service"
 	"log/slog"
 	"net/http"
@@ -480,7 +479,7 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 		return serrors.Wrap("insert challenge", err)
 	}
 
-	api.broadcaster.BroadcastChallenge(ctx, challenge, pubsub.Async())
+	api.broadcaster.BroadcastChallenge(ctx, challenge)
 
 	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil

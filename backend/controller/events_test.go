@@ -89,8 +89,8 @@ func TestHandleCountEvents(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	sseTest.broadcaster.BroadcastActiveCount(ctx, 2, pubsub.Sync())
-	sseTest.broadcaster.BroadcastGameCount(ctx, 4, pubsub.Sync())
+	sseTest.broadcaster.BroadcastActiveCount(ctx, 2)
+	sseTest.broadcaster.BroadcastGameCount(ctx, 4)
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
 

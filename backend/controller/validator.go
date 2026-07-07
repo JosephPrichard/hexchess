@@ -103,7 +103,7 @@ func parseUpdateChallengeBody(body UpdateChallengeBody) (UpdateChallengeTBody, e
 	case "DELETE":
 		action = Delete
 	default:
-		return UpdateChallengeTBody{}, respError("body.Action", fmt.Errorf("invalid value: %s", body.Action))
+		return UpdateChallengeTBody{}, respError("UpdateChallengeBody.Action", fmt.Errorf("invalid value: %s", body.Action))
 	}
 
 	var targetID int64
@@ -133,11 +133,11 @@ func parseCreateChallengeBody(body CreateChallengeBody) (CreateChallengeTBody, e
 
 	color, err := enum.Parse(body.StartColor, model.GameColorEnums)
 	if err != nil {
-		respErr.Put("body.StartColor", err)
+		respErr.Put("CreateChallengeBody.StartColor", err)
 	}
 	mode, err := enum.Parse(body.Mode, model.GameModeEnums)
 	if err != nil {
-		respErr.Put("body.Mode", err)
+		respErr.Put("CreateChallengeBody.Mode", err)
 	}
 
 	return CreateChallengeTBody{ChallengeeID: body.ChallengeeID, StartColor: color, Mode: mode}, respErr.Inner()
@@ -156,7 +156,7 @@ func parseCreateGameBody(body CreateGameBody) (CreateGameTBody, error) {
 	if body.InitialFEN != "" {
 		parsedBoard, err := chess.ParseFen(body.InitialFEN)
 		if err != nil {
-			respErr.Put("body.InitialFen", err)
+			respErr.Put("CreateGameBody.InitialFen", err)
 		} else {
 			initialBoard = parsedBoard
 		}
@@ -164,11 +164,11 @@ func parseCreateGameBody(body CreateGameBody) (CreateGameTBody, error) {
 
 	color, err := enum.Parse(body.FirstColor, model.GameColorEnums)
 	if err != nil {
-		respErr.Put("body.FirstColor", err)
+		respErr.Put("CreateGameBody.FirstColor", err)
 	}
 	mode, err := enum.Parse(body.Mode, model.GameModeEnums)
 	if err != nil {
-		respErr.Put("body.Mode", err)
+		respErr.Put("CreateGameBody.Mode", err)
 	}
 
 	return CreateGameTBody{FirstColor: color, Mode: mode, InitialBoard: initialBoard}, respErr.Inner()
@@ -187,11 +187,11 @@ func parseCreateTournamentBody(body CreateTournamentBody) (CreateTournamentTBody
 
 	mode, err := enum.Parse(body.Mode, model.GameModeEnums)
 	if err != nil {
-		respErr.Put("body.Mode", err)
+		respErr.Put("CreateTournamentBody.Mode", err)
 	}
 	ruleset, err := enum.Parse(body.Ruleset, model.TournamentRulesetEnums)
 	if err != nil {
-		respErr.Put("body.Ruleset", err)
+		respErr.Put("CreateTournamentBody.Ruleset", err)
 	}
 
 	return CreateTournamentTBody{Name: body.Name, Mode: mode, Ruleset: ruleset, Rounds: body.Rounds, Countdown: body.Countdown}, respErr.Inner()

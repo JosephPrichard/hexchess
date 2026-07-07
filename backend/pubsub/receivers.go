@@ -122,7 +122,7 @@ func (b *LocalBroadcasters) ListenTournamentMessages(rdb db.Redis) chan struct{}
 			return
 		}
 
-		go b.TournamentCaster.Broadcast(output.TournamentKey, bytes)
+		b.TournamentCaster.Broadcast(output.TournamentKey, bytes)
 	})
 }
 
@@ -141,7 +141,7 @@ func (b *LocalBroadcasters) ListenUsersMessages(rdb db.Redis) chan struct{} {
 			return
 		}
 
-		go b.UsersCaster.Broadcast(strconv.Itoa(int(userMessage.UserId)), bytes)
+		b.UsersCaster.Broadcast(strconv.Itoa(int(userMessage.UserId)), bytes)
 	})
 }
 

@@ -26,7 +26,7 @@ func setupServicesTest(t logutil.TestLogger, mocks *serviceMocks, flags ...itest
 		Redis:       infra.Redis,
 		Remote:      mocks.Remote,
 		Entropy:     mocks.Entropy,
-		Broadcaster: pubsub.NewBroadcaster(infra.Redis),
+		Broadcaster: pubsub.NewSyncBroadcaster(infra.Redis),
 		AWS:         infra.AWS,
 	})
 

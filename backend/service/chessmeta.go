@@ -8,7 +8,6 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/model"
-	"hexchess-svc/pubsub"
 	"log/slog"
 	"math"
 
@@ -30,7 +29,7 @@ func (services *HexchessServices) UpdateGameMetadata(ctx context.Context, updt m
 	slog.InfoContext(ctx, "updated game metadata", "update", updt, "updtResult", updtResult)
 
 	if updtResult.IsNewRow {
-		services.broadcaster.BroadcastGameCount(context.WithoutCancel(ctx), updtResult.Count, pubsub.Async())
+		services.broadcaster.BroadcastGameCount(context.WithoutCancel(ctx), updtResult.Count)
 	}
 	return nil
 }

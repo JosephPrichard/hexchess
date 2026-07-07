@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/bytedance/sonic"
+	// "github.com/bytedance/sonic"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
@@ -49,10 +49,16 @@ func mapJSON[Body any, Output any](r *http.Request, parse func(Body) (Output, er
 	defer r.Body.Close()
 
 	var body Body
-	if err := sonic.ConfigDefault.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		var o Output
 		return o, err
 	}
+
+	// var body Body
+	// if err := sonic.ConfigDefault.NewDecoder(r.Body).Decode(&body); err != nil {
+	// 	var o Output
+	// 	return o, err
+	// }
 
 	//bytes, err := io.ReadAll(r.Body)
 	//if err != nil {
