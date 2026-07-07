@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-/usr/bin/pg_dump \
+pg_dump \
     -s \
     --no-owner \
     --no-privileges \

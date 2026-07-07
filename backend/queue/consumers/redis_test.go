@@ -37,7 +37,7 @@ func (h *testEventHandler) handleEvent(_ context.Context, bytes []byte) error {
 	h.lock.Unlock()
 
 	if len(h.outputEvents) == h.wantEventCount {
-		go h.cancel()
+		h.cancel()
 	}
 	return nil
 }

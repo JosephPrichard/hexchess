@@ -43,7 +43,6 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	queue := PostgresConsumer{
 		ctx:         ctx,
 		pdb:         testinfra.DB,
-		entropy:     &svc.StableEntropySource{CurrTime: itest.TimeNow},
 		consumeFunc: eventGateway.HandleAdvanceTournamentEvent,
 		PostgresConfig: PostgresConfig{
 			EventKind:    sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,

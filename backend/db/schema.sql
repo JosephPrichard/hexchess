@@ -2,6 +2,7 @@
 -- PostgreSQL database dump
 --
 
+
 -- Dumped from database version 17.5
 -- Dumped by pg_dump version 17.10 (Homebrew)
 
@@ -11,14 +12,14 @@ SET idle_in_transaction_session_timeout = 0;
 SET transaction_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
+SELECT pg_catalog.set_config('search_path', 'public', false);
 SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: pg_database_owner
+-- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: -
 --
 
 COMMENT ON SCHEMA public IS '';
@@ -32,14 +33,14 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
 
 
 --
--- Name: EXTENSION pg_trgm; Type: COMMENT; Schema: -; Owner: 
+-- Name: EXTENSION pg_trgm; Type: COMMENT; Schema: -; Owner: -
 --
 
 COMMENT ON EXTENSION pg_trgm IS 'text similarity measurement and index searching based on trigrams';
 
 
 --
--- Name: cause_enum; Type: TYPE; Schema: public; Owner: postgres
+-- Name: cause_enum; Type: TYPE; Schema: public; Owner: -
 --
 
 CREATE TYPE public.cause_enum AS ENUM (
@@ -49,10 +50,8 @@ CREATE TYPE public.cause_enum AS ENUM (
 );
 
 
-ALTER TYPE public.cause_enum OWNER TO postgres;
-
 --
--- Name: color_enum; Type: TYPE; Schema: public; Owner: postgres
+-- Name: color_enum; Type: TYPE; Schema: public; Owner: -
 --
 
 CREATE TYPE public.color_enum AS ENUM (
@@ -62,10 +61,8 @@ CREATE TYPE public.color_enum AS ENUM (
 );
 
 
-ALTER TYPE public.color_enum OWNER TO postgres;
-
 --
--- Name: mode_enum; Type: TYPE; Schema: public; Owner: postgres
+-- Name: mode_enum; Type: TYPE; Schema: public; Owner: -
 --
 
 CREATE TYPE public.mode_enum AS ENUM (
@@ -79,10 +76,8 @@ CREATE TYPE public.mode_enum AS ENUM (
 );
 
 
-ALTER TYPE public.mode_enum OWNER TO postgres;
-
 --
--- Name: queue_type_enum; Type: TYPE; Schema: public; Owner: postgres
+-- Name: queue_type_enum; Type: TYPE; Schema: public; Owner: -
 --
 
 CREATE TYPE public.queue_type_enum AS ENUM (
@@ -90,10 +85,8 @@ CREATE TYPE public.queue_type_enum AS ENUM (
 );
 
 
-ALTER TYPE public.queue_type_enum OWNER TO postgres;
-
 --
--- Name: result_enum; Type: TYPE; Schema: public; Owner: postgres
+-- Name: result_enum; Type: TYPE; Schema: public; Owner: -
 --
 
 CREATE TYPE public.result_enum AS ENUM (
@@ -104,10 +97,8 @@ CREATE TYPE public.result_enum AS ENUM (
 );
 
 
-ALTER TYPE public.result_enum OWNER TO postgres;
-
 --
--- Name: tournament_ruleset_enum; Type: TYPE; Schema: public; Owner: postgres
+-- Name: tournament_ruleset_enum; Type: TYPE; Schema: public; Owner: -
 --
 
 CREATE TYPE public.tournament_ruleset_enum AS ENUM (
@@ -117,10 +108,8 @@ CREATE TYPE public.tournament_ruleset_enum AS ENUM (
 );
 
 
-ALTER TYPE public.tournament_ruleset_enum OWNER TO postgres;
-
 --
--- Name: tournament_status_enum; Type: TYPE; Schema: public; Owner: postgres
+-- Name: tournament_status_enum; Type: TYPE; Schema: public; Owner: -
 --
 
 CREATE TYPE public.tournament_status_enum AS ENUM (
@@ -132,14 +121,12 @@ CREATE TYPE public.tournament_status_enum AS ENUM (
 );
 
 
-ALTER TYPE public.tournament_status_enum OWNER TO postgres;
-
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
 
 --
--- Name: challenges; Type: TABLE; Schema: public; Owner: postgres
+-- Name: challenges; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.challenges (
@@ -151,10 +138,8 @@ CREATE TABLE public.challenges (
 );
 
 
-ALTER TABLE public.challenges OWNER TO postgres;
-
 --
--- Name: event_keys; Type: TABLE; Schema: public; Owner: postgres
+-- Name: event_keys; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.event_keys (
@@ -164,10 +149,8 @@ CREATE TABLE public.event_keys (
 );
 
 
-ALTER TABLE public.event_keys OWNER TO postgres;
-
 --
--- Name: event_queue; Type: TABLE; Schema: public; Owner: postgres
+-- Name: event_queue; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.event_queue (
@@ -182,10 +165,8 @@ CREATE TABLE public.event_queue (
 );
 
 
-ALTER TABLE public.event_queue OWNER TO postgres;
-
 --
--- Name: event_queue_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: event_queue_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 ALTER TABLE public.event_queue ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
@@ -199,7 +180,7 @@ ALTER TABLE public.event_queue ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY 
 
 
 --
--- Name: games_metadata_ordering_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: games_metadata_ordering_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 CREATE SEQUENCE public.games_metadata_ordering_seq
@@ -210,10 +191,8 @@ CREATE SEQUENCE public.games_metadata_ordering_seq
     CACHE 1;
 
 
-ALTER SEQUENCE public.games_metadata_ordering_seq OWNER TO postgres;
-
 --
--- Name: games_metadata; Type: TABLE; Schema: public; Owner: postgres
+-- Name: games_metadata; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.games_metadata (
@@ -226,10 +205,8 @@ CREATE TABLE public.games_metadata (
 );
 
 
-ALTER TABLE public.games_metadata OWNER TO postgres;
-
 --
--- Name: games_metadata_count; Type: VIEW; Schema: public; Owner: postgres
+-- Name: games_metadata_count; Type: VIEW; Schema: public; Owner: -
 --
 
 CREATE VIEW public.games_metadata_count AS
@@ -237,10 +214,8 @@ CREATE VIEW public.games_metadata_count AS
    FROM public.games_metadata;
 
 
-ALTER VIEW public.games_metadata_count OWNER TO postgres;
-
 --
--- Name: goose_db_version; Type: TABLE; Schema: public; Owner: postgres
+-- Name: goose_db_version; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.goose_db_version (
@@ -251,10 +226,8 @@ CREATE TABLE public.goose_db_version (
 );
 
 
-ALTER TABLE public.goose_db_version OWNER TO postgres;
-
 --
--- Name: goose_db_version_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: goose_db_version_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 ALTER TABLE public.goose_db_version ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
@@ -268,7 +241,7 @@ ALTER TABLE public.goose_db_version ALTER COLUMN id ADD GENERATED BY DEFAULT AS 
 
 
 --
--- Name: redis_queue_metadata; Type: TABLE; Schema: public; Owner: postgres
+-- Name: redis_queue_metadata; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.redis_queue_metadata (
@@ -280,10 +253,8 @@ CREATE TABLE public.redis_queue_metadata (
 );
 
 
-ALTER TABLE public.redis_queue_metadata OWNER TO postgres;
-
 --
--- Name: redis_queue_metadata_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: redis_queue_metadata_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 ALTER TABLE public.redis_queue_metadata ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
@@ -297,7 +268,7 @@ ALTER TABLE public.redis_queue_metadata ALTER COLUMN id ADD GENERATED ALWAYS AS 
 
 
 --
--- Name: replay_move_histories; Type: TABLE; Schema: public; Owner: postgres
+-- Name: replay_move_histories; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.replay_move_histories (
@@ -306,10 +277,8 @@ CREATE TABLE public.replay_move_histories (
 );
 
 
-ALTER TABLE public.replay_move_histories OWNER TO postgres;
-
 --
--- Name: replays; Type: TABLE; Schema: public; Owner: postgres
+-- Name: replays; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.replays (
@@ -331,10 +300,8 @@ CREATE TABLE public.replays (
 );
 
 
-ALTER TABLE public.replays OWNER TO postgres;
-
 --
--- Name: replays_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: replays_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 ALTER TABLE public.replays ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
@@ -348,7 +315,7 @@ ALTER TABLE public.replays ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 
 
 --
--- Name: tournament_matches; Type: TABLE; Schema: public; Owner: postgres
+-- Name: tournament_matches; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.tournament_matches (
@@ -362,10 +329,8 @@ CREATE TABLE public.tournament_matches (
 );
 
 
-ALTER TABLE public.tournament_matches OWNER TO postgres;
-
 --
--- Name: tournament_matches_ordering_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: tournament_matches_ordering_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 ALTER TABLE public.tournament_matches ALTER COLUMN ordering ADD GENERATED ALWAYS AS IDENTITY (
@@ -379,7 +344,7 @@ ALTER TABLE public.tournament_matches ALTER COLUMN ordering ADD GENERATED ALWAYS
 
 
 --
--- Name: tournament_participants; Type: TABLE; Schema: public; Owner: postgres
+-- Name: tournament_participants; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.tournament_participants (
@@ -389,10 +354,8 @@ CREATE TABLE public.tournament_participants (
 );
 
 
-ALTER TABLE public.tournament_participants OWNER TO postgres;
-
 --
--- Name: tournaments; Type: TABLE; Schema: public; Owner: postgres
+-- Name: tournaments; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.tournaments (
@@ -412,10 +375,8 @@ CREATE TABLE public.tournaments (
 );
 
 
-ALTER TABLE public.tournaments OWNER TO postgres;
-
 --
--- Name: tournaments_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: tournaments_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 ALTER TABLE public.tournaments ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
@@ -429,7 +390,7 @@ ALTER TABLE public.tournaments ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY 
 
 
 --
--- Name: user_mode_elos; Type: TABLE; Schema: public; Owner: postgres
+-- Name: user_mode_elos; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.user_mode_elos (
@@ -443,10 +404,8 @@ CREATE TABLE public.user_mode_elos (
 );
 
 
-ALTER TABLE public.user_mode_elos OWNER TO postgres;
-
 --
--- Name: users; Type: TABLE; Schema: public; Owner: postgres
+-- Name: users; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.users (
@@ -463,10 +422,8 @@ CREATE TABLE public.users (
 );
 
 
-ALTER TABLE public.users OWNER TO postgres;
-
 --
--- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
 ALTER TABLE public.users ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
@@ -480,7 +437,7 @@ ALTER TABLE public.users ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 
 
 --
--- Name: users_metadata; Type: TABLE; Schema: public; Owner: postgres
+-- Name: users_metadata; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.users_metadata (
@@ -489,10 +446,8 @@ CREATE TABLE public.users_metadata (
 );
 
 
-ALTER TABLE public.users_metadata OWNER TO postgres;
-
 --
--- Name: challenges challenges_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: challenges challenges_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.challenges
@@ -500,7 +455,7 @@ ALTER TABLE ONLY public.challenges
 
 
 --
--- Name: event_keys event_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: event_keys event_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.event_keys
@@ -508,7 +463,7 @@ ALTER TABLE ONLY public.event_keys
 
 
 --
--- Name: event_queue event_queue_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: event_queue event_queue_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.event_queue
@@ -516,7 +471,7 @@ ALTER TABLE ONLY public.event_queue
 
 
 --
--- Name: games_metadata games_metadata_ordering_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: games_metadata games_metadata_ordering_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.games_metadata
@@ -524,7 +479,7 @@ ALTER TABLE ONLY public.games_metadata
 
 
 --
--- Name: games_metadata games_metadata_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: games_metadata games_metadata_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.games_metadata
@@ -532,7 +487,7 @@ ALTER TABLE ONLY public.games_metadata
 
 
 --
--- Name: goose_db_version goose_db_version_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: goose_db_version goose_db_version_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.goose_db_version
@@ -540,7 +495,7 @@ ALTER TABLE ONLY public.goose_db_version
 
 
 --
--- Name: redis_queue_metadata redis_queue_metadata_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: redis_queue_metadata redis_queue_metadata_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.redis_queue_metadata
@@ -548,7 +503,7 @@ ALTER TABLE ONLY public.redis_queue_metadata
 
 
 --
--- Name: replay_move_histories replay_move_histories_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: replay_move_histories replay_move_histories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.replay_move_histories
@@ -556,7 +511,7 @@ ALTER TABLE ONLY public.replay_move_histories
 
 
 --
--- Name: replays replays_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: replays replays_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.replays
@@ -564,7 +519,7 @@ ALTER TABLE ONLY public.replays
 
 
 --
--- Name: tournament_matches tournament_matches_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: tournament_matches tournament_matches_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.tournament_matches
@@ -572,7 +527,7 @@ ALTER TABLE ONLY public.tournament_matches
 
 
 --
--- Name: tournament_participants tournament_participants_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: tournament_participants tournament_participants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.tournament_participants
@@ -580,7 +535,7 @@ ALTER TABLE ONLY public.tournament_participants
 
 
 --
--- Name: tournaments tournaments_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: tournaments tournaments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.tournaments
@@ -588,7 +543,7 @@ ALTER TABLE ONLY public.tournaments
 
 
 --
--- Name: tournaments tournaments_tournament_key_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: tournaments tournaments_tournament_key_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.tournaments
@@ -596,7 +551,7 @@ ALTER TABLE ONLY public.tournaments
 
 
 --
--- Name: user_mode_elos user_mode_elos_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: user_mode_elos user_mode_elos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.user_mode_elos
@@ -604,7 +559,7 @@ ALTER TABLE ONLY public.user_mode_elos
 
 
 --
--- Name: users_metadata users_metadata_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: users_metadata users_metadata_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.users_metadata
@@ -612,7 +567,7 @@ ALTER TABLE ONLY public.users_metadata
 
 
 --
--- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.users
@@ -620,203 +575,203 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: idx_black_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_black_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_black_id ON public.replays USING btree (black_id, id);
 
 
 --
--- Name: idx_blackid_sort_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_blackid_sort_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_blackid_sort_id ON public.replays USING btree (black_id, id);
 
 
 --
--- Name: idx_blackid_sort_rating; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_blackid_sort_rating; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_blackid_sort_rating ON public.replays USING btree (black_id, rating);
 
 
 --
--- Name: idx_blackid_sort_turncount; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_blackid_sort_turncount; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_blackid_sort_turncount ON public.replays USING btree (black_id, turn_count);
 
 
 --
--- Name: idx_both_ids; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_both_ids; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_both_ids ON public.replays USING btree (white_id, black_id, id);
 
 
 --
--- Name: idx_both_ids_played_on; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_both_ids_played_on; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_both_ids_played_on ON public.replays USING btree (white_id, black_id, played_on);
 
 
 --
--- Name: idx_challengee; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_challengee; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_challengee ON public.challenges USING btree (challengee_id, made_on);
 
 
 --
--- Name: idx_challenger; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_challenger; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_challenger ON public.challenges USING btree (challenger_id, made_on);
 
 
 --
--- Name: idx_event_queue; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_event_queue; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_event_queue ON public.event_queue USING btree (processed_on, type, scheduled_on);
 
 
 --
--- Name: idx_event_queue_group_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_event_queue_group_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_event_queue_group_id ON public.event_queue USING btree (group_id);
 
 
 --
--- Name: idx_google_account_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_google_account_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_google_account_id ON public.users USING btree (google_account_id);
 
 
 --
--- Name: idx_playedon; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_playedon; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_playedon ON public.replays USING btree (played_on_as_days);
 
 
 --
--- Name: idx_redis_queue_metadata_group_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_redis_queue_metadata_group_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_redis_queue_metadata_group_id ON public.event_queue USING btree (group_id);
 
 
 --
--- Name: idx_replay_game_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_replay_game_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_replay_game_id ON public.replays USING btree (game_id);
 
 
 --
--- Name: idx_sort_rating; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_sort_rating; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_sort_rating ON public.replays USING btree (rating);
 
 
 --
--- Name: idx_sort_turncount; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_sort_turncount; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_sort_turncount ON public.replays USING btree (turn_count);
 
 
 --
--- Name: idx_tournament_matches_tournament_key; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_tournament_matches_tournament_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_tournament_matches_tournament_key ON public.tournament_matches USING btree (tournament_key);
 
 
 --
--- Name: idx_tournament_participants_tournament_key; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_tournament_participants_tournament_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_tournament_participants_tournament_key ON public.tournament_participants USING btree (tournament_key);
 
 
 --
--- Name: idx_tournament_participants_userid; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_tournament_participants_userid; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_tournament_participants_userid ON public.tournament_participants USING btree (user_id);
 
 
 --
--- Name: idx_tournament_winner_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_tournament_winner_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_tournament_winner_id ON public.tournaments USING btree (winner_id);
 
 
 --
--- Name: idx_trgm_username; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_trgm_username; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_trgm_username ON public.users USING gist (username public.gist_trgm_ops);
 
 
 --
--- Name: idx_unique_username; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_unique_username; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX idx_unique_username ON public.users USING btree (upper((username)::text));
 
 
 --
--- Name: idx_user_mode_elos_userid; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_user_mode_elos_userid; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_user_mode_elos_userid ON public.user_mode_elos USING btree (user_id);
 
 
 --
--- Name: idx_username; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_username; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_username ON public.users USING btree (username);
 
 
 --
--- Name: idx_white_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_white_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_white_id ON public.replays USING btree (white_id, id);
 
 
 --
--- Name: idx_whiteid_sort_id; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_whiteid_sort_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_whiteid_sort_id ON public.replays USING btree (white_id, id);
 
 
 --
--- Name: idx_whiteid_sort_rating; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_whiteid_sort_rating; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_whiteid_sort_rating ON public.replays USING btree (white_id, rating);
 
 
 --
--- Name: idx_whiteid_sort_turncount; Type: INDEX; Schema: public; Owner: postgres
+-- Name: idx_whiteid_sort_turncount; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_whiteid_sort_turncount ON public.replays USING btree (white_id, turn_count);
 
 
 --
--- Name: challenges challenges_challengee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: challenges challenges_challengee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.challenges
@@ -824,7 +779,7 @@ ALTER TABLE ONLY public.challenges
 
 
 --
--- Name: challenges challenges_challenger_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: challenges challenges_challenger_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.challenges
@@ -832,7 +787,7 @@ ALTER TABLE ONLY public.challenges
 
 
 --
--- Name: replay_move_histories fk_replay_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: replay_move_histories fk_replay_id; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.replay_move_histories
@@ -840,7 +795,7 @@ ALTER TABLE ONLY public.replay_move_histories
 
 
 --
--- Name: replays replays_black_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: replays replays_black_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.replays
@@ -848,7 +803,7 @@ ALTER TABLE ONLY public.replays
 
 
 --
--- Name: replays replays_white_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: replays replays_white_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.replays
@@ -856,7 +811,7 @@ ALTER TABLE ONLY public.replays
 
 
 --
--- Name: tournament_matches tournament_matches_black_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: tournament_matches tournament_matches_black_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.tournament_matches
@@ -864,7 +819,7 @@ ALTER TABLE ONLY public.tournament_matches
 
 
 --
--- Name: tournament_matches tournament_matches_tournament_key_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: tournament_matches tournament_matches_tournament_key_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.tournament_matches
@@ -872,7 +827,7 @@ ALTER TABLE ONLY public.tournament_matches
 
 
 --
--- Name: tournament_matches tournament_matches_white_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: tournament_matches tournament_matches_white_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.tournament_matches
@@ -880,7 +835,7 @@ ALTER TABLE ONLY public.tournament_matches
 
 
 --
--- Name: tournament_participants tournament_participants_tournament_key_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: tournament_participants tournament_participants_tournament_key_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.tournament_participants
@@ -888,7 +843,7 @@ ALTER TABLE ONLY public.tournament_participants
 
 
 --
--- Name: tournament_participants tournament_participants_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: tournament_participants tournament_participants_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.tournament_participants
@@ -896,7 +851,7 @@ ALTER TABLE ONLY public.tournament_participants
 
 
 --
--- Name: tournaments tournaments_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: tournaments tournaments_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.tournaments
@@ -904,7 +859,7 @@ ALTER TABLE ONLY public.tournaments
 
 
 --
--- Name: tournaments tournaments_winner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: tournaments tournaments_winner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.tournaments
@@ -912,7 +867,7 @@ ALTER TABLE ONLY public.tournaments
 
 
 --
--- Name: user_mode_elos user_mode_elos_userid_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: user_mode_elos user_mode_elos_userid_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.user_mode_elos
@@ -922,3 +877,5 @@ ALTER TABLE ONLY public.user_mode_elos
 --
 -- PostgreSQL database dump complete
 --
+
+

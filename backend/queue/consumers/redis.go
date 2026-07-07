@@ -8,7 +8,6 @@ import (
 	"hexchess-lib/logutil"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/queue"
-	svc "hexchess-svc/service"
 	"log/slog"
 	"sync"
 	"time"
@@ -40,17 +39,11 @@ type RedisConsumer struct {
 	// connects to redis to poll event streams and a database to insert into metadata tables
 	redis    redis.UniversalClient
 	inserter RedisEventResultInserter
-	// tracks metrics when sending ACKs to the database
-	entropy svc.EntropyAPI
 	// an implementation for consuming a single event
 	consumeFunc ConsumeFunc
 }
 
 func (consumer *RedisConsumer) Consume() {
-	if consumer.entropy == nil {
-		consumer.entropy = &svc.RealEntropySource{}
-	}
-
 	var wg sync.WaitGroup
 	for _, partitionKey := range consumer.PartitionKeys {
 		wg.Go(func() {
@@ -74,7 +67,7 @@ func (consumer *RedisConsumer) ConsumePartition(partitionKey string) {
 	}
 
 	var waitGroup sync.WaitGroup
-	metricCollector := &RedisMetricCollector{inserter: consumer.inserter}
+	metrics := &RedisMetricCollector{inserter: consumer.inserter}
 
 	for i := uint64(0); ; i++ {
 		if i >= consumer.MaxEvents && consumer.cancel != nil {
@@ -105,19 +98,19 @@ func (consumer *RedisConsumer) ConsumePartition(partitionKey string) {
 		for _, entry := range entries {
 			for _, msg := range entry.Messages {
 				waitGroup.Go(func() {
-					consumer.handleXReadMessage(ctx, metricCollector, msg)
+					consumer.handleXReadMessage(ctx, metrics, msg)
 				})
 			}
 		}
 
 		waitGroup.Wait()
-		metricCollector.Ship()
+		metrics.Persist()
 
 		slog.InfoContext(ctx, "end redis stream consume operation", "stream", stream, "timeTaken", time.Since(start).String())
 	}
 }
 
-func (consumer *RedisConsumer) handleXReadMessage(ctx context.Context, metricCollector *RedisMetricCollector, msg redis.XMessage) {
+func (consumer *RedisConsumer) handleXReadMessage(ctx context.Context, metrics *RedisMetricCollector, msg redis.XMessage) {
 	// send the acknowledgement if data is invalid OR message succeeds, retry otherwise
 	anyData := msg.Values["data"]
 	data, ok := anyData.(string)
@@ -129,7 +122,7 @@ func (consumer *RedisConsumer) handleXReadMessage(ctx context.Context, metricCol
 	anyGroupID := msg.Values["groupId"]
 	groupIDStr, _ := anyGroupID.(string)
 
-	consumedOn := consumer.entropy.GetTime()
+	consumedOn := time.Now()
 
 	err := consumer.consumeFunc(ctx, []byte(data))
 	if err != nil {
@@ -149,11 +142,11 @@ func (consumer *RedisConsumer) handleXReadMessage(ctx context.Context, metricCol
 		slog.WarnContext(ctx, "received invalid group id on stream", "error", err)
 		groupID = uuid.New()
 	}
-	metricCollector.Collect(RedisEventMetric{
+	metrics.Collect(RedisEventMetric{
 		StreamName:  consumer.StreamKey,
 		GroupID:     groupID,
 		ConsumedOn:  consumedOn,
-		ProcessedOn: consumer.entropy.GetTime(),
+		ProcessedOn: time.Now(),
 	})
 }
 
@@ -175,20 +168,22 @@ type RedisMetricCollector struct {
 	inserter RedisEventResultInserter
 }
 
-func (collector *RedisMetricCollector) Collect(metric RedisEventMetric) {
-	collector.lock.Lock()
-	collector.metrics = append(collector.metrics, metric)
-	collector.lock.Unlock()
+func (c *RedisMetricCollector) Collect(metric RedisEventMetric) {
+	c.lock.Lock()
+	c.metrics = append(c.metrics, metric)
+	c.lock.Unlock()
 }
 
-func (collector *RedisMetricCollector) Ship() {
-	if len(collector.metrics) == 0 {
+func (c *RedisMetricCollector) Persist() {
+	if len(c.metrics) == 0 {
 		return
 	}
 
-	rows := make([]sqlc.InsertRedisEventMetasParams, 0, len(collector.metrics))
+	ctx := context.Background()
 
-	for _, metric := range collector.metrics {
+	rows := make([]sqlc.InsertRedisEventMetasParams, 0, len(c.metrics))
+
+	for _, metric := range c.metrics {
 		rows = append(rows, sqlc.InsertRedisEventMetasParams{
 			GroupId:     pgtype.UUID{Bytes: metric.GroupID, Valid: true},
 			StreamName:  metric.StreamName,
@@ -196,11 +191,14 @@ func (collector *RedisMetricCollector) Ship() {
 			ProcessedOn: pgtype.Timestamptz{Time: metric.ConsumedOn, Valid: true},
 		})
 	}
-	collector.metrics = collector.metrics[:0]
+	c.metrics = c.metrics[:0]
 
 	// note: fire and forget, we'd prefer to store these metrics but its not worth retrying if storage fails
 	go func() {
-		collector.inserter.InsertRedisEventMetas(context.Background(), rows).Exec(func(index int, err error) {
+		if c.inserter != nil {
+			return
+		}
+		c.inserter.InsertRedisEventMetas(ctx, rows).Exec(func(index int, err error) {
 			if err != nil {
 				slog.Error("failed to ship redis event metadata", "error", err)
 			}

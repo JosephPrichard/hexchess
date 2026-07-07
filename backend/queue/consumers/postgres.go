@@ -8,7 +8,6 @@ import (
 	"hexchess-lib/serrors"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
-	svc "hexchess-svc/service"
 	"log/slog"
 	"sync"
 	"time"
@@ -36,17 +35,11 @@ type PostgresConsumer struct {
 	ctx context.Context
 	// connects to queue table in database to poll for events. requires transaction management.
 	pdb db.Database
-	// tracks metrics when sending ACKs to the database
-	entropy svc.EntropyAPI
 	// an implementation for consuming a single event
 	consumeFunc ConsumeFunc
 }
 
 func (consumer *PostgresConsumer) Consume() {
-	if consumer.entropy == nil {
-		consumer.entropy = &svc.RealEntropySource{}
-	}
-
 	ticker := time.NewTicker(consumer.PollInterval)
 	defer ticker.Stop()
 
@@ -127,7 +120,7 @@ func (consumer *PostgresConsumer) poll() error {
 			if len(eventIDsToAck) > 0 {
 				if err := querier.UpdateQueueProcessedByID(ctx, sqlc.UpdateQueueProcessedByIDParams{
 					Ids:           eventIDsToAck,
-					ProcessedTime: pgtype.Timestamptz{Time: consumer.entropy.GetTime(), Valid: true},
+					ProcessedTime: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 				}); err != nil {
 					return serrors.Wrap("acknowledge postgres queue messages", err, "events", processedEvents)
 				}

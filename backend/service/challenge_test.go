@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"hexchess-lib/logutil"
+	"hexchess-lib/testutil"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
@@ -129,7 +130,7 @@ func TestGetChallengesByParticipant(t *testing.T) {
 	challenges, err := services.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
-	assert.Equal(t, []model.Challenge{itest.TestChallenge[2], itest.TestChallenge[3]}, challenges)
+	testutil.Equal(t, []model.Challenge{itest.TestChallenge[2], itest.TestChallenge[3]}, challenges)
 }
 
 func TestDeleteExpiredChallenges(t *testing.T) {

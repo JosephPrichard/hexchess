@@ -1,6 +1,7 @@
 package chess
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"slices"
@@ -120,6 +121,14 @@ type BoardMatrix [][]int
 type Board struct {
 	IsWhiteTurn bool
 	Pieces      [Files][MaxRanks]Piece // over allocated to keep the array packed within the struct
+}
+
+func (b *Board) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteRune('"')
+	buf.WriteString(b.Fen())
+	buf.WriteRune('"')
+	return buf.Bytes(), nil
 }
 
 func (b *Board) ToMatrix() BoardMatrix {

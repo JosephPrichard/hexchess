@@ -96,7 +96,7 @@ type sseTestContext struct {
 
 func (s *sseTestContext) Shutdown() {
 	s.testinfra.Close()
-	s.localBroadcasters.Shutdown()
+	// s.localBroadcasters.Shutdown()
 	s.testServer.Close()
 }
 

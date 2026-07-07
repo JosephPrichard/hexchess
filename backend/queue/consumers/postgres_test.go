@@ -6,7 +6,6 @@ import (
 	"hexchess-lib/testutil"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
-	svc "hexchess-svc/service"
 	"testing"
 	"time"
 
@@ -32,12 +31,12 @@ func TestPostgresConsumer(t *testing.T) {
 				{
 					Type:      sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:      []byte("test1"),
-					CreatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
+					CreatedOn: pgtype.Timestamptz{Valid: true},
 				},
 				{
 					Type:      sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:      []byte("test2"),
-					CreatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
+					CreatedOn: pgtype.Timestamptz{Valid: true},
 				},
 			},
 			makeProcessFn: func(capturedEvents *[]string) func(ctx context.Context, bytes []byte) error {
@@ -50,13 +49,13 @@ func TestPostgresConsumer(t *testing.T) {
 				{
 					Type:        sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:        []byte("test1"),
-					CreatedOn:   pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
-					ProcessedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
+					CreatedOn:   pgtype.Timestamptz{Valid: true},
+					ProcessedOn: pgtype.Timestamptz{Valid: true},
 				},
 				{
 					Type:      sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:      []byte("test2"),
-					CreatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
+					CreatedOn: pgtype.Timestamptz{Valid: true},
 					// since pollCount was 1, expect to only process the first event
 				},
 			},
@@ -69,7 +68,7 @@ func TestPostgresConsumer(t *testing.T) {
 				{
 					Type:      sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:      []byte("test1"),
-					CreatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
+					CreatedOn: pgtype.Timestamptz{Valid: true},
 				},
 			},
 			makeProcessFn: func(capturedEvents *[]string) func(ctx context.Context, bytes []byte) error {
@@ -81,7 +80,7 @@ func TestPostgresConsumer(t *testing.T) {
 				{
 					Type:      sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:      []byte("test1"),
-					CreatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
+					CreatedOn: pgtype.Timestamptz{Valid: true},
 					// expect evens to be not acknowledged
 				},
 			},
@@ -94,7 +93,7 @@ func TestPostgresConsumer(t *testing.T) {
 				{
 					Type:      sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:      []byte("test1"),
-					CreatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
+					CreatedOn: pgtype.Timestamptz{Valid: true},
 				},
 			},
 			makeProcessFn: func(capturedEvents *[]string) func(ctx context.Context, bytes []byte) error {
@@ -107,8 +106,8 @@ func TestPostgresConsumer(t *testing.T) {
 				{
 					Type:        sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 					Data:        []byte("test1"),
-					CreatedOn:   pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
-					ProcessedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
+					CreatedOn:   pgtype.Timestamptz{Valid: true},
+					ProcessedOn: pgtype.Timestamptz{Valid: true},
 				},
 			},
 			wantCapturedEvents: []string{"test1"},
@@ -132,7 +131,6 @@ func TestPostgresConsumer(t *testing.T) {
 			queue := PostgresConsumer{
 				ctx:         ctx,
 				pdb:         testinfra.DB,
-				entropy:     &svc.StableEntropySource{CurrTime: itest.TimeNow},
 				consumeFunc: tt.makeProcessFn(&capturedEvents),
 				PostgresConfig: PostgresConfig{
 					EventKind:    tt.kind,
@@ -149,7 +147,10 @@ func TestPostgresConsumer(t *testing.T) {
 			outboxEvents, err := testinfra.Querier.SelectALLQueue(ctx)
 			require.NoError(t, err)
 
-			testutil.Equal(t, tt.wantEvents, outboxEvents, cmpopts.IgnoreFields(sqlc.EventQueue{}, "ID", "CreatedOn"))
+			// ignores comparisons of timestamps by direct value, instead we check by nullability
+			testutil.Equal(t, tt.wantEvents, outboxEvents, 
+				cmpopts.IgnoreFields(sqlc.EventQueue{}, "ID"), 
+				cmpopts.IgnoreFields(pgtype.Timestamptz{}, "Time"))
 		})
 	}
 }

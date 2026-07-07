@@ -253,7 +253,7 @@ func (services *HexchessServices) AttemptGameUndo(ctx context.Context, gameID mo
 	if err != nil {
 		return nil, err
 	}
-	slog.InfoContext(ctx, "attempt game undo", "playerID", player.ID, "gameID", gameID, "chesState", state)
+	slog.InfoContext(ctx, "attempt game undo", "playerID", player.ID, "gameID", gameID, "gameID", state.ID)
 	return state, nil
 }
 
@@ -307,6 +307,6 @@ func (services *HexchessServices) EndGame(ctx context.Context, gameID model.Game
 		return model.NotEnded, err
 	}
 
-	slog.InfoContext(ctx, "player ended game", "playerID", player.ID, "gameID", gameID, "state", state)
+	slog.InfoContext(ctx, "player ended game", "playerID", player.ID, "gameID", gameID, "gameID", state.ID)
 	return state.EndState, nil
 }
