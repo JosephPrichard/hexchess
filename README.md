@@ -1,5 +1,5 @@
 # Hexagonal Chess
-A website to play hexagonal chess online.
+A website to play hexagonal chess online. It's primarily a way for me to explore ideas related to backend infrastructure, software architecture, performance optimization, and functional testing.
 
 Created using Go, Svelte, Postgres, and Redis.
 
@@ -17,20 +17,22 @@ Alternatively, run a CI pipeline suitable build that also runs all tests.
 
 `cd database`
 
+`export GOOSE_DBSTRING=<url>`
+`export GOOSE_DBDRIVER=postgres`
+
 Run a Migration (up)
 
-`$env:GOOSE_DBSTRING="<url>"; goose up`
+`goose up`
 
 Run a Migration (down)
 
-`$env:GOOSE_DBSTRING="<url>"; goose down`
+`goose down`
 
 ## Execution (Local)
 
 ### Run Infrastructure
 
 Assumes you have `postgres`, `redis-cli`, `redis-server`, `minio`, `grafana`, `alloy`, `pyroscope`, and `loki` installed.
-The script will manage `redis`, `minio`, and `alloy`. Assumes that `pyroscope`, and `loki` are listening and standard ports. 
 
 The network graph is as so:
 ```

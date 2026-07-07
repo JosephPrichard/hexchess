@@ -65,6 +65,7 @@ func main() {
 		PubsubUsername:    rdbPubSubUsername,
 		PubsubClusterName: rdbPubSubClusterName,
 		ActiveProfile:     profile,
+		ConsumerPoolSize:  consumers.TotalPartitionCount,
 	})
 	defer rdb.Close()
 

@@ -24,6 +24,8 @@ WASM_SRC_DIR    := $(BACKEND_DIR)/cmd/browser
 WASM_OUTPUT     := chess.wasm
 UI_WASM_DIR     := $(UI_DIR)/static/wasm
 
+.PHONY: all clean
+
 # Build All
 all: backend frontend perf
 
@@ -106,9 +108,13 @@ install-database:
 	go install github.com/pressly/goose/v3/cmd/goose@v3.27.0
 
 clean:
-	rm -f $(BACKEND_DIR)/db/sqlc
-	rm -f $(BACKEND_DIR)/pb
+	rm -rf $(BACKEND_DIR)/db/sqlc
+	rm -rf $(SVC_PB_OUT)
+
+	rm -rf $(UI_DIR)/node_modules
+	rm -rf $(UI_PB_OUT)
 	rm -f $(WASM_SRC_DIR)/$(WASM_OUTPUT)
 	rm -f $(UI_WASM_DIR)/$(WASM_OUTPUT)
 
-.PHONY: all clean
+	rm -f $(PERF_K6_DIR)/k6
+	rm -rf $(PERF_K6_DIR)/pb

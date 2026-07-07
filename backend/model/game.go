@@ -4,42 +4,57 @@ import (
 	"crypto/rand"
 	"hexchess-lib/optional"
 	"hexchess-svc/chess"
+	"log/slog"
 	"math/big"
 )
 
-type GameID string
+const GameIDSymbols = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz123456789"
+const GameIDPartitionSymbols = "abcdefghijklmnopqrstuvwxyz"
 
-const GameIDSymbols = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-
-func NewGameID() GameID {
-	gameID := make([]byte, 8)
-	for i := range gameID {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(GameIDSymbols))))
-		if err != nil {
-			panic("failed to generate random number: " + err.Error())
-		}
-		gameID[i] = GameIDSymbols[n.Int64()]
+func randChar(str string) byte {
+	n, err := rand.Int(rand.Reader, big.NewInt(int64(len(str))))
+	if err != nil {
+		// just panic because this means static determined input is invalid (program)
+		panic("failed to generate random number: " + err.Error())
 	}
-	return GameID(gameID)
-}
-
-func (id GameID) String() string {
-	return string(id)
-}
-
-func (id GameID) Partition() rune {
-	if len(id) == 0 {
-		return 0
-	}
-	return rune(id[len(id)-1])
+	return str[n.Int64()]
 }
 
 func GameIDPartitions() []string {
-	partitions := make([]string, 0, len(GameIDSymbols))
-	for _, s := range GameIDSymbols {
-		partitions = append(partitions, string(s))
+	partitions := make([]string, len(GameIDPartitionSymbols))
+	for i, s := range GameIDPartitionSymbols {
+		partitions[i] = string(s)
 	}
 	return partitions
+}
+
+type GameID string
+
+const GameIDLength = 24
+
+func NewGameID() GameID {
+	gameID := make([]byte, GameIDLength)
+	for i := range gameID {
+		gameID[i] = randChar(GameIDSymbols)
+	}
+
+	// reduced number of possibilities for the partition key (lastSymbol)
+	gameID[len(gameID)-1] = randChar(GameIDPartitionSymbols)
+
+	return GameID(gameID)
+}
+
+func (gameID GameID) String() string {
+	return string(gameID)
+}
+
+func (gameID GameID) Partition() rune {
+	if len(gameID) == 0 {
+		slog.Error("returned an invalid partition for empty gameID")
+		return 0
+	}
+	lastSymbol := rune(gameID[len(gameID)-1])
+	return lastSymbol
 }
 
 type FinishedGame struct {

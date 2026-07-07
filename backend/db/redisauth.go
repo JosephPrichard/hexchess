@@ -103,7 +103,9 @@ func (refresh *RedisTokenRefresher) Shutdown() {
 	}
 }
 
-func NewCredentialsProvider(refresh *RedisTokenRefresher) func() (username string, password string) {
+type RedisCredsProvider = func() (username string, password string)
+
+func NewCredentialsProvider(refresh *RedisTokenRefresher) RedisCredsProvider {
 	return func() (username string, password string) {
 		token := refresh.token.Load()
 		if token != nil {
@@ -115,7 +117,9 @@ func NewCredentialsProvider(refresh *RedisTokenRefresher) func() (username strin
 	}
 }
 
-func NewSecureDialer(refresh *RedisTokenRefresher, addr string) func() (redigo.Conn, error) {
+type RedisDialer = func() (redigo.Conn, error)
+
+func NewSecureDialer(refresh *RedisTokenRefresher, addr string) RedisDialer {
 	return func() (redigo.Conn, error) {
 		token := refresh.token.Load()
 		var password string

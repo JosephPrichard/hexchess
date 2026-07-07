@@ -24,7 +24,7 @@ type RedisConfig struct {
 	// (required) prevents multiple server nodes from receiving duplicate events
 	ConsumerGroup string `json:"consumerGroup"`
 	// (required) the number of max number messages received in poll attempt. each event is handled on a seperate goroutine.
-	PollCount int64 `json:"concurrency"`
+	PollCount int64 `json:"pollCount"`
 	// (required) specifies the substreams for a stream to be split into to enable sharding. an empty list will provide no streams
 	PartitionKeys []string `json:"partitionKeys"`
 	// (optional) change the behavior of the consumer for tests

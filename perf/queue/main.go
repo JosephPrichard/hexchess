@@ -59,7 +59,7 @@ func main() {
 	dbURL := os.Getenv("DB_URL")
 	runProfile := config.ParseProfile(os.Getenv("ACTIVE_PROFILE"))
 	// awsRegion := os.Getenv("AWS_REGION")
-	rdbSorNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
+	rdbPrimaryNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
 	// rdbSorUsername := os.Getenv("REDIS_SOR_USERNAME")
 	// rdbSorClusterName := os.Getenv("REDIS_SOR_CLUSTER_NAME")
 	oltpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
@@ -84,6 +84,11 @@ func main() {
 		{
 			PerfTestConfig: profileConfig[AdvanceTournamentEventName],
 			EventKind:      AdvanceTournamentEventName,
+			GenerateInput: func() []byte {
+
+				
+				return nil
+			},
 		},
 	}
 
@@ -101,7 +106,7 @@ func main() {
 	}
 
 	redisClient := redis.NewUniversalClient(&redis.UniversalOptions{
-		Addrs:          rdbSorNodes,
+		Addrs:          rdbPrimaryNodes,
 		DialTimeout:    5 * time.Second,
 		ReadTimeout:    3 * time.Second,
 		WriteTimeout:   3 * time.Second,

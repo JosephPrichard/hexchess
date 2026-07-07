@@ -18,6 +18,14 @@ type SetupConsumers struct {
 	Redis    db.Redis
 }
 
+// TotalPartitionCount is the total number of partitions created by ALL redis consumers
+// it can be computed in the function, but it is easier and clearer to keep it hardcoded.
+var (
+	TotalPartitionCount = 2 * GameConsumerPartitionCount
+	GameConsumerPartitionCount = len(GameConsumerPartitions)
+	GameConsumerPartitions = model.GameIDPartitions()
+)
+
 func StartConsumers(setup SetupConsumers) {
 	if setup.Ctx == nil {
 		setup.Ctx = context.Background()
@@ -39,7 +47,7 @@ func StartConsumers(setup SetupConsumers) {
 		},
 		&RedisConsumer{
 			ctx:         setup.Ctx,
-			redis:       setup.Redis.Primary,
+			redis:       setup.Redis.Consumer,
 			inserter:    setup.Postgres.Querier(),
 			consumeFunc: eventGateway.HandleFinishedGameEvent,
 
@@ -47,12 +55,12 @@ func StartConsumers(setup SetupConsumers) {
 				StreamKey:     setup.Redis.FinishGameStreamKey,
 				ConsumerGroup: setup.Redis.FinishGameConsumerGroup,
 				PollCount:     8,
-				PartitionKeys: model.GameIDPartitions(),
+				PartitionKeys: GameConsumerPartitions,
 			},
 		},
 		&RedisConsumer{
 			ctx:         setup.Ctx,
-			redis:       setup.Redis.Primary,
+			redis:       setup.Redis.Consumer,
 			inserter:    setup.Postgres.Querier(),
 			consumeFunc: eventGateway.HandleUpdtGameEvent,
 
@@ -60,7 +68,7 @@ func StartConsumers(setup SetupConsumers) {
 				StreamKey:     setup.Redis.UpdtGameMetaStreamKey,
 				ConsumerGroup: setup.Redis.UpdtGameMetaConsumerGroup,
 				PollCount:     8,
-				PartitionKeys: model.GameIDPartitions(),
+				PartitionKeys: GameConsumerPartitions,
 			},
 		},
 	}
@@ -88,7 +96,9 @@ func (gateway EventGateway) HandleFinishedGameEvent(ctx context.Context, bytes [
 	if err != nil {
 		return NonRetryableQueueError{Err: err}
 	}
+
 	slog.InfoContext(ctx, "handling finished game event", "gameID", event.GameID)
+
 	return gateway.services.InsertFinishedGame(ctx, event)
 }
 
@@ -97,7 +107,9 @@ func (gateway EventGateway) HandleUpdtGameEvent(ctx context.Context, bytes []byt
 	if err != nil {
 		return NonRetryableQueueError{Err: err}
 	}
+
 	slog.InfoContext(ctx, "handling update game metadata event", "gameID", event.GameID)
+
 	return gateway.services.UpdateGameMetadata(ctx, event)
 }
 
@@ -106,11 +118,13 @@ func (gateway EventGateway) HandleAdvanceTournamentEvent(ctx context.Context, by
 	if err != nil {
 		return NonRetryableQueueError{Err: err}
 	}
+
 	slog.InfoContext(ctx, "begin tournament advance event", "event", event)
 
 	_, err = gateway.services.AdvanceTournament(ctx, event.TournamentKey, event.EventID)
 	if errutil.IsType[svc.MatchInvariantError](err) {
 		return NonRetryableQueueError{Err: err}
+	} else {
+		return err
 	}
-	return err
 }

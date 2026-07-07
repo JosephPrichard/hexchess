@@ -46,6 +46,7 @@ var DefaultRedisNames = RedisNames{
 
 type Redis struct {
 	Primary    redis.UniversalClient
+	Consumer   redis.UniversalClient
 	PubSub     *redigo.Pool
 	PubsubAddr string `json:"pubsubAddr"`
 	RedisNames
@@ -73,6 +74,11 @@ type RedisConfig struct {
 	PrimaryAddr []string `json:"primaryAddr"`
 	PubsubAddr  string   `json:"pubsubAddr"`
 
+	// (optional) since consumers block an entire connection while reading
+	// we need a seperate pool with the pool size set to the expected number of consumers = (streams * partitions_per_steam)
+	// defaults to the redis connection pool default which is not suitable for the game events usecase
+	ConsumerPoolSize int `json:"consumerPoolSize"`
+
 	// (optional) cluster and username are required to retrieve AWS authentication tokens
 	SorClusterName    string `json:"sorClusterName"`
 	SorUsername       string `json:"userName"`
@@ -96,47 +102,62 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 	}
 
 	var primaryRefresher *RedisTokenRefresher
-	var pubsubRefresher *RedisTokenRefresher
+	var primaryCredsProvider RedisCredsProvider
 
-	redisClientOpts := &redis.UniversalOptions{
-		Addrs:          redisCfg.PrimaryAddr,
-		DialTimeout:    5 * time.Second,
-		ReadTimeout:    3 * time.Second,
-		WriteTimeout:   3 * time.Second,
-		MaxRedirects:   8,
-		RouteRandomly:  false,
-		RouteByLatency: false,
-	}
 	if redisCfg.ActiveProfile != config.Local {
 		primaryRefresher = NewRedisTokenRefresher(ctx, redisCfg.AWSRegion, redisCfg.SorUsername, redisCfg.SorClusterName)
-		redisClientOpts.CredentialsProvider = NewCredentialsProvider(primaryRefresher)
+		primaryCredsProvider = NewCredentialsProvider(primaryRefresher)
 	}
-	redisClient := redis.NewUniversalClient(redisClientOpts)
+
+	var pubsubRefresher *RedisTokenRefresher
+	var pubsubDialer RedisDialer
+
+	if redisCfg.ActiveProfile != config.Local {
+		pubsubRefresher = NewRedisTokenRefresher(ctx, redisCfg.AWSRegion, redisCfg.PubsubUsername, redisCfg.PubsubClusterName)
+		pubsubDialer = NewSecureDialer(pubsubRefresher, redisCfg.PubsubAddr)
+	} else {
+		pubsubDialer = func() (redigo.Conn, error) {
+			return redigo.Dial("tcp", redisCfg.PubsubAddr)
+		}
+	}
+
+	primaryRedisClient := redis.NewUniversalClient(&redis.UniversalOptions{
+		Addrs:               redisCfg.PrimaryAddr,
+		DialTimeout:         3 * time.Second,
+		ReadTimeout:         3 * time.Second,
+		WriteTimeout:        3 * time.Second,
+		MaxRedirects:        10,
+		CredentialsProvider: primaryCredsProvider,
+	})
+
+	consumerRedisClient := redis.NewUniversalClient(&redis.UniversalOptions{
+		Addrs:               redisCfg.PrimaryAddr,
+		PoolSize:            redisCfg.ConsumerPoolSize,
+		DialTimeout:         3 * time.Second,
+		ReadTimeout:         3 * time.Second,
+		WriteTimeout:        3 * time.Second,
+		MaxRedirects:        10,
+		CredentialsProvider: primaryCredsProvider,
+	})
 
 	var pubsubPool *redigo.Pool
 	if redisCfg.PubsubAddr != "" {
 		pubsubPool = &redigo.Pool{
 			MaxIdle:     1,
 			IdleTimeout: 240 * time.Second,
-		}
-		if redisCfg.ActiveProfile != config.Local {
-			pubsubRefresher = NewRedisTokenRefresher(ctx, redisCfg.AWSRegion, redisCfg.PubsubUsername, redisCfg.PubsubClusterName)
-			pubsubPool.Dial = NewSecureDialer(pubsubRefresher, redisCfg.PubsubAddr)
-		} else {
-			pubsubPool.Dial = func() (redigo.Conn, error) {
-				return redigo.Dial("tcp", redisCfg.PubsubAddr)
-			}
+			Dial:        pubsubDialer,
 		}
 	}
 
-	if err := redisClient.Ping(ctx).Err(); err != nil {
+	if err := primaryRedisClient.Ping(ctx).Err(); err != nil {
 		logutil.Fatal("execute redis startup cmd", err)
 	}
 
-	slog.Info("created redis client", "redisClientKind", fmt.Sprintf("%T", redisClient))
+	slog.Info("created redis client", "redisClientKind", fmt.Sprintf("%T", primaryRedisClient))
 
 	return Redis{
-		Primary:          redisClient,
+		Primary:          primaryRedisClient,
+		Consumer:         consumerRedisClient,
 		PubSub:           pubsubPool,
 		RedisNames:       *redisCfg.Names,
 		PubsubAddr:       redisCfg.PubsubAddr,
