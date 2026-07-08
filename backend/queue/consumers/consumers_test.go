@@ -3,7 +3,6 @@ package consumers
 import (
 	"context"
 	"hexchess-lib/async"
-	"hexchess-lib/optional"
 	"hexchess-lib/testutil"
 	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
@@ -45,6 +44,7 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 		ctx:         ctx,
 		pdb:         testinfra.DB,
 		consumeFunc: eventGateway.HandleAdvanceTournamentEvent,
+
 		PostgresConfig: PostgresConfig{
 			EventKind:    sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 			PollInterval: time.Microsecond,
@@ -100,8 +100,8 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		GameID:       newGameID,
 		Board:        chess.NewEmptyBoard(true),
 		Moves:        []chess.HistMove{},
-		WhitePlayer:  model.PlayerState{ID: whiteUser0.ID, Present: true}, // winner
-		BlackPlayer:  model.PlayerState{ID: blackUser1.ID, Present: true}, // loser
+		WhitePlayer:  whiteUser0.ID, // winner
+		BlackPlayer:  blackUser1.ID, // loser
 		ReplayMode:   model.ModeCorrespondence1,
 		ReplayCause:  model.Checkmate,
 		ReplayResult: model.WhiteWin,
@@ -118,7 +118,9 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		cancel:      cancel,
 		redis:       testinfra.Redis.Primary,
 		consumeFunc: eventGateway.HandleFinishedGameEvent,
-		dispatcher:  async.SyncDispatcher{},
+
+		inserter:   testinfra.DB.Querier(),
+		dispatcher: async.SyncDispatcher{},
 
 		RedisConfig: RedisConfig{
 			PollCount:     1,
@@ -168,8 +170,8 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 
 	updtGame := model.GameMetadataUpdt{
 		GameID:      gameID,
-		WhitePlayer: optional.Just(whiteUser0.ID),
-		BlackPlayer: optional.Just(blackUser1.ID),
+		WhitePlayer: whiteUser0.ID,
+		BlackPlayer: blackUser1.ID,
 		Mode:        model.ModeCorrespondence1,
 		FirstColor:  model.Random,
 	}
@@ -185,7 +187,9 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 		cancel:      cancel,
 		redis:       testinfra.Redis.Primary,
 		consumeFunc: eventGateway.HandleUpdtGameEvent,
-		dispatcher:  async.SyncDispatcher{},
+
+		inserter:   testinfra.DB.Querier(),
+		dispatcher: async.SyncDispatcher{},
 
 		RedisConfig: RedisConfig{
 			PollCount:     1,

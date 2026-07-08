@@ -41,8 +41,8 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				GameID:       newGameID,
 				Board:        chess.NewEmptyBoard(true),
 				Moves:        []chess.HistMove{},
-				WhitePlayer:  model.PlayerState{ID: testUser0.ID, Present: true}, // winner
-				BlackPlayer:  model.PlayerState{ID: testUser1.ID, Present: true}, // loser
+				WhitePlayer:  testUser0.ID, // winner
+				BlackPlayer:  testUser1.ID, // loser
 				ReplayMode:   model.ModeCorrespondence1,
 				ReplayCause:  model.Checkmate,
 				ReplayResult: model.WhiteWin,
@@ -81,8 +81,8 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				Board:  chess.NewEmptyBoard(true),
 				Moves:  []chess.HistMove{},
 				// used only for validation
-				WhitePlayer: model.PlayerState{ID: testUser0.ID, Present: true},
-				BlackPlayer: model.PlayerState{ID: testUser1.ID, Present: true},
+				WhitePlayer: testUser0.ID,
+				BlackPlayer: testUser1.ID,
 				// enum fields are ignored on a noop insertion.
 				ReplayMode:   model.ModeCorrespondence1,
 				ReplayCause:  model.Forfeit,
@@ -96,8 +96,8 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				GameID:       newGameIDGuest,
 				Board:        chess.NewEmptyBoard(true),
 				Moves:        []chess.HistMove{},
-				WhitePlayer:  model.PlayerState{ID: testUser0.ID, Present: true}, // non-guest winner
-				BlackPlayer:  model.PlayerState{ID: -10, Present: true},          // guest loser
+				WhitePlayer:  testUser0.ID, // non-guest winner
+				BlackPlayer:  -10,          // guest loser
 				ReplayMode:   model.ModeCorrespondence1,
 				ReplayCause:  model.Forfeit,
 				ReplayResult: model.BlackWin,

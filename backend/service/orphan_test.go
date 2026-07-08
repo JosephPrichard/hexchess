@@ -3,7 +3,6 @@ package svc
 import (
 	"bytes"
 	"fmt"
-	"hexchess-lib/awsutil"
 	"hexchess-svc/cloud"
 	"hexchess-svc/itest"
 	"testing"
@@ -48,5 +47,5 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 	}
 
 	assert.Equal(t, 1, len(objects.Contents))
-	assert.Equal(t, []string{profileKeyUserID1}, awsutil.KeysOfObjects(objects.Contents))
+	assert.Equal(t, []string{profileKeyUserID1}, keysOfObjects(objects.Contents))
 }

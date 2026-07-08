@@ -1,4 +1,4 @@
-module perf-queue-test
+module perf-test-queue
 
 go 1.25.0
 

@@ -4,7 +4,6 @@ VALUES (sqlc.arg('gameID'), sqlc.arg('mode'), sqlc.narg('whiteID'), sqlc.narg('b
         nextval('games_metadata_ordering_seq')) ON CONFLICT (game_id)
 DO
 UPDATE SET
-    game_id = sqlc.arg('gameID'),
     mode = sqlc.arg('mode'),
     white_id = sqlc.narg('whiteID'),
     black_id = sqlc.narg('blackID'),

@@ -10,7 +10,7 @@ type LogRecordHandler struct {
 	slog.Handler
 }
 
-var PropagatedLogKeys = []string{Trace, SessionID, MessageID}
+var PropagatedLogKeys = []string{Trace, SessionID, MessageID, GroupID, EventID, RequestID}
 
 func (h *LogRecordHandler) Handle(ctx context.Context, r slog.Record) error {
 	for _, key := range PropagatedLogKeys {

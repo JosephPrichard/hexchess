@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"hexchess-lib/optional"
 	"hexchess-lib/serrors"
 	"hexchess-svc/chess"
 	"time"
@@ -58,8 +57,8 @@ func (e ErrInvalidMove) Error() string {
 func mapMetadataUpdt(state *model.ChessState) model.GameMetadataUpdt {
 	return model.GameMetadataUpdt{
 		GameID:      state.ID,
-		WhitePlayer: optional.Maybe[int64]{Value: state.WhitePlayer.ID, IsPresent: state.WhitePlayer.Present},
-		BlackPlayer: optional.Maybe[int64]{Value: state.BlackPlayer.ID, IsPresent: state.BlackPlayer.Present},
+		WhitePlayer: state.WhitePlayer.ID,
+		BlackPlayer: state.BlackPlayer.ID,
 		Mode:        state.Mode,
 	}
 }
@@ -173,25 +172,29 @@ func (services *HexchessServices) NewGameMove(ctx context.Context, gameID model.
 		return nil
 	}
 	commit := func(pipe redis.Pipeliner, state *model.ChessState) error {
-		slog.InfoContext(ctx, "committing game state when making move", "player", player.ID, "gameID", gameID, "move", move)
+		slog.InfoContext(ctx, "committing game state when making move", "player", player.ID, "gameID", gameID)
 
-		if state.EndState.IsEnded() {
-			result := model.WhiteWin
-			if state.Game.Board.IsWhiteTurn {
-				result = model.BlackWin
-			}
-			if err := services.redisPublisher.PublishFinishGameEvent(ctx, pipe, model.FinishedGame{
-				GameID:       gameID,
-				WhitePlayer:  state.WhitePlayer,
-				BlackPlayer:  state.BlackPlayer,
-				ReplayMode:   state.Mode,
-				ReplayResult: result,
-				ReplayCause:  model.Checkmate,
-			}); err != nil {
-				return serrors.Wrap("push finished game event", err)
-			}
+		if !state.EndState.IsEnded() {
+			return nil
 		}
-		return nil
+		if !state.WhitePlayer.Present || !state.BlackPlayer.Present {
+			return nil
+		}
+
+		result := model.WhiteWin
+		if state.Game.Board.IsWhiteTurn {
+			result = model.BlackWin
+		}
+		
+		err := services.redisPublisher.PublishFinishGameEvent(ctx, pipe, model.FinishedGame{
+			GameID:       gameID,
+			WhitePlayer:  state.WhitePlayer.ID,
+			BlackPlayer:  state.BlackPlayer.ID,
+			ReplayMode:   state.Mode,
+			ReplayResult: result,
+			ReplayCause:  model.Checkmate,
+		})
+		return serrors.Wrap("push finished game event", err)
 	}
 	state, err := services.updateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {
@@ -283,24 +286,27 @@ func (services *HexchessServices) EndGame(ctx context.Context, gameID model.Game
 	commit := func(pipe redis.Pipeliner, state *model.ChessState) error {
 		slog.InfoContext(ctx, "commiting end game", "gameID", gameID)
 
-		if state.EndState == model.Finished || state.EndState == model.Aborted {
-			result := model.BlackWin
-			if state.BlackPlayer.ID == player.ID {
-				result = model.WhiteWin
-			}
-
-			if err := services.redisPublisher.PublishFinishGameEvent(ctx, pipe, model.FinishedGame{
-				GameID:       gameID,
-				WhitePlayer:  state.WhitePlayer,
-				BlackPlayer:  state.BlackPlayer,
-				ReplayMode:   state.Mode,
-				ReplayResult: result,
-				ReplayCause:  model.Forfeit,
-			}); err != nil {
-				return serrors.Wrap("push finished game event", err)
-			}
+		if state.EndState != model.Finished && state.EndState != model.Aborted {
+			return nil
 		}
-		return nil
+		if !state.WhitePlayer.Present || !state.BlackPlayer.Present {
+			return nil
+		}
+
+		result := model.BlackWin
+		if state.BlackPlayer.ID == player.ID {
+			result = model.WhiteWin
+		}
+
+		err := services.redisPublisher.PublishFinishGameEvent(ctx, pipe, model.FinishedGame{
+			GameID:       gameID,
+			WhitePlayer:  state.WhitePlayer.ID,
+			BlackPlayer:  state.BlackPlayer.ID,
+			ReplayMode:   state.Mode,
+			ReplayResult: result,
+			ReplayCause:  model.Forfeit,
+		})
+		return serrors.Wrap("push finished game event", err)
 	}
 	state, err := services.updateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {

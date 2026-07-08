@@ -446,7 +446,7 @@ type UserIDByNameRequest struct {
 func (services *HexchessServices) getUserIDsByUsernames(ctx context.Context, requests []UserIDByNameRequest) error {
 	var usernames []string
 	for _, request := range requests {
-		if !request.Username.IsPresent {
+		if !request.Username.Present {
 			continue
 		}
 		usernames = append(usernames, request.Username.Value)
@@ -468,7 +468,7 @@ func (services *HexchessServices) getUserIDsByUsernames(ctx context.Context, req
 	}
 
 	for _, request := range requests {
-		if !request.Username.IsPresent {
+		if !request.Username.Present {
 			continue
 		}
 		userID, exists := userIDs[request.Username.Value]

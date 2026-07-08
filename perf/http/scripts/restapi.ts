@@ -35,153 +35,150 @@ const gamesCount = parseInt(__ENV.GAMES_COUNT) || 100;
 
 const profile = __ENV.PROFILE || "smoke";
 
-function getArrivalRate() {
-    if (profile === "smoke") {
-        return {
-            executor: "constant-arrival-rate",
-            rate: 1,
-            timeUnit: "1s",
-            duration: "5s",
-            preAllocatedVUs: 1,
-            maxVUs: 2,
-        };
-    } else if (profile === "capacity") {
-        return {
-            executor: "constant-arrival-rate",
-            rate: 20,
-            timeUnit: "1s",
-            duration: "1m",
-            preAllocatedVUs: 10,
-            maxVUs: 100,
-        };
+const configs: Record<string, any> = {
+    "smoke": {
+        executor: "constant-arrival-rate",
+        rate: 1,
+        timeUnit: "1s",
+        duration: "5s",
+        preAllocatedVUs: 1,
+        maxVUs: 2,
+    },
+    "capacity": {
+        executor: "constant-arrival-rate",
+        rate: 20,
+        timeUnit: "1s",
+        duration: "1m",
+        preAllocatedVUs: 10,
+        maxVUs: 100,
     }
-}
+};
 
 export const options = {
     scenarios: {
         // GET testdefs
         // leaderboard
         getLeaderboard: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "getLeaderboard",
         },
         // replays
         searchReplays: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "searchReplays",
         },
         searchReplaysWinnerIDLoserID: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "searchReplaysWinnerIDLoserID",
         },
         searchReplaysWhiteIDBlackID: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "searchReplaysWhiteIDBlackID",
         },
         searchReplaysTimeframe: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "searchReplaysTimeframe",
         },
         searchReplaysModeResultCause: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "searchReplaysModeResultCause",
         },
         getReplay_ReplayID: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "getReplay_ReplayID",
         },
         getReplayMoveList: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "getReplayMoveList",
         },
         // players / users
         searchPlayers: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "searchPlayers",
         },
         getPlayer: {
-            ...getArrivalRate(), 
+            ...configs[profile], 
             exec: "getPlayer",
         },
         getSelfPlayer: {
-             ...getArrivalRate(), 
+             ...configs[profile], 
             exec: "getSelfPlayer",
         },
         getPlayerActivity: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "getPlayerActivity",
         },
         getProfilePic: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "getProfilePic",
         },
         // game /rooms
         getGameRooms: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "getGameRooms",
         },
         getGameChats: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "getGameChats",
         },
         getGameRoomExists: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "getGameRoomExists",
         },
         // tournaments
         getTournament: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "getTournament",
         },
         getTournaments: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "getTournaments",
         },
         // challenges
         getChallenges: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "getChallenges",
         },
         getChallengesCount: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "getChallengesCount",
         },
         // replay elo histories
         getEloHistories: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "getEloHistories",
         },
         // POST testdefs
         // session
         postCreateTempSession: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "postCreateTempSession",
         },
         postRefreshSession: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "postRefreshSession"
         },
         // users
         postUpdateUser: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "postUpdateUser",
         },
         postUploadProfilePic: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "postUploadProfilePic",
         },
         // challenges
         postCreateChallenge: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "postCreateChallenge",
         },
         postUpdateChallenge: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "postUpdateChallenge",
         },
         // games
         postCreateGame: {
-            ...getArrivalRate(),
+            ...configs[profile],
             exec: "postCreateGame",
         }
     },
@@ -234,16 +231,18 @@ const endpointNames = [
     "PostUpdateChallenge",
     "PostUploadProfilePic",
     "PostUpdateUser",
-];
+] as const;
 
-const endpointTrends: Record<string, Trend> = {};
+type EndpointName = (typeof endpointNames)[number];
+
+const endpointTrends: Map<EndpointName, Trend> = new Map();
 for (const name of endpointNames) {
     // `true` marks this as a time metric so k6 formats values as durations (ms) in the summary.
-    endpointTrends[name] = new Trend(`${name}_duration`, true);
+    endpointTrends.set(name, new Trend(`${name}_duration`, true));
 }
 
-function recordDuration(name: string, resp: { timings: { duration: number } }) {
-    endpointTrends[name].add(resp.timings.duration);
+function recordDuration(name: EndpointName, resp: { timings: { duration: number } }) {
+    endpointTrends.get(name)?.add(resp.timings.duration);
 }
 
 // GET test implementations

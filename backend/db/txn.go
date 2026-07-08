@@ -3,10 +3,9 @@ package db
 import (
 	"context"
 	"errors"
+	"hexchess-lib/timeutil"
 	"hexchess-svc/db/sqlc"
 	"log/slog"
-	"math"
-	"math/rand"
 	"slices"
 	"time"
 
@@ -75,8 +74,7 @@ func (pdb *ImplDB) ExecTx(ctx context.Context, args TxArgs) error {
 
 		if isSerializationFailure(err) {
 			slog.WarnContext(ctx, "retrying transaction", "error", err, "retry", i)
-
-			time.Sleep(exponentialBackoff(i, 2, 50*time.Millisecond))
+			timeutil.Sleep(i, 2, 50*time.Millisecond)
 			continue
 		}
 		break
@@ -91,10 +89,4 @@ func (pdb *ImplDB) ExecTx(ctx context.Context, args TxArgs) error {
 func isSerializationFailure(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && (pgErr.Code == ErrPgSerializationFailure || pgErr.Code == ErrPgDeadlock)
-}
-
-func exponentialBackoff(retry int, multiplier float64, base time.Duration) time.Duration {
-	backoff := float64(base) * math.Pow(multiplier, float64(retry))
-	jitter := rand.Float64() * float64(base)
-	return time.Duration(backoff + jitter)
 }

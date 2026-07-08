@@ -2,7 +2,6 @@ package consumers
 
 import (
 	"context"
-	"hexchess-lib/errutil"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/model"
@@ -10,6 +9,12 @@ import (
 	"log/slog"
 	"time"
 )
+
+type Consumer interface {
+	Consume()
+}
+
+type ConsumeFunc func(ctx context.Context, bytes []byte) error
 
 type SetupConsumers struct {
 	Ctx      context.Context
@@ -21,9 +26,9 @@ type SetupConsumers struct {
 // TotalPartitionCount is the total number of partitions created by ALL redis consumers
 // it can be computed in the function, but it is easier and clearer to keep it hardcoded.
 var (
-	TotalPartitionCount = 2 * GameConsumerPartitionCount
+	TotalPartitionCount        = 2 * GameConsumerPartitionCount
 	GameConsumerPartitionCount = len(GameConsumerPartitions)
-	GameConsumerPartitions = model.GameIDPartitions()
+	GameConsumerPartitions     = model.GameIDPartitions()
 )
 
 func StartConsumers(setup SetupConsumers) {
@@ -78,53 +83,5 @@ func StartConsumers(setup SetupConsumers) {
 	for _, consumer := range consumers {
 		go consumer.Consume()
 		slog.InfoContext(setup.Ctx, "started consumer", "consumer", consumer)
-	}
-}
-
-type Consumer interface {
-	Consume()
-}
-
-type ConsumeFunc func(ctx context.Context, bytes []byte) error
-
-type EventGateway struct {
-	services *svc.HexchessServices
-}
-
-func (gateway EventGateway) HandleFinishedGameEvent(ctx context.Context, bytes []byte) error {
-	event, err := model.UnmarshalFinishedGame(bytes)
-	if err != nil {
-		return NonRetryableQueueError{Err: err}
-	}
-
-	slog.InfoContext(ctx, "handling finished game event", "gameID", event.GameID)
-
-	return gateway.services.InsertFinishedGame(ctx, event)
-}
-
-func (gateway EventGateway) HandleUpdtGameEvent(ctx context.Context, bytes []byte) error {
-	event, err := model.UnmarshalGameMetadataUpdt(bytes)
-	if err != nil {
-		return NonRetryableQueueError{Err: err}
-	}
-
-	slog.InfoContext(ctx, "handling update game metadata event", "gameID", event.GameID)
-
-	return gateway.services.UpdateGameMetadata(ctx, event)
-}
-
-func (gateway EventGateway) HandleAdvanceTournamentEvent(ctx context.Context, bytes []byte) error {
-	event, err := model.UnmarshalAdvanceTournamentEvent(bytes)
-	if err != nil {
-		return NonRetryableQueueError{Err: err}
-	}
-
-	slog.InfoContext(ctx, "begin tournament advance event", "event", event)
-
-	_, err = gateway.services.AdvanceTournament(ctx, event.TournamentKey, event.EventID)
-	if errutil.IsType[svc.MatchInvariantError](err) {
-		return NonRetryableQueueError{Err: err}
-	} else {
-		return err
 	}
 }

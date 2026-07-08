@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-lib/enum"
-	"hexchess-lib/optional"
 	"hexchess-lib/serrors"
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
@@ -22,14 +21,11 @@ func UnmarshalPlayer(bytes []byte) (PlayerState, error) {
 	if err := proto.Unmarshal(bytes, &pbPlayer); err != nil {
 		return PlayerState{}, err
 	}
-	return PlayerState{ID: pbPlayer.Id, Name: pbPlayer.Name, Country: pbPlayer.Country, Present: true}, nil
+	return DeserializePlayer(&pbPlayer), nil
 }
 
 func MarshalPlayer(player PlayerState) ([]byte, error) {
-	pbPlayer := pb.PlayerState{
-		Id: player.ID, Name: player.Name, Country: player.Country, IsGuest: IsGuestID(player.ID),
-	}
-	return proto.Marshal(&pbPlayer)
+	return proto.Marshal(SerializePlayer(player))
 }
 
 func DeserializePlayer(pbPlayer *pb.PlayerState) PlayerState {
@@ -253,8 +249,8 @@ func UnmarshalFinishedGame(bytes []byte) (FinishedGame, error) {
 		GameID:       GameID(pbGameEvent.GameId),
 		Board:        board,
 		Moves:        chess.DeserializeHistMoveList(pbGameEvent.Moves),
-		WhitePlayer:  DeserializePlayer(pbGameEvent.WhitePlayer),
-		BlackPlayer:  DeserializePlayer(pbGameEvent.BlackPlayer),
+		WhitePlayer:  pbGameEvent.WhitePlayer,
+		BlackPlayer:  pbGameEvent.BlackPlayer,
 		ReplayMode:   mode,
 		ReplayResult: replayResult,
 		ReplayCause:  replayCause,
@@ -266,8 +262,8 @@ func MarshalFinishedGame(event FinishedGame) ([]byte, error) {
 		GameId:       event.GameID.String(),
 		Board:        chess.SerializeBoard(&event.Board),
 		Moves:        chess.SerializeMoveList(event.Moves),
-		WhitePlayer:  SerializePlayer(event.WhitePlayer),
-		BlackPlayer:  SerializePlayer(event.BlackPlayer),
+		WhitePlayer:  event.WhitePlayer,
+		BlackPlayer:  event.BlackPlayer,
 		GameMode:     event.ReplayMode.String(),
 		ReplayResult: event.ReplayResult.String(),
 		ReplayCause:  event.ReplayCause.String(),
@@ -290,8 +286,8 @@ func UnmarshalGameMetadataUpdt(bytes []byte) (GameMetadataUpdt, error) {
 
 	return GameMetadataUpdt{
 		GameID:      GameID(pbGameEvent.GameId),
-		WhitePlayer: optional.Maybe[int64]{Value: pbGameEvent.WhitePlayer, IsPresent: pbGameEvent.WhitePlayer >= 0},
-		BlackPlayer: optional.Maybe[int64]{Value: pbGameEvent.BlackPlayer, IsPresent: pbGameEvent.BlackPlayer >= 0},
+		WhitePlayer: pbGameEvent.WhitePlayer,
+		BlackPlayer: pbGameEvent.BlackPlayer,
 		FirstColor:  firstColor,
 		Mode:        mode,
 	}, nil
@@ -300,8 +296,8 @@ func UnmarshalGameMetadataUpdt(bytes []byte) (GameMetadataUpdt, error) {
 func MarshalGameMetadataUpdt(event GameMetadataUpdt) ([]byte, error) {
 	return proto.Marshal(&pb.UpdtMetadataEvent{
 		GameId:      event.GameID.String(),
-		WhitePlayer: event.WhitePlayer.OrElse(-1),
-		BlackPlayer: event.BlackPlayer.OrElse(-1),
+		WhitePlayer: event.WhitePlayer,
+		BlackPlayer: event.BlackPlayer,
 		FirstColor:  event.FirstColor.String(),
 		Mode:        event.Mode.String(),
 	})

@@ -187,13 +187,13 @@ func mapFullTournament(args mapFullTournamentArgs) model.FullTournament {
 }
 
 func (services *HexchessServices) GetTournaments(ctx context.Context, participantID optional.Maybe[int64], afterID optional.Maybe[int64], perPage int32) ([]model.Tournament, error) {
-	if !afterID.IsPresent {
+	if !afterID.Present {
 		afterID.Value = int64(math.MaxInt64)
 	}
 
 	var tournaments []model.Tournament
 
-	if participantID.IsPresent {
+	if participantID.Present {
 		tournamentRows, err := services.querier.SelectTournamentsByParticipant(ctx, sqlc.SelectTournamentsByParticipantParams{
 			UserID:  participantID.Value,
 			AfterID: afterID.Value,

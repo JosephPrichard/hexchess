@@ -91,7 +91,7 @@ func main() {
 	awsRegion := os.Getenv("AWS_REGION")
 	rdbSorNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
 	rdbSorUsername := os.Getenv("REDIS_SOR_USERNAME")
-	rdbSorClusterName := os.Getenv("REDIS_SOR_CLUSTER_NAME")
+	rdbSorPassword := os.Getenv("REDIS_SOR_PASSWORD")
 	oltpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 
 	start := time.Now()
@@ -108,10 +108,10 @@ func main() {
 	defer pdb.Close()
 
 	rdb := db.NewRedis(ctx, db.RedisConfig{
-		PrimaryAddr:    rdbSorNodes,
-		SorUsername:    rdbSorUsername,
-		SorClusterName: rdbSorClusterName,
-		ActiveProfile:  profile,
+		PrimaryAddr:     rdbSorNodes,
+		PrimaryUsername: rdbSorUsername,
+		PrimaryPassword: rdbSorPassword,
+		ActiveProfile:   profile,
 	})
 	defer rdb.Close()
 

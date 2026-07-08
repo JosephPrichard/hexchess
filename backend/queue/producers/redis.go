@@ -28,6 +28,7 @@ func (p *RedisPublisher) PublishFinishGameEvent(ctx context.Context, xadder Redi
 	if err != nil {
 		return serrors.Wrap("marshal finish game event", err)
 	}
+
 	xArgs := &redis.XAddArgs{
 		Stream: queue.FmtGameStreamKey(p.redis.FinishGameStreamKey, finishedGame.GameID),
 		Values: map[string]any{"data": string(bytes)},
@@ -36,6 +37,7 @@ func (p *RedisPublisher) PublishFinishGameEvent(ctx context.Context, xadder Redi
 	if err != nil {
 		return serrors.Wrap("marshal finished game event", err, "finishedGame", finishedGame)
 	}
+
 	slog.InfoContext(ctx, "published finished game event", "msgID", msgID, "gameID", finishedGame.GameID, "streamKey", xArgs.Stream)
 	return nil
 }
@@ -45,6 +47,7 @@ func (p *RedisPublisher) PublishUpdtGameEvent(ctx context.Context, xadder RedisX
 	if err != nil {
 		return serrors.Wrap("marshal update game event", err)
 	}
+
 	xArgs := &redis.XAddArgs{
 		Stream: queue.FmtGameStreamKey(p.redis.UpdtGameMetaStreamKey, gameUpdt.GameID),
 		Values: map[string]any{"data": string(bytes)},
@@ -53,6 +56,7 @@ func (p *RedisPublisher) PublishUpdtGameEvent(ctx context.Context, xadder RedisX
 	if err != nil {
 		return serrors.Wrap("xadd update game event", err, "gameUpdt", gameUpdt)
 	}
+
 	slog.InfoContext(ctx, "published update game event", "msgID", msgID, "gameUpdt", gameUpdt, "streamKey", xArgs.Stream)
 	return nil
 }

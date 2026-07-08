@@ -10,13 +10,16 @@ PERF_DIR        := perf
 CONTRACTS_DIR   := contracts
 BACK_WASM_DIR   := $(BACKEND_DIR)/browser
 PERF_K6_DIR     := $(PERF_DIR)/k6
+PERF_QUE_DIR    := $(PERF_DIR)/queue
+PERF_HTTP_DIR   := $(PERF_DIR)/http/scripts
 
 # Artefact dirs
 SERVER_ENTRY    := cmd/server/main.go
 
 # Proto output dirs
 SVC_PB_OUT      := $(BACKEND_DIR)/pb
-PERF_PB_OUT     := $(PERF_K6_DIR)/pb
+PERF_PB_K6_OUT  := $(PERF_K6_DIR)/pb
+PERF_PB_QUE_OUT := $(PERF_QUE_DIR)/pb
 UI_PB_OUT       := src/lib/pb
 
 # WASM paths
@@ -29,7 +32,7 @@ UI_WASM_DIR     := $(UI_DIR)/static/wasm
 # Build All
 all: backend frontend perf
 
-protos: proto-backend proto-frontend
+protos: proto-backend proto-frontend proto-perf
 
 # Reusable
 define protoc_go
@@ -76,7 +79,8 @@ install-wasm:
 perf: proto-perf k6-build
 
 proto-perf:
-	$(call protoc_go,$(PERF_PB_OUT))
+	$(call protoc_go,$(PERF_PB_K6_OUT))
+	$(call protoc_go,$(PERF_PB_QUE_OUT))
 
 k6-build:
 	cd $(PERF_K6_DIR) && go build -o ./k6 .
@@ -90,9 +94,9 @@ wasm-test:
 	cd $(BACK_WASM_DIR) && GOOS=js GOARCH=wasm go test -timeout=60s -exec $(GOPATH)/bin/wasmbrowsertest
 
 perf-test:
-	./$(PERF_K6_DIR)/k6 version
-# 	./$(PERF_K6_DIR)/k6 run ./$(PERF_DIR)/http/scripts/restapi.ts
-	./$(PERF_K6_DIR)/k6 run ./$(PERF_DIR)/http/scripts/gamesockets.ts
+# 	./$(PERF_K6_DIR)/k6 run ./$(PERF_HTTP_DIR)/restapi.ts
+	./$(PERF_K6_DIR)/k6 run ./$(PERF_HTTP_DIR)/gamesockets.ts
+	go run ./$(PERF_QUE_DIR)/main.go
 
 test: backend-test wasm-test perf-test
 

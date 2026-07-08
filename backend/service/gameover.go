@@ -22,12 +22,8 @@ import (
 func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGame model.FinishedGame) error {
 	var changeSet GameResultChangeSet
 
-	if !finishedGame.WhitePlayer.Present || !finishedGame.BlackPlayer.Present {
-		slog.WarnContext(ctx, "both players must be id on a finished game", "gameID", finishedGame.GameID)
-		return nil
-	}
-	whiteID := finishedGame.WhitePlayer.ID
-	blackID := finishedGame.BlackPlayer.ID
+	whiteID := finishedGame.WhitePlayer
+	blackID := finishedGame.BlackPlayer
 
 	moveHistBlob, err := chess.MarshalMoveHistory(finishedGame.Board, finishedGame.Moves)
 	if err != nil {

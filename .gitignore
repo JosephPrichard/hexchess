@@ -14,8 +14,7 @@
 
 backend/app.log
 backend/.env
-backend/pb/*
-perf/k6/pb/*
+*pb.go
 backend/db/sqlc
 
 frontend/src/lib/pb/*

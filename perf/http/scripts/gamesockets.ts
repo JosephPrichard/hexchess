@@ -1,12 +1,11 @@
 import http from "k6/http";
-import { EventName, WebSocket, MessageEvent, ErrorEvent, BinaryType } from "k6/websockets";
 import { Session, setupSessions } from "./setup.ts"
 import { gameModes, pickElement, makeSessionParams, pickNSessions } from "./testdata.ts"
 import { TrendCounter } from "./trends.ts";
 
-// ignore typechecking for CDN imports and K6 extensions
-// @ts-ignore
 import { runGameSockets } from "k6/x/hexchess/websocket";
+import "./hexchess.d.ts"
+import { Options } from "k6/options";
 
 const restProtocol = __ENV.PROTOCOL ?? "http";
 const wsProtocol = __ENV.PROTOCOL ?? "ws";
@@ -19,8 +18,7 @@ const usersCount = parseInt(__ENV.USERS_COUNT) || 10;
 const playersCount = parseInt(__ENV.PLAYERS_COUNT) || 2;
 const maxMoves = parseInt(__ENV.MAX_MOVES) || 50;
 
-let timeoutSecs: number = 0;
-let staggerMs: number = 0;
+const profile = __ENV.PROFILE || "smoke";
 
 if (usersCount < playersCount) {
     throw new Error("total users count must be at least number of players per game");
@@ -29,38 +27,40 @@ if (playersCount < 2) {
     throw new Error("players per game count should be at least 2");
 }
 
-const profile = __ENV.PROFILE || "smoke";
-
-const gamesocketScenario = function() {
-    if (profile === "smoke") {
-        staggerMs = 0;
-        return {
+const configs: Record<string, any> = {
+    "smoke": {
+        options: {
             executor: "shared-iterations",
             vus: 1,
             iterations: 1,
             maxDuration: "60s",
-        };
-    } else if (profile === "capacity") {
-        staggerMs = 250;
-        return {
+        },
+        staggerMs: 0,
+        timeoutSecs: 0
+    },
+    "capacity": {
+        options: {
             executor: "constant-vus",
             vus: 50,
             duration: "5m",
-        };
-    } else if (profile === "idle") {
-        const staggerSecs = 10;
-        staggerMs = 1000 * staggerSecs;
-        timeoutSecs = staggerSecs * (maxMoves + 1);
-        return {
+        },
+        staggerMs: 250,
+        timeoutSecs: 0
+    },
+    "idle": {
+        options: {
             executor: "constant-vus",
             vus: 1000,
             duration: "5m",
-        };
+        },
+        staggerMs: 10 * 1000,
+        timeoutSecs: 10 * (maxMoves + 1)
     }
-}();
+};
+const profileConfig = configs[profile];
 
 export const options = {
-    scenarios: { gamesocket: gamesocketScenario },
+    scenarios: { gamesocket: profileConfig.options },
 }
 
 type SetupData = {
@@ -113,8 +113,8 @@ export default function (data: SetupData) {
         targetEndpoint: wsBaseUrl,
         gameId: gameId,
         sessionIds: tempSessionIds,
-        staggerMs: staggerMs,
-        timeoutSecs: timeoutSecs,
+        staggerMs: profileConfig.staggerMs,
+        timeoutSecs: profileConfig.timeoutSecs,
         maxMoves: maxMoves
     });
     if (error) {

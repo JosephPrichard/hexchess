@@ -23,6 +23,9 @@ var (
 	Trace     = "trace"
 	MessageID = "messageID"
 	SessionID = "sessionID"
+	GroupID   = "groupID"
+	EventID   = "eventID"
+	RequestID = "requestID"
 )
 
 func Log(ctx context.Context, msg string, err error, args ...any) {

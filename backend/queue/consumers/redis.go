@@ -7,6 +7,7 @@ import (
 	"hexchess-lib/async"
 	"hexchess-lib/errutil"
 	"hexchess-lib/logutil"
+	"hexchess-lib/timeutil"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/queue"
 	"log/slog"
@@ -80,7 +81,6 @@ func (consumer *RedisConsumer) ConsumePartition(partitionKey string) {
 			consumer.cancel()
 		}
 
-		start := time.Now()
 		ctx := context.WithValue(consumer.ctx, logutil.Trace, uuid.NewString())
 
 		xArgs := &redis.XReadGroupArgs{
@@ -92,14 +92,14 @@ func (consumer *RedisConsumer) ConsumePartition(partitionKey string) {
 		}
 		entries, err := consumer.redis.XReadGroup(ctx, xArgs).Result()
 		if errors.Is(err, context.Canceled) {
-			slog.InfoContext(ctx, "context cancelled, exiting consume partition loop", "stream", stream)
+			slog.InfoContext(ctx, "context cancelled, exiting consume partition loop", "stream", consumer.StreamKey)
 			return
 		} else if err != nil {
-			slog.ErrorContext(ctx, "failed to read from redis stream", "error", err, "stream", stream)
+			slog.ErrorContext(ctx, "failed to read from redis stream", "error", err, "stream", consumer.StreamKey)
 			continue
 		}
 
-		slog.InfoContext(ctx, "begin redis stream consume operation", "stream", stream)
+		start := time.Now()
 
 		for _, entry := range entries {
 			for _, msg := range entry.Messages {
@@ -112,7 +112,7 @@ func (consumer *RedisConsumer) ConsumePartition(partitionKey string) {
 		waitGroup.Wait()
 		metrics.Persist()
 
-		slog.InfoContext(ctx, "end redis stream consume operation", "stream", stream, "timeTaken", time.Since(start).String())
+		slog.InfoContext(ctx, "redis stream consume operation", "stream", stream, "timeTaken", time.Since(start).String())
 	}
 }
 
@@ -125,8 +125,7 @@ func (consumer *RedisConsumer) handleXReadMessage(ctx context.Context, metrics *
 		return
 	}
 
-	anyGroupID := msg.Values["groupId"]
-	groupIDStr, _ := anyGroupID.(string)
+	groupIDStr, _ := msg.Values["groupId"].(string)
 
 	consumedOn := time.Now()
 
@@ -143,20 +142,26 @@ func (consumer *RedisConsumer) handleXReadMessage(ctx context.Context, metrics *
 		return
 	}
 
-	groupID, err := uuid.Parse(groupIDStr)
-	if err != nil {
-		slog.WarnContext(ctx, "received invalid group id on stream", "error", err)
-		groupID = uuid.New()
+	groupID := uuid.New()
+	if groupIDStr != "" {
+		parsedGroupID, err := uuid.Parse(groupIDStr)
+		if err != nil {
+			slog.WarnContext(ctx, "received invalid group id on stream", "groupIDStr", groupIDStr, "error", err)
+		} else {
+			groupID = parsedGroupID
+		}
 	}
+	
 	metrics.Collect(RedisEventMetric{
 		StreamName:  consumer.StreamKey,
 		GroupID:     groupID,
+		EventID:     uuid.New(),
 		ConsumedOn:  consumedOn,
 		ProcessedOn: time.Now(),
 	})
-}
 
-const InsertRedisEventMetricMaxRetries = 3
+	slog.InfoContext(ctx, "redis stream consume operation", "stream", consumer.StreamKey, "timeTaken", time.Since(consumedOn).String())
+}
 
 type RedisEventResultInserter interface {
 	InsertRedisEventMetas(ctx context.Context, arg []sqlc.InsertRedisEventMetasParams) *sqlc.InsertRedisEventMetasBatchResults
@@ -165,6 +170,7 @@ type RedisEventResultInserter interface {
 type RedisEventMetric struct {
 	StreamName  string
 	GroupID     uuid.UUID
+	EventID     uuid.UUID
 	ConsumedOn  time.Time
 	ProcessedOn time.Time
 }
@@ -192,9 +198,10 @@ func (c *RedisMetricCollector) Persist() {
 	for _, metric := range c.metrics {
 		rows = append(rows, sqlc.InsertRedisEventMetasParams{
 			GroupId:     pgtype.UUID{Bytes: metric.GroupID, Valid: true},
+			EventId:     pgtype.UUID{Bytes: metric.EventID, Valid: true},
 			StreamName:  metric.StreamName,
 			ConsumedOn:  pgtype.Timestamptz{Time: metric.ConsumedOn, Valid: true},
-			ProcessedOn: pgtype.Timestamptz{Time: metric.ConsumedOn, Valid: true},
+			ProcessedOn: pgtype.Timestamptz{Time: metric.ProcessedOn, Valid: true},
 		})
 	}
 
@@ -203,17 +210,14 @@ func (c *RedisMetricCollector) Persist() {
 	c.dispatcher.Go(func() { c.insertRedisMetrics(rows) })
 }
 
-func (c *RedisMetricCollector) insertRedisMetrics(metrics []sqlc.InsertRedisEventMetasParams) {
-	defer func() {
-		if err := recover(); err != nil {
-			slog.Error("failed to insert redis event metric", "error", err)
-		}
-	}()
+const InsertRedisEventMetricMaxRetries = 3
 
+func (c *RedisMetricCollector) insertRedisMetrics(metrics []sqlc.InsertRedisEventMetasParams) {
 	var batchErr error
 	maxRetries := InsertRedisEventMetricMaxRetries
 
 	for i := range maxRetries {
+		batchErr = nil
 		// metric insertions fail individually, it is safe to retry the entire batch if any fails because each insert is idempotent
 		c.inserter.InsertRedisEventMetas(context.Background(), metrics).Exec(func(index int, err error) {
 			batchErr = errors.Join(batchErr, err)
@@ -222,7 +226,7 @@ func (c *RedisMetricCollector) insertRedisMetrics(metrics []sqlc.InsertRedisEven
 			return
 		}
 		slog.Warn("failed to insert redis event metric", "error", batchErr, "attempt", i)
-		batchErr = nil
+		timeutil.Sleep(i, 2, 200*time.Millisecond)
 	}
 
 	slog.Error("exhausted retries while inserting redis event metric", "error", batchErr, "maxRetries", maxRetries)

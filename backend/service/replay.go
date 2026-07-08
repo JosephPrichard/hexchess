@@ -132,7 +132,7 @@ func (r ReplayQuerySortKey) String() string { return enum.String(r, replayQueryS
 
 func supplyUserID(id *optional.Maybe[int64]) func(int64) {
 	return func(userID int64) {
-		if !id.IsPresent {
+		if !id.Present {
 			*id = optional.Just(userID)
 		}
 	}
@@ -158,8 +158,8 @@ func (services *HexchessServices) SearchReplaysByQuery(ctx context.Context, quer
 	afterRating := query.AfterRating.OrElse(math.MaxFloat64)
 
 	// uses the unix epoch in days for range queries on date. this truncates away timestamp precision regarding hours, seconds, etc.
-	fromDateDays := optional.Maybe[int32]{Value: timeutil.ToDayEpoch(query.FromDate.Value), IsPresent: query.FromDate.IsPresent}
-	toDateDays := optional.Maybe[int32]{Value: timeutil.ToDayEpoch(query.ToDate.Value), IsPresent: query.ToDate.IsPresent}
+	fromDateDays := optional.Maybe[int32]{Value: timeutil.ToDayEpoch(query.FromDate.Value), Present: query.FromDate.Present}
+	toDateDays := optional.Maybe[int32]{Value: timeutil.ToDayEpoch(query.ToDate.Value), Present: query.ToDate.Present}
 
 	params := sqlc.SelectReplaysByQueryParams{
 		PerPage: query.PerPage,

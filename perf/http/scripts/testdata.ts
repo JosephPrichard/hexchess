@@ -1,5 +1,15 @@
 import { Session } from "./setup.ts";
 
+const minUserID = 1;
+const maxUserID = parseInt(__ENV.MAX_USER_ID) || 1000;
+
+// seed script will generate a sequence of continously increasing uuids, starting from 0, so we can safely randrange a tournament key
+const minTournamentKey = 1;
+const maxTournamentKey = parseInt(__ENV.MAX_TOURNAMENT_KEY) || 250;
+
+const minReplayID = 1;
+const maxReplayID = parseInt(__ENV.MAX_REPLAY_ID) || 5000;
+
 export const gameModes = [
     "CORRESPONDENCE_1",
     "CORRESPONDENCE_7",
@@ -100,16 +110,6 @@ export function randDate(year: number) {
     const month = String(randrange(1, 12)).padStart(2, '0');
     return `${String(year)}-${month}-${days}`;
 }
-
-const minUserID = 1;
-const maxUserID = 1000;
-
-// seed script will generate a sequence of continously increasing uuids, starting from 0, so we can safely randrange a tournament key
-const minTournamentKey = 1;
-const maxTournamentKey = 250;
-
-const minReplayID = 1;
-const maxReplayID = 5000;
 
 function intToUUID(b: bigint) {
   // convert to 128-bit hex string (32 hex chars, zero-padded)

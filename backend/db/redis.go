@@ -50,8 +50,6 @@ type Redis struct {
 	PubSub     *redigo.Pool
 	PubsubAddr string `json:"pubsubAddr"`
 	RedisNames
-	primaryRefresher *RedisTokenRefresher
-	pubsubRefresher  *RedisTokenRefresher
 }
 
 func (rdb *Redis) Close() {
@@ -60,12 +58,6 @@ func (rdb *Redis) Close() {
 	}
 	if rdb.PubSub != nil {
 		rdb.PubSub.Close()
-	}
-	if rdb.primaryRefresher != nil {
-		rdb.primaryRefresher.Shutdown()
-	}
-	if rdb.pubsubRefresher != nil {
-		rdb.pubsubRefresher.Shutdown()
 	}
 }
 
@@ -79,16 +71,15 @@ type RedisConfig struct {
 	// defaults to the redis connection pool default which is not suitable for the game events usecase
 	ConsumerPoolSize int `json:"consumerPoolSize"`
 
-	// (optional) cluster and username are required to retrieve AWS authentication tokens
-	SorClusterName    string `json:"sorClusterName"`
-	SorUsername       string `json:"userName"`
-	PubsubClusterName string `json:"pubsubClusterName"`
-	PubsubUsername    string `json:"pubsubUsername"`
+	// (optional) username and password authentication is used for non-local setups
+	// password authentication is an additional security layer, we're we really rely on network ACLs and firewalls to make redis access secure
+	PrimaryUsername string `json:"primaryUsername"`
+	PrimaryPassword string `json:"primaryPassword"`
+	PubsubUsername  string `json:"pubsubUsername"`
+	PubsubPassword  string `json:"pubsubPassword"`
 
 	// (required) profile for application is used to turn AWS authentication on (test/prod) and off (local)
 	ActiveProfile config.Profile `json:"activeProfile"`
-	// (optional) AWS region database is in, if AWS authentication is on
-	AWSRegion string `json:"awsRegion"`
 
 	// (optional) name data for key prefixes, zsets, etc. keep off in prod, swap out in integration tests
 	Names *RedisNames `json:"names"`
@@ -101,20 +92,20 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 		redisCfg.Names = &DefaultRedisNames
 	}
 
-	var primaryRefresher *RedisTokenRefresher
-	var primaryCredsProvider RedisCredsProvider
+	var primaryCredsProvider func() (string, string)
 
 	if redisCfg.ActiveProfile != config.Local {
-		primaryRefresher = NewRedisTokenRefresher(ctx, redisCfg.AWSRegion, redisCfg.SorUsername, redisCfg.SorClusterName)
-		primaryCredsProvider = NewCredentialsProvider(primaryRefresher)
+		primaryCredsProvider = func() (string, string) {
+			return redisCfg.PrimaryUsername, redisCfg.PrimaryPassword
+		}
 	}
 
-	var pubsubRefresher *RedisTokenRefresher
-	var pubsubDialer RedisDialer
+	var pubsubDialer func() (redigo.Conn, error)
 
 	if redisCfg.ActiveProfile != config.Local {
-		pubsubRefresher = NewRedisTokenRefresher(ctx, redisCfg.AWSRegion, redisCfg.PubsubUsername, redisCfg.PubsubClusterName)
-		pubsubDialer = NewSecureDialer(pubsubRefresher, redisCfg.PubsubAddr)
+		pubsubDialer = func() (redigo.Conn, error) {
+			return redigo.Dial("tcp", redisCfg.PubsubAddr, redigo.DialUsername(redisCfg.PubsubUsername), redigo.DialPassword(redisCfg.PubsubPassword))
+		}
 	} else {
 		pubsubDialer = func() (redigo.Conn, error) {
 			return redigo.Dial("tcp", redisCfg.PubsubAddr)
@@ -156,12 +147,10 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 	slog.Info("created redis client", "redisClientKind", fmt.Sprintf("%T", primaryRedisClient))
 
 	return Redis{
-		Primary:          primaryRedisClient,
-		Consumer:         consumerRedisClient,
-		PubSub:           pubsubPool,
-		RedisNames:       *redisCfg.Names,
-		PubsubAddr:       redisCfg.PubsubAddr,
-		primaryRefresher: primaryRefresher,
-		pubsubRefresher:  pubsubRefresher,
+		Primary:    primaryRedisClient,
+		Consumer:   consumerRedisClient,
+		PubSub:     pubsubPool,
+		RedisNames: *redisCfg.Names,
+		PubsubAddr: redisCfg.PubsubAddr,
 	}
 }

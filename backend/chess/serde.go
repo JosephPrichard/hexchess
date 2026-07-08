@@ -91,11 +91,9 @@ func SerializePiecesMoves(moves []PieceMoves) []*pb.PieceMoves {
 
 // Board
 
-var ErrNilBoard = errors.New("board must not be nil")
-
 func DeserializeBoard(pbBoard *pb.ChessBoard) (Board, error) {
 	if pbBoard == nil {
-		return Board{}, ErrNilBoard
+		return Board{}, nil
 	}
 
 	var serdeErrs []error

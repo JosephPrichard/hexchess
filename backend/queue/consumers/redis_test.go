@@ -100,7 +100,7 @@ func TestRedisConsumer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testinfra := itest.SetupIntegrationTest(t, itest.Redis)
+			testinfra := itest.SetupIntegrationTest(t, itest.Redis, itest.RWPostgres)
 			defer testinfra.Close()
 
 			ctx, cancel := context.WithCancel(t.Context())
@@ -119,10 +119,13 @@ func TestRedisConsumer(t *testing.T) {
 
 			h := testEventHandler{cancel: cancel, wantEventCount: len(tt.wantEvents)}
 			consumer := RedisConsumer{
-				ctx:         ctx,
-				redis:       testinfra.Redis.Primary,
+				ctx:        ctx,
+				redis:      testinfra.Redis.Primary,
+				inserter:   testinfra.DB.Querier(),
+				dispatcher: async.SyncDispatcher{},
+
 				consumeFunc: h.handleEvent,
-				dispatcher:  async.SyncDispatcher{},
+
 				RedisConfig: RedisConfig{
 					StreamKey:     consumingStream,
 					ConsumerGroup: "consumer-group",

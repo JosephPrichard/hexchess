@@ -18,8 +18,8 @@ import (
 func (services *HexchessServices) UpdateGameMetadata(ctx context.Context, updt model.GameMetadataUpdt) error {
 	updtResult, err := services.querier.UpdateGameMeta(ctx, sqlc.UpdateGameMetaParams{
 		GameID:    updt.GameID.String(),
-		WhiteID:   db.MapOptInt8(updt.WhitePlayer),
-		BlackID:   db.MapOptInt8(updt.BlackPlayer),
+		WhiteID:   pgtype.Int8{Int64: updt.WhitePlayer, Valid: true},
+		BlackID:   pgtype.Int8{Int64: updt.BlackPlayer, Valid: true},
 		Mode:      sqlc.ModeEnum(updt.Mode.String()),
 		UpdatedOn: pgtype.Timestamptz{Time: services.entropy.GetTime(), Valid: true},
 	})
@@ -49,7 +49,7 @@ func (services *HexchessServices) GetGameMetadata(ctx context.Context, player op
 		allChessMetas, err = services.getGameMetadata(egCtx, optional.Nothing[int64](), afterOrdering, optional.Just[int32](count))
 		return serrors.Wrap("get all game metadata after ordering", err, "afterOrdering", afterOrdering)
 	})
-	if player.IsPresent {
+	if player.Present {
 		userID := player.Value.ID
 		eg.Go(func() (err error) {
 			userChessMetas, err = services.getGameMetadata(ctx, optional.Just[int64](userID), optional.Nothing[int64](), optional.Nothing[int32]())

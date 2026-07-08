@@ -1,4 +1,4 @@
-package main
+package perf
 
 import (
 	"errors"
@@ -6,7 +6,7 @@ import (
 	"github.com/montanaflynn/stats"
 )
 
-type GrafanaTrendValues struct {
+type GrafanaTrend struct {
 	Avg float64 `json:"avg"`
 	Min float64 `json:"min"`
 	Med float64 `json:"med"`
@@ -18,16 +18,16 @@ type GrafanaTrendValues struct {
 
 type GrafanaMetric struct {
 	Name     string
-	Type     string             `json:"type"`
-	Contains string             `json:"contains"`
-	Values   GrafanaTrendValues `json:"values"`
+	Type     string       `json:"type"`
+	Contains string       `json:"contains"`
+	Values   GrafanaTrend `json:"values"`
 }
 
 type GrafanaSummary struct {
 	Metrics map[string]GrafanaMetric `json:"metrics"`
 }
 
-func BuildGrafanaTrend(latenciesMs []float64) (GrafanaTrendValues, error) {
+func BuildGrafanaTrend(latenciesMs []float64) (GrafanaTrend, error) {
 	data := stats.LoadRawData(latenciesMs)
 
 	var errs error
@@ -53,7 +53,7 @@ func BuildGrafanaTrend(latenciesMs []float64) (GrafanaTrendValues, error) {
 	p99, err := stats.Percentile(data, 99)
 	errs = errors.Join(errs, err)
 
-	return GrafanaTrendValues{
+	return GrafanaTrend{
 		Avg: avg,
 		Min: min,
 		Med: med,

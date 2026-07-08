@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-lib/awsutil"
 	"hexchess-lib/ioutil"
 	"hexchess-lib/perf"
 	"hexchess-lib/serrors"
@@ -88,13 +87,13 @@ func (services *HexchessServices) deleteExpiredProfilePics(ctx context.Context, 
 	}
 
 	slog.InfoContext(ctx, "listed profile pics for deletion", "prefix", prefix,
-		"bucket", services.aws.S3ProfileBucket, "keys", awsutil.KeysOfObjects(listOutput.Contents))
+		"bucket", services.aws.S3ProfileBucket, "keys", keysOfObjects(listOutput.Contents))
 
 	if len(listOutput.Contents) == 0 {
 		return nil
 	}
 	objectIdentifiers := filterLeastRecentKeys(listOutput.Contents)
-	keys := awsutil.KeysOfObjectIds(objectIdentifiers)
+	keys := keysOfObjectIDs(objectIdentifiers)
 
 	slog.InfoContext(ctx, "deleting profile pics", "keys", keys)
 

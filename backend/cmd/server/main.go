@@ -32,11 +32,11 @@ func main() {
 	serverPort := os.Getenv("SERVER_PORT")
 	dbURL := os.Getenv("DB_URL")
 	rdbSorNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
-	rdbSorUsername := os.Getenv("REDIS_SOR_USERNAME")
-	rdbSorClusterName := os.Getenv("REDIS_SOR_CLUSTER_NAME")
+	rdbPrimaryUsername := os.Getenv("REDIS_SOR_USERNAME")
+	rdbPrimaryPassword := os.Getenv("REDIS_SOR_PASSWORD")
 	rdbPubSubNode := os.Getenv("REDIS_PUBSUB_NODE")
 	rdbPubSubUsername := os.Getenv("REDIS_PUBSUB_USERNAME")
-	rdbPubSubClusterName := os.Getenv("REDIS_PUBSUB_CLUSTER_NAME")
+	rdbPubsubPassword := os.Getenv("REDIS_PUBSUB_PASSWORD")
 	profile := config.ParseProfile(os.Getenv("ACTIVE_PROFILE"))
 	awsRegion := os.Getenv("AWS_REGION")
 	awsEndpoint := os.Getenv("AWS_ENDPOINT")
@@ -58,14 +58,14 @@ func main() {
 	defer pdb.Close()
 
 	rdb := db.NewRedis(ctx, db.RedisConfig{
-		PrimaryAddr:       rdbSorNodes,
-		SorUsername:       rdbSorUsername,
-		SorClusterName:    rdbSorClusterName,
-		PubsubAddr:        rdbPubSubNode,
-		PubsubUsername:    rdbPubSubUsername,
-		PubsubClusterName: rdbPubSubClusterName,
-		ActiveProfile:     profile,
-		ConsumerPoolSize:  consumers.TotalPartitionCount,
+		PrimaryAddr:      rdbSorNodes,
+		PrimaryUsername:  rdbPrimaryUsername,
+		PrimaryPassword:  rdbPrimaryPassword,
+		PubsubAddr:       rdbPubSubNode,
+		PubsubUsername:   rdbPubSubUsername,
+		PubsubPassword:   rdbPubsubPassword,
+		ActiveProfile:    profile,
+		ConsumerPoolSize: consumers.TotalPartitionCount,
 	})
 	defer rdb.Close()
 
@@ -89,6 +89,7 @@ func main() {
 
 	broadcasters := pubsub.NewLocalBroadcasters()
 	defer broadcasters.Shutdown()
+	
 	broadcasters.Listen(rdb)
 
 	consumers.StartConsumers(consumers.SetupConsumers{

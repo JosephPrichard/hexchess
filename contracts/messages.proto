@@ -306,8 +306,8 @@ message FinishGameEvent {
   string game_id = 1;
   ChessBoard board = 2;
   repeated HistMove moves = 3;
-  PlayerState white_player = 4;
-  PlayerState black_player = 5;
+  int64 white_player = 4;
+  int64 black_player = 5;
   string game_mode = 6;
   string replay_result = 7;
   string replay_cause = 8;

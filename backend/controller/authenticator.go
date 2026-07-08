@@ -48,7 +48,7 @@ func issueTempSession(session optional.Maybe[model.PlayerState], w http.Response
 	var sessions []svc.SessionInst
 	var tempSessionID string
 
-	if session.IsPresent {
+	if session.Present {
 		player := session.Value
 
 		tempSessionID = NewSessionID()

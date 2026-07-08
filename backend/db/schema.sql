@@ -254,6 +254,19 @@ CREATE TABLE public.redis_queue_metadata (
 
 
 --
+-- Name: redis_queue_metrics; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.redis_queue_metrics (
+    event_id uuid NOT NULL,
+    group_id uuid,
+    stream_name text NOT NULL,
+    consumed_on timestamp with time zone NOT NULL,
+    processed_on timestamp with time zone NOT NULL
+);
+
+
+--
 -- Name: replay_move_histories; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -489,6 +502,14 @@ ALTER TABLE ONLY public.redis_queue_metadata
 
 
 --
+-- Name: redis_queue_metrics redis_queue_metrics_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.redis_queue_metrics
+    ADD CONSTRAINT redis_queue_metrics_pkey PRIMARY KEY (event_id);
+
+
+--
 -- Name: replay_move_histories replay_move_histories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -649,6 +670,13 @@ CREATE INDEX idx_playedon ON public.replays USING btree (played_on_as_days);
 --
 
 CREATE INDEX idx_redis_queue_metadata_group_id ON public.redis_queue_metadata USING btree (group_id);
+
+
+--
+-- Name: idx_redis_queue_metrics_group_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_redis_queue_metrics_group_id ON public.redis_queue_metrics USING btree (group_id);
 
 
 --
