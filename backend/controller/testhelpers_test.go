@@ -16,14 +16,16 @@ import (
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
 
+	"hexchess-lib/async"
 	"hexchess-lib/logutil"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 )
 
 type serviceMocks struct {
-	Entropy svc.EntropyAPI
-	Remote  cloud.RemoteAPIs
+	Entropy    svc.EntropyAPI
+	Remote     cloud.RemoteAPIs
+	Dispatcher async.Dispatcher
 }
 
 func setupTestHandler(t logutil.TestLogger, mocks *serviceMocks, flags ...itest.TestFlag) (http.Handler, itest.TestInfra) {
@@ -41,6 +43,7 @@ func setupTestHandler(t logutil.TestLogger, mocks *serviceMocks, flags ...itest.
 		AWS:         infra.AWS,
 		Remote:      mocks.Remote,
 		Entropy:     mocks.Entropy,
+		Dispatcher:  mocks.Dispatcher,
 		Broadcaster: broadcaster,
 	})
 	h := NewServeMux(ServerSetup{Services: services, Broadcaster: broadcaster})

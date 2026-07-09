@@ -89,7 +89,7 @@ func main() {
 
 	broadcasters := pubsub.NewLocalBroadcasters()
 	defer broadcasters.Shutdown()
-	
+
 	broadcasters.Listen(rdb)
 
 	consumers.StartConsumers(consumers.SetupConsumers{

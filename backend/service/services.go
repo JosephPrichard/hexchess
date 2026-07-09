@@ -1,6 +1,7 @@
 package svc
 
 import (
+	"hexchess-lib/async"
 	"hexchess-svc/cloud"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
@@ -17,6 +18,7 @@ type HexchessServices struct {
 	broadcaster    *pubsub.Broadcaster
 	redisPublisher producers.RedisPublisher
 	entropy        EntropyAPI
+	dispatcher     async.Dispatcher
 }
 
 type SetupService struct {
@@ -26,6 +28,7 @@ type SetupService struct {
 	Remote      cloud.RemoteAPIs
 	Entropy     EntropyAPI
 	Broadcaster *pubsub.Broadcaster
+	Dispatcher  async.Dispatcher
 }
 
 func NewHexchessServices(setup SetupService) *HexchessServices {
@@ -36,6 +39,9 @@ func NewHexchessServices(setup SetupService) *HexchessServices {
 	if setup.Entropy == nil {
 		setup.Entropy = RealEntropySource{}
 	}
+	if setup.Dispatcher == nil {
+		setup.Dispatcher = async.AsyncDispatcher{}
+	}
 	return &HexchessServices{
 		database:       setup.DB,
 		querier:        querier,
@@ -45,5 +51,6 @@ func NewHexchessServices(setup SetupService) *HexchessServices {
 		entropy:        setup.Entropy,
 		redisPublisher: producers.NewPublisher(setup.Redis),
 		broadcaster:    setup.Broadcaster,
+		dispatcher:     setup.Dispatcher,
 	}
 }

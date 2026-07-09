@@ -14,6 +14,6 @@ func randChar(str string) byte {
 	return str[n.Int64()]
 }
 
-func randRange(low int64, high int64) int64{
-	return int64(mrand.Intn(int(high))) + low
+func randRange[T interface{ ~int64 | ~int }](low T, high T) T{
+	return T(mrand.Intn(int(high))) + low // range (low, high)
 }

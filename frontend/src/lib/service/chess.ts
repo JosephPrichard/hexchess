@@ -79,13 +79,6 @@ const isPieceWhite = (piece: number) => piece % 2 === 1;
 
 const makePieceWhite = (piece: number) => piece - ((piece + 1) % 2);
 
-const deserializeHex = (hexint: bigint) => ({
-	file: Number(hexint & 0xFFFFFFFFn),
-	rank: Number((hexint >> 32n) & 0xFFFFFFFFn),
-});
-
-const deserializeHexList = (hexagonList?: bigint[]) => hexagonList?.map(deserializeHex) ?? [];
-
 const getPiecePoints = (piece: number) => piecepoints[makePieceWhite(piece)] ?? [];
 
 const hexEq = (hex1?: { file?: number; rank?: number }, hex2?: { file?: number; rank?: number }) =>
@@ -99,7 +92,7 @@ const isValidMove = (game: ChessGame | undefined, {from, to}: {from: Hex, to: He
 	if (moveIdx < 0) {
 		return false;
 	}
-	const moves = deserializeHexList(pms[moveIdx].moves);
+	const moves = pms[moveIdx].moves;
 	moveIdx = moves.findIndex((h) => hexEq(h, to));
 	return moveIdx !== -1;
 }
@@ -194,8 +187,6 @@ export const chessService = {
 	isPromotion,
 	isPieceWhite,
 	makePieceWhite,
-	deserializeHex,
-	deserializeHexList,
 	getPiecePoints,
 	hexEq,
 	makeMoveKey,

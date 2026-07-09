@@ -272,24 +272,21 @@ func MarshalNextGameInput(game *pb.ChessGame, inputMessageID string) (GameInput,
 	}
 
 	type Move struct {
-		fromFile int32
-		fromRank int32
-		toFile   int32
-		toRank   int32
+		fromFile uint32
+		fromRank uint32
+		toFile   uint32
+		toRank   uint32
 	}
 	var moves []Move
 
 	// flatten piece moves to select a random move and terminate if no moves are available
 	for _, pieceMoves := range pieceMovesList {
-		for _, moveToInt64 := range pieceMoves.Moves {
-			toFile := int32(moveToInt64 & 0xFFFFFFFF)
-			toRank := int32(moveToInt64 >> 32)
-
+		for _, hex := range pieceMoves.Moves {
 			moves = append(moves, Move{
 				fromFile: pieceMoves.FromFile,
 				fromRank: pieceMoves.FromRank,
-				toFile:   toFile,
-				toRank:   toRank,
+				toFile:   hex.File,
+				toRank:   hex.Rank,
 			})
 		}
 	}

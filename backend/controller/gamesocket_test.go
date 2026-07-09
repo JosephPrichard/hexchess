@@ -45,7 +45,7 @@ var (
 		GameId: gameID.String(),
 		Value: &pb.GameOutput_Move{Move: &pb.MoveOutput{
 			UpdatedAt: itest.TimeNow.Format(time.RFC3339),
-			Move:      &pb.HistMove{Piece: int32(chess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, Notation: "Pb2"},
+			Move:      &pb.HistMove{Piece: uint32(chess.WhitePawn), FromRank: 0, FromFile: 1, ToFile: 1, ToRank: 1, Notation: "Pb2"},
 		}},
 	}
 	wantChat = &pb.GameOutput{

@@ -16,18 +16,23 @@ message PlayerState {
 // chess state
 
 message PieceMove {
-  int32 piece = 1;
-  int32 fromFile = 2;
-  int32 fromRank = 3;
-  int32 toFile = 4;
-  int32 toRank = 5;
+  uint32 piece = 1;
+  uint32 fromFile = 2;
+  uint32 fromRank = 3;
+  uint32 toFile = 4;
+  uint32 toRank = 5;
+}
+
+message Hex {
+  uint32 file = 1;
+  uint32 rank = 2;
 }
 
 message PieceMoves {
-  int32 piece = 1;
-  int32 fromFile = 2;
-  int32 fromRank = 3;
-  repeated int64 moves = 4;
+  uint32 piece = 1;
+  uint32 fromFile = 2;
+  uint32 fromRank = 3;
+  repeated Hex moves = 4;
 }
 
 message BoardFile {
@@ -40,11 +45,11 @@ message ChessBoard {
 }
 
 message HistMove {
-  int32 piece = 1;
-  int32 from_file = 2;
-  int32 from_rank = 3;
-  int32 to_file = 4;
-  int32 to_rank = 5;
+  uint32 piece = 1;
+  uint32 from_file = 2;
+  uint32 from_rank = 3;
+  uint32 to_file = 4;
+  uint32 to_rank = 5;
   string notation = 6;
   int64 white_timer_ms = 7;
   int64 black_timer_ms = 8;
@@ -54,8 +59,8 @@ message ChessGame {
   ChessBoard board = 1;
   repeated PieceMoves white_moves = 2;
   repeated PieceMoves black_moves = 3;
-  repeated int32 taken_white_pieces = 4;
-  repeated int32 taken_black_pieces = 5;
+  repeated uint32 taken_white_pieces = 4;
+  repeated uint32 taken_black_pieces = 5;
   repeated HistMove moves = 6;
 }
 
@@ -165,11 +170,11 @@ message Replay {
 // transit messages
 
 message Move {
-  int32 promotion = 1;
-  int32 fromFile = 2;
-  int32 fromRank = 3;
-  int32 toFile = 4;
-  int32 toRank = 5;
+  uint32 promotion = 1;
+  uint32 fromFile = 2;
+  uint32 fromRank = 3;
+  uint32 toFile = 4;
+  uint32 toRank = 5;
 }
 
 message ChatMessage {

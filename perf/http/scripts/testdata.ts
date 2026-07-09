@@ -3,10 +3,6 @@ import { Session } from "./setup.ts";
 const minUserID = 1;
 const maxUserID = parseInt(__ENV.MAX_USER_ID) || 1000;
 
-// seed script will generate a sequence of continously increasing uuids, starting from 0, so we can safely randrange a tournament key
-const minTournamentKey = 1;
-const maxTournamentKey = parseInt(__ENV.MAX_TOURNAMENT_KEY) || 250;
-
 const minReplayID = 1;
 const maxReplayID = parseInt(__ENV.MAX_REPLAY_ID) || 5000;
 
@@ -94,11 +90,6 @@ export function randUserID() {
 
 export function randUserIDInt() {
     return randrange(minUserID, maxUserID);
-}
-
-export function randTournamentKey() {
-    const tkeyint = randrange(minTournamentKey, maxTournamentKey);
-    return intToUUID(BigInt(tkeyint));
 }
 
 export function randReplayID() {

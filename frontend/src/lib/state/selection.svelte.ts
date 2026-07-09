@@ -26,8 +26,7 @@ export function makeSelectionState() {
 	}
 
 	function getPotentialMoves() {
-		const pm = state.potentialMoves;
-		return chessService.deserializeHexList(pm?.moves);
+		return state.potentialMoves?.moves;
 	}
 
 	return { state, getPotentialMoves, select, deSelect };

@@ -2,6 +2,7 @@
 PATH := /usr/local/go/bin:$(PATH)
 GOROOT := $(shell go env GOROOT)
 GOPATH := $(shell go env GOPATH)
+GOBIN  := $(GOPATH)/bin
 
 # Directories
 BACKEND_DIR     := backend
@@ -44,6 +45,18 @@ define protoc_go
 		$(CONTRACTS_DIR)/messages.proto
 endef
 
+define protoc_govt
+	mkdir -p $(1)
+	protoc \
+		--go_out=$(1) \
+		--go_opt=paths=source_relative \
+		--proto_path $(CONTRACTS_DIR) \
+		--go-vtproto_out=$(1) \
+		--go-vtproto_opt=paths=source_relative \
+		--go-vtproto_opt=features=marshal+unmarshal+size \
+		$(CONTRACTS_DIR)/messages.proto
+endef
+
 define protoc_ts
 	cd $(1) && mkdir -p $(2) && npx protoc \
 		--ts_out $(2) \
@@ -58,7 +71,7 @@ generate-go:
 	cd $(BACKEND_DIR) && go generate ./...
 
 proto-backend:
-	$(call protoc_go,$(SVC_PB_OUT))
+	$(call protoc_govt,$(SVC_PB_OUT))
 
 # Frontend Build
 frontend: install-modules proto-frontend install-wasm
@@ -91,7 +104,7 @@ backend-test:
 	cd $(BACKEND_DIR) && go test $$(go list ./... | grep -v '^.*/cmd|/wasm/') -timeout=60s
 
 wasm-test:
-	cd $(BACK_WASM_DIR) && GOOS=js GOARCH=wasm go test -timeout=60s -exec $(GOPATH)/bin/wasmbrowsertest
+	cd $(BACK_WASM_DIR) && GOOS=js GOARCH=wasm go test -timeout=60s -exec $(GOBIN)/wasmbrowsertest
 
 perf-test:
 # 	./$(PERF_K6_DIR)/k6 run ./$(PERF_HTTP_DIR)/restapi.ts

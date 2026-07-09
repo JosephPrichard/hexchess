@@ -12,35 +12,41 @@ import (
 
 // Piece
 
-func DeserializePieces(src []int32) []Piece {
-	if len(src) == 0 {
+func DeserializePieces(pbPieces []uint32) []Piece {
+	if len(pbPieces) == 0 {
 		return nil
 	}
-	dst := make([]Piece, 0, len(src))
-	for _, p := range src {
-		dst = append(dst, Piece(p))
+	pieces := make([]Piece, 0, len(pbPieces))
+	for _, p := range pbPieces {
+		pieces = append(pieces, Piece(p))
 	}
-	return dst
+	return pieces
 }
 
-func SerializePieces(pieces []Piece) []int32 {
-	out := make([]int32, 0, len(pieces))
+func SerializePieces(pieces []Piece) []uint32 {
+	out := make([]uint32, 0, len(pieces))
 	for _, p := range pieces {
-		out = append(out, int32(p))
+		out = append(out, uint32(p))
 	}
 	return out
 }
 
 // Move
 
-func DeserializeMove(pbPm *pb.Move) Move {
-	if pbPm == nil {
+func DeserializeMove(pbMove *pb.Move) Move {
+	if pbMove == nil {
 		return Move{}
 	}
 	return Move{
-		From:      Hex{File: uint32(pbPm.FromFile), Rank: uint32(pbPm.FromRank)},
-		To:        Hex{File: uint32(pbPm.ToFile), Rank: uint32(pbPm.ToRank)},
-		Promotion: Promotion(pbPm.Promotion),
+		From: Hex{
+			File: uint32(pbMove.FromFile),
+			Rank: uint32(pbMove.FromRank),
+		},
+		To: Hex{
+			File: uint32(pbMove.ToFile),
+			Rank: uint32(pbMove.ToRank),
+		},
+		Promotion: Promotion(pbMove.Promotion),
 	}
 }
 
@@ -52,15 +58,19 @@ func DeserializePiecesMoves(pbMoves []*pb.PieceMoves) []PieceMoves {
 	}
 	pmsArr := make([]PieceMoves, 0, len(pbMoves))
 	for _, pbPm := range pbMoves {
+		if pbPm == nil {
+			continue
+		}
 		moves := make([]Hex, 0, len(pbPm.Moves))
-		for _, hInt := range pbPm.Moves {
-			file := uint32(hInt & 0xFFFFFFFF)
-			rank := uint32(hInt >> 32)
-			moves = append(moves, Hex{File: file, Rank: rank})
+		for _, h := range pbPm.Moves {
+			if h == nil {
+				continue
+			}
+			moves = append(moves, Hex{File: h.File, Rank: h.Rank})
 		}
 		pms := PieceMoves{
 			Piece: Piece(pbPm.Piece),
-			From:  Hex{File: uint32(pbPm.FromFile), Rank: uint32(pbPm.FromRank)},
+			From:  Hex{File: pbPm.FromFile, Rank: pbPm.FromRank},
 			Moves: moves,
 		}
 		pmsArr = append(pmsArr, pms)
@@ -74,15 +84,14 @@ func SerializePiecesMoves(moves []PieceMoves) []*pb.PieceMoves {
 	}
 	pbMoves := make([]*pb.PieceMoves, 0, len(moves))
 	for _, pm := range moves {
-		pbHexes := make([]int64, 0, len(pm.Moves))
+		pbHexes := make([]*pb.Hex, 0, len(pm.Moves))
 		for _, h := range pm.Moves {
-			hInt := int64(h.Rank)<<32 | int64(h.File)
-			pbHexes = append(pbHexes, hInt)
+			pbHexes = append(pbHexes, &pb.Hex{File: h.File, Rank: h.Rank})
 		}
 		pbMoves = append(pbMoves, &pb.PieceMoves{
-			Piece:    int32(pm.Piece),
-			FromFile: int32(pm.From.File),
-			FromRank: int32(pm.From.Rank),
+			Piece:    uint32(pm.Piece),
+			FromFile: pm.From.File,
+			FromRank: pm.From.Rank,
 			Moves:    pbHexes,
 		})
 	}
@@ -163,11 +172,11 @@ func DeserializeHistMoveList(pbMoves []*pb.HistMove) []HistMove {
 
 func SerializeHistMove(hm HistMove) *pb.HistMove {
 	return &pb.HistMove{
-		Piece:        int32(hm.Piece),
-		FromFile:     int32(hm.From.File),
-		FromRank:     int32(hm.From.Rank),
-		ToFile:       int32(hm.To.File),
-		ToRank:       int32(hm.To.Rank),
+		Piece:        uint32(hm.Piece),
+		FromFile:     hm.From.File,
+		FromRank:     hm.From.Rank,
+		ToFile:       hm.To.File,
+		ToRank:       hm.To.Rank,
 		Notation:     hm.Notation,
 		WhiteTimerMs: hm.WhiteTimer.Milliseconds(),
 		BlackTimerMs: hm.BlackTimer.Milliseconds(),
@@ -231,9 +240,6 @@ func MarshalMoveHistory(initialBoard Board, moveSeq []HistMove) ([]byte, error) 
 
 	var pbMoveSteps []*pb.HistMove
 	for _, m := range moveSeq {
-		//game.NewMove(Move{From: m.From, To: m.To, Promotion: m.Promotion})
-		//game.InitPieceMoves()
-
 		pbMoveSteps = append(pbMoveSteps, SerializeHistMove(m))
 	}
 

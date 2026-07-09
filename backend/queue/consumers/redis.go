@@ -125,8 +125,6 @@ func (consumer *RedisConsumer) handleXReadMessage(ctx context.Context, metrics *
 		return
 	}
 
-	groupIDStr, _ := msg.Values["groupId"].(string)
-
 	consumedOn := time.Now()
 
 	err := consumer.consumeFunc(ctx, []byte(data))
@@ -142,25 +140,29 @@ func (consumer *RedisConsumer) handleXReadMessage(ctx context.Context, metrics *
 		return
 	}
 
-	groupID := uuid.New()
-	if groupIDStr != "" {
-		parsedGroupID, err := uuid.Parse(groupIDStr)
-		if err != nil {
-			slog.WarnContext(ctx, "received invalid group id on stream", "groupIDStr", groupIDStr, "error", err)
-		} else {
-			groupID = parsedGroupID
-		}
-	}
-	
 	metrics.Collect(RedisEventMetric{
 		StreamName:  consumer.StreamKey,
-		GroupID:     groupID,
-		EventID:     uuid.New(),
+		GroupID:     extractUUID(ctx, msg, "groupId"),
+		EventID:     extractUUID(ctx, msg, "eventId"),
 		ConsumedOn:  consumedOn,
 		ProcessedOn: time.Now(),
 	})
 
 	slog.InfoContext(ctx, "redis stream consume operation", "stream", consumer.StreamKey, "timeTaken", time.Since(consumedOn).String())
+}
+
+func extractUUID(ctx context.Context, msg redis.XMessage, key string) uuid.UUID {
+	targetID := uuid.New()
+
+	targetIDStr, _ := msg.Values[key].(string)
+	parsedUUID, err := uuid.Parse(targetIDStr)
+	if err != nil {
+		slog.WarnContext(ctx, "received invalid UUID on stream", "key", key, "targetIDStr", targetIDStr, "error", err)
+	} else {
+		targetID = parsedUUID
+	}
+
+	return targetID
 }
 
 type RedisEventResultInserter interface {
@@ -194,12 +196,13 @@ func (c *RedisMetricCollector) Persist() {
 		return
 	}
 
-	rows := make([]sqlc.InsertRedisEventMetasParams, 0, len(c.metrics))
+	metricRows := make([]sqlc.InsertRedisEventMetasParams, 0, len(c.metrics))
+
 	for _, metric := range c.metrics {
-		rows = append(rows, sqlc.InsertRedisEventMetasParams{
-			GroupId:     pgtype.UUID{Bytes: metric.GroupID, Valid: true},
-			EventId:     pgtype.UUID{Bytes: metric.EventID, Valid: true},
+		metricRows = append(metricRows, sqlc.InsertRedisEventMetasParams{
 			StreamName:  metric.StreamName,
+			EventId:     pgtype.UUID{Bytes: metric.EventID, Valid: true},
+			GroupId:     pgtype.UUID{Bytes: metric.GroupID, Valid: true},
 			ConsumedOn:  pgtype.Timestamptz{Time: metric.ConsumedOn, Valid: true},
 			ProcessedOn: pgtype.Timestamptz{Time: metric.ProcessedOn, Valid: true},
 		})
@@ -207,7 +210,7 @@ func (c *RedisMetricCollector) Persist() {
 
 	c.metrics = c.metrics[:0]
 
-	c.dispatcher.Go(func() { c.insertRedisMetrics(rows) })
+	c.dispatcher.Go(func() { c.insertRedisMetrics(metricRows) })
 }
 
 const InsertRedisEventMetricMaxRetries = 3

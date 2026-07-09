@@ -1,6 +1,7 @@
 package perf
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"hexchess-lib/logutil"
@@ -10,8 +11,19 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 )
+
+type State struct {
+	Context     context.Context
+	PGPool      *pgxpool.Pool
+	RedisClient redis.UniversalClient
+}
+
+func (state *State) WithValue(key any, value any) {
+	state.Context = context.WithValue(state.Context, key, value)
+}
 
 type PerfTestConfig struct {
 	Duration        time.Duration `json:"duration"`
@@ -102,15 +114,15 @@ func RunRedisPerfTest(state State, perftest RedisPerfTest) (GrafanaMetric, error
 	for i := range totalEventCount {
 		partitionKey, inputData := perftest.GenerateInput()
 
-		xargs := &redis.XAddArgs{
+		cmd := state.RedisClient.XAdd(state.Context,  &redis.XAddArgs{
 			Stream: fmt.Sprintf("%s:{%s}", perftest.StreamName, partitionKey),
 			Values: map[string]any{
 				"data":    string(inputData),
 				"groupId": groupID.String(),
 			},
-		}
-		if err := state.RedisClient.XAdd(state.Context, xargs).Err(); err != nil {
-			return GrafanaMetric{}, fmt.Errorf("")
+		})
+		if err := cmd.Err(); err != nil {
+			return GrafanaMetric{}, fmt.Errorf("publish event to redis stream %s: %w", perftest.StreamName, err)
 		}
 
 		if i%perftest.EventsPerSecond == 0 {

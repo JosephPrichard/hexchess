@@ -185,7 +185,7 @@ func (services *HexchessServices) NewGameMove(ctx context.Context, gameID model.
 		if state.Game.Board.IsWhiteTurn {
 			result = model.BlackWin
 		}
-		
+
 		err := services.redisPublisher.PublishFinishGameEvent(ctx, pipe, model.FinishedGame{
 			GameID:       gameID,
 			WhitePlayer:  state.WhitePlayer.ID,

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"hexchess-lib/async"
 	"hexchess-svc/cloud"
 	"hexchess-svc/itest"
 	"hexchess-svc/service"
@@ -78,7 +79,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, &serviceMocks{Entropy: &svc.StableEntropySource{}}, itest.Redis, itest.AWS)
+			h, testinfra := setupTestHandler(t, &serviceMocks{Entropy: &svc.StableEntropySource{}, Dispatcher: async.SyncDispatcher{}}, itest.Redis, itest.AWS)
 			defer testinfra.Close()
 
 			cloud.SetupS3Test(t, testinfra.AWS, nil)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"perf-test-queue/pb"
 
+	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -26,8 +27,9 @@ func newGameID() (gameID string, partitionKey string) {
 
 // InputGenerator functions do not return errors but rather panic because all data is sytem originated and therefore a programmer error within this script
 type InputGenerator struct {
-	MinUserID int64
-	MaxUserID int64
+	MinUserID      int64
+	MaxUserID      int64
+	TournamentKeys []string  
 }
 
 func (gen InputGenerator) GenerateFinishGameInput() (string, []byte) {
@@ -40,7 +42,7 @@ func (gen InputGenerator) GenerateFinishGameInput() (string, []byte) {
 		GameMode:     "CORRESPONDENCE_1",
 		ReplayResult: "WHITE_WINS",
 		ReplayCause:  "FORFEIT",
-		// TODO add a really large move list to test a long move history.
+		// TODO add a large move list to test a long move history.
 	})
 	if err != nil {
 		panic(fmt.Sprintf("failed to generate finish game input: %v", err))
@@ -66,6 +68,13 @@ func (gen InputGenerator) GenerateUpdtGameInput() (string, []byte) {
 	return pkey, bytes
 }
 
-func (_ InputGenerator) GenerateAdvanceTournamentInput() []byte {
-	panic("generate advance tournament input is not yet implemented")
+func (gen InputGenerator) GenerateAdvanceTournamentInput() []byte {
+	bytes, err := proto.Marshal(&pb.AdvanceTournamentEvent{
+		TournamentKey: gen.TournamentKeys[randRange(0, len(gen.TournamentKeys)-1)],
+		EventId:       uuid.NewString(),
+	})
+	if err != nil {
+		panic(fmt.Sprintf("failed to generate advance tournament input: %v", err))
+	}
+	return bytes
 }

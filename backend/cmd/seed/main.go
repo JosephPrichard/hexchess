@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"flag"
 	"fmt"
@@ -48,7 +47,9 @@ var (
 	challengesCount        = flag.Int("challengesCount", 100, "number of challenges to seed")
 	gameResultCount        = flag.Int("gameResultCount", 5000, "number of game results to seed")
 	tournamentsCount       = flag.Int("tournamentsCount", 1000, "number of tournaments to seed")
+
 	deterministicUsernames = flag.Bool("deterministicUsernames", true, "whether usernames follow the pattern 'User0', 'User1', etc. or are random")
+
 	initialTimeGamesRaw    = flag.String("initialTimeGames", "2025-01-01", "the oldest date at which generated game results start from")
 	gameDurationOffsetRaw  = flag.String("gameDurationOffset", "24h", "the offset between the time each consecutive game is played on (e.g. 1h, 5m)")
 
@@ -340,14 +341,15 @@ type TournamentInsts struct {
 }
 
 func generateTournaments() []TournamentInsts {
-	var tkeyUInt64 uint64
+	// var tkeyUInt64 uint64
 
 	var insts []TournamentInsts
 	for range *tournamentsCount {
-		var tkey uuid.UUID
-		binary.LittleEndian.PutUint64(tkey[:], tkeyUInt64)
-		tkeyUInt64++
-		pgtkey := pgtype.UUID{Bytes: tkey, Valid: true}
+		// var tkey uuid.UUID
+		// binary.LittleEndian.PutUint64(tkey[:], tkeyUInt64)
+		// tkeyUInt64++
+		// pgtkey := pgtype.UUID{Bytes: tkey, Valid: true}
+		pgtkey := pgtype.UUID{Bytes: uuid.New(), Valid: true}
 
 		createdBy := generateUserID(nil)
 		status := model.TournamentInProgress

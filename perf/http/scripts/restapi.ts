@@ -5,8 +5,7 @@ import {
     pickSessionParams, 
     randrange, 
     randUserID, 
-    randUserIDInt, 
-    randTournamentKey, 
+    randUserIDInt,
     randReplayID, 
     randDate, 
     replayCauses, 
@@ -32,6 +31,9 @@ export const baseUrl = `${protocol}://${hostname}/api`;
 // providing a higher user/games count gives a better distribution on what data is created and which rows are updated
 const usersCount = parseInt(__ENV.USERS_COUNT) || 10;
 const gamesCount = parseInt(__ENV.GAMES_COUNT) || 100;
+
+// pick a tournamnt key out of the database.
+const staticTournamentKey = __ENV.TOURNAMENT_KEY || "missing";
 
 const profile = __ENV.PROFILE || "smoke";
 
@@ -201,6 +203,7 @@ export function setup(): SetupData {
 
 export const trendCreateChallenge400 = new Trend("create_challenge_400_duration");
 export const trendUpdateChallenge404 = new Trend("update_challenge_404_duration");
+export const trendGetTournament404 = new Trend("get_tournament_404_duration");
 
 const endpointNames = [
     "GetLeaderboard", 
@@ -264,9 +267,17 @@ export function getTournaments() {
 }
 
 export function getTournament() {
-    const params = new URLSearchParams({ tournamentKey: randTournamentKey() });
+    const params = new URLSearchParams({ tournamentKey: staticTournamentKey });
+
+    params.responseCallback = expectedStatuses(200, 404); // 404 could be not found tournament, if the tournament key provided in envvars is not found.
+
     const resp = http.get(baseUrl + "/tournament?" + params.toString());
     recordDuration("GetTournament", resp);
+
+    recordDuration("PostCreateChallenge", resp);
+    if (resp.status === 404) {
+        trendGetTournament404.add(resp.timings.duration);
+    }
 }
 
 // challenges
