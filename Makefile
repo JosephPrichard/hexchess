@@ -1,5 +1,5 @@
 # Environment
-PATH := /usr/local/go/bin:$(PATH)
+PATH   := /usr/local/go/bin:$(PATH)
 GOROOT := $(shell go env GOROOT)
 GOPATH := $(shell go env GOPATH)
 GOBIN  := $(GOPATH)/bin
@@ -28,6 +28,9 @@ WASM_SRC_DIR    := $(BACKEND_DIR)/cmd/browser
 WASM_OUTPUT     := chess.wasm
 UI_WASM_DIR     := $(UI_DIR)/static/wasm
 
+# We need to CD to a go module with vtproto installed to use `go list`
+VTPROTO := $(shell cd $(BACKEND_DIR) && go list -m -f '{{.Dir}}' github.com/planetscale/vtprotobuf)
+
 .PHONY: all clean
 
 # Build All
@@ -45,15 +48,28 @@ define protoc_go
 		$(CONTRACTS_DIR)/messages.proto
 endef
 
+# Pooling is enabled for short-lived structs
 define protoc_govt
+	echo $(VTPROTO)
 	mkdir -p $(1)
 	protoc \
+		-I $(VTPROTO)/include \
 		--go_out=$(1) \
 		--go_opt=paths=source_relative \
 		--proto_path $(CONTRACTS_DIR) \
 		--go-vtproto_out=$(1) \
 		--go-vtproto_opt=paths=source_relative \
-		--go-vtproto_opt=features=marshal+unmarshal+size \
+		--go-vtproto_opt=features=marshal+unmarshal+size+pool \
+		--go-vtproto_opt=pool=hexchess-svc/pb.Hex \
+		--go-vtproto_opt=pool=hexchess-svc/pb.PieceMove \
+		--go-vtproto_opt=pool=hexchess-svc/pb.PieceMoves \
+		--go-vtproto_opt=pool=hexchess-svc/pb.BoardFile \
+		--go-vtproto_opt=pool=hexchess-svc/pb.HistMove \
+		--go-vtproto_opt=pool=hexchess-svc/pb.ChessBoard \
+		--go-vtproto_opt=pool=hexchess-svc/pb.ChessGame \
+		--go-vtproto_opt=pool=hexchess-svc/pb.ChessState \
+		--go-vtproto_opt=pool=hexchess-svc/pb.MatchCreations \
+		--go-vtproto_opt=pool=hexchess-svc/pb.Chat \
 		$(CONTRACTS_DIR)/messages.proto
 endef
 
@@ -123,15 +139,3 @@ install-backend:
 
 install-database:
 	go install github.com/pressly/goose/v3/cmd/goose@v3.27.0
-
-clean:
-	rm -rf $(BACKEND_DIR)/db/sqlc
-	rm -rf $(SVC_PB_OUT)
-
-	rm -rf $(UI_DIR)/node_modules
-	rm -rf $(UI_PB_OUT)
-	rm -f $(WASM_SRC_DIR)/$(WASM_OUTPUT)
-	rm -f $(UI_WASM_DIR)/$(WASM_OUTPUT)
-
-	rm -f $(PERF_K6_DIR)/k6
-	rm -rf $(PERF_K6_DIR)/pb
