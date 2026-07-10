@@ -201,10 +201,10 @@ func (services *HexchessServices) getUsersLeaderboardRank(ctx context.Context, u
 	return leaderboardRanks, nil
 }
 
-func (services *HexchessServices) getLeaderboard(ctx context.Context, mode model.GameMode, startRank, lbdElemCount int64) (Leaderboard, error) {
+func (services *HexchessServices) getLeaderboard(ctx context.Context, mode model.GameMode, startRank, leaderboardElemCount int64) (Leaderboard, error) {
 	modeLbZSet := fmtLeaderboardZSet(services.redis, mode.String())
 
-	end := startRank - 1 + lbdElemCount
+	end := startRank - 1 + leaderboardElemCount
 	strUserIDs, err := services.redis.Primary.ZRevRange(ctx, modeLbZSet, startRank, end).Result()
 	if err != nil {
 		return Leaderboard{}, serrors.Wrap("retrieve reverse leaderboard by range", err)
@@ -225,12 +225,12 @@ func (services *HexchessServices) getLeaderboard(ctx context.Context, mode model
 	}
 
 	pageCount :=
-		int((totalLbdElemCount / lbdElemCount) +
-			int64(math.Min(float64(totalLbdElemCount%lbdElemCount), 1)))
+		int((totalLbdElemCount / leaderboardElemCount) +
+			int64(math.Min(float64(totalLbdElemCount%leaderboardElemCount), 1)))
 
 	leaderboard := Leaderboard{RankedUsers: users, PageCount: pageCount}
 
-	slog.InfoContext(ctx, "retrieved leaderboard", "modeLbZSet", modeLbZSet, "startRank", startRank, "count", lbdElemCount, "leaderboard", leaderboard)
+	slog.InfoContext(ctx, "retrieved leaderboard", "modeLbZSet", modeLbZSet, "startRank", startRank, "count", leaderboardElemCount, "leaderboard", leaderboard)
 	return leaderboard, nil
 }
 

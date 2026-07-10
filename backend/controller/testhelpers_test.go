@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"google.golang.org/protobuf/proto"
 
 	"hexchess-lib/async"
 	"hexchess-lib/logutil"
@@ -180,7 +179,7 @@ func createTestChessStates(t *testing.T, redis db.Redis) {
 	for _, state := range testStates {
 		gameKey := fmt.Sprintf("game:%s{%c}", state.ID, state.ID.Partition())
 
-		bytes, err := proto.Marshal(model.SerializeChessState(state))
+		bytes, err := model.MarshalChessState(state)
 		if err != nil {
 			t.Fatalf("marshal chess state: %v", err)
 		}

@@ -75,3 +75,11 @@ type GameMetadataUpdt struct {
 	Mode        GameMode  `json:"mode"`
 	FirstColor  GameColor `json:"firstColor"`
 }
+
+type UndoKind int
+
+const (
+	UndoCreate UndoKind = iota
+	UndoAccept
+	UndoReject
+)

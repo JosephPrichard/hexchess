@@ -2,6 +2,21 @@ package model
 
 import "time"
 
+type UserMessageKind string
+
+const (
+	ChallengeKind UserMessageKind = "challenge"
+)
+
+type UserMessageType struct {
+	Kind UserMessageKind `json:"kind"`
+}
+
+type UserMessage struct {
+	Kind      UserMessageKind `json:"kind"`
+	Challenge Challenge       `json:"challenge"`
+}
+
 type Challenge struct {
 	ChallengerID      int64     `json:"challengerId"`
 	ChallengerName    string    `json:"challengerName"`

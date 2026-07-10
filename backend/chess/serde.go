@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"hexchess-svc/pb"
 )
 
@@ -104,20 +102,16 @@ func DeserializeBoard(pbBoard *pb.ChessBoard) (Board, error) {
 	if pbBoard == nil {
 		return Board{}, nil
 	}
-
-	var serdeErrs []error
-
 	board := Board{IsWhiteTurn: pbBoard.IsWhiteTurn}
 	for file, bFile := range pbBoard.File {
 		for rank, piece := range bFile.Pieces {
 			p := Piece(piece)
 			if err := board.SetPiece(uint32(file), uint32(rank), p); err != nil {
-				serdeErrs = append(serdeErrs, err)
-				continue
+				return Board{}, err
 			}
 		}
 	}
-	return board, errors.Join(serdeErrs...)
+	return board, nil
 }
 
 func SerializeBoard(board *Board) *pb.ChessBoard {
@@ -243,12 +237,13 @@ func MarshalMoveHistory(initialBoard Board, moveSeq []HistMove) ([]byte, error) 
 		pbMoveSteps = append(pbMoveSteps, SerializeHistMove(m))
 	}
 
-	return proto.Marshal(&pb.MoveHistory{InitialGame: pbInitialGame, Steps: pbMoveSteps})
+	moveHist := &pb.MoveHistory{InitialGame: pbInitialGame, Steps: pbMoveSteps}
+	return moveHist.MarshalVT()
 }
 
 func ExtractMoveHistoryLastBoard(data []byte) ([]byte, error) {
 	var pbMoveHistory pb.MoveHistory
-	if err := proto.Unmarshal(data, &pbMoveHistory); err != nil {
+	if err := pbMoveHistory.UnmarshalVT(data); err != nil {
 		return nil, err
 	}
 
@@ -263,6 +258,5 @@ func ExtractMoveHistoryLastBoard(data []byte) ([]byte, error) {
 		game.InitPieceMoves()
 	}
 
-	pbBoard := SerializeBoard(&game.Board)
-	return proto.Marshal(pbBoard)
+	return SerializeBoard(&game.Board).MarshalVT()
 }

@@ -28,7 +28,7 @@ func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc
 			resp := ServiceViewFromErr(err)
 			writeJSON(w, resp.Status, resp)
 
-			logutil.SError(ctx, LevelFromStatus(resp.Status), "failed to handle REST call", err,
+			logutil.Error(ctx, LevelFromStatus(resp.Status), "failed to handle REST call", err,
 				"path", r.URL.Path, "status", resp.Status, "timeTaken", time.Since(start).String())
 		} else {
 			slog.InfoContext(ctx, "completed REST call", "path", r.URL.Path, "timeTaken", time.Since(start).String())
@@ -479,7 +479,10 @@ func (api *API) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) er
 		return serrors.Wrap("insert challenge", err)
 	}
 
-	api.broadcaster.BroadcastChallenge(ctx, challenge)
+	api.broadcaster.BroadcastUserMessage(ctx, model.UserMessage{
+		Kind:      model.ChallengeKind,
+		Challenge: challenge,
+	})
 
 	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
@@ -815,7 +818,9 @@ func (api *API) HandleJoinTournament(w http.ResponseWriter, r *http.Request) err
 
 	slog.InfoContext(ctx, "participant joined tournament", "joiningID", player.ID, "tournamentKey", tournamentKey)
 
-	go api.services.BroadcastTournamentParticipant(context.WithoutCancel(ctx), player.ID, tournamentEvent)
+	api.dispatcher.Go(func() {
+		api.services.SendTournamentParticipant(context.WithoutCancel(ctx), player.ID, tournamentEvent)
+	})
 
 	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
@@ -840,7 +845,10 @@ func (api *API) HandleBeginCountdownTournament(w http.ResponseWriter, r *http.Re
 
 	slog.InfoContext(ctx, "successfully started countdown for tournament", "countdownResult", result)
 
-	api.broadcaster.BroadcastTournament(ctx, model.SerializeBeginTournamentCountdown(result.TournamentKey))
+	api.broadcaster.BroadcastTournament(ctx, model.TournamentOutput{
+		Key:  result.TournamentKey.String(),
+		Kind: model.TournamentCountdownKind,
+	})
 
 	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil

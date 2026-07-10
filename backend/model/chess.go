@@ -6,7 +6,7 @@ import (
 )
 
 type UndoState struct {
-	UndoID int64
+	UndoID int64 `json:undoID`
 }
 
 type EndKind int
@@ -61,7 +61,7 @@ type StateSetup struct {
 	UndoState    UndoState
 }
 
-func NewChessStateVal(s StateSetup) ChessState {
+func NewChessStateValue(s StateSetup) ChessState {
 	board := chess.NewStartBoard()
 	if s.InitialBoard != nil {
 		board = *s.InitialBoard
@@ -84,9 +84,8 @@ func NewChessStateVal(s StateSetup) ChessState {
 }
 
 func NewChessState(s StateSetup) *ChessState {
-	chessState := &ChessState{}
-	*chessState = NewChessStateVal(s)
-	return chessState
+	chessState := NewChessStateValue(s)
+	return &chessState
 }
 
 var ErrNoMoveUndo = errors.New("no move to undo")

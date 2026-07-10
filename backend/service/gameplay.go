@@ -214,25 +214,17 @@ var (
 	ErrNoUndo         = errors.New("no undo to accept or reject")
 )
 
-type UndoKind int
-
-const (
-	UndoCreate UndoKind = iota
-	UndoAccept
-	UndoReject
-)
-
-func (services *HexchessServices) AttemptGameUndo(ctx context.Context, gameID model.GameID, player model.PlayerState, kind UndoKind) (*model.ChessState, error) {
+func (services *HexchessServices) AttemptGameUndo(ctx context.Context, gameID model.GameID, player model.PlayerState, kind model.UndoKind) (*model.ChessState, error) {
 	update := func(state *model.ChessState) error {
 		slog.InfoContext(ctx, "updating game state with undo", "gameID", gameID)
 
 		switch kind {
-		case UndoCreate:
+		case model.UndoCreate:
 			if player.IsSame(state.CurrPlayer()) {
 				return ErrUndoCurrPlayer
 			}
 			state.UndoID = player.ID
-		case UndoAccept:
+		case model.UndoAccept:
 			if state.UndoID == 0 {
 				return ErrNoUndo
 			}
@@ -244,7 +236,7 @@ func (services *HexchessServices) AttemptGameUndo(ctx context.Context, gameID mo
 			} else {
 				return ErrUndoNoop
 			}
-		case UndoReject:
+		case model.UndoReject:
 			if state.UndoID == 0 {
 				return ErrNoUndo
 			}

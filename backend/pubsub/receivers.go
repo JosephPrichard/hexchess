@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bytedance/sonic"
 	redigo "github.com/gomodule/redigo/redis"
-	"google.golang.org/protobuf/proto"
 )
 
 func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Message)) chan struct{} {
@@ -95,7 +95,7 @@ func (b *LocalBroadcasters) Shutdown() {
 func (b *LocalBroadcasters) ListenGameMessages(rdb db.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.GamesChannel}, func(v redigo.Message) {
 		var outputID pb.GameOutputID
-		if err := proto.Unmarshal(v.Data, &outputID); err != nil {
+		if err := outputID.UnmarshalVT(v.Data); err != nil {
 			slog.Error("unmarshal game message", "error", err)
 			return
 		}
@@ -109,39 +109,32 @@ func (b *LocalBroadcasters) ListenGameMessages(rdb db.Redis) chan struct{} {
 
 func (b *LocalBroadcasters) ListenTournamentMessages(rdb db.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.TournamentsChannel}, func(v redigo.Message) {
-		var output pb.TournamentOutput
-		if err := proto.Unmarshal(v.Data, &output); err != nil {
+		var output model.TournamentOutputKey
+		if err := sonic.Unmarshal(v.Data, &output); err != nil {
 			slog.Error("unmarshal tournament message", "error", err)
 			return
 		}
 		slog.Info("received message on tournaments channel", "key", output.TournamentKey, "output", &output)
 
-		bytes, err := model.MarshalTournamentOutputJson(&output)
-		if err != nil {
-			slog.Error("failed to transition tournament output event to json", "error", err)
-			return
-		}
-
-		b.TournamentCaster.Broadcast(output.TournamentKey, bytes)
+		b.TournamentCaster.Broadcast(output.TournamentKey, v.Data)
 	})
 }
 
 func (b *LocalBroadcasters) ListenUsersMessages(rdb db.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.UsersChannel}, func(v redigo.Message) {
-		var userMessage pb.UserMessage
-		if err := proto.Unmarshal(v.Data, &userMessage); err != nil {
+		var message model.UserMessage
+		if err := sonic.Unmarshal(v.Data, &message); err != nil {
 			slog.Error("unmarshal user message", "error", err)
 			return
 		}
-		slog.Info("received message on users channel", "user", &userMessage)
+		slog.Info("received message on users channel", "user", &message)
 
-		bytes, err := model.MarshalUserMessageJson(&userMessage)
-		if err != nil {
-			slog.Error("marshal user message", "error", err)
-			return
+		switch message.Kind {
+		case model.ChallengeKind:
+			b.UsersCaster.Broadcast(strconv.Itoa(int(message.Challenge.ChallengeeID)), v.Data)
+		default:
+			slog.Warn("received unknown message kind on users channel", "kind", message.Kind)
 		}
-
-		b.UsersCaster.Broadcast(strconv.Itoa(int(userMessage.UserId)), bytes)
 	})
 }
 

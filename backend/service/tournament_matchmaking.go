@@ -15,14 +15,14 @@ type FirstMatchParticipant struct {
 	Elo    pgtype.Float8
 }
 
-type FirstMatchmakingRequest struct {
+type FirstMatchmakingInput struct {
 	Ruleset      model.TournamentRuleset
 	Mode         model.GameMode
 	Participants []FirstMatchParticipant
 	TotalRounds  int32
 }
 
-type MatchmakingResponse struct {
+type MatchmakingOutput struct {
 	NextMatches    []model.MatchCreation
 	TotalRounds    int32 // RoundRobin and Swiss calculate total rounds during matchmaking rather than using already existing rounds to validate
 	NextStatus     model.TournamentStatus
@@ -162,7 +162,7 @@ func makeMatchesCrissCrossElos(participants []FirstMatchParticipant, gameMode mo
 	return matches
 }
 
-func NewFirstMatches(request FirstMatchmakingRequest) (MatchmakingResponse, error) {
+func NewFirstMatches(request FirstMatchmakingInput) (MatchmakingOutput, error) {
 	participantCount := len(request.Participants)
 
 	var matches []model.MatchCreation
@@ -173,12 +173,12 @@ func NewFirstMatches(request FirstMatchmakingRequest) (MatchmakingResponse, erro
 		// invariant: matches are devided by two each time and stop at 1, we need to start at the expected power of 2
 		wantRoundCount := KnockoutParticipantsAtRound(int(totalRounds), 1)
 		if participantCount != wantRoundCount {
-			return MatchmakingResponse{}, MatchCountError{Kind: ParticipantCountErrKind, WantCount: wantRoundCount, GotCount: participantCount}
+			return MatchmakingOutput{}, MatchCountError{Kind: ParticipantCountErrKind, WantCount: wantRoundCount, GotCount: participantCount}
 		}
 	case model.TournamentRoundRobin, model.TournamentSwiss:
 		// invariant: as long as we can match each player with another player, we can start the tournament
 		if participantCount%2 != 0 {
-			return MatchmakingResponse{}, MatchCountError{Kind: ParticipantParityErrKind, GotCount: participantCount}
+			return MatchmakingOutput{}, MatchCountError{Kind: ParticipantParityErrKind, GotCount: participantCount}
 		}
 	}
 
@@ -197,13 +197,13 @@ func NewFirstMatches(request FirstMatchmakingRequest) (MatchmakingResponse, erro
 		matches = makeMatchesCrissCrossElos(request.Participants, request.Mode)
 		totalRounds = calcSwissTournamentRounds(participantCount)
 	default:
-		return MatchmakingResponse{}, fmt.Errorf("unknown tournament ruleset %s", request.Ruleset)
+		return MatchmakingOutput{}, fmt.Errorf("unknown tournament ruleset %s", request.Ruleset)
 	}
 
-	return MatchmakingResponse{NextMatches: matches, NextStatus: model.TournamentInProgress, NextMatchRound: 1, TotalRounds: totalRounds}, nil
+	return MatchmakingOutput{NextMatches: matches, NextStatus: model.TournamentInProgress, NextMatchRound: 1, TotalRounds: totalRounds}, nil
 }
 
-type MatchmakingRequest struct {
+type MatchmakingInput struct {
 	Ruleset     model.TournamentRuleset
 	Matches     []CompletedPrevMatch
 	GameMode    model.GameMode
@@ -223,10 +223,10 @@ func getPrevRoundMatches(matches []CompletedPrevMatch) []CompletedPrevMatch {
 
 const WinnerIDNone = int64(0)
 
-func DoMatchmaking(request MatchmakingRequest) (MatchmakingResponse, error) {
+func DoMatchmaking(request MatchmakingInput) (MatchmakingOutput, error) {
 	// validation: a tournament must have matches to do matchmaking
 	if len(request.Matches) == 0 {
-		return MatchmakingResponse{}, ErrEmptyMatchesTournament
+		return MatchmakingOutput{}, ErrEmptyMatchesTournament
 	}
 
 	gameMode := request.GameMode
@@ -237,7 +237,7 @@ func DoMatchmaking(request MatchmakingRequest) (MatchmakingResponse, error) {
 	switch request.Ruleset {
 	case model.TournamentKnockout:
 		if len(allMatches)%2 != 0 {
-			return MatchmakingResponse{}, MatchCountError{Kind: MatchParityErrKind, GotCount: len(allMatches)}
+			return MatchmakingOutput{}, MatchCountError{Kind: MatchParityErrKind, GotCount: len(allMatches)}
 		}
 		nextMatches = DoKnockoutMatchmaking(allMatches, gameMode)
 	case model.TournamentRoundRobin:
@@ -245,7 +245,7 @@ func DoMatchmaking(request MatchmakingRequest) (MatchmakingResponse, error) {
 	case model.TournamentSwiss:
 		nextMatches = DoSwissMatchmaking(allMatches, gameMode)
 	default:
-		return MatchmakingResponse{}, fmt.Errorf("unknown tournament ruleset %s", request.Ruleset)
+		return MatchmakingOutput{}, fmt.Errorf("unknown tournament ruleset %s", request.Ruleset)
 	}
 
 	prevMatchRound := allMatches[len(allMatches)-1].Round
@@ -260,7 +260,7 @@ func DoMatchmaking(request MatchmakingRequest) (MatchmakingResponse, error) {
 		winnerID, tiebreaker = findTournamentWinner(request.Ruleset, request.Matches)
 	}
 
-	return MatchmakingResponse{
+	return MatchmakingOutput{
 		NextMatches:    nextMatches,
 		NextStatus:     nextStatus,
 		NextMatchRound: nextMatchRound,
@@ -332,7 +332,7 @@ func DoSwissMatchmaking(allMatches []CompletedPrevMatch, gameMode model.GameMode
 
 	// collect and reverse sort match participants by swiss score
 	var participantIDs []int64
-	for userID, _ := range swissScoresTable {
+	for userID := range swissScoresTable {
 		participantIDs = append(participantIDs, userID)
 	}
 	slices.SortFunc(participantIDs, func(a, b int64) int {

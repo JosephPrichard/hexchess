@@ -6,8 +6,6 @@ import (
 	"strings"
 	"syscall/js"
 
-	"google.golang.org/protobuf/proto"
-
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
 )
@@ -56,7 +54,7 @@ func (w *ChessWasm) deserializeBoard(value js.Value) (chess.Board, error) {
 	js.CopyBytesToGo(input, value)
 
 	var pbBoard pb.ChessBoard
-	if err := proto.Unmarshal(input, &pbBoard); err != nil {
+	if err := pbBoard.UnmarshalVT(input); err != nil {
 		return chess.Board{}, err
 	}
 	board, err := chess.DeserializeBoard(&pbBoard)
@@ -71,7 +69,7 @@ func (w *ChessWasm) deserializeGame(value js.Value) (*chess.Game, error) {
 	js.CopyBytesToGo(gameBytes, value)
 
 	var pbGameIn pb.ChessGame
-	if err := proto.Unmarshal(gameBytes, &pbGameIn); err != nil {
+	if err := pbGameIn.UnmarshalVT(gameBytes); err != nil {
 		return nil, err
 	}
 	game, err := chess.DeserializeGame(&pbGameIn)
@@ -86,7 +84,7 @@ func (w *ChessWasm) deserializeMove(value js.Value) (chess.Move, error) {
 	js.CopyBytesToGo(moveBytes, value)
 
 	var pbMoveIn pb.Move
-	if err := proto.Unmarshal(moveBytes, &pbMoveIn); err != nil {
+	if err := pbMoveIn.UnmarshalVT(moveBytes); err != nil {
 		return chess.Move{}, err
 	}
 	pm := chess.DeserializeMove(&pbMoveIn)
@@ -98,7 +96,7 @@ func (w *ChessWasm) deserializeHistMoveList(value js.Value) ([]chess.HistMove, e
 	js.CopyBytesToGo(moveBytes, value)
 
 	var pbMoveList pb.HistMoves
-	if err := proto.Unmarshal(moveBytes, &pbMoveList); err != nil {
+	if err := pbMoveList.UnmarshalVT(moveBytes); err != nil {
 		return nil, err
 	}
 
@@ -106,7 +104,7 @@ func (w *ChessWasm) deserializeHistMoveList(value js.Value) ([]chess.HistMove, e
 }
 
 func (w *ChessWasm) serializeGame(game *chess.Game) any {
-	output, err := proto.Marshal(chess.SerializeGame(game))
+	output, err := chess.SerializeGame(game).MarshalVT()
 	if err != nil {
 		return w.JsErr(err)
 	}

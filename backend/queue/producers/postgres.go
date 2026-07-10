@@ -10,14 +10,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"google.golang.org/protobuf/proto"
 )
 
 func PublishAdvanceTournamentEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, scheduledOn time.Time) error {
-	bytes, err := proto.Marshal(&pb.AdvanceTournamentEvent{
+	pbEvent := &pb.AdvanceTournamentEvent{
 		TournamentKey: tournamentKey.String(),
 		EventId:       uuid.NewString(),
-	})
+	}
+	bytes, err := pbEvent.MarshalVT()
 	if err != nil {
 		return fmt.Errorf("marshal advance tournament event: %w", err)
 	}

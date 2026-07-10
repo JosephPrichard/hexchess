@@ -6,8 +6,6 @@ import (
 	"hexchess-svc/model"
 	"log/slog"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/redis/go-redis/v9"
 )
 
@@ -33,7 +31,7 @@ func (services *HexchessServices) GetChats(ctx context.Context, gameID model.Gam
 }
 
 func (services *HexchessServices) InsertChat(ctx context.Context, gameID model.GameID, chat model.Chat) error {
-	bytes, err := proto.Marshal(model.SerializeChat(chat))
+	bytes, err := model.SerializeChat(chat).MarshalVT()
 	if err != nil {
 		return serrors.Wrap("marshal chat", err)
 	}

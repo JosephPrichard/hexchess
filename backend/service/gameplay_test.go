@@ -118,7 +118,7 @@ func TestAttemptUndo(t *testing.T) {
 	setChessStates(t, services, noMovesGame, withMovesGame)
 
 	type subTest struct {
-		kind     UndoKind
+		kind     model.UndoKind
 		player   model.PlayerState
 		wantGame *model.ChessState
 		wantErr  error
@@ -143,14 +143,14 @@ func TestAttemptUndo(t *testing.T) {
 			gameID: withMovesGame.ID,
 			tests: []subTest{
 				{
-					kind:   UndoCreate,
+					kind:   model.UndoCreate,
 					player: model.PlayerState{ID: 2, Name: "black", Present: true},
 					wantGame: mutateGame(withMovesGame, func(s *model.ChessState) {
 						s.UndoState = model.UndoState{UndoID: 2}
 					}),
 				},
 				{
-					kind:   UndoAccept,
+					kind:   model.UndoAccept,
 					player: model.PlayerState{ID: 1, Name: "white", Present: true},
 					wantGame: mutateGame(withMovesGame, func(s *model.ChessState) {
 						s.UndoState = model.UndoState{}
@@ -163,14 +163,14 @@ func TestAttemptUndo(t *testing.T) {
 			gameID: noMovesGame.ID,
 			tests: []subTest{
 				{
-					kind:   UndoCreate,
+					kind:   model.UndoCreate,
 					player: model.PlayerState{ID: 2, Name: "black", Present: true},
 					wantGame: mutateGame(noMovesGame, func(s *model.ChessState) {
 						s.UndoState = model.UndoState{UndoID: 2}
 					}),
 				},
 				{
-					kind:   UndoReject,
+					kind:   model.UndoReject,
 					player: model.PlayerState{ID: 2, Name: "black", Present: true},
 					wantGame: mutateGame(noMovesGame, func(s *model.ChessState) {
 						s.UndoState = model.UndoState{}
@@ -183,14 +183,14 @@ func TestAttemptUndo(t *testing.T) {
 			gameID: noMovesGame.ID,
 			tests: []subTest{
 				{
-					kind:   UndoCreate,
+					kind:   model.UndoCreate,
 					player: model.PlayerState{ID: 2, Name: "black", Present: true},
 					wantGame: mutateGame(noMovesGame, func(s *model.ChessState) {
 						s.UndoState = model.UndoState{UndoID: 2}
 					}),
 				},
 				{
-					kind:   UndoReject,
+					kind:   model.UndoReject,
 					player: model.PlayerState{ID: 1, Name: "white", Present: true},
 					wantGame: mutateGame(noMovesGame, func(s *model.ChessState) {
 						s.UndoState = model.UndoState{}
@@ -203,12 +203,12 @@ func TestAttemptUndo(t *testing.T) {
 			gameID: noMovesGame.ID,
 			tests: []subTest{
 				{
-					kind:    UndoReject,
+					kind:    model.UndoReject,
 					player:  model.PlayerState{ID: 1, Name: "white", Present: true},
 					wantErr: ErrNoUndo,
 				},
 				{
-					kind:    UndoAccept,
+					kind:    model.UndoAccept,
 					player:  model.PlayerState{ID: 1, Name: "white", Present: true},
 					wantErr: ErrNoUndo,
 				},
@@ -219,19 +219,19 @@ func TestAttemptUndo(t *testing.T) {
 			gameID: noMovesGame.ID,
 			tests: []subTest{
 				{
-					kind:   UndoCreate,
+					kind:   model.UndoCreate,
 					player: model.PlayerState{ID: 2, Name: "black", Present: true},
 					wantGame: mutateGame(noMovesGame, func(s *model.ChessState) {
 						s.UndoState = model.UndoState{UndoID: 2}
 					}),
 				},
 				{
-					kind:    UndoAccept,
+					kind:    model.UndoAccept,
 					player:  model.PlayerState{ID: 2, Name: "black", Present: true},
 					wantErr: ErrUndoNoop,
 				},
 				{
-					kind:    UndoAccept,
+					kind:    model.UndoAccept,
 					player:  model.PlayerState{ID: 1, Name: "white", Present: true},
 					wantErr: model.ErrNoMoveUndo,
 				},

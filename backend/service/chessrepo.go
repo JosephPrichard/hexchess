@@ -8,8 +8,6 @@ import (
 	"log/slog"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/redis/go-redis/v9"
 )
 
@@ -68,7 +66,7 @@ type RedisChessSetter interface {
 func (services *HexchessServices) setChessState(ctx context.Context, setter RedisChessSetter, id model.GameID, state *model.ChessState, updtTime time.Time) error {
 	gameKey := fmtGameKey(id)
 
-	bytes, err := proto.Marshal(model.SerializeChessState(state))
+	bytes, err := model.MarshalChessState(state)
 	if err != nil {
 		return serrors.Wrap("marshal chess state", err)
 	}
@@ -85,7 +83,7 @@ func (services *HexchessServices) setChessStates(ctx context.Context, chessState
 	for i := range chessStates {
 		state := &chessStates[i]
 
-		bytes, err := proto.Marshal(model.SerializeChessState(state))
+		bytes, err := model.MarshalChessState(state)
 		if err != nil {
 			return serrors.Wrap("marshal chess state", err)
 		}

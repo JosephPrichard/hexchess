@@ -1,31 +1,28 @@
 package model
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"hexchess-lib/enum"
-	"hexchess-lib/serrors"
 	"hexchess-svc/chess"
 	"hexchess-svc/pb"
 	"time"
 
 	"github.com/google/uuid"
-	"google.golang.org/protobuf/proto"
 )
 
-// domain.PlayerState
+// PlayerState
 
 func UnmarshalPlayer(bytes []byte) (PlayerState, error) {
 	var pbPlayer pb.PlayerState
-	if err := proto.Unmarshal(bytes, &pbPlayer); err != nil {
+	if err := pbPlayer.UnmarshalVT(bytes); err != nil {
 		return PlayerState{}, err
 	}
 	return DeserializePlayer(&pbPlayer), nil
 }
 
 func MarshalPlayer(player PlayerState) ([]byte, error) {
-	return proto.Marshal(SerializePlayer(player))
+	return SerializePlayer(player).MarshalVT()
 }
 
 func DeserializePlayer(pbPlayer *pb.PlayerState) PlayerState {
@@ -71,26 +68,44 @@ func SerializeEndKind(endKind EndKind) pb.EndKind {
 	}
 }
 
+// Undo
+
+func DeserializeUndoInput(pbInput *pb.UndoInput) (UndoKind, error) {
+	var undoKind UndoKind
+	switch pbInput.Kind {
+	case "CREATE":
+		undoKind = UndoCreate
+	case "ACCEPT":
+		undoKind = UndoAccept
+	case "REJECT":
+		undoKind = UndoReject
+	default:
+		return 0, fmt.Errorf("invalid undo kind: %s", pbInput.Kind)
+	}
+	return undoKind, nil
+}
+
 // ChessState
 
 func UnmarshalChessState(bytes []byte) (*ChessState, error) {
-	var pbChess pb.ChessState
-	if err := proto.Unmarshal(bytes, &pbChess); err != nil {
+	pbChess := pb.ChessStateFromVTPool()
+	if err := pbChess.UnmarshalVT(bytes); err != nil {
 		return nil, err
 	}
+	defer pbChess.ReturnToVTPool()
 
 	game, err := chess.DeserializeGame(pbChess.Game)
 	if err != nil {
-		return nil, serrors.Wrap("deserialize game", err)
+		return nil, err
 	}
 	initialBoard, err := chess.DeserializeBoard(pbChess.InitialBoard)
 	if err != nil {
-		return nil, serrors.Wrap("deserialize initial board", err, "board", pbChess.Game.Board)
+		return nil, err
 	}
 
-	mode, modeErr := enum.Parse(pbChess.Mode, GameModeEnums)
+	mode, me := enum.Parse(pbChess.Mode, GameModeEnums)
 	firstColor, colorErr := enum.Parse(pbChess.FirstColor, GameColorEnums)
-	if err := errors.Join(modeErr, colorErr); err != nil {
+	if err := errors.Join(me, colorErr); err != nil {
 		return nil, err
 	}
 
@@ -105,6 +120,10 @@ func UnmarshalChessState(bytes []byte) (*ChessState, error) {
 		FirstColor:   firstColor,
 		Mode:         mode,
 	}, nil
+}
+
+func MarshalChessState(state *ChessState) ([]byte, error) {
+	return SerializeChessState(state).MarshalVT()
 }
 
 func SerializeChessState(state *ChessState) *pb.ChessState {
@@ -140,14 +159,12 @@ func MarshalChats(chats []Chat) ([]byte, error) {
 	for _, chat := range chats {
 		pbChats = append(pbChats, SerializeChat(chat))
 	}
-	return proto.Marshal(&pb.ChatMessages{
-		Chats: pbChats,
-	})
+	return (&pb.ChatMessages{Chats: pbChats}).MarshalVT()
 }
 
 func UnmarshalChat(bytes []byte) (Chat, error) {
-	pbChat := &pb.ChatMessage{}
-	if err := proto.Unmarshal(bytes, pbChat); err != nil {
+	var pbChat pb.ChatMessage
+	if err := pbChat.UnmarshalVT(bytes); err != nil {
 		return Chat{}, err
 	}
 	madeOn, err := time.Parse(time.RFC3339, pbChat.SentAt)
@@ -162,87 +179,24 @@ func UnmarshalChat(bytes []byte) (Chat, error) {
 	}, nil
 }
 
-// UserMessage
-
-func MarshalUserMessage(pbUserMessage *pb.UserMessage) (Challenge, error) {
-	switch message := (pbUserMessage.Value).(type) {
-	case *pb.UserMessage_Challenge:
-		challenge := message.Challenge
-
-		madeOn, err := time.Parse(time.RFC3339, challenge.MadeOn)
-		if err != nil {
-			return Challenge{}, err
-		}
-
-		mode, modeErr := enum.Parse(challenge.Mode, GameModeEnums)
-		startColor, colorErr := enum.Parse(challenge.StartColor, GameColorEnums)
-		if err := errors.Join(modeErr, colorErr); err != nil {
-			return Challenge{}, err
-		}
-
-		return Challenge{
-			ChallengerID:      challenge.ChallengerId,
-			ChallengerName:    challenge.ChallengerName,
-			ChallengerCountry: challenge.ChallengerCountry,
-			ChallengerElo:     challenge.ChallengerElo,
-			ChallengeeID:      challenge.ChallengeeId,
-			ChallengeeName:    challenge.ChallengeeName,
-			ChallengeeCountry: challenge.ChallengeeCountry,
-			ChallengeeElo:     challenge.ChallengeeElo,
-			StartColor:        startColor,
-			Mode:              mode,
-			MadeOn:            madeOn,
-		}, nil
-	default:
-		return Challenge{}, fmt.Errorf("unknown message type: %T", pbUserMessage)
-	}
-}
-
-func MarshalUserMessageJson(pbUserMessage *pb.UserMessage) ([]byte, error) {
-	challenge, err := MarshalUserMessage(pbUserMessage)
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(challenge)
-}
-
-func SerializeChallengeMessage(challenge Challenge) *pb.UserMessage {
-	challengeMessage := &pb.UserMessage_Challenge{
-		Challenge: &pb.Challenge{
-			ChallengerId:      challenge.ChallengerID,
-			ChallengerName:    challenge.ChallengerName,
-			ChallengerCountry: challenge.ChallengerCountry,
-			ChallengerElo:     challenge.ChallengerElo,
-			ChallengeeId:      challenge.ChallengeeID,
-			ChallengeeName:    challenge.ChallengeeName,
-			ChallengeeCountry: challenge.ChallengeeCountry,
-			ChallengeeElo:     challenge.ChallengeeElo,
-			Mode:              challenge.Mode.String(),
-			StartColor:        challenge.StartColor.String(),
-			MadeOn:            challenge.MadeOn.Format(time.RFC3339),
-		},
-	}
-	return &pb.UserMessage{UserId: challenge.ChallengeeID, Value: challengeMessage}
-}
-
 // FinishGameEvent
 
 func UnmarshalFinishedGame(bytes []byte) (FinishedGame, error) {
 	var pbGameEvent pb.FinishGameEvent
-	if err := proto.Unmarshal(bytes, &pbGameEvent); err != nil {
+	if err := pbGameEvent.UnmarshalVT(bytes); err != nil {
 		return FinishedGame{}, err
 	}
 
-	mode, modeErr := enum.Parse(pbGameEvent.GameMode, GameModeEnums)
-	replayResult, resultErr := enum.Parse(pbGameEvent.ReplayResult, ReplayResultEnums)
-	replayCause, causeErr := enum.Parse(pbGameEvent.ReplayCause, ReplayCauseEnums)
-	if err := errors.Join(modeErr, resultErr, causeErr); err != nil {
+	mode, me := enum.Parse(pbGameEvent.GameMode, GameModeEnums)
+	replayResult, re := enum.Parse(pbGameEvent.ReplayResult, ReplayResultEnums)
+	replayCause, ce := enum.Parse(pbGameEvent.ReplayCause, ReplayCauseEnums)
+	if err := errors.Join(me, re, ce); err != nil {
 		return FinishedGame{}, err
 	}
 
 	board, err := chess.DeserializeBoard(pbGameEvent.Board)
 	if err != nil {
-		return FinishedGame{}, serrors.Wrap("deserialize board", err, "board", pbGameEvent.Board)
+		return FinishedGame{}, err
 	}
 
 	return FinishedGame{
@@ -258,7 +212,7 @@ func UnmarshalFinishedGame(bytes []byte) (FinishedGame, error) {
 }
 
 func MarshalFinishedGame(event FinishedGame) ([]byte, error) {
-	return proto.Marshal(&pb.FinishGameEvent{
+	pbEvent := &pb.FinishGameEvent{
 		GameId:       event.GameID.String(),
 		Board:        chess.SerializeBoard(&event.Board),
 		Moves:        chess.SerializeMoveList(event.Moves),
@@ -267,20 +221,21 @@ func MarshalFinishedGame(event FinishedGame) ([]byte, error) {
 		GameMode:     event.ReplayMode.String(),
 		ReplayResult: event.ReplayResult.String(),
 		ReplayCause:  event.ReplayCause.String(),
-	})
+	}
+	return pbEvent.MarshalVT()
 }
 
-// StartGameEvent
+// GameUpdtEvent
 
 func UnmarshalGameMetadataUpdt(bytes []byte) (GameMetadataUpdt, error) {
 	var pbGameEvent pb.UpdtMetadataEvent
-	if err := proto.Unmarshal(bytes, &pbGameEvent); err != nil {
+	if err := pbGameEvent.UnmarshalVT(bytes); err != nil {
 		return GameMetadataUpdt{}, err
 	}
 
-	mode, modeErr := enum.Parse(pbGameEvent.Mode, GameModeEnums)
+	mode, me := enum.Parse(pbGameEvent.Mode, GameModeEnums)
 	firstColor, colorErr := enum.Parse(pbGameEvent.FirstColor, GameColorEnums)
-	if err := errors.Join(modeErr, colorErr); err != nil {
+	if err := errors.Join(me, colorErr); err != nil {
 		return GameMetadataUpdt{}, err
 	}
 
@@ -294,24 +249,26 @@ func UnmarshalGameMetadataUpdt(bytes []byte) (GameMetadataUpdt, error) {
 }
 
 func MarshalGameMetadataUpdt(event GameMetadataUpdt) ([]byte, error) {
-	return proto.Marshal(&pb.UpdtMetadataEvent{
+	pbEvent := &pb.UpdtMetadataEvent{
 		GameId:      event.GameID.String(),
 		WhitePlayer: event.WhitePlayer,
 		BlackPlayer: event.BlackPlayer,
 		FirstColor:  event.FirstColor.String(),
 		Mode:        event.Mode.String(),
-	})
+	}
+	return pbEvent.MarshalVT()
 }
 
 // MatchCreation
 
 func UnmarshalMatchCreation(bytes []byte) ([]MatchCreation, error) {
-	var pbMatches pb.MatchCreations
-	if err := proto.Unmarshal(bytes, &pbMatches); err != nil {
+	pbMatches := pb.MatchCreationsFromVTPool()
+	if err := pbMatches.UnmarshalVT(bytes); err != nil {
 		return nil, err
 	}
+	defer pbMatches.ReturnToVTPool()
 
-	var matches []MatchCreation
+	matches := make([]MatchCreation, 0, len(pbMatches.Creations))
 
 	for _, pbMatch := range pbMatches.Creations {
 		mode, err := enum.Parse(pbMatch.Mode, GameModeEnums)
@@ -330,7 +287,8 @@ func UnmarshalMatchCreation(bytes []byte) ([]MatchCreation, error) {
 }
 
 func MarshalMatchCreations(matches []MatchCreation) ([]byte, error) {
-	var pbMatches []*pb.MatchCreation
+	pbMatches := make([]*pb.MatchCreation, 0, len(matches))
+
 	for _, m := range matches {
 		pbMatches = append(pbMatches, &pb.MatchCreation{
 			GameId:  m.GameID.String(),
@@ -339,25 +297,24 @@ func MarshalMatchCreations(matches []MatchCreation) ([]byte, error) {
 			BlackId: m.BlackID,
 		})
 	}
-	return proto.Marshal(&pb.MatchCreations{
-		Creations: pbMatches,
-	})
+
+	return (&pb.MatchCreations{Creations: pbMatches}).MarshalVT()
 }
 
 // AdvanceTournamentEvent
 
-func UnmarshalAdvanceTournamentEvent(bytes []byte) (AdvanceTournamentEvent, error) {
+func UnmarshalAdvanceTournamentEvent(bytes []byte) (e AdvanceTournamentEvent, err error) {
 	var pbEvent pb.AdvanceTournamentEvent
-	if err := proto.Unmarshal(bytes, &pbEvent); err != nil {
-		return AdvanceTournamentEvent{}, serrors.Wrap("unmarshal create scheduled tournament event", err)
+	if err := pbEvent.UnmarshalVT(bytes); err != nil {
+		return e, err
 	}
 	tournamentKey, err := uuid.Parse(pbEvent.TournamentKey)
 	if err != nil {
-		return AdvanceTournamentEvent{}, serrors.Wrap("parse tournament key", err, "tournamentKey", pbEvent.TournamentKey)
+		return e, err
 	}
 	eventID, err := uuid.Parse(pbEvent.EventId)
 	if err != nil {
-		return AdvanceTournamentEvent{}, serrors.Wrap("parse event id", err, "eventID", pbEvent.EventId)
+		return e, err
 	}
 	return AdvanceTournamentEvent{TournamentKey: tournamentKey, EventID: eventID}, nil
 }
@@ -427,67 +384,6 @@ func SerializeStartTournament(tournamentKey uuid.UUID) *pb.TournamentOutput {
 	}
 }
 
-func DeserializeParticipantOutput(pbParticipant *pb.TournamentOutput_Participant) (LbdUser, error) {
-	if pbParticipant == nil || pbParticipant.Participant == nil {
-		return LbdUser{}, nil
-	}
-	return DeserializeLbdUser(pbParticipant.Participant)
-}
-
-func DeserializeMatchmakingOutput(pbMatchmaking *pb.TournamentOutput_Matchmaking) ([]FullMatch, error) {
-	if pbMatchmaking == nil || pbMatchmaking.Matchmaking == nil {
-		return nil, nil
-	}
-	return DeserializeTournamentMatches(pbMatchmaking.Matchmaking.Matches)
-}
-
-func DeserializeErrorOutput(pbError *pb.TournamentOutput_Error) string {
-	if pbError == nil || pbError.Error == nil {
-		return ""
-	}
-	return pbError.Error.Message
-}
-
-func MarshalTournamentOutput(pbOutput *pb.TournamentOutput) (output TournamentOutput, err error) {
-	if pbOutput != nil && pbOutput.Value != nil {
-		return output, nil
-	}
-
-	switch pbOutputValue := pbOutput.Value.(type) {
-	case *pb.TournamentOutput_Participant:
-		lbdUser, err := DeserializeParticipantOutput(pbOutputValue)
-		if err != nil {
-			return output, serrors.Wrap("deserialize participant output", err)
-		}
-		return TournamentOutput{Key: ParticipantKey, Value: TournamentOutput_Participant(lbdUser)}, nil
-	case *pb.TournamentOutput_Countdown:
-		return TournamentOutput{Key: CountdownKey, Value: TournamentOutput_Countdown{}}, nil
-	case *pb.TournamentOutput_Start:
-		return TournamentOutput{Key: StartKey, Value: TournamentOutput_Start{}}, nil
-	case *pb.TournamentOutput_Matchmaking:
-		matches, err := DeserializeMatchmakingOutput(pbOutputValue)
-		if err != nil {
-			return output, serrors.Wrap("deserialize matchmaking output", err)
-		}
-		return TournamentOutput{Key: MatchmakingKey, Value: TournamentOutput_Matchmaking{Matches: matches}}, nil
-	case *pb.TournamentOutput_Error:
-		return TournamentOutput{
-			Key:   ErrorKey,
-			Value: TournamentOutput_Error(DeserializeErrorOutput(pbOutputValue)),
-		}, nil
-	default:
-		return output, fmt.Errorf("unknown tournament output type: %T", pbOutputValue)
-	}
-}
-
-func MarshalTournamentOutputJson(pbOutput *pb.TournamentOutput) ([]byte, error) {
-	output, err := MarshalTournamentOutput(pbOutput)
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(output)
-}
-
 // LbdUser
 
 func SerializeLbdUser(user LbdUser) *pb.LbdUser {
@@ -515,11 +411,7 @@ func DeserializeLbdUser(user *pb.LbdUser) (LbdUser, error) {
 
 	return LbdUser{
 		User: User{
-			ID:       user.Id,
-			Username: user.Username,
-			Country:  user.Country,
-			Bio:      user.Bio,
-			JoinedOn: joinedOn,
+			ID: user.Id, Username: user.Username, Country: user.Country, Bio: user.Bio, JoinedOn: joinedOn,
 		},
 		Elo:        user.Elo,
 		HighestElo: user.HighestElo,
@@ -534,20 +426,16 @@ func DeserializeLbdUser(user *pb.LbdUser) (LbdUser, error) {
 // TournamentMatch
 
 func DeserializeTournamentMatches(pbMatches []*pb.TournamentMatch) ([]FullMatch, error) {
-	var matches []FullMatch
+	matches := make([]FullMatch, 0, len(pbMatches))
 
-	var serdeErrs []error
-
-	for i, pbMatch := range pbMatches {
+	for _, pbMatch := range pbMatches {
 		tournamentKey, err := uuid.Parse(pbMatch.TournamentKey)
 		if err != nil {
-			serdeErrs = append(serdeErrs, serrors.Wrap("invalid tournament key", err, "i", i, "tournamentKey", pbMatch.TournamentKey))
-			continue
+			return nil, err
 		}
 		createdOn, err := time.Parse(time.RFC3339, pbMatch.CreatedOn)
 		if err != nil {
-			serdeErrs = append(serdeErrs, serrors.Wrap("parse created on", err, "i", i, "createdOn", pbMatch.CreatedOn))
-			continue
+			return nil, err
 		}
 		matches = append(matches, FullMatch{
 			TournamentKey: tournamentKey,
@@ -559,5 +447,94 @@ func DeserializeTournamentMatches(pbMatches []*pb.TournamentMatch) ([]FullMatch,
 		})
 	}
 
-	return matches, errors.Join(serdeErrs...)
+	return matches, nil
+}
+
+// Game Input / Output
+
+func MarshalGameOutputError(gameID GameID, messageID string, err error) ([]byte, error) {
+	pbOutput := &pb.GameOutput{
+		GameId:    gameID.String(),
+		MessageId: messageID,
+		Value: &pb.GameOutput_Error{
+			Error: &pb.ErrorOutput{Message: err.Error()},
+		},
+	}
+	return pbOutput.MarshalVT()
+}
+
+func MarshalGameOutputInit(gameID GameID, state *pb.ChessState, self *pb.PlayerState) ([]byte, error) {
+	pbOutput := &pb.GameOutput{
+		GameId: gameID.String(),
+		Value: &pb.GameOutput_Init{
+			Init: &pb.InitOutput{State: state, Self: self},
+		},
+	}
+	return pbOutput.MarshalVT()
+}
+
+func SerializeGameOutputPlayers(gameID GameID, white, black *pb.PlayerState) *pb.GameOutput {
+	return &pb.GameOutput{
+		GameId: gameID.String(),
+		Value: &pb.GameOutput_Players{
+			Players: &pb.PlayersOutput{
+				WhitePlayer: white,
+				BlackPlayer: black,
+			},
+		},
+	}
+}
+
+func SerializeGameOutputForfeit(gameID GameID, messageID string, endState EndKind) *pb.GameOutput {
+	return &pb.GameOutput{
+		GameId:    gameID.String(),
+		MessageId: messageID,
+		Value: &pb.GameOutput_Forfeit{
+			Forfeit: &pb.ForfeitOutput{
+				EndState: SerializeEndKind(endState),
+			},
+		},
+	}
+}
+
+func SerializeGameOutputMove(gameID GameID, messageID string, move *pb.HistMove, game *pb.ChessGame, updatedAt time.Time) *pb.GameOutput {
+	return &pb.GameOutput{
+		GameId:    gameID.String(),
+		MessageId: messageID,
+		Value: &pb.GameOutput_Move{
+			Move: &pb.MoveOutput{
+				Move:      move,
+				Game:      game,
+				UpdatedAt: updatedAt.Format(time.RFC3339),
+			},
+		},
+	}
+}
+
+func SerializeGameOutputChat(gameID GameID, messageID string, chat Chat) *pb.GameOutput {
+	return &pb.GameOutput{
+		GameId:    gameID.String(),
+		MessageId: messageID,
+		Value: &pb.GameOutput_Chat{Chat: &pb.ChatMessage{
+			Player:  SerializePlayer(chat.Player),
+			Message: chat.Message,
+			SentAt:  chat.SentAt.Format(time.RFC3339),
+		}},
+	}
+}
+
+func SerializeGameOutputUndo(gameID GameID, messageID string, undoKind string, undoID int64, state *ChessState) *pb.GameOutput {
+	var game *pb.ChessGame
+	if state != nil {
+		game = chess.SerializeGame(&state.Game)
+	}
+	return &pb.GameOutput{
+		GameId:    gameID.String(),
+		MessageId: messageID,
+		Value: &pb.GameOutput_Undo{
+			Undo: &pb.UndoOutput{
+				Kind: undoKind, UndoId: undoID, Game: game,
+			},
+		},
+	}
 }

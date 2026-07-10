@@ -1,7 +1,7 @@
 package chess
 
 import (
-	"encoding/json"
+	// "encoding/json"
 	"fmt"
 	"slices"
 )
@@ -27,9 +27,9 @@ type SerializeableGame struct {
 	Moves []HistMove `json:"moves"`
 }
 
-func (g *Game) MarshalJSON() ([]byte, error) {
-	return json.Marshal(SerializeableGame{Board: g.Board, Moves: g.Moves})
-}
+// func (g *Game) MarshalJSON() ([]byte, error) {
+// 	return json.Marshal(SerializeableGame{Board: g.Board, Moves: g.Moves})
+// }
 
 func NewStartGame(initial ...Place) Game {
 	return Game{Board: NewStartBoard(initial...)}

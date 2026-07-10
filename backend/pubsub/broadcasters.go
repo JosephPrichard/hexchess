@@ -2,15 +2,14 @@ package pubsub
 
 import (
 	"context"
-	"encoding/json"
 	"hexchess-lib/async"
 	"hexchess-svc/db"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"log/slog"
 
+	"github.com/bytedance/sonic"
 	"github.com/gomodule/redigo/redis"
-	"google.golang.org/protobuf/proto"
 )
 
 type Broadcaster struct {
@@ -55,7 +54,7 @@ type CountEvent struct {
 func (b *Broadcaster) broadcastCountEvent(ctx context.Context, channel string, count int64) {
 	slog.InfoContext(ctx, "broadcasting count event", "channel", channel, "count", count)
 
-	bytes, err := json.Marshal(CountEvent{Count: count})
+	bytes, err := sonic.Marshal(CountEvent{Count: count})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to marshal count event", "error", err)
 		return
@@ -74,7 +73,7 @@ func (b *Broadcaster) BroadcastGameCount(ctx context.Context, count int64) {
 func (b *Broadcaster) BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput) {
 	slog.InfoContext(ctx, "broadcasting game event", "gameId", output.GameId)
 
-	bytes, err := proto.Marshal(output)
+	bytes, err := output.MarshalVT()
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to marshal game message", "error", err)
 		return
@@ -82,10 +81,10 @@ func (b *Broadcaster) BroadcastGamesEvent(ctx context.Context, output *pb.GameOu
 	b.broadcastMessage(context.WithoutCancel(ctx), b.names.GamesChannel, bytes)
 }
 
-func (b *Broadcaster) BroadcastTournament(ctx context.Context, tournament *pb.TournamentOutput) {
+func (b *Broadcaster) BroadcastTournament(ctx context.Context, tournament model.TournamentOutput) {
 	slog.InfoContext(ctx, "broadcasting tournament", "tournamentOutput", tournament)
 
-	bytes, err := proto.Marshal(tournament)
+	bytes, err := sonic.Marshal(tournament)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to marshal tournament message", "error", err)
 		return
@@ -93,12 +92,12 @@ func (b *Broadcaster) BroadcastTournament(ctx context.Context, tournament *pb.To
 	b.broadcastMessage(context.WithoutCancel(ctx), b.names.TournamentsChannel, bytes)
 }
 
-func (b *Broadcaster) BroadcastChallenge(ctx context.Context, challenge model.Challenge) {
-	slog.InfoContext(ctx, "broadcasting challenge", "challenge", challenge)
+func (b *Broadcaster) BroadcastUserMessage(ctx context.Context, userMessage model.UserMessage) {
+	slog.InfoContext(ctx, "broadcasting user message", "userMessage", userMessage)
 
-	bytes, err := proto.Marshal(model.SerializeChallengeMessage(challenge))
+	bytes, err := sonic.Marshal(userMessage)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to marshal user challenge message", "error", err)
+		slog.ErrorContext(ctx, "failed to marshal user message", "error", err)
 		return
 	}
 	b.broadcastMessage(context.WithoutCancel(ctx), b.names.UsersChannel, bytes)

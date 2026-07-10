@@ -2,12 +2,14 @@ package chess
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"strconv"
 	"strings"
 	"unicode"
+	"unsafe"
 
 	"hexchess-svc/pb"
 )
@@ -121,14 +123,6 @@ type BoardMatrix [][]int
 type Board struct {
 	IsWhiteTurn bool
 	Pieces      [Files][MaxRanks]Piece // over allocated to keep the array packed within the struct
-}
-
-func (b *Board) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	buf.WriteRune('"')
-	buf.WriteString(b.Fen())
-	buf.WriteRune('"')
-	return buf.Bytes(), nil
 }
 
 func (b *Board) ToMatrix() BoardMatrix {
@@ -666,4 +660,33 @@ func (b *Board) StringMoves(moves []Hex) string {
 			return 0
 		}
 	})
+}
+
+var _ = (json.Marshaler)(&Board{})
+var _ = (json.Unmarshaler)(&Board{})
+
+func (b Board) MarshalJSON() ([]byte, error) {
+	fen := b.Fen()
+
+	buf := bytes.NewBuffer(make([]byte, 0, len(fen)+2))
+
+	buf.WriteRune('"')
+	buf.WriteString(fen)
+	buf.WriteRune('"')
+
+	return buf.Bytes(), nil
+}
+
+var InvalidBoardJSONString = errors.New("board must be a double quoted json string")
+
+func (b *Board) UnmarshalJSON(bytes []byte) (err error) {
+	str := unsafe.String(unsafe.SliceData(bytes), len(bytes))
+
+	if len(str) < 2 || str[0] != '"' || str[len(str)-1] != '"' {
+		return InvalidBoardJSONString
+	}
+	innerStr := str[1 : len(str)-1]
+
+	*b, err = ParseFen(innerStr)
+	return
 }

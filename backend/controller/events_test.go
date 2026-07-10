@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"hexchess-svc/model"
-	"hexchess-svc/pb"
 	"hexchess-svc/pubsub"
 	"time"
 
@@ -151,19 +150,14 @@ func TestHandleUserEvents(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	inputChallenges := []model.Challenge{
-		{ChallengeeID: 1, Mode: model.ModeCorrespondence1, StartColor: model.White},
-		{ChallengeeID: 1, Mode: model.ModeCorrespondence7, StartColor: model.Black},
+	inputMessages := []model.UserMessage{
+		{Kind: model.ChallengeKind, Challenge: model.Challenge{ChallengeeID: 2}}, // won't receive this
+		{Kind: model.ChallengeKind, Challenge: model.Challenge{ChallengeeID: 1, Mode: model.ModeCorrespondence1, StartColor: model.White}},
+		{Kind: model.ChallengeKind, Challenge: model.Challenge{ChallengeeID: 1, Mode: model.ModeCorrespondence7, StartColor: model.Black}},
 	}
 
-	// broadcast all input tournaments plus one with a random tournament key (we won't receive it)
-	broadcastedChallenges := []model.Challenge{
-		{ChallengeeID: 2},
-	}
-	broadcastedChallenges = append(broadcastedChallenges, inputChallenges...)
-
-	for _, bch := range broadcastedChallenges {
-		sseTest.broadcaster.BroadcastChallenge(ctx, bch)
+	for _, input := range inputMessages {
+		sseTest.broadcaster.BroadcastUserMessage(ctx, input)
 	}
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
@@ -172,7 +166,7 @@ func TestHandleUserEvents(t *testing.T) {
 		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, "1"),
 	}
 
-	for _, challenge := range inputChallenges {
+	for _, challenge := range inputMessages[1:] {
 		challengeJson, err := json.Marshal(challenge)
 		require.NoError(t, err)
 		wantEvents = append(wantEvents, fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, challengeJson))
@@ -189,65 +183,66 @@ func TestHandleTournamentEvents(t *testing.T) {
 	sseTest := setupSSETest(t)
 	defer sseTest.Shutdown()
 
-	tournamentKey := uuid.NewString()
+	keyUUID := uuid.New()
+	keyString := keyUUID.String()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sseTest.testServer.URL+"/api/events/tournament?tournamentKey="+tournamentKey, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sseTest.testServer.URL+"/api/events/tournament?tournamentKey="+keyString, nil)
 	require.NoError(t, err)
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
 	// one message for each union category, with full permutations of nil/non-nil fields
-	inputTournaments := []*pb.TournamentOutput{
-		{TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Start{}},
-		{TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Matchmaking{}},
-		{TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Matchmaking{
-			Matchmaking: &pb.MatchmakingOutput{Matches: []*pb.TournamentMatch{
+	inputTournaments := []model.TournamentOutput{
+		{Key: uuid.NewString()}, // won't receive this
+		{Key: keyString, Kind: model.TournamentStartKind},
+		{Key: keyString, Kind: model.TournamentMatchmakingKind},
+		{
+			Key:  keyString,
+			Kind: model.TournamentMatchmakingKind,
+			Matches: []model.FullMatch{
 				{
-					Id:            1,
-					TournamentKey: tournamentKey,
+					TournamentKey: keyUUID,
 					Round:         1,
-					GameId:        "game-id-1",
-					WhiteId:       1,
-					BlackId:       2,
-					CreatedOn:     time.Now().Format(time.RFC3339),
+					GameID:        "game-id-1",
+					WhiteID:       1,
+					BlackID:       2,
+					CreatedOn:     time.Now(),
 				},
-			}},
-		}},
-		{TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Countdown{}},
-		{TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Participant{}},
-		{TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Participant{
-			Participant: &pb.LbdUser{
-				Id:       1,
-				Username: "John Doe",
-				Country:  "us",
-				JoinedOn: time.Now().Format(time.RFC3339),
 			},
-		}},
-		{TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Error{Error: &pb.ErrorOutput{Message: "Error"}}},
-		{TournamentKey: tournamentKey, Value: &pb.TournamentOutput_Error{}},
+		},
+		{Key: keyString, Kind: model.TournamentCountdownKind},
+		{Key: keyString, Kind: model.TournamentParticipantKind},
+		{
+			Key:  keyString,
+			Kind: model.TournamentParticipantKind,
+			LeaderboardUser: model.LbdUser{
+				User: model.User{
+					ID:       1,
+					Username: "John Doe",
+					Country:  "us",
+					JoinedOn: time.Now(),
+				},
+			},
+		},
+		{Key: keyString, Kind: model.TournamentErrorKind, Error: "error"},
+		{Key: keyString, Kind: model.TournamentErrorKind},
 	}
 
-	// broadcast all input tournaments plus one with a random tournament key (we won't receive it)
-	broadcastedTournaments := []*pb.TournamentOutput{
-		{TournamentKey: uuid.NewString()},
-	}
-	broadcastedTournaments = append(broadcastedTournaments, inputTournaments...)
-
-	for _, bt := range broadcastedTournaments {
-		sseTest.broadcaster.BroadcastTournament(ctx, bt)
+	for _, input := range inputTournaments {
+		sseTest.broadcaster.BroadcastTournament(ctx, input)
 	}
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
 
-	wantEvents := []string{
-		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, tournamentKey),
-	}
 	// expect one event for each tournament input, plus the meta event
-	for _, bt := range inputTournaments {
-		tournamentJson, err := model.MarshalTournamentOutputJson(bt)
+	wantEvents := []string{
+		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, keyString),
+	}
+	for _, tournament := range inputTournaments[1:] {
+		json, err := json.Marshal(tournament)
 		require.NoError(t, err)
-		wantEvents = append(wantEvents, fmt.Sprintf("event: %s\ndata: %s\n", TournamentEvent, tournamentJson))
+		wantEvents = append(wantEvents, fmt.Sprintf("event: %s\ndata: %s\n", TournamentEvent, json))
 	}
 
 	gotEvents := scanEvents(t, resp, len(wantEvents))

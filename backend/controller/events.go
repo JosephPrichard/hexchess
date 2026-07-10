@@ -32,7 +32,7 @@ func SSE(h func(w *SSEClient, r *http.Request) error) http.HandlerFunc {
 		if err := h(&SSEClient{ctx, w, f}, r); err != nil {
 			resp := ServiceViewFromErr(err)
 
-			logutil.SError(ctx, LevelFromStatus(resp.Status), "sse request failed", err, "method", r.Method, "url", r.URL)
+			logutil.Error(ctx, LevelFromStatus(resp.Status), "sse request failed", err, "method", r.Method, "url", r.URL)
 
 			http.Error(w, fmt.Sprintf("%s:%s", MetaEvent, resp.Message), resp.Status)
 		}

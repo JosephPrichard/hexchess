@@ -234,12 +234,12 @@ func UnmarshalGameOutput(outputBytes []byte, gameID string, sessionID string) (G
 		game = v.Move.Game
 	case *pb.GameOutput_Init:
 		game = v.Init.State.Game
-		slog.Info("received init event", "gameID", gameID, "sessionID", sessionID)
+		slog.Debug("received init event", "gameID", gameID, "sessionID", sessionID)
 	case *pb.GameOutput_Replay:
 		isTerminal = true
 	case *pb.GameOutput_Players:
 		players = v.Players
-		slog.Info("received players event", "gameID", gameID, "sessionID", sessionID, "players", v.Players)
+		slog.Debug("received players event", "gameID", gameID, "sessionID", sessionID, "players", v.Players)
 	}
 
 	return GameOutput{
@@ -313,7 +313,7 @@ func MarshalNextGameInput(game *pb.ChessGame, inputMessageID string) (GameInput,
 		return GameInput{}, err
 	}
 
-	//slog.Info("producing game input", "inputMessageID", inputMessageID, "inputType", inputType)
+	slog.Debug("producing game input", "inputMessageID", inputMessageID, "inputType", inputType)
 
 	return GameInput{InputBytes: inputBytes, InputType: inputType}, nil
 }

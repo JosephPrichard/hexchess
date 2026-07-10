@@ -42,10 +42,13 @@ func (gateway EventGateway) HandleAdvanceTournamentEvent(ctx context.Context, by
 
 	slog.InfoContext(ctx, "begin tournament advance event", "event", event)
 
-	_, err = gateway.services.AdvanceTournament(ctx, event.TournamentKey, event.EventID)
+	gameIDs, err := gateway.services.AdvanceTournament(ctx, event.TournamentKey, event.EventID)
 	if errutil.IsType[svc.MatchInvariantError](err) {
 		return NonRetryableQueueError{Err: err}
-	} else {
+	} else if err != nil {
 		return err
 	}
+
+	slog.InfoContext(ctx, "advanced tournaments to produce game IDs", "gameIDs", gameIDs)
+	return nil
 }

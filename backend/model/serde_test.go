@@ -1,11 +1,9 @@
 package model
 
 import (
-	"encoding/json"
 	"testing"
 
-	"google.golang.org/protobuf/proto"
-
+	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -29,11 +27,11 @@ func TestChessSerializer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b, err := proto.Marshal(SerializeChessState(tt.state))
+			bytes, err := MarshalChessState(tt.state)
 			if err != nil {
 				t.Fatalf("marshal chess state: %v", err)
 			}
-			output, err := UnmarshalChessState(b)
+			output, err := UnmarshalChessState(bytes)
 			if err != nil {
 				t.Fatalf("deserialize state: %v", err)
 			}
@@ -48,12 +46,12 @@ func BenchmarkProtoChessSerializer(b *testing.B) {
 	input.Game.InitPieceMoves()
 	b.ResetTimer()
 	for range b.N {
-		v, err := proto.Marshal(SerializeChessState(input))
+		bytes, err := MarshalChessState(input)
 		if err != nil {
-			b.Fatalf("marshal chess s: %v", err)
+			b.Fatalf("marshal chess state: %v", err)
 		}
-		if _, err := UnmarshalChessState(v); err != nil {
-			b.Fatalf("unmarshal s: %v", err)
+		if _, err := UnmarshalChessState(bytes); err != nil {
+			b.Fatalf("unmarshal state: %v", err)
 		}
 	}
 }
@@ -62,14 +60,14 @@ func BenchmarkJsonChessSerializer(b *testing.B) {
 	input := NewChessState(StateSetup{ID: NewGameID(), Mode: ModeCorrespondence1, FirstColor: Random})
 	input.Game.InitPieceMoves()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		v, err := json.Marshal(input)
+	for range b.N {
+		bytes, err := sonic.Marshal(input)
 		if err != nil {
-			b.Fatalf("marshal s: %v", err)
+			b.Fatalf("marshal state: %v", err)
 		}
 		var output ChessState
-		if err := json.Unmarshal(v, &output); err != nil {
-			b.Fatalf("unmarshal s: %v", err)
+		if err := sonic.Unmarshal(bytes, &output); err != nil {
+			b.Fatalf("unmarshal state: %v", err)
 		}
 	}
 }

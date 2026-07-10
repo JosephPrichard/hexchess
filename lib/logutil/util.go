@@ -40,7 +40,7 @@ func Log(ctx context.Context, msg string, err error, args ...any) {
 	}
 }
 
-func SError(ctx context.Context, level slog.Level, msg string, err error, args ...any) {
+func Error(ctx context.Context, level slog.Level, msg string, err error, args ...any) {
 	args = append(args, "error", err)
 	serrors.WalkValues(err, &args)
 	slog.Log(ctx, level, msg, args...)

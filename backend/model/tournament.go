@@ -1,7 +1,6 @@
 package model
 
 import (
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -60,45 +59,24 @@ type AdvanceTournamentEvent struct {
 	TournamentKey uuid.UUID `json:"tournamentKey"`
 }
 
-type TournamentOutputKey string
+type TournamentOutputKind string
 
 const (
-	ParticipantKey TournamentOutputKey = "participant"
-	CountdownKey   TournamentOutputKey = "countdown"
-	StartKey       TournamentOutputKey = "start"
-	MatchmakingKey TournamentOutputKey = "matchmaking"
-	ErrorKey       TournamentOutputKey = "error"
+	TournamentParticipantKind TournamentOutputKind = "participant"
+	TournamentCountdownKind   TournamentOutputKind = "countdown"
+	TournamentStartKind       TournamentOutputKind = "start"
+	TournamentMatchmakingKind TournamentOutputKind = "matchmaking"
+	TournamentErrorKind       TournamentOutputKind = "error"
 )
 
-var ErrAdvanceTournamentCode = errors.New("ERR_ADVANCE_TOURNAMENT")
+type TournamentOutputKey struct {
+	TournamentKey string `json:"tournamentKey"`
+}
 
 type TournamentOutput struct {
-	Key   TournamentOutputKey      `json:"key"`
-	Value isTournamentOutput_Value `json:"value"`
+	Key             string               `json:"tournamentKey"`
+	Kind            TournamentOutputKind `json:"kind"`
+	Matches         []FullMatch          `json:"matches"`
+	Error           string               `json:"error"`
+	LeaderboardUser LbdUser              `json:"leaderboardUser"`
 }
-
-type isTournamentOutput_Value interface {
-	isTournamentOutput_Value()
-}
-
-type TournamentOutput_Participant LbdUser
-
-func (p TournamentOutput_Participant) isTournamentOutput_Value() {}
-
-type TournamentOutput_Countdown struct{}
-
-func (c TournamentOutput_Countdown) isTournamentOutput_Value() {}
-
-type TournamentOutput_Start struct{}
-
-func (s TournamentOutput_Start) isTournamentOutput_Value() {}
-
-type TournamentOutput_Matchmaking struct {
-	Matches []FullMatch `json:"matches"`
-}
-
-func (m TournamentOutput_Matchmaking) isTournamentOutput_Value() {}
-
-type TournamentOutput_Error string
-
-func (e TournamentOutput_Error) isTournamentOutput_Value() {}

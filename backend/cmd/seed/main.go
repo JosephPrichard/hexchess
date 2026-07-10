@@ -43,15 +43,15 @@ const truncateSql = `
 	CASCADE;`
 
 var (
-	usersCount             = flag.Int("usersCount", 1000, "number of users to seed")
-	challengesCount        = flag.Int("challengesCount", 100, "number of challenges to seed")
-	gameResultCount        = flag.Int("gameResultCount", 5000, "number of game results to seed")
-	tournamentsCount       = flag.Int("tournamentsCount", 1000, "number of tournaments to seed")
+	usersCount       = flag.Int("usersCount", 1000, "number of users to seed")
+	challengesCount  = flag.Int("challengesCount", 100, "number of challenges to seed")
+	gameResultCount  = flag.Int("gameResultCount", 5000, "number of game results to seed")
+	tournamentsCount = flag.Int("tournamentsCount", 1000, "number of tournaments to seed")
 
 	deterministicUsernames = flag.Bool("deterministicUsernames", true, "whether usernames follow the pattern 'User0', 'User1', etc. or are random")
 
-	initialTimeGamesRaw    = flag.String("initialTimeGames", "2025-01-01", "the oldest date at which generated game results start from")
-	gameDurationOffsetRaw  = flag.String("gameDurationOffset", "24h", "the offset between the time each consecutive game is played on (e.g. 1h, 5m)")
+	initialTimeGamesRaw   = flag.String("initialTimeGames", "2025-01-01", "the oldest date at which generated game results start from")
+	gameDurationOffsetRaw = flag.String("gameDurationOffset", "24h", "the offset between the time each consecutive game is played on (e.g. 1h, 5m)")
 
 	initialTimeGames   = time.Time{}
 	gameDurationOffset = time.Duration(0)
