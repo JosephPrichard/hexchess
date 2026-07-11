@@ -1,8 +1,8 @@
 package controller
 
 import (
-	"hexchess-lib/serrors"
 	"hexchess-svc/assets"
+	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -13,7 +13,7 @@ func (api *API) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) e
 
 	player, err := api.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
-		return serrors.Wrap("get session player", err)
+		return serrors.New("get session player", err)
 	}
 
 	contentChecksum := r.Header.Get("Content-Digest")
@@ -27,7 +27,7 @@ func (api *API) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) e
 
 	uploadResp, err := api.services.UploadProfilePic(ctx, player, r.Body, contentType, contentLengthInt64, contentChecksum)
 	if err != nil {
-		return serrors.Wrap("upload profile pic", err)
+		return serrors.New("upload profile pic", err)
 	}
 	slog.InfoContext(ctx, "uploaded profile pic", "uploadResp", uploadResp)
 

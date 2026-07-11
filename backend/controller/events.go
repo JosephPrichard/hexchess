@@ -3,10 +3,10 @@ package controller
 import (
 	"context"
 	"fmt"
-	"hexchess-lib/logutil"
-	"hexchess-lib/serrors"
-	"hexchess-lib/timeutil"
 	"hexchess-svc/pubsub"
+	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/serrors"
+	"hexchess-svc/utils/timeutil"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -56,22 +56,22 @@ func (api *API) HandleCountEvents(client *SSEClient, _ *http.Request) error {
 
 	activeCount, err := api.services.GetActiveCount(ctx)
 	if err != nil {
-		return serrors.Wrap("get active count", err)
+		return serrors.New("get active count", err)
 	}
 	gamesCount, err := api.services.GetGameMetadataCount(ctx)
 	if err != nil {
-		return serrors.Wrap("get chess state count", err)
+		return serrors.New("get chess state count", err)
 	}
 
 	writeCountEvent(client, pubsub.GlobalActiveEvent, activeCount)
 	writeCountEvent(client, pubsub.GlobalGamesEvent, gamesCount)
 
 	countsChan := make(chan pubsub.GlobalCastEvent, SSEChanBufCap)
-	api.broadcasters.CountsCaster.Subscribe(countsChan)
+	api.broadcasters.Counts.Subscribe(countsChan)
 
 	go func() {
 		<-ctx.Done()
-		api.broadcasters.CountsCaster.Unsubscribe(countsChan)
+		api.broadcasters.Counts.Unsubscribe(countsChan)
 		slog.InfoContext(ctx, "finished handle user events stream")
 	}()
 
@@ -102,7 +102,7 @@ func (api *API) HandleActiveConn(client *SSEClient, r *http.Request) error {
 	strUserID := strconv.Itoa(int(player.ID))
 
 	if _, err := api.services.AddActiveUser(ctx, strUserID); err != nil {
-		return serrors.Wrap("add active user", err)
+		return serrors.New("add active user", err)
 	}
 
 	client.event(MetaEvent, strUserID)
@@ -137,11 +137,11 @@ func (api *API) HandleUserEvents(client *SSEClient, r *http.Request) error {
 	client.event(MetaEvent, strUserID)
 
 	usersChan := make(chan []byte, SSEChanBufCap)
-	api.broadcasters.UsersCaster.Subscribe(strUserID, usersChan)
+	api.broadcasters.Users.Subscribe(strUserID, usersChan)
 
 	go func() {
 		<-ctx.Done()
-		api.broadcasters.UsersCaster.Unsubscribe(strUserID, usersChan)
+		api.broadcasters.Users.Unsubscribe(strUserID, usersChan)
 		slog.InfoContext(ctx, "finishing handle user events stream")
 
 		detachedCtx := context.WithoutCancel(ctx)
@@ -170,13 +170,13 @@ func (api *API) HandleTournamentEvents(client *SSEClient, r *http.Request) error
 	tournamentKey := r.URL.Query().Get("tournamentKey")
 
 	tournamentChan := make(chan []byte, SSEChanBufCap)
-	api.broadcasters.TournamentCaster.Subscribe(tournamentKey, tournamentChan)
+	api.broadcasters.Tournament.Subscribe(tournamentKey, tournamentChan)
 
 	client.event(MetaEvent, tournamentKey)
 
 	go func() {
 		<-ctx.Done()
-		api.broadcasters.TournamentCaster.Unsubscribe(tournamentKey, tournamentChan)
+		api.broadcasters.Tournament.Unsubscribe(tournamentKey, tournamentChan)
 		slog.InfoContext(ctx, "finishing handle tournament events stream")
 	}()
 

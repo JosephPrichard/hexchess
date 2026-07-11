@@ -3,11 +3,11 @@ package consumers
 import (
 	"context"
 	"errors"
-	"hexchess-lib/errutil"
-	"hexchess-lib/logutil"
-	"hexchess-lib/serrors"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/utils/errutil"
+	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"sync"
 	"time"
@@ -78,7 +78,7 @@ func (consumer *PostgresConsumer) poll() error {
 				Limit: consumer.PollCount,
 			})
 			if err != nil {
-				return serrors.Wrap("select postgres queue messages", err, "eventKind", consumer.EventKind, "limit", consumer.PollCount)
+				return serrors.New("select postgres queue messages", err, "eventKind", consumer.EventKind, "limit", consumer.PollCount)
 			}
 			if len(eventRows) == 0 {
 				return nil
@@ -122,7 +122,7 @@ func (consumer *PostgresConsumer) poll() error {
 					Ids:           eventIDsToAck,
 					ProcessedTime: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 				}); err != nil {
-					return serrors.Wrap("acknowledge postgres queue messages", err, "events", processedEvents)
+					return serrors.New("acknowledge postgres queue messages", err, "events", processedEvents)
 				}
 			}
 

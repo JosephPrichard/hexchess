@@ -1,10 +1,10 @@
-package perf
+package perftest
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"hexchess-lib/logutil"
+	"hexchess-svc/utils/logutil"
 	"log/slog"
 	"time"
 
@@ -40,10 +40,10 @@ func (c PerfTestConfig) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type PostgresPerfTest struct {
-	PerfTestConfig
-	EventKind     string        `json:"eventKind"`
-	GenerateInput func() []byte `json:"-"`
+type PostgresQuePerfTest struct {
+	Config        PerfTestConfig `json:"config"`
+	EventKind     string         `json:"eventKind"`
+	GenerateInput func() []byte  `json:"-"`
 }
 
 const (
@@ -51,17 +51,12 @@ const (
 	RedisEventQueueTable = "redis_queue_metrics"
 )
 
-func RunPostgresPerfTest(state State, perftest PostgresPerfTest) (GrafanaMetric, error) {
+func RunPostgresQueTest(state State, perftest PostgresQuePerfTest) (Metric, error) {
 	groupID := uuid.New()
 
 	state.WithValue(logutil.GroupID, groupID)
 
-	batchTicker := time.NewTicker(time.Second)
-	totalEventCount := int(perftest.Duration.Seconds()) * perftest.EventsPerSecond
-
-	slog.Info("insert events into postgres event queue", "perftest", perftest)
-
-	for i := range totalEventCount {
+	totalEventCount, err := insertLoop(perftest.Config, func() error {
 		inputData := perftest.GenerateInput()
 
 		_, err := state.PGPool.Exec(state.Context,
@@ -69,82 +64,88 @@ func RunPostgresPerfTest(state State, perftest PostgresPerfTest) (GrafanaMetric,
 			perftest.EventKind,
 			inputData,
 			pgtype.UUID{Bytes: groupID, Valid: true})
-		if err != nil {
-			return GrafanaMetric{}, fmt.Errorf("insert into event queue table: %w", err)
-		}
-
-		if i%perftest.EventsPerSecond == 0 {
-			<-batchTicker.C
-			slog.Info("iteration of insert events into event queue table", "index", i)
-		}
+		return err
+	})
+	if err != nil {
+		return Metric{}, fmt.Errorf("insert into event queue table %s: %w", EventQueueTable, err)
 	}
 
 	if err := pollEvents(state, EventQueueTable, groupID, totalEventCount); err != nil {
-		return GrafanaMetric{}, err
+		return Metric{}, err
 	}
 	grafanaMetric, err := getEventMetric(state, EventQueueTable, groupID)
 	if err != nil {
-		return GrafanaMetric{}, err
+		return Metric{}, err
 	}
 
-	return GrafanaMetric{
-		Name:     fmt.Sprintf("jobqueue_perf_%s", perftest.EventKind),
+	return Metric{
+		Name:     metricName(perftest.EventKind),
 		Type:     "trend",
 		Contains: "time",
 		Values:   grafanaMetric,
 	}, nil
 }
 
-type RedisPerfTest struct {
-	PerfTestConfig
+type RedisQuePerfTest struct {
+	Config        PerfTestConfig                            `json:"config"`
 	StreamName    string                                    `json:"streamName"`
 	GenerateInput func() (partitionKey string, data []byte) `json:"-"`
 }
 
-func RunRedisPerfTest(state State, perftest RedisPerfTest) (GrafanaMetric, error) {
+func RunRedisQueTest(state State, perftest RedisQuePerfTest) (Metric, error) {
 	groupID := uuid.New()
 
 	state.WithValue(logutil.GroupID, groupID)
 
-	batchTicker := time.NewTicker(time.Second)
-	totalEventCount := int(perftest.Duration.Seconds()) * perftest.EventsPerSecond
-
-	slog.Info("insert events into redis stream", "perftest", perftest, "totalEventCount", totalEventCount)
-
-	for i := range totalEventCount {
+	totalEventCount, err := insertLoop(perftest.Config, func() error {
 		partitionKey, inputData := perftest.GenerateInput()
 
-		cmd := state.RedisClient.XAdd(state.Context,  &redis.XAddArgs{
+		cmd := state.RedisClient.XAdd(state.Context, &redis.XAddArgs{
 			Stream: fmt.Sprintf("%s:{%s}", perftest.StreamName, partitionKey),
 			Values: map[string]any{
 				"data":    string(inputData),
 				"groupId": groupID.String(),
 			},
 		})
-		if err := cmd.Err(); err != nil {
-			return GrafanaMetric{}, fmt.Errorf("publish event to redis stream %s: %w", perftest.StreamName, err)
-		}
-
-		if i%perftest.EventsPerSecond == 0 {
-			<-batchTicker.C
-			slog.Info("iteration of insert events into redis stream", "index", i)
-		}
+		return cmd.Err()
+	})
+	if err != nil {
+		return Metric{}, fmt.Errorf("insert event to redis stream %s: %w", perftest.StreamName, err)
 	}
 
 	if err := pollEvents(state, RedisEventQueueTable, groupID, totalEventCount); err != nil {
-		return GrafanaMetric{}, err
+		return Metric{}, err
 	}
 	grafanaMetric, err := getEventMetric(state, RedisEventQueueTable, groupID)
 	if err != nil {
-		return GrafanaMetric{}, err
+		return Metric{}, err
 	}
 
-	return GrafanaMetric{
-		Name:     fmt.Sprintf("jobqueue_perf_%s", perftest.StreamName),
+	return Metric{
+		Name:     metricName(perftest.StreamName),
 		Type:     "trend",
 		Contains: "time",
 		Values:   grafanaMetric,
 	}, nil
+}
+
+func insertLoop(perftest PerfTestConfig, insert func() error) (int, error) {
+	batchTicker := time.NewTicker(time.Second)
+	totalEventCount := int(perftest.Duration.Seconds()) * perftest.EventsPerSecond
+
+	slog.Info("begin insert event input loop", "perftest", perftest, "totalEventCount", totalEventCount)
+
+	for i := range totalEventCount {
+		if err := insert(); err != nil {
+			return 0, err
+		}
+		if i%perftest.EventsPerSecond == 0 {
+			<-batchTicker.C
+			slog.Info("iteration of insert event loop", "perftest", perftest, "index", i)
+		}
+	}
+
+	return totalEventCount, nil
 }
 
 func pollEvents(state State, tableName string, groupID uuid.UUID, expectedTotalEventCount int) error {
@@ -180,14 +181,14 @@ func pollEvents(state State, tableName string, groupID uuid.UUID, expectedTotalE
 	return nil
 }
 
-func getEventMetric(state State, tableName string, groupID uuid.UUID) (GrafanaTrend, error) {
+func getEventMetric(state State, tableName string, groupID uuid.UUID) (Trend, error) {
 	slog.Info("getting event metrics", "tableName", tableName)
 
 	rows, err := state.PGPool.Query(state.Context,
 		fmt.Sprintf("SELECT consumed_on, processed_on FROM %s WHERE group_id = $1;", tableName),
 		pgtype.UUID{Bytes: groupID, Valid: true})
 	if err != nil {
-		return GrafanaTrend{}, fmt.Errorf("select event metrics for table %s: %w", tableName, err)
+		return Trend{}, fmt.Errorf("select event metrics for table %s: %w", tableName, err)
 	}
 	defer rows.Close()
 
@@ -196,7 +197,7 @@ func getEventMetric(state State, tableName string, groupID uuid.UUID) (GrafanaTr
 		ProcesedOn pgtype.Timestamptz `db:"processed_on"`
 	}])
 	if err != nil {
-		return GrafanaTrend{}, err
+		return Trend{}, err
 	}
 
 	var eventLatencies []float64
@@ -205,14 +206,11 @@ func getEventMetric(state State, tableName string, groupID uuid.UUID) (GrafanaTr
 			slog.Warn("selected event result record is missing measured outputs", "eventRows", eventRows)
 			continue
 		}
-		eventLatencies = append(eventLatencies, durationToMillis(event.ProcesedOn.Time.Sub(event.ConsumedOn.Time)))
+		duration := event.ProcesedOn.Time.Sub(event.ConsumedOn.Time)
+		eventLatencies = append(eventLatencies, float64(duration)/float64(time.Millisecond))
 	}
 
 	slog.Info("retrieved event latencies", "tableName", tableName, "datapointCount", len(eventLatencies))
 
 	return BuildGrafanaTrend(eventLatencies)
-}
-
-func durationToMillis(d time.Duration) float64 {
-	return float64(d) / float64(time.Millisecond)
 }

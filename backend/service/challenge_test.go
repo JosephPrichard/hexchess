@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"hexchess-lib/logutil"
-	"hexchess-lib/testutil"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
+	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/testutil"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"

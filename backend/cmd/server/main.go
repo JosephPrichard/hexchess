@@ -2,15 +2,15 @@ package main
 
 import (
 	"context"
-	"hexchess-lib/config"
-	"hexchess-lib/dotenv"
-	"hexchess-lib/logutil"
 	"hexchess-svc/cloud"
 	"hexchess-svc/controller"
 	"hexchess-svc/db"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/consumers"
 	svc "hexchess-svc/service"
+	"hexchess-svc/utils/config"
+	"hexchess-svc/utils/dotenv"
+	"hexchess-svc/utils/logutil"
 	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
@@ -22,6 +22,7 @@ import (
 const ServiceName = "hexchess-backend"
 
 func main() {
+	// step 1: parse CLI inputs for static input data
 	ctx := context.Background()
 
 	runtime.SetBlockProfileRate(1)
@@ -50,6 +51,7 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, profile)
 	defer shutdown()
 
+	// step 2: connect to backend infrastructure and prefer cleanup
 	pdb := db.NewPostgresDB(ctx, db.PgPoolConfig{
 		Dsn:           dbURL,
 		ActiveProfile: profile,
@@ -79,6 +81,7 @@ func main() {
 	remoteAPIs := cloud.NewRemoteAPIs(nil)
 	broadcaster := pubsub.NewAsyncBroadcaster(rdb)
 
+	// step 3: create API backend services and start background listeners
 	services := svc.NewHexchessServices(svc.SetupService{
 		DB:          pdb,
 		Redis:       rdb,
@@ -99,13 +102,8 @@ func main() {
 		Redis:    rdb,
 	})
 
+	// step 4: start API server and PPROF "sidecar" background task
 	slog.Info("starting server", "port", serverPort, "allowedOrigins", allowedOrigins)
-
-	go func() {
-		if err := http.ListenAndServe(":6060", nil); err != nil {
-			slog.Error("failed while serving pprof", "error", err)
-		}
-	}()
 
 	withHealthcheck := controller.WithHealthCheckOpts(controller.HealthCheckConfig{
 		PostgresDSN:       dbURL,
@@ -121,6 +119,11 @@ func main() {
 	}
 	mux := controller.NewServeMux(serverSetup, withHealthcheck)
 
+	go func() {
+		if err := http.ListenAndServe(":6060", nil); err != nil {
+			slog.Error("failed while serving pprof", "error", err)
+		}
+	}()
 	if err := http.ListenAndServe(":"+serverPort, mux); err != nil {
 		logutil.Fatal("failed while serving", err)
 	}

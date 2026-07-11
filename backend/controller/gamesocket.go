@@ -4,11 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-lib/logutil"
-	"hexchess-svc/chess"
-
-	"hexchess-lib/errutil"
-	"hexchess-lib/serrors"
+	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/errutil"
+	"hexchess-svc/utils/serrors"
 	"hexchess-svc/model"
 	"log/slog"
 	"net/http"
@@ -29,15 +27,6 @@ type GameSocketContext struct {
 	ErrChan chan websocketError
 }
 
-func (ctx GameSocketContext) WithMessageID(messageID string) GameSocketContext {
-	return GameSocketContext{
-		Context: context.WithValue(ctx, logutil.MessageID, messageID),
-		GameID:  ctx.GameID,
-		Player:  ctx.Player,
-		ErrChan: ctx.ErrChan,
-	}
-}
-
 type websocketError struct {
 	// messageID allows a client to pair which input message led to which output error
 	// it is left blank if the output cannot be traced or is a system-originated error
@@ -50,60 +39,81 @@ type websocketError struct {
 const GameplayChanBufCap = 10
 
 func (api *API) HandleGameWs(w http.ResponseWriter, r *http.Request) {
+	// step 1: initialize static data
 	ctx := r.Context()
 
 	query := r.URL.Query()
 	gameID := model.GameID(query.Get("gameId"))
 	sessionID := query.Get("sessionId")
 
+	subChan := make(chan message, GameplayChanBufCap)
+	errChan := make(chan websocketError)
+
+	// step 2: initialize websocket connection
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.WarnContext(ctx, "failed to upgrade ws connection", "error", err)
 		return
 	}
-	defer conn.Close() // close originating from server
 
-	subscriber := make(chan message, GameplayChanBufCap)
+	close := func() {
+		// note: both close operations are idempotent.
+		defer api.broadcasters.Games.Unsubscribe(gameID, subChan) // send close signal to writer
+		defer conn.Close()                                        // send close signal to reader
+	}
 
-	api.broadcasters.GamesCaster.Subscribe(gameID, subscriber)
-	defer api.broadcasters.GamesCaster.Unsubscribe(gameID, subscriber)
+	// step 3: initialize connection state (begin listening, get session data, etc.)
+	api.broadcasters.Games.Subscribe(gameID, subChan)
 
 	player, err := api.handleGameInit(ctx, gameID, sessionID, conn)
 	if err != nil {
-		writeGameError(ctx, conn, gameID, "", err)
-		return
+		writeGameError(ctx, conn, GameError{GameID: gameID, Error: err})
 	}
 
-	errChan := make(chan websocketError)
-
+	// step 4: start input reader (close signal received from client)
 	go func() {
-		defer conn.Close() // close originating from client
+		readCtx := GameSocketContext{
+			Context: context.WithoutCancel(ctx),
+			GameID:  gameID,
+			Player:  player,
+			ErrChan: errChan,
+		}
+		defer close()
 		for {
 			_, input, err := conn.ReadMessage()
 			if err != nil {
-				slog.WarnContext(ctx, "websocket read error", "gameID", gameID, "error", err)
+				// received close signal from reader
+				slog.InfoContext(ctx, "websocket read error", "gameID", gameID, "error", err)
 				break
 			}
-			gameSocketCtx := GameSocketContext{Context: ctx, GameID: gameID, Player: player, ErrChan: errChan}
-			go api.handleGameMessage(gameSocketCtx, input)
+			go api.handleGameMessage(readCtx, input)
 		}
 	}()
 
-	for {
-		select {
-		case wsErr := <-errChan:
-			writeGameError(ctx, conn, gameID, wsErr.messageID, wsErr.value)
-		case message, ok := <-subscriber:
-			if !ok {
-				slog.InfoContext(ctx, "websocket writer closed", "gameID", gameID)
-				return
+	// step 5: start output writer (close signal received from server)
+	go func() {
+		defer close()
+		for {
+			select {
+			case wsErr := <-errChan:
+				writeGameError(ctx, conn, GameError{GameID: gameID, MessageID: wsErr.messageID, Error: wsErr.value})
+			case message, ok := <-subChan:
+				if !ok {
+					// receive close signal from writer
+					slog.InfoContext(ctx, "websocket writer closed", "gameID", gameID)
+					return
+				}
+				writeMessage(ctx, conn, message)
 			}
-			writeMessage(ctx, conn, message)
 		}
-	}
+	}()
 }
 
-func writeGameError(ctx context.Context, conn *websocket.Conn, gameID model.GameID, messageID string, err error) {
+type GameError = model.ErrorGameOutput
+
+func writeGameError(ctx context.Context, conn *websocket.Conn, output GameError) {
+	err := output.Error
+
 	var wsErr error
 	switch {
 	case errutil.IsType[WsMessageTypeError](err):
@@ -138,11 +148,10 @@ func writeGameError(ctx context.Context, conn *websocket.Conn, gameID model.Game
 	if wsErr == ErrWsFatal {
 		level = slog.LevelError
 	}
-	logutil.Error(ctx, level, "failed to handle ws message", err, "wsErr", wsErr, "messageID", messageID)
+	logutil.Error(ctx, level, "failed to handle ws message", err, "wsErr", wsErr, "messageID", output.MessageID)
 
-	bytes, err := model.MarshalGameOutputError(gameID, messageID, wsErr)
+	bytes, err := model.MarshalGameOutputError(model.ErrorGameOutput{GameID: output.GameID, MessageID: output.MessageID, Error: wsErr})
 	if err != nil {
-		// log with a noop response
 		slog.ErrorContext(ctx, "failed to marshal err output", "error", err)
 		bytes = nil
 	}
@@ -152,28 +161,25 @@ func writeGameError(ctx context.Context, conn *websocket.Conn, gameID model.Game
 func (api *API) handleGameInit(ctx context.Context, gameID model.GameID, sessionID string, conn *websocket.Conn) (player model.PlayerState, err error) {
 	player, err = api.services.GetSession(ctx, sessionID)
 	if err != nil {
-		return player, serrors.Wrap("get session in game init phase", err)
+		return player, serrors.New("get session in game init phase", err)
 	}
 	chessState, err := api.services.JoinGame(ctx, gameID, player)
 	if err != nil {
-		return player, serrors.Wrap("join game in init game phase", err)
+		return player, serrors.New("join game in init game phase", err)
 	}
 
-	initBytes, err := model.MarshalGameOutputInit(
-		gameID,
-		model.SerializeChessState(chessState),
-		model.SerializePlayer(player),
-	)
+	initBytes, err := model.MarshalGameOutputInit(model.InitGameOutput{GameID: gameID, State: chessState, Self: player})
 	if err != nil {
-		return player, serrors.Wrap("marshal init output", err)
+		return player, serrors.New("marshal init output", err)
 	}
 	writeMessage(ctx, conn, initBytes)
 
-	api.broadcaster.BroadcastGamesEvent(ctx, model.SerializeGameOutputPlayers(
-		gameID,
-		model.SerializePlayer(chessState.WhitePlayer),
-		model.SerializePlayer(chessState.BlackPlayer),
-	))
+	output := model.SerializeGameOutputPlayers(model.PlayersGameOutput{
+		GameID:      gameID,
+		WhitePlayer: chessState.WhitePlayer,
+		BlackPlayer: chessState.BlackPlayer,
+	})
+	api.broadcaster.BroadcastGamesEvent(ctx, output)
 
 	return player, nil
 }
@@ -193,7 +199,8 @@ func (api *API) handleGameMessage(ctx GameSocketContext, input message) {
 		return
 	}
 
-	ctx = ctx.WithMessageID(pbInput.MessageId)
+	ctx.Context =  context.WithValue(ctx.Context, logutil.MessageID, pbInput.MessageId)
+
 	slog.InfoContext(ctx, "received game input", "pbInputType", fmt.Sprintf("%T", &pbInput), "pbInput", &pbInput)
 
 	var err error
@@ -219,39 +226,46 @@ func (api *API) handleGameMessage(ctx GameSocketContext, input message) {
 func (api *API) handleGameForfeit(ctx GameSocketContext, messageID string) error {
 	endState, err := api.services.EndGame(ctx, ctx.GameID, ctx.Player)
 	if err != nil {
-		return serrors.Wrap("forfeit game", err, "gameID", ctx.GameID)
+		return serrors.New("forfeit game", err, "gameID", ctx.GameID)
 	}
-	api.broadcaster.BroadcastGamesEvent(ctx, model.SerializeGameOutputForfeit(ctx.GameID, messageID, endState))
+
+	output := model.SerializeGameOutputForfeit(model.ForfeitGameOutput{
+		GameID:    ctx.GameID,
+		MessageID: messageID,
+		EndState:  endState,
+	})
+	api.broadcaster.BroadcastGamesEvent(ctx, output)
 	return nil
 }
 
 func (api *API) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput, messageID string) error {
-	moveResult, err := api.services.NewGameMove(ctx, ctx.GameID, ctx.Player, chess.DeserializeMove(pbInput.Move))
+	moveResult, err := api.services.NewGameMove(ctx, ctx.GameID, ctx.Player, model.DeserializeMove(pbInput.Move))
 	if err != nil {
-		return serrors.Wrap("make move on game", err, "gameID", ctx.GameID)
+		return serrors.New("make move on game", err, "gameID", ctx.GameID)
 	}
 
-	api.broadcaster.BroadcastGamesEvent(ctx, model.SerializeGameOutputMove(
-		ctx.GameID,
-		messageID,
-		chess.SerializeHistMove(moveResult.Move),
-		chess.SerializeGame(&moveResult.State.Game),
-		time.Now(),
-	))
+	output := model.SerializeGameOutputMove(model.MoveGameOutput{
+		GameID:    ctx.GameID,
+		MessageID: messageID,
+		Move:      moveResult.Move,
+		State:     moveResult.State,
+		UpdatedAt: time.Now(),
+	})
+	api.broadcaster.BroadcastGamesEvent(ctx, output)
 	return nil
 }
 
 func (api *API) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput, messageID string) error {
-	chatMsg := model.Chat{
+	chat := model.Chat{
 		ID:      uuid.NewString(),
 		Player:  ctx.Player,
 		Message: pbInput.Message,
 		SentAt:  time.Now(),
 	}
-	outputChat := model.SerializeGameOutputChat(ctx.GameID, messageID, chatMsg)
+	outputChat := model.SerializeGameOutputChat(model.ChatGameOutput{GameID: ctx.GameID, MessageID: messageID, Chat: chat})
 
-	if err := api.services.InsertChat(ctx, ctx.GameID, chatMsg); err != nil {
-		return serrors.Wrap("insert chat on game", err, "gameID", ctx.GameID)
+	if err := api.services.InsertChat(ctx, ctx.GameID, chat); err != nil {
+		return serrors.New("insert chat on game", err, "gameID", ctx.GameID)
 	}
 
 	api.broadcaster.BroadcastGamesEvent(ctx, outputChat)
@@ -266,9 +280,16 @@ func (api *API) handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput, mes
 
 	chessState, err := api.services.AttemptGameUndo(ctx, ctx.GameID, ctx.Player, undoKind)
 	if err != nil {
-		return serrors.Wrap("attempting undo on game", err, "player", ctx.Player, "gameID", ctx.GameID)
+		return serrors.New("attempting undo on game", err, "player", ctx.Player, "gameID", ctx.GameID)
 	}
 
-	api.broadcaster.BroadcastGamesEvent(ctx, model.SerializeGameOutputUndo(ctx.GameID, messageID, pbInput.Kind, ctx.Player.ID, chessState))
+	output := model.SerializeGameOutputUndo(model.UndoGameOutput{
+		GameID:    ctx.GameID,
+		MessageID: messageID,
+		Kind:      pbInput.Kind,
+		UndoID:    ctx.Player.ID,
+		State:     chessState,
+	})
+	api.broadcaster.BroadcastGamesEvent(ctx, output)
 	return nil
 }

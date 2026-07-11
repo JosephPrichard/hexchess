@@ -52,18 +52,18 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 }
 
 type LocalBroadcasters struct {
-	CountsCaster     *GlobalCasterActor
-	GamesCaster      *BroadcastActor[model.GameID]
-	UsersCaster      *BroadcastActor[string]
-	TournamentCaster *BroadcastActor[string]
+	Counts     *GlobalCasterActor
+	Games      *BroadcastActor[model.GameID]
+	Users      *BroadcastActor[string]
+	Tournament *BroadcastActor[string]
 }
 
 func NewLocalBroadcasters() *LocalBroadcasters {
 	return &LocalBroadcasters{
-		CountsCaster:     NewGlobalCasterActor("counts-caster"),
-		GamesCaster:      NewBroadcastActor[model.GameID]("games-caster"),
-		UsersCaster:      NewBroadcastActor[string]("users-caster"),
-		TournamentCaster: NewBroadcastActor[string]("users-caster"),
+		Counts:     NewGlobalCasterActor("counts-caster"),
+		Games:      NewBroadcastActor[model.GameID]("games-caster"),
+		Users:      NewBroadcastActor[string]("users-caster"),
+		Tournament: NewBroadcastActor[string]("users-caster"),
 	}
 }
 
@@ -86,10 +86,10 @@ func (b *LocalBroadcasters) Listen(rdb db.Redis) {
 
 func (b *LocalBroadcasters) Shutdown() {
 	slog.Info("shutting down local broadcasters")
-	b.CountsCaster.Shutdown()
-	b.GamesCaster.Shutdown()
-	b.UsersCaster.Shutdown()
-	b.TournamentCaster.Shutdown()
+	b.Counts.Shutdown()
+	b.Games.Shutdown()
+	b.Users.Shutdown()
+	b.Tournament.Shutdown()
 }
 
 func (b *LocalBroadcasters) ListenGameMessages(rdb db.Redis) chan struct{} {
@@ -103,7 +103,7 @@ func (b *LocalBroadcasters) ListenGameMessages(rdb db.Redis) chan struct{} {
 
 		gameID := model.GameID(outputID.GameId)
 
-		b.GamesCaster.Broadcast(gameID, v.Data)
+		b.Games.Broadcast(gameID, v.Data)
 	})
 }
 
@@ -116,7 +116,7 @@ func (b *LocalBroadcasters) ListenTournamentMessages(rdb db.Redis) chan struct{}
 		}
 		slog.Info("received message on tournaments channel", "key", output.TournamentKey, "output", &output)
 
-		b.TournamentCaster.Broadcast(output.TournamentKey, v.Data)
+		b.Tournament.Broadcast(output.TournamentKey, v.Data)
 	})
 }
 
@@ -131,7 +131,7 @@ func (b *LocalBroadcasters) ListenUsersMessages(rdb db.Redis) chan struct{} {
 
 		switch message.Kind {
 		case model.ChallengeKind:
-			b.UsersCaster.Broadcast(strconv.Itoa(int(message.Challenge.ChallengeeID)), v.Data)
+			b.Users.Broadcast(strconv.Itoa(int(message.Challenge.ChallengeeID)), v.Data)
 		default:
 			slog.Warn("received unknown message kind on users channel", "kind", message.Kind)
 		}
@@ -159,6 +159,6 @@ func (b *LocalBroadcasters) ListenCountEvents(rdb db.Redis) chan struct{} {
 			slog.Error("received event on unmapped channel", "channel", v.Channel, "eventMap", eventMap)
 			return
 		}
-		b.CountsCaster.Broadcast(GlobalCastEvent{Kind: eKind, Data: strData})
+		b.Counts.Broadcast(GlobalCastEvent{Kind: eKind, Data: strData})
 	})
 }

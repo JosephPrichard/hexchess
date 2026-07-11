@@ -15,9 +15,9 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	"hexchess-lib/testutil"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
+	"hexchess-svc/utils/testutil"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gorilla/websocket"
@@ -162,7 +162,7 @@ func TestHandleGameplayWs(t *testing.T) {
 			defer websocketTest.Shutdown()
 
 			subChan := make(chan []byte, len(wantBrdcasts))
-			websocketTest.localBroadcasters.GamesCaster.Subscribe(gameID, subChan)
+			websocketTest.broadcasters.Games.Subscribe(gameID, subChan)
 
 			params := url.Values{}
 			params.Set("gameId", gameID.String())
@@ -176,7 +176,9 @@ func TestHandleGameplayWs(t *testing.T) {
 
 			inputBytes, err := proto.Marshal(tt.inputMsg)
 			require.NoError(t, err)
-			require.NoError(t, conn.WriteMessage(websocket.BinaryMessage, inputBytes))
+
+			err = conn.WriteMessage(websocket.BinaryMessage, inputBytes)
+			require.NoError(t, err)
 
 			msgs := readGameOutputMsgs(t, conn, len(wantMsgs))
 			brdcasts := readGameOutputBroadcasts(ctx, len(wantBrdcasts), subChan)

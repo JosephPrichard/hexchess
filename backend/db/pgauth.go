@@ -2,8 +2,8 @@ package db
 
 import (
 	"context"
-	"hexchess-lib/logutil"
-	"hexchess-lib/timeutil"
+	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/timeutil"
 	"log/slog"
 	"sync/atomic"
 	"time"

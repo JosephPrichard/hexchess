@@ -1,12 +1,12 @@
 package itest
 
 import (
-	"hexchess-lib/config"
-	"hexchess-lib/logutil"
-	"hexchess-lib/testutil"
 	"hexchess-svc/cloud"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/utils/config"
+	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/testutil"
 	"slices"
 
 	"github.com/jackc/pgx/v5"

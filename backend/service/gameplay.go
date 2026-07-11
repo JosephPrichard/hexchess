@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"hexchess-lib/serrors"
 	"hexchess-svc/chess"
+	"hexchess-svc/utils/serrors"
 	"time"
 
 	"hexchess-svc/model"
@@ -77,7 +77,7 @@ func (services *HexchessServices) createGame(ctx context.Context, setup model.St
 
 	_, err := services.redis.Primary.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 		if err := services.setChessState(ctx, pipe, gameID, state, time.Now()); err != nil {
-			return serrors.Wrap("set chess state", err, "gameID", gameID)
+			return serrors.New("set chess state", err, "gameID", gameID)
 		}
 		return services.redisPublisher.PublishUpdtGameEvent(ctx, pipe, mapMetadataUpdt(state))
 	})
@@ -97,7 +97,7 @@ func (services *HexchessServices) JoinGame(ctx context.Context, gameID model.Gam
 		if !state.WhitePlayer.Present && !state.BlackPlayer.Present {
 			n, err := rand.Int(rand.Reader, big.NewInt(1000))
 			if err != nil {
-				return serrors.Wrap("generate randint used to select first color", err)
+				return serrors.New("generate randint used to select first color", err)
 			}
 			pickWhite := state.FirstColor == model.Random && n.Int64()%2 == 0 || state.FirstColor == model.White
 			if pickWhite {
@@ -194,7 +194,7 @@ func (services *HexchessServices) NewGameMove(ctx context.Context, gameID model.
 			ReplayResult: result,
 			ReplayCause:  model.Checkmate,
 		})
-		return serrors.Wrap("push finished game event", err)
+		return serrors.New("push finished game event", err)
 	}
 	state, err := services.updateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {
@@ -298,7 +298,7 @@ func (services *HexchessServices) EndGame(ctx context.Context, gameID model.Game
 			ReplayResult: result,
 			ReplayCause:  model.Forfeit,
 		})
-		return serrors.Wrap("push finished game event", err)
+		return serrors.New("push finished game event", err)
 	}
 	state, err := services.updateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {

@@ -15,10 +15,10 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"hexchess-lib/async"
-	"hexchess-lib/logutil"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
+	"hexchess-svc/utils/async"
+	"hexchess-svc/utils/logutil"
 )
 
 type serviceMocks struct {
@@ -51,10 +51,10 @@ func setupTestHandler(t logutil.TestLogger, mocks *serviceMocks, flags ...itest.
 }
 
 type websocketTestContext struct {
-	testinfra         itest.TestInfra
-	services          *svc.HexchessServices
-	localBroadcasters *pubsub.LocalBroadcasters
-	testServer        *httptest.Server
+	testinfra    itest.TestInfra
+	services     *svc.HexchessServices
+	broadcasters *pubsub.LocalBroadcasters
+	testServer   *httptest.Server
 }
 
 func setupWebsocketTest(t *testing.T) websocketTestContext {
@@ -75,7 +75,7 @@ func setupWebsocketTest(t *testing.T) websocketTestContext {
 		Broadcasters: localBroadcasters,
 		Broadcaster:  pubsub.NewSyncBroadcaster(testinfra.Redis),
 	}))
-	return websocketTestContext{testinfra: testinfra, services: services, localBroadcasters: localBroadcasters, testServer: testServer}
+	return websocketTestContext{testinfra: testinfra, services: services, broadcasters: localBroadcasters, testServer: testServer}
 }
 
 func (s *websocketTestContext) getWsURL() string {
@@ -84,7 +84,7 @@ func (s *websocketTestContext) getWsURL() string {
 
 func (s *websocketTestContext) Shutdown() {
 	s.testinfra.Close()
-	s.localBroadcasters.Shutdown()
+	s.broadcasters.Shutdown()
 	s.testServer.Close()
 }
 

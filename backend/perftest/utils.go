@@ -1,4 +1,4 @@
-package perf
+package perftest
 
 import (
 	crand "crypto/rand"

@@ -3,8 +3,8 @@ package db
 import (
 	"context"
 	"errors"
-	"hexchess-lib/timeutil"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/utils/timeutil"
 	"log/slog"
 	"slices"
 	"time"

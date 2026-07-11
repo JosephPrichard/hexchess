@@ -1,8 +1,8 @@
 package controller
 
 import (
-	"hexchess-lib/enum"
-	"hexchess-lib/optional"
+	"hexchess-svc/utils/enum"
+	"hexchess-svc/utils/optional"
 	"net/url"
 	"strconv"
 	"time"

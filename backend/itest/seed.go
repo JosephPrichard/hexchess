@@ -13,7 +13,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 
-	"hexchess-lib/logutil"
+	"hexchess-svc/utils/logutil"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -633,7 +633,7 @@ var TournamentMatchInsts = []struct {
 
 var TestPbMoveHistory = func() *pb.MoveHistory {
 	wantInitialGame := chess.NewEmptyGame(false)
-	pbInitialGame := chess.SerializeGame(&wantInitialGame)
+	pbInitialGame := model.SerializeGame(&wantInitialGame)
 
 	wantMoveReplay := &pb.MoveHistory{
 		InitialGame: pbInitialGame,

@@ -2,9 +2,9 @@ package db
 
 import (
 	"context"
-	"hexchess-lib/config"
-	"hexchess-lib/logutil"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/utils/config"
+	"hexchess-svc/utils/logutil"
 	"log/slog"
 
 	"github.com/jackc/pgx/v5"

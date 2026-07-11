@@ -2,10 +2,6 @@ module hexchess-svc
 
 go 1.25.0
 
-require hexchess-lib v0.0.0
-
-replace hexchess-lib => ../lib
-
 require (
 	github.com/aws/aws-sdk-go-v2 v1.42.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.6
@@ -24,6 +20,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/hellofresh/health-go/v5 v5.5.5
 	github.com/jackc/pgx/v5 v5.10.0
+	github.com/montanaflynn/stats v0.10.0
 	github.com/redis/go-redis/v9 v9.21.0
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.39.0

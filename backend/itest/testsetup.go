@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"hexchess-lib/logutil"
 	"hexchess-svc/db"
+	"hexchess-svc/utils/logutil"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"

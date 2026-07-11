@@ -54,6 +54,12 @@ func BenchmarkProtoChessSerializer(b *testing.B) {
 			b.Fatalf("unmarshal state: %v", err)
 		}
 	}
+
+	bytes, err := MarshalChessState(input)
+	if err != nil {
+		b.Fatalf("marshal chess state: %v", err)
+	}
+	b.Logf("length of marshalled chess state: %v bytes", len(bytes))
 }
 
 func BenchmarkJsonChessSerializer(b *testing.B) {
@@ -70,4 +76,10 @@ func BenchmarkJsonChessSerializer(b *testing.B) {
 			b.Fatalf("unmarshal state: %v", err)
 		}
 	}
+
+	bytes, err := sonic.Marshal(input)
+	if err != nil {
+		b.Fatalf("marshal chess state: %v", err)
+	}
+	b.Logf("length of marshalled chess state: %v bytes", len(bytes))
 }

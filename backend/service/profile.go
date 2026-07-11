@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-lib/ioutil"
-	"hexchess-lib/perf"
-	"hexchess-lib/serrors"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/ioutil"
+	"hexchess-svc/utils/perf"
+	"hexchess-svc/utils/serrors"
 	"io"
 	"log/slog"
 	"strconv"
@@ -28,7 +28,7 @@ func ParseProfilePicKey(key string) (int64, error) {
 	}
 	userID, err := strconv.ParseInt(tokens[2], 10, 64)
 	if err != nil {
-		return 0, serrors.Wrap("profile Key userID is not a valid integer", err, "key", key)
+		return 0, serrors.New("profile Key userID is not a valid integer", err, "key", key)
 	}
 	return userID, nil
 }
@@ -83,7 +83,7 @@ func (services *HexchessServices) deleteExpiredProfilePics(ctx context.Context, 
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return serrors.Wrap("list profile pics by prefix", err, "prefix", prefix, "bucket", services.aws.S3ProfileBucket)
+		return serrors.New("list profile pics by prefix", err, "prefix", prefix, "bucket", services.aws.S3ProfileBucket)
 	}
 
 	slog.InfoContext(ctx, "listed profile pics for deletion", "prefix", prefix,
@@ -102,7 +102,7 @@ func (services *HexchessServices) deleteExpiredProfilePics(ctx context.Context, 
 			Bucket: aws.String(services.aws.S3ProfileBucket),
 			Delete: &s3Types.Delete{Objects: objectIdentifiers},
 		}); err != nil {
-			return serrors.Wrap("delete profile pics by keys", err, "keys", keys, "bucket", services.aws.S3ProfileBucket)
+			return serrors.New("delete profile pics by keys", err, "keys", keys, "bucket", services.aws.S3ProfileBucket)
 		}
 	}
 	return nil
@@ -170,7 +170,7 @@ func (services *HexchessServices) UploadProfilePic(
 		return UploadProfileResult{}, ErrProfilePicTooBig
 	}
 	if err != nil {
-		return UploadProfileResult{}, serrors.Wrap("put profile pic", err, "key", key, "bucket", services.aws.S3ProfileBucket)
+		return UploadProfileResult{}, serrors.New("put profile pic", err, "key", key, "bucket", services.aws.S3ProfileBucket)
 	}
 
 	services.dispatcher.Go(func() {
@@ -195,7 +195,7 @@ func (services *HexchessServices) GetProfilePicURL(ctx context.Context, userID s
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return "", serrors.Wrap("list profile pics by prefix", err, "prefix", prefix, "bucket", services.aws.S3ProfileBucket)
+		return "", serrors.New("list profile pics by prefix", err, "prefix", prefix, "bucket", services.aws.S3ProfileBucket)
 	}
 
 	mostRecentKey := findMostRecentKey(listOutput.Contents)
@@ -209,7 +209,7 @@ func (services *HexchessServices) GetProfilePicURL(ctx context.Context, userID s
 		Key:    aws.String(mostRecentKey),
 	})
 	if err != nil {
-		return "", serrors.Wrap("presign profile pic url by key", err, "key", mostRecentKey, "bucket", services.aws.S3ProfileBucket)
+		return "", serrors.New("presign profile pic url by key", err, "key", mostRecentKey, "bucket", services.aws.S3ProfileBucket)
 	}
 
 	s3URL := presignOutput.URL

@@ -13,10 +13,10 @@ import (
 	enTranslations "github.com/go-playground/validator/v10/translations/en"
 	"github.com/google/uuid"
 
-	"hexchess-lib/enum"
-	"hexchess-lib/optional"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
+	"hexchess-svc/utils/enum"
+	"hexchess-svc/utils/optional"
 	"net/url"
 	"strings"
 	"time"

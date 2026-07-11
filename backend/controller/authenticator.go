@@ -5,9 +5,9 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"hexchess-lib/optional"
-	"hexchess-lib/serrors"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/optional"
+	"hexchess-svc/utils/serrors"
 	"math/big"
 	"net/http"
 	"time"
@@ -89,7 +89,7 @@ func (auth *Authenticator) GetSession(ctx context.Context, r *http.Request) (Ses
 	}
 	sessionToken := cookie.Value
 	player, err := auth.services.GetSession(ctx, sessionToken)
-	return Session{Player: player, Token: sessionToken}, serrors.Wrap("get session player", err)
+	return Session{Player: player, Token: sessionToken}, serrors.New("get session player", err)
 }
 
 func (auth *Authenticator) GetSessionOptPlayer(ctx context.Context, r *http.Request) (optional.Maybe[model.PlayerState], error) {
@@ -115,7 +115,7 @@ func (auth *Authenticator) SetSessionPlayer(ctx context.Context, w http.Response
 		Player:    player,
 		Expiry:    SessionMaxAge,
 	}); err != nil {
-		return 0, serrors.Wrap("set session player", err, "playerID", player.ID)
+		return 0, serrors.New("set session player", err, "playerID", player.ID)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionToken))
 	return SessionMaxAge, nil

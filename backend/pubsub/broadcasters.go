@@ -2,10 +2,10 @@ package pubsub
 
 import (
 	"context"
-	"hexchess-lib/async"
 	"hexchess-svc/db"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
+	"hexchess-svc/utils/async"
 	"log/slog"
 
 	"github.com/bytedance/sonic"
@@ -92,10 +92,10 @@ func (b *Broadcaster) BroadcastTournament(ctx context.Context, tournament model.
 	b.broadcastMessage(context.WithoutCancel(ctx), b.names.TournamentsChannel, bytes)
 }
 
-func (b *Broadcaster) BroadcastUserMessage(ctx context.Context, userMessage model.UserMessage) {
-	slog.InfoContext(ctx, "broadcasting user message", "userMessage", userMessage)
+func (b *Broadcaster) BroadcastUserMessage(ctx context.Context, message model.UserMessage) {
+	slog.InfoContext(ctx, "broadcasting user message", "message", message)
 
-	bytes, err := sonic.Marshal(userMessage)
+	bytes, err := sonic.Marshal(message)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to marshal user message", "error", err)
 		return

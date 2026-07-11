@@ -2,8 +2,6 @@ package consumers
 
 import (
 	"context"
-	"hexchess-lib/async"
-	"hexchess-lib/testutil"
 	"hexchess-svc/chess"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
@@ -11,6 +9,8 @@ import (
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
 	svc "hexchess-svc/service"
+	"hexchess-svc/utils/async"
+	"hexchess-svc/utils/testutil"
 	"testing"
 	"time"
 

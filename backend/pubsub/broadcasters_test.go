@@ -1,12 +1,12 @@
 package pubsub
 
 import (
-	"hexchess-lib/config"
-	"hexchess-lib/testutil"
 	"hexchess-svc/db"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
+	"hexchess-svc/utils/config"
+	"hexchess-svc/utils/testutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,13 +28,13 @@ func TestBroadcastMessage(t *testing.T) {
 	defer rdb.Close()
 	broadcaster := NewSyncBroadcaster(rdb)
 
-	localBroadcasters := LocalBroadcasters{GamesCaster: NewBroadcastActor[model.GameID]("testing-multicaster")}
+	localBroadcasters := LocalBroadcasters{Games: NewBroadcastActor[model.GameID]("testing-multicaster")}
 	<-localBroadcasters.ListenGameMessages(rdb)
 
 	wantMsgCount := 2
 
 	subChan := make(chan []byte, wantMsgCount)
-	localBroadcasters.GamesCaster.Subscribe("1", subChan)
+	localBroadcasters.Games.Subscribe("1", subChan)
 
 	for _, input := range []struct {
 		id  string

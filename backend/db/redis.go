@@ -3,8 +3,8 @@ package db
 import (
 	"context"
 	"fmt"
-	"hexchess-lib/config"
-	"hexchess-lib/logutil"
+	"hexchess-svc/utils/config"
+	"hexchess-svc/utils/logutil"
 	"log/slog"
 	"time"
 

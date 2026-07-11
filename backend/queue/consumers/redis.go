@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-lib/async"
-	"hexchess-lib/errutil"
-	"hexchess-lib/logutil"
-	"hexchess-lib/timeutil"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/queue"
+	"hexchess-svc/utils/async"
+	"hexchess-svc/utils/errutil"
+	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/timeutil"
 	"log/slog"
 	"sync"
 	"time"
@@ -149,20 +149,6 @@ func (consumer *RedisConsumer) handleXReadMessage(ctx context.Context, metrics *
 	})
 
 	slog.InfoContext(ctx, "redis stream consume operation", "stream", consumer.StreamKey, "timeTaken", time.Since(consumedOn).String())
-}
-
-func extractUUID(ctx context.Context, msg redis.XMessage, key string) uuid.UUID {
-	targetID := uuid.New()
-
-	targetIDStr, _ := msg.Values[key].(string)
-	parsedUUID, err := uuid.Parse(targetIDStr)
-	if err != nil {
-		slog.WarnContext(ctx, "received invalid UUID on stream", "key", key, "targetIDStr", targetIDStr, "error", err)
-	} else {
-		targetID = parsedUUID
-	}
-
-	return targetID
 }
 
 type RedisEventResultInserter interface {

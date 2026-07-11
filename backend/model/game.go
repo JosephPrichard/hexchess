@@ -5,6 +5,7 @@ import (
 	"hexchess-svc/chess"
 	"log/slog"
 	"math/big"
+	"time"
 )
 
 const GameIDChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz123456789"
@@ -53,7 +54,6 @@ func (gameID GameID) Partition() rune {
 	}
 
 	lastSymbol := rune(gameID[len(gameID)-1])
-
 	return lastSymbol
 }
 
@@ -83,3 +83,55 @@ const (
 	UndoAccept
 	UndoReject
 )
+
+type ErrorGameOutput struct {
+	GameID    GameID `json:"gameId"`
+	MessageID string `json:"messageId"`
+	Error     error  `json:"message"`
+}
+
+type InitGameOutput struct {
+	GameID    GameID      `json:"gameId"`
+	State     *ChessState `json:"state"`
+	Self      PlayerState `json:"self"`
+}
+
+type PlayersGameOutput struct {
+	GameID      GameID      `json:"gameId"`
+	MessageID   string      `json:"messageId"`
+	WhitePlayer PlayerState `json:"whitePlayer"`
+	BlackPlayer PlayerState `json:"blackPlayer"`
+}
+
+type MoveGameOutput struct {
+	GameID    GameID         `json:"gameId"`
+	MessageID string         `json:"messageId"`
+	Move      chess.HistMove `json:"move"`
+	State     *ChessState    `json:"game"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+}
+
+type ChatGameOutput struct {
+	GameID    GameID `json:"gameId"`
+	MessageID string `json:"messageId"`
+	Chat      Chat   `json:"chat"`
+}
+
+type UndoGameOutput struct {
+	GameID    GameID      `json:"gameId"`
+	MessageID string      `json:"messageId"`
+	Kind      string      `json:"kind"`
+	UndoID    int64       `json:"undoId"`
+	State     *ChessState `json:"game"`
+}
+
+type ForfeitGameOutput struct {
+	GameID    GameID  `json:"gameId"`
+	MessageID string  `json:"messageId"`
+	EndState  EndKind `json:"endState"`
+}
+
+type ReplayGameOutput struct {
+	GameID    GameID `json:"gameId"`
+	Replay    FullReplay `json:"replay"`
+}

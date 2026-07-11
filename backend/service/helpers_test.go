@@ -1,10 +1,10 @@
 package svc
 
 import (
-	"hexchess-lib/logutil"
 	"hexchess-svc/cloud"
 	"hexchess-svc/itest"
 	"hexchess-svc/pubsub"
+	"hexchess-svc/utils/logutil"
 )
 
 type serviceMocks struct {

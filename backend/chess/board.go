@@ -125,6 +125,11 @@ type Board struct {
 	Pieces      [Files][MaxRanks]Piece // over allocated to keep the array packed within the struct
 }
 
+type MoveHistory struct {
+	InitialBoard Board
+	MoveSeq      []HistMove
+}
+
 func (b *Board) ToMatrix() BoardMatrix {
 	matrix := make([][]int, 0, Files)
 	for i, row := range b.Pieces {
@@ -662,6 +667,8 @@ func (b *Board) StringMoves(moves []Hex) string {
 	})
 }
 
+var InvalidBoardJSONString = errors.New("board must be a double quoted json string")
+
 var _ = (json.Marshaler)(&Board{})
 var _ = (json.Unmarshaler)(&Board{})
 
@@ -676,8 +683,6 @@ func (b Board) MarshalJSON() ([]byte, error) {
 
 	return buf.Bytes(), nil
 }
-
-var InvalidBoardJSONString = errors.New("board must be a double quoted json string")
 
 func (b *Board) UnmarshalJSON(bytes []byte) (err error) {
 	str := unsafe.String(unsafe.SliceData(bytes), len(bytes))

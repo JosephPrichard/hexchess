@@ -3,8 +3,8 @@ package svc
 import (
 	"context"
 	"errors"
-	"hexchess-lib/serrors"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"time"
 
@@ -23,12 +23,12 @@ func (services *HexchessServices) GetSession(ctx context.Context, sessionID stri
 		if errors.Is(err, redis.Nil) {
 			return model.PlayerState{}, ErrSessionNotFound
 		}
-		return model.PlayerState{}, serrors.Wrap("get session", err, "sessionID", sessionID)
+		return model.PlayerState{}, serrors.New("get session", err, "sessionID", sessionID)
 	}
 
 	player, err := model.UnmarshalPlayer(bytes)
 	if err != nil {
-		return model.PlayerState{}, serrors.Wrap("unmarshal session", err)
+		return model.PlayerState{}, serrors.New("unmarshal session", err)
 	}
 	slog.InfoContext(ctx, "retrieved session", "sessionID", sessionID, "sessionKey", sessionKey, "player", player)
 	return player, nil
@@ -55,7 +55,7 @@ func (services *HexchessServices) SetSessions(ctx context.Context, insts ...Sess
 	}
 
 	if _, err := pipe.Exec(ctx); err != nil {
-		return serrors.Wrap("set many sessions", err)
+		return serrors.New("set many sessions", err)
 	}
 	return nil
 }
@@ -63,7 +63,7 @@ func (services *HexchessServices) SetSessions(ctx context.Context, insts ...Sess
 func (services *HexchessServices) UpdateSessionEx(ctx context.Context, sessionID string, expiry time.Duration) error {
 	sessionKey := fmtSessionKey(sessionID)
 	if err := services.redis.Primary.Expire(ctx, sessionKey, expiry).Err(); err != nil {
-		return serrors.Wrap("update session expiry", err)
+		return serrors.New("update session expiry", err)
 	}
 	slog.InfoContext(ctx, "updated session expiry", "sessionID", sessionID)
 	return nil
@@ -72,7 +72,7 @@ func (services *HexchessServices) UpdateSessionEx(ctx context.Context, sessionID
 func (services *HexchessServices) DeleteSession(ctx context.Context, sessionID string) error {
 	sessionKey := fmtSessionKey(sessionID)
 	if err := services.redis.Primary.Del(ctx, sessionKey).Err(); err != nil {
-		return serrors.Wrap("delete session", err, "sessionID", sessionID)
+		return serrors.New("delete session", err, "sessionID", sessionID)
 	}
 	slog.InfoContext(ctx, "deleted session", "sessionID", sessionID)
 	return nil

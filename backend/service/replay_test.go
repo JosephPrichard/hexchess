@@ -2,17 +2,17 @@ package svc
 
 import (
 	"context"
-	"hexchess-lib/optional"
-	"hexchess-lib/testutil"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/optional"
+	"hexchess-svc/utils/testutil"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"testing"
 	"time"
 
-	"hexchess-lib/logutil"
 	"hexchess-svc/itest"
+	"hexchess-svc/utils/logutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

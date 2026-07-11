@@ -1,8 +1,8 @@
-package perf
+package perftest
 
 import (
 	"fmt"
-	"perf-test-queue/pb"
+	"hexchess-svc/pb"
 
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
@@ -25,15 +25,22 @@ func newGameID() (gameID string, partitionKey string) {
 	return string(gameIDBytes), string(lastByte)
 }
 
+type StaticData struct {
+	MinUserID int64
+	MaxUserID int64
+}
+
 // InputGenerator functions do not return errors but rather panic because all data is sytem originated and therefore a programmer error within this script
 type InputGenerator struct {
-	MinUserID      int64
-	MaxUserID      int64
-	TournamentKeys []string  
+	PreconditionData
+	StaticData
 }
 
 func (gen InputGenerator) GenerateFinishGameInput() (string, []byte) {
 	gameID, pkey := newGameID()
+
+	board := &pb.ChessBoard{}
+	var moves []*pb.HistMove
 
 	bytes, err := proto.Marshal(&pb.FinishGameEvent{
 		GameId:       gameID,
@@ -42,7 +49,8 @@ func (gen InputGenerator) GenerateFinishGameInput() (string, []byte) {
 		GameMode:     "CORRESPONDENCE_1",
 		ReplayResult: "WHITE_WINS",
 		ReplayCause:  "FORFEIT",
-		// TODO add a large move list to test a long move history.
+		Board:        board,
+		Moves:        moves,
 	})
 	if err != nil {
 		panic(fmt.Sprintf("failed to generate finish game input: %v", err))
@@ -70,7 +78,7 @@ func (gen InputGenerator) GenerateUpdtGameInput() (string, []byte) {
 
 func (gen InputGenerator) GenerateAdvanceTournamentInput() []byte {
 	bytes, err := proto.Marshal(&pb.AdvanceTournamentEvent{
-		TournamentKey: gen.TournamentKeys[randRange(0, len(gen.TournamentKeys)-1)],
+		TournamentKey: gen.PreconditionData.TournamentKeys[randRange(0, len(gen.PreconditionData.TournamentKeys)-1)],
 		EventId:       uuid.NewString(),
 	})
 	if err != nil {

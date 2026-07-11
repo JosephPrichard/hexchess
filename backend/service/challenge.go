@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-lib/enum"
-	"hexchess-lib/serrors"
 	"hexchess-svc/db"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/enum"
+	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"time"
 
-	"hexchess-lib/logutil"
 	"hexchess-svc/db/sqlc"
+	"hexchess-svc/utils/logutil"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -53,7 +53,7 @@ func (services *HexchessServices) InsertChallenge(ctx context.Context, inst Chal
 		if svcErr := mapChallengeInsertErr(dbErr); svcErr != nil {
 			return model.Challenge{}, svcErr
 		}
-		return model.Challenge{}, serrors.Wrap("insert challenge", dbErr, "inst", inst)
+		return model.Challenge{}, serrors.New("insert challenge", dbErr, "inst", inst)
 	}
 
 	challenge := mapChallengeRow(sqlc.SelectChallengesByParticipantRow(row))
@@ -112,7 +112,7 @@ func (services *HexchessServices) GetChallengesByParticipant(ctx context.Context
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
 	})
 	if err != nil {
-		return nil, serrors.Wrap("get challenges by participant", err, "key", key)
+		return nil, serrors.New("get challenges by participant", err, "key", key)
 	}
 
 	challenges := make([]model.Challenge, 0, len(rows))
@@ -138,7 +138,7 @@ func (services *HexchessServices) DeleteChallenge(ctx context.Context, challenge
 	if db.IsErrNoRows(err) {
 		return DeleteResult{}, ErrChallengeNotFound
 	} else if err != nil {
-		return DeleteResult{}, serrors.Wrap("delete challenge", err, "params", params)
+		return DeleteResult{}, serrors.New("delete challenge", err, "params", params)
 	}
 
 	gameColor := enum.Expect(challengeRow.StartColor, model.GameColorEnums)

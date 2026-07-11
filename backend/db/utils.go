@@ -3,9 +3,9 @@ package db
 import (
 	"database/sql"
 	"errors"
-	"hexchess-lib/optional"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/optional"
 	"time"
 
 	"github.com/jackc/pgx/v5"

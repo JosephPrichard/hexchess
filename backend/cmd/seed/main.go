@@ -5,15 +5,15 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"hexchess-lib/config"
-	"hexchess-lib/dotenv"
-	"hexchess-lib/logutil"
-	"hexchess-lib/perf"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
+	"hexchess-svc/utils/config"
+	"hexchess-svc/utils/dotenv"
+	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/perf"
 	"log"
 	"log/slog"
 	"math/rand"
@@ -305,7 +305,7 @@ func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts 
 			if err != nil {
 				return fmt.Errorf("generate random move seq: %w", err)
 			}
-			moveHistBlob, err := chess.MarshalMoveHistory(chess.InitialBoard(), moveSeq)
+			moveHistBlob, err := model.MarshalMoveHistory(chess.MoveHistory{InitialBoard: chess.InitialBoard(), MoveSeq: moveSeq})
 			if err != nil {
 				return fmt.Errorf("marshal move history to s3: %w", err)
 			}

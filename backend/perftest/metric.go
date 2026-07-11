@@ -1,12 +1,13 @@
-package perf
+package perftest
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/montanaflynn/stats"
 )
 
-type GrafanaTrend struct {
+type Trend struct {
 	Avg float64 `json:"avg"`
 	Min float64 `json:"min"`
 	Med float64 `json:"med"`
@@ -16,18 +17,18 @@ type GrafanaTrend struct {
 	P99 float64 `json:"p(99)"`
 }
 
-type GrafanaMetric struct {
+type Metric struct {
 	Name     string
-	Type     string       `json:"type"`
-	Contains string       `json:"contains"`
-	Values   GrafanaTrend `json:"values"`
+	Type     string `json:"type"`
+	Contains string `json:"contains"`
+	Values   Trend  `json:"values"`
 }
 
-type GrafanaSummary struct {
-	Metrics map[string]GrafanaMetric `json:"metrics"`
+type Summary struct {
+	Metrics map[string]Metric `json:"metrics"`
 }
 
-func BuildGrafanaTrend(latenciesMs []float64) (GrafanaTrend, error) {
+func BuildGrafanaTrend(latenciesMs []float64) (Trend, error) {
 	data := stats.LoadRawData(latenciesMs)
 
 	var errs error
@@ -53,7 +54,7 @@ func BuildGrafanaTrend(latenciesMs []float64) (GrafanaTrend, error) {
 	p99, err := stats.Percentile(data, 99)
 	errs = errors.Join(errs, err)
 
-	return GrafanaTrend{
+	return Trend{
 		Avg: avg,
 		Min: min,
 		Med: med,
@@ -62,4 +63,8 @@ func BuildGrafanaTrend(latenciesMs []float64) (GrafanaTrend, error) {
 		P95: p95,
 		P99: p99,
 	}, errs
+}
+
+func metricName(name string) string {
+	return fmt.Sprintf("perf_test_%s", name)
 }

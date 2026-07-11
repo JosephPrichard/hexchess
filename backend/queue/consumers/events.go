@@ -2,9 +2,9 @@ package consumers
 
 import (
 	"context"
-	"hexchess-lib/errutil"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
+	"hexchess-svc/utils/errutil"
 	"log/slog"
 )
 

@@ -2,10 +2,10 @@ package producers
 
 import (
 	"context"
-	"hexchess-lib/serrors"
 	"hexchess-svc/db"
 	"hexchess-svc/model"
 	"hexchess-svc/queue"
+	"hexchess-svc/utils/serrors"
 	"log/slog"
 
 	"github.com/redis/go-redis/v9"
@@ -26,7 +26,7 @@ func NewPublisher(redis db.Redis) RedisPublisher {
 func (p *RedisPublisher) PublishFinishGameEvent(ctx context.Context, xadder RedisXAdder, finishedGame model.FinishedGame) error {
 	bytes, err := model.MarshalFinishedGame(finishedGame)
 	if err != nil {
-		return serrors.Wrap("marshal finish game event", err)
+		return serrors.New("marshal finish game event", err)
 	}
 
 	xArgs := &redis.XAddArgs{
@@ -35,7 +35,7 @@ func (p *RedisPublisher) PublishFinishGameEvent(ctx context.Context, xadder Redi
 	}
 	msgID, err := xadder.XAdd(ctx, xArgs).Result()
 	if err != nil {
-		return serrors.Wrap("marshal finished game event", err, "finishedGame", finishedGame)
+		return serrors.New("marshal finished game event", err, "finishedGame", finishedGame)
 	}
 
 	slog.InfoContext(ctx, "published finished game event", "msgID", msgID, "gameID", finishedGame.GameID, "streamKey", xArgs.Stream)
@@ -45,7 +45,7 @@ func (p *RedisPublisher) PublishFinishGameEvent(ctx context.Context, xadder Redi
 func (p *RedisPublisher) PublishUpdtGameEvent(ctx context.Context, xadder RedisXAdder, gameUpdt model.GameMetadataUpdt) error {
 	bytes, err := model.MarshalGameMetadataUpdt(gameUpdt)
 	if err != nil {
-		return serrors.Wrap("marshal update game event", err)
+		return serrors.New("marshal update game event", err)
 	}
 
 	xArgs := &redis.XAddArgs{
@@ -54,7 +54,7 @@ func (p *RedisPublisher) PublishUpdtGameEvent(ctx context.Context, xadder RedisX
 	}
 	msgID, err := xadder.XAdd(ctx, xArgs).Result()
 	if err != nil {
-		return serrors.Wrap("xadd update game event", err, "gameUpdt", gameUpdt)
+		return serrors.New("xadd update game event", err, "gameUpdt", gameUpdt)
 	}
 
 	slog.InfoContext(ctx, "published update game event", "msgID", msgID, "gameUpdt", gameUpdt, "streamKey", xArgs.Stream)

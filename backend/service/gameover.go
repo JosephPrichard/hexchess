@@ -4,7 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"hexchess-lib/serrors"
+	"hexchess-svc/utils/serrors"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
@@ -20,67 +20,62 @@ import (
 )
 
 func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGame model.FinishedGame) error {
-	var changeSet GameResultChangeSet
-
-	whiteID := finishedGame.WhitePlayer
-	blackID := finishedGame.BlackPlayer
-
-	moveHistBlob, err := chess.MarshalMoveHistory(finishedGame.Board, finishedGame.Moves)
-	if err != nil {
-		return serrors.Wrap("marshal move history to s3", err)
-	}
-
-	changeSet, err = services.InsertGameResult(ctx, GameResult{
+	// step 1: persist game result into system of record
+	changeSet, err := services.InsertGameResult(ctx, GameResult{
 		GameID:       finishedGame.GameID,
-		WhiteID:      whiteID,
-		BlackID:      blackID,
+		WhiteID:      finishedGame.WhitePlayer,
+		BlackID:      finishedGame.BlackPlayer,
 		ReplayCause:  finishedGame.ReplayCause,
 		ReplayResult: finishedGame.ReplayResult,
 		ReplayMode:   finishedGame.ReplayMode,
 		InsertedTime: time.Now(),
 	})
 	if err != nil {
-		return serrors.Wrap("insert finish game tx", err)
+		return serrors.New("insert finish game tx", err)
+	}
+
+	// step 2: persist history of a finished game (move and board data)
+	moveHistBlob, err := model.MarshalMoveHistory(chess.MoveHistory{InitialBoard: finishedGame.Board, MoveSeq: finishedGame.Moves})
+	if err != nil {
+		return serrors.New("marshal move histories", err)
 	}
 	// note: this happens outside the transaction, so we do need to hold a lock for an expended period of time.
 	if err := services.UpsertReplayMoveHistories(ctx, changeSet.ReplayID, moveHistBlob); err != nil {
-		return serrors.Wrap("insert replay move histories", err)
+		return serrors.New("insert replay move histories", err)
 	}
 
-	// note: replay is selected in a separate query outside transaction to avoid holding locks. this involves performing more diskIO.
-	replay, err := services.GetReplay(ctx, changeSet.ReplayID)
-	if err != nil {
-		return serrors.Wrap("get replay by id", err, "replayID", changeSet.ReplayID)
-	}
-
-	// note: used to keep the cache in sync, this can run outside a transaction because we have a batch job to recover that payload to the cache.
+	// step 3: write through the new updates into the cache, this can run outside a transaction because we have a batch job to recover the update to the cache.
 	if err := services.incrLeaderboard(ctx,
 		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
 		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
 	); err != nil {
-		return serrors.Wrap("incr leaderboard", err, "changeSet", changeSet)
+		return serrors.New("incr leaderboard", err, "changeSet", changeSet)
 	}
 
 	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", changeSet, "room", finishedGame.GameID)
 
-	// note: publishing a tournament event is necessary to trigger advancing the game state *IF* the tournament round is finished
+	// step 4: notify any subscribers of the game that replay has been created (game has ended)
+	// note: replay is selected in a separate query outside transaction to avoid holding locks. this involves performing more disk IO.
+	replay, err := services.GetReplay(ctx, changeSet.ReplayID)
+	if err != nil {
+		return serrors.New("get replay by id", err, "replayID", changeSet.ReplayID)
+	}
+	services.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(model.ReplayGameOutput{GameID: finishedGame.GameID, Replay: replay}))
+
+	// step 5: publishing a tournament event is necessary to trigger advancing the game state *IF* the tournament round is finished
 	// this operation is idempotent and safe, if the tournament is not ready to be advanced, the operation noops
 	tournamentKey, err := services.querier.SelectTournamentByGameID(ctx, finishedGame.GameID.String())
-
 	if db.IsErrNoRows(err) {
 		slog.InfoContext(ctx, "skipping send schedule tournament event", "gameID", finishedGame.GameID)
 	} else if err == nil {
 		slog.InfoContext(ctx, "publishing schedule tournament event", "gameID", finishedGame.GameID)
-
 		// if two scheduled tournament events run concurrently, one will advance the tournament and the other will noop
 		if err := producers.PublishAdvanceTournamentEvent(ctx, services.querier, tournamentKey.Bytes, time.Now()); err != nil {
-			return serrors.Wrap("publish scheduled tournament event", err)
+			return serrors.New("publish scheduled tournament event", err)
 		}
 	} else {
-		return serrors.Wrap("select tournament by game id", err, "gameID", finishedGame.GameID)
+		return serrors.New("select tournament by game id", err, "gameID", finishedGame.GameID)
 	}
-
-	services.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(finishedGame.GameID.String(), replay))
 
 	slog.InfoContext(ctx, "completed inserting finished game event", "key", finishedGame.GameID)
 	return nil
@@ -124,26 +119,29 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 		Isolation:  pgx.RepeatableRead,
 		RetryCount: 5,
 		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
+			// step 1: use game ID as an idempotency key to prevent persistening the same game result on retry
 			mode := sqlc.ModeEnum(result.ReplayMode.String())
 			userIDs := []int64{result.WhiteID, result.BlackID}
 
 			existingReplayID, err := querier.SelectReplayIDByGameID(ctx, result.GameID.String())
 			if err == nil {
+				// returning existing state makes this operation idempotent
 				changeSet = GameResultChangeSet{ReplayID: existingReplayID, AlreadyExists: true}
 				return nil
 			} else if !db.IsErrNoRows(err) {
-				return serrors.Wrap("select has replay with gameID", err)
+				return serrors.New("select has replay with gameID", err)
 			}
-			// gameID has not been processed, continue executing the transaction
 
+			// step 2: select the current state of stats for each game participant
 			// selects are sorted by userID to prevent deadlocks
 			slices.SortFunc(userIDs, func(left, right int64) int { return cmp.Compare(left, right) })
 
 			userElos, err := querier.SelectUserModeElosByIDs(ctx, sqlc.SelectUserModeElosByIDsParams{ID: userIDs, Mode: mode})
 			if err != nil {
-				return serrors.Wrap("select users elo", err, "userIDs", userIDs)
+				return serrors.New("select users elo", err, "userIDs", userIDs)
 			}
 
+			// step 3: compute and update the next state of stats for each game participant
 			var updts []sqlc.UpsertUserEloParams
 			changeSet, updts = makeInsertGameResultChangeSet(result, userElos)
 
@@ -153,13 +151,14 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 			var batchUpsertErrs []error
 			querier.UpsertUserElo(ctx, updts).Exec(func(i int, err error) {
 				if err != nil {
-					batchUpsertErrs = append(batchUpsertErrs, serrors.Wrap("batch upserting elo", err, "batch", i, "updt", updts[i]))
+					batchUpsertErrs = append(batchUpsertErrs, serrors.New("batch upserting elo", err, "batch", i, "updt", updts[i]))
 				}
 			})
 			if err := errors.Join(batchUpsertErrs...); err != nil {
 				return err
 			}
 
+			// step 4: insert the new replay, which acts both the record and the idempotency key for this operation
 			replayInst := sqlc.InsertReplayParams{
 				GameID:    result.GameID.String(),
 				WhiteID:   pgtype.Int8{Int64: result.WhiteID, Valid: model.IsNonGuestID(result.WhiteID)},
@@ -176,7 +175,7 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 			}
 			replayID, err := querier.InsertReplay(ctx, replayInst)
 			if err != nil {
-				return serrors.Wrap("insert replay for result", err, "result", result)
+				return serrors.New("insert replay for result", err, "result", result)
 			}
 
 			changeSet.ReplayID = replayID
@@ -256,7 +255,7 @@ func (services *HexchessServices) UpsertReplayMoveHistories(ctx context.Context,
 		ReplayID: replayID,
 		Data:     data,
 	}); err != nil {
-		return serrors.Wrap("insert replay move histories", err)
+		return serrors.New("insert replay move histories", err)
 	}
 	return nil
 }

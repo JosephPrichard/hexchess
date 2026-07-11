@@ -7,8 +7,8 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 
-	"hexchess-lib/logutil"
-	"hexchess-lib/testutil"
+	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/testutil"
 	"testing"
 
 	"github.com/google/go-cmp/cmp/cmpopts"

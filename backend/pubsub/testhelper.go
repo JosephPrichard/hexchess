@@ -2,10 +2,10 @@ package pubsub
 
 import (
 	"encoding/json"
-	"hexchess-lib/testutil"
 	"hexchess-svc/db"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
+	"hexchess-svc/utils/testutil"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -29,7 +29,7 @@ func ExpectBroadcastGames(t *testing.T, rdb db.Redis, gameID model.GameID, wantO
 	localBroadcasters.Listen(rdb)
 
 	subChan := make(chan []byte, len(wantOutputs))
-	localBroadcasters.GamesCaster.Subscribe(gameID, subChan)
+	localBroadcasters.Games.Subscribe(gameID, subChan)
 
 	return func() {
 		for i := range wantOutputs {
@@ -52,7 +52,7 @@ func ExpectBroadcastActiveUsers(t *testing.T, rdb db.Redis, wantOutputs []int64)
 	localBroadcasters.Listen(rdb)
 
 	subChan := make(chan GlobalCastEvent, len(wantOutputs))
-	localBroadcasters.CountsCaster.Subscribe(subChan)
+	localBroadcasters.Counts.Subscribe(subChan)
 
 	return func() {
 		for i := range wantOutputs {

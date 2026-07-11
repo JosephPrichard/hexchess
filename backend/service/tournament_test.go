@@ -1,11 +1,11 @@
 package svc
 
 import (
-	"hexchess-lib/errutil"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
+	"hexchess-svc/utils/errutil"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"hexchess-lib/testutil"
+	"hexchess-svc/utils/testutil"
 	"testing"
 	"time"
 )

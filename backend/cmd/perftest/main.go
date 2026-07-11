@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"hexchess-lib/config"
-	"hexchess-lib/dotenv"
-	"hexchess-lib/logutil"
+	"hexchess-svc/perftest"
+	"hexchess-svc/utils/config"
+	"hexchess-svc/utils/dotenv"
+	"hexchess-svc/utils/logutil"
 	"log/slog"
 	"os"
-	"perf-test-queue/perf"
 	"strings"
 	"time"
 
@@ -19,41 +19,41 @@ import (
 )
 
 const (
-	ServiceName = "hexchess-queue-perftest"
+	ServiceName = "hexchess-perftest"
 
-	AdvanceTournamentEventName = "ADVANCE_TOURNAMENT_EVENT"
-	FinishGameEventsName       = "finish_game_events"
-	UpdtGameEventsName         = "updt_game_meta_events"
+	AdvanceTournamentQueName = "ADVANCE_TOURNAMENT_EVENT"
+	FinishGameEventsQueName       = "finish_game_events"
+	UpdtGameEventsQueName         = "updt_game_meta_events"
 
 	SmokeProfile    = "SMOKE"
 	CapacityProfile = "CAPACITY"
 )
 
-var PerfTestConfigs = map[string]map[string]perf.PerfTestConfig{
+var PerfTestConfigs = map[string]map[string]perftest.PerfTestConfig{
 	SmokeProfile: {
-		AdvanceTournamentEventName: {
+		AdvanceTournamentQueName: {
 			Duration:        5 * time.Second,
 			EventsPerSecond: 1,
 		},
-		FinishGameEventsName: {
+		FinishGameEventsQueName: {
 			Duration:        5 * time.Second,
 			EventsPerSecond: 5,
 		},
-		UpdtGameEventsName: {
+		UpdtGameEventsQueName: {
 			Duration:        5 * time.Second,
 			EventsPerSecond: 10,
 		},
 	},
 	CapacityProfile: {
-		AdvanceTournamentEventName: {
+		AdvanceTournamentQueName: {
 			Duration:        1 * time.Minute,
 			EventsPerSecond: 10,
 		},
-		FinishGameEventsName: {
+		FinishGameEventsQueName: {
 			Duration:        1 * time.Minute,
 			EventsPerSecond: 50,
 		},
-		UpdtGameEventsName: {
+		UpdtGameEventsQueName: {
 			Duration:        1 * time.Minute,
 			EventsPerSecond: 100,
 		},
@@ -63,12 +63,15 @@ var PerfTestConfigs = map[string]map[string]perf.PerfTestConfig{
 var (
 	testProfile = flag.String("testProfile", SmokeProfile, "test profile specifing the intensity of the workload")
 	testOutfile = flag.String("testOutfile", "outfile.json", "file to dump output metrics to")
+
 	timeoutSecs = flag.Int("testTimeoutSecs", 0, "max number of seconds for the text to run before cancellation")
-	minUserID   = flag.Int("minUserID", 1, "minimum user ID to select")
-	maxUserID   = flag.Int("maxUserID", 1000, "maximum user ID to select")
+
+	minUserID = flag.Int("minUserID", 1, "minimum user ID to select")
+	maxUserID = flag.Int("maxUserID", 1000, "maximum user ID to select")
 )
 
 func main() {
+	// step 1: parse CLI inputs for static input data
 	dotenv.Load()
 
 	dbURL := os.Getenv("DB_URL")
@@ -91,38 +94,14 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, runProfile)
 	defer shutdown()
 
-	generator := perf.InputGenerator{MinUserID: int64(*minUserID), MaxUserID: int64(*maxUserID)}
-
-	postgresPerftests := []perf.PostgresPerfTest{
-		// {
-		// 	PerfTestConfig: profileConfig[AdvanceTournamentEventName],
-		// 	EventKind:      AdvanceTournamentEventName,
-		// 	GenerateInput:  generateAdvanceTournamentInput,
-		// },
-	}
-
-	redisPerftests := []perf.RedisPerfTest{
-		{
-			PerfTestConfig: profileConfig[FinishGameEventsName],
-			StreamName:     FinishGameEventsName,
-			GenerateInput:  generator.GenerateFinishGameInput,
-		},
-		{
-			PerfTestConfig: profileConfig[UpdtGameEventsName],
-			StreamName:     UpdtGameEventsName,
-			GenerateInput:  generator.GenerateUpdtGameInput,
-		},
-	}
-
-	slog.Info("starting perf tests", "postgresPerftests", postgresPerftests, "redisPerftests", redisPerftests)
-
+	// step 2: connect to backend infrastructure
 	poolCfg, err := pgxpool.ParseConfig(dbURL)
 	if err != nil {
-		logutil.Fatal("failed to parse postgres DSN: %v", err)
+		logutil.Fatal("parse postgres DSN: %v", err)
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
-		logutil.Fatal("failed to create pool: %v", err)
+		logutil.Fatal("create pool: %v", err)
 	}
 
 	redisClient := redis.NewUniversalClient(&redis.UniversalOptions{
@@ -135,19 +114,56 @@ func main() {
 		RouteByLatency: false,
 	})
 
-	state := perf.State{Context: ctx, PGPool: pool, RedisClient: redisClient}
+	state := perftest.State{Context: ctx, PGPool: pool, RedisClient: redisClient}
 
-	var metrics []perf.GrafanaMetric
+	// step 3: prepare precondition data, test inputs, and perf test configurations
+	preconditionData, err := perftest.GetPreconditionData(state)
+	if err != nil {
+		logutil.Fatal("get dynamic inputs", err)
+	}
+
+	generator := perftest.InputGenerator{
+		PreconditionData: preconditionData,
+		StaticData: perftest.StaticData{
+			MinUserID: int64(*minUserID),
+			MaxUserID: int64(*maxUserID),
+		},
+	}
+
+	postgresPerftests := []perftest.PostgresQuePerfTest{
+		{
+			Config:        profileConfig[AdvanceTournamentQueName],
+			EventKind:     AdvanceTournamentQueName,
+			GenerateInput: generator.GenerateAdvanceTournamentInput,
+		},
+	}
+	redisPerftests := []perftest.RedisQuePerfTest{
+		{
+			Config:        profileConfig[FinishGameEventsQueName],
+			StreamName:    FinishGameEventsQueName,
+			GenerateInput: generator.GenerateFinishGameInput,
+		},
+		{
+			Config:        profileConfig[UpdtGameEventsQueName],
+			StreamName:    UpdtGameEventsQueName,
+			GenerateInput: generator.GenerateUpdtGameInput,
+		},
+	}
+
+	// step 4: run performance tests
+	slog.Info("starting perf tests", "postgresPerftests", postgresPerftests, "redisPerftests", redisPerftests)
+
+	var metrics []perftest.Metric
 	var metricErrs error
 
-	for _, perftest := range postgresPerftests {
-		metricResult, err := perf.RunPostgresPerfTest(state, perftest)
+	for _, pt := range postgresPerftests {
+		metricResult, err := perftest.RunPostgresQueTest(state, pt)
 
 		metrics = append(metrics, metricResult)
 		metricErrs = errors.Join(metricErrs, err)
 	}
-	for _, perftest := range redisPerftests {
-		metricResult, err := perf.RunRedisPerfTest(state, perftest)
+	for _, pt := range redisPerftests {
+		metricResult, err := perftest.RunRedisQueTest(state, pt)
 
 		metrics = append(metrics, metricResult)
 		metricErrs = errors.Join(metricErrs, err)
@@ -157,7 +173,8 @@ func main() {
 		logutil.Fatal("collect all metrics", nil, "metricErrs", metricErrs)
 	}
 
-	summary := perf.GrafanaSummary{Metrics: make(map[string]perf.GrafanaMetric)}
+	// step 5: publish results of perf tests in grafana format
+	summary := perftest.Summary{Metrics: make(map[string]perftest.Metric)}
 	for _, metric := range metrics {
 		summary.Metrics[metric.Name] = metric
 	}
@@ -171,6 +188,6 @@ func main() {
 	enc := json.NewEncoder(f)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(summary); err != nil {
-		logutil.Fatal("failed to encode metrics to output file", err)
+		logutil.Fatal("encode metrics to output file", err)
 	}
 }

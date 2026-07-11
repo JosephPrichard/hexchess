@@ -19,7 +19,7 @@ func (e *ServiceError) Error() string {
 	return e.Err.Error()
 }
 
-func Wrap(message string, err error, values ...any) error {
+func New(message string, err error, values ...any) error {
 	if err == nil {
 		return nil
 	}

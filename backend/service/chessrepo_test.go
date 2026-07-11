@@ -9,8 +9,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/redis/go-redis/v9"
 
-	"hexchess-lib/testutil"
 	"hexchess-svc/itest"
+	"hexchess-svc/utils/testutil"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

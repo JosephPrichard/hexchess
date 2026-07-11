@@ -11,9 +11,9 @@ import (
 	"net/http"
 	"time"
 
-	"hexchess-lib/async"
-	"hexchess-lib/logutil"
 	svc "hexchess-svc/service"
+	"hexchess-svc/utils/async"
+	"hexchess-svc/utils/logutil"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"

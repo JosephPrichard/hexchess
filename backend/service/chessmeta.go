@@ -2,12 +2,12 @@ package svc
 
 import (
 	"context"
-	"hexchess-lib/enum"
-	"hexchess-lib/optional"
-	"hexchess-lib/serrors"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/enum"
+	"hexchess-svc/utils/optional"
+	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"math"
 
@@ -24,7 +24,7 @@ func (services *HexchessServices) UpdateGameMetadata(ctx context.Context, updt m
 		UpdatedOn: pgtype.Timestamptz{Time: services.entropy.GetTime(), Valid: true},
 	})
 	if err != nil {
-		return serrors.Wrap("update game metadata", err, "updt", updt)
+		return serrors.New("update game metadata", err, "updt", updt)
 	}
 	slog.InfoContext(ctx, "updated game metadata", "update", updt, "updtResult", updtResult)
 
@@ -47,13 +47,13 @@ func (services *HexchessServices) GetGameMetadata(ctx context.Context, player op
 
 	eg.Go(func() (err error) {
 		allChessMetas, err = services.getGameMetadata(egCtx, optional.Nothing[int64](), afterOrdering, optional.Just[int32](count))
-		return serrors.Wrap("get all game metadata after ordering", err, "afterOrdering", afterOrdering)
+		return serrors.New("get all game metadata after ordering", err, "afterOrdering", afterOrdering)
 	})
 	if player.Present {
 		userID := player.Value.ID
 		eg.Go(func() (err error) {
 			userChessMetas, err = services.getGameMetadata(ctx, optional.Just[int64](userID), optional.Nothing[int64](), optional.Nothing[int32]())
-			return serrors.Wrap("get user game metadata", err, "userID", player.Value.ID)
+			return serrors.New("get user game metadata", err, "userID", player.Value.ID)
 		})
 	}
 	if err := eg.Wait(); err != nil {
@@ -66,7 +66,7 @@ func (services *HexchessServices) GetGameMetadata(ctx context.Context, player op
 func (services *HexchessServices) GetGameMetadataCount(ctx context.Context) (int64, error) {
 	count, err := services.querier.SelectGameMetasCount(ctx)
 	if err != nil {
-		return 0, serrors.Wrap("count chess metadatas", err)
+		return 0, serrors.New("count chess metadatas", err)
 	}
 	slog.InfoContext(ctx, "selected chess metadatas count", "count", count)
 	return count, nil
@@ -79,7 +79,7 @@ func (services *HexchessServices) getGameMetadata(ctx context.Context, userID op
 		PerPage:       db.MapOptInt4(count),
 	})
 	if err != nil {
-		return nil, serrors.Wrap("select game metas", err, "userID", userID)
+		return nil, serrors.New("select game metas", err, "userID", userID)
 	}
 
 	var chessMetas []model.ChessMeta

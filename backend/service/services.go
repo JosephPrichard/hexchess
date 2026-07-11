@@ -1,12 +1,12 @@
 package svc
 
 import (
-	"hexchess-lib/async"
 	"hexchess-svc/cloud"
 	"hexchess-svc/db"
 	"hexchess-svc/db/sqlc"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
+	"hexchess-svc/utils/async"
 )
 
 type HexchessServices struct {

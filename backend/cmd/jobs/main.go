@@ -3,16 +3,16 @@ package main
 import (
 	"context"
 	"flag"
-	"hexchess-lib/config"
-	"hexchess-lib/dotenv"
+	"hexchess-svc/utils/config"
+	"hexchess-svc/utils/dotenv"
 	"log/slog"
 	"os"
 	"strings"
 	"time"
 
-	"hexchess-lib/logutil"
 	"hexchess-svc/db"
 	svc "hexchess-svc/service"
+	"hexchess-svc/utils/logutil"
 )
 
 const (
