@@ -1,55 +1,62 @@
 # Hexagonal Chess
 A website to play hexagonal chess online. It's primarily a way for me to explore ideas related to backend infrastructure, software architecture, performance optimization, and functional testing.
 
-Created using Go, Svelte, Postgres, and Redis.
+Languages: Go, TypeScript, Svelte
+
+Build: Docker, NixOS, Terraform
+
+Infrastructure: AWS, Postgres, and Redis
+
+## Development
+
+### Dependencies
+
+NixPkg and Docker are the only system dependencies. 
+NixPkg installs system dependencies and infrastructure, Docker is a runner for virtualization and a builder for application nodes.
+
+### Environment
+
+Project uses NixPkg to manage environment and system dependencies.
+
+Command opens a shell with all dependencies necessary for the `Makefile` in root.
+
+`nix develop`
+
+Additionally, provides a shell script to start infrastructure that the app connects to.
+
+`start_infra`
+
+Open RedisInsight
+
+`docker run -d --name redisinsight -p 5540:5540 redis/redisinsight:latest`
 
 ### Build
 
-Builds generated sources required for development, testing, and deployment.
+Project uses Makefile for shell script automation
+
+Builds generated sources required for development, testing, and scripting.
 
 `make`
 
-Alternatively, run a CI pipeline suitable build that also runs all tests.
+Runs the functional testing and non-functional testing suite.
 
-`make ci`
+`make test`
 
-## Database Migrations
+`make perf-test`
 
-`cd database`
+### Database Migrations
 
-`export GOOSE_DBSTRING=<url>`
+`export GOOSE_DBSTRING=<database-url>`
+
 `export GOOSE_DBDRIVER=postgres`
 
 Run a Migration (up)
 
-`goose up`
+`cd database && goose up`
 
 Run a Migration (down)
 
-`goose down`
-
-## Execution (Local)
-
-### Run Infrastructure
-
-Assumes you have `postgres`, `redis-cli`, `redis-server`, `minio`, `grafana`, `alloy`, `pyroscope`, and `loki` installed.
-
-The network graph is as so:
-```
-app --(tcp/5432)-> postgres
-app --(tcp/6579)-> redis-pubsub
-app --(tcp/6479-6484)-> redis-sor-1,redis-sor-2,redis-sor-3,redis-sor-4,redis-sor-5,redis-sor-6
-app --(tcp/3100)-> loki
-app --(tcp/9100)-> minio
-grafana --(tcp/3100)-> pyroscope
-grafana --(tcp/3100)-> loki
-alloy --(tcp/6060)-> app
-alloy --(tcp/4040)-> pyroscope
-```
-
-`$ cd scripts`
-
-`$ sudo ./start_infra.sh`
+`cd database && goose down`
 
 ### Env Variables
 
@@ -90,11 +97,13 @@ OTEL_EXPORTER_OTLP_ENDPOINT=localhost:3100
 
 `AWS_SECRET_KEY` Standard AWS credentials environment variable.
 
-### Run Server
+### Run Servers
 
 `$ cd backend`
 
-`$ go run cmd/server/main.go`
+`$ go run cmd/server/api/main.go`
+
+`$ go run cmd/server/consumers/main.go`
 
 ### Run UI
 

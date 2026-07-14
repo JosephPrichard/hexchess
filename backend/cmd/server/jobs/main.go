@@ -25,7 +25,7 @@ const (
 var jobName = flag.String("job", SyncLeaderboardJobName, "job to execute")
 
 func main() {
-	ctx := context.WithValue(context.Background(), logutil.Trace, "jobs-runner")
+	ctx := context.Background()
 
 	dotenv.Load()
 
@@ -57,7 +57,10 @@ func main() {
 	})
 	defer rdb.Close()
 
-	services := svc.NewHexchessServices(svc.SetupService{DB: pdb, Redis: rdb})
+	services := svc.NewHexchessServices(svc.SetupService{
+		DB:    pdb,
+		Redis: rdb,
+	})
 
 	switch *jobName {
 	case SyncLeaderboardJobName:

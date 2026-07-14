@@ -1,4 +1,4 @@
-package perftest
+package perf
 
 import (
 	"errors"

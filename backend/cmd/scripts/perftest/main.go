@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"hexchess-svc/perftest"
+	"hexchess-svc/perf"
 	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/dotenv"
 	"hexchess-svc/utils/logutil"
@@ -22,14 +22,14 @@ const (
 	ServiceName = "hexchess-perftest"
 
 	AdvanceTournamentQueName = "ADVANCE_TOURNAMENT_EVENT"
-	FinishGameEventsQueName       = "finish_game_events"
-	UpdtGameEventsQueName         = "updt_game_meta_events"
+	FinishGameEventsQueName  = "finish_game_events"
+	UpdtGameEventsQueName    = "updt_game_meta_events"
 
 	SmokeProfile    = "SMOKE"
 	CapacityProfile = "CAPACITY"
 )
 
-var PerfTestConfigs = map[string]map[string]perftest.PerfTestConfig{
+var PerfTestConfigs = map[string]map[string]perf.TestConfig{
 	SmokeProfile: {
 		AdvanceTournamentQueName: {
 			Duration:        5 * time.Second,
@@ -114,30 +114,25 @@ func main() {
 		RouteByLatency: false,
 	})
 
-	state := perftest.State{Context: ctx, PGPool: pool, RedisClient: redisClient}
+	state := perf.State{Context: ctx, PGPool: pool, RedisClient: redisClient}
 
 	// step 3: prepare precondition data, test inputs, and perf test configurations
-	preconditionData, err := perftest.GetPreconditionData(state)
+	generator, err := perf.NewInputGenerator(state)
 	if err != nil {
-		logutil.Fatal("get dynamic inputs", err)
+		logutil.Fatal("initialize input generator", err)
 	}
 
-	generator := perftest.InputGenerator{
-		PreconditionData: preconditionData,
-		StaticData: perftest.StaticData{
-			MinUserID: int64(*minUserID),
-			MaxUserID: int64(*maxUserID),
-		},
-	}
+	generator.MinUserID = int64(*minUserID)
+	generator.MaxUserID = int64(*maxUserID)
 
-	postgresPerftests := []perftest.PostgresQuePerfTest{
+	postgresPerftests := []perf.PostgresQuePerfTest{
 		{
 			Config:        profileConfig[AdvanceTournamentQueName],
 			EventKind:     AdvanceTournamentQueName,
 			GenerateInput: generator.GenerateAdvanceTournamentInput,
 		},
 	}
-	redisPerftests := []perftest.RedisQuePerfTest{
+	redisPerftests := []perf.RedisQuePerfTest{
 		{
 			Config:        profileConfig[FinishGameEventsQueName],
 			StreamName:    FinishGameEventsQueName,
@@ -153,17 +148,17 @@ func main() {
 	// step 4: run performance tests
 	slog.Info("starting perf tests", "postgresPerftests", postgresPerftests, "redisPerftests", redisPerftests)
 
-	var metrics []perftest.Metric
+	var metrics []perf.Metric
 	var metricErrs error
 
 	for _, pt := range postgresPerftests {
-		metricResult, err := perftest.RunPostgresQueTest(state, pt)
+		metricResult, err := perf.RunPostgresQueTest(state, pt)
 
 		metrics = append(metrics, metricResult)
 		metricErrs = errors.Join(metricErrs, err)
 	}
 	for _, pt := range redisPerftests {
-		metricResult, err := perftest.RunRedisQueTest(state, pt)
+		metricResult, err := perf.RunRedisQueTest(state, pt)
 
 		metrics = append(metrics, metricResult)
 		metricErrs = errors.Join(metricErrs, err)
@@ -173,8 +168,8 @@ func main() {
 		logutil.Fatal("collect all metrics", nil, "metricErrs", metricErrs)
 	}
 
-	// step 5: publish results of perf tests in grafana format
-	summary := perftest.Summary{Metrics: make(map[string]perftest.Metric)}
+	// step 5: publish results of perf tests in Grafana format
+	summary := perf.Summary{Metrics: make(map[string]perf.Metric)}
 	for _, metric := range metrics {
 		summary.Metrics[metric.Name] = metric
 	}

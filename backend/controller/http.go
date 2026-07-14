@@ -2,9 +2,11 @@ package controller
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 
+	"github.com/bytedance/sonic"
 	// "github.com/bytedance/sonic"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
@@ -32,7 +34,9 @@ func init() {
 	trans, _ = uni.GetTranslator("en")
 
 	validate = validator.New()
-	enTranslations.RegisterDefaultTranslations(validate, trans)
+	if err := enTranslations.RegisterDefaultTranslations(validate, trans); err != nil {
+		panic(fmt.Sprintf("register translations: %v", err))
+	}
 }
 
 func parseJSON[Body any](r *http.Request, body *Body) error {
@@ -45,32 +49,14 @@ func parseJSON[Body any](r *http.Request, body *Body) error {
 	return doValidation(body)
 }
 
-func mapJSON[Body any, Output any](r *http.Request, parse func(Body) (Output, error)) (Output, error) {
+func mapJSON[Body any, Output any](r *http.Request, parse func(Body) (Output, error)) (o Output, _ error) {
 	defer r.Body.Close()
 
+	// TODO: consider using io.ReadAlll instead of NewDecoder if it yields better performance
 	var body Body
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		var o Output
+	if err := sonic.ConfigDefault.NewDecoder(r.Body).Decode(&body); err != nil {
 		return o, err
 	}
-
-	// var body Body
-	// if err := sonic.ConfigDefault.NewDecoder(r.Body).Decode(&body); err != nil {
-	// 	var o Output
-	// 	return o, err
-	// }
-
-	//bytes, err := io.ReadAll(r.Body)
-	//if err != nil {
-	//	var o Output
-	//	return o, ErrHttpInvalidJSON
-	//}
-	//var body Body
-	//if err := json.Unmarshal(bytes, &body); err != nil {
-	//	slog.Error("invalid json", "err", err, "body", string(bytes))
-	//	var o Output
-	//	return o, err
-	//}
 
 	return parse(body)
 }

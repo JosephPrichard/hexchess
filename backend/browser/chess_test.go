@@ -8,6 +8,8 @@ import (
 	"syscall/js"
 	"testing"
 
+	"hexchess-svc/chess"
+	"hexchess-svc/model"
 	"hexchess-svc/pb"
 
 	"github.com/google/go-cmp/cmp"
@@ -38,7 +40,7 @@ func isUint8Array(v js.Value) bool {
 
 func makeInitialBoardJs(t *testing.T) js.Value {
 	board := chess.InitialBoard()
-	bytes, err := proto.Marshal(chess.SerializeBoard(&board))
+	bytes, err := proto.Marshal(model.SerializeBoard(&board))
 	requireNoError(t, err)
 	return uint8ArrayFromBytes(bytes)
 }
@@ -50,7 +52,7 @@ func jsValueToGame(t *testing.T, result js.Value) chess.Game {
 	var pbGame pb.ChessGame
 	requireNoError(t, proto.Unmarshal(gameOut, &pbGame))
 
-	game, err := chess.DeserializeGame(&pbGame)
+	game, err := model.DeserializeGame(&pbGame)
 	requireNoError(t, err)
 	return game
 }
@@ -80,8 +82,6 @@ func TestGetGame(t *testing.T) {
 	wasm := makeTestWasm()
 
 	t.Run("get initial game", func(t *testing.T) {
-		t.Parallel()
-
 		result := wasm.GetGame(js.Undefined(), []js.Value{js.Undefined()}).(js.Value)
 
 		if !isUint8Array(result) {
@@ -97,8 +97,6 @@ func TestGetGame(t *testing.T) {
 	})
 
 	t.Run("get game with moves", func(t *testing.T) {
-		t.Parallel()
-
 		input := makeInitialBoardJs(t)
 
 		result := wasm.GetGame(js.Undefined(), []js.Value{input}).(js.Value)
@@ -125,10 +123,8 @@ func TestNewMove(t *testing.T) {
 	wasm := makeTestWasm()
 
 	t.Run("successfully make move", func(t *testing.T) {
-		t.Parallel()
-
 		gameBytes, err := proto.Marshal(
-			chess.SerializeGame(&chess.Game{Board: chess.InitialBoard()}),
+			model.SerializeGame(&chess.Game{Board: chess.InitialBoard()}),
 		)
 		requireNoError(t, err)
 
@@ -155,10 +151,8 @@ func TestNewMove(t *testing.T) {
 	})
 
 	t.Run("invalid make move", func(t *testing.T) {
-		t.Parallel()
-
 		gameBytes, err := proto.Marshal(
-			chess.SerializeGame(&chess.Game{Board: chess.InitialBoard()}),
+			model.SerializeGame(&chess.Game{Board: chess.InitialBoard()}),
 		)
 		requireNoError(t, err)
 
@@ -173,8 +167,6 @@ func TestNewMove(t *testing.T) {
 	})
 
 	t.Run("invalid arguments", func(t *testing.T) {
-		t.Parallel()
-
 		result := wasm.NewMove(js.Undefined(), nil).(js.Value)
 		assertGame(t, nil, result)
 	})
@@ -259,13 +251,11 @@ func TestGameAtMoveIndex(t *testing.T) {
 	wasm := makeTestWasm()
 
 	t.Run("jump to index 0", func(t *testing.T) {
-		t.Parallel()
-
 		game := &chess.Game{Board: chess.InitialBoard()}
 		game.NewHistMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")})
 		game.NewHistMove(chess.Move{From: chess.HexStr("b7"), To: chess.HexStr("b6")})
 
-		movesBytes, err := proto.Marshal(&pb.HistMoves{Moves: chess.SerializeMoveList(game.Moves)})
+		movesBytes, err := proto.Marshal(&pb.HistMoves{Moves: model.SerializeMoveList(game.Moves)})
 		requireNoError(t, err)
 
 		inputs := []js.Value{makeInitialBoardJs(t), uint8ArrayFromBytes(movesBytes), js.ValueOf(0)}
@@ -281,8 +271,6 @@ func TestGameAtMoveIndex(t *testing.T) {
 	})
 
 	t.Run("invalid move index", func(t *testing.T) {
-		t.Parallel()
-
 		movesBytes, err := proto.Marshal(&pb.HistMoves{})
 		requireNoError(t, err)
 
@@ -294,8 +282,6 @@ func TestGameAtMoveIndex(t *testing.T) {
 	})
 
 	t.Run("invalid arguments", func(t *testing.T) {
-		t.Parallel()
-
 		result := wasm.GameAtMoveIndex(js.Undefined(), nil).(js.Value)
 		assertGame(t, nil, result)
 	})

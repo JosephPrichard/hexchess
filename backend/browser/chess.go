@@ -7,6 +7,7 @@ import (
 	"syscall/js"
 
 	"hexchess-svc/chess"
+	"hexchess-svc/model"
 	"hexchess-svc/pb"
 )
 
@@ -49,7 +50,7 @@ func (w *ChessWasm) JsErrStr(err string) js.Value {
 	return js.Undefined()
 }
 
-func (w *ChessWasm) deserializeBoard(value js.Value) (chess.Board, error) {
+func (w *ChessWasm) unmarshalBoard(value js.Value) (chess.Board, error) {
 	input := make([]byte, value.Length())
 	js.CopyBytesToGo(input, value)
 
@@ -57,14 +58,14 @@ func (w *ChessWasm) deserializeBoard(value js.Value) (chess.Board, error) {
 	if err := pbBoard.UnmarshalVT(input); err != nil {
 		return chess.Board{}, err
 	}
-	board, err := chess.DeserializeBoard(&pbBoard)
+	board, err := model.DeserializeBoard(&pbBoard)
 	if err != nil {
 		return chess.Board{}, err
 	}
 	return board, nil
 }
 
-func (w *ChessWasm) deserializeGame(value js.Value) (*chess.Game, error) {
+func (w *ChessWasm) unmarshalGame(value js.Value) (*chess.Game, error) {
 	gameBytes := make([]byte, value.Length())
 	js.CopyBytesToGo(gameBytes, value)
 
@@ -72,14 +73,14 @@ func (w *ChessWasm) deserializeGame(value js.Value) (*chess.Game, error) {
 	if err := pbGameIn.UnmarshalVT(gameBytes); err != nil {
 		return nil, err
 	}
-	game, err := chess.DeserializeGame(&pbGameIn)
+	game, err := model.DeserializeGame(&pbGameIn)
 	if err != nil {
 		return nil, err
 	}
 	return &game, nil
 }
 
-func (w *ChessWasm) deserializeMove(value js.Value) (chess.Move, error) {
+func (w *ChessWasm) unmarshalMove(value js.Value) (chess.Move, error) {
 	moveBytes := make([]byte, value.Length())
 	js.CopyBytesToGo(moveBytes, value)
 
@@ -87,11 +88,11 @@ func (w *ChessWasm) deserializeMove(value js.Value) (chess.Move, error) {
 	if err := pbMoveIn.UnmarshalVT(moveBytes); err != nil {
 		return chess.Move{}, err
 	}
-	pm := chess.DeserializeMove(&pbMoveIn)
+	pm := model.DeserializeMove(&pbMoveIn)
 	return pm, nil
 }
 
-func (w *ChessWasm) deserializeHistMoveList(value js.Value) ([]chess.HistMove, error) {
+func (w *ChessWasm) unmarshalHistMoveList(value js.Value) ([]chess.HistMove, error) {
 	moveBytes := make([]byte, value.Length())
 	js.CopyBytesToGo(moveBytes, value)
 
@@ -100,11 +101,11 @@ func (w *ChessWasm) deserializeHistMoveList(value js.Value) ([]chess.HistMove, e
 		return nil, err
 	}
 
-	return chess.DeserializeHistMoveList(pbMoveList.Moves), nil
+	return model.DeserializeHistMoveList(pbMoveList.Moves), nil
 }
 
 func (w *ChessWasm) serializeGame(game *chess.Game) any {
-	output, err := chess.SerializeGame(game).MarshalVT()
+	output, err := model.SerializeGame(game).MarshalVT()
 	if err != nil {
 		return w.JsErr(err)
 	}
@@ -125,7 +126,7 @@ func (w *ChessWasm) GetGame(_ js.Value, args []js.Value) any {
 	if boardUInt8Arr.IsUndefined() {
 		board = chess.InitialBoard()
 	} else {
-		b, err := w.deserializeBoard(boardUInt8Arr)
+		b, err := w.unmarshalBoard(boardUInt8Arr)
 		if err != nil {
 			return w.JsErr(err)
 		}
@@ -146,7 +147,7 @@ func (w *ChessWasm) NewMove(_ js.Value, args []js.Value) any {
 	gameUInt8Arr := args[0]
 	moveUint8Arr := args[1]
 
-	game, err := w.deserializeGame(gameUInt8Arr)
+	game, err := w.unmarshalGame(gameUInt8Arr)
 	if err != nil {
 		return w.JsErr(err)
 	}
@@ -154,7 +155,7 @@ func (w *ChessWasm) NewMove(_ js.Value, args []js.Value) any {
 
 	hasMove := !moveUint8Arr.IsUndefined()
 	if hasMove {
-		move, err := w.deserializeMove(moveUint8Arr)
+		move, err := w.unmarshalMove(moveUint8Arr)
 		if err != nil {
 			return w.JsErr(err)
 		}
@@ -190,7 +191,7 @@ func (w *ChessWasm) BoardToFen(_ js.Value, args []js.Value) any {
 	}
 
 	inputUInt8Arr := args[0]
-	board, err := w.deserializeBoard(inputUInt8Arr)
+	board, err := w.unmarshalBoard(inputUInt8Arr)
 	if err != nil {
 		return w.JsErr(err)
 	}
@@ -204,13 +205,13 @@ func (w *ChessWasm) GameAtMoveIndex(_ js.Value, args []js.Value) any {
 	}
 
 	boardUInt8Arr := args[0]
-	initialBoard, err := w.deserializeBoard(boardUInt8Arr)
+	initialBoard, err := w.unmarshalBoard(boardUInt8Arr)
 	if err != nil {
 		return w.JsErr(err)
 	}
 
 	movesUInt8Arr := args[1]
-	moves, err := w.deserializeHistMoveList(movesUInt8Arr)
+	moves, err := w.unmarshalHistMoveList(movesUInt8Arr)
 	if err != nil {
 		return w.JsErr(err)
 	}

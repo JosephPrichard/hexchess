@@ -15,18 +15,14 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
-	"runtime"
 	"strings"
 )
 
-const ServiceName = "hexchess-backend"
+const ServiceName = "hexchess-api"
 
 func main() {
 	// step 1: parse CLI inputs for static input data
 	ctx := context.Background()
-
-	runtime.SetBlockProfileRate(1)
-	runtime.SetMutexProfileFraction(1)
 
 	dotenv.Load()
 
@@ -51,7 +47,7 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, profile)
 	defer shutdown()
 
-	// step 2: connect to backend infrastructure and prefer cleanup
+	// step 2: connect to backend infrastructure and prepare cleanup
 	pdb := db.NewPostgresDB(ctx, db.PgPoolConfig{
 		Dsn:           dbURL,
 		ActiveProfile: profile,
@@ -81,7 +77,7 @@ func main() {
 	remoteAPIs := cloud.NewRemoteAPIs(nil)
 	broadcaster := pubsub.NewAsyncBroadcaster(rdb)
 
-	// step 3: create API backend services and start background listeners
+	// step 3: create API backend services and start background listeners for WS API
 	services := svc.NewHexchessServices(svc.SetupService{
 		DB:          pdb,
 		Redis:       rdb,
@@ -92,7 +88,6 @@ func main() {
 
 	broadcasters := pubsub.NewLocalBroadcasters()
 	defer broadcasters.Shutdown()
-
 	broadcasters.Listen(rdb)
 
 	consumers.StartConsumers(consumers.SetupConsumers{

@@ -2,15 +2,14 @@
 .idea/jarRepositories.xml
 .idea/compiler.xml
 .idea/libraries/
+.idea
 *.iws
 *.iml
 *.ipr
 
-.vscode/
-
 .DS_Store
 
-.idea
+.vscode/
 
 backend/app.log
 backend/.env
@@ -26,10 +25,13 @@ frontend/build
 */node_modules
 .env
 
+scripts/workspace
+
+dump.rdb
+
 perf/http/node_modules
 perf/http/package-lock.json
 perf/k6/k6
-wasm_exec.js
 chess.wasm
 
 graph.dot
