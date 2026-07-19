@@ -1,18 +1,13 @@
 # Hexagonal Chess
 A website to play hexagonal chess online. It's primarily a way for me to explore ideas related to backend infrastructure, software architecture, performance optimization, and functional testing.
 
-Languages: Go, TypeScript, Svelte
+Languages: Go, TypeScript, Svelte, Protoc
 
-Build: Docker, NixOS, Terraform
+Build: Docker, Terraform
 
 Infrastructure: AWS, Postgres, and Redis
 
 ## Development
-
-### Dependencies
-
-NixPkg and Docker are the only system dependencies. 
-NixPkg installs system dependencies and infrastructure, Docker is a runner for virtualization and a builder for application nodes.
 
 ### Environment
 

@@ -22,8 +22,8 @@ for PORT in "${PORTS[@]}"; do
 done
 
 echo "==> starting infrastructure"
-#WORKSPACE="$PWD/data"
-WORKSPACE="/etc/workspace/hexchess/data"
+WORKSPACE="$PWD/data"
+#WORKSPACE="/etc/workspace/hexchess/data"
 mkdir -p "${WORKSPACE}"
 
 # starts standard postgres
@@ -55,9 +55,6 @@ for PORT in "${REDIS_PORTS[@]}"; do
   NODES+=("127.0.0.1:${PORT}")
 done
 
-redis-cli --cluster create "${NODES[@]}" --cluster-replicas 1 --cluster-yes
-echo "==> started redis cluster with nodes ${NODES[*]}"
-
 # stats alloy with a custom config
 ALLOY_CONFIG_FILE="./configs/config.alloy"
 ALLOY_LOG_FILE="${WORKSPACE}/alloy.log"
@@ -84,3 +81,6 @@ PYRO_CONFIG_FILE="./configs/pyroscope.yaml"
 
 pyroscope -config.file="${PYRO_CONFIG_FILE}" &
 echo "==> started pyroscope"
+
+redis-cli --cluster create 127.0.0.1:6479 127.0.0.1:6480 127.0.0.1:6481 127.0.0.1:6482 127.0.0.1:6483 127.0.0.1:6484 --cluster-replicas 1 --cluster-yes
+echo "==> started redis cluster with nodes ${NODES[*]}"

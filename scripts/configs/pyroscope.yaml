@@ -5,7 +5,7 @@ server:
   grpc_listen_port: 9098
 
 pyroscopedb:
-  data_path: ./pyroscope/loki
+  data_path: ./data/pyroscope/loki
 
 metastore:
   address: localhost:9098
