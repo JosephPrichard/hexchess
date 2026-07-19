@@ -1,0 +1,28 @@
+target: all
+
+server:
+  http_listen_port: 4041
+  grpc_listen_port: 9098
+
+pyroscopedb:
+  data_path: ./pyroscope/loki
+
+metastore:
+  address: localhost:9098
+  raft:
+    dir: ./data/pyroscope/metastore/raft
+
+storage:
+  backend: filesystem
+  filesystem:
+    dir: ./data/pyroscope/v2/shared
+
+memberlist:
+  bind_port: 7946
+
+limits:
+  max_flamegraph_nodes_default: 8192
+  compactor_blocks_retention_period: 720h
+
+analytics:
+  reporting_enabled: false

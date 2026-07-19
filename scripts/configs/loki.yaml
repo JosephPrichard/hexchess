@@ -2,10 +2,14 @@ auth_enabled: false
 
 server:
   http_listen_port: 3100
+  grpc_listen_port: 9096
 
 common:
   path_prefix: ./data/loki
   replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
 
 schema_config:
   configs:

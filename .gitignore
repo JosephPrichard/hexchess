@@ -35,3 +35,5 @@ perf/k6/k6
 chess.wasm
 
 graph.dot
+
+data/

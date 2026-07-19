@@ -1,9 +1,9 @@
 port ${PORT}
 cluster-enabled yes
 
-dir /workspace/redis/configs/${PORT}
+dir ${WORKSPACE}/redis/configs/${PORT}
 
-cluster-config-file /workspace/redis/configs/${PORT}/nodes.conf
+cluster-config-file ${WORKSPACE}/redis/configs/${PORT}/nodes.conf
 cluster-node-timeout 5000
 
 # AOF persistence
@@ -11,5 +11,5 @@ appendonly yes
 appendfilename "appendonly.aof"
 
 # Redis 7+: AOF files (base, incr, manifest) go into a subdirectory
-# under `dir`, so this resolves to /workspace/redis/configs/${PORT}/appendonlydir
+# under `dir`, so this resolves to ${WORKSPACE}/redis/configs/${PORT}/appendonlydir
 appenddirname "appendonlydir"

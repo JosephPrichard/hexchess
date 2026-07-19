@@ -22,7 +22,7 @@ import faker from "k6/x/faker";
 // @ts-ignore
 import { URLSearchParams } from "https://jslib.k6.io/url/1.0.0/index.js";
 
-// VU definitions, test configs and input parsing
+// VU definitions, test infra and input parsing
 
 const protocol = __ENV.PROTOCOL ?? "http";
 const hostname = __ENV.HOSTNAME ?? "localhost:8081";
