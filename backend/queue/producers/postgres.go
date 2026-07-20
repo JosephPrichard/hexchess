@@ -3,7 +3,7 @@ package producers
 import (
 	"context"
 	"fmt"
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/primarydb"
 	"hexchess-svc/pb"
 	"log/slog"
 	"time"
@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func PublishAdvanceTournamentEvent(ctx context.Context, querier sqlc.Querier, tournamentKey uuid.UUID, scheduledOn time.Time) error {
+func PublishAdvanceTournamentEvent(ctx context.Context, querier primarydb.Querier, tournamentKey uuid.UUID, scheduledOn time.Time) error {
 	pbEvent := &pb.AdvanceTournamentEvent{
 		TournamentKey: tournamentKey.String(),
 		EventId:       uuid.NewString(),
@@ -22,8 +22,8 @@ func PublishAdvanceTournamentEvent(ctx context.Context, querier sqlc.Querier, to
 		return fmt.Errorf("marshal advance tournament event: %w", err)
 	}
 
-	if err := querier.InsertQueue(ctx, sqlc.InsertQueueParams{
-		Type:        sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
+	if err := querier.InsertQueue(ctx, primarydb.InsertQueueParams{
+		Type:        primarydb.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 		Data:        bytes,
 		CreatedOn:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		ScheduledOn: pgtype.Timestamptz{Time: scheduledOn, Valid: !scheduledOn.IsZero()},

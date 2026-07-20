@@ -11,19 +11,9 @@ Infrastructure: AWS, Postgres, and Redis
 
 ### Environment
 
-Project uses NixPkg to manage environment and system dependencies.
-
-Command opens a shell with all dependencies necessary for the `Makefile` in root.
-
-`nix develop`
-
 Additionally, provides a shell script to start infrastructure that the app connects to.
 
-`start_infra`
-
-Open RedisInsight
-
-`docker run -d --name redisinsight -p 5540:5540 redis/redisinsight:latest`
+`cd scripts && sudo ./start_infra.sh`
 
 ### Build
 
@@ -58,7 +48,7 @@ Run a Migration (down)
 Create an environment variable file in `backend`
 ```
 SERVER_PORT=8081
-DB_URL=postgresql://postgres:<password>@localhost:5432/hexchess
+PRIMARY_DB_URL=postgresql://postgres:<password>@localhost:5432/hexchess
 REDIS_SOR_NODES=localhost:6479,localhost:6480,localhost:6481,localhost:6482,localhost:6483,localhost:6484
 REDIS_PUBSUB_NODE=localhost:6579
 ACTIVE_PROFILE=local
@@ -72,7 +62,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=localhost:3100
 
 `SERVER_PORT` The port where `backend` runs at, this is must be the same as what the ALB is configured to direct traffic to.
 
-`DB_URL` Postgres connection url that the server will connect to.
+`PRIMARY_DB_URL` Postgres connection url that the server will connect to.
 
 `REDIS_SOR_NODES` Node URIs for redis instance server will use for caching and system of record
 

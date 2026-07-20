@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strconv"
 
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/primarydb"
 	"hexchess-svc/utils/logutil"
 	"hexchess-svc/utils/serrors"
 
@@ -249,7 +249,7 @@ func (services *HexchessServices) SyncLeaderboard(ctx context.Context) error {
 	for _, mode := range model.GameModeEnums {
 		afterID := int64(0)
 		for {
-			rows, err := services.querier.SelectEloList(ctx, sqlc.SelectEloListParams{ID: afterID, Mode: sqlc.ModeEnum(mode.String()), Limit: 20})
+			rows, err := services.querier.SelectEloList(ctx, primarydb.SelectEloListParams{ID: afterID, Mode: primarydb.ModeEnum(mode.String()), Limit: 20})
 			if err != nil {
 				return serrors.New("select elo list", err, "afterID", afterID)
 			}
@@ -281,7 +281,7 @@ func (e ExpLdbError) Error() string {
 	return fmt.Sprintf("expected leaderboard of length %d users, got %d", e.ExpCount, e.ActualCount)
 }
 
-func mapLbdUser(row sqlc.SelectUserWithEloByIDRow) model.LbdUser {
+func mapLbdUser(row primarydb.SelectUserWithEloByIDRow) model.LbdUser {
 	return model.LbdUser{
 		User:       model.User{ID: row.ID, Username: row.Username, Country: row.Country, JoinedOn: row.JoinedOn.Time},
 		Elo:        model.DefaultUserElo(row.Elo),
@@ -295,15 +295,15 @@ func mapLbdUser(row sqlc.SelectUserWithEloByIDRow) model.LbdUser {
 func (services *HexchessServices) GetLeaderboardUser(ctx context.Context, userID int64, mode model.GameMode) (model.LbdUser, error) {
 	strUserID := strconv.Itoa(int(userID))
 
-	var userRow sqlc.SelectUserWithEloByIDRow
+	var userRow primarydb.SelectUserWithEloByIDRow
 	var rankScore redis.RankScore
 
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() (err error) {
-		userRow, err = services.querier.SelectUserWithEloByID(egCtx, sqlc.SelectUserWithEloByIDParams{
+		userRow, err = services.querier.SelectUserWithEloByID(egCtx, primarydb.SelectUserWithEloByIDParams{
 			ID:   userID,
-			Mode: sqlc.ModeEnum(mode.String()),
+			Mode: primarydb.ModeEnum(mode.String()),
 		})
 		return serrors.New("select user with elos by userID", err, "userID", userID)
 	})
@@ -327,9 +327,9 @@ func (services *HexchessServices) GetFullLeaderboardUsers(ctx context.Context, m
 	for _, user := range rnkUsers {
 		ids = append(ids, user.ID)
 	}
-	userRows, err := services.querier.SelectUserWithEloByIDs(ctx, sqlc.SelectUserWithEloByIDsParams{
+	userRows, err := services.querier.SelectUserWithEloByIDs(ctx, primarydb.SelectUserWithEloByIDsParams{
 		Ids:  ids,
-		Mode: sqlc.ModeEnum(mode.String()),
+		Mode: primarydb.ModeEnum(mode.String()),
 	})
 	if err != nil {
 		return nil, nil, serrors.New("select many users", err, "userIDs", ids)
@@ -339,7 +339,7 @@ func (services *HexchessServices) GetFullLeaderboardUsers(ctx context.Context, m
 	var missingIDs []int64
 
 	for _, rnkUser := range rnkUsers {
-		var foundRow *sqlc.SelectUserWithEloByIDsRow
+		var foundRow *primarydb.SelectUserWithEloByIDsRow
 		for i := range userRows {
 			if userRows[i].ID == rnkUser.ID {
 				foundRow = &userRows[i]
@@ -347,7 +347,7 @@ func (services *HexchessServices) GetFullLeaderboardUsers(ctx context.Context, m
 			}
 		}
 		if foundRow != nil {
-			user := mapLbdUser(sqlc.SelectUserWithEloByIDRow(*foundRow))
+			user := mapLbdUser(primarydb.SelectUserWithEloByIDRow(*foundRow))
 			user.Rank = rnkUser.Rank
 			leaderboardUsers = append(leaderboardUsers, user)
 		} else {
@@ -382,7 +382,7 @@ func (services *HexchessServices) GetFuzzySearchLeaderboard(ctx context.Context,
 		return []model.LbdUser{}, nil
 	}
 
-	userRows, err := services.querier.SelectUsersBySimilarity(ctx, sqlc.SelectUsersBySimilarityParams{
+	userRows, err := services.querier.SelectUsersBySimilarity(ctx, primarydb.SelectUsersBySimilarityParams{
 		Username: name,
 		Limit:    perPage,
 		Offset:   offset,

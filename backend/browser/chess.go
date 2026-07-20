@@ -46,7 +46,7 @@ func (w *ChessWasm) JsDebugErr(err error) js.Value {
 }
 
 func (w *ChessWasm) JsErrStr(err string) js.Value {
-	w.Global.Get("console").Call("error", "an error occurred: "+err)
+	w.Global.Get("console").Call("error", "an error occurred in wasm module: "+err)
 	return js.Undefined()
 }
 
@@ -58,26 +58,20 @@ func (w *ChessWasm) unmarshalBoard(value js.Value) (chess.Board, error) {
 	if err := pbBoard.UnmarshalVT(input); err != nil {
 		return chess.Board{}, err
 	}
-	board, err := model.DeserializeBoard(&pbBoard)
-	if err != nil {
-		return chess.Board{}, err
-	}
-	return board, nil
+
+	return model.DeserializeBoard(&pbBoard)
 }
 
-func (w *ChessWasm) unmarshalGame(value js.Value) (*chess.Game, error) {
+func (w *ChessWasm) unmarshalGame(value js.Value) (chess.Game, error) {
 	gameBytes := make([]byte, value.Length())
 	js.CopyBytesToGo(gameBytes, value)
 
 	var pbGameIn pb.ChessGame
 	if err := pbGameIn.UnmarshalVT(gameBytes); err != nil {
-		return nil, err
+		return chess.Game{}, err
 	}
-	game, err := model.DeserializeGame(&pbGameIn)
-	if err != nil {
-		return nil, err
-	}
-	return &game, nil
+
+	return model.DeserializeGame(&pbGameIn)
 }
 
 func (w *ChessWasm) unmarshalMove(value js.Value) (chess.Move, error) {
@@ -88,8 +82,8 @@ func (w *ChessWasm) unmarshalMove(value js.Value) (chess.Move, error) {
 	if err := pbMoveIn.UnmarshalVT(moveBytes); err != nil {
 		return chess.Move{}, err
 	}
-	pm := model.DeserializeMove(&pbMoveIn)
-	return pm, nil
+
+	return model.DeserializeMove(&pbMoveIn), nil
 }
 
 func (w *ChessWasm) unmarshalHistMoveList(value js.Value) ([]chess.HistMove, error) {
@@ -104,7 +98,7 @@ func (w *ChessWasm) unmarshalHistMoveList(value js.Value) ([]chess.HistMove, err
 	return model.DeserializeHistMoveList(pbMoveList.Moves), nil
 }
 
-func (w *ChessWasm) serializeGame(game *chess.Game) any {
+func (w *ChessWasm) marshalGame(game *chess.Game) any {
 	output, err := model.SerializeGame(game).MarshalVT()
 	if err != nil {
 		return w.JsErr(err)
@@ -136,7 +130,7 @@ func (w *ChessWasm) GetGame(_ js.Value, args []js.Value) any {
 	game := chess.Game{Board: board}
 	game.InitPieceMoves()
 
-	return w.serializeGame(&game)
+	return w.marshalGame(&game)
 }
 
 func (w *ChessWasm) NewMove(_ js.Value, args []js.Value) any {
@@ -164,7 +158,7 @@ func (w *ChessWasm) NewMove(_ js.Value, args []js.Value) any {
 		}
 	}
 
-	return w.serializeGame(game)
+	return w.marshalGame(&game)
 }
 
 func (w *ChessWasm) FenToGame(_ js.Value, args []js.Value) any {
@@ -182,7 +176,7 @@ func (w *ChessWasm) FenToGame(_ js.Value, args []js.Value) any {
 	game := chess.Game{Board: board}
 	game.InitPieceMoves()
 
-	return js.ValueOf([]any{w.serializeGame(&game), ""})
+	return js.ValueOf([]any{w.marshalGame(&game), ""})
 }
 
 func (w *ChessWasm) BoardToFen(_ js.Value, args []js.Value) any {
@@ -228,7 +222,7 @@ func (w *ChessWasm) GameAtMoveIndex(_ js.Value, args []js.Value) any {
 	}
 
 	game.InitPieceMoves()
-	return w.serializeGame(game)
+	return w.marshalGame(game)
 }
 
 func RegisterChessModule(version string) {

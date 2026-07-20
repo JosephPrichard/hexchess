@@ -1,6 +1,10 @@
 port ${PORT}
 cluster-enabled yes
 
+bind 0.0.0.0
+# uncomment this on if local app is in docker
+# cluster-announce-ip host.docker.internal
+
 dir ${WORKSPACE}/redis/configs/${PORT}
 
 cluster-config-file ${WORKSPACE}/redis/configs/${PORT}/nodes.conf

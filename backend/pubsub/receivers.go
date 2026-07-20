@@ -17,8 +17,12 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 	recvLoop := func(conn redigo.Conn) {
 		psc := redigo.PubSubConn{Conn: conn}
 		defer psc.Close()
-		for _, ch := range chans {
-			psc.Subscribe(ch)
+		for _, channel := range chans {
+			err := psc.Subscribe(channel)
+			if err != nil {
+				slog.Error("receive from channel", "error", err, "channel", channel)
+				return
+			}
 		}
 		slog.Info("starting redis pubsub channel subscriber", "channels", chans)
 
@@ -37,11 +41,11 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 		}
 	}
 	go func() {
-		// listens to the rdb channel, creating a new connection if for whatever reason the recv loop fails
+		// listens to the redis channel, creating a new connection if the recv loop fails
 		for {
 			conn, err := redigo.Dial("tcp", addr)
 			if err != nil {
-				slog.Error("failed to get conn for pubsub", "error", err)
+				slog.Error("failed to get conn for pubsub", "addr", addr, "error", err)
 			} else {
 				recvLoop(conn)
 			}

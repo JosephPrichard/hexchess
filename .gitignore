@@ -14,7 +14,9 @@
 backend/app.log
 backend/.env
 *pb.go
-backend/db/sqlc
+backend/db/primarydb
+backend/db/primarydb
+backend/db/metricsdb
 
 frontend/src/lib/pb/*
 frontend/build
@@ -24,6 +26,7 @@ frontend/build
 */.svelte-kit
 */node_modules
 .env
+.env.docker
 
 scripts/workspace
 

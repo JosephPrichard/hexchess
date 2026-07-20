@@ -50,7 +50,6 @@ func Fatal(msg string, err error, args ...any) {
 	if err != nil {
 		args = append(args, "error", err)
 	}
-	slog.Error(msg, args...)
 	slog.Error("failed to "+msg, args...)
 	os.Exit(1)
 }

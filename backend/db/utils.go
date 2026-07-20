@@ -3,7 +3,7 @@ package db
 import (
 	"database/sql"
 	"errors"
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/primarydb"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/optional"
 	"time"
@@ -45,16 +45,16 @@ func MapOptTime(o optional.Maybe[time.Time]) pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: o.Value, Valid: o.Present}
 }
 
-func MapOptMode(o optional.Maybe[model.GameMode]) sqlc.NullModeEnum {
-	return sqlc.NullModeEnum{ModeEnum: sqlc.ModeEnum(o.Value.String()), Valid: o.Present}
+func MapOptMode(o optional.Maybe[model.GameMode]) primarydb.NullModeEnum {
+	return primarydb.NullModeEnum{ModeEnum: primarydb.ModeEnum(o.Value.String()), Valid: o.Present}
 }
 
-func MapOptResult(o optional.Maybe[model.ReplayResult]) sqlc.NullResultEnum {
-	return sqlc.NullResultEnum{ResultEnum: sqlc.ResultEnum(o.Value.String()), Valid: o.Present}
+func MapOptResult(o optional.Maybe[model.ReplayResult]) primarydb.NullResultEnum {
+	return primarydb.NullResultEnum{ResultEnum: primarydb.ResultEnum(o.Value.String()), Valid: o.Present}
 }
 
-func MapOptCause(o optional.Maybe[model.ReplayCause]) sqlc.NullCauseEnum {
-	return sqlc.NullCauseEnum{CauseEnum: sqlc.CauseEnum(o.Value.String()), Valid: o.Present}
+func MapOptCause(o optional.Maybe[model.ReplayCause]) primarydb.NullCauseEnum {
+	return primarydb.NullCauseEnum{CauseEnum: primarydb.CauseEnum(o.Value.String()), Valid: o.Present}
 }
 
 func MapInsertErr(err error, uniqueViolationErr error, foreignKeyViolationErr error) error {

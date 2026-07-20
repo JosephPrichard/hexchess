@@ -7,11 +7,9 @@ import (
 	"flag"
 	"hexchess-svc/perf"
 	"hexchess-svc/utils/config"
-	"hexchess-svc/utils/dotenv"
 	"hexchess-svc/utils/logutil"
 	"log/slog"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -72,12 +70,7 @@ var (
 
 func main() {
 	// step 1: parse CLI inputs for static input data
-	dotenv.Load()
-
-	dbURL := os.Getenv("DB_URL")
-	runProfile := config.ParseProfile(os.Getenv("ACTIVE_PROFILE"))
-	rdbPrimaryNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
-	oltpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	cfg := config.Load()
 
 	profileConfig, ok := PerfTestConfigs[*testProfile]
 	if !ok {
@@ -91,21 +84,15 @@ func main() {
 	}
 	defer cancel()
 
-	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, runProfile)
+	shutdown := logutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
 	// step 2: connect to backend infrastructure
-	poolCfg, err := pgxpool.ParseConfig(dbURL)
-	if err != nil {
-		logutil.Fatal("parse postgres DSN: %v", err)
-	}
-	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
-	if err != nil {
-		logutil.Fatal("create pool: %v", err)
-	}
+	primaryPool := connectDb(ctx, cfg.PrimaryDbURL)
+	metricsPool := connectDb(ctx, cfg.MetricsDbURL)
 
 	redisClient := redis.NewUniversalClient(&redis.UniversalOptions{
-		Addrs:          rdbPrimaryNodes,
+		Addrs:          cfg.RedisPrimaryNodes,
 		DialTimeout:    5 * time.Second,
 		ReadTimeout:    3 * time.Second,
 		WriteTimeout:   3 * time.Second,
@@ -114,7 +101,12 @@ func main() {
 		RouteByLatency: false,
 	})
 
-	state := perf.State{Context: ctx, PGPool: pool, RedisClient: redisClient}
+	state := perf.State{
+		Context:     ctx,
+		PrimaryPool: primaryPool,
+		MetricsPool: metricsPool,
+		RedisClient: redisClient,
+	}
 
 	// step 3: prepare precondition data, test inputs, and perf test configurations
 	generator, err := perf.NewInputGenerator(state)
@@ -185,4 +177,16 @@ func main() {
 	if err := enc.Encode(summary); err != nil {
 		logutil.Fatal("encode metrics to output file", err)
 	}
+}
+
+func connectDb(ctx context.Context, dbURL string) *pgxpool.Pool {
+	poolCfg, err := pgxpool.ParseConfig(dbURL)
+	if err != nil {
+		logutil.Fatal("parse postgres DSN: %v", err)
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
+	if err != nil {
+		logutil.Fatal("create pool: %v", err)
+	}
+	return pool
 }

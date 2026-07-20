@@ -39,7 +39,8 @@ minio server "${MINIO_STORAGE_PATH}" --console-address ":9101" --address ":${MIN
 echo "==> started minio"
 
 # starts a single redis node for pubsub (it cannot be part of the cluster)
-redis-server --port ${REDIS_PUBSUB_PORT} - &
+# shellcheck disable=SC2016
+PORT=${REDIS_PUBSUB_PORT} envsubst '${PORT}' < ./configs/redis.single.conf.template | redis-server - &
 echo "==> started redis pubsub"
 
 # starts a classic 3 master 3 slave redis cluster for system state. each individual node is configured to be cluster aware

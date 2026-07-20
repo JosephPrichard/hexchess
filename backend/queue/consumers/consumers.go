@@ -3,7 +3,8 @@ package consumers
 import (
 	"context"
 	"hexchess-svc/db"
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/metricsdb"
+	"hexchess-svc/db/primarydb"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 	"log/slog"
@@ -17,10 +18,11 @@ type Consumer interface {
 type ConsumeFunc func(ctx context.Context, bytes []byte) error
 
 type SetupConsumers struct {
-	Ctx      context.Context
-	Services *svc.HexchessServices
-	Postgres db.Database
-	Redis    db.Redis
+	Ctx       context.Context
+	Services  *svc.HexchessServices
+	PrimaryDB db.Database[primarydb.Querier]
+	MetricsDB db.Database[metricsdb.Querier]
+	Redis     db.Redis
 }
 
 // TotalPartitionCount is the total number of partitions created by ALL redis consumers
@@ -41,11 +43,11 @@ func StartConsumers(setup SetupConsumers) {
 	consumers := []Consumer{
 		&PostgresConsumer{
 			ctx:         setup.Ctx,
-			pdb:         setup.Postgres,
+			primaryDB:   setup.PrimaryDB,
 			consumeFunc: eventGateway.HandleAdvanceTournamentEvent,
 
 			PostgresConfig: PostgresConfig{
-				EventKind:    sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
+				EventKind:    primarydb.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 				PollInterval: 1 * time.Second,
 				PollCount:    32,
 			},
@@ -53,7 +55,7 @@ func StartConsumers(setup SetupConsumers) {
 		&RedisConsumer{
 			ctx:         setup.Ctx,
 			redis:       setup.Redis.Consumer,
-			inserter:    setup.Postgres.Querier(),
+			querier:     setup.MetricsDB.Querier(),
 			consumeFunc: eventGateway.HandleFinishedGameEvent,
 
 			RedisConfig: RedisConfig{
@@ -66,7 +68,7 @@ func StartConsumers(setup SetupConsumers) {
 		&RedisConsumer{
 			ctx:         setup.Ctx,
 			redis:       setup.Redis.Consumer,
-			inserter:    setup.Postgres.Querier(),
+			querier:     setup.MetricsDB.Querier(),
 			consumeFunc: eventGateway.HandleUpdtGameEvent,
 
 			RedisConfig: RedisConfig{

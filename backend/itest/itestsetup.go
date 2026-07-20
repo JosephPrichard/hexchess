@@ -3,28 +3,32 @@ package itest
 import (
 	"hexchess-svc/cloud"
 	"hexchess-svc/db"
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/metricsdb"
+	"hexchess-svc/db/primarydb"
 	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/logutil"
 	"hexchess-svc/utils/testutil"
 	"slices"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
 )
 
 type TestInfra struct {
-	Querier sqlc.Querier
-	DB      db.Database
-	Redis   db.Redis
-	AWS     cloud.AWSClient
+	PrimaryQuerier primarydb.Querier
+	PrimaryDB      db.Database[primarydb.Querier]
+	MetricsDB      db.Database[metricsdb.Querier]
+	Redis          db.Redis
+	AWS            cloud.AWSClient
 }
 
 func (i TestInfra) Close() {
 	i.Redis.Close()
-	if i.DB != nil {
-		i.DB.Close()
+	if i.PrimaryDB != nil {
+		i.PrimaryDB.Close()
+	}
+	if i.MetricsDB != nil {
+		i.MetricsDB.Close()
 	}
 }
 
@@ -64,22 +68,22 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 		t.Fatalf("failed to setup test infra: %v", err)
 	}
 
-	var testinfra TestInfra
+	var infra TestInfra
 
 	if isRwPostgresFlag {
-		testTx, err := pgPool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
-		if err != nil {
-			t.Fatalf("failed to begin test txn: %v", err)
-		}
-		testinfra.DB = db.NewFakeDB(testTx)
-		testinfra.Querier = testinfra.DB.Querier()
+		infra.PrimaryDB = db.NewFakePrimaryDB(t, pgPool)
+		infra.MetricsDB = db.NewFakeMetricsDB(t, pgPool)
+
+		infra.PrimaryQuerier = infra.PrimaryDB.Querier()
 	} else if isRoPostgresFlag {
-		testinfra.DB = db.NewPostgresDBFromPool(pgPool)
-		testinfra.Querier = testinfra.DB.Querier()
+		infra.PrimaryDB = db.NewPrimaryDB(pgPool)
+		infra.MetricsDB = db.NewMetricsDB(pgPool)
+
+		infra.PrimaryQuerier = infra.PrimaryDB.Querier()
 	}
 
 	if isRedisFlag {
-		testinfra.Redis = db.NewRedis(ctx, db.RedisConfig{
+		infra.Redis = db.NewRedis(ctx, db.RedisConfig{
 			Names:         testutil.NewTestNames(db.DefaultRedisNames),
 			PrimaryAddr:   []string{redisAddr},
 			PubsubAddr:    redisAddr,
@@ -88,7 +92,7 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 	}
 
 	if isLocalstackFlag {
-		testinfra.AWS = cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
+		infra.AWS = cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
 			AWSEndpoint:   localstackAddr,
 			AWSRegion:     "us-east-1",
 			Names:         testutil.NewTestNames(cloud.DefaultAWSNames),
@@ -98,5 +102,5 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 		})
 	}
 
-	return testinfra
+	return infra
 }

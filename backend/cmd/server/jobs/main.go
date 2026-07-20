@@ -3,11 +3,9 @@ package main
 import (
 	"context"
 	"flag"
+	"hexchess-svc/db/primarydb"
 	"hexchess-svc/utils/config"
-	"hexchess-svc/utils/dotenv"
 	"log/slog"
-	"os"
-	"strings"
 	"time"
 
 	"hexchess-svc/db"
@@ -27,39 +25,32 @@ var jobName = flag.String("job", SyncLeaderboardJobName, "job to execute")
 func main() {
 	ctx := context.Background()
 
-	dotenv.Load()
-
-	dbURL := os.Getenv("DB_URL")
-	profile := config.ParseProfile(os.Getenv("ACTIVE_PROFILE"))
-	awsRegion := os.Getenv("AWS_REGION")
-	rdbSorNodes := strings.Split(os.Getenv("REDIS_SOR_NODES"), ",")
-	rdbSorUsername := os.Getenv("REDIS_SOR_USERNAME")
-	rdbSorPassword := os.Getenv("REDIS_SOR_PASSWORD")
-	oltpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	cfg := config.Load()
 
 	start := time.Now()
 
-	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, profile)
+	shutdown := logutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
-	pdb := db.NewPostgresDB(ctx, db.PgPoolConfig{
-		Dsn:           dbURL,
-		ActiveProfile: profile,
-		Region:        awsRegion,
+	primaryDB := db.NewPostgresDB(ctx, db.PoolConfig[primarydb.Querier]{
+		Dsn:           cfg.PrimaryDbURL,
+		ActiveProfile: cfg.Profile,
+		Region:        cfg.AwsRegion,
+		Factory:       db.PrimaryQuerierFactory,
 	})
-	defer pdb.Close()
+	defer primaryDB.Close()
 
-	rdb := db.NewRedis(ctx, db.RedisConfig{
-		PrimaryAddr:     rdbSorNodes,
-		PrimaryUsername: rdbSorUsername,
-		PrimaryPassword: rdbSorPassword,
-		ActiveProfile:   profile,
+	primaryRedis := db.NewRedis(ctx, db.RedisConfig{
+		PrimaryAddr:     cfg.RedisPrimaryNodes,
+		PrimaryUsername: cfg.RedisPrimaryUsername,
+		PrimaryPassword: cfg.RedisPrimaryPassword,
+		ActiveProfile:   cfg.Profile,
 	})
-	defer rdb.Close()
+	defer primaryRedis.Close()
 
 	services := svc.NewHexchessServices(svc.SetupService{
-		DB:    pdb,
-		Redis: rdb,
+		PrimaryDB: primaryDB,
+		Redis:     primaryRedis,
 	})
 
 	switch *jobName {

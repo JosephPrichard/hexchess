@@ -46,7 +46,7 @@ func randRange[T interface{ ~int64 | ~int }](low T, high T) T {
 }
 
 func selectInputTournamentKeys(state State) ([]string, error) {
-	rows, err := state.PGPool.Query(state.Context,
+	rows, err := state.PrimaryPool.Query(state.Context,
 		"SELECT tournament_key as tkey FROM tournaments WHERE status = $1 LIMIT $2;",
 		TournamentStatus,
 		MaxCount)

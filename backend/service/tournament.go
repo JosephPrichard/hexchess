@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/db"
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/primarydb"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/optional"
 	"hexchess-svc/utils/serrors"
@@ -25,9 +25,9 @@ import (
 var ErrTournamentNotFound = fmt.Errorf("tournament does not exist")
 
 func (services *HexchessServices) GetTournament(ctx context.Context, tournamentKey uuid.UUID) (t model.FullTournament, err error) {
-	var tournamentRow sqlc.SelectTournamentByIDRow
-	var matchRows []sqlc.SelectReplayMatchesByTournamentIDRow
-	var participantRows []sqlc.SelectParticipantsWithUserByTournamentIDRow
+	var tournamentRow primarydb.SelectTournamentByIDRow
+	var matchRows []primarydb.SelectReplayMatchesByTournamentIDRow
+	var participantRows []primarydb.SelectParticipantsWithUserByTournamentIDRow
 
 	eg, egCtx := errgroup.WithContext(ctx)
 
@@ -79,9 +79,9 @@ func (services *HexchessServices) GetTournament(ctx context.Context, tournamentK
 }
 
 type mapFullTournamentArgs struct {
-	tournamentRow   sqlc.SelectTournamentByIDRow
-	matchRows       []sqlc.SelectReplayMatchesByTournamentIDRow
-	participantRows []sqlc.SelectParticipantsWithUserByTournamentIDRow
+	tournamentRow   primarydb.SelectTournamentByIDRow
+	matchRows       []primarydb.SelectReplayMatchesByTournamentIDRow
+	participantRows []primarydb.SelectParticipantsWithUserByTournamentIDRow
 }
 
 func maxPlayerCountTournament(ruleset model.TournamentRuleset, rounds int32) int {
@@ -91,7 +91,7 @@ func maxPlayerCountTournament(ruleset model.TournamentRuleset, rounds int32) int
 	return -1
 }
 
-func mapTournamentByIdRow(tournament sqlc.SelectTournamentByIDRow) model.Tournament {
+func mapTournamentByIdRow(tournament primarydb.SelectTournamentByIDRow) model.Tournament {
 	ruleset := enum.Expect(tournament.Ruleset, model.TournamentRulesetEnums)
 	status := enum.Expect(tournament.Status, model.TournamentStatusEnums)
 	mode := enum.Expect(tournament.Mode, model.GameModeEnums)
@@ -117,8 +117,8 @@ func mapTournamentByIdRow(tournament sqlc.SelectTournamentByIDRow) model.Tournam
 	}
 }
 
-func mapTourneyParticipantFromRow(participant sqlc.SelectParticipantsWithUserByTournamentIDRow) model.Participant {
-	return mapLbdUser(sqlc.SelectUserWithEloByIDRow{
+func mapTourneyParticipantFromRow(participant primarydb.SelectParticipantsWithUserByTournamentIDRow) model.Participant {
+	return mapLbdUser(primarydb.SelectUserWithEloByIDRow{
 		ID:         participant.UserID,
 		Username:   participant.Username,
 		Country:    participant.Country,
@@ -132,7 +132,7 @@ func mapTourneyParticipantFromRow(participant sqlc.SelectParticipantsWithUserByT
 	})
 }
 
-func mapTourneyMatchFromRow(match sqlc.SelectReplayMatchesByTournamentIDRow) model.FullMatch {
+func mapTourneyMatchFromRow(match primarydb.SelectReplayMatchesByTournamentIDRow) model.FullMatch {
 	var tournamentReplay *model.TournamentReplay
 
 	// invariant: if replayID is non null, all other replay columns will also be non null.
@@ -194,7 +194,7 @@ func (services *HexchessServices) GetTournaments(ctx context.Context, participan
 	var tournaments []model.Tournament
 
 	if participantID.Present {
-		tournamentRows, err := services.querier.SelectTournamentsByParticipant(ctx, sqlc.SelectTournamentsByParticipantParams{
+		tournamentRows, err := services.querier.SelectTournamentsByParticipant(ctx, primarydb.SelectTournamentsByParticipantParams{
 			UserID:  participantID.Value,
 			AfterID: afterID.Value,
 			PerPage: perPage,
@@ -202,19 +202,19 @@ func (services *HexchessServices) GetTournaments(ctx context.Context, participan
 		if err != nil {
 			return nil, serrors.New("select tournaments by participant after id", err, "participantID", participantID, "afterID", afterID)
 		}
-		tournaments = mapTournamentRows(tournamentRows, func(t sqlc.SelectTournamentsByParticipantRow) model.Tournament {
-			return mapTournamentByIdRow(sqlc.SelectTournamentByIDRow(t))
+		tournaments = mapTournamentRows(tournamentRows, func(t primarydb.SelectTournamentsByParticipantRow) model.Tournament {
+			return mapTournamentByIdRow(primarydb.SelectTournamentByIDRow(t))
 		})
 	} else {
-		tournamentRows, err := services.querier.SelectTournaments(ctx, sqlc.SelectTournamentsParams{
+		tournamentRows, err := services.querier.SelectTournaments(ctx, primarydb.SelectTournamentsParams{
 			AfterID: afterID.Value,
 			PerPage: perPage,
 		})
 		if err != nil {
 			return nil, serrors.New("select tournaments after id", err, "afterID", afterID)
 		}
-		tournaments = mapTournamentRows(tournamentRows, func(t sqlc.SelectTournamentsRow) model.Tournament {
-			return mapTournamentByIdRow(sqlc.SelectTournamentByIDRow(t))
+		tournaments = mapTournamentRows(tournamentRows, func(t primarydb.SelectTournamentsRow) model.Tournament {
+			return mapTournamentByIdRow(primarydb.SelectTournamentByIDRow(t))
 		})
 	}
 
@@ -223,7 +223,7 @@ func (services *HexchessServices) GetTournaments(ctx context.Context, participan
 }
 
 func mapTournamentRows[Row interface {
-	sqlc.SelectTournamentsRow | sqlc.SelectTournamentsByParticipantRow
+	primarydb.SelectTournamentsRow | primarydb.SelectTournamentsByParticipantRow
 }](
 	tournamentRows []Row,
 	fn func(tournament Row) model.Tournament,
@@ -267,17 +267,17 @@ func (services *HexchessServices) CreateTournament(ctx context.Context, inst Tou
 		rounds = inst.Rounds
 	}
 
-	tournamentID, err := services.querier.InsertTournament(ctx, sqlc.InsertTournamentParams{
+	tournamentID, err := services.querier.InsertTournament(ctx, primarydb.InsertTournamentParams{
 		TournamentKey: pgtype.UUID{Bytes: inst.Key, Valid: true},
 		Name:          inst.Name,
 		Rounds:        rounds,
-		Status:        sqlc.TournamentStatusEnum(InsertionStatus),
+		Status:        primarydb.TournamentStatusEnum(InsertionStatus),
 		Countdown:     inst.Countdown.Milliseconds(),
 		CreatedOn:     pgtype.Timestamptz{Time: inst.CreatedOn, Valid: true},
 		CreatedBy:     inst.CreatedBy,
 		UpdatedOn:     pgtype.Timestamptz{Time: inst.CreatedOn, Valid: true},
-		Mode:          sqlc.ModeEnum(inst.Mode.String()),
-		Ruleset:       sqlc.TournamentRulesetEnum(inst.Ruleset.String()),
+		Mode:          primarydb.ModeEnum(inst.Mode.String()),
+		Ruleset:       primarydb.TournamentRulesetEnum(inst.Ruleset.String()),
 	})
 	if err != nil {
 		return 0, serrors.New("insert tournament", err, "inst", inst)
@@ -288,7 +288,7 @@ func (services *HexchessServices) CreateTournament(ctx context.Context, inst Tou
 }
 
 func (services *HexchessServices) LeaveTournament(ctx context.Context, tournamentKey uuid.UUID, userID int64) (bool, error) {
-	deletedIDs, err := services.querier.DeleteTournamentParticipant(ctx, sqlc.DeleteTournamentParticipantParams{
+	deletedIDs, err := services.querier.DeleteTournamentParticipant(ctx, primarydb.DeleteTournamentParticipantParams{
 		TournamentKey: pgtype.UUID{Bytes: tournamentKey, Valid: true},
 		UserID:        userID,
 	})
@@ -331,7 +331,7 @@ type JoinTournamentEvent struct {
 func (services *HexchessServices) JoinTournament(ctx context.Context, inst JoinTournamentInst) (JoinTournamentEvent, error) {
 	var result JoinTournamentEvent
 
-	err := services.database.ExecTx(ctx, db.TxArgs{
+	err := services.database.ExecTx(ctx, db.TxArgs[primarydb.Querier]{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 reads status S1 and participant count P1, then inserts participants to create new participant count P2
@@ -339,7 +339,7 @@ func (services *HexchessServices) JoinTournament(ctx context.Context, inst JoinT
 		// P2 will be appended onto P3 rather than P1, even though the validation was run against P1
 		Isolation:  pgx.Serializable,
 		RetryCount: 5,
-		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
+		QueryFn: func(ctx context.Context, querier primarydb.Querier) error {
 			tournamentRow, err := querier.SelectTournamentWithParticipantCountByID(ctx, pgtype.UUID{Bytes: inst.TournamentKey, Valid: true})
 			if db.IsErrNoRows(err) {
 				return ErrTournamentNotFound
@@ -364,7 +364,7 @@ func (services *HexchessServices) JoinTournament(ctx context.Context, inst JoinT
 				}
 			}
 
-			if dbErr := querier.InsertTournamentParticipant(ctx, sqlc.InsertTournamentParticipantParams{
+			if dbErr := querier.InsertTournamentParticipant(ctx, primarydb.InsertTournamentParticipantParams{
 				TournamentKey: pgtype.UUID{Bytes: inst.TournamentKey, Valid: true},
 				UserID:        inst.JoiningUserID,
 				JoinedOn:      pgtype.Timestamptz{Time: inst.InsertionTime, Valid: true},
@@ -400,7 +400,7 @@ type BeginTourneyCountdown struct {
 func (services *HexchessServices) BeginTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, userID int64) (BeginTourneyCountdown, error) {
 	var tourneyCountdown BeginTourneyCountdown
 
-	err := services.database.ExecTx(ctx, db.TxArgs{
+	err := services.database.ExecTx(ctx, db.TxArgs[primarydb.Querier]{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 reads status S1 and uses it to decide to begin the countdown, creating a scheduled event E1 and setting the status to S3
@@ -408,7 +408,7 @@ func (services *HexchessServices) BeginTournamentCountdown(ctx context.Context, 
 		// We will end up with two scheduled events E1 even though the system has an invariant that only one scheduled event may exist
 		Isolation:  pgx.Serializable,
 		RetryCount: 5,
-		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
+		QueryFn: func(ctx context.Context, querier primarydb.Querier) error {
 			tournamentRow, err := querier.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 			if err != nil {
 				return serrors.New("select tournament by key", err, "tournamentKey", tournamentKey)
@@ -426,10 +426,10 @@ func (services *HexchessServices) BeginTournamentCountdown(ctx context.Context, 
 			nextTournamentStatus := model.TournamentScheduled
 			updtTournamentTime := time.Now()
 
-			if err := querier.UpdateTournamentStatus(ctx, sqlc.UpdateTournamentStatusParams{
+			if err := querier.UpdateTournamentStatus(ctx, primarydb.UpdateTournamentStatusParams{
 				TournamentKey:      pgtype.UUID{Bytes: tournamentKey, Valid: true},
 				CountdownStartedOn: pgtype.Timestamptz{Time: updtTournamentTime, Valid: true},
-				Status:             sqlc.TournamentStatusEnum(nextTournamentStatus.String()),
+				Status:             primarydb.TournamentStatusEnum(nextTournamentStatus.String()),
 				UpdatedOn:          pgtype.Timestamptz{Time: updtTournamentTime, Valid: true},
 			}); err != nil {
 				return serrors.New("update tournament status", err, "tournamentKey", tournamentKey, "nextTournamentStatus", nextTournamentStatus)
@@ -467,7 +467,7 @@ var ExpectedAdvanceTournamentStatus = []model.TournamentStatus{model.TournamentS
 func (services *HexchessServices) advanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.MatchCreation, error) {
 	var matchesToCreate []model.MatchCreation
 
-	err := services.database.ExecTx(ctx, db.TxArgs{
+	err := services.database.ExecTx(ctx, db.TxArgs[primarydb.Querier]{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 selects participationIDs P1 and creates and inserts NextMatches M1
@@ -480,7 +480,7 @@ func (services *HexchessServices) advanceTournament(ctx context.Context, tournam
 		// This is because only certain status transitions are legal, progression is linear / forward moving
 		Isolation:  pgx.Serializable,
 		RetryCount: 5,
-		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
+		QueryFn: func(ctx context.Context, querier primarydb.Querier) error {
 			// stage 1: check idempotency key
 			eventData, err := querier.SelectByEventID(ctx, pgtype.UUID{Bytes: eventID, Valid: true})
 			if db.IsErrNoRows(err) {
@@ -581,7 +581,7 @@ func (services *HexchessServices) advanceTournament(ctx context.Context, tournam
 			if eventData, err = model.MarshalMatchCreations(matchesToCreate); err != nil {
 				return err
 			}
-			if err := querier.InsertEvent(ctx, sqlc.InsertEventParams{
+			if err := querier.InsertEvent(ctx, primarydb.InsertEventParams{
 				ID:   pgtype.UUID{Bytes: eventID, Valid: true},
 				Data: eventData,
 			}); err != nil {
@@ -598,12 +598,12 @@ func (services *HexchessServices) advanceTournament(ctx context.Context, tournam
 
 var ErrMatchRoundCount = errors.New("tournament has an invalid completed match count in round")
 
-func insertTournamentMatches(ctx context.Context, querier sqlc.Querier, tournamentKey pgtype.UUID, response MatchmakingOutput) error {
+func insertTournamentMatches(ctx context.Context, querier primarydb.Querier, tournamentKey pgtype.UUID, response MatchmakingOutput) error {
 	shouldUpdateWinnerID := response.WinnerID != WinnerIDNone
 
-	if err := querier.UpdateTournamentStatus(ctx, sqlc.UpdateTournamentStatusParams{
+	if err := querier.UpdateTournamentStatus(ctx, primarydb.UpdateTournamentStatusParams{
 		TournamentKey: tournamentKey,
-		Status:        sqlc.TournamentStatusEnum(response.NextStatus.String()),
+		Status:        primarydb.TournamentStatusEnum(response.NextStatus.String()),
 		Rounds:        pgtype.Int4{Int32: response.TotalRounds, Valid: true},
 		WinnerID:      pgtype.Int8{Int64: response.WinnerID, Valid: shouldUpdateWinnerID},
 	}); err != nil {
@@ -611,10 +611,10 @@ func insertTournamentMatches(ctx context.Context, querier sqlc.Querier, tourname
 	}
 
 	if len(response.NextMatches) > 0 {
-		var matchInsts []sqlc.BatchInsertTournamentMatchParams
+		var matchInsts []primarydb.BatchInsertTournamentMatchParams
 
 		for _, match := range response.NextMatches {
-			matchInsts = append(matchInsts, sqlc.BatchInsertTournamentMatchParams{
+			matchInsts = append(matchInsts, primarydb.BatchInsertTournamentMatchParams{
 				TournamentKey: tournamentKey,
 				Round:         response.NextMatchRound,
 				GameID:        match.GameID.String(),

@@ -3,7 +3,7 @@ package consumers
 import (
 	"context"
 	"hexchess-svc/chess"
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/primarydb"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(sqlc.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
+var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(primarydb.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
 
 func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	ctx := t.Context()
@@ -29,24 +29,24 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	defer testinfra.Close()
 
 	services := svc.NewHexchessServices(svc.SetupService{
-		DB:          testinfra.DB,
+		PrimaryDB:   testinfra.PrimaryDB,
 		Redis:       testinfra.Redis,
 		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
 	})
 
 	tournamentKey := itest.Tournament2ScheduledKnockoutKey
 
-	err := producers.PublishAdvanceTournamentEvent(ctx, testinfra.Querier, tournamentKey, time.Time{})
+	err := producers.PublishAdvanceTournamentEvent(ctx, testinfra.PrimaryQuerier, tournamentKey, time.Time{})
 	require.NoError(t, err)
 
 	eventGateway := EventGateway{services: services}
 	queue := PostgresConsumer{
 		ctx:         ctx,
-		pdb:         testinfra.DB,
+		primaryDB:   testinfra.PrimaryDB,
 		consumeFunc: eventGateway.HandleAdvanceTournamentEvent,
 
 		PostgresConfig: PostgresConfig{
-			EventKind:    sqlc.QueueTypeEnumTOURNAMENTADVANCEEVENT,
+			EventKind:    primarydb.QueueTypeEnumTOURNAMENTADVANCEEVENT,
 			PollInterval: time.Microsecond,
 			PollCount:    1,
 			MaxEvents:    1,
@@ -55,7 +55,7 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 
 	queue.Consume()
 
-	wantMatches := []sqlc.TournamentMatch{
+	wantMatches := []primarydb.TournamentMatch{
 		// tournament has 2 rounds with join order of [1,2,3,4], so starting the tournament creates 2 rounds wso the matches go 1-2, 3-4
 		{
 			TournamentKey: pgtype.UUID{Bytes: itest.Tournament2ScheduledKnockoutKey, Valid: true},
@@ -71,7 +71,7 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 		},
 	}
 
-	matches, err := testinfra.Querier.SelectMatches(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+	matches, err := testinfra.PrimaryQuerier.SelectMatches(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 	require.NoError(t, err)
 	testutil.Equal(t, wantMatches, matches, sqlcTournamentMatchCmpOpts)
 }
@@ -86,7 +86,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	defer testinfra.Close()
 
 	services := svc.NewHexchessServices(svc.SetupService{
-		DB:          testinfra.DB,
+		PrimaryDB:   testinfra.PrimaryDB,
 		Redis:       testinfra.Redis,
 		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
 	})
@@ -119,7 +119,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		redis:       testinfra.Redis.Primary,
 		consumeFunc: eventGateway.HandleFinishedGameEvent,
 
-		inserter:   testinfra.DB.Querier(),
+		querier:    testinfra.MetricsDB.Querier(),
 		dispatcher: async.SyncDispatcher{},
 
 		RedisConfig: RedisConfig{
@@ -134,13 +134,13 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 
 	queue.ConsumePartition(string(partitionID))
 
-	userElos, err := testinfra.Querier.SelectUserModeElosByIDs(ctx, sqlc.SelectUserModeElosByIDsParams{
+	userElos, err := testinfra.PrimaryQuerier.SelectUserModeElosByIDs(ctx, primarydb.SelectUserModeElosByIDsParams{
 		ID:   []int64{whiteUser0.ID, blackUser1.ID},
 		Mode: "CORRESPONDENCE_1",
 	})
 	require.NoError(t, err)
 
-	wantUserElos := []sqlc.SelectUserModeElosByIDsRow{
+	wantUserElos := []primarydb.SelectUserModeElosByIDsRow{
 		{UserID: whiteUser0.ID, Elo: 1015, HighestElo: 1015, Wins: 1},
 		{UserID: blackUser1.ID, Elo: 985, HighestElo: 1000, Losses: 1},
 	}
@@ -157,7 +157,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	defer testinfra.Close()
 
 	services := svc.NewHexchessServices(svc.SetupService{
-		DB:          testinfra.DB,
+		PrimaryDB:   testinfra.PrimaryDB,
 		Redis:       testinfra.Redis,
 		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
 		Entropy:     &svc.StableEntropySource{CurrTime: itest.TimeNow},
@@ -188,7 +188,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 		redis:       testinfra.Redis.Primary,
 		consumeFunc: eventGateway.HandleUpdtGameEvent,
 
-		inserter:   testinfra.DB.Querier(),
+		querier:    testinfra.MetricsDB.Querier(),
 		dispatcher: async.SyncDispatcher{},
 
 		RedisConfig: RedisConfig{
@@ -202,10 +202,10 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	}
 	queue.ConsumePartition(string(partitionID))
 
-	gameRow, err := testinfra.Querier.SelectGameMeta(ctx, gameID.String())
+	gameRow, err := testinfra.PrimaryQuerier.SelectGameMeta(ctx, gameID.String())
 	require.NoError(t, err)
 
-	wantGameRow := sqlc.GamesMetadatum{
+	wantGameRow := primarydb.GamesMetadatum{
 		Ordering:  4,
 		GameID:    gameID.String(),
 		Mode:      "CORRESPONDENCE_1",

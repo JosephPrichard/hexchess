@@ -17,7 +17,8 @@ import (
 
 type State struct {
 	Context     context.Context
-	PGPool      *pgxpool.Pool
+	PrimaryPool *pgxpool.Pool
+	MetricsPool *pgxpool.Pool
 	RedisClient redis.UniversalClient
 }
 
@@ -59,8 +60,9 @@ func RunPostgresQueTest(state State, perfTest PostgresQuePerfTest) (Metric, erro
 	totalEventCount, err := insertLoop(perfTest.Config, func() error {
 		inputData := perfTest.GenerateInput()
 
-		_, err := state.PGPool.Exec(state.Context,
-			fmt.Sprintf("INSERT INTO %s (type, data, group_id) VALUES ($1, $2, $3);", EventQueueTable),
+		sql := fmt.Sprintf("INSERT INTO %s (type, data, group_id) VALUES ($1, $2, $3);", EventQueueTable)
+		_, err := state.PrimaryPool.Exec(state.Context,
+			sql,
 			perfTest.EventKind,
 			inputData,
 			pgtype.UUID{Bytes: groupID, Valid: true})
@@ -71,10 +73,13 @@ func RunPostgresQueTest(state State, perfTest PostgresQuePerfTest) (Metric, erro
 		return Metric{}, fmt.Errorf("insert event queue table %s: %w", EventQueueTable, err)
 	}
 
-	if err := pollEvents(state, EventQueueTable, groupID, totalEventCount); err != nil {
-		return Metric{}, err
-	}
-	grafanaMetric, err := getEventMetric(state, EventQueueTable, groupID)
+	grafanaMetric, err := getEventMetric(GetMetricEventArgs{
+		Context:         state.Context,
+		DBPool:          state.PrimaryPool,
+		TableName:       EventQueueTable,
+		GroupID:         groupID,
+		TotalEventCount: totalEventCount,
+	})
 	if err != nil {
 		return Metric{}, err
 	}
@@ -101,24 +106,28 @@ func RunRedisQueTest(state State, perfTest RedisQuePerfTest) (Metric, error) {
 	totalEventCount, err := insertLoop(perfTest.Config, func() error {
 		partitionKey, inputData := perfTest.GenerateInput()
 
+		streamName := fmt.Sprintf("%s:{%s}", perfTest.StreamName, partitionKey)
+
 		cmd := state.RedisClient.XAdd(state.Context, &redis.XAddArgs{
-			Stream: fmt.Sprintf("%s:{%s}", perfTest.StreamName, partitionKey),
+			Stream: streamName,
 			Values: map[string]any{
 				"data":    string(inputData),
 				"groupId": groupID.String(),
 			},
 		})
-
 		return cmd.Err()
 	})
 	if err != nil {
 		return Metric{}, fmt.Errorf("insert event to redis stream %s: %w", perfTest.StreamName, err)
 	}
 
-	if err := pollEvents(state, RedisEventQueueTable, groupID, totalEventCount); err != nil {
-		return Metric{}, err
-	}
-	grafanaMetric, err := getEventMetric(state, RedisEventQueueTable, groupID)
+	grafanaMetric, err := getEventMetric(GetMetricEventArgs{
+		Context:         state.Context,
+		DBPool:          state.MetricsPool,
+		TableName:       RedisEventQueueTable,
+		GroupID:         groupID,
+		TotalEventCount: totalEventCount,
+	})
 	if err != nil {
 		return Metric{}, err
 	}
@@ -150,16 +159,23 @@ func insertLoop(perfTest TestConfig, insert func() error) (int, error) {
 	return totalEventCount, nil
 }
 
-func pollEvents(state State, tableName string, groupID uuid.UUID, expectedTotalEventCount int) error {
-	slog.Info("begin polling events", "tableName", tableName)
+type GetMetricEventArgs struct {
+	Context         context.Context
+	DBPool          *pgxpool.Pool
+	TableName       string
+	GroupID         uuid.UUID
+	TotalEventCount int
+}
+
+func getEventMetric(args GetMetricEventArgs) (Trend, error) {
+	slog.Info("begin polling events", "tableName", args.TableName)
 
 	type countRow struct {
 		Total int64 `db:"total"`
 	}
 	getCount := func() (countRow, error) {
-		rows, err := state.PGPool.Query(state.Context,
-			fmt.Sprintf("SELECT COUNT(*) as total FROM %s WHERE group_id = $1;", tableName),
-			pgtype.UUID{Bytes: groupID, Valid: true})
+		sql := fmt.Sprintf("SELECT COUNT(*) as total FROM %s WHERE group_id = $1;", args.TableName)
+		rows, err := args.DBPool.Query(args.Context, sql, pgtype.UUID{Bytes: args.GroupID, Valid: true})
 		if err != nil {
 			return countRow{}, err
 		}
@@ -169,28 +185,25 @@ func pollEvents(state State, tableName string, groupID uuid.UUID, expectedTotalE
 
 	i := 1
 	for range time.NewTicker(time.Second).C {
-		slog.Info("attempt polling events table", "table", tableName, "attempt", i)
+		slog.Info("attempt polling events table", "table", args.TableName, "attempt", i)
 
 		count, err := getCount()
 		if err != nil {
-			return fmt.Errorf("select event count for table %s: %w", tableName, err)
+			return Trend{}, fmt.Errorf("select event count for table %s: %w", args.TableName, err)
 		}
-		if count.Total == int64(expectedTotalEventCount) {
+		if count.Total == int64(args.TotalEventCount) {
 			break
 		}
 		i++
 	}
-	return nil
-}
 
-func getEventMetric(state State, tableName string, groupID uuid.UUID) (Trend, error) {
-	slog.Info("getting event metrics", "tableName", tableName)
+	slog.Info("getting event metrics", "tableName", args.TableName)
 
-	rows, err := state.PGPool.Query(state.Context,
-		fmt.Sprintf("SELECT consumed_on, processed_on FROM %s WHERE group_id = $1;", tableName),
-		pgtype.UUID{Bytes: groupID, Valid: true})
+	sql := fmt.Sprintf("SELECT consumed_on, processed_on FROM %s WHERE group_id = $1;", args.TableName)
+
+	rows, err := args.DBPool.Query(args.Context, sql, pgtype.UUID{Bytes: args.GroupID, Valid: true})
 	if err != nil {
-		return Trend{}, fmt.Errorf("select event metrics for table %s: %w", tableName, err)
+		return Trend{}, fmt.Errorf("select event metrics for table %s: %w", args.TableName, err)
 	}
 	defer rows.Close()
 
@@ -212,7 +225,7 @@ func getEventMetric(state State, tableName string, groupID uuid.UUID) (Trend, er
 		eventLatencies = append(eventLatencies, float64(duration)/float64(time.Millisecond))
 	}
 
-	slog.Info("retrieved event latencies", "tableName", tableName, "datapointCount", len(eventLatencies))
+	slog.Info("retrieved event latencies", "tableName", args.TableName, "datapointCount", len(eventLatencies))
 
 	return BuildGrafanaTrend(eventLatencies)
 }

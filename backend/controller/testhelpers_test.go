@@ -37,7 +37,7 @@ func setupTestHandler(t logutil.TestLogger, mocks *serviceMocks, flags ...itest.
 	broadcaster := pubsub.NewSyncBroadcaster(infra.Redis)
 
 	services := svc.NewHexchessServices(svc.SetupService{
-		DB:          infra.DB,
+		PrimaryDB:   infra.PrimaryDB,
 		Redis:       infra.Redis,
 		AWS:         infra.AWS,
 		Remote:      mocks.Remote,
@@ -60,7 +60,7 @@ type websocketTestContext struct {
 func setupWebsocketTest(t *testing.T) websocketTestContext {
 	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
 	services := svc.NewHexchessServices(svc.SetupService{
-		DB:          testinfra.DB,
+		PrimaryDB:   testinfra.PrimaryDB,
 		Redis:       testinfra.Redis,
 		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
 	})
@@ -105,7 +105,7 @@ func (s *sseTestContext) Shutdown() {
 func setupSSETest(t *testing.T) sseTestContext {
 	testinfra := itest.SetupIntegrationTest(t, itest.ROPostgres, itest.Redis)
 	services := svc.NewHexchessServices(svc.SetupService{
-		DB:          testinfra.DB,
+		PrimaryDB:   testinfra.PrimaryDB,
 		Redis:       testinfra.Redis,
 		Entropy:     &svc.StableEntropySource{},
 		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),

@@ -27,18 +27,29 @@ VTPROTO := $(shell cd $(BACKEND_DIR) && go list -m -f '{{.Dir}}' github.com/plan
 
 # Build
 
-all: backend frontend perf
+.PHONY:
+	all
+	backend
+	backend-generate
+	backend-pb
+	frontend
+	frontend-wasm
+	frontend-js
+	k6
+	test
+	perf-test
+	clean
 
-backend: backend-download backend-codegen
+all: backend frontend k6
 
-backend-download:
-    # Downloads DEPs
-	cd $(BACKEND_DIR) && go mod download
+backend: backend-generate backend-pb
 
-backend-codegen:
-    # SQLc and mockgen
+backend-generate:
+	# SQLc and mockgen
 	cd $(BACKEND_DIR) && go generate ./...
-    # Protoc codegen
+
+backend-pb:
+	# Protoc codegen
 	mkdir -p $(SVC_PB_OUT)
 	protoc \
 		-I $(VTPROTO)/include \
@@ -50,17 +61,15 @@ backend-codegen:
 		--go-vtproto_opt=features=marshal+unmarshal+size \
 		$(CONTRACTS_DIR)/messages.proto \
 
-frontend: frontend-download frontend-codegen
+frontend: frontend-wasm frontend-js
 
-frontend-download:
-    # Downloads DEPs
-	cd $(UI_DIR) && npm install
-
-frontend-codegen:
+frontend-wasm: backend-pb
 	# WASM compilation
+	mkdir -p $(UI_WASM_DIR)/$(WASM_OUTPUT)
 	cd $(WASM_SRC_DIR) && GOOS=js GOARCH=wasm go build -o $(WASM_OUTPUT) -tags=browser
 	cp $(WASM_SRC_DIR)/$(WASM_OUTPUT) $(UI_WASM_DIR)/$(WASM_OUTPUT)
 
+frontend-js:
     # Protoc codegen
 	( \
 		cd $(UI_DIR); \
@@ -71,22 +80,14 @@ frontend-codegen:
 			../$(CONTRACTS_DIR)/messages.proto \
     )
 
-perf: perf-download perf-codegen perf-build
-
-perf-download:
-	# Downloads DEPs
-	cd $(BACKEND_DIR) && go mod download
-
-perf-codegen:
-    # Protoc codegen
+k6:
+	# Protoc codegen
 	mkdir -p $(PERF_PB_K6_OUT)
 	protoc \
 		--go_opt=paths=source_relative \
 		--go_out=$(PERF_PB_K6_OUT) \
 		--proto_path $(CONTRACTS_DIR) \
 		$(CONTRACTS_DIR)/messages.proto
-
-perf-build:
 	# Compile k6 binary
 	cd $(PERF_K6_DIR) && go build -o ./k6 .
 	cd $(PERF_K6_DIR) && ./k6 version
@@ -95,7 +96,6 @@ perf-build:
 test:
 	# Backend server test
 	cd $(BACKEND_DIR) && go test $$(go list ./... | grep -v '^.*/cmd|/wasm/') -timeout=60s
-
 	# Backend wasm module test
 	cd $(BACK_WASM_DIR) && GOOS=js GOARCH=wasm go test -tags=browser -timeout=60s -exec wasmbrowsertest
 
@@ -103,6 +103,15 @@ perf-test:
 	# k6 HTTP perf tests
 	./$(PERF_K6_DIR)/k6 run ./$(PERF_HTTP_DIR)/restapi.ts
 	./$(PERF_K6_DIR)/k6 run ./$(PERF_HTTP_DIR)/gamesockets.ts
-
 	# Job queue perf tests
 	go run ./$(PERF_QUE_DIR)/main.go
+
+clean:
+	rm -rf backend/db/metricsdb
+	rm -rf backend/db/primarydb
+	rm -rf backend/pb
+	rm backend/cloud/google_mock.go
+	rm backend/cmd/browser/chess.wasm
+	rm -rf frontend/build
+	rm -rf frontend/src/lib/pb
+	rm -rf perf/k6/pb

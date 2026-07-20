@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/metricsdb"
 	"hexchess-svc/queue"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/errutil"
@@ -40,7 +40,7 @@ type RedisConsumer struct {
 	cancel context.CancelFunc
 	// connects to redis to poll event streams and a database to insert into metadata tables
 	redis      redis.UniversalClient
-	inserter   RedisEventResultInserter
+	querier    metricsdb.Querier
 	dispatcher async.Dispatcher
 	// an implementation for consuming a single event
 	consumeFunc ConsumeFunc
@@ -74,7 +74,7 @@ func (consumer *RedisConsumer) ConsumePartition(partitionKey string) {
 	}
 
 	var waitGroup sync.WaitGroup
-	metrics := &RedisMetricCollector{inserter: consumer.inserter, dispatcher: consumer.dispatcher}
+	metrics := &RedisMetricCollector{querier: consumer.querier, dispatcher: consumer.dispatcher}
 
 	for i := uint64(0); ; i++ {
 		if i >= consumer.MaxEvents && consumer.cancel != nil {
@@ -151,10 +151,6 @@ func (consumer *RedisConsumer) handleXReadMessage(ctx context.Context, metrics *
 	slog.InfoContext(ctx, "redis stream consume operation", "stream", consumer.StreamKey, "timeTaken", time.Since(consumedOn).String())
 }
 
-type RedisEventResultInserter interface {
-	InsertRedisEventMetas(ctx context.Context, arg []sqlc.InsertRedisEventMetasParams) *sqlc.InsertRedisEventMetasBatchResults
-}
-
 type RedisEventMetric struct {
 	StreamName  string
 	GroupID     uuid.UUID
@@ -167,7 +163,7 @@ type RedisMetricCollector struct {
 	lock    sync.Mutex
 	metrics []RedisEventMetric
 
-	inserter   RedisEventResultInserter
+	querier    metricsdb.Querier
 	dispatcher async.Dispatcher
 }
 
@@ -182,10 +178,10 @@ func (c *RedisMetricCollector) Persist() {
 		return
 	}
 
-	metricRows := make([]sqlc.InsertRedisEventMetasParams, 0, len(c.metrics))
+	metricRows := make([]metricsdb.InsertRedisEventMetricsParams, 0, len(c.metrics))
 
 	for _, metric := range c.metrics {
-		metricRows = append(metricRows, sqlc.InsertRedisEventMetasParams{
+		metricRows = append(metricRows, metricsdb.InsertRedisEventMetricsParams{
 			StreamName:  metric.StreamName,
 			EventId:     pgtype.UUID{Bytes: metric.EventID, Valid: true},
 			GroupId:     pgtype.UUID{Bytes: metric.GroupID, Valid: true},
@@ -201,14 +197,14 @@ func (c *RedisMetricCollector) Persist() {
 
 const InsertRedisEventMetricMaxRetries = 3
 
-func (c *RedisMetricCollector) insertRedisMetrics(metrics []sqlc.InsertRedisEventMetasParams) {
+func (c *RedisMetricCollector) insertRedisMetrics(metrics []metricsdb.InsertRedisEventMetricsParams) {
 	var batchErr error
 	maxRetries := InsertRedisEventMetricMaxRetries
 
 	for i := range maxRetries {
 		batchErr = nil
 		// metric insertions fail individually, it is safe to retry the entire batch if any fails because each insert is idempotent
-		c.inserter.InsertRedisEventMetas(context.Background(), metrics).Exec(func(index int, err error) {
+		c.querier.InsertRedisEventMetrics(context.Background(), metrics).Exec(func(index int, err error) {
 			batchErr = errors.Join(batchErr, err)
 		})
 		if batchErr == nil {

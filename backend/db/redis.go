@@ -141,7 +141,14 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 	}
 
 	if err := primaryRedisClient.Ping(ctx).Err(); err != nil {
-		logutil.Fatal("execute redis startup cmd", err)
+		logutil.Fatal("execute redis primary startup cmd", err)
+	}
+	if pubsubPool != nil {
+		conn := pubsubPool.Get()
+		defer conn.Close()
+		if _, err := conn.Do("PING"); err != nil {
+			logutil.Fatal("execute redis pubsub startup cmd", err)
+		}
 	}
 
 	slog.Info("created redis client", "redisClientKind", fmt.Sprintf("%T", primaryRedisClient))

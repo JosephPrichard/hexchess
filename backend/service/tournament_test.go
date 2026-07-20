@@ -1,7 +1,7 @@
 package svc
 
 import (
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/primarydb"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
@@ -45,18 +45,18 @@ func TestCreateTournament(t *testing.T) {
 	tournament, err := services.querier.SelectTournamentByID(ctx, pgtype.UUID{Bytes: key, Valid: true})
 	require.NoError(t, err)
 
-	wantTournament := sqlc.SelectTournamentByIDRow{
+	wantTournament := primarydb.SelectTournamentByIDRow{
 		ID:            tournamentID,
 		Name:          "Tournaments 1",
 		TournamentKey: pgtype.UUID{Bytes: key, Valid: true},
 		Rounds:        2,
-		Status:        sqlc.TournamentStatusEnum(model.TournamentLobby.String()),
-		Ruleset:       sqlc.TournamentRulesetEnum(model.TournamentKnockout.String()),
+		Status:        primarydb.TournamentStatusEnum(model.TournamentLobby.String()),
+		Ruleset:       primarydb.TournamentRulesetEnum(model.TournamentKnockout.String()),
 		Countdown:     time.Hour.Milliseconds(),
 		CreatedOn:     pgtype.Timestamptz{Time: itest.TimeNow.Local(), Valid: true},
 		UpdatedOn:     pgtype.Timestamptz{Time: itest.TimeNow.Local(), Valid: true},
 		CreatedBy:     1,
-		Mode:          sqlc.ModeEnum(model.ModeCorrespondence1.String()),
+		Mode:          primarydb.ModeEnum(model.ModeCorrespondence1.String()),
 	}
 	testutil.Equal(t, wantTournament, tournament)
 }
@@ -73,7 +73,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 		userID                    int64
 		wantBeginTourneyCountdown BeginTourneyCountdown
 		wantErr                   error
-		wantTournamenStatus       sqlc.SelectTournamentStatusRow
+		wantTournamenStatus       primarydb.SelectTournamentStatusRow
 	}{
 		{
 			name:          "StatusPreconditionFailed_Scheduled",
@@ -104,8 +104,8 @@ func TestBeginTournamentCountdown(t *testing.T) {
 			tournamentKey:             itest.Tournament0LobbyKey,
 			userID:                    1,
 			wantBeginTourneyCountdown: BeginTourneyCountdown{TournamentKey: itest.Tournament0LobbyKey},
-			wantTournamenStatus: sqlc.SelectTournamentStatusRow{
-				Status: sqlc.TournamentStatusEnumSCHEDULED,
+			wantTournamenStatus: primarydb.SelectTournamentStatusRow{
+				Status: primarydb.TournamentStatusEnumSCHEDULED,
 			},
 		},
 	}
@@ -134,7 +134,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 	}
 }
 
-var sqlcTournamentParticipantCmpOpts = cmpopts.IgnoreFields(sqlc.TournamentParticipant{}, "JoinedOn")
+var sqlcTournamentParticipantCmpOpts = cmpopts.IgnoreFields(primarydb.TournamentParticipant{}, "JoinedOn")
 
 func TestJoinTournament(t *testing.T) {
 	t.Parallel()
@@ -147,7 +147,7 @@ func TestJoinTournament(t *testing.T) {
 		inst             JoinTournamentInst
 		wantResult       JoinTournamentEvent
 		wantErr          error
-		wantParticipants []sqlc.TournamentParticipant
+		wantParticipants []primarydb.TournamentParticipant
 	}{
 		{
 			name: "StatusPreconditionFailed",
@@ -175,7 +175,7 @@ func TestJoinTournament(t *testing.T) {
 				InsertionTime: time.Now(),
 			},
 			wantResult: JoinTournamentEvent{TournamentKey: itest.Tournament0LobbyKey, Mode: model.ModeCorrespondence1},
-			wantParticipants: []sqlc.TournamentParticipant{
+			wantParticipants: []primarydb.TournamentParticipant{
 				{
 					TournamentKey: pgtype.UUID{Bytes: itest.Tournament0LobbyKey, Valid: true},
 					UserID:        1,
@@ -203,7 +203,7 @@ func TestJoinTournament(t *testing.T) {
 	}
 }
 
-var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(sqlc.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
+var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(primarydb.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
 
 func TestAdvanceTournament_StoresMatches(t *testing.T) {
 	t.Parallel()
@@ -213,8 +213,8 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 		tournamentKey uuid.UUID
 		eventID       uuid.UUID
 		wantErr       error
-		wantStatus    sqlc.SelectTournamentStatusRow
-		wantMatches   []sqlc.TournamentMatch
+		wantStatus    primarydb.SelectTournamentStatusRow
+		wantMatches   []primarydb.TournamentMatch
 	}{
 		// Precondition
 		{
@@ -243,10 +243,10 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 		{
 			name:          "StartingKnockoutTournament",
 			tournamentKey: itest.Tournament2ScheduledKnockoutKey,
-			wantStatus: sqlc.SelectTournamentStatusRow{
-				Status: sqlc.TournamentStatusEnumINPROGRESS,
+			wantStatus: primarydb.SelectTournamentStatusRow{
+				Status: primarydb.TournamentStatusEnumINPROGRESS,
 			},
-			wantMatches: []sqlc.TournamentMatch{
+			wantMatches: []primarydb.TournamentMatch{
 				// tournament has 2 rounds with join order of [1,2,3,4], so starting the tournament creates 2 rounds wso the matches go 1-2, 3-4
 				{
 					TournamentKey: pgtype.UUID{Bytes: itest.Tournament2ScheduledKnockoutKey, Valid: true},
@@ -265,10 +265,10 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 		{
 			name:          "StartingRoundRobinTournament",
 			tournamentKey: itest.Tournament3ScheduledRoundRobinKey,
-			wantStatus: sqlc.SelectTournamentStatusRow{
-				Status: sqlc.TournamentStatusEnumINPROGRESS,
+			wantStatus: primarydb.SelectTournamentStatusRow{
+				Status: primarydb.TournamentStatusEnumINPROGRESS,
 			},
-			wantMatches: []sqlc.TournamentMatch{
+			wantMatches: []primarydb.TournamentMatch{
 				// tournament has 4 participants with join order of [1,2,3,4], so the matches go 1-2, 3-4
 				{
 					TournamentKey: pgtype.UUID{Bytes: itest.Tournament3ScheduledRoundRobinKey, Valid: true},
@@ -287,10 +287,10 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 		{
 			name:          "StartingSwissTournament",
 			tournamentKey: itest.Tournament4ScheduledSwissKey,
-			wantStatus: sqlc.SelectTournamentStatusRow{
-				Status: sqlc.TournamentStatusEnumINPROGRESS,
+			wantStatus: primarydb.SelectTournamentStatusRow{
+				Status: primarydb.TournamentStatusEnumINPROGRESS,
 			},
-			wantMatches: []sqlc.TournamentMatch{
+			wantMatches: []primarydb.TournamentMatch{
 				// tournament has 4 participants with elo ordering of [6,5,2,1] for Correspondence1, so the matches go 6-2, 5-1
 				{
 					TournamentKey: pgtype.UUID{Bytes: itest.Tournament4ScheduledSwissKey, Valid: true},
@@ -310,10 +310,10 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 		{
 			name:          "AdvanceKnockoutTournament",
 			tournamentKey: itest.Tournament5InProgressKnockoutKey,
-			wantStatus: sqlc.SelectTournamentStatusRow{
-				Status: sqlc.TournamentStatusEnumINPROGRESS,
+			wantStatus: primarydb.SelectTournamentStatusRow{
+				Status: primarydb.TournamentStatusEnumINPROGRESS,
 			},
-			wantMatches: []sqlc.TournamentMatch{
+			wantMatches: []primarydb.TournamentMatch{
 				// should not delete previous matches
 				{
 					TournamentKey: pgtype.UUID{Bytes: itest.Tournament5InProgressKnockoutKey, Valid: true},
@@ -339,10 +339,10 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 		{
 			name:          "AdvanceRoundRobinTournament",
 			tournamentKey: itest.Tournament6InProgressRoundRobinKey,
-			wantStatus: sqlc.SelectTournamentStatusRow{
-				Status: sqlc.TournamentStatusEnumINPROGRESS,
+			wantStatus: primarydb.SelectTournamentStatusRow{
+				Status: primarydb.TournamentStatusEnumINPROGRESS,
 			},
-			wantMatches: []sqlc.TournamentMatch{
+			wantMatches: []primarydb.TournamentMatch{
 				// should not delete previous matches
 				{
 					TournamentKey: pgtype.UUID{Bytes: itest.Tournament6InProgressRoundRobinKey, Valid: true},
@@ -374,10 +374,10 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 		{
 			name:          "AdvanceSwissTournament",
 			tournamentKey: itest.Tournament7InProgressSwissKey,
-			wantStatus: sqlc.SelectTournamentStatusRow{
-				Status: sqlc.TournamentStatusEnumINPROGRESS,
+			wantStatus: primarydb.SelectTournamentStatusRow{
+				Status: primarydb.TournamentStatusEnumINPROGRESS,
 			},
-			wantMatches: []sqlc.TournamentMatch{
+			wantMatches: []primarydb.TournamentMatch{
 				// should not delete previous matches
 				{
 					TournamentKey: pgtype.UUID{Bytes: itest.Tournament7InProgressSwissKey, Valid: true},
@@ -429,11 +429,11 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 			assert.Equal(t, tt.wantErr, errutil.LeafError(err))
 
 			if tt.wantErr == nil {
-				matches, err := testinfra.Querier.SelectMatches(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
+				matches, err := testinfra.PrimaryQuerier.SelectMatches(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
 				require.NoError(t, err)
 				testutil.Equal(t, tt.wantMatches, matches, sqlcTournamentMatchCmpOpts)
 
-				status, err := testinfra.Querier.SelectTournamentStatus(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
+				status, err := testinfra.PrimaryQuerier.SelectTournamentStatus(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
 				require.NoError(t, err)
 				testutil.Equal(t, tt.wantStatus, status)
 			}
@@ -483,7 +483,7 @@ func TestAdvanceTournament_InsertsEvent(t *testing.T) {
 	_, err := services.advanceTournament(ctx, tournamentKey, eventID)
 	require.NoError(t, err)
 
-	eventData, err := testinfra.Querier.SelectByEventID(ctx, pgtype.UUID{Bytes: eventID, Valid: true})
+	eventData, err := testinfra.PrimaryQuerier.SelectByEventID(ctx, pgtype.UUID{Bytes: eventID, Valid: true})
 	require.NoError(t, err)
 
 	var pbMatchCreations pb.MatchCreations

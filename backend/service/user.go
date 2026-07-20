@@ -16,7 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"hexchess-svc/db"
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/primarydb"
 	"hexchess-svc/utils/logutil"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -51,7 +51,7 @@ func (services *HexchessServices) InsertUser(ctx context.Context, inst UserInst)
 		return model.User{}, serrors.New("generate hash", err)
 	}
 
-	userRow, err := services.querier.InsertUser(ctx, sqlc.InsertUserParams{
+	userRow, err := services.querier.InsertUser(ctx, primarydb.InsertUserParams{
 		Username: inst.Username,
 		Country:  inst.Country,
 		Password: hash.HashedPassword,
@@ -72,7 +72,7 @@ func (services *HexchessServices) InsertUser(ctx context.Context, inst UserInst)
 }
 
 func (services *HexchessServices) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]model.User, error) {
-	batches := make([]sqlc.BatchInsertUserParams, len(insts))
+	batches := make([]primarydb.BatchInsertUserParams, len(insts))
 
 	var hashEg errgroup.Group // no context propagation because jobs are non-cancellable
 
@@ -85,7 +85,7 @@ func (services *HexchessServices) BatchInsertUsers(ctx context.Context, insts []
 			if err != nil {
 				return serrors.New("hash password for inst index", err, "index", i)
 			}
-			batch := sqlc.BatchInsertUserParams{
+			batch := primarydb.BatchInsertUserParams{
 				Username: inst.Username,
 				Country:  inst.Country,
 				Password: hash.HashedPassword,
@@ -102,9 +102,9 @@ func (services *HexchessServices) BatchInsertUsers(ctx context.Context, insts []
 
 	slog.InfoContext(ctx, "batch inserting users", "insts", insts)
 
-	var rows []sqlc.BatchInsertUserRow
+	var rows []primarydb.BatchInsertUserRow
 	var insertErrs []error
-	services.querier.BatchInsertUser(ctx, batches).QueryRow(func(i int, row sqlc.BatchInsertUserRow, err error) {
+	services.querier.BatchInsertUser(ctx, batches).QueryRow(func(i int, row primarydb.BatchInsertUserRow, err error) {
 		if err == nil {
 			rows = append(rows, row)
 		} else {
@@ -142,7 +142,7 @@ var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 func (services *HexchessServices) VerifyUser(ctx context.Context, username string, inputPassword string) (VerifiedUser, error) {
 	var user VerifiedUser
 
-	err := services.database.ExecTx(ctx, db.TxArgs{
+	err := services.database.ExecTx(ctx, db.TxArgs[primarydb.Querier]{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Non-Repeatable Read):
 		// T1 is allowed to login due to valid login attempts L1 and but increases login attempt count from L1 to L2
@@ -154,7 +154,7 @@ func (services *HexchessServices) VerifyUser(ctx context.Context, username strin
 		Isolation:    pgx.Serializable,
 		ErrAllowlist: []error{ErrTooManyLoginAttempts, ErrUserNotFound},
 		RetryCount:   3,
-		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
+		QueryFn: func(ctx context.Context, querier primarydb.Querier) error {
 			loginRow, err := querier.SelectLoginByName(ctx, username)
 			if db.IsErrNoRows(err) {
 				return ErrUserNotFound
@@ -217,7 +217,7 @@ func (services *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, 
 	}
 
 	if !isCreated {
-		userRow, err := services.querier.InsertUser(ctx, sqlc.InsertUserParams{
+		userRow, err := services.querier.InsertUser(ctx, primarydb.InsertUserParams{
 			Username:        googleInst.Username,
 			Country:         googleInst.Country,
 			JoinedOn:        pgtype.Timestamptz{Time: googleInst.JoinedOn, Valid: true},
@@ -259,7 +259,7 @@ func (services *HexchessServices) UpdateUser(ctx context.Context, id int64, updt
 		return model.User{}, nil
 	}
 
-	userRow, err := services.querier.UpdateUser(ctx, sqlc.UpdateUserParams{
+	userRow, err := services.querier.UpdateUser(ctx, primarydb.UpdateUserParams{
 		ID:       id,
 		Username: db.OptString(updt.Username),
 		Bio:      db.OptString(updt.Bio),
@@ -279,7 +279,7 @@ func (services *HexchessServices) UpdateUserPassword(ctx context.Context, id int
 	if err != nil {
 		return serrors.New("hash password for user", err, "userID", id)
 	}
-	err = services.querier.UpdatePassword(ctx, sqlc.UpdatePasswordParams{
+	err = services.querier.UpdatePassword(ctx, primarydb.UpdatePasswordParams{
 		ID:       id,
 		Password: hash.HashedPassword,
 		Salt:     hash.Salt,

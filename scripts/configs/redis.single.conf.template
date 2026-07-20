@@ -1,0 +1,7 @@
+port ${PORT}
+cluster-enabled no
+
+bind 0.0.0.0
+
+# AOF persistence
+appendonly no

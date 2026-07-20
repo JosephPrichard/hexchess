@@ -1,11 +1,20 @@
 version: "2"
 sql:
   - engine: "postgresql"
-    queries: "./queries"
-    schema: "./schema.sql"
+    queries: "./queries/primary"
+    schema: "./schema-primary.sql"
     gen:
       go:
-        package: "sqlc"
+        package: "primarydb"
         sql_package: "pgx/v5"
-        out: "./sqlc"
+        out: "./primarydb"
+        emit_interface: true
+  - engine: "postgresql"
+    queries: "./queries/metrics"
+    schema: "./schema-metrics.sql"
+    gen:
+      go:
+        package: "metricsdb"
+        sql_package: "pgx/v5"
+        out: "./metricsdb"
         emit_interface: true

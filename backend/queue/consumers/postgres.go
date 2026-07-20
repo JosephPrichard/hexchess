@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"hexchess-svc/db"
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/primarydb"
 	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/logutil"
 	"hexchess-svc/utils/serrors"
@@ -20,10 +20,10 @@ import (
 
 type PostgresConfig struct {
 	// (required) event name for this specific consumer to handle
-	EventKind sqlc.QueueTypeEnum `json:"eventKind"`
+	EventKind primarydb.QueueTypeEnum `json:"eventKind"`
 	// (required) time in between successive poll attempts. polling more frequently is worse for performance but improves responsiveness
 	PollInterval time.Duration `json:"pollInterval"`
-	// (required) max number of messages received per poll attempt. each event is handled on a seperate goroutine
+	// (required) max number of messages received per poll attempt. each event is handled on a separate goroutine
 	PollCount int32 `json:"pollCount"`
 	// (optional) change the behavior of the consumer for tests
 	MaxEvents uint64 `json:"maxEvents"`
@@ -34,7 +34,7 @@ type PostgresConsumer struct {
 	// allows receiving cancellation signals
 	ctx context.Context
 	// connects to queue table in database to poll events. requires transaction management.
-	pdb db.Database
+	primaryDB db.Database[primarydb.Querier]
 	// an implementation for consuming a single event
 	consumeFunc ConsumeFunc
 }
@@ -63,17 +63,17 @@ func (consumer *PostgresConsumer) Consume() {
 }
 
 func (consumer *PostgresConsumer) poll() error {
-	return consumer.pdb.ExecTx(consumer.ctx, db.TxArgs{
+	return consumer.primaryDB.ExecTx(consumer.ctx, db.TxArgs[primarydb.Querier]{
 		// ReadCommitted is used as a basic `Default` isolation level, the primary purpose of the transaction is atomicity
 		// if handlers fail to acknowledge an event, it is not marked as processed and the lock is released at the end of the transaction, to allow retries *per event*
 		Isolation:  pgx.ReadCommitted,
 		RetryCount: 1,
-		QueryFn: func(ctx context.Context, querier sqlc.Querier) error {
+		QueryFn: func(ctx context.Context, querier primarydb.Querier) error {
 			start := time.Now()
 			ctx = context.WithValue(ctx, logutil.Trace, uuid.NewString())
 
 			// locks events for the duration of the function
-			eventRows, err := querier.SelectQueueByPolling(ctx, sqlc.SelectQueueByPollingParams{
+			eventRows, err := querier.SelectQueueByPolling(ctx, primarydb.SelectQueueByPollingParams{
 				Type:  consumer.EventKind,
 				Limit: consumer.PollCount,
 			})
@@ -118,7 +118,7 @@ func (consumer *PostgresConsumer) poll() error {
 			}
 
 			if len(eventIDsToAck) > 0 {
-				if err := querier.UpdateQueueProcessedByID(ctx, sqlc.UpdateQueueProcessedByIDParams{
+				if err := querier.UpdateQueueProcessedByID(ctx, primarydb.UpdateQueueProcessedByIDParams{
 					Ids:           eventIDsToAck,
 					ProcessedTime: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 				}); err != nil {

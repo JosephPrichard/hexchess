@@ -3,15 +3,15 @@ package svc
 import (
 	"hexchess-svc/cloud"
 	"hexchess-svc/db"
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/primarydb"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/utils/async"
 )
 
 type HexchessServices struct {
-	database       db.Database
-	querier        sqlc.Querier
+	database       db.Database[primarydb.Querier]
+	querier        primarydb.Querier
 	redis          db.Redis
 	aws            cloud.AWSClient
 	remote         cloud.RemoteAPIs
@@ -22,7 +22,7 @@ type HexchessServices struct {
 }
 
 type SetupService struct {
-	DB          db.Database
+	PrimaryDB   db.Database[primarydb.Querier]
 	Redis       db.Redis
 	AWS         cloud.AWSClient
 	Remote      cloud.RemoteAPIs
@@ -32,9 +32,9 @@ type SetupService struct {
 }
 
 func NewHexchessServices(setup SetupService) *HexchessServices {
-	var querier sqlc.Querier
-	if setup.DB != nil {
-		querier = setup.DB.Querier()
+	var querier primarydb.Querier
+	if setup.PrimaryDB != nil {
+		querier = setup.PrimaryDB.Querier()
 	}
 	if setup.Entropy == nil {
 		setup.Entropy = RealEntropySource{}
@@ -43,7 +43,7 @@ func NewHexchessServices(setup SetupService) *HexchessServices {
 		setup.Dispatcher = async.AsyncDispatcher{}
 	}
 	return &HexchessServices{
-		database:       setup.DB,
+		database:       setup.PrimaryDB,
 		querier:        querier,
 		redis:          setup.Redis,
 		aws:            setup.AWS,
