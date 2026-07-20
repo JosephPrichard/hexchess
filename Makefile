@@ -107,11 +107,14 @@ perf-test:
 	go run ./$(PERF_QUE_DIR)/main.go
 
 clean:
-	rm -rf backend/db/metricsdb
-	rm -rf backend/db/primarydb
-	rm -rf backend/pb
-	rm backend/cloud/google_mock.go
-	rm backend/cmd/browser/chess.wasm
-	rm -rf frontend/build
-	rm -rf frontend/src/lib/pb
-	rm -rf perf/k6/pb
+	rm -rf $(BACKEND_DIR)/db/metricsdb
+	rm -rf $(BACKEND_DIR)/db/primarydb
+	rm -rf $(SVC_PB_OUT)
+	rm $(BACKEND_DIR)/cloud/google_mock.go
+	rm $(BACKEND_DIR)/cmd/browser/chess.wasm
+
+	rm -rf $(UI_DIR)/build
+	rm -rf $(UI_DIR)$(UI_PB_OUT)
+	rm $(UI_DIR)/static/wasm/chess.wasm
+
+	rm -rf $(PERF_PB_K6_OUT)
