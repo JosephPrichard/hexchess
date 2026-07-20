@@ -27,28 +27,13 @@ VTPROTO := $(shell cd $(BACKEND_DIR) && go list -m -f '{{.Dir}}' github.com/plan
 
 # Build
 
-.PHONY:
-	all
-	backend
-	backend-generate
-	backend-pb
-	frontend
-	frontend-wasm
-	frontend-js
-	k6
-	test
-	perf-test
-	clean
+.PHONY: all backend frontend chess-wasm k6 test perf-test clean
 
 all: backend frontend k6
 
-backend: backend-generate backend-pb
-
-backend-generate:
+backend:
 	# SQLc and mockgen
 	cd $(BACKEND_DIR) && go generate ./...
-
-backend-pb:
 	# Protoc codegen
 	mkdir -p $(SVC_PB_OUT)
 	protoc \
@@ -61,15 +46,7 @@ backend-pb:
 		--go-vtproto_opt=features=marshal+unmarshal+size \
 		$(CONTRACTS_DIR)/messages.proto \
 
-frontend: frontend-wasm frontend-js
-
-frontend-wasm: backend-pb
-	# WASM compilation
-	mkdir -p $(UI_WASM_DIR)/$(WASM_OUTPUT)
-	cd $(WASM_SRC_DIR) && GOOS=js GOARCH=wasm go build -o $(WASM_OUTPUT) -tags=browser
-	cp $(WASM_SRC_DIR)/$(WASM_OUTPUT) $(UI_WASM_DIR)/$(WASM_OUTPUT)
-
-frontend-js:
+frontend:
     # Protoc codegen
 	( \
 		cd $(UI_DIR); \
@@ -79,6 +56,12 @@ frontend-js:
 			--proto_path ../$(CONTRACTS_DIR) \
 			../$(CONTRACTS_DIR)/messages.proto \
     )
+
+chess-wasm:
+	# WASM compilation
+	cd $(WASM_SRC_DIR) && GOOS=js GOARCH=wasm go build -o $(WASM_OUTPUT) -tags=browser
+	mkdir -p $(UI_WASM_DIR)
+	cp $(WASM_SRC_DIR)/$(WASM_OUTPUT) $(UI_WASM_DIR)
 
 k6:
 	# Protoc codegen
@@ -110,11 +93,10 @@ clean:
 	rm -rf $(BACKEND_DIR)/db/metricsdb
 	rm -rf $(BACKEND_DIR)/db/primarydb
 	rm -rf $(SVC_PB_OUT)
-	rm $(BACKEND_DIR)/cloud/google_mock.go
-	rm $(BACKEND_DIR)/cmd/browser/chess.wasm
+	find ./$(BACKEND_DIR) -type f -name "*_mock.go" -delete
+	find ./$(BACKEND_DIR) -type f -name "*_wasm" -delete
 
 	rm -rf $(UI_DIR)/build
 	rm -rf $(UI_DIR)$(UI_PB_OUT)
-	rm $(UI_DIR)/static/wasm/chess.wasm
 
 	rm -rf $(PERF_PB_K6_OUT)

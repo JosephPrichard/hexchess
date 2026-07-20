@@ -7,9 +7,10 @@ RUN apk add --no-cache protobuf protobuf-dev
 WORKDIR /sources
 
 # ---- Dependency Layer ----
-COPY backend/install.sh backend/go.mod backend/go.sum backend/
+COPY scripts/install-backend-build.sh .
+COPY backend/go.mod backend/go.sum backend/
 
-RUN ./backend/install.sh
+RUN ./install-backend-build.sh
 RUN cd backend && go mod download
 
 # ---- Codegen Layer ----
@@ -20,8 +21,8 @@ COPY backend backend/
 RUN make backend --always-make
 
 # ---- Compile Layer ----
-ARG CMD_KIND=api
-RUN cd backend && CGO_ENABLED=0 go build -trimpath -ldflags=-s -o /bin/app ./cmd/server/${CMD_KIND}
+ARG SERVICE=api
+RUN cd backend && CGO_ENABLED=0 go build -trimpath -ldflags=-s -o /bin/app ./cmd/server/${SERVICE}
 
 # ---- Runtime Stage ----
 FROM alpine:latest AS runner

@@ -25,7 +25,7 @@ import { URLSearchParams } from "https://jslib.k6.io/url/1.0.0/index.js";
 // VU definitions, test infra and input parsing
 
 const protocol = __ENV.PROTOCOL ?? "http";
-const hostname = __ENV.HOSTNAME ?? "localhost:8081";
+const hostname = __ENV.HOSTNAME ?? "localhost:8080";
 export const baseUrl = `${protocol}://${hostname}/api`;
 
 // providing a higher user/games count gives a better distribution on what data is created and which rows are updated

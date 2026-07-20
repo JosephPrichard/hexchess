@@ -9,7 +9,7 @@ import { Options } from "k6/options";
 
 const restProtocol = __ENV.PROTOCOL ?? "http";
 const wsProtocol = __ENV.PROTOCOL ?? "ws";
-const hostname = __ENV.HOSTNAME ?? "localhost:8081";
+const hostname = __ENV.HOSTNAME ?? "localhost:8080";
 
 export const restBaseUrl = `${restProtocol}://${hostname}/api`;
 export const wsBaseUrl = `${wsProtocol}://${hostname}`;

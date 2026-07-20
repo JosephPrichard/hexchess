@@ -10,7 +10,7 @@ export function appBaseURL() {
 }
 
 export function baseURL() {
-	return env.PUBLIC_BASE_URL || 'http://localhost:8081/api';
+	return env.PUBLIC_BASE_URL || 'http://localhost:8080/api';
 }
 
 export type Result<T> = [T | undefined, ServiceModel | undefined];

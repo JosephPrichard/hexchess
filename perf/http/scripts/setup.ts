@@ -2,7 +2,7 @@ import http, { BatchRequests } from "k6/http";
 import { gameModes, colors, pickElement } from "./testdata.ts";
 
 const protocol = __ENV.PROTOCOL || "http";
-const hostname = __ENV.HOSTNAME || "localhost:8081";
+const hostname = __ENV.HOSTNAME || "localhost:8080";
 export const baseUrl = `${protocol}://${hostname}/api`;
 
 export type Session = {
