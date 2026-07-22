@@ -8,6 +8,7 @@ import (
 	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/testutil"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,12 +21,14 @@ func TestBroadcastMessage(t *testing.T) {
 
 	redisAddr, _ := itest.SetupRedisTest(ctx, t)
 	rdb := db.NewRedis(ctx, db.RedisConfig{
-		Names:         testutil.NewTestNames(db.DefaultRedisNames),
 		PrimaryAddr:   []string{redisAddr},
 		PubsubAddr:    redisAddr,
 		ActiveProfile: config.Local,
+
+		Names: testutil.NewTestNames(db.DefaultRedisNames),
 	})
 	defer rdb.Close()
+
 	broadcaster := NewSyncBroadcaster(rdb)
 
 	localBroadcasters := LocalBroadcasters{Games: NewBroadcastActor[model.GameID]("testing-multicaster")}
@@ -35,6 +38,10 @@ func TestBroadcastMessage(t *testing.T) {
 
 	subChan := make(chan []byte, wantMsgCount)
 	localBroadcasters.Games.Subscribe("1", subChan)
+
+	// note: there's a small race condition here where psc.Subscribe in ListenGameMessages may not observe broadcasts from "PUBLISH"
+	// this is true even though psc.Subscribe is called temporarily before "PUBLISH" so the race condition is redis-side and unavoidable
+	time.Sleep(500 * time.Millisecond)
 
 	for _, input := range []struct {
 		id  string
@@ -52,12 +59,7 @@ func TestBroadcastMessage(t *testing.T) {
 
 	var messages []string
 	for range wantMsgCount {
-		select {
-		case <-ctx.Done():
-			t.Errorf("test timed out: %v", ctx.Err())
-		case v := <-subChan:
-			messages = append(messages, mustUnmarshalChatMessage(t, v))
-		}
+		messages = append(messages, mustUnmarshalChatMessage(t, <-subChan))
 	}
 	assert.Equal(t, []string{"test1", "test2"}, messages)
 }

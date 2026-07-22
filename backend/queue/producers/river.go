@@ -10,13 +10,29 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 )
 
-type RiverProducer struct {
-	riverClient *river.Client[pgx.Tx]
+type RiverClientAPI interface {
+	InsertTx(ctx context.Context, tx pgx.Tx, args river.JobArgs, opts *river.InsertOpts) (*rivertype.JobInsertResult, error)
+	Insert(ctx context.Context, args river.JobArgs, opts *river.InsertOpts) (*rivertype.JobInsertResult, error)
 }
 
-func NewRiverProducer(riverClient *river.Client[pgx.Tx]) RiverProducer {
+type NoopRiverClient struct{}
+
+func (_ NoopRiverClient) InsertTx(ctx context.Context, tx pgx.Tx, args river.JobArgs, opts *river.InsertOpts) (*rivertype.JobInsertResult, error) {
+	return nil, nil
+}
+
+func (_ NoopRiverClient) Insert(ctx context.Context, args river.JobArgs, opts *river.InsertOpts) (*rivertype.JobInsertResult, error) {
+	return nil, nil
+}
+
+type RiverProducer struct {
+	riverClient RiverClientAPI
+}
+
+func NewRiverProducer(riverClient RiverClientAPI) RiverProducer {
 	return RiverProducer{riverClient: riverClient}
 }
 
@@ -31,10 +47,7 @@ func (p *RiverProducer) ProduceAdvanceTournament(ctx context.Context, txn pgx.Tx
 		opts.ScheduledAt = args.ScheduledOn
 	}
 
-	job := queue.AdvanceTournamentJob{
-		TournamentKey: args.TournamentKey,
-		EventID:       uuid.New(),
-	}
+	job := queue.AdvanceTournamentJob{TournamentKey: args.TournamentKey, EventID: uuid.New()}
 
 	var err error
 	if txn != nil {

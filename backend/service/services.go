@@ -8,9 +8,6 @@ import (
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/entropy"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/riverqueue/river"
 )
 
 type HexchessServices struct {
@@ -33,7 +30,7 @@ type HexchessServices struct {
 type SetupService struct {
 	// postgres infra
 	PrimaryDB   db.Database[primarydb.Querier]
-	RiverClient *river.Client[pgx.Tx]
+	RiverClient producers.RiverClientAPI
 	// redis infra
 	Redis       db.Redis
 	Broadcaster pubsub.Broadcaster
@@ -50,12 +47,14 @@ func NewHexchessServices(setup SetupService) *HexchessServices {
 	if setup.PrimaryDB != nil {
 		querier = setup.PrimaryDB.Querier()
 	}
+
 	if setup.Entropy == nil {
 		setup.Entropy = entropy.RealSource{}
 	}
 	if setup.Dispatcher == nil {
 		setup.Dispatcher = async.AsyncDispatcher{}
 	}
+
 	return &HexchessServices{
 		database:      setup.PrimaryDB,
 		querier:       querier,

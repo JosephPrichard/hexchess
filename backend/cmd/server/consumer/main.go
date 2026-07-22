@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
+
+	"github.com/riverqueue/river"
 )
 
 const ServiceName = "hexchess-consumer"
@@ -70,6 +72,9 @@ func main() {
 	consumers.StartRiverConsumers(consumers.RiverConsumerSetup{
 		PgxPool:  riverQuePool,
 		Services: services,
+		RiverConfig: &river.Config{
+			Logger: slog.Default(),
+		},
 	})
 
 	if err := http.ListenAndServe(":6060", nil); err != nil {

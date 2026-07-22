@@ -50,7 +50,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			wantGameOutputs: []*pb.GameOutput{
 				{
 					GameId: newGameID.String(),
-					Value: &pb.GameOutput_Replay{Replay: &pb.Replay{
+					Value: &pb.GameOutput_Replay{Replay: &pb.ReplayOutput{
 						BlackCountry: "us",
 						BlackElo:     985,
 						BlackEloDiff: -15,

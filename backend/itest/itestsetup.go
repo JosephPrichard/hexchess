@@ -18,12 +18,15 @@ type TestInfra struct {
 	PrimaryQuerier primarydb.Querier
 	PrimaryDB      db.Database[primarydb.Querier]
 	MetricsDB      db.Database[metricsdb.Querier]
-	Redis          db.Redis
-	AWS            cloud.AWSClient
+
+	Redis db.Redis
+
+	AWS cloud.AWSClient
 }
 
 func (i TestInfra) Close() {
 	i.Redis.Close()
+
 	if i.PrimaryDB != nil {
 		i.PrimaryDB.Close()
 	}
@@ -71,11 +74,13 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 	var infra TestInfra
 
 	if isRwPostgresFlag {
+		// rwPostgres flag substitutes a pool with a connection to enable parallel, independent tests
 		infra.PrimaryDB = db.NewFakePrimaryDB(t, pgPool)
 		infra.MetricsDB = db.NewFakeMetricsDB(t, pgPool)
 
 		infra.PrimaryQuerier = infra.PrimaryDB.Querier()
 	} else if isRoPostgresFlag {
+		// roPostgres flag uses a real database pool to enable concurrent transactions
 		infra.PrimaryDB = db.NewPrimaryDB(pgPool)
 		infra.MetricsDB = db.NewMetricsDB(pgPool)
 
@@ -84,21 +89,25 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 
 	if isRedisFlag {
 		infra.Redis = db.NewRedis(ctx, db.RedisConfig{
-			Names:         testutil.NewTestNames(db.DefaultRedisNames),
 			PrimaryAddr:   []string{redisAddr},
 			PubsubAddr:    redisAddr,
 			ActiveProfile: config.Local,
+
+			// tests use independent key prefixes to enable parallel, independent tests
+			Names: testutil.NewTestNames(db.DefaultRedisNames),
 		})
 	}
 
 	if isLocalstackFlag {
 		infra.AWS = cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
-			AWSEndpoint:   localstackAddr,
-			AWSRegion:     "us-east-1",
+			AWSEndpoint: localstackAddr,
+			AWSRegion:   "us-east-1",
+			AWSUsername: "testing",
+			AWSPassword: "testing",
+
+			// tests use independent buckets to enable parallel, independent tests
 			Names:         testutil.NewTestNames(cloud.DefaultAWSNames),
 			ActiveProfile: config.Local,
-			AWSUsername:   "testing",
-			AWSPassword:   "testing",
 		})
 	}
 

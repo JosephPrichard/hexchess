@@ -14,9 +14,11 @@ import (
 
 func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Message)) chan struct{} {
 	connCh := make(chan struct{}, 1) // send a signal whenever the connection is complete
+
 	recvLoop := func(conn redigo.Conn) {
 		psc := redigo.PubSubConn{Conn: conn}
 		defer psc.Close()
+
 		for _, channel := range chans {
 			err := psc.Subscribe(channel)
 			if err != nil {
@@ -24,7 +26,7 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 				return
 			}
 		}
-		slog.Info("starting redis pubsub channel subscriber", "channels", chans)
+		slog.Info("listening redis pubsub channel subscriber", "channels", chans)
 
 		// signals to the caller whenever the background routine is *actually* listening on the channels
 		connCh <- struct{}{}
@@ -40,6 +42,7 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 			}
 		}
 	}
+
 	go func() {
 		// listens to the redis channel, creating a new connection if the recv loop fails
 		for {
@@ -103,7 +106,11 @@ func (b *LocalBroadcasters) ListenGameMessages(rdb db.Redis) chan struct{} {
 			slog.Error("unmarshal game message", "error", err)
 			return
 		}
-		slog.Info("received message on games channel", "gameID", outputID.GameId)
+
+		type payload = struct {
+			Id string `json:"gameId"`
+		}
+		slog.Info("received message on channel", "channel", rdb.GamesChannel, "payload", payload{outputID.GameId})
 
 		gameID := model.GameID(outputID.GameId)
 
@@ -118,7 +125,7 @@ func (b *LocalBroadcasters) ListenTournamentMessages(rdb db.Redis) chan struct{}
 			slog.Error("unmarshal tournament message", "error", err)
 			return
 		}
-		slog.Info("received message on tournaments channel", "key", output.TournamentKey, "output", &output)
+		slog.Info("received message on channel", "channel", rdb.TournamentsChannel, "payload", &output)
 
 		b.Tournament.Broadcast(output.TournamentKey, v.Data)
 	})
@@ -131,7 +138,7 @@ func (b *LocalBroadcasters) ListenUsersMessages(rdb db.Redis) chan struct{} {
 			slog.Error("unmarshal user message", "error", err)
 			return
 		}
-		slog.Info("received message on users channel", "user", &message)
+		slog.Info("received message on channel", "channel", rdb.UsersChannel, "payload", &message)
 
 		switch message.Kind {
 		case model.ChallengeKind:
@@ -156,11 +163,11 @@ func (b *LocalBroadcasters) ListenCountEvents(rdb db.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, channels, func(v redigo.Message) {
 		strData := string(v.Data)
 		// unicast broadcasting is only being used to game counts (small payload), so it is safe to log
-		slog.Info("received event on channel", "event", strData, "channel", v.Channel)
+		slog.Info("received message on channel", "event", strData, "channel", v.Channel)
 
 		eKind, ok := eventMap[v.Channel]
 		if !ok {
-			slog.Error("received event on unmapped channel", "channel", v.Channel, "eventMap", eventMap)
+			slog.Error("received message on unmapped channel", "channel", v.Channel, "eventMap", eventMap)
 			return
 		}
 		b.Counts.Broadcast(GlobalCastEvent{Kind: eKind, Data: strData})

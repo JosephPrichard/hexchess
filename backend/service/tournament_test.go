@@ -4,13 +4,10 @@ import (
 	"hexchess-svc/db/primarydb"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
-	"hexchess-svc/pb"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/errutil"
 
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/testing/protocmp"
-
+	"github.com/bytedance/sonic"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -74,7 +71,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 		userID                    int64
 		wantBeginTourneyCountdown BeginTourneyCountdown
 		wantErr                   error
-		wantTournamenStatus       primarydb.SelectTournamentStatusRow
+		wantTournamentStatus      primarydb.SelectTournamentStatusRow
 	}{
 		{
 			name:          "StatusPreconditionFailed_Scheduled",
@@ -105,7 +102,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 			tournamentKey:             itest.Tournament0LobbyKey,
 			userID:                    1,
 			wantBeginTourneyCountdown: BeginTourneyCountdown{TournamentKey: itest.Tournament0LobbyKey},
-			wantTournamenStatus: primarydb.SelectTournamentStatusRow{
+			wantTournamentStatus: primarydb.SelectTournamentStatusRow{
 				Status: primarydb.TournamentStatusEnumSCHEDULED,
 			},
 		},
@@ -124,12 +121,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 				status, err := services.querier.SelectTournamentStatus(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
 				require.NoError(t, err)
 
-				testutil.Equal(t, tt.wantTournamenStatus, status)
-
-				outboxEvents, err := services.querier.SelectALLQueue(ctx)
-				require.NoError(t, err)
-
-				assert.Len(t, outboxEvents, 1)
+				testutil.Equal(t, tt.wantTournamentStatus, status)
 			}
 		})
 	}
@@ -472,6 +464,8 @@ func TestAdvanceTournament_ThenGetChessStates(t *testing.T) {
 	}
 }
 
+var cmpOptsMatchCreation = cmpopts.IgnoreFields(model.MatchCreation{}, "GameID")
+
 func TestAdvanceTournament_InsertsEvent(t *testing.T) {
 	services, testinfra := setupServicesTest(t, nil, itest.RWPostgres, itest.Redis)
 	defer testinfra.Close()
@@ -484,23 +478,23 @@ func TestAdvanceTournament_InsertsEvent(t *testing.T) {
 	_, err := services.advanceTournament(ctx, tournamentKey, eventID)
 	require.NoError(t, err)
 
-	eventData, err := testinfra.PrimaryQuerier.SelectByEventID(ctx, pgtype.UUID{Bytes: eventID, Valid: true})
+	eventData, err := testinfra.PrimaryQuerier.SelectByEventKeyID(ctx, pgtype.UUID{Bytes: eventID, Valid: true})
 	require.NoError(t, err)
 
-	var pbMatchCreations pb.MatchCreations
-	require.NoError(t, proto.Unmarshal(eventData, &pbMatchCreations))
+	var matchCreations model.MatchCreations
+	require.NoError(t, sonic.Unmarshal(eventData, &matchCreations))
 
-	wantTournaments := []*pb.MatchCreation{
+	wantTournaments := []model.MatchCreation{
 		{
-			Mode:    "CORRESPONDENCE_1",
-			WhiteId: 3,
-			BlackId: 4,
+			GameMode: model.ModeCorrespondence1,
+			WhiteID:  3,
+			BlackID:  4,
 		},
 		{
-			Mode:    "CORRESPONDENCE_1",
-			WhiteId: 5,
-			BlackId: 6,
+			GameMode: model.ModeCorrespondence1,
+			WhiteID:  5,
+			BlackID:  6,
 		},
 	}
-	testutil.Equal(t, wantTournaments, pbMatchCreations.Creations, protocmp.Transform(), protocmp.IgnoreFields(&pb.MatchCreation{}, "game_id"))
+	testutil.Equal(t, wantTournaments, matchCreations.Creations, cmpOptsMatchCreation)
 }

@@ -12,15 +12,36 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type implDB[Querier any] struct {
-	factory   QuerierFactory[Querier]
-	pool      *pgxpool.Pool
-	refresher *PostgresTokenRefresher
+type fakeDB[Querier any] struct {
+	testTxn pgx.Tx
+	pool    *pgxpool.Pool
+	factory QuerierFactory[Querier]
+}
+
+func (db *fakeDB[Querier]) Querier() Querier {
+	return db.factory.FromTx(db.testTxn)
 }
 
 func (db *fakeDB[Querier]) ExecTx(ctx context.Context, args TxArgs[Querier]) (err error) {
 	// a fake postgres instance is already running in a txn, noop the txn
 	return args.QueryFn(ctx, db.testTxn, db.factory.FromTx(db.testTxn))
+}
+
+func (db *fakeDB[_]) Close() {
+	if db.testTxn != nil {
+		if err := db.testTxn.Rollback(context.Background()); err != nil {
+			slog.Error("failed to rollback testing txn", "error", err)
+		}
+	}
+	if db.pool != nil {
+		db.pool.Close()
+	}
+}
+
+type implDB[Querier any] struct {
+	factory   QuerierFactory[Querier]
+	pool      *pgxpool.Pool
+	refresher *PostgresTokenRefresher
 }
 
 func (db *implDB[Querier]) Querier() Querier {
@@ -33,27 +54,6 @@ func (db *implDB[Querier]) Close() {
 	}
 	if db.refresher != nil {
 		db.refresher.Shutdown()
-	}
-}
-
-type fakeDB[Querier any] struct {
-	testTxn pgx.Tx
-	pool    *pgxpool.Pool
-	factory QuerierFactory[Querier]
-}
-
-func (db *fakeDB[Querier]) Querier() Querier {
-	return db.factory.FromTx(db.testTxn)
-}
-
-func (db *fakeDB[_]) Close() {
-	if db.testTxn != nil {
-		if err := db.testTxn.Rollback(context.Background()); err != nil {
-			slog.Error("failed to rollback testing txn", "error", err)
-		}
-	}
-	if db.pool != nil {
-		db.pool.Close()
 	}
 }
 

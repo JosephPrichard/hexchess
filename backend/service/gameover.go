@@ -122,7 +122,7 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 		Isolation:  pgx.RepeatableRead,
 		RetryCount: 5,
 		QueryFn: func(ctx context.Context, _ pgx.Tx, querier primarydb.Querier) error {
-			// step 1: use game ID as an idempotency key to prevent persistening the same game result on retry
+			// step 1: use game ID as an idempotency key to prevent saving the same game result on retry
 			mode := primarydb.ModeEnum(result.ReplayMode.String())
 			userIDs := []int64{result.WhiteID, result.BlackID}
 

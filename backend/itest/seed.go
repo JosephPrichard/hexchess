@@ -10,6 +10,7 @@ import (
 	"hexchess-svc/pb"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 
@@ -663,24 +664,23 @@ var Events = []struct {
 	Data []byte
 }{
 	{
-		ID:   TestEventID_TournamentCreation.String(),
-		Data: []byte{},
-		//Data: func() []byte {
-		//	data, err := proto.Marshal(&pb.MatchCreations{
-		//		Creations: []*pb.MatchCreation{
-		//			{
-		//				GameId:  TestEventID_TournamentCreation_GameID.String(),
-		//				WhiteId: 1,
-		//				BlackId: 2,
-		//				Mode:    "CORRESPONDENCE_1",
-		//			},
-		//		},
-		//	})
-		//	if err != nil {
-		//		panic(err)
-		//	}
-		//	return data
-		//}(),
+		ID: TestEventID_TournamentCreation.String(),
+		Data: func() []byte {
+			data, err := sonic.Marshal(model.MatchCreations{
+				Creations: []model.MatchCreation{
+					{
+						GameID:   TestEventID_TournamentCreation_GameID,
+						WhiteID:  1,
+						BlackID:  2,
+						GameMode: model.ModeCorrespondence1,
+					},
+				},
+			})
+			if err != nil {
+				panic(err)
+			}
+			return data
+		}(),
 	},
 }
 

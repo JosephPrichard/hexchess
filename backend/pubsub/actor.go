@@ -64,21 +64,22 @@ func (actor *BroadcastActor[ActorID]) handleBroadcast(action broadcasterAction[A
 	actorID := action.actorID
 	msg := action.payload
 
+	var subStrs []string
+
 	shard := actor.actorsMap[actorID]
 	if shard != nil {
-		var subStrs []string
-
 		for _, sub := range shard {
 			select {
 			case sub <- msg:
 			default:
 				// drop a message if the consumer is slow
+				slog.Warn("BroadcastActor: dropping broadcasted message", "actorID", actorID)
 			}
 			subStrs = append(subStrs, fmt.Sprintf("%v", sub))
 		}
-
-		slog.Info("broadcasted message to broadcaster actor subscribers", "actorID", actorID, "subscribers", subStrs)
 	}
+
+	slog.Info("broadcasted message to broadcaster actor subscribers", "actorID", actorID, "subscribers", subStrs)
 }
 
 func (actor *BroadcastActor[ActorID]) stop() {
@@ -185,6 +186,7 @@ func (actor *GlobalCasterActor) handleBroadcast(action globalcasterAction) {
 		case sub <- msg:
 		default:
 			// drop a message if the consumer is slow
+			slog.Warn("GlobalCasterActor: dropping broadcasted message", "actorID", actor.id)
 		}
 	}
 

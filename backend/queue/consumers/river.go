@@ -20,9 +20,13 @@ type RiverConsumerSetup struct {
 }
 
 func StartRiverConsumers(setup RiverConsumerSetup) {
-	workers := river.NewWorkers()
+	if setup.RiverConfig == nil {
+		setup.RiverConfig = &river.Config{}
+	}
 
-	river.AddWorker(workers, &AdvanceTournamentWorker{services: setup.Services})
+	setup.RiverConfig.Workers = river.NewWorkers()
+
+	river.AddWorker(setup.RiverConfig.Workers, &AdvanceTournamentWorker{services: setup.Services})
 
 	riverClient, err := river.NewClient(riverpgxv5.New(setup.PgxPool), setup.RiverConfig)
 	if err != nil {
