@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/cloud"
+	"hexchess-svc/utils/entropy"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -154,7 +155,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 	tests := []struct {
 		name        string
 		runCount    int
-		setupMocks  func(*gomock.Controller) cloud.RemoteAPIs
+		setupMocks  func(*gomock.Controller) cloud.SDKs
 		body        GoogleLoginBody
 		wantSuccess SessionView
 		wantFail    ServiceResp
@@ -163,7 +164,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 		{
 			name:     "InvalidLoginTokenMocked",
 			runCount: 1,
-			setupMocks: func(ctrl *gomock.Controller) cloud.RemoteAPIs {
+			setupMocks: func(ctrl *gomock.Controller) cloud.SDKs {
 				validator := cloud.NewMockGoogleTokenValidator(ctrl)
 				validator.EXPECT().
 					Validate(gomock.Any(), "invalidToken123", apiKey).
@@ -178,7 +179,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 		{
 			name:     "LoginWithGoogleTokenSuccessful",
 			runCount: 2, // the user is created the first time, the second time we log in with the already inserted account key
-			setupMocks: func(ctrl *gomock.Controller) cloud.RemoteAPIs {
+			setupMocks: func(ctrl *gomock.Controller) cloud.SDKs {
 				validator := cloud.NewMockGoogleTokenValidator(ctrl)
 				validator.EXPECT().
 					Validate(gomock.Any(), "testToken123", apiKey).
@@ -199,7 +200,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 			defer ctrl.Finish()
 
 			mocks := &serviceMocks{
-				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
+				Entropy: &entropy.StableSource{CurrTime: itest.TimeNow},
 				Remote:  tt.setupMocks(ctrl),
 			}
 
@@ -484,7 +485,7 @@ func TestHandleCreateGame(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			setup := &serviceMocks{
-				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
+				Entropy: &entropy.StableSource{CurrTime: itest.TimeNow},
 			}
 
 			h, testinfra := setupTestHandler(t, setup, itest.RWPostgres, itest.Redis)
@@ -569,7 +570,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mocks := &serviceMocks{
-				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
+				Entropy: &entropy.StableSource{CurrTime: itest.TimeNow},
 			}
 			h, testinfra := setupTestHandler(t, mocks, itest.RWPostgres, itest.Redis)
 			defer testinfra.Close()
@@ -835,7 +836,7 @@ func TestGetChallenges(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mocks := &serviceMocks{
-				Entropy: &svc.StableEntropySource{CurrTime: itest.TimeNow},
+				Entropy: &entropy.StableSource{CurrTime: itest.TimeNow},
 			}
 			h, testinfra := setupTestHandler(t, mocks, itest.ROPostgres, itest.Redis)
 			defer testinfra.Close()

@@ -42,10 +42,14 @@ type FullMatch struct {
 }
 
 type MatchCreation struct {
-	GameID   GameID
-	GameMode GameMode
-	WhiteID  int64
-	BlackID  int64
+	GameID   GameID   `json:"gameID"`
+	GameMode GameMode `json:"gameMode"`
+	WhiteID  int64    `json:"whiteId"`
+	BlackID  int64    `json:"blackId"`
+}
+
+type MatchCreations struct {
+	Creations []MatchCreation `json:"creations"`
 }
 
 type FullTournament struct {

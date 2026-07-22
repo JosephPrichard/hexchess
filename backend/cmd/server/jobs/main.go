@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"hexchess-svc/db/primarydb"
 	"hexchess-svc/utils/config"
 	"log/slog"
 	"time"
@@ -32,11 +31,10 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
-	primaryDB := db.NewPostgresDB(ctx, db.PoolConfig[primarydb.Querier]{
+	primaryDB := db.NewPostgresDB(ctx, db.PrimaryQuerierFactory, db.PoolConfig{
 		Dsn:           cfg.PrimaryDbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
-		Factory:       db.PrimaryQuerierFactory,
 	})
 	defer primaryDB.Close()
 

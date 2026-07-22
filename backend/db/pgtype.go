@@ -12,7 +12,7 @@ type Database[Querier any] interface {
 	Close()
 }
 
-type QueryFn[Querier any] func(ctx context.Context, querier Querier) error
+type QueryFn[Querier any] func(context.Context, pgx.Tx, Querier) error
 
 type TxArgs[Querier any] struct {
 	QueryFn      QueryFn[Querier]

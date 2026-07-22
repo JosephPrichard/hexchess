@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/entropy"
 
 	"testing"
 	"time"
@@ -120,7 +121,7 @@ func TestGetChallengesByParticipant(t *testing.T) {
 	t.Parallel()
 
 	// gets only expired challenges
-	mocks := &serviceMocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}
+	mocks := &serviceMocks{Entropy: &entropy.StableSource{CurrTime: itest.TimeNow}}
 
 	services, testinfra := setupServicesTest(t, mocks, itest.ROPostgres)
 	defer testinfra.Close()
@@ -142,11 +143,11 @@ func TestDeleteExpiredChallenges(t *testing.T) {
 	ctx := t.Context()
 
 	// gets only expired challenges
-	services.entropy = &StableEntropySource{CurrTime: itest.TimeNow}
+	services.entropy = &entropy.StableSource{CurrTime: itest.TimeNow}
 	require.NoError(t, services.DeleteExpiredChallenges(ctx, 5))
 
 	// gets ALL challenges to check that we deleted expired challenges
-	services.entropy = &StableEntropySource{CurrTime: time.Unix(0, 0)}
+	services.entropy = &entropy.StableSource{CurrTime: time.Unix(0, 0)}
 	challengesDel, err := services.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 
@@ -156,7 +157,7 @@ func TestDeleteExpiredChallenges(t *testing.T) {
 func TestDeleteChallenge(t *testing.T) {
 	t.Parallel()
 
-	mocks := &serviceMocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}
+	mocks := &serviceMocks{Entropy: &entropy.StableSource{CurrTime: itest.TimeNow}}
 
 	services, testinfra := setupServicesTest(t, mocks, itest.RWPostgres)
 	defer testinfra.Close()

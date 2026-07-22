@@ -7,6 +7,7 @@ import (
 	"hexchess-svc/assets"
 	"hexchess-svc/chess"
 	"hexchess-svc/pubsub"
+	"hexchess-svc/utils/entropy"
 	"log/slog"
 	"net/http"
 	"time"
@@ -48,9 +49,9 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 
 type ServerSetup struct {
 	Services       *svc.HexchessServices
-	Broadcaster    *pubsub.Broadcaster
 	Broadcasters   *pubsub.LocalBroadcasters
-	EntropySource  svc.EntropyAPI
+	Broadcaster    pubsub.Broadcaster
+	EntropySource  entropy.Generator
 	Dispatcher     async.Dispatcher
 	AllowedOrigins string
 }
@@ -62,10 +63,10 @@ type StaticData struct {
 
 type API struct {
 	services      *svc.HexchessServices
-	broadcaster   *pubsub.Broadcaster
 	broadcasters  *pubsub.LocalBroadcasters
+	broadcaster   pubsub.Broadcaster
 	dispatcher    async.Dispatcher
-	entropy       svc.EntropyAPI
+	entropy       entropy.Generator
 	authenticator Authenticator
 	staticData    StaticData
 }
@@ -92,7 +93,7 @@ func NewServeMux(setup ServerSetup, opts ...func(*chi.Mux)) *chi.Mux {
 	r.Use(RouteMiddleware(setup.AllowedOrigins))
 
 	if setup.EntropySource == nil {
-		setup.EntropySource = svc.RealEntropySource{}
+		setup.EntropySource = entropy.RealSource{}
 	}
 	if setup.Dispatcher == nil {
 		setup.Dispatcher = async.AsyncDispatcher{}

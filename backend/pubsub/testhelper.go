@@ -17,7 +17,7 @@ import (
 
 var cmpOptsGameOutputs cmp.Options = []cmp.Option{
 	protocmp.Transform(),
-	protocmp.IgnoreFields(&pb.Replay{}, "id", "played_on"),
+	protocmp.IgnoreFields(&pb.ReplayOutput{}, "id", "played_on"),
 }
 
 func ExpectBroadcastGames(t *testing.T, rdb db.Redis, gameID model.GameID, wantOutputs []*pb.GameOutput) func() {

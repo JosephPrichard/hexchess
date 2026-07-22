@@ -3,8 +3,8 @@
 --
 
 
--- Dumped from database version 17.5
--- Dumped by pg_dump version 17.10 (Homebrew)
+-- Dumped from database version 18.4 (Ubuntu 18.4-0ubuntu0.26.04.1)
+-- Dumped by pg_dump version 18.4 (Ubuntu 18.4-0ubuntu0.26.04.1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -18,39 +18,21 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
---
--- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: -
---
+SET default_tablespace = '';
 
-COMMENT ON SCHEMA public IS '';
-
-
---
--- Name: pg_trgm; Type: EXTENSION; Schema: -; Owner: -
---
-
-CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
-
-
---
--- Name: EXTENSION pg_trgm; Type: COMMENT; Schema: -; Owner: -
---
-
-COMMENT ON EXTENSION pg_trgm IS 'text similarity measurement and index searching based on trigrams';
-
+SET default_table_access_method = heap;
 
 --
 -- Name: redis_queue_metrics; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.redis_queue_metrics (
-                                            event_id uuid NOT NULL,
-                                            group_id uuid,
-                                            stream_name text NOT NULL,
-                                            consumed_on timestamp with time zone NOT NULL,
-                                            processed_on timestamp with time zone NOT NULL
+    event_id uuid NOT NULL,
+    group_id uuid,
+    stream_name text NOT NULL,
+    consumed_on timestamp with time zone NOT NULL,
+    processed_on timestamp with time zone NOT NULL
 );
-
 
 --
 -- Name: redis_queue_metrics redis_queue_metrics_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -59,12 +41,16 @@ CREATE TABLE public.redis_queue_metrics (
 ALTER TABLE ONLY public.redis_queue_metrics
     ADD CONSTRAINT redis_queue_metrics_pkey PRIMARY KEY (event_id);
 
+
 --
 -- Name: idx_redis_queue_metrics_group_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_redis_queue_metrics_group_id ON public.redis_queue_metrics USING btree (group_id);
 
+
 --
 -- PostgreSQL database dump complete
 --
+
+

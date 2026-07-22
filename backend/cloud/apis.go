@@ -2,34 +2,34 @@ package cloud
 
 import "net/http"
 
-type RemoteAPIs struct {
-	GoogleAPI
+type SDKs struct {
+	GoogleSDK
 }
 
-func NewRemoteAPIs(client *http.Client) RemoteAPIs {
+func NewRemoteAPIs(client *http.Client) SDKs {
 	googleAPI, err := NewGoogleAPI("", client)
 	if err != nil {
 		panic(err)
 	}
-	return RemoteAPIs{GoogleAPI: googleAPI}
+	return SDKs{GoogleSDK: googleAPI}
 }
 
-type RemoteAPIOpt func(*RemoteAPIs)
+type RemoteAPIOpt func(*SDKs)
 
-func WithGoogleAPI(googleAPI GoogleAPI) RemoteAPIOpt {
-	return func(apis *RemoteAPIs) {
-		apis.GoogleAPI = googleAPI
+func WithGoogleAPI(googleAPI GoogleSDK) RemoteAPIOpt {
+	return func(apis *SDKs) {
+		apis.GoogleSDK = googleAPI
 	}
 }
 
 func WithGoogleIDTokenValidator(validator GoogleTokenValidator, apiKey string) RemoteAPIOpt {
-	return func(apis *RemoteAPIs) {
-		apis.GoogleAPI = GoogleAPI{validator: validator, apiKey: apiKey}
+	return func(apis *SDKs) {
+		apis.GoogleSDK = GoogleSDK{validator: validator, apiKey: apiKey}
 	}
 }
 
-func NewOptRemoteAPIs(opts ...RemoteAPIOpt) RemoteAPIs {
-	var apis RemoteAPIs
+func NewOptRemoteAPIs(opts ...RemoteAPIOpt) SDKs {
+	var apis SDKs
 	for _, opt := range opts {
 		opt(&apis)
 	}

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+set -euo pipefail
 set -x
 
 REDIS_PORTS=(6479 6480 6481 6482 6483 6484)

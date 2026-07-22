@@ -5,6 +5,7 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
+	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/errutil"
 
 	"google.golang.org/protobuf/proto"
@@ -24,7 +25,7 @@ import (
 func TestCreateTournament(t *testing.T) {
 	t.Parallel()
 
-	services, testinfra := setupServicesTest(t, &serviceMocks{Entropy: &StableEntropySource{CurrTime: itest.TimeNow}}, itest.RWPostgres)
+	services, testinfra := setupServicesTest(t, &serviceMocks{Entropy: &entropy.StableSource{CurrTime: itest.TimeNow}}, itest.RWPostgres)
 	defer testinfra.Close()
 
 	ctx := t.Context()

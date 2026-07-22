@@ -4,12 +4,13 @@ import (
 	"hexchess-svc/cloud"
 	"hexchess-svc/itest"
 	"hexchess-svc/pubsub"
+	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/logutil"
 )
 
 type serviceMocks struct {
-	Entropy     EntropyAPI
-	Remote      cloud.RemoteAPIs
+	Entropy     entropy.Generator
+	Remote      cloud.SDKs
 	S3Client    cloud.AWSClient
 	Broadcaster *pubsub.Broadcaster
 }

@@ -3,7 +3,7 @@ option go_package = "hexchess-svc/pb";
 
 package messages;
 
-// user state
+// user data state
 
 message PlayerState {
   int64 id = 1;
@@ -11,6 +11,10 @@ message PlayerState {
   string country = 3;
   double elo = 4;
   bool isGuest = 5;
+}
+
+message ChatMessages {
+  repeated ChatMessage chats = 1;
 }
 
 // chess state
@@ -96,78 +100,7 @@ message MoveHistory {
   repeated HistMove steps = 2;
 }
 
-// entities
-message LbdUser {
-  int64 id = 1;
-  string username = 2;
-  string country = 3;
-  string bio = 4;
-  string joined_on = 5;
-  double elo = 6;
-  double highest_elo = 7;
-  int32 wins = 8;
-  int32 losses = 9;
-  int32 draws = 10;
-  int64 winrate = 11;
-  int64 rank = 12;
-}
-
-message TournamentMatch {
-  int64 id = 1;
-  string game_id = 2;
-  string tournament_key = 3;
-  int64 round = 4;
-  string created_on = 5;
-  int64 white_id = 6;
-  int64 black_id = 7;
-}
-
-message MatchCreation {
-  string game_id = 1;
-  string mode = 2;
-  int64 white_id = 3;
-  int64 black_id = 4;
-}
-
-message MatchCreations {
-  repeated MatchCreation creations = 1;
-}
-
-message Challenge {
-  int64 challenger_id = 1;
-  string challenger_name = 2;
-  string challenger_country = 3;
-  double challenger_elo = 4;
-  int64 challengee_id = 5;
-  string challengee_name = 6;
-  string challengee_country = 7;
-  double challengee_elo = 8;
-  string mode = 9;
-  string start_color = 10;
-  string made_on = 11;
-}
-
-message Replay {
-  int64 id = 1;
-  int64 white_id = 2;
-  int64 black_id = 3;
-  string white_name = 4;
-  string black_name = 5;
-  string white_country = 6;
-  string black_country = 7;
-  string mode = 8;
-  string result = 9;
-  string cause = 10;
-  double win_elo_diff = 11;
-  double lose_elo_diff = 12;
-  double white_elo = 13;
-  double black_elo = 14;
-  double white_elo_diff = 15;
-  double black_elo_diff = 16;
-  string played_on = 17;
-}
-
-// transit messages
+// game ws api
 
 message Move {
   uint32 promotion = 1;
@@ -183,8 +116,6 @@ message ChatMessage {
   string sent_at = 3;
   string id = 4;
 }
-
-// game ws api
 
 message ForfeitInput {}
 
@@ -244,7 +175,23 @@ message ForfeitOutput {
 }
 
 message ReplayOutput {
-  Replay replay = 1;
+  int64 id = 1;
+  int64 white_id = 2;
+  int64 black_id = 3;
+  string white_name = 4;
+  string black_name = 5;
+  string white_country = 6;
+  string black_country = 7;
+  string mode = 8;
+  string result = 9;
+  string cause = 10;
+  double win_elo_diff = 11;
+  double lose_elo_diff = 12;
+  double white_elo = 13;
+  double black_elo = 14;
+  double white_elo_diff = 15;
+  double black_elo_diff = 16;
+  string played_on = 17;
 }
 
 message GameOutputID {
@@ -263,70 +210,6 @@ message GameOutput {
     ChatMessage chat = 7;
     UndoOutput undo = 8;
     ForfeitOutput forfeit = 9;
-    Replay replay = 10;
+    ReplayOutput replay = 10;
   }
-}
-
-// tournament ws api
-
-message MatchmakingOutput {
-  repeated TournamentMatch matches = 1;
-}
-
-message TournamentOutputID {
-  string tournament_key = 1;
-}
-
-message BeginCountdownOutput {}
-
-message StartTourneyOutput {}
-
-message TournamentOutput {
-  string tournament_key = 1;
-  oneof value {
-    ErrorOutput error = 2;
-    LbdUser participant = 3;
-    BeginCountdownOutput countdown = 4;
-    MatchmakingOutput matchmaking = 5;
-    StartTourneyOutput start = 6;
-  }
-}
-
-// sse event messages
-
-message UserMessage {
-  int64 user_id = 1;
-  oneof value {
-    Challenge challenge = 2;
-  }
-}
-
-message ChatMessages {
-  repeated ChatMessage chats = 1;
-}
-
-// job queue events
-
-message FinishGameEvent {
-  string game_id = 1;
-  ChessBoard board = 2;
-  repeated HistMove moves = 3;
-  int64 white_player = 4;
-  int64 black_player = 5;
-  string game_mode = 6;
-  string replay_result = 7;
-  string replay_cause = 8;
-}
-
-message UpdtMetadataEvent {
-  string game_id = 1;
-  int64 white_player = 2;
-  int64 black_player = 3;
-  string first_color = 4;
-  string mode = 5;
-}
-
-message AdvanceTournamentEvent {
-  string tournament_key = 1;
-  string event_id = 2; // idempotency key
 }

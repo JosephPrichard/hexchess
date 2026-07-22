@@ -101,17 +101,3 @@ export function randDate(year: number) {
     const month = String(randrange(1, 12)).padStart(2, '0');
     return `${String(year)}-${month}-${days}`;
 }
-
-function intToUUID(b: bigint) {
-  // convert to 128-bit hex string (32 hex chars, zero-padded)
-  const hex = b.toString(16).padEnd(32, '0');
-
-  // insert dashes in the 8-4-4-4-12 UUID format
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    hex.slice(12, 16),
-    hex.slice(16, 20),
-    hex.slice(20, 32),
-  ].join('-');
-}

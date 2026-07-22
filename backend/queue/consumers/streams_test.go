@@ -118,7 +118,7 @@ func TestRedisConsumer(t *testing.T) {
 			}
 
 			h := testEventHandler{cancel: cancel, wantEventCount: len(tt.wantEvents)}
-			consumer := RedisConsumer{
+			consumer := StreamConsumer{
 				ctx:        ctx,
 				redis:      testinfra.Redis.Primary,
 				querier:    testinfra.MetricsDB.Querier(),
@@ -126,13 +126,11 @@ func TestRedisConsumer(t *testing.T) {
 
 				consumeFunc: h.handleEvent,
 
-				RedisConfig: RedisConfig{
-					StreamKey:     consumingStream,
-					ConsumerGroup: "consumer-group",
-					PollCount:     8,
-					PartitionKeys: tt.partitionKeys,
-					BlockDuration: time.Millisecond,
-				},
+				streamKey:     consumingStream,
+				consumerGroup: "consumer-group",
+				pollCount:     8,
+				partitionKeys: tt.partitionKeys,
+				blockDuration: time.Millisecond,
 			}
 			consumer.Consume()
 

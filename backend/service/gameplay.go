@@ -79,7 +79,7 @@ func (services *HexchessServices) createGame(ctx context.Context, setup model.St
 		if err := services.setChessState(ctx, pipe, gameID, state, time.Now()); err != nil {
 			return serrors.New("set chess state", err, "gameID", gameID)
 		}
-		return services.redisPublisher.PublishUpdtGameEvent(ctx, pipe, mapMetadataUpdt(state))
+		return services.streamProducer.ProduceUpdtGameMetadata(ctx, pipe, mapMetadataUpdt(state))
 	})
 	return err
 }
@@ -126,7 +126,7 @@ func (services *HexchessServices) JoinGame(ctx context.Context, gameID model.Gam
 	}
 	commit := func(pipe redis.Pipeliner, state *model.ChessState) error {
 		slog.InfoContext(ctx, "committing game state when joining", "player", player.ID, "gameID", gameID)
-		return services.redisPublisher.PublishUpdtGameEvent(ctx, pipe, mapMetadataUpdt(state))
+		return services.streamProducer.ProduceUpdtGameMetadata(ctx, pipe, mapMetadataUpdt(state))
 	}
 	state, err := services.updateChessStateTxn(ctx, gameID, update, commit)
 	if state != nil {
@@ -186,7 +186,7 @@ func (services *HexchessServices) NewGameMove(ctx context.Context, gameID model.
 			result = model.BlackWin
 		}
 
-		err := services.redisPublisher.PublishFinishGameEvent(ctx, pipe, model.FinishedGame{
+		err := services.streamProducer.ProduceFinishGame(ctx, pipe, model.FinishedGame{
 			GameID:       gameID,
 			WhitePlayer:  state.WhitePlayer.ID,
 			BlackPlayer:  state.BlackPlayer.ID,
@@ -290,7 +290,7 @@ func (services *HexchessServices) EndGame(ctx context.Context, gameID model.Game
 			result = model.WhiteWin
 		}
 
-		err := services.redisPublisher.PublishFinishGameEvent(ctx, pipe, model.FinishedGame{
+		err := services.streamProducer.ProduceFinishGame(ctx, pipe, model.FinishedGame{
 			GameID:       gameID,
 			WhitePlayer:  state.WhitePlayer.ID,
 			BlackPlayer:  state.BlackPlayer.ID,

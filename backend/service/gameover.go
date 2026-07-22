@@ -65,16 +65,19 @@ func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finish
 	// step 5: publishing a tournament event is necessary to trigger advancing the game state *IF* the tournament round is finished
 	// this operation is idempotent and safe, if the tournament is not ready to be advanced, the operation noops
 	tournamentKey, err := services.querier.SelectTournamentByGameID(ctx, finishedGame.GameID.String())
-	if db.IsErrNoRows(err) {
+	switch {
+	case db.IsErrNoRows(err):
 		slog.InfoContext(ctx, "skipping send schedule tournament event", "gameID", finishedGame.GameID)
-	} else if err == nil {
+	case err != nil:
+		return serrors.New("select tournament by game id", err, "gameID", finishedGame.GameID)
+	default:
 		slog.InfoContext(ctx, "publishing schedule tournament event", "gameID", finishedGame.GameID)
 		// if two scheduled tournament events run concurrently, one will advance the tournament and the other will noop
-		if err := producers.PublishAdvanceTournamentEvent(ctx, services.querier, tournamentKey.Bytes, time.Now()); err != nil {
+		if err := services.riverProducer.ProduceAdvanceTournament(ctx, nil, producers.AdvanceTournamentArgs{
+			TournamentKey: tournamentKey.Bytes,
+		}); err != nil {
 			return serrors.New("publish scheduled tournament event", err)
 		}
-	} else {
-		return serrors.New("select tournament by game id", err, "gameID", finishedGame.GameID)
 	}
 
 	slog.InfoContext(ctx, "completed inserting finished game event", "key", finishedGame.GameID)
@@ -118,7 +121,7 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 		// User elos (E3) will be overwritten to E2, the update that progressed E1 to E3 will be lost
 		Isolation:  pgx.RepeatableRead,
 		RetryCount: 5,
-		QueryFn: func(ctx context.Context, querier primarydb.Querier) error {
+		QueryFn: func(ctx context.Context, _ pgx.Tx, querier primarydb.Querier) error {
 			// step 1: use game ID as an idempotency key to prevent persistening the same game result on retry
 			mode := primarydb.ModeEnum(result.ReplayMode.String())
 			userIDs := []int64{result.WhiteID, result.BlackID}

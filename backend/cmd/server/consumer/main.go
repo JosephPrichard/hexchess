@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"hexchess-svc/db"
-	"hexchess-svc/db/metricsdb"
-	"hexchess-svc/db/primarydb"
 	"hexchess-svc/queue/consumers"
 	svc "hexchess-svc/service"
 	"hexchess-svc/utils/config"
@@ -26,19 +24,26 @@ func main() {
 	defer shutdown()
 
 	// step 2: connect to backend infrastructure and prepare cleanup
-	primaryDB := db.NewPostgresDB(ctx, db.PoolConfig[primarydb.Querier]{
+	riverQuePool, riverQueRefresher := db.NewPostgresPool(ctx, db.PoolConfig{
 		Dsn:           cfg.PrimaryDbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
-		Factory:       db.PrimaryQuerierFactory,
 	})
-	metricsDB := db.NewPostgresDB(ctx, db.PoolConfig[metricsdb.Querier]{
+	defer riverQueRefresher.Shutdown()
+
+	primaryDB := db.NewPostgresDB(ctx, db.PrimaryQuerierFactory, db.PoolConfig{
+		Dsn:           cfg.PrimaryDbURL,
+		ActiveProfile: cfg.Profile,
+		Region:        cfg.AwsRegion,
+	})
+	defer primaryDB.Close()
+
+	metricsDB := db.NewPostgresDB(ctx, db.MetricsQuerierFactory, db.PoolConfig{
 		Dsn:           cfg.MetricsDbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
-		Factory:       db.MetricsQuerierFactory,
 	})
-	defer primaryDB.Close()
+	defer metricsDB.Close()
 
 	primaryRedis := db.NewRedis(ctx, db.RedisConfig{
 		PrimaryAddr:      cfg.RedisPrimaryNodes,
@@ -57,12 +62,14 @@ func main() {
 		PrimaryDB: primaryDB,
 		Redis:     primaryRedis,
 	})
-	consumers.StartConsumers(consumers.SetupConsumers{
-		Ctx:       ctx,
-		Services:  services,
-		PrimaryDB: primaryDB,
+	consumers.StartRedisConsumers(consumers.RedisConsumerSetup{
 		MetricsDB: metricsDB,
 		Redis:     primaryRedis,
+		Services:  services,
+	})
+	consumers.StartRiverConsumers(consumers.RiverConsumerSetup{
+		PgxPool:  riverQuePool,
+		Services: services,
 	})
 
 	if err := http.ListenAndServe(":6060", nil); err != nil {

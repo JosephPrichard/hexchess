@@ -7,28 +7,42 @@ import (
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/utils/async"
+	"hexchess-svc/utils/entropy"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/riverqueue/river"
 )
 
 type HexchessServices struct {
-	database       db.Database[primarydb.Querier]
-	querier        primarydb.Querier
+	// postgres infra
+	database      db.Database[primarydb.Querier]
+	querier       primarydb.Querier
+	riverProducer producers.RiverProducer
+	// redis infra
 	redis          db.Redis
-	aws            cloud.AWSClient
-	remote         cloud.RemoteAPIs
-	broadcaster    *pubsub.Broadcaster
-	redisPublisher producers.RedisPublisher
-	entropy        EntropyAPI
-	dispatcher     async.Dispatcher
+	streamProducer producers.StreamProducer
+	broadcaster    pubsub.Broadcaster
+	// remote and local cloud sdks / clients
+	aws  cloud.AWSClient
+	sdks cloud.SDKs
+	// non-deterministic behaviors for easy mocking
+	entropy    entropy.Generator
+	dispatcher async.Dispatcher
 }
 
 type SetupService struct {
+	// postgres infra
 	PrimaryDB   db.Database[primarydb.Querier]
+	RiverClient *river.Client[pgx.Tx]
+	// redis infra
 	Redis       db.Redis
-	AWS         cloud.AWSClient
-	Remote      cloud.RemoteAPIs
-	Entropy     EntropyAPI
-	Broadcaster *pubsub.Broadcaster
-	Dispatcher  async.Dispatcher
+	Broadcaster pubsub.Broadcaster
+	// remote and local cloud sdks / clients
+	AWS    cloud.AWSClient
+	Remote cloud.SDKs
+	// non-deterministic behaviors for easy mocking
+	Entropy    entropy.Generator
+	Dispatcher async.Dispatcher
 }
 
 func NewHexchessServices(setup SetupService) *HexchessServices {
@@ -37,20 +51,24 @@ func NewHexchessServices(setup SetupService) *HexchessServices {
 		querier = setup.PrimaryDB.Querier()
 	}
 	if setup.Entropy == nil {
-		setup.Entropy = RealEntropySource{}
+		setup.Entropy = entropy.RealSource{}
 	}
 	if setup.Dispatcher == nil {
 		setup.Dispatcher = async.AsyncDispatcher{}
 	}
 	return &HexchessServices{
-		database:       setup.PrimaryDB,
-		querier:        querier,
+		database:      setup.PrimaryDB,
+		querier:       querier,
+		riverProducer: producers.NewRiverProducer(setup.RiverClient),
+
 		redis:          setup.Redis,
-		aws:            setup.AWS,
-		remote:         setup.Remote,
-		entropy:        setup.Entropy,
-		redisPublisher: producers.NewPublisher(setup.Redis),
+		streamProducer: producers.NewPublisher(setup.Redis),
 		broadcaster:    setup.Broadcaster,
-		dispatcher:     setup.Dispatcher,
+
+		aws:  setup.AWS,
+		sdks: setup.Remote,
+
+		entropy:    setup.Entropy,
+		dispatcher: setup.Dispatcher,
 	}
 }

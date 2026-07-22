@@ -6,5 +6,5 @@ import (
 )
 
 func (services *HexchessServices) ValidateGoogleIDToken(ctx context.Context, token string) (cloud.GoogleIDTokenResp, error) {
-	return services.remote.ValidateGoogleIDToken(ctx, token)
+	return services.sdks.ValidateGoogleIDToken(ctx, token)
 }

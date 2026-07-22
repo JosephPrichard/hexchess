@@ -7,6 +7,7 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/itest"
 	"hexchess-svc/pubsub"
+	"hexchess-svc/utils/entropy"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,8 +23,8 @@ import (
 )
 
 type serviceMocks struct {
-	Entropy    svc.EntropyAPI
-	Remote     cloud.RemoteAPIs
+	Entropy    entropy.Generator
+	Remote     cloud.SDKs
 	Dispatcher async.Dispatcher
 }
 
@@ -92,7 +93,7 @@ type sseTestContext struct {
 	testinfra         itest.TestInfra
 	services          *svc.HexchessServices
 	localBroadcasters *pubsub.LocalBroadcasters
-	broadcaster       *pubsub.Broadcaster
+	broadcaster       pubsub.Broadcaster
 	testServer        *httptest.Server
 }
 
@@ -107,7 +108,7 @@ func setupSSETest(t *testing.T) sseTestContext {
 	services := svc.NewHexchessServices(svc.SetupService{
 		PrimaryDB:   testinfra.PrimaryDB,
 		Redis:       testinfra.Redis,
-		Entropy:     &svc.StableEntropySource{},
+		Entropy:     &entropy.StableSource{},
 		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
 	})
 

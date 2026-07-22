@@ -35,7 +35,7 @@ var MetricsQuerierFactory = QuerierFactory[metricsdb.Querier]{
 	},
 }
 
-type PoolConfig[Querier any] struct {
+type PoolConfig struct {
 	// (required) parseable configuration in either KV pair or postgres URL format. see pgxpool documentation.
 	Dsn string `json:"dsn"`
 	// (required) profile for application is used to turn AWS authentication on (test/prod) and off (local)
@@ -44,16 +44,14 @@ type PoolConfig[Querier any] struct {
 	Region string `json:"region"`
 	// (optional) query to send to test connectivity, defaults to "SELECT 1"
 	InitQuery string `json:"initQuery"`
-	// (required) constructs the db querier struct
-	Factory QuerierFactory[Querier] `json:"-"`
 }
 
-func NewPostgresDB[Querier any](ctx context.Context, cfg PoolConfig[Querier]) Database[Querier] {
+func NewPostgresPool(ctx context.Context, cfg PoolConfig) (*pgxpool.Pool, *PostgresTokenRefresher) {
 	if cfg.InitQuery == "" {
 		cfg.InitQuery = "SELECT 1"
 	}
 
-	slog.Info("creating postgres db client", "config", cfg)
+	slog.Info("creating postgres db pool", "config", cfg)
 
 	var refresher *PostgresTokenRefresher
 
@@ -75,11 +73,16 @@ func NewPostgresDB[Querier any](ctx context.Context, cfg PoolConfig[Querier]) Da
 		logutil.Fatal("execute postgres startup query", err)
 	}
 
-	slog.Info("created postgres db client")
+	slog.Info("created postgres db pool")
 
+	return pool, refresher
+}
+
+func NewPostgresDB[Querier any](ctx context.Context, factory QuerierFactory[Querier], cfg PoolConfig) Database[Querier] {
+	pool, refresher := NewPostgresPool(ctx, cfg)
 	return &implDB[Querier]{
-		factory:   cfg.Factory,
 		pool:      pool,
+		factory:   factory,
 		refresher: refresher,
 	}
 }

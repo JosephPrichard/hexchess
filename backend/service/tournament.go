@@ -16,6 +16,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -339,7 +340,7 @@ func (services *HexchessServices) JoinTournament(ctx context.Context, inst JoinT
 		// P2 will be appended onto P3 rather than P1, even though the validation was run against P1
 		Isolation:  pgx.Serializable,
 		RetryCount: 5,
-		QueryFn: func(ctx context.Context, querier primarydb.Querier) error {
+		QueryFn: func(ctx context.Context, _ pgx.Tx, querier primarydb.Querier) error {
 			tournamentRow, err := querier.SelectTournamentWithParticipantCountByID(ctx, pgtype.UUID{Bytes: inst.TournamentKey, Valid: true})
 			if db.IsErrNoRows(err) {
 				return ErrTournamentNotFound
@@ -408,7 +409,7 @@ func (services *HexchessServices) BeginTournamentCountdown(ctx context.Context, 
 		// We will end up with two scheduled events E1 even though the system has an invariant that only one scheduled event may exist
 		Isolation:  pgx.Serializable,
 		RetryCount: 5,
-		QueryFn: func(ctx context.Context, querier primarydb.Querier) error {
+		QueryFn: func(ctx context.Context, txn pgx.Tx, querier primarydb.Querier) error {
 			tournamentRow, err := querier.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 			if err != nil {
 				return serrors.New("select tournament by key", err, "tournamentKey", tournamentKey)
@@ -435,9 +436,10 @@ func (services *HexchessServices) BeginTournamentCountdown(ctx context.Context, 
 				return serrors.New("update tournament status", err, "tournamentKey", tournamentKey, "nextTournamentStatus", nextTournamentStatus)
 			}
 
-			scheduledOn := time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Second)
-
-			if err := producers.PublishAdvanceTournamentEvent(ctx, querier, tournamentKey, scheduledOn); err != nil {
+			if err := services.riverProducer.ProduceAdvanceTournament(ctx, txn, producers.AdvanceTournamentArgs{
+				TournamentKey: tournamentKey,
+				ScheduledOn:   time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Second),
+			}); err != nil {
 				return serrors.New("publish scheduled tournament event", err, "tournamentKey", tournamentKey)
 			}
 
@@ -480,16 +482,21 @@ func (services *HexchessServices) advanceTournament(ctx context.Context, tournam
 		// This is because only certain status transitions are legal, progression is linear / forward moving
 		Isolation:  pgx.Serializable,
 		RetryCount: 5,
-		QueryFn: func(ctx context.Context, querier primarydb.Querier) error {
-			// stage 1: check idempotency key
-			eventData, err := querier.SelectByEventID(ctx, pgtype.UUID{Bytes: eventID, Valid: true})
-			if db.IsErrNoRows(err) {
+		QueryFn: func(ctx context.Context, _ pgx.Tx, querier primarydb.Querier) error {
+			// stage 1: check event idempotency key
+			eventOutput, err := querier.SelectByEventKeyID(ctx, pgtype.UUID{Bytes: eventID, Valid: true})
+			switch {
+			case db.IsErrNoRows(err):
 				slog.InfoContext(ctx, "advance tournament: event id not consumed", "eventID", eventID)
-			} else if err != nil {
+			case err != nil:
 				return serrors.New("select by event id", err, "eventID", eventID)
-			} else {
-				matchesToCreate, err = model.UnmarshalMatchCreation(eventData)
-				return serrors.New("unmarshal match creations", err, "matchesToCreate", matchesToCreate)
+			default:
+				var matchCreations model.MatchCreations
+				if err := sonic.Unmarshal(eventOutput, &matchCreations); err != nil {
+					return serrors.New("unmarshal match creations", err, "matchesToCreate", matchesToCreate)
+				}
+				matchesToCreate = matchCreations.Creations
+				return nil
 			}
 
 			// stage 2: retrieve tournament state
@@ -571,19 +578,20 @@ func (services *HexchessServices) advanceTournament(ctx context.Context, tournam
 				}
 			}
 
-			// stage 5: insert newly created matches and publish message
+			// stage 5: insert newly created matches and insert event idempotency key
 			if err := insertTournamentMatches(ctx, querier, tournament.TournamentKey, matchmaking); err != nil {
 				return serrors.New("insert tournament matches", err, "tournamentKey", tournament.TournamentKey, "matchmaking", matchmaking)
 			}
 
-			matchesToCreate := matchmaking.NextMatches
+			matchesToCreate = matchmaking.NextMatches
 
-			if eventData, err = model.MarshalMatchCreations(matchesToCreate); err != nil {
+			eventInput, err := sonic.Marshal(model.MatchCreations{Creations: matchesToCreate})
+			if err != nil {
 				return err
 			}
-			if err := querier.InsertEvent(ctx, primarydb.InsertEventParams{
+			if err := querier.InsertEventKey(ctx, primarydb.InsertEventKeyParams{
 				ID:   pgtype.UUID{Bytes: eventID, Valid: true},
-				Data: eventData,
+				Data: eventInput,
 			}); err != nil {
 				return serrors.New("insert event with data", err, "eventID", eventID, "matchesToCreate", matchesToCreate)
 			}

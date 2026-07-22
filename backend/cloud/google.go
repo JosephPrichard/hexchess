@@ -14,20 +14,20 @@ type GoogleTokenValidator interface {
 	Validate(ctx context.Context, idToken string, audience string) (*idtoken.Payload, error)
 }
 
-type GoogleAPI struct {
+type GoogleSDK struct {
 	apiKey    string
 	validator GoogleTokenValidator
 }
 
-func NewGoogleAPI(apiKey string, client *http.Client) (GoogleAPI, error) {
+func NewGoogleAPI(apiKey string, client *http.Client) (GoogleSDK, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
 	validator, err := idtoken.NewValidator(context.Background(), idtoken.WithHTTPClient(client))
 	if err != nil {
-		return GoogleAPI{}, err
+		return GoogleSDK{}, err
 	}
-	return GoogleAPI{validator: validator, apiKey: apiKey}, nil
+	return GoogleSDK{validator: validator, apiKey: apiKey}, nil
 }
 
 type GoogleIDTokenResp struct {
@@ -37,7 +37,7 @@ type GoogleIDTokenResp struct {
 
 const UsernameClaim string = "email"
 
-func (google *GoogleAPI) ValidateGoogleIDToken(ctx context.Context, token string) (GoogleIDTokenResp, error) {
+func (google *GoogleSDK) ValidateGoogleIDToken(ctx context.Context, token string) (GoogleIDTokenResp, error) {
 	payload, err := google.validator.Validate(ctx, token, google.apiKey)
 	if err != nil {
 		return GoogleIDTokenResp{}, serrors.New("validate google id token", err, "token", token)

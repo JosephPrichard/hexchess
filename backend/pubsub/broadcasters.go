@@ -18,16 +18,16 @@ type Broadcaster struct {
 	dispatcher async.Dispatcher
 }
 
-func NewSyncBroadcaster(redis db.Redis) *Broadcaster {
-	return &Broadcaster{
+func NewSyncBroadcaster(redis db.Redis) Broadcaster {
+	return Broadcaster{
 		redis:      redis.PubSub,
 		names:      redis.RedisNames,
 		dispatcher: async.SyncDispatcher{},
 	}
 }
 
-func NewAsyncBroadcaster(redis db.Redis) *Broadcaster {
-	return &Broadcaster{
+func NewAsyncBroadcaster(redis db.Redis) Broadcaster {
+	return Broadcaster{
 		redis:      redis.PubSub,
 		names:      redis.RedisNames,
 		dispatcher: async.AsyncDispatcher{},

@@ -154,7 +154,7 @@ func (services *HexchessServices) VerifyUser(ctx context.Context, username strin
 		Isolation:    pgx.Serializable,
 		ErrAllowlist: []error{ErrTooManyLoginAttempts, ErrUserNotFound},
 		RetryCount:   3,
-		QueryFn: func(ctx context.Context, querier primarydb.Querier) error {
+		QueryFn: func(ctx context.Context, txn pgx.Tx, querier primarydb.Querier) error {
 			loginRow, err := querier.SelectLoginByName(ctx, username)
 			if db.IsErrNoRows(err) {
 				return ErrUserNotFound
@@ -170,13 +170,13 @@ func (services *HexchessServices) VerifyUser(ctx context.Context, username strin
 			}
 
 			saltedPassword := inputPassword + loginRow.Salt
-			loginErr := bcrypt.CompareHashAndPassword([]byte(loginRow.Password), []byte(saltedPassword))
 
-			if loginErr != nil {
+			err = bcrypt.CompareHashAndPassword([]byte(loginRow.Password), []byte(saltedPassword))
+			if err != nil {
 				if err := querier.IncrLoginAttempts(ctx, loginRow.ID); err != nil {
 					return serrors.New("increment user login attempts", err, "userID", loginRow.ID)
 				}
-				slog.ErrorContext(ctx, "failed to login, credentials are invalid", "username", username, "error", loginErr)
+				slog.ErrorContext(ctx, "failed to login, credentials are invalid", "username", username, "error", err)
 				return ErrUserNotFound
 			}
 

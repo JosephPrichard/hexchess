@@ -20,7 +20,7 @@ type implDB[Querier any] struct {
 
 func (db *fakeDB[Querier]) ExecTx(ctx context.Context, args TxArgs[Querier]) (err error) {
 	// a fake postgres instance is already running in a txn, noop the txn
-	return args.QueryFn(ctx, db.factory.FromTx(db.testTxn))
+	return args.QueryFn(ctx, db.testTxn, db.factory.FromTx(db.testTxn))
 }
 
 func (db *implDB[Querier]) Querier() Querier {
@@ -58,52 +58,17 @@ func (db *fakeDB[_]) Close() {
 }
 
 func (db *implDB[Querier]) ExecTx(ctx context.Context, args TxArgs[Querier]) error {
-	execTx := func(ctx context.Context, args TxArgs[Querier]) (txnErr error) {
-		if args.Isolation == "" {
-			args.Isolation = pgx.ReadCommitted
-		}
-		txn, txnErr := db.pool.BeginTx(ctx, pgx.TxOptions{
-			IsoLevel: args.Isolation,
-		})
-		if txnErr != nil {
-			return txnErr
-		}
-
-		defer func() {
-			if panicErr := recover(); panicErr != nil {
-				_ = txn.Rollback(ctx) // best-effort; we're already panicking
-				panic(panicErr)
-			}
-
-			if txnErr != nil && !isAllowlisted(txnErr, args.ErrAllowlist) {
-				if err := txn.Rollback(ctx); err != nil {
-					slog.ErrorContext(ctx, "failed to rollback txn", "error", err)
-					txnErr = err
-				}
-				return
-			}
-
-			if err := txn.Commit(ctx); err != nil {
-				slog.ErrorContext(ctx, "failed to commit txn", "error", err)
-				txnErr = err
-			}
-		}()
-
-		txnErr = args.QueryFn(ctx, db.factory.FromTx(txn))
-		return txnErr
-	}
-
 	if args.RetryCount == 0 {
 		args.RetryCount = 1
 	}
 
 	var err error
 	for i := range args.RetryCount {
-		err = execTx(ctx, args)
+		err = execTxnOnce(ctx, db.pool, db.factory, args)
 
 		if isSerializationFailure(err) {
 			slog.WarnContext(ctx, "retrying transaction", "error", err, "retry", i)
-			timeutil.Sleep(i, 2, 50*time.Millisecond)
+			timeutil.BackoffSleep(i, 2, 50*time.Millisecond)
 			continue
 		}
 		break
@@ -113,6 +78,41 @@ func (db *implDB[Querier]) ExecTx(ctx context.Context, args TxArgs[Querier]) err
 	}
 
 	return err
+}
+
+func execTxnOnce[Querier any](ctx context.Context, pool *pgxpool.Pool, factory QuerierFactory[Querier], args TxArgs[Querier]) (txnErr error) {
+	if args.Isolation == "" {
+		args.Isolation = pgx.ReadCommitted
+	}
+	txn, txnErr := pool.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: args.Isolation,
+	})
+	if txnErr != nil {
+		return txnErr
+	}
+
+	defer func() {
+		if panicErr := recover(); panicErr != nil {
+			_ = txn.Rollback(ctx) // best-effort; we're already panicking
+			panic(panicErr)
+		}
+
+		if txnErr != nil && !isAllowlisted(txnErr, args.ErrAllowlist) {
+			if err := txn.Rollback(ctx); err != nil {
+				slog.ErrorContext(ctx, "failed to rollback txn", "error", err)
+				txnErr = err
+			}
+			return
+		}
+
+		if err := txn.Commit(ctx); err != nil {
+			slog.ErrorContext(ctx, "failed to commit txn", "error", err)
+			txnErr = err
+		}
+	}()
+
+	txnErr = args.QueryFn(ctx, txn, factory.FromTx(txn))
+	return txnErr
 }
 
 func isAllowlisted(err error, allowlist []error) bool {

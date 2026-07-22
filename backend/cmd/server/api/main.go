@@ -5,7 +5,6 @@ import (
 	"hexchess-svc/cloud"
 	"hexchess-svc/controller"
 	"hexchess-svc/db"
-	"hexchess-svc/db/primarydb"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/consumers"
 	svc "hexchess-svc/service"
@@ -31,11 +30,10 @@ func main() {
 	defer shutdown()
 
 	// step 2: connect to backend infrastructure and prepare cleanup
-	primaryDB := db.NewPostgresDB(ctx, db.PoolConfig[primarydb.Querier]{
+	primaryDB := db.NewPostgresDB(ctx, db.PrimaryQuerierFactory, db.PoolConfig{
 		Dsn:           cfg.PrimaryDbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
-		Factory:       db.PrimaryQuerierFactory,
 	})
 	defer primaryDB.Close()
 

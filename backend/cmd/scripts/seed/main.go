@@ -45,6 +45,12 @@ const (
 )
 
 func main() {
+	start := time.Now()
+	ctx := context.WithValue(context.Background(), logutil.Trace, "seed-databases-script")
+
+	// step 1: parse input flags and config from script input
+	cfg := config.Load()
+
 	// parse: input data parameters to generate seeded data backend
 	t, err := time.Parse(time.DateOnly, *initialTimeGamesRaw)
 	if err != nil {
@@ -65,20 +71,14 @@ func main() {
 		log.Fatalf("challenges count is too large, must be at most %d", maxChallengesCount)
 	}
 
-	ctx := context.WithValue(context.Background(), logutil.Trace, "seed-databases-script")
-
-	cfg := config.Load()
-
-	start := time.Now()
-
+	// step 2: connect to backend infrastructure and prepare cleanup
 	shutdown := logutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
-	primaryDB := db.NewPostgresDB(ctx, db.PoolConfig[primarydb.Querier]{
+	primaryDB := db.NewPostgresDB(ctx, db.PrimaryQuerierFactory, db.PoolConfig{
 		Dsn:           cfg.PrimaryDbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
-		Factory:       db.PrimaryQuerierFactory,
 	})
 	defer primaryDB.Close()
 
@@ -94,12 +94,13 @@ func main() {
 		logutil.Fatal("flush rdb", err)
 	}
 
+	// step 3: execute the test seed script and measure results
+	services := svc.NewHexchessServices(svc.SetupService{PrimaryDB: primaryDB, Redis: primaryRedis})
+
 	var usersDuration time.Duration
 	var challengesDuration time.Duration
 	var resultsDuration time.Duration
 	var tournamentsDuration time.Duration
-
-	services := svc.NewHexchessServices(svc.SetupService{PrimaryDB: primaryDB, Redis: primaryRedis})
 
 	// root node in the foreign key hierarchy tree
 	usersStart := time.Now()
