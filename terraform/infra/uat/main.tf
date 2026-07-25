@@ -1,0 +1,8 @@
+module "infra" {
+  source = "../"
+
+  project     = "hexchess"
+  environment = "uat"
+  aws_region  = "us-east-1"
+  account_id  = ""
+}

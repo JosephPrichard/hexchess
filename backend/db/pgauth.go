@@ -2,61 +2,39 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"hexchess-svc/utils/logutil"
-	"hexchess-svc/utils/timeutil"
-	"log/slog"
-	"sync/atomic"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
+	rdsAuth "github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 	"github.com/jackc/pgx/v5"
 )
 
-const pgTokenRefreshPeriod = 10 * time.Minute
-
-type PostgresTokenRefresher struct {
-	stsClient *sts.Client
-	token     atomic.Pointer[string]
-	cancel    func()
-}
-
-func NewPgTokenRefresher(ctx context.Context, region string) *PostgresTokenRefresher {
-	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+func NewPgBeforeConnect(ctx context.Context, connCfg *pgx.ConnConfig, awsRegion string) func(ctx context.Context, cfg *pgx.ConnConfig) error {
+	awsCfg, err := config.LoadDefaultConfig(ctx,
+		config.WithRegion(awsRegion),
+		config.WithRetryMaxAttempts(5),
+		config.WithRetryMode(aws.RetryModeAdaptive),
+	)
 	if err != nil {
 		logutil.Fatal("load aws config", err)
 	}
-	refresher := &PostgresTokenRefresher{
-		stsClient: sts.NewFromConfig(awsCfg),
-	}
-	refresher.acquireToken()
-	refresher.cancel = timeutil.Schedule(pgTokenRefreshPeriod, refresher.acquireToken)
-	return refresher
-}
 
-func (refresh *PostgresTokenRefresher) acquireToken() {
-	result, err := refresh.stsClient.GetSessionToken(context.Background(), &sts.GetSessionTokenInput{})
-	if err != nil {
-		slog.Error("failed to generate postgres auth token", "error", err)
-		return
-	}
-	refresh.token.Store(result.Credentials.SecretAccessKey)
-}
-
-func (refresh *PostgresTokenRefresher) Shutdown() {
-	if refresh.cancel != nil {
-		refresh.cancel()
-	}
-}
-
-func NewBeforeConnect(refresh *PostgresTokenRefresher) func(ctx context.Context, cfg *pgx.ConnConfig) error {
 	return func(ctx context.Context, cfg *pgx.ConnConfig) error {
-		token := refresh.token.Load()
-		if token != nil {
-			cfg.Password = *token
-		} else {
-			slog.WarnContext(ctx, "before connect: token not available")
+		endpoint := fmt.Sprintf("%s:%d", connCfg.Host, connCfg.Port)
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+		defer cancel()
+
+		// does not make a network call so this is safe to do before *each* connection
+		token, err := rdsAuth.BuildAuthToken(ctx, endpoint, awsRegion, connCfg.User, awsCfg.Credentials)
+		if err != nil {
+			return fmt.Errorf("build postgres auth token: %w", err)
 		}
+
+		cfg.Password = token
 		return nil
 	}
 }

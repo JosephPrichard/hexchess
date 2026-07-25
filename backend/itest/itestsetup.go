@@ -106,7 +106,7 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 			AWSPassword: "testing",
 
 			// tests use independent buckets to enable parallel, independent tests
-			Names:         testutil.NewTestNames(cloud.DefaultAWSNames),
+			Names:         *testutil.NewTestNames(cloud.DefaultAWSNames),
 			ActiveProfile: config.Local,
 		})
 	}

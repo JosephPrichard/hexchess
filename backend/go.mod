@@ -3,9 +3,10 @@ module hexchess-svc
 go 1.25.0
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.42.1
+	github.com/aws/aws-sdk-go-v2 v1.43.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.6
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.6
+	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.6.31
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.104.2
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.5
 	github.com/brianvoe/gofakeit v3.18.0+incompatible
@@ -20,10 +21,19 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/hellofresh/health-go/v5 v5.5.5
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/montanaflynn/stats v0.10.0
+	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/redis/go-redis/v9 v9.21.0
+	github.com/riverqueue/river v0.40.0
+	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.40.0
+	github.com/riverqueue/river/rivertype v0.40.0
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.39.0
+	go.opentelemetry.io/contrib/bridges/otelslog v0.19.0
+	go.opentelemetry.io/otel v1.44.0
+	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.20.0
+	go.opentelemetry.io/otel/log v0.20.0
+	go.opentelemetry.io/otel/sdk v1.44.0
+	go.opentelemetry.io/otel/sdk/log v0.20.0
 	go.uber.org/mock v0.6.0
 	golang.org/x/crypto v0.51.0
 	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93
@@ -100,14 +110,10 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
-	github.com/riverqueue/river v0.40.0 // indirect
 	github.com/riverqueue/river/riverdriver v0.40.0 // indirect
-	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.40.0 // indirect
 	github.com/riverqueue/river/rivershared v0.40.0 // indirect
-	github.com/riverqueue/river/rivertype v0.40.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.25.6 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/tidwall/gjson v1.19.0 // indirect
@@ -119,15 +125,9 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/contrib/bridges/otelslog v0.19.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
-	go.opentelemetry.io/otel v1.44.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.20.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.19.0 // indirect
-	go.opentelemetry.io/otel/log v0.20.0 // indirect
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.44.0 // indirect
-	go.opentelemetry.io/otel/sdk/log v0.20.0 // indirect
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect

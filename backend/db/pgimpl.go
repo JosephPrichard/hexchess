@@ -39,9 +39,8 @@ func (db *fakeDB[_]) Close() {
 }
 
 type implDB[Querier any] struct {
-	factory   QuerierFactory[Querier]
-	pool      *pgxpool.Pool
-	refresher *PostgresTokenRefresher
+	factory QuerierFactory[Querier]
+	pool    *pgxpool.Pool
 }
 
 func (db *implDB[Querier]) Querier() Querier {
@@ -51,9 +50,6 @@ func (db *implDB[Querier]) Querier() Querier {
 func (db *implDB[Querier]) Close() {
 	if db.pool != nil {
 		db.pool.Close()
-	}
-	if db.refresher != nil {
-		db.refresher.Shutdown()
 	}
 }
 

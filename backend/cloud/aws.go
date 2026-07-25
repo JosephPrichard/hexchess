@@ -14,7 +14,7 @@ import (
 )
 
 var DefaultAWSNames = AWSNames{
-	S3ProfileBucket: "hexchess-profiles",
+	S3ProfileBucket: "profiles",
 }
 
 type AWSClient struct {
@@ -29,7 +29,7 @@ type AWSNames struct {
 }
 
 type AWSClientConfig struct {
-	Names         *AWSNames      `json:"names"`
+	Names         AWSNames       `json:"names"`
 	ActiveProfile config.Profile `json:"activeProfile"`
 	AWSRegion     string         `json:"awsRegion"`
 	AWSEndpoint   string         `json:"awsEndpoint"`
@@ -37,12 +37,12 @@ type AWSClientConfig struct {
 	AWSPassword   string         `json:"awsPassword"`
 }
 
-func NewAWSClients(ctx context.Context, clientCfg AWSClientConfig) AWSClient {
+func NewAWSClients(ctx context.Context, cfg AWSClientConfig) AWSClient {
 	awsOpts := []func(*awsConfig.LoadOptions) error{
-		awsConfig.WithRegion(clientCfg.AWSRegion),
+		awsConfig.WithRegion(cfg.AWSRegion),
 	}
-	if clientCfg.ActiveProfile == config.Local {
-		awsOpts = append(awsOpts, awsConfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(clientCfg.AWSUsername, clientCfg.AWSPassword, "")))
+	if cfg.ActiveProfile == config.Local {
+		awsOpts = append(awsOpts, awsConfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(cfg.AWSUsername, cfg.AWSPassword, "")))
 	}
 	awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsOpts...)
 	if err != nil {
@@ -50,22 +50,19 @@ func NewAWSClients(ctx context.Context, clientCfg AWSClientConfig) AWSClient {
 	}
 
 	s3Client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(clientCfg.AWSEndpoint)
+		o.BaseEndpoint = aws.String(cfg.AWSEndpoint)
 		o.UsePathStyle = true
 	})
 	presignClient := s3.NewPresignClient(s3Client)
 
-	if clientCfg.Names == nil {
-		clientCfg.Names = &DefaultAWSNames
-	}
 	awsClient := AWSClient{
-		S3Endpoint:    clientCfg.AWSEndpoint,
+		S3Endpoint:    cfg.AWSEndpoint,
 		S3Client:      s3Client,
 		PresignClient: presignClient,
-		AWSNames:      *clientCfg.Names,
+		AWSNames:      cfg.Names,
 	}
 
-	slog.Info("created aws client", "config", clientCfg)
+	slog.Info("created aws client", "config", cfg)
 	return awsClient
 }
 

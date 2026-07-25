@@ -26,12 +26,11 @@ func main() {
 	defer shutdown()
 
 	// step 2: connect to backend infrastructure and prepare cleanup
-	riverQuePool, riverQueRefresher := db.NewPostgresPool(ctx, db.PoolConfig{
+	riverQuePool := db.NewPostgresPool(ctx, db.PoolConfig{
 		Dsn:           cfg.PrimaryDbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
 	})
-	defer riverQueRefresher.Shutdown()
 
 	primaryDB := db.NewPostgresDB(ctx, db.PrimaryQuerierFactory, db.PoolConfig{
 		Dsn:           cfg.PrimaryDbURL,

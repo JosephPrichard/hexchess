@@ -11,10 +11,11 @@
 
 .vscode/
 
+.terraform
+
 backend/app.log
 backend/.env
 *pb.go
-backend/db/primarydb
 backend/db/primarydb
 backend/db/metricsdb
 

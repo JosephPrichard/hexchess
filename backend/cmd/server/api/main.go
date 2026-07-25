@@ -13,7 +13,6 @@ import (
 	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
-	"os"
 )
 
 const ServiceName = "hexchess-api"
@@ -24,9 +23,7 @@ func main() {
 
 	cfg := config.Load()
 
-	oltpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-
-	shutdown := logutil.InitLoggers(ServiceName, oltpEndpoint, cfg.Profile)
+	shutdown := logutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
 	// step 2: connect to backend infrastructure and prepare cleanup
@@ -51,10 +48,13 @@ func main() {
 
 	aws := cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
 		ActiveProfile: cfg.Profile,
-		AWSRegion:     cfg.AwsRegion,
-		AWSEndpoint:   cfg.AwsEndpoint,
-		AWSUsername:   cfg.AwsUsername,
-		AWSPassword:   cfg.AwsPassword,
+		Names: cloud.AWSNames{
+			S3ProfileBucket: cfg.ProfileBucket,
+		},
+		AWSRegion:   cfg.AwsRegion,
+		AWSEndpoint: cfg.AwsEndpoint,
+		AWSUsername: cfg.AwsUsername,
+		AWSPassword: cfg.AwsPassword,
 	})
 	remoteAPIs := cloud.NewRemoteAPIs(nil)
 	broadcaster := pubsub.NewAsyncBroadcaster(primaryRedis)

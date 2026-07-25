@@ -46,14 +46,12 @@ type PoolConfig struct {
 	InitQuery string `json:"initQuery"`
 }
 
-func NewPostgresPool(ctx context.Context, cfg PoolConfig) (*pgxpool.Pool, *PostgresTokenRefresher) {
+func NewPostgresPool(ctx context.Context, cfg PoolConfig) *pgxpool.Pool {
 	if cfg.InitQuery == "" {
 		cfg.InitQuery = "SELECT 1"
 	}
 
 	slog.Info("creating postgres db pool", "config", cfg)
-
-	var refresher *PostgresTokenRefresher
 
 	poolCfg, err := pgxpool.ParseConfig(cfg.Dsn)
 	if err != nil {
@@ -61,8 +59,7 @@ func NewPostgresPool(ctx context.Context, cfg PoolConfig) (*pgxpool.Pool, *Postg
 	}
 
 	if cfg.ActiveProfile != config.Local {
-		refresher := NewPgTokenRefresher(ctx, cfg.Region)
-		poolCfg.BeforeConnect = NewBeforeConnect(refresher)
+		poolCfg.BeforeConnect = NewPgBeforeConnect(ctx, poolCfg.ConnConfig, cfg.Region)
 	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
@@ -75,16 +72,12 @@ func NewPostgresPool(ctx context.Context, cfg PoolConfig) (*pgxpool.Pool, *Postg
 
 	slog.Info("created postgres db pool")
 
-	return pool, refresher
+	return pool
 }
 
 func NewPostgresDB[Querier any](ctx context.Context, factory QuerierFactory[Querier], cfg PoolConfig) Database[Querier] {
-	pool, refresher := NewPostgresPool(ctx, cfg)
-	return &implDB[Querier]{
-		pool:      pool,
-		factory:   factory,
-		refresher: refresher,
-	}
+	pool := NewPostgresPool(ctx, cfg)
+	return &implDB[Querier]{pool: pool, factory: factory}
 }
 
 func NewPrimaryDB(pool *pgxpool.Pool) Database[primarydb.Querier] {

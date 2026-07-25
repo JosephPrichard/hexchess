@@ -24,6 +24,7 @@ type Config struct {
 	AwsPassword          string
 	AllowedOrigins       string
 	OltpEndpoint         string
+	ProfileBucket        string
 }
 
 func loadDotenv() {
@@ -37,7 +38,7 @@ func loadDotenv() {
 		line := scanner.Text()
 		key, value, ok := strings.Cut(line, "=")
 		if !ok {
-			slog.Error("invalid line in .env file", nil, "line", line)
+			slog.Error("invalid line in .env file", "line", line)
 			os.Exit(1)
 		}
 		// these environment variables last until the end of this process
@@ -63,6 +64,7 @@ func loadConfig() Config {
 		AwsEndpoint:          os.Getenv("AWS_ENDPOINT"),
 		AwsUsername:          os.Getenv("AWS_USERNAME"),
 		AwsPassword:          os.Getenv("AWS_PASSWORD"),
+		ProfileBucket:        os.Getenv("PROFILE_BUCKET_NAME"),
 		AllowedOrigins:       os.Getenv("ALLOWED_ORIGINS"),
 		OltpEndpoint:         os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 	}
