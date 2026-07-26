@@ -18,7 +18,7 @@ func (services *HexchessServices) GetSession(ctx context.Context, sessionID stri
 
 	slog.InfoContext(ctx, "getting session", "sessionID", sessionID, "sessionKey", sessionKey)
 
-	bytes, err := services.redis.Primary.Get(ctx, sessionKey).Bytes()
+	bytes, err := services.redis.PrimaryClient.Get(ctx, sessionKey).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return model.PlayerState{}, ErrSessionNotFound
@@ -43,7 +43,7 @@ type SessionInst struct {
 func (services *HexchessServices) SetSessions(ctx context.Context, insts ...SessionInst) error {
 	slog.InfoContext(ctx, "setting sessions", "insts", insts)
 
-	pipe := services.redis.Primary.Pipeline()
+	pipe := services.redis.PrimaryClient.Pipeline()
 
 	for _, inst := range insts {
 		data, err := model.MarshalPlayer(inst.Player)
@@ -62,7 +62,7 @@ func (services *HexchessServices) SetSessions(ctx context.Context, insts ...Sess
 
 func (services *HexchessServices) UpdateSessionEx(ctx context.Context, sessionID string, expiry time.Duration) error {
 	sessionKey := fmtSessionKey(sessionID)
-	if err := services.redis.Primary.Expire(ctx, sessionKey, expiry).Err(); err != nil {
+	if err := services.redis.PrimaryClient.Expire(ctx, sessionKey, expiry).Err(); err != nil {
 		return serrors.New("update session expiry", err)
 	}
 	slog.InfoContext(ctx, "updated session expiry", "sessionID", sessionID)
@@ -71,7 +71,7 @@ func (services *HexchessServices) UpdateSessionEx(ctx context.Context, sessionID
 
 func (services *HexchessServices) DeleteSession(ctx context.Context, sessionID string) error {
 	sessionKey := fmtSessionKey(sessionID)
-	if err := services.redis.Primary.Del(ctx, sessionKey).Err(); err != nil {
+	if err := services.redis.PrimaryClient.Del(ctx, sessionKey).Err(); err != nil {
 		return serrors.New("delete session", err, "sessionID", sessionID)
 	}
 	slog.InfoContext(ctx, "deleted session", "sessionID", sessionID)

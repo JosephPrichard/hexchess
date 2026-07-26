@@ -18,27 +18,37 @@ variable "account_id" {
   type        = string
 }
 
-variable "name" {
+variable "database_cluster_name" {
   description = "Database name"
   type        = string
 }
 
 variable "vpc_id" {
-  type = string
+  description = "VPC the database and all clients are in"
+  type        = string
 }
 
 variable "vpc_azs" {
-  type = string
+  description = "AZs the database and all clients are in"
+  type        = list(string)
 }
 
-variable "vpc_private_subnets" {
-  type = string
+variable "database_subnets" {
+  description = "Subnets the database is in (generally the vpc database subnets)"
+  type        = list(string)
 }
 
-variable "vpc_private_subnets_cidr_blocks" {
-  type = list(string)
+variable "database_subnet_group_name" {
+  description = "Subnet group name of database_subnets"
+  type        = string
+}
+
+variable "inbound_subnets_cidr_blocks" {
+  description = "The subnets the database will be accessible from (the subnet the clients are in)"
+  type        = list(string)
 }
 
 variable "instance_class" {
-  type = string
+  description = "Performance class of the database (e.g serverless)"
+  type        = string
 }

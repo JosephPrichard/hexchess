@@ -24,6 +24,7 @@ func StartRiverConsumers(setup RiverConsumerSetup) {
 		setup.RiverConfig = &river.Config{}
 	}
 
+	setup.RiverConfig.Logger = slog.Default()
 	setup.RiverConfig.Workers = river.NewWorkers()
 
 	river.AddWorker(setup.RiverConfig.Workers, &AdvanceTournamentWorker{services: setup.Services})

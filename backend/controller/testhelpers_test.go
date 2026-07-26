@@ -155,7 +155,7 @@ func createTestSessions(t *testing.T, redis db.Redis) {
 			t.Fatalf("marshal session: %v", err)
 		}
 		sessionKey := fmt.Sprintf("session:{%s}", session.ID)
-		if err := redis.Primary.SetEx(ctx, sessionKey, data, session.Expiry).Err(); err != nil {
+		if err := redis.PrimaryClient.SetEx(ctx, sessionKey, data, session.Expiry).Err(); err != nil {
 			t.Fatalf("set session: %v", err)
 		}
 	}
@@ -184,7 +184,7 @@ func createTestChessStates(t *testing.T, redis db.Redis) {
 		if err != nil {
 			t.Fatalf("marshal chess state: %v", err)
 		}
-		if err := redis.Primary.Set(ctx, gameKey, bytes, 0).Err(); err != nil {
+		if err := redis.PrimaryClient.Set(ctx, gameKey, bytes, 0).Err(); err != nil {
 			t.Fatalf("set chess state: %v", err)
 		}
 	}
@@ -198,7 +198,7 @@ type updtLbChangeSet struct {
 
 func createLeaderboard(t *testing.T, rdb db.Redis, changes ...updtLbChangeSet) {
 	ctx := t.Context()
-	pipe := rdb.Primary.Pipeline()
+	pipe := rdb.PrimaryClient.Pipeline()
 	for _, change := range changes {
 		modeLbZSet := fmt.Sprintf("%s/mode:{%s}", rdb.LeaderboardZSet, change.Mode.String())
 		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: change.EloDiff, Member: change.ID})

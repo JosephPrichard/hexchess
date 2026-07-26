@@ -29,7 +29,7 @@ func StartRedisConsumers(setup RedisConsumerSetup) {
 	finishGameHandler := FinishedGameHandler{services: setup.Services}
 	updtGameHandler := UpdtGameMetadataHandler{services: setup.Services}
 
-	redisClient := setup.Redis.Consumer
+	redisClient := setup.Redis.ConsumerClient
 	metricQuerier := setup.MetricsDB.Querier()
 
 	finishGameConsumer := NewStreamConsumer(StreamConfig{

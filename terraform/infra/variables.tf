@@ -38,3 +38,27 @@ variable "buckets" {
     PROFILE_BUCKET = "profiles"
   }
 }
+
+variable "elasticache_node_type" {
+  description = "Node type (e.g. micro, small)"
+  type        = string
+  default     = "cache.t4g.micro"
+}
+
+variable "postgres_instance_type" {
+  description = "Instance type (e.g. large, small, serverless)"
+  type        = string
+  default     = "db.serverless"
+}
+
+variable "memorydb_node_type" {
+  description = "Node type (e.g. micro, small)"
+  type        = string
+  default     = "db.t4g.small"
+}
+
+variable "memorydb_shards" {
+  description = "Number of shards in the memorydb cluster (each has 1 replica)"
+  type        = number
+  default     = 2
+}

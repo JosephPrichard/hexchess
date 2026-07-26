@@ -8,26 +8,26 @@ import (
 )
 
 type Config struct {
-	ServerPort           string
-	PrimaryDbURL         string
-	MetricsDbURL         string
-	RedisPrimaryNodes    []string
-	RedisPrimaryUsername string
-	RedisPrimaryPassword string
-	RedisPubSubNode      string
-	RedisPubSubUsername  string
-	RedisPubsubPassword  string
-	Profile              Profile
-	AwsRegion            string
-	AwsEndpoint          string
-	AwsUsername          string
-	AwsPassword          string
-	AllowedOrigins       string
-	OltpEndpoint         string
-	ProfileBucket        string
+	ServerPort           string   `json:"serverPort"`
+	PrimaryDbURL         string   `json:"primaryDbUrl"`
+	MetricsDbURL         string   `json:"metricsDbUrl"`
+	RedisPrimaryNodes    []string `json:"redisPrimaryNodes"`
+	RedisPrimaryUsername string   `json:"redisPrimaryUsername"`
+	RedisPrimaryPassword string   `json:"_"`
+	RedisPubSubNode      string   `json:"redisPubSubNode"`
+	RedisPubSubUsername  string   `json:"redisPubSubUsername"`
+	RedisPubsubPassword  string   `json:"-"`
+	Profile              Profile  `json:"profile"`
+	AwsRegion            string   `json:"awsRegion"`
+	AwsEndpoint          string   `json:"awsEndpoint"`
+	AwsUsername          string   `json:"awsUsername"`
+	AwsPassword          string   `json:"-"`
+	AllowedOrigins       string   `json:"allowedOrigins"`
+	OltpEndpoint         string   `json:"oltpEndpoint"`
+	ProfileBucket        string   `json:"profileBucket"`
 }
 
-func loadDotenv() {
+func LoadDotenv() {
 	file, err := os.Open(".env")
 	if err != nil {
 		return
@@ -49,7 +49,7 @@ func loadDotenv() {
 }
 
 func loadConfig() Config {
-	return Config{
+	config := Config{
 		ServerPort:           os.Getenv("SERVER_PORT"),
 		PrimaryDbURL:         os.Getenv("PRIMARY_DB_URL"),
 		MetricsDbURL:         os.Getenv("METRICS_DB_URL"),
@@ -68,9 +68,14 @@ func loadConfig() Config {
 		AllowedOrigins:       os.Getenv("ALLOWED_ORIGINS"),
 		OltpEndpoint:         os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 	}
+
+	// logger must be a JSON logger to respect the password commission `json:"-"`
+	slog.Info("loaded config", "config", config)
+
+	return config
 }
 
 func Load() Config {
-	loadDotenv()
+	LoadDotenv()
 	return loadConfig()
 }

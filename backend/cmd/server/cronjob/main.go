@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
-	"flag"
+	"errors"
 	"hexchess-svc/utils/config"
 	"log/slog"
+	"os"
 	"time"
 
 	"hexchess-svc/db"
@@ -19,14 +20,14 @@ const (
 	ServiceName = "hexchess-job-runner"
 )
 
-var jobName = flag.String("job", SyncLeaderboardJobName, "job to execute")
-
 func main() {
-	ctx := context.Background()
-
-	cfg := config.Load()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
+	defer cancel()
 
 	start := time.Now()
+
+	cfg := config.Load()
+	job := os.Getenv("JOB_NAME")
 
 	shutdown := logutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
@@ -51,16 +52,25 @@ func main() {
 		Redis:     primaryRedis,
 	})
 
-	switch *jobName {
+	var err error
+
+	switch job {
 	case SyncLeaderboardJobName:
-		if err := services.SyncLeaderboard(ctx); err != nil {
-			logutil.Fatal("failed to execute sync leaderboard job", err)
-		}
-		slog.InfoContext(ctx, "finished syncing leaderboard job", "timeTaken", time.Since(start).String())
+		err = services.SyncLeaderboard(ctx)
 	case ClearS3OrphansJobName:
-		services.ClearOrphanFiles(ctx, svc.PageLength)
-		slog.InfoContext(ctx, "finished clear s3 orphans job", "timeTaken", time.Since(start).String())
+		err = services.ClearOrphanFiles(ctx, svc.PageLength)
 	default:
-		logutil.Fatal("unknown job", nil, "job", *jobName)
+		logutil.Fatal("unknown job", nil, "job", job)
+	}
+
+	timeTaken := time.Since(start)
+
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		slog.Info("job execution timed out", "job", job, "timeTaken", timeTaken)
+	case err != nil:
+		logutil.Fatal("execute job", err, "job", job, "timeTaken", timeTaken)
+	default:
+		slog.Info("successfully executed job", "job", job, "timeTaken", timeTaken)
 	}
 }

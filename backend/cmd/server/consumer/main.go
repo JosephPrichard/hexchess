@@ -10,8 +10,6 @@ import (
 	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
-
-	"github.com/riverqueue/river"
 )
 
 const ServiceName = "hexchess-consumer"
@@ -47,12 +45,14 @@ func main() {
 	defer metricsDB.Close()
 
 	primaryRedis := db.NewRedis(ctx, db.RedisConfig{
-		PrimaryAddr:      cfg.RedisPrimaryNodes,
-		PrimaryUsername:  cfg.RedisPrimaryUsername,
-		PrimaryPassword:  cfg.RedisPrimaryPassword,
-		PubsubAddr:       cfg.RedisPubSubNode,
-		PubsubUsername:   cfg.RedisPubSubUsername,
-		PubsubPassword:   cfg.RedisPubsubPassword,
+		PrimaryAddr:     cfg.RedisPrimaryNodes,
+		PrimaryUsername: cfg.RedisPrimaryUsername,
+		PrimaryPassword: cfg.RedisPrimaryPassword,
+
+		PubsubAddr:     cfg.RedisPubSubNode,
+		PubsubUsername: cfg.RedisPubSubUsername,
+		PubsubPassword: cfg.RedisPubsubPassword,
+
 		ActiveProfile:    cfg.Profile,
 		ConsumerPoolSize: consumers.TotalPartitionCount,
 	})
@@ -71,9 +71,6 @@ func main() {
 	consumers.StartRiverConsumers(consumers.RiverConsumerSetup{
 		PgxPool:  riverQuePool,
 		Services: services,
-		RiverConfig: &river.Config{
-			Logger: slog.Default(),
-		},
 	})
 
 	if err := http.ListenAndServe(":6060", nil); err != nil {

@@ -1,54 +1,51 @@
 locals {
-  vpcprefix = "${var.project}-${var.environment}"
+  vpcprefix = var.project
+
+  serverlessv2_scaling_configuration = {
+    min_capacity = 0.5
+    max_capacity = 1.0
+  }
 }
 
 module "aurora_postgresql" {
   source  = "terraform-aws-modules/rds-aurora/aws"
   version = "~> 10.0"
 
-  name           = "${local.vpcprefix}-${var.name}"
+  name           = "${local.vpcprefix}-${var.database_cluster_name}"
   engine         = "aurora-postgresql"
   engine_version = "17.5"
 
   vpc_id               = var.vpc_id
   availability_zones   = var.vpc_azs
-  subnets              = var.vpc_private_subnets # database is accessible from private subnet only
+  subnets              = var.database_subnets # the subnet the database is in
+  db_subnet_group_name = var.database_subnet_group_name
 
-  security_group_ingress_rules = {
-    private-az1 = {
-      cidr_ipv4 = var.vpc_private_subnets_cidr_blocks[0]
-    }
-    private-az2 = {
-      cidr_ipv4 = var.vpc_private_subnets_cidr_blocks[1]
-    }
-    private-az3 = {
-      cidr_ipv4 = var.vpc_private_subnets_cidr_blocks[2]
+  enable_http_endpoint = true # enables specific queries only from authorized users (such as aws console)
+
+  security_group_ingress_rules = { # the subnets the database is accessible from
+    for idx, cidr in var.inbound_subnets_cidr_blocks :
+    "private-az${idx + 1}" => {
+      cidr_ipv4 = cidr
     }
   }
 
+  engine_mode    = var.instance_class == "db.serverless" ? "provisioned" : null
+  cluster_instance_class = var.instance_class
+  serverlessv2_scaling_configuration = var.instance_class == "db.serverless" ? local.serverlessv2_scaling_configuration : null
+
   instances = {
-    1 = {
-      instance_class          = var.instance_class
-      db_parameter_group_name = "default.aurora-postgresql17"
-    }
-    2 = {
-      instance_class          = var.instance_class
-      db_parameter_group_name = "default.aurora-postgresql17"
-    }
-    3 = {
-      instance_class          = var.instance_class
-      db_parameter_group_name = "default.aurora-postgresql17"
-    }
+    1 = {}
+    2 = {}
   }
 
   master_username             = "dbadmin"
   manage_master_user_password = true
 
-  storage_encrypted            = true
+  storage_encrypted            = var.environment == "prod" ? true : false
   deletion_protection          = var.environment == "prod" ? true : false
   skip_final_snapshot          = var.environment != "prod"
   final_snapshot_identifier    = "${local.vpcprefix}-final-snapshot"
-  backup_retention_period      = var.environment == "prod" ? 30 : 0
+  backup_retention_period      = var.environment == "prod" ? 30 : 1
   preferred_backup_window      = "03:00-04:00"
   preferred_maintenance_window = "sun:04:30-sun:05:30"
   apply_immediately            = var.environment != "prod"
@@ -64,51 +61,22 @@ module "aurora_postgresql" {
   }
 }
 
-# Access roles for Postgres
+# Polices for Postgres
 # Each of these corresponds to a database user, which must be created with the same name within AWS ADMIN CONSOLE
-# An app access the database user by assuming the role
+# An app can act as the database user by assuming the role
+# To properly create ROLES and DATABASES, use the /scripts/init_database*.sql scripts
+
 locals {
-  db_roles = [
-    {
-      name           = "db_migrator"
-      assume_service = "ecs-tasks.amazonaws.com"
-    },
-    {
-      name           = "db_readwrite"
-      assume_service = "ecs-tasks.amazonaws.com"
-    }
+  db_users = [
+    { name = "db_migrator" },
+    { name = "db_readwrite" }
   ]
 }
 
-resource "aws_iam_role" "db_role" {
-  for_each = { for r in local.db_roles : r.name => r }
+resource "aws_iam_policy" "db_role_policy_connect" {
+  for_each = { for r in local.db_users : r.name => r }
 
-  name = "${local.vpcprefix}-${each.value.name}"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = each.value.assume_service
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-
-  tags = {
-    Environment = var.environment
-    Project     = var.project
-  }
-}
-
-resource "aws_iam_role_policy" "db_role_connect" {
-  for_each = { for r in local.db_roles : r.name => r }
-
-  name = "${local.vpcprefix}-${each.value.name}-connect"
-  role = aws_iam_role.db_role[each.key].id
+  name = "${local.vpcprefix}-${var.database_cluster_name}-${each.value.name}-connect"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -116,11 +84,14 @@ resource "aws_iam_role_policy" "db_role_connect" {
       {
         Sid      = "AuroraIamDbAuth"
         Effect   = "Allow"
+        # Allows for CONNECT, it is USER the role is linked to in the database that allows for access permissions
         Action   = ["rds-db:connect"]
         Resource = [
+          # ${each.value.name} is the USER name in the database for this policy
           "arn:aws:rds-db:${var.aws_region}:${var.account_id}:dbuser:${module.aurora_postgresql.cluster_resource_id}/${each.value.name}"
         ]
       }
     ]
   })
 }
+

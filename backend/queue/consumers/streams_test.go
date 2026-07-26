@@ -113,14 +113,14 @@ func TestRedisConsumer(t *testing.T) {
 					Stream: tt.inputStream,
 					Values: event,
 				}
-				err := testinfra.Redis.Primary.XAdd(ctx, xArgs).Err()
+				err := testinfra.Redis.PrimaryClient.XAdd(ctx, xArgs).Err()
 				require.NoError(t, err)
 			}
 
 			h := testEventHandler{cancel: cancel, wantEventCount: len(tt.wantEvents)}
 			consumer := StreamConsumer{
 				ctx:        ctx,
-				redis:      testinfra.Redis.Primary,
+				redis:      testinfra.Redis.PrimaryClient,
 				querier:    testinfra.MetricsDB.Querier(),
 				dispatcher: async.SyncDispatcher{},
 

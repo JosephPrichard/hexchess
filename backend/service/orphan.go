@@ -2,6 +2,7 @@ package svc
 
 import (
 	"context"
+	"errors"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"sync"
@@ -13,10 +14,8 @@ import (
 
 const PageLength = 1000
 
-func (services *HexchessServices) ClearOrphanFiles(ctx context.Context, pageLength int32) {
-	var wg sync.WaitGroup
-
-	for _, config := range []RemoveOrphansOpts{
+func (services *HexchessServices) ClearOrphanFiles(ctx context.Context, pageLength int32) error {
+	configs := []RemoveOrphansOpts{
 		{
 			Bucket:     services.aws.S3ProfileBucket,
 			Prefix:     ProfilePicPrefix,
@@ -24,15 +23,25 @@ func (services *HexchessServices) ClearOrphanFiles(ctx context.Context, pageLeng
 			parseID:    ParseProfilePicKey,
 			selectIDs:  services.querier.SelectExistsUsersByIDs,
 		},
-	} {
+	}
+
+	var wg sync.WaitGroup
+
+	errs := make([]error, len(configs))
+
+	for i, config := range configs {
 		wg.Go(func() {
-			if err := services.removeOrphanedObjects(ctx, config); err != nil {
+			err := services.removeOrphanedObjects(ctx, config)
+			if err != nil {
 				slog.ErrorContext(ctx, "failed to remove orphaned objects", "config", config, "error", err)
 			}
+			errs[i] = err
 		})
 	}
 
 	wg.Wait()
+
+	return errors.Join(errs...)
 }
 
 type RemoveOrphansOpts struct {

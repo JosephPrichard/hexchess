@@ -45,29 +45,29 @@ var DefaultRedisNames = RedisNames{
 }
 
 type Redis struct {
-	Primary    redis.UniversalClient
-	Consumer   redis.UniversalClient
-	PubSub     *redigo.Pool
-	PubsubAddr string `json:"pubsubAddr"`
+	PrimaryClient  redis.UniversalClient
+	ConsumerClient redis.UniversalClient
+	PubSubClient   *redigo.Pool
+	PubsubAddr     string `json:"pubsubAddr"`
 	RedisNames
 }
 
 func (rdb *Redis) Close() {
-	if rdb.Primary != nil {
-		rdb.Primary.Close()
+	if rdb.PrimaryClient != nil {
+		rdb.PrimaryClient.Close()
 	}
-	if rdb.PubSub != nil {
-		rdb.PubSub.Close()
+	if rdb.PubSubClient != nil {
+		rdb.PubSubClient.Close()
 	}
 }
 
 type RedisConfig struct {
-	// (required) URL(s) to connect to Primary cluter and Pubsub cluster. Primary must contain each node in the cluster. Pubsub is one node in the cluster.
+	// (required) URL(s) to connect to Primary cluster and Pubsub cluster. Primary must contain each node in the cluster. Pubsub is one node in the cluster.
 	PrimaryAddr []string `json:"primaryAddr"`
 	PubsubAddr  string   `json:"pubsubAddr"`
 
 	// (optional) since consumers block an entire connection while reading
-	// we need a seperate pool with the pool size set to the expected number of consumers = (streams * partitions_per_steam)
+	// we need a separate pool with the pool size set to the expected number of consumers = (streams * partitions_per_steam)
 	// defaults to the redis connection pool default which is not suitable for the game events usecase
 	ConsumerPoolSize int `json:"consumerPoolSize"`
 
@@ -114,22 +114,25 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 
 	primaryRedisClient := redis.NewUniversalClient(&redis.UniversalOptions{
 		Addrs:               redisCfg.PrimaryAddr,
-		DialTimeout:         3 * time.Second,
-		ReadTimeout:         3 * time.Second,
-		WriteTimeout:        3 * time.Second,
+		DialTimeout:         5 * time.Second,
+		ReadTimeout:         5 * time.Second,
+		WriteTimeout:        5 * time.Second,
 		MaxRedirects:        10,
 		CredentialsProvider: primaryCredsProvider,
 	})
 
-	consumerRedisClient := redis.NewUniversalClient(&redis.UniversalOptions{
-		Addrs:               redisCfg.PrimaryAddr,
-		PoolSize:            redisCfg.ConsumerPoolSize,
-		DialTimeout:         3 * time.Second,
-		ReadTimeout:         3 * time.Second,
-		WriteTimeout:        3 * time.Second,
-		MaxRedirects:        10,
-		CredentialsProvider: primaryCredsProvider,
-	})
+	var consumerRedisClient redis.UniversalClient
+	if redisCfg.ConsumerPoolSize > 0 {
+		consumerRedisClient = redis.NewUniversalClient(&redis.UniversalOptions{
+			Addrs:               redisCfg.PrimaryAddr,
+			PoolSize:            redisCfg.ConsumerPoolSize,
+			DialTimeout:         5 * time.Second,
+			ReadTimeout:         5 * time.Second,
+			WriteTimeout:        5 * time.Second,
+			MaxRedirects:        10,
+			CredentialsProvider: primaryCredsProvider,
+		})
+	}
 
 	var pubsubPool *redigo.Pool
 	if redisCfg.PubsubAddr != "" {
@@ -154,10 +157,10 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 	slog.Info("created redis client", "redisClientKind", fmt.Sprintf("%T", primaryRedisClient))
 
 	return Redis{
-		Primary:    primaryRedisClient,
-		Consumer:   consumerRedisClient,
-		PubSub:     pubsubPool,
-		RedisNames: *redisCfg.Names,
-		PubsubAddr: redisCfg.PubsubAddr,
+		PrimaryClient:  primaryRedisClient,
+		ConsumerClient: consumerRedisClient,
+		PubSubClient:   pubsubPool,
+		RedisNames:     *redisCfg.Names,
+		PubsubAddr:     redisCfg.PubsubAddr,
 	}
 }

@@ -50,8 +50,10 @@ func NewAWSClients(ctx context.Context, cfg AWSClientConfig) AWSClient {
 	}
 
 	s3Client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(cfg.AWSEndpoint)
-		o.UsePathStyle = true
+		if cfg.AWSEndpoint != "" {
+			o.BaseEndpoint = aws.String(cfg.AWSEndpoint)
+			o.UsePathStyle = true
+		}
 	})
 	presignClient := s3.NewPresignClient(s3Client)
 

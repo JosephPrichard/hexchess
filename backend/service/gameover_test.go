@@ -117,7 +117,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			require.NoError(t, err)
 
 			modeLbZSet := fmtLeaderboardZSet(testinfra.Redis, tt.event.ReplayMode.String())
-			leaderboard, err := services.redis.Primary.ZRevRange(ctx, modeLbZSet, 0, 2).Result()
+			leaderboard, err := services.redis.PrimaryClient.ZRevRange(ctx, modeLbZSet, 0, 2).Result()
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantLeaderboard, leaderboard)

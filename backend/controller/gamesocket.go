@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-svc/utils/logutil"
-	"hexchess-svc/utils/errutil"
-	"hexchess-svc/utils/serrors"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/errutil"
+	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -57,7 +57,7 @@ func (api *API) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	close := func() {
-		// note: both close operations are idempotent.
+		// note(Joseph): both close operations are idempotent.
 		defer api.broadcasters.Games.Unsubscribe(gameID, subChan) // send close signal to writer
 		defer conn.Close()                                        // send close signal to reader
 	}
@@ -199,7 +199,7 @@ func (api *API) handleGameMessage(ctx GameSocketContext, input message) {
 		return
 	}
 
-	ctx.Context =  context.WithValue(ctx.Context, logutil.MessageID, pbInput.MessageId)
+	ctx.Context = context.WithValue(ctx.Context, logutil.MessageID, pbInput.MessageId)
 
 	slog.InfoContext(ctx, "received game input", "pbInputType", fmt.Sprintf("%T", &pbInput), "pbInput", &pbInput)
 

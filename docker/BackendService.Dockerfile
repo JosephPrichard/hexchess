@@ -31,4 +31,6 @@ FROM alpine:latest AS runner
 COPY --from=builder /bin/app ./app
 
 EXPOSE 8080
-CMD ["./app"]
+
+# ENTRYPOINT allows CLI arguments to be injected from the caller
+ENTRYPOINT ["./app"]

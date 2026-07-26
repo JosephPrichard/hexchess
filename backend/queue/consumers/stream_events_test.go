@@ -54,7 +54,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	}
 
 	publisher := producers.NewPublisher(testinfra.Redis)
-	err := publisher.ProduceFinishGame(ctx, testinfra.Redis.Primary, finishedGame)
+	err := publisher.ProduceFinishGame(ctx, testinfra.Redis.PrimaryClient, finishedGame)
 	require.NoError(t, err)
 
 	handler := FinishedGameHandler{services: services}
@@ -62,7 +62,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	consumer := StreamConsumer{
 		ctx:         consumerCtx,
 		cancel:      cancel,
-		redis:       testinfra.Redis.Primary,
+		redis:       testinfra.Redis.PrimaryClient,
 		consumeFunc: handler.Handle,
 
 		querier:    testinfra.MetricsDB.Querier(),
@@ -123,7 +123,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	}
 
 	publisher := producers.NewPublisher(testinfra.Redis)
-	err := publisher.ProduceUpdtGameMetadata(ctx, testinfra.Redis.Primary, updtGame)
+	err := publisher.ProduceUpdtGameMetadata(ctx, testinfra.Redis.PrimaryClient, updtGame)
 	require.NoError(t, err)
 
 	handler := UpdtGameMetadataHandler{services: services}
@@ -131,7 +131,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	consumer := StreamConsumer{
 		ctx:         consumerCtx,
 		cancel:      cancel,
-		redis:       testinfra.Redis.Primary,
+		redis:       testinfra.Redis.PrimaryClient,
 		consumeFunc: handler.Handle,
 
 		querier:    testinfra.MetricsDB.Querier(),

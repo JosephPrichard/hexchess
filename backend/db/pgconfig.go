@@ -7,6 +7,7 @@ import (
 	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/logutil"
 	"log/slog"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -57,6 +58,8 @@ func NewPostgresPool(ctx context.Context, cfg PoolConfig) *pgxpool.Pool {
 	if err != nil {
 		logutil.Fatal("parse postgres config", err)
 	}
+
+	poolCfg.ConnConfig.ConnectTimeout = 10 * time.Second
 
 	if cfg.ActiveProfile != config.Local {
 		poolCfg.BeforeConnect = NewPgBeforeConnect(ctx, poolCfg.ConnConfig, cfg.Region)

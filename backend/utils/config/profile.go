@@ -1,6 +1,9 @@
 package config
 
-import "fmt"
+import (
+	"fmt"
+	"log/slog"
+)
 
 type Profile int
 
@@ -18,6 +21,8 @@ func ParseProfile(s string) Profile {
 			return Profile(i)
 		}
 	}
+
+	slog.Info("defaulting to local profile")
 	return Local
 }
 

@@ -6,7 +6,6 @@ import (
 	"hexchess-svc/controller"
 	"hexchess-svc/db"
 	"hexchess-svc/pubsub"
-	"hexchess-svc/queue/consumers"
 	svc "hexchess-svc/service"
 	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/logutil"
@@ -35,14 +34,15 @@ func main() {
 	defer primaryDB.Close()
 
 	primaryRedis := db.NewRedis(ctx, db.RedisConfig{
-		PrimaryAddr:      cfg.RedisPrimaryNodes,
-		PrimaryUsername:  cfg.RedisPrimaryUsername,
-		PrimaryPassword:  cfg.RedisPrimaryPassword,
-		PubsubAddr:       cfg.RedisPubSubNode,
-		PubsubUsername:   cfg.RedisPubSubUsername,
-		PubsubPassword:   cfg.RedisPubsubPassword,
-		ActiveProfile:    cfg.Profile,
-		ConsumerPoolSize: consumers.TotalPartitionCount,
+		PrimaryAddr:     cfg.RedisPrimaryNodes,
+		PrimaryUsername: cfg.RedisPrimaryUsername,
+		PrimaryPassword: cfg.RedisPrimaryPassword,
+
+		PubsubAddr:     cfg.RedisPubSubNode,
+		PubsubUsername: cfg.RedisPubSubUsername,
+		PubsubPassword: cfg.RedisPubsubPassword,
+
+		ActiveProfile: cfg.Profile,
 	})
 	defer primaryRedis.Close()
 

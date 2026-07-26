@@ -37,17 +37,17 @@ Runs the functional testing and non-functional testing suite.
 
 Run a Migration (up)
 
-`cd database && goose up`
+`cd migrations && goose up`
 
 Run a Migration (down)
 
-`cd database && goose down`
+`cd migrations && goose down`
 
 ### Env Variables
 
 Create an environment variable file in `backend`
 ```
-SERVER_PORT=8081
+SERVER_PORT=8080
 PRIMARY_DB_URL=postgresql://postgres:<password>@localhost:5432/hexchess
 REDIS_SOR_NODES=localhost:6479,localhost:6480,localhost:6481,localhost:6482,localhost:6483,localhost:6484
 REDIS_PUBSUB_NODE=localhost:6579

@@ -90,7 +90,7 @@ func main() {
 	})
 	defer primaryRedis.Close()
 
-	if err := primaryRedis.Primary.FlushAll(ctx).Err(); err != nil {
+	if err := primaryRedis.PrimaryClient.FlushAll(ctx).Err(); err != nil {
 		logutil.Fatal("flush rdb", err)
 	}
 
@@ -202,7 +202,7 @@ func generateChallengeInsts() []svc.ChallengeInst {
 	var insts []svc.ChallengeInst
 	for range *challengesCount {
 		// generate two challenges that are unique, this is done by retrying if a duplicate is found.
-		// note: we assume the number of users is large enough to avoid duplicates
+		// note(Joseph): we assume the number of users is large enough to avoid duplicates
 
 		var challengeSet = map[string]struct{}{}
 		var challengerID, challengeeID int64
@@ -298,7 +298,7 @@ func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts 
 			if err != nil {
 				return fmt.Errorf("insert game result: %w", err)
 			}
-			// note: remember to insert the move history - it exists outside the game result tx
+			// note(Joseph): remember to insert the move history - it exists outside the game result tx
 			if err = services.UpsertReplayMoveHistories(ctx, changeSet.ReplayID, moveHistBlob); err != nil {
 				return fmt.Errorf("insert replay move histories: %w", err)
 			}

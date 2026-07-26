@@ -39,7 +39,7 @@ func TestBroadcastMessage(t *testing.T) {
 	subChan := make(chan []byte, wantMsgCount)
 	localBroadcasters.Games.Subscribe("1", subChan)
 
-	// note: there's a small race condition here where psc.Subscribe in ListenGameMessages may not observe broadcasts from "PUBLISH"
+	// note(Joseph): there's a small race condition here where psc.Subscribe in ListenGameMessages may not observe broadcasts from "PUBLISH"
 	// this is true even though psc.Subscribe is called temporarily before "PUBLISH" so the race condition is redis-side and unavoidable
 	time.Sleep(500 * time.Millisecond)
 

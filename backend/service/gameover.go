@@ -39,30 +39,20 @@ func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finish
 	if err != nil {
 		return serrors.New("marshal move histories", err)
 	}
-	// note: this happens outside the transaction, so we do need to hold a lock for an expended period of time.
+	// note(Joseph): this happens outside the transaction, so we do need to hold a lock for an expended period of time.
 	if err := services.UpsertReplayMoveHistories(ctx, changeSet.ReplayID, moveHistBlob); err != nil {
 		return serrors.New("insert replay move histories", err)
 	}
 
-	// step 3: write through the new updates into the cache, this can run outside a transaction because we have a batch job to recover the update to the cache.
-	if err := services.incrLeaderboard(ctx,
-		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
-		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
-	); err != nil {
-		return serrors.New("incr leaderboard", err, "changeSet", changeSet)
-	}
-
-	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", changeSet, "room", finishedGame.GameID)
-
-	// step 4: notify any subscribers of the game that replay has been created (game has ended)
-	// note: replay is selected in a separate query outside transaction to avoid holding locks. this involves performing more disk IO.
+	// step 3: notify any subscribers of the game that replay has been created (game has ended)
+	// note(Joseph): replay is selected in a separate query outside transaction to avoid holding locks. this involves performing more disk IO.
 	replay, err := services.GetReplay(ctx, changeSet.ReplayID)
 	if err != nil {
 		return serrors.New("get replay by id", err, "replayID", changeSet.ReplayID)
 	}
 	services.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(model.ReplayGameOutput{GameID: finishedGame.GameID, Replay: replay}))
 
-	// step 5: publishing a tournament event is necessary to trigger advancing the game state *IF* the tournament round is finished
+	// step 4: publishing a tournament event is necessary to trigger advancing the game state *IF* the tournament round is finished
 	// this operation is idempotent and safe, if the tournament is not ready to be advanced, the operation noops
 	tournamentKey, err := services.querier.SelectTournamentByGameID(ctx, finishedGame.GameID.String())
 	switch {
@@ -79,6 +69,17 @@ func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finish
 			return serrors.New("publish scheduled tournament event", err)
 		}
 	}
+
+	// step 5: write through the new updates into the cache, this can run outside a transaction because we have a batch job to recover the update to the cache.
+	// note(Joseph): this operation is NOT idempotent, so it MUST be the last operation. once completed, we expect to ack immediately
+	if err := services.incrLeaderboard(ctx,
+		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
+		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
+	); err != nil {
+		return serrors.New("incr leaderboard", err, "changeSet", changeSet)
+	}
+
+	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", changeSet, "room", finishedGame.GameID)
 
 	slog.InfoContext(ctx, "completed inserting finished game event", "key", finishedGame.GameID)
 	return nil

@@ -14,6 +14,13 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 )
 
+func init() {
+	stderrHandler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})
+	slog.SetDefault(slog.New(stderrHandler))
+}
+
 func InitLoggers(name string, oltpEndpoint string, activeProfile config.Profile) func() {
 	stderrHandler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelInfo,

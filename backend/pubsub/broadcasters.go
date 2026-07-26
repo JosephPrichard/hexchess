@@ -20,7 +20,7 @@ type Broadcaster struct {
 
 func NewSyncBroadcaster(redis db.Redis) Broadcaster {
 	return Broadcaster{
-		redis:      redis.PubSub,
+		redis:      redis.PubSubClient,
 		names:      redis.RedisNames,
 		dispatcher: async.SyncDispatcher{},
 	}
@@ -28,7 +28,7 @@ func NewSyncBroadcaster(redis db.Redis) Broadcaster {
 
 func NewAsyncBroadcaster(redis db.Redis) Broadcaster {
 	return Broadcaster{
-		redis:      redis.PubSub,
+		redis:      redis.PubSubClient,
 		names:      redis.RedisNames,
 		dispatcher: async.AsyncDispatcher{},
 	}
