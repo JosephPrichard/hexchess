@@ -88,6 +88,7 @@ resource "aws_ecs_task_definition" "app" {
 
 # CloudWatch Log Group
 resource "aws_cloudwatch_log_group" "app" {
-  name              = "/aws/ecs/${var.project}/${var.app_name}/${trimprefix(var.image_tag, "sha256:", )}"
+  // /${trimprefix(var.image_tag, "sha256:", )}
+  name              = "/aws/ecs/${var.project}/${var.app_name}"
   retention_in_days = 1 # We should be using Loki for long term log storage
 }

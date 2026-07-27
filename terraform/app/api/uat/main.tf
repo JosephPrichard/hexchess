@@ -1,44 +1,11 @@
-terraform {
-  required_version = "1.15.8"
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "6.56.0"
-    }
-  }
-
-  backend "s3" {
-    bucket       = "hexchess-app-api-tfstate-bucket"
-    key          = "terraform.tfstate"
-    region       = "us-east-1"
-    use_lockfile = true
-    encrypt      = true
-  }
-}
-
-provider "aws" {
-  region = "us-east-1"
-
-  default_tags {
-    tags = {
-      Project     = "hexchess-app-api"
-      Environment = "uat"
-      ManagedBy   = "terraform"
-    }
-  }
-}
-
 variable "commit_sha" {
   description = "Commit SHA for this specific deployment"
   type        = string
 }
 
-data "aws_availability_zones" "available" {
-  state = "available"
+locals {
+  infra = data.terraform_remote_state.infra.outputs
 }
-
-data "aws_caller_identity" "current" {}
 
 module "main" {
   source = "../../modules/service"
@@ -57,13 +24,13 @@ module "main" {
   base_priority = 100
   path_patterns = ["*/api*"]
 
-  vpc_id              = "vpc-09a4a25397617780e"
-  alb_listener_arn    = "arn:aws:elasticloadbalancing:us-east-1:938864279852:listener/app/hexchess-alb/3ccbeba32ca3949b/4982eed784008b9f"
-  cluster_arn         = "arn:aws:ecs:us-east-1:938864279852:cluster/hexchess-cluster"
-  private_subnets_ids = ["subnet-07474f65485856165", "subnet-09119a2f7d080cccb", "subnet-0a7b59d16bf62c7bf"]
-  security_group_id   = "sg-0328d917c1e1397b7"
-  execution_role_arn  = "arn:aws:iam::938864279852:role/hexchess-ecs-execution-role"
-  task_role_arn       = "arn:aws:iam::938864279852:role/hexchess-ecs-task-app-role"
+  vpc_id              = local.infra.vpc_id
+  private_subnets_ids = local.infra.private_subnets_ids
+  cluster_arn         = local.infra.cluster_arn
+  alb_listener_arn    = local.infra.alb_listener_arn
+  security_group_id   = local.infra.listener_security_group_id
+  execution_role_arn  = local.infra.ecs_task_execution_role_arn
+  task_role_arn       = local.infra.ecs_task_app_role_arn
 
   container_image = "938864279852.dkr.ecr.us-east-1.amazonaws.com/releases/hexchess/api"
   image_tag       = var.commit_sha
@@ -84,7 +51,7 @@ module "main" {
 
     PROFILE_BUCKET_NAME: "hexchess-profiles",
 
-    # Replace this with Route53 hostname
+    # Replace this with Route53 hostname of frontend
     ALLOWED_ORIGINS: "http://localhost:5173",
 
     ACTIVE_PROFILE: "test"

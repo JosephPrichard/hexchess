@@ -1,5 +1,5 @@
 module "infra" {
-  source = "../"
+  source = "../global"
 
   project     = "hexchess"
   environment = "uat"

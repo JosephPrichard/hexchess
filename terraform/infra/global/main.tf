@@ -25,7 +25,7 @@ module "vpc" {
 
 # Aurora Postgres
 module "sor-db" {
-  source = "./modules/database"
+  source = "../modules/database"
 
   database_cluster_name = "sor" # system of record
 

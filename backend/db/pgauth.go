@@ -33,10 +33,6 @@ func NewPgBeforeConnect(ctx context.Context, connCfg *pgx.ConnConfig, awsRegion 
 		if err != nil {
 			return fmt.Errorf("build postgres auth token: %w", err)
 		}
-
-		// IMPORTANT: keep this commented out unless debugging
-		slog.Info("obtained an rds auth token", "token", token)
-
 		cfg.Password = token
 		return nil
 	}

@@ -13,7 +13,7 @@ type Config struct {
 	MetricsDbURL         string   `json:"metricsDbUrl"`
 	RedisPrimaryNodes    []string `json:"redisPrimaryNodes"`
 	RedisPrimaryUsername string   `json:"redisPrimaryUsername"`
-	RedisPrimaryPassword string   `json:"_"`
+	RedisPrimaryPassword string   `json:"-"`
 	RedisPubSubNode      string   `json:"redisPubSubNode"`
 	RedisPubSubUsername  string   `json:"redisPubSubUsername"`
 	RedisPubsubPassword  string   `json:"-"`

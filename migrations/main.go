@@ -96,7 +96,7 @@ func runMigration(ctx context.Context, m Migration) error {
 	}
 
 	// step 3: connect and execute migrations
-	slog.Info("migration: connecting to database")
+	slog.Info("migration: connecting to database", "connString", connCfg.ConnString())
 
 	db, err := sql.Open("pgx", connCfg.ConnString())
 	if err != nil {
