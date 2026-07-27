@@ -134,19 +134,20 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 		})
 	}
 
-	var pubsubPool *redigo.Pool
-	if redisCfg.PubsubAddr != "" {
-		pubsubPool = &redigo.Pool{
-			MaxIdle:     1,
-			IdleTimeout: 240 * time.Second,
-			Dial:        pubsubDialer,
-		}
-	}
-
 	if err := primaryRedisClient.Ping(ctx).Err(); err != nil {
 		logutil.Fatal("execute redis primary startup cmd", err)
 	}
-	if pubsubPool != nil {
+
+	var pubsubPool *redigo.Pool
+	if redisCfg.PubsubAddr != "" {
+		slog.Info("connecting to redis pubsub")
+
+		pubsubPool = &redigo.Pool{
+			MaxIdle:     8,
+			IdleTimeout: 240 * time.Second,
+			Dial:        pubsubDialer,
+		}
+
 		conn := pubsubPool.Get()
 		defer conn.Close()
 		if _, err := conn.Do("PING"); err != nil {
@@ -154,7 +155,7 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 		}
 	}
 
-	slog.Info("created redis client", "redisClientKind", fmt.Sprintf("%T", primaryRedisClient))
+	slog.Info("connected to redis node(s) successfully", "primaryClientKind", fmt.Sprintf("%T", primaryRedisClient))
 
 	return Redis{
 		PrimaryClient:  primaryRedisClient,

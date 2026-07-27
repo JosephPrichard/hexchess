@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -12,7 +11,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	rdsAuth "github.com/aws/aws-sdk-go-v2/feature/rds/auth"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -70,14 +71,13 @@ func runMigration(ctx context.Context, m Migration) error {
 	if err != nil {
 		return fmt.Errorf("parse postgres config: %s", err)
 	}
-	connCfg := poolCfg.ConnConfig
 
 	// note(Joseph): password should NOT be here or else...
-	slog.Info("parsed connection config", "connString", connCfg.ConnString())
+	slog.Info("parsed connection config", "connString", poolCfg.ConnConfig.ConnString())
 
 	// step 2: override password with aws token
 	if m.Profile != "local" {
-		slog.Info("retrieving RDS token for DB password", "connString", connCfg.ConnString())
+		slog.Info("retrieving RDS token")
 
 		awsCfg, err := awsConfig.LoadDefaultConfig(ctx,
 			awsConfig.WithRegion(m.AWSRegion),
@@ -88,26 +88,26 @@ func runMigration(ctx context.Context, m Migration) error {
 			return fmt.Errorf("load aws config: %s", err)
 		}
 
-		endpoint := fmt.Sprintf("%s:%d", connCfg.Host, connCfg.Port)
-		token, err := rdsAuth.BuildAuthToken(ctx, endpoint, m.AWSRegion, connCfg.User, awsCfg.Credentials)
+		endpoint := fmt.Sprintf("%s:%d", poolCfg.ConnConfig.Host, poolCfg.ConnConfig.Port)
+		token, err := rdsAuth.BuildAuthToken(ctx, endpoint, m.AWSRegion, poolCfg.ConnConfig.User, awsCfg.Credentials)
 		if err != nil {
 			return fmt.Errorf("build postgres auth token: %s", err)
 		}
 
-		slog.Info("acquired RDS token for DB password", "token", token)
-		connCfg.Password = token
+		poolCfg.BeforeConnect = func(_ context.Context, cfg *pgx.ConnConfig) error {
+			cfg.Password = token
+			return nil
+		}
 	}
 
 	// step 3: connect and execute migrations
-	connString := connCfg.ConnString()
-
-	// note(Joseph): token will be here as password, care about logging it
-	slog.Info("migration: connecting to database", "connString", connString)
-
-	db, err := sql.Open("pgx", connString)
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
-		return fmt.Errorf("connect to database: %s", err)
+		return fmt.Errorf("create postgres db pool: %s", err)
 	}
+	defer pool.Close()
+
+	db := stdlib.OpenDBFromPool(pool)
 	defer db.Close()
 
 	startCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)

@@ -73,8 +73,7 @@ func NewPostgresPool(ctx context.Context, cfg PoolConfig) *pgxpool.Pool {
 		logutil.Fatal("execute postgres startup query", err)
 	}
 
-	slog.Info("created postgres database pool")
-
+	slog.Info("connected to postgres successfully")
 	return pool
 }
 
