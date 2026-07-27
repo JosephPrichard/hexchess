@@ -21,6 +21,8 @@ const (
 )
 
 func main() {
+	slog.Info("begin cronjob app")
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 	defer cancel()
 

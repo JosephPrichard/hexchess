@@ -17,6 +17,8 @@ import (
 const ServiceName = "hexchess-api"
 
 func main() {
+	slog.Info("begin api app")
+
 	// step 1: parse CLI inputs for static input data
 	ctx := context.Background()
 

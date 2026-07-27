@@ -19,6 +19,8 @@ import (
 )
 
 func main() {
+	slog.Info("begin migration app")
+
 	ctx := context.Background()
 
 	primaryDBUrl := os.Getenv("PRIMARY_DB_URL")
@@ -92,13 +94,17 @@ func runMigration(ctx context.Context, m Migration) error {
 			return fmt.Errorf("build postgres auth token: %s", err)
 		}
 
+		slog.Info("acquired RDS token for DB password", "token", token)
 		connCfg.Password = token
 	}
 
 	// step 3: connect and execute migrations
-	slog.Info("migration: connecting to database", "connString", connCfg.ConnString())
+	connString := connCfg.ConnString()
 
-	db, err := sql.Open("pgx", connCfg.ConnString())
+	// note(Joseph): token will be here as password, care about logging it
+	slog.Info("migration: connecting to database", "connString", connString)
+
+	db, err := sql.Open("pgx", connString)
 	if err != nil {
 		return fmt.Errorf("connect to database: %s", err)
 	}
@@ -110,15 +116,9 @@ func runMigration(ctx context.Context, m Migration) error {
 	if _, err := db.ExecContext(startCtx, "SELECT 1;"); err != nil {
 		return fmt.Errorf("execute startup query: %s", err)
 	}
-
-	slog.Info("migration: completed startup query")
-
 	if err := goose.SetDialect("postgres"); err != nil {
 		return fmt.Errorf("set database dialect: %s", err)
 	}
-
-	slog.Info("migration: begin execution")
-
 	if err := goose.Up(db, m.MigrationDir); err != nil {
 		return fmt.Errorf("apply migration for migrationDir=%s: %s", m.MigrationDir, err)
 	}
