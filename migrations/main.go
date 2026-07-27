@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -17,12 +16,28 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 
+	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"github.com/riverqueue/river/rivermigrate"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func main() {
 	slog.Info("begin migration app")
 
+	if err := run(); err != nil {
+		slog.Error("failed to run migration", "err", err.Error())
+	}
+
+	slog.Info("migration: finished execution")
+
+	// program stays running so the service does not restart when migration is complete
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		slog.Error("failed while serving", "error", err)
+	}
+}
+
+func run() error {
 	ctx := context.Background()
 
 	dbURL := os.Getenv("DB_URL")
@@ -32,14 +47,14 @@ func main() {
 	// step 1: parse configuration
 	poolCfg, err := pgxpool.ParseConfig(dbURL)
 	if err != nil {
-		log.Fatalf("parse postgres config: %s", err)
+		return fmt.Errorf("parse postgres config: %s", err)
 	}
 
 	// note(Joseph): password should NOT be here or else...
 	slog.Info("parsed connection config", "connString", poolCfg.ConnConfig.ConnString())
 
 	// step 2: override password with aws token
-	if profile != "local" {
+	if profile != "" && profile != "local" {
 		slog.Info("retrieving RDS token")
 
 		awsCfg, err := awsConfig.LoadDefaultConfig(ctx,
@@ -48,13 +63,13 @@ func main() {
 			awsConfig.WithRetryMode(aws.RetryModeAdaptive),
 		)
 		if err != nil {
-			log.Fatalf("load aws config: %s", err)
+			return fmt.Errorf("load aws config: %s", err)
 		}
 
 		endpoint := fmt.Sprintf("%s:%d", poolCfg.ConnConfig.Host, poolCfg.ConnConfig.Port)
 		token, err := rdsAuth.BuildAuthToken(ctx, endpoint, awsRegion, poolCfg.ConnConfig.User, awsCfg.Credentials)
 		if err != nil {
-			log.Fatalf("build postgres auth token: %s", err)
+			return fmt.Errorf("build postgres auth token: %s", err)
 		}
 
 		poolCfg.BeforeConnect = func(_ context.Context, cfg *pgx.ConnConfig) error {
@@ -66,7 +81,7 @@ func main() {
 	// step 3: connect and execute migrations
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
-		log.Fatalf("create postgres db pool: %s", err)
+		return fmt.Errorf("create postgres db pool: %s", err)
 	}
 	defer pool.Close()
 
@@ -77,20 +92,23 @@ func main() {
 	defer cancel()
 
 	if _, err := db.ExecContext(startCtx, "SELECT 1;"); err != nil {
-		log.Fatalf("execute startup query: %s", err)
+		return fmt.Errorf("execute startup query: %s", err)
 	}
+
 	if err := goose.SetDialect("postgres"); err != nil {
-		log.Fatalf("set database dialect: %s", err)
+		return fmt.Errorf("set database dialect: %s", err)
 	}
-
 	if err := goose.Up(db, "."); err != nil {
-		log.Fatalf("apply migration: %s", err)
+		return fmt.Errorf("apply hexchess migration: %s", err)
 	}
 
-	slog.Info("migration: finished execution")
-
-	// program stays running so the service does not restart when migration is complete
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		slog.Error("failed while serving", "error", err)
+	riverMigrator, err := rivermigrate.New(riverpgxv5.New(pool), nil)
+	if err != nil {
+		return fmt.Errorf("create river migrator: %s", err)
 	}
+	if _, err := riverMigrator.Migrate(ctx, rivermigrate.DirectionUp, nil); err != nil {
+		return fmt.Errorf("apply river migration: %s", err)
+	}
+
+	return nil
 }
