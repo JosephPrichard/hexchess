@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
-	"hexchess-svc/db/primarydb"
+	"hexchess-svc/db/sqlc"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 	"hexchess-svc/utils/config"
@@ -75,12 +75,12 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
-	primaryDB := db.NewPostgresDB(ctx, db.PrimaryQuerierFactory, db.PoolConfig{
-		Dsn:           cfg.PrimaryDbURL,
+	database := db.NewPostgresDB(ctx, db.PoolConfig{
+		Dsn:           cfg.DbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
 	})
-	defer primaryDB.Close()
+	defer database.Close()
 
 	primaryRedis := db.NewRedis(ctx, db.RedisConfig{
 		PrimaryAddr:     cfg.RedisPrimaryNodes,
@@ -95,7 +95,7 @@ func main() {
 	}
 
 	// step 3: execute the test seed script and measure results
-	services := svc.NewHexchessServices(svc.SetupService{PrimaryDB: primaryDB, Redis: primaryRedis})
+	services := svc.NewHexchessServices(svc.SetupService{Database: database, Redis: primaryRedis})
 
 	var usersDuration time.Duration
 	var challengesDuration time.Duration
@@ -120,7 +120,7 @@ func main() {
 	})
 	eg.Go(func() error {
 		defer perf.New().Duration(&tournamentsDuration)
-		return seedTournaments(egCtx, primaryDB.Querier(), generateTournaments())
+		return seedTournaments(egCtx, database.Querier(), generateTournaments())
 	})
 
 	if err := eg.Wait(); err != nil {
@@ -310,9 +310,9 @@ func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts 
 }
 
 type TournamentInsts struct {
-	tournament   primarydb.InsertTournamentParams
-	participants []primarydb.BatchInsertTournamentParticipantParams
-	matches      []primarydb.BatchInsertTournamentMatchParams
+	tournament   sqlc.InsertTournamentParams
+	participants []sqlc.BatchInsertTournamentParticipantParams
+	matches      []sqlc.BatchInsertTournamentMatchParams
 }
 
 func generateTournaments() []TournamentInsts {
@@ -330,7 +330,7 @@ func generateTournaments() []TournamentInsts {
 		status := model.TournamentInProgress
 		rounds := rand.Intn(4) + 1
 
-		var participants []primarydb.BatchInsertTournamentParticipantParams
+		var participants []sqlc.BatchInsertTournamentParticipantParams
 		var usedParticipants = map[int64]struct{}{}
 
 		for i := range svc.KnockoutParticipantsAtRound(rounds, 1) {
@@ -341,7 +341,7 @@ func generateTournaments() []TournamentInsts {
 				participantID = generateUserID(usedParticipants)
 			}
 			joinedOn := time.Now().Add(-time.Minute*60 + time.Minute*time.Duration(i))
-			participants = append(participants, primarydb.BatchInsertTournamentParticipantParams{
+			participants = append(participants, sqlc.BatchInsertTournamentParticipantParams{
 				TournamentKey: pgtkey,
 				UserID:        participantID,
 				JoinedOn:      pgtype.Timestamptz{Time: joinedOn, Valid: true},
@@ -349,10 +349,10 @@ func generateTournaments() []TournamentInsts {
 			usedParticipants[participantID] = struct{}{}
 		}
 
-		var matches []primarydb.BatchInsertTournamentMatchParams
+		var matches []sqlc.BatchInsertTournamentMatchParams
 		for i := 0; i+1 < len(participants); i += 2 {
 			whiteID, blackID := participants[i].UserID, participants[i+1].UserID
-			matches = append(matches, primarydb.BatchInsertTournamentMatchParams{
+			matches = append(matches, sqlc.BatchInsertTournamentMatchParams{
 				TournamentKey: pgtkey,
 				GameID:        model.NewGameID().String(), // there are no games in the game store matching this at this point in time
 				WhiteID:       whiteID,
@@ -363,26 +363,26 @@ func generateTournaments() []TournamentInsts {
 		}
 
 		insts = append(insts, TournamentInsts{
-			tournament: primarydb.InsertTournamentParams{
+			tournament: sqlc.InsertTournamentParams{
 				TournamentKey: pgtkey,
 				Name:          fmt.Sprintf("%s's tournament", gofakeit.FirstName()),
 				Rounds:        1,
-				Status:        primarydb.TournamentStatusEnum(status.String()),
-				Mode:          primarydb.ModeEnum(generateMode().String()),
-				Ruleset:       primarydb.TournamentRulesetEnum(model.TournamentKnockout.String()),
+				Status:        sqlc.TournamentStatusEnum(status.String()),
+				Mode:          sqlc.ModeEnum(generateMode().String()),
+				Ruleset:       sqlc.TournamentRulesetEnum(model.TournamentKnockout.String()),
 				CreatedBy:     createdBy,
 				Countdown:     10,
 				CreatedOn:     pgtype.Timestamptz{Time: time.Now(), Valid: true},
 				UpdatedOn:     pgtype.Timestamptz{Time: time.Now(), Valid: true},
 			},
 			participants: participants,
-			matches:      []primarydb.BatchInsertTournamentMatchParams{},
+			matches:      []sqlc.BatchInsertTournamentMatchParams{},
 		})
 	}
 	return insts
 }
 
-func seedTournaments(ctx context.Context, querier primarydb.Querier, paramsList []TournamentInsts) error {
+func seedTournaments(ctx context.Context, querier sqlc.Querier, paramsList []TournamentInsts) error {
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	sem := make(chan struct{}, Concurrency)

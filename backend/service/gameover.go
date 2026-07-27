@@ -6,7 +6,7 @@ import (
 	"errors"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
-	"hexchess-svc/db/primarydb"
+	"hexchess-svc/db/sqlc"
 	"hexchess-svc/model"
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/utils/serrors"
@@ -114,7 +114,7 @@ func (changeSet GameResultChangeSet) IsNoop() bool {
 func (services *HexchessServices) InsertGameResult(ctx context.Context, result GameResult) (GameResultChangeSet, error) {
 	var changeSet GameResultChangeSet
 
-	err := services.database.ExecTx(ctx, db.TxArgs[primarydb.Querier]{
+	err := services.database.ExecTx(ctx, db.TxArgs[sqlc.Querier]{
 		// RepeatableRead is required to prevent the following race conditions
 		// Case 1 (Lost Update):
 		// T1 selects the user elos E1 and calculating and insert user elos E2
@@ -122,9 +122,9 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 		// User elos (E3) will be overwritten to E2, the update that progressed E1 to E3 will be lost
 		Isolation:  pgx.RepeatableRead,
 		RetryCount: 5,
-		QueryFn: func(ctx context.Context, _ pgx.Tx, querier primarydb.Querier) error {
+		QueryFn: func(ctx context.Context, _ pgx.Tx, querier sqlc.Querier) error {
 			// step 1: use game ID as an idempotency key to prevent saving the same game result on retry
-			mode := primarydb.ModeEnum(result.ReplayMode.String())
+			mode := sqlc.ModeEnum(result.ReplayMode.String())
 			userIDs := []int64{result.WhiteID, result.BlackID}
 
 			existingReplayID, err := querier.SelectReplayIDByGameID(ctx, result.GameID.String())
@@ -140,17 +140,17 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 			// selects are sorted by userID to prevent deadlocks
 			slices.SortFunc(userIDs, func(left, right int64) int { return cmp.Compare(left, right) })
 
-			userElos, err := querier.SelectUserModeElosByIDs(ctx, primarydb.SelectUserModeElosByIDsParams{ID: userIDs, Mode: mode})
+			userElos, err := querier.SelectUserModeElosByIDs(ctx, sqlc.SelectUserModeElosByIDsParams{ID: userIDs, Mode: mode})
 			if err != nil {
 				return serrors.New("select users elo", err, "userIDs", userIDs)
 			}
 
 			// step 3: compute and update the next state of stats for each game participant
-			var updts []primarydb.UpsertUserEloParams
+			var updts []sqlc.UpsertUserEloParams
 			changeSet, updts = makeInsertGameResultChangeSet(result, userElos)
 
 			// updates are sorted by userID to prevent deadlocks
-			slices.SortFunc(updts, func(left, right primarydb.UpsertUserEloParams) int { return cmp.Compare(left.UserID, right.UserID) })
+			slices.SortFunc(updts, func(left, right sqlc.UpsertUserEloParams) int { return cmp.Compare(left.UserID, right.UserID) })
 
 			var batchUpsertErrs []error
 			querier.UpsertUserElo(ctx, updts).Exec(func(i int, err error) {
@@ -163,13 +163,13 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 			}
 
 			// step 4: insert the new replay, which acts both the record and the idempotency key for this operation
-			replayInst := primarydb.InsertReplayParams{
+			replayInst := sqlc.InsertReplayParams{
 				GameID:    result.GameID.String(),
 				WhiteID:   pgtype.Int8{Int64: result.WhiteID, Valid: model.IsNonGuestID(result.WhiteID)},
 				BlackID:   pgtype.Int8{Int64: result.BlackID, Valid: model.IsNonGuestID(result.BlackID)},
-				Result:    primarydb.ResultEnum(result.ReplayResult.String()),
-				Cause:     primarydb.CauseEnum(result.ReplayCause.String()),
-				Mode:      primarydb.ModeEnum(result.ReplayMode.String()),
+				Result:    sqlc.ResultEnum(result.ReplayResult.String()),
+				Cause:     sqlc.CauseEnum(result.ReplayCause.String()),
+				Mode:      sqlc.ModeEnum(result.ReplayMode.String()),
 				WinElo:    changeSet.WinEloDiff,
 				LoseElo:   changeSet.LoseEloDiff,
 				WhiteElo:  changeSet.WhiteEloNext,
@@ -192,15 +192,15 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 	return changeSet, err
 }
 
-func makeInsertGameResultChangeSet(result GameResult, userModeElos []primarydb.SelectUserModeElosByIDsRow) (GameResultChangeSet, []primarydb.UpsertUserEloParams) {
+func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.SelectUserModeElosByIDsRow) (GameResultChangeSet, []sqlc.UpsertUserEloParams) {
 	changeSet := GameResultChangeSet{}
-	var updts []primarydb.UpsertUserEloParams
+	var updts []sqlc.UpsertUserEloParams
 
 	if model.IsGuestID(result.WhiteID) || model.IsGuestID(result.BlackID) {
 		return changeSet, updts
 	}
 
-	mode := primarydb.ModeEnum(result.ReplayMode.String())
+	mode := sqlc.ModeEnum(result.ReplayMode.String())
 
 	whiteElo, blackElo := model.StartElo, model.StartElo
 	for _, row := range userModeElos {
@@ -216,7 +216,7 @@ func makeInsertGameResultChangeSet(result GameResult, userModeElos []primarydb.S
 		// changeSet is unmodified in draw so this becomes a noop changeSet
 		changeSet.WhiteEloNext, changeSet.BlackEloNext = whiteElo, blackElo
 
-		updts = []primarydb.UpsertUserEloParams{
+		updts = []sqlc.UpsertUserEloParams{
 			{UserID: result.WhiteID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.WhiteEloNext}, Draws: 1, DefaultElo: model.StartElo},
 			{UserID: result.BlackID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.BlackEloNext}, Draws: 1, DefaultElo: model.StartElo},
 		}
@@ -245,7 +245,7 @@ func makeInsertGameResultChangeSet(result GameResult, userModeElos []primarydb.S
 		changeSet.WinEloDiff = winEloNext - winElo
 		changeSet.LoseEloDiff = loseEloNext - loseElo
 
-		updts = []primarydb.UpsertUserEloParams{
+		updts = []sqlc.UpsertUserEloParams{
 			{UserID: changeSet.WinID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: winEloNext}, Wins: 1, DefaultElo: model.StartElo},
 			{UserID: changeSet.LoseID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: loseEloNext}, Losses: 1, DefaultElo: model.StartElo},
 		}
@@ -255,7 +255,7 @@ func makeInsertGameResultChangeSet(result GameResult, userModeElos []primarydb.S
 }
 
 func (services *HexchessServices) UpsertReplayMoveHistories(ctx context.Context, replayID int64, data []byte) error {
-	if err := services.querier.UpsertReplayMoveHistories(ctx, primarydb.UpsertReplayMoveHistoriesParams{
+	if err := services.querier.UpsertReplayMoveHistories(ctx, sqlc.UpsertReplayMoveHistoriesParams{
 		ReplayID: replayID,
 		Data:     data,
 	}); err != nil {

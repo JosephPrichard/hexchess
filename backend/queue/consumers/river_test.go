@@ -1,7 +1,7 @@
 package consumers
 
 import (
-	"hexchess-svc/db/primarydb"
+	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue"
@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(primarydb.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
+var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(sqlc.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
 
 func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	t.Parallel()
@@ -26,7 +26,7 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	defer testinfra.Close()
 
 	services := svc.NewHexchessServices(svc.SetupService{
-		PrimaryDB:   testinfra.PrimaryDB,
+		Database:    testinfra.Database,
 		Redis:       testinfra.Redis,
 		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
 	})
@@ -39,7 +39,7 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	wantMatches := []primarydb.TournamentMatch{
+	wantMatches := []sqlc.TournamentMatch{
 		// tournament has 2 rounds with join order of [1,2,3,4], so starting the tournament creates 2 rounds wso the matches go 1-2, 3-4
 		{
 			TournamentKey: pgtype.UUID{Bytes: itest.Tournament2ScheduledKnockoutKey, Valid: true},

@@ -38,7 +38,7 @@ module "main" {
   env_vars = {
     SERVER_PORT: "8080",
 
-    PRIMARY_DB_URL: "postgres://db_readwrite@hexchess-sor.cluster-c10fqqu5dr0g.us-east-1.rds.amazonaws.com:5432/hexchess?sslmode=require",
+    DB_URL: "postgres://db_readwrite@hexchess-sor.cluster-c10fqqu5dr0g.us-east-1.rds.amazonaws.com:5432/hexchess?sslmode=require",
 
     REDIS_PUBSUB_NODE: "hexchess-pubsub.hl6d8h.0001.use1.cache.amazonaws.com:6379",
     REDIS_SOR_NODES:   join(",", [

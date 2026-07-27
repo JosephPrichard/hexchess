@@ -91,7 +91,7 @@ perf-test:
 
 clean:
 	rm -rf $(BACKEND_DIR)/db/metricsdb
-	rm -rf $(BACKEND_DIR)/db/primarydb
+	rm -rf $(BACKEND_DIR)/db/sqlc
 	rm -rf $(SVC_PB_OUT)
 	find ./$(BACKEND_DIR) -type f -name "*_mock.go" -delete
 	find ./$(BACKEND_DIR) -type f -name "*_wasm" -delete

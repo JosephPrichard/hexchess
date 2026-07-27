@@ -1,3 +1,5 @@
+-- Must be executed for hexchess database
+
 -- db_readwrite: DML only
 GRANT USAGE ON SCHEMA public TO db_readwrite;
 

@@ -7,10 +7,12 @@ CREATE USER db_migrator  WITH LOGIN;
 GRANT rds_iam TO db_readwrite;
 GRANT rds_iam TO db_migrator;
 
-ALTER USER db_migrator CREATEDB;
-
 GRANT CONNECT ON DATABASE hexchess TO db_readwrite, db_migrator;
 GRANT CONNECT ON DATABASE metrics  TO db_readwrite, db_migrator;
+
+-- required to create extensions, databases, and tables
+GRANT rds_superuser TO db_migrator;
+ALTER USER db_migrator CREATEDB;
 
 SELECT datname AS database_name
 FROM pg_database

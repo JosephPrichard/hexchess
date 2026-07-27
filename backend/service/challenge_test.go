@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"hexchess-svc/db"
-	"hexchess-svc/db/primarydb"
+	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
 	"hexchess-svc/utils/logutil"
 	"hexchess-svc/utils/testutil"
@@ -166,16 +166,16 @@ func TestDeleteChallenge(t *testing.T) {
 
 	key := ChallengeKey{ChallengerID: 1, ChallengeeID: 2}
 
-	challengeBefore, err := testinfra.PrimaryQuerier.SelectChallenge(ctx, primarydb.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	challengeBefore, err := testinfra.PrimaryQuerier.SelectChallenge(ctx, sqlc.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
 	dr, err := services.DeleteChallenge(ctx, key.ChallengerID, key.ChallengeeID)
 	require.NoError(t, err)
 
-	_, errAfterDelete := testinfra.PrimaryQuerier.SelectChallenge(ctx, primarydb.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	_, errAfterDelete := testinfra.PrimaryQuerier.SelectChallenge(ctx, sqlc.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
-	challenge := primarydb.Challenge{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, StartColor: "RANDOM", MadeOn: pgtype.Timestamptz{Valid: true, Time: itest.TimeNow.Local()}, Mode: "TIMED_3+2"}
+	challenge := sqlc.Challenge{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, StartColor: "RANDOM", MadeOn: pgtype.Timestamptz{Valid: true, Time: itest.TimeNow.Local()}, Mode: "TIMED_3+2"}
 	assert.Equal(t, challenge, challengeBefore)
 	assert.Error(t, pgx.ErrNoRows, errAfterDelete)
 	assert.Equal(t, DeleteResult{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, Mode: model.ModeTimed3Plus2, FirstColor: model.Random}, dr)

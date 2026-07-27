@@ -9,8 +9,7 @@ import (
 
 type Config struct {
 	ServerPort           string   `json:"serverPort"`
-	PrimaryDbURL         string   `json:"primaryDbUrl"`
-	MetricsDbURL         string   `json:"metricsDbUrl"`
+	DbURL                string   `json:"dbURL"`
 	RedisPrimaryNodes    []string `json:"redisPrimaryNodes"`
 	RedisPrimaryUsername string   `json:"redisPrimaryUsername"`
 	RedisPrimaryPassword string   `json:"-"`
@@ -51,8 +50,7 @@ func LoadDotenv() {
 func loadConfig() Config {
 	config := Config{
 		ServerPort:           os.Getenv("SERVER_PORT"),
-		PrimaryDbURL:         os.Getenv("PRIMARY_DB_URL"),
-		MetricsDbURL:         os.Getenv("METRICS_DB_URL"),
+		DbURL:                os.Getenv("DB_URL"),
 		RedisPrimaryNodes:    strings.Split(os.Getenv("REDIS_SOR_NODES"), ","),
 		RedisPrimaryUsername: os.Getenv("REDIS_SOR_USERNAME"),
 		RedisPrimaryPassword: os.Getenv("REDIS_SOR_PASSWORD"),

@@ -29,8 +29,7 @@ module "main" {
   image_tag       = var.commit_sha
 
   env_vars = {
-    PRIMARY_DB_URL : "postgres://db_readwrite@hexchess-sor.cluster-c10fqqu5dr0g.us-east-1.rds.amazonaws.com:5432/hexchess?sslmode=require",
-    METRICS_DB_URL : "postgres://db_readwrite@hexchess-sor.cluster-c10fqqu5dr0g.us-east-1.rds.amazonaws.com:5432/metrics?sslmode=require",
+    DB_URL : "postgres://db_readwrite@hexchess-sor.cluster-c10fqqu5dr0g.us-east-1.rds.amazonaws.com:5432/hexchess?sslmode=require",
 
     REDIS_SOR_NODES : join(",", [
       "clustercfg.hexchess-primary-cluster.hl6d8h.memorydb.us-east-1.amazonaws.com:6379",

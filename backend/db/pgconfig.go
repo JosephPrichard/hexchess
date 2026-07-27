@@ -2,8 +2,7 @@ package db
 
 import (
 	"context"
-	"hexchess-svc/db/metricsdb"
-	"hexchess-svc/db/primarydb"
+	"hexchess-svc/db/sqlc"
 	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/logutil"
 	"log/slog"
@@ -18,21 +17,12 @@ type QuerierFactory[T any] struct {
 	FromTx   func(tx pgx.Tx) T
 }
 
-var PrimaryQuerierFactory = QuerierFactory[primarydb.Querier]{
-	FromPool: func(pool *pgxpool.Pool) primarydb.Querier {
-		return primarydb.New(pool)
+var PrimaryQuerierFactory = QuerierFactory[sqlc.Querier]{
+	FromPool: func(pool *pgxpool.Pool) sqlc.Querier {
+		return sqlc.New(pool)
 	},
-	FromTx: func(tx pgx.Tx) primarydb.Querier {
-		return primarydb.New(tx)
-	},
-}
-
-var MetricsQuerierFactory = QuerierFactory[metricsdb.Querier]{
-	FromPool: func(pool *pgxpool.Pool) metricsdb.Querier {
-		return metricsdb.New(pool)
-	},
-	FromTx: func(tx pgx.Tx) metricsdb.Querier {
-		return metricsdb.New(tx)
+	FromTx: func(tx pgx.Tx) sqlc.Querier {
+		return sqlc.New(tx)
 	},
 }
 
@@ -77,43 +67,28 @@ func NewPostgresPool(ctx context.Context, cfg PoolConfig) *pgxpool.Pool {
 	return pool
 }
 
-func NewPostgresDB[Querier any](ctx context.Context, factory QuerierFactory[Querier], cfg PoolConfig) Database[Querier] {
+func NewPostgresDB(ctx context.Context, cfg PoolConfig) Database[sqlc.Querier] {
 	pool := NewPostgresPool(ctx, cfg)
-	return &implDB[Querier]{pool: pool, factory: factory}
-}
-
-func NewPrimaryDB(pool *pgxpool.Pool) Database[primarydb.Querier] {
-	return &implDB[primarydb.Querier]{
+	return &implDB[sqlc.Querier]{
 		pool:    pool,
 		factory: PrimaryQuerierFactory,
 	}
 }
 
-func NewFakePrimaryDB(t logutil.TestLogger, pool *pgxpool.Pool) Database[primarydb.Querier] {
+func PostgresDBFromPool(pool *pgxpool.Pool) Database[sqlc.Querier] {
+	return &implDB[sqlc.Querier]{
+		pool:    pool,
+		factory: PrimaryQuerierFactory,
+	}
+}
+
+func NewFakePostgresDB(t logutil.TestLogger, pool *pgxpool.Pool) Database[sqlc.Querier] {
 	testTx, err := pool.BeginTx(t.Context(), pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		t.Fatalf("failed to begin primary test txn: %v", err)
 	}
-	return &fakeDB[primarydb.Querier]{
+	return &fakeDB[sqlc.Querier]{
 		testTxn: testTx,
 		factory: PrimaryQuerierFactory,
-	}
-}
-
-func NewMetricsDB(pool *pgxpool.Pool) Database[metricsdb.Querier] {
-	return &implDB[metricsdb.Querier]{
-		pool:    pool,
-		factory: MetricsQuerierFactory,
-	}
-}
-
-func NewFakeMetricsDB(t logutil.TestLogger, pool *pgxpool.Pool) Database[metricsdb.Querier] {
-	testTx, err := pool.BeginTx(t.Context(), pgx.TxOptions{IsoLevel: pgx.Serializable})
-	if err != nil {
-		t.Fatalf("failed to begin metrics test txn: %v", err)
-	}
-	return &fakeDB[metricsdb.Querier]{
-		testTxn: testTx,
-		factory: MetricsQuerierFactory,
 	}
 }

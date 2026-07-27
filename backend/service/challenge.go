@@ -11,7 +11,7 @@ import (
 	"log/slog"
 	"time"
 
-	"hexchess-svc/db/primarydb"
+	"hexchess-svc/db/sqlc"
 	"hexchess-svc/utils/logutil"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -42,11 +42,11 @@ func (services *HexchessServices) InsertChallenge(ctx context.Context, inst Chal
 		inst.MadeOn = time.Now()
 	}
 
-	row, dbErr := services.querier.InsertChallenge(ctx, primarydb.InsertChallengeParams{
+	row, dbErr := services.querier.InsertChallenge(ctx, sqlc.InsertChallengeParams{
 		ChallengerID: inst.ChallengerID,
 		ChallengeeID: inst.ChallengeeID,
-		Mode:         primarydb.ModeEnum(inst.Mode.String()),
-		StartColor:   primarydb.ColorEnum(inst.StartColor.String()),
+		Mode:         sqlc.ModeEnum(inst.Mode.String()),
+		StartColor:   sqlc.ColorEnum(inst.StartColor.String()),
 		MadeOn:       pgtype.Timestamptz{Valid: true, Time: inst.MadeOn},
 	})
 	if dbErr != nil {
@@ -56,24 +56,24 @@ func (services *HexchessServices) InsertChallenge(ctx context.Context, inst Chal
 		return model.Challenge{}, serrors.New("insert challenge", dbErr, "inst", inst)
 	}
 
-	challenge := mapChallengeRow(primarydb.SelectChallengesByParticipantRow(row))
+	challenge := mapChallengeRow(sqlc.SelectChallengesByParticipantRow(row))
 
 	slog.InfoContext(ctx, "created a new challenge", "challenge", inst, "challenge", challenge)
 	return challenge, nil
 }
 
 func (services *HexchessServices) BatchInsertChallenges(ctx context.Context, insts []ChallengeInst) error {
-	batches := make([]primarydb.BatchInsertChallengeParams, 0, len(insts))
+	batches := make([]sqlc.BatchInsertChallengeParams, 0, len(insts))
 
 	for _, inst := range insts {
 		if inst.MadeOn.IsZero() {
 			inst.MadeOn = time.Now()
 		}
-		batches = append(batches, primarydb.BatchInsertChallengeParams{
+		batches = append(batches, sqlc.BatchInsertChallengeParams{
 			ChallengerID: inst.ChallengerID,
 			ChallengeeID: inst.ChallengeeID,
-			Mode:         primarydb.ModeEnum(inst.Mode.String()),
-			StartColor:   primarydb.ColorEnum(inst.StartColor.String()),
+			Mode:         sqlc.ModeEnum(inst.Mode.String()),
+			StartColor:   sqlc.ColorEnum(inst.StartColor.String()),
 			MadeOn:       pgtype.Timestamptz{Valid: true, Time: inst.MadeOn},
 		})
 	}
@@ -106,7 +106,7 @@ type ChallengeKey struct {
 func (services *HexchessServices) GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]model.Challenge, error) {
 	since := services.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
-	rows, err := services.querier.SelectChallengesByParticipant(ctx, primarydb.SelectChallengesByParticipantParams{
+	rows, err := services.querier.SelectChallengesByParticipant(ctx, sqlc.SelectChallengesByParticipantParams{
 		ChallengerID: db.OptInt8(key.ChallengerID),
 		ChallengeeID: db.OptInt8(key.ChallengeeID),
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
@@ -132,7 +132,7 @@ type DeleteResult struct {
 }
 
 func (services *HexchessServices) DeleteChallenge(ctx context.Context, challengerID int64, challengeeID int64) (DeleteResult, error) {
-	params := primarydb.DeleteChallengeParams{ChallengerID: challengerID, ChallengeeID: challengeeID}
+	params := sqlc.DeleteChallengeParams{ChallengerID: challengerID, ChallengeeID: challengeeID}
 
 	challengeRow, err := services.querier.DeleteChallenge(ctx, params)
 	if db.IsErrNoRows(err) {
@@ -158,7 +158,7 @@ func (services *HexchessServices) DeleteExpiredChallenges(ctx context.Context, u
 	// TODO: call this from a cronjob to clear out expired challenges every couple days
 	beforeTime := services.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
-	err := services.querier.DeleteExpiredChallenges(ctx, primarydb.DeleteExpiredChallengesParams{
+	err := services.querier.DeleteExpiredChallenges(ctx, sqlc.DeleteExpiredChallengesParams{
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: beforeTime},
 	})
@@ -170,7 +170,7 @@ func (services *HexchessServices) CountUserChallenges(ctx context.Context, userI
 	return services.querier.CountReceivedChallenges(ctx, userID)
 }
 
-func mapChallengeRow(row primarydb.SelectChallengesByParticipantRow) model.Challenge {
+func mapChallengeRow(row sqlc.SelectChallengesByParticipantRow) model.Challenge {
 	gameColor := enum.Expect(row.StartColor, model.GameColorEnums)
 	gameMode := enum.Expect(row.Mode, model.GameModeEnums)
 

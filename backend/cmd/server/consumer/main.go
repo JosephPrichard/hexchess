@@ -27,24 +27,17 @@ func main() {
 
 	// step 2: connect to backend infrastructure and prepare cleanup
 	riverQuePool := db.NewPostgresPool(ctx, db.PoolConfig{
-		Dsn:           cfg.PrimaryDbURL,
+		Dsn:           cfg.DbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
 	})
 
-	primaryDB := db.NewPostgresDB(ctx, db.PrimaryQuerierFactory, db.PoolConfig{
-		Dsn:           cfg.PrimaryDbURL,
+	database := db.NewPostgresDB(ctx, db.PoolConfig{
+		Dsn:           cfg.DbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
 	})
-	defer primaryDB.Close()
-
-	metricsDB := db.NewPostgresDB(ctx, db.MetricsQuerierFactory, db.PoolConfig{
-		Dsn:           cfg.MetricsDbURL,
-		ActiveProfile: cfg.Profile,
-		Region:        cfg.AwsRegion,
-	})
-	defer metricsDB.Close()
+	defer database.Close()
 
 	primaryRedis := db.NewRedis(ctx, db.RedisConfig{
 		PrimaryAddr:     cfg.RedisPrimaryNodes,
@@ -62,13 +55,13 @@ func main() {
 
 	// step 3: start background consumers and PPROF server
 	services := svc.NewHexchessServices(svc.SetupService{
-		PrimaryDB: primaryDB,
-		Redis:     primaryRedis,
+		Database: database,
+		Redis:    primaryRedis,
 	})
 	consumers.StartRedisConsumers(consumers.RedisConsumerSetup{
-		MetricsDB: metricsDB,
-		Redis:     primaryRedis,
-		Services:  services,
+		Database: database,
+		Redis:    primaryRedis,
+		Services: services,
 	})
 	consumers.StartRiverConsumers(consumers.RiverConsumerSetup{
 		PgxPool:  riverQuePool,

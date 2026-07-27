@@ -48,7 +48,7 @@ Run a Migration (down)
 Create an environment variable file in `backend`
 ```
 SERVER_PORT=8080
-PRIMARY_DB_URL=postgresql://postgres:<password>@localhost:5432/hexchess
+DB_URL=postgresql://postgres:<password>@localhost:5432/hexchess
 REDIS_SOR_NODES=localhost:6479,localhost:6480,localhost:6481,localhost:6482,localhost:6483,localhost:6484
 REDIS_PUBSUB_NODE=localhost:6579
 ACTIVE_PROFILE=local
@@ -62,7 +62,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=localhost:3100
 
 `SERVER_PORT` The port where `backend` runs at, this is must be the same as what the ALB is configured to direct traffic to.
 
-`PRIMARY_DB_URL` Postgres connection url that the server will connect to.
+`DB_URL` Postgres connection url that the server will connect to.
 
 `REDIS_SOR_NODES` Node URIs for redis instance server will use for caching and system of record
 

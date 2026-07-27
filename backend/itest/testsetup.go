@@ -108,10 +108,9 @@ func SetupPostgresTest(ctx context.Context, t logutil.TestLogger) (*pgxpool.Pool
 	if createdContainer {
 		_, dropErr := pgPool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
 		_, primaryErr := pgPool.Exec(ctx, db.CreatePrimarySchema)
-		_, metricsErr := pgPool.Exec(ctx, db.CreateMetricsSchema)
 		insertErr := insertTestData(pgPool)
 
-		if err := errors.Join(dropErr, primaryErr, metricsErr, insertErr); err != nil {
+		if err := errors.Join(dropErr, primaryErr, insertErr); err != nil {
 			return nil, err
 		}
 	}

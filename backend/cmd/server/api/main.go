@@ -28,12 +28,12 @@ func main() {
 	defer shutdown()
 
 	// step 2: connect to backend infrastructure and prepare cleanup
-	primaryDB := db.NewPostgresDB(ctx, db.PrimaryQuerierFactory, db.PoolConfig{
-		Dsn:           cfg.PrimaryDbURL,
+	database := db.NewPostgresDB(ctx, db.PoolConfig{
+		Dsn:           cfg.DbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
 	})
-	defer primaryDB.Close()
+	defer database.Close()
 
 	primaryRedis := db.NewRedis(ctx, db.RedisConfig{
 		PrimaryAddr:     cfg.RedisPrimaryNodes,
@@ -63,7 +63,7 @@ func main() {
 
 	// step 3: create API backend services and start background listeners for WS API
 	services := svc.NewHexchessServices(svc.SetupService{
-		PrimaryDB:   primaryDB,
+		Database:    database,
 		Redis:       primaryRedis,
 		AWS:         aws,
 		Remote:      remoteAPIs,
@@ -78,7 +78,7 @@ func main() {
 	slog.Info("starting server", "port", cfg.ServerPort, "allowedOrigins", cfg.AllowedOrigins)
 
 	withHealthcheck := controller.WithHealthCheckOpts(controller.HealthCheckConfig{
-		PostgresDSN:       cfg.PrimaryDbURL,
+		PostgresDSN:       cfg.DbURL,
 		RedisGameStoreDSN: cfg.RedisPrimaryNodes,
 		RedisCacheDSNs:    cfg.RedisPrimaryNodes,
 		RedisPubSubDSN:    cfg.RedisPubSubNode,

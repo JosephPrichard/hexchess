@@ -34,12 +34,12 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
-	primaryDB := db.NewPostgresDB(ctx, db.PrimaryQuerierFactory, db.PoolConfig{
-		Dsn:           cfg.PrimaryDbURL,
+	database := db.NewPostgresDB(ctx, db.PoolConfig{
+		Dsn:           cfg.DbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
 	})
-	defer primaryDB.Close()
+	defer database.Close()
 
 	primaryRedis := db.NewRedis(ctx, db.RedisConfig{
 		PrimaryAddr:     cfg.RedisPrimaryNodes,
@@ -50,8 +50,8 @@ func main() {
 	defer primaryRedis.Close()
 
 	services := svc.NewHexchessServices(svc.SetupService{
-		PrimaryDB: primaryDB,
-		Redis:     primaryRedis,
+		Database: database,
+		Redis:    primaryRedis,
 	})
 
 	var err error

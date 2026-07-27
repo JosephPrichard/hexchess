@@ -3,7 +3,7 @@ package consumers
 import (
 	"context"
 	"errors"
-	"hexchess-svc/db/metricsdb"
+	"hexchess-svc/db/sqlc"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/timeutil"
 	"log/slog"
@@ -26,7 +26,7 @@ type RedisMetricCollector struct {
 	lock    sync.Mutex
 	metrics []RedisEventMetric
 
-	querier    metricsdb.Querier
+	querier    sqlc.Querier
 	dispatcher async.Dispatcher
 }
 
@@ -41,10 +41,10 @@ func (c *RedisMetricCollector) Persist() {
 		return
 	}
 
-	metricRows := make([]metricsdb.InsertRedisEventMetricsParams, 0, len(c.metrics))
+	metricRows := make([]sqlc.InsertRedisEventMetricsParams, 0, len(c.metrics))
 
 	for _, metric := range c.metrics {
-		metricRows = append(metricRows, metricsdb.InsertRedisEventMetricsParams{
+		metricRows = append(metricRows, sqlc.InsertRedisEventMetricsParams{
 			StreamName:  metric.StreamName,
 			EventId:     pgtype.UUID{Bytes: metric.EventID, Valid: true},
 			GroupId:     pgtype.UUID{Bytes: metric.GroupID, Valid: true},
@@ -60,7 +60,7 @@ func (c *RedisMetricCollector) Persist() {
 
 const InsertRedisEventMetricMaxRetries = 3
 
-func (c *RedisMetricCollector) insertRedisMetrics(metrics []metricsdb.InsertRedisEventMetricsParams) {
+func (c *RedisMetricCollector) insertRedisMetrics(metrics []sqlc.InsertRedisEventMetricsParams) {
 	var batchErr error
 	maxRetries := InsertRedisEventMetricMaxRetries
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-svc/db/metricsdb"
+	"hexchess-svc/db/sqlc"
 	"hexchess-svc/queue"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/errutil"
@@ -32,7 +32,7 @@ type StreamConsumer struct {
 	cancel context.CancelFunc
 	// connects to redis to poll event streams and a database to insert into metadata tables
 	redis      redis.UniversalClient
-	querier    metricsdb.Querier
+	querier    sqlc.Querier
 	dispatcher async.Dispatcher
 	// an implementation for consuming a single event
 	consumeFunc ConsumeFunc
@@ -52,7 +52,7 @@ type StreamConfig struct {
 	BlockDuration time.Duration `json:"blockDuration"`
 
 	Redis          redis.UniversalClient `json:"-"`
-	MetricsQuerier metricsdb.Querier     `json:"-"`
+	MetricsQuerier sqlc.Querier          `json:"-"`
 	ConsumeFn      ConsumeFunc           `json:"-"`
 }
 

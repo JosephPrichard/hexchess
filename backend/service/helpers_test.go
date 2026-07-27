@@ -28,7 +28,7 @@ func setupServicesTest(t logutil.TestLogger, mocks *serviceMocks, flags ...itest
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewHexchessServices(SetupService{
-		PrimaryDB:   infra.PrimaryDB,
+		Database:    infra.Database,
 		RiverClient: mocks.RiverClient,
 
 		Redis: infra.Redis,

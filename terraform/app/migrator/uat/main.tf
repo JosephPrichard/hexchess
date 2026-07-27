@@ -31,8 +31,7 @@ module "main" {
   image_tag       = var.commit_sha
 
   env_vars = {
-    PRIMARY_DB_URL: "postgres://db_migrator@hexchess-sor.cluster-c10fqqu5dr0g.us-east-1.rds.amazonaws.com:5432/hexchess?sslmode=require",
-    METRICS_DB_URL: "postgres://db_migrator@hexchess-sor.cluster-c10fqqu5dr0g.us-east-1.rds.amazonaws.com:5432/metrics?sslmode=require"
+    DB_URL: "postgres://db_migrator@hexchess-sor.cluster-c10fqqu5dr0g.us-east-1.rds.amazonaws.com:5432/hexchess?sslmode=require",
 
     ACTIVE_PROFILE: "test"
   }

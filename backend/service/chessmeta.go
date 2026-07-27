@@ -3,7 +3,7 @@ package svc
 import (
 	"context"
 	"hexchess-svc/db"
-	"hexchess-svc/db/primarydb"
+	"hexchess-svc/db/sqlc"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/optional"
@@ -16,11 +16,11 @@ import (
 )
 
 func (services *HexchessServices) UpdateGameMetadata(ctx context.Context, updt model.GameMetadataUpdt) error {
-	updtResult, err := services.querier.UpdateGameMeta(ctx, primarydb.UpdateGameMetaParams{
+	updtResult, err := services.querier.UpdateGameMeta(ctx, sqlc.UpdateGameMetaParams{
 		GameID:    updt.GameID.String(),
 		WhiteID:   pgtype.Int8{Int64: updt.WhitePlayer, Valid: true},
 		BlackID:   pgtype.Int8{Int64: updt.BlackPlayer, Valid: true},
-		Mode:      primarydb.ModeEnum(updt.Mode.String()),
+		Mode:      sqlc.ModeEnum(updt.Mode.String()),
 		UpdatedOn: pgtype.Timestamptz{Time: services.entropy.GetTime(), Valid: true},
 	})
 	if err != nil {
@@ -73,7 +73,7 @@ func (services *HexchessServices) GetGameMetadataCount(ctx context.Context) (int
 }
 
 func (services *HexchessServices) getGameMetadata(ctx context.Context, userID optional.Maybe[int64], afterOrdering optional.Maybe[int64], count optional.Maybe[int32]) ([]model.ChessMeta, error) {
-	rows, err := services.querier.SelectGameMetas(ctx, primarydb.SelectGameMetasParams{
+	rows, err := services.querier.SelectGameMetas(ctx, sqlc.SelectGameMetasParams{
 		ParticipantID: db.MapOptInt8(userID),
 		AfterOrdering: afterOrdering.OrElse(math.MaxInt64),
 		PerPage:       db.MapOptInt4(count),

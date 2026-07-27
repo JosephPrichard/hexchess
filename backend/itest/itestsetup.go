@@ -3,8 +3,7 @@ package itest
 import (
 	"hexchess-svc/cloud"
 	"hexchess-svc/db"
-	"hexchess-svc/db/metricsdb"
-	"hexchess-svc/db/primarydb"
+	"hexchess-svc/db/sqlc"
 	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/logutil"
 	"hexchess-svc/utils/testutil"
@@ -15,9 +14,8 @@ import (
 )
 
 type TestInfra struct {
-	PrimaryQuerier primarydb.Querier
-	PrimaryDB      db.Database[primarydb.Querier]
-	MetricsDB      db.Database[metricsdb.Querier]
+	PrimaryQuerier sqlc.Querier
+	Database       db.Database[sqlc.Querier]
 
 	Redis db.Redis
 
@@ -27,11 +25,8 @@ type TestInfra struct {
 func (i TestInfra) Close() {
 	i.Redis.Close()
 
-	if i.PrimaryDB != nil {
-		i.PrimaryDB.Close()
-	}
-	if i.MetricsDB != nil {
-		i.MetricsDB.Close()
+	if i.Database != nil {
+		i.Database.Close()
 	}
 }
 
@@ -75,16 +70,14 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 
 	if isRwPostgresFlag {
 		// rwPostgres flag substitutes a pool with a connection to enable parallel, independent tests
-		infra.PrimaryDB = db.NewFakePrimaryDB(t, pgPool)
-		infra.MetricsDB = db.NewFakeMetricsDB(t, pgPool)
+		infra.Database = db.NewFakePostgresDB(t, pgPool)
 
-		infra.PrimaryQuerier = infra.PrimaryDB.Querier()
+		infra.PrimaryQuerier = infra.Database.Querier()
 	} else if isRoPostgresFlag {
 		// roPostgres flag uses a real database pool to enable concurrent transactions
-		infra.PrimaryDB = db.NewPrimaryDB(pgPool)
-		infra.MetricsDB = db.NewMetricsDB(pgPool)
+		infra.Database = db.PostgresDBFromPool(pgPool)
 
-		infra.PrimaryQuerier = infra.PrimaryDB.Querier()
+		infra.PrimaryQuerier = infra.Database.Querier()
 	}
 
 	if isRedisFlag {

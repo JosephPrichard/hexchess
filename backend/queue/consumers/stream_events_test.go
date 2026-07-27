@@ -3,7 +3,7 @@ package consumers
 import (
 	"context"
 	"hexchess-svc/chess"
-	"hexchess-svc/db/primarydb"
+	"hexchess-svc/db/sqlc"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
@@ -32,7 +32,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	defer testinfra.Close()
 
 	services := svc.NewHexchessServices(svc.SetupService{
-		PrimaryDB:   testinfra.PrimaryDB,
+		Database:    testinfra.Database,
 		Redis:       testinfra.Redis,
 		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
 	})
@@ -65,7 +65,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		redis:       testinfra.Redis.PrimaryClient,
 		consumeFunc: handler.Handle,
 
-		querier:    testinfra.MetricsDB.Querier(),
+		querier:    testinfra.Database.Querier(),
 		dispatcher: async.SyncDispatcher{},
 
 		pollCount:     1,
@@ -78,13 +78,13 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 
 	consumer.ConsumePartition(string(partitionID))
 
-	userElos, err := testinfra.PrimaryQuerier.SelectUserModeElosByIDs(ctx, primarydb.SelectUserModeElosByIDsParams{
+	userElos, err := testinfra.PrimaryQuerier.SelectUserModeElosByIDs(ctx, sqlc.SelectUserModeElosByIDsParams{
 		ID:   []int64{whiteUser0.ID, blackUser1.ID},
 		Mode: "CORRESPONDENCE_1",
 	})
 	require.NoError(t, err)
 
-	wantUserElos := []primarydb.SelectUserModeElosByIDsRow{
+	wantUserElos := []sqlc.SelectUserModeElosByIDsRow{
 		{UserID: whiteUser0.ID, Elo: 1015, HighestElo: 1015, Wins: 1},
 		{UserID: blackUser1.ID, Elo: 985, HighestElo: 1000, Losses: 1},
 	}
@@ -103,7 +103,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	defer testinfra.Close()
 
 	services := svc.NewHexchessServices(svc.SetupService{
-		PrimaryDB:   testinfra.PrimaryDB,
+		Database:    testinfra.Database,
 		Redis:       testinfra.Redis,
 		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
 		Entropy:     &entropy.StableSource{CurrTime: itest.TimeNow},
@@ -134,7 +134,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 		redis:       testinfra.Redis.PrimaryClient,
 		consumeFunc: handler.Handle,
 
-		querier:    testinfra.MetricsDB.Querier(),
+		querier:    testinfra.Database.Querier(),
 		dispatcher: async.SyncDispatcher{},
 
 		pollCount:     1,
@@ -149,7 +149,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	gameRow, err := testinfra.PrimaryQuerier.SelectGameMeta(ctx, gameID.String())
 	require.NoError(t, err)
 
-	wantGameRow := primarydb.GamesMetadatum{
+	wantGameRow := sqlc.GamesMetadatum{
 		Ordering:  4,
 		GameID:    gameID.String(),
 		Mode:      "CORRESPONDENCE_1",

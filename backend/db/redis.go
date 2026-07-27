@@ -104,7 +104,8 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 
 	if redisCfg.ActiveProfile != config.Local {
 		pubsubDialer = func() (redigo.Conn, error) {
-			return redigo.Dial("tcp", redisCfg.PubsubAddr, redigo.DialUsername(redisCfg.PubsubUsername), redigo.DialPassword(redisCfg.PubsubPassword))
+			return redigo.Dial("tcp", redisCfg.PubsubAddr,
+				redigo.DialUsername(redisCfg.PubsubUsername), redigo.DialPassword(redisCfg.PubsubPassword))
 		}
 	} else {
 		pubsubDialer = func() (redigo.Conn, error) {

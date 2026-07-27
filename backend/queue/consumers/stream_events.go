@@ -3,7 +3,7 @@ package consumers
 import (
 	"context"
 	"hexchess-svc/db"
-	"hexchess-svc/db/metricsdb"
+	"hexchess-svc/db/sqlc"
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 	"log/slog"
@@ -20,9 +20,9 @@ var (
 )
 
 type RedisConsumerSetup struct {
-	Redis     db.Redis
-	MetricsDB db.Database[metricsdb.Querier]
-	Services  *svc.HexchessServices
+	Redis    db.Redis
+	Database db.Database[sqlc.Querier]
+	Services *svc.HexchessServices
 }
 
 func StartRedisConsumers(setup RedisConsumerSetup) {
@@ -30,7 +30,7 @@ func StartRedisConsumers(setup RedisConsumerSetup) {
 	updtGameHandler := UpdtGameMetadataHandler{services: setup.Services}
 
 	redisClient := setup.Redis.ConsumerClient
-	metricQuerier := setup.MetricsDB.Querier()
+	metricQuerier := setup.Database.Querier()
 
 	finishGameConsumer := NewStreamConsumer(StreamConfig{
 		StreamKey:     setup.Redis.FinishGameStreamKey,
