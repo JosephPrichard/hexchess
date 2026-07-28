@@ -64,7 +64,7 @@ func InitLoggers(name string, oltpEndpoint string, activeProfile config.Profile)
 	}
 
 	slog.SetDefault(slog.New(
-		&LogRecordHandler{&LogFanoutHandler{handlers: handlers}},
+		NewLogRecordHandler(NewLogFanoutHandler(handlers)),
 	))
 
 	slog.Info("finished initializing loggers", "oltpEndpoint", oltpEndpoint)

@@ -20,8 +20,6 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	"github.com/hellofresh/health-go/v5"
-	pgHealth "github.com/hellofresh/health-go/v5/checks/postgres"
-	redisHealth "github.com/hellofresh/health-go/v5/checks/redis"
 )
 
 func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.Handler {
@@ -168,56 +166,58 @@ func NewServeMux(setup ServerSetup, opts ...func(*chi.Mux)) *chi.Mux {
 	return r
 }
 
-type HealthCheckConfig struct {
-	PostgresDSN       string
-	RedisGameStoreDSN []string
-	RedisCacheDSNs    []string
-	RedisPubSubDSN    string
+type HealthConfig struct {
+	PostgresCheck     health.CheckFunc
+	PostgresReadCheck health.CheckFunc
+	RedisPrimaryCheck health.CheckFunc
+	RedisPubSubCheck  health.CheckFunc
 }
 
-func WithHealthCheckOpts(config HealthCheckConfig) func(*chi.Mux) {
+const (
+	PostgresLabel     = "Postgres"
+	PostgresReadLabel = "ReadPostgres"
+	RedisPubsubLabel  = "RedisPubsub"
+	RedisPrimaryLabel = "RedisPrimary"
+)
+
+func NewHealthCheck(config HealthConfig) func(*chi.Mux) {
 	return func(mux *chi.Mux) {
 		healthChecks := []health.Config{
 			{
-				Name:    "Postgres",
-				Timeout: time.Second * 2,
-				Check: pgHealth.New(pgHealth.Config{
-					DSN: config.PostgresDSN,
-				}),
+				Name:    PostgresLabel,
+				Timeout: time.Second * 5,
+				Check:   config.PostgresCheck,
 			},
 			{
-				Name:      "RedisPubsub",
-				Timeout:   time.Second * 2,
+				Name:    PostgresReadLabel,
+				Timeout: time.Second * 5,
+				Check:   config.PostgresReadCheck,
+			},
+			{
+				Name:      RedisPubsubLabel,
+				Timeout:   time.Second * 5,
 				SkipOnErr: true,
-				Check: redisHealth.New(redisHealth.Config{
-					DSN: config.RedisPubSubDSN,
-				}),
+				Check:     config.RedisPubSubCheck,
+			},
+			{
+				Name:      RedisPrimaryLabel,
+				Timeout:   time.Second * 5,
+				SkipOnErr: true,
+				Check:     config.RedisPrimaryCheck,
 			},
 		}
 
-		for i, dsn := range config.RedisGameStoreDSN {
-			healthChecks = append(healthChecks, health.Config{
-				Name:    fmt.Sprintf("RedisGameStore-Node-%d", i),
-				Timeout: time.Second * 2,
-				Check:   redisHealth.New(redisHealth.Config{DSN: dsn}),
-			})
-		}
-
-		for i, dsn := range config.RedisCacheDSNs {
-			healthChecks = append(healthChecks, health.Config{
-				Name:    fmt.Sprintf("RedisCache-Node-%d", i),
-				Timeout: time.Second * 2,
-				Check:   redisHealth.New(redisHealth.Config{DSN: dsn}),
-			})
-		}
-
-		h, err := health.New(
+		healthcheckHandler, err := health.New(
 			health.WithComponent(health.Component{Name: "hexchess-svc", Version: "v1.0"}),
 			health.WithChecks(healthChecks...),
 		)
 		if err != nil {
-			logutil.Fatal("failed to create health checker", err)
+			logutil.Fatal("failed to create health check handler", err)
 		}
-		mux.Get("/healthcheck", h.HandlerFunc)
+
+		mux.Get("/healthcheck", func(w http.ResponseWriter, r *http.Request) {
+			//slog.InfoContext(r.Context(), "health check", "method", r.Method, "url", r.URL.String())
+			healthcheckHandler.HandlerFunc(w, r)
+		})
 	}
 }

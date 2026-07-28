@@ -2,8 +2,8 @@
 	import CreateGame from '$lib/components/CreateGame.svelte';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import { goto } from '$app/navigation';
-	import { type ChessModel, type ColorSelect, type SessionModel, type GameMode, UntypedGameModeNameMap } from '$lib/api/models';
-	import services, { baseURL } from '$lib/api/services';
+	import { type ChessMetadata, type ColorSelect, type Session, type GameMode, UntypedGameModeNameMap } from '$lib/api/models';
+	import services, { backendBaseURL } from '$lib/api/services';
 	import { onMount } from 'svelte';
 	import { getClientSession } from '$lib/utils/storage';
 	import { chessRowHeight, maxChessRows } from './globals';
@@ -11,8 +11,8 @@
 	import { wasm } from '$lib/api/wasm';
 
 	export interface IndexProps {
-		chessList: ChessModel[];
-		selfChessList: ChessModel[];
+		chessList: ChessMetadata[];
+		selfChessList: ChessMetadata[];
 		showCreateModal?: boolean;
 		fen?: string;
 	}
@@ -28,29 +28,29 @@
 	let fen = $state(props.fen || '');
 	let userCounts = $state(0);
 	let gameCounts = $state(0);
-	let client: SessionModel | null = $state(null);
+	let client: Session | null = $state(null);
 
 	function connectCountEvents() {
-		countSse = new EventSource(`${baseURL()}/events/count`);
+		countSse = new EventSource(`${backendBaseURL()}/events/count`);
 		countSse.addEventListener('meta', (event) => {
-			console.log('SSE: COUNT_EVENTS meta', event.data);
+			logger.info('SSE: COUNT_EVENTS meta', event.data);
 		});
 		countSse.addEventListener('activeCountEvents', (event) => {
-			console.log('SSE: COUNT_EVENTS activeCountEvents', event.data);
+			logger.info('SSE: COUNT_EVENTS activeCountEvents', event.data);
 			const count = JSON.parse(event.data).count;
 			if (!Number.isNaN(count)) {
 				userCounts = count;
 			} else {
-				console.error('Invalid count received from server: ', count);
+				logger.error('Invalid count received from server: ', count);
 			}
 		});
 		countSse.addEventListener('gameCountEvents', (event) => {
-			console.log('SSE: COUNT_EVENTS gameCountEvents', event.data);
+			logger.info('SSE: COUNT_EVENTS gameCountEvents', event.data);
 			const count = JSON.parse(event.data).count;
 			if (!Number.isNaN(count)) {
 				gameCounts = count;
 			}  else {
-				console.error('Invalid count received from server: ', count);
+				logger.error('Invalid count received from server: ', count);
 			}
 		});
 	}

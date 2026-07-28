@@ -1,9 +1,5 @@
-import type { ChatMessage, PlayerState, Replay } from '$lib/pb/messages';
-
-function nameMapIntoOptions<T extends string>(nameMap: Record<T, string>) {
-	return Object.entries(nameMap)
-		.map(([key, value]) => ({label: value as string, value: key as T}))
-}
+import type { ChatMessage, PlayerState } from '$lib/pb/messages';
+import { nameMapIntoOptions } from './mapper';
 
 export type Action = 'delete' | 'reject' | 'accept';
 
@@ -77,7 +73,7 @@ export const GameModeTimers: Record<string, number> = {
 	"TIMED_15+10": 15 * msPerMin,
 };
 
-export interface SessionModel {
+export interface Session {
 	id: number;
 	username: string;
 	country: string;
@@ -85,7 +81,7 @@ export interface SessionModel {
 	ttlSecs: number | null;
 }
 
-export type UserModel = {
+export type User = {
 	id: number;
 	username: string;
 	country: string;
@@ -94,11 +90,11 @@ export type UserModel = {
 	joinedOn: string;
 }
 
-export function isGuestUser(user: PlayerState | PlayerModel) {
+export function isGuestUser(user: PlayerState | Player) {
 	return user.id < 0;
 }
 
-export type LbdUserModel = UserModel & {
+export type LeaderboardUser = User & {
 	elo: number;
 	highestElo: number;
 	wins: number;
@@ -107,7 +103,7 @@ export type LbdUserModel = UserModel & {
 	winrate: number;
 }
 
-export interface UserStatsEntity {
+export interface UserStats {
 	totalWins: number;
 	totalLosses: number;
 	totalDraws: number;
@@ -126,7 +122,7 @@ export interface UserStatsEntity {
 	}[];
 }
 
-export interface ChallengeModel {
+export interface Challenge {
 	challengerId: number;
 	challengerName: string;
 	challengerCountry: string;
@@ -140,7 +136,7 @@ export interface ChallengeModel {
 	expiresOn: string;
 }
 
-export interface ReplayModel {
+export interface Replay {
 	id: number;
 	whiteId: number;
 	blackId: number;
@@ -162,29 +158,6 @@ export interface ReplayModel {
 	turnCount?: number;
 }
 
-export function mapReplay(replay: Replay): ReplayModel {
-	return {
-		id: Number(replay.id),
-		whiteId: Number(replay.whiteId),
-		blackId: Number(replay.blackId),
-		whiteName: replay.whiteName,
-		blackName: replay.blackName,
-		whiteCountry: replay.whiteCountry,
-		blackCountry: replay.blackCountry,
-		whiteElo: replay.whiteElo,
-		blackElo: replay.blackElo,
-		playedOn: replay.playedOn,
-		result: replay.result,
-		cause: replay.cause,
-		mode: replay.mode,
-		whiteEloDiff: replay.whiteEloDiff,
-		blackEloDiff: replay.blackEloDiff,
-		winEloDiff: replay.winEloDiff,
-		loseEloDiff: replay.loseEloDiff
-	};
-}
-
-
 export interface EloHistory {
 	timestamp: string;
 	elo: number;
@@ -193,13 +166,13 @@ export interface EloHistory {
 export type EloBuckets = EloHistory[];
 
 
-export interface FullPlayerModel {
-	user: UserModel;
-	replayList: ReplayModel[];
-	stats: UserStatsEntity;
+export interface FullPlayer {
+	user: User;
+	replayList: Replay[];
+	stats: UserStats;
 }
 
-export interface PlayerModel {
+export interface Player {
 	id: number;
 	name: string;
 	country: string;
@@ -213,10 +186,10 @@ export interface Hex {
 	rank: number;
 }
 
-export interface ChessModel {
+export interface ChessMetadata {
 	gameId: string;
-	whitePlayer: PlayerModel;
-	blackPlayer: PlayerModel;
+	whitePlayer: Player;
+	blackPlayer: Player;
 	firstColor: string;
 	mode: string;
 	ended: boolean;
@@ -238,7 +211,7 @@ export function mapChatMessage(chat: ChatMessage): Chat {
 	};
 }
 
-export interface ServiceModel {
+export interface ServiceResponse {
 	status: number;
 	message?: string;
 	error: string;

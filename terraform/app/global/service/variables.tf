@@ -16,25 +16,25 @@ variable "aws_region" {
 
 # ALB only configurations (can be left default if ALB is not enabled)
 variable "alb_listener_arn" {
-  description = "The ARN of the ALB listener any ALB listener rules will be attached to."
+  description = "The ARN of the ALB listener any ALB listener rules will be attached to"
   type        = string
   default     = null
 }
 
 variable "base_priority" {
-  description = "Base priority of any ALB listener rules. Requires an open range of (base_priority, base_priority+10]."
+  description = "Base priority of any ALB listener rules. Requires an open range of (base_priority, base_priority+100]"
   type        = number
   default     = 0
 }
 
 variable "path_patterns" {
-  description = "The path patterns any ALB listener rules will match."
+  description = "The path patterns any ALB listener rules will match"
   type        = list(string)
   default     = ["*"]
 }
 
 variable "vpc_id" {
-  description = "VPC id the ALB target group will be in. Required if service will contain an ALB listener rule."
+  description = "VPC id the ALB target group will be in. Required if service will contain an ALB listener rule"
   type        = string
   default     = null
 }
@@ -45,8 +45,20 @@ variable "healthcheck_path" {
   default     = "/healthcheck"
 }
 
+variable "rollout" {
+  description = "Rollout kind of app deployment (e.g blue, green, switch)"
+  type        = string
+  default     = "blue"
+}
+
+variable "green_switch_weight" {
+  description = "The % of traffic to be directed to the green app when rollout is set to 'switch'"
+  type        = string
+  default     = 0
+}
+
 variable "app_port" {
-  description = "Port the ALB will route traffic to."
+  description = "Port the ALB will route traffic to"
   type        = number
   default     = 8080
 }

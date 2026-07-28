@@ -2,7 +2,7 @@ package producers
 
 import (
 	"context"
-	"hexchess-svc/db"
+	"hexchess-svc/cache"
 	"hexchess-svc/model"
 	"hexchess-svc/queue"
 	"hexchess-svc/utils/serrors"
@@ -17,10 +17,10 @@ type RedisXAdder interface {
 }
 
 type StreamProducer struct {
-	redis db.RedisNames
+	redis cache.RedisNames
 }
 
-func NewPublisher(redis db.Redis) StreamProducer {
+func NewPublisher(redis cache.Redis) StreamProducer {
 	return StreamProducer{redis: redis.RedisNames}
 }
 

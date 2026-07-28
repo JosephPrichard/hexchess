@@ -1,4 +1,5 @@
 import {ReplayCauseNameMap, ReplayResultNameMap} from "$lib/api/models";
+import { logger } from "./logger";
 
 export function formatReplayResult(result: string) {
 	return (ReplayResultNameMap as Record<string, string>)[result] ?? "-";
@@ -17,7 +18,7 @@ export function getReplayColors(result: string) {
 	case 'DRAW':
 		return ['yellow-color', 'yellow-color'];
 	default:
-		console.error('Unknown result case', result);
+		logger.error('Unknown result case', result);
 		return ['', ''];
 	}
 }

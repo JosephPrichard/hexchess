@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Pagination from '$lib/Pagination.svelte';
 	import StatsList from '$lib/components/StatsList.svelte';
-	import { UntypedGameModeNameMap, type LbdUserModel } from '$lib/api/models';
+	import { UntypedGameModeNameMap, type LeaderboardUser } from '$lib/api/models';
 	import Banner from '$lib/Banner.svelte';
 	import Dropdown from '$lib/components/Dropdown.svelte';
 	import { goto } from '$app/navigation';
@@ -9,7 +9,7 @@
 	export interface LeaderboardProps {
 		page: number;
 		pageCount: number;
-		userList: LbdUserModel[];
+		userList: LeaderboardUser[];
 	}
 
 	const { data: props }: { data: LeaderboardProps } = $props();

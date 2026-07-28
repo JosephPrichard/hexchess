@@ -4,10 +4,10 @@
 	import { type AddNotification, type NotificationData, setNotificationsContext } from '$lib/utils/context';
 	import { onMount } from 'svelte';
 	import { clearClientSession, updateClientSession } from '$lib/utils/storage';
-	import services, { baseURL } from '$lib/api/services';
-	import type { ChallengeModel, ServiceModel } from '$lib/api/models';
+	import services, { backendBaseURL } from '$lib/api/services';
+	import type { Challenge, ServiceResponse } from '$lib/api/models';
 	import { fade } from 'svelte/transition';
-	import { makeMessage } from '$lib/utils/error';
+	import { handleError } from '$lib/utils/error';
 
 	const { children }: LayoutProps = $props();
 
@@ -39,30 +39,30 @@
 		timeouts[i] = setTimeout(() => deleteNotification(i), data.duration || 3000);
 	}
 
-	function addErrorNotification(message: string | ServiceModel | undefined) {
+	function addErrorNotification(message: string | ServiceResponse | undefined) {
 		if (Object.values(notifications).length >= 5) return;
 		
 		addNotification({
 			isSuccess: false,
-			message: makeMessage(message),
+			message: handleError(message),
 			type: 'string'
 		});
 	}
 
 	function connectUserEvents() {
-		userSse = new EventSource(`${baseURL()}/events/user`, {
+		userSse = new EventSource(`${backendBaseURL()}/events/user`, {
 			mode: 'cors',
 			withCredentials: true
 		});
 		userSse.addEventListener('userEvents', (event) => {
-			console.log('Sse: USER_EVENTS userEvents', event.data);
-			const data: ChallengeModel = JSON.parse(event.data);
+			logger.info('Sse: USER_EVENTS userEvents', event.data);
+			const data: Challenge = JSON.parse(event.data);
 			addNotification({ type: 'challenge', message: data, isSuccess: true, duration: 6000 });
 		});
 	}
 
 	function connectActiveConn() {
-		activeSse = new EventSource(`${baseURL()}/events/active`, {
+		activeSse = new EventSource(`${backendBaseURL()}/events/active`, {
 			mode: 'cors',
 			withCredentials: true
 		});
@@ -77,7 +77,7 @@
 				clearClientSession();
 			}
 		} else {
-			console.error('error refreshing session', err);
+			logger.error('error refreshing session', err);
 			const retry = retries || 1;
 			setTimeout(() => refreshSession(retry + 1), 50 * Math.pow(2, retry));
 		}

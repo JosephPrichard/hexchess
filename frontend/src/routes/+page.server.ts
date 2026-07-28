@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { makeMessage } from '$lib/utils/error';
+import { handleError } from '$lib/utils/error';
 import services from '$lib/api/services';
 import type { IndexProps } from './+page.svelte';
 import { maxChessRows } from './globals';
@@ -15,7 +15,7 @@ export const load: PageServerLoad = async ({ url, fetch }): Promise<IndexProps> 
 
 	const [data, err] = await services.getGameRooms(maxChessRows, page, fetch);
 	if (err || data === undefined) {
-		error(err?.status || 500, makeMessage(err));
+		error(err?.status || 500, handleError(err));
 	}
 
 	return {

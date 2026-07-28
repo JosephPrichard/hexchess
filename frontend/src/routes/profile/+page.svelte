@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { clearClientSession, updateClientSession as updateClientUser } from '$lib/utils/storage';
 	import { getNotificationsContext } from '$lib/utils/context';
-	import type { UserModel } from '$lib/api/models';
+	import type { User } from '$lib/api/models';
 	import services from '$lib/api/services';
 	import Banner from '$lib/Banner.svelte';
 	import ProfilePic from '$lib/components/ProfilePic.svelte';
@@ -9,7 +9,7 @@
 
 	export interface ProfileProps {
 		countryList: string[];
-		user: UserModel;
+		user: User;
 	}
 
 	const { data: props }: { data: ProfileProps } = $props();

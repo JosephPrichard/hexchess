@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { baseURL } from '$lib/api/services.js';
+	import { backendBaseURL } from '$lib/api/services.js';
 
 	export interface ProfilePicProps {
 		userId: number;
@@ -14,7 +14,7 @@
 
 <img
 	style="width: {props.size}px; height: {props.size}px;"
-	src={baseURL() + "/users/profile-pics?userId=" + props.userId}
+	src={backendBaseURL() + "/users/profile-pics?userId=" + props.userId}
 	alt=""
 	class="pfp-icon profile-pic-{props.userId}{props.unique ? id : ''}"
 />

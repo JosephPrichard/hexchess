@@ -3,6 +3,7 @@ package svc
 import (
 	"context"
 	"errors"
+	"hexchess-svc/cache"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
@@ -12,7 +13,7 @@ import (
 )
 
 func (services *HexchessServices) IsGameAccessible(ctx context.Context, id model.GameID) bool {
-	gameKey := fmtGameKey(id)
+	gameKey := cache.FmtGameKey(id)
 
 	exists, err := services.redis.PrimaryClient.Exists(ctx, gameKey).Result()
 
@@ -30,7 +31,7 @@ type RedisChessGetter interface {
 }
 
 func (services *HexchessServices) getChessState(ctx context.Context, getter RedisChessGetter, id model.GameID) (*model.ChessState, error) {
-	gameKey := fmtGameKey(id)
+	gameKey := cache.FmtGameKey(id)
 
 	bytes, err := getter.Get(ctx, gameKey).Bytes()
 	if errors.Is(err, redis.Nil) {
@@ -64,7 +65,7 @@ type RedisChessSetter interface {
 }
 
 func (services *HexchessServices) setChessState(ctx context.Context, setter RedisChessSetter, id model.GameID, state *model.ChessState, updtTime time.Time) error {
-	gameKey := fmtGameKey(id)
+	gameKey := cache.FmtGameKey(id)
 
 	bytes, err := model.MarshalChessState(state)
 	if err != nil {
@@ -87,7 +88,7 @@ func (services *HexchessServices) setChessStates(ctx context.Context, chessState
 		if err != nil {
 			return serrors.New("marshal chess state", err)
 		}
-		gameKey := fmtGameKey(state.ID)
+		gameKey := cache.FmtGameKey(state.ID)
 		pipe.SetNX(ctx, gameKey, bytes, 0)
 
 		createdGameID = append(createdGameID, state.ID.String())
@@ -109,7 +110,7 @@ type ChessUpdateFn func(*model.ChessState) error
 type ChessCommitFn func(redis.Pipeliner, *model.ChessState) error
 
 func (services *HexchessServices) updateChessStateTxn(ctx context.Context, gameID model.GameID, update ChessUpdateFn, commit ChessCommitFn) (*model.ChessState, error) {
-	gameKey := fmtGameKey(gameID)
+	gameKey := cache.FmtGameKey(gameID)
 
 	for i := range MaxUpdateChessStateRetries {
 		var ret *model.ChessState

@@ -1,8 +1,8 @@
 <script lang="ts">
-    import {UntypedGameModeNameMap, type UserStatsEntity} from "$lib/api/models";
+    import {UntypedGameModeNameMap, type UserStats} from "$lib/api/models";
     import {MediaQuery} from "svelte/reactivity";
 
-    const { userStats }: { userStats: UserStatsEntity } = $props();
+    const { userStats }: { userStats: UserStats } = $props();
 
     const isLarge = new MediaQuery('min-width: 768px');
 </script>

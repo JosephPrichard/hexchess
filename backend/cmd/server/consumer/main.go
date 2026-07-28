@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"hexchess-svc/cache"
 	"hexchess-svc/db"
 	"hexchess-svc/queue/consumers"
 	svc "hexchess-svc/service"
@@ -26,20 +27,20 @@ func main() {
 	defer shutdown()
 
 	// step 2: connect to backend infrastructure and prepare cleanup
-	riverQuePool := db.NewPostgresPool(ctx, db.PoolConfig{
+	riverQuePool := db.NewDatabasePool(ctx, db.PoolConfig{
 		Dsn:           cfg.DbURL,
 		ActiveProfile: cfg.Profile,
-		Region:        cfg.AwsRegion,
+		AwsRegion:     cfg.AwsRegion,
 	})
 
-	database := db.NewPostgresDB(ctx, db.PoolConfig{
+	database := db.NewDatabase(ctx, db.DatabaseConfig{
 		Dsn:           cfg.DbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
 	})
 	defer database.Close()
 
-	primaryRedis := db.NewRedis(ctx, db.RedisConfig{
+	redisClient := cache.NewRedis(ctx, cache.RedisConfig{
 		PrimaryAddr:     cfg.RedisPrimaryNodes,
 		PrimaryUsername: cfg.RedisPrimaryUsername,
 		PrimaryPassword: cfg.RedisPrimaryPassword,
@@ -51,16 +52,16 @@ func main() {
 		ActiveProfile:    cfg.Profile,
 		ConsumerPoolSize: consumers.TotalPartitionCount,
 	})
-	defer primaryRedis.Close()
+	defer redisClient.Close()
 
 	// step 3: start background consumers and PPROF server
 	services := svc.NewHexchessServices(svc.SetupService{
 		Database: database,
-		Redis:    primaryRedis,
+		Redis:    redisClient,
 	})
 	consumers.StartRedisConsumers(consumers.RedisConsumerSetup{
 		Database: database,
-		Redis:    primaryRedis,
+		Redis:    redisClient,
 		Services: services,
 	})
 	consumers.StartRiverConsumers(consumers.RiverConsumerSetup{

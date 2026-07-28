@@ -1,3 +1,4 @@
+import {logger} from '$lib/utils/logger';
 import { ChessBoard, ChessGame, HistMove, HistMoves, Move } from '$lib/pb/messages';
 import type { Hex } from '$lib/api/models';
 import {defaultGame, defaultBoard} from '$lib/service/chess';
@@ -41,7 +42,7 @@ async function getGame(board?: ChessBoard): Promise<ChessGame> {
 	if (output instanceof Uint8Array) {
 		return ChessGame.fromBinary(output);
 	} else {
-		console.error("failed to get initial game");
+		logger.error("failed to get initial game");
 		return defaultGame;
 	}
 }
@@ -82,7 +83,7 @@ async function fenToGame(fen: string): Promise<ChessGame> {
 	if (typeof output[1] === "string") {
 		message = output[1];
 	}
-	console.error(message);
+	logger.error(message);
 
 	return defaultGame;
 }
@@ -98,7 +99,7 @@ async function boardToFen(board?: ChessBoard): Promise<string> {
 		return output;
 	}
 
-	console.error("failed to convert board to fen");
+	logger.error("failed to convert board to fen");
 	return "";
 }
 
@@ -123,7 +124,7 @@ async function gameAtMoveIndex(
 		return ChessGame.fromBinary(output);
 	}
 
-	console.error("failed to make move");
+	logger.error("failed to make move");
 	return defaultGame;
 }
 

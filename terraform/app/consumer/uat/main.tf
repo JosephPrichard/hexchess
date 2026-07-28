@@ -3,12 +3,17 @@ variable "commit_sha" {
   type        = string
 }
 
+variable "rollout" {
+  description = "Rollout kind of app deployment (e.g blue, green)"
+  type        = string
+}
+
 locals {
   infra = data.terraform_remote_state.infra.outputs
 }
 
 module "main" {
-  source = "../../modules/service"
+  source = "../../global/service"
 
   project     = "hexchess"
   environment = "uat"
@@ -25,14 +30,15 @@ module "main" {
   execution_role_arn  = local.infra.ecs_task_execution_role_arn
   task_role_arn       = local.infra.ecs_task_app_role_arn
 
+  rollout = var.rollout
+
   container_image = "938864279852.dkr.ecr.us-east-1.amazonaws.com/releases/hexchess/consumer"
   image_tag       = var.commit_sha
 
   env_vars = {
-    DB_URL : "postgres://db_readwrite@hexchess-sor.cluster-c10fqqu5dr0g.us-east-1.rds.amazonaws.com:5432/hexchess?sslmode=require",
+    DB_URL : "postgres://db_readwrite@hexchess-sor.cluster-c10fqqu5dr0g.us-east-1.rds.amazonaws.com/hexchess?sslmode=require",
 
     REDIS_SOR_NODES : join(",", [
-      "clustercfg.hexchess-primary-cluster.hl6d8h.memorydb.us-east-1.amazonaws.com:6379",
       "hexchess-primary-cluster-0001-001.hexchess-primary-cluster.hl6d8h.memorydb.us-east-1.amazonaws.com:6379",
       "hexchess-primary-cluster-0001-002.hexchess-primary-cluster.hl6d8h.memorydb.us-east-1.amazonaws.com:6379",
       "hexchess-primary-cluster-0002-001.hexchess-primary-cluster.hl6d8h.memorydb.us-east-1.amazonaws.com:6379",

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { getClientSession } from '$lib/utils/storage';
-	import type { SessionModel } from './api/models';
+	import type { Session } from './api/models';
 	import { onMount } from 'svelte';
 	import ProfilePic from '$lib/components/ProfilePic.svelte';
 	import ChallengeIcon from "$lib/icons/ChallengeIcon.svelte";
@@ -12,7 +12,7 @@
 
 	const id = $props.id();
 
-	let client: SessionModel | null = $state(null);
+	let client: Session | null = $state(null);
 	let searchText = $state('');
 	let challengesCount = $state(0);
 
@@ -33,7 +33,7 @@
 		if (data) {
 			challengesCount = data.count;
 		} else {
-			console.error('Failed to get challenges count', err);
+			logger.error('Failed to get challenges count', err);
 		}
 	})
 

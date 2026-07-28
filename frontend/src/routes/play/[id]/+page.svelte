@@ -1,5 +1,6 @@
 <script lang="ts">
-	import services, { appBaseURL, baseURL } from '$lib/api/services';
+	import { logger } from '$lib/utils/logger';
+	import services, { frontendBaseURL, backendBaseURL } from '$lib/api/services';
 	import { codes } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import MoveList from '$lib/components/MoveList.svelte';
@@ -9,8 +10,9 @@
 	import UndoIcon from '$lib/icons/UndoIcon.svelte';
 	import TakenTakenList from '$lib/components/TakenList.svelte';
 	import PlayerPanel from '$lib/components/PlayerPanel.svelte';
-	import { type ChatMessage, type ChessGame, EndKind, type ErrorOutput, type ForfeitOutput, GameOutput, type InitOutput, type MoveOutput, type PlayersOutput, type PlayerState, type Replay, type UndoOutput } from '$lib/pb/messages';
-	import { type Chat, type Hex, mapChatMessage, mapReplay, type ReplayModel } from '$lib/api/models';
+	import { type ChatMessage, type ChessGame, EndKind, type ErrorOutput, type ForfeitOutput, GameOutput, type InitOutput, type MoveOutput, type PlayersOutput, type PlayerState, type ReplayOutput, type UndoOutput } from '$lib/pb/messages';
+	import { type Chat, type Hex, mapChatMessage, type Replay } from '$lib/api/models';
+	import { mapReplay } from '$lib/api/mapper';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import { onMount } from 'svelte';
 	import Banner from '$lib/Banner.svelte';
@@ -42,7 +44,7 @@
 	let whitePlayer = $state<PlayerState | undefined>(undefined);
 	let blackPlayer = $state<PlayerState | undefined>(undefined);
 	let selfPlayer: PlayerState | undefined = $state(undefined);
-	let finishState = $state<ReplayModel | undefined>(undefined);
+	let finishState = $state<Replay | undefined>(undefined);
 	let endState = $state<EndKind>(EndKind.NOT_ENDED)
 	let undoPlayerId: bigint | undefined = $state(undefined);
 	let chats: Chat[] = $state([]);
@@ -68,7 +70,7 @@
 	let connState = $state<ConnectionState>({ tries: 0 });
 
 	// calculated from the server's game state and kept in sync
-	const link = $derived(`${appBaseURL()}/play/${props.gameId}`);
+	const link = $derived(`${frontendBaseURL()}/play/${props.gameId}`);
 	const isErrorPage = $derived.by(() => connState.tries > 0);
 	const notList = $derived.by(() => game?.moves.map((h) => h.notation) ?? []);
 	const currPlayer = $derived.by(() => game?.board?.isWhiteTurn ? whitePlayer : blackPlayer);
@@ -210,7 +212,7 @@
 		}
 		if (undo.game) game = undo.game;
 	}
-	function handleReplay(replay: Replay) {
+	function handleReplay(replay: ReplayOutput) {
 		if (replay) finishState = mapReplay(replay);
 	}
 
@@ -233,19 +235,19 @@
 	async function tryConnect(gameId: string) {
 		const [data, err] = await services.postTempSession();
 		if (err) {
-			console.error(`Failed to create temporary session: ${err.message}`);
+			logger.error(`Failed to create temporary session: ${err.message}`);
 			connState.tries += 1;
 			return;
 		}
 		const sessionId = data?.sessionId || "";
 
 		const params = new URLSearchParams({ sessionId, gameId });
-		const url = `${baseURL()}/ws/game?${params}`;
+		const url = `${backendBaseURL()}/ws/game?${params}`;
 
 		const tempWs = new WebSocket(url);
 		tempWs.binaryType = "arraybuffer";
 		tempWs.addEventListener('open', () => {
-			console.log(`Connected to game=${gameId} sessionId=${sessionId} successfully!`);
+			logger.info(`Connected to game=${gameId} sessionId=${sessionId} successfully!`);
 			const lastTime = connState.setAt?.getTime() ?? 0;
 			let tries = 0;
 			if (new Date().getTime() - lastTime > successConnThresholdTime) {
@@ -258,12 +260,12 @@
 		tempWs.addEventListener('message', (event) => {
 			if (event.data instanceof ArrayBuffer) {
 				const data = GameOutput.fromBinary(new Uint8Array(event.data));
-				console.log(`Received ${data.value.oneofKind} message`, data);
+				logger.info(`Received ${data.value.oneofKind} message`, data);
 				handleMessage(data);
 			}
 		});
 		tempWs.addEventListener('close', () => {
-			console.log(`Disconnected from game=${gameId}`);
+			logger.info(`Disconnected from game=${gameId}`);
 			connState = { ...connState, tries: connState.tries + 1, ws: undefined };
 		});
 	}
@@ -299,7 +301,7 @@
 			if (timeout > maxTimeout) {
 				timeout = maxTimeout;
 			}
-			console.log(`Trying to connect to game=${gameId} in timeout=${timeout} with tries=${state.tries}`);
+			logger.info(`Trying to connect to game=${gameId} in timeout=${timeout} with tries=${state.tries}`);
 			if (timeout > 0) {
 				setTimeout(() => tryConnect(gameId), 0);
 			} else {

@@ -1,24 +1,24 @@
 <script lang="ts">
+	import {logger} from '$lib/utils/logger';
 	import { getNotificationsContext } from '$lib/utils/context';
-	import {type Action, type ChallengeModel, UntypedGameModeNameMap, type SessionModel} from '$lib/api/models';
+	import {type Action, type Challenge, UntypedGameModeNameMap, type Session} from '$lib/api/models';
 	import services from '$lib/api/services';
 	import { formatRelativeTime } from '$lib/utils/format';
 	import Banner from '$lib/Banner.svelte';
 	import ProfilePic from '$lib/components/ProfilePic.svelte';
 	import ChallengeIcon from "$lib/icons/ChallengeIcon.svelte";
-	import {onMount} from "svelte";
 	import {getClientSession} from "$lib/utils/storage";
 
 	export interface ChallengeProps {
 		participants: string;
-		challengeList: ChallengeModel[];
+		challengeList: Challenge[];
 	}
 
 	const { data: props }: { data: ChallengeProps } = $props();
 	const isSender = $derived(props.participants === 'sent');
 
 	interface ChallengeState {
-		challenge: ChallengeModel;
+		challenge: Challenge;
 		isLoading: {
 			delete: boolean;
 			accept: boolean;
@@ -27,7 +27,7 @@
 	}
 
 	let challengeList: ChallengeState[] = $state([]);
-	let client: SessionModel | null = $state(null);
+	let client: Session | null = $state(null);
 
 	$effect(() => {
 		challengeList = props.challengeList.map((e) => ({
@@ -42,7 +42,7 @@
 
 	const { addNotification, addErrorNotification } = getNotificationsContext();
 
-	function formatSuccessMessage(challenge: ChallengeModel, action: Action) {
+	function formatSuccessMessage(challenge: Challenge, action: Action) {
 		let message: string | undefined = undefined;
 		switch (action) {
 			case 'delete':
@@ -58,7 +58,7 @@
 		return message;
 	}
 
-	async function onUpdateChallenge(challenge: ChallengeModel, index: number, action: Action) {
+	async function onUpdateChallenge(challenge: Challenge, index: number, action: Action) {
 		challengeList[index].isLoading[action] = true;
 
 		const [data, err] = await services.postUpdateChallenge(challenge.challengerId, challenge.challengeeId, action);
@@ -94,7 +94,7 @@
 					if (data) {
 						activeState[userId] = data.isUserActive ? "active" : "inactive";
 					} else {
-						console.error(`Error fetching active state for user ${userId}`, err)
+						logger.error(`Error fetching active state for user ${userId}`, err)
 					}
 				});
 			}

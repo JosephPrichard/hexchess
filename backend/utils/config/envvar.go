@@ -10,6 +10,7 @@ import (
 type Config struct {
 	ServerPort           string   `json:"serverPort"`
 	DbURL                string   `json:"dbURL"`
+	DbReadURL            string   `json:"dbReadURL"`
 	RedisPrimaryNodes    []string `json:"redisPrimaryNodes"`
 	RedisPrimaryUsername string   `json:"redisPrimaryUsername"`
 	RedisPrimaryPassword string   `json:"-"`
@@ -51,6 +52,7 @@ func loadConfig() Config {
 	config := Config{
 		ServerPort:           os.Getenv("SERVER_PORT"),
 		DbURL:                os.Getenv("DB_URL"),
+		DbReadURL:            os.Getenv("DB_READ_URL"),
 		RedisPrimaryNodes:    strings.Split(os.Getenv("REDIS_SOR_NODES"), ","),
 		RedisPrimaryUsername: os.Getenv("REDIS_SOR_USERNAME"),
 		RedisPrimaryPassword: os.Getenv("REDIS_SOR_PASSWORD"),
@@ -67,7 +69,11 @@ func loadConfig() Config {
 		OltpEndpoint:         os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 	}
 
-	// logger must be a JSON logger to respect the password commission `json:"-"`
+	if config.DbReadURL == "" {
+		config.DbReadURL = config.DbURL
+	}
+
+	// logger must be a JSON logger to respect the password omission `json:"-"`
 	slog.Info("loaded config", "config", config)
 
 	return config

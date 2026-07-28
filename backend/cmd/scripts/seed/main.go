@@ -5,9 +5,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"hexchess-svc/cache"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/mutator"
+
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 	"hexchess-svc/utils/config"
@@ -75,27 +77,27 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
-	database := db.NewPostgresDB(ctx, db.PoolConfig{
+	database := db.NewDatabase(ctx, db.DatabaseConfig{
 		Dsn:           cfg.DbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
 	})
 	defer database.Close()
 
-	primaryRedis := db.NewRedis(ctx, db.RedisConfig{
+	redisClient := cache.NewRedis(ctx, cache.RedisConfig{
 		PrimaryAddr:     cfg.RedisPrimaryNodes,
 		PrimaryUsername: cfg.RedisPubSubUsername,
 		PrimaryPassword: cfg.RedisPrimaryUsername,
 		ActiveProfile:   cfg.Profile,
 	})
-	defer primaryRedis.Close()
+	defer redisClient.Close()
 
-	if err := primaryRedis.PrimaryClient.FlushAll(ctx).Err(); err != nil {
+	if err := redisClient.PrimaryClient.FlushAll(ctx).Err(); err != nil {
 		logutil.Fatal("flush rdb", err)
 	}
 
 	// step 3: execute the test seed script and measure results
-	services := svc.NewHexchessServices(svc.SetupService{Database: database, Redis: primaryRedis})
+	services := svc.NewHexchessServices(svc.SetupService{Database: database, Redis: redisClient})
 
 	var usersDuration time.Duration
 	var challengesDuration time.Duration
@@ -310,9 +312,9 @@ func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts 
 }
 
 type TournamentInsts struct {
-	tournament   sqlc.InsertTournamentParams
-	participants []sqlc.BatchInsertTournamentParticipantParams
-	matches      []sqlc.BatchInsertTournamentMatchParams
+	tournament   mutator.InsertTournamentParams
+	participants []mutator.BatchInsertTournamentParticipantParams
+	matches      []mutator.BatchInsertTournamentMatchParams
 }
 
 func generateTournaments() []TournamentInsts {
@@ -323,14 +325,14 @@ func generateTournaments() []TournamentInsts {
 		// var tkey uuid.UUID
 		// binary.LittleEndian.PutUint64(tkey[:], tkeyUInt64)
 		// tkeyUInt64++
-		// pgtkey := pgtype.UUID{Bytes: tkey, Valid: true}
-		pgtkey := pgtype.UUID{Bytes: uuid.New(), Valid: true}
+		// pgTkey := pgtype.UUID{Bytes: tkey, Valid: true}
+		pgTkey := pgtype.UUID{Bytes: uuid.New(), Valid: true}
 
 		createdBy := generateUserID(nil)
 		status := model.TournamentInProgress
 		rounds := rand.Intn(4) + 1
 
-		var participants []sqlc.BatchInsertTournamentParticipantParams
+		var participants []mutator.BatchInsertTournamentParticipantParams
 		var usedParticipants = map[int64]struct{}{}
 
 		for i := range svc.KnockoutParticipantsAtRound(rounds, 1) {
@@ -341,19 +343,19 @@ func generateTournaments() []TournamentInsts {
 				participantID = generateUserID(usedParticipants)
 			}
 			joinedOn := time.Now().Add(-time.Minute*60 + time.Minute*time.Duration(i))
-			participants = append(participants, sqlc.BatchInsertTournamentParticipantParams{
-				TournamentKey: pgtkey,
+			participants = append(participants, mutator.BatchInsertTournamentParticipantParams{
+				TournamentKey: pgTkey,
 				UserID:        participantID,
 				JoinedOn:      pgtype.Timestamptz{Time: joinedOn, Valid: true},
 			})
 			usedParticipants[participantID] = struct{}{}
 		}
 
-		var matches []sqlc.BatchInsertTournamentMatchParams
+		var matches []mutator.BatchInsertTournamentMatchParams
 		for i := 0; i+1 < len(participants); i += 2 {
 			whiteID, blackID := participants[i].UserID, participants[i+1].UserID
-			matches = append(matches, sqlc.BatchInsertTournamentMatchParams{
-				TournamentKey: pgtkey,
+			matches = append(matches, mutator.BatchInsertTournamentMatchParams{
+				TournamentKey: pgTkey,
 				GameID:        model.NewGameID().String(), // there are no games in the game store matching this at this point in time
 				WhiteID:       whiteID,
 				BlackID:       blackID,
@@ -363,26 +365,26 @@ func generateTournaments() []TournamentInsts {
 		}
 
 		insts = append(insts, TournamentInsts{
-			tournament: sqlc.InsertTournamentParams{
-				TournamentKey: pgtkey,
+			tournament: mutator.InsertTournamentParams{
+				TournamentKey: pgTkey,
 				Name:          fmt.Sprintf("%s's tournament", gofakeit.FirstName()),
 				Rounds:        1,
-				Status:        sqlc.TournamentStatusEnum(status.String()),
-				Mode:          sqlc.ModeEnum(generateMode().String()),
-				Ruleset:       sqlc.TournamentRulesetEnum(model.TournamentKnockout.String()),
+				Status:        mutator.TournamentStatusEnum(status.String()),
+				Mode:          mutator.ModeEnum(generateMode().String()),
+				Ruleset:       mutator.TournamentRulesetEnum(model.TournamentKnockout.String()),
 				CreatedBy:     createdBy,
 				Countdown:     10,
 				CreatedOn:     pgtype.Timestamptz{Time: time.Now(), Valid: true},
 				UpdatedOn:     pgtype.Timestamptz{Time: time.Now(), Valid: true},
 			},
 			participants: participants,
-			matches:      []sqlc.BatchInsertTournamentMatchParams{},
+			matches:      []mutator.BatchInsertTournamentMatchParams{},
 		})
 	}
 	return insts
 }
 
-func seedTournaments(ctx context.Context, querier sqlc.Querier, paramsList []TournamentInsts) error {
+func seedTournaments(ctx context.Context, query db.ReadWriteQuerier, paramsList []TournamentInsts) error {
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	sem := make(chan struct{}, Concurrency)
@@ -393,20 +395,20 @@ func seedTournaments(ctx context.Context, querier sqlc.Querier, paramsList []Tou
 			defer func() { <-sem }()
 
 			// participants and matches must be inserted after the tournament to maintain foreign key integrity
-			if _, err := querier.InsertTournament(egCtx, params.tournament); err != nil {
+			if _, err := query.InsertTournament(egCtx, params.tournament); err != nil {
 				return err
 			}
 
 			var errs []error
 
-			querier.BatchInsertTournamentParticipant(egCtx, params.participants).Exec(func(i int, err error) {
+			query.BatchInsertTournamentParticipant(egCtx, params.participants).Exec(func(i int, err error) {
 				errs = append(errs, err)
 			})
 			if err := errors.Join(errs...); err != nil {
 				return err
 			}
 
-			querier.BatchInsertTournamentMatch(egCtx, params.matches).Exec(func(i int, err error) {
+			query.BatchInsertTournamentMatch(egCtx, params.matches).Exec(func(i int, err error) {
 				errs = append(errs, err)
 			})
 			return errors.Join(errs...)

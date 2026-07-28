@@ -1,4 +1,4 @@
-import type { SessionModel } from '../api/models';
+import type { Session } from '../api/models';
 
 const SESSION_KEY = 'session';
 
@@ -7,14 +7,14 @@ interface LocalStorageRecord<T> {
 	expiry: number;
 }
 
-export function getClientSession(): SessionModel | null {
+export function getClientSession(): Session | null {
 	const recordStr = localStorage.getItem(SESSION_KEY);
 	if (recordStr != null) {
-		const record = JSON.parse(recordStr) as LocalStorageRecord<SessionModel>;
+		const record = JSON.parse(recordStr) as LocalStorageRecord<Session>;
 		const now = new Date().getTime();
 		if (record.expiry < now) {
 			localStorage.removeItem(SESSION_KEY);
-			console.log(`Expired key=${SESSION_KEY} with value=${recordStr} from local storage at time=${now}`);
+			logger.info(`Expired key=${SESSION_KEY} with value=${recordStr} from local storage at time=${now}`);
 			return null;
 		}
 		return record.data;
@@ -22,18 +22,18 @@ export function getClientSession(): SessionModel | null {
 	return null;
 }
 
-export function setClientSession(client: SessionModel) {
-	const record: LocalStorageRecord<SessionModel> = {
+export function setClientSession(client: Session) {
+	const record: LocalStorageRecord<Session> = {
 		data: client,
 		expiry: new Date().getTime() + (client.ttlSecs ?? 0) * 1000
 	};
 	const recordStr = JSON.stringify(record);
 	localStorage.setItem(SESSION_KEY, recordStr);
 
-	// console.log(`Set key=${SESSION_KEY} to value=${recordStr} to local storage`);
+	// logger.info(`Set key=${SESSION_KEY} to value=${recordStr} to local storage`);
 }
 
-export function updateClientSession(newClient: SessionModel | null) {
+export function updateClientSession(newClient: Session | null) {
 	if (newClient) {
 		const client = getClientSession();
 		if (client != null) {
@@ -44,6 +44,6 @@ export function updateClientSession(newClient: SessionModel | null) {
 }
 
 export function clearClientSession() {
-	console.log('Clearing client session');
+	logger.info('Clearing client session');
 	localStorage.removeItem(SESSION_KEY);
 }

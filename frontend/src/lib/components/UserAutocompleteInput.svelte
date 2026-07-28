@@ -3,7 +3,7 @@
     import {generateRenderID} from "$lib/utils/id";
     import services from "$lib/api/services";
     import {getNotificationsContext} from "$lib/utils/context";
-    import type {UserModel} from "$lib/api/models";
+    import type {User} from "$lib/api/models";
     import ProfilePic from "$lib/components/ProfilePic.svelte";
 
     export interface Props {
@@ -15,7 +15,7 @@
 
     let { username = $bindable(), inputName }: Props = $props();
 
-    let suggestedUsers: UserModel[] = $state([]);
+    let suggestedUsers: User[] = $state([]);
     let dropdownID = $state("");
 
     interface Timeout {
@@ -25,7 +25,7 @@
 
     let timeout: Timeout | undefined = $state();
 
-    function pick(option: UserModel) {
+    function pick(option: User) {
         suggestedUsers = [];
         username = option.username ?? "";
     }

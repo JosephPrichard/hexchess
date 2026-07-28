@@ -2,7 +2,8 @@ package svc
 
 import (
 	"hexchess-svc/chess"
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/query"
+
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
@@ -116,7 +117,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			err := services.InsertFinishedGame(ctx, tt.event)
 			require.NoError(t, err)
 
-			modeLbZSet := fmtLeaderboardZSet(testinfra.Redis, tt.event.ReplayMode.String())
+			modeLbZSet := testinfra.Redis.FmtLeaderboardZSet(tt.event.ReplayMode.String())
 			leaderboard, err := services.redis.PrimaryClient.ZRevRange(ctx, modeLbZSet, 0, 2).Result()
 			require.NoError(t, err)
 
@@ -140,8 +141,8 @@ func TestInsertGameResult(t *testing.T) {
 	tests := []struct {
 		name         string
 		resultInput  GameResult
-		wantUserElos []sqlc.SelectUserModeElosByIDsRow
-		wantReplay   sqlc.Replay
+		wantUserElos []query.SelectUserModeElosByIDsRow
+		wantReplay   query.Replay
 		wantChange   GameResultChangeSet
 	}{
 		{
@@ -155,11 +156,11 @@ func TestInsertGameResult(t *testing.T) {
 				ReplayMode:   model.ModeTimed1Plus0,
 				InsertedTime: now,
 			},
-			wantUserElos: []sqlc.SelectUserModeElosByIDsRow{
+			wantUserElos: []query.SelectUserModeElosByIDsRow{
 				{UserID: testUser0.ID, Elo: 1050, HighestElo: 1050, Draws: 1, Wins: 6, Losses: 5}, // update while maintaing old highest elo
 				{UserID: testUser1.ID, Elo: 1000, HighestElo: 1000, Draws: 1},                     // insert
 			},
-			wantReplay: sqlc.Replay{
+			wantReplay: query.Replay{
 				GameID:      "game1",
 				WhiteID:     pgtype.Int8{Int64: testUser0.ID, Valid: true},
 				BlackID:     pgtype.Int8{Int64: testUser1.ID, Valid: true},
@@ -188,11 +189,11 @@ func TestInsertGameResult(t *testing.T) {
 				ReplayMode:   model.ModeCorrespondence1,
 				InsertedTime: now,
 			},
-			wantUserElos: []sqlc.SelectUserModeElosByIDsRow{
+			wantUserElos: []query.SelectUserModeElosByIDsRow{
 				{UserID: testUser0.ID, Elo: 1015, HighestElo: 1015, Wins: 1},  // insert
 				{UserID: testUser1.ID, Elo: 985, HighestElo: 1000, Losses: 1}, // insert with elo lower than start elo
 			},
-			wantReplay: sqlc.Replay{
+			wantReplay: query.Replay{
 				GameID:      "game2",
 				WhiteID:     pgtype.Int8{Int64: testUser0.ID, Valid: true},
 				BlackID:     pgtype.Int8{Int64: testUser1.ID, Valid: true},
@@ -225,11 +226,11 @@ func TestInsertGameResult(t *testing.T) {
 				ReplayMode:   model.ModeCorrespondence7,
 				InsertedTime: now,
 			},
-			wantUserElos: []sqlc.SelectUserModeElosByIDsRow{
+			wantUserElos: []query.SelectUserModeElosByIDsRow{
 				{UserID: testUser0.ID, Elo: 985, HighestElo: 1000, Wins: 2, Losses: 3}, // update while setting new highest elo
 				{UserID: testUser1.ID, Elo: 1015, HighestElo: 1015, Wins: 1},           // update
 			},
-			wantReplay: sqlc.Replay{
+			wantReplay: query.Replay{
 				GameID:      "game3",
 				WhiteID:     pgtype.Int8{Int64: testUser0.ID, Valid: true},
 				BlackID:     pgtype.Int8{Int64: testUser1.ID, Valid: true},
@@ -262,10 +263,10 @@ func TestInsertGameResult(t *testing.T) {
 				ReplayMode:   model.ModeCorrespondence7,
 				InsertedTime: now,
 			},
-			wantUserElos: []sqlc.SelectUserModeElosByIDsRow{
+			wantUserElos: []query.SelectUserModeElosByIDsRow{
 				{UserID: testUser0.ID, Elo: 1000, HighestElo: 1000, Wins: 2, Losses: 2, Draws: 0}, // no update
 			},
-			wantReplay: sqlc.Replay{
+			wantReplay: query.Replay{
 				GameID:      itest.FirstReplayGameID,
 				WhiteID:     pgtype.Int8{Int64: testUser0.ID, Valid: true},
 				BlackID:     pgtype.Int8{Int64: testUser1.ID, Valid: true},
@@ -291,8 +292,8 @@ func TestInsertGameResult(t *testing.T) {
 				ReplayMode:   model.ModeCorrespondence7,
 				InsertedTime: now,
 			},
-			wantUserElos: []sqlc.SelectUserModeElosByIDsRow(nil), // not inserted.
-			wantReplay: sqlc.Replay{
+			wantUserElos: []query.SelectUserModeElosByIDsRow(nil), // not inserted.
+			wantReplay: query.Replay{
 				GameID:      "game4",
 				WhiteID:     pgtype.Int8{},
 				BlackID:     pgtype.Int8{},
@@ -317,18 +318,18 @@ func TestInsertGameResult(t *testing.T) {
 			changeSet, err := services.InsertGameResult(ctx, tt.resultInput)
 			require.NoError(t, err)
 
-			userElos, err := testinfra.PrimaryQuerier.SelectUserModeElosByIDs(ctx, sqlc.SelectUserModeElosByIDsParams{
+			userElos, err := testinfra.Querier.SelectUserModeElosByIDs(ctx, query.SelectUserModeElosByIDsParams{
 				ID:   []int64{tt.resultInput.WhiteID, tt.resultInput.BlackID},
-				Mode: sqlc.ModeEnum(tt.resultInput.ReplayMode.String()),
+				Mode: query.ModeEnum(tt.resultInput.ReplayMode.String()),
 			})
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantUserElos, userElos)
 
-			replay, err := testinfra.PrimaryQuerier.SelectReplayRowByID(ctx, changeSet.ReplayID)
+			replay, err := testinfra.Querier.SelectReplayRowByID(ctx, changeSet.ReplayID)
 			require.NoError(t, err)
 
-			testutil.Equal(t, tt.wantReplay, replay, cmpopts.IgnoreFields(sqlc.Replay{}, "ID", "PlayedOn", "PlayedOnAsDays", "TurnCount", "Rating"))
+			testutil.Equal(t, tt.wantReplay, replay, cmpopts.IgnoreFields(query.Replay{}, "ID", "PlayedOn", "PlayedOnAsDays", "TurnCount", "Rating"))
 
 			changeSet.WinEloDiff = math.Round(changeSet.WinEloDiff)
 			changeSet.LoseEloDiff = math.Round(changeSet.LoseEloDiff)

@@ -1,4 +1,5 @@
-import type { ServiceModel } from '../api/models';
+import type { ServiceResponse } from '../api/models';
+import { logger } from './logger';
 
 export const codes = {
 	// HTTP codes
@@ -100,13 +101,13 @@ export const messages: Record<string, string> = {
 	[codes.errorExpiredGame]: 'The game has expired due to inactivity.',
 };
 
-const UnknownError = 'An unexpected error has occurred'
+const UnknownError = 'An unexpected error has occurred';
 
 function mapErr(code: string): string {
-	return messages[code] || UnknownError
+	return messages[code] || UnknownError;
 }
 
-export function errorToArray(resp?: ServiceModel): string[] {
+export function errorToArray(resp?: ServiceResponse): string[] {
 	let messages: string[];
 
 	if (resp?.error !== undefined) {
@@ -120,8 +121,8 @@ export function errorToArray(resp?: ServiceModel): string[] {
 	return messages.map(message => mapErr(message));
 }
 
-export function makeMessage(resp?: ServiceModel | string): string {
-	console.error(resp);
+export function handleError(resp?: ServiceResponse | string): string {
+	logger.error("handling backend error", resp);
 
 	let messages: string[];
 

@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { UntypedGameModeNameMap, type ReplayModel } from '$lib/api/models';
+	import { UntypedGameModeNameMap, type Replay } from '$lib/api/models';
 	import { formatReplayCause, formatEloDiff, formatReplayResult, getReplayColors } from '$lib/utils/format';
 
-	const { replay }: { replay: ReplayModel } = $props();
+	const { replay }: { replay: Replay } = $props();
 
 	const [result, cause, mode] = $derived.by(() => [formatReplayResult(replay.result), formatReplayCause(replay.cause), UntypedGameModeNameMap[replay.mode]]);
 	const [whiteClass, blackClass] = $derived.by(() => getReplayColors(replay.result));

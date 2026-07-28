@@ -1,7 +1,7 @@
 package consumers
 
 import (
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/query"
 	"hexchess-svc/itest"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue"
@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(sqlc.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
+var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(query.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
 
 func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	t.Parallel()
@@ -39,7 +39,7 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	wantMatches := []sqlc.TournamentMatch{
+	wantMatches := []query.TournamentMatch{
 		// tournament has 2 rounds with join order of [1,2,3,4], so starting the tournament creates 2 rounds wso the matches go 1-2, 3-4
 		{
 			TournamentKey: pgtype.UUID{Bytes: itest.Tournament2ScheduledKnockoutKey, Valid: true},
@@ -55,7 +55,7 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 		},
 	}
 
-	matches, err := testinfra.PrimaryQuerier.SelectMatches(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+	matches, err := testinfra.Querier.SelectMatches(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 	require.NoError(t, err)
 	testutil.Equal(t, wantMatches, matches, sqlcTournamentMatchCmpOpts)
 }

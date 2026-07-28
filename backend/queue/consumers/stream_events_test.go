@@ -3,7 +3,8 @@ package consumers
 import (
 	"context"
 	"hexchess-svc/chess"
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/query"
+
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
@@ -78,13 +79,13 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 
 	consumer.ConsumePartition(string(partitionID))
 
-	userElos, err := testinfra.PrimaryQuerier.SelectUserModeElosByIDs(ctx, sqlc.SelectUserModeElosByIDsParams{
+	userElos, err := testinfra.Querier.SelectUserModeElosByIDs(ctx, query.SelectUserModeElosByIDsParams{
 		ID:   []int64{whiteUser0.ID, blackUser1.ID},
 		Mode: "CORRESPONDENCE_1",
 	})
 	require.NoError(t, err)
 
-	wantUserElos := []sqlc.SelectUserModeElosByIDsRow{
+	wantUserElos := []query.SelectUserModeElosByIDsRow{
 		{UserID: whiteUser0.ID, Elo: 1015, HighestElo: 1015, Wins: 1},
 		{UserID: blackUser1.ID, Elo: 985, HighestElo: 1000, Losses: 1},
 	}
@@ -146,10 +147,10 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	}
 	consumer.ConsumePartition(string(partitionID))
 
-	gameRow, err := testinfra.PrimaryQuerier.SelectGameMeta(ctx, gameID.String())
+	gameRow, err := testinfra.Querier.SelectGameMeta(ctx, gameID.String())
 	require.NoError(t, err)
 
-	wantGameRow := sqlc.GamesMetadatum{
+	wantGameRow := query.GamesMetadatum{
 		Ordering:  4,
 		GameID:    gameID.String(),
 		Mode:      "CORRESPONDENCE_1",

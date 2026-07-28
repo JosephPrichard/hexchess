@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types';
 import { error } from '@sveltejs/kit';
 import services from '$lib/api/services';
-import { codes, makeMessage } from '$lib/utils/error';
+import { codes, handleError } from '$lib/utils/error';
 import type { SearchProps } from './+page.svelte';
 
 export const load: PageServerLoad = async ({ url, setHeaders, fetch }): Promise<SearchProps> => {
@@ -18,9 +18,9 @@ export const load: PageServerLoad = async ({ url, setHeaders, fetch }): Promise<
 
 	const [data, err] = await services.getSearchPlayers(username, page, fetch);
 	if (err && err.message === codes.errorSearchLimit) {
-		message = makeMessage(err);
+		message = handleError(err);
 	} else if (err) {
-		error(err.status, makeMessage(err));
+		error(err.status, handleError(err));
 	}
 
 	// setHeaders({

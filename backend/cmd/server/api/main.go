@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
 	"hexchess-svc/controller"
 	"hexchess-svc/db"
@@ -28,14 +29,15 @@ func main() {
 	defer shutdown()
 
 	// step 2: connect to backend infrastructure and prepare cleanup
-	database := db.NewPostgresDB(ctx, db.PoolConfig{
+	database := db.NewDatabase(ctx, db.DatabaseConfig{
 		Dsn:           cfg.DbURL,
+		ReadOnlyDsn:   cfg.DbReadURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
 	})
 	defer database.Close()
 
-	primaryRedis := db.NewRedis(ctx, db.RedisConfig{
+	redisClient := cache.NewRedis(ctx, cache.RedisConfig{
 		PrimaryAddr:     cfg.RedisPrimaryNodes,
 		PrimaryUsername: cfg.RedisPrimaryUsername,
 		PrimaryPassword: cfg.RedisPrimaryPassword,
@@ -46,7 +48,7 @@ func main() {
 
 		ActiveProfile: cfg.Profile,
 	})
-	defer primaryRedis.Close()
+	defer redisClient.Close()
 
 	aws := cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
 		ActiveProfile: cfg.Profile,
@@ -59,12 +61,12 @@ func main() {
 		AWSPassword: cfg.AwsPassword,
 	})
 	remoteAPIs := cloud.NewRemoteAPIs(nil)
-	broadcaster := pubsub.NewAsyncBroadcaster(primaryRedis)
+	broadcaster := pubsub.NewAsyncBroadcaster(redisClient)
 
 	// step 3: create API backend services and start background listeners for WS API
 	services := svc.NewHexchessServices(svc.SetupService{
 		Database:    database,
-		Redis:       primaryRedis,
+		Redis:       redisClient,
 		AWS:         aws,
 		Remote:      remoteAPIs,
 		Broadcaster: broadcaster,
@@ -72,24 +74,22 @@ func main() {
 
 	broadcasters := pubsub.NewLocalBroadcasters()
 	defer broadcasters.Shutdown()
-	broadcasters.Listen(primaryRedis)
+	broadcasters.Listen(redisClient)
 
 	// step 4: start API server and PPROF "sidecar" background task
 	slog.Info("starting server", "port", cfg.ServerPort, "allowedOrigins", cfg.AllowedOrigins)
 
-	withHealthcheck := controller.WithHealthCheckOpts(controller.HealthCheckConfig{
-		PostgresDSN:       cfg.DbURL,
-		RedisGameStoreDSN: cfg.RedisPrimaryNodes,
-		RedisCacheDSNs:    cfg.RedisPrimaryNodes,
-		RedisPubSubDSN:    cfg.RedisPubSubNode,
-	})
-	serverSetup := controller.ServerSetup{
+	mux := controller.NewServeMux(controller.ServerSetup{
 		Services:       services,
 		Broadcaster:    broadcaster,
 		Broadcasters:   broadcasters,
 		AllowedOrigins: cfg.AllowedOrigins,
-	}
-	mux := controller.NewServeMux(serverSetup, withHealthcheck)
+	}, controller.NewHealthCheck(controller.HealthConfig{
+		PostgresCheck:     database.HealthcheckFunc(),
+		PostgresReadCheck: database.ReadHealthcheckFunc(),
+		RedisPrimaryCheck: redisClient.PrimaryHealthCheck,
+		RedisPubSubCheck:  redisClient.PubsubHealthCheck,
+	}))
 
 	go func() {
 		if err := http.ListenAndServe(":6060", nil); err != nil {

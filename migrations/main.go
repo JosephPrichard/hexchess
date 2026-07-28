@@ -15,7 +15,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
-
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivermigrate"
 
@@ -29,7 +28,7 @@ func main() {
 		slog.Error("failed to run migration", "err", err.Error())
 	}
 
-	slog.Info("migration: finished execution")
+	slog.Info("finished executing migrations")
 
 	// program stays running so the service does not restart when migration is complete
 	if err := http.ListenAndServe(":8080", nil); err != nil {
@@ -38,7 +37,8 @@ func main() {
 }
 
 func run() error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
+	defer cancel()
 
 	dbURL := os.Getenv("DB_URL")
 	awsRegion := os.Getenv("AWS_REGION")
@@ -79,28 +79,13 @@ func run() error {
 	}
 
 	// step 3: connect and execute migrations
+	slog.Info("begin applying migrations")
+
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		return fmt.Errorf("create postgres db pool: %s", err)
 	}
 	defer pool.Close()
-
-	db := stdlib.OpenDBFromPool(pool)
-	defer db.Close()
-
-	startCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
-
-	if _, err := db.ExecContext(startCtx, "SELECT 1;"); err != nil {
-		return fmt.Errorf("execute startup query: %s", err)
-	}
-
-	if err := goose.SetDialect("postgres"); err != nil {
-		return fmt.Errorf("set database dialect: %s", err)
-	}
-	if err := goose.Up(db, "."); err != nil {
-		return fmt.Errorf("apply hexchess migration: %s", err)
-	}
 
 	riverMigrator, err := rivermigrate.New(riverpgxv5.New(pool), nil)
 	if err != nil {
@@ -108,6 +93,16 @@ func run() error {
 	}
 	if _, err := riverMigrator.Migrate(ctx, rivermigrate.DirectionUp, nil); err != nil {
 		return fmt.Errorf("apply river migration: %s", err)
+	}
+
+	db := stdlib.OpenDBFromPool(pool)
+	defer db.Close()
+
+	if err := goose.SetDialect("postgres"); err != nil {
+		return fmt.Errorf("set database dialect: %s", err)
+	}
+	if err := goose.UpContext(ctx, db, "."); err != nil {
+		return fmt.Errorf("apply hexchess migration: %s", err)
 	}
 
 	return nil

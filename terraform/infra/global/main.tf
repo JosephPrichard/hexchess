@@ -1,9 +1,10 @@
 data "aws_caller_identity" "current" {}
 
-# Locals
 locals {
   prefix = var.project
 }
+
+### NETWORKING CONFIGS
 
 # VPC
 module "vpc" {
@@ -23,7 +24,9 @@ module "vpc" {
   enable_dns_hostnames = true
 }
 
-# Aurora Postgres
+### RDS DATABASES
+
+# Aurora Postgres SOR DB
 module "sor-db" {
   source = "../modules/database"
 
@@ -42,6 +45,8 @@ module "sor-db" {
 
   instance_class = var.postgres_instance_type
 }
+
+### BLOCK STORAGE
 
 # S3 Buckets
 locals {
@@ -62,37 +67,12 @@ resource "aws_s3_bucket_public_access_block" "main" {
   restrict_public_buckets = true
 }
 
-# Redis
-resource "aws_security_group" "redis_sg" {
-  name        = "${local.prefix}-redis-sg"
-  description = "Allow Redis access from private subnets"
-  vpc_id      = module.vpc.vpc_id
-
-  ingress {
-    description = "Redis access from private subnets"
-    from_port   = 6379
-    to_port     = 6379
-    protocol    = "tcp"
-    cidr_blocks = module.vpc.private_subnets_cidr_blocks
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Environment = var.environment
-    Project     = var.project
-  }
-}
+### REDIS
 
 # MemoryDB
 resource "aws_memorydb_cluster" "memorydb" {
   name                     = "${local.prefix}-primary-cluster"
-  # MemoryDB is not secured with a password for the meantime, we rely on network ACLs for security
+  # MemoryDB is not secured with a password for the meantime, we rely on firewall rules for security
   acl_name                 = "open-access"
   node_type                = var.memorydb_node_type
   engine_version           = "7.1"
@@ -148,6 +128,8 @@ resource "aws_elasticache_subnet_group" "main" {
   }
 }
 
+### APP INFRA
+
 # ECS Cluster
 resource "aws_ecs_cluster" "main" {
   name = "${local.prefix}-cluster"
@@ -158,35 +140,135 @@ resource "aws_ecs_cluster" "main" {
   }
 }
 
-# ALB
-resource "aws_lb" "main" {
-  name               = "${local.prefix}-alb"
-  internal           = false
+### LOAD BALANCERS
+
+# Private NLB
+# The primary function having application routing rules in the private subnet is to allow apps within the same private subnet to talk to each other
+
+resource "aws_lb" "private" {
+  name               = "${local.prefix}-alb-private"
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
-  subnets            = module.vpc.public_subnets # Publicly accessible
+
+  # Not internet facing
+  internal = true
+  subnets  = module.vpc.private_subnets
 }
 
-resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.main.arn
+# ALB takes HTTP traffic only
+
+resource "aws_lb_listener" "private_http" {
+  load_balancer_arn = aws_lb.private.arn
   port              = 80
   protocol          = "HTTP"
 
   default_action {
     type = "fixed-response"
 
+    # Default response is 404 because applications will be adding their rules to this ALB on a case by case basis
     fixed_response {
       content_type = "text/plain"
-      message_body = "Cannot match load balancer rule"
+      message_body = "Application is missing or moved"
       status_code  = "404"
     }
   }
 }
 
+# Public NLB
+# The primary function of this NLB is to take traffic from the internet and route it to the public NLB
+
+resource "aws_lb" "public" {
+  name               = "${local.prefix}-nlb-public"
+  load_balancer_type = "network"
+  security_groups    = [aws_security_group.alb.id]
+
+  enable_cross_zone_load_balancing = true
+
+  # Internet facing
+  internal = false
+  subnets  = module.vpc.public_subnets
+}
+
+# NLB takes HTTPS traffic only
+
+resource "aws_lb_listener" "public_http" {
+  load_balancer_arn = aws_lb.public.arn
+  port              = 80 # TODO change this to HTTPs
+  protocol          = "TCP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.nlb_to_alb_tg.arn
+  }
+}
+
+resource "aws_lb_target_group" "nlb_to_alb_tg" {
+  name        = "${local.prefix}-nlb-to-alb-tg"
+  port        = 80
+  protocol    = "TCP"
+  vpc_id      = module.vpc.vpc_id
+  target_type = "alb"
+
+  health_check {
+    protocol            = "HTTP"
+    # The ALB must have a /healthcheck endpoint
+    # In our case, it is implemented by both the frontend and backend application, at least one must be available for the NLB to be healthy
+    path                = "/healthcheck"
+    port                = "traffic-port" # Same port as target
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+    interval            = 10
+    # If the private ALB can send any kind of response at all, we an route traffic to it. This includes the private ALB's default 404 response.
+    matcher             = "200-499"
+  }
+}
+
+resource "aws_lb_target_group_attachment" "public_http_attach" {
+  target_group_arn = aws_lb_target_group.nlb_to_alb_tg.arn
+  target_id        = aws_lb.private.arn
+  port             = 80
+}
+
+### SECURITY GROUPS
+
+# Redis Security Group
+resource "aws_security_group" "redis_sg" {
+  name        = "${local.prefix}-redis-sg"
+  description = "Allow Redis access from private subnets"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress {
+    description = "Redis access from private subnets"
+    from_port   = 6379
+    to_port     = 6379
+    protocol    = "tcp"
+    # Allow all traffic from any application in the private subnet
+    cidr_blocks = module.vpc.private_subnets_cidr_blocks
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Environment = var.environment
+    Project     = var.project
+  }
+}
+
+# LB Security Group
 resource "aws_security_group" "alb" {
+  # This is a security group designed for private ALB specifically, but it is reused by the NLB
+
   name        = "${local.prefix}-alb-sg"
   description = "Allow inbound HTTP/HTTPs traffic for ALB"
   vpc_id      = module.vpc.vpc_id
+
+  # ALBs permit traffic from ALL IPs, since ALBs are designed to support user facing APIs
+  # However whether or not the ALB will be accessible from the internet is decided by which subnet the ALB itself is in
 
   ingress {
     from_port   = 80
@@ -221,14 +303,14 @@ resource "aws_security_group" "ecs_service_listener" {
     from_port       = 8080
     to_port         = 8080
     protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]  # only from ALB
+    security_groups = [aws_security_group.alb.id]  # only from load balancer
   }
 
   ingress {
     from_port       = 5173
     to_port         = 5173
     protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]  # only from ALB
+    security_groups = [aws_security_group.alb.id]  # only from load balancer
   }
 
   egress {
@@ -244,6 +326,8 @@ resource "aws_security_group" "ecs_service_worker" {
   description = "Allows all egress network traffic"
   vpc_id      = module.vpc.vpc_id
 
+  # This security groups is used for background workers that need to access infrastructure but provide no user facing APIs
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -251,6 +335,8 @@ resource "aws_security_group" "ecs_service_worker" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
+
+### IAM POLICIES
 
 # IAM (S3 Bucket Access Policy)
 resource "aws_iam_policy" "s3_readwrite_policy" {
@@ -267,6 +353,8 @@ resource "aws_iam_policy" "s3_readwrite_policy" {
     ]
   })
 }
+
+### IAM ROLES
 
 # IAM (ECS Cluster Task Execution Role)
 resource "aws_iam_role" "ecs_task_execution_role" {

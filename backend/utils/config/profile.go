@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"os"
+	"strings"
 )
 
 type Profile int
@@ -16,13 +18,17 @@ const (
 var profileTable = [...]string{"local", "test", "prod"}
 
 func ParseProfile(s string) Profile {
+	if s == "" {
+		return Local
+	}
+	s = strings.ToLower(s)
 	for i, p := range profileTable {
 		if p == s {
 			return Profile(i)
 		}
 	}
-
-	slog.Info("defaulting to local profile")
+	slog.Error("unknown profile", "profile", s)
+	os.Exit(1)
 	return Local
 }
 

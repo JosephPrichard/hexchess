@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db"
+
 	"hexchess-svc/queue"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/errutil"
@@ -32,27 +33,22 @@ type StreamConsumer struct {
 	cancel context.CancelFunc
 	// connects to redis to poll event streams and a database to insert into metadata tables
 	redis      redis.UniversalClient
-	querier    sqlc.Querier
+	querier    db.ReadWriteQuerier
 	dispatcher async.Dispatcher
 	// an implementation for consuming a single event
 	consumeFunc ConsumeFunc
 }
 
 type StreamConfig struct {
-	// (required) the `parent` stream name for each partition
-	StreamKey string `json:"streamKey"`
-	// (required) prevents multiple server nodes from receiving duplicate events
-	ConsumerGroup string `json:"consumerGroup"`
-	// (required) the number of max number messages received in poll attempt. each event is handled on a seperate goroutine.
-	PollCount int64 `json:"pollCount"`
-	// (required) specifies the substreams for a stream to be split into to enable sharding. an empty list will provide no streams
-	PartitionKeys []string `json:"partitionKeys"`
-	// (optional) change the behavior of the consumer for tests
-	MaxEvents     uint64        `json:"maxEvents"`
+	StreamKey     string        `json:"streamKey"`     // (required) the `parent` stream name for each partition
+	ConsumerGroup string        `json:"consumerGroup"` // (required) prevents multiple server nodes from receiving duplicate events
+	PollCount     int64         `json:"pollCount"`     // (required) the number of max number messages received in poll attempt. each event is handled on a separate goroutine.
+	PartitionKeys []string      `json:"partitionKeys"` // (required) specifies the substreams for a stream to be split into to enable sharding. an empty list will provide no streams
+	MaxEvents     uint64        `json:"maxEvents"`     // (optional) change the behavior of the consumer for tests
 	BlockDuration time.Duration `json:"blockDuration"`
 
 	Redis          redis.UniversalClient `json:"-"`
-	MetricsQuerier sqlc.Querier          `json:"-"`
+	MetricsQuerier db.ReadWriteQuerier   `json:"-"`
 	ConsumeFn      ConsumeFunc           `json:"-"`
 }
 

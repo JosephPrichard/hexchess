@@ -2,7 +2,7 @@ package pubsub
 
 import (
 	"encoding/json"
-	"hexchess-svc/db"
+	"hexchess-svc/cache"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"hexchess-svc/utils/testutil"
@@ -20,7 +20,7 @@ var cmpOptsGameOutputs cmp.Options = []cmp.Option{
 	protocmp.IgnoreFields(&pb.ReplayOutput{}, "id", "played_on"),
 }
 
-func ExpectBroadcastGames(t *testing.T, rdb db.Redis, gameID model.GameID, wantOutputs []*pb.GameOutput) func() {
+func ExpectBroadcastGames(t *testing.T, rdb cache.Redis, gameID model.GameID, wantOutputs []*pb.GameOutput) func() {
 	if wantOutputs == nil {
 		return func() {}
 	}
@@ -43,7 +43,7 @@ func ExpectBroadcastGames(t *testing.T, rdb db.Redis, gameID model.GameID, wantO
 	}
 }
 
-func ExpectBroadcastActiveUsers(t *testing.T, rdb db.Redis, wantOutputs []int64) func() {
+func ExpectBroadcastActiveUsers(t *testing.T, rdb cache.Redis, wantOutputs []int64) func() {
 	if wantOutputs == nil {
 		return func() {}
 	}

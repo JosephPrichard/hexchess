@@ -1,11 +1,12 @@
 <script lang="ts">
+    import { logger } from '$lib/utils/logger';
 	import CreateGame from '$lib/components/CreateGame.svelte';
 	import { onMount } from 'svelte';
 	import ChallengeIcon from '$lib/icons/ChallengeIcon.svelte';
-	import {type EloBuckets, type ReplayModel} from '$lib/api/models.js';
+	import {type EloBuckets, type Replay} from '$lib/api/models.js';
 	import { getClientSession } from '$lib/utils/storage';
 	import { getNotificationsContext } from '$lib/utils/context';
-	import type { ColorSelect, FullPlayerModel, GameMode } from '$lib/api/models';
+	import type { ColorSelect, FullPlayer, GameMode } from '$lib/api/models';
 	import services from '$lib/api/services';
 	import 'chartjs-adapter-date-fns';
 	import '$lib/utils/chart';
@@ -28,7 +29,7 @@
 	];
 
 	export interface PlayerProps {
-		fullUser: FullPlayerModel;
+		fullUser: FullPlayer;
 	}
 
 	const { data: props }: { data: PlayerProps } = $props();
@@ -37,7 +38,7 @@
 	const { addNotification, addErrorNotification } = getNotificationsContext();
 
 	interface ReplayListRow {
-		replayList: ReplayModel[];
+		replayList: Replay[];
 		hasMoreReplays: boolean;
 	}
 
@@ -58,7 +59,7 @@
 	async function tryLoadReplays() {
 		const replayListRow = replayLists[replayQueryKind];
 		if (!replayList) {
-			console.error(`No replay list found for active replays query: ${replayQueryKind}.`);
+			logger.error(`No replay list found for active replays query: ${replayQueryKind}.`);
 			return;
 		}
 
@@ -126,7 +127,7 @@
 	onMount(() => {
 		const client = getClientSession();
 		isDifferentUser = client !== null && user.id !== client.id;
-		console.log('Initializing with client: ', client);
+		logger.info('Initializing with client: ', client);
 		tryLoadReplays();
 	});
 

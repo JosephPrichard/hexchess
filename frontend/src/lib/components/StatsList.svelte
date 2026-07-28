@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import type { LbdUserModel } from '$lib/api/models';
+	import type { LeaderboardUser } from '$lib/api/models';
 	import { MediaQuery } from 'svelte/reactivity';
 
 	interface Props {
-		userList: LbdUserModel[];
+		userList: LeaderboardUser[];
 	}
 
 	const { userList }: Props = $props();

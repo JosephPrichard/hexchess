@@ -3,31 +3,47 @@ package db
 import (
 	"context"
 	"errors"
+	"hexchess-svc/db/query"
 	"hexchess-svc/utils/timeutil"
 	"log/slog"
 	"time"
 
+	"github.com/hellofresh/health-go/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type fakeDB[Querier any] struct {
+type QueryFactoryImpl = QueryFactory[ReadWriteQuerier, query.Querier]
+
+type fakeDB struct {
 	testTxn pgx.Tx
 	pool    *pgxpool.Pool
-	factory QuerierFactory[Querier]
+	factory QueryFactoryImpl
 }
 
-func (db *fakeDB[Querier]) Querier() Querier {
-	return db.factory.FromTx(db.testTxn)
+func (db *fakeDB) Querier() ReadWriteQuerier {
+	return db.factory.TxnQuerier(db.testTxn)
 }
 
-func (db *fakeDB[Querier]) ExecTx(ctx context.Context, args TxArgs[Querier]) (err error) {
+func (db *fakeDB) ReadQuerier() query.Querier {
+	return db.Querier() // read querier is the same as the read/write querier functional tests, it is for perf only
+}
+
+func (db *fakeDB) HealthcheckFunc() health.CheckFunc {
+	return NewHealthcheck(db.pool)
+}
+
+func (db *fakeDB) ReadHealthcheckFunc() health.CheckFunc {
+	return NewHealthcheck(db.pool)
+}
+
+func (db *fakeDB) ExecTx(ctx context.Context, args TxArgs[ReadWriteQuerier]) (err error) {
 	// a fake postgres instance is already running in a txn, noop the txn
-	return args.QueryFn(ctx, db.testTxn, db.factory.FromTx(db.testTxn))
+	return args.QueryFn(ctx, db.testTxn, db.factory.TxnQuerier(db.testTxn))
 }
 
-func (db *fakeDB[_]) Close() {
+func (db *fakeDB) Close() {
 	if db.testTxn != nil {
 		if err := db.testTxn.Rollback(context.Background()); err != nil {
 			slog.Error("failed to rollback testing txn", "error", err)
@@ -38,29 +54,57 @@ func (db *fakeDB[_]) Close() {
 	}
 }
 
-type implDB[Querier any] struct {
-	factory QuerierFactory[Querier]
-	pool    *pgxpool.Pool
+type implDB struct {
+	factory   QueryFactory[ReadWriteQuerier, query.Querier]
+	writePool *pgxpool.Pool
+	readPool  *pgxpool.Pool
 }
 
-func (db *implDB[Querier]) Querier() Querier {
-	return db.factory.FromPool(db.pool)
+func (db *implDB) Querier() ReadWriteQuerier {
+	if db.writePool == nil {
+		return nil
+	}
+	return db.factory.Querier(db.writePool)
 }
 
-func (db *implDB[Querier]) Close() {
-	if db.pool != nil {
-		db.pool.Close()
+func (db *implDB) ReadQuerier() query.Querier {
+	if db.readPool == nil {
+		return nil
+	}
+	return db.factory.Querier(db.readPool)
+}
+
+func (db *implDB) HealthcheckFunc() health.CheckFunc {
+	if db.writePool == nil {
+		return nil
+	}
+	return NewHealthcheck(db.writePool)
+}
+
+func (db *implDB) ReadHealthcheckFunc() health.CheckFunc {
+	if db.readPool == nil {
+		return nil
+	}
+	return NewHealthcheck(db.readPool)
+}
+
+func (db *implDB) Close() {
+	if db.writePool != nil {
+		db.writePool.Close()
+	}
+	if db.readPool != nil {
+		db.readPool.Close()
 	}
 }
 
-func (db *implDB[Querier]) ExecTx(ctx context.Context, args TxArgs[Querier]) error {
+func (db *implDB) ExecTx(ctx context.Context, args TxArgs[ReadWriteQuerier]) error {
 	if args.RetryCount == 0 {
 		args.RetryCount = 1
 	}
 
 	var err error
 	for i := range args.RetryCount {
-		err = execTxnOnce(ctx, db.pool, db.factory, args)
+		err = execTxnOnce(ctx, db.writePool, db.factory, args)
 
 		if isSerializationFailure(err) {
 			slog.WarnContext(ctx, "retrying transaction", "error", err, "retry", i)
@@ -76,7 +120,7 @@ func (db *implDB[Querier]) ExecTx(ctx context.Context, args TxArgs[Querier]) err
 	return err
 }
 
-func execTxnOnce[Querier any](ctx context.Context, pool *pgxpool.Pool, factory QuerierFactory[Querier], args TxArgs[Querier]) (txnErr error) {
+func execTxnOnce(ctx context.Context, pool *pgxpool.Pool, factory QueryFactoryImpl, args TxArgs[ReadWriteQuerier]) (txnErr error) {
 	if args.Isolation == "" {
 		args.Isolation = pgx.ReadCommitted
 	}
@@ -107,7 +151,7 @@ func execTxnOnce[Querier any](ctx context.Context, pool *pgxpool.Pool, factory Q
 		}
 	}()
 
-	txnErr = args.QueryFn(ctx, txn, factory.FromTx(txn))
+	txnErr = args.QueryFn(ctx, txn, factory.TxnQuerier(txn))
 	return txnErr
 }
 

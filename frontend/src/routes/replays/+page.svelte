@@ -1,7 +1,7 @@
 <script lang="ts">
     import Banner from "$lib/Banner.svelte";
     import {
-        type GameMode, type ReplayCause, type ReplayModel, type ReplayQuerySortKey, type ReplayResult,
+        type GameMode, type ReplayCause, type Replay, type ReplayQuerySortKey, type ReplayResult,
         GameModeOptions, ReplayCauseOptions, ReplayQuerySortKeyOptions, ReplayResultOptions, ReplayQuerySortKeyNameMap,
     } from "$lib/api/models";
     import ReplayPreview from "$lib/components/ReplayPreview.svelte";
@@ -17,7 +17,7 @@
     const resultOptions = [defaultOption<OptEnum<ReplayResult>>(), ...ReplayResultOptions];
 
     export interface ReplaysProps {
-        replays: ReplayModel[];
+        replays: Replay[];
         search?: ReplaysSearchProps;
     }
 
@@ -25,7 +25,7 @@
 
     const { data: props }: { data: ReplaysProps } = $props();
 
-    let replayList: ReplayModel[] = $state(props.replays);
+    let replayList: Replay[] = $state(props.replays);
     let hasMoreReplays = $state(true);
 
     let search = props.search ?? null;

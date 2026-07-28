@@ -3,7 +3,9 @@ package svc
 import (
 	"context"
 	"hexchess-svc/db"
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/mutator"
+	"hexchess-svc/db/query"
+
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/optional"
@@ -16,11 +18,11 @@ import (
 )
 
 func (services *HexchessServices) UpdateGameMetadata(ctx context.Context, updt model.GameMetadataUpdt) error {
-	updtResult, err := services.querier.UpdateGameMeta(ctx, sqlc.UpdateGameMetaParams{
+	updtResult, err := services.querier.UpdateGameMeta(ctx, mutator.UpdateGameMetaParams{
 		GameID:    updt.GameID.String(),
 		WhiteID:   pgtype.Int8{Int64: updt.WhitePlayer, Valid: true},
 		BlackID:   pgtype.Int8{Int64: updt.BlackPlayer, Valid: true},
-		Mode:      sqlc.ModeEnum(updt.Mode.String()),
+		Mode:      mutator.ModeEnum(updt.Mode.String()),
 		UpdatedOn: pgtype.Timestamptz{Time: services.entropy.GetTime(), Valid: true},
 	})
 	if err != nil {
@@ -64,7 +66,7 @@ func (services *HexchessServices) GetGameMetadata(ctx context.Context, player op
 }
 
 func (services *HexchessServices) GetGameMetadataCount(ctx context.Context) (int64, error) {
-	count, err := services.querier.SelectGameMetasCount(ctx)
+	count, err := services.readQuerier.SelectGameMetasCount(ctx)
 	if err != nil {
 		return 0, serrors.New("count chess metadatas", err)
 	}
@@ -73,7 +75,7 @@ func (services *HexchessServices) GetGameMetadataCount(ctx context.Context) (int
 }
 
 func (services *HexchessServices) getGameMetadata(ctx context.Context, userID optional.Maybe[int64], afterOrdering optional.Maybe[int64], count optional.Maybe[int32]) ([]model.ChessMeta, error) {
-	rows, err := services.querier.SelectGameMetas(ctx, sqlc.SelectGameMetasParams{
+	rows, err := services.readQuerier.SelectGameMetas(ctx, query.SelectGameMetasParams{
 		ParticipantID: db.MapOptInt8(userID),
 		AfterOrdering: afterOrdering.OrElse(math.MaxInt64),
 		PerPage:       db.MapOptInt4(count),

@@ -3,8 +3,8 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
-	"hexchess-svc/db"
 	"hexchess-svc/itest"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/utils/entropy"
@@ -138,7 +138,7 @@ var TestSessionID1 = "testing-session-id-1"
 var TestSessionID2 = "testing-session-id-2"
 var TestGameID1 = model.NewGameID()
 
-func createTestSessions(t *testing.T, redis db.Redis) {
+func createTestSessions(t *testing.T, redis cache.Redis) {
 	t.Helper()
 	ctx := t.Context()
 
@@ -161,7 +161,7 @@ func createTestSessions(t *testing.T, redis db.Redis) {
 	}
 }
 
-func createTestChessStates(t *testing.T, redis db.Redis) {
+func createTestChessStates(t *testing.T, redis cache.Redis) {
 	t.Helper()
 
 	var testStates = []*model.ChessState{
@@ -196,7 +196,7 @@ type updtLbChangeSet struct {
 	EloDiff float64
 }
 
-func createLeaderboard(t *testing.T, rdb db.Redis, changes ...updtLbChangeSet) {
+func createLeaderboard(t *testing.T, rdb cache.Redis, changes ...updtLbChangeSet) {
 	ctx := t.Context()
 	pipe := rdb.PrimaryClient.Pipeline()
 	for _, change := range changes {

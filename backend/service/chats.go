@@ -10,7 +10,7 @@ import (
 )
 
 func (services *HexchessServices) GetChats(ctx context.Context, gameID model.GameID, count int64) ([]model.Chat, error) {
-	chatsZSet := fmtGameChatsZSet(services.redis, gameID)
+	chatsZSet := services.redis.FmtGameChatsZSet(gameID)
 
 	strList, err := services.redis.PrimaryClient.ZRevRange(ctx, chatsZSet, 0, count).Result()
 	if err != nil {
@@ -35,7 +35,7 @@ func (services *HexchessServices) InsertChat(ctx context.Context, gameID model.G
 	if err != nil {
 		return serrors.New("marshal chat", err)
 	}
-	chatsZSet := fmtGameChatsZSet(services.redis, gameID)
+	chatsZSet := services.redis.FmtGameChatsZSet(gameID)
 	if err := services.redis.PrimaryClient.ZAdd(ctx, chatsZSet, redis.Z{Score: float64(chat.SentAt.UnixMilli()), Member: bytes}).Err(); err != nil {
 		return serrors.New("add chat to set", err, "chat", chat)
 	}

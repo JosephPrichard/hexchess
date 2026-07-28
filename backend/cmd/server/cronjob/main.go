@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"hexchess-svc/cache"
 	"hexchess-svc/utils/config"
 	"log/slog"
 	"os"
@@ -34,24 +35,24 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
-	database := db.NewPostgresDB(ctx, db.PoolConfig{
+	database := db.NewDatabase(ctx, db.DatabaseConfig{
 		Dsn:           cfg.DbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
 	})
 	defer database.Close()
 
-	primaryRedis := db.NewRedis(ctx, db.RedisConfig{
+	redisClient := cache.NewRedis(ctx, cache.RedisConfig{
 		PrimaryAddr:     cfg.RedisPrimaryNodes,
 		PrimaryUsername: cfg.RedisPrimaryUsername,
 		PrimaryPassword: cfg.RedisPrimaryPassword,
 		ActiveProfile:   cfg.Profile,
 	})
-	defer primaryRedis.Close()
+	defer redisClient.Close()
 
 	services := svc.NewHexchessServices(svc.SetupService{
 		Database: database,
-		Redis:    primaryRedis,
+		Redis:    redisClient,
 	})
 
 	var err error

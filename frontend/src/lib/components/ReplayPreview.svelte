@@ -1,13 +1,13 @@
 <script lang="ts">
     import {formatEloDiff, formatRelativeTime, getReplayColors, formatReplayResult, formatReplayCause} from "$lib/utils/format.js";
-    import {UntypedGameModeNameMap, type ReplayModel} from "$lib/api/models.js";
+    import {UntypedGameModeNameMap, type Replay} from "$lib/api/models.js";
     import {goto} from "$app/navigation";
     import {piecenames, pieces} from "$lib/service/chess";
     import ChallengeIcon from "$lib/icons/ChallengeIcon.svelte";
 
     type Rounding = "rounded-top" | "rounded-bottom" | undefined;
 
-    const { replay, rounding, index }: { replay: ReplayModel, rounding?: Rounding, index: number } = $props();
+    const { replay, rounding, index }: { replay: Replay, rounding?: Rounding, index: number } = $props();
 
     const [whiteClass, blackClass] = $derived(getReplayColors(replay.result));
     const reroute = () => goto(`/replay/${replay.id}`);

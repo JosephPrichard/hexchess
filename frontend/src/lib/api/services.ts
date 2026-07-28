@@ -1,81 +1,105 @@
-import {codes} from '$lib/utils/error';
-import type {Action, ChallengeModel, ChessModel, EloBuckets, FullPlayerModel, LbdUserModel, ReplayModel, ServiceModel, SessionModel, UserModel} from './models';
-import {v4 as uuidv4} from 'uuid';
-import {env} from '$env/dynamic/public';
-import {ChatMessages, MoveHistory} from '$lib/pb/messages';
-import {createSHA256, sha256} from "hash-wasm";
+import { logger } from '$lib/utils/logger';
+import { codes} from '$lib/utils/error';
+import type { Action, Challenge, ChessMetadata, EloBuckets, FullPlayer, LeaderboardUser, Replay, ServiceResponse, Session, User } from './models';
+import { v4 as uuidv4 } from 'uuid';
+import { env as publicEnv } from '$env/dynamic/public';
+import { ChatMessages, MoveHistory } from '$lib/pb/messages';
+import { createSHA256 } from "hash-wasm";
+import { browser } from '$app/environment';
+import globals from './globals';
 
-export function appBaseURL() {
-	return env.PUBLIC_APP_BASE_URL || 'http://localhost:5173';
+const defaultFrontend = 'http://localhost:5173';
+const defaultBackend = 'http://localhost:8080/api';
+const maxTimeoutMs = 5_000; // strict 5 second timeout
+
+export function frontendBaseURL() {
+	// from browser to server serving frontend js/html/css files (browser to public hostname)
+	return publicEnv.PUBLIC_APP_BASE_URL || defaultFrontend;
 }
 
-export function baseURL() {
-	return env.PUBLIC_BASE_URL || 'http://localhost:8080/api';
+export function backendBaseURL() {
+	if (browser) {
+		// from browser to server serving backend JSON API (browser to public hostname)
+		return publicEnv.PUBLIC_APP_BASE_URL + "/api" || defaultBackend;
+	} else {
+		// from NODE.js server to server serving backend JSON API (within same datacenter)
+		return globals.internalBackendBaseURL + "/api" || defaultBackend;
+	}
 }
 
-export type Result<T> = [T | undefined, ServiceModel | undefined];
+export type Result<T> = [T | undefined, ServiceResponse | undefined];
 export type FetchFn = typeof window.fetch;
 export type RequestFn<T> = (fetch?: FetchFn) => Promise<Result<T>>;
 
 const unknownError = () => ({ status: 500, message: "", error: codes.errorUnknown, errors: {} });
 
 export async function requestJSON<Response extends object | {}>(input: RequestInfo | URL, init?: RequestInit, request?: FetchFn): Promise<Result<Response>> {
-	if (!request) {
-		request = fetch;
-	}
 	try {
+		if (!request) {
+			request = fetch;
+		}
+
+		const startTime = Date.now();
+
 		const trace = uuidv4();
 		if (!init) {
 			init = {};
 		}
-		if (init) {
-			init.credentials = 'include';
-			init.headers = { 'Content-Type': 'application/json', 'X-trace': trace };
-		}
-		console.log(`sending request to ${input} with trace ${trace}`);
+		init.signal = AbortSignal.timeout(maxTimeoutMs);
+		init.credentials = 'include';
+		init.headers = { 'Content-Type': 'application/json', 'X-trace': trace };
+
+		logger.info("sending request", { kind: "JSON", trace, input, init });
 		const response = await request(input, init);
 
 		if (!response.ok) {
-			const error: ServiceModel = await response.json();
-			return [undefined, error];
+			const errorMessage: string = await response.text();
+			logger.warn("received error response", { kind: "JSON", trace, response: errorMessage || "" });
+			return [undefined, JSON.parse(errorMessage) as ServiceResponse];
 		} else {
 			const data: Response = await response.json();
+			logger.info("handled request", { kind: "JSON", trace, timeTaken: Date.now() - startTime });
 			return [data, undefined];
 		}
 	} catch (error) {
 		if (!(error instanceof TypeError)) {
-			console.error(error);
+			logger.error("failed to send http request", error);
 		}
 		return [undefined, unknownError()];
 	}
 }
 
 export async function requestBlob(input: RequestInfo | URL, init?: RequestInit, request?: FetchFn): Promise<Result<ArrayBuffer>> {
-	if (!request) {
-		request = fetch;
-	}
 	try {
+		if (!request) {
+			request = fetch;
+		}
+
+		const startTime = Date.now();
+
 		const trace = uuidv4();
 		if (!init) {
 			init = {};
 		}
-		if (init) {
-			init.credentials = 'include';
-			init.headers = { 'X-trace': trace };
-		}
-		console.log(`sending request to ${input} with trace ${trace}`);
+		init.signal = AbortSignal.timeout(maxTimeoutMs);
+		init.credentials = 'include';
+		init.headers = { 'X-trace': trace };
+
+		logger.info("sending request", { kind: "BLOB", input, trace });
 		const response = await request(input, init);
 
 		if (!response.ok) {
-			const error: ServiceModel = await response.json();
-			return [undefined, error];
+			const errorMessage: string = await response.text();
+			logger.warn("received error response", { kind: "BLOB", trace, response: errorMessage || "" });
+			return [undefined, JSON.parse(errorMessage) as ServiceResponse];
 		} else {
 			const data = await response.arrayBuffer();
+			logger.info("handled request", { kind: "BLOB", trace, timeTaken: Date.now() - startTime });
 			return [data, undefined];
 		}
 	} catch (error) {
 		if (!(error instanceof TypeError)) {
-			console.error(error);
+			logger.error("failed to send http request", error);
 		}
 		return [undefined, unknownError()];
 	}
@@ -97,14 +121,14 @@ export function memcached<Response>(get: RequestFn<Response>): RequestFn<Respons
 			}
 			return [cache, undefined];
 		} catch (error) {
-			console.error(error);
+			logger.error("failed to send http request", error);
 			return [undefined, unknownError()];
 		}
 	};
 }
 
 function postLogin(username: string, password: string) {
-	return requestJSON<SessionModel>(`${baseURL()}/login`, {
+	return requestJSON<Session>(`${backendBaseURL()}/login`, {
 		method: 'POST',
 		credentials: 'include',
 		body: JSON.stringify({ username, password }),
@@ -113,7 +137,7 @@ function postLogin(username: string, password: string) {
 
 
 function postGoogleLogin(token: string) {
-	return requestJSON<SessionModel>(`${baseURL()}/login/google`, {
+	return requestJSON<Session>(`${backendBaseURL()}/login/google`, {
 		method: 'POST',
 		credentials: 'include',
 		body: JSON.stringify({ token }),
@@ -121,7 +145,7 @@ function postGoogleLogin(token: string) {
 }
 
 function postRegister(username: string, password: string, confirmPassword: string) {
-	return requestJSON<SessionModel>(`${baseURL()}/register`, {
+	return requestJSON<Session>(`${backendBaseURL()}/register`, {
 		method: 'POST',
 		credentials: 'include',
 		body: JSON.stringify({ username, password, confirmPassword }),
@@ -129,7 +153,7 @@ function postRegister(username: string, password: string, confirmPassword: strin
 }
 
 function postUpdateUser(username: string, bio: string, country: string) {
-	return requestJSON<SessionModel>(`${baseURL()}/users`, {
+	return requestJSON<Session>(`${backendBaseURL()}/users`, {
 		method: 'POST',
 		credentials: 'include',
 		body: JSON.stringify({
@@ -141,7 +165,7 @@ function postUpdateUser(username: string, bio: string, country: string) {
 }
 
 function postUpdatePassword(password: string, newPassword: string, confirmNewPassword: string) {
-	return requestJSON<{}>(`${baseURL()}/users/password`, {
+	return requestJSON<{}>(`${backendBaseURL()}/users/password`, {
 		method: 'POST',
 		credentials: 'include',
 		body: JSON.stringify({ password, newPassword, confirmNewPassword }),
@@ -149,7 +173,7 @@ function postUpdatePassword(password: string, newPassword: string, confirmNewPas
 }
 
 function postCreateChallenge(mode: string, startColor: string, challengeeId: number) {
-	return requestJSON<{}>(`${baseURL()}/challenges/create`, {
+	return requestJSON<{}>(`${backendBaseURL()}/challenges/create`, {
 		method: 'POST',
 		credentials: 'include',
 		body: JSON.stringify({ startColor, mode, challengeeId }),
@@ -160,7 +184,7 @@ function postUpdateChallenge(challengerId: number, challengeeId: number, action:
 	interface Response {
 		gameId?: string;
 	}
-	return requestJSON<Response>(`${baseURL()}/challenges/update`, {
+	return requestJSON<Response>(`${backendBaseURL()}/challenges/update`, {
 		method: 'POST',
 		credentials: 'include',
 		body: JSON.stringify({ challengerId, challengeeId, action: action.toUpperCase() }),
@@ -171,7 +195,7 @@ function postCreateGame(mode: string, firstColor: string, fen: string) {
 	interface Response {
 		gameId?: string;
 	}
-	return requestJSON<Response>(`${baseURL()}/games/create`, {
+	return requestJSON<Response>(`${backendBaseURL()}/games/create`, {
 		method: 'POST',
 		credentials: 'include',
 		body: JSON.stringify({ firstColor, mode, fen }),
@@ -179,7 +203,7 @@ function postCreateGame(mode: string, firstColor: string, fen: string) {
 }
 
 function postLogout() {
-	return requestJSON<{}>(`${baseURL()}/logout`, {
+	return requestJSON<{}>(`${backendBaseURL()}/logout`, {
 		method: 'POST',
 		credentials: 'include',
 	});
@@ -189,7 +213,7 @@ function postTempSession() {
 	interface Response {
 		sessionId?: string;
 	}
-	return requestJSON<Response>(`${baseURL()}/session/temp`, {
+	return requestJSON<Response>(`${backendBaseURL()}/session/temp`, {
 		method: 'POST',
 		credentials: 'include',
 	});
@@ -197,9 +221,9 @@ function postTempSession() {
 
 function postRefreshSession() {
 	interface Response {
-		session: SessionModel | null;
+		session: Session | null;
 	}
-	return requestJSON<Response>(`${baseURL()}/session/refresh`, {
+	return requestJSON<Response>(`${backendBaseURL()}/session/refresh`, {
 		method: 'POST',
 		credentials: 'include',
 	});
@@ -208,10 +232,10 @@ function postRefreshSession() {
 
 export async function postProfilePic(file: File): Promise<Result<{}>> {
 	try {
-		const profilePicUrl = `${baseURL()}/users/profile-pics`;
+		const profilePicUrl = `${backendBaseURL()}/users/profile-pics`;
 
 		const trace = uuidv4();
-		console.log(`sending request to ${profilePicUrl} with trace ${trace}`);
+		logger.info(`sending request to ${profilePicUrl} with trace ${trace}`);
 
 		const hasher = await createSHA256();
 		const reader = file.stream().getReader();
@@ -222,7 +246,7 @@ export async function postProfilePic(file: File): Promise<Result<{}>> {
 		}
 		const contentHash = btoa(String.fromCharCode(...hasher.digest('binary')));
 
-		console.log("computed content hash for upload:", contentHash);
+		logger.info("computed content hash for upload:", contentHash);
 
 		const profileResp = await fetch(profilePicUrl, {
 			method: "POST",
@@ -237,14 +261,14 @@ export async function postProfilePic(file: File): Promise<Result<{}>> {
 		});
 
 		if (!profileResp.ok) {
-			const data: ServiceModel = await profileResp.json();
+			const data: ServiceResponse = await profileResp.json();
 			return [undefined, data];
 		} else {
 			return [{}, undefined];
 		}
 	} catch (error) {
 		if (!(error instanceof TypeError)) {
-			console.error(error);
+			logger.error("fatal http error", error);
 		}
 		return [undefined, unknownError()];
 	}
@@ -276,7 +300,7 @@ export interface ReplaysQuery {
 
 function getReplays(replaysQuery: ReplaysQuery, fetch?: FetchFn) {
 	interface Response {
-		replayList: ReplayModel[];
+		replayList: Replay[];
 	}
 
 	const params = new URLSearchParams();
@@ -286,43 +310,43 @@ function getReplays(replaysQuery: ReplaysQuery, fetch?: FetchFn) {
 		}
 	}
 
-	return requestJSON<Response>(`${baseURL()}/replays?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/replays?${params}`, { method: 'GET' }, fetch);
 }
 
 function getChallenges(participants: string, fetch?: FetchFn) {
 	interface Response {
-		challengeList: ChallengeModel[];
+		challengeList: Challenge[];
 	}
 	const params = new URLSearchParams({ participants });
-	return requestJSON<Response>(`${baseURL()}/challenges?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/challenges?${params}`, { method: 'GET' }, fetch);
 }
 
 function getChallengesCount(fetch?: FetchFn) {
 	interface Response {
 		count: number;
 	}
-	return requestJSON<Response>(`${baseURL()}/challenges/count`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/challenges/count`, { method: 'GET' }, fetch);
 }
 
 function getLeaderboard(page: number, mode: string, fetch?: FetchFn) {
 	interface Response {
 		totalPages: number;
-		userList: LbdUserModel[];
+		userList: LeaderboardUser[];
 	}
 	const params = new URLSearchParams({
 		page: String(page),
 		mode: mode,
 	});
-	return requestJSON<Response>(`${baseURL()}/leaderboard?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/leaderboard?${params}`, { method: 'GET' }, fetch);
 }
 
 function getProfile(fetch?: FetchFn) {
-	return requestJSON<UserModel>(`${baseURL()}/players/self`, { method: 'GET' }, fetch);
+	return requestJSON<User>(`${backendBaseURL()}/players/self`, { method: 'GET' }, fetch);
 }
 
 function getUser(id: string, withReplays: boolean, fetch?: FetchFn) {
 	const params = new URLSearchParams({ id, withReplays: String(withReplays) });
-	return requestJSON<FullPlayerModel>(`${baseURL()}/players?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<FullPlayer>(`${backendBaseURL()}/players?${params}`, { method: 'GET' }, fetch);
 }
 
 function getGameExistence(id: string, fetch?: FetchFn) {
@@ -330,7 +354,7 @@ function getGameExistence(id: string, fetch?: FetchFn) {
 		message: string;
 	}
 	const params = new URLSearchParams({ gameId: id });
-	return requestJSON<Response>(`${baseURL()}/game/rooms/exists?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/game/rooms/exists?${params}`, { method: 'GET' }, fetch);
 }
 
 function getSearchPlayers(username: string, page?: number, fetch?: FetchFn, signal?: AbortSignal) {
@@ -338,17 +362,17 @@ function getSearchPlayers(username: string, page?: number, fetch?: FetchFn, sign
 	if (page)
 		params.set('page', String(page));
 	interface Response {
-		userList?: LbdUserModel[];
+		userList?: LeaderboardUser[];
 	}
-	return requestJSON<Response>(`${baseURL()}/players/search?${params}`, { method: 'GET', signal }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/players/search?${params}`, { method: 'GET', signal }, fetch);
 }
 
 function getReplay(id: string, idKind = "BY_REPLAY_ID", fetch?: FetchFn) {
 	interface Response {
-		replay: ReplayModel;
+		replay: Replay;
 	}
 	const params = new URLSearchParams({ id, idKind });
-	return requestJSON<Response>(`${baseURL()}/replay?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/replay?${params}`, { method: 'GET' }, fetch);
 }
 
 function getEloHistories(userId: number, timeframe: string, fetch?: FetchFn) {
@@ -359,12 +383,12 @@ function getEloHistories(userId: number, timeframe: string, fetch?: FetchFn) {
 		userId: userId.toString(),
 		timeframe
 	});
-	return requestJSON<Response>(`${baseURL()}/replay/elo-histories?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/replay/elo-histories?${params}`, { method: 'GET' }, fetch);
 }
 
 async function getReplayMoveHistory(id: string, fetch?: FetchFn): Promise<Result<MoveHistory>> {
 	const params = new URLSearchParams({ replayId: id });
-	const [buf, err] = await requestBlob(`${baseURL()}/replay/move-list?${params}`, { method: 'GET' }, fetch);
+	const [buf, err] = await requestBlob(`${backendBaseURL()}/replay/move-list?${params}`, { method: 'GET' }, fetch);
 	if (buf) {
 		const result = timed("moveHistory", () => MoveHistory.fromBinary(new Uint8Array(buf)));
 		return [result, undefined];
@@ -375,17 +399,17 @@ async function getReplayMoveHistory(id: string, fetch?: FetchFn): Promise<Result
 
 function getGameRooms(count: number, page?: number, fetch?: FetchFn) {
 	interface Response {
-		chessList: ChessModel[];
-		selfChessList: ChessModel[];
+		chessList: ChessMetadata[];
+		selfChessList: ChessMetadata[];
 	}
 	const params = new URLSearchParams({ count: String(count) });
 	if (page) params.set('page', String(page));
-	return requestJSON<Response>(`${baseURL()}/game/rooms?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/game/rooms?${params}`, { method: 'GET' }, fetch);
 }
 
 async function getGameChats(gameId: string): Promise<Result<ChatMessages>> {
 	const params = new URLSearchParams({ gameId: String(gameId) });
-	const [buf, err] = await requestBlob(`${baseURL()}/game/rooms/chats?${params}`, { method: 'GET' }, fetch);
+	const [buf, err] = await requestBlob(`${backendBaseURL()}/game/rooms/chats?${params}`, { method: 'GET' }, fetch);
 	if (buf) {
 		const result = timed("gameChats", () => ChatMessages.fromBinary(new Uint8Array(buf)));
 		return [result, undefined];
@@ -399,11 +423,11 @@ async function getIsUserActive(userId: string | number) {
 		isUserActive: boolean;
 	}
 	const params = new URLSearchParams({ userId: String(userId) });
-	return requestJSON<Response>(`${baseURL()}/players/activity?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/players/activity?${params}`, { method: 'GET' }, fetch);
 }
 
 const getCountries = memcached(async (fetch?: FetchFn) => {
-	return requestJSON<string[]>(`${baseURL()}/countries`, { method: 'GET' }, fetch);
+	return requestJSON<string[]>(`${backendBaseURL()}/countries`, { method: 'GET' }, fetch);
 });
 
 function timed<Result>(name: string, work: () => Result): Result {
@@ -411,7 +435,7 @@ function timed<Result>(name: string, work: () => Result): Result {
 	const result = work();
 
 	const timeTaken = performance.now() - timeNow;
-	console.log(`${name} deserialization took ${timeTaken}ms`);
+	logger.info(`${name} deserialization took ${timeTaken}ms`);
 
 	return result;
 }

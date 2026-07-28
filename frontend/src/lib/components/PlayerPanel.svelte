@@ -1,11 +1,11 @@
 <script lang="ts">
-	import type { PlayerModel } from '$lib/api/models';
+	import type { Player } from '$lib/api/models';
 	import type { PlayerState } from '$lib/pb/messages';
 	import ProfilePic from '$lib/components/ProfilePic.svelte';
 
 	export interface PlayerPanelProps {
-		player: PlayerModel | PlayerState | undefined,
-		self: PlayerModel | PlayerState | undefined,
+		player: Player | PlayerState | undefined,
+		self: Player | PlayerState | undefined,
 		isTurn: boolean
 	}
 

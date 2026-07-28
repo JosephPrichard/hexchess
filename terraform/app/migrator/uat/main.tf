@@ -8,7 +8,7 @@ locals {
 }
 
 module "main" {
-  source = "../../modules/service"
+  source = "../../global/service"
 
   project     = "hexchess"
   environment = "uat"
@@ -31,7 +31,7 @@ module "main" {
   image_tag       = var.commit_sha
 
   env_vars = {
-    DB_URL: "postgres://db_migrator@hexchess-sor.cluster-c10fqqu5dr0g.us-east-1.rds.amazonaws.com:5432/hexchess?sslmode=require",
+    DB_URL: "postgres://db_migrator@hexchess-sor.cluster-c10fqqu5dr0g.us-east-1.rds.amazonaws.com/hexchess?sslmode=require",
 
     ACTIVE_PROFILE: "test"
   }

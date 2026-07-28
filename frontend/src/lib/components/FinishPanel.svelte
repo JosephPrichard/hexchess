@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { formatReplayCause, formatEloDiff, formatReplayResult, getReplayColors } from '$lib/utils/format.js';
 	import type { PlayerState } from '$lib/pb/messages';
-	import { isGuestUser, type ReplayModel } from '$lib/api/models';
+	import { isGuestUser, type Replay } from '$lib/api/models';
 
 	interface FinishPanelProps {
-		replay: ReplayModel;
+		replay: Replay;
 		whitePlayer: PlayerState;
 		blackPlayer: PlayerState;
 	}

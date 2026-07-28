@@ -1,7 +1,7 @@
 package pubsub
 
 import (
-	"hexchess-svc/db"
+	"hexchess-svc/cache"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"log/slog"
@@ -74,11 +74,11 @@ func NewLocalBroadcasters() *LocalBroadcasters {
 	}
 }
 
-func (b *LocalBroadcasters) Listen(rdb db.Redis) {
+func (b *LocalBroadcasters) Listen(rdb cache.Redis) {
 	slog.Info("starting local broadcasters")
 
 	var chans []chan struct{}
-	for _, listener := range []func(db db.Redis) chan struct{}{
+	for _, listener := range []func(db cache.Redis) chan struct{}{
 		b.ListenGameMessages,
 		b.ListenUsersMessages,
 		b.ListenTournamentMessages,
@@ -99,7 +99,7 @@ func (b *LocalBroadcasters) Shutdown() {
 	b.Tournament.Shutdown()
 }
 
-func (b *LocalBroadcasters) ListenGameMessages(rdb db.Redis) chan struct{} {
+func (b *LocalBroadcasters) ListenGameMessages(rdb cache.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.GamesChannel}, func(v redigo.Message) {
 		var outputID pb.GameOutputID
 		if err := outputID.UnmarshalVT(v.Data); err != nil {
@@ -118,7 +118,7 @@ func (b *LocalBroadcasters) ListenGameMessages(rdb db.Redis) chan struct{} {
 	})
 }
 
-func (b *LocalBroadcasters) ListenTournamentMessages(rdb db.Redis) chan struct{} {
+func (b *LocalBroadcasters) ListenTournamentMessages(rdb cache.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.TournamentsChannel}, func(v redigo.Message) {
 		var output model.TournamentOutputKey
 		if err := sonic.Unmarshal(v.Data, &output); err != nil {
@@ -131,7 +131,7 @@ func (b *LocalBroadcasters) ListenTournamentMessages(rdb db.Redis) chan struct{}
 	})
 }
 
-func (b *LocalBroadcasters) ListenUsersMessages(rdb db.Redis) chan struct{} {
+func (b *LocalBroadcasters) ListenUsersMessages(rdb cache.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.UsersChannel}, func(v redigo.Message) {
 		var message model.UserMessage
 		if err := sonic.Unmarshal(v.Data, &message); err != nil {
@@ -149,7 +149,7 @@ func (b *LocalBroadcasters) ListenUsersMessages(rdb db.Redis) chan struct{} {
 	})
 }
 
-func (b *LocalBroadcasters) ListenCountEvents(rdb db.Redis) chan struct{} {
+func (b *LocalBroadcasters) ListenCountEvents(rdb cache.Redis) chan struct{} {
 	var eventMap = map[string]CountEventKind{
 		rdb.ActiveCountChannel: GlobalActiveEvent,
 		rdb.GamesCountChannel:  GlobalGamesEvent,

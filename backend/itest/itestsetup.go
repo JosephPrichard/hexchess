@@ -1,9 +1,10 @@
 package itest
 
 import (
+	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
 	"hexchess-svc/db"
-	"hexchess-svc/db/sqlc"
+
 	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/logutil"
 	"hexchess-svc/utils/testutil"
@@ -14,10 +15,10 @@ import (
 )
 
 type TestInfra struct {
-	PrimaryQuerier sqlc.Querier
-	Database       db.Database[sqlc.Querier]
+	Querier  db.ReadWriteQuerier
+	Database db.Database
 
-	Redis db.Redis
+	Redis cache.Redis
 
 	AWS cloud.AWSClient
 }
@@ -33,7 +34,7 @@ func (i TestInfra) Close() {
 func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 	ctx := t.Context()
 
-	var pgPool *pgxpool.Pool
+	var dbPool *pgxpool.Pool
 	var redisAddr string
 	var localstackAddr string
 
@@ -46,7 +47,7 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 
 	if isRoPostgresFlag || isRwPostgresFlag {
 		eg.Go(func() (err error) {
-			pgPool, err = SetupPostgresTest(egCtx, t)
+			dbPool, err = SetupPostgresTest(egCtx, t)
 			return
 		})
 	}
@@ -70,24 +71,24 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 
 	if isRwPostgresFlag {
 		// rwPostgres flag substitutes a pool with a connection to enable parallel, independent tests
-		infra.Database = db.NewFakePostgresDB(t, pgPool)
+		infra.Database = db.NewFakeDatabase(t, dbPool)
 
-		infra.PrimaryQuerier = infra.Database.Querier()
+		infra.Querier = infra.Database.Querier()
 	} else if isRoPostgresFlag {
 		// roPostgres flag uses a real database pool to enable concurrent transactions
-		infra.Database = db.PostgresDBFromPool(pgPool)
+		infra.Database = db.NewDatabaseFromPool(dbPool)
 
-		infra.PrimaryQuerier = infra.Database.Querier()
+		infra.Querier = infra.Database.Querier()
 	}
 
 	if isRedisFlag {
-		infra.Redis = db.NewRedis(ctx, db.RedisConfig{
+		infra.Redis = cache.NewRedis(ctx, cache.RedisConfig{
 			PrimaryAddr:   []string{redisAddr},
 			PubsubAddr:    redisAddr,
 			ActiveProfile: config.Local,
 
 			// tests use independent key prefixes to enable parallel, independent tests
-			Names: testutil.NewTestNames(db.DefaultRedisNames),
+			Names: testutil.NewTestNames(cache.DefaultRedisNames),
 		})
 	}
 

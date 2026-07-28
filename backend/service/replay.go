@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"hexchess-svc/db"
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/query"
+
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/optional"
@@ -20,16 +21,16 @@ import (
 var ErrNoReplay = errors.New("replay not found")
 
 func (services *HexchessServices) GetReplayByGameID(ctx context.Context, gameID string) (model.FullReplay, error) {
-	row, err := services.querier.SelectReplayByGameID(ctx, gameID)
-	return mapGetReplayResult(ctx, gameID, sqlc.SelectReplayByIDRow(row), err)
+	row, err := services.readQuerier.SelectReplayByGameID(ctx, gameID)
+	return mapGetReplayResult(ctx, gameID, query.SelectReplayByIDRow(row), err)
 }
 
 func (services *HexchessServices) GetReplay(ctx context.Context, replayID int64) (model.FullReplay, error) {
-	row, err := services.querier.SelectReplayByID(ctx, replayID)
+	row, err := services.readQuerier.SelectReplayByID(ctx, replayID)
 	return mapGetReplayResult(ctx, replayID, row, err)
 }
 
-func mapGetReplayResult[ID any](ctx context.Context, id ID, row sqlc.SelectReplayByIDRow, err error) (model.FullReplay, error) {
+func mapGetReplayResult[ID any](ctx context.Context, id ID, row query.SelectReplayByIDRow, err error) (model.FullReplay, error) {
 	if db.IsErrNoRows(err) {
 		return model.FullReplay{}, ErrNoReplay
 	} else if err != nil {
@@ -40,7 +41,7 @@ func mapGetReplayResult[ID any](ctx context.Context, id ID, row sqlc.SelectRepla
 	return replay, nil
 }
 
-func mapFullReplayByIDRow(row sqlc.SelectReplayByIDRow) model.FullReplay {
+func mapFullReplayByIDRow(row query.SelectReplayByIDRow) model.FullReplay {
 	replay := mapReplayByIDRow(row)
 	return model.FullReplay{
 		Replay: replay,
@@ -56,7 +57,7 @@ func mapFullReplayByIDRow(row sqlc.SelectReplayByIDRow) model.FullReplay {
 	}
 }
 
-func mapReplayByIDRow(row sqlc.SelectReplayByIDRow) model.Replay {
+func mapReplayByIDRow(row query.SelectReplayByIDRow) model.Replay {
 	replayResult := enum.Expect(row.Result, model.ReplayResultEnums)
 	replayCause := enum.Expect(row.Cause, model.ReplayCauseEnums)
 	gameMode := enum.Expect(row.Mode, model.GameModeEnums)
@@ -77,7 +78,7 @@ func mapReplayByIDRow(row sqlc.SelectReplayByIDRow) model.Replay {
 }
 
 func (services *HexchessServices) GetMovesHistory(ctx context.Context, replayID int) ([]byte, error) {
-	row, err := services.querier.SelectReplayMoveHistoryByID(ctx, int64(replayID))
+	row, err := services.readQuerier.SelectReplayMoveHistoryByID(ctx, int64(replayID))
 	if err != nil {
 		return nil, serrors.New("select replay move histories", err, "replayID", replayID)
 	}
@@ -138,13 +139,13 @@ func supplyUserID(id *optional.Maybe[int64]) func(int64) {
 	}
 }
 
-func (services *HexchessServices) SearchReplaysByQuery(ctx context.Context, query ReplaysQuery) ([]model.FullReplay, error) {
+func (services *HexchessServices) SearchReplaysByQuery(ctx context.Context, q ReplaysQuery) ([]model.FullReplay, error) {
 	// get any userIDs requested through the username queries
 	err := services.getUserIDsByUsernames(ctx, []UserIDByNameRequest{
-		{Username: query.WhiteName, SupplyID: supplyUserID(&query.WhiteID)},
-		{Username: query.BlackName, SupplyID: supplyUserID(&query.BlackID)},
-		{Username: query.LoserName, SupplyID: supplyUserID(&query.LoserID)},
-		{Username: query.WinnerName, SupplyID: supplyUserID(&query.WinnerID)},
+		{Username: q.WhiteName, SupplyID: supplyUserID(&q.WhiteID)},
+		{Username: q.BlackName, SupplyID: supplyUserID(&q.BlackID)},
+		{Username: q.LoserName, SupplyID: supplyUserID(&q.LoserID)},
+		{Username: q.WinnerName, SupplyID: supplyUserID(&q.WinnerID)},
 	})
 	if errors.Is(err, ErrUserNotFound) {
 		// if any username cannot be matched to an id, the search query will never yield any replays
@@ -153,26 +154,26 @@ func (services *HexchessServices) SearchReplaysByQuery(ctx context.Context, quer
 		return nil, err
 	}
 
-	afterID := query.AfterID.OrElse(math.MaxInt64)
-	afterTurnCount := query.AfterTurnCount.OrElse(math.MaxInt32)
-	afterRating := query.AfterRating.OrElse(math.MaxFloat64)
+	afterID := q.AfterID.OrElse(math.MaxInt64)
+	afterTurnCount := q.AfterTurnCount.OrElse(math.MaxInt32)
+	afterRating := q.AfterRating.OrElse(math.MaxFloat64)
 
 	// uses the unix epoch in days for range queries on date. this truncates away timestamp precision regarding hours, seconds, etc.
-	fromDateDays := optional.Maybe[int32]{Value: timeutil.ToDayEpoch(query.FromDate.Value), Present: query.FromDate.Present}
-	toDateDays := optional.Maybe[int32]{Value: timeutil.ToDayEpoch(query.ToDate.Value), Present: query.ToDate.Present}
+	fromDateDays := optional.Maybe[int32]{Value: timeutil.ToDayEpoch(q.FromDate.Value), Present: q.FromDate.Present}
+	toDateDays := optional.Maybe[int32]{Value: timeutil.ToDayEpoch(q.ToDate.Value), Present: q.ToDate.Present}
 
-	params := sqlc.SelectReplaysByQueryParams{
-		PerPage: query.PerPage,
+	params := query.SelectReplaysByQueryParams{
+		PerPage: q.PerPage,
 
 		// search constraints with mixed 'OR' 'AND' constraints
-		UserID:       db.MapOptInt8(query.UserID),
-		WhiteID:      db.MapOptInt8(query.WhiteID),
-		BlackID:      db.MapOptInt8(query.BlackID),
-		WinnerID:     db.MapOptInt8(query.WinnerID),
-		LoserID:      db.MapOptInt8(query.LoserID),
-		Mode:         db.MapOptMode(query.Mode),
-		Result:       db.MapOptResult(query.Result),
-		Cause:        db.MapOptCause(query.Cause),
+		UserID:       db.MapOptInt8(q.UserID),
+		WhiteID:      db.MapOptInt8(q.WhiteID),
+		BlackID:      db.MapOptInt8(q.BlackID),
+		WinnerID:     db.MapOptInt8(q.WinnerID),
+		LoserID:      db.MapOptInt8(q.LoserID),
+		Mode:         db.MapOptMode(q.Mode),
+		Result:       db.MapOptResult(q.Result),
+		Cause:        db.MapOptCause(q.Cause),
 		FromDateDays: db.MapOptInt4(fromDateDays),
 		ToDateDays:   db.MapOptInt4(toDateDays),
 
@@ -182,19 +183,19 @@ func (services *HexchessServices) SearchReplaysByQuery(ctx context.Context, quer
 		AfterTurnCount: afterTurnCount,
 
 		// sort determines the 'ORDER BY' in the SQL query
-		SortKey: query.Sort.String(),
+		SortKey: q.Sort.String(),
 	}
-	replayRows, err := services.querier.SelectReplaysByQuery(ctx, params)
+	replayRows, err := services.readQuerier.SelectReplaysByQuery(ctx, params)
 	if err != nil {
 		return nil, serrors.New("select replays by query", err)
 	}
 
 	replays := make([]model.FullReplay, 0, len(replayRows))
 	for _, row := range replayRows {
-		replays = append(replays, mapFullReplayByIDRow(sqlc.SelectReplayByIDRow(row)))
+		replays = append(replays, mapFullReplayByIDRow(query.SelectReplayByIDRow(row)))
 	}
 
-	slog.InfoContext(ctx, "selected replays", "replaysQuery", query, "replays", replays)
+	slog.InfoContext(ctx, "selected replays", "replaysQuery", q, "replays", replays)
 	return replays, nil
 }
 
@@ -232,7 +233,7 @@ func (services *HexchessServices) RetrieveEloHistoryBuckets(ctx context.Context,
 		playedAfter = pgtype.Timestamptz{Valid: true, Time: params.TimeUntil.AddDate(0, -int(params.Months), 0)}
 	}
 
-	eloRows, err := services.querier.SelectReplayElos(ctx, sqlc.SelectReplayElosParams{
+	eloRows, err := services.readQuerier.SelectReplayElos(ctx, query.SelectReplayElosParams{
 		ID:          pgtype.Int8{Int64: params.UserID, Valid: true},
 		PlayedAfter: playedAfter,
 	})
@@ -279,7 +280,7 @@ func appendBucket(bucket *Bucket, duration time.Duration) {
 	})
 }
 
-func aggregateEloHistoryBuckets(eloRows []sqlc.SelectReplayElosRow, params EloHistoriesParams) (EloHistoryBuckets, time.Duration) {
+func aggregateEloHistoryBuckets(eloRows []query.SelectReplayElosRow, params EloHistoriesParams) (EloHistoryBuckets, time.Duration) {
 	bucketMap := make(EloHistoryBuckets)
 
 	if len(eloRows) == 0 {

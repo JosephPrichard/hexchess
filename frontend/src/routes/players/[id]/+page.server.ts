@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import services from '$lib/api/services';
-import { makeMessage } from '$lib/utils/error';
+import { handleError } from '$lib/utils/error';
 import type { PlayerProps } from './+page.svelte';
 
 export const load: PageServerLoad = async ({ params, setHeaders, fetch }): Promise<PlayerProps> => {
@@ -10,10 +10,10 @@ export const load: PageServerLoad = async ({ params, setHeaders, fetch }): Promi
 	const [data, err] = await services.getUser(id, true, fetch);
 
 	if (err?.message === 'USER_NOT_FOUND') {
-		error(err?.status || 404, makeMessage(err));
+		error(err?.status || 404, handleError(err));
 	}
 	if (err || data === undefined) {
-		error(err?.status || 500, makeMessage(err));
+		error(err?.status || 500, handleError(err));
 	}
 
 	// setHeaders({

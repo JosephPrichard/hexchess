@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { makeMessage } from '$lib/utils/error';
+import { handleError } from '$lib/utils/error';
 import type { ReplaysProps } from './+page.svelte';
 import services from '$lib/api/services';
 import {mapReplaysPropsToQuery, mapReplaysURLParamsToProps} from "./service";
@@ -10,7 +10,7 @@ export const load: PageServerLoad = async ({ url, setHeaders, fetch }): Promise<
 
     const [data, err] = await services.getReplays(mapReplaysPropsToQuery(searchProps), fetch);
     if (err || data === undefined) {
-        error(err?.status || 500, makeMessage(err));
+        error(err?.status || 500, handleError(err));
     }
 
     // setHeaders({

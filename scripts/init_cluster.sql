@@ -1,5 +1,4 @@
 CREATE DATABASE hexchess;
-CREATE DATABASE metrics;
 
 CREATE USER db_readwrite WITH LOGIN;
 CREATE USER db_migrator  WITH LOGIN;
@@ -8,7 +7,6 @@ GRANT rds_iam TO db_readwrite;
 GRANT rds_iam TO db_migrator;
 
 GRANT CONNECT ON DATABASE hexchess TO db_readwrite, db_migrator;
-GRANT CONNECT ON DATABASE metrics  TO db_readwrite, db_migrator;
 
 -- required to create extensions, databases, and tables
 GRANT rds_superuser TO db_migrator;

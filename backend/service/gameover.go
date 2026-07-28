@@ -6,7 +6,9 @@ import (
 	"errors"
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
-	"hexchess-svc/db/sqlc"
+	"hexchess-svc/db/mutator"
+	"hexchess-svc/db/query"
+
 	"hexchess-svc/model"
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/utils/serrors"
@@ -54,7 +56,7 @@ func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finish
 
 	// step 4: publishing a tournament event is necessary to trigger advancing the game state *IF* the tournament round is finished
 	// this operation is idempotent and safe, if the tournament is not ready to be advanced, the operation noops
-	tournamentKey, err := services.querier.SelectTournamentByGameID(ctx, finishedGame.GameID.String())
+	tournamentKey, err := services.readQuerier.SelectTournamentByGameID(ctx, finishedGame.GameID.String())
 	switch {
 	case db.IsErrNoRows(err):
 		slog.InfoContext(ctx, "skipping send schedule tournament event", "gameID", finishedGame.GameID)
@@ -114,7 +116,7 @@ func (changeSet GameResultChangeSet) IsNoop() bool {
 func (services *HexchessServices) InsertGameResult(ctx context.Context, result GameResult) (GameResultChangeSet, error) {
 	var changeSet GameResultChangeSet
 
-	err := services.database.ExecTx(ctx, db.TxArgs[sqlc.Querier]{
+	err := services.database.ExecTx(ctx, db.TxArgs[db.ReadWriteQuerier]{
 		// RepeatableRead is required to prevent the following race conditions
 		// Case 1 (Lost Update):
 		// T1 selects the user elos E1 and calculating and insert user elos E2
@@ -122,9 +124,8 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 		// User elos (E3) will be overwritten to E2, the update that progressed E1 to E3 will be lost
 		Isolation:  pgx.RepeatableRead,
 		RetryCount: 5,
-		QueryFn: func(ctx context.Context, _ pgx.Tx, querier sqlc.Querier) error {
+		QueryFn: func(ctx context.Context, _ pgx.Tx, querier db.ReadWriteQuerier) error {
 			// step 1: use game ID as an idempotency key to prevent saving the same game result on retry
-			mode := sqlc.ModeEnum(result.ReplayMode.String())
 			userIDs := []int64{result.WhiteID, result.BlackID}
 
 			existingReplayID, err := querier.SelectReplayIDByGameID(ctx, result.GameID.String())
@@ -140,17 +141,20 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 			// selects are sorted by userID to prevent deadlocks
 			slices.SortFunc(userIDs, func(left, right int64) int { return cmp.Compare(left, right) })
 
-			userElos, err := querier.SelectUserModeElosByIDs(ctx, sqlc.SelectUserModeElosByIDsParams{ID: userIDs, Mode: mode})
+			userElos, err := querier.SelectUserModeElosByIDs(ctx, query.SelectUserModeElosByIDsParams{
+				ID:   userIDs,
+				Mode: query.ModeEnum(result.ReplayMode.String()),
+			})
 			if err != nil {
 				return serrors.New("select users elo", err, "userIDs", userIDs)
 			}
 
 			// step 3: compute and update the next state of stats for each game participant
-			var updts []sqlc.UpsertUserEloParams
+			var updts []mutator.UpsertUserEloParams
 			changeSet, updts = makeInsertGameResultChangeSet(result, userElos)
 
 			// updates are sorted by userID to prevent deadlocks
-			slices.SortFunc(updts, func(left, right sqlc.UpsertUserEloParams) int { return cmp.Compare(left.UserID, right.UserID) })
+			slices.SortFunc(updts, func(left, right mutator.UpsertUserEloParams) int { return cmp.Compare(left.UserID, right.UserID) })
 
 			var batchUpsertErrs []error
 			querier.UpsertUserElo(ctx, updts).Exec(func(i int, err error) {
@@ -163,13 +167,13 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 			}
 
 			// step 4: insert the new replay, which acts both the record and the idempotency key for this operation
-			replayInst := sqlc.InsertReplayParams{
+			replayInst := mutator.InsertReplayParams{
 				GameID:    result.GameID.String(),
 				WhiteID:   pgtype.Int8{Int64: result.WhiteID, Valid: model.IsNonGuestID(result.WhiteID)},
 				BlackID:   pgtype.Int8{Int64: result.BlackID, Valid: model.IsNonGuestID(result.BlackID)},
-				Result:    sqlc.ResultEnum(result.ReplayResult.String()),
-				Cause:     sqlc.CauseEnum(result.ReplayCause.String()),
-				Mode:      sqlc.ModeEnum(result.ReplayMode.String()),
+				Result:    mutator.ResultEnum(result.ReplayResult.String()),
+				Cause:     mutator.CauseEnum(result.ReplayCause.String()),
+				Mode:      mutator.ModeEnum(result.ReplayMode.String()),
 				WinElo:    changeSet.WinEloDiff,
 				LoseElo:   changeSet.LoseEloDiff,
 				WhiteElo:  changeSet.WhiteEloNext,
@@ -192,15 +196,15 @@ func (services *HexchessServices) InsertGameResult(ctx context.Context, result G
 	return changeSet, err
 }
 
-func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.SelectUserModeElosByIDsRow) (GameResultChangeSet, []sqlc.UpsertUserEloParams) {
+func makeInsertGameResultChangeSet(result GameResult, userModeElos []query.SelectUserModeElosByIDsRow) (GameResultChangeSet, []mutator.UpsertUserEloParams) {
 	changeSet := GameResultChangeSet{}
-	var updts []sqlc.UpsertUserEloParams
+	var updts []mutator.UpsertUserEloParams
 
 	if model.IsGuestID(result.WhiteID) || model.IsGuestID(result.BlackID) {
 		return changeSet, updts
 	}
 
-	mode := sqlc.ModeEnum(result.ReplayMode.String())
+	mode := mutator.ModeEnum(result.ReplayMode.String())
 
 	whiteElo, blackElo := model.StartElo, model.StartElo
 	for _, row := range userModeElos {
@@ -216,7 +220,7 @@ func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.Select
 		// changeSet is unmodified in draw so this becomes a noop changeSet
 		changeSet.WhiteEloNext, changeSet.BlackEloNext = whiteElo, blackElo
 
-		updts = []sqlc.UpsertUserEloParams{
+		updts = []mutator.UpsertUserEloParams{
 			{UserID: result.WhiteID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.WhiteEloNext}, Draws: 1, DefaultElo: model.StartElo},
 			{UserID: result.BlackID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.BlackEloNext}, Draws: 1, DefaultElo: model.StartElo},
 		}
@@ -245,7 +249,7 @@ func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.Select
 		changeSet.WinEloDiff = winEloNext - winElo
 		changeSet.LoseEloDiff = loseEloNext - loseElo
 
-		updts = []sqlc.UpsertUserEloParams{
+		updts = []mutator.UpsertUserEloParams{
 			{UserID: changeSet.WinID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: winEloNext}, Wins: 1, DefaultElo: model.StartElo},
 			{UserID: changeSet.LoseID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: loseEloNext}, Losses: 1, DefaultElo: model.StartElo},
 		}
@@ -255,7 +259,7 @@ func makeInsertGameResultChangeSet(result GameResult, userModeElos []sqlc.Select
 }
 
 func (services *HexchessServices) UpsertReplayMoveHistories(ctx context.Context, replayID int64, data []byte) error {
-	if err := services.querier.UpsertReplayMoveHistories(ctx, sqlc.UpsertReplayMoveHistoriesParams{
+	if err := services.querier.UpsertReplayMoveHistories(ctx, mutator.UpsertReplayMoveHistoriesParams{
 		ReplayID: replayID,
 		Data:     data,
 	}); err != nil {

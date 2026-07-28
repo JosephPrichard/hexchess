@@ -3,6 +3,7 @@ package svc
 import (
 	"context"
 	"errors"
+	"hexchess-svc/cache"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
@@ -14,7 +15,7 @@ import (
 var ErrSessionNotFound = errors.New("session not found")
 
 func (services *HexchessServices) GetSession(ctx context.Context, sessionID string) (model.PlayerState, error) {
-	sessionKey := fmtSessionKey(sessionID)
+	sessionKey := cache.FmtSessionKey(sessionID)
 
 	slog.InfoContext(ctx, "getting session", "sessionID", sessionID, "sessionKey", sessionKey)
 
@@ -50,7 +51,7 @@ func (services *HexchessServices) SetSessions(ctx context.Context, insts ...Sess
 		if err != nil {
 			return err
 		}
-		sessionKey := fmtSessionKey(inst.SessionID)
+		sessionKey := cache.FmtSessionKey(inst.SessionID)
 		pipe.SetEx(ctx, sessionKey, data, inst.Expiry)
 	}
 
@@ -61,7 +62,7 @@ func (services *HexchessServices) SetSessions(ctx context.Context, insts ...Sess
 }
 
 func (services *HexchessServices) UpdateSessionEx(ctx context.Context, sessionID string, expiry time.Duration) error {
-	sessionKey := fmtSessionKey(sessionID)
+	sessionKey := cache.FmtSessionKey(sessionID)
 	if err := services.redis.PrimaryClient.Expire(ctx, sessionKey, expiry).Err(); err != nil {
 		return serrors.New("update session expiry", err)
 	}
@@ -70,7 +71,7 @@ func (services *HexchessServices) UpdateSessionEx(ctx context.Context, sessionID
 }
 
 func (services *HexchessServices) DeleteSession(ctx context.Context, sessionID string) error {
-	sessionKey := fmtSessionKey(sessionID)
+	sessionKey := cache.FmtSessionKey(sessionID)
 	if err := services.redis.PrimaryClient.Del(ctx, sessionKey).Err(); err != nil {
 		return serrors.New("delete session", err, "sessionID", sessionID)
 	}

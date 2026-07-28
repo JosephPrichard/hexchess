@@ -21,7 +21,7 @@ func (services *HexchessServices) ClearOrphanFiles(ctx context.Context, pageLeng
 			Prefix:     ProfilePicPrefix,
 			PageLength: pageLength,
 			parseID:    ParseProfilePicKey,
-			selectIDs:  services.querier.SelectExistsUsersByIDs,
+			selectIDs:  services.readQuerier.SelectExistsUsersByIDs,
 		},
 	}
 

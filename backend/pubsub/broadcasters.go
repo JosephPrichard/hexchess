@@ -2,7 +2,7 @@ package pubsub
 
 import (
 	"context"
-	"hexchess-svc/db"
+	"hexchess-svc/cache"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"hexchess-svc/utils/async"
@@ -14,11 +14,11 @@ import (
 
 type Broadcaster struct {
 	redis      *redis.Pool
-	names      db.RedisNames
+	names      cache.RedisNames
 	dispatcher async.Dispatcher
 }
 
-func NewSyncBroadcaster(redis db.Redis) Broadcaster {
+func NewSyncBroadcaster(redis cache.Redis) Broadcaster {
 	return Broadcaster{
 		redis:      redis.PubSubClient,
 		names:      redis.RedisNames,
@@ -26,7 +26,7 @@ func NewSyncBroadcaster(redis db.Redis) Broadcaster {
 	}
 }
 
-func NewAsyncBroadcaster(redis db.Redis) Broadcaster {
+func NewAsyncBroadcaster(redis cache.Redis) Broadcaster {
 	return Broadcaster{
 		redis:      redis.PubSubClient,
 		names:      redis.RedisNames,

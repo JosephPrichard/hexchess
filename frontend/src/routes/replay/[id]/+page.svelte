@@ -3,11 +3,11 @@
 	import RightIcon from '$lib/icons/RightIcon.svelte';
 	import LeftIcon from '$lib/icons/LeftIcon.svelte';
 	import FlipIcon from '$lib/icons/FlipIcon.svelte';
-	import { makeMessage } from '$lib/utils/error';
+	import { handleError } from '$lib/utils/error';
 	import MoveList from '$lib/components/MoveList.svelte';
 	import ReplayPanel from '$lib/components/ReplayPanel.svelte';
 	import { type ChessGame, type HistMove } from '$lib/pb/messages';
-	import { type Hex, type ReplayModel } from '$lib/api/models';
+	import { type Hex, type Replay } from '$lib/api/models';
 	import services from '$lib/api/services';
 	import { makeMoveState } from '$lib/state/move.svelte';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
@@ -20,7 +20,7 @@
 	import { moveElementHeight } from '$lib/components/chessRenderer';
 
 	export interface ReplayProps {
-		replay: ReplayModel;
+		replay: Replay;
 	}
 
 	const { data }: { data: ReplayProps } = $props();
@@ -54,7 +54,7 @@
 			initialGame = data.initialGame;
 			steps = data.steps;
 		} else {
-			moveHistErr = makeMessage(err);
+			moveHistErr = handleError(err);
 		}
 	}
 

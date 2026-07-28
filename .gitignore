@@ -18,7 +18,8 @@ backend/app.log
 backend/.env
 *pb.go
 backend/db/sqlc
-backend/db/metricsdb
+backend/db/query
+backend/db/mutator
 
 frontend/src/lib/pb/*
 frontend/build

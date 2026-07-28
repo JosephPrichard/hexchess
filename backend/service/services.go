@@ -1,9 +1,9 @@
 package svc
 
 import (
+	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
 	"hexchess-svc/db"
-	"hexchess-svc/db/sqlc"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/utils/async"
@@ -12,11 +12,12 @@ import (
 
 type HexchessServices struct {
 	// postgres infra
-	database      db.Database[sqlc.Querier]
-	querier       sqlc.Querier
+	database      db.Database
+	querier       db.ReadWriteQuerier
+	readQuerier   db.ReadQuerier
 	riverProducer producers.RiverProducer
 	// redis infra
-	redis          db.Redis
+	redis          cache.Redis
 	streamProducer producers.StreamProducer
 	broadcaster    pubsub.Broadcaster
 	// remote and local cloud sdks / clients
@@ -29,10 +30,10 @@ type HexchessServices struct {
 
 type SetupService struct {
 	// postgres infra
-	Database    db.Database[sqlc.Querier]
+	Database    db.Database
 	RiverClient producers.RiverClientAPI
 	// redis infra
-	Redis       db.Redis
+	Redis       cache.Redis
 	Broadcaster pubsub.Broadcaster
 	// remote and local cloud sdks / clients
 	AWS    cloud.AWSClient
@@ -43,9 +44,12 @@ type SetupService struct {
 }
 
 func NewHexchessServices(setup SetupService) *HexchessServices {
-	var querier sqlc.Querier
+	var rwQuerier db.ReadWriteQuerier
+	var roQuerier db.ReadQuerier
+
 	if setup.Database != nil {
-		querier = setup.Database.Querier()
+		rwQuerier = setup.Database.Querier()
+		roQuerier = setup.Database.ReadQuerier()
 	}
 
 	if setup.Entropy == nil {
@@ -57,7 +61,8 @@ func NewHexchessServices(setup SetupService) *HexchessServices {
 
 	return &HexchessServices{
 		database:      setup.Database,
-		querier:       querier,
+		querier:       rwQuerier,
+		readQuerier:   roQuerier,
 		riverProducer: producers.NewRiverProducer(setup.RiverClient),
 
 		redis:          setup.Redis,

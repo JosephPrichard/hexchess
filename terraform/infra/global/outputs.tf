@@ -11,7 +11,7 @@ output "cluster_arn" {
 }
 
 output "alb_listener_arn" {
-  value = aws_lb_listener.http.arn
+  value = aws_lb_listener.private_http.arn
 }
 
 output "listener_security_group_id" {

@@ -4,25 +4,56 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 )
 
 type LogRecordHandler struct {
 	slog.Handler
+	staticLogData
+}
+
+type staticLogData struct {
+	awsRegion       string
+	awsExecutionEnv string
+	*ecsTaskMetadataBody
 }
 
 var PropagatedLogKeys = []string{Trace, SessionID, MessageID, GroupID, EventID, RequestID}
 
+func NewLogRecordHandler(h slog.Handler) slog.Handler {
+	return &LogRecordHandler{
+		Handler: h,
+		staticLogData: staticLogData{
+			awsRegion:           os.Getenv("AWS_REGION"),
+			awsExecutionEnv:     os.Getenv("AWS_EXECUTION_ENV"),
+			ecsTaskMetadataBody: getEcsMetadata(),
+		},
+	}
+}
+
 func (h *LogRecordHandler) Handle(ctx context.Context, r slog.Record) error {
+	// propagates only specific log keys inserted into the context.
+	// the reason why we do not propagate ALL keys is that it can be expensive to walk a large context tree
 	for _, key := range PropagatedLogKeys {
 		if v := ctx.Value(key); v != nil {
 			r.Add(key, v)
 		}
 	}
+
+	// propagates common AWS environment data into the logs for easier debugging. if details are not provided, does not fail
+	r.Add("awsRegion", h.staticLogData.awsRegion)
+	r.Add("awsExecutionEnv", h.staticLogData.awsExecutionEnv)
+	r.Add("ecsTaskMetadata", h.staticLogData.ecsTaskMetadataBody)
+
 	return h.Handler.Handle(ctx, r)
 }
 
 type LogFanoutHandler struct {
 	handlers []slog.Handler
+}
+
+func NewLogFanoutHandler(handlers []slog.Handler) slog.Handler {
+	return &LogFanoutHandler{handlers: handlers}
 }
 
 func (f *LogFanoutHandler) Enabled(ctx context.Context, level slog.Level) bool {

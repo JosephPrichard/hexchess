@@ -6,7 +6,7 @@
 	import { fade } from 'svelte/transition';
 	import { onMount } from 'svelte';
 	import { env } from '$env/dynamic/public';
-	import type { ServiceModel, SessionModel } from '$lib/api/models';
+	import type { ServiceResponse, Session } from '$lib/api/models';
 	import Banner from '$lib/Banner.svelte';
 
 	let username = $state('');
@@ -15,7 +15,7 @@
 	let isLoading = $state(false);
 	let removeMessage: ReturnType<typeof setTimeout> | undefined = undefined;
 
-	async function onLoginComplete([data, err]: [data: SessionModel | undefined, err: ServiceModel | undefined]) {
+	async function onLoginComplete([data, err]: [data: Session | undefined, err: ServiceResponse | undefined]) {
 		if (data) {
 			setClientSession(data);
 			await goto('/');
@@ -38,8 +38,10 @@
 	const clientId = env.PUBLIC_APP_GOOGLE_CLIENT_ID;
 
 	onMount(() => {
+		const google = (window as any).google as any;
+
 		if (clientId === undefined) return;
-		window.google?.accounts.id.initialize({
+		google.accounts.id.initialize({
 			client_id: clientId,
 			callback: async (response: any) => {
 				await onLoginComplete(await services.postGoogleLogin(response.credential));
@@ -49,7 +51,7 @@
 		if (googleBtn == null) {
 			return;
 		}
-		window.google?.accounts.id.renderButton(googleBtn, {
+		google.accounts.id.renderButton(googleBtn, {
 			theme: "filled_blue",
 			size: "large",
 			type: "standard"

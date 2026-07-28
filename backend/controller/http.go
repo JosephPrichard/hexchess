@@ -3,6 +3,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 
@@ -39,25 +40,30 @@ func init() {
 	}
 }
 
-func parseJSON[Body any](r *http.Request, body *Body) error {
+func decodeJson[Body any](r *http.Request, body *Body) error {
 	defer r.Body.Close()
 
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	// note(Joseph): sonic.Unmarshal fine relative to Decoder for small JSON body objects, and it provides much better error handling and UX
+
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+	return sonic.Unmarshal(bodyBytes, body)
+}
+
+func parseJSON[Body any](r *http.Request, body *Body) error {
+	if err := decodeJson(r, body); err != nil {
 		return ErrHttpInvalidJSON
 	}
-
 	return doValidation(body)
 }
 
 func mapJSON[Body any, Output any](r *http.Request, parse func(Body) (Output, error)) (o Output, _ error) {
-	defer r.Body.Close()
-
-	// TODO: consider using io.ReadAlll instead of NewDecoder if it yields better performance
 	var body Body
-	if err := sonic.ConfigDefault.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := decodeJson(r, &body); err != nil {
 		return o, err
 	}
-
 	return parse(body)
 }
 

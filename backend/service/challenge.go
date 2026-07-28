@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/db"
+	"hexchess-svc/db/mutator"
+	"hexchess-svc/db/query"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"time"
 
-	"hexchess-svc/db/sqlc"
 	"hexchess-svc/utils/logutil"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -42,11 +43,11 @@ func (services *HexchessServices) InsertChallenge(ctx context.Context, inst Chal
 		inst.MadeOn = time.Now()
 	}
 
-	row, dbErr := services.querier.InsertChallenge(ctx, sqlc.InsertChallengeParams{
+	row, dbErr := services.querier.InsertChallenge(ctx, mutator.InsertChallengeParams{
 		ChallengerID: inst.ChallengerID,
 		ChallengeeID: inst.ChallengeeID,
-		Mode:         sqlc.ModeEnum(inst.Mode.String()),
-		StartColor:   sqlc.ColorEnum(inst.StartColor.String()),
+		Mode:         mutator.ModeEnum(inst.Mode.String()),
+		StartColor:   mutator.ColorEnum(inst.StartColor.String()),
 		MadeOn:       pgtype.Timestamptz{Valid: true, Time: inst.MadeOn},
 	})
 	if dbErr != nil {
@@ -56,24 +57,37 @@ func (services *HexchessServices) InsertChallenge(ctx context.Context, inst Chal
 		return model.Challenge{}, serrors.New("insert challenge", dbErr, "inst", inst)
 	}
 
-	challenge := mapChallengeRow(sqlc.SelectChallengesByParticipantRow(row))
+	challenge := model.Challenge{
+		ChallengerID:      row.ChallengerID,
+		ChallengerName:    row.ChallengerName,
+		ChallengerCountry: row.ChallengerCountry,
+		ChallengerElo:     model.DefaultUserElo(row.ChallengerElo),
+		ChallengeeID:      row.ChallengeeID,
+		ChallengeeName:    row.ChallengeeName,
+		ChallengeeCountry: row.ChallengeeCountry,
+		ChallengeeElo:     model.DefaultUserElo(row.ChallengeeElo),
+		Mode:              enum.Expect(row.Mode, model.GameModeEnums),
+		StartColor:        enum.Expect(row.StartColor, model.GameColorEnums),
+		MadeOn:            row.MadeOn.Time,
+		ExpiresOn:         row.MadeOn.Time.Add(ExpireChallengeMaxAge),
+	}
 
 	slog.InfoContext(ctx, "created a new challenge", "challenge", inst, "challenge", challenge)
 	return challenge, nil
 }
 
 func (services *HexchessServices) BatchInsertChallenges(ctx context.Context, insts []ChallengeInst) error {
-	batches := make([]sqlc.BatchInsertChallengeParams, 0, len(insts))
+	batches := make([]mutator.BatchInsertChallengeParams, 0, len(insts))
 
 	for _, inst := range insts {
 		if inst.MadeOn.IsZero() {
 			inst.MadeOn = time.Now()
 		}
-		batches = append(batches, sqlc.BatchInsertChallengeParams{
+		batches = append(batches, mutator.BatchInsertChallengeParams{
 			ChallengerID: inst.ChallengerID,
 			ChallengeeID: inst.ChallengeeID,
-			Mode:         sqlc.ModeEnum(inst.Mode.String()),
-			StartColor:   sqlc.ColorEnum(inst.StartColor.String()),
+			Mode:         mutator.ModeEnum(inst.Mode.String()),
+			StartColor:   mutator.ColorEnum(inst.StartColor.String()),
 			MadeOn:       pgtype.Timestamptz{Valid: true, Time: inst.MadeOn},
 		})
 	}
@@ -106,7 +120,7 @@ type ChallengeKey struct {
 func (services *HexchessServices) GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]model.Challenge, error) {
 	since := services.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
-	rows, err := services.querier.SelectChallengesByParticipant(ctx, sqlc.SelectChallengesByParticipantParams{
+	rows, err := services.readQuerier.SelectChallengesByParticipant(ctx, query.SelectChallengesByParticipantParams{
 		ChallengerID: db.OptInt8(key.ChallengerID),
 		ChallengeeID: db.OptInt8(key.ChallengeeID),
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
@@ -117,7 +131,20 @@ func (services *HexchessServices) GetChallengesByParticipant(ctx context.Context
 
 	challenges := make([]model.Challenge, 0, len(rows))
 	for _, row := range rows {
-		challenges = append(challenges, mapChallengeRow(row))
+		challenges = append(challenges, model.Challenge{
+			ChallengerID:      row.ChallengerID,
+			ChallengerName:    row.ChallengerName,
+			ChallengerCountry: row.ChallengerCountry,
+			ChallengerElo:     model.DefaultUserElo(row.ChallengerElo),
+			ChallengeeID:      row.ChallengeeID,
+			ChallengeeName:    row.ChallengeeName,
+			ChallengeeCountry: row.ChallengeeCountry,
+			ChallengeeElo:     model.DefaultUserElo(row.ChallengeeElo),
+			Mode:              enum.Expect(row.Mode, model.GameModeEnums),
+			StartColor:        enum.Expect(row.StartColor, model.GameColorEnums),
+			MadeOn:            row.MadeOn.Time,
+			ExpiresOn:         row.MadeOn.Time.Add(ExpireChallengeMaxAge),
+		})
 	}
 
 	slog.InfoContext(ctx, "got challenges by participant", "challengeKey", key, "since", since, "challenges", challenges)
@@ -132,7 +159,7 @@ type DeleteResult struct {
 }
 
 func (services *HexchessServices) DeleteChallenge(ctx context.Context, challengerID int64, challengeeID int64) (DeleteResult, error) {
-	params := sqlc.DeleteChallengeParams{ChallengerID: challengerID, ChallengeeID: challengeeID}
+	params := mutator.DeleteChallengeParams{ChallengerID: challengerID, ChallengeeID: challengeeID}
 
 	challengeRow, err := services.querier.DeleteChallenge(ctx, params)
 	if db.IsErrNoRows(err) {
@@ -158,7 +185,7 @@ func (services *HexchessServices) DeleteExpiredChallenges(ctx context.Context, u
 	// TODO: call this from a cronjob to clear out expired challenges every couple days
 	beforeTime := services.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
-	err := services.querier.DeleteExpiredChallenges(ctx, sqlc.DeleteExpiredChallengesParams{
+	err := services.querier.DeleteExpiredChallenges(ctx, mutator.DeleteExpiredChallengesParams{
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: beforeTime},
 	})
@@ -168,24 +195,4 @@ func (services *HexchessServices) DeleteExpiredChallenges(ctx context.Context, u
 
 func (services *HexchessServices) CountUserChallenges(ctx context.Context, userID int64) (int64, error) {
 	return services.querier.CountReceivedChallenges(ctx, userID)
-}
-
-func mapChallengeRow(row sqlc.SelectChallengesByParticipantRow) model.Challenge {
-	gameColor := enum.Expect(row.StartColor, model.GameColorEnums)
-	gameMode := enum.Expect(row.Mode, model.GameModeEnums)
-
-	return model.Challenge{
-		ChallengerID:      row.ChallengerID,
-		ChallengerName:    row.ChallengerName,
-		ChallengerCountry: row.ChallengerCountry,
-		ChallengerElo:     model.DefaultUserElo(row.ChallengerElo),
-		ChallengeeID:      row.ChallengeeID,
-		ChallengeeName:    row.ChallengeeName,
-		ChallengeeCountry: row.ChallengeeCountry,
-		ChallengeeElo:     model.DefaultUserElo(row.ChallengeeElo),
-		Mode:              gameMode,
-		StartColor:        gameColor,
-		MadeOn:            row.MadeOn.Time,
-		ExpiresOn:         row.MadeOn.Time.Add(ExpireChallengeMaxAge),
-	}
 }

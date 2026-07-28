@@ -2,8 +2,9 @@ package consumers
 
 import (
 	"context"
+	"hexchess-svc/cache"
 	"hexchess-svc/db"
-	"hexchess-svc/db/sqlc"
+
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 	"log/slog"
@@ -20,8 +21,8 @@ var (
 )
 
 type RedisConsumerSetup struct {
-	Redis    db.Redis
-	Database db.Database[sqlc.Querier]
+	Redis    cache.Redis
+	Database db.Database
 	Services *svc.HexchessServices
 }
 

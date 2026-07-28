@@ -1,7 +1,5 @@
 import { getContext, setContext } from 'svelte';
-import type { ChallengeModel, ServiceModel } from '../api/models';
-import type { Writable } from 'svelte/store';
-import { makeMessage } from '$lib/utils/error';
+import type { Challenge, ServiceResponse } from '../api/models';
 
 export interface NotificationValue {
 	isSuccess: boolean;
@@ -15,13 +13,13 @@ type TextValue = NotificationValue & {
 
 type ChallengeValue = NotificationValue & {
 	type: 'challenge';
-	message: ChallengeModel;
+	message: Challenge;
 };
 
 export type NotificationData = TextValue | ChallengeValue;
 
 export type AddNotification = (data: NotificationData) => void;
-export type AddErrorNotification = (message: string | ServiceModel | undefined) => void;
+export type AddErrorNotification = (message: string | ServiceResponse | undefined) => void;
 
 interface NotificationsContext {
 	addNotification: AddNotification;
