@@ -25,7 +25,7 @@ func NewPgBeforeConnect(ctx context.Context, connCfg *pgx.ConnConfig, awsRegion 
 	return func(ctx context.Context, cfg *pgx.ConnConfig) error {
 		endpoint := fmt.Sprintf("%s:%d", connCfg.Host, connCfg.Port)
 
-		slog.Info("building an rds auth token",
+		slog.Info("building an RDS auth token",
 			"endpoint", endpoint, "awsRegion", awsRegion, "user", connCfg.User)
 
 		// does not make a network call so this is safe to do before *each* connection

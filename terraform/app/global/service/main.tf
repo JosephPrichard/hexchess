@@ -5,9 +5,9 @@ locals {
 
   container_image = "${var.container_image}:${var.image_tag}"
 
-  enable_alb         = var.healthcheck_path != ""
-  enable_green_app   = var.rollout == "green" || var.rollout == "switch"
-  is_blue_deployment = !local.enable_green_app
+  enable_alb          = var.alb_listener_arns != null && length(var.alb_listener_arns) > 0
+  is_green_deployment = var.rollout == "green" || var.rollout == "switch"
+  is_blue_deployment  = !local.is_green_deployment
 
   environment = [
     for k, v in var.env_vars : {
@@ -18,15 +18,16 @@ locals {
 
 ### ECS Service (Blue)
 locals {
-  container_name_blue = "${local.prefix}-${var.app_name}-container"
+  container_name_blue       = "${local.prefix}-${var.app_name}-container"
+  blue_task_definition_name = "${local.prefix}-${var.app_name}-task-definition"
 }
 
 resource "aws_ecs_service" "blue" {
-  name                   = "${local.prefix}-${var.app_name}-service"
-  cluster                = var.cluster_arn
-  task_definition        = aws_ecs_task_definition.blue.arn
-  desired_count          = var.desired_task_count
-  launch_type            = "FARGATE"
+  name            = "${local.prefix}-${var.app_name}-service"
+  cluster         = var.cluster_arn
+  task_definition = aws_ecs_task_definition.blue.arn
+  desired_count   = var.desired_task_count
+  launch_type     = "FARGATE"
 
   health_check_grace_period_seconds = 30
   enable_execute_command            = true
@@ -34,7 +35,7 @@ resource "aws_ecs_service" "blue" {
   dynamic "load_balancer" {
     for_each = local.enable_alb ? [1] : []
     content {
-      target_group_arn = aws_lb_target_group.blue.arn
+      target_group_arn = aws_lb_target_group.blue[0].arn
       container_name   = local.container_name_blue
       container_port   = var.app_port
     }
@@ -48,19 +49,32 @@ resource "aws_ecs_service" "blue" {
 }
 
 # ECS Task Definition
-locals {
-  blue_task_definition_name = "${local.prefix}-${var.app_name}-task-definition"
-
-  # Find the previous task definition container image for the existing blue app, default to a new deployment otherwise
-  # previous_blue_container_image      = try(
-  #   jsondecode(data.aws_ecs_task_definition.previous_blue.container_definitions).image,
-  #   local.container_image
-  # )
+data "aws_ecs_task_definition" "previous_blue" {
+  # We only need to lookup the previous blue application in a green deployment
+  count           = local.is_green_deployment ? 1 : 0
+  task_definition = local.blue_task_definition_name
 }
 
-# data "aws_ecs_task_definition" "previous_blue" {
-#   task_definition = local.blue_task_definition_name
-# }
+locals {
+  # Find the previous task definition containers for the existing blue app, default otherwise
+  previous_container_definitions = (
+    length(data.aws_ecs_task_definition.previous_blue) >= 1 ?
+      jsondecode(data.aws_ecs_task_definition.previous_blue[0].container_definitions) :
+      null
+  )
+  # We must find the specific container definition for the task definition, since a task definition may have sidecars
+  previous_container_definition = (
+    local.previous_container_definitions != null ?
+      [for d in local.previous_container_definitions : d if d.name == local.container_name_blue] :
+      []
+  )
+  # If the previous container definition does not exist for any reason, then default to the newly deployed image
+  previous_blue_container_image = (
+    length(local.previous_container_definition) >= 1 ?
+      local.previous_container_definition[0].image :
+      local.container_image
+  )
+}
 
 resource "aws_ecs_task_definition" "blue" {
   family                   = local.blue_task_definition_name
@@ -77,8 +91,8 @@ resource "aws_ecs_task_definition" "blue" {
     name = local.container_name_blue
 
     # We can take the new container_image on a blue deployment, but we should take the old container definition image otherwise
-    # image = local.is_blue_deployment ? local.container_image : local.previous_blue_container_image
-    image = local.container_image
+    image = local.is_blue_deployment ? local.container_image : local.previous_blue_container_image
+    # image = local.container_image
 
     essential = true
     portMappings = [
@@ -107,13 +121,13 @@ locals {
 }
 
 resource "aws_ecs_service" "green" {
-  count = local.enable_green_app ? 1 : 0
+  count = local.is_green_deployment ? 1 : 0
 
-  name                   = "${local.prefix}-${var.app_name}-service-green"
-  cluster                = var.cluster_arn
-  task_definition        = aws_ecs_task_definition.green.arn
-  desired_count          = var.desired_task_count
-  launch_type            = "FARGATE"
+  name            = "${local.prefix}-${var.app_name}-service-green"
+  cluster         = var.cluster_arn
+  task_definition = aws_ecs_task_definition.green.arn
+  desired_count   = var.desired_task_count
+  launch_type     = "FARGATE"
 
   health_check_grace_period_seconds = 30
   enable_execute_command            = true
@@ -121,7 +135,7 @@ resource "aws_ecs_service" "green" {
   dynamic "load_balancer" {
     for_each = local.enable_alb ? [1] : []
     content {
-      target_group_arn = aws_lb_target_group.green.arn
+      target_group_arn = aws_lb_target_group.green[0].arn
       container_name   = local.container_name_green
       container_port   = var.app_port
     }
@@ -178,6 +192,8 @@ locals {
 }
 
 resource "aws_lb_target_group" "blue" {
+  count = local.enable_alb ? 1 : 0
+
   name        = "${local.prefix}-${var.app_name}-tg"
   protocol    = "HTTP"
   port        = var.app_port
@@ -193,14 +209,14 @@ resource "aws_lb_target_group" "blue" {
 }
 
 resource "aws_lb_listener_rule" "blue" {
-  count = local.enable_alb ? 1 : 0
+  for_each = var.alb_listener_arns
 
-  listener_arn = var.alb_listener_arn
+  listener_arn = each.value
   priority     = var.base_priority + local.blue_offset
 
   action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.blue.arn
+    target_group_arn = aws_lb_target_group.blue[0].arn
   }
 
   condition {
@@ -213,10 +229,12 @@ resource "aws_lb_listener_rule" "blue" {
 ### ALB Green Rules
 
 locals {
-  green_offset       = 25
+  green_offset = 25
 }
 
 resource "aws_lb_target_group" "green" {
+  count = local.enable_alb ? 1 : 0
+
   name        = "${local.prefix}-${var.app_name}-green-tg"
   protocol    = "HTTP"
   port        = var.app_port
@@ -234,24 +252,26 @@ resource "aws_lb_target_group" "green" {
 # The main difference between a green rollout and a switch rollout is how we decide what makes it to the green app
 # In a green rollout, the traffic that makes it to the green app is marked by the caller through a header explicitly
 # In a switch rollout, the caller does not decide, instead a certain % of traffic makes it to the green and rest makes it to blue
-# So in a green rollout, the developer controls when to hit green (and therefore customers will not make it to blue)
-# In a switch rollout, the infrastructure controls when to hit green, so only a limited amount of customers are exposed to new code
-resource "aws_lb_listener_rule" "green" {
-  count = local.enable_alb && local.enable_green_app ? 1 : 0
+# So in a green rollout, the developer controls when to hit green (and therefore users will not make it to blue)
+# In a switch rollout, the infrastructure controls when to hit green, so only a limited amount of users are exposed to new code
 
-  listener_arn = var.alb_listener_arn
+resource "aws_lb_listener_rule" "green" {
+  # Only create the rules for the provided listener arns if this is a green deployment
+  for_each = local.is_green_deployment ? var.alb_listener_arns : []
+
+  listener_arn = each.value
   priority     = var.base_priority + local.green_offset
 
   action {
-    type             = "forward"
+    type = "forward"
     forward {
       target_group {
-        arn    = aws_lb_target_group.green.arn
+        arn    = aws_lb_target_group.green[0].arn
         # In a green rollout, always forward to the green app, in a switch, a % of the traffic is redirected to green app
         weight = var.rollout == "green" ? 100 : var.green_switch_weight
       }
       target_group {
-        arn    = aws_lb_target_group.blue.arn
+        arn    = aws_lb_target_group.blue[0].arn
         # In a green rollout, we never route to the blue app in this rule (let the blue rule handle that), in a switch a % of traffic is redirected to blue app
         weight = var.rollout == "green" ? 0 : (100 - var.green_switch_weight)
       }
@@ -263,14 +283,25 @@ resource "aws_lb_listener_rule" "green" {
       values = var.path_patterns
     }
   }
+
+  # In a green rollout, these rules always intercepts any traffic marked as green
+  # In a switch rollout, these rules intercept are ignored, but then uses the weights are used decide what makes it to blue/green
+  # The caller can decide if host or http headers are used to decide if traffic goes to blue/green
+
   condition {
-    # In a green rollout, this rule always intercepts any traffic marked as green
-    # In a switch rollout, this rule any traffic regardless of how it is marked, but then uses the weights to decide what makes it to blue/green
     dynamic "http_header" {
-      for_each = var.rollout == "green" ? [1] : []
+      for_each = var.rollout == "green" && var.green_condition == "http_header" ? [1] : []
       content {
         http_header_name = "Rollout"
         values           = ["Green*", "GREEN*", "green*"]
+      }
+    }
+  }
+  condition {
+    dynamic "host_header" {
+      for_each = var.rollout == "green" && var.green_condition == "host_header" ? [1] : []
+      content {
+        regex_values = ["^.*api.*$"]
       }
     }
   }
@@ -278,6 +309,7 @@ resource "aws_lb_listener_rule" "green" {
 
 ### CloudWatch Log Group
 # Keep retention_in_days low, we should be using grafana for logs
+
 locals {
   aws_cloudwatch_log_group_name = "/aws/ecs/${var.project}/${var.app_name}"
 }

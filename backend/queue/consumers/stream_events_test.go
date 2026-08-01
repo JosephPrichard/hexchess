@@ -4,6 +4,7 @@ import (
 	"context"
 	"hexchess-svc/chess"
 	"hexchess-svc/db/query"
+	"hexchess-svc/utils/optional"
 
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
@@ -117,8 +118,8 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 
 	updtGame := model.GameMetadataUpdt{
 		GameID:      gameID,
-		WhitePlayer: whiteUser0.ID,
-		BlackPlayer: blackUser1.ID,
+		WhitePlayer: optional.Just(whiteUser0.ID),
+		BlackPlayer: optional.Just(blackUser1.ID),
 		Mode:        model.ModeCorrespondence1,
 		FirstColor:  model.Random,
 	}

@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/db"
-
 	"hexchess-svc/queue"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/logutil"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -133,11 +133,17 @@ func (consumer *StreamConsumer) ConsumePartition(partitionKey string) {
 		wg.Wait()
 		metrics.Persist()
 
-		slog.InfoContext(ctx, "redis stream consume operation", "stream", stream, "timeTaken", time.Since(start).String())
+		slog.InfoContext(ctx, "finished redis stream consume operation", "stream", stream, "timeTaken", time.Since(start).String())
 	}
 }
 
 func (consumer *StreamConsumer) handleXReadMessage(ctx context.Context, metrics *RedisMetricCollector, msg redis.XMessage) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.ErrorContext(ctx, "panic: handle redis stream event", "err", r, "streamKey", consumer.streamKey, "stack", string(debug.Stack()))
+		}
+	}()
+
 	// send the acknowledgement if data is invalid OR message succeeds, retry otherwise
 	anyData := msg.Values["data"]
 	data, ok := anyData.(string)
@@ -153,6 +159,7 @@ func (consumer *StreamConsumer) handleXReadMessage(ctx context.Context, metrics 
 		slog.ErrorContext(ctx, "failed to handle redis consumer event", "error", err)
 	}
 	if errutil.IsType[NonRetryableQueueError](err) {
+		slog.WarnContext(ctx, "discarding non retryable redis streams event", "error", err)
 		return
 	}
 	if err := consumer.redis.XAck(ctx, consumer.streamKey, consumer.consumerGroup, msg.ID).Err(); err != nil {
@@ -168,5 +175,5 @@ func (consumer *StreamConsumer) handleXReadMessage(ctx context.Context, metrics 
 		ProcessedOn: time.Now(),
 	})
 
-	slog.InfoContext(ctx, "redis stream consume operation", "stream", consumer.streamKey, "timeTaken", time.Since(consumedOn).String())
+	slog.InfoContext(ctx, "finished handling redis stream event", "stream", consumer.streamKey, "timeTaken", time.Since(consumedOn).String())
 }

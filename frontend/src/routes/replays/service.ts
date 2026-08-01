@@ -7,7 +7,7 @@ import {
     type ReplayResult,
     ReplayResultNameMap,
 } from "$lib/api/models";
-import type {ReplaysQuery} from "$lib/api/services";
+import type {ReplaysQuery} from "$lib/api/bodies";
 
 export type OptEnum<T> = T | "";
 

@@ -24,26 +24,141 @@ module "vpc" {
   enable_dns_hostnames = true
 }
 
+# DNS
+
+data "aws_route53_zone" "main" {
+  name         = var.hosted_zone_name
+  private_zone = false
+}
+
+# Each environment gets a "green" subdomain for allowing green deployments
+resource "aws_route53_record" "cname" {
+  zone_id = data.aws_route53_zone.main.zone_id
+  name    = "green.${var.domain_name}"
+  type    = "CNAME"
+  ttl     = 3600
+  # A green subdomain is actually just pointed to the main domain
+  records = [var.domain_name]
+}
+
+# Point the environment's DNS record to the public LB
+resource "aws_route53_record" "alb_alias" {
+  zone_id = data.aws_route53_zone.main.zone_id
+  name    = var.domain_name
+  type    = "A"
+
+  alias {
+    name                   = aws_lb.public.dns_name
+    zone_id                = aws_lb.public.zone_id
+    evaluate_target_health = true
+  }
+}
+
 ### RDS DATABASES
+
+locals {
+  database_cluster_name = "${local.prefix}-sor"
+
+  serverlessv2_scaling_configuration = {
+    min_capacity = 0.5
+    max_capacity = 1.0
+  }
+}
 
 # Aurora Postgres SOR DB
 module "sor-db" {
-  source = "../modules/database"
+  source  = "terraform-aws-modules/rds-aurora/aws"
+  version = "~> 10.0"
 
-  database_cluster_name = "sor" # system of record
+  name           = local.database_cluster_name
+  engine         = "aurora-postgresql"
+  engine_version = "17.5"
 
-  project     = var.project
-  environment = var.environment
-  account_id  = var.account_id
-  aws_region  = var.aws_region
+  vpc_id               = module.vpc.vpc_id
+  availability_zones   = module.vpc.azs
+  subnets              = module.vpc.database_subnets # the subnet the database is in
+  db_subnet_group_name = module.vpc.database_subnet_group_name
 
-  vpc_id                      = module.vpc.vpc_id
-  vpc_azs                     = module.vpc.azs
-  database_subnets            = module.vpc.database_subnets # Not publicly accessible
-  database_subnet_group_name  = module.vpc.database_subnet_group_name
-  inbound_subnets_cidr_blocks = module.vpc.private_subnets_cidr_blocks
+  enable_http_endpoint = true # enables specific queries only from authorized users (such as aws console)
 
-  instance_class = var.postgres_instance_type
+  # Database is only accessible from the private subnet
+  security_group_ingress_rules = {
+    for idx, cidr in module.vpc.private_subnets_cidr_blocks :
+    "private-az${idx + 1}" => {
+      # Automatically creates the correct security group for port 5432
+      cidr_ipv4 = cidr
+    }
+  }
+
+  engine_mode    = var.postgres_instance_type == "db.serverless" ? "provisioned" : null
+  cluster_instance_class = var.postgres_instance_type
+  serverlessv2_scaling_configuration = var.postgres_instance_type == "db.serverless" ? local.serverlessv2_scaling_configuration : null
+
+  instances = {
+    1 = {}
+    2 = {}
+  }
+
+  master_username             = "dbadmin"
+  manage_master_user_password = true
+
+  storage_encrypted            = var.environment == "prod" ? true : false
+  deletion_protection          = var.environment == "prod" ? true : false
+  skip_final_snapshot          = var.environment != "prod"
+  final_snapshot_identifier    = "${local.prefix}-final-snapshot"
+  backup_retention_period      = var.environment == "prod" ? 30 : 1
+  preferred_backup_window      = "03:00-04:00"
+  preferred_maintenance_window = "sun:04:30-sun:05:30"
+  apply_immediately            = var.environment != "prod"
+  copy_tags_to_snapshot        = true
+
+  iam_database_authentication_enabled = true
+
+  enabled_cloudwatch_logs_exports = ["postgresql"]
+
+  tags = {
+    Environment = var.environment
+    Project     = var.project
+  }
+}
+
+locals {
+  policy_arn_map = {
+    for key, policy in aws_iam_policy.db_role_policy_connect : key => policy.arn
+  }
+}
+
+# Polices for Postgres
+# Each of these corresponds to a database user, which must be created with the same name within AWS ADMIN CONSOLE
+# An app can act as the database user by assuming the role
+# To properly create ROLES and DATABASES, use the ./init/init_*.sql scripts
+
+locals {
+  db_users = [
+    { name = "db_readwrite" }
+  ]
+}
+
+resource "aws_iam_policy" "db_role_policy_connect" {
+  for_each = { for r in local.db_users : r.name => r }
+
+  name = "${local.prefix}-${local.database_cluster_name}-${each.value.name}-connect"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "AuroraIamDbAuth"
+        Effect   = "Allow"
+        # Allows for CONNECT, it is USER the role is linked to in the database that allows for access permissions
+        Action   = ["rds-db:connect"]
+        Resource = [
+          # ${each.value.name} is the USER name in the database for this policy
+          "arn:aws:rds-db:${var.aws_region}:${var.account_id}:dbuser:${module.sor-db.cluster_resource_id}/${each.value.name}"
+        ]
+      }
+    ]
+  })
 }
 
 ### BLOCK STORAGE
@@ -75,7 +190,7 @@ resource "aws_memorydb_cluster" "memorydb" {
   # MemoryDB is not secured with a password for the meantime, we rely on firewall rules for security
   acl_name                 = "open-access"
   node_type                = var.memorydb_node_type
-  engine_version           = "7.1"
+  engine_version           = "7.2"
   num_shards               = var.memorydb_shards
   num_replicas_per_shard   = 1
   subnet_group_name        = aws_memorydb_subnet_group.main.name
@@ -142,8 +257,8 @@ resource "aws_ecs_cluster" "main" {
 
 ### LOAD BALANCERS
 
-# Private NLB
-# The primary function having application routing rules in the private subnet is to allow apps within the same private subnet to talk to each other
+# ALB
+# The primary function of the ALB is to provide routing rules for traffic coming from the NLB AND within the same private subnet
 
 resource "aws_lb" "private" {
   name               = "${local.prefix}-alb-private"
@@ -155,12 +270,31 @@ resource "aws_lb" "private" {
   subnets  = module.vpc.private_subnets
 }
 
-# ALB takes HTTP traffic only
+locals {
+  alb_listeners = {
+    http = {
+      port            = 80,
+      protocol        = "HTTP",
+      certificate_arn = null,
+      ssl_policy      = null
+    },
+    https = {
+      port            = 443,
+      protocol        = "HTTPS",
+      certificate_arn = var.certificate_arn,
+      ssl_policy      = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+    },
+  }
+}
 
-resource "aws_lb_listener" "private_http" {
+resource "aws_lb_listener" "alb_listeners" {
+  for_each = local.alb_listeners
+
   load_balancer_arn = aws_lb.private.arn
-  port              = 80
-  protocol          = "HTTP"
+  port              = each.value.port
+  protocol          = each.value.protocol
+  certificate_arn   = each.value.certificate_arn
+  ssl_policy        = each.value.ssl_policy
 
   default_action {
     type = "fixed-response"
@@ -175,7 +309,20 @@ resource "aws_lb_listener" "private_http" {
 }
 
 # Public NLB
-# The primary function of this NLB is to take traffic from the internet and route it to the public NLB
+# The primary function of this NLB is to take traffic from the internet and route it to the private ALB
+
+locals {
+  nlb_listeners = {
+    http = {
+      port = 80,
+      protocol = "HTTP",
+    },
+    https = {
+      port = 443
+      protocol = "HTTPS",
+    },
+  }
+}
 
 resource "aws_lb" "public" {
   name               = "${local.prefix}-nlb-public"
@@ -189,44 +336,48 @@ resource "aws_lb" "public" {
   subnets  = module.vpc.public_subnets
 }
 
-# NLB takes HTTPS traffic only
+resource "aws_lb_listener" "public" {
+  for_each = local.nlb_listeners
 
-resource "aws_lb_listener" "public_http" {
   load_balancer_arn = aws_lb.public.arn
-  port              = 80 # TODO change this to HTTPs
+  port              = each.value.port
   protocol          = "TCP"
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.nlb_to_alb_tg.arn
+    target_group_arn = aws_lb_target_group.nlb_to_alb_tg[each.key].arn
   }
 }
 
 resource "aws_lb_target_group" "nlb_to_alb_tg" {
-  name        = "${local.prefix}-nlb-to-alb-tg"
-  port        = 80
-  protocol    = "TCP"
+  for_each = local.nlb_listeners
+
+  name        = "${local.prefix}-nlb-to-alb-tg-${each.key}"
   vpc_id      = module.vpc.vpc_id
   target_type = "alb"
 
+  port     = each.value.port
+  protocol = "TCP"
+
   health_check {
-    protocol            = "HTTP"
-    # The ALB must have a /healthcheck endpoint
-    # In our case, it is implemented by both the frontend and backend application, at least one must be available for the NLB to be healthy
+    protocol            = each.value.protocol
+    # We hit the application or ALB provided healthcheck
     path                = "/healthcheck"
-    port                = "traffic-port" # Same port as target
+    port                = each.value.port
     healthy_threshold   = 3
     unhealthy_threshold = 3
-    interval            = 10
-    # If the private ALB can send any kind of response at all, we an route traffic to it. This includes the private ALB's default 404 response.
+    interval            = 30
+    # If the private ALB can send any kind of response at all, we can route traffic to it. This includes the private ALB's default 404 response.
     matcher             = "200-499"
   }
 }
 
-resource "aws_lb_target_group_attachment" "public_http_attach" {
-  target_group_arn = aws_lb_target_group.nlb_to_alb_tg.arn
+resource "aws_lb_target_group_attachment" "nlb_to_alb_tg_attach" {
+  for_each = local.nlb_listeners
+
+  target_group_arn = aws_lb_target_group.nlb_to_alb_tg[each.key].arn
   target_id        = aws_lb.private.arn
-  port             = 80
+  port             = each.value.port
 }
 
 ### SECURITY GROUPS
@@ -396,7 +547,7 @@ resource "aws_iam_role_policy_attachment" "ecs_task_app_role_s3_access" {
 
 resource "aws_iam_role_policy_attachment" "ecs_task_app_role_rds_access" {
   role       = aws_iam_role.ecs_task_app_role.name
-  policy_arn = module.sor-db.policy_arn_map["db_readwrite"]
+  policy_arn = local.policy_arn_map["db_readwrite"]
 }
 
 # IAM (ECS Cluster Task Migrator Role)
@@ -415,7 +566,7 @@ resource "aws_iam_role" "ecs_task_migrator_role" {
 
 resource "aws_iam_role_policy_attachment" "ecs_task_migrator_role_rds_access" {
   role       = aws_iam_role.ecs_task_migrator_role.name
-  policy_arn = module.sor-db.policy_arn_map["db_migrator"]
+  policy_arn = local.policy_arn_map["db_readwrite"]
 }
 
 # IAM (ECS Cluster Task Frontend Role)

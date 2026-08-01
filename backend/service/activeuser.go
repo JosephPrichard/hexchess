@@ -3,6 +3,7 @@ package svc
 import (
 	"context"
 	"fmt"
+	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"time"
@@ -18,6 +19,8 @@ func (services *HexchessServices) IsActiveUser(ctx context.Context, id string) b
 }
 
 func (services *HexchessServices) GetActiveCount(ctx context.Context) (int64, error) {
+	defer perf.WithContext(ctx).Log()
+
 	expireBefore := services.entropy.GetTime().Add(-ActiveUserMaxage)
 	expireBeforeStr := fmt.Sprintf("%d", expireBefore.UnixMilli())
 
@@ -37,6 +40,8 @@ func (services *HexchessServices) GetActiveCount(ctx context.Context) (int64, er
 }
 
 func (services *HexchessServices) RetainActiveUser(ctx context.Context, id string) error {
+	defer perf.WithContext(ctx).Log()
+
 	updtTime := float64(services.entropy.GetTime().UnixMilli())
 
 	_, err := services.redis.PrimaryClient.ZAddXX(ctx, services.redis.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
@@ -48,6 +53,8 @@ func (services *HexchessServices) RetainActiveUser(ctx context.Context, id strin
 }
 
 func (services *HexchessServices) AddActiveUser(ctx context.Context, id string) (int64, error) {
+	defer perf.WithContext(ctx).Log()
+
 	updtTime := float64(services.entropy.GetTime().UnixMilli())
 
 	_, err := services.redis.PrimaryClient.ZAddNX(ctx, services.redis.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
@@ -66,6 +73,8 @@ func (services *HexchessServices) AddActiveUser(ctx context.Context, id string) 
 }
 
 func (services *HexchessServices) RemoveActiveUser(ctx context.Context, id string) (int64, error) {
+	defer perf.WithContext(ctx).Log()
+
 	res, err := services.redis.PrimaryClient.ZRem(ctx, services.redis.ActiveUsersZSet, id).Result()
 	if err != nil {
 		return 0, serrors.New("remove active user", err, "id", id)

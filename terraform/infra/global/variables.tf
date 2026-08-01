@@ -31,6 +31,24 @@ variable "vpc_azs" {
   default     = ["us-east-1a", "us-east-1b", "us-east-1c"] # This *must* return at least 3 AZs
 }
 
+variable "domain_name" {
+  description = "The fully qualified domain name for the A record (e.g. app.example.com)"
+  type        = string
+  default     = "hexagonchess.app"
+}
+
+variable "hosted_zone_name" {
+  description = "The Route53 hosted zone name to look up (e.g. example.com)"
+  type        = string
+  default     = "hexagonchess.app"
+}
+
+variable "certificate_arn" {
+  description = "The certificate ARN of the root domain of the hosted zone for configured HTTPs listeners"
+  type        = string
+  default     = null
+}
+
 variable "buckets" {
   description = "Names of S3 buckets to create"
   type        = map(string)

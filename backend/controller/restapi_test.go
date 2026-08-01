@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hexchess-svc/cloud"
 	"hexchess-svc/utils/entropy"
+	"hexchess-svc/utils/optional"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -1117,7 +1118,7 @@ func TestHandleGetGameMetadata(t *testing.T) {
 		{
 			Ordering:    1,
 			GameID:      itest.GameID1,
-			BlackPlayer: model.User{ID: 2, Username: "user2", Country: "us"},
+			BlackPlayer: optional.Just(model.User{ID: 2, Username: "user2", Country: "us"}),
 			Mode:        model.ModeCorrespondence1.String(),
 		},
 	}
@@ -1138,7 +1139,7 @@ func TestHandleGetGameMetadata(t *testing.T) {
 					{
 						Ordering:    1,
 						GameID:      itest.GameID1,
-						BlackPlayer: model.User{ID: 2, Username: "user2", Country: "us"},
+						BlackPlayer: optional.Just(model.User{ID: 2, Username: "user2", Country: "us"}),
 						Mode:        model.ModeCorrespondence1.String(),
 					},
 				},

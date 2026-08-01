@@ -8,6 +8,7 @@ import (
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/optional"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"net/http"
@@ -353,6 +354,9 @@ func (api *API) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) err
 	}
 	slog.InfoContext(ctx, "retrieved leaderboard", "users", users)
 
+	if users == nil {
+		users = []model.LbdUser{}
+	}
 	writeJSON(w, http.StatusOK, LeaderboardResp{TotalPages: leaderboard.PageCount, UserList: users})
 	return nil
 }
@@ -596,11 +600,11 @@ func (api *API) HandleGameExistence(w http.ResponseWriter, r *http.Request) erro
 }
 
 type ChessMeta struct {
-	GameID      model.GameID `json:"gameId"`
-	WhitePlayer model.User   `json:"whitePlayer"`
-	BlackPlayer model.User   `json:"blackPlayer"`
-	Mode        string       `json:"mode"`
-	Ordering    int64        `json:"ordering"`
+	GameID      model.GameID               `json:"gameId"`
+	WhitePlayer optional.Maybe[model.User] `json:"whitePlayer"`
+	BlackPlayer optional.Maybe[model.User] `json:"blackPlayer"`
+	Mode        string                     `json:"mode"`
+	Ordering    int64                      `json:"ordering"`
 }
 
 type ChessMetasResp struct {

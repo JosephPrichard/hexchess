@@ -10,8 +10,12 @@ output "cluster_arn" {
   value = module.infra.cluster_arn
 }
 
-output "alb_listener_arn" {
-  value = module.infra.alb_listener_arn
+output "private_alb_listener_arn" {
+  value = module.infra.private_alb_listener_arn
+}
+
+output "public_alb_listener_arn" {
+  value = module.infra.public_alb_listener_arn
 }
 
 output "listener_security_group_id" {

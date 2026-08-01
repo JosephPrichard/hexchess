@@ -5,6 +5,7 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/db/mutator"
 	"hexchess-svc/db/query"
+	"hexchess-svc/utils/perf"
 
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
@@ -18,10 +19,12 @@ import (
 )
 
 func (services *HexchessServices) UpdateGameMetadata(ctx context.Context, updt model.GameMetadataUpdt) error {
+	defer perf.WithContext(ctx).Log()
+
 	updtResult, err := services.querier.UpdateGameMeta(ctx, mutator.UpdateGameMetaParams{
 		GameID:    updt.GameID.String(),
-		WhiteID:   pgtype.Int8{Int64: updt.WhitePlayer, Valid: true},
-		BlackID:   pgtype.Int8{Int64: updt.BlackPlayer, Valid: true},
+		WhiteID:   pgtype.Int8{Int64: updt.WhitePlayer.Value, Valid: updt.WhitePlayer.Present},
+		BlackID:   pgtype.Int8{Int64: updt.BlackPlayer.Value, Valid: updt.BlackPlayer.Present},
 		Mode:      mutator.ModeEnum(updt.Mode.String()),
 		UpdatedOn: pgtype.Timestamptz{Time: services.entropy.GetTime(), Valid: true},
 	})
@@ -42,19 +45,29 @@ type ChessMetasResp struct {
 }
 
 func (services *HexchessServices) GetGameMetadata(ctx context.Context, player optional.Maybe[model.PlayerState], afterOrdering optional.Maybe[int64], count int32) (ChessMetasResp, error) {
+	defer perf.WithContext(ctx).Log()
+
 	var allChessMetas []model.ChessMeta
 	var userChessMetas []model.ChessMeta
 
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() (err error) {
-		allChessMetas, err = services.getGameMetadata(egCtx, optional.Nothing[int64](), afterOrdering, optional.Just[int32](count))
+		allChessMetas, err = services.getGameMetadata(egCtx,
+			optional.Nothing[int64](),
+			afterOrdering,
+			optional.Just[int32](count))
+
 		return serrors.New("get all game metadata after ordering", err, "afterOrdering", afterOrdering)
 	})
 	if player.Present {
 		userID := player.Value.ID
 		eg.Go(func() (err error) {
-			userChessMetas, err = services.getGameMetadata(ctx, optional.Just[int64](userID), optional.Nothing[int64](), optional.Nothing[int32]())
+			userChessMetas, err = services.getGameMetadata(ctx,
+				optional.Just[int64](userID),
+				optional.Nothing[int64](),
+				optional.Nothing[int32]())
+
 			return serrors.New("get user game metadata", err, "userID", player.Value.ID)
 		})
 	}
@@ -66,6 +79,8 @@ func (services *HexchessServices) GetGameMetadata(ctx context.Context, player op
 }
 
 func (services *HexchessServices) GetGameMetadataCount(ctx context.Context) (int64, error) {
+	defer perf.WithContext(ctx).Log()
+
 	count, err := services.readQuerier.SelectGameMetasCount(ctx)
 	if err != nil {
 		return 0, serrors.New("count chess metadatas", err)
@@ -89,12 +104,21 @@ func (services *HexchessServices) getGameMetadata(ctx context.Context, userID op
 		mode := enum.Expect(row.Mode, model.GameModeEnums)
 
 		// invariant: if the user id is present, all other fields also will be.
-		var whitePlayer, blackPlayer model.User
+		var whitePlayer, blackPlayer optional.Maybe[model.User]
+
 		if row.WhiteID.Valid {
-			whitePlayer = model.User{ID: row.WhiteID.Int64, Username: row.WhiteName.String, Country: row.WhiteCountry.String}
+			whitePlayer = optional.Just(model.User{
+				ID:       row.WhiteID.Int64,
+				Username: row.WhiteName.String,
+				Country:  row.WhiteCountry.String,
+			})
 		}
 		if row.BlackID.Valid {
-			blackPlayer = model.User{ID: row.BlackID.Int64, Username: row.BlackName.String, Country: row.BlackCountry.String}
+			blackPlayer = optional.Just(model.User{
+				ID:       row.BlackID.Int64,
+				Username: row.BlackName.String,
+				Country:  row.BlackCountry.String,
+			})
 		}
 
 		chessMetas = append(chessMetas, model.ChessMeta{

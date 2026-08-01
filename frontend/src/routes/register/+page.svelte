@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { errorToArray } from '$lib/utils/error';
+	import { handleErrorAsArray } from '$lib/utils/error';
 	import { fade } from 'svelte/transition';
 	import { setClientSession } from '$lib/utils/storage';
 	import { getNotificationsContext } from '$lib/utils/context';
@@ -33,7 +33,7 @@
 			if (removeMessage !== undefined) {
 				clearTimeout(removeMessage);
 			}
-			messages = errorToArray(err);
+			messages = handleErrorAsArray(err);
 			removeMessage = setTimeout(() => messages = [], 5000);
 		}
 

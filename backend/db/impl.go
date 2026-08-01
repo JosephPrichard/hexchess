@@ -57,7 +57,7 @@ func (db *Database) Close() {
 	}
 }
 
-func (db *Database) ExecTx(ctx context.Context, args TxArgs[ReadWriteQuerier]) error {
+func (db *Database) ExecTx(ctx context.Context, args TxArgs) error {
 	switch db.kind {
 	case realDatabase:
 		return execTx(ctx, db, args)
@@ -68,7 +68,7 @@ func (db *Database) ExecTx(ctx context.Context, args TxArgs[ReadWriteQuerier]) e
 	return nil
 }
 
-func execTx(ctx context.Context, db *Database, args TxArgs[ReadWriteQuerier]) error {
+func execTx(ctx context.Context, db *Database, args TxArgs) error {
 	if args.RetryCount == 0 {
 		args.RetryCount = 1
 	}
@@ -91,7 +91,7 @@ func execTx(ctx context.Context, db *Database, args TxArgs[ReadWriteQuerier]) er
 	return err
 }
 
-func execTxnOnce(ctx context.Context, pool *pgxpool.Pool, args TxArgs[ReadWriteQuerier]) (txnErr error) {
+func execTxnOnce(ctx context.Context, pool *pgxpool.Pool, args TxArgs) (txnErr error) {
 	if args.Isolation == "" {
 		args.Isolation = pgx.ReadCommitted
 	}

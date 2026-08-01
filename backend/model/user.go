@@ -46,6 +46,18 @@ type UserStats struct {
 	ModeStats    []ModeStats `json:"modeStats"`
 }
 
+func (p User) IsGuest() bool {
+	return IsGuestID(p.ID)
+}
+
+func (p User) NonGuest() bool {
+	return !IsGuestID(p.ID)
+}
+
+func (p User) IsSame(p1 User) bool {
+	return p.ID == p1.ID
+}
+
 const StartElo float64 = 1000
 const DefaultCountry = "un"
 

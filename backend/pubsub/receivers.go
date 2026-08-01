@@ -91,13 +91,13 @@ func (b *LocalBroadcasters) Listen(rdb cache.Redis) {
 	}
 }
 
-func (b *LocalBroadcasters) Shutdown() {
-	slog.Info("shutting down local broadcasters")
-	b.Counts.Shutdown()
-	b.Games.Shutdown()
-	b.Users.Shutdown()
-	b.Tournament.Shutdown()
-}
+//func (b *LocalBroadcasters) Shutdown() {
+//	slog.Info("shutting down local broadcasters")
+//	b.Counts.Shutdown()
+//	b.Games.Shutdown()
+//	b.Users.Shutdown()
+//	b.Tournament.Shutdown()
+//}
 
 func (b *LocalBroadcasters) ListenGameMessages(rdb cache.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{rdb.GamesChannel}, func(v redigo.Message) {

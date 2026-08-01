@@ -9,6 +9,7 @@ import (
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/optional"
+	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"math"
@@ -43,6 +44,8 @@ type UserInst struct {
 }
 
 func (services *HexchessServices) InsertUser(ctx context.Context, inst UserInst) (model.User, error) {
+	defer perf.WithContext(ctx).Log()
+
 	if inst.JoinedOn.IsZero() {
 		inst.JoinedOn = time.Now()
 	}
@@ -141,9 +144,11 @@ const LockoutDuration = time.Minute * 1
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
 func (services *HexchessServices) VerifyUser(ctx context.Context, username string, inputPassword string) (VerifiedUser, error) {
+	defer perf.WithContext(ctx).Log()
+
 	var user VerifiedUser
 
-	err := services.database.ExecTx(ctx, db.TxArgs[db.ReadWriteQuerier]{
+	err := services.database.ExecTx(ctx, db.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Non-Repeatable Read):
 		// T1 is allowed to login due to valid login attempts L1 and but increases login attempt count from L1 to L2
@@ -205,6 +210,8 @@ type GoogleUserInst struct {
 }
 
 func (services *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, googleAccountID string, googleInst GoogleUserInst) (VerifiedUser, error) {
+	defer perf.WithContext(ctx).Log()
+
 	var verifiedUser VerifiedUser
 	var isCreated bool
 
@@ -256,6 +263,8 @@ type UpdtUserParams struct {
 }
 
 func (services *HexchessServices) UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (model.User, error) {
+	defer perf.WithContext(ctx).Log()
+
 	if updt.Username == "" && updt.Bio == "" && updt.Country == "" {
 		return model.User{}, nil
 	}
@@ -276,6 +285,8 @@ func (services *HexchessServices) UpdateUser(ctx context.Context, id int64, updt
 }
 
 func (services *HexchessServices) UpdateUserPassword(ctx context.Context, id int64, newPassword string) error {
+	defer perf.WithContext(ctx).Log()
+
 	hash, err := hashPassword(newPassword)
 	if err != nil {
 		return serrors.New("hash password for user", err, "userID", id)
@@ -290,6 +301,8 @@ func (services *HexchessServices) UpdateUserPassword(ctx context.Context, id int
 }
 
 func (services *HexchessServices) GetUserByID(ctx context.Context, id int64) (model.User, error) {
+	defer perf.WithContext(ctx).Log()
+
 	userRow, err := services.readQuerier.SelectUserByID(ctx, id)
 	if db.IsErrNoRows(err) {
 		return model.User{}, ErrUserNotFound
@@ -306,6 +319,8 @@ func avg[T constraints.Integer | constraints.Float](currAvg T, currCount int, ne
 }
 
 func (services *HexchessServices) GetUserStats(ctx context.Context, id int64) (model.UserStats, error) {
+	defer perf.WithContext(ctx).Log()
+
 	modeEloRows, err := services.readQuerier.SelectUserElosByID(ctx, id)
 	if err != nil {
 		return model.UserStats{}, serrors.New("select user elos by id", err, "userID", id)
@@ -352,6 +367,8 @@ type FullUser struct {
 }
 
 func (services *HexchessServices) GetFullUser(ctx context.Context, userID int64, perPage int32) (FullUser, error) {
+	defer perf.WithContext(ctx).Log()
+
 	var user model.User
 	var stats model.UserStats
 	var replayList []model.FullReplay

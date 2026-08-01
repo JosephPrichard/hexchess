@@ -1,8 +1,36 @@
 package optional
 
+import (
+	"bytes"
+	"encoding/json"
+)
+
 type Maybe[T any] struct {
-	Value     T
+	Value   T
 	Present bool
+}
+
+var jsonNull = []byte("null")
+
+// MarshalJSON serializes to null if not present, otherwise the value.
+func (m Maybe[T]) MarshalJSON() ([]byte, error) {
+	if !m.Present {
+		return jsonNull, nil
+	}
+	return json.Marshal(m.Value)
+}
+
+// UnmarshalJSON sets Present=false on null, otherwise decodes the value.
+func (m *Maybe[T]) UnmarshalJSON(data []byte) error {
+	if bytes.Equal(data, jsonNull) {
+		m.Present = false
+		return nil
+	}
+	if err := json.Unmarshal(data, &m.Value); err != nil {
+		return err
+	}
+	m.Present = true
+	return nil
 }
 
 func (o Maybe[T]) OrElse(def T) T {

@@ -9,6 +9,7 @@ import (
 	"hexchess-svc/db/query"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
+	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"time"
@@ -36,6 +37,8 @@ type ChallengeInst struct {
 }
 
 func (services *HexchessServices) InsertChallenge(ctx context.Context, inst ChallengeInst) (model.Challenge, error) {
+	defer perf.WithContext(ctx).Log()
+
 	if inst.ChallengerID == inst.ChallengeeID {
 		return model.Challenge{}, ErrSelfChallenge
 	}
@@ -118,6 +121,8 @@ type ChallengeKey struct {
 
 // GetChallengesByParticipant will select challenges by the participant after the 'since' time
 func (services *HexchessServices) GetChallengesByParticipant(ctx context.Context, key ChallengeKey) ([]model.Challenge, error) {
+	defer perf.WithContext(ctx).Log()
+
 	since := services.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
 	rows, err := services.readQuerier.SelectChallengesByParticipant(ctx, query.SelectChallengesByParticipantParams{
@@ -159,6 +164,8 @@ type DeleteResult struct {
 }
 
 func (services *HexchessServices) DeleteChallenge(ctx context.Context, challengerID int64, challengeeID int64) (DeleteResult, error) {
+	defer perf.WithContext(ctx).Log()
+
 	params := mutator.DeleteChallengeParams{ChallengerID: challengerID, ChallengeeID: challengeeID}
 
 	challengeRow, err := services.querier.DeleteChallenge(ctx, params)
@@ -182,6 +189,8 @@ func (services *HexchessServices) DeleteChallenge(ctx context.Context, challenge
 }
 
 func (services *HexchessServices) DeleteExpiredChallenges(ctx context.Context, userID int64) error {
+	defer perf.WithContext(ctx).Log()
+
 	// TODO: call this from a cronjob to clear out expired challenges every couple days
 	beforeTime := services.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 

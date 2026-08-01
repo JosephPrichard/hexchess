@@ -23,10 +23,10 @@ type Database struct {
 	testTxn   pgx.Tx
 }
 
-type QueryFn[Querier any] func(context.Context, pgx.Tx, Querier) error
+type QueryFn func(context.Context, pgx.Tx, ReadWriteQuerier) error
 
-type TxArgs[Querier any] struct {
-	QueryFn      QueryFn[Querier]
+type TxArgs struct {
+	QueryFn      QueryFn
 	ErrAllowlist []error
 	Isolation    pgx.TxIsoLevel
 	RetryCount   int

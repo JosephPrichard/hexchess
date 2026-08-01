@@ -15,10 +15,10 @@ variable "aws_region" {
 }
 
 # ALB only configurations (can be left default if ALB is not enabled)
-variable "alb_listener_arn" {
-  description = "The ARN of the ALB listener any ALB listener rules will be attached to"
-  type        = string
-  default     = null
+variable "alb_listener_arns" {
+  description = "The ARNs of the ALB listener to attach any rules to"
+  type        = set(string)
+  default     = []
 }
 
 variable "base_priority" {
@@ -49,6 +49,12 @@ variable "rollout" {
   description = "Rollout kind of app deployment (e.g blue, green, switch)"
   type        = string
   default     = "blue"
+}
+
+variable "green_condition" {
+  description = "Mechanism used to determine whether a header or host condition should be used to decide if traffic should be routed to green or not"
+  type        = string
+  default     = "http_header"
 }
 
 variable "green_switch_weight" {

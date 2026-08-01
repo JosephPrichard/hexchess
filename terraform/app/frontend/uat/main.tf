@@ -21,6 +21,14 @@ locals {
 module "main" {
   source = "../../global/service"
 
+  vpc_id              = local.infra.vpc_id
+  private_subnets_ids = local.infra.private_subnets_ids
+  cluster_arn         = local.infra.cluster_arn
+  alb_listener_arns   = [local.infra.public_alb_listener_arn, local.infra.private_alb_listener_arn]
+  security_group_id   = local.infra.listener_security_group_id
+  execution_role_arn  = local.infra.ecs_task_execution_role_arn
+  task_role_arn       = local.infra.ecs_task_frontend_role_arn
+
   project     = "hexchess"
   environment = "uat"
   aws_region  = "us-east-1"
@@ -36,22 +44,15 @@ module "main" {
 
   rollout             = var.rollout
   green_switch_weight = var.green_switch_weight
-
-  vpc_id              = local.infra.vpc_id
-  private_subnets_ids = local.infra.private_subnets_ids
-  cluster_arn         = local.infra.cluster_arn
-  alb_listener_arn    = local.infra.alb_listener_arn
-  security_group_id   = local.infra.listener_security_group_id
-  execution_role_arn  = local.infra.ecs_task_execution_role_arn
-  task_role_arn       = local.infra.ecs_task_frontend_role_arn
+  green_condition     = "host_header"
 
   container_image = "938864279852.dkr.ecr.us-east-1.amazonaws.com/releases/hexchess/frontend"
   image_tag       = var.commit_sha
 
   env_vars = {
-    PUBLIC_APP_BASE_URL: "http://hexchess-nlb-public-4b82b58d6f4dbb05.elb.us-east-1.amazonaws.com",
-
-    # Node.js -> Go communication in the same private subnet done through private ALB (encryption is not necessary for IPC)
+    PUBLIC_ROLLOUT: var.rollout,
+    PUBLIC_ACTIVE_PROFILE: "test",
+    PUBLIC_APP_BASE_URL: "https://uat.hexagonchess.app",
     INTERNAL_BACKEND_BASE_URL: "http://internal-hexchess-alb-private-965831337.us-east-1.elb.amazonaws.com"
   }
 }

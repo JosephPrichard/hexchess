@@ -83,7 +83,7 @@ func run() error {
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
-		return fmt.Errorf("create postgres db pool: %s", err)
+		return fmt.Errorf("create postgres database pool: %s", err)
 	}
 	defer pool.Close()
 

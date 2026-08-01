@@ -7,9 +7,10 @@ import { ChatMessages, MoveHistory } from '$lib/pb/messages';
 import { createSHA256 } from "hash-wasm";
 import { browser } from '$app/environment';
 import globals from './globals';
+import type {ReplaysQuery} from "$lib/api/bodies";
 
 const defaultFrontend = 'http://localhost:5173';
-const defaultBackend = 'http://localhost:8080/api';
+const defaultBackend = 'http://localhost:8080';
 const maxTimeoutMs = 5_000; // strict 5 second timeout
 
 export function frontendBaseURL() {
@@ -20,92 +21,85 @@ export function frontendBaseURL() {
 export function backendBaseURL() {
 	if (browser) {
 		// from browser to server serving backend JSON API (browser to public hostname)
-		return publicEnv.PUBLIC_APP_BASE_URL + "/api" || defaultBackend;
+		return (publicEnv.PUBLIC_APP_BASE_URL || defaultBackend) + "/api";
 	} else {
 		// from NODE.js server to server serving backend JSON API (within same datacenter)
-		return globals.internalBackendBaseURL + "/api" || defaultBackend;
+		return (globals.internalBackendBaseURL || defaultBackend) + "/api";
 	}
+}
+
+export function rollout() {
+	return publicEnv.PUBLIC_ROLLOUT || ""
 }
 
 export type Result<T> = [T | undefined, ServiceResponse | undefined];
 export type FetchFn = typeof window.fetch;
 export type RequestFn<T> = (fetch?: FetchFn) => Promise<Result<T>>;
 
-const unknownError = () => ({ status: 500, message: "", error: codes.errorUnknown, errors: {} });
+interface ResponseMap<JSONResponse extends object | {}> {
+	["JSON"]: JSONResponse;
+	["BLOB"]: ArrayBuffer;
+}
 
-export async function requestJSON<Response extends object | {}>(input: RequestInfo | URL, init?: RequestInit, request?: FetchFn): Promise<Result<Response>> {
+const responseMap = {
+	"JSON": (response: Response) => response.json(),
+	"BLOB": (response: Response) => response.arrayBuffer()
+};
+
+export async function doRequest<Kind extends "JSON" | "BLOB", JSONResponse extends object | {} = {}>(
+	kind: Kind,
+	input: RequestInfo | URL,
+	init?: RequestInit,
+	request?: FetchFn
+): Promise<Result<ResponseMap<JSONResponse>[Kind]>> {
 	try {
+		const startTime = Date.now();
+		const trace = uuidv4();
+
 		if (!request) {
 			request = fetch;
 		}
-
-		const startTime = Date.now();
-
-		const trace = uuidv4();
 		if (!init) {
 			init = {};
 		}
+		if (!init.headers) {
+			init.headers = {};
+		}
+
 		init.signal = AbortSignal.timeout(maxTimeoutMs);
 		init.credentials = 'include';
-		init.headers = { 'Content-Type': 'application/json', 'X-trace': trace };
+		init.headers = { ...init.headers, 'X-trace': trace, rollout: rollout() };
 
-		logger.info("sending request", { kind: "JSON", trace, input, init });
+		logger.info("sending request", { kind, input, trace });
+
 		const response = await request(input, init);
-
+		
 		if (!response.ok) {
 			const errorMessage: string = await response.text();
-			logger.warn("received error response", { kind: "JSON", trace, response: errorMessage || "" });
+			logger.warn("received error response", { kind, trace, response: errorMessage || "" });
+
 			return [undefined, JSON.parse(errorMessage) as ServiceResponse];
 		} else {
-			const data: Response = await response.json();
-			logger.info("handled request", { kind: "JSON", trace, timeTaken: Date.now() - startTime });
-			return [data, undefined];
+			const data = await responseMap[kind](response);
+			logger.info("handled request", { kind, trace, timeTaken: Date.now() - startTime });
+
+			return [data as ResponseMap<JSONResponse>[Kind], undefined];
 		}
 	} catch (error) {
-		if (!(error instanceof TypeError)) {
-			logger.error("failed to send http request", error);
-		}
-		return [undefined, unknownError()];
+		logger.error("failed to send http request", { kind, input }, error);
+		return [undefined, ({ status: 500, message: "", error: codes.errorUnknown, errors: {} })];
 	}
+}
+
+export async function requestJSON<Response extends object | {}>(input: RequestInfo | URL, init?: RequestInit, request?: FetchFn): Promise<Result<Response>> {
+	return doRequest<"JSON", Response>("JSON", input, init, request);
 }
 
 export async function requestBlob(input: RequestInfo | URL, init?: RequestInit, request?: FetchFn): Promise<Result<ArrayBuffer>> {
-	try {
-		if (!request) {
-			request = fetch;
-		}
-
-		const startTime = Date.now();
-
-		const trace = uuidv4();
-		if (!init) {
-			init = {};
-		}
-		init.signal = AbortSignal.timeout(maxTimeoutMs);
-		init.credentials = 'include';
-		init.headers = { 'X-trace': trace };
-
-		logger.info("sending request", { kind: "BLOB", input, trace });
-		const response = await request(input, init);
-
-		if (!response.ok) {
-			const errorMessage: string = await response.text();
-			logger.warn("received error response", { kind: "BLOB", trace, response: errorMessage || "" });
-			return [undefined, JSON.parse(errorMessage) as ServiceResponse];
-		} else {
-			const data = await response.arrayBuffer();
-			logger.info("handled request", { kind: "BLOB", trace, timeTaken: Date.now() - startTime });
-			return [data, undefined];
-		}
-	} catch (error) {
-		if (!(error instanceof TypeError)) {
-			logger.error("failed to send http request", error);
-		}
-		return [undefined, unknownError()];
-	}
+	return doRequest("BLOB", input, init, request);
 }
 
-export function memcached<Response>(get: RequestFn<Response>): RequestFn<Response> {
+export function cache<Response>(get: RequestFn<Response>): RequestFn<Response> {
 	let cache: Response | undefined = undefined;
 	return async (fetch?: FetchFn) => {
 		if (cache !== undefined) {
@@ -122,9 +116,30 @@ export function memcached<Response>(get: RequestFn<Response>): RequestFn<Respons
 			return [cache, undefined];
 		} catch (error) {
 			logger.error("failed to send http request", error);
-			return [undefined, unknownError()];
+			return [undefined, ({ status: 500, message: "", error: codes.errorUnknown, errors: {} })];
 		}
 	};
+}
+
+function timed<Result>(name: string, work: () => Result): Result {
+	const timeNow = performance.now();
+	const result = work();
+
+	const timeTaken = performance.now() - timeNow;
+	logger.info(`${name} took ${timeTaken}ms`);
+
+	return result;
+}
+
+async function hashContent(file: File) {
+	const hasher = await createSHA256();
+	const reader = file.stream().getReader();
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		hasher.update(value);
+	}
+	return btoa(String.fromCharCode(...hasher.digest('binary')));
 }
 
 function postLogin(username: string, password: string) {
@@ -134,7 +149,6 @@ function postLogin(username: string, password: string) {
 		body: JSON.stringify({ username, password }),
 	});
 }
-
 
 function postGoogleLogin(token: string) {
 	return requestJSON<Session>(`${backendBaseURL()}/login/google`, {
@@ -229,73 +243,17 @@ function postRefreshSession() {
 	});
 }
 
-
 export async function postProfilePic(file: File): Promise<Result<{}>> {
-	try {
-		const profilePicUrl = `${backendBaseURL()}/users/profile-pics`;
-
-		const trace = uuidv4();
-		logger.info(`sending request to ${profilePicUrl} with trace ${trace}`);
-
-		const hasher = await createSHA256();
-		const reader = file.stream().getReader();
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			hasher.update(value);
-		}
-		const contentHash = btoa(String.fromCharCode(...hasher.digest('binary')));
-
-		logger.info("computed content hash for upload:", contentHash);
-
-		const profileResp = await fetch(profilePicUrl, {
-			method: "POST",
-			credentials: 'include',
-			body: file,
-			headers: {
-				"Content-Digest": contentHash,
-				"Content-Length": String(file.size),
-				"Content-Type": file.type,
-				"X-trace": trace,
-			},
-		});
-
-		if (!profileResp.ok) {
-			const data: ServiceResponse = await profileResp.json();
-			return [undefined, data];
-		} else {
-			return [{}, undefined];
-		}
-	} catch (error) {
-		if (!(error instanceof TypeError)) {
-			logger.error("fatal http error", error);
-		}
-		return [undefined, unknownError()];
-	}
-}
-
-export interface ReplaysQuery {
-	userId?: string;
-	whiteId?: string;
-	blackId?: string;
-	winnerId?: string;
-	loserId?: string;
-
-	whitename?: string;
-	blackname?: string;
-	winnername?: string;
-	losername?: string;
-
-	fromDate?: string;
-	toDate?: string;
-	mode?: string;
-	result?: string;
-	cause?: string;
-	afterId?: string;
-	afterTurnCount?: string;
-	afterRating?: string;
-
-	sort?: string;
+	return requestJSON<Response>(`${backendBaseURL()}/users/profile-pics`, {
+		method: "POST",
+		credentials: 'include',
+		body: file,
+		headers: {
+			"Content-Digest": await hashContent(file),
+			"Content-Length": String(file.size),
+			"Content-Type": file.type,
+		},
+	});
 }
 
 function getReplays(replaysQuery: ReplaysQuery, fetch?: FetchFn) {
@@ -411,7 +369,7 @@ async function getGameChats(gameId: string): Promise<Result<ChatMessages>> {
 	const params = new URLSearchParams({ gameId: String(gameId) });
 	const [buf, err] = await requestBlob(`${backendBaseURL()}/game/rooms/chats?${params}`, { method: 'GET' }, fetch);
 	if (buf) {
-		const result = timed("gameChats", () => ChatMessages.fromBinary(new Uint8Array(buf)));
+		const result = timed("gameChats deserialization", () => ChatMessages.fromBinary(new Uint8Array(buf)));
 		return [result, undefined];
 	} else {
 		return [undefined, err];
@@ -426,19 +384,9 @@ async function getIsUserActive(userId: string | number) {
 	return requestJSON<Response>(`${backendBaseURL()}/players/activity?${params}`, { method: 'GET' }, fetch);
 }
 
-const getCountries = memcached(async (fetch?: FetchFn) => {
-	return requestJSON<string[]>(`${backendBaseURL()}/countries`, { method: 'GET' }, fetch);
-});
-
-function timed<Result>(name: string, work: () => Result): Result {
-	const timeNow = performance.now();
-	const result = work();
-
-	const timeTaken = performance.now() - timeNow;
-	logger.info(`${name} deserialization took ${timeTaken}ms`);
-
-	return result;
-}
+const getCountries = cache(
+	(fetch?: FetchFn) => requestJSON<string[]>(`${backendBaseURL()}/countries`, { method: 'GET' }, fetch)
+);
 
 export default {
 	postLogin,

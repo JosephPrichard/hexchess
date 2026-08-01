@@ -5,6 +5,7 @@ import (
 	"errors"
 	"hexchess-svc/db"
 	"hexchess-svc/db/query"
+	"hexchess-svc/utils/perf"
 
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
@@ -87,26 +88,26 @@ func (services *HexchessServices) GetMovesHistory(ctx context.Context, replayID 
 }
 
 type ReplaysQuery struct {
-	WhiteName  optional.Maybe[string]
-	BlackName  optional.Maybe[string]
-	WinnerName optional.Maybe[string]
-	LoserName  optional.Maybe[string]
+	WhiteName  optional.Maybe[string] `json:"whiteName"`
+	BlackName  optional.Maybe[string] `json:"blackName"`
+	WinnerName optional.Maybe[string] `json:"winnerName"`
+	LoserName  optional.Maybe[string] `json:"loserName"`
 
-	UserID   optional.Maybe[int64]
-	WhiteID  optional.Maybe[int64]
-	BlackID  optional.Maybe[int64]
-	LoserID  optional.Maybe[int64]
-	WinnerID optional.Maybe[int64]
+	UserID   optional.Maybe[int64] `json:"userId"`
+	WhiteID  optional.Maybe[int64] `json:"whiteId"`
+	BlackID  optional.Maybe[int64] `json:"blackId"`
+	LoserID  optional.Maybe[int64] `json:"loserID"`
+	WinnerID optional.Maybe[int64] `json:"winnerId"`
 
-	Result   optional.Maybe[model.ReplayResult]
-	Mode     optional.Maybe[model.GameMode]
-	Cause    optional.Maybe[model.ReplayCause]
-	FromDate optional.Maybe[time.Time]
-	ToDate   optional.Maybe[time.Time]
+	Result   optional.Maybe[model.ReplayResult] `json:"result"`
+	Mode     optional.Maybe[model.GameMode]     `json:"mode"`
+	Cause    optional.Maybe[model.ReplayCause]  `json:"cause"`
+	FromDate optional.Maybe[time.Time]          `json:"fromDate"`
+	ToDate   optional.Maybe[time.Time]          `json:"toDate"`
 
-	AfterID        optional.Maybe[int64]
-	AfterRating    optional.Maybe[float64]
-	AfterTurnCount optional.Maybe[int32]
+	AfterID        optional.Maybe[int64]   `json:"afterId"`
+	AfterRating    optional.Maybe[float64] `json:"afterRating"`
+	AfterTurnCount optional.Maybe[int32]   `json:"afterTurnCount"`
 
 	Sort ReplayQuerySortKey
 
@@ -140,6 +141,8 @@ func supplyUserID(id *optional.Maybe[int64]) func(int64) {
 }
 
 func (services *HexchessServices) SearchReplaysByQuery(ctx context.Context, q ReplaysQuery) ([]model.FullReplay, error) {
+	defer perf.WithContext(ctx).Log()
+
 	// get any userIDs requested through the username queries
 	err := services.getUserIDsByUsernames(ctx, []UserIDByNameRequest{
 		{Username: q.WhiteName, SupplyID: supplyUserID(&q.WhiteID)},
@@ -225,6 +228,8 @@ type RetrieveEloHistoryResp struct {
 // RetrieveEloHistoryBuckets Returns the elo replay histories for a given user organized into buckets and categorized into a map keyed by replay "mode"
 // map will contain the keys "ALL" (contains payload for all modes) plus all modes (ReplayModes)
 func (services *HexchessServices) RetrieveEloHistoryBuckets(ctx context.Context, params EloHistoriesParams) (RetrieveEloHistoryResp, error) {
+	defer perf.WithContext(ctx).Log()
+
 	if params.TimeUntil.IsZero() {
 		params.TimeUntil = time.Now()
 	}

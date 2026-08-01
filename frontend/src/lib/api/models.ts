@@ -188,8 +188,8 @@ export interface Hex {
 
 export interface ChessMetadata {
 	gameId: string;
-	whitePlayer: Player;
-	blackPlayer: Player;
+	whitePlayer: User | null;
+	blackPlayer: User | null;
 	firstColor: string;
 	mode: string;
 	ended: boolean;
@@ -215,5 +215,5 @@ export interface ServiceResponse {
 	status: number;
 	message?: string;
 	error: string;
-	errors: Record<string, string>
+	errors: Record<string, { message: string; error: string }>;
 }

@@ -7,6 +7,7 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/db/query"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/perf"
 	"log/slog"
 	"math"
 	"sort"
@@ -84,6 +85,8 @@ func mapLbRank(rank int64) int64 {
 }
 
 func (services *HexchessServices) GetUserLeaderboardRanks(ctx context.Context, userID int64, modes map[string]model.GameMode) (map[string]LbRank, error) {
+	defer perf.WithContext(ctx).Log()
+
 	type getExec struct {
 		mode string
 		cmd  *redis.RankWithScoreCmd
@@ -108,6 +111,8 @@ func (services *HexchessServices) GetUserLeaderboardRanks(ctx context.Context, u
 			cmd:  pipeline.ZRevRankWithScore(ctx, modeLbZSet, strUserID),
 		})
 	}
+
+	slog.InfoContext(ctx, "pipeline exec: retrieving ranks for user", "userID", userID)
 
 	if err := cache.PipelineExec(ctx, pipeline); err != nil {
 		return nil, err
@@ -138,6 +143,8 @@ func (services *HexchessServices) GetUserLeaderboardRanks(ctx context.Context, u
 			getCmd: pipeline.ZRevRankWithScore(ctx, modeLbZSet, strUserID),
 		})
 	}
+
+	slog.InfoContext(ctx, "pipeline exec: setting ranks for user", "userID", userID)
 
 	if err := cache.PipelineExec(ctx, pipeline); err != nil {
 		return nil, err
@@ -230,6 +237,8 @@ func (services *HexchessServices) getLeaderboard(ctx context.Context, mode model
 }
 
 func (services *HexchessServices) GetLeaderboardPage(ctx context.Context, mode model.GameMode, page, perPage int64) (Leaderboard, error) {
+	defer perf.WithContext(ctx).Log()
+
 	if page < 1 {
 		page = 1
 	}
@@ -241,6 +250,8 @@ func (services *HexchessServices) GetLeaderboardPage(ctx context.Context, mode m
 }
 
 func (services *HexchessServices) SyncLeaderboard(ctx context.Context) error {
+	defer perf.WithContext(ctx).Log()
+
 	for _, mode := range model.GameModeEnums {
 		afterID := int64(0)
 		for {
@@ -288,6 +299,8 @@ func mapLbdUser(row query.SelectUserWithEloByIDRow) model.LbdUser {
 }
 
 func (services *HexchessServices) GetLeaderboardUser(ctx context.Context, userID int64, mode model.GameMode) (model.LbdUser, error) {
+	defer perf.WithContext(ctx).Log()
+
 	strUserID := strconv.Itoa(int(userID))
 
 	var userRow query.SelectUserWithEloByIDRow
@@ -318,6 +331,8 @@ func (services *HexchessServices) GetLeaderboardUser(ctx context.Context, userID
 }
 
 func (services *HexchessServices) GetFullLeaderboardUsers(ctx context.Context, mode model.GameMode, rnkUsers []RankedUser) ([]model.LbdUser, []int64, error) {
+	defer perf.WithContext(ctx).Log()
+
 	if len(rnkUsers) == 0 {
 		return nil, nil, nil
 	}
@@ -370,6 +385,8 @@ const MaxSearchOffset = 1000
 var ErrSearchLimit = errors.New("search limit exceeded")
 
 func (services *HexchessServices) GetFuzzySearchLeaderboard(ctx context.Context, name string, page, perPage int32) ([]model.LbdUser, error) {
+	defer perf.WithContext(ctx).Log()
+
 	if name == "" {
 		return []model.LbdUser{}, nil
 	}

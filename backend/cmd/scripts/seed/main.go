@@ -9,12 +9,12 @@ import (
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/db/mutator"
+	"hexchess-svc/utils/perf"
 
 	"hexchess-svc/model"
 	svc "hexchess-svc/service"
 	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/logutil"
-	"hexchess-svc/utils/perf"
 	"log"
 	"log/slog"
 	"math/rand"
@@ -78,17 +78,15 @@ func main() {
 	defer shutdown()
 
 	database := db.NewDatabase(ctx, db.DatabaseConfig{
-		Dsn:           cfg.DbURL,
+		ReadWriteDsn:  cfg.DbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
 	})
 	defer database.Close()
 
 	redisClient := cache.NewRedis(ctx, cache.RedisConfig{
-		PrimaryAddr:     cfg.RedisPrimaryNodes,
-		PrimaryUsername: cfg.RedisPubSubUsername,
-		PrimaryPassword: cfg.RedisPrimaryUsername,
-		ActiveProfile:   cfg.Profile,
+		PrimaryAddr:   cfg.RedisPrimaryNodes,
+		ActiveProfile: cfg.Profile,
 	})
 	defer redisClient.Close()
 
@@ -99,29 +97,17 @@ func main() {
 	// step 3: execute the test seed script and measure results
 	services := svc.NewHexchessServices(svc.SetupService{Database: database, Redis: redisClient})
 
-	var usersDuration time.Duration
-	var challengesDuration time.Duration
-	var resultsDuration time.Duration
-	var tournamentsDuration time.Duration
-
 	// root node in the foreign key hierarchy tree
-	usersStart := time.Now()
-	if _, err := services.BatchInsertUsers(ctx, generateUserInsts()); err != nil {
-		logutil.Fatal("insert users", err)
-	}
-	usersDuration = time.Since(usersStart)
+	seedUsers(ctx, services)
 
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
-		defer perf.New().Duration(&challengesDuration)
-		return services.BatchInsertChallenges(egCtx, generateChallengeInsts())
+		return seedChallenges(egCtx, services)
 	})
 	eg.Go(func() error {
-		defer perf.New().Duration(&resultsDuration)
 		return seedGameResults(egCtx, services, generateGameResults())
 	})
 	eg.Go(func() error {
-		defer perf.New().Duration(&tournamentsDuration)
 		return seedTournaments(egCtx, database.Querier(), generateTournaments())
 	})
 
@@ -134,12 +120,15 @@ func main() {
 		logutil.Fatal("jobs leaderboard", err)
 	}
 
-	slog.Info("finished seeding databases",
-		"timeTaken", time.Since(start).String(),
-		"usersDuration", usersDuration.String(),
-		"challengesDuration", challengesDuration.String(),
-		"gameResultsDuration", resultsDuration.String(),
-		"tournamentsDuration", tournamentsDuration.String())
+	slog.Info("finished seeding databases", "timeTaken", time.Since(start).String())
+}
+
+func seedUsers(ctx context.Context, services *svc.HexchessServices) {
+	defer perf.New().Log()
+
+	if _, err := services.BatchInsertUsers(ctx, generateUserInsts()); err != nil {
+		logutil.Fatal("insert users", err)
+	}
 }
 
 func generateUserInsts() []svc.UserInst {
@@ -194,6 +183,11 @@ func generateMode() model.GameMode {
 	default:
 		return model.ModeCorrespondence14
 	}
+}
+
+func seedChallenges(ctx context.Context, services *svc.HexchessServices) error {
+	defer perf.New().Log()
+	return services.BatchInsertChallenges(ctx, generateChallengeInsts())
 }
 
 func generateChallengeInsts() []svc.ChallengeInst {
@@ -263,6 +257,8 @@ func generateGameResults() []GameResultInsts {
 }
 
 func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts []GameResultInsts) error {
+	defer perf.New().Log()
+
 	a := insts
 	rand.Shuffle(len(a), func(i, j int) {
 		a[i], a[j] = a[j], a[i]
@@ -318,6 +314,8 @@ type TournamentInsts struct {
 }
 
 func generateTournaments() []TournamentInsts {
+	defer perf.New().Log()
+
 	// var tkeyUInt64 uint64
 
 	var insts []TournamentInsts

@@ -9,6 +9,7 @@
 	import {goto} from "$app/navigation";
 	import services from "$lib/api/services";
 	import {MediaQuery} from "svelte/reactivity";
+	import { logger } from './utils/logger';
 
 	const id = $props.id();
 

@@ -10,8 +10,12 @@ output "cluster_arn" {
   value = aws_ecs_cluster.main.arn
 }
 
-output "alb_listener_arn" {
-  value = aws_lb_listener.private_http.arn
+output "private_alb_listener_arn" {
+  value = aws_lb_listener.alb_listeners["http"].arn
+}
+
+output "public_alb_listener_arn" {
+  value = aws_lb_listener.alb_listeners["https"].arn
 }
 
 output "listener_security_group_id" {

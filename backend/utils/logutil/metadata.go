@@ -37,7 +37,6 @@ func getEcsMetadata() *ecsTaskMetadataBody {
 		slog.Error("failed to read ecs metadata repsonse body", "error", err, "metadataEndpoint", metadataEndpoint)
 		return nil
 	}
-	slog.Info("ecs metadata repsonse body", "body", string(bodyBytes))
 
 	var ecsTaskMetadata ecsTaskMetadataBody
 	if err := sonic.Unmarshal(bodyBytes, &ecsTaskMetadata); err != nil {

@@ -107,13 +107,15 @@ function mapErr(code: string): string {
 	return messages[code] || UnknownError;
 }
 
-export function errorToArray(resp?: ServiceResponse): string[] {
+export function handleErrorAsArray(resp?: ServiceResponse): string[] {
+	logger.error("handling service error response", resp);
+
 	let messages: string[];
 
 	if (resp?.error !== undefined) {
 		messages = [resp.error];
 	} else if (resp?.errors) {
-		messages = Object.values(resp?.errors);
+		messages = Object.values(resp?.errors).map(err => err.error);
 	} else {
 		messages = [codes.errorUnknown];
 	}
@@ -122,7 +124,7 @@ export function errorToArray(resp?: ServiceResponse): string[] {
 }
 
 export function handleError(resp?: ServiceResponse | string): string {
-	logger.error("handling backend error", resp);
+	logger.error("handling service error response", resp);
 
 	let messages: string[];
 

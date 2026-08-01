@@ -3,6 +3,7 @@ package model
 import (
 	"crypto/rand"
 	"hexchess-svc/chess"
+	"hexchess-svc/utils/optional"
 	"log/slog"
 	"math/big"
 	"time"
@@ -69,11 +70,11 @@ type FinishedGame struct {
 }
 
 type GameMetadataUpdt struct {
-	GameID      GameID    `json:"id"`
-	WhitePlayer int64     `json:"whitePlayer"`
-	BlackPlayer int64     `json:"blackPlayer"`
-	Mode        GameMode  `json:"mode"`
-	FirstColor  GameColor `json:"firstColor"`
+	GameID      GameID                `json:"id"`
+	WhitePlayer optional.Maybe[int64] `json:"whitePlayer"`
+	BlackPlayer optional.Maybe[int64] `json:"blackPlayer"`
+	Mode        GameMode              `json:"mode"`
+	FirstColor  GameColor             `json:"firstColor"`
 }
 
 type UndoKind int
@@ -91,9 +92,9 @@ type ErrorGameOutput struct {
 }
 
 type InitGameOutput struct {
-	GameID    GameID      `json:"gameId"`
-	State     *ChessState `json:"state"`
-	Self      PlayerState `json:"self"`
+	GameID GameID      `json:"gameId"`
+	State  *ChessState `json:"state"`
+	Self   PlayerState `json:"self"`
 }
 
 type PlayersGameOutput struct {
@@ -132,6 +133,6 @@ type ForfeitGameOutput struct {
 }
 
 type ReplayGameOutput struct {
-	GameID    GameID `json:"gameId"`
-	Replay    FullReplay `json:"replay"`
+	GameID GameID     `json:"gameId"`
+	Replay FullReplay `json:"replay"`
 }

@@ -181,7 +181,6 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 	}
 
 	slog.Info("connected to redis node(s) successfully", "primaryClientKind", fmt.Sprintf("%T", redisClientClient))
-
 	return redisCache
 }
 

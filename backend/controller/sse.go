@@ -22,7 +22,9 @@ func (sse *SSEClient) event(eventName string, eventData string) {
 
 	sse.f.Flush()
 
-	slog.InfoContext(sse.ctx, "writing server sent event", "event", eventName, "data", eventData)
+	if eventName != "KeepAlive" {
+		slog.InfoContext(sse.ctx, "writing server sent event", "event", eventName, "data", eventData)
+	}
 }
 
 func writeGlobalEvent(client *SSEClient, event pubsub.GlobalCastEvent) {

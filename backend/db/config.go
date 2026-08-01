@@ -23,11 +23,11 @@ func NewDatabasePool(ctx context.Context, cfg PoolConfig) *pgxpool.Pool {
 		cfg.InitQuery = "SELECT 1"
 	}
 
-	slog.Info("creating postgres db pool", "config", cfg)
+	slog.Info("creating postgres database pool", "config", cfg)
 
 	poolCfg, err := pgxpool.ParseConfig(cfg.Dsn)
 	if err != nil {
-		logutil.Fatal("parse postgres config", err)
+		logutil.Fatal("parse postgres config", err, "config", cfg)
 	}
 
 	poolCfg.ConnConfig.ConnectTimeout = 10 * time.Second
@@ -38,37 +38,34 @@ func NewDatabasePool(ctx context.Context, cfg PoolConfig) *pgxpool.Pool {
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
-		logutil.Fatal("create postgres pool", err)
+		logutil.Fatal("create postgres pool", err, "config", cfg)
 	}
 	if _, err = pool.Exec(ctx, cfg.InitQuery); err != nil {
-		logutil.Fatal("execute postgres startup query", err)
+		logutil.Fatal("execute postgres startup query", err, "config", cfg)
 	}
 
-	slog.Info("connected to database successfully", "dsn", cfg.Dsn)
+	slog.Info("connected to database successfully", "config", cfg)
 	return pool
 }
 
 type DatabaseConfig struct {
-	Dsn           string         `json:"dsn"`           // (required) parseable configuration in either KV pair or postgres URL format. see pgxpool documentation.
-	ReadOnlyDsn   string         `json:"readOnlyDsn"`   // (optional) dsn for the read replicas of the postgres backend, defaults to Dsn if left empty
+	ReadWriteDsn  string         `json:"readWriteDsn"`  // (required) parseable configuration in either KV pair or postgres URL format. see pgxpool documentation.
+	ReadDsn       string         `json:"readDsn"`       // (optional) dsn for the read replicas of the postgres backend, reuses the read write pool if left empty
 	ActiveProfile config.Profile `json:"activeProfile"` // (required) profile for application is used to turn AWS authentication on (test/prod) and off (local)
 	Region        string         `json:"region"`        // (optional) AWS region database is in, if AWS authentication is on
 }
 
 func NewDatabase(ctx context.Context, cfg DatabaseConfig) Database {
-	return Database{
-		kind: realDatabase,
-		writePool: NewDatabasePool(ctx, PoolConfig{
-			Dsn:           cfg.Dsn,
-			ActiveProfile: cfg.ActiveProfile,
-			AwsRegion:     cfg.Region,
-		}),
-		readPool: NewDatabasePool(ctx, PoolConfig{
-			Dsn:           cfg.ReadOnlyDsn,
-			ActiveProfile: cfg.ActiveProfile,
-			AwsRegion:     cfg.Region,
-		}),
+	writePool := NewDatabasePool(ctx, PoolConfig{Dsn: cfg.ReadWriteDsn, ActiveProfile: cfg.ActiveProfile, AwsRegion: cfg.Region})
+
+	var readPool *pgxpool.Pool
+	if cfg.ReadDsn != "" {
+		readPool = NewDatabasePool(ctx, PoolConfig{Dsn: cfg.ReadDsn, ActiveProfile: cfg.ActiveProfile, AwsRegion: cfg.Region})
+	} else {
+		readPool = writePool
 	}
+
+	return Database{kind: realDatabase, writePool: writePool, readPool: readPool}
 }
 
 func NewDatabaseFromPool(pool *pgxpool.Pool) Database {

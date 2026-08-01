@@ -36,17 +36,15 @@ func main() {
 	defer shutdown()
 
 	database := db.NewDatabase(ctx, db.DatabaseConfig{
-		Dsn:           cfg.DbURL,
+		ReadWriteDsn:  cfg.DbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
 	})
 	defer database.Close()
 
 	redisClient := cache.NewRedis(ctx, cache.RedisConfig{
-		PrimaryAddr:     cfg.RedisPrimaryNodes,
-		PrimaryUsername: cfg.RedisPrimaryUsername,
-		PrimaryPassword: cfg.RedisPrimaryPassword,
-		ActiveProfile:   cfg.Profile,
+		PrimaryAddr:   cfg.RedisPrimaryNodes,
+		ActiveProfile: cfg.Profile,
 	})
 	defer redisClient.Close()
 

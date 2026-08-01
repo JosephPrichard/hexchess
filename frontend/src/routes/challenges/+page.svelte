@@ -94,7 +94,7 @@
 					if (data) {
 						activeState[userId] = data.isUserActive ? "active" : "inactive";
 					} else {
-						logger.error(`Error fetching active state for user ${userId}`, err)
+						logger.error(`Error fetching active state for user ${userId}`, err);
 					}
 				});
 			}

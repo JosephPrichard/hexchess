@@ -31,5 +31,5 @@ func (p Performance) Duration(duration *time.Duration) {
 }
 
 func (p Performance) Log() {
-	slog.InfoContext(p.ctx, "performance measurement", "function", p.name, "timeTaken", time.Since(p.start))
+	slog.InfoContext(p.ctx, "performance measurement", "function", p.name, "timeTaken", time.Since(p.start).String())
 }

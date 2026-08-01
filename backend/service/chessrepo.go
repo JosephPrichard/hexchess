@@ -5,6 +5,7 @@ import (
 	"errors"
 	"hexchess-svc/cache"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"time"
@@ -13,6 +14,8 @@ import (
 )
 
 func (services *HexchessServices) IsGameAccessible(ctx context.Context, id model.GameID) bool {
+	defer perf.WithContext(ctx).Log()
+
 	gameKey := cache.FmtGameKey(id)
 
 	exists, err := services.redis.PrimaryClient.Exists(ctx, gameKey).Result()
@@ -59,12 +62,14 @@ func (services *HexchessServices) setChessStateAt(ctx context.Context, id model.
 }
 
 type RedisChessSetter interface {
-	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.StatusCmd
+	Set(ctx context.Context, key string, value any, expiration time.Duration) *redis.StatusCmd
 	ZAdd(ctx context.Context, key string, members ...redis.Z) *redis.IntCmd
-	ZRem(ctx context.Context, key string, members ...interface{}) *redis.IntCmd
+	ZRem(ctx context.Context, key string, members ...any) *redis.IntCmd
 }
 
 func (services *HexchessServices) setChessState(ctx context.Context, setter RedisChessSetter, id model.GameID, state *model.ChessState, updtTime time.Time) error {
+	defer perf.WithContext(ctx).Log()
+
 	gameKey := cache.FmtGameKey(id)
 
 	bytes, err := model.MarshalChessState(state)
@@ -110,6 +115,8 @@ type ChessUpdateFn func(*model.ChessState) error
 type ChessCommitFn func(redis.Pipeliner, *model.ChessState) error
 
 func (services *HexchessServices) updateChessStateTxn(ctx context.Context, gameID model.GameID, update ChessUpdateFn, commit ChessCommitFn) (*model.ChessState, error) {
+	defer perf.WithContext(ctx).Log()
+
 	gameKey := cache.FmtGameKey(gameID)
 
 	for i := range MaxUpdateChessStateRetries {

@@ -1,4 +1,5 @@
 import type { Session } from '../api/models';
+import {logger} from "$lib/utils/logger";
 
 const SESSION_KEY = 'session';
 

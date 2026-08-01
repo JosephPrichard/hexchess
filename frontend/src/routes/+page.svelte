@@ -9,6 +9,7 @@
 	import { chessRowHeight, maxChessRows } from './globals';
 	import Banner from '$lib/Banner.svelte';
 	import { wasm } from '$lib/api/wasm';
+	import { logger } from '$lib/utils/logger';
 
 	export interface IndexProps {
 		chessList: ChessMetadata[];
@@ -18,6 +19,8 @@
 	}
 
 	const { data: props }: { data: IndexProps } = $props();
+
+	console.log(props)
 
 	const { addNotification, addErrorNotification } = getNotificationsContext();
 
@@ -115,8 +118,8 @@
 							{chess.gameId}
 						</td>
 						<td>
-							{#if chess.whitePlayer && chess.whitePlayer.present}
-								{chess.whitePlayer.name}
+							{#if chess.whitePlayer && chess.whitePlayer.id >= 0}
+								{chess.whitePlayer.username}
 								<img class="flag" src="/flags/{chess.whitePlayer.country}.png" alt="" />
 							{:else}
 							<span>
@@ -125,8 +128,8 @@
 							{/if}
 						</td>
 						<td>
-							{#if chess.blackPlayer && chess.blackPlayer.present}
-								{chess.blackPlayer.name}
+							{#if chess.blackPlayer && chess.blackPlayer.id >= 0}
+								{chess.blackPlayer.username}
 								<img class="flag" src="/flags/{chess.blackPlayer.country}.png" alt="" />
 							{:else}
 							<span>

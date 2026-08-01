@@ -85,7 +85,6 @@ func (s *websocketTestContext) getWsURL() string {
 
 func (s *websocketTestContext) Shutdown() {
 	s.testinfra.Close()
-	s.broadcasters.Shutdown()
 	s.testServer.Close()
 }
 
@@ -99,7 +98,6 @@ type sseTestContext struct {
 
 func (s *sseTestContext) Shutdown() {
 	s.testinfra.Close()
-	// s.localBroadcasters.Shutdown()
 	s.testServer.Close()
 }
 

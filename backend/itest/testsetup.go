@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	RedisContTag  = "redis:7.4.0"
+	RedisContTag  = "redis:7.2.0"
 	RedisContPort = "6379/tcp"
 )
 

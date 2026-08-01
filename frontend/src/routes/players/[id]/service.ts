@@ -1,4 +1,5 @@
-import services, {type ReplaysQuery} from "$lib/api/services";
+import {type ReplaysQuery} from "$lib/api/bodies";
+import services from "$lib/api/services";
 
 export type ReplayQueryKind = "allReplays" | "wonReplays" | "lostReplays";
 

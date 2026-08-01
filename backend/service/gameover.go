@@ -8,6 +8,7 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/db/mutator"
 	"hexchess-svc/db/query"
+	"hexchess-svc/utils/perf"
 
 	"hexchess-svc/model"
 	"hexchess-svc/queue/producers"
@@ -22,6 +23,8 @@ import (
 )
 
 func (services *HexchessServices) InsertFinishedGame(ctx context.Context, finishedGame model.FinishedGame) error {
+	defer perf.WithContext(ctx).Log()
+
 	// step 1: persist game result into system of record
 	changeSet, err := services.InsertGameResult(ctx, GameResult{
 		GameID:       finishedGame.GameID,
@@ -114,9 +117,11 @@ func (changeSet GameResultChangeSet) IsNoop() bool {
 }
 
 func (services *HexchessServices) InsertGameResult(ctx context.Context, result GameResult) (GameResultChangeSet, error) {
+	defer perf.WithContext(ctx).Log()
+
 	var changeSet GameResultChangeSet
 
-	err := services.database.ExecTx(ctx, db.TxArgs[db.ReadWriteQuerier]{
+	err := services.database.ExecTx(ctx, db.TxArgs{
 		// RepeatableRead is required to prevent the following race conditions
 		// Case 1 (Lost Update):
 		// T1 selects the user elos E1 and calculating and insert user elos E2

@@ -694,13 +694,13 @@ var GameMetas = []struct {
 	Ordering int
 	ID       string
 	Mode     string
-	WhiteID  int64
-	BlackID  int64
+	WhiteID  *int64
+	BlackID  *int64
 }{
 	{
 		ID:      GameID1.String(),
 		Mode:    "CORRESPONDENCE_1",
-		BlackID: 2,
+		BlackID: ptr(int64(2)),
 	},
 	{
 		ID:   GameID2.String(),
@@ -841,7 +841,7 @@ func insertTestData(pool *pgxpool.Pool) error {
 	}
 	for _, inst := range GameMetas {
 		batchQueue(`
-			INSERT INTO games_metadata (game_id, mode,  white_id, black_id) 
+			INSERT INTO games_metadata (game_id, mode, white_id, black_id) 
 			VALUES ($1, $2, $3, $4);`,
 			inst.ID,
 			inst.Mode,

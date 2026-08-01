@@ -41,9 +41,15 @@ func (h *LogRecordHandler) Handle(ctx context.Context, r slog.Record) error {
 	}
 
 	// propagates common AWS environment data into the logs for easier debugging. if details are not provided, does not fail
-	r.Add("awsRegion", h.staticLogData.awsRegion)
-	r.Add("awsExecutionEnv", h.staticLogData.awsExecutionEnv)
-	r.Add("ecsTaskMetadata", h.staticLogData.ecsTaskMetadataBody)
+	if h.staticLogData.awsRegion != "" {
+		r.Add("awsRegion", h.staticLogData.awsRegion)
+	}
+	if h.staticLogData.awsExecutionEnv != "" {
+		r.Add("awsExecutionEnv", h.staticLogData.awsExecutionEnv)
+	}
+	if h.staticLogData.ecsTaskMetadataBody != nil {
+		r.Add("ecsTaskMetadata", h.staticLogData.ecsTaskMetadataBody)
+	}
 
 	return h.Handler.Handle(ctx, r)
 }

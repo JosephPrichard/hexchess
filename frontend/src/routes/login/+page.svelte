@@ -1,13 +1,13 @@
 <script lang="ts">
 	import services from '$lib/api/services';
 	import { goto } from '$app/navigation';
-	import { errorToArray } from '$lib/utils/error';
 	import { setClientSession } from '$lib/utils/storage';
 	import { fade } from 'svelte/transition';
 	import { onMount } from 'svelte';
 	import { env } from '$env/dynamic/public';
 	import type { ServiceResponse, Session } from '$lib/api/models';
 	import Banner from '$lib/Banner.svelte';
+	import { handleErrorAsArray } from '$lib/utils/error';
 
 	let username = $state('');
 	let password = $state('');
@@ -23,7 +23,7 @@
 			if (removeMessage !== undefined) {
 				clearTimeout(removeMessage);
 			}
-			messages = errorToArray(err);
+			messages = handleErrorAsArray(err);
 			removeMessage = setTimeout(() => messages = [], 5000);
 		}
 	}

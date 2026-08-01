@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/chess"
+	"hexchess-svc/utils/optional"
 	"hexchess-svc/utils/serrors"
 	"time"
 
@@ -57,8 +58,8 @@ func (e ErrInvalidMove) Error() string {
 func mapMetadataUpdt(state *model.ChessState) model.GameMetadataUpdt {
 	return model.GameMetadataUpdt{
 		GameID:      state.ID,
-		WhitePlayer: state.WhitePlayer.ID,
-		BlackPlayer: state.BlackPlayer.ID,
+		WhitePlayer: optional.Maybe[int64]{Value: state.WhitePlayer.ID, Present: state.WhitePlayer.Present},
+		BlackPlayer: optional.Maybe[int64]{Value: state.BlackPlayer.ID, Present: state.BlackPlayer.Present},
 		Mode:        state.Mode,
 	}
 }
