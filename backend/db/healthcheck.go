@@ -10,6 +10,9 @@ import (
 
 func NewHealthcheck(pool *pgxpool.Pool) health.CheckFunc {
 	return func(ctx context.Context) error {
+		if pool == nil {
+			return nil
+		}
 		_, err := pool.Exec(ctx, "SELECT 1;")
 		if err != nil {
 			slog.ErrorContext(ctx, "healthcheck error", "error", err, "kind", "postgres")

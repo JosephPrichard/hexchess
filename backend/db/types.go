@@ -5,17 +5,22 @@ import (
 	"hexchess-svc/db/mutator"
 	"hexchess-svc/db/query"
 
-	"github.com/hellofresh/health-go/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type Database interface {
-	ExecTx(context.Context, TxArgs[ReadWriteQuerier]) error
-	Querier() ReadWriteQuerier
-	ReadQuerier() query.Querier
-	HealthcheckFunc() health.CheckFunc
-	ReadHealthcheckFunc() health.CheckFunc
-	Close()
+type databaseImplKind int
+
+const (
+	realDatabase databaseImplKind = iota
+	fakeDatabase
+)
+
+type Database struct {
+	kind      databaseImplKind
+	writePool *pgxpool.Pool
+	readPool  *pgxpool.Pool
+	testTxn   pgx.Tx
 }
 
 type QueryFn[Querier any] func(context.Context, pgx.Tx, Querier) error
@@ -43,13 +48,22 @@ type ReadWriteQueries struct {
 	*WriteQueries
 }
 
-func NewRWQuerier(db mutator.DBTX) ReadWriteQuerier {
-	return &ReadWriteQueries{
-		ReadQueries:  query.New(db),
-		WriteQueries: mutator.New(db),
+func NewPoolQuerier(pool *pgxpool.Pool) ReadWriteQuerier {
+	if pool == nil {
+		return nil
+	}
+	return ReadWriteQueries{
+		ReadQueries:  query.New(pool),
+		WriteQueries: mutator.New(pool),
 	}
 }
 
-func NewROQuerier(db mutator.DBTX) ReadQuerier {
-	return query.New(db)
+func NewTxnQuerier(txn pgx.Tx) ReadWriteQuerier {
+	if txn == nil {
+		return nil
+	}
+	return ReadWriteQueries{
+		ReadQueries:  query.New(txn),
+		WriteQueries: mutator.New(txn),
+	}
 }

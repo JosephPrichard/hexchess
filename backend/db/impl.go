@@ -14,81 +14,41 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type QueryFactoryImpl = QueryFactory[ReadWriteQuerier, query.Querier]
-
-type fakeDB struct {
-	testTxn pgx.Tx
-	pool    *pgxpool.Pool
-	factory QueryFactoryImpl
+func (db *Database) Querier() ReadWriteQuerier {
+	switch db.kind {
+	case realDatabase:
+		return NewPoolQuerier(db.writePool)
+	case fakeDatabase:
+		return NewTxnQuerier(db.testTxn)
+	}
+	return nil
 }
 
-func (db *fakeDB) Querier() ReadWriteQuerier {
-	return db.factory.TxnQuerier(db.testTxn)
+func (db *Database) ReadQuerier() query.Querier {
+	switch db.kind {
+	case realDatabase:
+		return NewPoolQuerier(db.readPool)
+	case fakeDatabase:
+		return NewTxnQuerier(db.testTxn)
+	}
+	return nil
 }
 
-func (db *fakeDB) ReadQuerier() query.Querier {
-	return db.Querier() // read querier is the same as the read/write querier functional tests, it is for perf only
+func (db *Database) HealthcheckFunc() health.CheckFunc {
+	return NewHealthcheck(db.writePool)
 }
 
-func (db *fakeDB) HealthcheckFunc() health.CheckFunc {
-	return NewHealthcheck(db.pool)
+func (db *Database) ReadHealthcheckFunc() health.CheckFunc {
+	return NewHealthcheck(db.readPool)
 }
 
-func (db *fakeDB) ReadHealthcheckFunc() health.CheckFunc {
-	return NewHealthcheck(db.pool)
-}
-
-func (db *fakeDB) ExecTx(ctx context.Context, args TxArgs[ReadWriteQuerier]) (err error) {
-	// a fake postgres instance is already running in a txn, noop the txn
-	return args.QueryFn(ctx, db.testTxn, db.factory.TxnQuerier(db.testTxn))
-}
-
-func (db *fakeDB) Close() {
+func (db *Database) Close() {
 	if db.testTxn != nil {
+		// a fake postgres instance is running with a transaction, clean it up
 		if err := db.testTxn.Rollback(context.Background()); err != nil {
 			slog.Error("failed to rollback testing txn", "error", err)
 		}
 	}
-	if db.pool != nil {
-		db.pool.Close()
-	}
-}
-
-type implDB struct {
-	factory   QueryFactory[ReadWriteQuerier, query.Querier]
-	writePool *pgxpool.Pool
-	readPool  *pgxpool.Pool
-}
-
-func (db *implDB) Querier() ReadWriteQuerier {
-	if db.writePool == nil {
-		return nil
-	}
-	return db.factory.Querier(db.writePool)
-}
-
-func (db *implDB) ReadQuerier() query.Querier {
-	if db.readPool == nil {
-		return nil
-	}
-	return db.factory.Querier(db.readPool)
-}
-
-func (db *implDB) HealthcheckFunc() health.CheckFunc {
-	if db.writePool == nil {
-		return nil
-	}
-	return NewHealthcheck(db.writePool)
-}
-
-func (db *implDB) ReadHealthcheckFunc() health.CheckFunc {
-	if db.readPool == nil {
-		return nil
-	}
-	return NewHealthcheck(db.readPool)
-}
-
-func (db *implDB) Close() {
 	if db.writePool != nil {
 		db.writePool.Close()
 	}
@@ -97,14 +57,25 @@ func (db *implDB) Close() {
 	}
 }
 
-func (db *implDB) ExecTx(ctx context.Context, args TxArgs[ReadWriteQuerier]) error {
+func (db *Database) ExecTx(ctx context.Context, args TxArgs[ReadWriteQuerier]) error {
+	switch db.kind {
+	case realDatabase:
+		return execTx(ctx, db, args)
+	case fakeDatabase:
+		// a fake postgres instance is already running in a txn, noop the txn
+		return args.QueryFn(ctx, db.testTxn, NewTxnQuerier(db.testTxn))
+	}
+	return nil
+}
+
+func execTx(ctx context.Context, db *Database, args TxArgs[ReadWriteQuerier]) error {
 	if args.RetryCount == 0 {
 		args.RetryCount = 1
 	}
 
 	var err error
 	for i := range args.RetryCount {
-		err = execTxnOnce(ctx, db.writePool, db.factory, args)
+		err = execTxnOnce(ctx, db.writePool, args)
 
 		if isSerializationFailure(err) {
 			slog.WarnContext(ctx, "retrying transaction", "error", err, "retry", i)
@@ -120,7 +91,7 @@ func (db *implDB) ExecTx(ctx context.Context, args TxArgs[ReadWriteQuerier]) err
 	return err
 }
 
-func execTxnOnce(ctx context.Context, pool *pgxpool.Pool, factory QueryFactoryImpl, args TxArgs[ReadWriteQuerier]) (txnErr error) {
+func execTxnOnce(ctx context.Context, pool *pgxpool.Pool, args TxArgs[ReadWriteQuerier]) (txnErr error) {
 	if args.Isolation == "" {
 		args.Isolation = pgx.ReadCommitted
 	}
@@ -151,7 +122,7 @@ func execTxnOnce(ctx context.Context, pool *pgxpool.Pool, factory QueryFactoryIm
 		}
 	}()
 
-	txnErr = args.QueryFn(ctx, txn, factory.TxnQuerier(txn))
+	txnErr = args.QueryFn(ctx, txn, NewTxnQuerier(txn))
 	return txnErr
 }
 

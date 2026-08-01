@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"hexchess-svc/db/query"
 	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/logutil"
 	"log/slog"
@@ -11,24 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type QueryFactory[Querier any, ReadQuerier any] struct {
-	Querier     func(pool *pgxpool.Pool) Querier
-	ReadQuerier func(pool *pgxpool.Pool) ReadQuerier
-	TxnQuerier  func(tx pgx.Tx) Querier
-}
-
-var PrimaryQuerierFactory = QueryFactory[ReadWriteQuerier, query.Querier]{
-	Querier: func(pool *pgxpool.Pool) ReadWriteQuerier {
-		return NewRWQuerier(pool)
-	},
-	ReadQuerier: func(pool *pgxpool.Pool) query.Querier {
-		return NewROQuerier(pool)
-	},
-	TxnQuerier: func(tx pgx.Tx) ReadWriteQuerier {
-		return NewRWQuerier(tx)
-	},
-}
 
 type PoolConfig struct {
 	Dsn           string         `json:"dsn"`           // (required) parseable configuration in either KV pair or postgres URL format. see pgxpool documentation.
@@ -75,7 +56,8 @@ type DatabaseConfig struct {
 }
 
 func NewDatabase(ctx context.Context, cfg DatabaseConfig) Database {
-	return &implDB{
+	return Database{
+		kind: realDatabase,
 		writePool: NewDatabasePool(ctx, PoolConfig{
 			Dsn:           cfg.Dsn,
 			ActiveProfile: cfg.ActiveProfile,
@@ -86,15 +68,14 @@ func NewDatabase(ctx context.Context, cfg DatabaseConfig) Database {
 			ActiveProfile: cfg.ActiveProfile,
 			AwsRegion:     cfg.Region,
 		}),
-		factory: PrimaryQuerierFactory,
 	}
 }
 
 func NewDatabaseFromPool(pool *pgxpool.Pool) Database {
-	return &implDB{
+	return Database{
+		kind:      realDatabase,
 		writePool: pool,
 		readPool:  pool,
-		factory:   PrimaryQuerierFactory,
 	}
 }
 
@@ -103,8 +84,10 @@ func NewFakeDatabase(t logutil.TestLogger, pool *pgxpool.Pool) Database {
 	if err != nil {
 		t.Fatalf("failed to begin primary test txn: %v", err)
 	}
-	return &fakeDB{
-		testTxn: testTx,
-		factory: PrimaryQuerierFactory,
+	return Database{
+		kind:      fakeDatabase,
+		testTxn:   testTx,
+		writePool: pool,
+		readPool:  pool,
 	}
 }

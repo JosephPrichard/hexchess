@@ -44,14 +44,6 @@ type SetupService struct {
 }
 
 func NewHexchessServices(setup SetupService) *HexchessServices {
-	var rwQuerier db.ReadWriteQuerier
-	var roQuerier db.ReadQuerier
-
-	if setup.Database != nil {
-		rwQuerier = setup.Database.Querier()
-		roQuerier = setup.Database.ReadQuerier()
-	}
-
 	if setup.Entropy == nil {
 		setup.Entropy = entropy.RealSource{}
 	}
@@ -61,8 +53,8 @@ func NewHexchessServices(setup SetupService) *HexchessServices {
 
 	return &HexchessServices{
 		database:      setup.Database,
-		querier:       rwQuerier,
-		readQuerier:   roQuerier,
+		querier:       setup.Database.Querier(),
+		readQuerier:   setup.Database.ReadQuerier(),
 		riverProducer: producers.NewRiverProducer(setup.RiverClient),
 
 		redis:          setup.Redis,

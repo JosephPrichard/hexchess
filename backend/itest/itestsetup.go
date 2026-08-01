@@ -25,10 +25,7 @@ type TestInfra struct {
 
 func (i TestInfra) Close() {
 	i.Redis.Close()
-
-	if i.Database != nil {
-		i.Database.Close()
-	}
+	i.Database.Close()
 }
 
 func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
