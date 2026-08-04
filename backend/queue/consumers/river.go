@@ -77,7 +77,7 @@ type AdvanceTournamentWorker struct {
 func (w *AdvanceTournamentWorker) Work(ctx context.Context, job *river.Job[queue.AdvanceTournamentJob]) error {
 	slog.InfoContext(ctx, "begin tournament advance event", "job", job.Args)
 
-	gameIDs, err := w.services.AdvanceTournament(ctx, job.Args.TournamentKey, job.Args.EventID)
+	gameIDs, err := w.services.ProgressTournament(ctx, job.Args.TournamentKey, job.Args.EventID)
 	if errutil.IsType[svc.MatchInvariantError](err) {
 		return NonRetryableQueueError{Err: err}
 	} else if err != nil {

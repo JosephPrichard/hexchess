@@ -7,7 +7,6 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/db/mutator"
 	"hexchess-svc/db/query"
-	"hexchess-svc/pubsub"
 	"hexchess-svc/utils/perf"
 
 	"hexchess-svc/utils/enum"
@@ -31,37 +30,27 @@ var ErrTournamentNotFound = fmt.Errorf("tournament does not exist")
 
 type TournamentService struct {
 	leaderboardService *LeaderboardService
-	userService        *UserService
-	gameplayService    *GamePlayService
 
 	transactor    db.Transactor
 	mutator       mutator.Querier
 	querier       query.Querier
 	riverProducer producers.RiverProducer
-	broadcaster   pubsub.Broadcaster
 }
 
 func NewTournamentService(
 	leaderboardService *LeaderboardService,
-	userService *UserService,
-	gameplayService *GamePlayService,
-
 	transactor db.Transactor,
 	mutator mutator.Querier,
 	querier query.Querier,
 	riverProducer producers.RiverProducer,
-	broadcaster pubsub.Broadcaster,
 ) *TournamentService {
 	return &TournamentService{
 		leaderboardService: leaderboardService,
-		userService:        userService,
-		gameplayService:    gameplayService,
 
 		transactor:    transactor,
 		mutator:       mutator,
 		querier:       querier,
 		riverProducer: riverProducer,
-		broadcaster:   broadcaster,
 	}
 }
 
@@ -109,7 +98,7 @@ func (services *TournamentService) GetTournament(ctx context.Context, tournament
 		participantIDs = append(participantIDs, participant.ID)
 	}
 
-	userLdbRanksMap, err := services.leaderboardService.getUsersLeaderboardRank(ctx, participantIDs, tournament.Mode)
+	userLdbRanksMap, err := services.leaderboardService.GetUsersLeaderboardRank(ctx, participantIDs, tournament.Mode)
 	if err != nil {
 		return t, serrors.New("get participants leaderboard rank", err, "participantIDs", participantIDs)
 	}
@@ -520,7 +509,7 @@ var ErrEmptyMatchesTournament = errors.New("tournament has no matches")
 
 var ExpectedAdvanceTournamentStatus = []model.TournamentStatus{model.TournamentScheduled, model.TournamentInProgress}
 
-func (services *TournamentService) advanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.MatchCreation, error) {
+func (services *TournamentService) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.MatchCreation, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var matchesToCreate []model.MatchCreation
@@ -731,84 +720,4 @@ func insertTournamentMatches(ctx context.Context, query db.ReadWriteQuerier, tou
 	}
 
 	return nil
-}
-
-func (services *TournamentService) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.GameID, error) {
-	defer perf.WithContext(ctx).Log()
-
-	matches, err := services.advanceTournament(ctx, tournamentKey, eventID)
-	if err != nil {
-		return nil, serrors.New("advance tournament", err, "tournamentKey", tournamentKey)
-	}
-	if err := services.createTournamentMatches(ctx, matches); err != nil {
-		return nil, serrors.New("create tournament matches", err)
-	}
-
-	// TODO: we need to select FullMatch information and broadcast that
-	services.broadcaster.BroadcastTournament(ctx, model.TournamentOutput{
-		Key:  tournamentKey.String(),
-		Kind: model.TournamentMatchmakingKind,
-		// Matches: matches,
-	})
-
-	var matchGameIDs []model.GameID
-	for _, match := range matches {
-		matchGameIDs = append(matchGameIDs, match.GameID)
-	}
-	return matchGameIDs, nil
-}
-
-func (services *TournamentService) createTournamentMatches(ctx context.Context, matches []model.MatchCreation) error {
-	defer perf.WithContext(ctx).Log()
-
-	userIDs := make([]int64, 0, len(matches)*2)
-	for _, match := range matches {
-		userIDs = append(userIDs, match.WhiteID, match.BlackID)
-	}
-	users, err := services.userService.selectUsersByIDs(ctx, userIDs)
-	if err != nil {
-		return serrors.New("select user player data by ids", err)
-	}
-	userDataMap := make(map[int64]model.User)
-	for _, user := range users {
-		userDataMap[user.ID] = user
-	}
-
-	eg, egCtx := errgroup.WithContext(ctx)
-
-	for i, match := range matches {
-		whitePlayerData, okWhite := userDataMap[match.WhiteID]
-		blackPlayerData, okBlack := userDataMap[match.BlackID]
-
-		if !okWhite || !okBlack {
-			// invariant: white and black should be valid ids if they have been pushed to the queue
-			return fmt.Errorf("missing player data for match: %+v", match)
-		}
-
-		eg.Go(func() error {
-			err := services.gameplayService.SetupGame(egCtx, model.StateSetup{
-				ID:         match.GameID,
-				Mode:       match.GameMode,
-				FirstColor: model.White,
-				White:      model.NewPlayer(match.WhiteID, whitePlayerData.Username, whitePlayerData.Country),
-				Black:      model.NewPlayer(match.BlackID, blackPlayerData.Username, blackPlayerData.Country),
-			})
-			return serrors.New("create game", err, "index", i, "gameID", match.GameID)
-		})
-	}
-
-	return eg.Wait()
-}
-
-func (services *TournamentService) SendTournamentParticipant(ctx context.Context, playerID int64, event JoinTournamentEvent) {
-	leaderboardUser, err := services.leaderboardService.GetLeaderboardUser(ctx, playerID, event.Mode)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to get leaderboard user to broadcast tournament participant", "playerID", playerID, "tournamentJoin", event, "err", err)
-		return
-	}
-	services.broadcaster.BroadcastTournament(ctx, model.TournamentOutput{
-		Key:             event.TournamentKey.String(),
-		Kind:            model.TournamentParticipantKind,
-		LeaderboardUser: leaderboardUser,
-	})
 }

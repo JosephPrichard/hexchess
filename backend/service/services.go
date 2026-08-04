@@ -25,6 +25,8 @@ type HexchessServices struct {
 	*ActiveUserService
 	*ChatService
 	*TournamentService
+	*TournamentProgressService
+	*TournamentNotificationsService
 	*FullUserService
 	*AuthTokenService
 }
@@ -75,7 +77,10 @@ func NewHexchessServices(setup SetupService) *HexchessServices {
 	profileService := NewProfileService(setup.AWS, setup.Dispatcher, setup.Entropy)
 
 	sessionService := NewSessionService(setup.Redis)
-	tournamentService := NewTournamentService(leaderboardService, userService, gamePlayService, transactor, mutator, querier, riverProducer, setup.Broadcaster)
+
+	tournamentService := NewTournamentService(leaderboardService, transactor, mutator, querier, riverProducer)
+	tournamentParticipantService := NewTournamentParticipantService(leaderboardService, setup.Broadcaster)
+	tournamentProgressService := NewTournamentProgressService(tournamentService, userService, gamePlayService, setup.Broadcaster)
 
 	activeUserService := NewActiveUserService(setup.Redis, setup.Broadcaster)
 	chatService := NewChatService(setup.Redis, querier, setup.Entropy)
@@ -85,21 +90,23 @@ func NewHexchessServices(setup SetupService) *HexchessServices {
 	authTokenService := NewAuthTokenService(setup.SDKs)
 
 	return &HexchessServices{
-		UserService:        userService,
-		ReplayService:      replayService,
-		ChallengeService:   challengeService,
-		LeaderboardService: leaderboardService,
-		ChessMetaService:   chessMetaService,
-		ChessRepoService:   chessRepoService,
-		GameOverService:    gameOverService,
-		GamePlayService:    gamePlayService,
-		OrphanService:      orphanService,
-		ProfileService:     profileService,
-		SessionService:     sessionService,
-		TournamentService:  tournamentService,
-		ActiveUserService:  activeUserService,
-		ChatService:        chatService,
-		FullUserService:    fullUserService,
-		AuthTokenService:   authTokenService,
+		UserService:                    userService,
+		ReplayService:                  replayService,
+		ChallengeService:               challengeService,
+		LeaderboardService:             leaderboardService,
+		ChessMetaService:               chessMetaService,
+		ChessRepoService:               chessRepoService,
+		GameOverService:                gameOverService,
+		GamePlayService:                gamePlayService,
+		OrphanService:                  orphanService,
+		ProfileService:                 profileService,
+		SessionService:                 sessionService,
+		TournamentService:              tournamentService,
+		TournamentProgressService:      tournamentProgressService,
+		TournamentNotificationsService: tournamentParticipantService,
+		ActiveUserService:              activeUserService,
+		ChatService:                    chatService,
+		FullUserService:                fullUserService,
+		AuthTokenService:               authTokenService,
 	}
 }

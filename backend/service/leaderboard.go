@@ -174,7 +174,7 @@ func (services *LeaderboardService) GetUserLeaderboardRanks(ctx context.Context,
 	return ranks, nil
 }
 
-func (services *LeaderboardService) getUsersLeaderboardRank(ctx context.Context, userIDs []int64, mode model.GameMode) (map[int64]int64, error) {
+func (services *LeaderboardService) GetUsersLeaderboardRank(ctx context.Context, userIDs []int64, mode model.GameMode) (map[int64]int64, error) {
 	type getExec struct {
 		userID int64
 		cmd    *redis.IntCmd

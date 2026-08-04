@@ -198,7 +198,7 @@ func TestJoinTournament(t *testing.T) {
 
 var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(query.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
 
-func TestAdvanceTournament_StoresMatches(t *testing.T) {
+func TestProgressTournament_StoresMatches(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -417,7 +417,7 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 			if eventID == uuid.Nil {
 				eventID = uuid.New()
 			}
-			_, err := services.advanceTournament(ctx, tt.tournamentKey, eventID)
+			_, err := services.ProgressTournament(ctx, tt.tournamentKey, eventID)
 
 			assert.Equal(t, tt.wantErr, errutil.LeafError(err))
 
@@ -441,7 +441,7 @@ func TestAdvanceTournament_ThenGetChessStates(t *testing.T) {
 	ctx := t.Context()
 
 	// since the eventID is stored in the idempotency keys table, we expect it to short circuit
-	gameIDs, err := services.AdvanceTournament(ctx, uuid.New(), itest.TestEventID_TournamentCreation)
+	gameIDs, err := services.ProgressTournament(ctx, uuid.New(), itest.TestEventID_TournamentCreation)
 	require.NoError(t, err)
 
 	wantGameIDs := []model.GameID{itest.TestEventID_TournamentCreation_GameID}
@@ -475,7 +475,7 @@ func TestAdvanceTournament_InsertsEvent(t *testing.T) {
 	tournamentKey := itest.Tournament2ScheduledKnockoutKey
 	eventID := uuid.New()
 
-	_, err := services.advanceTournament(ctx, tournamentKey, eventID)
+	_, err := services.ProgressTournament(ctx, tournamentKey, eventID)
 	require.NoError(t, err)
 
 	eventData, err := testinfra.Querier.SelectByEventKeyID(ctx, pgtype.UUID{Bytes: eventID, Valid: true})
