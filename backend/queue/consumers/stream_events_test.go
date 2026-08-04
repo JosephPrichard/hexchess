@@ -55,7 +55,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		ReplayResult: model.WhiteWin,
 	}
 
-	publisher := producers.NewPublisher(testinfra.Redis)
+	publisher := producers.NewStreamProducer(testinfra.Redis)
 	err := publisher.ProduceFinishGame(ctx, testinfra.Redis.PrimaryClient, finishedGame)
 	require.NoError(t, err)
 
@@ -67,7 +67,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		redis:       testinfra.Redis.PrimaryClient,
 		consumeFunc: handler.Handle,
 
-		querier:    testinfra.Database.Querier(),
+		querier:    testinfra.Database.QuerierMutator(),
 		dispatcher: async.SyncDispatcher{},
 
 		pollCount:     1,
@@ -118,13 +118,13 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 
 	updtGame := model.GameMetadataUpdt{
 		GameID:      gameID,
-		WhitePlayer: optional.Just(whiteUser0.ID),
-		BlackPlayer: optional.Just(blackUser1.ID),
+		WhitePlayer: optional.Some(whiteUser0.ID),
+		BlackPlayer: optional.Some(blackUser1.ID),
 		Mode:        model.ModeCorrespondence1,
 		FirstColor:  model.Random,
 	}
 
-	publisher := producers.NewPublisher(testinfra.Redis)
+	publisher := producers.NewStreamProducer(testinfra.Redis)
 	err := publisher.ProduceUpdtGameMetadata(ctx, testinfra.Redis.PrimaryClient, updtGame)
 	require.NoError(t, err)
 
@@ -136,7 +136,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 		redis:       testinfra.Redis.PrimaryClient,
 		consumeFunc: handler.Handle,
 
-		querier:    testinfra.Database.Querier(),
+		querier:    testinfra.Database.QuerierMutator(),
 		dispatcher: async.SyncDispatcher{},
 
 		pollCount:     1,

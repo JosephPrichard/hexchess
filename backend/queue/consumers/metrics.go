@@ -28,7 +28,7 @@ type RedisMetricCollector struct {
 	lock    sync.Mutex
 	metrics []RedisEventMetric
 
-	querier    db.ReadWriteQuerier
+	querier    db.QuerierMutator
 	dispatcher async.Dispatcher
 }
 

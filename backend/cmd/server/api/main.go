@@ -4,8 +4,8 @@ import (
 	"context"
 	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
-	"hexchess-svc/controller"
 	"hexchess-svc/db"
+	"hexchess-svc/network"
 	"hexchess-svc/pubsub"
 	svc "hexchess-svc/service"
 	"hexchess-svc/utils/config"
@@ -71,12 +71,12 @@ func main() {
 	broadcasters.Listen(redisClient)
 
 	// step 4: start API server and PPROF "sidecar" background task
-	mux := controller.NewServeMux(controller.ServerSetup{
+	mux := network.NewServeMux(network.ServerSetup{
 		Services:       services,
 		Broadcaster:    broadcaster,
 		Broadcasters:   broadcasters,
 		AllowedOrigins: cfg.AllowedOrigins,
-	}, controller.NewHealthCheck(controller.HealthConfig{
+	}, network.NewHealthCheck(network.HealthConfig{
 		PostgresCheck:     database.HealthcheckFunc(),
 		PostgresReadCheck: database.ReadHealthcheckFunc(),
 		RedisPrimaryCheck: redisClient.PrimaryHealthCheck,

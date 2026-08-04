@@ -70,11 +70,11 @@ type FinishedGame struct {
 }
 
 type GameMetadataUpdt struct {
-	GameID      GameID                `json:"id"`
-	WhitePlayer optional.Maybe[int64] `json:"whitePlayer"`
-	BlackPlayer optional.Maybe[int64] `json:"blackPlayer"`
-	Mode        GameMode              `json:"mode"`
-	FirstColor  GameColor             `json:"firstColor"`
+	GameID      GameID                 `json:"id"`
+	WhitePlayer optional.Option[int64] `json:"whitePlayer"`
+	BlackPlayer optional.Option[int64] `json:"blackPlayer"`
+	Mode        GameMode               `json:"mode"`
+	FirstColor  GameColor              `json:"firstColor"`
 }
 
 type UndoKind int

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"hexchess-svc/cache"
+	"hexchess-svc/service/file"
 	"hexchess-svc/utils/config"
 	"log/slog"
 	"os"
@@ -59,7 +60,7 @@ func main() {
 	case SyncLeaderboardJobName:
 		err = services.SyncLeaderboard(ctx)
 	case ClearS3OrphansJobName:
-		err = services.ClearOrphanFiles(ctx, svc.PageLength)
+		err = services.ClearOrphanFiles(ctx, file.PageLength)
 	default:
 		logutil.Fatal("unknown job", nil, "job", job)
 	}

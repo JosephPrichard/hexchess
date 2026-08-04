@@ -4,31 +4,42 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
 	"hexchess-svc/db"
+	"hexchess-svc/db/mutator"
+	"hexchess-svc/db/query"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
+	"hexchess-svc/service/challenge"
+	"hexchess-svc/service/chess"
+	"hexchess-svc/service/file"
+	"hexchess-svc/service/gameplay"
+	"hexchess-svc/service/leaderboard"
+	"hexchess-svc/service/participant"
+	"hexchess-svc/service/replay"
+	"hexchess-svc/service/session"
+	"hexchess-svc/service/tournament"
+	"hexchess-svc/service/user"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/entropy"
 )
 
 type HexchessServices struct {
-	*UserService
-	*ChallengeService
-	*ReplayService
-	*LeaderboardService
-	*ChessMetaService
-	*ChessRepoService
-	*GameOverService
-	*GamePlayService
-	*OrphanService
-	*ProfileService
-	*SessionService
-	*ActiveUserService
-	*ChatService
-	*TournamentService
-	*TournamentProgressService
-	*TournamentNotificationsService
-	*FullUserService
-	*AuthTokenService
+	*user.UserService
+	*challenge.ChallengeService
+	*replay.ReplayService
+	*leaderboard.LeaderboardService
+	*chess.ChessMetaService
+	*chess.ChessRepoService
+	*gameplay.GameOverService
+	*gameplay.GamePlayService
+	*file.OrphanService
+	*file.ProfileService
+	*session.SessionService
+	*user.ActiveUserService
+	*gameplay.ChatService
+	*tournament.TournamentService
+	*tournament.TournamentOrchestratorService
+	*participant.ParticipantService
+	*session.AuthTokenService
 }
 
 type SetupService struct {
@@ -46,6 +57,12 @@ type SetupService struct {
 	Dispatcher async.Dispatcher
 }
 
+type Database struct {
+	transactor db.Transactor
+	mutator    mutator.Querier
+	querier    query.Querier
+}
+
 func NewHexchessServices(setup SetupService) *HexchessServices {
 	if setup.Entropy == nil {
 		setup.Entropy = entropy.RealSource{}
@@ -54,59 +71,55 @@ func NewHexchessServices(setup SetupService) *HexchessServices {
 		setup.Dispatcher = async.AsyncDispatcher{}
 	}
 
-	database := setup.Database
-	transactor := &setup.Database
+	d := setup.Database
+	database := db.Operator{Transactor: &setup.Database, Mutator: d.Mutator(), Querier: d.Querier()}
 
-	mutator := database.Querier()
-	querier := database.ReadQuerier()
 	riverProducer := producers.NewRiverProducer(setup.RiverClient)
-	streamProducer := producers.NewPublisher(setup.Redis)
+	streamProducer := producers.NewStreamProducer(setup.Redis)
 
-	userService := NewUserService(transactor, mutator, querier)
-	replayService := NewReplayService(userService, mutator, querier)
-	challengeService := NewChallengeService(mutator, querier, setup.Entropy)
+	userSvc := user.NewUserService(database)
+	replaySvc := replay.NewReplayService(userSvc, database)
+	challengeSvc := challenge.NewChallengeService(database, setup.Entropy)
 
-	leaderboardService := NewLeaderboardService(setup.Redis, querier)
+	leaderboardSvc := leaderboard.NewLeaderboardService(setup.Redis, database.Querier)
 
-	chessMetaService := NewChessMetaService(mutator, querier, setup.Entropy, setup.Broadcaster)
-	chessRepoService := NewChessRepoService(setup.Redis)
-	gameOverService := NewGameOverService(replayService, leaderboardService, transactor, querier, riverProducer, setup.Broadcaster)
-	gamePlayService := NewGamePlayService(chessRepoService, streamProducer)
+	chessMetaSvc := chess.NewChessMetaService(database, setup.Entropy, setup.Broadcaster)
+	chessRepoSvc := chess.NewChessRepoService(setup.Redis)
+	gameoverSvc := gameplay.NewGameoverService(replaySvc, leaderboardSvc, database, riverProducer, setup.Broadcaster)
+	gameplaySvc := gameplay.NewGameplayService(chessRepoSvc, setup.Redis, streamProducer)
 
-	orphanService := NewOrphanService(setup.AWS, querier)
-	profileService := NewProfileService(setup.AWS, setup.Dispatcher, setup.Entropy)
+	orphanSvc := file.NewOrphanService(setup.AWS, database.Querier)
+	profileSvc := file.NewProfileService(setup.AWS, setup.Dispatcher, setup.Entropy)
 
-	sessionService := NewSessionService(setup.Redis)
+	sessionSvc := session.NewSessionService(setup.Redis)
 
-	tournamentService := NewTournamentService(leaderboardService, transactor, mutator, querier, riverProducer)
-	tournamentParticipantService := NewTournamentParticipantService(leaderboardService, setup.Broadcaster)
-	tournamentProgressService := NewTournamentProgressService(tournamentService, userService, gamePlayService, setup.Broadcaster)
+	tournamentSvc := tournament.NewTournamentService(leaderboardSvc, database, riverProducer)
+	tournamentOrchestratorSvc := tournament.NewOrchestratorService(tournamentSvc, leaderboardSvc, userSvc, gameplaySvc, setup.Broadcaster)
 
-	activeUserService := NewActiveUserService(setup.Redis, setup.Broadcaster)
-	chatService := NewChatService(setup.Redis, querier, setup.Entropy)
+	activeUserSvc := user.NewActiveUserService(setup.Redis, setup.Broadcaster)
+	chatSvc := gameplay.NewChatService(setup.Redis, database.Querier, setup.Entropy)
 
-	fullUserService := NewFullUserService(userService, leaderboardService, replayService)
+	participantSvc := participant.NewParticipantService(userSvc, leaderboardSvc, replaySvc)
 
-	authTokenService := NewAuthTokenService(setup.SDKs)
+	authTokenSvc := session.NewAuthTokenService(setup.SDKs)
 
 	return &HexchessServices{
-		UserService:                    userService,
-		ReplayService:                  replayService,
-		ChallengeService:               challengeService,
-		LeaderboardService:             leaderboardService,
-		ChessMetaService:               chessMetaService,
-		ChessRepoService:               chessRepoService,
-		GameOverService:                gameOverService,
-		GamePlayService:                gamePlayService,
-		OrphanService:                  orphanService,
-		ProfileService:                 profileService,
-		SessionService:                 sessionService,
-		TournamentService:              tournamentService,
-		TournamentProgressService:      tournamentProgressService,
-		TournamentNotificationsService: tournamentParticipantService,
-		ActiveUserService:              activeUserService,
-		ChatService:                    chatService,
-		FullUserService:                fullUserService,
-		AuthTokenService:               authTokenService,
+		UserService:                   userSvc,
+		ReplayService:                 replaySvc,
+		ChallengeService:              challengeSvc,
+		LeaderboardService:            leaderboardSvc,
+		ChessMetaService:              chessMetaSvc,
+		ChessRepoService:              chessRepoSvc,
+		GameOverService:               gameoverSvc,
+		GamePlayService:               gameplaySvc,
+		OrphanService:                 orphanSvc,
+		ProfileService:                profileSvc,
+		SessionService:                sessionSvc,
+		TournamentService:             tournamentSvc,
+		TournamentOrchestratorService: tournamentOrchestratorSvc,
+		ActiveUserService:             activeUserSvc,
+		ChatService:                   chatSvc,
+		ParticipantService:            participantSvc,
+		AuthTokenService:              authTokenSvc,
 	}
 }

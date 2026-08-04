@@ -4,6 +4,7 @@ import (
 	"context"
 	"hexchess-svc/queue"
 	svc "hexchess-svc/service"
+	"hexchess-svc/service/tournament"
 	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/logutil"
 	"log/slog"
@@ -78,7 +79,7 @@ func (w *AdvanceTournamentWorker) Work(ctx context.Context, job *river.Job[queue
 	slog.InfoContext(ctx, "begin tournament advance event", "job", job.Args)
 
 	gameIDs, err := w.services.ProgressTournament(ctx, job.Args.TournamentKey, job.Args.EventID)
-	if errutil.IsType[svc.MatchInvariantError](err) {
+	if errutil.IsType[tournament.MatchInvariantError](err) {
 		return NonRetryableQueueError{Err: err}
 	} else if err != nil {
 		return err

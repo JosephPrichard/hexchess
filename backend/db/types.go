@@ -23,11 +23,17 @@ type Database struct {
 	testTxn   pgx.Tx
 }
 
+type Operator struct {
+	Transactor Transactor
+	Mutator    mutator.Querier
+	Querier    query.Querier
+}
+
 type Transactor interface {
 	ExecTx(ctx context.Context, args TxArgs) error
 }
 
-type QueryFn func(context.Context, pgx.Tx, ReadWriteQuerier) error
+type QueryFn func(context.Context, pgx.Tx, QuerierMutator) error
 
 type TxArgs struct {
 	QueryFn      QueryFn
@@ -35,39 +41,29 @@ type TxArgs struct {
 	Isolation    pgx.TxIsoLevel
 	RetryCount   int
 }
-
-type ReadQuerier = query.Querier
-type WriteQuerier = mutator.Querier
-
-type ReadWriteQuerier interface {
+type QuerierMutator interface {
 	query.Querier
 	mutator.Querier
 }
 
-type ReadQueries = query.Queries
-type WriteQueries = mutator.Queries
+type readQueries = query.Queries
+type writeQueries = mutator.Queries
 
 type ReadWriteQueries struct {
-	*ReadQueries
-	*WriteQueries
+	*readQueries
+	*writeQueries
 }
 
-func NewPoolQuerier(pool *pgxpool.Pool) ReadWriteQuerier {
+func NewPoolQuerier(pool *pgxpool.Pool) QuerierMutator {
 	if pool == nil {
 		return nil
 	}
-	return ReadWriteQueries{
-		ReadQueries:  query.New(pool),
-		WriteQueries: mutator.New(pool),
-	}
+	return ReadWriteQueries{readQueries: query.New(pool), writeQueries: mutator.New(pool)}
 }
 
-func NewTxnQuerier(txn pgx.Tx) ReadWriteQuerier {
+func NewTxnQuerier(txn pgx.Tx) QuerierMutator {
 	if txn == nil {
 		return nil
 	}
-	return ReadWriteQueries{
-		ReadQueries:  query.New(txn),
-		WriteQueries: mutator.New(txn),
-	}
+	return ReadWriteQueries{readQueries: query.New(txn), writeQueries: mutator.New(txn)}
 }

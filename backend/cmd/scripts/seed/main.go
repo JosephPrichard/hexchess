@@ -9,6 +9,11 @@ import (
 	"hexchess-svc/chess"
 	"hexchess-svc/db"
 	"hexchess-svc/db/mutator"
+	"hexchess-svc/service/challenge"
+	chess2 "hexchess-svc/service/chess"
+	"hexchess-svc/service/gameplay"
+	"hexchess-svc/service/tournament"
+	"hexchess-svc/service/user"
 	"hexchess-svc/utils/perf"
 
 	"hexchess-svc/model"
@@ -108,7 +113,7 @@ func main() {
 		return seedGameResults(egCtx, services, generateGameResults())
 	})
 	eg.Go(func() error {
-		return seedTournaments(egCtx, database.Querier(), generateTournaments())
+		return seedTournaments(egCtx, database.QuerierMutator(), generateTournaments())
 	})
 
 	if err := eg.Wait(); err != nil {
@@ -131,8 +136,8 @@ func seedUsers(ctx context.Context, services *svc.HexchessServices) {
 	}
 }
 
-func generateUserInsts() []svc.UserInst {
-	var insts []svc.UserInst
+func generateUserInsts() []user.Inst {
+	var insts []user.Inst
 	for i := range *usersCount {
 		var username string
 		if *deterministicUsernames {
@@ -141,7 +146,7 @@ func generateUserInsts() []svc.UserInst {
 			username = gofakeit.Username()
 		}
 
-		insts = append(insts, svc.UserInst{
+		insts = append(insts, user.Inst{
 			Username: username,
 			Password: "password1",
 			Country:  "us",
@@ -190,12 +195,12 @@ func seedChallenges(ctx context.Context, services *svc.HexchessServices) error {
 	return services.BatchInsertChallenges(ctx, generateChallengeInsts())
 }
 
-func generateChallengeInsts() []svc.ChallengeInst {
+func generateChallengeInsts() []challenge.Inst {
 	hashChallengeKey := func(challengerID, challengeeID int64) string {
 		return fmt.Sprintf("%d,%d", challengerID, challengeeID)
 	}
 
-	var insts []svc.ChallengeInst
+	var insts []challenge.Inst
 	for range *challengesCount {
 		// generate two challenges that are unique, this is done by retrying if a duplicate is found.
 		// note(Joseph): we assume the number of users is large enough to avoid duplicates
@@ -211,7 +216,7 @@ func generateChallengeInsts() []svc.ChallengeInst {
 			}
 		}
 
-		insts = append(insts, svc.ChallengeInst{
+		insts = append(insts, challenge.Inst{
 			ChallengerID: challengerID,
 			ChallengeeID: challengeeID,
 			StartColor:   model.Random,
@@ -274,7 +279,7 @@ func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts 
 
 			mode := inst.ReplayMode
 
-			moveSeq, err := svc.RandomMoveHistSeq(mode, 10, 30, -1)
+			moveSeq, err := chess2.RandomMoveHistSeq(mode, 10, 30, -1)
 			if err != nil {
 				return fmt.Errorf("generate random move seq: %w", err)
 			}
@@ -283,7 +288,7 @@ func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts 
 				return fmt.Errorf("marshal move history to s3: %w", err)
 			}
 
-			changeSet, err := services.InsertGameResult(egCtx, svc.GameResult{
+			changeSet, err := services.InsertGameResult(egCtx, gameplay.GameResult{
 				GameID:       model.NewGameID(),
 				WhiteID:      inst.WhiteID,
 				BlackID:      inst.BlackID,
@@ -333,7 +338,7 @@ func generateTournaments() []TournamentInsts {
 		var participants []mutator.BatchInsertTournamentParticipantParams
 		var usedParticipants = map[int64]struct{}{}
 
-		for i := range svc.KnockoutParticipantsAtRound(rounds, 1) {
+		for i := range tournament.KnockoutParticipantsAtRound(rounds, 1) {
 			var participantID int64
 			if i == 0 {
 				participantID = createdBy
@@ -382,7 +387,7 @@ func generateTournaments() []TournamentInsts {
 	return insts
 }
 
-func seedTournaments(ctx context.Context, query db.ReadWriteQuerier, paramsList []TournamentInsts) error {
+func seedTournaments(ctx context.Context, query db.QuerierMutator, paramsList []TournamentInsts) error {
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	sem := make(chan struct{}, Concurrency)

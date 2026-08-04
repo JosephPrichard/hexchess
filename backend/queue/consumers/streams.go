@@ -33,7 +33,7 @@ type StreamConsumer struct {
 	cancel context.CancelFunc
 	// connects to redis to poll event streams and a database to insert into metadata tables
 	redis      redis.UniversalClient
-	querier    db.ReadWriteQuerier
+	querier    db.QuerierMutator
 	dispatcher async.Dispatcher
 	// an implementation for consuming a single event
 	consumeFunc ConsumeFunc
@@ -48,7 +48,7 @@ type StreamConfig struct {
 	BlockDuration time.Duration `json:"blockDuration"`
 
 	Redis          redis.UniversalClient `json:"-"`
-	MetricsQuerier db.ReadWriteQuerier   `json:"-"`
+	MetricsQuerier db.QuerierMutator     `json:"-"`
 	ConsumeFn      ConsumeFunc           `json:"-"`
 }
 

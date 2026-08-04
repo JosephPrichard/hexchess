@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 )
 
-type Maybe[T any] struct {
+type Option[T any] struct {
 	Value   T
 	Present bool
 }
@@ -13,48 +13,41 @@ type Maybe[T any] struct {
 var jsonNull = []byte("null")
 
 // MarshalJSON serializes to null if not present, otherwise the value.
-func (m Maybe[T]) MarshalJSON() ([]byte, error) {
-	if !m.Present {
+func (o Option[T]) MarshalJSON() ([]byte, error) {
+	if !o.Present {
 		return jsonNull, nil
 	}
-	return json.Marshal(m.Value)
+	return json.Marshal(o.Value)
 }
 
 // UnmarshalJSON sets Present=false on null, otherwise decodes the value.
-func (m *Maybe[T]) UnmarshalJSON(data []byte) error {
+func (o *Option[T]) UnmarshalJSON(data []byte) error {
 	if bytes.Equal(data, jsonNull) {
-		m.Present = false
+		o.Present = false
 		return nil
 	}
-	if err := json.Unmarshal(data, &m.Value); err != nil {
+	if err := json.Unmarshal(data, &o.Value); err != nil {
 		return err
 	}
-	m.Present = true
+	o.Present = true
 	return nil
 }
 
-func (o Maybe[T]) OrElse(def T) T {
+func (o Option[T]) OrElse(def T) T {
 	if o.Present {
 		return o.Value
 	}
 	return def
 }
 
-func Map[X, Y any](o Maybe[X], f func(X) Y) Maybe[Y] {
-	if o.Present {
-		return Just(f(o.Value))
-	}
-	return Nothing[Y]()
+func New[T any](v T, b bool) Option[T] {
+	return Option[T]{Value: v, Present: b}
 }
 
-func New[T any](v T, b bool) Maybe[T] {
-	return Maybe[T]{Value: v, Present: b}
+func Some[T any](v T) Option[T] {
+	return Option[T]{Value: v, Present: true}
 }
 
-func Just[T any](v T) Maybe[T] {
-	return Maybe[T]{Value: v, Present: true}
-}
-
-func Nothing[T any]() Maybe[T] {
-	return Maybe[T]{}
+func None[T any]() Option[T] {
+	return Option[T]{}
 }

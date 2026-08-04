@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"errors"
+	"hexchess-svc/db/mutator"
 	"hexchess-svc/db/query"
 	"hexchess-svc/utils/timeutil"
 	"log/slog"
@@ -14,7 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func (db *Database) Querier() ReadWriteQuerier {
+func (db *Database) QuerierMutator() QuerierMutator {
 	switch db.kind {
 	case realDatabase:
 		return NewPoolQuerier(db.writePool)
@@ -24,7 +25,17 @@ func (db *Database) Querier() ReadWriteQuerier {
 	return nil
 }
 
-func (db *Database) ReadQuerier() query.Querier {
+func (db *Database) Mutator() mutator.Querier {
+	switch db.kind {
+	case realDatabase:
+		return NewPoolQuerier(db.writePool)
+	case fakeDatabase:
+		return NewTxnQuerier(db.testTxn)
+	}
+	return nil
+}
+
+func (db *Database) Querier() query.Querier {
 	switch db.kind {
 	case realDatabase:
 		return NewPoolQuerier(db.readPool)

@@ -33,27 +33,27 @@ func OptBool(v bool) pgtype.Bool {
 	return pgtype.Bool{Bool: v}
 }
 
-func MapOptInt8(o optional.Maybe[int64]) pgtype.Int8 {
+func MapOptInt8(o optional.Option[int64]) pgtype.Int8 {
 	return pgtype.Int8{Int64: o.Value, Valid: o.Present}
 }
 
-func MapOptInt4(o optional.Maybe[int32]) pgtype.Int4 {
+func MapOptInt4(o optional.Option[int32]) pgtype.Int4 {
 	return pgtype.Int4{Int32: o.Value, Valid: o.Present}
 }
 
-func MapOptTime(o optional.Maybe[time.Time]) pgtype.Timestamptz {
+func MapOptTime(o optional.Option[time.Time]) pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: o.Value, Valid: o.Present}
 }
 
-func MapOptMode(o optional.Maybe[model.GameMode]) query.NullModeEnum {
+func MapOptMode(o optional.Option[model.GameMode]) query.NullModeEnum {
 	return query.NullModeEnum{ModeEnum: query.ModeEnum(o.Value.String()), Valid: o.Present}
 }
 
-func MapOptResult(o optional.Maybe[model.ReplayResult]) query.NullResultEnum {
+func MapOptResult(o optional.Option[model.ReplayResult]) query.NullResultEnum {
 	return query.NullResultEnum{ResultEnum: query.ResultEnum(o.Value.String()), Valid: o.Present}
 }
 
-func MapOptCause(o optional.Maybe[model.ReplayCause]) query.NullCauseEnum {
+func MapOptCause(o optional.Option[model.ReplayCause]) query.NullCauseEnum {
 	return query.NullCauseEnum{CauseEnum: query.CauseEnum(o.Value.String()), Valid: o.Present}
 }
 

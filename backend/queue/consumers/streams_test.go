@@ -121,7 +121,7 @@ func TestRedisConsumer(t *testing.T) {
 			consumer := StreamConsumer{
 				ctx:        ctx,
 				redis:      testinfra.Redis.PrimaryClient,
-				querier:    testinfra.Database.Querier(),
+				querier:    testinfra.Database.QuerierMutator(),
 				dispatcher: async.SyncDispatcher{},
 
 				consumeFunc: h.handleEvent,

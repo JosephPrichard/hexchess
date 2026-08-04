@@ -20,7 +20,7 @@ type StreamProducer struct {
 	redis cache.RedisNames
 }
 
-func NewPublisher(redis cache.Redis) StreamProducer {
+func NewStreamProducer(redis cache.Redis) StreamProducer {
 	return StreamProducer{redis: redis.RedisNames}
 }
 

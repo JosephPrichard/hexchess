@@ -43,11 +43,11 @@ func (state *ChessState) IsEitherPlayer(player PlayerState) bool {
 }
 
 type ChessMeta struct {
-	GameID      GameID               `json:"gameId"`
-	WhitePlayer optional.Maybe[User] `json:"whitePlayer"`
-	BlackPlayer optional.Maybe[User] `json:"blackPlayer"`
-	Mode        GameMode             `json:"mode"`
-	Ordering    int64                `json:"ordering"`
+	GameID      GameID                `json:"gameId"`
+	WhitePlayer optional.Option[User] `json:"whitePlayer"`
+	BlackPlayer optional.Option[User] `json:"blackPlayer"`
+	Mode        GameMode              `json:"mode"`
+	Ordering    int64                 `json:"ordering"`
 }
 
 type StateSetup struct {

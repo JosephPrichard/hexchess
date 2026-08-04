@@ -72,15 +72,15 @@ func ParseDefault[T ~int, S StringLike](s S, m map[string]T, def T) (T, error) {
 	return Parse(s, m)
 }
 
-func ParseOptional[T ~int, S StringLike](s S, m map[string]T) (optional.Maybe[T], error) {
+func ParseOptional[T ~int, S StringLike](s S, m map[string]T) (optional.Option[T], error) {
 	if s == "" {
-		return optional.Maybe[T]{}, nil
+		return optional.Option[T]{}, nil
 	}
 	v, ok := m[string(s)]
 	if !ok {
-		return optional.Maybe[T]{}, ParseError[T]{Expected: m, Actual: string(s)}
+		return optional.Option[T]{}, ParseError[T]{Expected: m, Actual: string(s)}
 	}
-	return optional.Just(v), nil
+	return optional.Some(v), nil
 }
 
 func Expect[T ~int, S StringLike](s S, m map[string]T) T {
