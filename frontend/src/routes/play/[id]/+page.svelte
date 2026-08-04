@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { logger } from '$lib/utils/logger';
-	import services, { frontendBaseURL, backendBaseURL } from '$lib/api/services';
+	import { services, frontendBaseURL, backendBaseURL } from '$lib/api/services';
 	import { codes } from '$lib/utils/error';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import MoveList from '$lib/components/MoveList.svelte';
@@ -24,16 +24,12 @@
 	import { type BadPromotionType, type MoveAction, NoPromotion, type Promotion } from '$lib/components/types';
 	import Timer from '$lib/components/Timer.svelte';
 	import {chessService} from "$lib/service/chess";
+	import type { PlayProps } from './+page.server.js';
 
 	const forfeitModalIds = ["forfeit-modal", "forfeit-button"];
 	const maxTimeout = 2500;
 	const successConnThresholdTime = 5000;
 	const keepAliveTimeOut = 15000;
-
-	export interface PlayProps {
-		gameId: string
-		gameExists?: boolean
-	}
 
 	const { data: props }: { data: PlayProps } = $props();
 

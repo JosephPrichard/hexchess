@@ -4,13 +4,7 @@
 	import type { LeaderboardUser, User } from '$lib/api/models';
 	import Banner from '$lib/Banner.svelte';
 	import MagnifyingGlass from "$lib/icons/MagnifyingGlass.svelte";
-
-	export interface SearchProps {
-		searchText: string;
-		page: number;
-		userList: LeaderboardUser[];
-		message: string;
-	}
+	import type { SearchProps } from './+page.server';
 
 	const { data: props }: { data: SearchProps } = $props();
 </script>

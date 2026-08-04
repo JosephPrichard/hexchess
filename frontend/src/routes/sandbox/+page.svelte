@@ -17,10 +17,7 @@
 	import type { ChessBoard } from '$lib/pb/messages';
 	import TakenList from '$lib/components/TakenList.svelte';
 	import {chessService} from "$lib/service/chess";
-
-	export interface SandboxProps {
-		fen: string;
-	}
+	import type { SandboxProps } from './+page.js';
 
 	const { data: props }: { data: SandboxProps } = $props();
 

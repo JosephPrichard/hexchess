@@ -38,7 +38,7 @@ func TestLeaderboard(t *testing.T) {
 		{model.ModeTimed1Plus0, id4, 1010},
 		{model.ModeTimed1Plus0, id1, 900},
 	} {
-		require.NoError(t, services.incrLeaderboard(ctx, change))
+		require.NoError(t, services.IncrLeaderboard(ctx, change))
 	}
 
 	ranks := make([]map[string]LbRank, 0)

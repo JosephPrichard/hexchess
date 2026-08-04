@@ -1,13 +1,18 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import services from '$lib/api/services';
+import { services } from '$lib/api/services';
 import { handleError } from '$lib/utils/error';
-import type { PlayerProps } from './+page.svelte';
+import { env as publicEnv } from '$env/dynamic/public';
+import type { FullPlayer } from '$lib/api/models';
 
-export const load: PageServerLoad = async ({ params, setHeaders, fetch }): Promise<PlayerProps> => {
-	const id = params.id;
+export interface PlayerProps {
+	fullUser: FullPlayer;
+}
 
-	const [data, err] = await services.getUser(id, true, fetch);
+export const load: PageServerLoad = async (event): Promise<PlayerProps> => {
+	const id = event.params.id;
+
+	const [data, err] = await services.getUser(id, true);
 
 	if (err?.message === 'USER_NOT_FOUND') {
 		error(err?.status || 404, handleError(err));
@@ -16,8 +21,8 @@ export const load: PageServerLoad = async ({ params, setHeaders, fetch }): Promi
 		error(err?.status || 500, handleError(err));
 	}
 
-	// setHeaders({
-	// 	'cache-control': 'max-age=300'
-	// });
+	if (publicEnv.PUBLIC_ACTIVE_PROFILE == "prod") {
+		event.setHeaders({ 'cache-control': 'max-age=300' });
+	}
 	return { fullUser: data };
 };

@@ -30,15 +30,11 @@ func setupServicesTest(t logutil.TestLogger, mocks *serviceMocks, flags ...itest
 	services := NewHexchessServices(SetupService{
 		Database:    infra.Database,
 		RiverClient: mocks.RiverClient,
-
-		Redis: infra.Redis,
-
+		Redis:       infra.Redis,
 		Broadcaster: pubsub.NewSyncBroadcaster(infra.Redis),
-
-		AWS: infra.AWS,
-
-		Remote:  mocks.Remote,
-		Entropy: mocks.Entropy,
+		AWS:         infra.AWS,
+		SDKs:        mocks.Remote,
+		Entropy:     mocks.Entropy,
 	})
 
 	return services, infra

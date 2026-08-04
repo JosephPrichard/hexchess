@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/chess"
+	"hexchess-svc/queue/producers"
 	"hexchess-svc/utils/optional"
 	"hexchess-svc/utils/serrors"
 	"time"
@@ -64,19 +65,29 @@ func mapMetadataUpdt(state *model.ChessState) model.GameMetadataUpdt {
 	}
 }
 
-func (services *HexchessServices) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (model.GameID, error) {
+type GamePlayService struct {
+	*ChessRepoService
+	streamProducer producers.StreamProducer
+}
+
+func NewGamePlayService(chessRepo *ChessRepoService, streamProducer producers.StreamProducer) *GamePlayService {
+	return &GamePlayService{ChessRepoService: chessRepo, streamProducer: streamProducer}
+}
+
+func (services *GamePlayService) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (model.GameID, error) {
 	gameID := model.NewGameID()
-	err := services.createGame(ctx, model.StateSetup{ID: gameID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
+	err := services.SetupGame(ctx, model.StateSetup{ID: gameID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
 	return gameID, err
 }
 
-func (services *HexchessServices) createGame(ctx context.Context, setup model.StateSetup) error {
+func (services *GamePlayService) SetupGame(ctx context.Context, setup model.StateSetup) error {
 	gameID := setup.ID
 
 	state := model.NewChessState(setup)
 	state.Game.InitPieceMoves()
 
 	_, err := services.redis.PrimaryClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+
 		if err := services.setChessState(ctx, pipe, gameID, state, time.Now()); err != nil {
 			return serrors.New("set chess state", err, "gameID", gameID)
 		}
@@ -85,7 +96,7 @@ func (services *HexchessServices) createGame(ctx context.Context, setup model.St
 	return err
 }
 
-func (services *HexchessServices) JoinGame(ctx context.Context, gameID model.GameID, player model.PlayerState) (*model.ChessState, error) {
+func (services *GamePlayService) JoinGame(ctx context.Context, gameID model.GameID, player model.PlayerState) (*model.ChessState, error) {
 	update := func(state *model.ChessState) error {
 		slog.InfoContext(ctx, "updating game state by joining", "player", player.ID, "gameID", gameID)
 
@@ -141,7 +152,7 @@ type MoveResult struct {
 	Move  chess.HistMove
 }
 
-func (services *HexchessServices) NewGameMove(ctx context.Context, gameID model.GameID, player model.PlayerState, move chess.Move) (MoveResult, error) {
+func (services *GamePlayService) NewGameMove(ctx context.Context, gameID model.GameID, player model.PlayerState, move chess.Move) (MoveResult, error) {
 	update := func(state *model.ChessState) error {
 		slog.InfoContext(ctx, "updating game state by making move", "player", player.ID, "gameID", gameID, "move", move)
 
@@ -215,7 +226,7 @@ var (
 	ErrNoUndo         = errors.New("no undo to accept or reject")
 )
 
-func (services *HexchessServices) AttemptGameUndo(ctx context.Context, gameID model.GameID, player model.PlayerState, kind model.UndoKind) (*model.ChessState, error) {
+func (services *GamePlayService) AttemptGameUndo(ctx context.Context, gameID model.GameID, player model.PlayerState, kind model.UndoKind) (*model.ChessState, error) {
 	update := func(state *model.ChessState) error {
 		slog.InfoContext(ctx, "updating game state with undo", "gameID", gameID)
 
@@ -253,7 +264,7 @@ func (services *HexchessServices) AttemptGameUndo(ctx context.Context, gameID mo
 	return state, nil
 }
 
-func (services *HexchessServices) EndGame(ctx context.Context, gameID model.GameID, player model.PlayerState) (model.EndKind, error) {
+func (services *GamePlayService) EndGame(ctx context.Context, gameID model.GameID, player model.PlayerState) (model.EndKind, error) {
 	update := func(state *model.ChessState) error {
 		slog.InfoContext(ctx, "updating end game", "gameID", gameID)
 

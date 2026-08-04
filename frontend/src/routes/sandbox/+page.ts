@@ -1,5 +1,8 @@
 import type { PageLoad } from './$types';
-import type { SandboxProps } from './+page.svelte';
+
+export interface SandboxProps {
+	fen: string;
+}
 
 export const load: PageLoad = async ({ url }): Promise<SandboxProps> => {
 	const fen = url.searchParams.get('fen') || '';

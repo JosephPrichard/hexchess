@@ -41,7 +41,7 @@ func setupTestHandler(t logutil.TestLogger, mocks *serviceMocks, flags ...itest.
 		Database:    infra.Database,
 		Redis:       infra.Redis,
 		AWS:         infra.AWS,
-		Remote:      mocks.Remote,
+		SDKs:        mocks.Remote,
 		Entropy:     mocks.Entropy,
 		Dispatcher:  mocks.Dispatcher,
 		Broadcaster: broadcaster,

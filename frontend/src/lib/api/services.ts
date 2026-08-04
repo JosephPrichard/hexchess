@@ -7,10 +7,17 @@ import { ChatMessages, MoveHistory } from '$lib/pb/messages';
 import { createSHA256 } from "hash-wasm";
 import { browser } from '$app/environment';
 import globals from './globals';
-import type {ReplaysQuery} from "$lib/api/bodies";
+import type { ReplaysQuery } from "$lib/api/bodies";
 
 const defaultFrontend = 'http://localhost:5173';
 const defaultBackend = 'http://localhost:8080';
+
+// from browser to server serving backend JSON API (browser to public hostname)
+const clientBackendURL = (publicEnv.PUBLIC_APP_BASE_URL || defaultBackend) + "/api";
+
+// from NODE.js server to server serving backend JSON API (within same datacenter)
+const serverBackendURL = (globals.internalBackendBaseURL || defaultBackend) + "/api";
+
 const maxTimeoutMs = 5_000; // strict 5 second timeout
 
 export function frontendBaseURL() {
@@ -19,13 +26,12 @@ export function frontendBaseURL() {
 }
 
 export function backendBaseURL() {
-	if (browser) {
-		// from browser to server serving backend JSON API (browser to public hostname)
-		return (publicEnv.PUBLIC_APP_BASE_URL || defaultBackend) + "/api";
-	} else {
-		// from NODE.js server to server serving backend JSON API (within same datacenter)
-		return (globals.internalBackendBaseURL || defaultBackend) + "/api";
-	}
+	return browser ? clientBackendURL : serverBackendURL;
+}
+
+export interface PageLoadEvent {
+  	request?: Request;
+	data?: { cookieHeader: string }
 }
 
 export function rollout() {
@@ -50,14 +56,14 @@ export async function doRequest<Kind extends "JSON" | "BLOB", JSONResponse exten
 	kind: Kind,
 	input: RequestInfo | URL,
 	init?: RequestInit,
-	request?: FetchFn
+	customFetch?: FetchFn
 ): Promise<Result<ResponseMap<JSONResponse>[Kind]>> {
 	try {
 		const startTime = Date.now();
 		const trace = uuidv4();
 
-		if (!request) {
-			request = fetch;
+		if (!customFetch) {
+			customFetch = fetch;
 		}
 		if (!init) {
 			init = {};
@@ -72,7 +78,7 @@ export async function doRequest<Kind extends "JSON" | "BLOB", JSONResponse exten
 
 		logger.info("sending request", { kind, input, trace });
 
-		const response = await request(input, init);
+		const response = await customFetch(input, init);
 		
 		if (!response.ok) {
 			const errorMessage: string = await response.text();
@@ -256,7 +262,7 @@ export async function postProfilePic(file: File): Promise<Result<{}>> {
 	});
 }
 
-function getReplays(replaysQuery: ReplaysQuery, fetch?: FetchFn) {
+function getReplays(replaysQuery: ReplaysQuery) {
 	interface Response {
 		replayList: Replay[];
 	}
@@ -268,7 +274,7 @@ function getReplays(replaysQuery: ReplaysQuery, fetch?: FetchFn) {
 		}
 	}
 
-	return requestJSON<Response>(`${backendBaseURL()}/replays?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/replays?${params}`, { method: 'GET' });
 }
 
 function getChallenges(participants: string, fetch?: FetchFn) {
@@ -286,7 +292,7 @@ function getChallengesCount(fetch?: FetchFn) {
 	return requestJSON<Response>(`${backendBaseURL()}/challenges/count`, { method: 'GET' }, fetch);
 }
 
-function getLeaderboard(page: number, mode: string, fetch?: FetchFn) {
+function getLeaderboard(page: number, mode: string) {
 	interface Response {
 		totalPages: number;
 		userList: LeaderboardUser[];
@@ -295,45 +301,48 @@ function getLeaderboard(page: number, mode: string, fetch?: FetchFn) {
 		page: String(page),
 		mode: mode,
 	});
-	return requestJSON<Response>(`${backendBaseURL()}/leaderboard?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/leaderboard?${params}`, { method: 'GET' });
 }
 
 function getProfile(fetch?: FetchFn) {
 	return requestJSON<User>(`${backendBaseURL()}/players/self`, { method: 'GET' }, fetch);
 }
 
-function getUser(id: string, withReplays: boolean, fetch?: FetchFn) {
-	const params = new URLSearchParams({ id, withReplays: String(withReplays) });
-	return requestJSON<FullPlayer>(`${backendBaseURL()}/players?${params}`, { method: 'GET' }, fetch);
+function getUser(id: string, withReplays: boolean) {
+	const params = new URLSearchParams({ 
+		id, 
+		withReplays: String(withReplays)
+	});
+	return requestJSON<FullPlayer>(`${backendBaseURL()}/players?${params}`, { method: 'GET' });
 }
 
-function getGameExistence(id: string, fetch?: FetchFn) {
+function getGameExistence(id: string) {
 	interface Response {
 		message: string;
 	}
 	const params = new URLSearchParams({ gameId: id });
-	return requestJSON<Response>(`${backendBaseURL()}/game/rooms/exists?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/game/rooms/exists?${params}`, { method: 'GET' });
 }
 
-function getSearchPlayers(username: string, page?: number, fetch?: FetchFn, signal?: AbortSignal) {
+function getSearchPlayers(username: string, page?: number, signal?: AbortSignal) {
 	const params = new URLSearchParams({ username });
 	if (page)
 		params.set('page', String(page));
 	interface Response {
 		userList?: LeaderboardUser[];
 	}
-	return requestJSON<Response>(`${backendBaseURL()}/players/search?${params}`, { method: 'GET', signal }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/players/search?${params}`, { method: 'GET', signal });
 }
 
-function getReplay(id: string, idKind = "BY_REPLAY_ID", fetch?: FetchFn) {
+function getReplay(id: string, idKind = "BY_REPLAY_ID") {
 	interface Response {
 		replay: Replay;
 	}
 	const params = new URLSearchParams({ id, idKind });
-	return requestJSON<Response>(`${backendBaseURL()}/replay?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/replay?${params}`, { method: 'GET' });
 }
 
-function getEloHistories(userId: number, timeframe: string, fetch?: FetchFn) {
+function getEloHistories(userId: number, timeframe: string) {
 	interface Response {
 		buckets: Record<string, EloBuckets>
 	}
@@ -341,33 +350,33 @@ function getEloHistories(userId: number, timeframe: string, fetch?: FetchFn) {
 		userId: userId.toString(),
 		timeframe
 	});
-	return requestJSON<Response>(`${backendBaseURL()}/replay/elo-histories?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/replay/elo-histories?${params}`, { method: 'GET' });
 }
 
-async function getReplayMoveHistory(id: string, fetch?: FetchFn): Promise<Result<MoveHistory>> {
-	const params = new URLSearchParams({ replayId: id });
-	const [buf, err] = await requestBlob(`${backendBaseURL()}/replay/move-list?${params}`, { method: 'GET' }, fetch);
-	if (buf) {
-		const result = timed("moveHistory", () => MoveHistory.fromBinary(new Uint8Array(buf)));
-		return [result, undefined];
-	} else {
-		return [undefined, err];
-	}
-}
-
-function getGameRooms(count: number, page?: number, fetch?: FetchFn) {
+function getGameRooms(count: number, page?: number) {
 	interface Response {
 		chessList: ChessMetadata[];
 		selfChessList: ChessMetadata[];
 	}
 	const params = new URLSearchParams({ count: String(count) });
 	if (page) params.set('page', String(page));
-	return requestJSON<Response>(`${backendBaseURL()}/game/rooms?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/game/rooms?${params}`, { method: 'GET' });
+}
+
+async function getReplayMoveHistory(id: string): Promise<Result<MoveHistory>> {
+	const params = new URLSearchParams({ replayId: id });
+	const [buf, err] = await requestBlob(`${backendBaseURL()}/replay/move-list?${params}`, { method: 'GET' });
+	if (buf) {
+		const result = timed("moveHistory deserialization", () => MoveHistory.fromBinary(new Uint8Array(buf)));
+		return [result, undefined];
+	} else {
+		return [undefined, err];
+	}
 }
 
 async function getGameChats(gameId: string): Promise<Result<ChatMessages>> {
 	const params = new URLSearchParams({ gameId: String(gameId) });
-	const [buf, err] = await requestBlob(`${backendBaseURL()}/game/rooms/chats?${params}`, { method: 'GET' }, fetch);
+	const [buf, err] = await requestBlob(`${backendBaseURL()}/game/rooms/chats?${params}`, { method: 'GET' });
 	if (buf) {
 		const result = timed("gameChats deserialization", () => ChatMessages.fromBinary(new Uint8Array(buf)));
 		return [result, undefined];
@@ -381,14 +390,14 @@ async function getIsUserActive(userId: string | number) {
 		isUserActive: boolean;
 	}
 	const params = new URLSearchParams({ userId: String(userId) });
-	return requestJSON<Response>(`${backendBaseURL()}/players/activity?${params}`, { method: 'GET' }, fetch);
+	return requestJSON<Response>(`${backendBaseURL()}/players/activity?${params}`, { method: 'GET' });
 }
 
 const getCountries = cache(
-	(fetch?: FetchFn) => requestJSON<string[]>(`${backendBaseURL()}/countries`, { method: 'GET' }, fetch)
+	() => requestJSON<string[]>(`${backendBaseURL()}/countries`, { method: 'GET' })
 );
 
-export default {
+export const services = {
 	postLogin,
 	postGoogleLogin,
 	postRegister,

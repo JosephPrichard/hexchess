@@ -7,7 +7,7 @@
 	import SettingsIcon from "$lib/icons/SettingsIcon.svelte";
 	import MagnifyingGlass from "$lib/icons/MagnifyingGlass.svelte";
 	import {goto} from "$app/navigation";
-	import services from "$lib/api/services";
+	import { services } from "$lib/api/services";
 	import {MediaQuery} from "svelte/reactivity";
 	import { logger } from './utils/logger';
 
@@ -16,7 +16,6 @@
 	let client: Session | null = $state(null);
 	let searchText = $state('');
 	let challengesCount = $state(0);
-
 	function initClientSession() {
 		client = getClientSession();
 	}

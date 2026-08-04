@@ -2,17 +2,13 @@
 	import {logger} from '$lib/utils/logger';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import {type Action, type Challenge, UntypedGameModeNameMap, type Session} from '$lib/api/models';
-	import services from '$lib/api/services';
+	import { services } from '$lib/api/services';
 	import { formatRelativeTime } from '$lib/utils/format';
 	import Banner from '$lib/Banner.svelte';
 	import ProfilePic from '$lib/components/ProfilePic.svelte';
 	import ChallengeIcon from "$lib/icons/ChallengeIcon.svelte";
-	import {getClientSession} from "$lib/utils/storage";
-
-	export interface ChallengeProps {
-		participants: string;
-		challengeList: Challenge[];
-	}
+	import { getClientSession } from "$lib/utils/storage";
+	import type { ChallengeProps } from './+page.server';
 
 	const { data: props }: { data: ChallengeProps } = $props();
 	const isSender = $derived(props.participants === 'sent');

@@ -7,6 +7,7 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/db/mutator"
 	"hexchess-svc/db/query"
+	"hexchess-svc/pubsub"
 	"hexchess-svc/utils/perf"
 
 	"hexchess-svc/utils/enum"
@@ -28,7 +29,43 @@ import (
 
 var ErrTournamentNotFound = fmt.Errorf("tournament does not exist")
 
-func (services *HexchessServices) GetTournament(ctx context.Context, tournamentKey uuid.UUID) (t model.FullTournament, err error) {
+type TournamentService struct {
+	leaderboardService *LeaderboardService
+	userService        *UserService
+	gameplayService    *GamePlayService
+
+	transactor    db.Transactor
+	mutator       mutator.Querier
+	querier       query.Querier
+	riverProducer producers.RiverProducer
+	broadcaster   pubsub.Broadcaster
+}
+
+func NewTournamentService(
+	leaderboardService *LeaderboardService,
+	userService *UserService,
+	gameplayService *GamePlayService,
+
+	transactor db.Transactor,
+	mutator mutator.Querier,
+	querier query.Querier,
+	riverProducer producers.RiverProducer,
+	broadcaster pubsub.Broadcaster,
+) *TournamentService {
+	return &TournamentService{
+		leaderboardService: leaderboardService,
+		userService:        userService,
+		gameplayService:    gameplayService,
+
+		transactor:    transactor,
+		mutator:       mutator,
+		querier:       querier,
+		riverProducer: riverProducer,
+		broadcaster:   broadcaster,
+	}
+}
+
+func (services *TournamentService) GetTournament(ctx context.Context, tournamentKey uuid.UUID) (t model.FullTournament, err error) {
 	defer perf.WithContext(ctx).Log()
 
 	var tournamentRow query.SelectTournamentByIDRow
@@ -38,17 +75,17 @@ func (services *HexchessServices) GetTournament(ctx context.Context, tournamentK
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() (err error) {
-		tournamentRow, err = services.readQuerier.SelectTournamentByID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+		tournamentRow, err = services.querier.SelectTournamentByID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 		return serrors.New("select tournament by key", err, "tournamentKey", tournamentKey)
 	})
 
 	eg.Go(func() (err error) {
-		participantRows, err = services.readQuerier.SelectParticipantsWithUserByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+		participantRows, err = services.querier.SelectParticipantsWithUserByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 		return serrors.New("select participants by tournament key", err, "tournamentKey", tournamentKey)
 	})
 
 	eg.Go(func() (err error) {
-		matchRows, err = services.readQuerier.SelectReplayMatchesByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+		matchRows, err = services.querier.SelectReplayMatchesByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 		return serrors.New("select replay matches by tournament key", err, "tournamentKey", tournamentKey)
 	})
 
@@ -72,7 +109,7 @@ func (services *HexchessServices) GetTournament(ctx context.Context, tournamentK
 		participantIDs = append(participantIDs, participant.ID)
 	}
 
-	userLdbRanksMap, err := services.getUsersLeaderboardRank(ctx, participantIDs, tournament.Mode)
+	userLdbRanksMap, err := services.leaderboardService.getUsersLeaderboardRank(ctx, participantIDs, tournament.Mode)
 	if err != nil {
 		return t, serrors.New("get participants leaderboard rank", err, "participantIDs", participantIDs)
 	}
@@ -192,7 +229,7 @@ func mapFullTournament(args mapFullTournamentArgs) model.FullTournament {
 	return model.FullTournament{Tournament: tournament, Participants: participants, Matches: matches}
 }
 
-func (services *HexchessServices) GetTournaments(ctx context.Context, participantID optional.Maybe[int64], afterID optional.Maybe[int64], perPage int32) ([]model.Tournament, error) {
+func (services *TournamentService) GetTournaments(ctx context.Context, participantID optional.Maybe[int64], afterID optional.Maybe[int64], perPage int32) ([]model.Tournament, error) {
 	defer perf.WithContext(ctx).Log()
 
 	if !afterID.Present {
@@ -202,7 +239,7 @@ func (services *HexchessServices) GetTournaments(ctx context.Context, participan
 	var tournaments []model.Tournament
 
 	if participantID.Present {
-		tournamentRows, err := services.readQuerier.SelectTournamentsByParticipant(ctx, query.SelectTournamentsByParticipantParams{
+		tournamentRows, err := services.querier.SelectTournamentsByParticipant(ctx, query.SelectTournamentsByParticipantParams{
 			UserID:  participantID.Value,
 			AfterID: afterID.Value,
 			PerPage: perPage,
@@ -214,7 +251,7 @@ func (services *HexchessServices) GetTournaments(ctx context.Context, participan
 			return mapTournamentByIdRow(query.SelectTournamentByIDRow(t))
 		})
 	} else {
-		tournamentRows, err := services.readQuerier.SelectTournaments(ctx, query.SelectTournamentsParams{
+		tournamentRows, err := services.querier.SelectTournaments(ctx, query.SelectTournamentsParams{
 			AfterID: afterID.Value,
 			PerPage: perPage,
 		})
@@ -260,7 +297,7 @@ var ErrInvalidRounds = fmt.Errorf("invalid depth, must be less than %d and large
 
 var InsertionStatus = model.TournamentLobby.String()
 
-func (services *HexchessServices) CreateTournament(ctx context.Context, inst TournamentInst) (int64, error) {
+func (services *TournamentService) CreateTournament(ctx context.Context, inst TournamentInst) (int64, error) {
 	defer perf.WithContext(ctx).Log()
 
 	if inst.Ruleset == model.TournamentKnockout && (inst.Rounds < 1 || inst.Rounds > MaxKnockoutTournamentRounds) {
@@ -277,7 +314,7 @@ func (services *HexchessServices) CreateTournament(ctx context.Context, inst Tou
 		rounds = inst.Rounds
 	}
 
-	tournamentID, err := services.querier.InsertTournament(ctx, mutator.InsertTournamentParams{
+	tournamentID, err := services.mutator.InsertTournament(ctx, mutator.InsertTournamentParams{
 		TournamentKey: pgtype.UUID{Bytes: inst.Key, Valid: true},
 		Name:          inst.Name,
 		Rounds:        rounds,
@@ -297,8 +334,8 @@ func (services *HexchessServices) CreateTournament(ctx context.Context, inst Tou
 	return tournamentID, nil
 }
 
-func (services *HexchessServices) LeaveTournament(ctx context.Context, tournamentKey uuid.UUID, userID int64) (bool, error) {
-	deletedIDs, err := services.querier.DeleteTournamentParticipant(ctx, mutator.DeleteTournamentParticipantParams{
+func (services *TournamentService) LeaveTournament(ctx context.Context, tournamentKey uuid.UUID, userID int64) (bool, error) {
+	deletedIDs, err := services.mutator.DeleteTournamentParticipant(ctx, mutator.DeleteTournamentParticipantParams{
 		TournamentKey: pgtype.UUID{Bytes: tournamentKey, Valid: true},
 		UserID:        userID,
 	})
@@ -342,12 +379,12 @@ type JoinTournamentEvent struct {
 	Mode          model.GameMode
 }
 
-func (services *HexchessServices) JoinTournament(ctx context.Context, inst JoinTournamentInst) (JoinTournamentEvent, error) {
+func (services *TournamentService) JoinTournament(ctx context.Context, inst JoinTournamentInst) (JoinTournamentEvent, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var result JoinTournamentEvent
 
-	err := services.database.ExecTx(ctx, db.TxArgs{
+	err := services.transactor.ExecTx(ctx, db.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 reads status S1 and participant count P1, then inserts participants to create new participant count P2
@@ -413,12 +450,12 @@ type BeginTourneyCountdown struct {
 	TournamentKey uuid.UUID
 }
 
-func (services *HexchessServices) BeginTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, userID int64) (BeginTourneyCountdown, error) {
+func (services *TournamentService) BeginTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, userID int64) (BeginTourneyCountdown, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var tourneyCountdown BeginTourneyCountdown
 
-	err := services.database.ExecTx(ctx, db.TxArgs{
+	err := services.transactor.ExecTx(ctx, db.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 reads status S1 and uses it to decide to begin the countdown, creating a scheduled event E1 and setting the status to S3
@@ -483,12 +520,12 @@ var ErrEmptyMatchesTournament = errors.New("tournament has no matches")
 
 var ExpectedAdvanceTournamentStatus = []model.TournamentStatus{model.TournamentScheduled, model.TournamentInProgress}
 
-func (services *HexchessServices) advanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.MatchCreation, error) {
+func (services *TournamentService) advanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.MatchCreation, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var matchesToCreate []model.MatchCreation
 
-	err := services.database.ExecTx(ctx, db.TxArgs{
+	err := services.transactor.ExecTx(ctx, db.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 selects participationIDs P1 and creates and inserts NextMatches M1
@@ -696,7 +733,7 @@ func insertTournamentMatches(ctx context.Context, query db.ReadWriteQuerier, tou
 	return nil
 }
 
-func (services *HexchessServices) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.GameID, error) {
+func (services *TournamentService) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.GameID, error) {
 	defer perf.WithContext(ctx).Log()
 
 	matches, err := services.advanceTournament(ctx, tournamentKey, eventID)
@@ -721,14 +758,14 @@ func (services *HexchessServices) AdvanceTournament(ctx context.Context, tournam
 	return matchGameIDs, nil
 }
 
-func (services *HexchessServices) createTournamentMatches(ctx context.Context, matches []model.MatchCreation) error {
+func (services *TournamentService) createTournamentMatches(ctx context.Context, matches []model.MatchCreation) error {
 	defer perf.WithContext(ctx).Log()
 
 	userIDs := make([]int64, 0, len(matches)*2)
 	for _, match := range matches {
 		userIDs = append(userIDs, match.WhiteID, match.BlackID)
 	}
-	users, err := services.selectUsersByIDs(ctx, userIDs)
+	users, err := services.userService.selectUsersByIDs(ctx, userIDs)
 	if err != nil {
 		return serrors.New("select user player data by ids", err)
 	}
@@ -749,7 +786,7 @@ func (services *HexchessServices) createTournamentMatches(ctx context.Context, m
 		}
 
 		eg.Go(func() error {
-			err := services.createGame(egCtx, model.StateSetup{
+			err := services.gameplayService.SetupGame(egCtx, model.StateSetup{
 				ID:         match.GameID,
 				Mode:       match.GameMode,
 				FirstColor: model.White,
@@ -763,8 +800,8 @@ func (services *HexchessServices) createTournamentMatches(ctx context.Context, m
 	return eg.Wait()
 }
 
-func (services *HexchessServices) SendTournamentParticipant(ctx context.Context, playerID int64, event JoinTournamentEvent) {
-	leaderboardUser, err := services.GetLeaderboardUser(ctx, playerID, event.Mode)
+func (services *TournamentService) SendTournamentParticipant(ctx context.Context, playerID int64, event JoinTournamentEvent) {
+	leaderboardUser, err := services.leaderboardService.GetLeaderboardUser(ctx, playerID, event.Mode)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get leaderboard user to broadcast tournament participant", "playerID", playerID, "tournamentJoin", event, "err", err)
 		return

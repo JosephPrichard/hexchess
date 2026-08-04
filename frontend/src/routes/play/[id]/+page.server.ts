@@ -1,11 +1,15 @@
 import type { PageServerLoad } from './$types';
-import type { PlayProps } from './+page.svelte';
-import services from '$lib/api/services';
+import { services } from '$lib/api/services';
 
-export const load: PageServerLoad = async ({ params, fetch }): Promise<PlayProps> => {
-	const gameId = params.id || '';
+export interface PlayProps {
+	gameId: string
+	gameExists?: boolean
+}
 
-	const [data, err] = await services.getGameExistence(gameId, fetch);
+export const load: PageServerLoad = async (event): Promise<PlayProps> => {
+	const gameId = event.params.id || '';
+
+	const [data, err] = await services.getGameExistence(gameId);
 	const exists = data?.message != "GAME_NOT_EXISTS" && !err;
 
 	return { gameId, gameExists: exists };

@@ -89,7 +89,7 @@ func (api *API) HandleCountEvents(client *SSEClient, _ *http.Request) error {
 	}
 }
 
-const RetainActiveUserPeriod = svc.ActiveUserMaxage - time.Second
+const RetainActiveUserPeriod = svc.ActiveUserMaxAge - time.Second
 
 // HandleActiveConn is a long-lived TCP connection used to maintain an active user, it only ever receives "meta" messages
 func (api *API) HandleActiveConn(client *SSEClient, r *http.Request) error {

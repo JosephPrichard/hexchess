@@ -14,7 +14,15 @@ import (
 
 var ErrSessionNotFound = errors.New("session not found")
 
-func (services *HexchessServices) GetSession(ctx context.Context, sessionID string) (model.PlayerState, error) {
+type SessionService struct {
+	redis cache.Redis
+}
+
+func NewSessionService(redis cache.Redis) *SessionService {
+	return &SessionService{redis: redis}
+}
+
+func (services *SessionService) GetSession(ctx context.Context, sessionID string) (model.PlayerState, error) {
 	sessionKey := cache.FmtSessionKey(sessionID)
 
 	slog.InfoContext(ctx, "getting session", "sessionID", sessionID, "sessionKey", sessionKey)
@@ -41,7 +49,7 @@ type SessionInst struct {
 	Expiry    time.Duration
 }
 
-func (services *HexchessServices) SetSessions(ctx context.Context, insts ...SessionInst) error {
+func (services *SessionService) SetSessions(ctx context.Context, insts ...SessionInst) error {
 	slog.InfoContext(ctx, "setting sessions", "insts", insts)
 
 	pipe := services.redis.PrimaryClient.Pipeline()
@@ -61,7 +69,7 @@ func (services *HexchessServices) SetSessions(ctx context.Context, insts ...Sess
 	return nil
 }
 
-func (services *HexchessServices) UpdateSessionEx(ctx context.Context, sessionID string, expiry time.Duration) error {
+func (services *SessionService) UpdateSessionEx(ctx context.Context, sessionID string, expiry time.Duration) error {
 	sessionKey := cache.FmtSessionKey(sessionID)
 	if err := services.redis.PrimaryClient.Expire(ctx, sessionKey, expiry).Err(); err != nil {
 		return serrors.New("update session expiry", err)
@@ -70,7 +78,7 @@ func (services *HexchessServices) UpdateSessionEx(ctx context.Context, sessionID
 	return nil
 }
 
-func (services *HexchessServices) DeleteSession(ctx context.Context, sessionID string) error {
+func (services *SessionService) DeleteSession(ctx context.Context, sessionID string) error {
 	sessionKey := cache.FmtSessionKey(sessionID)
 	if err := services.redis.PrimaryClient.Del(ctx, sessionKey).Err(); err != nil {
 		return serrors.New("delete session", err, "sessionID", sessionID)

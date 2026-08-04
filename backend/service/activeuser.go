@@ -3,6 +3,9 @@ package svc
 import (
 	"context"
 	"fmt"
+	"hexchess-svc/cache"
+	"hexchess-svc/pubsub"
+	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
@@ -11,17 +14,27 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const ActiveUserMaxage = 5 * time.Minute // the caller should manually remove, but this is a stopgap in case the server is stopped before that is the case
+const ActiveUserMaxAge = 5 * time.Minute // the caller should manually remove, but this is a stopgap in case the server is stopped before that is the case
 
-func (services *HexchessServices) IsActiveUser(ctx context.Context, id string) bool {
+type ActiveUserService struct {
+	redis       cache.Redis
+	broadcaster pubsub.Broadcaster
+	entropy     entropy.Generator
+}
+
+func NewActiveUserService(redis cache.Redis, broadcaster pubsub.Broadcaster) *ActiveUserService {
+	return &ActiveUserService{redis: redis, broadcaster: broadcaster, entropy: entropy.RealSource{}}
+}
+
+func (services *ActiveUserService) IsActiveUser(ctx context.Context, id string) bool {
 	_, err := services.redis.PrimaryClient.ZScore(ctx, services.redis.ActiveUsersZSet, id).Result()
 	return err == nil
 }
 
-func (services *HexchessServices) GetActiveCount(ctx context.Context) (int64, error) {
+func (services *ActiveUserService) GetActiveCount(ctx context.Context) (int64, error) {
 	defer perf.WithContext(ctx).Log()
 
-	expireBefore := services.entropy.GetTime().Add(-ActiveUserMaxage)
+	expireBefore := services.entropy.GetTime().Add(-ActiveUserMaxAge)
 	expireBeforeStr := fmt.Sprintf("%d", expireBefore.UnixMilli())
 
 	removed, err := services.redis.PrimaryClient.ZRemRangeByScore(ctx, services.redis.ActiveUsersZSet, "-inf", expireBeforeStr).Result()
@@ -39,7 +52,7 @@ func (services *HexchessServices) GetActiveCount(ctx context.Context) (int64, er
 	return count, nil
 }
 
-func (services *HexchessServices) RetainActiveUser(ctx context.Context, id string) error {
+func (services *ActiveUserService) RetainActiveUser(ctx context.Context, id string) error {
 	defer perf.WithContext(ctx).Log()
 
 	updtTime := float64(services.entropy.GetTime().UnixMilli())
@@ -52,7 +65,7 @@ func (services *HexchessServices) RetainActiveUser(ctx context.Context, id strin
 	return nil
 }
 
-func (services *HexchessServices) AddActiveUser(ctx context.Context, id string) (int64, error) {
+func (services *ActiveUserService) AddActiveUser(ctx context.Context, id string) (int64, error) {
 	defer perf.WithContext(ctx).Log()
 
 	updtTime := float64(services.entropy.GetTime().UnixMilli())
@@ -72,7 +85,7 @@ func (services *HexchessServices) AddActiveUser(ctx context.Context, id string) 
 	return count, nil
 }
 
-func (services *HexchessServices) RemoveActiveUser(ctx context.Context, id string) (int64, error) {
+func (services *ActiveUserService) RemoveActiveUser(ctx context.Context, id string) (int64, error) {
 	defer perf.WithContext(ctx).Log()
 
 	res, err := services.redis.PrimaryClient.ZRem(ctx, services.redis.ActiveUsersZSet, id).Result()

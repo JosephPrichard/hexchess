@@ -1,20 +1,26 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { handleError } from '$lib/utils/error';
-import type { ReplaysProps } from './+page.svelte';
-import services from '$lib/api/services';
-import {mapReplaysPropsToQuery, mapReplaysURLParamsToProps} from "./service";
+import { services } from '$lib/api/services';
+import {mapReplaysPropsToQuery, mapReplaysURLParamsToProps, type ReplaysSearchProps} from "./service";
+import { env as publicEnv } from '$env/dynamic/public';
+import type { Replay } from '$lib/api/models';
 
-export const load: PageServerLoad = async ({ url, setHeaders, fetch }): Promise<ReplaysProps> => {
-    const searchProps = mapReplaysURLParamsToProps(url.searchParams);
+export interface ReplaysProps {
+    replays: Replay[];
+    search?: ReplaysSearchProps;
+}
 
-    const [data, err] = await services.getReplays(mapReplaysPropsToQuery(searchProps), fetch);
+export const load: PageServerLoad = async (event): Promise<ReplaysProps> => {
+    const searchProps = mapReplaysURLParamsToProps(event.url.searchParams);
+
+    const [data, err] = await services.getReplays(mapReplaysPropsToQuery(searchProps));
     if (err || data === undefined) {
         error(err?.status || 500, handleError(err));
     }
 
-    // setHeaders({
-    // 	'cache-control': 'max-age=3600'
-    // });
+    if (publicEnv.PUBLIC_ACTIVE_PROFILE == "prod") {
+        event.setHeaders({ 'cache-control': 'max-age=3600' });
+    }
     return { replays: data?.replayList ?? [], search: searchProps };
 };

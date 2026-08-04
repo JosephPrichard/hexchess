@@ -8,7 +8,7 @@
 	import ReplayPanel from '$lib/components/ReplayPanel.svelte';
 	import { type ChessGame, type HistMove } from '$lib/pb/messages';
 	import { type Hex, type Replay } from '$lib/api/models';
-	import services from '$lib/api/services';
+	import { services } from '$lib/api/services';
 	import { makeMoveState } from '$lib/state/move.svelte';
 	import { makeSelectionState } from '$lib/state/selection.svelte';
 	import Banner from '$lib/Banner.svelte';
@@ -18,10 +18,7 @@
 	import { type CancelCountdown, gameAtStepIndex, getStepTimers, startCountdown, type TimerType } from './service';
 	import TakenList from '$lib/components/TakenList.svelte';
 	import { moveElementHeight } from '$lib/components/chessRenderer';
-
-	export interface ReplayProps {
-		replay: Replay;
-	}
+	import type { ReplayProps } from './+page.server';
 
 	const { data }: { data: ReplayProps } = $props();
 	const { replay } = $derived(data);

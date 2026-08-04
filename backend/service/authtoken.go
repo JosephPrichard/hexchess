@@ -5,6 +5,14 @@ import (
 	"hexchess-svc/cloud"
 )
 
-func (services *HexchessServices) ValidateGoogleIDToken(ctx context.Context, token string) (cloud.GoogleIDTokenResp, error) {
+type AuthTokenService struct {
+	sdks cloud.SDKs
+}
+
+func NewAuthTokenService(sdks cloud.SDKs) *AuthTokenService {
+	return &AuthTokenService{sdks}
+}
+
+func (services *AuthTokenService) ValidateGoogleIDToken(ctx context.Context, token string) (cloud.GoogleIDTokenResp, error) {
 	return services.sdks.ValidateGoogleIDToken(ctx, token)
 }

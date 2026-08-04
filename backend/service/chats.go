@@ -2,14 +2,27 @@ package svc
 
 import (
 	"context"
+	"hexchess-svc/cache"
+	"hexchess-svc/db/query"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 
 	"github.com/redis/go-redis/v9"
 )
 
-func (services *HexchessServices) GetChats(ctx context.Context, gameID model.GameID, count int64) ([]model.Chat, error) {
+type ChatService struct {
+	redis   cache.Redis
+	querier query.Querier
+	entropy entropy.Generator
+}
+
+func NewChatService(redis cache.Redis, querier query.Querier, entropy entropy.Generator) *ChatService {
+	return &ChatService{redis: redis, querier: querier, entropy: entropy}
+}
+
+func (services *ChatService) GetChats(ctx context.Context, gameID model.GameID, count int64) ([]model.Chat, error) {
 	chatsZSet := services.redis.FmtGameChatsZSet(gameID)
 
 	strList, err := services.redis.PrimaryClient.ZRevRange(ctx, chatsZSet, 0, count).Result()
@@ -30,7 +43,7 @@ func (services *HexchessServices) GetChats(ctx context.Context, gameID model.Gam
 	return chats, nil
 }
 
-func (services *HexchessServices) InsertChat(ctx context.Context, gameID model.GameID, chat model.Chat) error {
+func (services *ChatService) InsertChat(ctx context.Context, gameID model.GameID, chat model.Chat) error {
 	bytes, err := model.SerializeChat(chat).MarshalVT()
 	if err != nil {
 		return serrors.New("marshal chat", err)

@@ -4,7 +4,7 @@
 	import { fade } from 'svelte/transition';
 	import { setClientSession } from '$lib/utils/storage';
 	import { getNotificationsContext } from '$lib/utils/context';
-	import services from '$lib/api/services';
+	import { services } from '$lib/api/services';
 	import Banner from '$lib/Banner.svelte';
 
 	let username = $state('');

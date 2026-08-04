@@ -5,12 +5,7 @@
 	import Banner from '$lib/Banner.svelte';
 	import Dropdown from '$lib/components/Dropdown.svelte';
 	import { goto } from '$app/navigation';
-
-	export interface LeaderboardProps {
-		page: number;
-		pageCount: number;
-		userList: LeaderboardUser[];
-	}
+	import type { LeaderboardProps } from './+page.server';
 
 	const { data: props }: { data: LeaderboardProps } = $props();
 

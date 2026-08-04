@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hexchess-svc/cloud"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/async"
+	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/ioutil"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
@@ -21,60 +24,19 @@ import (
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
-func ParseProfilePicKey(key string) (int64, error) {
-	tokens := strings.Split(key, "/")
-	if len(tokens) != 4 {
-		return 0, fmt.Errorf("invalid profile Key, incorrect number of tokens: %s", key)
-	}
-	userID, err := strconv.ParseInt(tokens[2], 10, 64)
-	if err != nil {
-		return 0, serrors.New("profile Key userID is not a valid integer", err, "key", key)
-	}
-	return userID, nil
-}
-
-func findMostRecentKey(objects []s3Types.Object) string {
-	var mostRecentKey string
-	mostRecentCreTime := time.Time{}
-	for _, obj := range objects {
-		if obj.Key == nil || obj.LastModified == nil {
-			continue
-		}
-		if obj.LastModified.After(mostRecentCreTime) {
-			mostRecentKey = *obj.Key
-			mostRecentCreTime = obj.LastModified.UTC()
-		}
-	}
-	return mostRecentKey
-}
-
-func filterLeastRecentKeys(objects []s3Types.Object) []s3Types.ObjectIdentifier {
-	mostRecentKey := findMostRecentKey(objects)
-
-	keys := make([]s3Types.ObjectIdentifier, 0)
-	for _, obj := range objects {
-		if obj.Key == nil || *obj.Key == mostRecentKey {
-			continue
-		}
-		keys = append(keys, s3Types.ObjectIdentifier{Key: obj.Key})
-	}
-
-	return keys
-}
-
-// s3 URL prefixes
-
-func fmtProfilePicPrefix(userID string) string {
-	return fmt.Sprintf("%s/%s", ProfilePicPrefix, userID)
-}
-
-func fmtProfilePicKey(userID int64, id string) string {
-	return fmt.Sprintf("%s/%d/%s", ProfilePicPrefix, userID, id)
-}
-
 const ProfilePicPrefix = "users/profile-pics"
 
-func (services *HexchessServices) deleteExpiredProfilePics(ctx context.Context, playerID int) error {
+type ProfileService struct {
+	aws        cloud.AWSClient
+	dispatcher async.Dispatcher
+	entropy    entropy.Generator
+}
+
+func NewProfileService(aws cloud.AWSClient, dispatcher async.Dispatcher, entropy entropy.Generator) *ProfileService {
+	return &ProfileService{aws: aws, dispatcher: dispatcher, entropy: entropy}
+}
+
+func (services *ProfileService) deleteExpiredProfilePics(ctx context.Context, playerID int) error {
 	prefix := fmtProfilePicPrefix(strconv.Itoa(playerID))
 
 	// remove all but the newest keys. there should never be more 1000 keys, but if there are, this will never delete the newest Key
@@ -120,7 +82,7 @@ var (
 	ErrProfilePicTooBig = fmt.Errorf("profile picture exceeds max size of %d bytes", MaxProfilePicSize)
 )
 
-func (services *HexchessServices) UploadProfilePic(
+func (services *ProfileService) UploadProfilePic(
 	ctx context.Context,
 	uploader model.PlayerState,
 	file io.ReadCloser,
@@ -186,7 +148,7 @@ func (services *HexchessServices) UploadProfilePic(
 
 var ErrNoProfilePic = errors.New("no profile pic found for user")
 
-func (services *HexchessServices) GetProfilePicURL(ctx context.Context, userID string) (string, error) {
+func (services *ProfileService) GetProfilePicURL(ctx context.Context, userID string) (string, error) {
 	// retrieves all profile pictures for any user and retrieves the most recent one. this runs on the assumption that we may not be deleting old profile pics.
 	prefix := fmtProfilePicPrefix(userID)
 
@@ -217,6 +179,59 @@ func (services *HexchessServices) GetProfilePicURL(ctx context.Context, userID s
 	return s3URL, nil
 }
 
-func (services *HexchessServices) NewProfileURL(key string) string {
+func (services *ProfileService) NewProfileURL(key string) string {
 	return fmt.Sprintf("%s/%s/%s", services.aws.S3Endpoint, services.aws.S3ProfileBucket, key)
+}
+
+// s3 URL prefixes
+
+func fmtProfilePicPrefix(userID string) string {
+	return fmt.Sprintf("%s/%s", ProfilePicPrefix, userID)
+}
+
+func fmtProfilePicKey(userID int64, id string) string {
+	return fmt.Sprintf("%s/%d/%s", ProfilePicPrefix, userID, id)
+}
+
+// s3 utilities
+
+func ParseProfilePicKey(key string) (int64, error) {
+	tokens := strings.Split(key, "/")
+	if len(tokens) != 4 {
+		return 0, fmt.Errorf("invalid profile Key, incorrect number of tokens: %s", key)
+	}
+	userID, err := strconv.ParseInt(tokens[2], 10, 64)
+	if err != nil {
+		return 0, serrors.New("profile Key userID is not a valid integer", err, "key", key)
+	}
+	return userID, nil
+}
+
+func findMostRecentKey(objects []s3Types.Object) string {
+	var mostRecentKey string
+	mostRecentCreTime := time.Time{}
+	for _, obj := range objects {
+		if obj.Key == nil || obj.LastModified == nil {
+			continue
+		}
+		if obj.LastModified.After(mostRecentCreTime) {
+			mostRecentKey = *obj.Key
+			mostRecentCreTime = obj.LastModified.UTC()
+		}
+	}
+	return mostRecentKey
+}
+
+func filterLeastRecentKeys(objects []s3Types.Object) []s3Types.ObjectIdentifier {
+	mostRecentKey := findMostRecentKey(objects)
+
+	keys := make([]s3Types.ObjectIdentifier, 0)
+	for _, obj := range objects {
+		if obj.Key == nil || *obj.Key == mostRecentKey {
+			continue
+		}
+		keys = append(keys, s3Types.ObjectIdentifier{Key: obj.Key})
+	}
+
+	return keys
 }

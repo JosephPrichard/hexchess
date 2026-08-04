@@ -63,7 +63,7 @@ func main() {
 		Database:    database,
 		Redis:       redisClient,
 		AWS:         aws,
-		Remote:      remoteAPIs,
+		SDKs:        remoteAPIs,
 		Broadcaster: broadcaster,
 	})
 

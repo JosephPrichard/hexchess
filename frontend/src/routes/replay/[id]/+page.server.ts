@@ -1,13 +1,18 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import {codes, handleError} from '$lib/utils/error';
-import type { ReplayProps } from './+page.svelte';
-import services from '$lib/api/services';
+import { services } from '$lib/api/services';
+import { env as publicEnv } from '$env/dynamic/public';
+import type { Replay } from '$lib/api/models';
 
-export const load: PageServerLoad = async ({ params, setHeaders, fetch }): Promise<ReplayProps> => {
-	const id = params.id;
+export interface ReplayProps {
+	replay: Replay;
+}
 
-	const [data, err] = await services.getReplay(id, undefined, fetch);
+export const load: PageServerLoad = async (event): Promise<ReplayProps> => {
+	const id = event.params.id;
+
+	const [data, err] = await services.getReplay(id, undefined);
 
 	if (err?.message === codes.errorNotFoundReplay) {
 		error(err?.status || 404, handleError(err));
@@ -16,8 +21,8 @@ export const load: PageServerLoad = async ({ params, setHeaders, fetch }): Promi
 		error(err?.status || 500, handleError(err));
 	}
 
-	// setHeaders({
-	// 	'cache-control': 'max-age=3600'
-	// });
+	if (publicEnv.PUBLIC_ACTIVE_PROFILE == "prod") {
+		event.setHeaders({ 'cache-control': 'max-age=3600' });
+	}
 	return { replay: data.replay };
 };

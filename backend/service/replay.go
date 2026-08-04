@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"hexchess-svc/db"
+	"hexchess-svc/db/mutator"
 	"hexchess-svc/db/query"
 	"hexchess-svc/utils/perf"
 
@@ -21,14 +22,35 @@ import (
 
 var ErrNoReplay = errors.New("replay not found")
 
-func (services *HexchessServices) GetReplayByGameID(ctx context.Context, gameID string) (model.FullReplay, error) {
-	row, err := services.readQuerier.SelectReplayByGameID(ctx, gameID)
+type ReplayService struct {
+	userService *UserService
+
+	mutator mutator.Querier
+	querier query.Querier
+}
+
+func NewReplayService(userService *UserService, mutator mutator.Querier, querier query.Querier) *ReplayService {
+	return &ReplayService{userService: userService, mutator: mutator, querier: querier}
+}
+
+func (services *ReplayService) GetReplayByGameID(ctx context.Context, gameID string) (model.FullReplay, error) {
+	row, err := services.querier.SelectReplayByGameID(ctx, gameID)
 	return mapGetReplayResult(ctx, gameID, query.SelectReplayByIDRow(row), err)
 }
 
-func (services *HexchessServices) GetReplay(ctx context.Context, replayID int64) (model.FullReplay, error) {
-	row, err := services.readQuerier.SelectReplayByID(ctx, replayID)
+func (services *ReplayService) GetReplay(ctx context.Context, replayID int64) (model.FullReplay, error) {
+	row, err := services.querier.SelectReplayByID(ctx, replayID)
 	return mapGetReplayResult(ctx, replayID, row, err)
+}
+
+func (services *ReplayService) UpsertReplayMoveHistories(ctx context.Context, replayID int64, data []byte) error {
+	if err := services.mutator.UpsertReplayMoveHistories(ctx, mutator.UpsertReplayMoveHistoriesParams{
+		ReplayID: replayID,
+		Data:     data,
+	}); err != nil {
+		return serrors.New("insert replay move histories", err)
+	}
+	return nil
 }
 
 func mapGetReplayResult[ID any](ctx context.Context, id ID, row query.SelectReplayByIDRow, err error) (model.FullReplay, error) {
@@ -78,8 +100,8 @@ func mapReplayByIDRow(row query.SelectReplayByIDRow) model.Replay {
 	}
 }
 
-func (services *HexchessServices) GetMovesHistory(ctx context.Context, replayID int) ([]byte, error) {
-	row, err := services.readQuerier.SelectReplayMoveHistoryByID(ctx, int64(replayID))
+func (services *ReplayService) GetMovesHistory(ctx context.Context, replayID int) ([]byte, error) {
+	row, err := services.querier.SelectReplayMoveHistoryByID(ctx, int64(replayID))
 	if err != nil {
 		return nil, serrors.New("select replay move histories", err, "replayID", replayID)
 	}
@@ -140,11 +162,11 @@ func supplyUserID(id *optional.Maybe[int64]) func(int64) {
 	}
 }
 
-func (services *HexchessServices) SearchReplaysByQuery(ctx context.Context, q ReplaysQuery) ([]model.FullReplay, error) {
+func (services *ReplayService) SearchReplaysByQuery(ctx context.Context, q ReplaysQuery) ([]model.FullReplay, error) {
 	defer perf.WithContext(ctx).Log()
 
 	// get any userIDs requested through the username queries
-	err := services.getUserIDsByUsernames(ctx, []UserIDByNameRequest{
+	err := services.userService.getUserIDsByUsernames(ctx, []UserIDByNameRequest{
 		{Username: q.WhiteName, SupplyID: supplyUserID(&q.WhiteID)},
 		{Username: q.BlackName, SupplyID: supplyUserID(&q.BlackID)},
 		{Username: q.LoserName, SupplyID: supplyUserID(&q.LoserID)},
@@ -188,7 +210,7 @@ func (services *HexchessServices) SearchReplaysByQuery(ctx context.Context, q Re
 		// sort determines the 'ORDER BY' in the SQL query
 		SortKey: q.Sort.String(),
 	}
-	replayRows, err := services.readQuerier.SelectReplaysByQuery(ctx, params)
+	replayRows, err := services.querier.SelectReplaysByQuery(ctx, params)
 	if err != nil {
 		return nil, serrors.New("select replays by query", err)
 	}
@@ -227,7 +249,7 @@ type RetrieveEloHistoryResp struct {
 
 // RetrieveEloHistoryBuckets Returns the elo replay histories for a given user organized into buckets and categorized into a map keyed by replay "mode"
 // map will contain the keys "ALL" (contains payload for all modes) plus all modes (ReplayModes)
-func (services *HexchessServices) RetrieveEloHistoryBuckets(ctx context.Context, params EloHistoriesParams) (RetrieveEloHistoryResp, error) {
+func (services *ReplayService) RetrieveEloHistoryBuckets(ctx context.Context, params EloHistoriesParams) (RetrieveEloHistoryResp, error) {
 	defer perf.WithContext(ctx).Log()
 
 	if params.TimeUntil.IsZero() {
@@ -238,7 +260,7 @@ func (services *HexchessServices) RetrieveEloHistoryBuckets(ctx context.Context,
 		playedAfter = pgtype.Timestamptz{Valid: true, Time: params.TimeUntil.AddDate(0, -int(params.Months), 0)}
 	}
 
-	eloRows, err := services.readQuerier.SelectReplayElos(ctx, query.SelectReplayElosParams{
+	eloRows, err := services.querier.SelectReplayElos(ctx, query.SelectReplayElosParams{
 		ID:          pgtype.Int8{Int64: params.UserID, Valid: true},
 		PlayedAfter: playedAfter,
 	})

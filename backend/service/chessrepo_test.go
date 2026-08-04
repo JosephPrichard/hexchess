@@ -85,7 +85,7 @@ func TestUpdateChessState(t *testing.T) {
 	testutil.Equal(t, &wantState, outState)
 	assertRedisChess(t, services, &wantState)
 
-	arbitraryVal, err := services.redis.PrimaryClient.Get(ctx, arbitraryKey).Result()
+	arbitraryVal, err := services.ChessRepoService.redis.PrimaryClient.Get(ctx, arbitraryKey).Result()
 	require.NoError(t, err)
 	assert.Equal(t, "test", arbitraryVal)
 }

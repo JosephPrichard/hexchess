@@ -19,7 +19,7 @@ func TestActiveUser(t *testing.T) {
 
 	//assertBroadcasts := pubsub.ExpectBroadcastActiveUsers(t, testinfra.Redis, []int64{1, 2, 1, 2})
 
-	services.entropy = &entropy.StableSource{CurrTime: time.UnixMilli(int64(ActiveUserMaxage * 5))}
+	services.ActiveUserService.entropy = &entropy.StableSource{CurrTime: time.UnixMilli(int64(ActiveUserMaxAge * 5))}
 
 	ctx := t.Context()
 
@@ -32,12 +32,12 @@ func TestActiveUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// adds and does not expire
-	services.entropy = &entropy.StableSource{CurrTime: time.UnixMilli(int64(ActiveUserMaxage * 2))}
+	services.ActiveUserService.entropy = &entropy.StableSource{CurrTime: time.UnixMilli(int64(ActiveUserMaxAge * 2))}
 	countAfterRemoveAndAdd, err := services.AddActiveUser(ctx, "3")
 	require.NoError(t, err)
 
 	// gets and expires the active user we just added, without expiring any others
-	services.entropy = &entropy.StableSource{CurrTime: time.UnixMilli(int64(ActiveUserMaxage * 3))}
+	services.ActiveUserService.entropy = &entropy.StableSource{CurrTime: time.UnixMilli(int64(ActiveUserMaxAge * 3))}
 	countAfterExpiry, err := services.GetActiveCount(ctx)
 	require.NoError(t, err)
 

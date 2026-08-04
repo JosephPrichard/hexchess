@@ -5,6 +5,8 @@ import (
 	"hexchess-svc/db"
 	"hexchess-svc/db/mutator"
 	"hexchess-svc/db/query"
+	"hexchess-svc/pubsub"
+	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/perf"
 
 	"hexchess-svc/model"
@@ -18,10 +20,26 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (services *HexchessServices) UpdateGameMetadata(ctx context.Context, updt model.GameMetadataUpdt) error {
+type ChessMetaService struct {
+	mutator     mutator.Querier
+	querier     query.Querier
+	entropy     entropy.Generator
+	broadcaster pubsub.Broadcaster
+}
+
+func NewChessMetaService(
+	mutator mutator.Querier,
+	querier query.Querier,
+	entropy entropy.Generator,
+	broadcaster pubsub.Broadcaster,
+) *ChessMetaService {
+	return &ChessMetaService{mutator: mutator, querier: querier, entropy: entropy, broadcaster: broadcaster}
+}
+
+func (services *ChessMetaService) UpdateGameMetadata(ctx context.Context, updt model.GameMetadataUpdt) error {
 	defer perf.WithContext(ctx).Log()
 
-	updtResult, err := services.querier.UpdateGameMeta(ctx, mutator.UpdateGameMetaParams{
+	updtResult, err := services.mutator.UpdateGameMeta(ctx, mutator.UpdateGameMetaParams{
 		GameID:    updt.GameID.String(),
 		WhiteID:   pgtype.Int8{Int64: updt.WhitePlayer.Value, Valid: updt.WhitePlayer.Present},
 		BlackID:   pgtype.Int8{Int64: updt.BlackPlayer.Value, Valid: updt.BlackPlayer.Present},
@@ -44,7 +62,7 @@ type ChessMetasResp struct {
 	SelfChessMetas []model.ChessMeta
 }
 
-func (services *HexchessServices) GetGameMetadata(ctx context.Context, player optional.Maybe[model.PlayerState], afterOrdering optional.Maybe[int64], count int32) (ChessMetasResp, error) {
+func (services *ChessMetaService) GetGameMetadata(ctx context.Context, player optional.Maybe[model.PlayerState], afterOrdering optional.Maybe[int64], count int32) (ChessMetasResp, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var allChessMetas []model.ChessMeta
@@ -78,10 +96,10 @@ func (services *HexchessServices) GetGameMetadata(ctx context.Context, player op
 	return ChessMetasResp{AllChessMetas: allChessMetas, SelfChessMetas: userChessMetas}, nil
 }
 
-func (services *HexchessServices) GetGameMetadataCount(ctx context.Context) (int64, error) {
+func (services *ChessMetaService) GetGameMetadataCount(ctx context.Context) (int64, error) {
 	defer perf.WithContext(ctx).Log()
 
-	count, err := services.readQuerier.SelectGameMetasCount(ctx)
+	count, err := services.querier.SelectGameMetasCount(ctx)
 	if err != nil {
 		return 0, serrors.New("count chess metadatas", err)
 	}
@@ -89,8 +107,8 @@ func (services *HexchessServices) GetGameMetadataCount(ctx context.Context) (int
 	return count, nil
 }
 
-func (services *HexchessServices) getGameMetadata(ctx context.Context, userID optional.Maybe[int64], afterOrdering optional.Maybe[int64], count optional.Maybe[int32]) ([]model.ChessMeta, error) {
-	rows, err := services.readQuerier.SelectGameMetas(ctx, query.SelectGameMetasParams{
+func (services *ChessMetaService) getGameMetadata(ctx context.Context, userID optional.Maybe[int64], afterOrdering optional.Maybe[int64], count optional.Maybe[int32]) ([]model.ChessMeta, error) {
+	rows, err := services.querier.SelectGameMetas(ctx, query.SelectGameMetasParams{
 		ParticipantID: db.MapOptInt8(userID),
 		AfterOrdering: afterOrdering.OrElse(math.MaxInt64),
 		PerPage:       db.MapOptInt4(count),

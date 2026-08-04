@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"hexchess-svc/db/mutator"
+	"hexchess-svc/db/query"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/optional"
@@ -28,6 +29,16 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+type UserService struct {
+	transactor db.Transactor
+	mutator    mutator.Querier
+	querier    query.Querier
+}
+
+func NewUserService(transactor db.Transactor, mutator mutator.Querier, querier query.Querier) *UserService {
+	return &UserService{transactor: transactor, mutator: mutator, querier: querier}
+}
+
 type RankedUser struct {
 	ID   int64
 	Rank int64
@@ -43,7 +54,7 @@ type UserInst struct {
 	JoinedOn time.Time
 }
 
-func (services *HexchessServices) InsertUser(ctx context.Context, inst UserInst) (model.User, error) {
+func (services *UserService) InsertUser(ctx context.Context, inst UserInst) (model.User, error) {
 	defer perf.WithContext(ctx).Log()
 
 	if inst.JoinedOn.IsZero() {
@@ -55,7 +66,7 @@ func (services *HexchessServices) InsertUser(ctx context.Context, inst UserInst)
 		return model.User{}, serrors.New("generate hash", err)
 	}
 
-	userRow, err := services.querier.InsertUser(ctx, mutator.InsertUserParams{
+	userRow, err := services.mutator.InsertUser(ctx, mutator.InsertUserParams{
 		Username: inst.Username,
 		Country:  inst.Country,
 		Password: hash.HashedPassword,
@@ -75,7 +86,7 @@ func (services *HexchessServices) InsertUser(ctx context.Context, inst UserInst)
 	return user, nil
 }
 
-func (services *HexchessServices) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]model.User, error) {
+func (services *UserService) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]model.User, error) {
 	batches := make([]mutator.BatchInsertUserParams, len(insts))
 
 	var hashEg errgroup.Group // no context propagation because jobs are non-cancellable
@@ -108,7 +119,7 @@ func (services *HexchessServices) BatchInsertUsers(ctx context.Context, insts []
 
 	var rows []mutator.BatchInsertUserRow
 	var insertErrs []error
-	services.querier.BatchInsertUser(ctx, batches).QueryRow(func(i int, row mutator.BatchInsertUserRow, err error) {
+	services.mutator.BatchInsertUser(ctx, batches).QueryRow(func(i int, row mutator.BatchInsertUserRow, err error) {
 		if err == nil {
 			rows = append(rows, row)
 		} else {
@@ -143,12 +154,12 @@ const LockoutDuration = time.Minute * 1
 
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
-func (services *HexchessServices) VerifyUser(ctx context.Context, username string, inputPassword string) (VerifiedUser, error) {
+func (services *UserService) VerifyUser(ctx context.Context, username string, inputPassword string) (VerifiedUser, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var user VerifiedUser
 
-	err := services.database.ExecTx(ctx, db.TxArgs{
+	err := services.transactor.ExecTx(ctx, db.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Non-Repeatable Read):
 		// T1 is allowed to login due to valid login attempts L1 and but increases login attempt count from L1 to L2
@@ -209,13 +220,13 @@ type GoogleUserInst struct {
 	JoinedOn time.Time
 }
 
-func (services *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, googleAccountID string, googleInst GoogleUserInst) (VerifiedUser, error) {
+func (services *UserService) SelectOrInsertGoogleUser(ctx context.Context, googleAccountID string, googleInst GoogleUserInst) (VerifiedUser, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var verifiedUser VerifiedUser
 	var isCreated bool
 
-	login, err := services.readQuerier.SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
+	login, err := services.querier.SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
 	if db.IsErrNoRows(err) {
 		isCreated = false
 	} else if err != nil {
@@ -225,7 +236,7 @@ func (services *HexchessServices) SelectOrInsertGoogleUser(ctx context.Context, 
 	}
 
 	if !isCreated {
-		userRow, err := services.querier.InsertUser(ctx, mutator.InsertUserParams{
+		userRow, err := services.mutator.InsertUser(ctx, mutator.InsertUserParams{
 			Username:        googleInst.Username,
 			Country:         googleInst.Country,
 			JoinedOn:        pgtype.Timestamptz{Time: googleInst.JoinedOn, Valid: true},
@@ -262,14 +273,14 @@ type UpdtUserParams struct {
 	Country  string
 }
 
-func (services *HexchessServices) UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (model.User, error) {
+func (services *UserService) UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (model.User, error) {
 	defer perf.WithContext(ctx).Log()
 
 	if updt.Username == "" && updt.Bio == "" && updt.Country == "" {
 		return model.User{}, nil
 	}
 
-	userRow, err := services.querier.UpdateUser(ctx, mutator.UpdateUserParams{
+	userRow, err := services.mutator.UpdateUser(ctx, mutator.UpdateUserParams{
 		ID:       id,
 		Username: db.OptString(updt.Username),
 		Bio:      db.OptString(updt.Bio),
@@ -284,14 +295,14 @@ func (services *HexchessServices) UpdateUser(ctx context.Context, id int64, updt
 	return user, err
 }
 
-func (services *HexchessServices) UpdateUserPassword(ctx context.Context, id int64, newPassword string) error {
+func (services *UserService) UpdateUserPassword(ctx context.Context, id int64, newPassword string) error {
 	defer perf.WithContext(ctx).Log()
 
 	hash, err := hashPassword(newPassword)
 	if err != nil {
 		return serrors.New("hash password for user", err, "userID", id)
 	}
-	err = services.querier.UpdatePassword(ctx, mutator.UpdatePasswordParams{
+	err = services.mutator.UpdatePassword(ctx, mutator.UpdatePasswordParams{
 		ID:       id,
 		Password: hash.HashedPassword,
 		Salt:     hash.Salt,
@@ -300,10 +311,10 @@ func (services *HexchessServices) UpdateUserPassword(ctx context.Context, id int
 	return err
 }
 
-func (services *HexchessServices) GetUserByID(ctx context.Context, id int64) (model.User, error) {
+func (services *UserService) GetUserByID(ctx context.Context, id int64) (model.User, error) {
 	defer perf.WithContext(ctx).Log()
 
-	userRow, err := services.readQuerier.SelectUserByID(ctx, id)
+	userRow, err := services.querier.SelectUserByID(ctx, id)
 	if db.IsErrNoRows(err) {
 		return model.User{}, ErrUserNotFound
 	} else if err != nil {
@@ -318,10 +329,10 @@ func avg[T constraints.Integer | constraints.Float](currAvg T, currCount int, ne
 	return (currAvg*T(currCount) + nextValue) / T(currCount+1)
 }
 
-func (services *HexchessServices) GetUserStats(ctx context.Context, id int64) (model.UserStats, error) {
+func (services *UserService) GetUserStats(ctx context.Context, id int64) (model.UserStats, error) {
 	defer perf.WithContext(ctx).Log()
 
-	modeEloRows, err := services.readQuerier.SelectUserElosByID(ctx, id)
+	modeEloRows, err := services.querier.SelectUserElosByID(ctx, id)
 	if err != nil {
 		return model.UserStats{}, serrors.New("select user elos by id", err, "userID", id)
 	}
@@ -360,67 +371,8 @@ func (services *HexchessServices) GetUserStats(ctx context.Context, id int64) (m
 	return stats, nil
 }
 
-type FullUser struct {
-	User       model.User         `json:"user"`
-	Stats      model.UserStats    `json:"stats"`
-	ReplayList []model.FullReplay `json:"replayList"`
-}
-
-func (services *HexchessServices) GetFullUser(ctx context.Context, userID int64, perPage int32) (FullUser, error) {
-	defer perf.WithContext(ctx).Log()
-
-	var user model.User
-	var stats model.UserStats
-	var replayList []model.FullReplay
-	var lbRanks map[string]LbRank
-
-	eg, egCtx := errgroup.WithContext(ctx)
-
-	eg.Go(func() (err error) {
-		user, err = services.GetUserByID(egCtx, userID)
-		return serrors.New("get user", err, "userID", userID)
-	})
-
-	eg.Go(func() (err error) {
-		stats, err = services.GetUserStats(egCtx, userID)
-		return serrors.New("get user stats", err, "userID", userID)
-	})
-
-	eg.Go(func() (err error) {
-		lbRanks, err = services.GetUserLeaderboardRanks(egCtx, userID, model.GameModeEnums)
-		return serrors.New("get user leaderboard ranks", err, "userID", userID)
-	})
-
-	eg.Go(func() (err error) {
-		replayList, err = services.SearchReplaysByQuery(egCtx, ReplaysQuery{
-			UserID:  optional.Just(userID),
-			PerPage: perPage,
-		})
-		return serrors.New("get user replays", err, "userID", userID)
-	})
-
-	if err := eg.Wait(); err != nil {
-		return FullUser{}, err
-	}
-
-	for i := range stats.ModeStats {
-		modeStats := &stats.ModeStats[i]
-		lbRank, ok := lbRanks[modeStats.Mode.String()]
-		if !ok {
-			slog.WarnContext(ctx, "missing leaderboard rank for full user", "mode", modeStats.Mode)
-			continue
-		}
-		modeStats.Rank = lbRank.Rank
-	}
-
-	if replayList == nil {
-		replayList = []model.FullReplay{}
-	}
-	return FullUser{User: user, Stats: stats, ReplayList: replayList}, nil
-}
-
-func (services *HexchessServices) selectUsersByIDs(ctx context.Context, ids []int64) ([]model.User, error) {
-	userRows, err := services.readQuerier.SelectUsersByIDs(ctx, ids)
+func (services *UserService) selectUsersByIDs(ctx context.Context, ids []int64) ([]model.User, error) {
+	userRows, err := services.querier.SelectUsersByIDs(ctx, ids)
 
 	var users []model.User
 	for _, row := range userRows {
@@ -461,7 +413,7 @@ type UserIDByNameRequest struct {
 	SupplyID func(int64)
 }
 
-func (services *HexchessServices) getUserIDsByUsernames(ctx context.Context, requests []UserIDByNameRequest) error {
+func (services *UserService) getUserIDsByUsernames(ctx context.Context, requests []UserIDByNameRequest) error {
 	var usernames []string
 	for _, request := range requests {
 		if !request.Username.Present {
@@ -475,7 +427,7 @@ func (services *HexchessServices) getUserIDsByUsernames(ctx context.Context, req
 
 	slog.InfoContext(ctx, "selecting user ids by usernames for requests", "requests", requests)
 
-	userRows, err := services.readQuerier.SelectUserIDsByNames(ctx, usernames)
+	userRows, err := services.querier.SelectUserIDsByNames(ctx, usernames)
 	if err != nil {
 		return serrors.New("select user ids by names", err, "usernames", usernames)
 	}

@@ -5,21 +5,17 @@
         GameModeOptions, ReplayCauseOptions, ReplayQuerySortKeyOptions, ReplayResultOptions, ReplayQuerySortKeyNameMap,
     } from "$lib/api/models";
     import ReplayPreview from "$lib/components/ReplayPreview.svelte";
-    import services from "$lib/api/services";
+    import { services } from "$lib/api/services";
     import Dropdown from "$lib/components/Dropdown.svelte";
     import {goto} from "$app/navigation";
     import {getNotificationsContext} from "$lib/utils/context";
     import UserAutocompleteInput from "$lib/components/UserAutocompleteInput.svelte";
     import {defaultOption, expectEnum, mapReplaysPropsToQuery, mapReplaysPropsToURLParams, type OptEnum, parseEnum, type ReplaysSearchProps} from "./service";
+	import type { ReplaysProps } from "./+page.server";
 
     const modeOptions = [defaultOption<OptEnum<GameMode>>(), ...GameModeOptions];
     const causeOptions = [defaultOption<OptEnum<ReplayCause>>(), ...ReplayCauseOptions];
     const resultOptions = [defaultOption<OptEnum<ReplayResult>>(), ...ReplayResultOptions];
-
-    export interface ReplaysProps {
-        replays: Replay[];
-        search?: ReplaysSearchProps;
-    }
 
     const { addErrorNotification } = getNotificationsContext();
 
@@ -68,7 +64,7 @@
 
         if (shouldLoadReplays) {
             const replayQuery = mapReplaysPropsToQuery(props.search, {afterId: lastId, afterTurnCount: lastTurnCount, afterRating: lastRating});
-            const [data, err] = await services.getReplays(replayQuery, fetch);
+            const [data, err] = await services.getReplays(replayQuery);
             if (data) {
                 const nextReplayList = data?.replayList ?? [];
 

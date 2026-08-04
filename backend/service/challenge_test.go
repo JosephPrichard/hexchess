@@ -144,11 +144,11 @@ func TestDeleteExpiredChallenges(t *testing.T) {
 	ctx := t.Context()
 
 	// gets only expired challenges
-	services.entropy = &entropy.StableSource{CurrTime: itest.TimeNow}
+	services.ChallengeService.entropy = &entropy.StableSource{CurrTime: itest.TimeNow}
 	require.NoError(t, services.DeleteExpiredChallenges(ctx, 5))
 
 	// gets ALL challenges to check that we deleted expired challenges
-	services.entropy = &entropy.StableSource{CurrTime: time.Unix(0, 0)}
+	services.ChallengeService.entropy = &entropy.StableSource{CurrTime: time.Unix(0, 0)}
 	challengesDel, err := services.GetChallengesByParticipant(ctx, ChallengeKey{int64(5), -1})
 	require.NoError(t, err)
 

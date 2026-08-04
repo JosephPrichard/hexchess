@@ -1,5 +1,5 @@
 <script lang="ts">
-	import services from '$lib/api/services';
+	import { services } from '$lib/api/services';
 	import { goto } from '$app/navigation';
 	import { setClientSession } from '$lib/utils/storage';
 	import { fade } from 'svelte/transition';

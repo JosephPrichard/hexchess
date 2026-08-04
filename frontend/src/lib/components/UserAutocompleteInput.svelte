@@ -1,7 +1,7 @@
 <script lang="ts">
     import {onMount} from "svelte";
     import {generateRenderID} from "$lib/utils/id";
-    import services from "$lib/api/services";
+    import { services } from "$lib/api/services";
     import {getNotificationsContext} from "$lib/utils/context";
     import type {User} from "$lib/api/models";
     import ProfilePic from "$lib/components/ProfilePic.svelte";
@@ -56,7 +56,7 @@
         const controller = new AbortController();
         timeout = {
             timeout: setTimeout(async () => {
-                const [data, err] = await services.getSearchPlayers(username, undefined, undefined, controller.signal);
+                const [data, err] = await services.getSearchPlayers(username, undefined, controller.signal);
                 if (data) {
                     suggestedUsers = data.userList ?? [];
                 } else {

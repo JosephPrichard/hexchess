@@ -3,6 +3,8 @@ package svc
 import (
 	"context"
 	"errors"
+	"hexchess-svc/cloud"
+	"hexchess-svc/db/query"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"sync"
@@ -14,14 +16,23 @@ import (
 
 const PageLength = 1000
 
-func (services *HexchessServices) ClearOrphanFiles(ctx context.Context, pageLength int32) error {
+type OrphanService struct {
+	aws     cloud.AWSClient
+	querier query.Querier
+}
+
+func NewOrphanService(aws cloud.AWSClient, querier query.Querier) *OrphanService {
+	return &OrphanService{aws: aws, querier: querier}
+}
+
+func (services *OrphanService) ClearOrphanFiles(ctx context.Context, pageLength int32) error {
 	configs := []RemoveOrphansOpts{
 		{
 			Bucket:     services.aws.S3ProfileBucket,
 			Prefix:     ProfilePicPrefix,
 			PageLength: pageLength,
 			parseID:    ParseProfilePicKey,
-			selectIDs:  services.readQuerier.SelectExistsUsersByIDs,
+			selectIDs:  services.querier.SelectExistsUsersByIDs,
 		},
 	}
 
@@ -54,7 +65,7 @@ type RemoveOrphansOpts struct {
 
 // removeOrphanedObjects is a generic algorithm to delete any orphaned keys by paginating all keys in a bucket
 // it assumes that we can parse the id from any given key, and that we can lookup if that key is valid or not from a database.
-func (services *HexchessServices) removeOrphanedObjects(ctx context.Context, opts RemoveOrphansOpts) error {
+func (services *OrphanService) removeOrphanedObjects(ctx context.Context, opts RemoveOrphansOpts) error {
 	page := 0
 
 	paginator := s3.NewListObjectsV2Paginator(services.aws.S3Client, &s3.ListObjectsV2Input{

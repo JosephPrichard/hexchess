@@ -7,7 +7,7 @@
 	import { getClientSession } from '$lib/utils/storage';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import type { ColorSelect, FullPlayer, GameMode } from '$lib/api/models';
-	import services from '$lib/api/services';
+	import { services } from '$lib/api/services';
 	import 'chartjs-adapter-date-fns';
 	import '$lib/utils/chart';
 	import Dropdown from '$lib/components/Dropdown.svelte';
@@ -19,6 +19,7 @@
 	import UserStats from "$lib/components/UserStats.svelte";
 	import {loadReplays, nonDefaultQueries, type ReplayQueryKind, replayQueryOptions} from "./service";
 	import {MediaQuery} from "svelte/reactivity";
+	import type { PlayerProps } from './+page.server';
 
 	const timeframes: { label: string, value: string }[] = [
 		{ label: "All Time", value: "all" },
@@ -27,10 +28,6 @@
 		{ label: "3 Months", value: "3m" },
 		{ label: "1 Month", value: "1m" },
 	];
-
-	export interface PlayerProps {
-		fullUser: FullPlayer;
-	}
 
 	const { data: props }: { data: PlayerProps } = $props();
 	const { user, stats: userStats } = $derived(props.fullUser);

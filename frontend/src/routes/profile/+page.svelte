@@ -1,16 +1,11 @@
 <script lang="ts">
 	import { clearClientSession, updateClientSession as updateClientUser } from '$lib/utils/storage';
 	import { getNotificationsContext } from '$lib/utils/context';
-	import type { User } from '$lib/api/models';
-	import services from '$lib/api/services';
+	import { services } from '$lib/api/services';
 	import Banner from '$lib/Banner.svelte';
 	import ProfilePic from '$lib/components/ProfilePic.svelte';
 	import { goto } from '$app/navigation';
-
-	export interface ProfileProps {
-		countryList: string[];
-		user: User;
-	}
+	import type { ProfileProps } from './+page.server';
 
 	const { data: props }: { data: ProfileProps } = $props();
 

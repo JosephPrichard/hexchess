@@ -23,6 +23,10 @@ type Database struct {
 	testTxn   pgx.Tx
 }
 
+type Transactor interface {
+	ExecTx(ctx context.Context, args TxArgs) error
+}
+
 type QueryFn func(context.Context, pgx.Tx, ReadWriteQuerier) error
 
 type TxArgs struct {

@@ -1,13 +1,14 @@
 <script lang="ts">
 	import '../css/index.css';
 	import type { LayoutProps } from '../../.svelte-kit/types/src/routes/$types';
-	import { type AddNotification, type NotificationData, setNotificationsContext } from '$lib/utils/context';
+	import { type NotificationData, setNotificationsContext } from '$lib/utils/context';
 	import { onMount } from 'svelte';
 	import { clearClientSession, updateClientSession } from '$lib/utils/storage';
-	import services, { backendBaseURL } from '$lib/api/services';
+	import { services, backendBaseURL } from '$lib/api/services';
 	import type { Challenge, ServiceResponse } from '$lib/api/models';
 	import { fade } from 'svelte/transition';
 	import { handleError } from '$lib/utils/error';
+	import { logger } from '$lib/utils/logger';
 
 	const { children }: LayoutProps = $props();
 
@@ -51,7 +52,7 @@
 
 	function connectUserEvents() {
 		userSse = new EventSource(`${backendBaseURL()}/events/user`, {
-			mode: 'cors',
+			// mode: 'cors',
 			withCredentials: true
 		});
 		userSse.addEventListener('userEvents', (event) => {
@@ -63,7 +64,7 @@
 
 	function connectActiveConn() {
 		activeSse = new EventSource(`${backendBaseURL()}/events/active`, {
-			mode: 'cors',
+			// mode: 'cors',
 			withCredentials: true
 		});
 	}

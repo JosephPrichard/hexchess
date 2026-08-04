@@ -2,21 +2,15 @@
 	import CreateGame from '$lib/components/CreateGame.svelte';
 	import { getNotificationsContext } from '$lib/utils/context';
 	import { goto } from '$app/navigation';
-	import { type ChessMetadata, type ColorSelect, type Session, type GameMode, UntypedGameModeNameMap } from '$lib/api/models';
-	import services, { backendBaseURL } from '$lib/api/services';
+	import { type ColorSelect, type Session, type GameMode, UntypedGameModeNameMap } from '$lib/api/models';
+	import { services, backendBaseURL } from '$lib/api/services';
 	import { onMount } from 'svelte';
 	import { getClientSession } from '$lib/utils/storage';
 	import { chessRowHeight, maxChessRows } from './globals';
 	import Banner from '$lib/Banner.svelte';
 	import { wasm } from '$lib/api/wasm';
 	import { logger } from '$lib/utils/logger';
-
-	export interface IndexProps {
-		chessList: ChessMetadata[];
-		selfChessList: ChessMetadata[];
-		showCreateModal?: boolean;
-		fen?: string;
-	}
+	import type { IndexProps } from './+page.server';
 
 	const { data: props }: { data: IndexProps } = $props();
 
