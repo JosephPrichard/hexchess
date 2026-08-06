@@ -3,14 +3,14 @@ package challenge
 import (
 	"context"
 	"errors"
-	"hexchess-svc/db/query"
+	"hexchess-svc/database/query"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/entropy"
 
 	"testing"
 	"time"
 
-	"hexchess-svc/db"
+	"hexchess-svc/database"
 
 	"hexchess-svc/itest"
 	"hexchess-svc/utils/logutil"
@@ -93,17 +93,17 @@ func TestMapChallengeInsertErr(t *testing.T) {
 	}{
 		{
 			name:  "UniqueViolationReturnsErrDuplicateChallenge",
-			input: &pgconn.PgError{Code: db.ErrPgUniqueViolation},
+			input: &pgconn.PgError{Code: database.ErrPgUniqueViolation},
 			want:  ErrDuplicateChallenge,
 		},
 		{
 			name:  "ForeignKeyViolationReturnsErrParticipantConflict",
-			input: &pgconn.PgError{Code: db.ErrPgForeignKeyViolation},
+			input: &pgconn.PgError{Code: database.ErrPgForeignKeyViolation},
 			want:  ErrInvalidChallengeMember,
 		},
 		{
 			name:  "CheckViolationReturnsErrParticipantConflict",
-			input: &pgconn.PgError{Code: db.ErrPgCheckViolation},
+			input: &pgconn.PgError{Code: database.ErrPgCheckViolation},
 			want:  ErrInvalidChallengeMember,
 		},
 		{
