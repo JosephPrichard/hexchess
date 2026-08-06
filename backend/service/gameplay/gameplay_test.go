@@ -7,7 +7,7 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/queue/producers"
-	chessSvc "hexchess-svc/service/chess"
+	"hexchess-svc/service/gamestate"
 
 	"hexchess-svc/utils/logutil"
 	"hexchess-svc/utils/testutil"
@@ -23,9 +23,9 @@ func setupGameplayTest(t logutil.TestLogger, flags ...itest.TestFlag) (*GamePlay
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewGameplayService(
-		chessSvc.NewChessRepoService(infra.Redis),
 		infra.Redis,
 		producers.NewStreamProducer(infra.Redis),
+		gamestate.NewChessRepoService(infra.Redis),
 	)
 
 	return services, infra
@@ -38,7 +38,7 @@ func assertRedisChess(t *testing.T, redis cache.Redis, wantState *model.ChessSta
 	if wantState == nil {
 		return
 	}
-	actualState, err := chessSvc.NewChessRepoService(redis).GetChessState(ctx, wantState.ID)
+	actualState, err := gamestate.NewChessRepoService(redis).GetChessState(ctx, wantState.ID)
 	if err != nil {
 		t.Fatalf("failed to retrieve in redis chess state assert: %v", err)
 	}
@@ -53,7 +53,7 @@ func mutateGame(state *model.ChessState, fn func(s *model.ChessState)) *model.Ch
 
 func setChessStates(t *testing.T, redis cache.Redis, games ...*model.ChessState) {
 	for _, g := range games {
-		require.NoError(t, chessSvc.NewChessRepoService(redis).SetChessState(t.Context(), g.ID, g))
+		require.NoError(t, gamestate.NewChessRepoService(redis).SetChessState(t.Context(), g.ID, g))
 	}
 }
 
@@ -104,7 +104,7 @@ func TestJoinGame(t *testing.T) {
 			name:       "GameNotFound",
 			gameID:     missingGameID,
 			joinPlayer: model.NewPlayer(4, "ghost", "us"),
-			wantErr:    chessSvc.ErrNoChessState,
+			wantErr:    gamestate.ErrNoChessState,
 		},
 	}
 
@@ -163,7 +163,7 @@ func TestAttemptUndo(t *testing.T) {
 			gameID: missingGameID,
 			tests: []subTest{
 				{
-					wantErr: chessSvc.ErrNoChessState,
+					wantErr: gamestate.ErrNoChessState,
 				},
 			},
 		},
@@ -364,7 +364,7 @@ func TestNewMove(t *testing.T) {
 		{
 			name:    "GameDoesNotExist",
 			stateID: missingGameID,
-			wantErr: chessSvc.ErrNoChessState,
+			wantErr: gamestate.ErrNoChessState,
 		},
 		{
 			name:     "InvalidTurn",
@@ -525,7 +525,7 @@ func TestForfeit_Errors(t *testing.T) {
 		{
 			name:    "GameDoesNotExist",
 			gameID:  missingGameID,
-			wantErr: chessSvc.ErrNoChessState,
+			wantErr: gamestate.ErrNoChessState,
 		},
 		{
 			name:    "IsAlreadyEnded",

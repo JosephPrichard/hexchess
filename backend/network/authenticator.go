@@ -13,8 +13,6 @@ import (
 	"net/http"
 	"time"
 
-	svc "hexchess-svc/service"
-
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
@@ -75,7 +73,7 @@ func issueTempSession(sessionPlayer optional.Option[model.PlayerState], w http.R
 }
 
 type Authenticator struct {
-	services *svc.HexchessServices
+	services *session.SessionService
 }
 
 type Session struct {

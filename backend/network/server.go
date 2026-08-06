@@ -1,66 +1,42 @@
 package network
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"hexchess-svc/assets"
+	"hexchess-svc/cache"
 	"hexchess-svc/chess"
+	"hexchess-svc/cloud"
+	"hexchess-svc/database"
 	"hexchess-svc/pubsub"
+	"hexchess-svc/queue/producers"
+	sessionSvc "hexchess-svc/service/session"
 	"hexchess-svc/utils/entropy"
 	"log/slog"
 	"net/http"
 	"time"
 
-	svc "hexchess-svc/service"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/logutil"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/google/uuid"
 	"github.com/hellofresh/health-go/v5"
 )
 
-func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			trace := r.Header.Get("X-trace")
-			if trace == "" {
-				trace = uuid.NewString()
-			}
-			r = r.WithContext(context.WithValue(r.Context(), logutil.Trace, trace))
-
-			w.Header().Set("Access-Control-Allow-Origin", allowedOrigins)
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-trace, Content-Digest, Rollout")
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-
-			if r.Method == "OPTIONS" {
-				w.WriteHeader(http.StatusNoContent)
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-type ServerSetup struct {
-	Services       *svc.HexchessServices
-	Broadcasters   *pubsub.LocalBroadcasters
+type ServeMuxSetup struct {
+	Database       database.Database
+	RiverClient    producers.RiverClientAPI
+	Redis          cache.Redis
 	Broadcaster    pubsub.Broadcaster
-	EntropySource  entropy.Generator
+	AWS            cloud.AWSClient
+	SDKs           cloud.SDKs
+	Entropy        entropy.Generator
 	Dispatcher     async.Dispatcher
+	Broadcasters   *pubsub.LocalBroadcasters
 	AllowedOrigins string
 }
 
-type StaticData struct {
-	validCountries map[string]bool
-	countryList    []string
-}
-
-type API struct {
-	services      *svc.HexchessServices
+type Server struct {
+	services      Services
 	broadcasters  *pubsub.LocalBroadcasters
 	broadcaster   pubsub.Broadcaster
 	dispatcher    async.Dispatcher
@@ -69,42 +45,52 @@ type API struct {
 	staticData    StaticData
 }
 
-func NewStaticData() StaticData {
-	var countryList []string
-	if err := json.Unmarshal(assets.CountryListJson, &countryList); err != nil {
-		logutil.Fatal("unmarshal country list", err)
+func NewServer(setup ServeMuxSetup) Server {
+	return Server{
+		services: NewAPIServices(SetupAPIServices{
+			Database:    setup.Database,
+			RiverClient: setup.RiverClient,
+			Redis:       setup.Redis,
+			Broadcaster: setup.Broadcaster,
+			AWS:         setup.AWS,
+			SDKs:        setup.SDKs,
+			Entropy:     setup.Entropy,
+			Dispatcher:  setup.Dispatcher,
+		}),
+		broadcaster:   setup.Broadcaster,
+		broadcasters:  setup.Broadcasters,
+		dispatcher:    setup.Dispatcher,
+		entropy:       setup.Entropy,
+		authenticator: Authenticator{services: sessionSvc.NewSessionService(setup.Redis)},
+		staticData:    NewStaticData(),
 	}
-	if countryList == nil {
-		countryList = []string{}
-	}
-	validCountries := make(map[string]bool)
-	for _, country := range countryList {
-		validCountries[country] = true
-	}
-	return StaticData{validCountries: validCountries, countryList: countryList}
 }
 
-func NewServeMux(setup ServerSetup, opts ...func(*chi.Mux)) *chi.Mux {
+func NewServeMux(setup ServeMuxSetup, opts ...func(*chi.Mux)) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Recoverer)
 	r.Use(RouteMiddleware(setup.AllowedOrigins))
 
-	if setup.EntropySource == nil {
-		setup.EntropySource = entropy.RealSource{}
+	if setup.Entropy == nil {
+		setup.Entropy = entropy.RealSource{}
 	}
 	if setup.Dispatcher == nil {
 		setup.Dispatcher = async.AsyncDispatcher{}
 	}
-	server := API{
-		services:      setup.Services,
-		broadcaster:   setup.Broadcaster,
-		broadcasters:  setup.Broadcasters,
-		dispatcher:    setup.Dispatcher,
-		entropy:       setup.EntropySource,
-		authenticator: Authenticator{services: setup.Services},
-		staticData:    NewStaticData(),
-	}
+
+	server := NewServer(ServeMuxSetup{
+		Database:       setup.Database,
+		RiverClient:    setup.RiverClient,
+		Redis:          setup.Redis,
+		Broadcaster:    setup.Broadcaster,
+		AWS:            setup.AWS,
+		SDKs:           setup.SDKs,
+		Entropy:        setup.Entropy,
+		Dispatcher:     setup.Dispatcher,
+		Broadcasters:   setup.Broadcasters,
+		AllowedOrigins: setup.AllowedOrigins,
+	})
 
 	r.Post("/api/register", Rest(server.HandleRegister))
 	r.Post("/api/login", Rest(server.HandleLogin))

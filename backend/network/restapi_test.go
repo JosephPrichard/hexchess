@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/cloud"
-	svc "hexchess-svc/service/participant"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/optional"
 
@@ -746,7 +745,7 @@ func TestGetPlayer(t *testing.T) {
 			name: "GetPlayerWithReplays",
 			id:   "1",
 			wantSuccess: GetPlayersResp{
-				FullUser: svc.FullUser{
+				Persona: model.Persona{
 					User:  itest.TestUser[0],
 					Stats: itest.TestUserStats[0],
 					ReplayList: []model.FullReplay{

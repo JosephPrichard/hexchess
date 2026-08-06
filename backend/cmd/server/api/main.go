@@ -4,10 +4,9 @@ import (
 	"context"
 	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
-	"hexchess-svc/db"
+	"hexchess-svc/database"
 	"hexchess-svc/network"
 	"hexchess-svc/pubsub"
-	svc "hexchess-svc/service"
 	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/logutil"
 	"log/slog"
@@ -32,13 +31,13 @@ func main() {
 	defer shutdown()
 
 	// step 2: connect to backend infrastructure and prepare cleanup
-	database := db.NewDatabase(ctx, db.DatabaseConfig{
+	databaseClient := database.NewDatabase(ctx, database.DatabaseConfig{
 		ReadWriteDsn:  cfg.DbURL,
 		ReadDsn:       cfg.DbReadURL, // provides read pool for increased performance
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
 	})
-	defer database.Close()
+	defer databaseClient.Close()
 
 	redisClient := cache.NewRedis(ctx, cache.RedisConfig{
 		PrimaryAddr:   cfg.RedisPrimaryNodes,
@@ -58,27 +57,21 @@ func main() {
 	remoteAPIs := cloud.NewRemoteAPIs(nil)
 	broadcaster := pubsub.NewAsyncBroadcaster(redisClient)
 
-	// step 3: create API backend services and start background listeners for WS API
-	services := svc.NewHexchessServices(svc.SetupService{
-		Database:    database,
-		Redis:       redisClient,
-		AWS:         aws,
-		SDKs:        remoteAPIs,
-		Broadcaster: broadcaster,
-	})
-
 	broadcasters := pubsub.NewLocalBroadcasters()
 	broadcasters.Listen(redisClient)
 
 	// step 4: start API server and PPROF "sidecar" background task
-	mux := network.NewServeMux(network.ServerSetup{
-		Services:       services,
+	mux := network.NewServeMux(network.ServeMuxSetup{
+		Database:       databaseClient,
+		Redis:          redisClient,
+		AWS:            aws,
+		SDKs:           remoteAPIs,
 		Broadcaster:    broadcaster,
 		Broadcasters:   broadcasters,
 		AllowedOrigins: cfg.AllowedOrigins,
 	}, network.NewHealthCheck(network.HealthConfig{
-		PostgresCheck:     database.HealthcheckFunc(),
-		PostgresReadCheck: database.ReadHealthcheckFunc(),
+		PostgresCheck:     databaseClient.HealthcheckFunc(),
+		PostgresReadCheck: databaseClient.ReadHealthcheckFunc(),
 		RedisPrimaryCheck: redisClient.PrimaryHealthCheck,
 		RedisPubSubCheck:  redisClient.PubsubHealthCheck,
 	}))

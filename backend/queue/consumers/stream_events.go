@@ -3,10 +3,15 @@ package consumers
 import (
 	"context"
 	"hexchess-svc/cache"
-	"hexchess-svc/db"
+	"hexchess-svc/database"
+	"hexchess-svc/pubsub"
+	"hexchess-svc/queue/producers"
+	"hexchess-svc/service/gameplay"
+	"hexchess-svc/service/gamestate"
+	"hexchess-svc/service/replay"
+	"hexchess-svc/utils/entropy"
 
 	"hexchess-svc/model"
-	svc "hexchess-svc/service"
 	"log/slog"
 
 	"github.com/bytedance/sonic"
@@ -21,21 +26,32 @@ var (
 )
 
 type RedisConsumerSetup struct {
-	Redis    cache.Redis
-	Database db.Database
-	Services *svc.HexchessServices
+	Redis       cache.Redis
+	Database    database.Database
+	Broadcaster pubsub.Broadcaster
+	RiverClient producers.RiverClientAPI
 }
 
-func StartRedisConsumers(setup RedisConsumerSetup) {
-	finishGameHandler := FinishedGameHandler{services: setup.Services}
-	updtGameHandler := UpdtGameMetadataHandler{services: setup.Services}
+func StartRedisConsumers(database database.Database, redis cache.Redis, broadcaster pubsub.Broadcaster, riverClient producers.RiverClientAPI) {
+	operator := database.Operator()
 
-	redisClient := setup.Redis.ConsumerClient
-	metricQuerier := setup.Database.QuerierMutator()
+	finishGameHandler := FinishedGameHandler{services: gameplay.NewGameoverService(
+		operator,
+		redis,
+		producers.NewRiverProducer(riverClient),
+		broadcaster,
+		replay.NewReplayService(operator),
+	)}
+	updtGameHandler := UpdtGameMetadataHandler{
+		services: gamestate.NewChessMetaService(operator, entropy.RealSource{}, broadcaster),
+	}
+
+	redisClient := redis.ConsumerClient
+	metricQuerier := database.QuerierMutator()
 
 	finishGameConsumer := NewStreamConsumer(StreamConfig{
-		StreamKey:     setup.Redis.FinishGameStreamKey,
-		ConsumerGroup: setup.Redis.FinishGameConsumerGroup,
+		StreamKey:     redis.FinishGameStreamKey,
+		ConsumerGroup: redis.FinishGameConsumerGroup,
 		PollCount:     8,
 		PartitionKeys: GameConsumerPartitions,
 
@@ -47,8 +63,8 @@ func StartRedisConsumers(setup RedisConsumerSetup) {
 	go finishGameConsumer.Consume()
 
 	updtGameConsumer := NewStreamConsumer(StreamConfig{
-		StreamKey:     setup.Redis.UpdtGameMetaStreamKey,
-		ConsumerGroup: setup.Redis.UpdtGameMetaConsumerGroup,
+		StreamKey:     redis.UpdtGameMetaStreamKey,
+		ConsumerGroup: redis.UpdtGameMetaConsumerGroup,
 		PollCount:     8,
 		PartitionKeys: GameConsumerPartitions,
 
@@ -61,7 +77,7 @@ func StartRedisConsumers(setup RedisConsumerSetup) {
 }
 
 type FinishedGameHandler struct {
-	services *svc.HexchessServices
+	services *gameplay.GameOverService
 }
 
 func (handler FinishedGameHandler) Handle(ctx context.Context, bytes []byte) error {
@@ -76,7 +92,7 @@ func (handler FinishedGameHandler) Handle(ctx context.Context, bytes []byte) err
 }
 
 type UpdtGameMetadataHandler struct {
-	services *svc.HexchessServices
+	services *gamestate.ChessMetaService
 }
 
 func (handler UpdtGameMetadataHandler) Handle(ctx context.Context, bytes []byte) error {

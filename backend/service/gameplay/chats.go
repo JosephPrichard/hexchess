@@ -3,7 +3,7 @@ package gameplay
 import (
 	"context"
 	"hexchess-svc/cache"
-	"hexchess-svc/db/query"
+	"hexchess-svc/database/query"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/serrors"

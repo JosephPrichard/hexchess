@@ -1,14 +1,13 @@
 package tournament
 
 import (
-	"hexchess-svc/db/query"
+	"hexchess-svc/database/query"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
-	chessSvc "hexchess-svc/service/chess"
 	"hexchess-svc/service/gameplay"
-	"hexchess-svc/service/leaderboard"
+	"hexchess-svc/service/gamestate"
 	userSvc "hexchess-svc/service/user"
 	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/logutil"
@@ -23,16 +22,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupOrchestratorTest(t logutil.TestLogger, flags ...itest.TestFlag) (*TournamentOrchestratorService, itest.TestInfra) {
+func setupOrchestratorTest(t logutil.TestLogger, flags ...itest.TestFlag) (*TournamentOrchestrator, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
-	leaderboardSvc := leaderboard.NewLeaderboardService(infra.Redis, infra.Querier)
-
-	services := NewOrchestratorService(
-		NewTournamentService(leaderboardSvc, infra.Operator(), producers.NewRiverProducer(producers.NoopRiverClient{})),
-		leaderboardSvc,
+	services := NewTournamentOrchestrator(
+		NewTournamentService(infra.Operator(), infra.Redis, producers.NewRiverProducer(&producers.NoopRiverClient{})),
 		userSvc.NewUserService(infra.Operator()),
-		gameplay.NewGameplayService(chessSvc.NewChessRepoService(infra.Redis), infra.Redis, producers.NewStreamProducer(infra.Redis)),
+		gameplay.NewGameplayService(infra.Redis, producers.NewStreamProducer(infra.Redis), gamestate.NewChessRepoService(infra.Redis)),
 		pubsub.NewSyncBroadcaster(infra.Redis),
 	)
 
@@ -300,7 +296,7 @@ func TestProgressTournament_ThenGetChessStates(t *testing.T) {
 	}
 
 	for _, id := range gameIDs {
-		chessState, err := chessSvc.NewChessRepoService(testinfra.Redis).GetChessState(ctx, id)
+		chessState, err := gamestate.NewChessRepoService(testinfra.Redis).GetChessState(ctx, id)
 		require.NoError(t, err)
 
 		testutil.Equal(t, wantGames[id], chessState, cmpopts.IgnoreFields(model.ChessState{}, "Game", "InitialBoard"))

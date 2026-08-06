@@ -59,18 +59,18 @@ func listenRedisChannels(addr string, chans []string, onMessage func(m redigo.Me
 }
 
 type LocalBroadcasters struct {
-	Counts     *GlobalCasterActor
-	Games      *BroadcastActor[model.GameID]
-	Users      *BroadcastActor[string]
-	Tournament *BroadcastActor[string]
+	Counts     *GlobalCasterBroker
+	Games      *BroadcastBroker[model.GameID]
+	Users      *BroadcastBroker[string]
+	Tournament *BroadcastBroker[string]
 }
 
 func NewLocalBroadcasters() *LocalBroadcasters {
 	return &LocalBroadcasters{
-		Counts:     NewGlobalCasterActor("counts-caster"),
-		Games:      NewBroadcastActor[model.GameID]("games-caster"),
-		Users:      NewBroadcastActor[string]("users-caster"),
-		Tournament: NewBroadcastActor[string]("users-caster"),
+		Counts:     NewGlobalCasterBroker("counts-caster"),
+		Games:      NewBroadcastBroker[model.GameID]("games-caster"),
+		Users:      NewBroadcastBroker[string]("users-caster"),
+		Tournament: NewBroadcastBroker[string]("users-caster"),
 	}
 }
 

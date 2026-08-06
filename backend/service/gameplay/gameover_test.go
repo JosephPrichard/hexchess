@@ -2,15 +2,13 @@ package gameplay
 
 import (
 	"hexchess-svc/chess"
-	"hexchess-svc/db/query"
+	"hexchess-svc/database/query"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
-	"hexchess-svc/service/leaderboard"
 	"hexchess-svc/service/replay"
-	"hexchess-svc/service/user"
 	"hexchess-svc/utils/logutil"
 	"hexchess-svc/utils/testutil"
 	"math"
@@ -20,6 +18,7 @@ import (
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,11 +27,11 @@ func setupGameoverTest(t logutil.TestLogger, flags ...itest.TestFlag) (*GameOver
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewGameoverService(
-		replay.NewReplayService(user.NewUserService(infra.Operator()), infra.Operator()),
-		leaderboard.NewLeaderboardService(infra.Redis, infra.Querier),
 		infra.Operator(),
-		producers.NewRiverProducer(producers.NoopRiverClient{}),
+		infra.Redis,
+		producers.NewRiverProducer(&producers.NoopRiverClient{}),
 		pubsub.NewSyncBroadcaster(infra.Redis),
+		replay.NewReplayService(infra.Operator()),
 	)
 
 	return services, infra
@@ -52,7 +51,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 		name            string
 		event           model.FinishedGame
 		wantGameOutputs []*pb.GameOutput
-		wantLeaderboard []string
+		wantLeaderboard []redis.Z
 	}{
 		{
 			name: "InsertFinishedGame",
@@ -88,9 +87,15 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 					}},
 				},
 			},
-			wantLeaderboard: []string{
-				strconv.Itoa(int(testUser0.ID)),
-				strconv.Itoa(int(testUser1.ID)),
+			wantLeaderboard: []redis.Z{
+				{
+					Member: strconv.Itoa(int(testUser0.ID)),
+					Score:  15,
+				},
+				{
+					Member: strconv.Itoa(int(testUser1.ID)),
+					Score:  -15,
+				},
 			},
 		},
 		{
@@ -107,7 +112,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				ReplayCause:  model.Forfeit,
 				ReplayResult: model.BlackWin,
 			},
-			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
+			wantLeaderboard: []redis.Z{}, // leaderboard is empty because it will not be updated since stats do not change
 		},
 		{
 			name: "inserting a game with a guest",
@@ -121,7 +126,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				ReplayCause:  model.Forfeit,
 				ReplayResult: model.BlackWin,
 			},
-			wantLeaderboard: []string{}, // leaderboard is empty because it will not be updated since stats do not change
+			wantLeaderboard: []redis.Z{}, // leaderboard is empty because it will not be updated since stats do not change
 		},
 	}
 
@@ -136,7 +141,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			require.NoError(t, err)
 
 			modeLbZSet := testinfra.Redis.FmtLeaderboardZSet(tt.event.ReplayMode.String())
-			leaderboardResp, err := testinfra.Redis.PrimaryClient.ZRevRange(ctx, modeLbZSet, 0, 2).Result()
+			leaderboardResp, err := testinfra.Redis.PrimaryClient.ZRevRangeWithScores(ctx, modeLbZSet, 0, 2).Result()
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantLeaderboard, leaderboardResp)

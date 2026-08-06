@@ -8,7 +8,7 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/chess"
 	"hexchess-svc/queue/producers"
-	chess2 "hexchess-svc/service/chess"
+	"hexchess-svc/service/gamestate"
 	"hexchess-svc/utils/optional"
 	"hexchess-svc/utils/serrors"
 	"time"
@@ -21,13 +21,18 @@ import (
 )
 
 type GamePlayService struct {
-	chessRepo      *chess2.ChessRepoService
 	redis          cache.Redis
 	streamProducer producers.StreamProducer
+	gameState      GameStateMutator
 }
 
-func NewGameplayService(chessRepo *chess2.ChessRepoService, redis cache.Redis, streamProducer producers.StreamProducer) *GamePlayService {
-	return &GamePlayService{chessRepo: chessRepo, redis: redis, streamProducer: streamProducer}
+type GameStateMutator interface {
+	SetChessStatePiped(ctx context.Context, setter gamestate.RedisChessSetter, id model.GameID, state *model.ChessState, updtTime time.Time) error
+	UpdateChessStateTxn(ctx context.Context, gameID model.GameID, update gamestate.ChessUpdateFn, commit gamestate.ChessCommitFn) (*model.ChessState, error)
+}
+
+func NewGameplayService(redis cache.Redis, streamProducer producers.StreamProducer, gameState GameStateMutator) *GamePlayService {
+	return &GamePlayService{redis: redis, streamProducer: streamProducer, gameState: gameState}
 }
 
 var ErrForfeitPlayer = errors.New("must be a player to forfeit or abort")
@@ -91,7 +96,7 @@ func (services *GamePlayService) SetupGame(ctx context.Context, setup model.Stat
 
 	_, err := services.redis.PrimaryClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 
-		if err := services.chessRepo.SetChessStatePiped(ctx, pipe, gameID, state, time.Now()); err != nil {
+		if err := services.gameState.SetChessStatePiped(ctx, pipe, gameID, state, time.Now()); err != nil {
 			return serrors.New("set chess state", err, "gameID", gameID)
 		}
 		return services.streamProducer.ProduceUpdtGameMetadata(ctx, pipe, mapMetadataUpdt(state))
@@ -143,7 +148,7 @@ func (services *GamePlayService) JoinGame(ctx context.Context, gameID model.Game
 		slog.InfoContext(ctx, "committing game state when joining", "player", player.ID, "gameID", gameID)
 		return services.streamProducer.ProduceUpdtGameMetadata(ctx, pipe, mapMetadataUpdt(state))
 	}
-	state, err := services.chessRepo.UpdateChessStateTxn(ctx, gameID, update, commit)
+	state, err := services.gameState.UpdateChessStateTxn(ctx, gameID, update, commit)
 	if state != nil {
 		slog.InfoContext(ctx, "player joined game", "playerID", player.ID, "gameID", state.ID)
 	}
@@ -211,7 +216,7 @@ func (services *GamePlayService) NewGameMove(ctx context.Context, gameID model.G
 		})
 		return serrors.New("push finished game event", err)
 	}
-	state, err := services.chessRepo.UpdateChessStateTxn(ctx, gameID, update, commit)
+	state, err := services.gameState.UpdateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {
 		return MoveResult{}, err
 	}
@@ -259,7 +264,7 @@ func (services *GamePlayService) AttemptGameUndo(ctx context.Context, gameID mod
 		}
 		return nil
 	}
-	state, err := services.chessRepo.UpdateChessStateTxn(ctx, gameID, update, nil)
+	state, err := services.gameState.UpdateChessStateTxn(ctx, gameID, update, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -315,7 +320,7 @@ func (services *GamePlayService) EndGame(ctx context.Context, gameID model.GameI
 		})
 		return serrors.New("push finished game event", err)
 	}
-	state, err := services.chessRepo.UpdateChessStateTxn(ctx, gameID, update, commit)
+	state, err := services.gameState.UpdateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {
 		return model.NotEnded, err
 	}

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-svc/db"
-	"hexchess-svc/db/mutator"
-	"hexchess-svc/db/query"
+	"hexchess-svc/database"
+	"hexchess-svc/database/mutator"
+	"hexchess-svc/database/query"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/enum"
@@ -30,11 +30,11 @@ var (
 const ExpireChallengeMaxAge = time.Hour * 24 * 7
 
 type ChallengeService struct {
-	db.Operator
+	database.Operator
 	entropy entropy.Generator
 }
 
-func NewChallengeService(operator db.Operator, entropy entropy.Generator) *ChallengeService {
+func NewChallengeService(operator database.Operator, entropy entropy.Generator) *ChallengeService {
 	return &ChallengeService{Operator: operator, entropy: entropy}
 }
 
@@ -121,7 +121,7 @@ func (services *ChallengeService) BatchInsertChallenges(ctx context.Context, ins
 }
 
 func mapChallengeInsertErr(err error) error {
-	return db.MapInsertErr(err, ErrDuplicateChallenge, ErrInvalidChallengeMember)
+	return database.MapInsertErr(err, ErrDuplicateChallenge, ErrInvalidChallengeMember)
 }
 
 type Key struct {
@@ -136,8 +136,8 @@ func (services *ChallengeService) GetChallengesByParticipant(ctx context.Context
 	since := services.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
 	rows, err := services.Querier.SelectChallengesByParticipant(ctx, query.SelectChallengesByParticipantParams{
-		ChallengerID: db.OptInt8(key.ChallengerID),
-		ChallengeeID: db.OptInt8(key.ChallengeeID),
+		ChallengerID: database.OptInt8(key.ChallengerID),
+		ChallengeeID: database.OptInt8(key.ChallengeeID),
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
 	})
 	if err != nil {
@@ -179,7 +179,7 @@ func (services *ChallengeService) DeleteChallenge(ctx context.Context, challenge
 	params := mutator.DeleteChallengeParams{ChallengerID: challengerID, ChallengeeID: challengeeID}
 
 	challengeRow, err := services.Mutator.DeleteChallenge(ctx, params)
-	if db.IsErrNoRows(err) {
+	if database.IsErrNoRows(err) {
 		return DeleteResult{}, ErrChallengeNotFound
 	} else if err != nil {
 		return DeleteResult{}, serrors.New("delete challenge", err, "params", params)

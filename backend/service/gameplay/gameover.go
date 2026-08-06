@@ -4,15 +4,16 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"hexchess-svc/cache"
 	"hexchess-svc/chess"
-	"hexchess-svc/db"
-	"hexchess-svc/db/mutator"
-	"hexchess-svc/db/query"
+	"hexchess-svc/database"
+	"hexchess-svc/database/mutator"
+	"hexchess-svc/database/query"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/service/leaderboard"
-	"hexchess-svc/service/replay"
 	"hexchess-svc/service/user"
 	"hexchess-svc/utils/perf"
+	"strconv"
 
 	"hexchess-svc/model"
 	"hexchess-svc/queue/producers"
@@ -27,27 +28,39 @@ import (
 )
 
 type GameOverService struct {
-	replay      *replay.ReplayService
-	leaderboard *leaderboard.LeaderboardService
+	database.Operator
+	redis       cache.Redis
+	producer    AdvanceTournamentProducer
+	broadcaster pubsub.Broadcaster
+	replay      ReplayService
+}
 
-	db.Operator
-	riverProducer producers.RiverProducer
-	broadcaster   pubsub.Broadcaster
+type LeaderboardUpdater interface {
+	UpdateLeaderboard(ctx context.Context, changes ...leaderboard.SetLbChangeSet) error
+}
+
+type ReplayService interface {
+	GetReplay(ctx context.Context, replayID int64) (model.FullReplay, error)
+	UpsertReplayMoveHistories(ctx context.Context, replayID int64, data []byte) error
+}
+
+type AdvanceTournamentProducer interface {
+	ProduceAdvanceTournament(ctx context.Context, txn pgx.Tx, args producers.AdvanceTournamentArgs) error
 }
 
 func NewGameoverService(
-	replayService *replay.ReplayService,
-	leaderboardService *leaderboard.LeaderboardService,
-	operator db.Operator,
-	riverProducer producers.RiverProducer,
+	operator database.Operator,
+	redis cache.Redis,
+	producer AdvanceTournamentProducer,
 	broadcaster pubsub.Broadcaster,
+	replay ReplayService,
 ) *GameOverService {
 	return &GameOverService{
-		replay:        replayService,
-		leaderboard:   leaderboardService,
-		Operator:      operator,
-		riverProducer: riverProducer,
-		broadcaster:   broadcaster,
+		Operator:    operator,
+		redis:       redis,
+		producer:    producer,
+		broadcaster: broadcaster,
+		replay:      replay,
 	}
 }
 
@@ -90,14 +103,14 @@ func (services *GameOverService) InsertFinishedGame(ctx context.Context, finishe
 	// this operation is idempotent and safe, if the tournament is not ready to be advanced, the operation noops
 	tournamentKey, err := services.Querier.SelectTournamentByGameID(ctx, finishedGame.GameID.String())
 	switch {
-	case db.IsErrNoRows(err):
+	case database.IsErrNoRows(err):
 		slog.InfoContext(ctx, "skipping send schedule tournament event", "gameID", finishedGame.GameID)
 	case err != nil:
 		return serrors.New("select tournament by game id", err, "gameID", finishedGame.GameID)
 	default:
 		slog.InfoContext(ctx, "publishing schedule tournament event", "gameID", finishedGame.GameID)
 		// if two scheduled tournament events run concurrently, one will advance the tournament and the other will noop
-		if err := services.riverProducer.ProduceAdvanceTournament(ctx, nil, producers.AdvanceTournamentArgs{
+		if err := services.producer.ProduceAdvanceTournament(ctx, nil, producers.AdvanceTournamentArgs{
 			TournamentKey: tournamentKey.Bytes,
 		}); err != nil {
 			return serrors.New("publish scheduled tournament event", err)
@@ -106,9 +119,9 @@ func (services *GameOverService) InsertFinishedGame(ctx context.Context, finishe
 
 	// step 5: write through the new updates into the cache, this can run outside a transaction because we have a batch job to recover the update to the cache.
 	// note(Joseph): this operation is NOT idempotent, so it MUST be the last operation. once completed, we expect to ack immediately
-	if err := services.leaderboard.IncrLeaderboard(ctx,
-		leaderboard.UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
-		leaderboard.UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
+	if err := services.updateLeaderboard(ctx,
+		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
+		UpdtLbChangeSet{Mode: finishedGame.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
 	); err != nil {
 		return serrors.New("incr leaderboard", err, "changeSet", changeSet)
 	}
@@ -116,6 +129,31 @@ func (services *GameOverService) InsertFinishedGame(ctx context.Context, finishe
 	slog.InfoContext(ctx, "applying elo change set to leaderboard", "changeSet", changeSet, "room", finishedGame.GameID)
 
 	slog.InfoContext(ctx, "completed inserting finished game event", "key", finishedGame.GameID)
+	return nil
+}
+
+type UpdtLbChangeSet struct {
+	Mode    model.GameMode
+	ID      int64
+	EloDiff float64
+}
+
+func (services *GameOverService) updateLeaderboard(ctx context.Context, changes ...UpdtLbChangeSet) error {
+	pipe := services.redis.PrimaryClient.Pipeline()
+
+	for _, change := range changes {
+		if model.IsGuestID(change.ID) || change.EloDiff == 0 {
+			// noop zero value changes
+			continue
+		}
+		modeLbZSet := services.redis.FmtLeaderboardZSet(change.Mode.String())
+		pipe.ZIncrBy(ctx, modeLbZSet, change.EloDiff, strconv.Itoa(int(change.ID)))
+	}
+	if _, err := pipe.Exec(ctx); err != nil {
+		return serrors.New("incr leaderboard user", err)
+	}
+
+	slog.InfoContext(ctx, "updated leaderboard user", "changes", changes)
 	return nil
 }
 
@@ -150,7 +188,7 @@ func (services *GameOverService) InsertGameResult(ctx context.Context, result Ga
 
 	var changeSet GameResultChangeSet
 
-	err := services.Transactor.ExecTx(ctx, db.TxArgs{
+	err := services.Transactor.ExecTx(ctx, database.TxArgs{
 		// RepeatableRead is required to prevent the following race conditions
 		// Case 1 (Lost Update):
 		// T1 selects the user elos E1 and calculating and insert user elos E2
@@ -158,7 +196,7 @@ func (services *GameOverService) InsertGameResult(ctx context.Context, result Ga
 		// User elos (E3) will be overwritten to E2, the update that progressed E1 to E3 will be lost
 		Isolation:  pgx.RepeatableRead,
 		RetryCount: 5,
-		QueryFn: func(ctx context.Context, _ pgx.Tx, querier db.QuerierMutator) error {
+		QueryFn: func(ctx context.Context, _ pgx.Tx, querier database.QuerierMutator) error {
 			// step 1: use game ID as an idempotency key to prevent saving the same game result on retry
 			userIDs := []int64{result.WhiteID, result.BlackID}
 
@@ -167,7 +205,7 @@ func (services *GameOverService) InsertGameResult(ctx context.Context, result Ga
 				// returning existing state makes this operation idempotent
 				changeSet = GameResultChangeSet{ReplayID: existingReplayID, AlreadyExists: true}
 				return nil
-			} else if !db.IsErrNoRows(err) {
+			} else if !database.IsErrNoRows(err) {
 				return serrors.New("select has replay with gameID", err)
 			}
 
@@ -185,7 +223,7 @@ func (services *GameOverService) InsertGameResult(ctx context.Context, result Ga
 
 			// step 3: compute and update the next state of stats for each game participant
 			var updts []mutator.UpsertUserEloParams
-			changeSet, updts = makeInsertGameResultChangeSet(result, userElos)
+			changeSet, updts = createInsertGameResultChangeSet(result, userElos)
 
 			// updates are sorted by userID to prevent deadlocks
 			slices.SortFunc(updts, func(left, right mutator.UpsertUserEloParams) int { return cmp.Compare(left.UserID, right.UserID) })
@@ -201,20 +239,7 @@ func (services *GameOverService) InsertGameResult(ctx context.Context, result Ga
 			}
 
 			// step 4: insert the new replay, which acts both the record and the idempotency key for this operation
-			replayInst := mutator.InsertReplayParams{
-				GameID:    result.GameID.String(),
-				WhiteID:   pgtype.Int8{Int64: result.WhiteID, Valid: model.IsNonGuestID(result.WhiteID)},
-				BlackID:   pgtype.Int8{Int64: result.BlackID, Valid: model.IsNonGuestID(result.BlackID)},
-				Result:    mutator.ResultEnum(result.ReplayResult.String()),
-				Cause:     mutator.CauseEnum(result.ReplayCause.String()),
-				Mode:      mutator.ModeEnum(result.ReplayMode.String()),
-				WinElo:    changeSet.WinEloDiff,
-				LoseElo:   changeSet.LoseEloDiff,
-				WhiteElo:  changeSet.WhiteEloNext,
-				BlackElo:  changeSet.BlackEloNext,
-				PlayedOn:  pgtype.Timestamptz{Valid: true, Time: result.InsertedTime},
-				TurnCount: int32(result.TurnCount),
-			}
+			replayInst := createInsertReplayParams(result, changeSet)
 			replayID, err := querier.InsertReplay(ctx, replayInst)
 			if err != nil {
 				return serrors.New("insert replay for result", err, "result", result)
@@ -230,7 +255,24 @@ func (services *GameOverService) InsertGameResult(ctx context.Context, result Ga
 	return changeSet, err
 }
 
-func makeInsertGameResultChangeSet(result GameResult, userModeElos []query.SelectUserModeElosByIDsRow) (GameResultChangeSet, []mutator.UpsertUserEloParams) {
+func createInsertReplayParams(result GameResult, changeSet GameResultChangeSet) mutator.InsertReplayParams {
+	return mutator.InsertReplayParams{
+		GameID:    result.GameID.String(),
+		WhiteID:   pgtype.Int8{Int64: result.WhiteID, Valid: model.IsNonGuestID(result.WhiteID)},
+		BlackID:   pgtype.Int8{Int64: result.BlackID, Valid: model.IsNonGuestID(result.BlackID)},
+		Result:    mutator.ResultEnum(result.ReplayResult.String()),
+		Cause:     mutator.CauseEnum(result.ReplayCause.String()),
+		Mode:      mutator.ModeEnum(result.ReplayMode.String()),
+		WinElo:    changeSet.WinEloDiff,
+		LoseElo:   changeSet.LoseEloDiff,
+		WhiteElo:  changeSet.WhiteEloNext,
+		BlackElo:  changeSet.BlackEloNext,
+		PlayedOn:  pgtype.Timestamptz{Valid: true, Time: result.InsertedTime},
+		TurnCount: int32(result.TurnCount),
+	}
+}
+
+func createInsertGameResultChangeSet(result GameResult, userModeElos []query.SelectUserModeElosByIDsRow) (GameResultChangeSet, []mutator.UpsertUserEloParams) {
 	changeSet := GameResultChangeSet{}
 	var updts []mutator.UpsertUserEloParams
 

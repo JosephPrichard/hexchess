@@ -37,8 +37,7 @@ func TestLeaderboard(t *testing.T) {
 
 	ctx := t.Context()
 
-	// testing `incrLeaderboard`, which is used to seed payload for testing retrieval operations
-	for _, change := range []UpdtLbChangeSet{
+	for _, change := range []SetLbChangeSet{
 		{model.ModeCorrespondence7, id4, 835},
 		{model.ModeCorrespondence7, id1, 1500},
 		{model.ModeCorrespondence7, id2, 1000},
@@ -47,7 +46,7 @@ func TestLeaderboard(t *testing.T) {
 		{model.ModeTimed1Plus0, id4, 1010},
 		{model.ModeTimed1Plus0, id1, 900},
 	} {
-		require.NoError(t, services.IncrLeaderboard(ctx, change))
+		require.NoError(t, services.SetLeaderboard(ctx, change))
 	}
 
 	ranks := make([]map[string]LbRank, 0)

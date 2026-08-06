@@ -17,7 +17,6 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"hexchess-svc/model"
-	svc "hexchess-svc/service"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/logutil"
 )
@@ -37,7 +36,7 @@ func setupTestHandler(t logutil.TestLogger, mocks *serviceMocks, flags ...itest.
 
 	broadcaster := pubsub.NewSyncBroadcaster(infra.Redis)
 
-	services := svc.NewHexchessServices(svc.SetupService{
+	h := NewServeMux(ServeMuxSetup{
 		Database:    infra.Database,
 		Redis:       infra.Redis,
 		AWS:         infra.AWS,
@@ -46,37 +45,33 @@ func setupTestHandler(t logutil.TestLogger, mocks *serviceMocks, flags ...itest.
 		Dispatcher:  mocks.Dispatcher,
 		Broadcaster: broadcaster,
 	})
-	h := NewServeMux(ServerSetup{Services: services, Broadcaster: broadcaster})
 
 	return h, infra
 }
 
 type websocketTestContext struct {
 	testinfra    itest.TestInfra
-	services     *svc.HexchessServices
 	broadcasters *pubsub.LocalBroadcasters
 	testServer   *httptest.Server
 }
 
 func setupWebsocketTest(t *testing.T) websocketTestContext {
 	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
-	services := svc.NewHexchessServices(svc.SetupService{
-		Database:    testinfra.Database,
-		Redis:       testinfra.Redis,
-		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
-	})
+
 	localBroadcasters := pubsub.NewLocalBroadcasters()
 	<-localBroadcasters.ListenGameMessages(testinfra.Redis)
 
 	createTestSessions(t, testinfra.Redis)
 	createTestChessStates(t, testinfra.Redis)
 
-	testServer := httptest.NewServer(NewServeMux(ServerSetup{
-		Services:     services,
+	testServer := httptest.NewServer(NewServeMux(ServeMuxSetup{
+		Database:     testinfra.Database,
+		Redis:        testinfra.Redis,
 		Broadcasters: localBroadcasters,
 		Broadcaster:  pubsub.NewSyncBroadcaster(testinfra.Redis),
+		Dispatcher:   async.SyncDispatcher{},
 	}))
-	return websocketTestContext{testinfra: testinfra, services: services, broadcasters: localBroadcasters, testServer: testServer}
+	return websocketTestContext{testinfra: testinfra, broadcasters: localBroadcasters, testServer: testServer}
 }
 
 func (s *websocketTestContext) getWsURL() string {
@@ -90,7 +85,6 @@ func (s *websocketTestContext) Shutdown() {
 
 type sseTestContext struct {
 	testinfra         itest.TestInfra
-	services          *svc.HexchessServices
 	localBroadcasters *pubsub.LocalBroadcasters
 	broadcaster       pubsub.Broadcaster
 	testServer        *httptest.Server
@@ -103,12 +97,6 @@ func (s *sseTestContext) Shutdown() {
 
 func setupSSETest(t *testing.T) sseTestContext {
 	testinfra := itest.SetupIntegrationTest(t, itest.ROPostgres, itest.Redis)
-	services := svc.NewHexchessServices(svc.SetupService{
-		Database:    testinfra.Database,
-		Redis:       testinfra.Redis,
-		Entropy:     &entropy.StableSource{},
-		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
-	})
 
 	createTestSessions(t, testinfra.Redis)
 
@@ -118,14 +106,16 @@ func setupSSETest(t *testing.T) sseTestContext {
 	<-localBroadcasters.ListenUsersMessages(testinfra.Redis)
 	<-localBroadcasters.ListenTournamentMessages(testinfra.Redis)
 
-	testServer := httptest.NewServer(NewServeMux(ServerSetup{
-		Services:     services,
+	testServer := httptest.NewServer(NewServeMux(ServeMuxSetup{
+		Database:     testinfra.Database,
+		Redis:        testinfra.Redis,
+		Entropy:      &entropy.StableSource{},
+		Dispatcher:   async.SyncDispatcher{},
 		Broadcaster:  pubsub.NewSyncBroadcaster(testinfra.Redis),
 		Broadcasters: localBroadcasters,
 	}))
 	return sseTestContext{
 		testinfra:         testinfra,
-		services:          services,
 		broadcaster:       pubsub.NewSyncBroadcaster(testinfra.Redis),
 		localBroadcasters: localBroadcasters,
 		testServer:        testServer,

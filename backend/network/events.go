@@ -2,10 +2,8 @@ package network
 
 import (
 	"context"
-	"fmt"
 	"hexchess-svc/pubsub"
 	svc "hexchess-svc/service/user"
-	"hexchess-svc/utils/logutil"
 	"hexchess-svc/utils/serrors"
 	"hexchess-svc/utils/timeutil"
 	"log/slog"
@@ -13,31 +11,6 @@ import (
 	"strconv"
 	"time"
 )
-
-func SSE(h func(w *SSEClient, r *http.Request) error) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		slog.InfoContext(r.Context(), "received sse request", "method", r.Method, "url", r.URL)
-
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-
-		f, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "streaming is unsupported", http.StatusInternalServerError)
-			return
-		}
-		ctx := r.Context()
-		if err := h(&SSEClient{ctx, w, f}, r); err != nil {
-			resp := ServiceViewFromErr(err)
-
-			logutil.Error(ctx, LevelFromStatus(resp.Status), "sse request failed", err, "method", r.Method, "url", r.URL)
-
-			http.Error(w, fmt.Sprintf("%s:%s", MetaEvent, resp.Message), resp.Status)
-		}
-		slog.InfoContext(ctx, "finished sse request", "method", r.Method, "url", r.URL)
-	}
-}
 
 const (
 	KeepAliveTimeout   = time.Second * 15
@@ -50,14 +23,14 @@ const (
 	SSEChanBufCap = 10
 )
 
-func (api *API) HandleCountEvents(client *SSEClient, _ *http.Request) error {
+func (server *Server) HandleCountEvents(client *SSEClient, _ *http.Request) error {
 	ctx := client.ctx
 
-	activeCount, err := api.services.GetActiveCount(ctx)
+	activeCount, err := server.services.GetActiveCount(ctx)
 	if err != nil {
 		return serrors.New("get active count", err)
 	}
-	gamesCount, err := api.services.GetGameMetadataCount(ctx)
+	gamesCount, err := server.services.GetGameMetadataCount(ctx)
 	if err != nil {
 		return serrors.New("get chess state count", err)
 	}
@@ -66,11 +39,11 @@ func (api *API) HandleCountEvents(client *SSEClient, _ *http.Request) error {
 	writeCountEvent(client, pubsub.GlobalGamesEvent, gamesCount)
 
 	countsChan := make(chan pubsub.GlobalCastEvent, SSEChanBufCap)
-	api.broadcasters.Counts.Subscribe(countsChan)
+	server.broadcasters.Counts.Subscribe(countsChan)
 
 	go func() {
 		<-ctx.Done()
-		api.broadcasters.Counts.Unsubscribe(countsChan)
+		server.broadcasters.Counts.Unsubscribe(countsChan)
 		slog.InfoContext(ctx, "finished handle user events stream")
 	}()
 
@@ -91,23 +64,23 @@ func (api *API) HandleCountEvents(client *SSEClient, _ *http.Request) error {
 const RetainActiveUserPeriod = svc.ActiveUserMaxAge - time.Second
 
 // HandleActiveConn is a long-lived TCP connection used to maintain an active user, it only ever receives "meta" messages
-func (api *API) HandleActiveConn(client *SSEClient, r *http.Request) error {
+func (server *Server) HandleActiveConn(client *SSEClient, r *http.Request) error {
 	ctx := client.ctx
 
-	player, err := api.authenticator.GetSessionPlayer(ctx, r)
+	player, err := server.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
 		return err
 	}
 	strUserID := strconv.Itoa(int(player.ID))
 
-	if _, err := api.services.AddActiveUser(ctx, strUserID); err != nil {
+	if _, err := server.services.AddActiveUser(ctx, strUserID); err != nil {
 		return serrors.New("add active user", err)
 	}
 
 	client.event(MetaEvent, strUserID)
 
 	stop := timeutil.Schedule(RetainActiveUserPeriod, func() {
-		if err := api.services.RetainActiveUser(ctx, strUserID); err != nil {
+		if err := server.services.RetainActiveUser(ctx, strUserID); err != nil {
 			slog.ErrorContext(ctx, "failed to retain active user", "userID", strUserID, "error", err)
 		}
 	})
@@ -124,10 +97,10 @@ func (api *API) HandleActiveConn(client *SSEClient, r *http.Request) error {
 	}
 }
 
-func (api *API) HandleUserEvents(client *SSEClient, r *http.Request) error {
+func (server *Server) HandleUserEvents(client *SSEClient, r *http.Request) error {
 	ctx := client.ctx
 
-	player, err := api.authenticator.GetSessionPlayer(ctx, r)
+	player, err := server.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
 		return err
 	}
@@ -136,15 +109,15 @@ func (api *API) HandleUserEvents(client *SSEClient, r *http.Request) error {
 	client.event(MetaEvent, strUserID)
 
 	usersChan := make(chan []byte, SSEChanBufCap)
-	api.broadcasters.Users.Subscribe(strUserID, usersChan)
+	server.broadcasters.Users.Subscribe(strUserID, usersChan)
 
 	go func() {
 		<-ctx.Done()
-		api.broadcasters.Users.Unsubscribe(strUserID, usersChan)
+		server.broadcasters.Users.Unsubscribe(strUserID, usersChan)
 		slog.InfoContext(ctx, "finishing handle user events stream")
 
 		detachedCtx := context.WithoutCancel(ctx)
-		if _, err = api.services.RemoveActiveUser(detachedCtx, strUserID); err != nil {
+		if _, err = server.services.RemoveActiveUser(detachedCtx, strUserID); err != nil {
 			slog.ErrorContext(detachedCtx, "failed to remove active user", "sseID", strUserID, "error", err)
 		}
 	}()
@@ -163,19 +136,19 @@ func (api *API) HandleUserEvents(client *SSEClient, r *http.Request) error {
 	}
 }
 
-func (api *API) HandleTournamentEvents(client *SSEClient, r *http.Request) error {
+func (server *Server) HandleTournamentEvents(client *SSEClient, r *http.Request) error {
 	ctx := client.ctx
 
 	tournamentKey := r.URL.Query().Get("tournamentKey")
 
 	tournamentChan := make(chan []byte, SSEChanBufCap)
-	api.broadcasters.Tournament.Subscribe(tournamentKey, tournamentChan)
+	server.broadcasters.Tournament.Subscribe(tournamentKey, tournamentChan)
 
 	client.event(MetaEvent, tournamentKey)
 
 	go func() {
 		<-ctx.Done()
-		api.broadcasters.Tournament.Unsubscribe(tournamentKey, tournamentChan)
+		server.broadcasters.Tournament.Unsubscribe(tournamentKey, tournamentChan)
 		slog.InfoContext(ctx, "finishing handle tournament events stream")
 	}()
 

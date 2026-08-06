@@ -3,8 +3,8 @@ package consumers
 import (
 	"context"
 	"errors"
-	"hexchess-svc/db"
-	"hexchess-svc/db/mutator"
+	"hexchess-svc/database"
+	"hexchess-svc/database/mutator"
 
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/timeutil"
@@ -28,7 +28,7 @@ type RedisMetricCollector struct {
 	lock    sync.Mutex
 	metrics []RedisEventMetric
 
-	querier    db.QuerierMutator
+	querier    database.QuerierMutator
 	dispatcher async.Dispatcher
 }
 

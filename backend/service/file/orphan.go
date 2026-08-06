@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"hexchess-svc/cloud"
-	"hexchess-svc/db/query"
+	"hexchess-svc/database/query"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"sync"

@@ -3,7 +3,7 @@ package itest
 import (
 	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
-	"hexchess-svc/db"
+	"hexchess-svc/database"
 
 	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/logutil"
@@ -15,8 +15,8 @@ import (
 )
 
 type TestInfra struct {
-	Querier  db.QuerierMutator
-	Database db.Database
+	Querier  database.QuerierMutator
+	Database database.Database
 
 	Redis cache.Redis
 
@@ -28,8 +28,8 @@ func (i TestInfra) Close() {
 	i.Database.Close()
 }
 
-func (i TestInfra) Operator() db.Operator {
-	return db.Operator{
+func (i TestInfra) Operator() database.Operator {
+	return database.Operator{
 		Transactor: &i.Database,
 		Querier:    i.Querier,
 		Mutator:    i.Querier,
@@ -76,12 +76,12 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 
 	if isRwPostgresFlag {
 		// rwPostgres flag substitutes a pool with a connection to enable parallel, independent tests
-		infra.Database = db.NewFakeDatabase(t, dbPool)
+		infra.Database = database.NewFakeDatabase(t, dbPool)
 
 		infra.Querier = infra.Database.QuerierMutator()
 	} else if isRoPostgresFlag {
 		// roPostgres flag uses a real database pool to enable concurrent transactions
-		infra.Database = db.NewDatabaseFromPool(dbPool)
+		infra.Database = database.NewDatabaseFromPool(dbPool)
 
 		infra.Querier = infra.Database.QuerierMutator()
 	}

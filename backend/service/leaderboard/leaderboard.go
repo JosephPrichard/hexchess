@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/cache"
-	"hexchess-svc/db/query"
+	"hexchess-svc/database/query"
 	"hexchess-svc/model"
 	"hexchess-svc/service/user"
 	"hexchess-svc/utils/perf"
@@ -30,27 +30,22 @@ func NewLeaderboardService(redis cache.Redis, querier query.Querier) *Leaderboar
 	return &LeaderboardService{redis: redis, querier: querier}
 }
 
-type UpdtLbChangeSet struct {
+type SetLbChangeSet struct {
 	Mode    model.GameMode
 	ID      int64
 	EloDiff float64
 }
 
-type SetLbChangeSet struct {
-	ID      int64
-	EloDiff float64
-}
-
-func (services *LeaderboardService) SetLeaderboard(ctx context.Context, mode model.GameMode, changes ...SetLbChangeSet) error {
+func (services *LeaderboardService) SetLeaderboard(ctx context.Context, changes ...SetLbChangeSet) error {
 	pipe := services.redis.PrimaryClient.Pipeline()
-
-	modeLbZSet := services.redis.FmtLeaderboardZSet(mode.String())
 
 	var outgoingChanges []SetLbChangeSet
 	for _, change := range changes {
 		if model.IsGuestID(change.ID) {
 			continue
 		}
+		modeLbZSet := services.redis.FmtLeaderboardZSet(change.Mode.String())
+
 		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: change.EloDiff, Member: change.ID})
 		outgoingChanges = append(outgoingChanges, change)
 	}
@@ -58,25 +53,8 @@ func (services *LeaderboardService) SetLeaderboard(ctx context.Context, mode mod
 		return serrors.New("set leaderboard users", err)
 	}
 
-	slog.InfoContext(ctx, "set leaderboard users", "modeLbZSet", modeLbZSet, "changes", outgoingChanges)
+	slog.InfoContext(ctx, "set leaderboard users", "changes", outgoingChanges)
 
-	return nil
-}
-
-func (services *LeaderboardService) IncrLeaderboard(ctx context.Context, changes ...UpdtLbChangeSet) error {
-	pipe := services.redis.PrimaryClient.Pipeline()
-	for _, change := range changes {
-		if model.IsGuestID(change.ID) || change.EloDiff == 0 {
-			// noop zero value changes
-			continue
-		}
-		modeLbZSet := services.redis.FmtLeaderboardZSet(change.Mode.String())
-		pipe.ZIncrBy(ctx, modeLbZSet, change.EloDiff, strconv.Itoa(int(change.ID)))
-	}
-	if _, err := pipe.Exec(ctx); err != nil {
-		return serrors.New("incr leaderboard user", err)
-	}
-	slog.InfoContext(ctx, "incremented leaderboard user", "changes", changes)
 	return nil
 }
 
@@ -175,44 +153,6 @@ func (services *LeaderboardService) GetUserLeaderboardRanks(ctx context.Context,
 	return ranks, nil
 }
 
-func (services *LeaderboardService) GetUsersLeaderboardRank(ctx context.Context, userIDs []int64, mode model.GameMode) (map[int64]int64, error) {
-	type getExec struct {
-		userID int64
-		cmd    *redis.IntCmd
-	}
-
-	pipeline := services.redis.PrimaryClient.Pipeline()
-
-	var getExecs []getExec
-	for _, userID := range userIDs {
-		modeLbZSet := services.redis.FmtLeaderboardZSet(mode.String())
-		getExecs = append(getExecs, getExec{
-			userID: userID,
-			cmd:    pipeline.ZRevRank(ctx, modeLbZSet, strconv.Itoa(int(userID))),
-		})
-	}
-
-	if err := cache.PipelineExec(ctx, pipeline); err != nil {
-		return nil, err
-	}
-
-	leaderboardRanks := make(map[int64]int64)
-	for _, exec := range getExecs {
-		rank, err := exec.cmd.Result()
-		if errors.Is(redis.Nil, err) {
-			// skip populating this rank if we cannot retrieve it (stays at zero value)
-			continue
-		}
-		if err != nil {
-			return nil, serrors.New("get leaderboard rank for user", err, "userID", exec.userID)
-		}
-		leaderboardRanks[exec.userID] = MapLeaderboardRank(rank)
-	}
-
-	slog.InfoContext(ctx, "retrieved leaderboard ranks", "leaderboardRanks", leaderboardRanks, "mode", mode)
-	return leaderboardRanks, nil
-}
-
 func (services *LeaderboardService) getLeaderboard(ctx context.Context, mode model.GameMode, startRank, leaderboardElemCount int64) (Leaderboard, error) {
 	modeLbZSet := services.redis.FmtLeaderboardZSet(mode.String())
 
@@ -274,13 +214,13 @@ func (services *LeaderboardService) SyncLeaderboard(ctx context.Context) error {
 				if i == len(rows)-1 {
 					afterID = row.UserID
 				}
-				changes = append(changes, SetLbChangeSet{ID: row.UserID, EloDiff: row.Elo})
+				changes = append(changes, SetLbChangeSet{ID: row.UserID, Mode: mode, EloDiff: row.Elo})
 			}
 			slog.InfoContext(ctx, "syncing leaderboard changes", "changes", changes, "nextAfterID", afterID)
 			if len(changes) == 0 {
 				break
 			}
-			if err := services.SetLeaderboard(ctx, mode, changes...); err != nil {
+			if err := services.SetLeaderboard(ctx, changes...); err != nil {
 				return serrors.New("set leaderboard", err)
 			}
 		}

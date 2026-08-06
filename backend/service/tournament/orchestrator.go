@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
-	"hexchess-svc/service/gameplay"
-	"hexchess-svc/service/leaderboard"
-	"hexchess-svc/service/user"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
@@ -16,32 +13,23 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type TournamentOrchestratorService struct {
-	tournament  *TournamentService
-	leaderboard *leaderboard.LeaderboardService
-	user        *user.UserService
-	gameplay    *gameplay.GamePlayService
-
+type TournamentBroadcaster struct {
+	leaderboard LeaderboardGetter
 	broadcaster pubsub.Broadcaster
 }
 
-func NewOrchestratorService(
-	tournament *TournamentService,
-	leaderboardService *leaderboard.LeaderboardService,
-	userService *user.UserService,
-	gameplay *gameplay.GamePlayService,
-	broadcaster pubsub.Broadcaster,
-) *TournamentOrchestratorService {
-	return &TournamentOrchestratorService{
-		tournament:  tournament,
-		leaderboard: leaderboardService,
-		user:        userService,
-		gameplay:    gameplay,
-		broadcaster: broadcaster,
-	}
+type LeaderboardGetter interface {
+	GetLeaderboardUser(ctx context.Context, userID int64, mode model.GameMode) (model.LbdUser, error)
 }
 
-func (services *TournamentOrchestratorService) SendTournamentParticipant(ctx context.Context, playerID int64, event JoinTournamentEvent) {
+func NewTournamentBroadcaster(
+	leaderboard LeaderboardGetter,
+	broadcaster pubsub.Broadcaster,
+) *TournamentBroadcaster {
+	return &TournamentBroadcaster{leaderboard: leaderboard, broadcaster: broadcaster}
+}
+
+func (services *TournamentBroadcaster) BroadcastTournamentParticipant(ctx context.Context, playerID int64, event JoinTournamentEvent) {
 	leaderboardUser, err := services.leaderboard.GetLeaderboardUser(ctx, playerID, event.Mode)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get leaderboard user to broadcast tournament participant", "playerID", playerID, "tournamentJoin", event, "err", err)
@@ -54,59 +42,69 @@ func (services *TournamentOrchestratorService) SendTournamentParticipant(ctx con
 	})
 }
 
-func (services *TournamentOrchestratorService) ProgressTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.GameID, error) {
+type TournamentOrchestrator struct {
+	tournament  *TournamentService
+	user        UserGetter
+	gameplay    GameCreator
+	broadcaster pubsub.Broadcaster
+}
+
+type UserGetter interface {
+	SelectUsersByIDs(ctx context.Context, ids []int64) ([]model.User, error)
+}
+
+type GameCreator interface {
+	SetupGame(ctx context.Context, setup model.StateSetup) error
+}
+
+func NewTournamentOrchestrator(
+	tournament *TournamentService,
+	user UserGetter,
+	gameplay GameCreator,
+	broadcaster pubsub.Broadcaster,
+) *TournamentOrchestrator {
+	return &TournamentOrchestrator{tournament: tournament, user: user, gameplay: gameplay, broadcaster: broadcaster}
+}
+
+func (services *TournamentOrchestrator) ProgressTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.GameID, error) {
 	defer perf.WithContext(ctx).Log()
 
+	// step 1: advance tournament on the database
 	matches, err := services.tournament.AdvanceTournament(ctx, tournamentKey, eventID)
 	if err != nil {
 		return nil, serrors.New("advance tournament", err, "tournamentKey", tournamentKey)
 	}
-	if err := services.createTournamentMatches(ctx, matches); err != nil {
-		return nil, serrors.New("create tournament matches", err)
-	}
-
-	// TODO: we need to select FullMatch information and broadcast that
-	services.broadcaster.BroadcastTournament(ctx, model.TournamentOutput{
-		Key:  tournamentKey.String(),
-		Kind: model.TournamentMatchmakingKind,
-		// Matches: matches,
-	})
-
 	var matchGameIDs []model.GameID
 	for _, match := range matches {
 		matchGameIDs = append(matchGameIDs, match.GameID)
 	}
-	return matchGameIDs, nil
-}
 
-func (services *TournamentOrchestratorService) createTournamentMatches(ctx context.Context, matches []model.MatchCreation) error {
-	defer perf.WithContext(ctx).Log()
-
+	// step 2: create playable games correlated with the committed matches
 	userIDs := make([]int64, 0, len(matches)*2)
 	for _, match := range matches {
 		userIDs = append(userIDs, match.WhiteID, match.BlackID)
 	}
 	users, err := services.user.SelectUsersByIDs(ctx, userIDs)
 	if err != nil {
-		return serrors.New("select user player data by ids", err)
+		return nil, serrors.New("select user player data by ids", err)
 	}
 	userDataMap := make(map[int64]model.User)
-	for _, u := range users {
-		userDataMap[u.ID] = u
+	for _, userAccount := range users {
+		userDataMap[userAccount.ID] = userAccount
 	}
 
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	for i, match := range matches {
-		whitePlayerData, okWhite := userDataMap[match.WhiteID]
-		blackPlayerData, okBlack := userDataMap[match.BlackID]
-
-		if !okWhite || !okBlack {
-			// invariant: white and black should be valid ids if they have been pushed to the queue
-			return fmt.Errorf("missing player data for match: %+v", match)
-		}
-
 		eg.Go(func() error {
+			whitePlayerData, okWhite := userDataMap[match.WhiteID]
+			blackPlayerData, okBlack := userDataMap[match.BlackID]
+
+			if !okWhite || !okBlack {
+				// invariant: white and black should be valid ids if they have been pushed to the queue
+				return fmt.Errorf("missing player data for match: %+v", match)
+			}
+
 			err := services.gameplay.SetupGame(egCtx, model.StateSetup{
 				ID:         match.GameID,
 				Mode:       match.GameMode,
@@ -118,5 +116,17 @@ func (services *TournamentOrchestratorService) createTournamentMatches(ctx conte
 		})
 	}
 
-	return eg.Wait()
+	if err := eg.Wait(); err != nil {
+		return nil, err
+	}
+
+	// step 3: notify tournament participants that tournament has been progressed with new matches
+	// TODO: we need to select FullMatch information and broadcast that
+	services.broadcaster.BroadcastTournament(ctx, model.TournamentOutput{
+		Key:  tournamentKey.String(),
+		Kind: model.TournamentMatchmakingKind,
+		// Matches: matches,
+	})
+
+	return matchGameIDs, nil
 }

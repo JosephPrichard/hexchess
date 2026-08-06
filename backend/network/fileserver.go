@@ -8,10 +8,10 @@ import (
 	"strconv"
 )
 
-func (api *API) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) error {
+func (server *Server) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
-	player, err := api.authenticator.GetSessionPlayer(ctx, r)
+	player, err := server.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
 		return serrors.New("get session player", err)
 	}
@@ -25,7 +25,7 @@ func (api *API) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) e
 		return respError("contentLength", err)
 	}
 
-	uploadResp, err := api.services.UploadProfilePic(ctx, player, r.Body, contentType, contentLengthInt64, contentChecksum)
+	uploadResp, err := server.services.UploadProfilePic(ctx, player, r.Body, contentType, contentLengthInt64, contentChecksum)
 	if err != nil {
 		return serrors.New("upload profile pic", err)
 	}
@@ -35,11 +35,11 @@ func (api *API) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) e
 	return nil
 }
 
-func (api *API) HandleGetProfilePic(w http.ResponseWriter, r *http.Request) error {
+func (server *Server) HandleGetProfilePic(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	userID := r.URL.Query().Get("userId")
 
-	s3URL, err := api.services.GetProfilePicURL(ctx, userID)
+	s3URL, err := server.services.GetProfilePicURL(ctx, userID)
 	if err != nil {
 		slog.WarnContext(ctx, "failed to get profile pic key for user", "userID", userID, "error", err)
 

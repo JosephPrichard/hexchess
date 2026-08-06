@@ -3,14 +3,16 @@ package consumers
 import (
 	"context"
 	"hexchess-svc/chess"
-	"hexchess-svc/db/query"
+	"hexchess-svc/database/query"
+	"hexchess-svc/service/gameplay"
+	"hexchess-svc/service/gamestate"
+	"hexchess-svc/service/replay"
 	"hexchess-svc/utils/optional"
 
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
-	svc "hexchess-svc/service"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/testutil"
@@ -33,11 +35,13 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
 	defer testinfra.Close()
 
-	services := svc.NewHexchessServices(svc.SetupService{
-		Database:    testinfra.Database,
-		Redis:       testinfra.Redis,
-		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
-	})
+	handler := FinishedGameHandler{services: gameplay.NewGameoverService(
+		testinfra.Operator(),
+		testinfra.Redis,
+		producers.NewRiverProducer(&producers.NoopRiverClient{}),
+		pubsub.NewSyncBroadcaster(testinfra.Redis),
+		replay.NewReplayService(testinfra.Operator()),
+	)}
 
 	whiteUser0 := itest.TestUser[0]
 	blackUser1 := itest.TestUser[1]
@@ -58,8 +62,6 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	publisher := producers.NewStreamProducer(testinfra.Redis)
 	err := publisher.ProduceFinishGame(ctx, testinfra.Redis.PrimaryClient, finishedGame)
 	require.NoError(t, err)
-
-	handler := FinishedGameHandler{services: services}
 
 	consumer := StreamConsumer{
 		ctx:         consumerCtx,
@@ -104,12 +106,11 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
 	defer testinfra.Close()
 
-	services := svc.NewHexchessServices(svc.SetupService{
-		Database:    testinfra.Database,
-		Redis:       testinfra.Redis,
-		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
-		Entropy:     &entropy.StableSource{CurrTime: itest.TimeNow},
-	})
+	handler := UpdtGameMetadataHandler{services: gamestate.NewChessMetaService(
+		testinfra.Operator(),
+		&entropy.StableSource{CurrTime: itest.TimeNow},
+		pubsub.NewSyncBroadcaster(testinfra.Redis),
+	)}
 
 	whiteUser0 := itest.TestUser[0]
 	blackUser1 := itest.TestUser[1]
@@ -127,8 +128,6 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	publisher := producers.NewStreamProducer(testinfra.Redis)
 	err := publisher.ProduceUpdtGameMetadata(ctx, testinfra.Redis.PrimaryClient, updtGame)
 	require.NoError(t, err)
-
-	handler := UpdtGameMetadataHandler{services: services}
 
 	consumer := StreamConsumer{
 		ctx:         consumerCtx,

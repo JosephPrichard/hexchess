@@ -1,10 +1,10 @@
-package chess
+package gamestate
 
 import (
 	"context"
-	"hexchess-svc/db"
-	"hexchess-svc/db/mutator"
-	"hexchess-svc/db/query"
+	"hexchess-svc/database"
+	"hexchess-svc/database/mutator"
+	"hexchess-svc/database/query"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/perf"
@@ -21,13 +21,13 @@ import (
 )
 
 type ChessMetaService struct {
-	db.Operator
+	database.Operator
 	entropy     entropy.Generator
 	broadcaster pubsub.Broadcaster
 }
 
 func NewChessMetaService(
-	operator db.Operator,
+	operator database.Operator,
 	entropy entropy.Generator,
 	broadcaster pubsub.Broadcaster,
 ) *ChessMetaService {
@@ -106,9 +106,9 @@ func (services *ChessMetaService) GetGameMetadataCount(ctx context.Context) (int
 
 func (services *ChessMetaService) getGameMetadata(ctx context.Context, userID optional.Option[int64], afterOrdering optional.Option[int64], count optional.Option[int32]) ([]model.ChessMeta, error) {
 	rows, err := services.Querier.SelectGameMetas(ctx, query.SelectGameMetasParams{
-		ParticipantID: db.MapOptInt8(userID),
+		ParticipantID: database.MapOptInt8(userID),
 		AfterOrdering: afterOrdering.OrElse(math.MaxInt64),
-		PerPage:       db.MapOptInt4(count),
+		PerPage:       database.MapOptInt4(count),
 	})
 	if err != nil {
 		return nil, serrors.New("select game metas", err, "userID", userID)

@@ -46,6 +46,12 @@ type UserStats struct {
 	ModeStats    []ModeStats `json:"modeStats"`
 }
 
+type Persona struct {
+	User       User         `json:"user"`
+	Stats      UserStats    `json:"stats"`
+	ReplayList []FullReplay `json:"replayList"`
+}
+
 func (p User) IsGuest() bool {
 	return IsGuestID(p.ID)
 }

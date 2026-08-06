@@ -1,17 +1,2 @@
-name: Deploying to UAT
+name: Deploying to all Environments
 
-on:
-  pull_request:
-    types:
-      - closed
-
-jobs:
-  on-merge:
-    uses: ./.github/workflows/deploy-infra.yml
-    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.base.ref, 'release/infra/uat/')
-    with:
-      environment: uat
-      tf_working_dir: terraform/infra/uat
-    secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

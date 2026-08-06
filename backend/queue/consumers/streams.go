@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-svc/db"
+	"hexchess-svc/database"
 	"hexchess-svc/queue"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/errutil"
@@ -33,7 +33,7 @@ type StreamConsumer struct {
 	cancel context.CancelFunc
 	// connects to redis to poll event streams and a database to insert into metadata tables
 	redis      redis.UniversalClient
-	querier    db.QuerierMutator
+	querier    database.QuerierMutator
 	dispatcher async.Dispatcher
 	// an implementation for consuming a single event
 	consumeFunc ConsumeFunc
@@ -47,9 +47,9 @@ type StreamConfig struct {
 	MaxEvents     uint64        `json:"maxEvents"`     // (optional) change the behavior of the consumer for tests
 	BlockDuration time.Duration `json:"blockDuration"`
 
-	Redis          redis.UniversalClient `json:"-"`
-	MetricsQuerier db.QuerierMutator     `json:"-"`
-	ConsumeFn      ConsumeFunc           `json:"-"`
+	Redis          redis.UniversalClient   `json:"-"`
+	MetricsQuerier database.QuerierMutator `json:"-"`
+	ConsumeFn      ConsumeFunc             `json:"-"`
 }
 
 func NewStreamConsumer(config StreamConfig) *StreamConsumer {

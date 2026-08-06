@@ -1,11 +1,11 @@
 package consumers
 
 import (
-	"hexchess-svc/db/query"
+	"hexchess-svc/database/query"
 	"hexchess-svc/itest"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue"
-	svc "hexchess-svc/service"
+	"hexchess-svc/queue/producers"
 	"hexchess-svc/utils/testutil"
 	"testing"
 
@@ -25,12 +25,12 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
 	defer testinfra.Close()
 
-	services := svc.NewHexchessServices(svc.SetupService{
-		Database:    testinfra.Database,
-		Redis:       testinfra.Redis,
-		Broadcaster: pubsub.NewSyncBroadcaster(testinfra.Redis),
-	})
-	worker := AdvanceTournamentWorker{services: services}
+	worker := NewAdvanceTournamentWorker(
+		testinfra.Database,
+		testinfra.Redis,
+		pubsub.NewSyncBroadcaster(testinfra.Redis),
+		&producers.NoopRiverClient{},
+	)
 
 	tournamentKey := itest.Tournament2ScheduledKnockoutKey
 

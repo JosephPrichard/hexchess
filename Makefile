@@ -75,12 +75,16 @@ k6:
 	cd $(PERF_K6_DIR) && go build -o ./k6 .
 	cd $(PERF_K6_DIR) && ./k6 version
 
+# Vulnerability check
+vulncheck:
+	cd backend && govulncheck ./...
+
 # Testing
 test:
 	# Backend server test
-	cd $(BACKEND_DIR) && go test $$(go list ./... | grep -v '^.*/cmd|/wasm/') -timeout=60s
+	cd $(BACKEND_DIR) && go test $$(go list ./... | grep -v '^.*/cmd|/wasm/') -v -count=1 -timeout=60s
 	# Backend wasm module test
-	cd $(BACK_WASM_DIR) && GOOS=js GOARCH=wasm go test -tags=browser -timeout=60s -exec wasmbrowsertest
+	cd $(BACK_WASM_DIR) && GOOS=js GOARCH=wasm go test -v -count=1 -tags=browser -timeout=60s -exec wasmbrowsertest
 
 perf-test:
 	# k6 HTTP perf tests

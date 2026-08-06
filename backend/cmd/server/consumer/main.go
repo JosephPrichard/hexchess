@@ -3,10 +3,9 @@ package main
 import (
 	"context"
 	"hexchess-svc/cache"
-	"hexchess-svc/db"
+	"hexchess-svc/database"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/consumers"
-	svc "hexchess-svc/service"
 	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/logutil"
 	"log/slog"
@@ -31,14 +30,14 @@ func main() {
 	defer shutdown()
 
 	// step 2: connect to backend infrastructure and prepare cleanup
-	database := db.NewDatabase(ctx, db.DatabaseConfig{
+	databaseClient := database.NewDatabase(ctx, database.DatabaseConfig{
 		ReadWriteDsn:  cfg.DbURL, // excludes optional read pool argument since all operations in this service involve mixed read-write operations
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
 	})
-	defer database.Close()
+	defer databaseClient.Close()
 
-	riverQuePool := db.NewDatabasePool(ctx, db.PoolConfig{
+	riverQuePool := database.NewDatabasePool(ctx, database.PoolConfig{
 		Dsn:           cfg.DbURL,
 		ActiveProfile: cfg.Profile,
 		AwsRegion:     cfg.AwsRegion,
@@ -56,21 +55,8 @@ func main() {
 	// step 3: start background consumers and PPROF server
 	broadcaster := pubsub.NewAsyncBroadcaster(redisClient)
 
-	services := svc.NewHexchessServices(svc.SetupService{
-		Database:    database,
-		Redis:       redisClient,
-		Broadcaster: broadcaster,
-	})
-
-	consumers.StartRedisConsumers(consumers.RedisConsumerSetup{
-		Database: database,
-		Redis:    redisClient,
-		Services: services,
-	})
-	consumers.StartRiverConsumers(consumers.RiverConsumerSetup{
-		PgxPool:  riverQuePool,
-		Services: services,
-	})
+	consumers.StartRedisConsumers(databaseClient, redisClient, broadcaster, nil)
+	consumers.StartRiverConsumers(riverQuePool, databaseClient, redisClient, broadcaster, nil)
 
 	slog.Info("finished initializing consumers", "timeTaken", time.Since(startTime).String())
 

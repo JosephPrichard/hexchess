@@ -31,7 +31,7 @@ func TestBroadcastMessage(t *testing.T) {
 
 	broadcaster := NewSyncBroadcaster(rdb)
 
-	localBroadcasters := LocalBroadcasters{Games: NewBroadcastActor[model.GameID]("testing-multicaster")}
+	localBroadcasters := LocalBroadcasters{Games: NewBroadcastBroker[model.GameID]("testing-multicaster")}
 	<-localBroadcasters.ListenGameMessages(rdb)
 
 	wantMsgCount := 2

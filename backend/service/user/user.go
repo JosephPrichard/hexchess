@@ -5,10 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	"hexchess-svc/db/mutator"
+	"hexchess-svc/database/mutator"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
-	"hexchess-svc/utils/optional"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
@@ -17,7 +16,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"hexchess-svc/db"
+	"hexchess-svc/database"
 
 	"hexchess-svc/utils/logutil"
 
@@ -29,10 +28,10 @@ import (
 )
 
 type UserService struct {
-	db.Operator
+	database.Operator
 }
 
-func NewUserService(database db.Operator) *UserService {
+func NewUserService(database database.Operator) *UserService {
 	return &UserService{Operator: database}
 }
 
@@ -156,7 +155,7 @@ func (services *UserService) VerifyUser(ctx context.Context, username string, in
 
 	var user VerifiedUser
 
-	err := services.Transactor.ExecTx(ctx, db.TxArgs{
+	err := services.Transactor.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Non-Repeatable Read):
 		// T1 is allowed to login due to valid login attempts L1 and but increases login attempt count from L1 to L2
@@ -168,9 +167,9 @@ func (services *UserService) VerifyUser(ctx context.Context, username string, in
 		Isolation:    pgx.Serializable,
 		ErrAllowlist: []error{ErrTooManyLoginAttempts, ErrUserNotFound},
 		RetryCount:   3,
-		QueryFn: func(ctx context.Context, txn pgx.Tx, query db.QuerierMutator) error {
+		QueryFn: func(ctx context.Context, txn pgx.Tx, query database.QuerierMutator) error {
 			loginRow, err := query.SelectLoginByName(ctx, username)
-			if db.IsErrNoRows(err) {
+			if database.IsErrNoRows(err) {
 				return ErrUserNotFound
 			} else if err != nil {
 				return serrors.New("select user by login", err, "username", username)
@@ -224,7 +223,7 @@ func (services *UserService) SelectOrInsertGoogleUser(ctx context.Context, googl
 	var isCreated bool
 
 	login, err := services.Querier.SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
-	if db.IsErrNoRows(err) {
+	if database.IsErrNoRows(err) {
 		isCreated = false
 	} else if err != nil {
 		return verifiedUser, serrors.New("select user by google account id", err, "googleAccountID", googleAccountID)
@@ -279,9 +278,9 @@ func (services *UserService) UpdateUser(ctx context.Context, id int64, updt Updt
 
 	userRow, err := services.Mutator.UpdateUser(ctx, mutator.UpdateUserParams{
 		ID:       id,
-		Username: db.OptString(updt.Username),
-		Bio:      db.OptString(updt.Bio),
-		Country:  db.OptString(updt.Country),
+		Username: database.OptString(updt.Username),
+		Bio:      database.OptString(updt.Bio),
+		Country:  database.OptString(updt.Country),
 	})
 	if err != nil {
 		return model.User{}, serrors.New("update user", err, "userID", id)
@@ -312,7 +311,7 @@ func (services *UserService) GetUserByID(ctx context.Context, id int64) (model.U
 	defer perf.WithContext(ctx).Log()
 
 	userRow, err := services.Querier.SelectUserByID(ctx, id)
-	if db.IsErrNoRows(err) {
+	if database.IsErrNoRows(err) {
 		return model.User{}, ErrUserNotFound
 	} else if err != nil {
 		return model.User{}, serrors.New("select user", err, "userID", id)
@@ -403,46 +402,4 @@ func hashPassword(password string) (HashResult, error) {
 	}
 
 	return HashResult{Salt: salt, HashedPassword: string(hashed)}, nil
-}
-
-type UserIDByNameRequest struct {
-	Username optional.Option[string]
-	SupplyID func(int64)
-}
-
-func (services *UserService) GetUserIDsByUsernames(ctx context.Context, requests []UserIDByNameRequest) error {
-	var usernames []string
-	for _, request := range requests {
-		if !request.Username.Present {
-			continue
-		}
-		usernames = append(usernames, request.Username.Value)
-	}
-	if len(usernames) == 0 {
-		return nil
-	}
-
-	slog.InfoContext(ctx, "selecting user ids by usernames for requests", "requests", requests)
-
-	userRows, err := services.Querier.SelectUserIDsByNames(ctx, usernames)
-	if err != nil {
-		return serrors.New("select user ids by names", err, "usernames", usernames)
-	}
-
-	userIDs := make(map[string]int64)
-	for _, row := range userRows {
-		userIDs[row.Username] = row.ID
-	}
-
-	for _, request := range requests {
-		if !request.Username.Present {
-			continue
-		}
-		userID, exists := userIDs[request.Username.Value]
-		if !exists {
-			return ErrUserNotFound
-		}
-		request.SupplyID(userID)
-	}
-	return nil
 }

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"hexchess-svc/db"
+	"hexchess-svc/database"
 	"hexchess-svc/utils/logutil"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -107,7 +107,7 @@ func SetupPostgresTest(ctx context.Context, t logutil.TestLogger) (*pgxpool.Pool
 	}
 	if createdContainer {
 		_, dropErr := pgPool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
-		_, primaryErr := pgPool.Exec(ctx, db.CreatePrimarySchema)
+		_, primaryErr := pgPool.Exec(ctx, database.CreatePrimarySchema)
 		insertErr := insertTestData(pgPool)
 
 		if err := errors.Join(dropErr, primaryErr, insertErr); err != nil {

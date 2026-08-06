@@ -1,11 +1,10 @@
 package tournament
 
 import (
-	"hexchess-svc/db/query"
+	"hexchess-svc/database/query"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/queue/producers"
-	leaderboardSvc "hexchess-svc/service/leaderboard"
 	"hexchess-svc/utils/logutil"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -23,9 +22,9 @@ func setupTest(t logutil.TestLogger, flags ...itest.TestFlag) (*TournamentServic
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewTournamentService(
-		leaderboardSvc.NewLeaderboardService(infra.Redis, infra.Querier),
 		infra.Operator(),
-		producers.NewRiverProducer(producers.NoopRiverClient{}),
+		infra.Redis,
+		producers.NewRiverProducer(&producers.NoopRiverClient{}),
 	)
 
 	return services, infra

@@ -3,19 +3,15 @@ package replay
 import (
 	"context"
 	"errors"
-	"hexchess-svc/db"
-	"hexchess-svc/db/mutator"
-	"hexchess-svc/db/query"
-	"hexchess-svc/service/user"
+	"hexchess-svc/database"
+	"hexchess-svc/database/mutator"
+	"hexchess-svc/database/query"
 	"hexchess-svc/utils/perf"
 
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
-	"hexchess-svc/utils/optional"
 	"hexchess-svc/utils/serrors"
-	"hexchess-svc/utils/timeutil"
 	"log/slog"
-	"math"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -24,13 +20,11 @@ import (
 var ErrNoReplay = errors.New("replay not found")
 
 type ReplayService struct {
-	userService *user.UserService
-
-	db.Operator
+	database.Operator
 }
 
-func NewReplayService(userService *user.UserService, operator db.Operator) *ReplayService {
-	return &ReplayService{userService: userService, Operator: operator}
+func NewReplayService(operator database.Operator) *ReplayService {
+	return &ReplayService{Operator: operator}
 }
 
 func (services *ReplayService) GetReplayByGameID(ctx context.Context, gameID string) (model.FullReplay, error) {
@@ -54,7 +48,7 @@ func (services *ReplayService) UpsertReplayMoveHistories(ctx context.Context, re
 }
 
 func mapGetReplayResult[ID any](ctx context.Context, id ID, row query.SelectReplayByIDRow, err error) (model.FullReplay, error) {
-	if db.IsErrNoRows(err) {
+	if database.IsErrNoRows(err) {
 		return model.FullReplay{}, ErrNoReplay
 	} else if err != nil {
 		return model.FullReplay{}, serrors.New("select replay by id", err, "id", id)
@@ -107,121 +101,6 @@ func (services *ReplayService) GetMovesHistory(ctx context.Context, replayID int
 	}
 	slog.InfoContext(ctx, "selected replay move histories", "replayID", replayID)
 	return row.Data, nil
-}
-
-type ReplaysQuery struct {
-	WhiteName  optional.Option[string] `json:"whiteName"`
-	BlackName  optional.Option[string] `json:"blackName"`
-	WinnerName optional.Option[string] `json:"winnerName"`
-	LoserName  optional.Option[string] `json:"loserName"`
-
-	UserID   optional.Option[int64] `json:"userId"`
-	WhiteID  optional.Option[int64] `json:"whiteId"`
-	BlackID  optional.Option[int64] `json:"blackId"`
-	LoserID  optional.Option[int64] `json:"loserID"`
-	WinnerID optional.Option[int64] `json:"winnerId"`
-
-	Result   optional.Option[model.ReplayResult] `json:"result"`
-	Mode     optional.Option[model.GameMode]     `json:"mode"`
-	Cause    optional.Option[model.ReplayCause]  `json:"cause"`
-	FromDate optional.Option[time.Time]          `json:"fromDate"`
-	ToDate   optional.Option[time.Time]          `json:"toDate"`
-
-	AfterID        optional.Option[int64]   `json:"afterId"`
-	AfterRating    optional.Option[float64] `json:"afterRating"`
-	AfterTurnCount optional.Option[int32]   `json:"afterTurnCount"`
-
-	Sort ReplayQuerySortKey
-
-	PerPage int32
-}
-
-type ReplayQuerySortKey int
-
-const (
-	ReplaySortID ReplayQuerySortKey = iota
-	ReplaySortRating
-	ReplaySortTurnCount
-)
-
-var replayQuerySortKeyEntries = []enum.Entry[ReplayQuerySortKey]{
-	{Enum: ReplaySortID, String: "id"},
-	{Enum: ReplaySortRating, String: "rating"},
-	{Enum: ReplaySortTurnCount, String: "turnCount"},
-}
-
-var ReplayQuerySortEnums = enum.BuildReverseMap(replayQuerySortKeyEntries)
-
-func (r ReplayQuerySortKey) String() string { return enum.String(r, replayQuerySortKeyEntries) }
-
-func supplyUserID(id *optional.Option[int64]) func(int64) {
-	return func(userID int64) {
-		if !id.Present {
-			*id = optional.Some(userID)
-		}
-	}
-}
-
-func (services *ReplayService) SearchReplaysByQuery(ctx context.Context, q ReplaysQuery) ([]model.FullReplay, error) {
-	defer perf.WithContext(ctx).Log()
-
-	// get any userIDs requested through the username queries
-	err := services.userService.GetUserIDsByUsernames(ctx, []user.UserIDByNameRequest{
-		{Username: q.WhiteName, SupplyID: supplyUserID(&q.WhiteID)},
-		{Username: q.BlackName, SupplyID: supplyUserID(&q.BlackID)},
-		{Username: q.LoserName, SupplyID: supplyUserID(&q.LoserID)},
-		{Username: q.WinnerName, SupplyID: supplyUserID(&q.WinnerID)},
-	})
-	if errors.Is(err, user.ErrUserNotFound) {
-		// if any username cannot be matched to an id, the search query will never yield any replays
-		return []model.FullReplay{}, nil
-	} else if err != nil {
-		return nil, err
-	}
-
-	afterID := q.AfterID.OrElse(math.MaxInt64)
-	afterTurnCount := q.AfterTurnCount.OrElse(math.MaxInt32)
-	afterRating := q.AfterRating.OrElse(math.MaxFloat64)
-
-	// uses the unix epoch in days for range queries on date. this truncates away timestamp precision regarding hours, seconds, etc.
-	fromDateDays := optional.Option[int32]{Value: timeutil.ToDayEpoch(q.FromDate.Value), Present: q.FromDate.Present}
-	toDateDays := optional.Option[int32]{Value: timeutil.ToDayEpoch(q.ToDate.Value), Present: q.ToDate.Present}
-
-	params := query.SelectReplaysByQueryParams{
-		PerPage: q.PerPage,
-
-		// search constraints with mixed 'OR' 'AND' constraints
-		UserID:       db.MapOptInt8(q.UserID),
-		WhiteID:      db.MapOptInt8(q.WhiteID),
-		BlackID:      db.MapOptInt8(q.BlackID),
-		WinnerID:     db.MapOptInt8(q.WinnerID),
-		LoserID:      db.MapOptInt8(q.LoserID),
-		Mode:         db.MapOptMode(q.Mode),
-		Result:       db.MapOptResult(q.Result),
-		Cause:        db.MapOptCause(q.Cause),
-		FromDateDays: db.MapOptInt4(fromDateDays),
-		ToDateDays:   db.MapOptInt4(toDateDays),
-
-		// search cursor used for pagination, afterID is always provided on a cursor search, rating and turnCount are only provided with sort
-		AfterID:        afterID,
-		AfterRating:    pgtype.Float8{Float64: afterRating, Valid: true},
-		AfterTurnCount: afterTurnCount,
-
-		// sort determines the 'ORDER BY' in the SQL query
-		SortKey: q.Sort.String(),
-	}
-	replayRows, err := services.Querier.SelectReplaysByQuery(ctx, params)
-	if err != nil {
-		return nil, serrors.New("select replays by query", err)
-	}
-
-	replays := make([]model.FullReplay, 0, len(replayRows))
-	for _, row := range replayRows {
-		replays = append(replays, mapFullReplayByIDRow(query.SelectReplayByIDRow(row)))
-	}
-
-	slog.InfoContext(ctx, "selected replays", "replaysQuery", q, "replays", replays)
-	return replays, nil
 }
 
 const (

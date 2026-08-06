@@ -1,4 +1,4 @@
-package db
+package database
 
 const (
 	ErrPgUniqueViolation      = "23505"

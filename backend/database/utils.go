@@ -1,9 +1,9 @@
-package db
+package database
 
 import (
 	"database/sql"
 	"errors"
-	"hexchess-svc/db/query"
+	"hexchess-svc/database/query"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/optional"
 	"time"

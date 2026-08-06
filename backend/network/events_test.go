@@ -240,9 +240,9 @@ func TestHandleTournamentEvents(t *testing.T) {
 		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, keyString),
 	}
 	for _, tournament := range inputTournaments[1:] {
-		json, err := json.Marshal(tournament)
+		jsonData, err := json.Marshal(tournament)
 		require.NoError(t, err)
-		wantEvents = append(wantEvents, fmt.Sprintf("event: %s\ndata: %s\n", TournamentEvent, json))
+		wantEvents = append(wantEvents, fmt.Sprintf("event: %s\ndata: %s\n", TournamentEvent, jsonData))
 	}
 
 	gotEvents := scanEvents(t, resp, len(wantEvents))

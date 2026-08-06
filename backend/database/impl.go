@@ -1,10 +1,10 @@
-package db
+package database
 
 import (
 	"context"
 	"errors"
-	"hexchess-svc/db/mutator"
-	"hexchess-svc/db/query"
+	"hexchess-svc/database/mutator"
+	"hexchess-svc/database/query"
 	"hexchess-svc/utils/timeutil"
 	"log/slog"
 	"time"
@@ -14,6 +14,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func (db *Database) Operator() Operator {
+	return Operator{Transactor: db, Mutator: db.Mutator(), Querier: db.Querier()}
+}
 
 func (db *Database) QuerierMutator() QuerierMutator {
 	switch db.kind {

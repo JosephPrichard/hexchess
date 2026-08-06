@@ -3,8 +3,6 @@ package replay
 import (
 	"context"
 	"hexchess-svc/model"
-	userSvc "hexchess-svc/service/user"
-	"hexchess-svc/utils/optional"
 	"hexchess-svc/utils/testutil"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -19,10 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTest(t logutil.TestLogger, flags ...itest.TestFlag) (*ReplayService, itest.TestInfra) {
+func setupReplayTest(t logutil.TestLogger, flags ...itest.TestFlag) (*ReplayService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
-	services := NewReplayService(userSvc.NewUserService(infra.Operator()), infra.Operator())
+	services := NewReplayService(infra.Operator())
 
 	return services, infra
 }
@@ -30,7 +28,7 @@ func setupTest(t logutil.TestLogger, flags ...itest.TestFlag) (*ReplayService, i
 func TestGetReplay(t *testing.T) {
 	t.Parallel()
 
-	services, testinfra := setupTest(t, itest.RWPostgres)
+	services, testinfra := setupReplayTest(t, itest.RWPostgres)
 	defer testinfra.Close()
 
 	t.Run("GetReplay", func(t *testing.T) {
@@ -50,54 +48,6 @@ func TestGetReplay(t *testing.T) {
 
 		assert.Equal(t, itest.TestReplays[3], actualReplay1)
 	})
-}
-
-func TestSearchReplaysByQuery(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		replayQuery ReplaysQuery
-		wantReplays []model.FullReplay
-	}{
-		{
-			name: "QueryBy_Users",
-			replayQuery: ReplaysQuery{
-				UserID:  optional.Some(int64(1)),
-				AfterID: optional.None[int64](),
-				PerPage: 5,
-			},
-			wantReplays: []model.FullReplay{
-				itest.TestReplays[4],
-				itest.TestReplays[3],
-				itest.TestReplays[2],
-				itest.TestReplays[0],
-			},
-		},
-		{
-			name: "QueryBy_Users_Cursor",
-			replayQuery: ReplaysQuery{
-				UserID:  optional.Some(int64(1)),
-				AfterID: optional.Some(int64(3)),
-				PerPage: 5,
-			},
-			wantReplays: []model.FullReplay{itest.TestReplays[0]},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			services, testinfra := setupTest(t, itest.ROPostgres)
-			defer testinfra.Close()
-
-			ctx := t.Context()
-
-			replayList, err := services.SearchReplaysByQuery(ctx, tt.replayQuery)
-			require.NoError(t, err)
-
-			testutil.Equal(t, tt.wantReplays, replayList)
-		})
-	}
 }
 
 func TestRetrieveEloHistories(t *testing.T) {
@@ -142,7 +92,7 @@ func TestRetrieveEloHistories(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 
-			services, testinfra := setupTest(t, itest.ROPostgres)
+			services, testinfra := setupReplayTest(t, itest.ROPostgres)
 			defer testinfra.Close()
 
 			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)

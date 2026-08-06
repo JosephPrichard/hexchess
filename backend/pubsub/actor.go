@@ -4,69 +4,54 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"sync"
 )
 
-type actorActionKind int
-
-const (
-	subAction actorActionKind = iota
-	unsubAction
-	broadcastAction
-)
-
-type BroadcastActor[ActorID comparable] struct {
-	ID         string
-	actionChan chan broadcasterAction[ActorID]
-	actorsMap  map[ActorID][]chan []byte
+type BroadcastBroker[ActorID comparable] struct {
+	Lock      sync.Mutex
+	ID        string
+	actorsMap map[ActorID][]chan []byte
 }
 
-type broadcasterAction[ActorID comparable] struct {
-	kind    actorActionKind
-	actorID ActorID
-	sub     chan []byte
-	payload []byte
+func NewBroadcastBroker[BrokerID comparable](ID string) *BroadcastBroker[BrokerID] {
+	return &BroadcastBroker[BrokerID]{ID: ID, actorsMap: make(map[BrokerID][]chan []byte)}
 }
 
-func NewBroadcastActor[ActorID comparable](ID string) *BroadcastActor[ActorID] {
-	actor := &BroadcastActor[ActorID]{ID: ID, actionChan: make(chan broadcasterAction[ActorID]), actorsMap: make(map[ActorID][]chan []byte)}
-	go actor.Start()
-	return actor
-}
+func (broker *BroadcastBroker[ActorID]) Subscribe(actorID ActorID, sub chan []byte) {
+	slog.Info("subscribing to broadcaster broker", "actorID", broker.ID, "shardActorID", actorID, "sub", fmt.Sprintf("%v", sub))
 
-func (actor *BroadcastActor[ActorID]) handleSubscription(action broadcasterAction[ActorID]) {
-	actorID := action.actorID
-	sub := action.sub
+	broker.Lock.Lock()
 
-	slog.Info("subscribing to broadcaster actor", "actorID", actor.ID, "shardActorID", actorID, "sub", fmt.Sprintf("%v", sub))
-
-	shard := actor.actorsMap[actorID]
+	shard := broker.actorsMap[actorID]
 	if !slices.Contains(shard, sub) {
 		shard = append(shard, sub)
 	}
-	actor.actorsMap[actorID] = shard
+	broker.actorsMap[actorID] = shard
+
+	broker.Lock.Unlock()
 }
 
-func (actor *BroadcastActor[ActorID]) handleUnsubscription(action broadcasterAction[ActorID]) {
-	actorID := action.actorID
-	sub := action.sub
+func (broker *BroadcastBroker[ActorID]) Unsubscribe(actorID ActorID, sub chan []byte) {
+	slog.Info("unsubscribed from broadcaster broker", "actorID", actorID, "shardActorID", actorID, "sub", fmt.Sprintf("%v", sub))
 
-	slog.Info("unsubscribed from broadcaster actor", "actorID", actorID, "shardActorID", actorID, "sub", fmt.Sprintf("%v", sub))
+	broker.Lock.Lock()
 
-	shard := actor.actorsMap[actorID]
+	shard := broker.actorsMap[actorID]
 	if slices.Contains(shard, sub) {
 		close(sub)
 	}
 	shard = slices.DeleteFunc(shard, func(subElem chan []byte) bool { return subElem == sub })
-	actor.actorsMap[actorID] = shard
+	broker.actorsMap[actorID] = shard
+
+	broker.Lock.Unlock()
 }
 
-func (actor *BroadcastActor[ActorID]) handleBroadcast(action broadcasterAction[ActorID]) {
-	actorID := action.actorID
-	msg := action.payload
-
+func (broker *BroadcastBroker[ActorID]) Broadcast(actorID ActorID, msg []byte) {
 	var subStrs []string
 
-	shard := actor.actorsMap[actorID]
+	broker.Lock.Lock()
+
+	shard := broker.actorsMap[actorID]
 	if shard != nil {
 		for _, sub := range shard {
 			select {
@@ -79,51 +64,9 @@ func (actor *BroadcastActor[ActorID]) handleBroadcast(action broadcasterAction[A
 		}
 	}
 
-	slog.Info("broadcasted message to broadcaster actor subscribers", "actorID", actorID, "subscribers", subStrs)
-}
+	broker.Lock.Unlock()
 
-func (actor *BroadcastActor[ActorID]) stop() {
-	for _, shard := range actor.actorsMap {
-		for _, sub := range shard {
-			close(sub)
-		}
-	}
-}
-
-func (actor *BroadcastActor[ActorID]) Start() {
-	for action := range actor.actionChan {
-		switch action.kind {
-		case subAction:
-			actor.handleSubscription(action)
-		case unsubAction:
-			actor.handleUnsubscription(action)
-		case broadcastAction:
-			actor.handleBroadcast(action)
-		}
-	}
-
-	slog.Info("stopping broadcaster actor", "actorID", actor.ID)
-	actor.stop()
-}
-
-func (actor *BroadcastActor[ActorID]) send(action broadcasterAction[ActorID]) {
-	actor.actionChan <- action
-}
-
-func (actor *BroadcastActor[ActorID]) Subscribe(actorID ActorID, sub chan []byte) {
-	actor.send(broadcasterAction[ActorID]{kind: subAction, actorID: actorID, sub: sub})
-}
-
-func (actor *BroadcastActor[ActorID]) Unsubscribe(actorID ActorID, sub chan []byte) {
-	actor.send(broadcasterAction[ActorID]{kind: unsubAction, actorID: actorID, sub: sub})
-}
-
-func (actor *BroadcastActor[ActorID]) Broadcast(actorID ActorID, msg []byte) {
-	actor.send(broadcasterAction[ActorID]{kind: broadcastAction, actorID: actorID, payload: msg})
-}
-
-func (actor *BroadcastActor[ActorID]) Shutdown() {
-	close(actor.actionChan)
+	slog.Info("broadcasted message to broadcaster broker subscribers", "actorID", actorID, "subscribers", subStrs)
 }
 
 type CountEventKind int
@@ -138,100 +81,49 @@ type GlobalCastEvent struct {
 	Data string
 }
 
-type GlobalCasterActor struct {
+type GlobalCasterBroker struct {
+	Lock          sync.Mutex
 	id            string
-	actionChan    chan globalcasterAction
 	subscriberMap map[chan GlobalCastEvent]struct{}
 }
 
-type globalcasterAction struct {
-	kind    actorActionKind
-	sub     chan GlobalCastEvent
-	payload GlobalCastEvent
+func NewGlobalCasterBroker(id string) *GlobalCasterBroker {
+	return &GlobalCasterBroker{id: id, subscriberMap: make(map[chan GlobalCastEvent]struct{})}
 }
 
-func NewGlobalCasterActor(id string) *GlobalCasterActor {
-	actor := &GlobalCasterActor{id: id, actionChan: make(chan globalcasterAction), subscriberMap: make(map[chan GlobalCastEvent]struct{})}
-	go actor.Start()
-	return actor
+func (broker *GlobalCasterBroker) Subscribe(sub chan GlobalCastEvent) {
+	slog.Info("subscribing to globalcaster", "actorID", broker.id, "sub", fmt.Sprintf("%v", sub))
+
+	broker.Lock.Lock()
+	broker.subscriberMap[sub] = struct{}{}
+	broker.Lock.Unlock()
 }
 
-func (actor *GlobalCasterActor) handleSubscription(action globalcasterAction) {
-	sub := action.sub
+func (broker *GlobalCasterBroker) Unsubscribe(sub chan GlobalCastEvent) {
+	slog.Info("unsubscribing from globalcaster", "actorID", broker.id, "sub", fmt.Sprintf("%v", sub))
 
-	slog.Info("subscribing to globalcaster", "actorID", actor.id, "sub", fmt.Sprintf("%v", sub))
-
-	actor.subscriberMap[sub] = struct{}{}
-}
-
-func (actor *GlobalCasterActor) handleUnsubscription(action globalcasterAction) {
-	sub := action.sub
-
-	slog.Info("unsubscribing from globalcaster", "actorID", actor.id, "sub", fmt.Sprintf("%v", sub))
-
-	if _, ok := actor.subscriberMap[sub]; ok {
-		delete(actor.subscriberMap, sub)
+	broker.Lock.Lock()
+	if _, ok := broker.subscriberMap[sub]; ok {
+		delete(broker.subscriberMap, sub)
 		close(sub)
 	}
+	broker.Lock.Unlock()
 }
 
-func (actor *GlobalCasterActor) handleBroadcast(action globalcasterAction) {
-	msg := action.payload
-
+func (broker *GlobalCasterBroker) Broadcast(payload GlobalCastEvent) {
 	count := 0
 
-	for sub := range actor.subscriberMap {
+	broker.Lock.Lock()
+	for sub := range broker.subscriberMap {
 		count++
 		select {
-		case sub <- msg:
+		case sub <- payload:
 		default:
 			// drop a message if the consumer is slow
-			slog.Warn("GlobalCasterActor: dropping broadcasted message", "actorID", actor.id)
+			slog.Warn("GlobalCasterActor: dropping broadcasted message", "actorID", broker.id)
 		}
 	}
+	broker.Lock.Unlock()
 
-	slog.Info("broadcasted message to globalcaster subscribers", "actorID", actor.id, "count", count)
-}
-
-func (actor *GlobalCasterActor) stop() {
-	for sub := range actor.subscriberMap {
-		close(sub)
-	}
-}
-
-func (actor GlobalCasterActor) Start() {
-	for action := range actor.actionChan {
-		switch action.kind {
-		case subAction:
-			actor.handleSubscription(action)
-		case unsubAction:
-			actor.handleUnsubscription(action)
-		case broadcastAction:
-			actor.handleBroadcast(action)
-		}
-	}
-
-	slog.Info("stopping globalcaster", "actorID", actor.id)
-
-	actor.stop()
-}
-
-func (actor GlobalCasterActor) send(action globalcasterAction) {
-	actor.actionChan <- action
-}
-
-func (actor GlobalCasterActor) Subscribe(sub chan GlobalCastEvent) {
-	actor.send(globalcasterAction{kind: subAction, sub: sub})
-}
-
-func (actor GlobalCasterActor) Unsubscribe(sub chan GlobalCastEvent) {
-	actor.send(globalcasterAction{kind: unsubAction, sub: sub})
-}
-
-func (actor GlobalCasterActor) Broadcast(msg GlobalCastEvent) {
-	actor.send(globalcasterAction{kind: broadcastAction, payload: msg})
-}
-
-func (actor GlobalCasterActor) Shutdown() {
-	close(actor.actionChan)
+	slog.Info("broadcasted message to globalcaster subscribers", "actorID", broker.id, "count", count)
 }

@@ -7,17 +7,20 @@ import (
 	"fmt"
 	"hexchess-svc/cache"
 	"hexchess-svc/chess"
-	"hexchess-svc/db"
-	"hexchess-svc/db/mutator"
+	"hexchess-svc/database"
+	"hexchess-svc/database/mutator"
+	"hexchess-svc/pubsub"
 	"hexchess-svc/service/challenge"
-	chess2 "hexchess-svc/service/chess"
 	"hexchess-svc/service/gameplay"
+	chessSvc "hexchess-svc/service/gamestate"
+	"hexchess-svc/service/leaderboard"
+	"hexchess-svc/service/replay"
 	"hexchess-svc/service/tournament"
 	"hexchess-svc/service/user"
+	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/perf"
 
 	"hexchess-svc/model"
-	svc "hexchess-svc/service"
 	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/logutil"
 	"log"
@@ -82,12 +85,12 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
-	database := db.NewDatabase(ctx, db.DatabaseConfig{
+	databaseClient := database.NewDatabase(ctx, database.DatabaseConfig{
 		ReadWriteDsn:  cfg.DbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
 	})
-	defer database.Close()
+	defer databaseClient.Close()
 
 	redisClient := cache.NewRedis(ctx, cache.RedisConfig{
 		PrimaryAddr:   cfg.RedisPrimaryNodes,
@@ -100,20 +103,31 @@ func main() {
 	}
 
 	// step 3: execute the test seed script and measure results
-	services := svc.NewHexchessServices(svc.SetupService{Database: database, Redis: redisClient})
+	leaderboardSvc := leaderboard.NewLeaderboardService(redisClient, databaseClient.Querier())
+	userSvc := user.NewUserService(databaseClient.Operator())
+	challengeSvc := challenge.NewChallengeService(databaseClient.Operator(), entropy.RealSource{})
+	replaySvc := replay.NewReplayService(databaseClient.Operator())
+	gameoverSvc := gameplay.NewGameoverService(
+		databaseClient.Operator(),
+		redisClient,
+		// producer and broadcaster won't be invoked in the specific codepath needed to seed the data
+		nil,
+		pubsub.Broadcaster{},
+		replaySvc,
+	)
 
 	// root node in the foreign key hierarchy tree
-	seedUsers(ctx, services)
+	seedUsers(ctx, userSvc)
 
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
-		return seedChallenges(egCtx, services)
+		return seedChallenges(egCtx, challengeSvc)
 	})
 	eg.Go(func() error {
-		return seedGameResults(egCtx, services, generateGameResults())
+		return seedGameResults(egCtx, gameoverSvc, replaySvc, generateGameResults())
 	})
 	eg.Go(func() error {
-		return seedTournaments(egCtx, database.QuerierMutator(), generateTournaments())
+		return seedTournaments(egCtx, databaseClient.QuerierMutator(), generateTournaments())
 	})
 
 	if err := eg.Wait(); err != nil {
@@ -121,17 +135,17 @@ func main() {
 	}
 
 	// syncs the stat updates written in the game results into the leaderboard.
-	if err := services.SyncLeaderboard(ctx); err != nil {
+	if err := leaderboardSvc.SyncLeaderboard(ctx); err != nil {
 		logutil.Fatal("jobs leaderboard", err)
 	}
 
 	slog.Info("finished seeding databases", "timeTaken", time.Since(start).String())
 }
 
-func seedUsers(ctx context.Context, services *svc.HexchessServices) {
+func seedUsers(ctx context.Context, userSvc *user.UserService) {
 	defer perf.New().Log()
 
-	if _, err := services.BatchInsertUsers(ctx, generateUserInsts()); err != nil {
+	if _, err := userSvc.BatchInsertUsers(ctx, generateUserInsts()); err != nil {
 		logutil.Fatal("insert users", err)
 	}
 }
@@ -190,7 +204,7 @@ func generateMode() model.GameMode {
 	}
 }
 
-func seedChallenges(ctx context.Context, services *svc.HexchessServices) error {
+func seedChallenges(ctx context.Context, services *challenge.ChallengeService) error {
 	defer perf.New().Log()
 	return services.BatchInsertChallenges(ctx, generateChallengeInsts())
 }
@@ -261,7 +275,7 @@ func generateGameResults() []GameResultInsts {
 	return insts
 }
 
-func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts []GameResultInsts) error {
+func seedGameResults(ctx context.Context, gameoverSvc *gameplay.GameOverService, replaySvc *replay.ReplayService, insts []GameResultInsts) error {
 	defer perf.New().Log()
 
 	a := insts
@@ -279,7 +293,7 @@ func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts 
 
 			mode := inst.ReplayMode
 
-			moveSeq, err := chess2.RandomMoveHistSeq(mode, 10, 30, -1)
+			moveSeq, err := chessSvc.RandomMoveHistSeq(mode, 10, 30, -1)
 			if err != nil {
 				return fmt.Errorf("generate random move seq: %w", err)
 			}
@@ -288,7 +302,7 @@ func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts 
 				return fmt.Errorf("marshal move history to s3: %w", err)
 			}
 
-			changeSet, err := services.InsertGameResult(egCtx, gameplay.GameResult{
+			changeSet, err := gameoverSvc.InsertGameResult(egCtx, gameplay.GameResult{
 				GameID:       model.NewGameID(),
 				WhiteID:      inst.WhiteID,
 				BlackID:      inst.BlackID,
@@ -302,7 +316,7 @@ func seedGameResults(ctx context.Context, services *svc.HexchessServices, insts 
 				return fmt.Errorf("insert game result: %w", err)
 			}
 			// note(Joseph): remember to insert the move history - it exists outside the game result tx
-			if err = services.UpsertReplayMoveHistories(ctx, changeSet.ReplayID, moveHistBlob); err != nil {
+			if err = replaySvc.UpsertReplayMoveHistories(ctx, changeSet.ReplayID, moveHistBlob); err != nil {
 				return fmt.Errorf("insert replay move histories: %w", err)
 			}
 			return nil
@@ -387,7 +401,7 @@ func generateTournaments() []TournamentInsts {
 	return insts
 }
 
-func seedTournaments(ctx context.Context, query db.QuerierMutator, paramsList []TournamentInsts) error {
+func seedTournaments(ctx context.Context, query database.QuerierMutator, paramsList []TournamentInsts) error {
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	sem := make(chan struct{}, Concurrency)

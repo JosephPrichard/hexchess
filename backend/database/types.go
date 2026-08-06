@@ -1,9 +1,9 @@
-package db
+package database
 
 import (
 	"context"
-	"hexchess-svc/db/mutator"
-	"hexchess-svc/db/query"
+	"hexchess-svc/database/mutator"
+	"hexchess-svc/database/query"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"

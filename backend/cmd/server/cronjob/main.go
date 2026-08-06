@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"hexchess-svc/cache"
+	"hexchess-svc/cloud"
 	"hexchess-svc/service/file"
+	"hexchess-svc/service/leaderboard"
 	"hexchess-svc/utils/config"
 	"log/slog"
 	"os"
 	"time"
 
-	"hexchess-svc/db"
-	svc "hexchess-svc/service"
+	"hexchess-svc/database"
 	"hexchess-svc/utils/logutil"
 )
 
@@ -36,12 +37,12 @@ func main() {
 	shutdown := logutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
-	database := db.NewDatabase(ctx, db.DatabaseConfig{
+	databaseClient := database.NewDatabase(ctx, database.DatabaseConfig{
 		ReadWriteDsn:  cfg.DbURL,
 		ActiveProfile: cfg.Profile,
 		Region:        cfg.AwsRegion,
 	})
-	defer database.Close()
+	defer databaseClient.Close()
 
 	redisClient := cache.NewRedis(ctx, cache.RedisConfig{
 		PrimaryAddr:   cfg.RedisPrimaryNodes,
@@ -49,18 +50,25 @@ func main() {
 	})
 	defer redisClient.Close()
 
-	services := svc.NewHexchessServices(svc.SetupService{
-		Database: database,
-		Redis:    redisClient,
+	aws := cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
+		ActiveProfile: cfg.Profile,
+		Names:         cloud.AWSNames{S3ProfileBucket: cfg.ProfileBucket},
+		AWSRegion:     cfg.AwsRegion,
+		AWSEndpoint:   cfg.AwsEndpoint,
+		AWSUsername:   cfg.AwsUsername,
+		AWSPassword:   cfg.AwsPassword,
 	})
+
+	leaderboardSvc := leaderboard.NewLeaderboardService(redisClient, databaseClient.Querier())
+	profileSvc := file.NewOrphanService(aws, databaseClient.Querier())
 
 	var err error
 
 	switch job {
 	case SyncLeaderboardJobName:
-		err = services.SyncLeaderboard(ctx)
+		err = leaderboardSvc.SyncLeaderboard(ctx)
 	case ClearS3OrphansJobName:
-		err = services.ClearOrphanFiles(ctx, file.PageLength)
+		err = profileSvc.ClearOrphanFiles(ctx, file.PageLength)
 	default:
 		logutil.Fatal("unknown job", nil, "job", job)
 	}
