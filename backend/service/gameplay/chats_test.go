@@ -16,7 +16,7 @@ import (
 func setupChatsServicesTest(t logutil.TestLogger, flags ...itest.TestFlag) (*ChatService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
-	services := NewChatService(infra.Redis, infra.Querier, entropy.RealSource{})
+	services := NewChatService(infra.Redis, infra.Querier(), entropy.RealSource{})
 
 	return services, infra
 }

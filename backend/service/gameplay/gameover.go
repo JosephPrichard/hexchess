@@ -28,7 +28,7 @@ import (
 )
 
 type GameOverService struct {
-	database.Operator
+	database.Database
 	redis       cache.Redis
 	producer    AdvanceTournamentProducer
 	broadcaster pubsub.Broadcaster
@@ -49,14 +49,14 @@ type AdvanceTournamentProducer interface {
 }
 
 func NewGameoverService(
-	operator database.Operator,
+	database database.Database,
 	redis cache.Redis,
 	producer AdvanceTournamentProducer,
 	broadcaster pubsub.Broadcaster,
 	replay ReplayService,
 ) *GameOverService {
 	return &GameOverService{
-		Operator:    operator,
+		Database:    database,
 		redis:       redis,
 		producer:    producer,
 		broadcaster: broadcaster,
@@ -101,7 +101,7 @@ func (services *GameOverService) InsertFinishedGame(ctx context.Context, finishe
 
 	// step 4: publishing a tournament event is necessary to trigger advancing the game state *IF* the tournament round is finished
 	// this operation is idempotent and safe, if the tournament is not ready to be advanced, the operation noops
-	tournamentKey, err := services.Querier.SelectTournamentByGameID(ctx, finishedGame.GameID.String())
+	tournamentKey, err := services.Querier().SelectTournamentByGameID(ctx, finishedGame.GameID.String())
 	switch {
 	case database.IsErrNoRows(err):
 		slog.InfoContext(ctx, "skipping send schedule tournament event", "gameID", finishedGame.GameID)
@@ -188,7 +188,7 @@ func (services *GameOverService) InsertGameResult(ctx context.Context, result Ga
 
 	var changeSet GameResultChangeSet
 
-	err := services.Transactor.ExecTx(ctx, database.TxArgs{
+	err := services.Database.ExecTx(ctx, database.TxArgs{
 		// RepeatableRead is required to prevent the following race conditions
 		// Case 1 (Lost Update):
 		// T1 selects the user elos E1 and calculating and insert user elos E2

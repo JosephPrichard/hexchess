@@ -20,25 +20,25 @@ import (
 var ErrNoReplay = errors.New("replay not found")
 
 type ReplayService struct {
-	database.Operator
+	database.Database
 }
 
-func NewReplayService(operator database.Operator) *ReplayService {
-	return &ReplayService{Operator: operator}
+func NewReplayService(database database.Database) *ReplayService {
+	return &ReplayService{Database: database}
 }
 
 func (services *ReplayService) GetReplayByGameID(ctx context.Context, gameID string) (model.FullReplay, error) {
-	row, err := services.Querier.SelectReplayByGameID(ctx, gameID)
+	row, err := services.Querier().SelectReplayByGameID(ctx, gameID)
 	return mapGetReplayResult(ctx, gameID, query.SelectReplayByIDRow(row), err)
 }
 
 func (services *ReplayService) GetReplay(ctx context.Context, replayID int64) (model.FullReplay, error) {
-	row, err := services.Querier.SelectReplayByID(ctx, replayID)
+	row, err := services.Querier().SelectReplayByID(ctx, replayID)
 	return mapGetReplayResult(ctx, replayID, row, err)
 }
 
 func (services *ReplayService) UpsertReplayMoveHistories(ctx context.Context, replayID int64, data []byte) error {
-	if err := services.Mutator.UpsertReplayMoveHistories(ctx, mutator.UpsertReplayMoveHistoriesParams{
+	if err := services.Mutator().UpsertReplayMoveHistories(ctx, mutator.UpsertReplayMoveHistoriesParams{
 		ReplayID: replayID,
 		Data:     data,
 	}); err != nil {
@@ -95,7 +95,7 @@ func mapReplayByIDRow(row query.SelectReplayByIDRow) model.Replay {
 }
 
 func (services *ReplayService) GetMovesHistory(ctx context.Context, replayID int) ([]byte, error) {
-	row, err := services.Querier.SelectReplayMoveHistoryByID(ctx, int64(replayID))
+	row, err := services.Querier().SelectReplayMoveHistoryByID(ctx, int64(replayID))
 	if err != nil {
 		return nil, serrors.New("select replay move histories", err, "replayID", replayID)
 	}
@@ -139,7 +139,7 @@ func (services *ReplayService) RetrieveEloHistoryBuckets(ctx context.Context, pa
 		playedAfter = pgtype.Timestamptz{Valid: true, Time: params.TimeUntil.AddDate(0, -int(params.Months), 0)}
 	}
 
-	eloRows, err := services.Querier.SelectReplayElos(ctx, query.SelectReplayElosParams{
+	eloRows, err := services.Querier().SelectReplayElos(ctx, query.SelectReplayElosParams{
 		ID:          pgtype.Int8{Int64: params.UserID, Valid: true},
 		PlayedAfter: playedAfter,
 	})

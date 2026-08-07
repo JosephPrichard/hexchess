@@ -17,7 +17,7 @@ import (
 func setupUserTest(t logutil.TestLogger, flags ...itest.TestFlag) (*UserService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
-	services := NewUserService(infra.Operator())
+	services := NewUserService(infra.Database)
 
 	return services, infra
 }

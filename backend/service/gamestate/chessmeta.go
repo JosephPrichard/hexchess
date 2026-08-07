@@ -21,23 +21,23 @@ import (
 )
 
 type ChessMetaService struct {
-	database.Operator
+	database.Database
 	entropy     entropy.Generator
 	broadcaster pubsub.Broadcaster
 }
 
 func NewChessMetaService(
-	operator database.Operator,
+	database database.Database,
 	entropy entropy.Generator,
 	broadcaster pubsub.Broadcaster,
 ) *ChessMetaService {
-	return &ChessMetaService{Operator: operator, entropy: entropy, broadcaster: broadcaster}
+	return &ChessMetaService{Database: database, entropy: entropy, broadcaster: broadcaster}
 }
 
 func (services *ChessMetaService) UpdateGameMetadata(ctx context.Context, updt model.GameMetadataUpdt) error {
 	defer perf.WithContext(ctx).Log()
 
-	updtResult, err := services.Mutator.UpdateGameMeta(ctx, mutator.UpdateGameMetaParams{
+	updtResult, err := services.Mutator().UpdateGameMeta(ctx, mutator.UpdateGameMetaParams{
 		GameID:    updt.GameID.String(),
 		WhiteID:   pgtype.Int8{Int64: updt.WhitePlayer.Value, Valid: updt.WhitePlayer.Present},
 		BlackID:   pgtype.Int8{Int64: updt.BlackPlayer.Value, Valid: updt.BlackPlayer.Present},
@@ -95,7 +95,7 @@ func (services *ChessMetaService) GetGameMetadata(ctx context.Context, player op
 func (services *ChessMetaService) GetGameMetadataCount(ctx context.Context) (int64, error) {
 	defer perf.WithContext(ctx).Log()
 
-	count, err := services.Querier.SelectGameMetasCount(ctx)
+	count, err := services.Querier().SelectGameMetasCount(ctx)
 	if err != nil {
 		return 0, serrors.New("count chess metadatas", err)
 	}
@@ -105,7 +105,7 @@ func (services *ChessMetaService) GetGameMetadataCount(ctx context.Context) (int
 }
 
 func (services *ChessMetaService) getGameMetadata(ctx context.Context, userID optional.Option[int64], afterOrdering optional.Option[int64], count optional.Option[int32]) ([]model.ChessMeta, error) {
-	rows, err := services.Querier.SelectGameMetas(ctx, query.SelectGameMetasParams{
+	rows, err := services.Querier().SelectGameMetas(ctx, query.SelectGameMetasParams{
 		ParticipantID: database.MapOptInt8(userID),
 		AfterOrdering: afterOrdering.OrElse(math.MaxInt64),
 		PerPage:       database.MapOptInt4(count),

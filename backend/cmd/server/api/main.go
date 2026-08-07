@@ -35,7 +35,7 @@ func main() {
 		ReadWriteDsn:  cfg.DbURL,
 		ReadDsn:       cfg.DbReadURL, // provides read pool for increased performance
 		ActiveProfile: cfg.Profile,
-		Region:        cfg.AwsRegion,
+		AwsRegion:     cfg.AwsRegion,
 	})
 	defer databaseClient.Close()
 
@@ -45,6 +45,13 @@ func main() {
 		ActiveProfile: cfg.Profile,
 	})
 	defer redisClient.Close()
+
+	riverClient := database.NewRiverClient(ctx, database.PoolConfig{
+		Dsn:           cfg.DbURL,
+		ActiveProfile: cfg.Profile,
+		AwsRegion:     cfg.AwsRegion,
+	})
+	defer riverClient.Stop(ctx)
 
 	aws := cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
 		ActiveProfile: cfg.Profile,
@@ -63,6 +70,7 @@ func main() {
 	// step 4: start API server and PPROF "sidecar" background task
 	mux := network.NewServeMux(network.ServeMuxSetup{
 		Database:       databaseClient,
+		RiverClient:    riverClient,
 		Redis:          redisClient,
 		AWS:            aws,
 		SDKs:           remoteAPIs,

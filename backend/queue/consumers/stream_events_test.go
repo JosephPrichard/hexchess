@@ -4,9 +4,7 @@ import (
 	"context"
 	"hexchess-svc/chess"
 	"hexchess-svc/database/query"
-	"hexchess-svc/service/gameplay"
-	"hexchess-svc/service/gamestate"
-	"hexchess-svc/service/replay"
+	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/optional"
 
 	"hexchess-svc/itest"
@@ -14,7 +12,6 @@ import (
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/utils/async"
-	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/testutil"
 	"testing"
 	"time"
@@ -35,13 +32,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
 	defer testinfra.Close()
 
-	handler := FinishedGameHandler{services: gameplay.NewGameoverService(
-		testinfra.Operator(),
-		testinfra.Redis,
-		producers.NewRiverProducer(&producers.NoopRiverClient{}),
-		pubsub.NewSyncBroadcaster(testinfra.Redis),
-		replay.NewReplayService(testinfra.Operator()),
-	)}
+	worker := NewFinishedGameWorker(testinfra.Database, testinfra.Redis, &producers.NoopRiverClient{}, pubsub.NewSyncBroadcaster(testinfra.Redis))
 
 	whiteUser0 := itest.TestUser[0]
 	blackUser1 := itest.TestUser[1]
@@ -67,9 +58,9 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		ctx:         consumerCtx,
 		cancel:      cancel,
 		redis:       testinfra.Redis.PrimaryClient,
-		consumeFunc: handler.Handle,
+		consumeFunc: worker.Handle,
 
-		querier:    testinfra.Database.QuerierMutator(),
+		querier:    testinfra.QuerierMutator(),
 		dispatcher: async.SyncDispatcher{},
 
 		pollCount:     1,
@@ -82,7 +73,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 
 	consumer.ConsumePartition(string(partitionID))
 
-	userElos, err := testinfra.Querier.SelectUserModeElosByIDs(ctx, query.SelectUserModeElosByIDsParams{
+	userElos, err := testinfra.Querier().SelectUserModeElosByIDs(ctx, query.SelectUserModeElosByIDsParams{
 		ID:   []int64{whiteUser0.ID, blackUser1.ID},
 		Mode: "CORRESPONDENCE_1",
 	})
@@ -106,11 +97,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
 	defer testinfra.Close()
 
-	handler := UpdtGameMetadataHandler{services: gamestate.NewChessMetaService(
-		testinfra.Operator(),
-		&entropy.StableSource{CurrTime: itest.TimeNow},
-		pubsub.NewSyncBroadcaster(testinfra.Redis),
-	)}
+	worker := NewUpdtGameMetadataWorker(testinfra.Database, &entropy.StableSource{CurrTime: itest.TimeNow}, pubsub.NewSyncBroadcaster(testinfra.Redis))
 
 	whiteUser0 := itest.TestUser[0]
 	blackUser1 := itest.TestUser[1]
@@ -133,9 +120,9 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 		ctx:         consumerCtx,
 		cancel:      cancel,
 		redis:       testinfra.Redis.PrimaryClient,
-		consumeFunc: handler.Handle,
+		consumeFunc: worker.Handle,
 
-		querier:    testinfra.Database.QuerierMutator(),
+		querier:    testinfra.QuerierMutator(),
 		dispatcher: async.SyncDispatcher{},
 
 		pollCount:     1,
@@ -147,7 +134,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	}
 	consumer.ConsumePartition(string(partitionID))
 
-	gameRow, err := testinfra.Querier.SelectGameMeta(ctx, gameID.String())
+	gameRow, err := testinfra.Querier().SelectGameMeta(ctx, gameID.String())
 	require.NoError(t, err)
 
 	wantGameRow := query.GamesMetadatum{

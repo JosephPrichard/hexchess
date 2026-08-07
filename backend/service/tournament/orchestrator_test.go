@@ -26,8 +26,8 @@ func setupOrchestratorTest(t logutil.TestLogger, flags ...itest.TestFlag) (*Tour
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewTournamentOrchestrator(
-		NewTournamentService(infra.Operator(), infra.Redis, producers.NewRiverProducer(&producers.NoopRiverClient{})),
-		userSvc.NewUserService(infra.Operator()),
+		NewTournamentService(infra.Database, infra.Redis, producers.NewRiverProducer(&producers.NoopRiverClient{})),
+		userSvc.NewUserService(infra.Database),
 		gameplay.NewGameplayService(infra.Redis, producers.NewStreamProducer(infra.Redis), gamestate.NewChessRepoService(infra.Redis)),
 		pubsub.NewSyncBroadcaster(infra.Redis),
 	)
@@ -261,11 +261,11 @@ func TestProgressTournament_StoresMatches(t *testing.T) {
 			assert.Equal(t, tt.wantErr, errutil.LeafError(err))
 
 			if tt.wantErr == nil {
-				matches, err := testinfra.Querier.SelectMatches(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
+				matches, err := testinfra.Querier().SelectMatches(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
 				require.NoError(t, err)
 				testutil.Equal(t, tt.wantMatches, matches, sqlcTournamentMatchCmpOpts)
 
-				status, err := testinfra.Querier.SelectTournamentStatus(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
+				status, err := testinfra.Querier().SelectTournamentStatus(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
 				require.NoError(t, err)
 				testutil.Equal(t, tt.wantStatus, status)
 			}
@@ -317,7 +317,7 @@ func TestProgressTournament_InsertsEvent(t *testing.T) {
 	_, err := services.ProgressTournament(ctx, tournamentKey, eventID)
 	require.NoError(t, err)
 
-	eventData, err := testinfra.Querier.SelectByEventKeyID(ctx, pgtype.UUID{Bytes: eventID, Valid: true})
+	eventData, err := testinfra.Querier().SelectByEventKeyID(ctx, pgtype.UUID{Bytes: eventID, Valid: true})
 	require.NoError(t, err)
 
 	var matchCreations model.MatchCreations

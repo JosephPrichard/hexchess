@@ -19,11 +19,11 @@ import (
 )
 
 type ReplaySearchService struct {
-	database.Operator
+	database.Database
 }
 
-func NewSearchService(operator database.Operator) *ReplaySearchService {
-	return &ReplaySearchService{Operator: operator}
+func NewSearchService(database database.Database) *ReplaySearchService {
+	return &ReplaySearchService{Database: database}
 }
 
 type ReplaysQuery struct {
@@ -120,7 +120,7 @@ func (services *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, q
 		// sort determines the 'ORDER BY' in the SQL query
 		SortKey: qry.Sort.String(),
 	}
-	replayRows, err := services.Querier.SelectReplaysByQuery(ctx, params)
+	replayRows, err := services.Querier().SelectReplaysByQuery(ctx, params)
 	if err != nil {
 		return nil, serrors.New("select replays by query", err)
 	}
@@ -155,7 +155,7 @@ func (services *ReplaySearchService) getIDsByUsernames(ctx context.Context, requ
 
 	slog.InfoContext(ctx, "selecting user ids by usernames for requests", "requests", requests)
 
-	userRows, err := services.Querier.SelectUserIDsByNames(ctx, usernames)
+	userRows, err := services.Querier().SelectUserIDsByNames(ctx, usernames)
 	if err != nil {
 		return serrors.New("select user ids by names", err, "usernames", usernames)
 	}

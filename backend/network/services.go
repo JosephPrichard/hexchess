@@ -42,7 +42,7 @@ type Services struct {
 
 type SetupAPIServices struct {
 	Database    database.Database
-	RiverClient producers.RiverClientAPI
+	RiverClient database.RiverClientAPI
 	Redis       cache.Redis
 	Broadcaster pubsub.Broadcaster
 	AWS         cloud.AWSClient
@@ -59,32 +59,30 @@ func NewAPIServices(setup SetupAPIServices) Services {
 		setup.Dispatcher = async.AsyncDispatcher{}
 	}
 
-	operator := setup.Database.Operator()
-
 	riverProducer := producers.NewRiverProducer(setup.RiverClient)
 	streamProducer := producers.NewStreamProducer(setup.Redis)
 
-	userSvc := user.NewUserService(operator)
-	replaySvc := replay.NewReplayService(operator)
-	replaySearchSvc := replay.NewSearchService(operator)
-	challengeSvc := challenge.NewChallengeService(operator, setup.Entropy)
+	userSvc := user.NewUserService(setup.Database)
+	replaySvc := replay.NewReplayService(setup.Database)
+	replaySearchSvc := replay.NewSearchService(setup.Database)
+	challengeSvc := challenge.NewChallengeService(setup.Database, setup.Entropy)
 
-	leaderboardSvc := leaderboard.NewLeaderboardService(setup.Redis, operator.Querier)
+	leaderboardSvc := leaderboard.NewLeaderboardService(setup.Redis, setup.Database.Querier())
 
-	chessMetaSvc := gamestate.NewChessMetaService(operator, setup.Entropy, setup.Broadcaster)
+	chessMetaSvc := gamestate.NewChessMetaService(setup.Database, setup.Entropy, setup.Broadcaster)
 	chessRepoSvc := gamestate.NewChessRepoService(setup.Redis)
 	gameplaySvc := gameplay.NewGameplayService(setup.Redis, streamProducer, chessRepoSvc)
 
-	orphanSvc := file.NewOrphanService(setup.AWS, operator.Querier)
+	orphanSvc := file.NewOrphanService(setup.AWS, setup.Database.Querier())
 	profileSvc := file.NewProfileService(setup.AWS, setup.Dispatcher, setup.Entropy)
 
 	sessionSvc := session.NewSessionService(setup.Redis)
 
-	tournamentSvc := tournament.NewTournamentService(operator, setup.Redis, riverProducer)
+	tournamentSvc := tournament.NewTournamentService(setup.Database, setup.Redis, riverProducer)
 	tournamentBroadcaster := tournament.NewTournamentBroadcaster(leaderboardSvc, setup.Broadcaster)
 
 	activeUserSvc := user.NewActiveUserService(setup.Redis, setup.Broadcaster)
-	chatSvc := gameplay.NewChatService(setup.Redis, operator.Querier, setup.Entropy)
+	chatSvc := gameplay.NewChatService(setup.Redis, setup.Database.Querier(), setup.Entropy)
 
 	participantSvc := persona.NewPersonaService(userSvc, leaderboardSvc, replaySearchSvc)
 

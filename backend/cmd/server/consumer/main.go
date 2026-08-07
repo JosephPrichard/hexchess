@@ -33,16 +33,19 @@ func main() {
 	databaseClient := database.NewDatabase(ctx, database.DatabaseConfig{
 		ReadWriteDsn:  cfg.DbURL, // excludes optional read pool argument since all operations in this service involve mixed read-write operations
 		ActiveProfile: cfg.Profile,
-		Region:        cfg.AwsRegion,
+		AwsRegion:     cfg.AwsRegion,
 	})
 	defer databaseClient.Close()
 
-	riverQuePool := database.NewDatabasePool(ctx, database.PoolConfig{
+	riverPool := database.NewDatabasePool(ctx, database.PoolConfig{
 		Dsn:           cfg.DbURL,
 		ActiveProfile: cfg.Profile,
 		AwsRegion:     cfg.AwsRegion,
 	})
-	defer riverQuePool.Close()
+	defer riverPool.Close()
+
+	riverProducerClient := database.NewRiverClientFromPool(riverPool)
+	defer riverProducerClient.Stop(ctx)
 
 	redisClient := cache.NewRedis(ctx, cache.RedisConfig{
 		PrimaryAddr:      cfg.RedisPrimaryNodes,
@@ -55,8 +58,8 @@ func main() {
 	// step 3: start background consumers and PPROF server
 	broadcaster := pubsub.NewAsyncBroadcaster(redisClient)
 
-	consumers.StartRedisConsumers(databaseClient, redisClient, broadcaster, nil)
-	consumers.StartRiverConsumers(riverQuePool, databaseClient, redisClient, broadcaster, nil)
+	consumers.StartRedisConsumers(databaseClient, redisClient, broadcaster, riverProducerClient)
+	consumers.StartRiverConsumers(riverPool, databaseClient, redisClient, broadcaster, riverProducerClient)
 
 	slog.Info("finished initializing consumers", "timeTaken", time.Since(startTime).String())
 

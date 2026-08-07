@@ -88,7 +88,7 @@ func main() {
 	databaseClient := database.NewDatabase(ctx, database.DatabaseConfig{
 		ReadWriteDsn:  cfg.DbURL,
 		ActiveProfile: cfg.Profile,
-		Region:        cfg.AwsRegion,
+		AwsRegion:     cfg.AwsRegion,
 	})
 	defer databaseClient.Close()
 
@@ -103,28 +103,17 @@ func main() {
 	}
 
 	// step 3: execute the test seed script and measure results
-	leaderboardSvc := leaderboard.NewLeaderboardService(redisClient, databaseClient.Querier())
-	userSvc := user.NewUserService(databaseClient.Operator())
-	challengeSvc := challenge.NewChallengeService(databaseClient.Operator(), entropy.RealSource{})
-	replaySvc := replay.NewReplayService(databaseClient.Operator())
-	gameoverSvc := gameplay.NewGameoverService(
-		databaseClient.Operator(),
-		redisClient,
-		// producer and broadcaster won't be invoked in the specific codepath needed to seed the data
-		nil,
-		pubsub.Broadcaster{},
-		replaySvc,
-	)
+	services := newServices(redisClient, databaseClient)
 
 	// root node in the foreign key hierarchy tree
-	seedUsers(ctx, userSvc)
+	seedUsers(ctx, services.user)
 
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
-		return seedChallenges(egCtx, challengeSvc)
+		return seedChallenges(egCtx, services.challenge)
 	})
 	eg.Go(func() error {
-		return seedGameResults(egCtx, gameoverSvc, replaySvc, generateGameResults())
+		return seedGameResults(egCtx, services.gameover, services.replay, generateGameResults())
 	})
 	eg.Go(func() error {
 		return seedTournaments(egCtx, databaseClient.QuerierMutator(), generateTournaments())
@@ -135,11 +124,44 @@ func main() {
 	}
 
 	// syncs the stat updates written in the game results into the leaderboard.
-	if err := leaderboardSvc.SyncLeaderboard(ctx); err != nil {
+	if err := services.leaderboard.SyncLeaderboard(ctx); err != nil {
 		logutil.Fatal("jobs leaderboard", err)
 	}
 
 	slog.Info("finished seeding databases", "timeTaken", time.Since(start).String())
+}
+
+type Services struct {
+	leaderboard *leaderboard.LeaderboardService
+	user        *user.UserService
+	challenge   *challenge.ChallengeService
+	replay      *replay.ReplayService
+	gameover    *gameplay.GameOverService
+}
+
+func newServices(
+	redisClient cache.Redis,
+	databaseClient database.Database,
+) Services {
+	leaderboardSvc := leaderboard.NewLeaderboardService(redisClient, databaseClient.Querier())
+	userSvc := user.NewUserService(databaseClient)
+	challengeSvc := challenge.NewChallengeService(databaseClient, entropy.RealSource{})
+	replaySvc := replay.NewReplayService(databaseClient)
+	gameoverSvc := gameplay.NewGameoverService(
+		databaseClient,
+		redisClient,
+		// producer and broadcaster won't be invoked in the specific codepath needed to seed the data
+		nil,
+		pubsub.Broadcaster{},
+		replaySvc,
+	)
+	return Services{
+		leaderboard: leaderboardSvc,
+		user:        userSvc,
+		challenge:   challengeSvc,
+		replay:      replaySvc,
+		gameover:    gameoverSvc,
+	}
 }
 
 func seedUsers(ctx context.Context, userSvc *user.UserService) {

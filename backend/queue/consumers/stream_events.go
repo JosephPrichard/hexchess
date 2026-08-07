@@ -29,22 +29,12 @@ type RedisConsumerSetup struct {
 	Redis       cache.Redis
 	Database    database.Database
 	Broadcaster pubsub.Broadcaster
-	RiverClient producers.RiverClientAPI
+	RiverClient database.RiverClientAPI
 }
 
-func StartRedisConsumers(database database.Database, redis cache.Redis, broadcaster pubsub.Broadcaster, riverClient producers.RiverClientAPI) {
-	operator := database.Operator()
-
-	finishGameHandler := FinishedGameHandler{services: gameplay.NewGameoverService(
-		operator,
-		redis,
-		producers.NewRiverProducer(riverClient),
-		broadcaster,
-		replay.NewReplayService(operator),
-	)}
-	updtGameHandler := UpdtGameMetadataHandler{
-		services: gamestate.NewChessMetaService(operator, entropy.RealSource{}, broadcaster),
-	}
+func StartRedisConsumers(database database.Database, redis cache.Redis, broadcaster pubsub.Broadcaster, riverClient database.RiverClientAPI) {
+	finishGameWorker := NewFinishedGameWorker(database, redis, riverClient, broadcaster)
+	updtGameWorker := NewUpdtGameMetadataWorker(database, entropy.RealSource{}, broadcaster)
 
 	redisClient := redis.ConsumerClient
 	metricQuerier := database.QuerierMutator()
@@ -58,7 +48,7 @@ func StartRedisConsumers(database database.Database, redis cache.Redis, broadcas
 		Redis:          redisClient,
 		MetricsQuerier: metricQuerier,
 
-		ConsumeFn: finishGameHandler.Handle,
+		ConsumeFn: finishGameWorker.Handle,
 	})
 	go finishGameConsumer.Consume()
 
@@ -71,16 +61,31 @@ func StartRedisConsumers(database database.Database, redis cache.Redis, broadcas
 		Redis:          redisClient,
 		MetricsQuerier: metricQuerier,
 
-		ConsumeFn: updtGameHandler.Handle,
+		ConsumeFn: updtGameWorker.Handle,
 	})
 	go updtGameConsumer.Consume()
 }
 
-type FinishedGameHandler struct {
+type FinishedGameWorker struct {
 	services *gameplay.GameOverService
 }
 
-func (handler FinishedGameHandler) Handle(ctx context.Context, bytes []byte) error {
+func NewFinishedGameWorker(
+	database database.Database,
+	redis cache.Redis,
+	riverClient database.RiverClientAPI,
+	broadcaster pubsub.Broadcaster,
+) *FinishedGameWorker {
+	return &FinishedGameWorker{services: gameplay.NewGameoverService(
+		database,
+		redis,
+		producers.NewRiverProducer(riverClient),
+		broadcaster,
+		replay.NewReplayService(database),
+	)}
+}
+
+func (handler FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
 	var event model.FinishedGame
 	if err := sonic.Unmarshal(bytes, &event); err != nil {
 		return NonRetryableQueueError{Err: err}
@@ -91,11 +96,17 @@ func (handler FinishedGameHandler) Handle(ctx context.Context, bytes []byte) err
 	return handler.services.InsertFinishedGame(ctx, event)
 }
 
-type UpdtGameMetadataHandler struct {
+type UpdtGameMetadataWorker struct {
 	services *gamestate.ChessMetaService
 }
 
-func (handler UpdtGameMetadataHandler) Handle(ctx context.Context, bytes []byte) error {
+func NewUpdtGameMetadataWorker(database database.Database, entropy entropy.Generator, broadcaster pubsub.Broadcaster) *UpdtGameMetadataWorker {
+	return &UpdtGameMetadataWorker{
+		services: gamestate.NewChessMetaService(database, entropy, broadcaster),
+	}
+}
+
+func (handler UpdtGameMetadataWorker) Handle(ctx context.Context, bytes []byte) error {
 	var event model.GameMetadataUpdt
 	if err := sonic.Unmarshal(bytes, &event); err != nil {
 		return NonRetryableQueueError{Err: err}

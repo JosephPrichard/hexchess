@@ -82,7 +82,7 @@ vulncheck:
 # Testing
 test:
 	# Backend server test
-	cd $(BACKEND_DIR) && go test $$(go list ./... | grep -v '^.*/cmd|/wasm/') -v -count=1 -timeout=60s
+	cd $(BACKEND_DIR) && go test $$(go list ./... | grep -v '^.*/cmd|/wasm/') -count=1 -timeout=60s
 	# Backend wasm module test
 	cd $(BACK_WASM_DIR) && GOOS=js GOARCH=wasm go test -v -count=1 -tags=browser -timeout=60s -exec wasmbrowsertest
 

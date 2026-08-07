@@ -15,8 +15,7 @@ import (
 )
 
 type TestInfra struct {
-	Querier  database.QuerierMutator
-	Database database.Database
+	database.Database
 
 	Redis cache.Redis
 
@@ -26,14 +25,6 @@ type TestInfra struct {
 func (i TestInfra) Close() {
 	i.Redis.Close()
 	i.Database.Close()
-}
-
-func (i TestInfra) Operator() database.Operator {
-	return database.Operator{
-		Transactor: &i.Database,
-		Querier:    i.Querier,
-		Mutator:    i.Querier,
-	}
 }
 
 func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
@@ -77,13 +68,9 @@ func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
 	if isRwPostgresFlag {
 		// rwPostgres flag substitutes a pool with a connection to enable parallel, independent tests
 		infra.Database = database.NewFakeDatabase(t, dbPool)
-
-		infra.Querier = infra.Database.QuerierMutator()
 	} else if isRoPostgresFlag {
 		// roPostgres flag uses a real database pool to enable concurrent transactions
 		infra.Database = database.NewDatabaseFromPool(dbPool)
-
-		infra.Querier = infra.Database.QuerierMutator()
 	}
 
 	if isRedisFlag {

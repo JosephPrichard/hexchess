@@ -7,7 +7,6 @@ import (
 	"hexchess-svc/cloud"
 	"hexchess-svc/database"
 	"hexchess-svc/pubsub"
-	"hexchess-svc/queue/producers"
 	sessionSvc "hexchess-svc/service/session"
 	"hexchess-svc/utils/entropy"
 	"log/slog"
@@ -24,7 +23,7 @@ import (
 
 type ServeMuxSetup struct {
 	Database       database.Database
-	RiverClient    producers.RiverClientAPI
+	RiverClient    database.RiverClientAPI
 	Redis          cache.Redis
 	Broadcaster    pubsub.Broadcaster
 	AWS            cloud.AWSClient

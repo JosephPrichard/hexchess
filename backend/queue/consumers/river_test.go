@@ -55,7 +55,7 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 		},
 	}
 
-	matches, err := testinfra.Querier.SelectMatches(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+	matches, err := testinfra.Querier().SelectMatches(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 	require.NoError(t, err)
 	testutil.Equal(t, wantMatches, matches, sqlcTournamentMatchCmpOpts)
 }

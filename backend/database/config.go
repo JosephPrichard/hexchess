@@ -9,6 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 )
 
 type PoolConfig struct {
@@ -52,15 +54,15 @@ type DatabaseConfig struct {
 	ReadWriteDsn  string         `json:"readWriteDsn"`  // (required) parseable configuration in either KV pair or postgres URL format. see pgxpool documentation.
 	ReadDsn       string         `json:"readDsn"`       // (optional) dsn for the read replicas of the postgres backend, reuses the read write pool if left empty
 	ActiveProfile config.Profile `json:"activeProfile"` // (required) profile for application is used to turn AWS authentication on (test/prod) and off (local)
-	Region        string         `json:"region"`        // (optional) AWS region database is in, if AWS authentication is on
+	AwsRegion     string         `json:"awsRegion"`     // (optional) AWS region database is in, if AWS authentication is on
 }
 
 func NewDatabase(ctx context.Context, cfg DatabaseConfig) Database {
-	writePool := NewDatabasePool(ctx, PoolConfig{Dsn: cfg.ReadWriteDsn, ActiveProfile: cfg.ActiveProfile, AwsRegion: cfg.Region})
+	writePool := NewDatabasePool(ctx, PoolConfig{Dsn: cfg.ReadWriteDsn, ActiveProfile: cfg.ActiveProfile, AwsRegion: cfg.AwsRegion})
 
 	var readPool *pgxpool.Pool
 	if cfg.ReadDsn != "" {
-		readPool = NewDatabasePool(ctx, PoolConfig{Dsn: cfg.ReadDsn, ActiveProfile: cfg.ActiveProfile, AwsRegion: cfg.Region})
+		readPool = NewDatabasePool(ctx, PoolConfig{Dsn: cfg.ReadDsn, ActiveProfile: cfg.ActiveProfile, AwsRegion: cfg.AwsRegion})
 	} else {
 		readPool = writePool
 	}
@@ -87,4 +89,17 @@ func NewFakeDatabase(t logutil.TestLogger, pool *pgxpool.Pool) Database {
 		writePool: pool,
 		readPool:  pool,
 	}
+}
+
+func NewRiverClient(ctx context.Context, cfg PoolConfig) RiverClientAPI {
+	pool := NewDatabasePool(ctx, PoolConfig{Dsn: cfg.Dsn, ActiveProfile: cfg.ActiveProfile, AwsRegion: cfg.AwsRegion})
+	return NewRiverClientFromPool(pool)
+}
+
+func NewRiverClientFromPool(pool *pgxpool.Pool) RiverClientAPI {
+	riverProducerClient, err := river.NewClient(riverpgxv5.New(pool), nil)
+	if err != nil {
+		logutil.Fatal("create river queue client", err)
+	}
+	return riverProducerClient
 }

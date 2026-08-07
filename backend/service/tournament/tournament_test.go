@@ -22,7 +22,7 @@ func setupTest(t logutil.TestLogger, flags ...itest.TestFlag) (*TournamentServic
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewTournamentService(
-		infra.Operator(),
+		infra.Database,
 		infra.Redis,
 		producers.NewRiverProducer(&producers.NoopRiverClient{}),
 	)
@@ -51,7 +51,7 @@ func TestCreateTournament(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	tournament, err := testinfra.Querier.SelectTournamentByID(ctx, pgtype.UUID{Bytes: key, Valid: true})
+	tournament, err := testinfra.Querier().SelectTournamentByID(ctx, pgtype.UUID{Bytes: key, Valid: true})
 	require.NoError(t, err)
 
 	wantTournament := query.SelectTournamentByIDRow{
@@ -129,7 +129,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 			assert.Equal(t, tt.wantErr, err)
 
 			if tt.wantErr == nil {
-				status, err := testinfra.Querier.SelectTournamentStatus(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
+				status, err := testinfra.Querier().SelectTournamentStatus(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
 				require.NoError(t, err)
 
 				testutil.Equal(t, tt.wantTournamentStatus, status)
@@ -198,7 +198,7 @@ func TestJoinTournament(t *testing.T) {
 			assert.Equal(t, tt.wantErr, err)
 
 			if tt.wantErr == nil {
-				participants, err := testinfra.Querier.SelectParticipants(ctx, pgtype.UUID{Bytes: tt.inst.TournamentKey, Valid: true})
+				participants, err := testinfra.Querier().SelectParticipants(ctx, pgtype.UUID{Bytes: tt.inst.TournamentKey, Valid: true})
 				require.NoError(t, err)
 
 				testutil.Equal(t, tt.wantParticipants, participants, sqlcTournamentParticipantCmpOpts)

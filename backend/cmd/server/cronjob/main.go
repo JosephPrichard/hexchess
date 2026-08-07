@@ -40,7 +40,7 @@ func main() {
 	databaseClient := database.NewDatabase(ctx, database.DatabaseConfig{
 		ReadWriteDsn:  cfg.DbURL,
 		ActiveProfile: cfg.Profile,
-		Region:        cfg.AwsRegion,
+		AwsRegion:     cfg.AwsRegion,
 	})
 	defer databaseClient.Close()
 

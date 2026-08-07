@@ -27,11 +27,11 @@ func setupGameoverTest(t logutil.TestLogger, flags ...itest.TestFlag) (*GameOver
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewGameoverService(
-		infra.Operator(),
+		infra.Database,
 		infra.Redis,
 		producers.NewRiverProducer(&producers.NoopRiverClient{}),
 		pubsub.NewSyncBroadcaster(infra.Redis),
-		replay.NewReplayService(infra.Operator()),
+		replay.NewReplayService(infra.Database),
 	)
 
 	return services, infra
@@ -341,7 +341,7 @@ func TestInsertGameResult(t *testing.T) {
 			changeSet, err := services.InsertGameResult(ctx, tt.resultInput)
 			require.NoError(t, err)
 
-			userElos, err := testinfra.Querier.SelectUserModeElosByIDs(ctx, query.SelectUserModeElosByIDsParams{
+			userElos, err := testinfra.Querier().SelectUserModeElosByIDs(ctx, query.SelectUserModeElosByIDsParams{
 				ID:   []int64{tt.resultInput.WhiteID, tt.resultInput.BlackID},
 				Mode: query.ModeEnum(tt.resultInput.ReplayMode.String()),
 			})
@@ -349,7 +349,7 @@ func TestInsertGameResult(t *testing.T) {
 
 			assert.Equal(t, tt.wantUserElos, userElos)
 
-			userReplay, err := testinfra.Querier.SelectReplayRowByID(ctx, changeSet.ReplayID)
+			userReplay, err := testinfra.Querier().SelectReplayRowByID(ctx, changeSet.ReplayID)
 			require.NoError(t, err)
 
 			testutil.Equal(t, tt.wantReplay, userReplay, cmpopts.IgnoreFields(query.Replay{}, "ID", "PlayedOn", "PlayedOnAsDays", "TurnCount", "Rating"))

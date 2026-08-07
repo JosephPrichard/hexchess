@@ -14,7 +14,7 @@ import (
 func setupSearcherTest(t logutil.TestLogger, flags ...itest.TestFlag) (*ReplaySearchService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
-	services := NewSearchService(infra.Operator())
+	services := NewSearchService(infra.Database)
 
 	return services, infra
 }

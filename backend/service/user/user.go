@@ -28,11 +28,11 @@ import (
 )
 
 type UserService struct {
-	database.Operator
+	database.Database
 }
 
-func NewUserService(database database.Operator) *UserService {
-	return &UserService{Operator: database}
+func NewUserService(database database.Database) *UserService {
+	return &UserService{Database: database}
 }
 
 type RankedUser struct {
@@ -62,7 +62,7 @@ func (services *UserService) InsertUser(ctx context.Context, inst Inst) (model.U
 		return model.User{}, serrors.New("generate hash", err)
 	}
 
-	userRow, err := services.Mutator.InsertUser(ctx, mutator.InsertUserParams{
+	userRow, err := services.Mutator().InsertUser(ctx, mutator.InsertUserParams{
 		Username: inst.Username,
 		Country:  inst.Country,
 		Password: hash.HashedPassword,
@@ -115,7 +115,7 @@ func (services *UserService) BatchInsertUsers(ctx context.Context, insts []Inst)
 
 	var rows []mutator.BatchInsertUserRow
 	var insertErrs []error
-	services.Mutator.BatchInsertUser(ctx, batches).QueryRow(func(i int, row mutator.BatchInsertUserRow, err error) {
+	services.Mutator().BatchInsertUser(ctx, batches).QueryRow(func(i int, row mutator.BatchInsertUserRow, err error) {
 		if err == nil {
 			rows = append(rows, row)
 		} else {
@@ -155,7 +155,7 @@ func (services *UserService) VerifyUser(ctx context.Context, username string, in
 
 	var user VerifiedUser
 
-	err := services.Transactor.ExecTx(ctx, database.TxArgs{
+	err := services.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Non-Repeatable Read):
 		// T1 is allowed to login due to valid login attempts L1 and but increases login attempt count from L1 to L2
@@ -222,7 +222,7 @@ func (services *UserService) SelectOrInsertGoogleUser(ctx context.Context, googl
 	var verifiedUser VerifiedUser
 	var isCreated bool
 
-	login, err := services.Querier.SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
+	login, err := services.Querier().SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
 	if database.IsErrNoRows(err) {
 		isCreated = false
 	} else if err != nil {
@@ -232,7 +232,7 @@ func (services *UserService) SelectOrInsertGoogleUser(ctx context.Context, googl
 	}
 
 	if !isCreated {
-		userRow, err := services.Mutator.InsertUser(ctx, mutator.InsertUserParams{
+		userRow, err := services.Mutator().InsertUser(ctx, mutator.InsertUserParams{
 			Username:        googleInst.Username,
 			Country:         googleInst.Country,
 			JoinedOn:        pgtype.Timestamptz{Time: googleInst.JoinedOn, Valid: true},
@@ -276,7 +276,7 @@ func (services *UserService) UpdateUser(ctx context.Context, id int64, updt Updt
 		return model.User{}, nil
 	}
 
-	userRow, err := services.Mutator.UpdateUser(ctx, mutator.UpdateUserParams{
+	userRow, err := services.Mutator().UpdateUser(ctx, mutator.UpdateUserParams{
 		ID:       id,
 		Username: database.OptString(updt.Username),
 		Bio:      database.OptString(updt.Bio),
@@ -298,7 +298,7 @@ func (services *UserService) UpdateUserPassword(ctx context.Context, id int64, n
 	if err != nil {
 		return serrors.New("hash password for user", err, "userID", id)
 	}
-	err = services.Mutator.UpdatePassword(ctx, mutator.UpdatePasswordParams{
+	err = services.Mutator().UpdatePassword(ctx, mutator.UpdatePasswordParams{
 		ID:       id,
 		Password: hash.HashedPassword,
 		Salt:     hash.Salt,
@@ -310,7 +310,7 @@ func (services *UserService) UpdateUserPassword(ctx context.Context, id int64, n
 func (services *UserService) GetUserByID(ctx context.Context, id int64) (model.User, error) {
 	defer perf.WithContext(ctx).Log()
 
-	userRow, err := services.Querier.SelectUserByID(ctx, id)
+	userRow, err := services.Querier().SelectUserByID(ctx, id)
 	if database.IsErrNoRows(err) {
 		return model.User{}, ErrUserNotFound
 	} else if err != nil {
@@ -328,7 +328,7 @@ func Average[T constraints.Integer | constraints.Float](currAvg T, currCount int
 func (services *UserService) GetUserStats(ctx context.Context, id int64) (model.UserStats, error) {
 	defer perf.WithContext(ctx).Log()
 
-	modeEloRows, err := services.Querier.SelectUserElosByID(ctx, id)
+	modeEloRows, err := services.Querier().SelectUserElosByID(ctx, id)
 	if err != nil {
 		return model.UserStats{}, serrors.New("select user elos by id", err, "userID", id)
 	}
@@ -368,7 +368,7 @@ func (services *UserService) GetUserStats(ctx context.Context, id int64) (model.
 }
 
 func (services *UserService) SelectUsersByIDs(ctx context.Context, ids []int64) ([]model.User, error) {
-	userRows, err := services.Querier.SelectUsersByIDs(ctx, ids)
+	userRows, err := services.Querier().SelectUsersByIDs(ctx, ids)
 
 	var users []model.User
 	for _, row := range userRows {

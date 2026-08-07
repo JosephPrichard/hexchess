@@ -19,7 +19,7 @@ import (
 func setupTest(t logutil.TestLogger, flags ...itest.TestFlag) (*LeaderboardService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
-	services := NewLeaderboardService(infra.Redis, infra.Querier)
+	services := NewLeaderboardService(infra.Redis, infra.Querier())
 
 	return services, infra
 }

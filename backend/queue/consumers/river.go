@@ -29,7 +29,7 @@ type RiverConsumerSetup struct {
 	Database    database.Database
 	Redis       cache.Redis
 	Broadcaster pubsub.Broadcaster
-	RiverClient producers.RiverClientAPI
+	RiverClient database.RiverClientAPI
 }
 
 const RiverQueueMaxWorkers = 100
@@ -39,7 +39,7 @@ func StartRiverConsumers(
 	database database.Database,
 	redis cache.Redis,
 	broadcaster pubsub.Broadcaster,
-	riverClient producers.RiverClientAPI,
+	riverClient database.RiverClientAPI,
 ) {
 	ctx := context.Background()
 
@@ -91,18 +91,16 @@ func NewAdvanceTournamentWorker(
 	database database.Database,
 	redis cache.Redis,
 	broadcaster pubsub.Broadcaster,
-	riverClient producers.RiverClientAPI,
+	riverClient database.RiverClientAPI,
 ) *AdvanceTournamentWorker {
-	operator := database.Operator()
-
 	return &AdvanceTournamentWorker{
 		orchestrator: tournament.NewTournamentOrchestrator(
 			tournament.NewTournamentService(
-				operator,
+				database,
 				redis,
 				producers.NewRiverProducer(riverClient),
 			),
-			user.NewUserService(operator),
+			user.NewUserService(database),
 			gameplay.NewGameplayService(
 				redis,
 				producers.NewStreamProducer(redis),

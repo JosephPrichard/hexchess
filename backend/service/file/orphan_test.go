@@ -18,7 +18,7 @@ import (
 func setupOrphanTest(t logutil.TestLogger, flags ...itest.TestFlag) (*OrphanService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
-	services := NewOrphanService(infra.AWS, infra.Querier)
+	services := NewOrphanService(infra.AWS, infra.Querier())
 
 	return services, infra
 }

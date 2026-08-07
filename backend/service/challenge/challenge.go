@@ -30,12 +30,12 @@ var (
 const ExpireChallengeMaxAge = time.Hour * 24 * 7
 
 type ChallengeService struct {
-	database.Operator
+	database.Database
 	entropy entropy.Generator
 }
 
-func NewChallengeService(operator database.Operator, entropy entropy.Generator) *ChallengeService {
-	return &ChallengeService{Operator: operator, entropy: entropy}
+func NewChallengeService(database database.Database, entropy entropy.Generator) *ChallengeService {
+	return &ChallengeService{Database: database, entropy: entropy}
 }
 
 type Inst struct {
@@ -56,7 +56,7 @@ func (services *ChallengeService) InsertChallenge(ctx context.Context, inst Inst
 		inst.MadeOn = time.Now()
 	}
 
-	row, dbErr := services.Mutator.InsertChallenge(ctx, mutator.InsertChallengeParams{
+	row, dbErr := services.Mutator().InsertChallenge(ctx, mutator.InsertChallengeParams{
 		ChallengerID: inst.ChallengerID,
 		ChallengeeID: inst.ChallengeeID,
 		Mode:         mutator.ModeEnum(inst.Mode.String()),
@@ -109,7 +109,7 @@ func (services *ChallengeService) BatchInsertChallenges(ctx context.Context, ins
 
 	var insertErrs []error
 
-	services.Mutator.BatchInsertChallenge(ctx, batches).Exec(func(i int, err error) {
+	services.Mutator().BatchInsertChallenge(ctx, batches).Exec(func(i int, err error) {
 		if err != nil {
 			insertErrs = append(insertErrs, fmt.Errorf("batch insert challenge with inst %+v: %w", insts[i], err))
 		}
@@ -135,7 +135,7 @@ func (services *ChallengeService) GetChallengesByParticipant(ctx context.Context
 
 	since := services.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
-	rows, err := services.Querier.SelectChallengesByParticipant(ctx, query.SelectChallengesByParticipantParams{
+	rows, err := services.Querier().SelectChallengesByParticipant(ctx, query.SelectChallengesByParticipantParams{
 		ChallengerID: database.OptInt8(key.ChallengerID),
 		ChallengeeID: database.OptInt8(key.ChallengeeID),
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
@@ -178,7 +178,7 @@ func (services *ChallengeService) DeleteChallenge(ctx context.Context, challenge
 
 	params := mutator.DeleteChallengeParams{ChallengerID: challengerID, ChallengeeID: challengeeID}
 
-	challengeRow, err := services.Mutator.DeleteChallenge(ctx, params)
+	challengeRow, err := services.Mutator().DeleteChallenge(ctx, params)
 	if database.IsErrNoRows(err) {
 		return DeleteResult{}, ErrChallengeNotFound
 	} else if err != nil {
@@ -204,7 +204,7 @@ func (services *ChallengeService) DeleteExpiredChallenges(ctx context.Context, u
 	// TODO: call this from a cronjob to clear out expired challenges every couple days
 	beforeTime := services.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
-	err := services.Mutator.DeleteExpiredChallenges(ctx, mutator.DeleteExpiredChallengesParams{
+	err := services.Mutator().DeleteExpiredChallenges(ctx, mutator.DeleteExpiredChallengesParams{
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: beforeTime},
 	})
@@ -213,5 +213,5 @@ func (services *ChallengeService) DeleteExpiredChallenges(ctx context.Context, u
 }
 
 func (services *ChallengeService) CountUserChallenges(ctx context.Context, userID int64) (int64, error) {
-	return services.Querier.CountReceivedChallenges(ctx, userID)
+	return services.Querier().CountReceivedChallenges(ctx, userID)
 }

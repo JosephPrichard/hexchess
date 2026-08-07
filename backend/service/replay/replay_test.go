@@ -20,7 +20,7 @@ import (
 func setupReplayTest(t logutil.TestLogger, flags ...itest.TestFlag) (*ReplayService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
-	services := NewReplayService(infra.Operator())
+	services := NewReplayService(infra.Database)
 
 	return services, infra
 }

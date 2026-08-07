@@ -33,7 +33,7 @@ import (
 var ErrTournamentNotFound = fmt.Errorf("tournament does not exist")
 
 type TournamentService struct {
-	database.Operator
+	database.Database
 	redis    cache.Redis
 	producer AdvanceTournamentProducer
 }
@@ -46,8 +46,8 @@ type AdvanceTournamentProducer interface {
 	ProduceAdvanceTournament(ctx context.Context, txn pgx.Tx, args producers.AdvanceTournamentArgs) error
 }
 
-func NewTournamentService(operator database.Operator, redis cache.Redis, producer AdvanceTournamentProducer) *TournamentService {
-	return &TournamentService{Operator: operator, redis: redis, producer: producer}
+func NewTournamentService(database database.Database, redis cache.Redis, producer AdvanceTournamentProducer) *TournamentService {
+	return &TournamentService{Database: database, redis: redis, producer: producer}
 }
 
 func (services *TournamentService) GetTournament(ctx context.Context, tournamentKey uuid.UUID) (model.FullTournament, error) {
@@ -60,7 +60,7 @@ func (services *TournamentService) GetTournament(ctx context.Context, tournament
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() (err error) {
-		tournamentRow, err = services.Querier.SelectTournamentByID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+		tournamentRow, err = services.Querier().SelectTournamentByID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 		if err != nil {
 			return serrors.New("select tournament by key", err, "tournamentKey", tournamentKey)
 		}
@@ -68,7 +68,7 @@ func (services *TournamentService) GetTournament(ctx context.Context, tournament
 	})
 
 	eg.Go(func() (err error) {
-		participantRows, err = services.Querier.SelectParticipantsWithUserByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+		participantRows, err = services.Querier().SelectParticipantsWithUserByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 		if err != nil {
 			return serrors.New("select participants by tournament key", err, "tournamentKey", tournamentKey)
 		}
@@ -76,7 +76,7 @@ func (services *TournamentService) GetTournament(ctx context.Context, tournament
 	})
 
 	eg.Go(func() (err error) {
-		matchRows, err = services.Querier.SelectReplayMatchesByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+		matchRows, err = services.Querier().SelectReplayMatchesByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 		if err != nil {
 			return serrors.New("select replay matches by tournament key", err, "tournamentKey", tournamentKey)
 		}
@@ -162,7 +162,7 @@ func (services *TournamentService) GetTournaments(ctx context.Context, participa
 	var tournaments []model.Tournament
 
 	if participantID.Present {
-		tournamentRows, err := services.Querier.SelectTournamentsByParticipant(ctx, query.SelectTournamentsByParticipantParams{
+		tournamentRows, err := services.Querier().SelectTournamentsByParticipant(ctx, query.SelectTournamentsByParticipantParams{
 			UserID:  participantID.Value,
 			AfterID: afterID.Value,
 			PerPage: perPage,
@@ -174,7 +174,7 @@ func (services *TournamentService) GetTournaments(ctx context.Context, participa
 			return mapTournamentByIdRow(query.SelectTournamentByIDRow(t))
 		})
 	} else {
-		tournamentRows, err := services.Querier.SelectTournaments(ctx, query.SelectTournamentsParams{
+		tournamentRows, err := services.Querier().SelectTournaments(ctx, query.SelectTournamentsParams{
 			AfterID: afterID.Value,
 			PerPage: perPage,
 		})
@@ -224,7 +224,7 @@ func (services *TournamentService) CreateTournament(ctx context.Context, inst To
 		rounds = inst.Rounds
 	}
 
-	tournamentID, err := services.Mutator.InsertTournament(ctx, mutator.InsertTournamentParams{
+	tournamentID, err := services.Mutator().InsertTournament(ctx, mutator.InsertTournamentParams{
 		TournamentKey: pgtype.UUID{Bytes: inst.Key, Valid: true},
 		Name:          inst.Name,
 		Rounds:        rounds,
@@ -245,7 +245,7 @@ func (services *TournamentService) CreateTournament(ctx context.Context, inst To
 }
 
 func (services *TournamentService) LeaveTournament(ctx context.Context, tournamentKey uuid.UUID, userID int64) (bool, error) {
-	deletedIDs, err := services.Mutator.DeleteTournamentParticipant(ctx, mutator.DeleteTournamentParticipantParams{
+	deletedIDs, err := services.Mutator().DeleteTournamentParticipant(ctx, mutator.DeleteTournamentParticipantParams{
 		TournamentKey: pgtype.UUID{Bytes: tournamentKey, Valid: true},
 		UserID:        userID,
 	})
@@ -294,7 +294,7 @@ func (services *TournamentService) JoinTournament(ctx context.Context, inst Join
 
 	var result JoinTournamentEvent
 
-	err := services.Transactor.ExecTx(ctx, database.TxArgs{
+	err := services.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 reads status S1 and participant count P1, then inserts participants to create new participant count P2
@@ -361,7 +361,7 @@ func (services *TournamentService) BeginTournamentCountdown(ctx context.Context,
 
 	var tourneyCountdown BeginTourneyCountdown
 
-	err := services.Transactor.ExecTx(ctx, database.TxArgs{
+	err := services.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 reads status S1 and uses it to decide to begin the countdown, creating a scheduled event E1 and setting the status to S3
@@ -431,7 +431,7 @@ func (services *TournamentService) AdvanceTournament(ctx context.Context, tourna
 
 	var matchesToCreate []model.MatchCreation
 
-	err := services.Transactor.ExecTx(ctx, database.TxArgs{
+	err := services.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 selects participationIDs P1 and creates and inserts NextMatches M1

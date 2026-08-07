@@ -15,10 +15,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func (db *Database) Operator() Operator {
-	return Operator{Transactor: db, Mutator: db.Mutator(), Querier: db.Querier()}
-}
-
 func (db *Database) QuerierMutator() QuerierMutator {
 	switch db.kind {
 	case realDatabase:
@@ -30,13 +26,7 @@ func (db *Database) QuerierMutator() QuerierMutator {
 }
 
 func (db *Database) Mutator() mutator.Querier {
-	switch db.kind {
-	case realDatabase:
-		return NewPoolQuerier(db.writePool)
-	case fakeDatabase:
-		return NewTxnQuerier(db.testTxn)
-	}
-	return nil
+	return db.QuerierMutator()
 }
 
 func (db *Database) Querier() query.Querier {

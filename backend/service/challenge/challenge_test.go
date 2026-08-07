@@ -26,7 +26,7 @@ import (
 func setupTest(t logutil.TestLogger, flags ...itest.TestFlag) (*ChallengeService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
-	services := NewChallengeService(infra.Operator(), entropy.RealSource{})
+	services := NewChallengeService(infra.Database, entropy.RealSource{})
 
 	return services, infra
 }
@@ -177,13 +177,13 @@ func TestDeleteChallenge(t *testing.T) {
 
 	key := Key{ChallengerID: 1, ChallengeeID: 2}
 
-	challengeBefore, err := testinfra.Querier.SelectChallenge(ctx, query.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	challengeBefore, err := testinfra.Querier().SelectChallenge(ctx, query.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
 	dr, err := services.DeleteChallenge(ctx, key.ChallengerID, key.ChallengeeID)
 	require.NoError(t, err)
 
-	_, errAfterDelete := testinfra.Querier.SelectChallenge(ctx, query.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	_, errAfterDelete := testinfra.Querier().SelectChallenge(ctx, query.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
 	challenge := query.Challenge{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, StartColor: "RANDOM", MadeOn: pgtype.Timestamptz{Valid: true, Time: itest.TimeNow.Local()}, Mode: "TIMED_3+2"}

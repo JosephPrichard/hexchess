@@ -7,6 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 )
 
 type databaseImplKind int
@@ -23,7 +25,7 @@ type Database struct {
 	testTxn   pgx.Tx
 }
 
-type Operator struct {
+type Queriers struct {
 	Transactor Transactor
 	Mutator    mutator.Querier
 	Querier    query.Querier
@@ -66,4 +68,10 @@ func NewTxnQuerier(txn pgx.Tx) QuerierMutator {
 		return nil
 	}
 	return ReadWriteQueries{readQueries: query.New(txn), writeQueries: mutator.New(txn)}
+}
+
+type RiverClientAPI interface {
+	InsertTx(ctx context.Context, tx pgx.Tx, args river.JobArgs, opts *river.InsertOpts) (*rivertype.JobInsertResult, error)
+	Insert(ctx context.Context, args river.JobArgs, opts *river.InsertOpts) (*rivertype.JobInsertResult, error)
+	Stop(ctx context.Context) error
 }
