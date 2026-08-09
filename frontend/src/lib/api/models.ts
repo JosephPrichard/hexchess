@@ -166,7 +166,7 @@ export interface EloHistory {
 export type EloBuckets = EloHistory[];
 
 
-export interface FullPlayer {
+export interface Persona {
 	user: User;
 	replayList: Replay[];
 	stats: UserStats;

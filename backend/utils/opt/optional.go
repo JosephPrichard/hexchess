@@ -1,4 +1,4 @@
-package optional
+package opt
 
 import (
 	"bytes"

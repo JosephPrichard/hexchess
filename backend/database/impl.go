@@ -16,13 +16,16 @@ import (
 )
 
 func (db *Database) QuerierMutator() QuerierMutator {
+	if db.querierMutator != nil {
+		return db.querierMutator
+	}
 	switch db.kind {
 	case realDatabase:
-		return NewPoolQuerier(db.writePool)
+		db.querierMutator = NewPoolQuerier(db.writePool)
 	case fakeDatabase:
-		return NewTxnQuerier(db.testTxn)
+		db.querierMutator = NewTxnQuerier(db.testTxn)
 	}
-	return nil
+	return db.querierMutator
 }
 
 func (db *Database) Mutator() mutator.Querier {
@@ -30,13 +33,16 @@ func (db *Database) Mutator() mutator.Querier {
 }
 
 func (db *Database) Querier() query.Querier {
+	if db.querier != nil {
+		return db.querier
+	}
 	switch db.kind {
 	case realDatabase:
-		return NewPoolQuerier(db.readPool)
+		db.querier = NewPoolQuerier(db.readPool)
 	case fakeDatabase:
-		return NewTxnQuerier(db.testTxn)
+		db.querier = NewTxnQuerier(db.testTxn)
 	}
-	return nil
+	return db.querier
 }
 
 func (db *Database) HealthcheckFunc() health.CheckFunc {

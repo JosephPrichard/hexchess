@@ -3,10 +3,10 @@ import type { PageServerLoad } from './$types';
 import { services } from '$lib/api/services';
 import { handleError } from '$lib/utils/error';
 import { env as publicEnv } from '$env/dynamic/public';
-import type { FullPlayer } from '$lib/api/models';
+import type { Persona } from '$lib/api/models';
 
 export interface PlayerProps {
-	fullUser: FullPlayer;
+	fullUser: Persona;
 }
 
 export const load: PageServerLoad = async (event): Promise<PlayerProps> => {

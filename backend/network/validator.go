@@ -6,7 +6,6 @@ import (
 	"hexchess-svc/assets"
 	"hexchess-svc/chess"
 	svc "hexchess-svc/service/replay"
-	"sync"
 
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
@@ -16,7 +15,7 @@ import (
 
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
-	"hexchess-svc/utils/optional"
+	"hexchess-svc/utils/opt"
 	"net/url"
 	"strings"
 	"time"
@@ -25,7 +24,6 @@ import (
 var (
 	validate   *validator.Validate
 	translator ut.Translator
-	once       sync.Once
 )
 
 func makeEnumValidator(allowed []string) validator.Func {
@@ -198,7 +196,7 @@ func parseCreateTournamentBody(body CreateTournamentBody) (CreateTournamentTBody
 }
 
 type ChessMetasQuery struct {
-	AfterOrdering optional.Option[int64]
+	AfterOrdering opt.Option[int64]
 	Count         int32
 }
 
@@ -363,8 +361,8 @@ func parseReplaysQuery(values url.Values) (GetReplaysQuery, error) {
 }
 
 type GetTournamentQuery struct {
-	UserID        optional.Option[int64]
-	AfterID       optional.Option[int64]
+	UserID        opt.Option[int64]
+	AfterID       opt.Option[int64]
 	ByParticipant bool
 }
 

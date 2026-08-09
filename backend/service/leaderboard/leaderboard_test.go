@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"hexchess-svc/itest"
-	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/alog"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func setupTest(t logutil.TestLogger, flags ...itest.TestFlag) (*LeaderboardService, itest.TestInfra) {
+func setupTest(t alog.TestLogger, flags ...itest.TestFlag) (*LeaderboardService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewLeaderboardService(infra.Redis, infra.Querier())
@@ -167,7 +167,7 @@ func TestGetFullLeaderboardUsers(t *testing.T) {
 			services, testinfra := setupTest(t, itest.ROPostgres)
 			defer testinfra.Close()
 
-			ctx := context.WithValue(t.Context(), logutil.Trace, tt.name)
+			ctx := context.WithValue(t.Context(), alog.Trace, tt.name)
 
 			leaderboard, missingIDs, err := services.GetFullLeaderboardUsers(ctx, tt.mode, tt.rankedUsers)
 

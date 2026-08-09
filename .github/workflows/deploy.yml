@@ -3,11 +3,12 @@ name: CI/CD Pipeline
 on:
   push:
     branches: [main]
-  workflow_dispatch:
-
-permissions:
-  id-token: write
-  contents: read
+  workflow_call:
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
 
 jobs:
   # ---------------------------------------------------------------------

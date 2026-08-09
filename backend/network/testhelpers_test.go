@@ -17,8 +17,8 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"hexchess-svc/model"
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/async"
-	"hexchess-svc/utils/logutil"
 )
 
 type serviceMocks struct {
@@ -27,7 +27,7 @@ type serviceMocks struct {
 	Dispatcher async.Dispatcher
 }
 
-func setupTestHandler(t logutil.TestLogger, mocks *serviceMocks, flags ...itest.TestFlag) (http.Handler, itest.TestInfra) {
+func setupTestHandler(t alog.TestLogger, mocks *serviceMocks, flags ...itest.TestFlag) (http.Handler, itest.TestInfra) {
 	if mocks == nil {
 		mocks = &serviceMocks{}
 	}

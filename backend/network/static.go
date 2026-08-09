@@ -3,7 +3,7 @@ package network
 import (
 	"encoding/json"
 	"hexchess-svc/assets"
-	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/alog"
 )
 
 type StaticData struct {
@@ -14,7 +14,7 @@ type StaticData struct {
 func NewStaticData() StaticData {
 	var countryList []string
 	if err := json.Unmarshal(assets.CountryListJson, &countryList); err != nil {
-		logutil.Fatal("unmarshal country list", err)
+		alog.Fatal("unmarshal country list", err)
 	}
 	if countryList == nil {
 		countryList = []string{}

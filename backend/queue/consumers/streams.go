@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"hexchess-svc/database"
 	"hexchess-svc/queue"
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/errutil"
-	"hexchess-svc/utils/logutil"
 	"log/slog"
 	"runtime/debug"
 	"sync"
@@ -44,7 +44,7 @@ type StreamConfig struct {
 	ConsumerGroup string        `json:"consumerGroup"` // (required) prevents multiple server nodes from receiving duplicate events
 	PollCount     int64         `json:"pollCount"`     // (required) the number of max number messages received in poll attempt. each event is handled on a separate goroutine.
 	PartitionKeys []string      `json:"partitionKeys"` // (required) specifies the substreams for a stream to be split into to enable sharding. an empty list will provide no streams
-	MaxEvents     uint64        `json:"maxEvents"`     // (optional) change the behavior of the consumer for tests
+	MaxEvents     uint64        `json:"maxEvents"`     // (opt) change the behavior of the consumer for tests
 	BlockDuration time.Duration `json:"blockDuration"`
 
 	Redis          redis.UniversalClient   `json:"-"`
@@ -102,7 +102,7 @@ func (consumer *StreamConsumer) ConsumePartition(partitionKey string) {
 			consumer.cancel()
 		}
 
-		ctx := context.WithValue(consumer.ctx, logutil.Trace, uuid.NewString())
+		ctx := context.WithValue(consumer.ctx, alog.Trace, uuid.NewString())
 
 		xArgs := &redis.XReadGroupArgs{
 			Group:    consumer.consumerGroup,

@@ -2,8 +2,8 @@ package user
 
 import (
 	"hexchess-svc/pubsub"
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/entropy"
-	"hexchess-svc/utils/logutil"
 	"testing"
 	"time"
 
@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupActiveTest(t logutil.TestLogger, flags ...itest.TestFlag) (*ActiveUserService, itest.TestInfra) {
+func setupActiveTest(t alog.TestLogger, flags ...itest.TestFlag) (*ActiveUserService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewActiveUserService(infra.Redis, pubsub.NewSyncBroadcaster(infra.Redis))

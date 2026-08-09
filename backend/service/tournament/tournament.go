@@ -9,11 +9,11 @@ import (
 	"hexchess-svc/database/mutator"
 	"hexchess-svc/database/query"
 	"hexchess-svc/service/leaderboard"
+	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/perf"
 	"strconv"
 
 	"hexchess-svc/utils/enum"
-	"hexchess-svc/utils/optional"
 	"hexchess-svc/utils/serrors"
 
 	"hexchess-svc/model"
@@ -152,7 +152,7 @@ func maxPlayerCountTournament(ruleset model.TournamentRuleset, rounds int32) int
 	return -1
 }
 
-func (services *TournamentService) GetTournaments(ctx context.Context, participantID optional.Option[int64], afterID optional.Option[int64], perPage int32) ([]model.Tournament, error) {
+func (services *TournamentService) GetTournaments(ctx context.Context, participantID opt.Option[int64], afterID opt.Option[int64], perPage int32) ([]model.Tournament, error) {
 	defer perf.WithContext(ctx).Log()
 
 	if !afterID.Present {

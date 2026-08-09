@@ -3,7 +3,7 @@ package model
 import (
 	"crypto/rand"
 	"hexchess-svc/chess"
-	"hexchess-svc/utils/optional"
+	"hexchess-svc/utils/opt"
 	"log/slog"
 	"math/big"
 	"time"
@@ -67,14 +67,15 @@ type FinishedGame struct {
 	ReplayMode   GameMode         `json:"mode"`
 	ReplayResult ReplayResult     `json:"replayResult"`
 	ReplayCause  ReplayCause      `json:"replayCause"`
+	InsertedTime time.Time        `json:"insertedTime"`
 }
 
 type GameMetadataUpdt struct {
-	GameID      GameID                 `json:"id"`
-	WhitePlayer optional.Option[int64] `json:"whitePlayer"`
-	BlackPlayer optional.Option[int64] `json:"blackPlayer"`
-	Mode        GameMode               `json:"mode"`
-	FirstColor  GameColor              `json:"firstColor"`
+	GameID      GameID            `json:"id"`
+	WhitePlayer opt.Option[int64] `json:"whitePlayer"`
+	BlackPlayer opt.Option[int64] `json:"blackPlayer"`
+	Mode        GameMode          `json:"mode"`
+	FirstColor  GameColor         `json:"firstColor"`
 }
 
 type UndoKind int

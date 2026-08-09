@@ -80,11 +80,15 @@ vulncheck:
 	cd backend && govulncheck ./...
 
 # Testing
+define functional-test
+	cd $(BACKEND_DIR) && go test ./"$(1)" -coverprofile="coverage_$(1).out" -v -count=1 -timeout=60s
+endef
+
 functional-test:
 	# Backend server test
-	cd $(BACKEND_DIR) && go test $$(go list ./... | grep -v '^.*/cmd|/wasm/') -count=1 -timeout=60s
+	cd $(BACKEND_DIR) && go test $$(go list ./... | grep -v '^.*/cmd|/wasm/') -v -timeout=60s
 	# Backend wasm module test
-	cd $(BACK_WASM_DIR) && GOOS=js GOARCH=wasm go test -v -count=1 -tags=browser -timeout=60s -exec wasmbrowsertest
+	cd $(BACK_WASM_DIR) && GOOS=js GOARCH=wasm go test -coverprofile=coverage_browser.out -v -tags=browser -timeout=60s -exec wasmbrowsertest
 
 perf-test:
 	# k6 HTTP perf tests

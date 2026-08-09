@@ -7,10 +7,9 @@ import (
 	"hexchess-svc/database/query"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
-	"hexchess-svc/utils/optional"
+	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
-	"hexchess-svc/utils/timeutil"
 	"log/slog"
 	"math"
 	"time"
@@ -27,30 +26,30 @@ func NewSearchService(database database.Database) *ReplaySearchService {
 }
 
 type ReplaysQuery struct {
-	WhiteName  optional.Option[string] `json:"whiteName"`
-	BlackName  optional.Option[string] `json:"blackName"`
-	WinnerName optional.Option[string] `json:"winnerName"`
-	LoserName  optional.Option[string] `json:"loserName"`
+	WhiteName  opt.Option[string] `json:"whiteName"`
+	BlackName  opt.Option[string] `json:"blackName"`
+	WinnerName opt.Option[string] `json:"winnerName"`
+	LoserName  opt.Option[string] `json:"loserName"`
 
-	UserID   optional.Option[int64] `json:"userId"`
-	WhiteID  optional.Option[int64] `json:"whiteId"`
-	BlackID  optional.Option[int64] `json:"blackId"`
-	LoserID  optional.Option[int64] `json:"loserID"`
-	WinnerID optional.Option[int64] `json:"winnerId"`
+	UserID   opt.Option[int64] `json:"userId"`
+	WhiteID  opt.Option[int64] `json:"whiteId"`
+	BlackID  opt.Option[int64] `json:"blackId"`
+	LoserID  opt.Option[int64] `json:"loserID"`
+	WinnerID opt.Option[int64] `json:"winnerId"`
 
-	Result   optional.Option[model.ReplayResult] `json:"result"`
-	Mode     optional.Option[model.GameMode]     `json:"mode"`
-	Cause    optional.Option[model.ReplayCause]  `json:"cause"`
-	FromDate optional.Option[time.Time]          `json:"fromDate"`
-	ToDate   optional.Option[time.Time]          `json:"toDate"`
+	Result   opt.Option[model.ReplayResult] `json:"result"`
+	Mode     opt.Option[model.GameMode]     `json:"mode"`
+	Cause    opt.Option[model.ReplayCause]  `json:"cause"`
+	FromDate opt.Option[time.Time]          `json:"fromDate"`
+	ToDate   opt.Option[time.Time]          `json:"toDate"`
 
-	AfterID        optional.Option[int64]   `json:"afterId"`
-	AfterRating    optional.Option[float64] `json:"afterRating"`
-	AfterTurnCount optional.Option[int32]   `json:"afterTurnCount"`
+	AfterID        opt.Option[int64]   `json:"afterId"`
+	AfterRating    opt.Option[float64] `json:"afterRating"`
+	AfterTurnCount opt.Option[int32]   `json:"afterTurnCount"`
 
-	Sort ReplayQuerySortKey
+	Sort ReplayQuerySortKey `json:"sort"`
 
-	PerPage int32
+	PerPage int32 `json:"perPage"`
 }
 
 type ReplayQuerySortKey int
@@ -94,8 +93,8 @@ func (services *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, q
 	afterRating := qry.AfterRating.OrElse(math.MaxFloat64)
 
 	// uses the unix epoch in days for range queries on date. this truncates away timestamp precision regarding hours, seconds, etc.
-	fromDateDays := optional.Option[int32]{Value: timeutil.ToDayEpoch(qry.FromDate.Value), Present: qry.FromDate.Present}
-	toDateDays := optional.Option[int32]{Value: timeutil.ToDayEpoch(qry.ToDate.Value), Present: qry.ToDate.Present}
+	fromDateDays := opt.Option[int32]{Value: toDayEpoch(qry.FromDate.Value), Present: qry.FromDate.Present}
+	toDateDays := opt.Option[int32]{Value: toDayEpoch(qry.ToDate.Value), Present: qry.ToDate.Present}
 
 	params := query.SelectReplaysByQueryParams{
 		PerPage: qry.PerPage,
@@ -134,9 +133,13 @@ func (services *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, q
 	return replays, nil
 }
 
+func toDayEpoch(time time.Time) int32 {
+	return int32(time.Unix() / 86400)
+}
+
 type IDByNameRequest struct {
-	UsernameInput optional.Option[string] // if not provided, the search query will be ignored
-	UserIDOutput  *optional.Option[int64] // if provided, this output is ignored
+	UsernameInput opt.Option[string] // if not provided, the search query will be ignored
+	UserIDOutput  *opt.Option[int64] // if provided, this output is ignored
 }
 
 var errUserNotFound = errors.New("user not found")
@@ -173,7 +176,7 @@ func (services *ReplaySearchService) getIDsByUsernames(ctx context.Context, requ
 		if !exists {
 			return errUserNotFound
 		}
-		*request.UserIDOutput = optional.Some(userID)
+		*request.UserIDOutput = opt.Some(userID)
 	}
 	return nil
 }

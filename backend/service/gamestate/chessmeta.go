@@ -11,7 +11,7 @@ import (
 
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
-	"hexchess-svc/utils/optional"
+	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"math"
@@ -60,7 +60,9 @@ type ChessMetasResp struct {
 	UserChessMetas []model.ChessMeta
 }
 
-func (services *ChessMetaService) GetGameMetadata(ctx context.Context, player optional.Option[model.PlayerState], afterOrdering optional.Option[int64], count int32) (ChessMetasResp, error) {
+func (services *ChessMetaService) GetGameMetadata(
+	ctx context.Context, player model.PlayerState, afterOrdering opt.Option[int64], count int32,
+) (ChessMetasResp, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var chessMetas []model.ChessMeta
@@ -69,20 +71,15 @@ func (services *ChessMetaService) GetGameMetadata(ctx context.Context, player op
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() (err error) {
-		chessMetas, err = services.getGameMetadata(egCtx, optional.None[int64](), afterOrdering, optional.Some[int32](count))
-		if err != nil {
-			return serrors.New("get all game metadata after ordering", err, "afterOrdering", afterOrdering)
-		}
-		return nil
+		chessMetas, err = services.getGameMetadata(egCtx, opt.None[int64](), afterOrdering, opt.Some[int32](count))
+		return serrors.New(
+			"get all game metadata after ordering", err, "afterOrdering", afterOrdering)
 	})
 	if player.Present {
-		userID := player.Value.ID
 		eg.Go(func() (err error) {
-			userChessMetas, err = services.getGameMetadata(ctx, optional.Some[int64](userID), optional.None[int64](), optional.None[int32]())
-			if err != nil {
-				return serrors.New("get user game metadata", err, "userID", player.Value.ID)
-			}
-			return nil
+			userChessMetas, err = services.getGameMetadata(ctx, opt.Some[int64](player.ID), opt.None[int64](), opt.None[int32]())
+			return serrors.New(
+				"get user game metadata", err, "userID", player.ID)
 		})
 	}
 	if err := eg.Wait(); err != nil {
@@ -104,7 +101,9 @@ func (services *ChessMetaService) GetGameMetadataCount(ctx context.Context) (int
 	return count, nil
 }
 
-func (services *ChessMetaService) getGameMetadata(ctx context.Context, userID optional.Option[int64], afterOrdering optional.Option[int64], count optional.Option[int32]) ([]model.ChessMeta, error) {
+func (services *ChessMetaService) getGameMetadata(
+	ctx context.Context, userID opt.Option[int64], afterOrdering opt.Option[int64], count opt.Option[int32],
+) ([]model.ChessMeta, error) {
 	rows, err := services.Querier().SelectGameMetas(ctx, query.SelectGameMetasParams{
 		ParticipantID: database.MapOptInt8(userID),
 		AfterOrdering: afterOrdering.OrElse(math.MaxInt64),
@@ -119,17 +118,17 @@ func (services *ChessMetaService) getGameMetadata(ctx context.Context, userID op
 		mode := enum.Expect(row.Mode, model.GameModeEnums)
 
 		// invariant: if the user id is present, all other fields also will be.
-		var whitePlayer, blackPlayer optional.Option[model.User]
+		var whitePlayer, blackPlayer opt.Option[model.User]
 
 		if row.WhiteID.Valid {
-			whitePlayer = optional.Some(model.User{
+			whitePlayer = opt.Some(model.User{
 				ID:       row.WhiteID.Int64,
 				Username: row.WhiteName.String,
 				Country:  row.WhiteCountry.String,
 			})
 		}
 		if row.BlackID.Valid {
-			blackPlayer = optional.Some(model.User{
+			blackPlayer = opt.Some(model.User{
 				ID:       row.BlackID.Int64,
 				Username: row.BlackName.String,
 				Country:  row.BlackCountry.String,

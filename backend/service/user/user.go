@@ -18,7 +18,7 @@ import (
 
 	"hexchess-svc/database"
 
-	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/alog"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -135,7 +135,7 @@ func (services *UserService) BatchInsertUsers(ctx context.Context, insts []Inst)
 		})
 	}
 
-	logutil.Log(ctx, "batch inserted users", err, "users", users)
+	alog.Log(ctx, "batch inserted users", err, "users", users)
 	return users, err
 }
 
@@ -303,7 +303,7 @@ func (services *UserService) UpdateUserPassword(ctx context.Context, id int64, n
 		Password: hash.HashedPassword,
 		Salt:     hash.Salt,
 	})
-	logutil.Log(ctx, "updated password", err, "userID", id)
+	alog.Log(ctx, "updated password", err, "userID", id)
 	return err
 }
 

@@ -11,8 +11,8 @@ import (
 	"hexchess-svc/service/gamestate"
 	"hexchess-svc/service/tournament"
 	"hexchess-svc/service/user"
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/errutil"
-	"hexchess-svc/utils/logutil"
 	"log/slog"
 	"runtime/debug"
 
@@ -56,10 +56,10 @@ func StartRiverConsumers(
 
 	riverConsumerClient, err := river.NewClient(riverpgxv5.New(pgxPool), riverConfig)
 	if err != nil {
-		logutil.Fatal("create river queue client", err)
+		alog.Fatal("create river queue client", err)
 	}
 	if err := riverConsumerClient.Start(ctx); err != nil {
-		logutil.Fatal("start river client consumers", err)
+		alog.Fatal("start river client consumers", err)
 	}
 
 	slog.Info("start river consumers")

@@ -10,6 +10,7 @@ import (
 	"hexchess-svc/service/gamestate"
 	"hexchess-svc/service/replay"
 	"hexchess-svc/utils/entropy"
+	"hexchess-svc/utils/serrors"
 
 	"hexchess-svc/model"
 	"log/slog"
@@ -67,7 +68,9 @@ func StartRedisConsumers(database database.Database, redis cache.Redis, broadcas
 }
 
 type FinishedGameWorker struct {
-	services *gameplay.GameOverService
+	services    *gameplay.GameOverService
+	replay      *replay.ReplayService
+	broadcaster pubsub.Broadcaster
 }
 
 func NewFinishedGameWorker(
@@ -76,16 +79,19 @@ func NewFinishedGameWorker(
 	riverClient database.RiverClientAPI,
 	broadcaster pubsub.Broadcaster,
 ) *FinishedGameWorker {
-	return &FinishedGameWorker{services: gameplay.NewGameoverService(
-		database,
-		redis,
-		producers.NewRiverProducer(riverClient),
-		broadcaster,
-		replay.NewReplayService(database),
-	)}
+	return &FinishedGameWorker{
+		services: gameplay.NewGameoverService(
+			database,
+			redis,
+			producers.NewRiverProducer(riverClient),
+			broadcaster,
+		),
+		replay:      replay.NewReplayService(database),
+		broadcaster: broadcaster,
+	}
 }
 
-func (handler FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
+func (w FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
 	var event model.FinishedGame
 	if err := sonic.Unmarshal(bytes, &event); err != nil {
 		return NonRetryableQueueError{Err: err}
@@ -93,7 +99,21 @@ func (handler FinishedGameWorker) Handle(ctx context.Context, bytes []byte) erro
 
 	slog.InfoContext(ctx, "handling finished game event", "gameID", event.GameID)
 
-	return handler.services.InsertFinishedGame(ctx, event)
+	// step 1: insert the finished game into the system of record
+	result, err := w.services.InsertFinishedGame(ctx, event)
+	if err != nil {
+		return serrors.New("insert finished game failed", err)
+	}
+
+	// step 2: notify any subscribers of the game that replay has been created (game has ended)
+	// note(Joseph): replay is selected outside InsertFinishedGame to avoid holding locks. this involves performing more disk IO.
+	gameReplay, err := w.replay.GetReplay(ctx, result.ReplayID)
+	if err != nil {
+		return serrors.New("get replay by id", err, "replayID", result.ReplayID)
+	}
+	w.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(model.ReplayGameOutput{GameID: result.GameID, Replay: gameReplay}))
+
+	return nil
 }
 
 type UpdtGameMetadataWorker struct {
@@ -106,7 +126,7 @@ func NewUpdtGameMetadataWorker(database database.Database, entropy entropy.Gener
 	}
 }
 
-func (handler UpdtGameMetadataWorker) Handle(ctx context.Context, bytes []byte) error {
+func (w UpdtGameMetadataWorker) Handle(ctx context.Context, bytes []byte) error {
 	var event model.GameMetadataUpdt
 	if err := sonic.Unmarshal(bytes, &event); err != nil {
 		return NonRetryableQueueError{Err: err}
@@ -114,5 +134,5 @@ func (handler UpdtGameMetadataWorker) Handle(ctx context.Context, bytes []byte) 
 
 	slog.InfoContext(ctx, "handling update game metadata event", "gameID", event.GameID)
 
-	return handler.services.UpdateGameMetadata(ctx, event)
+	return w.services.UpdateGameMetadata(ctx, event)
 }

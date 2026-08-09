@@ -3,7 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
-	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/alog"
 	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -19,7 +19,7 @@ func NewPgBeforeConnect(ctx context.Context, connCfg *pgx.ConnConfig, awsRegion 
 		config.WithRetryMode(aws.RetryModeAdaptive),
 	)
 	if err != nil {
-		logutil.Fatal("load aws config", err)
+		alog.Fatal("load aws config", err)
 	}
 
 	return func(ctx context.Context, cfg *pgx.ConnConfig) error {

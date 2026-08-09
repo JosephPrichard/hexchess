@@ -7,8 +7,8 @@ import (
 	"hexchess-svc/database"
 	"hexchess-svc/network"
 	"hexchess-svc/pubsub"
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/config"
-	"hexchess-svc/utils/logutil"
 	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
@@ -27,7 +27,7 @@ func main() {
 
 	cfg := config.Load()
 
-	shutdown := logutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
+	shutdown := alog.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
 	// step 2: connect to backend infrastructure and prepare cleanup
@@ -93,6 +93,6 @@ func main() {
 		}
 	}()
 	if err := http.ListenAndServe(":"+cfg.ServerPort, mux); err != nil {
-		logutil.Fatal("failed while serving", err)
+		alog.Fatal("failed while serving", err)
 	}
 }

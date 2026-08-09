@@ -13,8 +13,8 @@ import (
 	"net/http"
 	"time"
 
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/async"
-	"hexchess-svc/utils/logutil"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -104,7 +104,7 @@ func NewServeMux(setup ServeMuxSetup, opts ...func(*chi.Mux)) *chi.Mux {
 	r.Post("/api/challenges/create", Rest(server.HandleCreateChallenge))
 	r.Post("/api/users/profile-pics", Rest(server.HandleUploadProfilePic))
 
-	r.Get("/api/players", Rest(server.HandleGetPlayer))
+	r.Get("/api/players", Rest(server.HandleGetPersona))
 	r.Get("/api/players/self", Rest(server.HandleGetSelf))
 	r.Get("/api/players/search", Rest(server.HandleSearchPlayers))
 	r.Get("/api/players/activity", Rest(server.HandleUserActivityCheck))
@@ -197,7 +197,7 @@ func NewHealthCheck(config HealthConfig) func(*chi.Mux) {
 			health.WithChecks(healthChecks...),
 		)
 		if err != nil {
-			logutil.Fatal("failed to create health check handler", err)
+			alog.Fatal("failed to create health check handler", err)
 		}
 
 		mux.Get("/healthcheck", func(w http.ResponseWriter, r *http.Request) {

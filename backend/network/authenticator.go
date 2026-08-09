@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"hexchess-svc/model"
 	"hexchess-svc/service/session"
-	"hexchess-svc/utils/optional"
 	"hexchess-svc/utils/serrors"
 	"math/big"
 	"net/http"
@@ -43,12 +42,12 @@ func NewSessionID() string {
 	return string(bytes)
 }
 
-func issueTempSession(sessionPlayer optional.Option[model.PlayerState], w http.ResponseWriter) ([]session.SessionInst, string) {
+func issueTempSession(sessionPlayer model.PlayerState, w http.ResponseWriter) ([]session.SessionInst, string) {
 	var sessions []session.SessionInst
 	var tempSessionID string
 
 	if sessionPlayer.Present {
-		player := sessionPlayer.Value
+		player := sessionPlayer
 
 		tempSessionID = NewSessionID()
 
@@ -91,20 +90,20 @@ func (auth *Authenticator) GetSession(ctx context.Context, r *http.Request) (Ses
 	return Session{Player: player, Token: sessionToken}, serrors.New("get session player", err)
 }
 
-func (auth *Authenticator) GetSessionOptPlayer(ctx context.Context, r *http.Request) (optional.Option[model.PlayerState], error) {
-	s, err := auth.GetSession(ctx, r)
+func (auth *Authenticator) GetSessionOptPlayer(ctx context.Context, r *http.Request) (model.PlayerState, error) {
+	sess, err := auth.GetSession(ctx, r)
 	if errors.Is(err, session.ErrSessionNotFound) {
-		return optional.None[model.PlayerState](), nil
+		return model.PlayerState{}, nil
 	}
-	return optional.Some(s.Player), err
+	return sess.Player, err
 }
 
 func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request) (model.PlayerState, error) {
-	s, err := auth.GetSession(ctx, r)
+	sess, err := auth.GetSession(ctx, r)
 	if err != nil {
 		return model.PlayerState{}, err
 	}
-	return s.Player, err
+	return sess.Player, err
 }
 
 func (auth *Authenticator) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player model.PlayerState) (time.Duration, error) {

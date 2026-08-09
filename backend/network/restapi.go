@@ -10,7 +10,7 @@ import (
 	sessionSvc "hexchess-svc/service/session"
 	tournamentSvc "hexchess-svc/service/tournament"
 	userSvc "hexchess-svc/service/user"
-	"hexchess-svc/utils/optional"
+	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"net/http"
@@ -329,11 +329,11 @@ func (server *Server) HandleGetLeaderboard(w http.ResponseWriter, r *http.Reques
 	return nil
 }
 
-type GetPlayersResp struct {
+type GetPersonaResp struct {
 	model.Persona
 }
 
-func (server *Server) HandleGetPlayer(w http.ResponseWriter, r *http.Request) error {
+func (server *Server) HandleGetPersona(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	userIDStr := r.URL.Query().Get("id")
@@ -342,14 +342,14 @@ func (server *Server) HandleGetPlayer(w http.ResponseWriter, r *http.Request) er
 		return respError("id", fmt.Errorf("failed to parse integer: '%s'", userIDStr))
 	}
 
-	fullUser, err := server.services.GetPersona(ctx, int64(userID), defaultPaginationCount)
+	persona, err := server.services.GetPersona(ctx, int64(userID), defaultPaginationCount)
 	if errors.Is(err, userSvc.ErrUserNotFound) {
 		return ErrHttpNotFoundUser
 	} else if err != nil {
 		return serrors.New("get full user", err, "userID", userID)
 	}
 
-	playersResp := GetPlayersResp{Persona: fullUser}
+	playersResp := GetPersonaResp{Persona: persona}
 
 	slog.InfoContext(ctx, "retrieved user with replays", "fullUser", playersResp)
 
@@ -568,11 +568,11 @@ func (server *Server) HandleGameExistence(w http.ResponseWriter, r *http.Request
 }
 
 type ChessMeta struct {
-	GameID      model.GameID                `json:"gameId"`
-	WhitePlayer optional.Option[model.User] `json:"whitePlayer"`
-	BlackPlayer optional.Option[model.User] `json:"blackPlayer"`
-	Mode        string                      `json:"mode"`
-	Ordering    int64                       `json:"ordering"`
+	GameID      model.GameID           `json:"gameId"`
+	WhitePlayer opt.Option[model.User] `json:"whitePlayer"`
+	BlackPlayer opt.Option[model.User] `json:"blackPlayer"`
+	Mode        string                 `json:"mode"`
+	Ordering    int64                  `json:"ordering"`
 }
 
 type ChessMetasResp struct {

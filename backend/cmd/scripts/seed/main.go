@@ -21,8 +21,8 @@ import (
 	"hexchess-svc/utils/perf"
 
 	"hexchess-svc/model"
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/config"
-	"hexchess-svc/utils/logutil"
 	"log"
 	"log/slog"
 	"math/rand"
@@ -56,7 +56,7 @@ const (
 
 func main() {
 	start := time.Now()
-	ctx := context.WithValue(context.Background(), logutil.Trace, "seed-databases-script")
+	ctx := context.WithValue(context.Background(), alog.Trace, "seed-databases-script")
 
 	// step 1: parse input flags and config from script input
 	cfg := config.Load()
@@ -64,13 +64,13 @@ func main() {
 	// parse: input data parameters to generate seeded data backend
 	t, err := time.Parse(time.DateOnly, *initialTimeGamesRaw)
 	if err != nil {
-		logutil.Fatal("failed to parse date", err, "initialTimeGameResults", *initialTimeGamesRaw)
+		alog.Fatal("failed to parse date", err, "initialTimeGameResults", *initialTimeGamesRaw)
 	}
 	initialTimeGames = t
 
 	d, err := time.ParseDuration(*gameDurationOffsetRaw)
 	if err != nil {
-		logutil.Fatal("failed to parse duration", err, "gameDurationOffset", *gameDurationOffsetRaw)
+		alog.Fatal("failed to parse duration", err, "gameDurationOffset", *gameDurationOffsetRaw)
 	}
 	gameDurationOffset = d
 
@@ -82,7 +82,7 @@ func main() {
 	}
 
 	// step 2: connect to backend infrastructure and prepare cleanup
-	shutdown := logutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
+	shutdown := alog.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
 	databaseClient := database.NewDatabase(ctx, database.DatabaseConfig{
@@ -99,7 +99,7 @@ func main() {
 	defer redisClient.Close()
 
 	if err := redisClient.PrimaryClient.FlushAll(ctx).Err(); err != nil {
-		logutil.Fatal("flush rdb", err)
+		alog.Fatal("flush rdb", err)
 	}
 
 	// step 3: execute the test seed script and measure results
@@ -113,19 +113,19 @@ func main() {
 		return seedChallenges(egCtx, services.challenge)
 	})
 	eg.Go(func() error {
-		return seedGameResults(egCtx, services.gameover, services.replay, generateGameResults())
+		return seedGameResults(egCtx, services.gameover, generateGameResults())
 	})
 	eg.Go(func() error {
 		return seedTournaments(egCtx, databaseClient.QuerierMutator(), generateTournaments())
 	})
 
 	if err := eg.Wait(); err != nil {
-		logutil.Fatal("failed to seed user dependent rows", err)
+		alog.Fatal("failed to seed user dependent rows", err)
 	}
 
 	// syncs the stat updates written in the game results into the leaderboard.
 	if err := services.leaderboard.SyncLeaderboard(ctx); err != nil {
-		logutil.Fatal("jobs leaderboard", err)
+		alog.Fatal("jobs leaderboard", err)
 	}
 
 	slog.Info("finished seeding databases", "timeTaken", time.Since(start).String())
@@ -146,20 +146,17 @@ func newServices(
 	leaderboardSvc := leaderboard.NewLeaderboardService(redisClient, databaseClient.Querier())
 	userSvc := user.NewUserService(databaseClient)
 	challengeSvc := challenge.NewChallengeService(databaseClient, entropy.RealSource{})
-	replaySvc := replay.NewReplayService(databaseClient)
 	gameoverSvc := gameplay.NewGameoverService(
 		databaseClient,
 		redisClient,
 		// producer and broadcaster won't be invoked in the specific codepath needed to seed the data
 		nil,
 		pubsub.Broadcaster{},
-		replaySvc,
 	)
 	return Services{
 		leaderboard: leaderboardSvc,
 		user:        userSvc,
 		challenge:   challengeSvc,
-		replay:      replaySvc,
 		gameover:    gameoverSvc,
 	}
 }
@@ -168,7 +165,7 @@ func seedUsers(ctx context.Context, userSvc *user.UserService) {
 	defer perf.New().Log()
 
 	if _, err := userSvc.BatchInsertUsers(ctx, generateUserInsts()); err != nil {
-		logutil.Fatal("insert users", err)
+		alog.Fatal("insert users", err)
 	}
 }
 
@@ -202,7 +199,7 @@ func generateUserID(useListedIDs map[int64]struct{}) int64 {
 			return userID
 		}
 	}
-	logutil.Fatal("generate user id (all are uselisted)", nil)
+	alog.Fatal("generate user id (all are uselisted)", nil)
 	return 0
 }
 
@@ -297,7 +294,7 @@ func generateGameResults() []GameResultInsts {
 	return insts
 }
 
-func seedGameResults(ctx context.Context, gameoverSvc *gameplay.GameOverService, replaySvc *replay.ReplayService, insts []GameResultInsts) error {
+func seedGameResults(ctx context.Context, gameoverSvc *gameplay.GameOverService, insts []GameResultInsts) error {
 	defer perf.New().Log()
 
 	a := insts
@@ -319,29 +316,19 @@ func seedGameResults(ctx context.Context, gameoverSvc *gameplay.GameOverService,
 			if err != nil {
 				return fmt.Errorf("generate random move seq: %w", err)
 			}
-			moveHistBlob, err := model.MarshalMoveHistory(chess.MoveHistory{InitialBoard: chess.InitialBoard(), MoveSeq: moveSeq})
-			if err != nil {
-				return fmt.Errorf("marshal move history to s3: %w", err)
-			}
 
-			changeSet, err := gameoverSvc.InsertGameResult(egCtx, gameplay.GameResult{
+			_, err = gameoverSvc.InsertFinishedGame(egCtx, model.FinishedGame{
 				GameID:       model.NewGameID(),
-				WhiteID:      inst.WhiteID,
-				BlackID:      inst.BlackID,
+				Board:        chess.InitialBoard(),
+				Moves:        moveSeq,
+				WhitePlayer:  inst.WhiteID,
+				BlackPlayer:  inst.BlackID,
 				ReplayCause:  inst.ReplayCause,
 				ReplayResult: inst.ReplayResult,
 				ReplayMode:   mode,
 				InsertedTime: initialTimeGames.Add(time.Duration(gameIdx) * gameDurationOffset),
-				TurnCount:    len(moveSeq),
 			})
-			if err != nil {
-				return fmt.Errorf("insert game result: %w", err)
-			}
-			// note(Joseph): remember to insert the move history - it exists outside the game result tx
-			if err = replaySvc.UpsertReplayMoveHistories(ctx, changeSet.ReplayID, moveHistBlob); err != nil {
-				return fmt.Errorf("insert replay move histories: %w", err)
-			}
-			return nil
+			return err
 		})
 	}
 

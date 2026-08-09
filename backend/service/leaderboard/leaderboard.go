@@ -14,7 +14,7 @@ import (
 	"sort"
 	"strconv"
 
-	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/serrors"
 
 	"github.com/redis/go-redis/v9"
@@ -195,7 +195,7 @@ func (services *LeaderboardService) GetLeaderboardPage(ctx context.Context, mode
 	offset := (page - 1) * perPage
 
 	leaderboard, err := services.getLeaderboard(ctx, mode, offset, perPage)
-	logutil.Log(ctx, "retrieved leaderboard page", err, "page", page, "perPage", perPage, "leaderboard", leaderboard)
+	alog.Log(ctx, "retrieved leaderboard page", err, "page", page, "perPage", perPage, "leaderboard", leaderboard)
 	return leaderboard, err
 }
 

@@ -3,11 +3,11 @@ package model
 import (
 	"errors"
 	"hexchess-svc/chess"
-	"hexchess-svc/utils/optional"
+	"hexchess-svc/utils/opt"
 )
 
 type UndoState struct {
-	UndoID int64 `json:undoID`
+	UndoID int64 `json:"undoID"`
 }
 
 type EndKind int
@@ -43,11 +43,11 @@ func (state *ChessState) IsEitherPlayer(player PlayerState) bool {
 }
 
 type ChessMeta struct {
-	GameID      GameID                `json:"gameId"`
-	WhitePlayer optional.Option[User] `json:"whitePlayer"`
-	BlackPlayer optional.Option[User] `json:"blackPlayer"`
-	Mode        GameMode              `json:"mode"`
-	Ordering    int64                 `json:"ordering"`
+	GameID      GameID           `json:"gameId"`
+	WhitePlayer opt.Option[User] `json:"whitePlayer"`
+	BlackPlayer opt.Option[User] `json:"blackPlayer"`
+	Mode        GameMode         `json:"mode"`
+	Ordering    int64            `json:"ordering"`
 }
 
 type StateSetup struct {

@@ -2,8 +2,8 @@ package database
 
 import (
 	"context"
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/config"
-	"hexchess-svc/utils/logutil"
 	"log/slog"
 	"time"
 
@@ -16,8 +16,8 @@ import (
 type PoolConfig struct {
 	Dsn           string         `json:"dsn"`           // (required) parseable configuration in either KV pair or postgres URL format. see pgxpool documentation.
 	ActiveProfile config.Profile `json:"activeProfile"` // (required) profile for application is used to turn AWS authentication on (test/prod) and off (local)
-	AwsRegion     string         `json:"awsregion"`     // (optional) AWS region database is in, if AWS authentication is on
-	InitQuery     string         `json:"initQuery"`     // (optional) query to send to test connectivity, defaults to "SELECT 1"
+	AwsRegion     string         `json:"awsregion"`     // (opt) AWS region database is in, if AWS authentication is on
+	InitQuery     string         `json:"initQuery"`     // (opt) query to send to test connectivity, defaults to "SELECT 1"
 }
 
 func NewDatabasePool(ctx context.Context, cfg PoolConfig) *pgxpool.Pool {
@@ -29,7 +29,7 @@ func NewDatabasePool(ctx context.Context, cfg PoolConfig) *pgxpool.Pool {
 
 	poolCfg, err := pgxpool.ParseConfig(cfg.Dsn)
 	if err != nil {
-		logutil.Fatal("parse postgres config", err, "config", cfg)
+		alog.Fatal("parse postgres config", err, "config", cfg)
 	}
 
 	poolCfg.ConnConfig.ConnectTimeout = 10 * time.Second
@@ -40,10 +40,10 @@ func NewDatabasePool(ctx context.Context, cfg PoolConfig) *pgxpool.Pool {
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
-		logutil.Fatal("create postgres pool", err, "config", cfg)
+		alog.Fatal("create postgres pool", err, "config", cfg)
 	}
 	if _, err = pool.Exec(ctx, cfg.InitQuery); err != nil {
-		logutil.Fatal("execute postgres startup query", err, "config", cfg)
+		alog.Fatal("execute postgres startup query", err, "config", cfg)
 	}
 
 	slog.Info("connected to database successfully", "config", cfg)
@@ -52,9 +52,9 @@ func NewDatabasePool(ctx context.Context, cfg PoolConfig) *pgxpool.Pool {
 
 type DatabaseConfig struct {
 	ReadWriteDsn  string         `json:"readWriteDsn"`  // (required) parseable configuration in either KV pair or postgres URL format. see pgxpool documentation.
-	ReadDsn       string         `json:"readDsn"`       // (optional) dsn for the read replicas of the postgres backend, reuses the read write pool if left empty
+	ReadDsn       string         `json:"readDsn"`       // (opt) dsn for the read replicas of the postgres backend, reuses the read write pool if left empty
 	ActiveProfile config.Profile `json:"activeProfile"` // (required) profile for application is used to turn AWS authentication on (test/prod) and off (local)
-	AwsRegion     string         `json:"awsRegion"`     // (optional) AWS region database is in, if AWS authentication is on
+	AwsRegion     string         `json:"awsRegion"`     // (opt) AWS region database is in, if AWS authentication is on
 }
 
 func NewDatabase(ctx context.Context, cfg DatabaseConfig) Database {
@@ -78,7 +78,7 @@ func NewDatabaseFromPool(pool *pgxpool.Pool) Database {
 	}
 }
 
-func NewFakeDatabase(t logutil.TestLogger, pool *pgxpool.Pool) Database {
+func NewFakeDatabase(t alog.TestLogger, pool *pgxpool.Pool) Database {
 	testTx, err := pool.BeginTx(t.Context(), pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		t.Fatalf("failed to begin primary test txn: %v", err)
@@ -99,7 +99,7 @@ func NewRiverClient(ctx context.Context, cfg PoolConfig) RiverClientAPI {
 func NewRiverClientFromPool(pool *pgxpool.Pool) RiverClientAPI {
 	riverProducerClient, err := river.NewClient(riverpgxv5.New(pool), nil)
 	if err != nil {
-		logutil.Fatal("create river queue client", err)
+		alog.Fatal("create river queue client", err)
 	}
 	return riverProducerClient
 }

@@ -5,7 +5,7 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/queue/producers"
-	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/alog"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-func setupTest(t logutil.TestLogger, flags ...itest.TestFlag) (*TournamentService, itest.TestInfra) {
+func setupTest(t alog.TestLogger, flags ...itest.TestFlag) (*TournamentService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewTournamentService(
@@ -59,13 +59,13 @@ func TestCreateTournament(t *testing.T) {
 		Name:          "Tournaments 1",
 		TournamentKey: pgtype.UUID{Bytes: key, Valid: true},
 		Rounds:        2,
-		Status:        query.TournamentStatusEnum(model.TournamentLobby.String()),
-		Ruleset:       query.TournamentRulesetEnum(model.TournamentKnockout.String()),
+		Status:        "LOBBY",
+		Ruleset:       "KNOCKOUT",
 		Countdown:     time.Hour.Milliseconds(),
 		CreatedOn:     pgtype.Timestamptz{Time: itest.TimeNow.Local(), Valid: true},
 		UpdatedOn:     pgtype.Timestamptz{Time: itest.TimeNow.Local(), Valid: true},
 		CreatedBy:     1,
-		Mode:          query.ModeEnum(model.ModeCorrespondence1.String()),
+		Mode:          "CORRESPONDENCE_1",
 	}
 	testutil.Equal(t, wantTournament, tournament)
 }

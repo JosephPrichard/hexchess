@@ -3,15 +3,15 @@ package replay
 import (
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
-	"hexchess-svc/utils/logutil"
-	"hexchess-svc/utils/optional"
+	"hexchess-svc/utils/alog"
+	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/testutil"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func setupSearcherTest(t logutil.TestLogger, flags ...itest.TestFlag) (*ReplaySearchService, itest.TestInfra) {
+func setupSearcherTest(t alog.TestLogger, flags ...itest.TestFlag) (*ReplaySearchService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewSearchService(infra.Database)
@@ -30,8 +30,8 @@ func TestSearchReplaysByQuery(t *testing.T) {
 		{
 			name: "QueryBy_Users",
 			replayQuery: ReplaysQuery{
-				UserID:  optional.Some(int64(1)),
-				AfterID: optional.None[int64](),
+				UserID:  opt.Some(int64(1)),
+				AfterID: opt.None[int64](),
 				PerPage: 5,
 			},
 			wantReplays: []model.FullReplay{
@@ -44,8 +44,8 @@ func TestSearchReplaysByQuery(t *testing.T) {
 		{
 			name: "QueryBy_Users_Cursor",
 			replayQuery: ReplaysQuery{
-				UserID:  optional.Some(int64(1)),
-				AfterID: optional.Some(int64(3)),
+				UserID:  opt.Some(int64(1)),
+				AfterID: opt.Some(int64(3)),
 				PerPage: 5,
 			},
 			wantReplays: []model.FullReplay{itest.TestReplays[0]},

@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"hexchess-svc/database"
-	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/alog"
 )
 
 const (
@@ -34,7 +34,7 @@ func main() {
 	cfg := config.Load()
 	job := os.Getenv("JOB_NAME")
 
-	shutdown := logutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
+	shutdown := alog.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
 	databaseClient := database.NewDatabase(ctx, database.DatabaseConfig{
@@ -70,7 +70,7 @@ func main() {
 	case ClearS3OrphansJobName:
 		err = profileSvc.ClearOrphanFiles(ctx, file.PageLength)
 	default:
-		logutil.Fatal("unknown job", nil, "job", job)
+		alog.Fatal("unknown job", nil, "job", job)
 	}
 
 	timeTaken := time.Since(start)
@@ -79,7 +79,7 @@ func main() {
 	case errors.Is(err, context.DeadlineExceeded):
 		slog.Info("job execution timed out", "job", job, "timeTaken", timeTaken)
 	case err != nil:
-		logutil.Fatal("execute job", err, "job", job, "timeTaken", timeTaken)
+		alog.Fatal("execute job", err, "job", job, "timeTaken", timeTaken)
 	default:
 		slog.Info("successfully executed job", "job", job, "timeTaken", timeTaken)
 	}

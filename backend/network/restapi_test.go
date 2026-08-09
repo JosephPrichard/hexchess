@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"hexchess-svc/cloud"
 	"hexchess-svc/utils/entropy"
-	"hexchess-svc/utils/optional"
+	"hexchess-svc/utils/opt"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -464,7 +464,7 @@ func TestHandleCreateGame(t *testing.T) {
 	}{
 		{
 			name:       "CreatedGame",
-			body:       CreateGameBody{FirstColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
+			body:       CreateGameBody{FirstColor: "WHITE", Mode: "CORRESPONDENCE_1"},
 			wantStatus: http.StatusOK,
 		},
 		{
@@ -519,35 +519,35 @@ func TestHandleCreateChallenge(t *testing.T) {
 	}{
 		{
 			name:       "UnauthorizedUser",
-			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
+			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
 			sessionID:  "invalid",
 			wantStatus: http.StatusUnauthorized,
 			wantResp:   ServiceResp{Status: http.StatusUnauthorized, Error: ErrHttpSessionExpired.Error()},
 		},
 		{
 			name:       "ChallengingSelf",
-			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
+			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpSelfChallenge.Error()},
 		},
 		{
 			name:       "ChallengingInvalidUser",
-			body:       CreateChallengeBody{ChallengeeID: 999, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
+			body:       CreateChallengeBody{ChallengeeID: 999, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpInvalidParticipants.Error()},
 		},
 		{
 			name:       "CreatingDuplicateChallenge",
-			body:       CreateChallengeBody{ChallengeeID: 2, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
+			body:       CreateChallengeBody{ChallengeeID: 2, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 			wantResp:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpDuplicateChallenge.Error()},
 		},
 		{
 			name:       "CreatedChallenge",
-			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "WHITE", Mode: model.ModeCorrespondence1.String()},
+			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusOK,
 			wantResp:   ServiceResp{Status: http.StatusOK, Message: "SUCCESS"},
@@ -731,20 +731,20 @@ func TestGetLeaderboard(t *testing.T) {
 	}
 }
 
-func TestGetPlayer(t *testing.T) {
+func TestGetPersona(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name        string
 		id          string
-		wantSuccess GetPlayersResp
+		wantSuccess GetPersonaResp
 		wantFail    ServiceResp
 		wantStatus  int
 	}{
 		{
 			name: "GetPlayerWithReplays",
 			id:   "1",
-			wantSuccess: GetPlayersResp{
+			wantSuccess: GetPersonaResp{
 				Persona: model.Persona{
 					User:  itest.TestUser[0],
 					Stats: itest.TestUserStats[0],
@@ -1112,13 +1112,13 @@ func TestHandleGetGameMetadata(t *testing.T) {
 	t.Parallel()
 
 	allChessMetas := []ChessMeta{
-		{Ordering: 3, GameID: itest.GameID3, Mode: model.ModeCorrespondence1.String()},
-		{Ordering: 2, GameID: itest.GameID2, Mode: model.ModeCorrespondence1.String()},
+		{Ordering: 3, GameID: itest.GameID3, Mode: "CORRESPONDENCE_1"},
+		{Ordering: 2, GameID: itest.GameID2, Mode: "CORRESPONDENCE_1"},
 		{
 			Ordering:    1,
 			GameID:      itest.GameID1,
-			BlackPlayer: optional.Some(model.User{ID: 2, Username: "user2", Country: "us"}),
-			Mode:        model.ModeCorrespondence1.String(),
+			BlackPlayer: opt.Some(model.User{ID: 2, Username: "user2", Country: "us"}),
+			Mode:        "CORRESPONDENCE_1",
 		},
 	}
 
@@ -1138,8 +1138,8 @@ func TestHandleGetGameMetadata(t *testing.T) {
 					{
 						Ordering:    1,
 						GameID:      itest.GameID1,
-						BlackPlayer: optional.Some(model.User{ID: 2, Username: "user2", Country: "us"}),
-						Mode:        model.ModeCorrespondence1.String(),
+						BlackPlayer: opt.Some(model.User{ID: 2, Username: "user2", Country: "us"}),
+						Mode:        "CORRESPONDENCE_1",
 					},
 				},
 			},

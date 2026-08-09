@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 
-	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/alog"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -713,7 +713,7 @@ var GameMetas = []struct {
 }
 
 func insertTestData(pool *pgxpool.Pool) error {
-	ctx := context.WithValue(context.Background(), logutil.Trace, "insert-testing-data")
+	ctx := context.WithValue(context.Background(), alog.Trace, "insert-testing-data")
 
 	batch := &pgx.Batch{}
 	instCount := 0

@@ -5,8 +5,8 @@ import (
 	"hexchess-svc/cloud"
 	"hexchess-svc/database"
 
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/config"
-	"hexchess-svc/utils/logutil"
 	"hexchess-svc/utils/testutil"
 	"slices"
 
@@ -27,7 +27,7 @@ func (i TestInfra) Close() {
 	i.Database.Close()
 }
 
-func SetupIntegrationTest(t logutil.TestLogger, flags ...TestFlag) TestInfra {
+func SetupIntegrationTest(t alog.TestLogger, flags ...TestFlag) TestInfra {
 	ctx := t.Context()
 
 	var dbPool *pgxpool.Pool

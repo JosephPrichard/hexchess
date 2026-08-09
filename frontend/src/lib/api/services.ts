@@ -1,6 +1,6 @@
 import { logger } from '$lib/utils/logger';
 import { codes} from '$lib/utils/error';
-import type { Action, Challenge, ChessMetadata, EloBuckets, FullPlayer, LeaderboardUser, Replay, ServiceResponse, Session, User } from './models';
+import type { Action, Challenge, ChessMetadata, EloBuckets, Persona, LeaderboardUser, Replay, ServiceResponse, Session, User } from './models';
 import { v4 as uuidv4 } from 'uuid';
 import { env as publicEnv } from '$env/dynamic/public';
 import { ChatMessages, MoveHistory } from '$lib/pb/messages';
@@ -313,7 +313,7 @@ function getUser(id: string, withReplays: boolean) {
 		id, 
 		withReplays: String(withReplays)
 	});
-	return requestJSON<FullPlayer>(`${backendBaseURL()}/players?${params}`, { method: 'GET' });
+	return requestJSON<Persona>(`${backendBaseURL()}/players?${params}`, { method: 'GET' });
 }
 
 function getGameExistence(id: string) {

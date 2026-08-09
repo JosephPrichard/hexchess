@@ -1,6 +1,7 @@
 package tournament
 
 import (
+	"errors"
 	"hexchess-svc/database/query"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
@@ -9,8 +10,7 @@ import (
 	"hexchess-svc/service/gameplay"
 	"hexchess-svc/service/gamestate"
 	userSvc "hexchess-svc/service/user"
-	"hexchess-svc/utils/errutil"
-	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/testutil"
 	"testing"
 
@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupOrchestratorTest(t logutil.TestLogger, flags ...itest.TestFlag) (*TournamentOrchestrator, itest.TestInfra) {
+func setupOrchestratorTest(t alog.TestLogger, flags ...itest.TestFlag) (*TournamentOrchestrator, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewTournamentOrchestrator(
@@ -258,7 +258,7 @@ func TestProgressTournament_StoresMatches(t *testing.T) {
 			}
 			_, err := services.ProgressTournament(ctx, tt.tournamentKey, eventID)
 
-			assert.Equal(t, tt.wantErr, errutil.LeafError(err))
+			assert.Equal(t, tt.wantErr, leafError(err))
 
 			if tt.wantErr == nil {
 				matches, err := testinfra.Querier().SelectMatches(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
@@ -270,6 +270,16 @@ func TestProgressTournament_StoresMatches(t *testing.T) {
 				testutil.Equal(t, tt.wantStatus, status)
 			}
 		})
+	}
+}
+
+func leafError(err error) error {
+	for {
+		unwrapped := errors.Unwrap(err)
+		if unwrapped == nil {
+			return err
+		}
+		err = unwrapped
 	}
 }
 

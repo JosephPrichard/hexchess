@@ -5,7 +5,7 @@ import (
 	"hexchess-svc/model"
 	"hexchess-svc/service/leaderboard"
 	"hexchess-svc/service/replay"
-	"hexchess-svc/utils/optional"
+	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
@@ -48,37 +48,25 @@ func (services *PersonaService) GetPersona(ctx context.Context, userID int64, pe
 
 	eg.Go(func() (err error) {
 		userData, err = services.user.GetUserByID(egCtx, userID)
-		if err != nil {
-			return serrors.New("get user", err, "userID", userID)
-		}
-		return nil
+		return serrors.New("get user", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
 		stats, err = services.user.GetUserStats(egCtx, userID)
-		if err != nil {
-			return serrors.New("get user stats", err, "userID", userID)
-		}
-		return nil
+		return serrors.New("get user stats", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
 		lbRanks, err = services.leaderboard.GetUserLeaderboardRanks(egCtx, userID, model.GameModeEnums)
-		if err != nil {
-			return serrors.New("get user leaderboard ranks", err, "userID", userID)
-		}
-		return nil
+		return serrors.New("get user leaderboard ranks", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
 		replayList, err = services.replays.SearchReplaysByQuery(egCtx, replay.ReplaysQuery{
-			UserID:  optional.Some(userID),
+			UserID:  opt.Some(userID),
 			PerPage: perPage,
 		})
-		if err != nil {
-			return serrors.New("get user replays", err, "userID", userID)
-		}
-		return nil
+		return serrors.New("get user replays", err, "userID", userID)
 	})
 
 	if err := eg.Wait(); err != nil {
@@ -87,12 +75,12 @@ func (services *PersonaService) GetPersona(ctx context.Context, userID int64, pe
 
 	for i := range stats.ModeStats {
 		modeStats := &stats.ModeStats[i]
-		lbRank, ok := lbRanks[modeStats.Mode.String()]
+		rank, ok := lbRanks[modeStats.Mode.String()]
 		if !ok {
 			slog.WarnContext(ctx, "missing leaderboard rank for full user", "mode", modeStats.Mode)
 			continue
 		}
-		modeStats.Rank = lbRank.Rank
+		modeStats.Rank = rank.Rank
 	}
 
 	if replayList == nil {

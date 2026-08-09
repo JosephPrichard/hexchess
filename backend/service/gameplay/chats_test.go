@@ -3,8 +3,8 @@ package gameplay
 import (
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/entropy"
-	"hexchess-svc/utils/logutil"
 	"hexchess-svc/utils/testutil"
 	"testing"
 	"time"
@@ -13,7 +13,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 )
 
-func setupChatsServicesTest(t logutil.TestLogger, flags ...itest.TestFlag) (*ChatService, itest.TestInfra) {
+func setupChatsServicesTest(t alog.TestLogger, flags ...itest.TestFlag) (*ChatService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewChatService(infra.Redis, infra.Querier(), entropy.RealSource{})

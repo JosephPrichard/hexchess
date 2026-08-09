@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"hexchess-svc/database"
-	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/alog"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
@@ -33,7 +33,7 @@ var RedisContainerRequest = testcontainers.GenericContainerRequest{
 	},
 }
 
-func SetupRedisTest(ctx context.Context, t logutil.TestLogger) (string, error) {
+func SetupRedisTest(ctx context.Context, t alog.TestLogger) (string, error) {
 	muRedis.Lock()
 	defer muRedis.Unlock()
 
@@ -80,7 +80,7 @@ var PostgresContainerRequest = testcontainers.GenericContainerRequest{
 	},
 }
 
-func SetupPostgresTest(ctx context.Context, t logutil.TestLogger) (*pgxpool.Pool, error) {
+func SetupPostgresTest(ctx context.Context, t alog.TestLogger) (*pgxpool.Pool, error) {
 	muPostgres.Lock()
 	defer muPostgres.Unlock()
 
@@ -135,7 +135,7 @@ var LocalstackContainerRequest = testcontainers.GenericContainerRequest{
 	},
 }
 
-func SetupLocalstackTest(ctx context.Context, t logutil.TestLogger) (string, error) {
+func SetupLocalstackTest(ctx context.Context, t alog.TestLogger) (string, error) {
 	muLocalstack.Lock()
 	defer muLocalstack.Unlock()
 

@@ -3,7 +3,7 @@ package enum
 import (
 	"encoding/json"
 	"fmt"
-	"hexchess-svc/utils/optional"
+	"hexchess-svc/utils/opt"
 	"log/slog"
 	"maps"
 	"slices"
@@ -72,15 +72,15 @@ func ParseDefault[T ~int, S StringLike](s S, m map[string]T, def T) (T, error) {
 	return Parse(s, m)
 }
 
-func ParseOptional[T ~int, S StringLike](s S, m map[string]T) (optional.Option[T], error) {
+func ParseOptional[T ~int, S StringLike](s S, m map[string]T) (opt.Option[T], error) {
 	if s == "" {
-		return optional.Option[T]{}, nil
+		return opt.Option[T]{}, nil
 	}
 	v, ok := m[string(s)]
 	if !ok {
-		return optional.Option[T]{}, ParseError[T]{Expected: m, Actual: string(s)}
+		return opt.Option[T]{}, ParseError[T]{Expected: m, Actual: string(s)}
 	}
-	return optional.Some(v), nil
+	return opt.Some(v), nil
 }
 
 func Expect[T ~int, S StringLike](s S, m map[string]T) T {

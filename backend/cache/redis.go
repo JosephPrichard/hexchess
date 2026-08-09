@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/config"
-	"hexchess-svc/utils/logutil"
 	"log/slog"
 	"time"
 
@@ -89,12 +89,12 @@ type RedisConfig struct {
 	PrimaryAddr []string `json:"primaryAddr"`
 	PubsubAddr  string   `json:"pubsubAddr"`
 
-	// (optional) since consumers block an entire connection while reading
+	// (opt) since consumers block an entire connection while reading
 	// we need a separate pool with the pool size set to the expected number of consumers = (streams * partitions_per_steam)
 	// defaults to the redis connection pool default which is not suitable for the game events usecase
 	ConsumerPoolSize int `json:"consumerPoolSize"`
 
-	// (optional) username and password authentication is used for non-local setups
+	// (opt) username and password authentication is used for non-local setups
 	// password authentication is an additional security layer,  we really rely on network ACLs and firewalls to make redis access secure
 	PrimaryUsername string `json:"primaryUsername"`
 	PrimaryPassword string `json:"primaryPassword"`
@@ -104,7 +104,7 @@ type RedisConfig struct {
 	// (required) profile for application is used to turn AWS authentication on (test/prod) and off (local)
 	ActiveProfile config.Profile `json:"activeProfile"`
 
-	// (optional) name data for key prefixes, zsets, etc. keep off in prod, swap out in integration tests
+	// (opt) name data for key prefixes, zsets, etc. keep off in prod, swap out in integration tests
 	Names *RedisNames `json:"names"`
 }
 
@@ -174,10 +174,10 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 	}
 
 	if err := redisCache.PrimaryHealthCheck(ctx); err != nil {
-		logutil.Fatal("execute redis primary startup cmd", err)
+		alog.Fatal("execute redis primary startup cmd", err)
 	}
 	if err := redisCache.PubsubHealthCheck(ctx); err != nil {
-		logutil.Fatal("execute redis pubsub startup cmd", err)
+		alog.Fatal("execute redis pubsub startup cmd", err)
 	}
 
 	slog.Info("connected to redis node(s) successfully", "primaryClientKind", fmt.Sprintf("%T", redisClientClient))

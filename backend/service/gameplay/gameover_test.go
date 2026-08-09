@@ -5,11 +5,9 @@ import (
 	"hexchess-svc/database/query"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
-	"hexchess-svc/pb"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
-	"hexchess-svc/service/replay"
-	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/testutil"
 	"math"
 	"strconv"
@@ -23,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupGameoverTest(t logutil.TestLogger, flags ...itest.TestFlag) (*GameOverService, itest.TestInfra) {
+func setupGameoverTest(t alog.TestLogger, flags ...itest.TestFlag) (*GameOverService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewGameoverService(
@@ -31,7 +29,6 @@ func setupGameoverTest(t logutil.TestLogger, flags ...itest.TestFlag) (*GameOver
 		infra.Redis,
 		producers.NewRiverProducer(&producers.NoopRiverClient{}),
 		pubsub.NewSyncBroadcaster(infra.Redis),
-		replay.NewReplayService(infra.Database),
 	)
 
 	return services, infra
@@ -50,7 +47,6 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 	tests := []struct {
 		name            string
 		event           model.FinishedGame
-		wantGameOutputs []*pb.GameOutput
 		wantLeaderboard []redis.Z
 	}{
 		{
@@ -64,28 +60,6 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				ReplayMode:   model.ModeCorrespondence1,
 				ReplayCause:  model.Checkmate,
 				ReplayResult: model.WhiteWin,
-			},
-			wantGameOutputs: []*pb.GameOutput{
-				{
-					GameId: newGameID.String(),
-					Value: &pb.GameOutput_Replay{Replay: &pb.ReplayOutput{
-						BlackCountry: "us",
-						BlackElo:     985,
-						BlackEloDiff: -15,
-						BlackId:      2,
-						BlackName:    "user2",
-						Cause:        model.Checkmate.String(),
-						LoseEloDiff:  -15,
-						Mode:         model.ModeCorrespondence1.String(),
-						Result:       model.WhiteWin.String(),
-						WhiteCountry: "us",
-						WhiteElo:     1015,
-						WhiteEloDiff: 15,
-						WhiteId:      1,
-						WhiteName:    "user1",
-						WinEloDiff:   15,
-					}},
-				},
 			},
 			wantLeaderboard: []redis.Z{
 				{
@@ -135,9 +109,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			services, testinfra := setupGameoverTest(t, itest.RWPostgres, itest.Redis)
 			defer testinfra.Close()
 
-			assertBroadcasts := pubsub.ExpectBroadcastGames(t, testinfra.Redis, tt.event.GameID, tt.wantGameOutputs)
-
-			err := services.InsertFinishedGame(ctx, tt.event)
+			_, err := services.InsertFinishedGame(ctx, tt.event)
 			require.NoError(t, err)
 
 			modeLbZSet := testinfra.Redis.FmtLeaderboardZSet(tt.event.ReplayMode.String())
@@ -145,8 +117,6 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantLeaderboard, leaderboardResp)
-
-			assertBroadcasts()
 		})
 	}
 }
@@ -338,7 +308,7 @@ func TestInsertGameResult(t *testing.T) {
 			services, testinfra := setupGameoverTest(t, itest.RWPostgres)
 			defer testinfra.Close()
 
-			changeSet, err := services.InsertGameResult(ctx, tt.resultInput)
+			changeSet, err := services.insertGameResult(ctx, tt.resultInput)
 			require.NoError(t, err)
 
 			userElos, err := testinfra.Querier().SelectUserModeElosByIDs(ctx, query.SelectUserModeElosByIDsParams{

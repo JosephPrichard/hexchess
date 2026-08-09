@@ -2,7 +2,6 @@ package replay
 
 import (
 	"context"
-	"hexchess-svc/model"
 	"hexchess-svc/utils/testutil"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -11,13 +10,13 @@ import (
 	"time"
 
 	"hexchess-svc/itest"
-	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/alog"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func setupReplayTest(t logutil.TestLogger, flags ...itest.TestFlag) (*ReplayService, itest.TestInfra) {
+func setupReplayTest(t alog.TestLogger, flags ...itest.TestFlag) (*ReplayService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewReplayService(infra.Database)
@@ -66,11 +65,11 @@ func TestRetrieveEloHistories(t *testing.T) {
 			params:             EloHistoriesParams{UserID: 6, TimeUntil: timeUntil},
 			wantBucketDuration: LongBucketDuration,
 			wantEloBuckets: EloHistoryBuckets{
-				model.ModeCorrespondence7.String(): []EloHistoryBucket{
+				"CORRESPONDENCE_7": []EloHistoryBucket{
 					{Elo: 1030},
 					{Elo: 1090},
 				},
-				model.ModeCorrespondence1.String(): []EloHistoryBucket{
+				"CORRESPONDENCE_1": []EloHistoryBucket{
 					{Elo: 1030},
 				},
 			},
@@ -80,11 +79,11 @@ func TestRetrieveEloHistories(t *testing.T) {
 			params:             EloHistoriesParams{UserID: 6, Months: 3, TimeUntil: timeUntil},
 			wantBucketDuration: ShortBucketDuration,
 			wantEloBuckets: EloHistoryBuckets{
-				model.ModeCorrespondence7.String(): []EloHistoryBucket{
+				"CORRESPONDENCE_7": []EloHistoryBucket{
 					{Elo: 1075},
 					{Elo: 1120},
 				},
-				model.ModeCorrespondence1.String(): []EloHistoryBucket{
+				"CORRESPONDENCE_1": []EloHistoryBucket{
 					{Elo: 1030},
 				},
 			},
@@ -95,7 +94,7 @@ func TestRetrieveEloHistories(t *testing.T) {
 			services, testinfra := setupReplayTest(t, itest.ROPostgres)
 			defer testinfra.Close()
 
-			ctx := context.WithValue(t.Context(), logutil.Trace, test.name)
+			ctx := context.WithValue(t.Context(), alog.Trace, test.name)
 
 			resp, err := services.RetrieveEloHistoryBuckets(ctx, test.params)
 			require.NoError(t, err)

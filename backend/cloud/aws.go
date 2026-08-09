@@ -3,8 +3,8 @@ package cloud
 import (
 	"context"
 	"fmt"
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/config"
-	"hexchess-svc/utils/logutil"
 	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -46,7 +46,7 @@ func NewAWSClients(ctx context.Context, cfg AWSClientConfig) AWSClient {
 	}
 	awsCfg, err := awsConfig.LoadDefaultConfig(ctx, awsOpts...)
 	if err != nil {
-		logutil.Fatal("load aws config", err)
+		alog.Fatal("load aws config", err)
 	}
 
 	s3Client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {

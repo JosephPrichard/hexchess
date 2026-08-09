@@ -2,7 +2,7 @@ package network
 
 import (
 	"hexchess-svc/utils/enum"
-	"hexchess-svc/utils/optional"
+	"hexchess-svc/utils/opt"
 	"net/url"
 	"strconv"
 	"time"
@@ -38,51 +38,51 @@ func parseDefaultInt[T interface{ int | int32 | int64 }](q queryParseCtx, key st
 	return T(v)
 }
 
-func parseOptFloat(q queryParseCtx, key string) optional.Option[float64] {
+func parseOptFloat(q queryParseCtx, key string) opt.Option[float64] {
 	v := q.Values.Get(key)
 	if v == "" {
-		return optional.Option[float64]{}
+		return opt.Option[float64]{}
 	}
 	f, err := strconv.ParseFloat(v, 64)
 	if err != nil {
 		q.RespErr.Put(key, err)
 	}
-	return optional.Some(f)
+	return opt.Some(f)
 }
 
-func parseOptString(q queryParseCtx, key string) optional.Option[string] {
+func parseOptString(q queryParseCtx, key string) opt.Option[string] {
 	v := q.Values.Get(key)
 	if v == "" {
-		return optional.Option[string]{}
+		return opt.Option[string]{}
 	}
-	return optional.Some(v)
+	return opt.Some(v)
 }
 
-func parseOptDatetime(q queryParseCtx, key string) optional.Option[time.Time] {
+func parseOptDatetime(q queryParseCtx, key string) opt.Option[time.Time] {
 	v := q.Values.Get(key)
 	if v == "" {
-		return optional.Option[time.Time]{}
+		return opt.Option[time.Time]{}
 	}
 	t, err := time.Parse(time.DateOnly, v)
 	if err != nil {
 		q.RespErr.Put(key, err)
 	}
-	return optional.Some(t)
+	return opt.Some(t)
 }
 
-func parseOptInt[T interface{ int | int32 | int64 }](q queryParseCtx, key string) optional.Option[T] {
+func parseOptInt[T interface{ int | int32 | int64 }](q queryParseCtx, key string) opt.Option[T] {
 	v := q.Values.Get(key)
 	if v == "" {
-		return optional.Option[T]{}
+		return opt.Option[T]{}
 	}
 	i, err := strconv.Atoi(v)
 	if err != nil {
 		q.RespErr.Put(key, err)
 	}
-	return optional.Some(T(i))
+	return opt.Some(T(i))
 }
 
-func parseOptEnum[T ~int](q queryParseCtx, key string, enums map[string]T) optional.Option[T] {
+func parseOptEnum[T ~int](q queryParseCtx, key string, enums map[string]T) opt.Option[T] {
 	v, err := enum.ParseOptional(q.Values.Get(key), enums)
 	if err != nil {
 		q.RespErr.Put(key, err)

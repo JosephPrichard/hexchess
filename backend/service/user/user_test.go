@@ -2,7 +2,7 @@ package user
 
 import (
 	"hexchess-svc/model"
-	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/alog"
 
 	"testing"
 
@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupUserTest(t logutil.TestLogger, flags ...itest.TestFlag) (*UserService, itest.TestInfra) {
+func setupUserTest(t alog.TestLogger, flags ...itest.TestFlag) (*UserService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewUserService(infra.Database)

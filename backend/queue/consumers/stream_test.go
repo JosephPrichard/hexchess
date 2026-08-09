@@ -4,8 +4,9 @@ import (
 	"context"
 	"hexchess-svc/chess"
 	"hexchess-svc/database/query"
+	"hexchess-svc/pb"
 	"hexchess-svc/utils/entropy"
-	"hexchess-svc/utils/optional"
+	"hexchess-svc/utils/opt"
 
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
@@ -50,6 +51,30 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		ReplayResult: model.WhiteWin,
 	}
 
+	wantGameOutputs := []*pb.GameOutput{
+		{
+			GameId: newGameID.String(),
+			Value: &pb.GameOutput_Replay{Replay: &pb.ReplayOutput{
+				BlackCountry: "us",
+				BlackElo:     985,
+				BlackEloDiff: -15,
+				BlackId:      2,
+				BlackName:    "user2",
+				Cause:        "CHECKMATE",
+				LoseEloDiff:  -15,
+				Mode:         "CORRESPONDENCE_1",
+				Result:       "WHITE_WINS",
+				WhiteCountry: "us",
+				WhiteElo:     1015,
+				WhiteEloDiff: 15,
+				WhiteId:      1,
+				WhiteName:    "user1",
+				WinEloDiff:   15,
+			}},
+		},
+	}
+	assertBroadcasts := pubsub.ExpectBroadcastGames(t, testinfra.Redis, newGameID, wantGameOutputs)
+
 	publisher := producers.NewStreamProducer(testinfra.Redis)
 	err := publisher.ProduceFinishGame(ctx, testinfra.Redis.PrimaryClient, finishedGame)
 	require.NoError(t, err)
@@ -84,6 +109,8 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		{UserID: blackUser1.ID, Elo: 985, HighestElo: 1000, Losses: 1},
 	}
 	assert.Equal(t, wantUserElos, userElos)
+
+	assertBroadcasts()
 }
 
 func TestHandleUpdtGameEvent(t *testing.T) {
@@ -106,8 +133,8 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 
 	updtGame := model.GameMetadataUpdt{
 		GameID:      gameID,
-		WhitePlayer: optional.Some(whiteUser0.ID),
-		BlackPlayer: optional.Some(blackUser1.ID),
+		WhitePlayer: opt.Some(whiteUser0.ID),
+		BlackPlayer: opt.Some(blackUser1.ID),
 		Mode:        model.ModeCorrespondence1,
 		FirstColor:  model.Random,
 	}

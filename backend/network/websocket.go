@@ -7,8 +7,8 @@ import (
 	"hexchess-svc/model"
 	"hexchess-svc/service/gameplay"
 	"hexchess-svc/service/gamestate"
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/errutil"
-	"hexchess-svc/utils/logutil"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"net/http"
@@ -149,7 +149,7 @@ func writeGameError(ctx context.Context, conn *websocket.Conn, output GameError)
 	if wsErr == ErrWsFatal {
 		level = slog.LevelError
 	}
-	logutil.Error(ctx, level, "failed to handle ws message", err, "wsErr", wsErr, "messageID", output.MessageID)
+	alog.Error(ctx, level, "failed to handle ws message", err, "wsErr", wsErr, "messageID", output.MessageID)
 
 	bytes, err := model.MarshalGameOutputError(model.ErrorGameOutput{GameID: output.GameID, MessageID: output.MessageID, Error: wsErr})
 	if err != nil {
@@ -200,7 +200,7 @@ func (server *Server) handleGameMessage(ctx GameSocketContext, input message) {
 		return
 	}
 
-	ctx.Context = context.WithValue(ctx.Context, logutil.MessageID, pbInput.MessageId)
+	ctx.Context = context.WithValue(ctx.Context, alog.MessageID, pbInput.MessageId)
 
 	slog.InfoContext(ctx, "received game input", "pbInputType", fmt.Sprintf("%T", &pbInput), "pbInput", &pbInput)
 

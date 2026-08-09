@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"hexchess-svc/database"
-	"hexchess-svc/database/mutator"
 	"hexchess-svc/database/query"
 	"hexchess-svc/utils/perf"
 
@@ -35,16 +34,6 @@ func (services *ReplayService) GetReplayByGameID(ctx context.Context, gameID str
 func (services *ReplayService) GetReplay(ctx context.Context, replayID int64) (model.FullReplay, error) {
 	row, err := services.Querier().SelectReplayByID(ctx, replayID)
 	return mapGetReplayResult(ctx, replayID, row, err)
-}
-
-func (services *ReplayService) UpsertReplayMoveHistories(ctx context.Context, replayID int64, data []byte) error {
-	if err := services.Mutator().UpsertReplayMoveHistories(ctx, mutator.UpsertReplayMoveHistoriesParams{
-		ReplayID: replayID,
-		Data:     data,
-	}); err != nil {
-		return serrors.New("insert replay move histories", err)
-	}
-	return nil
 }
 
 func mapGetReplayResult[ID any](ctx context.Context, id ID, row query.SelectReplayByIDRow, err error) (model.FullReplay, error) {

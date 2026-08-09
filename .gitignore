@@ -11,15 +11,16 @@
 
 .vscode/
 
+coverage_*.out
+
 .terraform
 .terraform.lock.hcl
 
 backend/app.log
 backend/.env
 *pb.go
-backend/db/sqlc
-backend/db/query
-backend/db/mutator
+backend/database/query
+backend/database/mutator
 
 frontend/src/lib/pb/*
 frontend/build

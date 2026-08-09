@@ -9,7 +9,7 @@ import (
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/service/gamestate"
 
-	"hexchess-svc/utils/logutil"
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/testutil"
 	"testing"
 
@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupGameplayTest(t logutil.TestLogger, flags ...itest.TestFlag) (*GamePlayService, itest.TestInfra) {
+func setupGameplayTest(t alog.TestLogger, flags ...itest.TestFlag) (*GamePlayService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewGameplayService(
@@ -270,7 +270,7 @@ func TestAttemptUndo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.WithValue(t.Context(), logutil.Trace, tt.name)
+			ctx := context.WithValue(t.Context(), alog.Trace, tt.name)
 
 			for _, subTest := range tt.tests {
 
@@ -420,7 +420,7 @@ func TestNewMove(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.WithValue(t.Context(), logutil.Trace, tt.name)
+			ctx := context.WithValue(t.Context(), alog.Trace, tt.name)
 
 			moveResult, err := services.NewGameMove(ctx, tt.stateID, tt.player, tt.move)
 

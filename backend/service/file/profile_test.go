@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"hexchess-svc/cloud"
 	"hexchess-svc/itest"
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/entropy"
-	"hexchess-svc/utils/logutil"
 	"testing"
 	"time"
 
@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func setupProfileTest(t logutil.TestLogger, flags ...itest.TestFlag) (*ProfileService, itest.TestInfra) {
+func setupProfileTest(t alog.TestLogger, flags ...itest.TestFlag) (*ProfileService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t, flags...)
 
 	services := NewProfileService(infra.AWS, async.AsyncDispatcher{}, entropy.RealSource{})

@@ -6,8 +6,8 @@ import (
 	"hexchess-svc/database"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/consumers"
+	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/config"
-	"hexchess-svc/utils/logutil"
 	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
@@ -26,12 +26,12 @@ func main() {
 
 	cfg := config.Load()
 
-	shutdown := logutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
+	shutdown := alog.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
 	// step 2: connect to backend infrastructure and prepare cleanup
 	databaseClient := database.NewDatabase(ctx, database.DatabaseConfig{
-		ReadWriteDsn:  cfg.DbURL, // excludes optional read pool argument since all operations in this service involve mixed read-write operations
+		ReadWriteDsn:  cfg.DbURL, // excludes opt read pool argument since all operations in this service involve mixed read-write operations
 		ActiveProfile: cfg.Profile,
 		AwsRegion:     cfg.AwsRegion,
 	})

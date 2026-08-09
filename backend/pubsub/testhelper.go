@@ -7,6 +7,7 @@ import (
 	"hexchess-svc/pb"
 	"hexchess-svc/utils/testutil"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -33,7 +34,12 @@ func ExpectBroadcastGames(t *testing.T, rdb cache.Redis, gameID model.GameID, wa
 
 	return func() {
 		for i := range wantOutputs {
-			bytes := <-subChan
+			var bytes []byte
+			select {
+			case bytes = <-subChan:
+			case <-time.After(5 * time.Second):
+				t.Fatal("timed out waiting for broadcaster channel")
+			}
 
 			var output pb.GameOutput
 			require.NoError(t, proto.Unmarshal(bytes, &output))
