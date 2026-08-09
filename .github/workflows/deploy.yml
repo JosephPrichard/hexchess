@@ -27,7 +27,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: ./backend/go.mod
 
       - name: Run make functional-test
         run: make functional-test
@@ -51,7 +51,7 @@ jobs:
         run: fish ./scripts/install-backend-check.fish
 
       - name: Run govulncheck
-        run: govulncheck ./...
+        run: cd backend && govulncheck ./...
 
   # ---------------------------------------------------------------------
   # CI BUILD phases (4 total: migrator + 3 apps,

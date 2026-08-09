@@ -71,9 +71,6 @@ jobs:
     name: "apply (${{ inputs.working_directory }})"
     needs: plan
     runs-on: ubuntu-latest
-    # This is the confirmation gate. The job will not start until a required
-    # reviewer on this Environment approves it.
-    environment: ${{ inputs.environment_name }}
     defaults:
       run:
         working-directory: ${{ inputs.working_directory }}

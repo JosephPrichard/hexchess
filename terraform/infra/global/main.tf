@@ -191,6 +191,7 @@ resource "aws_memorydb_cluster" "memorydb" {
   acl_name                 = "open-access"
   node_type                = var.memorydb_node_type
   engine_version           = "7.2"
+  engine                   = "valkey"
   num_shards               = var.memorydb_shards
   num_replicas_per_shard   = 1
   subnet_group_name        = aws_memorydb_subnet_group.main.name
