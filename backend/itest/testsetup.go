@@ -2,7 +2,6 @@ package itest
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -106,12 +105,14 @@ func SetupPostgresTest(ctx context.Context, t alog.TestLogger) (*pgxpool.Pool, e
 		return nil, fmt.Errorf("failed to create pg pool: %w", err)
 	}
 	if createdContainer {
-		_, dropErr := pgPool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
-		_, primaryErr := pgPool.Exec(ctx, database.CreatePrimarySchema)
-		insertErr := insertTestData(pgPool)
-
-		if err := errors.Join(dropErr, primaryErr, insertErr); err != nil {
-			return nil, err
+		if _, err := pgPool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"); err != nil {
+			return nil, fmt.Errorf("failed to drop schema: %w", err)
+		}
+		if _, err := pgPool.Exec(ctx, database.CreatePrimarySchema); err != nil {
+			return nil, fmt.Errorf("failed to create schema: %w", err)
+		}
+		if err := insertTestData(pgPool); err != nil {
+			return nil, fmt.Errorf("failed to insert test data: %w", err)
 		}
 	}
 

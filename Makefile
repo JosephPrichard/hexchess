@@ -80,10 +80,6 @@ vulncheck:
 	cd backend && govulncheck ./...
 
 # Testing
-define functional-test
-	cd $(BACKEND_DIR) && go test ./"$(1)" -coverprofile="coverage_$(1).out" -v -count=1 -timeout=60s
-endef
-
 functional-test:
 	# Backend server test
 	cd $(BACKEND_DIR) && go test $$(go list ./... | grep -v '^.*/cmd|/wasm/') -v -timeout=600s
