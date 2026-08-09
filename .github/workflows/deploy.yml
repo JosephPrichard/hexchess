@@ -18,7 +18,7 @@ jobs:
   # CI PRECHECK phases
   # ---------------------------------------------------------------------
   precheck-test:
-    name: "CI Precheck: make functional-test"
+    name: "CI Precheck"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -31,8 +31,13 @@ jobs:
 
       - name: Install Fish Shell
         uses: fish-shop/install-fish-shell@v1
+        
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "25.x"
 
-      - name: Download Make Dependencies
+      - name: Install build dependencies
         run: fish ./scripts/install-backend-build.fish
 
       - name: Run make
@@ -40,27 +45,6 @@ jobs:
 
       - name: Run make functional-test
         run: make functional-test
-
-  precheck-govulncheck:
-    name: "CI Precheck: govulncheck"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: ./backend/go.mod
-
-      - name: Install Fish Shell
-        uses: fish-shop/install-fish-shell@v1
-
-      - name: Download Make Dependencies
-        run: fish ./scripts/install-backend-build.fish
-
-      - name: Run make
-        run: make
 
       - name: Install govulncheck
         run: fish ./scripts/install-backend-check.fish
@@ -75,7 +59,7 @@ jobs:
   build-migrator:
     name: "CI Build: migrator"
     runs-on: ubuntu-latest
-    needs: [precheck-test, precheck-govulncheck]
+    needs: [precheck-test]
     env:
       SVC: migrator
       DOCKERFILE: Migrator
@@ -99,7 +83,7 @@ jobs:
 
   build-frontend:
     name: "CI Build: frontend"
-    needs: [precheck-test, precheck-govulncheck]
+    needs: [precheck-test]
     runs-on: ubuntu-latest
     env:
       SVC: frontend
@@ -124,7 +108,7 @@ jobs:
 
   build-api:
     name: "CI Build: api"
-    needs: [precheck-test, precheck-govulncheck]
+    needs: [precheck-test]
     runs-on: ubuntu-latest
     env:
       SVC: api
@@ -149,7 +133,7 @@ jobs:
 
   build-consumer:
     name: "CI Build: consumer"
-    needs: [precheck-test, precheck-govulncheck]
+    needs: [precheck-test]
     runs-on: ubuntu-latest
     env:
       SVC: consumer
