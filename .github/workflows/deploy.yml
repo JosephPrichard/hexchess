@@ -29,6 +29,12 @@ jobs:
         with:
           go-version-file: ./backend/go.mod
 
+      - name: Install Fish Shell
+        uses: fish-shop/install-fish-shell@v1
+
+      - name: Download Make Dependencies
+        run: fish ./scripts/install-backend-build.fish
+
       - name: Run make
         run: make
 
@@ -49,6 +55,12 @@ jobs:
 
       - name: Install Fish Shell
         uses: fish-shop/install-fish-shell@v1
+
+      - name: Download Make Dependencies
+        run: fish ./scripts/install-backend-build.fish
+
+      - name: Run make
+        run: make
 
       - name: Install govulncheck
         run: fish ./scripts/install-backend-check.fish
