@@ -41,7 +41,7 @@ jobs:
         run: fish ./scripts/install-backend-build.fish
 
       - name: Run make
-        run: make
+        run: make backend
 
       - name: Run make functional-test
         run: make functional-test
