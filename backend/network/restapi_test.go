@@ -40,8 +40,6 @@ var serviceViewCmpOpts = []cmp.Option{
 }
 
 func TestHandleRegister(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name        string
 		body        RegisterBody
@@ -102,8 +100,6 @@ func TestHandleRegister(t *testing.T) {
 }
 
 func TestHandleLogin(t *testing.T) {
-	t.Parallel()
-
 	user := itest.UsersInsts[0]
 
 	tests := []struct {
@@ -148,8 +144,6 @@ func TestHandleLogin(t *testing.T) {
 }
 
 func TestHandleGoogleLogin(t *testing.T) {
-	t.Parallel()
-
 	apiKey := "API_KEY"
 
 	tests := []struct {
@@ -225,8 +219,6 @@ func TestHandleGoogleLogin(t *testing.T) {
 }
 
 func TestHandleUpdateUser(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name        string
 		body        UpdateUserBody
@@ -307,8 +299,6 @@ func TestHandleUpdateUser(t *testing.T) {
 }
 
 func TestHandleUpdatePassword(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name        string
 		body        UpdatePasswordBody
@@ -371,8 +361,6 @@ func TestHandleUpdatePassword(t *testing.T) {
 }
 
 func TestHandleUpdateChallenge(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name       string
 		body       UpdateChallengeBody
@@ -454,8 +442,6 @@ func TestHandleUpdateChallenge(t *testing.T) {
 }
 
 func TestHandleCreateGame(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name       string
 		body       CreateGameBody
@@ -508,8 +494,6 @@ func TestHandleCreateGame(t *testing.T) {
 }
 
 func TestHandleCreateChallenge(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name       string
 		body       CreateChallengeBody
@@ -590,8 +574,6 @@ func TestHandleCreateChallenge(t *testing.T) {
 }
 
 func TestHandleSearchPlayers(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name        string
 		username    string
@@ -657,8 +639,6 @@ func TestHandleSearchPlayers(t *testing.T) {
 }
 
 func TestGetLeaderboard(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name        string
 		mode        string
@@ -732,8 +712,6 @@ func TestGetLeaderboard(t *testing.T) {
 }
 
 func TestGetPersona(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name        string
 		id          string
@@ -798,8 +776,6 @@ func TestGetPersona(t *testing.T) {
 }
 
 func TestGetChallenges(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name         string
 		participants string
@@ -858,8 +834,6 @@ func TestGetChallenges(t *testing.T) {
 }
 
 func TestHandleSearchReplays(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name        string
 		params      string
@@ -1065,8 +1039,6 @@ func TestHandleSearchReplays(t *testing.T) {
 }
 
 func TestHandleGetReplay(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name        string
 		userID      string
@@ -1109,8 +1081,6 @@ func TestHandleGetReplay(t *testing.T) {
 }
 
 func TestHandleGetGameMetadata(t *testing.T) {
-	t.Parallel()
-
 	allChessMetas := []ChessMeta{
 		{Ordering: 3, GameID: itest.GameID3, Mode: "CORRESPONDENCE_1"},
 		{Ordering: 2, GameID: itest.GameID2, Mode: "CORRESPONDENCE_1"},
@@ -1175,8 +1145,6 @@ func TestHandleGetGameMetadata(t *testing.T) {
 }
 
 func TestHandleGetMoveReplay(t *testing.T) {
-	t.Parallel()
-
 	h, testinfra := setupTestHandler(t, nil, itest.RWPostgres)
 	defer testinfra.Close()
 
@@ -1198,8 +1166,6 @@ func TestHandleGetMoveReplay(t *testing.T) {
 }
 
 func TestGetTournament(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name          string
 		tournamentKey string
@@ -1278,8 +1244,6 @@ func TestGetTournament(t *testing.T) {
 }
 
 func TestGetTournaments(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name       string
 		userID     string

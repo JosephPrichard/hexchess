@@ -41,8 +41,6 @@ func assertRedisChess(t *testing.T, services *ChessRepoService, wantState *model
 }
 
 func TestEchoChessState(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupRepoTest(t, itest.Redis)
 	defer testinfra.Close()
 
@@ -65,8 +63,6 @@ func TestEchoChessState(t *testing.T) {
 }
 
 func TestUpdateChessState(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupRepoTest(t, itest.Redis)
 	defer testinfra.Close()
 
@@ -101,8 +97,6 @@ func TestUpdateChessState(t *testing.T) {
 }
 
 func TestUpdateChessState_Errors(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupRepoTest(t, itest.Redis)
 	defer testinfra.Close()
 

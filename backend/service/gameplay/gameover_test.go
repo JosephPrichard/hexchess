@@ -35,8 +35,6 @@ func setupGameoverTest(t alog.TestLogger, flags ...itest.TestFlag) (*GameOverSer
 }
 
 func TestInsertFinishedGameEvent(t *testing.T) {
-	t.Parallel()
-
 	ctx := t.Context()
 
 	testUser0 := itest.TestUser[0]
@@ -122,8 +120,6 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 }
 
 func TestInsertGameResult(t *testing.T) {
-	t.Parallel()
-
 	ctx := t.Context()
 
 	testUser0 := itest.TestUser[0]

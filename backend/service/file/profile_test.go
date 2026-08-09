@@ -27,8 +27,6 @@ func setupProfileTest(t alog.TestLogger, flags ...itest.TestFlag) (*ProfileServi
 }
 
 func TestDeleteExpiredProfilePics(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupProfileTest(t, itest.AWS)
 	defer testinfra.Close()
 
@@ -69,8 +67,6 @@ func TestDeleteExpiredProfilePics(t *testing.T) {
 }
 
 func TestFindMostRecentKey(t *testing.T) {
-	t.Parallel()
-
 	// tests most recent Key logic since it cannot be tested in the s3 calls it is tested in
 	// this is because the 'LastModifiedTime' value is nondeterministic with regards to inserts that happen in ~5 seconds
 	tests := []struct {
@@ -80,14 +76,14 @@ func TestFindMostRecentKey(t *testing.T) {
 		{wantKey: ""},
 		{
 			objects: []s3Types.Object{
-				{Key: aws.String("a"), LastModified: ptr(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))},
-				{Key: aws.String("b"), LastModified: ptr(time.Date(2020, 2, 1, 0, 0, 0, 0, time.UTC))},
+				{Key: aws.String("a"), LastModified: new(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))},
+				{Key: aws.String("b"), LastModified: new(time.Date(2020, 2, 1, 0, 0, 0, 0, time.UTC))},
 			},
 			wantKey: "b",
 		},
 		{
 			objects: []s3Types.Object{
-				{Key: aws.String("b"), LastModified: ptr(time.Unix(1, 0))},
+				{Key: aws.String("b"), LastModified: new(time.Unix(1, 0))},
 			},
 			wantKey: "b",
 		},
@@ -99,8 +95,6 @@ func TestFindMostRecentKey(t *testing.T) {
 }
 
 func TestFilterLeastRecentKeys(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		objects  []s3Types.Object
 		wantKeys []s3Types.ObjectIdentifier
@@ -112,8 +106,8 @@ func TestFilterLeastRecentKeys(t *testing.T) {
 		},
 		{
 			objects: []s3Types.Object{
-				{Key: aws.String("b"), LastModified: ptr(time.Date(2020, 2, 1, 0, 0, 0, 0, time.UTC))},
-				{Key: aws.String("a"), LastModified: ptr(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))},
+				{Key: aws.String("b"), LastModified: new(time.Date(2020, 2, 1, 0, 0, 0, 0, time.UTC))},
+				{Key: aws.String("a"), LastModified: new(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))},
 			},
 			wantKeys: []s3Types.ObjectIdentifier{
 				{Key: aws.String("a")},
@@ -121,7 +115,7 @@ func TestFilterLeastRecentKeys(t *testing.T) {
 		},
 		{
 			objects: []s3Types.Object{
-				{Key: aws.String("b"), LastModified: ptr(time.Unix(1, 0))},
+				{Key: aws.String("b"), LastModified: new(time.Unix(1, 0))},
 			},
 			wantKeys: []s3Types.ObjectIdentifier{},
 		},

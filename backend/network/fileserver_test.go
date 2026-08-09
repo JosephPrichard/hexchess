@@ -24,8 +24,6 @@ import (
 )
 
 func TestHandleUploadProfilePic(t *testing.T) {
-	t.Parallel()
-
 	bodyJustRight := "testfiledata"
 	bodyTooLarge := bytes.Repeat([]byte{'a'}, (5<<20)+1)
 
@@ -105,8 +103,6 @@ func TestHandleUploadProfilePic(t *testing.T) {
 }
 
 func TestHandleGetProfilePic(t *testing.T) {
-	t.Parallel()
-
 	profileKey1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())
 
 	tests := []struct {

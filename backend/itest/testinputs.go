@@ -99,8 +99,8 @@ var ReplayInsts = []struct {
 	// replay service tests (primarily the replay advanced search functionality)
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        ptr(1),
-		BlackID:        ptr(2),
+		WhiteID:        new(1),
+		BlackID:        new(2),
 		Result:         "WHITE_WINS",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_7",
@@ -113,8 +113,8 @@ var ReplayInsts = []struct {
 	},
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        ptr(2),
-		BlackID:        ptr(3),
+		WhiteID:        new(2),
+		BlackID:        new(3),
 		Result:         "BLACK_WINS",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_7",
@@ -127,8 +127,8 @@ var ReplayInsts = []struct {
 	},
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        ptr(3),
-		BlackID:        ptr(1),
+		WhiteID:        new(3),
+		BlackID:        new(1),
 		Result:         "DRAW",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_7",
@@ -141,7 +141,7 @@ var ReplayInsts = []struct {
 	},
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        ptr(1),
+		WhiteID:        new(1),
 		BlackID:        nil,
 		Result:         "WHITE_WINS",
 		Cause:          "CHECKMATE",
@@ -155,8 +155,8 @@ var ReplayInsts = []struct {
 	},
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        ptr(1),
-		BlackID:        ptr(2),
+		WhiteID:        new(1),
+		BlackID:        new(2),
 		Result:         "BLACK_WINS",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_7",
@@ -170,8 +170,8 @@ var ReplayInsts = []struct {
 	// elo history tests
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        ptr(6),
-		BlackID:        ptr(7),
+		WhiteID:        new(6),
+		BlackID:        new(7),
 		Result:         "WHITE_WINS",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_7",
@@ -184,8 +184,8 @@ var ReplayInsts = []struct {
 	},
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        ptr(6),
-		BlackID:        ptr(7),
+		WhiteID:        new(6),
+		BlackID:        new(7),
 		Result:         "WHITE_WINS",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_7",
@@ -197,8 +197,8 @@ var ReplayInsts = []struct {
 	},
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        ptr(6),
-		BlackID:        ptr(7),
+		WhiteID:        new(6),
+		BlackID:        new(7),
 		Result:         "WHITE_WINS",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_7",
@@ -210,8 +210,8 @@ var ReplayInsts = []struct {
 	},
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        ptr(6),
-		BlackID:        ptr(7),
+		WhiteID:        new(6),
+		BlackID:        new(7),
 		Result:         "WHITE_WINS",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_7",
@@ -223,8 +223,8 @@ var ReplayInsts = []struct {
 	},
 	{
 		GameID:         uuid.NewString(),
-		WhiteID:        ptr(6),
-		BlackID:        ptr(7),
+		WhiteID:        new(6),
+		BlackID:        new(7),
 		Result:         "WHITE_WINS",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_1",
@@ -237,8 +237,8 @@ var ReplayInsts = []struct {
 	// tournament matchmaking tests (required to mark games as finished)
 	{
 		GameID:         GameIDFinishedTournamentMatch1,
-		WhiteID:        ptr(10),
-		BlackID:        ptr(11),
+		WhiteID:        new(10),
+		BlackID:        new(11),
 		Result:         "WHITE_WINS",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_7",
@@ -250,8 +250,8 @@ var ReplayInsts = []struct {
 	},
 	{
 		GameID:         GameIDFinishedTournamentMatch2,
-		WhiteID:        ptr(12),
-		BlackID:        ptr(13),
+		WhiteID:        new(12),
+		BlackID:        new(13),
 		Result:         "WHITE_WINS",
 		Cause:          "CHECKMATE",
 		Mode:           "CORRESPONDENCE_7",
@@ -700,7 +700,7 @@ var GameMetas = []struct {
 	{
 		ID:      GameID1.String(),
 		Mode:    "CORRESPONDENCE_1",
-		BlackID: ptr(int64(2)),
+		BlackID: new(int64(2)),
 	},
 	{
 		ID:   GameID2.String(),

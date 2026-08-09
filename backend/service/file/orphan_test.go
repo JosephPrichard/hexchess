@@ -24,8 +24,6 @@ func setupOrphanTest(t alog.TestLogger, flags ...itest.TestFlag) (*OrphanService
 }
 
 func TestRemoveOrphanedBucketObjects(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupOrphanTest(t, itest.ROPostgres, itest.AWS)
 	defer testinfra.Close()
 

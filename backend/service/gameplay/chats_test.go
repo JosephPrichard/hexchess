@@ -22,8 +22,6 @@ func setupChatsServicesTest(t alog.TestLogger, flags ...itest.TestFlag) (*ChatSe
 }
 
 func TestEchoStateChats(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupChatsServicesTest(t, itest.Redis)
 	defer testinfra.Close()
 

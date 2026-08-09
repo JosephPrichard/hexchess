@@ -20,8 +20,6 @@ func setupSearcherTest(t alog.TestLogger, flags ...itest.TestFlag) (*ReplaySearc
 }
 
 func TestSearchReplaysByQuery(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name        string
 		replayQuery ReplaysQuery

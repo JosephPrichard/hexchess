@@ -25,8 +25,6 @@ func setupReplayTest(t alog.TestLogger, flags ...itest.TestFlag) (*ReplayService
 }
 
 func TestGetReplay(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupReplayTest(t, itest.RWPostgres)
 	defer testinfra.Close()
 
@@ -50,8 +48,6 @@ func TestGetReplay(t *testing.T) {
 }
 
 func TestRetrieveEloHistories(t *testing.T) {
-	t.Parallel()
-
 	timeUntil := time.Date(2020, 2, 2, 2, 0, 0, 0, time.UTC)
 
 	for _, test := range []struct {

@@ -9,15 +9,11 @@ import (
 )
 
 func TestUndo(t *testing.T) {
-	t.Parallel()
-
 	t.Run("no moves to undo", func(t *testing.T) {
-		t.Parallel()
-
 		s := NewChessState(StateSetup{
 			ID:           "test",
-			Game:         ptr(chess.NewStartGame()),
-			InitialBoard: ptr(chess.InitialBoard()),
+			Game:         new(chess.NewStartGame()),
+			InitialBoard: new(chess.InitialBoard()),
 		})
 
 		err := s.Undo()
@@ -26,15 +22,13 @@ func TestUndo(t *testing.T) {
 	})
 
 	t.Run("successfully undoing game with one move", func(t *testing.T) {
-		t.Parallel()
-
 		game := chess.NewStartGame()
 		game.Moves = append(game.Moves, game.NewMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")}))
 
 		s := NewChessState(StateSetup{
 			ID:           "test",
-			Game:         ptr(game),
-			InitialBoard: ptr(chess.InitialBoard()),
+			Game:         new(game),
+			InitialBoard: new(chess.InitialBoard()),
 		})
 
 		err := s.Undo()

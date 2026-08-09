@@ -22,8 +22,6 @@ func setupActiveTest(t alog.TestLogger, flags ...itest.TestFlag) (*ActiveUserSer
 }
 
 func TestActiveUser(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupActiveTest(t, itest.Redis)
 	defer testinfra.Close()
 

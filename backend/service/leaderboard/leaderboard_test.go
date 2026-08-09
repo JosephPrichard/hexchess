@@ -25,8 +25,6 @@ func setupTest(t alog.TestLogger, flags ...itest.TestFlag) (*LeaderboardService,
 }
 
 func TestLeaderboard(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupTest(t, itest.Redis)
 	defer testinfra.Close()
 
@@ -112,8 +110,6 @@ func TestLeaderboard(t *testing.T) {
 }
 
 func TestGetFullLeaderboardUsers(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name            string
 		mode            model.GameMode
@@ -179,8 +175,6 @@ func TestGetFullLeaderboardUsers(t *testing.T) {
 }
 
 func TestGetFuzzySearchLeaderboard(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupTest(t, itest.ROPostgres)
 	defer testinfra.Close()
 

@@ -32,8 +32,6 @@ func setupTest(t alog.TestLogger, flags ...itest.TestFlag) (*ChallengeService, i
 }
 
 func TestInsertChallenge(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name         string
 		challengerID int64
@@ -127,8 +125,6 @@ func TestMapChallengeInsertErr(t *testing.T) {
 }
 
 func TestGetChallengesByParticipant(t *testing.T) {
-	t.Parallel()
-
 	// gets only expired challenges
 	services, testinfra := setupTest(t, itest.ROPostgres)
 	defer testinfra.Close()
@@ -144,8 +140,6 @@ func TestGetChallengesByParticipant(t *testing.T) {
 }
 
 func TestDeleteExpiredChallenges(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupTest(t, itest.RWPostgres)
 	defer testinfra.Close()
 
@@ -166,8 +160,6 @@ func TestDeleteExpiredChallenges(t *testing.T) {
 }
 
 func TestDeleteChallenge(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupTest(t, itest.RWPostgres)
 	defer testinfra.Close()
 

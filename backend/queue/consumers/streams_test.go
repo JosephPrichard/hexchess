@@ -44,8 +44,6 @@ func (h *testEventHandler) handleEvent(_ context.Context, bytes []byte) error {
 }
 
 func TestRedisConsumer(t *testing.T) {
-	t.Parallel()
-
 	consumingStream := "stream-key"
 
 	marshal := func(v any) []byte {

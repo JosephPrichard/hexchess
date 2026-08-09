@@ -149,8 +149,6 @@ var (
 )
 
 func TestHandleGameplayWs(t *testing.T) {
-	t.Parallel()
-
 	for _, tt := range gameOutputTests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := t.Context()

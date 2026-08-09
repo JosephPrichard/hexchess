@@ -159,20 +159,21 @@ jobs:
   # ---------------------------------------------------------------------
   # CD: Infra UAT (terraform plan -> manual approval -> apply -auto-approve)
   # ---------------------------------------------------------------------
-  infra-uat:
-    name: "CD: Infra UAT"
-    uses: ./.github/workflows/deploy-plan-apply.yml
-    with:
-      working_directory: terraform/infra/uat
-      environment_name: infra-uat-approval
-    secrets: inherit
+#  infra-uat:
+#    name: "CD: Infra UAT"
+#    uses: ./.github/workflows/deploy-plan-apply.yml
+#    with:
+#      working_directory: terraform/infra/uat
+#      environment_name: infra-uat-approval
+#    secrets: inherit
 
   # ---------------------------------------------------------------------
   # CD: Migrator deployment (UAT) - depends on migrator build
   # ---------------------------------------------------------------------
   deploy-migrator-uat:
     name: "CD: Migrator UAT"
-    needs: [build-migrator, infra-uat]
+#    needs: [build-migrator, infra-uat]
+    needs: [build-migrator]
     uses: ./.github/workflows/deploy-plan-apply.yml
     with:
       working_directory: terraform/app/migrator/uat

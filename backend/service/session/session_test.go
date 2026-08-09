@@ -21,8 +21,6 @@ func setupTest(t alog.TestLogger, flags ...itest.TestFlag) (*SessionService, ite
 }
 
 func TestSessions(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupTest(t, itest.Redis)
 	defer testinfra.Close()
 

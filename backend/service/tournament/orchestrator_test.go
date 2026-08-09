@@ -38,8 +38,6 @@ func setupOrchestratorTest(t alog.TestLogger, flags ...itest.TestFlag) (*Tournam
 var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(query.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
 
 func TestProgressTournament_StoresMatches(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name          string
 		tournamentKey uuid.UUID

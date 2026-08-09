@@ -25,8 +25,6 @@ func setupGameMetadataTest(t alog.TestLogger, flags ...itest.TestFlag) (*ChessMe
 }
 
 func TestGetGameMetadata(t *testing.T) {
-	t.Parallel()
-
 	service, testinfra := setupGameMetadataTest(t, itest.ROPostgres, itest.Redis)
 	defer testinfra.Close()
 

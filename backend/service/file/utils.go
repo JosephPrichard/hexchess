@@ -2,10 +2,6 @@ package file
 
 import s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 
-func ptr[T any](v T) *T {
-	return &v
-}
-
 func keysOfObjects(objects []s3Types.Object) []string {
 	var s []string
 	for _, o := range objects {

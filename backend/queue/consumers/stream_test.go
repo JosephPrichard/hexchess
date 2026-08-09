@@ -23,8 +23,6 @@ import (
 )
 
 func TestHandleFinishedGameEvent(t *testing.T) {
-	t.Parallel()
-
 	ctx := t.Context()
 
 	consumerCtx, cancel := context.WithCancel(ctx)
@@ -114,8 +112,6 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 }
 
 func TestHandleUpdtGameEvent(t *testing.T) {
-	t.Parallel()
-
 	ctx := t.Context()
 
 	consumerCtx, cancel := context.WithCancel(ctx)

@@ -8,8 +8,6 @@ import (
 )
 
 func TestChessSerializer(t *testing.T) {
-	t.Parallel()
-
 	input1 := NewChessState(StateSetup{ID: NewGameID(), Mode: ModeCorrespondence1, FirstColor: Random})
 	input1.EndState = Finished
 

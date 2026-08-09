@@ -18,8 +18,6 @@ import (
 var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(query.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
 
 func TestHandleAdvanceTournamentEvent(t *testing.T) {
-	t.Parallel()
-
 	ctx := t.Context()
 
 	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)

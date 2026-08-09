@@ -58,8 +58,6 @@ func setChessStates(t *testing.T, redis cache.Redis, games ...*model.ChessState)
 }
 
 func TestJoinGame(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupGameplayTest(t, itest.Redis)
 	defer testinfra.Close()
 
@@ -122,8 +120,6 @@ func TestJoinGame(t *testing.T) {
 }
 
 func TestAttemptUndo(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupGameplayTest(t, itest.Redis)
 	defer testinfra.Close()
 
@@ -286,13 +282,7 @@ func TestAttemptUndo(t *testing.T) {
 	}
 }
 
-func ptr[T any](v T) *T {
-	return &v
-}
-
 func TestNewMove(t *testing.T) {
-	t.Parallel()
-
 	stateWhiteTurn := model.NewChessState(model.StateSetup{
 		ID:         model.NewGameID(),
 		Mode:       model.ModeCorrespondence1,
@@ -320,7 +310,7 @@ func TestNewMove(t *testing.T) {
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 3, Present: true},
 		Black:      model.PlayerState{ID: 4, Present: true},
-		Game: ptr(chess.NewEmptyGame(false,
+		Game: new(chess.NewEmptyGame(false,
 			chess.Place{Not: "f1", Piece: chess.WhiteKing},
 			chess.Place{Not: "a2", Piece: chess.BlackQueen},
 			chess.Place{Not: "h1", Piece: chess.BlackRook},
@@ -434,8 +424,6 @@ func TestNewMove(t *testing.T) {
 }
 
 func TestForfeit(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupGameplayTest(t, itest.Redis)
 	defer testinfra.Close()
 
@@ -486,8 +474,6 @@ func TestForfeit(t *testing.T) {
 }
 
 func TestForfeit_Errors(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupGameplayTest(t, itest.Redis)
 	defer testinfra.Close()
 

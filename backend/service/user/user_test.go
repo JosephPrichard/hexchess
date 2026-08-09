@@ -26,8 +26,6 @@ var testUserCmptOpts = cmpopts.IgnoreFields(model.User{}, "ID")
 var testVerifiedUserCmptOpts = cmpopts.IgnoreFields(VerifiedUser{}, "ID")
 
 func TestInsertThenVerify(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupUserTest(t, itest.RWPostgres)
 	defer testinfra.Close()
 
@@ -68,8 +66,6 @@ func TestInsertThenVerify(t *testing.T) {
 }
 
 func TestUpdateUser(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name         string
 		userID       int64
@@ -118,8 +114,6 @@ func TestUpdateUser(t *testing.T) {
 }
 
 func TestSelectOrInsertGoogleUser(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupUserTest(t, itest.RWPostgres)
 	defer testinfra.Close()
 
@@ -151,8 +145,6 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 }
 
 func TestUpdatePasswordThenVerify(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupUserTest(t, itest.RWPostgres)
 	defer testinfra.Close()
 
@@ -170,8 +162,6 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 }
 
 func TestGetUserElos(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupUserTest(t, itest.RWPostgres)
 	defer testinfra.Close()
 

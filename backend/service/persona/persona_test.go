@@ -26,8 +26,6 @@ func setupPersonaServices(t alog.TestLogger, flags ...itest.TestFlag) (*PersonaS
 }
 
 func TestGetPersona(t *testing.T) {
-	t.Parallel()
-
 	service, testinfra := setupPersonaServices(t, itest.ROPostgres, itest.Redis)
 	defer testinfra.Close()
 

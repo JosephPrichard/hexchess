@@ -77,8 +77,6 @@ func assertGame(t *testing.T, wantGame *chess.Game, result js.Value) {
 }
 
 func TestGetGame(t *testing.T) {
-	t.Parallel()
-
 	wasm := makeTestWasm()
 
 	t.Run("get initial game", func(t *testing.T) {
@@ -118,8 +116,6 @@ func TestGetGame(t *testing.T) {
 }
 
 func TestNewMove(t *testing.T) {
-	t.Parallel()
-
 	wasm := makeTestWasm()
 
 	t.Run("successfully make move", func(t *testing.T) {
@@ -173,8 +169,6 @@ func TestNewMove(t *testing.T) {
 }
 
 func TestFenToGame(t *testing.T) {
-	t.Parallel()
-
 	wasm := makeTestWasm()
 
 	for _, test := range []struct {
@@ -228,8 +222,6 @@ func TestFenToGame(t *testing.T) {
 }
 
 func TestBoardToFen(t *testing.T) {
-	t.Parallel()
-
 	wasm := makeTestWasm()
 
 	input := makeInitialBoardJs(t)
@@ -246,8 +238,6 @@ func TestBoardToFen(t *testing.T) {
 }
 
 func TestGameAtMoveIndex(t *testing.T) {
-	t.Parallel()
-
 	wasm := makeTestWasm()
 
 	t.Run("jump to index 0", func(t *testing.T) {

@@ -31,8 +31,6 @@ func setupTest(t alog.TestLogger, flags ...itest.TestFlag) (*TournamentService, 
 }
 
 func TestCreateTournament(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupTest(t, itest.RWPostgres)
 	defer testinfra.Close()
 
@@ -71,8 +69,6 @@ func TestCreateTournament(t *testing.T) {
 }
 
 func TestBeginTournamentCountdown(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupTest(t, itest.RWPostgres)
 	defer testinfra.Close()
 
@@ -141,8 +137,6 @@ func TestBeginTournamentCountdown(t *testing.T) {
 var sqlcTournamentParticipantCmpOpts = cmpopts.IgnoreFields(query.TournamentParticipant{}, "JoinedOn")
 
 func TestJoinTournament(t *testing.T) {
-	t.Parallel()
-
 	services, testinfra := setupTest(t, itest.RWPostgres)
 	defer testinfra.Close()
 
