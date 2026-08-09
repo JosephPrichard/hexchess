@@ -22,6 +22,9 @@ on:
         type: string
         default: ""
 
+env:
+  AWS_REGION: us-east-1
+
 jobs:
   plan:
     name: "plan (${{ inputs.working_directory }})"
