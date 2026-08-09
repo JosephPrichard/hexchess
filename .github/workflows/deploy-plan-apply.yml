@@ -1,0 +1,108 @@
+name: Terraform Plan & Apply (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      working_directory:
+        description: "Path to the terraform root module"
+        required: true
+        type: string
+      environment_name:
+        description: "GitHub Environment name gating the apply step (configure required reviewers on this environment)"
+        required: true
+        type: string
+      tf_var_rollout:
+        description: "Optional value for TF_VAR_rollout"
+        required: false
+        type: string
+        default: ""
+      tf_var_commit_sha:
+        description: "Optional value for TF_VAR_commit_sha"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  id-token: write # needed in case we decide to use OIDC to assume an AWS role
+  contents: read
+
+jobs:
+  plan:
+    name: "plan (${{ inputs.working_directory }})"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working_directory }}
+    env:
+      TF_VAR_rollout: ${{ inputs.tf_var_rollout }}
+      TF_VAR_commit_sha: ${{ inputs.tf_var_commit_sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Replace with your actual AWS auth method (OIDC role assumption shown)
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Plan
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Show Plan (printed to job log + summary)
+        run: |
+          terraform show -no-color tfplan | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ inputs.environment_name }}
+          path: ${{ inputs.working_directory }}/tfplan
+          retention-days: 1
+
+  apply:
+    name: "apply (${{ inputs.working_directory }})"
+    needs: plan
+    runs-on: ubuntu-latest
+    # This is the confirmation gate. The job will not start until a required
+    # reviewer on this Environment approves it.
+    environment: ${{ inputs.environment_name }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working_directory }}
+    env:
+      TF_VAR_rollout: ${{ inputs.tf_var_rollout }}
+      TF_VAR_commit_sha: ${{ inputs.tf_var_commit_sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ inputs.environment_name }}
+          path: ${{ inputs.working_directory }}
+
+      # Applying the saved plan file (rather than re-planning) guarantees
+      # what gets applied is exactly what the reviewer approved.
+      - name: Terraform Apply
+        run: terraform apply -input=false -auto-approve tfplan

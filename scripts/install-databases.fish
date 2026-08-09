@@ -1,5 +1,4 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env fish
 
 echo "==> Updating package lists"
 apt-get update -y
@@ -33,19 +32,19 @@ apt-get install -y loki
 echo "==> Installing Grafana"
 apt-get install -y grafana
 
-PYROSCOPE_VERSION="2.1.1"
-echo "==> Installing Pyroscope ${PYROSCOPE_VERSION}"
-curl -fsSL "https://github.com/grafana/pyroscope/releases/download/v${PYROSCOPE_VERSION}/pyroscope_${PYROSCOPE_VERSION}_linux_amd64.deb" \
+set PYROSCOPE_VERSION "2.1.1"
+echo "==> Installing Pyroscope $PYROSCOPE_VERSION"
+curl -fsSL "https://github.com/grafana/pyroscope/releases/download/v$PYROSCOPE_VERSION/pyroscope_{$PYROSCOPE_VERSION}_linux_amd64.deb" \
   -o /tmp/pyroscope.deb
 dpkg -i /tmp/pyroscope.deb
 rm -f /tmp/pyroscope.deb
 
 echo "==> Installation complete"
-psql --version || true
-redis-cli --version || true
-redis-server --version || true
-minio --version || true
-alloy --version || true
-loki --version || true
-grafana server -v || true
-pyroscope --version || true
+psql --version
+redis-cli --version
+redis-server --version
+minio --version
+alloy --version
+loki --version
+grafana server -v
+pyroscope --version

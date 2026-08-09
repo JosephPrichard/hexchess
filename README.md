@@ -23,29 +23,20 @@ Builds generated sources required for development, testing, and scripting.
 
 `make`
 
-Runs the functional testing and non-functional testing suite.
+Runs the backend functional testing and non-functional testing suites.
 
-`make test`
+`make functional-test`
 
 `make perf-test`
 
-### Database Migrations
-
-`export GOOSE_DBSTRING=<database-url>`
-
-`export GOOSE_DBDRIVER=postgres`
-
-Run a Migration (up)
-
-`cd migrations && goose up`
-
-Run a Migration (down)
-
-`cd migrations && goose down`
+TODO
+`make e2e-test`
 
 ### Env Variables
 
 Create an environment variable file in `backend`
+
+Sample:
 ```
 SERVER_PORT=8080
 DB_URL=postgresql://postgres:<password>@localhost:5432/hexchess
@@ -60,27 +51,11 @@ ALLOWED_ORIGINS=http://localhost:5173
 OTEL_EXPORTER_OTLP_ENDPOINT=localhost:3100
 ```
 
-`SERVER_PORT` The port where `backend` runs at, this is must be the same as what the ALB is configured to direct traffic to.
+### Database Migrations
 
-`DB_URL` Postgres connection url that the server will connect to.
+Run a Migration (up)
 
-`REDIS_SOR_NODES` Node URIs for redis instance server will use for caching and system of record
-
-`REDIS_PUBSUB_NODE` URI for redis instance used for message delivery
-
-`ALLOWED_ORIGINS` Allowed origins used for CORs, this should be the URI the UI is running at.
-
-`OTEL_EXPORTER_OTLP_ENDPOINT` Allows the app to forward logs to an oltp compatible server. Setup to your loki endpoint or leave blank to turn off oltp logging.
-
-`PROFILE` Decides the profile (e.g local, test, prod) that will be used to initialize the app. When local is flipped on, AWS authentication is turned off.
-
-`AWS_DEFAULT_REGION` The region the AWS infrastructure resources are in. Ideally us-east-1 because multi region configs are not supported yet.
-
-`AWS_ENDPOINT` The AWS endpoint to point the S3 Client to, this can be set to minio for testing but should be left empty for prod (points to real AWS endpoint by default).
-
-`AWS_SECRET_ID` Standard AWS credentials environment variable.
-
-`AWS_SECRET_KEY` Standard AWS credentials environment variable.
+`$ cd migrations && go run main.go`
 
 ### Run Servers
 
@@ -95,3 +70,9 @@ OTEL_EXPORTER_OTLP_ENDPOINT=localhost:3100
 `$ cd frontend`
 
 `$ npm run dev`
+
+## Deployment
+
+Deployment to AWS infrastructure is done using Terraform scripts. There's one terraform script for each component: `infra`, `consumer`, `migrator`, `api`, and `frontend`.
+
+Pipeline is trunk style, from `main` only. It will deploy all apps to all environments (only UAT for now).

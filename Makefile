@@ -80,7 +80,7 @@ vulncheck:
 	cd backend && govulncheck ./...
 
 # Testing
-test:
+functional-test:
 	# Backend server test
 	cd $(BACKEND_DIR) && go test $$(go list ./... | grep -v '^.*/cmd|/wasm/') -count=1 -timeout=60s
 	# Backend wasm module test

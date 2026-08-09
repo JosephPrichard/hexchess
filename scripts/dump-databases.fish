@@ -1,8 +1,7 @@
-#!/usr/bin/env bash
-set -e
+#!/usr/bin/env fish
 
-dump_schema() {
-    local db_name="$1"
+function dump_schema
+    set -l db_name $argv[1]
     pg_dump \
         -s \
         --no-owner \
@@ -15,6 +14,6 @@ dump_schema() {
         -e '/^\\restrict/d' \
         -e '/^\\unrestrict/d' \
         > "../backend/db/schema.sql"
-}
+end
 
 dump_schema "hexchess"
