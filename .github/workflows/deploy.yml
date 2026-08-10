@@ -37,8 +37,11 @@ jobs:
         with:
           version: "25.x"
 
-      - name: Install build dependencies
-        run: fish ./scripts/install-backend-build.fish
+      - name: Install dependencies
+        run: |
+          fish ./scripts/install-backend-build.fish
+          fish ./scripts/install-backend-test.fish
+          fish ./scripts/install-backend-check.fish
 
       - name: Run make
         run: make backend
@@ -48,9 +51,6 @@ jobs:
 
       - name: Run make functional-test
         run: make functional-test
-
-      - name: Install govulncheck
-        run: fish ./scripts/install-backend-check.fish
 
       - name: Run govulncheck
         run: cd backend && govulncheck ./...
