@@ -43,10 +43,10 @@ jobs:
           fish ./scripts/install-backend-test.fish
           fish ./scripts/install-backend-check.fish
 
-      - name: Run make
+      - name: Run make backend
         run: make backend
 
-      - name: Start integrating testing infrastructure
+      - name: Start integration testing infrastructure
         run: docker compose -f docker-compose-test.yml up -d
 
       - name: Run make functional-test
