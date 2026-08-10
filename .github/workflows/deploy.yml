@@ -31,19 +31,11 @@ jobs:
 
       - name: Install Fish Shell
         uses: fish-shop/install-fish-shell@v1
-        
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "25.x"
 
       - name: Install dependencies
         run: |
           fish ./scripts/install-backend-test.fish
           fish ./scripts/install-backend-check.fish
-
-      - name: Run make backend
-        run: make backend
 
       - name: Start integration testing infrastructure
         run: docker compose -f docker-compose-test.yml up -d

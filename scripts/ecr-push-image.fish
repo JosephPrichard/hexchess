@@ -5,10 +5,10 @@ if not set -q AWS_ACCOUNT
     set -g AWS_ACCOUNT 938864279852
 end
 if not set -q DOCKERFILE
-    set -g DOCKERFILE "Frontend"
+    set -g DOCKERFILE "BackendService"
 end
 if not set -q SVC
-    set -g SVC "frontend"
+    set -g SVC "api"
 end
 
 set CONTAINER "releases/hexchess/$SVC"

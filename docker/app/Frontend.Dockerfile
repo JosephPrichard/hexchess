@@ -1,6 +1,5 @@
 # ---- Stage 1: Build the Svelte app ----
 FROM node:20-alpine AS build
-RUN apk add --no-cache make
 
 WORKDIR /app
 
@@ -10,11 +9,8 @@ COPY frontend/package*.json frontend/
 RUN cd frontend && npm install
 
 # ---- Codegen Layer ----
-COPY Makefile .
 COPY contracts contracts/
 COPY frontend frontend/
-
-RUN make frontend --always-make
 
 # ---- Compile Layer ----
 RUN cd frontend && npm run build

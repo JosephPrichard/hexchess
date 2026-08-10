@@ -1,24 +1,16 @@
 # ---- Build Stage ----
 FROM golang:1.26-alpine AS builder
-RUN apk add --no-cache make
-RUN apk add --no-cache bash
-RUN apk add --no-cache protobuf protobuf-dev
 
 WORKDIR /sources
 
 # ---- Dependency Layer ----
-COPY scripts/install-backend-build.sh .
 COPY backend/go.mod backend/go.sum backend/
 
-RUN ./install-backend-build.sh
 RUN cd backend && go mod download
 
 # ---- Codegen Layer ----
-COPY Makefile .
 COPY contracts contracts/
 COPY backend backend/
-
-RUN make backend --always-make
 
 # ---- Compile Layer ----
 ARG SERVICE=api
