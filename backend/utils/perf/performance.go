@@ -13,17 +13,20 @@ type Performance struct {
 	start time.Time
 }
 
-func WithContext(ctx context.Context) Performance {
+func getCaller() string {
 	var pc [1]uintptr
-	n := runtime.Callers(2, pc[:])
+	n := runtime.Callers(3, pc[:])
 	frames := runtime.CallersFrames(pc[:n])
 	frame, _ := frames.Next()
+	return frame.Function
+}
 
-	return Performance{ctx: ctx, name: frame.Function, start: time.Now()}
+func WithContext(ctx context.Context) Performance {
+	return Performance{ctx: ctx, name: getCaller(), start: time.Now()}
 }
 
 func New() Performance {
-	return Performance{start: time.Now()}
+	return Performance{ctx: context.Background(), name: getCaller(), start: time.Now()}
 }
 
 func (p Performance) Duration(duration *time.Duration) {

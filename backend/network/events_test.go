@@ -76,7 +76,6 @@ func scanEvents(t *testing.T, resp *http.Response, wantEvents int) []string {
 }
 
 func TestHandleCountEvents(t *testing.T) {
-	t.Parallel()
 	ctx := t.Context()
 
 	sseTest := setupSSETest(t)
@@ -105,7 +104,6 @@ func TestHandleCountEvents(t *testing.T) {
 }
 
 func TestHandleActiveConn(t *testing.T) {
-	t.Parallel()
 	ctx := t.Context()
 
 	sseTest := setupSSETest(t)
@@ -137,7 +135,6 @@ func TestHandleActiveConn(t *testing.T) {
 }
 
 func TestHandleUserEvents(t *testing.T) {
-	t.Parallel()
 	ctx := t.Context()
 
 	sseTest := setupSSETest(t)
@@ -177,7 +174,6 @@ func TestHandleUserEvents(t *testing.T) {
 }
 
 func TestHandleTournamentEvents(t *testing.T) {
-	t.Parallel()
 	ctx := t.Context()
 
 	sseTest := setupSSETest(t)

@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupPersonaServices(t alog.TestLogger, flags ...itest.TestFlag) (*PersonaService, itest.TestInfra) {
-	infra := itest.SetupIntegrationTest(t, flags...)
+func setupPersonaServices(t alog.TestLogger) (*PersonaService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
 
 	services := NewPersonaService(
 		user.NewUserService(infra.Database),
@@ -26,7 +26,7 @@ func setupPersonaServices(t alog.TestLogger, flags ...itest.TestFlag) (*PersonaS
 }
 
 func TestGetPersona(t *testing.T) {
-	service, testinfra := setupPersonaServices(t, itest.ROPostgres, itest.Redis)
+	service, testinfra := setupPersonaServices(t)
 	defer testinfra.Close()
 
 	persona, err := service.GetPersona(t.Context(), 1, 10)

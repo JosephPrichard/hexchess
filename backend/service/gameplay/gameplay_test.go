@@ -6,7 +6,6 @@ import (
 	"hexchess-svc/chess"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
-	"hexchess-svc/queue/producers"
 	"hexchess-svc/service/gamestate"
 
 	"hexchess-svc/utils/alog"
@@ -19,12 +18,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupGameplayTest(t alog.TestLogger, flags ...itest.TestFlag) (*GamePlayService, itest.TestInfra) {
-	infra := itest.SetupIntegrationTest(t, flags...)
+func setupGameplayTest(t alog.TestLogger) (*GamePlayService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
 
 	services := NewGameplayService(
 		infra.Redis,
-		producers.NewStreamProducer(infra.Redis),
 		gamestate.NewChessRepoService(infra.Redis),
 	)
 
@@ -58,7 +56,7 @@ func setChessStates(t *testing.T, redis cache.Redis, games ...*model.ChessState)
 }
 
 func TestJoinGame(t *testing.T) {
-	services, testinfra := setupGameplayTest(t, itest.Redis)
+	services, testinfra := setupGameplayTest(t)
 	defer testinfra.Close()
 
 	whiteGame := model.NewChessState(model.StateSetup{
@@ -120,7 +118,7 @@ func TestJoinGame(t *testing.T) {
 }
 
 func TestAttemptUndo(t *testing.T) {
-	services, testinfra := setupGameplayTest(t, itest.Redis)
+	services, testinfra := setupGameplayTest(t)
 	defer testinfra.Close()
 
 	noMovesGame := model.NewChessState(model.StateSetup{
@@ -338,7 +336,7 @@ func TestNewMove(t *testing.T) {
 		s.EndState = model.Finished
 	})
 
-	services, testinfra := setupGameplayTest(t, itest.Redis)
+	services, testinfra := setupGameplayTest(t)
 	defer testinfra.Close()
 
 	setChessStates(t, testinfra.Redis, stateWhiteTurn, stateEnded, stateNotStarted, stateIntoCheckmate)
@@ -424,7 +422,7 @@ func TestNewMove(t *testing.T) {
 }
 
 func TestForfeit(t *testing.T) {
-	services, testinfra := setupGameplayTest(t, itest.Redis)
+	services, testinfra := setupGameplayTest(t)
 	defer testinfra.Close()
 
 	abortGame := model.NewChessState(model.StateSetup{
@@ -474,7 +472,7 @@ func TestForfeit(t *testing.T) {
 }
 
 func TestForfeit_Errors(t *testing.T) {
-	services, testinfra := setupGameplayTest(t, itest.Redis)
+	services, testinfra := setupGameplayTest(t)
 	defer testinfra.Close()
 
 	endedGame := model.NewChessState(model.StateSetup{

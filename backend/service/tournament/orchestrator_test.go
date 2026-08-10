@@ -22,13 +22,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupOrchestratorTest(t alog.TestLogger, flags ...itest.TestFlag) (*TournamentOrchestrator, itest.TestInfra) {
-	infra := itest.SetupIntegrationTest(t, flags...)
+func setupOrchestratorTest(t alog.TestLogger) (*TournamentOrchestrator, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
 
 	services := NewTournamentOrchestrator(
 		NewTournamentService(infra.Database, infra.Redis, producers.NewRiverProducer(&producers.NoopRiverClient{})),
 		userSvc.NewUserService(infra.Database),
-		gameplay.NewGameplayService(infra.Redis, producers.NewStreamProducer(infra.Redis), gamestate.NewChessRepoService(infra.Redis)),
+		gameplay.NewGameplayService(infra.Redis, gamestate.NewChessRepoService(infra.Redis)),
 		pubsub.NewSyncBroadcaster(infra.Redis),
 	)
 
@@ -245,7 +245,7 @@ func TestProgressTournament_StoresMatches(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, testinfra := setupOrchestratorTest(t, itest.RWPostgres, itest.Redis)
+			services, testinfra := setupOrchestratorTest(t)
 			defer testinfra.Close()
 
 			ctx := t.Context()
@@ -282,9 +282,8 @@ func leafError(err error) error {
 }
 
 func TestProgressTournament_ThenGetChessStates(t *testing.T) {
-	services, testinfra := setupOrchestratorTest(t, itest.RWPostgres, itest.Redis)
+	services, testinfra := setupOrchestratorTest(t)
 	defer testinfra.Close()
-
 	ctx := t.Context()
 
 	// since the eventID is stored in the idempotency keys table, we expect it to short circuit
@@ -314,9 +313,8 @@ func TestProgressTournament_ThenGetChessStates(t *testing.T) {
 var cmpOptsMatchCreation = cmpopts.IgnoreFields(model.MatchCreation{}, "GameID")
 
 func TestProgressTournament_InsertsEvent(t *testing.T) {
-	services, testinfra := setupOrchestratorTest(t, itest.RWPostgres, itest.Redis)
+	services, testinfra := setupOrchestratorTest(t)
 	defer testinfra.Close()
-
 	ctx := t.Context()
 
 	tournamentKey := itest.Tournament2ScheduledKnockoutKey

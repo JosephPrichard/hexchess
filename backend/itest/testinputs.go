@@ -2,51 +2,55 @@ package itest
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"hexchess-svc/chess"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
+	"hexchess-svc/utils/perf"
 	"time"
 
 	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
-	"hexchess-svc/utils/alog"
-
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // TimeNow is a stable and consistent constant we use mock ext the 'now' value in our testing data
 var TimeNow = time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC)
 
 var UsersInsts = []struct {
-	Username string
-	Password string
-	Country  string
-	JoinedOn time.Time
+	Username       string
+	Country        string
+	HashedPassword string
+	Salt           string
+	JoinedOn       time.Time
 }{
 	// used for user/challenge/replay/tournament tests
-	{Username: "user1", Password: "password1", Country: "us", JoinedOn: TimeNow},
-	{Username: "user2", Password: "password2", Country: "us", JoinedOn: TimeNow},
-	{Username: "user3", Password: "password3", Country: "us", JoinedOn: TimeNow},
-	{Username: "user4", Password: "password4", Country: "us", JoinedOn: TimeNow},
-	{Username: "user5", Password: "password5", Country: "us", JoinedOn: TimeNow},
+	{
+		Username: "user1",
+		Country:  "us",
+		// for password: "password1"
+		HashedPassword: "$2a$12$SgX0yM59gXEkhziyXPMevOuXaL4N12svCW/IiLdQZV3iMkhbmWf.S",
+		Salt:           "eK7FRxnybpGff/yVb3Tqew==",
+		JoinedOn:       TimeNow,
+	},
+	{Username: "user2", Country: "us", JoinedOn: TimeNow},
+	{Username: "user3", Country: "us", JoinedOn: TimeNow},
+	{Username: "user4", Country: "us", JoinedOn: TimeNow},
+	{Username: "user5", Country: "us", JoinedOn: TimeNow},
 	// used for elo histories tests.
-	{Username: "user6", Password: "password6", Country: "us", JoinedOn: TimeNow},
-	{Username: "user7", Password: "password7", Country: "us", JoinedOn: TimeNow},
+	{Username: "user6", Country: "us", JoinedOn: TimeNow},
+	{Username: "user7", Country: "us", JoinedOn: TimeNow},
 	// used for search leaderboard tests.
-	{Username: "john", Password: "password8", Country: "us", JoinedOn: TimeNow},
-	{Username: "johnny", Password: "password9", Country: "us", JoinedOn: TimeNow},
+	{Username: "john", Country: "us", JoinedOn: TimeNow},
+	{Username: "johnny", Country: "us", JoinedOn: TimeNow},
 	// used for tournament replay tests
-	{Username: "user10", Password: "password10", Country: "us", JoinedOn: TimeNow},
-	{Username: "user11", Password: "password11", Country: "us", JoinedOn: TimeNow},
-	{Username: "user12", Password: "password12", Country: "us", JoinedOn: TimeNow},
-	{Username: "user13", Password: "password13", Country: "us", JoinedOn: TimeNow},
+	{Username: "user10", Country: "us", JoinedOn: TimeNow},
+	{Username: "user11", Country: "us", JoinedOn: TimeNow},
+	{Username: "user12", Country: "us", JoinedOn: TimeNow},
+	{Username: "user13", Country: "us", JoinedOn: TimeNow},
 }
 
 var UserModeElos = []struct {
@@ -712,8 +716,8 @@ var GameMetas = []struct {
 	},
 }
 
-func insertTestData(pool *pgxpool.Pool) error {
-	ctx := context.WithValue(context.Background(), alog.Trace, "insert-testing-data")
+func seedDatabase(ctx context.Context, pool *pgxpool.Pool) error {
+	defer perf.New().Log()
 
 	batch := &pgx.Batch{}
 	instCount := 0
@@ -724,22 +728,13 @@ func insertTestData(pool *pgxpool.Pool) error {
 	}
 
 	for _, inst := range UsersInsts {
-		saltBytes := make([]byte, 16)
-		if _, err := rand.Read(saltBytes); err != nil {
-			return fmt.Errorf("failed to generate salt for user: %v", err)
-		}
-		salt := base64.StdEncoding.EncodeToString(saltBytes)
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(inst.Password+salt), 12)
-		if err != nil {
-			return fmt.Errorf("failed to hash password for user: %v", err)
-		}
 		batchQueue(`
 			INSERT INTO users (username, country, password, salt, joined_on)
 			VALUES ($1, $2, $3, $4, $5)`,
 			inst.Username,
 			inst.Country,
-			hashedPassword,
-			salt,
+			inst.HashedPassword,
+			inst.Salt,
 			inst.JoinedOn,
 		)
 	}

@@ -11,15 +11,7 @@ import (
 	"github.com/riverqueue/river/rivertype"
 )
 
-type databaseImplKind int
-
-const (
-	realDatabase databaseImplKind = iota
-	fakeDatabase
-)
-
 type Database struct {
-	kind      databaseImplKind
 	writePool *pgxpool.Pool
 	readPool  *pgxpool.Pool
 	testTxn   pgx.Tx

@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
@@ -67,25 +66,11 @@ func NewDatabase(ctx context.Context, cfg DatabaseConfig) Database {
 		readPool = writePool
 	}
 
-	return Database{kind: realDatabase, writePool: writePool, readPool: readPool}
+	return Database{writePool: writePool, readPool: readPool}
 }
 
 func NewDatabaseFromPool(pool *pgxpool.Pool) Database {
 	return Database{
-		kind:      realDatabase,
-		writePool: pool,
-		readPool:  pool,
-	}
-}
-
-func NewFakeDatabase(t alog.TestLogger, pool *pgxpool.Pool) Database {
-	testTx, err := pool.BeginTx(t.Context(), pgx.TxOptions{IsoLevel: pgx.Serializable})
-	if err != nil {
-		t.Fatalf("failed to begin primary test txn: %v", err)
-	}
-	return Database{
-		kind:      fakeDatabase,
-		testTxn:   testTx,
 		writePool: pool,
 		readPool:  pool,
 	}

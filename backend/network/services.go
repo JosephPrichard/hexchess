@@ -60,7 +60,6 @@ func NewAPIServices(setup SetupAPIServices) Services {
 	}
 
 	riverProducer := producers.NewRiverProducer(setup.RiverClient)
-	streamProducer := producers.NewStreamProducer(setup.Redis)
 
 	userSvc := user.NewUserService(setup.Database)
 	replaySvc := replay.NewReplayService(setup.Database)
@@ -71,7 +70,7 @@ func NewAPIServices(setup SetupAPIServices) Services {
 
 	chessMetaSvc := gamestate.NewChessMetaService(setup.Database, setup.Entropy, setup.Broadcaster)
 	chessRepoSvc := gamestate.NewChessRepoService(setup.Redis)
-	gameplaySvc := gameplay.NewGameplayService(setup.Redis, streamProducer, chessRepoSvc)
+	gameplaySvc := gameplay.NewGameplayService(setup.Redis, chessRepoSvc)
 
 	orphanSvc := file.NewOrphanService(setup.AWS, setup.Database.Querier())
 	profileSvc := file.NewProfileService(setup.AWS, setup.Dispatcher, setup.Entropy)

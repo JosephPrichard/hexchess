@@ -29,7 +29,7 @@ type RedisNames struct {
 	UpdtGameMetaConsumerGroup string `json:"updtGameMetaConsumerGroup"`
 }
 
-var DefaultRedisNames = RedisNames{
+var Contants = RedisNames{
 	LeaderboardZSet:           "leaderboard",
 	GamesZSet:                 "games",
 	ActiveUsersZSet:           "active_users",
@@ -50,7 +50,6 @@ type Redis struct {
 	ConsumerClient redis.UniversalClient
 	PubSubClient   *redigo.Pool
 	PubsubAddr     string `json:"pubsubAddr"`
-	RedisNames
 }
 
 func (redis *Redis) PrimaryHealthCheck(ctx context.Context) error {
@@ -103,16 +102,9 @@ type RedisConfig struct {
 
 	// (required) profile for application is used to turn AWS authentication on (test/prod) and off (local)
 	ActiveProfile config.Profile `json:"activeProfile"`
-
-	// (opt) name data for key prefixes, zsets, etc. keep off in prod, swap out in integration tests
-	Names *RedisNames `json:"names"`
 }
 
 func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
-	if redisCfg.Names == nil {
-		redisCfg.Names = &DefaultRedisNames
-	}
-
 	slog.Info("creating redis clients", "config", redisCfg)
 
 	var pubsubDialer func() (redigo.Conn, error)
@@ -169,7 +161,6 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 		PrimaryClient:  redisClientClient,
 		ConsumerClient: consumerRedisClient,
 		PubSubClient:   pubsubPool,
-		RedisNames:     *redisCfg.Names,
 		PubsubAddr:     redisCfg.PubsubAddr,
 	}
 

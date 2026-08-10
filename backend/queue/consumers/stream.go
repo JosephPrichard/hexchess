@@ -41,8 +41,8 @@ func StartRedisConsumers(database database.Database, redis cache.Redis, broadcas
 	metricQuerier := database.QuerierMutator()
 
 	finishGameConsumer := NewStreamConsumer(StreamConfig{
-		StreamKey:     redis.FinishGameStreamKey,
-		ConsumerGroup: redis.FinishGameConsumerGroup,
+		StreamKey:     cache.Contants.FinishGameStreamKey,
+		ConsumerGroup: cache.Contants.FinishGameConsumerGroup,
 		PollCount:     8,
 		PartitionKeys: GameConsumerPartitions,
 
@@ -54,8 +54,8 @@ func StartRedisConsumers(database database.Database, redis cache.Redis, broadcas
 	go finishGameConsumer.Consume()
 
 	updtGameConsumer := NewStreamConsumer(StreamConfig{
-		StreamKey:     redis.UpdtGameMetaStreamKey,
-		ConsumerGroup: redis.UpdtGameMetaConsumerGroup,
+		StreamKey:     cache.Contants.UpdtGameMetaStreamKey,
+		ConsumerGroup: cache.Contants.UpdtGameMetaConsumerGroup,
 		PollCount:     8,
 		PartitionKeys: GameConsumerPartitions,
 

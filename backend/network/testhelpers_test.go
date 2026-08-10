@@ -27,12 +27,12 @@ type serviceMocks struct {
 	Dispatcher async.Dispatcher
 }
 
-func setupTestHandler(t alog.TestLogger, mocks *serviceMocks, flags ...itest.TestFlag) (http.Handler, itest.TestInfra) {
+func setupTestHandler(t alog.TestLogger, mocks *serviceMocks) (http.Handler, itest.TestInfra) {
 	if mocks == nil {
 		mocks = &serviceMocks{}
 	}
 
-	infra := itest.SetupIntegrationTest(t, flags...)
+	infra := itest.SetupIntegrationTest(t)
 
 	broadcaster := pubsub.NewSyncBroadcaster(infra.Redis)
 
@@ -56,7 +56,7 @@ type websocketTestContext struct {
 }
 
 func setupWebsocketTest(t *testing.T) websocketTestContext {
-	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
+	testinfra := itest.SetupIntegrationTest(t)
 
 	localBroadcasters := pubsub.NewLocalBroadcasters()
 	<-localBroadcasters.ListenGameMessages(testinfra.Redis)
@@ -96,7 +96,7 @@ func (s *sseTestContext) Shutdown() {
 }
 
 func setupSSETest(t *testing.T) sseTestContext {
-	testinfra := itest.SetupIntegrationTest(t, itest.ROPostgres, itest.Redis)
+	testinfra := itest.SetupIntegrationTest(t)
 
 	createTestSessions(t, testinfra.Redis)
 
@@ -163,7 +163,6 @@ func createTestChessStates(t *testing.T, redis cache.Redis) {
 		model.NewChessState(model.StateSetup{ID: "game2", Mode: model.ModeCorrespondence1, FirstColor: model.Random}),
 		model.NewChessState(model.StateSetup{ID: "game3", Mode: model.ModeCorrespondence1, FirstColor: model.Random}),
 	}
-
 	ctx := t.Context()
 	for _, state := range testStates {
 		gameKey := fmt.Sprintf("game:%s{%c}", state.ID, state.ID.Partition())
@@ -188,7 +187,7 @@ func createLeaderboard(t *testing.T, rdb cache.Redis, changes ...updtLbChangeSet
 	ctx := t.Context()
 	pipe := rdb.PrimaryClient.Pipeline()
 	for _, change := range changes {
-		modeLbZSet := fmt.Sprintf("%s/mode:{%s}", rdb.LeaderboardZSet, change.Mode.String())
+		modeLbZSet := fmt.Sprintf("%s/mode:{%s}", cache.Contants.LeaderboardZSet, change.Mode.String())
 		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: change.EloDiff, Member: change.ID})
 	}
 	if _, err := pipe.Exec(ctx); err != nil {

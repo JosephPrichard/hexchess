@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupReplayTest(t alog.TestLogger, flags ...itest.TestFlag) (*ReplayService, itest.TestInfra) {
-	infra := itest.SetupIntegrationTest(t, flags...)
+func setupReplayTest(t alog.TestLogger) (*ReplayService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
 
 	services := NewReplayService(infra.Database)
 
@@ -25,7 +25,7 @@ func setupReplayTest(t alog.TestLogger, flags ...itest.TestFlag) (*ReplayService
 }
 
 func TestGetReplay(t *testing.T) {
-	services, testinfra := setupReplayTest(t, itest.RWPostgres)
+	services, testinfra := setupReplayTest(t)
 	defer testinfra.Close()
 
 	t.Run("GetReplay", func(t *testing.T) {
@@ -87,7 +87,7 @@ func TestRetrieveEloHistories(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 
-			services, testinfra := setupReplayTest(t, itest.ROPostgres)
+			services, testinfra := setupReplayTest(t)
 			defer testinfra.Close()
 
 			ctx := context.WithValue(t.Context(), alog.Trace, test.name)

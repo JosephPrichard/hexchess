@@ -1,12 +1,9 @@
 package pubsub
 
 import (
-	"hexchess-svc/cache"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
-	"hexchess-svc/utils/config"
-	"hexchess-svc/utils/testutil"
 	"testing"
 	"time"
 
@@ -16,17 +13,11 @@ import (
 )
 
 func TestBroadcastMessage(t *testing.T) {
-	t.Parallel()
 	ctx := t.Context()
 
-	redisAddr, _ := itest.SetupRedisTest(ctx, t)
-	rdb := cache.NewRedis(ctx, cache.RedisConfig{
-		PrimaryAddr:   []string{redisAddr},
-		PubsubAddr:    redisAddr,
-		ActiveProfile: config.Local,
+	testInfra := itest.SetupIntegrationTest(t)
+	rdb := testInfra.Redis
 
-		Names: testutil.NewTestNames(cache.DefaultRedisNames),
-	})
 	defer rdb.Close()
 
 	broadcaster := NewSyncBroadcaster(rdb)

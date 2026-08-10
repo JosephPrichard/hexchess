@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupActiveTest(t alog.TestLogger, flags ...itest.TestFlag) (*ActiveUserService, itest.TestInfra) {
-	infra := itest.SetupIntegrationTest(t, flags...)
+func setupActiveTest(t alog.TestLogger) (*ActiveUserService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
 
 	services := NewActiveUserService(infra.Redis, pubsub.NewSyncBroadcaster(infra.Redis))
 
@@ -22,11 +22,10 @@ func setupActiveTest(t alog.TestLogger, flags ...itest.TestFlag) (*ActiveUserSer
 }
 
 func TestActiveUser(t *testing.T) {
-	services, testinfra := setupActiveTest(t, itest.Redis)
+	services, testinfra := setupActiveTest(t)
 	defer testinfra.Close()
 
 	services.entropy = &entropy.StableSource{CurrTime: time.UnixMilli(int64(ActiveUserMaxAge * 5))}
-
 	ctx := t.Context()
 
 	_, err := services.AddActiveUser(ctx, "1")

@@ -103,7 +103,6 @@ func NewAdvanceTournamentWorker(
 			user.NewUserService(database),
 			gameplay.NewGameplayService(
 				redis,
-				producers.NewStreamProducer(redis),
 				gamestate.NewChessRepoService(redis),
 			),
 			broadcaster,

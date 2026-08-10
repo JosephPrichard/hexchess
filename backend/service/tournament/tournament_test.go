@@ -18,8 +18,8 @@ import (
 	"time"
 )
 
-func setupTest(t alog.TestLogger, flags ...itest.TestFlag) (*TournamentService, itest.TestInfra) {
-	infra := itest.SetupIntegrationTest(t, flags...)
+func setupTest(t alog.TestLogger) (*TournamentService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
 
 	services := NewTournamentService(
 		infra.Database,
@@ -31,9 +31,8 @@ func setupTest(t alog.TestLogger, flags ...itest.TestFlag) (*TournamentService, 
 }
 
 func TestCreateTournament(t *testing.T) {
-	services, testinfra := setupTest(t, itest.RWPostgres)
+	services, testinfra := setupTest(t)
 	defer testinfra.Close()
-
 	ctx := t.Context()
 
 	key := uuid.New()
@@ -69,7 +68,7 @@ func TestCreateTournament(t *testing.T) {
 }
 
 func TestBeginTournamentCountdown(t *testing.T) {
-	services, testinfra := setupTest(t, itest.RWPostgres)
+	services, testinfra := setupTest(t)
 	defer testinfra.Close()
 
 	tests := []struct {
@@ -137,7 +136,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 var sqlcTournamentParticipantCmpOpts = cmpopts.IgnoreFields(query.TournamentParticipant{}, "JoinedOn")
 
 func TestJoinTournament(t *testing.T) {
-	services, testinfra := setupTest(t, itest.RWPostgres)
+	services, testinfra := setupTest(t)
 	defer testinfra.Close()
 
 	tests := []struct {

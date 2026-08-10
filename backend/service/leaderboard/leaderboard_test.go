@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTest(t alog.TestLogger, flags ...itest.TestFlag) (*LeaderboardService, itest.TestInfra) {
-	infra := itest.SetupIntegrationTest(t, flags...)
+func setupTest(t alog.TestLogger) (*LeaderboardService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
 
 	services := NewLeaderboardService(infra.Redis, infra.Querier())
 
@@ -25,14 +25,13 @@ func setupTest(t alog.TestLogger, flags ...itest.TestFlag) (*LeaderboardService,
 }
 
 func TestLeaderboard(t *testing.T) {
-	services, testinfra := setupTest(t, itest.Redis)
+	services, testinfra := setupTest(t)
 	defer testinfra.Close()
 
 	id1 := int64(1)
 	id2 := int64(2)
 	id3 := int64(3)
 	id4 := int64(4)
-
 	ctx := t.Context()
 
 	for _, change := range []SetLbChangeSet{
@@ -160,7 +159,7 @@ func TestGetFullLeaderboardUsers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, testinfra := setupTest(t, itest.ROPostgres)
+			services, testinfra := setupTest(t)
 			defer testinfra.Close()
 
 			ctx := context.WithValue(t.Context(), alog.Trace, tt.name)
@@ -175,9 +174,8 @@ func TestGetFullLeaderboardUsers(t *testing.T) {
 }
 
 func TestGetFuzzySearchLeaderboard(t *testing.T) {
-	services, testinfra := setupTest(t, itest.ROPostgres)
+	services, testinfra := setupTest(t)
 	defer testinfra.Close()
-
 	ctx := t.Context()
 
 	users, err := services.GetFuzzySearchLeaderboard(ctx, "john", 1, 20)

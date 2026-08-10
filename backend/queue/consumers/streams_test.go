@@ -98,7 +98,7 @@ func TestRedisConsumer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testinfra := itest.SetupIntegrationTest(t, itest.Redis, itest.RWPostgres)
+			testinfra := itest.SetupIntegrationTest(t)
 			defer testinfra.Close()
 
 			ctx, cancel := context.WithCancel(t.Context())

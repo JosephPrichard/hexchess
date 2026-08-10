@@ -150,7 +150,7 @@ func (services *GameOverService) updateLeaderboard(ctx context.Context, changes 
 			// noop zero value changes
 			continue
 		}
-		modeLbZSet := services.redis.FmtLeaderboardZSet(change.Mode.String())
+		modeLbZSet := cache.FmtLeaderboardZSet(change.Mode.String())
 		pipe.ZIncrBy(ctx, modeLbZSet, change.EloDiff, strconv.Itoa(int(change.ID)))
 	}
 	if _, err := pipe.Exec(ctx); err != nil {

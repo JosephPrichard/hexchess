@@ -14,14 +14,12 @@ import (
 
 type Broadcaster struct {
 	redis      *redis.Pool
-	names      cache.RedisNames
 	dispatcher async.Dispatcher
 }
 
 func NewSyncBroadcaster(redis cache.Redis) Broadcaster {
 	return Broadcaster{
 		redis:      redis.PubSubClient,
-		names:      redis.RedisNames,
 		dispatcher: async.SyncDispatcher{},
 	}
 }
@@ -29,7 +27,6 @@ func NewSyncBroadcaster(redis cache.Redis) Broadcaster {
 func NewAsyncBroadcaster(redis cache.Redis) Broadcaster {
 	return Broadcaster{
 		redis:      redis.PubSubClient,
-		names:      redis.RedisNames,
 		dispatcher: async.AsyncDispatcher{},
 	}
 }
@@ -63,11 +60,11 @@ func (b *Broadcaster) broadcastCountEvent(ctx context.Context, channel string, c
 }
 
 func (b *Broadcaster) BroadcastActiveCount(ctx context.Context, count int64) {
-	b.broadcastCountEvent(ctx, b.names.ActiveCountChannel, count)
+	b.broadcastCountEvent(ctx, cache.Contants.ActiveCountChannel, count)
 }
 
 func (b *Broadcaster) BroadcastGameCount(ctx context.Context, count int64) {
-	b.broadcastCountEvent(ctx, b.names.GamesCountChannel, count)
+	b.broadcastCountEvent(ctx, cache.Contants.GamesCountChannel, count)
 }
 
 func (b *Broadcaster) BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput) {
@@ -78,7 +75,7 @@ func (b *Broadcaster) BroadcastGamesEvent(ctx context.Context, output *pb.GameOu
 		slog.ErrorContext(ctx, "failed to marshal game message", "error", err)
 		return
 	}
-	b.broadcastMessage(context.WithoutCancel(ctx), b.names.GamesChannel, bytes)
+	b.broadcastMessage(context.WithoutCancel(ctx), cache.Contants.GamesChannel, bytes)
 }
 
 func (b *Broadcaster) BroadcastTournament(ctx context.Context, tournament model.TournamentOutput) {
@@ -89,7 +86,7 @@ func (b *Broadcaster) BroadcastTournament(ctx context.Context, tournament model.
 		slog.ErrorContext(ctx, "failed to marshal tournament message", "error", err)
 		return
 	}
-	b.broadcastMessage(context.WithoutCancel(ctx), b.names.TournamentsChannel, bytes)
+	b.broadcastMessage(context.WithoutCancel(ctx), cache.Contants.TournamentsChannel, bytes)
 }
 
 func (b *Broadcaster) BroadcastUserMessage(ctx context.Context, message model.UserMessage) {
@@ -100,5 +97,5 @@ func (b *Broadcaster) BroadcastUserMessage(ctx context.Context, message model.Us
 		slog.ErrorContext(ctx, "failed to marshal user message", "error", err)
 		return
 	}
-	b.broadcastMessage(context.WithoutCancel(ctx), b.names.UsersChannel, bytes)
+	b.broadcastMessage(context.WithoutCancel(ctx), cache.Contants.UsersChannel, bytes)
 }

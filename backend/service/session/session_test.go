@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTest(t alog.TestLogger, flags ...itest.TestFlag) (*SessionService, itest.TestInfra) {
-	infra := itest.SetupIntegrationTest(t, flags...)
+func setupTest(t alog.TestLogger) (*SessionService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
 
 	services := NewSessionService(infra.Redis)
 
@@ -21,14 +21,13 @@ func setupTest(t alog.TestLogger, flags ...itest.TestFlag) (*SessionService, ite
 }
 
 func TestSessions(t *testing.T) {
-	services, testinfra := setupTest(t, itest.Redis)
+	services, testinfra := setupTest(t)
 	defer testinfra.Close()
 
 	playerIn := model.NewPlayer(1, "testing-session", "country")
 	sessionID1 := "session1"
 	sessionID2 := "session2"
 	sessionID3 := "session3"
-
 	ctx := t.Context()
 
 	require.NoError(t, services.SetSessions(ctx, SessionInst{sessionID1, playerIn, 100 * time.Second}))

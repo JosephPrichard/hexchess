@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupSearcherTest(t alog.TestLogger, flags ...itest.TestFlag) (*ReplaySearchService, itest.TestInfra) {
-	infra := itest.SetupIntegrationTest(t, flags...)
+func setupSearcherTest(t alog.TestLogger) (*ReplaySearchService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
 
 	services := NewSearchService(infra.Database)
 
@@ -52,7 +52,7 @@ func TestSearchReplaysByQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, testinfra := setupSearcherTest(t, itest.ROPostgres)
+			services, testinfra := setupSearcherTest(t)
 			defer testinfra.Close()
 
 			ctx := t.Context()

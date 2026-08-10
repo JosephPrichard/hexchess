@@ -23,8 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTest(t alog.TestLogger, flags ...itest.TestFlag) (*ChallengeService, itest.TestInfra) {
-	infra := itest.SetupIntegrationTest(t, flags...)
+func setupTest(t alog.TestLogger) (*ChallengeService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
 
 	services := NewChallengeService(infra.Database, entropy.RealSource{})
 
@@ -66,7 +66,7 @@ func TestInsertChallenge(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			services, testinfra := setupTest(t, itest.RWPostgres)
+			services, testinfra := setupTest(t)
 			defer testinfra.Close()
 
 			ctx := context.WithValue(t.Context(), alog.Trace, tt.name)
@@ -126,11 +126,10 @@ func TestMapChallengeInsertErr(t *testing.T) {
 
 func TestGetChallengesByParticipant(t *testing.T) {
 	// gets only expired challenges
-	services, testinfra := setupTest(t, itest.ROPostgres)
+	services, testinfra := setupTest(t)
 	defer testinfra.Close()
 
 	services.entropy = &entropy.StableSource{CurrTime: itest.TimeNow}
-
 	ctx := t.Context()
 
 	challenges, err := services.GetChallengesByParticipant(ctx, Key{int64(5), -1})
@@ -140,9 +139,8 @@ func TestGetChallengesByParticipant(t *testing.T) {
 }
 
 func TestDeleteExpiredChallenges(t *testing.T) {
-	services, testinfra := setupTest(t, itest.RWPostgres)
+	services, testinfra := setupTest(t)
 	defer testinfra.Close()
-
 	ctx := t.Context()
 
 	// gets only expired challenges
@@ -160,11 +158,10 @@ func TestDeleteExpiredChallenges(t *testing.T) {
 }
 
 func TestDeleteChallenge(t *testing.T) {
-	services, testinfra := setupTest(t, itest.RWPostgres)
+	services, testinfra := setupTest(t)
 	defer testinfra.Close()
 
 	services.entropy = &entropy.StableSource{CurrTime: itest.TimeNow}
-
 	ctx := t.Context()
 
 	key := Key{ChallengerID: 1, ChallengeeID: 2}

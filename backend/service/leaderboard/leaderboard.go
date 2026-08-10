@@ -44,7 +44,7 @@ func (services *LeaderboardService) SetLeaderboard(ctx context.Context, changes 
 		if model.IsGuestID(change.ID) {
 			continue
 		}
-		modeLbZSet := services.redis.FmtLeaderboardZSet(change.Mode.String())
+		modeLbZSet := cache.FmtLeaderboardZSet(change.Mode.String())
 
 		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: change.EloDiff, Member: change.ID})
 		outgoingChanges = append(outgoingChanges, change)
@@ -93,7 +93,7 @@ func (services *LeaderboardService) GetUserLeaderboardRanks(ctx context.Context,
 	getExecs := make([]getExec, 0, len(modes))
 
 	for _, mode := range modes {
-		modeLbZSet := services.redis.FmtLeaderboardZSet(mode.String())
+		modeLbZSet := cache.FmtLeaderboardZSet(mode.String())
 		getExecs = append(getExecs, getExec{
 			mode: mode.String(),
 			cmd:  pipeline.ZRevRankWithScore(ctx, modeLbZSet, strUserID),
@@ -124,7 +124,7 @@ func (services *LeaderboardService) GetUserLeaderboardRanks(ctx context.Context,
 		if _, isRankRetrieved := ranks[mode.String()]; isRankRetrieved {
 			continue
 		}
-		modeLbZSet := services.redis.FmtLeaderboardZSet(mode.String())
+		modeLbZSet := cache.FmtLeaderboardZSet(mode.String())
 		addExecs = append(addExecs, addExec{
 			mode:   mode,
 			addCmd: pipeline.ZAddNX(ctx, modeLbZSet, redis.Z{Member: strUserID, Score: model.StartElo}),
@@ -154,7 +154,7 @@ func (services *LeaderboardService) GetUserLeaderboardRanks(ctx context.Context,
 }
 
 func (services *LeaderboardService) getLeaderboard(ctx context.Context, mode model.GameMode, startRank, leaderboardElemCount int64) (Leaderboard, error) {
-	modeLbZSet := services.redis.FmtLeaderboardZSet(mode.String())
+	modeLbZSet := cache.FmtLeaderboardZSet(mode.String())
 
 	end := startRank - 1 + leaderboardElemCount
 	strUserIDs, err := services.redis.PrimaryClient.ZRevRange(ctx, modeLbZSet, startRank, end).Result()
@@ -266,7 +266,7 @@ func (services *LeaderboardService) GetLeaderboardUser(ctx context.Context, user
 		return serrors.New("select user with elos by userID", err, "userID", userID)
 	})
 	eg.Go(func() (err error) {
-		rankScore, err = services.redis.PrimaryClient.ZRankWithScore(egCtx, services.redis.FmtLeaderboardZSet(mode.String()), strUserID).Result()
+		rankScore, err = services.redis.PrimaryClient.ZRankWithScore(egCtx, cache.FmtLeaderboardZSet(mode.String()), strUserID).Result()
 		return serrors.New("get user rank by userID", err, "userID", userID)
 	})
 

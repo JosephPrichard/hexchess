@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupUserTest(t alog.TestLogger, flags ...itest.TestFlag) (*UserService, itest.TestInfra) {
-	infra := itest.SetupIntegrationTest(t, flags...)
+func setupUserTest(t alog.TestLogger) (*UserService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
 
 	services := NewUserService(infra.Database)
 
@@ -26,9 +26,8 @@ var testUserCmptOpts = cmpopts.IgnoreFields(model.User{}, "ID")
 var testVerifiedUserCmptOpts = cmpopts.IgnoreFields(VerifiedUser{}, "ID")
 
 func TestInsertThenVerify(t *testing.T) {
-	services, testinfra := setupUserTest(t, itest.RWPostgres)
+	services, testinfra := setupUserTest(t)
 	defer testinfra.Close()
-
 	ctx := t.Context()
 
 	user1 := "user1-testing"
@@ -95,7 +94,7 @@ func TestUpdateUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			services, testinfra := setupUserTest(t, itest.RWPostgres)
+			services, testinfra := setupUserTest(t)
 			defer testinfra.Close()
 
 			ctx := t.Context()
@@ -114,9 +113,8 @@ func TestUpdateUser(t *testing.T) {
 }
 
 func TestSelectOrInsertGoogleUser(t *testing.T) {
-	services, testinfra := setupUserTest(t, itest.RWPostgres)
+	services, testinfra := setupUserTest(t)
 	defer testinfra.Close()
-
 	ctx := t.Context()
 
 	testAccountID := "testing-account-id"
@@ -145,9 +143,8 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 }
 
 func TestUpdatePasswordThenVerify(t *testing.T) {
-	services, testinfra := setupUserTest(t, itest.RWPostgres)
+	services, testinfra := setupUserTest(t)
 	defer testinfra.Close()
-
 	ctx := t.Context()
 
 	err := services.UpdateUserPassword(ctx, itest.TestUser[0].ID, "password-new")
@@ -162,9 +159,8 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 }
 
 func TestGetUserElos(t *testing.T) {
-	services, testinfra := setupUserTest(t, itest.RWPostgres)
+	services, testinfra := setupUserTest(t)
 	defer testinfra.Close()
-
 	ctx := t.Context()
 
 	stats, err := services.GetUserStats(ctx, 1)

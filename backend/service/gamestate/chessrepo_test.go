@@ -18,8 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupRepoTest(t alog.TestLogger, flags ...itest.TestFlag) (*ChessRepoService, itest.TestInfra) {
-	infra := itest.SetupIntegrationTest(t, flags...)
+func setupRepoTest(t alog.TestLogger) (*ChessRepoService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
 
 	services := NewChessRepoService(infra.Redis)
 
@@ -41,7 +41,7 @@ func assertRedisChess(t *testing.T, services *ChessRepoService, wantState *model
 }
 
 func TestEchoChessState(t *testing.T) {
-	services, testinfra := setupRepoTest(t, itest.Redis)
+	services, testinfra := setupRepoTest(t)
 	defer testinfra.Close()
 
 	id1 := model.NewGameID()
@@ -63,14 +63,13 @@ func TestEchoChessState(t *testing.T) {
 }
 
 func TestUpdateChessState(t *testing.T) {
-	services, testinfra := setupRepoTest(t, itest.Redis)
+	services, testinfra := setupRepoTest(t)
 	defer testinfra.Close()
 
 	testID := model.NewGameID()
 	arbitraryKey := uuid.NewString()
 
 	inState := model.NewChessState(model.StateSetup{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.Random})
-
 	ctx := t.Context()
 
 	require.NoError(t, services.SetChessState(ctx, testID, inState))
@@ -97,14 +96,13 @@ func TestUpdateChessState(t *testing.T) {
 }
 
 func TestUpdateChessState_Errors(t *testing.T) {
-	services, testinfra := setupRepoTest(t, itest.Redis)
+	services, testinfra := setupRepoTest(t)
 	defer testinfra.Close()
 
 	testID := model.NewGameID()
 
 	inState := model.NewChessState(model.StateSetup{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.White})
 	require.NoError(t, services.SetChessState(context.Background(), testID, inState))
-
 	ctx := t.Context()
 
 	t.Run("failing with unknown gameID", func(t *testing.T) {

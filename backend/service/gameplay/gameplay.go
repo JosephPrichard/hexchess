@@ -21,9 +21,8 @@ import (
 )
 
 type GamePlayService struct {
-	redis          cache.Redis
-	streamProducer producers.StreamProducer
-	chessState     ChessStateMutator
+	redis      cache.Redis
+	chessState ChessStateMutator
 }
 
 type ChessStateMutator interface {
@@ -31,8 +30,8 @@ type ChessStateMutator interface {
 	UpdateChessStateTxn(ctx context.Context, gameID model.GameID, update gamestate.ChessUpdateFn, commit gamestate.ChessCommitFn) (*model.ChessState, error)
 }
 
-func NewGameplayService(redis cache.Redis, streamProducer producers.StreamProducer, chessState ChessStateMutator) *GamePlayService {
-	return &GamePlayService{redis: redis, streamProducer: streamProducer, chessState: chessState}
+func NewGameplayService(redis cache.Redis, chessState ChessStateMutator) *GamePlayService {
+	return &GamePlayService{redis: redis, chessState: chessState}
 }
 
 var ErrForfeitPlayer = errors.New("must be a player to forfeit or abort")
@@ -99,7 +98,7 @@ func (services *GamePlayService) SetupGame(ctx context.Context, setup model.Stat
 		if err := services.chessState.SetChessStatePiped(ctx, pipe, gameID, state, time.Now()); err != nil {
 			return serrors.New("set chess state", err, "gameID", gameID)
 		}
-		return services.streamProducer.ProduceUpdtGameMetadata(ctx, pipe, mapMetadataUpdt(state))
+		return producers.ProduceUpdtGameMetadata(ctx, pipe, mapMetadataUpdt(state))
 	})
 	return err
 }
@@ -146,7 +145,7 @@ func (services *GamePlayService) JoinGame(ctx context.Context, gameID model.Game
 	}
 	commit := func(pipe redis.Pipeliner, state *model.ChessState) error {
 		slog.InfoContext(ctx, "committing game state when joining", "player", player.ID, "gameID", gameID)
-		return services.streamProducer.ProduceUpdtGameMetadata(ctx, pipe, mapMetadataUpdt(state))
+		return producers.ProduceUpdtGameMetadata(ctx, pipe, mapMetadataUpdt(state))
 	}
 	state, err := services.chessState.UpdateChessStateTxn(ctx, gameID, update, commit)
 	if state != nil {
@@ -206,7 +205,7 @@ func (services *GamePlayService) NewGameMove(ctx context.Context, gameID model.G
 			result = model.BlackWin
 		}
 
-		err := services.streamProducer.ProduceFinishGame(ctx, pipe, model.FinishedGame{
+		err := producers.ProduceFinishGame(ctx, pipe, model.FinishedGame{
 			GameID:       gameID,
 			WhitePlayer:  state.WhitePlayer.ID,
 			BlackPlayer:  state.BlackPlayer.ID,
@@ -310,7 +309,7 @@ func (services *GamePlayService) EndGame(ctx context.Context, gameID model.GameI
 			result = model.WhiteWin
 		}
 
-		err := services.streamProducer.ProduceFinishGame(ctx, pipe, model.FinishedGame{
+		err := producers.ProduceFinishGame(ctx, pipe, model.FinishedGame{
 			GameID:       gameID,
 			WhitePlayer:  state.WhitePlayer.ID,
 			BlackPlayer:  state.BlackPlayer.ID,

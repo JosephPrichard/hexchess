@@ -23,7 +23,7 @@ func NewChatService(redis cache.Redis, querier query.Querier, entropy entropy.Ge
 }
 
 func (services *ChatService) GetChats(ctx context.Context, gameID model.GameID, count int64) ([]model.Chat, error) {
-	chatsZSet := services.redis.FmtGameChatsZSet(gameID)
+	chatsZSet := cache.FmtGameChatsZSet(gameID)
 
 	strList, err := services.redis.PrimaryClient.ZRevRange(ctx, chatsZSet, 0, count).Result()
 	if err != nil {
@@ -49,7 +49,7 @@ func (services *ChatService) InsertChat(ctx context.Context, gameID model.GameID
 		return serrors.New("marshal chat", err)
 	}
 
-	chatsZSet := services.redis.FmtGameChatsZSet(gameID)
+	chatsZSet := cache.FmtGameChatsZSet(gameID)
 	if err := services.redis.PrimaryClient.ZAdd(ctx, chatsZSet, redis.Z{Score: float64(chat.SentAt.UnixMilli()), Member: bytes}).Err(); err != nil {
 		return serrors.New("add chat to set", err, "chat", chat)
 	}

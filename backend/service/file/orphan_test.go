@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupOrphanTest(t alog.TestLogger, flags ...itest.TestFlag) (*OrphanService, itest.TestInfra) {
-	infra := itest.SetupIntegrationTest(t, flags...)
+func setupOrphanTest(t alog.TestLogger) (*OrphanService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
 
 	services := NewOrphanService(infra.AWS, infra.Querier())
 
@@ -24,9 +24,8 @@ func setupOrphanTest(t alog.TestLogger, flags ...itest.TestFlag) (*OrphanService
 }
 
 func TestRemoveOrphanedBucketObjects(t *testing.T) {
-	services, testinfra := setupOrphanTest(t, itest.ROPostgres, itest.AWS)
+	services, testinfra := setupOrphanTest(t)
 	defer testinfra.Close()
-
 	ctx := t.Context()
 
 	profileKeyUserID1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())          // user exists in db

@@ -1,6 +1,7 @@
 package gameplay
 
 import (
+	"hexchess-svc/cache"
 	"hexchess-svc/chess"
 	"hexchess-svc/database/query"
 	"hexchess-svc/itest"
@@ -21,8 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupGameoverTest(t alog.TestLogger, flags ...itest.TestFlag) (*GameOverService, itest.TestInfra) {
-	infra := itest.SetupIntegrationTest(t, flags...)
+func setupGameoverTest(t alog.TestLogger) (*GameOverService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
 
 	services := NewGameoverService(
 		infra.Database,
@@ -104,13 +105,13 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, testinfra := setupGameoverTest(t, itest.RWPostgres, itest.Redis)
+			services, testinfra := setupGameoverTest(t)
 			defer testinfra.Close()
 
 			_, err := services.InsertFinishedGame(ctx, tt.event)
 			require.NoError(t, err)
 
-			modeLbZSet := testinfra.Redis.FmtLeaderboardZSet(tt.event.ReplayMode.String())
+			modeLbZSet := cache.FmtLeaderboardZSet(tt.event.ReplayMode.String())
 			leaderboardResp, err := testinfra.Redis.PrimaryClient.ZRevRangeWithScores(ctx, modeLbZSet, 0, 2).Result()
 			require.NoError(t, err)
 
@@ -301,7 +302,7 @@ func TestInsertGameResult(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, testinfra := setupGameoverTest(t, itest.RWPostgres)
+			services, testinfra := setupGameoverTest(t)
 			defer testinfra.Close()
 
 			changeSet, err := services.insertGameResult(ctx, tt.resultInput)

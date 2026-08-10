@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupGameMetadataTest(t alog.TestLogger, flags ...itest.TestFlag) (*ChessMetaService, itest.TestInfra) {
-	infra := itest.SetupIntegrationTest(t, flags...)
+func setupGameMetadataTest(t alog.TestLogger) (*ChessMetaService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
 
 	services := NewChessMetaService(infra.Database, &entropy.StableSource{CurrTime: itest.TimeNow}, pubsub.NewSyncBroadcaster(infra.Redis))
 
@@ -25,7 +25,7 @@ func setupGameMetadataTest(t alog.TestLogger, flags ...itest.TestFlag) (*ChessMe
 }
 
 func TestGetGameMetadata(t *testing.T) {
-	service, testinfra := setupGameMetadataTest(t, itest.ROPostgres, itest.Redis)
+	service, testinfra := setupGameMetadataTest(t)
 	defer testinfra.Close()
 
 	resp, err := service.GetGameMetadata(t.Context(), model.NewPlayer(2, "", ""), opt.None[int64](), 10)
@@ -54,7 +54,7 @@ func TestGetGameMetadata(t *testing.T) {
 }
 
 func TestCountGameMetadata(t *testing.T) {
-	service, testinfra := setupGameMetadataTest(t, itest.ROPostgres, itest.Redis)
+	service, testinfra := setupGameMetadataTest(t)
 	defer testinfra.Close()
 
 	count, err := service.GetGameMetadataCount(t.Context())
@@ -66,7 +66,7 @@ func TestCountGameMetadata(t *testing.T) {
 func TestUpdateGameMetadata(t *testing.T) {
 	ctx := t.Context()
 
-	service, testinfra := setupGameMetadataTest(t, itest.RWPostgres, itest.Redis)
+	service, testinfra := setupGameMetadataTest(t)
 	defer testinfra.Close()
 
 	err := service.UpdateGameMetadata(ctx, model.GameMetadataUpdt{

@@ -13,8 +13,8 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 )
 
-func setupChatsServicesTest(t alog.TestLogger, flags ...itest.TestFlag) (*ChatService, itest.TestInfra) {
-	infra := itest.SetupIntegrationTest(t, flags...)
+func setupChatsServicesTest(t alog.TestLogger) (*ChatService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
 
 	services := NewChatService(infra.Redis, infra.Querier(), entropy.RealSource{})
 
@@ -22,11 +22,10 @@ func setupChatsServicesTest(t alog.TestLogger, flags ...itest.TestFlag) (*ChatSe
 }
 
 func TestEchoStateChats(t *testing.T) {
-	services, testinfra := setupChatsServicesTest(t, itest.Redis)
+	services, testinfra := setupChatsServicesTest(t)
 	defer testinfra.Close()
 
 	id1 := model.NewGameID()
-
 	ctx := t.Context()
 
 	chatsIn := []model.Chat{

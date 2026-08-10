@@ -19,12 +19,7 @@ func (db *Database) QuerierMutator() QuerierMutator {
 	if db.querierMutator != nil {
 		return db.querierMutator
 	}
-	switch db.kind {
-	case realDatabase:
-		db.querierMutator = NewPoolQuerier(db.writePool)
-	case fakeDatabase:
-		db.querierMutator = NewTxnQuerier(db.testTxn)
-	}
+	db.querierMutator = NewPoolQuerier(db.writePool)
 	return db.querierMutator
 }
 
@@ -36,12 +31,7 @@ func (db *Database) Querier() query.Querier {
 	if db.querier != nil {
 		return db.querier
 	}
-	switch db.kind {
-	case realDatabase:
-		db.querier = NewPoolQuerier(db.readPool)
-	case fakeDatabase:
-		db.querier = NewTxnQuerier(db.testTxn)
-	}
+	db.querier = NewPoolQuerier(db.readPool)
 	return db.querier
 }
 
@@ -69,14 +59,7 @@ func (db *Database) Close() {
 }
 
 func (db *Database) ExecTx(ctx context.Context, args TxArgs) error {
-	switch db.kind {
-	case realDatabase:
-		return execTx(ctx, db, args)
-	case fakeDatabase:
-		// a fake postgres instance is already running in a txn, noop the txn
-		return args.QueryFn(ctx, db.testTxn, NewTxnQuerier(db.testTxn))
-	}
-	return nil
+	return execTx(ctx, db, args)
 }
 
 func execTx(ctx context.Context, db *Database, args TxArgs) error {

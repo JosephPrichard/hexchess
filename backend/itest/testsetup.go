@@ -3,156 +3,117 @@ package itest
 import (
 	"context"
 	"fmt"
-	"sync"
-	"time"
-
+	"hexchess-svc/cache"
+	"hexchess-svc/cloud"
 	"hexchess-svc/database"
 	"hexchess-svc/utils/alog"
+	"hexchess-svc/utils/config"
+	"hexchess-svc/utils/testutil"
+	"time"
 
+	redigo "github.com/gomodule/redigo/redis"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 const (
-	RedisContTag  = "redis:7.2.0"
-	RedisContPort = "6379/tcp"
+	// Test Preconditions: infrastructure is already running at these addresses (use docker compose in root)
+	redisAddr      = "localhost:20121"
+	localstackAddr = "http://localhost:30121"
+	dbAddr         = "localhost:40121"
+
+	dbUser = "postgres"
+	dbName = "postgres"
+	dbPass = "postgres"
 )
 
-var muRedis sync.Mutex
-var redisCont testcontainers.Container
-
-var RedisContainerRequest = testcontainers.GenericContainerRequest{
-	Started: true,
-	ContainerRequest: testcontainers.ContainerRequest{
-		Image:        RedisContTag,
-		ExposedPorts: []string{RedisContPort},
-		Env:          map[string]string{},
-		WaitingFor:   wait.ForListeningPort(RedisContPort),
-	},
+type TestInfra struct {
+	database.Database
+	Redis cache.Redis
+	AWS   cloud.AWSClient
 }
 
-func SetupRedisTest(ctx context.Context, t alog.TestLogger) (string, error) {
-	muRedis.Lock()
-	defer muRedis.Unlock()
-
-	if redisCont == nil {
-		start := time.Now()
-		cont, err := testcontainers.GenericContainer(ctx, RedisContainerRequest)
-		if err != nil {
-			return "", fmt.Errorf("failed to start redis container: %w", err)
-		}
-		redisCont = cont
-		t.Logf("finished starting redis container in %v", time.Since(start))
-	}
-
-	host, _ := redisCont.Host(ctx)
-	port, _ := redisCont.MappedPort(ctx, RedisContPort)
-	addr := fmt.Sprintf("%s:%s", host, port.Port())
-
-	return addr, nil
+func (i TestInfra) Close() {
+	i.Redis.Close()
+	i.Database.Close()
 }
 
-const (
-	PostgresContTag = "postgres:17"
-	PgContPort      = "5432/tcp"
+func SetupIntegrationTest(t alog.TestLogger) TestInfra {
+	ctx := t.Context()
 
-	DbUser = "postgres"
-	DbName = "postgres"
-	DbPass = "postgres"
-)
+	pgPool := createPool(t)
 
-var muPostgres sync.Mutex
-var postgresCont testcontainers.Container
+	var infra TestInfra
 
-var PostgresContainerRequest = testcontainers.GenericContainerRequest{
-	Started: true,
-	ContainerRequest: testcontainers.ContainerRequest{
-		Image:        PostgresContTag,
-		ExposedPorts: []string{PgContPort},
-		Env: map[string]string{
-			"POSTGRES_USER":     DbUser,
-			"POSTGRES_PASSWORD": DbPass,
-			"POSTGRES_DB":       DbName,
-		},
-		WaitingFor: wait.ForListeningPort(PgContPort),
-	},
+	infra.Database = database.NewDatabaseFromPool(pgPool)
+
+	infra.Redis = cache.NewRedis(ctx, cache.RedisConfig{
+		PrimaryAddr:   []string{redisAddr},
+		PubsubAddr:    redisAddr,
+		ActiveProfile: config.Local,
+	})
+
+	infra.AWS = cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
+		AWSEndpoint:   localstackAddr,
+		AWSRegion:     "us-east-1",
+		AWSUsername:   "testing",
+		AWSPassword:   "testing",
+		ActiveProfile: config.Local,
+		Names:         *testutil.NewTestNames(cloud.DefaultAWSNames),
+	})
+
+	setupRedisPreconditions(t)
+	setupDbPreconditions(t, pgPool)
+
+	return infra
 }
 
-func SetupPostgresTest(ctx context.Context, t alog.TestLogger) (*pgxpool.Pool, error) {
-	muPostgres.Lock()
-	defer muPostgres.Unlock()
-
-	createdContainer := false
-
-	if postgresCont == nil {
-		start := time.Now()
-		cont, err := testcontainers.GenericContainer(ctx, PostgresContainerRequest)
-		if err != nil {
-			return nil, fmt.Errorf("failed to start postgres container: %w", err)
-		}
-		postgresCont = cont
-		createdContainer = true
-		t.Logf("finished starting postgres container in %v", time.Since(start))
-	}
-
-	host, _ := postgresCont.Host(ctx)
-	port, _ := postgresCont.MappedPort(ctx, PgContPort)
-	connString := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", DbUser, DbPass, host, port.Port(), DbName)
+func createPool(t alog.TestLogger) *pgxpool.Pool {
+	ctx := t.Context()
+	connString := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", dbUser, dbPass, dbAddr, dbName)
 
 	pgPool, err := pgxpool.New(ctx, connString)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create pg pool: %w", err)
+		t.Fatalf("failed to create pg pool: %v", err)
 	}
-	if createdContainer {
-		if _, err := pgPool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"); err != nil {
-			return nil, fmt.Errorf("failed to drop schema: %w", err)
-		}
-		if _, err := pgPool.Exec(ctx, database.CreatePrimarySchema); err != nil {
-			return nil, fmt.Errorf("failed to create schema: %w", err)
-		}
-		if err := insertTestData(pgPool); err != nil {
-			return nil, fmt.Errorf("failed to insert test data: %w", err)
-		}
-	}
-
-	return pgPool, nil
+	return pgPool
 }
 
-const (
-	LocalstackContTag  = "localstack/localstack:3.0"
-	LocalstackContPort = "4566/tcp"
-)
+func setupDbPreconditions(t alog.TestLogger, pool *pgxpool.Pool) {
+	ctx := context.WithValue(context.Background(), alog.Trace, "insert-testing-data")
 
-var muLocalstack sync.Mutex
-var localstackCont testcontainers.Container
-
-var LocalstackContainerRequest = testcontainers.GenericContainerRequest{
-	Started: true,
-	ContainerRequest: testcontainers.ContainerRequest{
-		Image:        LocalstackContTag,
-		ExposedPorts: []string{LocalstackContPort},
-		WaitingFor:   wait.ForListeningPort(LocalstackContPort),
-	},
+	if err := dropSchema(ctx, pool); err != nil {
+		t.Fatalf("failed to drop schema: %v", err)
+	}
+	if err := createSchema(ctx, pool); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+	if err := seedDatabase(ctx, pool); err != nil {
+		t.Fatalf("failed to seed database: %v", err)
+	}
 }
 
-func SetupLocalstackTest(ctx context.Context, t alog.TestLogger) (string, error) {
-	muLocalstack.Lock()
-	defer muLocalstack.Unlock()
+func dropSchema(ctx context.Context, pool *pgxpool.Pool) error {
+	_, err := pool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
+	return err
+}
 
-	if localstackCont == nil {
-		start := time.Now()
-		cont, err := testcontainers.GenericContainer(ctx, LocalstackContainerRequest)
-		if err != nil {
-			return "", fmt.Errorf("failed to start localstack container: %w", err)
-		}
-		localstackCont = cont
-		t.Logf("finished starting localstack container in %v", time.Since(start))
+func createSchema(ctx context.Context, pool *pgxpool.Pool) error {
+	_, err := pool.Exec(ctx, database.CreatePrimarySchema)
+	return err
+}
+
+func setupRedisPreconditions(t alog.TestLogger) {
+	pool := &redigo.Pool{
+		MaxIdle:     8,
+		IdleTimeout: 240 * time.Second,
+		Dial: func() (redigo.Conn, error) {
+			return redigo.Dial("tcp", redisAddr)
+		},
 	}
+	conn := pool.Get()
+	defer conn.Close()
 
-	host, _ := localstackCont.Host(ctx)
-	port, _ := localstackCont.MappedPort(ctx, LocalstackContPort)
-	addr := fmt.Sprintf("http://%s:%s", host, port.Port())
-
-	return addr, nil
+	if _, err := conn.Do("FLUSHALL"); err != nil {
+		t.Fatalf("failed to flush redis: %v", err)
+	}
 }

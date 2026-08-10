@@ -18,8 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func setupProfileTest(t alog.TestLogger, flags ...itest.TestFlag) (*ProfileService, itest.TestInfra) {
-	infra := itest.SetupIntegrationTest(t, flags...)
+func setupProfileTest(t alog.TestLogger) (*ProfileService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
 
 	services := NewProfileService(infra.AWS, async.AsyncDispatcher{}, entropy.RealSource{})
 
@@ -27,9 +27,8 @@ func setupProfileTest(t alog.TestLogger, flags ...itest.TestFlag) (*ProfileServi
 }
 
 func TestDeleteExpiredProfilePics(t *testing.T) {
-	services, testinfra := setupProfileTest(t, itest.AWS)
+	services, testinfra := setupProfileTest(t)
 	defer testinfra.Close()
-
 	ctx := t.Context()
 
 	profileKey1 := "users/profile-pics/1/1"

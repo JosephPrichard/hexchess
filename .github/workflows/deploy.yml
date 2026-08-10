@@ -43,6 +43,9 @@ jobs:
       - name: Run make
         run: make backend
 
+      - name: Start integrating testing infrastructure
+        run: docker compose -f docker-compose-test.yml up
+
       - name: Run make functional-test
         run: make functional-test
 
@@ -156,9 +159,9 @@ jobs:
       - name: Build & push image
         run: fish ./scripts/ecr-push-image.fish
 
-  # ---------------------------------------------------------------------
-  # CD: Infra UAT (terraform plan -> manual approval -> apply -auto-approve)
-  # ---------------------------------------------------------------------
+#  # ---------------------------------------------------------------------
+#  # CD: Infra UAT (terraform plan -> manual approval -> apply -auto-approve)
+#  # ---------------------------------------------------------------------
 #  infra-uat:
 #    name: "CD: Infra UAT"
 #    uses: ./.github/workflows/deploy-plan-apply.yml
@@ -166,52 +169,51 @@ jobs:
 #      working_directory: terraform/infra/uat
 #      environment_name: infra-uat-approval
 #    secrets: inherit
-
-  # ---------------------------------------------------------------------
-  # CD: Migrator deployment (UAT) - depends on migrator build
-  # ---------------------------------------------------------------------
-  deploy-migrator-uat:
-    name: "CD: Migrator UAT"
+#
+#  # ---------------------------------------------------------------------
+#  # CD: Migrator deployment (UAT) - depends on migrator build
+#  # ---------------------------------------------------------------------
+#  deploy-migrator-uat:
+#    name: "CD: Migrator UAT"
 #    needs: [build-migrator, infra-uat]
-    needs: [build-migrator]
-    uses: ./.github/workflows/deploy-plan-apply.yml
-    with:
-      working_directory: terraform/app/migrator/uat
-      environment_name: migrator-uat-approval
-    secrets: inherit
-
-  # ---------------------------------------------------------------------
-  # CD: App phases - consumer -> api -> frontend, each blue rollout
-  # ---------------------------------------------------------------------
-  deploy-consumer-uat:
-    name: "CD: Consumer UAT"
-    needs: deploy-migrator-uat
-    uses: ./.github/workflows/deploy-plan-apply.yml
-    with:
-      working_directory: terraform/app/consumer/uat
-      environment_name: consumer-uat-approval
-      tf_var_rollout: blue
-      tf_var_commit_sha: ${{ github.sha }}
-    secrets: inherit
-
-  deploy-api-uat:
-    name: "CD: API UAT"
-    needs: deploy-consumer-uat
-    uses: ./.github/workflows/deploy-plan-apply.yml
-    with:
-      working_directory: terraform/app/api/uat
-      environment_name: api-uat-approval
-      tf_var_rollout: blue
-      tf_var_commit_sha: ${{ github.sha }}
-    secrets: inherit
-
-  deploy-frontend-uat:
-    name: "CD: Frontend UAT"
-    needs: deploy-api-uat
-    uses: ./.github/workflows/deploy-plan-apply.yml
-    with:
-      working_directory: terraform/app/frontend/uat
-      environment_name: frontend-uat-approval
-      tf_var_rollout: blue
-      tf_var_commit_sha: ${{ github.sha }}
-    secrets: inherit
+#    uses: ./.github/workflows/deploy-plan-apply.yml
+#    with:
+#      working_directory: terraform/app/migrator/uat
+#      environment_name: migrator-uat-approval
+#    secrets: inherit
+#
+#  # ---------------------------------------------------------------------
+#  # CD: App phases - consumer -> api -> frontend, each blue rollout
+#  # ---------------------------------------------------------------------
+#  deploy-consumer-uat:
+#    name: "CD: Consumer UAT"
+#    needs: deploy-migrator-uat
+#    uses: ./.github/workflows/deploy-plan-apply.yml
+#    with:
+#      working_directory: terraform/app/consumer/uat
+#      environment_name: consumer-uat-approval
+#      tf_var_rollout: blue
+#      tf_var_commit_sha: ${{ github.sha }}
+#    secrets: inherit
+#
+#  deploy-api-uat:
+#    name: "CD: API UAT"
+#    needs: deploy-consumer-uat
+#    uses: ./.github/workflows/deploy-plan-apply.yml
+#    with:
+#      working_directory: terraform/app/api/uat
+#      environment_name: api-uat-approval
+#      tf_var_rollout: blue
+#      tf_var_commit_sha: ${{ github.sha }}
+#    secrets: inherit
+#
+#  deploy-frontend-uat:
+#    name: "CD: Frontend UAT"
+#    needs: deploy-api-uat
+#    uses: ./.github/workflows/deploy-plan-apply.yml
+#    with:
+#      working_directory: terraform/app/frontend/uat
+#      environment_name: frontend-uat-approval
+#      tf_var_rollout: blue
+#      tf_var_commit_sha: ${{ github.sha }}
+#    secrets: inherit

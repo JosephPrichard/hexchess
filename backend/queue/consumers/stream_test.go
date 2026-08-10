@@ -2,6 +2,7 @@ package consumers
 
 import (
 	"context"
+	"hexchess-svc/cache"
 	"hexchess-svc/chess"
 	"hexchess-svc/database/query"
 	"hexchess-svc/pb"
@@ -28,7 +29,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	consumerCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
+	testinfra := itest.SetupIntegrationTest(t)
 	defer testinfra.Close()
 
 	worker := NewFinishedGameWorker(testinfra.Database, testinfra.Redis, &producers.NoopRiverClient{}, pubsub.NewSyncBroadcaster(testinfra.Redis))
@@ -73,8 +74,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	}
 	assertBroadcasts := pubsub.ExpectBroadcastGames(t, testinfra.Redis, newGameID, wantGameOutputs)
 
-	publisher := producers.NewStreamProducer(testinfra.Redis)
-	err := publisher.ProduceFinishGame(ctx, testinfra.Redis.PrimaryClient, finishedGame)
+	err := producers.ProduceFinishGame(ctx, testinfra.Redis.PrimaryClient, finishedGame)
 	require.NoError(t, err)
 
 	consumer := StreamConsumer{
@@ -89,8 +89,8 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		pollCount:     1,
 		maxEvents:     1,
 		blockDuration: time.Millisecond,
-		streamKey:     testinfra.Redis.FinishGameStreamKey,
-		consumerGroup: testinfra.Redis.FinishGameConsumerGroup,
+		streamKey:     cache.Contants.FinishGameStreamKey,
+		consumerGroup: cache.Contants.FinishGameConsumerGroup,
 		partitionKeys: []string{string(partitionID)},
 	}
 
@@ -117,7 +117,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	consumerCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
+	testinfra := itest.SetupIntegrationTest(t)
 	defer testinfra.Close()
 
 	worker := NewUpdtGameMetadataWorker(testinfra.Database, &entropy.StableSource{CurrTime: itest.TimeNow}, pubsub.NewSyncBroadcaster(testinfra.Redis))
@@ -135,8 +135,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 		FirstColor:  model.Random,
 	}
 
-	publisher := producers.NewStreamProducer(testinfra.Redis)
-	err := publisher.ProduceUpdtGameMetadata(ctx, testinfra.Redis.PrimaryClient, updtGame)
+	err := producers.ProduceUpdtGameMetadata(ctx, testinfra.Redis.PrimaryClient, updtGame)
 	require.NoError(t, err)
 
 	consumer := StreamConsumer{
@@ -151,8 +150,8 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 		pollCount:     1,
 		maxEvents:     1,
 		blockDuration: time.Millisecond,
-		streamKey:     testinfra.Redis.UpdtGameMetaStreamKey,
-		consumerGroup: testinfra.Redis.UpdtGameMetaConsumerGroup,
+		streamKey:     cache.Contants.UpdtGameMetaStreamKey,
+		consumerGroup: cache.Contants.UpdtGameMetaConsumerGroup,
 		partitionKeys: []string{string(partitionID)},
 	}
 	consumer.ConsumePartition(string(partitionID))

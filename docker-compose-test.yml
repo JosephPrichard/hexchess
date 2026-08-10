@@ -1,0 +1,27 @@
+version: "3.9"
+
+services:
+  test-redis:
+    container_name: test-redis
+    image: redis:7.2.0
+    ports:
+      - "20121:6379"
+
+  test-localstack:
+    container_name: test-localstack
+    image: localstack/localstack:3.0
+    ports:
+      - "30121:4566"
+    environment:
+      SERVICES: "s3"
+      DEBUG: "0"
+
+  test-postgres:
+    container_name: test-postgres
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "40121:5432"

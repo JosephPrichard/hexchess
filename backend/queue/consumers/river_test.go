@@ -20,7 +20,7 @@ var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(query.TournamentMatch{}, "
 func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	ctx := t.Context()
 
-	testinfra := itest.SetupIntegrationTest(t, itest.RWPostgres, itest.Redis)
+	testinfra := itest.SetupIntegrationTest(t)
 	defer testinfra.Close()
 
 	worker := NewAdvanceTournamentWorker(

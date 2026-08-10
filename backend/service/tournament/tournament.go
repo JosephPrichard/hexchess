@@ -117,7 +117,7 @@ func (services *TournamentService) getParticipantsRank(ctx context.Context, part
 
 	var getExecs []getExec
 	for _, participant := range participants {
-		modeLbZSet := services.redis.FmtLeaderboardZSet(mode.String())
+		modeLbZSet := cache.FmtLeaderboardZSet(mode.String())
 		getExecs = append(getExecs, getExec{
 			userID: participant.ID,
 			cmd:    pipeline.ZRevRank(ctx, modeLbZSet, strconv.Itoa(int(participant.ID))),

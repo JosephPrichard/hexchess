@@ -81,7 +81,7 @@ func TestHandleRegister(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, nil, itest.RWPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil)
 			defer testinfra.Close()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/register", asJSONReader(tt.body))
@@ -117,7 +117,7 @@ func TestHandleLogin(t *testing.T) {
 		},
 		{
 			name:        "ValidLogin",
-			body:        LoginBody{Username: user.Username, Password: user.Password},
+			body:        LoginBody{Username: user.Username, Password: "password1"},
 			wantSuccess: SessionView{Username: user.Username, Country: "us"},
 			wantStatus:  http.StatusOK,
 		},
@@ -125,7 +125,7 @@ func TestHandleLogin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, nil, itest.RWPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil)
 			defer testinfra.Close()
 
 			r := httptest.NewRequest(http.MethodPost, "/api/login", asJSONReader(tt.body))
@@ -198,7 +198,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 				Remote:  tt.setupMocks(ctrl),
 			}
 
-			h, testinfra := setupTestHandler(t, mocks, itest.RWPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, mocks)
 			defer testinfra.Close()
 
 			for range tt.runCount {
@@ -277,7 +277,7 @@ func TestHandleUpdateUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, nil, itest.RWPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil)
 			defer testinfra.Close()
 
 			createTestSessions(t, testinfra.Redis)
@@ -339,7 +339,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, nil, itest.RWPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil)
 			defer testinfra.Close()
 
 			createTestSessions(t, testinfra.Redis)
@@ -422,7 +422,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, nil, itest.RWPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil)
 			defer testinfra.Close()
 
 			createTestSessions(t, testinfra.Redis)
@@ -474,7 +474,7 @@ func TestHandleCreateGame(t *testing.T) {
 				Entropy: &entropy.StableSource{CurrTime: itest.TimeNow},
 			}
 
-			h, testinfra := setupTestHandler(t, setup, itest.RWPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, setup)
 			defer testinfra.Close()
 
 			createTestSessions(t, testinfra.Redis)
@@ -556,7 +556,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 			mocks := &serviceMocks{
 				Entropy: &entropy.StableSource{CurrTime: itest.TimeNow},
 			}
-			h, testinfra := setupTestHandler(t, mocks, itest.RWPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, mocks)
 			defer testinfra.Close()
 
 			createTestSessions(t, testinfra.Redis)
@@ -617,7 +617,7 @@ func TestHandleSearchPlayers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, nil, itest.ROPostgres)
+			h, testinfra := setupTestHandler(t, nil)
 			defer testinfra.Close()
 
 			q := url.Values{}
@@ -688,7 +688,7 @@ func TestGetLeaderboard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, nil, itest.ROPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil)
 			defer testinfra.Close()
 
 			createLeaderboard(t, testinfra.Redis, updtLbChangeSet{Mode: model.ModeTimed1Plus0, ID: 1, EloDiff: 1000})
@@ -757,7 +757,7 @@ func TestGetPersona(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, nil, itest.ROPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil)
 			defer testinfra.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players?id=%s", tt.id), nil)
@@ -814,7 +814,7 @@ func TestGetChallenges(t *testing.T) {
 			mocks := &serviceMocks{
 				Entropy: &entropy.StableSource{CurrTime: itest.TimeNow},
 			}
-			h, testinfra := setupTestHandler(t, mocks, itest.ROPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, mocks)
 			defer testinfra.Close()
 
 			createTestSessions(t, testinfra.Redis)
@@ -1020,7 +1020,7 @@ func TestHandleSearchReplays(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, nil, itest.ROPostgres)
+			h, testinfra := setupTestHandler(t, nil)
 			defer testinfra.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replays?%s", tt.params), nil)
@@ -1062,7 +1062,7 @@ func TestHandleGetReplay(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, nil, itest.ROPostgres)
+			h, testinfra := setupTestHandler(t, nil)
 			defer testinfra.Close()
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay?id=%s", tt.userID), nil)
@@ -1127,7 +1127,7 @@ func TestHandleGetGameMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, nil, itest.ROPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil)
 			defer testinfra.Close()
 
 			createTestSessions(t, testinfra.Redis)
@@ -1145,7 +1145,7 @@ func TestHandleGetGameMetadata(t *testing.T) {
 }
 
 func TestHandleGetMoveReplay(t *testing.T) {
-	h, testinfra := setupTestHandler(t, nil, itest.RWPostgres)
+	h, testinfra := setupTestHandler(t, nil)
 	defer testinfra.Close()
 
 	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/replay/move-list?replayId=%d", 1), nil)
@@ -1217,7 +1217,7 @@ func TestGetTournament(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, nil, itest.ROPostgres, itest.Redis)
+			h, testinfra := setupTestHandler(t, nil)
 			defer testinfra.Close()
 
 			for _, change := range itest.TournamentLbdChangeSets {
@@ -1288,7 +1288,7 @@ func TestGetTournaments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, nil, itest.ROPostgres)
+			h, testinfra := setupTestHandler(t, nil)
 			defer testinfra.Close()
 
 			q := url.Values{}
