@@ -18,14 +18,8 @@ coverage_*.out
 
 backend/app.log
 backend/.env
-*pb.go
-backend/database/query
-backend/database/mutator
 
-frontend/src/lib/pb/*
 frontend/build
-
-*_mock.go
 
 */.svelte-kit
 */node_modules

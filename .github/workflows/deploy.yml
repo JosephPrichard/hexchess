@@ -39,7 +39,6 @@ jobs:
 
       - name: Install dependencies
         run: |
-          fish ./scripts/install-backend-build.fish
           fish ./scripts/install-backend-test.fish
           fish ./scripts/install-backend-check.fish
 
